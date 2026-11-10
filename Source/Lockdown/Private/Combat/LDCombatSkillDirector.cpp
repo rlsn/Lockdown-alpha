@@ -17,8 +17,8 @@ namespace LDCombatSkillDetail
 {
     double Cm(const FLDDemoRational& Value) { return double(Value.Numerator) / double(Value.Denominator); }
     int64 Share(int64 Value, int64 Bp) { return Value / 10000 * Bp + Value % 10000 * Bp / 10000; }
-    const FLDDemoEffectDefinition* Op(const FLDDemoRankDefinition& Rank, ELDDemoEffectOp Kind)
-    { return Rank.Effects.FindByPredicate([Kind](const auto& Effect) { return Effect.GetOp() == Kind; }); }
+    const FLDDemoEffectDefinition* Op(const FLDDemoAbilityValues& Values, ELDDemoEffectOp Kind)
+    { return Values.Effects.FindByPredicate([Kind](const auto& Effect) { return Effect.GetOp() == Kind; }); }
 
     struct FSpan
     {
@@ -64,30 +64,23 @@ void ALDCombatDirector::CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch
     ContactMotion.Add({MoveTemp(Batch), Body ? Body->DashContact : nullptr});
 }
 
-bool ALDCombatDirector::CancelSkillPosture(FLDBodyCombatState& Body, bool bCancelCower, int64 NowMs, FString& Error, bool bCancelChannel)
+void ALDCombatDirector::CancelChannel(FLDBodyCombatState& Body)
 {
-    bool Changed=bCancelChannel && Body.ChannelEffectId.IsValid();
-    if (bCancelChannel) { Body.ChannelEffectId.Invalidate(); Body.ChannelDirectSequence=0; }
-    if (bCancelCower && Body.CowerUntilMs > 0)
-    {
-        Changed=true;
-        Body.CowerUntilMs=0;
-        Body.CowerReductionBp=Body.CowerMoveBp=0;
-        Body.CowerEffectId.Invalidate();
-    }
-    if (!Changed) { return true; }
+    if (!Body.ChannelEffectId.IsValid()) { return; }
+    // The channel record itself ends at the next advance (AdvanceSkillContent no longer finds its owner).
+    Body.ChannelEffectId.Invalidate();
+    Body.ChannelDirectSequence=0;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
-    return RefreshTemporary(Body, ActorOf(Body), NowMs, Error);
 }
 
-bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank,
+bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values,
     const FLDDemoTargetDefinition& Target, const FLDCombatAction& Action, FLDCombatHit& Payload,
     int64 NowMs, bool& bHandled, FString& Error)
 {
     using namespace LDCombatSkillDetail;
     bHandled=false;
-    if (const auto* Cone=Op(Rank, ELDDemoEffectOp::ChannelCone))
+    if (const auto* Cone=Op(Values, ELDDemoEffectOp::ChannelCone))
     {
         FLDCombatChannel Channel;
         Channel.Payload=Payload;
@@ -107,8 +100,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDDe
         bHandled=true;
         return true;
     }
-    const auto* Impact=Op(Rank, ELDDemoEffectOp::GroundImpact);
-    const auto* Trap=Op(Rank, ELDDemoEffectOp::ContactTrap);
+    const auto* Impact=Op(Values, ELDDemoEffectOp::GroundImpact);
+    const auto* Trap=Op(Values, ELDDemoEffectOp::ContactTrap);
     if (Impact || Trap)
     {
         const auto& Shape=Impact ? *Impact : *Trap;
@@ -136,7 +129,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDDe
         bHandled=true;
         return true;
     }
-    if (const auto* Contact=Op(Rank, ELDDemoEffectOp::DashContact))
+    if (const auto* Contact=Op(Values, ELDDemoEffectOp::DashContact))
     {
         if (!Body.DashContact || Body.DashContact->EffectId != Payload.EffectId)
         { Error=TEXT("A contact skill has no matching released dash."); return false; }
@@ -297,9 +290,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         if (!Body || Body->bPendingDeath || Dash.Struck.Contains(Contact.Target)) { continue; }
         Dash.Struck.Add(Contact.Target);
         const bool bNativeHit=Dash.NativeHit.IsSet() && Dash.NativeHitsRemaining>0;
-        if ((bNativeHit || Dash.bCanDamage) && Body->CowerUntilMs>NowMs
-            && !CancelSkillPosture(*Body,true,NowMs,Error,false)) { return false; }
-        if (Dash.NativeHit.IsSet() && Dash.NativeHitsRemaining > 0)
+        if (bNativeHit)
         {
             auto Hit=Dash.NativeHit.GetValue();
             Hit.HitId=FGuid::NewGuid();
@@ -371,72 +362,5 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
             }
         }
     }
-    if (Dash.bCanGuard && !Dash.bGuarded)
-    {
-        if (const auto* Guard=FindTrigger(Body.AttributeProjection, ELDDemoEffectOp::DashContactGuard))
-        {
-            if (!LDMatchLifecycle::AddDurationMs(NowMs, Guard->DurationMs, Body.ContactGuardUntilMs, Error)) { return false; }
-            Body.ContactGuardBp=Guard->RatioBp;
-            Dash.bGuarded=true;
-            if (Guard->bCleanseSlow) { Body.Slows.Reset(); }
-            ++Body.StateRevision;
-            MarkViewChanged(Body.Victim.EntityId);
-            if (!RefreshTemporary(Body, ActorOf(Body), NowMs, Error)) { return false; }
-        }
-    }
-    return true;
-}
-
-bool ALDCombatDirector::ApplySkillPassives(FLDBodyCombatState& Source, const FLDCombatHit& Hit,
-    const FLDDamageEvaluation& Damage, int64 NowMs, FString& Error)
-{
-    using namespace LDCombatSkillDetail;
-    if (!Hit.bDirectAbilityDamage || !Hit.CastLedger || Hit.bAddedDamage || Hit.bReflect
-        || Hit.bBurnTick || Hit.Source.Kind != ELDCombatSourceKind::Learned || Damage.DamageP2 <= 0) { return true; }
-    if (const auto* Sustain=FindTrigger(Source.AttributeProjection, ELDDemoEffectOp::SpellSustain))
-    {
-        const int64 Allowance=FMath::Max<int64>(0, Sustain->BaseP2-Hit.CastLedger->HealSpentP2);
-        const int64 Offered=FMath::Min(Share(Damage.HPLostP2, Sustain->RatioBp), Allowance);
-        const int64 Healed=FMath::Min(Offered, Source.Resources.MaxHpP2-Source.Resources.HpP2);
-        const int64 Mana=FMath::Min(Share(Offered-Healed, Sustain->SecondaryRatioBp),
-            FMath::Max<int64>(0, Sustain->LimitP2-Hit.CastLedger->ManaReturnedP2));
-        Hit.CastLedger->HealSpentP2+=Offered;
-        Hit.CastLedger->ManaReturnedP2+=Mana;
-        HealBody(Source, Healed);
-        GrantMana(Source, Mana);
-    }
-    const auto* Chain=FindTrigger(Source.AttributeProjection, ELDDemoEffectOp::ArgumentChain);
-    if (!Chain) { return true; }
-    if (Hit.CastLedger->ArgumentTargets.Contains(Hit.Target)) { return true; }
-    Hit.CastLedger->ArgumentTargets.Add(Hit.Target);
-    Source.ArgumentMarks.RemoveAll([NowMs,Chain](const auto& Mark) { return NowMs-Mark.AtMs >= Chain->DurationMs; });
-    auto* Previous=Source.ArgumentMarks.FindByPredicate([&Hit](const auto& Mark) { return Mark.Target == Hit.Target; });
-    if (Previous && Previous->EffectId == Hit.EffectId) { return true; }
-    if (Previous && Previous->Ability != Hit.Source.DefinitionId && NowMs >= Source.ArgumentReadyAtMs)
-    {
-        if (!LDMatchLifecycle::AddDurationMs(NowMs, Chain->IntervalMs, Source.ArgumentReadyAtMs, Error)) { return false; }
-        FLDCombatSourceRef ChainSource;
-        FindTrigger(Source.AttributeProjection, ELDDemoEffectOp::ArgumentChain, &ChainSource);
-        FLDCombatHit Bonus;
-        Bonus.HitId=FGuid::NewGuid();
-        Bonus.EffectId=FGuid::NewGuid();
-        Bonus.SourceBody=Hit.SourceBody;
-        Bonus.SourceEntity=Bonus.CreditOwner=Source.Victim.EntityId;
-        Bonus.Source=ChainSource;
-        Bonus.Target=Hit.Target;
-        Bonus.HitClass=ELDCombatHitClass::Ability;
-        Bonus.BaseP2=Chain->BaseP2;
-        Bonus.ADRatioBp=Chain->ADRatioBp;
-        Bonus.APRatioBp=Chain->APRatioBp;
-        Bonus.SourceADP2=Source.AttributeProjection.Final.ADP2;
-        Bonus.SourceAPP2=Source.AttributeProjection.Final.APP2;
-        Bonus.DamageType=Chain->DamageType;
-        Bonus.BreachStacks=Chain->Count;
-        Bonus.bAddedDamage=true;
-        if (!StampSourceTerms(Source, Bonus, Error)) { return false; }
-        PendingHits.Add(MoveTemp(Bonus));
-    }
-    if (!Previous) { Previous=&Source.ArgumentMarks.AddDefaulted_GetRef(); }
-    *Previous={Hit.Target, Hit.Source.DefinitionId, Hit.EffectId, NowMs};
     return true;
 }

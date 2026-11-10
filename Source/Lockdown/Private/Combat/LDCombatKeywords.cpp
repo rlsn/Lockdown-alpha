@@ -140,35 +140,9 @@ namespace LDCombatKeywords
         return true;
     }
 
-    void PierceContacts(const FVector& From, const FVector& To, double FlightRadiusCm, const FGuid& SourceEntity,
-        const TArray<FLDCombatBodyRef>& Struck, const TArray<FLDFlightCandidate>& Candidates, TArray<int32>& OutIndices)
-    {
-        OutIndices.Reset();
-        TArray<TPair<double,int32>> Entered;
-        for (int32 Index = 0; Index < Candidates.Num(); ++Index)
-        {
-            const FLDFlightCandidate& Candidate = Candidates[Index];
-            double Entry = 0;
-            if (Candidate.Body.Victim.EntityId == SourceEntity || Struck.Contains(Candidate.Body)
-                || !SegmentEntry(From, To, Candidate.FootCm, FlightRadiusCm + Candidate.RadiusCm, Entry))
-            {
-                continue;
-            }
-            Entered.Add({Entry, Index});
-        }
-        Entered.StableSort([](const TPair<double,int32>& Left, const TPair<double,int32>& Right) { return Left.Key < Right.Key; });
-        for (const TPair<double,int32>& Row : Entered) { OutIndices.Add(Row.Value); }
-    }
-
     int64 CapLifestealBp(int64 SumBp, const FLDKeywordTerms& Terms)
     {
         return FMath::Clamp<int64>(SumBp, 0, FMath::Max<int64>(Terms.LifestealCapBp, 0));
-    }
-
-    bool KnockbackHitWall(const FVector& StartFootCm, const FVector& EndFootCm, double ThresholdCm)
-    {
-        if (StartFootCm.ContainsNaN() || EndFootCm.ContainsNaN() || !FMath::IsFinite(ThresholdCm) || ThresholdCm <= 0) { return false; }
-        return FVector::Dist2D(StartFootCm, EndFootCm) < ThresholdCm;
     }
 
     int64 ShieldBurstShareP2(int64 GrantedP2, int64 RatioBp, bool bNearbyEnemy)

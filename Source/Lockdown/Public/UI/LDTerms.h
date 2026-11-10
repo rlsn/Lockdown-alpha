@@ -85,14 +85,36 @@ inline constexpr TCHAR RespawnWait[]=TEXT("回出租屋 emo");
 inline FString DeathNote(){return TEXT("等级和构筑都还在，别慌");}
 inline constexpr TCHAR ProtectionRule[]=TEXT("一出手就没了，失手也没了");
 inline constexpr TCHAR OutOfCombatRegen[]=TEXT("脱战回复中");
+// 成长面板的入口按钮（#198：主动三选一、待学图纸与五维加点，APP_SPEC §4.2）。
 inline constexpr TCHAR Choice[]=TEXT("开盲盒");
 inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%d"),Level);}
-inline FString ChoicesEarned(int64 Count){return Count>1?FString::Printf(TEXT("获得 %lld 次%s机会"),Count,Choice):FString::Printf(TEXT("获得一次%s机会"),Choice);}
-// 开局方向卡（#153）：卡面只写方向与三项属性，技能选了才揭晓；只出现一次，不能重抽。
-inline constexpr TCHAR OpeningCardKind[]=TEXT("开局方向");
-inline constexpr TCHAR OpeningHiddenActive[]=TEXT("？随机主动（选了才揭晓）");
-inline constexpr TCHAR OpeningNoReroll[]=TEXT("开局方向卡不能重抽");
-inline FString OpeningRevealed(const FString& Active){return FString::Printf(TEXT("开出了：%s！"),*Active);}
+inline constexpr TCHAR Blueprint[]=TEXT("图纸");
+inline constexpr TCHAR StatPoints[]=TEXT("属性点");
+inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
+// 升级横幅的第二行：这次升级得到的属性点与主动机会。
+inline FString LevelUpGains(int64 Points,int32 Offers)
+{
+    TArray<FString> Parts;
+    if(Points>0){Parts.Add(FString::Printf(TEXT("%lld %s"),Points,StatPoints));}
+    if(Offers>0){Parts.Add(OfferChance(Offers));}
+    return Parts.IsEmpty()?FString():TEXT("获得 ")+FString::Join(Parts,TEXT(" · "));
+}
+inline FString OffersQueued(int32 Count){return FString::Printf(TEXT("还有 %d 次选技能"),Count);}
+inline constexpr TCHAR OfferWaitingEligible[]=TEXT("暂时没有能抽的新技能，机会先留着");
+inline constexpr TCHAR LearnThis[]=TEXT("学这个");
+inline FString LearnInto(const FString& Key){return FString(TEXT("学到 "))+Key;}
+inline FString LearnedInto(const FString& Name,const FString& Key){return FString::Printf(TEXT("已学到 %s：%s"),*Key,*Name);}
+inline FString StoredAsBlueprint(const FString& Name,const FString& Why)
+{return Why.IsEmpty()?FString::Printf(TEXT("已存为%s：%s"),Blueprint,*Name):FString::Printf(TEXT("已存为%s：%s（%s）"),Blueprint,*Name,*Why);}
+// 不能学习或加点的原因（构筑安全窗见 APP_SPEC §4.2）。
+inline constexpr TCHAR NotSafe[]=TEXT("未脱战");
+inline FString NotSafeFor(const FString& Seconds){return FString::Printf(TEXT("未脱战 %s 秒"),*Seconds);}
+inline constexpr TCHAR DeadNoLearn[]=TEXT("阵亡中");
+inline constexpr TCHAR SlotsFull[]=TEXT("Q/W/E 已满");
+inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
+inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
+inline constexpr TCHAR ConfirmPoints[]=TEXT("确认加点");
+inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("已加 %lld 点，还剩 %lld 点"),Spent,Left);}
 
 // 阶段与旗杆（喷漆守护终局）
 // 开局倒计时（#153）：屏幕中央倒数“5、4、3、2、1、开淫！”；倒计时内可以移动和选技能，攻击被拒绝。
@@ -135,7 +157,7 @@ inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
 inline constexpr TCHAR ResultAssists[]=TEXT("助攻");
 
-// 卡面关键词（#147，v7 §4.1）：全局 13 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
+// 卡面关键词（#147，#198 删去横扫，见内容与数值 §4.5）：全局 12 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
 struct FCardKeyword { const TCHAR* Name; const TCHAR* Explain; };
 inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("减速"),TEXT("移速降低一定比例；同时有多个减速时只取最强的。减速不是控制")},
@@ -150,6 +172,5 @@ inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("灼烧"),TEXT("每层每秒造成魔法伤害，最多 5 层；新的一层刷新整组时间")},
     {TEXT("护盾"),TEXT("先于生命承受伤害，到期消失；身上只有一份，新的不弱于剩余量才替换")},
     {TEXT("吸血"),TEXT("按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35%")},
-    {TEXT("横扫"),TEXT("普攻同时对主目标身边的其他敌人造成部分伤害")},
 };
 }

@@ -58,28 +58,19 @@ FString AttrPanelLines(const TArray<FString>& Lines)
 {
     return Lines.IsEmpty()?FString(AttrPanelEmpty):FString::Join(Lines,TEXT("\n"));
 }
-// Learned passives from the growth projection, each with only its learned rank's effects.
-FString AttrPanelLearned(const FLDCombatOwnerView* Combat,const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Definitions)
+// #198: the points allocated to each catalog stat with its per-point bonuses, then the points still unallocated; the
+// attribute rows above show what they add as their 属性点 term.
+FString AttrPanelStatPoints(const FLDCombatOwnerView* Combat,const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Definitions)
 {
     // A progression of another match generation than the current combat projection is stale, not empty.
-    if(!Progression||!Progression->bValid||(Combat&&Progression->Generation!=Combat->Generation)){return AttrPanelSyncing;}
+    if(!Progression||!Progression->bValid||(Combat&&Progression->Generation!=Combat->Generation)||!Definitions){return AttrPanelSyncing;}
     TArray<FString> Lines;
-    for(const FLDLearnedSkillView& Skill:Progression->Skills)
+    for(const FLDDemoStatDefinition& Stat:Definitions->Stats)
     {
-        if(Skill.bActive){continue;}
-        const FString Id=Skill.DefinitionId.ToString();
-        Lines.Add(LDHUD::ContentName(Definitions,Id)+TEXT("（")+LDHUD::SkillRankName(Skill.Rank)+TEXT("）"));
-        const FLDDemoAbilityDefinition* Ability=Definitions?Definitions->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
-        if(!Ability){if(Definitions){Lines.Add(TEXT("  内容目录中找不到该技能"));}continue;}
-        const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Skill](const FLDDemoRankDefinition& R){return R.Rank==int32(Skill.Rank);});
-        const FLDDemoDisplayDefinition* Display=Definitions->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
-        if(!Rank||!Display){Lines.Add(FString::Printf(TEXT("  缺少 %d 级定义"),int32(Skill.Rank)));continue;}
-        // #147: the passive's card sentence with this level's numbers and, once advanced, the change that rank adds.
-        const LDHUD::FCardStats Stats=LDHUD::CardStatsOf(Progression->Level,Combat?Combat->Attributes:TArray<FLDCombatAttributeRowView>());
-        for(const FString& Line:LDHUD::LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Skill.Rank,Stats,
-            Definitions->Parameters.SkillGrowthPerLevelBp,Definitions->Parameters.SkillGrowthPerLevelAfter10Bp))
-        {Lines.Add(TEXT("  ")+Line);}
+        const LDHUD::FStatRowView Row=LDHUD::StatRow(Stat,LDHUD::StatPointsOf(*Progression,FName(*Stat.Id)),Definitions);
+        Lines.Add(FString::Printf(TEXT("%s %d 点 · %s"),*Row.Name,Row.Points,*Row.PerPoint));
     }
+    Lines.Add(LDTerms::UnspentPoints(FMath::Max<int64>(0,Progression->UnspentPoints)));
     return AttrPanelLines(Lines);
 }
 FString AttrPanelStatuses(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Definitions)
@@ -146,7 +137,7 @@ TSharedRef<SWidget> ULDAttributesPanel::RebuildWidget()
             Body->AddChildToVerticalBox(MakeCard(Section));
             return Section;
         };
-        LearnedPassiveText=AddSection(TEXT("角色被动"));
+        StatPointsText=AddSection(LDTerms::StatPoints);
         StatusText=AddSection(TEXT("临时状态"));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
         auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetMaxDesiredHeight(620);HeightBox->SetContent(Scroll);
@@ -193,6 +184,6 @@ void ULDAttributesPanel::Present(const FLDCombatOwnerView* Combat,const FLDProgr
         AttrPanelText(RowBreakdowns[RowIndex].Get(),Shown.Breakdown);
         AttrPanelShow(RowBreakdowns[RowIndex].Get(),!Shown.Breakdown.IsEmpty());
     }
-    AttrPanelText(LearnedPassiveText,AttrPanelLearned(Combat,Progression,Definitions));
+    AttrPanelText(StatPointsText,AttrPanelStatPoints(Combat,Progression,Definitions));
     AttrPanelText(StatusText,AttrPanelStatuses(Combat,bClock,NowMs,Definitions));
 }

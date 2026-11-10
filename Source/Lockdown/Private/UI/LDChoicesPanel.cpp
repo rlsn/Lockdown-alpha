@@ -26,39 +26,29 @@
 
 namespace
 {
-const FLinearColor ChoicesIdle(.045f,.12f,.15f),ChoicesSelected(.26f,.2f,.05f);
-// Compact card geometry (1080p reference units): every card has a name, the short summary and the full rule sentence
-// (#147, wrapped, never cut), so the row takes the tallest card's height and never scrolls; larger text preferences grow
-// all cards alike.
-constexpr float ChoicesPanelScale=.8f;
-constexpr float ChoicesCardWidth=250.f,ChoicesCardHeight=64.f,ChoicesIconSize=44.f,ChoicesDetailWidth=300.f;
-void ChoicesTint(ULDCommandButton* Button,const FLinearColor& Color)
+const FLinearColor GrowthCardIdle(.045f,.12f,.15f);
+// Compact card geometry (1080p reference units): every card has a name, the targeting/cost line, the full rule sentence
+// (#147, wrapped, never cut) and its action line, so the row takes the tallest card's height and never scrolls; larger
+// text preferences grow all cards alike.
+constexpr float GrowthPanelScale=.8f;
+constexpr float GrowthCardWidth=250.f,GrowthCardHeight=64.f,GrowthIconSize=44.f,GrowthDetailWidth=300.f,GrowthIconRadius=7.f;
+constexpr float GrowthPanelWidth=3*GrowthCardWidth+16.f;
+void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
     auto Style=Button->GetStyle();Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
 }
-void ChoicesText(UTextBlock* Text,const FString& Value)
+void GrowthText(UTextBlock* Text,const FString& Value)
 {
     if(Text&&!Text->GetText().ToString().Equals(Value,ESearchCase::CaseSensitive)){Text->SetText(FText::FromString(Value));}
 }
-constexpr float ChoicesIconRadius=7.f;
-// The square behind a card's first character, shown only while its icon texture is missing (#85: the icons no longer
-// differ by shape; the summary line names the card type), and the reroll card's slate circle.
-void ChoicesPlaceholder(USizeBox* Size,UBorder* Shape,bool bRound,const FLinearColor& Fill)
+void GrowthShown(UWidget* Widget,bool bShown,ESlateVisibility Visible=ESlateVisibility::SelfHitTestInvisible)
 {
-    Size->SetWidthOverride(ChoicesIconSize);Size->SetHeightOverride(ChoicesIconSize);
-    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,bRound?ChoicesIconSize*.5f:ChoicesIconRadius,FLinearColor(1,1,1,.55f),1.5f));
-    Shape->SetBrushColor(Fill);
+    const ESlateVisibility Wanted=bShown?Visible:ESlateVisibility::Collapsed;
+    if(Widget&&Widget->GetVisibility()!=Wanted){Widget->SetVisibility(Wanted);}
 }
-FLinearColor AttributeQualityColor(ELDAttributeQuality Quality)
+void GrowthEnabled(UWidget* Widget,bool bEnabled)
 {
-    switch(Quality)
-    {
-    case ELDAttributeQuality::Green:return FLinearColor(.12f,.62f,.22f);
-    case ELDAttributeQuality::Blue:return FLinearColor(.12f,.38f,.84f);
-    case ELDAttributeQuality::Purple:return FLinearColor(.58f,.18f,.82f);
-    case ELDAttributeQuality::Gold:return FLinearColor(.90f,.62f,.08f);
-    default:return LDHUDStyle::TextPrimary;
-    }
+    if(Widget&&Widget->GetIsEnabled()!=bEnabled){Widget->SetIsEnabled(bEnabled);}
 }
 }
 
@@ -68,78 +58,96 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
     {
         auto Text=[this](const FString& Value,int32 Size){return LDWidgets::Text(WidgetTree,Value,Size);};
         auto OneLine=[&Text](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);return Line;};
+        auto Wrapped=[&Text](int32 Size,float Width){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetWrapTextAt(Width);return Line;};
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
-        // No header and no close button: the HUD's blind-box button shows the pending count and toggles the panel, and Back
-        // closes it like every main panel. #97: the three compact cards sit side by side in one low row next to that
-        // button, with the free reroll as a fourth card; a click on a card is the choice, with no separate confirm button.
-        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Root->AddChildToVerticalBox(Row);
-        for(int32 Index=0;Index<4;++Index)
+        // No close button: the HUD's 开盲盒 button toggles the panel and Back closes it like every main panel.
         {
-            const bool bReroll=Index==3;
-            FCardWidgets& Card=bReroll?RerollCard:Cards.AddDefaulted_GetRef();
-            auto* Face=WidgetTree->ConstructWidget<UHorizontalBox>();
-            auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();
-            Card.IconShape=WidgetTree->ConstructWidget<UBorder>();Card.IconShape->SetVisibility(ESlateVisibility::HitTestInvisible);
-            Card.IconSize=WidgetTree->ConstructWidget<USizeBox>();Card.IconSize->SetContent(Card.IconShape);
-            auto* ShapeSlot=IconBox->AddChildToOverlay(Card.IconSize);ShapeSlot->SetHorizontalAlignment(HAlign_Center);ShapeSlot->SetVerticalAlignment(VAlign_Center);
-            ChoicesPlaceholder(Card.IconSize,Card.IconShape,bReroll,bReroll?FLinearColor(.20f,.26f,.32f):FLinearColor(.12f,.13f,.15f));
-            Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);
-            auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
-            Card.Glyph=Text(TEXT(""),18);Card.Glyph->SetAutoWrapText(false);Card.Glyph->SetJustification(ETextJustify::Center);
-            auto* GlyphSlot=IconBox->AddChildToOverlay(Card.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
-            auto* IconFrame=WidgetTree->ConstructWidget<USizeBox>();IconFrame->SetWidthOverride(ChoicesIconSize);IconFrame->SetHeightOverride(ChoicesIconSize);IconFrame->SetContent(IconBox);
-            auto* IconSlot=Face->AddChildToHorizontalBox(IconFrame);IconSlot->SetVerticalAlignment(VAlign_Center);IconSlot->SetPadding(FMargin(0,0,10,0));
-            auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
-            Card.Name=OneLine(17);Lines->AddChildToVerticalBox(Card.Name);
-            Card.Summary=OneLine(13);Card.Summary->SetColorAndOpacity(LDHUDStyle::TextAccent);Lines->AddChildToVerticalBox(Card.Summary)->SetPadding(FMargin(0,2,0,0));
-            // User 2026-11-07: "卡上直接显示主句，悬停再看高级行和关键词解释" -- the whole sentence wraps inside the card.
-            Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*FString::Printf(TEXT("ChoiceSentence%d"),Index)));
-            Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(ChoicesCardWidth-ChoicesIconSize-40.f);
-            Card.Sentence->SetVisibility(bReroll?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
-            Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
-            auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
-            Card.Button=bReroll?LDWidgets::Button(WidgetTree,TEXT(""),[this](){Reroll();},false,TEXT("ChoicesReroll"))
-                :LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){ChooseCard(Index);},false,FName(*FString::Printf(TEXT("ChoiceCard%d"),Index)));
-            Card.Button->SetContent(Face);
-            // After SetContent: replacing the caption makes a new, centred slot, which would shrink the icon and lines to
-            // their own width in the middle of the card; they start at the card's left edge instead.
-            if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
-            auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(ChoicesCardWidth);Size->SetMinDesiredHeight(ChoicesCardHeight);Size->SetContent(Card.Button);
-            Row->AddChildToHorizontalBox(Size)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
-            CardWidgets.Add(Card.Button);CardWidgets.Add(Card.Picture);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);
-            CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);
-            CardWidgets.Add(Card.Sentence);
+            // The current active offer: up to three compact cards side by side; a click on a card is the choice.
+            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
+            OfferHeading=OneLine(16);OfferHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(OfferHeading);
+            CardRow=WidgetTree->ConstructWidget<UHorizontalBox>();Section->AddChildToVerticalBox(CardRow)->SetPadding(FMargin(0,6,0,0));
+            for(int32 Index=0;Index<3;++Index)
+            {
+                FCardWidgets& Card=Cards.AddDefaulted_GetRef();
+                auto* Face=WidgetTree->ConstructWidget<UHorizontalBox>();
+                auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();
+                Card.IconShape=WidgetTree->ConstructWidget<UBorder>();Card.IconShape->SetVisibility(ESlateVisibility::HitTestInvisible);
+                Card.IconShape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,GrowthIconRadius,FLinearColor(1,1,1,.55f),1.5f));
+                Card.IconShape->SetBrushColor(FLinearColor(.12f,.13f,.15f));
+                Card.IconSize=WidgetTree->ConstructWidget<USizeBox>();Card.IconSize->SetWidthOverride(GrowthIconSize);Card.IconSize->SetHeightOverride(GrowthIconSize);
+                Card.IconSize->SetContent(Card.IconShape);
+                auto* ShapeSlot=IconBox->AddChildToOverlay(Card.IconSize);ShapeSlot->SetHorizontalAlignment(HAlign_Center);ShapeSlot->SetVerticalAlignment(VAlign_Center);
+                Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);
+                auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
+                Card.Glyph=Text(TEXT(""),18);Card.Glyph->SetAutoWrapText(false);Card.Glyph->SetJustification(ETextJustify::Center);
+                auto* GlyphSlot=IconBox->AddChildToOverlay(Card.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+                auto* IconFrame=WidgetTree->ConstructWidget<USizeBox>();IconFrame->SetWidthOverride(GrowthIconSize);IconFrame->SetHeightOverride(GrowthIconSize);IconFrame->SetContent(IconBox);
+                auto* IconSlot=Face->AddChildToHorizontalBox(IconFrame);IconSlot->SetVerticalAlignment(VAlign_Top);IconSlot->SetPadding(FMargin(0,0,10,0));
+                auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
+                Card.Name=OneLine(17);Lines->AddChildToVerticalBox(Card.Name);
+                Card.Summary=Wrapped(12,GrowthCardWidth-GrowthIconSize-40.f);Card.Summary->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                Lines->AddChildToVerticalBox(Card.Summary)->SetPadding(FMargin(0,2,0,0));
+                // User 2026-11-07: the whole rule sentence wraps inside the card with this level's numbers.
+                Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*FString::Printf(TEXT("GrowthOfferSentence%d"),Index)));
+                Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);Card.Sentence->SetVisibility(ESlateVisibility::HitTestInvisible);
+                Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
+                Card.Action=Wrapped(13,GrowthCardWidth-GrowthIconSize-40.f);Card.Action->SetColorAndOpacity(LDHUDStyle::TextAccent);
+                Lines->AddChildToVerticalBox(Card.Action)->SetPadding(FMargin(0,4,0,0));
+                auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
+                Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){ChooseOffer(Index);},false,FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)));
+                Card.Button->SetContent(Face);GrowthTint(Card.Button,GrowthCardIdle);
+                // After SetContent: replacing the caption makes a new, centred slot, which would shrink the icon and lines to
+                // their own width in the middle of the card; they start at the card's left edge instead.
+                if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
+                auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(GrowthCardWidth);Size->SetMinDesiredHeight(GrowthCardHeight);Size->SetContent(Card.Button);
+                CardRow->AddChildToHorizontalBox(Size)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
+            }
+            CardViews.SetNum(Cards.Num());
+            OfferNote=Wrapped(13,GrowthPanelWidth);OfferNote->SetColorAndOpacity(LDHUDStyle::TextSecondary);Section->AddChildToVerticalBox(OfferNote)->SetPadding(FMargin(0,4,0,0));
+            OfferSection=Section;Root->AddChildToVerticalBox(Section);
         }
-        CardViews.SetNum(Cards.Num());
-        // The reroll card: a slate circle with a turn arrow; its lines say what it does and how many rerolls are left.
-        RerollButton=RerollCard.Button;
-        ChoicesText(RerollCard.Glyph,TEXT("↻"));ChoicesText(RerollCard.Name,TEXT("免费重抽"));
-        // Only a result or a refusal shows under the cards (no standing instructions); it collapses while empty and wraps
-        // at the row's width, so a long notice never widens the panel.
-        Feedback=Text(TEXT(""),14);Feedback->SetAutoWrapText(false);Feedback->SetWrapTextAt(4*ChoicesCardWidth+24.f);
-        Feedback->SetVisibility(ESlateVisibility::Collapsed);Root->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,8,0,0));
+        {
+            // Pending blueprints: one row each, built as needed, with a "学到 Q/W/E" button per empty slot.
+            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
+            UTextBlock* Heading=OneLine(16);Heading->SetColorAndOpacity(LDHUDStyle::TextAccent);
+            Heading->SetText(FText::FromString(FString::Printf(TEXT("%s（选中的技能，学到空槽才能用）"),LDTerms::Blueprint)));
+            Section->AddChildToVerticalBox(Heading);
+            BlueprintList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(BlueprintList)->SetPadding(FMargin(0,4,0,0));
+            BlueprintSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+        }
+        {
+            // Unspent points: one row per catalog stat (built from the first catalog seen), +/− stage locally, one confirm sends.
+            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
+            PointsHeading=OneLine(16);PointsHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(PointsHeading);
+            StatList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(StatList)->SetPadding(FMargin(0,4,0,0));
+            auto* ConfirmLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            ConfirmButton=LDWidgets::Button(WidgetTree,LDTerms::ConfirmPoints,[this](){ConfirmPoints();},false,TEXT("GrowthConfirmPoints"));
+            ConfirmLine->AddChildToHorizontalBox(ConfirmButton)->SetVerticalAlignment(VAlign_Center);
+            PointsBlocked=OneLine(13);PointsBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            auto* BlockedSlot=ConfirmLine->AddChildToHorizontalBox(PointsBlocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
+            Section->AddChildToVerticalBox(ConfirmLine)->SetPadding(FMargin(0,4,0,0));
+            PointsSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+        }
+        // Only a result or a refusal shows at the bottom (no standing instructions); it collapses while empty.
+        Feedback=Wrapped(14,GrowthPanelWidth);Feedback->SetVisibility(ESlateVisibility::Collapsed);Root->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,8,0,0));
         // A see-through backing right above the HUD's skill slots (SetBottomDock), clear of the bottom band.
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
         auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Left);Frame->SetVerticalAlignment(VAlign_Bottom);
         // #97: drawn at 80% (user: "shrink the choice list and shop panel size to 80%").
-        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::UserSpecified);Scale->SetUserSpecifiedScale(ChoicesPanelScale);
+        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::UserSpecified);Scale->SetUserSpecifiedScale(GrowthPanelScale);
         Scale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Scale->SetContent(MainPanel);
         Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
         DockFrame=Frame;SetBottomDock(BottomDock,DockLeft);
-        // The full description of the hovered or focused card pops up above that card. It sits on its own canvas layer over
-        // the whole panel, so its size never moves or squeezes the cards (which would drop the hover and flicker), and it
-        // wraps at a fixed width so it measures the same from its first frame. It takes no pointer input, so the world
-        // beside the panel stays clickable, and it only shows while a card is being read.
+        // The full description of the hovered or focused offer card pops up above that card, on its own canvas layer over the
+        // whole panel, so its size never moves or squeezes the cards; it takes no pointer input.
         auto* DetailLines=WidgetTree->ConstructWidget<UVerticalBox>();
-        auto FixedWrap=[](UTextBlock* Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(ChoicesDetailWidth-28.f);return Line;};
+        auto FixedWrap=[](UTextBlock* Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(GrowthDetailWidth-28.f);return Line;};
         DetailName=FixedWrap(Text(TEXT(""),17));DetailLines->AddChildToVerticalBox(DetailName);
         DetailSummary=FixedWrap(Text(TEXT(""),13));DetailSummary->SetColorAndOpacity(LDHUDStyle::TextAccent);DetailLines->AddChildToVerticalBox(DetailSummary)->SetPadding(FMargin(0,2,0,0));
-        // #147 card face: the rule sentence with this level's numbers, the advanced line and the keyword explanations, bold.
-        DetailBody=LDWidgets::RichText(WidgetTree,14,TEXT("ChoiceDetailBody"));DetailBody->SetAutoWrapText(false);DetailBody->SetWrapTextAt(ChoicesDetailWidth-28.f);
+        DetailBody=LDWidgets::RichText(WidgetTree,14,TEXT("GrowthDetailBody"));DetailBody->SetAutoWrapText(false);DetailBody->SetWrapTextAt(GrowthDetailWidth-28.f);
         DetailLines->AddChildToVerticalBox(DetailBody)->SetPadding(FMargin(0,8,0,0));
         Detail=LDWidgets::Panel(WidgetTree,DetailLines,FMargin(14,12));Detail->SetBrushColor(FLinearColor(.02f,.035f,.055f,.94f));
-        auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(ChoicesDetailWidth);DetailWidth->SetContent(Detail);
+        auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(GrowthDetailWidth);DetailWidth->SetContent(Detail);
         DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
         DetailLayer=WidgetTree->ConstructWidget<UCanvasPanel>();DetailLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         DetailSlot=DetailLayer->AddChildToCanvas(DetailWidth);DetailSlot->SetAutoSize(true);DetailSlot->SetAlignment(FVector2D(.5f,1));
@@ -154,18 +162,14 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
 void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
-    if(Feedback)
-    {
-        const ESlateVisibility Shown=Feedback->GetText().IsEmpty()?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible;
-        if(Feedback->GetVisibility()!=Shown){Feedback->SetVisibility(Shown);}
-    }
+    if(Feedback){GrowthShown(Feedback,!Feedback->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);}
     UpdateDetail();
 }
+void ULDChoicesPanel::SetFeedback(const FString& Text){GrowthText(Feedback,Text);}
 void ULDChoicesPanel::UpdateDetail()
 {
     if(!Detail||!DetailSlot){return;}
-    // The pointer wins over keyboard focus, which wins over a pinned preview; during the replacement child the card being
-    // learned stays explained.
+    // The pointer wins over keyboard focus, which wins over a pinned preview.
     auto Shown=[this](int32 Index){return Cards.IsValidIndex(Index)&&Cards[Index].Button->IsVisible();};
     int32 Next=INDEX_NONE;
     if(bOpen&&ShownOffer.IsValid())
@@ -173,7 +177,6 @@ void ULDChoicesPanel::UpdateDetail()
         for(int32 Index=0;Index<Cards.Num()&&Next==INDEX_NONE;++Index){if(Shown(Index)&&Cards[Index].Button->IsHovered()){Next=Index;}}
         for(int32 Index=0;Index<Cards.Num()&&Next==INDEX_NONE;++Index){if(Shown(Index)&&Cards[Index].Button->HasKeyboardFocus()){Next=Index;}}
         if(Next==INDEX_NONE&&Shown(PinnedPreview)){Next=PinnedPreview;}
-        if(Next==INDEX_NONE&&bReplacing&&Shown(Selected)){Next=Selected;}
     }
     UWidget* Popup=DetailSlot->Content;
     if(Next!=DetailCard||bDetailStale)
@@ -182,16 +185,12 @@ void ULDChoicesPanel::UpdateDetail()
         if(Popup){Popup->SetVisibility(Next==INDEX_NONE?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
         if(Next!=INDEX_NONE&&CardViews.IsValidIndex(Next))
         {
-            const LDHUD::FChoiceCardView& View=CardViews[Next];
-            ChoicesText(DetailName,View.Name);ChoicesText(DetailSummary,View.Detail);
-            DetailName->SetColorAndOpacity(AttributeQualityColor(View.AttributeQuality));
-            // The sentence is on the card; the detail adds the advanced line, the details, then what each bold keyword means
-            // (#147 v7 §4.1; user 2026-11-07).
-            TArray<FString> Blocks;
-            if(!View.Advanced.IsEmpty()){Blocks.Add(View.Advanced);}
-            if(!View.Lines.IsEmpty()){Blocks.Add(FString::Join(View.Lines,TEXT("\n")));}
+            const LDHUD::FActiveCardView& View=CardViews[Next];
+            GrowthText(DetailName,View.Name);
+            GrowthText(DetailSummary,View.bKnown?View.Target+TEXT(" · ")+View.Cost:FString());
+            // The sentence with this level's numbers, then what each bold keyword means (#147 v7 §4.1; user 2026-11-07).
+            TArray<FString> Blocks{View.Sentence};
             if(!View.Keywords.IsEmpty()){Blocks.Add(FString::Join(View.Keywords,TEXT("\n")));}
-            if(View.bNeedsReplacement){Blocks.Add(TEXT("Q/W/E 已满：点选后再点 HUD 上要遗忘的 Q、W 或 E 技能槽。被替换的技能会被遗忘，旧投入不返还；新技能从初级开始。"));}
             const FText Body=FText::FromString(FString::Join(Blocks,TEXT("\n\n")));
             if(!DetailBody->GetText().EqualTo(Body)){DetailBody->SetText(Body);}
         }
@@ -203,7 +202,7 @@ void ULDChoicesPanel::UpdateDetail()
         const FGeometry& Layer=DetailLayer->GetCachedGeometry();const FGeometry& Card=Cards[DetailCard].Button->GetCachedGeometry();
         const FVector2D CardTop=Layer.AbsoluteToLocal(Card.GetAbsolutePosition());
         const FVector2D CardEnd=Layer.AbsoluteToLocal(Card.GetAbsolutePosition()+Card.GetAbsoluteSize());
-        const float Half=ChoicesDetailWidth*.5f+8.f;const float Wide=float(Layer.GetLocalSize().X);
+        const float Half=GrowthDetailWidth*.5f+8.f;const float Wide=float(Layer.GetLocalSize().X);
         const float Centre=float(CardTop.X+CardEnd.X)*.5f;
         const FVector2D Place(FMath::RoundToFloat(Wide>2*Half?FMath::Clamp(Centre,Half,Wide-Half):Centre),
             FMath::RoundToFloat(FMath::Max(float(Popup->GetDesiredSize().Y),float(CardTop.Y)-8.f)));
@@ -217,283 +216,358 @@ void ULDChoicesPanel::SetBottomDock(float Bottom,float Left)
 }
 float ULDChoicesPanel::PanelTop() const
 {
-    return BottomDock+(MainPanel?float(MainPanel->GetDesiredSize().Y)*ChoicesPanelScale:0.f);
+    return BottomDock+(MainPanel?float(MainPanel->GetDesiredSize().Y)*GrowthPanelScale:0.f);
 }
 UWidget* ULDChoicesPanel::FocusScope() const{return MainPanel;}
 UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}
 void ULDChoicesPanel::OpenPanel()
 {
     bOpen=true;ResultNotice.Reset();SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
-    if(!PendingRequest){ChoicesText(Feedback,TEXT(""));}
+    if(!PendingRequest){SetFeedback(FString());}
 }
 bool ULDChoicesPanel::ClosePanel()
 {
-    // Closing only hides the panel: the opportunity, the offer and any submitted request keep their real state.
-    ResetReplacement();PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
+    // Closing only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their state.
+    PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
 }
 double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
 void ULDChoicesPanel::MarkOpenedAutomatically()
 {
     if(!bOpen){return;}
     Fold.Opened(true,UiNow());
-    UE_LOG(LogLDUI,Log,TEXT("LD_HUD_OPENING_CHOICE_SHOWN The opening three-choice panel opened automatically."));
+    UE_LOG(LogLDUI,Log,TEXT("LD_HUD_GROWTH_AUTO_OPEN The growth panel opened for a new active offer or new points."));
 }
 void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
-    // Folding back to the pending pill hides the panel only; a selected card stays selected for the next opening.
     if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
     {
         UE_LOG(LogLDUI,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));
         ClosePanel();
     }
 }
-bool ULDChoicesPanel::CloseChildConfirmation()
+bool ULDChoicesPanel::Usable() const
 {
-    if(!bReplacing){return false;}
-    ResetReplacement();ChoicesText(Feedback,TEXT(""));return true;
+    return Latest.bValid&&LatestMatch!=0&&Latest.Generation==LatestMatch&&Latest.Life==LatestLife;
 }
-void ULDChoicesPanel::ResetReplacement()
+int32 ULDChoicesPanel::StagedTotal() const
 {
-    bReplacing=false;ReplaceSlot=INDEX_NONE;ReplaceSkill=NAME_None;ReplaceRank=0;ReplaceBuildRevision=0;
+    int32 Total=0;for(const int32 Count:Staged){Total+=Count;}return Total;
 }
-void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content,
-    const LDHUD::FCardStats& Stats)
+bool ULDChoicesPanel::HasAnythingToDo() const
+{
+    return LDHUD::GrowthPending(&Latest,LatestMatch).Any()||StagedTotal()>0;
+}
+void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,ELDMatchPhase Phase,int64 BuildSafeAtMs,
+    bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
 {
     const bool bStatsChanged=Stats.Level!=LatestStats.Level||Stats.ADP2!=LatestStats.ADP2||Stats.APP2!=LatestStats.APP2
-        ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2;
-    LatestStats=Stats;
-    const FGuid KeepOffer=ShownOffer;
-    const FGuid KeepOption=Selected!=INDEX_NONE&&Latest.Offer.Options.IsValidIndex(Selected)?Latest.Offer.Options[Selected].OptionId:FGuid();
-    Latest=View;LatestMatch=Match;LatestLife=Life;LatestPhase=Phase;LatestContent=Content;
+        ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Content!=LatestContent;
+    Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestPhase=Phase;LatestSafeAtMs=BuildSafeAtMs;
+    bLatestClock=bClock;LatestNowMs=NowMs;LatestContent=Content;LatestStats=Stats;
     if(!MainPanel){return;}
-    const bool bUsable=View.bValid&&View.Generation==Match&&View.Life==Life;
-    const bool bOffer=bUsable&&View.bHasOffer&&View.Offer.Options.Num()==3;
-    if(bOffer&&bStatsChanged&&View.Offer.OfferId==ShownOffer&&View.Offer.OfferRevision==ShownOfferRevision)
-    {
-        // Same cards, new level or stats: only the numbers change (#147).
-        for(int32 Index=0;Index<Cards.Num();++Index)
-        {
-            CardViews[Index]=LDHUD::ChoiceCard(View.Offer.Options[Index],View,Content,Stats);
-            Cards[Index].Sentence->SetText(FText::FromString(CardViews[Index].Sentence));
-        }
-        bDetailStale=true;
-    }
-    if(!bOffer||View.Offer.OfferId!=ShownOffer||View.Offer.OfferRevision!=ShownOfferRevision)
-    {
-        // A new offer replaces the cards. A revised offer of the same opportunity refreshes its guarded versions and keeps
-        // the same option marked, so after a stale rejection the player clicks the same card again (UI 3.2).
-        ShownOffer=bOffer?View.Offer.OfferId:FGuid();ShownOfferRevision=bOffer?View.Offer.OfferRevision:0;Selected=INDEX_NONE;ResetReplacement();
-        if(!bOffer||View.Offer.OfferId!=KeepOffer){PinnedPreview=INDEX_NONE;}
-        bDetailStale=true;
-        if(bOffer&&View.Offer.OfferId==KeepOffer&&KeepOption.IsValid())
-        {Selected=View.Offer.Options.IndexOfByPredicate([&KeepOption](const FLDChoiceOption& Option){return Option.OptionId==KeepOption;});}
-        for(int32 Index=0;Index<Cards.Num();++Index)
-        {
-            FCardWidgets& Card=Cards[Index];
-            Card.Button->SetVisibility(bOffer?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-            if(!bOffer){continue;}
-            const LDHUD::FChoiceCardView Shown=LDHUD::ChoiceCard(View.Offer.Options[Index],View,Content,Stats);
-            CardViews[Index]=Shown;
-            ChoicesText(Card.Name,Shown.Name);ChoicesText(Card.Summary,Shown.Summary);ChoicesText(Card.Glyph,Shown.Glyph);
-            Card.Sentence->SetText(FText::FromString(Shown.Sentence));
-            const bool bPicture=LDUIIcons::Apply(Card.Picture,Shown.IconId,ChoicesIconRadius);
-            Card.IconSize->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
-            Card.Glyph->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
-            // #85: an attribute card's quality is the colour of its name (the detail still names it); other names stay white.
-            Card.Name->SetColorAndOpacity(AttributeQualityColor(Shown.AttributeQuality));
-        }
-        if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?FString::Printf(TEXT("暂无可以%s的机会。升级后会获得新的选择机会。"),LDTerms::Choice):FString(TEXT("等待成长数据同步。")));}
-    }
-    // Nothing left to pick: an open panel would only say so, so it closes itself. The last result still reaches the
-    // player as a toast. A pending count whose offer has not arrived yet keeps it open.
-    if(bOpen&&bUsable&&!bOffer&&!PendingRequest&&View.PendingChoiceCount==0)
+    if(StagedMatch!=Match){StagedMatch=Match;Staged.Reset();}
+    Gate=Usable()?LDHUD::BuildGate(Phase,LifePhase,BuildSafeAtMs,bClock,NowMs):LDHUD::FBuildGateView();
+    if(Content&&StatRows.IsEmpty()){BuildStatRows();}
+    if(bStatsChanged){bDetailStale=true;bCardsStale=true;}
+    RefreshOffer();RefreshBlueprints();RefreshPoints();
+    // Nothing left to do: an open panel would only say so, so it closes itself; the last result still reaches the player
+    // as a toast. A request in flight keeps it open.
+    if(bOpen&&Usable()&&!PendingRequest&&!HasAnythingToDo())
     {
         const FString Result=ResultNotice;ClosePanel();
         if(!Result.IsEmpty()&&Notify){Notify(FString(LDTerms::Choice)+TEXT("：")+Result);}
-        return;
     }
-    else if(bReplacing&&ReplaceBuildRevision!=0&&View.BuildRevision!=ReplaceBuildRevision)
+}
+void ULDChoicesPanel::RefreshOffer()
+{
+    const bool bUsable=Usable();
+    const bool bOffer=bUsable&&Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty();
+    const int32 Queued=bUsable?int32(Latest.QueuedActiveOpportunities):0;
+    GrowthShown(OfferSection,!bUsable||bOffer||Queued>0);
+    GrowthText(OfferHeading,bUsable?(Queued>0?FString::Printf(TEXT("选一个技能 · %s"),*LDTerms::OffersQueued(Queued)):FString(TEXT("选一个技能")))
+        :FString(TEXT("等待成长数据同步。")));
+    const bool bNewOffer=!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer;
+    if(bNewOffer||bCardsStale||Latest.ActiveOffer.OfferRevision!=ShownOfferRevision)
     {
-        // The skills shown for replacement changed: the confirmation is withdrawn, never redirected to another slot.
-        ResetReplacement();ChoicesText(Feedback,TEXT("技能已变化，替换确认已撤销，请重新选择。"));
+        // A new offer (or new numbers) replaces the cards; ids and revisions travel with the click, never a row index.
+        if(bNewOffer){PinnedPreview=INDEX_NONE;}
+        ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
+        bDetailStale=true;bCardsStale=false;
+        for(int32 Index=0;Index<Cards.Num();++Index)
+        {
+            FCardWidgets& Card=Cards[Index];
+            const bool bShown=bOffer&&Latest.ActiveOffer.Options.IsValidIndex(Index);
+            GrowthShown(Card.Button,bShown,ESlateVisibility::Visible);
+            if(!bShown){CardViews[Index]=LDHUD::FActiveCardView();continue;}
+            const LDHUD::FActiveCardView Shown=LDHUD::ActiveCard(Latest.ActiveOffer.Options[Index],LatestContent,LatestStats);
+            CardViews[Index]=Shown;
+            GrowthText(Card.Name,Shown.Name);GrowthText(Card.Glyph,Shown.Glyph);
+            GrowthText(Card.Summary,Shown.bKnown?Shown.Target+TEXT(" · ")+Shown.Cost:FString());
+            Card.Sentence->SetText(FText::FromString(Shown.Sentence));
+            const bool bPicture=LDUIIcons::Apply(Card.Picture,Shown.IconId,GrowthIconRadius);
+            Card.IconSize->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+            Card.Glyph->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+        }
     }
-    RefreshSelection();
+    // What a click does now: learn into the lowest empty slot, or keep it as a blueprint and say why (the server decides).
+    uint8 FirstEmpty=3;
+    for(uint8 Key=0;Key<3&&FirstEmpty==3;++Key){if(LDHUD::ActiveInSlot(Latest,Key).IsNone()){FirstEmpty=Key;}}
+    const FString StoreWhy=FirstEmpty==3?FString(LDTerms::SlotsFull):Gate.LearnBlocked;
+    const FString Action=!Gate.bCanChoose?Gate.ChooseBlocked
+        :Gate.bCanLearn&&FirstEmpty<3?FString(LDTerms::LearnThis)+TEXT(" → ")+LDHUD::SlotKey(FirstEmpty)
+        :FString(LDTerms::LearnThis)+TEXT("（先存为")+LDTerms::Blueprint+TEXT("：")+StoreWhy+TEXT("）");
+    for(int32 Index=0;Index<Cards.Num();++Index)
+    {
+        GrowthText(Cards[Index].Action,Action);
+        GrowthEnabled(Cards[Index].Button,Gate.bCanChoose&&!PendingRequest);
+    }
+    GrowthText(OfferNote,bUsable&&!bOffer&&Queued>0?FString(LDTerms::OfferWaitingEligible):FString());
+    GrowthShown(OfferNote,!OfferNote->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
 }
-void ULDChoicesPanel::RefreshSelection()
+ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
 {
-    for(int32 Index=0;Index<Cards.Num();++Index){ChoicesTint(Cards[Index].Button,Index==Selected?ChoicesSelected:ChoicesIdle);}
-    const uint8 Tokens=Latest.RerollTokens;
-    // #153 D9: the opening direction offer is never rerolled, whatever tokens are left.
-    const bool bOpening=Latest.bHasOffer&&LDHUD::IsOpeningOffer(Latest.Offer);
-    const bool bCanReroll=Latest.bHasOffer&&!bOpening&&!Latest.Offer.bRerolled&&Tokens>0&&!PendingRequest&&ShownOffer.IsValid()
-        &&LDGrowthWire::IsChoicePhase(LatestPhase)&&!bReplacing;
-    RerollButton->SetIsEnabled(bCanReroll);
-    RerollButton->SetVisibility(ShownOffer.IsValid()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    ChoicesText(RerollCard.Summary,bOpening?FString(LDTerms::OpeningNoReroll)
-        :Latest.bHasOffer&&Latest.Offer.bRerolled?FString::Printf(TEXT("本组已重抽 · 剩 %d"),Tokens):FString::Printf(TEXT("剩 %d 次"),Tokens));
+    while(BlueprintRows.Num()<=Index)
+    {
+        const int32 RowIndex=BlueprintRows.Num();
+        FBlueprintRow& Row=BlueprintRows.AddDefaulted_GetRef();
+        auto MakeText=[this](int32 Size,const FLinearColor& Ink)
+        {UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);ScaleNewText(Line);RowWidgets.Add(Line);return Line;};
+        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);
+        auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
+        Row.Name=MakeText(15,LDHUDStyle::TextPrimary);Lines->AddChildToVerticalBox(Row.Name);
+        Row.Summary=MakeText(12,LDHUDStyle::TextSecondary);Lines->AddChildToVerticalBox(Row.Summary);
+        auto* LinesSlot=Line->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
+        for(uint8 Key=0;Key<3;++Key)
+        {
+            ULDCommandButton* Learn=LDWidgets::Button(WidgetTree,LDTerms::LearnInto(LDHUD::SlotKey(Key)),[this,RowIndex,Key](){LearnBlueprint(RowIndex,Key);},false,
+                FName(*FString::Printf(TEXT("GrowthLearn%d%s"),RowIndex,*LDHUD::SlotKey(Key))));
+            ScaleNewText(Cast<UTextBlock>(Learn->GetContent()));RowWidgets.Add(Learn);
+            Line->AddChildToHorizontalBox(Learn)->SetPadding(FMargin(6,0,0,0));
+            Row.Learn.Add(Learn);
+        }
+        Row.Blocked=MakeText(13,LDHUDStyle::TextSecondary);
+        auto* BlockedSlot=Line->AddChildToHorizontalBox(Row.Blocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
+        Row.Row=Line;
+        BlueprintList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,4));
+    }
+    return BlueprintRows[Index];
 }
-bool ULDChoicesPanel::IsReplacementTarget(uint8 SkillSlot) const
+void ULDChoicesPanel::RefreshBlueprints()
 {
-    return bReplacing&&!PendingRequest&&SkillSlot<3&&Latest.Skills.ContainsByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
+    const bool bUsable=Usable();
+    ShownBlueprints=bUsable?Latest.PendingBlueprints:TArray<FName>();
+    GrowthShown(BlueprintSection,!ShownBlueprints.IsEmpty());
+    bool bEmpty[3]={false,false,false};
+    for(uint8 Key=0;Key<3;++Key){bEmpty[Key]=LDHUD::ActiveInSlot(Latest,Key).IsNone();}
+    const bool bAnyEmpty=bEmpty[0]||bEmpty[1]||bEmpty[2];
+    // No empty slot: a blueprint waits for the rest-only replacement (#198 PR5); otherwise the gate's reason, if any.
+    const FString Blocked=!bAnyEmpty?FString(LDTerms::ReplaceAtRest):Gate.bCanLearn?FString():Gate.LearnBlocked;
+    for(int32 Index=0;Index<FMath::Max(ShownBlueprints.Num(),BlueprintRows.Num());++Index)
+    {
+        if(!ShownBlueprints.IsValidIndex(Index)){GrowthShown(BlueprintRows[Index].Row,false);continue;}
+        FBlueprintRow& Row=BlueprintRowAt(Index);
+        GrowthShown(Row.Row,true,ESlateVisibility::Visible);
+        const LDHUD::FActiveCardView View=LDHUD::ActiveCard(ShownBlueprints[Index],LatestContent,LatestStats);
+        GrowthText(Row.Name,View.Name);
+        GrowthText(Row.Summary,View.bKnown?View.Target+TEXT(" · ")+View.Cost:View.SentencePlain);
+        if(!Row.Row->GetToolTipText().ToString().Equals(View.SentencePlain,ESearchCase::CaseSensitive)){Row.Row->SetToolTipText(FText::FromString(View.SentencePlain));}
+        for(uint8 Key=0;Key<3;++Key)
+        {
+            GrowthShown(Row.Learn[Key],bEmpty[Key],ESlateVisibility::Visible);
+            GrowthEnabled(Row.Learn[Key],Gate.bCanLearn&&!PendingRequest);
+        }
+        GrowthText(Row.Blocked,Blocked);
+        GrowthShown(Row.Blocked,!Blocked.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    }
 }
-bool ULDChoicesPanel::ChooseCard(int32 Index)
+void ULDChoicesPanel::BuildStatRows()
 {
-    if(!Latest.bHasOffer||!Latest.Offer.Options.IsValidIndex(Index)||Latest.Offer.OfferId!=ShownOffer){return false;}
+    // Rows are built once from the catalog this process plays; a hot reload changes numbers only, never the ids.
+    if(!LatestContent||!StatList){return;}
+    auto MakeText=[this](int32 Size,const FLinearColor& Ink,bool bWrap)
+    {
+        UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);
+        if(bWrap){Line->SetWrapTextAt(GrowthPanelWidth-300.f);}
+        ScaleNewText(Line);RowWidgets.Add(Line);return Line;
+    };
+    for(int32 Index=0;Index<LatestContent->Stats.Num();++Index)
+    {
+        FStatRow& Row=StatRows.AddDefaulted_GetRef();
+        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);
+        Row.Name=MakeText(15,LDHUDStyle::TextPrimary,false);
+        auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(80.f);NameBox->SetContent(Row.Name);RowWidgets.Add(NameBox);
+        Line->AddChildToHorizontalBox(NameBox)->SetVerticalAlignment(VAlign_Center);
+        Row.PerPoint=MakeText(13,LDHUDStyle::TextSecondary,true);
+        auto* PerPointSlot=Line->AddChildToHorizontalBox(Row.PerPoint);PerPointSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));PerPointSlot->SetVerticalAlignment(VAlign_Center);
+        Row.Points=MakeText(15,LDHUDStyle::TextAccent,false);
+        auto* PointsBox=WidgetTree->ConstructWidget<USizeBox>();PointsBox->SetWidthOverride(90.f);PointsBox->SetContent(Row.Points);RowWidgets.Add(PointsBox);
+        Line->AddChildToHorizontalBox(PointsBox)->SetVerticalAlignment(VAlign_Center);
+        const FString Id=LatestContent->Stats[Index].Id;
+        Row.Minus=LDWidgets::Button(WidgetTree,TEXT("−"),[this,Index](){StagePoint(Index,-1);},false,FName(*(TEXT("GrowthPointMinus_")+Id)));
+        Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,Index](){StagePoint(Index,1);},false,FName(*(TEXT("GrowthPointPlus_")+Id)));
+        for(ULDCommandButton* Button:{Row.Minus.Get(),Row.Plus.Get()})
+        {ScaleNewText(Cast<UTextBlock>(Button->GetContent()));RowWidgets.Add(Button);Line->AddChildToHorizontalBox(Button)->SetPadding(FMargin(6,0,0,0));}
+        Row.Row=Line;
+        StatList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
+    }
+}
+void ULDChoicesPanel::RefreshPoints()
+{
+    const bool bUsable=Usable();
+    const int64 Unspent=bUsable?FMath::Max<int64>(0,Latest.UnspentPoints):0;
+    const int32 StatCount=LatestContent?LatestContent->Stats.Num():0;
+    Staged.SetNumZeroed(StatCount);
+    // Staged points never exceed what the latest view leaves unspent: the excess comes off the last staged stats.
+    for(int32 Index=Staged.Num()-1;Index>=0&&StagedTotal()>Unspent;--Index)
+    {Staged[Index]=FMath::Max(0,Staged[Index]-int32(StagedTotal()-Unspent));}
+    GrowthShown(PointsSection,bUsable&&(Unspent>0||StagedTotal()>0));
+    GrowthText(PointsHeading,LDTerms::UnspentPoints(Unspent-StagedTotal()));
+    for(int32 Index=0;Index<StatRows.Num()&&Index<StatCount;++Index)
+    {
+        FStatRow& Row=StatRows[Index];
+        const FLDDemoStatDefinition& Stat=LatestContent->Stats[Index];
+        const LDHUD::FStatRowView View=LDHUD::StatRow(Stat,LDHUD::StatPointsOf(Latest,FName(*Stat.Id)),LatestContent);
+        GrowthText(Row.Name,View.Name);GrowthText(Row.PerPoint,View.PerPoint);
+        GrowthText(Row.Points,Staged[Index]>0?FString::Printf(TEXT("%d 点 +%d"),View.Points,Staged[Index]):FString::Printf(TEXT("%d 点"),View.Points));
+        GrowthEnabled(Row.Minus,Staged[Index]>0);
+        GrowthEnabled(Row.Plus,StagedTotal()<Unspent&&Staged[Index]<MAX_uint8);
+    }
+    const FString Blocked=Gate.bCanAllocate?FString():Gate.AllocateBlocked;
+    GrowthText(PointsBlocked,Blocked);
+    GrowthEnabled(ConfirmButton,Gate.bCanAllocate&&StagedTotal()>0&&!PendingRequest);
+}
+bool ULDChoicesPanel::ChooseOffer(int32 Index)
+{
+    if(!Usable()||!Latest.bHasActiveOffer||!Latest.ActiveOffer.Options.IsValidIndex(Index)||Latest.ActiveOffer.OfferId!=ShownOffer){return false;}
     // One click is one choice: a click while a request is in flight never queues a second one.
-    if(PendingRequest){ChoicesText(Feedback,TEXT("上一次选择仍在处理中。"));return false;}
-    // A click (even on the card being replaced) restarts from that card, so a replacement slot is always picked afresh.
-    Selected=Index;PinnedPreview=INDEX_NONE;ResetReplacement();RefreshSelection();
-    ConfirmChoice();
-    return true;
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanChoose){SetFeedback(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::ActiveChoice;
+    Command.OfferId=Latest.ActiveOffer.OfferId;Command.OfferRevision=Latest.ActiveOffer.OfferRevision;
+    if(!FLDDefinitionWire::Encode(Latest.ActiveOffer.Options[Index],Command.Option)){SetFeedback(TEXT("没有提交：这个技能的标识无效。"));return false;}
+    // Always ask to learn now: the server learns it into the lowest empty slot when it may, otherwise keeps it as a blueprint.
+    Command.bLearnIfPossible=true;Command.Slot=FLDBuildCommand::AnySlot;
+    PinnedPreview=INDEX_NONE;
+    return Send(Command);
 }
-bool ULDChoicesPanel::PreviewChoice(int32 Index)
+bool ULDChoicesPanel::PreviewOffer(int32 Index)
 {
-    if(!Latest.bHasOffer||!Latest.Offer.Options.IsValidIndex(Index)||Latest.Offer.OfferId!=ShownOffer){return false;}
+    if(!Latest.bHasActiveOffer||!Latest.ActiveOffer.Options.IsValidIndex(Index)||Latest.ActiveOffer.OfferId!=ShownOffer){return false;}
     PinnedPreview=Index;UpdateDetail();return true;
 }
-bool ULDChoicesPanel::ChooseReplacement(uint8 SkillSlot)
+bool ULDChoicesPanel::LearnBlueprint(int32 Index,uint8 Key)
 {
-    if(!bReplacing||SkillSlot>2){return false;}
-    if(PendingRequest){ChoicesText(Feedback,TEXT("上一次选择仍在处理中。"));return false;}
-    const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
-    if(!Skill){ChoicesText(Feedback,TEXT("该技能槽为空，无需替换；请重新点卡。"));return false;}
-    // The slot click is the explicit choice of what to forget, so it submits at once with that skill and rank as expected.
-    ReplaceSlot=SkillSlot;ReplaceSkill=Skill->DefinitionId;ReplaceRank=Skill->Rank;RefreshSelection();
-    ConfirmChoice();
+    if(!Usable()||!ShownBlueprints.IsValidIndex(Index)||Key>2||!Latest.PendingBlueprints.Contains(ShownBlueprints[Index])){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!LDHUD::ActiveInSlot(Latest,Key).IsNone()){SetFeedback(TEXT("没有提交：")+FString(LDTerms::ReplaceAtRest));return false;}
+    if(!Gate.bCanLearn){SetFeedback(TEXT("没有提交：")+Gate.LearnBlocked);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::LearnBlueprint;
+    if(!FLDDefinitionWire::Encode(ShownBlueprints[Index],Command.Blueprint)){SetFeedback(TEXT("没有提交：这份图纸的标识无效。"));return false;}
+    Command.Slot=Key;
+    return Send(Command);
+}
+bool ULDChoicesPanel::StagePoint(int32 Index,int32 Delta)
+{
+    if(!Usable()||!Staged.IsValidIndex(Index)||(Delta!=1&&Delta!=-1)){return false;}
+    if(Delta<0&&Staged[Index]<=0){return false;}
+    if(Delta>0&&(StagedTotal()>=Latest.UnspentPoints||Staged[Index]>=MAX_uint8)){SetFeedback(TEXT("未分配点数不够了。"));return false;}
+    Staged[Index]+=Delta;
+    RefreshPoints();
     return true;
 }
-void ULDChoicesPanel::ConfirmChoice()
+bool ULDChoicesPanel::ConfirmPoints()
 {
-    if(PendingRequest){ChoicesText(Feedback,TEXT("上一次选择仍在处理中。"));return;}
-    if(Selected==INDEX_NONE||!Latest.bHasOffer||!Latest.Offer.Options.IsValidIndex(Selected)||Latest.Offer.OfferId!=ShownOffer){ChoicesText(Feedback,TEXT("请先点选一张卡。"));return;}
-    if(!LDGrowthWire::IsChoicePhase(LatestPhase)){ChoicesText(Feedback,TEXT("当前状态不能确认选择。"));return;}
-    const FLDChoiceOption& Option=Latest.Offer.Options[Selected];
-    FLDChoiceCommand Command;
-    Command.Generation=LatestMatch;Command.Life=LatestLife;Command.ExpectedLifePhase=LatestPhase;
-    Command.OfferId=Latest.Offer.OfferId;Command.OfferRevision=Latest.Offer.OfferRevision;Command.OptionId=Option.OptionId;
+    if(!Usable()){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(StagedTotal()<=0){SetFeedback(TEXT("先用 + 选好要加的点。"));return false;}
+    if(!Gate.bCanAllocate){SetFeedback(TEXT("没有提交：")+Gate.AllocateBlocked);return false;}
+    // One count per catalog stat in catalog order, exactly as the view lists them; a mismatch is a data error, not a guess.
+    if(!LatestContent||Latest.StatPoints.Num()!=LatestContent->Stats.Num()||Staged.Num()!=LatestContent->Stats.Num())
+    {SetFeedback(TEXT("没有提交：属性数据与内容目录不一致。"));return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::AllocatePoints;
+    for(int32 Index=0;Index<Staged.Num();++Index)
+    {
+        if(Latest.StatPoints[Index].StatId!=FName(*LatestContent->Stats[Index].Id)){SetFeedback(TEXT("没有提交：属性数据与内容目录不一致。"));return false;}
+        Command.PointCounts.Add(uint8(Staged[Index]));
+    }
+    return Send(Command);
+}
+bool ULDChoicesPanel::Send(FLDBuildCommand Command)
+{
+    if(!SubmitBuild)
+    {
+        UE_LOG(LogLDUI,Error,TEXT("LD_GROWTH_SUBMIT_UNAVAILABLE The growth build entry is not connected to this panel."));
+        SetFeedback(TEXT("成长入口不可用，本次没有提交。"));return false;
+    }
     Command.ExpectedBuildRevision=Latest.BuildRevision;Command.CatalogDigest=Latest.CatalogDigest;
-    const LDHUD::FChoiceCardView Shown=LDHUD::ChoiceCard(Option,Latest,LatestContent,LatestStats);
-    if(Shown.bNeedsReplacement)
-    {
-        if(!bReplacing)
-        {
-            // #97 short path: the HUD's Q/W/E slots glow red (IsReplacementTarget) and a click on one is the choice of what to
-            // forget, with no further confirmation and no default slot; another card restarts from that card, Back cancels.
-            // The pick holds no input (ChildConfirmationYields): play and Q/W/E casts go on until a slot is clicked.
-            bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;
-            // The HUD holds the prompt toast while the pick waits; the red slot rings show where; the card popup keeps the rank rule.
-            ChoicesText(Feedback,TEXT(""));
-            RefreshSelection();
-            return;
-        }
-        if(ReplaceSlot==INDEX_NONE||!FLDDefinitionWire::Encode(ReplaceSkill,Command.ExpectedOldSkillId))
-        {ChoicesText(Feedback,TEXT("请选择要替换的技能槽。"));return;}
-        Command.bReplace=true;Command.ReplaceSlot=uint8(ReplaceSlot);Command.ExpectedOldRank=ReplaceRank;Command.bReplaceConfirmed=true;
-    }
-    PendingName=Shown.Name;bPendingReroll=false;
-    Send(Command);
-}
-bool ULDChoicesPanel::Reroll()
-{
-    if(PendingRequest){ChoicesText(Feedback,TEXT("上一次请求仍在处理中。"));return false;}
-    if(!Latest.bHasOffer||Latest.Offer.OfferId!=ShownOffer||!LDGrowthWire::IsChoicePhase(LatestPhase)){ChoicesText(Feedback,TEXT("当前没有可以重抽的选择。"));return false;}
-    if(LDHUD::IsOpeningOffer(Latest.Offer)){ChoicesText(Feedback,FString(LDTerms::OpeningNoReroll)+TEXT("。"));return false;}
-    if(Latest.Offer.bRerolled){ChoicesText(Feedback,TEXT("这一组已经重抽过一次。"));return false;}
-    if(Latest.RerollTokens==0){ChoicesText(Feedback,TEXT("没有免费重抽次数；升到指定等级会获得。"));return false;}
-    FLDChoiceCommand Command;
-    Command.Generation=LatestMatch;Command.Life=LatestLife;Command.ExpectedLifePhase=LatestPhase;
-    Command.OfferId=Latest.Offer.OfferId;Command.OfferRevision=Latest.Offer.OfferRevision;
-    Command.ExpectedBuildRevision=Latest.BuildRevision;Command.CatalogDigest=Latest.CatalogDigest;Command.bReroll=true;
-    Selected=INDEX_NONE;ResetReplacement();PendingName.Reset();bPendingReroll=true;
-    Send(Command);
-    return true;
-}
-void ULDChoicesPanel::Send(const FLDChoiceCommand& Command)
-{
-    if(!SubmitChoice)
-    {
-        UE_LOG(LogLDUI,Error,TEXT("LD_CHOICES_SUBMIT_UNAVAILABLE The growth choice entry is not connected to this panel."));
-        ChoicesText(Feedback,TEXT("选择入口不可用，本次没有提交。"));return;
-    }
     // A Listen Host answers inside the submit call, so the pending entry is keyed to the id it will receive first.
     const uint64 Expected=PeekRequestId?PeekRequestId():0;
-    const uint32 Before=Answers;PendingRequest=Expected;
+    const uint32 Before=Answers;PendingRequest=Expected;PendingKind=Command.Kind;
     ELDGrowthReason Reason=ELDGrowthReason::None;
-    const uint64 Request=SubmitChoice(Command,Reason);
+    const uint64 Request=SubmitBuild(Command,Reason);
     if(!Request)
     {
         if(PendingRequest==Expected){PendingRequest=0;}
         const FString Why=LDHUD::GrowthReasonText(Reason);
-        ChoicesText(Feedback,TEXT("没有提交：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));RefreshSelection();return;
+        SetFeedback(TEXT("没有提交：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));
+        RefreshOffer();RefreshBlueprints();RefreshPoints();
+        return false;
     }
-    if(Answers==Before){PendingRequest=Request;ChoicesText(Feedback,TEXT(""));}
-    RefreshSelection();
+    if(Answers==Before){PendingRequest=Request;SetFeedback(FString());}
+    RefreshOffer();RefreshBlueprints();RefreshPoints();
+    return true;
 }
 void ULDChoicesPanel::FinishRequest()
 {
-    PendingRequest=0;RefreshSelection();
+    PendingRequest=0;
+    RefreshOffer();RefreshBlueprints();RefreshPoints();
     // A result that arrives after the panel was closed still reaches the player, without reopening the panel; while it
-    // is open the result is kept for the toast in case the panel closes itself with nothing left to pick.
+    // is open the result is kept for the toast in case the panel closes itself with nothing left to do.
     if(!bOpen&&Notify&&Feedback){Notify(FString(LDTerms::Choice)+TEXT("：")+Feedback->GetText().ToString());}
     else if(Feedback){ResultNotice=Feedback->GetText().ToString();}
 }
-void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
+void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
 {
-    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&Receipt.bRerolled)
-    {
-        ChoicesText(Feedback,FString::Printf(TEXT("已重抽，这一组换成了新的三张卡（剩余重抽 %d 次）"),Receipt.RerollTokensLeft));
-        return;
-    }
-    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&!Receipt.OpeningActiveId.IsNone())
-    {
-        // #153: the hidden active is revealed only by the applied receipt.
-        ChoicesText(Feedback,LDTerms::OpeningRevealed(LDHUD::ContentName(LatestContent,Receipt.OpeningActiveId.ToString())));
-        Selected=INDEX_NONE;ResetReplacement();
-        return;
-    }
-    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)
-    {
-        ChoicesText(Feedback,TEXT("已确认：")+PendingName+(Receipt.bReplaced
-            ?FString::Printf(TEXT("（已遗忘被替换的技能，新技能 %d 级）"),Receipt.NewRank):FString()));
-        Selected=INDEX_NONE;ResetReplacement();
-        return;
-    }
-    // A rejected choice keeps the chosen card marked: after the view refreshes the player clicks it (or another) again.
-    ChoicesText(Feedback,TEXT("没有生效：")+LDHUD::GrowthReasonText(LDGrowthWire::Reason(Receipt.Header.Reason)));
+    SetFeedback(LDHUD::BuildReceiptText(Receipt,LatestContent,LatestSafeAtMs,bLatestClock,LatestNowMs));
+    // Applied points leave the staging; the rows show them once the owner view carries the receipt's revision.
+    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&Receipt.Kind==ELDBuildCommandKind::AllocatePoints){for(int32& Count:Staged){Count=0;}}
 }
 // The pending entry clears exactly when the controller releases its in-flight request: a final submit answer, an
 // unreserved rejection, or a final/expired receipt. Other answers only explain the wait.
 void ULDChoicesPanel::HandleSubmit(const FLDSubmitResult& Result)
 {
-    if(Result.Family!=ELDGrowthFamily::Choice||!PendingRequest||Result.RequestId!=PendingRequest||Result.Generation!=LatestMatch){return;}
+    if(Result.Family!=ELDGrowthFamily::Build||!PendingRequest||Result.RequestId!=PendingRequest||Result.Generation!=LatestMatch){return;}
     ++Answers;
     switch(Result.Status)
     {
     case ELDAdmissionStatus::AcceptedPending: return;
     case ELDAdmissionStatus::AdmissionRejected:
-        ChoicesText(Feedback,TEXT("没有受理：")+LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason)));
+        SetFeedback(TEXT("没有受理：")+LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason)));
         if(Result.bSequenceReserved){return;}
         break;
     case ELDAdmissionStatus::Final:
-        if(Result.bHasChoiceReceipt){ShowFinal(Result.ChoiceReceipt);}else{ChoicesText(Feedback,TEXT("请求已结束，请以当前状态为准。"));}
+        if(Result.bHasBuildReceipt){ShowFinal(Result.BuildReceipt);}else{SetFeedback(TEXT("请求已结束，请以当前状态为准。"));}
         break;
-    default: ChoicesText(Feedback,TEXT("无法识别服务器的答复，请以当前状态为准。"));return;
+    default: SetFeedback(TEXT("无法识别服务器的答复，请以当前状态为准。"));return;
     }
     FinishRequest();
 }
-void ULDChoicesPanel::HandleReceipt(const FLDChoiceReceiptQueryResult& Result)
+void ULDChoicesPanel::HandleReceipt(const FLDBuildReceiptQueryResult& Result)
 {
-    if(Result.Query.Family!=ELDGrowthFamily::Choice||!PendingRequest||Result.Query.RequestId!=PendingRequest||Result.Query.Generation!=LatestMatch){return;}
+    if(Result.Query.Family!=ELDGrowthFamily::Build||!PendingRequest||Result.Query.RequestId!=PendingRequest||Result.Query.Generation!=LatestMatch){return;}
     ++Answers;
     switch(Result.Lookup)
     {
     case ELDReceiptLookup::Pending: return;
     case ELDReceiptLookup::Final:
-        if(Result.bHasReceipt){ShowFinal(Result.Receipt);}else{ChoicesText(Feedback,TEXT("回执缺少结果，请以当前状态为准。"));}
+        if(Result.bHasReceipt){ShowFinal(Result.Receipt);}else{SetFeedback(TEXT("回执缺少结果，请以当前状态为准。"));}
         break;
-    case ELDReceiptLookup::ReceiptExpired: ChoicesText(Feedback,TEXT("回执已过期，请以当前状态为准。"));break;
-    case ELDReceiptLookup::NotFound: ChoicesText(Feedback,TEXT("服务器没有找到这次请求，请以当前状态为准。"));return;
-    default: ChoicesText(Feedback,TEXT("回执查询无效，请以当前状态为准。"));return;
+    case ELDReceiptLookup::ReceiptExpired: SetFeedback(TEXT("回执已过期，请以当前状态为准。"));break;
+    case ELDReceiptLookup::NotFound: SetFeedback(TEXT("服务器没有找到这次请求，请以当前状态为准。"));return;
+    default: SetFeedback(TEXT("回执查询无效，请以当前状态为准。"));return;
     }
     FinishRequest();
 }

@@ -27,14 +27,14 @@ enum class ELDOpponentReason : uint8
     TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
 };
 
-enum class ELDOpponentSkillSlot : uint8 { Q, W, E, Passive };
 enum class ELDOpponentSourceSlot : uint8 { Q, W, E, Dash };
 
-struct FLDOpponentSkill
+// One learned Q/W/E active (#198: an active has one level).
+struct FLDOpponentActive
 {
     FString DefinitionId;
-    uint8 Rank = 0;
-    ELDOpponentSkillSlot Slot = ELDOpponentSkillSlot::Passive;
+    // 0 = Q, 1 = W, 2 = E.
+    uint8 Slot = 0;
 };
 
 // One bound active source exactly as the authority's availability read reports it; no second cooldown.
@@ -47,27 +47,20 @@ struct FLDOpponentSource
     int32 RangeCm = 0;
 };
 
-// Opening (#153): an opening direction card; the active it hides is as unknown to the AI as to a player.
-enum class ELDOpponentOptionKind : uint8 { LearnActive, UpgradeActive, LearnPassive, UpgradePassive, Attribute, Opening };
-
-struct FLDOpponentOption
-{
-    FGuid OptionId;
-    ELDOpponentOptionKind Kind = ELDOpponentOptionKind::Attribute;
-    FString DefinitionId;
-    uint8 FromRank = 0;
-    uint8 ToRank = 0;
-    ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
-};
-
-// The head offer of the persistent queue; its cards never change until it is consumed.
+// The current active offer (#198): one to three distinct actives that never change until one is chosen.
 struct FLDOpponentOffer
 {
     FGuid OfferId;
     uint64 OfferRevision = 0;
-    // 112 §6: this offer is already the opportunity's one reroll.
-    bool bRerolled = false;
-    TArray<FLDOpponentOption> Options;
+    uint8 Ordinal = 0;
+    TArray<FString> Options;
+};
+
+// The points the own build allocated to one catalog stat.
+struct FLDOpponentStatPoints
+{
+    FString StatId;
+    int32 Points = 0;
 };
 
 // The AI's own authorized projection: owner life, progression and source readiness.
@@ -87,20 +80,23 @@ struct FLDOpponentSelf
     // Authority ms until which authorized control blocks voluntary movement; at or before now when free.
     int64 MoveBlockedUntilMs = 0;
     bool bChanneling = false;
-    bool bCowering = false;
     uint64 BuildRevision = 0;
     uint8 Level = 1;
-    // Persistent choices already consumed, including the opening pick.
-    uint8 ChoicesConsumed = 0;
-    TArray<FLDOpponentSkill> Skills;
-    // 112 §6: free rerolls left.
-    uint8 RerollTokens = 0;
+    TArray<FLDOpponentActive> Actives;
+    // Chosen actives waiting for an empty slot (待学图纸), sorted by id.
+    TArray<FString> Blueprints;
+    // One row per catalog stat, in catalog order.
+    TArray<FLDOpponentStatPoints> StatPoints;
+    int64 UnspentPoints = 0;
+    // Active opportunities consumed so far, the opening one included.
+    uint8 OffersConsumed = 0;
+    // Combat's build safe window (absolute authority ms; at or before now is safe).
+    int64 BuildSafeAtMs = 0;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
-    // #153: this adapter's own server-random opening plan (drawn once per match, never a hidden fact): the authority ms
-    // from which it takes the opening direction card at OpeningPickIndex (0..2) of its offer.
+    // #153: this adapter's own server-random opening timing (drawn once per match, never a hidden fact): the authority
+    // ms from which it makes its countdown build decisions.
     int64 OpeningPickAtMs = 0;
-    uint8 OpeningPickIndex = 0;
 };
 
 // Guarded: only the graffiti owner stands in the spray zone.
@@ -189,12 +185,13 @@ struct FLDOpponentDecisionFrame
     FLDOpponentOrder Order;
     // Complete-path length from the current pose to the capture entry, when the world answered.
     TOptional<double> CapturePathCm;
-    // A choice request awaits its final receipt; no second build change is proposed meanwhile.
+    // A build request awaits its final receipt; no second build change is proposed meanwhile.
     bool bBuildChangeInFlight = false;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
-enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Choice, Walk };
+// Build: one build command (#198 active choice, blueprint learn or point allocation), keyed by its kind and subject.
+enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Build, Walk };
 
 struct FLDOpponentRetryKey
 {
@@ -225,25 +222,22 @@ struct FLDOpponentBodyIntent
     FLDOpponentRetryKey Key;
 };
 
-enum class ELDOpponentBuildKind : uint8 { None, Choose };
-
-struct FLDOpponentChoicePick
-{
-    // 112 §6: spend a free reroll instead of choosing (OptionId stays empty).
-    bool bReroll = false;
-    FGuid OptionId;
-    bool bReplace = false;
-    ELDOpponentSkillSlot ReplaceSlot = ELDOpponentSkillSlot::Q;
-    FString ReplacedSkillId;
-    uint8 ReplacedRank = 0;
-};
+// #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),
+// learn a pending blueprint into an empty slot, or allocate unspent points.
+enum class ELDOpponentBuildKind : uint8 { None, ChooseActive, LearnBlueprint, AllocatePoints };
 
 struct FLDOpponentBuildIntent
 {
     ELDOpponentBuildKind Kind = ELDOpponentBuildKind::None;
+    // ChooseActive: the offer and its chosen active.
     FGuid OfferId;
     uint64 OfferRevision = 0;
-    FLDOpponentChoicePick Choice;
+    FString Option;
+    // LearnBlueprint: the blueprint and the empty slot 0..2.
+    FString Blueprint;
+    uint8 Slot = 0;
+    // AllocatePoints: one count per catalog stat, in catalog order.
+    TArray<uint8> PointCounts;
     FLDOpponentRetryKey Key;
 };
 
@@ -374,8 +368,18 @@ namespace LDOpponentPolicy
     LOCKDOWN_API FLDCampCostEstimate EstimateCampCost(const FLDCampCostInput& Input,
         const FLDDemoMonsterDefinition& Monster, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API FLDOpponentUsage AbilityUsage(const FLDDemoAbilityDefinition& Ability);
-    LOCKDOWN_API bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-        FLDOpponentChoicePick& Out, FString& Error);
+    // #198 active preference (OPPONENT_AI.md §6.4): an active that brings a role (engagement or self-protection) the learned
+    // actives and blueprints lack comes first; then the fixed target-mode order Unit > GroundPoint > DirectionCone >
+    // DirectionProjectile > Self > DirectionDash; then catalog order. Picks among the current offer's options.
+    LOCKDOWN_API bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error);
+    // The pending blueprint to learn first by the same preference and the lowest empty Q/W/E slot; false when either is missing.
+    LOCKDOWN_API bool SelectBlueprint(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint,
+        uint8& OutSlot, FString& Error);
+    // Every unspent point (at most 255 per stat in one command), each to the stat with the fewest points among the relevant
+    // set: physique and thick skin always; strength when a learned active or the basic attack scales with AD; brains when a
+    // learned active scales with AP. Ties go to catalog order. One count per catalog stat; false without unspent points.
+    LOCKDOWN_API bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out,
+        FString& Error);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
@@ -394,6 +398,12 @@ namespace LDOpponentPolicy
     // or respawned. Any admitted walk clears it.
     LOCKDOWN_API void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
         const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
+    // #198: the build step after any offer choice, exactly as Decide makes it: the preferred blueprint into the lowest empty
+    // slot when learning is allowed (the countdown, or alive inside the build safe window), otherwise every unspent point
+    // when allocating is allowed (the countdown, dead, or alive inside the window). False when nothing applies, a build
+    // request is in flight or failure memory holds the step back.
+    LOCKDOWN_API bool DecideLearnOrAllocate(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+        FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
     // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed

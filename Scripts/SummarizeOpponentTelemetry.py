@@ -3,8 +3,8 @@
 The Host writes Telemetry.json and one MatchNN.json per match (LDDemoOpponentTelemetry.cpp): the end reason and
 winner, the flagpole opening, the first kill, every kill with its assisters, every contender death with its killer and
 assist rewards, the spray/repaint/clear counts and the winning guard time, each contender's level and XP curves, spray
-attempts, and the growth record of #112 §13 (first active, final skills and top-rank count, rerolls earned and used,
-choices, active replacements with their level, advanced skills of the final build). This aggregates them across matches.
+attempts, and the #198 growth record (first active, the final Q/W/E actives, blueprints and stat points, unspent points,
+active choices and every active learn with its level). This aggregates them across matches.
 The numbers describe how
 these matches went; they are not balance targets and the summary judges nothing.
 """
@@ -15,8 +15,8 @@ from pathlib import Path
 import re
 import statistics
 
-MATCH_SCHEMA = 4
-SUMMARY_SCHEMA = 4
+MATCH_SCHEMA = 5
+SUMMARY_SCHEMA = 5
 OPPONENTS = 3
 REASONS = ("GuardSucceeded", "HostEnded", "None")
 KINDS = ("Human", "OpponentAI")
@@ -130,23 +130,28 @@ def check_match(match, index):
         require(field(row, "winner", bool) == (contender == winner), f"{where}: winner flag disagrees with the result")
         require(field(row, "final_level", int) >= 1, f"{where}: final level below one")
         for name in ("kills", "deaths", "assists", "capture_attempts", "capture_resumes", "capture_paused", "capture_lost",
-                     "capture_sprays", "capture_interrupted", "max_rank_skills", "rerolls_used", "choices"):
+                     "capture_sprays", "capture_interrupted", "unspent_points", "choices"):
             require(field(row, name, int) >= 0, f"{where}: negative {name}")
-        require(field(row, "rerolls_used", int) <= field(row, "rerolls_earned", int), f"{where}: more rerolls used than earned")
         require(-1 <= field(row, "first_active_ms", int) <= duration, f"{where}: first active outside the match")
-        skills = field(row, "skills", list)
-        for skill in skills:
-            field(skill, "id", str)
-            require(field(skill, "rank", int) >= 1, f"{where}: a learned skill below rank one")
-            field(skill, "active", bool)
-        require(row["max_rank_skills"] <= len(skills), f"{where}: more advanced skills than skills")
-        require((row["first_active_ms"] >= 0) or not any(skill["active"] for skill in skills),
-                f"{where}: an active learned without a first-active time")
-        for change in field(row, "replacements", list):
-            require(0 <= field(change, "t_ms", int) <= duration, f"{where}: replacement outside the match")
-            require(field(change, "level", int) >= 1, f"{where}: replacement below level one")
-            field(change, "replaced", str)
-            require(field(change, "replaced_rank", int) >= 1, f"{where}: a replaced active below rank one")
+        actives = field(row, "actives", list)
+        slots_held = [field(active, "slot", int) for active in actives]
+        for active in actives:
+            field(active, "id", str)
+        require(all(0 <= slot <= 2 for slot in slots_held) and len(set(slots_held)) == len(slots_held),
+                f"{where}: an active outside Q/W/E or two actives in one slot")
+        blueprints = field(row, "blueprints", list)
+        require(all(isinstance(blueprint, str) for blueprint in blueprints), f"{where}: a blueprint is not an id")
+        held = {active["id"] for active in actives}
+        require(len(held) == len(actives) and not held & set(blueprints), f"{where}: an active held twice")
+        for stat in field(row, "stat_points", list):
+            field(stat, "id", str)
+            require(field(stat, "points", int) >= 0, f"{where}: negative stat points")
+        require((row["first_active_ms"] >= 0) or not actives, f"{where}: an active learned without a first-active time")
+        for learn in field(row, "learns", list):
+            require(0 <= field(learn, "t_ms", int) <= duration, f"{where}: learn outside the match")
+            require(field(learn, "level", int) >= 1, f"{where}: learn below level one")
+            field(learn, "id", str)
+            require(0 <= field(learn, "slot", int) <= 2, f"{where}: learn outside Q/W/E")
         check_curve(field(row, "curve", dict), duration, f"{where} {contender}")
     require(sorted(slots) == list(range(OPPONENTS)), f"{where}: the room does not hold AI slots 0 to {OPPONENTS - 1}")
     require(len(contenders) > OPPONENTS, f"{where}: no human in the room")
@@ -225,12 +230,11 @@ def summarize(matches):
     deaths = [death for match in checked for death in match["deaths"]]
     granted = [death for death in deaths if death["outcome"] == "Granted"]
     assist_parts = [part for death in granted for part in death["assists"]]
-    replacements = [change for ai in ais for change in ai["replacements"]]
-    choices = sum(ai["choices"] for ai in ais)
-    earned = sum(ai["rerolls_earned"] for ai in ais)
-    max_rank = {}
+    learns = [learn for ai in ais for learn in ai["learns"]]
+    stat_totals = {}
     for ai in ais:
-        max_rank[str(ai["max_rank_skills"])] = max_rank.get(str(ai["max_rank_skills"]), 0) + 1
+        for stat in ai["stat_points"]:
+            stat_totals[stat["id"]] = stat_totals.get(stat["id"], 0) + stat["points"]
     return {
         "schema": SUMMARY_SCHEMA,
         "matches": len(checked),
@@ -265,18 +269,17 @@ def summarize(matches):
             "killer_xp": stats(death["killer_xp"] for death in granted),
             "assist_xp": stats(part["xp"] for part in assist_parts),
         },
-        # AI growth (#112 §13): reroll use is used / earned; the replacement rate is replaced actives per consumed choice.
+        # AI growth (#198): active choices taken, actives learned (with the level of each learn), what each AI ended with,
+        # and where the allocated points went in total.
         "growth": {
             "first_active_ms": optional_stats(ai["first_active_ms"] for ai in ais),
-            "max_rank_skills": dict(sorted(max_rank.items(), key=lambda item: int(item[0]))),
-            "rerolls_earned": earned,
-            "rerolls_used": sum(ai["rerolls_used"] for ai in ais),
-            "reroll_use_rate": round(sum(ai["rerolls_used"] for ai in ais) / earned, 3) if earned else None,
-            "choices": choices,
-            "replacements": len(replacements),
-            "replacement_rate": round(len(replacements) / choices, 3) if choices else None,
-            "replacement_level": stats(change["level"] for change in replacements),
-            "replaced_rank": stats(change["replaced_rank"] for change in replacements),
+            "choices": sum(ai["choices"] for ai in ais),
+            "learns": len(learns),
+            "learn_level": stats(learn["level"] for learn in learns),
+            "final_actives": stats(len(ai["actives"]) for ai in ais),
+            "final_blueprints": stats(len(ai["blueprints"]) for ai in ais),
+            "unspent_points": stats(ai["unspent_points"] for ai in ais),
+            "stat_points": stat_totals,
         },
         "ai": {
             "final_level": stats(ai["final_level"] for ai in ais),
@@ -313,8 +316,8 @@ def describe(summary):
                  f"(median {seconds(duration['median'])}), kill feed gaps {summary['kill_feed_gaps']}")
     deaths, growth = summary["deaths"], summary["growth"]
     lines.append(f"Deaths {deaths['count']} ({deaths['granted']} rewarded, {deaths['kills_with_assist']} with assists); "
-                 f"AI rerolls {growth['rerolls_used']}/{growth['rerolls_earned']}, replacements {growth['replacements']} "
-                 f"of {growth['choices']} choices, advanced skills per AI {growth['max_rank_skills']}")
+                 f"AI active choices {growth['choices']}, learns {growth['learns']}, unspent points per AI "
+                 f"{growth['unspent_points'].get('max', 0)} at most, points by stat {growth['stat_points']}")
     return lines
 
 

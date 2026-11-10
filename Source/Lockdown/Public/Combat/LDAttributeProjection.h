@@ -18,44 +18,29 @@ struct FLDAttributeProjectionFailure
     FString Message;
 };
 
-struct FLDLearnedPassiveValue
+// #198: the points a build allocated to one catalog stat; each point adds the stat's PerPoint bonuses.
+struct FLDStatPointsValue
 {
-    FLDLearnedPassiveValue(FString InAbilityId, uint8 InRank)
-        : AbilityId(MoveTemp(InAbilityId)), Rank(InRank) {}
+    FLDStatPointsValue(FString InStatId, int32 InPoints)
+        : StatId(MoveTemp(InStatId)), Points(InPoints) {}
 
-    FString AbilityId;
-    // Only this rank's values apply; they replace lower ranks rather than adding to them.
-    uint8 Rank;
-};
-
-struct FLDAttributeCardValue
-{
-    FLDAttributeCardValue(FString InAttributeId, uint8 InCount, ELDAttributeQuality InQuality = ELDAttributeQuality::Blue)
-        : AttributeId(MoveTemp(InAttributeId)), Count(InCount), Quality(InQuality) {}
-
-    FString AttributeId;
-    uint8 Count;
-    ELDAttributeQuality Quality;
+    FString StatId;
+    int32 Points;
 };
 
 struct FLDAttributeBuildValues
 {
-    // Every part is explicit; an empty array states that no such source is held.
-    FLDAttributeBuildValues(uint8 InLevel, TArray<FLDLearnedPassiveValue> InLearnedPassives,
-        TArray<FLDAttributeCardValue> InAttributeCards)
-        : Level(InLevel), LearnedPassives(MoveTemp(InLearnedPassives)), AttributeCards(MoveTemp(InAttributeCards)) {}
+    // Every part is explicit; an empty array states that no point was allocated.
+    FLDAttributeBuildValues(uint8 InLevel, TArray<FLDStatPointsValue> InStatPoints)
+        : Level(InLevel), StatPoints(MoveTemp(InStatPoints)) {}
 
     uint8 Level;
-    // Passive definitions only, each listed once; learned actives carry no attributes.
-    TArray<FLDLearnedPassiveValue> LearnedPassives;
-    TArray<FLDAttributeCardValue> AttributeCards;
-    // #153: the chosen opening direction card, empty before the opening choice; its stats are a permanent choice term and
-    // it counts as the opening choice in the choice budget.
-    FString OpeningCard;
-    // DEV test layer (#78): one extra additive term per stat on top of base, growth, choices and passives, reported
+    // Each catalog stat at most once; a positive count of points.
+    TArray<FLDStatPointsValue> StatPoints;
+    // DEV test layer (#78): one extra additive term per stat on top of base, growth and the allocated points, reported
     // as its own contribution row. Empty outside a DEV test session. Each stat at most once, nonnegative, never
-    // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value outside its catalog
-    // bound refuses the projection exactly like any other source.
+    // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value past its catalog
+    // maximum refuses the projection.
     TArray<FLDDemoStatBonus> DevBonuses;
 };
 
@@ -97,50 +82,26 @@ struct FLDAttributeContributions
     ELDProjectedAttribute Attribute = ELDProjectedAttribute::Count;
     FLDDemoRational Base;
     FLDAttributeTerms LevelGrowth;
+    // #198: the allocated stat points times their per-point bonuses.
     FLDAttributeTerms PermanentChoices;
-    FLDAttributeTerms Passives;
     // The DEV test layer (FLDAttributeBuildValues::DevBonuses); zero outside a DEV test session.
     FLDAttributeTerms Dev;
-    // Explicit wild-card deductions (positive magnitudes, #112 §4): (Base + Flats - Penalties.Flat) x (1 + Ratios -
-    // Penalties.AdditiveRatio); the final value never drops below the attribute's catalog minimum.
-    FLDAttributeTerms Penalties;
-    // Timed self bonuses, active conditional passives and the strongest slow (a negative ratio); zero in a build projection.
+    // Timed self bonuses, an active conditional low-HP bonus and the strongest slow (a negative ratio); zero in a build
+    // projection.
     FLDAttributeTerms Temporary;
-    // (Base + every Flat - Penalties) x (1 + every AdditiveRatio - Penalties), exact, clamped to the catalog bounds.
-    // With temporary terms, point/basis-point attributes floor to their storage unit and every attribute clamps.
+    // (Base + every Flat) x (1 + every AdditiveRatio), exact, clamped to the catalog bounds. With temporary terms,
+    // point/basis-point attributes floor to their storage unit and every attribute clamps.
     FLDDemoRational Final;
     bool bClamped = false;
 };
 
-// Passive whose stats apply only while current HP is strictly below ThresholdBp of max HP.
+// A held low-HP trigger (low_hp_stat_bonus): its stats apply only while current HP is strictly below ThresholdBp of max HP.
 struct FLDLowHPBonusTerm
 {
-    FString AbilityId;
-    uint8 Rank = 0;
     int64 ThresholdBp = 0;
     TArray<FLDDemoStatBonus> Stats;
-    // #147: primary basic lifesteal while the bonus is active; 0 = none.
+    // Primary basic lifesteal while the bonus is active; 0 = none.
     int64 BasicLifestealBp = 0;
-};
-
-// Passive amplification of the owner's damage against a body under any control or slow (#147 D21: one term of the
-// damage bonus pool); LowHPBelowBp > 0 also counts a body below that HP share.
-struct FLDControlDamageAmpTerm
-{
-    FString AbilityId;
-    uint8 Rank = 0;
-    int64 RatioBp = 0;
-    int64 LowHPBelowBp = 0;
-};
-
-// A learned passive rank whose effects are combat triggers (thorns, cooldown refunds, crits, keyword stacks, shields)
-// rather than attribute terms; Combat reads the rank's effects through ALDCombatDirector::CollectPassiveEffects.
-struct FLDLearnedTriggerTerm
-{
-    FString AbilityId;
-    uint8 Rank = 0;
-    // The owner's level when projected; Combat reads the rank grown for it (#147, a level-up reprojects the build).
-    uint8 Level = 0;
 };
 
 struct FLDAttributeProjection
@@ -148,11 +109,6 @@ struct FLDAttributeProjection
     FLDProjectedAttributes Final;
     // One row per ELDProjectedAttribute, in enum order.
     TArray<FLDAttributeContributions> Contributions;
-    // Conditional passive terms; Combat applies them from body state, the build projection never adds them.
-    TOptional<FLDLowHPBonusTerm> LowHPBonus;
-    TOptional<FLDControlDamageAmpTerm> ControlAmp;
-    // Learned combat-trigger passives at their learned rank, sorted by ability.
-    TArray<FLDLearnedTriggerTerm> LearnedTriggers;
 };
 
 struct FLDAttributeProjectionResult
@@ -163,7 +119,7 @@ struct FLDAttributeProjectionResult
     bool IsSuccess() const { return Value.IsSet() && Error.Code == ELDAttributeProjectionError::None; }
 };
 
-// Temporary terms of one body at one instant: active timed bonuses, an active conditional passive and the strongest
+// Temporary terms of one body at one instant: active timed bonuses, an active conditional low-HP bonus and the strongest
 // slow (move speed).
 struct FLDTemporaryAttributeTerms
 {
@@ -202,9 +158,9 @@ struct FLDResourceMaxChangeResult
 
 namespace LDAttributeProjection
 {
-    // Pure projection over the borrowed catalog: no world, clock, randomness, resource store or commit.
-    // Passive ranks plus card counts must fit min(Level, MaxChoices) (the opening choice plus one per level-up); this bounds only the
-    // sources visible here and does not replace the growth domain's complete build validation.
+    // Pure projection over the borrowed catalog: no world, clock, randomness, resource store or commit. The allocated
+    // points are summed as flat and additive-percent terms (never multiplied per point); bounding them by the points
+    // earned stays the growth domain's build validation.
     LOCKDOWN_API FLDAttributeProjectionResult Project(
         const FLDAttributeBuildValues& Build, const FLDDemoContentSnapshot& Catalog);
     // The same formula over a build projection plus temporary terms: (Base + Flats + TemporaryFlat) x (1 + Ratios +

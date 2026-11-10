@@ -7,7 +7,6 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDGrowthDirector.h"
-#include "Development/LDProgressionRules.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -33,7 +32,7 @@ namespace LDDemoOpponentTelemetryDetail
 constexpr uint8 OpponentCount = 3;
 constexpr int64 CurveMs = 1000;
 constexpr int32 MaxMatches = 50;
-constexpr uint32 MatchSchema = 4;
+constexpr uint32 MatchSchema = 5;
 
 const TCHAR* KindName(ELDContenderKind Kind) { return Kind == ELDContenderKind::OpponentAI ? TEXT("OpponentAI") : TEXT("Human"); }
 
@@ -88,11 +87,11 @@ struct FLDTelemetryContender
     ELDContenderKind Kind = ELDContenderKind::Human;
     int32 Slot = INDEX_NONE;
     TArray<int64> CurveMs, Level, XP;
-    // 112 §13: the build as last read, its first active and every active it replaced (a Q/W active that vanished).
+    // #198 growth: the Q/W/E actives as last read, when the first was learned and every active as it was learned.
     uint64 BuildRevision = 0;
-    TArray<FLDLearnedSkillView> Skills;
+    TArray<FLDActiveSlotView> Actives;
     int64 FirstActiveMs = -1;
-    TArray<TSharedPtr<FJsonValue>> Replacements;
+    TArray<TSharedPtr<FJsonValue>> Learns;
     FLDProgressionView Final;
 };
 
@@ -236,26 +235,21 @@ public:
     {
         Row.Final = Progression;
         if (Progression.BuildRevision == Row.BuildRevision) { return; }
-        for (const FLDLearnedSkillView& Old : Row.Skills)
+        for (const FLDActiveSlotView& Now : Progression.Actives)
         {
-            if (!Old.bActive || Progression.Skills.ContainsByPredicate([&Old](const FLDLearnedSkillView& Now)
-                { return Now.DefinitionId == Old.DefinitionId; }))
+            if (Row.Actives.ContainsByPredicate([&Now](const FLDActiveSlotView& Old)
+                { return Old.DefinitionId == Now.DefinitionId && Old.Slot == Now.Slot; }))
             { continue; }
-            const FLDLearnedSkillView* Incoming = Progression.Skills.FindByPredicate([&Old](const FLDLearnedSkillView& Now)
-            { return Now.bActive && Now.Slot == Old.Slot; });
-            auto Replacement = MakeShared<FJsonObject>();
-            Replacement->SetNumberField(TEXT("t_ms"), double(At));
-            Replacement->SetNumberField(TEXT("level"), Progression.Level);
-            Replacement->SetStringField(TEXT("replaced"), Old.DefinitionId.ToString());
-            Replacement->SetNumberField(TEXT("replaced_rank"), Old.Rank);
-            Replacement->SetStringField(TEXT("new"), Incoming ? Incoming->DefinitionId.ToString() : FString());
-            Replacement->SetNumberField(TEXT("new_rank"), Incoming ? Incoming->Rank : 0);
-            Row.Replacements.Add(MakeShared<FJsonValueObject>(Replacement));
+            auto Learn = MakeShared<FJsonObject>();
+            Learn->SetNumberField(TEXT("t_ms"), double(At));
+            Learn->SetNumberField(TEXT("level"), Progression.Level);
+            Learn->SetStringField(TEXT("id"), Now.DefinitionId.ToString());
+            Learn->SetNumberField(TEXT("slot"), Now.Slot);
+            Row.Learns.Add(MakeShared<FJsonValueObject>(Learn));
         }
-        if (Row.FirstActiveMs < 0 && Progression.Skills.ContainsByPredicate([](const FLDLearnedSkillView& Skill) { return Skill.bActive; }))
-        { Row.FirstActiveMs = At; }
+        if (Row.FirstActiveMs < 0 && !Progression.Actives.IsEmpty()) { Row.FirstActiveMs = At; }
         Row.BuildRevision = Progression.BuildRevision;
-        Row.Skills = Progression.Skills;
+        Row.Actives = Progression.Actives;
     }
 
     void TrackRewards(const TArray<FLDRewardReceipt>& Rewards, int64 At)
@@ -336,28 +330,33 @@ public:
             Value->SetNumberField(TEXT("assists"), double(Final->Assists));
             Value->SetNumberField(TEXT("capture_sprays"), Hold ? Hold->Sprays : 0);
             Value->SetNumberField(TEXT("capture_interrupted"), Hold ? Hold->Interrupted : 0);
-            // 112 §13 growth: first active, final skills, top-rank count, rerolls earned/used, choices and replacements.
-            const int32 MaxRank = Content ? Content->Get().Progression.MaxSkillRank : 0;
-            int32 MaxedSkills = 0;
-            TArray<TSharedPtr<FJsonValue>> Skills;
-            for (const FLDLearnedSkillView& Skill : Row.Final.Skills)
+            // #198 growth: first active, the final Q/W/E, blueprints and stat points, unspent points, active choices and every
+            // learn with its level.
+            TArray<TSharedPtr<FJsonValue>> Actives;
+            for (const FLDActiveSlotView& Active : Row.Final.Actives)
             {
                 auto Learned = MakeShared<FJsonObject>();
-                Learned->SetStringField(TEXT("id"), Skill.DefinitionId.ToString());
-                Learned->SetNumberField(TEXT("rank"), Skill.Rank);
-                Learned->SetBoolField(TEXT("active"), Skill.bActive);
-                Skills.Add(MakeShared<FJsonValueObject>(Learned));
-                MaxedSkills += MaxRank > 0 && Skill.Rank >= MaxRank ? 1 : 0;
+                Learned->SetStringField(TEXT("id"), Active.DefinitionId.ToString());
+                Learned->SetNumberField(TEXT("slot"), Active.Slot);
+                Actives.Add(MakeShared<FJsonValueObject>(Learned));
             }
-            const int32 Earned = Content && Row.Final.bValid
-                ? LDProgression::RerollTokensEarned(Content->Get().Progression, Row.Final.Level) : 0;
+            TArray<TSharedPtr<FJsonValue>> Blueprints;
+            for (const FName& Blueprint : Row.Final.PendingBlueprints) { Blueprints.Add(MakeShared<FJsonValueString>(Blueprint.ToString())); }
+            TArray<TSharedPtr<FJsonValue>> StatPoints;
+            for (const FLDStatPointsView& Stat : Row.Final.StatPoints)
+            {
+                auto Points = MakeShared<FJsonObject>();
+                Points->SetStringField(TEXT("id"), Stat.StatId.ToString());
+                Points->SetNumberField(TEXT("points"), Stat.Points);
+                StatPoints.Add(MakeShared<FJsonValueObject>(Points));
+            }
             Value->SetNumberField(TEXT("first_active_ms"), double(Row.FirstActiveMs));
-            Value->SetArrayField(TEXT("skills"), Skills);
-            Value->SetNumberField(TEXT("max_rank_skills"), MaxedSkills);
-            Value->SetNumberField(TEXT("rerolls_earned"), Earned);
-            Value->SetNumberField(TEXT("rerolls_used"), FMath::Max(0, Earned - int32(Row.Final.RerollTokens)));
-            Value->SetNumberField(TEXT("choices"), Row.Final.ConsumedThrough);
-            Value->SetArrayField(TEXT("replacements"), Row.Replacements);
+            Value->SetArrayField(TEXT("actives"), Actives);
+            Value->SetArrayField(TEXT("blueprints"), Blueprints);
+            Value->SetArrayField(TEXT("stat_points"), StatPoints);
+            Value->SetNumberField(TEXT("unspent_points"), double(Row.Final.UnspentPoints));
+            Value->SetNumberField(TEXT("choices"), Row.Final.ActiveOpportunitiesConsumed);
+            Value->SetArrayField(TEXT("learns"), Row.Learns);
             Value->SetNumberField(TEXT("capture_attempts"), Hold ? Hold->Attempts : 0);
             Value->SetNumberField(TEXT("capture_resumes"), Hold ? Hold->Resumes : 0);
             Value->SetNumberField(TEXT("capture_paused"), Hold ? Hold->Paused : 0);

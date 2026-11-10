@@ -219,10 +219,10 @@ struct FLDCombatHostileContact
 
 // ---------------------------------------------------------------- build change (Growth compound commits -> Combat)
 
+// #198: a learned active has one level; its values grow with the owner's level (LDSkillGrowth).
 struct FLDLearnedActiveValue
 {
     FName AbilityId;
-    uint8 Rank=0;                                // 1..3
     ELDCombatEntry Entry=ELDCombatEntry::None;   // Q, W or E
 };
 
@@ -230,10 +230,8 @@ struct FLDLearnedActiveValue
 struct FLDBuildProjectionInput
 {
     uint8 Level=0;
-    TArray<FLDLearnedPassiveValue> Passives;
-    TArray<FLDAttributeCardValue> AttributeCards;
-    // #153: the chosen opening direction card (canonical id), empty before the opening choice.
-    FString OpeningCard;
+    // #198: the allocated points of each stat that holds any (canonical stat id, positive count).
+    TArray<FLDStatPointsValue> StatPoints;
     TArray<FLDLearnedActiveValue> Actives;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
@@ -362,7 +360,6 @@ struct FLDCombatEntryView
     UPROPERTY() ELDCombatEntry Entry=ELDCombatEntry::None;
     UPROPERTY() ELDCombatSourceKind SourceKind=ELDCombatSourceKind::None;
     UPROPERTY() FName DefinitionId;                  // None = empty slot
-    UPROPERTY() uint8 Rank=0;                        // learned only
     UPROPERTY() uint8 TargetMode=0;                  // ELDDemoTargetMode
     UPROPERTY() int32 RangeCm=0;
     UPROPERTY() int64 ManaCostP2=0;
@@ -398,15 +395,12 @@ struct FLDCombatAttributeRowView
     UPROPERTY() uint8 Attribute=0;                   // ELDProjectedAttribute
     UPROPERTY() FLDDemoRational Base;
     UPROPERTY() FLDDemoRational Level;
-    UPROPERTY() FLDDemoRational Choices;
-    UPROPERTY() FLDDemoRational Passives;
+    UPROPERTY() FLDDemoRational Choices;             // #198: the allocated stat points' flat term
     UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build, the DEV layer excluded
     UPROPERTY() FLDDemoRational Dev;                 // DEV test layer flat term; zero outside a DEV test session
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
     UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
     UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
-    UPROPERTY() FLDDemoRational Penalty;             // wild-card flat deduction (positive magnitude, subtracted)
-    UPROPERTY() FLDDemoRational PenaltyPercent;      // wild-card ratio deduction (positive magnitude, subtracted)
     UPROPERTY() FLDDemoRational Final;
     UPROPERTY() bool bClamped=false;
 };
@@ -464,4 +458,7 @@ struct FLDCombatOwnerView
     UPROPERTY() bool bDormRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;
+    // #198 build safe window (absolute authority ms): from here on, with no new combat action, the contender may learn and
+    // allocate in the development phases; <= now means safe, 0 means no combat action yet. Persists across lives.
+    UPROPERTY() int64 BuildSafeAtMs=0;
 };

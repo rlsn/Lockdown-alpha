@@ -40,9 +40,6 @@ private:
     uint8 OldLevel = 0;
     FLDGrowthBuild NewBuild;
     FLDProgressionState NewProgression;
-    // Legal pool of the queue head on NewBuild, validated (>= 3 options) when a head draw follows Apply.
-    bool bDrawHead = false;
-    TArray<LDProgression::FLegalOption> HeadPool;
     bool bCombatInstall = false;
     FLDExpectedBuildVersions CombatInstall;
 };
@@ -60,19 +57,20 @@ struct FLDPendingGrowthIntent
 {
     enum class EKind : uint8
     {
-        Choice,
+        Build,
 #if WITH_DEV_AUTOMATION_TESTS
         // DEV test command of ALDGrowthDirector (LDDevTestProtocol.h).
         DevTest,
 #endif
     };
-    EKind Kind = EKind::Choice;
+    EKind Kind = EKind::Build;
     FGuid Contender;
     uint64 Arrival = 0;
 };
 
-// N04 growth owner: level/XP, opportunity queue with one persistent three-card offer, Q/W and passives,
-// permanent attribute cards. Contender records persist across deaths and are rebuilt only by a new match.
+// N04 growth owner (#198): level/XP, derived points and their allocation, Q/W/E actives, pending blueprints and the
+// active opportunity queue with its one current offer. Contender records persist across deaths and are rebuilt only by
+// a new match.
 UCLASS()
 class LOCKDOWN_API ALDDevelopmentDirector : public AActor
 {
@@ -86,21 +84,22 @@ public:
 
     // ---- Narrow server entries shared by the owning-connection adapter and server AI ----
     FLDProgressionView ReadProgression(const FGuid& ContenderId) const;
-    // Admission only: shape, current Generation, membership and the request stream. Context and versions are
-    // re-checked by CommitChoice in the Transactions phase.
-    FLDSubmitResult QueueChoice(const FGuid& ContenderId, const FLDChoiceCommand& Command);
-    FLDChoiceReceiptQueryResult QueryChoiceReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
+    // Admission only: shape, current Generation, membership and the request stream. Context, legality and versions are
+    // re-checked by CommitPendingBuild in the Transactions phase.
+    FLDSubmitResult QueueBuild(const FGuid& ContenderId, const FLDBuildCommand& Command);
+    FLDBuildReceiptQueryResult QueryBuildReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
 
     // ---- Transactions phase (dispatched by ALDGrowthDirector::ProcessTransactions) ----
     void CollectPending(TArray<FLDPendingGrowthIntent>& Out) const;
-    // Commits or rejects this contender's pending choice and finalizes its request sequence.
+    // Commits or rejects this contender's pending build command and finalizes its request sequence.
     // An AuthorityFault reason in the receipt means the boundary must fault.
-    FLDChoiceReceipt CommitPendingChoice(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
+    FLDBuildReceipt CommitPendingBuild(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
     // ---- Composite-commit parts for rewards ----
-    // Cumulative XP, level and one opportunity per level crossed (after the opening one); BuildRevision advances only with the level.
+    // Cumulative XP, level and one active opportunity per active_offer_levels entry reached; BuildRevision advances only
+    // with the level. The points follow from the level and XP.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
-    // No-fail: installs the prepared build/progression, refreshes the offer guard and draws the queue head.
+    // No-fail: installs the prepared build/progression and draws the queue head when one is due.
     void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // Complete post-change projection input for Combat (PEE §4.2 / Combat PrepareBuildChange).
@@ -110,56 +109,60 @@ public:
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
     const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
 
-    // Choice receipts finalized since the last publication, for the owning connection.
-    void TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDChoiceReceipt>& Out);
+    // Build receipts finalized since the last publication, for the owning connection.
+    void TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDBuildReceipt>& Out);
 
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV growth fixture (LDDevGrowthFixture.h): queues one three-card offer for this contender's next drawn head offers,
-    // oldest first. Every definition must be a legal choice of the current build and an offer must still be left to
-    // draw; each head draw re-resolves its preset against that draw's legal pool. The opening offer is drawn in BeginMatch,
-    // so it can only be preset in the Lobby through LDDevGrowthFixture::StageOffer.
+    // DEV growth fixture (LDDevGrowthFixture.h): queues one active offer (one to three distinct actives) for this
+    // contender's next drawn head offers, oldest first. Every id must be an active the build neither holds nor keeps as a
+    // blueprint and an offer must still be left to draw; each head draw re-resolves its preset against that build. The
+    // opening offer is drawn in BeginMatch, so it can only be preset in the Lobby through LDDevGrowthFixture::StageOffer.
     bool DevQueueOffer(const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
-    // DEV test command (LDDevTestProtocol.h, Transactions permit): consumes the head opportunity with DefinitionId as if it
-    // had been one of the offered cards. It must be a legal option of the current build (LegalPool: unlearned at rank 1,
-    // learned at its next rank, any attribute card); ReplaceSlot 1/2 confirms replacing the active in Q/W, 0 replaces
-    // nothing. Every other rule of a choice applies through InstallOption. None when installed; otherwise nothing changed,
-    // AuthorityFault meaning the boundary must fault.
-    ELDGrowthReason DevChooseOption(const FGuid& ContenderId, FName DefinitionId, uint8 ReplaceSlot,
-        const FLDGameplayWritePermit& Permit, FString& Detail);
+    // DEV test commands (LDDevTestProtocol.h, Transactions permit), each one revision-bumping build change installed like
+    // a build command (Combat projection when it changes Combat's view), Alive or Dead, without the safe window:
+    // GrantBlueprint adds an active the build neither holds nor keeps as a pending blueprint;
+    // LearnActive learns an active into slot Slot-1 (1..3, replacing and forgetting the active there) or, with Slot 0,
+    // into the lowest empty slot (NoEmptySlot when full), consuming its blueprint when it had one;
+    // AllocatePoints spends Amount unspent points on one stat.
+    // None when installed; otherwise nothing changed, AuthorityFault meaning the boundary must fault.
+    ELDGrowthReason DevGrantBlueprint(const FGuid& ContenderId, FName DefinitionId, const FLDGameplayWritePermit& Permit,
+        FString& Detail);
+    ELDGrowthReason DevLearnActive(const FGuid& ContenderId, FName DefinitionId, uint8 Slot, const FLDGameplayWritePermit& Permit,
+        FString& Detail);
+    ELDGrowthReason DevAllocatePoints(const FGuid& ContenderId, FName StatId, int64 Amount, const FLDGameplayWritePermit& Permit,
+        FString& Detail);
     // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no
-    // skills or cards, the opening opportunity only (EarnedThrough 1, none consumed, no choice records) and a fresh
-    // opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer revisions keep rising, so
-    // every in-flight choice of the old state is refused as stale; request streams and receipts stay.
+    // actives, blueprints or allocated points, the opening opportunity only (none consumed, no records) and a fresh opening
+    // offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer revisions keep rising, so every
+    // in-flight command of the old state is refused as stale; request streams and receipts stay.
     FLDPrepareGrowthResult DevPrepareReset(const FGuid& ContenderId) const;
 #endif
 
 private:
-    friend class FLDDemoGrowthRerollTest;
+    friend class FLDDemoGrowthBuildCommandsTest;
+
     struct FRecord
     {
         FLDGrowthBuild Build;
         FLDProgressionState Progression;
-        TLDGrowthRequestStream<FLDChoiceCommand, FLDChoiceReceipt> Choices;
+        TLDGrowthRequestStream<FLDBuildCommand, FLDBuildReceipt> Builds;
         FLDExpectedBuildVersions CombatInstalled;
-        TArray<FLDChoiceReceipt> Unpublished;
+        TArray<FLDBuildReceipt> Unpublished;
     };
 
-    FLDChoiceReceipt RejectPending(FRecord& Record, const FLDChoiceCommand& Command, ELDGrowthReason Reason,
+    FLDBuildReceipt RejectPending(FRecord& Record, const FLDBuildCommand& Command, ELDGrowthReason Reason,
         const FLDGameplayWritePermit* Permit);
-    void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
-    void InstallHead(const FGuid& ContenderId, FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked);
-    // 112 §6: replaces the head offer with one free reroll (same opportunity, previous cards avoided where possible).
-    // None when installed; otherwise nothing changed.
-    ELDGrowthReason RerollHead(const FGuid& ContenderId, FRecord& Record);
-    // Free rerolls left: one per reached reroll level, minus those spent; unused ones carry over.
-    uint8 RerollTokens(const FRecord& Record) const;
-    // Applies Option to the head opportunity of Record with every choice rule (ApplyOption, revisions, the next head's
-    // pool, the Combat projection) and installs it with the next head drawn. HiddenActive is the active an Opening option
-    // hides (None otherwise). None when installed; a rejection reason when
-    // nothing changed; AuthorityFault when the domain or the permit was lost before the install.
-    ELDGrowthReason InstallOption(const FGuid& ContenderId, FRecord& Record, const FLDChoiceOption Option,
-        const LDProgression::FReplacement* Replacement, FName HiddenActive, uint64 RequestId, const FLDGameplayWritePermit& Permit,
-        LDProgression::FAppliedOption& OutApplied);
+    // Draws the queue head's offer when the queue has an opportunity without one and an active is eligible for it; with
+    // no eligible active the opportunity keeps waiting without an offer.
+    void DrawHead(const FGuid& ContenderId, FRecord& Record);
+    // Installs NewBuild (and NewProgression when bProgressionChanged) with the next revisions and the Combat projection
+    // when the build changes what Combat sees (level, points or learned actives), all prepared before anything is written,
+    // then draws a due head. None when installed; a rejection reason when nothing changed; AuthorityFault when the domain
+    // or the permit was lost before the install.
+    ELDGrowthReason InstallBuild(const FGuid& ContenderId, FRecord& Record, FLDGrowthBuild&& NewBuild,
+        FLDProgressionState&& NewProgression, bool bProgressionChanged, const FLDGameplayWritePermit& Permit);
+    // The match stage, life phase and build safe window of ContenderId now; false (StaleContext) without a life read.
+    bool ReadBuildContext(const FGuid& ContenderId, LDProgression::FBuildContext& Out, uint32& OutLife) const;
     ALDGameMode* Mode() const;
 
     FLDMatchContext Match;

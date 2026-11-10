@@ -21,12 +21,12 @@ namespace LDWorldFeedback
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
-        int64 Amount=0;            // whole points (half-up from P2) or XP; LevelUp: three-choices newly earned; Kill: 1
+        int64 Amount=0;            // whole points (half-up from P2) or XP; LevelUp: stat points newly earned; Kill: 1
         bool bOwn=true;            // anchored to the own body, otherwise to the visible unit Handle/Epoch
         FGuid Handle;
         uint32 Epoch=0;
         int32 Level=0;             // LevelUp: the level reached
-        bool bChoiceEarned=false;  // LevelUp: at least one three-choice was earned with it
+        int32 Offers=0;            // LevelUp: active opportunities newly earned with it (#198)
         FString Name;              // Kill: the victim's public roster name; UnitCast: the cast's display name; empty when unknown
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
     };
@@ -98,7 +98,9 @@ namespace LDWorldFeedback
         int64 ShieldEndsAtMs=0;    // end of the shield status listed with the baseline; 0 when none was listed
         bool bGrowth=false;
         uint8 Level=0;
-        uint8 Earned=0;
+        uint8 OffersEarned=0;
+        // Earned stat points: the unspent plus the allocated ones, so an allocation in the same sample never hides a grant.
+        int64 PointsEarned=0;
         int64 XP=0;
         bool bKills=false;
         uint64 KillSerial=0;
@@ -110,7 +112,8 @@ namespace LDWorldFeedback
     // "-37", "+12", then the LDTerms lines: shield gained/absorbed, experience, level-up and kill (an unlisted victim reads
     // LDTerms::UnknownVictim),
     LOCKDOWN_API FString Text(const FEvent& Event);
-    // Smaller second line of a level-up banner (LDTerms::ChoicesEarned); empty for every other event.
+    // Smaller second line of a level-up banner (LDTerms::LevelUpGains: the points and active opportunities it brought);
+    // empty for every other event.
     LOCKDOWN_API FString Subline(const FEvent& Event);
     // A visible unit's number waits for the relay's presentation clock to reach the frame that produced it, so it shows
     // with the proxy's delayed hit pose. It is released once the clock reaches its stamp, at once without a clock and

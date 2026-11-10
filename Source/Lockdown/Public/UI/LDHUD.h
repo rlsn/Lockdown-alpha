@@ -25,7 +25,7 @@ struct FLDDemoContentDefinitions;
 
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
-// the icon, the rank and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
+// the icon and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot
 {
@@ -39,8 +39,6 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UImage> Picture;
     UPROPERTY() TObjectPtr<UTextBlock> Glyph;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
-    UPROPERTY() TObjectPtr<UBorder> RankChip;
-    UPROPERTY() TObjectPtr<UTextBlock> Rank;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
     // A skill is bound: only such a slot can be dragged onto another (#97).
@@ -70,7 +68,8 @@ public:
     void RefreshReadModel();
     bool PointerOverUI() const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The two normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time.
+    // The two normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time. ChoicesPanel is
+    // the #198 growth panel (active offer, blueprints and points) behind the 开盲盒 button.
     UPROPERTY() TObjectPtr<ULDAttributesPanel> AttributesPanel;
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
@@ -110,11 +109,10 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> TargetManaBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
-    // The visible contender's Q/W tiles: key and name, then rank with the Lv3 mark.
+    // The visible contender's Q/W/E tiles: key and name (#198: an active has one level).
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveRanks;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
@@ -188,24 +186,22 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // Blind-box button right above the band's left block (#97), with the three-choice panel it opens in the same row:
-    // disabled without a pending choice; it pulses for a few seconds after the count rises, then stays steady.
+    // 开盲盒 button right above the band's left block (#97), with the growth panel it opens in the same row: disabled while
+    // nothing is pending (LDHUD::GrowthPending); it pulses for a few seconds after the opportunities or points rise.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     float AppliedChoicesDock=-1,AppliedChoicesLeft=-1;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
-    int32 PromptCount=0;
+    int32 PromptOffers=0;
+    int64 PromptPoints=0;
     double PromptPulseAt=-1;
     float AppliedPromptWave=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;
     double FeedbackAt=0;
-    // The replacement pick's held prompt (RefreshReadModel): whether it showed last frame and since when.
-    bool bReplacePromptShown=false;
-    double ReplacePromptSince=0;
     // The toast shows controller intent feedback and local panel notices; SeenIntent tracks only the former.
     FString LastFeedback;
     FString SeenIntent;
@@ -213,14 +209,14 @@ private:
     void ShowToast(const FString& Text);
     uint32 SeenCombatReceipt=0;
     uint64 ToldProtectionLifeRevision=0;
-    // The match generation whose opening three-choice was offered its one automatic panel opening (D10).
-    uint32 AutoChoicesMatch=0;
-    uint32 AutoChoicesPending=0;
-    double AutoChoicesSince=-1;
-    // Own-body hits (the same health and shield losses the world feedback floats), which fold the three-choice panel.
+    // D10/#198: the growth panel opens by itself for a new offer or new points; a refused open is retried for a short
+    // while (the root may still be leaving the lobby) unless the player's own panel or captured input ends the chance.
+    LDHUD::FGrowthAutoOpen GrowthAutoOpen;
+    double AutoOpenSince=-1;
+    // Own-body hits (the same health and shield losses the world feedback floats), which fold the growth panel.
     LDWorldFeedback::FTracker OwnHitWatch;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);
-    void HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
+    void HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     void RefreshScoreboard(const class ALDGameState& Public,const FLDOwnerState& Own);
     // Authority time at which the current life was first seen alive; the death banner takes its cause only from notices
     // at or after it, so a previous death never stands in while this one's notice is still on its way.
@@ -230,7 +226,7 @@ private:
     FGuid ShownResultId;
     uint64 ShownResultSerial=0;
     float AppliedScale=0;
-    // The last known owner level and stats for the blind-box card numbers (#147).
+    // The last known owner level and stats for the growth panel's card numbers (#147).
     LDHUD::FCardStats ChoiceStats;
     float MapAspect=0;
     // Approved public definitions used only for display labels; loaded once per widget.

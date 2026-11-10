@@ -10,15 +10,17 @@ class FLDDemoContentSnapshot;
 // DEV build evaluation strategy (docs/systems/BUILD_EVALUATION.md). One fixed, symmetric duel strategy for the two AI
 // contenders of an evaluation Case. It reads only the authorized decision frame the production policy reads and returns
 // intents the opponent adapter submits through the same domain entries and receipts. What it fixes is whom to fight, where
-// to meet and which offered card to take; how to fight is the production engagement (LDOpponentPolicy::EngageUnit).
+// to meet and which offered active to take (always asking to learn it now); learning blueprints and allocating points are the
+// production rule (LDOpponentPolicy::DecideLearnOrAllocate) and how to fight is the production engagement
+// (LDOpponentPolicy::EngageUnit).
 
 enum class ELDEvaluationChoiceRule : uint8
 {
-    // The production choice (LDOpponentPolicy::SelectChoice), including its opening card index.
+    // The production active preference (LDOpponentPolicy::SelectActive).
     AISelect,
-    // The option at Index (0..2) of the actual head offer.
+    // The option at Index (0..2) of the actual active offer.
     OptionIndex,
-    // The actual head offer's option of DefinitionId.
+    // The actual active offer's option of DefinitionId.
     Definition,
 };
 
@@ -27,8 +29,6 @@ struct FLDEvaluationChoice
     ELDEvaluationChoiceRule Rule = ELDEvaluationChoiceRule::AISelect;
     int32 Index = INDEX_NONE;
     FString DefinitionId;
-    // A new active while Q, W and E are taken replaces exactly this slot; unset refuses the choice instead of guessing.
-    TOptional<ELDOpponentSkillSlot> Replace;
 };
 
 struct FLDEvaluationProfile
@@ -37,7 +37,8 @@ struct FLDEvaluationProfile
     FGuid Opponent;
     // The public place both duelists walk to.
     FName Site;
-    // One rule per opportunity ordinal from 1 (the opening choice); the strategy fights once all of them are consumed.
+    // One rule per active opportunity ordinal from 1 (the opening offer); the strategy fights once all of them are consumed
+    // and the build steps they unlocked are settled.
     TArray<FLDEvaluationChoice> Choices;
 };
 
@@ -46,8 +47,8 @@ enum class ELDEvaluationPhase : uint8 { Waiting, Building, Approaching, Engaging
 struct FLDEvaluationProfileState
 {
     ELDEvaluationPhase Phase = ELDEvaluationPhase::Waiting;
-    // The first refusal of the plan (a planned card absent from the actual offer, a replacement left unspecified, an
-    // unknown site). The strategy then stops; the Case is invalid, never completed with another card.
+    // The first refusal of the plan (a planned active absent from the actual offer, an option index beyond it, an unknown
+    // site). The strategy then stops; the Case is invalid, never completed with another active.
     FString Failure;
 };
 
@@ -64,9 +65,9 @@ namespace LDEvaluationPolicy
 {
     // Arrival distance to the meeting place; inside it the body holds instead of ordering another walk.
     inline constexpr double SiteArrivalCm = 200.;
-    // The pick of the head offer under Rule, or false with Error; never another card.
+    // The active of the current offer under Rule, or false with Error; never another active.
     LOCKDOWN_API bool Choose(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDEvaluationChoice& Rule,
-        FLDOpponentChoicePick& Out, FString& Error);
+        FString& OutOption, FString& Error);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         const FLDEvaluationProfile& Profile, FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State);
 }

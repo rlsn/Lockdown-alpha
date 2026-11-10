@@ -8,62 +8,50 @@ struct FLDDemoProgressionDefinition;
 struct FLDDemoContentParameters;
 struct FLDDemoContentDefinitions;
 
-// Persistent contender build owned by ALDDevelopmentDirector (PEE §3). Level is stored once here.
-struct FLDLearnedSkill
+// #198 persistent contender build owned by ALDDevelopmentDirector (PEE §3). Level is stored once here; points are
+// derived from the level and XP (LDProgression::EarnedPoints), only their allocation is stored.
+struct FLDLearnedActive
 {
     FName Id;
-    uint8 Rank = 0;
-    bool bActive = false;
-    // Active skills only: 0 = Q, 1 = W.
+    // 0 = Q, 1 = W, 2 = E.
     uint8 Slot = 0;
-};
-
-struct FLDAttributeCardCount
-{
-    FName Id;
-    uint8 Count = 0;
-    ELDAttributeQuality Quality = ELDAttributeQuality::Blue;
 };
 
 struct LOCKDOWN_API FLDGrowthBuild
 {
     uint8 Level = 1;
-    // Sorted by Id; one row per learned definition.
-    TArray<FLDLearnedSkill> Skills;
-    // Sorted by Id; one row per attribute card taken at least once.
-    TArray<FLDAttributeCardCount> Cards;
-    // #153: the chosen opening direction card, a permanent stat source; None until the opening choice is taken.
-    FName OpeningCard;
+    // Allocated points, one count per catalog stat in catalog order (LDProgression::StartBuild sizes it).
+    TArray<int32> StatPoints;
+    // Learned Q/W/E actives sorted by slot; one per slot and per id.
+    TArray<FLDLearnedActive> Actives;
+    // Chosen actives waiting to be learned (待学图纸), sorted by id; never a learned id.
+    TArray<FName> PendingBlueprints;
     uint64 Revision = 1;
 
-    const FLDLearnedSkill* FindSkill(FName Id) const;
-    // Index into Skills of the active in Slot, or INDEX_NONE.
+    const FLDLearnedActive* FindActive(FName Id) const;
+    // Index into Actives of the active in Slot, or INDEX_NONE.
     int32 ActiveInSlot(uint8 Slot) const;
-    // Every learned rank plus every attribute card is one consumed choice; the opening choice counts through the rank of
-    // the active it taught, its card adds none.
-    int32 ChoicesInvested() const;
+    bool HasBlueprint(FName Id) const;
+    // Sum of StatPoints; false on a negative count or an overflow.
+    bool SpentPoints(int64& Out) const;
 };
 
-struct FLDChoiceOfferState
+// The one current offer of the active opportunity queue: up to three distinct actives drawn for opportunity Ordinal.
+struct FLDActiveOfferState
 {
     FGuid OfferId;
     uint8 Ordinal = 0;
-    // 112 §6: this offer already replaced the opportunity's first offer with a free reroll (one per offer).
-    bool bRerolled = false;
-    TArray<FLDChoiceOption> Options;
-    // #153 server-only: the active each Opening option hides, parallel to Options (None for every other kind). Never
-    // published, logged or sent before its option is applied.
-    TArray<FName> HiddenActives;
-    uint64 GeneratedBuildRevision = 0;
-    uint64 GuardBuildRevision = 0;
+    TArray<FName> Options;
     uint64 Revision = 0;
+    uint64 GeneratedBuildRevision = 0;
 };
 
-struct FLDChoiceRecord
+// One consumed active opportunity, kept for the whole match (dedupe of a consumed offer and telemetry).
+struct FLDActiveOpportunityRecord
 {
     uint8 Ordinal = 0;
     FGuid OfferId;
-    FGuid OptionId;
+    FName Chosen;
     uint64 RequestId = 0;
 };
 
@@ -71,18 +59,16 @@ struct FLDProgressionState
 {
     int64 CumulativeXP = 0;
     uint64 Revision = 1;
-    // Opportunities are contiguous ordinals 1..EarnedThrough; the queue head is ConsumedThrough + 1.
-    // Ordinal 1 is the opening choice granted by BeginMatch; ordinal k (k >= 2) is earned by reaching level k.
-    uint8 EarnedThrough = 0;
-    uint8 ConsumedThrough = 0;
-    TOptional<FLDChoiceOfferState> Offer;
+    // Active opportunities are the ordinals 1..ActiveEarned; the queue head is ActiveConsumed + 1. Ordinal 1 is the
+    // opening one granted by BeginMatch; each level of progression.active_offer_levels reached adds one more.
+    uint8 ActiveEarned = 0;
+    uint8 ActiveConsumed = 0;
+    // The head's offer; unset while the queue is empty or no active is eligible for the head.
+    TOptional<FLDActiveOfferState> Offer;
     uint64 LastOfferRevision = 0;
-    // One record per consumed opportunity for the whole match (at most MaxChoices).
-    TArray<FLDChoiceRecord> Records;
-    // 112 §6: free rerolls spent this match; the earned ones follow the level (LDProgression::RerollTokensEarned).
-    uint8 RerollsUsed = 0;
+    TArray<FLDActiveOpportunityRecord> Records;
 
-    uint8 PendingCount() const { return EarnedThrough - ConsumedThrough; }
+    uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
 
 namespace LDProgression
@@ -97,48 +83,38 @@ namespace LDProgression
         int64 NewXP = 0;
         uint8 LevelBefore = 0;
         uint8 LevelAfter = 0;
-        uint8 EarnedThroughAfter = 0;
+        uint8 ActiveEarnedAfter = 0;
     };
 
-    struct FLegalOption
+    // Where the match is for a build command: the opening countdown, the development/capture phases, or neither.
+    enum class EMatchStage : uint8 { Countdown, Live, Closed };
+
+    // The server's view of one contender when a build command commits.
+    struct FBuildContext
     {
-        ELDChoiceOptionKind Kind = ELDChoiceOptionKind::None;
-        FName DefinitionId;
-        uint8 FromRank = 0;
-        uint8 ToRank = 0;
-        ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
-        // Opening only: the hidden draftable active the card teaches.
-        FName HiddenActive;
+        EMatchStage Stage = EMatchStage::Closed;
+        ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
+        // Combat's build safe window has passed (BuildSafeAtMs <= now).
+        bool bSafe = false;
     };
 
-    struct FReplacement
+    // What an ActiveChoice did with its active.
+    struct FChoiceOutcome
     {
+        ELDBuildChoiceResult Result = ELDBuildChoiceResult::None;
         uint8 Slot = 0;
-        FName OldSkillId;
-        uint8 OldRank = 0;
-        bool bConfirmed = false;
-    };
-
-    struct FAppliedOption
-    {
-        ELDChoiceOptionKind Kind = ELDChoiceOptionKind::None;
-        FName DefinitionId;
-        uint8 NewRank = 0;
-        bool bReplaced = false;
-        uint8 Slot = 0;
-        FName ReplacedId;
-        uint8 ReplacedRank = 0;
-        ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
-        // Opening only: the active learned at rank 1 in Slot.
-        FName OpeningActive;
+        // StoredAsBlueprint after asking to learn: NotSafe, Dead or NoEmptySlot; None when not asked.
+        ELDGrowthReason StoredReason = ELDGrowthReason::None;
     };
 
     // Highest level whose cumulative threshold XP has reached; thresholds are strictly increasing from 0.
     LOCKDOWN_API ELDGrowthReason LevelForXP(const FLDDemoProgressionDefinition& Progression, int64 XP, uint8& OutLevel);
-    // XP is cumulative int64. The opening opportunity is already earned (EarnedThrough == level); each level crossed
-    // earns exactly one more, so EarnedThrough follows the level and never passes MaxLevel (= MaxChoices).
+    // The opening opportunity plus one per progression.active_offer_levels entry at or below Level.
+    LOCKDOWN_API uint8 ActiveOpportunitiesAt(const FLDDemoProgressionDefinition& Progression, uint8 Level);
+    // XP is cumulative int64 and keeps accumulating past the top level. ActiveEarned must follow CurrentLevel
+    // (ActiveOpportunitiesAt); the change reports the opportunities earned at the new level.
     LOCKDOWN_API ELDGrowthReason PlanExperience(const FLDDemoProgressionDefinition& Progression, int64 CurrentXP,
-        uint8 CurrentLevel, uint8 EarnedThrough, int64 Grant, FExperienceChange& Out);
+        uint8 CurrentLevel, uint8 ActiveEarned, int64 Grant, FExperienceChange& Out);
     // REWARD.PlayerXP at the frozen victim level.
     LOCKDOWN_API ELDGrowthReason ContenderKillReward(const FLDDemoContentParameters& Parameters, uint8 MaxLevel,
         uint8 VictimLevel, FRewardAmounts& Out);
@@ -147,60 +123,52 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, uint8 Stage,
         FRewardAmounts& Out);
 
-    // Every legal semantic option for Build, sorted by (DefinitionId, Kind). Unlearned skills offer rank 1,
-    // learned skills below MaxSkillRank offer the next rank, and every attribute card is always legal.
-    LOCKDOWN_API ELDGrowthReason LegalPool(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,
-        TArray<FLegalOption>& Out);
-    // Draw input. Pool is LegalPool of Build; the draw itself keeps only draftable skills.
-    struct FDrawInput
-    {
-        // The approved definitions (a snapshot's Get(); tests may pass an edited copy).
-        const FLDDemoContentDefinitions* Content = nullptr;
-        const FLDGrowthBuild* Build = nullptr;
-        uint8 Ordinal = 0;
-        uint64 Seed = 0;
-        // Reroll: the cards of the replaced offer, avoided wherever the remaining pool still allows another card.
-        TArray<FLegalOption> Avoid;
-    };
+    // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
+    // crossed, and at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
+    LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
+    // Earned minus allocated; AuthorityFault when the allocation exceeds what was earned.
+    LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
+        int64& Out);
+    // The level-1 build of a match start: no actives, blueprints or allocated points.
+    LOCKDOWN_API FLDGrowthBuild StartBuild(const FLDDemoContentDefinitions& Content);
+    // Actives by slot and blueprints by id, the order ValidateBuild requires.
+    LOCKDOWN_API void NormalizeBuild(FLDGrowthBuild& Build);
+    // Build has the shape this catalog allows: one point count per stat, at most three distinct known actives in distinct
+    // slots 0..2, distinct known blueprints sorted by id that are not learned.
+    LOCKDOWN_API ELDGrowthReason ValidateBuild(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
 
-    // Weight of a new skill in a level-up offer in basis points: passives weigh 10000; an unlearned active uses the
-    // approved free-slot/full-slot weight. Nothing depends on build tags. DataInvalid for
-    // upgrades, attribute cards and unknown definitions.
-    LOCKDOWN_API ELDGrowthReason NewSkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        const FLegalOption& Option, int64& OutWeight);
-    // #153 D6: the stats an active grows with, as ELDDemoBonusStat bits: ADFlat for an AD coefficient, APFlat for an AP
-    // coefficient and MaxHPFlat for a max-HP coefficient in any effect of any of its ranks.
-    LOCKDOWN_API uint32 ActiveGrowthStats(const FLDDemoAbilityDefinition& Ability);
-    // #153 D6: weight of Ability as the hidden active of opening card Card: OpeningMatchedSkillWeight when it grows with one
-    // of the card's stats, otherwise OpeningOtherSkillWeight.
-    LOCKDOWN_API int64 OpeningActiveWeight(const FLDDemoContentDefinitions& Content, const FLDDemoOpeningCardDefinition& Card,
-        const FLDDemoAbilityDefinition& Ability);
-    // Whether the draw of opportunity Ordinal can always fill three distinct cards from Pool, whatever the seed.
-    LOCKDOWN_API bool DrawFeasible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        const TArray<FLegalOption>& Pool, uint8 Ordinal);
-    // Opportunity 1 (#153 opening): three distinct opening cards drawn uniformly, then for each card in order one distinct
-    // hidden active among the pool's new draftable actives weighted by OpeningActiveWeight. Later opportunities fill three
-    // fixed slots (#147):
-    // 1. upgrade: one learned draftable skill below the top rank, uniform; a new skill when there is none;
-    // 2. new skill: one unlearned draftable skill weighted by NewSkillWeight;
-    // 3. free: an attribute card (uniform) with CHOICE.FreeSlotAttributeChance, otherwise another new skill.
-    // Every offer has at most one new active. A slot with no eligible row takes the other approved category. Every pick is
-    // without replacement and deterministic in Seed.
-    LOCKDOWN_API ELDGrowthReason DrawOffer(const FDrawInput& Input, const TArray<FLegalOption>& Pool, TArray<FLegalOption>& Out);
-    // Private per-opportunity random material; a retry of the same ordinal reuses it.
+    // The actives opportunity Ordinal may draw for Build, in catalog order: the opening pool (abilities flagged opening)
+    // for ordinal 1, every active afterwards; learned actives and pending blueprints never.
+    LOCKDOWN_API ELDGrowthReason EligibleActives(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        uint8 Ordinal, TArray<FName>& Out);
+    // Up to three distinct eligible actives, uniformly without replacement and deterministic in Seed (fewer when fewer
+    // are eligible, none when none is).
+    LOCKDOWN_API ELDGrowthReason DrawActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        uint8 Ordinal, uint64 Seed, TArray<FName>& Out);
+    // Private per-opportunity random material; a redraw of the same ordinal reuses it.
     LOCKDOWN_API uint64 OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal);
-    // The private material of the one reroll of opportunity Ordinal.
-    LOCKDOWN_API uint64 RerollSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal);
-    // Free rerolls earned by reaching Level (one per reached RerollLevels entry).
-    LOCKDOWN_API uint8 RerollTokensEarned(const FLDDemoProgressionDefinition& Progression, uint8 Level);
-    LOCKDOWN_API bool OptionStillLegal(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,
-        const FLDChoiceOption& Option);
-    // Applies one option. A new active with Q/W/E occupied needs a confirmed replacement naming the exact
-    // slot, old skill and old rank; the old skill is forgotten without refund and the new one starts at rank 1 (#147 D13).
-    // An Opening option (#153) needs its HiddenActive, a new draftable active, and a free Q/W/E slot: the card becomes the
-    // build's opening card and the active is learned at rank 1 (Q first). Every other option takes no HiddenActive, and
-    // only a new active takes a replacement. Revision is not changed here.
-    LOCKDOWN_API ELDGrowthReason ApplyOption(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Current,
-        const FLDChoiceOption& Option, const FReplacement* Replacement, FLDGrowthBuild& Out, FAppliedOption& Detail,
-        FName HiddenActive = NAME_None);
+
+    // Whether Context may learn an active now: the countdown, or alive inside the build safe window. PhaseClosed, Dead,
+    // NotSafe or LifePhaseChanged otherwise.
+    LOCKDOWN_API ELDGrowthReason LearnGate(const FBuildContext& Context);
+    // The legality matrix of one command kind: ActiveChoice in the countdown and the development phases, alive or dead;
+    // LearnBlueprint like LearnGate; AllocatePoints in the countdown, while dead, or alive inside the safe window.
+    LOCKDOWN_API ELDGrowthReason CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context);
+    // The slot a learn takes: Preferred when it is an empty slot 0..2, otherwise the lowest empty one; false when full.
+    LOCKDOWN_API bool PickLearnSlot(const FLDGrowthBuild& Build, uint8 Preferred, uint8& OutSlot);
+
+    // An offered active becomes the contender's: learned in the same commit when bLearnIfPossible, LearnGate allows it and
+    // a slot is empty, otherwise a pending blueprint. Option must be an active that is neither learned nor pending.
+    // Revision is not changed here.
+    LOCKDOWN_API ELDGrowthReason ApplyActiveChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        FName Option, bool bLearnIfPossible, uint8 PreferredSlot, const FBuildContext& Context, FLDGrowthBuild& Out,
+        FChoiceOutcome& Outcome);
+    // A pending blueprint learned into an empty slot (no replacement before #198 PR5): NoBlueprint, SlotOccupied or a
+    // LearnGate reason when refused.
+    LOCKDOWN_API ELDGrowthReason ApplyLearnBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out);
+    // Unspent points allocated across the stats in one step: one count per catalog stat summing to at least one and at
+    // most the unspent points (NotEnoughPoints), gated by CommandGate.
+    LOCKDOWN_API ELDGrowthReason ApplyAllocation(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        int64 XP, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);
 }

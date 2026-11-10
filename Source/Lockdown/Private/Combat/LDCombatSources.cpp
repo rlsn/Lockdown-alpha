@@ -23,8 +23,6 @@ namespace LDCombatSourcesDetail
             : Build.Actives.FindByPredicate([Entry](const FLDLearnedActiveValue& Candidate) { return Candidate.Entry==Entry; });
     }
 
-    const FLDDemoRankDefinition* FindRankRow(const FLDDemoAbilityDefinition& Ability, uint8 Rank)
-    { return Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& Candidate) { return Candidate.Rank==int32(Rank); }); }
 
     double RationalValue(const FLDDemoRational& Value)
     { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; }
@@ -113,8 +111,7 @@ namespace LDCombatSourcesDetail
 
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
-        FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards);
-        Values.OpeningCard=Build.OpeningCard;
+        FLDAttributeBuildValues Values(Build.Level,Build.StatPoints);
         Values.DevBonuses=Build.DevBonuses;
         return LDAttributeProjection::Project(Values,Content);
     }
@@ -139,7 +136,7 @@ namespace LDCombatSourcesDetail
         return true;
     }
 
-    // Shape of the complete post-change build; passives and cards are checked by the attribute projection.
+    // Shape of the complete post-change build; the allocated points are checked by the attribute projection.
     bool ValidateBuildInput(const FLDBuildProjectionInput& Input, const FLDExpectedBuildVersions& Installed,
         const FLDDemoContentSnapshot& Content, FString& Error)
     {
@@ -160,38 +157,24 @@ namespace LDCombatSourcesDetail
             return false;
         }
         FString LookupError;
-        int64 ConsumedChoices=0;
         for (int32 Index=0; Index<Input.Actives.Num(); ++Index)
         {
             const FLDLearnedActiveValue& Learned=Input.Actives[Index];
             const int32 Slot=LearnedSlot(Learned.Entry);
             const FLDDemoAbilityDefinition* Ability=nullptr;
             const bool bKnown=!Learned.AbilityId.IsNone() && Content.FindAbility(Learned.AbilityId.ToString(),Ability,LookupError)
-                && Ability && Ability->Kind==ELDDemoAbilityKind::Active;
+                && Ability && Content.FindValues(*Ability,Input.Level);
             bool bDuplicate=false;
             for (int32 Earlier=0; Earlier<Index; ++Earlier)
             {
                 if (Input.Actives[Earlier].Entry==Learned.Entry || Input.Actives[Earlier].AbilityId==Learned.AbilityId) { bDuplicate=true; }
             }
-            if (Slot==INDEX_NONE || Slot>=Progression.ActiveSlots || !bKnown || bDuplicate || Learned.Rank<1
-                || int32(Learned.Rank)>Progression.MaxSkillRank || !FindRankRow(*Ability,Learned.Rank))
+            if (Slot==INDEX_NONE || Slot>=Progression.ActiveSlots || !bKnown || bDuplicate)
             {
-                Error=FString::Printf(TEXT("InvalidInput: learned active %d (%s) has an unknown, duplicate or out-of-domain entry, id or rank."),
+                Error=FString::Printf(TEXT("InvalidInput: learned active %d (%s) has an unknown, duplicate or out-of-domain entry or id."),
                     Index,*Learned.AbilityId.ToString());
                 return false;
             }
-            ConsumedChoices+=Learned.Rank;
-        }
-        // Every active rank, passive rank and card consumed one choice: the opening one plus one per level-up. The opening
-        // direction card (#153) shares its choice with the active it taught, so it adds none here.
-        for (const FLDLearnedPassiveValue& Passive : Input.Passives) { ConsumedChoices+=Passive.Rank; }
-        for (const FLDAttributeCardValue& Card : Input.AttributeCards) { ConsumedChoices+=Card.Count; }
-        const int64 ChoiceBound=FMath::Min<int64>(int64(Input.Level),Progression.MaxChoices);
-        if (ConsumedChoices>ChoiceBound)
-        {
-            Error=FString::Printf(TEXT("InvalidInput: the build uses %lld choices; level %d allows at most %lld."),
-                ConsumedChoices,int32(Input.Level),ChoiceBound);
-            return false;
         }
         return true;
     }
@@ -242,71 +225,25 @@ const FName& LDCombatSourceRules::InnateDashId()
     return Id;
 }
 
-bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
-    const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error)
+bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content, FLDInnateDashTerms& Out, FString& Error)
 {
     Out=FLDInnateDashTerms();
     const FLDDemoDashDefinition& Dash=Content.Get().Character.Dash;
-    const FLDDemoEffectDefinition* Move=Dash.Rank.Effects.Num()==1 && Dash.Rank.Effects[0].GetOp()==ELDDemoEffectOp::Dash
-        ? &Dash.Rank.Effects[0] : nullptr;
+    const FLDDemoEffectDefinition* Move=Dash.Values.Effects.Num()==1 && Dash.Values.Effects[0].GetOp()==ELDDemoEffectOp::Dash
+        ? &Dash.Values.Effects[0] : nullptr;
     if (Dash.Target.Mode!=ELDDemoTargetMode::DirectionDash || !Move || Move->DistanceCm.Numerator<=0 || Move->DistanceCm.Denominator<=0
-        || Move->DurationMs<=0 || Dash.Rank.CooldownMs<=0 || Dash.Rank.ManaCostP2<0)
+        || Move->DurationMs<=0 || Dash.Values.CooldownMs<=Move->DurationMs || Dash.Values.ManaCostP2<0)
     {
         Error=TEXT("Catalog: the approved character has no executable innate dash.");
         return false;
     }
-    int64 CooldownMs=Dash.Rank.CooldownMs;
-    FLDDemoRational Distance=Move->DistanceCm;
-    const auto Boost=[&CooldownMs,&Distance,&Out,&Error](const TArray<FLDDemoEffectDefinition>& Effects, const FString& SourceId)
-    {
-        for (const FLDDemoEffectDefinition& Effect : Effects)
-        {
-            if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
-            const int64 Scale=10000+Effect.DistanceBonusBp;
-            if (Effect.CooldownRatioBp<=0 || Effect.CooldownRatioBp>10000 || Effect.DistanceBonusBp<0
-                || CooldownMs>MAX_int64/Effect.CooldownRatioBp || Distance.Numerator>MAX_int64/Scale || Distance.Denominator>MAX_int64/10000)
-            {
-                Error=FString::Printf(TEXT("NumericDomain: dash boost of %s is outside the checked domain."),*SourceId);
-                return false;
-            }
-            const int64 Scaled=CooldownMs*Effect.CooldownRatioBp;
-            CooldownMs=Scaled/10000+(Scaled%10000!=0 ? 1 : 0);
-            const int64 Numerator=Distance.Numerator*Scale, Denominator=Distance.Denominator*10000;
-            const int64 Divisor=LDCombatSourcesDetail::CommonDivisor(Numerator,Denominator);
-            Distance.Numerator=Numerator/Divisor;
-            Distance.Denominator=Denominator/Divisor;
-            Out.bBoosted=true;
-        }
-        return true;
-    };
-    // A learned passive rank with a dash boost (passive_special_forces advanced) applies once.
-    for (const FLDLearnedTriggerTerm& Term : Learned)
-    {
-        const FLDDemoAbilityDefinition* Ability=nullptr;
-        FString LookupError;
-        const FLDDemoRankDefinition* Rank=Content.FindAbility(Term.AbilityId,Ability,LookupError) && Ability
-            ? Content.FindRank(*Ability,Term.Rank,Term.Level) : nullptr;
-        if (!Rank)
-        {
-            Error=FString::Printf(TEXT("Catalog: learned passive %s rank %d has no approved terms. %s"),*Term.AbilityId,
-                int32(Term.Rank),*LookupError);
-            return false;
-        }
-        if (!Boost(Rank->Effects,Term.AbilityId)) { return false; }
-    }
-    if (CooldownMs<=Move->DurationMs)
-    {
-        Error=TEXT("NumericDomain: a boosted dash would be ready before it ends.");
-        return false;
-    }
-    Out.DistanceCm=Distance;
+    Out.DistanceCm=Move->DistanceCm;
     Out.DurationMs=Move->DurationMs;
-    Out.CooldownMs=CooldownMs;
-    Out.ManaCostP2=Dash.Rank.ManaCostP2;
+    Out.CooldownMs=Dash.Values.CooldownMs;
+    Out.ManaCostP2=Dash.Values.ManaCostP2;
     Error.Reset();
     return true;
 }
-
 ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies)
 {
     if (Input.bControlBlocked) { return ELDCombatReject::ControlBlocked; }
@@ -343,48 +280,38 @@ int64 LDCombatSourceRules::ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 Amo
     return AmountMs>=ReadyAtMs-NowMs ? NowMs : ReadyAtMs-AmountMs;
 }
 
-bool LDCombatSourceRules::DisplacesCaster(const FLDDemoRankDefinition& Rank)
+bool LDCombatSourceRules::DisplacesCaster(const FLDDemoAbilityValues& Values)
 {
-    return Rank.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+    return Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
     {
         return Effect.GetOp()==ELDDemoEffectOp::Dash;
     });
 }
 
-bool LDCombatSourceRules::SkillDisplacementBoost(const FLDDemoContentSnapshot& Content,
-    const TArray<FLDLearnedTriggerTerm>& Learned, int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error)
+bool LDCombatSourceRules::IsOffensive(const FLDDemoAbilityValues& Values)
 {
-    OutCooldownRatioBp=10000;
-    OutDistanceBonusBp=0;
-    for (const FLDLearnedTriggerTerm& Term : Learned)
+    return Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
     {
-        const FLDDemoAbilityDefinition* Ability=nullptr;
-        FString LookupError;
-        const FLDDemoRankDefinition* Rank=Content.FindAbility(Term.AbilityId,Ability,LookupError) && Ability
-            ? Content.FindRank(*Ability,Term.Rank,Term.Level) : nullptr;
-        if (!Rank)
+        switch (Effect.GetOp())
         {
-            Error=FString::Printf(TEXT("Catalog: learned passive %s rank %d has no approved terms. %s"),*Term.AbilityId,
-                int32(Term.Rank),*LookupError);
+        case ELDDemoEffectOp::Damage: case ELDDemoEffectOp::Root: case ELDDemoEffectOp::Slow: case ELDDemoEffectOp::Disarm:
+        case ELDDemoEffectOp::Stun: case ELDDemoEffectOp::Silence: case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Burn:
+        case ELDDemoEffectOp::Knockback: case ELDDemoEffectOp::Taunt: case ELDDemoEffectOp::AttackSlow:
+        case ELDDemoEffectOp::Zone: case ELDDemoEffectOp::ZoneDamage: case ELDDemoEffectOp::ZoneSlow: case ELDDemoEffectOp::ZoneBurn:
+        case ELDDemoEffectOp::ChannelCone: case ELDDemoEffectOp::GroundImpact: case ELDDemoEffectOp::ContactTrap:
+        case ELDDemoEffectOp::DashContact:
+            return true;
+        default:
             return false;
         }
-        for (const FLDDemoEffectDefinition& Effect : Rank->Effects)
-        {
-            if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
-            if (Effect.SkillCooldownRatioBp<0 || Effect.SkillCooldownRatioBp>10000 || Effect.SkillDistanceBonusBp<0)
-            {
-                Error=FString::Printf(TEXT("NumericDomain: skill dash boost of %s is outside the checked domain."),*Term.AbilityId);
-                return false;
-            }
-            // Absent terms (0) are not approved yet and change nothing.
-            if (Effect.SkillCooldownRatioBp>0) { OutCooldownRatioBp=OutCooldownRatioBp*Effect.SkillCooldownRatioBp/10000; }
-            OutDistanceBonusBp+=Effect.SkillDistanceBonusBp;
-        }
-    }
-    Error.Reset();
-    return true;
+    });
 }
 
+int64 LDCombatSourceRules::BuildSafeAtMs(int64 LastUnsafeAtMs, int64 WindowMs)
+{
+    if (LastUnsafeAtMs<=0) { return 0; }
+    return WindowMs>MAX_int64-LastUnsafeAtMs ? MAX_int64 : LastUnsafeAtMs+FMath::Max<int64>(WindowMs,0);
+}
 bool ALDCombatDirector::ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -425,10 +352,9 @@ FLDCombatTrack* ALDCombatDirector::TrackFor(FLDCombatEntityRecord& Record, ELDCo
 }
 
 bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
-    uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility) const
+    const FLDDemoAbilityDefinition*& OutAbility) const
 {
     OutSource=FLDCombatSourceRef();
-    OutRank=0;
     OutAbility=nullptr;
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { return false; }
@@ -436,52 +362,48 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
     if (Entry==ELDCombatEntry::Dash)
     {
         // Every contender holds the innate dash; camp members have no D entry.
-        if (Record.Kind!=ELDVictimKind::Contender || Content->Get().Character.Dash.Rank.Effects.IsEmpty()) { return false; }
+        if (Record.Kind!=ELDVictimKind::Contender || Content->Get().Character.Dash.Values.Effects.IsEmpty()) { return false; }
         OutSource.Kind=ELDCombatSourceKind::Innate;
         OutSource.DefinitionId=LDCombatSourceRules::InnateDashId();
-        OutRank=static_cast<uint8>(Content->Get().Character.Dash.Rank.Rank);
         return true;
     }
     if (const FLDLearnedActiveValue* Learned=LDCombatSourcesDetail::FindLearned(Record.Build,Entry))
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
-        if (Learned->AbilityId.IsNone() || !Content->FindAbility(Learned->AbilityId.ToString(),Ability,LookupError) || !Ability
-            || Ability->Kind!=ELDDemoAbilityKind::Active || !LDCombatSourcesDetail::FindRankRow(*Ability,Learned->Rank))
+        if (Learned->AbilityId.IsNone() || !Content->FindAbility(Learned->AbilityId.ToString(),Ability,LookupError) || !Ability)
         { return false; }
         OutSource.Kind=ELDCombatSourceKind::Learned;
         OutSource.DefinitionId=Learned->AbilityId;
-        OutRank=Learned->Rank;
         OutAbility=Ability;
         return true;
     }
     return false;
 }
 
-bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, uint8 Level, const FLDDemoAbilityDefinition* Ability,
-    const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const
+bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Level, const FLDDemoAbilityDefinition* Ability,
+    const FLDDemoTargetDefinition*& OutTarget, const FLDDemoAbilityValues*& OutValues, int64& OutWindupMs) const
 {
     OutTarget=nullptr;
-    OutRank=nullptr;
+    OutValues=nullptr;
     OutWindupMs=0;
     const FLDDemoContentSnapshot* Content=Catalog();
     if (Ability && Content)
     {
         OutTarget=&Ability->Target;
-        OutRank=Content->FindRank(*Ability,Rank,Level);
+        OutValues=Content->FindValues(*Ability,Level);
         OutWindupMs=Ability->WindupMs;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
     {
         const FLDDemoDashDefinition& Dash=Content->Get().Character.Dash;
         OutTarget=&Dash.Target;
-        OutRank=&Dash.Rank;
+        OutValues=&Dash.Values;
         OutWindupMs=Dash.WindupMs;
     }
-    return OutTarget && OutRank;
+    return OutTarget && OutValues;
 }
 
-bool ALDCombatDirector::InnateDashFor(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,
-    FLDInnateDashTerms& Out, FString& Error) const
+bool ALDCombatDirector::InnateDashFor(FLDInnateDashTerms& Out, FString& Error) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content)
@@ -489,11 +411,8 @@ bool ALDCombatDirector::InnateDashFor(const FLDCombatEntityRecord& Record, const
         Error=TEXT("The innate dash requires the approved Demo content.");
         return false;
     }
-    // A body uses its installed projection; a dead contender explains the persistent build of the next life.
-    const FLDAttributeProjection& Projection=Body ? Body->AttributeProjection : Record.Projection;
-    return LDCombatSourceRules::InnateDashTerms(*Content,Projection.LearnedTriggers,Out,Error);
+    return LDCombatSourceRules::InnateDashTerms(*Content,Out,Error);
 }
-
 bool ALDCombatDirector::PlanBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,
     TArray<FLDCombatBindingPlan>& Out, FString& Error) const
 {
@@ -514,16 +433,14 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     FLDCombatEntryView View;
     View.Entry=Entry;
     FLDCombatSourceRef Source;
-    uint8 Rank=0;
     const FLDDemoAbilityDefinition* Ability=nullptr;
-    if (!ResolveEntry(Record,Entry,Source,Rank,Ability))
+    if (!ResolveEntry(Record,Entry,Source,Ability))
     {
         // An occupied slot whose definition cannot resolve still names what the owner holds.
         if (const FLDLearnedActiveValue* Learned=LDCombatSourcesDetail::FindLearned(Record.Build,Entry))
         {
             View.SourceKind=ELDCombatSourceKind::Learned;
             View.DefinitionId=Learned->AbilityId;
-            View.Rank=Learned->Rank;
         }
         View.Unavailable=ELDCombatReject::SourceUnavailable;
         return View;
@@ -531,38 +448,32 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     View.SourceKind=Source.Kind;
     View.DefinitionId=Source.DefinitionId;
     const FLDDemoTargetDefinition* Target=nullptr;
-    const FLDDemoRankDefinition* RankRow=nullptr;
+    const FLDDemoAbilityValues* Values=nullptr;
     int64 WindupMs=0;
-    if (Ability) { View.Rank=Rank; }
-    if (!ActiveOf(Source,Rank,Record.Build.Level,Ability,Target,RankRow,WindupMs))
+    if (!ActiveOf(Source,Record.Build.Level,Ability,Target,Values,WindupMs))
     {
         View.Unavailable=ELDCombatReject::SourceUnavailable;
         return View;
     }
     View.TargetMode=static_cast<uint8>(Target->Mode);
-    View.ManaCostP2=RankRow->ManaCostP2;
-    // A dash has no authored target range; its reach is the Dash effect distance of the active rank.
+    View.ManaCostP2=Values->ManaCostP2;
+    // A dash has no authored target range; its reach is the Dash effect distance of the active.
     const FLDDemoEffectDefinition* Dash=Target->Mode==ELDDemoTargetMode::DirectionDash
-        ? RankRow->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
+        ? Values->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
         : nullptr;
     View.RangeCm=LDCombatSourcesDetail::DisplayCm(Dash ? Dash->DistanceCm : Target->RangeCm);
-    // The owner sees the reach this body has right now (a share of its extra attack range, a passive dash boost on a dash).
-    if (Body && Source.Kind!=ELDCombatSourceKind::Innate)
+    // The owner sees the cast reach this body has right now (a share of its extra attack range).
+    if (Body && Source.Kind!=ELDCombatSourceKind::Innate && !Dash)
     {
         FString RangeError;
         double RangeCm=0;
-        int64 CooldownRatioBp=10000, DistanceBonusBp=0;
-        if (!Dash && CastRangeCm(*Body,*Target,RangeCm,RangeError)) { View.RangeCm=int32(FMath::RoundToDouble(RangeCm)); }
-        else if (Dash && Catalog() && LDCombatSourceRules::SkillDisplacementBoost(*Catalog(),Body->AttributeProjection.LearnedTriggers,
-            CooldownRatioBp,DistanceBonusBp,RangeError))
-        { View.RangeCm=int32(FMath::RoundToDouble(LDCombatSourcesDetail::RationalValue(Dash->DistanceCm)*double(10000+DistanceBonusBp)/10000.)); }
+        if (CastRangeCm(*Body,*Target,RangeCm,RangeError)) { View.RangeCm=int32(FMath::RoundToDouble(RangeCm)); }
     }
     FLDInnateDashTerms Innate;
     FString TermsError;
     if (Source.Kind==ELDCombatSourceKind::Innate)
     {
-        // The owner sees the reach this body's learned passives give the dash right now.
-        if (!InnateDashFor(Record,Body,Innate,TermsError))
+        if (!InnateDashFor(Innate,TermsError))
         {
             View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
             return View;
@@ -584,7 +495,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     Gate.MpP2=Body->Resources.MpP2;
     Gate.ManaCostP2=View.ManaCostP2;
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
-    Gate.bDash=LDCombatSourceRules::DisplacesCaster(*RankRow);
+    Gate.bDash=LDCombatSourceRules::DisplacesCaster(*Values);
     Gate.Roots=&Body->Roots;
     Gate.bControlBlocked=IsCastBlocked(*Body,Source.Kind);
     Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
@@ -597,6 +508,23 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
 void ALDCombatDirector::MarkViewChanged(const FGuid& Entity)
 {
     if (FLDCombatEntityRecord* Record=FindRecord(Entity)) { ++Record->ViewRevision; }
+}
+
+void ALDCombatDirector::MarkBuildUnsafe(const FGuid& Entity, int64 NowMs)
+{
+    FLDCombatEntityRecord* Record=FindRecord(Entity);
+    if (!Record || Record->Kind!=ELDVictimKind::Contender || NowMs<=Record->LastBuildUnsafeAtMs) { return; }
+    Record->LastBuildUnsafeAtMs=NowMs;
+    // The owner views (Combat's and growth's copy) republish the new BuildSafeAtMs.
+    ++Record->ViewRevision;
+}
+
+int64 ALDCombatDirector::ReadBuildSafeAtMs(const FGuid& Contender) const
+{
+    const FLDCombatEntityRecord* Record=FindRecord(Contender);
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Record || Record->Kind!=ELDVictimKind::Contender || !Content) { return 0; }
+    return LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
 }
 
 FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
@@ -704,20 +632,16 @@ bool ALDCombatDirector::PublicActivesOf(const FLDBuildProjectionInput& Build, co
     FLDObservedActivesView& Out)
 {
     Out=FLDObservedActivesView();
-    const int32 MaxRank=Content.Get().Progression.MaxSkillRank;
     for (const FLDLearnedActiveValue& Active : Build.Actives)
     {
         const int32 Slot=Active.Entry==ELDCombatEntry::Q ? 0 : Active.Entry==ELDCombatEntry::W ? 1
             : Active.Entry==ELDCombatEntry::E ? 2 : INDEX_NONE;
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
-        if (Slot==INDEX_NONE || Out.Abilities[Slot]!=0 || Active.Rank<1 || int32(Active.Rank)>MaxRank
-            || int32(Active.Rank)>LDObservation::MaxActiveRank
-            || !Content.FindAbility(Active.AbilityId.ToString(),Ability,LookupError) || !Ability
-            || Ability->Kind!=ELDDemoAbilityKind::Active || Ability->NativeId==0)
+        if (Slot==INDEX_NONE || Out.Abilities[Slot]!=0
+            || !Content.FindAbility(Active.AbilityId.ToString(),Ability,LookupError) || !Ability || Ability->NativeId==0)
         { return false; }
         Out.Abilities[Slot]=Ability->NativeId;
-        Out.Ranks[Slot]=Active.Rank;
     }
     return true;
 }
@@ -870,6 +794,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.bHasBody=Body!=nullptr;
     Out.SourceRevision=Record->SourceRevision;
     Out.NextAttackAtMs=Record->NextAttackAtMs;
+    Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
     if (Body)
     {
         Out.HPP2=Body->Resources.HpP2;
@@ -1002,17 +927,13 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Base=Row.Base;
         RowView.Level=Row.LevelGrowth.Flat;
         RowView.Choices=Row.PermanentChoices.Flat;
-        RowView.Passives=Row.Passives.Flat;
         RowView.Dev=Row.Dev.Flat;
         RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
         RowView.TemporaryPercent=Row.Temporary.AdditiveRatio;
-        RowView.Penalty=Row.Penalties.Flat;
-        RowView.PenaltyPercent=Row.Penalties.AdditiveRatio;
         RowView.Final=Row.Final;
         RowView.bClamped=Row.bClamped;
-        if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus)
-            || !LDCombatSourcesDetail::AddRatios(RowView.PercentBonus,Row.Passives.AdditiveRatio,RowView.PercentBonus))
+        if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus))
         {
             UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_OWNER_VIEW_RATIO contender=%s attribute=%u"),
                 *Caller.EntityId.ToString(),uint32(Row.Attribute));

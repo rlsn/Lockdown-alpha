@@ -13,12 +13,12 @@ struct FLDDemoContentDefinitions;
 struct FLDDemoStatBonus;
 struct FLDDemoEffectDefinition;
 struct FLDDemoTargetDefinition;
-struct FLDDemoRankDefinition;
-struct FLDDemoAbilityDefinition;
+struct FLDDemoAbilityValues;
+struct FLDDemoStatDefinition;
 struct FLDLobbyView;
 namespace LDHUD
 {
-    // #147 card text: the owner's level grows a skill's fixed amounts (G(L)); its stats fill the coefficients.
+    // #147/#198 card text: the owner's level grows an active's fixed amounts (G(L)); its stats fill the coefficients.
     struct FCardStats
     {
         uint8 Level=1;
@@ -37,19 +37,15 @@ namespace LDHUD
         TArray<FString> Keywords;
         // False when a placeholder reads nothing (never shown as a number).
         bool bComplete=true;
-        // Each placeholder's value at Rank, in template order ("?" when it reads nothing).
+        // Each placeholder's value, in template order ("?" when it reads nothing).
         TArray<FString> Values;
     };
-    // Renders a card template (LDDemoCardText) against Rank grown for Stats.Level; with From, every value that changes reads
-    // "A → B". The 13 glossary keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
-    LOCKDOWN_API FCardText CardText(const FString& Template,const FLDDemoRankDefinition& Rank,const FLDDemoRankDefinition* From,
-        const FCardStats& Stats,int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp=0);
-    // Characters a player reads: everything but spaces (v7 R1/R2: a sentence at most 26, an advanced line at most 18).
-    LOCKDOWN_API int32 CardLength(const FString& Plain);
-    // A learned skill's effect lines: its card sentence at Rank for Stats, then, at its top (advanced) rank, the "高级：" line
-    // with the change that rank adds. Empty when Ability has no such rank.
-    LOCKDOWN_API TArray<FString> LearnedCardLines(const FString& Sentence,const FString& Advanced,const FLDDemoAbilityDefinition& Ability,
-        uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp=0);
+    // Renders an active's card template (LDDemoCardText) against its single value set grown for Stats.Level. The glossary
+    // keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
+    LOCKDOWN_API FCardText CardText(const FString& Template,const FLDDemoAbilityValues& Values,const FCardStats& Stats,
+        int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp=0);
+    // Renders a stat's card template: each [per_point.<Stat>] reads that per-point bonus of Stat, which never grows.
+    LOCKDOWN_API FCardText StatCardText(const FString& Template,const FLDDemoStatDefinition& Stat);
     // "<b>减速</>：…" for each keyword.
     LOCKDOWN_API TArray<FString> KeywordLines(const TArray<FString>& Keywords);
     // Real local frame intervals over a window of at least WindowSeconds (a long frame is never cut; it closes its window
@@ -75,10 +71,6 @@ namespace LDHUD
     LOCKDOWN_API FString ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     // The display row's IconId of a content entry (#85); empty without a display row.
     LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
-    // #153: an offer of opening direction cards (opportunity 1); it is never rerolled.
-    LOCKDOWN_API bool IsOpeningOffer(const FLDChoiceOfferView& Offer);
-    // #147 two skill ranks: 初级 (1) and 高级 (2); anything else is named by its number.
-    LOCKDOWN_API FString SkillRankName(int32 Rank);
     LOCKDOWN_API FString StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId);
     LOCKDOWN_API FString CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId);
     LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
@@ -152,9 +144,10 @@ namespace LDHUD
     // The graffiti owner and the guard are named in every open state; a contest without a holder names no sprayer.
     LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
         int64 SprayMs=0,int64 GuardMs=0);
-    // The one most useful next step for the own player, shown under the public spray line: a pending growth choice,
-    // then the open flagpole (spray, guard your own graffiti, or besiege its owner), then early farming. Own projections
-    // and the public match only; never a hidden unit. Empty when nothing applies or the match is not running.
+    // The one most useful next step for the own player, shown under the public spray line: pending growth (an active offer,
+    // then unspent points, then a blueprint with an empty Q/W/E slot), then the open flagpole (spray, guard your own graffiti,
+    // or besiege its owner), then early farming. Own projections and the public match only; never a hidden unit. Empty when
+    // nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName=FString());
     // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop. Empty when
     // there is no drop to show; the claim is an event of the event feed (FEventFeed), not a standing line.
@@ -220,7 +213,6 @@ namespace LDHUD
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
         FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
-        uint8 Rank=0;             // learned rank
         int64 ManaCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
         int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
@@ -239,7 +231,7 @@ namespace LDHUD
         int64 NowMs=0;
         bool bManaKnown=false;
         int64 ManaP2=0;
-        // #147: the owner's level and stats, so a skill's card text shows the numbers it has now.
+        // #147/#198: the owner's level and stats, so a skill's card text shows the numbers it has now.
         FCardStats Card;
     };
     struct FActionView
@@ -259,15 +251,14 @@ namespace LDHUD
         FString Cost;             // the active's mana cost rounded like the shown mana, number only, e.g. "30"; empty without one
         FString IconId;           // the icon texture id (LDUIIcons); empty without a source
         FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
-        FString Rank;             // the learned rank of Q/W/E, number only; empty for the dash and empty slots
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Slot look: the slot face says its state by colour alone (the tooltip keeps the words). A dead, unsynced or empty
     // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, mana and server reasons.
     enum class EActionLook : uint8 { Ready, Armed, Cooling, NoMana, Controlled, Empty, Blocked };
     LOCKDOWN_API EActionLook ActionLook(const FActionView& View,bool bArmed);
-    // The hover description of a slot, laid out like the blind-box popups: the name, "<kind> [<key>] · <state>", then the
-    // current rank's card lines, the targeting and the cost (the dash: its reach).
+    // The hover description of a slot, laid out like the growth panel's popups: the name, "<kind> [<key>] · <state>", then
+    // the active's card sentence with the owner's current numbers, the targeting and the cost (the dash: its reach).
     struct FActionDetailView
     {
         FString Name;
@@ -283,64 +274,99 @@ namespace LDHUD
         bool bMana=false;
         FResourceView Mana;
         FString Statuses;
-        // A visible contender's Q/W actives (#112 §10): key, display name, rank and the Lv3 mark; never cooldowns.
+        // A visible contender's Q/W/E actives (#112 §10, #198 single level): key and display name; never cooldowns.
         struct FActiveChip
         {
             FString Key;
             FString Name;
-            FString Rank;
             bool bEmpty=true;
-            bool bMaxRank=false;
         };
         bool bActives=false;
         FActiveChip Actives[3];
     };
-    // SC-07 whitelist only: name, level, HP, MP, public statuses and the Q/W/E actives with ranks.
+    // SC-07 whitelist only: name, level, HP, MP, public statuses and the Q/W/E actives.
     LOCKDOWN_API FObservedCard ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
     LOCKDOWN_API FString ObservedUnit(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
 
     // Typed parameters of approved content (CONTENT 12.5): prose comes from the display table, numbers only from the
     // immutable snapshot fields, formatted here without recomputing any battle formula.
     LOCKDOWN_API FString StatLine(const FLDDemoStatBonus& Stat);
-    // A wild card's explicit deduction, e.g. "移速 -4%".
-    LOCKDOWN_API FString PenaltyLine(const FLDDemoStatBonus& Stat);
     LOCKDOWN_API FString EffectLine(const FLDDemoEffectDefinition& Effect);
     LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
-    // The mana cost and cooldown line of an active rank.
-    LOCKDOWN_API FString CostLine(const FLDDemoRankDefinition& Rank);
-    struct FChoiceCardView
+    // The mana cost and cooldown line of an active's value set.
+    LOCKDOWN_API FString CostLine(const FLDDemoAbilityValues& Values);
+    // #198 growth panel: one active of the current offer, a pending blueprint or a learned slot, rendered for the owner's
+    // current level and stats. Card faces show the icon, the name, the sentence and the targeting/cost line; the hover popup
+    // adds the keyword explanations.
+    struct FActiveCardView
     {
-        FString Kind;
+        FName DefinitionId;
         FString Name;
-        FString RankText;
-        // The card type on the face (#85, the icons no longer differ by shape): "主动", "被动", "属性" or "开局".
-        FString Type;
-        // The compact card's short second line (#97): the type, then "新" for a new skill, "初→高" for an upgrade or the pick
-        // count of an attribute ("属性 · 已选 N 次"; its quality is the name's colour, #85); the HUD shows a needed replacement.
-        // Detail is "<kind> · <rank>", and an attribute card's rank there still names its quality in words.
-        FString Summary;
-        FString Detail;
-        // #147 card face: the one-sentence rule with this level's numbers ("A → B" on an upgrade) and the "高级：" line, as
-        // rich text with the keywords in <b>…</>; an attribute card's sentence is its stat line. Plain twins drop the markup.
-        FString Sentence;
-        FString SentencePlain;
-        FString Advanced;
-        FString AdvancedPlain;
-        // "<b>关键词</>：解释" for every keyword the face uses, in glossary order.
-        TArray<FString> Keywords;
-        // Details below the face: targeting and the active's mana and cooldown.
-        TArray<FString> Lines;
-        // Display-table icon reference (empty when the definition has no display row), drawn through LDUIIcons; Glyph (the
-        // name's first character) shows only when that texture is missing.
+        // Display-table icon reference (empty without a display row), drawn through LDUIIcons; Glyph (the name's first
+        // character) shows only when that texture is missing.
         FString IconId;
         FString Glyph;
-        ELDAttributeQuality AttributeQuality=ELDAttributeQuality::None;
-        bool bNeedsReplacement=false;
+        // The one-sentence rule with this level's numbers, as rich text with the keywords in <b>…</>, and its plain twin.
+        FString Sentence;
+        FString SentencePlain;
+        // "<b>关键词</>：解释" for every keyword the sentence uses, in glossary order.
+        TArray<FString> Keywords;
+        FString Target;
+        FString Cost;
+        // False when the catalog has no such active or display row; Sentence then says so instead of inventing a face.
+        bool bKnown=false;
     };
-    // One of the three fixed options of the current offer; a learn-active card with both Q/W filled needs an explicit replacement.
-    // Numbers are those of the owner's level and stats in Stats.
-    LOCKDOWN_API FChoiceCardView ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
-        const FCardStats& Stats);
+    LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    // One of the point-bought stats (#198) with the points the owner allocated to it and its per-point text.
+    struct FStatRowView
+    {
+        FName StatId;
+        FString Name;
+        FString IconId;
+        FString Glyph;
+        FString PerPoint;
+        FString PerPointRich;
+        int32 Points=0;
+        bool bKnown=false;
+    };
+    LOCKDOWN_API FStatRowView StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content);
+    // The points the own progression allocated to StatId; 0 when it lists none.
+    LOCKDOWN_API int32 StatPointsOf(const FLDProgressionView& Progression,FName StatId);
+    // The active in Q/W/E slot Slot, or None.
+    LOCKDOWN_API FName ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot);
+    // "Q", "W" or "E".
+    LOCKDOWN_API FString SlotKey(uint8 Slot);
+    // What the own contender may do with its build right now, judged like the server judges a commit (LDProgression's
+    // LearnGate and CommandGate over the public match phase, the own life phase and the build safe window). A hint only:
+    // the server decides each command. Each Blocked line names the reason ("未脱战 2.4 秒", "阵亡中"); empty when allowed.
+    // Without the authority clock the safe window is unknown and learning or allocating while alive reads as syncing.
+    struct FBuildGateView
+    {
+        bool bCanChoose=false;
+        FString ChooseBlocked;
+        bool bCanLearn=false;
+        FString LearnBlocked;
+        bool bCanAllocate=false;
+        FString AllocateBlocked;
+    };
+    LOCKDOWN_API FBuildGateView BuildGate(ELDMatchPhase Phase,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    // The player-facing why of a refused or stored build step (NotSafe with the remaining seconds when known).
+    LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, or the points added and left.
+    LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,
+        int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    // What waits in the growth panel for the own view of Match: queued active opportunities, unspent points and blueprints
+    // while a Q/W/E slot is empty. The 开盲盒 button is lit and counts them while any is pending; empty otherwise.
+    struct FGrowthPending
+    {
+        int32 Offers=0;
+        int64 Points=0;
+        int32 Blueprints=0;
+        bool Any() const {return Offers>0||Points>0||Blueprints>0;}
+        // "开盲盒+1 · 3点", "开盲盒 · 图纸 1" or "开盲盒".
+        FString Prompt() const;
+    };
+    LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match);
     struct FAttributeRowView
     {
         FString Name;
@@ -354,27 +380,26 @@ namespace LDHUD
     LOCKDOWN_API FString CombatRejectText(ELDCombatReject Reject);
     // Owner combat entry -> action input; Unavailable stays a display-only server reason.
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
-    // One square of the own status grid under the 属性 button: a temporary status, an active recovery (脱战回复中, 躺平角回血中)
-    // or a learned passive. IconId is its icon (LDUIIcons) and Glyph the name's first character, shown only without that texture; Tip is the name with its stacks, shield
-    // and remainder (statuses) or rank name (learned passives). The hover popup is built from it by SelfIconDetail.
+    // One square of the own status grid under the 属性 button: a temporary status or an active recovery (脱战回复中, 躺平角回血中).
+    // IconId is its icon (LDUIIcons) and Glyph the name's first character, shown only without that texture; Tip is the
+    // name with its stacks, shield and remainder. The hover popup is built from it by SelfIconDetail.
     // bPositive is the square's tone: green when it helps its bearer, red when it hurts (StatusIsPositive); recoveries
-    // and passives are always positive.
-    enum class ESelfIconKind : uint8 { Control, Temporary, Passive };
-    enum class ESelfIconSource : uint8 { Status, OutOfCombatRegen, DormRegen, Learned };
+    // are always positive. #198 has no passive in content yet; base components bring their squares back (#198 PR3).
+    enum class ESelfIconKind : uint8 { Control, Temporary };
+    enum class ESelfIconSource : uint8 { Status, OutOfCombatRegen, DormRegen };
     struct FSelfIconView
     {
-        ESelfIconKind Kind=ESelfIconKind::Passive;
+        ESelfIconKind Kind=ESelfIconKind::Temporary;
         ESelfIconSource Source=ESelfIconSource::Status;
         bool bPositive=true;
         FString IconId;
         FString Glyph;
         FString Tip;
-        // The content entry the popup describes: the status or the learned passive.
+        // The content entry the popup describes: the status.
         FString ContentId;
-        uint8 Rank=0;
-        // Stable within one status or passive, so the HUD keeps its remaining-time ring across samples.
+        // Stable within one status, so the HUD keeps its remaining-time ring across samples.
         FName Key;
-        // Timed temporary statuses only: the authority instant it ends; 0 for conditional states and passives.
+        // Timed temporary statuses only: the authority instant it ends; 0 for conditional states.
         int64 ExpiresAtMs=0;
         uint8 Stacks=1;
     };
@@ -383,7 +408,7 @@ namespace LDHUD
     inline constexpr int32 SelfIconMax=SelfIconColumns*SelfIconRows;
     struct FSelfIconsView
     {
-        // At most SelfIconMax: control statuses, other temporary statuses and active recoveries, then learned passives.
+        // At most SelfIconMax: control statuses, then other temporary statuses and active recoveries.
         TArray<FSelfIconView> Items;
         // Items beyond SelfIconMax; the grid shows "…" and the attribute panel lists them all.
         int32 Overflow=0;
@@ -391,16 +416,13 @@ namespace LDHUD
         bool bSyncing=false;
     };
     // Own temporary statuses (passive auras and respawn protection, which the life line shows, are left out; shield
-    // points round up and a remainder needs the matching authority clock), the active out-of-combat and dorm recoveries
-    // (conditional, so no remaining time), and own learned passives with their rank.
-    LOCKDOWN_API FSelfIconsView SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
-        const FLDDemoContentDefinitions* Content);
+    // points round up and a remainder needs the matching authority clock) and the active out-of-combat and dorm recoveries
+    // (conditional, so no remaining time).
+    LOCKDOWN_API FSelfIconsView SelfIcons(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
     // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
-    // a status or recovery followed by its tone, " · 正面" or " · 负面"; "角色被动"), then the full content description: a status's
-    // text, a recovery's rule with the REGEN/DORM parameters, or a learned passive's card lines rendered for Card
-    // (LearnedCardLines).
-    // Built only for the hovered square.
-    LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content);
+    // followed by its tone, " · 正面" or " · 负面"), then the full content description: a status's text or a recovery's rule
+    // with the REGEN/DORM parameters. Built only for the hovered square.
+    LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FLDDemoContentDefinitions* Content);
     // Whether a status helps its bearer (护盾, 增益, 强化普攻, 复活保护, 回位) rather than hurts it (every control, 减速,
     // 破防, 灼烧). A fixed property of the native status identity; an unknown id reads as negative.
     LOCKDOWN_API bool StatusIsPositive(uint8 StatusId);
@@ -431,11 +453,11 @@ namespace LDHUD
     // arrival order. Receipts of another match or life tell nothing; the lost protection is told once per life revision.
     LOCKDOWN_API FString CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrived,uint32 Match,uint32 Life,uint64& ToldProtectionLifeRevision);
 
-    // When the docked three-choice panel folds back to the pending-choice pill by itself, so it does not keep covering
-    // the right side of the battlefield. Folding only hides the panel: the opportunity, the offer and any submitted
-    // request keep their state, and nothing is picked. Local presentation time only.
-    // - The opening offer's automatic open (D10) folds after AutoOpenSeconds unless the player has engaged with it
-    //   (a previewed card, the replacement confirmation or a request in flight); engaging ends that timer for the opening.
+    // When the docked growth panel folds back to the 开盲盒 button by itself, so it does not keep covering the battlefield.
+    // Folding only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their
+    // state, and nothing is chosen. Local presentation time only.
+    // - An automatic open (a new active offer or newly earned points, D10) folds after AutoOpenSeconds unless the player
+    //   has engaged with it (a previewed card, staged points or a request in flight); engaging ends that timer.
     // - A hit on the own body folds an open panel unless the player is engaged. After such a fold, the player's next own
     //   opening is respected and is not folded by hits again until it closes.
     class LOCKDOWN_API FChoicesFold
@@ -453,6 +475,19 @@ namespace LDHUD
         bool bHitImmune=false;
         bool bFoldedByHit=false;
         double OpenedAt=0;
+    };
+    // D10/#198: when the growth panel opens by itself: for each active offer first seen and each rise of the unspent points
+    // in a valid view of the current match (the match's first view counts, so the opening offer and points open it). The
+    // caller still never opens it over the player's own panel or captured input. Local presentation only.
+    class LOCKDOWN_API FGrowthAutoOpen
+    {
+    public:
+        // True when View brings a new offer or more unspent points than last seen.
+        bool Observe(const FLDProgressionView& View,uint32 Match);
+    private:
+        uint32 SeenMatch=0;
+        FGuid SeenOffer;
+        int64 SeenUnspent=0;
     };
 
     // The top-left event feed: room-public events as short lines, oldest first, so the newest sits at the bottom. Each line

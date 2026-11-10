@@ -19,20 +19,6 @@ bool Fail(FString& Error, const FString& Message)
     return false;
 }
 
-bool OptionKind(ELDChoiceOptionKind Kind, ELDOpponentOptionKind& Out)
-{
-    switch (Kind)
-    {
-    case ELDChoiceOptionKind::LearnActive: Out = ELDOpponentOptionKind::LearnActive; return true;
-    case ELDChoiceOptionKind::UpgradeActive: Out = ELDOpponentOptionKind::UpgradeActive; return true;
-    case ELDChoiceOptionKind::LearnPassive: Out = ELDOpponentOptionKind::LearnPassive; return true;
-    case ELDChoiceOptionKind::UpgradePassive: Out = ELDOpponentOptionKind::UpgradePassive; return true;
-    case ELDChoiceOptionKind::Attribute: Out = ELDOpponentOptionKind::Attribute; return true;
-    case ELDChoiceOptionKind::Opening: Out = ELDOpponentOptionKind::Opening; return true;
-    default: return false;
-    }
-}
-
 bool SourceSlot(ELDCombatEntry Entry, ELDOpponentSourceSlot& Out)
 {
     switch (Entry)
@@ -192,58 +178,40 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     {
         return Fail(Error, TEXT("The own progression view must be a valid publication of this match."));
     }
-    Out.Skills.Reset();
+    Out.Actives.Reset();
+    Out.Blueprints.Reset();
+    Out.StatPoints.Reset();
     Out.Offer.Reset();
-    TArray<FLDLearnedPassiveValue> Passives;
-    for (const auto& Skill : Progression.Skills)
+    for (const FLDActiveSlotView& Active : Progression.Actives)
     {
-        FLDOpponentSkill Mapped;
-        Mapped.DefinitionId = CanonicalId(Skill.DefinitionId);
-        Mapped.Rank = Skill.Rank;
-        if (Skill.bActive)
-        {
-            if (Skill.Slot > 2) { return Fail(Error, TEXT("An own active skill is outside the Q/W/E slots.")); }
-            Mapped.Slot = Skill.Slot == 0 ? ELDOpponentSkillSlot::Q
-                : Skill.Slot == 1 ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::E;
-        }
-        else
-        {
-            Mapped.Slot = ELDOpponentSkillSlot::Passive;
-            Passives.Emplace(Mapped.DefinitionId, Skill.Rank);
-        }
-        Out.Skills.Add(MoveTemp(Mapped));
+        if (Active.Slot > 2 || Active.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own active is outside the Q/W/E slots.")); }
+        Out.Actives.Add({CanonicalId(Active.DefinitionId), Active.Slot});
     }
-    TArray<FLDAttributeCardValue> Cards;
-    for (const auto& Card : Progression.AttributeCards)
-    { Cards.Emplace(CanonicalId(Card.DefinitionId), Card.Count, Card.Quality); }
-    if (Progression.bHasOffer && Progression.bCanChoose)
+    for (const FName& Blueprint : Progression.PendingBlueprints) { Out.Blueprints.Add(CanonicalId(Blueprint)); }
+    TArray<FLDStatPointsValue> Points;
+    for (const FLDStatPointsView& Stat : Progression.StatPoints)
+    {
+        Out.StatPoints.Add({CanonicalId(Stat.StatId), Stat.Points});
+        if (Stat.Points > 0) { Points.Emplace(CanonicalId(Stat.StatId), Stat.Points); }
+    }
+    if (Progression.bHasActiveOffer)
     {
         FLDOpponentOffer Offer;
-        Offer.OfferId = Progression.Offer.OfferId;
-        Offer.OfferRevision = Progression.Offer.OfferRevision;
-        Offer.bRerolled = Progression.Offer.bRerolled;
-        for (const auto& Option : Progression.Offer.Options)
-        {
-            FLDOpponentOption Mapped;
-            Mapped.OptionId = Option.OptionId;
-            if (!OptionKind(Option.Kind, Mapped.Kind)) { return Fail(Error, TEXT("The own offer has an unknown option kind.")); }
-            Mapped.DefinitionId = CanonicalId(Option.DefinitionId);
-            Mapped.FromRank = Option.FromRank;
-            Mapped.ToRank = Option.ToRank;
-            Mapped.AttributeQuality = Option.AttributeQuality;
-            Offer.Options.Add(MoveTemp(Mapped));
-        }
+        Offer.OfferId = Progression.ActiveOffer.OfferId;
+        Offer.OfferRevision = Progression.ActiveOffer.OfferRevision;
+        Offer.Ordinal = Progression.ActiveOffer.OpportunityOrdinal;
+        for (const FName& Option : Progression.ActiveOffer.Options) { Offer.Options.Add(CanonicalId(Option)); }
+        if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
     }
-    Out.RerollTokens = Progression.RerollTokens;
-    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Passives), MoveTemp(Cards));
-    Values.OpeningCard = CanonicalId(Progression.OpeningCard);
-    const auto Projection = LDAttributeProjection::Project(Values, Catalog);
+    const auto Projection = LDAttributeProjection::Project(FLDAttributeBuildValues(Progression.Level, MoveTemp(Points)), Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;
     Out.BuildRevision = Progression.BuildRevision;
     Out.Level = Progression.Level;
-    Out.ChoicesConsumed = Progression.ConsumedThrough;
+    Out.UnspentPoints = Progression.UnspentPoints;
+    Out.OffersConsumed = Progression.ActiveOpportunitiesConsumed;
+    Out.BuildSafeAtMs = Progression.BuildSafeAtMs;
     Error.Reset();
     return true;
 }
@@ -263,11 +231,11 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
     Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;
-    Out.bCowering = false;
+    // #198: Combat's own build safe window is fresher than the growth publication's copy.
+    Out.BuildSafeAtMs = Combat.BuildSafeAtMs;
     int64 SilencedUntilMs = 0;
     for (const auto& Status : Combat.Statuses)
     {
-        if (Status.StatusId == uint8(ELDDemoStatusId::Cowering) && Status.ExpiresAtMs > NowMs) { Out.bCowering = true; }
         // Root and Stun both hold the body in place; the policy plans no movement until they end.
         if (Status.StatusId == uint8(ELDDemoStatusId::Root) || Status.StatusId == uint8(ELDDemoStatusId::Stun))
         { Out.MoveBlockedUntilMs = FMath::Max(Out.MoveBlockedUntilMs, Status.ExpiresAtMs); }

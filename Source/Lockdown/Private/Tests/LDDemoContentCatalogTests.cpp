@@ -4,6 +4,8 @@
 
 #include "../Development/LDDemoContentJson.h"
 #include "../Development/LDDemoContentMath.h"
+#include "Algo/AllOf.h"
+#include "Development/LDDemoCardText.h"
 #include "Development/LDDemoContentText.h"
 #include "Framework/LDDemoEntry.h"
 #include "HAL/FileManager.h"
@@ -292,7 +294,8 @@ void QuantityPaths(const FValue& Value, const FString& Path, TSet<FString>& Out)
     }
 }
 
-bool RankQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, FString& Error)
+// #198: the quantities of every active's single value set (cost, cooldown and every effect term).
+bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, FString& Error)
 {
     FValue Root;
     FCheck Check(Error);
@@ -303,7 +306,10 @@ bool RankQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, F
     const auto& Abilities = Root->AsObject()->GetArrayField(TEXT("abilities"));
     for (int32 I = 0; I < Abilities.Num(); ++I)
     {
-        QuantityPaths(Abilities[I]->AsObject()->GetField<EJson::Array>(TEXT("ranks")), FString::Printf(TEXT("content.abilities[%d].ranks"), I), Out);
+        for (const TCHAR* Field : {TEXT("mana_cost"), TEXT("cooldown"), TEXT("effects")})
+        {
+            QuantityPaths(Abilities[I]->AsObject()->TryGetField(Field), FString::Printf(TEXT("content.abilities[%d].%s"), I, Field), Out);
+        }
     }
     return true;
 }
@@ -410,7 +416,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
     FFixtures Fixtures;
     if (!FixtureIndex(*this, Fixtures)) { return false; }
     TMap<FString, FString> Baseline;
-    TSet<FString> UnchangedRankQuantities;
+    TSet<FString> UnchangedValueQuantities;
     FString Error;
     for (const auto& Case : Fixtures.Valid)
     {
@@ -436,7 +442,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         if (Case.Name == TEXT("base"))
         {
             Baseline = Actual;
-            if (!RankQuantityPaths(Bundle, UnchangedRankQuantities, Error))
+            if (!ValueQuantityPaths(Bundle, UnchangedValueQuantities, Error))
             {
                 AddError(Error);
                 return false;
@@ -457,16 +463,16 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         }
         if (!Case.MutatedQuantity.IsEmpty())
         {
-            TestTrue(TEXT("Each rank quantity mutation is unique and has a native change assertion"),
-                UnchangedRankQuantities.Remove(Case.MutatedQuantity) == 1 && !Case.ChangedPaths.IsEmpty());
+            TestTrue(TEXT("Each active value quantity mutation is unique and has a native change assertion"),
+                UnchangedValueQuantities.Remove(Case.MutatedQuantity) == 1 && !Case.ChangedPaths.IsEmpty());
         }
         const FLDDemoAbilityDefinition* Ability = nullptr;
-        const FLDDemoAttributeDefinition* Attribute = nullptr;
+        const FLDDemoStatDefinition* Stat = nullptr;
         const FLDDemoMonsterDefinition* Monster = nullptr;
         const FLDDemoDisplayDefinition* Display = nullptr;
         TestTrue(TEXT("Typed lookups consume enabled definitions"),
             Snapshot->FindAbility(TEXT("active_snark_bolt"), Ability, Error)
-            && Snapshot->FindAttribute(TEXT("attr_all_nighter"), Attribute, Error)
+            && Snapshot->FindStat(TEXT("stat_brains"), Stat, Error)
             && Snapshot->FindMonster(TEXT("monster_guardian"), Monster, Error)
             && Snapshot->FindDisplay(TEXT("camp_returning"), Display, Error));
         const auto* OldAbility = Ability;
@@ -477,7 +483,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A case alias resolves to the canonical definition"),
             Snapshot->FindAbility(TEXT("Active_snark_bolt"), Ability, Error) && Ability == OldAbility);
     }
-    TestEqual(TEXT("Every rank's typed quantity has a compiler-backed native change case"), UnchangedRankQuantities.Num(), 0);
+    TestEqual(TEXT("Every active value quantity has a compiler-backed native change case"), UnchangedValueQuantities.Num(), 0);
 
     FCheck Check(Error);
     const ANSICHAR* BoundaryText = "{\n  \"max\": 9223372036854775807,\n  \"min\": -9223372036854775808\n}\n";
@@ -608,7 +614,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     Stored->Abilities.RemoveAt(0);
     TestFalse(TEXT("A dropped definition is not a valid partial asset"), Restored->ValidatePrepared(*Expected, Error));
     *Stored = Original;
-    Stored->Abilities[0].Ranks[0].Effects.AddDefaulted();
+    Stored->Abilities[0].Values.Effects.AddDefaulted();
     TestFalse(TEXT("An extra stored effect is rejected"), Restored->ValidatePrepared(*Expected, Error));
     *Stored = Original;
     TestTrue(TEXT("Restoring test mutation recovers exact original projection"), Restored->ValidatePrepared(*Expected, Error));
@@ -731,7 +737,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         if (!Case.MutatedQuantity.IsEmpty())
         {
-            // A rank quantity mutation only changes ability ranks. Its world payload and expected world
+            // An active value mutation only changes an active's value set. Its world payload and expected world
             // projection must match base byte for byte, so importing it again would only repeat base's assertions.
             if (!TestTrue(*FString::Printf(TEXT("%s keeps the base world payload and expected world projection"), *Case.Name),
                 !BaseWorld.IsEmpty() && Bundle.World == BaseWorld && Expected == BaseExpected)) { return false; }
@@ -768,7 +774,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         ++Imported;
     }
-    TestTrue(TEXT("Every non-rank case is fully imported and every case is covered"),
+    TestTrue(TEXT("Every non-value-mutation case is fully imported and every case is covered"),
         !BaseWorld.IsEmpty() && Imported > 1 && Imported + SharedBase == Fixtures.Valid.Num());
     return true;
 }
@@ -926,22 +932,13 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     int32 Entries = 0;
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
-    // #147: every skill row also carries its advanced line; no other row does.
-    int32 AdvancedLines = 0;
-    for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
-    {
-        AdvancedLines += Row.AdvancedKey.IsEmpty() ? 0 : 1;
-    }
-    TestEqual(TEXT("Every skill row carries an advanced line"), AdvancedLines, Definitions.Abilities.Num());
-    TestEqual(TEXT("Every display row contributes exactly a name and a description, a skill row also its advanced line"),
-        Entries, Definitions.Display.Num() * 2 + AdvancedLines);
-    // One row per definition (character, abilities, attributes, opening cards, monsters) and per native status.
-    // Statuses 1..6, 9, 10 and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed) and the
-    // two #147 statuses (silence, burn).
-    const int32 Statuses = 6 + 5 + 1 + 2 + 3;
+    TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
+    // One row per definition (character, actives, stats, monsters) and per native status: statuses 1..6, 9, 10 and 12..14
+    // (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses (silence, burn)
+    // and attack_slowed (#198 retires cowering and contact_guard).
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num()
-        + Definitions.Monsters.Num() + Statuses);
+        1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Monsters.Num() + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
         FString Name, Description;
@@ -950,9 +947,6 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Description resolves from the display key: ") + Row.Id,
             Table->GetSourceString(FTextKey(Row.DescriptionKey), Description)
             && Description.Equals(Row.DescriptionText, ESearchCase::CaseSensitive));
-        FString Advanced;
-        TestTrue(TEXT("An advanced line resolves from its display key: ") + Row.Id, Row.AdvancedKey.IsEmpty()
-            || (Table->GetSourceString(FTextKey(Row.AdvancedKey), Advanced) && Advanced.Equals(Row.AdvancedText, ESearchCase::CaseSensitive)));
     }
     // The statuses system text names directly read the same in the table as in the glossary (#111).
     for (const TPair<const TCHAR*, const TCHAR*>& Expected : {
@@ -1068,15 +1062,10 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         Expect(TEXT("Ability"), Row.Id, [&](const FString& Id)
         { const FLDDemoAbilityDefinition* Out = nullptr; return Snapshot->FindAbility(Id, Out, Error) ? Out : nullptr; });
     }
-    for (const FLDDemoAttributeDefinition& Row : Definitions.Attributes)
+    for (const FLDDemoStatDefinition& Row : Definitions.Stats)
     {
-        Expect(TEXT("Attribute"), Row.Id, [&](const FString& Id)
-        { const FLDDemoAttributeDefinition* Out = nullptr; return Snapshot->FindAttribute(Id, Out, Error) ? Out : nullptr; });
-    }
-    for (const FLDDemoOpeningCardDefinition& Row : Definitions.OpeningCards)
-    {
-        Expect(TEXT("Opening"), Row.Id, [&](const FString& Id)
-        { const FLDDemoOpeningCardDefinition* Out = nullptr; return Snapshot->FindOpeningCard(Id, Out, Error) ? Out : nullptr; });
+        Expect(TEXT("Stat"), Row.Id, [&](const FString& Id)
+        { const FLDDemoStatDefinition* Out = nullptr; return Snapshot->FindStat(Id, Out, Error) ? Out : nullptr; });
     }
     for (const FLDDemoMonsterDefinition& Row : Definitions.Monsters)
     {
@@ -1089,9 +1078,8 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         { const FLDDemoDisplayDefinition* Out = nullptr; return Snapshot->FindDisplay(Id, Out, Error) ? Out : nullptr; });
     }
     TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
-        !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.OpeningCards.IsEmpty()
-        && !Definitions.Monsters.IsEmpty() && Identities == Definitions.Abilities.Num() + Definitions.Attributes.Num()
-        + Definitions.OpeningCards.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+        !Definitions.Abilities.IsEmpty() && !Definitions.Stats.IsEmpty() && !Definitions.Monsters.IsEmpty()
+        && Identities == Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
     for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
     {
         const FLDDemoDisplayDefinition* Out = nullptr;
@@ -1106,10 +1094,114 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
             Snapshot->FindDisplay(Bad, Out, Error));
         TestTrue(FString::Printf(TEXT("Malformed lookup '%s' is explicit"), Bad), Out == nullptr && !Error.IsEmpty());
     }
-    const FLDDemoAttributeDefinition* Missing = nullptr;
+    const FLDDemoStatDefinition* Missing = nullptr;
     TestFalse(TEXT("A well-formed but absent identity stays absent in any casing"),
-        Snapshot->FindAttribute(TEXT("Attr_Absent"), Missing, Error));
+        Snapshot->FindStat(TEXT("Stat_Absent"), Missing, Error));
     TestTrue(TEXT("The absent identity reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentGrowthCatalogTest, "Lockdown.Rules.DemoContent.GrowthCatalog",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// #198: the approved catalog carries five point-bought stats, single-level actives with an opening pool, the active offer
+// levels and the growth parameters; an active's value set grows with its owner's level and stat cards read one point.
+bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const FCase* Approved = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("approved_base"); });
+    if (!TestNotNull(TEXT("approved_base fixture is exported"), Approved)) { return false; }
+    FString Error;
+    FLDDemoContentBundle Bundle;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Fixtures.Root, Approved->Name), Bundle, Error)
+        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Approved->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Approved->Digest, Error) || !Asset->Read(Approved->Digest, Snapshot, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
+    using S = ELDDemoBonusStat;
+    struct FExpectedStat { const TCHAR* Id; ELDDemoStatId NativeId; TArray<S> PerPoint; };
+    const FExpectedStat ExpectedStats[] = {
+        {TEXT("stat_physique"), ELDDemoStatId::StatPhysique, {S::MaxHPFlat, S::HPRegenFlat}},
+        {TEXT("stat_thick_skin"), ELDDemoStatId::StatThickSkin, {S::ArmorFlat, S::MagicResistFlat}},
+        {TEXT("stat_strength"), ELDDemoStatId::StatStrength, {S::ADFlat, S::CritChanceBonusRatio}},
+        {TEXT("stat_brains"), ELDDemoStatId::StatBrains, {S::APFlat, S::CooldownHasteFlat, S::MPRegenFlat}},
+        {TEXT("stat_agility"), ELDDemoStatId::StatAgility, {S::AttackSpeedBonusRatio, S::MoveSpeedBonusRatio}}};
+    TestEqual(TEXT("Exactly five point-bought stats"), Definitions.Stats.Num(), 5);
+    for (const FExpectedStat& Expected : ExpectedStats)
+    {
+        const FLDDemoStatDefinition* Stat = nullptr;
+        if (!TestTrue(FString::Printf(TEXT("%s resolves: %s"), Expected.Id, *Error), Snapshot->FindStat(Expected.Id, Stat, Error)))
+        {
+            continue;
+        }
+        TestTrue(FString::Printf(TEXT("%s keeps its native number"), Expected.Id), Stat->GetNativeId() == Expected.NativeId);
+        TSet<S> Actual;
+        for (const FLDDemoStatBonus& Bonus : Stat->PerPoint)
+        {
+            Actual.Add(Bonus.Stat);
+        }
+        TestTrue(FString::Printf(TEXT("%s adds exactly its per-point bonuses"), Expected.Id),
+            Actual.Num() == Expected.PerPoint.Num() && Algo::AllOf(Expected.PerPoint, [&Actual](S Bonus) { return Actual.Contains(Bonus); }));
+    }
+    int32 OpeningPool = 0;
+    for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
+    {
+        OpeningPool += Ability.Opening ? 1 : 0;
+    }
+    TestEqual(TEXT("Sixteen single-level actives"), Definitions.Abilities.Num(), 16);
+    TestEqual(TEXT("Thirteen actives form the opening pool"), OpeningPool, 13);
+    TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
+    const FLDDemoContentParameters& P = Definitions.Parameters;
+    TestTrue(TEXT("Growth points and the build safe window are the approved values"),
+        P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 400 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
+    TestTrue(TEXT("Skill growth steps are 0.15 through level 10 and 0.075 after"),
+        P.SkillGrowthPerLevelBp == 1500 && P.SkillGrowthPerLevelAfter10Bp == 750);
+
+    const FLDDemoAbilityDefinition* Elbow = nullptr;
+    if (!TestTrue(TEXT("active_elbow resolves: ") + Error, Snapshot->FindAbility(TEXT("active_elbow"), Elbow, Error))) { return false; }
+    const FLDDemoAbilityValues* First = Snapshot->FindValues(*Elbow, 1);
+    const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16);
+    if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
+    TestTrue(TEXT("Level 1 uses the authored G=1 values"),
+        First->Effects[0].BaseP2 == 7500 && First->Effects[0].ADRatioBp == 6500 && First->ManaCostP2 == 5000 && First->CooldownMs == 10000);
+    TestTrue(TEXT("Level 16 grows the base by G(16)=2.8 and keeps ratios, cost and cooldown"),
+        Top->Effects[0].BaseP2 == 21000 && Top->Effects[0].ADRatioBp == 6500 && Top->ManaCostP2 == 5000 && Top->CooldownMs == 10000);
+    const FLDDemoAbilityDefinition Detached = *Elbow;
+    TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),
+        !Snapshot->FindValues(*Elbow, 0) && !Snapshot->FindValues(*Elbow, 17) && !Snapshot->FindValues(Detached, 1));
+
+    TArray<LDDemoCardText::FToken> Tokens;
+    const FLDDemoStatDefinition* Brains = nullptr;
+    const FLDDemoStatDefinition* Strength = nullptr;
+    if (!TestTrue(TEXT("A stat card placeholder parses: ") + Error, LDDemoCardText::Parse(TEXT("每点 +[per_point.APFlat]"), Tokens, Error))
+        || !TestTrue(TEXT("Stats resolve"), Snapshot->FindStat(TEXT("stat_brains"), Brains, Error) && Snapshot->FindStat(TEXT("stat_strength"), Strength, Error))
+        || !TestEqual(TEXT("A literal and one value token"), Tokens.Num(), 2))
+    {
+        return false;
+    }
+    const LDDemoCardText::FToken& PerPoint = Tokens[1];
+    TestTrue(TEXT("The token reads one stat of a single point"),
+        PerPoint.bValue && PerPoint.bPerPoint && PerPoint.Field == LDDemoCardText::EField::Stat && PerPoint.Stat == S::APFlat);
+    const FLDDemoStatBonus* Bonus = LDDemoCardText::FindPerPoint(*Brains, PerPoint);
+    TestTrue(TEXT("stat_brains answers its own per-point AP"), Bonus && Bonus->Stat == S::APFlat && Bonus->Amount == 500);
+    TestNull(TEXT("Another stat does not answer it"), LDDemoCardText::FindPerPoint(*Strength, PerPoint));
+    TestNull(TEXT("An active's value set does not answer a per-point token"), LDDemoCardText::FindEffect(*First, PerPoint));
+    for (const TCHAR* Bad : {TEXT("[per_point.amount]"), TEXT("[dash_boost.ratio]"), TEXT("[damage.cooldown_cut]"), TEXT("[cower.ratio]")})
+    {
+        TestFalse(FString::Printf(TEXT("Retired or malformed placeholder %s is refused"), Bad), LDDemoCardText::Parse(Bad, Tokens, Error));
+    }
+    const FLDDemoAbilityDefinition* Retired = nullptr;
+    const FLDDemoStatDefinition* Card = nullptr;
+    TestFalse(TEXT("The reserved sock shot has no definition yet"), Snapshot->FindAbility(TEXT("active_sock_shot"), Retired, Error));
+    TestFalse(TEXT("Retired passives are absent"), Snapshot->FindAbility(TEXT("passive_lucky_star"), Retired, Error));
+    TestFalse(TEXT("Retired attribute cards are absent"), Snapshot->FindStat(TEXT("attr_protein"), Card, Error));
     return true;
 }
 

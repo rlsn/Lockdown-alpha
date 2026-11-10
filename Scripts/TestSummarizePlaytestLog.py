@@ -28,7 +28,7 @@ HOST_LOG = [
     line(0, "LogLDMatch", "Display", "LD_DEMO_LOBBY generation=7"),
     line(1, "LogLDMatch", "Warning", "LD_DEMO_ADMISSION_REJECTED lobby noise before the match"),
     line(9.9, "LogLDMatch", "Display", "LD_MATCH_STARTING generation=7 ai=1"),
-    line(9.9, "LogLDGrowth", "Log", f"LD_OFFER t=0 contender={AI} ordinal=1 rerolled=0 level=1 cards=LearnActive:active_crotch_grab:0>1"),
+    line(9.9, "LogLDGrowth", "Log", f"LD_OFFER t=0 contender={AI} ordinal=1 level=1 cards=active_crotch_grab"),
     line(10, "LogLDMatch", "Display", "LD_MATCH_STARTED generation=7 contenders=3 open_at_ms=480000"),
     line(10, "LogLDMatch", "Display", f"LD_MATCH_HEADER generation=7 ledger=F product=0.10.0 wire=6 commit={'a' * 40} dirty=0 "
          f"catalog=abcdef0123456789 net=ListenServer address=\"192.168.1.2:7777\" contenders=3 ai=1 open_at_ms=480000 dev_test=0 dev_reload=0"),
@@ -36,14 +36,14 @@ HOST_LOG = [
     line(10, "LogLDMatch", "Display", f"LD_MATCH_ROSTER generation=7 slot=1 contender={CLIENT} name=\"Little \\\"Wang\\\"\" kind=Human host=0 character=c address=\"127.0.0.1:5555\""),
     line(10, "LogLDMatch", "Display", f"LD_MATCH_ROSTER generation=7 slot=2 contender={AI} name=\"AI 1\" kind=AI host=0 character=c address=ai"),
     line(11, "LogLDTrace", "Log", f"LD_HEARTBEAT t=1000 contender={CLIENT} phase=Alive life=1 pos=1,2,3 hp=500.00/500.00 mp=1.00/1.00 shield=0.00 level=1 xp=0 pending=1 order=none order_at=- action=- statuses=- protected_until=0 respawn_at=0"),
-    line(12, "LogLDGrowth", "Log", f"LD_OFFER t=2000 contender={CLIENT} ordinal=1 rerolled=0 level=1 cards=LearnActive:active_snark_bolt:0>1,Attribute:attr_protein:0>1,LearnPassive:passive_stoke:0>1"),
-    line(13, "LogLDGrowth", "Log", f"LD_CHOICE t=3000 contender={CLIENT} ordinal=1 kind=LearnActive card=active_snark_bolt rank=1 replaced=- level=1 pending=0"),
+    line(12, "LogLDGrowth", "Log", f"LD_OFFER t=2000 contender={CLIENT} ordinal=1 level=1 cards=active_snark_bolt,active_pants_down,active_seethe"),
+    line(13, "LogLDGrowth", "Log", f"LD_CHOICE t=3000 contender={CLIENT} ordinal=1 kind=ActiveChoice card=active_snark_bolt result=learned slot=Q stored=None level=1 pending=0"),
     line(20, "LogLDCombat", "Log", f"LD_HIT t=10000 src={AI} src_kind=contender src_monster=- credit={AI} victim={CLIENT} victim_life=1 victim_kind=contender victim_monster=- via=basic class=basic type=physical dmg=60.00 pre=60.00 absorbed=10.00 shattered=0.00 hp_lost=50.00 hp=500.00->450.00 max_hp=500.00 shield=10.00->0.00 amp_bp=10000 resist=10.00 mitigate_bp=0 crit=0 backstab=0 protected=0 periodic=0 reflect=0 added=0 controls=- vamp=0.00 lethal=0"),
     line(25, "LogLDCombat", "Log", f"LD_HIT t=15000 src={AI} src_kind=contender src_monster=- credit={AI} victim={CLIENT} victim_life=1 victim_kind=contender victim_monster=- via=learned:active_crotch_grab class=ability type=physical dmg=450.00 pre=450.00 absorbed=0.00 shattered=0.00 hp_lost=450.00 hp=450.00->0.00 max_hp=500.00 shield=0.00->0.00 amp_bp=10000 resist=10.00 mitigate_bp=0 crit=1 backstab=0 protected=0 periodic=0 reflect=0 added=0 controls=stun vamp=0.00 lethal=1"),
     line(26, "LogLDCombat", "Log", f"LD_HIT t=16000 src={HOST} src_kind=contender src_monster=- credit={HOST} victim={CAMP} victim_life=1 victim_kind=camp victim_monster=monster_scavenger via=basic class=basic type=physical dmg=5.00 pre=5.00 absorbed=0.00 shattered=0.00 hp_lost=5.00 hp=80.00->75.00 max_hp=80.00 shield=0.00->0.00 amp_bp=10000 resist=0.00 mitigate_bp=0 crit=0 backstab=0 protected=0 periodic=0 reflect=0 added=0 controls=- vamp=0.00 lethal=0"),
     line(25.5, "LogLDMatch", "Display", f"LD_DEATH_RECEIPT contender={CLIENT} life=1 respawn_at_ms=21000 t=15000 killer={AI} cause=Contender fatal=learned:active_crotch_grab fatal_body={AI} assisters={HOST} no_reward=None victim_level=1"),
     line(25.5, "LogLDGrowth", "Log", f"LD_REWARD t=15000 contender={AI} cause=death role=killer xp=80 xp_after=80 level=1->2 victim={CLIENT} victim_life=1 victim_kind=contender"),
-    line(25.5, "LogLDGrowth", "Log", f"LD_LEVEL_UP t=15000 contender={AI} level=1->2 choices_earned=1"),
+    line(25.5, "LogLDGrowth", "Log", f"LD_LEVEL_UP t=15000 contender={AI} level=1->2 choices_earned=1 unspent_points=6"),
     line(31, "LogLDMatch", "Log", f"LD_CAMP_DEATH member={CAMP} life=1 monster=monster_scavenger t=21000 killer={HOST} fatal=basic no_reward=None"),
     line(31, "LogLDGrowth", "Log", f"LD_REWARD t=21000 contender={HOST} cause=death role=killer xp=40 xp_after=40 level=1->1 victim={CAMP} victim_life=1 victim_kind=camp"),
     line(31.5, "LogLDNav", "Display", "LD_NAV_ACCEPT match=7 life=1 order=3 epoch=0 kind=0 goal=X=0"),
@@ -54,7 +54,7 @@ HOST_LOG = [
     line(42, "LogLDCombat", "Error", "LD_DEMO_AUTHORITY_FAULT something broke"),
     line(50, "LogLDMatch", "Display", "LD_MATCH_RESULT generation=7 reason=1 winner=X ended_ms=40000"),
     line(50, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY generation=7 reason=GuardSucceeded winner={AI} started_ms=0 ended_ms=40000 duration_ms=40000"),
-    line(50, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY_ROW generation=7 contender={AI} name=\"AI 1\" kind=AI left=0 winner=1 level=2 xp=80 kills=1 deaths=0 assists=0 choices=1 skills=active_crotch_grab@1/Q cards=-"),
+    line(50, "LogLDMatch", "Display", f"LD_MATCH_SUMMARY_ROW generation=7 contender={AI} name=\"AI 1\" kind=AI left=0 winner=1 level=2 xp=80 kills=1 deaths=0 assists=0 choices=1 skills=active_crotch_grab/Q blueprints=- points=3,0,0,0,0"),
     line(55, "LogLDMatch", "Display", "LD_ROOM_RESET generation=8 aborted_start=0"),
     line(60, "LogLDMatch", "Display", "LD_MATCH_STARTED generation=8 contenders=2 open_at_ms=480000"),
 ]
@@ -65,7 +65,7 @@ CLIENT_LOG = [
     line(10.2, "LogLDMatch", "Display", f"LD_SELF_ROSTER match=7 slot=1 contender={CLIENT} name=\"Little \\\"Wang\\\"\" kind=Human host=0 self=1"),
     line(10.2, "LogLDMatch", "Display", f"LD_SELF_ROSTER match=7 slot=2 contender={AI} name=\"AI 1\" kind=AI host=0 self=0"),
     line(11.2, "LogLDTrace", "Log", "LD_SELF_STATE t=1000 match=7 life=1 phase=Alive pos=1,2,3 hp=500.00/500.00 mp=1.00/1.00 shield=0.00 level=1 xp=0 pending=1 order=none action=- statuses=-"),
-    line(12.2, "LogLDGrowth", "Log", "LD_SELF_OFFER t=2000 ordinal=1 rerolled=0 level=1 cards=LearnActive:active_snark_bolt:0>1"),
+    line(12.2, "LogLDGrowth", "Log", "LD_SELF_OFFER t=2000 ordinal=1 level=1 cards=active_snark_bolt,active_pants_down,active_seethe"),
     line(20.2, "LogLDCombat", "Log", "LD_SELF_HP t=10000 kind=shield_absorbed amount=10 hp=450.00/500.00 shield=0.00"),
     line(20.2, "LogLDCombat", "Log", "LD_SELF_HP t=10000 kind=damage amount=50 hp=450.00/500.00 shield=0.00"),
     line(24.0, "LogLDCombat", "Log", f"LD_SELF_SEEN_CAST t=14000 cast=\"Lunge\" unit={AI} pos=5,5,0"),
@@ -111,12 +111,13 @@ class SummarizePlaytestLogTest(unittest.TestCase):
         self.assertIn("[crit, stun]", deaths)
         self.assertNotIn("camp:monster_scavenger", deaths)
         growth = text.split("### Growth")[1].split("###")[0]
-        for expected in ("offer #1", "chose active_snark_bolt rank 1", "+80 xp (death killer of Little \"Wang\") xp 80 level 1->2",
-                         "AI 1: level 1->2 (+1 choices)",
-                         "00:00.0 AI 1: offer #1: LearnActive:active_crotch_grab:0>1",
+        for expected in ("offer #1", "chose active_snark_bolt (learned, slot Q, stored None)",
+                         "+80 xp (death killer of Little \"Wang\") xp 80 level 1->2",
+                         "AI 1: level 1->2 (+1 active offers)",
+                         "00:00.0 AI 1: offer #1: active_crotch_grab",
                          "+40 xp (death killer of camp:monster_scavenger) xp 40 level 1->1"):
             self.assertIn(expected, growth)
-        self.assertIn("AI 1: K/D/A 1/0/0 level 2 skills active_crotch_grab@1/Q cards -", text)
+        self.assertIn("AI 1: K/D/A 1/0/0 level 2 skills active_crotch_grab/Q blueprints - points 3,0,0,0,0", text)
         marks = text.split("### Marks")[1].split("###")[0]
         self.assertIn("mark #1 by Little \"Wang\" [Host, host_view] Dead", marks)
         self.assertIn("state 00:01.1", marks)

@@ -17,12 +17,14 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::GrantExperience:
     case ELDDevTestOp::RefillResources:
     case ELDDevTestOp::ResetCooldowns:
-    case ELDDevTestOp::LearnOption:
     case ELDDevTestOp::SetAttribute:
     case ELDDevTestOp::ClearAttributes:
     case ELDDevTestOp::ResetToMatchStart:
     case ELDDevTestOp::RefreshCamps:
     case ELDDevTestOp::OpenCapture:
+    case ELDDevTestOp::GrantBlueprint:
+    case ELDDevTestOp::LearnActive:
+    case ELDDevTestOp::AllocatePoints:
         return true;
     default:
         return false;
@@ -36,12 +38,14 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::GrantExperience: return TEXT("GrantExperience");
     case ELDDevTestOp::RefillResources: return TEXT("RefillResources");
     case ELDDevTestOp::ResetCooldowns: return TEXT("ResetCooldowns");
-    case ELDDevTestOp::LearnOption: return TEXT("LearnOption");
     case ELDDevTestOp::SetAttribute: return TEXT("SetAttribute");
     case ELDDevTestOp::ClearAttributes: return TEXT("ClearAttributes");
     case ELDDevTestOp::ResetToMatchStart: return TEXT("ResetToMatchStart");
     case ELDDevTestOp::RefreshCamps: return TEXT("RefreshCamps");
     case ELDDevTestOp::OpenCapture: return TEXT("OpenCapture");
+    case ELDDevTestOp::GrantBlueprint: return TEXT("GrantBlueprint");
+    case ELDDevTestOp::LearnActive: return TEXT("LearnActive");
+    case ELDDevTestOp::AllocatePoints: return TEXT("AllocatePoints");
     default: return TEXT("Unknown");
     }
 }
@@ -57,9 +61,9 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     {
         return ELDGrowthReason::InvalidRequest;
     }
-    const bool bGrant = Command.Op == ELDDevTestOp::GrantExperience;
+    const bool bPositive = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::AllocatePoints;
     const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
-    if (bGrant ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0 : Command.Amount != 0))
+    if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0 : Command.Amount != 0))
     {
         return ELDGrowthReason::NumericDomain;
     }
@@ -68,13 +72,14 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     {
         return ELDGrowthReason::InvalidRequest;
     }
-    const bool bNamesDefinition = Command.Op == ELDDevTestOp::LearnOption;
+    const bool bNamesDefinition = Command.Op == ELDDevTestOp::GrantBlueprint || Command.Op == ELDDevTestOp::LearnActive
+        || Command.Op == ELDDevTestOp::AllocatePoints;
     FName Decoded;
     if (bNamesDefinition ? !Command.Definition.Decode(Decoded) : !(Command.Definition == FLDDefinitionWire()))
     {
         return ELDGrowthReason::InvalidRequest;
     }
-    const uint8 MaxSlot = Command.Op == ELDDevTestOp::LearnOption ? 3 : 0;
+    const uint8 MaxSlot = Command.Op == ELDDevTestOp::LearnActive ? 3 : 0;
     if (Command.Slot > MaxSlot)
     {
         return ELDGrowthReason::InvalidRequest;
@@ -170,12 +175,14 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::GrantExperience: { static const FString Label=FString(TEXT("加"))+LDTerms::Experience; return *Label; }
     case ELDDevTestOp::RefillResources: { static const FString Label=FString(TEXT("补满"))+LDTerms::Health+TEXT("与")+LDTerms::Mana; return *Label; }
     case ELDDevTestOp::ResetCooldowns: return TEXT("重置冷却");
-    case ELDDevTestOp::LearnOption: return TEXT("选择卡牌");
     case ELDDevTestOp::SetAttribute: return TEXT("设置测试属性");
     case ELDDevTestOp::ClearAttributes: return TEXT("清除测试属性");
     case ELDDevTestOp::ResetToMatchStart: return TEXT("重置到开局");
     case ELDDevTestOp::RefreshCamps: return TEXT("刷新野怪");
     case ELDDevTestOp::OpenCapture: return TEXT("提前开圈");
+    case ELDDevTestOp::GrantBlueprint: return TEXT("授予技能图纸");
+    case ELDDevTestOp::LearnActive: return TEXT("直接学会技能");
+    case ELDDevTestOp::AllocatePoints: return TEXT("分配属性点");
     default: return TEXT("未知操作");
     }
 }

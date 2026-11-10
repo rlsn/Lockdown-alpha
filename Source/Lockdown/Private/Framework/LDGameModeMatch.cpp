@@ -31,7 +31,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
 {
     // The caller verified Lobby, Host, current roster, readiness and the provider gate.
     Reject = ELDSessionReject::None;
-    // Playtest log: everything the start commits from here (the opening three-choice offers, the AI registrations)
+    // Playtest log: everything the start commits from here (the opening active offers, the AI registrations)
     // belongs to this generation; the header and roster follow once the roster is locked.
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTING generation=%u ai=%d"), MatchContext.Generation, LobbyAISlots.Num());
 #if WITH_DEV_AUTOMATION_TESTS
@@ -110,7 +110,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
             return Abort(ELDSessionReject::MissingDemoDefinition);
         }
     }
-    // #153: everyone is spawned; the opening countdown (moves and choices only, no attack or trade) runs to T=0 (MatchStartedAtMs), when development begins.
+    // #153: everyone is spawned; the opening countdown (moves and build commands only, no attack or trade) runs to T=0 (MatchStartedAtMs), when development begins.
     MatchPhase = ELDMatchPhase::Countdown;
     bPublicMatchDirty = true;
     bKillFeedDirty = true;
@@ -309,11 +309,9 @@ FLDAISelfReadResult ALDGameMode::ReadAISelf(const FLDAIContenderBinding& Binding
     return Result;
 }
 
-bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, uint8& Index, int32& Seed,
-    FString& Error)
+bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, int32& Seed, FString& Error)
 {
     AfterMs = 0;
-    Index = 0;
     Seed = 0;
     const FLDContenderRecord* Contender = Binding.IsValid() ? FindContender(Binding.GetContender()) : nullptr;
     if (!HasAuthority() || !bAuthorityInitialized || MatchPhase != ELDMatchPhase::Starting || Binding.GetMatch() != MatchContext || !Contender
@@ -324,7 +322,6 @@ bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, 
     }
     Seed = SpawnRandom.GetCurrentSeed();
     AfterMs = SpawnRandom.RandRange(1000, 4000);
-    Index = uint8(SpawnRandom.RandRange(0, 2));
     Error.Reset();
     return true;
 }

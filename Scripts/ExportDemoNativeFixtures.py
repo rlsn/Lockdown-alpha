@@ -132,36 +132,28 @@ def target(value=None):
 
 TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged")
 COOLDOWN_ENTRIES = ("None", "Actives")
-CRIT_MODES = ("None", "Chance")
 
 
 def effect(value):
     result = {
         "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "RatioBp": 0,
-        "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
+        "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
-        "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0,
-        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SkillCooldownRatioBp": 0,
-        "SkillDistanceBonusBp": 0, "AbilityIds": [], "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
-        "LimitP2": 0, "bCleanseSlow": False,
+        "Trigger": 0, "Entries": 0, "AmountMs": 0,
+        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
+        "LimitP2": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
-        ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
-        ("cooldown", "AmountMs"), ("mana", "BaseP2"), ("skill_cooldown_ratio", "SkillCooldownRatioBp"),
-        ("skill_distance_bonus", "SkillDistanceBonusBp"),
+        ("cooldown", "AmountMs"), ("mana", "BaseP2"),
         # #112 handlers.
-        ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
-        ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
-        ("linger", "SecondaryDurationMs"), ("internal_cooldown", "IntervalMs"),
+        ("slow", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"), ("internal_cooldown", "IntervalMs"),
         # #147 build v7 terms.
-        ("hp_below", "SecondaryRatioBp"), ("slowed_stun", "SecondaryDurationMs"), ("wall_stun", "SecondaryDurationMs"),
-        ("cleave_ratio", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
-        ("lifesteal", "SecondaryRatioBp"),
-        ("outer_ratio", "RatioBp"), ("move_bonus", "SecondaryRatioBp"),
+        ("hp_below", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
+        ("lifesteal", "SecondaryRatioBp"), ("outer_ratio", "RatioBp"),
         ("mana_ratio", "SecondaryRatioBp"), ("mana_cap", "LimitP2"), ("slow_resistance", "SecondaryRatioBp"),
     ):
         if source in value:
@@ -171,9 +163,7 @@ def effect(value):
             result["Count"] = value[source]
     if "basic_stacks" in value:
         result["BasicCount"] = value["basic_stacks"]
-    for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"),
-                         ("half_width", "RadiusCm"), ("wall_distance", "RadiusCm"),
-                         ("cleave_radius", "RadiusCm"), ("burst_radius", "RadiusCm"),
+    for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"), ("burst_radius", "RadiusCm"),
                          ("inner_radius", "DistanceCm"), ("trigger_radius", "DistanceCm")):
         if source in value:
             result[dest] = rational(value[source])
@@ -186,30 +176,21 @@ def effect(value):
         result["Trigger"] = TRIGGERS.index(value["trigger"])
     if "entries" in value:
         result["Entries"] = COOLDOWN_ENTRIES.index(value["entries"])
-    if "mode" in value:
-        result["CritMode"] = CRIT_MODES.index(value["mode"])
-    if "abilities" in value:
-        result["AbilityIds"] = list(value["abilities"])
-    if "cleanse_slow" in value:
-        result["bCleanseSlow"] = value["cleanse_slow"]
     if value.get("op") == "channel_cone":
         result["DurationMs"] = result["IntervalMs"] * (result["Count"] - 1)
     return result
 
 
-def rank(value=None):
-    value = {} if value is None else value
+def values(value):
     return {
-        "Rank": value.get("rank", 0),
-        "ManaCostP2": scalar(value["mana_cost"]) if "mana_cost" in value else 0,
-        "CooldownMs": scalar(value["cooldown"]) if "cooldown" in value else 0,
-        "Effects": [effect(row) for row in value.get("effects", [])],
+        "ManaCostP2": scalar(value["mana_cost"]), "CooldownMs": scalar(value["cooldown"]),
+        "Effects": [effect(row) for row in value["effects"]],
     }
 
 
 def dash_definition(value):
     return {
-        "Target": target(value["target"]), "WindupMs": 0, "CooldownFamily": "", "Rank": rank(value["rank"]),
+        "Target": target(value["target"]), "WindupMs": 0, "CooldownFamily": "", "Values": values(value["values"]),
     }
 
 
@@ -230,12 +211,13 @@ def parameter_projection(parameters):
                         "Max": rational(parameters[prefix + ".Max"])}
     for source, dest in (
         ("STAT.AttackSpeedPerLevelRatio", "AttackSpeedPerLevelBp"), ("STAT.CritChance.Base", "CritChanceBaseBp"),
-        ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.AbilityCritMultiplier", "AbilityCritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
+        ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
         ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
         ("MATCH.CountdownSec", "CountdownMs"), ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
         ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
+        ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
@@ -264,6 +246,8 @@ def parameter_projection(parameters):
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"), ("CAMP.GrowthMaxStage", "CampGrowthMaxStage"),
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("LEADER.MinLevel", "LeaderMinLevel"),
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
+        ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
+        ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}
@@ -277,20 +261,6 @@ def parameter_projection(parameters):
     ):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
-    result["Choice"] = {dest: scalar(parameters["CHOICE." + source]) for source, dest in (
-        ("NewActiveFreeSlotWeight", "NewActiveFreeSlotWeightBp"),
-        ("NewActiveFullSlotWeight", "NewActiveFullSlotWeightBp"),
-        ("FirstSlotUpgradeChance", "FirstSlotUpgradeBp"),
-        ("FreeSlotAttributeChance", "FreeSlotAttributeBp"),
-        ("AttributeQuality.GreenChance", "AttributeGreenChanceBp"),
-        ("AttributeQuality.GreenMultiplier", "AttributeGreenMultiplierBp"),
-        ("AttributeQuality.BlueChance", "AttributeBlueChanceBp"),
-        ("AttributeQuality.BlueMultiplier", "AttributeBlueMultiplierBp"),
-        ("AttributeQuality.PurpleChance", "AttributePurpleChanceBp"),
-        ("AttributeQuality.PurpleMultiplier", "AttributePurpleMultiplierBp"),
-        ("AttributeQuality.GoldChance", "AttributeGoldChanceBp"),
-        ("AttributeQuality.GoldMultiplier", "AttributeGoldMultiplierBp"),
-    )}
     return result
 
 
@@ -319,8 +289,8 @@ def expected_projection(compilation):
     character = data["character"]
     dash = character["dash"]
     dash_opcode = json.loads(compilation.inputs[demo.IDS_SOURCE])["effect_ops"]["dash"]
-    innate_dash = dash_definition({"target": {"mode": "DirectionDash"}, "rank": {
-        "rank": 1, "mana_cost": dash["mana_cost"], "cooldown": dash["cooldown"],
+    innate_dash = dash_definition({"target": {"mode": "DirectionDash"}, "values": {
+        "mana_cost": dash["mana_cost"], "cooldown": dash["cooldown"],
         "effects": [{"opcode": dash_opcode, "distance": dash["distance"], "duration": dash["duration"]}]}})
     result = {
         "Identity": identity, "Parameters": parameter_projection(data["parameters"]), "Formulas": formulas, "Policies": policies,
@@ -328,28 +298,21 @@ def expected_projection(compilation):
                       "BasicADRatioBp": scalar(character["basic_attack"]["ad_ratio"]),
                       "BasicIntervalMs": character["basic_attack"]["interval_ms"], "Dash": innate_dash},
         "Abilities": [{
-            "Id": row["id"], "NativeId": row["native_id"], "Kind": ("active", "passive").index(row["kind"]),
-            "Draftable": row["draftable"], "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
-            "CooldownFamily": row.get("cooldown_family", ""), "Ranks": [rank(item) for item in row["ranks"]],
+            "Id": row["id"], "NativeId": row["native_id"], "Opening": row["opening"], "Target": target(row["target"]),
+            "WindupMs": scalar(row["windup"]), "CooldownFamily": row["cooldown_family"], "Values": values(row),
         } for row in data["abilities"]],
-        "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"]),
-                        "Penalties": stats(row.get("penalties", {}))} for row in data["attributes"]],
-        "OpeningCards": [{"Id": row["id"], "Stats": stats(row["stats"])} for row in data["opening_cards"]],
+        "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
-        "Progression": {**{dest: data["progression"][source] for source, dest in (
-            ("max_level", "MaxLevel"), ("max_choices", "MaxChoices"), ("max_skill_rank", "MaxSkillRank"),
-            ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
-            ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"),
-        )}, **{dest: data["progression"]["opening_offer"][source] for source, dest in (
-            ("matched_skill_weight", "OpeningMatchedSkillWeight"), ("other_skill_weight", "OpeningOtherSkillWeight"),
-        )}, "RerollLevels": data["progression"]["reroll_levels"]},
+        "Progression": {dest: data["progression"][source] for source, dest in (
+            ("max_level", "MaxLevel"), ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
+            ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"), ("active_offer_levels", "ActiveOfferLevels"),
+        )},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("capture_id", "CaptureId"),
         )},
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
             "DescriptionKey": row["description_key"], "DescriptionText": row["description_text"],
-            "AdvancedKey": row.get("advanced_key", ""), "AdvancedText": row.get("advanced_text", ""),
             "IconId": row["icon_id"], "PortraitIconId": row.get("portrait_icon_id", ""),
         } for row in data["display"]],
     }
@@ -547,7 +510,7 @@ class _InlinePool:
         return False
 
 
-def export(output, *, profile="full", rank_mutations=True, jobs=None, written=None):
+def export(output, *, profile="full", value_mutations=True, jobs=None, written=None):
     """Write the selected fixture profile. Valid cases compile in up to `jobs` processes (default: CPU count); the written
     bytes and index order do not depend on `jobs`. When `written` is a dict, each writer records there the hash of
     every file it wrote, keyed relative to `output`."""
@@ -556,11 +519,11 @@ def export(output, *, profile="full", rank_mutations=True, jobs=None, written=No
     demo.require(profile in PROFILES, "FixtureProfile", output, f"profile must be one of {PROFILES}")
     # Most cases share the fixture world and its binding sections; validate each distinct pair once per process.
     with DemoWorld.reuse_binding_reports():
-        return _export(output, profile=profile, rank_mutations=rank_mutations, jobs=jobs,
+        return _export(output, profile=profile, value_mutations=value_mutations, jobs=jobs,
                        written={} if written is None else written)
 
 
-def _export(output, *, profile, rank_mutations, jobs, written):
+def _export(output, *, profile, value_mutations, jobs, written):
     output = Path(output)
     resolved = output.resolve()
     artifacts = (demo.ROOT / "Artifacts").resolve()
@@ -587,7 +550,7 @@ def _export(output, *, profile, rank_mutations, jobs, written):
             _export_world_spawn_shift_case(valid)
             _export_runtime_refusal(output, index, base, written)
         else:
-            _export_cases(output, index, base, rank_mutations, valid, written)
+            _export_cases(output, index, base, value_mutations, valid, written)
         approved_digest, approved_files = approved.result()
         written.update(approved_files)
         index["valid"].append({"name": "approved_base", "catalog_sha256": approved_digest,
@@ -604,27 +567,15 @@ def _export(output, *, profile, rank_mutations, jobs, written):
     return index
 
 
-# D2 (#147): the advanced rank keeps every coefficient and holds each growing base at 1.5x the basic rank's.
-COUPLED_RANK_FIELDS = ("base", "ad_ratio", "ap_ratio", "max_hp_ratio", "armor_ratio")
+# #198: the quantities of an active's single value set (its cost, cooldown and every effect term).
+ABILITY_VALUE_FIELDS = ("mana_cost", "cooldown", "effects")
 
 
-def _rank_mutation(author, path):
-    """Change one rank quantity; a field D2 couples across ranks moves in both ranks so the case stays valid."""
+def _value_mutation(author, path):
+    """Change one quantity of an active's value set by the smallest step its storage keeps."""
     changed = deepcopy(author)
     quantity = _at(changed, path)
     delta = Decimal("0.001") if quantity["unit"] == "s" else Decimal("0.01")
-    field = path[-1]
-    if len(path) == 7 and path[4] == "effects" and field in COUPLED_RANK_FIELDS:
-        ranks = _at(changed, path[:3])
-        op = _at(changed, path[:6])["op"]
-        basic = next((row for row in ranks[0]["effects"] if row["op"] == op), None)
-        advanced = next((row for row in ranks[-1]["effects"] if row["op"] == op), None)
-        if (ranks[0] is not ranks[-1] and basic is not None and advanced is not None and field in basic
-                and not (field == "base" and op == "mana_on_hit")):
-            step, scale = (delta * 2, Decimal(3) / 2) if field == "base" else (delta, Decimal(1))
-            basic[field]["value"] = float(Decimal(str(basic[field]["value"])) + step)
-            advanced[field]["value"] = float(Decimal(str(advanced[field]["value"])) + step * scale)
-            return changed
     quantity["value"] = float(Decimal(str(quantity["value"])) + delta)
     return changed
 
@@ -656,7 +607,7 @@ def _export_runtime_refusal(output, index, base, written):
     _add_invalid(output, index, written, "unknown_root_field", bundle, digest, "unknown field")
 
 
-def _export_cases(output, index, base, rank_mutations, valid, written):
+def _export_cases(output, index, base, value_mutations, valid, written):
     exact = fixtures.content_fixture()
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
@@ -672,14 +623,14 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     unicode_author["identity"]["approval"]["decision"] = "TEST " + "a" * 1018 + "\U0001f9ea"
     valid("unicode_scalar_boundary", unicode_author)
 
-    if rank_mutations:
+    if value_mutations:
         author = fixtures.content_fixture()
-        paths = [path for path, _ in _quantities(author) if "ranks" in path]
+        paths = [path for path, _ in _quantities(author) if path[0] == "abilities" and path[2] in ABILITY_VALUE_FIELDS]
         for index_number, path in enumerate(paths):
-            changed = _rank_mutation(author, path)
+            changed = _value_mutation(author, path)
             source_path = "content" + "".join(f"[{key}]" if type(key) is int else "." + key for key in path) + ".value"
             native_quantity = base.catalog.field_projection[source_path][0].rsplit(".", 1)[0]
-            valid(f"rank_field_{index_number:03d}", changed, mutated_quantity=native_quantity)
+            valid(f"value_field_{index_number:03d}", changed, mutated_quantity=native_quantity)
 
     data = json.loads(base.outputs[demo.CONTENT_OUTPUT])
     world_data = json.loads(base.inputs[demo.WORLD_OUTPUT])
@@ -706,42 +657,58 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("alias_id", lambda d: d["abilities"][0].update({"id": "Active_not_mad"}), "canonical lowercase")
     bad_content("long_id", lambda d: d["abilities"][0].update({"id": "a" * 64}), "string length")
     bad_content("duplicate_ability", lambda d: d["abilities"].__setitem__(1, deepcopy(d["abilities"][0])), "duplicate")
-    bad_content("missing_rank", lambda d: d["abilities"][0]["ranks"].pop(), "array length")
-    bad_content("wrong_rank", lambda d: d["abilities"][0]["ranks"][1].update({"rank": 3}), "integer outside")
-    bad_content("wrong_opcode", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"opcode": 255}), "opcode")
-    bad_content("unknown_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"op": "unknown_op"}), "opcode")
-    bad_content("duplicate_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(d["abilities"][0]["ranks"][0]["effects"][0])), "duplicate effect")
-    bad_content("unknown_effect_field", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"unexpected": 1}), "unknown field")
+    bad_content("retired_rank_field", lambda d: d["abilities"][0].update({"ranks": []}), "unknown field")
+    bad_content("reserved_sock_shot", lambda d: d["abilities"][0].update({"id": "active_sock_shot", "native_id": 116}),
+                "unimplemented ability projection")
+    bad_content("wrong_opcode", lambda d: d["abilities"][0]["effects"][0].update({"opcode": 255}), "opcode")
+    bad_content("unknown_effect", lambda d: d["abilities"][0]["effects"][0].update({"op": "unknown_op"}), "opcode")
+    bad_content("duplicate_effect", lambda d: d["abilities"][0]["effects"].append(deepcopy(d["abilities"][0]["effects"][0])), "duplicate effect")
+    bad_content("unknown_effect_field", lambda d: d["abilities"][0]["effects"][0].update({"unexpected": 1}), "unknown field")
+    bad_content("retired_effect_op", lambda d: d["abilities"][0]["effects"].append({"op": "pierce", "opcode": 73}), "opcode")
     # The bolt's first effect is damage and it does not target Self (the payload sorts abilities by id).
     bolt = lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")
-    bad_content("bad_damage_type", lambda d: bolt(d)["ranks"][0]["effects"][0].update({"damage_type": "True"}), "unknown damage type")
+    bad_content("bad_damage_type", lambda d: bolt(d)["effects"][0].update({"damage_type": "True"}), "unknown damage type")
     bad_content("wrong_target", lambda d: bolt(d).update({"target": {"mode": "Self"}}), "wrong definition target")
     # #147: fits ungrown, overflows once grown for the top level.
-    bad_content("grown_base_overflow", lambda d: bolt(d)["ranks"][1]["effects"][0]["base"].update({"p2": 6 * 10 ** 14}),
+    bad_content("grown_base_overflow", lambda d: bolt(d)["effects"][0]["base"].update({"p2": 6 * 10 ** 14}),
                 "multiplication overflow")
     bad_content("wrong_family", lambda d: d["abilities"][0].update({"cooldown_family": "cd_wrong"}), "cooldown family")
-    bad_content("zero_cooldown", lambda d: d["abilities"][0]["ranks"][0]["cooldown"].update({"ms": 0}), "integer outside")
-    bad_content("negative_cost", lambda d: d["abilities"][0]["ranks"][0]["mana_cost"].update({"p2": -1}), "integer outside")
-    bad_content("coefficient_overflow", lambda d: d["abilities"][0]["ranks"][0]["effects"][0]["ap_ratio"].update({"bp": demo.INT64_MAX}), "multiplication overflow")
+    bad_content("zero_cooldown", lambda d: d["abilities"][0]["cooldown"].update({"ms": 0}), "integer outside")
+    bad_content("negative_cost", lambda d: d["abilities"][0]["mana_cost"].update({"p2": -1}), "integer outside")
+    bad_content("coefficient_overflow", lambda d: d["abilities"][0]["effects"][0]["ap_ratio"].update({"bp": demo.INT64_MAX}), "multiplication overflow")
     bad_content("growth_overflow", lambda d: d["parameters"]["STAT.MaxHP.PerLevel"].update({"p2": demo.INT64_MAX}), "multiplication overflow")
     bad_content("inverted_bounds", lambda d: d["parameters"]["STAT.AD.Min"].update({"p2": d["parameters"]["STAT.AD.Max"]["p2"]}), "outside")
-    # Every attribute clamps to its bounds (#112 §4); a deduction only a wild card may name is refused instead.
-    bad_content("tame_card_penalty", lambda d: d["attributes"][0].update({"penalties": {"MaxHPFlat": {"unit": "hp", "p2": 100}}}), "penalties")
+    # #198: the five stats name exactly their own per-point bonuses; their numbers never reuse a retired identity.
+    stat = lambda d, identity: next(row for row in d["stats"] if row["id"] == identity)
+    bad_content("stat_penalty_field", lambda d: d["stats"][0].update({"penalties": {"MaxHPFlat": {"unit": "hp", "p2": 100}}}), "unknown field")
+    bad_content("wrong_stat_bonus", lambda d: stat(d, "stat_strength")["per_point"].update({"APFlat": {"unit": "points", "p2": 100}}),
+                "wrong stat bonuses")
+    bad_content("missing_stat_bonus", lambda d: stat(d, "stat_physique")["per_point"].pop("HPRegenFlat"), "wrong stat bonuses")
+    bad_content("zero_stat_bonus", lambda d: stat(d, "stat_thick_skin")["per_point"]["ArmorFlat"].update({"p2": 0}), "integer outside")
+    bad_content("missing_stat", lambda d: d["stats"].pop(), "array length")
+    bad_content("retired_stat_id", lambda d: stat(d, "stat_agility").update({"native_id": 26}), "renumbered native ID")
+    bad_content("attribute_card_section", lambda d: d.update({"attributes": []}), "unknown field")
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
-    bad_content("bad_opening_weight", lambda d: d["progression"]["opening_offer"].update({"matched_skill_weight": 0}), "integer outside")
-    bad_content("bad_opening_card_stats", lambda d: d["opening_cards"][0]["stats"].pop(next(iter(d["opening_cards"][0]["stats"]))),
-                "opening card stats")
-    bad_content("unsorted_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [7, 4]}), "reroll levels")
-    bad_content("missing_draftable", lambda d: d["abilities"][0].pop("draftable"), "missing")
+    bad_content("unreachable_active_offer_level", lambda d: d["progression"].update({"active_offer_levels": [1]}), "integer outside")
+    bad_content("unsorted_active_offer_levels", lambda d: d["progression"].update({"active_offer_levels": [6, 3]}),
+                "active offer levels")
+    bad_content("retired_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [5]}), "unknown field")
+    bad_content("missing_opening", lambda d: d["abilities"][0].pop("opening"), "missing")
+    bad_content("small_opening_pool", lambda d: [row.update({"opening": False}) for row in d["abilities"][:2]], "opening pool")
+    bad_content("zero_points_per_level", lambda d: d["parameters"].update({"GROWTH.PointsPerLevel": 0}), "integer outside")
+    bad_content("zero_build_safe_window", lambda d: d["parameters"]["GROWTH.BuildSafeWindowSec"].update({"ms": 0}), "integer outside")
+    bad_content("retired_choice_parameter", lambda d: d["parameters"].update(
+        {"CHOICE.FirstSlotUpgradeChance": {"unit": "ratio", "bp": 7000}}), "unknown field")
     bad_content("inexact_recovery_ratio", lambda d: d["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update({"bp": 155}), "recovery")
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
-    bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_lucky_star")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
+    bad_content("bad_timed_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "active_stare_down")["effects"][1]["stats"].update(
+        {"ADFlat": {"unit": "points", "p2": 100}}), "timed stat")
     slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
             "duration": {"unit": "ms", "ms": 1500}}
-    bad_content("unexpected_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")
-    bad_content("full_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(
+    bad_content("unexpected_slow", lambda d: d["abilities"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")
+    bad_content("full_slow", lambda d: d["abilities"][0]["effects"].append(
         {**deepcopy(slow), "ratio": {"unit": "ratio", "bp": 10000}}), "integer outside")
-    bad_content("timed_resource_bonus", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(
+    bad_content("timed_resource_bonus", lambda d: d["abilities"][0]["effects"].append(
         {"op": "timed_stat_bonus", "opcode": ids_data["effect_ops"]["timed_stat_bonus"],
          "stats": {"MaxHPFlat": {"unit": "hp", "p2": 100}}, "duration": {"unit": "ms", "ms": 1000}}), "resource maxima")
     bad_content("nonreduced_rational", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"numerator": 1000, "denominator": 2}), "not reduced")
@@ -765,6 +732,15 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("display_description_digit", lambda d: d["display"][1].update({"description_text": "\u9020\u621070"}), "contains digits")
     bad_content("display_description_wide_digit", lambda d: d["display"][1].update({"description_text": "\u9020\u6210\uff17\uff10"}), "contains digits")
     bad_content("duplicate_display_name", lambda d: d["display"][2].update({"name_text": d["display"][1]["name_text"]}), "duplicate display name")
+    display = lambda d, identity: next(row for row in d["display"] if row["id"] == identity)
+    bad_content("advanced_display_line", lambda d: display(d, "active_snark_bolt").update(
+        {"advanced_key": "active_snark_bolt.advanced", "advanced_text": "\u8bf4\u660e"}), "unknown field")
+    bad_content("absent_card_effect", lambda d: display(d, "active_snark_bolt").update({"description_text": "[stun.duration]"}),
+                "card placeholder")
+    bad_content("stat_card_absent_bonus", lambda d: display(d, "stat_brains").update({"description_text": "[per_point.ADFlat]"}),
+                "card placeholder")
+    bad_content("per_point_on_active", lambda d: display(d, "active_snark_bolt").update({"description_text": "[per_point.APFlat]"}),
+                "card placeholder")
     bad_content("unapproved_metadata", lambda d: d["identity"]["approval"].update({"status": "candidate"}), "approval metadata")
     bad_content("bad_policy", lambda d: d["policies"].update({"MissingSourceCooldown": "Disallowed"}), "unsupported constant")
     bad_content("bad_boolean_policy", lambda d: d["policies"].update({"CampGroupRetaliation": False}), "boolean policy")
@@ -775,7 +751,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("aliased_root_key", lambda d: d.update({"Parameters": d.pop("parameters")}), "missing")
     bad_content("aliased_parameter", lambda d: d["parameters"].update({"STAT.ad.Base": d["parameters"].pop("STAT.AD.Base")}), "missing")
     bad_content("aliased_target", lambda d: d["abilities"][0]["target"].update({"mode": "directionprojectile"}), "unsupported target")
-    bad_content("aliased_damage_type", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["ranks"][0]["effects"][0]
+    bad_content("aliased_damage_type", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["effects"][0]
         .update({"damage_type": "magical"}), "unknown damage type")
     bad_content("aliased_policy", lambda d: d["policies"].update({"DeadChoiceCommit": "allowed"}), "unsupported constant")
     bad_content("aliased_approval", lambda d: d["identity"]["approval"].update({"status": "APPROVED"}), "approval metadata")

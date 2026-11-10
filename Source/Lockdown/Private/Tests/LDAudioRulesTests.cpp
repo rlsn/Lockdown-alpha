@@ -145,13 +145,13 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=17;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
     TestTrue(TEXT("An older release time never sounds"),AudioSample(Tracker,Frame).IsEmpty());
 
-    Growth.Level=2;Growth.EarnedThrough=1;
+    Growth.Level=2;Growth.ActiveOpportunitiesEarned=1;
     TestTrue(TEXT("A level up sounds once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
     TestTrue(TEXT("The same level stays silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Growth.EarnedThrough=2;
-    TestTrue(TEXT("A newly earned three-choice sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
-    Growth.ConsumedThrough=1;Growth.PendingChoiceCount=1;
-    TestTrue(TEXT("Picking a card and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Growth.ActiveOpportunitiesEarned=2;
+    TestTrue(TEXT("A newly earned active opportunity sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
+    Growth.ActiveOpportunitiesConsumed=1;Growth.QueuedActiveOpportunities=1;
+    TestTrue(TEXT("Picking an active and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
 
     Frame.OwnLifePhase=ELDLifePhase::Dead;Combat.Revision=5;Combat.HPP2=0;Frame.LocalSeconds=6;
     TestTrue(TEXT("Death sounds once without a hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfDeath}));
@@ -164,7 +164,7 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A release in the old life's view stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Life=2;Combat.Revision=2;Combat.Cues.ReleasedStartedAtMs=10700;Combat.Cues.ReleasedAtMs=11000;Combat.AsOfMs=11000;
     TestTrue(TEXT("The new life's own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;
+    Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.ActiveOpportunitiesEarned=0;
     TestTrue(TEXT("A new match never sounds a respawn or level"),AudioSample(Tracker,Frame).IsEmpty());
 
     TArray<ELDAudioCue> Out;

@@ -84,7 +84,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     else
     {
         if (Victim.Life!=1) { Error=TEXT("Only the first contender life may start without a persistent Combat record."); return false; }
-        const FLDAttributeBuildValues Initial(1,{},{});
+        const FLDAttributeBuildValues Initial(1,{});
         const auto Result=LDAttributeProjection::Project(Initial,*Content);
         if (!Result.IsSuccess())
         {
@@ -270,9 +270,6 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
     Zones.RemoveAll([&Entity](const FLDCombatZone& Zone) { return Zone.SourceEntity==Entity; });
-    DashSweeps.RemoveAll([&Entity](const FLDCombatDashSweep& Sweep) { return Sweep.Body.Victim.EntityId==Entity; });
-    Echoes.RemoveAll([&Entity](const FLDCombatEcho& Echo) { return Echo.Body.Victim.EntityId==Entity; });
-    WallChecks.RemoveAll([&Entity](const FLDCombatWallCheck& Check) { return Check.SourceEntity==Entity; });
     Channels.RemoveAll([&Entity](const auto& Channel) { return Channel.Payload.SourceEntity==Entity; });
     GroundEffects.RemoveAll([&Entity](const auto& Ground) { return Ground.Payload.SourceEntity==Entity; });
     ContactMotion.RemoveAll([&Entity](const auto& Frame) { return Frame.Batch->Body.Victim.EntityId==Entity; });

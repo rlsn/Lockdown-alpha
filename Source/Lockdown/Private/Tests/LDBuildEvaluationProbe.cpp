@@ -104,15 +104,15 @@ bool ParseSeed(const FString& Text, uint64& Out)
 bool ParseChoice(const FJsonObject& Object, const FString& Where, FLDEvaluationChoice& Out, FString& Error)
 {
     FString Rule;
-    if (!OnlyKeys(Object, {TEXT("rule"), TEXT("index"), TEXT("definition"), TEXT("replace")}, Where, Error)
+    if (!OnlyKeys(Object, {TEXT("rule"), TEXT("index"), TEXT("definition")}, Where, Error)
         || !ReadString(Object, TEXT("rule"), Where, Rule, Error)) { return false; }
     Out = {};
     if (Rule == TEXT("ai_select"))
     {
         Out.Rule = ELDEvaluationChoiceRule::AISelect;
-        if (Object.Values.Contains(TEXT("index")) || Object.Values.Contains(TEXT("definition")) || Object.Values.Contains(TEXT("replace")))
+        if (Object.Values.Contains(TEXT("index")) || Object.Values.Contains(TEXT("definition")))
         {
-            Error = Where + TEXT(": ai_select takes no index, definition or replacement");
+            Error = Where + TEXT(": ai_select takes no index or definition");
             return false;
         }
         return true;
@@ -136,15 +136,6 @@ bool ParseChoice(const FJsonObject& Object, const FString& Where, FLDEvaluationC
     {
         Error = FString::Printf(TEXT("%s.rule: unknown rule '%s'"), *Where, *Rule);
         return false;
-    }
-    if (Object.Values.Contains(TEXT("replace")))
-    {
-        FString Slot;
-        if (!ReadString(Object, TEXT("replace"), Where, Slot, Error)) { return false; }
-        if (Slot == TEXT("Q")) { Out.Replace = ELDOpponentSkillSlot::Q; }
-        else if (Slot == TEXT("W")) { Out.Replace = ELDOpponentSkillSlot::W; }
-        else if (Slot == TEXT("E")) { Out.Replace = ELDOpponentSkillSlot::E; }
-        else { Error = Where + TEXT(".replace: Q, W or E"); return false; }
     }
     return true;
 }
@@ -196,9 +187,9 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     {
         const FString At = FString::Printf(TEXT("%s.presets[%d]"), *Where, Index);
         const TArray<TSharedPtr<FJsonValue>>* Cards = nullptr;
-        if (!(*Presets)[Index].IsValid() || !(*Presets)[Index]->TryGetArray(Cards) || !Cards || Cards->Num() != 3)
+        if (!(*Presets)[Index].IsValid() || !(*Presets)[Index]->TryGetArray(Cards) || !Cards || Cards->IsEmpty() || Cards->Num() > 3)
         {
-            Error = At + TEXT(": exactly three definition ids are required");
+            Error = At + TEXT(": one to three active ids are required");
             return false;
         }
         TArray<FName>& Row = Out.Presets.AddDefaulted_GetRef();
@@ -207,7 +198,7 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
             FString Id;
             if (!Card.IsValid() || !Card->TryGetString(Id) || !IsIdentifier(Id, 96) || Row.Contains(FName(*Id)))
             {
-                Error = At + TEXT(": three distinct definition ids are required");
+                Error = At + TEXT(": distinct active ids are required");
                 return false;
             }
             Row.Add(FName(*Id));
@@ -589,31 +580,30 @@ public:
             Value->SetBoolField(TEXT("progression_valid"), View.bValid);
             Value->SetNumberField(TEXT("level"), View.Level);
             Value->SetNumberField(TEXT("xp"), double(View.CumulativeXP));
-            Value->SetNumberField(TEXT("choices"), View.ConsumedThrough);
+            Value->SetNumberField(TEXT("choices"), View.ActiveOpportunitiesConsumed);
             Value->SetNumberField(TEXT("planned_choices"), Row.Contenders[Index].Choices.Num());
-            Value->SetNumberField(TEXT("rerolls_left"), View.RerollTokens);
-            Value->SetStringField(TEXT("opening_card"), View.OpeningCard.IsNone() ? FString() : View.OpeningCard.ToString());
-            TArray<TSharedPtr<FJsonValue>> Skills;
-            for (const FLDLearnedSkillView& Skill : View.Skills)
+            Value->SetNumberField(TEXT("unspent_points"), double(View.UnspentPoints));
+            TArray<TSharedPtr<FJsonValue>> StatPoints;
+            for (const FLDStatPointsView& Stat : View.StatPoints)
+            {
+                auto Points = MakeShared<FJsonObject>();
+                Points->SetStringField(TEXT("id"), Stat.StatId.ToString());
+                Points->SetNumberField(TEXT("points"), Stat.Points);
+                StatPoints.Add(MakeShared<FJsonValueObject>(Points));
+            }
+            Value->SetArrayField(TEXT("stat_points"), StatPoints);
+            TArray<TSharedPtr<FJsonValue>> Actives;
+            for (const FLDActiveSlotView& Active : View.Actives)
             {
                 auto Learned = MakeShared<FJsonObject>();
-                Learned->SetStringField(TEXT("id"), Skill.DefinitionId.ToString());
-                Learned->SetNumberField(TEXT("rank"), Skill.Rank);
-                Learned->SetBoolField(TEXT("active"), Skill.bActive);
-                Learned->SetStringField(TEXT("slot"), !Skill.bActive ? TEXT("") : Skill.Slot == 0 ? TEXT("Q") : Skill.Slot == 1 ? TEXT("W") : TEXT("E"));
-                Skills.Add(MakeShared<FJsonValueObject>(Learned));
+                Learned->SetStringField(TEXT("id"), Active.DefinitionId.ToString());
+                Learned->SetStringField(TEXT("slot"), Active.Slot == 0 ? TEXT("Q") : Active.Slot == 1 ? TEXT("W") : TEXT("E"));
+                Actives.Add(MakeShared<FJsonValueObject>(Learned));
             }
-            Value->SetArrayField(TEXT("skills"), Skills);
-            TArray<TSharedPtr<FJsonValue>> Cards;
-            for (const FLDAttributeCardView& Card : View.AttributeCards)
-            {
-                auto Held = MakeShared<FJsonObject>();
-                Held->SetStringField(TEXT("id"), Card.DefinitionId.ToString());
-                Held->SetNumberField(TEXT("count"), Card.Count);
-                Held->SetNumberField(TEXT("quality"), uint8(Card.Quality));
-                Cards.Add(MakeShared<FJsonValueObject>(Held));
-            }
-            Value->SetArrayField(TEXT("cards"), Cards);
+            Value->SetArrayField(TEXT("actives"), Actives);
+            TArray<TSharedPtr<FJsonValue>> Blueprints;
+            for (const FName& Blueprint : View.PendingBlueprints) { Blueprints.Add(MakeShared<FJsonValueString>(Blueprint.ToString())); }
+            Value->SetArrayField(TEXT("blueprints"), Blueprints);
             const ALDOpponentController* Adapter = FindAdapter(World, Mode, Side.Contender);
             const bool bBody = Adapter && Adapter->CombatView.bHasBody;
             Value->SetBoolField(TEXT("has_body"), bBody);

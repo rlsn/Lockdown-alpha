@@ -14,14 +14,6 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     const auto& P = D.Parameters;
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
-        if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
-        {
-            int64 Base, Armor, Health, Sum, Total, Critical;
-            return N.Mul64(Effect.BaseP2, 10000, Base, Path) && N.Mul64(P.Armor.MaxP2, Effect.ArmorRatioBp, Armor, Path)
-                && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, Health, Path)
-                && N.Add64(Base, Armor, Sum, Path) && N.Add64(Sum, Health, Total, Path)
-                && N.Mul64(Total, Effect.CriticalMultiplierBp, Critical, Path);
-        }
         const ELDDemoEffectOp Op = Effect.GetOp();
         const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage;
         if (!bDamage && Op != ELDDemoEffectOp::Shield)
@@ -59,21 +51,18 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     };
     for (const auto& Ability : D.Abilities)
     {
-        for (const auto& Rank : Ability.Ranks)
+        for (const auto& Effect : Ability.Values.Effects)
         {
-            for (const auto& Effect : Rank.Effects)
+            FLDDemoEffectDefinition Grown = Effect;
+            if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Ability.Id)) { return false; }
+            if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
             {
-                FLDDemoEffectDefinition Grown = Effect;
-                if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Ability.Id)) { return false; }
-                if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
+                for (FLDDemoStatBonus& Stat : Grown.Stats)
                 {
-                    for (FLDDemoStatBonus& Stat : Grown.Stats)
-                    {
-                        if (!Grow(Stat.Amount, Stat.Amount, Ability.Id)) { return false; }
-                    }
+                    if (!Grow(Stat.Amount, Stat.Amount, Ability.Id)) { return false; }
                 }
-                if (!CheckEffect(Grown, Ability.Id)) { return false; }
             }
+            if (!CheckEffect(Grown, Ability.Id)) { return false; }
         }
     }
     int64 BurnBase = 0, BurnAP = 0, BurnTotal = 0;
@@ -178,40 +167,21 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    const FLDDemoProgressionDefinition& Opening = D.Progression;
-    int32 Actives = 0;
+    // #198: the opening opportunity draws three distinct actives from the opening pool.
+    int32 OpeningActives = 0;
     for (const auto& Ability : D.Abilities)
     {
-        Actives += Ability.Draftable && Ability.Kind == ELDDemoAbilityKind::Active ? 1 : 0;
+        OpeningActives += Ability.Opening ? 1 : 0;
     }
-    // #153: three distinct opening cards, each hiding a distinct new draftable active.
-    if (!Check.Require(Opening.OpeningMatchedSkillWeight >= 1 && Opening.OpeningOtherSkillWeight >= 1 && Actives >= 3
-        && D.OpeningCards.Num() >= 3, TEXT("progression.opening_offer"),
-        TEXT("opening offer cannot draw three distinct opening cards with three distinct hidden draftable actives")))
+    if (!Check.Require(OpeningActives >= 3, TEXT("abilities"),
+        TEXT("the opening opportunity needs three distinct actives in the opening pool")))
     {
         return false;
     }
-    for (const auto& Card : D.OpeningCards)
-    {
-        const bool bShared = D.Abilities.ContainsByPredicate([&Card](const FLDDemoAbilityDefinition& Row) { return Row.Id == Card.Id; })
-            || D.Attributes.ContainsByPredicate([&Card](const FLDDemoAttributeDefinition& Row) { return Row.Id == Card.Id; });
-        if (!Check.Require(!bShared && Card.Stats.Num() == 3, TEXT("opening_cards"),
-            TEXT("an opening card needs its own ID and exactly three stats")))
-        {
-            return false;
-        }
-    }
-    const auto& Choice = P.Choice;
-    const int64 QualityChance = Choice.AttributeGreenChanceBp + Choice.AttributeBlueChanceBp
-        + Choice.AttributePurpleChanceBp + Choice.AttributeGoldChanceBp;
-    if (!Check.Require(Choice.NewActiveFreeSlotWeightBp > 0 && Choice.NewActiveFreeSlotWeightBp <= 10000
-        && Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000
-        && Choice.FirstSlotUpgradeBp >= 0 && Choice.FirstSlotUpgradeBp <= 10000
-        && Choice.FreeSlotAttributeBp >= 0 && Choice.FreeSlotAttributeBp <= 10000
-        && QualityChance == 10000
-        && Choice.AttributeGreenMultiplierBp > 0 && Choice.AttributeBlueMultiplierBp > 0
-        && Choice.AttributePurpleMultiplierBp > 0 && Choice.AttributeGoldMultiplierBp > 0, TEXT("CHOICE"),
-        TEXT("choice weights, chances and quality multipliers are outside their approved domains")))
+    // #198 points: the opening grant and one grant per level-up to the cap stay inside int64.
+    int64 LevelPoints = 0, TotalPoints = 0;
+    if (!N.Mul64(D.Progression.MaxLevel - 1, P.PointsPerLevel, LevelPoints, TEXT("GROWTH.PointsPerLevel"))
+        || !N.Add64(P.OpeningPoints, LevelPoints, TotalPoints, TEXT("GROWTH.OpeningPoints")))
     {
         return false;
     }

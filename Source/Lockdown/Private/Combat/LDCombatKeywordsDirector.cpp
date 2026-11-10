@@ -20,19 +20,6 @@ namespace LDCombatKeywordsDetail
     { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; }
 }
 
-FLDCombatHit ALDCombatDirector::EchoHit(const FLDCombatHit& Template, int64 RatioBp)
-{
-    FLDCombatHit Echo=Template;
-    Echo.EffectId=FGuid::NewGuid();
-    const int64 Ratio=FMath::Clamp<int64>(RatioBp,0,10000);
-    const auto Scale=[Ratio](int64 Value) { return Value/10000*Ratio+Value%10000*Ratio/10000; };
-    Echo.BaseP2=Scale(Template.BaseP2);
-    Echo.ADRatioBp=Scale(Template.ADRatioBp);
-    Echo.APRatioBp=Scale(Template.APRatioBp);
-    Echo.MaxHPRatioBp=Scale(Template.MaxHPRatioBp);
-    return Echo;
-}
-
 bool ALDCombatDirector::KeywordTerms(FLDKeywordTerms& Out, FString& Error) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -93,7 +80,7 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
         Layer.SourceAPP2=Hit.BurnAPP2;
         Burn(Hit.BurnStacks,Layer);
     }
-    // The living source's passives: basic_stacks on a primary basic hit, stacks on a learned Q/W hit. Ticks, pulses,
+    // The living source's held triggers: basic_stacks on a primary basic hit, stacks on a learned Q/W hit. Ticks, pulses,
     // reflections, added damage and shield-triggered answers are neither.
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
     const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && Hit.Source.Kind==ELDCombatSourceKind::Learned && Hit.Token!=0;
@@ -149,17 +136,15 @@ bool ALDCombatDirector::AdvanceBurns(int64 NowMs, FString& Error)
                 Tick.DamageType=ELDDemoDamageType::Magical;
                 Tick.bPeriodic=true;
                 Tick.bBurnTick=true;
-                // A burn takes its living applier's slowed-or-controlled amplification (v7 4.2) and its item_megaphone
-                // amplification of its own burns (#147 decision 9), both in the damage bonus pool; nothing else of it.
+                // A burn takes its living applier's slowed-or-controlled amplification (v7 4.2) in the damage bonus pool;
+                // nothing else of it.
                 if (const FLDBodyCombatState* Applier=FindBody(Share.SourceBody); Applier && !Applier->bPendingDeath)
                 {
-                    if (Applier->AttributeProjection.ControlAmp.IsSet())
+                    if (const FLDDemoEffectDefinition* Amp=FindTrigger(Applier->AttributeProjection,ELDDemoEffectOp::ControlDamageAmp))
                     {
-                        Tick.ControlAmpBp=Applier->AttributeProjection.ControlAmp->RatioBp;
-                        Tick.ControlAmpBelowBp=Applier->AttributeProjection.ControlAmp->LowHPBelowBp;
+                        Tick.ControlAmpBp=Amp->RatioBp;
+                        Tick.ControlAmpBelowBp=Amp->SecondaryRatioBp;
                     }
-                    if (const FLDDemoEffectDefinition* Amp=FindTrigger(Applier->AttributeProjection,ELDDemoEffectOp::AfflictionAmp))
-                    { Tick.ExtraAmplifyBp=10000+FMath::Max<int64>(Amp->RatioBp,0); }
                 }
             }
             if (Body.Burn.NextTickAtMs>MAX_int64-Terms.BurnTickMs) { Error=TEXT("A burn tick left the authority clock."); return false; }
@@ -186,7 +171,7 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     { return Row.Effect->Trigger==ELDDemoEffectTrigger::Damaged; });
     if (!Ref) { return true; }
     const FLDDemoEffectDefinition& Effect=*Ref->Effect;
-    // The learned rank row is already grown for the holder's level at this trigger (#147, CollectPassiveEffects).
+    // A held trigger's fixed amount already arrives grown for the holder's level (CollectPassiveEffects).
     const int64 Amount=Effect.BaseP2
         +LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Effect.MaxHPRatioBp);
     const FGuid ShieldId=FGuid::NewGuid();
@@ -266,77 +251,4 @@ void ALDCombatDirector::AppendKeywordStatuses(const FLDBodyCombatState& Body, in
     { Out.Add({uint8(ELDDemoStatusId::Exposed),uint8(FMath::Clamp(Stacks,1,255)),Body.SharedBreach.ExpiresAtMs}); }
     if (LDCombatKeywords::BurnActive(Body.Burn,NowMs))
     { Out.Add({uint8(ELDDemoStatusId::Burn),uint8(FMath::Clamp(Body.Burn.Layers.Num(),1,255)),Body.Burn.ExpiresAtMs}); }
-}
-
-bool ALDCombatDirector::ResolveEchoes(FString& Error)
-{
-    if (Echoes.IsEmpty()) { return true; }
-    const ALDGameMode* Mode=Core();
-    if (!Mode) { Error=TEXT("Second blasts require the current core."); return false; }
-    const int64 NowMs=Mode->GetAuthorityNowMs();
-    TArray<FLDCombatEcho> Due;
-    for (int32 Index=Echoes.Num()-1; Index>=0; --Index)
-    {
-        if (Echoes[Index].AtMs>NowMs) { continue; }
-        Due.Insert(MoveTemp(Echoes[Index]),0);
-        Echoes.RemoveAt(Index);
-    }
-    for (const FLDCombatEcho& Echo : Due)
-    {
-        // Only the same, still living body life blasts again, around where it stands now.
-        ALDCharacter* Actor=nullptr;
-        FLDBodyCombatState* Body=FindBody(Echo.Body,&Actor);
-        if (!Body || !Actor || Body->bPendingDeath) { continue; }
-        TArray<FLDCombatBodyRef> Targets;
-        if (!CollectAreaTargets(FootOf(*Actor),Echo.RadiusCm,Body,Body->Victim.EntityId,Targets,Error))
-        { Error=TEXT("Second blast: ")+Error; return false; }
-        for (const FLDCombatBodyRef& Target : Targets)
-        {
-            FLDCombatHit Hit=Echo.Template;
-            Hit.HitId=FGuid::NewGuid();
-            Hit.Target=Target;
-            PendingHits.Add(Hit);
-        }
-        Body->LastCombatAtMs=NowMs;
-        ++Body->StateRevision;
-        MarkViewChanged(Body->Victim.EntityId);
-    }
-    return true;
-}
-
-bool ALDCombatDirector::ResolveWallChecks(FString& Error)
-{
-    if (WallChecks.IsEmpty()) { return true; }
-    const ALDGameMode* Mode=Core();
-    if (!Mode) { Error=TEXT("Wall checks require the current core."); return false; }
-    const int64 NowMs=Mode->GetAuthorityNowMs();
-    TArray<FLDCombatWallCheck> Due;
-    for (int32 Index=WallChecks.Num()-1; Index>=0; --Index)
-    {
-        if (WallChecks[Index].AtMs>NowMs) { continue; }
-        Due.Insert(WallChecks[Index],0);
-        WallChecks.RemoveAt(Index);
-    }
-    for (const FLDCombatWallCheck& Check : Due)
-    {
-        ALDCharacter* Actor=nullptr;
-        FLDBodyCombatState* Body=FindBody(Check.Target,&Actor);
-        if (!Body || !Actor || Body->bPendingDeath) { continue; }
-        const FVector EndFoot=FootOf(*Actor);
-        const bool bWall=LDCombatKeywords::KnockbackHitWall(Check.StartFootCm,EndFoot,Check.ThresholdCm);
-        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK_END victim=%s travelled_cm=%.0f wall=%d"),*LDLog::Id(Body->Victim.EntityId),
-            FVector::Dist2D(Check.StartFootCm,EndFoot),int32(bWall));
-        if (!bWall) { continue; }
-        FLDControlApplication App;
-        App.Kind=ELDControlKind::Stun;
-        App.EffectId=Check.EffectId;
-        App.SourceEntity=Check.SourceEntity;
-        App.SourceBody=Check.SourceBody;
-        App.CreditOwner=Check.CreditOwner;
-        App.DurationMs=Check.StunMs;
-        bool bApplied=false;
-        if (!CommitControl(*Body,App,NowMs,bApplied,Error)) { return false; }
-        if (bApplied) { Body->Cues.LastHitAtMs=NowMs; }
-    }
-    return true;
 }

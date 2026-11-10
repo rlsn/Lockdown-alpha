@@ -166,14 +166,14 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
         {
             GrowthMatch = Growth->Generation;
             GrowthLevel = Growth->Level;
-            GrowthEarned = Growth->EarnedThrough;
+            GrowthEarned = Growth->ActiveOpportunitiesEarned;
         }
         else
         {
-            // A level or a newly earned three-choice; the next queued offer shown after a pick is not new.
-            if (Growth->Level > GrowthLevel || Growth->EarnedThrough > GrowthEarned) { LDAudio::AddUnique(Out, ELDAudioCue::LevelUp); }
+            // A level or a newly earned active opportunity; the next queued offer shown after a pick is not new.
+            if (Growth->Level > GrowthLevel || Growth->ActiveOpportunitiesEarned > GrowthEarned) { LDAudio::AddUnique(Out, ELDAudioCue::LevelUp); }
             GrowthLevel = FMath::Max(GrowthLevel, Growth->Level);
-            GrowthEarned = FMath::Max(GrowthEarned, Growth->EarnedThrough);
+            GrowthEarned = FMath::Max(GrowthEarned, Growth->ActiveOpportunitiesEarned);
         }
     }
 }

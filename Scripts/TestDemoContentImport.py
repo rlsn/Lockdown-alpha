@@ -158,7 +158,7 @@ class DemoContentImport(unittest.TestCase):
         with self.assertRaises(TypeError):
             result.catalog.data["character"]["id"] = "mutated"
         with self.assertRaises(TypeError):
-            result.catalog.definition("active_snark_bolt")["ranks"][0]["effects"][0]["base"]["p2"] = 1
+            result.catalog.definition("active_snark_bolt")["effects"][0]["base"]["p2"] = 1
         with self.assertRaisesRegex(demo.ContentError, "UnknownId"):
             result.catalog.definition("snark_bolt")
         with self.assertRaisesRegex(demo.ContentError, "UnknownParameter"):
@@ -192,48 +192,66 @@ class DemoContentImport(unittest.TestCase):
     def test_every_author_leaf_has_exact_destination_after_row_sorting(self):
         self.assert_leaf_projection(self.baseline, self.author)
         fields = self.baseline.catalog.field_projection
-        self.assertEqual(fields["content.abilities[0].ranks[0].effects[0].base.value"],
-                         ("content.abilities[2].ranks[0].effects[0].base.p2",))
+        self.assertEqual(fields["content.abilities[0].effects[0].base.value"],
+                         ("content.abilities[2].effects[0].base.p2",))
+        self.assertEqual(fields["content.stats[0].per_point.MaxHPFlat.value"],
+                         ("content.stats[2].per_point.MaxHPFlat.p2",))
 
-    def test_each_rank_projects_all_effects_costs_and_coefficients(self):
+    def test_single_value_set_projects_all_effects_costs_and_coefficients(self):
         bolt = self.baseline.catalog.definition("active_snark_bolt")
         guard = self.baseline.catalog.definition("active_not_mad")
         snare = self.baseline.catalog.definition("active_pants_down")
-        self.assertEqual(len(bolt["ranks"]), 2)
-        for rank in range(1, 3):
-            with self.subTest(rank=rank):
-                row = bolt["ranks"][rank - 1]
-                # The advanced rank multiplies the growing base by 1.5 and keeps every coefficient.
-                self.assertEqual(row["effects"][0]["base"]["p2"], (800, 1200)[rank - 1])
-                self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], 1250)
-                self.assertEqual(row["effects"][0]["opcode"], 1)
-                self.assertEqual(row["effects"][1]["opcode"], 12)
-                self.assertEqual(row["mana_cost"]["p2"], (5 + rank) * 100)
-                self.assertEqual(row["cooldown"]["ms"], 3000)
-                self.assertEqual(guard["ranks"][rank - 1]["effects"][0]["base"]["p2"], (2000, 3000)[rank - 1])
-                self.assertEqual(guard["ranks"][rank - 1]["effects"][1]["opcode"], 37)
-                self.assertEqual(snare["ranks"][rank - 1]["effects"][1]["duration"]["ms"], 250 * rank)
-        # Only the advanced rank carries its qualitative change.
-        self.assertEqual([effect["opcode"] for effect in bolt["ranks"][1]["effects"]], [1, 12, 73])
-        self.assertEqual([effect["opcode"] for effect in guard["ranks"][1]["effects"]], [2, 37, 3, 76])
+        stare = self.baseline.catalog.definition("active_stare_down")
+        # #198: one value set per active, no rank rows or kind.
+        for row in (bolt, guard, snare, stare):
+            self.assertFalse({"ranks", "kind", "draftable"} & set(row))
+        self.assertEqual(bolt["effects"][0]["base"]["p2"], 800)
+        self.assertEqual(bolt["effects"][0]["ap_ratio"]["bp"], 1250)
+        self.assertEqual([effect["opcode"] for effect in bolt["effects"]], [1, 12])
+        self.assertEqual((bolt["mana_cost"]["p2"], bolt["cooldown"]["ms"]), (600, 3000))
+        self.assertEqual(guard["effects"][0]["base"]["p2"], 2000)
+        self.assertEqual([effect["opcode"] for effect in guard["effects"]], [2, 37, 3])
+        self.assertEqual(snare["effects"][1]["duration"]["ms"], 250)
+        self.assertEqual({key: value["p2"] for key, value in stare["effects"][1]["stats"].items()},
+                         {"ArmorFlat": 300, "MagicResistFlat": 200})
+        self.assertEqual({row["id"]: row["opening"] for row in self.baseline.catalog.data["abilities"]},
+                         {"active_not_mad": True, "active_pants_down": True, "active_snark_bolt": True,
+                          "active_stare_down": False})
 
-    def test_mutating_each_active_rank_field_changes_projected_value(self):
+    def test_stats_project_per_point_bonuses_and_growth_parameters(self):
+        data = self.baseline.catalog.data
+        self.assertEqual([row["id"] for row in data["stats"]],
+                         ["stat_agility", "stat_brains", "stat_physique", "stat_strength", "stat_thick_skin"])
+        self.assertEqual({row["id"]: row["native_id"] for row in data["stats"]},
+                         {"stat_physique": 27, "stat_thick_skin": 28, "stat_strength": 29, "stat_brains": 30, "stat_agility": 31})
+        brains = self.baseline.catalog.definition("stat_brains")["per_point"]
+        self.assertEqual((brains["APFlat"]["p2"], brains["CooldownHasteFlat"]["p2"]), (400, 200))
+        self.assertEqual(brains["MPRegenFlat"], {"unit": "mp/s", "numerator": 1, "denominator": 4})
+        self.assertEqual(self.baseline.catalog.definition("stat_agility")["per_point"]["MoveSpeedBonusRatio"], {"unit": "ratio", "bp": 100})
+        self.assertEqual(data["progression"]["active_offer_levels"], (4, 9))
+        self.assertFalse({"max_choices", "max_skill_rank", "opening_offer", "reroll_levels"} & set(data["progression"]))
+        self.assertFalse({"attributes", "opening_cards"} & set(data))
+        for key, expected in (("GROWTH.OpeningPoints", 2), ("GROWTH.PointsPerLevel", 4), ("GROWTH.MaxLevelPointsXP", 250),
+                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
+            self.assertEqual(self.baseline.catalog.parameter(key), expected)
+        self.assertFalse([key for key in data["parameters"] if key.startswith("CHOICE.")])
+
+    def test_mutating_each_active_value_changes_projected_value(self):
         baseline_bytes = (self.root / demo.CONTENT_SOURCE).read_bytes()
         changes = 0
-        for ability_index in range(3):
-            for rank_index in range(2):
-                for field, amount, output_field in (("mana_cost", 1, "p2"), ("cooldown", 1, "ms")):
-                    with self.subTest(ability=ability_index, rank=rank_index, field=field):
-                        (self.root / demo.CONTENT_SOURCE).write_bytes(baseline_bytes)
-                        self.edit(lambda data: data["abilities"][ability_index]["ranks"][rank_index][field].update(
-                            value=data["abilities"][ability_index]["ranks"][rank_index][field]["value"] + amount))
-                        result = demo.compile_content(self.root)
-                        identity = self.author["abilities"][ability_index]["id"]
-                        old = self.baseline.catalog.definition(identity)["ranks"][rank_index][field][output_field]
-                        new = result.catalog.definition(identity)["ranks"][rank_index][field][output_field]
-                        self.assertEqual(new - old, 100 if output_field == "p2" else 1000)
-                        changes += 1
-        self.assertEqual(changes, 12)
+        for ability_index in range(len(self.author["abilities"])):
+            for field, amount, output_field in (("mana_cost", 1, "p2"), ("cooldown", 1, "ms")):
+                with self.subTest(ability=ability_index, field=field):
+                    (self.root / demo.CONTENT_SOURCE).write_bytes(baseline_bytes)
+                    self.edit(lambda data: data["abilities"][ability_index][field].update(
+                        value=data["abilities"][ability_index][field]["value"] + amount))
+                    result = demo.compile_content(self.root)
+                    identity = self.author["abilities"][ability_index]["id"]
+                    old = self.baseline.catalog.definition(identity)[field][output_field]
+                    new = result.catalog.definition(identity)[field][output_field]
+                    self.assertEqual(new - old, 100 if output_field == "p2" else 1000)
+                    changes += 1
+        self.assertEqual(changes, 8)
         self.assert_outputs_equal()
 
     def test_deterministic_bytes_do_not_depend_on_author_object_or_definition_order(self):
@@ -247,7 +265,7 @@ class DemoContentImport(unittest.TestCase):
             return value
 
         shuffled = reorder(self.author)
-        for key in ("abilities", "attributes", "display"):
+        for key in ("abilities", "stats", "display"):
             shuffled[key].reverse()
         shuffled["camps"]["monsters"].reverse()
         shuffled["camps"]["placements"].reverse()
@@ -344,16 +362,17 @@ class DemoContentImport(unittest.TestCase):
                     sync.synchronize(self.root)
                 self.assert_outputs_equal()
 
-    def test_bad_counts_revisions_ids_and_ranks_never_accept_bool(self):
+    def test_bad_counts_revisions_ids_and_offer_levels_never_accept_bool(self):
         mutations = (
             lambda data: data["identity"].update(schema_version=True),
             lambda data: data["parameters"].update({"AIRDROP.RewardXP": True}),
             lambda data: data["boss"].update(reward_xp=True),
-            lambda data: data["abilities"][0]["ranks"][0].update(rank=True),
+            lambda data: data["progression"].update(active_offer_levels=[True]),
             lambda data: data["camps"]["monsters"][0].update(count_per_camp=True),
             lambda data: data["progression"].update(max_level=True),
             lambda data: data["parameters"].update({"AIRDROP.RewardXP": 1.0}),
-            lambda data: data["abilities"][0].update(draftable=1),
+            lambda data: data["parameters"].update({"GROWTH.OpeningPoints": True}),
+            lambda data: data["abilities"][0].update(opening=1),
         )
         for mutation in mutations:
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -383,7 +402,9 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),
             lambda data: data["parameters"]["STAT.BaseAttackSpeed"].update(value=0),
             lambda data: data["abilities"][0]["target"].update(projectile_speed={"unit": "cm/s", "value": -1}),
-            lambda data: data["abilities"][0]["ranks"][0]["mana_cost"].update(value=-1),
+            lambda data: data["abilities"][0]["mana_cost"].update(value=-1),
+            lambda data: data["parameters"]["GROWTH.BuildSafeWindowSec"].update(value=0.0001),
+            lambda data: data["stats"][0]["per_point"]["HPRegenFlat"].update(unit="mp/s"),
         )
         for mutation in mutations:
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -394,8 +415,9 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data.update(candidate_mode=True),
             lambda data: data["parameters"].update({"CAMP.Low.AggroRadiusCm": {"unit": "cm", "value": 0}}),
-            lambda data: data["abilities"][0]["ranks"][0].update(extra=1),
-            lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(hidden_legacy_fallback=True),
+            lambda data: data["abilities"][0].update(extra=1),
+            lambda data: data["abilities"][0]["effects"][0].update(hidden_legacy_fallback=True),
+            lambda data: data["stats"][0].update(extra=1),
             lambda data: data["character"]["dash"].update(windup={"unit": "s", "value": 0}),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -406,11 +428,17 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data["abilities"][0].update(id="unknown_ability"),
             lambda data: data["abilities"][0].update(id="snark_bolt"),
-            lambda data: data["attributes"][0].update(id="AttrProtein"),
-            lambda data: data["attributes"][0].update(id=data["attributes"][1]["id"]),
-            lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(op="legacy_damage"),
-            lambda data: data["abilities"][0]["ranks"][0]["effects"].append(deepcopy(data["abilities"][0]["ranks"][0]["effects"][0])),
-            lambda data: data["abilities"][1]["ranks"][0]["effects"].pop(),
+            lambda data: data["stats"][0].update(id="StatPhysique"),
+            lambda data: data["stats"][0].update(id=data["stats"][1]["id"]),
+            # #198: retired passives, cower and attribute cards and the reserved-but-unprojected sock shot stay refused.
+            lambda data: data["abilities"][0].update(id="passive_lucky_star"),
+            lambda data: data["abilities"][0].update(id="active_cower"),
+            lambda data: data["abilities"][0].update(id="active_sock_shot", cooldown_family="cd_sock_shot"),
+            lambda data: data["stats"][0].update(id="attr_protein"),
+            lambda data: data["abilities"][0]["effects"][0].update(op="legacy_damage"),
+            lambda data: data["abilities"][0]["effects"].append({"op": "pierce"}),
+            lambda data: data["abilities"][0]["effects"].append(deepcopy(data["abilities"][0]["effects"][0])),
+            lambda data: data["abilities"][1]["effects"].pop(),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -426,10 +454,21 @@ class DemoContentImport(unittest.TestCase):
             # A retired identity and its retired number cannot return.
             lambda data: data["abilities"].update(active_arc_bolt=62),
             lambda data: data["retired_ranges"].update(abilities=[[0, 90]]),
-            lambda data: data["retired_ranges"].update(attributes=[[0, 13]]),
-            lambda data: data["retired_ranges"].update(attributes=[0, 14]),
+            # #198 retirements may be neither dropped nor reused.
+            lambda data: data["retired_ranges"].update(abilities=[[0, 91]]),
+            lambda data: data["retired_ranges"].update(stats=[[0, 25]]),
+            lambda data: data["retired_ranges"].update(stats=[0, 26]),
+            lambda data: data["retired_ranges"].pop("stats"),
+            lambda data: data["retired_ranges"].update(attributes=[[0, 26]]),
             lambda data: data["retired_ranges"].update(effect_ops=[[6, 6]]),
             lambda data: data["retired_ranges"].pop("statuses"),
+            lambda data: data["abilities"].update(passive_pressed=104),
+            lambda data: data["abilities"].update(active_cower=119),
+            lambda data: data["abilities"].pop("active_sock_shot"),
+            lambda data: data["stats"].update(stat_physique=15),
+            lambda data: data.update(attributes={"attr_protein": 15}),
+            lambda data: data["statuses"].update(cowering=28),
+            lambda data: data["effect_ops"].update(pierce=73),
             lambda data: data["effect_ops"].update(dot=42),
             lambda data: data["statuses"].update(enraged=7),
             lambda data: data["effect_ops"].pop("shield"),
@@ -444,24 +483,27 @@ class DemoContentImport(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "NativeId"):
             demo.compile_content(self.root)
 
-    def test_missing_wrong_or_reordered_ranks_refuse(self):
+    def test_single_value_set_shape_refuses_ranks_kinds_and_missing_values(self):
         for mutation in (
-            lambda data: data["abilities"][0]["ranks"].pop(),
-            lambda data: data["abilities"][0]["ranks"].reverse(),
-            lambda data: data["abilities"][0]["ranks"][1].update(rank=1),
-            lambda data: data["abilities"][0]["ranks"][1].pop("mana_cost"),
-            lambda data: data["abilities"][0]["ranks"].append(dict(deepcopy(data["abilities"][0]["ranks"][1]), rank=3)),
-            lambda data: data["abilities"][3]["ranks"][0].update(rank=2),
+            lambda data: data["abilities"][0].pop("mana_cost"),
+            lambda data: data["abilities"][0].pop("cooldown"),
+            lambda data: data["abilities"][0].pop("effects"),
+            lambda data: data["abilities"][0].update(effects=[]),
+            lambda data: data["abilities"][0]["cooldown"].update(value=0),
+            lambda data: data["abilities"][0].update(kind="active"),
+            lambda data: data["abilities"][0].update(ranks=[{"rank": 1, "mana_cost": data["abilities"][0]["mana_cost"],
+                                                             "cooldown": data["abilities"][0]["cooldown"],
+                                                             "effects": data["abilities"][0]["effects"]}]),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
-    def test_invalid_targets_families_and_passive_binding_refuse(self):
+    def test_invalid_targets_families_and_timed_stat_binding_refuse(self):
         for mutation in (
             lambda data: data["abilities"][0].update(target={"mode": "Self"}),
             lambda data: data["abilities"][0].update(cooldown_family="unknown_family"),
-            lambda data: data["abilities"][3]["ranks"][0]["effects"][0].update(stats={"ADFlat": {"unit": "points", "value": 1}}),
+            lambda data: data["abilities"][3]["effects"][1]["stats"].update(ADFlat={"unit": "points", "value": 1}),
             lambda data: data["character"].pop("dash"),
             lambda data: data["character"]["dash"].update(distance={"unit": "cm", "value": 0}),
             lambda data: data["character"]["dash"].update(duration=deepcopy(data["character"]["dash"]["cooldown"])),
@@ -470,17 +512,21 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
-    def test_known_but_undeclared_stats_and_penalties_refuse(self):
+    def test_each_stat_declares_exactly_its_positive_per_point_bonuses(self):
         for mutation in (
-            lambda data: data["attributes"][0].update(stats={"CritChanceBonusRatio": {"unit": "ratio", "value": 0.5}}),
-            lambda data: data["attributes"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
-            lambda data: data["attributes"][5].pop("penalties"),
-            lambda data: data["attributes"][5].update(penalties={"AttackRangeCmFlat": {"unit": "cm", "value": 5}}),
-            lambda data: data["attributes"][5]["penalties"]["MaxHPFlat"].update(value=0),
+            lambda data: data["stats"][0].update(per_point={"CritChanceBonusRatio": {"unit": "ratio", "value": 0.5}}),
+            lambda data: data["stats"][0]["per_point"].pop("HPRegenFlat"),
+            lambda data: data["stats"][2]["per_point"].update(APFlat={"unit": "points", "value": 1}),
+            lambda data: data["stats"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
+            lambda data: data["stats"][0]["per_point"]["MaxHPFlat"].update(value=0),
+            lambda data: data["stats"][4].update(per_point={}),
+            lambda data: data["stats"].pop(),
+            lambda data: data["stats"].append(deepcopy(data["stats"][0])),
+            lambda data: data["stats"][1].update(id="stat_physique"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
-                self.assert_refused(mutation, "UnknownField|IneffectiveChoice")
+                self.assert_refused(mutation, "UnknownField|IneffectiveChoice|EmptyDefinition|ArrayLength|DuplicateId")
 
     def test_capped_gains_clamp_instead_of_refusing(self):
         # Every attribute clamps to its bounds in the projection (#112 §4): a source sum past a cap still compiles.
@@ -497,31 +543,36 @@ class DemoContentImport(unittest.TestCase):
                 demo.compile_author(self.root)
         (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
 
-    def test_opening_offer_and_out_of_combat_recovery_refuse_invalid_inputs(self):
+    def test_opening_pool_offer_levels_growth_and_recovery_refuse_invalid_inputs(self):
         for mutation, code in (
-            (lambda data: data["progression"]["opening_offer"].update(matched_skill_weight=0), "NumericDomain"),
-            (lambda data: data["progression"]["opening_offer"].update(other_skill_weight=101), "NumericOverflow"),
-            (lambda data: data["progression"]["opening_offer"].update(matched_skill_weight=1, other_skill_weight=3), None),
-            (lambda data: data["progression"]["opening_offer"].update(active_count=1), "UnknownField"),
-            (lambda data: data["progression"]["opening_offer"].pop("other_skill_weight"), "MissingField"),
-            # #153: each opening card hides a distinct draftable active, so two draftable actives cannot fill the offer.
-            (lambda data: [row.update(draftable=False) for row in data["abilities"] if row["id"] == "active_snark_bolt"],
-             "OpeningOffer"),
-            (lambda data: data["opening_cards"].pop(), "ArrayLength|SchemaVariant"),
-            (lambda data: data["opening_cards"][0].update(id="opening_unknown"), "UnknownField"),
-            (lambda data: data["opening_cards"][0]["stats"].pop("MaxHPFlat"), "UnknownField"),
-            (lambda data: data["opening_cards"][0]["stats"]["ADFlat"].update(value=0), "IneffectiveChoice|NumericDomain"),
-            (lambda data: data["opening_cards"][0].update(id="attr_protein"), "DuplicateId"),
-            (lambda data: data["opening_cards"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}), "UnknownField"),
-            (lambda data: data["progression"].update(reroll_levels=[7, 4]), "RerollLevels"),
-            (lambda data: data["progression"].update(reroll_levels=[4, 4]), "RerollLevels"),
-            (lambda data: data["progression"].update(reroll_levels=[17]), "NumericOverflow"),
-            (lambda data: data["progression"].pop("reroll_levels"), "MissingField"),
-            (lambda data: data["parameters"]["CHOICE.AttributeQuality.GreenChance"].update(value=0.39), "InvalidPolicy"),
-            (lambda data: data["parameters"]["CHOICE.AttributeQuality.GoldMultiplier"].update(value=0), "InvalidPolicy"),
-            (lambda data: data["parameters"].pop("CHOICE.AttributeQuality.BlueChance"), "MissingField"),
-            (lambda data: data["abilities"][0].update(tags=["Mobility"]), "UnknownField|SchemaVariant"),
-            (lambda data: data["abilities"][0].pop("draftable"), "MissingField|SchemaVariant"),
+            # #198: the opening opportunity draws three distinct actives from the opening pool.
+            (lambda data: [row.update(opening=False) for row in data["abilities"] if row["id"] == "active_snark_bolt"],
+             "OpeningPool"),
+            (lambda data: [row.update(opening=True) for row in data["abilities"]], None),
+            (lambda data: data["abilities"][0].pop("opening"), "MissingField"),
+            (lambda data: data["abilities"][0].update(draftable=True), "UnknownField"),
+            (lambda data: data["abilities"][0].update(tags=["Mobility"]), "UnknownField"),
+            (lambda data: data["progression"].update(active_offer_levels=[9, 4]), "ActiveOfferLevels"),
+            (lambda data: data["progression"].update(active_offer_levels=[4, 4]), "ActiveOfferLevels"),
+            (lambda data: data["progression"].update(active_offer_levels=[17]), "NumericOverflow"),
+            (lambda data: data["progression"].update(active_offer_levels=[1]), "NumericDomain"),
+            (lambda data: data["progression"].pop("active_offer_levels"), "MissingField"),
+            (lambda data: data["progression"].update(active_offer_levels=[]), None),
+            (lambda data: data["progression"].update(active_offer_levels=[2, 16]), None),
+            (lambda data: data["progression"].update(reroll_levels=[5, 11]), "UnknownField"),
+            (lambda data: data["progression"].update(max_skill_rank=2), "UnknownField"),
+            (lambda data: data["progression"].update(opening_offer={"matched_skill_weight": 3, "other_skill_weight": 2}),
+             "UnknownField"),
+            (lambda data: data.update(opening_cards=[]), "UnknownField"),
+            (lambda data: data.update(attributes=[]), "UnknownField"),
+            (lambda data: data["parameters"].update({"CHOICE.AttributeQuality.GreenChance": {"unit": "ratio", "value": 0.4}}),
+             "UnknownField"),
+            (lambda data: data["parameters"].pop("GROWTH.PointsPerLevel"), "MissingField"),
+            (lambda data: data["parameters"].update({"GROWTH.OpeningPoints": 0}), "NumericDomain"),
+            (lambda data: data["parameters"].update({"GROWTH.MaxLevelPoints": -1}), "NumericDomain"),
+            (lambda data: data["parameters"].update({"GROWTH.MaxLevelPointsXP": {"unit": "xp", "value": 400}}), "SchemaType"),
+            (lambda data: data["parameters"]["GROWTH.BuildSafeWindowSec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"].update({"GROWTH.PointsPerLevel": demo.INT64_MAX}), "NumericOverflow"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
@@ -530,7 +581,6 @@ class DemoContentImport(unittest.TestCase):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
                 if code is None:
-                    # Any positive pair of weights is a valid opening draw.
                     changed = deepcopy(self.author)
                     mutation(changed)
                     (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))
@@ -542,7 +592,7 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data["parameters"]["STAT.MaxHP.Max"].update(value=150),
             lambda data: data["parameters"]["STAT.MaxHP.Min"].update(value=200),
-            lambda data: data["attributes"][0]["stats"]["ADFlat"].update(value=0),
+            lambda data: data["stats"][2]["per_point"]["ADFlat"].update(value=0),
             lambda data: data["progression"]["xp_thresholds"].__setitem__(4, 259),
             lambda data: data["formulas"]["ResistanceScale"].update(value=0),
         ):
@@ -592,6 +642,29 @@ class DemoContentImport(unittest.TestCase):
         self.edit(lambda data: data["display"][1].update(name_text="502胶水"))
         named = demo.compile_content(self.root)
         self.assertIn("502胶水", {row["name_text"] for row in json.loads(named.outputs[demo.CONTENT_OUTPUT])["display"]})
+
+    def test_card_templates_read_the_single_value_set_and_one_stat_point(self):
+        def display(data, identity):
+            return next(row for row in data["display"] if row["id"] == identity)
+
+        for mutation, pattern in (
+            (lambda data: display(data, "active_snark_bolt").update(description_text="眩晕 [stun.duration] 秒"), "CardTemplate"),
+            (lambda data: display(data, "active_snark_bolt").update(description_text="多 [per_point.APFlat]"), "CardTemplate"),
+            (lambda data: display(data, "active_stare_down").update(description_text="攻 [timed_stat_bonus.ADFlat]"), "CardTemplate"),
+            (lambda data: display(data, "stat_brains").update(description_text="每点 [per_point.ADFlat]"), "CardTemplate"),
+            (lambda data: display(data, "stat_brains").update(description_text="每点 [damage.amount]"), "CardTemplate"),
+            (lambda data: display(data, "stat_brains").update(description_text="每点 [per_point.APFlat"), "CardTemplate"),
+            (lambda data: display(data, "active_snark_bolt").update(advanced_key="active_snark_bolt.advanced",
+                                                                    advanced_text="高级"), "UnknownField"),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(pattern=pattern, mutation=mutation):
+                self.assert_refused(mutation, pattern)
+        (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+        self.edit(lambda data: display(data, "stat_physique").update(
+            description_text="每点 +[per_point.MaxHPFlat]，回复 +[per_point.HPRegenFlat]/秒。"))
+        texts = {row["id"]: row["description_text"] for row in json.loads(demo.compile_content(self.root).outputs[demo.CONTENT_OUTPUT])["display"]}
+        self.assertIn("[per_point.HPRegenFlat]", texts["stat_physique"])
 
     def test_schema_keywords_revisions_and_quantity_storage_are_not_silent(self):
         original = (self.root / demo.SCHEMA_SOURCE).read_bytes()

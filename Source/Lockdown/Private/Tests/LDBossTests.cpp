@@ -220,7 +220,7 @@ bool FLDBossRewardTest::RunTest(const FString& Parameters)
         && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::MoveSpeedBonusRatio) == 1000);
 
     // 2. The authority grant, in a real DeathsAndRewards boundary.
-    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}), *Catalog);
+    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}), *Catalog);
     if (!TestTrue(TEXT("A level-1 contender projects"), Projected.IsSuccess())) { return false; }
     const FLDAttributeProjection& Base = Projected.Value.GetValue();
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)

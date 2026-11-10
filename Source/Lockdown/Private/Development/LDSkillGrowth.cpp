@@ -46,8 +46,8 @@ bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Fa
     return true;
 }
 
-bool LDSkillGrowth::GrowRank(const FLDDemoRankDefinition& Authored, int64 ThroughTenBp, int64 AfterTenBp,
-    uint8 Level, FLDDemoRankDefinition& Out)
+bool LDSkillGrowth::GrowValues(const FLDDemoAbilityValues& Authored, int64 ThroughTenBp, int64 AfterTenBp,
+    uint8 Level, FLDDemoAbilityValues& Out)
 {
     Out = Authored;
     const int64 Factor = FactorBp(ThroughTenBp, AfterTenBp, Level);

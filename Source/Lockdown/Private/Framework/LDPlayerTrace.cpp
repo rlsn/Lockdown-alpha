@@ -85,7 +85,7 @@ FString FLDPlaytestTrace::OwnState(const ALDPlayerController& PC)
     return FString::Printf(TEXT("t=%lld match=%u life=%u phase=%s pos=%s %s level=%d xp=%lld pending=%d order=%s action=%s statuses=%s"),
         NowMs, Own.Match, Own.Life, *LDLog::EnumName(Own.LifePhase), Body ? *LDLog::Cm(Body->GetActorLocation()) : TEXT("-"), *Resources,
         Progression ? int32(Progression->Level) : -1, Progression ? Progression->CumulativeXP : int64(-1),
-        Progression ? int32(Progression->PendingChoiceCount) : -1, *Order, *Action,
+        Progression ? int32(Progression->QueuedActiveOpportunities) : -1, *Order, *Action,
         Statuses.IsEmpty() ? TEXT("-") : *Statuses);
 }
 
@@ -285,7 +285,8 @@ void FLDPlaytestTrace::LogFeedback(const ALDPlayerController& PC, const TArray<L
             UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_REWARD t=%lld kind=xp amount=%lld"), NowMs, Event.Amount);
             break;
         case EKind::LevelUp:
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_LEVEL t=%lld level=%d choices_earned=%lld"), NowMs, Event.Level, Event.Amount);
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_LEVEL t=%lld level=%d choices_earned=%d points_earned=%lld"), NowMs, Event.Level,
+                Event.Offers, Event.Amount);
             break;
         case EKind::Kill:
             UE_LOG(LogLDMatch, Log, TEXT("LD_SELF_KILL t=%lld victim_name=%s"), NowMs, *LDLog::Quote(Event.Name));
@@ -383,36 +384,34 @@ void FLDPlaytestTrace::LogGrowth(const ALDPlayerController& PC)
     const FLDProgressionView* Progression = PC.ReadOwnProgression();
     if (Progression && Progression->bValid && Progression->Generation == Own.Match)
     {
-        if (Progression->bHasOffer && Progression->Offer.OfferId != SeenOffer)
+        if (Progression->bHasActiveOffer && Progression->ActiveOffer.OfferId != SeenOffer)
         {
-            SeenOffer = Progression->Offer.OfferId;
-            FString Cards;
-            for (const FLDChoiceOption& Option : Progression->Offer.Options)
-            {
-                Cards += FString::Printf(TEXT("%s%s:%s:%u>%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *LDLog::EnumName(Option.Kind),
-                    *Option.DefinitionId.ToString(), uint32(Option.FromRank), uint32(Option.ToRank));
-            }
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_OFFER t=%lld ordinal=%u rerolled=%d level=%u cards=%s"), NowMs,
-                uint32(Progression->Offer.OpportunityOrdinal), Progression->Offer.bRerolled ? 1 : 0, uint32(Progression->Level), *Cards);
+            SeenOffer = Progression->ActiveOffer.OfferId;
+            const FString Cards = FString::JoinBy(Progression->ActiveOffer.Options, TEXT(","), [](FName Id) { return Id.ToString(); });
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_OFFER t=%lld ordinal=%u level=%u cards=%s"), NowMs,
+                uint32(Progression->ActiveOffer.OpportunityOrdinal), uint32(Progression->Level), *Cards);
         }
         if (Progression->BuildRevision != SeenBuildRevision)
         {
             SeenBuildRevision = Progression->BuildRevision;
-            FString Skills, Cards;
-            for (const FLDLearnedSkillView& Skill : Progression->Skills)
+            FString Skills, Blueprints, Points;
+            for (const FLDActiveSlotView& Active : Progression->Actives)
             {
-                Skills += FString::Printf(TEXT("%s%s@%u%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Skill.DefinitionId.ToString(),
-                    uint32(Skill.Rank), Skill.bActive
-                        ? (Skill.Slot == 0 ? TEXT("/Q") : Skill.Slot == 1 ? TEXT("/W") : TEXT("/E")) : TEXT(""));
+                Skills += FString::Printf(TEXT("%s%s/%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Active.DefinitionId.ToString(),
+                    Active.Slot == 0 ? TEXT("Q") : Active.Slot == 1 ? TEXT("W") : TEXT("E"));
             }
-            for (const FLDAttributeCardView& Card : Progression->AttributeCards)
+            for (const FName Id : Progression->PendingBlueprints)
             {
-                Cards += FString::Printf(TEXT("%s%s@%u*%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","),
-                    *Card.DefinitionId.ToString(), uint32(Card.Quality), uint32(Card.Count));
+                Blueprints += FString::Printf(TEXT("%s%s"), Blueprints.IsEmpty() ? TEXT("") : TEXT(","), *Id.ToString());
             }
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_BUILD t=%lld level=%u xp=%lld pending=%u skills=%s cards=%s"), NowMs, uint32(Progression->Level),
-                Progression->CumulativeXP, uint32(Progression->PendingChoiceCount), Skills.IsEmpty() ? TEXT("-") : *Skills,
-                Cards.IsEmpty() ? TEXT("-") : *Cards);
+            for (const FLDStatPointsView& Stat : Progression->StatPoints)
+            {
+                Points += FString::Printf(TEXT("%s%s:%d"), Points.IsEmpty() ? TEXT("") : TEXT(","), *Stat.StatId.ToString(), Stat.Points);
+            }
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_BUILD t=%lld level=%u xp=%lld pending=%u unspent=%lld skills=%s blueprints=%s points=%s"),
+                NowMs, uint32(Progression->Level), Progression->CumulativeXP, uint32(Progression->QueuedActiveOpportunities),
+                Progression->UnspentPoints, Skills.IsEmpty() ? TEXT("-") : *Skills, Blueprints.IsEmpty() ? TEXT("-") : *Blueprints,
+                Points.IsEmpty() ? TEXT("-") : *Points);
         }
     }
 }

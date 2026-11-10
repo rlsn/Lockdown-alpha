@@ -61,12 +61,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
     }
-    // #147: a second blast and a knockback's wall check resolve on their exact boundaries.
-    for (const auto& Echo : Echoes) { Consider(Echo.AtMs); }
-    for (const auto& Check : WallChecks) { Consider(Check.AtMs); }
-    // #112 mechanics: zone pulses and their records' ends; a dash's path sweep resolves when it ends.
+    // #112 mechanics: zone pulses and their records' ends.
     Consider(NextMechanicsDueMs(NowMs));
-    for (const auto& Sweep : DashSweeps) { Consider(Sweep.EndAtMs); }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
     {
@@ -294,8 +290,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
     // Zones and burns due now join this boundary's hits and projectiles.
-    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveEchoes(Error)
-        || !ResolveWallChecks(Error) || !ResolveDashSweeps(Error) || !AdvanceProjectiles(Error)) { return false; }
+    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !AdvanceProjectiles(Error))
+    { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];

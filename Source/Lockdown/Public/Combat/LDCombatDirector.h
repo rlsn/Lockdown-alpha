@@ -21,47 +21,23 @@ class ALDPlayerController;
 class FLDDemoContentSnapshot;
 enum class ELDGrowthReason : uint16;
 struct FLDDemoAbilityDefinition;
-struct FLDDemoRankDefinition;
+struct FLDDemoAbilityValues;
 namespace LDTactical { struct FOutOfCombatRecovery; }
 struct FLDDemoTargetDefinition;
 struct FLDInnateDashTerms;
 struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
+// What one release shares across all of its hits: a cone's waves apply keyword stacks once per target, and a mana grant
+// pays once per release.
 struct FLDCombatCastLedger
 {
-    TArray<TPair<FLDCombatBodyRef, bool>> CritRolls;
     TArray<FLDCombatBodyRef> KeywordTargets;
-    TArray<FLDCombatBodyRef> ArgumentTargets;
-    int64 HealSpentP2=0;
-    int64 ManaReturnedP2=0;
     bool bUniqueSkillHits=false;
     bool bManaGrantPaid=false;
 };
 
-struct FLDCombatArgumentMark
-{
-    FLDCombatBodyRef Target;
-    FName Ability;
-    FGuid EffectId;
-    int64 AtMs=0;
-};
-
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
-
-// path_slow (active_bail_out advanced): at the end of the dash every body along the travelled segment is slowed.
-struct FLDCombatDashSweep
-{
-    FLDCombatBodyRef Body;
-    FGuid EffectId;
-    uint64 Token=0;
-    FLDCombatSourceRef Source;
-    FVector StartFootCm=FVector::ZeroVector;
-    int64 EndAtMs=0;
-    int64 SlowBp=0;
-    int64 SlowMs=0;
-    double HalfWidthCm=0;
-};
 
 // #147 damage-triggered shield with a burst: when the shield it granted (ShieldEffectId) is broken, the holder answers
 // the bodies within RadiusCm with RatioBp of the granted amount as magic damage.
@@ -74,7 +50,7 @@ struct FLDCombatShieldBurst
     double RadiusCm=0;
 };
 
-// One passive effect a body holds (learned rank or equipment family), resolved from the approved catalog.
+// One trigger effect a body holds, resolved from the approved catalog (ALDCombatDirector::CollectPassiveEffects).
 struct FLDPassiveEffectRef
 {
     FString Key;                    // ability id or equipment family; the dedup key of per-source marks
@@ -90,7 +66,6 @@ struct FLDCombatAction
     uint64 Token=0;
     ELDCombatEntry Entry=ELDCombatEntry::None;
     FLDCombatSourceRef Source;
-    uint8 Rank=0;
     FLDCombatTarget Target;
     FLDCombatBodyRef TargetBody;
     FVector Direction=FVector::ZeroVector;
@@ -172,12 +147,9 @@ struct FLDBodyCombatState
     FGuid ChannelEffectId;
     uint64 ChannelDirectSequence=0;
     int64 ChannelStartedAtMs=0;
-    FGuid CowerEffectId;
-    int64 CowerUntilMs=0, CowerReductionBp=0, CowerMoveBp=0;
-    int64 ContactGuardUntilMs=0, ContactGuardBp=0;
+    // primary_guard's slow resistance after a guarded hit, and dash_contact_refund's rest.
     int64 SlowResistanceUntilMs=0, SlowResistanceBp=0;
-    int64 ContactRefundReadyAtMs=0, ArgumentReadyAtMs=0;
-    TArray<FLDCombatArgumentMark> ArgumentMarks;
+    int64 ContactRefundReadyAtMs=0;
     TSharedPtr<FLDCombatDashContact> DashContact;
 };
 
@@ -219,6 +191,9 @@ struct FLDCombatEntityRecord
     uint64 ReceiptRevision=0;
     uint64 ViewRevision=0;
     uint64 PublishedViewRevision=0;
+    // #198 build safe window (contenders): the authority ms of the last combat action that keeps the contender from
+    // learning and allocating (MarkBuildUnsafe); 0 = none yet. Kept across lives; the window is GROWTH.BuildSafeWindowSec.
+    int64 LastBuildUnsafeAtMs=0;
 };
 
 // One committed hit waiting for the Effects phase.
@@ -241,31 +216,24 @@ struct FLDCombatHit
     bool bCritical=false;
     int64 RootDurationMs=0;
     int64 SlowBp=0, SlowDurationMs=0;
-    // Snapshot of the releasing source's control amplification (passive_kick_down), applied when the target is under any
+    // Snapshot of the releasing source's control amplification (control_damage_amp), applied when the target is under any
     // control or slow.
     int64 ControlAmpBp=0;
     int64 DisarmDurationMs=0;
     int64 StunDurationMs=0;
-    // A reflection never crits, heals, cleaves or triggers another reflection.
+    // A reflection never crits, heals or triggers another reflection.
     bool bReflect=false;
-    // On-hit effects (lifesteal, cleave) trigger at this coefficient; 0 = none. A primary basic is 10000; hits made by
-    // on-hit effects, reflections or added damage are always 0. SnapshotOnHit fills the terms.
+    // On-hit effects (lifesteal) trigger at this coefficient; 0 = none. A primary basic is 10000; hits made by
+    // reflections or added damage are always 0. SnapshotOnHit fills the terms.
     int64 OnHitScaleBp=0;
-    bool bCleave=false;
-    int64 CleaveRatioBp=0;
-    double CleaveRadiusCm=0;
     bool bLifesteal=false;
     int64 LifestealRatioBp=0;
-    // Ability critical (STAT.AbilityCritMultiplier), decided once per hit at ApplyHit: rolled at this chance
-    // (passive_lucky_star advanced).
-    int64 AbilityCritChanceBp=0;
-    // Added damage (item_edge_blade, path slows): never an on-hit trigger.
+    // Added damage (nth_basic_bonus, dash contact damage): never an on-hit trigger.
     bool bAddedDamage=false;
     // #112 C2 (LDCombatMechanicsDirector.cpp).
     bool bPeriodic=false;            // a zone pulse or burn tick: no crit, no on-hit
     bool bFromShieldTrigger=false;   // a retort or burst hit: never a Q/W hit for passives
     bool bSilent=false;              // a zone's periodic slow refresh: no visible hit cue
-    int64 ExtraAmplifyBp=10000;      // source-side multiplier joining the damage bonus pool (item_megaphone on a burn tick)
     double KnockbackCm=0;
     int64 KnockbackMs=0;
     bool bKnockbackFromAnchor=false; // pushed away from KnockbackAnchorCm instead of the source body's foot
@@ -277,17 +245,11 @@ struct FLDCombatHit
     int32 BurnLevel=1;
     int64 BurnAPP2=0;
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
-    int64 ExecuteBp=0;               // pool bonus against a target below ExecuteBelowBp of its max HP before this hit
-    int64 ExecuteBelowBp=0;
     int64 ControlAmpBelowBp=0;       // the source's control amplification also counts a target below this HP share
-    int64 SlowedStunMs=0;            // a target slowed at this hit is stunned this long instead of rooted
-    bool bPierce=false;              // a projectile keeps flying through the bodies it hits (each body life once)
-    double WallCheckCm=0;            // a knockback that travels less than this met a wall and stuns WallStunMs
-    int64 WallStunMs=0;
     int64 LifestealLowHPBp=0;        // extra on-hit lifesteal against a target below LifestealLowHPBelowBp
     int64 LifestealLowHPBelowBp=0;
     int64 LowHPBasicLifestealBp=0;   // the source's primary-basic lifesteal while it is below SourceLowHPBelowBp
-    int64 SourceLowHPBelowBp=0;      // the source's low-HP passive threshold (passive_pressed)
+    int64 SourceLowHPBelowBp=0;      // the source's low-HP trigger threshold (low_hp_stat_bonus)
     int64 AttackSlowBp=0, AttackSlowMs=0;
     // Delivery scaling is separate from the additive damage bonus pool (impact outer ring, for example).
     int64 DeliveryScaleBp=10000;
@@ -307,8 +269,8 @@ struct FLDCombatDashContact
     TArray<FLDCombatBodyRef> Struck;
     TOptional<FLDCombatHit> NativeHit;
     int32 NativeHitsRemaining=0;
-    bool bRefunded=false, bGuarded=false;
-    bool bCanDamage=false, bCanRefund=false, bCanGuard=false;
+    bool bRefunded=false;
+    bool bCanDamage=false, bCanRefund=false;
 };
 
 struct FLDCombatContactMotion
@@ -358,14 +320,12 @@ struct FLDCombatProjectile
     double TravelledCm=0;
     int64 AdvancedThroughMs=0;
     int64 SlowBp=0, SlowDurationMs=0;
-    // #147 pierce: the body lives this flight already struck (each at most once).
-    TArray<FLDCombatBodyRef> Struck;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
 };
 
-// A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, a slow kept on enemies inside, and an
-// optional root on the enemies still inside when it ends. Its owner's payload terms are snapshotted at release.
+// A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, and (#198) a slow check and a burn check
+// every interval from its start while it lasts. Its owner's payload terms are snapshotted at release.
 struct FLDCombatZone
 {
     FGuid EffectId;
@@ -377,9 +337,9 @@ struct FLDCombatZone
     double RadiusCm=0;
     int64 StartMs=0, EndMs=0, DelayMs=0, IntervalMs=0;
     int32 Count=0, Pulsed=0;
+    // zone_slow: every SlowIntervalMs each enemy inside is slowed by SlowBp for SlowDurationMs.
     bool bSlow=false;
-    int64 SlowBp=0, SlowCheckMs=0, SlowLingerMs=0, NextSlowAtMs=0;
-    int64 EndRootMs=0;
+    int64 SlowBp=0, SlowIntervalMs=0, SlowDurationMs=0, NextSlowAtMs=0;
     bool bDamage=false;
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
@@ -390,30 +350,6 @@ struct FLDCombatZone
     int32 BurnLevel=1;
     int64 BurnIntervalMs=0, NextBurnAtMs=0, BurnAPP2=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
-};
-
-// #147 echo: a self-area release blasts again at AtMs around the same living body's foot with its scaled payload.
-struct FLDCombatEcho
-{
-    FLDCombatBodyRef Body;
-    int64 AtMs=0;
-    double RadiusCm=0;
-    FLDCombatHit Template;
-};
-
-// #147 wall stun: when a committed knockback's window ends, a body life that travelled less than ThresholdCm from
-// StartFootCm met a wall and is stunned (through the single control path, credited to the push's source).
-struct FLDCombatWallCheck
-{
-    FLDCombatBodyRef Target;
-    FGuid EffectId;
-    FGuid SourceEntity;
-    FLDCombatBodyRef SourceBody;
-    FGuid CreditOwner;
-    FVector StartFootCm=FVector::ZeroVector;
-    int64 AtMs=0;
-    double ThresholdCm=0;
-    int64 StunMs=0;
 };
 
 UCLASS()
@@ -493,10 +429,13 @@ public:
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
     // A body life's cue facts with its winding-up action and dash filled in.
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
-    // Public Q/W facts of a build (#112 §10): each held active's native id and rank in its slot. False when a held active
-    // has no approved active definition, a rank outside 1..MaxSkillRank or a slot other than Q/W.
+    // Public Q/W/E facts of a build (#112 §10): each held active's native id in its slot. False when a held active has no
+    // approved definition or a slot other than Q/W/E.
     static bool PublicActivesOf(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content,
         FLDObservedActivesView& Out);
+    // #198 build safe window of a contender: the absolute authority ms from which it may learn and allocate in the
+    // development phases (<= now: safe); 0 when it has no combat action yet or no Combat record.
+    int64 ReadBuildSafeAtMs(const FGuid& Contender) const;
 
     // ---- Growth compound commits.
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
@@ -529,8 +468,8 @@ public:
     // DEV layer at Growth's result build revision, through PrepareProjected like any build change.
     FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision) const;
     // Part 2, right after ApplyBuildChange of part 1: every learned cooldown track is dropped (a later learn issues a
-    // new one, as at the match start), the innate dash track is ready at NowMs and a living body's HP/MP
-    // are full. Returns the number of dropped tracks.
+    // new one, as at the match start), the innate dash track is ready at NowMs, the build safe window has passed and a
+    // living body's HP/MP are full. Returns the number of dropped tracks.
     int32 DevFinishReset(const FGuid& Contender, int64 NowMs);
     // Pure part of DevFinishReset's tracks.
     static int32 DevDropTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
@@ -549,7 +488,7 @@ public:
     // body's diminishing-returns chain, the instance is applied with its action interruptions, the spray interrupt and
     // the assist contribution are recorded. bApplied is false when nothing landed (an existing instance, a zero duration).
     bool CommitControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, bool& bApplied, FString& Error);
-    // Any active root, stun, disarm, taunt, knockback, silence or slow (#147 "被减速或被控制", passive_kick_down).
+    // Any active root, stun, disarm, taunt, knockback, silence or slow (#147 "被减速或被控制", control_damage_amp).
     bool IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const;
     // A Q/W/D activation of this source kind blocked now: Cast for every kind, Skill (silence) for learned actives.
     bool IsCastBlocked(const FLDBodyCombatState& Body, ELDCombatSourceKind Kind) const;
@@ -558,16 +497,16 @@ public:
     bool ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs);
     // The same cut on the learned track of one definition, bound or not.
     bool ReduceLearnedCooldown(const FGuid& Entity, FName DefinitionId, int64 AmountMs);
-    // Lifesteal and cleave terms of a source's held equipment passives for a hit triggering on-hit effects at ScaleBp.
+    // Lifesteal terms of a source's held trigger effects for a hit triggering on-hit effects at ScaleBp.
     bool SnapshotOnHit(const FLDBodyCombatState& Source, int64 ScaleBp, FLDCombatHit& InOut, FString& Error) const;
     // Source-side terms every hit of this body carries: the control amplification and the low-HP basic lifesteal.
     bool StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
     // A separate damage instance riding on Primary (added damage) with no damage terms yet: never a crit, control,
     // keyword stack or on-hit trigger.
     static FLDCombatHit AddedHit(const FLDCombatHit& Primary);
-    // #147 echo: the second blast's payload, a new effect whose damage terms are RatioBp of the first blast's (every other
-    // term, such as its burn stacks, unchanged).
-    static FLDCombatHit EchoHit(const FLDCombatHit& Template, int64 RatioBp);
+    // #198 build safe window: Entity's latest combat action happened at NowMs (an accepted basic windup, a released
+    // offensive skill, hostile positive damage dealt or taken, a hard control or knockback received). Contenders only.
+    void MarkBuildUnsafe(const FGuid& Entity, int64 NowMs);
 
 private:
     friend class ALDGameMode;
@@ -582,7 +521,7 @@ private:
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
-    friend class FLDDemoGrowthRerollTest;
+    friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
@@ -646,20 +585,16 @@ private:
     // ---- Effects (LDCombatEffects.cpp).
     bool ApplyHit(const FLDCombatHit& Hit, FString& Error);
     bool AdvanceProjectiles(FString& Error);
-    // The root, slow and disarm cleanses of one released rank on its caster; true when slows (a temporary term) ended.
-    bool ApplyCleanses(FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, int64 NowMs);
+    // The root and slow cleanses of one released value set on its caster; true when slows (a temporary term) ended.
+    bool ApplyCleanses(FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int64 NowMs);
     // The victim's thorns reflections of one committed hit.
     bool QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2, bool bCritical, FString& Error);
-    // #147: second blasts and knockback wall checks due by now (Effects, before the hits).
-    bool ResolveEchoes(FString& Error);
-    bool ResolveWallChecks(FString& Error);
     void ExpireStatuses(int64 NowMs);
     // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
     bool RefreshTaunts(FString& Error);
-    // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body; OutTaunted
-    // counts the taunts that landed (#147 taunt_shield).
+    // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body.
     bool ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-        const FGuid& EffectId, FString& Error, int32* OutTaunted=nullptr);
+        const FGuid& EffectId, FString& Error);
     // Spray interruption (APP_SPEC 2.2): called once for every root, stun, taunt or knockback committed on a body,
     // inside the current Actions/Effects permit. A contender body's spray progress clears through the capture domain;
     // camp bodies and a world without an active spray reducer are untouched. Disarm, slow and damage never call it.
@@ -674,7 +609,7 @@ private:
 
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
     // Every live body other than the source within RadiusCm (planar foot distance) of Anchor with clear sight from it,
-    // excluding protected contenders and Excluded; sorted by entity. Shared by cleave and self-origin areas.
+    // excluding protected contenders and Excluded; sorted by entity. Shared by every area delivery.
     bool CollectAreaTargets(const FVector& Anchor, double RadiusCm, const FLDBodyCombatState* Excluded,
         const FGuid& SourceEntity, TArray<FLDCombatBodyRef>& Out, FString& Error) const;
     // The single assist contribution entry (LDAssist): CreditOwner, another contender, just hurt this contender life with
@@ -682,19 +617,16 @@ private:
     // debuff path calls it once per committed contact; camp bodies and unowned or self contacts are ignored.
     // Returns whether a contribution was recorded or refreshed.
     bool RecordAssistContribution(FLDBodyCombatState& Victim, const FGuid& CreditOwner, int64 NowMs);
-    // On-hit effects of one committed hit at its OnHitScaleBp (lifesteal is summed into the hit's vamp; cleave sweeps
-    // the bodies Cleaved named before the writes). Hits it creates carry OnHitScaleBp 0.
-    bool ApplyOnHitEffects(const FLDCombatHit& Hit, FLDBodyCombatState& Target, const FLDDamageEvaluation& Damage,
-        const TArray<FLDCombatBodyRef>& Cleaved, int64 NowMs, FString& Error);
-    // The lone resolver of passive effects a projection holds: learned trigger ranks and equipment families (once each).
+    // The lone resolver of the trigger effects a body holds (thorns, lifesteal, mana_on_hit, cooldown_refund,
+    // nth_basic_bonus, passive breach/burn, triggered_shield, shield_break_retort, primary_guard, low_hp_stat_bonus,
+    // control_damage_amp, dash contact damage/refund). #198 PR1 builds hold none (passives are retired); the base
+    // components of #198 PR3 feed it through the projection.
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
     // Mana grant of a triggered effect; marks the owner view.
     void GrantMana(FLDBodyCombatState& Body, int64 AmountP2);
     // Cast range of an active for this body now: the authored range and its share of the extra basic-attack range.
     bool CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm, FString& Error) const;
-    // End-of-dash path slows (path_slow) due by now.
-    bool ResolveDashSweeps(FString& Error);
     // Hooks of one landed basic: refunds and counters.
     bool OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatHit& Primary, FString& Error);
     // Recomputes the effective projection from BuildProjection when the active temporary terms changed.
@@ -718,17 +650,17 @@ private:
     // abandoned and the current order dropped (KnockbackSerial).
     bool ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs, bool& bApplied,
         FString& Error);
-    // Per landed hit: item_skateboard's haste of the hit's source.
-    bool OnHitLanded(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 DamageP2, int64 NowMs, FString& Error);
     // Zones due at NowMs (Effects, before the hits).
     bool AdvanceMechanics(int64 NowMs, FString& Error);
     bool ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs);
     int64 NextMechanicsDueMs(int64 NowMs) const;
     // Status cue of the #112 records: knockback, for every observer.
     void AppendMechanicsStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
-    // A trigger effect of the body's learned passives or equipment passive families (first match), or null.
+    // The first trigger effect Op the body holds (CollectPassiveEffects), or null.
     const FLDDemoEffectDefinition* FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
         FLDCombatSourceRef* OutSource=nullptr) const;
+    // The held low-HP trigger (low_hp_stat_bonus) as the conditional term of the temporary projection, or unset.
+    TOptional<FLDLowHPBonusTerm> HeldLowHPBonus(const FLDAttributeProjection& Projection) const;
     // The registered actor of one body state, or null.
     ALDCharacter* ActorOf(const FLDBodyCombatState& Body) const;
     // ---- #147 build v7 keywords (LDCombatKeywordsDirector.cpp).
@@ -737,8 +669,8 @@ private:
     int32 GrowthLevelOf(const FLDBodyCombatState& Body) const;
     // A burn layer of Source with Source's level and AP now snapshotted in it.
     bool BurnLayerOf(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, FLDCombatBurnLayer& Out, FString& Error) const;
-    // Shared breach and burn of one committed hit on Target: the hit's own stacks and its living source's passive
-    // breach/burn (basic_stacks on a primary basic, stacks on a learned Q/W hit). Assists are recorded per application.
+    // Shared breach and burn of one committed hit on Target: the hit's own stacks and its living source's held
+    // breach/burn triggers (basic_stacks on a primary basic, stacks on a learned Q/W hit). Assists are recorded per application.
     bool ApplyKeywordStacks(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
     // Burn ticks due by now: one damage hit per applier and tick; lapsed burns end.
     bool AdvanceBurns(int64 NowMs, FString& Error);
@@ -750,18 +682,17 @@ private:
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone).
-    bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoRankDefinition& Rank,
+    bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoAbilityValues& Values,
         const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId,
         TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error);
-    // Hit extras of a #112 rank (knockback).
-    void FillMechanicsTemplate(const FLDDemoRankDefinition& Rank, const FVector& OriginFoot, FLDCombatHit& Template) const;
+    // Hit extras of a #112 value set (knockback, attack slow).
+    void FillMechanicsTemplate(const FLDDemoAbilityValues& Values, const FVector& OriginFoot, FLDCombatHit& Template) const;
     bool AdvanceSkillContent(int64 NowMs, FString& Error);
     bool ResolveDashContacts(int64 NowMs, FString& Error);
     bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
-    bool ApplySkillPassives(FLDBodyCombatState& Source, const FLDCombatHit& Hit,
-        const FLDDamageEvaluation& Damage, int64 NowMs, FString& Error);
-    bool CancelSkillPosture(FLDBodyCombatState& Body, bool bCancelCower, int64 NowMs, FString& Error, bool bCancelChannel=true);
-    bool StartSkillDelivery(FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank,
+    // Ends the body's channelled cone (a new action, a death or a source change interrupts it).
+    void CancelChannel(FLDBodyCombatState& Body);
+    bool StartSkillDelivery(FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values,
         const FLDDemoTargetDefinition& Target, const FLDCombatAction& Action, FLDCombatHit& Payload,
         int64 NowMs, bool& bHandled, FString& Error);
 
@@ -775,14 +706,13 @@ private:
     const FLDCombatTrack* TrackFor(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
-        uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility) const;
-    // The executable active of a resolved entry: a learned rank grown for its owner's Level (#147), or the innate dash;
-    // false without one.
-    bool ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, uint8 Level, const FLDDemoAbilityDefinition* Ability,
-        const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const;
-    // D19/D20 innate dash terms for the body's installed equipment passives (the persistent build without a body).
-    bool InnateDashFor(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body, FLDInnateDashTerms& Out,
-        FString& Error) const;
+        const FLDDemoAbilityDefinition*& OutAbility) const;
+    // The executable active of a resolved entry: a learned active's values grown for its owner's Level (#198), or the
+    // innate dash; false without one.
+    bool ActiveOf(const FLDCombatSourceRef& Source, uint8 Level, const FLDDemoAbilityDefinition* Ability,
+        const FLDDemoTargetDefinition*& OutTarget, const FLDDemoAbilityValues*& OutValues, int64& OutWindupMs) const;
+    // D19 innate dash terms of the approved character.
+    bool InnateDashFor(FLDInnateDashTerms& Out, FString& Error) const;
     bool PlanBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,
         TArray<FLDCombatBindingPlan>& Out, FString& Error) const;
     FLDCombatEntryView EntryView(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,
@@ -794,9 +724,6 @@ private:
     TArray<FLDCombatHit> PendingHits;
     TArray<FLDCombatProjectile> Projectiles;
     TArray<FLDCombatZone> Zones;
-    TArray<FLDCombatDashSweep> DashSweeps;
-    TArray<FLDCombatEcho> Echoes;
-    TArray<FLDCombatWallCheck> WallChecks;
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
     TArray<FLDCombatGroundEffect> GroundEffects;

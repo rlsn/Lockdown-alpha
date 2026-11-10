@@ -28,12 +28,6 @@
       "height": 64
     },
     {
-      "id": "icon_active_cower",
-      "sha256": "df427ca19da7d6f7704de5b690d65da9f872a11e5ba8515baa2657f935005a97",
-      "width": 64,
-      "height": 64
-    },
-    {
       "id": "icon_active_crotch_grab",
       "sha256": "95df66090532ec59fe72914bb7a85dd3bb21b31de0b989b981f236899c055dba",
       "width": 64,
@@ -118,78 +112,6 @@
       "height": 64
     },
     {
-      "id": "icon_attr_all_nighter",
-      "sha256": "82e0e4224b8bcd60a12ffdc4f867c5100e1a42993daf64c1debce2ce454b6d64",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_big_talk",
-      "sha256": "02910a374d6a69837d490063fb5be4627920435f57645802f8f06d7116a01b9c",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_canteen",
-      "sha256": "794d5bbc20a2261778beba96b6163611d223d3552abec84ee8d3bb2495307e04",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_deadline_miracle",
-      "sha256": "bf35f57521bff36451bf49a0631f83b88e42c67a5d9a41b86a14a4d65c02eca6",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_fast_hands",
-      "sha256": "d64408b3ff71f89616a63ec8a23fb8188c65dd07278e6db7d9bbddab9e096c18",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_hand_out",
-      "sha256": "d1d181e1630a936a42d7ffa7138a92694c2c7361c682ec70a101d813e63ca2e9",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_morning_rush",
-      "sha256": "fdd0b39b2dec310fdf3091dc02c8fb9a4053b075c003a5d972ee7c12ea5f7e33",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_padded_thesis",
-      "sha256": "ee8970a2b7194ecc3dc761fca9dc8b42ebd67f9b18c384268b3f61ff1f7d99eb",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_pe_essay",
-      "sha256": "b079afe4576c4d4e5ae23049c27efec3f04399acee9ca014df4da453aa19a44f",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_protein",
-      "sha256": "fcc5136196378d598f28f0cf101df525a01950c87035d3c4bd75f1be9eff445d",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_running_defense",
-      "sha256": "279f1b16f92e869a053eafea7a1e35bfc7e5b27c9573d4e2ca51d4a0afcf85aa",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_attr_wild_frenzy",
-      "sha256": "7d2ab29f6ab41f9439b66b6710f1d926aca73ecf6763289079079b7c6cb9cc11",
-      "width": 64,
-      "height": 64
-    },
-    {
       "id": "icon_burn",
       "sha256": "72250aef64026afdd796d6dc1de1e4cebb7505266b3aa57e7face1d02b2cb179",
       "width": 64,
@@ -198,18 +120,6 @@
     {
       "id": "icon_camp_returning",
       "sha256": "8aa4065f40477e338a8ef155271cb152e92b3eab32f93cbb701680b9aa75df05",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_contact_guard",
-      "sha256": "834e5582c3dc6c54182365e2b66f9c274a12233ec1048708545b8ab18520d2c0",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_cowering",
-      "sha256": "91d69346122e2166ba1c4608f9414239d0370917bab5d43bf662b6f925f0f5ba",
       "width": 64,
       "height": 64
     },
@@ -246,42 +156,6 @@
     {
       "id": "icon_knockback",
       "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_opening_athlete",
-      "sha256": "6e16cf3c107749f1815196c7f7a542bc7dc2ba303d1d8369a0479e5dcf997a2c",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_opening_dorm_warden",
-      "sha256": "c6fe9d88f4e10c4ffe883d6cf1a706f49ba0e6fcd72ab0a398c00b02b7da8fe1",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_opening_grinder",
-      "sha256": "889456013f984f2c80d6669c1c072130d79001efdaa7137fd39d316dafeb9a7e",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_opening_hexagon",
-      "sha256": "bcd4e5134029070060e2bee26d20b80a8a98a96839b087474457032f26b80f53",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_opening_keyboard",
-      "sha256": "b25fca0fa4e90f9e9e22a3c33fb8ce6e711e3bd4031d0b57d9fcfa03ddd04d34",
-      "width": 64,
-      "height": 64
-    },
-    {
-      "id": "icon_opening_rider",
-      "sha256": "d0cf9bf16aba54bf60df4a9eadf6b08da5040ea74689a1dc0ec98919c15111c1",
       "width": 64,
       "height": 64
     },
@@ -418,8 +292,38 @@
       "height": 64
     },
     {
+      "id": "icon_stat_agility",
+      "sha256": "d64408b3ff71f89616a63ec8a23fb8188c65dd07278e6db7d9bbddab9e096c18",
+      "width": 64,
+      "height": 64
+    },
+    {
       "id": "icon_stat_boost",
       "sha256": "1e0ccf203331355924ff77473251f2c80f0204ec1c4816817fea68dcff4f2553",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_brains",
+      "sha256": "82e0e4224b8bcd60a12ffdc4f867c5100e1a42993daf64c1debce2ce454b6d64",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_physique",
+      "sha256": "794d5bbc20a2261778beba96b6163611d223d3552abec84ee8d3bb2495307e04",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_strength",
+      "sha256": "fcc5136196378d598f28f0cf101df525a01950c87035d3c4bd75f1be9eff445d",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_thick_skin",
+      "sha256": "08947f52dd0df3dbd461d3d14fdad6fd08cf3cae553d7844821834ec340d4f43",
       "width": 64,
       "height": 64
     },

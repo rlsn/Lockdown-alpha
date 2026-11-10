@@ -9,10 +9,10 @@ struct FLDOrderReceipt;
 struct FLDCombatActionRequest;
 struct FLDCombatActionReceipt;
 struct FLDCombatOwnerView;
-struct FLDChoiceCommand;
+struct FLDBuildCommand;
 struct FLDProgressionView;
 struct FLDSubmitResult;
-struct FLDChoiceReceiptQueryResult;
+struct FLDBuildReceiptQueryResult;
 enum class ELDGrowthReason : uint16;
 
 // Where one AI request stands after a domain answer (OPPONENT_AI.md §3.3). InFlight keeps the original
@@ -37,9 +37,10 @@ namespace LDOpponentRequests
         const FLDMoveIdentity& Identity, FLDSpatialOrderRequest& Out, FString& Error);
     LOCKDOWN_API bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 Life,
         uint64 DirectSequence, uint64 ExpectedSourceRevision, FLDCombatActionRequest& Out, FString& Error);
-    // The head offer must still be the one the policy chose from; a full-slot learn names its exact victim.
-    LOCKDOWN_API bool BuildChoice(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression,
-        uint64 RequestId, FLDChoiceCommand& Out, FString& Error);
+    // #198: an active choice of the still-current offer (always asking to learn it now), a learn of a still-pending blueprint
+    // into a still-empty slot, or an allocation that fits the own stats and unspent points; built from the own latest view.
+    LOCKDOWN_API bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression,
+        uint64 RequestId, FLDBuildCommand& Out, FString& Error);
 
     // A taunted body takes no own order, stop or activation (Navigation chases its taunter): while this AI's own
     // Combat projection shows an active taunt it holds every body intent instead of submitting refused requests.
@@ -47,7 +48,7 @@ namespace LDOpponentRequests
     LOCKDOWN_API ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt);
     LOCKDOWN_API ELDOpponentSettle SettleAction(const FLDCombatActionReceipt& Receipt);
     LOCKDOWN_API ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason);
-    // Admission answer of a choice; the caller consumes the RequestId only when it was reserved.
+    // Admission answer of a build command; the caller consumes the RequestId only when it was reserved.
     LOCKDOWN_API ELDOpponentSettle SettleSubmit(const FLDSubmitResult& Result);
-    LOCKDOWN_API ELDOpponentSettle SettleChoiceQuery(const FLDChoiceReceiptQueryResult& Result);
+    LOCKDOWN_API ELDOpponentSettle SettleBuildQuery(const FLDBuildReceiptQueryResult& Result);
 }

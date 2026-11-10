@@ -634,10 +634,13 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
     // Only the innate D dash, which every contender holds, may name a source at a fresh start.
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry)
     { return Entry.Entry != ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); });
-    Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 1
-        && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 1 && Progress.bHasOffer && Progress.Offer.OpportunityOrdinal == 1
-        && bNoEntries,
-        TEXT("R04"), TEXT("No learned skill or attribute card; only this match's unconsumed opening choice"));
+    int64 OpeningPoints = 0;
+    const bool bOpeningPoints = LDProgression::EarnedPoints(Defs, StartLevel, Defs.Progression.XPStart, OpeningPoints) == ELDGrowthReason::None;
+    Check(Progress.Actives.IsEmpty() && Progress.PendingBlueprints.IsEmpty() && bOpeningPoints && Progress.UnspentPoints == OpeningPoints
+        && !Progress.StatPoints.ContainsByPredicate([](const FLDStatPointsView& Row) { return Row.Points != 0; })
+        && Progress.ActiveOpportunitiesEarned == 1 && Progress.ActiveOpportunitiesConsumed == 0 && Progress.QueuedActiveOpportunities == 1
+        && Progress.bHasActiveOffer && Progress.ActiveOffer.OpportunityOrdinal == 1 && bNoEntries,
+        TEXT("R04"), TEXT("No learned active, blueprint or allocated point; only the opening points and this match's opening offer"));
     Check(Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
         TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));

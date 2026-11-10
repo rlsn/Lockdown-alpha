@@ -39,10 +39,8 @@ struct LOCKDOWN_API FLDObservedCatalog
 {
     uint8 MaxLevel = 0;
     TSet<uint8> Creatures;
+    // #198: every approved ability is a Q/W/E active, a cast source or a slot a visible contender shows.
     TSet<uint8> Abilities;
-    // Active abilities only: the Q/W slots a visible contender shows.
-    TSet<uint8> ActiveAbilities;
-    uint8 MaxSkillRank = 0;
     bool Build(const FLDDemoContentSnapshot& Content, FString& Error);
     bool Accepts(const FLDObservedUnitView& Unit, FString& Error) const;
 };

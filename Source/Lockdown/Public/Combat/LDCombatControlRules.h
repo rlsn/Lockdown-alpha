@@ -48,12 +48,8 @@ struct FLDCombatEmpower
     int64 APRatioBp = 0;
     ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     int64 ExpiresAtMs = 0;
-    // #147: the landed basics this release empowers, and the cleave they carry (ratio and radius).
+    // #147: the landed basics this release empowers.
     int32 Charges = 1;
-    int64 CleaveRatioBp = 0;
-    double CleaveRadiusCm = 0;
-    // Applied after the last empowered hit's damage (#166 one-key triple combo).
-    int32 FinalBreachStacks = 0;
     // The timed bonus (keyed by EffectId) held while charges remain; ended with the last charge.
     bool bChargeBonus = false;
 };

@@ -75,22 +75,21 @@ bool FLDDefinitionWire::Decode(FName& Out) const
     return true;
 }
 
-bool FLDChoiceCommand::SameTerms(const FLDChoiceCommand& Other) const
+bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
 {
     return Generation == Other.Generation && Life == Other.Life && ExpectedLifePhase == Other.ExpectedLifePhase
-        && RequestId == Other.RequestId && OfferId == Other.OfferId && OfferRevision == Other.OfferRevision
-        && OptionId == Other.OptionId && ExpectedBuildRevision == Other.ExpectedBuildRevision
-        && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && bReplace == Other.bReplace && ReplaceSlot == Other.ReplaceSlot
-        && ExpectedOldSkillId == Other.ExpectedOldSkillId && ExpectedOldRank == Other.ExpectedOldRank
-        && bReplaceConfirmed == Other.bReplaceConfirmed && bReroll == Other.bReroll;
+        && RequestId == Other.RequestId && ExpectedBuildRevision == Other.ExpectedBuildRevision
+        && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && Kind == Other.Kind && OfferId == Other.OfferId
+        && OfferRevision == Other.OfferRevision && Option == Other.Option && bLearnIfPossible == Other.bLearnIfPossible
+        && Slot == Other.Slot && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
 {
-    return Family == ELDGrowthFamily::Choice;
+    return Family == ELDGrowthFamily::Build;
 }
 
-bool LDGrowthWire::IsChoicePhase(ELDLifePhase Phase)
+bool LDGrowthWire::IsBuildLifePhase(ELDLifePhase Phase)
 {
     return Phase == ELDLifePhase::Alive || Phase == ELDLifePhase::Dead;
 }
@@ -114,18 +113,18 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::OutOfOrder: return TEXT("OutOfOrder");
     case ELDGrowthReason::ReceiptExpired: return TEXT("ReceiptExpired");
     case ELDGrowthReason::RequestInFlight: return TEXT("RequestInFlight");
-    case ELDGrowthReason::NoOffer: return TEXT("NoOffer");
     case ELDGrowthReason::UnknownOffer: return TEXT("UnknownOffer");
     case ELDGrowthReason::InvalidOption: return TEXT("InvalidOption");
     case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("OfferAlreadyCommitted");
     case ELDGrowthReason::OfferGuardStale: return TEXT("OfferGuardStale");
     case ELDGrowthReason::BuildStale: return TEXT("BuildStale");
-    case ELDGrowthReason::ReplacementRequired: return TEXT("ReplacementRequired");
-    case ELDGrowthReason::ReplacementMismatch: return TEXT("ReplacementMismatch");
-    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
-    case ELDGrowthReason::NoReroll: return TEXT("NoReroll");
-    case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("OfferAlreadyRerolled");
-    case ELDGrowthReason::OpeningNoReroll: return TEXT("OpeningNoReroll");
+    case ELDGrowthReason::NotSafe: return TEXT("NotSafe");
+    case ELDGrowthReason::NoEmptySlot: return TEXT("NoEmptySlot");
+    case ELDGrowthReason::SlotOccupied: return TEXT("SlotOccupied");
+    case ELDGrowthReason::NoBlueprint: return TEXT("NoBlueprint");
+    case ELDGrowthReason::NotEnoughPoints: return TEXT("NotEnoughPoints");
+    case ELDGrowthReason::NoActiveOffer: return TEXT("NoActiveOffer");
+    case ELDGrowthReason::PhaseClosed: return TEXT("PhaseClosed");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");

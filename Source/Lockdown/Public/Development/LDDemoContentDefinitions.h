@@ -77,26 +77,6 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
 };
 
-// #166 level-up offer and attribute quality parameters, in basis points (10000 = 1.0).
-USTRUCT()
-struct FLDDemoChoiceWeights
-{
-    GENERATED_BODY()
-
-    UPROPERTY() int64 NewActiveFreeSlotWeightBp = 0;
-    UPROPERTY() int64 NewActiveFullSlotWeightBp = 0;
-    UPROPERTY() int64 FirstSlotUpgradeBp = 0;
-    UPROPERTY() int64 FreeSlotAttributeBp = 0;
-    UPROPERTY() int64 AttributeGreenChanceBp = 0;
-    UPROPERTY() int64 AttributeGreenMultiplierBp = 0;
-    UPROPERTY() int64 AttributeBlueChanceBp = 0;
-    UPROPERTY() int64 AttributeBlueMultiplierBp = 0;
-    UPROPERTY() int64 AttributePurpleChanceBp = 0;
-    UPROPERTY() int64 AttributePurpleMultiplierBp = 0;
-    UPROPERTY() int64 AttributeGoldChanceBp = 0;
-    UPROPERTY() int64 AttributeGoldMultiplierBp = 0;
-};
-
 USTRUCT()
 struct FLDDemoContentParameters
 {
@@ -114,10 +94,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AttackSpeedPerLevelBp = 0;
     UPROPERTY() int64 CritChanceBaseBp = 0;
     UPROPERTY() int64 CritMultiplierBp = 0;
-    // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (passive_lucky_star Lv2).
-    UPROPERTY() int64 AbilityCritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
-    // #166: levels 2..10 use SkillGrowthPerLevelBp, levels 11..16 use SkillGrowthPerLevelAfter10Bp.
+    // #166/#198: G(L) = 1 + SkillGrowthPerLevelBp x min(L-1, 9) + SkillGrowthPerLevelAfter10Bp x max(L-10, 0).
     UPROPERTY() int64 SkillGrowthPerLevelBp = 0;
     UPROPERTY() int64 SkillGrowthPerLevelAfter10Bp = 0;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
@@ -187,8 +165,15 @@ struct FLDDemoContentParameters
     // Contender kills only: a contribution within this window before the death earns an assist; the killer and the
     // assisters split the kill XP.
     UPROPERTY() int64 AssistWindowMs = 0;
+    // #198 points: OpeningPoints at BeginMatch, PointsPerLevel for every level crossed up to the cap, then MaxLevelPoints
+    // for every full MaxLevelPointsXP past the top threshold. A build change commits only BuildSafeWindowMs after the
+    // contender's last combat action (GROWTH.BuildSafeWindowSec).
+    UPROPERTY() int64 OpeningPoints = 0;
+    UPROPERTY() int64 PointsPerLevel = 0;
+    UPROPERTY() int64 MaxLevelPointsXP = 0;
+    UPROPERTY() int64 MaxLevelPoints = 0;
+    UPROPERTY() int64 BuildSafeWindowMs = 0;
     UPROPERTY() FLDDemoAIParameters AI;
-    UPROPERTY() FLDDemoChoiceWeights Choice;
 };
 
 UENUM()
@@ -275,27 +260,8 @@ enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged };
 UENUM()
 enum class ELDDemoCooldownEntries : uint8 { None, Actives };
 
-// ability_crit: a share of the owner's crit chance for the listed abilities.
-UENUM()
-enum class ELDDemoCritMode : uint8 { None, Chance };
-
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
-
-UENUM()
-enum class ELDDemoAbilityKind : uint8 { Active, Passive };
-
-UENUM()
-enum class ELDAttributeQuality : uint8 { None = 0, Green = 1, Blue = 2, Purple = 3, Gold = 4 };
-
-namespace LDDemoAttributeQuality
-{
-    inline bool IsValid(ELDAttributeQuality Quality)
-    {
-        return Quality == ELDAttributeQuality::Green || Quality == ELDAttributeQuality::Blue
-            || Quality == ELDAttributeQuality::Purple || Quality == ELDAttributeQuality::Gold;
-    }
-}
 
 UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp. Elite (#97) is the third camp tier,
@@ -365,10 +331,6 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 RatioBp = 0;
     UPROPERTY() FLDDemoRational DistanceCm;
     UPROPERTY() FLDDemoRational RadiusCm;
-    // DashBoost (D20): the innate dash cooldown is multiplied by CooldownRatioBp/10000 and its distance by
-    // (10000+DistanceBonusBp)/10000.
-    UPROPERTY() int64 CooldownRatioBp = 0;
-    UPROPERTY() int64 DistanceBonusBp = 0;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
     // Thorns: armor scaling of the reflection, per-attacker repeat window and critical-hit multiplier; it answers
     // primary basic hits from any side.
@@ -378,7 +340,6 @@ struct FLDDemoEffectDefinition
     // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield, mana_on_hit).
     UPROPERTY() ELDDemoEffectTrigger Trigger = ELDDemoEffectTrigger::None;
     UPROPERTY() ELDDemoCooldownEntries Entries = ELDDemoCooldownEntries::None;
-    UPROPERTY() ELDDemoCritMode CritMode = ELDDemoCritMode::None;
     // cooldown_refund: the remaining-cooldown reduction.
     UPROPERTY() int64 AmountMs = 0;
     // lifesteal: multiplier against a low-HP target.
@@ -388,22 +349,15 @@ struct FLDDemoEffectDefinition
     // #147 breach/burn: Count is the stacks one hit of an active applies, or a passive applies per Q/W hit;
     // BasicCount the stacks a passive applies per primary basic hit.
     UPROPERTY() int32 BasicCount = 0;
-    // dash_boost: cooldown ratio and distance bonus of every learned dash active at release.
-    UPROPERTY() int64 SkillCooldownRatioBp = 0;
-    UPROPERTY() int64 SkillDistanceBonusBp = 0;
-    // ability_crit (Chance): the abilities that may crit with the share of the owner's crit chance.
-    UPROPERTY() TArray<FString> AbilityIds;
-    // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow or linger).
+    // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
-    // #166: spell_sustain/dash_contact_refund cap actual mana grants; this cap never grows with level.
+    // dash_contact_refund caps actual mana grants; this cap never grows with level.
     UPROPERTY() int64 LimitP2 = 0;
-    UPROPERTY() bool bCleanseSlow = false;
-    // #147 v7 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
-    // execute RatioBp (pool bonus) + SecondaryRatioBp (target HP below); echo DelayMs+RatioBp (damage share);
-    // taunt_shield BaseP2+MaxHPRatioBp+DurationMs per taunted contender; zone_burn Count+IntervalMs;
-    // root SecondaryDurationMs (stun instead when the target is slowed); knockback RadiusCm+SecondaryDurationMs (wall
-    // travel threshold and stun); empower_basic Count (charges), Stats (while charged), SecondaryRatioBp+RadiusCm (cleave);
+    // #147/#198 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
+    // zone Count pulses at DelayMs + k x IntervalMs inside DurationMs; zone_slow RatioBp every IntervalMs for DurationMs;
+    // zone_burn Count+IntervalMs; knockback DistanceCm+DurationMs; channel_cone SecondaryRatioBp+SecondaryDurationMs (a
+    // slow on the last wave only); empower_basic Count (charges), Stats (while charged);
     // triggered_shield Damaged IntervalMs, SecondaryRatioBp+RadiusCm (burst on break); thorns SecondaryRatioBp+
     // SecondaryDurationMs (move-only slow); control_damage_amp SecondaryRatioBp (low-HP targets count too); lifesteal
     // SecondaryRatioBp+MultiplierBp (multiplier against low-HP targets); low_hp_stat_bonus SecondaryRatioBp (basic lifesteal).
@@ -411,17 +365,18 @@ struct FLDDemoEffectDefinition
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };
 
+// #198: the one value set of an active (no ranks); its fixed amounts grow with the owner's level (LDSkillGrowth).
 USTRUCT()
-struct FLDDemoRankDefinition
+struct FLDDemoAbilityValues
 {
     GENERATED_BODY()
 
-    UPROPERTY() int32 Rank = 0;
     UPROPERTY() int64 ManaCostP2 = 0;
     UPROPERTY() int64 CooldownMs = 0;
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 };
 
+// #198: every ability is a single-level active learned into Q/W/E.
 USTRUCT()
 struct FLDDemoAbilityDefinition
 {
@@ -429,38 +384,27 @@ struct FLDDemoAbilityDefinition
 
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() ELDDemoAbilityKind Kind = ELDDemoAbilityKind::Active;
-    // False keeps the skill out of every three-card offer (opening and level-up); it stays learnable otherwise.
-    UPROPERTY() bool Draftable = false;
+    // True puts the active in the opening opportunity's pool; every active may be drawn by a later opportunity.
+    UPROPERTY() bool Opening = false;
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
-    UPROPERTY() TArray<FLDDemoRankDefinition> Ranks;
+    UPROPERTY() FLDDemoAbilityValues Values;
 
     ELDDemoAbilityId GetNativeId() const { return static_cast<ELDDemoAbilityId>(NativeId); }
 };
 
+// #198: one of the five point-bought stats; each allocated point adds PerPoint (flat and additive percent terms).
 USTRUCT()
-struct FLDDemoAttributeDefinition
+struct FLDDemoStatDefinition
 {
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
-    // Explicit deductions of a wild card (#112 §4): positive magnitudes the projection subtracts; empty for every other card.
-    UPROPERTY() TArray<FLDDemoStatBonus> Penalties;
-};
+    UPROPERTY() TArray<FLDDemoStatBonus> PerPoint;
 
-// #153 opening direction card (v7 §2.2): three permanent stats; the choice also teaches one hidden draftable active.
-// Identified by its id only (no native number): it is never replicated as anything but a definition id.
-USTRUCT()
-struct FLDDemoOpeningCardDefinition
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FString Id;
-    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    ELDDemoStatId GetNativeId() const { return static_cast<ELDDemoStatId>(NativeId); }
 };
 
 USTRUCT()
@@ -471,7 +415,7 @@ struct FLDDemoDashDefinition
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
-    UPROPERTY() FLDDemoRankDefinition Rank;
+    UPROPERTY() FLDDemoAbilityValues Values;
 };
 
 USTRUCT()
@@ -486,7 +430,7 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() int64 BasicADRatioBp = 0;
     UPROPERTY() int64 BasicIntervalMs = 0;
     // D19 innate D dash of every contender, projected into the active shape Combat executes: DirectionDash target,
-    // no windup, one rank with the approved mana cost, cooldown and a single Dash effect.
+    // no windup, one value set with the approved mana cost, cooldown and a single Dash effect.
     UPROPERTY() FLDDemoDashDefinition Dash;
 };
 
@@ -558,19 +502,12 @@ struct FLDDemoProgressionDefinition
     GENERATED_BODY()
 
     UPROPERTY() int32 MaxLevel = 0;
-    UPROPERTY() int32 MaxChoices = 0;
-    UPROPERTY() int32 MaxSkillRank = 0;
     UPROPERTY() int32 ActiveSlots = 0;
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
-    // #153 (D6): the opening offer draws three distinct opening cards uniformly, each hiding one distinct new draftable
-    // active drawn with weight OpeningMatchedSkillWeight when the active grows with one of the card's stats, otherwise
-    // OpeningOtherSkillWeight.
-    UPROPERTY() int32 OpeningMatchedSkillWeight = 0;
-    UPROPERTY() int32 OpeningOtherSkillWeight = 0;
-    // Reaching each of these levels earns one free reroll token.
-    UPROPERTY() TArray<int32> RerollLevels;
+    // #198: reaching each of these levels enqueues one more active opportunity (after the opening one), distinct and ascending.
+    UPROPERTY() TArray<int32> ActiveOfferLevels;
 };
 
 USTRUCT()
@@ -594,11 +531,8 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString NameKey;
     UPROPERTY() FString NameText;
     UPROPERTY() FString DescriptionKey;
+    // Active and stat descriptions are card templates (LDDemoCardText).
     UPROPERTY() FString DescriptionText;
-    // #147 skills only: the advanced rank's one-line change ("高级：" is added by the card), empty elsewhere. Skill
-    // descriptions and advanced lines are card templates (LDDemoCardText).
-    UPROPERTY() FString AdvancedKey;
-    UPROPERTY() FString AdvancedText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };
@@ -636,8 +570,7 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoPolicies Policies;
     UPROPERTY() FLDDemoCharacterDefinition Character;
     UPROPERTY() TArray<FLDDemoAbilityDefinition> Abilities;
-    UPROPERTY() TArray<FLDDemoAttributeDefinition> Attributes;
-    UPROPERTY() TArray<FLDDemoOpeningCardDefinition> OpeningCards;
+    UPROPERTY() TArray<FLDDemoStatDefinition> Stats;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
     UPROPERTY() FLDDemoBossDefinition Boss;

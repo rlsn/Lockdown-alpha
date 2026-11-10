@@ -54,24 +54,25 @@ public:
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
     // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
-    // The caller fills the business fields; Submit fills Generation, Life (and ExpectedLifePhase for a choice) from
-    // the accepted OwnerState at call time, assigns the RequestId, records it in flight before the RPC and returns
-    // it, or returns 0 with a local reason without sending anything. A Listen Host answers inside the call, so a
-    // caller that must key its pending entry first reads PeekGrowthRequestId(Family) before submitting.
-    uint64 SubmitChoice(const FLDChoiceCommand& Command, ELDGrowthReason& OutLocalReason);
+    // #198 build commands (active choice, learn blueprint, allocate points). The caller fills Kind and its business
+    // fields (ExpectedBuildRevision and CatalogDigest from ReadOwnProgression); Submit fills Generation, Life and
+    // ExpectedLifePhase from the accepted OwnerState at call time, assigns the RequestId, records it in flight before the
+    // RPC and returns it, or returns 0 with a local reason without sending anything. A Listen Host answers inside the
+    // call, so a caller that must key its pending entry first reads PeekGrowthRequestId(Family) before submitting.
+    uint64 SubmitBuild(const FLDBuildCommand& Command, ELDGrowthReason& OutLocalReason);
     uint64 PeekGrowthRequestId(ELDGrowthFamily Family) const;
     void QueryGrowthReceipt(const FLDReceiptQuery& Query);
     // Own accepted projection only; null while the view is invalid.
     const FLDProgressionView* ReadOwnProgression() const;
     FLDOnGrowthSubmit OnGrowthSubmit;
-    FLDOnChoiceReceipt OnChoiceReceipt;
-    UFUNCTION(Server,Reliable) void ServerGrowthChoice(const FLDChoiceCommand& Command);
+    FLDOnBuildReceipt OnBuildReceipt;
+    UFUNCTION(Server,Reliable) void ServerGrowthBuild(const FLDBuildCommand& Command);
     UFUNCTION(Server,Reliable) void ServerQueryGrowthReceipt(const FLDReceiptQuery& Query);
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
-    UFUNCTION(Client,Reliable) void ClientChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
+    UFUNCTION(Client,Reliable) void ClientBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     // ---- end Growth ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
-    // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitChoice; one command in flight.
+    // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
     // test session (automation-test build, Host started with -LDDevGrowthFixture); every result arrives as OnDevTestResult.
     uint64 SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition = NAME_None,
@@ -185,7 +186,7 @@ private:
         uint64 Next=1;
         uint64 InFlight=0;
     };
-    FGrowthRequestCursor ChoiceCursor;
+    FGrowthRequestCursor BuildCursor;
     FGrowthRequestCursor DevTestCursor;
     uint64 BeginGrowthRequest(FGrowthRequestCursor& Cursor, ELDGrowthReason& OutLocalReason);
     void SettleGrowthRequest(FGrowthRequestCursor& Cursor, uint32 Generation, uint64 RequestId, bool bReserved, bool bFinal);

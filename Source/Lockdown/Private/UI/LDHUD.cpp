@@ -102,15 +102,13 @@ constexpr float HudBandScale=.75f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
 constexpr float HudDragStartPx=8.f;
 constexpr float HudSideWidth=300.f;
-// The held toast of the #97 replacement pick.
-const TCHAR* const LDHUDReplacePrompt=TEXT("选择要替换的技能");
 // The own status grid under the 属性 button: LDHUD::SelfIconColumns squares fill the side column.
 constexpr float HudSelfIconSize=44.f;
 constexpr float HudSelfIconGap=5.f;
 static_assert(LDHUD::SelfIconColumns*HudSelfIconSize+(LDHUD::SelfIconColumns-1)*HudSelfIconGap<=HudSideWidth,"The status grid fits the side column.");
 constexpr float HudBandPadX=14.f;
 constexpr float HudBlockGap=16.f;
-// Square slots: the icon fills the face inside a 3u state ring; the key, rank and cost ride on its corners.
+// Square slots: the icon fills the face inside a 3u state ring; the key and the cost ride on its corners.
 constexpr float HudSlotWidth=96.f;
 constexpr float HudSlotHeight=96.f;
 constexpr float HudSlotGap=8.f;
@@ -280,17 +278,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         TargetManaRow=Bar(LDHUDStyle::Mana,B,T,306,22);TargetBox->AddChildToVerticalBox(TargetManaRow)->SetPadding(FMargin(0,2));TargetManaBar=B;TargetMana=T;
         TargetStatuses=Text(TEXT(""),14);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
         {
-            // Three Q/W/E tiles of a visible contender: the name on top and the rank below; no cooldown is ever drawn.
+            // Three Q/W/E tiles of a visible contender: the key and the active's name; no cooldown is ever drawn.
             auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
             for(int32 Index=0;Index<3;++Index)
             {
-                auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
-                UTextBlock* Name=OneLine(TEXT(""),14,0);HudFace(Name,true,1);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Lines->AddChildToVerticalBox(Name);
-                UTextBlock* Rank=OneLine(TEXT(""),13,0);HudFace(Rank,false,1);Rank->SetColorAndOpacity(LDHUDStyle::TextSecondary);Lines->AddChildToVerticalBox(Rank);
+                UTextBlock* Name=OneLine(TEXT(""),14,0);HudFace(Name,true,1);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
                 auto* Tile=WidgetTree->ConstructWidget<UBorder>();Tile->SetBrush(HudRound(6.f,LDHUDStyle::Rim,1.f));Tile->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
-                Tile->SetPadding(FMargin(8,3));Tile->SetContent(Lines);Tile->SetClipping(EWidgetClipping::ClipToBounds);
+                Tile->SetPadding(FMargin(8,3));Tile->SetContent(Name);Tile->SetClipping(EWidgetClipping::ClipToBounds);
                 auto* TileSlot=Row->AddChildToHorizontalBox(Tile);TileSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));TileSlot->SetPadding(FMargin(Index?3.f:0.f,0,Index?0.f:3.f,0));
-                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);TargetActiveRanks.Add(Rank);
+                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);
             }
             TargetActivesRow=Row;TargetBox->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,4,0,0));
         }
@@ -480,8 +476,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         {
             FLDHUDActionSlot& Entry=ActionSlots.AddDefaulted_GetRef();
             // The face: the icon filling the state ring, the cooldown mask and its remaining time over it, and the key
-            // (top-left), the rank (bottom-left) and the mana cost (bottom-right) on its corners. Corner text carries a 2u
-            // outline because it sits on the icon colours.
+            // (top-left) and the mana cost (bottom-right) on its corners. Corner text carries a 2u outline because it sits on
+            // the icon colours.
             auto* Face=WidgetTree->ConstructWidget<UOverlay>();Face->SetClipping(EWidgetClipping::ClipToBounds);
             auto FillLayer=[](UOverlaySlot* Layer){Layer->SetHorizontalAlignment(HAlign_Fill);Layer->SetVerticalAlignment(VAlign_Fill);};
             Entry.Glyph=OneLine(TEXT(""),30,0);HudFace(Entry.Glyph,true,2);Entry.Glyph->SetJustification(ETextJustify::Center);
@@ -512,8 +508,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 return Border;
             };
             UTextBlock* ChipText=nullptr;
-            Entry.RankChip=Chip(ChipText,LDHUDStyle::TextAccent,LDHUDStyle::TextAccent,FLinearColor(.02f,.03f,.05f,.92f));Entry.Rank=ChipText;
-            auto* RankLayer=Face->AddChildToOverlay(Entry.RankChip);RankLayer->SetHorizontalAlignment(HAlign_Left);RankLayer->SetVerticalAlignment(VAlign_Bottom);RankLayer->SetPadding(FMargin(3,0,0,3));
             Entry.CostChip=Chip(ChipText,HudManaText,FLinearColor(.18f,.28f,.62f),FLinearColor(.015f,.03f,.09f,.92f));Entry.Cost=ChipText;
             auto* CostLayer=Face->AddChildToOverlay(Entry.CostChip);CostLayer->SetHorizontalAlignment(HAlign_Right);CostLayer->SetVerticalAlignment(VAlign_Bottom);CostLayer->SetPadding(FMargin(0,0,3,3));
             Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(3));
@@ -524,14 +518,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Flash=WidgetTree->ConstructWidget<UBorder>();Entry.Flash->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Flash));
             // The icon sends exactly what its hotkey sends; Combat decides Self casts and the armed target forms.
             const ELDCombatEntry Activated=HudActionEntries[Index];
-            // A Q/W/E slot fires the entry the local slot order puts there; during the replacement pick it is the choice of
-            // the skill to forget instead (#97); a press that became a drag fires nothing.
+            // A Q/W/E slot fires the entry the local slot order puts there; a press that became a drag fires nothing.
             Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,PC,Activated,Index]()
             {
                 if(bDragging&&DragFrom==Index){return;}
                 const ELDCombatEntry Fired=Index<3?PC->SkillAtKey[Index]:Activated;
-                const uint8 ReplaceSlot=Fired==ELDCombatEntry::Q?0:Fired==ELDCombatEntry::W?1:2;
-                if(Index<3&&ChoicesPanel&&ChoicesPanel->HasChildConfirmation()){ChoicesPanel->ChooseReplacement(ReplaceSlot);return;}
                 if(Fired!=ELDCombatEntry::None){PC->ActivateCombatEntry(Fired);}
             },true,HudActionNames[Index]);
             // The face draws every state itself, so the button keeps no chrome of its own.
@@ -547,7 +538,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Actions->AddChildToHorizontalBox(ActionSlots[Index].Box)
                 ->SetPadding(FMargin(Index==0?0.f:Index==3?HudGroupGap:HudSlotGap,0,0,0));
         }
-        // #97: the action entries on top, right under the blind-box button and the three-choice panel; health, mana and the
+        // #97: the action entries on top, right under the blind-box button and the growth panel; health, mana and the
         // experience strip below them.
         Centre->AddChildToVerticalBox(Actions);
         Centre->AddChildToVerticalBox(Bar(LDHUDStyle::OwnHealth,B,T,HudCentreWidth,24,&HealthRegenText))->SetPadding(FMargin(0,8,0,0));HealthBar=B;HealthText=T;
@@ -591,9 +582,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
         }
 
-        // The blind-box button sits right above the band's left block (#97) and toggles the three-choice panel, which docks
-        // right beside it; it has no hotkey. It is the Choices panel's only entry besides the opening's automatic open:
-        // greyed out and disabled while no choice is pending, and it pulses when the count rises.
+        // The 开盲盒 button sits right above the band's left block (#97) and toggles the growth panel, which docks right beside
+        // it; it has no hotkey. It is the growth panel's only entry besides the automatic open for a new offer or new points:
+        // greyed out and disabled while nothing is pending, and it pulses when the opportunities or points rise.
         auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
         PromptButton=Prompt;
         PromptText=CastChecked<UTextBlock>(Prompt->GetContent());HudFace(PromptText,true,0);PromptText->SetColorAndOpacity(HudPromptInk);
@@ -639,12 +630,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
         if(ChoicesPanel)
         {
-            ChoicesPanel->SubmitChoice=[WeakPC](const FLDChoiceCommand& Command,ELDGrowthReason& Reason)->uint64
-            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitChoice(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
-            ChoicesPanel->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Choice):0;};
+            ChoicesPanel->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
+            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
+            ChoicesPanel->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
         }
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
-        PC->OnChoiceReceipt.AddUObject(this,&ULDHUD::HandleChoiceReceipt);
+        PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
         if(DevTestPanel)
         {
             // The controller's single DEV test entry; the authority admits and commits every command.
@@ -682,8 +673,7 @@ FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerE
 {
     const FVector2D At=E.GetScreenSpacePosition();
     // A left press on a filled Q/W/E slot may become a drag (UpdateDrag); the press still reaches the button.
-    // The replacement pick takes Q/W/E clicks as its choice, so nothing drags meanwhile.
-    if(E.GetEffectingButton()==EKeys::LeftMouseButton&&Band&&Band->IsVisible()&&!(ChoicesPanel&&ChoicesPanel->HasChildConfirmation()))
+    if(E.GetEffectingButton()==EKeys::LeftMouseButton&&Band&&Band->IsVisible())
     {
         DragFrom=INDEX_NONE;bDragging=false;
         for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
@@ -943,7 +933,7 @@ void ULDHUD::RefreshReadModel()
     HudSetText(LevelBadgeText,bLevelKnown?FString::FromInt(Progression->Level):FString(TEXT("—")));
     {
         // A missing projection still reads as syncing, never as "no status".
-        const LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(Progression,OwnCombat,bClock,NowMs,Content);
+        const LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(OwnCombat,bClock,NowMs,Content);
         SelfIconViews=Icons.Items;
         HudSetShown(SelfIconSyncing,Icons.bSyncing,ESlateVisibility::HitTestInvisible);
         TArray<FName> LiveRings;
@@ -962,7 +952,7 @@ void ULDHUD::RefreshReadModel()
             HudSetText(SelfIconStacks[Index],Icon->Stacks>1?FString::FromInt(Icon->Stacks):FString());
             if(SelfIconTones[Index]!=int32(Icon->bPositive))
             {
-                // Positive statuses, recoveries and passives are edged green, negative statuses red; the popup names the tone too.
+                // Positive statuses and recoveries are edged green, negative statuses red; the popup names the tone too.
                 SelfIconTones[Index]=int32(Icon->bPositive);
                 const FLinearColor Edge=Icon->bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
                 SelfIconCells[Index]->SetBrush(HudRound(5.f,Edge,1.f));SelfIconCells[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
@@ -986,42 +976,39 @@ void ULDHUD::RefreshReadModel()
         // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
         if(OwnCombat&&!OwnCombat->Attributes.IsEmpty()){ChoiceStats=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat->Attributes);}
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
-        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content,ChoiceStats);
+        // #198: the freshest own publication of Combat's build safe window: this life's combat view, else the growth copy.
+        const int64 SafeAtMs=OwnCombat?OwnCombat->BuildSafeAtMs:Progression?Progression->BuildSafeAtMs:0;
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Public.Phase,SafeAtMs,bClock,NowMs,Content,ChoiceStats);
     }
-    // D10: the opening three-choice opens its panel once per match, when its offer first reaches this owner and nothing
-    // else is open; it never opens later over the player's own UI or armed preview, and nothing is picked for the player.
-    // Growth may publish the match's progression before the opening offer, so the one chance waits for the offer itself.
-    // The root may still be leaving the lobby on the match's first frames, so a refused open is retried for a short
-    // while; the player's own panel or captured input ends the chance at once.
-    if(AutoChoicesMatch!=O.Match&&AutoChoicesPending!=O.Match){AutoChoicesPending=O.Match;AutoChoicesSince=-1;}
-    if(ChoicesPanel&&PC->RootUI&&Progression&&Progression->Generation==O.Match&&AutoChoicesMatch!=O.Match
-        &&(Progression->bHasOffer||Progression->ConsumedThrough>0))
+    // D10/#198: the growth panel opens by itself when a new active offer or newly earned points reach this owner, and only
+    // when nothing else is open; it never opens over the player's own UI or armed preview, and nothing is chosen for the
+    // player. The root may still be leaving the lobby on the match's first frames, so a refused open is retried for a
+    // short while; the player's own panel or captured input ends the chance at once.
+    if(ChoicesPanel&&PC->RootUI&&Progression&&GrowthAutoOpen.Observe(*Progression,O.Match)){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
+    if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
     {
-        const bool bOpening=Progression->bHasOffer&&Progression->ConsumedThrough==0&&Progression->Offer.OpportunityOrdinal==1;
         const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
         const double UiTime=GetWorld()->GetRealTimeSeconds();
-        if(!bOpening||bPlayerUI){AutoChoicesMatch=O.Match;}
-        else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoChoicesMatch=O.Match;ChoicesPanel->MarkOpenedAutomatically();}
-        else if(AutoChoicesSince<0){AutoChoicesSince=UiTime;}
-        else if(UiTime-AutoChoicesSince>5.)
+        if(ChoicesPanel->IsPanelOpen()||bPlayerUI){AutoOpenSince=-1;}
+        else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoOpenSince=-1;ChoicesPanel->MarkOpenedAutomatically();}
+        else if(UiTime-AutoOpenSince>5.)
         {
-            AutoChoicesMatch=O.Match;
-            UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
+            AutoOpenSince=-1;
+            UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_GROWTH_AUTO_OPEN_FAILED The growth panel could not open within 5 s."));
         }
     }
     if(ChoicesPanel)
     {
-        // The panel docks over the right side of the battlefield: a hit on the own body, or the opening's automatic
-        // open running its few seconds unattended, folds it back to the pending pill (LDHUD::FChoicesFold).
+        // The panel docks over the battlefield: a hit on the own body, or an automatic open running its few seconds
+        // unattended, folds it back to the 开盲盒 button (LDHUD::FChoicesFold).
         LDWorldFeedback::FSample Body;Body.Match=O.Match;Body.Life=O.Life;Body.LifePhase=O.LifePhase;Body.Self=O.ContenderId;Body.OwnCombat=OwnCombat;
         TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(Body,BodyEvents);
         const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
         {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
         ChoicesPanel->UpdateFold(bOwnHit);
     }
-    // #97: right above the band's left block, the blind-box button at its left edge and the three-choice panel in the same
-    // row right of it, so a card and the Q/W slot it may replace are a short move apart. Sizes follow last frame's layout
-    // (text size changes them); the root shows one main panel at a time.
+    // #97: right above the band's left block, the 开盲盒 button at its left edge and the growth panel in the same row right
+    // of it. Sizes follow last frame's layout (text size changes them); the root shows one main panel at a time.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
     const float PromptTop=BandTop+8.f+(PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f);
@@ -1046,18 +1033,19 @@ void ULDHUD::RefreshReadModel()
         }
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
-    const int32 Pending=Progression?int32(Progression->PendingChoiceCount):0;
+    const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match);
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
-    // The blind-box button stays above the left block: greyed out and disabled without a pending choice (an open panel with nothing
-    // left closes itself), lit with the count otherwise; after the count rises it pulses at ~1 Hz for a few seconds.
-    if(Pending>PromptCount){PromptPulseAt=UiNow;}
-    PromptCount=Pending;
-    HudSetText(PromptText,FString::Printf(TEXT("%s+%d"),LDTerms::Choice,Pending));
-    HudSetColor(PromptText,Pending>0?HudPromptInk:HudPromptIdleInk);
-    if(PromptButton->GetIsEnabled()!=(Pending>0)){PromptButton->SetIsEnabled(Pending>0);}
+    // The 开盲盒 button stays above the left block: greyed out and disabled while nothing is pending (an open panel with
+    // nothing left closes itself), lit with the counts otherwise; after the opportunities or points rise it pulses at ~1 Hz
+    // for a few seconds.
+    if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints){PromptPulseAt=UiNow;}
+    PromptOffers=Pending.Offers;PromptPoints=Pending.Points;
+    HudSetText(PromptText,Pending.Prompt());
+    HudSetColor(PromptText,Pending.Any()?HudPromptInk:HudPromptIdleInk);
+    if(PromptButton->GetIsEnabled()!=Pending.Any()){PromptButton->SetIsEnabled(Pending.Any());}
     {
         const double PulseAge=UiNow-PromptPulseAt;
-        const float Wave=Pending>0&&PromptPulseAt>=0&&PulseAge<HudPulseSeconds?.5f-.5f*FMath::Cos(2.f*UE_PI*float(PulseAge)):0.f;
+        const float Wave=Pending.Any()&&PromptPulseAt>=0&&PulseAge<HudPulseSeconds?.5f-.5f*FMath::Cos(2.f*UE_PI*float(PulseAge)):0.f;
         if(AppliedPromptWave!=Wave){AppliedPromptWave=Wave;const float Scale=1.f+.05f*Wave;PendingPrompt->SetRenderScale(FVector2D(Scale,Scale));PendingPrompt->SetRenderOpacity(1.f-.25f*Wave);}
     }
 
@@ -1111,17 +1099,14 @@ void ULDHUD::RefreshReadModel()
             :SlotKind==LDHUD::EActionSlot::Dash?EHudIconKind::Dash:EHudIconKind::Active;
         const bool bHover=Entry.Button->IsHovered();
         const bool bRejected=Entry.RejectedAt>=0&&UiNow-Entry.RejectedAt<HudNoticeSeconds;
-        // #97 replacement pick: a filled Q/W/E slot glows red on its edge; clicking it forgets that skill.
-        const uint8 ReplaceSlot=Wanted==ELDCombatEntry::Q?0:Wanted==ELDCombatEntry::W?1:2;
-        const bool bReplacePick=Index<3&&ChoicesPanel&&ChoicesPanel->IsReplacementTarget(ReplaceSlot);
         Entry.bHasSource=Index<3&&Input.bHasSource;
-        const int32 LookKey=(((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0))*2+(bReplacePick?1:0);
+        const int32 LookKey=((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0);
         if(Entry.AppliedLook!=LookKey)
         {
             // Hovering brightens the edge and a refused press turns the ring red; the fill and the icon keep naming the state.
             Entry.AppliedLook=LookKey;
-            const FLinearColor Edge=bRejected||bReplacePick?LDHUDStyle::TextDanger:bHover?Style.Edge+(FLinearColor::White-Style.Edge)*.4f:Style.Edge;
-            const float EdgeWidth=bReplacePick?4.f:bRejected?3.f:bHover?FMath::Max(Style.EdgeWidth,2.f):Style.EdgeWidth;
+            const FLinearColor Edge=bRejected?LDHUDStyle::TextDanger:bHover?Style.Edge+(FLinearColor::White-Style.Edge)*.4f:Style.Edge;
+            const float EdgeWidth=bRejected?3.f:bHover?FMath::Max(Style.EdgeWidth,2.f):Style.EdgeWidth;
             Entry.Frame->SetBrush(HudRound(8.f,Edge,EdgeWidth));Entry.Frame->SetBrushColor(bRejected?FMath::Lerp(Style.Fill,LDHUDStyle::TextDanger,.5f):Style.Fill);
             Entry.Icon->SetBrushColor(HudIconColor(IconKind,Look));
             HudSetColor(Entry.Glyph,Look==LDHUD::EActionLook::Blocked||Look==LDHUD::EActionLook::Empty?LDHUDStyle::TextSecondary:LDHUDStyle::TextPrimary);
@@ -1136,7 +1121,6 @@ void ULDHUD::RefreshReadModel()
                 HudSetShown(Entry.Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
             }
         }
-        HudSetText(Entry.Rank,View.Rank);HudSetShown(Entry.RankChip,!View.Rank.IsEmpty(),ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty(),ESlateVisibility::HitTestInvisible);
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
@@ -1156,7 +1140,7 @@ void ULDHUD::RefreshReadModel()
         else{Entry.FlashAt=-1;}
         const float Pop=bFlash?1.f+.08f*FMath::Sin(UE_PI*FlashPhase):1.f;
         if(Entry.AppliedPop!=Pop){Entry.AppliedPop=Pop;Entry.Box->SetRenderScale(FVector2D(Pop,Pop));}
-        Entry.Button->SetIsEnabled(View.bCanSubmitIntent||bReplacePick);
+        Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
         if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
     }
     // Without a slot under the pointer, a hovered status square (LDHUD::SelfIconDetail) uses the same popup.
@@ -1166,8 +1150,7 @@ void ULDHUD::RefreshReadModel()
         for(int32 Index=0;Index<FMath::Min(SelfIconCells.Num(),SelfIconViews.Num());++Index)
         {
             if(SelfIconCells[Index]->IsVisible()&&SelfIconCells[Index]->GetCachedGeometry().IsUnderLocation(Pointer))
-            {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],
-                LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>()),Content);break;}
+            {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],Content);break;}
         }
     }
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
@@ -1219,26 +1202,17 @@ void ULDHUD::RefreshReadModel()
         {
             const LDHUD::FObservedCard::FActiveChip& Chip=Card.Actives[Index];
             HudSetText(TargetActiveNames[Index],Chip.Key+TEXT(" · ")+Chip.Name);
-            HudSetText(TargetActiveRanks[Index],Chip.bEmpty?FString(TEXT("—")):Chip.Rank);
-            HudSetColor(TargetActiveRanks[Index],Chip.bMaxRank?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
-            TargetActiveTiles[Index]->SetBrush(HudRound(6.f,Chip.bMaxRank?LDHUDStyle::TextAccent:LDHUDStyle::Rim,Chip.bMaxRank?2.f:1.f));
             TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.55f:.9f));
         }
     }
 
     // The toast fades on local presentation time.
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
-    // The replacement pick holds its prompt until a slot is clicked or the pick ends; a notice that arrives meanwhile
-    // (a refused cast, say) shows for its usual time and then the prompt returns.
-    const bool bReplacePick=ChoicesPanel&&ChoicesPanel->HasChildConfirmation();
-    if(bReplacePick&&!bReplacePromptShown){ReplacePromptSince=UiNow;}
-    bReplacePromptShown=bReplacePick;
-    const bool bFreshToast=UiNow-FeedbackAt<5&&(!bReplacePick||FeedbackAt>=ReplacePromptSince);
-    HudSetText(Toast,bFreshToast?LastFeedback:bReplacePick?FString(LDHUDReplacePrompt):FString());
+    HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {
-        // Above the blind-box button, or above the three-choice panel while it is open (its replacement prompt reads there).
+        // Above the 开盲盒 button, or above the growth panel while it is open.
         const float Under=ChoicesPanel&&ChoicesPanel->IsPanelOpen()?ChoicesPanel->PanelTop():PromptTop;
         const FVector2D Above(0,-FMath::RoundToFloat(Under+8.f));
         if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
@@ -1250,9 +1224,9 @@ void ULDHUD::ShowToast(const FString& Text)
 }
 void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 {
-    if(Result.Family==ELDGrowthFamily::Choice&&ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
+    if(Result.Family==ELDGrowthFamily::Build&&ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
 }
-void ULDHUD::HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result){if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}}
+void ULDHUD::HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result){if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}}
 void ULDHUD::ObserveAudio(ALDPlayerController& PC,const ALDGameState& Public)
 {
     // Only room-public DTOs and the player's own projection/receipts: no observed unit, actor or other owner state.

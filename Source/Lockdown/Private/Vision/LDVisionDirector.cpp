@@ -115,8 +115,6 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
         && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
         && A.Actives.Abilities[2] == B.Actives.Abilities[2]
-        && A.Actives.Ranks[0] == B.Actives.Ranks[0] && A.Actives.Ranks[1] == B.Actives.Ranks[1]
-        && A.Actives.Ranks[2] == B.Actives.Ranks[2]
         && SameObservedStatuses(A.Statuses, B.Statuses);
 }
 }

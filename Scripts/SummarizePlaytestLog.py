@@ -29,7 +29,7 @@ ID = re.compile(r"\b[0-9A-F]{32}\b")
 # Authority lines only the Host writes; a client log must never contain them.
 HOST_ONLY_TAGS = frozenset(
     {
-        "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_CHOICE",
+        "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
         "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
         "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED",
@@ -40,7 +40,7 @@ PERIODIC_TAGS = frozenset({"LD_HEARTBEAT", "LD_SELF_STATE", "LD_PERF", "LD_NET",
 # Routine AI and order bookkeeping: counted around a mark, listed only with --mark-all.
 ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED"})
 GROWTH_TAGS = (
-    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_CHOICE",
+    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
     "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD",
 )
 
@@ -258,7 +258,8 @@ class Report:
             if row.get("contender") in seen:
                 continue
             seen.add(row.get("contender"))
-            build = f" skills {row.get('skills')} cards {row.get('cards')}" if row.get("skills") else ""
+            build = (f" skills {row.get('skills')} blueprints {row.get('blueprints')} points {row.get('points')}"
+                 if row.get("skills") else "")
             self.out(f"- {self.names(row.get('contender'))}: K/D/A {row.get('kills')}/{row.get('deaths')}/{row.get('assists')} "
                      f"level {row.get('level')}{build}")
         self.out()
@@ -319,15 +320,22 @@ class Report:
                 text = (f"+{event.get('xp')} xp ({event.get('cause')} {event.get('role')}{of}) "
                         f"xp {event.get('xp_after')} level {event.get('level')}")
             elif event.tag in ("LD_LEVEL_UP", "LD_SELF_LEVEL"):
-                text = f"level {event.get('level')} (+{event.get('choices_earned')} choices)"
+                text = f"level {event.get('level')} (+{event.get('choices_earned')} active offers)"
             elif event.tag in ("LD_OFFER", "LD_SELF_OFFER"):
-                text = f"offer #{event.get('ordinal')}{' reroll' if event.get('rerolled') == '1' else ''}: {event.get('cards')}"
+                text = f"offer #{event.get('ordinal')}: {event.get('cards')}"
+            elif event.tag == "LD_OFFER_WAITING":
+                text = f"offer #{event.get('ordinal')} waits for an eligible active"
             elif event.tag == "LD_CHOICE":
-                text = f"chose {event.get('card')} rank {event.get('rank')} ({event.get('kind')}) replaced {event.get('replaced')}"
+                text = (f"chose {event.get('card')} ({event.get('result')}, slot {event.get('slot')}, "
+                        f"stored {event.get('stored')})")
+            elif event.tag == "LD_BUILD":
+                text = (f"{event.get('kind')} {event.get('card')} slot {event.get('slot')} points {event.get('points')} "
+                        f"unspent {event.get('unspent')}")
             elif event.tag == "LD_SELF_REWARD":
                 text = f"+{event.get('amount')} {event.get('kind')}"
             else:
-                text = f"build level {event.get('level')}: skills {event.get('skills')} cards {event.get('cards')}"
+                text = (f"build level {event.get('level')}: skills {event.get('skills')} blueprints {event.get('blueprints')} "
+                        f"points {event.get('points')} unspent {event.get('unspent')}")
             self.out(f"- {clock(event, start)} {who}: {text}")
         self.out()
 

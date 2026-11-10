@@ -28,7 +28,7 @@ def content_fixture():
     for key, unit, value in (
         ("STAT.BaseAttackSpeed", "attacks/s", 1), ("STAT.AttackSpeedPerLevelRatio", "ratio", 0.03),
         ("STAT.AttackSpeed.Min", "attacks/s", 0.1), ("STAT.AttackSpeed.Max", "attacks/s", 4),
-        ("STAT.CritChance.Base", "ratio", 0), ("STAT.CritMultiplier", "ratio", 1.5), ("STAT.AbilityCritMultiplier", "ratio", 1.25),
+        ("STAT.CritChance.Base", "ratio", 0), ("STAT.CritMultiplier", "ratio", 1.5),
         ("STAT.CooldownHaste.Base", "points", 0), ("STAT.CooldownHaste.Max", "points", 100),
         ("SKILL.GrowthPerLevel", "ratio", 0.1), ("SKILL.GrowthPerLevelAfter10", "ratio", 0.05),
         ("UNIT.MoveSpeedCmPerSec", "cm/s", 500), ("STAT.MoveSpeed.Min", "cm/s", 100), ("STAT.MoveSpeed.Max", "cm/s", 1200),
@@ -49,13 +49,7 @@ def content_fixture():
         ("AIRDROP.FirstLandSec", "s", 30), ("AIRDROP.IntervalSec", "s", 60), ("AIRDROP.AnnounceLeadSec", "s", 10),
         ("AIRDROP.PickupRadiusCm", "cm", 120),
         ("LEADER.RefreshSec", "s", 8), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
-        ("REWARD.AssistWindowSec", "s", 10),
-        ("CHOICE.NewActiveFreeSlotWeight", "ratio", 0.75), ("CHOICE.NewActiveFullSlotWeight", "ratio", 0.35),
-        ("CHOICE.FirstSlotUpgradeChance", "ratio", 0.7), ("CHOICE.FreeSlotAttributeChance", "ratio", 0.6),
-        ("CHOICE.AttributeQuality.GreenChance", "ratio", 0.4), ("CHOICE.AttributeQuality.GreenMultiplier", "ratio", 0.9),
-        ("CHOICE.AttributeQuality.BlueChance", "ratio", 0.35), ("CHOICE.AttributeQuality.BlueMultiplier", "ratio", 1.0),
-        ("CHOICE.AttributeQuality.PurpleChance", "ratio", 0.2), ("CHOICE.AttributeQuality.PurpleMultiplier", "ratio", 1.1),
-        ("CHOICE.AttributeQuality.GoldChance", "ratio", 0.05), ("CHOICE.AttributeQuality.GoldMultiplier", "ratio", 1.2),
+        ("REWARD.AssistWindowSec", "s", 10), ("GROWTH.BuildSafeWindowSec", "s", 2.5),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
@@ -73,6 +67,7 @@ def content_fixture():
         "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150,
         "LEADER.MinLevel": 2,
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
+        "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
@@ -95,73 +90,42 @@ def content_fixture():
         "CampGroupRetaliation": True, "CampReturningDamageable": True, "CampReturningControllable": True,
         "CampResetPolicy": "ReturnThenReset", "CampManaPolicy": "NotApplicable",
     }
-    # Synthetic #147 v7-shaped skills: two ranks, the advanced rank's growing bases 1.5x the basic rank's.
+    # Synthetic #198-shaped single-level actives; only stare_down stays out of the opening pool.
     abilities = [
         {
-            "id": "active_snark_bolt", "kind": "active", "draftable": True, "cooldown_family": "cd_snark_bolt", "windup": q("s", 0.125),
+            "id": "active_snark_bolt", "opening": True, "cooldown_family": "cd_snark_bolt", "windup": q("s", 0.125),
             "target": {"mode": "DirectionProjectile", "range": q("cm", 350), "projectile_radius": q("cm", 15), "projectile_speed": q("cm/s", 900)},
-            "ranks": [{
-                "rank": rank, "mana_cost": q("mp", 5 + rank), "cooldown": q("s", 3),
-                "effects": [{"op": "damage", "base": q("points", base), "ad_ratio": q("ratio", 0),
-                             "ap_ratio": q("ratio", 0.125), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
-                            {"op": "slow", "ratio": q("ratio", 0.25), "duration": q("s", 0.5)}]
-                + ([{"op": "pierce"}] if rank == 2 else []),
-            } for rank, base in ((1, 8), (2, 12))],
+            "mana_cost": q("mp", 6), "cooldown": q("s", 3),
+            "effects": [{"op": "damage", "base": q("points", 8), "ad_ratio": q("ratio", 0),
+                         "ap_ratio": q("ratio", 0.125), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
+                        {"op": "slow", "ratio": q("ratio", 0.25), "duration": q("s", 0.5)}],
         },
         {
-            "id": "active_not_mad", "kind": "active", "draftable": True, "cooldown_family": "cd_not_mad",
-            "target": {"mode": "Self"}, "windup": q("s", 0),
-            "ranks": [{
-                "rank": rank, "mana_cost": q("mp", 4 * rank), "cooldown": q("s", 7),
-                "effects": [{"op": "shield", "base": q("hp", base), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)},
-                            {"op": "dispel_slow"}]
-                + ([{"op": "dispel_root"}, {"op": "dispel_disarm"}] if rank == 2 else []),
-            } for rank, base in ((1, 20), (2, 30))],
+            "id": "active_not_mad", "opening": True, "cooldown_family": "cd_not_mad",
+            "target": {"mode": "Self"}, "windup": q("s", 0), "mana_cost": q("mp", 4), "cooldown": q("s", 7),
+            "effects": [{"op": "shield", "base": q("hp", 20), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)},
+                        {"op": "dispel_slow"}, {"op": "dispel_root"}],
         },
         {
-            "id": "active_pants_down", "kind": "active", "draftable": True, "cooldown_family": "cd_pants_down",
-            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125),
-            "ranks": [{
-                "rank": rank, "mana_cost": q("mp", 6 + rank), "cooldown": q("s", 9),
-                "effects": [{"op": "damage", "base": q("points", base), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
-                            {"op": "root", "duration": q("s", 0.25 * rank)}],
-            } for rank, base in ((1, 5), (2, 7.5))],
+            "id": "active_pants_down", "opening": True, "cooldown_family": "cd_pants_down",
+            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125), "mana_cost": q("mp", 7), "cooldown": q("s", 9),
+            "effects": [{"op": "damage", "base": q("points", 5), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
+                        {"op": "root", "duration": q("s", 0.25)}],
         },
         {
-            "id": "passive_iced_americano", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CooldownHasteFlat": q("points", haste),
-                                                                                "MPRegenFlat": q("mp/s", 0.25)}}]
-                       + ([{"op": "cooldown_refund", "trigger": "BasicHit", "entries": "Actives", "cooldown": q("s", 0.5)}]
-                          if rank == 2 else [])}
-                      for rank, haste in ((1, 2), (2, 4))],
-        },
-        {
-            "id": "passive_lucky_star", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": q("ratio", value)}}]
-                       + ([{"op": "ability_crit", "mode": "Chance", "ratio": q("ratio", 0.5), "abilities": ["active_pants_down"]}]
-                          if rank == 2 else [])}
-                      for rank, value in ((1, 0.03), (2, 0.06))],
-        },
-        {
-            "id": "passive_kick_down", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": 1, "effects": [{"op": "control_damage_amp", "ratio": q("ratio", 0.1)}]},
-                      {"rank": 2, "effects": [{"op": "control_damage_amp", "ratio": q("ratio", 0.15), "hp_below": q("ratio", 0.5)}]}],
+            "id": "active_stare_down", "opening": False, "cooldown_family": "cd_stare_down",
+            "target": {"mode": "Self"}, "windup": q("s", 0.125), "mana_cost": q("mp", 5), "cooldown": q("s", 11),
+            "effects": [{"op": "taunt", "radius": q("cm", 150), "duration": q("s", 0.5)},
+                        {"op": "timed_stat_bonus", "stats": {"ArmorFlat": q("points", 3), "MagicResistFlat": q("points", 2)},
+                         "duration": q("s", 1.5)}],
         },
     ]
-    attributes = [
-        {"id": "attr_protein", "stats": {"ADFlat": q("points", 2), "MaxHPFlat": q("hp", 10)}},
-        {"id": "attr_all_nighter", "stats": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2)}},
-        {"id": "attr_morning_rush", "stats": {"MoveSpeedBonusRatio": q("ratio", 0.02), "MaxHPFlat": q("hp", 20)}},
-        {"id": "attr_canteen", "stats": {"MaxHPFlat": q("hp", 10), "ArmorFlat": q("points", 1), "MagicResistFlat": q("points", 1)}},
-        {"id": "attr_hand_out", "stats": {"AttackRangeCmFlat": q("cm", 10), "AttackSpeedBonusRatio": q("ratio", 0.02)}},
-        {"id": "attr_wild_frenzy", "stats": {"ADFlat": q("points", 3), "AttackSpeedBonusRatio": q("ratio", 0.04)},
-         "penalties": {"MaxHPFlat": q("hp", 5)}},
-    ]
-    opening_cards = [
-        {"id": "opening_athlete", "stats": {"ADFlat": q("points", 3), "AttackSpeedBonusRatio": q("ratio", 0.04), "MaxHPFlat": q("hp", 20)}},
-        {"id": "opening_grinder", "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 4), "MaxMPFlat": q("mp", 10)}},
-        {"id": "opening_keyboard", "stats": {"AttackRangeCmFlat": q("cm", 20), "AttackSpeedBonusRatio": q("ratio", 0.04),
-                                             "MoveSpeedBonusRatio": q("ratio", 0.02)}},
+    stats = [
+        {"id": "stat_physique", "per_point": {"MaxHPFlat": q("hp", 10), "HPRegenFlat": q("hp/s", 0.125)}},
+        {"id": "stat_thick_skin", "per_point": {"ArmorFlat": q("points", 1), "MagicResistFlat": q("points", 1.5)}},
+        {"id": "stat_strength", "per_point": {"ADFlat": q("points", 2), "CritChanceBonusRatio": q("ratio", 0.01)}},
+        {"id": "stat_brains", "per_point": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2), "MPRegenFlat": q("mp/s", 0.25)}},
+        {"id": "stat_agility", "per_point": {"AttackSpeedBonusRatio": q("ratio", 0.02), "MoveSpeedBonusRatio": q("ratio", 0.01)}},
     ]
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
@@ -197,30 +161,25 @@ def content_fixture():
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, attributes, opening_cards, monsters, [boss]) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, stats, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
                 "icon_id": "icon_" + identity} for identity in identities]
     display[0]["portrait_icon_id"] = "portrait_character_demo"
-    # Skill cards: a [op.field] placeholder on the basic line and an advanced line for the top rank.
-    for row in display:
-        if row["id"] in {ability["id"] for ability in abilities}:
-            row["advanced_key"] = row["id"] + ".advanced"
-            row["advanced_text"] = "TEST ONLY 高级说明 " + row["id"]
-    snark = next(row for row in display if row["id"] == "active_snark_bolt")
-    snark["description_text"] += " [damage.amount] [slow.ratio]"
-    snark["advanced_text"] += " [slow.duration]"
+    # Card templates: an active reads [op.field] of its effects, a stat [per_point.<Stat>] of one point.
+    next(row for row in display if row["id"] == "active_snark_bolt")["description_text"] += " [damage.amount] [slow.ratio] [slow.duration]"
+    next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
     return {
-        "identity": {"schema_version": 1, "handler_revision": 1, "projection_revision": 3,
+        "identity": {"schema_version": 2, "handler_revision": 2, "projection_revision": 4,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "attributes": attributes, "opening_cards": opening_cards, "camps": camps, "boss": boss,
-        "progression": {"max_level": 16, "max_choices": 16, "max_skill_rank": 2, "active_slots": 3, "xp_start": 0,
+        "abilities": abilities, "stats": stats, "camps": camps, "boss": boss,
+        "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
-                        "opening_offer": {"matched_skill_weight": 3, "other_skill_weight": 2}, "reroll_levels": [5, 11]},
+                        "active_offer_levels": [4, 9]},
         "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture"},
         "display": display,
     }

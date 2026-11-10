@@ -171,75 +171,75 @@ bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 
     return true;
 }
 
-bool BuildChoice(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression, uint64 RequestId,
-    FLDChoiceCommand& Out, FString& Error)
+bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression, uint64 RequestId,
+    FLDBuildCommand& Out, FString& Error)
 {
     using namespace Detail;
-    Out = FLDChoiceCommand();
-    if (Intent.Kind != ELDOpponentBuildKind::Choose || RequestId == 0)
+    Out = FLDBuildCommand();
+    if (Intent.Kind == ELDOpponentBuildKind::None || RequestId == 0)
     {
-        return Fail(Error, TEXT("Only a Choose intent with a request id becomes a choice command."));
+        return Fail(Error, TEXT("Only a build intent with a request id becomes a build command."));
     }
-    const FLDChoiceOfferView& Offer = Progression.Offer;
-    if (!Progression.bValid || !Progression.bCanChoose || !Progression.bHasOffer || Offer.OfferId != Intent.OfferId
-        || Offer.OfferRevision != Intent.OfferRevision)
+    if (!Progression.bValid)
     {
-        return Fail(Error, TEXT("The chosen offer is no longer the current head offer."));
+        return Fail(Error, TEXT("The own progression view is not valid."));
     }
-    if (Intent.Choice.bReroll)
+    switch (Intent.Kind)
     {
-        if (Offer.bRerolled || Progression.RerollTokens == 0)
+    case ELDOpponentBuildKind::ChooseActive:
+    {
+        const FLDActiveOfferView& Offer = Progression.ActiveOffer;
+        const FName Option(*Intent.Option);
+        if (!Progression.bHasActiveOffer || Offer.OfferId != Intent.OfferId || Offer.OfferRevision != Intent.OfferRevision)
         {
-            return Fail(Error, TEXT("The head offer cannot be rerolled now."));
+            return Fail(Error, TEXT("The chosen offer is no longer the current active offer."));
         }
-        Out.Generation = Progression.Generation;
-        Out.Life = Progression.Life;
-        Out.ExpectedLifePhase = Progression.LifePhase;
-        Out.RequestId = RequestId;
+        if (!Offer.Options.Contains(Option) || !FLDDefinitionWire::Encode(Option, Out.Option))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The chosen active is not an option of the current offer."));
+        }
+        Out.Kind = ELDBuildCommandKind::ActiveChoice;
         Out.OfferId = Intent.OfferId;
         Out.OfferRevision = Intent.OfferRevision;
-        Out.ExpectedBuildRevision = Progression.BuildRevision;
-        Out.CatalogDigest = Progression.CatalogDigest;
-        Out.bReroll = true;
-        return true;
+        // Like a player's click: learn it now when the growth domain allows it, otherwise it is kept as a blueprint.
+        Out.bLearnIfPossible = true;
+        Out.Slot = FLDBuildCommand::AnySlot;
+        break;
     }
-    const FGuid OptionId = Intent.Choice.OptionId;
-    if (!Offer.Options.ContainsByPredicate([OptionId](const FLDChoiceOption& Option) { return Option.OptionId == OptionId; }))
+    case ELDOpponentBuildKind::LearnBlueprint:
     {
-        return Fail(Error, TEXT("The chosen option is not part of the head offer."));
+        const FName Blueprint(*Intent.Blueprint);
+        if (Intent.Slot > 2 || !Progression.PendingBlueprints.Contains(Blueprint)
+            || Progression.Actives.ContainsByPredicate([&Intent](const FLDActiveSlotView& Active) { return Active.Slot == Intent.Slot; })
+            || !FLDDefinitionWire::Encode(Blueprint, Out.Blueprint))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The blueprint is no longer pending or its slot is no longer empty."));
+        }
+        Out.Kind = ELDBuildCommandKind::LearnBlueprint;
+        Out.Slot = Intent.Slot;
+        break;
     }
-    if (Intent.Choice.bReplace)
+    case ELDOpponentBuildKind::AllocatePoints:
     {
-        const FLDOpponentChoicePick& Pick = Intent.Choice;
-        if (Pick.ReplaceSlot == ELDOpponentSkillSlot::Passive)
+        int64 Total = 0;
+        for (const uint8 Count : Intent.PointCounts) { Total += Count; }
+        if (Intent.PointCounts.Num() != Progression.StatPoints.Num() || Total <= 0 || Total > Progression.UnspentPoints)
         {
-            return Fail(Error, TEXT("Only an active slot can be replaced."));
+            return Fail(Error, TEXT("The allocation does not fit the own stats or unspent points."));
         }
-        const uint8 ActiveSlot = Pick.ReplaceSlot == ELDOpponentSkillSlot::Q ? 0
-            : Pick.ReplaceSlot == ELDOpponentSkillSlot::W ? 1 : 2;
-        const FName Victim(*Pick.ReplacedSkillId);
-        const bool bHeld = Progression.Skills.ContainsByPredicate([&Pick, ActiveSlot, Victim](const FLDLearnedSkillView& Skill)
-        {
-            return Skill.bActive && Skill.Slot == ActiveSlot && Skill.DefinitionId == Victim && Skill.Rank == Pick.ReplacedRank;
-        });
-        if (!bHeld || !FLDDefinitionWire::Encode(Victim, Out.ExpectedOldSkillId))
-        {
-            Out = FLDChoiceCommand();
-            return Fail(Error, TEXT("The replaced active is not the one currently held in that slot."));
-        }
-        Out.bReplace = true;
-        Out.ReplaceSlot = ActiveSlot;
-        Out.ExpectedOldRank = Pick.ReplacedRank;
-        // The policy's explicit pick is the confirmation; nothing replaces a skill by default.
-        Out.bReplaceConfirmed = true;
+        Out.Kind = ELDBuildCommandKind::AllocatePoints;
+        Out.PointCounts = Intent.PointCounts;
+        break;
+    }
+    default:
+        return Fail(Error, TEXT("The build intent has an unknown kind."));
     }
     Out.Generation = Progression.Generation;
     Out.Life = Progression.Life;
     Out.ExpectedLifePhase = Progression.LifePhase;
     Out.RequestId = RequestId;
-    Out.OfferId = Intent.OfferId;
-    Out.OfferRevision = Intent.OfferRevision;
-    Out.OptionId = OptionId;
     Out.ExpectedBuildRevision = Progression.BuildRevision;
     Out.CatalogDigest = Progression.CatalogDigest;
     return true;
@@ -322,8 +322,12 @@ ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason)
     case ELDGrowthReason::MatchClosed:
     case ELDGrowthReason::Dead:
     case ELDGrowthReason::StaleContext:
-    case ELDGrowthReason::OfferAlreadyCommitted: return ELDOpponentSettle::Dropped;
-    // Stale guards, offers, replacements and authority faults never loop unbounded.
+    case ELDGrowthReason::OfferAlreadyCommitted:
+    // #198: the window, the phase or the offer moved on between the read and the commit; the next decision rereads them.
+    case ELDGrowthReason::NotSafe:
+    case ELDGrowthReason::PhaseClosed:
+    case ELDGrowthReason::NoActiveOffer: return ELDOpponentSettle::Dropped;
+    // Stale guards, offers, slots, points and authority faults never loop unbounded.
     default: return ELDOpponentSettle::Failed;
     }
 }
@@ -335,14 +339,14 @@ ELDOpponentSettle SettleSubmit(const FLDSubmitResult& Result)
     {
     case ELDAdmissionStatus::AcceptedPending: return ELDOpponentSettle::InFlight;
     case ELDAdmissionStatus::Final:
-        if (Result.Family == ELDGrowthFamily::Choice && Result.bHasChoiceReceipt) { return SettleHeader(Result.ChoiceReceipt.Header); }
+        if (Result.Family == ELDGrowthFamily::Build && Result.bHasBuildReceipt) { return SettleHeader(Result.BuildReceipt.Header); }
         return ELDOpponentSettle::Failed;
     case ELDAdmissionStatus::AdmissionRejected: return SettleGrowthRejection(LDGrowthWire::Reason(Result.Reason));
     default: return ELDOpponentSettle::Failed;
     }
 }
 
-ELDOpponentSettle SettleChoiceQuery(const FLDChoiceReceiptQueryResult& Result)
+ELDOpponentSettle SettleBuildQuery(const FLDBuildReceiptQueryResult& Result)
 {
     return Detail::SettleLookup(Result.Lookup, Result.bHasReceipt, Result.Receipt.Header);
 }

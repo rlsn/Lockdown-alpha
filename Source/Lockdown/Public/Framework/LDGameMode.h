@@ -120,7 +120,7 @@ public:
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
-    // #153 opening countdown: the write gate is open (the clock, movement, the dash, the opening choice and leaves commit),
+    // #153 opening countdown: the write gate is open (the clock, movement, the dash, build commands and leaves commit),
     // but no attack, Q/W or trade is admitted and camps stay idle until the match's T=0 (LDOrderRules::CountdownAdmits*).
     bool IsOpeningCountdown(const FLDMatchContext& Context) const;
     const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
@@ -187,9 +187,10 @@ public:
     FLDPublicMatchView ReadPublicMatch() const;
     FLDAIRegistrationResult RegisterAIContender(AController& Controller, uint8 RosterSlot, const FLDMatchContext& Match);
     FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
-    // Server-only opening intent: draws once while a registered opponent binds during match preparation.
-    // Seed records the stream state before these two draws, so the plan can be replayed without a new RNG.
-    bool DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, uint8& Index, int32& Seed, FString& Error);
+    // Server-only opening timing: draws once while a registered opponent binds during match preparation (#198: the moment
+    // from which it makes its countdown build decisions). Seed records the stream state before the draw, so the plan can
+    // be replayed without a new RNG.
+    bool DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, int32& Seed, FString& Error);
     // ---- Playtest log (Framework/LDGameModeTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
     // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only).
     void LogPlaytestHeartbeat();
@@ -245,7 +246,7 @@ private:
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
-    friend class FLDDemoGrowthRerollTest;
+    friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
     friend class FLDDemoOpeningCountdownTest;
     friend class ALDCombatDirector;

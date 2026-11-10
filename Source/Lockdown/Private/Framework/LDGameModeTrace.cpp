@@ -24,21 +24,22 @@ namespace LDGameModeTraceDetail
         return Connection ? Connection->LowLevelGetRemoteAddress(true) : FString(TEXT("-"));
     }
 
-    // Q/W/E actives and passives with ranks, then attribute cards with quality/count.
+    // #198: Q/W/E actives with their slots, pending blueprints and the allocated points per stat (catalog order).
     FString BuildText(const FLDGrowthBuild& Build)
     {
-        FString Skills, Cards;
-        for (const FLDLearnedSkill& Skill : Build.Skills)
+        FString Skills, Blueprints;
+        for (const FLDLearnedActive& Active : Build.Actives)
         {
-            Skills += FString::Printf(TEXT("%s%s@%u%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Skill.Id.ToString(), uint32(Skill.Rank),
-                Skill.bActive ? (Skill.Slot == 0 ? TEXT("/Q") : Skill.Slot == 1 ? TEXT("/W") : TEXT("/E")) : TEXT(""));
+            Skills += FString::Printf(TEXT("%s%s/%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Active.Id.ToString(),
+                Active.Slot == 0 ? TEXT("Q") : Active.Slot == 1 ? TEXT("W") : TEXT("E"));
         }
-        for (const FLDAttributeCardCount& Card : Build.Cards)
+        for (const FName Id : Build.PendingBlueprints)
         {
-            Cards += FString::Printf(TEXT("%s%s@%u*%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *Card.Id.ToString(),
-                uint32(Card.Quality), uint32(Card.Count));
+            Blueprints += FString::Printf(TEXT("%s%s"), Blueprints.IsEmpty() ? TEXT("") : TEXT(","), *Id.ToString());
         }
-        return FString::Printf(TEXT("skills=%s cards=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills, Cards.IsEmpty() ? TEXT("-") : *Cards);
+        const FString Points = FString::JoinBy(Build.StatPoints, TEXT(","), [](int32 Count) { return FString::FromInt(Count); });
+        return FString::Printf(TEXT("skills=%s blueprints=%s points=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills,
+            Blueprints.IsEmpty() ? TEXT("-") : *Blueprints, Points.IsEmpty() ? TEXT("-") : *Points);
     }
 }
 
@@ -122,7 +123,7 @@ void ALDGameMode::LogPlaytestHeartbeat()
         UE_LOG(LogLDTrace, Log, TEXT("LD_HEARTBEAT t=%lld contender=%s phase=%s life=%u pos=%s %s level=%d xp=%lld pending=%d order=%s order_at=%s action=%s statuses=%s protected_until=%lld respawn_at=%lld"),
             AuthorityNowMs, *LDLog::Id(Id), *LDLog::EnumName(Life->Phase), Life->Life, *Position, *Resources,
             Build ? int32(Build->Level) : -1, Progression ? Progression->CumulativeXP : int64(-1),
-            Progression ? int32(Progression->PendingCount()) : -1, *Order, bOrderPoint ? *LDLog::Cm(OrderPoint) : TEXT("-"), *Action,
+            Progression ? int32(Progression->QueuedActiveOpportunities()) : -1, *Order, bOrderPoint ? *LDLog::Cm(OrderPoint) : TEXT("-"), *Action,
             Statuses.IsEmpty() ? TEXT("-") : *Statuses, Life->ProtectedUntilMs, Life->Phase == ELDLifePhase::Dead ? Life->RespawnAtMs : int64(0));
     }
 }
@@ -163,6 +164,6 @@ void ALDGameMode::LogPlaytestSummary(const FLDResultView& View) const
             View.Generation, *LDLog::Id(Row.ContenderId), *LDLog::Quote(Row.Name), Row.Kind == ELDContenderKind::Human ? TEXT("Human") : TEXT("AI"),
             Row.bLeft ? 1 : 0, Row.ContenderId == View.Winner ? 1 : 0, uint32(Row.FinalLevel), Progression ? Progression->CumulativeXP : int64(-1),
             Row.Kills, Row.Deaths, Row.Assists,
-            Progression ? int32(Progression->ConsumedThrough) : -1, Build ? *BuildText(*Build) : TEXT("skills=- cards=-"));
+            Progression ? int32(Progression->ActiveConsumed) : -1, Build ? *BuildText(*Build) : TEXT("skills=- blueprints=- points=-"));
     }
 }

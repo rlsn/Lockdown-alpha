@@ -34,8 +34,6 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
     case ELDDemoStatusId::AttackSlowed:
-    case ELDDemoStatusId::Cowering:
-    case ELDDemoStatusId::ContactGuard:
         return true;
     default:
         return false;
@@ -143,9 +141,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     }
     if (Mask & LDObservation::Actives)
     {
-        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0]
-            << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1]
-            << Unit.Actives.Abilities[2] << Unit.Actives.Ranks[2];
+        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Abilities[1] << Unit.Actives.Abilities[2];
     }
     return !Ar.IsError();
 }
@@ -264,18 +260,13 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         SeenStatuses |= Bit;
     }
     const FLDObservedActivesView& Actives = Unit.Actives;
-    bool bActives = true;
-    for (int32 Slot = 0; Slot < 3; ++Slot)
-    {
-        bActives &= Contender
-            ? (Actives.Abilities[Slot] == 0) == (Actives.Ranks[Slot] == 0) && Actives.Ranks[Slot] <= MaxActiveRank
-            : Actives.Abilities[Slot] == 0 && Actives.Ranks[Slot] == 0;
-    }
+    const bool bActives = Contender
+        || (Actives.Abilities[0] == 0 && Actives.Abilities[1] == 0 && Actives.Abilities[2] == 0);
     const bool bDuplicate = (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1])
         || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[2])
         || (Actives.Abilities[1] != 0 && Actives.Abilities[1] == Actives.Abilities[2]);
     if (!bActives || bDuplicate)
-    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct ranked abilities or empty slots, contenders only.")); }
+    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct abilities or empty slots, contenders only.")); }
     Error.Reset();
     return true;
 }

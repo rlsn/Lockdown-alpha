@@ -19,9 +19,10 @@ struct FLDEvalContenderPlan
     int32 Slot = 0;
     // XP granted once at T=0 through the reward composite (a supply assumption of the plan, logged cause=dev_fixture).
     int64 SupplyXP = 0;
-    // One rule per opportunity ordinal from 1.
+    // One rule per active opportunity ordinal from 1 (the opening offer).
     TArray<FLDEvaluationChoice> Choices;
-    // Conditional preparation: three-card offers queued (DevQueueOffer) for the next drawn heads from ordinal 2, oldest first.
+    // Conditional preparation: one-to-three-active offers queued (DevQueueOffer) for the next opportunities from ordinal 2,
+    // oldest first.
     TArray<TArray<FName>> Presets;
 };
 
@@ -49,10 +50,10 @@ struct FLDEvalRunInput
 namespace LDBuildEvaluation
 {
     inline constexpr TCHAR InputSchema[] = TEXT("lockdown.build_evaluation.native_input");
-    inline constexpr int32 InputSchemaVersion = 1;
+    inline constexpr int32 InputSchemaVersion = 2;
     inline constexpr TCHAR ResultSchema[] = TEXT("lockdown.build_evaluation.native_result");
     inline constexpr TCHAR RunSchema[] = TEXT("lockdown.build_evaluation.native_run");
-    inline constexpr int32 ResultSchemaVersion = 1;
+    inline constexpr int32 ResultSchemaVersion = 2;
     inline constexpr int32 MaxCases = 500;
     inline constexpr int32 MaxChoices = 16;
     // The duel needs exactly two AI slots; the evaluation Host is the only human and never fights.

@@ -145,7 +145,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         return false;
     }
     int32 OpeningSeed = 0;
-    if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningPickIndex, OpeningSeed, Error)) { return false; }
+    if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningSeed, Error)) { return false; }
     Binding = InBinding;
     Content = MoveTemp(Snapshot);
     POIs = MoveTemp(Places);
@@ -158,8 +158,8 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
             *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(), Evaluation->Profile.Choices.Num());
     }
 #endif
-    UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld card=%u seed=%d"), *Binding.GetContender().ToString(),
-        OpeningPickAfterMs, uint32(OpeningPickIndex), OpeningSeed);
+    UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld seed=%d"), *Binding.GetContender().ToString(),
+        OpeningPickAfterMs, OpeningSeed);
     return true;
 }
 
@@ -210,10 +210,10 @@ void ALDOpponentController::ReportTally()
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
-        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u choices=%u builds_refused=%u paused_holds=%u/%u/%u ")
+        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u builds=%u builds_refused=%u paused_holds=%u/%u/%u ")
         TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
-        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.Choices, Tally.BuildsRefused, Tally.PausedHolds,
+        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.Builds, Tally.BuildsRefused, Tally.PausedHolds,
         Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
         Tally.OrdersRejected);
 }
@@ -386,7 +386,6 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         return false;
     }
     Me.OpeningPickAtMs = Public.StartedAtMs - Content->Get().Parameters.CountdownMs + OpeningPickAfterMs;
-    Me.OpeningPickIndex = OpeningPickIndex;
     if (Own.LifePhase == ELDLifePhase::Dead) { return true; }
     if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
         || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))
@@ -561,8 +560,8 @@ void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& 
 void ALDOpponentController::SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
 {
     if (!Build.bHas || !Mode.Development) { return; }
-    const ELDOpponentSettle Settle = LDOpponentRequests::SettleChoiceQuery(
-        Mode.Development->QueryChoiceReceipt(Binding.GetContender(), Build.Query));
+    const ELDOpponentSettle Settle = LDOpponentRequests::SettleBuildQuery(
+        Mode.Development->QueryBuildReceipt(Binding.GetContender(), Build.Query));
     if (Settle == ELDOpponentSettle::InFlight)
     {
         // Growth commits at the next Transactions phase. A late receipt is reported; the request is never
@@ -706,28 +705,28 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
 void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBuildIntent& Intent, int64 NowMs, FString& Problem)
 {
-    if (Intent.Kind != ELDOpponentBuildKind::Choose || Build.bHas) { return; }
+    if (Intent.Kind == ELDOpponentBuildKind::None || Build.bHas) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
     FString Error;
-    FLDChoiceCommand Command;
-    if (!Mode.Development || !LDOpponentRequests::BuildChoice(Intent, Reads.Owner.Growth.Progression, ChoiceRequestId,
+    FLDBuildCommand Command;
+    if (!Mode.Development || !LDOpponentRequests::BuildCommand(Intent, Reads.Owner.Growth.Progression, BuildRequestId,
         Command, Error))
     {
         Problem = Error.IsEmpty() ? FString(TEXT("The progression domain is unavailable.")) : Error;
         Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
         return;
     }
-    ++Tally.Choices;
-    const FLDSubmitResult Result = Mode.Development->QueueChoice(Binding.GetContender(), Command);
-    const uint64 RequestId = ChoiceRequestId;
+    ++Tally.Builds;
+    const FLDSubmitResult Result = Mode.Development->QueueBuild(Binding.GetContender(), Command);
+    const uint64 RequestId = BuildRequestId;
     // Only a reserved sequence is consumed; an unreserved admission refusal leaves the id to the next request.
-    if (Result.bSequenceReserved) { ++ChoiceRequestId; }
+    if (Result.bSequenceReserved) { ++BuildRequestId; }
     const ELDOpponentSettle Settle = LDOpponentRequests::SettleSubmit(Result);
     if (Settle == ELDOpponentSettle::InFlight)
     {
         Build.bHas = true;
         Build.Query.Generation = Binding.GetMatch().Generation;
-        Build.Query.Family = ELDGrowthFamily::Choice;
+        Build.Query.Family = ELDGrowthFamily::Build;
         Build.Query.RequestId = RequestId;
         Build.Key = Intent.Key;
         Build.SentAtMs = NowMs;

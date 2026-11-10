@@ -140,7 +140,7 @@ public:
     int64 LastHostHPP2 = -1;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
     void CaptureHost(const ALDPlayerController& Owner);
-    // Rendered Host only, #112 review evidence (never a check): the opening three-choice with its reroll button, a
+    // Rendered Host only, #112 review evidence (never a check): the opening active offer with its points, a
     // visible opponent's Q/W card, a kill notice naming assisters, the spray and guard HUD over the flagpole graffiti
     // and the results with their assist column. Each is taken at most once, one request at a time.
     TSet<FString> ReviewTaken;
@@ -280,7 +280,7 @@ void FLDDemoOpponentProbe::ReadGrowth(ALDGameMode& Mode, FLDOpponentProbeTrack& 
         {
             Track.MaxLevel = FMath::Max<int64>(Track.MaxLevel, Progression.Level);
             Track.MaxXP = FMath::Max<int64>(Track.MaxXP, Progression.CumulativeXP);
-            Track.MaxConsumed = FMath::Max<int64>(Track.MaxConsumed, Progression.ConsumedThrough);
+            Track.MaxConsumed = FMath::Max<int64>(Track.MaxConsumed, Progression.ActiveOpportunitiesConsumed);
         }
     }
 }
@@ -366,7 +366,7 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
 
 void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
 {
-    // Only a rendered Host takes them: the opening HUD (own bars, pending three-choice, minimap), then the first two
+    // Only a rendered Host takes them: the opening HUD (own bars, pending active offer, minimap), then the first two
     // moments an AI stands in the Host's current sight, where cooldowns, floating numbers and falls can show.
     if (!FApp::CanEverRender() || Shots >= 3) { return; }
     const double Now = FPlatformTime::Seconds();
@@ -425,15 +425,15 @@ void FLDDemoOpponentProbe::ReviewShots(ALDPlayerController& Owner, const ALDGame
         return true;
     };
     if (bResults) { Queue(TEXT("HostResults"), .5); return; }
-    // The opening three-choice with its reroll button (remaining free rerolls). The Host opens it and previews the first
-    // card only so a hit does not fold it before the shot; it never confirms.
+    // The opening active offer with its points. The Host opens it and previews the first card only so a hit does not fold it
+    // before the shot; it never confirms.
     if (Now - MatchSeenAt >= 2. && !ReviewTaken.Contains(TEXT("HostChoices")))
     {
         ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
         if (Panel)
         {
             if (!Panel->IsPanelOpen()) { Panel->OpenPanel(); }
-            Panel->PreviewChoice(0);
+            Panel->PreviewOffer(0);
         }
         if (Queue(TEXT("HostChoices"), .4)) { return; }
     }
@@ -566,7 +566,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("airdrop_claims"), T.AirdropClaims);
         Value->SetNumberField(TEXT("leader_hunts"), T.LeaderHunts);
         Value->SetNumberField(TEXT("boss_avoids"), T.BossAvoids);
-        Value->SetNumberField(TEXT("choice_requests"), T.Choices);
+        Value->SetNumberField(TEXT("build_requests"), T.Builds);
         Value->SetNumberField(TEXT("builds_refused"), T.BuildsRefused);
         Value->SetNumberField(TEXT("max_body_requests_30s"), Track.MaxWindowRequests);
         Value->SetNumberField(TEXT("paused_holds"), T.PausedHolds);
@@ -582,7 +582,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     }
     Summary->SetArrayField(TEXT("opponents"), Rows);
     Check(Moved, TEXT("Every AI moved through the map on its own orders"));
-    Check(WinnerGrew, TEXT("The winning AI levelled up and confirmed its growth choices"));
+    Check(WinnerGrew, TEXT("The winning AI levelled up and confirmed its active choices"));
     // Reported until multi-match runs show it holds (#117): a landed D19 dash.
     Record(DashesLanded > 0 ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
         TEXT("D19: at least one AI landed an innate dash"));
@@ -610,7 +610,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
         TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
-    Check(OpeningPicks, TEXT("Every AI resolved its random opening direction during the countdown, never moving"));
+    Check(OpeningPicks, TEXT("Every AI chose its opening active during the countdown, never moving"));
     Check(DevGrowth, TEXT("Every AI gained experience before the circle opened, unless it spent at least half of development dead or recovering"));
     // D12: decisions are counted from each adapter's own frames; a released decision is a stop-loss exit.
     Record(!PausedHolds ? ELDOpponentProbeCheck::NotExercised
@@ -729,7 +729,7 @@ bool FLDDemoOpponentProbe::Tick()
                 { MaxCountdownAIDriftCm = FMath::Max(MaxCountdownAIDriftCm, FVector::Dist2D(*First, Foot)); }
                 else { CountdownAIFeet.Add(*It, Foot); }
                 const FLDProgressionView Growth = Mode->Development->ReadProgression(Mode->ContenderId(*It));
-                if (Growth.ConsumedThrough == 1 && !CountdownPicks.Contains(Mode->ContenderId(*It)))
+                if (Growth.ActiveOpportunitiesConsumed == 1 && !CountdownPicks.Contains(Mode->ContenderId(*It)))
                 {
                     CountdownPicks.Add(Mode->ContenderId(*It),
                         Mode->GetAuthorityNowMs() - View.StartedAtMs + Content->Get().Parameters.CountdownMs);

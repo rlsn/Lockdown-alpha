@@ -449,8 +449,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
             Receipt.XPDelta = Share.Amounts.XP;
             Receipt.LevelBefore = GrowthPlan.LevelBefore();
             Receipt.LevelAfter = GrowthPlan.Build().Level;
-            Receipt.OpportunityFirst = uint8(Progression->EarnedThrough + 1);
-            Receipt.OpportunityLast = GrowthPlan.Progression().EarnedThrough;
+            Receipt.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
+            Receipt.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
             Receipt.Revisions.bHasProgression = true;
             Receipt.Revisions.ProgressionRevision = GrowthPlan.Progression().Revision;
             Receipt.Revisions.bHasBuild = true;
@@ -462,8 +462,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
         Part.XPDelta = Share.Amounts.XP;
         Part.LevelBefore = GrowthPlan.LevelBefore();
         Part.LevelAfter = GrowthPlan.Build().Level;
-        Part.OpportunityFirst = uint8(Progression->EarnedThrough + 1);
-        Part.OpportunityLast = GrowthPlan.Progression().EarnedThrough;
+        Part.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
+        Part.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
     }
     for (int32 Index = 0; Index < Shares.Num(); ++Index)
     {
@@ -490,9 +490,16 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
             Share.Amounts.XP, Progression ? Progression->CumulativeXP : -1, uint32(Before), uint32(After), *LogDetail);
         if (After > Before)
         {
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d"),
+            int64 Unspent = 0;
+            const FLDGrowthBuild* Build = M->Development->FindBuild(Share.Recipient);
+            if (!Build || !Progression
+                || LDProgression::UnspentPoints(Content->Get(), *Build, Progression->CumulativeXP, Unspent) != ELDGrowthReason::None)
+            {
+                Unspent = -1;
+            }
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d unspent_points=%lld"),
                 Permit.GetBoundary().AtMs, *LDLog::Id(Share.Recipient), uint32(Before), uint32(After),
-                Last >= First ? int32(Last) - int32(First) + 1 : 0);
+                Last >= First ? int32(Last) - int32(First) + 1 : 0, Unspent);
         }
     }
     return ELDRewardOutcome::Granted;
@@ -537,8 +544,8 @@ bool ALDGrowthDirector::ProcessTransactions(const FLDGameplayWritePermit& Permit
     {
         switch (Intent.Kind)
         {
-        case FLDPendingGrowthIntent::EKind::Choice:
-            if (GrowthIsFault(M->Development->CommitPendingChoice(Intent.Contender, Permit).Header.Reason))
+        case FLDPendingGrowthIntent::EKind::Build:
+            if (GrowthIsFault(M->Development->CommitPendingBuild(Intent.Contender, Permit).Header.Reason))
             {
                 Error = TEXT("A growth transaction lost its write permit inside the Transactions phase.");
                 return false;
@@ -593,8 +600,8 @@ bool ALDGrowthDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FStr
     {
         uint64& Revision = PublishRevisions.FindOrAdd(Id);
         ++Revision;
-        TArray<FLDChoiceReceipt> ChoiceReceipts;
-        M->Development->TakeFinalReceipts(Id, ChoiceReceipts);
+        TArray<FLDBuildReceipt> BuildReceipts;
+        M->Development->TakeFinalReceipts(Id, BuildReceipts);
 #if WITH_DEV_AUTOMATION_TESTS
         TArray<FLDDevTestReceipt> DevReceipts;
         if (FDevTestRecord* DevRecord = DevTests.Find(Id))
@@ -611,7 +618,7 @@ bool ALDGrowthDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FStr
         }
         M->SyncOwner(*OwnerController);
 #if WITH_DEV_AUTOMATION_TESTS
-        // Final DEV receipts follow the owner refresh like the choice receipts below.
+        // Final DEV receipts follow the owner refresh like the build receipts below.
         for (const FLDDevTestReceipt& DevReceipt : DevReceipts)
         {
             FLDDevTestResult Result;
@@ -625,16 +632,16 @@ bool ALDGrowthDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FStr
             (*OwnerController)->ClientDevTestResult(Result);
         }
 #endif
-        for (const FLDChoiceReceipt& Choice : ChoiceReceipts)
+        for (const FLDBuildReceipt& Build : BuildReceipts)
         {
-            FLDChoiceReceiptQueryResult Result;
-            Result.Query.Generation = Choice.Header.Generation;
-            Result.Query.Family = ELDGrowthFamily::Choice;
-            Result.Query.RequestId = Choice.Header.RequestId;
+            FLDBuildReceiptQueryResult Result;
+            Result.Query.Generation = Build.Header.Generation;
+            Result.Query.Family = ELDGrowthFamily::Build;
+            Result.Query.RequestId = Build.Header.RequestId;
             Result.Lookup = ELDReceiptLookup::Final;
             Result.bHasReceipt = true;
-            Result.Receipt = Choice;
-            (*OwnerController)->ClientChoiceReceipt(Result);
+            Result.Receipt = Build;
+            (*OwnerController)->ClientBuildReceipt(Result);
         }
     }
     return true;
@@ -795,7 +802,7 @@ FLDDevTestResult ALDGrowthDirector::AdmitDevTest(const FGuid& ContenderId, const
         return LDDevTest::Refused(Command, ELDGrowthReason::NotContender, TEXT("The caller is not a contender of this match."));
     }
     FDevTestRecord& Record = DevTests.FindOrAdd(ContenderId);
-    // As for choices: only a request that opens the next sequence takes an arrival number and needs an open match;
+    // As for build commands: only a request that opens the next sequence takes an arrival number and needs an open match;
     // replays of an accepted or final request still answer from the stream.
     const bool bOpensSequence = !Record.Stream.GetPending() && Command.RequestId == Record.Stream.GetFinalizedThrough() + 1;
     if (bOpensSequence && !M->IsGameplayWriteOpen(Match))
@@ -854,7 +861,7 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
     Receipt.Amount = Command.Amount;
     Receipt.Slot = Command.Slot;
     Receipt.Stat = Command.Stat;
-    // The shape was proven at admission: a learn names a valid definition, every other op none.
+    // The shape was proven at admission: a blueprint, learn or allocation names a valid definition, every other op none.
     FName Definition;
     Command.Definition.Decode(Definition);
     Receipt.Definition = Definition;
@@ -929,15 +936,30 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
                 Reason = ELDGrowthReason::DataInvalid;
             }
             break;
-        case ELDDevTestOp::LearnOption:
-            // Like a choice: Alive or Dead may consume an opportunity.
-            Reason = LDGrowthWire::IsChoicePhase(Life.Phase)
-                ? M->Development->DevChooseOption(ContenderId, Definition, Command.Slot, Permit, Detail)
-                : ELDGrowthReason::LifePhaseChanged;
+        case ELDDevTestOp::GrantBlueprint:
+        case ELDDevTestOp::LearnActive:
+        case ELDDevTestOp::AllocatePoints:
+            // Like a build command: Alive or Dead, without the build safe window.
+            if (!LDGrowthWire::IsBuildLifePhase(Life.Phase))
+            {
+                Reason = ELDGrowthReason::LifePhaseChanged;
+            }
+            else if (Command.Op == ELDDevTestOp::GrantBlueprint)
+            {
+                Reason = M->Development->DevGrantBlueprint(ContenderId, Definition, Permit, Detail);
+            }
+            else if (Command.Op == ELDDevTestOp::LearnActive)
+            {
+                Reason = M->Development->DevLearnActive(ContenderId, Definition, Command.Slot, Permit, Detail);
+            }
+            else
+            {
+                Reason = M->Development->DevAllocatePoints(ContenderId, Definition, Command.Amount, Permit, Detail);
+            }
             break;
         case ELDDevTestOp::ResetToMatchStart:
-            // Like a choice: Alive or Dead; before the first life there is nothing to reset in Combat.
-            Reason = LDGrowthWire::IsChoicePhase(Life.Phase)
+            // Like a build command: Alive or Dead; before the first life there is nothing to reset in Combat.
+            Reason = LDGrowthWire::IsBuildLifePhase(Life.Phase)
                 ? CommitDevReset(ContenderId, Permit, Detail)
                 : ELDGrowthReason::LifePhaseChanged;
             break;

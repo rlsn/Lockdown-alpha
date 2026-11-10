@@ -84,7 +84,7 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     // Match 3 is already under way: a wounded and shielded body, XP, a level, a fresh own kill and a hurt unit.
     FLDCombatOwnerView Combat=WorldFeedbackTestBody(3,1,8,20000,30000);
     Combat.ShieldP2=1500;Combat.Statuses.Add(WorldFeedbackTestShield(1500,25000));
-    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=3;Growth.EarnedThrough=2;Growth.CumulativeXP=400;
+    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=3;Growth.UnspentPoints=9;Growth.ActiveOpportunitiesEarned=2;Growth.CumulativeXP=400;
     FLDKillFeedView Feed;Feed.Generation=3;Feed.Notices.Add(WorldFeedbackTestNotice(4,Self,Rival,99500));
     FLDWorldView Frame=WorldFeedbackTestFrame(3,1,1,7,20.);
     Frame.Units.Add(WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,20000,60000));
@@ -101,14 +101,14 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     // it only primes again.
     Sample.Match=4;Sample.PublicGeneration=4;
     Combat=WorldFeedbackTestBody(4,1,1,500,60000);
-    Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;Growth.CumulativeXP=0;
+    Growth.Generation=4;Growth.Level=1;Growth.UnspentPoints=3;Growth.ActiveOpportunitiesEarned=1;Growth.CumulativeXP=0;
     Feed.Generation=4;Feed.Notices={WorldFeedbackTestNotice(1,Self,Rival,Sample.NowMs-100)};
     Frame=WorldFeedbackTestFrame(4,1,1,2,1.);Frame.Units.Add(WorldFeedbackTestUnit(ELDObservedUnitKind::CampMember,1000,30000));
     TestTrue(TEXT("A new match resets every baseline and primes silently"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
 
     // Late projections of match 3, a body view of another life and a feed of another public generation.
     FLDCombatOwnerView OldBody=WorldFeedbackTestBody(3,1,10,20200,1000);
-    FLDProgressionView OldGrowth=Growth;OldGrowth.Generation=3;OldGrowth.Level=6;OldGrowth.EarnedThrough=5;OldGrowth.CumulativeXP=5000;
+    FLDProgressionView OldGrowth=Growth;OldGrowth.Generation=3;OldGrowth.Level=6;OldGrowth.UnspentPoints=18;OldGrowth.ActiveOpportunitiesEarned=3;OldGrowth.CumulativeXP=5000;
     FLDKillFeedView OldFeed;OldFeed.Generation=3;OldFeed.Notices.Add(WorldFeedbackTestNotice(9,Self,Rival,Sample.NowMs-100));
     FLDWorldView OldFrame=Frame;OldFrame.MatchGeneration=3;OldFrame.Revision=9;OldFrame.Units[0].Health.CurrentP2=1;
     LDWorldFeedback::FSample Foreign=Sample;
@@ -299,9 +299,9 @@ bool FLDWorldFeedbackRewardsAndLevelTest::RunTest(const FString& Parameters)
 {
     using LDWorldFeedback::EKind;
     LDWorldFeedback::FTracker Tracker;
-    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=1;Growth.MaxLevel=10;
+    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=1;Growth.MaxLevel=10;Growth.UnspentPoints=3;Growth.ActiveOpportunitiesEarned=1;
     LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.Progression=&Growth;
-    TestTrue(TEXT("The first growth sample only primes"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    TestTrue(TEXT("The first growth sample only primes: the opening points and active offer float nothing"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Growth.CumulativeXP=60;
     const FWorldFeedbackTestEvents Reward=WorldFeedbackTestObserve(Tracker,Sample);
     TestTrue(TEXT("A kill reward floats an experience line on the own body"),
@@ -309,23 +309,26 @@ bool FLDWorldFeedbackRewardsAndLevelTest::RunTest(const FString& Parameters)
     Growth.CumulativeXP=120;
     TestTrue(TEXT("The next last hit is its own publication and its own +60"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,60}}));
-    Growth.CumulativeXP=220;Growth.Level=2;Growth.EarnedThrough=1;Growth.PendingChoiceCount=1;
+    Growth.CumulativeXP=220;Growth.Level=2;Growth.UnspentPoints=6;
     const FWorldFeedbackTestEvents Up=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("A reward reaching a level adds one level-up naming it and the three-choice it earned"),
-        WorldFeedbackTestIs(Up,{{EKind::Experience,100},{EKind::LevelUp,1}})&&Up[1].Level==2&&Up[1].bChoiceEarned&&Up[1].bOwn);
-    Growth.ConsumedThrough=1;Growth.PendingChoiceCount=0;
-    TestTrue(TEXT("Picking the card is silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    TestTrue(TEXT("A reward reaching a level adds one level-up naming it and the stat points it earned"),
+        WorldFeedbackTestIs(Up,{{EKind::Experience,100},{EKind::LevelUp,3}})&&Up[1].Level==2&&Up[1].Offers==0&&Up[1].bOwn);
+    FLDStatPointsView& Physique=Growth.StatPoints.AddDefaulted_GetRef();Physique.StatId=FName(TEXT("stat_physique"));Physique.Points=6;
+    Growth.UnspentPoints=0;Growth.ActiveOpportunitiesConsumed=1;
+    TestTrue(TEXT("Allocating points and choosing an active are silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Growth.CumulativeXP=260;
     TestTrue(TEXT("A reward without a level-up floats its XP alone"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,40}}));
-    Growth.CumulativeXP=760;Growth.Level=4;Growth.EarnedThrough=3;Growth.PendingChoiceCount=2;
+    Growth.CumulativeXP=760;Growth.Level=4;Growth.UnspentPoints=6;Growth.ActiveOpportunitiesEarned=2;
     const FWorldFeedbackTestEvents Multi=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("Several levels at once are one level-up naming the level reached and every choice earned"),
-        WorldFeedbackTestIs(Multi,{{EKind::Experience,500},{EKind::LevelUp,2}})&&Multi[1].Level==4&&Multi[1].bChoiceEarned);
-    Growth.CumulativeXP=9000;Growth.Level=10;Growth.EarnedThrough=9;
+    TestTrue(TEXT("Several levels at once are one level-up naming the level reached, every point and every active opportunity earned"),
+        WorldFeedbackTestIs(Multi,{{EKind::Experience,500},{EKind::LevelUp,6}})&&Multi[1].Level==4&&Multi[1].Offers==1);
+    Growth.CumulativeXP=9000;Growth.Level=10;Growth.ActiveOpportunitiesEarned=3;
+    // Four of the 18 new points are allocated in the same publication: the level-up still names all of them.
+    Growth.StatPoints[0].Points=10;Growth.UnspentPoints=20;
     const FWorldFeedbackTestEvents Last=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("Reaching the last level is a level-up like any other"),
-        WorldFeedbackTestIs(Last,{{EKind::Experience,8240},{EKind::LevelUp,6}})&&Last[1].Level==10);
+    TestTrue(TEXT("Reaching the last level is a level-up like any other, and an allocation in the same view never hides a grant"),
+        WorldFeedbackTestIs(Last,{{EKind::Experience,8240},{EKind::LevelUp,18}})&&Last[1].Level==10&&Last[1].Offers==1);
     Growth.CumulativeXP=9100;
     TestTrue(TEXT("XP keeps accumulating past the last level, so rewards still float there, without a level-up"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,100}}));
@@ -342,7 +345,7 @@ bool FLDWorldFeedbackRewardsAndLevelTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The next reward floats again"),WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,100}}));
 
     // The next match: its views reset XP and level to their start, possibly before the owner follows.
-    Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;Growth.ConsumedThrough=0;Growth.PendingChoiceCount=0;Growth.CumulativeXP=0;
+    Growth.Generation=4;Growth.Level=1;Growth.UnspentPoints=3;Growth.StatPoints.Reset();Growth.ActiveOpportunitiesEarned=1;Growth.ActiveOpportunitiesConsumed=0;Growth.CumulativeXP=0;
     TestTrue(TEXT("Views of a new generation before the owner's match follows are not read"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Sample.Match=4;Sample.PublicGeneration=4;
     TestTrue(TEXT("The new generation's reset only re-primes: nothing floats"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
@@ -415,19 +418,21 @@ bool FLDWorldFeedbackTextTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Shield gained"),LDWorldFeedback::Text(Make(EKind::ShieldGain,20)),FString::Printf(TEXT("+20 %s"),LDTerms::Shield));
     TestEqualSensitive(TEXT("Shield absorbed"),LDWorldFeedback::Text(Make(EKind::ShieldAbsorbed,15)),FString::Printf(TEXT("-15 %s"),LDTerms::Shield));
     TestEqualSensitive(TEXT("Experience"),LDWorldFeedback::Text(Make(EKind::Experience,60)),FString::Printf(TEXT("+60 %s"),LDTerms::Experience));
-    LDWorldFeedback::FEvent Up=Make(EKind::LevelUp,1);Up.Level=3;Up.bChoiceEarned=true;
+    LDWorldFeedback::FEvent Up=Make(EKind::LevelUp,3);Up.Level=3;Up.Offers=1;
     TestEqualSensitive(TEXT("Level-up banner"),LDWorldFeedback::Text(Up),LDTerms::LevelUp(3));
-    TestEqualSensitive(TEXT("Level-up subline for one earned choice"),LDWorldFeedback::Subline(Up),LDTerms::ChoicesEarned(1));
-    Up.Amount=2;Up.Level=4;
-    TestEqualSensitive(TEXT("Level-up subline for several earned choices"),LDWorldFeedback::Subline(Up),LDTerms::ChoicesEarned(2));
-    Up.Amount=0;Up.bChoiceEarned=false;
-    TestTrue(TEXT("A level-up without an earned choice has no subline"),LDWorldFeedback::Subline(Up).IsEmpty());
+    TestEqualSensitive(TEXT("Level-up subline for points and one active opportunity"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 3 属性点 · 一次选技能机会")));
+    Up.Amount=6;Up.Level=4;Up.Offers=2;
+    TestEqualSensitive(TEXT("Level-up subline for several opportunities"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 6 属性点 · 2 次选技能机会")));
+    Up.Offers=0;
+    TestEqualSensitive(TEXT("Level-up subline for points alone"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 6 属性点")));
+    Up.Amount=0;
+    TestTrue(TEXT("A level-up that earned nothing has no subline"),LDWorldFeedback::Subline(Up).IsEmpty());
     LDWorldFeedback::FEvent Kill=Make(EKind::Kill,1);Kill.Name=TEXT("玩家甲");
     TestEqualSensitive(TEXT("Kill banner"),LDWorldFeedback::Text(Kill),LDTerms::KillFloat(TEXT("玩家甲")));
     Kill.Name.Reset();
     TestEqualSensitive(TEXT("Kill banner for an unlisted victim"),LDWorldFeedback::Text(Kill),LDTerms::KillFloat(LDTerms::UnknownVictim));
     TestTrue(TEXT("Only a level-up has a subline"),LDWorldFeedback::Subline(Kill).IsEmpty()&&LDWorldFeedback::Subline(Make(EKind::Experience,45)).IsEmpty());
-    LDWorldFeedback::FEvent Number=Make(EKind::UnitDamage,37);Number.Name=TEXT("玩家甲");Number.Level=7;Number.bChoiceEarned=true;
+    LDWorldFeedback::FEvent Number=Make(EKind::UnitDamage,37);Number.Name=TEXT("玩家甲");Number.Level=7;Number.Offers=1;
     TestEqualSensitive(TEXT("A number shows its amount only, never a name or level"),LDWorldFeedback::Text(Number),FString(TEXT("-37")));
     return true;
 }

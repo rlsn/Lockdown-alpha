@@ -40,28 +40,6 @@ bool NonnegativeRational(const FLDDemoRational& Value)
     return Value.Numerator >= 0 && Value.Denominator > 0;
 }
 
-// Passive effects Combat reads as triggers (ALDCombatDirector::CollectPassiveEffects); they add no attribute term.
-bool IsCombatTriggerOp(ELDDemoEffectOp Op)
-{
-    switch (Op)
-    {
-    case ELDDemoEffectOp::Lifesteal: case ELDDemoEffectOp::Cleave: case ELDDemoEffectOp::DashBoost:
-    case ELDDemoEffectOp::Thorns: case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::AbilityCrit:
-    case ELDDemoEffectOp::TriggeredShield:
-    case ELDDemoEffectOp::CritDamageReduction: case ELDDemoEffectOp::NthBasicBonus: case ELDDemoEffectOp::ManaOnHit:
-    // #112 C2 triggers (LDCombatMechanicsDirector.cpp).
-    case ELDDemoEffectOp::CastFrenzy: case ELDDemoEffectOp::AfflictionAmp:
-    case ELDDemoEffectOp::ShieldBreakRetort: case ELDDemoEffectOp::HitHaste:
-    // #147 v7: passive breach and burn stacks; a learned control amplification keeps its own conditional term below.
-    case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::ControlDamageAmp:
-    case ELDDemoEffectOp::ArgumentChain: case ELDDemoEffectOp::SpellSustain: case ELDDemoEffectOp::PrimaryGuard:
-    case ELDDemoEffectOp::DashContactDamage: case ELDDemoEffectOp::DashContactRefund: case ELDDemoEffectOp::DashContactGuard:
-        return true;
-    default:
-        return false;
-    }
-}
-
 // Maps one typed bonus to its projected attribute and term kind; false for an unsupported stat.
 bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool& bBasisPoints)
 {
@@ -112,10 +90,7 @@ struct FAttributeSum
     FExact Base;
     FTermSum Level;
     FTermSum Choices;
-    FTermSum Passives;
     FTermSum Dev;
-    // Explicit wild-card deductions (positive magnitudes), subtracted from the flat and ratio sums.
-    FTermSum Penalties;
 };
 
 class FProjector
@@ -160,8 +135,7 @@ private:
             && Formulas.AttackSpeed == ELDDemoFormula::BaseTimesAdditiveRatio
             && Formulas.MoveSpeed == ELDDemoFormula::BaseTimesAdditiveRatio
             && Formulas.AttackRange == ELDDemoFormula::BasePlusFlat
-            && Progression.MaxLevel >= 1 && Progression.MaxSkillRank >= 1
-            && Progression.MaxChoices >= 0
+            && Progression.MaxLevel >= 1
             && P.AttackSpeedPerLevelBp >= 0 && P.CritChanceBaseBp >= 0
             && P.CooldownHasteBaseP2 >= 0 && P.CooldownHasteMaxP2 >= 0;
         for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.MaxMP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
@@ -191,78 +165,25 @@ private:
                 FString::Printf(TEXT("Level %d is outside 1..%d"), int32(Build.Level), Progression.MaxLevel));
         }
         FString LookupError;
-        int64 ConsumedChoices = 0;
-        for (int32 Index = 0; Index < Build.LearnedPassives.Num(); ++Index)
+        for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
         {
-            const FLDLearnedPassiveValue& Learned = Build.LearnedPassives[Index];
-            const FString Field = FString::Printf(TEXT("LearnedPassives[%d]"), Index);
-            const FLDDemoAbilityDefinition* Ability = nullptr;
-            if (!Catalog.FindAbility(Learned.AbilityId, Ability, LookupError))
+            const FLDStatPointsValue& Allocated = Build.StatPoints[Index];
+            const FString Field = FString::Printf(TEXT("StatPoints[%d]"), Index);
+            const FLDDemoStatDefinition* Stat = nullptr;
+            if (!Catalog.FindStat(Allocated.StatId, Stat, LookupError))
             {
                 return Refuse(EError::UnknownDefinition, Field, LookupError);
             }
-            if (Ability->Kind != ELDDemoAbilityKind::Passive)
+            if (Stats.Contains(Stat))
             {
-                return Refuse(EError::UnknownDefinition, Field, Learned.AbilityId + TEXT(" is not a passive ability"));
+                return Refuse(EError::DuplicateSource, Field, Allocated.StatId + TEXT(" is listed more than once"));
             }
-            if (Passives.Contains(Ability))
+            if (Allocated.Points < 1)
             {
-                return Refuse(EError::DuplicateSource, Field, Learned.AbilityId + TEXT(" is listed more than once"));
+                return Refuse(EError::InputDomain, Field, FString::Printf(TEXT("%d points are not a positive allocation"),
+                    Allocated.Points));
             }
-            if (Learned.Rank < 1 || int32(Learned.Rank) > Progression.MaxSkillRank)
-            {
-                return Refuse(EError::InputDomain, Field, FString::Printf(
-                    TEXT("Rank %d is outside 1..%d"), int32(Learned.Rank), Progression.MaxSkillRank));
-            }
-            // #147: the passive's fixed amounts as its owner's current level grows them.
-            const FLDDemoRankDefinition* Rank = Catalog.FindRank(*Ability, Learned.Rank, Build.Level);
-            if (Rank == nullptr)
-            {
-                return Refuse(EError::Catalog, Field, TEXT("The validated catalog has no row for this rank"));
-            }
-            Passives.Add(Ability);
-            PassiveRanks.Add(Rank);
-            ConsumedChoices += Learned.Rank;
-        }
-        for (int32 Index = 0; Index < Build.AttributeCards.Num(); ++Index)
-        {
-            const FLDAttributeCardValue& Card = Build.AttributeCards[Index];
-            const FString Field = FString::Printf(TEXT("AttributeCards[%d]"), Index);
-            const FLDDemoAttributeDefinition* Attribute = nullptr;
-            if (!Catalog.FindAttribute(Card.AttributeId, Attribute, LookupError))
-            {
-                return Refuse(EError::UnknownDefinition, Field, LookupError);
-            }
-            if (Card.Count < 1 || !LDDemoAttributeQuality::IsValid(Card.Quality))
-            {
-                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry needs a valid quality and at least one card"));
-            }
-            const FString SourceKey = FString::Printf(TEXT("%s:%u"), *Attribute->Id, uint8(Card.Quality));
-            if (CardSources.Contains(SourceKey))
-            {
-                return Refuse(EError::DuplicateSource, Field, Card.AttributeId + TEXT(" and quality are listed more than once"));
-            }
-            CardSources.Add(SourceKey);
-            Cards.Add(Attribute);
-            ConsumedChoices += Card.Count;
-        }
-        // #153: the opening direction card is the opening choice (its active is unseen here).
-        if (!Build.OpeningCard.IsEmpty())
-        {
-            if (!Catalog.FindOpeningCard(Build.OpeningCard, Opening, LookupError))
-            {
-                return Refuse(EError::UnknownDefinition, TEXT("OpeningCard"), LookupError);
-            }
-            ConsumedChoices += 1;
-        }
-        // Each passive rank and each card consumed one choice: the opening one plus one per level-up, so the level bounds
-        // them; unseen active choices only tighten this bound.
-        const int64 VisibleChoiceBound = FMath::Min<int64>(int64(Build.Level), Progression.MaxChoices);
-        if (ConsumedChoices > VisibleChoiceBound)
-        {
-            return Refuse(EError::InputDomain, TEXT("ChoiceBudget"), FString::Printf(
-                TEXT("Passive ranks and attribute cards use %lld choices; level %d allows at most %lld"),
-                ConsumedChoices, int32(Build.Level), VisibleChoiceBound));
+            Stats.Add(Stat);
         }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
         {
@@ -346,113 +267,20 @@ private:
         {
             return ArithmeticFailure(TEXT("Catalog"));
         }
-        for (int32 Index = 0; Index < Cards.Num(); ++Index)
+        // #198: each allocated point adds its stat's per-point bonuses once; the points sum, they never compound.
+        for (int32 Index = 0; Index < Stats.Num(); ++Index)
         {
-            const FLDAttributeCardValue& Card = Build.AttributeCards[Index];
-            const FString Field = FString::Printf(TEXT("AttributeCards[%d]"), Index);
-            int64 MultiplierBp = 0;
-            switch (Card.Quality)
+            const FString Field = FString::Printf(TEXT("StatPoints[%d]"), Index);
+            const FExact Points = Numbers.Value(int64(Build.StatPoints[Index].Points));
+            for (const FLDDemoStatBonus& Bonus : Stats[Index]->PerPoint)
             {
-            case ELDAttributeQuality::Green: MultiplierBp = P.Choice.AttributeGreenMultiplierBp; break;
-            case ELDAttributeQuality::Blue: MultiplierBp = P.Choice.AttributeBlueMultiplierBp; break;
-            case ELDAttributeQuality::Purple: MultiplierBp = P.Choice.AttributePurpleMultiplierBp; break;
-            case ELDAttributeQuality::Gold: MultiplierBp = P.Choice.AttributeGoldMultiplierBp; break;
-            default: return Refuse(EError::InputDomain, Field, TEXT("An attribute card has an undefined quality"));
-            }
-            const FExact Count = Numbers.Value(Card.Count);
-            const FExact ScaledCount = Numbers.Mul(Count, Numbers.Value(MultiplierBp, 10000));
-            for (const FLDDemoStatBonus& Bonus : Cards[Index]->Stats)
-            {
-                if (!AddBonus(Bonus, &FAttributeSum::Choices, ScaledCount, Field))
-                {
-                    return false;
-                }
-            }
-            for (const FLDDemoStatBonus& Penalty : Cards[Index]->Penalties)
-            {
-                if (!AddBonus(Penalty, &FAttributeSum::Penalties, Count, Field + TEXT(".Penalties")))
+                if (!AddBonus(Bonus, &FAttributeSum::Choices, Points, Field))
                 {
                     return false;
                 }
             }
         }
         const FExact One = Numbers.Value(1);
-        if (Opening)
-        {
-            for (const FLDDemoStatBonus& Bonus : Opening->Stats)
-            {
-                if (!AddBonus(Bonus, &FAttributeSum::Choices, One, TEXT("OpeningCard")))
-                {
-                    return false;
-                }
-            }
-        }
-        for (int32 Index = 0; Index < PassiveRanks.Num(); ++Index)
-        {
-            const FString Field = FString::Printf(TEXT("LearnedPassives[%d]"), Index);
-            for (const FLDDemoEffectDefinition& Effect : PassiveRanks[Index]->Effects)
-            {
-                if (Effect.GetOp() == ELDDemoEffectOp::StatBonus)
-                {
-                    for (const FLDDemoStatBonus& Bonus : Effect.Stats)
-                    {
-                        if (!AddBonus(Bonus, &FAttributeSum::Passives, One, Field))
-                        {
-                            return false;
-                        }
-                    }
-                }
-                else if (Effect.GetOp() == ELDDemoEffectOp::LowHpStatBonus)
-                {
-                    if (LowHP.IsSet())
-                    {
-                        return Refuse(EError::Aggregation, Field, TEXT("Several low-HP passives have no approved aggregation rule"));
-                    }
-                    if (Effect.RatioBp <= 0 || Effect.RatioBp >= 10000 || Effect.Stats.IsEmpty())
-                    {
-                        return Refuse(EError::Catalog, Field, TEXT("A low-HP passive requires a threshold inside the pool and stats"));
-                    }
-                    FLDLowHPBonusTerm& Term = LowHP.Emplace();
-                    Term.AbilityId = Passives[Index]->Id;
-                    Term.Rank = Build.LearnedPassives[Index].Rank;
-                    Term.ThresholdBp = Effect.RatioBp;
-                    Term.Stats = Effect.Stats;
-                    Term.BasicLifestealBp = Effect.SecondaryRatioBp;
-                }
-                else if (Effect.GetOp() == ELDDemoEffectOp::ControlDamageAmp)
-                {
-                    if (ControlAmp.IsSet())
-                    {
-                        return Refuse(EError::Aggregation, Field, TEXT("Several control amplification passives have no approved aggregation rule"));
-                    }
-                    if (Effect.RatioBp <= 0)
-                    {
-                        return Refuse(EError::Catalog, Field, TEXT("Control amplification requires a positive ratio"));
-                    }
-                    FLDControlDamageAmpTerm& Term = ControlAmp.Emplace();
-                    Term.AbilityId = Passives[Index]->Id;
-                    Term.Rank = Build.LearnedPassives[Index].Rank;
-                    Term.RatioBp = Effect.RatioBp;
-                    Term.LowHPBelowBp = Effect.SecondaryRatioBp;
-                }
-                else if (IsCombatTriggerOp(Effect.GetOp()))
-                {
-                    // A combat trigger of this exact rank, listed once per passive; it contributes no attribute term.
-                    if (!LearnedTriggers.ContainsByPredicate([&](const FLDLearnedTriggerTerm& Existing)
-                        { return Existing.AbilityId == Passives[Index]->Id; }))
-                    {
-                        FLDLearnedTriggerTerm& Trigger = LearnedTriggers.AddDefaulted_GetRef();
-                        Trigger.AbilityId = Passives[Index]->Id;
-                        Trigger.Rank = Build.LearnedPassives[Index].Rank;
-                        Trigger.Level = Build.Level;
-                    }
-                }
-                else
-                {
-                    return Refuse(EError::Catalog, Field, TEXT("Learned passive effect has no attribute projection rule"));
-                }
-            }
-        }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
         {
             if (!AddBonus(Build.DevBonuses[Index], &FAttributeSum::Dev, One, FString::Printf(TEXT("DevBonuses[%d]"), Index)))
@@ -587,13 +415,10 @@ private:
             const EAttribute Attribute = static_cast<EAttribute>(Index);
             const FString Field = AttributeName(Attribute);
             const FAttributeSum& Sum = Sums[Index];
-            const FExact Flat = Numbers.Sub(Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat),
-                Sum.Passives.Flat), Sum.Dev.Flat), Sum.Penalties.Flat);
-            const FExact Ratio = Numbers.Sub(Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio),
-                Sum.Passives.Ratio), Sum.Dev.Ratio), Sum.Penalties.Ratio);
+            const FExact Flat = Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat), Sum.Dev.Flat);
+            const FExact Ratio = Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio), Sum.Dev.Ratio);
             FExact Value = Numbers.Mul(Numbers.Add(Sum.Base, Flat), Numbers.Add(One, Ratio));
-            // Every attribute clamps last to its catalog bounds (#112 §4): repeatable cards may push a sum past a cap,
-            // and a wild card's explicit deduction stops at the floor (max HP 1, move speed 300, attack range 80).
+            // Every attribute clamps last to its catalog bounds (#112 §4): allocated points may push a sum past a cap.
             bool bClamped = false, bAboveMax = false;
             FExact Min, Max;
             Bounds(Attribute, Min, Max);
@@ -629,22 +454,14 @@ private:
                 && ToRational(Sum.Level.Ratio, Row.LevelGrowth.AdditiveRatio, Field)
                 && ToRational(Sum.Choices.Flat, Row.PermanentChoices.Flat, Field)
                 && ToRational(Sum.Choices.Ratio, Row.PermanentChoices.AdditiveRatio, Field)
-                && ToRational(Sum.Passives.Flat, Row.Passives.Flat, Field)
-                && ToRational(Sum.Passives.Ratio, Row.Passives.AdditiveRatio, Field)
                 && ToRational(Sum.Dev.Flat, Row.Dev.Flat, Field)
                 && ToRational(Sum.Dev.Ratio, Row.Dev.AdditiveRatio, Field)
-                && ToRational(Sum.Penalties.Flat, Row.Penalties.Flat, Field)
-                && ToRational(Sum.Penalties.Ratio, Row.Penalties.AdditiveRatio, Field)
                 && ToRational(Value, Row.Final, Field);
             if (!bRowStored)
             {
                 return ArithmeticFailure(Field);
             }
         }
-        Out.LowHPBonus = LowHP;
-        Out.ControlAmp = ControlAmp;
-        LearnedTriggers.Sort([](const FLDLearnedTriggerTerm& A, const FLDLearnedTriggerTerm& B) { return A.AbilityId < B.AbilityId; });
-        Out.LearnedTriggers = MoveTemp(LearnedTriggers);
         return true;
     }
 
@@ -655,14 +472,8 @@ private:
     LDDemoContent::FCheck Check;
     FNumbers Numbers;
     TArray<FAttributeSum> Sums;
-    TArray<const FLDDemoAbilityDefinition*, TInlineAllocator<8>> Passives;
-    TArray<const FLDDemoRankDefinition*, TInlineAllocator<8>> PassiveRanks;
-    TArray<const FLDDemoAttributeDefinition*, TInlineAllocator<8>> Cards;
-    TSet<FString> CardSources;
-    const FLDDemoOpeningCardDefinition* Opening = nullptr;
-    TOptional<FLDLowHPBonusTerm> LowHP;
-    TOptional<FLDControlDamageAmpTerm> ControlAmp;
-    TArray<FLDLearnedTriggerTerm> LearnedTriggers;
+    // The catalog stat of each Build.StatPoints row, in input order.
+    TArray<const FLDDemoStatDefinition*, TInlineAllocator<8>> Stats;
 };
 
 // Exact value of one projected attribute as stored in Final.
@@ -808,13 +619,11 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         {
             const FLDAttributeContributions& Row = Build.Contributions[Index];
             Base = N.Value(Row.Base);
-            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Passives, &Row.Dev})
+            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Dev})
             {
                 Flat = N.Add(Flat, N.Value(Terms2->Flat));
                 Ratio = N.Add(Ratio, N.Value(Terms2->AdditiveRatio));
             }
-            Flat = N.Sub(Flat, N.Value(Row.Penalties.Flat));
-            Ratio = N.Sub(Ratio, N.Value(Row.Penalties.AdditiveRatio));
         }
         else
         {

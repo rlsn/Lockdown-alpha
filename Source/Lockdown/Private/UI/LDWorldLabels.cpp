@@ -57,8 +57,6 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::Silence: return FLinearColor(.62f,.48f,1.f);
     case ELDDemoStatusId::Burn: return FLinearColor(1.f,.36f,.12f);
     case ELDDemoStatusId::AttackSlowed: return FLinearColor(.65f,.4f,.9f);
-    case ELDDemoStatusId::Cowering: return FLinearColor(.95f,.8f,.3f);
-    case ELDDemoStatusId::ContactGuard: return FLinearColor(.3f,.9f,.8f);
     default: return WorldLabelStatusInk;
     }
 }

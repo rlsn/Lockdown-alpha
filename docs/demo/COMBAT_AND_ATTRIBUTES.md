@@ -206,8 +206,8 @@ namespace LDTactical
 | `FLDBasicTimingInput` | 显式的 BaseAttackSpeed、CurrentAttackSpeed 有理数及 BaseWindupMs；玩家来自 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物来自 `CAMP.Low/High.AttackSpeed/AttackWindupSec`，均接相同公式语义。 |
 | `FLDBasicTimingResult` | 与伤害一致的 Value/Error 形状，成功给 IntervalMs/WindupMs 正时长且前摇小于间隔；不生成绝对 NextAttackAt、ReadyAt 或权威时间。 |
 
-HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；主普攻（×`STAT.CritMultiplier`，在加成池之前）与内容明确列出的技能
-（#112 技能暴击；#147 D21 起在 `DamageBonusBp` 加成池里加 `STAT.AbilityCritMultiplier − 1`）允许本次暴击，副击、反伤与附加伤害不暴击；
+HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；只有主普攻（×`STAT.CritMultiplier`，在加成池之前）允许本次暴击，
+技能（#198 删除了技能暴击，带暴击的技能输入以 Domain 拒绝）、副击、反伤与附加伤害不暴击；
 两个 Basic 分类均拒绝 AP 系数和魔法伤害。完整字段、数值域与精确算术校验先于保护零伤，
 不能靠受保护掩盖坏输入。中间有理数复用同一受检精确算术，保留到最终一次 floor/ceil。
 原生公式夹具使用 producer 生成的 `approved_base`；原有 `base` 仍是独立合成输入，
@@ -807,7 +807,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 | 测试 | 覆盖内容 |
 | --- | --- |
 | `DemoCombatEvaluation.Damage/DamageDomains/ExactDamage/BasicTiming/TimingDomains` | 纯值伤害与普攻时长、精确算术、数值域拒绝（A01/A07 纯值部分） |
-| `DemoAttributeProjection.ApprovedLevels/ChoicesAndPassives/Envelope/Refusals` | 批准等级投影、选择预算、被动每 family 一次、资源比例与拒绝 |
+| `DemoAttributeProjection.ApprovedLevels/StatPoints/Envelope/Refusals/LowHPTerm` | 批准等级投影、五维点数按每点数值投影与夹取、资源比例与拒绝、低血条件项 |
 | `DemoCombatSources.CooldownTracks` | 持久冷却轨道与回绑 |
 | `DemoCombatSources.CommittedBasicRelease` | 已起手普攻不查射程：目标走出射程仍命中；目标失视野、被墙挡、死亡、离局、换命或攻击者受控则放弃（2026-11-07） |
 | `DemoCombatStatus.Roots/Shield/Regen/Cooldown` | Root 实例与净化、盾替换政策、回复积分、冷却期限 |
@@ -823,11 +823,11 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 - `Scripts\RunDemoCombatCheck.ps1` + `LDDemoCombatProbe.cpp`（Host + Client1，可选 `-NetEmulation` 与打包运行）：
   攻击移动接近、S 停止、打开设置期间已接受的行走订单继续而不接受新世界命令、右键击杀与击杀播报归属、死亡镜头、
   复活延迟、在出生锚点之一的批准偏移处复活、复活保护窗口及观察到的 `respawn_protection`、
-  空 Q 槽激活尝试被拒但仍解除保护；经 DEV 成长夹具的普通选择学习技能后，`active_pants_down` 定身、
-  升到高级的 `active_not_mad` 加盾并净化定身、`active_snark_bolt` 的弹体被观察、`attr_hand_out` 扩大普攻距离
-  （#147 换目录后改用这些条目，需在新目录上重新运行确认）；
+  空 Q 槽激活尝试被拒但仍解除保护；经 DEV 成长夹具预置候选与普通构筑命令学会主动后，`active_pants_down` 定身、
+  `active_not_mad` 加盾并净化定身、`active_snark_bolt` 的弹体被观察并减速、右键追击在基础射程内落下普攻
+  （#198 第一部分换目录后改用这些条目，需在新目录上重新运行确认）；
   Host 渲染截图供表现审阅（不做像素比较），并报告操作手感测量值。
-- `Scripts\RunDemoGrowthCheck.ps1`：满槽替换与重学沿用原冷却结束时间；新局无冷却债务。
+- `Scripts\RunDemoGrowthCheck.ps1`：开局主动在倒计时学到 Q、构筑安全窗内的 `NotSafe` 与窗口后的学习和加点、死亡中存为图纸；新局无冷却债务。
 - `Scripts\RunDemoCampCheck.ps1`：野怪不先手、全营反击、每生命一次最后一击奖励、清营刷新、脱离回位与无奖励到家重置。
 - `Scripts\RunDemoOpponentCheck.ps1`：三名真人就绪满房并加入三个 AI 后不参战，AI 自行完成成长、战斗、喷漆与守护。
 - `RunDemoVisionCheck.ps1`、`RunDemoCoreCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1`

@@ -30,6 +30,13 @@ int64 WorldFeedbackPoints(int64 AbsP2){return (AbsP2+50)/100;}
 // Regeneration stays quiet: a gain reads as a heal only above 25 points per second of authority time (at least 0.1 s)
 // plus one point, clear of the fastest contender regeneration.
 double WorldFeedbackRegenToleranceP2(double Seconds){return 100.+2500.*FMath::Max(.1,Seconds);}
+// #198: stat points earned so far are the unspent ones plus every point already allocated.
+int64 WorldFeedbackPointsEarned(const FLDProgressionView& Progression)
+{
+    int64 Earned=FMath::Max<int64>(0,Progression.UnspentPoints);
+    for(const FLDStatPointsView& Stat:Progression.StatPoints){Earned+=FMath::Max(0,Stat.Points);}
+    return Earned;
+}
 // Camp members never regenerate: any gain above one point is a heal (a camp that returned home refills).
 constexpr int64 WorldFeedbackCampToleranceP2=100;
 const FLDCombatStatusView* WorldFeedbackShieldStatus(const FLDCombatOwnerView& Combat)
@@ -102,15 +109,20 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
         {
             FEvent& XPEvent=Out.AddDefaulted_GetRef();XPEvent.Kind=EKind::Experience;XPEvent.Amount=Progression->CumulativeXP-XP;
         }
-        // Several levels at once are one level-up naming the level reached and every three-choice earned with it.
+        // Several levels at once are one level-up naming the level reached and every point and opportunity earned with it.
         if(Progression->Level>Level)
         {
             FEvent& LevelEvent=Out.AddDefaulted_GetRef();LevelEvent.Kind=EKind::LevelUp;LevelEvent.Level=Progression->Level;
-            LevelEvent.Amount=FMath::Max(0,int32(Progression->EarnedThrough)-int32(Earned));LevelEvent.bChoiceEarned=LevelEvent.Amount>0;
+            LevelEvent.Amount=FMath::Max<int64>(0,WorldFeedbackPointsEarned(*Progression)-PointsEarned);
+            LevelEvent.Offers=FMath::Max(0,int32(Progression->ActiveOpportunitiesEarned)-int32(OffersEarned));
         }
     }
     bGrowth=bProgress;
-    if(bProgress){Level=Progression->Level;Earned=Progression->EarnedThrough;XP=Progression->CumulativeXP;}
+    if(bProgress)
+    {
+        Level=Progression->Level;OffersEarned=Progression->ActiveOpportunitiesEarned;
+        PointsEarned=WorldFeedbackPointsEarned(*Progression);XP=Progression->CumulativeXP;
+    }
 }
 
 void LDWorldFeedback::FTracker::ObserveKills(const FSample& Sample,TArray<FEvent>& Out)
@@ -203,8 +215,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
 
 FString LDWorldFeedback::Subline(const FEvent& Event)
 {
-    if(Event.Kind!=EKind::LevelUp||!Event.bChoiceEarned){return FString();}
-    return LDTerms::ChoicesEarned(Event.Amount);
+    return Event.Kind==EKind::LevelUp?LDTerms::LevelUpGains(Event.Amount,Event.Offers):FString();
 }
 
 LDWorldFeedback::EUnitHold LDWorldFeedback::UnitHold(bool bPresented,bool bPresentationClock,double PresentationAtServerSec,double SampledAtServerSec,double HeldSeconds)

@@ -16,8 +16,8 @@ namespace LDCombatMechanicsDetail
     double Cm(const FLDDemoRational& Value)
     { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; }
 
-    const FLDDemoEffectDefinition* FindOp(const FLDDemoRankDefinition& Rank, ELDDemoEffectOp Op)
-    { return Rank.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); }
+    const FLDDemoEffectDefinition* FindOp(const FLDDemoAbilityValues& Values, ELDDemoEffectOp Op)
+    { return Values.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); }
 
     // floor(ValueP2 x Bp / 10000) without overflow for nonnegative inputs.
     int64 Scale(int64 ValueP2, int64 Bp)
@@ -54,21 +54,22 @@ ALDCharacter* ALDCombatDirector::ActorOf(const FLDBodyCombatState& Body) const
 const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
     FLDCombatSourceRef* OutSource) const
 {
-    const FLDDemoContentSnapshot* Content=Catalog();
-    if (!Content) { return nullptr; }
-    FString Ignored;
-    for (const FLDLearnedTriggerTerm& Term : Projection.LearnedTriggers)
-    {
-        const FLDDemoAbilityDefinition* Ability=nullptr;
-        if (!Content->FindAbility(Term.AbilityId,Ability,Ignored) || !Ability) { continue; }
-        const FLDDemoRankDefinition* Rank=Content->FindRank(*Ability,Term.Rank,Term.Level);
-        if (const FLDDemoEffectDefinition* Effect=Rank ? LDCombatMechanicsDetail::FindOp(*Rank,Op) : nullptr)
-        {
-            if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Learned; OutSource->DefinitionId=FName(*Term.AbilityId); }
-            return Effect;
-        }
-    }
-    return nullptr;
+    TArray<FLDPassiveEffectRef> Held;
+    FString Error;
+    if (!CollectPassiveEffects(Projection,Op,Held,Error) || Held.IsEmpty()) { return nullptr; }
+    if (OutSource) { *OutSource=Held[0].Source; }
+    return Held[0].Effect;
+}
+
+TOptional<FLDLowHPBonusTerm> ALDCombatDirector::HeldLowHPBonus(const FLDAttributeProjection& Projection) const
+{
+    const FLDDemoEffectDefinition* Effect=FindTrigger(Projection,ELDDemoEffectOp::LowHpStatBonus);
+    if (!Effect) { return {}; }
+    FLDLowHPBonusTerm Term;
+    Term.ThresholdBp=Effect->RatioBp;
+    Term.Stats=Effect->Stats;
+    Term.BasicLifestealBp=Effect->SecondaryRatioBp;
+    return Term;
 }
 
 bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2)
@@ -150,37 +151,10 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     return true;
 }
 
-bool ALDCombatDirector::OnHitLanded(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 DamageP2, int64 NowMs, FString& Error)
-{
-    FLDBodyCombatState* Source=FindBody(Hit.SourceBody);
-    if (!Source || Source==&Target || Source->bPendingDeath || DamageP2<=0 || Hit.bAddedDamage || Hit.bReflect) { return true; }
-    const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
-    // item_skateboard: a landed basic hurries its owner for a moment.
-    FLDCombatSourceRef SkateRef;
-    if (const FLDDemoEffectDefinition* Skate=bBasic ? FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::HitHaste,&SkateRef) : nullptr)
-    {
-        FLDCombatTimedBonus Haste;
-        Haste.EffectId=FGuid::NewGuid();
-        Haste.SourceDefinition=SkateRef.DefinitionId;
-        FLDDemoStatBonus& Faster=Haste.Stats.AddDefaulted_GetRef();
-        Faster.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
-        Faster.Amount=Skate->RatioBp;
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Skate->DurationMs,Haste.ExpiresAtMs,Error)) { return false; }
-        LDTactical::ApplyTimedBonus(Source->TimedBonuses,Haste);
-        ++Source->StateRevision;
-        MarkViewChanged(Source->Victim.EntityId);
-    }
-    return true;
-}
-
 bool ALDCombatDirector::ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs)
 {
     bool Changed=Body.Knockbacks.RemoveAll([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
     Changed|=Body.AttackSlows.RemoveAll([NowMs](const FLDCombatSlow& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
-    if (Body.CowerUntilMs>0 && Body.CowerUntilMs<=NowMs)
-    { Body.CowerUntilMs=Body.CowerReductionBp=Body.CowerMoveBp=0; Body.CowerEffectId.Invalidate(); Changed=true; }
-    if (Body.ContactGuardUntilMs>0 && Body.ContactGuardUntilMs<=NowMs)
-    { Body.ContactGuardUntilMs=Body.ContactGuardBp=0; Changed=true; }
     if (Body.SlowResistanceUntilMs>0 && Body.SlowResistanceUntilMs<=NowMs)
     { Body.SlowResistanceUntilMs=Body.SlowResistanceBp=0; Changed=true; }
     if (Body.DashContact && Body.DashContact->EndMs<=NowMs) { Body.DashContact.Reset(); }
@@ -197,8 +171,6 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
         if (Body.bPendingDeath) { continue; }
         for (const auto& Row : Body.Knockbacks) { Consider(Row.ExpiresAtMs); }
         for (const auto& Row : Body.AttackSlows) { Consider(Row.ExpiresAtMs); }
-        Consider(Body.CowerUntilMs);
-        Consider(Body.ContactGuardUntilMs);
         Consider(Body.SlowResistanceUntilMs);
         if (Body.DashContact) { Consider(Body.DashContact->EndMs); }
     }
@@ -216,7 +188,7 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
 
 bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
 {
-    // Ground zones: pulses, the kept slow and the end root.
+    // Ground zones: damage pulses, slow checks and burn checks.
     for (int32 Index=Zones.Num()-1; Index>=0; --Index)
     {
         FLDCombatZone& Zone=Zones[Index];
@@ -268,11 +240,11 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                 FLDCombatHit& Hit=Emit(Target);
                 Hit.EffectId=CheckId;
                 Hit.SlowBp=Zone.SlowBp;
-                // Kept while inside and for the linger after leaving.
-                Hit.SlowDurationMs=Zone.SlowCheckMs+Zone.SlowLingerMs;
+                // #198: each check slows for its own duration (no linger).
+                Hit.SlowDurationMs=Zone.SlowDurationMs;
                 Hit.bSilent=true;
             }
-            Zone.NextSlowAtMs+=Zone.SlowCheckMs;
+            Zone.NextSlowAtMs+=Zone.SlowIntervalMs;
         }
         while (Zone.BurnStacks>0 && Zone.BurnIntervalMs>0 && Zone.NextBurnAtMs<=NowMs && Zone.NextBurnAtMs<Zone.EndMs)
         {
@@ -291,39 +263,27 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
             }
             Zone.NextBurnAtMs+=Zone.BurnIntervalMs;
         }
-        if (Zone.EndMs<=NowMs)
-        {
-            if (Zone.EndRootMs>0)
-            {
-                TArray<FLDCombatBodyRef> Targets;
-                if (!Inside(Targets,Error)) { Error=TEXT("Zone end: ")+Error; return false; }
-                for (const FLDCombatBodyRef& Target : Targets) { Emit(Target).RootDurationMs=Zone.EndRootMs; }
-            }
-            Zones.RemoveAt(Index);
-        }
+        if (Zone.EndMs<=NowMs) { Zones.RemoveAt(Index); }
     }
     return true;
 }
 
-void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoRankDefinition& Rank, const FVector& OriginFoot, FLDCombatHit& Template) const
+void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoAbilityValues& Values, const FVector& OriginFoot, FLDCombatHit& Template) const
 {
     using namespace LDCombatMechanicsDetail;
-    if (const FLDDemoEffectDefinition* Push=FindOp(Rank,ELDDemoEffectOp::Knockback))
+    if (const FLDDemoEffectDefinition* Push=FindOp(Values,ELDDemoEffectOp::Knockback))
     {
         // The push leaves from the caster's foot at release.
         Template.KnockbackCm=Cm(Push->DistanceCm);
         Template.KnockbackMs=Push->DurationMs;
         Template.bKnockbackFromAnchor=true;
         Template.KnockbackAnchorCm=OriginFoot;
-        // #147: a push that travels less than this met a wall and stuns.
-        Template.WallCheckCm=Cm(Push->RadiusCm);
-        Template.WallStunMs=Push->SecondaryDurationMs;
     }
-    if (const auto* Slow=FindOp(Rank,ELDDemoEffectOp::AttackSlow))
+    if (const auto* Slow=FindOp(Values,ELDDemoEffectOp::AttackSlow))
     { Template.AttackSlowBp=Slow->RatioBp; Template.AttackSlowMs=Slow->DurationMs; }
 }
 
-bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoRankDefinition& Rank,
+bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoAbilityValues& Values,
     const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId,
     TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error)
 {
@@ -331,7 +291,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
     ALDGameMode* Mode=Core();
     if (!Mode) { Error=TEXT("Release mechanics require the current core."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
-    if (const FLDDemoEffectDefinition* ZoneDef=FindOp(Rank,ELDDemoEffectOp::Zone))
+    if (const FLDDemoEffectDefinition* ZoneDef=FindOp(Values,ELDDemoEffectOp::Zone))
     {
         FLDCombatZone Zone;
         Zone.EffectId=EffectId;
@@ -342,7 +302,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         Zone.Source=Source;
         // A ground point zone sits at the requested point (its height taken from the caster's foot); a dash leaves
         // its zone at the start foot.
-        Zone.CentreCm=FindOp(Rank,ELDDemoEffectOp::Dash) ? OriginFoot : FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
+        Zone.CentreCm=FindOp(Values,ELDDemoEffectOp::Dash) ? OriginFoot : FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
         Zone.RadiusCm=Cm(ZoneDef->RadiusCm);
         Zone.StartMs=Now;
         Zone.DelayMs=ZoneDef->DelayMs;
@@ -351,17 +311,22 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         if (!LDMatchLifecycle::AddDurationMs(Now,ZoneDef->DurationMs,Zone.EndMs,Error)) { return false; }
         Zone.SourceADP2=Body.AttributeProjection.Final.ADP2;
         Zone.SourceAPP2=Body.AttributeProjection.Final.APP2;
-        if (const FLDDemoEffectDefinition* Slow=FindOp(Rank,ELDDemoEffectOp::ZoneSlow))
+        // #198: every interval from the zone's start, each enemy inside is slowed for DurationMs.
+        if (const FLDDemoEffectDefinition* Slow=FindOp(Values,ELDDemoEffectOp::ZoneSlow))
         {
+            if (Slow->IntervalMs<=0 || Slow->DurationMs<=0 || Slow->RatioBp<=0)
+            {
+                Error=TEXT("A zone slow needs a positive interval, duration and ratio.");
+                return false;
+            }
             Zone.bSlow=true;
             Zone.SlowBp=Slow->RatioBp;
-            Zone.SlowCheckMs=Slow->IntervalMs;
-            Zone.SlowLingerMs=Slow->SecondaryDurationMs;
+            Zone.SlowIntervalMs=Slow->IntervalMs;
+            Zone.SlowDurationMs=Slow->DurationMs;
             Zone.NextSlowAtMs=Now;
         }
-        if (const FLDDemoEffectDefinition* Root=FindOp(Rank,ELDDemoEffectOp::ZoneRoot)) { Zone.EndRootMs=Root->DurationMs; }
         // #147: burn layers on the enemies inside, every interval from the zone's start.
-        if (const FLDDemoEffectDefinition* Burn=FindOp(Rank,ELDDemoEffectOp::ZoneBurn))
+        if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn))
         {
             FLDCombatBurnLayer Layer;
             if (!BurnLayerOf(Body,Source,Layer,Error)) { return false; }
@@ -371,7 +336,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
             Zone.BurnLevel=Layer.Level;
             Zone.BurnAPP2=Layer.SourceAPP2;
         }
-        if (const FLDDemoEffectDefinition* Damage=FindOp(Rank,ELDDemoEffectOp::ZoneDamage))
+        if (const FLDDemoEffectDefinition* Damage=FindOp(Values,ELDDemoEffectOp::ZoneDamage))
         {
             Zone.bDamage=true;
             Zone.BaseP2=Damage->BaseP2;
@@ -391,8 +356,6 @@ void ALDCombatDirector::AppendMechanicsStatuses(const FLDBodyCombatState& Body, 
     int64 AttackSlowUntil=0;
     for (const auto& Slow : Body.AttackSlows) { if (Slow.ExpiresAtMs>NowMs) { AttackSlowUntil=FMath::Max(AttackSlowUntil,Slow.ExpiresAtMs); } }
     if (AttackSlowUntil>0) { Out.Add({uint8(ELDDemoStatusId::AttackSlowed),1,AttackSlowUntil}); }
-    if (Body.CowerUntilMs>NowMs) { Out.Add({uint8(ELDDemoStatusId::Cowering),1,Body.CowerUntilMs}); }
-    if (Body.ContactGuardUntilMs>NowMs) { Out.Add({uint8(ELDDemoStatusId::ContactGuard),1,Body.ContactGuardUntilMs}); }
 }
 uint64 ALDCombatDirector::ReadKnockbackSerial(const FLDCombatBodyRef& Ref) const
 {

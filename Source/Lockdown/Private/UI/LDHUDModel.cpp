@@ -6,6 +6,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDDemoCardText.h"
+#include "Development/LDProgressionRules.h"
 #include "Development/LDSkillGrowth.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Internationalization/StringTableCore.h"
@@ -56,8 +57,6 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Silence: return TEXT("silence");
     case ELDDemoStatusId::Burn: return TEXT("burn");
     case ELDDemoStatusId::AttackSlowed: return TEXT("attack_slowed");
-    case ELDDemoStatusId::Cowering: return TEXT("cowering");
-    case ELDDemoStatusId::ContactGuard: return TEXT("contact_guard");
     default: return nullptr;
     }
 }
@@ -89,10 +88,6 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     Out=Text;
     return true;
 }
-FString LDHUD::SkillRankName(int32 Rank)
-{
-    return Rank==1?FString(TEXT("初级")):Rank==2?FString(TEXT("高级")):FString::Printf(TEXT("%d 级"),Rank);
-}
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
     FString Name;ContentText(Content,ContentId,false,Name);return Name;
@@ -117,8 +112,12 @@ FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const
 {
     if(Public.Phase!=ELDMatchPhase::Countdown&&Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
-    if(bGrowth&&Progression->PendingChoiceCount>0){return FString::Printf(TEXT("下一步：%s ×%d（点右下角的%s按钮）"),LDTerms::Choice,int32(Progression->PendingChoiceCount),LDTerms::Choice);}
-    // #153: before T=0 only the opening choice can be acted on.
+    if(bGrowth&&Progression->bHasActiveOffer)
+    {return FString::Printf(TEXT("下一步：点%s选一个技能（%s）"),LDTerms::Choice,*LDTerms::OffersQueued(Progression->QueuedActiveOpportunities));}
+    if(bGrowth&&Progression->UnspentPoints>0){return FString::Printf(TEXT("下一步：点%s加点（%s）"),LDTerms::Choice,*LDTerms::UnspentPoints(Progression->UnspentPoints));}
+    if(bGrowth&&!Progression->PendingBlueprints.IsEmpty()&&Progression->Actives.Num()<3)
+    {return FString::Printf(TEXT("下一步：点%s把%s学到空槽"),LDTerms::Choice,LDTerms::Blueprint);}
+    // #153: before T=0 only growth can be acted on.
     if(Public.Phase==ELDMatchPhase::Countdown){return FString();}
     if(Public.Phase==ELDMatchPhase::CaptureOpen)
     {
@@ -549,8 +548,7 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     View.Slot=Input.Slot;View.Key=Context.KeyLabel;
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W||Input.Slot==EActionSlot::E;
     View.Kind=bLearned?TEXT("角色主动"):TEXT("通用冲刺");
-    View.Name=!Input.bHasSource?(bLearned?FString(TEXT("空槽")):FString(LDTerms::Dash)+TEXT("不可用"))
-        :bLearned&&Input.Rank>0?FString::Printf(TEXT("%s %d级"),*Input.Name,Input.Rank):Input.Name;
+    View.Name=!Input.bHasSource?(bLearned?FString(TEXT("空槽")):FString(LDTerms::Dash)+TEXT("不可用")):Input.Name;
     // Only a current own context may send; a predicted execution failure never suppresses the intent itself.
     View.bCanSubmitIntent=Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
     FString State;
@@ -578,7 +576,6 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(bActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
     if(Input.bHasSource&&!Input.Name.IsEmpty()){View.Glyph=Input.Name.Left(1);}
     if(Input.bHasSource){View.IconId=Input.IconId;}
-    if(bLearned&&Input.bHasSource&&Input.Rank>0){View.Rank=FString::FromInt(Input.Rank);}
     return View;
 }
 LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActionInput& Input,const FActionContext& Context,const FLDDemoContentDefinitions* Content)
@@ -590,34 +587,20 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W||Input.Slot==EActionSlot::E;
     const bool bDash=Input.Slot==EActionSlot::Dash;
     TArray<FString> Lines;
-    const FString Id=Input.DefinitionId.ToString();
     if(bDash&&Input.bHasSource)
     {Lines.Add(FString::Printf(TEXT("朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
     else if(bLearned&&Input.bHasSource)
     {
-        const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
-        const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
-        if(Ability&&Display)
+        // #147/#198: the same card as the growth panel, with this level's numbers and stats.
+        const FActiveCardView Card=ActiveCard(Input.DefinitionId,Content,Context.Card);
+        if(Card.bKnown)
         {
-            // #147: the same card text as the blind box, with this level's numbers and the rank held now.
-            if(const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Input](const FLDDemoRankDefinition& R){return R.Rank==Input.Rank;}))
-            {
-                const int64 Growth=Content->Parameters.SkillGrowthPerLevelBp;
-                const int64 LaterGrowth=Content->Parameters.SkillGrowthPerLevelAfter10Bp;
-                Detail.Name+=TEXT("（")+SkillRankName(Input.Rank)+TEXT("）");
-                Lines.Add(CardText(Display->DescriptionText,*Rank,nullptr,Context.Card,Growth,LaterGrowth).Plain);
-                if(!Display->AdvancedText.IsEmpty())
-                {
-                    const FCardText Advanced=CardText(Display->AdvancedText,Ability->Ranks.Last(),nullptr,Context.Card,Growth,LaterGrowth);
-                    Lines.Add((Input.Rank>=Ability->Ranks.Last().Rank?TEXT("高级（已生效）："):TEXT("高级："))+Advanced.Plain);
-                }
-                Lines.Add(FString());
-                Lines.Add(TargetLine(Ability->Target));
-                Lines.Add(CostLine(*Rank));
-            }
-            else{Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),Input.Rank));}
+            Lines.Add(Card.SentencePlain);
+            Lines.Add(FString());
+            Lines.Add(Card.Target);
+            Lines.Add(Card.Cost);
         }
-        else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
+        else if(Content){Lines.Add(Card.SentencePlain);}
     }
     if(Context.bInputCaptured){Lines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
     Detail.Body=FString::Join(Lines,TEXT("\n"));
@@ -654,17 +637,13 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
     }
     Card.Statuses=TEXT("状态：")+(Statuses.IsEmpty()?FString(TEXT("无公开状态")):Statuses);
     Card.bActives=bContender&&(Unit.AuthorizedFieldMask&LDObservation::Actives)!=0;
-    const int32 MaxRank=Content&&Content->Progression.MaxSkillRank>0?Content->Progression.MaxSkillRank:int32(LDObservation::MaxActiveRank);
     for(int32 Index=0;Card.bActives&&Index<3;++Index)
     {
         FObservedCard::FActiveChip& Chip=Card.Actives[Index];
-        Chip.Key=Index==0?TEXT("Q"):Index==1?TEXT("W"):TEXT("E");
+        Chip.Key=SlotKey(uint8(Index));
         const uint8 Id=Unit.Actives.Abilities[Index];
         Chip.bEmpty=Id==0;
-        if(Chip.bEmpty){Chip.Name=TEXT("空槽");continue;}
-        Chip.Name=AbilityName(Content,Id);
-        Chip.bMaxRank=int32(Unit.Actives.Ranks[Index])>=MaxRank;
-        Chip.Rank=SkillRankName(Unit.Actives.Ranks[Index]);
+        Chip.Name=Chip.bEmpty?FString(TEXT("空槽")):AbilityName(Content,Id);
     }
     return Card;
 }
@@ -680,7 +659,7 @@ FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& Conte
         for(int32 Index=0;Index<3;++Index)
         {
             const FObservedCard::FActiveChip& Chip=Card.Actives[Index];
-            Text+=(Index?TEXT(" · "):TEXT(""))+Chip.Key+TEXT(" ")+Chip.Name+(Chip.bEmpty?FString():TEXT(" ")+Chip.Rank);
+            Text+=(Index?TEXT(" · "):TEXT(""))+Chip.Key+TEXT(" ")+Chip.Name;
         }
     }
     return Text;
@@ -700,43 +679,6 @@ FString HudPoints(int64 P2){return HudDecimal(double(P2)/100.);}
 FString HudPercent(int64 Bp){return HudDecimal(double(Bp)/100.)+TEXT("%");}
 FString HudSeconds(int64 Ms){return HudDecimal(double(Ms)/1000.)+TEXT("s");}
 FString HudRational(const FLDDemoRational& Value){return Value.Denominator>0?HudDecimal(double(Value.Numerator)/double(Value.Denominator)):FString(TEXT("?"));}
-FString AttributeQualityName(ELDAttributeQuality Quality)
-{
-    switch(Quality)
-    {
-    case ELDAttributeQuality::Green:return TEXT("绿色");
-    case ELDAttributeQuality::Blue:return TEXT("蓝色");
-    case ELDAttributeQuality::Purple:return TEXT("紫色");
-    case ELDAttributeQuality::Gold:return TEXT("金色");
-    default:return TEXT("未知品质");
-    }
-}
-int64 AttributeQualityMultiplier(const FLDDemoContentDefinitions* Content,ELDAttributeQuality Quality)
-{
-    if(!Content){return 0;}
-    const FLDDemoChoiceWeights& Choice=Content->Parameters.Choice;
-    switch(Quality)
-    {
-    case ELDAttributeQuality::Green:return Choice.AttributeGreenMultiplierBp;
-    case ELDAttributeQuality::Blue:return Choice.AttributeBlueMultiplierBp;
-    case ELDAttributeQuality::Purple:return Choice.AttributePurpleMultiplierBp;
-    case ELDAttributeQuality::Gold:return Choice.AttributeGoldMultiplierBp;
-    default:return 0;
-    }
-}
-FLDDemoStatBonus AttributeQualityStat(const FLDDemoStatBonus& Stat,int64 MultiplierBp)
-{
-    FLDDemoStatBonus Scaled=Stat;
-    if(Stat.Stat==ELDDemoBonusStat::AttackRangeCmFlat||Stat.Stat==ELDDemoBonusStat::HPRegenFlat||Stat.Stat==ELDDemoBonusStat::MPRegenFlat)
-    {
-        if(Scaled.Cm.Denominator>0&&MultiplierBp>0&&Scaled.Cm.Numerator<=MAX_int64/MultiplierBp
-            &&Scaled.Cm.Denominator<=MAX_int64/10000)
-        {Scaled.Cm.Numerator*=MultiplierBp;Scaled.Cm.Denominator*=10000;}
-    }
-    else if(MultiplierBp>0&&Scaled.Amount>=0&&Scaled.Amount<=MAX_int64/MultiplierBp)
-    {Scaled.Amount=Scaled.Amount*MultiplierBp/10000;}
-    return Scaled;
-}
 FString HudBonusStatName(ELDDemoBonusStat Stat)
 {
     switch(Stat)
@@ -786,14 +728,6 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     default: return Name+TEXT(" +")+HudPoints(Stat.Amount);
     }
 }
-FString LDHUD::PenaltyLine(const FLDDemoStatBonus& Stat)
-{
-    // A wild card's explicit deduction: the same stat line with the sign turned.
-    FString Line=StatLine(Stat);
-    const int32 Plus=Line.Find(TEXT(" +"));
-    if(Plus!=INDEX_NONE){Line[Plus+1]=TEXT('-');}
-    return Line;
-}
 FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
 {
     switch(Effect.GetOp())
@@ -809,14 +743,6 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     }
     case ELDDemoEffectOp::Lifesteal: return FString(LDTerms::BasicAttack)+TEXT("打掉的")+LDTerms::Health+TEXT("的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
-    case ELDDemoEffectOp::DashBoost:
-    {
-        FString Text=FString(LDTerms::Dash)+TEXT("的冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，")+LDTerms::Dash+TEXT("的距离 +")+HudPercent(Effect.DistanceBonusBp);
-        if(Effect.SkillDistanceBonusBp>0||Effect.SkillCooldownRatioBp>0)
-        {Text+=TEXT("；带冲刺的技能距离 +")+HudPercent(Effect.SkillDistanceBonusBp)+TEXT("，冷却变为 ")+HudPercent(Effect.SkillCooldownRatioBp);}
-        return Text;
-    }
-    case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成主击 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::PhysicalDamage+TEXT("副击");
     case ELDDemoEffectOp::Slow:
     {
         return FString(LDTerms::Slow)+TEXT("：")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
@@ -851,23 +777,14 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     }
     case ELDDemoEffectOp::CooldownRefund:
         return FString(TEXT("每次"))+LDTerms::BasicAttack+TEXT("命中，Q/W/E 剩余冷却 -")+HudSeconds(Effect.AmountMs);
-    case ELDDemoEffectOp::AbilityCrit:
-        return TEXT("指定技能以 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::CritChance()+TEXT("进行技能")+LDTerms::Crit;
     case ELDDemoEffectOp::TriggeredShield:
         return TEXT("受到伤害时（内置冷却 ")+HudSeconds(Effect.IntervalMs)+TEXT("）获得")
             +LDTerms::Shield+TEXT(" ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
-    case ELDDemoEffectOp::CritDamageReduction: return TEXT("受到的")+FString(LDTerms::Crit)+TEXT("伤害 -")+HudPercent(Effect.RatioBp);
     case ELDDemoEffectOp::NthBasicBonus:
         return TEXT("每第 ")+FString::FromInt(Effect.Count)+TEXT(" 次")+LDTerms::BasicAttack+TEXT("额外造成 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+HudDamageTerm(Effect);
     case ELDDemoEffectOp::ManaOnHit:
         return FString(TEXT("技能命中时"))+TEXT("回复 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+LDTerms::Mana+TEXT("（每次施放一次）");
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
-    case ELDDemoEffectOp::PathSlow:
-        return TEXT("冲刺路径上的敌人")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
-    // #184: affliction amplification, the shield-break retort and on-hit haste.
-    case ELDDemoEffectOp::AfflictionAmp:
-        return TEXT("自己造成的")+FString(LDTerms::Burn)+TEXT("伤害 +")+HudPercent(Effect.RatioBp)+TEXT("；自己施加的")+LDTerms::Slow
-            +TEXT("比例 ×")+HudDecimal(double(Effect.SecondaryRatioBp)/10000.)+TEXT("（不超过 99.99%）");
     case ELDDemoEffectOp::ShieldBreakRetort:
     {
         FString Text=FString(LDTerms::Shield)+TEXT("被打破时，对打破者造成该")+LDTerms::Shield+TEXT("获得量 ")+HudPercent(Effect.RatioBp)
@@ -875,8 +792,6 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         if(Effect.SecondaryRatioBp>0){Text+=TEXT("并")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.SecondaryRatioBp)+TEXT("，持续 ")+HudSeconds(Effect.SecondaryDurationMs);}
         return Text+TEXT("；内置冷却 ")+HudSeconds(Effect.IntervalMs);
     }
-    case ELDDemoEffectOp::HitHaste:
-        return FString(LDTerms::BasicAttack)+TEXT("命中后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内")+LDTerms::MoveSpeed+TEXT(" +")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }
@@ -893,9 +808,9 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     default: return TEXT("未知目标方式");
     }
 }
-FString LDHUD::CostLine(const FLDDemoRankDefinition& Rank)
+FString LDHUD::CostLine(const FLDDemoAbilityValues& Values)
 {
-    return FString(LDTerms::Mana)+TEXT(" ")+HudPoints(Rank.ManaCostP2)+TEXT(" · 冷却 ")+HudSeconds(Rank.CooldownMs);
+    return FString(LDTerms::Mana)+TEXT(" ")+HudPoints(Values.ManaCostP2)+TEXT(" · 冷却 ")+HudSeconds(Values.CooldownMs);
 }
 LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes)
 {
@@ -912,11 +827,21 @@ LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttribute
 }
 namespace
 {
-// One placeholder's value as the card shows it; false when the rank has no such effect or stat.
-bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& Rank,const LDHUD::FCardStats& Stats,FString& Out)
+bool CardRationalStat(ELDDemoBonusStat Stat)
+{
+    // The importer stores these exact fractions in Cm (unit cm, hp/s, mp/s); Amount stays 0.
+    return Stat==ELDDemoBonusStat::AttackRangeCmFlat||Stat==ELDDemoBonusStat::HPRegenFlat||Stat==ELDDemoBonusStat::MPRegenFlat;
+}
+bool CardRatioStat(ELDDemoBonusStat Stat)
+{
+    return Stat==ELDDemoBonusStat::AttackSpeedBonusRatio||Stat==ELDDemoBonusStat::MoveSpeedBonusRatio||Stat==ELDDemoBonusStat::CritChanceBonusRatio
+        ||Stat==ELDDemoBonusStat::ADBonusRatio||Stat==ELDDemoBonusStat::APBonusRatio;
+}
+// One placeholder's value as the card shows it; false when the value set has no such effect or stat.
+bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& Values,const LDHUD::FCardStats& Stats,FString& Out)
 {
     using LDDemoCardText::EField;
-    const FLDDemoEffectDefinition* Effect=LDDemoCardText::FindEffect(Rank,Token);
+    const FLDDemoEffectDefinition* Effect=LDDemoCardText::FindEffect(Values,Token);
     if(!Effect){return false;}
     const auto Term=[](int64 RatioBp,int64 StatP2){return RatioBp>0&&StatP2>0?StatP2/10000*RatioBp+StatP2%10000*RatioBp/10000:int64(0);};
     switch(Token.Field)
@@ -929,7 +854,6 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& 
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
     }
     case EField::BasicCount: Out=FString::FromInt(Effect->BasicCount);return true;
-    case EField::CooldownCut: Out=HudDecimal(double(10000-Effect->CooldownRatioBp)/100.);return true;
     case EField::Refund: Out=HudDecimal(double(Effect->AmountMs)/1000.);return true;
     case EField::Limit: Out=HudDecimal(double(Effect->LimitP2)/100.);return true;
     case EField::Duration: Out=HudDecimal(double(Effect->DurationMs)/1000.);return true;
@@ -945,46 +869,29 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& 
     {
         const FLDDemoStatBonus* Stat=Effect->Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S){return S.Stat==Token.Stat;});
         if(!Stat){return false;}
-        switch(Stat->Stat)
-        {
-        // The importer stores these exact fractions in Cm (unit cm, hp/s, mp/s); Amount stays 0.
-        case ELDDemoBonusStat::AttackRangeCmFlat: case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MPRegenFlat:
-            Out=HudRational(Stat->Cm);return true;
-        case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
-        case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio: Out=HudDecimal(double(Stat->Amount)/100.);return true;
-        default: Out=FString::Printf(TEXT("%lld"),(Stat->Amount+50)/100);return true;
-        }
+        if(CardRationalStat(Stat->Stat)){Out=HudRational(Stat->Cm);}
+        else if(CardRatioStat(Stat->Stat)){Out=HudDecimal(double(Stat->Amount)/100.);}
+        else{Out=FString::Printf(TEXT("%lld"),(Stat->Amount+50)/100);}
+        return true;
     }
     default: return false;
     }
+}
+// A per-point bonus exactly as authored: points and percents keep their decimals (脸皮 +2.5, 暴击率 +0.4%).
+bool CardPerPointValue(const LDDemoCardText::FToken& Token,const FLDDemoStatDefinition& Stat,FString& Out)
+{
+    const FLDDemoStatBonus* Bonus=LDDemoCardText::FindPerPoint(Stat,Token);
+    if(!Bonus){return false;}
+    Out=CardRationalStat(Bonus->Stat)?HudRational(Bonus->Cm):HudDecimal(double(Bonus->Amount)/100.);
+    return true;
 }
 FString CardEscape(const FString& Text)
 {
     return Text.Replace(TEXT("&"),TEXT("&amp;")).Replace(TEXT("<"),TEXT("&lt;")).Replace(TEXT(">"),TEXT("&gt;"));
 }
-}
-LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoRankDefinition& Rank,const FLDDemoRankDefinition* From,
-    const FCardStats& Stats,int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp)
+// Fills Rich and Keywords from Plain: keywords in the plain text become bold, the longest glossary match winning at each position.
+void CardMarkKeywords(LDHUD::FCardText& Text)
 {
-    FCardText Text;
-    TArray<LDDemoCardText::FToken> Tokens;
-    FString Error;
-    FLDDemoRankDefinition Grown,GrownFrom;
-    if(!LDDemoCardText::Parse(Template,Tokens,Error)
-        ||!LDSkillGrowth::GrowRank(Rank,GrowthPerLevelBp,GrowthPerLevelAfter10Bp,Stats.Level,Grown)
-        ||(From&&!LDSkillGrowth::GrowRank(*From,GrowthPerLevelBp,GrowthPerLevelAfter10Bp,Stats.Level,GrownFrom)))
-    {
-        Text.bComplete=false;Text.Plain=Text.Rich=TEXT("（卡面数据缺失）");return Text;
-    }
-    for(const LDDemoCardText::FToken& Token:Tokens)
-    {
-        if(!Token.bValue){Text.Plain+=Token.Literal;continue;}
-        FString To,Was;
-        if(!CardValue(Token,Grown,Stats,To)){Text.bComplete=false;To=TEXT("?");}
-        Text.Values.Add(To);
-        Text.Plain+=From&&CardValue(Token,GrownFrom,Stats,Was)&&Was!=To?Was+TEXT(" → ")+To:To;
-    }
-    // Keywords in the plain text become bold; the longest glossary match wins at each position.
     for(int32 Index=0;Index<Text.Plain.Len();)
     {
         const LDTerms::FCardKeyword* Hit=nullptr;
@@ -1001,24 +908,39 @@ LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoRankDefini
     TArray<FString> Ordered;
     for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords){if(Text.Keywords.Contains(Keyword.Name)){Ordered.Add(Keyword.Name);}}
     Text.Keywords=MoveTemp(Ordered);
+}
+template<typename TValueOf>
+LDHUD::FCardText CardRender(const FString& Template,TValueOf&& ValueOf)
+{
+    LDHUD::FCardText Text;
+    TArray<LDDemoCardText::FToken> Tokens;
+    FString Error;
+    if(!LDDemoCardText::Parse(Template,Tokens,Error)){Text.bComplete=false;Text.Plain=Text.Rich=TEXT("（卡面数据缺失）");return Text;}
+    for(const LDDemoCardText::FToken& Token:Tokens)
+    {
+        if(!Token.bValue){Text.Plain+=Token.Literal;continue;}
+        FString Value;
+        if(!ValueOf(Token,Value)){Text.bComplete=false;Value=TEXT("?");}
+        Text.Values.Add(Value);
+        Text.Plain+=Value;
+    }
+    CardMarkKeywords(Text);
     return Text;
 }
-TArray<FString> LDHUD::LearnedCardLines(const FString& Sentence,const FString& Advanced,const FLDDemoAbilityDefinition& Ability,
-    uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp)
-{
-    TArray<FString> Lines;
-    const FLDDemoRankDefinition* Row=Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R){return R.Rank==int32(Rank);});
-    if(!Row){return Lines;}
-    Lines.Add(CardText(Sentence,*Row,nullptr,Stats,GrowthPerLevelBp,GrowthPerLevelAfter10Bp).Plain);
-    if(!Advanced.IsEmpty()&&Row==&Ability.Ranks.Last())
-    {Lines.Add(TEXT("高级：")+CardText(Advanced,*Row,nullptr,Stats,GrowthPerLevelBp,GrowthPerLevelAfter10Bp).Plain);}
-    return Lines;
 }
-int32 LDHUD::CardLength(const FString& Plain)
+LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoAbilityValues& Values,const FCardStats& Stats,
+    int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp)
 {
-    int32 Count=0;
-    for(const TCHAR Char:Plain){Count+=Char!=TEXT(' ')&&Char!=TEXT('\u3000')?1:0;}
-    return Count;
+    FLDDemoAbilityValues Grown;
+    if(!LDSkillGrowth::GrowValues(Values,GrowthPerLevelBp,GrowthPerLevelAfter10Bp,Stats.Level,Grown))
+    {
+        FCardText Text;Text.bComplete=false;Text.Plain=Text.Rich=TEXT("（卡面数据缺失）");return Text;
+    }
+    return CardRender(Template,[&Grown,&Stats](const LDDemoCardText::FToken& Token,FString& Out){return !Token.bPerPoint&&CardValue(Token,Grown,Stats,Out);});
+}
+LDHUD::FCardText LDHUD::StatCardText(const FString& Template,const FLDDemoStatDefinition& Stat)
+{
+    return CardRender(Template,[&Stat](const LDDemoCardText::FToken& Token,FString& Out){return Token.bPerPoint&&CardPerPointValue(Token,Stat,Out);});
 }
 TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
 {
@@ -1029,95 +951,138 @@ TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
     }
     return Lines;
 }
-bool LDHUD::IsOpeningOffer(const FLDChoiceOfferView& Offer)
+LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
 {
-    return Offer.Options.ContainsByPredicate([](const FLDChoiceOption& Option){return Option.Kind==ELDChoiceOptionKind::Opening;});
-}
-LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
-    const FCardStats& Stats)
-{
-    FChoiceCardView Card;
-    const FString Id=Option.DefinitionId.ToString();
+    FActiveCardView Card;
+    Card.DefinitionId=DefinitionId;
+    const FString Id=DefinitionId.ToString();
     Card.Name=ContentName(Content,Id);
+    Card.Glyph=IconGlyph(Card.Name);
     const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
-    if(Display){Card.IconId=Display->IconId;}
-    Card.Glyph=Card.Name.IsEmpty()?FString(TEXT("?")):Card.Name.Left(1);
-    switch(Option.Kind)
-    {
-    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动");Card.Type=TEXT("主动");break;
-    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动升级");Card.Type=TEXT("主动");break;
-    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动");Card.Type=TEXT("被动");break;
-    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动升级");Card.Type=TEXT("被动");break;
-    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性卡");Card.Type=TEXT("属性");break;
-    case ELDChoiceOptionKind::Opening: Card.Kind=LDTerms::OpeningCardKind;Card.Type=TEXT("开局");break;
-    default: Card.Kind=TEXT("未知选项");Card.Type=Card.Kind;break;
-    }
-    // #153: the card face names the direction and its three stats; the active it teaches stays hidden until chosen.
-    if(Option.Kind==ELDChoiceOptionKind::Opening)
-    {
-        Card.RankText=TEXT("只出现一次");
-        Card.Summary=TEXT("开局");Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
-        if(const FLDDemoOpeningCardDefinition* Definition=Content?Content->OpeningCards.FindByPredicate([&Id](const FLDDemoOpeningCardDefinition& D){return D.Id==Id;}):nullptr)
-        {
-            TArray<FString> Parts;
-            for(const FLDDemoStatBonus& Stat:Definition->Stats){Parts.Add(StatLine(Stat));}
-            Card.SentencePlain=(Display?Display->DescriptionText:FString())+TEXT("\n")+FString::Join(Parts,TEXT("\n"))
-                +TEXT("\n")+LDTerms::OpeningHiddenActive;
-            Card.Sentence=CardEscape(Card.SentencePlain);
-        }
-        else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该开局方向卡");}
-        return Card;
-    }
-    if(Option.Kind==ELDChoiceOptionKind::Attribute)
-    {
-        int32 Owned=0;for(const FLDAttributeCardView& Entry:Progression.AttributeCards){if(Entry.DefinitionId==Option.DefinitionId){Owned+=Entry.Count;}}
-        Card.AttributeQuality=Option.AttributeQuality;
-        Card.RankText=FString::Printf(TEXT("%s · 已选 %d 次"),*AttributeQualityName(Option.AttributeQuality),Owned);
-        // #85: the face drops the quality's name; the name is drawn in the quality's colour and the detail keeps the word.
-        Card.Summary=FString::Printf(TEXT("%s · 已选 %d 次"),*Card.Type,Owned);Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
-        if(const FLDDemoAttributeDefinition* Definition=Content?Content->Attributes.FindByPredicate([&Id](const FLDDemoAttributeDefinition& D){return D.Id==Id;}):nullptr)
-        {
-            TArray<FString> Parts;
-            const int64 Multiplier=AttributeQualityMultiplier(Content,Option.AttributeQuality);
-            for(const FLDDemoStatBonus& Stat:Definition->Stats){Parts.Add(StatLine(AttributeQualityStat(Stat,Multiplier)));}
-            for(const FLDDemoStatBonus& Penalty:Definition->Penalties){Parts.Add(PenaltyLine(Penalty));}
-            Card.SentencePlain=FString::Join(Parts,TEXT(" · "));Card.Sentence=CardEscape(Card.SentencePlain);
-        }
-        else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该属性卡");}
-        return Card;
-    }
-    Card.RankText=Option.FromRank>0?SkillRankName(Option.FromRank)+TEXT(" → ")+SkillRankName(Option.ToRank):SkillRankName(Option.ToRank);
     const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
-    const auto RankRow=[Ability](int32 Rank){return Ability?Ability->Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R){return R.Rank==Rank;}):nullptr;};
-    const FLDDemoRankDefinition* To=RankRow(Option.ToRank);
-    const FLDDemoRankDefinition* Top=Ability&&!Ability->Ranks.IsEmpty()?&Ability->Ranks.Last():nullptr;
-    if(Ability&&Display&&To&&Top)
+    if(Display){Card.IconId=Display->IconId;}
+    if(!Ability||!Display)
     {
-        const int64 Growth=Content->Parameters.SkillGrowthPerLevelBp;
-        const int64 LaterGrowth=Content->Parameters.SkillGrowthPerLevelAfter10Bp;
-        const FCardText Sentence=CardText(Display->DescriptionText,*To,Option.FromRank>0?RankRow(Option.FromRank):nullptr,
-            Stats,Growth,LaterGrowth);
-        Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
-        TArray<FString> Keywords=Sentence.Keywords;
-        if(!Display->AdvancedText.IsEmpty())
-        {
-            const FCardText Advanced=CardText(Display->AdvancedText,*Top,nullptr,Stats,Growth,LaterGrowth);
-            Card.Advanced=TEXT("<b>高级</>：")+Advanced.Rich;Card.AdvancedPlain=TEXT("高级：")+Advanced.Plain;
-            for(const FString& Keyword:Advanced.Keywords){Keywords.AddUnique(Keyword);}
-        }
-        Card.Keywords=KeywordLines(Keywords);
-        if(Ability->Kind==ELDDemoAbilityKind::Active){Card.Lines.Add(TargetLine(Ability->Target));Card.Lines.Add(CostLine(*To));}
+        Card.SentencePlain=Card.Sentence=Content?FString(TEXT("内容目录中找不到该技能")):FString(TEXT("内容数据同步中"));
+        return Card;
     }
-    else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该技能");}
-    if(Option.Kind==ELDChoiceOptionKind::LearnActive)
-    {
-        int32 Filled=0;for(const FLDLearnedSkillView& Skill:Progression.Skills){if(Skill.bActive){++Filled;}}
-        const int32 ActiveSlots=Content&&Content->Progression.ActiveSlots>0?Content->Progression.ActiveSlots:3;
-        Card.bNeedsReplacement=Filled>=ActiveSlots;
-    }
-    Card.Summary=Card.Type+TEXT(" · ")+(Option.FromRank>0?SkillRankName(Option.FromRank).Left(1)+TEXT("→")+SkillRankName(Option.ToRank).Left(1):FString(TEXT("新")));
-    Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
+    const FCardText Sentence=CardText(Display->DescriptionText,Ability->Values,Stats,Content->Parameters.SkillGrowthPerLevelBp,
+        Content->Parameters.SkillGrowthPerLevelAfter10Bp);
+    Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
+    Card.Keywords=KeywordLines(Sentence.Keywords);
+    Card.Target=TargetLine(Ability->Target);
+    Card.Cost=CostLine(Ability->Values);
+    Card.bKnown=Sentence.bComplete;
     return Card;
+}
+LDHUD::FStatRowView LDHUD::StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content)
+{
+    FStatRowView Row;
+    Row.StatId=FName(*Stat.Id);
+    Row.Points=Points;
+    Row.Name=ContentName(Content,Stat.Id);
+    Row.Glyph=IconGlyph(Row.Name);
+    Row.IconId=ContentIconId(Content,Stat.Id);
+    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Stat](const FLDDemoDisplayDefinition& D){return D.Id==Stat.Id;}):nullptr;
+    if(!Display){Row.PerPoint=Row.PerPointRich=TEXT("内容目录中找不到该属性");return Row;}
+    const FCardText Text=StatCardText(Display->DescriptionText,Stat);
+    Row.PerPoint=Text.Plain;Row.PerPointRich=Text.Rich;
+    Row.bKnown=Text.bComplete;
+    return Row;
+}
+int32 LDHUD::StatPointsOf(const FLDProgressionView& Progression,FName StatId)
+{
+    const FLDStatPointsView* Row=Progression.StatPoints.FindByPredicate([StatId](const FLDStatPointsView& S){return S.StatId==StatId;});
+    return Row?Row->Points:0;
+}
+FName LDHUD::ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot)
+{
+    const FLDActiveSlotView* Active=Progression.Actives.FindByPredicate([Slot](const FLDActiveSlotView& A){return A.Slot==Slot;});
+    return Active?Active->DefinitionId:NAME_None;
+}
+FString LDHUD::SlotKey(uint8 Slot)
+{
+    return Slot==0?FString(TEXT("Q")):Slot==1?FString(TEXT("W")):Slot==2?FString(TEXT("E")):FString::Printf(TEXT("槽 %d"),int32(Slot));
+}
+FString LDHUD::BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+{
+    switch(Reason)
+    {
+    case ELDGrowthReason::None: return FString();
+    case ELDGrowthReason::NotSafe:
+    {
+        if(!bClock||BuildSafeAtMs<=NowMs){return LDTerms::NotSafe;}
+        // Rounded up to the next tenth, so the wait never reads 0.0 while it lasts.
+        const int64 Tenths=(BuildSafeAtMs-NowMs+99)/100;
+        return LDTerms::NotSafeFor(FString::Printf(TEXT("%lld.%lld"),Tenths/10,Tenths%10));
+    }
+    case ELDGrowthReason::Dead: return LDTerms::DeadNoLearn;
+    case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
+    case ELDGrowthReason::SlotOccupied: return LDTerms::ReplaceAtRest;
+    default: return GrowthReasonText(Reason);
+    }
+}
+LDHUD::FBuildGateView LDHUD::BuildGate(ELDMatchPhase Phase,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+{
+    LDProgression::FBuildContext Context;
+    Context.Stage=Phase==ELDMatchPhase::Countdown?LDProgression::EMatchStage::Countdown
+        :Phase==ELDMatchPhase::Development||Phase==ELDMatchPhase::CaptureOpen?LDProgression::EMatchStage::Live:LDProgression::EMatchStage::Closed;
+    Context.LifePhase=LifePhase;
+    Context.bSafe=bClock&&BuildSafeAtMs<=NowMs;
+    const auto Gate=[&](ELDBuildCommandKind Kind,bool& bAllowed,FString& Blocked)
+    {
+        const ELDGrowthReason Reason=LDProgression::CommandGate(Kind,Context);
+        bAllowed=Reason==ELDGrowthReason::None;
+        // An unknown safe window is no countdown: say it is syncing instead of naming a wait.
+        Blocked=Reason==ELDGrowthReason::NotSafe&&!bClock?FString(TEXT("构筑安全窗同步中")):BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);
+    };
+    FBuildGateView View;
+    Gate(ELDBuildCommandKind::ActiveChoice,View.bCanChoose,View.ChooseBlocked);
+    Gate(ELDBuildCommandKind::LearnBlueprint,View.bCanLearn,View.LearnBlocked);
+    Gate(ELDBuildCommandKind::AllocatePoints,View.bCanAllocate,View.AllocateBlocked);
+    return View;
+}
+FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+{
+    if(Receipt.Header.Outcome!=ELDReceiptOutcome::Applied)
+    {
+        return TEXT("没有生效：")+BuildBlockedText(LDGrowthWire::Reason(Receipt.Header.Reason),BuildSafeAtMs,bClock,NowMs);
+    }
+    switch(Receipt.Kind)
+    {
+    case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::LearnBlueprint:
+    {
+        const FString Name=ContentName(Content,Receipt.DefinitionId.ToString());
+        if(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned){return LDTerms::LearnedInto(Name,SlotKey(Receipt.LearnedSlot));}
+        if(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint)
+        {return LDTerms::StoredAsBlueprint(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.StoredReason),BuildSafeAtMs,bClock,NowMs));}
+        return TEXT("回执缺少结果，请以当前状态为准。");
+    }
+    case ELDBuildCommandKind::AllocatePoints:
+    {
+        int64 Spent=0;for(const uint8 Count:Receipt.PointsSpent){Spent+=Count;}
+        return LDTerms::PointsAdded(Spent,Receipt.UnspentPointsAfter);
+    }
+    default: return TEXT("回执缺少结果，请以当前状态为准。");
+    }
+}
+LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match)
+{
+    FGrowthPending Pending;
+    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return Pending;}
+    Pending.Offers=Progression->QueuedActiveOpportunities;
+    Pending.Points=FMath::Max<int64>(0,Progression->UnspentPoints);
+    Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
+    return Pending;
+}
+FString LDHUD::FGrowthPending::Prompt() const
+{
+    FString Text=LDTerms::Choice;
+    if(Offers>0){Text+=FString::Printf(TEXT("+%d"),Offers);}
+    if(Points>0){Text+=FString::Printf(TEXT(" · %lld点"),Points);}
+    if(Offers<=0&&Points<=0&&Blueprints>0){Text+=FString::Printf(TEXT(" · %s %d"),LDTerms::Blueprint,Blueprints);}
+    return Text;
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
 {
@@ -1130,12 +1095,9 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
     const bool bRatio=static_cast<ELDProjectedAttribute>(Row.Attribute)==ELDProjectedAttribute::CritChance;
     auto Value=[bRatio](const FLDDemoRational& V){if(V.Denominator<=0){return FString(TEXT("?"));}const double D=double(V.Numerator)/double(V.Denominator);return bRatio?HudDecimal(D*100.)+TEXT("%"):HudDecimal(D);};
     View.Final=Value(Row.Final)+Units[Row.Attribute]+(Row.bClamped?TEXT("（已达上下限）"):TEXT(""));
-    View.Breakdown=TEXT("基础 ")+Value(Row.Base)+TEXT(" · 等级 ")+Value(Row.Level)+TEXT(" · 三选一 ")+Value(Row.Choices)+TEXT(" · 被动 ")+Value(Row.Passives);
+    View.Breakdown=TEXT("基础 ")+Value(Row.Base)+TEXT(" · 等级 ")+Value(Row.Level)+TEXT(" · 属性点 ")+Value(Row.Choices);
     if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
     {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
-    if(Row.Penalty.Denominator>0&&Row.Penalty.Numerator!=0){View.Breakdown+=TEXT(" · 代价 -")+Value(Row.Penalty);}
-    if(Row.PenaltyPercent.Denominator>0&&Row.PenaltyPercent.Numerator!=0)
-    {View.Breakdown+=TEXT(" · 代价百分比 -")+HudDecimal(100.*double(Row.PenaltyPercent.Numerator)/double(Row.PenaltyPercent.Denominator))+TEXT("%");}
     if(Row.Dev.Denominator>0&&Row.Dev.Numerator!=0){View.Breakdown+=TEXT(" · 测试 +")+Value(Row.Dev);}
     if(Row.DevPercent.Denominator>0&&Row.DevPercent.Numerator!=0)
     {View.Breakdown+=TEXT(" · 测试百分比 +")+HudDecimal(100.*double(Row.DevPercent.Numerator)/double(Row.DevPercent.Denominator))+TEXT("%");}
@@ -1166,18 +1128,18 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::OutOfOrder: return TEXT("请求顺序错误，未执行");
     case ELDGrowthReason::ReceiptExpired: return TEXT("回执已过期，请以当前状态为准");
     case ELDGrowthReason::RequestInFlight: return TEXT("上一个请求仍在处理中");
-    case ELDGrowthReason::NoOffer: return TEXT("当前没有待选奖励");
-    case ELDGrowthReason::UnknownOffer: return TEXT("这组奖励已失效");
+    case ELDGrowthReason::UnknownOffer: return TEXT("这组技能候选已失效");
     case ELDGrowthReason::InvalidOption: return TEXT("该选项无效");
-    case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("这次奖励已经选过了");
+    case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("这组技能已经选过了");
     case ELDGrowthReason::OfferGuardStale: return TEXT("内容已更新，请重新确认");
     case ELDGrowthReason::BuildStale: return TEXT("构筑已变化，请重新确认");
-    case ELDGrowthReason::ReplacementRequired: return TEXT("主动技能槽已满，需要选择替换哪个技能");
-    case ELDGrowthReason::ReplacementMismatch: return TEXT("要替换的技能已变化，请重新选择");
-    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("该选项不能替换技能");
-    case ELDGrowthReason::NoReroll: return TEXT("没有免费重抽次数");
-    case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("这一组已经重抽过一次");
-    case ELDGrowthReason::OpeningNoReroll: return LDTerms::OpeningNoReroll;
+    case ELDGrowthReason::NotSafe: return FString(LDTerms::NotSafe)+TEXT("，暂时不能学习或加点");
+    case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
+    case ELDGrowthReason::SlotOccupied: return FString(TEXT("这个技能槽已有技能，"))+LDTerms::ReplaceAtRest;
+    case ELDGrowthReason::NoBlueprint: return FString(TEXT("没有这份"))+LDTerms::Blueprint;
+    case ELDGrowthReason::NotEnoughPoints: return TEXT("未分配点数不够");
+    case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
+    case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
@@ -1232,7 +1194,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     if(Input.bHasSource){Input.IconId=Slot==EActionSlot::Dash?FString(LDUIIcons::Dash):ContentIconId(Content,Entry.DefinitionId.ToString());}
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
-    Input.Rank=Entry.Rank;Input.ManaCostP2=Entry.ManaCostP2;
+    Input.ManaCostP2=Entry.ManaCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
@@ -1251,8 +1213,6 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     case ELDDemoStatusId::Empowered:
     case ELDDemoStatusId::RespawnProtection:
     case ELDDemoStatusId::CampReturning:
-    case ELDDemoStatusId::Cowering:
-    case ELDDemoStatusId::ContactGuard:
         return true;
     case ELDDemoStatusId::Root:
     case ELDDemoStatusId::Slow:
@@ -1268,12 +1228,11 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     }
     return false;
 }
-LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
-    const FLDDemoContentDefinitions* Content)
+LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
 {
     FSelfIconsView View;
-    View.bSyncing=!Progression||!Combat;
-    TArray<FSelfIconView> Control,Temporary,Passives;
+    View.bSyncing=!Combat;
+    TArray<FSelfIconView> Control,Temporary;
     if(Combat)
     {
         for(const FLDCombatStatusView& Status:Combat->Statuses)
@@ -1302,20 +1261,7 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
         if(Combat->bOutOfCombatRegenActive){AddRecovery(ESelfIconSource::OutOfCombatRegen,LDTerms::OutOfCombatRegen,TEXT("Recovery.OutOfCombat"),LDUIIcons::OutOfCombatRegen);}
         if(Combat->bDormRegenActive){AddRecovery(ESelfIconSource::DormRegen,LDTerms::DormRegenActive(),TEXT("Recovery.Dorm"),LDUIIcons::DormRegen);}
     }
-    if(Progression)
-    {
-        for(const FLDLearnedSkillView& Skill:Progression->Skills)
-        {
-            if(Skill.bActive){continue;}
-            FSelfIconView Icon;const FString Name=ContentName(Content,Skill.DefinitionId.ToString());
-            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name+TEXT("（")+SkillRankName(Skill.Rank)+TEXT("）");
-            Icon.Source=ESelfIconSource::Learned;Icon.ContentId=Skill.DefinitionId.ToString();Icon.Rank=Skill.Rank;
-            Icon.IconId=ContentIconId(Content,Icon.ContentId);
-            Icon.Key=FName(*(TEXT("Learned.")+Skill.DefinitionId.ToString()));
-            Passives.Add(MoveTemp(Icon));
-        }
-    }
-    for(TArray<FSelfIconView>* Group:{&Control,&Temporary,&Passives})
+    for(TArray<FSelfIconView>* Group:{&Control,&Temporary})
     {
         for(FSelfIconView& Icon:*Group)
         {
@@ -1324,15 +1270,13 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
     }
     return View;
 }
-LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content)
+LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const FLDDemoContentDefinitions* Content)
 {
     FActionDetailView Detail;
     Detail.Name=Icon.Tip;
     TArray<FString> Lines;
     FString Description;
-    // A learned skill's description is its #147 card template; it is rendered with the owner's numbers below instead.
-    if(Icon.Source!=ESelfIconSource::Learned&&!Icon.ContentId.IsEmpty()&&ContentText(Content,Icon.ContentId,true,Description)&&!Description.IsEmpty())
-    {Lines.Add(Description);}
+    if(!Icon.ContentId.IsEmpty()&&ContentText(Content,Icon.ContentId,true,Description)&&!Description.IsEmpty()){Lines.Add(Description);}
     switch(Icon.Source)
     {
     case ESelfIconSource::Status:
@@ -1353,20 +1297,6 @@ LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const F
             :TEXT("脱战 ")+HudSeconds(P.OutOfCombatRegenDelayMs)+TEXT(" 后，")+Rate);
         Lines.Add(bDorm?FString(TEXT("出手、释放伤害技能、受到伤害或离开"))+LDTerms::Dorm+TEXT("立即停止")
             :FString(TEXT("出手、释放伤害技能或受到伤害立即停止")));
-        break;
-    }
-    case ESelfIconSource::Learned:
-    {
-        Detail.Summary=TEXT("角色被动");
-        const FString& Id=Icon.ContentId;
-        const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
-        const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
-        const FLDDemoRankDefinition* Rank=Ability?Ability->Ranks.FindByPredicate([&Icon](const FLDDemoRankDefinition& R){return R.Rank==int32(Icon.Rank);}):nullptr;
-        // The same card sentence (and, once advanced, the "高级：" line) the attribute panel and the blind box show.
-        if(Rank&&Display){Lines.Append(LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Icon.Rank,Card,
-            Content->Parameters.SkillGrowthPerLevelBp,Content->Parameters.SkillGrowthPerLevelAfter10Bp));}
-        else if(Ability){Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),int32(Icon.Rank)));}
-        else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
         break;
     }
     }
@@ -1452,4 +1382,14 @@ bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
     if(bEngaged){bAutomatic=false;return false;}
     if(bOwnHit&&!bHitImmune){bFoldedByHit=true;return true;}
     return bAutomatic&&Now-OpenedAt>=AutoOpenSeconds;
+}
+bool LDHUD::FGrowthAutoOpen::Observe(const FLDProgressionView& View,uint32 Match)
+{
+    if(!View.bValid||Match==0||View.Generation!=Match){return false;}
+    if(SeenMatch!=Match){SeenMatch=Match;SeenOffer.Invalidate();SeenUnspent=0;}
+    const bool bNewOffer=View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OfferId!=SeenOffer;
+    const bool bMorePoints=View.UnspentPoints>SeenUnspent;
+    if(View.bHasActiveOffer){SeenOffer=View.ActiveOffer.OfferId;}
+    SeenUnspent=View.UnspentPoints;
+    return bNewOffer||bMorePoints;
 }

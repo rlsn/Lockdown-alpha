@@ -362,17 +362,15 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("The opponent registers during preparation: ") + AI.Error, AI.Binding.IsValid())) { return false; }
     Mode->SpawnRandom.Initialize(153);
     int64 OpeningAfterMs = 0;
-    uint8 OpeningIndex = 0;
     int32 OpeningSeed = 0;
     TestTrue(TEXT("The opening plan uses the current server stream"),
-        Mode->DrawOpponentOpeningPlan(AI.Binding, OpeningAfterMs, OpeningIndex, OpeningSeed, Error));
+        Mode->DrawOpponentOpeningPlan(AI.Binding, OpeningAfterMs, OpeningSeed, Error));
     FRandomStream Replay(OpeningSeed);
     TestEqual(TEXT("The recorded stream state reproduces the opening time"), OpeningAfterMs, int64(Replay.RandRange(1000, 4000)));
-    TestEqual(TEXT("And reproduces the selected position"), OpeningIndex, uint8(Replay.RandRange(0, 2)));
-    TestEqual(TEXT("The same server stream advanced by exactly those draws"), Mode->SpawnRandom.GetCurrentSeed(), Replay.GetCurrentSeed());
+    TestEqual(TEXT("The same server stream advanced by exactly that draw"), Mode->SpawnRandom.GetCurrentSeed(), Replay.GetCurrentSeed());
     const int32 BeforeInvalid = Mode->SpawnRandom.GetCurrentSeed();
     TestFalse(TEXT("An invalid binding draws no plan"),
-        Mode->DrawOpponentOpeningPlan({}, OpeningAfterMs, OpeningIndex, OpeningSeed, Error));
+        Mode->DrawOpponentOpeningPlan({}, OpeningAfterMs, OpeningSeed, Error));
     TestEqual(TEXT("A refused plan consumes no random material"), Mode->SpawnRandom.GetCurrentSeed(), BeforeInvalid);
     TestFalse(TEXT("Admission rechecks phase after PreLogin"), Mode->AdmitRoomMember(Fourth, Error));
     TestTrue(TEXT("The final admission refusal of a started match carries its client-mapped code"),

@@ -6,72 +6,43 @@
 namespace LDEvaluationPolicyDetail
 {
 TMap<FGuid, TSharedPtr<FLDEvaluationRun>> StagedRuns;
-
-FString OfferText(const TArray<FLDOpponentOption>& Options)
-{
-    TArray<FString> Ids;
-    for (const FLDOpponentOption& Option : Options) { Ids.Add(Option.DefinitionId); }
-    return FString::Join(Ids, TEXT(","));
-}
 }
 
 bool LDEvaluationPolicy::Choose(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDEvaluationChoice& Rule,
-    FLDOpponentChoicePick& Out, FString& Error)
+    FString& OutOption, FString& Error)
 {
-    using namespace LDEvaluationPolicyDetail;
-    Out = {};
+    OutOption.Reset();
     if (!Self.Offer.IsSet() || Self.Offer->Options.IsEmpty())
     {
         Error = TEXT("No current offer.");
         return false;
     }
-    const TArray<FLDOpponentOption>& Options = Self.Offer->Options;
-    const FLDOpponentOption* Option = nullptr;
+    const TArray<FString>& Options = Self.Offer->Options;
     switch (Rule.Rule)
     {
     case ELDEvaluationChoiceRule::AISelect:
-        return LDOpponentPolicy::SelectChoice(Self, Catalog, Out, Error);
+        return LDOpponentPolicy::SelectActive(Self, Catalog, OutOption, Error);
     case ELDEvaluationChoiceRule::OptionIndex:
         if (!Options.IsValidIndex(Rule.Index))
         {
-            Error = FString::Printf(TEXT("the actual offer (%s) has no option %d"), *OfferText(Options), Rule.Index);
+            Error = FString::Printf(TEXT("the actual offer (%s) has no option %d"), *FString::Join(Options, TEXT(",")), Rule.Index);
             return false;
         }
-        Option = &Options[Rule.Index];
-        break;
+        OutOption = Options[Rule.Index];
+        return true;
     case ELDEvaluationChoiceRule::Definition:
-        Option = Options.FindByPredicate([&Rule](const FLDOpponentOption& Row)
-            { return Row.DefinitionId.Equals(Rule.DefinitionId, ESearchCase::CaseSensitive); });
-        if (!Option)
+        if (!Options.ContainsByPredicate([&Rule](const FString& Option) { return Option.Equals(Rule.DefinitionId, ESearchCase::CaseSensitive); }))
         {
-            Error = FString::Printf(TEXT("planned card %s is not in the actual offer (%s)"), *Rule.DefinitionId, *OfferText(Options));
+            Error = FString::Printf(TEXT("planned active %s is not in the actual offer (%s)"), *Rule.DefinitionId,
+                *FString::Join(Options, TEXT(",")));
             return false;
         }
-        break;
+        OutOption = Rule.DefinitionId;
+        return true;
     default:
         Error = TEXT("unknown choice rule");
         return false;
     }
-    Out.OptionId = Option->OptionId;
-    if (Option->Kind != ELDOpponentOptionKind::LearnActive) { return true; }
-    // A new active takes a free Q/W/E; with all three taken only the planned replacement is confirmed.
-    const FLDOpponentSkill* Held[3] = {nullptr, nullptr, nullptr};
-    for (const FLDOpponentSkill& Skill : Self.Skills)
-    {
-        if (Skill.Slot != ELDOpponentSkillSlot::Passive) { Held[uint8(Skill.Slot)] = &Skill; }
-    }
-    if (!Held[0] || !Held[1] || !Held[2]) { return true; }
-    if (!Rule.Replace.IsSet() || Rule.Replace.GetValue() == ELDOpponentSkillSlot::Passive)
-    {
-        Error = FString::Printf(TEXT("new active %s needs a planned Q/W/E replacement"), *Option->DefinitionId);
-        return false;
-    }
-    const FLDOpponentSkill& Old = *Held[uint8(Rule.Replace.GetValue())];
-    Out.bReplace = true;
-    Out.ReplaceSlot = Rule.Replace.GetValue();
-    Out.ReplacedSkillId = Old.DefinitionId;
-    Out.ReplacedRank = Old.Rank;
-    return true;
 }
 
 FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
@@ -108,36 +79,40 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
         return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::Stopped);
     }
     const int32 Planned = Profile.Choices.Num();
-    const int32 Ordinal = int32(Self.ChoicesConsumed) + 1;
-    if (Self.Offer.IsSet() && !Frame.bBuildChangeInFlight && Ordinal <= Planned)
+    if (Self.Offer.IsSet() && !Frame.bBuildChangeInFlight && int32(Self.Offer->Ordinal) <= Planned)
     {
+        const int32 Ordinal = Self.Offer->Ordinal;
         FLDOpponentRetryKey Key;
-        Key.Category = ELDOpponentFailure::Choice;
+        Key.Category = ELDOpponentFailure::Build;
+        Key.Slot = uint8(ELDOpponentBuildKind::ChooseActive);
         Key.Target = Self.Offer->OfferId;
-        if (Policy.Failures.CanAttempt(Key, LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Choice, Self), Frame.Public.NowMs))
+        if (Ordinal >= 1 && Policy.Failures.CanAttempt(Key, LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Build, Self), Frame.Public.NowMs))
         {
-            FLDOpponentChoicePick Pick;
+            FString Option;
             FString Error;
-            if (!Choose(Self, Catalog, Profile.Choices[Ordinal - 1], Pick, Error))
+            if (!Choose(Self, Catalog, Profile.Choices[Ordinal - 1], Option, Error))
             {
                 State.Phase = ELDEvaluationPhase::Failed;
                 State.Failure = FString::Printf(TEXT("ordinal %d: %s"), Ordinal, *Error);
                 return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::Stopped);
             }
-            Out.Build.Kind = ELDOpponentBuildKind::Choose;
+            Out.Build.Kind = ELDOpponentBuildKind::ChooseActive;
             Out.Build.OfferId = Self.Offer->OfferId;
             Out.Build.OfferRevision = Self.Offer->OfferRevision;
-            Out.Build.Choice = Pick;
+            Out.Build.Option = Option;
             Out.Build.Key = Key;
         }
     }
-    const bool bChose = Out.Build.Kind == ELDOpponentBuildKind::Choose;
-    // The body waits in the countdown, while dead and until every planned choice is consumed.
-    if (int32(Self.ChoicesConsumed) < Planned)
+    if (Out.Build.Kind == ELDOpponentBuildKind::None) { LDOpponentPolicy::DecideLearnOrAllocate(Frame, Catalog, Policy, Out.Build); }
+    const bool bBuilds = Out.Build.Kind != ELDOpponentBuildKind::None;
+    // The body waits in the countdown, while dead, and until every planned choice is consumed and the build steps it
+    // unlocked (learning blueprints, allocating points) are settled.
+    const bool bSettling = State.Phase == ELDEvaluationPhase::Waiting || State.Phase == ELDEvaluationPhase::Building;
+    if (int32(Self.OffersConsumed) < Planned || (bSettling && (bBuilds || Frame.bBuildChangeInFlight)))
     {
         State.Phase = ELDEvaluationPhase::Building;
-        return Finish(bChose ? ELDOpponentMode::Choose : ELDOpponentMode::Stopped,
-            bChose ? ELDOpponentReason::ChooseOffer : ELDOpponentReason::Stopped);
+        return Finish(bBuilds ? ELDOpponentMode::Choose : ELDOpponentMode::Stopped,
+            bBuilds ? ELDOpponentReason::ChooseOffer : ELDOpponentReason::Stopped);
     }
     if (bCountdown || Self.Phase == ELDLifePhase::Dead)
     {
@@ -152,7 +127,7 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     {
         State.Phase = ELDEvaluationPhase::Engaging;
         Out.Body = LDOpponentPolicy::EngageUnit(Frame, Catalog, Policy, *Rival);
-        if (bActionLive || (Self.bCowering && (Out.Body.Kind == EBody::AttackUnit || Out.Body.Kind == EBody::Activate))) { Hold(); }
+        if (bActionLive) { Hold(); }
         return Finish(ELDOpponentMode::Engage, ELDOpponentReason::EngageTarget);
     }
     const FLDOpponentPOI* Site = Frame.POIs.FindByPredicate([&Profile](const FLDOpponentPOI& POI) { return POI.Id == Profile.Site; });

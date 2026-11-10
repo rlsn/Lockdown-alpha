@@ -4,33 +4,44 @@ It describes what the current runtime can evaluate, from the catalog the native 
 manifest digest is the native catalog root), and turns the native Host driver's evidence into Case statuses, metrics and
 facts. It reads the authority LD_* lines the Host log contract already defines; it never evaluates damage, draws offers or
 decides an outcome itself. A definition that is not in the runtime catalog has no native handler and is unsupported.
+
+#198 growth: a plan fixes the active choice of each active opportunity (the opening one and one per level of
+progression.active_offer_levels reached). Learning blueprints and allocating points always follow the production AI rule
+(LDOpponentPolicy::DecideLearnOrAllocate); a plan cannot express them, nor replacements or rerolls, and such a plan is
+refused as UnsupportedDecision.
 """
 
 import hashlib
 import json
 import math
 import re
-from functools import lru_cache
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 4
+ADAPTER_VERSION = 5
 # LDBuildEvaluation::MaxCases of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused before any run.
 NATIVE_MAX_CASES = 500
 NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
 NATIVE_RESULT_SCHEMA = "lockdown.build_evaluation.native_result"
 NATIVE_RUN_SCHEMA = "lockdown.build_evaluation.native_run"
-NATIVE_SCHEMA_VERSION = 1
+NATIVE_SCHEMA_VERSION = 2
 SEED_DERIVATION = 1
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
-CANONICAL_TAGS = ("LD_OFFER", "LD_CHOICE", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT")
+CANONICAL_TAGS = ("LD_OFFER", "LD_CHOICE", "LD_BUILD", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT")
 FIELD = re.compile(r'(\w+)=("(?:[^"\\]|\\.)*"|\S*)')
 GUID = re.compile(r"\b[0-9A-F]{32}\b")
-OPTION = re.compile(r"^([A-Za-z]+):([A-Za-z0-9_.-]+):(\d+)>(\d+):q(\d+)$")
+DEFINITION = re.compile(r"^[a-z][a-z0-9_]*$")
 P2 = re.compile(r"^-?\d+\.\d{2}$")
 SLOTS = ("Q", "W", "E")
+# Decisions a plan may name that the current runtime cannot carry out as planned (#198): they are reported to the core,
+# which refuses them as UnsupportedDecision because the capability table does not declare them.
+UNPLANNABLE = {
+    "replace": "replace_active",
+    "points": "allocate_points",
+    "learn": "learn_blueprint",
+}
 
 METRICS = {
     "duel_score": {"unit": "score", "kind": "score", "direction": "higher_better",
@@ -81,12 +92,10 @@ def describe(project_root):
     world = json.loads(world_path.read_text(encoding="utf-8"))
     mechanics = {}
     for ability in content["abilities"]:
-        mechanics[ability["id"]] = {"status": "Supported", "kind": ability["kind"], "draftable": bool(ability.get("draftable")),
+        mechanics[ability["id"]] = {"status": "Supported", "kind": "active", "opening": bool(ability.get("opening")),
                                     "evidence": CATALOG_EVIDENCE}
-    for attribute in content["attributes"]:
-        mechanics[attribute["id"]] = {"status": "Supported", "kind": "attribute", "evidence": CATALOG_EVIDENCE}
-    for card in content["opening_cards"]:
-        mechanics[card["id"]] = {"status": "Supported", "kind": "opening", "evidence": CATALOG_EVIDENCE}
+    for stat in content["stats"]:
+        mechanics[stat["id"]] = {"status": "Supported", "kind": "stat", "evidence": CATALOG_EVIDENCE}
     places = sorted(anchor["id"] for anchor in world["anchors"] if anchor["kind"] in PUBLIC_PLACE_KINDS)
     progression = content["progression"]
     boss_appear_ms = int(content["boss"]["appear_at"]["ms"])
@@ -95,14 +104,13 @@ def describe(project_root):
         "adapter": {"id": ADAPTER_ID, "version": ADAPTER_VERSION},
         "content": {"id": "lockdown-demo-content", "version": product_version(project_root),
                     "digest": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
-                    "abilities": sum(1 for row in content["abilities"]), "attributes": len(content["attributes"]),
-                    "opening_cards": len(content["opening_cards"])},
+                    "abilities": len(content["abilities"]), "stats": len(content["stats"])},
         "mechanics": mechanics,
         "decisions": {
-            "ai_select": {"description": "the production AI choice (LDOpponentPolicy::SelectChoice), rerolls included"},
-            "option_index": {"description": "the option at index 0..2 of the actual head offer"},
-            "definition": {"description": "the actual head offer's option of one definition; refused when not offered"},
-            "preset_offer": {"description": "a three-card head offer prepared by DevQueueOffer from ordinal 2",
+            "ai_select": {"description": "the production active preference (LDOpponentPolicy::SelectActive)"},
+            "option_index": {"description": "the option at index 0..2 of the actual active offer; refused when it has fewer"},
+            "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
+            "preset_offer": {"description": "a one-to-three-active offer prepared by DevQueueOffer from ordinal 2",
                              "sample_classes": ["diagnostic"]},
         },
         "scenarios": {
@@ -112,17 +120,19 @@ def describe(project_root):
                 "sides": 2,
                 "metrics": list(METRICS),
                 "parameters": {"site": places, "duel_timeout_ms": [1000, boss_appear_ms],
-                               "supply_xp": [0, cumulative_xp(progression)[-1]], "max_choices": progression["max_choices"],
-                               "xp_to_next": progression["xp_to_next"], "reroll_levels": progression["reroll_levels"]},
+                               "supply_xp": [0, cumulative_xp(progression)[-1]],
+                               "xp_to_next": progression["xp_to_next"],
+                               "active_offer_levels": progression["active_offer_levels"]},
                 "description": ("A Listen Host of L_Demo runs one ordinary match per Case: the Host only orchestrates; two AI "
-                                "contenders grow along their plans from a T=0 XP supply, walk to a public place and fight each "
-                                "other with the production engagement until a death or the duel timeout."),
+                                "contenders choose their active offers along their plans from a T=0 XP supply, learn their "
+                                "blueprints and allocate their points by the production AI rule, walk to a public place and "
+                                "fight each other with the production engagement until a death or the duel timeout."),
             }
         },
         "metrics": METRICS,
         "limits": {"max_cases_per_run": NATIVE_MAX_CASES},
         "random_streams": {
-            "seeded": ["growth offers (MatchSecret)", "critical rolls", "spawn anchors and AI opening plans",
+            "seeded": ["growth offers (MatchSecret)", "critical rolls", "spawn anchors and AI opening timing",
                        "airdrop points", "AI contender and session identities"],
             "unseeded": ["leader notice circle (ledger identity)", "camp member and effect identities (not ordering inputs)"],
         },
@@ -140,61 +150,58 @@ def _rule(rule, where):
     if unknown:
         raise ValueError(f"{where}: unknown fields {sorted(unknown)}")
     if rule["rule"] == "ai_select":
-        if set(rule) != {"rule"}:
+        if set(rule) - {"rule", "replace"}:
             raise ValueError(f"{where}: ai_select takes nothing else")
-        return {"rule": "ai_select"}
+        return dict(rule)
     if rule["rule"] == "option_index":
         index = rule.get("index")
         if isinstance(index, bool) or not isinstance(index, int) or index not in (0, 1, 2) or "definition" in rule:
             raise ValueError(f"{where}: option_index takes integer index 0..2")
     if rule["rule"] == "definition" and (not isinstance(rule.get("definition"), str) or "index" in rule):
         raise ValueError(f"{where}: definition takes a definition id")
-    if "replace" in rule and rule["replace"] not in SLOTS:
-        raise ValueError(f"{where}: replace is Q, W or E")
     return dict(rule)
 
 
 def _side_plan(plan, role):
     side = plan.get(role)
-    if not isinstance(side, dict) or set(side) - {"choices", "presets"} or "choices" not in side:
+    if not isinstance(side, dict) or set(side) - ({"choices", "presets"} | set(UNPLANNABLE)) or "choices" not in side:
         raise ValueError(f"plan.{role}: an object with choices (and optional presets)")
     if not isinstance(side["choices"], list):
         raise ValueError(f"plan.{role}.choices: a list")
     choices = [_rule(rule, f"plan.{role}.choices[{index}]") for index, rule in enumerate(side["choices"])]
     presets = side.get("presets", [])
-    if not isinstance(presets, list) or any(not isinstance(row, list) or len(row) != 3
-                                            or any(not isinstance(card, str) for card in row) or len(set(row)) != 3
+    if not isinstance(presets, list) or any(not isinstance(row, list) or not 1 <= len(row) <= 3
+                                            or any(not isinstance(card, str) for card in row) or len(set(row)) != len(row)
                                             for row in presets):
-        raise ValueError(f"plan.{role}.presets: lists of three distinct definition ids")
+        raise ValueError(f"plan.{role}.presets: lists of one to three distinct active ids")
     return choices, presets
 
 
 def requirements(scenario, plan, caps):
     if set(plan) - set(ROLES):
         raise ValueError(f"plan: only {ROLES}")
-    progression_limit = caps["scenarios"]["duel_site"]["parameters"]["max_choices"]
     supply = scenario["parameters"]["supply_xp"]
     mechanics, decisions, problems = set(), set(), []
     for role in ROLES:
         choices, presets = _side_plan(plan, role)
+        for key, decision in UNPLANNABLE.items():
+            if key in plan[role] or any(key in rule for rule in choices):
+                decisions.add(decision)
         opportunities = _opportunities(caps, supply[role])
         if len(choices) != opportunities:
             problems.append(f"IllegalDecision: plan.{role} has {len(choices)} rules but its supply of {supply[role]} XP "
-                            f"gives {opportunities} opportunities (the opening one included)")
-        if len(choices) > progression_limit:
-            problems.append(f"IllegalDecision: plan.{role} plans more than {progression_limit} choices")
+                            f"gives {opportunities} active opportunities (the opening one included)")
         for ordinal, rule in enumerate(choices, 1):
             decisions.add(rule["rule"])
             if rule["rule"] != "definition":
                 continue
             mechanics.add(rule["definition"])
             row = caps["mechanics"].get(rule["definition"], {})
-            kind = row.get("kind")
-            if kind and (ordinal == 1) != (kind == "opening"):
-                problems.append(f"IllegalDecision: plan.{role} ordinal {ordinal} can never offer {kind} {rule['definition']}"
-                                " (the opening choice offers opening cards only, later ones never do)")
-            if row.get("draftable") is False:
-                problems.append(f"IllegalDecision: {rule['definition']} is not draftable and is never offered")
+            if row and row.get("kind") != "active":
+                problems.append(f"IllegalDecision: {rule['definition']} is a {row.get('kind')}, never an offered active")
+            elif row and ordinal == 1 and not row.get("opening"):
+                problems.append(f"IllegalDecision: plan.{role} ordinal 1 can never offer {rule['definition']}"
+                                " (the opening offer draws from the opening pool only)")
         if presets:
             decisions.add("preset_offer")
             if len(presets) > max(0, opportunities - 1):
@@ -202,14 +209,17 @@ def requirements(scenario, plan, caps):
         for row in presets:
             for card in row:
                 mechanics.add(card)
-                if caps["mechanics"].get(card, {}).get("kind") == "opening":
-                    problems.append(f"IllegalDecision: plan.{role} presets name opening card {card}; presets start at ordinal 2")
+                kind = caps["mechanics"].get(card, {}).get("kind")
+                if kind and kind != "active":
+                    problems.append(f"IllegalDecision: plan.{role} presets name {kind} {card}; only actives are offered")
     return {"mechanics": sorted(mechanics), "decisions": sorted(decisions), "problems": problems}
 
 
 def _opportunities(caps, supply_xp):
-    """Opportunities a supply gives: the opening one plus one per level reached (the catalog's XP table)."""
-    return level_for({"xp_to_next": caps["scenarios"]["duel_site"]["parameters"]["xp_to_next"]}, supply_xp)
+    """Active opportunities a supply gives: the opening one plus one per active_offer_levels entry reached."""
+    params = caps["scenarios"]["duel_site"]["parameters"]
+    level = level_for({"xp_to_next": params["xp_to_next"]}, supply_xp)
+    return 1 + sum(1 for offer_level in params["active_offer_levels"] if offer_level <= level)
 
 
 def scenario_problems(scenario, caps):
@@ -287,38 +297,13 @@ def _roles(result):
     return {row["contender"]: row["role"] for row in result["contenders"]}
 
 
-@lru_cache(maxsize=8)
-def _recorded_reroll_levels(project_root, digest):
-    """Older capability records lack reroll levels; recover them only from the same content root."""
-    manifest_path, content_path, _ = _content_paths(project_root)
-    manifest_bytes, content_bytes = manifest_path.read_bytes(), content_path.read_bytes()
-    if hashlib.sha256(manifest_bytes).hexdigest() != digest:
-        raise ValueError("the recorded catalog is unavailable for reroll validation")
-    if hashlib.sha256(content_bytes).hexdigest() != json.loads(manifest_bytes)["content"]["sha256"]:
-        raise ValueError("the catalog payload does not match the recorded content root")
-    return tuple(json.loads(content_bytes)["progression"]["reroll_levels"])
-
-
-def _reroll_levels(manifest, caps):
-    params = caps["scenarios"]["duel_site"]["parameters"]
-    if "reroll_levels" in params:
-        return params["reroll_levels"]
-    project_root = manifest.get("resolved", {}).get("project_root")
-    if not project_root:
-        raise ValueError("the recorded capability table does not include reroll levels")
-    try:
-        return _recorded_reroll_levels(project_root, caps["content"]["digest"])
-    except (OSError, KeyError, json.JSONDecodeError) as error:
-        raise ValueError(f"the recorded reroll rules cannot be read: {error}") from error
-
-
-def selection_problems(events, ids, plan, contenders, reroll_levels, t_out):
-    """Validate both sides' initial offer, optional reroll and committed selection at every planned ordinal."""
+def selection_problems(events, ids, plan, contenders, t_out):
+    """Validate both sides' active offer and committed choice at every planned ordinal, and the terminal build."""
     problems = []
     roles = {contender: role for role, contender in ids.items()}
     choices = {role: _side_plan(plan, role)[0] for role in ROLES}
-    selections = {role: {ordinal: {"initial": None, "reroll": None, "choice": None}
-                         for ordinal in range(1, len(choices[role]) + 1)} for role in ROLES}
+    selections = {role: {ordinal: {"offer": None, "choice": None} for ordinal in range(1, len(choices[role]) + 1)}
+                  for role in ROLES}
     for tag, fields, _ in events:
         role = roles.get(fields.get("contender"))
         if not role or tag not in ("LD_OFFER", "LD_CHOICE"):
@@ -338,69 +323,48 @@ def selection_problems(events, ids, plan, contenders, reroll_levels, t_out):
             problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a missing or post-outcome time or invalid level")
             continue
         if tag == "LD_OFFER":
-            rerolled = fields.get("rerolled")
-            key = "initial" if rerolled == "0" else "reroll" if rerolled == "1" else None
-            options = [OPTION.fullmatch(option) for option in fields.get("cards", "").split(",")]
-            if not key or len(options) != 3 or any(option is None for option in options):
+            cards = fields.get("cards", "").split(",")
+            if not 1 <= len(cards) <= 3 or any(not DEFINITION.fullmatch(card) for card in cards) or len(set(cards)) != len(cards):
                 problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a malformed offer")
                 continue
-            if key == "reroll" and (ordinal == 1 or choices[role][ordinal - 1]["rule"] != "ai_select"):
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has an unplanned reroll")
-            parsed = [{"kind": option[1], "card": option[2], "rank": int(option[4]), "quality": int(option[5])}
-                      for option in options]
-            if len({option["card"] for option in parsed}) != 3:
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has duplicate offered definitions")
-            if item[key] is not None or item["choice"] is not None or (key == "reroll" and item["initial"] is None):
+            if item["offer"] is not None or item["choice"] is not None:
                 problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has duplicate or out-of-order offer evidence")
             else:
-                item[key] = parsed
-                item[f"{key}_time"] = int(fields["t"])
-                item[f"{key}_level"] = int(fields["level"])
+                item["offer"] = cards
+                item["offer_time"] = int(fields["t"])
+                item["offer_level"] = int(fields["level"])
         else:
-            if (not fields.get("replaced") or not fields.get("pending", "").isdigit()
-                    or not fields.get("revealed")):
+            result, slot, stored = fields.get("result"), fields.get("slot"), fields.get("stored")
+            if (fields.get("kind") != "ActiveChoice" or result not in ("learned", "blueprint") or not fields.get("pending", "").isdigit()
+                    or (result == "learned" and (slot not in SLOTS or stored != "-"))
+                    or (result == "blueprint" and (slot != "-" or not stored))):
                 problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has incomplete choice metadata")
-            if item["initial"] is None or item["choice"] is not None:
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a duplicate choice or no initial offer")
+            if item["offer"] is None or item["choice"] is not None:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a duplicate choice or no offer")
             else:
                 item["choice"] = fields
     for role in ROLES:
-        observed_rerolls = 0
-        for ordinal, item in selections[role].items():
-            initial, reroll, chosen = item["initial"], item["reroll"], item["choice"]
-            if initial is None or chosen is None:
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} lacks an initial offer or committed choice")
-                continue
-            observed_rerolls += int(reroll is not None)
-            final_key = "reroll" if reroll is not None else "initial"
-            final = item[final_key]
-            if (item[final_key + "_time"] > int(chosen["t"])
-                    or item[final_key + "_level"] > int(chosen["level"])
-                    or int(chosen["level"]) > contenders[role]["level"]
-                    or (reroll is not None and (item["initial_time"] > item["reroll_time"]
-                                                or item["initial_level"] > item["reroll_level"]))):
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has inconsistent offer or choice times or levels")
-            matches = [option for option in final if option["card"] == chosen.get("card")]
-            if len(matches) != 1 or chosen.get("kind") != (matches[0]["kind"] if matches else None):
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} choice is not in its final offer")
-                continue
-            selected = matches[0]
-            if chosen.get("quality") != str(selected["quality"]) or chosen.get("rank") != str(selected["rank"]):
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} choice disagrees with the offered rank or quality")
-            if ordinal == 1 and chosen.get("revealed", "-") in ("", "-"):
-                problems.append(f"TraceIncomplete: {role} opening choice lacks its revealed active")
-            rule = choices[role][ordinal - 1]
-            if rule["rule"] == "option_index" and final[rule["index"]]["card"] != selected["card"]:
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} did not commit the planned option index")
-            if rule["rule"] == "definition" and rule["definition"] != selected["card"]:
-                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} did not commit the planned definition")
         row = contenders[role]
-        earned = sum(level <= row["level"] for level in reroll_levels)
-        if earned - row["rerolls_left"] != observed_rerolls:
-            problems.append(f"TraceIncomplete: {role} reroll records do not match its remaining tokens")
-        opening = selections[role].get(1, {}).get("choice") or {}
-        if opening.get("card") != row["opening_card"]:
-            problems.append(f"TraceIncomplete: {role} opening choice disagrees with its terminal build")
+        held = {active["id"] for active in row["actives"]} | set(row["blueprints"])
+        for ordinal, item in selections[role].items():
+            offer, chosen = item["offer"], item["choice"]
+            if offer is None or chosen is None:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} lacks an offer or committed choice")
+                continue
+            if (item["offer_time"] > int(chosen["t"]) or item["offer_level"] > int(chosen["level"])
+                    or int(chosen["level"]) > row["level"]):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has inconsistent offer or choice times or levels")
+            card = chosen.get("card")
+            if card not in offer:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} choice is not in its offer")
+                continue
+            if card not in held:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} choice {card} is neither learned nor a blueprint at the end")
+            rule = choices[role][ordinal - 1]
+            if rule["rule"] == "option_index" and (rule["index"] >= len(offer) or offer[rule["index"]] != card):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} did not commit the planned option index")
+            if rule["rule"] == "definition" and rule["definition"] != card:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} did not commit the planned definition")
     return problems
 
 
@@ -421,9 +385,9 @@ def case_evidence(case, manifest, caps, result, trace_text):
         return out
     rows = result.get("contenders")
     required = {"role", "slot", "contender", "progression_valid", "profile_bound", "choices", "planned_choices",
-                "supply_xp", "supply_status", "presets_queued", "presets_requested", "level", "rerolls_left", "opening_card",
-                "skills", "cards", "has_body", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2"}
-    integer_fields = ("slot", "level", "rerolls_left", "choices", "planned_choices", "supply_xp",
+                "supply_xp", "supply_status", "presets_queued", "presets_requested", "level", "unspent_points",
+                "stat_points", "actives", "blueprints", "has_body", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2"}
+    integer_fields = ("slot", "level", "unspent_points", "choices", "planned_choices", "supply_xp",
                       "presets_queued", "presets_requested", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2")
     if (not isinstance(rows, list) or len(rows) != len(ROLES) or
             any(not isinstance(row, dict) or not required <= row.keys() for row in rows) or
@@ -434,15 +398,15 @@ def case_evidence(case, manifest, caps, result, trace_text):
             any(isinstance(row[key], bool) or not isinstance(row[key], int) or row[key] < 0
                 for row in rows for key in integer_fields) or
             any(not isinstance(row[key], bool) for row in rows for key in ("progression_valid", "profile_bound", "has_body")) or
-            any(not isinstance(row["opening_card"], str) or not isinstance(row["supply_status"], str) for row in rows) or
-            any(not isinstance(row["skills"], list) or not isinstance(row["cards"], list) for row in rows) or
-            any(not isinstance(skill, dict) or not {"id", "rank", "slot"} <= skill.keys()
-                or not isinstance(skill["id"], str) or not isinstance(skill["slot"], str)
-                or isinstance(skill["rank"], bool) or not isinstance(skill["rank"], int)
-                for row in rows for skill in row["skills"]) or
-            any(not isinstance(card, dict) or not {"id", "count"} <= card.keys()
-                or not isinstance(card["id"], str) or isinstance(card["count"], bool) or not isinstance(card["count"], int)
-                for row in rows for card in row["cards"])):
+            any(not isinstance(row["supply_status"], str) for row in rows) or
+            any(not isinstance(row[key], list) for row in rows for key in ("stat_points", "actives", "blueprints")) or
+            any(not isinstance(stat, dict) or not {"id", "points"} <= stat.keys() or not isinstance(stat["id"], str)
+                or isinstance(stat["points"], bool) or not isinstance(stat["points"], int) or stat["points"] < 0
+                for row in rows for stat in row["stat_points"]) or
+            any(not isinstance(active, dict) or not {"id", "slot"} <= active.keys()
+                or not isinstance(active["id"], str) or active["slot"] not in SLOTS
+                for row in rows for active in row["actives"]) or
+            any(not isinstance(blueprint, str) for row in rows for blueprint in row["blueprints"])):
         out["reason"] = "TraceIncomplete: native contender identities or terminal progression are missing"
         return out
     if (not isinstance(result.get("outcome"), dict) or not {"kind", "victim", "killer", "t_ms"} <= result["outcome"].keys() or
@@ -540,11 +504,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
         if supplied[role] != params["supply_xp"][role]:
             reasons.append(f"SupplyMismatch: the {role} received {supplied[role]} dev_fixture XP, planned {params['supply_xp'][role]}")
     plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
-    try:
-        reroll_levels = _reroll_levels(manifest, caps)
-        reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, reroll_levels, t_out)
-    except ValueError as error:
-        reasons.append(f"TraceIncomplete: {error}")
+    reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out)
     for role in ROLES:
         _, presets = _side_plan(plans[case["arm"]], role)
         offered = out["facts"]["offers"][role]
@@ -615,10 +575,10 @@ def branch_ordinal(design):
 
 def facts(case, manifest, result, events, ids):
     offers = {role: {} for role in ROLES}
-    rerolled = {role: {} for role in ROLES}
     chosen = {role: {} for role in ROLES}
     offer_details = {role: {} for role in ROLES}
     choice_details = {role: {} for role in ROLES}
+    build_steps = {role: [] for role in ROLES}
     roles = {contender: role for role, contender in ids.items()}
     spawn = {}
     for tag, fields, _ in events:
@@ -628,39 +588,38 @@ def facts(case, manifest, result, events, ids):
         if not role:
             continue
         if tag == "LD_OFFER" and fields.get("ordinal", "").isdigit():
-            cards = [card.split(":")[1] for card in fields.get("cards", "").split(",") if card.count(":") >= 2]
-            target = rerolled if fields.get("rerolled") == "1" else offers
-            target[role].setdefault(fields["ordinal"], cards)
-            kind = "reroll" if fields.get("rerolled") == "1" else "offer"
-            offer_details[role].setdefault(fields["ordinal"], {}).setdefault(
-                kind, {"t": fields.get("t"), "level": fields.get("level"), "cards": fields.get("cards", "").split(",")})
+            cards = [card for card in fields.get("cards", "").split(",") if card]
+            offers[role].setdefault(fields["ordinal"], cards)
+            offer_details[role].setdefault(fields["ordinal"], {"t": fields.get("t"), "level": fields.get("level"), "cards": cards})
         elif tag == "LD_CHOICE" and fields.get("ordinal", "").isdigit() and fields.get("card"):
-            # An opening card reveals the active it taught only once chosen (#153); the label names both.
-            revealed = fields.get("revealed", "-")
-            chosen[role][fields["ordinal"]] = fields.get("card") + (f"→{revealed}" if revealed not in ("", "-") else "")
+            # The label names where the active went: a Q/W/E slot, or a blueprint kept for later.
+            where = fields.get("slot") if fields.get("result") == "learned" else "blueprint"
+            chosen[role][fields["ordinal"]] = f"{fields['card']}→{where}"
             choice_details[role][fields["ordinal"]] = {
-                key: fields.get(key) for key in ("t", "kind", "card", "rank", "replaced", "level", "pending", "revealed", "quality")}
+                key: fields.get(key) for key in ("t", "kind", "card", "result", "slot", "stored", "level", "pending")}
+        elif tag == "LD_BUILD":
+            build_steps[role].append({key: fields.get(key) for key in ("t", "kind", "card", "slot", "points", "unspent", "level")})
     point = branch_ordinal(manifest["design"])
     label = chosen["subject"].get(str(point), "") if point else ""
     prefix = None
     if point:
-        subject_offers = offer_details["subject"]
-        history = [{"ordinal": ordinal, "offer": subject_offers.get(str(ordinal), {}).get("offer"),
-                    "reroll": subject_offers.get(str(ordinal), {}).get("reroll"),
+        history = [{"ordinal": ordinal, "offer": offer_details["subject"].get(str(ordinal)),
                     "choice": choice_details["subject"].get(str(ordinal))}
                    for ordinal in range(1, point)]
         prefix = json.dumps({"history": history,
-                             "branch": {"ordinal": point, "offer": subject_offers.get(str(point), {}).get("offer")}},
+                             "branch": {"ordinal": point, "offer": offer_details["subject"].get(str(point))}},
                             sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     fingerprint = hashlib.sha256(json.dumps([offers["subject"].get("1"), offers["opponent"].get("1"), spawn],
                                             sort_keys=True).encode("utf-8")).hexdigest()[:16]
     first_hit = next(({"role": roles[fields["src"]], "t_ms": int(fields["t"]) - int(result.get("started_at_ms", 0))}
                       for tag, fields, _ in events if tag == "LD_HIT" and fields.get("src") in roles
                       and fields.get("victim") in roles and fields.get("hp_lost", "0.00") != "0.00"), None)
-    builds = {row["role"]: {"level": row["level"], "opening_card": row["opening_card"],
-                            "skills": [f"{skill['id']}@{skill['rank']}{'/' + skill['slot'] if skill['slot'] else ''}" for skill in row["skills"]],
-                            "cards": [f"{card['id']}*{card['count']}" for card in row["cards"]]} for row in result["contenders"]}
-    return {"offers": offers, "rerolled_offers": rerolled, "choices": chosen, "builds": builds, "label": label,
+    builds = {row["role"]: {"level": row["level"], "unspent_points": row["unspent_points"],
+                            "actives": [f"{active['id']}/{active['slot']}" for active in row["actives"]],
+                            "blueprints": list(row["blueprints"]),
+                            "stat_points": {stat["id"]: stat["points"] for stat in row["stat_points"]}}
+              for row in result["contenders"]}
+    return {"offers": offers, "choices": chosen, "build_steps": build_steps, "builds": builds, "label": label,
             "prefix": prefix, "random_fingerprint": fingerprint, "first_hit": first_hit, "spawn": spawn,
             "outcome": result.get("outcome")}
 
@@ -723,7 +682,7 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
     identity["binary_digests"] = binary
     terminal_fields = ("status", "case_id", "seed", "content_root", "started_at_ms", "ended_at_ms", "outcome")
     contender_fields = ("role", "slot", "contender", "progression_valid", "level", "xp", "choices", "planned_choices",
-                        "rerolls_left", "opening_card", "skills", "cards", "has_body", "hp_p2", "max_hp_p2",
+                        "unspent_points", "stat_points", "actives", "blueprints", "has_body", "hp_p2", "max_hp_p2",
                         "mp_p2", "max_mp_p2", "profile_bound", "profile_phase", "profile_failure", "supply_xp",
                         "supply_status", "presets_requested", "presets_queued")
     terminal = {key: result.get(key) for key in terminal_fields}
@@ -808,9 +767,11 @@ def identity_problems(native_run, caps):
 
 def limitations(manifest, caps):
     out = [
-        f"内容为当前运行目录 {caps['content']['version']}（{caps['content']['abilities']} 个技能定义、{caps['content']['attributes']} 张属性卡、"
-        f"{caps['content']['opening_cards']} 张开局卡）；目录外的机制一律 UnsupportedMechanic，不代表 v0.11 候选卡已被评估。",
-        "对决双方使用同一个固定的 DEV 评估画像：按计划选卡、走到公开地点、只攻击指定对手、不撤退；交战微操是生产 AI 的 Engage。"
+        f"内容为当前运行目录 {caps['content']['version']}（{caps['content']['abilities']} 个主动技能、{caps['content']['stats']} 项属性）；"
+        "目录外的机制一律 UnsupportedMechanic，不代表 v0.11 候选内容已被评估。",
+        "计划只规定每次主动机会选哪个主动（并总是请求立即学会）；学习图纸与分配属性点固定用生产 AI 规则，"
+        "替换主动、指定加点或指定学习的计划是 UnsupportedDecision。",
+        "对决双方使用同一个固定的 DEV 评估画像：按计划选择、走到公开地点、只攻击指定对手、不撤退；交战微操是生产 AI 的 Engage。"
         "结果反映固定策略下的机制差异，不代表玩家适应或六类策略画像。",
         "成长由 T=0 的经验供给推动（cause=dev_fixture，经正常奖励复合事务），是计划假设，不证明真实对局中能在同样时间拿到这些经验。",
         "两名 AI 在真实 L_Demo 中移动、寻路与交战（NativeSpatial）；房主是唯一真人，只编排、不参战、不计分；没有拥有连接、网络或渲染证据。",
@@ -818,9 +779,9 @@ def limitations(manifest, caps):
         "duel_score 为 0 表示到时未分胜负（删失），不是输；\"谁先被击倒\" 不是旗杆整局胜利。",
     ]
     if manifest["sample_class"] == "diagnostic":
-        out.append("本实验用 DevQueueOffer 预置候选：样本是条件实验（diagnostic），不能估计自然抽到率或全局卡牌健康。")
+        out.append("本实验用 DevQueueOffer 预置候选：样本是条件实验（diagnostic），不能估计自然抽到率或全局主动健康。")
     if manifest["sample_class"] == "legal_search":
-        out.append("候选由原生抽卡按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
+        out.append("候选由原生抽取按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
     return out
 
 

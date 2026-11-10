@@ -5,8 +5,7 @@
 struct FLDDemoContentParameters;
 
 // #147 build v7 keywords (docs/systems/COMBAT_AND_GROWTH.md, "构筑 v7 战斗原语"): the shared breach and burn records of
-// one target life, the lifesteal cap and the knockback wall judgement. Pure rules over primitive values; the director
-// applies them to its body records.
+// one target life and the lifesteal cap. Pure rules over primitive values; the director applies them to its body records.
 
 // The approved keyword terms (COMBAT.Breach*, COMBAT.Burn*, COMBAT.LifestealCap).
 struct LOCKDOWN_API FLDKeywordTerms
@@ -56,13 +55,6 @@ struct FLDCombatBurn
     int64 NextTickAtMs = 0;
 };
 
-// A body a projectile flight may meet: its life, foot and collision radius.
-struct FLDFlightCandidate
-{
-    FLDCombatBodyRef Body;
-    FVector FootCm = FVector::ZeroVector;
-    double RadiusCm = 0;
-};
 
 // One tick's damage of every layer of one applier.
 struct FLDBurnTickShare
@@ -89,7 +81,7 @@ namespace LDCombatKeywords
     LOCKDOWN_API bool ExpireBreach(FLDCombatSharedBreach& Breach, int64 AtMs);
 
     // Per-second damage of one layer: G(L) x BurnPerSec + BurnAPRatio x AP, floored to P2 (G(L) of LDSkillGrowth with
-    // SKILL.GrowthPerLevel; skill amounts already arrive grown through FLDDemoContentSnapshot::FindRank).
+    // SKILL.GrowthPerLevel; skill amounts already arrive grown through FLDDemoContentSnapshot::FindValues).
     LOCKDOWN_API int64 BurnLayerPerSecondP2(int32 Level, int64 SourceAPP2, const FLDKeywordTerms& Terms);
     LOCKDOWN_API bool BurnActive(const FLDCombatBurn& Burn, int64 AtMs);
     // Adds Count copies of Layer: below the cap they join, at the cap each replaces the oldest; the shared timer
@@ -105,15 +97,9 @@ namespace LDCombatKeywords
 
     // Earliest fraction (0..1) of From->To at which a moving point comes within Reach of Centre (planar); false when never.
     LOCKDOWN_API bool SegmentEntry(const FVector& From, const FVector& To, const FVector& Centre, double Reach, double& OutFraction);
-    // A piercing flight over From->To (radius FlightRadiusCm): the candidates it enters in flight order (ties keep the
-    // candidate order), skipping SourceEntity's bodies and the lives in Struck.
-    LOCKDOWN_API void PierceContacts(const FVector& From, const FVector& To, double FlightRadiusCm, const FGuid& SourceEntity,
-        const TArray<FLDCombatBodyRef>& Struck, const TArray<FLDFlightCandidate>& Candidates, TArray<int32>& OutIndices);
 
     // D22: every lifesteal of one hit adds up, at most COMBAT.LifestealCap.
     LOCKDOWN_API int64 CapLifestealBp(int64 SumBp, const FLDKeywordTerms& Terms);
-    // A knockback met a wall when its body travelled (planar) less than ThresholdCm.
-    LOCKDOWN_API bool KnockbackHitWall(const FVector& StartFootCm, const FVector& EndFootCm, double ThresholdCm);
-    // #166 passive_moral_victory: the breaker takes RatioBp of the granted shield; another nearby enemy takes half.
+    // triggered_shield burst: the breaker takes RatioBp of the granted shield; another nearby enemy takes half.
     LOCKDOWN_API int64 ShieldBurstShareP2(int64 GrantedP2, int64 RatioBp, bool bNearbyEnemy);
 }

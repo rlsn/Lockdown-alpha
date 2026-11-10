@@ -235,6 +235,8 @@ int32 ALDCombatDirector::DevFinishReset(const FGuid& Contender, int64 NowMs)
         return 0;
     }
     const int32 Dropped = DevDropTracks(Record->Tracks, NowMs);
+    // Back at the match start no combat action holds the build safe window.
+    Record->LastBuildUnsafeAtMs = 0;
     if (FLDBodyCombatState* Body = FindEntityBody(Contender); Body && !Body->bPendingDeath)
     {
         DevRefillPool(Body->Resources);

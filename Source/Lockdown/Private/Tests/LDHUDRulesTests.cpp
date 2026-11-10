@@ -27,7 +27,7 @@ namespace
 // A private table id keeps the fixture away from the real DemoContent display table. Its names are the approved
 // catalog's (#111), so expectations read them through HudName instead of repeating them.
 const FName HudFixtureTable(TEXT("LDHUDRulesDisplayFixture"));
-const TCHAR* const HudFixtureIds[]={TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_guardian"),TEXT("passive_iced_americano")};
+const TCHAR* const HudFixtureIds[]={TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_guardian")};
 TMap<FString,FString> HudFixtureNames;
 FString HudName(const TCHAR* Id)
 {
@@ -59,6 +59,30 @@ bool HudRegisterFixtureTable(FAutomationTestBase& Test)
 #endif
     }
     FStringTableRegistry::Get().RegisterStringTable(HudFixtureTable,Table);
+    return true;
+}
+// The game registers the approved display table at startup; when this editor session has not, the approved names are
+// registered for the rendered faces (OutTable stays None when the existing table is used and nothing must be unregistered).
+bool HudRegisterApprovedNames(FAutomationTestBase& Test,const FLDDemoContentDefinitions& Content,FName& OutTable)
+{
+    OutTable=NAME_None;
+    TMap<FString,FString> Names;
+    if(!LDTestApprovedDisplay::Names(Test,Names)||Content.Display.IsEmpty()){return false;}
+    const FName Namespace(*Content.Display[0].Namespace);
+    if(FStringTableRegistry::Get().FindStringTable(Namespace).IsValid()){return true;}
+    OutTable=Namespace;
+    FStringTableRef Table=FStringTable::NewStringTable();Table->SetNamespace(OutTable.ToString());
+    for(const FLDDemoDisplayDefinition& Row:Content.Display)
+    {
+        const FString* Name=Names.Find(Row.Id);
+        if(!Name||Row.Namespace!=OutTable.ToString()){continue;}
+#if WITH_EDITORONLY_DATA
+        Table->SetSourceString(FTextKey(*Row.NameKey),*Name,FString());
+#else
+        Table->SetSourceString(FTextKey(*Row.NameKey),*Name);
+#endif
+    }
+    FStringTableRegistry::Get().RegisterStringTable(OutTable,Table);
     return true;
 }
 }
@@ -188,9 +212,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionViewTest,"Lockdown.Rules.HUDActionV
 bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
 {
     LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.Rank=2;Bolt.ManaCostP2=5000;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.ManaCostP2=5000;
     LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
-    TestTrue(TEXT("A ready learned active can be sent and shows its rank"),View.bCanSubmitIntent&&View.ExecutionBlocks==0&&View.State==TEXT("就绪")&&View.Name==TEXT("技能甲 2级")&&View.Kind==TEXT("角色主动"));
+    TestTrue(TEXT("A ready learned active can be sent and shows its name without a skill level"),View.bCanSubmitIntent&&View.ExecutionBlocks==0&&View.State==TEXT("就绪")&&View.Name==TEXT("技能甲")&&View.Kind==TEXT("角色主动"));
     Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;View=LDHUD::Action(Bolt,Context);
     TestTrue(TEXT("Cooldown is an execution limit with its own track remainder"),(View.ExecutionBlocks&LDHUD::ActionCooldown)&&View.State==TEXT("冷却 3.2s")&&View.CooldownRemainingMs==3200&&FMath::IsNearlyEqual(View.CooldownFraction,.4f,.0001f));
     TestTrue(TEXT("Cooldown does not suppress the explicit intent"),View.bCanSubmitIntent);
@@ -358,55 +382,50 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCardTextTest,"Lockdown.Rules.HUDCardText",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
 {
-    // #147 card templates: every number reads a typed field of the rank row the owner uses at its level.
+    // #147/#198 card templates: every number reads a typed field of the active's single value set grown for the owner's level.
     FLDDemoEffectDefinition Root;Root.Opcode=uint8(ELDDemoEffectOp::Root);Root.DurationMs=1000;
     FLDDemoEffectDefinition Damage;Damage.Opcode=uint8(ELDDemoEffectOp::Damage);Damage.BaseP2=6000;Damage.ADRatioBp=5000;
     FLDDemoEffectDefinition Slow;Slow.Opcode=uint8(ELDDemoEffectOp::Slow);Slow.RatioBp=2500;Slow.DurationMs=1500;
     FLDDemoEffectDefinition Timed;Timed.Opcode=uint8(ELDDemoEffectOp::TimedStatBonus);Timed.DurationMs=3000;
     Timed.Stats={{ELDDemoBonusStat::ArmorFlat,1200,{}},{ELDDemoBonusStat::AttackSpeedBonusRatio,5000,{}}};
-    FLDDemoRankDefinition Basic;Basic.Rank=1;Basic.Effects={Root,Damage,Slow,Timed};
-    FLDDemoRankDefinition Advanced=Basic;Advanced.Rank=2;Advanced.Effects[0].DurationMs=1250;Advanced.Effects[1].BaseP2=9000;
+    FLDDemoAbilityValues Values;Values.ManaCostP2=5000;Values.CooldownMs=10000;Values.Effects={Root,Damage,Slow,Timed};
     LDHUD::FCardStats L1;L1.ADP2=7000;
-    const LDHUD::FCardText Face=LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Basic,nullptr,L1,1000);
+    const LDHUD::FCardText Face=LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L1,1000);
     TestEqualSensitive(TEXT("Level 1 numbers: base plus the coefficient times the owner's AD"),Face.Plain,FString(TEXT("定身目标 1 秒，造成 95 物理伤害。")));
     TestEqualSensitive(TEXT("Keywords are bold"),Face.Rich,FString(TEXT("<b>定身</>目标 1 秒，造成 95 物理伤害。")));
     TestTrue(TEXT("The keywords used are listed in glossary order"),Face.bComplete&&Face.Keywords==TArray<FString>{TEXT("定身")});
-    TestEqual(TEXT("The read length leaves out spaces"),LDHUD::CardLength(Face.Plain),16);
+    TestTrue(TEXT("and the card lists each placeholder's value"),Face.Values==TArray<FString>({TEXT("1"),TEXT("95")}));
     LDHUD::FCardStats L5=L1;L5.Level=5;
     TestEqualSensitive(TEXT("Level 5 grows the base (60 x 1.4 + 35) but not the duration"),
-        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Basic,nullptr,L5,1000).Plain,FString(TEXT("定身目标 1 秒，造成 119 物理伤害。")));
-    TestEqualSensitive(TEXT("An upgrade card shows each changed value as A → B"),
-        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害，减速 [slow.ratio]%。"),Advanced,&Basic,L1,1000).Plain,
-        FString(TEXT("定身目标 1 → 1.25 秒，造成 95 → 125 物理伤害，减速 25%。")));
+        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L5,1000).Plain,FString(TEXT("定身目标 1 秒，造成 119 物理伤害。")));
+    LDHUD::FCardStats L12=L1;L12.Level=12;
+    TestEqualSensitive(TEXT("After level 10 the slower growth applies (60 x (1 + 0.9 + 0.1) + 35)"),
+        LDHUD::CardText(TEXT("造成 [damage.amount] 物理伤害。"),Values,L12,1000,500).Plain,FString(TEXT("造成 155 物理伤害。")));
     TestEqualSensitive(TEXT("Timed stats: points grow, ratios do not"),
-        LDHUD::CardText(TEXT("护甲 +[timed_stat_bonus.ArmorFlat]，攻速 +[timed_stat_bonus.AttackSpeedBonusRatio]%。"),Basic,nullptr,L5,1000).Plain,
+        LDHUD::CardText(TEXT("护甲 +[timed_stat_bonus.ArmorFlat]，攻速 +[timed_stat_bonus.AttackSpeedBonusRatio]%。"),Values,L5,1000).Plain,
         FString(TEXT("护甲 +17，攻速 +50%。")));
-    // passive_iced_americano: MPRegenFlat (like HPRegenFlat and AttackRangeCmFlat) is an exact fraction in Cm, not Amount.
-    FLDDemoEffectDefinition Iced;Iced.Opcode=uint8(ELDDemoEffectOp::StatBonus);
-    FLDDemoStatBonus Regen;Regen.Stat=ELDDemoBonusStat::MPRegenFlat;Regen.Cm.Numerator=2;Regen.Cm.Denominator=1;
-    Iced.Stats={{ELDDemoBonusStat::CooldownHasteFlat,2000,{}},Regen};
-    FLDDemoRankDefinition IcedBasic;IcedBasic.Rank=1;IcedBasic.Effects={Iced};
-    FLDDemoRankDefinition IcedAdvanced=IcedBasic;IcedAdvanced.Rank=2;IcedAdvanced.Effects[0].Stats[0].Amount=3000;
-    const FString IcedTemplate=TEXT("技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒。");
-    const LDHUD::FCardText IcedFace=LDHUD::CardText(IcedTemplate,IcedBasic,nullptr,L5,1000);
-    TestEqualSensitive(TEXT("Mana regeneration reads its Cm fraction (+2/秒), never +0"),IcedFace.Plain,FString(TEXT("技能急速 +20，法力回复 +2/秒。")));
-    TestTrue(TEXT("and the card lists each placeholder's value"),IcedFace.Values==TArray<FString>({TEXT("20"),TEXT("2")}));
-    TestEqualSensitive(TEXT("Its upgrade card shows the haste change and the unchanged regeneration once"),
-        LDHUD::CardText(IcedTemplate,IcedAdvanced,&IcedBasic,L1,1000).Plain,FString(TEXT("技能急速 +20 → 30，法力回复 +2/秒。")));
-    // The attributes panel's learned passive: the sentence at its rank, plus the advanced line once advanced.
-    FLDDemoAbilityDefinition IcedSkill;IcedSkill.Id=TEXT("hud_rules_fixture_iced");IcedSkill.Kind=ELDDemoAbilityKind::Passive;IcedSkill.Ranks={IcedBasic,IcedAdvanced};
-    TestTrue(TEXT("A basic learned passive lists its sentence only"),
-        LDHUD::LearnedCardLines(IcedTemplate,TEXT("普攻命中也减冷却。"),IcedSkill,1,L1,1000)==TArray<FString>({TEXT("技能急速 +20，法力回复 +2/秒。")}));
-    TestTrue(TEXT("An advanced learned passive also lists its advanced change"),
-        LDHUD::LearnedCardLines(IcedTemplate,TEXT("普攻命中也减冷却。"),IcedSkill,2,L1,1000)
-            ==TArray<FString>({TEXT("技能急速 +30，法力回复 +2/秒。"),TEXT("高级：普攻命中也减冷却。")}));
-    TestTrue(TEXT("A rank the skill does not have lists nothing"),LDHUD::LearnedCardLines(IcedTemplate,TEXT(""),IcedSkill,3,L1,1000).IsEmpty());
-    const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Basic,nullptr,L1,1000);
+    TestFalse(TEXT("An active's template never reads a per-point bonus"),
+        LDHUD::CardText(TEXT("每点 +[per_point.ADFlat]。"),Values,L1,1000).bComplete);
+    // #198 stat rows: [per_point.<Stat>] reads the per-point bonus exactly as authored, decimals kept and never grown.
+    FLDDemoStatDefinition Brains;Brains.Id=TEXT("hud_rules_fixture_brains");
+    FLDDemoStatBonus AP;AP.Stat=ELDDemoBonusStat::APFlat;AP.Amount=500;
+    FLDDemoStatBonus Haste;Haste.Stat=ELDDemoBonusStat::CooldownHasteFlat;Haste.Amount=100;
+    FLDDemoStatBonus Regen;Regen.Stat=ELDDemoBonusStat::MPRegenFlat;Regen.Cm.Numerator=3;Regen.Cm.Denominator=100;
+    FLDDemoStatBonus Crit;Crit.Stat=ELDDemoBonusStat::CritChanceBonusRatio;Crit.Amount=40;
+    Brains.PerPoint={AP,Haste,Regen,Crit};
+    const FString StatTemplate=TEXT("每点法术强度 +[per_point.APFlat]、技能急速 +[per_point.CooldownHasteFlat]、法力回复 +[per_point.MPRegenFlat]/秒、暴击率 +[per_point.CritChanceBonusRatio]%。");
+    const LDHUD::FCardText StatFace=LDHUD::StatCardText(StatTemplate,Brains);
+    TestEqualSensitive(TEXT("A stat row shows its per-point bonuses; mana regeneration reads its Cm fraction"),StatFace.Plain,
+        FString(TEXT("每点法术强度 +5、技能急速 +1、法力回复 +0.03/秒、暴击率 +0.4%。")));
+    TestTrue(TEXT("Every per-point placeholder reads a number"),StatFace.bComplete&&StatFace.Values.Num()==4);
+    TestFalse(TEXT("A stat's template never reads an active's effect"),LDHUD::StatCardText(TEXT("造成 [damage.amount] 伤害。"),Brains).bComplete);
+    TestFalse(TEXT("A per-point bonus the stat lacks is never shown as a number"),LDHUD::StatCardText(TEXT("+[per_point.ArmorFlat]"),Brains).bComplete);
+    const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Values,L1,1000);
     TestTrue(TEXT("Slow and control are separate keywords"),Both.Keywords==TArray<FString>({TEXT("减速"),TEXT("控制")})
         &&Both.Rich==TEXT("被<b>减速</>或被<b>控制</>的敌人。"));
-    const LDHUD::FCardText Absent=LDHUD::CardText(TEXT("造成 [stun.duration] 秒。"),Basic,nullptr,L1,1000);
+    const LDHUD::FCardText Absent=LDHUD::CardText(TEXT("造成 [stun.duration] 秒。"),Values,L1,1000);
     TestTrue(TEXT("A placeholder of an absent effect is never shown as a number"),!Absent.bComplete&&Absent.Plain.Contains(TEXT("?")));
-    TestFalse(TEXT("A broken template is refused"),LDHUD::CardText(TEXT("造成 [damage] 伤害。"),Basic,nullptr,L1,1000).bComplete);
+    TestFalse(TEXT("A broken template is refused"),LDHUD::CardText(TEXT("造成 [damage] 伤害。"),Values,L1,1000).bComplete);
     TArray<LDDemoCardText::FToken> Tokens;FString Error;
     TestFalse(TEXT("An unknown op is refused"),LDDemoCardText::Parse(TEXT("[teleport.amount]"),Tokens,Error));
     TestFalse(TEXT("A stray bracket is refused"),LDDemoCardText::Parse(TEXT("造成 ] 伤害"),Tokens,Error));
@@ -434,55 +453,51 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Control duration is shown in seconds"),LDHUD::EffectLine(Root),FString(LDTerms::Root)+TEXT(" 1.3s"));
     FLDDemoEffectDefinition Unknown;Unknown.Opcode=200;
     TestEqualSensitive(TEXT("An unknown effect is reported, never described"),LDHUD::EffectLine(Unknown),FString(TEXT("未知效果 #200")));
-    FLDDemoRankDefinition Rank;Rank.Rank=1;Rank.ManaCostP2=4500;Rank.CooldownMs=6400;Rank.Effects.Add(Damage);
-    TestEqualSensitive(TEXT("An active's cost line carries mana and cooldown"),LDHUD::CostLine(Rank),FString(LDTerms::Mana)+TEXT(" 45 · 冷却 6.4s"));
-    FLDDemoContentDefinitions Content;FLDDemoAbilityDefinition Bolt;Bolt.Id=TEXT("hud_rules_fixture_bolt");Bolt.Kind=ELDDemoAbilityKind::Active;
+    FLDDemoAbilityValues Cost;Cost.ManaCostP2=4500;Cost.CooldownMs=6400;Cost.Effects.Add(Damage);
+    TestEqualSensitive(TEXT("An active's cost line carries mana and cooldown"),LDHUD::CostLine(Cost),FString(LDTerms::Mana)+TEXT(" 45 · 冷却 6.4s"));
+    FLDDemoContentDefinitions Content;FLDDemoAbilityDefinition Bolt;Bolt.Id=TEXT("hud_rules_fixture_bolt");
     Bolt.Target.Mode=ELDDemoTargetMode::DirectionProjectile;Bolt.Target.RangeCm.Numerator=650;Bolt.Target.RangeCm.Denominator=1;
-    FLDDemoRankDefinition Second=Rank;Second.Rank=2;Second.Effects[0].BaseP2=15000;Bolt.Ranks={Rank,Second};Content.Abilities.Add(Bolt);
+    Bolt.Values=Cost;Content.Abilities.Add(Bolt);
     Content.Parameters.SkillGrowthPerLevelBp=1000;
-    FLDProgressionView Progression;
-    Content.Progression.ActiveSlots=3;
-    for(uint8 Slot=0;Slot<3;++Slot)
-    {
-        FLDLearnedSkillView Skill;
-        Skill.DefinitionId=Slot==0?FName(TEXT("active_pants_down")):Slot==1?FName(TEXT("active_not_mad")):FName(TEXT("active_elbow"));
-        Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);
-    }
-    FLDChoiceOption Learn;Learn.Kind=ELDChoiceOptionKind::LearnActive;Learn.DefinitionId=TEXT("hud_rules_fixture_bolt");Learn.ToRank=1;
     LDHUD::FCardStats Stats;
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_bolt"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
-    const LDHUD::FChoiceCardView Missing=LDHUD::ChoiceCard(Learn,Progression,&Content,Stats);
-    TestTrue(TEXT("A skill without its display row says so instead of inventing a face"),Missing.SentencePlain==TEXT("内容目录中找不到该技能"));
+    const LDHUD::FActiveCardView Missing=LDHUD::ActiveCard(TEXT("hud_rules_fixture_bolt"),&Content,Stats);
+    TestTrue(TEXT("An active without its display row says so instead of inventing a face"),
+        !Missing.bKnown&&Missing.SentencePlain==TEXT("内容目录中找不到该技能"));
+    TestTrue(TEXT("An active the catalog lacks says so too"),!LDHUD::ActiveCard(TEXT("hud_rules_fixture_unknown"),&Content,Stats).bKnown);
     FLDDemoDisplayDefinition BoltDisplay;BoltDisplay.Id=TEXT("hud_rules_fixture_bolt");BoltDisplay.IconId=TEXT("icon_hud_rules_fixture_bolt");
-    BoltDisplay.NameText=TEXT("测试飞弹");BoltDisplay.DescriptionText=TEXT("命中造成 [damage.amount] 魔法伤害。");BoltDisplay.AdvancedText=TEXT("穿透。");
+    BoltDisplay.NameText=TEXT("测试飞弹");BoltDisplay.DescriptionText=TEXT("命中造成 [damage.amount] 魔法伤害并减速。");
     Content.Display.Add(BoltDisplay);
-    const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content,Stats);
-    TestTrue(TEXT("Learning a fourth active with Q/W/E full requires an explicit replacement"),
-        Card.bNeedsReplacement&&Card.Kind==TEXT("新主动")&&Card.RankText==TEXT("初级"));
-    TestTrue(TEXT("The card face is the sentence with this level's numbers and the advanced line"),
-        Card.SentencePlain==TEXT("命中造成 100 魔法伤害。")&&Card.AdvancedPlain==TEXT("高级：穿透。"));
-    TestTrue(TEXT("The details show the target form and the cost"),Card.Lines.Num()==2&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm")&&Card.Lines[1]==LDHUD::CostLine(Rank));
-    TestTrue(TEXT("The compact card line names the card type and the rank step and leaves the replacement to the UI"),
-        Card.Type==TEXT("主动")&&Card.Summary==TEXT("主动 · 新")&&Card.Detail==TEXT("新主动 · 初级"));
+    const LDHUD::FActiveCardView Card=LDHUD::ActiveCard(TEXT("hud_rules_fixture_bolt"),&Content,Stats);
+    TestTrue(TEXT("The card face is the sentence with this level's numbers and its keywords"),Card.bKnown
+        &&Card.SentencePlain==TEXT("命中造成 100 魔法伤害并减速。")&&Card.Sentence==TEXT("命中造成 100 魔法伤害并<b>减速</>。")
+        &&Card.Keywords.Num()==1&&Card.Keywords[0].StartsWith(TEXT("<b>减速</>：")));
+    TestTrue(TEXT("The card shows the target form and the cost"),Card.Target==TEXT("方向弹道 · 射程 650cm")&&Card.Cost==LDHUD::CostLine(Cost));
     TestTrue(TEXT("An active card draws its display icon, with the name's first character only as the missing-icon stand-in"),
         Card.Glyph==Card.Name.Left(1)&&Card.IconId==TEXT("icon_hud_rules_fixture_bolt"));
-    FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
-    const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats);
-    TestTrue(TEXT("An upgrade states both ranks, shows A → B and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("初级 → 高级")
-        &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。")&&Up.Summary==TEXT("主动 · 初→高"));
-    FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
-    FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;Attribute.AttributeQuality=ELDAttributeQuality::Blue;
-    const LDHUD::FChoiceCardView PassiveCard=LDHUD::ChoiceCard(Passive,Progression,&Content,Stats);
-    const LDHUD::FChoiceCardView AttributeCard=LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats);
-    TestTrue(TEXT("Passive and attribute cards name their type on the face"),PassiveCard.Type==TEXT("被动")&&PassiveCard.Summary==TEXT("被动 · 新")
-        &&AttributeCard.Type==TEXT("属性")&&AttributeCard.Summary==TEXT("属性 · 已选 0 次"));
-    TestTrue(TEXT("An attribute card's face leaves its quality to the name colour; the detail still names it"),
-        AttributeCard.AttributeQuality==ELDAttributeQuality::Blue&&!AttributeCard.Summary.Contains(TEXT("蓝色"))&&AttributeCard.Detail==TEXT("属性卡 · 蓝色 · 已选 0 次"));
-    TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
+    LDHUD::FCardStats L4;L4.Level=4;
+    TestTrue(TEXT("A higher owner level grows the number on the same card (one skill level, #198)"),
+        LDHUD::ActiveCard(TEXT("hud_rules_fixture_bolt"),&Content,L4).SentencePlain==TEXT("命中造成 130 魔法伤害并减速。"));
+    // #198 stat rows: name, per-point text and the allocated points; a stat without its display row says so.
+    FLDDemoStatDefinition Skin;Skin.Id=TEXT("hud_rules_fixture_skin");
+    FLDDemoStatBonus Armor;Armor.Stat=ELDDemoBonusStat::ArmorFlat;Armor.Amount=250;
+    FLDDemoStatBonus Resist;Resist.Stat=ELDDemoBonusStat::MagicResistFlat;Resist.Amount=250;
+    Skin.PerPoint={Armor,Resist};
+    AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_skin"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
+    const LDHUD::FStatRowView NoRow=LDHUD::StatRow(Skin,2,&Content);
+    TestTrue(TEXT("A stat without its display row says so"),!NoRow.bKnown&&NoRow.Points==2&&NoRow.PerPoint==TEXT("内容目录中找不到该属性"));
+    FLDDemoDisplayDefinition SkinDisplay;SkinDisplay.Id=Skin.Id;SkinDisplay.IconId=TEXT("icon_hud_rules_fixture_skin");
+    SkinDisplay.DescriptionText=TEXT("每点护甲和魔抗各 +[per_point.ArmorFlat]。");
+    Content.Display.Add(SkinDisplay);
+    const LDHUD::FStatRowView SkinRow=LDHUD::StatRow(Skin,3,&Content);
+    TestTrue(TEXT("A stat row shows its per-point text, its icon and the allocated points"),SkinRow.bKnown&&SkinRow.Points==3
+        &&SkinRow.PerPoint==TEXT("每点护甲和魔抗各 +2.5。")&&SkinRow.IconId==TEXT("icon_hud_rules_fixture_skin")&&SkinRow.StatId==FName(*Skin.Id));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
-    Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;
+    Crit.Level.Denominator=1;Crit.Choices.Numerator=1;Crit.Choices.Denominator=50;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);
     TestTrue(TEXT("Attribute rows use the approved name and show ratios as percent"),Row.Name==LDTerms::CritChance()&&Row.Final==TEXT("20%"));
+    TestTrue(TEXT("The breakdown names the allocated points' term, never a card or an opening"),Row.Breakdown.Contains(TEXT("属性点 2%"))
+        &&!Row.Breakdown.Contains(TEXT("卡"))&&!Row.Breakdown.Contains(TEXT("开局")));
     TestEqualSensitive(TEXT("A dead owner's growth refusal names the state, not a trade"),LDHUD::GrowthReasonText(ELDGrowthReason::Dead),FString(LDTerms::Dead)+TEXT("，暂时不能操作"));
     TestEqualSensitive(TEXT("Combat rejections are explained"),LDHUD::CombatRejectText(ELDCombatReject::OutOfRange),FString(TEXT("超出射程")));
     FLDCombatEntryView Entry;Entry.DefinitionId=NAME_None;Entry.Unavailable=ELDCombatReject::SourceUnavailable;
@@ -498,28 +513,75 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
         FString(LDUIIcons::Dash));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCardFacesTest,"Lockdown.Rules.HUDCardFaces",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
+{
+    // #198 rendered faces over the approved catalog: every active card at levels 1 and 10 with the bare build's stats, and
+    // every stat row, names its entry, reads every placeholder as a number, has an icon and never shows spray/guard wording,
+    // an unknown effect or a missing-content line.
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
+    const FLDDemoContentDefinitions& Content=Catalog->Get();
+    FName Table;
+    if(!HudRegisterApprovedNames(*this,Content,Table)){return false;}
+    ON_SCOPE_EXIT{if(!Table.IsNone()){FStringTableRegistry::Get().UnregisterStringTable(Table);}};
+    const FLDAttributeProjectionResult Base=LDAttributeProjection::Project(FLDAttributeBuildValues(1,{}),*Catalog);
+    if(!TestTrue(TEXT("The bare level-1 build projects"),Base.IsSuccess())){return false;}
+    LDHUD::FCardStats L1;L1.ADP2=Base.Value->Final.ADP2;L1.APP2=Base.Value->Final.APP2;L1.MaxHPP2=Base.Value->Final.MaxHPP2;L1.ArmorP2=Base.Value->Final.ArmorP2;
+    LDHUD::FCardStats L10=L1;L10.Level=10;
+    const auto Bad=[](const FString& Text){return Text.IsEmpty()||Text.Contains(TEXT("喷漆"))||Text.Contains(TEXT("守护"))||Text.Contains(TEXT("未知"))
+        ||Text.Contains(TEXT("?"))||Text.Contains(TEXT("内容目录中找不到"))||Text.Contains(TEXT("同步中"));};
+    TestEqual(TEXT("16 approved actives"),Content.Abilities.Num(),16);
+    for(const FLDDemoAbilityDefinition& Ability:Content.Abilities)
+    {
+        for(const LDHUD::FCardStats& Stats:{L1,L10})
+        {
+            const FString At=FString::Printf(TEXT("%s L%d"),*Ability.Id,int32(Stats.Level));
+            const LDHUD::FActiveCardView Card=LDHUD::ActiveCard(FName(*Ability.Id),&Content,Stats);
+            TestTrue(At+TEXT(": the card reads every placeholder as a number"),Card.bKnown);
+            TestFalse(At+TEXT(": name ")+Card.Name,Bad(Card.Name)||Card.Name==Ability.Id);
+            TestFalse(At+TEXT(": sentence ")+Card.SentencePlain,Bad(Card.SentencePlain));
+            TestFalse(At+TEXT(": target ")+Card.Target,Bad(Card.Target));
+            TestFalse(At+TEXT(": cost ")+Card.Cost,Bad(Card.Cost));
+            for(const FString& Line:Card.Keywords){TestFalse(At+TEXT(": keyword ")+Line,Bad(Line));}
+            TestFalse(At+TEXT(": the card has an icon"),Card.IconId.IsEmpty());
+        }
+    }
+    TestEqual(TEXT("5 point-bought stats"),Content.Stats.Num(),5);
+    for(const FLDDemoStatDefinition& Stat:Content.Stats)
+    {
+        const LDHUD::FStatRowView Row=LDHUD::StatRow(Stat,2,&Content);
+        TestTrue(Stat.Id+TEXT(": the row reads every per-point placeholder as a number"),Row.bKnown&&Row.Points==2);
+        TestFalse(Stat.Id+TEXT(": name ")+Row.Name,Bad(Row.Name)||Row.Name==Stat.Id);
+        TestFalse(Stat.Id+TEXT(": per point ")+Row.PerPoint,Bad(Row.PerPoint));
+        TestFalse(Stat.Id+TEXT(": the row has an icon"),Row.IconId.IsEmpty());
+    }
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsTest,"Lockdown.Rules.HUDSelfIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
 {
     TestEqualSensitive(TEXT("A Latin name's icon is its upper-cased first letter"),LDHUD::IconGlyph(TEXT(" bolt")),FString(TEXT("B")));
     TestEqualSensitive(TEXT("A Chinese name's icon is its first character"),LDHUD::IconGlyph(TEXT("眩晕")),FString(TEXT("眩")));
     TestEqualSensitive(TEXT("An empty name is never a blank square"),LDHUD::IconGlyph(TEXT("  ")),FString(TEXT("?")));
-    // More statuses and passives than the 6 x 2 grid: the first SelfIconMax show, the rest are counted for "…".
+    // More temporary statuses and recoveries than the 6 x 2 grid: the first SelfIconMax show, the rest are counted for "…".
     if(!HudRegisterFixtureTable(*this)){return false;}
     ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
     const FLDDemoContentDefinitions Content=HudFixtureContent();
-    FLDProgressionView Progression;FLDCombatOwnerView Combat;
+    FLDCombatOwnerView Combat;
     FLDCombatStatusView Root;Root.StatusId=uint8(ELDDemoStatusId::Root);Root.ExpiresAtMs=5000;Root.ControlBlocks=uint8(ELDCombatControlBlock::Move);
-    Combat.Statuses={Root};
-    FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_iced_americano");Rhythm.Rank=1;
-    Progression.Skills.Init(Rhythm,LDHUD::SelfIconMax+2);
-    const LDHUD::FSelfIconsView Full=LDHUD::SelfIcons(&Progression,&Combat,true,0,&Content);
+    FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.ExpiresAtMs=4000;Shield.AmountP2=5000;
+    Combat.Statuses={Shield,Root};
+    while(Combat.Statuses.Num()<LDHUD::SelfIconMax+2){Combat.Statuses.Add(Shield);}
+    Combat.bOutOfCombatRegenActive=true;
+    const LDHUD::FSelfIconsView Full=LDHUD::SelfIcons(&Combat,true,0,&Content);
     TestTrue(TEXT("A full grid keeps 12 squares and counts the rest"),LDHUD::SelfIconMax==12&&Full.Items.Num()==LDHUD::SelfIconMax&&Full.Overflow==3);
-    TestTrue(TEXT("A full grid never drops the temporary status"),Full.Items[0].Kind==LDHUD::ESelfIconKind::Control);
-    Progression.Skills.SetNum(LDHUD::SelfIconMax-1);
-    TestEqual(TEXT("Exactly 12 items need no \"…\""),LDHUD::SelfIcons(&Progression,&Combat,true,0,&Content).Overflow,0);
-    // The hover popup names the square and its kind; the description and effect lines come from the content catalog.
-    const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],LDHUD::FCardStats(),nullptr);
+    TestTrue(TEXT("A full grid shows control statuses first"),Full.Items[0].Kind==LDHUD::ESelfIconKind::Control);
+    Combat.Statuses.SetNum(LDHUD::SelfIconMax-1);
+    TestEqual(TEXT("Exactly 12 items need no \"…\""),LDHUD::SelfIcons(&Combat,true,0,&Content).Overflow,0);
+    TestTrue(TEXT("Without the own projection the grid is syncing"),LDHUD::SelfIcons(nullptr,true,0,&Content).bSyncing);
+    // The hover popup names the square and its kind; the description comes from the content catalog.
+    const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],nullptr);
     TestTrue(TEXT("A control status popup heads with its line, kind and tone"),RootDetail.Name==Full.Items[0].Tip&&RootDetail.Summary==TEXT("控制状态 · 负面"));
     // Status tone: what helps the bearer is positive, every control and affliction negative, an unknown id negative.
     for(const ELDDemoStatusId Id:{ELDDemoStatusId::Shield,ELDDemoStatusId::StatBoost,ELDDemoStatusId::Empowered,ELDDemoStatusId::RespawnProtection,ELDDemoStatusId::CampReturning})
@@ -528,8 +590,8 @@ bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
         ELDDemoStatusId::Stun,ELDDemoStatusId::Knockback,ELDDemoStatusId::Silence,ELDDemoStatusId::Burn})
     {TestFalse(FString::Printf(TEXT("Status %d is negative"),int32(Id)),LDHUD::StatusIsPositive(uint8(Id)));}
     TestFalse(TEXT("An unknown status reads as negative"),LDHUD::StatusIsPositive(31));
-    TestTrue(TEXT("Learned passives are positive"),Full.Items[1].bPositive&&!Full.Items[0].bPositive);
-    TestEqualSensitive(TEXT("A learned passive popup says 角色被动"),LDHUD::SelfIconDetail(Full.Items[1],LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("角色被动")));
+    TestTrue(TEXT("A shield square is positive"),Full.Items[1].bPositive&&!Full.Items[0].bPositive);
+    TestEqualSensitive(TEXT("A shield popup says 临时状态 · 正面"),LDHUD::SelfIconDetail(Full.Items[1],nullptr).Summary,FString(TEXT("临时状态 · 正面")));
     // Remaining-time rings: the first sight of an end instant is the full ring.
     LDHUD::FStatusRings Rings;const FName Key(TEXT("Status.1"));
     TestEqual(TEXT("A newly seen status starts with a full ring"),Rings.Fraction(Key,4000,1000),1.f);
@@ -554,52 +616,41 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.AmountP2=8050;Shield.ExpiresAtMs=12000;
     // The shield is listed before the root: the grid still puts the control status first.
     Combat.Statuses={Shield,Aura,Protection,Root};
-    FLDProgressionView Progression;
     auto Tips=[](const LDHUD::FSelfIconsView& View){TArray<FString> Out;for(const LDHUD::FSelfIconView& Icon:View.Items){Out.Add(Icon.Tip);}return FString::Join(Out,TEXT(" | "));};
-    LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
+    LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(&Combat,true,10000,&Content);
     TestEqualSensitive(TEXT("Control first; time and shield round up; passive auras and protection stay off the grid"),
         Tips(Icons),HudName(TEXT("root"))+TEXT(" 1.3s | ")+HudName(TEXT("shield"))+TEXT(" 81 2.0s"));
     TestTrue(TEXT("Timed statuses carry their end instant and kind"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Control
         &&Icons.Items[0].ExpiresAtMs==11201&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==12000&&!Icons.bSyncing);
     TestTrue(TEXT("The root square is negative and the shield square positive"),!Icons.Items[0].bPositive&&Icons.Items[1].bPositive
-        &&LDHUD::SelfIconDetail(Icons.Items[1],LDHUD::FCardStats(),nullptr).Summary==TEXT("临时状态 · 正面"));
+        &&LDHUD::SelfIconDetail(Icons.Items[1],nullptr).Summary==TEXT("临时状态 · 正面"));
     TestEqualSensitive(TEXT("The missing-icon stand-in is the name's first character"),Icons.Items[0].Glyph,LDHUD::IconGlyph(HudName(TEXT("root"))));
     TestTrue(TEXT("Status squares draw their status's display icon"),Icons.Items[0].IconId==TEXT("icon_root")&&Icons.Items[1].IconId==TEXT("icon_shield"));
-    TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),Tips(LDHUD::SelfIcons(&Progression,&Combat,false,0,&Content)),
+    TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),Tips(LDHUD::SelfIcons(&Combat,false,0,&Content)),
         HudName(TEXT("root"))+TEXT(" | ")+HudName(TEXT("shield"))+TEXT(" 81"));
-    const LDHUD::FSelfIconsView Missing=LDHUD::SelfIcons(nullptr,nullptr,true,0,&Content);
-    TestTrue(TEXT("Missing projections read as syncing, never as none"),Missing.bSyncing&&Missing.Items.IsEmpty());
-    FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_iced_americano");Rhythm.Rank=2;
-    FLDLearnedSkillView Active;Active.DefinitionId=TEXT("active_not_mad");Active.bActive=true;Active.Rank=2;
-    Progression.Skills={Rhythm,Active};
+    const LDHUD::FSelfIconsView Missing=LDHUD::SelfIcons(nullptr,true,0,&Content);
+    TestTrue(TEXT("A missing projection reads as syncing, never as none"),Missing.bSyncing&&Missing.Items.IsEmpty());
     Combat.Statuses.Reset();
-    Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
-    TestEqualSensitive(TEXT("Learned passives keep their rank; actives stay off the grid"),
-        Tips(Icons),HudName(TEXT("passive_iced_americano"))+TEXT("（")+LDHUD::SkillRankName(2)+TEXT("）"));
-    TestTrue(TEXT("Passives carry no remaining time"),Icons.Items.Num()==1&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Passive&&Icons.Items[0].ExpiresAtMs==0);
-    TestEqualSensitive(TEXT("A learned passive draws its display icon"),Icons.Items[0].IconId,FString(TEXT("icon_passive_iced_americano")));
-    // D21 recoveries are temporary squares ahead of the passives while they heal, with no remaining-time ring.
+    // D21 recoveries are temporary squares while they heal, with no remaining-time ring.
     Combat.bOutOfCombatRegenActive=true;Combat.bDormRegenActive=true;
-    Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
-    TestEqualSensitive(TEXT("Active out-of-combat and dorm recoveries show before the passives"),Tips(Icons),
-        FString(LDTerms::OutOfCombatRegen)+TEXT(" | ")+LDTerms::DormRegenActive()+TEXT(" | ")+HudName(TEXT("passive_iced_americano"))+TEXT("（")
-        +LDHUD::SkillRankName(2)+TEXT("）"));
-    TestTrue(TEXT("Recoveries are untimed temporary squares"),Icons.Items.Num()==3&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Temporary
+    Icons=LDHUD::SelfIcons(&Combat,true,10000,&Content);
+    TestEqualSensitive(TEXT("Active out-of-combat and dorm recoveries show"),Tips(Icons),
+        FString(LDTerms::OutOfCombatRegen)+TEXT(" | ")+LDTerms::DormRegenActive());
+    TestTrue(TEXT("Recoveries are untimed temporary squares"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Temporary
         &&Icons.Items[0].ExpiresAtMs==0&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==0);
     TestTrue(TEXT("Recoveries draw their own icons without a display row"),
         Icons.Items[0].IconId==LDUIIcons::OutOfCombatRegen&&Icons.Items[1].IconId==LDUIIcons::DormRegen);
-    TestTrue(TEXT("Recoveries and passives are all positive"),Icons.Items.FilterByPredicate([](const LDHUD::FSelfIconView& Icon){return Icon.bPositive;}).Num()==3);
+    TestTrue(TEXT("Recoveries are positive"),Icons.Items.FilterByPredicate([](const LDHUD::FSelfIconView& Icon){return Icon.bPositive;}).Num()==2);
     Content.Parameters.OutOfCombatRegenDelayMs=5000;Content.Parameters.OutOfCombatMaxHPRegenBp=150;Content.Parameters.OutOfCombatMaxMPRegenBp=150;
     Content.Parameters.DormRegenDelayMs=3000;Content.Parameters.DormMaxHPRegenBp=1000;Content.Parameters.DormMaxMPRegenBp=1000;
-    const LDHUD::FActionDetailView Slow=LDHUD::SelfIconDetail(Icons.Items[0],LDHUD::FCardStats(),&Content);
+    const LDHUD::FActionDetailView Slow=LDHUD::SelfIconDetail(Icons.Items[0],&Content);
     TestTrue(TEXT("The out-of-combat popup states the REGEN delay and share"),Slow.Name==LDTerms::OutOfCombatRegen&&Slow.Summary==TEXT("临时状态 · 正面")
         &&Slow.Body==TEXT("脱战 5s 后，每秒恢复 1.5% 生命上限和法力上限\n出手、释放伤害技能或受到伤害立即停止"));
-    const LDHUD::FActionDetailView Dorm=LDHUD::SelfIconDetail(Icons.Items[1],LDHUD::FCardStats(),&Content);
+    const LDHUD::FActionDetailView Dorm=LDHUD::SelfIconDetail(Icons.Items[1],&Content);
     TestTrue(TEXT("The dorm popup states the DORM delay and share"),Dorm.Body.StartsWith(FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 3s 后，每秒恢复 10% 生命上限和法力上限")));
     Combat.bOutOfCombatRegenActive=false;Combat.bDormRegenActive=false;
-    Progression.Skills={Active};
-    Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
-    TestTrue(TEXT("Known projections without statuses or passives show an empty grid"),Icons.Items.IsEmpty()&&!Icons.bSyncing&&Icons.Overflow==0);
+    Icons=LDHUD::SelfIcons(&Combat,true,10000,&Content);
+    TestTrue(TEXT("A known projection without statuses or recoveries shows an empty grid"),Icons.Items.IsEmpty()&&!Icons.bSyncing&&Icons.Overflow==0);
     FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;
     Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::Cooldown;Receipt.bProtectionRemoved=true;
     TestEqualSensitive(TEXT("A failed own request and the lost protection are separate facts"),LDHUD::CombatReceiptNotice(Receipt),TEXT("角色技能 2 未执行：冷却中 · ")+LDTerms::ProtectionRemoved());
@@ -679,11 +730,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionStatesTest,"Lockdown.Rules.HUDActio
 bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
 {
     LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.Rank=1;Bolt.ManaCostP2=3050;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.ManaCostP2=3050;
     LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
     LDHUD::EActionLook Shown=LDHUD::ActionLook(View,false);
     TestEqualSensitive(TEXT("The cost chip shows only the mana cost, rounded down like the shown mana"),View.Cost,FString(TEXT("30")));
-    TestTrue(TEXT("A learned active shows its rank number and its name's first character as the icon"),View.Rank==TEXT("1")&&View.Glyph==TEXT("技"));
+    TestTrue(TEXT("A learned active shows its name's first character as the icon"),View.Glyph==TEXT("技"));
     TestTrue(TEXT("A ready, affordable active looks ready"),Shown==LDHUD::EActionLook::Ready);
     Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
     TestTrue(TEXT("A cooling active looks cooling and carries its remainder"),Shown==LDHUD::EActionLook::Cooling&&View.Countdown==TEXT("3.2"));
@@ -699,7 +750,7 @@ bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The armed entry outranks its remaining limits"),Shown==LDHUD::EActionLook::Armed);
     Bolt.bControlled=false;Bolt.ReadyAtMs=0;Context.ManaP2=10000;
     LDHUD::FActionInput Empty;Empty.Slot=LDHUD::EActionSlot::W;Empty.bProjected=true;View=LDHUD::Action(Empty,Context);Shown=LDHUD::ActionLook(View,true);
-    TestTrue(TEXT("An empty slot looks empty even when armed and has no cost, rank or icon glyph"),Shown==LDHUD::EActionLook::Empty&&View.Cost.IsEmpty()&&View.Rank.IsEmpty()&&View.Glyph.IsEmpty()&&View.Name==TEXT("空槽"));
+    TestTrue(TEXT("An empty slot looks empty even when armed and has no cost or icon glyph"),Shown==LDHUD::EActionLook::Empty&&View.Cost.IsEmpty()&&View.Glyph.IsEmpty()&&View.Name==TEXT("空槽"));
     Context.bAlive=false;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,true);
     TestTrue(TEXT("A dead owner's slot is blocked, never armed"),Shown==LDHUD::EActionLook::Blocked&&View.State==LDTerms::Dead);
     Context.bAlive=true;Bolt.ServerBlock=TEXT("目标不可用");View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
@@ -866,9 +917,20 @@ bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A fresh contender is pointed at the camps"),Step(),FString::Printf(TEXT("下一步：去打附近的野怪涨%s（右键攻击）"),LDTerms::Experience));
     Growth.Level=3;
     TestTrue(TEXT("A grown contender needs no hint"),Step().IsEmpty());
-    Growth.PendingChoiceCount=2;
-    TestEqualSensitive(TEXT("A pending growth choice comes first"),Step(),FString::Printf(TEXT("下一步：%s ×2（点右下角的%s按钮）"),LDTerms::Choice,LDTerms::Choice));
-    Growth.PendingChoiceCount=0;Public.Phase=ELDMatchPhase::CaptureOpen;
+    Growth.bHasActiveOffer=true;Growth.QueuedActiveOpportunities=2;Growth.UnspentPoints=3;
+    TestEqualSensitive(TEXT("A current active offer comes first, with the opportunities still queued"),Step(),
+        FString::Printf(TEXT("下一步：点%s选一个技能（还有 2 次选技能）"),LDTerms::Choice));
+    Growth.bHasActiveOffer=false;Growth.QueuedActiveOpportunities=0;
+    TestEqualSensitive(TEXT("Unspent points come next"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
+    Growth.UnspentPoints=0;Growth.PendingBlueprints={FName(TEXT("active_elbow"))};
+    TestEqualSensitive(TEXT("A blueprint with an empty Q/W/E slot asks to learn it"),Step(),FString::Printf(TEXT("下一步：点%s把%s学到空槽"),LDTerms::Choice,LDTerms::Blueprint));
+    for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=Growth.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
+    TestTrue(TEXT("A blueprint waiting for a full Q/W/E (replacement is rest-only) gives no hint"),Step().IsEmpty());
+    Public.Phase=ELDMatchPhase::Countdown;Growth.UnspentPoints=3;
+    TestEqualSensitive(TEXT("Points can be allocated during the countdown"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
+    Growth.UnspentPoints=0;
+    TestTrue(TEXT("Before T=0 nothing but growth is hinted"),Step().IsEmpty());
+    Public.Phase=ELDMatchPhase::CaptureOpen;
     TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo);
     Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;
     TestEqualSensitive(TEXT("The own spray is encouraged instead"),Step(),FString(TEXT("稳住：你"))+LDTerms::Holding);
@@ -932,6 +994,81 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
     }
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBuildGateTest,"Lockdown.Rules.HUDBuildGate",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
+{
+    // #198 growth panel: the disabled reasons follow the server's command gate (a hint only; the server decides each command).
+    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(ELDMatchPhase::Countdown,ELDLifePhase::Alive,99999,true,1000);
+    TestTrue(TEXT("The countdown allows every build step whatever the safe window"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
+        &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty());
+    Gate=LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Alive,3400,true,1000);
+    TestTrue(TEXT("In combat an active can still be chosen; learning and allocating wait for the safe window"),Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate);
+    TestEqualSensitive(TEXT("The wait counts down in tenths"),Gate.LearnBlocked,FString(TEXT("未脱战 2.4 秒")));
+    TestEqualSensitive(TEXT("Allocating names the same wait"),Gate.AllocateBlocked,Gate.LearnBlocked);
+    TestEqualSensitive(TEXT("A last millisecond reads as a tenth, never 0.0"),LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Alive,3400,true,3399).LearnBlocked,
+        FString(TEXT("未脱战 0.1 秒")));
+    Gate=LDHUD::BuildGate(ELDMatchPhase::CaptureOpen,ELDLifePhase::Alive,3400,true,3400);
+    TestTrue(TEXT("Once the safe window is reached everything is allowed"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate);
+    Gate=LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Alive,0,false,0);
+    TestTrue(TEXT("Without the authority clock learning and allocating read as syncing, never as allowed"),Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate
+        &&Gate.LearnBlocked==TEXT("构筑安全窗同步中")&&Gate.AllocateBlocked==Gate.LearnBlocked);
+    Gate=LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Dead,99999,true,1000);
+    TestTrue(TEXT("A dead contender chooses and allocates but cannot learn"),Gate.bCanChoose&&Gate.bCanAllocate&&!Gate.bCanLearn
+        &&Gate.LearnBlocked==LDTerms::DeadNoLearn);
+    Gate=LDHUD::BuildGate(ELDMatchPhase::Results,ELDLifePhase::Alive,0,true,1000);
+    TestTrue(TEXT("Results close every build step with a reason"),!Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate&&Gate.ChooseBlocked==TEXT("现在不是成长时段"));
+    TestFalse(TEXT("An unspawned contender sends nothing"),LDHUD::BuildGate(ELDMatchPhase::Countdown,ELDLifePhase::Unspawned,0,true,1000).bCanChoose);
+    TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied,0,true,0),FString(LDTerms::ReplaceAtRest));
+    TestEqualSensitive(TEXT("A full Q/W/E says so"),LDHUD::BuildBlockedText(ELDGrowthReason::NoEmptySlot,0,true,0),FString(LDTerms::SlotsFull));
+
+    // Receipt lines: learned into a slot, stored as a blueprint with the reason, or the points added and left.
+    FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Kind=ELDBuildCommandKind::ActiveChoice;
+    Receipt.DefinitionId=TEXT("hud_rules_fixture_bolt");Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=2;
+    TestEqualSensitive(TEXT("A learned choice names its slot"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已学到 E：hud_rules_fixture_bolt")));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;Receipt.StoredReason=uint16(ELDGrowthReason::NotSafe);
+    TestEqualSensitive(TEXT("A stored choice names why it was not learned, with the wait"),LDHUD::BuildReceiptText(Receipt,nullptr,2500,true,1000),
+        FString(TEXT("已存为图纸：hud_rules_fixture_bolt（未脱战 1.5 秒）")));
+    Receipt.StoredReason=uint16(ELDGrowthReason::Dead);
+    TestEqualSensitive(TEXT("A dead contender's choice is stored"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已存为图纸：hud_rules_fixture_bolt（阵亡中）")));
+    Receipt.StoredReason=uint16(ELDGrowthReason::NoEmptySlot);
+    TestEqualSensitive(TEXT("A full Q/W/E stores the choice"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已存为图纸：hud_rules_fixture_bolt（Q/W/E 已满）")));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::None;
+    TestEqualSensitive(TEXT("A receipt without a result never claims one"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+    Receipt.Kind=ELDBuildCommandKind::AllocatePoints;Receipt.PointsSpent={2,0,1,0,0};Receipt.UnspentPointsAfter=3;
+    TestEqualSensitive(TEXT("An allocation names the points added and left"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已加 3 点，还剩 3 点")));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::NotEnoughPoints);
+    TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("没有生效：未分配点数不够")));
+
+    // The 开盲盒 button: queued opportunities, unspent points and learnable blueprints of the current match's own view.
+    FLDProgressionView View;View.bValid=true;View.Generation=5;View.QueuedActiveOpportunities=2;View.UnspentPoints=3;
+    LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&View,5);
+    TestTrue(TEXT("Offers and points light the button with their counts"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT("+2 · 3点"));
+    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&View,4).Any()||LDHUD::GrowthPending(nullptr,5).Any());
+    View.QueuedActiveOpportunities=0;View.UnspentPoints=0;View.PendingBlueprints={FName(TEXT("active_elbow"))};
+    Pending=LDHUD::GrowthPending(&View,5);
+    TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT(" · 图纸 1"));
+    for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
+    TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5).Any());
+    TestTrue(TEXT("The slot reads come from the view"),LDHUD::ActiveInSlot(View,1)==FName(TEXT("held_1"))&&LDHUD::SlotKey(1)==TEXT("W"));
+    FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
+    TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
+
+    // D10 auto-open: a new offer or more unspent points than last seen, in the current match; the first view counts.
+    LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=7;Growth.UnspentPoints=3;
+    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
+    TestTrue(TEXT("The match's first view with the opening offer and points opens the panel"),AutoOpen.Observe(Growth,7));
+    TestFalse(TEXT("The same view does not open it again"),AutoOpen.Observe(Growth,7));
+    Growth.UnspentPoints=0;
+    TestFalse(TEXT("Spending points opens nothing"),AutoOpen.Observe(Growth,7));
+    Growth.UnspentPoints=3;
+    TestTrue(TEXT("Newly earned points open it"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=false;
+    TestFalse(TEXT("A consumed offer opens nothing"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
+    TestTrue(TEXT("A new offer opens it"),AutoOpen.Observe(Growth,7));
+    TestFalse(TEXT("A view of another match opens nothing"),AutoOpen.Observe(Growth,8));
+    return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDevTestPanelTest,"Lockdown.Rules.HUDDevTestPanel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
@@ -964,32 +1101,32 @@ bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Fields name the stat in player terms with the entry unit"),Crit&&Range&&LDDevPanel::StatLabel(*Crit)==LDTerms::CritChance()+TEXT("（百分点）")
         &&LDDevPanel::StatLabel(*Range).EndsWith(TEXT("（厘米）")));
 
-    // Catalog rows: skills then attribute cards, with what the own progression holds.
+    // Catalog rows: every active, with what the own progression holds of it (#198).
     FLDDemoContentDefinitions Content=HudFixtureContent();
-    FLDDemoAbilityDefinition Active;Active.Id=TEXT("root");Active.Kind=ELDDemoAbilityKind::Active;Content.Abilities.Add(Active);
-    FLDDemoAbilityDefinition Passive;Passive.Id=TEXT("passive_iced_americano");Passive.Kind=ELDDemoAbilityKind::Passive;Content.Abilities.Add(Passive);
-    FLDDemoAttributeDefinition Card;Card.Id=TEXT("shield");Content.Attributes.Add(Card);
-    FLDProgressionView Progression;Progression.bValid=true;Progression.Level=3;Progression.CumulativeXP=450;Progression.PendingChoiceCount=1;
-    FLDLearnedSkillView Learned;Learned.DefinitionId=TEXT("root");Learned.bActive=true;Learned.Rank=2;Learned.Slot=0;Progression.Skills.Add(Learned);
-    FLDAttributeCardView Cards;Cards.DefinitionId=TEXT("shield");Cards.Count=3;Progression.AttributeCards.Add(Cards);
-    const TArray<LDDevPanel::FLearnRow> Rows=LDDevPanel::LearnRows(Content,&Progression);
-    TestTrue(TEXT("Every skill and card of the catalog is listed in order with its kind"),Rows.Num()==3&&Rows[0].Name==HudName(TEXT("root"))&&Rows[0].bActiveSkill
-        &&Rows[1].Kind==TEXT("被动技能")&&Rows[2].Kind==TEXT("属性卡"));
-    TestTrue(TEXT("Held ranks and card counts come from the own progression"),LDDevPanel::HeldText(Rows[0])==TEXT("2 级")
-        &&LDDevPanel::HeldText(Rows[1])==TEXT("未拥有")&&LDDevPanel::HeldText(Rows[2])==TEXT("已有 3 张"));
-    TestFalse(TEXT("One held active does not need a replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
-    Learned.Slot=1;Learned.DefinitionId=TEXT("other_active");Progression.Skills.Add(Learned);
-    TestFalse(TEXT("Q and W leave E free"),LDDevPanel::BothActiveSlotsHeld(&Progression));
-    Learned.Slot=2;Learned.DefinitionId=TEXT("third_active");Progression.Skills.Add(Learned);
-    TestTrue(TEXT("Q, W and E held offer the confirmed replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
-    TestFalse(TEXT("An unprojected progression offers nothing"),LDDevPanel::BothActiveSlotsHeld(nullptr));
+    for(const TCHAR* Id:{TEXT("root"),TEXT("shield"),TEXT("camp_returning")}){FLDDemoAbilityDefinition Active;Active.Id=Id;Content.Abilities.Add(Active);}
+    FLDProgressionView Progression;Progression.bValid=true;Progression.Level=3;Progression.CumulativeXP=450;Progression.UnspentPoints=4;
+    Progression.QueuedActiveOpportunities=1;
+    FLDActiveSlotView Learned;Learned.DefinitionId=TEXT("root");Learned.Slot=1;Progression.Actives.Add(Learned);
+    Progression.PendingBlueprints={FName(TEXT("shield"))};
+    const TArray<LDDevPanel::FActiveRow> Rows=LDDevPanel::ActiveRows(Content,&Progression);
+    TestTrue(TEXT("Every active of the catalog is listed in order"),Rows.Num()==3&&Rows[0].Name==HudName(TEXT("root"))&&Rows[1].Id==FName(TEXT("shield")));
+    TestTrue(TEXT("What is held comes from the own progression: a learned slot, a blueprint or nothing"),LDDevPanel::HeldText(Rows[0])==TEXT("已学 W")
+        &&LDDevPanel::HeldText(Rows[1])==LDTerms::Blueprint&&LDDevPanel::HeldText(Rows[2])==TEXT("未拥有"));
+    TestTrue(TEXT("Without a projection nothing is held"),LDDevPanel::ActiveRows(Content,nullptr)[0].Held==LDDevPanel::EActiveHeld::None);
+    TestFalse(TEXT("One held active does not need a replacement"),LDDevPanel::AllActiveSlotsHeld(&Progression));
+    Learned.Slot=0;Learned.DefinitionId=TEXT("other_active");Progression.Actives.Add(Learned);
+    TestFalse(TEXT("Q and W leave E free"),LDDevPanel::AllActiveSlotsHeld(&Progression));
+    Learned.Slot=2;Learned.DefinitionId=TEXT("third_active");Progression.Actives.Add(Learned);
+    TestTrue(TEXT("Q, W and E held offer the DEV replacement"),LDDevPanel::AllActiveSlotsHeld(&Progression));
+    TestFalse(TEXT("An unprojected progression offers nothing"),LDDevPanel::AllActiveSlotsHeld(nullptr));
 
     // Own state lines: an unprojected view reads as syncing, never as 0.
     TestEqualSensitive(TEXT("Nothing projected is syncing"),LDDevPanel::StatusLine(nullptr),FString(TEXT("等级 同步中")));
-    TestEqualSensitive(TEXT("Level, XP and unused choices"),LDDevPanel::StatusLine(&Progression),FString::Printf(TEXT("等级 3 · %s 450 · 未用选择机会 1"),LDTerms::Experience));
+    TestEqualSensitive(TEXT("Level, XP, unspent points and queued active opportunities"),LDDevPanel::StatusLine(&Progression),
+        FString::Printf(TEXT("等级 3 · %s 450 · 未分配点数 4 · 待选技能 1 次"),LDTerms::Experience));
     TestEqualSensitive(TEXT("An attribute without a projected row is syncing"),LDDevPanel::AttributeLine(nullptr,uint8(ELDProjectedAttribute::AD)),FString(TEXT("同步中")));
     FLDCombatOwnerView Combat;FLDCombatAttributeRowView AD;AD.Attribute=uint8(ELDProjectedAttribute::AD);
-    for(FLDDemoRational* Term:{&AD.Base,&AD.Level,&AD.Choices,&AD.Passives,&AD.PercentBonus,&AD.Dev,&AD.DevPercent,&AD.Temporary,&AD.TemporaryPercent,&AD.Final})
+    for(FLDDemoRational* Term:{&AD.Base,&AD.Level,&AD.Choices,&AD.PercentBonus,&AD.Dev,&AD.DevPercent,&AD.Temporary,&AD.TemporaryPercent,&AD.Final})
     {Term->Numerator=0;Term->Denominator=1;}
     AD.Base.Numerator=50;AD.Dev.Numerator=12;AD.Final.Numerator=62;Combat.Attributes.Add(AD);
     const FString ADLine=LDDevPanel::AttributeLine(&Combat,uint8(ELDProjectedAttribute::AD));
@@ -1009,9 +1146,9 @@ bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDIconsTest,"Lockdown.Rules.HUDIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDIconsTest::RunTest(const FString& Parameters)
 {
-    // #85: every icon the HUD and the choice cards draw is an imported texture: each skill, attribute card, opening direction
-    // and status of the approved catalog (only the character and the creatures have no icon square), plus the dash and the
-    // two recoveries, which have no display row.
+    // #85: every icon the HUD and the growth panel draw is an imported texture: each active, stat and status of the approved
+    // catalog (only the character and the creatures have no icon square), plus the dash and the two recoveries, which have no
+    // display row.
     TestTrue(TEXT("Icon packages live in the cooked UI icon folder"),LDUIIcons::PackageFor(TEXT("icon_root"))==TEXT("/Game/Lockdown/Art/UI/Icons/T_icon_root"));
     TestTrue(TEXT("A malformed icon id maps to no package"),LDUIIcons::PackageFor(TEXT("root")).IsEmpty()&&LDUIIcons::PackageFor(TEXT("icon_../x")).IsEmpty()
         &&LDUIIcons::PackageFor(TEXT("icon_Root")).IsEmpty());
@@ -1022,7 +1159,7 @@ bool FLDHUDIconsTest::RunTest(const FString& Parameters)
     for(const FLDDemoMonsterDefinition& Monster:Content.Monsters){NoSquare.Add(Monster.Id);}
     TArray<FString> Needed{LDUIIcons::Dash,LDUIIcons::OutOfCombatRegen,LDUIIcons::DormRegen};
     for(const FLDDemoDisplayDefinition& Display:Content.Display){if(!NoSquare.Contains(Display.Id)){Needed.Add(Display.IconId);}}
-    TestTrue(TEXT("The catalog lists skills, attribute cards, openings and statuses"),Needed.Num()>3+Content.Abilities.Num()+Content.Attributes.Num());
+    TestTrue(TEXT("The catalog lists actives, stats and statuses"),Needed.Num()>3+Content.Abilities.Num()+Content.Stats.Num());
     for(const FString& IconId:Needed)
     {
         const UTexture2D* Texture=LDUIIcons::Find(IconId);

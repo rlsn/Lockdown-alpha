@@ -38,7 +38,8 @@ struct FLDOpponentRequestTally
     uint32 LeaderHunts = 0;
     // D26 evidence: times this adapter's decisions turned to stepping away from the Boss.
     uint32 BossAvoids = 0;
-    uint32 Choices = 0;
+    // #198 build commands sent (active choices, blueprint learns and point allocations) and those refused on admission.
+    uint32 Builds = 0;
     uint32 BuildsRefused = 0;
     // Spray evidence from this adapter's own frames and decisions: decisions taken while it held spray progress a contest
     // paused, and while it stood inside a contest against a rival's paused progress. Kept means it stayed in the fight;
@@ -109,7 +110,7 @@ private:
         uint64 DirectSequence = 0;
         int64 SentAtMs = 0;
     };
-    // The one choice awaiting its final receipt; a second build change is never sent meanwhile.
+    // The one build command awaiting its final receipt; a second build change is never sent meanwhile.
     struct FBuildTrack
     {
         bool bHas = false;
@@ -160,18 +161,17 @@ private:
     uint32 BodyLife = 0;
     // Match-wide: Combat keeps one direct high-water mark per contender across lives.
     uint64 DirectSequence = 0;
-    // Choice request ids from 1, consumed only when the domain reserved the sequence.
-    uint64 ChoiceRequestId = 1;
+    // Build request ids from 1, consumed only when the domain reserved the sequence.
+    uint64 BuildRequestId = 1;
     int64 NextDecisionAtMs = 0;
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;
     bool bWasInDorm = false;
     uint64 LastClaimedAirdrop = 0;
-    // #153 (v7 §2.1): drawn once per match from the core's server random stream: the moment after the countdown began at
-    // which the opening direction card is taken (1-4 s), and which of its three cards (uniform).
+    // #153: drawn once per match from the core's server random stream: the moment after the countdown began from which
+    // this adapter makes its countdown build decisions (1-4 s).
     int64 OpeningPickAfterMs = 0;
-    uint8 OpeningPickIndex = 0;
     FLDOpponentRequestTally Tally;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (-LDBuildEvaluation only): the profile the Host probe staged for this contender, taken at bind.

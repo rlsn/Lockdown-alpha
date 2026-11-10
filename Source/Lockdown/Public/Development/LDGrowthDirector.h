@@ -38,14 +38,14 @@ public:
     // DeathsAndRewards permit, where growth applies.
     ELDRewardOutcome CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
         const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
-    // Transactions: choices (and DEV test commands) in server arrival order. Single rejections are receipts; false only
+    // Transactions: build commands (and DEV test commands) in server arrival order. Single rejections are receipts; false only
     // on a fault.
     bool ProcessTransactions(const FLDGameplayWritePermit& Permit, FString& Error);
     // Publish (after Close, no permit exists): refreshes changed owner projections through SyncOwner and delivers
     // final receipts to owning connections. Writes no gameplay state; false only for a boundary of another match.
     bool PublishGrowth(const FLDAuthorityBoundary& Boundary, FString& Error);
 
-    // Owner projection read by ALDGameMode::SyncOwner; one consistent view of level, XP, skills, cards and offer.
+    // Owner projection read by ALDGameMode::SyncOwner; one consistent view of level, XP, points, actives, blueprints and offer.
     FLDGrowthOwnerView ReadOwnerView(const FGuid& ContenderId) const;
     // Committed level for the frozen result rows; contenders that left keep their record until the match ends.
     bool ReadFinalLevel(const FGuid& ContenderId, uint8& Level, FString& Error) const;
@@ -76,7 +76,7 @@ public:
 private:
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDDemoAssistSettlementTest;
-    friend class FLDDemoGrowthRerollTest;
+    friend class FLDDemoGrowthBuildCommandsTest;
     void RecordReward(const FLDRewardReceipt& Receipt);
     // One recipient's part of a composite reward.
     struct FRewardShare
