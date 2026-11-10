@@ -226,7 +226,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
             LDGrowthWire::IsKnownFamily(static_cast<ELDGrowthFamily>(Retired)));
     }
     // Retired reasons keep their numbers reserved: none of them names a reason any more.
-    for (const uint16 Retired : {uint16(40), uint16(46), uint16(47), uint16(48), uint16(49), uint16(50), uint16(51)})
+    for (const uint16 Retired : {uint16(40), uint16(46), uint16(47), uint16(49), uint16(50), uint16(51)})
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Retired growth reason %u has no name"), uint32(Retired)),
             FString(LDGrowthWire::ReasonName(LDGrowthWire::Reason(Retired))), FString(TEXT("Unknown")));
@@ -870,7 +870,8 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("UnspentPoints"), TEXT("StatPoints"), TEXT("Actives"),
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Components"),
-         TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("BuildSafeAtMs"), TEXT("CatalogDigest")});
+         TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("BuildSafeAtMs"), TEXT("CatalogDigest"),
+         TEXT("PermanentSpentPoints")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot")});
@@ -1221,8 +1222,8 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     using EStage = LDProgression::EMatchStage;
     using EKind = ELDBuildCommandKind;
-    const LDProgression::FBuildContext CountdownAlive = GrowthTestContext(EStage::Countdown, ELDLifePhase::Alive, false);
-    const LDProgression::FBuildContext CountdownDead = GrowthTestContext(EStage::Countdown, ELDLifePhase::Dead, false);
+    const LDProgression::FBuildContext RestAlive = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive, false);
+    const LDProgression::FBuildContext RestLocked = GrowthTestContext(EStage::RestLocked, ELDLifePhase::Alive, true);
     const LDProgression::FBuildContext Safe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive, true);
     const LDProgression::FBuildContext Unsafe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive, false);
     const LDProgression::FBuildContext Dead = GrowthTestContext(EStage::Live, ELDLifePhase::Dead, false);
@@ -1238,8 +1239,8 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         ELDGrowthReason Allocate;
     };
     const FGateRow Matrix[] = {
-        {TEXT("countdown, alive inside the window"), &CountdownAlive, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
-        {TEXT("countdown, dead"), &CountdownDead, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
+        {TEXT("rest, alive inside the window"), &RestAlive, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
+        {TEXT("rest, builds locked"), &RestLocked, ELDGrowthReason::BuildLocked, ELDGrowthReason::BuildLocked, ELDGrowthReason::BuildLocked},
         {TEXT("live, alive and safe"), &Safe, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
         {TEXT("live, alive inside the window"), &Unsafe, ELDGrowthReason::NotSafe, ELDGrowthReason::None, ELDGrowthReason::NotSafe},
         {TEXT("live, dead"), &Dead, ELDGrowthReason::Dead, ELDGrowthReason::None, ELDGrowthReason::None},
@@ -1281,8 +1282,8 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     {
         return LDProgression::ApplyActiveChoice(Content, From, Option, bLearn, Preferred, Context, Out, Outcome);
     };
-    bGood &= Test.TestTrue(TEXT("The opening choice in the countdown is learned into Q"),
-        Choose(Empty, Elbow, true, FLDBuildCommand::AnySlot, CountdownAlive) == ELDGrowthReason::None
+    bGood &= Test.TestTrue(TEXT("The opening choice in the opening rest is learned into Q"),
+        Choose(Empty, Elbow, true, FLDBuildCommand::AnySlot, RestAlive) == ELDGrowthReason::None
         && Outcome.Result == ELDBuildChoiceResult::Learned && Outcome.Slot == 0 && Outcome.StoredReason == ELDGrowthReason::None
         && Out.Actives.Num() == 1 && Out.Actives[0].Id == Elbow && Out.Actives[0].Slot == 0 && Out.PendingBlueprints.IsEmpty()
         && Out.Revision == Empty.Revision);
@@ -1333,7 +1334,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A pending blueprint is learned into the named empty slot and leaves the blueprints"),
         Learn(Holding, Seethe, 2, Safe) == ELDGrowthReason::None && Out.Actives.Num() == 2 && Out.Actives[1].Id == Seethe
         && Out.Actives[1].Slot == 2 && Out.PendingBlueprints.IsEmpty());
-    bGood &= Test.TestTrue(TEXT("The countdown allows learning whatever the window"), Learn(Holding, Seethe, 1, CountdownDead) == ELDGrowthReason::None
+    bGood &= Test.TestTrue(TEXT("The rest window allows learning whatever the safe window"), Learn(Holding, Seethe, 1, RestAlive) == ELDGrowthReason::None
         && Out.Actives.Num() == 2);
     bGood &= Refused(TEXT("Learning inside the safe window"), Learn(Holding, Seethe, 1, Unsafe), ELDGrowthReason::NotSafe, Holding);
     bGood &= Refused(TEXT("Learning while dead"), Learn(Holding, Seethe, 1, Dead), ELDGrowthReason::Dead, Holding);
@@ -1349,7 +1350,7 @@ bool GrowthTestRunBuildRules(FAutomationTestBase& Test)
         return LDProgression::ApplyAllocation(Content, From, XP, 0, Counts, Context, Out);
     };
     bGood &= Test.TestTrue(TEXT("The three opening points are allocated across two stats in one step"),
-        Allocate(Empty, 0, {1, 0, 2, 0, 0}, CountdownAlive) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({1, 0, 2, 0, 0}));
+        Allocate(Empty, 0, {1, 0, 2, 0, 0}, RestAlive) == ELDGrowthReason::None && Out.StatPoints == TArray<int32>({1, 0, 2, 0, 0}));
     const FLDGrowthBuild Spent = Out;
     bGood &= Refused(TEXT("One point more than the unspent ones"), Allocate(Empty, 0, {2, 0, 2, 0, 0}, Safe),
         ELDGrowthReason::NotEnoughPoints, Empty);
@@ -1781,8 +1782,9 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
     using EStage = LDProgression::EMatchStage;
     using ESource = ELDComponentSource;
     using EKind = ELDBuildCommandKind;
-    const LDProgression::FBuildContext CountdownAlive = GrowthTestContext(EStage::Countdown, ELDLifePhase::Alive, false);
-    const LDProgression::FBuildContext CountdownDead = GrowthTestContext(EStage::Countdown, ELDLifePhase::Dead, false);
+    const LDProgression::FBuildContext RestAlive = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive, false);
+    const LDProgression::FBuildContext RestDead = GrowthTestContext(EStage::Rest, ELDLifePhase::Dead, false);
+    const LDProgression::FBuildContext RestLocked = GrowthTestContext(EStage::RestLocked, ELDLifePhase::Alive, true);
     const LDProgression::FBuildContext Safe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive, true);
     const LDProgression::FBuildContext Unsafe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive, false);
     const LDProgression::FBuildContext Dead = GrowthTestContext(EStage::Live, ELDLifePhase::Dead, true);
@@ -1797,8 +1799,9 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
         ELDGrowthReason Pick;
     };
     const FGateRow Matrix[] = {
-        {TEXT("countdown, alive inside the window"), &CountdownAlive, ELDGrowthReason::None, ELDGrowthReason::RestOnly, ELDGrowthReason::None},
-        {TEXT("countdown, dead"), &CountdownDead, ELDGrowthReason::None, ELDGrowthReason::RestOnly, ELDGrowthReason::None},
+        {TEXT("rest window, alive inside the safe window"), &RestAlive, ELDGrowthReason::None, ELDGrowthReason::None, ELDGrowthReason::None},
+        {TEXT("rest window, dead"), &RestDead, ELDGrowthReason::Dead, ELDGrowthReason::Dead, ELDGrowthReason::None},
+        {TEXT("rest, builds locked"), &RestLocked, ELDGrowthReason::BuildLocked, ELDGrowthReason::BuildLocked, ELDGrowthReason::BuildLocked},
         {TEXT("live, alive and safe"), &Safe, ELDGrowthReason::None, ELDGrowthReason::RestOnly, ELDGrowthReason::None},
         {TEXT("live, alive inside the window"), &Unsafe, ELDGrowthReason::NotSafe, ELDGrowthReason::RestOnly, ELDGrowthReason::None},
         {TEXT("live, dead"), &Dead, ELDGrowthReason::Dead, ELDGrowthReason::RestOnly, ELDGrowthReason::None},
@@ -1807,7 +1810,8 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
     bool bGood = true;
     for (const FGateRow& Row : Matrix)
     {
-        bGood &= Test.TestFalse(FString::Printf(TEXT("No rest window on this branch, %s"), Row.What), LDProgression::IsRestWindow(*Row.Context));
+        bGood &= Test.TestEqual(FString::Printf(TEXT("The rest window is exactly the open rest stage, %s"), Row.What),
+            LDProgression::IsRestWindow(*Row.Context), Row.Context->Stage == EStage::Rest);
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A first install, %s"), Row.What), LDProgression::InstallGate(*Row.Context, false),
             Row.First);
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("InstallComponent, %s"), Row.What),
@@ -1844,8 +1848,8 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
         return Test.TestTrue(FString::Printf(TEXT("%s changes nothing"), What), GrowthTestSameComponents(Out.Components, Owned.Components))
             && bReason;
     };
-    bGood &= Test.TestTrue(TEXT("A first install in the countdown enables the inventory instance and records its history"),
-        Install(Spiky, FLDComponentTarget(), CountdownAlive) == ELDGrowthReason::None && Out.FindComponent(Spiky)->bInstalled
+    bGood &= Test.TestTrue(TEXT("A first install in the rest window enables the inventory instance and records its history"),
+        Install(Spiky, FLDComponentTarget(), RestAlive) == ELDGrowthReason::None && Out.FindComponent(Spiky)->bInstalled
         && Out.FindComponent(Spiky)->bEverInstalled && Out.FindComponent(Spiky)->Target.IsEmpty() && Out.Revision == Owned.Revision);
     bGood &= Test.TestTrue(TEXT("A first install alive and safe"), Install(Spiky, FLDComponentTarget(), Safe) == ELDGrowthReason::None);
     bGood &= Refused(TEXT("A first install inside the safe window"), Install(Spiky, FLDComponentTarget(), Unsafe), ELDGrowthReason::NotSafe);
@@ -1853,8 +1857,8 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
     bGood &= Refused(TEXT("A first install after the match closed"), Install(Spiky, FLDComponentTarget(), Closed), ELDGrowthReason::PhaseClosed);
     bGood &= Refused(TEXT("Re-installing a once-installed instance in the field"), Install(Heal, FLDComponentTarget(), Safe),
         ELDGrowthReason::RestOnly);
-    bGood &= Refused(TEXT("Re-installing a once-installed instance in the countdown"), Install(Heal, FLDComponentTarget(), CountdownAlive),
-        ELDGrowthReason::RestOnly);
+    bGood &= Test.TestTrue(TEXT("Re-installing a once-installed instance in the rest window"),
+        Install(Heal, FLDComponentTarget(), RestAlive) == ELDGrowthReason::None && Out.FindComponent(Heal)->bInstalled);
     bGood &= Refused(TEXT("Installing an installed instance"), Install(Fire, FLDComponentTarget(), Safe), ELDGrowthReason::AlreadyInstalled);
     bGood &= Refused(TEXT("Installing an unowned definition"), Install(Bump, FLDComponentTarget(), Safe), ELDGrowthReason::NotOwned);
     bGood &= Refused(TEXT("Uninstalling in the field"), LDProgression::ApplyUninstallComponent(Content, Owned, Fire, Safe, Out),
@@ -1871,9 +1875,9 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
     bGood &= Refused(TEXT("A base installed on an active target"), Install(Spiky, OnActive, Safe), ELDGrowthReason::InvalidTarget);
     bGood &= Refused(TEXT("A binding on a base that takes none"), Install(Spiky, GrowthTestBinding(Elbow, ELDDemoElement::Fire), Safe),
         ELDGrowthReason::InvalidTarget);
-    bGood &= Refused(TEXT("B10 water before the element state"), Install(Water, FLDComponentTarget(), CountdownAlive),
+    bGood &= Refused(TEXT("B10 water before the element state"), Install(Water, FLDComponentTarget(), RestAlive),
         ELDGrowthReason::ElementUnsupported);
-    bGood &= Refused(TEXT("B11 electric before the element state"), Install(Shock, FLDComponentTarget(), CountdownAlive),
+    bGood &= Refused(TEXT("B11 electric before the element state"), Install(Shock, FLDComponentTarget(), RestAlive),
         ELDGrowthReason::ElementUnsupported);
     bGood &= Refused(TEXT("B18 without a binding"), Install(Dirty, FLDComponentTarget(), Safe), ELDGrowthReason::InvalidTarget);
     bGood &= Refused(TEXT("B18 bound to water"), Install(Dirty, GrowthTestBinding(Elbow, ELDDemoElement::Water), Safe),
@@ -1956,7 +1960,7 @@ bool GrowthTestRunOpeningBase(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("The opening active is the one chosen for opportunity 1"),
         LDProgression::OpeningActive(Opened) == Elbow && LDProgression::OpeningActive(Fresh).IsNone());
 
-    const LDProgression::FBuildContext Countdown = GrowthTestContext(EStage::Countdown, ELDLifePhase::Alive, false);
+    const LDProgression::FBuildContext OpeningRest = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive, false);
     const LDProgression::FBuildContext Unsafe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive, false);
     const LDProgression::FBuildContext Dead = GrowthTestContext(EStage::Live, ELDLifePhase::Dead, true);
     const LDProgression::FBuildContext Closed = GrowthTestContext(EStage::Closed, ELDLifePhase::Alive, true);
@@ -1973,28 +1977,28 @@ bool GrowthTestRunOpeningBase(FAutomationTestBase& Test)
         return Test.TestTrue(FString::Printf(TEXT("%s changes nothing"), What), GrowthTestSameComponents(Out.Components, From.Components))
             && bReason;
     };
-    bGood &= Refused(TEXT("A base pick before the opening active"), Pick(Start, Fresh, Spiky, true, FLDComponentTarget(), Countdown),
+    bGood &= Refused(TEXT("A base pick before the opening active"), Pick(Start, Fresh, Spiky, true, FLDComponentTarget(), OpeningRest),
         ELDGrowthReason::OpeningActiveFirst, Start);
-    bGood &= Test.TestTrue(TEXT("The countdown pick is granted as the opening instance and installed in the same commit"),
-        Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Countdown) == ELDGrowthReason::None && Outcome.bInstalled
+    bGood &= Test.TestTrue(TEXT("The opening rest pick is granted as the opening instance and installed in the same commit"),
+        Pick(Start, Opened, Spiky, true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && Outcome.bInstalled
         && Outcome.StoredReason == ELDGrowthReason::None && Out.Components.Num() == 1 && Out.Components[0].Id == Spiky
         && Out.Components[0].Source == ESource::OpeningPick && Out.Components[0].SourceLevel == 1 && Out.Components[0].bInstalled
         && Out.Components[0].bEverInstalled && LDProgression::OpeningBaseTaken(Out) && Out.Revision == Start.Revision);
     const FLDGrowthBuild Taken = Out;
-    bGood &= Refused(TEXT("A second base pick"), Pick(Taken, Opened, FName(TEXT("component_fist_fire")), true, FLDComponentTarget(), Countdown),
+    bGood &= Refused(TEXT("A second base pick"), Pick(Taken, Opened, FName(TEXT("component_fist_fire")), true, FLDComponentTarget(), OpeningRest),
         ELDGrowthReason::OpeningBaseTaken, Taken);
     bGood &= Refused(TEXT("A base that is never an opening option"),
-        Pick(Start, Opened, FName(TEXT("component_breach_fist")), true, FLDComponentTarget(), Countdown), ELDGrowthReason::OpeningBaseUnavailable,
+        Pick(Start, Opened, FName(TEXT("component_breach_fist")), true, FLDComponentTarget(), OpeningRest), ELDGrowthReason::OpeningBaseUnavailable,
         Start);
     bGood &= Refused(TEXT("A base the opening active does not unlock"),
-        Pick(Start, Opened, FName(TEXT("component_fist_shock")), true, FLDComponentTarget(), Countdown), ELDGrowthReason::OpeningBaseUnavailable,
+        Pick(Start, Opened, FName(TEXT("component_fist_shock")), true, FLDComponentTarget(), OpeningRest), ELDGrowthReason::OpeningBaseUnavailable,
         Start);
-    bGood &= Refused(TEXT("An unknown base"), Pick(Start, Opened, FName(TEXT("component_unknown")), true, FLDComponentTarget(), Countdown),
+    bGood &= Refused(TEXT("An unknown base"), Pick(Start, Opened, FName(TEXT("component_unknown")), true, FLDComponentTarget(), OpeningRest),
         ELDGrowthReason::OpeningBaseUnavailable, Start);
     bGood &= Refused(TEXT("A base pick after the match closed"), Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Closed),
         ELDGrowthReason::PhaseClosed, Start);
     bGood &= Refused(TEXT("A binding without asking to install"),
-        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), false, GrowthTestBinding(Elbow, ELDDemoElement::Fire), Countdown),
+        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), false, GrowthTestBinding(Elbow, ELDDemoElement::Fire), OpeningRest),
         ELDGrowthReason::InvalidRequest, Start);
     bGood &= Test.TestTrue(TEXT("Inside the safe window the pick is stored, saying NotSafe"),
         Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Unsafe) == ELDGrowthReason::None && !Outcome.bInstalled
@@ -2004,16 +2008,16 @@ bool GrowthTestRunOpeningBase(FAutomationTestBase& Test)
         Pick(Start, Opened, Spiky, true, FLDComponentTarget(), Dead) == ELDGrowthReason::None && !Outcome.bInstalled
         && Outcome.StoredReason == ELDGrowthReason::Dead && Out.FindComponent(Spiky));
     bGood &= Test.TestTrue(TEXT("A pick that does not ask to install is stored without a reason"),
-        Pick(Start, Opened, Spiky, false, FLDComponentTarget(), Countdown) == ELDGrowthReason::None && !Outcome.bInstalled
+        Pick(Start, Opened, Spiky, false, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && !Outcome.bInstalled
         && Outcome.StoredReason == ELDGrowthReason::None && !Out.Components[0].bInstalled);
     bGood &= Test.TestTrue(TEXT("B10 is a legal pick but stays in the inventory, saying ElementUnsupported"),
-        Pick(Start, Opened, FName(TEXT("component_fist_water")), true, FLDComponentTarget(), Countdown) == ELDGrowthReason::None
+        Pick(Start, Opened, FName(TEXT("component_fist_water")), true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None
         && !Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::ElementUnsupported && Out.Components.Num() == 1);
     bGood &= Test.TestTrue(TEXT("B18 without a binding is stored, saying InvalidTarget"),
-        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, FLDComponentTarget(), Countdown) == ELDGrowthReason::None
+        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None
         && !Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::InvalidTarget);
     bGood &= Test.TestTrue(TEXT("B18 bound to fire on the learned opening active installs with its binding"),
-        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, GrowthTestBinding(Elbow, ELDDemoElement::Fire), Countdown)
+        Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, GrowthTestBinding(Elbow, ELDDemoElement::Fire), OpeningRest)
             == ELDGrowthReason::None && Outcome.bInstalled && Out.Components[0].Target == GrowthTestBinding(Elbow, ELDDemoElement::Fire)
         && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
     return bGood;
@@ -2070,8 +2074,8 @@ bool FLDDemoGrowthPrivacySchemaTest::RunTest(const FString& Parameters)
     return GrowthTestRunPrivacy(*this);
 }
 
-// #198: the legality matrix (countdown, development/capture alive inside or past the safe window, dead, closed) and the
-// atomic build changes behind ActiveChoice, LearnBlueprint and AllocatePoints.
+// #198: the legality matrix (rest window, rest steps with builds locked, field alive inside or past the safe window, dead,
+// closed) and the atomic build changes behind ActiveChoice, LearnBlueprint and AllocatePoints.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthBuildRulesTest, "Lockdown.Rules.DemoGrowthBuildRules",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -2700,19 +2704,38 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         ELDGrowthReason::StaleContext)) { return false; }
     TestEqual(TEXT("A refused early capture keeps the scheduled opening"), Mode->CaptureReducer.GetOpenAtMs(), int64(1000000));
     Mode->MatchPhase = ELDMatchPhase::Development;
+    {
+        // #198: the DEV shortcut needs a running timed field segment; a fixture timeline with 1 ms rest steps reaches
+        // field 1 at 2 ms (fixture timing only, not approved durations).
+        FLDTimelineParameters Fast;
+        Fast.FieldSegmentMs = 1000000;
+        Fast.OpeningBuildMs = Fast.BuildMs = Fast.SignupMs = Fast.DrawMs = Fast.BettingMs = Fast.PKReadyMs = Fast.PKMaxMs
+            = Fast.SettlementMs = Fast.PayoutMs = Fast.ReturnMs = 1;
+        for (int64& Wait : Fast.RespawnMs) { Wait = 1; }
+        TArray<FLDTimelineEvent> Events;
+        FString TimelineError;
+        if (!TestTrue(TEXT("The fixture timeline reaches field 1"), Mode->Timeline.Begin(Fast, 0, TimelineError)
+            && Mode->Timeline.Advance(1, 0, true, Events, TimelineError) && Mode->Timeline.Advance(2, 0, true, Events, TimelineError)
+            && Mode->Timeline.GetStage() == ELDMatchStage::Field))
+        {
+            AddError(TimelineError);
+            return false;
+        }
+    }
     if (!HostCommit(TEXT("Request 24: the Host's early capture during development"), Command(Gen, 1, 24, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::None)) { return false; }
     TestTrue(TEXT("The circle opens at the commit boundary and the driver stops there"),
-        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen());
+        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen()
+        && Mode->Timeline.GetStage() == ELDMatchStage::FinalField);
     FLDCaptureReducer Circle;
     FString CircleError;
-    TestFalse(TEXT("An inactive reducer opens nothing early"), Circle.DevOpenAt(10, CircleError));
+    TestFalse(TEXT("An inactive reducer schedules no opening"), Circle.ScheduleOpen(10, CircleError));
     TestTrue(TEXT("A pure reducer begins"), Circle.Begin(5000, 500, 500, CircleError));
-    TestFalse(TEXT("An early opening must be earlier than the schedule"), Circle.DevOpenAt(5000, CircleError));
+    TestFalse(TEXT("A scheduled opening must be earlier than the current schedule"), Circle.ScheduleOpen(5000, CircleError));
     TOptional<FLDCaptureProposal> Proposal;
-    TestTrue(TEXT("An early opening is the next CloseBoundary's opening"), Circle.DevOpenAt(1200, CircleError)
+    TestTrue(TEXT("A scheduled opening is the next CloseBoundary's opening"), Circle.ScheduleOpen(1200, CircleError)
         && Circle.NextDueMs() == 1200 && Circle.CloseBoundary(1200, Proposal, CircleError) && Circle.IsOpen());
-    TestFalse(TEXT("An open circle opens nothing early"), Circle.DevOpenAt(1300, CircleError));
+    TestFalse(TEXT("An open circle schedules nothing"), Circle.ScheduleOpen(1300, CircleError));
 
     // ---- D26 (#79) map event reward: (Event, Serial) is the business identity, so the match pays each event once ----
     const FName Event(TEXT("airdrop"));
@@ -3075,7 +3098,19 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Mode->GameState = Public;
     World->CopyGameState(Mode, Public);
     Mode->MatchContext = {6, FGuid::NewGuid()};
-    Mode->MatchPhase = ELDMatchPhase::Countdown;
+    // #198: the match opens in the opening rest R0, build step.
+    Mode->MatchPhase = ELDMatchPhase::Rest;
+    {
+        FLDTimelineParameters TimelineParameters;
+        FString TimelineError;
+        if (!TestTrue(TEXT("The approved timeline begins in the R0 build step"),
+            FLDTimelineParameters::FromContent(Content.Parameters, TimelineParameters, TimelineError)
+            && Mode->Timeline.Begin(TimelineParameters, 0, TimelineError)))
+        {
+            AddError(TimelineError);
+            return false;
+        }
+    }
     Mode->Combat = Driver;
     Mode->Growth = Growth;
     Mode->Development = Development;
@@ -3351,7 +3386,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A refused allocation changes nothing"), BuildOf(Tester).Revision == RevisionAfterPoints
         && BuildOf(Tester).StatPoints == Allocated);
 
-    // ---- #198 B: the opening base pick after the opening active, installed in the same countdown commit ----
+    // ---- #198 B: the opening base pick after the opening active, installed in the same opening rest commit ----
     const FName Spiky(TEXT("component_spiky_hide"));
     const FLDProgressionView Picking = Development->ReadProgression(Tester);
     TestTrue(TEXT("The chosen opening active opens the opening base pick"), Picking.bOpeningBasePending
@@ -3381,7 +3416,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     FLDDefinitionWire::Encode(Spiky, Bad.Component);
     Refused(TEXT("An active choice naming a component"), Bad, ELDGrowthReason::InvalidRequest);
     const FLDBuildReceipt Picked = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::OpeningBase, Spiky, true), 1005,
-        TEXT("The opening base pick in the countdown"));
+        TEXT("The opening base pick in the opening rest"));
     const FLDComponentInstance* PickedInstance = BuildOf(Tester).FindComponent(Spiky);
     TestTrue(TEXT("The pick is installed in the same commit and Combat installs it"), Picked.Header.Outcome == ELDReceiptOutcome::Applied
         && Picked.Kind == ELDBuildCommandKind::OpeningBase && Picked.ComponentId == Spiky && Picked.bComponentInstalled
@@ -3396,8 +3431,15 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && PickedView.Components[0].Source == ELDComponentSource::OpeningPick);
     Rejected(Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::OpeningBase, FName(TEXT("component_fist_fire")), true), 1006,
         TEXT("A second opening base pick")), ELDGrowthReason::OpeningBaseTaken, TEXT("A second opening base pick"));
-    Rejected(Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::UninstallComponent, Spiky, false), 1007,
-        TEXT("Uninstalling outside the rest window")), ELDGrowthReason::RestOnly, TEXT("Uninstalling outside the rest window"));
+    const FLDBuildReceipt Removed = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::UninstallComponent, Spiky, false), 1007,
+        TEXT("Uninstalling in the opening rest"));
+    TestTrue(TEXT("The rest window uninstalls it back to the inventory, history kept"), Removed.Header.Outcome == ELDReceiptOutcome::Applied
+        && !Removed.bComponentInstalled && !BuildOf(Tester).FindComponent(Spiky)->bInstalled
+        && BuildOf(Tester).FindComponent(Spiky)->bEverInstalled && FightOf(Tester).Build.Components.IsEmpty());
+    const FLDBuildReceipt Reinstalled = Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, Spiky, false), 1007,
+        TEXT("Re-installing in the opening rest"));
+    TestTrue(TEXT("The rest window re-installs a once-installed component"), Reinstalled.Header.Outcome == ELDReceiptOutcome::Applied
+        && Reinstalled.bComponentInstalled && FightOf(Tester).Build.Components.Num() == 1);
     Rejected(Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::InstallComponent, FName(TEXT("component_fist_fire")), false),
         1008, TEXT("Installing an unowned component")), ELDGrowthReason::NotOwned, TEXT("Installing an unowned component"));
     TestTrue(TEXT("The refused component commands changed nothing"), BuildOf(Tester).Components.Num() == 1
@@ -3423,6 +3465,8 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         && GrantedAt(2)->Id != Spiky && GrantedAt(3)->Id != Spiky && GrantedAt(2)->Id != GrantedAt(3)->Id
         && Three.Components.Num() == 3 && ProgressionOf(Tester).EmptyPoolGrants == 0);
     TestEqual(TEXT("Inventory components do not reach Combat"), FightOf(Tester).Build.Components.Num(), 1);
+    Rejected(Commit(Tester, ComponentCommand(Tester, ELDBuildCommandKind::UninstallComponent, Spiky, false), StepAtMs + 1,
+        TEXT("Uninstalling outside the rest window")), ELDGrowthReason::RestOnly, TEXT("Uninstalling outside the rest window"));
     FLDBuildCommand Stale = Allocate(Tester, {1, 0, 0, 0, 0});
     Stale.ExpectedBuildRevision -= 1;
     Rejected(Commit(Tester, Stale, StepAtMs + 1, TEXT("An allocation against an older build revision")), ELDGrowthReason::BuildStale,

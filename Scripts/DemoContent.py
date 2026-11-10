@@ -885,7 +885,7 @@ def validate_numbers(data):
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
     for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
-                "AIRDROP.PickupRadiusCm"):
+                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
@@ -919,6 +919,9 @@ def validate_numbers(data):
     require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
             and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
             "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
+    # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
+    require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
+            "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
 
     thresholds = [0]
     for level in range(1, data["progression"]["max_level"]):

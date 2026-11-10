@@ -4,6 +4,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Development/LDProgressionRules.h"
 
 class FLDDemoContentSnapshot;
 
@@ -120,8 +121,13 @@ struct FLDOpponentPublicMatch
 {
     ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     int64 NowMs = 0;
-    // The public T=0 of the match (FLDPublicMatchView::StartedAtMs); #97 camp growth stages count from here.
+    // The public match start (FLDPublicMatchView::StartedAtMs, the opening rest R0 begins).
     int64 StartedAtMs = 0;
+    // #198: the public timeline (its build stage is LDProgression::StageForPublic(Phase, Timeline)) and the field
+    // progress T at NowMs; #97 camp growth stages count T.
+    FLDTimelineView Timeline;
+    int64 FieldNowMs = 0;
+    LDProgression::EMatchStage BuildStage() const { return LDProgression::StageForPublic(Phase, Timeline); }
     ELDOpponentCircle Circle = ELDOpponentCircle::Empty;
     // The contender holding spray progress: the sole sprayer, or the holder a contest only paused.
     // Invalid when nobody holds progress.

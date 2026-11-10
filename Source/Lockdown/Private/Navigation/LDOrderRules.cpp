@@ -62,12 +62,6 @@ ELDSpatialOrderKind LDOrderRules::AttackConfirmKind(bool bUnitUnderPointer)
 bool LDOrderRules::SkillRequestReady(ELDCombatReject Unavailable)
 { return Unavailable==ELDCombatReject::None || Unavailable==ELDCombatReject::Busy; }
 
-bool LDOrderRules::CountdownAdmitsOrder(const FLDSpatialOrderRequest& Request)
-{ return Request.Kind==ELDSpatialOrderKind::MoveGround; }
-
-bool LDOrderRules::CountdownAdmitsAction(ELDCombatEntry Entry)
-{ return Entry==ELDCombatEntry::Dash; }
-
 LDOrderRules::EForcedOrder LDOrderRules::ForcedOrderStep(bool bTaunted, bool bActiveForced, bool bSameTaunter)
 {
     if (!bTaunted) { return bActiveForced ? EForcedOrder::End : EForcedOrder::None; }

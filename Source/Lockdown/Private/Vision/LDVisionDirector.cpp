@@ -1059,11 +1059,16 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     }
     const bool bAlive = Life.Phase == ELDLifePhase::Alive;
     TArray<const FLDObservedTarget*> Visible;
+    // #198 rest vision filter: a contender in its private rest space sees only its own rest group, and nobody sees the
+    // frozen world during a rest.
+    const ALDGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
+    const ALDCombatDirector* Combat = Mode ? Mode->Combat.Get() : nullptr;
     if (bAlive)
     {
         for (const FLDObservedTarget& Target : Targets)
         {
             if (Target.Body.Victim.EntityId == Observer.ContenderId) { continue; }
+            if (Combat && Combat->IsHiddenFrom(Observer.ContenderId, Target.Body)) { continue; }
             const ELDSightResult Result = Sight.Trace(Foot, Target.FootCm);
             const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
             if (Outcome == ELDObservedResolve::AuthorityFault)

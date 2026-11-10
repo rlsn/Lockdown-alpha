@@ -37,13 +37,8 @@ namespace
 bool ALDGameMode::IsGameplayWriteOpen(const FLDMatchContext& Context) const
 {
     return IsDemoRoom() && Context.IsValid() && Context == MatchContext
-        && (MatchPhase == ELDMatchPhase::Countdown || MatchPhase == ELDMatchPhase::Development
+        && (MatchPhase == ELDMatchPhase::Rest || MatchPhase == ELDMatchPhase::Development
             || MatchPhase == ELDMatchPhase::CaptureOpen);
-}
-
-bool ALDGameMode::IsOpeningCountdown(const FLDMatchContext& Context) const
-{
-    return IsGameplayWriteOpen(Context) && MatchPhase == ELDMatchPhase::Countdown;
 }
 
 bool ALDGameMode::AdvanceRoster(FString& Reason)
@@ -272,12 +267,6 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         {
             if (MatchPhase == ELDMatchPhase::Results) { Receipt.Reason = ELDSessionReject::MatchClosed; }
             else if (!IsGameplayWriteOpen(MatchContext)) { Receipt.Reason = ELDSessionReject::WrongPhase; }
-            // A result needs an elapsed match: before T=0 there is no match time to end.
-            else if (MatchPhase == ELDMatchPhase::Countdown)
-            {
-                Receipt.Reason = ELDSessionReject::WrongPhase;
-                Receipt.Detail = TEXT("开局倒计时还没结束，结束后才能结束本局。");
-            }
             else if (bAuthorityStepOpen || ActiveWritePermit || PendingCapture.IsSet() || HasPendingRewardRetries())
             {
                 // An owed reward settles at the next boundary (and a completed capture with it) before any end.

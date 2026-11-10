@@ -254,10 +254,8 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
     // #153: before T=0 only the D dash is admitted; basic attacks and Q/W are refused. The refusal is kept, so a replay
     // after T=0 cannot start it late.
-    const auto* CountdownBody=FindEntityBody(Caller.EntityId);
-    const FLDCombatBodyRef CountdownRef=CountdownBody ? FLDCombatBodyRef{CountdownBody->Victim,CountdownBody->Identity} : FLDCombatBodyRef();
-    if (Mode->IsOpeningCountdown(Caller.Match)
-        && (!LDOrderRules::CountdownAdmitsAction(Request.Entry) || IsAggressiveEntry(CountdownRef,Request.Entry)))
+    // #198: the rest return countdown locks every input; the refusal is kept, so a replay never starts late.
+    if (Mode->IsInputLocked(Caller.Match))
     {
         Refuse(ELDCombatReject::NotStarted);
         StoreReceipt(*Record,Request,Receipt);
@@ -374,7 +372,8 @@ bool ALDCombatDirector::ResolveUnitTarget(const FLDCombatEntityRecord& Record, c
         OutBody=Target.ServerBody;
     }
     const auto* TargetBody=FindBody(OutBody,&TargetActor);
-    if (!TargetBody || !TargetActor || TargetBody->bPendingDeath || OutBody.Victim.EntityId==Record.Entity) { return false; }
+    if (!TargetBody || !TargetActor || TargetBody->bPendingDeath || OutBody.Victim.EntityId==Record.Entity
+        || IsIsolated(Record.Entity,*TargetBody)) { return false; }
     OutFoot=FootOf(*TargetActor);
     Reject=ELDCombatReject::None;
     return true;

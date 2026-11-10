@@ -117,10 +117,11 @@ public:
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
     // A contender that joined the capture roster and has not left it.
     bool IsCommittedMember(const FGuid& ContenderId) const;
+    // #198: the zone opens when the final field begins, an instant only the timeline knows. Begin with OpenAtMs =
+    // MAX_int64 ("not scheduled") and move the opening forward to AtMs, a boundary that is not closed yet, so the next
+    // CloseBoundary opens it. Refused when inactive, already open, or not earlier than the current schedule.
+    bool ScheduleOpen(int64 AtMs, FString& Error);
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV test session: moves a closed zone's opening forward to AtMs, a boundary that is not closed yet, so the next
-    // CloseBoundary opens it exactly like the scheduled opening. Refused when inactive, already open, or not earlier.
-    bool DevOpenAt(int64 AtMs, FString& Error);
     const FLDCaptureDevTally& DevTally() const { return DevCounts; }
 #endif
 
