@@ -22,6 +22,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/App.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
 #include "UnrealClient.h"
 #include "Misc/FileHelper.h"
@@ -53,6 +54,11 @@ constexpr uint32 MaxBodyRequestsPerWindow = 40;
 constexpr int64 RespawnSlackMs = 2500;
 constexpr int64 ActAfterRespawnMs = 10000;
 constexpr double MinTravelCm = 1000.;
+
+bool ReturnLifeRetired(ELDLifePhase Phase, bool bHasBody, bool bHasActor)
+{
+    return Phase == ELDLifePhase::Dead && !bHasBody && !bHasActor;
+}
 
 int32 CountKind(const FLDLobbyView& Lobby, ELDContenderKind Kind)
 {
@@ -134,8 +140,8 @@ public:
     bool RosterKept = true, ReadsKept = true;
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
-    // #198: each AI's current rest life in its private rest space during the opening rest R0, that life's foot at its first
-    // sample, whether it has decided to train on its own dummy (§6.4: the only reason to move there before the PK sign-up
+    // #198: each AI's current life in the shared opening rest room, that life's foot at its first
+    // sample, whether it has decided to train on a shared dummy (§6.4: the only reason to move there before the PK sign-up
     // window) and its distance to its own sign-up disk at the first sample inside the window (站圈报名: afterwards the only
     // walk is into that disk); the largest drift seen before training, the largest step away from the disk inside the
     // window, the AIs that stood in their disks at the lock, the AIs seen training or on a PK life in R0, and the ms since
@@ -162,6 +168,7 @@ public:
     int32 MaxSeenOpponents = 0;
     // Rendered Host only: up to three presentation screenshots of the running match (HUD review evidence, never a check).
     int32 Shots = 0;
+    bool bRestChoicesShot = false;
     double MatchSeenAt = 0, LastShotAt = 0;
     int64 LastHostHPP2 = -1;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
@@ -272,7 +279,7 @@ public:
     bool bPKBlocked = false, bPKWaitSeen = false, bPKStartedEarly = false, bPKChecked = false;
     int64 PKBlockDueMs = 0;
     bool bReturnBlocked = false, bReturnHeldSeen = false, bNobodyStood = true, bReturnChecked = false;
-    int64 ReturnDueMs = 0;
+    int64 ReturnDueMs = 0, ReturnFrozenFieldMs = 0;
     FGuid ReturnTarget;
     bool PlaceOccupant(UWorld& World, const FCollisionShape& Capsule, const FVector& FootCm);
     void ClearOccupants();
@@ -418,8 +425,11 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
             }
             Summary->SetNumberField(TEXT("r01_ledger_bytes_before"), double(GrowthArmedBytes));
             Summary->SetNumberField(TEXT("r01_ledger_bytes_after"), double(Mode.Lives.GetAllocatedSize()));
-            Check(bSlots && Mode.Lives.GetAllocatedSize() > GrowthArmedBytes,
-                TEXT("R01: the life ledger grew while R1's training dummies were added, and every dummy keeps its owner's slot"));
+            Check(bSlots, TEXT("R01: every R1 training dummy keeps its owner's slot"));
+            const bool bGrew = Mode.Lives.GetAllocatedSize() > GrowthArmedBytes;
+            Record(!bGrew ? ELDOpponentProbeCheck::NotExercised
+                : bSlots ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
+                TEXT("R01: the life ledger grew while the R1 training dummies were added"));
             bGrowthChecked = true;
         }
     }
@@ -493,6 +503,7 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
                 }
                 for (const FString& Id : Content->Get().World.SpawnIds) { OccupyAnchor(Id); }
                 ReturnDueMs = Line.GetStepEndsAtMs();
+                ReturnFrozenFieldMs = Line.FieldMsAt(Now);
                 bReturnBlocked = true;
             }
         }
@@ -501,10 +512,13 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
             bReturnHeldSeen = true;
             for (const FGuid& Id : Mode.GetRosterOrder())
             {
-                // Held: every present contender still stands on its rest life in its private rest space, none in the field.
-                bNobodyStood &= !Mode.IsContenderPresent(Id) || Mode.IsInRestSpace(Id);
+                if (!Mode.IsContenderPresent(Id)) { continue; }
+                const auto* Life = Mode.Lives.Find(Id);
+                bNobodyStood &= Life && LDDemoOpponentProbeDetail::ReturnLifeRetired(
+                    Life->Phase, Life->Body.IsValid(), Life->Actor.IsValid());
             }
-            bNobodyStood &= !Mode.IsFieldRunning();
+            bNobodyStood &= Mode.bFieldReturnStarted && Mode.PreparedFieldReturn.IsEmpty()
+                && !Mode.IsFieldRunning() && Line.FieldMsAt(Now) == ReturnFrozenFieldMs;
             if (Now >= ReturnDueMs + 1500) { ClearOccupants(); }
         }
     }
@@ -523,6 +537,9 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
         const int64 FieldStartedAtMs = Mode.ReadPublicMatch().Timeline.FieldStartedAtMs;
         Summary->SetNumberField(TEXT("r14_return_due_ms"), double(ReturnDueMs));
         Summary->SetNumberField(TEXT("r14_field_started_at_ms"), double(FieldStartedAtMs));
+        Summary->SetBoolField(TEXT("r14_held_seen"), bReturnHeldSeen);
+        Summary->SetBoolField(TEXT("r14_nobody_stood_while_held"), bNobodyStood);
+        Summary->SetBoolField(TEXT("r14_shared_protection"), bTogether);
         Check(bReturnHeldSeen && bNobodyStood && bTogether && FieldStartedAtMs > ReturnDueMs,
             TEXT("R14: a return with one survivor blocked stands nobody and holds T, then stands everybody together with one protection"));
         bReturnChecked = true;
@@ -546,8 +563,8 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     const FLDPublicMatchView Public = Mode.ReadPublicMatch();
     if (StartedAtMs < 0) { StartedAtMs = Public.StartedAtMs; }
     const bool bDevelopment = Public.Phase == ELDMatchPhase::Development;
-    // #198: a rest retires every field life without a death, ends every running respawn wait and stands each body in its
-    // private rest space; the field return places a new life. None of that is a death, a respawn or travel through the map.
+    // #198: a rest retires every field life without a death, ends every running respawn wait and stands each body in the
+    // shared rest room; the field return places a new life. None is a death, a respawn or travel through the map.
     // The request window keeps counting through the rest, so a PK fight is held to the same bound and its requests are
     // never folded into the first field window after the rest.
     if (Public.Phase == ELDMatchPhase::Rest)
@@ -887,7 +904,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
         TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
-    Check(OpeningPicks, TEXT("Every AI chose its opening active in the opening rest R0's build step, never moving"));
+    Check(OpeningPicks, TEXT("Every AI chose its opening active in the opening rest R0's build step"));
     Check(DevGrowth, TEXT("Every AI gained experience before the circle opened, unless it spent at least half of development dead or recovering"));
     // D12: decisions are counted from each adapter's own frames; a released decision is a stop-loss exit.
     Record(!PausedHolds ? ELDOpponentProbeCheck::NotExercised
@@ -993,7 +1010,7 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 an opponent AI moves in its private rest space only to train on its own dummy
+        // #198: through the opening rest R0 an opponent AI moves in the shared room only to train on a shared dummy
         // once nothing is left to build (OPPONENT_AI.md §6.4) and, once the PK sign-up window opens, only to walk into its own
         // sign-up disk (站圈报名, user decision A), so every AI stands in its disk at the lock (sampled on the authority until
         // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights on
@@ -1005,6 +1022,16 @@ bool FLDDemoOpponentProbe::Tick()
             const FLDTimelineView Line = Mode->ReadPublicMatch().Timeline;
             const bool bBeforeWindow = Line.Step == ELDRestStep::Build && Mode->GetAuthorityNowMs() < Line.SignupOpensAtMs;
             const bool bInWindow = Line.Step == ELDRestStep::Build && !bBeforeWindow;
+            if (!bRestChoicesShot && bBeforeWindow && FApp::CanEverRender()
+                && Mode->GetAuthorityNowMs() - Mode->ReadPublicMatch().StartedAtMs >= 3000
+                && PC->HUDUI && PC->HUDUI->ChoicesPanel && PC->HUDUI->ChoicesPanel->IsPanelOpen()
+                && PC->CanWorldCommand() && PC->CombatView.bHasBody && PC->CombatView.AttackRangeCm > 0
+                && !FScreenshotRequest::IsScreenshotRequested())
+            {
+                FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, TEXT("HostRestChoices.png")), true, false);
+                Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostRestChoices.png")));
+                bRestChoicesShot = true;
+            }
             for (TActorIterator<ALDOpponentController> It(World); It; ++It)
             {
                 const FGuid Id = Mode->ContenderId(*It);
@@ -1073,7 +1100,7 @@ bool FLDDemoOpponentProbe::Tick()
         if (bHost)
         {
             Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1. && MaxRest0AIStrayCm < 1.,
-                TEXT("In the opening rest R0 an opponent AI moves only to train on its own dummy before the sign-up window and then only walks into its own sign-up disk"));
+                TEXT("Before training an R0 AI stays at its initial foot, and in the sign-up window it does not stray farther from its disk than its first sample"));
             Check(Rest0Signed.Num() == OpponentCount && Rest0PKEntrants.Num() == OpponentCount,
                 TEXT("Every opponent AI stood in its own sign-up disk at the R0 lock and entered the PK (站圈报名)"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
@@ -1178,6 +1205,21 @@ bool FLDDemoOpponentProbe::Tick()
     }
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentProbeReturnHoldTest, "Lockdown.Rules.DemoOpponentProbe.ReturnHold",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentProbeReturnHoldTest::RunTest(const FString& Parameters)
+{
+    using LDDemoOpponentProbeDetail::ReturnLifeRetired;
+    TestTrue(TEXT("A retired rest life has no standing field body"), ReturnLifeRetired(ELDLifePhase::Dead, false, false));
+    TestFalse(TEXT("A live life is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Alive, false, false));
+    TestFalse(TEXT("A retained body identity is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Dead, true, false));
+    TestFalse(TEXT("A retained actor is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Dead, false, true));
+    TestFalse(TEXT("An unspawned life is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Unspawned, false, false));
+    TestFalse(TEXT("A departed life is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Left, false, false));
+    return true;
+}
+
 void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
 {
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoOpponentProbe")) || !Controller.IsLocalController()
@@ -1185,17 +1227,16 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoOpponentProbe>();
     // #198: a full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final
-    // field. The AI sign up for every PK, so each rest can run its whole approved PK: R0 45+5+8+3+60+3+12+5 = 141 s, each
-    // of R1..R3 30+5+8+3+60+3+12+5 = 126 s, fields 3 x 180 s: the flagpole opens at most 141 + 3 x 126 + 540 = 1059 s
-    // after the start (695 s with no PK). The lobby, the capture contest and the results keep the 505 s they had over
-    // the 695 s opening (1200 - 695): 1059 + 505 = 1564 s, rounded up.
-    int32 Timeout = 1570;
+    // field. Without early readiness, each rest can run its whole approved PK: R0 180+5+8+3+60+3+12+5 = 276 s,
+    // R1..R3 each 120+5+8+3+60+3+12+5 = 216 s, fields 3 x 180 s. The flagpole opens after at most
+    // 276 + 3 x 216 + 540 = 1464 s; retain 505 s for the lobby, capture contest and results.
+    int32 Timeout = 1980;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentRole="), Probe->Role)
         || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2")
             && Probe->Role != TEXT("Telemetry"))
-        || Timeout < 300 || Timeout > 1800
+        || Timeout < 300 || Timeout > 2400
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {

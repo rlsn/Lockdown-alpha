@@ -171,7 +171,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     }
     const TPair<EReason, uint16> ReasonNumbers[] = {{EReason::ReplacementNotAllowed, 48}, {EReason::BuildLocked, 70},
         {EReason::NpcPoolTooSmall, 71}, {EReason::OfferOutstanding, 72}, {EReason::NothingToRespec, 73}, {EReason::SlotEmpty, 74},
-        {EReason::NotRestWindow, 75}};
+        {EReason::NotRestWindow, 75}, {EReason::RestServiceUnavailable, 76}};
     for (const TPair<EReason, uint16>& Row : ReasonNumbers)
     {
         const FString Name = LDGrowthWire::ReasonName(Row.Key);
@@ -179,8 +179,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
             LDGrowthWire::Raw(Row.Key) == Row.Value && Name != TEXT("Unknown")
             && Name == LDGrowthWire::ReasonName(LDGrowthWire::Reason(Row.Value)));
     }
-    // 76 and 77 stay unassigned in the rest range.
-    for (const uint16 Unassigned : {uint16(76), uint16(77)})
+    for (const uint16 Unassigned : {uint16(77)})
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Unassigned growth reason %u has no name"), uint32(Unassigned)),
             FString(LDGrowthWire::ReasonName(LDGrowthWire::Reason(Unassigned))), FString(TEXT("Unknown")));

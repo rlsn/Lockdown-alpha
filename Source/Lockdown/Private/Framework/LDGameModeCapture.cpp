@@ -571,6 +571,8 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.Timeline = Timeline.MakeView(MatchContext.Generation, TimelineRevision);
     View.Timeline.Signups = RestSignups.Array();
     View.Timeline.Signups.Sort();
+    View.Timeline.ReadyContenders = RestReady.Array();
+    View.Timeline.ReadyContenders.Sort();
     // #198 session D: the current rest's PK; empty without the provider or outside a PK.
     if (PKDirector) { View.PK = PKDirector->GetView(); }
     View.PK.Generation = MatchContext.Generation;

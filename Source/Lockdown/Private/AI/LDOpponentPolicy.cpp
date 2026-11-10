@@ -2371,6 +2371,19 @@ const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame)
     return Out;
 }
 
+ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDOpponentBuildKind::BuyNpcOffer: return LDProgression::RestServiceFor(ELDBuildCommandKind::BuyNpcOffer);
+    case ELDOpponentBuildKind::FillGap: return LDProgression::RestServiceFor(ELDBuildCommandKind::FillGap);
+    case ELDOpponentBuildKind::Dismantle: return LDProgression::RestServiceFor(ELDBuildCommandKind::Dismantle);
+    case ELDOpponentBuildKind::Respec: return LDProgression::RestServiceFor(ELDBuildCommandKind::Respec);
+    case ELDOpponentBuildKind::ReplaceActive: return LDProgression::RestServiceFor(ELDBuildCommandKind::ReplaceActive);
+    default: return ELDRestService::None;
+    }
+}
+
 FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
     FLDOpponentPolicyState& State)
 {
@@ -2395,8 +2408,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Out;
     };
     const bool bRunning = Frame.Public.Phase == ELDMatchPhase::Development || Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
-    // #198: in a rest the body stays in its private rest space; only build steps are sent (the same commands a human
-    // uses), from this adapter's drawn moment on and only while the rest build window is open.
+    // Rest builds use the human's commands after this adapter's drawn moment and only in the open build window.
     const bool bRest = Frame.Public.Phase == ELDMatchPhase::Rest;
     if (!Frame.Generation || !(bRunning || bRest) || !Self.ContenderId.IsValid()
         || (Self.Phase != ELDLifePhase::Alive && Self.Phase != ELDLifePhase::Dead))
@@ -2429,8 +2441,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             }
             return Finish(EMode::PK, Fight == EPKFight::Ring ? EReason::PKRing : EReason::PKFight);
         }
-        // Everyone else stays in its private rest space; the only walk is into the own sign-up disk while the window is
-        // open, and spectating sends no order while the arena runs.
+        // Everyone else stays in the shared rest room; spectating sends no order while the arena runs.
         ForgetBody(State);
         // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
         // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot,
@@ -2479,10 +2490,38 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         const bool bBuildsNow = bBuildWindow && Frame.Public.NowMs >= Self.OpeningPickAtMs;
         if (bBuildsNow && DecideBuild(Frame, Catalog, State, true, Out.Build))
         {
+            const ELDRestService Required = RestServiceForBuild(Out.Build.Kind);
+            if (Required != ELDRestService::None && PKReason == EReason::PKSignUp)
+            {
+                Out.Build = FLDOpponentBuildIntent();
+                return Finish(EMode::PK, PKReason);
+            }
+            if (Required != ELDRestService::None && Self.NearbyRestService != Required)
+            {
+                Out.Build = FLDOpponentBuildIntent();
+                const FLDOpponentPOI* Service = Frame.RestServicePOIs.FindByPredicate([Required](const FLDOpponentPOI& Place)
+                {
+                    return Place.Kind == ELDOpponentPOIKind::RestService && Place.RestService == Required;
+                });
+                if (!Service || Service->Id.IsNone() || Service->SurfaceId.IsNone())
+                {
+                    return Finish(EMode::Stopped, EReason::ProviderUnavailable);
+                }
+                if (Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action))
+                {
+                    Out.Body.Kind = EBody::Keep;
+                    return Finish(EMode::Choose, EReason::RestService);
+                }
+                FContext C(Frame, Catalog, State);
+                const FLDOpponentRetryKey Path = FContext::PathKey(Service->Id);
+                if (!C.CanAttempt(Path)) { return Finish(EMode::Stopped, EReason::TargetSuppressed); }
+                Out.Body = MoveTo(C, *Service);
+                return Finish(EMode::Choose, EReason::RestService);
+            }
             return Finish(EMode::Choose, EReason::ChooseOffer);
         }
-        // #198 §16.3 training: once nothing is left to build and nothing is in flight, a living body tries its build on its
-        // own private dummy with the production engagement (§6.3 activations, then the basic attack), the only unit it ever
+        // Once nothing is left to build and nothing is in flight, a living body tries its build on a shared dummy with
+        // the production engagement (§6.3 activations, then the basic attack), the only unit it ever
         // engages here; the dummy is known only by the HUD's roster rule. A decision sending a PK request sends no body
         // intent (a running training order goes on); training resumes at the next decision.
         if (bBuildsNow && PKReason == EReason::None && !Frame.bBuildChangeInFlight && Self.Phase == ELDLifePhase::Alive)
@@ -2664,8 +2703,9 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         // reach instead: walking off to a corner would flip the public urgency on and off at every step.
         // Without a reachable dorm, wait on genuine regeneration.
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
-        // #198: a lying heal charm is an immediate recovery, taken before the slower dorm walk.
-        if (const FLDOpponentPOI* Heal = bRivalHolds ? nullptr : C.CharmTarget(ELDCharmKind::Heal))
+        // After escaping a threat, continue to recovery instead of turning back toward a charm at the sight edge.
+        if (const FLDOpponentPOI* Heal = bRivalHolds || !State.RetreatPOI.IsNone()
+            ? nullptr : C.CharmTarget(ELDCharmKind::Heal))
         {
             Body(MoveTo(C, *Heal));
             return Finish(EMode::Charm, EReason::TakeCharm);

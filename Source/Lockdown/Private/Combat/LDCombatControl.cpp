@@ -85,7 +85,8 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
     {
         ALDCharacter* Other=Pair.Key.Get();
         FLDBodyCombatState& State=Pair.Value;
-        if (!Other || &State==&Body || State.Victim.Kind!=ELDVictimKind::Contender) { continue; }
+        if (!Other || &State==&Body || State.Victim.Kind!=ELDVictimKind::Contender
+            || IsIsolated(Body.Victim.EntityId,State)) { continue; }
         FLDTauntCandidate& Candidate=Candidates.AddDefaulted_GetRef();
         Candidate.Body={State.Victim,State.Identity};
         Candidate.FootCm=FootOf(*Other);
@@ -121,7 +122,7 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     FString& Error)
 {
     bApplied=false;
-    if (App.DurationMs<=0 || Victim.bPendingDeath) { return true; }
+    if (App.DurationMs<=0 || Victim.bPendingDeath || IsIsolated(App.SourceEntity,Victim)) { return true; }
     // Hard controls take the diminished duration; the chain advances only when the control actually lands.
     FLDHardControlChain Chain=Victim.HardControl;
     const bool bHard=LDCombatControl::IsHardControl(App.Kind);

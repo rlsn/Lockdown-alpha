@@ -2,6 +2,10 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
+#include "UI/LDUIIcons.h"
+#include "UI/LDHUD.h"
+#include "UI/LDChoicesPanel.h"
+#include "UI/LDAttributesPanel.h"
 #include "Core/LDLog.h"
 #include "Development/LDBuildBlueprintStore.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -16,6 +20,9 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
+#include "Components/ScaleBox.h"
+#include "Components/Image.h"
+#include "Components/WrapBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -49,6 +56,34 @@ FString BlueprintName(const FLDDemoContentDefinitions* Definitions,const FString
     // ContentText leaves the stable id when the local catalog has no display row, so a stale id stays visible.
     return Definitions?LDHUD::ContentName(Definitions,Id):Id;
 }
+void BlueprintInstall(const FLDBlueprintComponent& Component,const FLDDemoContentDefinitions* Definitions,
+    FString& Where,TArray<FString>& Parameters)
+{
+    Where=Component.Host.IsEmpty()?FString(TEXT("角色")):BlueprintName(Definitions,Component.Host);
+    for(const FLDBlueprintParameter& Parameter:Component.Parameters)
+    {
+        if(Parameter.Key==TEXT("target_kind"))
+        {
+            if(Parameter.Value==TEXT("dash")){Where=TEXT("冲刺（D）");}
+            else if(Component.Host.IsEmpty()&&Parameter.Value==TEXT("active")){Where=TEXT("未记录的技能");}
+            else if(Component.Host.IsEmpty()&&Parameter.Value==TEXT("component")){Where=TEXT("未记录的构件");}
+            continue;
+        }
+        if(Parameter.Key==TEXT("element"))
+        {
+            const ELDDemoElement Element=Parameter.Value==TEXT("fire")?ELDDemoElement::Fire:Parameter.Value==TEXT("water")
+                ?ELDDemoElement::Water:Parameter.Value==TEXT("electric")?ELDDemoElement::Electric:ELDDemoElement::None;
+            Parameters.Add(TEXT("绑定元素：")+(Element==ELDDemoElement::None?Parameter.Value:LDHUD::ElementName(Element)));
+            continue;
+        }
+        if(Parameter.Key==TEXT("bound_component"))
+        {
+            Parameters.Add(TEXT("复用构件：")+BlueprintName(Definitions,Parameter.Value));
+            continue;
+        }
+        Parameters.Add(Parameter.Key+TEXT("=")+Parameter.Value);
+    }
+}
 FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoContentDefinitions* Definitions)
 {
     TArray<FString> Slots;
@@ -68,22 +103,10 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
         for(const FLDBlueprintComponent& Component:Structure.Components)
         {
             TArray<FString> Parameters;
-            FString Where=Component.Host.IsEmpty()?FString():BlueprintName(Definitions,Component.Host);
-            for(const FLDBlueprintParameter& Parameter:Component.Parameters)
-            {
-                if(Parameter.Key==TEXT("target_kind")){if(Parameter.Value==TEXT("dash")){Where=TEXT("D");}continue;}
-                if(Parameter.Key==TEXT("element"))
-                {
-                    const ELDDemoElement Element=Parameter.Value==TEXT("fire")?ELDDemoElement::Fire:Parameter.Value==TEXT("water")
-                        ?ELDDemoElement::Water:Parameter.Value==TEXT("electric")?ELDDemoElement::Electric:ELDDemoElement::None;
-                    Parameters.Add(Element==ELDDemoElement::None?Parameter.Value:LDHUD::ElementName(Element));
-                    continue;
-                }
-                if(Parameter.Key==TEXT("bound_component")){Parameters.Add(TEXT("复用 ")+BlueprintName(Definitions,Parameter.Value));continue;}
-                Parameters.Add(Parameter.Key+TEXT("=")+Parameter.Value);
-            }
+            FString Where;
+            BlueprintInstall(Component,Definitions,Where,Parameters);
             FString Row=BlueprintName(Definitions,Component.Component);
-            if(!Where.IsEmpty()){Row+=TEXT(" → ")+Where;}
+            Row+=TEXT(" → ")+Where;
             if(!Parameters.IsEmpty()){Row+=TEXT("（")+FString::Join(Parameters,TEXT("，"))+TEXT("）");}
             Rows.Add(MoveTemp(Row));
         }
@@ -156,9 +179,9 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         };
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
-        UTextBlock* Title=MakeText(LDTerms::BuildBlueprint,20,BlueprintBright);Title->SetAutoWrapText(false);
+        UTextBlock* Title=MakeText(TEXT("构筑蓝图 · 对局记录"),20,BlueprintBright);Title->SetAutoWrapText(false);
         Top->AddChildToHorizontalBox(Title)->SetVerticalAlignment(VAlign_Center);
-        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(LDTerms::BlueprintReadOnly,13,BlueprintDim));
+        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只读 · 不授予物品或技能"),13,BlueprintDim));
         NoteSlot->SetPadding(FMargin(12,0,12,0));NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Top->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("BlueprintClose")));
         SourceText=MakeText(TEXT(""),15,BlueprintBright);Root->AddChildToVerticalBox(SourceText)->SetPadding(FMargin(0,10,0,0));
@@ -166,11 +189,23 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         NoticeText=MakeText(TEXT(""),14,LDHUDStyle::TextWarning);Root->AddChildToVerticalBox(NoticeText)->SetPadding(FMargin(0,4,0,0));
         NoticeText->SetVisibility(ESlateVisibility::Collapsed);
         auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
-        BodyText=MakeText(TEXT(""),14,BlueprintBright);Body->AddChildToVerticalBox(BodyText);
+        StructureList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(StructureList);
+        PreviewText=MakeText(TEXT("悬停图标查看 · 点击固定详情"),14,LDHUDStyle::TextSecondary);
+        PreviewText->SetAutoWrapText(false);PreviewText->SetWrapTextAt(250);
+        HistoryButton=LDWidgets::Button(WidgetTree,TEXT("展开对局数据与版本记录"),[this]()
+        {bHistory=!bHistory;BlueprintShow(BodyText,bHistory,ESlateVisibility::HitTestInvisible);
+        BlueprintText(Cast<UTextBlock>(HistoryButton->GetContent()),bHistory?TEXT("收起对局数据与版本记录"):TEXT("展开对局数据与版本记录"));},false,TEXT("BlueprintHistory"));
+        Body->AddChildToVerticalBox(HistoryButton)->SetPadding(FMargin(0,8,0,8));
+        BodyText=MakeText(TEXT(""),14,BlueprintBright);BodyText->SetWrapTextAt(720);Body->AddChildToVerticalBox(BodyText);BlueprintShow(BodyText,false);
         FileList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(FileList);FileList->SetVisibility(ESlateVisibility::Collapsed);
         Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
-        auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetMaxDesiredHeight(560);HeightBox->SetContent(Scroll);
-        Root->AddChildToVerticalBox(HeightBox)->SetPadding(FMargin(0,12,0,0));
+        auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetWidthOverride(750);HeightBox->SetHeightOverride(490);HeightBox->SetContent(Scroll);
+        auto* PreviewScroll=WidgetTree->ConstructWidget<UScrollBox>();PreviewScroll->SetClipping(EWidgetClipping::ClipToBounds);PreviewScroll->AddChild(PreviewText);
+        auto* PreviewSize=WidgetTree->ConstructWidget<USizeBox>();PreviewSize->SetWidthOverride(270);PreviewSize->SetHeightOverride(490);PreviewSize->SetContent(PreviewScroll);
+        auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();
+        Columns->AddChildToHorizontalBox(HeightBox);
+        Columns->AddChildToHorizontalBox(PreviewSize)->SetPadding(FMargin(20,0,0,0));
+        Root->AddChildToVerticalBox(Columns)->SetPadding(FMargin(0,12,0,0));
         auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,12,0,0));
         ExportButton=LDWidgets::Button(WidgetTree,LDTerms::BlueprintExport,[this]()
         {
@@ -186,10 +221,13 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         BackButton=LDWidgets::Button(WidgetTree,LDTerms::BlueprintBack,[this](){ShowMatch();},false,TEXT("BlueprintBack"));
         Actions->AddChildToHorizontalBox(BackButton);BackButton->SetVisibility(ESlateVisibility::Collapsed);
         ActionText=MakeText(TEXT(""),13,BlueprintDim);Root->AddChildToVerticalBox(ActionText)->SetPadding(FMargin(0,8,0,0));
-        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));
-        auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(820);WidthBox->SetContent(MainPanel);
+        for(UTextBlock* Label:{SourceText.Get(),StatusText.Get(),NoticeText.Get(),ActionText.Get()})
+        {Label->SetAutoWrapText(false);Label->SetWrapTextAt(1020);}
+        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));MainPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(1.f));
+        auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(1080);WidthBox->SetContent(MainPanel);
+        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);Scale->SetStretchDirection(EStretchDirection::DownOnly);Scale->SetContent(WidthBox);
         auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
-        Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(WidthBox);
+        Frame->SetPadding(FMargin(32,90,32,175));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
         WidgetTree->RootWidget=Frame;
         SetVisibility(bOpen?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     }
@@ -199,6 +237,11 @@ UWidget* ULDBlueprintPanel::FocusScope() const{return MainPanel;}
 UWidget* ULDBlueprintPanel::HitArea() const{return MainPanel;}
 void ULDBlueprintPanel::OpenPanel()
 {
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->HUDUI)
+    {
+        if(PC->HUDUI->ChoicesPanel){PC->HUDUI->ChoicesPanel->ClosePanel();}
+        if(PC->HUDUI->AttributesPanel){PC->HUDUI->AttributesPanel->ClosePanel();}
+    }
     bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     SetAction(FString());
     ShowMatch();
@@ -226,6 +269,77 @@ void ULDBlueprintPanel::SetAction(const FString& Text)
 {
     BlueprintText(ActionText,Text);BlueprintShow(ActionText,!Text.IsEmpty(),ESlateVisibility::HitTestInvisible);
 }
+void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDemoContentDefinitions* Local)
+{
+    StructureList->ClearChildren();TilePreviews.Reset();PinnedDetail.Reset();bHistory=false;
+    BlueprintShow(StructureList,true);BlueprintShow(PreviewText,true);BlueprintShow(HistoryButton,true);
+    BlueprintShow(BodyText,false);BlueprintText(BodyText,Describe(Record,Local));
+    BlueprintText(Cast<UTextBlock>(HistoryButton->GetContent()),TEXT("展开对局数据与版本记录"));
+    BlueprintText(PreviewText,TEXT("悬停图标查看 · 点击固定详情\n这是整套构筑的对局记录，不是待学主动图纸；导入只用于查看，不会改变本局。"));
+    const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    const FLDProgressionView* Own=PC?PC->ReadOwnProgression():nullptr;
+    LDHUD::FCardStats CardStats;
+    CardStats.Level=Record.FinalLevel;
+    CardStats.bShowScalingFormula=true;
+    auto* Note=LDWidgets::Text(WidgetTree,FString::Printf(TEXT("说明按本机目录与蓝图 Lv%u 显示；属性加成按实际属性计算。"),
+        uint32(Record.FinalLevel)),12);
+    Note->SetColorAndOpacity(LDHUDStyle::TextSecondary);ScaleNewText(Note);
+    StructureList->AddChildToVerticalBox(Note)->SetPadding(FMargin(0,0,0,8));
+    auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();
+    StructureList->AddChildToVerticalBox(Slots)->SetPadding(FMargin(0,0,0,12));
+    auto Tile=[this,Local](const FString& Id,const FString& Caption,const FString& State,const FString& Detail,float Width)
+    {
+        auto* Face=WidgetTree->ConstructWidget<UVerticalBox>();
+        auto* Picture=WidgetTree->ConstructWidget<UImage>();LDUIIcons::Apply(Picture,LDHUD::ContentIconId(Local,Id),0);
+        auto* ImageSize=WidgetTree->ConstructWidget<USizeBox>();ImageSize->SetWidthOverride(44);ImageSize->SetHeightOverride(44);ImageSize->SetContent(Picture);
+        Face->AddChildToVerticalBox(ImageSize)->SetHorizontalAlignment(HAlign_Center);
+        auto* Name=LDWidgets::Text(WidgetTree,Caption,14);Name->SetAutoWrapText(false);Name->SetWrapTextAt(Width-24);
+        Face->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,6,0,4));ScaleNewText(Name);
+        auto* Held=LDWidgets::Text(WidgetTree,State,12);Held->SetAutoWrapText(false);Held->SetWrapTextAt(Width-24);Held->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        Face->AddChildToVerticalBox(Held);ScaleNewText(Held);
+        auto* Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Detail](){PinnedDetail=Detail;BlueprintText(PreviewText,Detail);});
+        Button->SetContent(Face);TilePreviews.Add({Button,Detail});
+        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(Width);Size->SetContent(Button);return Size;
+    };
+    for(uint8 Key=0;Key<3;++Key)
+    {
+        const FString KeyName=LDHUD::SlotKey(Key);
+        const FLDBlueprintActive* Active=Record.FinalBuild.Actives.FindByPredicate([&KeyName](const FLDBlueprintActive& Row){return Row.Slot==KeyName;});
+        const FString Id=Active?Active->Ability:FString();
+        const FString Name=Active?BlueprintName(Local,Id):FString(TEXT("空槽"));
+        const bool bHeld=Own&&(LDHUD::ActiveInSlot(*Own,Key)==FName(*Id)||Own->PendingBlueprints.Contains(FName(*Id))
+            ||Own->Actives.ContainsByPredicate([&Id](const FLDActiveSlotView& Row){return Row.DefinitionId==FName(*Id);}));
+        FString Description;
+        if(Active)
+        {
+            const LDHUD::FActiveCardView Card=LDHUD::ActiveCard(FName(*Id),Local,CardStats);
+            Description=Card.SentencePlain;
+            if(Card.bKnown){Description+=TEXT("\n")+Card.Target+TEXT("\n")+Card.Cost;}
+        }
+        Slots->AddChildToHorizontalBox(Tile(Id,KeyName+TEXT(" · ")+Name,!Active?TEXT("未配置"):!Own?TEXT("本局持有状态不可用"):bHeld?TEXT("本局已有"):TEXT("本局缺少"),
+            Name+TEXT("\n")+Description,232))->SetPadding(FMargin(0,0,8,0));
+    }
+    TArray<FString> Stats;
+    for(const FLDBlueprintStat& Stat:Record.FinalBuild.Stats){Stats.Add(BlueprintName(Local,Stat.Stat)+FString::Printf(TEXT(" %d 点"),Stat.Points));}
+    auto* Points=LDWidgets::Text(WidgetTree,TEXT("属性分配：")+FString::Join(Stats,TEXT(" · ")),14);
+    Points->SetAutoWrapText(false);Points->SetWrapTextAt(720);ScaleNewText(Points);StructureList->AddChildToVerticalBox(Points)->SetPadding(FMargin(0,0,0,12));
+    auto* Components=WidgetTree->ConstructWidget<UWrapBox>();Components->SetExplicitWrapSize(true);Components->SetWrapSize(730);Components->SetInnerSlotPadding(FVector2D(8,8));
+    StructureList->AddChildToVerticalBox(Components);
+    if(!Record.FinalBuild.bComponentsCollected)
+    {auto* Missing=LDWidgets::Text(WidgetTree,TEXT("构件：未采集，不能视为没有构件。"),14);ScaleNewText(Missing);StructureList->AddChildToVerticalBox(Missing);}
+    for(const FLDBlueprintComponent& Component:Record.FinalBuild.Components)
+    {
+        const FString Name=BlueprintName(Local,Component.Component);
+        const bool bHeld=Own&&LDHUD::OwnsComponent(*Own,FName(*Component.Component));
+        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(FName(*Component.Component),Local,CardStats);
+        FString Target;
+        TArray<FString> Parameters;
+        BlueprintInstall(Component,Local,Target,Parameters);
+        Components->AddChildToWrapBox(Tile(Component.Component,Name,!Own?TEXT("本局持有状态不可用"):bHeld?TEXT("本局已有"):TEXT("本局缺少"),
+            Name+TEXT("\n安装位置：")+Target+TEXT("\n")+Card.SentencePlain
+                +(Parameters.IsEmpty()?FString():TEXT("\n")+FString::Join(Parameters,TEXT("\n"))),138));
+    }
+}
 void ULDBlueprintPanel::ShowMatch()
 {
     Mode=EMode::Match;
@@ -244,8 +358,9 @@ void ULDBlueprintPanel::RefreshMatch()
     const FString Problem=Owner?Owner->Problem():FString();
     if(ShownState==uint8(State)&&ShownResult==Result&&bShownSaved==bSaved&&ShownProblem==Problem){return;}
     ShownState=uint8(State);ShownResult=Result;bShownSaved=bSaved;ShownProblem=Problem;
+    TilePreviews.Reset();PinnedDetail.Reset();StructureList->ClearChildren();
     BlueprintText(SourceText,TEXT("本局（只给你自己看）"));
-    BlueprintShow(BodyText,true,ESlateVisibility::HitTestInvisible);
+    BlueprintShow(BodyText,false);BlueprintShow(StructureList,false);BlueprintShow(PreviewText,false);BlueprintShow(HistoryButton,false);
     BlueprintShow(ExportButton,State==ELDBlueprintDelivery::Received);
     TArray<FString> Notices;
     switch(State)
@@ -271,7 +386,7 @@ void ULDBlueprintPanel::RefreshMatch()
             :FString(TEXT("自动保存失败："))+Problem);
         const FLDDemoContentDefinitions* Local=Definitions();
         LDBuildBlueprint::Notices(Record,Local,LocalProduct,Notices);
-        BlueprintText(BodyText,Describe(Record,Local));
+        ShowRecord(Record,Local);
         break;
     }
     }
@@ -281,8 +396,10 @@ void ULDBlueprintPanel::ShowList()
 {
     if(!MainPanel){return;}
     Mode=EMode::List;
+    TilePreviews.Reset();PinnedDetail.Reset();StructureList->ClearChildren();
     BlueprintShow(BackButton,true);BlueprintShow(ExportButton,false);BlueprintShow(ImportButton,false);
     BlueprintShow(BodyText,false);BlueprintShow(NoticeText,false);
+    BlueprintShow(StructureList,false);BlueprintShow(PreviewText,false);BlueprintShow(HistoryButton,false);
     const FString Directory=LDBuildBlueprintStore::UserDirectory();
     TArray<FString> Files;LDBuildBlueprintStore::ListViewable(Directory,Files);
     BlueprintText(SourceText,LDTerms::BlueprintImport);
@@ -294,6 +411,7 @@ void ULDBlueprintPanel::ShowList()
     {
         const FString Path=Files[Index];
         ULDCommandButton* Row=LDWidgets::Button(WidgetTree,LDBuildBlueprintStore::DisplayPath(Path),[this,Path](){ShowImported(Path);});
+        auto* Caption=CastChecked<UTextBlock>(Row->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(700);
         ScaleNewText(Cast<UTextBlock>(Row->GetContent()));
         FileList->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,0,0,6));
     }
@@ -304,9 +422,10 @@ void ULDBlueprintPanel::ShowImported(const FString& Path)
 {
     if(!MainPanel){return;}
     Mode=EMode::Imported;
+    TilePreviews.Reset();PinnedDetail.Reset();StructureList->ClearChildren();
     FileList->ClearChildren();
     BlueprintShow(FileList,false);BlueprintShow(BackButton,true);BlueprintShow(ExportButton,false);BlueprintShow(ImportButton,true);
-    BlueprintShow(BodyText,true,ESlateVisibility::HitTestInvisible);
+    BlueprintShow(BodyText,false);BlueprintShow(StructureList,false);BlueprintShow(PreviewText,false);BlueprintShow(HistoryButton,false);
     BlueprintText(SourceText,FString::Printf(TEXT("导入（只读）：%s"),*LDBuildBlueprintStore::DisplayPath(Path)));
     FLDBlueprintRecord Record;FString Detail;
     const ELDBlueprintParseError Error=LDBuildBlueprintStore::ReadFile(Path,Record,Detail);
@@ -322,7 +441,7 @@ void ULDBlueprintPanel::ShowImported(const FString& Path)
         BlueprintText(StatusText,Record.Origin==LDBuildBlueprint::OriginExport?TEXT("导出的蓝图 · 只读查看，不会改变你的构筑或能力"):TEXT("自动保存的蓝图 · 只读查看，不会改变你的构筑或能力"));
         const FLDDemoContentDefinitions* Local=Definitions();
         LDBuildBlueprint::Notices(Record,Local,LocalProduct,Notices);
-        BlueprintText(BodyText,Describe(Record,Local));
+        ShowRecord(Record,Local);
     }
     BlueprintText(NoticeText,FString::Join(Notices,TEXT("\n")));BlueprintShow(NoticeText,!Notices.IsEmpty(),ESlateVisibility::HitTestInvisible);
     Scroll->ScrollToStart();
@@ -331,6 +450,13 @@ void ULDBlueprintPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
     if(bOpen&&Mode==EMode::Match){RefreshMatch();}
+    if(bOpen&&!TilePreviews.IsEmpty())
+    {
+        FString Detail=PinnedDetail;
+        for(const FTilePreview& Tile:TilePreviews)
+        {if(Tile.Button&&(Tile.Button->IsHovered()||Tile.Button->HasKeyboardFocus())){Detail=Tile.Detail;break;}}
+        BlueprintText(PreviewText,Detail.IsEmpty()?TEXT("悬停图标查看 · 点击固定详情\n这是整套构筑的只读记录，不是待学主动图纸；导入不会改变本局。"):Detail);
+    }
     const ALDPlayerController* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(PC&&PC->Controls){ApplyTextScale(PC->Controls->TextScale);}
 }

@@ -713,6 +713,8 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("PKSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSpawn; }
         else if (Kind.Equals(TEXT("PKThrow"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKThrow; }
         else if (Kind.Equals(TEXT("PKSignup"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSignup; }
+        else if (Kind.Equals(TEXT("RestSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestSpawn; }
+        else if (Kind.Equals(TEXT("RestService"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestService; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
         // The Boss patrol order and the #198 PK ring order are canonical; every other anchor is named by the world and
@@ -762,13 +764,13 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             const FExact Clearance = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? N.Value(Out.CampClearanceCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
                     ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
             const double Body = Approx(Content.Parameters.CollisionRadiusCm);
             const double Reach = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? Approx(Out.CampClearanceCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? Approx(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? Body + Approx(Content.Parameters.DormRadiusCm)
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
                     ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm) : Body;
             if (!Check.Require(ClearCircle(XY(Anchor.PositionCm, N), N.Value(Anchor.PositionCm.Z), Clearance, Reach, Out, N), Anchor.Id,
                 TEXT("anchor clearance intersects static geometry, a cliff or a ramp, or is off its level's height")))
@@ -898,8 +900,8 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         {
             const FString Id = LDDemoWorld::PKSignupId(Slot);
             const FLDDemoWorldAnchor* Signup = Find(Id);
-            const FLDDemoWorldAnchor* Rest = Find(Content.World.SpawnIds[Slot * Content.World.SpawnIds.Num() / LDDemoWorld::PKSignups]);
-            if (!Check.Require(Signup && Signup->Kind == ELDDemoWorldAnchorKind::PKSignup && Rest
+            const FLDDemoWorldAnchor* Rest = Find(FString::Printf(TEXT("rest_spawn_%d"), Slot));
+            if (!Check.Require(Signup && Signup->Kind == ELDDemoWorldAnchorKind::PKSignup && Rest && Rest->Kind == ELDDemoWorldAnchorKind::RestSpawn
                 && N.EQ(N.Value(Signup->PositionCm.Z), N.Value(Rest->PositionCm.Z))
                 && N.EQ(DistanceSquared(XY(Signup->PositionCm, N), XY(Rest->PositionCm, N), N), SignupDistance),
                 Id, TEXT("PK sign-up disk is missing, or not on its rest anchor's level 300 cm from it"))
@@ -907,6 +909,20 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             {
                 return false;
             }
+        }
+        int32 RestSpawns = 0, Services = 0;
+        for (const auto& Anchor : Out.Anchors)
+        {
+            RestSpawns += Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn ? 1 : 0;
+            Services += Anchor.Kind == ELDDemoWorldAnchorKind::RestService ? 1 : 0;
+        }
+        if (!Check.Require(RestSpawns == 6 && Services == LDDemoWorld::RestServices, Root.Path,
+            TEXT("the shared rest room needs six seats and three services"))) { return false; }
+        for (int32 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
+        {
+            const auto* Service = Find(LDDemoWorld::RestServiceId(Index));
+            if (!Check.Require(Service && Service->Kind == ELDDemoWorldAnchorKind::RestService, Root.Path,
+                TEXT("missing canonical shared rest service anchor"))) { return false; }
         }
     }
     // D21 dorms and D26 airdrop points are the anchors content does not name; each event disk stays apart from the
@@ -1000,7 +1016,7 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
         }
         for (const auto& Anchor : Out.Anchors)
         {
-            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn
+            if ((Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn)
                 && !Check.Require(ClearCircle(Add(XY(Anchor.PositionCm, N), Delta, N), N.Value(Anchor.PositionCm.Z), Radius,
                     Approx(Content.Parameters.CollisionRadiusCm), Out, N),
                     Anchor.Id, TEXT("local spawn placement is not statically clear")))

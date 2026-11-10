@@ -16,6 +16,7 @@ class ALDGameMode;
 class ALDPointerFeedback;
 class FLDDemoContentSnapshot;
 struct FLDAuthorityTargetSample;
+struct FLDWorldView;
 struct FCollisionShape;
 
 // The only writer of a contender body's current order. The owning client sends typed intents and predicts
@@ -315,6 +316,8 @@ private:
         bool& bRetry, ELDCombatReject& Reject, FString& Error);
     // CastPoint: walks toward the aimed point and casts once it lies within reach.
     bool AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
+    FVector AvoidObservedRestBodies(const ALDCharacter& Body, const FVector& Waypoint, const FVector& Preferred,
+        const FLDWorldView& View, const FGuid& Self) const;
     FVector AuthoritySteering(const ALDCharacter& Body);
     void TrackProgress(const ALDCharacter& Body, double Now, bool bMoving);
     bool GroundArrived(const ALDCharacter& Body, const FActiveOrder& Order) const;

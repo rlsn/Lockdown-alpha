@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "World/LDCampMember.h"
 #include "World/LDCampDecision.h"
+#include "World/LDSpawnPlacement.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
@@ -962,7 +963,9 @@ bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const F
             continue;
         }
         // Bodies ignore pawn collision, so local placement keeps every current registered body apart explicitly.
-        bool bClear = !Reserved.ContainsByPredicate([&](const FVector& Other)
+        const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
+        bool bClear = !LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule)
+            && !Reserved.ContainsByPredicate([&](const FVector& Other)
             { return FVector::DistSquared2D(Other, Foot) < Separation * Separation; });
         for (TActorIterator<ALDCharacter> It(GetWorld()); bClear && It; ++It)
         {
@@ -1060,9 +1063,7 @@ bool ALDCampDirector::CreateBody(const FLDLegalGround& Ground, const FLDDemoMons
     Out = nullptr;
     FCollisionShape Capsule;
     if (!ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
-    // Contender placement's support gap: the capsule rests inside CMC's stable floor band, not on the surface itself.
-    const double FloorGap = (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
-    const FVector Origin = Ground.SurfaceCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + FloorGap);
+    const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
     const FTransform Transform(FRotator::ZeroRotator, Origin);
     auto* Body = GetWorld()->SpawnActorDeferred<ALDCampMemberCharacter>(ALDCampMemberCharacter::StaticClass(), Transform,
         this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);

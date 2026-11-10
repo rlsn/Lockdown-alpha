@@ -186,12 +186,34 @@ bool RunPolicy(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Countdown: the planned opening (the production preference) and no body intent"),
         Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive && Decision.Build.Option == TEXT("active_snark_bolt")
         && Decision.Build.OfferId == FGuid(0xEB, 0, 0, 1) && Decision.Body.Kind == ELDOpponentBodyKind::None
-        && State.Phase == ELDEvaluationPhase::Building);
+        && State.Phase == ELDEvaluationPhase::Building && !State.bOpeningReady);
     auto InFlight = Countdown;
     InFlight.bBuildChangeInFlight = true;
     State = {};
     bGood &= Test.TestTrue(TEXT("No second choice while one is in flight"),
-        Decide(InFlight, Profile, State).Build.Kind == ELDOpponentBuildKind::None);
+        Decide(InFlight, Profile, State).Build.Kind == ELDOpponentBuildKind::None && !State.bOpeningReady);
+    auto OpeningDone = Countdown;
+    OpeningDone.Self.Offer.Reset();
+    OpeningDone.Self.OffersConsumed = 1;
+    State = {};
+    Decide(OpeningDone, Profile, State);
+    bGood &= Test.TestTrue(TEXT("The opening is ready once the unplanned production build is settled"), State.bOpeningReady);
+    FLDEvaluationProfile FieldPlan = Profile;
+    FieldPlan.Choices.Add(FLDEvaluationChoice());
+    FLDEvaluationBuildStep FieldStep;
+    FieldStep.Kind = ELDEvaluationStepKind::AllocatePoints;
+    FieldStep.Window = ELDEvaluationStepWindow::Field;
+    FieldStep.Points = {{TEXT("stat_strength"), 3}};
+    FieldPlan.Build = {FieldStep};
+    OpeningDone.Self.UnspentPoints = 3;
+    State = {};
+    Decide(OpeningDone, FieldPlan, State);
+    bGood &= Test.TestTrue(TEXT("A planned field step and reserved opening points do not hold R0"),
+        State.bOpeningReady && State.StepsCommitted == 0);
+    OpeningDone.bBuildChangeInFlight = true;
+    State = {};
+    Decide(OpeningDone, FieldPlan, State);
+    bGood &= Test.TestFalse(TEXT("An in-flight build never permits early ready"), State.bOpeningReady);
     // Until every planned choice is consumed the body holds, even with the rival in sight.
     FLDEvaluationProfile Two = Profile;
     Two.Choices.Add(FLDEvaluationChoice());
@@ -671,7 +693,11 @@ bool RunInput(FAutomationTestBase& Test)
 bool RunHorizon(FAutomationTestBase& Test)
 {
     using LDBuildEvaluation::KillAtOrBeforeHorizon;
-    bool bGood = Test.TestTrue(TEXT("A kill before the non-frame-aligned horizon counts"),
+    bool bGood = Test.TestFalse(TEXT("A kill before the field begins never counts"),
+        KillAtOrBeforeHorizon(5000, 45001, 4999));
+    bGood &= Test.TestTrue(TEXT("A kill at the field start counts"),
+        KillAtOrBeforeHorizon(5000, 45001, 5000));
+    bGood &= Test.TestTrue(TEXT("A kill before the non-frame-aligned horizon counts"),
         KillAtOrBeforeHorizon(5000, 45001, 50000));
     bGood &= Test.TestTrue(TEXT("A kill exactly at the horizon counts"),
         KillAtOrBeforeHorizon(5000, 45001, 50001));

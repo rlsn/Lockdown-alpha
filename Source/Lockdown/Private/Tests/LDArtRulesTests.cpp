@@ -294,6 +294,31 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
     if (TestTrue(TEXT("The catalog draws a wall or fence, a tree, and ground cover"), Wall != INDEX_NONE && Tree != INDEX_NONE && Ground != INDEX_NONE))
     {
         TestTrue(TEXT("The saved art fits every block it draws: ") + Error, LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error));
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        TSharedPtr<const FLDDemoWorldGeometry> World;
+        const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+        if (TestTrue(TEXT("The rest anchors are readable: ") + Error, LDDemoEntry::LoadRuntimeContent(Content, Error) && Content
+            && Definition && Definition->Read(*Content, World, Error) && World))
+        {
+            for (const ELDDemoWorldAnchorKind Kind : {ELDDemoWorldAnchorKind::RestSpawn, ELDDemoWorldAnchorKind::RestService})
+            {
+                const FLDDemoWorldAnchor* Anchor = World->Anchors.FindByPredicate([Kind](const FLDDemoWorldAnchor& Row) { return Row.Kind == Kind; });
+                FVector Spot;
+                if (TestNotNull(TEXT("The shared rest has this anchor kind"), Anchor)
+                    && TestTrue(TEXT("Its position is readable"), Anchor->PositionCm.ToVector(Spot, Error)))
+                {
+                    ULDArtCatalog* RestCopy = ArtCopy(*Catalog);
+                    RestCopy->Decorations[Ground].Transform.SetLocation(Spot);
+                    ArtExpectMisplaced(*this, *RestCopy, TEXT("Ground cover cannot obscure a rest anchor"), Anchor->Id);
+                    if (Kind == ELDDemoWorldAnchorKind::RestSpawn && Outside != INDEX_NONE)
+                    {
+                        RestCopy = ArtCopy(*Catalog);
+                        RestCopy->Decorations[Outside].Transform.SetLocation(Spot);
+                        ArtExpectMisplaced(*this, *RestCopy, TEXT("Outside scenery cannot cover the shared rest room"), TEXT("shared rest room"));
+                    }
+                }
+            }
+        }
         ULDArtCatalog* Copy = ArtCopy(*Catalog);
         Copy->Decorations[Wall].Transform.AddToTranslation(FVector(50, 0, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("A block's prop shifted off its polygon is rejected"), TEXT("not the polygon"));

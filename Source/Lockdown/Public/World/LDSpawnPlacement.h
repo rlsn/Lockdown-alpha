@@ -57,6 +57,9 @@ private:
 
 namespace LDSpawnPlacement
 {
+    LOCKDOWN_API FVector StandingOrigin(const FLDLegalGround& Ground);
+    LOCKDOWN_API bool OverlapsStatic(UWorld& World, const FVector& Origin, const FCollisionShape& Capsule);
+
     // Rejected samples must be redrawn from the same RNG, not mapped modulo the bound.
     LOCKDOWN_API bool TryUniformSample(uint32 Sample, uint32 Bound, uint32& Index);
 

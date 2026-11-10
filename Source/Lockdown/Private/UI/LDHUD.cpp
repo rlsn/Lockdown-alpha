@@ -348,6 +348,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RestLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             TrainingResetButton=LDWidgets::Button(WidgetTree,LDTerms::TrainingReset,[this](){SubmitTrainingReset();},true,TEXT("HUDTrainingReset"));
             RestLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
+            RestReadyButton=LDWidgets::Button(WidgetTree,TEXT("准备完毕"),[this](){SubmitRestReady();},true,TEXT("HUDRestReady"));
+            RestReadyButton->SetToolTipText(FText::FromString(TEXT("不可撤回。所有真人准备后提前进入最后 10 秒站圈报名，报名结束后锁定构筑。")));
+            RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(8,0,0,0));
+            RestServiceButton=LDWidgets::Button(WidgetTree,TEXT("与 NPC 交互"),[this](){OpenRestService();},true,TEXT("HUDRestService"));
+            RestLine->AddChildToHorizontalBox(RestServiceButton)->SetPadding(FMargin(8,0,0,0));
             RestAnswerText=OneLine(TEXT(""),14,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
             auto* ResultSlot=RestLine->AddChildToHorizontalBox(RestAnswerText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
             RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
@@ -654,13 +659,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
         }
 
-        // The 开盲盒 button sits right above the band's left block (#97) and toggles the growth panel, which docks right beside
-        // it; it has no hotkey. It is the growth panel's only entry besides the automatic open for a new offer or new points:
-        // greyed out and disabled while nothing is pending, and it pulses when the opportunities or points rise.
+        // The workspace toggle stays above the action band and pulses when new growth arrives.
         auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
         PromptButton=Prompt;
         PromptText=CastChecked<UTextBlock>(Prompt->GetContent());HudFace(PromptText,true,0);PromptText->SetColorAndOpacity(HudPromptInk);
-        // The blind-box button is always the lit corner style; disabled draws it greyed out.
+        // The corner style stays consistent with the action band.
         Prompt->SetStyle(HudCornerStyle(Prompt->GetStyle()));
         PendingPrompt=WidgetTree->ConstructWidget<UBorder>();PendingPrompt->SetBrushColor(FLinearColor::Transparent);PendingPrompt->SetPadding(FMargin(0));PendingPrompt->SetContent(Prompt);
         PendingPrompt->SetRenderTransformPivot(FVector2D(.5f,.5f));
@@ -697,7 +700,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
-        if(ChoicesPanel){ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
+        if(ChoicesPanel)
+        {
+            ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            ChoicesPanel->ResetTraining=[this](){SubmitTrainingReset();};
+            ChoicesPanel->ReadyRest=[this](){SubmitRestReady();};
+        }
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
         if(ChoicesPanel)
@@ -709,6 +717,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
         PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
         PC->OnTrainingReset.AddUObject(this,&ULDHUD::HandleTrainingReset);
+        PC->OnRestReady.AddUObject(this,&ULDHUD::HandleRestReady);
         PC->OnPKBet.AddUObject(this,&ULDHUD::HandlePKBet);
         PC->OnPKThrow.AddUObject(this,&ULDHUD::HandlePKThrow);
         if(DevTestPanel)
@@ -937,7 +946,9 @@ void ULDHUD::RefreshReadModel()
     const FString OwnerName=LDHUD::RosterName(Lobby,Public.GraffitiOwner);
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
         Content?Content->Parameters.CaptureSprayMs:0,Content?Content->Parameters.CaptureGuardMs:0);
-    HudSetText(PhaseText,Circle.Line);CircleProgress->SetPercent(Circle.Progress);
+    const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen();
+    HudSetText(PhaseText,Circle.Line);HudSetShown(PhaseText,!bChoicesRestOpen,ESlateVisibility::HitTestInvisible);
+    CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
     HudSetShown(DevMarkerText,Lobby.DevTestSession||Lobby.DevContentReload,ESlateVisibility::HitTestInvisible);
@@ -963,11 +974,20 @@ void ULDHUD::RefreshReadModel()
         HudSetText(TimelineDetailText,Timeline.Detail);HudSetShown(TimelineDetailText,!Timeline.Detail.IsEmpty(),ESlateVisibility::HitTestInvisible);
         // The reset exists only in a rest; leaving it drops a wait the server will still answer.
         const bool bRestActions=Public.Phase==ELDMatchPhase::Rest;
-        if(!bRestActions){bTrainingResetInFlight=false;}
-        HudSetShown(RestActionsPanel,bRestActions,ESlateVisibility::Visible);
+        if(!bRestActions){bTrainingResetInFlight=false;bRestReadyInFlight=false;}
+        HudSetShown(RestActionsPanel,bRestActions&&!bChoicesRestOpen,ESlateVisibility::Visible);
+        const FString ReadyLabel=O.bRestReady?TEXT("已准备"):bRestReadyInFlight?TEXT("提交中…"):TEXT("准备完毕");
+        if(ChoicesPanel){ChoicesPanel->PresentRestActions(bRestActions,!bTrainingResetInFlight,
+            O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight,ReadyLabel);}
         if(bRestActions)
         {
             if(TrainingResetButton->GetIsEnabled()==bTrainingResetInFlight){TrainingResetButton->SetIsEnabled(!bTrainingResetInFlight);}
+            HudSetText(Cast<UTextBlock>(RestReadyButton->GetContent()),ReadyLabel);
+            RestReadyButton->SetIsEnabled(O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight);
+            const ELDRestService Service=O.NearbyRestService;
+            const FString Npc=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
+            HudSetText(Cast<UTextBlock>(RestServiceButton->GetContent()),TEXT("与")+Npc+TEXT("交互"));
+            HudSetShown(RestServiceButton,Service!=ELDRestService::None,ESlateVisibility::Visible);
             const bool bThisRest=RestAnswerMatch==Public.Generation&&RestAnswerRest==Public.Timeline.RestIndex;
             HudSetText(RestAnswerText,bThisRest?RestAnswer:FString());
             HudSetShown(RestAnswerText,bThisRest&&!RestAnswer.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -976,7 +996,7 @@ void ULDHUD::RefreshReadModel()
     }
     RefreshPK(*PC,Public,Lobby,bClock,NowMs);
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),OwnerName));
-    HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    HudSetShown(NextStepText,!bChoicesRestOpen&&!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshEventFeed(*GS,O,Content,bClock,NowMs);
     RefreshScoreboard(*GS,O);
     HudSetText(ReturnCountdownText,LDHUD::RestReturnCountdown(Public,bClock,NowMs));
@@ -1084,9 +1104,11 @@ void ULDHUD::RefreshReadModel()
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,SafeAtMs,bClock,NowMs,Content,ChoiceStats);
+        ChoicesPanel->PresentAttributes(OwnCombat);
+        ChoicesPanel->SetServiceContext(O.NearbyRestService);
     }
     // D10/APP_SPEC §4.2: the growth panel opens by itself only for the match's opening offer, and only when nothing else is
-    // open; later offers and new points light the 开盲盒 button's count instead. It never opens over the player's own UI
+    // open; later offers and new points light the 构筑 entry instead. It never opens over the player's own UI
     // or armed preview, and nothing is chosen for the player. The root may still be leaving the lobby on the match's first
     // frames, so a refused open is retried for a short while; the player's own panel or captured input ends the chance at once.
     if(ChoicesPanel&&PC->RootUI&&Progression&&GrowthAutoOpen.Observe(*Progression,O.Match)){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
@@ -1115,15 +1137,14 @@ void ULDHUD::RefreshReadModel()
     if(ChoicesPanel)
     {
         // The panel docks over the battlefield: a hit on the own body, or an automatic open running its few seconds
-        // unattended, folds it back to the 开盲盒 button (LDHUD::FChoicesFold).
+        // unattended, folds it back to the 构筑 entry (LDHUD::FChoicesFold).
         LDWorldFeedback::FSample Body;Body.Match=O.Match;Body.Life=O.Life;Body.LifePhase=O.LifePhase;Body.Self=O.ContenderId;Body.OwnCombat=OwnCombat;
         TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(Body,BodyEvents);
         const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
         {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
         ChoicesPanel->UpdateFold(bOwnHit);
     }
-    // #97: right above the band's left block, the 开盲盒 button at its left edge and the growth panel in the same row right
-    // of it. Sizes follow last frame's layout (text size changes them); the root shows one main panel at a time.
+    // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
     const float PromptTop=BandTop+8.f+(PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f);
@@ -1131,12 +1152,6 @@ void ULDHUD::RefreshReadModel()
     {
         const FVector2D Place(FMath::RoundToFloat(BandLeft),-FMath::RoundToFloat(BandTop+8.f));
         if(!PromptSlot->GetPosition().Equals(Place,.5f)){PromptSlot->SetPosition(Place);}
-    }
-    if(ChoicesPanel&&PromptFrame)
-    {
-        const float Left=FMath::RoundToFloat(float(GetCachedGeometry().GetLocalSize().X)*.5f+BandLeft+float(PromptFrame->GetDesiredSize().X)+8.f);
-        const float Dock=FMath::RoundToFloat(BandTop+8.f);
-        if(AppliedChoicesDock!=Dock||AppliedChoicesLeft!=Left){AppliedChoicesDock=Dock;AppliedChoicesLeft=Left;ChoicesPanel->SetBottomDock(Dock,Left);}
     }
     if(DevTestPanel)
     {
@@ -1149,17 +1164,14 @@ void ULDHUD::RefreshReadModel()
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
     const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match,Content);
-    // #198: in a rest build window the rest services (NPC, respec, replace, forget, fill gap, dismantle) keep the panel reachable without pending growth.
-    const bool bRestServices=bOwnMatch&&LDProgression::StageForPublic(Public.Phase,Public.Timeline)==LDProgression::EMatchStage::Rest;
-    const bool bPromptLit=Pending.Any()||bRestServices;
+    // Inspection remains available without pending growth; service mutations keep their own gates.
+    const bool bPromptLit=bOwnMatch&&Progression&&Progression->bValid;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
-    // The 开盲盒 button stays above the left block: greyed out and disabled while nothing is pending and no rest service is
-    // open (an open panel with nothing left closes itself), lit with the counts otherwise; after the opportunities, points or
-    // pending components rise it pulses at ~1 Hz for a few seconds.
+    // New opportunities, points or components pulse the workspace entry briefly.
     const int32 PendingComponents=Pending.Components+(Pending.bOpeningBase?1:0)+Pending.ComponentChoices;
     if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptPoints=Pending.Points;PromptComponents=PendingComponents;
-    HudSetText(PromptText,LDHUD::GrowthPrompt(Pending,bRestServices));
+    HudSetText(PromptText,LDHUD::GrowthPrompt(Pending));
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     if(PromptButton->GetIsEnabled()!=bPromptLit){PromptButton->SetIsEnabled(bPromptLit);}
     {
@@ -1272,6 +1284,8 @@ void ULDHUD::RefreshReadModel()
             {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],Content);break;}
         }
     }
+    if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None)
+        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())){DetailOver=nullptr;}
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {
         HudSetShown(Popup,DetailOver!=nullptr,ESlateVisibility::HitTestInvisible);
@@ -1331,9 +1345,7 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {
-        // Above the 开盲盒 button, or above the growth panel while it is open.
-        const float Under=ChoicesPanel&&ChoicesPanel->IsPanelOpen()?ChoicesPanel->PanelTop():PromptTop;
-        const FVector2D Above(0,-FMath::RoundToFloat(Under+8.f));
+        const FVector2D Above(0,-FMath::RoundToFloat(PromptTop+8.f));
         if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
     }
 }
@@ -1391,6 +1403,39 @@ void ULDHUD::SubmitTrainingReset()
         ||GS->PublicMatch.Phase!=ELDMatchPhase::Rest){return;}
     bTrainingResetInFlight=true;
     PC->SubmitTrainingReset();
+}
+void ULDHUD::SubmitRestReady()
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||bRestReadyInFlight){return;}
+    if(!PC->OwnerState.bCanRestReady||PC->OwnerState.bRestReady)
+    {ShowRestAnswer(TEXT("当前不能提交准备，未改变准备状态。"));return;}
+    bRestReadyInFlight=true;PC->SubmitRestReady(true);
+}
+void ULDHUD::HandleRestReady(ELDRestReadyResult Result)
+{
+    bRestReadyInFlight=false;
+    FString Message;
+    switch(Result)
+    {
+    case ELDRestReadyResult::Accepted: Message=TEXT("已准备。所有真人准备后进入最后 10 秒站圈报名。");break;
+    case ELDRestReadyResult::NotContender: Message=TEXT("准备失败：你不是本局参赛者。");break;
+    case ELDRestReadyResult::StaleMatch: Message=TEXT("准备失败：对局已变化，请等待同步。");break;
+    case ELDRestReadyResult::StaleWindow: Message=TEXT("准备失败：本次配装窗口已结束。");break;
+    case ELDRestReadyResult::NotOpen: Message=TEXT("准备失败：当前不能提交准备。");break;
+    default: Message=TEXT("准备失败：服务器没有返回有效结果。");break;
+    }
+    ShowRestAnswer(Message);
+}
+void ULDHUD::OpenRestService()
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->RootUI||!ChoicesPanel){return;}
+    if(PC->OwnerState.NearbyRestService==ELDRestService::None)
+    {ShowRestAnswer(TEXT("请靠近对应的服务 NPC。"));return;}
+    ChoicesPanel->SetServiceContext(PC->OwnerState.NearbyRestService);
+    if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){ChoicesPanel->ShowTab(2);}
+    else{ShowRestAnswer(TEXT("请先关闭当前确认或设置，再与 NPC 交互。"));}
 }
 void ULDHUD::HandleTrainingReset(ELDTrainingResetResult Result)
 {
@@ -1726,7 +1771,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
-    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
     // Remaining-time rings of the timed own statuses: a dim full track and a bright arc that shrinks clockwise back to
     // twelve o'clock as the status runs out. Drawn whenever the band shows, also while world input is held.
     if(Band&&Band->IsVisible())
@@ -1752,8 +1797,14 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             if(SelfIconRing[Index]>0.f){Arc(SelfIconRing[Index],Edge,3.f);}
         }
     }
-    if(!PC->CanWorldCommand()||!Band){return Base;}
-    auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
+    return Base+1;
+}
+
+void ULDHUD::PaintWorldPreviews(const FGeometry& G,FSlateWindowElementList& E,int32 Layer) const
+{
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->CanWorldCommand()||!Band){return;}
+    auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
     auto Project=[&](FVector P,FVector2D& Out){FVector2D Screen;if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}int32 W=0,H=0;PC->GetViewportSize(W,H);Out=Screen*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));return true;};
     // The inspected unit is marked only by the selection ring under its feet; the HUD draws no bracket over it.
     // Armed preview (CONTROLS 3): the own range ring around the feet, and for direction forms the direction from the
@@ -1852,5 +1903,4 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             }
         }
     }
-    return Base+1;
 }

@@ -94,7 +94,7 @@ def expected_world_projection(compilation):
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn",
-                                      "PKThrow", "PKSignup").index(row["kind"]),
+                                      "PKThrow", "PKSignup", "RestSpawn", "RestService").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -668,9 +668,7 @@ def _export_exact_integer_case(valid):
 
 def _export_world_spawn_shift_case(valid):
     world = fixtures.world_source_fixture()
-    # #198: the rest anchor's PK sign-up disk stands a fixed distance from it, so it moves with it.
-    for identity in ("s00", "pk_signup_0"):
-        next(row for row in world["anchors"] if row["id"] == identity)["position_cm"]["x"] += 1
+    next(row for row in world["anchors"] if row["id"] == "s00")["position_cm"]["x"] += 1
     valid("world_spawn_shift", world=world)
 
 

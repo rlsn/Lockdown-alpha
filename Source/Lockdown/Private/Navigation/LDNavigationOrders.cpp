@@ -1561,7 +1561,19 @@ FVector ULDNavigationComponent::AuthoritySteering(const ALDCharacter& Body)
     else if (Order.Request.Kind==ELDSpatialOrderKind::CastPoint
         && FVector::DistSquared2D(Foot,Order.Destination)<=FMath::Square(Order.RangeCm))
     { return FVector::ZeroVector; }
-    return LDPathSteering::Steering(Order.Points,Order.PointIndex,Body);
+    const FVector Preferred=LDPathSteering::Steering(Order.Points,Order.PointIndex,Body);
+    ALDGameMode* Mode=AuthorityMode();
+    ALDPlayerController* PC=Controller();
+    if (Order.Request.Kind!=ELDSpatialOrderKind::MoveGround || !Mode || !PC || !Mode->Vision
+        || !Mode->GetTimeline().IsRestBuildOpen()
+        || !Mode->IsInRestSpace(Order.Body.Victim.EntityId) || !Order.Points.IsValidIndex(Order.PointIndex))
+    { return Preferred; }
+    FLDWorldView View;
+    FString Error;
+    if (!Mode->Vision->EnumerateVisibleUnits(*PC,ELDObservationPurpose::Inspect,View,Error)
+        || View.MatchGeneration!=Order.Match.Generation || View.ObserverLife!=Order.Body.Victim.Life)
+    { return Preferred; }
+    return AvoidObservedRestBodies(Body,Order.Points[Order.PointIndex],Preferred,View,Order.Body.Victim.EntityId);
 }
 
 void ULDNavigationComponent::TrackProgress(const ALDCharacter& Body, double Now, bool bMoving)

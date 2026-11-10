@@ -4692,7 +4692,7 @@
       "unit": "ms"
     },
     "REST.BuildSec": {
-      "ms": 30000,
+      "ms": 120000,
       "unit": "ms"
     },
     "REST.DrawSec": {
@@ -4704,7 +4704,7 @@
       "unit": "ms"
     },
     "REST.OpeningBuildSec": {
-      "ms": 45000,
+      "ms": 180000,
       "unit": "ms"
     },
     "REST.PKMaxSec": {

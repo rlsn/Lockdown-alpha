@@ -430,6 +430,7 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     const FLDEvaluationProfile& Profile, FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State)
 {
     using EBody = ELDOpponentBodyKind;
+    State.bOpeningReady = false;
     const FLDOpponentSelf& Self = Frame.Self;
     if (Policy.Generation != Frame.Generation)
     {
@@ -453,7 +454,7 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     };
     if (State.Phase == ELDEvaluationPhase::Failed) { return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::Stopped); }
     const bool bRunning = Frame.Public.Phase == ELDMatchPhase::Development || Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
-    // #198: a rest keeps the body in its private rest space; builds go only while the rest build window is open.
+    // #198: a rest keeps the body in the shared room; builds go only while the rest build window is open.
     const bool bRest = Frame.Public.Phase == ELDMatchPhase::Rest;
     if (!Frame.Generation || !(bRunning || bRest) || !Self.ContenderId.IsValid()
         || (Self.Phase != ELDLifePhase::Alive && Self.Phase != ELDLifePhase::Dead))
@@ -502,6 +503,15 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
         }
     }
     const bool bBuilds = Out.Build.Kind != ELDOpponentBuildKind::None;
+    int32 OpeningSteps = 0;
+    for (const FLDEvaluationBuildStep& Step : Profile.Build)
+    {
+        if (Step.Window == ELDEvaluationStepWindow::OpeningRest) { ++OpeningSteps; }
+    }
+    State.bOpeningReady = bRest && Frame.Public.Timeline.RestIndex == 0
+        && Frame.Public.Timeline.Step == ELDRestStep::Build && Self.OffersConsumed >= 1
+        && !Frame.bBuildChangeInFlight && !bBuilds && State.StepsCommitted >= OpeningSteps
+        && (!Profile.Build.IsEmpty() || (!Self.bOpeningBasePending && Self.UnspentPoints == 0));
     // The body waits in a rest, while dead, and until every planned choice is consumed, every planned build step is
     // committed and the build steps an unplanned profile's production rule decides are settled.
     const bool bSettling = State.Phase == ELDEvaluationPhase::Waiting || State.Phase == ELDEvaluationPhase::Building;

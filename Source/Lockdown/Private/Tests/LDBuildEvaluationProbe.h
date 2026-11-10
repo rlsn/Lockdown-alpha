@@ -34,7 +34,7 @@ struct FLDEvalCase
     uint64 Seed = 0;
     // The public place both duelists walk to.
     FName Site;
-    // Authority time after T=0 at which an undecided duel ends as censored.
+    // Authority time after the first field begins at which an undecided duel ends as censored.
     int64 DuelTimeoutMs = 0;
     // Wall-clock budget of the whole Case; exceeding it is BudgetExceeded, never a result.
     int32 WallTimeoutSeconds = 0;
@@ -55,7 +55,7 @@ namespace LDBuildEvaluation
     inline constexpr int32 InputSchemaVersion = 3;
     inline constexpr TCHAR ResultSchema[] = TEXT("lockdown.build_evaluation.native_result");
     inline constexpr TCHAR RunSchema[] = TEXT("lockdown.build_evaluation.native_run");
-    inline constexpr int32 ResultSchemaVersion = 3;
+    inline constexpr int32 ResultSchemaVersion = 4;
     inline constexpr int32 MaxCases = 500;
     inline constexpr int32 MaxChoices = 16;
     inline constexpr int32 MaxBuildSteps = 32;
@@ -63,7 +63,7 @@ namespace LDBuildEvaluation
     inline constexpr int32 DuelAISlots = 2;
     inline bool KillAtOrBeforeHorizon(int64 StartedAtMs, int64 DuelTimeoutMs, int64 OccurredAtMs)
     {
-        return OccurredAtMs <= StartedAtMs + DuelTimeoutMs;
+        return OccurredAtMs >= StartedAtMs && OccurredAtMs <= StartedAtMs + DuelTimeoutMs;
     }
     // Strict: unknown or missing fields, out-of-range numbers and malformed rules are refused with the field named.
     bool ParseInput(const FString& Json, FLDEvalRunInput& Out, FString& Error);

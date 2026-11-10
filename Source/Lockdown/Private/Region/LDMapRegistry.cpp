@@ -117,6 +117,7 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     Candidate.World = Revision;
     Candidate.FootCm = Foot;
     Candidate.SurfaceCm = FVector(Foot.X, Foot.Y, Expected);
+    Candidate.SupportOriginCm = Hit.Location;
     Candidate.SurfaceId = SurfaceHint;
     Candidate.Floor = Support;
     Out = MoveTemp(Candidate);

@@ -67,6 +67,34 @@ namespace LDPathSteering
             && FVector::DistSquared2D(Body.GetNavAgentLocation(),Goal)<=FMath::Square(AcceptanceCm);
     }
 
+    FVector AvoidVisibleBodies(const FVector& Foot, const FVector& Waypoint, const FVector& Preferred, double Radius,
+        TConstArrayView<FBodyDisc> Others)
+    {
+        const FVector Direction=Preferred.GetSafeNormal2D();
+        const double Remaining=FVector::Dist2D(Foot,Waypoint);
+        if (Direction.IsNearlyZero() || Remaining<=UE_KINDA_SMALL_NUMBER) { return Preferred; }
+        double BestAlong=DBL_MAX, BestCross=0, BestClearance=0;
+        for (const FBodyDisc& Other : Others)
+        {
+            const FVector2D Delta=Other.Foot-FVector2D(Foot.X,Foot.Y);
+            const double Along=Delta.X*Direction.X+Delta.Y*Direction.Y;
+            const double Cross=Direction.X*Delta.Y-Direction.Y*Delta.X;
+            const double Clearance=Radius+Other.Radius+WaypointToleranceCm;
+            if (Along<=0 || Along>=Remaining || Along>=Clearance*3 || FMath::Abs(Cross)>=Clearance) { continue; }
+            if (Along<BestAlong || (Along==BestAlong && Cross<BestCross))
+            {
+                BestAlong=Along;
+                BestCross=Cross;
+                BestClearance=Clearance;
+            }
+        }
+        if (BestAlong==DBL_MAX) { return Preferred; }
+        const FVector Left(-Direction.Y,Direction.X,0);
+        const double Side=BestCross>=0 ? -1. : 1.;
+        const double Offset=(BestClearance-FMath::Abs(BestCross))*1.5;
+        return (Direction*FMath::Max(BestAlong,BestClearance)+Left*Side*Offset).GetSafeNormal2D()*Preferred.Size2D();
+    }
+
     bool BlockedAtHeldGoal(const FVector2D& Foot, double Radius, const FVector2D& Goal, TConstArrayView<FBodyDisc> Others)
     {
         const auto Touch=[](const FVector2D& A, double RA, const FBodyDisc& B)

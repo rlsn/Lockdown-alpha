@@ -665,6 +665,11 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     {
         return Reject(ELDGrowthReason::BuildStale);
     }
+    if (!GameMode->CanUseRestService(ContenderId, Command.Kind))
+    {
+        const auto PhaseReason = LDProgression::CommandGate(Command.Kind, Context);
+        return Reject(PhaseReason == ELDGrowthReason::None ? ELDGrowthReason::RestServiceUnavailable : PhaseReason);
+    }
     const FLDDemoContentDefinitions& Definitions = Content->Get();
     const FLDGrowthBuild& Build = Record->Build;
     const FLDProgressionState& Progression = Record->Progression;

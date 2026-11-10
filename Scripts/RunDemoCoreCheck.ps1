@@ -1,6 +1,6 @@
-# #198: the default covers the opening rest R0 (45 s build + 5 s return, no PK sign-ups) before the field-1 walk.
+# #198: the default covers the opening rest R0 (180 s build + 5 s return, no PK sign-ups) before the field-1 walk.
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=180,
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$ReplayFieldReturn,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
@@ -26,6 +26,8 @@ function Start-CoreRole {
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
     $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCoreProbe -LDDemoCoreRole={2} -LDDemoCoreTimeout={3} -LDDemoCoreOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    if ($EarlyRestReady) { $arguments += ' -LDDemoCoreReady' }
+    if ($ReplayFieldReturn) { $arguments += ' -LDDemoCoreReplayFieldReturn' }
     if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }

@@ -202,6 +202,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NothingToRespec: return TEXT("NothingToRespec");
     case ELDGrowthReason::SlotEmpty: return TEXT("SlotEmpty");
     case ELDGrowthReason::NotRestWindow: return TEXT("NotRestWindow");
+    case ELDGrowthReason::RestServiceUnavailable: return TEXT("RestServiceUnavailable");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");

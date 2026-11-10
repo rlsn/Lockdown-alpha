@@ -235,6 +235,8 @@ namespace LDProgression
     // #198 B: OpeningBase like ActiveChoice; InstallComponent as a first install (InstallGate); UninstallComponent the rest
     // window only (RestOnly; Dead for a dead contender).
     LOCKDOWN_API ELDGrowthReason CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context);
+    // The shared-room NPC required by a command, or None when no NPC proximity is needed.
+    LOCKDOWN_API ELDRestService RestServiceFor(ELDBuildCommandKind Kind);
     // The slot a learn takes: Preferred when it is an empty slot 0..2, otherwise the lowest empty one; false when full.
     LOCKDOWN_API bool PickLearnSlot(const FLDGrowthBuild& Build, uint8 Preferred, uint8& OutSlot);
 

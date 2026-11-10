@@ -3,33 +3,20 @@
 #include "UI/LDWidgets.h"
 #include "UI/LDHUDModel.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Framework/LDMatchTimeline.h"
 #include "LDChoicesPanel.generated.h"
 class UTextBlock;
 class URichTextBlock;
 class UBorder;
 class UImage;
 class USizeBox;
-class UCanvasPanel;
-class UCanvasPanelSlot;
 class UVerticalBox;
 class UHorizontalBox;
+class UWrapBox;
 struct FLDDemoContentDefinitions;
 
-// #198 growth panel (APP_SPEC 4.2, UI 3.2), opened by the 开盲盒 button: the current active offer (up to three cards, a click
-// is "学这个": an ActiveChoice that learns into the lowest empty Q/W/E slot when allowed, otherwise keeps it as a blueprint),
-// the pending blueprints with a "学到 Q/W/E" button per empty slot, and the unspent points with one row per stat whose +/−
-// only stage locally until one confirm sends AllocatePoints. #198 B adds the opening base pick (cards of the current options;
-// a click is an OpeningBase that installs it when allowed) and the owned components (已启用, or a 启用 button for a first-time
-// InstallComponent); B18 first asks for a learned active and an element, and a mod or connector (#198 F) first asks where it
-// goes (C12 also which installed base it repeats). Every command carries the ids and versions of the view it was
-// built from; nothing shown changes before the server's receipt and the next owner view. Buttons the server would refuse
-// are disabled with the reason (LDHUD::BuildGate over LDProgression::StageForPublic, LDHUD::ComponentRow); the server still
-// decides each command. In a rest it also shows the rest services: the NPC's active offer, the respec, "替换 Q/W/E" on each
-// blueprint row for an occupied slot and "遗忘 Q/W/E" per learned active; replace and forget first show a confirm line
-// naming the active that will be forgotten. #198 G: the pending elite camp component choices (one or two cards each, a click
-// is a ComponentChoice; "改领 N 点" once every option is owned) and, in a rest, 补缺 (gap target, then filler, then a confirm
-// line naming the price) and 拆解 (pick the approved count of owned common components, then a confirm line naming what is
-// deleted and which installs go back to the inventory).
+// A bounded workspace: published attributes/skill slots, paged growth/inventory/NPC context, and a fixed inspector.
+// All mutations retain the existing build commands, revision checks, confirmations and authority receipts.
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
 {
@@ -41,6 +28,8 @@ public:
     TFunction<uint64()> PeekRequestId;
     // Result notices for a request that ends while the panel is closed (the HUD shows them as a toast).
     TFunction<void(const FString&)> Notify;
+    TFunction<void()> ResetTraining;
+    TFunction<void()> ReadyRest;
     // Stats: the owner's level and stats, so every card shows its numbers for now (#147). Stage (the public match's build
     // stage, LDProgression::StageForPublic), BuildSafeAtMs (the freshest own publication of Combat's safe window), bClock
     // and NowMs judge what the server would refuse, for the disabled reasons.
@@ -48,9 +37,15 @@ public:
         bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
+    void PresentAttributes(const FLDCombatOwnerView* Combat);
+    void PresentRestActions(bool bRest,bool bCanReset,bool bCanReady,const FString& ReadyLabel);
+    // Local view context only; the owning authority still admits every service command.
+    void SetServiceContext(ELDRestService Service);
+    void ShowTab(int32 Tab);
+    bool PreviewComponent(int32 Index);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
-    // Shows an offer card's detail popup without choosing it, as hovering does (automation and review captures).
+    // Shows an offer in the inspection column without choosing it (automation and review captures).
     bool PreviewOffer(int32 Index);
     // A blueprint row's "学到 Q/W/E": learns the blueprint at Index of the shown list into the empty slot Key (0 = Q).
     bool LearnBlueprint(int32 Index,uint8 Key);
@@ -105,7 +100,7 @@ public:
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
     bool HasPendingRequest() const {return PendingRequest!=0;}
-    // The HUD opened this panel for the opening offer (D10): it folds back to the 开盲盒 button after a few seconds
+    // The HUD opened this panel for the opening offer (D10): it folds back to the 构筑 button after a few seconds
     // unless the player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
     // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
@@ -113,14 +108,9 @@ public:
     // A card being read (hovered, focused or previewed), staged points, a binding being picked, a rest confirm line or a
     // request in flight.
     bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||PendingRequest!=0||HasChildConfirmation()
-        ||bFillGapOpen||bDismantleOpen;}
-    // The offer card whose detail popup is showing, or INDEX_NONE.
+        ||bFillGapOpen||bDismantleOpen||(RestTrainingButton&&RestTrainingButton->HasKeyboardFocus())||(RestReadyButton&&RestReadyButton->HasKeyboardFocus());}
+    // The offer card whose inspection is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
-    // Distance of the panel's bottom edge from the screen bottom and of its left edge from the screen left: the HUD keeps
-    // it in the 开盲盒 button's row, right of the button (#97).
-    void SetBottomDock(float Bottom,float Left);
-    // Distance of the panel's top edge from the screen bottom (last layout), so the HUD can stack the toast above it.
-    float PanelTop() const;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
@@ -135,12 +125,11 @@ private:
         TObjectPtr<USizeBox> IconSize;
         TObjectPtr<UBorder> IconShape;
         TObjectPtr<UTextBlock> Glyph,Name,Summary,Action;
-        // The rule sentence on the card face (#147; user 2026-11-07: shown on the card in full, keywords bold).
-        TObjectPtr<URichTextBlock> Sentence;
     };
     struct FBlueprintRow
     {
         TObjectPtr<UWidget> Row;
+        TObjectPtr<UImage> Picture;
         TObjectPtr<UTextBlock> Name,Summary,Blocked;
         TArray<TObjectPtr<ULDCommandButton>> Learn;
         // #198 rest only: "替换 Q/W/E" for each occupied slot.
@@ -162,7 +151,7 @@ private:
     struct FStatRow
     {
         TObjectPtr<UWidget> Row;
-        TObjectPtr<UTextBlock> Name,PerPoint,Points;
+        TObjectPtr<UTextBlock> Name,Points;
         TObjectPtr<ULDCommandButton> Minus,Plus;
     };
     // #198 B: one opening base option card (icon, name, the rendered sentence and what a click does).
@@ -172,7 +161,6 @@ private:
         TObjectPtr<ULDCommandButton> Button;
         TObjectPtr<UImage> Picture;
         TObjectPtr<UTextBlock> Glyph,Name,Action;
-        TObjectPtr<URichTextBlock> Sentence;
         FString AppliedIcon;
         FName ShownId;
         bool bBinding=false;
@@ -181,8 +169,9 @@ private:
     struct FComponentRow
     {
         TObjectPtr<UWidget> Row;
-        TObjectPtr<UTextBlock> Name,Summary,State,Blocked;
-        TObjectPtr<ULDCommandButton> Enable;
+        TObjectPtr<UTextBlock> Name,State;
+        TObjectPtr<ULDCommandButton> Inspect;
+        TObjectPtr<UImage> Picture;
         FName ShownId;
     };
     // #198 G: one pending elite camp component choice: its title, one card per option and the empty-pool points button.
@@ -221,10 +210,23 @@ private:
     UPROPERTY() TObjectPtr<UHorizontalBox> RepeatLine;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RepeatButtons;
     UPROPERTY() TObjectPtr<UWidget> ComponentSection;
-    UPROPERTY() TObjectPtr<UVerticalBox> ComponentList;
+    UPROPERTY() TObjectPtr<UWrapBox> ComponentList;
+    UPROPERTY() TObjectPtr<UTextBlock> ComponentHeading;
+    UPROPERTY() TObjectPtr<UTextBlock> EmptyNote;
+    UPROPERTY() TObjectPtr<UVerticalBox> PointsDock;
+    UPROPERTY() TObjectPtr<UTextBlock> AttributeSummary;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> EquippedNames;
+    UPROPERTY() TArray<TObjectPtr<UImage>> EquippedIcons;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> TabButtons;
+    UPROPERTY() TObjectPtr<ULDCommandButton> InspectInstall;
+    UPROPERTY() TObjectPtr<UTextBlock> InspectState;
+    int32 ActiveTab=0;
+    ELDRestService ServiceContext=ELDRestService::None;
+    FName PinnedComponent;
+    FName InspectedComponent;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
-    UPROPERTY() TObjectPtr<UBorder> DockFrame;
-    float BottomDock=96.f,DockLeft=16.f;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RestTrainingButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
     UPROPERTY() TObjectPtr<UTextBlock> OfferHeading;
     UPROPERTY() TObjectPtr<UTextBlock> OfferNote;
     UPROPERTY() TObjectPtr<UWidget> OfferSection;
@@ -247,9 +249,9 @@ private:
     // #198 G FillGap and Dismantle: their service buttons, the target / filler pickers and the dismantle selection.
     UPROPERTY() TObjectPtr<ULDCommandButton> FillGapButton;
     UPROPERTY() TObjectPtr<UTextBlock> FillGapBlocked;
-    UPROPERTY() TObjectPtr<UHorizontalBox> GapTargetLine;
+    UPROPERTY() TObjectPtr<UWrapBox> GapTargetLine;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> GapTargetButtons;
-    UPROPERTY() TObjectPtr<UHorizontalBox> GapFillerLine;
+    UPROPERTY() TObjectPtr<UWrapBox> GapFillerLine;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> GapFillerButtons;
     UPROPERTY() TObjectPtr<ULDCommandButton> DismantleButton;
     UPROPERTY() TObjectPtr<UTextBlock> DismantleBlocked;
@@ -262,9 +264,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestConfirmButton;
     FRestConfirm RestConfirm;
-    // The detail popup lives on its own full-panel canvas layer, so its size never moves the card column.
-    UPROPERTY() TObjectPtr<UCanvasPanel> DetailLayer;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> DetailSlot;
+    // A bounded inspection column, separate from the independently scrolling inventory.
     UPROPERTY() TObjectPtr<UBorder> Detail;
     UPROPERTY() TObjectPtr<UTextBlock> DetailName;
     UPROPERTY() TObjectPtr<UTextBlock> DetailSummary;
@@ -314,7 +314,6 @@ private:
     // PreviewOffer's pinned card, shown when no card is hovered or focused; DetailCard is the one on screen.
     int32 PinnedPreview=INDEX_NONE;
     int32 DetailCard=INDEX_NONE;
-    bool bDetailStale=true;
     // The owner's level, stats or catalog changed: the shown cards' numbers are redrawn.
     bool bCardsStale=true;
     // The same for the opening base cards and component rows (cleared after each full refresh).
@@ -377,5 +376,4 @@ private:
     void FinishRequest();
     void UpdateDetail();
     void SetFeedback(const FString& Text);
-    bool HasAnythingToDo() const;
 };

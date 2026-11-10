@@ -36,7 +36,7 @@ enum class ELDOpponentReason : uint8
     // #198 D: PK sign-up, bet and throw requests, an entrant's fight and its walk back inside the ring.
     PKSignUp, PKBet, PKThrow, PKFight, PKRing,
     // #198 §16.3: the own private training dummy engaged in the rest build window once nothing is left to build.
-    Train
+    Train, RestService
 };
 
 enum class ELDOpponentSourceSlot : uint8 { Q, W, E, Dash };
@@ -133,6 +133,8 @@ struct FLDOpponentSelf
     // Authority ms until which authorized control blocks voluntary movement; at or before now when free.
     int64 MoveBlockedUntilMs = 0;
     bool bChanneling = false;
+    // The same nearby-service owner projection a human receives; never another contender's position.
+    ELDRestService NearbyRestService = ELDRestService::None;
     uint64 BuildRevision = 0;
     uint8 Level = 1;
     TArray<FLDOpponentActive> Actives;
@@ -222,8 +224,8 @@ struct FLDOpponentUnit
     bool bProtected = false;
 };
 
-// PKSignup (#198 站圈报名): the own PK sign-up disk beside the private rest anchor; only a rest frame names it.
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, PKSignup };
+// Sign-up and service places are carried only by rest frames, not the field POI list.
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, PKSignup, RestService };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -235,6 +237,7 @@ struct FLDOpponentPOI
     // Camps only.
     FString MonsterId;
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;
+    ELDRestService RestService = ELDRestService::None;
 };
 
 enum class ELDOpponentOrderKind : uint8 { None, MoveGround, AttackUnit, Action };
@@ -269,6 +272,7 @@ struct FLDOpponentDecisionFrame
     // #198 站圈报名 (user decision A on issue #198): in a rest, the own PK sign-up disk (its roster slot's public anchor);
     // unset outside a rest. Never part of POIs, so no field decision ever walks there.
     TOptional<FLDOpponentPOI> SignupPOI;
+    TArray<FLDOpponentPOI> RestServicePOIs;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
@@ -585,10 +589,10 @@ namespace LDOpponentPolicy
     // An entrant at FootCm must walk back toward the arena centre at NowMs: outside the current safe radius, or outside the
     // previewed next radius while one is shown (LDPKRules on the approved ring parameters). False before the fight starts.
     LOCKDOWN_API bool PKRingRetreat(const FLDPKParameters& Params, const FLDPKView& PK, const FVector& FootCm, int64 NowMs);
-    // #198 §16.3: the own private training dummy by the HUD's rule (LDHUD::ObservedContenderName): in a rest, a visible
-    // contender unit whose id is not on the public roster (only its owner sees a dummy), the lowest handle first; nullptr
+    // A visible shared training dummy by the HUD's roster rule: lowest handle first; nullptr
     // outside a rest, without one, or when the own id is not on the roster (an unread roster names nothing).
     LOCKDOWN_API const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame);
+    LOCKDOWN_API ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind);
     LOCKDOWN_API uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame,
         const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);

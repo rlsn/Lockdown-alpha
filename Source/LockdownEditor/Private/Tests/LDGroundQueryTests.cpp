@@ -5,6 +5,7 @@
 #include "Framework/LDGameMode.h"
 #include "World/LDCampDirector.h"
 #include "World/LDCampMember.h"
+#include "World/LDSpawnPlacement.h"
 #include "AssetCompilingManager.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -56,7 +57,8 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
         {
             return Result == RefLegal && Failure == RefFailure && Why == RefError
                 && (!Result || (Optimized.World == Reference.World && Optimized.FootCm == Reference.FootCm
-                    && Optimized.SurfaceCm == Reference.SurfaceCm && Optimized.SurfaceId == Reference.SurfaceId
+                    && Optimized.SurfaceCm == Reference.SurfaceCm && Optimized.SupportOriginCm == Reference.SupportOriginCm
+                    && Optimized.SurfaceId == Reference.SurfaceId
                     && Optimized.Floor == Reference.Floor));
         };
         Passed &= TestTrue(TEXT("Exact unfiltered parity at ") + Foot.ToString(), Equal(Legal));
@@ -132,6 +134,33 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
     for (double Y : {Min.Y, Min.Y + Radius - 1., Min.Y + Radius + 1., Max.Y - Radius - 1., Max.Y})
     { SampleXY(FVector2D((Min.X + Max.X) * .5, Y)); }
 
+    FLDLegalGround Seam;
+    ELDWorldQueryFailure SeamFailure;
+    const FVector SeamFoot(1312, -1600, 4);
+    if (!TestTrue(TEXT("Captured ramp-seam foot has registered physical support"),
+        Registry->QueryGround(Registry->Revision(), SeamFoot, Capsule, Surface, Seam, SeamFailure, Error))) { return false; }
+    const FVector SeamOrigin = LDSpawnPlacement::StandingOrigin(Seam);
+    Passed &= TestTrue(TEXT("Seam support lifts the capsule above the authored centre height"),
+        Seam.SupportOriginCm.Z > Seam.SurfaceCm.Z + Capsule.GetCapsuleHalfHeight());
+    Passed &= TestTrue(TEXT("Seam support keeps the requested XY"), FVector::DistSquared2D(SeamOrigin, SeamFoot) < UE_KINDA_SMALL_NUMBER);
+    Passed &= TestFalse(TEXT("Standing seam capsule is initially clear"),
+        LDSpawnPlacement::OverlapsStatic(*World, SeamOrigin, Capsule));
+    AActor* Obstacle = World->SpawnActor<AActor>();
+    if (!TestNotNull(TEXT("Temporary static obstacle"), Obstacle)) { return false; }
+    UBoxComponent* ObstacleBox = NewObject<UBoxComponent>(Obstacle);
+    Obstacle->SetRootComponent(ObstacleBox);
+    Obstacle->AddInstanceComponent(ObstacleBox);
+    ObstacleBox->SetMobility(EComponentMobility::Movable);
+    ObstacleBox->SetBoxExtent(FVector(8, 8, 2));
+    ObstacleBox->SetCollisionObjectType(ECC_WorldStatic);
+    ObstacleBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    ObstacleBox->SetCollisionResponseToAllChannels(ECR_Block);
+    ObstacleBox->RegisterComponent();
+    Obstacle->SetActorLocation(SeamOrigin + FVector(0, 0, Capsule.GetCapsuleHalfHeight() - 1));
+    Passed &= TestTrue(TEXT("Standing capsule detects a static obstruction at its actual origin"),
+        LDSpawnPlacement::OverlapsStatic(*World, SeamOrigin, Capsule));
+    Obstacle->Destroy();
+
     const FVector Foot = Registry->Sites()[0].Position;
     Compare(Foot, NAME_None, Capsule, true);
     Compare(Foot, Surface, FCollisionShape::MakeSphere(float(Radius)), false);
@@ -194,7 +223,8 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
         Passed &= TestTrue(TEXT("Dynamic mutation/despawn preserves complete cached result"),
             Actual == Expected && Failure == RefFailure && Why == RefError
             && (!Actual || (Cached.World == Reference.World && Cached.FootCm == Reference.FootCm
-                && Cached.SurfaceCm == Reference.SurfaceCm && Cached.SurfaceId == Reference.SurfaceId
+                && Cached.SurfaceCm == Reference.SurfaceCm && Cached.SupportOriginCm == Reference.SupportOriginCm
+                && Cached.SurfaceId == Reference.SurfaceId
                 && Cached.Floor == Reference.Floor)));
         Passed &= TestEqual(TEXT("Dynamic mutation/despawn retains a cache hit"),
             Registry->GroundQueryCountForTests() - Before, uint64(0));

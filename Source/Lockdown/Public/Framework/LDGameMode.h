@@ -154,15 +154,21 @@ public:
     // world owners (charms, ...) add their own rest entry/exit here.
     bool EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
-    // #198 站圈报名 (user decision A on issue #198): the PK sign-up disk of a contender's private rest space (its roster
+    // #198 站圈报名: the contender's PK sign-up disk in the shared rest room (its roster
     // slot's pk_signup anchor, radius AIRDROP.PickupRadiusCm); false when the world or the slot has none.
     bool SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, double& OutRadiusCm) const;
     // The locked PK entrants of the current rest (sorted); empty before the lock or when PK was skipped.
     const TArray<FGuid>& GetLockedEntrants() const { return LockedEntrants; }
     // Session D: a running PK ended early at this boundary (a side won or a draw was decided).
     bool FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Whether a contender currently stands in its private rest space (rest life), not in the field.
+    // Whether a contender currently has a shared-room rest life, not a field or PK life.
     bool IsInRestSpace(const FGuid& Contender) const;
+    static FGuid RestIsolationGroup() { return FGuid(0x198, 0x52455354, 0x4c4f554e, 0x47450001); }
+    ELDRestService NearbyRestService(const FGuid& Contender) const;
+    bool CanUseRestService(const FGuid& Contender, ELDBuildCommandKind Kind) const;
+    bool IsRestReady(const FGuid& Contender) const { return RestReady.Contains(Contender); }
+    bool CanRestReady(const FGuid& Contender) const;
+    ELDRestReadyResult SubmitRestReady(ALDPlayerController& Controller, uint32 Generation, uint8 RestIndex, int64 StartedAtMs, bool bReady);
     // ---- #198 session D: PK lives (Framework/LDGameModePK.cpp). A PK life is a rest-phase life in the arena: no capture
     // eligibility, no protection, no field respawn; its death returns the contender to its rest space at once. ----
     struct FLDPKPlacement
@@ -189,15 +195,13 @@ public:
     const FLDNativeMotionBatch* ReadStepMotion(const FGuid& Contender) const;
     bool IsContenderPresent(const FGuid& Contender) const { return IsMemberPresent(Contender); }
     const TArray<FGuid>& GetRosterOrder() const { return RosterOrder; }
-    // ---- #198 personal training dummy (coordinator decision under the user's delegation): the existing contender
-    // chassis at the owner's current level with no build, in the owner's rest isolation group, never dies (refills at 0
-    // HP), grants nothing; only its owner sees and reaches it. It exists while the owner's rest life stands. ----
+    // Shared training dummies keep each slot's generation-time level chassis and no build; they grant nothing.
     bool IsTrainingDummy(const FGuid& Entity) const { return TrainingDummyIds.Contains(Entity); }
     // Motion: the dummy integrates zero input (only forced motion such as a knockback moves it).
     bool AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     // Owner-only: queues a reset of the owner's training (owner and dummy refilled, every cooldown ready, every training
     // effect and status cleared) for the next boundary.
-    ELDTrainingResetResult SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation);
+    ELDTrainingResetResult SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation, uint32 Life, uint8 RestIndex, int64 StartedAtMs);
     const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
     double GetAuthorityNowSeconds() const { return AuthorityNowSeconds; }
     int64 GetAuthorityNowMs() const { return AuthorityNowMs; }
@@ -540,6 +544,9 @@ private:
     // PK sign-ups of the current build step (the rest lives standing in their sign-up disks while the window is open) and
     // the entrants locked from them.
     TSet<FGuid> RestSignups;
+    TSet<FGuid> RestReady;
+    TArray<TWeakObjectPtr<class ALDRestServiceNPC>> RestServiceNPCs;
+    void ClearRestServiceNPCs();
     // RespawnsAndWorld and the lock: RestSignups from the committed feet (empty outside the window). False on a fault.
     bool RefreshRestSignups(FString& Error);
     TArray<FGuid> LockedEntrants;
@@ -605,10 +612,11 @@ private:
         FLDCombatBodyRef Body;
         TWeakObjectPtr<ALDCharacter> Actor;
     };
-    // By owner; TrainingDummyIds holds the dummy entities.
+    // By roster slot contender; the association fixes the chassis, not access or attack attribution.
     TMap<FGuid, FLDTrainingDummy> TrainingDummies;
     TSet<FGuid> TrainingDummyIds;
-    TSet<FGuid> PendingTrainingResets;
+    struct FLDTrainingResetWindow { uint32 Life = 0; uint8 RestIndex = 0; int64 StartedAtMs = 0; };
+    TMap<FGuid, FLDTrainingResetWindow> PendingTrainingResets;
     // RespawnsAndWorld: spawns the owner's dummy beside its rest anchor; a blocked spot leaves it without one (logged).
     bool SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error);
     void RetireTrainingDummy(const FGuid& Owner);
@@ -617,7 +625,7 @@ private:
     bool MoveContendersToRest(const FLDGameplayWritePermit& Permit, FString& Error);
     // Ends a living contender life without a death (phase boundary): no K/D, kill feed, reward or respawn wait.
     bool RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
-    // Places the next life of a bodiless contender at its private rest anchor (with its training dummy).
+    // Places the next life of a bodiless contender at its shared-room slot (with its shared training dummy).
     bool PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
     bool RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FString& Error);
     FName RestAnchorFor(const FGuid& Contender) const;

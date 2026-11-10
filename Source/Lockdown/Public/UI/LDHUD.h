@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Framework/LDMatchTimeline.h"
 #include "Audio/LDAudioCueTracker.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
@@ -68,6 +69,8 @@ class LOCKDOWN_API ULDHUD : public UUserWidget
 public:
     void RefreshReadModel();
     bool PointerOverUI() const;
+    // Called by the hit-test-invisible world layer, below the HUD's panels.
+    void PaintWorldPreviews(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
     // The two normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time. ChoicesPanel is
     // the #198 growth panel (active offer, blueprints and points) behind the 开盲盒 button.
@@ -125,9 +128,12 @@ private:
     // standing in the own sign-up disk is the sign-up (the banner detail and ALDSignupMarker show it).
     UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RestServiceButton;
     UPROPERTY() TObjectPtr<UTextBlock> RestAnswerText;
     // A reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bTrainingResetInFlight=false;
+    bool bRestReadyInFlight=false;
     // The last answer to a rest action and the rest it belongs to; another rest or match never shows it.
     FString RestAnswer;
     uint32 RestAnswerMatch=0;
@@ -138,6 +144,9 @@ private:
     uint32 SignupMarkerFailedMatch=0;
     void SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp);
     void HandleTrainingReset(ELDTrainingResetResult Result);
+    void HandleRestReady(ELDRestReadyResult Result);
+    void SubmitRestReady();
+    void OpenRestService();
     void SubmitTrainingReset();
     void ShowRestAnswer(const FString& Text);
     // #198 session D: the PK panel under the rest actions (LDHUD::PKPanel), from the draw to the payout step: format and
@@ -272,7 +281,6 @@ private:
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
-    float AppliedChoicesDock=-1,AppliedChoicesLeft=-1;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptOffers=0;
