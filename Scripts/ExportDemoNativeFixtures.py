@@ -93,7 +93,8 @@ def expected_world_projection(compilation):
         "SpawnValidationRadiusCm": rational(world["placement"]["spawn_validation_radius_cm"]),
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
-            "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint").index(row["kind"]),
+            "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn",
+                                      "PKThrow").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -361,6 +362,7 @@ def expected_projection(compilation):
         } for band in data["progression"]["component_category_weights"]]},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("capture_id", "CaptureId"),
+            ("pk_spawn_ids", "PKSpawnIds"), ("pk_throw_id", "PKThrowId"),
         )},
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],

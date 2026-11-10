@@ -232,7 +232,7 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
     // #198: the rest return countdown locks every order. The identity is spent and its refusal kept, so a replay in the
     // field answers the same refusal instead of starting late.
-    if (AuthorityMode()->IsInputLocked(Caller.Match))
+    if (AuthorityMode()->IsInputLocked(Caller.Match,Caller.Body.Victim.EntityId))
     {
         Book.Received=Request.Identity;
         AddRecord(Request,false);
@@ -316,7 +316,7 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     if (!Request.DirectSequence || !LDCombatPreInput::IsDirectEntry(Request.Entry) || (AimCm && AimCm->ContainsNaN()))
     { return Refuse(ELDCombatReject::InvalidRequest); }
     auto* Mode=AuthorityMode();
-    if (Mode->IsInputLocked(Caller.Match)) { return Refuse(ELDCombatReject::NotStarted); }
+    if (Mode->IsInputLocked(Caller.Match,Caller.Body.Victim.EntityId)) { return Refuse(ELDCombatReject::NotStarted); }
     auto* PC=Controller();
     FLDCombatCaller CombatCaller;
     FString Error;

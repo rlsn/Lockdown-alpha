@@ -389,7 +389,10 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     int64 RespawnAt = 0;
     // #198: a rest life (private rest space) has no field eligibility; it stands up again at once at its rest anchor.
     // A field death's wait is fixed by the field progress T of the death (8/10/12/15 s by segment).
-    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId);
+    // #198 session D: a PK death is an elimination, never a field death: the contender stands up again in its private
+    // rest space at once and watches the rest of the PK (no capture eligibility, K/D or respawn wait).
+    const bool bPKLife = PKLives.Contains(Fact.Key.Victim.EntityId);
+    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId) || bPKLife;
     const int64 WaitMs = bRestLife ? 0 : RespawnWaitAtFieldMs(Timeline.FieldMsAt(Fact.OccurredAtMs));
     if (Life->Revision == MAX_uint64 || (!bRestLife && WaitMs <= 0)
         || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, WaitMs, RespawnAt, Error))
@@ -421,6 +424,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     Life->ProtectedUntilMs = 0;
     Life->RespawnAtMs = RespawnAt;
     if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
+    PKLives.Remove(Fact.Key.Victim.EntityId);
     Life->Body = {};
     if (auto* Body = Life->Actor.Get())
     {

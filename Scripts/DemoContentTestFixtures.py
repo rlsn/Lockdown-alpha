@@ -218,7 +218,8 @@ def content_fixture():
                         "active_offer_levels": [4, 9],
                         "component_category_weights": [{"levels": [2, 8], "base": 60, "mod": 20, "connector": 20},
                                                        {"levels": [9, 16], "base": 30, "mod": 30, "connector": 40}]},
-        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture"},
+        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture",
+                  "pk_spawn_ids": [f"pk_spawn_{n}" for n in range(6)], "pk_throw_id": "pk_throw"},
         "display": display,
     }
 

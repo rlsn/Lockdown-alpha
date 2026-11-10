@@ -164,8 +164,10 @@ bool ULDMapRegistry::SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName 
         Out=MoveTemp(Replay);
         return true;
     }
-    if (!Content->Get().World.SpawnIds.Contains(Anchor.ToString()))
-    { Error=FString::Printf(TEXT("%s is not an approved spawn anchor."),*Anchor.ToString()); return false; }
+    // #198: a contender's fixed rest anchor is an approved spawn, and a PK entrant's is one of the PK ring spawns.
+    const auto& Refs=Content->Get().World;
+    if (!Refs.SpawnIds.Contains(Anchor.ToString()) && !Refs.PKSpawnIds.Contains(Anchor.ToString()))
+    { Error=FString::Printf(TEXT("%s is not an approved spawn or PK spawn anchor."),*Anchor.ToString()); return false; }
     Out=RecordSpawnSelection(Request,Anchor);
     Error.Reset();
     return true;

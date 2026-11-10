@@ -84,6 +84,8 @@ public:
     ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
     FVector2D CellCentre(int32 Index) const;
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
+    // #198 session D: marks every coverage cell whose centre lies within the disk (a spectator's arena permission).
+    void AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const;
 private:
     bool SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 ObserverTier, int32 TargetTier) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the

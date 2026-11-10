@@ -1718,7 +1718,24 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns)
         || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 1, LDDemoWorld::MaxCamps)
         || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
+        || !Ids(World.Take(TEXT("pk_spawn_ids")), Out.World.PKSpawnIds, Check, World.Path + TEXT(".pk_spawn_ids"),
+            LDDemoWorld::PKSpawns, LDDemoWorld::PKSpawns)
+        || !World.Identifier(TEXT("pk_throw_id"), Out.World.PKThrowId)
         || !World.Done())
+    {
+        return false;
+    }
+    // #198: the PK ring is read in index order, so the references are exactly pk_spawn_0..5 and pk_throw.
+    for (int32 Index = 0; Index < Out.World.PKSpawnIds.Num(); ++Index)
+    {
+        if (!Check.Require(Out.World.PKSpawnIds[Index].Equals(FString::Printf(TEXT("pk_spawn_%d"), Index), ESearchCase::CaseSensitive),
+            World.Path + TEXT(".pk_spawn_ids"), TEXT("PK spawns must be pk_spawn_0 to pk_spawn_5 in order")))
+        {
+            return false;
+        }
+    }
+    if (!Check.Require(Out.World.PKThrowId.Equals(TEXT("pk_throw"), ESearchCase::CaseSensitive),
+        World.Path + TEXT(".pk_throw_id"), TEXT("the PK throw anchor must be pk_throw")))
     {
         return false;
     }

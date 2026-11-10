@@ -5,6 +5,7 @@
 #include "Audio/LDAudioCueTracker.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
+#include "PK/LDPKRules.h"
 #include "LDHUD.generated.h"
 class UBorder;
 class UHorizontalBox;
@@ -76,6 +77,7 @@ public:
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
+    virtual void NativeDestruct() override;
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     // Sees a left press on a filled Q/W/E slot before its button, so the press may become a drag (UpdateDrag).
@@ -137,6 +139,56 @@ private:
     void HandleTrainingReset(ELDTrainingResetResult Result);
     void SubmitTrainingReset();
     void ShowRestAnswer(const FString& Text);
+    // #198 session D: the PK panel under the rest actions (LDHUD::PKPanel), from the draw to the payout step: format and
+    // sides with their 出局/离场 marks, the PKReady/PK countdown and ring, one bet button per side for an eligible bettor in
+    // the betting step, the throw button for an eligible bettor while the fight runs, then the frozen result and awards.
+    // Bets and throws are owner intents the server decides (ALDPlayerController::SubmitPKBet/SubmitPKThrow); their answers
+    // show in the panel and as a toast. Hit-tested, so its buttons take clicks.
+    UPROPERTY() TObjectPtr<UBorder> PKPanelBorder;
+    UPROPERTY() TObjectPtr<UTextBlock> PKTitleText;
+    UPROPERTY() TObjectPtr<UTextBlock> PKCountdownText;
+    UPROPERTY() TObjectPtr<UTextBlock> PKRingText;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKSideTexts;
+    UPROPERTY() TObjectPtr<UTextBlock> PKRoleText;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> PKBetButtons;
+    UPROPERTY() TObjectPtr<ULDCommandButton> PKThrowButton;
+    UPROPERTY() TObjectPtr<UTextBlock> PKResultLine;
+    UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
+    UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
+    // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
+    // throw aim, the last throw answer's ReadyAtMs and the last answer line.
+    bool bPKBetInFlight=false;
+    bool bPKThrowArmed=false;
+    bool bPKThrowInFlight=false;
+    int64 PKThrowReadyAtMs=0;
+    uint32 PKStateMatch=0;
+    uint32 PKStateSerial=0;
+    FString PKAnswer;
+    void RefreshPK(class ALDPlayerController& PC,const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,bool bClock,int64 NowMs);
+    LDHUD::FPKPanelInput PKInput(const class ALDPlayerController& PC,bool bClock,int64 NowMs);
+    void SubmitPKBet(int32 SideIndex);
+    void TogglePKThrowAim();
+    void HandlePKBet(ELDPKBetResult Result);
+    void HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
+    void ShowPKAnswer(const FString& Text);
+    // The local arena rings (ALDPKRingMarker) during the PKReady and PK steps of the own match's PK; rebuilt per PK, never
+    // replicated. The approved ring parameters come from the same content snapshot as the display labels.
+    TWeakObjectPtr<class ALDPKRingMarker> PKRing;
+    uint32 PKRingFailedMatch=0;
+    uint32 PKRingFailedSerial=0;
+    FLDPKParameters PKParams;
+    const FLDDemoContentDefinitions* PKParamsSource=nullptr;
+    bool bPKParamsValid=false;
+    const FLDPKParameters* PKParameters();
+    void SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bClock,int64 NowMs);
+public:
+    // While the throw aim is armed the next world left click throws at the ground under the pointer (ThrowPKAtPointer) and a
+    // right click or Back only cancels it (CancelPKThrowAim); neither issues a move, attack or inspect (LDPlayerInput.cpp).
+    bool IsPKThrowArmed() const {return bPKThrowArmed;}
+    void ThrowPKAtPointer();
+    bool CancelPKThrowAim();
+private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;

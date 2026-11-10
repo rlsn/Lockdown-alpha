@@ -274,6 +274,28 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `REST.PayoutSec` | s/Sec | 12 | 2026-11-10 用户批准（同上）；休息兑现，处理奖励、NPC、重构和试招 |
 | `REST.ReturnSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；返野外倒计时，锁构筑与输入；报名不足2人时构筑截止后直接进入此倒计时 |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 2026-11-10 用户批准（同上）；返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
+| `PK.ArenaRadiusCm` | cm/Cm | 1800 | 2026-11-10 用户批准（[外层参数方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施”。PK圈以旗杆锚点为圆心，0–10s 安全半径保持1800cm |
+| `PK.RingMidRadiusCm` | cm/Cm | 600 | 2026-11-10 用户批准（同上）；10–40s 由1800cm线性缩到600cm |
+| `PK.RingFinalRadiusCm` | cm/Cm | 150 | 2026-11-10 用户批准（同上）；40–55s 由600cm线性缩到150cm，55–60s 保持150cm；须满足 终圈 < 中圈 < 场地半径（导入校验拒绝） |
+| `PK.RingShrinkStartSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；开始缩圈的PK时刻 |
+| `PK.RingMidSec` | s/Sec | 40 | 2026-11-10 用户批准（同上）；缩到中圈的PK时刻 |
+| `PK.RingFinalSec` | s/Sec | 55 | 2026-11-10 用户批准（同上）；缩到终圈的PK时刻；须满足 开始缩圈 < 中圈时刻 < 终圈时刻 < `REST.PKMaxSec`（导入校验拒绝） |
+| `PK.RingPreviewSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；提前这么久显示下一个圈 |
+| `PK.RingDamageTickSec` | s/Sec | 0.25 | 2026-11-10 用户批准（同上）；圈外伤害每250ms按真实圈外时间结算一次 |
+| `PK.RingDamageEarlyMaxHPRatioPerSec` | ratio/R4 | 0.05 | 2026-11-10 用户批准（同上）；0–40s 圈外每秒扣PK开始时最大HP的5%；须大于0 |
+| `PK.RingDamageMidMaxHPRatioPerSec` | ratio/R4 | 0.12 | 2026-11-10 用户批准（同上）；40–55s 圈外每秒12% |
+| `PK.RingDamageFinalMaxHPRatioPerSec` | ratio/R4 | 0.25 | 2026-11-10 用户批准（同上）；55–60s 圈外每秒25% |
+| `PK.TeamFormatRatio` | ratio/R4 | 0.5 | 2026-11-10 用户批准（同上）；4或6人参赛时以此概率混战，否则平均随机分队 |
+| `PK.ParticipationPoints` | Count | 1 | 2026-11-10 用户批准（同上）；每名参赛者的参与点数 |
+| `PK.WinnerPointsMax` | Count | 3 | 2026-11-10 用户批准（同上）；胜方共享 ⌈N/2⌉ 点，最多这么多 |
+| `PK.BettingPoolMaxPoints` | Count | 2 | 2026-11-10 用户批准（同上）；竞猜奖池 = min(此值, 合格观众数) |
+| `THROW.CooldownSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；观众投掷冷却，从一次成功投掷开始计 |
+| `THROW.TelegraphSec` | s/Sec | 0.8 | 2026-11-10 用户批准（同上）；投掷落点预警时长 |
+| `THROW.RadiusCm` | cm/Cm | 120 | 2026-11-10 用户批准（同上）；落点作用半径，须大于0 |
+| `THROW.RangeCm` | cm/Cm | 4000 | 2026-11-10 用户批准（同上）；从场外固定投掷锚点起算的最远距离，须大于0 |
+| `THROW.SlowRatio` | ratio/R4 | 0.2 | 2026-11-10 用户批准（同上）；命中减速20%；须大于0 |
+| `THROW.SlowSec` | s/Sec | 1 | 2026-11-10 用户批准（同上）；减速时长 |
+| `THROW.ExposeSec` | s/Sec | 2 | 2026-11-10 用户批准（同上）；命中后暴露时长 |
 | `LIFE.RespawnSec.Field1` | s/Sec | 8 | 2026-11-10 用户批准（同上）；死亡时 0≤T<180s 的野外复活等待，按死亡时T固定，不叠死亡次数/等级惩罚 |
 | `LIFE.RespawnSec.Field2` | s/Sec | 10 | 2026-11-10 用户批准（同上）；死亡时 180≤T<360s |
 | `LIFE.RespawnSec.Field3` | s/Sec | 12 | 2026-11-10 用户批准（同上）；死亡时 360≤T<540s |

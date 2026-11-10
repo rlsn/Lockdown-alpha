@@ -106,12 +106,15 @@ private:
     bool bArenaActive = false;
     bool bFightRunning = false;
     bool bDecided = false;
+    // FinishRestPK was asked for this PK (once).
+    bool bFinishRequested = false;
     int64 FightStartedAtMs = 0;
-    // Per seat: max HP at the PK start (P2), the ring damage accumulator (P2 x 1e7) and the last settled instant.
+    // Per seat: max HP at the PK start (P2) and the ring damage accumulator (P2 x 1e7); the instant outside time was
+    // settled through and the next damage tick.
     TArray<int64> StartMaxHpP2;
     TArray<int64> RingAccumulatorE7;
-    TArray<int64> RingOutsideSinceMs;
     int64 RingSettledThroughMs = 0;
+    int64 NextRingTickAtMs = MAX_int64;
     struct FPendingThrow
     {
         uint32 Serial = 0;
@@ -122,8 +125,8 @@ private:
     TArray<FPendingThrow> Throws;
     uint32 NextThrowSerial = 1;
     TMap<FGuid, int64> ThrowReadyAtMs;
-    TMap<FGuid, int64> ExposedUntilMs;
-    // Awards frozen at the settlement and not yet paid (paid once in Transactions).
+    // Awards frozen at the settlement and not yet paid (paid once in Transactions), with their business identities.
     TArray<FLDPKAwardView> PendingAwards;
+    TArray<FGuid> AwardIds;
     bool bAwardsPaid = false;
 };

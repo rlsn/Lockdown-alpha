@@ -2343,7 +2343,206 @@ bool RunWalkRefusals(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("An admitted walk lets the next walk go at once"), Walks(LDOpponentPolicy::Decide(Frame, C, Cleared)));
     return bGood;
 }
+
+FLDPKEntrantView PKEntrant(uint32 Handle, uint8 Side, bool bAlive = true)
+{
+    FLDPKEntrantView Out;
+    Out.Contender = FGuid(0xE0, 0, 0, Handle);
+    Out.Side = Side;
+    Out.bAlive = bAlive;
+    return Out;
 }
+
+FLDPKBetView PKBet(const FGuid& Spectator, uint8 Side)
+{
+    FLDPKBetView Out;
+    Out.Spectator = Spectator;
+    Out.Side = Side;
+    return Out;
+}
+
+// #198 D (issue #198 comment 6752601175 §2-§6): sign-up, bet, throw, teammate exclusion and the ring, from public reads only.
+bool RunPK(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EReason = ELDOpponentReason;
+    using EBody = ELDOpponentBodyKind;
+    using EPK = ELDOpponentPKKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    const FGuid Me = Base.Self.ContenderId;
+    Base.Public.Phase = ELDMatchPhase::Rest;
+    Base.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Base.Public.Timeline.RestIndex = 1;
+
+    // Sign-up: once per rest, inside the window of the build step only.
+    auto Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    Frame.Public.Timeline.SignupOpensAtMs = 20000;
+    Frame.Public.Timeline.StepEndsAtMs = 30000;
+    Frame.Public.NowMs = 19999;
+    bool bGood = Test.TestFalse(TEXT("No sign-up before the window opens"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Frame.Public.NowMs = 30000;
+    bGood &= Test.TestFalse(TEXT("No sign-up at the step's end"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Frame.Public.NowMs = 20000;
+    bGood &= Test.TestTrue(TEXT("Every AI signs up inside the window"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    FLDOpponentPolicyState SignUp;
+    auto Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
+    bGood &= Expect(Test, TEXT("Signing up never moves"), Decision, EMode::PK, EBody::None)
+        && Test.TestTrue(TEXT("The sign-up goes out through the player's entry"),
+            Decision.PK.Kind == EPK::SignUp && Decision.Reason == EReason::PKSignUp);
+    Frame.Public.NowMs = 20250;
+    bGood &= Test.TestTrue(TEXT("A sign-up is sent once per rest whatever its answer"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).PK.Kind == EPK::None);
+    Frame.Public.Timeline.Signups = {Me};
+    bGood &= Test.TestFalse(TEXT("A contender in the public sign-up does not sign up again"),
+        LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Frame.Public.Timeline.Signups.Reset();
+    Frame.Public.Timeline.Step = ELDRestStep::Payout;
+    bGood &= Test.TestFalse(TEXT("No sign-up outside the build step"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+
+    // Bet: the side of the lowest-seat entrant, once, for an eligible bettor without a public bet.
+    FLDPKView PK;
+    PK.Generation = Base.Generation;
+    PK.Serial = 2;
+    PK.Format = ELDPKFormat::FreeForAll;
+    PK.SideCount = 4;
+    PK.Entrants = {PKEntrant(11, 2), PKEntrant(12, 1), PKEntrant(13, 3), PKEntrant(14, 4)};
+    PK.Bettors = {Me};
+    Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::Betting;
+    Frame.Public.PK = PK;
+    bGood &= Test.TestTrue(TEXT("The bet goes to the lowest seat's side"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 2);
+    FLDOpponentPolicyState Bet;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Bet);
+    bGood &= Expect(Test, TEXT("Betting never moves"), Decision, EMode::PK, EBody::None)
+        && Test.TestTrue(TEXT("One bet on that side of this PK"), Decision.PK.Kind == EPK::Bet && Decision.PK.Side == 2
+            && Decision.PK.Serial == PK.Serial && Decision.Reason == EReason::PKBet);
+    bGood &= Test.TestTrue(TEXT("A bet is sent once per PK"), LDOpponentPolicy::Decide(Frame, C, Bet).PK.Kind == EPK::None);
+    Frame.Public.PK.Bets = {PKBet(Me, 3)};
+    bGood &= Test.TestTrue(TEXT("A placed bet is not replaced"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 0);
+    Frame.Public.PK.Bets.Reset();
+    Frame.Public.PK.Bettors.Reset();
+    bGood &= Test.TestTrue(TEXT("A non-bettor does not bet"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 0);
+
+    // Throw: the lowest visible seat not on the bet side, within the throw range of the public anchor.
+    PK.Bets = {PKBet(Me, 2)};
+    PK.Outcome = ELDPKOutcome::Running;
+    PK.FightStartedAtMs = 5000;
+    TArray<FLDOpponentUnit> Seen = {
+        Unit(11, ELDOpponentUnitKind::Contender, 10, 0), Unit(13, ELDOpponentUnitKind::Contender, 30, 0),
+        Unit(14, ELDOpponentUnitKind::Contender, 40, 0)};
+    const FLDOpponentUnit* Target = LDOpponentPolicy::PKThrowTarget(PK, 2, Seen, 1000.);
+    bGood &= Test.TestTrue(TEXT("The bet side is never thrown at and an unseen entrant is skipped"),
+        Target && Target->ContenderId == FGuid(0xE0, 0, 0, 13));
+    Seen[1].FootCm = FVector(1500, 0, 0);
+    Target = LDOpponentPolicy::PKThrowTarget(PK, 2, Seen, 1000.);
+    bGood &= Test.TestTrue(TEXT("An entrant out of throw range is skipped"), Target && Target->ContenderId == FGuid(0xE0, 0, 0, 14));
+    bGood &= Test.TestNull(TEXT("Without a bet there is no throw"), LDOpponentPolicy::PKThrowTarget(PK, 0, Seen, 1000.));
+    const TArray<FLDOpponentUnit> BetSideOnly = {Unit(11, ELDOpponentUnitKind::Contender, 10, 0)};
+    bGood &= Test.TestNull(TEXT("Only the bet side in sight: no throw"), LDOpponentPolicy::PKThrowTarget(PK, 2, BetSideOnly, 1000.));
+    Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::PK;
+    Frame.Public.PK = PK;
+    Frame.Public.NowMs = 9000;
+    Frame.Units = {Unit(11, ELDOpponentUnitKind::Contender, 10, 0), Unit(13, ELDOpponentUnitKind::Contender, 30, 0)};
+    FLDOpponentPolicyState Throw;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Throw);
+    bGood &= Expect(Test, TEXT("A spectator never moves while the arena runs"), Decision, EMode::PK, EBody::None)
+        && Test.TestTrue(TEXT("A ready bettor throws at the current foot of the chosen entrant"), Decision.PK.Kind == EPK::Throw
+            && Decision.PK.Serial == PK.Serial && Decision.PK.TargetCm.Equals(FVector(30, 0, 0)) && Decision.Reason == EReason::PKThrow);
+    Frame.PKThrowReadyAtMs = Frame.Public.NowMs + 1;
+    bGood &= Test.TestTrue(TEXT("No throw before the own cooldown passed"), LDOpponentPolicy::Decide(Frame, C, Throw).PK.Kind == EPK::None);
+
+    // Teammates: only a team format shares a side.
+    FLDPKView Teams;
+    Teams.Serial = 3;
+    Teams.Format = ELDPKFormat::Teams;
+    Teams.SideCount = 2;
+    Teams.Entrants = {PKEntrant(21, 2), PKEntrant(22, 1), PKEntrant(999, 1), PKEntrant(23, 2)};
+    const FGuid Mate = FGuid(0xE0, 0, 0, 22), Rival = FGuid(0xE0, 0, 0, 21);
+    bGood &= Test.TestTrue(TEXT("Same side is a teammate"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Mate))
+        && Test.TestFalse(TEXT("Another side is not"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Rival))
+        && Test.TestFalse(TEXT("Self is not its own teammate"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Me))
+        && Test.TestFalse(TEXT("A free-for-all has no teammates"), LDOpponentPolicy::IsPKTeammate(PK, FGuid(0xE0, 0, 0, 11),
+            FGuid(0xE0, 0, 0, 12)));
+
+    // Ring: outside the current radius, or outside the previewed next radius while one is shown.
+    FLDPKParameters Ring;
+    Ring.ArenaRadiusCm = 1000;
+    Ring.MidRadiusCm = 600;
+    Ring.FinalRadiusCm = 300;
+    Ring.ShrinkStartMs = 10000;
+    Ring.MidMs = 20000;
+    Ring.FinalMs = 30000;
+    Ring.PreviewMs = 5000;
+    Ring.MaxMs = 40000;
+    FLDPKView Arena;
+    Arena.FightStartedAtMs = 100000;
+    const auto Out = [&Ring, &Arena](double X, int64 ElapsedMs)
+    { return LDOpponentPolicy::PKRingRetreat(Ring, Arena, FVector(X, 0, 0), Arena.FightStartedAtMs + ElapsedMs); };
+    bGood &= Test.TestFalse(TEXT("No ring before the fight starts"), Out(2000, -1))
+        && Test.TestFalse(TEXT("Inside the full arena before any preview"), Out(900, 0))
+        && Test.TestTrue(TEXT("Outside the current radius walks back"), Out(1100, 0))
+        && Test.TestTrue(TEXT("Outside the previewed mid radius walks back"), Out(900, 6000))
+        && Test.TestFalse(TEXT("Inside the previewed radius stays"), Out(500, 6000))
+        && Test.TestTrue(TEXT("Outside the previewed final radius during the second shrink"), Out(400, 25000))
+        && Test.TestFalse(TEXT("Inside the final radius during the second shrink"), Out(250, 25000))
+        && Test.TestTrue(TEXT("Outside the final radius after the shrink"), Out(301, 35000))
+        && Test.TestFalse(TEXT("Inside the final radius after the shrink"), Out(299, 35000));
+
+    // Fighting as an entrant: the ring first, then the nearest visible enemy entrant, never a teammate.
+    FLDPKParameters Approved;
+    FString Error;
+    if (!Test.TestTrue(TEXT("The approved ring parameters load"), FLDPKParameters::FromContent(C.Get().Parameters, Approved, Error)))
+    {
+        Test.AddError(Error);
+        return false;
+    }
+    Teams.Outcome = ELDPKOutcome::Running;
+    Teams.ArenaCentreCm = FVector(0, 3000, 0);
+    Teams.FightStartedAtMs = 5000;
+    Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::PK;
+    Frame.Public.PK = Teams;
+    Frame.Public.NowMs = 5000;
+    Frame.Self.FootCm = Teams.ArenaCentreCm + FVector(Approved.ArenaRadiusCm + 100., 0, 0);
+    FLDOpponentPolicyState Fight;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Fight);
+    bGood &= Expect(Test, TEXT("Outside the ring the entrant walks to the arena centre first"), Decision, EMode::PK,
+        EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("The ring is its own reason"), Decision.Reason == EReason::PKRing);
+    Frame.Self.FootCm = Teams.ArenaCentreCm;
+    Frame.Units = {Unit(22, ELDOpponentUnitKind::Contender, 100, 3000), Unit(21, ELDOpponentUnitKind::Contender, 400, 3000)};
+    FLDOpponentPolicyState Engage;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Engage);
+    bGood &= Test.TestTrue(TEXT("The nearer teammate is passed over for the enemy entrant"),
+        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKFight && Decision.Body.Kind == EBody::AttackUnit
+        && Decision.Body.Handle == Frame.Units[1].Handle);
+    Frame.Units = {Unit(22, ELDOpponentUnitKind::Contender, 100, 3000)};
+    FLDOpponentPolicyState MateOnly;
+    Decision = LDOpponentPolicy::Decide(Frame, C, MateOnly);
+    bGood &= Expect(Test, TEXT("A teammate alone in sight is never a target"), Decision, EMode::PK, EBody::None);
+    Frame.Public.Timeline.Step = ELDRestStep::PKReady;
+    Frame.Public.PK.Outcome = ELDPKOutcome::Pending;
+    Frame.Units = {Unit(21, ELDOpponentUnitKind::Contender, 400, 3000)};
+    FLDOpponentPolicyState Ready;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Ready);
+    bGood &= Expect(Test, TEXT("PKReady: inputs are locked, nothing is sent"), Decision, EMode::Stopped, EBody::None)
+        && Test.TestTrue(TEXT("PKReady: no PK request either"), Decision.PK.Kind == EPK::None);
+    return bGood;
+}
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentPKTest, "Lockdown.Rules.DemoOpponentPolicy.PK",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentPKTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunPK(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAirdropTest, "Lockdown.Rules.DemoOpponentPolicy.Airdrop",

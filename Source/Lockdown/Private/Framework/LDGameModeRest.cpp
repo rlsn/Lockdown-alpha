@@ -40,6 +40,7 @@ bool ALDGameMode::InitializeTimeline(FString& Error)
     LockedEntrants.Reset();
     RestReturns.Reset();
     RestLives.Reset();
+    PKLives.Reset();
     PendingPhasePlacement.Reset();
     UE_LOG(LogLDMatch, Display, TEXT("LD_TIMELINE_BEGIN generation=%u at_ms=%lld rest=0 build_ends_at_ms=%lld"),
         MatchContext.Generation, AuthorityNowMs, Timeline.GetStepEndsAtMs());
@@ -52,9 +53,16 @@ bool ALDGameMode::IsRestPhase(const FLDMatchContext& Context) const
     return IsGameplayWriteOpen(Context) && MatchPhase == ELDMatchPhase::Rest;
 }
 
-bool ALDGameMode::IsInputLocked(const FLDMatchContext& Context) const
+bool ALDGameMode::IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender) const
 {
-    return IsRestPhase(Context) && Timeline.GetStep() == ELDRestStep::Return;
+    if (!IsRestPhase(Context)) { return false; }
+    switch (Timeline.GetStep())
+    {
+    case ELDRestStep::Return:
+    case ELDRestStep::PKReady: return true;
+    case ELDRestStep::PK: return !PKLives.Contains(Contender);
+    default: return false;
+    }
 }
 
 LDProgression::EMatchStage ALDGameMode::ReadBuildStage(const FLDMatchContext& Match) const
@@ -311,7 +319,8 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
     const FLDCombatBodyRef Body = Life->Body;
     // The owner's training dummy leaves with its rest life; nothing of the training reaches the field.
     RetireTrainingDummy(Contender);
-    if (!RestLives.Contains(Contender))
+    // #198 session D: a PK life (like a rest life) never joined the spray roster.
+    if (!RestLives.Contains(Contender) && !PKLives.Contains(Contender))
     {
         // A field life leaves the spray roster without a kill, a death count or a reward.
         FLDCaptureEligibilityEvent Retired;
@@ -346,6 +355,7 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
         Life->NativeMotion.Reset();
     }
     RestLives.Remove(Contender);
+    PKLives.Remove(Contender);
     if (Controller) { SyncOwner(Controller); }
     NotifyLife(Body, ELDLifeChange::PhaseRetired, Life->Revision, AuthorityNowMs);
     Error.Reset();

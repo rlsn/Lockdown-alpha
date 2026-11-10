@@ -1,6 +1,7 @@
 #include "Framework/LDGameMode.h"
 #include "Core/LDLog.h"
 #include "World/LDCampDirector.h"
+#include "PK/LDPKDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
@@ -570,6 +571,9 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.Timeline = Timeline.MakeView(MatchContext.Generation, TimelineRevision);
     View.Timeline.Signups = RestSignups.Array();
     View.Timeline.Signups.Sort();
+    // #198 session D: the current rest's PK; empty without the provider or outside a PK.
+    if (PKDirector) { View.PK = PKDirector->GetView(); }
+    View.PK.Generation = MatchContext.Generation;
     View.OpenAtMs = CaptureReducer.GetOpenAtMs();
     View.CircleState = CaptureReducer.GetState();
     View.CaptureEpoch = CaptureReducer.GetEpoch();

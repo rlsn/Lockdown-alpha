@@ -147,6 +147,13 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 - **PK 接口**：PK 是 #198 会话 D 的可选提供者 `ELDMatchProvider::PK`，`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定（`FLDRestStepNotice`）；
   报名经 `ALDPlayerController::SubmitRestSignup` → `ServerRestSignup` → `ALDGameMode::SubmitRestSignup` → `ClientRestSignup`，
   PK 提前分出结果时提供者调用 `ALDGameMode::FinishRestPK`。没有该提供者时报名以 `ELDRestSignupResult::NoPKProvider` 明确拒绝，每次休息跳过 PK。
+- **PK（会话 D，`PK/LDPKDirector.*`、`LDPKRules.*`、`Framework/LDGameModePK.cpp`、`Combat/LDCombatPK.cpp`）**：锁定（Transactions）固定选手与竞猜资格观众；
+  Draw 用本局私有随机流一次性抽赛制、阵营与 6 个 `PKSpawn` 锚点的旋转；PKReady（RespawnsAndWorld）经 `ALDGameMode::EnterPKLives` 结束休息生命、
+  在锚点放置 PK 生命（`PKLives`，无保护、无喷漆资格，`ALDCombatDirector::SetPKBody` 设 PK 隔离组与阵营），任一锚点被占则本场 NoContest 并明确记录
+  `LD_PK_ARENA_BLOCKED`，不改锚点；PK 步骤 Effects 阶段落投掷、按 250 ms 结算圈伤（`ApplyEnvironmentDamage`），DeathsAndRewards 之后判定，
+  决出即 `FinishRestPK`；Settlement（RespawnsAndWorld）冻结结果与资格、`ReturnPKLivesToRest`，同一边界的 Transactions 经
+  `ALDDevelopmentDirector::GrantPKPoints`（每场每人一个业务身份、`PKAwardDuplicate` 去重）一次发点。PK 死亡记 `NoRewardPKArena`，
+  立即回休息位；`IsInputLocked` 在 PKReady 锁全部输入，PK 中只放行 PK 生命。公开读模型 `FLDPublicMatchView::PK`（`FLDPKView`）。
 - **野外 → 休息**：每个存活的野外生命退休而不死亡（喷漆资格变化 `PhaseRetired`：离开喷漆名单，没有 K/D、击杀播报、奖励或复活等待；
   生命提供者收到 `ELDLifeChange::PhaseRetired`），剩余的野外复活等待结束；`ALDGameMode::EnterRestWorld` 中
   `ALDCombatDirector::CancelAllForPhase` 取消全部进行中效果（投射物、待结算命中、区域、引导、地面效果；日志 `LD_PHASE_EFFECTS_CANCELLED reason=CancelledByPhase`，
@@ -1048,5 +1055,5 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 - 3+3 满员、打包版与网络异常场景在里程碑检查和发布验收时运行；某次运行的结论以当次 `Artifacts` 报告为准，本文不引用旧报告作为当前通过的依据。
 - 争夺中喷漆者死亡后清零、硬控打断喷漆、主人死亡/离局清除涂鸦只有规则测试证据；喷漆 + 守护数值与 `LIFE.RespawnSec.*` 的配合未经试玩复核。
 - #198 外层流程只有规则测试（`DemoRest.*`）证据；改写到休息流程的拥有连接场景探针尚未运行。
-- 未实现：PK/竞猜/观众投掷（#198 会话 D）；AI 不使用 NPC、洗点、替换、遗忘与训练。训练假人只有规则测试（`DemoRest.PhasePolicy`），没有拥有连接场景。
+- PK/竞猜/观众投掷（#198 会话 D）已接入，只有纯规则测试（`Lockdown.Rules.DemoPK.*`）；PK 锚点原生几何、拥有连接场景尚未运行。AI 不使用 NPC、洗点、替换、遗忘与训练。训练假人只有规则测试（`DemoRest.PhasePolicy`），没有拥有连接场景。
 - 视野过滤不能防范恶意 Host；Host 断线时客户端按引擎默认约 60 秒连接超时后才回到菜单。

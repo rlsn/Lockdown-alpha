@@ -657,6 +657,10 @@ struct FLDDemoWorldReferences
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
     UPROPERTY() FString CaptureId;
+    // #198 PK on the original map: the six ring spawns pk_spawn_0..5 in index order and the fixed off-arena
+    // spectator throw anchor; both resolve through ULDMapRegistry::Resolve like the other anchors.
+    UPROPERTY() TArray<FString> PKSpawnIds;
+    UPROPERTY() FString PKThrowId;
 };
 
 USTRUCT()

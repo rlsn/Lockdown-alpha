@@ -357,7 +357,7 @@ ELDPKOutcome LDPKRules::Judge(const TArray<uint8>& SideOfSeat, const TArray<bool
         if (Side == 0 || Side > SpawnAnchors) { return ELDPKOutcome::None; }
         if (AliveOfSeat[Seat]) { AliveSides |= 1u << Side; }
     }
-    const uint32 Count = FMath::CountBits(AliveSides);
+    const int32 Count = int32(FMath::CountBits(AliveSides));
     if (Count == 0) { return ELDPKOutcome::Draw; }
     if (Count == 1)
     {

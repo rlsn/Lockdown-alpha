@@ -3399,6 +3399,15 @@
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
+    "pk_spawn_ids": [
+      "pk_spawn_0",
+      "pk_spawn_1",
+      "pk_spawn_2",
+      "pk_spawn_3",
+      "pk_spawn_4",
+      "pk_spawn_5"
+    ],
+    "pk_throw_id": "pk_throw",
     "spawn_ids": [
       "s00",
       "s01",

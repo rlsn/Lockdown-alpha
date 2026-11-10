@@ -73,6 +73,9 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CaptureRadius + Body; break;
         // D26: the pickup disk stays clear so the crate and every body reaching it read plainly.
         case ELDDemoWorldAnchorKind::Airdrop: KeepOut.Radius = AirdropRadius + Body; break;
+        // #198: a PK ring spawn or the spectator throw anchor holds one body; the registry checks its capsule ground.
+        case ELDDemoWorldAnchorKind::PKSpawn:
+        case ELDDemoWorldAnchorKind::PKThrow: KeepOut.Radius = Body; break;
         default: return PlaceFail(Error, TEXT("Unknown Demo world anchor kind: ") + Anchor.Id);
         }
     }

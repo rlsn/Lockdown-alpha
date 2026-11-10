@@ -482,7 +482,9 @@
     "map_id": "demo_world",
     "spawn_ids": ["s00", "s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09", "s10", "s11"],
     "camp_ids": ["e01", "e02", "e03", "e04", "h01", "h02", "h03", "h04", "h05", "h06", "h07", "h08", "h09", "h10", "h11", "h12", "l03", "l04", "l05", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22"],
-    "capture_id": "capture"
+    "capture_id": "capture",
+    "pk_spawn_ids": ["pk_spawn_0", "pk_spawn_1", "pk_spawn_2", "pk_spawn_3", "pk_spawn_4", "pk_spawn_5"],
+    "pk_throw_id": "pk_throw"
   },
   "display": [
     {"id": "character_demo", "namespace": "DemoContent", "name_key": "character_demo.name", "name_text": "脆皮大学生", "description_key": "character_demo.description", "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、捡构件。", "icon_id": "icon_character_demo", "portrait_icon_id": "portrait_character_demo"},

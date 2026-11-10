@@ -601,7 +601,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["PK.RingFinalRadiusCm"].update(value=0), "InvalidGeometry"),
             (lambda data: data["parameters"]["PK.RingDamageMidMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"]["PK.TeamFormatRatio"].update(value=0), None),
-            (lambda data: data["parameters"]["PK.TeamFormatRatio"].update(value=1.5), "NumericDomain"),
+            (lambda data: data["parameters"]["PK.TeamFormatRatio"].update(value=1.5), "NumericOverflow"),
             (lambda data: data["parameters"].update({"PK.WinnerPointsMax": 0}), "NumericDomain"),
             (lambda data: data["parameters"]["THROW.RangeCm"].update(value=0), "InvalidGeometry"),
             (lambda data: data["parameters"]["THROW.RadiusCm"].update(value=0), "InvalidGeometry"),

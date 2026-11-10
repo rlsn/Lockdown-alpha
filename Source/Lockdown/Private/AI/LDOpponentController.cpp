@@ -10,6 +10,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "PK/LDPKDirector.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
@@ -211,11 +212,11 @@ void ALDOpponentController::ReportTally()
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u builds=%u builds_refused=%u paused_holds=%u/%u/%u ")
-        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u"), *Binding.GetContender().ToString(),
+        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u pk=%u/%u/%u/%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
         Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.Builds, Tally.BuildsRefused, Tally.PausedHolds,
         Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
-        Tally.OrdersRejected);
+        Tally.OrdersRejected, Tally.PKSignUps, Tally.PKBets, Tally.PKThrows, Tally.PKRefused);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -319,6 +320,7 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);
+    DispatchPK(*Mode, Frame, Decision.PK, NowMs, Problem);
     Report(Frame, Decision, Problem);
 }
 
@@ -368,6 +370,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.GuardDueAtMs = Public.GuardDueAtMs;
     Frame.Public.Leader = Public.Leader.Leader;
     Frame.Public.LeaderCircleCentreCm = Public.Leader.CircleCentreCm;
+    // #198 D: the public PK (entrants, sides, bettors, bets, arena centre, fight start), as every participant reads it.
+    Frame.Public.PK = Public.PK;
     // The own claim comes from the owner view; the public view never names the claimer.
     Reads.ClaimedAirdrop = Own.Growth.AirdropClaimedSerial;
     if (Public.Airdrop.Phase == ELDAirdropPhase::Announced || Public.Airdrop.Phase == ELDAirdropPhase::Landed)
@@ -607,6 +611,7 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
         Current.Epoch = Incumbent.Intent.Epoch;
     }
     Frame.bBuildChangeInFlight = Build.bHas;
+    Frame.PKThrowReadyAtMs = PKThrowSerial != 0 && PKThrowSerial == Frame.Public.PK.Serial ? PKThrowReadyAtMs : 0;
 }
 
 void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
@@ -744,6 +749,65 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
         Problem = FString::Printf(TEXT("build request refused status=%u reason=%u"), uint8(Result.Status), uint32(Result.Reason));
     }
     Learn(Intent.Key, Settle, Self, NowMs);
+}
+
+void ALDOpponentController::DispatchPK(ALDGameMode& Mode, const FLDOpponentDecisionFrame& Frame,
+    const FLDOpponentPKIntent& Intent, int64 NowMs, FString& Problem)
+{
+    if (Intent.Kind == ELDOpponentPKKind::None) { return; }
+    const uint32 Generation = Binding.GetMatch().Generation;
+    const FString Contender = Binding.GetContender().ToString();
+    if (Intent.Kind == ELDOpponentPKKind::SignUp)
+    {
+        // The policy sends one sign-up per rest whatever the answer: NoPKProvider means no PK this rest, WindowClosed or
+        // NotInRest a missed window; none is retried.
+        ++Tally.PKSignUps;
+        const ELDRestSignupResult Result = Mode.SubmitRestSignup(*this, Generation, true);
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_PK_SIGNUP contender=%s gen=%u rest=%u result=%u"), *Contender, Generation,
+            uint32(Frame.Public.Timeline.RestIndex), uint32(Result));
+        if (Result != ELDRestSignupResult::Joined)
+        {
+            ++Tally.PKRefused;
+            Problem = FString::Printf(TEXT("PK sign-up refused result=%u"), uint32(Result));
+        }
+        return;
+    }
+    if (!Mode.PKDirector)
+    {
+        // A bet or throw names a public PK, so its director must exist; a missing one is an explicit stop of this request.
+        ++Tally.PKRefused;
+        Problem = TEXT("A PK request arrived without the match's PK director.");
+        return;
+    }
+    if (Intent.Kind == ELDOpponentPKKind::Bet)
+    {
+        ++Tally.PKBets;
+        const ELDPKBetResult Result = Mode.PKDirector->SubmitBet(Binding.GetContender(), Generation, Intent.Serial, Intent.Side);
+        UE_LOG(LogLDAI, Display, TEXT("LD_AI_PK_BET contender=%s gen=%u pk=%u side=%u result=%u"), *Contender, Generation,
+            Intent.Serial, uint32(Intent.Side), uint32(Result));
+        if (Result != ELDPKBetResult::Placed)
+        {
+            ++Tally.PKRefused;
+            Problem = FString::Printf(TEXT("PK bet refused result=%u"), uint32(Result));
+        }
+        return;
+    }
+    ++Tally.PKThrows;
+    int64 ReadyAtMs = 0;
+    const ELDPKThrowResult Result = Mode.PKDirector->SubmitThrow(Binding.GetContender(), Generation, Intent.Serial,
+        Intent.TargetCm, ReadyAtMs);
+    PKThrowSerial = Intent.Serial;
+    // A thrown or cooling-down answer names the own ready time; any other refusal waits one approved throw cooldown before
+    // the next attempt, so a refused target is never re-sent on every decision.
+    PKThrowReadyAtMs = Result == ELDPKThrowResult::Thrown || Result == ELDPKThrowResult::CoolingDown
+        ? ReadyAtMs : FMath::Max(ReadyAtMs, NowMs + Content->Get().Parameters.ThrowCooldownMs);
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_PK_THROW contender=%s gen=%u pk=%u result=%u ready_ms=%lld"), *Contender, Generation,
+        Intent.Serial, uint32(Result), PKThrowReadyAtMs);
+    if (Result != ELDPKThrowResult::Thrown)
+    {
+        ++Tally.PKRefused;
+        Problem = FString::Printf(TEXT("PK throw refused result=%u"), uint32(Result));
+    }
 }
 
 void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision,
