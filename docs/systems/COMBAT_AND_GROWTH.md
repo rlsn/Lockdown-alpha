@@ -315,6 +315,26 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 `LastBuildUnsafeAtMs + 窗口`（没有记录为 0），`ReadBuildSafeAtMs` 供成长域提交时读取，本人 `CombatView.BuildSafeAtMs` 发布同一值；
 DEV 重置把它清零。
 
+### 局末构筑蓝图（#198 §10）
+
+`ALDCombatDirector` 持有本局唯一的 `FLDBuildLedger`（`Development/LDBuildBlueprint.h`，挂点在 `LDCombatBlueprintLedger.cpp`），
+它只读 Combat 已安装的 `FLDBuildProjectionInput`，不是第二份构筑真相。版本按**结构**划分：持有点数的五维、Q/W/E 主动与构件
+（当前构筑还没有构件字段，记为未采集）；只升级或只改 DEV 测试层的修订留在当前版本（更新等级区间与修订区间，
+`dev_layer` 标记测试层），结构相同的修订不另造版本。每个版本带 `[from_ms,to_ms)`（权威毫秒，含开局倒计时）与修订区间；
+第一个版本从 0 开始，即开局的空构筑。
+
+事实只在 Combat 提交它的地方记一次：`ApplyBuildChange` 安装后（先补记被替换的开局构筑）、`LandBasic` 落地的普攻与
+`ReleaseAbility` 的主动释放（记下 EffectId 所属版本；天生冲刺不计施法）、`ApplyHit` 的已提交命中、`HealBody` 实际回复的生命、
+`GrantShieldTo` 实际授予的护盾。命中的造成伤害（`DamageP2`，含被目标护盾吸收部分，每次命中一次）记给记功参赛者**释放该效果时**的版本；
+没有登记释放的反应命中（反伤、盾破反击、爆盾）记给提交时安装的版本；承受伤害、自身护盾吸收与生命损失、一次性回复和获得护盾
+记给受影响者提交时安装的版本。自伤与受保护的零结果不记。自然回复、还款（M12）、减免、触发与拒绝目前没有生产者，
+文件里写 `collected:false` 与 `null`，不写 0。
+
+结果发布时 `ALDGameMode::PublishBuildBlueprints`（`LDGameModeBlueprint.cpp`）用 `LDBuildBlueprint::Compose` 把台账与冻结结果
+（公开 ResultId 作为 Match ID、原因、胜负、开始/结束时刻、本人等级与 K/D/A、产品版本、协议版本、目录根摘要与 schema/handler/projection
+修订）组成每名在场真人的记录，经 `ULDBuildBlueprintComponent` 只发给其拥有连接；AI 不生成，任何人都收不到别人的构筑。
+文件格式、保存、保留与分享见[视野与 UI](VISION_AND_UI.md#构筑蓝图文件与查看)。
+
 ### 技能等级成长（#147）
 
 技能的固定数值随拥有者**当前等级** L 分段成长：1–10 级每级使用 `SKILL.GrowthPerLevel`（15%），
@@ -343,6 +363,8 @@ DEV 重置把它清零。
 `Combat.Components.*`（#198 B）覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04/B06/B14）、B12 冲刺完成武装、B02 账目批次与兑现、
 元素入口（火加层，水/电明确报错）与 B18 绑定，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
+`BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、
+时间段与收尾，以及没有生产者的事实为未采集，
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
 强制目标与恢复；成长的纯规则是
 `DemoGrowth*`，见 [成长事务](GROWTH_TRANSACTIONS.md)。

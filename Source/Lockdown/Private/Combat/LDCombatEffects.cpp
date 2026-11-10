@@ -356,6 +356,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Contact.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();
     }
     MarkViewChanged(Hit.Target.Victim.EntityId);
+    LedgerHitCommitted(Hit,*Body,Damage);
     const int64 HPAfterP2=Body->Resources.HpP2;
     // A one-time heal; the record below logs what the source actually regained.
     int64 VampHealedP2=0;

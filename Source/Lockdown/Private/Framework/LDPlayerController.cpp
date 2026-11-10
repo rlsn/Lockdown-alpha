@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Audio/LDMusicSelection.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDDemoEntry.h"
@@ -33,6 +34,7 @@
 ALDPlayerController::ALDPlayerController()
 {
     Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));
+    BuildBlueprints=CreateDefaultSubobject<ULDBuildBlueprintComponent>(TEXT("BuildBlueprints"));
     bAutoManageActiveCameraTarget=false;
 }
 

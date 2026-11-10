@@ -2006,6 +2006,63 @@ bool RunAirdrop(FAutomationTestBase& Test)
     return bGood;
 }
 
+bool RunCharms(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
+    Base.POIs.Add(POI(TEXT("airdrop_w"), ELDOpponentPOIKind::Airdrop, -2300, 400));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    const auto IsCharm = [](const FLDOpponentDecision& D) { return D.Mode == ELDOpponentMode::Charm && D.Reason == ELDOpponentReason::TakeCharm; };
+
+    auto Frame = Base;
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::Mana}};
+    FLDOpponentPolicyState Full;
+    bool bGood = Test.TestFalse(TEXT("#198: a full body ignores a mana charm it cannot use"),
+        IsCharm(LDOpponentPolicy::Decide(Frame, C, Full)));
+    Frame.Self.MpP2 = Frame.Self.MaxMpP2 / 2;
+    FLDOpponentPolicyState Thirsty;
+    const auto Mana = LDOpponentPolicy::Decide(Frame, C, Thirsty);
+    bGood &= Expect(Test, TEXT("#198: a body short of mana walks onto the mana charm"), Mana, EMode::Charm, EBody::MoveGround,
+        TEXT("airdrop_s")) && Test.TestTrue(TEXT("Taking a charm is its own reason"), IsCharm(Mana));
+
+    Frame = Base;
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}, {TEXT("airdrop_w"), ELDCharmKind::MoveSpeed}};
+    Frame.Self.FootCm = FVector(-2000, 0, 0);
+    FLDOpponentPolicyState Nearest;
+    bGood &= Expect(Test, TEXT("#198: of two usable charms the nearer point is taken"), LDOpponentPolicy::Decide(Frame, C, Nearest),
+        EMode::Charm, EBody::MoveGround, TEXT("airdrop_w"));
+
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::Heal}};
+    FLDOpponentPolicyState Hurt;
+    bGood &= Expect(Test, TEXT("#198: a recovering body takes a lying heal charm"), LDOpponentPolicy::Decide(Frame, C, Hurt),
+        EMode::Charm, EBody::MoveGround, TEXT("airdrop_s"));
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}};
+    FLDOpponentPolicyState HurtNoHeal;
+    bGood &= Test.TestFalse(TEXT("A recovering body does not detour for a charm that does not heal"),
+        IsCharm(LDOpponentPolicy::Decide(Frame, C, HurtNoHeal)));
+
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_w");
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}};
+    FLDOpponentPolicyState Drop;
+    bGood &= Test.TestTrue(TEXT("The airdrop outranks a charm"),
+        LDOpponentPolicy::Decide(Frame, C, Drop).Reason == ELDOpponentReason::ContestAirdrop);
+    Frame = Base;
+    Frame.Public.Charms = {{TEXT("unknown_point"), ELDCharmKind::MoveSpeed}};
+    FLDOpponentPolicyState Stray;
+    bGood &= Test.TestFalse(TEXT("A charm that names no public airdrop point is ignored"),
+        IsCharm(LDOpponentPolicy::Decide(Frame, C, Stray)));
+    return bGood;
+}
+
 bool RunHuntLeader(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -2343,6 +2400,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryEscapeKeptTest, "Lockdow
 bool FLDDemoOpponentRecoveryEscapeKeptTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunRecoveryEscapeKept(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCharmsTest, "Lockdown.Rules.DemoOpponentPolicy.Charms",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentCharmsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunCharms(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",

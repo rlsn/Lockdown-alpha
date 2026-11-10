@@ -930,6 +930,7 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     Hit.KnockbackAnchorCm=FootOf(Actor);
     if (!OnBasicLanded(Body,Hit,Error)) { return false; }
     PendingHits.Add(Hit);
+    LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
     if (!Taken.IsEmpty() || Body.Empowers.Num()!=PendingBefore)
     {
         ++Body.StateRevision;
@@ -1103,6 +1104,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const auto& Final=Body.AttributeProjection.Final;
     const FGuid EffectId=FGuid::NewGuid();
     Track->LastEffectId=EffectId;
+    // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
+    LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
     bool bDealsDamage=false;

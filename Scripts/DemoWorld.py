@@ -746,6 +746,11 @@ def validate_bindings(world, data):
         require(geometry.legal(point(anchors[identity]["position_cm"], identity), radius), "InvalidGeometry", identity,
                 "Boss waypoint lacks legal capsule support")
     zone_radius = {"Dorm": p("DORM.RadiusCm"), "Airdrop": p("AIRDROP.PickupRadiusCm")}
+    # #198 charms land on the airdrop points: their pickup disk stays inside the checked airdrop disk, and a wave still
+    # finds PerWave distinct points while one point holds the current airdrop.
+    airdrops = sum(1 for row in anchors.values() if row["kind"] == "Airdrop")
+    require(0 < p("CHARM.PickupRadiusCm") <= p("AIRDROP.PickupRadiusCm") and data["parameters"]["CHARM.PerWave"] < airdrops,
+            "InvalidGeometry", "CHARM", "charms need the airdrop disks and more airdrop points than one wave places")
     zones = [(identity, row["kind"].lower(), point(row["position_cm"], identity), zone_radius[row["kind"]])
              for identity, row in anchors.items() if row["kind"] in zone_radius]
     for identity, label, centre, zone in zones:

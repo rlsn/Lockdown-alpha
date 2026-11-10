@@ -238,6 +238,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"),
             ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "80"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
+            # #198 outer parameters: charm waves at T=30/120/.../570, 45 field seconds each.
+            ("CHARM.FirstWaveSec", "ms", "30"), ("CHARM.WaveIntervalSec", "ms", "90"), ("CHARM.LifetimeSec", "ms", "45"),
+            ("CHARM.PickupRadiusCm", "cm", "100"), ("CHARM.HealMaxHPRatio", "ratio", ".20"),
+            ("CHARM.ManaMaxMPRatio", "ratio", ".25"), ("CHARM.MoveSpeedRatio", "ratio", ".20"), ("CHARM.MoveSpeedSec", "ms", "6"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("GROWTH.BuildSafeWindowSec", "ms", "4"),
@@ -256,6 +260,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
+            ("CHARM.WaveCount", 7), ("CHARM.PerWave", 2),
             ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
             # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.

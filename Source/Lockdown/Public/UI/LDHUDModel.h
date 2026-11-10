@@ -184,6 +184,11 @@ namespace LDHUD
     // server now. Empty when there is no drop to show; the claim is an event of the event feed (FEventFeed), not a
     // standing line.
     LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNowMs);
+    // #198: the player-facing charm name and its map colour (heal green, mana blue, move speed gold).
+    LOCKDOWN_API FString CharmName(ELDCharmKind Kind);
+    LOCKDOWN_API FLinearColor CharmColor(ELDCharmKind Kind);
+    // #198: the public line of the charms lying now, in serial order; empty when none lies.
+    LOCKDOWN_API FString CharmLine(const TArray<FLDCharmView>& Charms);
     // D26 (#79): the public Boss line: a countdown shortly before it appears and a reminder while it patrols. AppearAtMs is
     // a field progress T compared with FieldNowMs like AirdropLine. Empty otherwise; who landed the last hit is an event
     // of the event feed (FEventFeed).
