@@ -353,6 +353,7 @@ private:
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
     friend class FLDRestPhaseTest;
+    friend class FLDDemoOpponentProbe;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

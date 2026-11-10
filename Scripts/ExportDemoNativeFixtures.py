@@ -668,7 +668,9 @@ def _export_exact_integer_case(valid):
 
 def _export_world_spawn_shift_case(valid):
     world = fixtures.world_source_fixture()
-    next(row for row in world["anchors"] if row["id"] == "s00")["position_cm"]["x"] += 1
+    # #198: the rest anchor's PK sign-up disk stands a fixed distance from it, so it moves with it.
+    for identity in ("s00", "pk_signup_0"):
+        next(row for row in world["anchors"] if row["id"] == identity)["position_cm"]["x"] += 1
     valid("world_spawn_shift", world=world)
 
 
