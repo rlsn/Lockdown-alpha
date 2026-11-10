@@ -261,6 +261,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDFrameDiagnostics",
         "Lockdown.Rules.HUDNextStep",
         "Lockdown.Rules.HUDChoicesFold",
+        "Lockdown.Rules.HUDBuildGate",
+        "Lockdown.Rules.HUDCardFaces",
         "Lockdown.Rules.HUDDevTestPanel",
         "Lockdown.Rules.HUDTermsGlossary",
         "Lockdown.Rules.IssuedCommandLiveness",

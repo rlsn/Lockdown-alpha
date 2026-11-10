@@ -22,7 +22,7 @@ namespace LDObservation
     constexpr int32 MaxUnits = 58;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 18;
+    constexpr int32 MaxStatuses = 16;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 32;

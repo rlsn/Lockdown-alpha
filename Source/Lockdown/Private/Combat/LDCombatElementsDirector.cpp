@@ -190,12 +190,12 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     ClearMark(Target);
     for (const FLDBurnTickShare& Share : FireShares)
     {
-        FLDElementApplier Owner;
-        Owner.SourceEntity=Share.SourceEntity;
-        Owner.SourceBody=Share.SourceBody;
-        Owner.CreditOwner=Share.CreditOwner;
-        Owner.Source=Share.Source;
-        FLDCombatHit Settle=SettleHit(Owner,Primary,ReactionId,Share.DamageP2);
+        FLDElementApplier FireApplier;
+        FireApplier.SourceEntity=Share.SourceEntity;
+        FireApplier.SourceBody=Share.SourceBody;
+        FireApplier.CreditOwner=Share.CreditOwner;
+        FireApplier.Source=Share.Source;
+        FLDCombatHit Settle=SettleHit(FireApplier,Primary,ReactionId,Share.DamageP2);
         Settle.bBurnTick=true;
         PendingHits.Add(MoveTemp(Settle));
     }

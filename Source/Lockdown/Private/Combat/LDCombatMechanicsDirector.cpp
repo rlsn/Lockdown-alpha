@@ -278,12 +278,12 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         if (Zone.HasteBp>0)
         {
             ALDCharacter* OwnerActor=nullptr;
-            FLDBodyCombatState* Owner=FindBody(Zone.SourceBody,&OwnerActor);
-            if (Owner && OwnerActor)
+            FLDBodyCombatState* ZoneOwner=FindBody(Zone.SourceBody,&OwnerActor);
+            if (ZoneOwner && OwnerActor)
             {
-                const bool bInside=!Owner->bPendingDeath && NowMs<Zone.EndMs
+                const bool bInside=!ZoneOwner->bPendingDeath && NowMs<Zone.EndMs
                     && FVector::DistSquared2D(Zone.CentreCm,FootOf(*OwnerActor))<=Zone.RadiusCm*Zone.RadiusCm;
-                const bool bHeld=Owner->TimedBonuses.ContainsByPredicate([&Zone](const FLDCombatTimedBonus& Row)
+                const bool bHeld=ZoneOwner->TimedBonuses.ContainsByPredicate([&Zone](const FLDCombatTimedBonus& Row)
                 { return Row.EffectId==Zone.EffectId; });
                 if (bInside && !bHeld)
                 {
@@ -294,15 +294,15 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Speed.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
                     Speed.Amount=Zone.HasteBp;
                     Bonus.ExpiresAtMs=Zone.EndMs;
-                    LDTactical::ApplyTimedBonus(Owner->TimedBonuses,Bonus);
-                    ++Owner->StateRevision;
-                    MarkViewChanged(Owner->Victim.EntityId);
+                    LDTactical::ApplyTimedBonus(ZoneOwner->TimedBonuses,Bonus);
+                    ++ZoneOwner->StateRevision;
+                    MarkViewChanged(ZoneOwner->Victim.EntityId);
                 }
                 else if (!bInside && bHeld)
                 {
-                    Owner->TimedBonuses.RemoveAll([&Zone](const FLDCombatTimedBonus& Row) { return Row.EffectId==Zone.EffectId; });
-                    ++Owner->StateRevision;
-                    MarkViewChanged(Owner->Victim.EntityId);
+                    ZoneOwner->TimedBonuses.RemoveAll([&Zone](const FLDCombatTimedBonus& Row) { return Row.EffectId==Zone.EffectId; });
+                    ++ZoneOwner->StateRevision;
+                    MarkViewChanged(ZoneOwner->Victim.EntityId);
                 }
             }
         }

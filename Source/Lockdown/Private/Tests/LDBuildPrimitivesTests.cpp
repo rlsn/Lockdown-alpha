@@ -244,8 +244,9 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
     FLDCombatBurn Fresh;
     TestTrue(TEXT("A new burn"), ApplyBurn(Fresh, Layer(A, 0), 1, 0, T));
     int32 Ticks = 0;
-    while (PopBurnTick(Fresh, 3000, T, TickAt, Shares)) { ++Ticks; }
-    TestTrue(TEXT("ticks six times, the last on its deadline, and then ends"), Ticks == 6 && TickAt == 3000 && Fresh.Layers.IsEmpty());
+    int64 LastTick = 0;
+    while (PopBurnTick(Fresh, 3000, T, TickAt, Shares)) { ++Ticks; LastTick = TickAt; }
+    TestTrue(TEXT("ticks six times, the last on its deadline, and then ends"), Ticks == 6 && LastTick == 3000 && Fresh.Layers.IsEmpty());
     TestTrue(TEXT("A layer lasts through its deadline"), ApplyBurn(Fresh, Layer(A, 0), 1, 0, T) && BurnActive(Fresh, 3000)
         && !ExpireBurn(Fresh, 3000));
     TestTrue(TEXT("and ends after it"), !BurnActive(Fresh, 3001) && ExpireBurn(Fresh, 3001) && Fresh.Layers.IsEmpty());
@@ -558,8 +559,9 @@ bool FLDBuildSafeWindowTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A window past the clock saturates instead of wrapping"), LDCombatSourceRules::BuildSafeAtMs(MAX_int64 - 10, WindowMs),
         MAX_int64);
 
-    // Offensive releases: every approved active with a hostile effect; a self buff, a shield or a plain dash is not one.
-    const TSet<FString> Peaceful = {TEXT("active_bail_out"), TEXT("active_not_mad"), TEXT("active_triple_combo")};
+    // Offensive releases: every approved active with a hostile effect; a self buff, a shield, a plain dash or the S16
+    // stance (its answer is hostile damage, marked when it lands) is not one.
+    const TSet<FString> Peaceful = {TEXT("active_bail_out"), TEXT("active_not_mad"), TEXT("active_triple_combo"), TEXT("active_brace")};
     for (const FLDDemoAbilityDefinition& Ability : F.Catalog->Get().Abilities)
     {
         TestEqual(FString::Printf(TEXT("%s is %s"), *Ability.Id, Peaceful.Contains(Ability.Id) ? TEXT("not offensive") : TEXT("offensive")),

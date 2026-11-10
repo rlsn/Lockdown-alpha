@@ -935,8 +935,8 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
     // One row per definition (character, actives, stats, monsters) and per native status: statuses 1..6, 9, 10 and 12..14
     // (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses (silence, burn)
-    // and attack_slowed (#198 retires cowering and contact_guard).
-    const int32 Statuses = 6 + 5 + 1 + 2 + 1;
+    // and attack_slowed (#198 retires cowering and contact_guard), and the #198 wet, electrified, braced and soured.
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Monsters.Num() + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
@@ -1155,8 +1155,8 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     {
         OpeningPool += Ability.Opening ? 1 : 0;
     }
-    TestEqual(TEXT("Sixteen single-level actives"), Definitions.Abilities.Num(), 16);
-    TestEqual(TEXT("Thirteen actives form the opening pool"), OpeningPool, 13);
+    TestEqual(TEXT("Twenty-two single-level actives"), Definitions.Abilities.Num(), 22);
+    TestEqual(TEXT("Eighteen actives form the opening pool (AI spec §4.3)"), OpeningPool, 18);
     TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
@@ -1199,7 +1199,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     }
     const FLDDemoAbilityDefinition* Retired = nullptr;
     const FLDDemoStatDefinition* Card = nullptr;
-    TestFalse(TEXT("The reserved sock shot has no definition yet"), Snapshot->FindAbility(TEXT("active_sock_shot"), Retired, Error));
+    TestFalse(TEXT("The retired cower is absent"), Snapshot->FindAbility(TEXT("active_cower"), Retired, Error));
     TestFalse(TEXT("Retired passives are absent"), Snapshot->FindAbility(TEXT("passive_lucky_star"), Retired, Error));
     TestFalse(TEXT("Retired attribute cards are absent"), Snapshot->FindStat(TEXT("attr_protein"), Card, Error));
     return true;
