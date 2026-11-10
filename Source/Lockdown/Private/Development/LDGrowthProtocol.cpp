@@ -81,12 +81,69 @@ bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
         && RequestId == Other.RequestId && ExpectedBuildRevision == Other.ExpectedBuildRevision
         && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && Kind == Other.Kind && OfferId == Other.OfferId
         && OfferRevision == Other.OfferRevision && Option == Other.Option && bLearnIfPossible == Other.bLearnIfPossible
-        && Slot == Other.Slot && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts;
+        && Slot == Other.Slot && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts
+        && Component == Other.Component && bInstallIfPossible == Other.bInstallIfPossible && TargetKind == Other.TargetKind
+        && TargetDefinition == Other.TargetDefinition && TargetSegment == Other.TargetSegment && BoundActive == Other.BoundActive
+        && Element == Other.Element;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
 {
     return Family == ELDGrowthFamily::Build;
+}
+
+bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::LearnBlueprint:
+    case ELDBuildCommandKind::AllocatePoints:
+    case ELDBuildCommandKind::OpeningBase:
+    case ELDBuildCommandKind::InstallComponent:
+    case ELDBuildCommandKind::UninstallComponent:
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::ForgetActive:
+        return true;
+    case ELDBuildCommandKind::None:
+        break;
+    }
+    return false;
+}
+
+bool LDGrowthWire::IsKnownTargetKind(ELDComponentTargetKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDComponentTargetKind::None:
+    case ELDComponentTargetKind::Active:
+    case ELDComponentTargetKind::EffectSegment:
+    case ELDComponentTargetKind::Component:
+    case ELDComponentTargetKind::Dash:
+        return true;
+    }
+    return false;
+}
+
+bool LDGrowthWire::IsKnownElement(ELDDemoElement Element)
+{
+    switch (Element)
+    {
+    case ELDDemoElement::None:
+    case ELDDemoElement::Fire:
+    case ELDDemoElement::Water:
+    case ELDDemoElement::Electric:
+        return true;
+    }
+    return false;
+}
+
+bool LDGrowthWire::DecodeOptional(const FLDDefinitionWire& Wire, FName& Out)
+{
+    Out = NAME_None;
+    return Wire == FLDDefinitionWire() || Wire.Decode(Out);
 }
 
 bool LDGrowthWire::IsBuildLifePhase(ELDLifePhase Phase)
@@ -125,6 +182,22 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NotEnoughPoints: return TEXT("NotEnoughPoints");
     case ELDGrowthReason::NoActiveOffer: return TEXT("NoActiveOffer");
     case ELDGrowthReason::PhaseClosed: return TEXT("PhaseClosed");
+    case ELDGrowthReason::NotOwned: return TEXT("NotOwned");
+    case ELDGrowthReason::AlreadyInstalled: return TEXT("AlreadyInstalled");
+    case ELDGrowthReason::NotInstalled: return TEXT("NotInstalled");
+    case ELDGrowthReason::RestOnly: return TEXT("RestOnly");
+    case ELDGrowthReason::InvalidTarget: return TEXT("InvalidTarget");
+    case ELDGrowthReason::ElementUnsupported: return TEXT("ElementUnsupported");
+    case ELDGrowthReason::OpeningBaseUnavailable: return TEXT("OpeningBaseUnavailable");
+    case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");
+    case ELDGrowthReason::OpeningActiveFirst: return TEXT("OpeningActiveFirst");
+    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
+    case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
+    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("NpcPoolTooSmall");
+    case ELDGrowthReason::OfferOutstanding: return TEXT("OfferOutstanding");
+    case ELDGrowthReason::NothingToRespec: return TEXT("NothingToRespec");
+    case ELDGrowthReason::SlotEmpty: return TEXT("SlotEmpty");
+    case ELDGrowthReason::NotRestWindow: return TEXT("NotRestWindow");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");

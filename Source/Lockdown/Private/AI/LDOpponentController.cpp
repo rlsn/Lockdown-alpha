@@ -357,6 +357,9 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Phase = Public.Phase;
     Frame.Public.NowMs = NowMs;
     Frame.Public.StartedAtMs = Public.StartedAtMs;
+    // #198: the public timeline; camp growth and the build stage read it like a human client does.
+    Frame.Public.Timeline = Public.Timeline;
+    Frame.Public.FieldNowMs = LDMatchTimeline::FieldNowFromView(Public.Timeline, NowMs);
     Frame.Public.Circle = CircleOf(Public.CircleState);
     Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo || Public.CircleState == ELDCircleState::Contested
         ? Public.Occupier : FGuid();
@@ -387,7 +390,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         if (Error.IsEmpty()) { Error = TEXT("The own growth publication is not of this match."); }
         return false;
     }
-    Me.OpeningPickAtMs = Public.StartedAtMs - Content->Get().Parameters.CountdownMs + OpeningPickAfterMs;
+    // The opening rest R0 starts at the match start; the drawn plan waits OpeningPickAfterMs into it.
+    Me.OpeningPickAtMs = Public.StartedAtMs + OpeningPickAfterMs;
     if (Own.LifePhase == ELDLifePhase::Dead) { return true; }
     if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
         || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))

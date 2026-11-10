@@ -11,7 +11,8 @@
 
 int64 ALDGameMode::NextAirdropDueMs() const
 {
-    return Airdrop.IsActive() ? Airdrop.NextDueMs(AuthorityNowMs) : MAX_int64;
+    // #198: the schedule is in field progress T; nothing is due while a rest pauses the field.
+    return Airdrop.IsActive() && IsFieldRunning() ? FieldDueAuthorityMs(Airdrop.NextDueMs(GetFieldNowMs())) : MAX_int64;
 }
 
 bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -21,12 +22,13 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
         Error = TEXT("The airdrop schedule requires the current RespawnsAndWorld permit and an active schedule.");
         return false;
     }
-    const int64 NowMs = Permit.GetBoundary().AtMs;
+    if (!IsFieldRunning()) { return true; }
+    const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
     if (Airdrop.Advance(NowMs))
     {
         bPublicMatchDirty = true;
         const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
-        UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s at_ms=%lld"),
+        UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s field_t_ms=%lld"),
             Airdrop.Phase == ELDAirdropPhase::Landed ? TEXT("LAND") : TEXT("ANNOUNCE"), Airdrop.Serial,
             Point ? *Point->Id.ToString() : TEXT("none"), NowMs);
     }
@@ -41,8 +43,8 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         Error = TEXT("The airdrop claim requires the current Transactions permit, an active schedule, Combat and the growth domain.");
         return false;
     }
-    const int64 NowMs = Permit.GetBoundary().AtMs;
-    if (Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
+    if (!IsFieldRunning() || Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
+    const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
     const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
     TArray<LDAirdrop::FCandidate> Candidates;
     Combat->ReadLivingContenderFeet(Candidates);
@@ -68,7 +70,7 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         return false;
     }
     bPublicMatchDirty = true;
-    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld at_ms=%lld"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld field_t_ms=%lld"),
         Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, NowMs);
     return true;
 }

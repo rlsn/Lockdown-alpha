@@ -5,6 +5,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Development/LDProgressionRules.h"
 
 class FLDDemoContentSnapshot;
 
@@ -66,6 +67,15 @@ struct FLDOpponentStatPoints
     int32 Points = 0;
 };
 
+// #198 B: one owned component instance (inventory and installed, one per definition).
+struct FLDOpponentComponent
+{
+    FString DefinitionId;
+    bool bInstalled = false;
+    // Installed at least once: enabling it again is a rest-window move, never a field install.
+    bool bEverInstalled = false;
+};
+
 // The AI's own authorized projection: owner life, progression and source readiness.
 struct FLDOpponentSelf
 {
@@ -88,11 +98,15 @@ struct FLDOpponentSelf
     TArray<FLDOpponentActive> Actives;
     // Chosen actives waiting for an empty slot (待学图纸), sorted by id.
     TArray<FString> Blueprints;
-    // One row per catalog stat, in catalog order.
+    // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
     TArray<FLDOpponentStatPoints> StatPoints;
     int64 UnspentPoints = 0;
     // Active opportunities consumed so far, the opening one included.
     uint8 OffersConsumed = 0;
+    // #198 B: owned components sorted by id; the opening base pick while it is open and its options in catalog order.
+    TArray<FLDOpponentComponent> Components;
+    bool bOpeningBasePending = false;
+    TArray<FString> OpeningBaseOptions;
     // Combat's build safe window (absolute authority ms; at or before now is safe).
     int64 BuildSafeAtMs = 0;
     TArray<FLDOpponentSource> Sources;
@@ -110,8 +124,13 @@ struct FLDOpponentPublicMatch
 {
     ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     int64 NowMs = 0;
-    // The public T=0 of the match (FLDPublicMatchView::StartedAtMs); #97 camp growth stages count from here.
+    // The public match start (FLDPublicMatchView::StartedAtMs, the opening rest R0 begins).
     int64 StartedAtMs = 0;
+    // #198: the public timeline (its build stage is LDProgression::StageForPublic(Phase, Timeline)) and the field
+    // progress T at NowMs; #97 camp growth stages count T.
+    FLDTimelineView Timeline;
+    int64 FieldNowMs = 0;
+    LDProgression::EMatchStage BuildStage() const { return LDProgression::StageForPublic(Phase, Timeline); }
     ELDOpponentCircle Circle = ELDOpponentCircle::Empty;
     // The contender holding spray progress: the sole sprayer, or the holder a contest only paused.
     // Invalid when nobody holds progress.
@@ -195,7 +214,8 @@ struct FLDOpponentDecisionFrame
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
-// Build: one build command (#198 active choice, blueprint learn or point allocation), keyed by its kind and subject.
+// Build: one build command (#198 active choice, blueprint learn, point allocation, opening base pick or component install),
+// keyed by its kind and subject.
 enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Build, Walk };
 
 struct FLDOpponentRetryKey
@@ -228,8 +248,9 @@ struct FLDOpponentBodyIntent
 };
 
 // #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),
-// learn a pending blueprint into an empty slot, or allocate unspent points.
-enum class ELDOpponentBuildKind : uint8 { None, ChooseActive, LearnBlueprint, AllocatePoints };
+// learn a pending blueprint into an empty slot, allocate unspent points, pick the opening base component (always asking to
+// enable it now) or enable an owned, never-installed component.
+enum class ELDOpponentBuildKind : uint8 { None, ChooseActive, LearnBlueprint, AllocatePoints, OpeningBase, InstallComponent };
 
 struct FLDOpponentBuildIntent
 {
@@ -241,8 +262,13 @@ struct FLDOpponentBuildIntent
     // LearnBlueprint: the blueprint and the empty slot 0..2.
     FString Blueprint;
     uint8 Slot = 0;
-    // AllocatePoints: one count per catalog stat, in catalog order.
+    // AllocatePoints: one count per stat, in the stats' design order.
     TArray<uint8> PointCounts;
+    // OpeningBase / InstallComponent: the component and, for an ActiveElement binding (B18), the bound learned active and
+    // element (empty / None otherwise).
+    FString Component;
+    FString BoundActive;
+    ELDDemoElement Element = ELDDemoElement::None;
     FLDOpponentRetryKey Key;
 };
 
@@ -382,9 +408,22 @@ namespace LDOpponentPolicy
         uint8& OutSlot, FString& Error);
     // Every unspent point (at most 255 per stat in one command), each to the stat with the fewest points among the relevant
     // set: physique and thick skin always; strength when a learned active or the basic attack scales with AD; brains when a
-    // learned active scales with AP. Ties go to catalog order. One count per catalog stat; false without unspent points.
+    // learned active scales with AP. Ties go to the stats' design order, which also orders the counts; false without unspent points.
     LOCKDOWN_API bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out,
         FString& Error);
+    // #198 B component picks (rule-based, no tunable numbers). Whether the AI could enable Component apart from the build
+    // gate: a base component whose elements are open (water and electric are refused as ElementUnsupported until #198 A)
+    // and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its BindActives lists, bound
+    // with fire (Out* stay empty / None without a binding).
+    LOCKDOWN_API bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component,
+        FString& OutBoundActive, ELDDemoElement& OutElement);
+    // The opening base pick: the first option in catalog order that ComponentUsable accepts; false when none does.
+    LOCKDOWN_API bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
+        FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
+    // The owned component to enable next: the first never-installed, not installed one in catalog order that
+    // ComponentUsable accepts; false when none does.
+    LOCKDOWN_API bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
+        FString& OutComponent, FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
@@ -403,11 +442,12 @@ namespace LDOpponentPolicy
     // or respawned. Any admitted walk clears it.
     LOCKDOWN_API void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
         const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
-    // #198: the build step after any offer choice, exactly as Decide makes it: the preferred blueprint into the lowest empty
-    // slot when learning is allowed (the countdown, or alive inside the build safe window), otherwise every unspent point
-    // when allocating is allowed (the countdown, dead, or alive inside the window). False when nothing applies, a build
-    // request is in flight or failure memory holds the step back.
-    LOCKDOWN_API bool DecideLearnOrAllocate(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+    // #198: the build step after any offer choice, exactly as Decide makes it: the opening base pick while it is open (when
+    // an active may be chosen), the preferred blueprint into the lowest empty slot when learning is allowed (the countdown,
+    // or alive inside the build safe window), the next owned component to enable under the same gate, otherwise every
+    // unspent point when allocating is allowed (the countdown, dead, or alive inside the window). False when nothing
+    // applies, a build request is in flight or failure memory holds the step back.
+    LOCKDOWN_API bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as

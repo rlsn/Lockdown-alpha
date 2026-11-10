@@ -138,7 +138,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 
 1. Host 是唯一真人，只编排、不参战、不计分；两名服务器 AI（1 真人 + 2 AI）作为对决双方。
 2. Host 在大厅武装 Case 种子并为两名 AI 登记同一个 DEV 评估画像，再按正常流程开局。
-3. 开局倒计时内各自按计划完成开局选择；T=0 时 `DevGrantReward` 发放计划的经验供给（`LD_REWARD cause=dev_fixture`，经正常奖励复合事务）。
+3. 开局休息 R0 的配装步骤内各自按计划完成开局选择；探针首次看到野外 1（`Development`）时 `DevGrantReward` 发放计划的经验供给（`LD_REWARD cause=dev_fixture`，经正常奖励复合事务）。
    条件实验用 `DevQueueOffer` 预置序号 2 起的三张候选（属性卡品质为预置的 Blue）。
 4. 每次机会按计划规则选择：`ai_select`（生产 `SelectChoice`，含重抽）、`option_index`（实际 Offer 的第 0–2 张）、
    `definition`（实际 Offer 中的指定卡；新主动在 Q/W/E 满时需要 `replace`）。规定的卡不在实际 Offer 中时 Case 判
@@ -165,7 +165,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 | `duel_score` | +1 主体击杀对手，−1 主体先死，0 到时未分胜负（删失） |
 | `damage_dealt_hp` / `damage_taken_hp` | 结果前主体对对手、对手对主体已提交命中的实际掉血（不含护盾吸收） |
 | `subject_hp_end_bp` | Case 结束时主体生命比例（死亡为 0）；时限可能落在两帧之间，终态是探针结束时的帧状态，不是精确时限快照 |
-| `decision_time_ms` | T=0 到第一名对决者死亡，到时删失 |
+| `decision_time_ms` | `PublicMatch.StartedAtMs`（开局、即 R0 开始）到第一名对决者死亡，到时删失 |
 
 事实（`cases.jsonl`）：双方每个序号的实际 Offer 与选择、重抽 Offer、终局构筑、分支标签（分支点所选卡）、
 分支前缀、出生位置、首个有效命中的一方与时间、随机指纹。
@@ -190,13 +190,15 @@ Frame、命令、回执与失败记忆仍是该适配器的，生产决策不变
 生产交战与行走原语。
 
 `LDBuildEvaluationProbe` 每帧推进：Join（核对 Listen Host、`-LDDevGrowthFixture`、内容根与计划一致）→ Lobby（2 个 AI、准备、
-武装种子、登记画像、开始捕获日志、开局）→ Starting（核对种子身份进入名单、画像被采用、预置入队）→ Running（T=0 供给、
+武装种子、登记画像、开始捕获日志、开局）→ Starting（核对种子身份进入名单、画像被采用、预置入队）→ Running（野外 1 供给、
 画像失败、击杀通知、时限、墙钟预算）→ 写结果与轨迹 → 结束本局 → 回大厅并等 AI 退休。输入经
 `LDBuildEvaluation::ParseInput` 严格解析（`Lockdown.Rules.BuildEvaluation.Input`），输入与输出都必须在 `Artifacts` 下。
 轨迹是该局期间 `LogLDCombat/Growth/Match/AI/Trace/Test` 的 `LD_*` 行，沿用[运行日志合同](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)，
 Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 发生在 `StartedAtMs + DuelTimeoutMs` 及之前的击杀计入；更晚的通知忽略，按精确时限判为删失。结果前命中指标按该时限截断，
 但终态 HP/MP 与重放终态仍记录探针实际结束帧。
+#198 外层流程接入后，`StartedAtMs` 是开局（R0 开始）而不是野外 1 开始，所以时限与 `decision_time_ms` 包含 R0 的 `REST.OpeningBuildSec`；
+对决越过野外 1 终点时进入 R1，对决身体按阶段边界退休（不是死亡）。这些对判读的影响尚未处理，Harness 也未在新流程下运行。
 
 ## 重放
 
@@ -214,7 +216,7 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 | 测试 | 覆盖 |
 | --- | --- |
 | `Lockdown.Rules.BuildEvaluation.Seeds` | 派生确定性与金值、流相互独立、无开关时拒绝武装且身份仍为新 GUID |
-| `Lockdown.Rules.BuildEvaluation.Policy` | 三种选择规则、缺卡与替换未指定的拒绝、倒计时选择、计划完成前不动、只攻击指定对手、不撤退、走向与到达、失败后停止 |
+| `Lockdown.Rules.BuildEvaluation.Policy` | 三种选择规则、缺卡与替换未指定的拒绝、休息配装步骤内选择、计划完成前不动、只攻击指定对手、不撤退、走向与到达、失败后停止 |
 | `Lockdown.Rules.BuildEvaluation.Input` | 原生输入的严格解析与各类拒绝 |
 | `Lockdown.Rules.BuildEvaluation.Horizon` | 非帧对齐时限之前、恰在时限和之后的击杀边界 |
 | `TestBuildEvaluation.py` | 核心清单拒绝、准入与设计不完整、预算（必填字段、两类上限、场景未声明的类别、证据根已满时拒绝计划且不删旧证据、`gate` 的本批/证据根上限、门禁中止后未完成 Case 为 `BudgetExceeded`、超出事件预算的轨迹不进统计、v1 运行被拒绝）、种子分割、配对/决策/交互统计、删失、分母、阈值判定、身份失配、重放比对、依赖方向 |

@@ -21,8 +21,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_AND_REWARDS §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Countdown','Opening','Fixture','A14','N03','Iso','DevTest')
-    Client1 = @('Net','Start','Countdown','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A24','Iso','DevTest')
+    Host = @('Net','Start','Rest0','Opening','Fixture','A14','N03','Iso','DevTest')
+    Client1 = @('Net','Start','Rest0','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A24','Iso','DevTest')
 }
 
 function Start-GrowthRole {
@@ -94,14 +94,18 @@ try {
         if ($reports[$role].opening.offer -eq $reports[$role].second_opening.offer) { throw "$role's second match reused its opening offer: $output" }
     }
     if (-not $reports['Client1'].opening.staged_preset) { throw "The client's opening offer is not the Host's staged preset: $output" }
-    # #153: the remote owning connection had its move, Shift step and Q refused during the opening countdown, and #198: it
-    # learned its opening active into Q and allocated every opening point before T=0.
-    $countdown = $reports['Client1'].countdown
-    if (-not $countdown.refusals_checked -or [long]$countdown.started_at_ms -ne [long]$reports['Host'].countdown.started_at_ms -or
-        -not $countdown.opening_active -or [long]$countdown.opening_slot -ne 0 -or
-        [long]$countdown.points_allocated -ne [long]$reports['Client1'].opening.unspent_points -or
-        [long]$countdown.max_hp_p2_after -le [long]$countdown.max_hp_p2_before) {
-        throw "The client's countdown refusals, opening learn, opening allocation or the shared T=0 are missing from the reports: $output"
+    # #198: in the opening rest R0 the remote owning connection learned its opening active into Q and allocated every opening
+    # point in the build step, then had its attack-move, Shift step and Q refused in the return countdown; both roles saw the
+    # same match start and field 1 start (T=0).
+    $rest0 = $reports['Client1'].rest0
+    $hostRest0 = $reports['Host'].rest0
+    if (-not $rest0.refusals_checked -or [long]$rest0.started_at_ms -ne [long]$hostRest0.started_at_ms -or
+        [long]$rest0.field_started_at_ms -ne [long]$hostRest0.field_started_at_ms -or
+        [long]$rest0.field_started_at_ms -le [long]$rest0.started_at_ms -or
+        -not $rest0.opening_active -or [long]$rest0.opening_slot -ne 0 -or
+        [long]$rest0.points_allocated -ne [long]$reports['Client1'].opening.unspent_points -or
+        [long]$rest0.max_hp_p2_after -le [long]$rest0.max_hp_p2_before) {
+        throw "The client's R0 refusals, opening learn, opening allocation or the shared field 1 start are missing from the reports: $output"
     }
     $hostReport = $reports['Host']
     $client = $reports['Client1']
@@ -150,7 +154,7 @@ try {
     Write-Host ("DEV-only owned-connection growth scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
         "stages the client's active offers in the Lobby) plus one owning client; each owner opened each match with exactly one queued " +
         "opening opportunity and its opening points, never re-granted by a respawn; the client learned its opening active into Q and " +
-        "allocated its opening points during the countdown; level $($client.match1.level) from $($client.kills) kills; after the kill " +
+        "allocated its opening points in the opening rest R0; level $($client.match1.level) from $($client.kills) kills; after the kill " +
         "reaching the first offer level its choice was kept as a blueprint and an allocation and a learn were refused (NotSafe) while " +
         "its build safe window ran, then the blueprint was learned into W and every point allocated after it; after the Host's own " +
         "DevFixture XP grant it killed the client, which kept its next choice as a blueprint, had a learn refused and allocated points " +

@@ -110,15 +110,17 @@ FString LDHUD::CreatureName(const FLDDemoContentDefinitions* Content,uint8 Creat
 }
 FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName)
 {
-    if(Public.Phase!=ELDMatchPhase::Countdown&&Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
+    if(Public.Phase!=ELDMatchPhase::Rest&&Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
+    // #198: a rest's locked steps (draw .. settlement, the return countdown) refuse every build command, so nothing is hinted.
+    if(Public.Phase==ELDMatchPhase::Rest&&!LDMatchTimeline::IsRestBuildOpen(Public.Timeline)){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
     if(bGrowth&&Progression->bHasActiveOffer)
     {return FString::Printf(TEXT("下一步：点%s选一个技能（%s）"),LDTerms::Choice,*LDTerms::OffersQueued(Progression->QueuedActiveOpportunities));}
     if(bGrowth&&Progression->UnspentPoints>0){return FString::Printf(TEXT("下一步：点%s加点（%s）"),LDTerms::Choice,*LDTerms::UnspentPoints(Progression->UnspentPoints));}
     if(bGrowth&&!Progression->PendingBlueprints.IsEmpty()&&Progression->Actives.Num()<3)
     {return FString::Printf(TEXT("下一步：点%s把%s学到空槽"),LDTerms::Choice,LDTerms::Blueprint);}
-    // #153: before T=0 only growth can be acted on.
-    if(Public.Phase==ELDMatchPhase::Countdown){return FString();}
+    // In a rest only growth can be acted on.
+    if(Public.Phase==ELDMatchPhase::Rest){return FString();}
     if(Public.Phase==ELDMatchPhase::CaptureOpen)
     {
         if(Public.CircleState==ELDCircleState::Solo&&Self.IsValid()&&Public.Occupier==Self){return FString(TEXT("稳住：你"))+LDTerms::Holding;}
@@ -138,6 +140,11 @@ FString LDHUD::RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId)
 {
     const FLDLobbyMember* Member=ContenderId.IsValid()?Lobby.Members.FindByPredicate([&ContenderId](const FLDLobbyMember& M){return M.ContenderId==ContenderId;}):nullptr;
     return Member?Member->Name:FString();
+}
+FString LDHUD::ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest)
+{
+    const FString Name=RosterName(Lobby,ContenderId);
+    return Name.IsEmpty()&&bInRest&&ContenderId.IsValid()?FString(LDTerms::TrainingDummy):Name;
 }
 FLinearColor LDHUD::PaletteColor(uint8 Presentation)
 {
@@ -224,8 +231,8 @@ FString LDHUD::PhaseLine(ELDMatchPhase Phase)
     {
     case ELDMatchPhase::Lobby: return TEXT("房间等待中");
     case ELDMatchPhase::Starting: return TEXT("对局即将开始");
-    case ELDMatchPhase::Countdown: return LDTerms::OpeningCountdown;
-    case ELDMatchPhase::Development: return FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放");
+    case ELDMatchPhase::Rest: return LDTerms::RestPhase;
+    case ELDMatchPhase::Development: return FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
     case ELDMatchPhase::CaptureOpen: return FString(LDTerms::CaptureOpened)+TEXT(" · ")+LDTerms::CaptureRule;
     case ELDMatchPhase::Results: return TEXT("对局结束");
     case ELDMatchPhase::Resetting: return TEXT("正在返回房间");
@@ -245,18 +252,110 @@ FString LDHUD::MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 Now
     const int64 Seconds=NowMs>Public.StartedAtMs?(NowMs-Public.StartedAtMs)/1000:0;
     return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
 }
-FString LDHUD::OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
+FString LDHUD::RestReturnCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
 {
-    if(!bClock||Public.StartedAtMs<=0){return FString();}
-    if(Public.Phase==ELDMatchPhase::Countdown)
+    const FLDTimelineView& Timeline=Public.Timeline;
+    if(!bClock||Public.Generation==0||Timeline.Generation!=Public.Generation){return FString();}
+    if(Public.Phase==ELDMatchPhase::Rest&&Timeline.Stage==ELDMatchStage::Rest&&Timeline.Step==ELDRestStep::Return)
     {
-        // The authority's T=0 boundary may land a frame after the local clock reaches it: hold "1" until it does.
-        const int64 Seconds=NowMs<Public.StartedAtMs?(Public.StartedAtMs-NowMs+999)/1000:1;
+        // The authority's field boundary may land a frame after the local clock reaches it: hold "1" until it does.
+        const int64 Seconds=NowMs<Timeline.StepEndsAtMs?(Timeline.StepEndsAtMs-NowMs+999)/1000:1;
         return FString::Printf(TEXT("%lld"),Seconds);
     }
-    if(Public.Phase==ELDMatchPhase::Development&&NowMs>=Public.StartedAtMs&&NowMs-Public.StartedAtMs<CountdownGoShowMs)
-    { return LDTerms::CountdownGo; }
+    const bool bField=(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen)
+        &&(Timeline.Stage==ELDMatchStage::Field||Timeline.Stage==ELDMatchStage::FinalField);
+    if(bField&&NowMs>=Timeline.FieldStartedAtMs&&NowMs-Timeline.FieldStartedAtMs<CountdownGoShowMs){return LDTerms::CountdownGo;}
     return FString();
+}
+FString LDHUD::RestStepText(ELDRestStep Step)
+{
+    switch(Step)
+    {
+    case ELDRestStep::Build: return LDTerms::RestBuild;
+    case ELDRestStep::Draw: return LDTerms::RestDraw;
+    case ELDRestStep::Betting: return LDTerms::RestBetting;
+    case ELDRestStep::PKReady: return LDTerms::RestPKReady;
+    case ELDRestStep::PK: return LDTerms::RestPK;
+    case ELDRestStep::Settlement: return LDTerms::RestSettlement;
+    case ELDRestStep::Payout: return LDTerms::RestPayout;
+    case ELDRestStep::Return: return LDTerms::RestReturn;
+    default: return FString();
+    }
+}
+LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,const FGuid& Self,bool bClock,int64 NowMs)
+{
+    FTimelineView View;
+    const FLDTimelineView& Timeline=Public.Timeline;
+    if(Public.Generation==0||Timeline.Generation!=Public.Generation){return View;}
+    // Whole seconds rounded up, so a running step never reads 0 while it lasts.
+    const auto Seconds=[](int64 Ms){return Ms>0?(Ms+999)/1000:int64(0);};
+    switch(Timeline.Stage)
+    {
+    case ELDMatchStage::Field:
+    {
+        const FString Left=bClock?Clock(Timeline.FieldEndT-LDMatchTimeline::FieldNowFromView(Timeline,NowMs)):FString(TEXT("同步中"));
+        View.Headline=LDTerms::FieldSegmentLine(int32(Timeline.FieldSegment)+1,int32(FLDTimelineParameters::TimedSegments),Left);
+        return View;
+    }
+    case ELDMatchStage::FinalField:
+        View.Headline=LDTerms::FinalField;
+        return View;
+    case ELDMatchStage::Rest:
+        break;
+    default:
+        return View;
+    }
+    View.Headline=LDTerms::RestLabel(Timeline.RestIndex)+TEXT(" · ")+RestStepText(Timeline.Step)+TEXT(" · ")
+        +(!bClock?FString(TEXT("时间同步中"))
+        :FString::Printf(TEXT("%s %lld 秒"),Timeline.Step==ELDRestStep::PK?TEXT("最长剩"):TEXT("剩"),Seconds(Timeline.StepEndsAtMs-NowMs)));
+    TArray<FString> Detail;
+    if(Timeline.Step==ELDRestStep::Build)
+    {
+        View.bSignedUp=Self.IsValid()&&Timeline.Signups.Contains(Self);
+        View.SignupAction=View.bSignedUp?FString(LDTerms::SignupWithdraw):FString(LDTerms::SignupJoin);
+        if(!bClock){Detail.Add(TEXT("PK 报名时间同步中"));}
+        else if(NowMs<Timeline.SignupOpensAtMs){Detail.Add(LDTerms::SignupOpensIn(Seconds(Timeline.SignupOpensAtMs-NowMs)));}
+        else if(NowMs<=Timeline.StepEndsAtMs){View.bSignupOpen=true;Detail.Add(LDTerms::SignupOpenFor(Seconds(Timeline.StepEndsAtMs-NowMs)));}
+        else{Detail.Add(TEXT("PK 报名已截止"));}
+        if(View.bSignupOpen||!Timeline.Signups.IsEmpty())
+        {
+            Detail.Add(LDTerms::SignedUpCount(Timeline.Signups.Num()));
+            Detail.Add(View.bSignedUp?FString(LDTerms::SignedUpSelf):FString(LDTerms::NotSignedUpSelf));
+        }
+    }
+    else
+    {
+        Detail.Add(Timeline.bPKSkipped?FString(LDTerms::PKSkipped):LDTerms::PKEntrants(Timeline.LockedEntrants));
+        if(!LDMatchTimeline::IsRestBuildOpen(Timeline)){Detail.Add(LDTerms::BuildLockedNow);}
+    }
+    View.Detail=FString::Join(Detail,TEXT(" · "));
+    return View;
+}
+FString LDHUD::RestSignupText(ELDRestSignupResult Result)
+{
+    switch(Result)
+    {
+    case ELDRestSignupResult::Joined: return TEXT("已报名 PK");
+    case ELDRestSignupResult::Withdrawn: return TEXT("已取消 PK 报名");
+    case ELDRestSignupResult::WindowClosed: return TEXT("PK 报名没有开放，本次没有改动");
+    case ELDRestSignupResult::NotContender: return TEXT("不是本局参赛者，不能报名 PK");
+    case ELDRestSignupResult::StaleMatch: return TEXT("已不是当前对局，没有报名");
+    case ELDRestSignupResult::NoPKProvider: return LDTerms::NoPKProvider;
+    case ELDRestSignupResult::NotInRest: return TEXT("现在不在休息中，不能报名 PK");
+    default: return FString::Printf(TEXT("PK 报名结果未知 #%d"),int32(Result));
+    }
+}
+FString LDHUD::TrainingResetText(ELDTrainingResetResult Result)
+{
+    switch(Result)
+    {
+    case ELDTrainingResetResult::Queued: return TEXT("训练已重置：你和假人回满，冷却就绪");
+    case ELDTrainingResetResult::NotInRest: return TEXT("现在不在休息中，不能重置训练");
+    case ELDTrainingResetResult::NotContender: return TEXT("不是本局参赛者，不能重置训练");
+    case ELDTrainingResetResult::StaleMatch: return TEXT("已不是当前对局，没有重置训练");
+    case ELDTrainingResetResult::NoDummy: return FString(TEXT("没有"))+LDTerms::TrainingDummy+TEXT("（休息位被占）");
+    default: return FString::Printf(TEXT("重置训练结果未知 #%d"),int32(Result));
+    }
 }
 LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
     int64 SprayMs,int64 GuardMs)
@@ -265,8 +364,8 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
     switch(Public.Phase)
     {
     case ELDMatchPhase::Development:
-        View.Line=bClock&&Public.OpenAtMs>0?FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT(" ")+Clock(Public.OpenAtMs-NowMs)+TEXT(" 后开放")
-            :FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放");
+        // #198: the opening is scheduled only when the final field begins (OpenAtMs is unscheduled until then).
+        View.Line=FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
         return View;
     case ELDMatchPhase::CaptureOpen:
     {
@@ -337,12 +436,12 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         return View;
     }
 }
-FString LDHUD::AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 NowMs)
+FString LDHUD::AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNowMs)
 {
     switch(Drop.Phase)
     {
     case ELDAirdropPhase::Announced:
-        return bClock?LDTerms::AirdropCountdown(Clock(Drop.LandAtMs-NowMs)):LDTerms::AirdropSoon();
+        return bClock?LDTerms::AirdropCountdown(Clock(Drop.LandAtMs-FieldNowMs)):LDTerms::AirdropSoon();
     case ELDAirdropPhase::Landed: return LDTerms::AirdropLanded;
     default: return FString();
     }
@@ -377,7 +476,7 @@ FString LDHUD::CharmLine(const TArray<FLDCharmView>& Charms)
     }
     return Names.IsEmpty()?FString():LDTerms::CharmsLying(FString::Join(Names,TEXT("、")));
 }
-FString LDHUD::BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 NowMs)
+FString LDHUD::BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 FieldNowMs)
 {
     // Presentation only: how early the countdown shows.
     constexpr int64 CountdownMs=15000;
@@ -385,8 +484,8 @@ FString LDHUD::BossLine(const FLDBossView& Boss,const FString& BossName,bool bCl
     switch(Boss.Phase)
     {
     case ELDBossPhase::Pending:
-        if(!bClock||Boss.AppearAtMs-NowMs>CountdownMs){return FString();}
-        return Boss.AppearAtMs>NowMs?LDTerms::BossCountdown(Name,Clock(Boss.AppearAtMs-NowMs)):LDTerms::BossSoon(Name);
+        if(!bClock||Boss.AppearAtMs-FieldNowMs>CountdownMs){return FString();}
+        return Boss.AppearAtMs>FieldNowMs?LDTerms::BossCountdown(Name,Clock(Boss.AppearAtMs-FieldNowMs)):LDTerms::BossSoon(Name);
     case ELDBossPhase::Alive: return LDTerms::BossPatrol(Name);
     default: return FString();
     }
@@ -1049,27 +1148,36 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool 
     case ELDGrowthReason::Dead: return LDTerms::DeadNoLearn;
     case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
     case ELDGrowthReason::SlotOccupied: return LDTerms::ReplaceAtRest;
+    case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
+    case ELDGrowthReason::ElementUnsupported: return LDTerms::ElementClosed;
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(ELDMatchPhase Phase,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
 {
     LDProgression::FBuildContext Context;
-    Context.Stage=Phase==ELDMatchPhase::Countdown?LDProgression::EMatchStage::Countdown
-        :Phase==ELDMatchPhase::Development||Phase==ELDMatchPhase::CaptureOpen?LDProgression::EMatchStage::Live:LDProgression::EMatchStage::Closed;
+    Context.Stage=Stage;
     Context.LifePhase=LifePhase;
     Context.bSafe=bClock&&BuildSafeAtMs<=NowMs;
-    const auto Gate=[&](ELDBuildCommandKind Kind,bool& bAllowed,FString& Blocked)
+    const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
-        const ELDGrowthReason Reason=LDProgression::CommandGate(Kind,Context);
         bAllowed=Reason==ELDGrowthReason::None;
         // An unknown safe window is no countdown: say it is syncing instead of naming a wait.
         Blocked=Reason==ELDGrowthReason::NotSafe&&!bClock?FString(TEXT("构筑安全窗同步中")):BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);
     };
     FBuildGateView View;
-    Gate(ELDBuildCommandKind::ActiveChoice,View.bCanChoose,View.ChooseBlocked);
-    Gate(ELDBuildCommandKind::LearnBlueprint,View.bCanLearn,View.LearnBlocked);
-    Gate(ELDBuildCommandKind::AllocatePoints,View.bCanAllocate,View.AllocateBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice,Context),View.bCanChoose,View.ChooseBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::LearnBlueprint,Context),View.bCanLearn,View.LearnBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::AllocatePoints,Context),View.bCanAllocate,View.AllocateBlocked);
+    // #198 B: a first-time component install is admitted exactly as growth admits it (LDProgression::InstallGate: the
+    // countdown, the rest window, or alive and safe); re-installing a once-installed one only in the rest window.
+    Gate(LDProgression::InstallGate(Context,false),View.bCanInstall,View.InstallBlocked);
+    Gate(LDProgression::InstallGate(Context,true),View.bCanReinstall,View.ReinstallBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer,Context),View.bCanBuyNpc,View.NpcBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::Respec,Context),View.bCanRespec,View.RespecBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive,Context),View.bCanReplace,View.ReplaceBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::ForgetActive,Context),View.bCanForget,View.ForgetBlocked);
+    View.bInRest=Stage==LDProgression::EMatchStage::Rest||Stage==LDProgression::EMatchStage::RestLocked;
     return View;
 }
 FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
@@ -1078,6 +1186,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     {
         return TEXT("没有生效：")+BuildBlockedText(LDGrowthWire::Reason(Receipt.Header.Reason),BuildSafeAtMs,bClock,NowMs);
     }
+    const FString Missing(TEXT("回执缺少结果，请以当前状态为准。"));
     switch(Receipt.Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
@@ -1087,23 +1196,140 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         if(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned){return LDTerms::LearnedInto(Name,SlotKey(Receipt.LearnedSlot));}
         if(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint)
         {return LDTerms::StoredAsBlueprint(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.StoredReason),BuildSafeAtMs,bClock,NowMs));}
-        return TEXT("回执缺少结果，请以当前状态为准。");
+        return Missing;
     }
     case ELDBuildCommandKind::AllocatePoints:
     {
         int64 Spent=0;for(const uint8 Count:Receipt.PointsSpent){Spent+=Count;}
         return LDTerms::PointsAdded(Spent,Receipt.UnspentPointsAfter);
     }
-    default: return TEXT("回执缺少结果，请以当前状态为准。");
+    case ELDBuildCommandKind::BuyNpcOffer:
+        return Receipt.NpcPointsPaid>0?LDTerms::NpcBought(Receipt.NpcPointsPaid):Missing;
+    case ELDBuildCommandKind::Respec:
+        return Receipt.PointsRefunded>0?LDTerms::Respecced(Receipt.PointsRefunded,Receipt.UnspentPointsAfter):Missing;
+    case ELDBuildCommandKind::ReplaceActive:
+        if(Receipt.ChoiceResult!=ELDBuildChoiceResult::Learned||Receipt.DefinitionId.IsNone()||Receipt.ForgottenId.IsNone()){return Missing;}
+        return LDTerms::Replaced(ContentName(Content,Receipt.DefinitionId.ToString()),SlotKey(Receipt.LearnedSlot),ContentName(Content,Receipt.ForgottenId.ToString()));
+    case ELDBuildCommandKind::ForgetActive:
+        return Receipt.ForgottenId.IsNone()?Missing:LDTerms::Forgotten(ContentName(Content,Receipt.ForgottenId.ToString()));
+    case ELDBuildCommandKind::OpeningBase:
+    {
+        if(Receipt.ComponentId.IsNone()){return Missing;}
+        const FString Name=ContentName(Content,Receipt.ComponentId.ToString());
+        if(Receipt.bComponentInstalled){return LDTerms::ComponentInstalled(Name);}
+        return LDTerms::ComponentStored(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.InstallStoredReason),BuildSafeAtMs,bClock,NowMs));
+    }
+    case ELDBuildCommandKind::InstallComponent:
+        if(Receipt.ComponentId.IsNone()||!Receipt.bComponentInstalled){return Missing;}
+        return LDTerms::ComponentInstalled(ContentName(Content,Receipt.ComponentId.ToString()));
+    case ELDBuildCommandKind::UninstallComponent:
+        if(Receipt.ComponentId.IsNone()||Receipt.bComponentInstalled){return Missing;}
+        return LDTerms::ComponentRemoved(ContentName(Content,Receipt.ComponentId.ToString()));
+    default: return Missing;
     }
 }
-LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match)
+ELDGrowthReason LDHUD::ElementGate(ELDDemoElement Element)
+{
+    return Element==ELDDemoElement::Water||Element==ELDDemoElement::Electric?ELDGrowthReason::ElementUnsupported:ELDGrowthReason::None;
+}
+ELDGrowthReason LDHUD::ComponentElementGate(const FLDDemoComponentDefinition& Component)
+{
+    for(const FLDDemoEffectDefinition& Effect:Component.Effects)
+    {
+        if(ElementGate(Effect.Element)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
+    }
+    return ELDGrowthReason::None;
+}
+FString LDHUD::ElementName(ELDDemoElement Element)
+{
+    switch(Element)
+    {
+    case ELDDemoElement::Fire: return LDTerms::ElementFire;
+    case ELDDemoElement::Water: return LDTerms::ElementWater;
+    case ELDDemoElement::Electric: return LDTerms::ElementElectric;
+    default: return FString::Printf(TEXT("未知元素 #%d"),int32(Element));
+    }
+}
+TArray<FName> LDHUD::BindableActives(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression)
+{
+    TArray<FName> Out;
+    if(Component.Binding!=ELDDemoComponentBinding::ActiveElement){return Out;}
+    for(uint8 Slot=0;Slot<3;++Slot)
+    {
+        const FName Held=ActiveInSlot(Progression,Slot);
+        if(!Held.IsNone()&&Component.BindActives.Contains(Held.ToString())){Out.Add(Held);}
+    }
+    return Out;
+}
+LDHUD::FComponentCardView LDHUD::ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
+{
+    FComponentCardView Card;
+    Card.DefinitionId=DefinitionId;
+    const FString Id=DefinitionId.ToString();
+    Card.Name=ContentName(Content,Id);
+    Card.Glyph=IconGlyph(Card.Name);
+    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    if(Display){Card.IconId=Display->IconId;}
+    if(!Component||!Display)
+    {
+        Card.SentencePlain=Card.Sentence=Content?FString(TEXT("内容目录中找不到该构件")):FString(TEXT("内容数据同步中"));
+        return Card;
+    }
+    Card.bBinding=Component->Binding==ELDDemoComponentBinding::ActiveElement;
+    // A component's fixed amounts grow with the holder's level like an active's (LDSkillGrowth), so its card renders the
+    // same way against a value set that holds only its effects.
+    FLDDemoAbilityValues Values;Values.Effects=Component->Effects;
+    const FCardText Sentence=CardText(Display->DescriptionText,Values,Stats,Content->Parameters.SkillGrowthPerLevelBp,
+        Content->Parameters.SkillGrowthPerLevelAfter10Bp);
+    Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
+    Card.Keywords=KeywordLines(Sentence.Keywords);
+    Card.bKnown=Sentence.bComplete;
+    return Card;
+}
+ELDGrowthReason LDHUD::ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    const FString Id=Instance.DefinitionId.ToString();
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    if(!Component){return ELDGrowthReason::DataNotReady;}
+    if(Component->Kind!=ELDDemoComponentKind::Base){return ELDGrowthReason::InvalidTarget;}
+    if(ComponentElementGate(*Component)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
+    if(Component->Binding==ELDDemoComponentBinding::ActiveElement&&BindableActives(*Component,Progression).IsEmpty()){return ELDGrowthReason::InvalidTarget;}
+    return ELDGrowthReason::None;
+}
+LDHUD::FComponentRowView LDHUD::ComponentRow(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+{
+    FComponentRowView Row;
+    Row.DefinitionId=Instance.DefinitionId;
+    Row.bInstalled=Instance.bInstalled;
+    if(Row.bInstalled){return Row;}
+    const FString Id=Instance.DefinitionId.ToString();
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    Row.bBinding=Component&&Component->Binding==ELDDemoComponentBinding::ActiveElement;
+    const ELDGrowthReason Reason=ComponentEnableReason(Instance,Progression,Content);
+    if(Reason==ELDGrowthReason::DataNotReady){Row.Blocked=Content?FString(TEXT("内容目录中找不到该构件")):FString(TEXT("内容数据同步中"));return Row;}
+    if(Reason==ELDGrowthReason::InvalidTarget&&Row.bBinding){Row.Blocked=LDTerms::NoBindableActive;return Row;}
+    if(Reason!=ELDGrowthReason::None){Row.Blocked=BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);return Row;}
+    // A once-installed component moves again only in the rest window; a first install follows the field gate.
+    Row.bCanEnable=Instance.bEverInstalled?Gate.bCanReinstall:Gate.bCanInstall;
+    Row.Blocked=Row.bCanEnable?FString():Instance.bEverInstalled?Gate.ReinstallBlocked:Gate.InstallBlocked;
+    return Row;
+}
+LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
 {
     FGrowthPending Pending;
     if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return Pending;}
     Pending.Offers=Progression->QueuedActiveOpportunities;
     Pending.Points=FMath::Max<int64>(0,Progression->UnspentPoints);
     Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
+    Pending.bOpeningBase=Progression->bOpeningBasePending&&!Progression->OpeningBaseOptions.IsEmpty();
+    for(const FLDComponentInstanceView& Owned:Progression->Components)
+    {
+        if(Owned.bInstalled||Owned.bEverInstalled){continue;}
+        if(!Content||ComponentEnableReason(Owned,*Progression,Content)==ELDGrowthReason::None){++Pending.Components;}
+    }
     return Pending;
 }
 FString LDHUD::FGrowthPending::Prompt() const
@@ -1112,7 +1338,13 @@ FString LDHUD::FGrowthPending::Prompt() const
     if(Offers>0){Text+=FString::Printf(TEXT("+%d"),Offers);}
     if(Points>0){Text+=FString::Printf(TEXT(" · %lld点"),Points);}
     if(Offers<=0&&Points<=0&&Blueprints>0){Text+=FString::Printf(TEXT(" · %s %d"),LDTerms::Blueprint,Blueprints);}
+    const int32 Parts=Components+(bOpeningBase?1:0);
+    if(Parts>0){Text+=TEXT(" · ")+LDTerms::ComponentsPending(Parts);}
     return Text;
+}
+FString LDHUD::GrowthPrompt(const FGrowthPending& Pending,bool bRestServices)
+{
+    return Pending.Any()||!bRestServices?Pending.Prompt():FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::RestServices;
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
 {
@@ -1170,6 +1402,22 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NotEnoughPoints: return TEXT("未分配点数不够");
     case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
     case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
+    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("休息时才能替换或遗忘技能");
+    case ELDGrowthReason::BuildLocked: return FString(LDTerms::BuildLockedNow)+TEXT("：PK 与返回倒计时期间不能改");
+    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("能抽的主动不足 3 个，NPC 没收点数");
+    case ELDGrowthReason::OfferOutstanding: return TEXT("还有没选的技能，先选完");
+    case ELDGrowthReason::NothingToRespec: return TEXT("还没加过点，不用洗");
+    case ELDGrowthReason::SlotEmpty: return TEXT("这个技能槽是空的");
+    case ELDGrowthReason::NotRestWindow: return TEXT("休息时才能找 NPC 或洗点");
+    case ELDGrowthReason::NotOwned: return FString(TEXT("你没有这个"))+LDTerms::Component;
+    case ELDGrowthReason::AlreadyInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("已经启用了");
+    case ELDGrowthReason::NotInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("还没有启用");
+    case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
+    case ELDGrowthReason::InvalidTarget: return TEXT("安装位置或绑定无效");
+    case ELDGrowthReason::ElementUnsupported: return LDTerms::ElementClosed;
+    case ELDGrowthReason::OpeningBaseUnavailable: return FString(TEXT("这个"))+LDTerms::Component+TEXT("不在开局可选范围内");
+    case ELDGrowthReason::OpeningBaseTaken: return FString(TEXT("开局基础"))+LDTerms::Component+TEXT("已经选过了");
+    case ELDGrowthReason::OpeningActiveFirst: return FString(TEXT("先选开局技能，再选开局基础"))+LDTerms::Component;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
@@ -1416,10 +1664,10 @@ bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
 bool LDHUD::FGrowthAutoOpen::Observe(const FLDProgressionView& View,uint32 Match)
 {
     if(!View.bValid||Match==0||View.Generation!=Match){return false;}
-    if(SeenMatch!=Match){SeenMatch=Match;SeenOffer.Invalidate();SeenUnspent=0;}
-    const bool bNewOffer=View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OfferId!=SeenOffer;
-    const bool bMorePoints=View.UnspentPoints>SeenUnspent;
-    if(View.bHasActiveOffer){SeenOffer=View.ActiveOffer.OfferId;}
-    SeenUnspent=View.UnspentPoints;
-    return bNewOffer||bMorePoints;
+    if(SeenMatch!=Match){SeenMatch=Match;bOpeningShown=false;bOpeningBaseShown=false;}
+    const bool bOpeningOffer=!bOpeningShown&&View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OpportunityOrdinal==1;
+    const bool bOpeningBase=!bOpeningBaseShown&&View.bOpeningBasePending&&!View.OpeningBaseOptions.IsEmpty();
+    if(bOpeningOffer){bOpeningShown=true;}
+    if(bOpeningBase){bOpeningBaseShown=true;}
+    return bOpeningOffer||bOpeningBase;
 }

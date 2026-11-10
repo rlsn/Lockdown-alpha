@@ -89,7 +89,7 @@ enum class ELDOrderFailure : uint8
     QueueFull,
     // A CastUnit's skill could not be cast (not ready, refused by Combat); its Combat receipt carries the reason.
     CastRefused,
-    // #153: the opening countdown admits no new order before the match's T=0.
+    // #198: the rest return countdown locks every order (approved: 锁构筑与输入).
     NotStarted
 };
 

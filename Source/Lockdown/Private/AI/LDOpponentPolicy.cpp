@@ -902,7 +902,7 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
             FLDDemoMonsterDefinition Grown;
             if (C.Catalog.FindMonster(POI.MonsterId, Monster, Error) && Monster
                 && LDCampGrowth::ScaleBody(C.Catalog.Get().Parameters, *Monster,
-                    LDCampGrowth::Stage(C.Catalog.Get().Parameters, C.Now - C.Frame.Public.StartedAtMs), Grown, Error))
+                    LDCampGrowth::Stage(C.Catalog.Get().Parameters, C.Frame.Public.FieldNowMs), Grown, Error))
             {
                 const auto Estimate = LDOpponentPolicy::EstimateCampCost(Input, Grown, C.Catalog);
                 const int64 Reserve = Monster->Tier == ELDDemoCampTier::Low ? C.AI.LowCampReserveHPBp : C.AI.HighCampReserveHPBp;
@@ -1051,10 +1051,7 @@ bool ExploreBody(const FContext& C, FLDOpponentBodyIntent& Out)
 LDProgression::FBuildContext BuildContext(const FLDOpponentDecisionFrame& Frame)
 {
     LDProgression::FBuildContext Context;
-    const ELDMatchPhase Phase = Frame.Public.Phase;
-    Context.Stage = Phase == ELDMatchPhase::Countdown ? LDProgression::EMatchStage::Countdown
-        : Phase == ELDMatchPhase::Development || Phase == ELDMatchPhase::CaptureOpen ? LDProgression::EMatchStage::Live
-        : LDProgression::EMatchStage::Closed;
+    Context.Stage = Frame.Public.BuildStage();
     Context.LifePhase = Frame.Self.Phase;
     Context.bSafe = Frame.Self.BuildSafeAtMs <= Frame.Public.NowMs;
     return Context;
@@ -1068,8 +1065,83 @@ FLDOpponentRetryKey BuildKey(ELDOpponentBuildKind Kind)
     return Key;
 }
 
-// §6.4 build order: the current offer's choice first, then a blueprint into an empty slot, then the unspent points. Each is
-// sent only when the growth domain would admit it now; one build request at a time.
+// #198 B: one component the AI could take or enable now, with its binding.
+struct FComponentPick
+{
+    FString Component;
+    FString BoundActive;
+    ELDDemoElement Element = ELDDemoElement::None;
+};
+
+// The opening base options (bOpening) or the owned never-installed components, in catalog order, that ComponentUsable
+// accepts. False with Error when a listed id is not a catalog component.
+bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, bool bOpening, TArray<FComponentPick>& Out,
+    FString& Error)
+{
+    Out.Reset();
+    const TArray<FLDDemoComponentDefinition>& Definitions = Catalog.Get().Components;
+    if (bOpening)
+    {
+        for (const FString& Id : Self.OpeningBaseOptions)
+        {
+            if (CatalogIndex(Definitions, Id) == INDEX_NONE)
+            {
+                Error = FString::Printf(TEXT("Opening base option %s is not a catalog component."), *Id);
+                return false;
+            }
+        }
+    }
+    for (const FLDOpponentComponent& Owned : Self.Components)
+    {
+        if (CatalogIndex(Definitions, Owned.DefinitionId) == INDEX_NONE)
+        {
+            Error = FString::Printf(TEXT("Owned component %s is not a catalog component."), *Owned.DefinitionId);
+            return false;
+        }
+    }
+    for (const FLDDemoComponentDefinition& Definition : Definitions)
+    {
+        const auto Same = [&Definition](const FString& Id) { return Id.Equals(Definition.Id, ESearchCase::CaseSensitive); };
+        if (bOpening)
+        {
+            if (!Self.OpeningBaseOptions.ContainsByPredicate(Same)) { continue; }
+        }
+        else
+        {
+            const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
+                [&Same](const FLDOpponentComponent& Component) { return Same(Component.DefinitionId); });
+            if (!Owned || Owned->bInstalled || Owned->bEverInstalled) { continue; }
+        }
+        FComponentPick Pick;
+        Pick.Component = Definition.Id;
+        if (LDOpponentPolicy::ComponentUsable(Self, Definition, Pick.BoundActive, Pick.Element)) { Out.Add(MoveTemp(Pick)); }
+    }
+    return true;
+}
+
+// The first pick whose failure memory admits another attempt now.
+bool FirstAttemptable(const TArray<FComponentPick>& Picks, ELDOpponentBuildKind Kind, const FLDOpponentPolicyState& State,
+    uint64 Print, int64 Now, FLDOpponentBuildIntent& Out)
+{
+    for (const FComponentPick& Pick : Picks)
+    {
+        FLDOpponentRetryKey Key = BuildKey(Kind);
+        Key.POI = FName(*Pick.Component);
+        if (!State.Failures.CanAttempt(Key, Print, Now)) { continue; }
+        Out = FLDOpponentBuildIntent();
+        Out.Kind = Kind;
+        Out.Component = Pick.Component;
+        Out.BoundActive = Pick.BoundActive;
+        Out.Element = Pick.Element;
+        Out.Key = Key;
+        return true;
+    }
+    return false;
+}
+
+// §6.4 build order: the current offer's choice first, then the opening base pick (#198 B), a blueprint into an empty slot, the
+// next owned component to enable (#198 B), then the unspent points. Each is sent only when the growth domain would admit it
+// now; one build request at a time.
 bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State,
     bool bChooseOffer, FLDOpponentBuildIntent& Out)
 {
@@ -1093,6 +1165,17 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
+    // #198 B: the opening base right after the opening active (always asking to enable it now).
+    if (Self.bOpeningBasePending
+        && LDProgression::CommandGate(ELDBuildCommandKind::OpeningBase, Context) == ELDGrowthReason::None)
+    {
+        TArray<FComponentPick> Picks;
+        if (ComponentPicks(Self, Catalog, true, Picks, Error)
+            && FirstAttemptable(Picks, ELDOpponentBuildKind::OpeningBase, State, Print, Now, Out))
+        {
+            return true;
+        }
+    }
     if (!Self.Blueprints.IsEmpty()
         && LDProgression::CommandGate(ELDBuildCommandKind::LearnBlueprint, Context) == ELDGrowthReason::None)
     {
@@ -1111,6 +1194,16 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
                 Out.Key = Key;
                 return true;
             }
+        }
+    }
+    // #198 B: then every owned, never-installed component the first-install gate admits, in catalog order.
+    if (LDProgression::InstallGate(Context, false) == ELDGrowthReason::None)
+    {
+        TArray<FComponentPick> Picks;
+        if (ComponentPicks(Self, Catalog, false, Picks, Error)
+            && FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out))
+        {
+            return true;
         }
     }
     if (Self.UnspentPoints > 0
@@ -1428,12 +1521,13 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     }
     TArray<int64> Points;
     TArray<bool> Relevant;
-    for (int32 Index = 0; Index < Content.Stats.Num(); ++Index)
+    const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
     {
-        const FLDDemoStatDefinition& Stat = Content.Stats[Index];
+        const FLDDemoStatDefinition& Stat = *StatOrder[Index];
         if (!Self.StatPoints[Index].StatId.Equals(Stat.Id, ESearchCase::CaseSensitive))
         {
-            Error = TEXT("The own stat points are not in catalog order.");
+            Error = TEXT("The own stat points are not in the stats' design order.");
             return false;
         }
         Points.Add(Self.StatPoints[Index].Points);
@@ -1460,6 +1554,79 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         Out.Reset();
         return false;
     }
+    return true;
+}
+
+bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component, FString& OutBoundActive,
+    ELDDemoElement& OutElement)
+{
+    OutBoundActive.Reset();
+    OutElement = ELDDemoElement::None;
+    // Mods and connectors take targets (#198 F); water and electric have no element state before #198 A (ElementUnsupported).
+    const auto Closed = [](ELDDemoElement Element) { return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric; };
+    if (Component.Kind != ELDDemoComponentKind::Base
+        || Component.Effects.ContainsByPredicate([&Closed](const FLDDemoEffectDefinition& Effect) { return Closed(Effect.Element); }))
+    {
+        return false;
+    }
+    if (Component.Binding == ELDDemoComponentBinding::None) { return true; }
+    if (Component.Binding != ELDDemoComponentBinding::ActiveElement || !Component.BindElements.Contains(ELDDemoElement::Fire)) { return false; }
+    for (uint8 Slot = 0; Slot < 3; ++Slot)
+    {
+        const FLDOpponentActive* Active = Self.Actives.FindByPredicate([Slot](const FLDOpponentActive& A) { return A.Slot == Slot; });
+        if (Active && Component.BindActives.ContainsByPredicate([Active](const FString& Id)
+            { return Id.Equals(Active->DefinitionId, ESearchCase::CaseSensitive); }))
+        {
+            OutBoundActive = Active->DefinitionId;
+            OutElement = ELDDemoElement::Fire;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
+    FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error)
+{
+    using namespace Detail;
+    OutComponent.Reset();
+    OutBoundActive.Reset();
+    OutElement = ELDDemoElement::None;
+    if (!Self.bOpeningBasePending || Self.OpeningBaseOptions.IsEmpty())
+    {
+        Error = TEXT("No opening base pick is open.");
+        return false;
+    }
+    TArray<FComponentPick> Picks;
+    if (!ComponentPicks(Self, Catalog, true, Picks, Error)) { return false; }
+    if (Picks.IsEmpty())
+    {
+        Error = TEXT("No opening base option can be enabled.");
+        return false;
+    }
+    OutComponent = Picks[0].Component;
+    OutBoundActive = Picks[0].BoundActive;
+    OutElement = Picks[0].Element;
+    return true;
+}
+
+bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
+    FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error)
+{
+    using namespace Detail;
+    OutComponent.Reset();
+    OutBoundActive.Reset();
+    OutElement = ELDDemoElement::None;
+    TArray<FComponentPick> Picks;
+    if (!ComponentPicks(Self, Catalog, false, Picks, Error)) { return false; }
+    if (Picks.IsEmpty())
+    {
+        Error = TEXT("No owned component waits for its first install.");
+        return false;
+    }
+    OutComponent = Picks[0].Component;
+    OutBoundActive = Picks[0].BoundActive;
+    OutElement = Picks[0].Element;
     return true;
 }
 
@@ -1533,18 +1700,20 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Out;
     };
     const bool bRunning = Frame.Public.Phase == ELDMatchPhase::Development || Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
-    // #153: the opening countdown admits only build steps, from this adapter's drawn moment on; the body never moves.
-    const bool bCountdown = Frame.Public.Phase == ELDMatchPhase::Countdown;
-    if (!Frame.Generation || !(bRunning || bCountdown) || !Self.ContenderId.IsValid()
+    // #198: in a rest the body stays in its private rest space; only build steps are sent (the same commands a human
+    // uses), from this adapter's drawn moment on and only while the rest build window is open.
+    const bool bRest = Frame.Public.Phase == ELDMatchPhase::Rest;
+    if (!Frame.Generation || !(bRunning || bRest) || !Self.ContenderId.IsValid()
         || (Self.Phase != ELDLifePhase::Alive && Self.Phase != ELDLifePhase::Dead))
     {
         ForgetBody(State);
         return Finish(EMode::Stopped, EReason::Stopped);
     }
-    if (bCountdown)
+    if (bRest)
     {
         ForgetBody(State);
-        if (Frame.Public.NowMs >= Self.OpeningPickAtMs && DecideBuild(Frame, Catalog, State, true, Out.Build))
+        if (Frame.Public.BuildStage() == LDProgression::EMatchStage::Rest && Frame.Public.NowMs >= Self.OpeningPickAtMs
+            && DecideBuild(Frame, Catalog, State, true, Out.Build))
         {
             return Finish(EMode::Choose, EReason::ChooseOffer);
         }
@@ -1806,7 +1975,7 @@ void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKe
     if (bOtherGoal) { State.Failures.RecordFailure(Walk, Fingerprint(ELDOpponentFailure::Walk, Self), NowMs, AI); }
 }
 
-bool DecideLearnOrAllocate(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
     FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out)
 {
     return Detail::DecideBuild(Frame, Catalog, State, false, Out);

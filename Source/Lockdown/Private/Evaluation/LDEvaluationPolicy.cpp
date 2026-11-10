@@ -72,14 +72,16 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     };
     if (State.Phase == ELDEvaluationPhase::Failed) { return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::Stopped); }
     const bool bRunning = Frame.Public.Phase == ELDMatchPhase::Development || Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
-    const bool bCountdown = Frame.Public.Phase == ELDMatchPhase::Countdown;
-    if (!Frame.Generation || !(bRunning || bCountdown) || !Self.ContenderId.IsValid()
+    // #198: a rest keeps the body in its private rest space; builds go only while the rest build window is open.
+    const bool bRest = Frame.Public.Phase == ELDMatchPhase::Rest;
+    if (!Frame.Generation || !(bRunning || bRest) || !Self.ContenderId.IsValid()
         || (Self.Phase != ELDLifePhase::Alive && Self.Phase != ELDLifePhase::Dead))
     {
         return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::Stopped);
     }
     const int32 Planned = Profile.Choices.Num();
-    if (Self.Offer.IsSet() && !Frame.bBuildChangeInFlight && int32(Self.Offer->Ordinal) <= Planned)
+    const bool bBuildOpen = !bRest || Frame.Public.BuildStage() == LDProgression::EMatchStage::Rest;
+    if (bBuildOpen && Self.Offer.IsSet() && !Frame.bBuildChangeInFlight && int32(Self.Offer->Ordinal) <= Planned)
     {
         const int32 Ordinal = Self.Offer->Ordinal;
         FLDOpponentRetryKey Key;
@@ -103,10 +105,10 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
             Out.Build.Key = Key;
         }
     }
-    if (Out.Build.Kind == ELDOpponentBuildKind::None) { LDOpponentPolicy::DecideLearnOrAllocate(Frame, Catalog, Policy, Out.Build); }
+    if (bBuildOpen && Out.Build.Kind == ELDOpponentBuildKind::None) { LDOpponentPolicy::DecideFollowUpBuild(Frame, Catalog, Policy, Out.Build); }
     const bool bBuilds = Out.Build.Kind != ELDOpponentBuildKind::None;
-    // The body waits in the countdown, while dead, and until every planned choice is consumed and the build steps it
-    // unlocked (learning blueprints, allocating points) are settled.
+    // The body waits in a rest, while dead, and until every planned choice is consumed and the build steps it
+    // unlocked (the opening base pick, learning blueprints, enabling components, allocating points) are settled.
     const bool bSettling = State.Phase == ELDEvaluationPhase::Waiting || State.Phase == ELDEvaluationPhase::Building;
     if (int32(Self.OffersConsumed) < Planned || (bSettling && (bBuilds || Frame.bBuildChangeInFlight)))
     {
@@ -114,7 +116,7 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
         return Finish(bBuilds ? ELDOpponentMode::Choose : ELDOpponentMode::Stopped,
             bBuilds ? ELDOpponentReason::ChooseOffer : ELDOpponentReason::Stopped);
     }
-    if (bCountdown || Self.Phase == ELDLifePhase::Dead)
+    if (bRest || Self.Phase == ELDLifePhase::Dead)
     {
         return Finish(ELDOpponentMode::Stopped, Self.Phase == ELDLifePhase::Dead ? ELDOpponentReason::DeadWaiting : ELDOpponentReason::Stopped);
     }

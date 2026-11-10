@@ -40,6 +40,24 @@ const FNativeId NativeIds[] =
     DEMO_ID("stats", "stat_strength", ELDDemoStatId, StatStrength),
     DEMO_ID("stats", "stat_brains", ELDDemoStatId, StatBrains),
     DEMO_ID("stats", "stat_agility", ELDDemoStatId, StatAgility),
+    DEMO_ID("components", "component_fist_fire", ELDDemoComponentId, ComponentFistFire),
+    DEMO_ID("components", "component_tab_ledger", ELDDemoComponentId, ComponentTabLedger),
+    DEMO_ID("components", "component_spiky_hide", ELDDemoComponentId, ComponentSpikyHide),
+    DEMO_ID("components", "component_punch_heal", ELDDemoComponentId, ComponentPunchHeal),
+    DEMO_ID("components", "component_dash_bump", ELDDemoComponentId, ComponentDashBump),
+    DEMO_ID("components", "component_third_punch", ELDDemoComponentId, ComponentThirdPunch),
+    DEMO_ID("components", "component_kick_down", ELDDemoComponentId, ComponentKickDown),
+    DEMO_ID("components", "component_breach_fist", ELDDemoComponentId, ComponentBreachFist),
+    DEMO_ID("components", "component_hard_skin", ELDDemoComponentId, ComponentHardSkin),
+    DEMO_ID("components", "component_fist_water", ELDDemoComponentId, ComponentFistWater),
+    DEMO_ID("components", "component_fist_shock", ELDDemoComponentId, ComponentFistShock),
+    DEMO_ID("components", "component_dash_punch", ELDDemoComponentId, ComponentDashPunch),
+    DEMO_ID("components", "component_catch_breath", ELDDemoComponentId, ComponentCatchBreath),
+    DEMO_ID("components", "component_long_arm", ELDDemoComponentId, ComponentLongArm),
+    DEMO_ID("components", "component_seeing_red", ELDDemoComponentId, ComponentSeeingRed),
+    DEMO_ID("components", "component_thick_hide", ELDDemoComponentId, ComponentThickHide),
+    DEMO_ID("components", "component_held_shot", ELDDemoComponentId, ComponentHeldShot),
+    DEMO_ID("components", "component_dirty_trick", ELDDemoComponentId, ComponentDirtyTrick),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
@@ -98,6 +116,11 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "primary_guard", ELDDemoEffectOp, PrimaryGuard),
     DEMO_ID("effect_ops", "dash_contact_damage", ELDDemoEffectOp, DashContactDamage),
     DEMO_ID("effect_ops", "dash_contact_refund", ELDDemoEffectOp, DashContactRefund),
+    DEMO_ID("effect_ops", "ledger", ELDDemoEffectOp, Ledger),
+    DEMO_ID("effect_ops", "basic_element", ELDDemoEffectOp, BasicElement),
+    DEMO_ID("effect_ops", "basic_damage_scale", ELDDemoEffectOp, BasicDamageScale),
+    DEMO_ID("effect_ops", "idle_ready_amp", ELDDemoEffectOp, IdleReadyAmp),
+    DEMO_ID("effect_ops", "active_element", ELDDemoEffectOp, ActiveElement),
 };
 #undef DEMO_ID
 
@@ -173,7 +196,7 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     {
         return false;
     }
-    for (const TCHAR* Category : {TEXT("character"), TEXT("abilities"), TEXT("stats"),
+    for (const TCHAR* Category : {TEXT("character"), TEXT("abilities"), TEXT("stats"), TEXT("components"),
         TEXT("monsters"), TEXT("statuses"), TEXT("effect_ops")})
     {
         FFields Group(Check, Root.Take(Category), Root.Path + TEXT(".") + Category);
@@ -254,9 +277,21 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
-        {TEXT("MATCH.CountdownSec"), TEXT("ms"), TEXT("ms"), &P.CountdownMs, 1, MAX_int64},
-        {TEXT("MATCH.DevelopmentSec"), TEXT("ms"), TEXT("ms"), &P.DevelopmentMs, 0, MAX_int64},
-        {TEXT("LIFE.RespawnSec"), TEXT("ms"), TEXT("ms"), &P.RespawnMs, 1, MAX_int64},
+        {TEXT("MATCH.FieldSegmentSec"), TEXT("ms"), TEXT("ms"), &P.FieldSegmentMs, 1, MAX_int64},
+        {TEXT("REST.OpeningBuildSec"), TEXT("ms"), TEXT("ms"), &P.RestOpeningBuildMs, 1, MAX_int64},
+        {TEXT("REST.BuildSec"), TEXT("ms"), TEXT("ms"), &P.RestBuildMs, 1, MAX_int64},
+        {TEXT("REST.SignupSec"), TEXT("ms"), TEXT("ms"), &P.RestSignupMs, 1, MAX_int64},
+        {TEXT("REST.DrawSec"), TEXT("ms"), TEXT("ms"), &P.RestDrawMs, 1, MAX_int64},
+        {TEXT("REST.BettingSec"), TEXT("ms"), TEXT("ms"), &P.RestBettingMs, 1, MAX_int64},
+        {TEXT("REST.PKReadySec"), TEXT("ms"), TEXT("ms"), &P.RestPKReadyMs, 1, MAX_int64},
+        {TEXT("REST.PKMaxSec"), TEXT("ms"), TEXT("ms"), &P.RestPKMaxMs, 1, MAX_int64},
+        {TEXT("REST.SettlementSec"), TEXT("ms"), TEXT("ms"), &P.RestSettlementMs, 1, MAX_int64},
+        {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 1, MAX_int64},
+        {TEXT("REST.ReturnSec"), TEXT("ms"), TEXT("ms"), &P.RestReturnMs, 1, MAX_int64},
+        {TEXT("LIFE.RespawnSec.Field1"), TEXT("ms"), TEXT("ms"), &P.RespawnField1Ms, 1, MAX_int64},
+        {TEXT("LIFE.RespawnSec.Field2"), TEXT("ms"), TEXT("ms"), &P.RespawnField2Ms, 1, MAX_int64},
+        {TEXT("LIFE.RespawnSec.Field3"), TEXT("ms"), TEXT("ms"), &P.RespawnField3Ms, 1, MAX_int64},
+        {TEXT("LIFE.RespawnSec.Final"), TEXT("ms"), TEXT("ms"), &P.RespawnFinalMs, 1, MAX_int64},
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
         {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
@@ -316,7 +351,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAPTURE.RadiusCm"), &P.CaptureRadiusCm}, {TEXT("CAMP.ResetArrivalRadiusCm"), &P.CampResetArrivalRadiusCm},
         {TEXT("DORM.RadiusCm"), &P.DormRadiusCm}, {TEXT("AIRDROP.PickupRadiusCm"), &P.AirdropPickupRadiusCm},
         {TEXT("CHARM.PickupRadiusCm"), &P.CharmPickupRadiusCm},
-        {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm}})
+        {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm},
+        {TEXT("REST.ReturnSearchRadiusCm"), &P.RestReturnSearchRadiusCm}})
     {
         if (!F.Fraction(Field.Key, TEXT("cm"), *Field.Out, true))
         {
@@ -334,7 +370,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CHARM.WaveCount"), &P.CharmWaveCount, 1}, {TEXT("CHARM.PerWave"), &P.CharmPerWave, 1},
         {TEXT("COMBAT.BreachMaxStacks"), &P.BreachMaxStacks, 1}, {TEXT("COMBAT.BurnMaxStacks"), &P.BurnMaxStacks, 1},
         {TEXT("GROWTH.OpeningPoints"), &P.OpeningPoints, 1}, {TEXT("GROWTH.PointsPerLevel"), &P.PointsPerLevel, 1},
-        {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1}})
+        {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
+        {TEXT("GROWTH.EmptyComponentPoolPoints"), &P.EmptyComponentPoolPoints, 1},
+        {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1}})
     {
         if (!F.Int(Field.Key, *Field.Out, Field.Min))
         {
@@ -623,7 +661,7 @@ bool OptionalFixed(FFields& F, const TCHAR* Key, const TCHAR* Unit, const TCHAR*
 
 bool TriggerField(FFields& F, ELDDemoEffectTrigger& Out, std::initializer_list<ELDDemoEffectTrigger> Allowed)
 {
-    static const TCHAR* Names[] = {TEXT("None"), TEXT("BasicHit"), TEXT("AbilityHit"), TEXT("Damaged")};
+    static const TCHAR* Names[] = {TEXT("None"), TEXT("BasicHit"), TEXT("AbilityHit"), TEXT("Damaged"), TEXT("DashComplete")};
     FString Name;
     if (!F.Text(TEXT("trigger"), Name))
     {
@@ -640,7 +678,32 @@ bool TriggerField(FFields& F, ELDDemoEffectTrigger& Out, std::initializer_list<E
     return F.Check.Require(false, F.Path + TEXT(".trigger"), TEXT("unsupported trigger for this effect"));
 }
 
-bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, const FString& Path)
+// #198 B: the operations Combat reads from an installed component (DemoContent.COMPONENT_OPS). burn, breach and
+// empower_basic also have an active form; the others are component-only and no active may carry them.
+constexpr FOpMask SharedComponentOps = OpBit(ELDDemoEffectOp::Burn) | OpBit(ELDDemoEffectOp::Breach) | OpBit(ELDDemoEffectOp::EmpowerBasic);
+constexpr FOpMask ComponentOnlyOps = OpBit(ELDDemoEffectOp::Ledger) | OpBit(ELDDemoEffectOp::Thorns) | OpBit(ELDDemoEffectOp::Lifesteal)
+    | OpBit(ELDDemoEffectOp::DashContactDamage) | OpBit(ELDDemoEffectOp::NthBasicBonus) | OpBit(ELDDemoEffectOp::ControlDamageAmp)
+    | OpBit(ELDDemoEffectOp::TriggeredShield) | OpBit(ELDDemoEffectOp::BasicElement) | OpBit(ELDDemoEffectOp::StatBonus)
+    | OpBit(ELDDemoEffectOp::BasicDamageScale) | OpBit(ELDDemoEffectOp::LowHpStatBonus) | OpBit(ELDDemoEffectOp::PrimaryGuard)
+    | OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::ActiveElement);
+constexpr FOpMask ComponentOps = SharedComponentOps | ComponentOnlyOps;
+
+bool ElementField(const FString& Name, ELDDemoElement& Out)
+{
+    for (const auto& Pair : {TPair<const TCHAR*, ELDDemoElement>(TEXT("fire"), ELDDemoElement::Fire),
+        {TEXT("water"), ELDDemoElement::Water}, {TEXT("electric"), ELDDemoElement::Electric}})
+    {
+        if (Name.Equals(Pair.Key, ESearchCase::CaseSensitive))
+        {
+            Out = Pair.Value;
+            return true;
+        }
+    }
+    return false;
+}
+
+// bComponent: the effect belongs to a component (#198 B) and takes the component form of its operation.
+bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, FCheck& Check, const FString& Path)
 {
     FFields F(Check, Value, Path);
     FString Op;
@@ -655,6 +718,12 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         return false;
     }
     Out.Opcode = static_cast<uint8>(Opcode);
+    const FOpMask OpFlag = OpBit(Out.GetOp());
+    if (!Check.Require(bComponent ? (ComponentOps & OpFlag).Any() : !(ComponentOnlyOps & OpFlag).Any(), Path,
+        bComponent ? TEXT("not a component operation") : TEXT("an active cannot carry a component operation")))
+    {
+        return false;
+    }
     switch (Out.GetOp())
     {
     case ELDDemoEffectOp::Damage:
@@ -799,7 +868,10 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
                 return false;
             }
             // #147: charges (landed basics it empowers, one when absent) and stats held while charged.
-            if ((F.Has(TEXT("charges")) && !IntInto(F, TEXT("charges"), Out.Count, 1, 10))
+            // #198 B: a component's package is armed by a completed voluntary dash and names its charges.
+            if ((bComponent && (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::DashComplete})
+                    || !Check.Require(F.Has(TEXT("charges")), Path, TEXT("a component's empowered basic names its charges"))))
+                || (F.Has(TEXT("charges")) && !IntInto(F, TEXT("charges"), Out.Count, 1, 10))
                 || (F.Has(TEXT("stats")) && (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
                     || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima")))))
             {
@@ -811,7 +883,8 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         if (!F.Fixed(TEXT("armor_ratio"), TEXT("ratio"), TEXT("bp"), Out.ArmorRatioBp)
             || !OptionalFixed(F, TEXT("max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp, 1, 10000)
             || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
-            || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            // #198 B: without an interval the reflection answers every qualifying hit.
+            || !OptionalFixed(F, TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
             || !F.Fixed(TEXT("critical_multiplier"), TEXT("ratio"), TEXT("bp"), Out.CriticalMultiplierBp, 10000)
             // A reflection answers primary basic hits only.
             || !F.Text(TEXT("trigger"), Trigger)
@@ -904,20 +977,14 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         }
         break;
     case ELDDemoEffectOp::NthBasicBonus:
-    {
-        int64 Every = 0;
-        FString Type;
-        if (!F.Int(TEXT("count"), Every, 2, 10) || !F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1)
-            || !F.Text(TEXT("damage_type"), Type)
-            || !Check.Require(Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive)
-                || Type.Equals(TEXT("Magical"), ESearchCase::CaseSensitive), Path, TEXT("unknown damage type")))
+        // #198 B (B06): every Count-th landed primary basic knocks its target away from the holder; no damage.
+        if (!IntInto(F, TEXT("count"), Out.Count, 2, 10)
+            || !F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
         {
             return false;
         }
-        Out.Count = int32(Every);
-        Out.DamageType = Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
         break;
-    }
     case ELDDemoEffectOp::ManaOnHit:
         if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::AbilityHit})
             || !F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1))
@@ -928,10 +995,12 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
     // #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
     case ELDDemoEffectOp::Breach:
     case ELDDemoEffectOp::Burn:
-        // stacks: per hit of an active, or per Q/W hit of a passive form; basic_stacks: per primary basic of a passive form.
+        // stacks: per hit of an active; basic_stacks: per primary basic hit of a component (#198 B), never both.
         if ((F.Has(TEXT("stacks")) && !IntInto(F, TEXT("stacks"), Out.Count, 1, 10))
             || (F.Has(TEXT("basic_stacks")) && !IntInto(F, TEXT("basic_stacks"), Out.BasicCount, 1, 10))
-            || !Check.Require(Out.Count > 0 || Out.BasicCount > 0, Path, TEXT("ineffective effect")))
+            || !Check.Require(bComponent ? Out.BasicCount > 0 && Out.Count == 0 : Out.Count > 0 && Out.BasicCount == 0, Path,
+                bComponent ? TEXT("a component applies its stacks with each primary basic hit")
+                    : TEXT("an active applies its stacks to the bodies it hits")))
         {
             return false;
         }
@@ -997,13 +1066,37 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
             || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.LimitP2 > 0), Path, TEXT("contact mana needs ratio and cap")))
         { return false; }
         break;
+    // #198 B component-only operations (field use: FLDDemoEffectDefinition).
+    case ELDDemoEffectOp::Ledger:
+        if (!DamageTerms(F, Out, Check, Path) || !IntInto(F, TEXT("count"), Out.Count, 2, 10)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        { return false; }
+        break;
+    case ELDDemoEffectOp::BasicElement:
+    {
+        FString Element;
+        if (!F.Text(TEXT("element"), Element)
+            || !Check.Require(ElementField(Element, Out.Element), Path + TEXT(".element"), TEXT("unknown element")))
+        { return false; }
+        break;
+    }
+    case ELDDemoEffectOp::BasicDamageScale:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)) { return false; }
+        break;
+    case ELDDemoEffectOp::IdleReadyAmp:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1))
+        { return false; }
+        break;
+    case ELDDemoEffectOp::ActiveElement:
+        break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
     return F.Done();
 }
 
-bool Effects(const FValue& Value, TArray<FLDDemoEffectDefinition>& Out, FOpMask Expected,
+bool Effects(const FValue& Value, TArray<FLDDemoEffectDefinition>& Out, bool bComponent, FOpMask& Mask,
     FCheck& Check, const FString& Path)
 {
     const TArray<FValue>* Rows;
@@ -1011,11 +1104,10 @@ bool Effects(const FValue& Value, TArray<FLDDemoEffectDefinition>& Out, FOpMask 
     {
         return false;
     }
-    FOpMask Mask;
     for (int32 I = 0; I < Rows->Num(); ++I)
     {
         FLDDemoEffectDefinition Definition;
-        if (!Effect((*Rows)[I], Definition, Check, FString::Printf(TEXT("%s[%d]"), *Path, I)))
+        if (!Effect((*Rows)[I], Definition, bComponent, Check, FString::Printf(TEXT("%s[%d]"), *Path, I)))
         {
             return false;
         }
@@ -1027,15 +1119,17 @@ bool Effects(const FValue& Value, TArray<FLDDemoEffectDefinition>& Out, FOpMask 
         Mask |= B;
         Out.Add(MoveTemp(Definition));
     }
-    return Check.Require(Mask == Expected, Path, TEXT("missing or extra effect; definition/target projection mismatch"));
+    return true;
 }
 
 // #198: the single value set an active row carries beside its identity, target and windup.
 bool Values(FFields& F, FLDDemoAbilityValues& Out, FOpMask ExpectedOps, FCheck& Check, const FString& Path)
 {
+    FOpMask Mask;
     return F.Fixed(TEXT("mana_cost"), TEXT("mp"), TEXT("p2"), Out.ManaCostP2)
         && F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Out.CooldownMs, 1)
-        && Effects(F.Take(TEXT("effects")), Out.Effects, ExpectedOps, Check, Path + TEXT(".effects"));
+        && Effects(F.Take(TEXT("effects")), Out.Effects, false, Mask, Check, Path + TEXT(".effects"))
+        && Check.Require(Mask == ExpectedOps, Path + TEXT(".effects"), TEXT("missing or extra effect; definition/target projection mismatch"));
 }
 
 bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, const FString& Path)
@@ -1130,6 +1224,153 @@ bool StatDefinition(const FValue& Value, FLDDemoStatDefinition& Out, FCheck& Che
     default: return Check.Require(false, Path, TEXT("unimplemented stat projection"));
     }
     return Check.Require(StatMask(Out.PerPoint) == Expected, Path, TEXT("wrong stat bonuses"));
+}
+
+// #198 B: distinct actives of this catalog; bOpeningPool also requires each to be an opening-pool active.
+bool ActiveIds(const FValue& Value, TArray<FString>& Out, const TArray<FLDDemoAbilityDefinition>& Abilities, bool bOpeningPool,
+    FCheck& Check, const FString& Path)
+{
+    const TArray<FValue>* Rows;
+    if (!Array(Value, Rows, Check, Path, 1, 32))
+    {
+        return false;
+    }
+    for (const auto& Row : *Rows)
+    {
+        FString Name;
+        if (!String(Row, Name, Check, Path, 1, 63) || !Id(Name, Check, Path))
+        {
+            return false;
+        }
+        const FLDDemoAbilityDefinition* Ability = Abilities.FindByPredicate([&Name](const FLDDemoAbilityDefinition& Candidate)
+            { return Candidate.Id.Equals(Name, ESearchCase::CaseSensitive); });
+        if (!Check.Require(Ability != nullptr && !Out.Contains(Name), Path, TEXT("unknown or repeated active reference"))
+            || !Check.Require(!bOpeningPool || Ability->Opening, Path, TEXT("an opening condition names actives of the opening pool")))
+        {
+            return false;
+        }
+        Out.Add(MoveTemp(Name));
+    }
+    return true;
+}
+
+// #198 B: one workshop material row (DemoContent._validate_components refuses the same shapes).
+bool Component(const FValue& Value, FLDDemoComponentDefinition& Out, const TArray<FLDDemoAbilityDefinition>& Abilities,
+    FCheck& Check, const FString& Path)
+{
+    FFields F(Check, Value, Path);
+    FString Kind, Pool;
+    if (!NativeIdentity(F, TEXT("components"), Out.Id, Out.NativeId) || !F.Text(TEXT("kind"), Kind) || !F.Text(TEXT("pool"), Pool))
+    {
+        return false;
+    }
+    if (Kind.Equals(TEXT("base"), ESearchCase::CaseSensitive)) { Out.Kind = ELDDemoComponentKind::Base; }
+    else if (Kind.Equals(TEXT("mod"), ESearchCase::CaseSensitive)) { Out.Kind = ELDDemoComponentKind::Mod; }
+    else if (Kind.Equals(TEXT("connector"), ESearchCase::CaseSensitive)) { Out.Kind = ELDDemoComponentKind::Connector; }
+    else { return Check.Require(false, Path + TEXT(".kind"), TEXT("unknown component kind")); }
+    if (Pool.Equals(TEXT("common"), ESearchCase::CaseSensitive)) { Out.Pool = ELDDemoComponentPool::Common; }
+    else if (Pool.Equals(TEXT("scarce"), ESearchCase::CaseSensitive)) { Out.Pool = ELDDemoComponentPool::Scarce; }
+    else { return Check.Require(false, Path + TEXT(".pool"), TEXT("unknown component pool")); }
+    if (F.Has(TEXT("opening")))
+    {
+        const FValue Opening = F.Take(TEXT("opening"));
+        if (!Check.Require(Out.Kind == ELDDemoComponentKind::Base && Out.Pool == ELDDemoComponentPool::Common, Path,
+            TEXT("only common base components are opening options")))
+        {
+            return false;
+        }
+        if (Opening && Opening->Type == EJson::String)
+        {
+            FString Always;
+            if (!String(Opening, Always, Check, Path + TEXT(".opening"))
+                || !Check.Require(Always.Equals(TEXT("always"), ESearchCase::CaseSensitive), Path + TEXT(".opening"),
+                    TEXT("unsupported opening condition")))
+            {
+                return false;
+            }
+            Out.bOpeningAlways = true;
+        }
+        else
+        {
+            FFields Condition(Check, Opening, Path + TEXT(".opening"));
+            if (!ActiveIds(Condition.Take(TEXT("actives")), Out.OpeningActives, Abilities, true, Check, Condition.Path + TEXT(".actives"))
+                || !Condition.Done())
+            {
+                return false;
+            }
+        }
+    }
+    FOpMask Mask;
+    if (!Effects(F.Take(TEXT("effects")), Out.Effects, true, Mask, Check, Path + TEXT(".effects")))
+    {
+        return false;
+    }
+    if (F.Has(TEXT("binding")))
+    {
+        FFields Binding(Check, F.Take(TEXT("binding")), Path + TEXT(".binding"));
+        const TArray<FValue>* Elements = nullptr;
+        if (!Binding.Literal(TEXT("kind"), TEXT("active_element"))
+            || !ActiveIds(Binding.Take(TEXT("actives")), Out.BindActives, Abilities, false, Check, Binding.Path + TEXT(".actives"))
+            || !Array(Binding.Take(TEXT("elements")), Elements, Check, Binding.Path + TEXT(".elements"), 1, 3))
+        {
+            return false;
+        }
+        for (const FString& Active : Out.BindActives)
+        {
+            const FLDDemoAbilityDefinition* Ability = Abilities.FindByPredicate([&Active](const FLDDemoAbilityDefinition& Candidate)
+                { return Candidate.Id == Active; });
+            if (!Check.Require(Ability->Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+                { return Effect.GetOp() == ELDDemoEffectOp::Damage || Effect.GetOp() == ELDDemoEffectOp::ZoneDamage; }),
+                Binding.Path, TEXT("a bound active needs native direct damage")))
+            {
+                return false;
+            }
+        }
+        for (const FValue& Row : *Elements)
+        {
+            FString Name;
+            ELDDemoElement Element = ELDDemoElement::None;
+            if (!String(Row, Name, Check, Binding.Path + TEXT(".elements"))
+                || !Check.Require(ElementField(Name, Element) && !Out.BindElements.Contains(Element), Binding.Path + TEXT(".elements"),
+                    TEXT("binding elements are distinct fire/water/electric")))
+            {
+                return false;
+            }
+            Out.BindElements.Add(Element);
+        }
+        if (!Binding.Done())
+        {
+            return false;
+        }
+        Out.Binding = ELDDemoComponentBinding::ActiveElement;
+    }
+    return Check.Require((Out.Binding == ELDDemoComponentBinding::ActiveElement) == (Mask & OpBit(ELDDemoEffectOp::ActiveElement)).Any(),
+            Path, TEXT("active_element and its active/element binding come together"))
+        && F.Done();
+}
+
+// #198 B: the catalog in ascending native ID order, each definition once.
+bool Components(const FValue& Value, TArray<FLDDemoComponentDefinition>& Out, const TArray<FLDDemoAbilityDefinition>& Abilities,
+    FCheck& Check)
+{
+    const TArray<FValue>* Rows;
+    if (!Array(Value, Rows, Check, TEXT("content.components"), 1, 64))
+    {
+        return false;
+    }
+    for (int32 I = 0; I < Rows->Num(); ++I)
+    {
+        FLDDemoComponentDefinition Row;
+        const FString Path = FString::Printf(TEXT("content.components[%d]"), I);
+        if (!Component((*Rows)[I], Row, Abilities, Check, Path)
+            || !Check.Require(Out.IsEmpty() || Out.Last().NativeId < Row.NativeId, Path,
+                TEXT("components are listed once each in ascending native ID order")))
+        {
+            return false;
+        }
+        Out.Add(MoveTemp(Row));
+    }
+    return true;
 }
 
 bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, const FString& Path)
@@ -1292,7 +1533,38 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         }
         Out.ActiveOfferLevels.Add(int32(Level));
     }
-    return F.Done();
+    // #198 B: level-up component category bands cover every level 2..MaxLevel once, ascending; each splits 100 percent.
+    const TArray<FValue>* Bands;
+    if (!Array(F.Take(TEXT("component_category_weights")), Bands, Check, F.Path + TEXT(".component_category_weights"), 1, 15))
+    {
+        return false;
+    }
+    int32 NextLevel = 2;
+    for (const auto& Row : *Bands)
+    {
+        FFields Band(Check, Row, F.Path + TEXT(".component_category_weights"));
+        FLDDemoComponentCategoryWeights Weights;
+        const TArray<FValue>* BandLevels;
+        int64 Low = 0, High = 0;
+        if (!Array(Band.Take(TEXT("levels")), BandLevels, Check, Band.Path, 2, 2)
+            || !Integer((*BandLevels)[0], Low, Check, Band.Path, 2, Out.MaxLevel) || !Integer((*BandLevels)[1], High, Check, Band.Path, 2, Out.MaxLevel)
+            || !Band.SmallInt(TEXT("base"), Weights.BasePercent, 0, 100) || !Band.SmallInt(TEXT("mod"), Weights.ModPercent, 0, 100)
+            || !Band.SmallInt(TEXT("connector"), Weights.ConnectorPercent, 0, 100) || !Band.Done()
+            || !Check.Require(Low == NextLevel && Low <= High, Band.Path,
+                TEXT("component category bands must cover levels 2..max_level contiguously, ascending and exactly once"))
+            || !Check.Require(Weights.BasePercent + Weights.ModPercent + Weights.ConnectorPercent == 100, Band.Path,
+                TEXT("component category percentages must add up to 100")))
+        {
+            return false;
+        }
+        Weights.MinLevel = int32(Low);
+        Weights.MaxLevel = int32(High);
+        NextLevel = Weights.MaxLevel + 1;
+        Out.ComponentCategoryWeights.Add(Weights);
+    }
+    return Check.Require(NextLevel == Out.MaxLevel + 1, F.Path + TEXT(".component_category_weights"),
+            TEXT("component category bands must reach max_level"))
+        && F.Done();
 }
 
 bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check);
@@ -1303,8 +1575,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
     if (!Identity.Int(TEXT("schema_version"), Revision, 2, 2)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 2, 2)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 4, 4))
+        || !Identity.Int(TEXT("handler_revision"), Revision, 3, 3)
+        || !Identity.Int(TEXT("projection_revision"), Revision, 5, 5))
     {
         return false;
     }
@@ -1346,6 +1618,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Dash.Done() || !Character.Done()
         || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 17, Ability)
         || !Definitions(F.Take(TEXT("stats")), Out.Stats, Check, TEXT("content.stats"), 5, 5, StatDefinition)
+        || !Components(F.Take(TEXT("components")), Out.Components, Out.Abilities, Check)
         || !Progression(F.Take(TEXT("progression")), Out.Progression, Check))
     {
         return false;
@@ -1434,6 +1707,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     DisplayIds.Add(Out.Character.Id);
     for (const auto& Row : Out.Abilities) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Stats) { DisplayIds.Add(Row.Id); }
+    for (const auto& Row : Out.Components) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Monsters) { DisplayIds.Add(Row.Id); }
     for (const auto& Entry : NativeIds)
     {
@@ -1478,7 +1752,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         && Check.Require(DisplayDigest == Out.Identity.Display, TEXT("content.display"), TEXT("display digest mismatch")) && F.Done();
 }
 
-// #147/#198: every placeholder of an active's description reads an effect of its value set; of a stat's, a per-point bonus.
+// #147/#198: every placeholder of an active's or a component's description reads one of its effects; of a stat's, a
+// per-point bonus.
 bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check)
 {
     const auto Tokens = [&Out, &Check](const FString& Id, TArray<LDDemoCardText::FToken>& Parsed)
@@ -1499,6 +1774,22 @@ bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check)
         {
             if (Token.bValue && !Check.Require(LDDemoCardText::FindEffect(Ability.Values, Token) != nullptr,
                 TEXT("content.display.") + Ability.Id, TEXT("a card placeholder names no effect of this active")))
+            {
+                return false;
+            }
+        }
+    }
+    for (const FLDDemoComponentDefinition& Component : Out.Components)
+    {
+        TArray<LDDemoCardText::FToken> Parsed;
+        if (!Tokens(Component.Id, Parsed))
+        {
+            return false;
+        }
+        for (const LDDemoCardText::FToken& Token : Parsed)
+        {
+            if (Token.bValue && !Check.Require(LDDemoCardText::FindEffect(Component.Effects, Token) != nullptr,
+                TEXT("content.display.") + Component.Id, TEXT("a card placeholder names no effect of this component")))
             {
                 return false;
             }
@@ -1532,8 +1823,8 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 2\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 4\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 3\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 5\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -1575,8 +1866,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
         || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 2, 2)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 2, 2)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 4, 4)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 3, 3)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 5, 5)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)
@@ -1708,11 +1999,16 @@ bool LDDemoCardText::Parse(const FString& Template, TArray<FToken>& Out, FString
 
 const FLDDemoEffectDefinition* LDDemoCardText::FindEffect(const FLDDemoAbilityValues& Values, const FToken& Token)
 {
+    return FindEffect(Values.Effects, Token);
+}
+
+const FLDDemoEffectDefinition* LDDemoCardText::FindEffect(const TArray<FLDDemoEffectDefinition>& Effects, const FToken& Token)
+{
     if (!Token.bValue || Token.bPerPoint)
     {
         return nullptr;
     }
-    const FLDDemoEffectDefinition* Effect = Values.Effects.FindByPredicate([&Token](const FLDDemoEffectDefinition& Row) { return Row.GetOp() == Token.Op; });
+    const FLDDemoEffectDefinition* Effect = Effects.FindByPredicate([&Token](const FLDDemoEffectDefinition& Row) { return Row.GetOp() == Token.Op; });
     if (Effect && Token.Field == EField::Stat
         && !Effect->Stats.ContainsByPredicate([&Token](const FLDDemoStatBonus& Stat) { return Stat.Stat == Token.Stat; }))
     {

@@ -1,12 +1,29 @@
 #include "Development/LDDemoContentCatalog.h"
 
 #include "LDDemoContentJson.h"
+#include "Algo/StableSort.h"
 #include "Development/LDSkillGrowth.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
+
+TArray<const FLDDemoStatDefinition*> FLDDemoContentDefinitions::StatsInDesignOrder() const
+{
+    TArray<const FLDDemoStatDefinition*> Out;
+    Out.Reserve(Stats.Num());
+    for (const FLDDemoStatDefinition& Stat : Stats) { Out.Add(&Stat); }
+    Algo::StableSortBy(Out, [](const FLDDemoStatDefinition* Stat) { return Stat->NativeId; });
+    return Out;
+}
+
+int32 FLDDemoContentDefinitions::StatDesignIndex(const FString& StatId) const
+{
+    // Catalog ids are lowercase; an FName-printed id may come back in another casing.
+    return StatsInDesignOrder().IndexOfByPredicate([&StatId](const FLDDemoStatDefinition* Stat)
+        { return Stat->Id.Equals(StatId, ESearchCase::IgnoreCase); });
+}
 
 namespace
 {
@@ -183,6 +200,11 @@ bool FLDDemoContentSnapshot::FindAbility(const FString& Id, const FLDDemoAbility
 bool FLDDemoContentSnapshot::FindStat(const FString& Id, const FLDDemoStatDefinition*& Out, FString& Error) const
 {
     return Find(Definitions.Stats, Id, Out, Error);
+}
+
+bool FLDDemoContentSnapshot::FindComponent(const FString& Id, const FLDDemoComponentDefinition*& Out, FString& Error) const
+{
+    return Find(Definitions.Components, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const

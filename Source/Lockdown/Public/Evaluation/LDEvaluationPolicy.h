@@ -10,9 +10,9 @@ class FLDDemoContentSnapshot;
 // DEV build evaluation strategy (docs/systems/BUILD_EVALUATION.md). One fixed, symmetric duel strategy for the two AI
 // contenders of an evaluation Case. It reads only the authorized decision frame the production policy reads and returns
 // intents the opponent adapter submits through the same domain entries and receipts. What it fixes is whom to fight, where
-// to meet and which offered active to take (always asking to learn it now); learning blueprints and allocating points are the
-// production rule (LDOpponentPolicy::DecideLearnOrAllocate) and how to fight is the production engagement
-// (LDOpponentPolicy::EngageUnit).
+// to meet and which offered active to take (always asking to learn it now); the opening base pick, learning blueprints,
+// enabling components and allocating points are the production rule (LDOpponentPolicy::DecideFollowUpBuild) and how to
+// fight is the production engagement (LDOpponentPolicy::EngageUnit).
 
 enum class ELDEvaluationChoiceRule : uint8
 {

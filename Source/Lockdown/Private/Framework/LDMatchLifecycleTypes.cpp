@@ -87,7 +87,7 @@ ELDLobbyProjectionResult LDMatchLifecycle::AcceptLobbyView(const FLDLobbyView& C
 {
     Error.Reset();
     if (!Candidate.Generation || !Candidate.PublicRevision || !Candidate.RosterRevision
-        || uint8(Candidate.Phase) > uint8(ELDMatchPhase::Faulted) || Candidate.Members.Num() > 6
+        || !LDMatchLifecycle::IsKnownPhase(Candidate.Phase) || Candidate.Members.Num() > 6
         || Candidate.AICount > 3 || Candidate.StartBlocker.Len() > 512)
     {
         Error = TEXT("Invalid Lobby publication header.");

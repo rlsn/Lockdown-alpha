@@ -33,6 +33,26 @@
     "stat_brains": 30,
     "stat_agility": 31
   },
+  "components": {
+    "component_fist_fire": 1,
+    "component_tab_ledger": 2,
+    "component_spiky_hide": 3,
+    "component_punch_heal": 4,
+    "component_dash_bump": 5,
+    "component_third_punch": 6,
+    "component_kick_down": 7,
+    "component_breach_fist": 8,
+    "component_hard_skin": 9,
+    "component_fist_water": 10,
+    "component_fist_shock": 11,
+    "component_dash_punch": 12,
+    "component_catch_breath": 13,
+    "component_long_arm": 14,
+    "component_seeing_red": 15,
+    "component_thick_hide": 16,
+    "component_held_shot": 17,
+    "component_dirty_trick": 18
+  },
   "monsters": {
     "monster_scavenger": 1,
     "monster_guardian": 2,
@@ -95,6 +115,11 @@
     "dash_contact": 82,
     "primary_guard": 86,
     "dash_contact_damage": 87,
-    "dash_contact_refund": 88
+    "dash_contact_refund": 88,
+    "ledger": 100,
+    "basic_element": 101,
+    "basic_damage_scale": 102,
+    "idle_ready_amp": 103,
+    "active_element": 104
   }
 }

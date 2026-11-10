@@ -38,6 +38,9 @@
 // walks back in and stands alone in the zone for the whole guard to win. After the result the Host returns the same
 // connections to a new Lobby generation and starts a second match.
 enum class ELDCaptureProbeStage : uint8 { Join, Lobby, Starting, Match, Results, SecondLobby, SecondMatch, Done };
+// #198: every match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without a
+// death and places the first field life, life 2.
+constexpr uint32 LDCaptureProbeFirstFieldLife = 2;
 
 // The public spray and guard sequence every role must observe in the first match.
 enum class ELDCaptureProbeSeen : uint8
@@ -67,7 +70,9 @@ public:
     int64 AwayKeptMs = 0, RepaintSinceMs = 0, RepaintLeftAtMs = 0, ResumedGuardDueMs = 0;
     int64 FrozenKeptMs = 0, ResetAtMs = 0, ResetLeftAtMs = 0, RestartedGuardDueMs = 0;
     int32 MarkerObservations = 0, MarkerMismatches = 0;
-    int64 SprayMs = 0, GuardMs = 0, DevelopmentMs = 0;
+    int64 SprayMs = 0, GuardMs = 0, FieldSegmentMs = 0, Rest0Ms = 0, ProtectionMs = 0;
+    // The second match's first field life as first seen: its R0 return protection, checked once it has ended.
+    int64 SecondProtectedUntilMs = -1;
     FVector Center = FVector::ZeroVector, Staging = FVector::ZeroVector, Inside = FVector::ZeroVector;
     FName Surface;
     double RadiusCm = 0;
@@ -374,7 +379,10 @@ bool FLDDemoCaptureProbe::Tick()
         RadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
         SprayMs = Content->Get().Parameters.CaptureSprayMs;
         GuardMs = Content->Get().Parameters.CaptureGuardMs;
-        DevelopmentMs = Content->Get().Parameters.DevelopmentMs;
+        FieldSegmentMs = Content->Get().Parameters.FieldSegmentMs;
+        // No sign-up ever happens here, so R0 skips its PK: the build step, then the return countdown.
+        Rest0Ms = Content->Get().Parameters.RestOpeningBuildMs + Content->Get().Parameters.RestReturnMs;
+        ProtectionMs = Content->Get().Parameters.ProtectionMs;
     }
     const FLDLobbyView& Lobby = Public->DemoLobby;
     const FLDPublicMatchView& View = Public->PublicMatch;
@@ -422,8 +430,11 @@ bool FLDDemoCaptureProbe::Tick()
     case ELDCaptureProbeStage::Starting:
     {
         const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
+        // The match opens in the rest R0 (life 1 in a private rest space); the R0 return places the first field life. The
+        // public phase may reach Development a frame before this owner's projection leaves its rest life.
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Body
-            || PC->OwnerState.LifePhase != ELDLifePhase::Alive || !PC->CanWorldCommand()) { return true; }
+            || PC->OwnerState.LifePhase != ELDLifePhase::Alive || PC->OwnerState.Life < LDCaptureProbeFirstFieldLife
+            || !PC->CanWorldCommand()) { return true; }
         // A freshly spawned body may still be settling; a ground order sent before it stands fails its local plan.
         if (!Body->GetCharacterMovement() || !Body->GetCharacterMovement()->IsMovingOnGround()) { return true; }
         const FLDLobbyMember* Capturer = Lobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
@@ -436,9 +447,14 @@ bool FLDDemoCaptureProbe::Tick()
             && (Role != TEXT("Client1") || CapturerId == PC->OwnerState.ContenderId)
             && (Role != TEXT("Client2") || ContesterId == PC->OwnerState.ContenderId),
             TEXT("C03"), TEXT("The capturing and the contesting contenders are on the locked roster"));
-        Check(View.Generation == FirstGeneration && View.OpenAtMs == View.StartedAtMs + DevelopmentMs
+        // #198: the flagpole exists only in the final field, so it is not scheduled (MAX) while field 1 runs from T=0 right
+        // after the R0 return.
+        const FLDTimelineView& Line = View.Timeline;
+        Check(View.Generation == FirstGeneration && View.OpenAtMs == MAX_int64 && Line.Stage == ELDMatchStage::Field
+            && Line.FieldSegment == 0 && Line.FieldBaseMs == 0 && Line.FieldEndT == FieldSegmentMs
+            && Line.FieldStartedAtMs == View.StartedAtMs + Rest0Ms
             && View.CircleState == ELDCircleState::NotOpen && !View.Occupier.IsValid() && !View.GraffitiOwner.IsValid(),
-            TEXT("C04"), TEXT("Normal start opens the approved development phase with a closed, bare flagpole"));
+            TEXT("C04"), TEXT("Normal start runs the opening rest R0, then field 1 from T=0 with a closed, bare and unscheduled flagpole"));
         FVector Direction = Body->GetActorLocation() - Center;
         Direction.Z = 0;
         Direction = Direction.GetSafeNormal();
@@ -458,6 +474,11 @@ bool FLDDemoCaptureProbe::Tick()
     }
     case ELDCaptureProbeStage::Match:
     {
+        // #198: the flagpole opens only when the final field starts, after the three timed field segments and the rests
+        // R1..R3. This normal-start scenario runs without the DEV growth fixture, so it has no DEV OpenCapture shortcut and
+        // honestly waits for that boundary (the runner's timeout must cover it). Each rest moves every body to its private
+        // rest space and back near the field foot it left, so Client1 returns beside the centre and Client2 beside its
+        // staging point, each with the shared return protection.
         int64 NowMs = 0;
         PC->ReadDemoAuthorityTimeMs(NowMs);
         if (Role == TEXT("Client2") && View.Phase == ELDMatchPhase::CaptureOpen)
@@ -599,13 +620,17 @@ bool FLDDemoCaptureProbe::Tick()
             SecondStartSent = true;
             return true;
         }
-        // The first frame on which the owner's own views all describe the new match's living first body.
+        // The first frame on which the owner's own views all describe the new match's living first field body, once its
+        // R0 return protection has ended.
         const FLDProgressionView* Progress = PC->ReadOwnProgression();
         const FLDCombatOwnerView& Own = PC->CombatView;
         if (View.Phase != ELDMatchPhase::Development || !Cast<ALDCharacter>(PC->GetPawn())
             || PC->OwnerState.Match != SecondGeneration || PC->OwnerState.LifePhase != ELDLifePhase::Alive
+            || PC->OwnerState.Life < LDCaptureProbeFirstFieldLife
             || !PC->OwnerState.BodyRef.IsValid() || !Progress
             || Own.Generation != SecondGeneration || Own.Life != PC->OwnerState.Life || !Own.bHasBody) { return true; }
+        if (SecondProtectedUntilMs < 0) { SecondProtectedUntilMs = PC->OwnerState.ProtectedUntilMs; }
+        if (PC->OwnerState.ProtectedUntilMs != 0) { return true; }
         return CheckSecondMatch(*PC, Mode, Lobby, View, *Progress);
     }
     default:
@@ -624,9 +649,9 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         Check(SecondStartSent && Lobby.Phase == ELDMatchPhase::Development,
             TEXT("R01"), TEXT("The Host's normal start opened the second match in the new generation without aborting"));
     }
-    Check(Self.Match == SecondGeneration && Self.Life == 1 && Progress.Life == Self.Life
+    Check(Self.Match == SecondGeneration && Self.Life == LDCaptureProbeFirstFieldLife && Progress.Life == Self.Life
         && FirstBody.IsValid() && Self.BodyRef != FirstBody,
-        TEXT("R02"), TEXT("The first Alive frame is the new generation's first life in a fresh body"));
+        TEXT("R02"), TEXT("The first Alive field frame is the new generation's first field life (after its R0 rest life) in a fresh body"));
     uint8 StartLevel = 0;
     const bool bStartLevel = LDProgression::LevelForXP(Defs.Progression, Defs.Progression.XPStart, StartLevel) == ELDGrowthReason::None;
     Check(bStartLevel && Progress.Level == StartLevel && Progress.CumulativeXP == Defs.Progression.XPStart,
@@ -635,15 +660,16 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry)
     { return Entry.Entry != ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); });
     int64 OpeningPoints = 0;
-    const bool bOpeningPoints = LDProgression::EarnedPoints(Defs, StartLevel, Defs.Progression.XPStart, OpeningPoints) == ELDGrowthReason::None;
+    const bool bOpeningPoints = LDProgression::EarnedPoints(Defs, StartLevel, Defs.Progression.XPStart, 0, OpeningPoints) == ELDGrowthReason::None;
     Check(Progress.Actives.IsEmpty() && Progress.PendingBlueprints.IsEmpty() && bOpeningPoints && Progress.UnspentPoints == OpeningPoints
         && !Progress.StatPoints.ContainsByPredicate([](const FLDStatPointsView& Row) { return Row.Points != 0; })
         && Progress.ActiveOpportunitiesEarned == 1 && Progress.ActiveOpportunitiesConsumed == 0 && Progress.QueuedActiveOpportunities == 1
         && Progress.bHasActiveOffer && Progress.ActiveOffer.OpportunityOrdinal == 1 && bNoEntries,
         TEXT("R04"), TEXT("No learned active, blueprint or allocated point; only the opening points and this match's opening offer"));
-    Check(Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
+    Check((SecondProtectedUntilMs == 0 || SecondProtectedUntilMs == View.Timeline.FieldStartedAtMs + ProtectionMs)
+        && Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
-        TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));
+        TEXT("R05"), TEXT("The first field body carries only the shared R0 return protection; once it ends the body has full HP and no shield, root, protection or other status"));
     const bool bTracksReady = !Own.Entries.ContainsByPredicate([&Own](const FLDCombatEntryView& Entry)
     {
         // The dash track is issued fresh for every match: ready, with no duration issued yet.
@@ -692,7 +718,8 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
             return Match.Generation == SecondGeneration && Match.Phase == ELDMatchPhase::Development
                 && Match.CircleState == ELDCircleState::NotOpen && !Match.Occupier.IsValid() && !Match.SoloSinceMs && !Match.GraffitiOwner.IsValid()
                 && !Match.DueAtMs && !Match.PausedProgressMs && !Match.CaptureEpoch && !Match.ResultId.IsValid()
-                && Match.OpenAtMs == Match.StartedAtMs + DevelopmentMs;
+                && Match.OpenAtMs == MAX_int64 && Match.Timeline.Stage == ELDMatchStage::Field && Match.Timeline.FieldSegment == 0
+                && Match.Timeline.FieldStartedAtMs == Match.StartedAtMs + Rest0Ms;
         };
         Check(Clean(View) && Clean(Authority) && Public && Public->KillFeed.Generation == SecondGeneration
             && Public->KillFeed.Notices.IsEmpty()
@@ -726,12 +753,13 @@ void LDDemoTests::StartCaptureProbe(ALDPlayerController& Controller)
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoCaptureProbe")) || !Controller.IsLocalController()
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoCaptureProbe>();
-    int32 Timeout = 480;
+    // #198: the flagpole opens only at the final field, about twelve minutes after the start.
+    int32 Timeout = 1200;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureRole="), Probe->Role)
         || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2"))
-        || Timeout < 120 || Timeout > 900
+        || Timeout < 120 || Timeout > 1800
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {

@@ -11,24 +11,55 @@
 
 namespace
 {
+// #198 B: the install target fields of a command, whitelisted and decoded; false when any of them is malformed.
+bool DevelopmentDecodeTarget(const FLDBuildCommand& Command, FLDComponentTarget& Out)
+{
+    Out = FLDComponentTarget();
+    if (!LDGrowthWire::IsKnownTargetKind(Command.TargetKind) || !LDGrowthWire::IsKnownElement(Command.Element)
+        || !LDGrowthWire::DecodeOptional(Command.TargetDefinition, Out.Definition)
+        || !LDGrowthWire::DecodeOptional(Command.BoundActive, Out.BoundActive))
+    {
+        Out = FLDComponentTarget();
+        return false;
+    }
+    Out.Kind = Command.TargetKind;
+    Out.Segment = Command.TargetSegment;
+    Out.Element = Command.Element;
+    return true;
+}
+
 bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
 {
     if (Command.Generation == 0 || Command.Life == 0 || Command.RequestId == 0 || Command.ExpectedBuildRevision == 0
-        || !LDGrowthWire::IsBuildLifePhase(Command.ExpectedLifePhase))
+        || !LDGrowthWire::IsBuildLifePhase(Command.ExpectedLifePhase) || !LDGrowthWire::IsKnownBuildKind(Command.Kind))
     {
         return false;
     }
     FName Decoded;
+    FLDComponentTarget Target;
+    const bool bTarget = DevelopmentDecodeTarget(Command, Target);
     const bool bNoOffer = !Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option == FLDDefinitionWire();
+    // The active and point kinds carry no component field; the component kinds carry only the component and its target.
+    const bool bNoComponent = Command.Component == FLDDefinitionWire() && !Command.bInstallIfPossible && bTarget && Target.IsEmpty();
+    const bool bOnlyComponent = bNoOffer && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
+        && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot && Command.Component.Decode(Decoded) && bTarget;
     switch (Command.Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
         return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option.Decode(Decoded)
-            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
+            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
             && (Command.Slot == FLDBuildCommand::AnySlot || (Command.bLearnIfPossible && Command.Slot < 3));
     case ELDBuildCommandKind::LearnBlueprint:
+    case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
-            && Command.PointCounts.IsEmpty();
+            && Command.PointCounts.IsEmpty() && bNoComponent;
+    case ELDBuildCommandKind::ForgetActive:
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
+            && Command.PointCounts.IsEmpty() && bNoComponent;
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible
+            && Command.Slot == FLDBuildCommand::AnySlot && Command.PointCounts.IsEmpty() && bNoComponent;
     case ELDBuildCommandKind::AllocatePoints:
     {
         int32 Total = 0;
@@ -36,12 +67,24 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         {
             Total += Count;
         }
-        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && bNoComponent
             && Command.Slot == FLDBuildCommand::AnySlot && Command.PointCounts.Num() == StatCount && Total >= 1;
     }
+    case ELDBuildCommandKind::OpeningBase:
+        return bOnlyComponent && (Command.bInstallIfPossible || Target.IsEmpty());
+    case ELDBuildCommandKind::InstallComponent:
+        return bOnlyComponent && !Command.bInstallIfPossible;
+    case ELDBuildCommandKind::UninstallComponent:
+        return bOnlyComponent && !Command.bInstallIfPossible && Target.IsEmpty();
     default:
         return false;
     }
+}
+
+bool DevelopmentIsComponentKind(ELDBuildCommandKind Kind)
+{
+    return Kind == ELDBuildCommandKind::OpeningBase || Kind == ELDBuildCommandKind::InstallComponent
+        || Kind == ELDBuildCommandKind::UninstallComponent;
 }
 
 void DevelopmentFillHeader(FLDGrowthReceiptHeader& Header, const FLDBuildCommand& Command, const FLDPendingReceiptInfo& Info,
@@ -63,6 +106,14 @@ void DevelopmentFillCommand(FLDBuildReceipt& Receipt, const FLDBuildCommand& Com
     Receipt.Kind = Command.Kind;
     Receipt.OfferId = Command.OfferId;
     FName Definition;
+    if (DevelopmentIsComponentKind(Command.Kind))
+    {
+        if (Command.Component.Decode(Definition))
+        {
+            Receipt.ComponentId = Definition;
+        }
+        return;
+    }
     if (Command.Kind == ELDBuildCommandKind::ActiveChoice ? Command.Option.Decode(Definition) : Command.Blueprint.Decode(Definition))
     {
         Receipt.DefinitionId = Definition;
@@ -105,7 +156,8 @@ FLDPrepareGrowthResult DevelopmentPrepareFailure(ELDGrowthReason Reason, const T
     return Result;
 }
 
-// Level, allocated points and learned actives are what Combat projects; blueprints and opportunities are not.
+// Level, allocated points, learned actives and installed components are what Combat projects; blueprints, inventory
+// components and opportunities are not.
 bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& New)
 {
     if (Old.Level != New.Level || Old.StatPoints != New.StatPoints || Old.Actives.Num() != New.Actives.Num())
@@ -119,7 +171,54 @@ bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& N
             return true;
         }
     }
+    const auto Installed = [](const FLDGrowthBuild& Build)
+    {
+        TArray<const FLDComponentInstance*> Out;
+        for (const FLDComponentInstance& Instance : Build.Components)
+        {
+            if (Instance.bInstalled)
+            {
+                Out.Add(&Instance);
+            }
+        }
+        return Out;
+    };
+    const TArray<const FLDComponentInstance*> OldInstalled = Installed(Old);
+    const TArray<const FLDComponentInstance*> NewInstalled = Installed(New);
+    if (OldInstalled.Num() != NewInstalled.Num())
+    {
+        return true;
+    }
+    for (int32 Index = 0; Index < OldInstalled.Num(); ++Index)
+    {
+        if (OldInstalled[Index]->Id != NewInstalled[Index]->Id || !(OldInstalled[Index]->Target == NewInstalled[Index]->Target))
+        {
+            return true;
+        }
+    }
     return false;
+}
+
+FLDComponentInstanceView DevelopmentComponentView(const FLDComponentInstance& Instance)
+{
+    FLDComponentInstanceView View;
+    View.DefinitionId = Instance.Id;
+    View.Source = Instance.Source;
+    View.SourceLevel = Instance.SourceLevel;
+    View.bInstalled = Instance.bInstalled;
+    View.bEverInstalled = Instance.bEverInstalled;
+    View.Target.Kind = Instance.Target.Kind;
+    View.Target.Definition = Instance.Target.Definition;
+    View.Target.Segment = Instance.Target.Segment;
+    View.Target.Element = Instance.Target.Element;
+    View.Target.BoundActive = Instance.Target.BoundActive;
+    return View;
+}
+
+FString DevelopmentBindingText(const FLDComponentTarget& Target)
+{
+    return Target.BoundActive.IsNone() ? FString(TEXT("-"))
+        : FString::Printf(TEXT("%s:%s"), *Target.BoundActive.ToString(), *LDLog::EnumName(Target.Element));
 }
 
 const TCHAR* DevelopmentSlotName(uint8 Slot)
@@ -186,11 +285,23 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     }
     const FLDGrowthBuild StartBuild = LDProgression::StartBuild(Definitions);
     int64 OpeningPoints = 0;
-    const ELDGrowthReason PointsReason = LDProgression::EarnedPoints(Definitions, 1, 0, OpeningPoints);
+    const ELDGrowthReason PointsReason = LDProgression::EarnedPoints(Definitions, 1, 0, 0, OpeningPoints);
     if (PointsReason != ELDGrowthReason::None)
     {
         Error = FString::Printf(TEXT("Growth points parameters are invalid (%s)."), LDGrowthWire::ReasonName(PointsReason));
         return false;
+    }
+    // #198 B: every normal level-up draws its component from its level's category band; a table that cannot serve a level
+    // refuses the match instead of failing a later reward.
+    for (int32 Level = 2; Level <= Definitions.Progression.MaxLevel; ++Level)
+    {
+        FName Probe;
+        const ELDGrowthReason SupplyReason = LDProgression::DrawLevelComponent(Definitions, StartBuild, uint8(Level), 0, Probe);
+        if (SupplyReason != ELDGrowthReason::None)
+        {
+            Error = FString::Printf(TEXT("The component supply of level %d is invalid (%s)."), Level, LDGrowthWire::ReasonName(SupplyReason));
+            return false;
+        }
     }
     // #198: the opening offer is three distinct actives of the opening pool; a short catalog refuses the match.
     TArray<FName> OpeningPool;
@@ -207,7 +318,7 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
         FRecord& Record = NewRecords.Add(Id);
         Record.Build = StartBuild;
         Record.Progression.Revision = 1;
-        // Every contender enters the countdown holding its opening opportunity; respawns never add another.
+        // Every contender enters the opening rest holding its opening opportunity; respawns never add another.
         Record.Progression.ActiveEarned = LDProgression::ActiveOpportunitiesAt(Definitions.Progression, 1);
         Record.CombatInstalled = FLDExpectedBuildVersions();
     }
@@ -244,12 +355,26 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     const FLDGrowthBuild& Build = Record->Build;
     const FLDProgressionState& Progression = Record->Progression;
     int64 Unspent = 0;
-    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Build, Progression.CumulativeXP, Unspent);
+    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Build, Progression.CumulativeXP,
+        Progression.EmptyPoolGrants, Unspent);
     if (PointsReason != ELDGrowthReason::None)
     {
         UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_VIEW_FAULT contender=%s: the points of the committed build do not derive (%s)"),
             *ContenderId.ToString(), LDGrowthWire::ReasonName(PointsReason));
         return View;
+    }
+    // #198 B: the opening base pick opens once the opening active is chosen and closes with the pick.
+    const FName OpeningActive = LDProgression::OpeningActive(Progression);
+    TArray<FName> OpeningOptions;
+    if (!OpeningActive.IsNone() && !LDProgression::OpeningBaseTaken(Build))
+    {
+        const ELDGrowthReason OptionsReason = LDProgression::OpeningBaseOptions(Definitions, Build, OpeningActive, OpeningOptions);
+        if (OptionsReason != ELDGrowthReason::None)
+        {
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_VIEW_FAULT contender=%s: the opening base options do not derive (%s)"),
+                *ContenderId.ToString(), LDGrowthWire::ReasonName(OptionsReason));
+            return View;
+        }
     }
     View.bValid = true;
     View.Generation = Match.Generation;
@@ -274,10 +399,11 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.BuildRevision = Build.Revision;
     View.UnspentPoints = Unspent;
     View.StatPoints.Reserve(Definitions.Stats.Num());
-    for (int32 Index = 0; Index < Definitions.Stats.Num(); ++Index)
+    const TArray<const FLDDemoStatDefinition*> StatOrder = Definitions.StatsInDesignOrder();
+    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
     {
         FLDStatPointsView& Row = View.StatPoints.AddDefaulted_GetRef();
-        Row.StatId = FName(*Definitions.Stats[Index].Id);
+        Row.StatId = FName(*StatOrder[Index]->Id);
         Row.Points = Build.StatPoints[Index];
     }
     View.Actives.Reserve(Build.Actives.Num());
@@ -300,8 +426,16 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         View.ActiveOffer.OfferRevision = Offer.Revision;
         View.ActiveOffer.Options = Offer.Options;
     }
+    View.Components.Reserve(Build.Components.Num());
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        View.Components.Add(DevelopmentComponentView(Instance));
+    }
+    View.bOpeningBasePending = !OpeningOptions.IsEmpty();
+    View.OpeningBaseOptions = MoveTemp(OpeningOptions);
     View.BuildSafeAtMs = GameMode && GameMode->Combat ? GameMode->Combat->ReadBuildSafeAtMs(ContenderId) : 0;
     View.CatalogDigest = Definitions.Identity.Root;
+    View.PermanentSpentPoints = Build.PermanentSpentPoints;
     return View;
 }
 
@@ -416,9 +550,8 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     }
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
-    Out.Stage = GameMode->IsOpeningCountdown(Match) ? LDProgression::EMatchStage::Countdown
-        : GameMode->IsGameplayWriteOpen(Match) ? LDProgression::EMatchStage::Live : LDProgression::EMatchStage::Closed;
-    // The server re-reads Combat's window at the commit; the client's view of it is only a hint.
+    Out.Stage = GameMode->ReadBuildStage(Match);
+    // The server re-reads Combat's window at the commit; the client's view of it is only a hint. Only Live reads it.
     Out.bSafe = GameMode->Combat->ReadBuildSafeAtMs(ContenderId) <= GameMode->GetAuthorityNowMs();
     return true;
 }
@@ -491,8 +624,19 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     FLDProgressionState NewProgression = Progression;
     bool bProgressionChanged = false;
     LDProgression::FChoiceOutcome Choice;
+    LDProgression::FInstallOutcome Install;
     FName Definition;
+    FName Forgotten;
+    int64 Refunded = 0;
+    int64 NpcPaid = 0;
     uint8 Ordinal = 0;
+    // The points of the committed record no longer derive: the boundary must fault.
+    const auto PointsFault = [&]()
+    {
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_BUILD_FAULT contender=%s request=%llu: allocated and paid points exceed the earned ones"),
+            *ContenderId.ToString(), Command.RequestId);
+        return DevelopmentFaultReceipt(Command, Info);
+    };
     switch (Command.Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
@@ -554,16 +698,101 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::AllocatePoints:
     {
         const ELDGrowthReason PointsReason = LDProgression::ApplyAllocation(Definitions, Build, Progression.CumulativeXP,
-            Command.PointCounts, Context, NewBuild);
+            Progression.EmptyPoolGrants, Command.PointCounts, Context, NewBuild);
         if (PointsReason == ELDGrowthReason::AuthorityFault)
         {
-            UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_BUILD_FAULT contender=%s request=%llu: allocated points exceed the earned ones"),
-                *ContenderId.ToString(), Command.RequestId);
-            return DevelopmentFaultReceipt(Command, Info);
+            return PointsFault();
         }
         if (PointsReason != ELDGrowthReason::None)
         {
             return Reject(PointsReason);
+        }
+        break;
+    }
+    case ELDBuildCommandKind::BuyNpcOffer:
+    {
+        LDProgression::FNpcOfferOutcome Npc;
+        const ELDGrowthReason NpcReason = LDProgression::ApplyBuyNpcOffer(Definitions, Build, Progression, MatchSecret, ContenderId,
+            Context, NewBuild, NewProgression, Npc);
+        if (NpcReason == ELDGrowthReason::AuthorityFault)
+        {
+            return PointsFault();
+        }
+        if (NpcReason != ELDGrowthReason::None)
+        {
+            return Reject(NpcReason);
+        }
+        // The payment and its fixed offer install together on the next build revision (InstallBuild).
+        NewProgression.Offer->GeneratedBuildRevision = Build.Revision + 1;
+        Ordinal = Npc.Ordinal;
+        NpcPaid = Npc.PointsPaid;
+        bProgressionChanged = true;
+        break;
+    }
+    case ELDBuildCommandKind::Respec:
+    {
+        const ELDGrowthReason RespecReason = LDProgression::ApplyRespec(Definitions, Build, Progression.CumulativeXP,
+            Progression.EmptyPoolGrants, Context, NewBuild, Refunded);
+        if (RespecReason == ELDGrowthReason::AuthorityFault)
+        {
+            return PointsFault();
+        }
+        if (RespecReason != ELDGrowthReason::None)
+        {
+            return Reject(RespecReason);
+        }
+        break;
+    }
+    case ELDBuildCommandKind::ReplaceActive:
+    {
+        Command.Blueprint.Decode(Definition);
+        const ELDGrowthReason ReplaceReason = LDProgression::ApplyReplaceActive(Definitions, Build, Progression, Definition,
+            Command.Slot, Context, NewBuild, Forgotten);
+        if (ReplaceReason != ELDGrowthReason::None)
+        {
+            return Reject(ReplaceReason);
+        }
+        Choice.Result = ELDBuildChoiceResult::Learned;
+        Choice.Slot = Command.Slot;
+        break;
+    }
+    case ELDBuildCommandKind::ForgetActive:
+    {
+        const ELDGrowthReason ForgetReason = LDProgression::ApplyForgetActive(Definitions, Build, Progression, Command.Slot,
+            Context, NewBuild, Forgotten);
+        if (ForgetReason != ELDGrowthReason::None)
+        {
+            return Reject(ForgetReason);
+        }
+        break;
+    }
+    case ELDBuildCommandKind::OpeningBase:
+    case ELDBuildCommandKind::InstallComponent:
+    case ELDBuildCommandKind::UninstallComponent:
+    {
+        // Admission decoded these already; a stored command never changes.
+        FLDComponentTarget Target;
+        if (!Command.Component.Decode(Definition) || !DevelopmentDecodeTarget(Command, Target))
+        {
+            return Reject(ELDGrowthReason::InvalidRequest);
+        }
+        ELDGrowthReason ComponentReason = ELDGrowthReason::None;
+        if (Command.Kind == ELDBuildCommandKind::OpeningBase)
+        {
+            ComponentReason = LDProgression::ApplyOpeningBase(Definitions, Build, Progression, Definition, Command.bInstallIfPossible,
+                Target, Context, NewBuild, Install);
+        }
+        else if (Command.Kind == ELDBuildCommandKind::InstallComponent)
+        {
+            ComponentReason = LDProgression::ApplyInstallComponent(Definitions, Build, Definition, Target, Context, NewBuild);
+        }
+        else
+        {
+            ComponentReason = LDProgression::ApplyUninstallComponent(Definitions, Build, Definition, Context, NewBuild);
+        }
+        if (ComponentReason != ELDGrowthReason::None)
+        {
+            return Reject(ComponentReason);
         }
         break;
     }
@@ -599,8 +828,16 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     {
         Receipt.PointsSpent = Command.PointCounts;
     }
+    Receipt.ForgottenId = Forgotten;
+    Receipt.PointsRefunded = Refunded;
+    Receipt.NpcPointsPaid = NpcPaid;
+    const FLDComponentInstance* Committed = DevelopmentIsComponentKind(Command.Kind)
+        ? Record->Build.FindComponent(Receipt.ComponentId) : nullptr;
+    Receipt.bComponentInstalled = Committed && Committed->bInstalled;
+    Receipt.InstallStoredReason = LDGrowthWire::Raw(Install.StoredReason);
     int64 Unspent = 0;
-    LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP, Unspent);
+    LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP, Record->Progression.EmptyPoolGrants,
+        Unspent);
     Receipt.UnspentPointsAfter = Unspent;
     if (Record->Progression.Offer.IsSet())
     {
@@ -620,12 +857,25 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     }
     else
     {
-        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u"),
+        const FName Card = DevelopmentIsComponentKind(Command.Kind) ? Receipt.ComponentId : Receipt.DefinitionId;
+        const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
+            || Command.Kind == ELDBuildCommandKind::ForgetActive;
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
-            Receipt.DefinitionId.IsNone() ? TEXT("-") : *Receipt.DefinitionId.ToString(),
-            Command.Kind == ELDBuildCommandKind::LearnBlueprint ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
+            Card.IsNone() ? TEXT("-") : *Card.ToString(),
+            bNamesSlot ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
             Command.Kind == ELDBuildCommandKind::AllocatePoints ? *DevelopmentPointsText(Command.PointCounts) : TEXT("-"),
-            Unspent, uint32(Record->Build.Level));
+            Unspent, uint32(Record->Build.Level), Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString(), Refunded, NpcPaid,
+            uint32(Ordinal), !Committed ? TEXT("-") : Committed->bInstalled ? TEXT("1") : TEXT("0"),
+            Committed ? *DevelopmentBindingText(Committed->Target) : TEXT("-"),
+            Install.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Install.StoredReason));
+        if (Command.Kind == ELDBuildCommandKind::BuyNpcOffer && Record->Progression.Offer.IsSet())
+        {
+            // Host playtest record of the actives shown, like every drawn head (DrawHead).
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_OFFER t=%lld contender=%s ordinal=%u level=%u cards=%s source=npc"),
+                GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), uint32(Record->Build.Level),
+                *FString::JoinBy(Record->Progression.Offer->Options, TEXT(","), [](FName Id) { return Id.ToString(); }));
+        }
     }
     Record->Builds.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
@@ -654,7 +904,8 @@ ELDGrowthReason ALDDevelopmentDirector::InstallBuild(const FGuid& ContenderId, F
         return BuildReason;
     }
     int64 Unspent = 0;
-    if (const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, NewBuild, NewProgression.CumulativeXP, Unspent);
+    if (const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, NewBuild, NewProgression.CumulativeXP,
+            NewProgression.EmptyPoolGrants, Unspent);
         PointsReason != ELDGrowthReason::None)
     {
         return PointsReason;
@@ -724,11 +975,21 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         return DevelopmentPrepareFailure(ELDGrowthReason::NotContender, TEXT("The XP recipient has no growth record in this match."));
     }
     LDProgression::FExperienceChange Change;
+    const FLDProgressionState& Current = Record->Progression;
+    // NPC opportunities are not earned by level; the plan only sees the level part and the purchases carry over.
+    if (Current.NpcPurchased > Current.ActiveEarned)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, TEXT("The contender bought more opportunities than it earned."));
+    }
     const ELDGrowthReason PlanReason = LDProgression::PlanExperience(Content->Get().Progression,
-        Record->Progression.CumulativeXP, Record->Build.Level, Record->Progression.ActiveEarned, GrantXP, Change);
+        Current.CumulativeXP, Record->Build.Level, uint8(Current.ActiveEarned - Current.NpcPurchased), GrantXP, Change);
     if (PlanReason != ELDGrowthReason::None)
     {
         return DevelopmentPrepareFailure(PlanReason, TEXT("The XP grant does not fit the contender's progression."));
+    }
+    if (int32(Change.ActiveEarnedAfter) + int32(Current.NpcPurchased) > MAX_uint8)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::CapacityExceeded, TEXT("The active opportunity count is exhausted."));
     }
     FLDPreparedGrowthChange Prepared;
     Prepared.ContenderId = ContenderId;
@@ -748,7 +1009,7 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         }
         ++NewProgression.Revision;
         NewProgression.CumulativeXP = Change.NewXP;
-        NewProgression.ActiveEarned = Change.ActiveEarnedAfter;
+        NewProgression.ActiveEarned = uint8(Change.ActiveEarnedAfter + NewProgression.NpcPurchased);
     }
     if (Change.LevelAfter != Change.LevelBefore)
     {
@@ -758,10 +1019,27 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         }
         NewBuild.Level = Change.LevelAfter;
         ++NewBuild.Revision;
+        // #198 B: each normal level-up crossed grants its component (or the exhausted-pool points) in this same commit; the
+        // level is reached once per match, so no reward, death or reconnect ever grants it again.
+        FLDGrowthBuild Granted;
+        uint8 EmptyGrants = 0;
+        const ELDGrowthReason GrantReason = LDProgression::GrantLevelComponents(Content->Get(), NewBuild, Change.LevelBefore,
+            Change.LevelAfter, MatchSecret, ContenderId, Granted, EmptyGrants, Prepared.Grants);
+        if (GrantReason != ELDGrowthReason::None)
+        {
+            return DevelopmentPrepareFailure(GrantReason, TEXT("The level-up components do not draw from the approved supply."));
+        }
+        if (int32(NewProgression.EmptyPoolGrants) + int32(EmptyGrants) > int32(MAX_uint8))
+        {
+            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The exhausted-pool grants overflow."));
+        }
+        NewBuild = MoveTemp(Granted);
+        NewProgression.EmptyPoolGrants = uint8(NewProgression.EmptyPoolGrants + EmptyGrants);
     }
-    // The points follow from the new level and XP; their derivation must hold before anything installs.
+    // The points follow from the new level, XP and exhausted-pool grants; their derivation must hold before anything installs.
     int64 Unspent = 0;
-    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Content->Get(), NewBuild, NewProgression.CumulativeXP, Unspent);
+    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Content->Get(), NewBuild, NewProgression.CumulativeXP,
+        NewProgression.EmptyPoolGrants, Unspent);
     if (PointsReason != ELDGrowthReason::None)
     {
         return DevelopmentPrepareFailure(PointsReason, TEXT("The points of the new level and XP do not derive."));
@@ -861,11 +1139,12 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
     Input.Level = Build.Level;
     if (Content.IsValid() && Build.StatPoints.Num() == Content->Get().Stats.Num())
     {
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->Get().StatsInDesignOrder();
         for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
         {
             if (Build.StatPoints[Index] != 0)
             {
-                Input.StatPoints.Emplace(Content->Get().Stats[Index].Id, Build.StatPoints[Index]);
+                Input.StatPoints.Emplace(StatOrder[Index]->Id, Build.StatPoints[Index]);
             }
         }
     }
@@ -878,6 +1157,17 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
             : Active.Slot == 1 ? ELDCombatEntry::W
             : Active.Slot == 2 ? ELDCombatEntry::E
             : ELDCombatEntry::None;
+    }
+    // #198 B: installed components only, in the build's id order.
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        if (Instance.bInstalled)
+        {
+            FLDInstalledComponentValue& Value = Input.Components.AddDefaulted_GetRef();
+            Value.ComponentId = Instance.Id;
+            Value.BoundActive = Instance.Target.BoundActive;
+            Value.Element = Instance.Target.Element;
+        }
     }
     Input.ResultBuildRevision = Build.Revision;
     return Input;
@@ -949,9 +1239,11 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
     {
         return false;
     }
-    // Every opportunity of the match draws one head; the current head, if any, is already drawn.
+    // Every level opportunity of the match draws one head; the current head, if any, is already drawn. NPC opportunities
+    // draw their fixed offer at payment and never take a preset.
     const TArray<TArray<FName>>* Queued = DevOfferQueue.Find(ContenderId);
-    const int32 Drawn = int32(Record->Progression.ActiveConsumed) + (Record->Progression.Offer.IsSet() ? 1 : 0);
+    const int32 Drawn = int32(Record->Progression.ActiveConsumed) + (Record->Progression.Offer.IsSet() ? 1 : 0)
+        - int32(Record->Progression.NpcPurchased);
     const int32 Opportunities = 1 + Content->Get().Progression.ActiveOfferLevels.Num();
     if (Drawn + (Queued ? Queued->Num() : 0) >= Opportunities)
     {
@@ -1062,14 +1354,15 @@ ELDGrowthReason ALDDevelopmentDirector::DevAllocatePoints(const FGuid& Contender
         return ELDGrowthReason::NotContender;
     }
     const FLDDemoContentDefinitions& Definitions = Content->Get();
-    const int32 StatIndex = Definitions.Stats.IndexOfByPredicate([StatId](const FLDDemoStatDefinition& Row) { return FName(*Row.Id) == StatId; });
+    const int32 StatIndex = Definitions.StatDesignIndex(StatId.ToString());
     if (StatIndex == INDEX_NONE)
     {
         Detail = FString::Printf(TEXT("'%s' is not a stat of the approved catalog."), *StatId.ToString());
         return ELDGrowthReason::InvalidOption;
     }
     int64 Unspent = 0;
-    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP, Unspent);
+    const ELDGrowthReason PointsReason = LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP,
+        Record->Progression.EmptyPoolGrants, Unspent);
     if (PointsReason != ELDGrowthReason::None)
     {
         Detail = TEXT("The committed points do not derive.");

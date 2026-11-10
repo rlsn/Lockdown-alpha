@@ -98,12 +98,35 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
 inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
-// 升级横幅的第二行：这次升级得到的属性点与主动机会。
-inline FString LevelUpGains(int64 Points,int32 Offers)
+// #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件；脱战后首次启用，休息时才能重新安装。
+inline constexpr TCHAR Component[]=TEXT("构件");
+inline constexpr TCHAR OpeningBase[]=TEXT("选一个开局基础构件");
+inline constexpr TCHAR TakeComponent[]=TEXT("拿这个");
+inline constexpr TCHAR Components[]=TEXT("构件（拿到后脱战启用）");
+inline constexpr TCHAR ComponentEnabled[]=TEXT("已启用");
+inline constexpr TCHAR EnableComponent[]=TEXT("启用");
+inline constexpr TCHAR ReinstallAtRest[]=TEXT("休息时才能重新安装");
+inline constexpr TCHAR ElementClosed[]=TEXT("该元素尚未开放");
+inline constexpr TCHAR NoBindableActive[]=TEXT("先学会一个能绑定的伤害技能");
+inline constexpr TCHAR PickBoundActive[]=TEXT("绑定哪个技能：");
+inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
+inline constexpr TCHAR CancelBinding[]=TEXT("取消");
+inline constexpr TCHAR ElementFire[]=TEXT("火");
+inline constexpr TCHAR ElementWater[]=TEXT("水");
+inline constexpr TCHAR ElementElectric[]=TEXT("电");
+inline FString ComponentsPending(int32 Count){return FString::Printf(TEXT("%s %d"),Component,Count);}
+inline FString ComponentTaken(const FString& Name){return FString::Printf(TEXT("已拿到%s：%s"),Component,*Name);}
+inline FString ComponentInstalled(const FString& Name){return FString::Printf(TEXT("已启用%s：%s"),Component,*Name);}
+inline FString ComponentStored(const FString& Name,const FString& Why)
+{return Why.IsEmpty()?ComponentTaken(Name):FString::Printf(TEXT("已拿到%s：%s，先存着（%s）"),Component,*Name,*Why);}
+inline FString ComponentRemoved(const FString& Name){return FString::Printf(TEXT("已拆下%s：%s"),Component,*Name);}
+// 升级横幅的第二行：这次升级得到的属性点、主动机会与构件（构件名用顿号连接，空表示没有）。
+inline FString LevelUpGains(int64 Points,int32 Offers,const FString& NewComponents)
 {
     TArray<FString> Parts;
     if(Points>0){Parts.Add(FString::Printf(TEXT("%lld %s"),Points,StatPoints));}
     if(Offers>0){Parts.Add(OfferChance(Offers));}
+    if(!NewComponents.IsEmpty()){Parts.Add(FString(Component)+TEXT("「")+NewComponents+TEXT("」"));}
     return Parts.IsEmpty()?FString():TEXT("获得 ")+FString::Join(Parts,TEXT(" · "));
 }
 inline FString OffersQueued(int32 Count){return FString::Printf(TEXT("还有 %d 次选技能"),Count);}
@@ -123,11 +146,58 @@ inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配
 inline constexpr TCHAR ConfirmPoints[]=TEXT("确认加点");
 inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("已加 %lld 点，还剩 %lld 点"),Spent,Left);}
 
+// 休息服务（#198，APP_SPEC §4.4/§5）：只在休息的配装窗口（配装与派奖）可用，服务器裁决每一条命令。
+inline constexpr TCHAR RestServices[]=TEXT("休息服务");
+inline FString NpcOffer(int64 Points){return FString::Printf(TEXT("NPC：花 %lld 点抽 3 个主动"),Points);}
+inline constexpr TCHAR Respec[]=TEXT("洗点");
+inline FString ReplaceInto(const FString& Key){return FString(TEXT("替换 "))+Key;}
+inline FString ForgetSlot(const FString& Key,const FString& Name){return FString::Printf(TEXT("遗忘 %s：%s"),*Key,*Name);}
+inline FString ReplaceConfirm(const FString& NewName,const FString& Key,const FString& OldName)
+{return FString::Printf(TEXT("用 %s 替换 %s：%s？%s 会被遗忘，不退还"),*NewName,*Key,*OldName,*OldName);}
+inline FString ForgetConfirm(const FString& Key,const FString& Name)
+{return FString::Printf(TEXT("遗忘 %s：%s？不退还，之后还能再抽到"),*Key,*Name);}
+inline constexpr TCHAR ConfirmAction[]=TEXT("确认");
+inline constexpr TCHAR CancelAction[]=TEXT("取消");
+inline FString NpcBought(int64 Points){return FString::Printf(TEXT("已花 %lld 点，NPC 端来 3 个主动，选一个"),Points);}
+inline FString Respecced(int64 Refunded,int64 Left){return FString::Printf(TEXT("已洗点：返还 %lld 点，现有 %lld 点未分配"),Refunded,Left);}
+inline FString Replaced(const FString& NewName,const FString& Key,const FString& OldName)
+{return FString::Printf(TEXT("已在 %s 用 %s 替换 %s"),*Key,*NewName,*OldName);}
+inline FString Forgotten(const FString& Name){return FString::Printf(TEXT("已遗忘：%s（之后还能再抽到）"),*Name);}
+
 // 阶段与旗杆（喷漆守护终局）
-// 开局倒计时（#153）：屏幕中央倒数“5、4、3、2、1、开淫！”；倒计时内可以移动和选技能，攻击被拒绝。
-inline constexpr TCHAR OpeningCountdown[]=TEXT("开局倒计时");
+// 对局流程（#198）：开局休息 R0，之后三段野外各接一次休息 R1–R3，最后一段野外开放旗杆。
+// 休息的返回倒计时在屏幕中央整秒倒数，每段野外开始时显示“开淫！”。
 inline constexpr TCHAR CountdownGo[]=TEXT("开淫！");
 inline constexpr TCHAR NotStartedYet[]=TEXT("还没开始呢，急什么");
+inline constexpr TCHAR RestPhase[]=TEXT("课间休息，抓紧配装");
+inline FString RestLabel(int32 Index){return FString::Printf(TEXT("休息 R%d"),Index);}
+// 休息的各步（配装的最后一段兼作 PK 报名；派奖时可以再调整配装）。
+inline constexpr TCHAR RestBuild[]=TEXT("配装与训练");
+inline constexpr TCHAR RestDraw[]=TEXT("PK 抽签");
+inline constexpr TCHAR RestBetting[]=TEXT("押注");
+inline constexpr TCHAR RestPKReady[]=TEXT("PK 准备");
+inline constexpr TCHAR RestPK[]=TEXT("PK 中");
+inline constexpr TCHAR RestSettlement[]=TEXT("PK 结算");
+inline constexpr TCHAR RestPayout[]=TEXT("派奖 · 可再配装");
+inline constexpr TCHAR RestReturn[]=TEXT("返回野外");
+inline constexpr TCHAR BuildLockedNow[]=TEXT("配装已锁定");
+inline FString SignupOpensIn(int64 Seconds){return FString::Printf(TEXT("PK 报名 %lld 秒后开放"),Seconds);}
+inline FString SignupOpenFor(int64 Seconds){return FString::Printf(TEXT("PK 报名中 · 剩 %lld 秒"),Seconds);}
+inline FString SignedUpCount(int32 Count){return FString::Printf(TEXT("已报名 %d 人"),Count);}
+inline constexpr TCHAR SignedUpSelf[]=TEXT("你已报名");
+inline constexpr TCHAR NotSignedUpSelf[]=TEXT("你没报名");
+inline FString PKEntrants(int32 Count){return FString::Printf(TEXT("PK %d 人参赛"),Count);}
+inline constexpr TCHAR PKSkipped[]=TEXT("PK 跳过（报名不足 2 人）");
+inline constexpr TCHAR SignupJoin[]=TEXT("报名 PK");
+inline constexpr TCHAR SignupWithdraw[]=TEXT("取消报名");
+inline constexpr TCHAR NoPKProvider[]=TEXT("PK 尚未开放，本次休息跳过 PK");
+// 休息中的个人训练：只有本人看得见的训练假人，可随时重置（本人与假人回满、冷却就绪）。
+inline constexpr TCHAR TrainingReset[]=TEXT("重置训练");
+inline constexpr TCHAR TrainingDummy[]=TEXT("训练假人");
+inline FString FieldSegmentLine(int32 Segment,int32 Segments,const FString& Clock)
+{return FString::Printf(TEXT("野外 %d/%d · 下次休息 %s"),Segment,Segments,*Clock);}
+inline constexpr TCHAR FinalField[]=TEXT("最终野外 · 旗杆开放");
+inline constexpr TCHAR CaptureAfterLastRest[]=TEXT("旗杆在最后一次休息（R3）后开放");
 inline constexpr TCHAR Development[]=TEXT("猥琐发育中，别浪");
 inline constexpr TCHAR CaptureOpened[]=TEXT("旗杆开放了，冲！");
 inline constexpr TCHAR CaptureRule[]=TEXT("一个人在旗杆下喷上涂鸦，再守住它就赢");

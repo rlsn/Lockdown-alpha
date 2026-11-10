@@ -254,10 +254,8 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
     // #153: before T=0 only the D dash is admitted; basic attacks and Q/W are refused. The refusal is kept, so a replay
     // after T=0 cannot start it late.
-    const auto* CountdownBody=FindEntityBody(Caller.EntityId);
-    const FLDCombatBodyRef CountdownRef=CountdownBody ? FLDCombatBodyRef{CountdownBody->Victim,CountdownBody->Identity} : FLDCombatBodyRef();
-    if (Mode->IsOpeningCountdown(Caller.Match)
-        && (!LDOrderRules::CountdownAdmitsAction(Request.Entry) || IsAggressiveEntry(CountdownRef,Request.Entry)))
+    // #198: the rest return countdown locks every input; the refusal is kept, so a replay never starts late.
+    if (Mode->IsInputLocked(Caller.Match))
     {
         Refuse(ELDCombatReject::NotStarted);
         StoreReceipt(*Record,Request,Receipt);
@@ -374,7 +372,8 @@ bool ALDCombatDirector::ResolveUnitTarget(const FLDCombatEntityRecord& Record, c
         OutBody=Target.ServerBody;
     }
     const auto* TargetBody=FindBody(OutBody,&TargetActor);
-    if (!TargetBody || !TargetActor || TargetBody->bPendingDeath || OutBody.Victim.EntityId==Record.Entity) { return false; }
+    if (!TargetBody || !TargetActor || TargetBody->bPendingDeath || OutBody.Victim.EntityId==Record.Entity
+        || IsIsolated(Record.Entity,*TargetBody)) { return false; }
     OutFoot=FootOf(*TargetActor);
     Reject=ELDCombatReject::None;
     return true;
@@ -896,39 +895,55 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     Hit.SourceADP2=Final.ADP2;
     Hit.SourceAPP2=Final.APP2;
     if (!StampSourceTerms(Body,Hit,Error) || !SnapshotOnHit(Body,10000,Hit,Error)) { return false; }
-    const int64 Now=Mode->GetAuthorityNowMs();
-    // An empowered basic joins the primary hit before its critical roll, so it takes crit, vamp and on-hit.
-    const bool bWasEmpowered=Body.Empower.IsSet();
-    const TOptional<FLDCombatEmpower> Bonus=LDCombatControl::ConsumeEmpower(Body.Empower,Now);
-    if (Bonus.IsSet())
+    // B14: only the primary basic's own AD package scales; the empowered packages added below never do.
+    TArray<FLDPassiveEffectRef> Scales;
+    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::BasicDamageScale,Scales,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Scale : Scales)
     {
-        Hit.BaseP2+=Bonus->BaseP2;
-        Hit.ADRatioBp+=Bonus->ADRatioBp;
-        // The stats held while charges remain end with the last charge.
-        if (Bonus->Charges==0 && Bonus->bChargeBonus
-            && Body.TimedBonuses.RemoveAll([&Bonus](const FLDCombatTimedBonus& Row) { return Row.EffectId==Bonus->EffectId; })>0
-            && !RefreshTemporary(Body,&Actor,Now,Error))
-        { return false; }
+        if (Scale.Effect.RatioBp<0 || Scale.Effect.RatioBp>10000)
+        { Error=FString::Printf(TEXT("basic_damage_scale of %s is outside 0..1."),*Scale.Key); return false; }
+        Hit.ADRatioBp=Hit.ADRatioBp*Scale.Effect.RatioBp/10000;
     }
+    const int64 Now=Mode->GetAuthorityNowMs();
+    // Spec §10.2: every live empowered package (one per source: S11, S17, B12) joins this one primary hit before its
+    // critical roll, so the hit crits, heals and counts once.
+    const int32 PendingBefore=Body.Empowers.Num();
+    TArray<FLDCombatEmpower> Taken;
+    int64 EmpowerP2=0;
+    if (!LDCombatControl::ConsumeEmpowers(Body.Empowers,Now,Taken,EmpowerP2) || EmpowerP2>MAX_int64-Hit.BaseP2)
+    { Error=TEXT("The empowered packages of a basic leave the checked numeric domain."); return false; }
+    Hit.BaseP2+=EmpowerP2;
+    bool bChargeBonusEnded=false;
+    for (const FLDCombatEmpower& Package : Taken)
+    {
+        // The stats held while charges remain end with the last charge.
+        if (Package.Charges==0 && Package.bChargeBonus)
+        {
+            bChargeBonusEnded|=Body.TimedBonuses.RemoveAll([&Package](const FLDCombatTimedBonus& Row)
+            { return Row.EffectId==Package.EffectId; })>0;
+        }
+    }
+    if (bChargeBonusEnded && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
     // One critical sample per AttackId, at the successful release only.
     Hit.bCritical=Final.CritChanceBp>0 && CritRandom.RandRange(0,9999)<Final.CritChanceBp;
+    // A B06 push leaves from the holder's foot (this one if the holder is gone when it lands).
+    Hit.KnockbackAnchorCm=FootOf(Actor);
+    if (!OnBasicLanded(Body,Hit,Error)) { return false; }
     PendingHits.Add(Hit);
     LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
-    if (bWasEmpowered)
+    if (!Taken.IsEmpty() || Body.Empowers.Num()!=PendingBefore)
     {
         ++Body.StateRevision;
         MarkViewChanged(Body.Victim.EntityId);
     }
-    if (!OnBasicLanded(Body,Hit,Error)) { return false; }
     FinishAction(Body,ELDCombatReject::None,true);
     return true;
 }
 
-bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatHit& Primary, FString& Error)
+bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, FString& Error)
 {
     const ALDGameMode* Mode=Core();
     if (!Mode) { Error=TEXT("A landed basic requires the current core."); return false; }
-    const int64 Now=Mode->GetAuthorityNowMs();
     const FGuid& Entity=Body.Victim.EntityId;
     // cooldown_refund (BasicHit): every landed basic cuts all three learned actives.
     {
@@ -936,23 +951,26 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatH
         if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::CooldownRefund,Refunds,Error)) { return false; }
         for (const FLDPassiveEffectRef& Ref : Refunds)
         {
-            if (Ref.Effect->Trigger!=ELDDemoEffectTrigger::BasicHit) { continue; }
-            ReduceCooldown(Entity,ELDCombatEntry::Q,Ref.Effect->AmountMs);
-            ReduceCooldown(Entity,ELDCombatEntry::W,Ref.Effect->AmountMs);
-            ReduceCooldown(Entity,ELDCombatEntry::E,Ref.Effect->AmountMs);
+            if (Ref.Effect.Trigger!=ELDDemoEffectTrigger::BasicHit) { continue; }
+            ReduceCooldown(Entity,ELDCombatEntry::Q,Ref.Effect.AmountMs);
+            ReduceCooldown(Entity,ELDCombatEntry::W,Ref.Effect.AmountMs);
+            ReduceCooldown(Entity,ELDCombatEntry::E,Ref.Effect.AmountMs);
         }
     }
-    // nth_basic_bonus: every Count-th landed basic adds its own physical hit (added damage: no crit, no on-hit).
+    // B06 (nth_basic_bonus): every Count-th landed primary basic of this life pushes its primary target DistanceCm over
+    // DurationMs away from the holder; no damage. The count survives target changes and ends with the life.
     TArray<FLDPassiveEffectRef> Counters;
     if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::NthBasicBonus,Counters,Error)) { return false; }
     if (!Counters.IsEmpty()) { ++Body.LandedBasics; }
     for (const FLDPassiveEffectRef& Ref : Counters)
     {
-        if (Ref.Effect->Count<=0 || Body.LandedBasics%Ref.Effect->Count!=0) { continue; }
-        FLDCombatHit Extra=AddedHit(Primary);
-        Extra.BaseP2=Ref.Effect->BaseP2;
-        Extra.DamageType=Ref.Effect->DamageType;
-        PendingHits.Add(Extra);
+        const FLDDemoRational& Distance=Ref.Effect.DistanceCm;
+        if (Ref.Effect.Count<=0 || Ref.Effect.DurationMs<=0 || Distance.Denominator<=0 || Distance.Numerator<=0)
+        { Error=FString::Printf(TEXT("nth_basic_bonus of %s needs a positive count, distance and duration."),*Ref.Key); return false; }
+        if (Body.LandedBasics%Ref.Effect.Count!=0) { continue; }
+        Primary.KnockbackCm=double(Distance.Numerator)/double(Distance.Denominator);
+        Primary.KnockbackMs=Ref.Effect.DurationMs;
+        Primary.bKnockbackFromAnchor=false;
     }
     MarkViewChanged(Entity);
     return true;
@@ -1075,6 +1093,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if ((!bInnate && !LDTactical::CooldownDurationMs(BaseCooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
             Content->Get().Formulas.HasteScaleP2,DurationMs,Error))
         || !LDMatchLifecycle::AddDurationMs(Now,DurationMs,ReadyAt,Error)) { return false; }
+    // B17: read from the track's real ReadyAt before this release issues the next one (the wait restarts after it).
+    int64 IdleAmpBp=0;
+    if (!IdleReadyAmpBp(Body,*Track,Now,IdleAmpBp,Error)) { return false; }
     // Every fallible step is done: pay once and register the effects.
     Body.Resources.MpP2-=Gate.ManaCostP2;
     ++Body.Resources.Revision;
@@ -1086,7 +1107,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
     LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
-    CastLedger->bUniqueSkillHits=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChannelCone)!=nullptr;
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
     bool bDealsDamage=false;
     // Cleanses resolve before the release's other self effects.
@@ -1131,8 +1151,18 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             if (!Movement->StartDemoDash(Action.Direction,Distance,Seconds,Error)) { return false; }
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
             Body.DashContact.Reset();
-            const bool bDamage=FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactDamage)!=nullptr;
-            const bool bRefund=FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactRefund)!=nullptr;
+            // B12: a voluntary dash (D or an active's) that completes naturally arms DashComplete empowers.
+            FLDCombatVoluntaryDash& Voluntary=Body.VoluntaryDash.Emplace();
+            Voluntary.EffectId=EffectId;
+            Voluntary.Source=Source;
+            Voluntary.StartFootCm=ReleaseFoot;
+            Voluntary.EndMs=Body.DashUntilMs;
+            TOptional<FLDPassiveEffectRef> ContactDamage, ContactRefund;
+            if (!FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactDamage,ContactDamage,Error)
+                || !FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactRefund,ContactRefund,Error))
+            { return false; }
+            const bool bDamage=ContactDamage.IsSet();
+            const bool bRefund=ContactRefund.IsSet();
             if (bDamage || bRefund || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
             {
                 Body.DashContact=MakeShared<FLDCombatDashContact>();
@@ -1149,16 +1179,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         }
         case ELDDemoEffectOp::EmpowerBasic:
         {
+            // S11/S17: the package is fixed at release (spec §10.2).
             FLDCombatEmpower Armed;
-            Armed.EffectId=EffectId;
-            Armed.SourceDefinitionId=Source.DefinitionId;
-            Armed.BaseP2=Effect.BaseP2;
-            Armed.ADRatioBp=Effect.ADRatioBp;
-            Armed.APRatioBp=Effect.APRatioBp;
-            Armed.DamageType=Effect.DamageType;
-            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Armed.ExpiresAtMs,Error)) { return false; }
+            if (!MakeEmpower(Body,Source,Effect,EffectId,Now,Armed,Error)) { return false; }
             // #147: several charges and the stats held while charges remain (they end with the last charge or the window).
-            Armed.Charges=FMath::Max(Effect.Count,1);
             if (!Effect.Stats.IsEmpty())
             {
                 FLDCombatTimedBonus Bonus;
@@ -1170,8 +1194,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Armed.bChargeBonus=true;
                 bTimedBonus=true;
             }
-            // A newer release replaces an unspent one; it never stacks.
-            Body.Empower=Armed;
+            // A newer release of the same source replaces its unspent package; other sources' packages stay.
+            LDCombatControl::ArmEmpower(Body.Empowers,Armed);
             break;
         }
         case ELDDemoEffectOp::Taunt:
@@ -1217,6 +1241,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Template.HitClass=ELDCombatHitClass::Ability;
         Template.CastLedger=CastLedger;
         Template.bDirectAbilityDamage=DamageEffect!=nullptr;
+        // B17's locked amplification rides only on this release's native direct damage.
+        Template.IdleReadyAmpBp=DamageEffect ? IdleAmpBp : 0;
         Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
         Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
         Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
@@ -1297,6 +1323,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
     }
     if (!ReleaseMechanics(Body,Source,*ValuesDef,ReleaseFoot,ZonePoint,EffectId,CastLedger,Error)) { return false; }
+    // B17: every damage pulse of this release's zone carries its locked amplification.
+    for (FLDCombatZone& Zone : Zones)
+    {
+        if (Zone.EffectId==EffectId && Zone.bDamage) { Zone.IdleReadyAmpBp=IdleAmpBp; }
+    }
     if (bDealsDamage) { Body.LastCombatAtMs=Now; }
     // #198: an offensive release is a combat action of the build safe window; a self buff, shield or plain dash is not.
     if (LDCombatSourceRules::IsOffensive(*ValuesDef)) { MarkBuildUnsafe(Body.Victim.EntityId,Now); }

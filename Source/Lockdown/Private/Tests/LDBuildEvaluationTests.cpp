@@ -175,9 +175,11 @@ bool RunPolicy(FAutomationTestBase& Test)
         FLDOpponentPolicyState Policy;
         return LDEvaluationPolicy::Decide(At, C, Plan, Policy, State);
     };
-    // The opening countdown: the planned opening active is chosen at once (asking to learn it), the body does not move.
+    // The opening rest R0: the planned opening active is chosen at once (asking to learn it), the body does not move.
     auto Countdown = Base;
-    Countdown.Public.Phase = ELDMatchPhase::Countdown;
+    Countdown.Public.Phase = ELDMatchPhase::Rest;
+    Countdown.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Countdown.Public.Timeline.Step = ELDRestStep::Build;
     Countdown.Self.Offer = Offer({TEXT("active_seethe"), TEXT("active_snark_bolt"), TEXT("active_bail_out")});
     FLDEvaluationProfileState State;
     FLDOpponentDecision Decision = Decide(Countdown, Profile, State);
@@ -212,10 +214,10 @@ bool RunPolicy(FAutomationTestBase& Test)
     // Unspent points are settled by the production allocation before the first fight.
     auto Points = Engage;
     Points.Self.UnspentPoints = 3;
-    for (const auto& Stat : C.Get().Stats)
+    for (const FLDDemoStatDefinition* Stat : C.Get().StatsInDesignOrder())
     {
         FLDOpponentStatPoints Row;
-        Row.StatId = Stat.Id;
+        Row.StatId = Stat->Id;
         Points.Self.StatPoints.Add(Row);
     }
     State = {};

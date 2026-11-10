@@ -23,7 +23,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
-        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Charms"),TEXT("Leader"),TEXT("Boss")},TEXT("The public flagpole names only the spray holder, the graffiti owner and their progress"));
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Charms"),TEXT("Leader"),TEXT("Boss"),TEXT("Timeline")},TEXT("The public flagpole names only the spray holder, the graffiti owner and their progress"));
     // #198: a lying charm names only its kind, public point and expiry; never who took it.
     ExpectStruct(FLDCharmView::StaticStruct(),{TEXT("Serial"),TEXT("Kind"),TEXT("PointId"),TEXT("PositionCm"),TEXT("ExpireAtFieldMs")},
         TEXT("The public charm names only its kind, point and expiry"));

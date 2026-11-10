@@ -232,7 +232,8 @@ class DemoContentImport(unittest.TestCase):
         self.assertFalse({"max_choices", "max_skill_rank", "opening_offer", "reroll_levels"} & set(data["progression"]))
         self.assertFalse({"attributes", "opening_cards"} & set(data))
         for key, expected in (("GROWTH.OpeningPoints", 2), ("GROWTH.PointsPerLevel", 4), ("GROWTH.MaxLevelPointsXP", 250),
-                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
+                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.NpcActivePoints", 5),
+                              ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
             self.assertEqual(self.baseline.catalog.parameter(key), expected)
         self.assertFalse([key for key in data["parameters"] if key.startswith("CHOICE.")])
 
@@ -397,8 +398,10 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["STAT.AD.Base"].update(unit="hp"),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=1.0001),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=0.00001),
-            lambda data: data["parameters"]["LIFE.RespawnSec"].update(value=0.0001),
-            lambda data: data["parameters"]["LIFE.RespawnSec"].update(value=0),
+            lambda data: data["parameters"]["LIFE.RespawnSec.Field1"].update(value=0.0001),
+            lambda data: data["parameters"]["LIFE.RespawnSec.Final"].update(value=0),
+            lambda data: data["parameters"]["MATCH.FieldSegmentSec"].update(value=0),
+            lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(unit="s"),
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),
             lambda data: data["parameters"]["STAT.BaseAttackSpeed"].update(value=0),
             lambda data: data["abilities"][0]["target"].update(projectile_speed={"unit": "cm/s", "value": -1}),
@@ -577,6 +580,16 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
+            # #198 rest phases: PK sign-up is the tail of every build window; retired timeline keys stay rejected.
+            (lambda data: data["parameters"]["REST.SignupSec"].update(value=26), "InvalidTiming"),
+            (lambda data: data["parameters"]["REST.OpeningBuildSec"].update(value=7), "InvalidTiming"),
+            (lambda data: data["parameters"]["REST.SignupSec"].update(value=25), None),
+            (lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"].update({"GROWTH.NpcActivePoints": 0}), "NumericDomain"),
+            (lambda data: data["parameters"].pop("REST.PKMaxSec"), "MissingField"),
+            (lambda data: data["parameters"].update({"MATCH.DevelopmentSec": {"unit": "s", "value": 180}}), "UnknownField"),
+            (lambda data: data["parameters"].update({"MATCH.CountdownSec": {"unit": "s", "value": 5}}), "UnknownField"),
+            (lambda data: data["parameters"].update({"LIFE.RespawnSec": {"unit": "s", "value": 15}}), "UnknownField"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -665,6 +678,87 @@ class DemoContentImport(unittest.TestCase):
             description_text="每点 +[per_point.MaxHPFlat]，回复 +[per_point.HPRegenFlat]/秒。"))
         texts = {row["id"]: row["description_text"] for row in json.loads(demo.compile_content(self.root).outputs[demo.CONTENT_OUTPUT])["display"]}
         self.assertIn("[per_point.HPRegenFlat]", texts["stat_physique"])
+
+    def test_components_project_kinds_openings_bindings_and_category_bands(self):
+        # #198 B: components keep their authored native ID order and carry their opcodes, openings and bindings.
+        data = self.baseline.catalog.data
+        self.assertEqual([(row["id"], row["native_id"]) for row in data["components"]],
+                         [("component_fist_fire", 1), ("component_kick_down", 7), ("component_dash_punch", 12),
+                          ("component_dirty_trick", 18)])
+        fire = self.baseline.catalog.definition("component_fist_fire")
+        self.assertEqual((fire["kind"], fire["pool"], fire["opening"]), ("base", "common", "always"))
+        self.assertEqual(fire["effects"], ({"op": "burn", "opcode": 71, "basic_stacks": 2},))
+        self.assertEqual(self.baseline.catalog.definition("component_kick_down")["opening"]["actives"], ("active_pants_down",))
+        punch = self.baseline.catalog.definition("component_dash_punch")
+        self.assertNotIn("opening", punch)
+        self.assertEqual((punch["effects"][0]["trigger"], punch["effects"][0]["charges"]), ("DashComplete", 1))
+        trick = self.baseline.catalog.definition("component_dirty_trick")
+        self.assertEqual(trick["effects"], ({"op": "active_element", "opcode": 104},))
+        self.assertEqual(trick["binding"]["actives"], ("active_snark_bolt", "active_pants_down"))
+        self.assertEqual(trick["binding"]["elements"], ("fire", "water"))
+        self.assertEqual([(band["levels"], band["base"], band["mod"], band["connector"])
+                          for band in data["progression"]["component_category_weights"]],
+                         [((2, 8), 60, 20, 20), ((9, 16), 30, 30, 40)])
+        self.assertEqual(self.baseline.catalog.parameter("GROWTH.EmptyComponentPoolPoints"), 2)
+
+    def test_component_rows_category_bands_and_component_ops_refuse_invalid_inputs(self):
+        def piece(data, identity):
+            return next(row for row in data["components"] if row["id"] == identity)
+
+        def bolt(data):
+            return next(row for row in data["abilities"] if row["id"] == "active_snark_bolt")
+
+        bands = lambda data: data["progression"]["component_category_weights"]
+        for mutation, code in (
+            # Level-up category bands: contiguous from 2 to max_level, each a 100 percent split with all three keys.
+            (lambda data: bands(data)[1]["levels"].__setitem__(0, 10), "CategoryWeights"),
+            (lambda data: bands(data)[1]["levels"].__setitem__(0, 8), "CategoryWeights"),
+            (lambda data: bands(data)[0]["levels"].__setitem__(0, 3), "CategoryWeights"),
+            (lambda data: bands(data)[1]["levels"].__setitem__(1, 15), "CategoryWeights"),
+            (lambda data: bands(data)[0].update(base=61), "CategoryWeights"),
+            (lambda data: bands(data)[0].pop("connector"), "MissingField"),
+            (lambda data: bands(data).reverse(), "CategoryWeights"),
+            (lambda data: data["progression"].pop("component_category_weights"), "MissingField"),
+            (lambda data: data["parameters"].pop("GROWTH.EmptyComponentPoolPoints"), "MissingField"),
+            (lambda data: data["parameters"].update({"GROWTH.EmptyComponentPoolPoints": 0}), "NumericDomain"),
+            # Bindings name known damaging actives and distinct fire/water/electric elements.
+            (lambda data: piece(data, "component_dirty_trick")["binding"]["actives"].append("active_missing"), "InvalidReference"),
+            (lambda data: piece(data, "component_dirty_trick")["binding"]["actives"].append("active_not_mad"), "ComponentBinding"),
+            (lambda data: piece(data, "component_dirty_trick")["binding"]["elements"].append("fire"), "ComponentBinding"),
+            (lambda data: piece(data, "component_dirty_trick")["binding"]["elements"].append("ice"), "UnknownEnum"),
+            (lambda data: piece(data, "component_dirty_trick").pop("binding"), "ComponentBinding"),
+            (lambda data: piece(data, "component_fist_fire").update(
+                binding={"kind": "active_element", "actives": ["active_snark_bolt"], "elements": ["fire"]}), "ComponentBinding"),
+            # Openings name actives of the opening pool, and only common base components open.
+            (lambda data: piece(data, "component_kick_down")["opening"]["actives"].append("active_missing"), "InvalidReference"),
+            (lambda data: piece(data, "component_kick_down")["opening"]["actives"].append("active_stare_down"), "OpeningPool"),
+            (lambda data: piece(data, "component_fist_fire").update(pool="scarce"), "OpeningPool"),
+            (lambda data: piece(data, "component_fist_fire").update(opening="never"), "SchemaVariant"),
+            (lambda data: piece(data, "component_fist_fire").update(kind="charm"), "UnknownEnum"),
+            # Component and active operation forms never cross.
+            (lambda data: bolt(data)["effects"].append({"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.1}}),
+             "ComponentOnlyEffect"),
+            (lambda data: piece(data, "component_fist_fire")["effects"].append({"op": "root", "duration": {"unit": "s", "value": 1}}),
+             "ComponentEffect"),
+            (lambda data: piece(data, "component_fist_fire")["effects"][0].update(stacks=1), "ObjectShape"),
+            (lambda data: piece(data, "component_dash_punch")["effects"][0].pop("trigger"), "ObjectShape"),
+            (lambda data: piece(data, "component_dash_punch")["effects"][0].pop("charges"), "ObjectShape"),
+            (lambda data: piece(data, "component_dash_punch")["effects"][0].update(damage_type="Magical"), "NumericDomain"),
+            (lambda data: piece(data, "component_kick_down")["effects"].append({"op": "basic_damage_scale", "ratio": {"unit": "ratio", "value": 1}}),
+             "NumericDomain"),
+            (lambda data: piece(data, "component_kick_down")["effects"].append(
+                {"op": "nth_basic_bonus", "count": 3, "base": {"unit": "points", "value": 5}, "damage_type": "Physical"}), "SchemaVariant"),
+            (lambda data: data["components"].reverse(), "ComponentOrder"),
+            (lambda data: data["components"].append(deepcopy(data["components"][0])), "DuplicateId"),
+            (lambda data: data["components"].append(dict(deepcopy(data["components"][0]), id="active_snark_bolt")), "UnknownId"),
+            (lambda data: next(row for row in data["display"] if row["id"] == "component_fist_fire").update(
+                description_text="点火 [root.duration]"), "CardTemplate"),
+            (lambda data: data["display"].remove(next(row for row in data["display"] if row["id"] == "component_kick_down")),
+             "DisplayReference"),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(code=code, mutation=mutation):
+                self.assert_refused(mutation, code)
 
     def test_schema_keywords_revisions_and_quantity_storage_are_not_silent(self):
         original = (self.root / demo.SCHEMA_SOURCE).read_bytes()
