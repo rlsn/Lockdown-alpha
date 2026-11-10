@@ -1,5 +1,6 @@
+# #198: the default covers the opening rest R0 (45 s build + 5 s return, no PK sign-ups) before the field-1 walk.
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=120,
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=180,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
