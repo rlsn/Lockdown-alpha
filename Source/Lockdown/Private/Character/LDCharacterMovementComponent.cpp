@@ -244,8 +244,11 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
         && FMath::IsFinite(View.MoveSpeedCmPerSec) && View.MoveSpeedCmPerSec>0 ? View.MoveSpeedCmPerSec : 0;
 }
 
-bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error)
+bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error,
+    bool bKnockback)
 {
+    bKnockbackMotion=bKnockback;
+    StopKnockbackWatch();
     if (!CharacterOwner || !CharacterOwner->HasAuthority() || !UpdatedComponent
         || !LDCharacterMovementDetail::IsDemoMovement(GetWorld()))
     {

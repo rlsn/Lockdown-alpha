@@ -264,6 +264,42 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
             Out = FLDBuildCommand();
             return Fail(Error, TEXT("The component id cannot travel."));
         }
+        // #198 F: a mod or connector goes onto a learned active or an installed host, the innate D or the holder itself;
+        // C12 also names an installed base. An opening pick is a base and takes no target.
+        const auto InstalledHere = [&Progression](FName Id)
+        {
+            return Progression.Components.ContainsByPredicate([Id](const FLDComponentInstanceView& View) { return View.DefinitionId == Id && View.bInstalled; });
+        };
+        const bool bNamedTarget = Intent.TargetKind == ELDComponentTargetKind::Active || Intent.TargetKind == ELDComponentTargetKind::Component;
+        if ((Intent.Kind == ELDOpponentBuildKind::OpeningBase && (Intent.TargetKind != ELDComponentTargetKind::None
+                || !Intent.TargetId.IsEmpty() || !Intent.BoundComponent.IsEmpty()))
+            || Intent.TargetKind == ELDComponentTargetKind::EffectSegment || bNamedTarget == Intent.TargetId.IsEmpty())
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The install target does not fit its kind."));
+        }
+        if (bNamedTarget)
+        {
+            const FName Target(*Intent.TargetId);
+            const bool bHeld = Intent.TargetKind == ELDComponentTargetKind::Active
+                ? Progression.Actives.ContainsByPredicate([&Target](const FLDActiveSlotView& Active) { return Active.DefinitionId == Target; })
+                : Target != Component && InstalledHere(Target);
+            if (!bHeld || !FLDDefinitionWire::Encode(Target, Out.TargetDefinition))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("The install target is no longer learned or installed."));
+            }
+        }
+        Out.TargetKind = Intent.TargetKind;
+        if (!Intent.BoundComponent.IsEmpty())
+        {
+            const FName Base(*Intent.BoundComponent);
+            if (Base == Component || !InstalledHere(Base) || !FLDDefinitionWire::Encode(Base, Out.BoundComponent))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("The repeated base is no longer installed."));
+            }
+        }
         if (!Intent.BoundActive.IsEmpty())
         {
             const FName Bound(*Intent.BoundActive);

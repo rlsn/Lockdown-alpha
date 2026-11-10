@@ -63,6 +63,30 @@ const FNativeId NativeIds[] =
     DEMO_ID("components", "component_thick_hide", ELDDemoComponentId, ComponentThickHide),
     DEMO_ID("components", "component_held_shot", ELDDemoComponentId, ComponentHeldShot),
     DEMO_ID("components", "component_dirty_trick", ELDDemoComponentId, ComponentDirtyTrick),
+    DEMO_ID("components", "component_crowd_hit", ELDDemoComponentId, ComponentCrowdHit),
+    DEMO_ID("components", "component_settle_later", ELDDemoComponentId, ComponentSettleLater),
+    DEMO_ID("components", "component_long_kick", ELDDemoComponentId, ComponentLongKick),
+    DEMO_ID("components", "component_hold_down", ELDDemoComponentId, ComponentHoldDown),
+    DEMO_ID("components", "component_reach_out", ELDDemoComponentId, ComponentReachOut),
+    DEMO_ID("components", "component_again_now", ELDDemoComponentId, ComponentAgainNow),
+    DEMO_ID("components", "component_one_slam", ELDDemoComponentId, ComponentOneSlam),
+    DEMO_ID("components", "component_ram_through", ELDDemoComponentId, ComponentRamThrough),
+    DEMO_ID("components", "component_quick_hop", ELDDemoComponentId, ComponentQuickHop),
+    DEMO_ID("components", "component_big_tab", ELDDemoComponentId, ComponentBigTab),
+    DEMO_ID("components", "component_pick_you", ELDDemoComponentId, ComponentPickYou),
+    DEMO_ID("components", "component_owe_it", ELDDemoComponentId, ComponentOweIt),
+    DEMO_ID("components", "component_fire_skin", ELDDemoComponentId, ComponentFireSkin),
+    DEMO_ID("components", "component_ball_kick", ELDDemoComponentId, ComponentBallKick),
+    DEMO_ID("components", "component_bump_again", ELDDemoComponentId, ComponentBumpAgain),
+    DEMO_ID("components", "component_roll_bump", ELDDemoComponentId, ComponentRollBump),
+    DEMO_ID("components", "component_pin_punch", ELDDemoComponentId, ComponentPinPunch),
+    DEMO_ID("components", "component_after_pin", ELDDemoComponentId, ComponentAfterPin),
+    DEMO_ID("components", "component_control_mana", ELDDemoComponentId, ComponentControlMana),
+    DEMO_ID("components", "component_breath_strike", ELDDemoComponentId, ComponentBreathStrike),
+    DEMO_ID("components", "component_blast_chase", ELDDemoComponentId, ComponentBlastChase),
+    DEMO_ID("components", "component_shell_burst", ELDDemoComponentId, ComponentShellBurst),
+    DEMO_ID("components", "component_hurt_heal", ELDDemoComponentId, ComponentHurtHeal),
+    DEMO_ID("components", "component_dirty_fist", ELDDemoComponentId, ComponentDirtyFist),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
@@ -137,6 +161,35 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "basic_damage_scale", ELDDemoEffectOp, BasicDamageScale),
     DEMO_ID("effect_ops", "idle_ready_amp", ELDDemoEffectOp, IdleReadyAmp),
     DEMO_ID("effect_ops", "active_element", ELDDemoEffectOp, ActiveElement),
+    DEMO_ID("effect_ops", "spread_unit", ELDDemoEffectOp, SpreadUnit),
+    DEMO_ID("effect_ops", "spread_projectile", ELDDemoEffectOp, SpreadProjectile),
+    DEMO_ID("effect_ops", "spread_ledger", ELDDemoEffectOp, SpreadLedger),
+    DEMO_ID("effect_ops", "spread_counter", ELDDemoEffectOp, SpreadCounter),
+    DEMO_ID("effect_ops", "delay_ledger", ELDDemoEffectOp, DelayLedger),
+    DEMO_ID("effect_ops", "delay_counter", ELDDemoEffectOp, DelayCounter),
+    DEMO_ID("effect_ops", "knockback_scale", ELDDemoEffectOp, KnockbackScale),
+    DEMO_ID("effect_ops", "control_scale", ELDDemoEffectOp, ControlScale),
+    DEMO_ID("effect_ops", "range_bonus", ELDDemoEffectOp, RangeBonus),
+    DEMO_ID("effect_ops", "counter_range_bonus", ELDDemoEffectOp, CounterRangeBonus),
+    DEMO_ID("effect_ops", "cooldown_cost", ELDDemoEffectOp, CooldownCost),
+    DEMO_ID("effect_ops", "compress_cone", ELDDemoEffectOp, CompressCone),
+    DEMO_ID("effect_ops", "compress_zone", ELDDemoEffectOp, CompressZone),
+    DEMO_ID("effect_ops", "dash_scale", ELDDemoEffectOp, DashScale),
+    DEMO_ID("effect_ops", "ledger_variant", ELDDemoEffectOp, LedgerVariant),
+    DEMO_ID("effect_ops", "marked_counter", ELDDemoEffectOp, MarkedCounter),
+    DEMO_ID("effect_ops", "damage_defer", ELDDemoEffectOp, DamageDefer),
+    DEMO_ID("effect_ops", "fire_shield", ELDDemoEffectOp, FireShield),
+    DEMO_ID("effect_ops", "knockback_impact", ELDDemoEffectOp, KnockbackImpact),
+    DEMO_ID("effect_ops", "contact_knockback", ELDDemoEffectOp, ContactKnockback),
+    DEMO_ID("effect_ops", "control_mark", ELDDemoEffectOp, ControlMark),
+    DEMO_ID("effect_ops", "aftershock", ELDDemoEffectOp, Aftershock),
+    DEMO_ID("effect_ops", "control_mana", ELDDemoEffectOp, ControlMana),
+    DEMO_ID("effect_ops", "heal_counter", ELDDemoEffectOp, HealCounter),
+    DEMO_ID("effect_ops", "reaction_empower", ELDDemoEffectOp, ReactionEmpower),
+    DEMO_ID("effect_ops", "shield_burst", ELDDemoEffectOp, ShieldBurst),
+    DEMO_ID("effect_ops", "skill_lifesteal", ELDDemoEffectOp, SkillLifesteal),
+    DEMO_ID("effect_ops", "extra_base", ELDDemoEffectOp, ExtraBase),
+    DEMO_ID("effect_ops", "compress_chain", ELDDemoEffectOp, CompressChain),
 };
 #undef DEMO_ID
 
@@ -557,21 +610,26 @@ bool IntInto(FFields& F, const TCHAR* Key, int32& Out, int64 Min, int64 Max)
 }
 
 constexpr uint32 Bit(ELDDemoBonusStat Stat) { return 1u << uint8(Stat); }
-// Effect opcodes reach past 63 (#112), so the per-definition operation set is a 128-bit mask.
+// Effect opcodes are uint8 and reach past 127 (#198 F), so the per-definition operation set is a 256-bit mask.
 struct FOpMask
 {
-    uint64 Low = 0, High = 0;
-    constexpr FOpMask operator|(const FOpMask& Other) const { return {Low | Other.Low, High | Other.High}; }
-    constexpr FOpMask operator&(const FOpMask& Other) const { return {Low & Other.Low, High & Other.High}; }
-    constexpr FOpMask operator~() const { return {~Low, ~High}; }
-    FOpMask& operator|=(const FOpMask& Other) { Low |= Other.Low; High |= Other.High; return *this; }
-    constexpr bool operator==(const FOpMask& Other) const { return Low == Other.Low && High == Other.High; }
+    uint64 Words[4] = {0, 0, 0, 0};
+    constexpr FOpMask operator|(const FOpMask& Other) const
+    { return {{Words[0] | Other.Words[0], Words[1] | Other.Words[1], Words[2] | Other.Words[2], Words[3] | Other.Words[3]}}; }
+    constexpr FOpMask operator&(const FOpMask& Other) const
+    { return {{Words[0] & Other.Words[0], Words[1] & Other.Words[1], Words[2] & Other.Words[2], Words[3] & Other.Words[3]}}; }
+    constexpr FOpMask operator~() const { return {{~Words[0], ~Words[1], ~Words[2], ~Words[3]}}; }
+    FOpMask& operator|=(const FOpMask& Other) { *this = *this | Other; return *this; }
+    constexpr bool operator==(const FOpMask& Other) const
+    { return Words[0] == Other.Words[0] && Words[1] == Other.Words[1] && Words[2] == Other.Words[2] && Words[3] == Other.Words[3]; }
     constexpr bool operator!=(const FOpMask& Other) const { return !(*this == Other); }
-    constexpr bool Any() const { return Low != 0 || High != 0; }
+    constexpr bool Any() const { return (Words[0] | Words[1] | Words[2] | Words[3]) != 0; }
 };
 constexpr FOpMask OpBit(ELDDemoEffectOp Op)
 {
-    return uint8(Op) < 64 ? FOpMask{uint64(1) << uint8(Op), 0} : FOpMask{0, uint64(1) << (uint8(Op) - 64)};
+    FOpMask Out;
+    Out.Words[uint8(Op) / 64] = uint64(1) << (uint8(Op) % 64);
+    return Out;
 }
 
 // Temporary and conditional bonuses never change resource maxima or regeneration (no conversion exists for them).
@@ -743,11 +801,23 @@ bool TriggerField(FFields& F, ELDDemoEffectTrigger& Out, std::initializer_list<E
 // #198 B: the operations Combat reads from an installed component (DemoContent.COMPONENT_OPS). burn, breach and
 // empower_basic also have an active form; the others are component-only and no active may carry them.
 constexpr FOpMask SharedComponentOps = OpBit(ELDDemoEffectOp::Burn) | OpBit(ELDDemoEffectOp::Breach) | OpBit(ELDDemoEffectOp::EmpowerBasic);
+// #198 F: the operations of mods and connectors (DemoContent.WORKSHOP_OPS); they act on the install target.
+constexpr FOpMask WorkshopOps = OpBit(ELDDemoEffectOp::SpreadUnit) | OpBit(ELDDemoEffectOp::SpreadProjectile)
+    | OpBit(ELDDemoEffectOp::SpreadLedger) | OpBit(ELDDemoEffectOp::SpreadCounter) | OpBit(ELDDemoEffectOp::DelayLedger)
+    | OpBit(ELDDemoEffectOp::DelayCounter) | OpBit(ELDDemoEffectOp::KnockbackScale) | OpBit(ELDDemoEffectOp::ControlScale)
+    | OpBit(ELDDemoEffectOp::RangeBonus) | OpBit(ELDDemoEffectOp::CounterRangeBonus) | OpBit(ELDDemoEffectOp::CooldownCost)
+    | OpBit(ELDDemoEffectOp::CompressCone) | OpBit(ELDDemoEffectOp::CompressZone) | OpBit(ELDDemoEffectOp::DashScale)
+    | OpBit(ELDDemoEffectOp::LedgerVariant) | OpBit(ELDDemoEffectOp::MarkedCounter) | OpBit(ELDDemoEffectOp::DamageDefer)
+    | OpBit(ELDDemoEffectOp::FireShield) | OpBit(ELDDemoEffectOp::KnockbackImpact) | OpBit(ELDDemoEffectOp::DashContactRefund)
+    | OpBit(ELDDemoEffectOp::ContactKnockback) | OpBit(ELDDemoEffectOp::ControlMark) | OpBit(ELDDemoEffectOp::Aftershock)
+    | OpBit(ELDDemoEffectOp::ControlMana) | OpBit(ELDDemoEffectOp::HealCounter) | OpBit(ELDDemoEffectOp::ReactionEmpower)
+    | OpBit(ELDDemoEffectOp::ShieldBurst) | OpBit(ELDDemoEffectOp::SkillLifesteal) | OpBit(ELDDemoEffectOp::ExtraBase)
+    | OpBit(ELDDemoEffectOp::CompressChain);
 constexpr FOpMask ComponentOnlyOps = OpBit(ELDDemoEffectOp::Ledger) | OpBit(ELDDemoEffectOp::Thorns) | OpBit(ELDDemoEffectOp::Lifesteal)
     | OpBit(ELDDemoEffectOp::DashContactDamage) | OpBit(ELDDemoEffectOp::NthBasicBonus) | OpBit(ELDDemoEffectOp::ControlDamageAmp)
     | OpBit(ELDDemoEffectOp::TriggeredShield) | OpBit(ELDDemoEffectOp::BasicElement) | OpBit(ELDDemoEffectOp::StatBonus)
     | OpBit(ELDDemoEffectOp::BasicDamageScale) | OpBit(ELDDemoEffectOp::LowHpStatBonus) | OpBit(ELDDemoEffectOp::PrimaryGuard)
-    | OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::ActiveElement);
+    | OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::ActiveElement) | WorkshopOps;
 constexpr FOpMask ComponentOps = SharedComponentOps | ComponentOnlyOps;
 
 bool ElementField(const FString& Name, ELDDemoElement& Out)
@@ -1188,6 +1258,132 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
         break;
     case ELDDemoEffectOp::ActiveElement:
         break;
+    // #198 F workshop operations (field use: FLDDemoEffectDefinition; content key -> field there).
+    case ELDDemoEffectOp::SpreadUnit:
+        if (!F.Fraction(TEXT("angle"), TEXT("degrees"), Out.AngleDegrees, true)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::SpreadProjectile:
+    case ELDDemoEffectOp::SpreadLedger:
+    case ELDDemoEffectOp::SpreadCounter:
+        if (!F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+            || !Check.Require(Out.RadiusCm.Numerator > 0, Path, TEXT("a spread needs a positive radius"))) { return false; }
+        break;
+    case ELDDemoEffectOp::DelayLedger:
+    case ELDDemoEffectOp::DelayCounter:
+    {
+        const bool bLedger = Out.GetOp() == ELDDemoEffectOp::DelayLedger;
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)
+            || !F.Fraction(bLedger ? TEXT("distance") : TEXT("radius"), TEXT("cm"), bLedger ? Out.DistanceCm : Out.RadiusCm, true)
+            || !Check.Require((bLedger ? Out.DistanceCm : Out.RadiusCm).Numerator > 0, Path, TEXT("a delayed settle needs a positive reach")))
+        { return false; }
+        break;
+    }
+    case ELDDemoEffectOp::KnockbackScale:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ControlScale:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::RangeBonus:
+    case ELDDemoEffectOp::CounterRangeBonus:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || (Out.GetOp() == ELDDemoEffectOp::RangeBonus && !F.Fraction(TEXT("range_cap"), TEXT("cm"), Out.RadiusCm, true))
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a range bonus needs a positive distance"))) { return false; }
+        break;
+    case ELDDemoEffectOp::CooldownCost:
+        if (!F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)
+            || !F.Fixed(TEXT("cost_ratio"), TEXT("ratio"), TEXT("bp"), Out.CostRatioBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::CompressCone:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fraction(TEXT("angle"), TEXT("degrees"), Out.AngleDegrees, true)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::CompressZone:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::DashScale:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)
+            || !F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::LedgerVariant:
+        if (!IntInto(F, TEXT("count"), Out.Count, 2, 10)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::MarkedCounter:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::DamageDefer:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::FireShield:
+        if (!F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            || !F.Fixed(TEXT("base"), TEXT("hp"), TEXT("p2"), Out.BaseP2)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("cap_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::KnockbackImpact:
+        if (!DamageTerms(F, Out, Check, Path)
+            || !F.Fixed(TEXT("stun_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ContactKnockback:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a push needs a positive distance"))) { return false; }
+        break;
+    case ELDDemoEffectOp::ControlMark:
+    case ELDDemoEffectOp::ReactionEmpower:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1) || !DamageTerms(F, Out, Check, Path)) { return false; }
+        break;
+    case ELDDemoEffectOp::Aftershock:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1) || !DamageTerms(F, Out, Check, Path)
+            || !F.Fixed(TEXT("root_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ControlMana:
+        if (!F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-action mana cap holds one grant"))) { return false; }
+        break;
+    case ELDDemoEffectOp::HealCounter:
+    {
+        FString Type;
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("interval"), TEXT("ms"), TEXT("ms"), Out.IntervalMs, 1)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Text(TEXT("damage_type"), Type)
+            || !Check.Require(Type.Equals(TEXT("Magical"), ESearchCase::CaseSensitive), Path, TEXT("a heal counter deals magic damage")))
+        { return false; }
+        Out.DamageType = ELDDemoDamageType::Magical;
+        break;
+    }
+    case ELDDemoEffectOp::ShieldBurst:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)) { return false; }
+        break;
+    case ELDDemoEffectOp::SkillLifesteal:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("base"), TEXT("hp"), TEXT("p2"), Out.BaseP2, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ExtraBase:
+        break;
+    case ELDDemoEffectOp::CompressChain:
+        if (!F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+        break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
@@ -1458,6 +1654,46 @@ bool Component(const FValue& Value, FLDDemoComponentDefinition& Out, const TArra
         }
         Out.Binding = ELDDemoComponentBinding::ActiveElement;
     }
+    // #198 F: a mod or connector names its install targets and carries only workshop operations; a base component has
+    // neither (DemoContent._validate_component_targets). Component references are checked once the catalog is read.
+    const bool bWorkshop = Out.Kind != ELDDemoComponentKind::Base;
+    if (!Check.Require(F.Has(TEXT("targets")) == bWorkshop, Path, TEXT("mods and connectors name their install targets; base components take none"))
+        || !Check.Require(bWorkshop ? !(Mask & ~WorkshopOps).Any() : !(Mask & WorkshopOps).Any(), Path,
+            bWorkshop ? TEXT("a mod or connector carries only workshop operations") : TEXT("a base component carries no workshop operation"))
+        || !Check.Require(!bWorkshop || (Out.Binding == ELDDemoComponentBinding::None && !Out.bOpeningAlways && Out.OpeningActives.IsEmpty()),
+            Path, TEXT("a mod or connector has no opening condition or active/element binding")))
+    {
+        return false;
+    }
+    if (bWorkshop)
+    {
+        FFields Targets(Check, F.Take(TEXT("targets")), Path + TEXT(".targets"));
+        const auto Names = [&Check, &Targets](const TCHAR* Key, TArray<FString>& Into)
+        {
+            const TArray<FValue>* Rows = nullptr;
+            if (!Targets.Has(Key)) { return true; }
+            if (!Array(Targets.Take(Key), Rows, Check, Targets.Path + TEXT(".") + Key, 1, 32)) { return false; }
+            for (const FValue& Row : *Rows)
+            {
+                FString Name;
+                if (!String(Row, Name, Check, Targets.Path + TEXT(".") + Key, 1, 63) || !Id(Name, Check, Targets.Path)
+                    || !Check.Require(!Into.Contains(Name), Targets.Path, TEXT("repeated install target"))) { return false; }
+                Into.Add(MoveTemp(Name));
+            }
+            return true;
+        };
+        if ((Targets.Has(TEXT("actives")) && !ActiveIds(Targets.Take(TEXT("actives")), Out.TargetActives, Abilities, false, Check,
+                Targets.Path + TEXT(".actives")))
+            || !Names(TEXT("components"), Out.TargetComponents) || !Names(TEXT("bases"), Out.ExtraBases)
+            || (Targets.Has(TEXT("dash")) && (!Targets.Flag(TEXT("dash"), Out.bTargetDash)
+                || !Check.Require(Out.bTargetDash, Targets.Path, TEXT("a dash target is stated as true"))))
+            || (Targets.Has(TEXT("self")) && (!Targets.Flag(TEXT("self"), Out.bTargetSelf)
+                || !Check.Require(Out.bTargetSelf, Targets.Path, TEXT("a self target is stated as true"))))
+            || !Targets.Done())
+        {
+            return false;
+        }
+    }
     return Check.Require((Out.Binding == ELDDemoComponentBinding::ActiveElement) == (Mask & OpBit(ELDDemoEffectOp::ActiveElement)).Any(),
             Path, TEXT("active_element and its active/element binding come together"))
         && F.Done();
@@ -1483,6 +1719,38 @@ bool Components(const FValue& Value, TArray<FLDDemoComponentDefinition>& Out, co
             return false;
         }
         Out.Add(MoveTemp(Row));
+    }
+    // #198 F: install references resolve to this catalog; a mod is never an install target and extra_base names bases.
+    const auto KindOf = [&Out](const FString& Id, ELDDemoComponentKind& Kind)
+    {
+        const FLDDemoComponentDefinition* Found = Out.FindByPredicate([&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; });
+        if (Found) { Kind = Found->Kind; }
+        return Found != nullptr;
+    };
+    for (const FLDDemoComponentDefinition& Row : Out)
+    {
+        const FString Path = TEXT("content.components.") + Row.Id;
+        for (const FString& Target : Row.TargetComponents)
+        {
+            ELDDemoComponentKind Kind;
+            if (!Check.Require(Target != Row.Id && KindOf(Target, Kind) && Kind != ELDDemoComponentKind::Mod, Path,
+                TEXT("install components are known non-mod definitions other than itself"))) { return false; }
+        }
+        for (const FString& Base : Row.ExtraBases)
+        {
+            ELDDemoComponentKind Kind;
+            if (!Check.Require(KindOf(Base, Kind) && Kind == ELDDemoComponentKind::Base, Path, TEXT("extra_base names distinct base components")))
+            { return false; }
+        }
+        const bool bExtra = Row.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::ExtraBase; });
+        if (!Check.Require(bExtra == !Row.ExtraBases.IsEmpty(), Path, TEXT("extra_base and its base list come together"))
+            || !Check.Require(!Row.bTargetSelf || (Row.TargetActives.IsEmpty() && Row.TargetComponents.IsEmpty() && !Row.bTargetDash
+                && Row.ExtraBases.IsEmpty()), Path, TEXT("a self-installed mod takes no other target"))
+            || !Check.Require(Row.Kind == ELDDemoComponentKind::Base || Row.bTargetSelf || Row.bTargetDash || !Row.TargetActives.IsEmpty()
+                || !Row.TargetComponents.IsEmpty(), Path, TEXT("empty install targets")))
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -1854,7 +2122,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             || !Fields.Text(TEXT("name_text"), D.NameText, 1, 32)
             || !ValidateDisplayText(D.NameText, true, C, Path + TEXT(".name_text"))
             || !Fields.Text(TEXT("description_key"), D.DescriptionKey, 1, 128)
-            || !Fields.Text(TEXT("description_text"), D.DescriptionText, 1, 160)
+            || !Fields.Text(TEXT("description_text"), D.DescriptionText, 1, 320)
             || !ValidateDisplayText(D.DescriptionText, false, C, Path + TEXT(".description_text"))
             || !Fields.Identifier(TEXT("icon_id"), D.IconId)
             || !C.Require(DisplayIds.Contains(D.Id) && D.Namespace.Equals(TEXT("DemoContent"), ESearchCase::CaseSensitive)
@@ -2068,7 +2336,8 @@ bool LDDemoCardText::Parse(const FString& Template, TArray<FToken>& Out, FString
         {TEXT("count"), EField::Count}, {TEXT("radius"), EField::Radius}, {TEXT("distance"), EField::Distance},
         {TEXT("interval"), EField::Interval}, {TEXT("delay"), EField::Delay}, {TEXT("secondary_ratio"), EField::SecondaryRatio},
         {TEXT("secondary_duration"), EField::SecondaryDuration}, {TEXT("basic_count"), EField::BasicCount},
-        {TEXT("refund"), EField::Refund}, {TEXT("burst"), EField::Burst}, {TEXT("limit"), EField::Limit}};
+        {TEXT("refund"), EField::Refund}, {TEXT("burst"), EField::Burst}, {TEXT("limit"), EField::Limit},
+        {TEXT("multiplier"), EField::Multiplier}, {TEXT("angle"), EField::Angle}, {TEXT("cost_ratio"), EField::CostRatio}};
     int32 Index = 0;
     while (Index < Template.Len())
     {

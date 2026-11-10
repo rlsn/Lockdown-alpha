@@ -125,7 +125,7 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     const int64 Amount=Effect.BaseP2
         +LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Effect.MaxHPRatioBp);
     const FGuid ShieldId=FGuid::NewGuid();
-    if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error)) { return false; }
+    if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error,Ref->Source)) { return false; }
     // A weaker shield than the one held is not granted (no fake grant, no refresh), and then the rest does not start.
     if (!Body.Shield.IsSet() || Body.Shield->EffectId!=ShieldId) { return true; }
     return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error);

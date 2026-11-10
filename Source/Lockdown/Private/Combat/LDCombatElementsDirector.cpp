@@ -269,6 +269,8 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Fact.HitId=HitId;
     Fact.AtMs=NowMs;
     OnReactionCompleted(Fact);
+    // #198 F C09: the trigger's connector on this applier arms its next primary basic.
+    if (!ArmReactionEmpower(Fact,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_REACTION t=%lld kind=%s trigger=%s via=%s primary=%s struck=%d r=%s fire_settles=%d"),
         NowMs,LDCombatElements::ReactionName(Reaction),*LDLog::Id(Applier.SourceEntity),*LDLog::Source(Applier.Source),
         *LDLog::Id(Target.Victim.EntityId),Struck.Num(),*LDLog::P2(R),FireShares.Num());
@@ -300,10 +302,29 @@ bool ALDCombatDirector::TryDischarge(FLDBodyCombatState& Target, const FVector& 
         const double Squared=FVector::DistSquared2D(TargetFoot,FootOf(*Actor));
         if (!Nearest || Squared<NearestSquared) { Nearest=&Ref; NearestSquared=Squared; }
     }
+    // #198 F M11 on this electric source: the applier's most recent direct active target among the legal ones, at x0.85.
+    int64 MarkedScaleBp=10000;
+    if (const FLDBodyCombatState* ApplierBody=FindBody(Applier.SourceBody); ApplierBody && !ApplierBody->bPendingDeath)
+    {
+        TArray<FLDPassiveEffectRef> Marked;
+        if (!WorkshopOn(ApplierBody->AttributeProjection,ELDDemoEffectOp::MarkedCounter,Applier.Source,Marked,Error)) { return false; }
+        for (const FLDPassiveEffectRef& Mod : Marked)
+        {
+            MarkedScaleBp=MarkedScaleBp/10000*Mod.Effect.MultiplierBp+MarkedScaleBp%10000*Mod.Effect.MultiplierBp/10000;
+            for (int32 Index=ApplierBody->DirectHitMarks.Num()-1; Index>=0; --Index)
+            {
+                const FLDCombatBodyMark& Mark=ApplierBody->DirectHitMarks[Index];
+                const FLDCombatBodyRef* Legal=Around.FindByPredicate([&Mark,&Self](const FLDCombatBodyRef& Ref)
+                { return Ref==Mark.Body && Ref!=Self; });
+                if (NowMs-Mark.AtMs<=Mod.Effect.DurationMs && Legal) { Nearest=Legal; break; }
+            }
+        }
+    }
     if (!Nearest) { return true; }
     if (!LDMatchLifecycle::AddDurationMs(NowMs,Terms.DischargeIntervalMs,Target.DischargeReadyAtMs,Error)) { return false; }
-    PendingHits.Add(SettleHit(Applier,*Nearest,FGuid::NewGuid(),
-        LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms)));
+    FLDCombatHit Discharge=SettleHit(Applier,*Nearest,FGuid::NewGuid(),LDCombatElements::ReactionDamageP2(Applier.Level,Applier.SourceAPP2,Terms));
+    Discharge.PackageScaleBp=MarkedScaleBp;
+    PendingHits.Add(MoveTemp(Discharge));
     UE_LOG(LogLDCombat,Log,TEXT("LD_DISCHARGE t=%lld from=%s to=%s applier=%s"),NowMs,*LDLog::Id(Target.Victim.EntityId),
         *LDLog::Id(Nearest->Victim.EntityId),*LDLog::Id(Applier.SourceEntity));
     return true;

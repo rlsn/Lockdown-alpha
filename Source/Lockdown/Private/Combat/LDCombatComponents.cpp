@@ -63,11 +63,22 @@ bool ALDCombatDirector::RecordLedgerEntries(FLDBodyCombatState& Target, const FL
     const FLDProjectedAttributes& Final=Source.AttributeProjection.Final;
     for (const FLDPassiveEffectRef& Ref : Ledgers)
     {
-        const FLDDemoEffectDefinition& Effect=Ref.Effect;
+        FLDDemoEffectDefinition Effect=Ref.Effect;
+        // #198 F M10: the owner's new batches take its count and window, every entry its multiplier.
+        TArray<FLDPassiveEffectRef> Variants;
+        if (!WorkshopOn(Source.AttributeProjection,ELDDemoEffectOp::LedgerVariant,Ref.Source,Variants,Error)) { return false; }
+        int64 EntryScaleBp=10000;
+        for (const FLDPassiveEffectRef& Variant : Variants)
+        {
+            Effect.Count=Variant.Effect.Count;
+            Effect.DurationMs=Variant.Effect.DurationMs;
+            EntryScaleBp=Variant.Effect.MultiplierBp;
+        }
         // Each entry is valued when it is added: the grown base plus the owner's AD/AP shares now.
         int64 ValueP2=0;
         if (!LDCombatComponentsDetail::PackageP2(Effect,Final,ValueP2))
         { Error=FString::Printf(TEXT("A %s ledger entry is outside the checked numeric domain."),*Ref.Key); return false; }
+        ValueP2=LDCombatComponentsDetail::Share(ValueP2,EntryScaleBp);
         FLDCombatLedger* Ledger=Target.Ledgers.FindByPredicate([&Source,&Ref](const FLDCombatLedger& Row)
         { return Row.Owner==Source.Victim.EntityId && Row.Source==Ref.Source; });
         if (!Ledger)
@@ -85,23 +96,9 @@ bool ALDCombatDirector::RecordLedgerEntries(FLDBodyCombatState& Target, const FL
             return false;
         }
         if (!bCashOut) { continue; }
-        // One magic skill-class package of the whole batch; a settle hit, so it never feeds a ledger or B18 itself.
-        FLDCombatHit Cash;
-        Cash.HitId=FGuid::NewGuid();
-        Cash.EffectId=FGuid::NewGuid();
-        Cash.Target=Hit.Target;
-        Cash.SourceBody={Source.Victim,Source.Identity};
-        Cash.SourceEntity=Source.Victim.EntityId;
-        Cash.CreditOwner=Source.Victim.Kind==ELDVictimKind::Contender ? Source.Victim.EntityId : FGuid();
-        Cash.Source=Ref.Source;
-        Cash.HitClass=ELDCombatHitClass::Ability;
-        Cash.BaseP2=CashOutP2;
-        Cash.DamageType=Effect.DamageType;
-        Cash.SourceADP2=Final.ADP2;
-        Cash.SourceAPP2=Final.APP2;
-        Cash.bLedgerCashOut=true;
-        if (!StampSourceTerms(Source,Cash,Error)) { return false; }
-        PendingHits.Add(MoveTemp(Cash));
+        // One magic skill-class package of the whole batch; a settle hit, so it never feeds a ledger or B18 itself. #198 F:
+        // M01 spreads it around the target and M02 locks it for its delayed settle.
+        if (!CashOutLedger(Source,Hit.Target,Ref.Source,CashOutP2,Effect.DamageType,NowMs,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_LEDGER_CASHOUT t=%lld owner=%s victim=%s life=%u amount=%s"),NowMs,
             *LDLog::Id(Source.Victim.EntityId),*LDLog::Id(Target.Victim.EntityId),Target.Victim.Life,*LDLog::P2(CashOutP2));
     }

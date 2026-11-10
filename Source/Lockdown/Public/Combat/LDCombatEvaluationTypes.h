@@ -51,6 +51,12 @@ struct FLDDamageEvaluationInput
     int64 DamageBonusBp = 0;
     // Delivery share of the raw amount (a ground impact's outer ring); 10000 = all of it.
     int64 DeliveryScaleBp = 10000;
+    // #198 F workshop package multiplier of the raw amount (M01/M03/M05/M08 below 1, M02/M07 above), applied with the
+    // delivery share; 1..100000.
+    int64 PackageScaleBp = 10000;
+    // #198 F M12: this share of the mitigated damage (after resistance and the guard, before the shield) is deferred:
+    // reported as DeferredP2 and kept out of the shield/HP split. 0..9999.
+    int64 DeferRatioBp = 0;
     // primary_guard: a flat cut of a primary basic after resistance, at most PrimaryGuardCapBp of it.
     int64 PrimaryGuardP2 = 0;
     int64 PrimaryGuardCapBp = 0;
@@ -69,6 +75,8 @@ struct FLDDamageEvaluation
     int64 RemainingShieldP2 = 0;
     // The amount BraceCutBp actually took off (floored P2; zero for a protected target).
     int64 BraceCutP2 = 0;
+    // #198 F M12: the deferred part of DamageP2's mitigated amount (DamageP2 is what this hit applies now).
+    int64 DeferredP2 = 0;
 };
 
 struct FLDDamageEvaluationResult

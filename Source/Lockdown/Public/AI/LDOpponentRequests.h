@@ -40,7 +40,8 @@ namespace LDOpponentRequests
     // #198: an active choice of the still-current offer (always asking to learn it now), a learn of a still-pending blueprint
     // into a still-empty slot, an allocation that fits the own stats and unspent points, an opening base pick of a still-open
     // option (always asking to enable it now) or the first install of a still-owned component, with a binding only to a
-    // learned active; built from the own latest view.
+    // learned active and (#198 F) a target only on a learned active or another installed component (C12's repeated base
+    // installed too); built from the own latest view.
     LOCKDOWN_API bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression,
         uint64 RequestId, FLDBuildCommand& Out, FString& Error);
 

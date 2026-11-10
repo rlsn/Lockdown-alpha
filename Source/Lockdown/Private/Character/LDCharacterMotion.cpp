@@ -163,10 +163,29 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     { StepMove=++NativeCapture->StepDirectMoves; }
     // #97: bodies block each other, but a dash runs through them (its path slow hits the bodies it crosses); the capsule
     // ignores other bodies only for the dash's own sweeps, so everyone else still bumps into the dashing body.
-    const bool bThroughBodies=Sweep&&UpdatedPrimitive&&IsDashing();
+    // #198 F: a forced push (knockback) is blocked by bodies; C02 reads its first real block.
+    const bool bPushing=IsDashing()&&bKnockbackMotion;
+    const bool bThroughBodies=Sweep&&UpdatedPrimitive&&IsDashing()&&!bKnockbackMotion;
     if (bThroughBodies) { UpdatedPrimitive->SetCollisionResponseToChannel(ECC_Pawn,ECR_Ignore); }
     const bool Result=Super::MoveUpdatedComponentImpl(Delta,Rotation,Sweep,Hit,Teleport);
     if (bThroughBodies) { UpdatedPrimitive->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block); }
+    if (bPushing && bWatchKnockbackBlock && Sweep && Hit && Hit->bBlockingHit && !Hit->bStartPenetrating && !IsWalkable(*Hit))
+    {
+        const FVector Heading=FVector(Delta.X,Delta.Y,0).GetSafeNormal();
+        const UPrimitiveComponent* Blocking=Hit->GetComponent();
+        AActor* Blocker=Hit->GetActor();
+        const bool bBody=Cast<ALDCharacter>(Blocker)!=nullptr;
+        const bool bStatic=Blocking && Blocking->Mobility==EComponentMobility::Static;
+        // Only a surface facing the push stops it; a grazing contact lets the native movement slide on.
+        if (!Heading.IsNearlyZero() && (bBody || bStatic)
+            && FVector::DotProduct(FVector(Hit->Normal.X,Hit->Normal.Y,0).GetSafeNormal(),Heading)<=-.1)
+        {
+            KnockbackBlock.Emplace();
+            KnockbackBlock->bBody=bBody;
+            KnockbackBlock->Blocker=Blocker;
+            bWatchKnockbackBlock=false;
+        }
+    }
     if (!NativeCapture || !NativeCapture->Error.IsEmpty()) { return Result; }
     auto& Capture=*NativeCapture;
     const FVector To=GetActorFeetLocation();

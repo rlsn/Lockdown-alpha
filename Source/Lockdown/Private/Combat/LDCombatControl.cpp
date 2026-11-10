@@ -73,7 +73,7 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
 }
 
 bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-    const FGuid& EffectId, FString& Error)
+    const FGuid& EffectId, const FLDCombatSourceRef& Source, FString& Error)
 {
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A taunt requires the current core."); return false; }
@@ -107,6 +107,7 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         App.SourceBody={Body.Victim,Body.Identity};
         App.CreditOwner=Body.Victim.EntityId;
         App.DurationMs=Effect.DurationMs;
+        App.Source=Source;
         bool bApplied=false;
         if (!CommitControl(Victim,App,Now,bApplied,Error)) { return false; }
         if (!bApplied) { continue; }
@@ -211,7 +212,8 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     { return false; }
     // Every committed control or slow is its owner's assist contribution on this life.
     RecordAssistContribution(Victim,App.CreditOwner,NowMs);
-    return true;
+    // #198 F C05/C07 read every hard control that actually landed.
+    return !bHard || OnHardControl(Victim,App,NowMs,Error);
 }
 
 bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Development/LDProgressionRules.h"
@@ -79,6 +80,22 @@ struct FLDOpponentComponent
     bool bInstalled = false;
     // Installed at least once: enabling it again is a rest-window move, never a field install.
     bool bEverInstalled = false;
+    // Where an installed component sits (FLDComponentTargetView): the target kind and id (#198 F: a learned active or a host
+    // component; empty for a base, the innate D or the holder itself), B18's bound element and C12's repeated base.
+    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    FString TargetId;
+    ELDDemoElement Element = ELDDemoElement::None;
+    FString BoundComponent;
+};
+
+// #198 F: where a mod or connector goes (FLDBuildCommand's TargetKind / TargetDefinition / BoundComponent): a learned active
+// (Active) or an installed host component (Component) named by TargetId, the innate D (Dash) or the holder itself (None),
+// and C12's repeated installed base (empty otherwise).
+struct FLDOpponentComponentTarget
+{
+    ELDComponentTargetKind Kind = ELDComponentTargetKind::None;
+    FString TargetId;
+    FString BoundComponent;
 };
 
 // The AI's own authorized projection: owner life, progression and source readiness.
@@ -278,6 +295,10 @@ struct FLDOpponentBuildIntent
     FString Component;
     FString BoundActive;
     ELDDemoElement Element = ELDDemoElement::None;
+    // InstallComponent of a mod or connector (#198 F): its target (LDOpponentPolicy::WorkshopTarget); None / empty for a base.
+    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    FString TargetId;
+    FString BoundComponent;
     FLDOpponentRetryKey Key;
 };
 
@@ -448,8 +469,17 @@ namespace LDOpponentPolicy
     // The opening base pick: the first option in catalog order that ComponentUsable accepts; false when none does.
     LOCKDOWN_API bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent,
         FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
+    // #198 F: where the AI installs an owned mod or connector (rule-based, no tunable numbers): the first legal target in
+    // catalog list order: a learned active of TargetActives, else an installed host of TargetComponents (C01 on B18 only
+    // while B18 burns), else the innate D (bTargetDash), else the holder itself (bTargetSelf); C12 also repeats the first
+    // installed base of ExtraBases. Skips what growth refuses: M08/M09 on a target the other already holds (TargetConflict).
+    // False for a base
+    // component or without any legal target.
+    LOCKDOWN_API bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
+        const FLDDemoComponentDefinition& Component, FLDOpponentComponentTarget& Out);
     // The owned component to enable next: the first never-installed, not installed one in catalog order that
-    // ComponentUsable accepts; false when none does.
+    // ComponentUsable accepts (a base) or WorkshopTarget places (a mod or connector; the decision carries its target);
+    // false when none does.
     LOCKDOWN_API bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
         FString& OutComponent, FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.

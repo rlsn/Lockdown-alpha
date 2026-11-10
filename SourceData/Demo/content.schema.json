@@ -303,7 +303,7 @@
           "name_key": {"type": "string", "minLength": 1, "maxLength": 128},
           "name_text": {"type": "string", "minLength": 1, "maxLength": 32},
           "description_key": {"type": "string", "minLength": 1, "maxLength": 128},
-          "description_text": {"type": "string", "minLength": 1, "maxLength": 160},
+          "description_text": {"type": "string", "minLength": 1, "maxLength": 320},
           "icon_id": {"$ref": "#/$defs/id"}, "portrait_icon_id": {"$ref": "#/$defs/id"}
         }
       }
@@ -566,7 +566,36 @@
           "type": "object", "additionalProperties": false, "required": ["op", "delay", "ratio"],
           "properties": {"op": {"const": "idle_ready_amp"}, "delay": {"$ref": "#/$defs/positive_sec"}, "ratio": {"$ref": "#/$defs/multiplier"}}
         },
-        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "active_element"}}}
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "active_element"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "angle", "damage_ratio"], "properties": {"op": {"const": "spread_unit"}, "angle": {"$ref": "#/$defs/angle"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "radius", "damage_ratio"], "properties": {"op": {"const": "spread_projectile"}, "radius": {"$ref": "#/$defs/cm"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "radius", "damage_ratio"], "properties": {"op": {"const": "spread_ledger"}, "radius": {"$ref": "#/$defs/cm"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "radius", "damage_ratio"], "properties": {"op": {"const": "spread_counter"}, "radius": {"$ref": "#/$defs/cm"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "damage_ratio", "distance"], "properties": {"op": {"const": "delay_ledger"}, "delay": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}, "distance": {"$ref": "#/$defs/cm"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "damage_ratio", "radius"], "properties": {"op": {"const": "delay_counter"}, "delay": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}, "radius": {"$ref": "#/$defs/cm"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "damage_ratio"], "properties": {"op": {"const": "knockback_scale"}, "ratio": {"$ref": "#/$defs/multiplier"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "cooldown_ratio"], "properties": {"op": {"const": "control_scale"}, "ratio": {"$ref": "#/$defs/multiplier"}, "cooldown_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "range_cap", "damage_ratio"], "properties": {"op": {"const": "range_bonus"}, "distance": {"$ref": "#/$defs/cm"}, "range_cap": {"$ref": "#/$defs/cm"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "damage_ratio"], "properties": {"op": {"const": "counter_range_bonus"}, "distance": {"$ref": "#/$defs/cm"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "cooldown_ratio", "cost_ratio"], "properties": {"op": {"const": "cooldown_cost"}, "cooldown_ratio": {"$ref": "#/$defs/multiplier"}, "cost_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "angle", "damage_ratio"], "properties": {"op": {"const": "compress_cone"}, "delay": {"$ref": "#/$defs/positive_sec"}, "angle": {"$ref": "#/$defs/angle"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "ratio", "damage_ratio"], "properties": {"op": {"const": "compress_zone"}, "delay": {"$ref": "#/$defs/positive_sec"}, "ratio": {"$ref": "#/$defs/probability"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "damage_ratio", "cooldown_ratio"], "properties": {"op": {"const": "dash_scale"}, "ratio": {"$ref": "#/$defs/multiplier"}, "damage_ratio": {"$ref": "#/$defs/multiplier"}, "cooldown_ratio": {"$ref": "#/$defs/multiplier"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "count", "damage_ratio", "duration"], "properties": {"op": {"const": "ledger_variant"}, "count": {"type": "integer", "minimum": 2, "maximum": 10}, "damage_ratio": {"$ref": "#/$defs/multiplier"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration", "damage_ratio"], "properties": {"op": {"const": "marked_counter"}, "duration": {"$ref": "#/$defs/positive_sec"}, "damage_ratio": {"$ref": "#/$defs/probability"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"], "properties": {"op": {"const": "damage_defer"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "interval", "base", "ratio", "cap_ratio", "duration"], "properties": {"op": {"const": "fire_shield"}, "interval": {"$ref": "#/$defs/positive_sec"}, "base": {"$ref": "#/$defs/hp"}, "ratio": {"$ref": "#/$defs/multiplier"}, "cap_ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "stun_duration"], "properties": {"op": {"const": "knockback_impact"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "stun_duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"], "properties": {"op": {"const": "contact_knockback"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "duration", "base", "ad_ratio", "ap_ratio", "damage_type"], "properties": {"op": {"const": "control_mark"}, "duration": {"$ref": "#/$defs/positive_sec"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "delay", "base", "ad_ratio", "ap_ratio", "damage_type", "root_duration"], "properties": {"op": {"const": "aftershock"}, "delay": {"$ref": "#/$defs/positive_sec"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "root_duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "mana", "mana_cap"], "properties": {"op": {"const": "control_mana"}, "mana": {"$ref": "#/$defs/mp"}, "mana_cap": {"$ref": "#/$defs/mp"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "interval", "radius", "base", "duration", "damage_type"], "properties": {"op": {"const": "heal_counter"}, "ratio": {"$ref": "#/$defs/probability"}, "interval": {"$ref": "#/$defs/positive_sec"}, "radius": {"$ref": "#/$defs/cm"}, "base": {"$ref": "#/$defs/points"}, "duration": {"$ref": "#/$defs/positive_sec"}, "damage_type": {"enum": ["Physical", "Magical"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "duration"], "properties": {"op": {"const": "reaction_empower"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "radius"], "properties": {"op": {"const": "shield_burst"}, "ratio": {"$ref": "#/$defs/probability"}, "radius": {"$ref": "#/$defs/cm"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "ratio", "base"], "properties": {"op": {"const": "skill_lifesteal"}, "ratio": {"$ref": "#/$defs/probability"}, "base": {"$ref": "#/$defs/hp"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "extra_base"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op", "damage_ratio"], "properties": {"op": {"const": "compress_chain"}, "damage_ratio": {"$ref": "#/$defs/probability"}}}
       ]
     },
     "target": {
@@ -602,6 +631,15 @@
           {"type": "string", "const": "always"},
           {"type": "object", "additionalProperties": false, "required": ["actives"], "properties": {"actives": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/id"}}}}
         ]},
+        "targets": {
+          "type": "object", "additionalProperties": false, "minProperties": 1,
+          "properties": {
+            "actives": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/id"}},
+            "components": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/id"}},
+            "dash": {"type": "boolean", "const": true}, "self": {"type": "boolean", "const": true},
+            "bases": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/id"}}
+          }
+        },
         "binding": {
           "type": "object", "additionalProperties": false, "required": ["kind", "actives", "elements"],
           "properties": {

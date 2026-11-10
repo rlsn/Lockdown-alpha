@@ -67,6 +67,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     }
     // #112 mechanics: zone pulses and their records' ends.
     Consider(NextMechanicsDueMs(NowMs));
+    Consider(NextWorkshopDueMs(NowMs));
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
     {
@@ -325,6 +326,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceBurns(Now,Error)
         || !AdvanceProjectiles(Error))
     { return false; }
+    // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C01 windows, C08 stores and M02 locked batches.
+    if (!AdvanceWorkshop(Now,Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];

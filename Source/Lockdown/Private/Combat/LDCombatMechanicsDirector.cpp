@@ -61,17 +61,61 @@ bool ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, EL
     return true;
 }
 
-bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2)
+bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource, int64* OutApplied)
 {
+    if (OutApplied) { *OutApplied=0; }
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
     // #198 S21: a live grievous cuts every new heal once, before it lands.
     if (const ALDGameMode* Mode=Core()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
     if (AmountP2<=0) { return false; }
+    // #198 F M12: a heal repays the oldest debts first (spec §10.3); only the rest restores HP.
+    int64 Left=AmountP2, Repaid=0;
+    for (FLDCombatDebt& Debt : Body.Debts)
+    {
+        if (Left<=0) { break; }
+        const int64 Part=FMath::Min(Left,Debt.AmountP2);
+        Debt.AmountP2-=Part;
+        Left-=Part;
+        Repaid+=Part;
+    }
+    Body.Debts.RemoveAll([](const FLDCombatDebt& Debt) { return Debt.AmountP2<=0; });
     auto& Pool=Body.Resources;
     const int64 Before=Pool.HpP2;
-    Pool.HpP2=AmountP2>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+AmountP2;
-    if (Pool.HpP2>=Pool.MaxHpP2) { Body.HpRegenMicroP2=0; }
-    if (Pool.HpP2==Before) { return false; }
+    if (Left>0)
+    {
+        Pool.HpP2=Left>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+Left;
+        if (Pool.HpP2>=Pool.MaxHpP2) { Body.HpRegenMicroP2=0; }
+    }
+    const int64 Healed=Pool.HpP2-Before;
+    if (Healed==0 && Repaid==0) { return false; }
+    if (OutApplied) { *OutApplied=Healed+Repaid; }
+    if (Repaid>0)
+    {
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_DEBT_REPAID body=%s repaid=%s healed=%s"),*LDLog::Id(Body.Victim.EntityId),
+            *LDLog::P2(Repaid),*LDLog::P2(Healed));
+    }
+    // #198 F C08: half of the real heal and repayment of the source it sits on joins its counter store.
+    if (HealSource.Kind!=ELDCombatSourceKind::None)
+    {
+        TArray<FLDPassiveEffectRef> Counters;
+        FString Error;
+        if (!WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::HealCounter,HealSource,Counters,Error))
+        {
+            UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_WORKSHOP_UNRESOLVED body=%s op=heal_counter error=%s"),*LDLog::Id(Body.Victim.EntityId),*Error);
+        }
+        else if (!Counters.IsEmpty())
+        {
+            const FLDDemoEffectDefinition& Counter=Counters[0].Effect;
+            const int64 Stored=(Healed+Repaid)/10000*Counter.RatioBp+(Healed+Repaid)%10000*Counter.RatioBp/10000;
+            const int64 Now=Core() ? Core()->GetAuthorityNowMs() : 0;
+            if (Stored>0)
+            {
+                Body.CounterStoreP2=FMath::Min(Body.CounterStoreP2+Stored,Counter.BaseP2);
+                Body.CounterLastAddMs=Now;
+                if (Body.CounterNextFireMs<=Now) { Body.CounterNextFireMs=Now+Counter.IntervalMs; }
+            }
+        }
+    }
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
@@ -79,7 +123,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2)
 }
 
 bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
-    const FGuid& SourceEntity, int64 NowMs, FString& Error)
+    const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource)
 {
     if (Body.bPendingDeath) { return true; }
     // #198 S21: a live grievous cuts the new shield before the replacement check; existing shields are untouched.
@@ -90,6 +134,7 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     if (!LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,SourceEntity,Expires},AmountP2,NowMs))
     { return true; }
     Body.ShieldGrantedP2=AmountP2;
+    Body.ShieldGrantSource=GrantSource;
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
@@ -143,8 +188,10 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     Body.VoluntaryDash.Reset();
     // The same native root motion as a dash: integrated by the authority steps along the ground, stopped by blocking
     // geometry at the last legal position, never a teleport.
-    if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error))
+    // A push is blocked by bodies as well as static geometry (#198 F: C02 reads its first real block).
+    if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error,true))
     { Error=TEXT("Knockback: ")+Error; return false; }
+    if (!WatchKnockbackImpact(Target,Body,Hit,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld"),*Body.Victim.EntityId.ToString(),
         *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Hit.KnockbackMs);
     return true;
@@ -226,6 +273,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     // A native pulse is the active's direct damage (spec §8): B17's lock rides on it and B18 reads it.
                     Hit.bDirectAbilityDamage=Zone.bDamage;
                     Hit.IdleReadyAmpBp=Zone.IdleReadyAmpBp;
+                    Hit.PackageScaleBp=Zone.PackageScaleBp;
                     // #198 zone_wet: every pulse also applies wet with the owner's snapshot at release.
                     Hit.bApplyWet=Zone.bWet;
                     Hit.ElementLevel=Zone.ElementLevel;
@@ -298,7 +346,13 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                 }
             }
         }
-        if (Zone.EndMs<=NowMs) { Zones.RemoveAt(Index); }
+        if (Zone.EndMs<=NowMs)
+        {
+            // #198 F C06: a zone that ran its whole life completes naturally.
+            const FLDCombatZone Ended=Zone;
+            Zones.RemoveAt(Index);
+            if (!TriggerAftershock(Ended.SourceBody,Ended.Source,Ended.EffectId,Ended.CentreCm,Ended.RadiusCm,NowMs,Error)) { return false; }
+        }
     }
     return true;
 }
@@ -318,15 +372,58 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoAbilityValues& Values
     { Template.AttackSlowBp=Slow->RatioBp; Template.AttackSlowMs=Slow->DurationMs; }
 }
 
-bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoAbilityValues& Values,
-    const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId,
+bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
+    const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
     TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error)
 {
     using namespace LDCombatMechanicsDetail;
     ALDGameMode* Mode=Core();
     if (!Mode) { Error=TEXT("Release mechanics require the current core."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
-    if (const FLDDemoEffectDefinition* ZoneDef=FindOp(Values,ELDDemoEffectOp::Zone))
+    const FLDDemoAbilityValues& Values=Terms.Values;
+    const FLDDemoEffectDefinition* ZoneDef=FindOp(Values,ELDDemoEffectOp::Zone);
+    if (ZoneDef && Terms.CompressCone.IsSet())
+    {
+        Error=TEXT("A zone active compiled a cone compression.");
+        return false;
+    }
+    // #198 F M07: the pulses become one fixed blast after the delay: radius x ratio, the planned pulses' summed package x the
+    // multiplier, its slow, burn and native-hit triggers once; no lasting zone or in-zone haste.
+    if (ZoneDef && Terms.CompressZone.IsSet())
+    {
+        const FLDDemoEffectDefinition& Compress=Terms.CompressZone.GetValue();
+        const FLDDemoEffectDefinition* Damage=FindOp(Values,ELDDemoEffectOp::ZoneDamage);
+        if (!Damage) { Error=TEXT("A compressed zone has no zone damage to compress."); return false; }
+        FLDCombatGroundEffect Blast;
+        FLDCombatHit& Payload=Blast.Payload;
+        Payload=MakeHit(Body,Source,FLDCombatBodyRef(),EffectId);
+        Payload.Token=Token;
+        Payload.CastLedger=MoveTemp(CastLedger);
+        Payload.BaseP2=Damage->BaseP2;
+        Payload.ADRatioBp=Damage->ADRatioBp;
+        Payload.APRatioBp=Damage->APRatioBp;
+        Payload.DamageType=Damage->DamageType;
+        Payload.bDirectAbilityDamage=true;
+        Payload.IdleReadyAmpBp=IdleAmpBp;
+        const int64 Scale=int64(ZoneDef->Count)*Compress.MultiplierBp;
+        Payload.PackageScaleBp=Terms.PackageScaleBp/10000*Scale+Terms.PackageScaleBp%10000*Scale/10000;
+        if (const FLDDemoEffectDefinition* Slow=FindOp(Values,ELDDemoEffectOp::ZoneSlow))
+        { Payload.SlowBp=Slow->RatioBp; Payload.SlowDurationMs=Slow->DurationMs; }
+        // S20's wet once; its in-zone haste has no zone to live in. The burn and wet take the owner's element snapshot now.
+        Payload.bApplyWet=FindOp(Values,ELDDemoEffectOp::ZoneWet)!=nullptr;
+        if (!StampElementSnapshot(Body,Payload,Error)) { return false; }
+        if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn)) { Payload.BurnStacks=Burn->Count; }
+        if (!StampSourceTerms(Body,Payload,Error)) { return false; }
+        Blast.CentreCm=FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
+        Blast.RadiusCm=Cm(ZoneDef->RadiusCm)*double(Compress.RatioBp)/10000.;
+        Blast.InnerRadiusCm=Blast.RadiusCm;
+        Blast.Origin=ELDCombatGroundOrigin::CompressedZone;
+        if (!LDMatchLifecycle::AddDurationMs(Now,Compress.DelayMs,Blast.ReadyAtMs,Error)) { return false; }
+        Blast.ExpiresAtMs=Blast.ReadyAtMs;
+        GroundEffects.Add(MoveTemp(Blast));
+        return true;
+    }
+    if (ZoneDef)
     {
         FLDCombatZone Zone;
         Zone.EffectId=EffectId;

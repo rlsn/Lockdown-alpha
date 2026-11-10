@@ -209,13 +209,28 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
     }
-    // #198 B: owned components; the installed ones (with their binding) also feed the own attribute projection.
+    // #198 B: owned components; the installed ones (with their binding, and #198 F their target) also feed the own
+    // attribute projection.
     TArray<FLDInstalledComponentValue> Installed;
     for (const FLDComponentInstanceView& Owned : Progression.Components)
     {
         if (Owned.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own component has no definition.")); }
-        Out.Components.Add({CanonicalId(Owned.DefinitionId), Owned.bInstalled, Owned.bEverInstalled});
-        if (Owned.bInstalled) { Installed.Add({Owned.DefinitionId, Owned.Target.BoundActive, Owned.Target.Element}); }
+        FLDOpponentComponent& Component = Out.Components.AddDefaulted_GetRef();
+        Component.DefinitionId = CanonicalId(Owned.DefinitionId);
+        Component.bInstalled = Owned.bInstalled;
+        Component.bEverInstalled = Owned.bEverInstalled;
+        if (!Owned.bInstalled) { continue; }
+        Component.TargetKind = Owned.Target.Kind;
+        Component.TargetId = Owned.Target.Definition.IsNone() ? FString() : CanonicalId(Owned.Target.Definition);
+        Component.Element = Owned.Target.Element;
+        Component.BoundComponent = Owned.Target.BoundComponent.IsNone() ? FString() : CanonicalId(Owned.Target.BoundComponent);
+        FLDInstalledComponentValue& Value = Installed.AddDefaulted_GetRef();
+        Value.ComponentId = Owned.DefinitionId;
+        Value.BoundActive = Owned.Target.BoundActive;
+        Value.Element = Owned.Target.Element;
+        Value.TargetKind = Owned.Target.Kind;
+        Value.TargetId = Owned.Target.Definition;
+        Value.BoundComponent = Owned.Target.BoundComponent;
     }
     Out.bOpeningBasePending = Progression.bOpeningBasePending;
     for (const FName& Option : Progression.OpeningBaseOptions) { Out.OpeningBaseOptions.Add(CanonicalId(Option)); }

@@ -110,6 +110,15 @@ inline constexpr TCHAR NoBindableActive[]=TEXT("先学会一个能绑定的伤�
 inline constexpr TCHAR PickBoundActive[]=TEXT("绑定哪个技能：");
 inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
 inline constexpr TCHAR CancelBinding[]=TEXT("取消");
+// #198 F 改装件 / 连接件的安装位置：已学的技能、已启用的构件、冲刺(D) 或自身；C12 另选一个要重复的已启用基础构件。
+inline constexpr TCHAR NoInstallTarget[]=TEXT("还没有能装的位置");
+inline constexpr TCHAR PickInstallTarget[]=TEXT("装在哪里：");
+inline constexpr TCHAR PickRepeatedBase[]=TEXT("重复哪个基础构件：");
+inline constexpr TCHAR TargetDash[]=TEXT("冲刺(D)");
+inline constexpr TCHAR TargetSelf[]=TEXT("自身");
+inline constexpr TCHAR TargetConflict[]=TEXT("闷头撞到底和蹿两步就回头不能装在同一处");
+inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（装在：%s）"),*Target);}
+inline FString InstalledRepeating(const FString& Target,const FString& Base){return FString::Printf(TEXT("（%s · 重复 %s）"),*Target,*Base);}
 inline constexpr TCHAR ElementFire[]=TEXT("火");
 inline constexpr TCHAR ElementWater[]=TEXT("水");
 inline constexpr TCHAR ElementElectric[]=TEXT("电");

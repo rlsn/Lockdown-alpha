@@ -664,10 +664,11 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     const FLDDemoAbilityDefinition* Ability=nullptr;
     if (!ResolveEntry(Record,Request.Entry,Source,Ability)) { return Refuse(ELDCombatReject::SourceUnavailable); }
     if (Request.ExpectedSourceRevision!=Record.SourceRevision) { return Refuse(ELDCombatReject::StaleSource); }
-    const FLDDemoAbilityValues* ValuesDef=nullptr;
-    const FLDDemoTargetDefinition* TargetDef=nullptr;
-    int64 WindupMs=0;
-    if (!ActiveOf(Source,Record.Build.Level,Ability,TargetDef,ValuesDef,WindupMs)) { return Refuse(ELDCombatReject::SourceUnavailable); }
+    FLDCombatActiveTerms Terms;
+    if (!ActiveOf(Record,Source,Ability,Terms)) { return Refuse(ELDCombatReject::SourceUnavailable); }
+    const FLDDemoAbilityValues* ValuesDef=&Terms.Values;
+    const FLDDemoTargetDefinition* TargetDef=&Terms.Target;
+    const int64 WindupMs=Terms.WindupMs;
     const auto* Track=TrackFor(Record,Request.Entry);
     if (!Track) { Error=TEXT("A held active source has no persistent cooldown track."); return false; }
     FLDActiveGateInput Gate;
@@ -972,6 +973,16 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Pr
         Primary.KnockbackCm=double(Distance.Numerator)/double(Distance.Denominator);
         Primary.KnockbackMs=Ref.Effect.DurationMs;
         Primary.bKnockbackFromAnchor=false;
+        // #198 F: C02 reads this push as B06's; M03 on B06 pushes farther for a lighter third hit.
+        Primary.KnockbackSource=Ref.Source;
+        TArray<FLDPassiveEffectRef> Farther;
+        if (!WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::KnockbackScale,Ref.Source,Farther,Error)) { return false; }
+        for (const FLDPassiveEffectRef& Mod : Farther)
+        {
+            Primary.KnockbackCm=Primary.KnockbackCm*double(Mod.Effect.RatioBp)/10000.;
+            Primary.KnockbackMs=Primary.KnockbackMs*Mod.Effect.RatioBp/10000;
+            Primary.PackageScaleBp=Primary.PackageScaleBp*Mod.Effect.MultiplierBp/10000;
+        }
     }
     MarkViewChanged(Entity);
     return true;
@@ -991,19 +1002,25 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoAbilityDefinition* Ability=nullptr;
     if (!ResolveEntry(*Record,Action.Entry,Source,Ability) || Source!=Action.Source)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
-    const FLDDemoAbilityValues* ValuesDef=nullptr;
-    const FLDDemoTargetDefinition* TargetPtr=nullptr;
-    int64 WindupMs=0;
+    FLDCombatActiveTerms Terms;
     auto* Track=TrackFor(*Record,Action.Entry);
-    if (!ActiveOf(Source,Record->Build.Level,Ability,TargetPtr,ValuesDef,WindupMs) || !Track)
+    if (!ActiveOf(*Record,Source,Ability,Terms) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
-    const FLDDemoTargetDefinition& TargetDef=*TargetPtr;
+    const FLDDemoAbilityValues* ValuesDef=&Terms.Values;
+    const FLDDemoTargetDefinition& TargetDef=Terms.Target;
     // The caster's foot before any displacement of this release (areas, zones and pushes centre here).
     const FVector ReleaseFoot=FootOf(Actor);
     // The innate dash takes the approved character's dash terms (D19).
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
     FLDInnateDashTerms Innate;
     if (bInnate && !InnateDashFor(Innate,Error)) { return false; }
+    // #198 F M08/M09 on D: its distance and issued cooldown scale like a learned dash's (Terms).
+    if (bInnate)
+    {
+        Innate.DistanceCm.Numerator*=Terms.DashScaleBp;
+        Innate.DistanceCm.Denominator*=10000;
+        Innate.CooldownMs=Innate.CooldownMs/10000*Terms.CooldownScaleBp+Innate.CooldownMs%10000*Terms.CooldownScaleBp/10000;
+    }
     // A stun or taunt that landed during the windup ends it (normally already abandoned at the hit).
     FLDActiveGateInput Gate;
     Gate.NowMs=Now;
@@ -1146,7 +1163,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             { Error=TEXT("Shield scaling overflowed."); return false; }
             // Base + AP share + own max-HP share, through the single shield entry (ReplaceIfNotWeaker).
             const int64 Amount=Effect.BaseP2+Effect.APRatioBp*Final.APP2/10000+MaxHP/10000*Effect.MaxHPRatioBp+MaxHP%10000*Effect.MaxHPRatioBp/10000;
-            if (!GrantShieldTo(Body,Amount,Effect.DurationMs,EffectId,Body.Victim.EntityId,Now,Error)) { return false; }
+            if (!GrantShieldTo(Body,Amount,Effect.DurationMs,EffectId,Body.Victim.EntityId,Now,Error,Source)) { return false; }
             break;
         }
         case ELDDemoEffectOp::DispelRoot:
@@ -1166,13 +1183,17 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Voluntary.Source=Source;
             Voluntary.StartFootCm=ReleaseFoot;
             Voluntary.EndMs=Body.DashUntilMs;
-            TOptional<FLDPassiveEffectRef> ContactDamage, ContactRefund;
+            TOptional<FLDPassiveEffectRef> ContactDamage;
+            TArray<FLDPassiveEffectRef> ContactRefunds, ContactKnocks;
             if (!FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactDamage,ContactDamage,Error)
-                || !FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::DashContactRefund,ContactRefund,Error))
+                || !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::DashContactRefund,Source,ContactRefunds,Error)
+                || !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::ContactKnockback,Source,ContactKnocks,Error))
             { return false; }
             const bool bDamage=ContactDamage.IsSet();
-            const bool bRefund=ContactRefund.IsSet();
-            if (bDamage || bRefund || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
+            // #198 F C03/C04: installed on this dash (D or the active) only.
+            const bool bRefund=!ContactRefunds.IsEmpty();
+            const bool bKnock=!ContactKnocks.IsEmpty();
+            if (bDamage || bRefund || bKnock || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
             {
                 Body.DashContact=MakeShared<FLDCombatDashContact>();
                 Body.DashContact->EffectId=EffectId;
@@ -1183,6 +1204,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 Body.DashContact->PaidManaP2=Gate.ManaCostP2;
                 Body.DashContact->bCanDamage=bDamage;
                 Body.DashContact->bCanRefund=bRefund;
+                Body.DashContact->bCanKnock=bKnock;
+                Body.DashContact->Direction=Action.Direction;
+                Body.DashContact->ContactScaleBp=Terms.ContactScaleBp;
             }
             break;
         }
@@ -1208,7 +1232,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             break;
         }
         case ELDDemoEffectOp::Taunt:
-            if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Error)) { return false; }
+            if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Source,Error)) { return false; }
             break;
         case ELDDemoEffectOp::Silence:
         case ELDDemoEffectOp::Breach:
@@ -1261,6 +1285,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Template.bDirectAbilityDamage=DamageEffect!=nullptr;
         // B17's locked amplification rides only on this release's native direct damage.
         Template.IdleReadyAmpBp=DamageEffect ? IdleAmpBp : 0;
+        // #198 F: the mods' package multiplier of this native damage (M01/M03/M05); a dash's contact adds M08's.
+        Template.PackageScaleBp=Terms.PackageScaleBp;
+        if (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
+        { Template.PackageScaleBp=Template.PackageScaleBp/10000*Terms.ContactScaleBp+Template.PackageScaleBp%10000*Terms.ContactScaleBp/10000; }
         Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
         Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
         Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
@@ -1287,8 +1315,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         // Abilities trigger no on-hit effects.
         if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
         FillMechanicsTemplate(*ValuesDef,ReleaseFoot,Template);
+        // #198 F C02 reads the push of this exit.
+        if (Template.KnockbackCm>0) { Template.KnockbackSource=Source; }
         bool bHandled=false;
-        if (!StartSkillDelivery(Body,*ValuesDef,TargetDef,DeliveryAction,Template,Now,bHandled,Error)) { return false; }
+        if (!StartSkillDelivery(Body,Terms,DeliveryAction,Template,Now,bHandled,Error)) { return false; }
         const auto Deliver=[this,&Template](const FLDCombatBodyRef& Target)
         {
             FLDCombatHit Hit=Template;
@@ -1322,13 +1352,18 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Projectile.AdvancedThroughMs=Now;
             Projectile.SlowBp=Template.SlowBp;
             Projectile.SlowDurationMs=Template.SlowDurationMs;
+            // #198 F M01: the first contact spreads its damage around the struck body.
+            Projectile.SpreadRadiusCm=Terms.SpreadProjectile.IsSet() ? LDCA::ToDouble(Terms.SpreadProjectile->RadiusCm) : 0.;
             Projectile.Payload=Template;
             Projectiles.Add(Projectile);
         }
         else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::Unit)
         {
             Deliver(UnitTarget);
-            if (ChainEffect && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,Now,Error)) { return false; }
+            // #198 F M01: a cone of the final range toward the primary target; controls stay on the primary target.
+            if (Terms.SpreadUnit.IsSet() && !SpreadUnitHits(Body,Terms,ReleaseFoot,TargetFoot,UnitTarget,Template,Error)) { return false; }
+            // #198 F M07: a compressed chain lands its whole budget on the first body (Terms) and bounces no further.
+            if (ChainEffect && !Terms.CompressChain.IsSet() && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,Now,Error)) { return false; }
         }
         else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::DirectionLine)
         {
@@ -1359,11 +1394,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const double Reach=LDCA::ToDouble(TargetDef.RangeCm);
         ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
     }
-    if (!ReleaseMechanics(Body,Source,*ValuesDef,ReleaseFoot,ZonePoint,EffectId,CastLedger,Error)) { return false; }
+    if (!ReleaseMechanics(Body,Source,Terms,ReleaseFoot,ZonePoint,EffectId,Action.Token,IdleAmpBp,CastLedger,Error)) { return false; }
     // B17: every damage pulse of this release's zone carries its locked amplification.
     for (FLDCombatZone& Zone : Zones)
     {
-        if (Zone.EffectId==EffectId && Zone.bDamage) { Zone.IdleReadyAmpBp=IdleAmpBp; }
+        if (Zone.EffectId==EffectId && Zone.bDamage) { Zone.IdleReadyAmpBp=IdleAmpBp; Zone.PackageScaleBp=Terms.PackageScaleBp; }
     }
     if (bDealsDamage) { Body.LastCombatAtMs=Now; }
     // #198: an offensive release is a combat action of the build safe window; a self buff, shield or plain dash is not.

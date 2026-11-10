@@ -4,6 +4,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDProgressionRules.h"
+#include "Development/LDWorkshopRules.h"
 
 // Unity builds merge translation units: every file-scope helper lives in this module-unique namespace.
 namespace LDOpponentPolicy::Detail
@@ -1075,16 +1076,17 @@ FLDOpponentRetryKey BuildKey(ELDOpponentBuildKind Kind)
     return Key;
 }
 
-// #198 B: one component the AI could take or enable now, with its binding.
+// #198 B: one component the AI could take or enable now, with its binding (B18) or its install target (#198 F).
 struct FComponentPick
 {
     FString Component;
     FString BoundActive;
     ELDDemoElement Element = ELDDemoElement::None;
+    FLDOpponentComponentTarget Target;
 };
 
 // The opening base options (bOpening) or the owned never-installed components, in catalog order, that ComponentUsable
-// accepts. False with Error when a listed id is not a catalog component.
+// accepts (a base) or WorkshopTarget places (a mod or connector). False with Error when a listed id is not a catalog component.
 bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, bool bOpening, TArray<FComponentPick>& Out,
     FString& Error)
 {
@@ -1124,7 +1126,10 @@ bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         }
         FComponentPick Pick;
         Pick.Component = Definition.Id;
-        if (LDOpponentPolicy::ComponentUsable(Self, Definition, Pick.BoundActive, Pick.Element)) { Out.Add(MoveTemp(Pick)); }
+        const bool bUsable = Definition.Kind == ELDDemoComponentKind::Base
+            ? LDOpponentPolicy::ComponentUsable(Self, Definition, Pick.BoundActive, Pick.Element)
+            : !bOpening && LDOpponentPolicy::WorkshopTarget(Self, Catalog, Definition, Pick.Target);
+        if (bUsable) { Out.Add(MoveTemp(Pick)); }
     }
     return true;
 }
@@ -1143,6 +1148,9 @@ bool FirstAttemptable(const TArray<FComponentPick>& Picks, ELDOpponentBuildKind 
         Out.Component = Pick.Component;
         Out.BoundActive = Pick.BoundActive;
         Out.Element = Pick.Element;
+        Out.TargetKind = Pick.Target.Kind;
+        Out.TargetId = Pick.Target.TargetId;
+        Out.BoundComponent = Pick.Target.BoundComponent;
         Out.Key = Key;
         return true;
     }
@@ -1641,6 +1649,71 @@ bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefiniti
             return true;
         }
     }
+    return false;
+}
+
+bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDDemoComponentDefinition& Component,
+    FLDOpponentComponentTarget& Out)
+{
+    Out = FLDOpponentComponentTarget();
+    if (Component.Kind == ELDDemoComponentKind::Base) { return false; }
+    const auto Same = [](const FString& A, const FString& B) { return A.Equals(B, ESearchCase::CaseSensitive); };
+    const auto Definition = [&Catalog](const FString& Id) -> const FLDDemoComponentDefinition*
+    {
+        const FLDDemoComponentDefinition* Found = nullptr;
+        FString Ignored;
+        return Catalog.FindComponent(Id, Found, Ignored) ? Found : nullptr;
+    };
+    // An installed component other than this one.
+    const auto Installed = [&Self, &Component, &Same](const FString& Id) -> const FLDOpponentComponent*
+    {
+        if (Same(Id, Component.Id)) { return nullptr; }
+        const FLDOpponentComponent* Held = Self.Components.FindByPredicate(
+            [&Id, &Same](const FLDOpponentComponent& Owned) { return Same(Owned.DefinitionId, Id); });
+        return Held && Held->bInstalled ? Held : nullptr;
+    };
+    // C12 repeats the first installed base of its list.
+    FString Base;
+    if (!Component.ExtraBases.IsEmpty())
+    {
+        const FString* Open = Component.ExtraBases.FindByPredicate([&](const FString& Id) { return Installed(Id) && Definition(Id); });
+        if (!Open) { return false; }
+        Base = *Open;
+    }
+    // M08 and M09 never share one target (TargetConflict).
+    const auto Take = [&](ELDComponentTargetKind Kind, const FString& TargetId)
+    {
+        const bool bConflict = Self.Components.ContainsByPredicate([&](const FLDOpponentComponent& Other)
+        {
+            const FLDDemoComponentDefinition* OtherDefinition = Other.bInstalled && Other.TargetKind == Kind && Same(Other.TargetId, TargetId)
+                ? Definition(Other.DefinitionId) : nullptr;
+            return OtherDefinition && LDWorkshop::Conflicts(Component, *OtherDefinition);
+        });
+        if (bConflict) { return false; }
+        Out.Kind = Kind;
+        Out.TargetId = TargetId;
+        Out.BoundComponent = Base;
+        return true;
+    };
+    for (const FString& Id : Component.TargetActives)
+    {
+        const bool bLearned = Self.Actives.ContainsByPredicate([&Id, &Same](const FLDOpponentActive& Active) { return Same(Active.DefinitionId, Id); });
+        if (bLearned && Take(ELDComponentTargetKind::Active, Id)) { return true; }
+    }
+    // C01 reads a fire source: a bound host (B18) counts only while it is bound to fire.
+    const bool bNeedsFire = LDWorkshop::FindOp(Component, ELDDemoEffectOp::FireShield) != nullptr;
+    for (const FString& Id : Component.TargetComponents)
+    {
+        const FLDOpponentComponent* Host = Installed(Id);
+        if (Host && (!bNeedsFire || Host->Element == ELDDemoElement::None || Host->Element == ELDDemoElement::Fire)
+            && Take(ELDComponentTargetKind::Component, Id))
+        {
+            return true;
+        }
+    }
+    if (Component.bTargetDash && Take(ELDComponentTargetKind::Dash, FString())) { return true; }
+    if (Component.bTargetSelf && Take(ELDComponentTargetKind::None, FString())) { return true; }
+    Out = FLDOpponentComponentTarget();
     return false;
 }
 

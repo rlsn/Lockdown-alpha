@@ -28,6 +28,8 @@ struct FLDControlApplication
     int64 DurationMs = 0;
     // Slow: move-speed ratio.
     int64 RatioBp = 0;
+    // #198 F: the exit that applies it (an active, a component such as C02/C06), for C05/C07 bindings.
+    FLDCombatSourceRef Source;
 };
 
 // Hard-control diminishing returns of one body (#112 cross-session contract 6): a hard control landing while a previous one is active

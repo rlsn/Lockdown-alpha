@@ -195,8 +195,20 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   `FindTrigger` 返回第一项并传出失败。
   #198 删除的效果（`cleave`、`dash_boost`、`ability_crit`、`crit_damage_reduction`、`path_slow`、`zone_root`、`cast_frenzy`、`affliction_amp`、
   `hit_haste`、`execute`、`pierce`、`echo`、`taunt_shield`、`dispel_disarm`、`cower`、`argument_chain`、`spell_sustain`、
-  `dash_contact_guard`）连同处理器与状态一起删除，编号不复用。`mana_on_hit`、`cooldown_refund`、`dash_contact_refund`、`shield_break_retort`
-  的处理器保留给后续改装/连接件，当前没有构件携带。
+  `dash_contact_guard`）连同处理器与状态一起删除，编号不复用。`dash_contact_refund` 由 C03 携带；`mana_on_hit`、`cooldown_refund`、
+  `shield_break_retort` 的处理器当前没有构件携带。
+
+### #198 F 改装件与连接件（`LDCombatWorkshop.cpp`、`LDWorkshopRules`）
+
+- 安装目标（`FLDComponentTarget`：主动、宿主构件、D、自身，C12 另带 `BoundComponent`）由 `LDWorkshop::TargetShape` 校验，投影把目标
+  写进 `FLDPassiveEffectRef`；`Targets(Exit)` 判断一次出手（已学主动、构件来源或 D）是否是该改装的目标。
+- 改装件在出手时由 `CompileActive` 编进 `FLDCombatActiveTerms`（伤害包倍率、接触/冲刺倍率、冷却与费用、M01 范围化、M07 压缩），
+  命中经 `PackageScaleBp` 进入伤害评估；顺序为伤害包倍率、顶着揍、格挡、护盾前的 M12 延后。
+- C02 读角色移动组件在击退中记录的第一次阻挡（静态阻挡或另一合法敌人身体），不用位移近似；击退不再穿过身体。
+- C05/C07 挂在 `CommitControl` 末尾（`OnHardControl`）；C08/C11/M12 还款都经 `HealBody`；C09 在元素反应完成后武装下一次普攻；
+  M11 改变放电与反击的选目标；C02 阻挡读取、M12 到期债务与 C08 周期反击由 `AdvanceWorkshop` 驱动。
+- 新反馈只写日志行（`LD_COMBAT_AFTERSHOCK`、`LD_COMBAT_KNOCKBACK_IMPACT`、`LD_COMBAT_LEDGER_*`、`LD_COMBAT_FIRE_SHIELD`、
+  `LD_COMBAT_DEBT_REPAID`、`LD_COMBAT_CONTROL_MARK_CONSUMED`、`LD_COMBAT_REACTION_EMPOWER`），没有新增状态编号。
 
 
 ### #112 新机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）

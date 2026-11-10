@@ -17,7 +17,8 @@ bool DevelopmentDecodeTarget(const FLDBuildCommand& Command, FLDComponentTarget&
     Out = FLDComponentTarget();
     if (!LDGrowthWire::IsKnownTargetKind(Command.TargetKind) || !LDGrowthWire::IsKnownElement(Command.Element)
         || !LDGrowthWire::DecodeOptional(Command.TargetDefinition, Out.Definition)
-        || !LDGrowthWire::DecodeOptional(Command.BoundActive, Out.BoundActive))
+        || !LDGrowthWire::DecodeOptional(Command.BoundActive, Out.BoundActive)
+        || !LDGrowthWire::DecodeOptional(Command.BoundComponent, Out.BoundComponent))
     {
         Out = FLDComponentTarget();
         return false;
@@ -212,13 +213,21 @@ FLDComponentInstanceView DevelopmentComponentView(const FLDComponentInstance& In
     View.Target.Segment = Instance.Target.Segment;
     View.Target.Element = Instance.Target.Element;
     View.Target.BoundActive = Instance.Target.BoundActive;
+    View.Target.BoundComponent = Instance.Target.BoundComponent;
     return View;
 }
 
 FString DevelopmentBindingText(const FLDComponentTarget& Target)
 {
-    return Target.BoundActive.IsNone() ? FString(TEXT("-"))
+    FString Text = Target.BoundActive.IsNone() ? FString(TEXT("-"))
         : FString::Printf(TEXT("%s:%s"), *Target.BoundActive.ToString(), *LDLog::EnumName(Target.Element));
+    // #198 F: a mod/connector's target and C12's repeated base.
+    if (Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone())
+    {
+        Text += FString::Printf(TEXT(" on=%s:%s"), *LDLog::EnumName(Target.Kind), *Target.Definition.ToString());
+    }
+    if (!Target.BoundComponent.IsNone()) { Text += TEXT(" base=") + Target.BoundComponent.ToString(); }
+    return Text;
 }
 
 const TCHAR* DevelopmentSlotName(uint8 Slot)
@@ -1194,6 +1203,9 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
             Value.ComponentId = Instance.Id;
             Value.BoundActive = Instance.Target.BoundActive;
             Value.Element = Instance.Target.Element;
+            Value.TargetKind = Instance.Target.Kind;
+            Value.TargetId = Instance.Target.Definition;
+            Value.BoundComponent = Instance.Target.BoundComponent;
         }
     }
     Input.ResultBuildRevision = Build.Revision;
