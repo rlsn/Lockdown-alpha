@@ -652,10 +652,6 @@ public:
 
     // ---- Camps.
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
-    // D26 (#79): DeathsAndRewards grants a timed stat bonus (the Boss approval buff) to one living contender body; a
-    // body already gone or dying gets nothing (bOutApplied false). False only on an authority fault.
-    bool GrantTimedBonus(const FLDCombatBodyRef& Body, FName Source, const TArray<FLDDemoStatBonus>& Stats, int64 DurationMs,
-        const FLDGameplayWritePermit& Permit, bool& bOutApplied, FString& Error);
     // #198 field charm (Transactions): applies Kind's approved effect to the living body of Contender — heal a share of
     // max HP through HealBody, mana a share of max MP through GrantMana (both capped at the maximum), or refresh the
     // charm move-speed timed bonus. A body already gone or dying gets nothing (bOutApplied false). False only on an
@@ -750,7 +746,6 @@ private:
     friend class FLDCombatRecoveryTest;
     friend class FLDCombatDormRecoveryTest;
     friend class FLDDemoDevTestCommandsTest;
-    friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;

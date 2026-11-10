@@ -414,6 +414,29 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
+    def test_field_event_timing_refuses(self):
+        # #198 outer §5: the drops, the Boss and the camp markers live inside the timed field segments.
+        for mutation in (
+            lambda data: data["parameters"]["AIRDROP.LandSec"][1].update(value=data["parameters"]["AIRDROP.LandSec"][0]["value"]),
+            lambda data: data["parameters"]["AIRDROP.LandSec"][0].update(value=5),
+            lambda data: data["parameters"]["AIRDROP.ExpireSec"].update(value=60),
+            lambda data: data["parameters"]["AIRDROP.LandSec"].append({"unit": "s", "value": 260}),
+            lambda data: data["boss"]["leave_at"].update(value=data["boss"]["appear_at"]["value"]),
+            lambda data: data["boss"]["leave_at"].update(value=10000),
+            lambda data: data["parameters"]["CAMPMARK.RevealSec"].update(value=data["parameters"]["MATCH.FieldSegmentSec"]["value"]),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(mutation=mutation):
+                self.assert_refused(mutation, "InvalidTiming")
+        for mutation in (
+            lambda data: data["parameters"].update({"AIRDROP.LandSec": [{"unit": "s", "value": 10 + 30 * n} for n in range(7)]}),
+            lambda data: data["parameters"].update({"AIRDROP.LandSec": []}),
+            lambda data: data["boss"].update(approval={"duration": {"unit": "s", "value": 90}}),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(mutation=mutation):
+                self.assert_refused(mutation)
+
     def test_extra_fields_at_root_nested_rank_and_effect_refuse(self):
         for mutation in (
             lambda data: data.update(candidate_mode=True),

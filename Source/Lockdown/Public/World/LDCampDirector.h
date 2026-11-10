@@ -40,15 +40,17 @@ public:
     bool ProcessAuthorityIntents(const FLDGameplayWritePermit& Permit, FString& Error);
     // Effects: one committed hostile contact against a camp member. False only for a broken invariant.
     bool OnCombatHostileContact(const FLDCombatHostileContact& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
-    // DeathsAndRewards, after the core ended the life: bookkeeping only; rewards use the single growth sink.
+    // DeathsAndRewards, after the core ended the life: bookkeeping only; rewards use the single growth sink. A death that
+    // clears a camp reaches the camp markers (#198 outer §5).
     bool ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
-    // RespawnsAndWorld: home resets, then due whole-group refreshes, then the Boss's appearance when due.
+    // RespawnsAndWorld: the Boss leaves when due, then home resets, due whole-group refreshes and the Boss's appearance.
     bool AdvanceCamps(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Driver step planning: the earliest pending refresh or Boss appearance, converted from field progress T to authority
-    // ms (#198); MAX_int64 when none or while a rest pauses the field.
+    // Driver step planning: the earliest pending refresh, Boss appearance or Boss departure, converted from field progress
+    // T to authority ms (#198); MAX_int64 when none or while a rest pauses the field.
     int64 NextRefreshDueMs() const;
     // #198 rest: freezes every living member (Combat suspends it; no motion, intent or contact) and, at the return, drops
-    // targets and paths so members choose again with their kept HP. RespawnsAndWorld permit.
+    // targets and paths so members choose again with their kept HP. RespawnsAndWorld permit. A Boss whose leave instant
+    // the rest entry reached leaves first (#198 outer §5: never into the final field).
     bool FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error);
     // D26: the public Boss view and state (read-only).
@@ -104,11 +106,12 @@ private:
     bool CreateBody(const FLDLegalGround& Ground, const FLDDemoMonsterDefinition& Monster, const FString& Label,
         ALDCampMemberCharacter*& Out, FString& Error);
     bool SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
-    // D26 Boss: appearance (RespawnsAndWorld), one decision (Actions) and the approval buff for the last hit
-    // (DeathsAndRewards).
+    // D26 Boss: appearance (RespawnsAndWorld), one decision (Actions), the build reward for the last hit
+    // (DeathsAndRewards) and the departure at its leave instant (RespawnsAndWorld, #198 outer §5).
     bool SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
     bool ProcessBoss(const FLDGameplayWritePermit& Permit, FString& Error);
-    bool GrantApproval(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool RewardBossKill(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool LeaveBossIfDue(const FLDGameplayWritePermit& Permit, FString& Error);
     bool TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePermit& Permit, FString& Error);
 
     FLDCampMatchState State;

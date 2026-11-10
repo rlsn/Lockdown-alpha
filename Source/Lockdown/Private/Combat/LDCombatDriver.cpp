@@ -90,6 +90,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Mode->NextAirdropDueMs());
         // #198: a charm wave lands and a charm leaves on its exact field-progress boundary.
         Consider(Mode->NextCharmDueMs());
+        // #198 outer §5: a camp marker is revealed on its exact field-progress boundary.
+        Consider(Mode->NextFieldMarkerDueMs());
         // D27: the leader notice refreshes on its exact boundary.
         Consider(Mode->NextLeaderDueMs());
     }
@@ -194,13 +196,15 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)) { return false; }
                 if (!Mode->IsFieldRunning()) { return true; }
                 return Mode->Camps->AdvanceCamps(Permit,Error)
-                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
+                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceFieldMarkers(Permit,Error)
+                    && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 // #198: commands committed at a build deadline settle before the lock of the same boundary.
-                return Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error) && Mode->Growth->ProcessTransactions(Permit,Error)
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error) && Mode->RetryFieldRewards(Permit,Error)
+                    && Mode->Growth->ProcessTransactions(Permit,Error)
                     && Mode->LockTimelineBuild(Permit,Error)
                     // #198 session D: a settled PK pays its frozen awards once.
                     && (!Mode->PKDirector || Mode->PKDirector->ProcessTransactions(Permit,Error));

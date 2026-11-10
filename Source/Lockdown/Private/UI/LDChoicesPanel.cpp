@@ -35,6 +35,8 @@ constexpr float GrowthCardWidth=250.f,GrowthCardHeight=64.f,GrowthIconSize=44.f,
 constexpr float GrowthPanelWidth=3*GrowthCardWidth+16.f;
 // #198 F target step: place buttons per line.
 constexpr int32 GrowthTargetsPerLine=4;
+// #198 G dismantle selection buttons per line (their labels may carry the installed warning).
+constexpr int32 GrowthDismantlePerLine=3;
 void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
     auto Style=Button->GetStyle();Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
@@ -115,6 +117,12 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Section->AddChildToVerticalBox(Heading);
             BaseCardList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(BaseCardList)->SetPadding(FMargin(0,6,0,0));
             OpeningBaseSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+        }
+        {
+            // #198 G pending elite camp component choices, oldest first: one line each, built as needed.
+            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
+            ComponentChoiceList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(ComponentChoiceList);
+            ComponentChoiceSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
             // The binding step of B18: a learned active (one button each), then an element.
@@ -220,6 +228,31 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 ForgetButtons.Add(Forget);
             }
             ServiceLine(ForgetRow,Blocked);ForgetBlocked=Blocked;
+            // #198 G FillGap: the service button, then the gap targets and the picked target's fillers (buttons built as needed).
+            FillGapButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleFillGap();},false,TEXT("GrowthRestFillGap"));
+            ServiceLine(FillGapButton.Get(),Blocked);FillGapBlocked=Blocked;
+            auto PickLine=[&](const TCHAR* Label)
+            {
+                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
+                UTextBlock* Lead=OneLine(13);Lead->SetText(FText::FromString(Label));
+                Line->AddChildToHorizontalBox(Lead)->SetVerticalAlignment(VAlign_Center);
+                Line->SetVisibility(ESlateVisibility::Collapsed);
+                Section->AddChildToVerticalBox(Line)->SetPadding(FMargin(12,4,0,0));
+                return Line;
+            };
+            GapTargetLine=PickLine(LDTerms::PickGapTarget);
+            GapFillerLine=PickLine(LDTerms::PickGapFiller);
+            // #198 G Dismantle: the service button, then the owned common components to select (a few per line).
+            DismantleButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleDismantle();},false,TEXT("GrowthRestDismantle"));
+            ServiceLine(DismantleButton.Get(),Blocked);DismantleBlocked=Blocked;
+            {
+                auto* Picker=WidgetTree->ConstructWidget<UVerticalBox>();
+                DismantleHeading=OneLine(13);Picker->AddChildToVerticalBox(DismantleHeading);
+                DismantleList=WidgetTree->ConstructWidget<UVerticalBox>();Picker->AddChildToVerticalBox(DismantleList)->SetPadding(FMargin(0,2,0,0));
+                Picker->SetVisibility(ESlateVisibility::Collapsed);
+                DismantleSection=Picker;
+                Section->AddChildToVerticalBox(Picker)->SetPadding(FMargin(12,4,0,0));
+            }
             // The confirm line of a replace or forget names the active that will be forgotten.
             auto* ConfirmRow=WidgetTree->ConstructWidget<UHorizontalBox>();
             RestConfirmText=Wrapped(14,GrowthPanelWidth-220.f);RestConfirmText->SetColorAndOpacity(LDHUDStyle::TextWarning);
@@ -335,8 +368,8 @@ void ULDChoicesPanel::OpenPanel()
 bool ULDChoicesPanel::ClosePanel()
 {
     // Closing only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their state;
-    // an unconfirmed replace or forget is withdrawn.
-    RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);
+    // an unconfirmed replace, forget, fill gap or dismantle is withdrawn with its pickers.
+    RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
     PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
 }
 double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
@@ -562,7 +595,7 @@ void ULDChoicesPanel::RefreshPoints()
 }
 void ULDChoicesPanel::RefreshAll()
 {
-    RefreshOffer();RefreshOpeningBase();RefreshBinding();RefreshTarget();RefreshBlueprints();RefreshComponents();RefreshPoints();RefreshRest();
+    RefreshOffer();RefreshOpeningBase();RefreshComponentChoices();RefreshBinding();RefreshTarget();RefreshBlueprints();RefreshComponents();RefreshPoints();RefreshRest();
     bComponentTextStale=false;
 }
 ULDChoicesPanel::FBaseCard& ULDChoicesPanel::BaseCardAt(int32 Index)
@@ -576,35 +609,54 @@ ULDChoicesPanel::FBaseCard& ULDChoicesPanel::BaseCardAt(int32 Index)
             BaseCardList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,CardIndex?6.f:0.f,0,0));
         }
         FBaseCard& Card=BaseCards.AddDefaulted_GetRef();
-        auto MakeText=[this](int32 Size,const FLinearColor& Ink)
-        {UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);ScaleNewText(Line);RowWidgets.Add(Line);return Line;};
-        auto* Face=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Face);
-        auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();RowWidgets.Add(IconBox);
-        Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Picture);
-        auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
-        Card.Glyph=MakeText(18,LDHUDStyle::TextPrimary);Card.Glyph->SetJustification(ETextJustify::Center);
-        auto* GlyphSlot=IconBox->AddChildToOverlay(Card.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
-        auto* IconFrame=WidgetTree->ConstructWidget<USizeBox>();IconFrame->SetWidthOverride(GrowthIconSize);IconFrame->SetHeightOverride(GrowthIconSize);
-        IconFrame->SetContent(IconBox);RowWidgets.Add(IconFrame);
-        auto* IconSlot=Face->AddChildToHorizontalBox(IconFrame);IconSlot->SetVerticalAlignment(VAlign_Top);IconSlot->SetPadding(FMargin(0,0,10,0));
-        auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
-        Card.Name=MakeText(17,LDHUDStyle::TextPrimary);Card.Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Lines->AddChildToVerticalBox(Card.Name);
-        Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*FString::Printf(TEXT("GrowthBaseSentence%d"),CardIndex)));RowWidgets.Add(Card.Sentence);
-        if(!FMath::IsNearlyEqual(AppliedTextScale,1.f)){LDWidgets::SetRichTextSize(Card.Sentence,FMath::RoundToInt(13*AppliedTextScale));}
-        Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);Card.Sentence->SetVisibility(ESlateVisibility::HitTestInvisible);
-        Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
-        Card.Action=MakeText(13,LDHUDStyle::TextAccent);Card.Action->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);
-        Lines->AddChildToVerticalBox(Card.Action)->SetPadding(FMargin(0,4,0,0));
-        auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
-        Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,CardIndex](){PickOpeningBase(CardIndex);},false,FName(*FString::Printf(TEXT("GrowthBase%d"),CardIndex)));
-        RowWidgets.Add(Card.Button);
-        Card.Button->SetContent(Face);GrowthTint(Card.Button,GrowthCardIdle);
-        if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
-        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(GrowthCardWidth);Size->SetMinDesiredHeight(GrowthCardHeight);Size->SetContent(Card.Button);
-        RowWidgets.Add(Size);Card.Frame=Size;
-        BaseCardLines.Last()->AddChildToHorizontalBox(Size)->SetPadding(FMargin(CardIndex%3?8.f:0.f,0,0,0));
+        BuildComponentCard(Card,FName(*FString::Printf(TEXT("GrowthBase%d"),CardIndex)),[this,CardIndex](){PickOpeningBase(CardIndex);});
+        BaseCardLines.Last()->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(CardIndex%3?8.f:0.f,0,0,0));
     }
     return BaseCards[Index];
+}
+void ULDChoicesPanel::BuildComponentCard(FBaseCard& Card,FName ButtonName,TFunction<void()> Click)
+{
+    auto MakeText=[this](int32 Size,const FLinearColor& Ink)
+    {UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);ScaleNewText(Line);RowWidgets.Add(Line);return Line;};
+    auto* Face=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Face);
+    auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();RowWidgets.Add(IconBox);
+    Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);RowWidgets.Add(Card.Picture);
+    auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
+    Card.Glyph=MakeText(18,LDHUDStyle::TextPrimary);Card.Glyph->SetJustification(ETextJustify::Center);
+    auto* GlyphSlot=IconBox->AddChildToOverlay(Card.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+    auto* IconFrame=WidgetTree->ConstructWidget<USizeBox>();IconFrame->SetWidthOverride(GrowthIconSize);IconFrame->SetHeightOverride(GrowthIconSize);
+    IconFrame->SetContent(IconBox);RowWidgets.Add(IconFrame);
+    auto* IconSlot=Face->AddChildToHorizontalBox(IconFrame);IconSlot->SetVerticalAlignment(VAlign_Top);IconSlot->SetPadding(FMargin(0,0,10,0));
+    auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
+    Card.Name=MakeText(17,LDHUDStyle::TextPrimary);Card.Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Lines->AddChildToVerticalBox(Card.Name);
+    Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*(ButtonName.ToString()+TEXT("Sentence"))));RowWidgets.Add(Card.Sentence);
+    if(!FMath::IsNearlyEqual(AppliedTextScale,1.f)){LDWidgets::SetRichTextSize(Card.Sentence,FMath::RoundToInt(13*AppliedTextScale));}
+    Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);Card.Sentence->SetVisibility(ESlateVisibility::HitTestInvisible);
+    Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
+    Card.Action=MakeText(13,LDHUDStyle::TextAccent);Card.Action->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);
+    Lines->AddChildToVerticalBox(Card.Action)->SetPadding(FMargin(0,4,0,0));
+    auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
+    Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),MoveTemp(Click),false,ButtonName);
+    RowWidgets.Add(Card.Button);
+    Card.Button->SetContent(Face);GrowthTint(Card.Button,GrowthCardIdle);
+    if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
+    auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(GrowthCardWidth);Size->SetMinDesiredHeight(GrowthCardHeight);Size->SetContent(Card.Button);
+    RowWidgets.Add(Size);Card.Frame=Size;
+}
+void ULDChoicesPanel::ShowComponentCard(FBaseCard& Card,FName Id)
+{
+    // The face is rendered again only for another option or new numbers (level, stats or catalog).
+    if(Card.ShownId==Id&&!bComponentTextStale){return;}
+    const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Id,LatestContent,LatestStats);
+    Card.ShownId=Id;Card.bBinding=View.bBinding;
+    GrowthText(Card.Name,View.Name);GrowthText(Card.Glyph,View.Glyph);
+    Card.Sentence->SetText(FText::FromString(View.Sentence));
+    Card.Button->SetToolTipText(FText::FromString(View.SentencePlain));
+    if(Card.AppliedIcon!=View.IconId||View.IconId.IsEmpty())
+    {
+        Card.AppliedIcon=View.IconId;
+        GrowthShown(Card.Glyph,!LDUIIcons::Apply(Card.Picture,View.IconId,GrowthIconRadius),ESlateVisibility::HitTestInvisible);
+    }
 }
 void ULDChoicesPanel::RefreshOpeningBase()
 {
@@ -617,20 +669,7 @@ void ULDChoicesPanel::RefreshOpeningBase()
         FBaseCard& Card=BaseCardAt(Index);
         GrowthShown(Card.Frame,true,ESlateVisibility::SelfHitTestInvisible);
         const FName Id=ShownBaseOptions[Index];
-        // The face is rendered again only for another option or new numbers (level, stats or catalog).
-        if(Card.ShownId!=Id||bComponentTextStale)
-        {
-            const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Id,LatestContent,LatestStats);
-            Card.ShownId=Id;Card.bBinding=View.bBinding;
-            GrowthText(Card.Name,View.Name);GrowthText(Card.Glyph,View.Glyph);
-            Card.Sentence->SetText(FText::FromString(View.Sentence));
-            Card.Button->SetToolTipText(FText::FromString(View.SentencePlain));
-            if(Card.AppliedIcon!=View.IconId||View.IconId.IsEmpty())
-            {
-                Card.AppliedIcon=View.IconId;
-                GrowthShown(Card.Glyph,!LDUIIcons::Apply(Card.Picture,View.IconId,GrowthIconRadius),ESlateVisibility::HitTestInvisible);
-            }
-        }
+        ShowComponentCard(Card,Id);
         // What a click does now: take it and enable it at once, or keep it in the inventory and say why (the server decides).
         FLDComponentInstanceView Fresh;Fresh.DefinitionId=Id;
         const ELDGrowthReason Reason=LDHUD::ComponentEnableReason(Fresh,Latest,LatestContent);
@@ -643,6 +682,98 @@ void ULDChoicesPanel::RefreshOpeningBase()
         GrowthText(Card.Action,Action);
         GrowthEnabled(Card.Button,Gate.bCanChoose&&!PendingRequest);
     }
+}
+ULDChoicesPanel::FChoiceLine& ULDChoicesPanel::ChoiceLineAt(int32 Index)
+{
+    while(ChoiceLines.Num()<=Index)
+    {
+        const int32 LineIndex=ChoiceLines.Num();
+        FChoiceLine& Line=ChoiceLines.AddDefaulted_GetRef();
+        auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Box);
+        UTextBlock* Title=LDWidgets::Text(WidgetTree,TEXT(""),16);Title->SetAutoWrapText(false);Title->SetColorAndOpacity(LDHUDStyle::TextAccent);
+        ScaleNewText(Title);RowWidgets.Add(Title);Line.Title=Title;
+        Box->AddChildToVerticalBox(Title);
+        auto* CardLine=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(CardLine);
+        for(int32 Option=0;Option<2;++Option)
+        {
+            // The reference is used before the next card is added (adding may move the array).
+            FBaseCard& Card=Line.Cards.AddDefaulted_GetRef();
+            BuildComponentCard(Card,FName(*FString::Printf(TEXT("GrowthComponentChoice%d_%d"),LineIndex,Option)),[this,LineIndex,Option](){PickComponentChoice(LineIndex,Option);});
+            CardLine->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(Option?8.f:0.f,0,0,0));
+        }
+        ULDCommandButton* Points=LDWidgets::Button(WidgetTree,TEXT(""),[this,LineIndex](){TakeComponentChoicePoints(LineIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthComponentChoicePoints%d"),LineIndex)));
+        ScaleNewText(Cast<UTextBlock>(Points->GetContent()));RowWidgets.Add(Points);Line.Points=Points;
+        auto* PointsSlot=CardLine->AddChildToHorizontalBox(Points);PointsSlot->SetVerticalAlignment(VAlign_Center);PointsSlot->SetPadding(FMargin(8,0,0,0));
+        Box->AddChildToVerticalBox(CardLine)->SetPadding(FMargin(0,6,0,0));
+        Line.Row=Box;
+        ComponentChoiceList->AddChildToVerticalBox(Box)->SetPadding(FMargin(0,LineIndex?8.f:0.f,0,0));
+    }
+    return ChoiceLines[Index];
+}
+void ULDChoicesPanel::RefreshComponentChoices()
+{
+    ShownChoices.Reset();
+    if(Usable()){for(const FLDComponentChoiceView& Choice:Latest.ComponentChoices){ShownChoices.Add(Choice.ChoiceId);}}
+    GrowthShown(ComponentChoiceSection,!ShownChoices.IsEmpty());
+    const int64 PoolPoints=LatestContent?LatestContent->Parameters.EmptyComponentPoolPoints:0;
+    for(int32 Index=0;Index<FMath::Max(ShownChoices.Num(),ChoiceLines.Num());++Index)
+    {
+        if(!ShownChoices.IsValidIndex(Index)){GrowthShown(ChoiceLines[Index].Row,false);continue;}
+        FChoiceLine& Line=ChoiceLineAt(Index);
+        GrowthShown(Line.Row,true,ESlateVisibility::SelfHitTestInvisible);
+        const FLDComponentChoiceView& Choice=Latest.ComponentChoices[Index];
+        // Only one known material left is shown as it is (spec §4.2), never padded with a made-up second card.
+        GrowthText(Line.Title,Choice.Options.Num()==1?FString(LDTerms::ComponentChoiceSingle):FString(LDTerms::ComponentChoiceTitle));
+        for(int32 Option=0;Option<Line.Cards.Num();++Option)
+        {
+            FBaseCard& Card=Line.Cards[Option];
+            const bool bCard=Choice.Options.IsValidIndex(Option);
+            GrowthShown(Card.Frame,bCard,ESlateVisibility::SelfHitTestInvisible);
+            if(!bCard){continue;}
+            ShowComponentCard(Card,Choice.Options[Option]);
+            const bool bOwned=LDHUD::OwnsComponent(Latest,Choice.Options[Option]);
+            GrowthText(Card.Action,!Gate.bCanComponentChoice?Gate.ComponentChoiceBlocked:bOwned?FString(LDTerms::ComponentChoiceOwned):FString(LDTerms::TakeComponent));
+            GrowthEnabled(Card.Button,Gate.bCanComponentChoice&&!bOwned&&!PendingRequest);
+        }
+        // Every option already owned: only the empty-pool points remain.
+        const bool bAllOwned=LDHUD::ComponentChoiceAllOwned(Choice,Latest);
+        GrowthShown(Line.Points,bAllOwned,ESlateVisibility::Visible);
+        GrowthText(Cast<UTextBlock>(Line.Points->GetContent()),PoolPoints>0?LDTerms::ComponentChoicePoints(PoolPoints):FString(TEXT("改领点数：数据缺失")));
+        GrowthEnabled(Line.Points,bAllOwned&&PoolPoints>0&&Gate.bCanComponentChoice&&!PendingRequest);
+    }
+}
+bool ULDChoicesPanel::PickComponentChoice(int32 ChoiceIndex,int32 OptionIndex)
+{
+    if(!Usable()||!ShownChoices.IsValidIndex(ChoiceIndex)){return false;}
+    const FGuid Id=ShownChoices[ChoiceIndex];
+    const FLDComponentChoiceView* Choice=Latest.ComponentChoices.FindByPredicate([&Id](const FLDComponentChoiceView& C){return C.ChoiceId==Id;});
+    if(!Choice||!Choice->Options.IsValidIndex(OptionIndex)){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanComponentChoice){SetFeedback(TEXT("没有提交：")+Gate.ComponentChoiceBlocked);return false;}
+    const FName Option=Choice->Options[OptionIndex];
+    if(LDHUD::OwnsComponent(Latest,Option)){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::ComponentOwned));return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::ComponentChoice;
+    Command.OfferId=Id;
+    if(!FLDDefinitionWire::Encode(Option,Command.Component)){SetFeedback(TEXT("没有提交：这个构件的标识无效。"));return false;}
+    return Send(Command);
+}
+bool ULDChoicesPanel::TakeComponentChoicePoints(int32 ChoiceIndex)
+{
+    if(!Usable()||!ShownChoices.IsValidIndex(ChoiceIndex)){return false;}
+    const FGuid Id=ShownChoices[ChoiceIndex];
+    const FLDComponentChoiceView* Choice=Latest.ComponentChoices.FindByPredicate([&Id](const FLDComponentChoiceView& C){return C.ChoiceId==Id;});
+    if(!Choice){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanComponentChoice){SetFeedback(TEXT("没有提交：")+Gate.ComponentChoiceBlocked);return false;}
+    if(!LDHUD::ComponentChoiceAllOwned(*Choice,Latest)){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::ComponentOwned));return false;}
+    if(!LatestContent||LatestContent->Parameters.EmptyComponentPoolPoints<=0){SetFeedback(TEXT("没有提交：改领点数的数据缺失。"));return false;}
+    // An all-zero Component takes the empty-pool points.
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::ComponentChoice;
+    Command.OfferId=Id;
+    return Send(Command);
 }
 ULDChoicesPanel::FComponentRow& ULDChoicesPanel::ComponentRowAt(int32 Index)
 {
@@ -1040,22 +1171,49 @@ FString ULDChoicesPanel::ForgetRefusal() const
 }
 bool ULDChoicesPanel::RestConfirmHolds() const
 {
-    if(RestConfirm.Kind==ELDBuildCommandKind::None||!Usable()||LDHUD::ActiveInSlot(Latest,RestConfirm.Slot)!=RestConfirm.Active){return false;}
+    if(RestConfirm.Kind==ELDBuildCommandKind::None||!Usable()){return false;}
+    if(RestConfirm.Kind==ELDBuildCommandKind::FillGap)
+    {
+        // The target is still a gap and the base still one that fills it.
+        const LDHUD::FGapTargetView* Gap=Materials.Gaps.FindByPredicate([this](const LDHUD::FGapTargetView& G){return G.Target==RestConfirm.GapTarget;});
+        return Gap&&Gap->Fillers.Contains(RestConfirm.GapFiller);
+    }
+    if(RestConfirm.Kind==ELDBuildCommandKind::Dismantle)
+    {
+        for(const FName& Id:RestConfirm.Surrendered){if(!Materials.DismantleCandidates.Contains(Id)){return false;}}
+        return int64(RestConfirm.Surrendered.Num())==Materials.DismantleCount;
+    }
+    if(LDHUD::ActiveInSlot(Latest,RestConfirm.Slot)!=RestConfirm.Active){return false;}
     return RestConfirm.Kind!=ELDBuildCommandKind::ReplaceActive||Latest.PendingBlueprints.Contains(RestConfirm.Blueprint);
+}
+FString ULDChoicesPanel::RestConfirmRefusal() const
+{
+    switch(RestConfirm.Kind)
+    {
+    case ELDBuildCommandKind::ReplaceActive: return ReplaceRefusal();
+    case ELDBuildCommandKind::ForgetActive: return ForgetRefusal();
+    case ELDBuildCommandKind::FillGap: return Materials.FillGapBlocked;
+    case ELDBuildCommandKind::Dismantle:
+        return !Materials.DismantleBlocked.IsEmpty()?Materials.DismantleBlocked:LDHUD::DismantleSelectionRefusal(Latest,LatestContent,RestConfirm.Surrendered);
+    default: return LDHUD::GrowthReasonText(ELDGrowthReason::InvalidRequest);
+    }
 }
 void ULDChoicesPanel::RefreshRest()
 {
     if(!RestSection){return;}
     const bool bShown=Usable()&&Gate.bInRest;
+    Materials=bShown?LDHUD::MaterialServices(Latest,LatestContent,Gate):LDHUD::FMaterialServicesView();
     GrowthShown(RestSection,bShown);
-    // A confirm line whose terms changed (another slot content, a used blueprint, the rest over) is withdrawn, never resent.
+    // A confirm line whose terms changed (another slot content, a used blueprint, changed components, the rest over) is
+    // withdrawn, never resent.
     if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bShown||!RestConfirmHolds()))
     {
+        const bool bMaterial=RestConfirm.Kind==ELDBuildCommandKind::FillGap||RestConfirm.Kind==ELDBuildCommandKind::Dismantle;
         RestConfirm=FRestConfirm();
-        if(bShown){SetFeedback(TEXT("技能槽或图纸已变化，请重新选择。"));}
+        if(bShown){SetFeedback(bMaterial?TEXT("构件已变化，请重新选择。"):TEXT("技能槽或图纸已变化，请重新选择。"));}
     }
     GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
-    if(!bShown){return;}
+    if(!bShown){CloseMaterialPickers();return;}
     const int64 Price=LatestContent?LatestContent->Parameters.NpcActivePoints:0;
     GrowthText(Cast<UTextBlock>(NpcButton->GetContent()),Price>0?LDTerms::NpcOffer(Price):FString(TEXT("NPC：价格数据缺失")));
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
@@ -1080,17 +1238,218 @@ void ULDChoicesPanel::RefreshRest()
     const FString ForgetWhy=bAnyLearned?Forget:FString(TEXT("还没有学会的技能可遗忘"));
     GrowthText(ForgetBlocked,ForgetWhy);
     GrowthShown(ForgetBlocked,!ForgetWhy.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    RefreshMaterials();
     if(RestConfirm.Kind!=ELDBuildCommandKind::None)
     {
-        const FString Key=LDHUD::SlotKey(RestConfirm.Slot);
-        const FString Old=LDHUD::ContentName(LatestContent,RestConfirm.Active.ToString());
-        const bool bReplace=RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive;
-        const FString Refusal=bReplace?ReplaceRefusal():Forget;
-        FString Line=bReplace?LDTerms::ReplaceConfirm(LDHUD::ContentName(LatestContent,RestConfirm.Blueprint.ToString()),Key,Old):LDTerms::ForgetConfirm(Key,Old);
+        const auto Name=[this](FName Id){return LDHUD::ContentName(LatestContent,Id.ToString());};
+        const auto Names=[&Name](const TArray<FName>& Ids){TArray<FString> Out;for(const FName& Id:Ids){Out.Add(Name(Id));}return FString::Join(Out,TEXT("、"));};
+        const FString Refusal=RestConfirmRefusal();
+        FString Line;
+        switch(RestConfirm.Kind)
+        {
+        case ELDBuildCommandKind::ReplaceActive:
+            Line=LDTerms::ReplaceConfirm(Name(RestConfirm.Blueprint),LDHUD::SlotKey(RestConfirm.Slot),Name(RestConfirm.Active));
+            break;
+        case ELDBuildCommandKind::ForgetActive:
+            Line=LDTerms::ForgetConfirm(LDHUD::SlotKey(RestConfirm.Slot),Name(RestConfirm.Active));
+            break;
+        case ELDBuildCommandKind::FillGap:
+            Line=LDTerms::FillGapConfirm(Materials.FillGapPoints,Name(RestConfirm.GapTarget),Name(RestConfirm.GapFiller));
+            break;
+        case ELDBuildCommandKind::Dismantle:
+            // What is deleted and which installs lose their host and go back to the inventory (spec §4.5).
+            Line=LDTerms::DismantleConfirm(Names(RestConfirm.Surrendered),Names(LDHUD::DismantleDetached(Latest,RestConfirm.Surrendered)));
+            break;
+        default: break;
+        }
         if(!Refusal.IsEmpty()){Line+=TEXT("（")+Refusal+TEXT("）");}
         GrowthText(RestConfirmText,Line);
         GrowthEnabled(RestConfirmButton,Refusal.IsEmpty()&&!PendingRequest);
     }
+}
+void ULDChoicesPanel::CloseMaterialPickers()
+{
+    bFillGapOpen=false;GapTarget=NAME_None;bDismantleOpen=false;DismantlePicked.Reset();
+    if(RestConfirm.Kind==ELDBuildCommandKind::FillGap||RestConfirm.Kind==ELDBuildCommandKind::Dismantle)
+    {RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);}
+}
+ULDCommandButton* ULDChoicesPanel::GapTargetButtonAt(int32 Index)
+{
+    while(GapTargetButtons.Num()<=Index)
+    {
+        const int32 ButtonIndex=GapTargetButtons.Num();
+        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickGapTarget(ButtonIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthRestGapTarget%d"),ButtonIndex)));
+        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
+        GapTargetLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
+        GapTargetButtons.Add(Pick);
+    }
+    return GapTargetButtons[Index];
+}
+ULDCommandButton* ULDChoicesPanel::GapFillerButtonAt(int32 Index)
+{
+    while(GapFillerButtons.Num()<=Index)
+    {
+        const int32 ButtonIndex=GapFillerButtons.Num();
+        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickGapFiller(ButtonIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthRestGapFiller%d"),ButtonIndex)));
+        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
+        GapFillerLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
+        GapFillerButtons.Add(Pick);
+    }
+    return GapFillerButtons[Index];
+}
+ULDCommandButton* ULDChoicesPanel::DismantleButtonAt(int32 Index)
+{
+    while(DismantleButtons.Num()<=Index)
+    {
+        const int32 ButtonIndex=DismantleButtons.Num();
+        if(ButtonIndex%GrowthDismantlePerLine==0)
+        {
+            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);DismantleLines.Add(Line);
+            DismantleList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,ButtonIndex?4.f:0.f,0,0));
+        }
+        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickDismantle(ButtonIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthRestDismantlePick%d"),ButtonIndex)));
+        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
+        DismantleLines.Last()->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(ButtonIndex%GrowthDismantlePerLine?6.f:0.f,0,0,0));
+        DismantleButtons.Add(Pick);
+    }
+    return DismantleButtons[Index];
+}
+void ULDChoicesPanel::RefreshMaterials()
+{
+    const auto Name=[this](FName Id){return LDHUD::ContentName(LatestContent,Id.ToString());};
+    const auto Marked=[](const FString& Label,bool bPicked){return bPicked?TEXT("【")+Label+TEXT("】"):Label;};
+    const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
+    {
+        GrowthEnabled(Button,Refusal.IsEmpty()&&!PendingRequest);
+        GrowthText(Why,Refusal);
+        GrowthShown(Why,!Refusal.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    };
+    // FillGap: the service, then (while open) the gap targets and the picked target's fillers.
+    GrowthText(Cast<UTextBlock>(FillGapButton->GetContent()),Materials.FillGapPoints>0?LDTerms::FillGapService(Materials.FillGapPoints):FString(TEXT("补缺：价格数据缺失")));
+    Service(FillGapButton,FillGapBlocked,Materials.FillGapBlocked);
+    if(!Materials.FillGapBlocked.IsEmpty()){bFillGapOpen=false;}
+    const int32 Picked=bFillGapOpen?Materials.Gaps.IndexOfByPredicate([this](const LDHUD::FGapTargetView& Gap){return Gap.Target==GapTarget;}):INDEX_NONE;
+    if(Picked==INDEX_NONE){GapTarget=NAME_None;}
+    GrowthShown(GapTargetLine,bFillGapOpen,ESlateVisibility::SelfHitTestInvisible);
+    const int32 TargetCount=bFillGapOpen?Materials.Gaps.Num():0;
+    for(int32 Index=0;Index<FMath::Max(TargetCount,GapTargetButtons.Num());++Index)
+    {
+        const bool bButtonShown=Index<TargetCount;
+        ULDCommandButton* Pick=bButtonShown?GapTargetButtonAt(Index):GapTargetButtons[Index].Get();
+        GrowthShown(Pick,bButtonShown,ESlateVisibility::Visible);
+        if(!bButtonShown){continue;}
+        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Marked(Name(Materials.Gaps[Index].Target),Index==Picked));
+        GrowthEnabled(Pick,!PendingRequest);
+    }
+    const int32 FillerCount=Picked!=INDEX_NONE?Materials.Gaps[Picked].Fillers.Num():0;
+    GrowthShown(GapFillerLine,Picked!=INDEX_NONE,ESlateVisibility::SelfHitTestInvisible);
+    for(int32 Index=0;Index<FMath::Max(FillerCount,GapFillerButtons.Num());++Index)
+    {
+        const bool bButtonShown=Index<FillerCount;
+        ULDCommandButton* Pick=bButtonShown?GapFillerButtonAt(Index):GapFillerButtons[Index].Get();
+        GrowthShown(Pick,bButtonShown,ESlateVisibility::Visible);
+        if(!bButtonShown){continue;}
+        const FName Filler=Materials.Gaps[Picked].Fillers[Index];
+        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Marked(Name(Filler),RestConfirm.Kind==ELDBuildCommandKind::FillGap&&RestConfirm.GapFiller==Filler));
+        GrowthEnabled(Pick,!PendingRequest);
+    }
+    // Dismantle: the service, then (while open) every owned common component; installed ones warn about their installs.
+    const int64 Count=Materials.DismantleCount;
+    GrowthText(Cast<UTextBlock>(DismantleButton->GetContent()),Count>0?LDTerms::DismantleService(Count):FString(TEXT("拆解：数量数据缺失")));
+    Service(DismantleButton,DismantleBlocked,Materials.DismantleBlocked);
+    if(!Materials.DismantleBlocked.IsEmpty()){bDismantleOpen=false;}
+    if(!bDismantleOpen){DismantlePicked.Reset();}
+    DismantlePicked.RemoveAll([this](const FName& Id){return !Materials.DismantleCandidates.Contains(Id);});
+    GrowthShown(DismantleSection,bDismantleOpen,ESlateVisibility::SelfHitTestInvisible);
+    GrowthText(DismantleHeading,LDTerms::PickDismantle(Count)+TEXT(" ")+LDTerms::DismantlePicked(DismantlePicked.Num(),Count));
+    const int32 CandidateCount=bDismantleOpen?Materials.DismantleCandidates.Num():0;
+    for(int32 Index=0;Index<FMath::Max(CandidateCount,DismantleButtons.Num());++Index)
+    {
+        const bool bButtonShown=Index<CandidateCount;
+        ULDCommandButton* Pick=bButtonShown?DismantleButtonAt(Index):DismantleButtons[Index].Get();
+        GrowthShown(Pick,bButtonShown,ESlateVisibility::Visible);
+        if(!bButtonShown){continue;}
+        const FName Id=Materials.DismantleCandidates[Index];
+        const bool bInstalled=Latest.Components.ContainsByPredicate([Id](const FLDComponentInstanceView& C){return C.DefinitionId==Id&&C.bInstalled;});
+        const bool bPicked=DismantlePicked.Contains(Id);
+        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Marked(Name(Id)+(bInstalled?LDTerms::DismantleInstalledWarning:TEXT("")),bPicked));
+        GrowthEnabled(Pick,!PendingRequest&&(bPicked||int64(DismantlePicked.Num())<Count));
+    }
+}
+bool ULDChoicesPanel::ToggleFillGap()
+{
+    if(!Usable()){return false;}
+    if(bFillGapOpen){CloseMaterialPickers();RefreshRest();return true;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Materials.FillGapBlocked.IsEmpty()){SetFeedback(TEXT("没有提交：")+Materials.FillGapBlocked);return false;}
+    CloseMaterialPickers();
+    bFillGapOpen=true;
+    // A single gap is picked straight away.
+    if(Materials.Gaps.Num()==1){GapTarget=Materials.Gaps[0].Target;}
+    SetFeedback(FString());
+    RefreshRest();
+    return true;
+}
+bool ULDChoicesPanel::PickGapTarget(int32 Index)
+{
+    if(!Usable()||!bFillGapOpen||!Materials.Gaps.IsValidIndex(Index)){return false;}
+    GapTarget=Materials.Gaps[Index].Target;
+    if(RestConfirm.Kind==ELDBuildCommandKind::FillGap&&RestConfirm.GapTarget!=GapTarget){CancelRestAction();}
+    // A single filler goes straight to the confirm line.
+    if(Materials.Gaps[Index].Fillers.Num()==1){return PickGapFiller(0);}
+    RefreshRest();
+    return true;
+}
+bool ULDChoicesPanel::PickGapFiller(int32 Index)
+{
+    const LDHUD::FGapTargetView* Gap=bFillGapOpen?Materials.Gaps.FindByPredicate([this](const LDHUD::FGapTargetView& G){return G.Target==GapTarget;}):nullptr;
+    if(!Usable()||!Gap||!Gap->Fillers.IsValidIndex(Index)){return false;}
+    if(!Materials.FillGapBlocked.IsEmpty()){SetFeedback(TEXT("没有提交：")+Materials.FillGapBlocked);return false;}
+    const FName Filler=Gap->Fillers[Index];
+    RestConfirm=FRestConfirm();
+    RestConfirm.Kind=ELDBuildCommandKind::FillGap;RestConfirm.GapTarget=GapTarget;RestConfirm.GapFiller=Filler;
+    SetFeedback(FString());
+    RefreshRest();
+    return true;
+}
+bool ULDChoicesPanel::ToggleDismantle()
+{
+    if(!Usable()){return false;}
+    if(bDismantleOpen){CloseMaterialPickers();RefreshRest();return true;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Materials.DismantleBlocked.IsEmpty()){SetFeedback(TEXT("没有提交：")+Materials.DismantleBlocked);return false;}
+    CloseMaterialPickers();
+    bDismantleOpen=true;
+    SetFeedback(FString());
+    RefreshRest();
+    return true;
+}
+bool ULDChoicesPanel::PickDismantle(int32 Index)
+{
+    if(!Usable()||!bDismantleOpen||!Materials.DismantleCandidates.IsValidIndex(Index)){return false;}
+    const FName Id=Materials.DismantleCandidates[Index];
+    if(DismantlePicked.Contains(Id))
+    {
+        DismantlePicked.Remove(Id);
+        if(RestConfirm.Kind==ELDBuildCommandKind::Dismantle){RestConfirm=FRestConfirm();}
+    }
+    else
+    {
+        if(int64(DismantlePicked.Num())>=Materials.DismantleCount){SetFeedback(LDTerms::DismantlePicked(DismantlePicked.Num(),Materials.DismantleCount));return false;}
+        DismantlePicked.Add(Id);
+        // The approved count picked: the confirm line names what is deleted and what goes back to the inventory.
+        if(int64(DismantlePicked.Num())==Materials.DismantleCount)
+        {
+            RestConfirm=FRestConfirm();
+            RestConfirm.Kind=ELDBuildCommandKind::Dismantle;RestConfirm.Surrendered=DismantlePicked;
+        }
+    }
+    SetFeedback(FString());
+    RefreshRest();
+    return true;
 }
 bool ULDChoicesPanel::BuyNpcOffer()
 {
@@ -1141,14 +1500,31 @@ bool ULDChoicesPanel::ConfirmRestAction()
 {
     if(RestConfirm.Kind==ELDBuildCommandKind::None){return false;}
     if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
-    if(!RestConfirmHolds()){CancelRestAction();SetFeedback(TEXT("技能槽或图纸已变化，请重新选择。"));return false;}
-    const bool bReplace=RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive;
-    const FString Refusal=bReplace?ReplaceRefusal():ForgetRefusal();
+    const bool bMaterial=RestConfirm.Kind==ELDBuildCommandKind::FillGap||RestConfirm.Kind==ELDBuildCommandKind::Dismantle;
+    if(!RestConfirmHolds()){CancelRestAction();SetFeedback(bMaterial?TEXT("构件已变化，请重新选择。"):TEXT("技能槽或图纸已变化，请重新选择。"));return false;}
+    const FString Refusal=RestConfirmRefusal();
     if(!Refusal.IsEmpty()){SetFeedback(TEXT("没有提交：")+Refusal);return false;}
     FLDBuildCommand Command;
     Command.Kind=RestConfirm.Kind;
-    Command.Slot=RestConfirm.Slot;
-    if(bReplace&&!FLDDefinitionWire::Encode(RestConfirm.Blueprint,Command.Blueprint)){SetFeedback(TEXT("没有提交：这份图纸的标识无效。"));return false;}
+    if(RestConfirm.Kind==ELDBuildCommandKind::FillGap)
+    {
+        // Component: the gap target; Filler: the unowned common base it receives.
+        if(!FLDDefinitionWire::Encode(RestConfirm.GapTarget,Command.Component)||!FLDDefinitionWire::Encode(RestConfirm.GapFiller,Command.Filler))
+        {SetFeedback(TEXT("没有提交：构件标识无效。"));return false;}
+    }
+    else if(RestConfirm.Kind==ELDBuildCommandKind::Dismantle)
+    {
+        for(const FName& Id:RestConfirm.Surrendered)
+        {
+            if(!FLDDefinitionWire::Encode(Id,Command.Surrendered.AddDefaulted_GetRef())){SetFeedback(TEXT("没有提交：构件标识无效。"));return false;}
+        }
+    }
+    else
+    {
+        Command.Slot=RestConfirm.Slot;
+        if(RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive&&!FLDDefinitionWire::Encode(RestConfirm.Blueprint,Command.Blueprint))
+        {SetFeedback(TEXT("没有提交：这份图纸的标识无效。"));return false;}
+    }
     // The line is consumed by the attempt; the receipt or the refusal reason takes its place.
     RestConfirm=FRestConfirm();
     GrowthShown(RestConfirmLine,false);
@@ -1156,6 +1532,8 @@ bool ULDChoicesPanel::ConfirmRestAction()
 }
 void ULDChoicesPanel::CancelRestAction()
 {
+    // A cancelled dismantle drops its selection, so the next pick starts over.
+    if(RestConfirm.Kind==ELDBuildCommandKind::Dismantle){DismantlePicked.Reset();}
     RestConfirm=FRestConfirm();
     GrowthShown(RestConfirmLine,false);
 }
@@ -1204,6 +1582,9 @@ void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
     SetFeedback(LDHUD::BuildReceiptText(Receipt,LatestContent,LatestSafeAtMs,bLatestClock,LatestNowMs));
     // Applied points leave the staging; the rows show them once the owner view carries the receipt's revision.
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&Receipt.Kind==ELDBuildCommandKind::AllocatePoints){for(int32& Count:Staged){Count=0;}}
+    // #198 G: a done fill gap or dismantle closes its picker; the receipt line names what was received and removed.
+    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&(Receipt.Kind==ELDBuildCommandKind::FillGap||Receipt.Kind==ELDBuildCommandKind::Dismantle))
+    {CloseMaterialPickers();}
 }
 // The pending entry clears exactly when the controller releases its in-flight request: a final submit answer, an
 // unreserved rejection, or a final/expired receipt. Other answers only explain the wait.

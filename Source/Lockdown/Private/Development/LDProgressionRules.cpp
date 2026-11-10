@@ -422,12 +422,16 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
             GrantLevels.Add(Instance.SourceLevel, &bDuplicateLevel);
         }
         OpeningPicks += Instance.Source == ELDComponentSource::OpeningPick ? 1 : 0;
+        // #198 G: a field reward, elite choice, FillGap or Dismantle instance records the level it was received at.
+        const bool bService = Instance.Source == ELDComponentSource::BuildReward || Instance.Source == ELDComponentSource::EliteChoice
+            || Instance.Source == ELDComponentSource::FillGap || Instance.Source == ELDComponentSource::Dismantle;
         const bool bSource = Instance.Source == ELDComponentSource::OpeningPick ? Instance.SourceLevel == 1
             : Instance.Source == ELDComponentSource::LevelUp
                 ? Instance.SourceLevel >= 2 && Instance.SourceLevel <= Build.Level && !bDuplicateLevel
-                : false;
+                : bService && Instance.SourceLevel >= 1 && Instance.SourceLevel <= Build.Level;
         if (!Definition || !bSource || (Index > 0 && !ProgressionIdLess(Build.Components[Index - 1].Id, Instance.Id))
             || (Instance.bInstalled && !Instance.bEverInstalled)
+            || (Instance.bGapFilled && Definition->Kind == ELDDemoComponentKind::Base)
             || (Instance.bInstalled ? !ProgressionInstalledShape(*Definition, Instance.Target) : !Instance.Target.IsEmpty()))
         {
             return ELDGrowthReason::DataInvalid;
@@ -549,6 +553,9 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::OpeningBase:
     case ELDBuildCommandKind::InstallComponent:
     case ELDBuildCommandKind::UninstallComponent:
+    case ELDBuildCommandKind::ComponentChoice:
+    case ELDBuildCommandKind::FillGap:
+    case ELDBuildCommandKind::Dismantle:
         break;
     default:
         return ELDGrowthReason::InvalidRequest;
@@ -566,6 +573,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     switch (Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::ComponentChoice:
         return ELDGrowthReason::None;
     case ELDBuildCommandKind::LearnBlueprint:
         return LearnGate(Context);
@@ -573,6 +581,8 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
         return bRest || bDead || Context.bSafe ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
     case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
+    case ELDBuildCommandKind::FillGap:
+    case ELDBuildCommandKind::Dismantle:
         return !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case ELDBuildCommandKind::ReplaceActive:
         return !bRest ? ELDGrowthReason::ReplacementNotAllowed : LearnGate(Context);
@@ -1257,5 +1267,516 @@ ELDGrowthReason LDProgression::ApplyUninstallComponent(const FLDDemoContentDefin
         Removed->bInstalled = false;
         Removed->Target = FLDComponentTarget();
     }
+    return ELDGrowthReason::None;
+}
+
+// ---- #198 G field rewards and rest material services ----
+
+namespace
+{
+// Uniform index of [0, Count) from State; Count must be positive.
+int32 ProgressionPick(uint64& State, int32 Count)
+{
+    return int32(ProgressionSplitMix64(State) % uint64(Count));
+}
+
+// Adds an owned inventory instance of Id received from Source at the build's level; the caller checked it is unowned.
+void ProgressionReceive(FLDGrowthBuild& Build, FName Id, ELDComponentSource Source)
+{
+    FLDComponentInstance& Instance = Build.Components.AddDefaulted_GetRef();
+    Instance.Id = Id;
+    Instance.Source = Source;
+    Instance.SourceLevel = Build.Level;
+    ProgressionSortBuild(Build);
+}
+
+// The held entries of a mod/connector (spec §4.5): owned components, learned actives and pending blueprints its targets
+// list; -1 when it takes the innate D or its holder, which always exist.
+int32 ProgressionHeldEntries(const FLDDemoComponentDefinition& Definition, const FLDGrowthBuild& Build)
+{
+    if (Definition.bTargetDash || Definition.bTargetSelf)
+    {
+        return -1;
+    }
+    int32 Held = 0;
+    for (const FString& Row : Definition.TargetActives)
+    {
+        const FName Id(*Row);
+        Held += Build.FindActive(Id) || Build.HasBlueprint(Id) ? 1 : 0;
+    }
+    for (const FString& Row : Definition.TargetComponents)
+    {
+        Held += Build.FindComponent(FName(*Row)) ? 1 : 0;
+    }
+    return Held;
+}
+
+// Whether the owned Target is a gap now (spec §4.5): a mod/connector never enabled, not yet filled, without any compatible
+// held entry; a reaction connector needs two distinct entries before a reaction is possible at all.
+ELDGrowthReason ProgressionGapReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Target)
+{
+    const FLDComponentInstance* Instance = Build.FindComponent(Target);
+    const FLDDemoComponentDefinition* Definition = Instance ? ProgressionFindComponent(Content, Target) : nullptr;
+    if (!Definition || Definition->Kind == ELDDemoComponentKind::Base || Instance->bEverInstalled)
+    {
+        return ELDGrowthReason::NotAGap;
+    }
+    if (Instance->bGapFilled)
+    {
+        return ELDGrowthReason::GapAlreadyFilled;
+    }
+    const int32 Held = ProgressionHeldEntries(*Definition, Build);
+    const int32 Needed = LDWorkshop::FindOp(*Definition, ELDDemoEffectOp::ReactionEmpower) ? 2 : 1;
+    return Held >= 0 && Held < Needed ? ELDGrowthReason::None : ELDGrowthReason::NotAGap;
+}
+}
+
+FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Content, const FLDProgressionView& View)
+{
+    FLDGrowthBuild Build = StartBuild(Content);
+    Build.Level = FMath::Max<uint8>(View.Level, 1);
+    Build.Revision = View.BuildRevision;
+    Build.PermanentSpentPoints = View.PermanentSpentPoints;
+    const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+    for (int32 Index = 0; Index < StatOrder.Num() && Index < Build.StatPoints.Num(); ++Index)
+    {
+        const FLDStatPointsView* Row = View.StatPoints.FindByPredicate(
+            [&](const FLDStatPointsView& Stat) { return Stat.StatId == FName(*StatOrder[Index]->Id); });
+        Build.StatPoints[Index] = Row ? Row->Points : 0;
+    }
+    for (const FLDActiveSlotView& Active : View.Actives)
+    {
+        Build.Actives.Add({Active.DefinitionId, Active.Slot});
+    }
+    Build.PendingBlueprints = View.PendingBlueprints;
+    for (const FLDComponentInstanceView& Row : View.Components)
+    {
+        FLDComponentInstance& Instance = Build.Components.AddDefaulted_GetRef();
+        Instance.Id = Row.DefinitionId;
+        Instance.Source = Row.Source;
+        Instance.SourceLevel = Row.SourceLevel;
+        Instance.bInstalled = Row.bInstalled;
+        Instance.bEverInstalled = Row.bEverInstalled;
+        Instance.bGapFilled = Row.bGapFilled;
+        Instance.Target.Kind = Row.Target.Kind;
+        Instance.Target.Definition = Row.Target.Definition;
+        Instance.Target.Segment = Row.Target.Segment;
+        Instance.Target.BoundActive = Row.Target.BoundActive;
+        Instance.Target.Element = Row.Target.Element;
+        Instance.Target.BoundComponent = Row.Target.BoundComponent;
+    }
+    ProgressionSortBuild(Build);
+    return Build;
+}
+
+void LDProgression::EligibleBlueprints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out)
+{
+    Out.Reset();
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        const FName Id(*Ability.Id);
+        if (!Build.FindActive(Id) && !Build.HasBlueprint(Id))
+        {
+            Out.Add(Id);
+        }
+    }
+}
+
+void LDProgression::UnownedComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    ELDDemoComponentPool Pool, TArray<FName>& Out)
+{
+    Out.Reset();
+    for (const FLDDemoComponentDefinition& Definition : Content.Components)
+    {
+        const FName Id(*Definition.Id);
+        if (Definition.Pool == Pool && !Build.FindComponent(Id))
+        {
+            Out.Add(Id);
+        }
+    }
+}
+
+ELDGrowthReason LDProgression::DrawFieldReward(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    ELDFieldRewardKind Kind, uint64 Seed, FFieldGrant& Out)
+{
+    Out = FFieldGrant();
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Build); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    uint64 State = Seed;
+    TArray<FName> Actives, Scarce, Common;
+    EligibleBlueprints(Content, Build, Actives);
+    UnownedComponents(Content, Build, ELDDemoComponentPool::Scarce, Scarce);
+    UnownedComponents(Content, Build, ELDDemoComponentPool::Common, Common);
+    switch (Kind)
+    {
+    case ELDFieldRewardKind::BuildDraw:
+    {
+        // A fair class roll first; an empty class hands the reward to the other one.
+        const bool bBlueprintRoll = (ProgressionSplitMix64(State) & 1ull) == 0;
+        const bool bBlueprint = !Actives.IsEmpty() && (bBlueprintRoll || Scarce.IsEmpty());
+        if (bBlueprint)
+        {
+            Out.Result = ELDFieldRewardResult::Blueprint;
+            Out.Definition = Actives[ProgressionPick(State, Actives.Num())];
+            return ELDGrowthReason::None;
+        }
+        if (!Scarce.IsEmpty())
+        {
+            Out.Result = ELDFieldRewardResult::ScarceComponent;
+            Out.Definition = Scarce[ProgressionPick(State, Scarce.Num())];
+            return ELDGrowthReason::None;
+        }
+        // Both classes empty: one ordinary material reward, rolled like a normal level-up of the current level.
+        FName Picked;
+        const uint8 Level = uint8(FMath::Clamp<int32>(Build.Level, 2, Content.Progression.MaxLevel));
+        if (const ELDGrowthReason Reason = DrawLevelComponent(Content, Build, Level, ProgressionSplitMix64(State), Picked);
+            Reason != ELDGrowthReason::None)
+        {
+            return Reason;
+        }
+        Out.Result = Picked.IsNone() ? ELDFieldRewardResult::PoolPoints : ELDFieldRewardResult::CommonComponent;
+        Out.Definition = Picked;
+        return ELDGrowthReason::None;
+    }
+    case ELDFieldRewardKind::Blueprint:
+        if (Actives.IsEmpty())
+        {
+            Out.Result = ELDFieldRewardResult::BlueprintHeld;
+            return ELDGrowthReason::None;
+        }
+        Out.Result = ELDFieldRewardResult::Blueprint;
+        Out.Definition = Actives[ProgressionPick(State, Actives.Num())];
+        return ELDGrowthReason::None;
+    case ELDFieldRewardKind::ComponentChoice:
+        if (Common.IsEmpty())
+        {
+            Out.Result = ELDFieldRewardResult::PoolPoints;
+            return ELDGrowthReason::None;
+        }
+        Out.Result = ELDFieldRewardResult::ComponentChoice;
+        while (Out.ChoiceOptions.Num() < 2 && !Common.IsEmpty())
+        {
+            const int32 Pick = ProgressionPick(State, Common.Num());
+            Out.ChoiceOptions.Add(Common[Pick]);
+            Common.RemoveAt(Pick);
+        }
+        return ELDGrowthReason::None;
+    case ELDFieldRewardKind::None:
+        break;
+    }
+    return ELDGrowthReason::DataInvalid;
+}
+
+uint64 LDProgression::FieldRewardSeed(const FGuid& MatchSecret, const FGuid& Contender, FName Event, uint64 Serial)
+{
+    const FString EventText = Event.ToString();
+    const uint64 EventHash = CityHash64(reinterpret_cast<const char*>(*EventText), EventText.Len() * sizeof(TCHAR));
+    uint32 Words[13] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
+        Contender.A, Contender.B, Contender.C, Contender.D, uint32(EventHash), uint32(EventHash >> 32),
+        uint32(Serial), uint32(Serial >> 32), 0x4649454Cu};
+    return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
+}
+
+uint64 LDProgression::HeldBlueprintSeed(const FGuid& MatchSecret, const FGuid& Contender, uint32 Index)
+{
+    uint32 Words[10] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
+        Contender.A, Contender.B, Contender.C, Contender.D, Index, 0x48454C44u};
+    return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
+}
+
+ELDGrowthReason LDProgression::ApplyFieldGrant(const FLDDemoContentDefinitions& Content, const FFieldGrant& Grant, FName Event,
+    uint64 Serial, int64 XP, const FGuid& ChoiceId, FLDGrowthBuild& Build, FLDProgressionState& Progression)
+{
+    const FLDDemoComponentDefinition* Component = Grant.Definition.IsNone() ? nullptr : ProgressionFindComponent(Content, Grant.Definition);
+    switch (Grant.Result)
+    {
+    case ELDFieldRewardResult::Blueprint:
+        if (!ProgressionFindAbility(Content, Grant.Definition) || Build.FindActive(Grant.Definition) || Build.HasBlueprint(Grant.Definition))
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        Build.PendingBlueprints.Add(Grant.Definition);
+        ProgressionSortBuild(Build);
+        break;
+    case ELDFieldRewardResult::ScarceComponent:
+    case ELDFieldRewardResult::CommonComponent:
+        if (!Component || Build.FindComponent(Grant.Definition)
+            || (Component->Pool == ELDDemoComponentPool::Scarce) != (Grant.Result == ELDFieldRewardResult::ScarceComponent))
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        ProgressionReceive(Build, Grant.Definition, ELDComponentSource::BuildReward);
+        break;
+    case ELDFieldRewardResult::PoolPoints:
+        if (Content.Parameters.EmptyComponentPoolPoints < 1
+            || !ProgressionCheckedAdd(Build.AwardedPoints, Content.Parameters.EmptyComponentPoolPoints, Build.AwardedPoints))
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        break;
+    case ELDFieldRewardResult::ComponentChoice:
+    {
+        if (!ChoiceId.IsValid() || Grant.ChoiceOptions.IsEmpty() || Grant.ChoiceOptions.Num() > 2)
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        FLDComponentChoiceView& Choice = Progression.ComponentChoices.AddDefaulted_GetRef();
+        Choice.ChoiceId = ChoiceId;
+        Choice.Event = Event;
+        Choice.Serial = Serial;
+        Choice.Options = Grant.ChoiceOptions;
+        break;
+    }
+    case ELDFieldRewardResult::BlueprintHeld:
+        if (Progression.HeldBlueprints == MAX_uint8)
+        {
+            return ELDGrowthReason::CapacityExceeded;
+        }
+        ++Progression.HeldBlueprints;
+        break;
+    case ELDFieldRewardResult::None:
+        return ELDGrowthReason::DataInvalid;
+    }
+    FLDFieldRewardView& Record = Progression.FieldRewards.AddDefaulted_GetRef();
+    Record.Event = Event;
+    Record.Serial = Serial;
+    Record.XP = XP;
+    Record.Result = Grant.Result;
+    Record.Definition = Grant.Definition;
+    return ELDGrowthReason::None;
+}
+
+bool LDProgression::ReleaseHeldBlueprints(const FLDDemoContentDefinitions& Content, const FGuid& MatchSecret, const FGuid& Contender,
+    FLDGrowthBuild& Build, FLDProgressionState& Progression)
+{
+    bool bReleased = false;
+    while (Progression.HeldBlueprints > 0)
+    {
+        TArray<FName> Actives;
+        EligibleBlueprints(Content, Build, Actives);
+        if (Actives.IsEmpty())
+        {
+            break;
+        }
+        uint64 State = HeldBlueprintSeed(MatchSecret, Contender, ++Progression.HeldBlueprintsEver);
+        Build.PendingBlueprints.Add(Actives[ProgressionPick(State, Actives.Num())]);
+        ProgressionSortBuild(Build);
+        --Progression.HeldBlueprints;
+        bReleased = true;
+    }
+    return bReleased;
+}
+
+void LDProgression::GapTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out)
+{
+    Out.Reset();
+    for (const FLDDemoComponentDefinition& Definition : Content.Components)
+    {
+        const FName Id(*Definition.Id);
+        if (Build.FindComponent(Id) && ProgressionGapReason(Content, Build, Id) == ELDGrowthReason::None)
+        {
+            Out.Add(Id);
+        }
+    }
+}
+
+ELDGrowthReason LDProgression::GapFillers(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Target,
+    TArray<FName>& Out)
+{
+    Out.Reset();
+    if (const ELDGrowthReason Reason = ProgressionGapReason(Content, Build, Target); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Target);
+    for (const FLDDemoComponentDefinition& Candidate : Content.Components)
+    {
+        const FName Id(*Candidate.Id);
+        if (Candidate.Kind == ELDDemoComponentKind::Base && Candidate.Pool == ELDDemoComponentPool::Common && !Build.FindComponent(Id)
+            && (LDWorkshop::Lists(Definition->TargetComponents, Id) || LDWorkshop::Lists(Definition->ExtraBases, Id)))
+        {
+            Out.Add(Id);
+        }
+    }
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyFillGap(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
+    uint8 EmptyPoolGrants, FName Target, FName Filler, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPaid)
+{
+    Out = Current;
+    OutPaid = 0;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    int64 Unspent = 0;
+    if (const ELDGrowthReason Reason = UnspentPoints(Content, Current, XP, EmptyPoolGrants, Unspent); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::FillGap, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    TArray<FName> Fillers;
+    if (const ELDGrowthReason Reason = GapFillers(Content, Current, Target, Fillers); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (!Fillers.Contains(Filler))
+    {
+        return ELDGrowthReason::NoGapFiller;
+    }
+    const int64 Cost = Content.Parameters.FillGapPoints;
+    if (Cost < 1)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    if (Unspent < Cost)
+    {
+        return ELDGrowthReason::NotEnoughPoints;
+    }
+    if (!ProgressionCheckedAdd(Current.PermanentSpentPoints, Cost, Out.PermanentSpentPoints))
+    {
+        Out = Current;
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    Out.FindComponent(Target)->bGapFilled = true;
+    ProgressionReceive(Out, Filler, ELDComponentSource::FillGap);
+    OutPaid = Cost;
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::DismantleInputReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const TArray<FName>& Surrendered)
+{
+    if (Content.Parameters.DismantleInputCount < 1 || Surrendered.Num() != Content.Parameters.DismantleInputCount)
+    {
+        return ELDGrowthReason::DismantleInvalid;
+    }
+    for (int32 Index = 0; Index < Surrendered.Num(); ++Index)
+    {
+        const FName Id = Surrendered[Index];
+        const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Id);
+        if (Id.IsNone() || !Definition || Definition->Pool != ELDDemoComponentPool::Common || !Build.FindComponent(Id)
+            || Surrendered.Find(Id) != Index)
+        {
+            return ELDGrowthReason::DismantleInvalid;
+        }
+    }
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyDismantle(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const TArray<FName>& Surrendered, uint64 Seed, const FBuildContext& Context, FLDGrowthBuild& Out, FDismantleOutcome& Outcome)
+{
+    Out = Current;
+    Outcome = FDismantleOutcome();
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::Dismantle, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = DismantleInputReason(Content, Current, Surrendered); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    // The surrendered ones are owned, so the unowned common pool already excludes them.
+    TArray<FName> Pool;
+    UnownedComponents(Content, Current, ELDDemoComponentPool::Common, Pool);
+    if (Pool.IsEmpty())
+    {
+        return ELDGrowthReason::DismantlePoolEmpty;
+    }
+    uint64 State = Seed;
+    Outcome.Received = Pool[ProgressionPick(State, Pool.Num())];
+    // Every install left without its host component or repeated base comes off, transitively (like an uninstall).
+    TArray<FName> Gone = Surrendered;
+    for (int32 Index = 0; Index < Gone.Num(); ++Index)
+    {
+        for (const FLDComponentInstance& Attached : Out.Components)
+        {
+            const bool bOnIt = Attached.bInstalled && ((Attached.Target.Kind == ELDComponentTargetKind::Component
+                && Attached.Target.Definition == Gone[Index]) || Attached.Target.BoundComponent == Gone[Index]);
+            if (bOnIt && !Gone.Contains(Attached.Id))
+            {
+                Gone.Add(Attached.Id);
+                Outcome.Uninstalled.Add(Attached.Id);
+            }
+        }
+    }
+    for (const FName& Id : Outcome.Uninstalled)
+    {
+        FLDComponentInstance* Detached = Out.FindComponent(Id);
+        Detached->bInstalled = false;
+        Detached->Target = FLDComponentTarget();
+    }
+    Out.Components.RemoveAll([&Surrendered](const FLDComponentInstance& Instance) { return Surrendered.Contains(Instance.Id); });
+    ProgressionReceive(Out, Outcome.Received, ELDComponentSource::Dismantle);
+    return ELDGrowthReason::None;
+}
+
+uint64 LDProgression::DismantleSeed(const FGuid& MatchSecret, const FGuid& Contender, uint64 RequestId)
+{
+    uint32 Words[11] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
+        Contender.A, Contender.B, Contender.C, Contender.D, uint32(RequestId), uint32(RequestId >> 32), 0x44534D54u};
+    return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
+}
+
+ELDGrowthReason LDProgression::ApplyComponentChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDProgressionState& Progression, const FGuid& ChoiceId, FName Option, const FBuildContext& Context,
+    FLDGrowthBuild& Out, FLDProgressionState& OutProgression, bool& OutEmptyPoolGrant)
+{
+    Out = Current;
+    OutProgression = Progression;
+    OutEmptyPoolGrant = false;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::ComponentChoice, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const int32 Index = Progression.ComponentChoices.IndexOfByPredicate(
+        [&ChoiceId](const FLDComponentChoiceView& Row) { return Row.ChoiceId == ChoiceId; });
+    if (!ChoiceId.IsValid() || Index == INDEX_NONE)
+    {
+        return ELDGrowthReason::NoComponentChoice;
+    }
+    const FLDComponentChoiceView& Choice = Progression.ComponentChoices[Index];
+    if (Option.IsNone())
+    {
+        // The empty-pool points only once every known option has been obtained elsewhere.
+        if (Choice.Options.ContainsByPredicate([&Current](FName Id) { return !Current.FindComponent(Id); }))
+        {
+            return ELDGrowthReason::ComponentOwned;
+        }
+        if (!ProgressionCheckedAdd(Current.AwardedPoints, Content.Parameters.EmptyComponentPoolPoints, Out.AwardedPoints))
+        {
+            Out = Current;
+            return ELDGrowthReason::ArithmeticOverflow;
+        }
+        OutEmptyPoolGrant = true;
+    }
+    else
+    {
+        if (!Choice.Options.Contains(Option))
+        {
+            return ELDGrowthReason::InvalidOption;
+        }
+        if (Current.FindComponent(Option))
+        {
+            return ELDGrowthReason::ComponentOwned;
+        }
+        ProgressionReceive(Out, Option, ELDComponentSource::EliteChoice);
+    }
+    OutProgression.ComponentChoices.RemoveAt(Index);
     return ELDGrowthReason::None;
 }

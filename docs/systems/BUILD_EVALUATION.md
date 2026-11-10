@@ -180,7 +180,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 | `growth.match_secret` | `ALDDevelopmentDirector::BeginMatch` 的 `MatchSecret`（所有 Offer 与重抽） |
 | `world.spawn` | `ALDGameMode::StartDemoMatch` 的 `SpawnRandom`（出生点与 AI 开局计划） |
 | `combat.crit` | `InitializeAuthorityCore` 创建 Combat 后的 `CritRandom` |
-| `world.airdrop` | `LDAirdrop::Resolve` 的投放点序列 |
+| `world.airdrop` | `LDAirdrop::Resolve` 的投放点序列；符咒与营地标记（`LDFieldMarkers::Resolve`）的种子由它派生 |
 | `identity.ai.<slot>` / `identity.session.<n>` | AI 参赛者身份；Host 会话身份按加入顺序固定（身份决定同一边界内的处理顺序） |
 
 热搜圈（按 ledger 身份）、营地成员与效果 GUID 不种子化：前者不影响对决，后者不参与排序。

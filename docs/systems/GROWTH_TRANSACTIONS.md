@@ -77,13 +77,24 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
 | `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
 | `ForgetActive` = 23 | 已占槽 `Slot` 0..2 | 遗忘该槽主动，回执 `ForgottenId`；它重新成为候选与 NPC 的合格主动，但只有新的来源才能再得到。空槽为 `SlotEmpty`，有未完成候选组为 `OfferOutstanding` |
+| `ComponentChoice` = 13 | `OfferId` = 待选的精英营地二选一 `ChoiceId`；`Component` = 所选项，全零 = 改领点数 | 与 `ActiveChoice` 同表（野外存活或死亡、休息窗口都可选）。所选项成为库存实例（`EliteChoice`），该二选一结束；没有该 `ChoiceId` 为 `NoComponentChoice` = 160，不是候选项为 `InvalidOption`，所选项已持有为 `ComponentOwned` = 161。只有全部候选都已持有时才能带全零 `Component` 改领 `GROWTH.EmptyComponentPoolPoints`（计入 `AwardedPoints`），否则也是 `ComponentOwned` |
+| `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未启用、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 至少要两个不同入口），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
+| `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
+
+#198 G 野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
+XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分（`LDProgression::DrawFieldReward`，按比赛私密种子与事件身份固定）：
+`BuildDraw`（空投与 Boss）先公平抽类别，50% 一张未学且非待学的主动图纸、50% 一件未持有的稀缺构件，各自均匀；一类为空用另一类，
+两类都空按当前等级的普通升级抽一件普通构件（普通池也空则 `GROWTH.EmptyComponentPoolPoints`，计入 `AwardedPoints`）。
+`Blueprint`（高档营地标记）给一张均匀的合格主动图纸，池空则保留为 `HeldBlueprints`，之后任何构筑提交让主动重新合格时逐张发放。
+`ComponentChoice`（精英营地标记）无放回抽两件未持有普通构件成为待选二选一（只剩一件就显示一件，全空给点数）。
+本人视图 `FLDProgressionView` 带 `ComponentChoices`、`HeldBlueprints` 与 `FieldRewards`（全部野外奖励记录，供 HUD 提示）。
 
 组件命令的 `Component` 必须可解码，目标种类与元素按白名单解码（`LDGrowthWire::IsKnownTargetKind`/`IsKnownElement`），
 不需要目标的命令（主动、加点、卸下、不要求安装的 `OpeningBase`）带任何目标字段都在受理时 `InvalidRequest`；
 主动与加点命令带组件字段同样拒绝。B18 的绑定须为已学且列在 `binding.actives` 的主动加 `binding.elements` 的一种元素，
 否则 `InvalidTarget`；水与电（B18 的绑定、B10/B11 的普攻元素）与火一样可以安装，由 Combat 的元素状态施加（`ApplyComponentElement` → `ApplyElements`）。
 
-客户端发送的 `Kind` 按白名单解码，未知编号（含 4–19、24 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
+客户端发送的 `Kind` 按白名单解码，未知编号（含 4–9、14–19、26 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
 每种 Kind 只接受上表的字段，其余字段必须为空。替换与遗忘之后 Combat 保留被遗忘主动的冷却轨道
 （`PlanTrackBindings` 按定义找回原轨道与就绪时刻），重学沿用原冷却债。
 

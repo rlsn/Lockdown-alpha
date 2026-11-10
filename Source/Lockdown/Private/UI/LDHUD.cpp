@@ -332,6 +332,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         BossText=OneLine(TEXT(""),15,520);BossText->SetJustification(ETextJustify::Center);
         BossText->SetColorAndOpacity(FSlateColor(FLinearColor(.98f,.76f,.2f)));BossText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(BossText)->SetHorizontalAlignment(HAlign_Center);
+        // #198: the open camp markers, in the minimap marker violet.
+        MarkerText=OneLine(TEXT(""),15,520);MarkerText->SetJustification(ETextJustify::Center);
+        MarkerText->SetColorAndOpacity(FSlateColor(LDHUD::MarkerColor()));MarkerText->SetVisibility(ESlateVisibility::Collapsed);
+        CircleBox->AddChildToVerticalBox(MarkerText)->SetHorizontalAlignment(HAlign_Center);
         // The own next step under the public line, in the accent colour so it reads as advice rather than match state.
         NextStepText=OneLine(TEXT(""),15,520);NextStepText->SetJustification(ETextJustify::Center);NextStepText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
@@ -955,6 +959,8 @@ void ULDHUD::RefreshReadModel()
         HudSetText(BossText,LDHUD::BossLine(Public.Boss,Dean,bClock,FieldNowMs));
         HudSetShown(BossText,!BossText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     }
+    HudSetText(MarkerText,LDHUD::MarkerLine(Public.Markers,bClock,FieldNowMs));
+    HudSetShown(MarkerText,!MarkerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     {
         const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(Public,O.ContenderId,bClock,NowMs);
         HudSetText(TimelineText,Timeline.Headline);HudSetShown(TimelineText,!Timeline.Headline.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -1094,6 +1100,16 @@ void ULDHUD::RefreshReadModel()
     // or armed preview, and nothing is chosen for the player. The root may still be leaving the lobby on the match's first
     // frames, so a refused open is retried for a short while; the player's own panel or captured input ends the chance at once.
     if(ChoicesPanel&&PC->RootUI&&Progression&&GrowthAutoOpen.Observe(*Progression,O.Match)){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
+    {
+        // #198 G: a field reward (天降外卖, 画饼老板, a high or elite camp marker) tells what it gave once, as a toast.
+        TArray<FString> Lines;
+        for(const FLDFieldRewardView& Reward:FieldRewardWatch.Observe(Progression,O.Match))
+        {
+            const FString Line=LDHUD::FieldRewardNotice(Reward,Content);
+            if(!Line.IsEmpty()){Lines.Add(Line);}
+        }
+        if(!Lines.IsEmpty()){ShowToast(FString::Join(Lines,TEXT("\n")));}
+    }
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
     {
         const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
@@ -1143,14 +1159,14 @@ void ULDHUD::RefreshReadModel()
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
     const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match,Content);
-    // #198: in a rest build window the rest services (NPC, respec, replace, forget) keep the panel reachable without pending growth.
+    // #198: in a rest build window the rest services (NPC, respec, replace, forget, fill gap, dismantle) keep the panel reachable without pending growth.
     const bool bRestServices=bOwnMatch&&LDProgression::StageForPublic(Public.Phase,Public.Timeline)==LDProgression::EMatchStage::Rest;
     const bool bPromptLit=Pending.Any()||bRestServices;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
     // The 开盲盒 button stays above the left block: greyed out and disabled while nothing is pending and no rest service is
     // open (an open panel with nothing left closes itself), lit with the counts otherwise; after the opportunities, points or
     // pending components rise it pulses at ~1 Hz for a few seconds.
-    const int32 PendingComponents=Pending.Components+(Pending.bOpeningBase?1:0);
+    const int32 PendingComponents=Pending.Components+(Pending.bOpeningBase?1:0)+Pending.ComponentChoices;
     if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptPoints=Pending.Points;PromptComponents=PendingComponents;
     HudSetText(PromptText,LDHUD::GrowthPrompt(Pending,bRestServices));
@@ -1642,6 +1658,7 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
     Input.Public=&Public.PublicMatch;Input.Kills=&Public.KillFeed;Input.Lobby=&Public.DemoLobby;Input.Self=Own.ContenderId;
     // The own claim only counts within this match; a previous match's serial never names this drop.
     Input.OwnAirdropClaimSerial=Own.Match==Public.PublicMatch.Generation?Own.Growth.AirdropClaimedSerial:0;
+    Input.OwnFieldRewards=Own.Match==Public.PublicMatch.Generation?&Own.Growth.Progression.FieldRewards:nullptr;
     Input.bClock=bClock;Input.NowMs=NowMs;Input.LocalSeconds=GetWorld()->GetRealTimeSeconds();
     HudCampNames(Content,Input.LowCampName,Input.HighCampName,Input.EliteCampName,Input.BossName);
     EventFeed.Observe(Input);

@@ -4,6 +4,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Development/LDProgressionRules.h"
 #include "Navigation/LDOrderTypes.h"
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDViewTypes.h"
@@ -187,6 +188,8 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     Out.Components.Reset();
     Out.OpeningBaseOptions.Reset();
     Out.bOpeningBasePending = false;
+    Out.ComponentChoices.Reset();
+    Out.GapFills.Reset();
     for (const FLDActiveSlotView& Active : Progression.Actives)
     {
         if (Active.Slot > 2 || Active.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own active is outside the Q/W/E slots.")); }
@@ -234,6 +237,31 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     }
     Out.bOpeningBasePending = Progression.bOpeningBasePending;
     for (const FName& Option : Progression.OpeningBaseOptions) { Out.OpeningBaseOptions.Add(CanonicalId(Option)); }
+    // #198 G: the pending component choices, and the gap fills growth's own rules allow over this view (first filler each).
+    for (const FLDComponentChoiceView& Pending : Progression.ComponentChoices)
+    {
+        if (!Pending.ChoiceId.IsValid() || Pending.Options.IsEmpty() || Pending.Options.Contains(NAME_None))
+        {
+            return Fail(Error, TEXT("An own component choice has no id or no option."));
+        }
+        FLDOpponentComponentChoice& Choice = Out.ComponentChoices.AddDefaulted_GetRef();
+        Choice.ChoiceId = Pending.ChoiceId;
+        for (const FName& Option : Pending.Options) { Choice.Options.Add(CanonicalId(Option)); }
+    }
+    {
+        const FLDDemoContentDefinitions& Content = Catalog.Get();
+        const FLDGrowthBuild Build = LDProgression::BuildFromView(Content, Progression);
+        TArray<FName> Targets;
+        LDProgression::GapTargets(Content, Build, Targets);
+        for (const FName& Target : Targets)
+        {
+            TArray<FName> Fillers;
+            if (LDProgression::GapFillers(Content, Build, Target, Fillers) == ELDGrowthReason::None && !Fillers.IsEmpty())
+            {
+                Out.GapFills.Add({CanonicalId(Target), CanonicalId(Fillers[0])});
+            }
+        }
+    }
     FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Points));
     Values.Components = MoveTemp(Installed);
     const auto Projection = LDAttributeProjection::Project(Values, Catalog);

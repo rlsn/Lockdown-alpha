@@ -72,10 +72,26 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         || (Line.Stage == ELDMatchStage::Rest) != (Line.Step != ELDRestStep::None) || Line.FieldBaseMs < 0
         || (Line.Stage != ELDMatchStage::None && Line.Generation != View.Generation))
     { return FailCaptureView(Error, TEXT("The timeline does not match its stage.")); }
-    if (uint8(Drop.Phase) > uint8(ELDAirdropPhase::Claimed) || bDrop != (Drop.Serial != 0) || bDrop == Drop.PointId.IsNone()
-        || Drop.PositionCm.ContainsNaN() || (bDrop ? Drop.LandAtMs <= 0 : Drop.LandAtMs != 0)
-        || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && FieldNow < Drop.LandAtMs))
+    if (uint8(Drop.Phase) > uint8(ELDAirdropPhase::Expired) || bDrop != (Drop.Serial != 0) || bDrop == Drop.PointId.IsNone()
+        || Drop.PositionCm.ContainsNaN() || (bDrop ? (Drop.LandAtMs <= 0 || Drop.ExpireAtMs <= Drop.LandAtMs)
+            : (Drop.LandAtMs != 0 || Drop.ExpireAtMs != 0))
+        || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && FieldNow < Drop.LandAtMs)
+        || (Drop.Phase == ELDAirdropPhase::Expired && FieldNow < Drop.ExpireAtMs))
     { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the field clock.")); }
+    // #198 outer §5: at most one High and one Elite camp marker, both of the same timed segment, on named camps.
+    for (const FLDFieldMarkerView& Marker : View.Markers)
+    {
+        if (View.Markers.Num() > 2 || Marker.Segment < 1 || Marker.Segment > FLDTimelineParameters::TimedSegments
+            || Marker.Segment != View.Markers[0].Segment
+            || (Marker.Kind != ELDFieldMarkerKind::High && Marker.Kind != ELDFieldMarkerKind::Elite)
+            || View.Markers.FilterByPredicate([&Marker](const FLDFieldMarkerView& Other) { return Other.Kind == Marker.Kind; }).Num() != 1
+            || Marker.CampId.IsNone() || Marker.PositionCm.ContainsNaN()
+            || Marker.Phase == ELDFieldMarkerPhase::None || uint8(Marker.Phase) > uint8(ELDFieldMarkerPhase::Expired)
+            || Marker.RevealAtMs <= 0 || Marker.EndAtMs <= Marker.RevealAtMs || FieldNow < Marker.RevealAtMs
+            || (Marker.Phase == ELDFieldMarkerPhase::Expired && FieldNow < Marker.EndAtMs)
+            || (Marker.Phase == ELDFieldMarkerPhase::Revealed && Line.Stage == ELDMatchStage::Rest))
+        { return FailCaptureView(Error, TEXT("A camp marker does not match its segment, kind, phase or the field clock.")); }
+    }
     // #198: lying charms are in strictly increasing serial order, of a known kind, on distinct named points.
     for (int32 Index = 0; Index < View.Charms.Num(); ++Index)
     {
@@ -88,12 +104,14 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         { return FailCaptureView(Error, TEXT("A lying charm has no serial order, kind or point of its own.")); }
     }
     const FLDBossView& Boss = View.Boss;
-    if (Boss.Phase == ELDBossPhase::None ? (Boss.AppearAtMs != 0 || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
-        : (Boss.AppearAtMs <= 0
+    if (Boss.Phase == ELDBossPhase::None ? (Boss.AppearAtMs != 0 || Boss.LeaveAtMs != 0 || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
+        : (Boss.AppearAtMs <= 0 || Boss.LeaveAtMs <= Boss.AppearAtMs || uint8(Boss.Phase) > uint8(ELDBossPhase::Left)
             // A blocked appearance stays Pending past its time and retries; Pending never names a killer.
             || (Boss.Phase == ELDBossPhase::Pending ? (Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
                 : Boss.Phase == ELDBossPhase::Alive ? (FieldNow < Boss.AppearAtMs || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
-                : (Boss.DownAtMs < Boss.AppearAtMs || Boss.DownAtMs > FieldNow))))
+                // #198 outer §5: it left unkilled at its leave instant.
+                : Boss.Phase == ELDBossPhase::Left ? (FieldNow < Boss.LeaveAtMs || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
+                : (Boss.DownAtMs < Boss.AppearAtMs || Boss.DownAtMs > FieldNow || Boss.DownAtMs > Boss.LeaveAtMs))))
     { return FailCaptureView(Error, TEXT("The Boss view does not match its phase or the field clock.")); }
     const FLDLeaderView& Named = View.Leader;
     if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= 0
@@ -124,7 +142,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
             || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || Owned || bDrop
             || Named.Leader.IsValid() || Boss.Phase != ELDBossPhase::None || Line.Stage != ELDMatchStage::None
-            || !View.Charms.IsEmpty())
+            || !View.Charms.IsEmpty() || !View.Markers.IsEmpty())
         { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no spray state.")); }
         break;
     }

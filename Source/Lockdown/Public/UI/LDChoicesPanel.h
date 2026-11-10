@@ -26,7 +26,10 @@ struct FLDDemoContentDefinitions;
 // are disabled with the reason (LDHUD::BuildGate over LDProgression::StageForPublic, LDHUD::ComponentRow); the server still
 // decides each command. In a rest it also shows the rest services: the NPC's active offer, the respec, "替换 Q/W/E" on each
 // blueprint row for an occupied slot and "遗忘 Q/W/E" per learned active; replace and forget first show a confirm line
-// naming the active that will be forgotten.
+// naming the active that will be forgotten. #198 G: the pending elite camp component choices (one or two cards each, a click
+// is a ComponentChoice; "改领 N 点" once every option is owned) and, in a rest, 补缺 (gap target, then filler, then a confirm
+// line naming the price) and 拆解 (pick the approved count of owned common components, then a confirm line naming what is
+// deleted and which installs go back to the inventory).
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
 {
@@ -62,6 +65,19 @@ public:
     bool Respec();
     bool AskReplace(int32 Index,uint8 Key);
     bool AskForget(uint8 Key);
+    // #198 G rest material services. ToggleFillGap opens (or closes) the gap target list; PickGapTarget shows that target's
+    // fillers and PickGapFiller the confirm line ("花 4 点：为 X 补 Y"). ToggleDismantle opens the list of owned common
+    // components; PickDismantle selects or deselects one, and the approved count selected shows the confirm line naming what
+    // is removed and which installs go back to the inventory. ConfirmRestAction sends either.
+    bool ToggleFillGap();
+    bool PickGapTarget(int32 Index);
+    bool PickGapFiller(int32 Index);
+    bool ToggleDismantle();
+    bool PickDismantle(int32 Index);
+    // #198 G: a pending elite camp component choice (ChoiceIndex in the view's oldest-first order): take the option at
+    // OptionIndex, or, once every option is owned, the empty-pool points.
+    bool PickComponentChoice(int32 ChoiceIndex,int32 OptionIndex);
+    bool TakeComponentChoicePoints(int32 ChoiceIndex);
     bool ConfirmRestAction();
     void CancelRestAction();
     // The confirm line is a child confirmation for Back routing; it captures no input, so play goes on meanwhile.
@@ -96,7 +112,8 @@ public:
     void UpdateFold(bool bOwnHit);
     // A card being read (hovered, focused or previewed), staged points, a binding being picked, a rest confirm line or a
     // request in flight.
-    bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||PendingRequest!=0||HasChildConfirmation();}
+    bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||PendingRequest!=0||HasChildConfirmation()
+        ||bFillGapOpen||bDismantleOpen;}
     // The offer card whose detail popup is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
     // Distance of the panel's bottom edge from the screen bottom and of its left edge from the screen left: the HUD keeps
@@ -129,7 +146,7 @@ private:
         // #198 rest only: "替换 Q/W/E" for each occupied slot.
         TArray<TObjectPtr<ULDCommandButton>> Replace;
     };
-    // A replace or forget waiting on the confirm line, with the terms it was asked under.
+    // A replace, forget (#198 G: fill gap or dismantle) waiting on the confirm line, with the terms it was asked under.
     struct FRestConfirm
     {
         ELDBuildCommandKind Kind=ELDBuildCommandKind::None;
@@ -137,6 +154,10 @@ private:
         uint8 Slot=0;
         // The active the slot held when asked; another one there by confirm time withdraws the line instead.
         FName Active;
+        // FillGap: the gap target and the base it receives; Dismantle: the surrendered components.
+        FName GapTarget;
+        FName GapFiller;
+        TArray<FName> Surrendered;
     };
     struct FStatRow
     {
@@ -164,12 +185,23 @@ private:
         TObjectPtr<ULDCommandButton> Enable;
         FName ShownId;
     };
+    // #198 G: one pending elite camp component choice: its title, one card per option and the empty-pool points button.
+    struct FChoiceLine
+    {
+        TObjectPtr<UWidget> Row;
+        TObjectPtr<UTextBlock> Title;
+        TArray<FBaseCard> Cards;
+        TObjectPtr<ULDCommandButton> Points;
+    };
     TArray<FCardWidgets> Cards;
     TArray<LDHUD::FActiveCardView> CardViews;
     TArray<FBlueprintRow> BlueprintRows;
     TArray<FStatRow> StatRows;
     TArray<FBaseCard> BaseCards;
     TArray<FComponentRow> ComponentRows;
+    TArray<FChoiceLine> ChoiceLines;
+    UPROPERTY() TObjectPtr<UWidget> ComponentChoiceSection;
+    UPROPERTY() TObjectPtr<UVerticalBox> ComponentChoiceList;
     UPROPERTY() TObjectPtr<UWidget> OpeningBaseSection;
     UPROPERTY() TObjectPtr<UVerticalBox> BaseCardList;
     // Three cards per line; a line is added when a card beyond the last one is needed.
@@ -212,6 +244,20 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> RespecBlocked;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ForgetButtons;
     UPROPERTY() TObjectPtr<UTextBlock> ForgetBlocked;
+    // #198 G FillGap and Dismantle: their service buttons, the target / filler pickers and the dismantle selection.
+    UPROPERTY() TObjectPtr<ULDCommandButton> FillGapButton;
+    UPROPERTY() TObjectPtr<UTextBlock> FillGapBlocked;
+    UPROPERTY() TObjectPtr<UHorizontalBox> GapTargetLine;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> GapTargetButtons;
+    UPROPERTY() TObjectPtr<UHorizontalBox> GapFillerLine;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> GapFillerButtons;
+    UPROPERTY() TObjectPtr<ULDCommandButton> DismantleButton;
+    UPROPERTY() TObjectPtr<UTextBlock> DismantleBlocked;
+    UPROPERTY() TObjectPtr<UWidget> DismantleSection;
+    UPROPERTY() TObjectPtr<UTextBlock> DismantleHeading;
+    UPROPERTY() TObjectPtr<UVerticalBox> DismantleList;
+    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DismantleLines;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> DismantleButtons;
     UPROPERTY() TObjectPtr<UWidget> RestConfirmLine;
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestConfirmButton;
@@ -243,6 +289,14 @@ private:
     // #198 B: the opening base options and owned components the cards and rows show, in the view's order.
     TArray<FName> ShownBaseOptions;
     TArray<FName> ShownComponents;
+    // #198 G: the pending component choices the lines show (ids, oldest first) and the rest material services of the latest
+    // view: the open pickers, the picked gap target and the components picked for a dismantle.
+    TArray<FGuid> ShownChoices;
+    LDHUD::FMaterialServicesView Materials;
+    bool bFillGapOpen=false;
+    FName GapTarget;
+    bool bDismantleOpen=false;
+    TArray<FName> DismantlePicked;
     // A binding component (B18) waiting for its active and element: the command it will send and the choices so far.
     FName BindingComponent;
     ELDBuildCommandKind BindingKind=ELDBuildCommandKind::None;
@@ -288,7 +342,21 @@ private:
     FString ForgetRefusal() const;
     // The confirm line's terms still hold in the latest view (the blueprint is pending, the slot holds the same active).
     bool RestConfirmHolds() const;
+    // Why the confirm line's command would be refused now (the service's own refusal); empty when it may be sent.
+    FString RestConfirmRefusal() const;
     FBaseCard& BaseCardAt(int32 Index);
+    // Builds one component card face (icon, name, sentence, action) whose click runs Click; the caller places its Frame.
+    void BuildComponentCard(FBaseCard& Card,FName ButtonName,TFunction<void()> Click);
+    // Fills a card's face for Id (only when another id or new numbers are shown).
+    void ShowComponentCard(FBaseCard& Card,FName Id);
+    FChoiceLine& ChoiceLineAt(int32 Index);
+    void RefreshComponentChoices();
+    ULDCommandButton* GapTargetButtonAt(int32 Index);
+    ULDCommandButton* GapFillerButtonAt(int32 Index);
+    ULDCommandButton* DismantleButtonAt(int32 Index);
+    // The FillGap / Dismantle pickers and their confirm line still match the latest material services.
+    void RefreshMaterials();
+    void CloseMaterialPickers();
     FComponentRow& ComponentRowAt(int32 Index);
     void RefreshOpeningBase();
     void RefreshComponents();

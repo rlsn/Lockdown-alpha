@@ -50,7 +50,10 @@ inline constexpr TCHAR Airdrop[]=TEXT("天降外卖");
 inline FString AirdropCountdown(const FString& Clock){return FString(Airdrop)+TEXT(" ")+Clock+TEXT(" 后落地 · 小地图橙色标记");}
 inline FString AirdropSoon(){return FString(Airdrop)+TEXT("即将落地 · 小地图橙色标记");}
 inline constexpr TCHAR AirdropLanded[]=TEXT("外卖到了 · 先到先得");
-inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！");}
+// #198 外卖落地后限时：没人领就消失
+inline FString AirdropLandedLeft(const FString& Clock){return FString(AirdropLanded)+TEXT(" · ")+Clock+TEXT(" 后消失");}
+inline FString AirdropExpired(){return FString(Airdrop)+TEXT("没人领，消失了");}
+inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！经验和一份构筑奖励到手");}
 inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
 // 符咒（#198）：野外血量、蓝量、移速三种，落在外卖点上，走进去就拿到
 inline constexpr TCHAR Charm[]=TEXT("符咒");
@@ -60,14 +63,24 @@ inline constexpr TCHAR CharmMoveSpeed[]=TEXT("移速符咒");
 inline FString CharmsLying(const FString& Kinds){return FString(Charm)+TEXT("：")+Kinds+TEXT(" · 小地图彩色圆点");}
 inline FString CharmsAppeared(){return FString(Charm)+TEXT("出现了 · 走进去就能拿");}
 inline constexpr TCHAR Boss[]=TEXT("画饼老板");
-inline constexpr TCHAR BossBuff[]=TEXT("吃到大饼");
+// #198 击败画饼老板的最后一击得一份构筑奖励（原“吃到大饼”加成已移除）
+inline constexpr TCHAR BossReward[]=TEXT("拿到一份构筑奖励");
 inline FString BossCountdown(const FString& Name,const FString& Clock){return Name+TEXT(" ")+Clock+TEXT(" 后出现 · 小地图金色巡逻点");}
 inline FString BossSoon(const FString& Name){return Name+TEXT(" 即将出现");}
 inline FString BossAppeared(const FString& Name){return Name+TEXT(" 出现了 · 小地图金色巡逻点");}
 inline FString BossPatrol(const FString& Name){return Name+TEXT(" 巡逻中 · 打它会被它追着打");}
-inline FString BossDownSelf(const FString& Name){return FString(TEXT("你击败了"))+Name+TEXT("，")+BossBuff+TEXT("！");}
-inline FString BossDownBy(const FString& Killer,const FString& Name){return Killer+TEXT(" 击败了")+Name+TEXT("，")+BossBuff;}
+inline FString BossPatrolLeaving(const FString& Name,const FString& Clock){return BossPatrol(Name)+TEXT(" · ")+Clock+TEXT(" 后离场");}
+inline FString BossLeft(const FString& Name){return Name+TEXT(" 没人打倒，离场了");}
+inline FString BossDownSelf(const FString& Name){return FString(TEXT("你击败了"))+Name+TEXT("，")+BossReward+TEXT("！");}
+inline FString BossDownBy(const FString& Killer,const FString& Name){return Killer+TEXT(" 击败了")+Name;}
 inline FString BossDown(const FString& Name){return Name+TEXT(" 倒下了");}
+// #198 营地标记：每个野外段各标一个大野怪营地和一个精英营地，首个清掉的人领奖
+inline constexpr TCHAR CampMarkHigh[]=TEXT("高档营地标记：首个清掉的人得一份主动图纸");
+inline constexpr TCHAR CampMarkElite[]=TEXT("精英营地标记：首个清掉的人得普通材料二选一");
+inline FString CampMarkLeft(const FString& Mark,const FString& Clock){return Mark+TEXT(" · ")+Clock+TEXT(" 后失效");}
+inline FString CampMarkTaken(bool bHigh){return FString(bHigh?TEXT("高档营地标记"):TEXT("精英营地标记"))+TEXT("被人领走了");}
+inline FString CampMarkOwnClaim(bool bHigh){return bHigh?FString(TEXT("你领到了高档营地标记：一份主动图纸")):FString(TEXT("你领到了精英营地标记：普通材料二选一"));}
+inline FString CampMarkExpired(){return FString(TEXT("本段营地标记没人领，失效了"));}
 inline constexpr TCHAR Leader[]=TEXT("上热搜");
 inline FString LeaderNamed(const FString& Name){return FString(Leader)+TEXT("：")+Name;}
 inline FString LeaderSelf(){return FString(TEXT("你"))+Leader+TEXT("了！位置已在小地图公开");}
@@ -171,6 +184,46 @@ inline FString Respecced(int64 Refunded,int64 Left){return FString::Printf(TEXT(
 inline FString Replaced(const FString& NewName,const FString& Key,const FString& OldName)
 {return FString::Printf(TEXT("已在 %s 用 %s 替换 %s"),*Key,*NewName,*OldName);}
 inline FString Forgotten(const FString& Name){return FString::Printf(TEXT("已遗忘：%s（之后还能再抽到）"),*Name);}
+// #198 G 材料服务（APP_SPEC §4.5）：补缺花点数给从未启用、完全没有能装位置的改装件/连接件补一个能提供入口的普通基础构件；
+// 拆解交出几件不同的普通构件换 1 件随机普通构件（稀缺件不收，随机结果在支付时固定，池空时什么都不拆）。
+inline FString FillGapService(int64 Points){return FString::Printf(TEXT("补缺（%lld 点）"),Points);}
+inline FString DismantleService(int64 Count){return FString::Printf(TEXT("拆解（%lld 换 1）"),Count);}
+inline constexpr TCHAR PickGapTarget[]=TEXT("给哪个构件补缺：");
+inline constexpr TCHAR PickGapFiller[]=TEXT("补哪个基础构件：");
+inline constexpr TCHAR NoGapTarget[]=TEXT("没有缺口：每个没启用的改装件/连接件都有能装的位置");
+inline constexpr TCHAR NoGapFillerLeft[]=TEXT("缺口没有能补的未持有普通基础构件");
+inline FString PickDismantle(int64 Count){return FString::Printf(TEXT("选 %lld 件不同的普通构件交出（稀缺件不收）："),Count);}
+inline FString DismantleTooFew(int64 Count){return FString::Printf(TEXT("普通构件不足 %lld 件"),Count);}
+inline FString DismantlePicked(int32 Picked,int64 Count){return FString::Printf(TEXT("已选 %d/%lld"),Picked,Count);}
+inline constexpr TCHAR DismantleInstalledWarning[]=TEXT("（已启用：交出后装在它上面的构件退回背包）");
+inline FString FillGapConfirm(int64 Points,const FString& Target,const FString& Filler)
+{return FString::Printf(TEXT("花 %lld 点：为 %s 补 %s？点数不退还，同一构件只能补一次"),Points,*Target,*Filler);}
+inline FString DismantleConfirm(const FString& Removed,const FString& Detached)
+{
+    return Detached.IsEmpty()?FString::Printf(TEXT("交出 %s，换 1 件随机普通构件？交出的构件会删除"),*Removed)
+        :FString::Printf(TEXT("交出 %s，换 1 件随机普通构件？交出的构件会删除，%s 退回背包"),*Removed,*Detached);
+}
+inline FString GapFilled(int64 Points,const FString& Name){return FString::Printf(TEXT("已花 %lld 点补缺：拿到%s「%s」"),Points,Component,*Name);}
+inline FString Dismantled(const FString& Removed,const FString& Name,const FString& Detached)
+{
+    return Detached.IsEmpty()?FString::Printf(TEXT("已拆解 %s，换到%s「%s」"),*Removed,Component,*Name)
+        :FString::Printf(TEXT("已拆解 %s，换到%s「%s」；%s 退回背包"),*Removed,Component,*Name,*Detached);
+}
+// #198 G 精英营地奖励：两个已知普通构件二选一（只剩一个时如实只给一个）；全都已持有时改领点数。
+inline constexpr TCHAR ComponentChoiceTitle[]=TEXT("精英营地奖励：二选一");
+inline constexpr TCHAR ComponentChoiceSingle[]=TEXT("精英营地奖励：只剩这一个");
+inline FString ComponentChoicePoints(int64 Points){return FString::Printf(TEXT("都已持有，改领 %lld 点"),Points);}
+inline constexpr TCHAR ComponentChoiceOwned[]=TEXT("已持有");
+inline constexpr TCHAR ComponentChoiceTookPoints[]=TEXT("精英营地奖励的构件都已持有，已改领点数");
+// #198 G 野外奖励（天降外卖、画饼老板、高档/精英营地标记）的提示。
+inline constexpr TCHAR FieldRewardHighCamp[]=TEXT("高档营地标记");
+inline constexpr TCHAR FieldRewardEliteCamp[]=TEXT("精英营地标记");
+inline FString FieldRewardBlueprint(const FString& Name){return FString::Printf(TEXT("获得%s「%s」"),Blueprint,*Name);}
+inline FString FieldRewardScarce(const FString& Name){return FString::Printf(TEXT("获得稀缺%s「%s」"),Component,*Name);}
+inline FString FieldRewardCommon(const FString& Name){return FString::Printf(TEXT("获得%s「%s」"),Component,*Name);}
+inline FString FieldRewardPoolPoints(int64 Points){return FString::Printf(TEXT("%s池已空，改得 %lld 点"),Component,Points);}
+inline FString FieldRewardChoiceReady(){return FString(TEXT("普通"))+Component+TEXT("二选一已就绪，打开")+Choice+TEXT("选择");}
+inline FString FieldRewardBlueprintHeld(){return FString(Blueprint)+TEXT("池已空，奖励保留，之后有能给的技能时补发");}
 
 // 阶段与旗杆（喷漆守护终局）
 // 对局流程（#198）：开局休息 R0，之后三段野外各接一次休息 R1–R3，最后一段野外开放旗杆。
