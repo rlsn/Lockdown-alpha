@@ -326,14 +326,10 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceBurns(Now,Error)
         || !AdvanceProjectiles(Error))
     { return false; }
-    // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C01 windows, C08 stores and M02 locked batches.
+    // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.
     if (!AdvanceWorkshop(Now,Error)) { return false; }
-    for (int32 Index=0; Index<PendingHits.Num(); ++Index)
-    {
-        const FLDCombatHit Hit=PendingHits[Index];
-        if (!ApplyHit(Hit,Error)) { return false; }
-    }
-    PendingHits.Reset();
+    // Every hit of this boundary, then the C01 windows it closed.
+    if (!ApplyPendingHits(Now,Error)) { return false; }
     // Slows and HP changes of this boundary reach the effective attributes before the next motion step.
     if (!RefreshAllTemporary(Now,Error)) { return false; }
     if (PendingContacts.IsEmpty()) { return true; }

@@ -315,6 +315,9 @@ struct FLDCombatEntityRecord
     // #198 build safe window (contenders): the authority ms of the last combat action that keeps the contender from
     // learning and allocating (MarkBuildUnsafe); 0 = none yet. Kept across lives; the window is GROWTH.BuildSafeWindowSec.
     int64 LastBuildUnsafeAtMs=0;
+    // #198 F C01 (spec §13.3): the authority ms of its first install, from which its fixed window boundaries run; kept across
+    // lives, uninstalls and reinstalls (a reinstall keeps the original boundaries). Unset until C01 is first installed.
+    TOptional<int64> FireWindowAnchorMs;
 };
 
 // One committed hit waiting for the Effects phase.
@@ -396,6 +399,10 @@ struct FLDCombatHit
     // #198 B: burn layers a component's fire adds to this hit (ApplyComponentElement), credited to ComponentBurnSource.
     int32 ComponentBurnStacks=0;
     FLDCombatSourceRef ComponentBurnSource;
+    // #198 B10/B11/B18: a component's water or electric on this hit, applied as that component's own application (its
+    // source, the living holder's level and AP now) after the hit's native element of the same kind; None when absent.
+    FLDCombatSourceRef ComponentWetSource;
+    FLDCombatSourceRef ComponentElectricSource;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
@@ -436,6 +443,9 @@ struct FLDCombatChannel
 // completions C06 answers; C06's own aftershock and an M02 settle never are.
 enum class ELDCombatGroundOrigin : uint8 { Impact, Trap, CompressedZone, Aftershock, Settle };
 
+// An S19 trap is armed from its placement until ExpiresAtMs (placement + its life); a legal enemy inside InnerRadiusCm
+// triggers it (bTriggered) and it blows over RadiusCm at its own point FuseMs later (ReadyAtMs then); an untriggered trap
+// that reaches ExpiresAtMs ends without a blast.
 struct FLDCombatGroundEffect
 {
     FLDCombatHit Payload;
@@ -443,6 +453,8 @@ struct FLDCombatGroundEffect
     double RadiusCm=0, InnerRadiusCm=0;
     int64 ReadyAtMs=0, ExpiresAtMs=0, OuterRatioBp=10000;
     bool bTrap=false;
+    bool bTriggered=false;
+    int64 FuseMs=0;
     ELDCombatGroundOrigin Origin=ELDCombatGroundOrigin::Impact;
 };
 
@@ -499,15 +511,20 @@ struct FLDCombatZone
     // #198 F: the release's workshop package multiplier (M05), carried by every damage pulse.
     int64 PackageScaleBp=10000;
     // #147 zone_burn: BurnStacks layers (at the owner's level and AP snapshotted at release) on every enemy inside,
-    // every BurnIntervalMs from the zone's start while it lasts.
+    // every BurnIntervalMs from the zone's start while it lasts. #198 S08: a damaging zone's burn beats with its pulses,
+    // so every pulse carries PulseBurnStacks in the same hit (one element batch: its fire before a B18 water/electric).
     int32 BurnStacks=0;
     int64 BurnIntervalMs=0, NextBurnAtMs=0;
+    int32 PulseBurnStacks=0;
     // #198: the owner's element snapshot (level, AP) at release; zone_wet makes every pulse apply wet; zone_haste gives
-    // the owner HasteBp move speed while its foot stands inside.
+    // the owner and its current-match teammates (OwnerGroup/OwnerPKSide at release, PK side 0: none) HasteBp move speed
+    // while their foot stands inside.
     int32 ElementLevel=1;
     int64 ElementAPP2=0;
     bool bWet=false;
     int64 HasteBp=0;
+    FGuid OwnerGroup;
+    uint8 OwnerPKSide=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
@@ -802,6 +819,16 @@ private:
     bool LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error);
     bool ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         ELDCombatReject& Reject, FString& Error);
+    // The one hit payload a hostile release snapshots for every target of it (damage terms, source AD/AP, controls,
+    // keyword and element payload, amplification and the mods' package multiplier), before its delivery.
+    bool BuildReleasePayload(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
+        const FVector& ReleaseFoot, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+        const TSharedPtr<FLDCombatCastLedger>& CastLedger, FLDCombatHit& Out, FString& Error) const;
+    // The standard deliveries of a released payload that StartSkillDelivery did not take: a projectile, a unit hit (with
+    // M01's cone and S10's chain), an S09 line or every body of the self area named at release.
+    bool DeliverReleasePayload(const ALDCharacter& Actor, const FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms,
+        const FLDCombatAction& Action, const FLDCombatHit& Template, const FLDCombatBodyRef& UnitTarget, const FVector& TargetFoot,
+        const FVector& ReleaseFoot, const TArray<FLDCombatBodyRef>& AreaTargets, int64 NowMs, FString& Error);
     // Terminal Finished/Rejected receipt of a released Direct request (abilities and camp basics).
     void FinishDirectReceipt(const FGuid& Entity, const FLDCombatAction& Action, ELDCombatReject Reject);
     bool ResolveUnitTarget(const FLDCombatEntityRecord& Record, const ALDCharacter& Actor, const FLDCombatTarget& Target,
@@ -817,6 +844,12 @@ private:
 
     // ---- Effects (LDCombatEffects.cpp).
     bool ApplyHit(const FLDCombatHit& Hit, FString& Error);
+    // Every queued hit of this Effects boundary in order (and what those queue), then the C01 windows that closed by NowMs:
+    // a window settles only after every fact up to its boundary was committed (spec §13.3).
+    bool ApplyPendingHits(int64 NowMs, FString& Error);
+    // M01's copy of a native single-target hit for another body: its damage only; the primary keeps every control, slow,
+    // push, keyword stack, element and grievous of the original (spec §12.1).
+    static FLDCombatHit SpreadCopy(const FLDCombatHit& Primary, const FLDCombatBodyRef& Other);
     bool AdvanceProjectiles(FString& Error);
     // The root and slow cleanses of one released value set on its caster; true when slows (a temporary term) ended.
     bool ApplyCleanses(FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int64 NowMs);
@@ -864,8 +897,8 @@ private:
     // carries a knockback of the primary target away from the holder, no damage).
     bool OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, FString& Error);
     // #198 B: one component's element on Hit (B10/B11 basic_element, B18 active_element). Fire adds one burn layer
-    // credited to Component; water and electric set the hit's bApplyWet / bApplyElectric (the caller stamps its element
-    // snapshot) and ApplyElements applies them with their reactions.
+    // credited to Component; water and electric name Component as the hit's ComponentWetSource / ComponentElectricSource,
+    // and ApplyElements applies them as that component's own application with their reactions.
     bool ApplyComponentElement(FLDCombatHit& Hit, ELDDemoElement Element, const FLDCombatSourceRef& Component, FString& Error) const;
     // #198 B02: one entry of every ledger Source holds on Target for an effective basic or skill damage hit; a full batch
     // queues its cash-out (a magic skill-class hit flagged bLedgerCashOut).
@@ -907,6 +940,9 @@ private:
         FString& Error);
     // Zones due at NowMs (Effects, before the hits).
     bool AdvanceMechanics(int64 NowMs, FString& Error);
+    // S20 zone_haste: the zone owner and its current-match teammates (same isolation group and PK side) hold the zone's
+    // move speed while their foot stands inside it; leaving, dying or the zone ending drops it.
+    void UpdateZoneHaste(const FLDCombatZone& Zone, int64 NowMs);
     bool ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs);
     int64 NextMechanicsDueMs(int64 NowMs) const;
     // Status cue of the #112 records: knockback, for every observer.
@@ -947,6 +983,8 @@ private:
     bool TryDischarge(FLDBodyCombatState& Target, const FVector& TargetFoot, int64 NowMs, FString& Error);
     // Fog pulses, chain bounces, S16 ends and lapsed marks due by now.
     bool AdvanceElements(int64 NowMs, FString& Error);
+    // One fog pulse now: wet on every element-free enemy of its owner inside it.
+    bool PulseFog(const FLDCombatFog& Fog, int64 NowMs, FString& Error);
     int64 NextElementsDueMs(int64 NowMs) const;
     // The single report of a completed reaction (AI spec §8); later connectors read ReactionFacts of this Effects step.
     void OnReactionCompleted(const FLDCombatReactionFact& Fact);
@@ -1010,8 +1048,14 @@ private:
     // A full B02 batch of Owner on Target: M01 spreads it, M02 locks it; otherwise one hit now.
     bool CashOutLedger(const FLDBodyCombatState& Owner, const FLDCombatBodyRef& Target, const FLDCombatSourceRef& Source,
         int64 AmountP2, ELDDemoDamageType DamageType, int64 NowMs, FString& Error);
-    // Debts, C01 windows, C08 stores, locked ledgers and C02 watches due by NowMs (Effects).
+    // Debts, C08 stores, locked ledgers and C02 watches due by NowMs (Effects).
     bool AdvanceWorkshop(int64 NowMs, FString& Error);
+    // C01 windows whose fixed boundary is at or before NowMs grant their candidate shield (ApplyPendingHits, after the hits).
+    bool SettleFireWindows(int64 NowMs, FString& Error);
+    // C01 install bookkeeping of one build change from Previous to Record.Projection: its first install registers the fixed
+    // window boundaries; an uninstall or a changed binding discards Body's unsettled window.
+    bool NoteWorkshopInstall(FLDCombatEntityRecord& Record, const FLDAttributeProjection& Previous, FLDBodyCombatState* Body,
+        int64 NowMs, FString& Error);
     int64 NextWorkshopDueMs(int64 NowMs) const;
 
     // ---- Sources (LDCombatSources.cpp).

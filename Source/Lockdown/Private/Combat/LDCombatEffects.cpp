@@ -209,8 +209,10 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Evaluation.PrimaryGuardP2=PrimaryGuard->Effect.BaseP2;
         Evaluation.PrimaryGuardCapBp=PrimaryGuard->Effect.RatioBp;
     }
-    // #198 S16: the target's live stance cuts hostile damage (never its own).
-    const bool bBraced=LDCombatElements::BraceActive(Body->Brace,NowMs) && Hit.SourceEntity!=Body->Victim.EntityId;
+    // #198 S16: the target's live stance cuts hostile damage (never its own); a due M12 debt is paid at its original amount
+    // and neither takes the cut nor feeds the record (spec §9.1/§12.1).
+    const bool bBraced=LDCombatElements::BraceActive(Body->Brace,NowMs) && Hit.SourceEntity!=Body->Victim.EntityId
+        && !Hit.bDebtPayment;
     if (bBraced) { Evaluation.BraceCutBp=Body->Brace.RatioBp; }
     const FLDDamageEvaluationResult Evaluated=LDTactical::EvaluateDamage(Evaluation,*Content);
     if (!Evaluated.IsSuccess())
@@ -256,13 +258,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 if (!ApplyComponentElement(Hit,Ref.Element,Ref.Source,Error)) { return false; }
             }
         }
-        // Water/electric of a component apply through ApplyElements at the source's level and AP now.
-        if ((Hit.bApplyWet || Hit.bApplyElectric) && !StampElementSnapshot(*Source,Hit,Error)) { return false; }
     }
-    // #198 B02: an effective basic or skill damage hit of a living source enters its ledgers on this life (burn ticks and
-    // cash-outs are status/settle damage and never do).
+    // #198 B02: an effective basic or skill damage hit of a living source enters its ledgers on this life (burn ticks,
+    // reactions, discharges, cash-outs and debts are status/settle damage and never do).
     TArray<FLDPassiveEffectRef> Ledgers;
-    if (Source && bEffective && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bDebtPayment && Hit.SourceEntity!=Body->Victim.EntityId
+    if (Source && bEffective && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bLedgerCashOut && !Hit.bDebtPayment
+        && Hit.SourceEntity!=Body->Victim.EntityId
         && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability)
         && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Ledger,Ledgers,Error))
     { return false; }
@@ -319,6 +320,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         App.SourceEntity=Hit.SourceEntity;
         App.SourceBody=Hit.SourceBody;
         App.CreditOwner=Hit.CreditOwner;
+        // The exit this control belongs to (an active, C02's wall stun, C06's root): C05/C07 match it (spec §13.1).
+        App.Source=Hit.Source;
         App.DurationMs=DurationMs;
         App.RatioBp=RatioBp;
         bOut=false;
@@ -550,6 +553,33 @@ FLDCombatHit ALDCombatDirector::AddedHit(const FLDCombatHit& Primary)
     return Hit;
 }
 
+FLDCombatHit ALDCombatDirector::SpreadCopy(const FLDCombatHit& Primary, const FLDCombatBodyRef& Other)
+{
+    FLDCombatHit Hit=Primary;
+    Hit.HitId=FGuid::NewGuid();
+    Hit.Target=Other;
+    Hit.RootDurationMs=Hit.SlowBp=Hit.SlowDurationMs=Hit.DisarmDurationMs=Hit.StunDurationMs=Hit.SilenceDurationMs=0;
+    Hit.AttackSlowBp=Hit.AttackSlowMs=Hit.KnockbackMs=0;
+    Hit.KnockbackCm=0;
+    Hit.KnockbackSource=FLDCombatSourceRef();
+    Hit.BreachStacks=Hit.BurnStacks=0;
+    Hit.bApplyWet=Hit.bApplyElectric=false;
+    Hit.GrievousBp=Hit.GrievousMs=0;
+    return Hit;
+}
+
+bool ALDCombatDirector::ApplyPendingHits(int64 NowMs, FString& Error)
+{
+    // Hits queue more hits (reactions, settles, connectors); every one of this boundary lands before a window closes.
+    for (int32 Index=0; Index<PendingHits.Num(); ++Index)
+    {
+        const FLDCombatHit Hit=PendingHits[Index];
+        if (!ApplyHit(Hit,Error)) { return false; }
+    }
+    PendingHits.Reset();
+    return SettleFireWindows(NowMs,Error);
+}
+
 void ALDCombatDirector::GrantMana(FLDBodyCombatState& Body, int64 AmountP2)
 {
     auto& Pool=Body.Resources;
@@ -712,8 +742,8 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             Contact.HitId=FGuid::NewGuid();
             Contact.Target=Targets[Struck].Body;
             PendingHits.Add(Contact);
-            // #198 F M01: the first contact's damage also lands around the struck body (damage only; the slow and other
-            // controls stay on the struck body).
+            // #198 F M01: the first contact's damage also lands around the struck body (SpreadCopy: damage only; the slow,
+            // the S21 cut and every other control stay on the struck body).
             if (Projectile.SpreadRadiusCm>0)
             {
                 TArray<FLDCombatBodyRef> Around;
@@ -723,14 +753,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 for (const FLDCombatBodyRef& Other : Around)
                 {
                     if (Other==Targets[Struck].Body) { continue; }
-                    FLDCombatHit Splash=Contact;
-                    Splash.HitId=FGuid::NewGuid();
-                    Splash.Target=Other;
-                    Splash.RootDurationMs=Splash.SlowBp=Splash.SlowDurationMs=Splash.DisarmDurationMs=Splash.StunDurationMs=0;
-                    Splash.SilenceDurationMs=Splash.AttackSlowBp=Splash.AttackSlowMs=Splash.KnockbackMs=0;
-                    Splash.KnockbackCm=0;
-                    Splash.BreachStacks=Splash.BurnStacks=0;
-                    PendingHits.Add(MoveTemp(Splash));
+                    PendingHits.Add(SpreadCopy(Contact,Other));
                 }
             }
             Finished.Add(Index);
