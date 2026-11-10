@@ -675,6 +675,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     LDProgression::FInstallOutcome Install;
     FName Definition;
     FName Forgotten;
+    // ReplaceActive / ForgetActive: the components the forgotten active's attachments returned to the inventory.
+    TArray<FName> Reclaimed;
     int64 Refunded = 0;
     int64 NpcPaid = 0;
     uint8 Ordinal = 0;
@@ -799,7 +801,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     {
         Command.Blueprint.Decode(Definition);
         const ELDGrowthReason ReplaceReason = LDProgression::ApplyReplaceActive(Definitions, Build, Progression, Definition,
-            Command.Slot, Context, NewBuild, Forgotten);
+            Command.Slot, Context, NewBuild, Forgotten, Reclaimed);
         if (ReplaceReason != ELDGrowthReason::None)
         {
             return Reject(ReplaceReason);
@@ -811,7 +813,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::ForgetActive:
     {
         const ELDGrowthReason ForgetReason = LDProgression::ApplyForgetActive(Definitions, Build, Progression, Command.Slot,
-            Context, NewBuild, Forgotten);
+            Context, NewBuild, Forgotten, Reclaimed);
         if (ForgetReason != ELDGrowthReason::None)
         {
             return Reject(ForgetReason);
@@ -984,7 +986,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         const FName Card = bMaterial ? Receipt.ComponentId : Receipt.DefinitionId;
         const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
             || Command.Kind == ELDBuildCommandKind::ForgetActive;
-        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s"),
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s reclaimed=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Card.IsNone() ? TEXT("-") : *Card.ToString(),
             bNamesSlot ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
@@ -992,7 +994,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             Unspent, uint32(Record->Build.Level), Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString(), Refunded, NpcPaid,
             uint32(Ordinal), !Committed ? TEXT("-") : Committed->bInstalled ? TEXT("1") : TEXT("0"),
             Committed ? *DevelopmentBindingText(Committed->Target) : TEXT("-"),
-            Install.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Install.StoredReason));
+            Install.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Install.StoredReason),
+            Reclaimed.IsEmpty() ? TEXT("-") : *FString::JoinBy(Reclaimed, TEXT(","), [](FName Id) { return Id.ToString(); }));
         if (Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle)
         {
             const auto Names = [](const TArray<FName>& Ids)
@@ -1553,9 +1556,12 @@ ELDGrowthReason ALDDevelopmentDirector::DevLearnActive(const FGuid& ContenderId,
         const int32 Occupied = NewBuild.ActiveInSlot(Target);
         if (Occupied != INDEX_NONE)
         {
-            // DEV only: the active there is forgotten; Combat keeps its cooldown track for a relearn.
+            // DEV only: the active there is forgotten (its attachments reclaimed like a rest replacement); Combat keeps its
+            // cooldown track for a relearn.
             Forgotten = NewBuild.Actives[Occupied].Id;
             NewBuild.Actives.RemoveAt(Occupied);
+            TArray<FName> Reclaimed;
+            LDProgression::ReclaimAttachments(NewBuild, Forgotten, Reclaimed);
         }
     }
     NewBuild.Actives.Add({DefinitionId, Target});

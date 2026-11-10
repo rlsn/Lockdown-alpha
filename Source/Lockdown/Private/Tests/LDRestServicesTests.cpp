@@ -357,20 +357,22 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     Offered.Offer.Emplace(RestTestOffer(2, {Later[0], Later[1], Later[2]}));
     FLDGrowthBuild Out;
     FName Forgotten;
+    TArray<FName> Reclaimed;
     const auto Replace = [&](const FLDGrowthBuild& From, const FLDProgressionState& Progression, FName Blueprint, uint8 Slot,
         const LDProgression::FBuildContext& Context)
     {
-        return LDProgression::ApplyReplaceActive(Content, From, Progression, Blueprint, Slot, Context, Out, Forgotten);
+        return LDProgression::ApplyReplaceActive(Content, From, Progression, Blueprint, Slot, Context, Out, Forgotten, Reclaimed);
     };
     const auto Forget = [&](const FLDGrowthBuild& From, const FLDProgressionState& Progression, uint8 Slot,
         const LDProgression::FBuildContext& Context)
     {
-        return LDProgression::ApplyForgetActive(Content, From, Progression, Slot, Context, Out, Forgotten);
+        return LDProgression::ApplyForgetActive(Content, From, Progression, Slot, Context, Out, Forgotten, Reclaimed);
     };
     const auto Unchanged = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected, const FLDGrowthBuild& From)
     {
         bool bGood = RestTestReason(Test, What, Actual, Expected);
-        bool bSame = Out.Actives.Num() == From.Actives.Num() && Out.PendingBlueprints == From.PendingBlueprints && Forgotten.IsNone();
+        bool bSame = Out.Actives.Num() == From.Actives.Num() && Out.PendingBlueprints == From.PendingBlueprints && Forgotten.IsNone()
+            && Reclaimed.IsEmpty();
         for (int32 Index = 0; bSame && Index < From.Actives.Num(); ++Index)
         {
             bSame = Out.Actives[Index].Id == From.Actives[Index].Id && Out.Actives[Index].Slot == From.Actives[Index].Slot;
@@ -425,6 +427,122 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     bGood &= Unchanged(TEXT("Forgetting a slot past E"), Forget(Full, Settled, 3, Rest), ELDGrowthReason::InvalidRequest, Full);
     return bGood;
 }
+
+FLDComponentInstance RestTestInstalled(FName Id, uint8 Level, ELDComponentTargetKind Kind = ELDComponentTargetKind::None,
+    FName Definition = NAME_None, FName BoundActive = NAME_None, ELDDemoElement Element = ELDDemoElement::None,
+    FName BoundComponent = NAME_None)
+{
+    FLDComponentInstance Instance;
+    Instance.Id = Id;
+    Instance.Source = ELDComponentSource::LevelUp;
+    Instance.SourceLevel = Level;
+    Instance.bInstalled = Instance.bEverInstalled = true;
+    Instance.Target.Kind = Kind;
+    Instance.Target.Definition = Definition;
+    Instance.Target.BoundActive = BoundActive;
+    Instance.Target.Element = Element;
+    Instance.Target.BoundComponent = BoundComponent;
+    return Instance;
+}
+
+// #198 §5 (换下即遗忘，挂件退库存或迁往合法对象，不复制、不丢失、不自动错绑): forgetting or replacing an active returns
+// what sat on it (a mod on it, a B18 bound to it, a connector on that B18) to the inventory in the same commit, leaves every
+// other install alone, binds nothing to the new active, and a later move is the player's own rest-window install.
+bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    TArray<FName> Opening, Later;
+    if (!RestTestFixture(Test, Catalog, Opening, Later))
+    {
+        return false;
+    }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    using EKind = ELDComponentTargetKind;
+    const FName Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out")), Zap(TEXT("active_zap")), Seethe(TEXT("active_seethe"));
+    const FName Trick(TEXT("component_dirty_trick")), Chase(TEXT("component_blast_chase")), Crowd(TEXT("component_crowd_hit"));
+    const FName Water(TEXT("component_fist_water")), DirtyFist(TEXT("component_dirty_fist")), Again(TEXT("component_again_now"));
+    const FName Spiky(TEXT("component_spiky_hide"));
+    FLDGrowthBuild Built = RestTestBuild(Content, 8, {{Elbow, 0}, {BailOut, 1}, {Zap, 2}}, {Seethe});
+    FLDComponentInstance Stored;
+    Stored.Id = Spiky;
+    Stored.Source = ELDComponentSource::LevelUp;
+    Stored.SourceLevel = 8;
+    Built.Components = {RestTestInstalled(Trick, 2, EKind::None, NAME_None, Elbow, ELDDemoElement::Fire),
+        RestTestInstalled(Chase, 3, EKind::Component, Trick), RestTestInstalled(Crowd, 4, EKind::Active, Elbow),
+        RestTestInstalled(Water, 5), RestTestInstalled(DirtyFist, 6, EKind::Active, Zap, NAME_None, ELDDemoElement::None, Water),
+        RestTestInstalled(Again, 7, EKind::Active, BailOut), Stored};
+    LDProgression::NormalizeBuild(Built);
+    if (!RestTestReason(Test, TEXT("The reclaim fixture build"), LDProgression::ValidateBuild(Content, Built), ELDGrowthReason::None))
+    {
+        return false;
+    }
+    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false);
+    const LDProgression::FBuildContext Field = RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true);
+    const FLDProgressionState Settled = RestTestSettled(2000);
+    FLDGrowthBuild Out;
+    FName Forgotten;
+    TArray<FName> Reclaimed;
+    // The ids that left an install, in id order, must equal Expected; everything else keeps its exact install state.
+    const auto Exactly = [&](const TCHAR* What, const TArray<FName>& Expected)
+    {
+        bool bSame = Out.Components.Num() == Built.Components.Num();
+        for (int32 Index = 0; bSame && Index < Built.Components.Num(); ++Index)
+        {
+            const FLDComponentInstance& Before = Built.Components[Index];
+            const FLDComponentInstance& After = Out.Components[Index];
+            bSame = After.Id == Before.Id && After.Source == Before.Source && After.SourceLevel == Before.SourceLevel
+                && After.bEverInstalled == Before.bEverInstalled
+                && (Expected.Contains(Before.Id) ? !After.bInstalled && After.Target.IsEmpty()
+                    : After.bInstalled == Before.bInstalled && After.Target == Before.Target);
+        }
+        bool bGood = Test.TestTrue(FString::Printf(TEXT("%s: the reclaimed list"), What), Reclaimed == Expected);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s: reclaimed to the inventory with their history, the rest untouched, none lost or doubled"),
+            What), bSame);
+        bGood &= RestTestReason(Test, FString::Printf(TEXT("%s: the committed build is valid"), What), LDProgression::ValidateBuild(Content, Out),
+            ELDGrowthReason::None);
+        return bGood;
+    };
+
+    bool bGood = RestTestReason(Test, TEXT("Forgetting Q (elbow)"),
+        LDProgression::ApplyForgetActive(Content, Built, Settled, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
+    bGood &= Exactly(TEXT("Forgetting elbow"), {Chase, Crowd, Trick});
+    bGood &= RestTestReason(Test, TEXT("Replacing Q (elbow) with seethe"),
+        LDProgression::ApplyReplaceActive(Content, Built, Settled, Seethe, 0, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
+    bGood &= Exactly(TEXT("Replacing elbow"), {Chase, Crowd, Trick});
+    bGood &= Test.TestTrue(TEXT("Nothing binds to the new active on its own"), Forgotten == Elbow && Out.ActiveInSlot(0) != INDEX_NONE
+        && Out.Actives[Out.ActiveInSlot(0)].Id == Seethe && !Out.Components.ContainsByPredicate([&Seethe](const FLDComponentInstance& Row)
+            { return Row.Target.Definition == Seethe || Row.Target.BoundActive == Seethe; }));
+    const FLDGrowthBuild Replaced = Out;
+    FLDComponentTarget OnZap;
+    OnZap.BoundActive = Zap;
+    OnZap.Element = ELDDemoElement::Water;
+    FLDGrowthBuild Moved;
+    bGood &= RestTestReason(Test, TEXT("A reclaimed B18 is not re-installed on the field (a move)"),
+        LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Field, Moved), ELDGrowthReason::RestOnly);
+    bGood &= Test.TestTrue(TEXT("The player moves the reclaimed B18 to another legal active in the rest window"),
+        LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Rest, Moved) == ELDGrowthReason::None
+        && Moved.FindComponent(Trick)->bInstalled && Moved.FindComponent(Trick)->Target == OnZap
+        && LDProgression::ValidateBuild(Content, Moved) == ELDGrowthReason::None);
+
+    bGood &= RestTestReason(Test, TEXT("Forgetting E (zap)"),
+        LDProgression::ApplyForgetActive(Content, Built, Settled, 2, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
+    bGood &= Exactly(TEXT("Forgetting zap"), {DirtyFist});
+    bGood &= RestTestReason(Test, TEXT("Forgetting W (bail out)"),
+        LDProgression::ApplyForgetActive(Content, Built, Settled, 1, Rest, Out, Forgotten, Reclaimed), ELDGrowthReason::None);
+    bGood &= Exactly(TEXT("Forgetting bail out"), {Again});
+
+    // A build that kept an install on a lost target is a broken record, never a quiet state.
+    FLDGrowthBuild Lost = Built;
+    Lost.Actives.RemoveAt(Lost.ActiveInSlot(0));
+    bGood &= RestTestReason(Test, TEXT("An install left on a forgotten active"), LDProgression::ValidateBuild(Content, Lost),
+        ELDGrowthReason::DataInvalid);
+    FLDGrowthBuild Orphan = Built;
+    Orphan.FindComponent(Trick)->bInstalled = false;
+    Orphan.FindComponent(Trick)->Target = FLDComponentTarget();
+    bGood &= RestTestReason(Test, TEXT("A connector left on an uninstalled host"), LDProgression::ValidateBuild(Content, Orphan),
+        ELDGrowthReason::DataInvalid);
+    return bGood;
+}
 }
 
 // #198 rest services: the Live/Rest/RestLocked/Closed legality matrix of every build command kind, IsRestWindow and the
@@ -464,6 +582,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoRestServicesReplaceForgetTest, "Lockdown
 bool FLDDemoRestServicesReplaceForgetTest::RunTest(const FString& Parameters)
 {
     return RestTestRunReplaceForget(*this);
+}
+
+// #198 §5: forgetting or replacing an active reclaims its attachments to the inventory in the same commit.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoRestServicesForgetReclaimTest, "Lockdown.Rules.DemoRest.Services.ForgetReclaim",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoRestServicesForgetReclaimTest::RunTest(const FString& Parameters)
+{
+    return RestTestRunForgetReclaim(*this);
 }
 
 #endif
