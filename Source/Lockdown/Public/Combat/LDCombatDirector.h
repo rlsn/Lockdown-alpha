@@ -175,6 +175,10 @@ struct FLDBodyCombatState
     bool bSuspended=false;
     // #198 personal training dummy: never dies (refills at 0 HP), grants nothing; IsolationGroup names its owner.
     bool bTrainingDummy=false;
+    // #198 session D PK: the body's side in the PK isolation group (0: none). Same-side bodies never affect each other
+    // (friendly fire off). ExposedUntilMs: a spectator throw revealed it to the PK entrants until then (half-open).
+    uint8 PKSide=0;
+    int64 ExposedUntilMs=0;
     struct FResources
     {
         int64 HpP2=0,MaxHpP2=0,MpP2=0,MaxMpP2=0,ShieldP2=0;
@@ -713,6 +717,26 @@ public:
     bool ResetTraining(const FGuid& Owner, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error);
     // Retires the dummy's body and drops its Combat record (a dummy entity never returns).
     void RetireTrainingEntity(const FLDCombatBodyRef& Body);
+    // ---- #198 session D PK (Combat/LDCombatPK.cpp) ----
+    // Whether SourceEntity and Target are in different isolation groups (or either is suspended); vision uses this (team
+    // mates still see each other), IsIsolated adds the PK friendly-fire rule.
+    bool IsOutOfGroup(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
+    // A PK life joins the PK isolation group with its side. RespawnsAndWorld permit.
+    bool SetPKBody(const FLDCombatBodyRef& Body, const FGuid& Group, uint8 Side, const FLDGameplayWritePermit& Permit, FString& Error);
+    // The PK ring's environmental damage (approved §2): straight to HP, no resistance, shield, reduction, delay,
+    // reflection, trigger or reward; a lethal amount locks a normal unowned death. Effects permit.
+    bool ApplyEnvironmentDamage(const FLDCombatBodyRef& Body, int64 AmountP2, const FLDGameplayWritePermit& Permit, FString& Error);
+    // A spectator throw landing on a PK body (approved §6): a SlowBp slow for SlowMs through the control path (the
+    // strongest slow wins, the end refreshes on a real hit) and Exposed until now + ExposeMs. No damage, hard control,
+    // growth or credit. Effects permit.
+    bool ApplyThrowHit(const FLDCombatBodyRef& Body, const FGuid& EffectId, int64 SlowBp, int64 SlowMs, int64 ExposeMs,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    // Current and maximum HP of a living body; false when Combat does not hold it.
+    bool ReadBodyHealth(const FLDCombatBodyRef& Body, int64& OutHpP2, int64& OutMaxHpP2) const;
+    // Whether the body is Exposed at NowMs.
+    bool IsExposed(const FLDCombatBodyRef& Body, int64 NowMs) const;
+    // Line of sight between two feet with the area rule (ELDSightResult::Visible), for the throw's landing.
+    bool HasAreaSight(const FVector& FromCm, const FVector& ToCm, bool& bOutVisible, FString& Error) const;
 
 private:
     friend class ALDGameMode;

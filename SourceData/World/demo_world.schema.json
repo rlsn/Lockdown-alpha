@@ -117,7 +117,7 @@
         {
           "type": "object", "additionalProperties": false, "required": ["id", "kind", "surface_id", "position_cm"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Capture", "Dorm", "Airdrop", "BossWaypoint"]},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow"]},
             "surface_id": {"$ref": "#/$defs/id"}, "position_cm": {"$ref": "#/$defs/vector"}
           }
         },

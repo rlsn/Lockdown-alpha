@@ -4609,6 +4609,60 @@
       "ms": 180000,
       "unit": "ms"
     },
+    "PK.ArenaRadiusCm": {
+      "denominator": 1,
+      "numerator": 1800,
+      "unit": "cm"
+    },
+    "PK.BettingPoolMaxPoints": 2,
+    "PK.ParticipationPoints": 1,
+    "PK.RingDamageEarlyMaxHPRatioPerSec": {
+      "bp": 500,
+      "unit": "ratio"
+    },
+    "PK.RingDamageFinalMaxHPRatioPerSec": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "PK.RingDamageMidMaxHPRatioPerSec": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "PK.RingDamageTickSec": {
+      "ms": 250,
+      "unit": "ms"
+    },
+    "PK.RingFinalRadiusCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "PK.RingFinalSec": {
+      "ms": 55000,
+      "unit": "ms"
+    },
+    "PK.RingMidRadiusCm": {
+      "denominator": 1,
+      "numerator": 600,
+      "unit": "cm"
+    },
+    "PK.RingMidSec": {
+      "ms": 40000,
+      "unit": "ms"
+    },
+    "PK.RingPreviewSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "PK.RingShrinkStartSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "PK.TeamFormatRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "PK.WinnerPointsMax": 3,
     "REGEN.OutOfCombatDelaySec": {
       "ms": 5000,
       "unit": "ms"
@@ -4871,6 +4925,36 @@
       "numerator": 173,
       "unit": "cm/s"
     },
+    "THROW.CooldownSec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
+    "THROW.ExposeSec": {
+      "ms": 2000,
+      "unit": "ms"
+    },
+    "THROW.RadiusCm": {
+      "denominator": 1,
+      "numerator": 120,
+      "unit": "cm"
+    },
+    "THROW.RangeCm": {
+      "denominator": 1,
+      "numerator": 4000,
+      "unit": "cm"
+    },
+    "THROW.SlowRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "THROW.SlowSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "THROW.TelegraphSec": {
+      "ms": 800,
+      "unit": "ms"
+    },
     "UNIT.BasicAttackRangeCm": {
       "denominator": 1,
       "numerator": 220,
@@ -5113,6 +5197,15 @@
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
+    "pk_spawn_ids": [
+      "pk_spawn_0",
+      "pk_spawn_1",
+      "pk_spawn_2",
+      "pk_spawn_3",
+      "pk_spawn_4",
+      "pk_spawn_5"
+    ],
+    "pk_throw_id": "pk_throw",
     "spawn_ids": [
       "s00",
       "s01",

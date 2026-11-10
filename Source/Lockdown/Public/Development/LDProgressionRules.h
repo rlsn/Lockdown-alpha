@@ -64,6 +64,8 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FName> PendingBlueprints;
     // Points paid for rest services (the NPC active offer); never refunded, a respec only returns StatPoints.
     int64 PermanentSpentPoints = 0;
+    // #198 session D: points paid by PK settlements (participation, winner share, betting pool); unspent until allocated.
+    int64 AwardedPoints = 0;
     // #198 B: owned components sorted by id, one per definition.
     TArray<FLDComponentInstance> Components;
     uint64 Revision = 1;

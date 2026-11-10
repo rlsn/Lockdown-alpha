@@ -75,6 +75,7 @@ ELDGrowthReason GrowthNoRewardReason(ELDNoRewardReason Reason)
     case ELDNoRewardReason::NoOwner: return ELDGrowthReason::NoRewardNoOwner;
     case ELDNoRewardReason::SelfInflicted: return ELDGrowthReason::NoRewardSelf;
     case ELDNoRewardReason::OwnerLeft: return ELDGrowthReason::NoRewardOwnerLeft;
+    case ELDNoRewardReason::PKArena: return ELDGrowthReason::NoRewardPKArena;
     default: return ELDGrowthReason::DataInvalid;
     }
 }

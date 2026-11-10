@@ -10,6 +10,8 @@
 #include "Components/CapsuleComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDGameMode.h"
+#include "UI/LDHUDModel.h"
 #include "Framework/LDDemoEntry.h"
 #include "Combat/LDCombatCues.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -194,7 +196,19 @@ void ALDCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 {
     Camera->GetCameraView(DeltaTime,OutResult);
     // The fixed, collision-free arm's tick may precede movement. Evaluate its pose at camera time, not last tick.
-    const FTransform Pose=DefaultArmCameraPose(CameraArm->GetComponentLocation(),CameraArm->TargetArmLength);
+    FVector Origin=CameraArm->GetComponentLocation();
+    float ArmLength=CameraArm->TargetArmLength;
+    // #198 PK spectators: while the own player watches a PK (LDHUD::IsSpectatingPK of the own match) the same fixed arm
+    // looks at the public arena centre from its longest zoom instead of at this body; the authority grants the view.
+    const auto* OwnPC=IsLocallyControlled()?Cast<ALDPlayerController>(GetController()):nullptr;
+    const auto* Public=OwnPC&&GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
+    if(Public&&Public->PublicMatch.Generation!=0&&Public->PublicMatch.Generation==OwnPC->OwnerState.Match
+        &&LDHUD::IsSpectatingPK(Public->PublicMatch,OwnPC->OwnerState.ContenderId)&&!Public->PublicMatch.PK.ArenaCentreCm.ContainsNaN())
+    {
+        Origin=Public->PublicMatch.PK.ArenaCentreCm;
+        ArmLength=LDCamera::MaxArmLength;
+    }
+    const FTransform Pose=DefaultArmCameraPose(Origin,ArmLength);
     OutResult.Location=Pose.TransformPosition(Camera->GetRelativeLocation());
     OutResult.Rotation=Pose.Rotator();
 }

@@ -4,6 +4,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
+#include "PK/LDPKDirector.h"
 
 // #198 rest phases: the Combat side of the approved phase-boundary resource policy (issue #198 comment 6752601175 §8)
 // and of the private rest space. Field bodies have no isolation group; a rest life has its owner's group, so nothing
@@ -11,6 +12,20 @@
 // Boss) is suspended: it keeps HP/MP, regenerates nothing, and can neither be affected nor act.
 
 bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
+{
+    if (IsOutOfGroup(SourceEntity,Target)) { return true; }
+    // #198 session D: PK friendly fire is off; a body still affects itself.
+    if (Target.PKSide==0 || SourceEntity==Target.Victim.EntityId) { return false; }
+    uint8 SourceSide=0;
+    if (const FLDBodyCombatState* Source=FindEntityBody(SourceEntity)) { SourceSide=Source->PKSide; }
+    else if (const ALDGameMode* Mode=Core(); Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive())
+    {
+        SourceSide=Mode->PKDirector->SideOf(SourceEntity);
+    }
+    return SourceSide!=0 && SourceSide==Target.PKSide;
+}
+
+bool ALDCombatDirector::IsOutOfGroup(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
 {
     if (Target.bSuspended) { return true; }
     FGuid SourceGroup;
@@ -24,6 +39,11 @@ bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyComba
         // A contender between lives keeps the group of the space it is in: its released effects never cross it.
         const ALDGameMode* Mode=Core();
         if (Mode && Mode->IsInRestSpace(SourceEntity)) { SourceGroup=SourceEntity; }
+        // #198 session D: an entrant between lives during the PK keeps the PK group.
+        else if (Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive() && Mode->PKDirector->SideOf(SourceEntity)!=0)
+        {
+            SourceGroup=Mode->PKDirector->GetGroup();
+        }
     }
     return SourceGroup!=Target.IsolationGroup;
 }
@@ -31,7 +51,7 @@ bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyComba
 bool ALDCombatDirector::IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const
 {
     const FLDBodyCombatState* Body=FindBody(Target);
-    return Body && IsIsolated(Observer,*Body);
+    return Body && IsOutOfGroup(Observer,*Body);
 }
 
 bool ALDCombatDirector::SetRestIsolation(const FLDCombatBodyRef& Ref, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error)
@@ -172,6 +192,7 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.Burn={};
     // A new phase is a new fight: the hard-control diminishing returns start over (approved §9).
     Body.HardControl={};
+    Body.ExposedUntilMs=0;
     Body.DashContact.Reset();
     Body.DashUntilMs=0;
     // Component rests are cooldowns too: every one is ready in the new phase.

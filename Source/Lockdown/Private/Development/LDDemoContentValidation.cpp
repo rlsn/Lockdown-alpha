@@ -187,6 +187,19 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
+    // #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
+    if (!Check.Require(P.PKRingShrinkStartMs > 0 && P.PKRingShrinkStartMs < P.PKRingMidMs && P.PKRingMidMs < P.PKRingFinalMs
+            && P.PKRingFinalMs < P.RestPKMaxMs && P.PKRingPreviewMs > 0 && P.PKRingTickMs > 0,
+            TEXT("PK.RingFinalSec"), TEXT("ring shrink steps must be ordered and finish before the PK cap"))
+        || !Check.Require(N.LT(N.Value(0), N.Value(P.PKRingFinalRadiusCm))
+            && N.LT(N.Value(P.PKRingFinalRadiusCm), N.Value(P.PKRingMidRadiusCm))
+            && N.LT(N.Value(P.PKRingMidRadiusCm), N.Value(P.PKArenaRadiusCm)),
+            TEXT("PK.RingFinalRadiusCm"), TEXT("ring radii must shrink strictly inside the arena"))
+        || !Check.Require(N.LT(N.Value(0), N.Value(P.ThrowRadiusCm)) && N.LT(N.Value(0), N.Value(P.ThrowRangeCm)),
+            TEXT("THROW"), TEXT("throw radius and range must be positive")))
+    {
+        return false;
+    }
     // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
     for (const int64 Bp : {P.DormMaxHPRegenBp, P.DormMaxMPRegenBp})
     {

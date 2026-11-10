@@ -7,6 +7,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Development/LDProgressionRules.h"
+#include "PK/LDPKRules.h"
 
 class FLDDemoContentSnapshot;
 
@@ -21,7 +22,9 @@ enum class ELDOpponentMode : uint8
     // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
     Airdrop,
     // #198: walking onto a lying field charm whose effect the body can use now.
-    Charm
+    Charm,
+    // #198 D: the rest PK: signing up, betting, throwing as a spectator or fighting as an entrant.
+    PK
 };
 
 // Bounded diagnostic cause of a decision; never a coordinate or private source.
@@ -29,7 +32,9 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss, TakeCharm
+    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss, TakeCharm,
+    // #198 D: PK sign-up, bet and throw requests, an entrant's fight and its walk back inside the ring.
+    PKSignUp, PKBet, PKThrow, PKFight, PKRing
 };
 
 enum class ELDOpponentSourceSlot : uint8 { Q, W, E, Dash };
@@ -167,6 +172,8 @@ struct FLDOpponentPublicMatch
     // D27: the public 上热搜 notice; Leader invalid when nobody is named.
     FGuid Leader;
     FVector LeaderCircleCentreCm = FVector::ZeroVector;
+    // #198 D: the current rest's public PK (Serial 0: none), exactly as every participant's public view shows it.
+    FLDPKView PK;
 };
 
 enum class ELDOpponentUnitKind : uint8 { Contender, CampMember };
@@ -228,6 +235,8 @@ struct FLDOpponentDecisionFrame
     TOptional<double> CapturePathCm;
     // A build request awaits its final receipt; no second build change is proposed meanwhile.
     bool bBuildChangeInFlight = false;
+    // #198 D: when this contender may throw again in the current PK, from its own latest throw answer (0 when none).
+    int64 PKThrowReadyAtMs = 0;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
@@ -293,12 +302,28 @@ struct FLDOpponentBuildIntent
     FLDOpponentRetryKey Key;
 };
 
+// #198 D: one PK request, as a player sends it through the same server entries: join the sign-up of this rest, bet on one
+// side, or throw at a ground point of the running arena.
+enum class ELDOpponentPKKind : uint8 { None, SignUp, Bet, Throw };
+
+struct FLDOpponentPKIntent
+{
+    ELDOpponentPKKind Kind = ELDOpponentPKKind::None;
+    // Bet / Throw: the public PK serial the request is for.
+    uint32 Serial = 0;
+    // Bet: the side 1..SideCount.
+    uint8 Side = 0;
+    // Throw: the current foot of the chosen visible entrant.
+    FVector TargetCm = FVector::ZeroVector;
+};
+
 struct FLDOpponentDecision
 {
     ELDOpponentMode Mode = ELDOpponentMode::Stopped;
     ELDOpponentReason Reason = ELDOpponentReason::None;
     FLDOpponentBodyIntent Body;
     FLDOpponentBuildIntent Build;
+    FLDOpponentPKIntent PK;
 };
 
 // What a domain's final answer to one intent teaches the failure memory (OPPONENT_AI.md §3.3).
@@ -367,6 +392,10 @@ struct FLDOpponentPolicyState
     int64 TargetEngagedAtMs = 0;
     TArray<FLDOpponentVisit> Visits;
     FLDOpponentRetryLedger Failures;
+    // #198 D: each PK request family is sent once whatever its answer (no retry storm): the rest whose sign-up and the PK
+    // serial whose bet this adapter already sent.
+    int32 PKSignUpRest = INDEX_NONE;
+    uint32 PKBetSerial = 0;
 };
 
 enum class ELDCampCostStatus : uint8 { Ok, NotFeasible, EstimateUnavailable };
@@ -458,6 +487,24 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
     // True when the own foot is inside the public capture circle of the frame's static capture POI.
     LOCKDOWN_API bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog);
+    // ---- #198 D rest PK (OPPONENT_AI.md §6.6; issue #198 comment 6752601175 §2-§6): deterministic, public reads only ----
+    // The PK sign-up window of a build step is open at Public.NowMs (from SignupOpensAtMs until before StepEndsAtMs) and
+    // Self does not stand in the public sign-up yet. Every AI signs up; there is no chance.
+    LOCKDOWN_API bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self);
+    // Self's public bet side in this PK; 0 without one.
+    LOCKDOWN_API uint8 PKOwnBetSide(const FLDPKView& PK, const FGuid& Self);
+    // The side to bet on in the betting step: the lowest-seat entrant's side, for an eligible bettor without a public bet; 0
+    // otherwise.
+    LOCKDOWN_API uint8 PKBetSide(const FLDOpponentPublicMatch& Public, const FGuid& Self);
+    // The visible contender unit of the lowest seat among the living entrants whose side is not BetSide and whose foot lies
+    // within ThrowRangeCm (XY) of the public throw anchor; nullptr when none of them is in this observation frame.
+    LOCKDOWN_API const FLDOpponentUnit* PKThrowTarget(const FLDPKView& PK, uint8 BetSide, const TArray<FLDOpponentUnit>& Units,
+        double ThrowRangeCm);
+    // Other is a locked entrant on Self's side (only the team format shares a side); never Self itself.
+    LOCKDOWN_API bool IsPKTeammate(const FLDPKView& PK, const FGuid& Self, const FGuid& Other);
+    // An entrant at FootCm must walk back toward the arena centre at NowMs: outside the current safe radius, or outside the
+    // previewed next radius while one is shown (LDPKRules on the approved ring parameters). False before the fight starts.
+    LOCKDOWN_API bool PKRingRetreat(const FLDPKParameters& Params, const FLDPKView& PK, const FVector& FootCm, int64 NowMs);
     LOCKDOWN_API uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame,
         const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State);

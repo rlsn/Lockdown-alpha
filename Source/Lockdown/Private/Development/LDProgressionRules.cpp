@@ -349,11 +349,13 @@ ELDGrowthReason LDProgression::UnspentPoints(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
-    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent) || Build.PermanentSpentPoints < 0)
+    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent) || Build.PermanentSpentPoints < 0
+        || Build.AwardedPoints < 0)
     {
         return ELDGrowthReason::DataInvalid;
     }
-    if (!ProgressionCheckedAdd(Spent, Build.PermanentSpentPoints, Spent))
+    // #198 session D: PK participation, winner and betting points add to the earned ones.
+    if (!ProgressionCheckedAdd(Spent, Build.PermanentSpentPoints, Spent) || !ProgressionCheckedAdd(Earned, Build.AwardedPoints, Earned))
     {
         return ELDGrowthReason::ArithmeticOverflow;
     }

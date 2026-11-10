@@ -400,6 +400,8 @@ void ALDGameMode::Logout(AController* Exiting)
         RestSignups.Remove(Session);
         PendingPhasePlacement.Remove(Session);
         RestLives.Remove(Session);
+        // #198 session D: a PK entrant that leaves forfeits (ALDPKDirector reads presence at its next judgement).
+        PKLives.Remove(Session);
         RestReturns.Remove(Session);
         RetireTrainingDummy(Session);
         Record->State.bActive=false;

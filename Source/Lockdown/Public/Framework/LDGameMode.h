@@ -127,7 +127,9 @@ public:
     // A rest of the current match is running (any step); the world (camps, Boss, airdrop, leader) is frozen.
     bool IsRestPhase(const FLDMatchContext& Context) const;
     // The rest return countdown: build and every input (orders, attacks, casts, dash) are locked.
-    bool IsInputLocked(const FLDMatchContext& Context) const;
+    // #198 session D: the PK ready countdown locks every input too, and while the PK runs only PK lives act (spectators
+    // and the eliminated watch). Contender: the acting contender (invalid: judged as a non-PK life).
+    bool IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender = FGuid()) const;
     // Build-command stage for the growth domain: Live in the field, Rest in the open rest steps (build/training and the
     // payout), RestLocked in every other rest step, Closed otherwise.
     LDProgression::EMatchStage ReadBuildStage(const FLDMatchContext& Match) const;
@@ -161,6 +163,27 @@ public:
     bool FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error);
     // Whether a contender currently stands in its private rest space (rest life), not in the field.
     bool IsInRestSpace(const FGuid& Contender) const;
+    // ---- #198 session D: PK lives (Framework/LDGameModePK.cpp). A PK life is a rest-phase life in the arena: no capture
+    // eligibility, no protection, no field respawn; its death returns the contender to its rest space at once. ----
+    struct FLDPKPlacement
+    {
+        FGuid Contender;
+        FName Anchor;
+        FGuid Group;
+        uint8 Side = 0;
+    };
+    // RespawnsAndWorld: each listed contender's rest life retires and a PK life stands at its anchor in Group with Side,
+    // at full resources with every cooldown ready. A blocked anchor leaves that contender bodiless (OutBlocked); it
+    // returns to its rest space through the pending phase placement. False only on an authority fault.
+    bool EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit, TArray<FGuid>& OutBlocked,
+        FString& Error);
+    // RespawnsAndWorld: every living PK life retires and stands again in its rest space (blocked: pending placement).
+    bool ReturnPKLivesToRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool IsPKLife(const FGuid& Contender) const { return PKLives.Contains(Contender); }
+    // The current living body of a contender and its committed foot; false when it has none.
+    bool ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBody, FVector& OutFootCm) const;
+    bool IsContenderPresent(const FGuid& Contender) const { return IsMemberPresent(Contender); }
+    const TArray<FGuid>& GetRosterOrder() const { return RosterOrder; }
     // ---- #198 personal training dummy (coordinator decision under the user's delegation): the existing contender
     // chassis at the owner's current level with no build, in the owner's rest isolation group, never dies (refills at 0
     // HP), grants nothing; only its owner sees and reaches it. It exists while the owner's rest life stands. ----
@@ -278,6 +301,8 @@ public:
     bool ResetCombatMatch(const FLDMatchReset& Reset, FString& Error);
     // Camps: spawned and destroyed by the Camps match provider (World/LDCampDirector.cpp).
     UPROPERTY() TObjectPtr<class ALDCampDirector> Camps;
+    // #198 session D: the optional PK provider's director of this match (PK/LDPKDirector.h); null without the provider.
+    UPROPERTY() TObjectPtr<class ALDPKDirector> PKDirector;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV test session (Transactions permit, Development only): the flagpole opens at this boundary's Capture phase
     // instead of after the full development time (FLDCaptureReducer::DevOpenAt); spray, guard and every rule stay.
@@ -488,6 +513,8 @@ private:
     TMap<FGuid, FLDRestReturn> RestReturns;
     // Contenders whose current life is a rest life (private rest space, no capture eligibility).
     TSet<FGuid> RestLives;
+    // #198 session D: contenders whose current life is a PK life in the arena.
+    TSet<FGuid> PKLives;
     // Contenders still waiting for a rest/field placement that was blocked at its boundary (retried every boundary).
     TSet<FGuid> PendingPhasePlacement;
     struct FLDTrainingDummy
