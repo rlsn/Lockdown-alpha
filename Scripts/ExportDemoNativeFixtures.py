@@ -929,7 +929,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
         ("world_wrong_surface", lambda w: w["anchors"][0].update({"surface_id": "missing_surface"}), "unknown surface"),
         ("world_duplicate_home", lambda w: low_camp(w)["members"].__setitem__(1, deepcopy(low_camp(w)["members"][0])), "duplicate"),
         ("world_member_count", lambda w: low_camp(w)["members"].pop(), "member-home count"),
-        ("world_out_of_bounds", lambda w: w["anchors"][0]["position_cm"]["x"].update({"numerator": 6000}), "outside"),
+        ("world_out_of_bounds", lambda w: w["anchors"][0]["position_cm"]["y"].update({"numerator": 6000}), "outside"),
         ("world_bad_bounds", lambda w: w["geometry"]["surfaces"][0]["max_cm"]["x"].update({"numerator": -5000}), "nonempty"),
         ("world_bad_flags", lambda w: w["geometry"]["blockers"][0].update({"blocks_movement": False, "blocks_sight": False}), "stops movement"),
         ("world_unknown_field", lambda w: w["anchors"][0].update({"home_default": True}), "unknown field"),
