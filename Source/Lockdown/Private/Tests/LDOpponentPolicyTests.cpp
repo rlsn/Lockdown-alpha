@@ -2729,13 +2729,13 @@ bool RunPickAndEnable(FAutomationTestBase& Test)
     ELDDemoElement Element = ELDDemoElement::Electric;
     bool bGood = Test.TestTrue(TEXT("A plain base component is usable without a binding"),
         LDOpponentPolicy::ComponentUsable(Self, *Fire, Bound, Element) && Bound.IsEmpty() && Element == ELDDemoElement::None);
-    bGood &= Test.TestFalse(TEXT("Water and electric are skipped (ElementUnsupported)"),
-        LDOpponentPolicy::ComponentUsable(Self, *Water, Bound, Element) || LDOpponentPolicy::ComponentUsable(Self, *Shock, Bound, Element));
+    bGood &= Test.TestTrue(TEXT("Water and electric base components are usable like any other"),
+        LDOpponentPolicy::ComponentUsable(Self, *Water, Bound, Element) && LDOpponentPolicy::ComponentUsable(Self, *Shock, Bound, Element));
     bGood &= Test.TestFalse(TEXT("B18 without a bindable learned active is skipped (InvalidTarget)"),
         LDOpponentPolicy::ComponentUsable(Self, *Trick, Bound, Element));
     if (Unbindable) { Self.Actives.Add({Unbindable->Id, 0}); }
     Self.Actives.Add({Bindable, 1});
-    bGood &= Test.TestTrue(TEXT("B18 binds the first bindable learned active (Q/W/E order) with fire"),
+    bGood &= Test.TestTrue(TEXT("B18 binds the first bindable learned active (Q/W/E order) with its first listed element (fire)"),
         LDOpponentPolicy::ComponentUsable(Self, *Trick, Bound, Element) && Bound == Bindable && Element == ELDDemoElement::Fire);
 
     // Opening base: the first option in catalog order the AI can enable now.
@@ -2743,27 +2743,33 @@ bool RunPickAndEnable(FAutomationTestBase& Test)
     Self.OpeningBaseOptions = {TEXT("component_fist_water"), TEXT("component_fist_shock"), TEXT("component_dash_punch")};
     FString Picked;
     FString Error;
-    bGood &= Test.TestTrue(TEXT("Closed elements are passed over for the next option: ") + Error,
-        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_dash_punch") && Bound.IsEmpty());
+    bGood &= Test.TestTrue(TEXT("A water option is picked like any other: ") + Error,
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_water") && Bound.IsEmpty());
     Self.OpeningBaseOptions = {TEXT("component_fist_fire"), TEXT("component_dash_punch")};
     bGood &= Test.TestTrue(TEXT("The first usable option in catalog order wins"),
         LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_fire"));
-    Self.OpeningBaseOptions = {TEXT("component_fist_water")};
+    Self.OpeningBaseOptions = {TEXT("component_dirty_trick")};
+    const TArray<FLDOpponentActive> HeldActives = Self.Actives;
+    Self.Actives.Reset();
     bGood &= Test.TestFalse(TEXT("No usable option picks nothing, never a refused one"),
         LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error));
+    Self.Actives = HeldActives;
     Self.OpeningBaseOptions = {TEXT("component_unknown")};
     bGood &= Test.TestFalse(TEXT("An unknown option is refused, never defaulted"),
         LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error));
     Self.bOpeningBasePending = false;
     Self.OpeningBaseOptions.Reset();
 
-    // Enabling: every owned, never-installed component in catalog order; installed, moved and closed ones are skipped.
+    // Enabling: every owned, never-installed component in catalog order; installed and moved ones are skipped.
     Self.Components = {Owned(TEXT("component_dirty_trick"), false, false), Owned(TEXT("component_dash_bump"), false, true),
         Owned(TEXT("component_fist_water"), false, false), Owned(TEXT("component_hard_skin"), false, false),
         Owned(TEXT("component_tab_ledger"), true, true)};
     bGood &= Test.TestTrue(TEXT("The first fresh usable component in catalog order: ") + Error,
         LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_hard_skin"));
     Self.Components[3].bInstalled = Self.Components[3].bEverInstalled = true;
+    bGood &= Test.TestTrue(TEXT("Then B10 water"),
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_water"));
+    Self.Components[2].bInstalled = Self.Components[2].bEverInstalled = true;
     bGood &= Test.TestTrue(TEXT("Then B18 with its binding"),
         LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_dirty_trick")
         && Bound == Bindable && Element == ELDDemoElement::Fire);

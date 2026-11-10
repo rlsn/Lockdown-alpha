@@ -1370,7 +1370,6 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool 
     case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
     case ELDGrowthReason::SlotOccupied: return LDTerms::ReplaceAtRest;
     case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
-    case ELDGrowthReason::ElementUnsupported: return LDTerms::ElementClosed;
     default: return GrowthReasonText(Reason);
     }
 }
@@ -1449,18 +1448,6 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     default: return Missing;
     }
 }
-ELDGrowthReason LDHUD::ElementGate(ELDDemoElement Element)
-{
-    return Element==ELDDemoElement::Water||Element==ELDDemoElement::Electric?ELDGrowthReason::ElementUnsupported:ELDGrowthReason::None;
-}
-ELDGrowthReason LDHUD::ComponentElementGate(const FLDDemoComponentDefinition& Component)
-{
-    for(const FLDDemoEffectDefinition& Effect:Component.Effects)
-    {
-        if(ElementGate(Effect.Element)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
-    }
-    return ELDGrowthReason::None;
-}
 FString LDHUD::ElementName(ELDDemoElement Element)
 {
     switch(Element)
@@ -1515,7 +1502,6 @@ ELDGrowthReason LDHUD::ComponentEnableReason(const FLDComponentInstanceView& Ins
     const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
     if(!Component){return ELDGrowthReason::DataNotReady;}
     if(Component->Kind!=ELDDemoComponentKind::Base){return ELDGrowthReason::InvalidTarget;}
-    if(ComponentElementGate(*Component)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
     if(Component->Binding==ELDDemoComponentBinding::ActiveElement&&BindableActives(*Component,Progression).IsEmpty()){return ELDGrowthReason::InvalidTarget;}
     return ELDGrowthReason::None;
 }
@@ -1635,7 +1621,6 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NotInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("还没有启用");
     case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
     case ELDGrowthReason::InvalidTarget: return TEXT("安装位置或绑定无效");
-    case ELDGrowthReason::ElementUnsupported: return LDTerms::ElementClosed;
     case ELDGrowthReason::OpeningBaseUnavailable: return FString(TEXT("这个"))+LDTerms::Component+TEXT("不在开局可选范围内");
     case ELDGrowthReason::OpeningBaseTaken: return FString(TEXT("开局基础"))+LDTerms::Component+TEXT("已经选过了");
     case ELDGrowthReason::OpeningActiveFirst: return FString(TEXT("先选开局技能，再选开局基础"))+LDTerms::Component;

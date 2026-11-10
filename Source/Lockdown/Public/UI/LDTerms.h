@@ -106,7 +106,6 @@ inline constexpr TCHAR Components[]=TEXT("构件（拿到后脱战启用）");
 inline constexpr TCHAR ComponentEnabled[]=TEXT("已启用");
 inline constexpr TCHAR EnableComponent[]=TEXT("启用");
 inline constexpr TCHAR ReinstallAtRest[]=TEXT("休息时才能重新安装");
-inline constexpr TCHAR ElementClosed[]=TEXT("该元素尚未开放");
 inline constexpr TCHAR NoBindableActive[]=TEXT("先学会一个能绑定的伤害技能");
 inline constexpr TCHAR PickBoundActive[]=TEXT("绑定哪个技能：");
 inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");

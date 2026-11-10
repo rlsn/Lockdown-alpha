@@ -101,11 +101,6 @@ bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, con
     return false;
 }
 
-bool ProgressionUnsupportedElement(ELDDemoElement Element)
-{
-    return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric;
-}
-
 void ProgressionSortBuild(FLDGrowthBuild& Build)
 {
     Build.Actives.Sort([](const FLDLearnedActive& A, const FLDLearnedActive& B) { return A.Slot < B.Slot; });
@@ -1062,20 +1057,10 @@ ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitio
         {
             return ELDGrowthReason::InvalidTarget;
         }
-        if (ProgressionUnsupportedElement(Target.Element))
-        {
-            return ELDGrowthReason::ElementUnsupported;
-        }
     }
     else if (!Target.BoundActive.IsNone() || Target.Element != ELDDemoElement::None)
     {
         return ELDGrowthReason::InvalidTarget;
-    }
-    // Water (wet) and electric (shocked) have no element state before #198 A: such a component never reaches Combat.
-    if (Definition->Effects.ContainsByPredicate(
-        [](const FLDDemoEffectDefinition& Effect) { return ProgressionUnsupportedElement(Effect.Element); }))
-    {
-        return ELDGrowthReason::ElementUnsupported;
     }
     return ELDGrowthReason::None;
 }
