@@ -3340,8 +3340,49 @@ bool RestFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& C, FLDOp
     Out.Public.Phase = ELDMatchPhase::Rest;
     Out.Public.Timeline.Stage = ELDMatchStage::Rest;
     Out.Public.Timeline.Step = ELDRestStep::Build;
+    // A mid rest (R1); the opening rest R0 differs only for the NPC (RunNpcGate).
+    Out.Public.Timeline.RestIndex = 1;
     Out.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {});
     return true;
+}
+// #198 J2 coordinator decision: the opening rest R0 never buys the NPC (its opening points go to the stats); a mid rest buys
+// only for an empty Q/W/E slot and only when the unspent points cover the price.
+bool RunNpcGate(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EKind = ELDOpponentBuildKind;
+    FLDOpponentDecisionFrame Mid;
+    if (!RestFrame(Test, C, Mid)) { return false; }
+    const int64 Price = C.Get().Parameters.NpcActivePoints;
+    if (!Test.TestTrue(TEXT("The approved content prices the NPC"), Price > 0)) { return false; }
+    Mid.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Mid.Self.UnspentPoints = Price;
+    const auto BuildOf = [&C](const FLDOpponentDecisionFrame& Of)
+    {
+        FLDOpponentPolicyState Fresh;
+        return LDOpponentPolicy::Decide(Of, C, Fresh).Build.Kind;
+    };
+    auto Opening = Mid;
+    Opening.Public.Timeline.RestIndex = 0;
+    auto Short = Mid;
+    Short.Self.UnspentPoints = Price - 1;
+    auto Full = Mid;
+    Full.Self.Actives = {{TEXT("active_elbow"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_snark_bolt"), 2}};
+    bool bGood = Test.TestTrue(TEXT("A mid rest with an empty slot and the price buys the NPC offer"),
+        LDOpponentPolicy::WantsNpcOffer(Mid.Self, C, 1) && BuildOf(Mid) == EKind::BuyNpcOffer);
+    for (uint8 Index = 2; Index <= 3; ++Index)
+    {
+        bGood &= Test.TestTrue(FString::Printf(TEXT("R%u buys like R1"), Index), LDOpponentPolicy::WantsNpcOffer(Mid.Self, C, Index));
+    }
+    bGood &= Test.TestTrue(TEXT("The opening rest R0 spends the opening points on the stats instead"),
+        !LDOpponentPolicy::WantsNpcOffer(Opening.Self, C, 0) && BuildOf(Opening) == EKind::AllocatePoints);
+    bGood &= Test.TestTrue(TEXT("Points short of the price: no purchase"),
+        !LDOpponentPolicy::WantsNpcOffer(Short.Self, C, 1) && BuildOf(Short) == EKind::AllocatePoints);
+    bGood &= Test.TestTrue(TEXT("No empty Q/W/E slot: no purchase"),
+        !LDOpponentPolicy::WantsNpcOffer(Full.Self, C, 1) && BuildOf(Full) == EKind::AllocatePoints);
+    return bGood;
 }
 // #198 rest decisions (OPPONENT_AI.md §6.4): replacement, the components back on after a reclaim, moves to the preferred
 // placement, respec, dismantle and the NPC; each only in a rest build window, each run reaching an end.
@@ -3508,7 +3549,7 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     auto Npc = Rest;
     Npc.Self.Actives = {{TEXT("active_elbow"), 0}};
     Npc.Self.UnspentPoints = NpcPoints;
-    bGood &= Test.TestTrue(TEXT("The NPC rule holds"), LDOpponentPolicy::WantsNpcOffer(Npc.Self, C))
+    bGood &= Test.TestTrue(TEXT("The NPC rule holds"), LDOpponentPolicy::WantsNpcOffer(Npc.Self, C, 1))
         && Test.TestTrue(TEXT("An empty slot without a blueprint buys the offer before the points"), BuildOf(Npc) == EKind::BuyNpcOffer);
     bGood &= Test.TestTrue(TEXT("DecideFollowUpBuild leaves offers to its caller: it allocates instead"),
         LDOpponentPolicy::DecideFollowUpBuild(Npc, C, State, Intent) && Intent.Kind == EKind::AllocatePoints);
@@ -3690,6 +3731,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestRebuildTest, "Lockdown.Rules
 bool FLDDemoOpponentRestRebuildTest::RunTest(const FString& Parameters)
 {
     return LDOpponentComponentTests::RunRestRebuild(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentNpcGateTest, "Lockdown.Rules.DemoOpponentPolicy.NpcGate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentNpcGateTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunNpcGate(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentTrainingTest, "Lockdown.Rules.DemoOpponentPolicy.Training",
