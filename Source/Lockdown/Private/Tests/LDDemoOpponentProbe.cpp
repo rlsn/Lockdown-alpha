@@ -128,16 +128,19 @@ public:
     bool RosterKept = true, ReadsKept = true;
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
-    // #198: each AI's current rest life in its private rest space during the opening rest R0 and that life's foot at its
-    // first sample, the largest drift seen before field 1, the AIs seen on a PK life in R0 (evidence only), and the ms
-    // since the match start (R0) at which each AI's opening choice was first seen.
+    // #198: each AI's current rest life in its private rest space during the opening rest R0, that life's foot at its first
+    // sample and whether it has decided to train on its own dummy (§6.4: the only reason to move there), the largest drift
+    // seen before that decision, the AIs seen training or on a PK life in R0 (evidence only), and the ms since the match
+    // start (R0) at which each AI's opening choice was first seen.
     struct FRest0Foot
     {
         uint32 Life = 0;
         FVector Foot = FVector::ZeroVector;
+        bool bTrained = false;
     };
     TMap<FGuid, FRest0Foot> Rest0AIFeet;
     TSet<FGuid> Rest0PKEntrants;
+    TSet<FGuid> Rest0Trainers;
     TMap<FGuid, int64> Rest0Picks;
     double MaxRest0AIDriftCm = 0;
     int32 Rest0Samples = 0;
@@ -762,10 +765,11 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 no opponent AI moves in its private rest space (sampled on the authority until
-        // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights
-        // on a PK life in the arena during the PK step (approved R0 PK); that life is not a rest-space body, and the
-        // rest life it returns to afterwards is measured from its own first sample.
+        // #198: through the opening rest R0 an opponent AI moves in its private rest space only to train on its own dummy
+        // once nothing is left to build (OPPONENT_AI.md §6.4; sampled on the authority until field 1); each picks its opening
+        // active in the R0 build step after its drawn delay. An AI that signed up fights on a PK life in the arena during the
+        // PK step (approved R0 PK); that life is not a rest-space body, and the rest life it returns to afterwards is
+        // measured from its own first sample.
         if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
             && Mode->GetTimeline().GetRestIndex() == 0)
         {
@@ -773,6 +777,8 @@ bool FLDDemoOpponentProbe::Tick()
             {
                 const FGuid Id = Mode->ContenderId(*It);
                 if (Mode->IsPKLife(Id)) { Rest0PKEntrants.Add(Id); }
+                const bool bTraining = It->GetReportedReason() == ELDOpponentReason::Train;
+                if (bTraining) { Rest0Trainers.Add(Id); }
                 const APawn* Pawn = It->GetPawn();
                 FLDContenderLifeRead Life;
                 FString ReadError;
@@ -781,12 +787,15 @@ bool FLDDemoOpponentProbe::Tick()
                 {
                     const FVector Foot = Pawn->GetActorLocation();
                     FRest0Foot& Seen = Rest0AIFeet.FindOrAdd(Id);
-                    if (Seen.Life == Life.Life) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
-                    else
+                    if (Seen.Life != Life.Life)
                     {
                         Seen.Life = Life.Life;
                         Seen.Foot = Foot;
+                        Seen.bTrained = false;
                     }
+                    // The training order may outlive the decision that sent it, so a life that trained is not measured again.
+                    Seen.bTrained |= bTraining;
+                    if (!Seen.bTrained) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
                 }
                 const FLDProgressionView Growth = Mode->Development->ReadProgression(Id);
                 if (Growth.ActiveOpportunitiesConsumed == 1 && !Rest0Picks.Contains(Id))
@@ -805,10 +814,11 @@ bool FLDDemoOpponentProbe::Tick()
         if (bHost)
         {
             Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1.,
-                TEXT("No opponent AI moves in its private rest space during the opening rest R0"));
+                TEXT("No opponent AI moves in its private rest space during the opening rest R0 except to train on its own dummy"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
             Summary->SetNumberField(TEXT("rest0_ai_drift_cm"), MaxRest0AIDriftCm);
             Summary->SetNumberField(TEXT("rest0_pk_entrants"), Rest0PKEntrants.Num());
+            Summary->SetNumberField(TEXT("rest0_trainers"), Rest0Trainers.Num());
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
         if (!Passed) { return Finish(); }

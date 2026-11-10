@@ -372,6 +372,8 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             Hit.PackageScaleBp=Dash.ContactScaleBp;
             if (!StampSourceTerms(*Body, Hit, Error)) { return false; }
             PendingHits.Add(MoveTemp(Hit));
+            // §10: one B05 trigger per contacted body (the contact is its proc).
+            LedgerComponentTriggered(*Body, Held->Source.DefinitionId);
         }
         // #198 F C04: the contacted body is pushed along the dash, once per action and target (Struck).
         if (Dash.bCanKnock)
@@ -441,6 +443,7 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
                 Body.ContactRefundReadyAtMs=Ready;
                 GrantMana(Body, FMath::Min(Share(Dash.PaidManaP2, Refund->SecondaryRatioBp), Refund->LimitP2));
                 MarkViewChanged(Body.Victim.EntityId);
+                LedgerComponentTriggered(Body, Held->Source.DefinitionId);
             }
         }
     }

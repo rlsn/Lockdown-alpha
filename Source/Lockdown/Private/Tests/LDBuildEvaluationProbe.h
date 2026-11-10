@@ -24,6 +24,8 @@ struct FLDEvalContenderPlan
     // Conditional preparation: one-to-three-active offers queued (DevQueueOffer) for the next opportunities from ordinal 2,
     // oldest first.
     TArray<TArray<FName>> Presets;
+    // #198 workshop plan (empty: the production follow-up rule builds), in order.
+    TArray<FLDEvaluationBuildStep> Build;
 };
 
 struct FLDEvalCase
@@ -50,12 +52,13 @@ struct FLDEvalRunInput
 namespace LDBuildEvaluation
 {
     inline constexpr TCHAR InputSchema[] = TEXT("lockdown.build_evaluation.native_input");
-    inline constexpr int32 InputSchemaVersion = 2;
+    inline constexpr int32 InputSchemaVersion = 3;
     inline constexpr TCHAR ResultSchema[] = TEXT("lockdown.build_evaluation.native_result");
     inline constexpr TCHAR RunSchema[] = TEXT("lockdown.build_evaluation.native_run");
-    inline constexpr int32 ResultSchemaVersion = 2;
+    inline constexpr int32 ResultSchemaVersion = 3;
     inline constexpr int32 MaxCases = 500;
     inline constexpr int32 MaxChoices = 16;
+    inline constexpr int32 MaxBuildSteps = 32;
     // The duel needs exactly two AI slots; the evaluation Host is the only human and never fights.
     inline constexpr int32 DuelAISlots = 2;
     inline bool KillAtOrBeforeHorizon(int64 StartedAtMs, int64 DuelTimeoutMs, int64 OccurredAtMs)

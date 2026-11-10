@@ -208,7 +208,8 @@ namespace LDProgression
     // Build has the shape this catalog allows: one point count per stat, no negative permanent spend, at most three distinct
     // known actives in distinct slots 0..2, distinct known blueprints sorted by id that are not learned, and distinct known
     // components sorted by id whose source, history and install target are legal (installed implies ever installed; an
-    // inventory instance has no target; only a base component is installed, with the binding its definition takes).
+    // inventory instance has no target; an install has the shape its definition takes and sits only on a learned active, an
+    // installed host and an installed repeated base).
     LOCKDOWN_API ELDGrowthReason ValidateBuild(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
 
     // The actives opportunity Ordinal may draw for Build, in catalog order: the opening pool (abilities flagged opening)
@@ -273,15 +274,22 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyRespec(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
         uint8 EmptyPoolGrants, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded);
     // A pending blueprint learned into the occupied Slot 0..2, the active there forgotten (neither refunded nor kept as a
-    // blueprint). ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer is outstanding,
-    // SlotEmpty for an empty slot (LearnBlueprint learns into it), NoBlueprint.
+    // blueprint) and its attachments reclaimed in the same step (ReclaimAttachments; OutReclaimed, sorted by id). Nothing
+    // moves to the new active on its own. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer
+    // is outstanding, SlotEmpty for an empty slot (LearnBlueprint learns into it), NoBlueprint.
     LOCKDOWN_API ELDGrowthReason ApplyReplaceActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out,
-        FName& OutForgotten);
-    // The active in Slot 0..2 forgotten; it is eligible for later offers again. ReplacementNotAllowed outside a rest window,
-    // OfferOutstanding while an active offer is outstanding, SlotEmpty.
+        FName& OutForgotten, TArray<FName>& OutReclaimed);
+    // The active in Slot 0..2 forgotten and its attachments reclaimed in the same step (OutReclaimed); it is eligible for
+    // later offers again. ReplacementNotAllowed outside a rest window, OfferOutstanding while an active offer is
+    // outstanding, SlotEmpty.
     LOCKDOWN_API ELDGrowthReason ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten);
+        const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
+        TArray<FName>& OutReclaimed);
+    // Spec §5 (换下即遗忘，挂件退库存): every installed component on the Forgotten active (a mod/connector targeting it, a B18
+    // bound to it) and, transitively, what sits on those (a host component, C12's repeated base) returns to the inventory
+    // with its install history; never duplicated, dropped or rebound. OutReclaimed lists them sorted by id.
+    LOCKDOWN_API void ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, TArray<FName>& OutReclaimed);
 
     // ---- #198 B components ----
 

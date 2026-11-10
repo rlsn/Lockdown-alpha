@@ -201,8 +201,14 @@ namespace LDTactical
             }
             Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
         }
-        if (Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0)
+        int64 BeforeGuardP2 = 0;
+        const bool bGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0;
+        if (bGuarded)
         {
+            if (!QuantizeEvaluation(Damage, false, BeforeGuardP2, Check, TEXT("BeforeGuardP2")))
+            {
+                return Fail(EError::Overflow, TEXT("BeforeGuardP2"), MathError);
+            }
             const auto Flat = Numbers.Value(Input.PrimaryGuardP2);
             const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.PrimaryGuardCapBp, 10000));
             Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
@@ -212,9 +218,11 @@ namespace LDTactical
         {
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
+        int64 GuardCutP2 = bGuarded ? FMath::Max<int64>(0, BeforeGuardP2 - Value.DamageP2) : 0;
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
-        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; BraceCutP2 = 0; }
+        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; BraceCutP2 = 0; GuardCutP2 = 0; }
         Value.BraceCutP2 = BraceCutP2;
+        Value.GuardCutP2 = GuardCutP2;
         // #198 F M12: the deferred share leaves before the shield; it is paid later at its original amount.
         Value.DeferredP2 = Value.DamageP2 / 10000 * Input.DeferRatioBp + Value.DamageP2 % 10000 * Input.DeferRatioBp / 10000;
         Value.DamageP2 -= Value.DeferredP2;

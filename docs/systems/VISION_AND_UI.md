@@ -193,7 +193,8 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
   顶层为 `origin`（`auto`/`export`）、`complete`、`product_version`、`recorded_at_utc`（本机收到时的 UTC，保留按它排序）、
   `rules`（协议版本、目录根摘要与 schema/handler/projection 修订）、`match`（公开 ResultId、模式、结束原因、胜负、毫秒时刻）、
   `player`（最终等级与 K/D/A）、`final_build`（最后版本的结构与修订）和 `versions`（每个版本的修订、时间段、等级、`dev_layer`、
-  结构与 `facts`）。结构的 `components` 与每个事实都带 `collected`；未采集时值为 `null`。不含参赛者 ID、账号、地址、原始 trace、
+  结构与 `facts`）。结构的 `components` 与每个事实都带 `collected`；当前写入者全部采集（构件为已安装构件及其 `host` 与按键排序的
+  安装参数 `target_kind`/`element`/`bound_component`，没有安装时为空列表），早期写入者未采集的项值为 `null`，读取时照原样保留。不含参赛者 ID、账号、地址、原始 trace、
   未来种子或别人的构筑。
 - **保存与保留**（`LDBuildBlueprintStore`）：拥有者在本机 `FPaths::ProjectSavedDir()/Blueprints/match-<ResultId>.ldbuild.json` 写入，
   先写同目录临时文件并回读，再移动到位并回读；成功后才清理：只处理该目录内、文件名就是自身 Match ID、通过严格校验且 `origin=auto`
@@ -330,9 +331,9 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   动作格的冷却/法力不足/受控/空槽/准备态分类、法力消耗/等级数字与图标首字、本命之后的死因取值，以及击杀通知里本人写作“你”。
 - `HUDScoreboard`（`LDHUDRulesTests`）覆盖按住 Tab 的排行榜：击杀多在前、相同时死亡少在前、再相同保持名单顺序，本人/AI/已离开的名字标注，
   别的代次或没有对局时为空。`DemoCapture` 规则测试另拒绝无效 ID、重复参赛者或超过 6 行的 `KillFeed.Scores`。
-- `Lockdown.Rules.BuildBlueprint.{Serialize,Validate,Prune}`（`LDBuildBlueprintTests`）覆盖构筑蓝图的规范序列化与往返（未采集为 `null`、
-  组件未采集、不含参赛者身份）、读取拒绝（超 2 MiB、非 UTF-8 与超长编码、非 JSON、错误 schema、未知版本、缺字段、非法槽位、
-  未采集填 0、未知 origin 与未知字段）、目录与失效安装提示，以及只清理本 schema 的自动记录（按时间最旧、50 份与总字节上限，
+- `Lockdown.Rules.BuildBlueprint.{Serialize,Validate,Prune,Components}`（`LDBuildBlueprintTests`）覆盖构筑蓝图的规范序列化与往返（未采集为 `null`、
+  构件为空列表、不含参赛者身份）、读取拒绝（超 2 MiB、非 UTF-8 与超长编码、非 JSON、错误 schema、未知版本、缺字段、非法槽位、
+  未采集填 0、未知 origin 与未知字段、未知安装参数或元素）、目录与失效安装提示（含构件、宿主与复用基础件），以及只清理本 schema 的自动记录（按时间最旧、50 份与总字节上限，
   导出、未知版本、损坏与他人文件不动）和超过 2 MiB 时不截断、不写入、旧蓝图保留。
 - `HUDEventFeed`（`LDHUDRulesTests`）覆盖左下（小地图上方）事件播报：中途进入不补播、每个公开变化只播一次且最新在下、本人行高亮、
   6 条上限与 5 s 离开、外卖被抢行在本人领取序号到达后改写、老板击败者署名、同一主人被冻结的守护归零只播一次

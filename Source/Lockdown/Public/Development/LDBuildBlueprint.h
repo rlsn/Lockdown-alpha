@@ -26,8 +26,8 @@ namespace LDBuildBlueprint
     inline constexpr int64 MaxTransferBytes = 8 * 1024 * 1024;
 }
 
-// Facts summed per build version. A fact without a producer in the current build is written as not collected (null),
-// never as 0.
+// Facts summed per build version. Every fact has a producer in Combat (LDCombatBlueprintLedger.cpp); a record written by an
+// earlier build may still mark one as not collected (null), which is never read as 0. Private training (§16.3) adds nothing.
 enum class ELDBlueprintFact : uint8
 {
     // Committed positive damage of hits credited to the player against another body, once per hit (shield-absorbed part
@@ -42,7 +42,10 @@ enum class ELDBlueprintFact : uint8
     ShieldGranted,
     // Released basic swings and ability releases.
     BasicAttacks, AbilityCasts,
-    // No producer yet: natural regeneration, debt repayment (M12), mitigated amount, component triggers and refusals.
+    // HP natural (and dorm) regeneration actually restored; M12 debt heals actually repaid; what the player's own cuts
+    // (S16 stance, primary guard) took off hostile hits; procs of installed components that committed a real result;
+    // own combat requests refused for a gameplay gate (busy, cooldown, cadence, mana, control, target, direction, range,
+    // sight).
     Regeneration, DebtRepaid, DamageReduced, Triggers, Rejections,
     Count
 };
@@ -51,7 +54,7 @@ namespace LDBuildBlueprint
 {
     // Stable JSON key of a fact (snake case, P2 amounts end in _p2).
     LOCKDOWN_API const TCHAR* FactKey(ELDBlueprintFact Fact);
-    // Whether this build has a producer for the fact.
+    // Whether this build has a producer for the fact (every fact now; a parsed record keeps what its writer stated).
     LOCKDOWN_API bool IsFactCollected(ELDBlueprintFact Fact);
 }
 
@@ -80,20 +83,25 @@ struct FLDBlueprintParameter
 struct FLDBlueprintComponent
 {
     FString Component;
-    // The active (or slot) the component is installed on; empty when it is not bound to one.
+    // What the install sits on: the learned active of a mod/connector on an active or of a B18 binding, or the host
+    // component of a mod/connector on a component; empty for a base without binding, the innate D or the holder itself.
     FString Host;
+    // The install parameters, sorted by key, only those the install has: target_kind (active, component or dash, when a
+    // mod/connector names one; a base and a holder-self mod have none, their definition tells which), element (B18: fire,
+    // water or electric) and bound_component (C12's repeated base).
     TArray<FLDBlueprintParameter> Parameters;
     bool operator==(const FLDBlueprintComponent& Other) const
     { return Component == Other.Component && Host == Other.Host && Parameters == Other.Parameters; }
 };
 
 // The committed build structure a version stands for: allocated stat points (positive counts, by stat id), the Q/W/E
-// actives (by slot) and the installed components with their binding parameters. Level is not structure.
+// actives (by slot) and the installed components (by id) with their binding parameters. Level is not structure; an
+// install, move, rebinding or uninstall is, so it starts a new version.
 struct FLDBlueprintStructure
 {
     TArray<FLDBlueprintStat> Stats;
     TArray<FLDBlueprintActive> Actives;
-    // The committed build holds no component field yet (#198 components): not collected, never an empty list.
+    // A record written before components were recorded states false and null items; this build always writes true.
     bool bComponentsCollected = false;
     TArray<FLDBlueprintComponent> Components;
     bool operator==(const FLDBlueprintStructure& Other) const
@@ -177,8 +185,9 @@ class LOCKDOWN_API FLDBuildLedger
 public:
     void Reset();
     // The version current for Contender at AtMs with Build installed; a new version starts at AtMs when Build's structure
-    // differs from the latest one. The first version of a contender starts at the authority start (0). A level-only or
-    // DEV-layer-only change stays in the current version. Returns its index.
+    // (points, actives, installed components and their binding parameters) differs from the latest one. The first version
+    // of a contender starts at the authority start (0). A level-only or DEV-layer-only change stays in the current version.
+    // Returns its index.
     int32 Observe(const FGuid& Contender, const FLDBuildProjectionInput& Build, int64 AtMs);
     // An effect released by Contender while Version was current; its later hits are credited to that version.
     void NoteEffect(const FGuid& EffectId, const FGuid& Contender, int32 Version);

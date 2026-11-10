@@ -82,8 +82,8 @@ bool ProgressionListsId(const TArray<FString>& Ids, FName Id)
 }
 
 // The stored shape of an installed component (ValidateBuild): a base component without a target, carrying exactly the
-// binding parameters its definition takes. Whether the bound active is still learned is not part of the shape: a
-// forgotten bound active only stops new triggers.
+// binding parameters its definition takes. Whether its active, host or repeated base is still held is checked by
+// ValidateBuild itself: forgetting or uninstalling reclaims the install in the same commit (spec §5).
 bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
 {
     // #198 F: a mod or connector stores its target (no segment form) in the shape its definition accepts.
@@ -163,6 +163,33 @@ void ProgressionSortBuild(FLDGrowthBuild& Build)
     Build.Actives.Sort([](const FLDLearnedActive& A, const FLDLearnedActive& B) { return A.Slot < B.Slot; });
     Build.PendingBlueprints.Sort([](FName A, FName B) { return ProgressionIdLess(A, B); });
     Build.Components.Sort([](const FLDComponentInstance& A, const FLDComponentInstance& B) { return ProgressionIdLess(A.Id, B.Id); });
+}
+
+// #198 F: Removing grows by every installed instance that sits on one of its entries (as the host component or as C12's
+// repeated base), transitively; each id once.
+void ProgressionCloseOverAttached(const FLDGrowthBuild& Build, TArray<FName>& Removing)
+{
+    for (int32 Index = 0; Index < Removing.Num(); ++Index)
+    {
+        for (const FLDComponentInstance& Attached : Build.Components)
+        {
+            const bool bOnIt = Attached.bInstalled && ((Attached.Target.Kind == ELDComponentTargetKind::Component
+                && Attached.Target.Definition == Removing[Index]) || Attached.Target.BoundComponent == Removing[Index]);
+            if (bOnIt && !Removing.Contains(Attached.Id)) { Removing.Add(Attached.Id); }
+        }
+    }
+}
+
+// Back to the inventory with their history: a later install is a rest-window move, never a first install.
+void ProgressionReturnToInventory(FLDGrowthBuild& Build, const TArray<FName>& Ids)
+{
+    for (const FName& Id : Ids)
+    {
+        FLDComponentInstance* Removed = Build.FindComponent(Id);
+        check(Removed);
+        Removed->bInstalled = false;
+        Removed->Target = FLDComponentTarget();
+    }
 }
 }
 
@@ -433,6 +460,20 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
             || (Instance.bInstalled && !Instance.bEverInstalled)
             || (Instance.bGapFilled && Definition->Kind == ELDDemoComponentKind::Base)
             || (Instance.bInstalled ? !ProgressionInstalledShape(*Definition, Instance.Target) : !Instance.Target.IsEmpty()))
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        // Spec §5: an install never outlives what it sits on; forgetting an active or uninstalling a host reclaims it first.
+        const FLDComponentTarget& Target = Instance.Target;
+        const auto HostInstalled = [&Build](FName Id)
+        {
+            const FLDComponentInstance* Host = Build.FindComponent(Id);
+            return Host && Host->bInstalled;
+        };
+        if (Instance.bInstalled && ((Target.Kind == ELDComponentTargetKind::Active && !Build.FindActive(Target.Definition))
+            || (!Target.BoundActive.IsNone() && !Build.FindActive(Target.BoundActive))
+            || (Target.Kind == ELDComponentTargetKind::Component && !HostInstalled(Target.Definition))
+            || (!Target.BoundComponent.IsNone() && !HostInstalled(Target.BoundComponent))))
         {
             return ELDGrowthReason::DataInvalid;
         }
@@ -850,10 +891,11 @@ ELDGrowthReason LDProgression::ApplyRespec(const FLDDemoContentDefinitions& Cont
 
 ELDGrowthReason LDProgression::ApplyReplaceActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
     const FLDProgressionState& Progression, FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out,
-    FName& OutForgotten)
+    FName& OutForgotten, TArray<FName>& OutReclaimed)
 {
     Out = Current;
     OutForgotten = NAME_None;
+    OutReclaimed.Reset();
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -880,20 +922,24 @@ ELDGrowthReason LDProgression::ApplyReplaceActive(const FLDDemoContentDefinition
     {
         return ELDGrowthReason::NoBlueprint;
     }
-    // The old active is forgotten, not stored: only a new source gives it back (Combat keeps its cooldown track).
+    // The old active is forgotten, not stored: only a new source gives it back (Combat keeps its cooldown track). What sat on
+    // it returns to the inventory in the same commit; nothing moves to the new active on its own.
     OutForgotten = Current.Actives[Index].Id;
     Out.Actives.RemoveAt(Index);
     Out.PendingBlueprints.Remove(Blueprint);
     Out.Actives.Add({Blueprint, Slot});
+    ReclaimAttachments(Out, OutForgotten, OutReclaimed);
     ProgressionSortBuild(Out);
     return ELDGrowthReason::None;
 }
 
 ELDGrowthReason LDProgression::ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-    const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten)
+    const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
+    TArray<FName>& OutReclaimed)
 {
     Out = Current;
     OutForgotten = NAME_None;
+    OutReclaimed.Reset();
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
     {
         return Reason;
@@ -917,7 +963,30 @@ ELDGrowthReason LDProgression::ApplyForgetActive(const FLDDemoContentDefinitions
     }
     OutForgotten = Current.Actives[Index].Id;
     Out.Actives.RemoveAt(Index);
+    ReclaimAttachments(Out, OutForgotten, OutReclaimed);
     return ELDGrowthReason::None;
+}
+
+void LDProgression::ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, TArray<FName>& OutReclaimed)
+{
+    OutReclaimed.Reset();
+    if (Forgotten.IsNone())
+    {
+        return;
+    }
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        const FLDComponentTarget& Target = Instance.Target;
+        const bool bOnActive = (Target.Kind == ELDComponentTargetKind::Active || Target.Kind == ELDComponentTargetKind::EffectSegment)
+            && Target.Definition == Forgotten;
+        if (Instance.bInstalled && (bOnActive || Target.BoundActive == Forgotten))
+        {
+            OutReclaimed.Add(Instance.Id);
+        }
+    }
+    ProgressionCloseOverAttached(Build, OutReclaimed);
+    ProgressionReturnToInventory(Build, OutReclaimed);
+    OutReclaimed.Sort([](FName A, FName B) { return ProgressionIdLess(A, B); });
 }
 
 // ---- #198 B components ----
@@ -1252,21 +1321,8 @@ ELDGrowthReason LDProgression::ApplyUninstallComponent(const FLDDemoContentDefin
     // Back to the inventory with its history: a later install is a rest-window move, never a first install. #198 F: the mods
     // and connectors installed on it (or repeating it, C12) come off with it, transitively.
     TArray<FName> Removing{Component};
-    for (int32 Index = 0; Index < Removing.Num(); ++Index)
-    {
-        for (FLDComponentInstance& Attached : Out.Components)
-        {
-            const bool bOnIt = Attached.bInstalled && ((Attached.Target.Kind == ELDComponentTargetKind::Component
-                && Attached.Target.Definition == Removing[Index]) || Attached.Target.BoundComponent == Removing[Index]);
-            if (bOnIt && !Removing.Contains(Attached.Id)) { Removing.Add(Attached.Id); }
-        }
-    }
-    for (const FName& Id : Removing)
-    {
-        FLDComponentInstance* Removed = Out.FindComponent(Id);
-        Removed->bInstalled = false;
-        Removed->Target = FLDComponentTarget();
-    }
+    ProgressionCloseOverAttached(Out, Removing);
+    ProgressionReturnToInventory(Out, Removing);
     return ELDGrowthReason::None;
 }
 

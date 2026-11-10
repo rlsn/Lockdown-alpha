@@ -1,5 +1,6 @@
 #include "AI/LDOpponentRequests.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDDemoContentIds.h"
 #include "Navigation/LDOrderTypes.h"
@@ -172,8 +173,8 @@ bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 
     return true;
 }
 
-bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression, uint64 RequestId,
-    FLDBuildCommand& Out, FString& Error)
+bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog,
+    uint64 RequestId, FLDBuildCommand& Out, FString& Error)
 {
     using namespace Detail;
     Out = FLDBuildCommand();
@@ -252,9 +253,10 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         {
             const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
                 [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
-            if (!Owned || Owned->bInstalled || Owned->bEverInstalled)
+            // A once-installed instance installs again only as a rest-window move; the growth gate judges that at commit.
+            if (!Owned || Owned->bInstalled)
             {
-                return Fail(Error, TEXT("The component is no longer owned and waiting for its first install."));
+                return Fail(Error, TEXT("The component is no longer owned and waiting in the inventory."));
             }
             Out.Kind = ELDBuildCommandKind::InstallComponent;
         }
@@ -367,6 +369,66 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
             return Fail(Error, TEXT("The gap target is no longer an unfilled, never-installed own component or the filler is owned."));
         }
         Out.Kind = ELDBuildCommandKind::FillGap;
+        break;
+    }
+    case ELDOpponentBuildKind::UninstallComponent:
+    {
+        const FName Component(*Intent.Component);
+        const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
+            [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
+        if (!Owned || !Owned->bInstalled || !FLDDefinitionWire::Encode(Component, Out.Component))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The component is no longer installed."));
+        }
+        Out.Kind = ELDBuildCommandKind::UninstallComponent;
+        break;
+    }
+    case ELDOpponentBuildKind::BuyNpcOffer:
+        Out.Kind = ELDBuildCommandKind::BuyNpcOffer;
+        break;
+    case ELDOpponentBuildKind::Respec:
+        Out.Kind = ELDBuildCommandKind::Respec;
+        break;
+    case ELDOpponentBuildKind::ReplaceActive:
+    {
+        const FName Blueprint(*Intent.Blueprint);
+        if (Intent.Slot > 2 || !Progression.PendingBlueprints.Contains(Blueprint)
+            || !Progression.Actives.ContainsByPredicate([&Intent](const FLDActiveSlotView& Active) { return Active.Slot == Intent.Slot; })
+            || !FLDDefinitionWire::Encode(Blueprint, Out.Blueprint))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The blueprint is no longer pending or its slot no longer holds an active."));
+        }
+        Out.Kind = ELDBuildCommandKind::ReplaceActive;
+        Out.Slot = Intent.Slot;
+        break;
+    }
+    case ELDOpponentBuildKind::Dismantle:
+    {
+        // #198 G: exactly GROWTH.DismantleInputCount distinct, still-owned common components (scarce ones are never taken).
+        if (Intent.Surrendered.Num() != Catalog.Get().Parameters.DismantleInputCount)
+        {
+            return Fail(Error, TEXT("A dismantle gives up exactly the approved number of components."));
+        }
+        for (int32 Index = 0; Index < Intent.Surrendered.Num(); ++Index)
+        {
+            const FString& Id = Intent.Surrendered[Index];
+            const FName Component(*Id);
+            const FLDDemoComponentDefinition* Definition = nullptr;
+            FString Ignored;
+            const bool bRepeated = Intent.Surrendered.IndexOfByPredicate(
+                [&Id](const FString& Other) { return Other.Equals(Id, ESearchCase::CaseSensitive); }) != Index;
+            const bool bOwned = Progression.Components.ContainsByPredicate(
+                [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
+            if (Id.IsEmpty() || bRepeated || !bOwned || !Catalog.FindComponent(Id, Definition, Ignored) || !Definition
+                || Definition->Pool != ELDDemoComponentPool::Common || !FLDDefinitionWire::Encode(Component, Out.Surrendered.AddDefaulted_GetRef()))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("A dismantle gives up only distinct, still-owned common components."));
+            }
+        }
+        Out.Kind = ELDBuildCommandKind::Dismantle;
         break;
     }
     default:

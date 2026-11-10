@@ -1580,10 +1580,10 @@ bool GrowthTestRunComponentInstances(FAutomationTestBase& Test)
     const FName Fire(TEXT("component_fist_fire")), Ledger(TEXT("component_tab_ledger")), Spiky(TEXT("component_spiky_hide"));
     const FName Dirty(TEXT("component_dirty_trick"));
     const FName Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out"));
-    // The bound active need not be learned: a forgotten bound active only stops new triggers, it never invalidates the build.
+    // A B18 is bound to a learned active; forgetting it reclaims the B18 (spec §5), so a lost bound active is never valid.
     const FLDGrowthBuild Good = GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::LevelUp, 2),
         GrowthTestInstance(Fire, ESource::OpeningPick, 1, true),
-        GrowthTestInstance(Dirty, ESource::LevelUp, 3, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))});
+        GrowthTestInstance(Dirty, ESource::LevelUp, 3, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))}, {{Elbow, 0}});
     bool bGood = GrowthTestReason(Test, TEXT("An opening pick, two level-up grants and a bound B18"), LDProgression::ValidateBuild(Content, Good),
         ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("NormalizeBuild orders the instances by id"), Good.Components.Num() == 3
@@ -1616,6 +1616,8 @@ bool GrowthTestRunComponentInstances(FAutomationTestBase& Test)
         {TEXT("an installed B18 without its binding"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Dirty, ESource::LevelUp, 2, true)})},
         {TEXT("an installed B18 bound to an active outside its list"), GrowthTestComponentBuild(Content, 3,
             {GrowthTestInstance(Dirty, ESource::LevelUp, 2, true, GrowthTestBinding(BailOut, ELDDemoElement::Fire))})},
+        {TEXT("an installed B18 whose bound active is not learned"), GrowthTestComponentBuild(Content, 3,
+            {GrowthTestInstance(Dirty, ESource::LevelUp, 2, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))})},
         {TEXT("a binding on a base that takes none"), GrowthTestComponentBuild(Content, 3,
             {GrowthTestInstance(Fire, ESource::LevelUp, 2, true, GrowthTestBinding(Elbow, ELDDemoElement::Fire))})},
         {TEXT("an installed base on a target"), GrowthTestComponentBuild(Content, 3, {GrowthTestInstance(Spiky, ESource::LevelUp, 2, true, OnActive)})}};

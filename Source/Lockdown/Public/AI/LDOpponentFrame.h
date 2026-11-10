@@ -20,8 +20,9 @@ namespace LDOpponentFrame
     // Currently authorized units of one observation frame; fields outside the authorized mask stay unset.
     LOCKDOWN_API bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration,
         const FLDDemoContentSnapshot& Catalog, TArray<FLDOpponentUnit>& Out, FString& Error);
-    // Own actives, blueprints, stat points, the current active offer and (#198 B) the owned components and opening base pick;
-    // derived attributes come from the shared pure projection over the allocated points and installed components.
+    // Own actives, blueprints, stat points, the current active offer and queued opportunities, and (#198 B) the owned
+    // components (with their placement) and opening base pick; derived attributes come from the shared pure projection over
+    // the allocated points and installed components.
     LOCKDOWN_API bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentSelf& Out, FString& Error);
     // Own resources, basic readiness, Root, the build safe window and active-source readiness exactly as Combat reports them.
