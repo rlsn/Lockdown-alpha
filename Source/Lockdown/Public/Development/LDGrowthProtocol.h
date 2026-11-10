@@ -23,9 +23,14 @@ UENUM()
 enum class ELDReceiptLookup : uint8 { None = 0, Pending = 1, Final = 2, NotFound = 3, ReceiptExpired = 4, InvalidContext = 5 };
 
 // #198 build commands: choose one active of the current active offer, learn a pending blueprint into an empty Q/W/E slot,
-// or allocate unspent points across the stats.
+// or allocate unspent points across the stats; in a rest window also the rest services: buy an NPC active offer, respec
+// the allocated points, replace a learned active with a pending blueprint, or forget a learned active.
 UENUM()
-enum class ELDBuildCommandKind : uint8 { None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3 };
+enum class ELDBuildCommandKind : uint8
+{
+    None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
+    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23
+};
 
 // What an applied ActiveChoice or LearnBlueprint did with its active.
 UENUM()
@@ -34,8 +39,7 @@ enum class ELDBuildChoiceResult : uint8 { None = 0, Learned = 1, StoredAsBluepri
 enum class ELDRewardOutcome : uint8 { None = 0, Granted = 1, NoReward = 2, RetryableNotCommitted = 3, PermanentlyRejected = 4 };
 
 // Travels as UPROPERTY uint16 Reason; read through LDGrowthWire::Reason. Retired numbers stay reserved: 40 NoOffer,
-// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198), and 48
-// (ReplacementNotAllowed) for the rest-only replacement of #198 PR5.
+// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198).
 enum class ELDGrowthReason : uint16
 {
     None = 0,
@@ -43,11 +47,24 @@ enum class ELDGrowthReason : uint16
     NotContender = 7, CatalogMismatch = 8, NotAuthority = 9, Dead = 10,
     RequestConflict = 20, OutOfOrder = 21, ReceiptExpired = 22, RequestInFlight = 23,
     UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44, BuildStale = 45,
+    // #198: replacing or forgetting a learned active outside a rest window.
+    ReplacementNotAllowed = 48,
     // #198: the build safe window (GROWTH.BuildSafeWindowSec) has not passed since the last combat action.
     NotSafe = 52,
     NoEmptySlot = 53, SlotOccupied = 54, NoBlueprint = 55, NotEnoughPoints = 56, NoActiveOffer = 57,
-    // The match is outside the countdown and the development/capture phases.
+    // The match is outside the field segments and the rest steps (results and every other phase).
     PhaseClosed = 58,
+    // #198 rest: a rest step whose builds are locked (draw, betting, PK, settlement, return countdown).
+    BuildLocked = 70,
+    // Fewer than three actives are eligible for an NPC offer; nothing is charged.
+    NpcPoolTooSmall = 71,
+    // An active offer (or, for the NPC, any queued active opportunity) is outstanding.
+    OfferOutstanding = 72,
+    NothingToRespec = 73,
+    // ReplaceActive/ForgetActive name an empty slot.
+    SlotEmpty = 74,
+    // A rest service (NPC, respec) outside a rest window.
+    NotRestWindow = 75,
     DataNotReady = 78, StaleContext = 79,
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,
@@ -170,7 +187,7 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() int64 NextThresholdXP = 0;
     UPROPERTY() uint64 ProgressionRevision = 0;
     UPROPERTY() uint64 BuildRevision = 0;
-    // Earned (opening, levels and the max-level XP grants) minus allocated.
+    // Earned (opening, levels and the max-level XP grants) minus allocated minus permanently spent.
     UPROPERTY() int64 UnspentPoints = 0;
     // One row per catalog stat, in catalog order.
     UPROPERTY() TArray<FLDStatPointsView> StatPoints;
@@ -187,6 +204,8 @@ struct LOCKDOWN_API FLDProgressionView
     // Combat's build safe window (absolute authority ms; <= now is safe), copied at publication like the owner CombatView's.
     UPROPERTY() int64 BuildSafeAtMs = 0;
     UPROPERTY() FLDDemoContentDigest CatalogDigest;
+    // Points paid for rest services (the NPC); a respec never returns them.
+    UPROPERTY() int64 PermanentSpentPoints = 0;
 };
 
 USTRUCT()
@@ -195,7 +214,7 @@ struct LOCKDOWN_API FLDBuildCommand
     GENERATED_BODY()
 
     // Slot of an ActiveChoice without a preferred slot (the lowest empty one); every other kind leaves Slot here
-    // except LearnBlueprint, which names 0..2.
+    // except LearnBlueprint, ReplaceActive and ForgetActive, which name 0..2.
     static constexpr uint8 AnySlot = 0xFF;
 
     UPROPERTY() uint32 Generation = 0;
@@ -211,9 +230,10 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() FLDDefinitionWire Option;
     // ActiveChoice: learn it in the same commit when the contender may learn now and a slot is empty, else store it.
     UPROPERTY() bool bLearnIfPossible = false;
-    // ActiveChoice with bLearnIfPossible: the preferred slot 0..2 or AnySlot; LearnBlueprint: the empty slot 0..2.
+    // ActiveChoice with bLearnIfPossible: the preferred slot 0..2 or AnySlot; LearnBlueprint: the empty slot 0..2;
+    // ReplaceActive and ForgetActive: the learned slot 0..2. BuyNpcOffer and Respec carry no further field.
     UPROPERTY() uint8 Slot = AnySlot;
-    // LearnBlueprint: the pending blueprint to learn.
+    // LearnBlueprint and ReplaceActive: the pending blueprint to learn.
     UPROPERTY() FLDDefinitionWire Blueprint;
     // AllocatePoints: one count per catalog stat, in catalog order, at least one point in total.
     UPROPERTY() TArray<uint8> PointCounts;
@@ -228,10 +248,11 @@ struct LOCKDOWN_API FLDBuildReceipt
 
     UPROPERTY() FLDGrowthReceiptHeader Header;
     UPROPERTY() ELDBuildCommandKind Kind = ELDBuildCommandKind::None;
-    // ActiveChoice: the consumed offer and its opportunity.
+    // ActiveChoice: the consumed offer and its opportunity; BuyNpcOffer: the bought opportunity (OfferId stays unset,
+    // its drawn offer is NextOfferId).
     UPROPERTY() FGuid OfferId;
     UPROPERTY() uint8 OpportunityOrdinal = 0;
-    // ActiveChoice: the chosen active; LearnBlueprint: the learned blueprint.
+    // ActiveChoice: the chosen active; LearnBlueprint and ReplaceActive: the learned blueprint.
     UPROPERTY() FName DefinitionId;
     UPROPERTY() ELDBuildChoiceResult ChoiceResult = ELDBuildChoiceResult::None;
     // Learned: its slot (0 = Q, 1 = W, 2 = E).
@@ -244,6 +265,12 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() int64 UnspentPointsAfter = 0;
     UPROPERTY() bool bHasNextOffer = false;
     UPROPERTY() FGuid NextOfferId;
+    // ReplaceActive and ForgetActive: the forgotten active.
+    UPROPERTY() FName ForgottenId;
+    // Respec: the allocated points returned to the unspent ones.
+    UPROPERTY() int64 PointsRefunded = 0;
+    // BuyNpcOffer: the points permanently paid.
+    UPROPERTY() int64 NpcPointsPaid = 0;
 };
 
 USTRUCT()

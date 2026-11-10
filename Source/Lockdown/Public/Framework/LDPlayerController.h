@@ -71,6 +71,14 @@ public:
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
     UFUNCTION(Client,Reliable) void ClientBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     // ---- end Growth ----
+    // ---- #198 rest PK sign-up (Framework/LDPlayerRest.cpp) ----
+    // Joins or leaves the PK sign-up of the current rest; the result arrives as OnRestSignup (a Listen Host inside the call).
+    void SubmitRestSignup(bool bJoin);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnRestSignup, ELDRestSignupResult);
+    FLDOnRestSignup OnRestSignup;
+    UFUNCTION(Server,Reliable) void ServerRestSignup(uint32 Generation,bool bJoin);
+    UFUNCTION(Client,Reliable) void ClientRestSignup(ELDRestSignupResult Result);
+    // ---- end rest ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV

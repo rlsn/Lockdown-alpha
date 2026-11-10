@@ -237,7 +237,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         ALDCharacter* SourceActor=nullptr;
         const auto* Source=FindBody(Dash.Body, &SourceActor);
         if (!Source || !SourceActor || Source->bPendingDeath
-            || Mode->IsContenderProtected(Source->Victim.EntityId) || Mode->IsOpeningCountdown(Mode->GetMatchContext())) { continue; }
+            || Mode->IsContenderProtected(Source->Victim.EntityId) || Mode->IsInputLocked(Mode->GetMatchContext())) { continue; }
         const double SourceRadius=SourceActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
         const double SourceHeight=SourceActor->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
         for (const auto& TargetFrame : ContactMotion)
@@ -245,7 +245,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             if (TargetFrame.Batch->Body == Dash.Body || Dash.Struck.Contains(TargetFrame.Batch->Body)) { continue; }
             ALDCharacter* TargetActor=nullptr;
             const auto* Target=FindBody(TargetFrame.Batch->Body, &TargetActor);
-            if (!Target || !TargetActor || Target->bPendingDeath
+            if (!Target || !TargetActor || Target->bPendingDeath || IsIsolated(Source->Victim.EntityId,*Target)
                 || (Target->Victim.Kind == ELDVictimKind::Contender && Mode->IsContenderProtected(Target->Victim.EntityId))) { continue; }
             const double TargetRadius=TargetActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
             const double TargetHeight=TargetActor->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();

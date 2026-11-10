@@ -38,7 +38,7 @@ bool FLDCaptureEventTime::FromSeconds(double RawSeconds, FLDCaptureEventTime& Ou
 
 bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error)
 {
-    if (!View.Generation || !View.PublicRevision || uint8(View.Phase) > uint8(ELDMatchPhase::Faulted)
+    if (!View.Generation || !View.PublicRevision || !LDMatchLifecycle::IsKnownPhase(View.Phase)
         || uint8(View.CircleState) > uint8(ELDCircleState::Guarded))
     { return FailCaptureView(Error, TEXT("Invalid public match header.")); }
     if (View.ServerNowMs < 0 || View.StartedAtMs < 0 || View.OpenAtMs < View.StartedAtMs)
@@ -63,33 +63,42 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     { return FailCaptureView(Error, TEXT("Graffiti owner and guard progress do not match the zone state.")); }
     const FLDAirdropView& Drop = View.Airdrop;
     const bool bDrop = Drop.Phase != ELDAirdropPhase::None;
+    // #198: world schedules (airdrop, Boss, leader notice) are field-progress times T, not authority ms.
+    const FLDTimelineView& Line = View.Timeline;
+    const bool bFieldRuns = Line.Stage == ELDMatchStage::Field || Line.Stage == ELDMatchStage::FinalField;
+    const int64 FieldNow = bFieldRuns && View.ServerNowMs > Line.FieldStartedAtMs
+        ? Line.FieldBaseMs + (View.ServerNowMs - Line.FieldStartedAtMs) : Line.FieldBaseMs;
+    if (uint8(Line.Stage) > uint8(ELDMatchStage::FinalField) || uint8(Line.Step) > uint8(ELDRestStep::Return)
+        || (Line.Stage == ELDMatchStage::Rest) != (Line.Step != ELDRestStep::None) || Line.FieldBaseMs < 0
+        || (Line.Stage != ELDMatchStage::None && Line.Generation != View.Generation))
+    { return FailCaptureView(Error, TEXT("The timeline does not match its stage.")); }
     if (uint8(Drop.Phase) > uint8(ELDAirdropPhase::Claimed) || bDrop != (Drop.Serial != 0) || bDrop == Drop.PointId.IsNone()
-        || Drop.PositionCm.ContainsNaN() || (bDrop ? Drop.LandAtMs <= View.StartedAtMs : Drop.LandAtMs != 0)
-        || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && View.ServerNowMs < Drop.LandAtMs))
-    { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the match clock.")); }
+        || Drop.PositionCm.ContainsNaN() || (bDrop ? Drop.LandAtMs <= 0 : Drop.LandAtMs != 0)
+        || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && FieldNow < Drop.LandAtMs))
+    { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the field clock.")); }
     const FLDBossView& Boss = View.Boss;
     if (Boss.Phase == ELDBossPhase::None ? (Boss.AppearAtMs != 0 || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
-        : (Boss.AppearAtMs <= View.StartedAtMs
+        : (Boss.AppearAtMs <= 0
             // A blocked appearance stays Pending past its time and retries; Pending never names a killer.
             || (Boss.Phase == ELDBossPhase::Pending ? (Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
-                : Boss.Phase == ELDBossPhase::Alive ? (View.ServerNowMs < Boss.AppearAtMs || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
-                : (Boss.DownAtMs < Boss.AppearAtMs || Boss.DownAtMs > View.ServerNowMs))))
-    { return FailCaptureView(Error, TEXT("The Boss view does not match its phase or the match clock.")); }
+                : Boss.Phase == ELDBossPhase::Alive ? (FieldNow < Boss.AppearAtMs || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
+                : (Boss.DownAtMs < Boss.AppearAtMs || Boss.DownAtMs > FieldNow))))
+    { return FailCaptureView(Error, TEXT("The Boss view does not match its phase or the field clock.")); }
     const FLDLeaderView& Named = View.Leader;
-    if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= View.StartedAtMs
-            || Named.RefreshedAtMs > View.ServerNowMs)
+    if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= 0
+            || Named.RefreshedAtMs > FieldNow)
         : (Named.RefreshedAtMs != 0 || !Named.CircleCentreCm.IsZero()))
-    { return FailCaptureView(Error, TEXT("The leader notice does not match its leader or the match clock.")); }
+    { return FailCaptureView(Error, TEXT("The leader notice does not match its leader or the field clock.")); }
     switch (View.Phase)
     {
-    case ELDMatchPhase::Countdown:
-        // #153: the frozen opening before T=0; nothing that counts from T=0 has happened yet.
-        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs > View.StartedAtMs
-            || Owned || bDrop || Named.Leader.IsValid())
-        { return FailCaptureView(Error, TEXT("The opening countdown publishes only its T=0 and the closed circle.")); }
+    case ELDMatchPhase::Rest:
+        // #198: a rest pauses the field; the flagpole only opens in the final field.
+        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || Owned || Line.Stage != ELDMatchStage::Rest)
+        { return FailCaptureView(Error, TEXT("A rest publishes its timeline with the closed circle and no result.")); }
         break;
     case ELDMatchPhase::Development:
-        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs >= View.OpenAtMs || Owned)
+        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs >= View.OpenAtMs || Owned
+            || Line.Stage != ELDMatchStage::Field)
         { return FailCaptureView(Error, TEXT("The development phase cannot publish an open circle or a result.")); }
         break;
     case ELDMatchPhase::CaptureOpen:
@@ -102,7 +111,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     default:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
             || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || Owned || bDrop
-            || Named.Leader.IsValid() || Boss.Phase != ELDBossPhase::None)
+            || Named.Leader.IsValid() || Boss.Phase != ELDBossPhase::None || Line.Stage != ELDMatchStage::None)
         { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no spray state.")); }
         break;
     }

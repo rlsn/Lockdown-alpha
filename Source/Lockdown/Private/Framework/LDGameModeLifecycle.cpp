@@ -106,14 +106,14 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
-    // D26 (#79): the airdrop schedule from this match's start.
-    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, Airdrop, Error))
+    // D26 (#79): the airdrop schedule in field progress T (#198: T starts at 0 in the first field and pauses in rests).
+    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, 0, MatchContext.LedgerMatch, Airdrop, Error))
     {
         RetireMatchDomains();
         return false;
     }
-    // D27 (#79): the leader notice refreshes from this match's start.
-    if (!LDLeaderNotice::Resolve(*DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, LeaderNotice, Error))
+    // D27 (#79): the leader notice refreshes in field progress T as well.
+    if (!LDLeaderNotice::Resolve(*DemoContent, 0, MatchContext.LedgerMatch, LeaderNotice, Error))
     {
         RetireMatchDomains();
         return false;
@@ -344,8 +344,9 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     if (Sequence!=Batch->ThroughSequence || !Foot.Equals(Batch->EndFootCm,.000001)
         || Support.Grounded!=Batch->FinalSupport.Grounded || Support.Floor!=Batch->FinalSupport.Floor)
     { return ELDCommitReject::GeometryUnavailable; }
-    // Capture reads every accepted contender batch synchronously; the driver releases it next step.
-    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive())
+    // Capture reads every accepted contender batch synchronously; the driver releases it next step. A rest life (#198
+    // private rest space) has no spray eligibility.
+    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive() && !RestLives.Contains(Body.Victim.EntityId))
     {
         const auto Captured=PublishCaptureMotion(Permit,*Batch);
         if (Captured!=ELDCommitReject::None) { return Captured; }

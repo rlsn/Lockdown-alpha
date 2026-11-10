@@ -181,7 +181,16 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1050"),
             ("CAPTURE.RadiusCm", "cm", "300"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
-            ("MATCH.CountdownSec", "ms", "5"), ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
+            # #198 match timeline: three 180 s field segments, rest phases and field respawn waits by T at death
+            # (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
+            ("MATCH.FieldSegmentSec", "ms", "180"),
+            ("REST.OpeningBuildSec", "ms", "45"), ("REST.BuildSec", "ms", "30"), ("REST.SignupSec", "ms", "10"),
+            ("REST.DrawSec", "ms", "5"), ("REST.BettingSec", "ms", "8"), ("REST.PKReadySec", "ms", "3"),
+            ("REST.PKMaxSec", "ms", "60"), ("REST.SettlementSec", "ms", "3"), ("REST.PayoutSec", "ms", "12"),
+            ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
+            ("LIFE.RespawnSec.Field1", "ms", "8"), ("LIFE.RespawnSec.Field2", "ms", "10"),
+            ("LIFE.RespawnSec.Field3", "ms", "12"), ("LIFE.RespawnSec.Final", "ms", "15"),
+            ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
@@ -214,6 +223,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
             # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
+            # #198: a rest NPC charges 3 points for one active-only three-choice.
+            ("GROWTH.NpcActivePoints", 3),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))

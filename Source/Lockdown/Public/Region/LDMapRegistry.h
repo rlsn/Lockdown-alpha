@@ -64,6 +64,15 @@ public:
     bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
+    // #198 private rest space: the same request bookkeeping as DrawSpawnAnchor, but the contender's fixed rest anchor
+    // (one of the approved spawn anchors) instead of a uniform draw. ReserveSpawnPlacement then picks its free offset.
+    bool SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName Anchor,
+        const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
+    // #198 return to the field: reserves a free placement for the next life at FootCm, else within RadiusCm on ground
+    // reachable from that foot. bBlocked (no state recorded) when none is free; the caller then draws a normal spawn.
+    bool ReserveSpawnNear(const FLDSpawnRequestKey& Request, const FVector& FootCm, FName SurfaceHint, double RadiusCm,
+        const FCollisionShape& Capsule, const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out,
+        bool& bBlocked, FString& Error);
     bool ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelection>& Selection, const FCollisionShape& Capsule,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out, FString& Error);
     bool ValidateSpawnReservation(const TSharedPtr<const FLDSpawnReservation>& Reservation,
@@ -72,6 +81,10 @@ public:
     bool FinalizeSpawnPlacement(TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, FString& Error);
 private:
+    // Shared admission of a spawn request: Replay is set when the same request was already selected.
+    bool AdmitSpawnRequest(const FLDSpawnRequestKey& Request, const FLDGameplayWritePermit& Permit,
+        TSharedPtr<const FLDSpawnSelection>& Replay, FString& Error);
+    TSharedPtr<const FLDSpawnSelection> RecordSpawnSelection(const FLDSpawnRequestKey& Request, FName Anchor);
     struct FSpawnState;
     TSharedPtr<FSpawnState> SpawnState;
     struct FGroundState;

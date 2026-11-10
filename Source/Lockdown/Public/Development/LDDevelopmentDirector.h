@@ -68,9 +68,9 @@ struct FLDPendingGrowthIntent
     uint64 Arrival = 0;
 };
 
-// N04 growth owner (#198): level/XP, derived points and their allocation, Q/W/E actives, pending blueprints and the
-// active opportunity queue with its one current offer. Contender records persist across deaths and are rebuilt only by
-// a new match.
+// N04 growth owner (#198): level/XP, derived points, their allocation and the permanent rest spend, Q/W/E actives, pending
+// blueprints and the active opportunity queue (level and NPC opportunities) with its one current offer. Contender records
+// persist across deaths and are rebuilt only by a new match.
 UCLASS()
 class LOCKDOWN_API ALDDevelopmentDirector : public AActor
 {
@@ -96,8 +96,8 @@ public:
     FLDBuildReceipt CommitPendingBuild(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
     // ---- Composite-commit parts for rewards ----
-    // Cumulative XP, level and one active opportunity per active_offer_levels entry reached; BuildRevision advances only
-    // with the level. The points follow from the level and XP.
+    // Cumulative XP, level and one active opportunity per active_offer_levels entry reached (NPC purchases carry over);
+    // BuildRevision advances only with the level. The points follow from the level and XP.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
     // No-fail: installs the prepared build/progression and draws the queue head when one is due.
     void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
@@ -132,9 +132,10 @@ public:
     ELDGrowthReason DevAllocatePoints(const FGuid& ContenderId, FName StatId, int64 Amount, const FLDGameplayWritePermit& Permit,
         FString& Detail);
     // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no
-    // actives, blueprints or allocated points, the opening opportunity only (none consumed, no records) and a fresh opening
-    // offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer revisions keep rising, so every
-    // in-flight command of the old state is refused as stale; request streams and receipts stay.
+    // actives, blueprints, allocated or permanently spent points, the opening opportunity only (none consumed or bought, no
+    // records) and a fresh opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer
+    // revisions keep rising, so every in-flight command of the old state is refused as stale; request streams and receipts
+    // stay.
     FLDPrepareGrowthResult DevPrepareReset(const FGuid& ContenderId) const;
 #endif
 
@@ -161,7 +162,8 @@ private:
     // or the permit was lost before the install.
     ELDGrowthReason InstallBuild(const FGuid& ContenderId, FRecord& Record, FLDGrowthBuild&& NewBuild,
         FLDProgressionState&& NewProgression, bool bProgressionChanged, const FLDGameplayWritePermit& Permit);
-    // The match stage, life phase and build safe window of ContenderId now; false (StaleContext) without a life read.
+    // The match stage (ALDGameMode::ReadBuildStage), life phase and build safe window of ContenderId now; false
+    // (StaleContext) without a life read.
     bool ReadBuildContext(const FGuid& ContenderId, LDProgression::FBuildContext& Out, uint32& OutLife) const;
     ALDGameMode* Mode() const;
 

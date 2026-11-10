@@ -72,8 +72,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     if (const auto* Mode=Core())
     {
         Consider(Mode->NextLifeDueMs());
-        // #153: the opening countdown ends (T=0) on an exact boundary.
-        Consider(Mode->NextCountdownDueMs());
+        // #198: every rest step and field segment ends on an exact boundary.
+        Consider(Mode->NextTimelineDueMs());
         // Opening time and the Solo completion must each be an exact step boundary; a resume inside a paused
         // contest is closed at its own instant by CaptureCompletesInsideStep, so it adds no stop here.
         Consider(Mode->NextCaptureDueMs());
@@ -137,6 +137,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (Ref.Victim.Kind==ELDVictimKind::CampMember)
                 {
                     if (!Mode->Camps) { Error=TEXT("A registered camp body has no camp owner."); return false; }
+                    // #198: the world is frozen during a rest; its bodies stand still.
+                    if (Mode->IsRestPhase(Match)) { continue; }
                     if (!Mode->Camps->AdvanceMemberMotion(Mode->GetAuthorityStep(),Ref,Permit,Error)) { return false; }
                     continue;
                 }
@@ -167,13 +169,19 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
-                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error)
+                // #198: the timeline first (rest entry/exit moves every contender), then field respawns; the world only
+                // advances while a field segment runs.
+                if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)) { return false; }
+                if (!Mode->IsFieldRunning()) { return true; }
+                return Mode->Camps->AdvanceCamps(Permit,Error)
                     && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
-                return Mode->ClaimAirdrop(Permit,Error) && Mode->Growth->ProcessTransactions(Permit,Error);
+                // #198: commands committed at a build deadline settle before the lock of the same boundary.
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->Growth->ProcessTransactions(Permit,Error)
+                    && Mode->LockTimelineBuild(Permit,Error);
             },Error));
         if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)
@@ -244,8 +252,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     if (!RefreshTaunts(Error)) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
-    // #153: camps stay idle (no aggro, chase or attack) until the opening countdown ends.
-    if (!Mode->IsOpeningCountdown(Mode->GetMatchContext()) && !Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
+    // #198: camps stay idle (no aggro, chase or attack) while a rest freezes the world.
+    if (!Mode->IsRestPhase(Mode->GetMatchContext()) && !Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
     // Direct intents first: an ability may interrupt a basic windup before Navigation starts the next one.
     TArray<FGuid> Entities;
     Records.GetKeys(Entities);

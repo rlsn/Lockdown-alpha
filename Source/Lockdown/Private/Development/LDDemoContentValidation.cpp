@@ -158,6 +158,12 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
+    // #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
+    if (!Check.Require(P.RestSignupMs > 0 && P.RestSignupMs <= P.RestBuildMs && P.RestSignupMs <= P.RestOpeningBuildMs,
+        TEXT("REST.SignupSec"), TEXT("PK sign-up must fit inside every rest build window")))
+    {
+        return false;
+    }
     // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
     for (const int64 Bp : {P.DormMaxHPRegenBp, P.DormMaxMPRegenBp})
     {

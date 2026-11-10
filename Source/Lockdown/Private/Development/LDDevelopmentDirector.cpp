@@ -20,6 +20,7 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     }
     FName Decoded;
     const bool bNoOffer = !Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option == FLDDefinitionWire();
+    // Only the whitelisted kinds have a shape; an unknown number is refused, never mapped to a neighbour.
     switch (Command.Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
@@ -27,8 +28,16 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
             && (Command.Slot == FLDBuildCommand::AnySlot || (Command.bLearnIfPossible && Command.Slot < 3));
     case ELDBuildCommandKind::LearnBlueprint:
+    case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
             && Command.PointCounts.IsEmpty();
+    case ELDBuildCommandKind::ForgetActive:
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible && Command.Slot < 3
+            && Command.PointCounts.IsEmpty();
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+        return bNoOffer && Command.Blueprint == FLDDefinitionWire() && !Command.bLearnIfPossible
+            && Command.Slot == FLDBuildCommand::AnySlot && Command.PointCounts.IsEmpty();
     case ELDBuildCommandKind::AllocatePoints:
     {
         int32 Total = 0;
@@ -207,7 +216,7 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
         FRecord& Record = NewRecords.Add(Id);
         Record.Build = StartBuild;
         Record.Progression.Revision = 1;
-        // Every contender enters the countdown holding its opening opportunity; respawns never add another.
+        // Every contender enters the opening rest holding its opening opportunity; respawns never add another.
         Record.Progression.ActiveEarned = LDProgression::ActiveOpportunitiesAt(Definitions.Progression, 1);
         Record.CombatInstalled = FLDExpectedBuildVersions();
     }
@@ -302,6 +311,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     }
     View.BuildSafeAtMs = GameMode && GameMode->Combat ? GameMode->Combat->ReadBuildSafeAtMs(ContenderId) : 0;
     View.CatalogDigest = Definitions.Identity.Root;
+    View.PermanentSpentPoints = Build.PermanentSpentPoints;
     return View;
 }
 
@@ -416,9 +426,8 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     }
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
-    Out.Stage = GameMode->IsOpeningCountdown(Match) ? LDProgression::EMatchStage::Countdown
-        : GameMode->IsGameplayWriteOpen(Match) ? LDProgression::EMatchStage::Live : LDProgression::EMatchStage::Closed;
-    // The server re-reads Combat's window at the commit; the client's view of it is only a hint.
+    Out.Stage = GameMode->ReadBuildStage(Match);
+    // The server re-reads Combat's window at the commit; the client's view of it is only a hint. Only Live reads it.
     Out.bSafe = GameMode->Combat->ReadBuildSafeAtMs(ContenderId) <= GameMode->GetAuthorityNowMs();
     return true;
 }
@@ -492,7 +501,17 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     bool bProgressionChanged = false;
     LDProgression::FChoiceOutcome Choice;
     FName Definition;
+    FName Forgotten;
+    int64 Refunded = 0;
+    int64 NpcPaid = 0;
     uint8 Ordinal = 0;
+    // The points of the committed record no longer derive: the boundary must fault.
+    const auto PointsFault = [&]()
+    {
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_BUILD_FAULT contender=%s request=%llu: allocated and paid points exceed the earned ones"),
+            *ContenderId.ToString(), Command.RequestId);
+        return DevelopmentFaultReceipt(Command, Info);
+    };
     switch (Command.Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
@@ -557,13 +576,68 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             Command.PointCounts, Context, NewBuild);
         if (PointsReason == ELDGrowthReason::AuthorityFault)
         {
-            UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_BUILD_FAULT contender=%s request=%llu: allocated points exceed the earned ones"),
-                *ContenderId.ToString(), Command.RequestId);
-            return DevelopmentFaultReceipt(Command, Info);
+            return PointsFault();
         }
         if (PointsReason != ELDGrowthReason::None)
         {
             return Reject(PointsReason);
+        }
+        break;
+    }
+    case ELDBuildCommandKind::BuyNpcOffer:
+    {
+        LDProgression::FNpcOfferOutcome Npc;
+        const ELDGrowthReason NpcReason = LDProgression::ApplyBuyNpcOffer(Definitions, Build, Progression, MatchSecret, ContenderId,
+            Context, NewBuild, NewProgression, Npc);
+        if (NpcReason == ELDGrowthReason::AuthorityFault)
+        {
+            return PointsFault();
+        }
+        if (NpcReason != ELDGrowthReason::None)
+        {
+            return Reject(NpcReason);
+        }
+        // The payment and its fixed offer install together on the next build revision (InstallBuild).
+        NewProgression.Offer->GeneratedBuildRevision = Build.Revision + 1;
+        Ordinal = Npc.Ordinal;
+        NpcPaid = Npc.PointsPaid;
+        bProgressionChanged = true;
+        break;
+    }
+    case ELDBuildCommandKind::Respec:
+    {
+        const ELDGrowthReason RespecReason = LDProgression::ApplyRespec(Definitions, Build, Progression.CumulativeXP, Context,
+            NewBuild, Refunded);
+        if (RespecReason == ELDGrowthReason::AuthorityFault)
+        {
+            return PointsFault();
+        }
+        if (RespecReason != ELDGrowthReason::None)
+        {
+            return Reject(RespecReason);
+        }
+        break;
+    }
+    case ELDBuildCommandKind::ReplaceActive:
+    {
+        Command.Blueprint.Decode(Definition);
+        const ELDGrowthReason ReplaceReason = LDProgression::ApplyReplaceActive(Definitions, Build, Progression, Definition,
+            Command.Slot, Context, NewBuild, Forgotten);
+        if (ReplaceReason != ELDGrowthReason::None)
+        {
+            return Reject(ReplaceReason);
+        }
+        Choice.Result = ELDBuildChoiceResult::Learned;
+        Choice.Slot = Command.Slot;
+        break;
+    }
+    case ELDBuildCommandKind::ForgetActive:
+    {
+        const ELDGrowthReason ForgetReason = LDProgression::ApplyForgetActive(Definitions, Build, Progression, Command.Slot,
+            Context, NewBuild, Forgotten);
+        if (ForgetReason != ELDGrowthReason::None)
+        {
+            return Reject(ForgetReason);
         }
         break;
     }
@@ -599,6 +673,9 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     {
         Receipt.PointsSpent = Command.PointCounts;
     }
+    Receipt.ForgottenId = Forgotten;
+    Receipt.PointsRefunded = Refunded;
+    Receipt.NpcPointsPaid = NpcPaid;
     int64 Unspent = 0;
     LDProgression::UnspentPoints(Definitions, Record->Build, Record->Progression.CumulativeXP, Unspent);
     Receipt.UnspentPointsAfter = Unspent;
@@ -620,12 +697,22 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     }
     else
     {
-        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u"),
+        const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
+            || Command.Kind == ELDBuildCommandKind::ForgetActive;
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Receipt.DefinitionId.IsNone() ? TEXT("-") : *Receipt.DefinitionId.ToString(),
-            Command.Kind == ELDBuildCommandKind::LearnBlueprint ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
+            bNamesSlot ? DevelopmentSlotName(Command.Slot) : TEXT("-"),
             Command.Kind == ELDBuildCommandKind::AllocatePoints ? *DevelopmentPointsText(Command.PointCounts) : TEXT("-"),
-            Unspent, uint32(Record->Build.Level));
+            Unspent, uint32(Record->Build.Level), Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString(), Refunded, NpcPaid,
+            uint32(Ordinal));
+        if (Command.Kind == ELDBuildCommandKind::BuyNpcOffer && Record->Progression.Offer.IsSet())
+        {
+            // Host playtest record of the actives shown, like every drawn head (DrawHead).
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_OFFER t=%lld contender=%s ordinal=%u level=%u cards=%s source=npc"),
+                GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), uint32(Record->Build.Level),
+                *FString::JoinBy(Record->Progression.Offer->Options, TEXT(","), [](FName Id) { return Id.ToString(); }));
+        }
     }
     Record->Builds.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
@@ -724,11 +811,21 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         return DevelopmentPrepareFailure(ELDGrowthReason::NotContender, TEXT("The XP recipient has no growth record in this match."));
     }
     LDProgression::FExperienceChange Change;
+    const FLDProgressionState& Current = Record->Progression;
+    // NPC opportunities are not earned by level; the plan only sees the level part and the purchases carry over.
+    if (Current.NpcPurchased > Current.ActiveEarned)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, TEXT("The contender bought more opportunities than it earned."));
+    }
     const ELDGrowthReason PlanReason = LDProgression::PlanExperience(Content->Get().Progression,
-        Record->Progression.CumulativeXP, Record->Build.Level, Record->Progression.ActiveEarned, GrantXP, Change);
+        Current.CumulativeXP, Record->Build.Level, uint8(Current.ActiveEarned - Current.NpcPurchased), GrantXP, Change);
     if (PlanReason != ELDGrowthReason::None)
     {
         return DevelopmentPrepareFailure(PlanReason, TEXT("The XP grant does not fit the contender's progression."));
+    }
+    if (int32(Change.ActiveEarnedAfter) + int32(Current.NpcPurchased) > MAX_uint8)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::CapacityExceeded, TEXT("The active opportunity count is exhausted."));
     }
     FLDPreparedGrowthChange Prepared;
     Prepared.ContenderId = ContenderId;
@@ -748,7 +845,7 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
         }
         ++NewProgression.Revision;
         NewProgression.CumulativeXP = Change.NewXP;
-        NewProgression.ActiveEarned = Change.ActiveEarnedAfter;
+        NewProgression.ActiveEarned = uint8(Change.ActiveEarnedAfter + NewProgression.NpcPurchased);
     }
     if (Change.LevelAfter != Change.LevelBefore)
     {
@@ -949,9 +1046,11 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
     {
         return false;
     }
-    // Every opportunity of the match draws one head; the current head, if any, is already drawn.
+    // Every level opportunity of the match draws one head; the current head, if any, is already drawn. NPC opportunities
+    // draw their fixed offer at payment and never take a preset.
     const TArray<TArray<FName>>* Queued = DevOfferQueue.Find(ContenderId);
-    const int32 Drawn = int32(Record->Progression.ActiveConsumed) + (Record->Progression.Offer.IsSet() ? 1 : 0);
+    const int32 Drawn = int32(Record->Progression.ActiveConsumed) + (Record->Progression.Offer.IsSet() ? 1 : 0)
+        - int32(Record->Progression.NpcPurchased);
     const int32 Opportunities = 1 + Content->Get().Progression.ActiveOfferLevels.Num();
     if (Drawn + (Queued ? Queued->Num() : 0) >= Opportunities)
     {

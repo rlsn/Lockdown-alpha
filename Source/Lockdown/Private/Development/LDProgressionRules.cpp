@@ -137,7 +137,7 @@ uint8 LDProgression::ActiveOpportunitiesAt(const FLDDemoProgressionDefinition& P
 }
 
 ELDGrowthReason LDProgression::PlanExperience(const FLDDemoProgressionDefinition& Progression, int64 CurrentXP,
-    uint8 CurrentLevel, uint8 ActiveEarned, int64 Grant, FExperienceChange& Out)
+    uint8 CurrentLevel, uint8 LevelActiveEarned, int64 Grant, FExperienceChange& Out)
 {
     Out = FExperienceChange();
     if (Grant < 0)
@@ -149,7 +149,7 @@ ELDGrowthReason LDProgression::PlanExperience(const FLDDemoProgressionDefinition
     {
         return Reason;
     }
-    if (Before != CurrentLevel || ActiveEarned != ActiveOpportunitiesAt(Progression, Before))
+    if (Before != CurrentLevel || LevelActiveEarned != ActiveOpportunitiesAt(Progression, Before))
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -245,11 +245,15 @@ ELDGrowthReason LDProgression::UnspentPoints(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
-    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent))
+    if (Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent) || Build.PermanentSpentPoints < 0)
     {
         return ELDGrowthReason::DataInvalid;
     }
-    // Points are only ever allocated out of the unspent ones, so a deficit is a broken authority record.
+    if (!ProgressionCheckedAdd(Spent, Build.PermanentSpentPoints, Spent))
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    // Points are only ever allocated or paid out of the unspent ones, so a deficit is a broken authority record.
     if (Spent > Earned)
     {
         return ELDGrowthReason::AuthorityFault;
@@ -276,7 +280,7 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
 {
     int64 Spent = 0;
     if (Content.Progression.ActiveSlots != 3 || Build.StatPoints.Num() != Content.Stats.Num() || !Build.SpentPoints(Spent)
-        || Build.Actives.Num() > Content.Progression.ActiveSlots)
+        || Build.PermanentSpentPoints < 0 || Build.Actives.Num() > Content.Progression.ActiveSlots)
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -352,6 +356,11 @@ uint64 LDProgression::OfferSeed(const FGuid& MatchSecret, const FGuid& Contender
     return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
 }
 
+bool LDProgression::IsRestWindow(const FBuildContext& Context)
+{
+    return Context.Stage == EMatchStage::Rest;
+}
+
 ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
 {
     if (!LDGrowthWire::IsBuildLifePhase(Context.LifePhase))
@@ -360,17 +369,21 @@ ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
     }
     switch (Context.Stage)
     {
-    case EMatchStage::Countdown:
-        return ELDGrowthReason::None;
+    case EMatchStage::Rest:
+        // The rest window has no build safe window; only a dead contender keeps the death-wait rules.
+        return Context.LifePhase == ELDLifePhase::Dead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case EMatchStage::Live:
         if (Context.LifePhase == ELDLifePhase::Dead)
         {
             return ELDGrowthReason::Dead;
         }
         return Context.bSafe ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
-    default:
+    case EMatchStage::RestLocked:
+        return ELDGrowthReason::BuildLocked;
+    case EMatchStage::Closed:
         return ELDGrowthReason::PhaseClosed;
     }
+    return ELDGrowthReason::PhaseClosed;
 }
 
 ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context)
@@ -379,10 +392,29 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     {
         return ELDGrowthReason::LifePhaseChanged;
     }
-    if (Context.Stage != EMatchStage::Countdown && Context.Stage != EMatchStage::Live)
+    switch (Kind)
+    {
+    case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::LearnBlueprint:
+    case ELDBuildCommandKind::AllocatePoints:
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::ForgetActive:
+        break;
+    default:
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (Context.Stage == EMatchStage::RestLocked)
+    {
+        return ELDGrowthReason::BuildLocked;
+    }
+    if (Context.Stage != EMatchStage::Live && Context.Stage != EMatchStage::Rest)
     {
         return ELDGrowthReason::PhaseClosed;
     }
+    const bool bRest = IsRestWindow(Context);
+    const bool bDead = Context.LifePhase == ELDLifePhase::Dead;
     switch (Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
@@ -390,8 +422,14 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::LearnBlueprint:
         return LearnGate(Context);
     case ELDBuildCommandKind::AllocatePoints:
-        return Context.Stage == EMatchStage::Countdown || Context.LifePhase == ELDLifePhase::Dead || Context.bSafe
-            ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
+        return bRest || bDead || Context.bSafe ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+        return !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
+    case ELDBuildCommandKind::ReplaceActive:
+        return !bRest ? ELDGrowthReason::ReplacementNotAllowed : LearnGate(Context);
+    case ELDBuildCommandKind::ForgetActive:
+        return !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     default:
         return ELDGrowthReason::InvalidRequest;
     }
@@ -482,7 +520,7 @@ ELDGrowthReason LDProgression::ApplyLearnBlueprint(const FLDDemoContentDefinitio
     {
         return Reason;
     }
-    // Replacing a learned active is a rest-only service (#198 PR5).
+    // Replacing a learned active is the rest-only ApplyReplaceActive.
     if (Current.ActiveInSlot(Slot) != INDEX_NONE)
     {
         return ELDGrowthReason::SlotOccupied;
@@ -532,5 +570,188 @@ ELDGrowthReason LDProgression::ApplyAllocation(const FLDDemoContentDefinitions& 
         }
         Out.StatPoints[Index] += PointCounts[Index];
     }
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyBuyNpcOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDProgressionState& Progression, const FGuid& MatchSecret, const FGuid& Contender, const FBuildContext& Context,
+    FLDGrowthBuild& Out, FLDProgressionState& OutProgression, FNpcOfferOutcome& Outcome)
+{
+    Out = Current;
+    OutProgression = Progression;
+    Outcome = FNpcOfferOutcome();
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    // The opening opportunity always exists, so a bought ordinal is never the opening-pool ordinal 1.
+    if (Progression.ActiveEarned == 0 || Progression.ActiveConsumed > Progression.ActiveEarned
+        || Progression.NpcPurchased > Progression.ActiveEarned || Content.Parameters.NpcActivePoints < 1)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    int64 Unspent = 0;
+    if (const ELDGrowthReason Reason = UnspentPoints(Content, Current, Progression.CumulativeXP, Unspent); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::BuyNpcOffer, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    // Active rewards are handled one at a time: the NPC never charges for an opportunity that would only queue.
+    if (Progression.Offer.IsSet() || Progression.QueuedActiveOpportunities() > 0)
+    {
+        return ELDGrowthReason::OfferOutstanding;
+    }
+    if (Progression.ActiveEarned == MAX_uint8 || Progression.NpcPurchased == MAX_uint8 || Progression.LastOfferRevision == MAX_uint64)
+    {
+        return ELDGrowthReason::CapacityExceeded;
+    }
+    const uint8 Ordinal = uint8(Progression.ActiveEarned + 1);
+    TArray<FName> Pool;
+    if (const ELDGrowthReason Reason = EligibleActives(Content, Current, Ordinal, Pool); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Pool.Num() < 3)
+    {
+        return ELDGrowthReason::NpcPoolTooSmall;
+    }
+    const int64 Cost = Content.Parameters.NpcActivePoints;
+    if (Unspent < Cost)
+    {
+        return ELDGrowthReason::NotEnoughPoints;
+    }
+    TArray<FName> Options;
+    if (const ELDGrowthReason Reason = DrawActiveOffer(Content, Current, Ordinal, OfferSeed(MatchSecret, Contender, Ordinal), Options);
+        Reason != ELDGrowthReason::None || Options.Num() != 3)
+    {
+        return Reason != ELDGrowthReason::None ? Reason : ELDGrowthReason::DataInvalid;
+    }
+    if (!ProgressionCheckedAdd(Current.PermanentSpentPoints, Cost, Out.PermanentSpentPoints))
+    {
+        Out = Current;
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    OutProgression.ActiveEarned = Ordinal;
+    OutProgression.NpcPurchased = uint8(Progression.NpcPurchased + 1);
+    FLDActiveOfferState Offer;
+    Offer.OfferId = FGuid::NewGuid();
+    Offer.Ordinal = Ordinal;
+    Offer.Options = MoveTemp(Options);
+    Offer.GeneratedBuildRevision = Current.Revision;
+    Offer.Revision = ++OutProgression.LastOfferRevision;
+    OutProgression.Offer.Emplace(MoveTemp(Offer));
+    Outcome.PointsPaid = Cost;
+    Outcome.Ordinal = Ordinal;
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyRespec(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
+    const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutRefunded)
+{
+    Out = Current;
+    OutRefunded = 0;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    int64 Unspent = 0;
+    if (const ELDGrowthReason Reason = UnspentPoints(Content, Current, XP, Unspent); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::Respec, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    int64 Allocated = 0;
+    if (!Current.SpentPoints(Allocated))
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    if (Allocated == 0)
+    {
+        return ELDGrowthReason::NothingToRespec;
+    }
+    // Only the allocation returns; PermanentSpentPoints (the NPC) is never refunded.
+    for (int32& Count : Out.StatPoints)
+    {
+        Count = 0;
+    }
+    OutRefunded = Allocated;
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyReplaceActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDProgressionState& Progression, FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out,
+    FName& OutForgotten)
+{
+    Out = Current;
+    OutForgotten = NAME_None;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Slot >= 3)
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::ReplaceActive, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    // Another learn or forget never runs while the current offer is undecided.
+    if (Progression.Offer.IsSet())
+    {
+        return ELDGrowthReason::OfferOutstanding;
+    }
+    const int32 Index = Current.ActiveInSlot(Slot);
+    if (Index == INDEX_NONE)
+    {
+        return ELDGrowthReason::SlotEmpty;
+    }
+    if (!Current.HasBlueprint(Blueprint))
+    {
+        return ELDGrowthReason::NoBlueprint;
+    }
+    // The old active is forgotten, not stored: only a new source gives it back (Combat keeps its cooldown track).
+    OutForgotten = Current.Actives[Index].Id;
+    Out.Actives.RemoveAt(Index);
+    Out.PendingBlueprints.Remove(Blueprint);
+    Out.Actives.Add({Blueprint, Slot});
+    ProgressionSortBuild(Out);
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten)
+{
+    Out = Current;
+    OutForgotten = NAME_None;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Slot >= 3)
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::ForgetActive, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Progression.Offer.IsSet())
+    {
+        return ELDGrowthReason::OfferOutstanding;
+    }
+    const int32 Index = Current.ActiveInSlot(Slot);
+    if (Index == INDEX_NONE)
+    {
+        return ELDGrowthReason::SlotEmpty;
+    }
+    OutForgotten = Current.Actives[Index].Id;
+    Out.Actives.RemoveAt(Index);
     return ELDGrowthReason::None;
 }

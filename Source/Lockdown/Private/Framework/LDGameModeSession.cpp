@@ -37,13 +37,8 @@ namespace
 bool ALDGameMode::IsGameplayWriteOpen(const FLDMatchContext& Context) const
 {
     return IsDemoRoom() && Context.IsValid() && Context == MatchContext
-        && (MatchPhase == ELDMatchPhase::Countdown || MatchPhase == ELDMatchPhase::Development
+        && (MatchPhase == ELDMatchPhase::Rest || MatchPhase == ELDMatchPhase::Development
             || MatchPhase == ELDMatchPhase::CaptureOpen);
-}
-
-bool ALDGameMode::IsOpeningCountdown(const FLDMatchContext& Context) const
-{
-    return IsGameplayWriteOpen(Context) && MatchPhase == ELDMatchPhase::Countdown;
 }
 
 bool ALDGameMode::AdvanceRoster(FString& Reason)

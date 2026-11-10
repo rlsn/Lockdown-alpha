@@ -29,7 +29,7 @@
 “现在痛点就是感觉镜头高度足够了，但是感觉还是看不清，应该是玩家移动的太快了”；并批准按比例方案与构筑节奏评审的节奏数值）：
 基础移速 300cm/s，移速夹限 173..675cm/s（230×0.75=172.5 向上取整，使 300 的 30% 减速 210 不被夹紧），
 低/高营野怪移速 240/260cm/s、画饼老板 225cm/s；
-发育期 `MATCH.DevelopmentSec`=180s（旗杆在 180s 开放）、守护 `CAPTURE.GuardSec`=30s、
+发育期 `MATCH.DevelopmentSec`=180s（旗杆在 180s 开放；2026-11-10 起由 #198 的 `MATCH.FieldSegmentSec` 与休息阶段取代，见 §3.4）、守护 `CAPTURE.GuardSec`=30s、
 外卖间隔 `AIRDROP.IntervalSec`=80s（45/125/205/285s 落地，首次 45s 与提前 15s 公告不变）。
 冲刺距离/时长、镜头、投射物速度与击退不变。
 这些值覆盖上文较早批准的移速、发育期、守护与外卖间隔，仍是试玩输入，未经平衡测试。
@@ -113,8 +113,8 @@ diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_w
 | --- | --- |
 | `UNIT.MoveSpeedCmPerSec`、`UNIT.CollisionRadiusCm`、`UNIT.BasicAttackRangeCm` | 内容模块定单位与建议值，世界模块验证通道和接近几何 |
 | `VISION.RadiusCm` | 内容模块定半径；世界与视野模块验证遮挡与权限 |
-| `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`MATCH.CountdownSec`、`MATCH.DevelopmentSec` | 内容模块定尺度与节奏；比赛模块实现 Spec 的同刻结算和唯一胜者 |
-| `LIFE.RespawnSec`、`LIFE.ProtectionSec` | 内容模块定时长；生命与权威模块维持时间、免疫、保留和重开隔离 |
+| `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`MATCH.FieldSegmentSec`、`REST.*` | 内容模块定尺度与节奏；比赛模块实现 Spec 的同刻结算和唯一胜者 |
+| `LIFE.RespawnSec.Field1/Field2/Field3/Final`、`LIFE.ProtectionSec` | 内容模块定时长；生命与权威模块维持时间、免疫、保留和重开隔离 |
 | `CAMP.Low.*`、`CAMP.High.*`、`CAMP.Elite.*`、`CAMP.Growth*` | 内容模块定构成、强度、收益、刷新、追击、重置与随时间成长；世界模块配置稳定营地锚点（#97 起数量随世界） |
 
 所有世界距离建议统一为单层地面脚点的 XY 厘米距离。普攻距离是攻击者中心至目标中心，
@@ -262,12 +262,25 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `CAPTURE.RadiusCm` | cm/Cm | 300 | 2026-11-05 用户批准（#112）由600缩小；直径600cm，基速穿过约2.0s；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
 | `CAPTURE.SpraySec` | s/Sec | 3.5 | 2026-11-05 用户批准（#112）；喷漆区内独自累积满即喷上涂鸦；争夺暂停保留，离区/死亡/离局/硬控施加清零。时长短，主要靠在场的人进区争夺或硬控/击杀打断 |
 | `CAPTURE.GuardSec` | s/Sec | 30 | 2026-11-05 用户批准（#112）；2026-11-07 用户批准由20s延长到30s（构筑节奏评审）；喷上涂鸦后守护累积满即获胜；用户原话：“喷完需要守护一段时间，期间可以打但不打断，只计算连续喷漆存在的时间”。2026-11-07 用户决定守护只在主人独自在区内时计时（主人离区暂停、他人在区内冻结），取代“主人可离区自由战斗”，时长不变。用户原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”；主人死亡/离局清除涂鸦 |
-| `MATCH.CountdownSec` | s/Sec | 5 | 2026-11-07 用户批准（[#153](https://github.com/rlsn/Lockdown-alpha/issues/153)），原话：“可以全体等待5秒再开始游戏，加一个开局countdown”。开局倒计时（2026-11-07 用户决定倒计时内允许移动和选技能、不允许攻击）；结束时刻是本局 T=0，下列所有对局计时都从 T=0 起算，倒计时不占发育期 |
-| `MATCH.DevelopmentSec` | s/Sec | 180 | 2026-11-04 用户批准由180s缩短为120s（D22）；2026-11-07 用户批准恢复为180s（构筑节奏评审），旗杆在 T=0（开局倒计时结束）后180s开放；离线供给约支持全员平均三到四次升级（§7.3） |
-| `LIFE.RespawnSec` | s/Sec | 15，所有等级相同 | 2026-11-04 用户批准由26s缩短（D22），短于30s守护窗；涂鸦主人的对手死后可能在守护完成前复活返场，但从出生点赶回还需约13.6..14.3s（见§8），主要依靠场上其他人改漆或围攻 |
+| `MATCH.FieldSegmentSec` | s/Sec | 180 | 2026-11-10 用户批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施”。三段野外各180s；野外进度T只在野外推进，休息与PK暂停T；R3返场后最终野外立即开放旗杆。取代 `MATCH.CountdownSec`（开局5秒倒计时退役，由R0与返场倒计时取代）和 `MATCH.DevelopmentSec` |
+| `REST.OpeningBuildSec` | s/Sec | 45 | 2026-11-10 用户批准（同上 #198 方案/审批，原话：“批准整套方案，按票内参数实施”）；开局休息R0的构筑/试招窗，第一段野外之前 |
+| `REST.BuildSec` | s/Sec | 30 | 2026-11-10 用户批准（同上）；R1–R3构筑/试招窗 |
+| `REST.SignupSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；构筑窗最后10s兼作PK站圈报名，不另加等待；不得长于 `REST.BuildSec` 或 `REST.OpeningBuildSec`（导入校验拒绝） |
+| `REST.DrawSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；抽签与公布，构筑已锁 |
+| `REST.BettingSec` | s/Sec | 8 | 2026-11-10 用户批准（同上）；非选手竞猜，到截止封盘 |
+| `REST.PKReadySec` | s/Sec | 3 | 2026-11-10 用户批准（同上）；PK就位倒计时，双方禁止移动和进攻 |
+| `REST.PKMaxSec` | s/Sec | 60 | 2026-11-10 用户批准（同上）；PK最长时长，提前决出胜方立即结束 |
+| `REST.SettlementSec` | s/Sec | 3 | 2026-11-10 用户批准（同上）；冻结结果并一次性结算 |
+| `REST.PayoutSec` | s/Sec | 12 | 2026-11-10 用户批准（同上）；休息兑现，处理奖励、NPC、重构和试招 |
+| `REST.ReturnSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；返野外倒计时，锁构筑与输入；报名不足2人时构筑截止后直接进入此倒计时 |
+| `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 2026-11-10 用户批准（同上）；返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
+| `LIFE.RespawnSec.Field1` | s/Sec | 8 | 2026-11-10 用户批准（同上）；死亡时 0≤T<180s 的野外复活等待，按死亡时T固定，不叠死亡次数/等级惩罚 |
+| `LIFE.RespawnSec.Field2` | s/Sec | 10 | 2026-11-10 用户批准（同上）；死亡时 180≤T<360s |
+| `LIFE.RespawnSec.Field3` | s/Sec | 12 | 2026-11-10 用户批准（同上）；死亡时 360≤T<540s |
+| `LIFE.RespawnSec.Final` | s/Sec | 15 | 2026-11-10 用户批准（同上）；死亡时 T≥540s（最终野外），短于30s守护窗。取代全程15s的 `LIFE.RespawnSec`（2026-11-04 D22 由26s缩短）；进入定时休息时阶段补给终结剩余复活等待 |
 | `LIFE.ProtectionSec` | s/Sec | 3 | 短暂移动/读局时间；不能计入“必需回防延迟”，合法主动可以提前解除 |
 
-15s 复活不是“替换随机出生”的安全筛选。仍严格对十点等概率可重复抽样；
+野外复活等待不是“替换随机出生”的安全筛选。仍严格对十点等概率可重复抽样；
 所有属性/技能和待选继续保留，只有等待与位置代价。
 复活短于守护窗意味着死者可能及时返场改漆或围攻；这是 D22 批准的节奏取舍，不保证自由混战必然有限时间结束。
 多名活人长期争夺仍可能一直无胜者，必须保留 Spec 的无超时积分胜利规则。
@@ -329,6 +342,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `GROWTH.PointsPerLevel` | 3 | 每次升到 2–16 级各给的点数；已确认决定 |
 | `GROWTH.MaxLevelPointsXP` | 400 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
 | `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不发构件 |
+| `GROWTH.NpcActivePoints` | 3 | 休息NPC一次支付这么多点数换一次只含主动的三选一；2026-11-10 用户批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施” |
 | `GROWTH.BuildSafeWindowSec` | 4 s | 构筑安全窗（§4.3） |
 | `progression.active_offer_levels` | [3, 6] | 额外主动机会的等级 |
 

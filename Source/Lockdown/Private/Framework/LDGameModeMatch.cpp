@@ -98,26 +98,28 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
         }
     }
     if (!ExecuteAuthorityPhase(*Combat, ELDCommitPhase::RespawnsAndWorld,
-        [&](const FLDGameplayWritePermit& Permit) { return SpawnInitialContenders(Permit, Error); }, Error))
+        [&](const FLDGameplayWritePermit& Permit) { return SpawnInitialContenders(Permit, Error) && EnterRestWorld(Permit, Error); }, Error))
     {
         return Abort(ELDSessionReject::SpawnBlocked);
     }
     for (const FGuid& Id : RosterOrder)
     {
-        if (IsMemberPresent(Id) && !CaptureTracks.Contains(Id))
+        if (IsMemberPresent(Id) && !RestLives.Contains(Id))
         {
-            Error = TEXT("A spawned contender has no committed capture join; the life provider is not wired.");
+            Error = TEXT("A spawned contender has no private rest life; the life provider is not wired.");
             return Abort(ELDSessionReject::MissingDemoDefinition);
         }
     }
-    // #153: everyone is spawned; the opening countdown (moves and build commands only, no attack or trade) runs to T=0 (MatchStartedAtMs), when development begins.
-    MatchPhase = ELDMatchPhase::Countdown;
+    // #198: everyone stands in the private rest space of the opening rest R0 (build, training, NPC, sign-up); the world is
+    // frozen until R0 returns to the field.
+    MatchPhase = ELDMatchPhase::Rest;
+    ++TimelineRevision;
     bPublicMatchDirty = true;
     bKillFeedDirty = true;
     bLobbyDirty = true;
     PublishMatchOutcome();
-    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d open_at_ms=%lld countdown_ms=%lld started_at_ms=%lld"),
-        MatchContext.Generation, RosterOrder.Num(), CaptureReducer.GetOpenAtMs(), MatchStartedAtMs - AuthorityNowMs, MatchStartedAtMs);
+    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d started_at_ms=%lld rest_ends_at_ms=%lld"),
+        MatchContext.Generation, RosterOrder.Num(), MatchStartedAtMs, Timeline.GetStepEndsAtMs());
     HeartbeatGate.Reset();
     LastMarkAt.Reset();
     LogPlaytestRoster();
@@ -223,6 +225,12 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     bResultLocked = false;
     bResultPublished = false;
     MatchStartedAtMs = 0;
+    Timeline.Reset();
+    RestSignups.Reset();
+    LockedEntrants.Reset();
+    RestReturns.Reset();
+    RestLives.Reset();
+    PendingPhasePlacement.Reset();
     MatchContext = Next;
     MatchPhase = ELDMatchPhase::Lobby;
     if (!AdvanceRoster(Error)) { return false; }

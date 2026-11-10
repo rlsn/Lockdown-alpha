@@ -125,6 +125,13 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NotEnoughPoints: return TEXT("NotEnoughPoints");
     case ELDGrowthReason::NoActiveOffer: return TEXT("NoActiveOffer");
     case ELDGrowthReason::PhaseClosed: return TEXT("PhaseClosed");
+    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
+    case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
+    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("NpcPoolTooSmall");
+    case ELDGrowthReason::OfferOutstanding: return TEXT("OfferOutstanding");
+    case ELDGrowthReason::NothingToRespec: return TEXT("NothingToRespec");
+    case ELDGrowthReason::SlotEmpty: return TEXT("SlotEmpty");
+    case ELDGrowthReason::NotRestWindow: return TEXT("NotRestWindow");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");
