@@ -21,8 +21,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_AND_REWARDS §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Rest0','Opening','Fixture','A14','N03','Iso','DevTest')
-    Client1 = @('Net','Start','Rest0','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A24','Iso','DevTest')
+    Host = @('Net','Start','Rest0','Rest','Opening','Fixture','A14','N03','Iso','DevTest')
+    Client1 = @('Net','Start','Rest0','Rest','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A24','Iso','DevTest')
 }
 
 function Start-GrowthRole {
@@ -109,6 +109,18 @@ try {
     }
     $hostReport = $reports['Host']
     $client = $reports['Client1']
+    # #198 mid rests: the first match crosses at least R1 for both roles; every rest retired the field life without a death
+    # (public death count unchanged), placed the rest life and returned the next field life, with T frozen at the segment end.
+    foreach ($role in $roles) {
+        $rests = @($reports[$role].rests)
+        if ($rests.Count -lt 1) { throw "$role crossed no mid rest in the first match: $output" }
+        foreach ($rest in $rests) {
+            if ([long]$rest.deaths_after -ne [long]$rest.deaths_before -or [long]$rest.rest_life -le [long]$rest.field_life_before -or
+                [long]$rest.field_life_after -ne [long]$rest.rest_life + 1 -or [long]$rest.rest -lt 1 -or [long]$rest.rest -gt 3) {
+                throw "$role's rest R$($rest.rest) counted a death or skipped its rest life: $output"
+            }
+        }
+    }
     if (-not $hostReport.growth_fixture -or $client.growth_fixture -or -not $hostReport.buyer_killed) {
         throw "Only the Host may run the DEV growth fixture, and it must have killed the owning client: $output"
     }
@@ -122,6 +134,7 @@ try {
     $window = $client.window
     if ($window.stored_reason -ne 'NotSafe' -or $window.allocate_reason -ne 'NotSafe' -or $window.learn_reason -ne 'NotSafe' -or
         [long]$window.learned_slot -ne 1 -or [long]$window.learn_sent_at_ms -lt [long]$window.passed_safe_at_ms -or
+        [long]$window.safe_at_ms -ge [long]$window.segment_ends_at_ms -or
         [long]$window.points_allocated -le 0 -or [long]$window.max_hp_p2_after -le [long]$window.max_hp_p2_before) {
         throw "The client's build safe window steps are missing from its report: $output"
     }
@@ -154,7 +167,9 @@ try {
     Write-Host ("DEV-only owned-connection growth scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
         "stages the client's active offers in the Lobby) plus one owning client; each owner opened each match with exactly one queued " +
         "opening opportunity and its opening points, never re-granted by a respawn; the client learned its opening active into Q and " +
-        "allocated its opening points in the opening rest R0; level $($client.match1.level) from $($client.kills) kills; after the kill " +
+        "allocated its opening points in the opening rest R0; level $($client.match1.level) from $($client.kills) kills across " +
+        "$(@($client.rests).Count) mid rest(s), each retiring the field life without a death and returning the next field life with " +
+        "field T frozen through it (both roles hold through every rest; the client never died before it asked to); after the kill " +
         "reaching the first offer level its choice was kept as a blueprint and an allocation and a learn were refused (NotSafe) while " +
         "its build safe window ran, then the blueprint was learned into W and every point allocated after it; after the Host's own " +
         "DevFixture XP grant it killed the client, which kept its next choice as a blueprint, had a learn refused and allocated points " +

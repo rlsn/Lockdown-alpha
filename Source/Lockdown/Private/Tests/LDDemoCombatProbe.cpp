@@ -2,6 +2,8 @@
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Tests/LDScenarioWalk.h"
+#include "Vision/LDVisionDirector.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDFlightTrailComponent.h"
 #include "Combat/LDCombatCues.h"
@@ -72,6 +74,12 @@ constexpr int32 CombatProbeAttackOrders = 6;
 constexpr double CombatProbeArrivalCm = 150.0;
 // Client1 waits this far from the Host: inside sight, outside basic range, so the attack-move must close in.
 constexpr double CombatProbeGapCm = 600.0;
+// D26: the Boss patrols around the flagpole from field T = BOSS.appear_at and acquires every body inside its band, so the
+// Host's site is searched on rings this far apart beyond the nearest one (one duel gap outside the capture circle), at
+// these many bearings, until the duel stays outside that band.
+constexpr int32 CombatProbeSiteRings = 6;
+constexpr int32 CombatProbeSiteBearings = 16;
+constexpr double CombatProbeSiteRingStepCm = 300.0;
 // Bounded waits in seconds: one order or receipt; one walk or kill; the Host's sighting of the protected respawn.
 constexpr double CombatProbeStepSeconds = 20.0;
 constexpr double CombatProbeKillSeconds = 90.0;
@@ -93,11 +101,12 @@ constexpr int32 CombatProbeChaseBearings = 16;
 constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
-// Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range (active_pants_down,
-// 400 cm) and beyond the basic range (220 cm) even when both bodies stop at the far edge of Navigation's 40 cm goal
-// acceptance, so the Host's basic chase must close in before its hit lands. Client1 throws its snark bolt from its farther
-// duel site, so the flight spans several 100 ms observation publications the Host can render.
-constexpr double CombatProbeSkillGapCm = 365.0;
+// Skills: Client1's skill site lies on the open duel line midway between the Host's approved basic range and the snare's
+// approved range (both read from the catalog in PrepareSites), so it stays inside the snare's range and beyond the basic
+// range even when both bodies stop at the far edge of Navigation's goal acceptance, and the Host's basic chase must close in
+// before its hit lands. Client1 throws its snark bolt from its farther duel site, so the flight spans several 100 ms
+// observation publications the Host can render.
+constexpr double CombatProbeGoalAcceptanceCm = 40.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
 // Client1's Shift-queue walk to the skill site: a detour waypoint at one of these fractions of the straight walk and this
@@ -106,7 +115,8 @@ constexpr double CombatProbeSkillArrivalCm = 60.0;
 constexpr double CombatProbeQueueAlong[] = {.5, .35, .65, .2, .8};
 constexpr double CombatProbeQueueDetourCm[] = {320.0, -320.0, 220.0, -220.0, 150.0, -150.0};
 constexpr double CombatProbeQueuePassCm = 90.0;
-// The queued walk starts at Client1's random respawn point, up to the map's width from the skill site, with a detour.
+// The queued walk starts where Client1's camp- and Boss-free approach from its random respawn point ends (at worst the
+// respawn point itself, up to the map's width from the skill site), with a detour.
 constexpr double CombatProbeQueueWalkSeconds = 40.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
 constexpr double CombatProbeSkillSeconds = 3.0;
@@ -126,10 +136,16 @@ constexpr double CombatProbeFeelSettleSeconds = 0.5;
 constexpr double CombatProbeBesideCm = 250.0;
 
 // The fixture's preset actives each role learns, in opportunity order (the opening offer first, then the first offer
-// level's); two other actives only fill each offer. Client1's not_mad shields and also dispels a root (#198).
+// level's); two other actives only fill each offer. Client1's not_mad shields and also dispels a root (#198). The Host's
+// only planned active, from its opening offer, is the snare.
+FName CombatProbeSnare()
+{
+    return FName(TEXT("active_pants_down"));
+}
+
 TArray<FName> CombatProbeSkillPlan(bool bHost)
 {
-    return bHost ? TArray<FName>{FName(TEXT("active_pants_down"))}
+    return bHost ? TArray<FName>{CombatProbeSnare()}
         : TArray<FName>{FName(TEXT("active_not_mad")), FName(TEXT("active_snark_bolt"))};
 }
 
@@ -208,8 +224,10 @@ public:
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     TArray<TSharedPtr<FJsonValue>> Checks;
 
-    // Deterministic public duel sites beside the capture circle, outside its reach.
+    // Deterministic public duel sites outside the capture circle and the Boss's patrol band, and the camp homes and Boss
+    // band every planned fixture walk keeps clear of.
     FVector HostSite = FVector::ZeroVector, ClientSite = FVector::ZeroVector;
+    TArray<LDScenarioWalk::FKeepout> WalkKeepouts;
     double RespawnSeconds = 0;
     FGuid HostId, ClientId;
     int32 NavigateAttempts = 0, AttackOrders = 0;
@@ -265,10 +283,13 @@ public:
     FLDMoveIdentity FollowUpAttack, FollowUpQueued, FollowUpRefused, FollowUpCast;
     FGuid FollowUpTarget, QueuedTarget;
     uint32 FollowUpTargetEpoch = 0;
-    // Client1, on its walk to the skill site: a ground order to a detour waypoint, then a Shift-queued order to the
-    // site over the owning connection. The queued step must wait for the first one's arrival, then run to the site.
-    enum class EQueueStep : uint8 { Send, Walking, Done };
-    EQueueStep QueueStep = EQueueStep::Send;
+    // Client1, on its walk to the skill site: first a planned native approach around the camp homes and the Boss's
+    // patrol band (its intermediate waypoints only), then a ground order to a detour waypoint and a Shift-queued order to
+    // the site over the owning connection. The queued step must wait for the first one's arrival, then run to the site.
+    enum class EQueueStep : uint8 { Approach, Send, Walking, Done };
+    EQueueStep QueueStep = EQueueStep::Approach;
+    TArray<FVector> ApproachWaypoints;
+    int32 ApproachIndex = INDEX_NONE;
     FLDMoveIdentity QueueFirst, QueueSecond;
     FVector QueueWaypoint = FVector::ZeroVector;
     double QueueNearestCm = TNumericLimits<double>::Max();
@@ -410,6 +431,14 @@ public:
         if (IsHost() && Stage > EStage::Lobby && (!Mode || !Mode->Combat))
         {
             return Fail(TEXT("Net"), TEXT("The Listen Host lost its authoritative game mode or Combat owner"));
+        }
+        // #198: the whole duel runs inside the first field segment; a mid rest retires every field life, so its start is a
+        // failure of its own rather than of whichever stage it interrupts.
+        const FLDTimelineView& Timeline = Public->PublicMatch.Timeline;
+        if (Stage > EStage::Spawned && Timeline.Stage == ELDMatchStage::Rest && Timeline.RestIndex > 0)
+        {
+            return Fail(TEXT("Net"), FString::Printf(TEXT("The mid rest R%u opened before the scenario finished inside the first field segment (stage %d, field_t_ms=%lld)"),
+                uint32(Timeline.RestIndex), int32(Stage), Timeline.FieldBaseMs));
         }
         switch (Stage)
         {
@@ -658,6 +687,20 @@ public:
         const double AttackReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
         const double SightReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.VisionRadiusCm);
         const double Gap = LDDemoCombatScenario::CombatProbeGapCm;
+        // Client1's skill site: midway between the approved basic range and the snare's approved range, which must leave
+        // room for both bodies to stop up to the goal acceptance off their points on either side.
+        const FLDDemoAbilityDefinition* SnareDefinition = nullptr;
+        FString SnareError;
+        const double SnareReach = Catalog->FindAbility(LDDemoCombatScenario::CombatProbeSnare().ToString(), SnareDefinition, SnareError)
+            && SnareDefinition ? LDDemoCombatScenario::CombatProbeRational(SnareDefinition->Target.RangeCm) : -1.0;
+        const double SkillGap = .5 * (AttackReach + SnareReach);
+        if (!Check(SnareReach - AttackReach > 4.0 * LDDemoCombatScenario::CombatProbeGoalAcceptanceCm && SkillGap < Gap, TEXT("Start"),
+            TEXT("The snare's approved range exceeds the approved basic range by more than both bodies' goal acceptance"),
+            FString::Printf(TEXT("snare_cm=%.1f basic_cm=%.1f skill_gap_cm=%.1f duel_gap_cm=%.1f %s"), SnareReach, AttackReach, SkillGap, Gap,
+                *SnareError)))
+        {
+            return false;
+        }
         // The Host kills Client1 inside the first field segment, whose approved respawn wait is LIFE.RespawnSec.Field1.
         RespawnSeconds = double(Defs.Parameters.RespawnField1Ms) / 1000.0;
         if (!CaptureAnchor || CaptureReach <= 0 || BodyRadius <= 0 || AttackReach <= 0
@@ -674,39 +717,69 @@ public:
             return Registry.QueryGround(Registry.Revision(), Site, Capsule, CaptureAnchor->Surface, LegalSite, SiteFailure, SiteError)
                 && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
         };
-        // The Host's site: the first of eight bearings around the flagpole, one duel gap outside its circle, on legal ground.
-        FLDLegalGround HostGround;
-        FVector Across = FVector::ZeroVector;
-        bool bHostLegal = false;
+        // D26: from field T = BOSS.appear_at the Boss patrols its public native corridor around the flagpole and acquires
+        // every body inside its band. The duel sites and the open route between them stay outside that band (with the
+        // final-arrival slack of a ground order) and off every camp home, so the Boss never joins the duel; Client1's walk
+        // to its skill site, after the Boss may have appeared, is planned around the same exclusions.
         const bool bCapsule = ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
-        for (int32 Bearing = 0; bCapsule && !bHostLegal && Bearing < 8; ++Bearing)
+        const FLDDemoWorldGeometry* Geometry = Registry.GetGeometry();
+        const double BossBand = LDDemoCombatScenario::CombatProbeRational(Defs.Boss.AggroRadiusCm);
+        TArray<FLDCompletePath> Patrol;
+        FLDSightGeometry Sight;
+        WalkKeepouts.Reset();
+        if (!bCapsule || !Geometry || BossBand <= 0
+            || !LDScenarioWalk::Keepouts(*Geometry, *Catalog, BodyRadius, LDDemoCombatScenario::CombatProbeSkillArrivalCm, WalkKeepouts, SiteError)
+            || !LDScenarioWalk::PatrolPaths(Registry, *Catalog, Patrol, SiteError)
+            || !Sight.Build(*Geometry, Registry.Revision(), Defs.Parameters.VisionRadiusCm, SiteError))
         {
-            const FVector Outward = FVector(1, 0, 0).RotateAngleAxis(45.0 * Bearing, FVector::UpVector);
-            Across = FVector(Outward.Y, -Outward.X, 0.0);
-            HostSite = CaptureAnchor->Position + Outward * (CaptureReach + 2.0 * BodyRadius + Gap);
-            bHostLegal = Legal(HostSite, HostGround);
+            return Check(false, TEXT("Start"), TEXT("The duel fixture's camp homes, Boss patrol corridor and sight geometry are available"),
+                SiteError);
         }
-        // Only Client1 walks to its own site: eight fixed bearings around the Host's site, the first with legal ground
-        // and a near-straight complete route from the Host's site (open ground in sight) wins. Its skill site lies on
-        // that open line, nearer the Host, and must be legal too.
-        bool bClientLegal = IsHost();
-        for (int32 Bearing = 0; bHostLegal && !bClientLegal && Bearing < 8; ++Bearing)
+        LDScenarioWalk::PatrolKeepouts(Patrol, BossBand + BodyRadius + LDDemoCombatScenario::CombatProbeArrivalCm
+            + LDPathSteering::WaypointToleranceCm, WalkKeepouts);
+        const auto Clear = [this](const FVector& Site)
         {
-            const FVector Direction = Across.RotateAngleAxis(45.0 * Bearing, FVector::UpVector);
-            ClientSite = HostSite + Direction * Gap;
-            SkillSite = HostSite + Direction * LDDemoCombatScenario::CombatProbeSkillGapCm;
-            FLDLegalGround ClientGround, SkillGround;
-            FLDCompletePath Route;
-            ELDWorldQueryFailure RouteFailure = ELDWorldQueryFailure::None;
-            bClientLegal = Legal(ClientSite, ClientGround) && Legal(SkillSite, SkillGround)
-                && Registry.QueryCompletePath(Registry.Revision(), HostGround, ClientGround, Capsule, Route, RouteFailure, SiteError)
-                && Route.LengthCm <= 1.2 * Gap;
+            return !WalkKeepouts.ContainsByPredicate([&Site](const LDScenarioWalk::FKeepout& Zone)
+            { return FVector::Dist2D(Site, Zone.Centre) <= Zone.Radius; });
+        };
+        // Both roles run the same deterministic search, so they agree on every site: the Host's site on rings around the
+        // flagpole (nearest ring first, one duel gap outside its circle), then eight fixed bearings around it for Client1's
+        // site. The first triple with legal ground, clear of the exclusions, in sight of the Host and joined to it by a
+        // near-straight, exclusion-free complete route wins. Client1's skill site lies on that open line, nearer the Host.
+        bool bFound = false;
+        for (int32 Ring = 0; !bFound && Ring < LDDemoCombatScenario::CombatProbeSiteRings; ++Ring)
+        {
+            for (int32 Bearing = 0; !bFound && Bearing < LDDemoCombatScenario::CombatProbeSiteBearings; ++Bearing)
+            {
+                const FVector Outward = FVector(1, 0, 0).RotateAngleAxis(360.0 * Bearing / LDDemoCombatScenario::CombatProbeSiteBearings,
+                    FVector::UpVector);
+                const FVector Across(Outward.Y, -Outward.X, 0.0);
+                HostSite = CaptureAnchor->Position + Outward * (CaptureReach + 2.0 * BodyRadius + Gap
+                    + Ring * LDDemoCombatScenario::CombatProbeSiteRingStepCm);
+                FLDLegalGround HostGround;
+                if (!Clear(HostSite) || !Legal(HostSite, HostGround)) { continue; }
+                for (int32 Turn = 0; !bFound && Turn < 8; ++Turn)
+                {
+                    const FVector Direction = Across.RotateAngleAxis(45.0 * Turn, FVector::UpVector);
+                    ClientSite = HostSite + Direction * Gap;
+                    SkillSite = HostSite + Direction * SkillGap;
+                    FLDLegalGround ClientGround, SkillGround;
+                    FLDCompletePath Route;
+                    ELDWorldQueryFailure RouteFailure = ELDWorldQueryFailure::None;
+                    bFound = Clear(ClientSite) && Clear(SkillSite) && Legal(ClientSite, ClientGround) && Legal(SkillSite, SkillGround)
+                        && Sight.Trace(HostGround.SurfaceCm, ClientGround.SurfaceCm) == ELDSightResult::Visible
+                        && Sight.Trace(HostGround.SurfaceCm, SkillGround.SurfaceCm) == ELDSightResult::Visible
+                        && Registry.QueryCompletePath(Registry.Revision(), HostGround, ClientGround, Capsule, Route, RouteFailure, SiteError)
+                        && Route.LengthCm <= 1.2 * Gap && LDScenarioWalk::RouteKeepout(Route.Points, WalkKeepouts) == INDEX_NONE;
+                }
+            }
         }
-        bSitesReady = bHostLegal && bClientLegal;
+        bSitesReady = bFound;
+        if (bFound) { SiteError.Reset(); }
         return Check(bSitesReady, TEXT("Start"),
-            TEXT("The duel sites are legal ground outside the capture circle, joined by an open complete route"),
-            FString::Printf(TEXT("host=%s client=%s skill=%s %s"), *HostSite.ToCompactString(), *ClientSite.ToCompactString(),
-                *SkillSite.ToCompactString(), *SiteError));
+            TEXT("The duel sites are legal ground outside the capture circle, the Boss's patrol band and the camp homes, in sight of each other and joined by an open complete route"),
+            FString::Printf(TEXT("host=%s client=%s skill=%s boss_band_cm=%.0f exclusions=%d %s"), *HostSite.ToCompactString(),
+                *ClientSite.ToCompactString(), *SkillSite.ToCompactString(), BossBand, WalkKeepouts.Num(), *SiteError));
     }
 
     bool TickToSite(double Now, ALDPlayerController& PC)
@@ -1346,6 +1419,42 @@ public:
             return Fail(TEXT("Queue"), TEXT("The owned body ended its life during the queued walk"));
         }
         const FVector Foot = Body->GetNavAgentLocation();
+        if (QueueStep == EQueueStep::Approach)
+        {
+            if (ApproachIndex == INDEX_NONE)
+            {
+                const auto* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                TArray<FVector> Route;
+                FString RouteError;
+                const bool bPlanned = Registry && LDScenarioWalk::Plan(*Registry, *Catalog, Foot, SkillSite, WalkKeepouts,
+                    LDDemoCombatScenario::CombatProbeSkillArrivalCm, Route, RouteError) && !Route.IsEmpty();
+                if (!Check(bPlanned, TEXT("Queue"),
+                    TEXT("A legal native route from the respawn point to the skill site keeps clear of the camp homes and the Boss's patrol band"),
+                    FString::Printf(TEXT("from=%s site=%s %s"), *Foot.ToCompactString(), *SkillSite.ToCompactString(), *RouteError)))
+                {
+                    return Finish();
+                }
+                // The queued walk covers the last leg, to the site itself.
+                Route.RemoveAt(Route.Num() - 1);
+                ApproachWaypoints = MoveTemp(Route);
+                ApproachIndex = 0;
+                NavigateAttempts = 0;
+                StageAt = Now;
+            }
+            if (ApproachIndex < ApproachWaypoints.Num())
+            {
+                bool bArrived = false;
+                if (!Walk(Now, PC, ApproachWaypoints[ApproachIndex], LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
+                if (bArrived)
+                {
+                    ++ApproachIndex;
+                    NavigateAttempts = 0;
+                }
+                return true;
+            }
+            QueueStep = EQueueStep::Send;
+            StageAt = Now;
+        }
         if (QueueStep == EQueueStep::Send)
         {
             if (PC.Navigation->HasMoveOrder()) { return true; }
@@ -1379,9 +1488,15 @@ public:
                                 && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
                                 && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
                             {
-                                QueueWaypoint = Detour.SurfaceCm;
-                                bLegal = true;
-                                break;
+                                // D26: both legs stay out of the camp homes and the Boss's patrol band as well.
+                                if (LDScenarioWalk::RouteKeepout(First.Points, WalkKeepouts) == INDEX_NONE
+                                    && LDScenarioWalk::RouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE)
+                                {
+                                    QueueWaypoint = Detour.SurfaceCm;
+                                    bLegal = true;
+                                    break;
+                                }
+                                Why = TEXT("crosses a camp home or the Boss's patrol band");
                             }
                             Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
                         }
@@ -2005,7 +2120,7 @@ public:
     {
         const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
         const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
-        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[1]);
+        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSnare());
         const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Snare](const FLDCombatEntryView& Entry) { return Entry.Entry == Snare; });
         const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
         const ALDCharacter* Other = ClientBody(Mode);
@@ -2075,7 +2190,11 @@ public:
             && Sent->ObservationEpoch == HostCastTargetEpoch, TEXT("CastFollowUp"),
             TEXT("The Listen Host's unit cast starts an accepted attack on its target"))) { return Finish(); }
 
-        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[1]);
+        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSnare());
+        if (Snare == ELDCombatEntry::None)
+        {
+            return Fail(TEXT("CastFollowUp"), TEXT("The learned snare holds no Q/W/E entry for the refused-cast check"));
+        }
         FLDCombatTarget RefusedAim;
         RefusedAim.Kind = ELDCombatTargetKind::Unit;
         RefusedAim.Observed = FGuid::NewGuid();

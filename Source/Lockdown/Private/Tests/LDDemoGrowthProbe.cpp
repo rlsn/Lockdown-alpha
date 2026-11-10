@@ -73,7 +73,8 @@ constexpr double GrowthProbeTransitionSeconds = 60.0;
 // A replay that must change nothing is watched this long before the owner state is compared again.
 constexpr double GrowthProbeQuietSeconds = 1.5;
 // #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without
-// a death and places the first field life, life 2.
+// a death and places the first field life, life 2. Later field lives follow respawns and the mid rests R1..R3 (each rest
+// retires the field life, places a rest life and returns a new field life) and are tracked, never assumed.
 constexpr uint32 GrowthProbeFieldLife = 2;
 // The client sends its R0 return refusals only while at least this much of the return countdown is left (probe margin).
 constexpr int64 GrowthProbeReturnMarginMs = 1500;
@@ -351,7 +352,6 @@ public:
     uint32 WalkMatch = 0;
     int32 WalkWaypoint = 0;
     double WalkArrivalCm = 0;
-    double RespawnSeconds = 0;
     FGuid HostId, ClientId;
 
     // Owning-client notifications in arrival order; listeners only record.
@@ -400,9 +400,29 @@ public:
     int32 Rest0Step = 0;
     int64 Rest0StartedAtMs = 0, Rest0BuildEndsAtMs = 0;
     FVector Rest0Foot = FVector::ZeroVector;
-    FLDMoveIdentity Rest0Attack, Rest0Shift, Rest0Move;
+    FLDMoveIdentity Rest0Attack, Rest0Shift, Rest0Move, Rest0QOrder;
+    bool bRest0QOrder = false;
     uint32 Rest0CombatMark = 0;
     TSharedPtr<FJsonObject> Rest0Row;
+
+    // #198 mid rests R1..R3 of the first match (TickRestHold). RestHeldAt is the wall time the current hold began, 0 while
+    // not holding; the rest's index, entry instant, frozen T, the own field life and public death count at its entry and
+    // the newest own life seen while held (the rest life).
+    double RestHeldAt = 0;
+    uint8 RestHeldIndex = 0;
+    uint32 RestLifeBefore = 0, RestLife = 0;
+    int64 RestEnteredAtMs = -1, RestFrozenT = -1, RestDeathsBefore = -1;
+    // Host: the authority kept both owners in their private rest spaces with T frozen during the held rest.
+    bool bRestSpacesSeen = false;
+    TArray<TSharedPtr<FJsonValue>> RestRows;
+    // This owner's current field life: the first one after R0, then the life after each rest return or respawn.
+    uint32 FieldLife = 0;
+    // Wall time this owner's view first showed no living FieldLife without any death (a phase boundary that reached the
+    // owner view before the public phase); 0 otherwise.
+    double FieldLifeLostAt = 0;
+    // Waits for a field segment with room for a stage that must finish inside one segment.
+    int32 FieldRoomWaits = 0;
+    bool bFieldRoomWaiting = false;
 
     // Client1: the build safe window after the kill that reached the first offer level.
     bool bWindowDone = false;
@@ -736,6 +756,273 @@ public:
             && PC.CombatView.Generation == PC.OwnerState.Match && PC.CombatView.MaxHPP2 > Build.MaxHPBeforeP2;
     }
 
+    // ---- #198 field segments and mid rests ----
+
+    // The approved field respawn wait (LIFE.RespawnSec.Field1/Field2/Field3/Final) of a death in the field segment the
+    // public timeline shows now; a field death's wait is fixed by its T and a rest ends it, so it is always this segment's.
+    int64 RespawnMsNow(const ALDPlayerController& PC) const
+    {
+        const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+        const FLDDemoContentParameters& Parameters = Catalog->Get().Parameters;
+        switch (Public ? Public->PublicMatch.Timeline.FieldSegment : 0)
+        {
+        case 0: return Parameters.RespawnField1Ms;
+        case 1: return Parameters.RespawnField2Ms;
+        case 2: return Parameters.RespawnField3Ms;
+        default: return Parameters.RespawnFinalMs;
+        }
+    }
+
+    double RespawnSecondsNow(const ALDPlayerController& PC) const
+    {
+        return double(RespawnMsNow(PC)) / 1000.0;
+    }
+
+    // The authority ms at which the running field segment ends (the next rest begins): MAX_int64 in the final field, -1
+    // outside a field of this owner's match.
+    static int64 FieldEndsAtMs(const ALDPlayerController& PC)
+    {
+        const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+        if (!Public) { return -1; }
+        const FLDPublicMatchView& Match = Public->PublicMatch;
+        if (Match.Generation != PC.OwnerState.Match
+            || (Match.Phase != ELDMatchPhase::Development && Match.Phase != ELDMatchPhase::CaptureOpen))
+        {
+            return -1;
+        }
+        if (Match.Timeline.Stage == ELDMatchStage::FinalField) { return MAX_int64; }
+        return Match.Timeline.Stage == ELDMatchStage::Field ? Match.Timeline.StepEndsAtMs : -1;
+    }
+
+    // Field time the running segment has left at this owner's authority time (T and authority time advance together inside
+    // a segment): MAX_int64 in the final field, -1 outside a field or before the clock is known.
+    static int64 FieldLeftMs(const ALDPlayerController& PC)
+    {
+        const int64 EndsAtMs = FieldEndsAtMs(PC);
+        int64 NowMs = 0;
+        if (EndsAtMs < 0 || !AuthorityNowMs(PC, NowMs)) { return -1; }
+        return EndsAtMs == MAX_int64 ? MAX_int64 : EndsAtMs - NowMs;
+    }
+
+    // Field room, from approved values and the probe's own step budgets. The kill that reaches the first offer level
+    // starts an attack order only while the order's budget plus GROWTH.BuildSafeWindowSec fits in the segment: the window
+    // it opens then ends before the next rest, so every NotSafe probe is judged in the field and never in a rest's build
+    // step, where no window applies.
+    int64 WindowKillNeedMs() const
+    {
+        return int64(LDDemoGrowthScenario::GrowthProbeKillSeconds * 1000.0) + Catalog->Get().Parameters.BuildSafeWindowMs;
+    }
+
+    // The Host starts an attack order on the buyer only while the order's budget, this segment's LIFE.RespawnSec wait (the
+    // buyer's whole dead stage runs inside it) and one request bound to observe the respawned life fit in the segment, so a
+    // rest can neither end the buyer's respawn wait nor judge one of its dead-stage commands.
+    int64 HostKillNeedMs(const ALDPlayerController& PC) const
+    {
+        return int64((LDDemoGrowthScenario::GrowthProbeKillSeconds + LDDemoGrowthScenario::GrowthProbeRequestSeconds) * 1000.0)
+            + RespawnMsNow(PC);
+    }
+
+    // One wait for a segment with room (logged once per wait; cleared when a gated step starts).
+    void NoteFieldRoomWait(const TCHAR* What, int64 LeftMs, int64 NeedMs)
+    {
+        if (bFieldRoomWaiting) { return; }
+        bFieldRoomWaiting = true;
+        ++FieldRoomWaits;
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_GROWTH_PROBE_FIELD_ROOM role=%s wait=%s field_left_ms=%lld need_ms=%lld"),
+            *Role, What, LeftMs, NeedMs);
+    }
+
+    // The public scoreboard's death count of one contender in a match. Only a real death moves it; a rest retirement
+    // (RetireLifeForPhase, PhaseRetired) counts none. -1 while that match's kill feed has no row for the contender.
+    static int64 PublicDeaths(const ALDGameState& Public, uint32 Generation, const FGuid& Contender)
+    {
+        if (Public.KillFeed.Generation != Generation) { return -1; }
+        const FLDScoreRow* Row = Public.KillFeed.Scores.FindByPredicate([&Contender](const FLDScoreRow& Candidate)
+            { return Candidate.ContenderId == Contender; });
+        return Row ? int64(Row->Deaths) : -1;
+    }
+
+    static int64 OwnDeaths(const ALDPlayerController& PC)
+    {
+        const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+        return Public ? PublicDeaths(*Public, PC.OwnerState.Match, PC.OwnerState.ContenderId) : -1;
+    }
+
+    // A real death of this owner beyond Expected: its view holds a dead life with a field respawn wait (a phase retirement
+    // sets none), or the public death count passed Expected. Seen describes both signals.
+    bool OwnerDied(const ALDPlayerController& PC, int64 Expected, FString& Seen) const
+    {
+        const int64 Deaths = OwnDeaths(PC);
+        const bool bWaiting = PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.RespawnAtMs > 0;
+        Seen = FString::Printf(TEXT("phase %s life %u (field life %u) respawn_at_ms=%lld public deaths=%lld expected=%lld"),
+            *StaticEnum<ELDLifePhase>()->GetNameStringByValue(int64(PC.OwnerState.LifePhase)), PC.OwnerState.Life, FieldLife,
+            PC.OwnerState.RespawnAtMs, Deaths, Expected);
+        return bWaiting || Deaths > Expected;
+    }
+
+    // Whether the buyer's kill in progress reaches the first offer level (the build safe window stage follows it).
+    bool IsWindowKill() const
+    {
+        const FLDDemoContentDefinitions& Defs = Catalog->Get();
+        uint8 Level = 0;
+        return !bWindowDone && KillXP > 0
+            && LDProgression::LevelForXP(Defs.Progression, KillBefore.CumulativeXP + KillXP, Level) == ELDGrowthReason::None
+            && int32(Level) >= Defs.Progression.ActiveOfferLevels[0];
+    }
+
+    // A held rest is not field time: every running wall-clock budget moves past it. The stages that wait for the victim at
+    // its duel site restart, since the return may place it anywhere (a life dead at the rest entry takes a normal spawn).
+    void ResumeClocks(double Now, double Held)
+    {
+        StageAt += Held;
+        if (Build.bSent)
+        {
+            Build.SentAt += Held;
+            if (Build.QuietUntil > 0) { Build.QuietUntil += Held; }
+        }
+        if (KillStartedAt > 0) { KillStartedAt += Held; }
+        if (HostKillReward.Since > 0) { HostKillReward.Since += Held; }
+        if (HostCampReward.Since > 0) { HostCampReward.Since += Held; }
+        if (Stage == EStage::ToSite || Stage == EStage::KillSeek || Stage == EStage::KillWait || Stage == EStage::AwaitDeath)
+        {
+            StageAt = Now;
+        }
+        if (HostKillStartedAt > 0) { HostKillStartedAt = Now; }
+        NextCommandAt = 0;
+        FieldLifeLostAt = 0;
+        bFieldRoomWaiting = false;
+    }
+
+    // #198 mid rests R1..R3 of the first match. From the first frame the public phase is a mid rest until this owner stands
+    // in its next field life, neither role sends a world command or runs a stage budget. At the return the probe checks
+    // that the rest retired the field life without a death (public death count unchanged, the rest life and then a new field
+    // life) and that T stayed frozen, extends every running budget by the held time and resumes. Stages that must finish
+    // inside one segment are gated by field room and fail explicitly if a rest still reaches them. bHeld: skip this tick.
+    bool TickRestHold(double Now, ALDPlayerController& PC, const ALDGameState& Public, bool& bHeld)
+    {
+        bHeld = false;
+        if (bSecondMatch || Stage < EStage::Spawned || Stage > EStage::AwaitLobby || Stage == EStage::EndFirst) { return true; }
+        const FLDPublicMatchView& Match = Public.PublicMatch;
+        const FLDTimelineView& Line = Match.Timeline;
+        const FLDDemoContentParameters& Parameters = Catalog->Get().Parameters;
+        const bool bRest = Match.Generation == PC.OwnerState.Match && Match.Phase == ELDMatchPhase::Rest && Line.RestIndex > 0;
+        if (RestHeldAt == 0)
+        {
+            if (!bRest) { return true; }
+            const FString Where = FString::Printf(TEXT("rest R%u at stage %d step %d"), uint32(Line.RestIndex), int32(Stage), BuildStep);
+            if (Stage == EStage::Spawned)
+            {
+                return Fail(TEXT("Start"), TEXT("Field 1 ended before this role finished its first field checks: ") + Where);
+            }
+            if ((Stage == EStage::Window && BuildStep <= 3) || (Stage == EStage::KillWait && IsWindowKill()))
+            {
+                return Fail(TEXT("A15"), TEXT("A rest began inside the kill reaching the first offer level or its NotSafe probes, "
+                    "which must be judged in one field segment: ") + Where);
+            }
+            if (Stage == EStage::Dead || (Stage == EStage::Respawn && BuildStep == 0)
+                || (Stage == EStage::AwaitDeath && PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.RespawnAtMs > 0))
+            {
+                return Fail(TEXT("A14"), TEXT("A rest began inside the buyer's dead stage or before its respawn was checked, "
+                    "which must finish in one field segment: ") + Where);
+            }
+            RestHeldAt = Now;
+            RestHeldIndex = Line.RestIndex;
+            RestLifeBefore = IsHost() ? VictimLife : FieldLife;
+            RestLife = 0;
+            RestEnteredAtMs = Line.Step == ELDRestStep::Build ? Line.StepStartedAtMs : -1;
+            RestFrozenT = Line.FieldBaseMs;
+            RestDeathsBefore = OwnDeaths(PC);
+            bRestSpacesSeen = false;
+            UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_GROWTH_PROBE_REST_HOLD role=%s %s life=%u field_life=%u deaths=%lld"),
+                *Role, *Where, PC.OwnerState.Life, RestLifeBefore, RestDeathsBefore);
+        }
+        bHeld = true;
+        const ALDGameMode* Mode = IsHost() ? PC.GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
+        // The rest life: the Host reads its authority rest space; the buyer, alive at every rest entry, gets the next life.
+        if (bRest && PC.OwnerState.LifePhase == ELDLifePhase::Alive
+            && (IsHost() ? Mode && Mode->IsInRestSpace(HostId) : PC.OwnerState.Life == RestLifeBefore + 1))
+        {
+            RestLife = PC.OwnerState.Life;
+        }
+        if (IsHost() && bRest)
+        {
+            bRestSpacesSeen |= Mode && Mode->IsInRestSpace(HostId) && Mode->IsInRestSpace(ClientId)
+                && Mode->GetFieldNowMs() == RestFrozenT;
+        }
+        // Without sign-ups a mid rest is its build step and the return countdown.
+        if (Now - RestHeldAt > double(Parameters.RestBuildMs + Parameters.RestReturnMs) / 1000.
+            + LDDemoGrowthScenario::GrowthProbeRequestSeconds)
+        {
+            return Fail(TEXT("Rest"), FString::Printf(TEXT("Rest R%u did not return this owner to a field life within its approved "
+                "length (phase %s, life %u)"), uint32(RestHeldIndex), *StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Match.Phase)),
+                PC.OwnerState.Life));
+        }
+        if (bRest) { return true; }
+        if (Match.Generation != PC.OwnerState.Match
+            || (Match.Phase != ELDMatchPhase::Development && Match.Phase != ELDMatchPhase::CaptureOpen))
+        {
+            // The buyer waits for the Lobby while the Host ends the first match; any other stage needs the field back.
+            if (Stage != EStage::AwaitLobby)
+            {
+                return Fail(TEXT("Rest"), FString::Printf(TEXT("The first match left rest R%u without returning to the field"),
+                    uint32(RestHeldIndex)));
+            }
+            ResumeClocks(Now, Now - RestHeldAt);
+            RestHeldAt = 0;
+            return true;
+        }
+        // The returned field life: at least two lives after the field life at the rest entry (its rest life between them).
+        const bool bReturned = Cast<ALDCharacter>(PC.GetPawn()) && PC.OwnerState.LifePhase == ELDLifePhase::Alive
+            && PC.OwnerState.Life >= RestLifeBefore + 2 && (!IsHost() || (Mode && !Mode->IsInRestSpace(HostId)))
+            && PC.OwnerState.BodyRef.IsValid() && PC.CanWorldCommand();
+        if (!bReturned) { return true; }
+        const int64 DeathsAfter = OwnDeaths(PC);
+        const FString Detail = FString::Printf(TEXT("rest R%u: field life %u -> rest life %u -> field life %u, public deaths %lld -> %lld"),
+            uint32(RestHeldIndex), RestLifeBefore, RestLife, PC.OwnerState.Life, RestDeathsBefore, DeathsAfter);
+        Check(RestLifeBefore > 0 && RestLife > RestLifeBefore && PC.OwnerState.Life == RestLife + 1 && RestDeathsBefore >= 0
+            && DeathsAfter == RestDeathsBefore, TEXT("Rest"),
+            TEXT("A mid rest retires the field life without a death: the public death count is unchanged, a rest life and then "
+                "a new field life follow"), Detail);
+        const int64 SegmentT = int64(RestHeldIndex) * Parameters.FieldSegmentMs;
+        Check(Line.RestIndex == RestHeldIndex && Line.FieldSegment == RestHeldIndex && RestFrozenT == SegmentT
+            && Line.FieldBaseMs == SegmentT && RestEnteredAtMs >= 0
+            && Line.FieldStartedAtMs == RestEnteredAtMs + Parameters.RestBuildMs + Parameters.RestReturnMs, TEXT("Rest"),
+            TEXT("Field T stays frozen through the rest: without sign-ups it skips its PK, and the next segment resumes at the T "
+                "where the last one ended"),
+            FString::Printf(TEXT("rest R%u entered at %lld with T=%lld; field segment %u started at %lld from T=%lld"),
+                uint32(RestHeldIndex), RestEnteredAtMs, RestFrozenT, uint32(Line.FieldSegment), Line.FieldStartedAtMs, Line.FieldBaseMs));
+        if (IsHost())
+        {
+            Check(bRestSpacesSeen, TEXT("Rest"),
+                TEXT("The authority kept both owners in their private rest spaces with field T frozen during the rest"), Detail);
+        }
+        const double Held = Now - RestHeldAt;
+        const TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetNumberField(TEXT("rest"), RestHeldIndex);
+        Row->SetNumberField(TEXT("stage"), int32(Stage));
+        Row->SetNumberField(TEXT("field_life_before"), RestLifeBefore);
+        Row->SetNumberField(TEXT("rest_life"), RestLife);
+        Row->SetNumberField(TEXT("field_life_after"), PC.OwnerState.Life);
+        Row->SetNumberField(TEXT("deaths_before"), double(RestDeathsBefore));
+        Row->SetNumberField(TEXT("deaths_after"), double(DeathsAfter));
+        Row->SetNumberField(TEXT("frozen_t_ms"), double(RestFrozenT));
+        Row->SetNumberField(TEXT("rest_entered_at_ms"), double(RestEnteredAtMs));
+        Row->SetNumberField(TEXT("field_started_at_ms"), double(Line.FieldStartedAtMs));
+        Row->SetNumberField(TEXT("held_seconds"), Held);
+        RestRows.Add(MakeShared<FJsonValueObject>(Row));
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_GROWTH_PROBE_REST_RESUME role=%s %s held=%.1fs"), *Role, *Detail, Held);
+        if (!Passed) { return Finish(); }
+        if (!IsHost()) { FieldLife = PC.OwnerState.Life; }
+        ResumeClocks(Now, Held);
+        RestHeldAt = 0;
+        // A death the buyer waits for must be seen in its own segment; one hidden by the rest entry fails here, not later.
+        if (!IsHost() && Stage == EStage::AwaitDeath && DeathsAfter > 0)
+        {
+            return Fail(TEXT("A14"), TEXT("The buyer's death by the Host was not seen inside its field segment: ") + Detail);
+        }
+        return true;
+    }
+
     bool Tick()
     {
         const double Now = FPlatformTime::Seconds();
@@ -774,6 +1061,17 @@ public:
         if (IsHost() && Exists(TEXT("Client1.json")) && !Exists(TEXT("Client1DevDone.json")))
         {
             return Fail(TEXT("Net"), TEXT("The buyer ended its scenario early; see Client1.json for its failed check"));
+        }
+        bool bHeld = false;
+        const bool bTicking = TickRestHold(Now, *PC, *Public, bHeld);
+        if (!bTicking || bHeld) { return bTicking; }
+        // The second match's checks finish inside its field 1; a mid rest there would change what its DEV commands judge.
+        const FLDPublicMatchView& Match = Public->PublicMatch;
+        if (bSecondMatch && Stage >= EStage::SecondSpawned && Match.Generation == SecondGeneration
+            && Match.Phase == ELDMatchPhase::Rest && Match.Timeline.RestIndex > 0)
+        {
+            return Fail(TEXT("Iso"), FString::Printf(TEXT("The second match reached rest R%u before its checks finished (stage %d)"),
+                uint32(Match.Timeline.RestIndex), int32(Stage)));
         }
         switch (Stage)
         {
@@ -849,6 +1147,11 @@ public:
         const FString Configured = bSecond ? TEXT("LobbyConfigured2.json") : TEXT("LobbyConfigured.json");
         if (IsHost() && !bLobbyConfigured)
         {
+            if (bSecond && !Exists(TEXT("BuyerSawSecondLobby.json")))
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeTransitionSeconds) { return true; }
+                return Fail(Id, TEXT("The buyer never confirmed the new, unready Lobby generation"));
+            }
             if (Lobby.AICount != 0)
             {
                 if (Now >= NextCommandAt)
@@ -1040,6 +1343,7 @@ public:
             LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
         Check(OpeningRow.IsValid(), TEXT("Opening"), TEXT("The opening opportunity was checked in R0, before field 1 (T=0)"));
         if (!Passed) { return Finish(); }
+        FieldLife = PC.OwnerState.Life;
         if (IsHost())
         {
             if (!Check(bPresetsStaged && StagedClientId == ClientId, TEXT("Fixture"),
@@ -1309,6 +1613,41 @@ public:
                 // Q first, so its refusal cannot depend on the attack-moves that follow it on the same connection.
                 Rest0CombatMark = PC.CombatReceipts.Serial();
                 PC.ActivateCombatEntry(ELDCombatEntry::Q);
+                // An aimed opening active (snark_bolt aims a direction) only arms on Q; the probe confirms it toward the
+                // capture point like the player's left click, which sends it as a cast order the server must refuse.
+                ELDCombatEntry Armed = ELDCombatEntry::None;
+                if (PC.ReadArmedCombatEntry(Armed))
+                {
+                    const FVector Toward = Body ? (Capture->Position - Body->GetActorLocation()).GetSafeNormal2D() : FVector::ZeroVector;
+                    if (Armed != ELDCombatEntry::Q || Toward.IsNearlyZero())
+                    {
+                        return Fail(TEXT("Rest0"), TEXT("Q did not arm the opening active with a usable aim in the R0 return countdown"));
+                    }
+                    FLDCombatTarget Aim;
+                    Aim.Kind = ELDCombatTargetKind::Direction;
+                    Aim.Direction = Toward;
+                    const FLDMoveIdentity Before = PC.Navigation->LocalIdentity();
+                    PC.ConfirmArmedEntry(Aim, &Capture->Position);
+                    Rest0QOrder = PC.Navigation->LocalIdentity();
+                    if (Rest0QOrder == Before)
+                    {
+                        return Fail(TEXT("Rest0"), TEXT("The confirmed Q aim sent no cast order in the R0 return countdown"));
+                    }
+                    bRest0QOrder = true;
+                    Rest0Step = 7;
+                    return true;
+                }
+                PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
+                Rest0Attack = PC.Navigation->LocalIdentity();
+                Rest0Step = 4;
+                return true;
+            }
+            if (Rest0Step == 7)
+            {
+                if (!Refused(Rest0QOrder)) { return true; }
+                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Rest0"),
+                    TEXT("The server refuses Q's aimed cast order in the R0 return countdown"),
+                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
                 PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
                 Rest0Attack = PC.Navigation->LocalIdentity();
                 Rest0Step = 4;
@@ -1334,11 +1673,15 @@ public:
                 Rest0Step = 6;
                 return true;
             }
-            const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(Rest0CombatMark,
-                [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
-            if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
-            Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Rest0"), TEXT("The server refuses Q in the R0 return countdown"),
-                StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
+            // A direct Q (a self-cast opening active) answers with a combat receipt; an aimed one was refused as an order.
+            if (!bRest0QOrder)
+            {
+                const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(Rest0CombatMark,
+                    [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
+                if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
+                Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Rest0"), TEXT("The server refuses Q in the R0 return countdown"),
+                    StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
+            }
             if (!Passed) { return Finish(); }
             bRest0Refused = true;
             return true;
@@ -1415,13 +1758,15 @@ public:
         const double DormReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.DormRadiusCm);
         const double BodyRadius = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.CollisionRadiusCm);
         const double AttackReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.AttackRangeCm.Base);
-        // The buyer dies in the first field segment, whose approved respawn wait is LIFE.RespawnSec.Field1.
-        RespawnSeconds = double(Defs.Parameters.RespawnField1Ms) / 1000.0;
+        // Deaths happen in any field segment; each one's approved respawn wait (LIFE.RespawnSec.*) bounds the waits for it.
+        const bool bRespawnWaits = Defs.Parameters.RespawnField1Ms > 0 && Defs.Parameters.RespawnField2Ms > 0
+            && Defs.Parameters.RespawnField3Ms > 0 && Defs.Parameters.RespawnFinalMs > 0;
         const auto* Geometry = Registry.GetGeometry();
         if (!CaptureAnchor || !Geometry || VisionReach <= 0 || CaptureReach <= 0 || AirdropReach <= 0 || DormReach <= 0
-            || BodyRadius <= 0 || AttackReach <= 0 || RespawnSeconds <= 0)
+            || BodyRadius <= 0 || AttackReach <= 0 || !bRespawnWaits)
         {
-            return Check(false, TEXT("Start"), TEXT("The public capture anchor, the world geometry and the approved radii exist"));
+            return Check(false, TEXT("Start"),
+                TEXT("The public capture anchor, the world geometry, the approved radii and the field respawn waits exist"));
         }
         FString SiteError;
         // Every airdrop pickup and dorm the authored world places, with the reach a site keeps from it.
@@ -1622,7 +1967,8 @@ public:
                 LDGrowthWire::ReasonName(LevelReason)));
     }
 
-    // ---- Host: the victim never attacks until the buyer asks to die; it walks back to its duel site after every respawn. ----
+    // ---- Host: the victim never attacks until the buyer asks to die; it walks back to its duel site after every respawn
+    // and every rest return (a new life, so TickVictim plans the walk again). ----
 
     // An opponent's observation of the buyer carries its learned Q/W/E and nothing of its private build: no offer,
     // blueprint or point field exists in the observed unit, and the observed actives are exactly the authority's slots.
@@ -1761,10 +2107,23 @@ public:
         }
         if (HostAttackOrders == 0 || bOrderEnded)
         {
-            if (!Buyer)
+            // #198: an attack order starts only while this segment has room for the kill, the buyer's dead stage and its
+            // respawn (HostKillNeedMs); until then the kill budget does not run. Tick holds through the rest that follows.
+            const int64 Left = FieldLeftMs(PC);
+            const int64 Need = HostKillNeedMs(PC);
+            if (Left < Need)
+            {
+                NoteFieldRoomWait(TEXT("host-kill"), Left, Need);
+                HostKillStartedAt = Now;
+                return true;
+            }
+            bFieldRoomWaiting = false;
+            // After a rest return the buyer carries the shared return protection; an attack waits for it to end.
+            if (!Buyer || LDDemoGrowthScenario::GrowthProbeProtected(*Buyer))
             {
                 if (Now - HostKillStartedAt <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
-                return Fail(TEXT("A14"), TEXT("The buyer left the Host's sight before it died"));
+                return Fail(TEXT("A14"), Buyer ? TEXT("The buyer stayed protected until the Host's kill budget ran out")
+                    : TEXT("The buyer left the Host's sight before it died"));
             }
             if (HostAttackOrders >= LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill)
             {
@@ -1968,12 +2327,16 @@ public:
         FirstMatchRow->SetNumberField(TEXT("unspent_points"), double(FirstProgression.UnspentPoints));
         FirstMatchRow->SetNumberField(TEXT("actives"), FirstProgression.Actives.Num());
         FirstMatchRow->SetNumberField(TEXT("blueprints"), FirstProgression.PendingBlueprints.Num());
-        // D10: deaths and respawns never re-grant the opening opportunity; only the approved offer levels add opportunities.
+        // D10: deaths, respawns and rest returns never re-grant the opening opportunity; only the approved offer levels add
+        // opportunities. The public death count (never moved by a rest retirement) shows this owner died: the Host as the
+        // buyer's victim at least once, the buyer exactly once, by the Host.
         const uint8 Expected = LDProgression::ActiveOpportunitiesAt(Catalog->Get().Progression, FirstProgression.Level);
-        Check(ProgView && PC.OwnerState.Life > LDDemoGrowthScenario::GrowthProbeFieldLife
-            && FirstProgression.ActiveOpportunitiesEarned == Expected, TEXT("Opening"),
+        const int64 Deaths = OwnDeaths(PC);
+        FirstMatchRow->SetNumberField(TEXT("deaths"), double(Deaths));
+        Check(ProgView && Deaths >= 1 && (IsHost() || Deaths == 1) && FirstProgression.ActiveOpportunitiesEarned == Expected,
+            TEXT("Opening"),
             TEXT("After dying and respawning the owner holds exactly its opening opportunity plus one per offer level reached"),
-            FString::Printf(TEXT("life %u, expected %u: %s"), PC.OwnerState.Life, uint32(Expected),
+            FString::Printf(TEXT("life %u, deaths %lld, expected %u: %s"), PC.OwnerState.Life, Deaths, uint32(Expected),
                 *LDDemoGrowthScenario::GrowthProbeProgressionText(FirstProgression)));
     }
 
@@ -2050,6 +2413,8 @@ public:
             FString::Printf(TEXT("generation %u -> %u, members=%d"), FirstGeneration, Lobby.Generation, Lobby.Members.Num()));
         Check(PC.ReadOwnProgression() == nullptr, TEXT("Iso"), TEXT("Between matches the owner publication carries no growth view"));
         if (!Passed) { return Finish(); }
+        // The Host readies only after the buyer saw the new Lobby unready, so its own ready cannot race the buyer's first look.
+        if (!IsHost() && !Mark(TEXT("BuyerSawSecondLobby.json"))) { return Finish(); }
         SecondGeneration = Lobby.Generation;
         bSecondMatch = true;
         bLobbyConfigured = false;
@@ -2076,6 +2441,7 @@ public:
         if (!ResolveRoster(PC, Lobby)) { return Finish(); }
         CheckSecondMatch(PC, *ProgView);
         if (!Passed) { return Finish(); }
+        FieldLife = PC.OwnerState.Life;
         if (IsHost())
         {
             SetStage(EStage::SecondAudit);
@@ -2617,13 +2983,30 @@ public:
 
     bool TickClient(double Now, ALDPlayerController& PC, const FLDLobbyView& Lobby)
     {
-        // The buyer dies once, on purpose, after its last planned kill; until then it keeps its first life.
-        const bool bDeathStage = Stage == EStage::AwaitDeath || Stage == EStage::Dead || Stage == EStage::Respawn;
+        // The buyer dies once, on purpose, after it asked the Host to kill it; until then it never dies. A mid rest retires
+        // its field life without a death (Tick holds through it and then tracks the returned life as FieldLife), so only a
+        // real death fails here: a dead life with a field respawn wait, or a public death count above zero.
+        const bool bDeathStage = Stage == EStage::Dead || Stage == EStage::Respawn;
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
-        if (!bDeathStage && (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive
-            || PC.OwnerState.Life != LDDemoGrowthScenario::GrowthProbeFieldLife))
+        if (!bDeathStage)
         {
-            return Fail(TEXT("N03"), TEXT("The buyer lost its first life before the Host was asked to kill it"));
+            const TCHAR* Id = bSecondMatch ? TEXT("Iso") : TEXT("N03");
+            FString Seen;
+            const bool bDied = OwnerDied(PC, 0, Seen);
+            if (bDied && Stage != EStage::AwaitDeath)
+            {
+                return Fail(Id, TEXT("The buyer died before it asked the Host to kill it: ") + Seen);
+            }
+            const bool bOnFieldLife = Body && PC.OwnerState.LifePhase == ELDLifePhase::Alive && PC.OwnerState.Life == FieldLife;
+            if (!bOnFieldLife && !bDied)
+            {
+                // A phase boundary may reach this owner's view a few frames before the public phase does; once the public
+                // phase is Rest, Tick holds. Anything longer is a field life lost without a death or a rest.
+                if (FieldLifeLostAt == 0) { FieldLifeLostAt = Now; }
+                if (Now - FieldLifeLostAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(Id, TEXT("The buyer's field life ended without a death or a rest: ") + Seen);
+            }
+            FieldLifeLostAt = 0;
         }
         switch (Stage)
         {
@@ -2669,7 +3052,7 @@ public:
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
         if (!Victim || LDDemoGrowthScenario::GrowthProbeProtected(*Victim) || !ProgView)
         {
-            if (Now - StageAt <= RespawnSeconds + LDDemoGrowthScenario::GrowthProbeReturnSeconds) { return true; }
+            if (Now - StageAt <= RespawnSecondsNow(PC) + LDDemoGrowthScenario::GrowthProbeReturnSeconds) { return true; }
             return Fail(TEXT("N03"), TEXT("The victim never became visible and unprotected at its duel site"));
         }
         if (AttackOrders == 0)
@@ -2688,6 +3071,19 @@ public:
             KillBefore = *ProgView;
             KillStartedAt = Now;
         }
+        // #198: the kill that reaches the first offer level waits for a segment with room for its attack order and the build
+        // safe window it opens (WindowKillNeedMs); the wait does not run the seek budget, and Tick holds through the rest.
+        if (IsWindowKill())
+        {
+            const int64 Left = FieldLeftMs(PC);
+            if (Left < WindowKillNeedMs())
+            {
+                NoteFieldRoomWait(TEXT("window-kill"), Left, WindowKillNeedMs());
+                StageAt = Now;
+                return true;
+            }
+        }
+        bFieldRoomWaiting = false;
         if (AttackOrders >= LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill)
         {
             return Fail(TEXT("N03"), TEXT("The attack lock kept ending without a death: ") + PC.Navigation->Status);
@@ -2752,6 +3148,10 @@ public:
         KillRow->SetNumberField(TEXT("unspent_after"), double(ProgView.UnspentPoints));
         KillRow->SetNumberField(TEXT("attack_orders"), AttackOrders);
         KillRow->SetNumberField(TEXT("seconds"), Now - KillStartedAt);
+        if (const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>())
+        {
+            KillRow->SetNumberField(TEXT("field_segment"), Public->PublicMatch.Timeline.FieldSegment);
+        }
         KillRows.Add(MakeShared<FJsonValueObject>(KillRow));
         ++Kills;
         AttackOrders = 0;
@@ -2816,10 +3216,16 @@ public:
             Check(LDDemoGrowthScenario::GrowthProbeIsPreset(*View) && View->ActiveOffer.OpportunityOrdinal == 2
                 && View->QueuedActiveOpportunities == 1 && View->UnspentPoints > 0, TEXT("Fixture"),
                 TEXT("The first offer level's head offer is exactly the Host's second preset, with new points unspent"), Detail);
+            // #198: the kill waited for field room (WindowKillNeedMs), so the window ends before the next rest begins.
+            const int64 SegmentEndsAtMs = FieldEndsAtMs(PC);
+            Check(SegmentEndsAtMs >= 0 && View->BuildSafeAtMs < SegmentEndsAtMs, TEXT("A15"),
+                TEXT("The build safe window the kill opened ends inside this field segment, so every NotSafe probe is judged in the field"),
+                FString::Printf(TEXT("%s segment_ends_at=%lld"), *Detail, SegmentEndsAtMs));
             if (!Passed) { return Finish(); }
             WindowRow = MakeShared<FJsonObject>();
             WindowRow->SetNumberField(TEXT("level"), View->Level);
             WindowRow->SetNumberField(TEXT("safe_at_ms"), double(View->BuildSafeAtMs));
+            WindowRow->SetNumberField(TEXT("segment_ends_at_ms"), double(SegmentEndsAtMs));
             WindowRow->SetNumberField(TEXT("unspent_before"), double(View->UnspentPoints));
             BuildStep = 1;
             return SendUnsafe(TEXT("choose-while-unsafe"), ChoiceCommand(*View, Option)) ? true : Finish();
@@ -2917,20 +3323,30 @@ public:
     bool TickAwaitDeath(double Now, ALDPlayerController& PC)
     {
         const FLDCombatOwnerView& Own = PC.CombatView;
-        const bool bDead = PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.Life == LDDemoGrowthScenario::GrowthProbeFieldLife;
+        // The Host's kill ends the buyer's current field life with a field respawn wait; a rest retirement sets none, and
+        // Tick holds through every rest, after which FieldLife is the returned life.
+        const bool bDead = PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.Life == FieldLife
+            && PC.OwnerState.RespawnAtMs > 0;
         const bool bViewDead = Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life && !Own.bHasBody;
         if (!bDead || !bViewDead)
         {
             // The Host may first respawn and walk back before its grant and attack.
-            const bool bWaiting = (PC.OwnerState.LifePhase == ELDLifePhase::Alive || bDead)
-                && PC.OwnerState.Life == LDDemoGrowthScenario::GrowthProbeFieldLife;
-            if (bWaiting && Now - StageAt <= RespawnSeconds + LDDemoGrowthScenario::GrowthProbeReturnSeconds
+            const bool bWaiting = (PC.OwnerState.LifePhase == ELDLifePhase::Alive || bDead) && PC.OwnerState.Life == FieldLife;
+            // The Host attacks only while this segment has room for the kill, the dead stage and the respawn
+            // (HostKillNeedMs); until then this budget does not run.
+            const int64 Left = FieldLeftMs(PC);
+            if (bWaiting && Left >= 0 && Left < HostKillNeedMs(PC))
+            {
+                StageAt = Now;
+                return true;
+            }
+            if (bWaiting && Now - StageAt <= RespawnSecondsNow(PC) + LDDemoGrowthScenario::GrowthProbeReturnSeconds
                 + LDDemoGrowthScenario::GrowthProbeKillSeconds)
             {
                 return true;
             }
-            return Fail(TEXT("A14"), FString::Printf(TEXT("The Host did not kill the buyer in time (phase %s, life %u)"),
-                *StaticEnum<ELDLifePhase>()->GetNameStringByValue(int64(PC.OwnerState.LifePhase)), PC.OwnerState.Life));
+            return Fail(TEXT("A14"), FString::Printf(TEXT("The Host did not kill the buyer in time (phase %s, life %u, field life %u)"),
+                *StaticEnum<ELDLifePhase>()->GetNameStringByValue(int64(PC.OwnerState.LifePhase)), PC.OwnerState.Life, FieldLife));
         }
         DeathLife = PC.OwnerState.Life;
         DeathRespawnAtMs = PC.OwnerState.RespawnAtMs;
@@ -2939,6 +3355,12 @@ public:
             TEXT("The Host's attack killed the buyer: dead, no body, zero HP, a respawn time set and the next life's build projected"),
             FString::Printf(TEXT("life %u respawn at %lld hp %.0f, view hp=%lld max=%lld"), DeathLife, DeathRespawnAtMs, PC.OwnerState.Hp,
                 Own.HPP2, DeadMaxHPP2));
+        // #198: the respawn wait and the respawn check fit in this segment, so no rest ends the wait or judges a dead step.
+        const int64 SegmentEndsAtMs = FieldEndsAtMs(PC);
+        Check(SegmentEndsAtMs >= 0 && (SegmentEndsAtMs == MAX_int64 || DeathRespawnAtMs
+            + int64(LDDemoGrowthScenario::GrowthProbeRequestSeconds * 1000.0) <= SegmentEndsAtMs), TEXT("A14"),
+            TEXT("The Host's kill leaves the buyer's whole respawn wait and its respawn check inside this field segment"),
+            FString::Printf(TEXT("respawn at %lld, segment ends at %lld"), DeathRespawnAtMs, SegmentEndsAtMs));
         if (!Passed) { return Finish(); }
         Build = FBuildCall();
         BuildStep = 0;
@@ -3028,6 +3450,10 @@ public:
         DeathRow = MakeShared<FJsonObject>();
         DeathRow->SetNumberField(TEXT("life"), DeathLife);
         DeathRow->SetNumberField(TEXT("respawn_at_ms"), double(DeathRespawnAtMs));
+        if (const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>())
+        {
+            DeathRow->SetNumberField(TEXT("field_segment"), Public->PublicMatch.Timeline.FieldSegment);
+        }
         DeathRow->SetStringField(TEXT("blueprint"), Option.ToString());
         DeathRow->SetStringField(TEXT("stored_reason"), LDGrowthWire::ReasonName(ELDGrowthReason::Dead));
         DeathRow->SetNumberField(TEXT("points_allocated"), double(Build.Before.UnspentPoints));
@@ -3050,12 +3476,25 @@ public:
             const bool bAlive = PC.OwnerState.LifePhase == ELDLifePhase::Alive && PC.OwnerState.Life == DeathLife + 1
                 && Cast<ALDCharacter>(PC.GetPawn()) && Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life && Own.bHasBody;
             const FLDProgressionView* View = PC.ReadOwnProgression();
+            const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+            const int64 Deaths = OwnDeaths(PC);
             int64 NowMs = 0;
-            if (!bAlive || !View || View->LifePhase != ELDLifePhase::Alive || !AuthorityNowMs(PC, NowMs))
+            if (!bAlive || !View || View->LifePhase != ELDLifePhase::Alive || !AuthorityNowMs(PC, NowMs) || !Public || Deaths < 1)
             {
-                if (Now - StageAt <= RespawnSeconds + LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
-                return Fail(TEXT("A14"), TEXT("The buyer did not respawn after the approved delay"));
+                if (Now - StageAt <= RespawnSecondsNow(PC) + LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("A14"), FString::Printf(TEXT("The buyer did not respawn after the approved delay, or its death never "
+                    "reached the public kill feed (life %u, public deaths %lld)"), PC.OwnerState.Life, Deaths));
             }
+            // The only real death of the buyer this match is the Host's kill: the public count never moved for a rest.
+            const FLDKillNotice* Notice = nullptr;
+            for (const FLDKillNotice& Row : Public->KillFeed.Notices)
+            {
+                if (Row.Victim == ClientId) { Notice = &Row; }
+            }
+            Check(Deaths == 1 && Notice && Notice->Killer == HostId && Notice->Cause == ELDKillCause::Contender, TEXT("A14"),
+                TEXT("The public kill feed counts exactly one death of the buyer this match, dealt by the Host; no rest retirement counted"),
+                FString::Printf(TEXT("deaths=%lld killer=%s cause=%u"), Deaths,
+                    Notice ? *LDDemoGrowthScenario::GrowthProbeGuid(Notice->Killer) : TEXT("none"), Notice ? uint32(Notice->Cause) : 0u));
             Check(Own.MaxHPP2 == GrownMaxHPP2 && Own.HPP2 == Own.MaxHPP2 && Own.MaxMPP2 > 0 && Own.MPP2 == Own.MaxMPP2, TEXT("A14"),
                 TEXT("The normal respawn restores full HP and MP at the maximum grown while dead"),
                 FString::Printf(TEXT("life %u hp %lld/%lld mp %lld/%lld"), PC.OwnerState.Life, Own.HPP2, Own.MaxHPP2, Own.MPP2, Own.MaxMPP2));
@@ -3063,6 +3502,7 @@ public:
                 TEXT("Death keeps the blueprint; after the respawn delay the build safe window has passed"),
                 FString::Printf(TEXT("now=%lld %s"), NowMs, *LDDemoGrowthScenario::GrowthProbeProgressionText(*View)));
             if (!Passed) { return Finish(); }
+            FieldLife = PC.OwnerState.Life;
             DeathRow->SetNumberField(TEXT("respawned_life"), PC.OwnerState.Life);
             DeathRow->SetNumberField(TEXT("respawn_hp_p2"), double(Own.HPP2));
             BuildStep = 1;
@@ -3156,8 +3596,8 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth scenario, victim and growth-audit role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's active offers in the Lobby (its opening offer first), opens each match with exactly one queued opening opportunity and its opening points, keeps its own untaken opening offer past T=0, checks its opponent view of the buyer, never attacks until the buyer asks to die, then takes its own DEV XP grant, kills the buyer and both scavengers of an authored low camp and sees each exact XP reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth scenario, buyer role: exactly one queued opening opportunity at each match start (never re-granted by a respawn), the opening active learned into Q and the opening points allocated in the opening rest R0, real kill XP, points and offers, the level offer kept as a blueprint and an allocation and a learn refused while its own build safe window runs, then the learn and the allocation after it, a blueprint kept, a learn refused and points allocated while dead and the blueprint learned after the respawn, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection growth scenario, victim and growth-audit role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's active offers in the Lobby (its opening offer first), opens each match with exactly one queued opening opportunity and its opening points, keeps its own untaken opening offer past T=0, checks its opponent view of the buyer, never attacks until the buyer asks to die, holds through every mid rest (a rest retirement is no death; T stays frozen) and walks back after each return, then takes its own DEV XP grant, kills the buyer inside one field segment and both scavengers of an authored low camp and sees each exact XP reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection growth scenario, buyer role: exactly one queued opening opportunity at each match start (never re-granted by a respawn), the opening active learned into Q and the opening points allocated in the opening rest R0, real kill XP, points and offers across the mid rests (each rest retires the field life without a death, and the buyer never dies before it asks to), the level offer kept as a blueprint and an allocation and a learn refused while its own build safe window runs, then the learn and the allocation after it, a blueprint kept, a learn refused and points allocated while dead and the blueprint learned after the respawn, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
@@ -3170,6 +3610,8 @@ public:
         Report->SetObjectField(TEXT("rest0"), Rest0Row.IsValid() ? Rest0Row : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         Report->SetObjectField(TEXT("second_opening"),
             SecondOpeningRow.IsValid() ? SecondOpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+        Report->SetArrayField(TEXT("rests"), RestRows);
+        Report->SetNumberField(TEXT("field_room_waits"), FieldRoomWaits);
         if (const ALDPlayerController* PC = Controller.Get())
         {
             Report->SetNumberField(TEXT("generation"), PC->OwnerState.Match);

@@ -1,5 +1,6 @@
+# #198: the default covers the opening rest R0 (45 s build + 5 s return, no PK sign-ups) before the field-1 walk.
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=120,
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=180,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
@@ -56,8 +57,9 @@ try {
     Wait-CoreReports @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {
         $r = Get-Content -LiteralPath (Join-Path $evidence "$_.json") -Raw | ConvertFrom-Json
+        # #198: life 1 is the R0 rest body; every role finishes on its first field life.
         if (-not $r.passed -or $r.role -ne $_ -or -not $r.fixture_only -or $r.full_ct06 -or $r.catalog_sha256 -ne $digest -or
-            $r.life -ne 1 -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
+            $r.life -ne 2 -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
             throw "Owned core evidence failed for $_`: $output"
         }
         $r
