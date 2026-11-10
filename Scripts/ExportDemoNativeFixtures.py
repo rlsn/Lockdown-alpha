@@ -882,7 +882,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     invalid("renumbered_id_map", bundle, digest, "integer outside")
     for name, change, error in (
         ("manifest_self_hash", lambda m: m.update({"catalog_sha256": "0" * 64}), "unknown field"),
-        ("manifest_revision", lambda m: m.update({"handler_revision": 2}), "integer outside"),
+        ("manifest_revision", lambda m: m.update({"handler_revision": demo.HANDLER_REVISION + 1}), "integer outside"),
         ("manifest_path", lambda m: m["content"].update({"file": "..\\demo_content.json"}), "unsupported constant"),
     ):
         bundle, digest = _tamper(base, manifest_change=change)

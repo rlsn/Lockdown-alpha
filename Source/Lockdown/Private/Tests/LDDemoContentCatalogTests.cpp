@@ -1134,6 +1134,16 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
         {TEXT("stat_brains"), ELDDemoStatId::StatBrains, {S::APFlat, S::CooldownHasteFlat, S::MPRegenFlat}},
         {TEXT("stat_agility"), ELDDemoStatId::StatAgility, {S::AttackSpeedBonusRatio, S::MoveSpeedBonusRatio}}};
     TestEqual(TEXT("Exactly five point-bought stats"), Definitions.Stats.Num(), 5);
+    // Per-stat arrays (points, AllocatePoints counts, owner rows, UI rows, AI ties) follow the approved design order 体格,
+    // 脸皮, 力道, 脑力, 身手 (ascending native id), never the id-sorted catalog list.
+    const TArray<const FLDDemoStatDefinition*> DesignOrder = Definitions.StatsInDesignOrder();
+    bool bDesignOrder = DesignOrder.Num() == UE_ARRAY_COUNT(ExpectedStats);
+    for (int32 Index = 0; bDesignOrder && Index < DesignOrder.Num(); ++Index)
+    {
+        bDesignOrder = DesignOrder[Index]->Id == ExpectedStats[Index].Id && DesignOrder[Index]->GetNativeId() == ExpectedStats[Index].NativeId
+            && Definitions.StatDesignIndex(ExpectedStats[Index].Id) == Index;
+    }
+    TestTrue(TEXT("The stats' design order is physique, thick skin, strength, brains, agility"), bDesignOrder);
     for (const FExpectedStat& Expected : ExpectedStats)
     {
         const FLDDemoStatDefinition* Stat = nullptr;

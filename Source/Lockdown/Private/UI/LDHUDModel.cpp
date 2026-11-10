@@ -1400,10 +1400,8 @@ bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
 bool LDHUD::FGrowthAutoOpen::Observe(const FLDProgressionView& View,uint32 Match)
 {
     if(!View.bValid||Match==0||View.Generation!=Match){return false;}
-    if(SeenMatch!=Match){SeenMatch=Match;SeenOffer.Invalidate();SeenUnspent=0;}
-    const bool bNewOffer=View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OfferId!=SeenOffer;
-    const bool bMorePoints=View.UnspentPoints>SeenUnspent;
-    if(View.bHasActiveOffer){SeenOffer=View.ActiveOffer.OfferId;}
-    SeenUnspent=View.UnspentPoints;
-    return bNewOffer||bMorePoints;
+    if(SeenMatch!=Match){SeenMatch=Match;bOpeningShown=false;}
+    if(bOpeningShown||!View.bHasActiveOffer||!View.ActiveOffer.OfferId.IsValid()||View.ActiveOffer.OpportunityOrdinal!=1){return false;}
+    bOpeningShown=true;
+    return true;
 }

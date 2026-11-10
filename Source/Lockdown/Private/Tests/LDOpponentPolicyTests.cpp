@@ -8,6 +8,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Algo/Accumulate.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
 #include "Navigation/LDOrderTypes.h"
@@ -157,19 +158,37 @@ bool Pick(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, cons
     return Test.TestTrue(Label + TEXT(": ") + Out + TEXT(" ") + Error, bSelected && Out == Expected);
 }
 
-// One stat row per catalog stat in catalog order, with the given allocated points.
-TArray<FLDOpponentStatPoints> StatRows(const FLDDemoContentSnapshot& Catalog, TArray<int32> Points)
+// One stat row per stat in the stats' design order, with the given allocated points by stat id.
+TArray<FLDOpponentStatPoints> StatRows(const FLDDemoContentSnapshot& Catalog, const TMap<FString, int32>& Points)
 {
     TArray<FLDOpponentStatPoints> Out;
-    const auto& Stats = Catalog.Get().Stats;
-    for (int32 Index = 0; Index < Stats.Num(); ++Index)
+    for (const FLDDemoStatDefinition* Stat : Catalog.Get().StatsInDesignOrder())
     {
         FLDOpponentStatPoints Row;
-        Row.StatId = Stats[Index].Id;
-        Row.Points = Points.IsValidIndex(Index) ? Points[Index] : 0;
+        Row.StatId = Stat->Id;
+        Row.Points = Points.FindRef(Stat->Id);
         Out.Add(Row);
     }
     return Out;
+}
+
+// An allocation (one count per stat in design order) by stat id.
+TMap<FString, int32> ById(const FLDDemoContentSnapshot& Catalog, const TArray<uint8>& Counts)
+{
+    TMap<FString, int32> Out;
+    const TArray<const FLDDemoStatDefinition*> Stats = Catalog.Get().StatsInDesignOrder();
+    for (int32 Index = 0; Index < Stats.Num() && Index < Counts.Num(); ++Index)
+    {
+        if (Counts[Index] > 0) { Out.Add(Stats[Index]->Id, Counts[Index]); }
+    }
+    return Out;
+}
+
+bool SameCounts(const TMap<FString, int32>& Actual, const TMap<FString, int32>& Expected)
+{
+    if (Actual.Num() != Expected.Num()) { return false; }
+    for (const auto& Pair : Expected) { if (Actual.FindRef(Pair.Key) != Pair.Value) { return false; } }
+    return true;
 }
 
 bool RunChoiceOrder(FAutomationTestBase& Test)
@@ -226,29 +245,36 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("No blueprint: nothing to learn"), LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error));
 
     // Points: each to the fewest-points stat among physique, thick skin, strength (the basic attack scales with AD) and
-    // brains (only with a learned AP active); ties by catalog order; agility never.
+    // brains (only with a learned AP active); ties by the stats' design order (physique first); agility never.
     const auto& Stats = C.Get().Stats;
-    const TCHAR* Order[] = {TEXT("stat_physique"), TEXT("stat_thick_skin"), TEXT("stat_strength"), TEXT("stat_brains"),
-        TEXT("stat_agility")};
-    bool bOrder = Stats.Num() == 5;
-    for (int32 Index = 0; bOrder && Index < 5; ++Index) { bOrder = Stats[Index].Id == Order[Index]; }
-    if (!Test.TestTrue(TEXT("The approved stats are the five #198 stats in catalog order"), bOrder)) { return false; }
+    if (!Test.TestTrue(TEXT("The approved catalog has the five #198 stats"), Stats.Num() == 5)) { return false; }
+    const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),
+        Brains(TEXT("stat_brains")), Agility(TEXT("stat_agility"));
     FLDOpponentSelf Spender;
     Spender.StatPoints = StatRows(C, {});
     Spender.UnspentPoints = 3;
     TArray<uint8> Counts;
     bGood &= Test.TestTrue(TEXT("Without an AP active: physique, thick skin, strength"),
-        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({1, 1, 1, 0, 0}));
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts.Num() == Stats.Num()
+        && SameCounts(ById(C, Counts), {{Physique, 1}, {Skin, 1}, {Strength, 1}}));
+    Spender.UnspentPoints = 1;
+    bGood &= Test.TestTrue(TEXT("A tie goes to physique, first in the stats' design order, and the counts follow that order"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({1, 0, 0, 0, 0}));
     Spender.Actives = {Active(TEXT("active_snark_bolt"), 0)};
-    Spender.StatPoints = StatRows(C, {2, 0, 0, 0, 7});
-    Spender.UnspentPoints = 5;
-    bGood &= Test.TestTrue(TEXT("An AP active adds brains; the fewest points go first"),
-        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({0, 2, 2, 1, 0}));
+    Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
+    Spender.UnspentPoints = 4;
+    // Brains (0) and strength (1) are the fewest; thick skin (3) and physique (4) stay out of reach of four points, which
+    // level brains and strength to within one of each other.
+    bGood &= Test.TestTrue(TEXT("An AP active adds brains; the fewest points go first and agility never"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && ById(C, Counts).FindRef(Agility) == 0
+        && ById(C, Counts).FindRef(Physique) == 0 && ById(C, Counts).FindRef(Skin) == 0
+        && ById(C, Counts).FindRef(Brains) + ById(C, Counts).FindRef(Strength) == 4
+        && FMath::Abs((0 + ById(C, Counts).FindRef(Brains)) - (1 + ById(C, Counts).FindRef(Strength))) <= 1);
     Spender.UnspentPoints = 0;
     bGood &= Test.TestFalse(TEXT("No unspent points: nothing to allocate"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.UnspentPoints = 1;
     Swap(Spender.StatPoints[0], Spender.StatPoints[1]);
-    bGood &= Test.TestFalse(TEXT("Stat rows out of catalog order are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
+    bGood &= Test.TestFalse(TEXT("Stat rows out of design order are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.StatPoints.Pop();
     bGood &= Test.TestFalse(TEXT("Missing stat rows are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
 
@@ -267,7 +293,8 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     Frame.Self.Phase = ELDLifePhase::Dead;
     bGood &= Test.TestTrue(TEXT("Dead: points are allocated, the blueprint waits"),
         LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
-        && Intent.PointCounts == TArray<uint8>({1, 1, 0, 0, 0}));
+        && ById(C, Intent.PointCounts).FindRef(Agility) == 0 && ById(C, Intent.PointCounts).FindRef(Brains) == 0
+        && Algo::Accumulate(Intent.PointCounts, 0) == 2);
     Frame.Self.Phase = ELDLifePhase::Alive;
     Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
     bGood &= Test.TestTrue(TEXT("Safe: the blueprint is learned first"),
