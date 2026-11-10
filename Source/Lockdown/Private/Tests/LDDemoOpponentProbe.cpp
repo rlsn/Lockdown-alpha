@@ -146,6 +146,7 @@ public:
         FVector Foot = FVector::ZeroVector;
         bool bTrained = false;
         double WindowDiskCm = -1;
+        bool bLocked = false;
     };
     TMap<FGuid, FRest0Foot> Rest0AIFeet;
     TSet<FGuid> Rest0PKEntrants;
@@ -1003,6 +1004,7 @@ bool FLDDemoOpponentProbe::Tick()
         {
             const FLDTimelineView Line = Mode->ReadPublicMatch().Timeline;
             const bool bBeforeWindow = Line.Step == ELDRestStep::Build && Mode->GetAuthorityNowMs() < Line.SignupOpensAtMs;
+            const bool bInWindow = Line.Step == ELDRestStep::Build && !bBeforeWindow;
             for (TActorIterator<ALDOpponentController> It(World); It; ++It)
             {
                 const FGuid Id = Mode->ContenderId(*It);
@@ -1026,12 +1028,25 @@ bool FLDDemoOpponentProbe::Tick()
                         Seen.Foot = Foot;
                         Seen.bTrained = false;
                         Seen.WindowDiskCm = -1;
+                        Seen.bLocked = false;
                     }
                     // The training order may outlive the decision that sent it, so a life that trained is not measured again.
                     Seen.bTrained |= bTraining;
                     if (bBeforeWindow)
                     {
                         if (!Seen.bTrained) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
+                    }
+                    else if (!bInWindow)
+                    {
+                        // After the lock the body stands where the window left it (in its disk) and again moves only to
+                        // train (the payout step trains too), measured from its first sample after the lock.
+                        if (!Seen.bLocked)
+                        {
+                            Seen.bLocked = true;
+                            Seen.Foot = Foot;
+                            Seen.bTrained = bTraining;
+                        }
+                        else if (!Seen.bTrained) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
                     }
                     else if (Mode->SignupDiskFor(Id, Disk, DiskRadius))
                     {
