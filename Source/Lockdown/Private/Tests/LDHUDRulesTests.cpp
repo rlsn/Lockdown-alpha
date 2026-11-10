@@ -1310,16 +1310,16 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A refused component command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
         TEXT("没有生效：")+LDHUD::GrowthReasonText(ELDGrowthReason::OpeningActiveFirst));
 
-    // The 开盲盒 button counts the opening pick and the components that could be enabled; closed or moved ones wait.
+    // The 开盲盒 button counts the opening pick and the components that could be enabled; mods and moved ones wait.
     FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=9;
     Pending.bOpeningBasePending=true;Pending.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
-    Pending.Components={Owned(TEXT("hud_fixture_wet")),Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_shock"),false,true)};
+    Pending.Components={Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_shock"),false,true)};
     LDHUD::FGrowthPending Counted=LDHUD::GrowthPending(&Pending,9,&Content);
     TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase&&Counted.Components==0
         &&Counted.Prompt()==FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::ComponentsPending(1));
-    Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();Pending.Components.Add(Owned(TEXT("hud_fixture_fist")));
+    Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();Pending.Components.Add(Owned(TEXT("hud_fixture_wet")));
     Counted=LDHUD::GrowthPending(&Pending,9,&Content);
-    TestTrue(TEXT("A fresh enable-able component lights it"),Counted.Any()&&Counted.Components==1);
+    TestTrue(TEXT("A fresh enable-able water component lights it"),Counted.Any()&&Counted.Components==1);
     Pending.Components.Last().bInstalled=Pending.Components.Last().bEverInstalled=true;
     TestFalse(TEXT("Nothing left to enable lights nothing"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
 

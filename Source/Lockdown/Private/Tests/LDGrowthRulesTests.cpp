@@ -1100,12 +1100,13 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
             Opening.Add(FName(*Ability.Id));
         }
     }
-    const FName NotMad(TEXT("active_not_mad")), StareDown(TEXT("active_stare_down")), FlyerTrap(TEXT("active_flyer_trap"));
-    bool bGood = Test.TestTrue(TEXT("The approved catalog holds 16 actives, 13 of them in the opening pool"),
-        All.Num() == 16 && Opening.Num() == 13);
-    bGood &= Test.TestTrue(TEXT("S14, S15 and S19 stay out of the opening pool"),
-        !Opening.Contains(NotMad) && !Opening.Contains(StareDown) && !Opening.Contains(FlyerTrap)
-        && All.Contains(NotMad) && All.Contains(StareDown) && All.Contains(FlyerTrap));
+    const FName NotMad(TEXT("active_not_mad")), StareDown(TEXT("active_stare_down")), FlyerTrap(TEXT("active_flyer_trap")),
+        Brace(TEXT("active_brace"));
+    bool bGood = Test.TestTrue(TEXT("The approved catalog holds 22 actives, 18 of them in the opening pool"),
+        All.Num() == 22 && Opening.Num() == 18);
+    bGood &= Test.TestTrue(TEXT("S14, S15, S16 and S19 stay out of the opening pool"),
+        !Opening.Contains(NotMad) && !Opening.Contains(StareDown) && !Opening.Contains(FlyerTrap) && !Opening.Contains(Brace)
+        && All.Contains(NotMad) && All.Contains(StareDown) && All.Contains(FlyerTrap) && All.Contains(Brace));
 
     const FLDGrowthBuild Fresh = LDProgression::StartBuild(Content);
     TArray<FName> Eligible;
@@ -1197,7 +1198,7 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("With the opening pool exhausted ordinal 1 draws nothing while a later ordinal draws the rest"),
         LDProgression::DrawActiveOffer(Content, OpeningSpent, 1, 7, Offer) == ELDGrowthReason::None && Offer.IsEmpty()
         && LDProgression::DrawActiveOffer(Content, OpeningSpent, 2, 7, Offer) == ELDGrowthReason::None && Offer.Num() == 3
-        && Offer.Contains(NotMad) && Offer.Contains(StareDown) && Offer.Contains(FlyerTrap));
+        && !Offer.ContainsByPredicate([&](FName Id) { return Id != NotMad && Id != StareDown && Id != FlyerTrap && Id != Brace; }));
     return bGood;
 }
 
