@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Algo/AllOf.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -879,7 +880,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= GrowthTestExactFields(Test, FLDComponentInstanceView::StaticStruct(),
         {TEXT("DefinitionId"), TEXT("Source"), TEXT("SourceLevel"), TEXT("bInstalled"), TEXT("bEverInstalled"), TEXT("Target")});
     bGood &= GrowthTestExactFields(Test, FLDComponentTargetView::StaticStruct(),
-        {TEXT("Kind"), TEXT("Definition"), TEXT("Segment"), TEXT("Element"), TEXT("BoundActive")});
+        {TEXT("Kind"), TEXT("Definition"), TEXT("Segment"), TEXT("Element"), TEXT("BoundActive"), TEXT("BoundComponent")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
@@ -1515,11 +1516,14 @@ bool GrowthTestReadComponents(FAutomationTestBase& Test, TSharedPtr<const FLDDem
         return false;
     }
     const FLDDemoContentDefinitions& Content = OutCatalog->Get();
-    bool bApproved = Test.TestTrue(TEXT("Fixture carries the 18 common base components B01-B18, B01-B03 first"),
-        Content.Components.Num() == 18 && Content.Components[0].Id == TEXT("component_fist_fire")
+    // #198 F: the 18 common bases come first; the mods and connectors follow them.
+    bool bApproved = Test.TestTrue(TEXT("Fixture carries the 18 common base components B01-B18 first, B01-B03 leading"),
+        Content.Components.Num() == 42 && Content.Components[0].Id == TEXT("component_fist_fire")
         && Content.Components[1].Id == TEXT("component_tab_ledger") && Content.Components[2].Id == TEXT("component_spiky_hide")
-        && !Content.Components.ContainsByPredicate([](const FLDDemoComponentDefinition& Row)
-            { return Row.Kind != ELDDemoComponentKind::Base || Row.Pool != ELDDemoComponentPool::Common; }));
+        && Algo::AllOf(TArrayView<const FLDDemoComponentDefinition>(Content.Components.GetData(), 18), [](const FLDDemoComponentDefinition& Row)
+            { return Row.Kind == ELDDemoComponentKind::Base && Row.Pool == ELDDemoComponentPool::Common; })
+        && !Content.Components.ContainsByPredicate([](const FLDDemoComponentDefinition& Row) { return Row.Kind == ELDDemoComponentKind::Base
+            && Row.Pool != ELDDemoComponentPool::Common; }));
     bApproved &= Test.TestTrue(TEXT("Fixture carries GROWTH.EmptyComponentPoolPoints 3"), Content.Parameters.EmptyComponentPoolPoints == 3);
     const int32 Bands[3][5] = {{2, 6, 55, 25, 20}, {7, 11, 40, 30, 30}, {12, 16, 25, 35, 40}};
     bool bBands = Content.Progression.ComponentCategoryWeights.Num() == 3;
@@ -1536,7 +1540,10 @@ bool GrowthTestReadComponents(FAutomationTestBase& Test, TSharedPtr<const FLDDem
 // The catalog plus one test mod and one test connector, so the category roll has three non-empty pools.
 FLDDemoContentDefinitions GrowthTestMixedContent(const FLDDemoContentDefinitions& Content)
 {
+    // The approved bases plus one test mod and one test connector (the approved mods/connectors set aside), so a single owned
+    // mod empties its category.
     FLDDemoContentDefinitions Mixed = Content;
+    Mixed.Components.RemoveAll([](const FLDDemoComponentDefinition& Row) { return Row.Kind != ELDDemoComponentKind::Base; });
     FLDDemoComponentDefinition& ModRow = Mixed.Components.AddDefaulted_GetRef();
     ModRow.Id = TEXT("component_test_mod");
     ModRow.Kind = ELDDemoComponentKind::Mod;
@@ -1649,19 +1656,19 @@ bool GrowthTestRunComponentGrants(FAutomationTestBase& Test)
         LDProgression::DrawLevelComponent(Content, Start, 2, 0x5EED, First) == ELDGrowthReason::None
         && LDProgression::DrawLevelComponent(Content, Start, 2, 0x5EED, Again) == ELDGrowthReason::None && !First.IsNone() && First == Again);
 
-    // The approved catalog has no mods or connectors yet: both categories drop and every band rolls a base, uniformly.
+    // #198 F: the approved catalog rolls every category; a normal level-up never hands out a scarce one (M11, M12, C12).
     TSet<FName> Seen;
-    bool bAllBase = true;
-    for (uint64 Seed = 1; Seed <= 600; ++Seed)
+    bool bAllCommon = true;
+    for (uint64 Seed = 1; Seed <= 1200; ++Seed)
     {
         FName Drawn;
         const bool bDrawn = LDProgression::DrawLevelComponent(Content, Start, uint8(2 + Seed % 15), Seed, Drawn) == ELDGrowthReason::None;
         const FLDDemoComponentDefinition* Row = GrowthTestComponent(Content, Drawn);
-        bAllBase &= bDrawn && Row && Row->Kind == ELDDemoComponentKind::Base && Row->Pool == ELDDemoComponentPool::Common;
+        bAllCommon &= bDrawn && Row && Row->Pool == ELDDemoComponentPool::Common;
         Seen.Add(Drawn);
     }
-    bGood &= Test.TestTrue(TEXT("With the mod and connector pools empty every band rolls a common base"), bAllBase);
-    bGood &= Test.TestEqual(TEXT("The uniform pick reaches every one of the 18 bases"), Seen.Num(), 18);
+    bGood &= Test.TestTrue(TEXT("Every band rolls a common definition"), bAllCommon);
+    bGood &= Test.TestEqual(TEXT("The uniform picks reach every one of the 39 common definitions"), Seen.Num(), 39);
 
     // With all three categories present the band weights hold; 2000 fixed seeds land near the band percentages.
     const FLDDemoContentDefinitions Mixed = GrowthTestMixedContent(Content);
@@ -3599,3 +3606,86 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+// #198 F: mod/connector install targets (spec §12.1, §13.1): the kinds a definition accepts, a learned active or an installed
+// host, C12's installed base, the M08/M09 conflict, #198 A's element gate, and the uninstall cascade of a host.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsWorkshopTargetsTest, "Lockdown.Rules.DemoGrowthComponents.WorkshopTargets",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthComponentsWorkshopTargetsTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(*this, Catalog))
+    {
+        return false;
+    }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    using ESource = ELDComponentSource;
+    using EKind = ELDComponentTargetKind;
+    using EStage = LDProgression::EMatchStage;
+    const LDProgression::FBuildContext Safe = GrowthTestContext(EStage::Live, ELDLifePhase::Alive, true);
+    const LDProgression::FBuildContext Rest = GrowthTestContext(EStage::Rest, ELDLifePhase::Alive, true);
+    const FName Ledger(TEXT("component_tab_ledger")), Water(TEXT("component_fist_water")), Crowd(TEXT("component_crowd_hit"));
+    const FName Ram(TEXT("component_ram_through")), Hop(TEXT("component_quick_hop")), Chase(TEXT("component_blast_chase"));
+    const FName Dirty(TEXT("component_dirty_fist")), Elbow(TEXT("active_elbow")), BailOut(TEXT("active_bail_out"));
+    const FLDGrowthBuild Owned = GrowthTestComponentBuild(Content, 8, {GrowthTestInstance(Ledger, ESource::LevelUp, 2, true),
+        GrowthTestInstance(Crowd, ESource::LevelUp, 3), GrowthTestInstance(Ram, ESource::LevelUp, 4), GrowthTestInstance(Hop, ESource::LevelUp, 5),
+        GrowthTestInstance(Chase, ESource::LevelUp, 6), GrowthTestInstance(Dirty, ESource::LevelUp, 7), GrowthTestInstance(Water, ESource::LevelUp, 8, true)},
+        {{Elbow, 0}, {BailOut, 1}});
+    if (!GrowthTestReason(*this, TEXT("The workshop fixture build"), LDProgression::ValidateBuild(Content, Owned), ELDGrowthReason::None))
+    {
+        return false;
+    }
+    const auto Target = [](EKind Kind, FName Definition = NAME_None, FName Base = NAME_None)
+    {
+        FLDComponentTarget Out;
+        Out.Kind = Kind;
+        Out.Definition = Definition;
+        Out.BoundComponent = Base;
+        return Out;
+    };
+    FLDGrowthBuild Out;
+    const auto Install = [&](const FLDGrowthBuild& From, FName Id, const FLDComponentTarget& On)
+    { return LDProgression::ApplyInstallComponent(Content, From, Id, On, Safe, Out); };
+    bool bGood = true;
+    bGood &= GrowthTestReason(*this, TEXT("M01 on a learned single-target active"), Install(Owned, Crowd, Target(EKind::Active, Elbow)),
+        ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The install stores its target"), Out.FindComponent(Crowd)->bInstalled
+        && Out.FindComponent(Crowd)->Target == Target(EKind::Active, Elbow));
+    bGood &= GrowthTestReason(*this, TEXT("M01 on an active not learned"),
+        Install(Owned, Crowd, Target(EKind::Active, FName(TEXT("active_pants_down")))), ELDGrowthReason::InvalidTarget);
+    bGood &= GrowthTestReason(*this, TEXT("M01 on the installed ledger"), Install(Owned, Crowd, Target(EKind::Component, Ledger)),
+        ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("M01 never on D"), Install(Owned, Crowd, Target(EKind::Dash)), ELDGrowthReason::InvalidTarget);
+    bGood &= GrowthTestReason(*this, TEXT("M01 needs a target"), Install(Owned, Crowd, FLDComponentTarget()), ELDGrowthReason::InvalidTarget);
+    if (!GrowthTestReason(*this, TEXT("M08 on D"), Install(Owned, Ram, Target(EKind::Dash)), ELDGrowthReason::None)) { return false; }
+    const FLDGrowthBuild Rammed = Out;
+    bGood &= GrowthTestReason(*this, TEXT("M09 beside M08 on D conflicts"), Install(Rammed, Hop, Target(EKind::Dash)),
+        ELDGrowthReason::TargetConflict);
+    bGood &= GrowthTestReason(*this, TEXT("M09 on another dash is fine"), Install(Rammed, Hop, Target(EKind::Active, BailOut)),
+        ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("C09 waits for #198 A's reactions"), Install(Owned, Chase, Target(EKind::Component, Water)),
+        ELDGrowthReason::ElementUnsupported);
+    bGood &= GrowthTestReason(*this, TEXT("C12 repeating water waits for #198 A"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Water)),
+        ELDGrowthReason::ElementUnsupported);
+    bGood &= GrowthTestReason(*this, TEXT("C12 needs its repeated base"), Install(Owned, Dirty, Target(EKind::Active, Elbow)),
+        ELDGrowthReason::InvalidTarget);
+    bGood &= GrowthTestReason(*this, TEXT("C12 repeating the installed ledger"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Ledger)),
+        ELDGrowthReason::None);
+    // Uninstalling a host (rest only) takes the mods and connectors on it, and the C12 repeating it, back to the inventory.
+    if (!GrowthTestReason(*this, TEXT("M01 on the ledger"), Install(Owned, Crowd, Target(EKind::Component, Ledger)), ELDGrowthReason::None))
+    { return false; }
+    const FLDGrowthBuild OnLedger = Out;
+    if (!GrowthTestReason(*this, TEXT("C12 on the ledger's M01"), Install(OnLedger, Dirty, Target(EKind::Active, Elbow, Ledger)),
+        ELDGrowthReason::None))
+    { return false; }
+    const FLDGrowthBuild Stacked = Out;
+    bGood &= GrowthTestReason(*this, TEXT("Uninstalling the ledger in the rest"),
+        LDProgression::ApplyUninstallComponent(Content, Stacked, Ledger, Rest, Out), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("Its attachments come off with it, history kept"), !Out.FindComponent(Ledger)->bInstalled
+        && !Out.FindComponent(Crowd)->bInstalled && !Out.FindComponent(Dirty)->bInstalled && Out.FindComponent(Crowd)->bEverInstalled
+        && Out.FindComponent(Crowd)->Target.IsEmpty());
+    bGood &= GrowthTestReason(*this, TEXT("The cascaded build stays valid"), LDProgression::ValidateBuild(Content, Out), ELDGrowthReason::None);
+    return bGood;
+}
+

@@ -906,6 +906,10 @@ private:
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // C02: arms the knockback watch of a committed push when its source holds C02 on the push's exit.
     bool WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // C02: one watched push's first block: a static blocker stuns and hurts the pushed body; another legal enemy body takes the
+    // same package as the pushed one; anything else (the holder, a protected or other-group body) answers nothing.
+    bool ResolveKnockbackImpact(FLDBodyCombatState& Body, const FLDCombatKnockbackImpact& Impact, bool bBody,
+        const ALDCharacter* BlockerActor, int64 NowMs, FString& Error);
     // The committed-hit hooks of #198 F (after resources and controls of ApplyHit): C01 fire sums, C08 attacker memory,
     // M11 marks, C11 heals, C12 repeats, M12 debts and C10 bursts.
     bool ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatState& Target, FLDBodyCombatState* Source,

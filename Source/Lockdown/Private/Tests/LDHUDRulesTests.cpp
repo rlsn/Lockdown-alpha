@@ -1346,6 +1346,8 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
 {
     // #198 F growth panel: the places an owned mod or connector may go now (learned actives, installed components, D, self,
     // in catalog list order), C12's repeatable bases, what an installed one sits on, and the conflict reason's text.
+    // The private fixture ids have no registered display text; their labels fall back to the stable ids (logged).
+    AddExpectedError(TEXT("LD_HUD_DISPLAY_TEXT_MISSING"),EAutomationExpectedErrorFlags::Contains,0);
     FLDDemoContentDefinitions Content;
     const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
     {

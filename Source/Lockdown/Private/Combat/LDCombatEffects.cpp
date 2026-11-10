@@ -691,8 +691,8 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             if (Projectile.SpreadRadiusCm>0)
             {
                 TArray<FLDCombatBodyRef> Around;
-                const FLDBodyCombatState* Owner=FindBody(Projectile.SourceBody);
-                if (!CollectAreaTargets(Targets[Struck].FootCm,Projectile.SpreadRadiusCm,Owner,Projectile.SourceEntity,Around,Error))
+                const FLDBodyCombatState* Thrower=FindBody(Projectile.SourceBody);
+                if (!CollectAreaTargets(Targets[Struck].FootCm,Projectile.SpreadRadiusCm,Thrower,Projectile.SourceEntity,Around,Error))
                 { return false; }
                 for (const FLDCombatBodyRef& Other : Around)
                 {

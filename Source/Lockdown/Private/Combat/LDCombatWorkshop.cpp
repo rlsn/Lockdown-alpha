@@ -219,10 +219,10 @@ bool ALDCombatDirector::SpreadUnitHits(const FLDBodyCombatState& Body, const FLD
     return true;
 }
 
-bool ALDCombatDirector::TriggerAftershock(const FLDCombatBodyRef& Owner, const FLDCombatSourceRef& Exit, const FGuid& EffectId,
+bool ALDCombatDirector::TriggerAftershock(const FLDCombatBodyRef& OwnerRef, const FLDCombatSourceRef& Exit, const FGuid& EffectId,
     const FVector& Centre, double RadiusCm, int64 NowMs, FString& Error)
 {
-    const FLDBodyCombatState* Holder=FindBody(Owner);
+    const FLDBodyCombatState* Holder=FindBody(OwnerRef);
     if (!Holder || Holder->bPendingDeath) { return true; }
     TArray<FLDPassiveEffectRef> Shocks;
     if (!WorkshopOn(Holder->AttributeProjection,ELDDemoEffectOp::Aftershock,Exit,Shocks,Error)) { return false; }
@@ -243,7 +243,7 @@ bool ALDCombatDirector::TriggerAftershock(const FLDCombatBodyRef& Owner, const F
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Shock.Effect.DelayMs,Blast.ReadyAtMs,Error)) { return false; }
         Blast.ExpiresAtMs=Blast.ReadyAtMs;
         GroundEffects.Add(MoveTemp(Blast));
-        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_AFTERSHOCK t=%lld owner=%s exit=%s radius=%.0f"),NowMs,*LDLog::Id(Owner.Victim.EntityId),
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_AFTERSHOCK t=%lld owner=%s exit=%s radius=%.0f"),NowMs,*LDLog::Id(OwnerRef.Victim.EntityId),
             *LDLog::Source(Exit),RadiusCm);
     }
     return true;
@@ -563,13 +563,13 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
     return true;
 }
 
-bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Owner, const FLDCombatBodyRef& Target, const FLDCombatSourceRef& Source,
+bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Holder, const FLDCombatBodyRef& Target, const FLDCombatSourceRef& Source,
     int64 AmountP2, ELDDemoDamageType DamageType, int64 NowMs, FString& Error)
 {
     using namespace LDCombatWorkshopDetail;
     TArray<FLDPassiveEffectRef> Spreads, Delays;
-    if (!WorkshopOn(Owner.AttributeProjection,ELDDemoEffectOp::SpreadLedger,Source,Spreads,Error)
-        || !WorkshopOn(Owner.AttributeProjection,ELDDemoEffectOp::DelayLedger,Source,Delays,Error))
+    if (!WorkshopOn(Holder.AttributeProjection,ELDDemoEffectOp::SpreadLedger,Source,Spreads,Error)
+        || !WorkshopOn(Holder.AttributeProjection,ELDDemoEffectOp::DelayLedger,Source,Delays,Error))
     { return false; }
     int64 ScaleBp=Spreads.IsEmpty() ? 10000 : Spreads[0].Effect.MultiplierBp;
     const double SpreadRadius=Spreads.IsEmpty() ? 0. : Cm(Spreads[0].Effect.RadiusCm);
@@ -577,7 +577,7 @@ bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Owner, const FLD
     {
         // M02: the full batch is locked now and settles later on the same target life, if still legal then.
         FLDCombatLockedLedger& Locked=LockedLedgers.AddDefaulted_GetRef();
-        Locked.Owner={Owner.Victim,Owner.Identity};
+        Locked.Owner={Holder.Victim,Holder.Identity};
         Locked.Target=Target;
         Locked.Source=Source;
         Locked.AmountP2=AmountP2;
@@ -587,7 +587,7 @@ bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Owner, const FLD
         Locked.DamageType=DamageType;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Delays[0].Effect.DelayMs,Locked.DueAtMs,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_LEDGER_LOCKED t=%lld owner=%s victim=%s amount=%s due=%lld"),NowMs,
-            *LDLog::Id(Owner.Victim.EntityId),*LDLog::Id(Target.Victim.EntityId),*LDLog::P2(AmountP2),Locked.DueAtMs);
+            *LDLog::Id(Holder.Victim.EntityId),*LDLog::Id(Target.Victim.EntityId),*LDLog::P2(AmountP2),Locked.DueAtMs);
         return true;
     }
     ALDCharacter* TargetActor=nullptr;
@@ -597,19 +597,65 @@ bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Owner, const FLD
     {
         // M01: the batch also lands on the bodies around its target; their own ledgers stay untouched.
         TArray<FLDCombatBodyRef> Around;
-        if (!CollectAreaTargets(FootOf(*TargetActor),SpreadRadius,&Owner,Owner.Victim.EntityId,Around,Error)) { return false; }
+        if (!CollectAreaTargets(FootOf(*TargetActor),SpreadRadius,&Holder,Holder.Victim.EntityId,Around,Error)) { return false; }
         for (const FLDCombatBodyRef& Other : Around) { if (Other!=Target) { Struck.Add(Other); } }
     }
     for (const FLDCombatBodyRef& Body : Struck)
     {
-        FLDCombatHit Cash=MakeHit(Owner,Source,Body,FGuid());
+        FLDCombatHit Cash=MakeHit(Holder,Source,Body,FGuid());
         Cash.BaseP2=AmountP2;
         Cash.DamageType=DamageType;
         Cash.PackageScaleBp=ScaleBp;
         Cash.bLedgerCashOut=true;
-        if (!StampSourceTerms(Owner,Cash,Error)) { return false; }
+        if (!StampSourceTerms(Holder,Cash,Error)) { return false; }
         PendingHits.Add(MoveTemp(Cash));
     }
+    return true;
+}
+
+bool ALDCombatDirector::ResolveKnockbackImpact(FLDBodyCombatState& Body, const FLDCombatKnockbackImpact& Impact, bool bBody,
+    const ALDCharacter* BlockerActor, int64 NowMs, FString& Error)
+{
+    const ALDGameMode* Mode=Core();
+    if (!Mode) { Error=TEXT("A knockback impact needs the current core."); return false; }
+    const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
+    const auto Package=[&](const FLDCombatBodyRef& To, bool bStun)
+    {
+        FLDCombatHit Hit;
+        Hit.HitId=FGuid::NewGuid();
+        Hit.EffectId=Impact.EffectId;
+        Hit.Target=To;
+        Hit.SourceBody=Impact.Holder;
+        Hit.SourceEntity=Impact.Holder.Victim.EntityId;
+        Hit.CreditOwner=Impact.CreditOwner;
+        Hit.Source=Impact.Impact.Source;
+        Hit.HitClass=ELDCombatHitClass::Ability;
+        Hit.BaseP2=Impact.Impact.Effect.BaseP2;
+        Hit.ADRatioBp=Impact.Impact.Effect.ADRatioBp;
+        Hit.APRatioBp=Impact.Impact.Effect.APRatioBp;
+        Hit.DamageType=Impact.Impact.Effect.DamageType;
+        Hit.SourceADP2=Impact.HolderADP2;
+        Hit.SourceAPP2=Impact.HolderAPP2;
+        Hit.StunDurationMs=bStun ? Impact.Impact.Effect.SecondaryDurationMs : 0;
+        PendingHits.Add(MoveTemp(Hit));
+    };
+    const FLDBodyCombatState* Other=bBody && BlockerActor ? StateFor(BlockerActor) : nullptr;
+    const bool bLegalBody=Other && !Other->bPendingDeath && Other!=&Body && Other->IsolationGroup==Body.IsolationGroup
+        && Other->Victim.EntityId!=Impact.Holder.Victim.EntityId
+        && !(Other->Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(Other->Victim.EntityId));
+    if (!bBody)
+    {
+        // A registered static blocker: damage and a stun through the normal hard-control path.
+        Package(SelfRef,true);
+    }
+    else if (bLegalBody)
+    {
+        // Another legal enemy: both take the same physical package; nobody is pushed or stunned further.
+        Package(SelfRef,false);
+        Package({Other->Victim,Other->Identity},false);
+    }
+    UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_KNOCKBACK_IMPACT t=%lld victim=%s holder=%s kind=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId),
+        *LDLog::Id(Impact.Holder.Victim.EntityId),!bBody ? TEXT("wall") : bLegalBody ? TEXT("body") : TEXT("blocked_no_answer"));
     return true;
 }
 
@@ -619,7 +665,7 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
     const ALDGameMode* Mode=Core();
     const UWorld* CurrentWorld=GetWorld();
     const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
-    if (!Mode || !Mode->Vision || !Registry) { Error=TEXT("Workshop effects need the observation owner and the registered world."); return false; }
+    if (!Mode) { Error=TEXT("Workshop effects need the current core."); return false; }
     for (auto& Pair : Bodies)
     {
         FLDBodyCombatState& Body=Pair.Value;
@@ -639,51 +685,8 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
                 Body.PendingImpact.Reset();
                 if (Movement) { Movement->StopKnockbackWatch(); }
             }
-            if (Block.IsSet())
-            {
-                const auto Package=[&](const FLDCombatBodyRef& To, bool bStun)
-                {
-                    FLDCombatHit Hit;
-                    Hit.HitId=FGuid::NewGuid();
-                    Hit.EffectId=Impact.EffectId;
-                    Hit.Target=To;
-                    Hit.SourceBody=Impact.Holder;
-                    Hit.SourceEntity=Impact.Holder.Victim.EntityId;
-                    Hit.CreditOwner=Impact.CreditOwner;
-                    Hit.Source=Impact.Impact.Source;
-                    Hit.HitClass=ELDCombatHitClass::Ability;
-                    Hit.BaseP2=Impact.Impact.Effect.BaseP2;
-                    Hit.ADRatioBp=Impact.Impact.Effect.ADRatioBp;
-                    Hit.APRatioBp=Impact.Impact.Effect.APRatioBp;
-                    Hit.DamageType=Impact.Impact.Effect.DamageType;
-                    Hit.SourceADP2=Impact.HolderADP2;
-                    Hit.SourceAPP2=Impact.HolderAPP2;
-                    Hit.StunDurationMs=bStun ? Impact.Impact.Effect.SecondaryDurationMs : 0;
-                    PendingHits.Add(MoveTemp(Hit));
-                };
-                const FLDBodyCombatState* Other=nullptr;
-                if (Block->bBody)
-                {
-                    const ALDCharacter* BlockerActor=Cast<ALDCharacter>(Block->Blocker.Get());
-                    Other=BlockerActor ? StateFor(BlockerActor) : nullptr;
-                }
-                const bool bLegalBody=Other && !Other->bPendingDeath && Other!=&Body && Other->IsolationGroup==Body.IsolationGroup
-                    && Other->Victim.EntityId!=Impact.Holder.Victim.EntityId
-                    && !(Other->Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(Other->Victim.EntityId));
-                if (!Block->bBody)
-                {
-                    // A registered static blocker: damage and a stun through the normal hard-control path.
-                    Package(SelfRef,true);
-                }
-                else if (bLegalBody)
-                {
-                    // Another legal enemy: both take the same physical package; nobody is pushed or stunned further.
-                    Package(SelfRef,false);
-                    Package({Other->Victim,Other->Identity},false);
-                }
-                UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_KNOCKBACK_IMPACT t=%lld victim=%s holder=%s kind=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId),
-                    *LDLog::Id(Impact.Holder.Victim.EntityId),!Block->bBody ? TEXT("wall") : bLegalBody ? TEXT("body") : TEXT("blocked_no_answer"));
-            }
+            if (Block.IsSet() && !ResolveKnockbackImpact(Body,Impact,Block->bBody,Cast<ALDCharacter>(Block->Blocker.Get()),NowMs,Error))
+            { return false; }
         }
         // M12: debts due now are paid at their original amount.
         for (int32 Index=Body.Debts.Num()-1; Index>=0; --Index)
@@ -768,12 +771,13 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
     {
         const FLDCombatLockedLedger Locked=LockedLedgers[Index];
         if (Locked.DueAtMs>NowMs) { continue; }
+        if (!Mode->Vision || !Registry) { Error=TEXT("A locked ledger needs the observation owner and the registered world."); return false; }
         LockedLedgers.RemoveAt(Index);
         ALDCharacter* OwnerActor=nullptr;
         ALDCharacter* TargetActor=nullptr;
-        const FLDBodyCombatState* Owner=FindBody(Locked.Owner,&OwnerActor);
+        const FLDBodyCombatState* Settler=FindBody(Locked.Owner,&OwnerActor);
         const FLDBodyCombatState* Target=FindBody(Locked.Target,&TargetActor);
-        bool bSettles=Owner && OwnerActor && !Owner->bPendingDeath && Target && TargetActor && !Target->bPendingDeath
+        bool bSettles=Settler && OwnerActor && !Settler->bPendingDeath && Target && TargetActor && !Target->bPendingDeath
             && FVector::Dist2D(FootOf(*OwnerActor),FootOf(*TargetActor))<=Locked.MaxDistanceCm;
         if (bSettles)
         {
@@ -789,17 +793,17 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
         if (Locked.SpreadRadiusCm>0)
         {
             TArray<FLDCombatBodyRef> Around;
-            if (!CollectAreaTargets(FootOf(*TargetActor),Locked.SpreadRadiusCm,Owner,Owner->Victim.EntityId,Around,Error)) { return false; }
+            if (!CollectAreaTargets(FootOf(*TargetActor),Locked.SpreadRadiusCm,Settler,Settler->Victim.EntityId,Around,Error)) { return false; }
             for (const FLDCombatBodyRef& Other : Around) { if (Other!=Locked.Target) { Struck.Add(Other); } }
         }
         for (const FLDCombatBodyRef& Body : Struck)
         {
-            FLDCombatHit Cash=MakeHit(*Owner,Locked.Source,Body,FGuid());
+            FLDCombatHit Cash=MakeHit(*Settler,Locked.Source,Body,FGuid());
             Cash.BaseP2=Locked.AmountP2;
             Cash.DamageType=Locked.DamageType;
             Cash.PackageScaleBp=Locked.ScaleBp;
             Cash.bLedgerCashOut=true;
-            if (!StampSourceTerms(*Owner,Cash,Error)) { return false; }
+            if (!StampSourceTerms(*Settler,Cash,Error)) { return false; }
             PendingHits.Add(MoveTemp(Cash));
         }
     }

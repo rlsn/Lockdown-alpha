@@ -1246,13 +1246,21 @@ bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    if (!TestEqual(TEXT("Eighteen base components"), Definitions.Components.Num(), 18)) { return false; }
+    // #198 B bases B01-B18 (1-18), #198 F mods M01-M12 (19-30) and connectors C01-C12 (31-42); M11, M12 and C12 are scarce.
+    if (!TestEqual(TEXT("Eighteen bases, twelve mods and twelve connectors"), Definitions.Components.Num(), 42)) { return false; }
     TSet<FString> AlwaysOpening;
     for (int32 Index = 0; Index < Definitions.Components.Num(); ++Index)
     {
         const FLDDemoComponentDefinition& Row = Definitions.Components[Index];
-        TestTrue(FString::Printf(TEXT("%s is a common base component numbered B%02d"), *Row.Id, Index + 1),
-            int32(Row.GetNativeId()) == Index + 1 && Row.Kind == ELDDemoComponentKind::Base && Row.Pool == ELDDemoComponentPool::Common);
+        const ELDDemoComponentKind Kind = Index < 18 ? ELDDemoComponentKind::Base
+            : Index < 30 ? ELDDemoComponentKind::Mod : ELDDemoComponentKind::Connector;
+        const bool bScarce = Row.Id == TEXT("component_pick_you") || Row.Id == TEXT("component_owe_it") || Row.Id == TEXT("component_dirty_fist");
+        TestTrue(FString::Printf(TEXT("%s is numbered %d with its kind and pool"), *Row.Id, Index + 1),
+            int32(Row.GetNativeId()) == Index + 1 && Row.Kind == Kind
+            && Row.Pool == (bScarce ? ELDDemoComponentPool::Scarce : ELDDemoComponentPool::Common));
+        TestTrue(FString::Printf(TEXT("%s names install targets exactly when it is a mod or connector"), *Row.Id),
+            (Kind == ELDDemoComponentKind::Base) == (Row.TargetActives.IsEmpty() && Row.TargetComponents.IsEmpty() && !Row.bTargetDash
+                && !Row.bTargetSelf));
         const FLDDemoComponentDefinition* Found = nullptr;
         TestTrue(FString::Printf(TEXT("FindComponent resolves %s to its own row: %s"), *Row.Id, *Error),
             Snapshot->FindComponent(Row.Id, Found, Error) && Found == &Row);

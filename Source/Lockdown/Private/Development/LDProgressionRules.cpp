@@ -1274,11 +1274,11 @@ ELDGrowthReason LDProgression::ApplyUninstallComponent(const FLDDemoContentDefin
     TArray<FName> Removing{Component};
     for (int32 Index = 0; Index < Removing.Num(); ++Index)
     {
-        for (FLDComponentInstance& Instance : Out.Components)
+        for (FLDComponentInstance& Attached : Out.Components)
         {
-            const bool bOnIt = Instance.bInstalled && ((Instance.Target.Kind == ELDComponentTargetKind::Component
-                && Instance.Target.Definition == Removing[Index]) || Instance.Target.BoundComponent == Removing[Index]);
-            if (bOnIt && !Removing.Contains(Instance.Id)) { Removing.Add(Instance.Id); }
+            const bool bOnIt = Attached.bInstalled && ((Attached.Target.Kind == ELDComponentTargetKind::Component
+                && Attached.Target.Definition == Removing[Index]) || Attached.Target.BoundComponent == Removing[Index]);
+            if (bOnIt && !Removing.Contains(Attached.Id)) { Removing.Add(Attached.Id); }
         }
     }
     for (const FName& Id : Removing)
