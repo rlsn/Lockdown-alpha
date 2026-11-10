@@ -57,8 +57,9 @@ try {
     Wait-CoreReports @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {
         $r = Get-Content -LiteralPath (Join-Path $evidence "$_.json") -Raw | ConvertFrom-Json
+        # #198: life 1 is the R0 rest body; every role finishes on its first field life.
         if (-not $r.passed -or $r.role -ne $_ -or -not $r.fixture_only -or $r.full_ct06 -or $r.catalog_sha256 -ne $digest -or
-            $r.life -ne 1 -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
+            $r.life -ne 2 -or @($r.checks | Where-Object { -not $_.passed }).Count -ne 0) {
             throw "Owned core evidence failed for $_`: $output"
         }
         $r
