@@ -559,13 +559,13 @@ bool ALDGameMode::RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FSt
 
 // ---- #198 personal training dummy ----
 
-bool ALDGameMode::SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    if (TrainingDummies.Contains(Owner)) { Error.Reset(); return true; }
+    if (TrainingDummies.Contains(OwnerId)) { Error.Reset(); return true; }
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    const FLDLifeRecord* OwnerLife = Lives.Find(Owner);
-    const FLDGrowthBuild* Build = Development ? Development->FindBuild(Owner) : nullptr;
-    const FLDMapBinding* Anchor = Registry ? Registry->Resolve(RestAnchorFor(Owner), Registry->Generation) : nullptr;
+    const FLDLifeRecord* OwnerLife = Lives.Find(OwnerId);
+    const FLDGrowthBuild* Build = Development ? Development->FindBuild(OwnerId) : nullptr;
+    const FLDMapBinding* Anchor = Registry ? Registry->Resolve(RestAnchorFor(OwnerId), Registry->Generation) : nullptr;
     FCollisionShape Capsule;
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Combat || !DemoContent
         || !OwnerLife || !Build || !Anchor || !Registry->GetGeometry() || !ULDMapRegistry::ContentCapsule(*DemoContent, Capsule, Error))
@@ -624,7 +624,7 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWriteP
         FLDBodyCombatState State;
         FLDCombatBodyRef Ref;
         if (!Movement->CurrentFloor.IsWalkableFloor()
-            || !Combat->PrepareTrainingDummy(*Body, {ELDVictimKind::Contender, Entity, 1}, Owner, Build->Level, Permit, State, Error)
+            || !Combat->PrepareTrainingDummy(*Body, {ELDVictimKind::Contender, Entity, 1}, OwnerId, Build->Level, Permit, State, Error)
             || !Combat->InstallCombatBody(*Body, MoveTemp(State), Permit, Ref, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("The training dummy does not stand on its registered placement."); }
@@ -642,29 +642,29 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWriteP
         BeginLifeMotion(Life, Ref, *Body);
         Body->SetActorHiddenInGame(false);
         Body->SetActorTickEnabled(true);
-        TrainingDummies.Add(Owner, {Entity, Ref, Body});
+        TrainingDummies.Add(OwnerId, {Entity, Ref, Body});
         TrainingDummyIds.Add(Entity);
         UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_DUMMY_SPAWN owner=%s dummy=%s level=%u offset=%d"),
-            *LDLog::Id(Owner), *LDLog::Id(Entity), uint32(Build->Level), Index);
+            *LDLog::Id(OwnerId), *LDLog::Id(Entity), uint32(Build->Level), Index);
         Error.Reset();
         return true;
     }
     // No free spot: the owner trains without a dummy this rest; this is reported, never silently replaced.
-    UE_LOG(LogLDMatch, Warning, TEXT("LD_TRAINING_DUMMY_BLOCKED owner=%s anchor=%s"), *LDLog::Id(Owner), *Anchor->Id.ToString());
+    UE_LOG(LogLDMatch, Warning, TEXT("LD_TRAINING_DUMMY_BLOCKED owner=%s anchor=%s"), *LDLog::Id(OwnerId), *Anchor->Id.ToString());
     Error.Reset();
     return true;
 }
 
-void ALDGameMode::RetireTrainingDummy(const FGuid& Owner)
+void ALDGameMode::RetireTrainingDummy(const FGuid& OwnerId)
 {
     FLDTrainingDummy Dummy;
-    if (!TrainingDummies.RemoveAndCopyValue(Owner, Dummy)) { return; }
+    if (!TrainingDummies.RemoveAndCopyValue(OwnerId, Dummy)) { return; }
     TrainingDummyIds.Remove(Dummy.Entity);
-    PendingTrainingResets.Remove(Owner);
+    PendingTrainingResets.Remove(OwnerId);
     if (Combat && Dummy.Body.IsValid()) { Combat->RetireTrainingEntity(Dummy.Body); }
     if (ALDCharacter* Actor = Dummy.Actor.Get()) { Actor->Destroy(); }
     Lives.Remove(Dummy.Entity);
-    UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_DUMMY_RETIRE owner=%s dummy=%s"), *LDLog::Id(Owner), *LDLog::Id(Dummy.Entity));
+    UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_DUMMY_RETIRE owner=%s dummy=%s"), *LDLog::Id(OwnerId), *LDLog::Id(Dummy.Entity));
 }
 
 bool ALDGameMode::AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error)
@@ -696,13 +696,13 @@ bool ALDGameMode::ProcessTrainingResets(const FLDGameplayWritePermit& Permit, FS
     TArray<FGuid> Owners = PendingTrainingResets.Array();
     PendingTrainingResets.Reset();
     Owners.Sort();
-    for (const FGuid& Owner : Owners)
+    for (const FGuid& OwnerId : Owners)
     {
-        const FLDTrainingDummy* Dummy = TrainingDummies.Find(Owner);
+        const FLDTrainingDummy* Dummy = TrainingDummies.Find(OwnerId);
         // A request that outlived its rest space or dummy has nothing left to reset.
-        if (!Dummy || !RestLives.Contains(Owner) || Lives.FindChecked(Owner).Phase != ELDLifePhase::Alive) { continue; }
-        if (!Combat->ResetTraining(Owner, Dummy->Entity, Permit, Error)) { return false; }
-        UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_RESET owner=%s dummy=%s"), *LDLog::Id(Owner), *LDLog::Id(Dummy->Entity));
+        if (!Dummy || !RestLives.Contains(OwnerId) || Lives.FindChecked(OwnerId).Phase != ELDLifePhase::Alive) { continue; }
+        if (!Combat->ResetTraining(OwnerId, Dummy->Entity, Permit, Error)) { return false; }
+        UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_RESET owner=%s dummy=%s"), *LDLog::Id(OwnerId), *LDLog::Id(Dummy->Entity));
     }
     Error.Reset();
     return true;

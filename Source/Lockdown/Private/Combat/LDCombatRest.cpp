@@ -179,11 +179,11 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     return RefreshTemporary(Body,Actor,NowMs,Error);
 }
 
-bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
+bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& OwnerId, uint8 OwnerLevel,
     const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();
-    if (!Content || !Owner.IsValid() || OwnerLevel==0 || Victim.Life!=1 || FindRecord(Victim.EntityId))
+    if (!Content || !OwnerId.IsValid() || OwnerLevel==0 || Victim.Life!=1 || FindRecord(Victim.EntityId))
     {
         Error=TEXT("A training dummy is a fresh entity of a known owner and level.");
         return false;
@@ -202,13 +202,13 @@ bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictim
     Out.Resources.HpP2=Out.Resources.MaxHpP2=Chassis.Final.MaxHPP2;
     Out.Resources.MpP2=Out.Resources.MaxMpP2=Chassis.Final.MaxMPP2;
     if (Out.PublicFacts.IsSet()) { Out.PublicFacts->Level=OwnerLevel; }
-    Out.IsolationGroup=Owner;
+    Out.IsolationGroup=OwnerId;
     Out.bTrainingDummy=true;
     Error.Reset();
     return true;
 }
 
-bool ALDCombatDirector::ResetTraining(const FGuid& Owner, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDCombatDirector::ResetTraining(const FGuid& OwnerId, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     const ALDGameMode* Mode=Core();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None)
@@ -217,7 +217,7 @@ bool ALDCombatDirector::ResetTraining(const FGuid& Owner, const FGuid& Dummy, co
         return false;
     }
     const int64 NowMs=Mode->GetAuthorityNowMs();
-    for (const FGuid& Entity : {Owner,Dummy})
+    for (const FGuid& Entity : {OwnerId,Dummy})
     {
         CancelEntityEffects(Entity);
         ALDCharacter* Actor=nullptr;
@@ -232,7 +232,7 @@ bool ALDCombatDirector::ResetTraining(const FGuid& Owner, const FGuid& Dummy, co
         Body->Resources.MpP2=Body->Resources.MaxMpP2;
         ++Body->Resources.Revision;
     }
-    return ReadyAllForPhase(Owner,Permit,Error);
+    return ReadyAllForPhase(OwnerId,Permit,Error);
 }
 
 void ALDCombatDirector::RetireTrainingEntity(const FLDCombatBodyRef& Body)
