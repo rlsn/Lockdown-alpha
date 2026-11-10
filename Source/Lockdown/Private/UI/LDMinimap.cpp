@@ -534,6 +534,15 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 if(Drop.Phase==ELDAirdropPhase::Landed){Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),FLinearColor(.55f,.36f,.16f));Box(7,At-FVector2f(4.f,.75f),FVector2f(8.f,1.5f),Ink);}
                 else{Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Ink);}
             }
+            // #198: lying charms, a disc in the kind's colour (heal green, mana blue, move speed gold) on an ink disc.
+            if(Public->PublicMatch.Generation==Own.Match)
+            {
+                for(const FLDCharmView& Charm:Public->PublicMatch.Charms)
+                {
+                    const FVector2f At=Spot(Charm.PositionCm);
+                    Disc(5,At,7.5f,Ink);Disc(6,At,5.5f,LDHUD::CharmColor(Charm.Kind));Disc(7,At,2.f,FLinearColor(.97f,.97f,.94f));
+                }
+            }
         }
         if(Frame)
         {

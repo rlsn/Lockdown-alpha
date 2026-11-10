@@ -450,6 +450,36 @@ FString LDHUD::AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNow
     default: return FString();
     }
 }
+FString LDHUD::CharmName(ELDCharmKind Kind)
+{
+    switch(Kind)
+    {
+    case ELDCharmKind::Heal: return LDTerms::CharmHeal;
+    case ELDCharmKind::Mana: return LDTerms::CharmMana;
+    case ELDCharmKind::MoveSpeed: return LDTerms::CharmMoveSpeed;
+    default: return FString();
+    }
+}
+FLinearColor LDHUD::CharmColor(ELDCharmKind Kind)
+{
+    switch(Kind)
+    {
+    case ELDCharmKind::Heal: return FLinearColor(.30f,.86f,.42f);
+    case ELDCharmKind::Mana: return FLinearColor(.28f,.56f,1.f);
+    case ELDCharmKind::MoveSpeed: return FLinearColor(1.f,.80f,.18f);
+    default: return FLinearColor(.6f,.6f,.6f);
+    }
+}
+FString LDHUD::CharmLine(const TArray<FLDCharmView>& Charms)
+{
+    TArray<FString> Names;
+    for(const FLDCharmView& Charm:Charms)
+    {
+        const FString Name=CharmName(Charm.Kind);
+        if(!Name.IsEmpty()){Names.Add(Name);}
+    }
+    return Names.IsEmpty()?FString():LDTerms::CharmsLying(FString::Join(Names,TEXT("、")));
+}
 FString LDHUD::BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 FieldNowMs)
 {
     // Presentation only: how early the countdown shows.

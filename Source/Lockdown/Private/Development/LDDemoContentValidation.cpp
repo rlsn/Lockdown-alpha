@@ -1,6 +1,7 @@
 #include "LDDemoContentJson.h"
 
 #include "LDDemoContentMath.h"
+#include "World/LDCharms.h"
 #include "../Region/LDMapGeometryJson.h"
 
 namespace LDDemoContent
@@ -168,6 +169,15 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     if (!Check.Require(P.AirdropAnnounceLeadMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropFirstLandMs
         && P.AirdropAnnounceLeadMs < P.AirdropIntervalMs, TEXT("AIRDROP"),
         TEXT("the announcement lead must fit before the first landing and inside one interval")))
+    {
+        return false;
+    }
+    // #198 charms: distinct kinds per wave, each living inside one wave interval, every effect positive.
+    if (!Check.Require(P.CharmPerWave >= 1 && P.CharmPerWave <= LDCharms::KindCount && P.CharmWaveCount >= 1
+        && P.CharmLifetimeMs > 0 && P.CharmLifetimeMs <= P.CharmWaveIntervalMs && P.CharmFirstWaveMs > 0
+        && P.CharmPickupRadiusCm.Denominator > 0 && P.CharmPickupRadiusCm.Numerator > 0
+        && P.CharmHealMaxHPBp > 0 && P.CharmManaMaxMPBp > 0 && P.CharmMoveSpeedBp > 0 && P.CharmMoveSpeedMs > 0, TEXT("CHARM"),
+        TEXT("a wave draws distinct kinds, lives inside one interval and every effect is positive")))
     {
         return false;
     }

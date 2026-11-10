@@ -82,6 +82,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
         // D26: an airdrop is announced and lands on its exact boundary.
         Consider(Mode->NextAirdropDueMs());
+        // #198: a charm wave lands and a charm leaves on its exact field-progress boundary.
+        Consider(Mode->NextCharmDueMs());
         // D27: the leader notice refreshes on its exact boundary.
         Consider(Mode->NextLeaderDueMs());
     }
@@ -180,13 +182,13 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)) { return false; }
                 if (!Mode->IsFieldRunning()) { return true; }
                 return Mode->Camps->AdvanceCamps(Permit,Error)
-                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
+                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 // #198: commands committed at a build deadline settle before the lock of the same boundary.
-                return Mode->ClaimAirdrop(Permit,Error) && Mode->Growth->ProcessTransactions(Permit,Error)
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error) && Mode->Growth->ProcessTransactions(Permit,Error)
                     && Mode->LockTimelineBuild(Permit,Error);
             },Error));
         if (!bWorldRan

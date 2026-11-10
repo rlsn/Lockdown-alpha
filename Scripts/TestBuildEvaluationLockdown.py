@@ -45,7 +45,7 @@ def manifest(subject=None, opponent=None, sample="legal_search", supply=SUPPLY, 
     opponent = opponent or {"choices": ["ai_select"] * 3}
     arms = [{"id": "ref", "plan": {"subject": {"choices": ["ai_select"] * 3}, "opponent": {"choices": ["ai_select"] * 3}}},
             {"id": "t", "plan": {"subject": subject, "opponent": opponent}}]
-    return {"schema": core.MANIFEST_SCHEMA, "schema_version": 1,
+    return {"schema": core.MANIFEST_SCHEMA, "schema_version": core.MANIFEST_SCHEMA_VERSION,
             "experiment": {"id": "lockdown-test", "hypothesis": "adapter test"},
             "adapter": {"module": "BuildEvaluationLockdown", "id": "lockdown-demo"},
             "scenario": {"kind": "duel_site", "parameters": {"site": "capture", "duel_timeout_ms": 45000,
@@ -54,7 +54,8 @@ def manifest(subject=None, opponent=None, sample="legal_search", supply=SUPPLY, 
             "design": {"kind": design, "reference": "ref", "arms": arms},
             "blocks": {"root_seed": "7", "splits": {"search": 0, "confirm": 1}, "sides": 2},
             "metrics": {"primary": "duel_score", "secondary": ["damage_dealt_hp"], "material_difference": None},
-            "budget": {"max_cases": 10, "case_wall_timeout_s": 120, "run_wall_timeout_s": 600}}
+            "budget": {"class": "standard", "max_cases": 10, "case_wall_timeout_s": 120, "run_wall_timeout_s": 600,
+                       "max_case_events": 200000, "max_run_disk_bytes": 2 * core.GiB, "max_root_disk_bytes": 6 * core.GiB}}
 
 
 def contender(role, slot, contender_id, hp=31000, body=True, **rest):
