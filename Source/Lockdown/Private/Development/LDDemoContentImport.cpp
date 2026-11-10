@@ -1285,7 +1285,7 @@ bool Component(const FValue& Value, FLDDemoComponentDefinition& Out, const TArra
     if (F.Has(TEXT("binding")))
     {
         FFields Binding(Check, F.Take(TEXT("binding")), Path + TEXT(".binding"));
-        const TArray<FValue>* Elements;
+        const TArray<FValue>* Elements = nullptr;
         if (!Binding.Literal(TEXT("kind"), TEXT("active_element"))
             || !ActiveIds(Binding.Take(TEXT("actives")), Out.BindActives, Abilities, false, Check, Binding.Path + TEXT(".actives"))
             || !Array(Binding.Take(TEXT("elements")), Elements, Check, Binding.Path + TEXT(".elements"), 1, 3))
@@ -1521,10 +1521,10 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
     {
         FFields Band(Check, Row, F.Path + TEXT(".component_category_weights"));
         FLDDemoComponentCategoryWeights Weights;
-        const TArray<FValue>* Levels;
+        const TArray<FValue>* BandLevels;
         int64 Low = 0, High = 0;
-        if (!Array(Band.Take(TEXT("levels")), Levels, Check, Band.Path, 2, 2)
-            || !Integer((*Levels)[0], Low, Check, Band.Path, 2, Out.MaxLevel) || !Integer((*Levels)[1], High, Check, Band.Path, 2, Out.MaxLevel)
+        if (!Array(Band.Take(TEXT("levels")), BandLevels, Check, Band.Path, 2, 2)
+            || !Integer((*BandLevels)[0], Low, Check, Band.Path, 2, Out.MaxLevel) || !Integer((*BandLevels)[1], High, Check, Band.Path, 2, Out.MaxLevel)
             || !Band.SmallInt(TEXT("base"), Weights.BasePercent, 0, 100) || !Band.SmallInt(TEXT("mod"), Weights.ModPercent, 0, 100)
             || !Band.SmallInt(TEXT("connector"), Weights.ConnectorPercent, 0, 100) || !Band.Done()
             || !Check.Require(Low == NextLevel && Low <= High, Band.Path,

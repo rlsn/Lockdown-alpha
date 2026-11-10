@@ -263,25 +263,25 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     FLDOpponentPolicyState State;
     FLDOpponentBuildIntent Intent;
     bGood &= Test.TestFalse(TEXT("Alive inside combat: neither learn nor allocate"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     Frame.Self.Phase = ELDLifePhase::Dead;
     bGood &= Test.TestTrue(TEXT("Dead: points are allocated, the blueprint waits"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
         && Intent.PointCounts == TArray<uint8>({1, 1, 0, 0, 0}));
     Frame.Self.Phase = ELDLifePhase::Alive;
     Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
     bGood &= Test.TestTrue(TEXT("Safe: the blueprint is learned first"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
         && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 0);
     Frame.Public.Phase = ELDMatchPhase::Countdown;
     Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 4000;
     bGood &= Test.TestTrue(TEXT("The countdown is always safe"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
     Frame.bBuildChangeInFlight = true;
-    bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
+    bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     Frame.bBuildChangeInFlight = false;
     Frame.Public.Phase = ELDMatchPhase::Results;
-    bGood &= Test.TestFalse(TEXT("Closed phase: nothing"), LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
+    bGood &= Test.TestFalse(TEXT("Closed phase: nothing"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     return bGood;
 }
 

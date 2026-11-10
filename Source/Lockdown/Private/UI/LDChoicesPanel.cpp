@@ -662,10 +662,10 @@ void ULDChoicesPanel::RefreshBinding()
     for(int32 Index=0;Index<BindElementButtons.Num()&&Index<int32(UE_ARRAY_COUNT(Elements));++Index)
     {
         const bool bOffered=Definition->BindElements.Contains(Elements[Index]);
-        const bool bOpen=LDHUD::ElementGate(Elements[Index])==ELDGrowthReason::None;
+        const bool bElementOpen=LDHUD::ElementGate(Elements[Index])==ELDGrowthReason::None;
         GrowthShown(BindElementButtons[Index],bOffered,ESlateVisibility::Visible);
-        GrowthEnabled(BindElementButtons[Index],bOffered&&bOpen&&!PendingRequest);
-        if(bOffered&&!bOpen){Closed.Add(LDHUD::ElementName(Elements[Index]));}
+        GrowthEnabled(BindElementButtons[Index],bOffered&&bElementOpen&&!PendingRequest);
+        if(bOffered&&!bElementOpen){Closed.Add(LDHUD::ElementName(Elements[Index]));}
     }
     GrowthText(BindingBlocked,!BindingActive.IsNone()&&!Closed.IsEmpty()?FString::Join(Closed,TEXT("、"))+TEXT("：")+LDTerms::ElementClosed:FString());
 }
