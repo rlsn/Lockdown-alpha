@@ -230,6 +230,7 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     Driver->PendingHits.AddDefaulted();
     Driver->Projectiles.AddDefaulted();
     for (int32 Tick = 0; Tick < 100; ++Tick) { World->Tick(LEVELTICK_TimeOnly, .1f); }
+    const int64 HpBeforePhase = SA.Resources.HpP2;
     FString Error;
     int32 Cancelled = INDEX_NONE;
     bool bReady = false;
@@ -247,7 +248,7 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Nothing in flight survives and no hit was invented"), Driver->PendingHits.IsEmpty() && Driver->Projectiles.IsEmpty());
     bGood &= TestTrue(TEXT("Controls, shields and burns end on every body"),
         SA.Roots.IsEmpty() && !SA.Shield.IsSet() && SA.Resources.ShieldP2 == 0 && SA.Burn.Layers.IsEmpty());
-    bGood &= TestTrue(TEXT("The phase leaves HP alone (new lives start full by construction)"), SA.Resources.HpP2 == 50000);
+    bGood &= TestTrue(TEXT("The phase leaves HP alone (new lives start full by construction)"), SA.Resources.HpP2 == HpBeforePhase);
     bGood &= TestTrue(TEXT("Every cooldown, the forgotten active's held track included, and the basic cadence are ready"),
         Record.Tracks[0].ReadyAtMs == 6000 && Record.Tracks[1].ReadyAtMs == 6000 && Record.NextAttackAtMs == 6000
         && Record.Tracks[1].IssuedCooldownId == Forgotten.IssuedCooldownId);
