@@ -98,6 +98,21 @@ struct FLDOpponentComponentTarget
     FString BoundComponent;
 };
 
+// #198 G: one pending elite camp component choice of the own view: its id and one or two known common components.
+struct FLDOpponentComponentChoice
+{
+    FGuid ChoiceId;
+    TArray<FString> Options;
+};
+
+// #198 G: one rest FillGap the own build allows (LDProgression::GapTargets / GapFillers over the own view): a never-enabled
+// mod or connector without any compatible entry and the first unowned common base, in catalog order, that gives it one.
+struct FLDOpponentGapFill
+{
+    FString Target;
+    FString Filler;
+};
+
 // The AI's own authorized projection: owner life, progression and source readiness.
 struct FLDOpponentSelf
 {
@@ -129,6 +144,9 @@ struct FLDOpponentSelf
     TArray<FLDOpponentComponent> Components;
     bool bOpeningBasePending = false;
     TArray<FString> OpeningBaseOptions;
+    // #198 G: pending component choices (oldest first) and the gap fills the own build allows, in catalog order.
+    TArray<FLDOpponentComponentChoice> ComponentChoices;
+    TArray<FLDOpponentGapFill> GapFills;
     // Combat's build safe window (absolute authority ms; at or before now is safe).
     int64 BuildSafeAtMs = 0;
     TArray<FLDOpponentSource> Sources;
@@ -169,6 +187,8 @@ struct FLDOpponentPublicMatch
     bool bAirdropLanded = false;
     // #198: the public airdrop points that hold a lying field charm now, with its kind, in serial order.
     TArray<TPair<FName, ELDCharmKind>> Charms;
+    // #198 outer §5: the camps whose public marker is open (revealed and not yet taken) now.
+    TArray<FName> MarkedCamps;
     // D27: the public 上热搜 notice; Leader invalid when nobody is named.
     FGuid Leader;
     FVector LeaderCircleCentreCm = FVector::ZeroVector;
@@ -275,8 +295,9 @@ struct FLDOpponentBodyIntent
 
 // #198 build commands, as a player sends them: choose an active of the current offer (always asking to learn it now),
 // learn a pending blueprint into an empty slot, allocate unspent points, pick the opening base component (always asking to
-// enable it now) or enable an owned, never-installed component.
-enum class ELDOpponentBuildKind : uint8 { None, ChooseActive, LearnBlueprint, AllocatePoints, OpeningBase, InstallComponent };
+// enable it now) or enable an owned, never-installed component. #198 G: resolve a pending component choice (an option, or the
+// empty-pool points once every option is owned) and, in a rest, fill a gap.
+enum class ELDOpponentBuildKind : uint8 { None, ChooseActive, LearnBlueprint, AllocatePoints, OpeningBase, InstallComponent, ComponentChoice, FillGap };
 
 struct FLDOpponentBuildIntent
 {
@@ -299,6 +320,10 @@ struct FLDOpponentBuildIntent
     ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
     FString TargetId;
     FString BoundComponent;
+    // #198 G ComponentChoice: the pending choice; Component is the chosen option, empty for the empty-pool points.
+    // FillGap: Component is the gap target and Filler the unowned common base it receives.
+    FGuid ChoiceId;
+    FString Filler;
     FLDOpponentRetryKey Key;
 };
 
@@ -482,6 +507,11 @@ namespace LDOpponentPolicy
     // false when none does.
     LOCKDOWN_API bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
         FString& OutComponent, FString& OutBoundActive, ELDDemoElement& OutElement, FString& Error);
+    // #198 G: how the AI resolves one pending component choice (rule-based, no tunable numbers): the first unowned option
+    // it could enable now (ComponentUsable for a base, WorkshopTarget for a mod or connector), else the first unowned option;
+    // OutOption empty (the empty-pool points) once every option is owned. False with Error for an option outside the catalog.
+    LOCKDOWN_API bool SelectComponentChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
+        const FLDOpponentComponentChoice& Choice, FString& OutOption, FString& Error);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
@@ -519,10 +549,11 @@ namespace LDOpponentPolicy
     LOCKDOWN_API void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
         const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
     // #198: the build step after any offer choice, exactly as Decide makes it: the opening base pick while it is open (when
-    // an active may be chosen), the preferred blueprint into the lowest empty slot when learning is allowed (the countdown,
-    // or alive inside the build safe window), the next owned component to enable under the same gate, otherwise every
-    // unspent point when allocating is allowed (the countdown, dead, or alive inside the window). False when nothing
-    // applies, a build request is in flight or failure memory holds the step back.
+    // an active may be chosen), the oldest pending component choice (#198 G, under the same gate), the preferred blueprint
+    // into the lowest empty slot when learning is allowed (the countdown, or alive inside the build safe window), the next
+    // owned component to enable under the same gate, in a rest window the first gap fill the unspent points pay for (#198 G),
+    // otherwise every unspent point when allocating is allowed (the countdown, dead, or alive inside the window). False when
+    // nothing applies, a build request is in flight or failure memory holds the step back.
     LOCKDOWN_API bool DecideFollowUpBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FLDOpponentBuildIntent& Out);
 #if WITH_DEV_AUTOMATION_TESTS

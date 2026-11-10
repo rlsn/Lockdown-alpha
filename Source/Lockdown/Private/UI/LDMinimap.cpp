@@ -544,6 +544,14 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                     const FVector2f At=Spot(Charm.PositionCm);
                     Disc(5,At,7.5f,Ink);Disc(6,At,5.5f,LDHUD::CharmColor(Charm.Kind));Disc(7,At,2.f,FLinearColor(.97f,.97f,.94f));
                 }
+                // #198 outer §5: an open camp marker, a marker-violet ring around its camp diamond.
+                for(const FLDFieldMarkerView& Marker:Public->PublicMatch.Markers)
+                {
+                    if(Marker.Phase!=ELDFieldMarkerPhase::Revealed){continue;}
+                    const FVector2f At=Spot(Marker.PositionCm);TArray<FVector2f> Ring;
+                    for(int32 Step=0;Step<=24;++Step){const float Angle=float(UE_DOUBLE_TWO_PI*Step/24.);Ring.Add(At+FVector2f(FMath::Cos(Angle),FMath::Sin(Angle))*18.f);}
+                    Lines(7,Ring,LDHUD::MarkerColor(),2.5f);
+                }
             }
         }
         if(Frame)

@@ -183,12 +183,16 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CampGrowthAttackPerStageBp = 0;
     UPROPERTY() int64 CampGrowthResistPerStageP2 = 0;
     UPROPERTY() int64 CampGrowthRewardXPPerStageBp = 0;
-    // D26 (#79) airdrop: landings at FirstLand + n * Interval from the match start, each public AnnounceLead earlier.
-    UPROPERTY() int64 AirdropFirstLandMs = 0;
-    UPROPERTY() int64 AirdropIntervalMs = 0;
+    // D26 (#79) / #198 outer §5 airdrop: the drops land at the explicit field progress instants AirdropLandMs (strictly
+    // increasing), each public AnnounceLead earlier, and leave unclaimed AirdropExpireMs after landing.
+    UPROPERTY() TArray<int64> AirdropLandMs;
+    UPROPERTY() int64 AirdropExpireMs = 0;
     UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
+    // #198 outer §5 camp markers: in each timed field segment a High and an Elite camp are marked CampMarkRevealMs of
+    // field progress after the segment starts (World/LDFieldMarkers.h).
+    UPROPERTY() int64 CampMarkRevealMs = 0;
     // #198 field charms: CharmWaveCount waves at field progress T = CharmFirstWave + n * CharmWaveInterval, each of
     // CharmPerWave distinct kinds on distinct airdrop points, lasting CharmLifetimeMs of field progress. Heal restores
     // CharmHealMaxHPBp of max HP, mana CharmManaMaxMPBp of max MP; move speed adds CharmMoveSpeedBp to the additive
@@ -264,6 +268,10 @@ struct FLDDemoContentParameters
     // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
     // (GROWTH.EmptyComponentPoolPoints).
     UPROPERTY() int64 EmptyComponentPoolPoints = 0;
+    // #198 G (spec §4.5): the rest FillGap price (GROWTH.FillGapPoints) and the dismantle input count
+    // (GROWTH.DismantleInputCount distinct owned common components for one random common component).
+    UPROPERTY() int64 FillGapPoints = 0;
+    UPROPERTY() int64 DismantleInputCount = 0;
     UPROPERTY() FLDDemoAIParameters AI;
 };
 
@@ -626,11 +634,11 @@ struct FLDDemoBossDefinition
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
+    // #198 outer §5: field progress T of its single appearance and of its departure if it is still alive then.
     UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() int64 LeaveAtMs = 0;
     UPROPERTY() FLDDemoRational AggroRadiusCm;
     UPROPERTY() int64 AttackerMemoryMs = 0;
-    UPROPERTY() int64 ApprovalDurationMs = 0;
-    UPROPERTY() TArray<FLDDemoStatBonus> ApprovalStats;
 };
 
 USTRUCT()

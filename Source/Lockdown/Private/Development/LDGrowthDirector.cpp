@@ -325,11 +325,13 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
     return Receipt;
 }
 
-ELDRewardOutcome ALDGrowthDirector::CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
-    const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
+ELDRewardOutcome ALDGrowthDirector::CommitFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
+    ELDFieldRewardKind Kind, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
 {
     Reason = ELDGrowthReason::None;
-    if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP <= 0)
+    const bool bKnownKind = Kind == ELDFieldRewardKind::None || Kind == ELDFieldRewardKind::BuildDraw
+        || Kind == ELDFieldRewardKind::Blueprint || Kind == ELDFieldRewardKind::ComponentChoice;
+    if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || !bKnownKind || (Kind == ELDFieldRewardKind::None && XP == 0))
     {
         Reason = ELDGrowthReason::DataInvalid;
         return ELDRewardOutcome::PermanentlyRejected;
@@ -338,14 +340,24 @@ ELDRewardOutcome ALDGrowthDirector::CommitEventReward(const FGuid& Recipient, FN
     const TPair<FName, uint64> Key(Event, Serial);
     if (PaidEvents.Contains(Key))
     {
-        Reason = ELDGrowthReason::DataInvalid;
+        Reason = ELDGrowthReason::FieldRewardDuplicate;
         return ELDRewardOutcome::PermanentlyRejected;
     }
-    const ELDRewardOutcome Outcome = CommitRewardParts(Recipient, XP, TEXT("map_event"), Permit, Receipt, Reason,
+    TArray<FRewardShare> Shares;
+    FRewardShare& Share = Shares.AddDefaulted_GetRef();
+    Share.Recipient = Recipient;
+    Share.Amounts.XP = XP;
+    Share.FieldKind = Kind;
+    Share.Event = Event;
+    Share.Serial = Serial;
+    const ELDRewardOutcome Outcome = CommitRewardShares(Shares, TEXT("map_event"), Permit, Receipt, Reason,
         FString::Printf(TEXT("event=%s serial=%llu"), *Event.ToString(), Serial));
     if (Outcome == ELDRewardOutcome::Granted)
     {
         PaidEvents.Add(Key);
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_FIELD_REWARD t=%lld contender=%s event=%s serial=%llu xp=%lld result=%s definition=%s"),
+            Permit.GetBoundary().AtMs, *LDLog::Id(Recipient), *Event.ToString(), Serial, XP, *LDLog::EnumName(Receipt.FieldResult),
+            Receipt.FieldDefinition.IsNone() ? TEXT("-") : *Receipt.FieldDefinition.ToString());
     }
     return Outcome;
 }
@@ -391,7 +403,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
     TArray<TOptional<FLDPreparedCombatProjection>> CombatPlans;
     for (const FRewardShare& Share : Shares)
     {
-        FLDPrepareGrowthResult Growth = M->Development->PrepareExperience(Share.Recipient, Share.Amounts.XP);
+        FLDPrepareGrowthResult Growth = M->Development->PrepareFieldReward(Share.Recipient, Share.Amounts.XP, Share.FieldKind,
+            Share.Event, Share.Serial);
         if (!Growth.IsSuccess())
         {
             Reason = Growth.Reason;
@@ -453,6 +466,8 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
             Receipt.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
             Receipt.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
             Receipt.ComponentGrants = GrowthPlan.ComponentGrants();
+            Receipt.FieldResult = GrowthPlan.FieldGrant().Result;
+            Receipt.FieldDefinition = GrowthPlan.FieldGrant().Definition;
             Receipt.Revisions.bHasProgression = true;
             Receipt.Revisions.ProgressionRevision = GrowthPlan.Progression().Revision;
             Receipt.Revisions.bHasBuild = true;

@@ -6,15 +6,6 @@
 
 namespace
 {
-    bool AirdropMul(uint64 A, int64 B, int64& Out)
-    {
-        if (B < 0) { return false; }
-        if (A == 0 || B == 0) { Out = 0; return true; }
-        if (A > uint64(MAX_int64) / uint64(B)) { return false; }
-        Out = int64(A) * B;
-        return true;
-    }
-
     bool AirdropAdd(int64 A, int64 B, int64& Out)
     {
         if ((B > 0 && A > MAX_int64 - B) || (B < 0 && A < MIN_int64 - B)) { return false; }
@@ -65,11 +56,20 @@ bool LDAirdrop::PickClaimer(const FVector& CentreCm, double RadiusCm, TConstArra
 
 bool FLDAirdropSchedule::IsValid() const
 {
-    if (StartedAtMs < 0 || FirstLandMs <= 0 || IntervalMs <= 0 || AnnounceLeadMs <= 0 || AnnounceLeadMs > FirstLandMs
-        || AnnounceLeadMs >= IntervalMs || Points.IsEmpty() || Seed == 0
-        || !FMath::IsFinite(PickupRadiusCm) || PickupRadiusCm <= 0)
+    if (StartedAtMs < 0 || LandMs.IsEmpty() || AnnounceLeadMs <= 0 || ExpireMs <= 0 || LandMs[0] < AnnounceLeadMs
+        || Points.IsEmpty() || Seed == 0 || !FMath::IsFinite(PickupRadiusCm) || PickupRadiusCm <= 0)
     {
         return false;
+    }
+    // One drop at a time: each leaves (expiry) at or before the next one's announcement.
+    for (int32 Index = 0; Index < LandMs.Num(); ++Index)
+    {
+        int64 Gone = 0, Next = 0;
+        if (LandMs[Index] <= 0 || !AirdropAdd(LandMs[Index], ExpireMs, Gone)
+            || (Index + 1 < LandMs.Num() && (!AirdropAdd(LandMs[Index + 1], -AnnounceLeadMs, Next) || Gone > Next)))
+        {
+            return false;
+        }
     }
     for (const LDAirdrop::FPoint& Point : Points)
     {
@@ -80,8 +80,7 @@ bool FLDAirdropSchedule::IsValid() const
 
 bool FLDAirdropSchedule::LandAtMs(uint64 Index, int64& Out) const
 {
-    int64 Offset = 0, First = 0;
-    return AirdropMul(Index, IntervalMs, Offset) && AirdropAdd(StartedAtMs, FirstLandMs, First) && AirdropAdd(First, Offset, Out);
+    return Index < uint64(LandMs.Num()) && AirdropAdd(StartedAtMs, LandMs[int32(Index)], Out);
 }
 
 bool FLDAirdropSchedule::AnnounceAtMs(uint64 Index, int64& Out) const
@@ -90,15 +89,24 @@ bool FLDAirdropSchedule::AnnounceAtMs(uint64 Index, int64& Out) const
     return LandAtMs(Index, Land) && AirdropAdd(Land, -AnnounceLeadMs, Out);
 }
 
+bool FLDAirdropSchedule::ExpireAtMs(uint64 Index, int64& Out) const
+{
+    int64 Land = 0;
+    return LandAtMs(Index, Land) && AirdropAdd(Land, ExpireMs, Out);
+}
+
 bool FLDAirdropState::Advance(int64 NowMs)
 {
-    int64 FirstAnnounce = 0;
-    if (!Schedule.IsValid() || !Schedule.AnnounceAtMs(0, FirstAnnounce) || NowMs < FirstAnnounce) { return false; }
-    // Lead < Interval: the latest announcement at or before NowMs names the current drop.
-    const uint64 Index = uint64(NowMs - FirstAnnounce) / uint64(Schedule.IntervalMs);
-    int64 LandAt = 0;
-    if (!Schedule.LandAtMs(Index, LandAt)) { return false; }
-    const ELDAirdropPhase Timed = NowMs >= LandAt ? ELDAirdropPhase::Landed : ELDAirdropPhase::Announced;
+    if (!Schedule.IsValid()) { return false; }
+    // The latest announcement at or before NowMs names the current drop.
+    uint64 Count = 0;
+    for (int64 At = 0; Count < uint64(Schedule.NumDrops()) && Schedule.AnnounceAtMs(Count, At) && At <= NowMs; ++Count) {}
+    if (Count == 0) { return false; }
+    const uint64 Index = Count - 1;
+    int64 LandAt = 0, ExpireAt = 0;
+    if (!Schedule.LandAtMs(Index, LandAt) || !Schedule.ExpireAtMs(Index, ExpireAt)) { return false; }
+    const ELDAirdropPhase Timed = NowMs >= ExpireAt ? ELDAirdropPhase::Expired
+        : NowMs >= LandAt ? ELDAirdropPhase::Landed : ELDAirdropPhase::Announced;
     if (Serial != Index + 1)
     {
         if (Serial > Index) { Serial = 0; PointIndex = INDEX_NONE; }
@@ -113,22 +121,32 @@ bool FLDAirdropState::Advance(int64 NowMs)
         ClaimedAtMs = 0;
         return true;
     }
-    if (Phase == ELDAirdropPhase::Announced && Timed == ELDAirdropPhase::Landed)
+    // A claimed or expired drop is gone until the next announcement; otherwise the clock moves it forward only.
+    if (!HoldsPoint() || Phase == Timed || (Phase == ELDAirdropPhase::Landed && Timed == ELDAirdropPhase::Announced))
     {
-        Phase = ELDAirdropPhase::Landed;
-        return true;
+        return false;
     }
-    return false;
+    Phase = Timed;
+    return true;
 }
 
 int64 FLDAirdropState::NextDueMs(int64 NowMs) const
 {
-    int64 Due = MAX_int64, FirstAnnounce = 0;
-    if (!Schedule.IsValid() || !Schedule.AnnounceAtMs(0, FirstAnnounce)) { return Due; }
-    const uint64 Next = NowMs < FirstAnnounce ? 0 : uint64(NowMs - FirstAnnounce) / uint64(Schedule.IntervalMs) + 1;
-    int64 At = 0;
-    if (Schedule.AnnounceAtMs(Next, At) && At > NowMs) { Due = At; }
+    int64 Due = MAX_int64, At = 0;
+    if (!Schedule.IsValid()) { return Due; }
+    for (uint64 Index = 0; Index < uint64(Schedule.NumDrops()); ++Index)
+    {
+        if (Schedule.AnnounceAtMs(Index, At) && At > NowMs)
+        {
+            Due = At;
+            break;
+        }
+    }
     if (Serial > 0 && Phase == ELDAirdropPhase::Announced && Schedule.LandAtMs(Serial - 1, At) && At > NowMs)
+    {
+        Due = FMath::Min(Due, At);
+    }
+    if (Serial > 0 && HoldsPoint() && Schedule.ExpireAtMs(Serial - 1, At) && At > NowMs)
     {
         Due = FMath::Min(Due, At);
     }
@@ -159,6 +177,7 @@ FLDAirdropView FLDAirdropState::View() const
     Out.PointId = Point->Id;
     Out.PositionCm = Point->PositionCm;
     Schedule.LandAtMs(Serial - 1, Out.LandAtMs);
+    Schedule.ExpireAtMs(Serial - 1, Out.ExpireAtMs);
     return Out;
 }
 
@@ -176,9 +195,9 @@ bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnap
     FLDAirdropState Candidate;
     FLDAirdropSchedule& S = Candidate.Schedule;
     S.StartedAtMs = StartedAtMs;
-    S.FirstLandMs = P.AirdropFirstLandMs;
-    S.IntervalMs = P.AirdropIntervalMs;
+    S.LandMs = P.AirdropLandMs;
     S.AnnounceLeadMs = P.AirdropAnnounceLeadMs;
+    S.ExpireMs = P.AirdropExpireMs;
     S.PickupRadiusCm = P.AirdropPickupRadiusCm.Denominator > 0
         ? double(P.AirdropPickupRadiusCm.Numerator) / double(P.AirdropPickupRadiusCm.Denominator) : 0.;
     for (const FLDDemoWorldAnchor& Anchor : Geometry->Anchors)

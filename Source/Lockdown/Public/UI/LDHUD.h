@@ -197,6 +197,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> CharmText;
     UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
     UPROPERTY() TObjectPtr<UTextBlock> BossText;
+    // #198 outer §5: the open camp markers of the current field segment.
+    UPROPERTY() TObjectPtr<UTextBlock> MarkerText;
     // Top-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
     UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
@@ -292,6 +294,8 @@ private:
     // while (the root may still be leaving the lobby) unless the player's own panel or captured input ends the chance.
     LDHUD::FGrowthAutoOpen GrowthAutoOpen;
     double AutoOpenSince=-1;
+    // #198 G: each new field reward of the own view is toasted once (LDHUD::FieldRewardNotice).
+    LDHUD::FFieldRewardWatch FieldRewardWatch;
     // Own-body hits (the same health and shield losses the world feedback floats), which fold the growth panel.
     LDWorldFeedback::FTracker OwnHitWatch;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);

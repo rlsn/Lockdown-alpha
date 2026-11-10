@@ -194,14 +194,20 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         [](FLDBuildCommand& Mutated) { Mutated.BoundActive = GrowthTestRawWire(TEXT("active_elbow")); });
     bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Element"), Build,
         [](FLDBuildCommand& Mutated) { Mutated.Element = ELDDemoElement::Fire; });
+    // #198 G service terms.
+    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Filler"), Build,
+        [](FLDBuildCommand& Mutated) { Mutated.Filler = GrowthTestRawWire(TEXT("component_fist_fire")); });
+    bGood &= GrowthTestTermsDiffer(Test, BuildFamily, TEXT("Surrendered"), Build,
+        [](FLDBuildCommand& Mutated) { Mutated.Surrendered.Add(GrowthTestRawWire(TEXT("component_fist_fire"))); });
     // Client-sent component enums are whitelisted, never mapped to a neighbour.
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::OpeningBase, ELDBuildCommandKind::InstallComponent,
-        ELDBuildCommandKind::UninstallComponent})
+        ELDBuildCommandKind::UninstallComponent, ELDBuildCommandKind::ComponentChoice, ELDBuildCommandKind::FillGap,
+        ELDBuildCommandKind::Dismantle})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(13), uint8(255)})
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(26), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -872,21 +878,27 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Components"),
          TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("BuildSafeAtMs"), TEXT("CatalogDigest"),
-         TEXT("PermanentSpentPoints")});
+         TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
     bGood &= GrowthTestExactFields(Test, FLDComponentInstanceView::StaticStruct(),
-        {TEXT("DefinitionId"), TEXT("Source"), TEXT("SourceLevel"), TEXT("bInstalled"), TEXT("bEverInstalled"), TEXT("Target")});
+        {TEXT("DefinitionId"), TEXT("Source"), TEXT("SourceLevel"), TEXT("bInstalled"), TEXT("bEverInstalled"), TEXT("Target"),
+         TEXT("bGapFilled")});
     bGood &= GrowthTestExactFields(Test, FLDComponentTargetView::StaticStruct(),
         {TEXT("Kind"), TEXT("Definition"), TEXT("Segment"), TEXT("Element"), TEXT("BoundActive"), TEXT("BoundComponent")});
+    bGood &= GrowthTestExactFields(Test, FLDComponentChoiceView::StaticStruct(),
+        {TEXT("ChoiceId"), TEXT("Event"), TEXT("Serial"), TEXT("Options")});
+    bGood &= GrowthTestExactFields(Test, FLDFieldRewardView::StaticStruct(),
+        {TEXT("Event"), TEXT("Serial"), TEXT("XP"), TEXT("Result"), TEXT("Definition")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
-        FLDComponentInstanceView::StaticStruct(), FLDComponentTargetView::StaticStruct()};
+        FLDComponentInstanceView::StaticStruct(), FLDComponentTargetView::StaticStruct(), FLDComponentChoiceView::StaticStruct(),
+        FLDFieldRewardView::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
     {
@@ -2761,7 +2773,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         EventReceipt = FLDRewardReceipt();
         return RunPhase(ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
         {
-            EventOutcome = Growth->CommitEventReward(Recipient, Name, Serial, Amount, Permit, EventReceipt, EventReason);
+            EventOutcome = Growth->CommitFieldReward(Recipient, Name, Serial, Amount, ELDFieldRewardKind::None, Permit, EventReceipt, EventReason);
             return true;
         });
     };
@@ -2780,14 +2792,14 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     const uint64 ProgressionRevisionAfterEvent = Development->FindProgression(Tester)->Revision;
     const uint64 BuildRevisionAfterEvent = GrowthBuild().Revision;
     if (!ClaimEvent(Tester, Event, 1, EventXP)) { return false; }
-    TestTrue(TEXT("A second claim of the same (Event, Serial) is permanently rejected as DataInvalid"),
-        EventOutcome == ELDRewardOutcome::PermanentlyRejected && EventReason == ELDGrowthReason::DataInvalid);
+    TestTrue(TEXT("A second claim of the same (Event, Serial) is permanently rejected as FieldRewardDuplicate"),
+        EventOutcome == ELDRewardOutcome::PermanentlyRejected && EventReason == ELDGrowthReason::FieldRewardDuplicate);
     TestTrue(TEXT("The refused second claim pays nothing and moves no revision"), XP(Tester) == EventXPBefore + EventXP
         && Development->FindProgression(Tester)->Revision == ProgressionRevisionAfterEvent && GrowthBuild().Revision == BuildRevisionAfterEvent);
     const int64 LeaverXPBeforeEvent = XP(Leaver);
     if (!ClaimEvent(Leaver, Event, 1, EventXP)) { return false; }
     TestTrue(TEXT("The same (Event, Serial) claimed by another contender is refused too: the event pays once, whoever claims it"),
-        EventOutcome == ELDRewardOutcome::PermanentlyRejected && EventReason == ELDGrowthReason::DataInvalid
+        EventOutcome == ELDRewardOutcome::PermanentlyRejected && EventReason == ELDGrowthReason::FieldRewardDuplicate
         && XP(Leaver) == LeaverXPBeforeEvent);
     const int64 NextXPBefore = XP(Tester);
     if (!ClaimEvent(Tester, Event, 2, EventXP)) { return false; }
@@ -3184,7 +3196,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Moved, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
                 {
-                    Outcome = Growth->CommitEventReward(Id, FName(TEXT("airdrop")), Serial, Amount, Permit, Receipt, Reason);
+                    Outcome = Growth->CommitFieldReward(Id, FName(TEXT("airdrop")), Serial, Amount, ELDFieldRewardKind::None, Permit, Receipt, Reason);
                     return true;
                 }, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);

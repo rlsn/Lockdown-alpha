@@ -1982,6 +1982,26 @@ bool RunAirdrop(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A drop that names no public airdrop point is ignored"),
         LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestAirdrop);
 
+    // #198 outer §5: an open camp marker makes its camp the first farm choice, under the ordinary camp entry rules.
+    Frame = Base;
+    FLDOpponentPolicyState Plain;
+    bGood &= Expect(Test, TEXT("Without a marker the nearest camp is farmed"), LDOpponentPolicy::Decide(Frame, C, Plain),
+        EMode::Farm, EBody::MoveGround, TEXT("l1"));
+    Frame.Public.MarkedCamps = {TEXT("l3")};
+    FLDOpponentPolicyState Marked;
+    bGood &= Expect(Test, TEXT("An open camp marker draws the farm to its camp"), LDOpponentPolicy::Decide(Frame, C, Marked),
+        EMode::Farm, EBody::MoveGround, TEXT("l3"));
+    Frame.Public.MarkedCamps = {TEXT("h2")};
+    FLDOpponentPolicyState Weak;
+    bGood &= Expect(Test, TEXT("A body below the high-camp entry does not enter a marked High camp"),
+        LDOpponentPolicy::Decide(Frame, C, Weak), EMode::Farm, EBody::MoveGround, TEXT("l1"));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Public.MarkedCamps = {TEXT("l3")};
+    FLDOpponentPolicyState Both;
+    bGood &= Test.TestTrue(TEXT("A live airdrop outranks a camp marker"),
+        LDOpponentPolicy::Decide(Frame, C, Both).Reason == ELDOpponentReason::ContestAirdrop);
+
     // A stop-loss exit from the drop is not a failed contest of the circle: after more such exits than the retry policy
     // allows, an urgent public defence is still answered. The same exits from a contest of the circle do suppress it.
     const auto ExitsThenDefends = [&](EMode Prior)
@@ -2950,7 +2970,145 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A base not installed is not named"), LDOpponentRequests::BuildCommand(Intent, View, 13, Command, Error));
     return bGood;
 }
+
+// #198 G: a pending elite camp component choice is always resolved (an unowned option it can enable first, then the first
+// unowned one, the empty-pool points once every option is owned) under the active choice's gate, even in combat or dead;
+// a rest window spends unspent points on a gap fill before the stats. Commands come from the own latest view only.
+bool RunComponentChoice(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    if (!Component(Test, C, TEXT("component_long_kick")) || !Component(Test, C, TEXT("component_hard_skin"))
+        || !Component(Test, C, TEXT("component_third_punch")))
+    {
+        return false;
+    }
+    const FGuid ChoiceId(0xC4, 0, 0, 1);
+    FLDOpponentComponentChoice Choice;
+    Choice.ChoiceId = ChoiceId;
+    // M03 has no learned active or installed host here, so only the base can be enabled right away.
+    Choice.Options = {TEXT("component_long_kick"), TEXT("component_hard_skin")};
+    FLDOpponentSelf Self;
+    FString Option;
+    FString Error;
+    bool bGood = Test.TestTrue(TEXT("An option it can enable now comes first: ") + Error,
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Choice, Option, Error) && Option == TEXT("component_hard_skin"));
+    Self.Components = {Owned(TEXT("component_hard_skin"), false, false)};
+    bGood &= Test.TestTrue(TEXT("An owned option is skipped for the first free one"),
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Choice, Option, Error) && Option == TEXT("component_long_kick"));
+    Self.Components.Add(Owned(TEXT("component_long_kick"), false, false));
+    bGood &= Test.TestTrue(TEXT("Every option owned takes the empty-pool points"),
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Choice, Option, Error) && Option.IsEmpty());
+    FLDOpponentComponentChoice Unknown = Choice;
+    Unknown.Options = {TEXT("component_unknown")};
+    bGood &= Test.TestFalse(TEXT("An option outside the catalog is refused, never defaulted"),
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Unknown, Option, Error));
+
+    // The decision: resolved in combat and while dead, keyed by the choice.
+    FLDOpponentDecisionFrame Frame;
+    Frame.Generation = 1;
+    Frame.Public.Phase = ELDMatchPhase::Development;
+    Frame.Public.NowMs = 10000;
+    Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 3);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.Life = 1;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 5000;
+    Frame.Self.ComponentChoices = {Choice};
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    bGood &= Test.TestTrue(TEXT("A pending choice is resolved even inside combat"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::ComponentChoice
+        && Intent.ChoiceId == ChoiceId && Intent.Component == TEXT("component_hard_skin") && Intent.Key.Target == ChoiceId);
+    Frame.Self.Phase = ELDLifePhase::Dead;
+    bGood &= Test.TestTrue(TEXT("And while dead"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::ComponentChoice);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.bBuildChangeInFlight = true;
+    bGood &= Test.TestFalse(TEXT("Nothing while a build request is in flight"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    Frame.bBuildChangeInFlight = false;
+    Frame.Self.ComponentChoices.Reset();
+
+    // Gap fills: only in a rest window and only when the unspent points pay the approved price.
+    const int64 FillGapPoints = C.Get().Parameters.FillGapPoints;
+    if (!Test.TestTrue(TEXT("The approved content prices FillGap"), FillGapPoints > 0)) { return false; }
+    Frame.Self.GapFills = {{TEXT("component_long_kick"), TEXT("component_third_punch")}};
+    Frame.Self.UnspentPoints = FillGapPoints;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    bGood &= Test.TestFalse(TEXT("No gap fill on the field"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap);
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    bGood &= Test.TestTrue(TEXT("A rest window fills the gap before allocating"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap
+        && Intent.Component == TEXT("component_long_kick") && Intent.Filler == TEXT("component_third_punch")
+        && Intent.Key.POI == FName(TEXT("component_long_kick")));
+    Frame.Self.UnspentPoints = FillGapPoints - 1;
+    bGood &= Test.TestFalse(TEXT("Not without the price in unspent points"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap);
+
+    // Commands from the own latest view.
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 1;
+    View.Life = 1;
+    View.LifePhase = ELDLifePhase::Alive;
+    View.BuildRevision = 6;
+    FLDComponentChoiceView& Pending = View.ComponentChoices.AddDefaulted_GetRef();
+    Pending.ChoiceId = ChoiceId;
+    Pending.Event = TEXT("camp_marker_elite");
+    Pending.Serial = 1;
+    Pending.Options = {FName(TEXT("component_long_kick")), FName(TEXT("component_hard_skin"))};
+    FLDComponentInstanceView& Skin = View.Components.AddDefaulted_GetRef();
+    Skin.DefinitionId = TEXT("component_hard_skin");
+    FLDOpponentBuildIntent Take;
+    Take.Kind = ELDOpponentBuildKind::ComponentChoice;
+    Take.ChoiceId = ChoiceId;
+    Take.Component = TEXT("component_long_kick");
+    FLDBuildCommand Command;
+    FName Decoded;
+    bGood &= Test.TestTrue(TEXT("A choice names the pending choice and the option: ") + Error,
+        LDOpponentRequests::BuildCommand(Take, View, 20, Command, Error) && Command.Kind == ELDBuildCommandKind::ComponentChoice
+        && Command.OfferId == ChoiceId && Command.Component.Decode(Decoded) && Decoded == FName(TEXT("component_long_kick"))
+        && Command.Slot == FLDBuildCommand::AnySlot && Command.ExpectedBuildRevision == 6);
+    Take.Component = TEXT("component_hard_skin");
+    bGood &= Test.TestFalse(TEXT("An owned option is not sent"), LDOpponentRequests::BuildCommand(Take, View, 21, Command, Error));
+    Take.Component.Reset();
+    bGood &= Test.TestFalse(TEXT("The points are not taken while an option is free"), LDOpponentRequests::BuildCommand(Take, View, 22, Command, Error));
+    FLDComponentInstanceView& Kick = View.Components.AddDefaulted_GetRef();
+    Kick.DefinitionId = TEXT("component_long_kick");
+    bGood &= Test.TestTrue(TEXT("Every option owned: the all-zero component takes the points: ") + Error,
+        LDOpponentRequests::BuildCommand(Take, View, 23, Command, Error) && Command.Kind == ELDBuildCommandKind::ComponentChoice
+        && Command.OfferId == ChoiceId && Command.Component == FLDDefinitionWire());
+    Take.ChoiceId = FGuid(0xC4, 0, 0, 2);
+    bGood &= Test.TestFalse(TEXT("A choice no longer pending is not sent"), LDOpponentRequests::BuildCommand(Take, View, 24, Command, Error));
+
+    FLDOpponentBuildIntent Fill;
+    Fill.Kind = ELDOpponentBuildKind::FillGap;
+    Fill.Component = TEXT("component_long_kick");
+    Fill.Filler = TEXT("component_third_punch");
+    bGood &= Test.TestTrue(TEXT("A gap fill names the target and the filler: ") + Error,
+        LDOpponentRequests::BuildCommand(Fill, View, 25, Command, Error) && Command.Kind == ELDBuildCommandKind::FillGap
+        && Command.Component.Decode(Decoded) && Decoded == FName(TEXT("component_long_kick"))
+        && Command.Filler.Decode(Decoded) && Decoded == FName(TEXT("component_third_punch")));
+    Kick.bGapFilled = true;
+    bGood &= Test.TestFalse(TEXT("A filled target is not filled again"), LDOpponentRequests::BuildCommand(Fill, View, 26, Command, Error));
+    Kick.bGapFilled = false;
+    FLDComponentInstanceView& Punch = View.Components.AddDefaulted_GetRef();
+    Punch.DefinitionId = TEXT("component_third_punch");
+    bGood &= Test.TestFalse(TEXT("An owned filler is not sent"), LDOpponentRequests::BuildCommand(Fill, View, 27, Command, Error));
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentComponentChoiceTest, "Lockdown.Rules.DemoOpponentPolicy.ComponentChoice",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentComponentChoiceTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunComponentChoice(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentWorkshopTargetsTest, "Lockdown.Rules.DemoOpponentPolicy.WorkshopTargets",

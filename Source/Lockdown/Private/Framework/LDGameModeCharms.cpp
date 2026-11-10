@@ -11,7 +11,8 @@ namespace
 {
     int32 HeldAirdropPoint(const FLDAirdropState& Airdrop)
     {
-        return Airdrop.Phase == ELDAirdropPhase::Announced || Airdrop.Phase == ELDAirdropPhase::Landed ? Airdrop.PointIndex : INDEX_NONE;
+        // #198 outer §5: a claimed or expired drop no longer holds its point.
+        return Airdrop.HoldsPoint() ? Airdrop.PointIndex : INDEX_NONE;
     }
 }
 

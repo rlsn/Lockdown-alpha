@@ -297,7 +297,9 @@ class ApprovedDemoData(unittest.TestCase):
             ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "60"),
             ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
             ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"),
-            ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "80"),
+            # #198 outer §5 (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175, comment
+            # 6752628806: "批准整套方案，按票内参数实施"): six drops at explicit T, 40 s expiry, camp markers at segment+15 s.
+            ("AIRDROP.ExpireSec", "ms", "40"), ("CAMPMARK.RevealSec", "ms", "15"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             # #198 outer parameters: charm waves at T=30/120/.../570, 45 field seconds each.
             ("CHARM.FirstWaveSec", "ms", "30"), ("CHARM.WaveIntervalSec", "ms", "90"), ("CHARM.LifetimeSec", "ms", "45"),
@@ -339,8 +341,11 @@ class ApprovedDemoData(unittest.TestCase):
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # #198 B: a level-up whose component roll finds the common pool empty gives 3 points instead.
             ("GROWTH.EmptyComponentPoolPoints", 3),
+            # #198 G (spec §4.5): FillGap costs 4 points; dismantle takes 3 distinct common components for 1.
+            ("GROWTH.FillGapPoints", 4), ("GROWTH.DismantleInputCount", 3),
         ):
             expected[key] = (None, value)
+        expected["AIRDROP.LandSec"] = ("ms", ("45", "125", "225", "305", "405", "485"))
         self.assertEqual(set(self.data["parameters"]), set(expected))
         for key, (unit, value) in expected.items():
             with self.subTest(key=key):
@@ -348,6 +353,9 @@ class ApprovedDemoData(unittest.TestCase):
                 if unit is None:
                     self.assertIs(type(actual), int)
                     self.assertEqual(actual, value)
+                elif type(value) is tuple:
+                    self.assertEqual([row["unit"] for row in actual], [unit] * len(value))
+                    self.assertEqual([amount(row) for row in actual], [Fraction(item) for item in value])
                 else:
                     self.assertEqual(actual["unit"], unit)
                     self.assertEqual(amount(actual), Fraction(value))
@@ -754,11 +762,11 @@ class ApprovedDemoData(unittest.TestCase):
         for key, expected in (("hp", 4500), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
                               ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
+        # #198 outer §5 (approved issue #198 comments 6752601175 / 6752628806): field T=240 s once, leaves at T=540 s,
+        # and the old 90 s AD/AP +25% / move speed +10% approval buff is removed.
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
-                          boss["appear_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 60000, 300))
-        self.assertEqual(boss["approval"]["duration"]["ms"], 90000)
-        self.assertEqual({key: value["bp"] for key, value in boss["approval"]["stats"].items()},
-                         {"ADBonusRatio": 2500, "APBonusRatio": 2500, "MoveSpeedBonusRatio": 1000})
+                          boss["appear_at"]["ms"], boss["leave_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 240000, 540000, 300))
+        self.assertNotIn("approval", boss)
 
     def test_world_identity_and_shared_values(self):
         self.assertEqual(self.world.world["map_id"], "demo_world")

@@ -1,6 +1,7 @@
 #include "LDDemoContentJson.h"
 
 #include "LDDemoContentMath.h"
+#include "Framework/LDMatchTimeline.h"
 #include "World/LDCharms.h"
 #include "../Region/LDMapGeometryJson.h"
 
@@ -165,12 +166,30 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    // D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
-    if (!Check.Require(P.AirdropAnnounceLeadMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropFirstLandMs
-        && P.AirdropAnnounceLeadMs < P.AirdropIntervalMs, TEXT("AIRDROP"),
-        TEXT("the announcement lead must fit before the first landing and inside one interval")))
+    // #198 outer §5: the drops land at strictly increasing field progress instants, each announced after T=0 and gone
+    // unclaimed before the next announcement; the last one is gone before the final field, which has no build reward
+    // target. Camp markers reveal inside their segment.
     {
-        return false;
+        const int64 TimedFieldMs = P.FieldSegmentMs > 0 && P.FieldSegmentMs <= MAX_int64 / FLDTimelineParameters::TimedSegments
+            ? P.FieldSegmentMs * FLDTimelineParameters::TimedSegments : 0;
+        bool bDrops = TimedFieldMs > 0 && !P.AirdropLandMs.IsEmpty() && P.AirdropLandMs.Num() <= 6 && P.AirdropAnnounceLeadMs > 0
+            && P.AirdropExpireMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropLandMs[0];
+        for (int32 Index = 0; bDrops && Index < P.AirdropLandMs.Num(); ++Index)
+        {
+            const int64 Land = P.AirdropLandMs[Index];
+            const int64 Gone = Land <= TimedFieldMs - P.AirdropExpireMs ? Land + P.AirdropExpireMs : MAX_int64;
+            const int64 Next = Index + 1 < P.AirdropLandMs.Num() ? P.AirdropLandMs[Index + 1] - P.AirdropAnnounceLeadMs : TimedFieldMs;
+            bDrops = Land > 0 && Gone <= Next;
+        }
+        if (!Check.Require(bDrops, TEXT("AIRDROP"),
+                TEXT("drops must be announced after T=0, leave before the next announcement and before the final field"))
+            || !Check.Require(P.CampMarkRevealMs > 0 && P.CampMarkRevealMs < P.FieldSegmentMs, TEXT("CAMPMARK.RevealSec"),
+                TEXT("a camp marker must be revealed inside its field segment"))
+            || !Check.Require(D.Boss.AppearAtMs > 0 && D.Boss.AppearAtMs < D.Boss.LeaveAtMs && D.Boss.LeaveAtMs <= TimedFieldMs,
+                TEXT("boss"), TEXT("the Boss must appear before it leaves, and leave before the final field")))
+        {
+            return false;
+        }
     }
     // #198 charms: distinct kinds per wave, each living inside one wave interval, every effect positive.
     if (!Check.Require(P.CharmPerWave >= 1 && P.CharmPerWave <= LDCharms::KindCount && P.CharmWaveCount >= 1
@@ -236,6 +255,14 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         return false;
     }
     int64 TotalXP = 0;
+    // #198 G: a dismantle surrenders that many distinct common components, so the common pool must hold more than that.
+    const int32 CommonComponents = D.Components.FilterByPredicate(
+        [](const FLDDemoComponentDefinition& Row) { return Row.Pool == ELDDemoComponentPool::Common; }).Num();
+    if (!Check.Require(P.DismantleInputCount >= 1 && P.DismantleInputCount < CommonComponents && P.FillGapPoints >= 1,
+            TEXT("GROWTH.DismantleInputCount"), TEXT("a dismantle needs fewer distinct common components than the pool holds")))
+    {
+        return false;
+    }
     if (!Check.Require(D.Progression.XPThresholds[0] == 0, TEXT("progression"), TEXT("level one starts at zero XP")))
     {
         return false;
@@ -292,23 +319,16 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         }
     }
     // D26 (#79): the Boss body is contender-sized, reaches past both radii, sees farther than it hits, winds up inside its
-    // interval, stays inside the move speed clamp, and its approval buff is positive temporary ratios only.
+    // interval and stays inside the move speed clamp. It carries no kill buff (#198 outer §5 removed the approval buff).
     {
         const FLDDemoMonsterDefinition& Body = D.Monsters[3];
-        bool bApproval = !D.Boss.ApprovalStats.IsEmpty() && D.Boss.ApprovalDurationMs > 0;
-        for (const FLDDemoStatBonus& Bonus : D.Boss.ApprovalStats)
-        {
-            bApproval &= Bonus.Amount > 0 && (Bonus.Stat == ELDDemoBonusStat::ADBonusRatio || Bonus.Stat == ELDDemoBonusStat::APBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio);
-        }
         if (!Check.Require(N.EQ(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm))
                 && N.LE(N.Add(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm)), N.Value(Body.AttackRangeCm))
                 && N.LT(N.Value(Body.AttackRangeCm), N.Value(D.Boss.AggroRadiusCm)), TEXT("boss"), TEXT("invalid Boss collision/range/aggro geometry"))
             || !Check.Require(Body.AttackWindupMs < Body.AttackIntervalMs && D.Boss.AppearAtMs > 0 && D.Boss.AttackerMemoryMs > 0,
                 TEXT("boss"), TEXT("invalid Boss timing"))
             || !Check.Require(N.LE(N.Value(P.MoveSpeedCmPerSec.Min), N.Value(Body.MoveSpeedCmPerSec))
-                && N.LE(N.Value(Body.MoveSpeedCmPerSec), N.Value(P.MoveSpeedCmPerSec.Max)), TEXT("boss"), TEXT("Boss move speed outside the clamp"))
-            || !Check.Require(bApproval, TEXT("boss.approval"), TEXT("the approval buff needs positive temporary ratio stats and a duration")))
+                && N.LE(N.Value(Body.MoveSpeedCmPerSec), N.Value(P.MoveSpeedCmPerSec.Max)), TEXT("boss"), TEXT("Boss move speed outside the clamp")))
         {
             return false;
         }

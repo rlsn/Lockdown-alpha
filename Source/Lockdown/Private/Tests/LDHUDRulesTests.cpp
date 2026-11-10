@@ -577,26 +577,57 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     }
     TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,false,0),
         LDTerms::AirdropSoon());
-    Drop.Phase=ELDAirdropPhase::Landed;
-    TestEqualSensitive(TEXT("A landed drop is first come, first served"),LDHUD::AirdropLine(Drop,true,46000),
+    Drop.Phase=ELDAirdropPhase::Landed;Drop.ExpireAtMs=85000;
+    // #198 outer §5: a landed drop counts down to the instant it leaves unclaimed.
+    TestEqualSensitive(TEXT("A landed drop is first come, first served, and counts down to its expiry"),LDHUD::AirdropLine(Drop,true,46000),
+        LDTerms::AirdropLandedLeft(TEXT("0:39")));
+    TestEqualSensitive(TEXT("Without the authority clock the expiry is not guessed"),LDHUD::AirdropLine(Drop,false,46000),
         FString(LDTerms::AirdropLanded));
     Drop.Phase=ELDAirdropPhase::Claimed;
     TestTrue(TEXT("A claimed drop is an event of the feed, not a standing line"),LDHUD::AirdropLine(Drop,true,48000).IsEmpty());
+    Drop.Phase=ELDAirdropPhase::Expired;
+    TestTrue(TEXT("An expired drop is an event of the feed, not a standing line"),LDHUD::AirdropLine(Drop,true,85000).IsEmpty());
     const FGuid Me=FGuid::NewGuid();
     // D26: the Boss line counts down shortly before it appears; the last hit is named by the event feed.
     FLDBossView Dean;
     TestTrue(TEXT("No Boss shows no Boss line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,0).IsEmpty());
-    Dean.Phase=ELDBossPhase::Pending;Dean.AppearAtMs=61000;
+    Dean.Phase=ELDBossPhase::Pending;Dean.AppearAtMs=61000;Dean.LeaveAtMs=540000;
     TestTrue(TEXT("Long before it appears there is no countdown"),LDHUD::BossLine(Dean,LDTerms::Boss,true,30000).IsEmpty());
     TestEqualSensitive(TEXT("Shortly before it appears the Boss counts down"),LDHUD::BossLine(Dean,LDTerms::Boss,true,51000),
         LDTerms::BossCountdown(LDTerms::Boss,TEXT("0:10")));
     TestTrue(TEXT("The countdown names the 画饼老板"),LDHUD::BossLine(Dean,FString(),true,51000).StartsWith(LDTerms::Boss));
     TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::BossLine(Dean,LDTerms::Boss,false,51000).IsEmpty());
+    // #198 outer §5: while it patrols the Boss counts down to its departure.
+    Dean.Phase=ELDBossPhase::Alive;
+    TestEqualSensitive(TEXT("A patrolling Boss counts down to its departure"),LDHUD::BossLine(Dean,LDTerms::Boss,true,300000),
+        LDTerms::BossPatrolLeaving(LDTerms::Boss,TEXT("4:00")));
+    TestEqualSensitive(TEXT("Without the authority clock the departure is not guessed"),LDHUD::BossLine(Dean,LDTerms::Boss,false,300000),
+        LDTerms::BossPatrol(LDTerms::Boss));
+    Dean.Phase=ELDBossPhase::Left;
+    TestTrue(TEXT("A Boss that left has no standing line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,540000).IsEmpty());
     Dean.Phase=ELDBossPhase::Down;Dean.KilledBy=Me;Dean.DownAtMs=90000;
     TestTrue(TEXT("A downed Boss leaves the standing line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,91000).IsEmpty());
-    TestEqualSensitive(TEXT("The last hit is told it ate the pie"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss),
+    TestEqualSensitive(TEXT("The last hit is told of its build reward"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss),
         LDTerms::BossDownSelf(LDTerms::Boss));
-    TestTrue(TEXT("The buff is called 吃到大饼"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss).Contains(LDTerms::BossBuff));
+    TestTrue(TEXT("No 吃到大饼 buff is promised any more"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss).Contains(LDTerms::BossReward)
+        &&!LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss).Contains(TEXT("吃到大饼")));
+    // #198 outer §5: the open camp markers, High first, each counting down to its segment end.
+    {
+        TArray<FLDFieldMarkerView> Marks;
+        TestTrue(TEXT("No marker shows no marker line"),LDHUD::MarkerLine(Marks,true,20000).IsEmpty());
+        FLDFieldMarkerView& HighMark=Marks.AddDefaulted_GetRef();
+        HighMark.Segment=1;HighMark.Kind=ELDFieldMarkerKind::High;HighMark.CampId=TEXT("h03");HighMark.Phase=ELDFieldMarkerPhase::Revealed;
+        HighMark.RevealAtMs=15000;HighMark.EndAtMs=180000;
+        FLDFieldMarkerView& EliteMark=Marks.AddDefaulted_GetRef();
+        EliteMark=Marks[0];EliteMark.Kind=ELDFieldMarkerKind::Elite;EliteMark.CampId=TEXT("e03");
+        TestEqualSensitive(TEXT("Both open markers are named with their time left"),LDHUD::MarkerLine(Marks,true,60000),
+            LDTerms::CampMarkLeft(LDTerms::CampMarkHigh,TEXT("2:00"))+TEXT("\n")+LDTerms::CampMarkLeft(LDTerms::CampMarkElite,TEXT("2:00")));
+        Marks[0].Phase=ELDFieldMarkerPhase::Claimed;
+        TestEqualSensitive(TEXT("A taken marker leaves the line; without the clock no time is guessed"),LDHUD::MarkerLine(Marks,false,60000),
+            FString(LDTerms::CampMarkElite));
+        Marks[1].Phase=ELDFieldMarkerPhase::Expired;
+        TestTrue(TEXT("Taken and expired markers show no line"),LDHUD::MarkerLine(Marks,true,180000).IsEmpty());
+    }
     TestEqualSensitive(TEXT("Others see the public roster name"),LDHUD::BossDownLine(Dean,FGuid::NewGuid(),TEXT("甲"),LDTerms::Boss),
         LDTerms::BossDownBy(TEXT("甲"),LDTerms::Boss));
     // D27: the 上热搜 line names the leader (#144: no bounty); the leader is told directly.
@@ -1159,6 +1190,29 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     // A new match starts empty and does not tell the state it opens with.
     Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();Public.GuardDueAtMs=0;Public.GuardKeptMs=0;In.LocalSeconds=120;Feed.Observe(In);
     TestTrue(TEXT("A new match starts with an empty feed"),Feed.Lines().IsEmpty());
+    // #198 outer §5: a drop expiring unclaimed, the Boss leaving, and camp markers revealed, taken and expiring.
+    Public.Airdrop.Serial=3;Public.Airdrop.Phase=ELDAirdropPhase::Expired;Public.Boss.Phase=ELDBossPhase::Left;Public.Boss.KilledBy.Invalidate();
+    In.LocalSeconds=121;Feed.Observe(In);
+    TestTrue(TEXT("An expired drop and a Boss that left are told"),
+        Texts()==TArray<FString>({LDTerms::AirdropExpired(),LDTerms::BossLeft(LDTerms::Boss)}));
+    In.LocalSeconds=130;Feed.Observe(In);
+    FLDFieldMarkerView HighMark;HighMark.Segment=1;HighMark.Kind=ELDFieldMarkerKind::High;HighMark.CampId=TEXT("h03");
+    HighMark.Phase=ELDFieldMarkerPhase::Revealed;HighMark.RevealAtMs=15000;HighMark.EndAtMs=180000;
+    FLDFieldMarkerView EliteMark=HighMark;EliteMark.Kind=ELDFieldMarkerKind::Elite;EliteMark.CampId=TEXT("e03");
+    Public.Markers={HighMark,EliteMark};In.LocalSeconds=131;Feed.Observe(In);
+    TestTrue(TEXT("A segment's reveal tells both markers"),Texts()==TArray<FString>({FString(LDTerms::CampMarkHigh),FString(LDTerms::CampMarkElite)}));
+    Public.Markers[0].Phase=ELDFieldMarkerPhase::Claimed;In.LocalSeconds=132;Feed.Observe(In);
+    TestTrue(TEXT("A taken marker never names who took it"),Feed.Lines().Last().Text==LDTerms::CampMarkTaken(true)&&!Feed.Lines().Last().bSelf);
+    TArray<FLDFieldRewardView> OwnRewards;
+    {FLDFieldRewardView Mine;Mine.Event=TEXT("camp_marker_high");Mine.Serial=1;OwnRewards.Add(Mine);}
+    In.OwnFieldRewards=&OwnRewards;In.LocalSeconds=132.5;Feed.Observe(In);
+    TestTrue(TEXT("The own marker reward, arriving later, relabels the shown line"),
+        Feed.Lines().Last().Text==LDTerms::CampMarkOwnClaim(true)&&Feed.Lines().Last().bSelf);
+    Public.Markers[1].Phase=ELDFieldMarkerPhase::Expired;In.LocalSeconds=133;Feed.Observe(In);
+    TestEqualSensitive(TEXT("An unclaimed marker expiring is told"),Feed.Lines().Last().Text,LDTerms::CampMarkExpired());
+    const int32 Shown=Feed.Lines().Num();
+    In.LocalSeconds=133.5;Feed.Observe(In);
+    TestEqual(TEXT("Marker changes are told once"),Feed.Lines().Num(),Shown);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDNextStepTest,"Lockdown.Rules.HUDNextStep",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -1598,6 +1652,179 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDFieldRewardNoticesTest,"Lockdown.Rules.HUDFieldRewardNotices",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
+{
+    // #198 G: each field reward names its event, XP and what its build part gave; the watch tells each new entry once.
+    const auto Reward=[](const TCHAR* Event,uint64 Serial,int64 XP,ELDFieldRewardResult Result,const TCHAR* Definition)
+    {FLDFieldRewardView View;View.Event=Event;View.Serial=Serial;View.XP=XP;View.Result=Result;View.Definition=Definition;return View;};
+    const FString XP=FString::Printf(TEXT("+200 %s"),LDTerms::Experience);
+    TestEqualSensitive(TEXT("An airdrop blueprint names the event, the XP and the blueprint"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),1,200,ELDFieldRewardResult::Blueprint,TEXT("hud_fixture_bolt")),nullptr),
+        FString(LDTerms::Airdrop)+TEXT("：")+XP+TEXT("，")+LDTerms::FieldRewardBlueprint(TEXT("hud_fixture_bolt")));
+    TestEqualSensitive(TEXT("A Boss scarce component without XP names only the component"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("boss"),1,0,ELDFieldRewardResult::ScarceComponent,TEXT("hud_fixture_rare")),nullptr),
+        FString(LDTerms::Boss)+TEXT("：")+LDTerms::FieldRewardScarce(TEXT("hud_fixture_rare")));
+    TestEqualSensitive(TEXT("The common fallback names a plain component"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),2,0,ELDFieldRewardResult::CommonComponent,TEXT("hud_fixture_fist")),nullptr),
+        FString(LDTerms::Airdrop)+TEXT("：")+LDTerms::FieldRewardCommon(TEXT("hud_fixture_fist")));
+    TestEqualSensitive(TEXT("A high camp marker blueprint"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_high"),3,0,ELDFieldRewardResult::Blueprint,TEXT("hud_fixture_bolt")),nullptr),
+        FString(LDTerms::FieldRewardHighCamp)+TEXT("：")+LDTerms::FieldRewardBlueprint(TEXT("hud_fixture_bolt")));
+    TestEqualSensitive(TEXT("An elite camp marker readies its two-choice"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_elite"),4,0,ELDFieldRewardResult::ComponentChoice,TEXT("")),nullptr),
+        FString(LDTerms::FieldRewardEliteCamp)+TEXT("：")+LDTerms::FieldRewardChoiceReady());
+    TestEqualSensitive(TEXT("An empty active pool keeps the blueprint for later"),
+        LDHUD::FieldRewardNotice(Reward(TEXT("camp_marker_high"),5,0,ELDFieldRewardResult::BlueprintHeld,TEXT("")),nullptr),
+        FString(LDTerms::FieldRewardHighCamp)+TEXT("：")+LDTerms::FieldRewardBlueprintHeld());
+    {
+        FLDDemoContentDefinitions Content;Content.Parameters.EmptyComponentPoolPoints=2;
+        TestEqualSensitive(TEXT("An empty material pool names the approved points"),
+            LDHUD::FieldRewardNotice(Reward(TEXT("boss"),6,0,ELDFieldRewardResult::PoolPoints,TEXT("")),&Content),
+            FString(LDTerms::Boss)+TEXT("：")+LDTerms::FieldRewardPoolPoints(2));
+    }
+    TestEqualSensitive(TEXT("XP alone is still told"),LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),7,200,ELDFieldRewardResult::None,TEXT("")),nullptr),
+        FString(LDTerms::Airdrop)+TEXT("：")+XP);
+    TestTrue(TEXT("A blueprint result without its definition never claims a name"),
+        !LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),8,0,ELDFieldRewardResult::Blueprint,TEXT("")),nullptr).Contains(TEXT("「")));
+    TestTrue(TEXT("An unknown event is named as unknown, never as another event"),LDHUD::FieldRewardEventName(TEXT("hud_fixture_event")).StartsWith(TEXT("未知事件")));
+    TestTrue(TEXT("Nothing to tell is empty"),LDHUD::FieldRewardNotice(Reward(TEXT("airdrop"),9,0,ELDFieldRewardResult::None,TEXT("")),nullptr).IsEmpty());
+
+    // New entries since a known count, oldest first.
+    FLDProgressionView View;View.bValid=true;View.Generation=3;
+    View.FieldRewards={Reward(TEXT("airdrop"),1,200,ELDFieldRewardResult::Blueprint,TEXT("a")),Reward(TEXT("boss"),1,0,ELDFieldRewardResult::ScarceComponent,TEXT("b"))};
+    TArray<FLDFieldRewardView> Fresh=LDHUD::NewFieldRewards(View,1);
+    TestTrue(TEXT("Entries past the known count"),Fresh.Num()==1&&Fresh[0].Event==FName(TEXT("boss")));
+    TestTrue(TEXT("Nothing past the end"),LDHUD::NewFieldRewards(View,2).IsEmpty()&&LDHUD::NewFieldRewards(View,5).IsEmpty());
+    TestEqual(TEXT("A negative count reads from the start"),LDHUD::NewFieldRewards(View,-1).Num(),2);
+
+    // The watch: the first view of a match primes, later entries are told once, another match's view tells nothing.
+    LDHUD::FFieldRewardWatch Watch;
+    TestTrue(TEXT("The first view primes and replays nothing"),Watch.Observe(&View,3).IsEmpty());
+    View.FieldRewards.Add(Reward(TEXT("camp_marker_elite"),2,0,ELDFieldRewardResult::ComponentChoice,TEXT("")));
+    Fresh=Watch.Observe(&View,3);
+    TestTrue(TEXT("A new entry is told"),Fresh.Num()==1&&Fresh[0].Event==FName(TEXT("camp_marker_elite"))&&Fresh[0].Serial==2);
+    TestTrue(TEXT("The same view tells it only once"),Watch.Observe(&View,3).IsEmpty());
+    View.FieldRewards.Add(Reward(TEXT("airdrop"),3,200,ELDFieldRewardResult::Blueprint,TEXT("c")));
+    TestTrue(TEXT("A view of another match tells nothing"),Watch.Observe(&View,4).IsEmpty()&&Watch.Observe(nullptr,3).IsEmpty());
+    TestEqual(TEXT("The entry is still told for its own match"),Watch.Observe(&View,3).Num(),1);
+    View.Generation=4;
+    TestTrue(TEXT("A new match primes again"),Watch.Observe(&View,4).IsEmpty());
+
+    // The 开盲盒 button counts pending component choices with the components.
+    FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=5;
+    FLDComponentChoiceView& Choice=Pending.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid(1,2,3,4);
+    Choice.Options={FName(TEXT("hud_fixture_a")),FName(TEXT("hud_fixture_b"))};
+    const LDHUD::FGrowthPending Counts=LDHUD::GrowthPending(&Pending,5,nullptr);
+    TestTrue(TEXT("A pending component choice lights the button"),Counts.Any()&&Counts.ComponentChoices==1
+        &&Counts.Prompt()==FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::ComponentsPending(1));
+    TestFalse(TEXT("Options not owned leave the points closed"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
+    FLDComponentInstanceView& HeldA=Pending.Components.AddDefaulted_GetRef();HeldA.DefinitionId=TEXT("hud_fixture_a");
+    TestFalse(TEXT("One free option still leaves the points closed"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
+    FLDComponentInstanceView& HeldB=Pending.Components.AddDefaulted_GetRef();HeldB.DefinitionId=TEXT("hud_fixture_b");
+    TestTrue(TEXT("Every option owned opens the points"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMaterialServicesTest,"Lockdown.Rules.HUDMaterialServices",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
+{
+    // #198 G panel hints: the component choice follows the active choice's gate, FillGap and Dismantle the rest window.
+    using EStage=LDProgression::EMatchStage;
+    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive,99999,true,1000);
+    TestTrue(TEXT("A rest build window opens the choice and both material services"),Gate.bCanComponentChoice&&Gate.bCanFillGap&&Gate.bCanDismantle);
+    const LDHUD::FBuildGateView Field=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,1000);
+    TestTrue(TEXT("In combat the choice is still taken; the material services wait for a rest"),Field.bCanComponentChoice&&!Field.bCanFillGap&&!Field.bCanDismantle
+        &&Field.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Field.DismantleBlocked==Field.FillGapBlocked);
+    TestTrue(TEXT("A dead contender still takes the choice"),LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead,0,true,1000).bCanComponentChoice);
+    const LDHUD::FBuildGateView Locked=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive,0,true,1000);
+    TestTrue(TEXT("A locked rest step refuses all three with the lock"),!Locked.bCanComponentChoice&&!Locked.bCanFillGap&&!Locked.bCanDismantle
+        &&Locked.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
+
+    // A private fixture: one mod whose only entry is an unowned common base, three common bases and a scarce one.
+    FLDDemoContentDefinitions Content;
+    Content.Parameters.FillGapPoints=4;Content.Parameters.DismantleInputCount=3;Content.Parameters.EmptyComponentPoolPoints=2;
+    const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoComponentPool Pool)->FLDDemoComponentDefinition&
+    {
+        FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
+        Row.Id=Id;Row.NativeId=uint8(Content.Components.Num());Row.Kind=Kind;Row.Pool=Pool;
+        return Row;
+    };
+    AddComponent(TEXT("hud_gap_base_a"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Common);
+    AddComponent(TEXT("hud_gap_base_b"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Common);
+    AddComponent(TEXT("hud_gap_base_c"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Common);
+    AddComponent(TEXT("hud_gap_rare"),ELDDemoComponentKind::Base,ELDDemoComponentPool::Scarce);
+    AddComponent(TEXT("hud_gap_mod"),ELDDemoComponentKind::Mod,ELDDemoComponentPool::Common).TargetComponents={TEXT("hud_gap_base_a")};
+    const auto Owned=[](const TCHAR* Id){FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;return View;};
+    FLDProgressionView View;View.bValid=true;View.Generation=2;View.Level=3;View.UnspentPoints=5;
+    View.Components={Owned(TEXT("hud_gap_base_b")),Owned(TEXT("hud_gap_mod")),Owned(TEXT("hud_gap_rare"))};
+    LDHUD::FMaterialServicesView Services=LDHUD::MaterialServices(View,&Content,Gate);
+    TestTrue(TEXT("The never-enabled mod without an entry is the gap, filled by its unowned base"),Services.Gaps.Num()==1
+        &&Services.Gaps[0].Target==FName(TEXT("hud_gap_mod"))&&Services.Gaps[0].Fillers==TArray<FName>{FName(TEXT("hud_gap_base_a"))});
+    TestTrue(TEXT("FillGap may be sent with the price in unspent points"),Services.FillGapPoints==4&&Services.FillGapBlocked.IsEmpty());
+    TestTrue(TEXT("Only owned common components are dismantle candidates"),Services.DismantleCandidates==TArray<FName>{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_mod"))});
+    TestEqualSensitive(TEXT("Fewer than the approved count refuses the dismantle"),Services.DismantleBlocked,LDTerms::DismantleTooFew(3));
+    View.UnspentPoints=3;
+    TestEqualSensitive(TEXT("Not enough unspent points names the price"),LDHUD::MaterialServices(View,&Content,Gate).FillGapBlocked,
+        FString(TEXT("未分配点数不够（要 4 点）")));
+    TestEqualSensitive(TEXT("The field names the rest window first"),LDHUD::MaterialServices(View,&Content,Field).FillGapBlocked,Field.FillGapBlocked);
+    TestFalse(TEXT("Without the catalog nothing is offered"),LDHUD::MaterialServices(View,nullptr,Gate).FillGapBlocked.IsEmpty());
+    View.UnspentPoints=5;
+    View.Components.Add(Owned(TEXT("hud_gap_base_c")));
+    Services=LDHUD::MaterialServices(View,&Content,Gate);
+    TestTrue(TEXT("Three owned common components open the dismantle"),Services.DismantleCandidates.Num()==3&&Services.DismantleBlocked.IsEmpty());
+    TestTrue(TEXT("Three distinct owned common components are a legal input"),
+        LDHUD::DismantleSelectionRefusal(View,&Content,{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_base_c")),FName(TEXT("hud_gap_mod"))}).IsEmpty());
+    TestFalse(TEXT("A scarce component is not accepted"),
+        LDHUD::DismantleSelectionRefusal(View,&Content,{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_base_c")),FName(TEXT("hud_gap_rare"))}).IsEmpty());
+    TestFalse(TEXT("A repeated component is not accepted"),
+        LDHUD::DismantleSelectionRefusal(View,&Content,{FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_base_b")),FName(TEXT("hud_gap_mod"))}).IsEmpty());
+
+    // The dismantle preview: installs on a surrendered host (or on one thereby sent back) return to the inventory.
+    {
+        FLDProgressionView Built;Built.bValid=true;Built.Generation=2;
+        const auto Installed=[](const TCHAR* Id,const TCHAR* Host,const TCHAR* Base)
+        {
+            FLDComponentInstanceView Row;Row.DefinitionId=Id;Row.bInstalled=Row.bEverInstalled=true;
+            if(Host[0]){Row.Target.Kind=ELDComponentTargetKind::Component;Row.Target.Definition=Host;}
+            if(Base[0]){Row.Target.BoundComponent=Base;}
+            return Row;
+        };
+        Built.Components={Installed(TEXT("host"),TEXT(""),TEXT("")),Installed(TEXT("on_host"),TEXT("host"),TEXT("")),
+            Installed(TEXT("on_on_host"),TEXT("on_host"),TEXT("")),Installed(TEXT("repeats_host"),TEXT(""),TEXT("host")),
+            Installed(TEXT("elsewhere"),TEXT("other"),TEXT(""))};
+        TestTrue(TEXT("Every install depending on the surrendered host returns, in the view's order"),
+            LDHUD::DismantleDetached(Built,{FName(TEXT("host"))})==TArray<FName>{FName(TEXT("on_host")),FName(TEXT("on_on_host")),FName(TEXT("repeats_host"))});
+        TestTrue(TEXT("Surrendering a leaf sends nothing back"),LDHUD::DismantleDetached(Built,{FName(TEXT("on_on_host"))}).IsEmpty());
+    }
+
+    // Receipts name what was received, paid and removed; a missing field never reads as success.
+    FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    Receipt.Kind=ELDBuildCommandKind::ComponentChoice;Receipt.ComponentId=TEXT("hud_gap_base_a");
+    TestEqualSensitive(TEXT("A component choice names the component taken"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentTaken(TEXT("hud_gap_base_a")));
+    Receipt.ComponentId=NAME_None;
+    TestEqualSensitive(TEXT("A component choice without a component took the points"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        FString(LDTerms::ComponentChoiceTookPoints));
+    Receipt.Kind=ELDBuildCommandKind::FillGap;Receipt.ComponentId=TEXT("hud_gap_base_a");Receipt.ServicePointsPaid=4;
+    TestEqualSensitive(TEXT("A gap fill names the price and the base"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::GapFilled(4,TEXT("hud_gap_base_a")));
+    Receipt.ServicePointsPaid=0;
+    TestEqualSensitive(TEXT("A gap fill without its payment claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+    Receipt.Kind=ELDBuildCommandKind::Dismantle;Receipt.ComponentId=TEXT("new");
+    Receipt.RemovedComponents={FName(TEXT("a")),FName(TEXT("b")),FName(TEXT("c"))};Receipt.UninstalledComponents={FName(TEXT("d"))};
+    TestEqualSensitive(TEXT("A dismantle names the removed, the received and the uninstalled"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        LDTerms::Dismantled(TEXT("a、b、c"),TEXT("new"),TEXT("d")));
+    Receipt.RemovedComponents.Reset();
+    TestEqualSensitive(TEXT("A dismantle without its removed list claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        FString(TEXT("回执缺少结果，请以当前状态为准。")));
+    // Every #198 G reason names itself; none falls through to the unknown line or repeats another.
+    TSet<FString> Seen;
+    for(const ELDGrowthReason Reason:{ELDGrowthReason::NoComponentChoice,ELDGrowthReason::ComponentOwned,ELDGrowthReason::NotAGap,ELDGrowthReason::NoGapFiller,
+        ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate})
+    {
+        const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
+        TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);
+    }
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDevTestPanelTest,"Lockdown.Rules.HUDDevTestPanel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
 {

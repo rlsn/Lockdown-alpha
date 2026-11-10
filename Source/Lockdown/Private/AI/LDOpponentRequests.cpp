@@ -318,6 +318,57 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         }
         break;
     }
+    case ELDOpponentBuildKind::ComponentChoice:
+    {
+        // #198 G: an option of a pending choice not owned yet, or (empty) the empty-pool points once every option is owned.
+        const FLDComponentChoiceView* Choice = Progression.ComponentChoices.FindByPredicate(
+            [&Intent](const FLDComponentChoiceView& View) { return View.ChoiceId == Intent.ChoiceId; });
+        if (!Intent.ChoiceId.IsValid() || !Choice)
+        {
+            return Fail(Error, TEXT("The component choice is no longer pending."));
+        }
+        const auto Owned = [&Progression](FName Id)
+        {
+            return Progression.Components.ContainsByPredicate([Id](const FLDComponentInstanceView& View) { return View.DefinitionId == Id; });
+        };
+        if (Intent.Component.IsEmpty())
+        {
+            if (Choice->Options.ContainsByPredicate([&Owned](FName Option) { return !Owned(Option); }))
+            {
+                return Fail(Error, TEXT("The empty-pool points need every option of the choice owned."));
+            }
+        }
+        else
+        {
+            const FName Option(*Intent.Component);
+            if (!Choice->Options.Contains(Option) || Owned(Option) || !FLDDefinitionWire::Encode(Option, Out.Component))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("The chosen component is no unowned option of the pending choice."));
+            }
+        }
+        Out.Kind = ELDBuildCommandKind::ComponentChoice;
+        Out.OfferId = Intent.ChoiceId;
+        break;
+    }
+    case ELDOpponentBuildKind::FillGap:
+    {
+        // #198 G: Component is the gap target (an owned, never-installed component) and Filler the unowned base it receives.
+        const FName Target(*Intent.Component);
+        const FName Filler(*Intent.Filler);
+        const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
+            [&Target](const FLDComponentInstanceView& View) { return View.DefinitionId == Target; });
+        const bool bFillerOwned = Progression.Components.ContainsByPredicate(
+            [&Filler](const FLDComponentInstanceView& View) { return View.DefinitionId == Filler; });
+        if (Intent.Component.IsEmpty() || Intent.Filler.IsEmpty() || !Owned || Owned->bEverInstalled || Owned->bGapFilled || bFillerOwned
+            || !FLDDefinitionWire::Encode(Target, Out.Component) || !FLDDefinitionWire::Encode(Filler, Out.Filler))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The gap target is no longer an unfilled, never-installed own component or the filler is owned."));
+        }
+        Out.Kind = ELDBuildCommandKind::FillGap;
+        break;
+    }
     default:
         return Fail(Error, TEXT("The build intent has an unknown kind."));
     }
@@ -411,6 +462,8 @@ ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason)
     // #198: the window, the phase or the offer moved on between the read and the commit; the next decision rereads them.
     case ELDGrowthReason::NotSafe:
     case ELDGrowthReason::PhaseClosed:
+    // #198 G: the pending component choice was resolved meanwhile.
+    case ELDGrowthReason::NoComponentChoice:
     case ELDGrowthReason::NoActiveOffer: return ELDOpponentSettle::Dropped;
     // Stale guards, offers, slots, points and authority faults never loop unbounded.
     default: return ELDOpponentSettle::Failed;

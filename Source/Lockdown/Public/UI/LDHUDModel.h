@@ -266,22 +266,27 @@ namespace LDHUD
     // or besiege its owner), then early farming. In a rest only growth is hinted, and only in its build and payout steps.
     // Own projections and the public match only; never a hidden unit. Empty when nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName=FString());
-    // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop. LandAtMs is a
-    // field progress T (#198), so FieldNowMs is LDMatchTimeline::FieldNowFromView of the public timeline at the synced
-    // server now. Empty when there is no drop to show; the claim is an event of the event feed (FEventFeed), not a
-    // standing line.
+    // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop with the
+    // countdown to its expiry (#198 outer §5). LandAtMs/ExpireAtMs are field progress T (#198), so FieldNowMs is
+    // LDMatchTimeline::FieldNowFromView of the public timeline at the synced server now. Empty when there is no drop to
+    // show; the claim and the expiry are events of the event feed (FEventFeed), not standing lines.
     LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNowMs);
     // #198: the player-facing charm name and its map colour (heal green, mana blue, move speed gold).
     LOCKDOWN_API FString CharmName(ELDCharmKind Kind);
     LOCKDOWN_API FLinearColor CharmColor(ELDCharmKind Kind);
     // #198: the public line of the charms lying now, in serial order; empty when none lies.
     LOCKDOWN_API FString CharmLine(const TArray<FLDCharmView>& Charms);
-    // D26 (#79): the public Boss line: a countdown shortly before it appears and a reminder while it patrols. AppearAtMs is
-    // a field progress T compared with FieldNowMs like AirdropLine. Empty otherwise; who landed the last hit is an event
-    // of the event feed (FEventFeed).
+    // D26 (#79): the public Boss line: a countdown shortly before it appears and, while it patrols, the countdown to its
+    // departure (#198 outer §5). AppearAtMs/LeaveAtMs are field progress T compared with FieldNowMs like AirdropLine. Empty
+    // otherwise; who landed the last hit and its departure are events of the event feed (FEventFeed).
     LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 FieldNowMs);
-    // The event feed's line for a downed Boss: the own last hit is told it ate the pie, others see the public roster name.
+    // The event feed's line for a downed Boss: the own last hit is told it got a build reward, others see the public roster name.
     LOCKDOWN_API FString BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName);
+    // #198 outer §5: the public line of the revealed (still open) camp markers, High first, each with the countdown to its
+    // segment end; empty when none is open. Times are field progress T like AirdropLine.
+    LOCKDOWN_API FString MarkerLine(const TArray<FLDFieldMarkerView>& Markers,bool bClock,int64 FieldNowMs);
+    // #198: the camp marker colour shared by the HUD line, the minimap ring and the world label.
+    LOCKDOWN_API FLinearColor MarkerColor();
     // D27 (#79): the public 上热搜 line: who is named; the own player is told directly.
     // Empty when nobody is named.
     LOCKDOWN_API FString LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName);
@@ -483,6 +488,14 @@ namespace LDHUD
         FString ReplaceBlocked;
         bool bCanForget=false;
         FString ForgetBlocked;
+        // #198 G: an elite camp's pending component choice (like the active choice: field or rest, alive or dead) and the
+        // rest material services FillGap and Dismantle (rest build window only, like the NPC).
+        bool bCanComponentChoice=false;
+        FString ComponentChoiceBlocked;
+        bool bCanFillGap=false;
+        FString FillGapBlocked;
+        bool bCanDismantle=false;
+        FString DismantleBlocked;
         // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
         bool bInRest=false;
         // #198 B: the first-time install of a never-installed component and the re-install of a once-installed one, as
@@ -497,7 +510,8 @@ namespace LDHUD
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
     // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or the component taken,
-    // enabled (已启用构件：名称), stored with the reason or removed.
+    // enabled (已启用构件：名称), stored with the reason or removed; #198 G the component choice taken (or its points), the gap
+    // filled with its price, and the dismantle's removed, received and uninstalled components.
     LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,
         int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // 火 / 水 / 电.
@@ -560,8 +574,8 @@ namespace LDHUD
         const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // What waits in the growth panel for the own view of Match: queued active opportunities, unspent points, blueprints
     // while a Q/W/E slot is empty, the opening base pick and owned never-installed components (#198 B; with Content, those
-    // ComponentEnableReason does not rule out). The 开盲盒 button is lit and counts them while any is pending; empty
-    // otherwise.
+    // ComponentEnableReason does not rule out), and pending elite camp component choices (#198 G). The 开盲盒 button is lit
+    // and counts them while any is pending; empty otherwise.
     struct FGrowthPending
     {
         int32 Offers=0;
@@ -569,7 +583,9 @@ namespace LDHUD
         int32 Blueprints=0;
         bool bOpeningBase=false;
         int32 Components=0;
-        bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||Components>0;}
+        // #198 G: pending elite camp component choices (counted with the components in the caption).
+        int32 ComponentChoices=0;
+        bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||Components>0||ComponentChoices>0;}
         // "开盲盒+1 · 3点", "开盲盒 · 图纸 1", "开盲盒 · 构件 1" or "开盲盒".
         FString Prompt() const;
     };
@@ -577,6 +593,56 @@ namespace LDHUD
     // The 开盲盒 button's caption: the pending counts, or "开盲盒 · 休息服务" when nothing is pending but the rest services
     // are open (the button then stays enabled so the NPC, respec and forget remain reachable).
     LOCKDOWN_API FString GrowthPrompt(const FGrowthPending& Pending,bool bRestServices);
+    // #198 G: the own view already owns a component of this definition.
+    LOCKDOWN_API bool OwnsComponent(const FLDProgressionView& Progression,FName Component);
+    // #198 G: every option of a pending component choice is already owned, so only the empty-pool points remain to take.
+    LOCKDOWN_API bool ComponentChoiceAllOwned(const FLDComponentChoiceView& Choice,const FLDProgressionView& Progression);
+    // #198 G rest material services (APP_SPEC §4.5) as the panel offers them, judged with growth's own rules over the owner
+    // view (LDProgression::BuildFromView): a hint only, the server decides each command.
+    struct FGapTargetView
+    {
+        // A never-enabled mod or connector without any compatible entry, and the unowned common bases that would give it one.
+        FName Target;
+        TArray<FName> Fillers;
+    };
+    struct FMaterialServicesView
+    {
+        // FillGap: the price (GROWTH.FillGapPoints), the targets with at least one filler in catalog order, and why it is
+        // refused now (empty when it may be sent).
+        int64 FillGapPoints=0;
+        TArray<FGapTargetView> Gaps;
+        FString FillGapBlocked;
+        // Dismantle: the input count (GROWTH.DismantleInputCount), the owned common components in the view's order, and why it
+        // is refused now.
+        int64 DismantleCount=0;
+        TArray<FName> DismantleCandidates;
+        FString DismantleBlocked;
+    };
+    LOCKDOWN_API FMaterialServicesView MaterialServices(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+        const FBuildGateView& Gate);
+    // Why a dismantle of exactly these components would be refused (LDProgression::DismantleInputReason); empty when legal.
+    LOCKDOWN_API FString DismantleSelectionRefusal(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+        const TArray<FName>& Surrendered);
+    // The installed components a dismantle of Surrendered sends back to the inventory: every installed one that sits on a
+    // surrendered (or thereby uninstalled) host component or repeats such a base (C12), in the view's order.
+    LOCKDOWN_API TArray<FName> DismantleDetached(const FLDProgressionView& Progression,const TArray<FName>& Surrendered);
+    // #198 G field reward notices: the toast line of one field reward ("天降外卖：+200 流量，获得图纸「X」"), naming the event,
+    // its XP and what its build part gave (a blueprint, a scarce or common component, the empty-pool points, a ready
+    // two-choice or a held blueprint).
+    LOCKDOWN_API FString FieldRewardEventName(FName Event);
+    LOCKDOWN_API FString FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content);
+    // The field rewards listed past the first Known entries of the own view (the list only grows within a match).
+    LOCKDOWN_API TArray<FLDFieldRewardView> NewFieldRewards(const FLDProgressionView& Progression,int32 Known);
+    // Tells each field reward once: the first valid view of a match primes (a reconnect never replays old rewards), later
+    // views return the entries added since. Local presentation only.
+    class LOCKDOWN_API FFieldRewardWatch
+    {
+    public:
+        TArray<FLDFieldRewardView> Observe(const FLDProgressionView* Progression,uint32 Match);
+    private:
+        uint32 SeenMatch=0;
+        int32 Known=0;
+    };
     struct FAttributeRowView
     {
         FString Name;
@@ -704,8 +770,9 @@ namespace LDHUD
 
     // The top-left event feed: room-public events as short lines, oldest first, so the newest sits at the bottom. Each line
     // stays LineSeconds on local presentation time; beyond MaxLines the oldest leaves early. Sources are the public match
-    // view, the public kill feed and the public roster; the only owner fact is the own airdrop claim serial, which tells
-    // its owner 你抢到了 while everyone else only learns that the drop is gone.
+    // view, the public kill feed and the public roster; the only owner facts are the own airdrop claim serial, which tells
+    // its owner 你抢到了 while everyone else only learns that the drop is gone, and the own field rewards (#198), which do
+    // the same for a camp marker.
     struct FEventFeedInput
     {
         const FLDPublicMatchView* Public=nullptr;
@@ -713,6 +780,8 @@ namespace LDHUD
         const FLDLobbyView* Lobby=nullptr;
         FGuid Self;
         uint64 OwnAirdropClaimSerial=0;
+        // The own field reward history of this match (owner view); null when unknown.
+        const TArray<FLDFieldRewardView>* OwnFieldRewards=nullptr;
         bool bClock=false;
         int64 NowMs=0;
         double LocalSeconds=0;
@@ -724,12 +793,16 @@ namespace LDHUD
         bool bSelf=false;   // the line is about the player (said with 你), so the feed can highlight it
         double At=0;        // local presentation time it was first shown
         uint64 AirdropClaimSerial=0;  // a drop claim line: relabelled while shown, as the owner view may arrive later
+        // A camp marker claim line (its kind and segment): relabelled the same way from the own field rewards.
+        ELDFieldMarkerKind MarkerKind=ELDFieldMarkerKind::None;
+        uint8 MarkerSegment=0;
     };
     // Kills are told when their notice arrives, unless it was already older than StaleKillMs (a late join). Every other
     // event is a change between two observations of the same match: the first observation of a match only records the
     // state, so a screen that joins mid-match never replays what already happened. Told events: the flagpole opening, a
-    // drop landing and being claimed, the Boss appearing and going down, a new 上热搜 leader, a new graffiti owner and the
-    // same owner's frozen guard dropping to zero (he left the zone while a challenger was in it).
+    // drop landing, being claimed and expiring, the Boss appearing, going down and leaving, camp markers being revealed,
+    // claimed and expiring, a new 上热搜 leader, a new graffiti owner and the same owner's frozen guard dropping to zero (he
+    // left the zone while a challenger was in it).
     class LOCKDOWN_API FEventFeed
     {
     public:
@@ -747,6 +820,9 @@ namespace LDHUD
         uint64 AirdropSerial=0;
         ELDAirdropPhase AirdropPhase=ELDAirdropPhase::None;
         ELDBossPhase BossPhase=ELDBossPhase::None;
+        // The camp markers as last observed: their segment and the High / Elite phases.
+        uint8 MarkerSegment=0;
+        ELDFieldMarkerPhase MarkerPhases[2]={ELDFieldMarkerPhase::None,ELDFieldMarkerPhase::None};
         FGuid Leader;
         FGuid GraffitiOwner;
         // The guard as last observed: frozen progress, or a running guard (GuardDueAtMs set).

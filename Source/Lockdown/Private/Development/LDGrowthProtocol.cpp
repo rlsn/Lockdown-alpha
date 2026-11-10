@@ -84,7 +84,8 @@ bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
         && Slot == Other.Slot && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts
         && Component == Other.Component && bInstallIfPossible == Other.bInstallIfPossible && TargetKind == Other.TargetKind
         && TargetDefinition == Other.TargetDefinition && TargetSegment == Other.TargetSegment && BoundActive == Other.BoundActive
-        && Element == Other.Element && BoundComponent == Other.BoundComponent;
+        && Element == Other.Element && BoundComponent == Other.BoundComponent && Filler == Other.Filler
+        && Surrendered == Other.Surrendered;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
@@ -106,6 +107,9 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::Respec:
     case ELDBuildCommandKind::ReplaceActive:
     case ELDBuildCommandKind::ForgetActive:
+    case ELDBuildCommandKind::ComponentChoice:
+    case ELDBuildCommandKind::FillGap:
+    case ELDBuildCommandKind::Dismantle:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -214,6 +218,14 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::StaleDeath: return TEXT("StaleDeath");
     case ELDGrowthReason::NoRewardPKArena: return TEXT("NoRewardPKArena");
     case ELDGrowthReason::PKAwardDuplicate: return TEXT("PKAwardDuplicate");
+    case ELDGrowthReason::NoComponentChoice: return TEXT("NoComponentChoice");
+    case ELDGrowthReason::ComponentOwned: return TEXT("ComponentOwned");
+    case ELDGrowthReason::NotAGap: return TEXT("NotAGap");
+    case ELDGrowthReason::NoGapFiller: return TEXT("NoGapFiller");
+    case ELDGrowthReason::GapAlreadyFilled: return TEXT("GapAlreadyFilled");
+    case ELDGrowthReason::DismantleInvalid: return TEXT("DismantleInvalid");
+    case ELDGrowthReason::DismantlePoolEmpty: return TEXT("DismantlePoolEmpty");
+    case ELDGrowthReason::FieldRewardDuplicate: return TEXT("FieldRewardDuplicate");
     }
     return TEXT("Unknown");
 }

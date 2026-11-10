@@ -156,7 +156,7 @@ bool RestTestRunGates(FAutomationTestBase& Test)
         LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false)), EReason::None);
     bGood &= RestTestReason(Test, TEXT("LearnGate while builds are locked"),
         LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true)), EReason::BuildLocked);
-    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(24), uint8(255)})
+    for (const uint8 Unknown : {uint8(4), uint8(19), uint8(26), uint8(255)})
     {
         bGood &= RestTestReason(Test, FString::Printf(TEXT("Command kind %u is refused, not mapped to a neighbour"), uint32(Unknown)),
             LDProgression::CommandGate(static_cast<EKind>(Unknown), Rest), EReason::InvalidRequest);

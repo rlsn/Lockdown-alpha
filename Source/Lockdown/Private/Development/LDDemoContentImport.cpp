@@ -388,9 +388,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAMP.GrowthAttackRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthAttackPerStageBp, 0, MAX_int64},
         {TEXT("CAMP.GrowthResistPerStage"), TEXT("points"), TEXT("p2"), &P.CampGrowthResistPerStageP2, 0, MAX_int64},
         {TEXT("CAMP.GrowthRewardXPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthRewardXPPerStageBp, 0, MAX_int64},
-        {TEXT("AIRDROP.FirstLandSec"), TEXT("ms"), TEXT("ms"), &P.AirdropFirstLandMs, 1, MAX_int64},
-        {TEXT("AIRDROP.IntervalSec"), TEXT("ms"), TEXT("ms"), &P.AirdropIntervalMs, 1, MAX_int64},
+        {TEXT("AIRDROP.ExpireSec"), TEXT("ms"), TEXT("ms"), &P.AirdropExpireMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
+        {TEXT("CAMPMARK.RevealSec"), TEXT("ms"), TEXT("ms"), &P.CampMarkRevealMs, 1, MAX_int64},
         {TEXT("CHARM.FirstWaveSec"), TEXT("ms"), TEXT("ms"), &P.CharmFirstWaveMs, 1, MAX_int64},
         {TEXT("CHARM.WaveIntervalSec"), TEXT("ms"), TEXT("ms"), &P.CharmWaveIntervalMs, 1, MAX_int64},
         {TEXT("CHARM.LifetimeSec"), TEXT("ms"), TEXT("ms"), &P.CharmLifetimeMs, 1, MAX_int64},
@@ -439,6 +439,24 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
             return false;
         }
     }
+    // #198 outer §5: the approved airdrop landing instants (at most the room's six drops).
+    const TArray<FValue>* Lands = nullptr;
+    const FString LandPath = F.Path + TEXT(".AIRDROP.LandSec");
+    if (!Array(F.Take(TEXT("AIRDROP.LandSec")), Lands, Check, LandPath, 1, 6))
+    {
+        return false;
+    }
+    P.AirdropLandMs.Reset();
+    for (int32 Index = 0; Index < Lands->Num(); ++Index)
+    {
+        FFields Land(Check, (*Lands)[Index], FString::Printf(TEXT("%s[%d]"), *LandPath, Index));
+        int64 LandMs = 0;
+        if (!Land.Literal(TEXT("unit"), TEXT("ms")) || !Land.Int(TEXT("ms"), LandMs, 1) || !Land.Done())
+        {
+            return false;
+        }
+        P.AirdropLandMs.Add(LandMs);
+    }
     struct FCmField { const TCHAR* Key; FLDDemoRational* Out; };
     for (const auto& Field : {
         FCmField{TEXT("UNIT.CollisionRadiusCm"), &P.CollisionRadiusCm},
@@ -474,6 +492,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
         {TEXT("GROWTH.EmptyComponentPoolPoints"), &P.EmptyComponentPoolPoints, 1},
         {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1},
+        {TEXT("GROWTH.FillGapPoints"), &P.FillGapPoints, 1}, {TEXT("GROWTH.DismantleInputCount"), &P.DismantleInputCount, 1},
         {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
         {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
     {
@@ -2051,16 +2070,9 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             || !Boss.Fraction(TEXT("aggro_radius"), TEXT("cm"), Rules.AggroRadiusCm, true)
             || !Boss.Fixed(TEXT("attacker_memory"), TEXT("ms"), TEXT("ms"), Rules.AttackerMemoryMs, 1)
             || !Boss.Fixed(TEXT("appear_at"), TEXT("ms"), TEXT("ms"), Rules.AppearAtMs, 1)
-            || !Boss.Int(TEXT("reward_xp"), Body.RewardXP))
-        {
-            return false;
-        }
-        FFields Buff(Check, Boss.Take(TEXT("approval")), TEXT("content.boss.approval"));
-        if (!Buff.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Rules.ApprovalDurationMs, 1)
-            || !Stats(Buff.Take(TEXT("stats")), Rules.ApprovalStats, Check, Buff.Path + TEXT(".stats"))
-            || !Check.Require((StatMask(Rules.ApprovalStats) & ~TemporaryStats) == 0, Buff.Path,
-                TEXT("the approval buff cannot change resource maxima"))
-            || !Buff.Done() || !Boss.Done())
+            || !Boss.Fixed(TEXT("leave_at"), TEXT("ms"), TEXT("ms"), Rules.LeaveAtMs, 1)
+            || !Boss.Int(TEXT("reward_xp"), Body.RewardXP)
+            || !Boss.Done())
         {
             return false;
         }

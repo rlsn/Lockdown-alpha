@@ -471,6 +471,29 @@ bool ALDGameMode::EndCampMemberLife(const FLDCommittedDeath& Fact, const FLDGame
     return true;
 }
 
+bool ALDGameMode::RetireCampBody(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Life = Lives.Find(Body.Victim.EntityId);
+    if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Combat
+        || Body.Victim.Kind != ELDVictimKind::CampMember || !Life || Life->Kind != ELDVictimKind::CampMember
+        || Life->Phase != ELDLifePhase::Alive || Life->Body != Body || Life->Revision == MAX_uint64)
+    {
+        Error = TEXT("A camp body leaves the field only as exactly its current living member.");
+        return false;
+    }
+    // #198 outer §5 (the Boss leaving): its own unsettled effects end with the life; there is no death, kill credit or
+    // reward. The camp owner destroys its actor after this.
+    Combat->RetireBodyForPhase(Body);
+    Life->Phase = ELDLifePhase::Dead;
+    Life->RetiredThroughLife = Life->Life;
+    ++Life->Revision;
+    Life->Body = {};
+    Life->Actor.Reset();
+    UE_LOG(LogLDMatch, Log, TEXT("LD_CAMP_BODY_RETIRED member=%s life=%u"), *LDLog::Id(Body.Victim.EntityId), Body.Victim.Life);
+    Error.Reset();
+    return true;
+}
+
 void ALDGameMode::BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& Ref, ALDCharacter& Body)
 {
     auto* Movement = Body.GetCharacterMovement();

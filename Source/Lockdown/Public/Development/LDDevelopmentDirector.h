@@ -29,6 +29,8 @@ public:
     uint8 LevelBefore() const { return OldLevel; }
     // #198 B: the component of each normal level-up this change crosses, in level order (None: points instead).
     const TArray<FLDComponentGrant>& ComponentGrants() const { return Grants; }
+    // #198 G: the build part of a field reward this change installs (Result None when it carries none).
+    const LDProgression::FFieldGrant& FieldGrant() const { return Field; }
 
     // Records what Combat will have installed once the caller applies its prepared projection.
     void SetCombatInstall(const FLDExpectedBuildVersions& Installed) { bCombatInstall = true; CombatInstall = Installed; }
@@ -43,6 +45,7 @@ private:
     FLDGrowthBuild NewBuild;
     FLDProgressionState NewProgression;
     TArray<FLDComponentGrant> Grants;
+    LDProgression::FFieldGrant Field;
     bool bCombatInstall = false;
     FLDExpectedBuildVersions CombatInstall;
 };
@@ -104,6 +107,11 @@ public:
     // (#198 B) one component per normal level-up crossed (or the exhausted-pool points); BuildRevision advances only with the
     // level. The points follow from the level, XP and exhausted-pool grants.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
+    // #198 G: PrepareExperience(GrantXP) followed by the build part Kind of map event Event/Serial, drawn on the post-XP build
+    // from private per-event random material (LDProgression::DrawFieldReward / ApplyFieldGrant) and recorded in the field
+    // reward history; the build and progression revisions advance once. Kind None is PrepareExperience.
+    FLDPrepareGrowthResult PrepareFieldReward(const FGuid& ContenderId, int64 GrantXP, ELDFieldRewardKind Kind, FName Event,
+        uint64 Serial) const;
     // No-fail: installs the prepared build/progression and draws the queue head when one is due.
     void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
 

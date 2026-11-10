@@ -51,12 +51,13 @@
         "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec",
         "GROWTH.OpeningPoints", "GROWTH.PointsPerLevel", "GROWTH.MaxLevelPointsXP", "GROWTH.MaxLevelPoints",
         "GROWTH.NpcActivePoints", "GROWTH.BuildSafeWindowSec", "GROWTH.EmptyComponentPoolPoints",
+        "GROWTH.FillGapPoints", "GROWTH.DismantleInputCount",
         "CAMP.ResetArrivalRadiusCm",
         "CAMP.ReturnDeadEndPlans", "CAMP.ReturnDeadEndSec",
         "CAMP.GrowthStageSec", "CAMP.GrowthMaxStage", "CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage",
         "CAMP.GrowthResistPerStage", "CAMP.GrowthRewardXPRatioPerStage",
-        "AIRDROP.FirstLandSec", "AIRDROP.IntervalSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
-        "AIRDROP.RewardXP",
+        "AIRDROP.LandSec", "AIRDROP.ExpireSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
+        "AIRDROP.RewardXP", "CAMPMARK.RevealSec",
         "CHARM.FirstWaveSec", "CHARM.WaveIntervalSec", "CHARM.WaveCount", "CHARM.PerWave", "CHARM.LifetimeSec",
         "CHARM.PickupRadiusCm", "CHARM.HealMaxHPRatio", "CHARM.ManaMaxMPRatio", "CHARM.MoveSpeedRatio", "CHARM.MoveSpeedSec",
         "LEADER.MinLevel", "LEADER.RefreshSec", "LEADER.CircleRadiusCm", "LEADER.CircleMaxOffsetCm",
@@ -136,14 +137,16 @@
         "GROWTH.MaxLevelPointsXP": {"$ref": "#/$defs/positive_count"}, "GROWTH.MaxLevelPoints": {"$ref": "#/$defs/positive_count"},
         "GROWTH.NpcActivePoints": {"$ref": "#/$defs/positive_count"},
         "GROWTH.BuildSafeWindowSec": {"$ref": "#/$defs/positive_sec"}, "GROWTH.EmptyComponentPoolPoints": {"$ref": "#/$defs/positive_count"},
+        "GROWTH.FillGapPoints": {"$ref": "#/$defs/positive_count"}, "GROWTH.DismantleInputCount": {"$ref": "#/$defs/positive_count"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"},
         "CAMP.ReturnDeadEndPlans": {"$ref": "#/$defs/positive_count"}, "CAMP.ReturnDeadEndSec": {"$ref": "#/$defs/positive_sec"},
         "CAMP.GrowthStageSec": {"$ref": "#/$defs/positive_sec"}, "CAMP.GrowthMaxStage": {"$ref": "#/$defs/positive_count"},
         "CAMP.GrowthHPRatioPerStage": {"$ref": "#/$defs/multiplier"}, "CAMP.GrowthAttackRatioPerStage": {"$ref": "#/$defs/multiplier"},
         "CAMP.GrowthResistPerStage": {"$ref": "#/$defs/points"}, "CAMP.GrowthRewardXPRatioPerStage": {"$ref": "#/$defs/multiplier"},
-        "AIRDROP.FirstLandSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.IntervalSec": {"$ref": "#/$defs/positive_sec"},
+        "AIRDROP.LandSec": {"type": "array", "minItems": 1, "maxItems": 6, "items": {"$ref": "#/$defs/positive_sec"}},
+        "AIRDROP.ExpireSec": {"$ref": "#/$defs/positive_sec"},
         "AIRDROP.AnnounceLeadSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.PickupRadiusCm": {"$ref": "#/$defs/cm"},
-        "AIRDROP.RewardXP": {"$ref": "#/$defs/positive_count"},
+        "AIRDROP.RewardXP": {"$ref": "#/$defs/positive_count"}, "CAMPMARK.RevealSec": {"$ref": "#/$defs/positive_sec"},
         "CHARM.FirstWaveSec": {"$ref": "#/$defs/positive_sec"}, "CHARM.WaveIntervalSec": {"$ref": "#/$defs/positive_sec"},
         "CHARM.WaveCount": {"$ref": "#/$defs/positive_count"}, "CHARM.PerWave": {"$ref": "#/$defs/positive_count"},
         "CHARM.LifetimeSec": {"$ref": "#/$defs/positive_sec"}, "CHARM.PickupRadiusCm": {"$ref": "#/$defs/cm"},
@@ -249,17 +252,13 @@
     },
     "boss": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "hp", "armor", "magic_resist", "attack", "attack_interval", "attack_windup", "attack_range", "move_speed", "collision_radius", "aggro_radius", "attacker_memory", "appear_at", "reward_xp", "approval"],
+      "required": ["id", "hp", "armor", "magic_resist", "attack", "attack_interval", "attack_windup", "attack_range", "move_speed", "collision_radius", "aggro_radius", "attacker_memory", "appear_at", "leave_at", "reward_xp"],
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "hp": {"$ref": "#/$defs/hp"}, "armor": {"$ref": "#/$defs/points"}, "magic_resist": {"$ref": "#/$defs/points"},
         "attack": {"$ref": "#/$defs/points"}, "attack_interval": {"$ref": "#/$defs/positive_sec"}, "attack_windup": {"$ref": "#/$defs/positive_sec"},
         "attack_range": {"$ref": "#/$defs/cm"}, "move_speed": {"$ref": "#/$defs/speed"}, "collision_radius": {"$ref": "#/$defs/cm"},
         "aggro_radius": {"$ref": "#/$defs/cm"}, "attacker_memory": {"$ref": "#/$defs/positive_sec"}, "appear_at": {"$ref": "#/$defs/positive_sec"},
-        "reward_xp": {"$ref": "#/$defs/count"},
-        "approval": {
-          "type": "object", "additionalProperties": false, "required": ["duration", "stats"],
-          "properties": {"duration": {"$ref": "#/$defs/positive_sec"}, "stats": {"$ref": "#/$defs/stat_bonus"}}
-        }
+        "leave_at": {"$ref": "#/$defs/positive_sec"}, "reward_xp": {"$ref": "#/$defs/count"}
       }
     },
     "progression": {
