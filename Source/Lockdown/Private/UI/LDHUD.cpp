@@ -1034,10 +1034,10 @@ void ULDHUD::RefreshReadModel()
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,SafeAtMs,bClock,NowMs,Content,ChoiceStats);
     }
-    // D10/#198: the growth panel opens by itself when a new active offer or newly earned points reach this owner, and only
-    // when nothing else is open; it never opens over the player's own UI or armed preview, and nothing is chosen for the
-    // player. The root may still be leaving the lobby on the match's first frames, so a refused open is retried for a
-    // short while; the player's own panel or captured input ends the chance at once.
+    // D10/APP_SPEC §4.2: the growth panel opens by itself only for the match's opening offer, and only when nothing else is
+    // open; later offers and new points light the 开盲盒 button's count instead. It never opens over the player's own UI
+    // or armed preview, and nothing is chosen for the player. The root may still be leaving the lobby on the match's first
+    // frames, so a refused open is retried for a short while; the player's own panel or captured input ends the chance at once.
     if(ChoicesPanel&&PC->RootUI&&Progression&&GrowthAutoOpen.Observe(*Progression,O.Match)){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
     {

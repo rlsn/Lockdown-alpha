@@ -505,7 +505,7 @@ namespace LDHUD
     // When the docked growth panel folds back to the 开盲盒 button by itself, so it does not keep covering the battlefield.
     // Folding only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their
     // state, and nothing is chosen. Local presentation time only.
-    // - An automatic open (a new active offer or newly earned points, D10) folds after AutoOpenSeconds unless the player
+    // - An automatic open (the opening offer, D10) folds after AutoOpenSeconds unless the player
     //   has engaged with it (a previewed card, staged points or a request in flight); engaging ends that timer.
     // - A hit on the own body folds an open panel unless the player is engaged. After such a fold, the player's next own
     //   opening is respected and is not folded by hits again until it closes.
@@ -525,18 +525,18 @@ namespace LDHUD
         bool bFoldedByHit=false;
         double OpenedAt=0;
     };
-    // D10/#198: when the growth panel opens by itself: for each active offer first seen and each rise of the unspent points
-    // in a valid view of the current match (the match's first view counts, so the opening offer and points open it). The
-    // caller still never opens it over the player's own panel or captured input. Local presentation only.
+    // D10/APP_SPEC §4.2: the growth panel opens by itself once per match, when the opening active offer (opportunity 1) is
+    // first seen in a valid view of the current match. Later offers and new points never open it (they only light the
+    // 开盲盒 button's count), so it does not cover a fight. The caller still never opens it over the player's own panel or
+    // captured input. Local presentation only.
     class LOCKDOWN_API FGrowthAutoOpen
     {
     public:
-        // True when View brings a new offer or more unspent points than last seen.
+        // True once per match: for the first view that shows the opening offer.
         bool Observe(const FLDProgressionView& View,uint32 Match);
     private:
         uint32 SeenMatch=0;
-        FGuid SeenOffer;
-        int64 SeenUnspent=0;
+        bool bOpeningShown=false;
     };
 
     // The top-left event feed: room-public events as short lines, oldest first, so the newest sits at the bottom. Each line

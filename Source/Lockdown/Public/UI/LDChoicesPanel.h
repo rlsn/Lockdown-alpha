@@ -70,7 +70,7 @@ public:
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
     bool HasPendingRequest() const {return PendingRequest!=0;}
-    // The HUD opened this panel for a new offer or new points (D10): it folds back to the 开盲盒 button after a few seconds
+    // The HUD opened this panel for the opening offer (D10): it folds back to the 开盲盒 button after a few seconds
     // unless the player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
     // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
@@ -178,7 +178,7 @@ private:
     uint64 ShownOfferRevision=0;
     // The blueprints the rows show, in the view's order.
     TArray<FName> ShownBlueprints;
-    // Local staging of the point allocation, one count per catalog stat; never sent until ConfirmPoints.
+    // Local staging of the point allocation, one count per stat in the stats' design order; never sent until ConfirmPoints.
     TArray<int32> Staged;
     uint32 StagedMatch=0;
     // PreviewOffer's pinned card, shown when no card is hovered or focused; DetailCard is the one on screen.

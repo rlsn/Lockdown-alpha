@@ -214,10 +214,10 @@ bool RunPolicy(FAutomationTestBase& Test)
     // Unspent points are settled by the production allocation before the first fight.
     auto Points = Engage;
     Points.Self.UnspentPoints = 3;
-    for (const auto& Stat : C.Get().Stats)
+    for (const FLDDemoStatDefinition* Stat : C.Get().StatsInDesignOrder())
     {
         FLDOpponentStatPoints Row;
-        Row.StatId = Stat.Id;
+        Row.StatId = Stat->Id;
         Points.Self.StatPoints.Add(Row);
     }
     State = {};

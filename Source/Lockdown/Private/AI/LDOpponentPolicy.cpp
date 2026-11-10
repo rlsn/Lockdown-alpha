@@ -1399,12 +1399,13 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     }
     TArray<int64> Points;
     TArray<bool> Relevant;
-    for (int32 Index = 0; Index < Content.Stats.Num(); ++Index)
+    const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
     {
-        const FLDDemoStatDefinition& Stat = Content.Stats[Index];
+        const FLDDemoStatDefinition& Stat = *StatOrder[Index];
         if (!Self.StatPoints[Index].StatId.Equals(Stat.Id, ESearchCase::CaseSensitive))
         {
-            Error = TEXT("The own stat points are not in catalog order.");
+            Error = TEXT("The own stat points are not in the stats' design order.");
             return false;
         }
         Points.Add(Self.StatPoints[Index].Points);

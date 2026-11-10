@@ -599,7 +599,7 @@ public:
 
     int32 PointStatIndex(const TCHAR* StatId) const
     {
-        return Catalog->Get().Stats.IndexOfByPredicate([StatId](const FLDDemoStatDefinition& Row) { return Row.Id == StatId; });
+        return Catalog->Get().StatDesignIndex(StatId);
     }
 
     static FLDBuildCommand ChoiceCommand(const FLDProgressionView& View, FName Option)

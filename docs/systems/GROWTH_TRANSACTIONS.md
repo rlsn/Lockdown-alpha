@@ -15,7 +15,7 @@
 | `Development\LDGrowthProtocol.h` | 构筑命令、回执、查询、提交结果与本人视图的线协议 |
 | `Development\LDGrowthProviders.cpp` | 向对局门禁注册 Progression 提供者及最终等级读取 |
 
-成长状态是 `FLDGrowthBuild`（等级、按目录顺序每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
+成长状态是 `FLDGrowthBuild`（等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`；目录本身按 id 排序）每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
 永久消费点数 `PermanentSpentPoints`、构筑修订）与 `FLDProgressionState`（累计 XP、已得/已用主动机会、其中 NPC 购买的机会数
 `NpcPurchased`、唯一队首候选组及其修订、已消费机会记录）。
 点数不存储：`LDProgression::EarnedPoints` 由等级与 XP 派生（开局 `GROWTH.OpeningPoints`、每升一级 `GROWTH.PointsPerLevel`，
@@ -52,7 +52,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | --- | --- | --- |
 | `ActiveChoice` | `OfferId`、`OfferRevision`、`Option`；`bLearnIfPossible` 时 `Slot` 为首选空槽 0..2 或 `AnySlot` | 消费队首机会；能学就学到首选或最低空槽（`Learned`），否则存为待学图纸（`StoredAsBlueprint`，`StoredReason` 为 `NotSafe`/`Dead`/`NoEmptySlot`）；之后才抽下一组 |
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换走 `ReplaceActive`）为 `SlotOccupied`，图纸保留 |
-| `AllocatePoints` | `PointCounts`（每个五维一格、目录顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
+| `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择（不能学就存为图纸）；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
 | `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |

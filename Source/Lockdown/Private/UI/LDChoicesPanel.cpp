@@ -116,7 +116,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             BlueprintSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
-            // Unspent points: one row per catalog stat (built from the first catalog seen), +/− stage locally, one confirm sends.
+            // Unspent points: one row per stat in design order (built from the first catalog seen), +/− stage locally, one confirm sends.
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
             PointsHeading=OneLine(16);PointsHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(PointsHeading);
             StatList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(StatList)->SetPadding(FMargin(0,4,0,0));
@@ -447,7 +447,8 @@ void ULDChoicesPanel::BuildStatRows()
         if(bWrap){Line->SetWrapTextAt(GrowthPanelWidth-300.f);}
         ScaleNewText(Line);RowWidgets.Add(Line);return Line;
     };
-    for(int32 Index=0;Index<LatestContent->Stats.Num();++Index)
+    const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
+    for(int32 Index=0;Index<StatOrder.Num();++Index)
     {
         FStatRow& Row=StatRows.AddDefaulted_GetRef();
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);
@@ -459,7 +460,7 @@ void ULDChoicesPanel::BuildStatRows()
         Row.Points=MakeText(15,LDHUDStyle::TextAccent,false);
         auto* PointsBox=WidgetTree->ConstructWidget<USizeBox>();PointsBox->SetWidthOverride(90.f);PointsBox->SetContent(Row.Points);RowWidgets.Add(PointsBox);
         Line->AddChildToHorizontalBox(PointsBox)->SetVerticalAlignment(VAlign_Center);
-        const FString Id=LatestContent->Stats[Index].Id;
+        const FString Id=StatOrder[Index]->Id;
         Row.Minus=LDWidgets::Button(WidgetTree,TEXT("−"),[this,Index](){StagePoint(Index,-1);},false,FName(*(TEXT("GrowthPointMinus_")+Id)));
         Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,Index](){StagePoint(Index,1);},false,FName(*(TEXT("GrowthPointPlus_")+Id)));
         for(ULDCommandButton* Button:{Row.Minus.Get(),Row.Plus.Get()})
@@ -479,10 +480,11 @@ void ULDChoicesPanel::RefreshPoints()
     {Staged[Index]=FMath::Max(0,Staged[Index]-int32(StagedTotal()-Unspent));}
     GrowthShown(PointsSection,bUsable&&(Unspent>0||StagedTotal()>0));
     GrowthText(PointsHeading,LDTerms::UnspentPoints(Unspent-StagedTotal()));
+    const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent?LatestContent->StatsInDesignOrder():TArray<const FLDDemoStatDefinition*>();
     for(int32 Index=0;Index<StatRows.Num()&&Index<StatCount;++Index)
     {
         FStatRow& Row=StatRows[Index];
-        const FLDDemoStatDefinition& Stat=LatestContent->Stats[Index];
+        const FLDDemoStatDefinition& Stat=*StatOrder[Index];
         const LDHUD::FStatRowView View=LDHUD::StatRow(Stat,LDHUD::StatPointsOf(Latest,FName(*Stat.Id)),LatestContent);
         GrowthText(Row.Name,View.Name);GrowthText(Row.PerPoint,View.PerPoint);
         GrowthText(Row.Points,Staged[Index]>0?FString::Printf(TEXT("%d 点 +%d"),View.Points,Staged[Index]):FString::Printf(TEXT("%d 点"),View.Points));
@@ -540,14 +542,15 @@ bool ULDChoicesPanel::ConfirmPoints()
     if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
     if(StagedTotal()<=0){SetFeedback(TEXT("先用 + 选好要加的点。"));return false;}
     if(!Gate.bCanAllocate){SetFeedback(TEXT("没有提交：")+Gate.AllocateBlocked);return false;}
-    // One count per catalog stat in catalog order, exactly as the view lists them; a mismatch is a data error, not a guess.
+    // One count per stat in the stats' design order, exactly as the view lists them; a mismatch is a data error, not a guess.
     if(!LatestContent||Latest.StatPoints.Num()!=LatestContent->Stats.Num()||Staged.Num()!=LatestContent->Stats.Num())
     {SetFeedback(TEXT("没有提交：属性数据与内容目录不一致。"));return false;}
     FLDBuildCommand Command;
     Command.Kind=ELDBuildCommandKind::AllocatePoints;
+    const TArray<const FLDDemoStatDefinition*> StatOrder=LatestContent->StatsInDesignOrder();
     for(int32 Index=0;Index<Staged.Num();++Index)
     {
-        if(Latest.StatPoints[Index].StatId!=FName(*LatestContent->Stats[Index].Id)){SetFeedback(TEXT("没有提交：属性数据与内容目录不一致。"));return false;}
+        if(Latest.StatPoints[Index].StatId!=FName(*StatOrder[Index]->Id)){SetFeedback(TEXT("没有提交：属性数据与内容目录不一致。"));return false;}
         Command.PointCounts.Add(uint8(Staged[Index]));
     }
     return Send(Command);
