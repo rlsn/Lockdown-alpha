@@ -225,7 +225,7 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint64 BuildRevision = 0;
     // Earned (opening, levels and the max-level XP grants) minus allocated.
     UPROPERTY() int64 UnspentPoints = 0;
-    // One row per catalog stat, in catalog order.
+    // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
     UPROPERTY() TArray<FLDStatPointsView> StatPoints;
     // Learned Q/W/E actives, by slot.
     UPROPERTY() TArray<FLDActiveSlotView> Actives;
@@ -274,7 +274,7 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() uint8 Slot = AnySlot;
     // LearnBlueprint: the pending blueprint to learn.
     UPROPERTY() FLDDefinitionWire Blueprint;
-    // AllocatePoints: one count per catalog stat, in catalog order, at least one point in total.
+    // AllocatePoints: one count per stat in the stats' design order, at least one point in total.
     UPROPERTY() TArray<uint8> PointCounts;
     // #198 B OpeningBase / InstallComponent / UninstallComponent: the component definition.
     UPROPERTY() FLDDefinitionWire Component;
@@ -308,7 +308,7 @@ struct LOCKDOWN_API FLDBuildReceipt
     // StoredAsBlueprint after bLearnIfPossible: why it was not learned (NotSafe, Dead or NoEmptySlot); None when the
     // command did not ask to learn.
     UPROPERTY() uint16 StoredReason = 0;
-    // AllocatePoints: the points spent per catalog stat.
+    // AllocatePoints: the points spent per stat, in the stats' design order.
     UPROPERTY() TArray<uint8> PointsSpent;
     UPROPERTY() int64 UnspentPointsAfter = 0;
     // #198 B component kinds: the component, whether it is installed after the commit, and (OpeningBase stored without

@@ -1004,13 +1004,14 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         bool bOpening = Test.TestTrue(Who + TEXT(": level 1 at the opening XP holds exactly the opening opportunity"),
             View.bValid && View.Generation == Generation && View.Level == 1 && View.MaxLevel == 16 && View.CumulativeXP == 0
             && View.ActiveOpportunitiesEarned == 1 && View.ActiveOpportunitiesConsumed == 0 && View.QueuedActiveOpportunities == 1);
-        bOpening &= Test.TestTrue(Who + TEXT(": the opening points are unspent, one row per stat in catalog order, nothing learned"),
+        bOpening &= Test.TestTrue(Who + TEXT(": the opening points are unspent, one row per stat in design order, nothing learned"),
             View.UnspentPoints == 3 && View.StatPoints.Num() == Content.Stats.Num() && View.Actives.IsEmpty()
             && View.PendingBlueprints.IsEmpty() && View.BuildRevision == 1);
-        for (int32 Index = 0; Index < View.StatPoints.Num() && Index < Content.Stats.Num(); ++Index)
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+        for (int32 Index = 0; Index < View.StatPoints.Num() && Index < StatOrder.Num(); ++Index)
         {
-            bOpening &= Test.TestTrue(FString::Printf(TEXT("%s: stat row %d is %s with no point"), *Who, Index, *Content.Stats[Index].Id),
-                View.StatPoints[Index].StatId == FName(*Content.Stats[Index].Id) && View.StatPoints[Index].Points == 0);
+            bOpening &= Test.TestTrue(FString::Printf(TEXT("%s: stat row %d is %s with no point"), *Who, Index, *StatOrder[Index]->Id),
+                View.StatPoints[Index].StatId == FName(*StatOrder[Index]->Id) && View.StatPoints[Index].Points == 0);
         }
         bOpening &= Test.TestTrue(Who + TEXT(": the opening offer is kept as opportunity 1 with three distinct actives"),
             View.bHasActiveOffer && View.ActiveOffer.OpportunityOrdinal == 1 && View.ActiveOffer.OfferId.IsValid()
@@ -2395,7 +2396,12 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
             AddError(FString::Printf(TEXT("The boundary at %lld ms did not begin: reject %d"), StepAtMs, int32(Begin)));
             return false;
         }
-        const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+        // Native motion of this fixture: every registered living body moved in the open step.
+        const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [&](const FLDGameplayWritePermit&)
+            {
+                for (auto& Pair : Mode->Lives) { Pair.Value.CompletedMotionStep = Mode->AuthorityStep.StepSerial; }
+                return true;
+            }, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, Phase, Execute, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
         if (!Ran) { AddError(FString::Printf(TEXT("Boundary phase %u failed: %s"), uint32(Phase), *Error)); }
@@ -3104,12 +3110,18 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     // Native time for every boundary below, which must stay at or below the world clock.
     for (int32 Tick = 0; Tick < 200; ++Tick) { World->Tick(LEVELTICK_TimeOnly, .1f); }
     int64 StepAtMs = 0;
+    // Native motion of this fixture: every registered living body moved in the open step.
+    const auto Moved = [&](const FLDGameplayWritePermit&)
+    {
+        for (auto& Pair : Mode->Lives) { Pair.Value.CompletedMotionStep = Mode->AuthorityStep.StepSerial; }
+        return true;
+    };
     const auto RunTransactions = [&](int64 AtMs)
     {
         StepAtMs = FMath::Max(AtMs, StepAtMs + 1);
         Error.Reset();
         const bool bRan = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) == ELDCommitReject::None
-            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Moved, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
                 [&](const FLDGameplayWritePermit& Permit) { return Growth->ProcessTransactions(Permit, Error); }, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
@@ -3124,7 +3136,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         ELDGrowthReason Reason = ELDGrowthReason::None;
         FLDRewardReceipt Receipt;
         const bool bRan = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) == ELDCommitReject::None
-            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Moved, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
                 {
                     Outcome = Growth->CommitEventReward(Id, FName(TEXT("airdrop")), Serial, Amount, Permit, Receipt, Reason);
@@ -3313,13 +3325,22 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Rejected(Commit(Tester, Consumed, 1002, TEXT("A second choice of the consumed opening offer")), ELDGrowthReason::OfferAlreadyCommitted,
         TEXT("A second choice of the consumed opening offer"));
 
-    const FLDBuildCommand Spend = Allocate(Tester, {1, 0, 2, 0, 0});
+    // One physique and two strength points, at their design-order positions.
+    const int32 PhysiqueAt = Content.StatDesignIndex(TEXT("stat_physique")), StrengthAt = Content.StatDesignIndex(TEXT("stat_strength"));
+    if (!TestTrue(TEXT("The catalog has physique and strength"), PhysiqueAt != INDEX_NONE && StrengthAt != INDEX_NONE)) { return false; }
+    TArray<uint8> Counts;
+    Counts.SetNumZeroed(Content.Stats.Num());
+    Counts[PhysiqueAt] = 1;
+    Counts[StrengthAt] = 2;
+    TArray<int32> Allocated;
+    for (const uint8 Count : Counts) { Allocated.Add(Count); }
+    const FLDBuildCommand Spend = Allocate(Tester, Counts);
     const FLDBuildReceipt Spent = Commit(Tester, Spend, 1003, TEXT("Allocating the opening points in the countdown"));
     const FLDAttributeProjectionResult Expected = LDAttributeProjection::Project(FLDAttributeBuildValues(1,
         {FLDStatPointsValue(TEXT("stat_physique"), 1), FLDStatPointsValue(TEXT("stat_strength"), 2)}), *Catalog);
     TestTrue(TEXT("The allocation is applied in one step and reported per stat"), Spent.Header.Outcome == ELDReceiptOutcome::Applied
-        && Spent.Kind == ELDBuildCommandKind::AllocatePoints && Spent.PointsSpent == TArray<uint8>({1, 0, 2, 0, 0})
-        && Spent.UnspentPointsAfter == 0 && BuildOf(Tester).StatPoints == TArray<int32>({1, 0, 2, 0, 0}) && Unspent(Tester) == 0);
+        && Spent.Kind == ELDBuildCommandKind::AllocatePoints && Spent.PointsSpent == Counts
+        && Spent.UnspentPointsAfter == 0 && BuildOf(Tester).StatPoints == Allocated && Unspent(Tester) == 0);
     TestTrue(TEXT("Combat projects the allocated points"), Expected.IsSuccess() && FightOf(Tester).Installed.BuildRevision == BuildOf(Tester).Revision
         && FightOf(Tester).Projection.Final.ADP2 == Expected.Value->Final.ADP2
         && FightOf(Tester).Projection.Final.MaxHPP2 == Expected.Value->Final.MaxHPP2
@@ -3328,7 +3349,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Rejected(Commit(Tester, Allocate(Tester, {0, 0, 0, 0, 1}), 1004, TEXT("A point with none left")), ELDGrowthReason::NotEnoughPoints,
         TEXT("A point with none left"));
     TestTrue(TEXT("A refused allocation changes nothing"), BuildOf(Tester).Revision == RevisionAfterPoints
-        && BuildOf(Tester).StatPoints == TArray<int32>({1, 0, 2, 0, 0}));
+        && BuildOf(Tester).StatPoints == Allocated);
 
     // ---- #198 B: the opening base pick after the opening active, installed in the same countdown commit ----
     const FName Spiky(TEXT("component_spiky_hide"));
@@ -3483,7 +3504,8 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     FightOf(Tester).LastBuildUnsafeAtMs = StepAtMs;
     const FLDBuildReceipt DeadPoints = Commit(Tester, Allocate(Tester, {0, 0, 0, 0, 2}), StepAtMs + 1, TEXT("Allocating while dead"));
     TestTrue(TEXT("The death wait allows allocating, inside the window too"), DeadPoints.Header.Outcome == ELDReceiptOutcome::Applied
-        && DeadPoints.UnspentPointsAfter == 12 && BuildOf(Tester).StatPoints == TArray<int32>({1, 1, 2, 0, 2}));
+        && DeadPoints.UnspentPointsAfter == 12 && BuildOf(Tester).StatPoints
+            == TArray<int32>({Allocated[0], Allocated[1] + 1, Allocated[2], Allocated[3], Allocated[4] + 2}));
 
     // ---- An opportunity without an eligible active waits without an offer and never blocks points ----
     {

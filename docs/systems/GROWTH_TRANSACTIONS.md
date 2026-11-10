@@ -15,7 +15,7 @@ B01–B18 的获取和安装，范围见 [App Spec](../APP_SPEC.md)，
 | `Development\LDGrowthProtocol.h` | 构筑命令、回执、查询、提交结果与本人视图的线协议 |
 | `Development\LDGrowthProviders.cpp` | 向对局门禁注册 Progression 提供者及最终等级读取 |
 
-成长状态是 `FLDGrowthBuild`（等级、按目录顺序每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
+成长状态是 `FLDGrowthBuild`（等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`；目录本身按 id 排序）每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
 按 id 排序的材料实例、构筑修订）与 `FLDProgressionState`（累计 XP、已得/已用主动机会、唯一队首候选组及其修订、已消费机会记录、
 材料池耗尽改给点数的升级次数 `EmptyPoolGrants`）。
 点数不存储：`LDProgression::EarnedPoints` 由等级、XP 与 `EmptyPoolGrants` 派生（开局 `GROWTH.OpeningPoints`、每升一级
@@ -65,7 +65,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | --- | --- | --- |
 | `ActiveChoice` | `OfferId`、`OfferRevision`、`Option`；`bLearnIfPossible` 时 `Slot` 为首选空槽 0..2 或 `AnySlot` | 消费队首机会；能学就学到首选或最低空槽（`Learned`），否则存为待学图纸（`StoredAsBlueprint`，`StoredReason` 为 `NotSafe`/`Dead`/`NoEmptySlot`）；之后才抽下一组 |
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换是 #198 后续的休息服务）为 `SlotOccupied`，图纸保留 |
-| `AllocatePoints` | `PointCounts`（每个五维一格、目录顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
+| `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
 | `OpeningBase` | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；能装就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `NotSafe`/`Dead`/`InvalidTarget`/`ElementUnsupported`；开局主动未选为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
 | `InstallComponent` | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件的目标由 #198 F 接入，现在一律 `InvalidTarget`） |
 | `UninstallComponent` | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；只在休息窗口（`RestOnly`） |

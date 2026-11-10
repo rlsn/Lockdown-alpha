@@ -94,7 +94,7 @@ struct FLDOpponentSelf
     TArray<FLDOpponentActive> Actives;
     // Chosen actives waiting for an empty slot (待学图纸), sorted by id.
     TArray<FString> Blueprints;
-    // One row per catalog stat, in catalog order.
+    // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
     TArray<FLDOpponentStatPoints> StatPoints;
     int64 UnspentPoints = 0;
     // Active opportunities consumed so far, the opening one included.
@@ -251,7 +251,7 @@ struct FLDOpponentBuildIntent
     // LearnBlueprint: the blueprint and the empty slot 0..2.
     FString Blueprint;
     uint8 Slot = 0;
-    // AllocatePoints: one count per catalog stat, in catalog order.
+    // AllocatePoints: one count per stat, in the stats' design order.
     TArray<uint8> PointCounts;
     // OpeningBase / InstallComponent: the component and, for an ActiveElement binding (B18), the bound learned active and
     // element (empty / None otherwise).
@@ -397,7 +397,7 @@ namespace LDOpponentPolicy
         uint8& OutSlot, FString& Error);
     // Every unspent point (at most 255 per stat in one command), each to the stat with the fewest points among the relevant
     // set: physique and thick skin always; strength when a learned active or the basic attack scales with AD; brains when a
-    // learned active scales with AP. Ties go to catalog order. One count per catalog stat; false without unspent points.
+    // learned active scales with AP. Ties go to the stats' design order, which also orders the counts; false without unspent points.
     LOCKDOWN_API bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out,
         FString& Error);
     // #198 B component picks (rule-based, no tunable numbers). Whether the AI could enable Component apart from the build

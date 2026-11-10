@@ -391,10 +391,11 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.BuildRevision = Build.Revision;
     View.UnspentPoints = Unspent;
     View.StatPoints.Reserve(Definitions.Stats.Num());
-    for (int32 Index = 0; Index < Definitions.Stats.Num(); ++Index)
+    const TArray<const FLDDemoStatDefinition*> StatOrder = Definitions.StatsInDesignOrder();
+    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
     {
         FLDStatPointsView& Row = View.StatPoints.AddDefaulted_GetRef();
-        Row.StatId = FName(*Definitions.Stats[Index].Id);
+        Row.StatId = FName(*StatOrder[Index]->Id);
         Row.Points = Build.StatPoints[Index];
     }
     View.Actives.Reserve(Build.Actives.Num());
@@ -1043,11 +1044,12 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
     Input.Level = Build.Level;
     if (Content.IsValid() && Build.StatPoints.Num() == Content->Get().Stats.Num())
     {
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->Get().StatsInDesignOrder();
         for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
         {
             if (Build.StatPoints[Index] != 0)
             {
-                Input.StatPoints.Emplace(Content->Get().Stats[Index].Id, Build.StatPoints[Index]);
+                Input.StatPoints.Emplace(StatOrder[Index]->Id, Build.StatPoints[Index]);
             }
         }
     }
@@ -1255,7 +1257,7 @@ ELDGrowthReason ALDDevelopmentDirector::DevAllocatePoints(const FGuid& Contender
         return ELDGrowthReason::NotContender;
     }
     const FLDDemoContentDefinitions& Definitions = Content->Get();
-    const int32 StatIndex = Definitions.Stats.IndexOfByPredicate([StatId](const FLDDemoStatDefinition& Row) { return FName(*Row.Id) == StatId; });
+    const int32 StatIndex = Definitions.StatDesignIndex(StatId.ToString());
     if (StatIndex == INDEX_NONE)
     {
         Detail = FString::Printf(TEXT("'%s' is not a stat of the approved catalog."), *StatId.ToString());

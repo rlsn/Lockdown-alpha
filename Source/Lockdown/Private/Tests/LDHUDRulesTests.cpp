@@ -464,6 +464,7 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     const LDHUD::FActiveCardView Missing=LDHUD::ActiveCard(TEXT("hud_rules_fixture_bolt"),&Content,Stats);
     TestTrue(TEXT("An active without its display row says so instead of inventing a face"),
         !Missing.bKnown&&Missing.SentencePlain==TEXT("内容目录中找不到该技能"));
+    AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_unknown"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
     TestTrue(TEXT("An active the catalog lacks says so too"),!LDHUD::ActiveCard(TEXT("hud_rules_fixture_unknown"),&Content,Stats).bKnown);
     FLDDemoDisplayDefinition BoltDisplay;BoltDisplay.Id=TEXT("hud_rules_fixture_bolt");BoltDisplay.IconId=TEXT("icon_hud_rules_fixture_bolt");
     BoltDisplay.NameText=TEXT("测试飞弹");BoltDisplay.DescriptionText=TEXT("命中造成 [damage.amount] 魔法伤害并减速。");
@@ -1053,20 +1054,19 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
 
-    // D10 auto-open: a new offer or more unspent points than last seen, in the current match; the first view counts.
+    // D10 auto-open: once per match, for the first view of the opening offer (opportunity 1); later offers and points never.
     LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=7;Growth.UnspentPoints=3;
-    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
-    TestTrue(TEXT("The match's first view with the opening offer and points opens the panel"),AutoOpen.Observe(Growth,7));
+    TestFalse(TEXT("Points without the opening offer open nothing"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();Growth.ActiveOffer.OpportunityOrdinal=1;
+    TestTrue(TEXT("The first view with the opening offer opens the panel"),AutoOpen.Observe(Growth,7));
     TestFalse(TEXT("The same view does not open it again"),AutoOpen.Observe(Growth,7));
-    Growth.UnspentPoints=0;
-    TestFalse(TEXT("Spending points opens nothing"),AutoOpen.Observe(Growth,7));
-    Growth.UnspentPoints=3;
-    TestTrue(TEXT("Newly earned points open it"),AutoOpen.Observe(Growth,7));
-    Growth.bHasActiveOffer=false;
-    TestFalse(TEXT("A consumed offer opens nothing"),AutoOpen.Observe(Growth,7));
-    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
-    TestTrue(TEXT("A new offer opens it"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=false;Growth.UnspentPoints=6;
+    TestFalse(TEXT("Newly earned points open nothing"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();Growth.ActiveOffer.OpportunityOrdinal=2;
+    TestFalse(TEXT("A later offer opens nothing; it only lights the button"),AutoOpen.Observe(Growth,7));
     TestFalse(TEXT("A view of another match opens nothing"),AutoOpen.Observe(Growth,8));
+    Growth.Generation=8;Growth.ActiveOffer.OpportunityOrdinal=1;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
+    TestTrue(TEXT("A new match's opening offer opens it again"),AutoOpen.Observe(Growth,8));
     return true;
 }
 
@@ -1178,7 +1178,7 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     Pending.Components.Last().bInstalled=Pending.Components.Last().bEverInstalled=true;
     TestFalse(TEXT("Nothing left to enable lights nothing"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
 
-    // Auto-open: the opening base pick once, then each new never-installed component; enabling one opens nothing.
+    // Auto-open: the opening base pick once; a new component from a level-up only lights the button (no fight cover).
     LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=11;
     TestFalse(TEXT("An empty first view opens nothing"),AutoOpen.Observe(Growth,11));
     Growth.bOpeningBasePending=true;Growth.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
@@ -1187,9 +1187,7 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     Growth.bOpeningBasePending=false;Growth.OpeningBaseOptions.Reset();Growth.Components={Owned(TEXT("hud_fixture_fist"),true)};
     TestFalse(TEXT("A pick enabled at once opens nothing"),AutoOpen.Observe(Growth,11));
     Growth.Components.Add(Owned(TEXT("hud_fixture_trick")));
-    TestTrue(TEXT("A new component from a level-up opens it"),AutoOpen.Observe(Growth,11));
-    Growth.Components.Last().bInstalled=Growth.Components.Last().bEverInstalled=true;
-    TestFalse(TEXT("Enabling it opens nothing"),AutoOpen.Observe(Growth,11));
+    TestFalse(TEXT("A new component from a level-up opens nothing"),AutoOpen.Observe(Growth,11));
     return true;
 }
 

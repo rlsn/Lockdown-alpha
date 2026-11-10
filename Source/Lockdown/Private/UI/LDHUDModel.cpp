@@ -1510,15 +1510,10 @@ bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
 bool LDHUD::FGrowthAutoOpen::Observe(const FLDProgressionView& View,uint32 Match)
 {
     if(!View.bValid||Match==0||View.Generation!=Match){return false;}
-    if(SeenMatch!=Match){SeenMatch=Match;SeenOffer.Invalidate();SeenUnspent=0;bSeenOpeningBase=false;SeenFreshComponents=0;}
-    const bool bNewOffer=View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OfferId!=SeenOffer;
-    const bool bMorePoints=View.UnspentPoints>SeenUnspent;
-    const bool bOpeningBase=View.bOpeningBasePending&&!View.OpeningBaseOptions.IsEmpty();
-    int32 Fresh=0;
-    for(const FLDComponentInstanceView& Owned:View.Components){if(!Owned.bInstalled&&!Owned.bEverInstalled){++Fresh;}}
-    const bool bNewBase=bOpeningBase&&!bSeenOpeningBase;
-    const bool bNewComponent=Fresh>SeenFreshComponents;
-    if(View.bHasActiveOffer){SeenOffer=View.ActiveOffer.OfferId;}
-    SeenUnspent=View.UnspentPoints;bSeenOpeningBase=bOpeningBase;SeenFreshComponents=Fresh;
-    return bNewOffer||bMorePoints||bNewBase||bNewComponent;
+    if(SeenMatch!=Match){SeenMatch=Match;bOpeningShown=false;bOpeningBaseShown=false;}
+    const bool bOpeningOffer=!bOpeningShown&&View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OpportunityOrdinal==1;
+    const bool bOpeningBase=!bOpeningBaseShown&&View.bOpeningBasePending&&!View.OpeningBaseOptions.IsEmpty();
+    if(bOpeningOffer){bOpeningShown=true;}
+    if(bOpeningBase){bOpeningBaseShown=true;}
+    return bOpeningOffer||bOpeningBase;
 }
