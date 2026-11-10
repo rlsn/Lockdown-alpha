@@ -180,6 +180,33 @@ COMPONENT_FRAMES = {
     "component_held_shot": ("憋着一发狠的", DIRECT_DAMAGE_OPENING, [("idle_ready_amp", {"delay": 2, "ratio": r(".2")})]),
     "component_dirty_trick": ("招里掺点脏的", DIRECT_DAMAGE_OPENING, [("active_element", {})]),
 }
+# #198 F mods M01-M12 and connectors C01-C12 in native ID order (catalog sections 8-10): name, kind, pool.
+WORKSHOP_FRAMES = {
+    "component_crowd_hit": ("一群人一起挨", "mod", "common"),
+    "component_settle_later": ("等会儿一起算", "mod", "common"),
+    "component_long_kick": ("一脚踹出老远", "mod", "common"),
+    "component_hold_down": ("按住多揍一会", "mod", "common"),
+    "component_reach_out": ("站远点照样抽你", "mod", "common"),
+    "component_again_now": ("再来一下别喘", "mod", "common"),
+    "component_one_slam": ("合一块砸你", "mod", "common"),
+    "component_ram_through": ("闷头撞到底", "mod", "common"),
+    "component_quick_hop": ("蹿两步就回头", "mod", "common"),
+    "component_big_tab": ("攒够一顿狠的", "mod", "common"),
+    "component_pick_you": ("就逮着你揍", "mod", "scarce"),
+    "component_owe_it": ("这顿打先欠着", "mod", "scarce"),
+    "component_fire_skin": ("烧着还挺扛揍", "connector", "common"),
+    "component_ball_kick": ("拿你当球踢", "connector", "common"),
+    "component_bump_again": ("撞着了再撞", "connector", "common"),
+    "component_roll_bump": ("滚过去撞他", "connector", "common"),
+    "component_pin_punch": ("摁住再补一拳", "connector", "common"),
+    "component_after_pin": ("炸完再摁住", "connector", "common"),
+    "component_control_mana": ("控住薅点蓝", "connector", "common"),
+    "component_breath_strike": ("回口气就抽你", "connector", "common"),
+    "component_blast_chase": ("炸完追着揍", "connector", "common"),
+    "component_shell_burst": ("壳碎了也崩你", "connector", "common"),
+    "component_hurt_heal": ("打疼了我回血", "connector", "common"),
+    "component_dirty_fist": ("拳上的脏活也算", "connector", "scarce"),
+}
 
 
 class ApprovedDemoData(unittest.TestCase):
@@ -356,7 +383,14 @@ class ApprovedDemoData(unittest.TestCase):
             "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82,
             "primary_guard": 86, "dash_contact_damage": 87, "dash_contact_refund": 88,
             "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "grievous": 96,
-            "ledger": 100, "basic_element": 101, "basic_damage_scale": 102, "idle_ready_amp": 103, "active_element": 104})
+            "ledger": 100, "basic_element": 101, "basic_damage_scale": 102, "idle_ready_amp": 103, "active_element": 104,
+            # #198 F mods and connectors.
+            "spread_unit": 120, "spread_projectile": 121, "spread_ledger": 122, "spread_counter": 123, "delay_ledger": 124,
+            "delay_counter": 125, "knockback_scale": 126, "control_scale": 127, "range_bonus": 128, "counter_range_bonus": 129,
+            "cooldown_cost": 130, "compress_cone": 131, "compress_zone": 132, "dash_scale": 133, "ledger_variant": 134,
+            "marked_counter": 135, "damage_defer": 136, "fire_shield": 137, "knockback_impact": 138, "contact_knockback": 139,
+            "control_mark": 140, "aftershock": 141, "control_mana": 142, "heal_counter": 143, "reaction_empower": 144,
+            "shield_burst": 145, "skill_lifesteal": 146, "extra_base": 147, "compress_chain": 148})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -384,6 +418,7 @@ class ApprovedDemoData(unittest.TestCase):
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
             # #198 B base components B01-B18.
             **{identity: frame[0] for identity, frame in COMPONENT_FRAMES.items()},
+            **{identity: frame[0] for identity, frame in WORKSHOP_FRAMES.items()},
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
@@ -405,7 +440,7 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertFalse({"advanced_key", "advanced_text"} & set(row))
                 if row["id"] in ACTIVE_FRAMES or row["id"] in STAT_POINTS:
                     self.assertIn("[", row["description_text"])
-                if row["id"] in COMPONENT_FRAMES:
+                if row["id"] in COMPONENT_FRAMES or row["id"] in WORKSHOP_FRAMES:
                     self.assertEqual(row["icon_id"], "icon_" + row["id"])
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
@@ -477,7 +512,11 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_all_base_component_values_openings_and_category_bands(self):
         # #198 B: B01-B18 at G=1 in native ID order (issue #198 catalog section 7, AI spec section 4.3).
-        self.assertEqual([row["id"] for row in self.data["components"]], list(COMPONENT_FRAMES))
+        self.assertEqual([row["id"] for row in self.data["components"]], list(COMPONENT_FRAMES) + list(WORKSHOP_FRAMES))
+        for number, (identity, (_, kind, pool)) in enumerate(WORKSHOP_FRAMES.items(), len(COMPONENT_FRAMES) + 1):
+            with self.subTest(identity=identity):
+                row = self.catalog.definition(identity)
+                self.assertEqual((row["native_id"], row["kind"], row["pool"], "opening" in row), (number, kind, pool, False))
         for number, (identity, (name, opening, effects)) in enumerate(COMPONENT_FRAMES.items(), 1):
             with self.subTest(identity=identity):
                 row = self.catalog.definition(identity)
