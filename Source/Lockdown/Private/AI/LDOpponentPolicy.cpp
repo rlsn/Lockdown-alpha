@@ -1573,15 +1573,10 @@ bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefiniti
 {
     OutBoundActive.Reset();
     OutElement = ELDDemoElement::None;
-    // Mods and connectors take targets (#198 F); water and electric have no element state before #198 A (ElementUnsupported).
-    const auto Closed = [](ELDDemoElement Element) { return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric; };
-    if (Component.Kind != ELDDemoComponentKind::Base
-        || Component.Effects.ContainsByPredicate([&Closed](const FLDDemoEffectDefinition& Effect) { return Closed(Effect.Element); }))
-    {
-        return false;
-    }
+    // Mods and connectors take targets (#198 F).
+    if (Component.Kind != ELDDemoComponentKind::Base) { return false; }
     if (Component.Binding == ELDDemoComponentBinding::None) { return true; }
-    if (Component.Binding != ELDDemoComponentBinding::ActiveElement || !Component.BindElements.Contains(ELDDemoElement::Fire)) { return false; }
+    if (Component.Binding != ELDDemoComponentBinding::ActiveElement || Component.BindElements.IsEmpty()) { return false; }
     for (uint8 Slot = 0; Slot < 3; ++Slot)
     {
         const FLDOpponentActive* Active = Self.Actives.FindByPredicate([Slot](const FLDOpponentActive& A) { return A.Slot == Slot; });
@@ -1589,7 +1584,7 @@ bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefiniti
             { return Id.Equals(Active->DefinitionId, ESearchCase::CaseSensitive); }))
         {
             OutBoundActive = Active->DefinitionId;
-            OutElement = ELDDemoElement::Fire;
+            OutElement = Component.BindElements[0];
             return true;
         }
     }

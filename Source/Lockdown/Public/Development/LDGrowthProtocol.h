@@ -51,7 +51,8 @@ enum class ELDBuildChoiceResult : uint8 { None = 0, Learned = 1, StoredAsBluepri
 enum class ELDRewardOutcome : uint8 { None = 0, Granted = 1, NoReward = 2, RetryableNotCommitted = 3, PermanentlyRejected = 4 };
 
 // Travels as UPROPERTY uint16 Reason; read through LDGrowthWire::Reason. Retired numbers stay reserved: 40 NoOffer,
-// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198).
+// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198), and 65
+// ElementUnsupported (#198 B, water/electric before the #198 A element state).
 enum class ELDGrowthReason : uint16
 {
     None = 0,
@@ -68,9 +69,9 @@ enum class ELDGrowthReason : uint16
     PhaseClosed = 58,
     // #198 B components: NotOwned (no such instance), AlreadyInstalled, NotInstalled, RestOnly (moving/uninstalling or
     // re-installing a once-installed instance needs the rest window), InvalidTarget (wrong target kind/binding),
-    // ElementUnsupported (water/electric before the #198 A element state lands), OpeningBaseUnavailable (not an option of
-    // the current opening pick), OpeningBaseTaken (already picked), OpeningActiveFirst (opening active not chosen yet).
-    NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, RestOnly = 63, InvalidTarget = 64, ElementUnsupported = 65,
+    // OpeningBaseUnavailable (not an option of the current opening pick), OpeningBaseTaken (already picked),
+    // OpeningActiveFirst (opening active not chosen yet).
+    NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, RestOnly = 63, InvalidTarget = 64,
     OpeningBaseUnavailable = 66, OpeningBaseTaken = 67, OpeningActiveFirst = 68,
     // #198 rest: a rest step whose builds are locked (draw, betting, PK, settlement, return countdown).
     BuildLocked = 70,
@@ -331,7 +332,7 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() TArray<uint8> PointsSpent;
     UPROPERTY() int64 UnspentPointsAfter = 0;
     // #198 B component kinds: the component, whether it is installed after the commit, and (OpeningBase stored without
-    // install) why not (NotSafe, Dead, InvalidTarget, ElementUnsupported); None when not asked.
+    // install) why not (NotSafe, Dead, InvalidTarget); None when not asked.
     UPROPERTY() FName ComponentId;
     UPROPERTY() bool bComponentInstalled = false;
     UPROPERTY() uint16 InstallStoredReason = 0;

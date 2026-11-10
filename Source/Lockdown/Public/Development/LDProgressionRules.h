@@ -299,8 +299,7 @@ namespace LDProgression
     // only (RestOnly). PhaseClosed or LifePhaseChanged outside the match.
     LOCKDOWN_API ELDGrowthReason InstallGate(const FBuildContext& Context, bool bEverInstalled);
     // Whether Target is a legal install of Component on Build: a base component takes no target; its binding needs a learned
-    // active of BindActives and an element of BindElements (InvalidTarget otherwise). Water and electric (a binding or an
-    // effect element) are ElementUnsupported until the #198 A element state lands. Mods and connectors are InvalidTarget
+    // active of BindActives and an element of BindElements (InvalidTarget otherwise). Mods and connectors are InvalidTarget
     // until #198 F adds their targets.
     LOCKDOWN_API ELDGrowthReason InstallTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FName Component, const FLDComponentTarget& Target);

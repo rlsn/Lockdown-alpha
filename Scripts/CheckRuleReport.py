@@ -108,7 +108,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Components.EmpowerMerge",
         "Lockdown.Rules.Combat.Components.DashEmpower",
         "Lockdown.Rules.Combat.Components.Ledger",
-        "Lockdown.Rules.Combat.Components.ElementGate",
+        "Lockdown.Rules.Combat.Components.Elements",
         "Lockdown.Rules.DemoCore.BodyIdentity",
         "Lockdown.Rules.DemoCore.CaptureCompletesInsideStep",
         "Lockdown.Rules.DemoCore.CheckedTime",

@@ -1264,10 +1264,10 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A once-installed component waits for the rest window"),!Shown.bCanEnable&&Shown.Blocked==LDTerms::ReinstallAtRest);
     Shown=Row(Owned(TEXT("hud_fixture_fist"),true),Safe,1000);
     TestTrue(TEXT("An installed component reads as enabled, without a button"),Shown.bInstalled&&!Shown.bCanEnable&&Shown.Blocked.IsEmpty());
-    for(const TCHAR* Closed:{TEXT("hud_fixture_wet"),TEXT("hud_fixture_shock")})
+    for(const TCHAR* Element:{TEXT("hud_fixture_wet"),TEXT("hud_fixture_shock")})
     {
-        Shown=Row(Owned(Closed),Rest,0);
-        TestTrue(FString(TEXT("Water and electric stay closed even in the rest window: "))+Closed,!Shown.bCanEnable&&Shown.Blocked==LDTerms::ElementClosed);
+        Shown=Row(Owned(Element),Safe,1000);
+        TestTrue(FString(TEXT("Water and electric components can be enabled like any base: "))+Element,Shown.bCanEnable&&Shown.Blocked.IsEmpty());
     }
     Shown=Row(Owned(TEXT("hud_fixture_trick")),Safe,1000);
     TestTrue(TEXT("A binding component without a bindable learned active says so"),!Shown.bCanEnable&&Shown.bBinding&&Shown.Blocked==LDTerms::NoBindableActive);
@@ -1279,14 +1279,12 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A mod has no target before #198 F"),Row(Owned(TEXT("hud_fixture_mod")),Safe,1000).Blocked,LDHUD::GrowthReasonText(ELDGrowthReason::InvalidTarget));
     TestEqualSensitive(TEXT("An unknown component is never shown as enabled or enable-able"),Row(Owned(TEXT("hud_fixture_unknown")),Safe,1000).Blocked,
         FString(TEXT("内容目录中找不到该构件")));
-    TestTrue(TEXT("Only fire is open among the binding elements"),LDHUD::ElementGate(ELDDemoElement::Fire)==ELDGrowthReason::None
-        &&LDHUD::ElementGate(ELDDemoElement::Water)==ELDGrowthReason::ElementUnsupported&&LDHUD::ElementGate(ELDDemoElement::Electric)==ELDGrowthReason::ElementUnsupported);
     TestTrue(TEXT("Element names"),LDHUD::ElementName(ELDDemoElement::Fire)==LDTerms::ElementFire&&LDHUD::ElementName(ELDDemoElement::Water)==LDTerms::ElementWater
         &&LDHUD::ElementName(ELDDemoElement::Electric)==LDTerms::ElementElectric);
 
     // Every #198 B reason names itself; none falls through to the unknown line.
     for(const ELDGrowthReason Reason:{ELDGrowthReason::NotOwned,ELDGrowthReason::AlreadyInstalled,ELDGrowthReason::NotInstalled,ELDGrowthReason::RestOnly,
-        ELDGrowthReason::InvalidTarget,ELDGrowthReason::ElementUnsupported,ELDGrowthReason::OpeningBaseUnavailable,ELDGrowthReason::OpeningBaseTaken,
+        ELDGrowthReason::InvalidTarget,ELDGrowthReason::OpeningBaseUnavailable,ELDGrowthReason::OpeningBaseTaken,
         ELDGrowthReason::OpeningActiveFirst})
     {
         const FString Text=LDHUD::GrowthReasonText(Reason);
@@ -1301,9 +1299,6 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     Receipt.bComponentInstalled=false;Receipt.InstallStoredReason=uint16(ELDGrowthReason::NotSafe);
     TestEqualSensitive(TEXT("An opening pick kept for later names the wait"),LDHUD::BuildReceiptText(Receipt,nullptr,2500,true,1000),
         LDTerms::ComponentStored(TEXT("hud_fixture_fist"),TEXT("未脱战 1.5 秒")));
-    Receipt.InstallStoredReason=uint16(ELDGrowthReason::ElementUnsupported);
-    TestEqualSensitive(TEXT("A closed element keeps it stored"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
-        LDTerms::ComponentStored(TEXT("hud_fixture_fist"),LDTerms::ElementClosed));
     Receipt.Kind=ELDBuildCommandKind::InstallComponent;Receipt.bComponentInstalled=true;Receipt.InstallStoredReason=0;
     TestEqualSensitive(TEXT("An install names the component"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
     Receipt.bComponentInstalled=false;
