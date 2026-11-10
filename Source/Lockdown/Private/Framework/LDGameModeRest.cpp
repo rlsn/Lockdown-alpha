@@ -9,8 +9,8 @@
 #include "World/LDCampDirector.h"
 #include "Engine/World.h"
 
-// #198 rest phases (approved outer parameters, issue #198 comment 6752601175 §1/§8/§9; coordinator decisions under the
-// user's delegation for the private rest space and the training dummy). The pure FLDMatchTimeline schedules the rests and
+// #198 rest phases (approved outer parameters, issue #198 comment 6752601175 §1/§8/§9; the private rest space is a
+// coordinator decision under the user's delegation). The pure FLDMatchTimeline schedules the rests and
 // the field progress T; this file applies its transitions to lives, the world and the public read model.
 //
 // Private rest space: every contender's rest life stands at a fixed approved spawn anchor chosen by its locked roster slot
@@ -329,6 +329,14 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
         Actor->Destroy();
     }
     Life->Actor.Reset();
+    // This step's batches of the retired body were consumed when accepted (capture reads them synchronously); release
+    // them now, like the next step would, so the next life can be placed at this boundary.
+    if (!Life->NativeMotion.IsEmpty())
+    {
+        Life->MotionAckStep = Life->NativeMotion.Last()->Step.StepSerial;
+        Life->MotionAckSequence = Life->NativeMotion.Last()->ThroughSequence;
+        Life->NativeMotion.Reset();
+    }
     RestLives.Remove(Contender);
     if (Controller) { SyncOwner(Controller); }
     NotifyLife(Body, ELDLifeChange::PhaseRetired, Life->Revision, AuthorityNowMs);

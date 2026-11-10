@@ -104,8 +104,10 @@ struct FLDOpponentProbeTrack
     int64 MaxLevel = 0;
     int64 MaxXP = 0;
     int64 MaxConsumed = 0;
-    // Match ms at the first sample that saw a consumed choice; the D10 opening pick resolves right after spawn.
+    // Ms since the match start (R0) at the first sample that saw a consumed choice; the D10 opening pick resolves in R0.
     int64 OpeningPickMs = -1;
+    // #198: the field respawn wait fixed by the field progress T of the death being tracked (8/10/12/15 s by segment).
+    int64 RespawnWaitMs = 0;
     // Development only: XP at the last sample before the circle opened, and sampled time spent dead or recovering
     // under the approved regeneration. A stuck AI shows neither.
     int64 DevXP = 0;
@@ -126,13 +128,15 @@ public:
     bool RosterKept = true, ReadsKept = true;
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
-    // #153: each AI body's foot when the countdown was first sampled, and the largest drift seen before T=0.
-    TMap<TWeakObjectPtr<ALDOpponentController>, FVector> CountdownAIFeet;
-    TMap<FGuid, int64> CountdownPicks;
-    double MaxCountdownAIDriftCm = 0;
-    int32 CountdownSamples = 0;
+    // #198: each AI body's foot when the opening rest R0 was first sampled, the largest drift seen before field 1, and
+    // the ms since the match start (R0) at which each AI's opening choice was first seen.
+    TMap<TWeakObjectPtr<ALDOpponentController>, FVector> Rest0AIFeet;
+    TMap<FGuid, int64> Rest0Picks;
+    double MaxRest0AIDriftCm = 0;
+    int32 Rest0Samples = 0;
     uint32 FirstGeneration = 0;
-    int64 RespawnMs = 0, DevelopmentMs = 0, NextSampleMs = 0, StartedAtMs = -1;
+    // Development: the three timed field segments before the flagpole opens at the final field.
+    int64 DevelopmentMs = 0, NextSampleMs = 0, StartedAtMs = -1;
     int32 MaxSeenOpponents = 0;
     // Rendered Host only: up to three presentation screenshots of the running match (HUD review evidence, never a check).
     int32 Shots = 0;
@@ -294,6 +298,28 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     const FLDPublicMatchView Public = Mode.ReadPublicMatch();
     if (StartedAtMs < 0) { StartedAtMs = Public.StartedAtMs; }
     const bool bDevelopment = Public.Phase == ELDMatchPhase::Development;
+    // #198: a rest retires every field life without a death, ends every running respawn wait and stands each body in its
+    // private rest space; the field return places a new life. None of that is a death, a respawn or travel through the map.
+    if (Public.Phase == ELDMatchPhase::Rest)
+    {
+        for (FLDOpponentProbeTrack& Track : Tracks)
+        {
+            FLDContenderLifeRead Life;
+            FString ReadError;
+            if (!Track.Controller.Get() || !Mode.ReadContenderLife(Mode.GetMatchContext(), Track.Contender, Life, ReadError))
+            {
+                ReadsKept = false;
+                continue;
+            }
+            Track.Phase = Life.Phase;
+            Track.Life = Life.Life;
+            Track.DeadSeenAtMs = -1;
+            Track.ActCheckDueMs = -1;
+            Track.bHasFeet = false;
+            ReadGrowth(Mode, Track);
+        }
+        return;
+    }
     // No backfill or replacement: the same three adapters for the same three contenders throughout.
     TSet<FGuid> Live;
     for (TActorIterator<ALDOpponentController> It(&World); It; ++It)
@@ -318,6 +344,7 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
             if (Track.DeadSeenAtMs < 0)
             {
                 Track.DeadSeenAtMs = Now;
+                Track.RespawnWaitMs = Mode.RespawnWaitAtFieldMs(Mode.GetFieldNowMs());
                 ++Track.Deaths;
                 Track.ActBase = Body;
             }
@@ -327,7 +354,7 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
         {
             const int64 Waited = Now - Track.DeadSeenAtMs;
             Track.LongestRespawnMs = FMath::Max(Track.LongestRespawnMs, Waited);
-            Track.bRespawnsValid &= Life.Life == Track.Life + 1 && Waited <= RespawnMs + RespawnSlackMs;
+            Track.bRespawnsValid &= Life.Life == Track.Life + 1 && Waited <= Track.RespawnWaitMs + RespawnSlackMs;
             ++Track.Respawns;
             Track.DeadSeenAtMs = -1;
             Track.ActCheckDueMs = Now + ActAfterRespawnMs;
@@ -495,7 +522,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         if (const ALDOpponentController* AI = Track.Controller.Get()) { Track.Tally = AI->GetRequestTally(); }
         ReadGrowth(Mode, Track);
         // A death whose respawn time had not come when the match closed is not a late respawn.
-        if (Track.DeadSeenAtMs >= 0 && EndedAtMs - Track.DeadSeenAtMs > RespawnMs + RespawnSlackMs) { Track.bRespawnsValid = false; }
+        if (Track.DeadSeenAtMs >= 0 && EndedAtMs - Track.DeadSeenAtMs > Track.RespawnWaitMs + RespawnSlackMs) { Track.bRespawnsValid = false; }
         // A respawn shortly before the close settles against the final tally once it acted or its window had passed.
         if (Track.ActCheckDueMs >= 0)
         {
@@ -525,8 +552,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         // Refusals on receipt. Admission refusals are reported (orders_rejected), not bounded here: a body that navigation
         // finds standing on no registered support has every walk refused, a world fault the AI cannot loop on (#160, #163).
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
-        const int64* OpeningAt = CountdownPicks.Find(Track.Contender);
-        OpeningPicks &= OpeningAt && *OpeningAt >= 1000 && *OpeningAt < Content->Get().Parameters.CountdownMs;
+        const int64* OpeningAt = Rest0Picks.Find(Track.Contender);
+        // The AI picks after its drawn delay into the R0 build step, never after the build step ends.
+        OpeningPicks &= OpeningAt && *OpeningAt >= 1000 && *OpeningAt < Content->Get().Parameters.RestOpeningBuildMs;
         // An early rival fight at level one can leave a body waiting on regeneration for most of development; that is
         // the approved pacing, not a stall. Without XP, at least half of development must have been dead or recovering.
         DevGrowth &= Track.DevXP > 0 || 2 * Track.DevRecoverOrDeadMs >= DevelopmentMs;
@@ -544,9 +572,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("level"), double(Track.MaxLevel));
         Value->SetNumberField(TEXT("xp"), double(Track.MaxXP));
         Value->SetNumberField(TEXT("choices"), double(Track.MaxConsumed));
-        Value->SetNumberField(TEXT("opening_pick_ms"),
-            double(OpeningAt ? *OpeningAt - Content->Get().Parameters.CountdownMs : Track.OpeningPickMs));
-        Value->SetNumberField(TEXT("opening_countdown_pick_ms"), double(OpeningAt ? *OpeningAt : -1));
+        Value->SetNumberField(TEXT("opening_pick_ms"), double(OpeningAt ? *OpeningAt : Track.OpeningPickMs));
         Value->SetNumberField(TEXT("dev_xp"), double(Track.DevXP));
         Value->SetNumberField(TEXT("dev_recover_or_dead_ms"), double(Track.DevRecoverOrDeadMs));
         Value->SetNumberField(TEXT("kills"), Row ? double(Row->Kills) : -1.);
@@ -610,7 +636,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
         TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
-    Check(OpeningPicks, TEXT("Every AI chose its opening active during the countdown, never moving"));
+    Check(OpeningPicks, TEXT("Every AI chose its opening active in the opening rest R0's build step, never moving"));
     Check(DevGrowth, TEXT("Every AI gained experience before the circle opened, unless it spent at least half of development dead or recovering"));
     // D12: decisions are counted from each adapter's own frames; a released decision is a stop-loss exit.
     Record(!PausedHolds ? ELDOpponentProbeCheck::NotExercised
@@ -647,14 +673,13 @@ bool FLDDemoOpponentProbe::Tick()
     if (!PC || !World || !Public) { return true; }
     if (!Content)
     {
-        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || Content->Get().Parameters.RespawnMs <= 0
-            || Content->Get().Parameters.DevelopmentMs <= 0)
+        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || Content->Get().Parameters.FieldSegmentMs <= 0
+            || Content->Get().Parameters.RestOpeningBuildMs <= 0 || Content->Get().Parameters.RespawnField1Ms <= 0)
         {
-            Check(false, TEXT("Approved content with positive respawn and development durations loads"));
+            Check(false, TEXT("Approved content with positive field, opening rest and respawn durations loads"));
             return Finish();
         }
-        RespawnMs = Content->Get().Parameters.RespawnMs;
-    DevelopmentMs = Content->Get().Parameters.DevelopmentMs;
+        DevelopmentMs = int64(FLDTimelineParameters::TimedSegments) * Content->Get().Parameters.FieldSegmentMs;
     }
     const bool bHost = Role == TEXT("Host");
     if (bHost && !Mode) { return true; }
@@ -717,25 +742,26 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #153: through the opening countdown no opponent AI moves (sampled on the authority until T=0).
-        if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsOpeningCountdown(Mode->GetMatchContext()))
+        // #198: through the opening rest R0 no opponent AI moves (sampled on the authority until field 1); each picks its
+        // opening active in the R0 build step after its drawn delay.
+        if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
+            && Mode->GetTimeline().GetRestIndex() == 0)
         {
             for (TActorIterator<ALDOpponentController> It(World); It; ++It)
             {
                 const APawn* Pawn = It->GetPawn();
                 if (!Pawn) { continue; }
                 const FVector Foot = Pawn->GetActorLocation();
-                if (const FVector* First = CountdownAIFeet.Find(*It))
-                { MaxCountdownAIDriftCm = FMath::Max(MaxCountdownAIDriftCm, FVector::Dist2D(*First, Foot)); }
-                else { CountdownAIFeet.Add(*It, Foot); }
+                if (const FVector* First = Rest0AIFeet.Find(*It))
+                { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(*First, Foot)); }
+                else { Rest0AIFeet.Add(*It, Foot); }
                 const FLDProgressionView Growth = Mode->Development->ReadProgression(Mode->ContenderId(*It));
-                if (Growth.ActiveOpportunitiesConsumed == 1 && !CountdownPicks.Contains(Mode->ContenderId(*It)))
+                if (Growth.ActiveOpportunitiesConsumed == 1 && !Rest0Picks.Contains(Mode->ContenderId(*It)))
                 {
-                    CountdownPicks.Add(Mode->ContenderId(*It),
-                        Mode->GetAuthorityNowMs() - View.StartedAtMs + Content->Get().Parameters.CountdownMs);
+                    Rest0Picks.Add(Mode->ContenderId(*It), Mode->GetAuthorityNowMs() - Mode->ReadPublicMatch().StartedAtMs);
                 }
             }
-            ++CountdownSamples;
+            ++Rest0Samples;
             return true;
         }
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Cast<ALDCharacter>(PC->GetPawn())
@@ -745,10 +771,10 @@ bool FLDDemoOpponentProbe::Tick()
             TEXT("The room plays with three humans and three AI on the locked roster"));
         if (bHost)
         {
-            Check(CountdownSamples > 0 && CountdownAIFeet.Num() == OpponentCount && MaxCountdownAIDriftCm < 1.,
-                TEXT("No opponent AI moves during the opening countdown"));
-            Summary->SetNumberField(TEXT("countdown_samples"), CountdownSamples);
-            Summary->SetNumberField(TEXT("countdown_ai_drift_cm"), MaxCountdownAIDriftCm);
+            Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1.,
+                TEXT("No opponent AI moves during the opening rest R0"));
+            Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
+            Summary->SetNumberField(TEXT("rest0_ai_drift_cm"), MaxRest0AIDriftCm);
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
         if (!Passed) { return Finish(); }
@@ -759,11 +785,13 @@ bool FLDDemoOpponentProbe::Tick()
     {
         int64 MarkNowMs = 0;
         if (!bPlaytestMarked && View.Phase == ELDMatchPhase::Development && PC->ReadDemoAuthorityTimeMs(MarkNowMs)
-            && MarkNowMs - View.StartedAtMs >= 60000)
+            && LDMatchTimeline::FieldNowFromView(View.Timeline, MarkNowMs) >= 60000)
         {
             PC->PlaytestMark();
             bPlaytestMarked = true;
         }
+        // Rests are sampled too: their phase-boundary lives are neither deaths nor respawns.
+        if (bHost && View.Phase == ELDMatchPhase::Rest) { Sample(*World, *Mode); }
         if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen))
         { Sample(*World, *Mode); CaptureHost(*PC); ReviewShots(*PC, *Public, false); }
         if (!bHost)
@@ -843,13 +871,14 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         || Cast<ALDOpponentController>(&Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoOpponentProbe>();
-    int32 Timeout = 720;
+    // #198: a full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final field.
+    int32 Timeout = 1200;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentRole="), Probe->Role)
         || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2")
             && Probe->Role != TEXT("Telemetry"))
-        || Timeout < 300 || Timeout > 900
+        || Timeout < 300 || Timeout > 1800
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {

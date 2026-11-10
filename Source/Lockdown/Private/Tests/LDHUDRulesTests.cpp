@@ -205,6 +205,7 @@ bool FLDHUDOwnResourcesTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Any live remainder reads at least a tenth"),LDHUD::TenthsUp(1),FString(TEXT("0.1s")));
     TestEqualSensitive(TEXT("Remainders round up to the next tenth"),LDHUD::TenthsUp(101),FString(TEXT("0.2s")));
     TestTrue(TEXT("Development names the closed capture point"),LDHUD::PhaseLine(ELDMatchPhase::Development).Contains(LDTerms::CapturePoint));
+    TestEqualSensitive(TEXT("#198: a rest has its own phase line"),LDHUD::PhaseLine(ELDMatchPhase::Rest),FString(LDTerms::RestPhase));
     TestTrue(TEXT("An authority fault is stated explicitly"),LDHUD::PhaseLine(ELDMatchPhase::Faulted).Contains(TEXT("故障")));
     return true;
 }
@@ -248,26 +249,89 @@ bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMatchTimerTest,"Lockdown.Rules.HUDMatchTimer",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDMatchTimerTest::RunTest(const FString& Parameters)
 {
-    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Countdown;Public.StartedAtMs=50000;
-    TestEqualSensitive(TEXT("The opening countdown reads 0:00: the match time starts at T=0"),LDHUD::MatchTimer(Public,true,46000),FString(TEXT("0:00")));
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Rest;Public.StartedAtMs=50000;
+    TestEqualSensitive(TEXT("A clock behind the match start reads 0:00"),LDHUD::MatchTimer(Public,true,46000),FString(TEXT("0:00")));
+    TestEqualSensitive(TEXT("The match start (the opening rest) reads 0:00"),LDHUD::MatchTimer(Public,true,50000),FString(TEXT("0:00")));
     Public.Phase=ELDMatchPhase::Development;
-    TestEqualSensitive(TEXT("T=0 reads 0:00"),LDHUD::MatchTimer(Public,true,50000),FString(TEXT("0:00")));
     TestEqualSensitive(TEXT("Elapsed seconds round down"),LDHUD::MatchTimer(Public,true,50999),FString(TEXT("0:00")));
     TestEqualSensitive(TEXT("Minutes carry no leading zero"),LDHUD::MatchTimer(Public,true,62000),FString(TEXT("0:12")));
     TestEqualSensitive(TEXT("Seconds keep two digits"),LDHUD::MatchTimer(Public,true,115000),FString(TEXT("1:05")));
     TestEqualSensitive(TEXT("Ten minutes and more show their own digits"),LDHUD::MatchTimer(Public,true,50000+725000),FString(TEXT("12:05")));
     TestTrue(TEXT("Without the authority clock no time is guessed"),LDHUD::MatchTimer(Public,false,62000).IsEmpty());
     Public.StartedAtMs=0;
-    TestTrue(TEXT("Without a published T=0 no time is shown"),LDHUD::MatchTimer(Public,true,62000).IsEmpty());
+    TestTrue(TEXT("Without a published match start no time is shown"),LDHUD::MatchTimer(Public,true,62000).IsEmpty());
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDRestTimelineTest,"Lockdown.Rules.HUDRestTimeline",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
+{
+    // #198: the timeline banner, the PK sign-up window and the rest return countdown come from the public timeline only.
+    const FGuid Self=FGuid::NewGuid();
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Rest;
+    FLDTimelineView& Timeline=Public.Timeline;
+    Timeline.Generation=4;Timeline.Stage=ELDMatchStage::Rest;Timeline.RestIndex=1;Timeline.FieldSegment=1;Timeline.Step=ELDRestStep::Build;
+    Timeline.StepStartedAtMs=100000;Timeline.StepEndsAtMs=130000;Timeline.SignupOpensAtMs=120000;
+    LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
+    TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
+        LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 25 秒"));
+    TestTrue(TEXT("Before the sign-up window it says when it opens and shows no toggle"),View.Detail==LDTerms::SignupOpensIn(15)&&!View.bSignupOpen);
+    View=LDHUD::TimelineBanner(Public,Self,true,121500);
+    TestTrue(TEXT("Inside the window the toggle shows and the line counts the sign-ups"),View.bSignupOpen&&!View.bSignedUp&&View.SignupAction==LDTerms::SignupJoin
+        &&View.Detail==LDTerms::SignupOpenFor(9)+TEXT(" · ")+LDTerms::SignedUpCount(0)+TEXT(" · ")+LDTerms::NotSignedUpSelf);
+    Timeline.Signups={Self};
+    View=LDHUD::TimelineBanner(Public,Self,true,130000);
+    TestTrue(TEXT("The deadline instant is still inside the window; an own sign-up offers withdrawing"),View.bSignupOpen&&View.bSignedUp
+        &&View.SignupAction==LDTerms::SignupWithdraw&&View.Detail.Contains(LDTerms::SignedUpCount(1))&&View.Detail.Contains(LDTerms::SignedUpSelf));
+    TestFalse(TEXT("Another contender's sign-up is not the own one"),LDHUD::TimelineBanner(Public,FGuid::NewGuid(),true,125000).bSignedUp);
+    View=LDHUD::TimelineBanner(Public,Self,false,0);
+    TestTrue(TEXT("Without the authority clock nothing is guessed and no toggle shows"),!View.bSignupOpen&&View.Headline.EndsWith(TEXT("时间同步中"))
+        &&View.Detail.StartsWith(TEXT("PK 报名时间同步中")));
+    Timeline.Signups.Reset();
+    Timeline.Step=ELDRestStep::PK;Timeline.LockedEntrants=3;Timeline.StepStartedAtMs=140000;Timeline.StepEndsAtMs=200000;
+    View=LDHUD::TimelineBanner(Public,Self,true,150000);
+    TestTrue(TEXT("A PK names its latest end and its entrants; the build is locked"),View.Headline.EndsWith(TEXT("最长剩 50 秒"))
+        &&View.Detail==LDTerms::PKEntrants(3)+TEXT(" · ")+LDTerms::BuildLockedNow&&!View.bSignupOpen);
+    Timeline.Step=ELDRestStep::Payout;
+    TestEqualSensitive(TEXT("The payout reopens the build"),LDHUD::TimelineBanner(Public,Self,true,150000).Detail,LDTerms::PKEntrants(3));
+    TestTrue(TEXT("No return countdown outside the return step"),LDHUD::RestReturnCountdown(Public,true,150000).IsEmpty());
+    Timeline.Step=ELDRestStep::Return;Timeline.bPKSkipped=true;Timeline.LockedEntrants=1;Timeline.StepStartedAtMs=130000;Timeline.StepEndsAtMs=135000;
+    View=LDHUD::TimelineBanner(Public,Self,true,131200);
+    TestTrue(TEXT("Fewer than two sign-ups skip the PK, and the return locks the build"),View.Headline==LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒")
+        &&View.Detail==FString(LDTerms::PKSkipped)+TEXT(" · ")+LDTerms::BuildLockedNow);
+    TestEqualSensitive(TEXT("The return countdown shows whole seconds rounded up"),LDHUD::RestReturnCountdown(Public,true,131200),FString(TEXT("4")));
+    TestEqualSensitive(TEXT("The last millisecond still reads 1"),LDHUD::RestReturnCountdown(Public,true,134999),FString(TEXT("1")));
+    TestEqualSensitive(TEXT("Reaching the end holds 1 until the authority enters the field"),LDHUD::RestReturnCountdown(Public,true,136000),FString(TEXT("1")));
+    TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::RestReturnCountdown(Public,false,131200).IsEmpty());
+    // The field: T runs from the segment start; "开淫！" greets each field segment.
+    Public.Phase=ELDMatchPhase::Development;
+    Timeline.Stage=ELDMatchStage::Field;Timeline.Step=ELDRestStep::None;Timeline.FieldBaseMs=180000;Timeline.FieldStartedAtMs=200000;Timeline.FieldEndT=360000;
+    Timeline.StepStartedAtMs=200000;Timeline.StepEndsAtMs=380000;
+    View=LDHUD::TimelineBanner(Public,Self,true,200500);
+    TestEqualSensitive(TEXT("A field segment counts down to the next rest in field time"),View.Headline,LDTerms::FieldSegmentLine(2,3,TEXT("3:00")));
+    TestTrue(TEXT("The field has no rest detail and no toggle"),View.Detail.IsEmpty()&&!View.bSignupOpen);
+    TestEqualSensitive(TEXT("A field segment starts with the go line"),LDHUD::RestReturnCountdown(Public,true,200500),FString(LDTerms::CountdownGo));
+    TestTrue(TEXT("The go line leaves after its moment"),LDHUD::RestReturnCountdown(Public,true,200000+LDHUD::CountdownGoShowMs).IsEmpty());
+    Public.Phase=ELDMatchPhase::CaptureOpen;Timeline.Stage=ELDMatchStage::FinalField;Timeline.FieldSegment=3;Timeline.FieldBaseMs=540000;Timeline.FieldEndT=-1;
+    TestEqualSensitive(TEXT("The final field names the open flagpole"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline,FString(LDTerms::FinalField));
+    Timeline.Generation=3;
+    TestTrue(TEXT("Another generation's timeline shows nothing"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline.IsEmpty()
+        &&LDHUD::RestReturnCountdown(Public,true,200500).IsEmpty());
+    // Sign-up answers are explicit; without a PK provider the rest says it skips the PK, never a success.
+    TestEqualSensitive(TEXT("No PK provider says the PK is skipped"),LDHUD::RestSignupText(ELDRestSignupResult::NoPKProvider),FString(LDTerms::NoPKProvider));
+    TestFalse(TEXT("No PK provider never reads as signed up"),LDHUD::RestSignupText(ELDRestSignupResult::NoPKProvider).Contains(TEXT("已报名")));
+    TestTrue(TEXT("Joining and a closed window are told apart"),LDHUD::RestSignupText(ELDRestSignupResult::Joined)!=LDHUD::RestSignupText(ELDRestSignupResult::WindowClosed));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {
-    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;Public.OpenAtMs=120000;
-    TestEqualSensitive(TEXT("Development counts down to the public opening in whole seconds rounded up"),LDHUD::Circle(Public,FString(),FString(),true,500).Line,FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT(" 2:00 后开放"));
+    // #198: the flagpole opens when the final field begins; until then its opening instant is unscheduled (MAX_int64).
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;Public.OpenAtMs=MAX_int64;
+    const FString Closed=FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
+    TestEqualSensitive(TEXT("Development says the flagpole opens after the last rest and prints no countdown"),LDHUD::Circle(Public,FString(),FString(),true,500).Line,Closed);
     TestEqualSensitive(TEXT("A running countdown never reads 0:00 before the opening"),LDHUD::Clock(1),FString(TEXT("0:01")));
-    TestEqualSensitive(TEXT("Without the authority clock the opening time is not guessed"),LDHUD::Circle(Public,FString(),FString(),false,0).Line,FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放"));
+    TestEqualSensitive(TEXT("Without the authority clock the line is the same"),LDHUD::Circle(Public,FString(),FString(),false,0).Line,Closed);
+    TestTrue(TEXT("The closed line names the last rest R3"),Closed.Contains(TEXT("R3"))&&Closed.Contains(LDTerms::CapturePoint));
     Public.Phase=ELDMatchPhase::CaptureOpen;Public.CircleState=ELDCircleState::Empty;
     TestEqualSensitive(TEXT("An open empty zone names no one"),LDHUD::Circle(Public,FString(),FString(),true,0).Line,FString(LDTerms::CircleEmpty));
     Public.CircleState=ELDCircleState::Contested;
@@ -342,6 +406,15 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An announced drop counts down to its landing"),LDHUD::AirdropLine(Drop,true,30001),
         LDTerms::AirdropCountdown(TEXT("0:15")));
     TestTrue(TEXT("The countdown names the 天降外卖"),LDHUD::AirdropLine(Drop,true,30001).StartsWith(LDTerms::Airdrop));
+    {
+        // #198: LandAtMs is a field progress T; the HUD compares it with the T derived from the public timeline.
+        FLDTimelineView Field;Field.Generation=4;Field.Stage=ELDMatchStage::Field;Field.FieldSegment=0;Field.FieldBaseMs=0;Field.FieldStartedAtMs=500000;Field.FieldEndT=180000;
+        TestEqualSensitive(TEXT("The landing counts down in field time, not authority time"),
+            LDHUD::AirdropLine(Drop,true,LDMatchTimeline::FieldNowFromView(Field,530001)),LDTerms::AirdropCountdown(TEXT("0:15")));
+        Field.Stage=ELDMatchStage::Rest;Field.FieldBaseMs=30001;
+        TestEqualSensitive(TEXT("A rest freezes the field time, so the landing countdown pauses"),
+            LDHUD::AirdropLine(Drop,true,LDMatchTimeline::FieldNowFromView(Field,900000)),LDTerms::AirdropCountdown(TEXT("0:15")));
+    }
     TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,false,0),
         LDTerms::AirdropSoon());
     Drop.Phase=ELDAirdropPhase::Landed;
@@ -926,10 +999,17 @@ bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A blueprint with an empty Q/W/E slot asks to learn it"),Step(),FString::Printf(TEXT("下一步：点%s把%s学到空槽"),LDTerms::Choice,LDTerms::Blueprint));
     for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=Growth.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
     TestTrue(TEXT("A blueprint waiting for a full Q/W/E (replacement is rest-only) gives no hint"),Step().IsEmpty());
-    Public.Phase=ELDMatchPhase::Countdown;Growth.UnspentPoints=3;
-    TestEqualSensitive(TEXT("Points can be allocated during the countdown"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
-    Growth.UnspentPoints=0;
-    TestTrue(TEXT("Before T=0 nothing but growth is hinted"),Step().IsEmpty());
+    // #198: in a rest's build or payout step only growth is hinted; its locked steps refuse every build, so nothing is.
+    Public.Phase=ELDMatchPhase::Rest;Public.Timeline.Generation=4;Public.Timeline.Stage=ELDMatchStage::Rest;Public.Timeline.Step=ELDRestStep::Build;
+    Growth.UnspentPoints=3;
+    TestEqualSensitive(TEXT("Points can be allocated in a rest's build step"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
+    Public.Timeline.Step=ELDRestStep::Payout;
+    TestEqualSensitive(TEXT("The payout reopens the build"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
+    Public.Timeline.Step=ELDRestStep::Return;
+    TestTrue(TEXT("A locked rest step hints nothing, even with points"),Step().IsEmpty());
+    Public.Timeline.Step=ELDRestStep::Build;Growth.UnspentPoints=0;
+    TestTrue(TEXT("In a rest nothing but growth is hinted"),Step().IsEmpty());
+    Public.Timeline=FLDTimelineView();
     Public.Phase=ELDMatchPhase::CaptureOpen;
     TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo);
     Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;
@@ -998,26 +1078,48 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBuildGateTest,"Lockdown.Rules.HUDBuildGat
 bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
 {
     // #198 growth panel: the disabled reasons follow the server's command gate (a hint only; the server decides each command).
-    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(ELDMatchPhase::Countdown,ELDLifePhase::Alive,99999,true,1000);
-    TestTrue(TEXT("The countdown allows every build step whatever the safe window"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
-        &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty());
-    Gate=LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Alive,3400,true,1000);
+    using EStage=LDProgression::EMatchStage;
+    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive,99999,true,1000);
+    TestTrue(TEXT("A rest build window allows every build step and rest service whatever the safe window"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
+        &&Gate.bCanBuyNpc&&Gate.bCanRespec&&Gate.bCanReplace&&Gate.bCanForget&&Gate.bInRest
+        &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty()&&Gate.NpcBlocked.IsEmpty());
+    Gate=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive,0,true,1000);
+    TestTrue(TEXT("A locked rest step refuses every command and still shows the rest services"),!Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate
+        &&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
+    TestEqualSensitive(TEXT("The locked reason names the lock"),Gate.NpcBlocked,LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
+    Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Dead,0,true,1000);
+    TestTrue(TEXT("A dead contender in a rest keeps the death-wait rules"),Gate.bCanChoose&&Gate.bCanAllocate&&!Gate.bCanLearn&&!Gate.bCanBuyNpc&&!Gate.bCanForget
+        &&Gate.LearnBlocked==LDTerms::DeadNoLearn);
+    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,1000);
     TestTrue(TEXT("In combat an active can still be chosen; learning and allocating wait for the safe window"),Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate);
     TestEqualSensitive(TEXT("The wait counts down in tenths"),Gate.LearnBlocked,FString(TEXT("未脱战 2.4 秒")));
     TestEqualSensitive(TEXT("Allocating names the same wait"),Gate.AllocateBlocked,Gate.LearnBlocked);
-    TestEqualSensitive(TEXT("A last millisecond reads as a tenth, never 0.0"),LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Alive,3400,true,3399).LearnBlocked,
+    TestTrue(TEXT("The field hides the rest services and names why they are refused"),!Gate.bInRest&&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget
+        &&Gate.NpcBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Gate.ReplaceBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::ReplacementNotAllowed));
+    TestEqualSensitive(TEXT("A last millisecond reads as a tenth, never 0.0"),LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,3399).LearnBlocked,
         FString(TEXT("未脱战 0.1 秒")));
-    Gate=LDHUD::BuildGate(ELDMatchPhase::CaptureOpen,ELDLifePhase::Alive,3400,true,3400);
+    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,3400);
     TestTrue(TEXT("Once the safe window is reached everything is allowed"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate);
-    Gate=LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Alive,0,false,0);
+    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,0,false,0);
     TestTrue(TEXT("Without the authority clock learning and allocating read as syncing, never as allowed"),Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate
         &&Gate.LearnBlocked==TEXT("构筑安全窗同步中")&&Gate.AllocateBlocked==Gate.LearnBlocked);
-    Gate=LDHUD::BuildGate(ELDMatchPhase::Development,ELDLifePhase::Dead,99999,true,1000);
+    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead,99999,true,1000);
     TestTrue(TEXT("A dead contender chooses and allocates but cannot learn"),Gate.bCanChoose&&Gate.bCanAllocate&&!Gate.bCanLearn
         &&Gate.LearnBlocked==LDTerms::DeadNoLearn);
-    Gate=LDHUD::BuildGate(ELDMatchPhase::Results,ELDLifePhase::Alive,0,true,1000);
+    Gate=LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive,0,true,1000);
     TestTrue(TEXT("Results close every build step with a reason"),!Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate&&Gate.ChooseBlocked==TEXT("现在不是成长时段"));
-    TestFalse(TEXT("An unspawned contender sends nothing"),LDHUD::BuildGate(ELDMatchPhase::Countdown,ELDLifePhase::Unspawned,0,true,1000).bCanChoose);
+    TestFalse(TEXT("An unspawned contender sends nothing"),LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Unspawned,0,true,1000).bCanChoose);
+    {
+        // The stage comes from the public match the same way the server reads it.
+        FLDTimelineView Timeline;Timeline.Stage=ELDMatchStage::Rest;Timeline.Step=ELDRestStep::Build;
+        TestTrue(TEXT("A rest's build step is the rest build window"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::Rest);
+        Timeline.Step=ELDRestStep::Payout;
+        TestTrue(TEXT("The payout reopens the build"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::Rest);
+        Timeline.Step=ELDRestStep::Return;
+        TestTrue(TEXT("The return countdown locks the build"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::RestLocked);
+        TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);
+        TestTrue(TEXT("Results are closed"),LDProgression::StageForPublic(ELDMatchPhase::Results,FLDTimelineView())==EStage::Closed);
+    }
     TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied,0,true,0),FString(LDTerms::ReplaceAtRest));
     TestEqualSensitive(TEXT("A full Q/W/E says so"),LDHUD::BuildBlockedText(ELDGrowthReason::NoEmptySlot,0,true,0),FString(LDTerms::SlotsFull));
 
@@ -1038,6 +1140,35 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("An allocation names the points added and left"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已加 3 点，还剩 3 点")));
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::NotEnoughPoints);
     TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("没有生效：未分配点数不够")));
+    {
+        // #198 rest services: each applied receipt names what it did; a missing field never reads as a success.
+        FLDBuildReceipt Rest;Rest.Header.Outcome=ELDReceiptOutcome::Applied;
+        Rest.Kind=ELDBuildCommandKind::BuyNpcOffer;Rest.NpcPointsPaid=4;
+        TestEqualSensitive(TEXT("An NPC purchase names the points paid"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),LDTerms::NpcBought(4));
+        Rest.NpcPointsPaid=0;
+        TestEqualSensitive(TEXT("An NPC receipt without its payment claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+        Rest.Kind=ELDBuildCommandKind::Respec;Rest.PointsRefunded=5;Rest.UnspentPointsAfter=7;
+        TestEqualSensitive(TEXT("A respec names the refund and the unspent points"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),FString(TEXT("已洗点：返还 5 点，现有 7 点未分配")));
+        Rest.Kind=ELDBuildCommandKind::ReplaceActive;Rest.ChoiceResult=ELDBuildChoiceResult::Learned;Rest.LearnedSlot=1;
+        Rest.DefinitionId=TEXT("hud_rules_fixture_bolt");Rest.ForgottenId=TEXT("hud_rules_fixture_old");
+        TestEqualSensitive(TEXT("A replacement names the slot, the new and the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),
+            FString(TEXT("已在 W 用 hud_rules_fixture_bolt 替换 hud_rules_fixture_old")));
+        Rest.ForgottenId=NAME_None;
+        TestEqualSensitive(TEXT("A replacement without the forgotten active claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+        Rest.Kind=ELDBuildCommandKind::ForgetActive;Rest.ForgottenId=TEXT("hud_rules_fixture_old");
+        TestEqualSensitive(TEXT("A forget names the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),LDTerms::Forgotten(TEXT("hud_rules_fixture_old")));
+        Rest.Header.Outcome=ELDReceiptOutcome::Rejected;Rest.Header.Reason=uint16(ELDGrowthReason::NpcPoolTooSmall);
+        TestEqualSensitive(TEXT("A refused rest service names its reason"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),
+            FString(TEXT("没有生效："))+LDHUD::GrowthReasonText(ELDGrowthReason::NpcPoolTooSmall));
+        const ELDGrowthReason RestReasons[]={ELDGrowthReason::ReplacementNotAllowed,ELDGrowthReason::BuildLocked,ELDGrowthReason::NpcPoolTooSmall,
+            ELDGrowthReason::OfferOutstanding,ELDGrowthReason::NothingToRespec,ELDGrowthReason::SlotEmpty,ELDGrowthReason::NotRestWindow};
+        TSet<FString> Seen;
+        for(const ELDGrowthReason Reason:RestReasons)
+        {
+            const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
+            TestTrue(FString::Printf(TEXT("Rest reason %d has its own player text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);
+        }
+    }
 
     // The 开盲盒 button: queued opportunities, unspent points and learnable blueprints of the current match's own view.
     FLDProgressionView View;View.bValid=true;View.Generation=5;View.QueuedActiveOpportunities=2;View.UnspentPoints=3;
@@ -1049,6 +1180,9 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT(" · 图纸 1"));
     for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
     TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5).Any());
+    TestEqualSensitive(TEXT("#198: nothing pending in a rest build window still offers the rest services"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5),true),
+        FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::RestServices);
+    TestEqualSensitive(TEXT("Outside a rest nothing pending reads as the plain button"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5),false),FString(LDTerms::Choice));
     TestTrue(TEXT("The slot reads come from the view"),LDHUD::ActiveInSlot(View,1)==FName(TEXT("held_1"))&&LDHUD::SlotKey(1)==TEXT("W"));
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);

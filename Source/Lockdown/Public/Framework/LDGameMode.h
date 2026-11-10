@@ -283,7 +283,7 @@ private:
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
-    friend class FLDDemoOpeningCountdownTest;
+    friend class FLDRestPhaseTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

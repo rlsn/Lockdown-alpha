@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Framework/LDMatchTimeline.h"
 
 class FLDDemoContentSnapshot;
 struct FLDDemoProgressionDefinition;
@@ -108,6 +109,8 @@ namespace LDProgression
 
     // Context is inside a rest build window, where the rest-only services and rebuilds are allowed.
     LOCKDOWN_API bool IsRestWindow(const FBuildContext& Context);
+    // The stage a client or the AI reads from the public match view: the same rule as ALDGameMode::ReadBuildStage.
+    LOCKDOWN_API EMatchStage StageForPublic(ELDMatchPhase Phase, const FLDTimelineView& Timeline);
 
     // What an ActiveChoice did with its active.
     struct FChoiceOutcome

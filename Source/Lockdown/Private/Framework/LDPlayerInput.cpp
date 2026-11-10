@@ -32,7 +32,7 @@ namespace LDPlayerInputDetail
     {
         const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
         return Public && Public->PublicMatch.Generation!=0 && Public->PublicMatch.Generation==PC.OwnerState.Match
-            && (Public->PublicMatch.Phase==ELDMatchPhase::Countdown || Public->PublicMatch.Phase==ELDMatchPhase::Development
+            && (Public->PublicMatch.Phase==ELDMatchPhase::Rest || Public->PublicMatch.Phase==ELDMatchPhase::Development
                 || Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
     }
 

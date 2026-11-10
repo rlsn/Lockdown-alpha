@@ -2049,10 +2049,29 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         ELDGrowthReason::StaleContext)) { return false; }
     TestEqual(TEXT("A refused early capture keeps the scheduled opening"), Mode->CaptureReducer.GetOpenAtMs(), int64(1000000));
     Mode->MatchPhase = ELDMatchPhase::Development;
+    {
+        // #198: the DEV shortcut needs a running timed field segment; a fixture timeline with 1 ms rest steps reaches
+        // field 1 at 2 ms (fixture timing only, not approved durations).
+        FLDTimelineParameters Fast;
+        Fast.FieldSegmentMs = 1000000;
+        Fast.OpeningBuildMs = Fast.BuildMs = Fast.SignupMs = Fast.DrawMs = Fast.BettingMs = Fast.PKReadyMs = Fast.PKMaxMs
+            = Fast.SettlementMs = Fast.PayoutMs = Fast.ReturnMs = 1;
+        for (int64& Wait : Fast.RespawnMs) { Wait = 1; }
+        TArray<FLDTimelineEvent> Events;
+        FString TimelineError;
+        if (!TestTrue(TEXT("The fixture timeline reaches field 1"), Mode->Timeline.Begin(Fast, 0, TimelineError)
+            && Mode->Timeline.Advance(1, 0, true, Events, TimelineError) && Mode->Timeline.Advance(2, 0, true, Events, TimelineError)
+            && Mode->Timeline.GetStage() == ELDMatchStage::Field))
+        {
+            AddError(TimelineError);
+            return false;
+        }
+    }
     if (!HostCommit(TEXT("Request 24: the Host's early capture during development"), Command(Gen, 1, 24, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::None)) { return false; }
     TestTrue(TEXT("The circle opens at the commit boundary and the driver stops there"),
-        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen());
+        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen()
+        && Mode->Timeline.GetStage() == ELDMatchStage::FinalField);
     FLDCaptureReducer Circle;
     FString CircleError;
     TestFalse(TEXT("An inactive reducer schedules no opening"), Circle.ScheduleOpen(10, CircleError));
@@ -2424,7 +2443,19 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Mode->GameState = Public;
     World->CopyGameState(Mode, Public);
     Mode->MatchContext = {6, FGuid::NewGuid()};
-    Mode->MatchPhase = ELDMatchPhase::Countdown;
+    // #198: the match opens in the opening rest R0, build step.
+    Mode->MatchPhase = ELDMatchPhase::Rest;
+    {
+        FLDTimelineParameters TimelineParameters;
+        FString TimelineError;
+        if (!TestTrue(TEXT("The approved timeline begins in the R0 build step"),
+            FLDTimelineParameters::FromContent(Content.Parameters, TimelineParameters, TimelineError)
+            && Mode->Timeline.Begin(TimelineParameters, 0, TimelineError)))
+        {
+            AddError(TimelineError);
+            return false;
+        }
+    }
     Mode->Combat = Driver;
     Mode->Growth = Growth;
     Mode->Development = Development;

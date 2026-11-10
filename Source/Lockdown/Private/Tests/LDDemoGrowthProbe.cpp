@@ -72,6 +72,11 @@ constexpr double GrowthProbeReturnSeconds = 75.0;
 constexpr double GrowthProbeTransitionSeconds = 60.0;
 // A replay that must change nothing is watched this long before the owner state is compared again.
 constexpr double GrowthProbeQuietSeconds = 1.5;
+// #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without
+// a death and places the first field life, life 2.
+constexpr uint32 GrowthProbeFieldLife = 2;
+// The client sends its R0 return refusals only while at least this much of the return countdown is left (probe margin).
+constexpr int64 GrowthProbeReturnMarginMs = 1500;
 // A NotSafe probe is sent only while the build safe window has at least this long left, so the server cannot judge it
 // after the window passed (probe timing margin, not a product number).
 constexpr int64 GrowthProbeUnsafeMarginMs = 500;
@@ -192,7 +197,7 @@ bool GrowthProbeProtected(const FLDObservedUnitView& Seen)
 
 // The buyer's three active offers in order, staged by the Host in the Lobby through the DEV growth fixture
 // (-LDDevGrowthFixture): the match's opening offer, then the opportunities of the two approved offer levels. The buyer
-// takes the first option every time: snark_bolt learned into Q during the countdown, not_mad kept as a blueprint while the
+// takes the first option every time: snark_bolt learned into Q in the opening rest R0, not_mad kept as a blueprint while the
 // build safe window runs and learned into W after it, pants_down kept as a blueprint while dead and learned into E after
 // the respawn. A preset may name any active; the opening one stays inside the opening pool.
 const TCHAR* const GrowthProbePlan[][3] = {
@@ -309,9 +314,9 @@ class FLDDemoGrowthProbe : public TSharedFromThis<FLDDemoGrowthProbe>
 public:
     enum class EStage : uint8
     {
-        // #153: Countdown runs between the normal start and the first playable instant (T=0) of the first match; the
-        // buyer chooses its opening active and allocates its opening points in it.
-        Join, Lobby, Countdown, Spawned, Victim,
+        // #198: Rest0 is the first match's opening rest R0, between the normal start and field 1 (T=0); the buyer chooses its
+        // opening active and allocates its opening points in its build step.
+        Join, Lobby, Rest0, Spawned, Victim,
         ToSite, KillSeek, KillWait,
         // #198 build safe window after the kill that reaches the first offer level: the offer kept as a blueprint, an
         // allocation and a learn refused while the window runs, then the learn and the allocation after it.
@@ -381,23 +386,23 @@ public:
         bool bSent = false;
     };
     FBuildCall Build;
-    // Position inside the current build stage (countdown, window, death).
+    // Position inside the current build stage (R0, window, death).
     int32 BuildStep = 0;
     // The applied opening choice: queried again after T=0 and replayed in the second match.
     FLDBuildCommand OpeningSent;
     FLDBuildReceipt OpeningFinal;
-    bool bCountdownBuilt = false, bOpeningQuerySent = false, bOpeningQueried = false;
+    bool bRest0Built = false, bOpeningQuerySent = false, bOpeningQueried = false;
     int32 OpeningQueryMark = 0;
 
-    // #153 opening countdown of the first match: its T=0, and Client1's refused attack-move, Shift attack-move and Q, then
-    // its admitted move (2026-11-07 user decision: movement and choices are allowed, attacks are not; #144 removed trades).
-    bool bCountdownSeen = false, bCountdownRefused = false;
-    int32 CountdownStep = 0;
-    int64 CountdownStartedAtMs = 0;
-    FVector CountdownFoot = FVector::ZeroVector;
-    FLDMoveIdentity CountdownAttack, CountdownShift, CountdownMove;
-    uint32 CountdownCombatMark = 0;
-    TSharedPtr<FJsonObject> CountdownRow;
+    // #198 opening rest R0 of the first match: Client1's admitted move in its build step, then its refused attack-move,
+    // Shift attack-move and Q in its return countdown, and field 1 starting at T=0 when it ends.
+    bool bRest0Seen = false, bRest0Refused = false, bRest0ReturnSeen = false;
+    int32 Rest0Step = 0;
+    int64 Rest0StartedAtMs = 0, Rest0BuildEndsAtMs = 0;
+    FVector Rest0Foot = FVector::ZeroVector;
+    FLDMoveIdentity Rest0Attack, Rest0Shift, Rest0Move;
+    uint32 Rest0CombatMark = 0;
+    TSharedPtr<FJsonObject> Rest0Row;
 
     // Client1: the build safe window after the kill that reached the first offer level.
     bool bWindowDone = false;
@@ -774,7 +779,7 @@ public:
         {
         case EStage::Join: return TickJoin(*Current, *PC, Lobby, Driver);
         case EStage::Lobby: return TickLobby(Now, *PC, Lobby);
-        case EStage::Countdown: return TickCountdown(Now, *PC, *Public, *Registry);
+        case EStage::Rest0: return TickRest0(Now, *PC, *Public, *Registry);
         case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby);
         case EStage::Victim: return TickVictim(Now, *PC);
         case EStage::EndFirst: return TickEndFirst(Now, *PC, *Public);
@@ -829,13 +834,13 @@ public:
             SetStage(bSecond ? EStage::SecondSpawned : EStage::Spawned);
             return true;
         }
-        // #153: the first match's countdown is checked from both roles before anyone acts.
-        if (!bSecond && Lobby.Phase == ELDMatchPhase::Countdown)
+        // #198: the first match's opening rest R0 is checked from both roles before anyone acts in the field.
+        if (!bSecond && Lobby.Phase == ELDMatchPhase::Rest)
         {
-            SetStage(EStage::Countdown);
+            SetStage(EStage::Rest0);
             return true;
         }
-        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Rest) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
             return Fail(Id, TEXT("The room left the Lobby without opening play: ")
@@ -1010,8 +1015,9 @@ public:
     bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
     {
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        // The public phase may reach field 1 a frame before this owner's projection leaves its R0 rest life.
         if (!Cast<ALDCharacter>(PC.GetPawn()) || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.OwnerState.BodyRef.IsValid()
-            || !PC.CanWorldCommand() || !ProgView)
+            || !PC.CanWorldCommand() || !ProgView || PC.OwnerState.Life < LDDemoGrowthScenario::GrowthProbeFieldLife)
         {
             return true;
         }
@@ -1022,12 +1028,17 @@ public:
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         if (IsHost() && !bGrowthChecked && !CheckStartGrowth(PC, Lobby)) { return Finish(); }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
-            TEXT("The first body is an unprotected initial life"));
+        const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+        const int64 ReturnProtectedUntilMs = Public ? Public->PublicMatch.Timeline.FieldStartedAtMs + Defs.Parameters.ProtectionMs : -1;
+        Check(PC.OwnerState.Life == LDDemoGrowthScenario::GrowthProbeFieldLife
+            && (PC.OwnerState.ProtectedUntilMs == 0 || PC.OwnerState.ProtectedUntilMs == ReturnProtectedUntilMs), TEXT("Start"),
+            TEXT("The first field body is the life after the R0 rest life, with at most the shared R0 return protection"),
+            FString::Printf(TEXT("life=%u protected_until_ms=%lld return_protection_until_ms=%lld"), PC.OwnerState.Life,
+                PC.OwnerState.ProtectedUntilMs, ReturnProtectedUntilMs));
         Check(ProgView->Level == 1 && ProgView->CumulativeXP == Defs.Progression.XPStart && ProgView->CatalogDigest == Defs.Identity.Root,
             TEXT("Start"), TEXT("Growth starts at level 1 with the approved XP start and the current catalog"),
             LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
-        Check(OpeningRow.IsValid(), TEXT("Opening"), TEXT("The opening opportunity was checked in the countdown before T=0"));
+        Check(OpeningRow.IsValid(), TEXT("Opening"), TEXT("The opening opportunity was checked in R0, before field 1 (T=0)"));
         if (!Passed) { return Finish(); }
         if (IsHost())
         {
@@ -1076,14 +1087,17 @@ public:
         return true;
     }
 
-    // Client1 inside the countdown, beside the refused attacks: the opening choice learned into Q, then every opening point
-    // allocated. Both need no build safe window before T=0. Returns false after a failed check.
-    bool TickCountdownBuild(double Now, ALDPlayerController& PC, const FLDPublicMatchView& Match)
+    // Client1 in the R0 build step, beside its admitted move: the opening choice learned into Q, then every opening point
+    // allocated. The rest's build step needs no build safe window. Returns false after a failed check.
+    bool TickRest0Build(double Now, ALDPlayerController& PC, const FLDPublicMatchView& Match)
     {
         const FLDProgressionView* View = PC.ReadOwnProgression();
         int64 NowMs = 0;
         const bool bClock = AuthorityNowMs(PC, NowMs);
-        if (bCountdownBuilt || !View) { return true; }
+        const FLDTimelineView& Line = Match.Timeline;
+        const bool bBuildStep = Match.Phase == ELDMatchPhase::Rest && Line.Stage == ELDMatchStage::Rest && Line.RestIndex == 0
+            && Line.Step == ELDRestStep::Build;
+        if (bRest0Built || !View) { return true; }
         if (BuildStep == 0)
         {
             const FName Option = LDDemoGrowthScenario::GrowthProbePlannedOptions(0)[0];
@@ -1120,189 +1134,244 @@ public:
             if (!Passed) { return false; }
             OpeningSent = Build.Sent;
             OpeningFinal = *Final;
-            if (!bClock || Match.Phase != ELDMatchPhase::Countdown || NowMs >= Match.StartedAtMs)
+            if (!bClock || !bBuildStep || NowMs >= Line.StepEndsAtMs)
             {
-                return Check(false, TEXT("Countdown"), TEXT("T=0 came before the opening points could be allocated in the countdown"));
+                return Check(false, TEXT("Rest0"), TEXT("The R0 build step ended before the opening points could be allocated in it"));
             }
             BuildStep = 2;
-            return SendBuild(PC, TEXT("countdown-points"), PointsCommand(View->UnspentPoints));
+            return SendBuild(PC, TEXT("rest0-points"), PointsCommand(View->UnspentPoints));
         }
         if (!AllocationShown(PC, *Final) && Now - Build.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
         Check(AllocationShown(PC, *Final) && Build.Before.UnspentPoints == Catalog->Get().Parameters.OpeningPoints
             && Build.Before.BuildSafeAtMs == 0, TEXT("A16"),
-            TEXT("Every opening point is allocated in the countdown in one commit: points, unspent count and maximum HP move together"),
+            TEXT("Every opening point is allocated in the R0 build step in one commit: points, unspent count and maximum HP move together"),
             FString::Printf(TEXT("%s max hp %lld -> %lld"), *LDDemoGrowthScenario::GrowthProbeProgressionText(*View), Build.MaxHPBeforeP2,
                 PC.CombatView.MaxHPP2));
-        Check(Match.Phase == ELDMatchPhase::Countdown && bClock && NowMs < Match.StartedAtMs, TEXT("Countdown"),
-            TEXT("The opening choice and the allocation both commit before T=0"),
-            FString::Printf(TEXT("now=%lld started=%lld"), NowMs, Match.StartedAtMs));
+        Check(bBuildStep && bClock && NowMs < Line.StepEndsAtMs, TEXT("Rest0"),
+            TEXT("The opening choice and the allocation both commit in the R0 build step, before field 1 (T=0)"),
+            FString::Printf(TEXT("now=%lld build_ends=%lld"), NowMs, Line.StepEndsAtMs));
         if (!Passed) { return false; }
-        CountdownRow->SetStringField(TEXT("opening_active"), OpeningFinal.DefinitionId.ToString());
-        CountdownRow->SetNumberField(TEXT("opening_slot"), OpeningFinal.LearnedSlot);
-        CountdownRow->SetNumberField(TEXT("points_allocated"), double(Build.Before.UnspentPoints));
-        CountdownRow->SetNumberField(TEXT("max_hp_p2_before"), double(Build.MaxHPBeforeP2));
-        CountdownRow->SetNumberField(TEXT("max_hp_p2_after"), double(PC.CombatView.MaxHPP2));
-        bCountdownBuilt = true;
+        Rest0Row->SetStringField(TEXT("opening_active"), OpeningFinal.DefinitionId.ToString());
+        Rest0Row->SetNumberField(TEXT("opening_slot"), OpeningFinal.LearnedSlot);
+        Rest0Row->SetNumberField(TEXT("points_allocated"), double(Build.Before.UnspentPoints));
+        Rest0Row->SetNumberField(TEXT("max_hp_p2_before"), double(Build.MaxHPBeforeP2));
+        Rest0Row->SetNumberField(TEXT("max_hp_p2_after"), double(PC.CombatView.MaxHPP2));
+        bRest0Built = true;
         Build = FBuildCall();
         BuildStep = 0;
         return true;
     }
 
-    // #153: the first match's opening countdown, seen from both roles, while the opening offer is open. Client1, a real owning
-    // remote connection, has its attack-move, Shift attack-move and Q refused by the server and its ground move admitted and
-    // walked, and meanwhile chooses its opening active and allocates its opening points. T=0 then starts development with
-    // every match timer counted from it; the Host's untaken opening offer is kept.
-    bool TickCountdown(double Now, ALDPlayerController& PC, const ALDGameState& Public, const ULDMapRegistry& Registry)
+    // #198: the first match's opening rest R0, seen from both roles, while the opening offer is open. Each owner stands in its
+    // private rest space. In the build step Client1, a real owning remote connection, has its ground move admitted and walked
+    // and chooses its opening active and allocates its opening points; in the return countdown that follows (no sign-up, so
+    // no PK) its attack-move, Shift attack-move and Q are refused by the server. Field 1 then starts at T=0 with every field
+    // timer counted from it; the Host's untaken opening offer is kept.
+    bool TickRest0(double Now, ALDPlayerController& PC, const ALDGameState& Public, const ULDMapRegistry& Registry)
     {
         const FLDPublicMatchView& View = Public.PublicMatch;
+        const FLDTimelineView& Line = View.Timeline;
         const FLDDemoContentParameters& Parameters = Catalog->Get().Parameters;
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        const ALDGameMode* Mode = IsHost() ? PC.GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
         int64 NowMs = 0;
         const bool bClock = AuthorityNowMs(PC, NowMs);
-        if (Now - StageAt > Parameters.CountdownMs / 1000. + LDDemoGrowthScenario::GrowthProbeRequestSeconds)
+        const bool bInRest = View.Phase == ELDMatchPhase::Rest && Line.Stage == ELDMatchStage::Rest && Line.RestIndex == 0;
+        if (Now - StageAt > double(Parameters.RestOpeningBuildMs + Parameters.RestReturnMs) / 1000.
+            + LDDemoGrowthScenario::GrowthProbeRequestSeconds)
         {
-            return Fail(TEXT("Countdown"), TEXT("The opening countdown did not end with its checks complete"));
+            return Fail(TEXT("Rest0"), TEXT("The opening rest R0 did not end with its checks complete"));
         }
-        if (!bCountdownSeen)
+        if (!bRest0Seen)
         {
             if (View.Generation != PC.OwnerState.Match || !Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !ProgView || !bClock)
             {
                 return true;
             }
-            if (View.Phase != ELDMatchPhase::Countdown)
+            if (!bInRest || Line.Step != ELDRestStep::Build)
             {
-                return Fail(TEXT("Countdown"), TEXT("The match left the opening countdown before this role saw its spawned body"));
+                return Fail(TEXT("Rest0"), TEXT("The match left the R0 build step before this role saw its rest body"));
             }
-            bCountdownSeen = true;
-            CountdownStartedAtMs = View.StartedAtMs;
-            CountdownFoot = Body->GetActorLocation();
-            CountdownRow = MakeShared<FJsonObject>();
-            Check(View.StartedAtMs > NowMs && View.StartedAtMs - NowMs <= Parameters.CountdownMs
-                && View.OpenAtMs == View.StartedAtMs + Parameters.DevelopmentMs && View.CircleState == ELDCircleState::NotOpen,
-                TEXT("Countdown"), TEXT("The match opens with the approved countdown before T=0; development is due a full phase after T=0"),
-                FString::Printf(TEXT("now=%lld started=%lld open=%lld"), NowMs, View.StartedAtMs, View.OpenAtMs));
+            bRest0Seen = true;
+            Rest0StartedAtMs = View.StartedAtMs;
+            Rest0BuildEndsAtMs = Line.StepEndsAtMs;
+            Rest0Row = MakeShared<FJsonObject>();
+            Check(Line.StepStartedAtMs == View.StartedAtMs && Line.StepEndsAtMs == View.StartedAtMs + Parameters.RestOpeningBuildMs
+                && NowMs < Line.StepEndsAtMs && Line.FieldSegment == 0 && Line.FieldBaseMs == 0 && Line.FieldEndT == Parameters.FieldSegmentMs
+                && View.OpenAtMs == MAX_int64 && View.CircleState == ELDCircleState::NotOpen, TEXT("Rest0"),
+                TEXT("The match opens in the approved R0 build step before field 1 (T=0); the flagpole is not scheduled before the final field"),
+                FString::Printf(TEXT("now=%lld started=%lld build_ends=%lld field_end_t=%lld"), NowMs, View.StartedAtMs, Line.StepEndsAtMs,
+                    Line.FieldEndT));
+            Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Rest0"),
+                TEXT("The opening rest body is the match's first, unprotected life"),
+                FString::Printf(TEXT("life=%u protected_until_ms=%lld"), PC.OwnerState.Life, PC.OwnerState.ProtectedUntilMs));
             CheckOpening(*ProgView, TEXT("Opening"), OpeningRow, !IsHost());
-            Check(PC.CanWorldCommand(), TEXT("Countdown"), TEXT("Camera and commands stay usable; the server answers each world command"));
+            Check(PC.CanWorldCommand(), TEXT("Rest0"), TEXT("Camera and commands stay usable; the server answers each world command"));
             if (IsHost())
             {
-                const ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
-                Check(Mode && Mode->IsOpeningCountdown(Mode->GetMatchContext()) && Mode->ReadPublicMatch().StartedAtMs == View.StartedAtMs
-                    && Mode->GetAirdrop().Schedule.StartedAtMs == View.StartedAtMs
-                    && Mode->GetLeaderNotice().Rules.StartedAtMs == View.StartedAtMs
-                    && Mode->Camps && Mode->Camps->GetBoss().Rules.StartedAtMs == View.StartedAtMs,
-                    TEXT("Countdown"), TEXT("The authority counts the airdrop, the leader notice and the Boss from T=0"));
+                bool bInRestSpaces = Mode != nullptr;
+                for (const FLDLobbyMember& LobbyMember : Public.DemoLobby.Members)
+                {
+                    bInRestSpaces &= LobbyMember.Kind != ELDContenderKind::Human || (Mode && Mode->IsInRestSpace(LobbyMember.ContenderId));
+                }
+                Check(bInRestSpaces && Mode->IsRestPhase(Mode->GetMatchContext()) && !Mode->IsInputLocked(Mode->GetMatchContext())
+                    && Mode->GetTimeline().GetRestIndex() == 0 && Mode->ReadPublicMatch().StartedAtMs == View.StartedAtMs
+                    && Mode->GetFieldNowMs() == 0 && Mode->GetAirdrop().Schedule.StartedAtMs == 0
+                    && Mode->GetLeaderNotice().Rules.StartedAtMs == 0
+                    && Mode->Camps && Mode->Camps->GetBoss().Rules.StartedAtMs == 0,
+                    TEXT("Rest0"), TEXT("The authority keeps every owner in its private rest space at T=0 and counts the airdrop, the leader notice and the Boss in field progress from T=0"));
             }
             if (!Passed) { return Finish(); }
             if (IsHost())
             {
-                bCountdownRefused = true;
+                bRest0Refused = true;
                 return true;
             }
-            // Client1 sends everything at once, while T=0 is still well ahead: Q first, so its refusal cannot depend on
-            // the opening choice that follows it on the same connection.
-            const FLDMapBinding* Capture = Registry.Resolve(FName(*Catalog->Get().World.CaptureId), Registry.Generation);
-            if (!Capture)
-            {
-                return Fail(TEXT("Countdown"), TEXT("The countdown requests could not be built from the public world"));
-            }
-            PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
-            CountdownAttack = PC.Navigation->LocalIdentity();
-            CountdownCombatMark = PC.CombatReceipts.Serial();
-            PC.ActivateCombatEntry(ELDCombatEntry::Q);
-            CountdownStep = 1;
+            Rest0Step = 1;
             BuildStep = 0;
-            return TickCountdownBuild(Now, PC, View) ? true : Finish();
+            return TickRest0Build(Now, PC, View) ? true : Finish();
         }
-        if (!IsHost() && !TickCountdownBuild(Now, PC, View)) { return Finish(); }
-        if (!bCountdownRefused)
+        if (!IsHost() && !TickRest0Build(Now, PC, View)) { return Finish(); }
+        if (bInRest && Line.Step == ELDRestStep::Return && !bRest0ReturnSeen)
+        {
+            bRest0ReturnSeen = true;
+            Check(Line.bPKSkipped && Line.StepStartedAtMs == Rest0BuildEndsAtMs
+                && Line.StepEndsAtMs == Rest0BuildEndsAtMs + Parameters.RestReturnMs, TEXT("Rest0"),
+                TEXT("Without sign-ups R0 skips its PK: the return countdown follows the build step at once for its approved length"),
+                FString::Printf(TEXT("return=%lld..%lld build_ends=%lld"), Line.StepStartedAtMs, Line.StepEndsAtMs, Rest0BuildEndsAtMs));
+            if (IsHost())
+            {
+                Check(Mode && Mode->IsInputLocked(Mode->GetMatchContext()), TEXT("Rest0"),
+                    TEXT("The authority locks every input during the R0 return countdown"));
+            }
+            if (!Passed) { return Finish(); }
+        }
+        if (!bRest0Refused)
         {
             const FLDOrderReceipt& Order = PC.Navigation->LatestReceipt();
             const FLDMapBinding* Capture = Registry.Resolve(FName(*Catalog->Get().World.CaptureId), Registry.Generation);
+            if (!Capture)
+            {
+                return Fail(TEXT("Rest0"), TEXT("The R0 requests could not be built from the public world"));
+            }
             const auto Refused = [&Order](const FLDMoveIdentity& Sent)
             { return Order.Identity == Sent && Order.Status != ELDOrderStatus::Queued; };
-            if (CountdownStep == 1)
+            if (Rest0Step == 1)
             {
-                if (!Refused(CountdownAttack)) { return true; }
-                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
-                    TEXT("The server refuses an attack-move before T=0"),
-                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
-                PC.Navigation->AttackMove(Capture->Position, Capture->Surface, true);
-                CountdownShift = PC.Navigation->LocalIdentity();
-                CountdownStep = 2;
-                return true;
-            }
-            if (CountdownStep == 2)
-            {
-                if (!Refused(CountdownShift)) { return true; }
-                // A freshly spawned body may still be settling; a ground order sent before it stands fails its local plan.
-                if (Body && Body->GetCharacterMovement() && !Body->GetCharacterMovement()->IsMovingOnGround()
-                    && View.Phase == ELDMatchPhase::Countdown) { return true; }
-                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
-                    TEXT("The server refuses a Shift-queued attack-move before T=0"),
-                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
-                if (!bClock || NowMs >= CountdownStartedAtMs - 1500 || !Body)
+                if (!bInRest || Line.Step != ELDRestStep::Build || !Body)
                 {
-                    return Fail(TEXT("Countdown"), TEXT("T=0 was too close to walk inside the countdown"));
+                    return Fail(TEXT("Rest0"), TEXT("The R0 build step ended before the ground move could be sent"));
                 }
-                CountdownFoot = Body->GetActorLocation();
+                // A freshly placed body may still be settling; a ground order sent before it stands fails its local plan.
+                if (Body->GetCharacterMovement() && !Body->GetCharacterMovement()->IsMovingOnGround()) { return true; }
+                Rest0Foot = Body->GetActorLocation();
                 PC.Navigation->NavigateGround(Capture->Position, Capture->Surface);
-                CountdownMove = PC.Navigation->LocalIdentity();
-                CountdownStep = 3;
+                Rest0Move = PC.Navigation->LocalIdentity();
+                Rest0Step = 2;
                 return true;
             }
-            if (CountdownStep == 3)
+            if (Rest0Step == 2)
             {
-                if (Order.Identity == CountdownMove && Order.Status == ELDOrderStatus::Rejected)
+                if (Order.Identity == Rest0Move && Order.Status == ELDOrderStatus::Rejected)
                 {
-                    return Fail(TEXT("Countdown"), TEXT("The server refused a ground move during the countdown: failure ")
+                    return Fail(TEXT("Rest0"), TEXT("The server refused a ground move in the R0 build step: failure ")
                         + LexToString(uint32(Order.Failure)));
                 }
-                const double Walked = Body ? FVector::Dist2D(CountdownFoot, Body->GetActorLocation()) : 0.;
+                const double Walked = Body ? FVector::Dist2D(Rest0Foot, Body->GetActorLocation()) : 0.;
                 if (Walked < 100.)
                 {
-                    if (View.Phase == ELDMatchPhase::Countdown) { return true; }
-                    return Fail(TEXT("Countdown"), FString::Printf(TEXT("The countdown ended before the admitted move walked (%.0f cm)"), Walked));
+                    if (bInRest && Line.Step == ELDRestStep::Build) { return true; }
+                    return Fail(TEXT("Rest0"), FString::Printf(TEXT("The R0 build step ended before the admitted move walked (%.0f cm)"), Walked));
                 }
-                Check(View.Phase == ELDMatchPhase::Countdown && bClock && NowMs < CountdownStartedAtMs, TEXT("Countdown"),
-                    TEXT("A ground move is admitted and walks before T=0"), FString::Printf(TEXT("walked=%.0f cm now=%lld"), Walked, NowMs));
+                Check(bInRest && Line.Step == ELDRestStep::Build && bClock && NowMs < Rest0BuildEndsAtMs, TEXT("Rest0"),
+                    TEXT("A ground move is admitted and walks in the R0 build step"),
+                    FString::Printf(TEXT("walked=%.0f cm now=%lld"), Walked, NowMs));
                 PC.Navigation->Stop();
-                CountdownStep = 4;
+                Rest0Step = 3;
                 return true;
             }
-            const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(CountdownCombatMark,
+            if (Rest0Step == 3)
+            {
+                if (bInRest && Line.Step == ELDRestStep::Build) { return true; }
+                if (!bInRest || Line.Step != ELDRestStep::Return)
+                {
+                    return Fail(TEXT("Rest0"), TEXT("This owner never saw the R0 return countdown"));
+                }
+                if (!bRest0Built)
+                {
+                    return Fail(TEXT("Rest0"), TEXT("The opening choice and allocation did not complete in the R0 build step"));
+                }
+                if (!bClock || Line.StepEndsAtMs - NowMs < LDDemoGrowthScenario::GrowthProbeReturnMarginMs)
+                {
+                    return Fail(TEXT("Rest0"), TEXT("Field 1 was too close to test the refusals inside the R0 return countdown"));
+                }
+                // Q first, so its refusal cannot depend on the attack-moves that follow it on the same connection.
+                Rest0CombatMark = PC.CombatReceipts.Serial();
+                PC.ActivateCombatEntry(ELDCombatEntry::Q);
+                PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
+                Rest0Attack = PC.Navigation->LocalIdentity();
+                Rest0Step = 4;
+                return true;
+            }
+            if (Rest0Step == 4)
+            {
+                if (!Refused(Rest0Attack)) { return true; }
+                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Rest0"),
+                    TEXT("The server refuses an attack-move in the R0 return countdown"),
+                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
+                PC.Navigation->AttackMove(Capture->Position, Capture->Surface, true);
+                Rest0Shift = PC.Navigation->LocalIdentity();
+                Rest0Step = 5;
+                return true;
+            }
+            if (Rest0Step == 5)
+            {
+                if (!Refused(Rest0Shift)) { return true; }
+                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Rest0"),
+                    TEXT("The server refuses a Shift-queued attack-move in the R0 return countdown"),
+                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
+                Rest0Step = 6;
+                return true;
+            }
+            const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(Rest0CombatMark,
                 [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
             if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
-            Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Countdown"), TEXT("The server refuses Q before T=0"),
+            Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Rest0"), TEXT("The server refuses Q in the R0 return countdown"),
                 StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
             if (!Passed) { return Finish(); }
-            bCountdownRefused = true;
+            bRest0Refused = true;
             return true;
         }
-        if (View.Phase == ELDMatchPhase::Countdown) { return true; }
-        if (View.Phase != ELDMatchPhase::Development || !ProgView || !Body)
+        if (View.Phase == ELDMatchPhase::Rest) { return true; }
+        // The rest body may already be gone while the first field body is not yet bound; neither is needed here.
+        if (View.Phase != ELDMatchPhase::Development || !ProgView)
         {
-            return Fail(TEXT("Countdown"), TEXT("The countdown did not end in the development phase"));
+            return Fail(TEXT("Rest0"), TEXT("The opening rest R0 did not end in field 1"));
         }
-        Check(View.StartedAtMs == CountdownStartedAtMs && View.ServerNowMs >= View.StartedAtMs
-            && View.OpenAtMs == View.StartedAtMs + Parameters.DevelopmentMs, TEXT("Countdown"),
-            TEXT("Development starts at T=0 and the flagpole opens a full development phase later"),
-            FString::Printf(TEXT("server=%lld started=%lld open=%lld"), View.ServerNowMs, View.StartedAtMs, View.OpenAtMs));
+        Check(bRest0ReturnSeen, TEXT("Rest0"), TEXT("This role saw the R0 return countdown before field 1"));
+        Check(View.StartedAtMs == Rest0StartedAtMs && Line.Stage == ELDMatchStage::Field && Line.FieldSegment == 0
+            && Line.FieldBaseMs == 0 && Line.FieldEndT == Parameters.FieldSegmentMs
+            && Line.FieldStartedAtMs == Rest0BuildEndsAtMs + Parameters.RestReturnMs && View.ServerNowMs >= Line.FieldStartedAtMs
+            && View.OpenAtMs == MAX_int64, TEXT("Rest0"),
+            TEXT("Field 1 starts at T=0 exactly when R0 returns, runs one approved segment, and the flagpole stays unscheduled"),
+            FString::Printf(TEXT("server=%lld started=%lld field_started=%lld field_end_t=%lld"), View.ServerNowMs, View.StartedAtMs,
+                Line.FieldStartedAtMs, Line.FieldEndT));
         if (IsHost())
         {
             Check(ProgView->bHasActiveOffer && ProgView->ActiveOpportunitiesConsumed == 0 && ProgView->QueuedActiveOpportunities == 1
-                && ProgView->Actives.IsEmpty(), TEXT("Countdown"),
-                TEXT("An opening offer not chosen in the countdown is kept, never chosen for the player"),
+                && ProgView->Actives.IsEmpty(), TEXT("Rest0"),
+                TEXT("An opening offer not chosen in R0 is kept, never chosen for the player"),
                 LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
         }
         else
         {
-            Check(bCountdownBuilt, TEXT("Countdown"), TEXT("The buyer's opening choice and allocation completed before T=0"),
+            Check(bRest0Built, TEXT("Rest0"), TEXT("The buyer's opening choice and allocation completed in R0, before field 1"),
                 LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
         }
-        CountdownRow->SetNumberField(TEXT("started_at_ms"), double(View.StartedAtMs));
-        CountdownRow->SetNumberField(TEXT("open_at_ms"), double(View.OpenAtMs));
-        CountdownRow->SetBoolField(TEXT("refusals_checked"), !IsHost());
+        Rest0Row->SetNumberField(TEXT("started_at_ms"), double(View.StartedAtMs));
+        Rest0Row->SetNumberField(TEXT("field_started_at_ms"), double(Line.FieldStartedAtMs));
+        Rest0Row->SetBoolField(TEXT("refusals_checked"), !IsHost());
         if (!Passed) { return Finish(); }
         SetStage(EStage::Spawned);
         return true;
@@ -1346,7 +1415,8 @@ public:
         const double DormReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.DormRadiusCm);
         const double BodyRadius = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.CollisionRadiusCm);
         const double AttackReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.AttackRangeCm.Base);
-        RespawnSeconds = double(Defs.Parameters.RespawnMs) / 1000.0;
+        // The buyer dies in the first field segment, whose approved respawn wait is LIFE.RespawnSec.Field1.
+        RespawnSeconds = double(Defs.Parameters.RespawnField1Ms) / 1000.0;
         const auto* Geometry = Registry.GetGeometry();
         if (!CaptureAnchor || !Geometry || VisionReach <= 0 || CaptureReach <= 0 || AirdropReach <= 0 || DormReach <= 0
             || BodyRadius <= 0 || AttackReach <= 0 || RespawnSeconds <= 0)
@@ -1900,7 +1970,8 @@ public:
         FirstMatchRow->SetNumberField(TEXT("blueprints"), FirstProgression.PendingBlueprints.Num());
         // D10: deaths and respawns never re-grant the opening opportunity; only the approved offer levels add opportunities.
         const uint8 Expected = LDProgression::ActiveOpportunitiesAt(Catalog->Get().Progression, FirstProgression.Level);
-        Check(ProgView && PC.OwnerState.Life > 1 && FirstProgression.ActiveOpportunitiesEarned == Expected, TEXT("Opening"),
+        Check(ProgView && PC.OwnerState.Life > LDDemoGrowthScenario::GrowthProbeFieldLife
+            && FirstProgression.ActiveOpportunitiesEarned == Expected, TEXT("Opening"),
             TEXT("After dying and respawning the owner holds exactly its opening opportunity plus one per offer level reached"),
             FString::Printf(TEXT("life %u, expected %u: %s"), PC.OwnerState.Life, uint32(Expected),
                 *LDDemoGrowthScenario::GrowthProbeProgressionText(FirstProgression)));
@@ -1995,6 +2066,7 @@ public:
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
         const FLDCombatOwnerView& Own = PC.CombatView;
         if (!Cast<ALDCharacter>(PC.GetPawn()) || PC.OwnerState.Match != SecondGeneration || PC.OwnerState.LifePhase != ELDLifePhase::Alive
+            || PC.OwnerState.Life < LDDemoGrowthScenario::GrowthProbeFieldLife
             || !PC.OwnerState.BodyRef.IsValid() || !PC.CanWorldCommand() || !ProgView
             || Own.Generation != SecondGeneration || Own.Life != PC.OwnerState.Life || !Own.bHasBody)
         {
@@ -2020,9 +2092,12 @@ public:
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
         const FLDOwnerState& Self = PC.OwnerState;
         const FLDCombatOwnerView& Own = PC.CombatView;
-        Check(Self.Match == SecondGeneration && Self.Life == 1 && Progress.Life == Self.Life && FirstBody.IsValid()
-            && Self.BodyRef != FirstBody && Self.ProtectedUntilMs == 0, TEXT("Iso"),
-            TEXT("The second match starts the first life of a fresh, unprotected body"),
+        const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+        const int64 ReturnProtectedUntilMs = Public ? Public->PublicMatch.Timeline.FieldStartedAtMs + Defs.Parameters.ProtectionMs : -1;
+        Check(Self.Match == SecondGeneration && Self.Life == LDDemoGrowthScenario::GrowthProbeFieldLife && Progress.Life == Self.Life
+            && FirstBody.IsValid() && Self.BodyRef != FirstBody
+            && (Self.ProtectedUntilMs == 0 || Self.ProtectedUntilMs == ReturnProtectedUntilMs), TEXT("Iso"),
+            TEXT("The second match starts its first field life (after its R0 rest life) in a fresh body with at most the shared return protection"),
             FString::Printf(TEXT("generation %u life %u (first match ended on life %u)"), Self.Match, Self.Life,
                 FirstMatchRow.IsValid() ? uint32(FirstMatchRow->GetNumberField(TEXT("life"))) : 0u));
         uint8 StartLevel = 0;
@@ -2513,9 +2588,11 @@ public:
             if (!Public) { return true; }
             if (!Dev.bSent)
             {
-                // Development lasts the approved MATCH.DevelopmentSec from the start; the stage normally ends inside it, and
-                // if it does not, the same command must be refused instead.
-                bDevOpenedInDevelopment = Public->PublicMatch.Phase == ELDMatchPhase::Development;
+                // Field 1 lasts the approved MATCH.FieldSegmentSec after R0; the stage normally ends inside it, where the DEV
+                // command skips the timeline to the final field and opens the flagpole. Outside a timed segment it must be
+                // refused instead.
+                bDevOpenedInDevelopment = Public->PublicMatch.Phase == ELDMatchPhase::Development
+                    && Public->PublicMatch.Timeline.Stage == ELDMatchStage::Field;
                 return SendDev(Now, PC, bDevOpenedInDevelopment
                     ? TEXT("The Listen Host's DEV early capture opens the circle during development")
                     : TEXT("The Listen Host's DEV early capture after development is refused as StaleContext"), ELDDevTestOp::OpenCapture, 0);
@@ -2543,7 +2620,8 @@ public:
         // The buyer dies once, on purpose, after its last planned kill; until then it keeps its first life.
         const bool bDeathStage = Stage == EStage::AwaitDeath || Stage == EStage::Dead || Stage == EStage::Respawn;
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
-        if (!bDeathStage && (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != 1))
+        if (!bDeathStage && (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive
+            || PC.OwnerState.Life != LDDemoGrowthScenario::GrowthProbeFieldLife))
         {
             return Fail(TEXT("N03"), TEXT("The buyer lost its first life before the Host was asked to kill it"));
         }
@@ -2838,12 +2916,13 @@ public:
     bool TickAwaitDeath(double Now, ALDPlayerController& PC)
     {
         const FLDCombatOwnerView& Own = PC.CombatView;
-        const bool bDead = PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.Life == 1;
+        const bool bDead = PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.Life == LDDemoGrowthScenario::GrowthProbeFieldLife;
         const bool bViewDead = Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life && !Own.bHasBody;
         if (!bDead || !bViewDead)
         {
             // The Host may first respawn and walk back before its grant and attack.
-            const bool bWaiting = (PC.OwnerState.LifePhase == ELDLifePhase::Alive || bDead) && PC.OwnerState.Life == 1;
+            const bool bWaiting = (PC.OwnerState.LifePhase == ELDLifePhase::Alive || bDead)
+                && PC.OwnerState.Life == LDDemoGrowthScenario::GrowthProbeFieldLife;
             if (bWaiting && Now - StageAt <= RespawnSeconds + LDDemoGrowthScenario::GrowthProbeReturnSeconds
                 + LDDemoGrowthScenario::GrowthProbeKillSeconds)
             {
@@ -3077,7 +3156,7 @@ public:
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection growth scenario, victim and growth-audit role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's active offers in the Lobby (its opening offer first), opens each match with exactly one queued opening opportunity and its opening points, keeps its own untaken opening offer past T=0, checks its opponent view of the buyer, never attacks until the buyer asks to die, then takes its own DEV XP grant, kills the buyer and both scavengers of an authored low camp and sees each exact XP reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth scenario, buyer role: exactly one queued opening opportunity at each match start (never re-granted by a respawn), the opening active learned into Q and the opening points allocated during the countdown, real kill XP, points and offers, the level offer kept as a blueprint and an allocation and a learn refused while its own build safe window runs, then the learn and the allocation after it, a blueprint kept, a learn refused and points allocated while dead and the blueprint learned after the respawn, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+            : TEXT("DEV-only owned-connection growth scenario, buyer role: exactly one queued opening opportunity at each match start (never re-granted by a respawn), the opening active learned into Q and the opening points allocated in the opening rest R0, real kill XP, points and offers, the level offer kept as a blueprint and an allocation and a learn refused while its own build safe window runs, then the learn and the allocation after it, a blueprint kept, a learn refused and points allocated while dead and the blueprint learned after the respawn, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
@@ -3087,7 +3166,7 @@ public:
         Report->SetNumberField(TEXT("second_generation"), SecondGeneration);
         Report->SetObjectField(TEXT("match1"), FirstMatchRow.IsValid() ? FirstMatchRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         Report->SetObjectField(TEXT("opening"), OpeningRow.IsValid() ? OpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
-        Report->SetObjectField(TEXT("countdown"), CountdownRow.IsValid() ? CountdownRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+        Report->SetObjectField(TEXT("rest0"), Rest0Row.IsValid() ? Rest0Row : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         Report->SetObjectField(TEXT("second_opening"),
             SecondOpeningRow.IsValid() ? SecondOpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         if (const ALDPlayerController* PC = Controller.Get())

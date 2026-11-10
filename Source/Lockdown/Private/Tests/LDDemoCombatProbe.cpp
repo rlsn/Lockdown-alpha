@@ -63,6 +63,9 @@
 // driver entry, an _Implementation or a Combat write. Named, not anonymous: unity builds merge files.
 namespace LDDemoCombatScenario
 {
+// #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it
+// without a death and places the first field life, life 2. The Host's kill then gives Client1 its next life.
+constexpr uint32 CombatProbeFieldLife = 2;
 constexpr int32 CombatProbeNavigateAttempts = 4;
 constexpr int32 CombatProbeAttackOrders = 6;
 // A ground order may stop this far from its point when another body stands near it.
@@ -487,7 +490,7 @@ public:
             SetStage(EStage::Spawned);
             return Passed ? true : Finish();
         }
-        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Rest) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
             return Fail(TEXT("Start"), TEXT("The room left the Lobby without opening play: ")
@@ -551,8 +554,9 @@ public:
 
     bool TickSpawned(ALDPlayerController& PC, const ULDMapRegistry& Registry, const FLDLobbyView& Lobby)
     {
+        // The public phase may reach Development a frame before this owner's projection leaves its R0 rest life.
         if (!Cast<ALDCharacter>(PC.GetPawn()) || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.OwnerState.BodyRef.IsValid()
-            || !PC.CanWorldCommand())
+            || !PC.CanWorldCommand() || PC.OwnerState.Life < LDDemoCombatScenario::CombatProbeFieldLife)
         {
             return true;
         }
@@ -584,8 +588,10 @@ public:
         {return Finish();}
         const FGuid StagedHost = HostId, StagedClient = ClientId;
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
-        Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
-            TEXT("The first body is an unprotected initial life"));
+        // The R0 return protects the first field life for LIFE.ProtectionSec, shorter than the recovery delay waited above.
+        Check(PC.OwnerState.Life == LDDemoCombatScenario::CombatProbeFieldLife && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),
+            TEXT("The first field body is the life after the R0 rest life, its return protection already over"),
+            FString::Printf(TEXT("life=%u protected_until_ms=%lld"), PC.OwnerState.Life, PC.OwnerState.ProtectedUntilMs));
         if (IsHost())
         {
             Check(StagedHost == HostId && StagedClient == ClientId, TEXT("Skills"),
@@ -652,7 +658,8 @@ public:
         const double AttackReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
         const double SightReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.VisionRadiusCm);
         const double Gap = LDDemoCombatScenario::CombatProbeGapCm;
-        RespawnSeconds = double(Defs.Parameters.RespawnMs) / 1000.0;
+        // The Host kills Client1 inside the first field segment, whose approved respawn wait is LIFE.RespawnSec.Field1.
+        RespawnSeconds = double(Defs.Parameters.RespawnField1Ms) / 1000.0;
         if (!CaptureAnchor || CaptureReach <= 0 || BodyRadius <= 0 || AttackReach <= 0
             || RespawnSeconds <= 0 || Defs.Parameters.ProtectionMs <= 0
             || Gap <= AttackReach + 2.0 * BodyRadius || Gap >= SightReach - 2.0 * BodyRadius)
@@ -705,7 +712,7 @@ public:
     bool TickToSite(double Now, ALDPlayerController& PC)
     {
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
-        if (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != 1)
+        if (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != LDDemoCombatScenario::CombatProbeFieldLife)
         {
             return Fail(TEXT("Start"), TEXT("The first life ended before the duel although nobody attacks yet"));
         }
@@ -1082,7 +1089,7 @@ public:
     // Client1 stays passive: no order, no action, until the Host's right-click kill lands.
     bool TickAwaitDeath(double Now, ALDPlayerController& PC)
     {
-        if (PC.OwnerState.Life == 1 && PC.OwnerState.LifePhase == ELDLifePhase::Dead)
+        if (PC.OwnerState.Life == LDDemoCombatScenario::CombatProbeFieldLife && PC.OwnerState.LifePhase == ELDLifePhase::Dead)
         {
             Check(PC.OwnerState.RespawnAtMs > 0 && PC.OwnerState.ProtectedUntilMs == 0 && !PC.IsWorldLifeValid()
                 && !PC.CanWorldCommand() && PC.IsAwaitingRespawn(), TEXT("Death"),
@@ -1096,7 +1103,7 @@ public:
             SetStage(EStage::AwaitRespawn);
             return true;
         }
-        if (PC.OwnerState.Life != 1 || PC.OwnerState.LifePhase != ELDLifePhase::Alive)
+        if (PC.OwnerState.Life != LDDemoCombatScenario::CombatProbeFieldLife || PC.OwnerState.LifePhase != ELDLifePhase::Alive)
         {
             return Fail(TEXT("Death"), TEXT("The first life left Alive other than by the Host's kill"));
         }
@@ -1121,7 +1128,7 @@ public:
             if (!Passed) { return Finish(); }
         }
         const bool bViewCurrent = PC.CombatView.Generation == PC.OwnerState.Match && PC.CombatView.Life == PC.OwnerState.Life;
-        if (PC.OwnerState.Life != 2 || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !Cast<ALDCharacter>(PC.GetPawn())
+        if (PC.OwnerState.Life != LDDemoCombatScenario::CombatProbeFieldLife + 1 || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !Cast<ALDCharacter>(PC.GetPawn())
             || !PC.CanWorldCommand() || !bViewCurrent)
         {
             if (Now - StageAt <= RespawnSeconds + LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
@@ -1168,7 +1175,7 @@ public:
     bool TickSpend(double Now, ALDPlayerController& PC)
     {
         const FLDCombatActionReceipt* Answer = PC.CombatReceipts.FindLatestSince(ReceiptSerialBefore,
-            [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q && Receipt.Life == 2; });
+            [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q && Receipt.Life == LDDemoCombatScenario::CombatProbeFieldLife + 1; });
         if (!Answer)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
@@ -1200,7 +1207,7 @@ public:
     bool TickSettle(double Now, ALDPlayerController& PC)
     {
         if (Now - StageAt < LDDemoCombatScenario::CombatProbeQuietSeconds) { return true; }
-        Check(PC.OwnerState.Life == 2 && PC.OwnerState.LifePhase == ELDLifePhase::Alive && PC.OwnerState.ProtectedUntilMs == 0,
+        Check(PC.OwnerState.Life == LDDemoCombatScenario::CombatProbeFieldLife + 1 && PC.OwnerState.LifePhase == ELDLifePhase::Alive && PC.OwnerState.ProtectedUntilMs == 0,
             TEXT("Protection"), TEXT("A refused action never restores protection on the same life"));
         if (!Passed) { return Finish(); }
         SetStage(EStage::Learn);
@@ -1689,7 +1696,7 @@ public:
         }
         if (!Exists(TEXT("HostSkillsDone.json")))
         {
-            if (PC.OwnerState.Life == 2 && PC.OwnerState.LifePhase == ELDLifePhase::Alive
+            if (PC.OwnerState.Life == LDDemoCombatScenario::CombatProbeFieldLife + 1 && PC.OwnerState.LifePhase == ELDLifePhase::Alive
                 && Now - StageAt <= LDDemoCombatScenario::CombatProbeKillSeconds)
             {
                 return true;
@@ -1710,7 +1717,7 @@ public:
     bool TickStruck(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
         const FLDBodyCombatState* Own = AuthorityState(Mode, &PC);
-        if (!Own || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != 1)
+        if (!Own || PC.OwnerState.LifePhase != ELDLifePhase::Alive || PC.OwnerState.Life != LDDemoCombatScenario::CombatProbeFieldLife)
         {
             return Fail(TEXT("AttackMove"), TEXT("The Host's first life ended during the attack-move"));
         }
@@ -1797,7 +1804,7 @@ public:
         if (!Remote) { return Fail(TEXT("Death"), TEXT("Client1's server controller disappeared")); }
         const FLDOwnerState& Victim = Remote->OwnerState;
         const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
-        if (Victim.Life == 1 && Victim.LifePhase == ELDLifePhase::Dead)
+        if (Victim.Life == LDDemoCombatScenario::CombatProbeFieldLife && Victim.LifePhase == ELDLifePhase::Dead)
         {
             const FLDKillNotice* Notice = nullptr;
             for (const FLDKillNotice& Row : Public.KillFeed.Notices)
@@ -1811,19 +1818,23 @@ public:
                 return Fail(TEXT("Death"), FString::Printf(TEXT("The death facts never completed (feed=%d order=%s)"),
                     int32(Notice != nullptr), *PC.Navigation->Status));
             }
-            const int64 Delay = Catalog->Get().Parameters.RespawnMs;
+            // #198: a field death waits the approved respawn of the segment its field progress T falls in (8/10/12/15 s).
+            const int64 DeathT = Mode.GetTimeline().FieldMsAt(Notice->OccurredAtMs);
+            const int64 Delay = Mode.RespawnWaitAtFieldMs(DeathT);
             Check(Notice->Killer == HostId && Notice->Cause == ELDKillCause::Contender, TEXT("Death"),
                 TEXT("The public kill feed credits the Host contender with the right-click kill"));
-            Check(Victim.RespawnAtMs == Notice->OccurredAtMs + Delay, TEXT("Death"),
-                TEXT("The death schedules exactly the approved respawn delay"),
-                FString::Printf(TEXT("died_ms=%lld respawn_at_ms=%lld delay_ms=%lld"), Notice->OccurredAtMs, Victim.RespawnAtMs, Delay));
+            Check(Delay > 0 && (DeathT >= Catalog->Get().Parameters.FieldSegmentMs || Delay == Catalog->Get().Parameters.RespawnField1Ms)
+                && Victim.RespawnAtMs == Notice->OccurredAtMs + Delay, TEXT("Death"),
+                TEXT("The death schedules exactly the approved respawn wait of its field segment"),
+                FString::Printf(TEXT("died_ms=%lld field_t_ms=%lld respawn_at_ms=%lld delay_ms=%lld"), Notice->OccurredAtMs, DeathT,
+                    Victim.RespawnAtMs, Delay));
             Check(true, TEXT("Death"), TEXT("The right-click order ends with TargetDied when its target dies"));
             if (!Passed) { return Finish(); }
             RespawnAtMs = Victim.RespawnAtMs;
             SetStage(EStage::Respawn);
             return true;
         }
-        if (Victim.Life != 1 || Victim.LifePhase != ELDLifePhase::Alive)
+        if (Victim.Life != LDDemoCombatScenario::CombatProbeFieldLife || Victim.LifePhase != ELDLifePhase::Alive)
         {
             return Fail(TEXT("Death"), TEXT("Client1 left its first life other than by this kill"));
         }
@@ -1844,7 +1855,7 @@ public:
     {
         const ALDPlayerController* Remote = Mode.FindContenderController(ClientId);
         const ALDCharacter* Body = Remote ? Cast<ALDCharacter>(Remote->GetPawn()) : nullptr;
-        if (!Remote || !Body || Remote->OwnerState.Life != 2 || Remote->OwnerState.LifePhase != ELDLifePhase::Alive)
+        if (!Remote || !Body || Remote->OwnerState.Life != LDDemoCombatScenario::CombatProbeFieldLife + 1 || Remote->OwnerState.LifePhase != ELDLifePhase::Alive)
         {
             if (Now - StageAt <= RespawnSeconds + LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
             return Fail(TEXT("Respawn"), TEXT("Client1 did not respawn after the approved delay"));
@@ -1904,7 +1915,7 @@ public:
         FLDObservedPublicFacts Facts;
         FString FactsError;
         const bool bFacts = Mode.ReadObservedPublicFacts(Mode.GetMatchContext(), Victim.BodyRef, Facts, FactsError);
-        Check(bFacts && !LDDemoCombatScenario::CombatProbeProtection(Facts.Statuses) && Victim.Life == 2
+        Check(bFacts && !LDDemoCombatScenario::CombatProbeProtection(Facts.Statuses) && Victim.Life == LDDemoCombatScenario::CombatProbeFieldLife + 1
             && Victim.LifePhase == ELDLifePhase::Alive, TEXT("Protection"),
             TEXT("Ended protection retires the public respawn_protection status of the same living body"), FactsError);
         if (!Passed) { return Finish(); }

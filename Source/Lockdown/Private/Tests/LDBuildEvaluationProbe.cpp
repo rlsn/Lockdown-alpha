@@ -647,7 +647,7 @@ public:
             Capture->End();
             return FailRun(TEXT("The Case start aborted: ") + PC.IntentFeedback);
         }
-        if (View.Generation != MatchGeneration || (View.Phase != ELDMatchPhase::Countdown && View.Phase != ELDMatchPhase::Development))
+        if (View.Generation != MatchGeneration || (View.Phase != ELDMatchPhase::Rest && View.Phase != ELDMatchPhase::Development))
         {
             if (FPlatformTime::Seconds() - CaseStartedAt > Case().WallTimeoutSeconds)
             {
@@ -706,12 +706,12 @@ public:
             }
         }
         if (View.Generation != MatchGeneration
-            || (View.Phase != ELDMatchPhase::Countdown && View.Phase != ELDMatchPhase::Development && View.Phase != ELDMatchPhase::CaptureOpen))
+            || (View.Phase != ELDMatchPhase::Rest && View.Phase != ELDMatchPhase::Development && View.Phase != ELDMatchPhase::CaptureOpen))
         {
             EndCase(Mode, World, TEXT("Faulted"), FString::Printf(TEXT("the match left play (phase %u)"), uint8(View.Phase)));
             return true;
         }
-        if (View.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (View.Phase == ELDMatchPhase::Rest) { return true; }
         if (StartedAtMs < 0) { StartedAtMs = View.StartedAtMs; }
         if (!bSupplySent)
         {

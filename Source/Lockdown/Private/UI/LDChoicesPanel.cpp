@@ -128,6 +128,48 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Section->AddChildToVerticalBox(ConfirmLine)->SetPadding(FMargin(0,4,0,0));
             PointsSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
+        {
+            // #198 rest services: shown in a rest, enabled only in its build windows, each with its own reason when refused.
+            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
+            UTextBlock* Heading=OneLine(16);Heading->SetColorAndOpacity(LDHUDStyle::TextAccent);Heading->SetText(FText::FromString(FString(LDTerms::RestServices)));
+            Section->AddChildToVerticalBox(Heading);
+            auto ServiceLine=[&](UWidget* Lead,UTextBlock*& OutBlocked)
+            {
+                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
+                Line->AddChildToHorizontalBox(Lead)->SetVerticalAlignment(VAlign_Center);
+                OutBlocked=OneLine(13);OutBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                auto* BlockedSlot=Line->AddChildToHorizontalBox(OutBlocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
+                Section->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,4,0,0));
+            };
+            UTextBlock* Blocked=nullptr;
+            NpcButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){BuyNpcOffer();},false,TEXT("GrowthRestNpc"));
+            ServiceLine(NpcButton.Get(),Blocked);NpcBlocked=Blocked;
+            RespecButton=LDWidgets::Button(WidgetTree,LDTerms::Respec,[this](){Respec();},false,TEXT("GrowthRestRespec"));
+            ServiceLine(RespecButton.Get(),Blocked);RespecBlocked=Blocked;
+            auto* ForgetRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            for(uint8 Key=0;Key<3;++Key)
+            {
+                ULDCommandButton* Forget=LDWidgets::Button(WidgetTree,TEXT(""),[this,Key](){AskForget(Key);},false,
+                    FName(*FString::Printf(TEXT("GrowthRestForget%s"),*LDHUD::SlotKey(Key))));
+                ForgetRow->AddChildToHorizontalBox(Forget)->SetPadding(FMargin(Key?6.f:0.f,0,0,0));
+                ForgetButtons.Add(Forget);
+            }
+            ServiceLine(ForgetRow,Blocked);ForgetBlocked=Blocked;
+            // The confirm line of a replace or forget names the active that will be forgotten.
+            auto* ConfirmRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            RestConfirmText=Wrapped(14,GrowthPanelWidth-220.f);RestConfirmText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+            auto* ConfirmTextSlot=ConfirmRow->AddChildToHorizontalBox(RestConfirmText);ConfirmTextSlot->SetVerticalAlignment(VAlign_Center);
+            ConfirmTextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            RestConfirmButton=LDWidgets::Button(WidgetTree,LDTerms::ConfirmAction,[this](){ConfirmRestAction();},false,TEXT("GrowthRestConfirm"));
+            ConfirmRow->AddChildToHorizontalBox(RestConfirmButton)->SetPadding(FMargin(8,0,0,0));
+            ConfirmRow->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::CancelAction,[this](){CancelRestAction();},false,TEXT("GrowthRestCancel")))
+                ->SetPadding(FMargin(6,0,0,0));
+            ConfirmRow->SetVisibility(ESlateVisibility::Collapsed);
+            RestConfirmLine=ConfirmRow;
+            Section->AddChildToVerticalBox(ConfirmRow)->SetPadding(FMargin(0,6,0,0));
+            Section->SetVisibility(ESlateVisibility::Collapsed);
+            RestSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+        }
         // Only a result or a refusal shows at the bottom (no standing instructions); it collapses while empty.
         Feedback=Wrapped(14,GrowthPanelWidth);Feedback->SetVisibility(ESlateVisibility::Collapsed);Root->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,8,0,0));
         // A see-through backing right above the HUD's skill slots (SetBottomDock), clear of the bottom band.
@@ -227,7 +269,9 @@ void ULDChoicesPanel::OpenPanel()
 }
 bool ULDChoicesPanel::ClosePanel()
 {
-    // Closing only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their state.
+    // Closing only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their state;
+    // an unconfirmed replace or forget is withdrawn.
+    RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);
     PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
 }
 double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
@@ -255,21 +299,22 @@ int32 ULDChoicesPanel::StagedTotal() const
 }
 bool ULDChoicesPanel::HasAnythingToDo() const
 {
-    return LDHUD::GrowthPending(&Latest,LatestMatch).Any()||StagedTotal()>0;
+    // #198: in a rest the services stay on offer (or explain why they are locked), so the panel never closes itself there.
+    return LDHUD::GrowthPending(&Latest,LatestMatch).Any()||StagedTotal()>0||Gate.bInRest;
 }
-void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,ELDMatchPhase Phase,int64 BuildSafeAtMs,
+void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,int64 BuildSafeAtMs,
     bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
 {
     const bool bStatsChanged=Stats.Level!=LatestStats.Level||Stats.ADP2!=LatestStats.ADP2||Stats.APP2!=LatestStats.APP2
         ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Content!=LatestContent;
-    Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestPhase=Phase;LatestSafeAtMs=BuildSafeAtMs;
+    Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;LatestSafeAtMs=BuildSafeAtMs;
     bLatestClock=bClock;LatestNowMs=NowMs;LatestContent=Content;LatestStats=Stats;
     if(!MainPanel){return;}
     if(StagedMatch!=Match){StagedMatch=Match;Staged.Reset();}
-    Gate=Usable()?LDHUD::BuildGate(Phase,LifePhase,BuildSafeAtMs,bClock,NowMs):LDHUD::FBuildGateView();
+    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,BuildSafeAtMs,bClock,NowMs):LDHUD::FBuildGateView();
     if(Content&&StatRows.IsEmpty()){BuildStatRows();}
     if(bStatsChanged){bDetailStale=true;bCardsStale=true;}
-    RefreshOffer();RefreshBlueprints();RefreshPoints();
+    RefreshOffer();RefreshBlueprints();RefreshPoints();RefreshRest();
     // Nothing left to do: an open panel would only say so, so it closes itself; the last result still reaches the player
     // as a toast. A request in flight keeps it open.
     if(bOpen&&Usable()&&!PendingRequest&&!HasAnythingToDo())
@@ -345,6 +390,15 @@ ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
             Line->AddChildToHorizontalBox(Learn)->SetPadding(FMargin(6,0,0,0));
             Row.Learn.Add(Learn);
         }
+        for(uint8 Key=0;Key<3;++Key)
+        {
+            // #198 rest only: the blueprint replaces the active in this occupied slot, after the confirm line.
+            ULDCommandButton* Replace=LDWidgets::Button(WidgetTree,LDTerms::ReplaceInto(LDHUD::SlotKey(Key)),[this,RowIndex,Key](){AskReplace(RowIndex,Key);},false,
+                FName(*FString::Printf(TEXT("GrowthReplace%d%s"),RowIndex,*LDHUD::SlotKey(Key))));
+            ScaleNewText(Cast<UTextBlock>(Replace->GetContent()));RowWidgets.Add(Replace);
+            Line->AddChildToHorizontalBox(Replace)->SetPadding(FMargin(6,0,0,0));
+            Row.Replace.Add(Replace);
+        }
         Row.Blocked=MakeText(13,LDHUDStyle::TextSecondary);
         auto* BlockedSlot=Line->AddChildToHorizontalBox(Row.Blocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
         Row.Row=Line;
@@ -360,8 +414,9 @@ void ULDChoicesPanel::RefreshBlueprints()
     bool bEmpty[3]={false,false,false};
     for(uint8 Key=0;Key<3;++Key){bEmpty[Key]=LDHUD::ActiveInSlot(Latest,Key).IsNone();}
     const bool bAnyEmpty=bEmpty[0]||bEmpty[1]||bEmpty[2];
-    // No empty slot: a blueprint waits for the rest-only replacement (#198 PR5); otherwise the gate's reason, if any.
-    const FString Blocked=!bAnyEmpty?FString(LDTerms::ReplaceAtRest):Gate.bCanLearn?FString():Gate.LearnBlocked;
+    // A full Q/W/E: in a rest the blueprint replaces an occupied slot (after a confirm), otherwise it waits for a rest.
+    const FString ReplaceWhy=Gate.bInRest?ReplaceRefusal():FString();
+    const FString Blocked=!bAnyEmpty?(Gate.bInRest?ReplaceWhy:FString(LDTerms::ReplaceAtRest)):Gate.bCanLearn?FString():Gate.LearnBlocked;
     for(int32 Index=0;Index<FMath::Max(ShownBlueprints.Num(),BlueprintRows.Num());++Index)
     {
         if(!ShownBlueprints.IsValidIndex(Index)){GrowthShown(BlueprintRows[Index].Row,false);continue;}
@@ -375,6 +430,8 @@ void ULDChoicesPanel::RefreshBlueprints()
         {
             GrowthShown(Row.Learn[Key],bEmpty[Key],ESlateVisibility::Visible);
             GrowthEnabled(Row.Learn[Key],Gate.bCanLearn&&!PendingRequest);
+            GrowthShown(Row.Replace[Key],Gate.bInRest&&!bEmpty[Key],ESlateVisibility::Visible);
+            GrowthEnabled(Row.Replace[Key],ReplaceWhy.IsEmpty()&&!PendingRequest);
         }
         GrowthText(Row.Blocked,Blocked);
         GrowthShown(Row.Blocked,!Blocked.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -495,6 +552,159 @@ bool ULDChoicesPanel::ConfirmPoints()
     }
     return Send(Command);
 }
+FString ULDChoicesPanel::NpcRefusal() const
+{
+    if(!Gate.bCanBuyNpc){return Gate.NpcBlocked;}
+    if(!LatestContent){return TEXT("内容数据同步中");}
+    const int64 Price=LatestContent->Parameters.NpcActivePoints;
+    if(Price<=0){return TEXT("NPC 价格数据缺失");}
+    if(Latest.bHasActiveOffer||Latest.QueuedActiveOpportunities>0){return LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding);}
+    if(Latest.UnspentPoints<Price){return FString::Printf(TEXT("未分配点数不够（要 %lld 点）"),Price);}
+    return FString();
+}
+FString ULDChoicesPanel::RespecRefusal() const
+{
+    if(!Gate.bCanRespec){return Gate.RespecBlocked;}
+    int64 Allocated=0;for(const FLDStatPointsView& Row:Latest.StatPoints){Allocated+=FMath::Max(0,Row.Points);}
+    return Allocated>0?FString():LDHUD::GrowthReasonText(ELDGrowthReason::NothingToRespec);
+}
+FString ULDChoicesPanel::ReplaceRefusal() const
+{
+    if(!Gate.bCanReplace){return Gate.ReplaceBlocked;}
+    return Latest.bHasActiveOffer?LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding):FString();
+}
+FString ULDChoicesPanel::ForgetRefusal() const
+{
+    if(!Gate.bCanForget){return Gate.ForgetBlocked;}
+    return Latest.bHasActiveOffer?LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding):FString();
+}
+bool ULDChoicesPanel::RestConfirmHolds() const
+{
+    if(RestConfirm.Kind==ELDBuildCommandKind::None||!Usable()||LDHUD::ActiveInSlot(Latest,RestConfirm.Slot)!=RestConfirm.Active){return false;}
+    return RestConfirm.Kind!=ELDBuildCommandKind::ReplaceActive||Latest.PendingBlueprints.Contains(RestConfirm.Blueprint);
+}
+void ULDChoicesPanel::RefreshRest()
+{
+    if(!RestSection){return;}
+    const bool bShown=Usable()&&Gate.bInRest;
+    GrowthShown(RestSection,bShown);
+    // A confirm line whose terms changed (another slot content, a used blueprint, the rest over) is withdrawn, never resent.
+    if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bShown||!RestConfirmHolds()))
+    {
+        RestConfirm=FRestConfirm();
+        if(bShown){SetFeedback(TEXT("技能槽或图纸已变化，请重新选择。"));}
+    }
+    GrowthShown(RestConfirmLine,RestConfirm.Kind!=ELDBuildCommandKind::None,ESlateVisibility::SelfHitTestInvisible);
+    if(!bShown){return;}
+    const int64 Price=LatestContent?LatestContent->Parameters.NpcActivePoints:0;
+    GrowthText(Cast<UTextBlock>(NpcButton->GetContent()),Price>0?LDTerms::NpcOffer(Price):FString(TEXT("NPC：价格数据缺失")));
+    const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
+    {
+        GrowthEnabled(Button,Refusal.IsEmpty()&&!PendingRequest);
+        GrowthText(Why,Refusal);
+        GrowthShown(Why,!Refusal.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    };
+    Service(NpcButton,NpcBlocked,NpcRefusal());
+    Service(RespecButton,RespecBlocked,RespecRefusal());
+    const FString Forget=ForgetRefusal();
+    bool bAnyLearned=false;
+    for(uint8 Key=0;Key<3&&ForgetButtons.IsValidIndex(Key);++Key)
+    {
+        const FName Active=LDHUD::ActiveInSlot(Latest,Key);
+        GrowthShown(ForgetButtons[Key],!Active.IsNone(),ESlateVisibility::Visible);
+        if(Active.IsNone()){continue;}
+        bAnyLearned=true;
+        GrowthText(Cast<UTextBlock>(ForgetButtons[Key]->GetContent()),LDTerms::ForgetSlot(LDHUD::SlotKey(Key),LDHUD::ContentName(LatestContent,Active.ToString())));
+        GrowthEnabled(ForgetButtons[Key],Forget.IsEmpty()&&!PendingRequest);
+    }
+    const FString ForgetWhy=bAnyLearned?Forget:FString(TEXT("还没有学会的技能可遗忘"));
+    GrowthText(ForgetBlocked,ForgetWhy);
+    GrowthShown(ForgetBlocked,!ForgetWhy.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    if(RestConfirm.Kind!=ELDBuildCommandKind::None)
+    {
+        const FString Key=LDHUD::SlotKey(RestConfirm.Slot);
+        const FString Old=LDHUD::ContentName(LatestContent,RestConfirm.Active.ToString());
+        const bool bReplace=RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive;
+        const FString Refusal=bReplace?ReplaceRefusal():Forget;
+        FString Line=bReplace?LDTerms::ReplaceConfirm(LDHUD::ContentName(LatestContent,RestConfirm.Blueprint.ToString()),Key,Old):LDTerms::ForgetConfirm(Key,Old);
+        if(!Refusal.IsEmpty()){Line+=TEXT("（")+Refusal+TEXT("）");}
+        GrowthText(RestConfirmText,Line);
+        GrowthEnabled(RestConfirmButton,Refusal.IsEmpty()&&!PendingRequest);
+    }
+}
+bool ULDChoicesPanel::BuyNpcOffer()
+{
+    if(!Usable()){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    const FString Refusal=NpcRefusal();
+    if(!Refusal.IsEmpty()){SetFeedback(TEXT("没有提交：")+Refusal);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::BuyNpcOffer;
+    return Send(Command);
+}
+bool ULDChoicesPanel::Respec()
+{
+    if(!Usable()){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    const FString Refusal=RespecRefusal();
+    if(!Refusal.IsEmpty()){SetFeedback(TEXT("没有提交：")+Refusal);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::Respec;
+    return Send(Command);
+}
+bool ULDChoicesPanel::AskReplace(int32 Index,uint8 Key)
+{
+    if(!Usable()||!ShownBlueprints.IsValidIndex(Index)||Key>2||!Latest.PendingBlueprints.Contains(ShownBlueprints[Index])){return false;}
+    const FName Active=LDHUD::ActiveInSlot(Latest,Key);
+    if(Active.IsNone()){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::SlotEmpty));return false;}
+    const FString Refusal=ReplaceRefusal();
+    if(!Refusal.IsEmpty()){SetFeedback(TEXT("没有提交：")+Refusal);return false;}
+    RestConfirm.Kind=ELDBuildCommandKind::ReplaceActive;RestConfirm.Blueprint=ShownBlueprints[Index];RestConfirm.Slot=Key;RestConfirm.Active=Active;
+    SetFeedback(FString());
+    RefreshRest();
+    return true;
+}
+bool ULDChoicesPanel::AskForget(uint8 Key)
+{
+    if(!Usable()||Key>2){return false;}
+    const FName Active=LDHUD::ActiveInSlot(Latest,Key);
+    if(Active.IsNone()){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::SlotEmpty));return false;}
+    const FString Refusal=ForgetRefusal();
+    if(!Refusal.IsEmpty()){SetFeedback(TEXT("没有提交：")+Refusal);return false;}
+    RestConfirm=FRestConfirm();
+    RestConfirm.Kind=ELDBuildCommandKind::ForgetActive;RestConfirm.Slot=Key;RestConfirm.Active=Active;
+    SetFeedback(FString());
+    RefreshRest();
+    return true;
+}
+bool ULDChoicesPanel::ConfirmRestAction()
+{
+    if(RestConfirm.Kind==ELDBuildCommandKind::None){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!RestConfirmHolds()){CancelRestAction();SetFeedback(TEXT("技能槽或图纸已变化，请重新选择。"));return false;}
+    const bool bReplace=RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive;
+    const FString Refusal=bReplace?ReplaceRefusal():ForgetRefusal();
+    if(!Refusal.IsEmpty()){SetFeedback(TEXT("没有提交：")+Refusal);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=RestConfirm.Kind;
+    Command.Slot=RestConfirm.Slot;
+    if(bReplace&&!FLDDefinitionWire::Encode(RestConfirm.Blueprint,Command.Blueprint)){SetFeedback(TEXT("没有提交：这份图纸的标识无效。"));return false;}
+    // The line is consumed by the attempt; the receipt or the refusal reason takes its place.
+    RestConfirm=FRestConfirm();
+    GrowthShown(RestConfirmLine,false);
+    return Send(Command);
+}
+void ULDChoicesPanel::CancelRestAction()
+{
+    RestConfirm=FRestConfirm();
+    GrowthShown(RestConfirmLine,false);
+}
+bool ULDChoicesPanel::CloseChildConfirmation()
+{
+    if(RestConfirm.Kind==ELDBuildCommandKind::None){return false;}
+    CancelRestAction();
+    return true;
+}
 bool ULDChoicesPanel::Send(FLDBuildCommand Command)
 {
     if(!SubmitBuild)
@@ -513,17 +723,17 @@ bool ULDChoicesPanel::Send(FLDBuildCommand Command)
         if(PendingRequest==Expected){PendingRequest=0;}
         const FString Why=LDHUD::GrowthReasonText(Reason);
         SetFeedback(TEXT("没有提交：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));
-        RefreshOffer();RefreshBlueprints();RefreshPoints();
+        RefreshOffer();RefreshBlueprints();RefreshPoints();RefreshRest();
         return false;
     }
     if(Answers==Before){PendingRequest=Request;SetFeedback(FString());}
-    RefreshOffer();RefreshBlueprints();RefreshPoints();
+    RefreshOffer();RefreshBlueprints();RefreshPoints();RefreshRest();
     return true;
 }
 void ULDChoicesPanel::FinishRequest()
 {
     PendingRequest=0;
-    RefreshOffer();RefreshBlueprints();RefreshPoints();
+    RefreshOffer();RefreshBlueprints();RefreshPoints();RefreshRest();
     // A result that arrives after the panel was closed still reaches the player, without reopening the panel; while it
     // is open the result is kept for the toast in case the panel closes itself with nothing left to do.
     if(!bOpen&&Notify&&Feedback){Notify(FString(LDTerms::Choice)+TEXT("：")+Feedback->GetText().ToString());}

@@ -114,6 +114,23 @@ private:
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
+    // #198: the outer timeline over the capture line (LDHUD::TimelineBanner): the rest and its step, or the field segment;
+    // then the rest's PK sign-up and lock detail.
+    UPROPERTY() TObjectPtr<UTextBlock> TimelineText;
+    UPROPERTY() TObjectPtr<UTextBlock> TimelineDetailText;
+    // Under the banner, shown only while the PK sign-up window is open: the join/withdraw toggle (an owner intent sent with
+    // ALDPlayerController::SubmitRestSignup; the server decides) and the last answer in this rest.
+    UPROPERTY() TObjectPtr<UBorder> SignupPanel;
+    UPROPERTY() TObjectPtr<ULDCommandButton> SignupButton;
+    UPROPERTY() TObjectPtr<UTextBlock> SignupResultText;
+    // A toggle is waiting for its answer (a Listen Host answers inside the call); the toggle stays disabled meanwhile.
+    bool bSignupInFlight=false;
+    // The last answer and the rest it belongs to; another rest or match never shows it.
+    FString SignupResult;
+    uint32 SignupResultMatch=0;
+    uint8 SignupResultRest=0;
+    void HandleRestSignup(ELDRestSignupResult Result);
+    void SubmitSignupToggle();
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
@@ -139,8 +156,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathCauseText;
     UPROPERTY() TObjectPtr<UTextBlock> DeathCountdown;
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
-    // #153: the centre-screen opening countdown ("5" .. "1", then "开淫！"); click-through.
-    UPROPERTY() TObjectPtr<UTextBlock> OpeningCountdownText;
+    // #198: the centre-screen rest return countdown ("5" .. "1", then "开淫！" as the field starts; LDHUD::RestReturnCountdown);
+    // click-through.
+    UPROPERTY() TObjectPtr<UTextBlock> ReturnCountdownText;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
@@ -187,7 +205,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // 开盲盒 button right above the band's left block (#97), with the growth panel it opens in the same row: disabled while
-    // nothing is pending (LDHUD::GrowthPending); it pulses for a few seconds after the opportunities or points rise.
+    // nothing is pending (LDHUD::GrowthPending) and no rest build window offers the rest services (#198); it pulses for a
+    // few seconds after the opportunities or points rise.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;

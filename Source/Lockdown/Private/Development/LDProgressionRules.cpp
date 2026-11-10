@@ -361,6 +361,17 @@ bool LDProgression::IsRestWindow(const FBuildContext& Context)
     return Context.Stage == EMatchStage::Rest;
 }
 
+LDProgression::EMatchStage LDProgression::StageForPublic(ELDMatchPhase Phase, const FLDTimelineView& Timeline)
+{
+    switch (Phase)
+    {
+    case ELDMatchPhase::Rest: return LDMatchTimeline::IsRestBuildOpen(Timeline) ? EMatchStage::Rest : EMatchStage::RestLocked;
+    case ELDMatchPhase::Development:
+    case ELDMatchPhase::CaptureOpen: return EMatchStage::Live;
+    default: return EMatchStage::Closed;
+    }
+}
+
 ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
 {
     if (!LDGrowthWire::IsBuildLifePhase(Context.LifePhase))

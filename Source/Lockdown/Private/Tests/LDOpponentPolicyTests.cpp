@@ -273,9 +273,11 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Safe: the blueprint is learned first"),
         LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
         && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 0);
-    Frame.Public.Phase = ELDMatchPhase::Countdown;
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
     Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 4000;
-    bGood &= Test.TestTrue(TEXT("The countdown is always safe"),
+    bGood &= Test.TestTrue(TEXT("The rest build window is always safe"),
         LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
     Frame.bBuildChangeInFlight = true;
     bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
@@ -431,12 +433,14 @@ bool RunPriorities(FAutomationTestBase& Test)
     auto Decision = Decide(Frame);
     bool bGood = Expect(Test, TEXT("Outside a running match nothing is proposed"), Decision, EMode::Stopped, EBody::None)
         && Test.TestTrue(TEXT("No build change outside a running match"), Decision.Build.Kind == ELDOpponentBuildKind::None);
-    // #153: build steps only, from the adapter's drawn time, during the countdown.
+    // #198: in a rest, build steps only, from the adapter's drawn time, while the rest build window is open.
     Frame = Base;
-    Frame.Public.Phase = ELDMatchPhase::Countdown;
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
     Decision = Decide(Frame);
-    bGood &= Expect(Test, TEXT("The opening countdown proposes no body intent"), Decision, EMode::Stopped, EBody::None)
-        && Test.TestTrue(TEXT("Nor a build change before T=0"), Decision.Build.Kind == ELDOpponentBuildKind::None);
+    bGood &= Expect(Test, TEXT("A rest proposes no body intent"), Decision, EMode::Stopped, EBody::None)
+        && Test.TestTrue(TEXT("Nor a build change without an offer"), Decision.Build.Kind == ELDOpponentBuildKind::None);
     const FLDOpponentOffer Opening = ActiveOffer({TEXT("active_seethe"), TEXT("active_snark_bolt"), TEXT("active_bail_out")}, 0x153);
     Frame.Self.Offer = Opening;
     Frame.Self.OpeningPickAtMs = Frame.Public.NowMs + 1;

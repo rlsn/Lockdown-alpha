@@ -287,6 +287,14 @@ FLDTimelineView FLDMatchTimeline::MakeView(uint32 Generation, uint64 Revision) c
     return View;
 }
 
+int64 LDMatchTimeline::FieldNowFromView(const FLDTimelineView& View, int64 ServerNowMs)
+{
+    const bool bRuns = View.Stage == ELDMatchStage::Field || View.Stage == ELDMatchStage::FinalField;
+    if (!bRuns || ServerNowMs <= View.FieldStartedAtMs) { return View.FieldBaseMs; }
+    const int64 T = View.FieldBaseMs + (ServerNowMs - View.FieldStartedAtMs);
+    return View.Stage == ELDMatchStage::Field && View.FieldEndT >= 0 ? FMath::Min(T, View.FieldEndT) : T;
+}
+
 const TCHAR* LDMatchTimeline::StepName(ELDRestStep Step)
 {
     switch (Step)

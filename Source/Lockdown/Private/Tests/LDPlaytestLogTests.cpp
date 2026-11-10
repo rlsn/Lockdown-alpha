@@ -85,7 +85,7 @@ bool FLDPlaytestLogMarkMatchTest::RunTest(const FString& Parameters)
     using LDPlaytest::InRunningMatch;
     TestTrue(TEXT("A mark of the current match during development is recorded"),InRunningMatch(7,7,ELDMatchPhase::Development));
     TestTrue(TEXT("Also while the flagpole is open"),InRunningMatch(7,7,ELDMatchPhase::CaptureOpen));
-    TestTrue(TEXT("And during the opening countdown (#153)"),InRunningMatch(7,7,ELDMatchPhase::Countdown));
+    TestTrue(TEXT("And during a rest (#198)"),InRunningMatch(7,7,ELDMatchPhase::Rest));
     for (const ELDMatchPhase Phase : {ELDMatchPhase::Lobby,ELDMatchPhase::Starting,ELDMatchPhase::Results,ELDMatchPhase::Resetting,
         ELDMatchPhase::Closing,ELDMatchPhase::Faulted})
     {

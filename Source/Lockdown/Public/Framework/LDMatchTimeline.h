@@ -162,4 +162,9 @@ namespace LDMatchTimeline
 {
     LOCKDOWN_API const TCHAR* StepName(ELDRestStep Step);
     LOCKDOWN_API const TCHAR* StageName(ELDMatchStage Stage);
+    // Field progress T a client derives from the public timeline at ServerNowMs (the authority's own rule).
+    LOCKDOWN_API int64 FieldNowFromView(const FLDTimelineView& View, int64 ServerNowMs);
+    // The open rest steps (build/training and payout) of a public timeline.
+    inline bool IsRestBuildOpen(const FLDTimelineView& View)
+    { return View.Stage == ELDMatchStage::Rest && (View.Step == ELDRestStep::Build || View.Step == ELDRestStep::Payout); }
 }

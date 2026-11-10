@@ -79,12 +79,10 @@ struct FLDBodyCombatState
 {
     FGuid Identity;
     FLDVictimKey Victim;
-    // #198 rest phases (Combat/LDCombatRest.cpp): a rest life and its training dummy share the owner's group and only
-    // interact inside it; field bodies have none. A suspended body (frozen world during a rest) takes and deals nothing.
+    // #198 rest phases (Combat/LDCombatRest.cpp): a rest life only interacts inside its owner's group; field bodies have
+    // none. A suspended body (frozen world during a rest) takes and deals nothing.
     FGuid IsolationGroup;
     bool bSuspended=false;
-    // #198 personal training dummy: never dies (refills at 0 HP), grants no reward; IsolationGroup names its owner.
-    bool bTrainingDummy=false;
     struct FResources
     {
         int64 HpP2=0,MaxHpP2=0,MpP2=0,MaxMpP2=0,ShieldP2=0;
@@ -517,6 +515,9 @@ public:
     // Whether SourceEntity may affect Target: a suspended target is out of reach, and bodies only interact inside the
     // same isolation group (field bodies: none; a rest life and its own training dummy: the owner).
     bool IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
+    // Rest vision filter: whether Observer must not see Target (another rest group, or the frozen world). False for a
+    // body Combat does not hold.
+    bool IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const;
     // A rest life joins its owner's isolation group (bRest) or returns to the field group. RespawnsAndWorld permit.
     bool SetRestIsolation(const FLDCombatBodyRef& Body, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error);
     // Freezes or thaws a world body (camp member, Boss) for a rest; its HP/MP stay as they are. RespawnsAndWorld permit.

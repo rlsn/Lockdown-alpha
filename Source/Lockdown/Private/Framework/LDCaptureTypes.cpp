@@ -98,7 +98,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         break;
     case ELDMatchPhase::Development:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs >= View.OpenAtMs || Owned
-            || Line.Stage != ELDMatchStage::Field)
+            || (Line.Stage != ELDMatchStage::Field && Line.Stage != ELDMatchStage::FinalField))
         { return FailCaptureView(Error, TEXT("The development phase cannot publish an open circle or a result.")); }
         break;
     case ELDMatchPhase::CaptureOpen:

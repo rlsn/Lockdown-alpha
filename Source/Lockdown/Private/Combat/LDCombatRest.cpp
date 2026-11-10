@@ -4,8 +4,8 @@
 #include "Framework/LDGameMode.h"
 
 // #198 rest phases: the Combat side of the approved phase-boundary resource policy (issue #198 comment 6752601175 §8)
-// and of the private rest space. Field bodies have no isolation group; a rest life and its own training dummy share the
-// owner's group, so nothing crosses between rest groups or into the frozen field. A frozen world body (camp member,
+// and of the private rest space. Field bodies have no isolation group; a rest life has its owner's group, so nothing
+// crosses between rest groups or into the frozen field. A frozen world body (camp member,
 // Boss) is suspended: it keeps HP/MP, regenerates nothing, and can neither be affected nor act.
 
 bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
@@ -24,6 +24,12 @@ bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyComba
         if (Mode && Mode->IsInRestSpace(SourceEntity)) { SourceGroup=SourceEntity; }
     }
     return SourceGroup!=Target.IsolationGroup;
+}
+
+bool ALDCombatDirector::IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const
+{
+    const FLDBodyCombatState* Body=FindBody(Target);
+    return Body && IsIsolated(Observer,*Body);
 }
 
 bool ALDCombatDirector::SetRestIsolation(const FLDCombatBodyRef& Ref, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error)
