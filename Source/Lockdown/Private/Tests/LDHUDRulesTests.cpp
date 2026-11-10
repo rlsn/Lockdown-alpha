@@ -1054,20 +1054,19 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
 
-    // D10 auto-open: a new offer or more unspent points than last seen, in the current match; the first view counts.
+    // D10 auto-open: once per match, for the first view of the opening offer (opportunity 1); later offers and points never.
     LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=7;Growth.UnspentPoints=3;
-    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
-    TestTrue(TEXT("The match's first view with the opening offer and points opens the panel"),AutoOpen.Observe(Growth,7));
+    TestFalse(TEXT("Points without the opening offer open nothing"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();Growth.ActiveOffer.OpportunityOrdinal=1;
+    TestTrue(TEXT("The first view with the opening offer opens the panel"),AutoOpen.Observe(Growth,7));
     TestFalse(TEXT("The same view does not open it again"),AutoOpen.Observe(Growth,7));
-    Growth.UnspentPoints=0;
-    TestFalse(TEXT("Spending points opens nothing"),AutoOpen.Observe(Growth,7));
-    Growth.UnspentPoints=3;
-    TestTrue(TEXT("Newly earned points open it"),AutoOpen.Observe(Growth,7));
-    Growth.bHasActiveOffer=false;
-    TestFalse(TEXT("A consumed offer opens nothing"),AutoOpen.Observe(Growth,7));
-    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
-    TestTrue(TEXT("A new offer opens it"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=false;Growth.UnspentPoints=6;
+    TestFalse(TEXT("Newly earned points open nothing"),AutoOpen.Observe(Growth,7));
+    Growth.bHasActiveOffer=true;Growth.ActiveOffer.OfferId=FGuid::NewGuid();Growth.ActiveOffer.OpportunityOrdinal=2;
+    TestFalse(TEXT("A later offer opens nothing; it only lights the button"),AutoOpen.Observe(Growth,7));
     TestFalse(TEXT("A view of another match opens nothing"),AutoOpen.Observe(Growth,8));
+    Growth.Generation=8;Growth.ActiveOffer.OpportunityOrdinal=1;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
+    TestTrue(TEXT("A new match's opening offer opens it again"),AutoOpen.Observe(Growth,8));
     return true;
 }
 

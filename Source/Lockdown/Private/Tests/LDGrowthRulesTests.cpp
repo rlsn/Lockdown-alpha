@@ -1750,7 +1750,12 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
             AddError(FString::Printf(TEXT("The boundary at %lld ms did not begin: reject %d"), StepAtMs, int32(Begin)));
             return false;
         }
-        const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+        // Native motion of this fixture: every registered living body moved in the open step.
+        const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [&](const FLDGameplayWritePermit&)
+            {
+                for (auto& Pair : Mode->Lives) { Pair.Value.CompletedMotionStep = Mode->AuthorityStep.StepSerial; }
+                return true;
+            }, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, Phase, Execute, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
         if (!Ran) { AddError(FString::Printf(TEXT("Boundary phase %u failed: %s"), uint32(Phase), *Error)); }

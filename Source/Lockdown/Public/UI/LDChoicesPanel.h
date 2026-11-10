@@ -53,7 +53,7 @@ public:
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
     bool HasPendingRequest() const {return PendingRequest!=0;}
-    // The HUD opened this panel for a new offer or new points (D10): it folds back to the 开盲盒 button after a few seconds
+    // The HUD opened this panel for the opening offer (D10): it folds back to the 开盲盒 button after a few seconds
     // unless the player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
     // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
