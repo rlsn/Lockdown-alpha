@@ -104,7 +104,7 @@ bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::KnockbackImpact: case ELDDemoEffectOp::ContactKnockback: case ELDDemoEffectOp::ControlMark:
     case ELDDemoEffectOp::Aftershock: case ELDDemoEffectOp::ControlMana: case ELDDemoEffectOp::HealCounter:
     case ELDDemoEffectOp::ReactionEmpower: case ELDDemoEffectOp::ShieldBurst: case ELDDemoEffectOp::SkillLifesteal:
-    case ELDDemoEffectOp::ExtraBase:
+    case ELDDemoEffectOp::ExtraBase: case ELDDemoEffectOp::CompressChain:
         return true;
     case ELDDemoEffectOp::EmpowerBasic:
         // B12: a component's empowered basic arms on a completed voluntary dash only.

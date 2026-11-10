@@ -60,6 +60,8 @@ struct FLDDamageEvaluationInput
     // primary_guard: a flat cut of a primary basic after resistance, at most PrimaryGuardCapBp of it.
     int64 PrimaryGuardP2 = 0;
     int64 PrimaryGuardCapBp = 0;
+    // #198 S16: the target's stance cuts this share of the hit after resistance and delivery scaling, before the guard.
+    int64 BraceCutBp = 0;
 };
 
 struct FLDDamageEvaluation
@@ -71,6 +73,8 @@ struct FLDDamageEvaluation
     int64 OverkillP2 = 0;
     int64 RemainingHPP2 = 0;
     int64 RemainingShieldP2 = 0;
+    // The amount BraceCutBp actually took off (floored P2; zero for a protected target).
+    int64 BraceCutP2 = 0;
     // #198 F M12: the deferred part of DamageP2's mitigated amount (DamageP2 is what this hit applies now).
     int64 DeferredP2 = 0;
 };

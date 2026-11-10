@@ -61,6 +61,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::GroundImpact:
     case ELDDemoEffectOp::ContactTrap:
     case ELDDemoEffectOp::DashContact:
+    // #198 elements and the element actives' riders on enemies.
+    case ELDDemoEffectOp::Wet:
+    case ELDDemoEffectOp::Electrify:
+    case ELDDemoEffectOp::ChainBounce:
+    case ELDDemoEffectOp::ZoneWet:
+    case ELDDemoEffectOp::Grievous:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
@@ -77,6 +83,8 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
+    // #198 S16: a damage cut that answers when it ends.
+    case ELDDemoEffectOp::Brace:
         Usage.bSelfProtect |= bSelfTarget;
         break;
     case ELDDemoEffectOp::Dash:
@@ -135,7 +143,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             Out.bTaunt = true;
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
             break;
-        case ELDDemoEffectOp::Shield: Out.bShield = true; break;
+        case ELDDemoEffectOp::Shield:
+        case ELDDemoEffectOp::Brace: Out.bShield = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;
@@ -576,7 +585,8 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                         Body.Epoch = Need.Target->Epoch;
                         Key.Target = Need.Target->Handle;
                     }
-                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile || Shape.Mode == ELDDemoTargetMode::DirectionCone)
+                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile || Shape.Mode == ELDDemoTargetMode::DirectionCone
+                        || Shape.Mode == ELDDemoTargetMode::DirectionLine)
                     {
                         const FVector Direction = (Need.Target->FootCm - C.Self.FootCm).GetSafeNormal2D();
                         bUse = !Direction.IsNearlyZero();
@@ -1239,7 +1249,8 @@ int32 TargetModePreference(ELDDemoTargetMode Mode)
     {
     case ELDDemoTargetMode::Unit: return 0;
     case ELDDemoTargetMode::GroundPoint: return 1;
-    case ELDDemoTargetMode::DirectionCone: return 2;
+    case ELDDemoTargetMode::DirectionCone:
+    case ELDDemoTargetMode::DirectionLine: return 2;
     case ELDDemoTargetMode::DirectionProjectile: return 3;
     case ELDDemoTargetMode::Self: return 4;
     case ELDDemoTargetMode::DirectionDash: return 5;
@@ -1598,10 +1609,8 @@ bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     FLDOpponentComponentTarget& Out)
 {
     Out = FLDOpponentComponentTarget();
-    // C09 reads element reactions, which wait for the #198 A element state (ElementUnsupported).
-    if (Component.Kind == ELDDemoComponentKind::Base || LDWorkshop::FindOp(Component, ELDDemoEffectOp::ReactionEmpower)) { return false; }
+    if (Component.Kind == ELDDemoComponentKind::Base) { return false; }
     const auto Same = [](const FString& A, const FString& B) { return A.Equals(B, ESearchCase::CaseSensitive); };
-    const auto Closed = [](ELDDemoElement Element) { return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric; };
     const auto Definition = [&Catalog](const FString& Id) -> const FLDDemoComponentDefinition*
     {
         const FLDDemoComponentDefinition* Found = nullptr;
@@ -1616,17 +1625,11 @@ bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
             [&Id, &Same](const FLDOpponentComponent& Owned) { return Same(Owned.DefinitionId, Id); });
         return Held && Held->bInstalled ? Held : nullptr;
     };
-    // C12 repeats an installed base whose elements are open.
+    // C12 repeats the first installed base of its list.
     FString Base;
     if (!Component.ExtraBases.IsEmpty())
     {
-        const FString* Open = Component.ExtraBases.FindByPredicate([&](const FString& Id)
-        {
-            const FLDOpponentComponent* Held = Installed(Id);
-            const FLDDemoComponentDefinition* BaseDefinition = Held ? Definition(Id) : nullptr;
-            return BaseDefinition && !Closed(Held->Element) && !BaseDefinition->Effects.ContainsByPredicate(
-                [&Closed](const FLDDemoEffectDefinition& Effect) { return Closed(Effect.Element); });
-        });
+        const FString* Open = Component.ExtraBases.FindByPredicate([&](const FString& Id) { return Installed(Id) && Definition(Id); });
         if (!Open) { return false; }
         Base = *Open;
     }

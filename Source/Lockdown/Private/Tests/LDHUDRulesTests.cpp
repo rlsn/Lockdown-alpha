@@ -1401,17 +1401,18 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A mod with a place can be enabled (the panel then asks where)"),
         LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reach"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
 
-    // C12: a repeatable base must be installed and open.
+    // C12: a repeatable base must be installed (water and electric included since #198 A).
     View.Components.Add(Owned(TEXT("hud_fixture_repeat"),false));
-    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
-    TestTrue(TEXT("A water base is never repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content).IsEmpty());
-    TestEqualSensitive(TEXT("C12 without a repeatable base cannot be enabled"),
+    TestEqualSensitive(TEXT("C12 without an installed base cannot be enabled"),
         LDHUD::ComponentRow(Owned(TEXT("hud_fixture_repeat"),false),View,&Content,Safe,1000,true,1000).Blocked,FString(LDTerms::NoInstallTarget));
+    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
+    TestTrue(TEXT("An installed water base is repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content)==TArray<FName>{FName(TEXT("hud_fixture_wet"))});
     View.Components.Add(Owned(TEXT("hud_fixture_ledger"),true));
-    TestTrue(TEXT("An installed open base is repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content)==TArray<FName>{FName(TEXT("hud_fixture_ledger"))});
+    TestTrue(TEXT("Installed bases are offered in list order"),LDHUD::RepeatableBases(Repeat,View,&Content)
+        ==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_ledger"))}));
     TestTrue(TEXT("Then C12 can be enabled"),LDHUD::ComponentRow(Owned(TEXT("hud_fixture_repeat"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
-    TestEqualSensitive(TEXT("C09 waits for element reactions"),
-        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reaction"),false),View,&Content,Safe,1000,true,1000).Blocked,FString(LDTerms::ElementClosed));
+    TestTrue(TEXT("C09 with a place can be enabled"),
+        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reaction"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
 
     // Installed rows name their place.
     FLDComponentInstanceView Shown=Owned(TEXT("hud_fixture_reach"),true);

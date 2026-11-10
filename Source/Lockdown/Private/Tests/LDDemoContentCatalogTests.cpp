@@ -935,8 +935,9 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
     // One row per definition (character, actives, stats, components, monsters) and per native status: statuses 1..6, 9, 10
     // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
-    // (silence, burn) and attack_slowed (#198 retires cowering and contact_guard).
-    const int32 Statuses = 6 + 5 + 1 + 2 + 1;
+    // (silence, burn), attack_slowed (#198 retires cowering and contact_guard) and the #198 wet, electrified,
+    // braced and soured.
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.Monsters.Num()
         + Statuses);
@@ -1172,8 +1173,8 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     {
         OpeningPool += Ability.Opening ? 1 : 0;
     }
-    TestEqual(TEXT("Sixteen single-level actives"), Definitions.Abilities.Num(), 16);
-    TestEqual(TEXT("Thirteen actives form the opening pool"), OpeningPool, 13);
+    TestEqual(TEXT("Twenty-two single-level actives"), Definitions.Abilities.Num(), 22);
+    TestEqual(TEXT("Eighteen actives form the opening pool (AI spec §4.3)"), OpeningPool, 18);
     TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
     const FLDDemoContentParameters& P = Definitions.Parameters;
     TestTrue(TEXT("Growth points and the build safe window are the approved values"),
@@ -1216,7 +1217,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     }
     const FLDDemoAbilityDefinition* Retired = nullptr;
     const FLDDemoStatDefinition* Card = nullptr;
-    TestFalse(TEXT("The reserved sock shot has no definition yet"), Snapshot->FindAbility(TEXT("active_sock_shot"), Retired, Error));
+    TestFalse(TEXT("The retired cower is absent"), Snapshot->FindAbility(TEXT("active_cower"), Retired, Error));
     TestFalse(TEXT("Retired passives are absent"), Snapshot->FindAbility(TEXT("passive_lucky_star"), Retired, Error));
     TestFalse(TEXT("Retired attribute cards are absent"), Snapshot->FindStat(TEXT("attr_protein"), Card, Error));
     return true;
@@ -1355,16 +1356,19 @@ bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
         }
     }
 
-    TestTrue(TEXT("B07 opens with an active that slows, hard-controls or knocks back (existing S01-S06, S08, S12, S22)"),
+    TestTrue(TEXT("B07 opens with an active that slows, hard-controls or knocks back (S01-S06, S08, S09, S12, S20, S22)"),
         !Kick->bOpeningAlways && Kick->OpeningActives == TArray<FString>{TEXT("active_elbow"), TEXT("active_pants_down"),
             TEXT("active_crotch_grab"), TEXT("active_account_banned"), TEXT("active_unplug"), TEXT("active_snark_bolt"),
-            TEXT("active_quick_meeting"), TEXT("active_apology_slide"), TEXT("active_open_mic")});
-    TestTrue(TEXT("B11 opens with a fire active (existing S07, S08)"),
-        Shock->OpeningActives == TArray<FString>{TEXT("active_seethe"), TEXT("active_quick_meeting")});
+            TEXT("active_quick_meeting"), TEXT("active_apology_slide"), TEXT("active_open_mic"), TEXT("active_hose_down"),
+            TEXT("active_dirty_puddle")});
+    TestTrue(TEXT("B11 opens with a fire or water active (S07, S08, S09, S20)"),
+        Shock->OpeningActives == TArray<FString>{TEXT("active_seethe"), TEXT("active_quick_meeting"), TEXT("active_hose_down"),
+            TEXT("active_dirty_puddle")});
     TestTrue(TEXT("B08 is never an opening option"), !Breach->bOpeningAlways && Breach->OpeningActives.IsEmpty());
-    TestTrue(TEXT("B18 binds one of twelve damaging actives and fire, water or electric"),
-        Trick->Binding == ELDDemoComponentBinding::ActiveElement && Trick->BindActives.Num() == 12
+    TestTrue(TEXT("B18 binds one of eighteen damaging actives and fire, water or electric"),
+        Trick->Binding == ELDDemoComponentBinding::ActiveElement && Trick->BindActives.Num() == 18
         && !Trick->BindActives.Contains(TEXT("active_bail_out")) && Trick->BindActives.Contains(TEXT("active_flyer_trap"))
+        && Trick->BindActives.Contains(TEXT("active_brace"))
         && Trick->BindElements == TArray<ELDDemoElement>{ELDDemoElement::Fire, ELDDemoElement::Water, ELDDemoElement::Electric}
         && Trick->Effects.Num() == 1 && Trick->Effects[0].GetOp() == EOp::ActiveElement);
 

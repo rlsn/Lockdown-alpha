@@ -41,11 +41,12 @@ def author_units(value):
     return {key: author_units(child) for key, child in value.items() if key not in ("op", "opcode")}
 
 
-# #198 PR1 actives (CONTENT_AND_BALANCE, issue #198 approval 2026-11-10): one value set each at G=1, in S order.
+# #198 actives (CONTENT_AND_BALANCE, issue #198 approval 2026-11-10): one value set each at G=1, in S order.
 ACTIVE_IDS = ("active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug",
-              "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_bail_out", "active_apology_slide",
-              "active_not_mad", "active_stare_down", "active_triple_combo", "active_calculus_drop", "active_flyer_trap",
-              "active_open_mic")
+              "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_hose_down", "active_zap",
+              "active_bail_out", "active_apology_slide", "active_charged_ram", "active_not_mad", "active_stare_down",
+              "active_brace", "active_triple_combo", "active_calculus_drop", "active_flyer_trap", "active_dirty_puddle",
+              "active_sock_shot", "active_open_mic")
 # (target mode, range cm or None, windup s, mana, cooldown s, in the opening pool).
 ACTIVE_FRAMES = {
     "active_elbow": ("Unit", 220, r(".15"), 50, 10, True),
@@ -56,13 +57,19 @@ ACTIVE_FRAMES = {
     "active_snark_bolt": ("DirectionProjectile", 750, r(".2"), 45, 8, True),
     "active_seethe": ("Self", None, r(".25"), 55, 10, True),
     "active_quick_meeting": ("GroundPoint", 650, r(".25"), 60, 12, True),
+    "active_hose_down": ("DirectionLine", 550, r(".3"), 50, 11, True),
+    "active_zap": ("Unit", 650, r(".25"), 55, 11, True),
     "active_bail_out": ("DirectionDash", None, 0, 40, 9, True),
     "active_apology_slide": ("DirectionDash", None, r(".15"), 50, 11, True),
+    "active_charged_ram": ("DirectionDash", None, r(".1"), 55, 13, True),
     "active_not_mad": ("Self", None, 0, 50, 14, False),
     "active_stare_down": ("Self", None, r(".2"), 60, 15, False),
+    "active_brace": ("Self", None, r(".1"), 55, 16, False),
     "active_triple_combo": ("Self", None, 0, 40, 12, True),
     "active_calculus_drop": ("GroundPoint", 650, r(".25"), 65, 12, True),
     "active_flyer_trap": ("GroundPoint", 550, r(".15"), 55, 12, False),
+    "active_dirty_puddle": ("GroundPoint", 600, r(".25"), 60, 14, True),
+    "active_sock_shot": ("DirectionProjectile", 650, r(".15"), 50, 12, True),
     "active_open_mic": ("DirectionCone", 450, r(".2"), 50, 10, True),
 }
 
@@ -89,17 +96,26 @@ ACTIVE_EFFECTS = {
         ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".2"), "base": 28, "damage_type": "Magical"}),
         ("zone_slow", {"duration": r(".5"), "interval": 1, "ratio": r(".2")}),
         ("zone_burn", {"interval": 1, "stacks": 1})],
+    "active_hose_down": [magical(55, ".55"), ("knockback", {"distance": 180, "duration": r(".15")}), ("wet", {})],
+    "active_zap": [magical(60, ".55"), ("electrify", {}),
+                   ("chain_bounce", {"count": 2, "interval": r(".15"), "radius": 350, "ratio": r(".7")})],
     "active_bail_out": [
         ("dash", {"distance": 350, "duration": r(".2")}),
         ("empower_basic", {"ad_ratio": r(".35"), "ap_ratio": 0, "base": 40, "damage_type": "Physical", "duration": 3})],
     "active_apology_slide": [
-        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"count": 1}), physical(65, ".5", ".3"),
+        ("dash", {"distance": 400, "duration": r(".3")}), ("dash_contact", {"targets": "First"}), physical(65, ".5", ".3"),
         ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
+    "active_charged_ram": [
+        ("dash", {"distance": 450, "duration": r(".3")}),
+        ("shield", {"ap_ratio": 0, "base": 60, "duration": 2, "max_hp_ratio": r(".04")}),
+        ("dash_contact", {"targets": "Every"}), magical(35, ".35"), ("electrify", {})],
     "active_not_mad": [
         ("shield", {"ap_ratio": r(".6"), "base": 90, "duration": 3, "max_hp_ratio": r(".05")}), ("dispel_slow", {}), ("dispel_root", {})],
     "active_stare_down": [
         ("taunt", {"duration": r("1.1"), "radius": 300}),
         ("timed_stat_bonus", {"duration": 3, "stats": {"ArmorFlat": 14, "MagicResistFlat": 14}})],
+    "active_brace": [
+        ("brace", {"base": 50, "duration": 3, "limit": 100, "radius": 300, "ratio": r(".2"), "record_ratio": r(".6")})],
     "active_triple_combo": [
         ("empower_basic", {"ad_ratio": r(".1"), "ap_ratio": 0, "base": 16, "charges": 3, "damage_type": "Physical", "duration": 5,
                            "stats": {"AttackSpeedBonusRatio": r(".25")}})],
@@ -108,6 +124,12 @@ ACTIVE_EFFECTS = {
     "active_flyer_trap": [
         ("contact_trap", {"delay": r(".45"), "duration": 6, "radius": 180, "trigger_radius": 100}), magical(100, ".75"),
         ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
+    "active_dirty_puddle": [
+        ("zone", {"count": 4, "delay": 0, "duration": 4, "interval": 1, "radius": 220}),
+        ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".15"), "base": 18, "damage_type": "Magical"}),
+        ("zone_wet", {}), ("zone_haste", {"ratio": r(".15")})],
+    "active_sock_shot": [
+        magical(70, ".65"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("grievous", {"duration": 3, "ratio": r(".35")})],
     "active_open_mic": [
         ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(40, ".3")],
 }
@@ -124,7 +146,8 @@ STAT_POINTS = {
 # #198 B base components B01-B18: (display name, opening "always" / actives / None, effects in author units at G=1).
 DIRECT_DAMAGE_OPENING = ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug",
                          "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide",
-                         "active_calculus_drop", "active_open_mic"]
+                         "active_calculus_drop", "active_open_mic", "active_hose_down", "active_zap",
+                         "active_charged_ram", "active_dirty_puddle", "active_sock_shot"]
 COMPONENT_FRAMES = {
     "component_fist_fire": ("拳头冒火", "always", [("burn", {"basic_stacks": 1})]),
     "component_tab_ledger": ("揍一下记一笔", "always", [
@@ -138,12 +161,13 @@ COMPONENT_FRAMES = {
     "component_third_punch": ("第三拳滚蛋", "always", [("nth_basic_bonus", {"count": 3, "distance": 120, "duration": r(".12")})]),
     "component_kick_down": ("逮住就往狠了打", ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned",
                                        "active_unplug", "active_snark_bolt", "active_quick_meeting", "active_apology_slide",
-                                       "active_open_mic"], [("control_damage_amp", {"ratio": r(".12")})]),
+                                       "active_open_mic", "active_hose_down", "active_dirty_puddle"], [("control_damage_amp", {"ratio": r(".12")})]),
     "component_breach_fist": ("越揍越不经打", None, [("breach", {"basic_stacks": 1})]),
     "component_hard_skin": ("挨揍起硬皮", "always", [
         ("triggered_shield", {"base": 45, "duration": 3, "interval": 10, "max_hp_ratio": r(".035"), "trigger": "Damaged"})]),
     "component_fist_water": ("拳头甩脏水", "always", [("basic_element", {"element": "water"})]),
-    "component_fist_shock": ("拳头漏电", ["active_seethe", "active_quick_meeting"], [("basic_element", {"element": "electric"})]),
+    "component_fist_shock": ("拳头漏电", ["active_seethe", "active_quick_meeting", "active_hose_down", "active_dirty_puddle"],
+                     [("basic_element", {"element": "electric"})]),
     "component_dash_punch": ("蹿过去抡一拳", "always", [
         ("empower_basic", {"ad_ratio": r(".25"), "ap_ratio": 0, "base": 25, "charges": 1, "damage_type": "Physical", "duration": 3,
                            "trigger": "DashComplete"})]),
@@ -183,7 +207,7 @@ class ApprovedDemoData(unittest.TestCase):
                      "2026-11-09 #144 equipment, gold and shops removed",
                      "2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据"):
             self.assertIn(text, approval["decision"])
-        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (16, 5, 3))
+        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (22, 5, 3))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
@@ -254,6 +278,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
             ("COMBAT.BurnPerSec", "points", "3"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
             ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"), ("COMBAT.LifestealCap", "ratio", ".35"),
+            # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
+            ("COMBAT.WetSec", "ms", "4"), ("COMBAT.WetSlow", "ratio", ".15"), ("COMBAT.ElectrifiedSec", "ms", "4"),
+            ("COMBAT.DischargeRadiusCm", "cm", "350"), ("COMBAT.DischargeIntervalSec", "ms", "1"),
+            ("COMBAT.ReactionBase", "points", "20"), ("COMBAT.ReactionPerLevel", "points", "1"),
+            ("COMBAT.ReactionAPRatio", "ratio", ".2"), ("COMBAT.FogRadiusCm", "cm", "250"), ("COMBAT.FogSec", "ms", "3"),
+            ("COMBAT.FogIntervalSec", "ms", "1"), ("COMBAT.ConductRadiusCm", "cm", "450"), ("COMBAT.ConductSlow", "ratio", ".3"),
+            ("COMBAT.ConductSlowSec", "ms", "1.5"), ("COMBAT.OverloadRadiusCm", "cm", "200"),
         ):
             expected[key] = (unit, value)
         for key, value in (
@@ -262,7 +293,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("CHARM.WaveCount", 7), ("CHARM.PerWave", 2),
             ("LEADER.MinLevel", 3),
-            ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
+            ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
             # #198: a rest NPC charges 3 points for one active-only three-choice.
@@ -300,7 +331,8 @@ class ApprovedDemoData(unittest.TestCase):
                                            "slow": 5, "stat_boost": 6, "exposed": 9,
                                            "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14,
                                            "knockback": 20, "silence": 25, "burn": 26,
-                                           "attack_slowed": 27})
+                                           "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
+                                           "soured": 33})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5, "lifesteal": 7, "dash": 8,
             "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15,
@@ -311,6 +343,7 @@ class ApprovedDemoData(unittest.TestCase):
             "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77,
             "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82,
             "primary_guard": 86, "dash_contact_damage": 87, "dash_contact_refund": 88,
+            "wet": 90, "electrify": 91, "chain_bounce": 92, "brace": 93, "zone_wet": 94, "zone_haste": 95, "grievous": 96,
             "ledger": 100, "basic_element": 101, "basic_damage_scale": 102, "idle_ready_amp": 103, "active_element": 104})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
@@ -333,7 +366,9 @@ class ApprovedDemoData(unittest.TestCase):
             "active_seethe": "烫你屁股", "active_quick_meeting": "脚底开锅", "active_bail_out": "贴脸补一拳",
             "active_apology_slide": "铲你脚脖子", "active_not_mad": "锅盖挡脸", "active_stare_down": "来打老子啊",
             "active_triple_combo": "左右开抽", "active_calculus_drop": "板砖糊脸", "active_flyer_trap": "踩一脚试试",
-            "active_open_mic": "扯嗓子喷你",
+            "active_open_mic": "扯嗓子喷你", "active_hose_down": "滋你一脸", "active_zap": "电你个哆嗦",
+            "active_charged_ram": "带电撞你", "active_brace": "顶着揍", "active_dirty_puddle": "满地泼脏水",
+            "active_sock_shot": "馊水糊脸",
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
             # #198 B base components B01-B18.
             **{identity: frame[0] for identity, frame in COMPONENT_FRAMES.items()},
@@ -343,6 +378,7 @@ class ApprovedDemoData(unittest.TestCase):
             "slow": "减速", "stat_boost": "增益", "exposed": "破防",
             "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
             "knockback": "击退", "silence": "沉默", "burn": "灼烧", "attack_slowed": "攻速降低",
+            "wet": "潮湿", "electrified": "感电", "braced": "顶着揍中", "soured": "馊臭",
         })
         self.assertIn("「来打老子啊」", next(row for row in self.data["display"] if row["id"] == "taunt")["description_text"])
         for row in self.data["display"]:
@@ -410,14 +446,18 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertEqual([(effect["op"], author_units(effect)) for effect in row["effects"]], ACTIVE_EFFECTS[identity])
         bolt = self.catalog.definition("active_snark_bolt")["target"]
         self.assertEqual((amount(bolt["projectile_radius"]), amount(bolt["projectile_speed"])), (45, 1600))
+        sock = self.catalog.definition("active_sock_shot")["target"]
+        self.assertEqual((amount(sock["projectile_radius"]), amount(sock["projectile_speed"])), (40, 1300))
+        self.assertEqual(amount(self.catalog.definition("active_hose_down")["target"]["half_width"]), 80)
         self.assertEqual(amount(self.catalog.definition("active_open_mic")["target"]["angle"]), 70)
 
     def test_opening_pool_and_active_offer_levels(self):
-        # #198: the opening draws from S01-S08, S11, S12, S17, S18 and S22; S14/S15/S19 come only from later opportunities.
+        # #198: the opening draws 18 actives (S01-S13, S17, S18, S20-S22); S14-S16/S19 come only from later opportunities.
         self.assertEqual({row["id"] for row in self.data["abilities"] if row["opening"]},
                          {identity for identity, frame in ACTIVE_FRAMES.items() if frame[-1]})
         self.assertEqual({row["id"] for row in self.data["abilities"] if not row["opening"]},
-                         {"active_not_mad", "active_stare_down", "active_flyer_trap"})
+                         {"active_not_mad", "active_stare_down", "active_brace", "active_flyer_trap"})
+        self.assertEqual(sum(1 for row in self.data["abilities"] if row["opening"]), 18)
         self.assertEqual(self.data["progression"]["active_offer_levels"], (3, 6))
         self.assertEqual(set(self.data["progression"]),
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels",
@@ -450,16 +490,16 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(ids["retired_ranges"]["stats"], [[0, 26]])
         self.assertIn([28, 29], ids["retired_ranges"]["statuses"])
         self.assertFalse({"attributes"} & set(ids) | {"attributes"} & set(ids["retired_ranges"]))
-        # Sock shot keeps its number for its rework; no other retired ability, card or cower status returns.
+        # Sock shot returns on its reserved number as S21; no retired ability, card or cower status returns.
         self.assertEqual(ids["abilities"]["active_sock_shot"], 116)
-        self.assertNotIn("active_sock_shot", self.catalog.definitions)
+        self.assertEqual(self.catalog.definition("active_sock_shot")["native_id"], 116)
         self.assertFalse([identity for identity in ids["abilities"] if identity.startswith("passive_") or identity == "active_cower"])
         self.assertFalse({"cowering", "contact_guard"} & set(ids["statuses"]))
         self.assertNotIn("STAT.AbilityCritMultiplier", self.data["parameters"])
         self.assertEqual(next(row for row in self.data["display"] if row["id"] == "character_demo")["description_text"],
                          "已成年，一碰就碎但嘴很硬。开局只会普攻；升级攒属性点、挑技能、捡构件。")
         self.assertFalse([row["id"] for row in self.data["display"]
-                          if row["id"].startswith(("passive_", "attr_", "opening_")) or row["id"] in ("active_cower", "active_sock_shot")])
+                          if row["id"].startswith(("passive_", "attr_", "opening_")) or row["id"] == "active_cower"])
 
     def test_camp_perception_fits_inside_vision(self):
         # #97: a camp member's perception (its leash) beyond VISION.RadiusCm would fault the camp decision at T=0.
@@ -557,6 +597,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("active_calculus_drop", "ground_impact", "outer_ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
             ("active_flyer_trap", "contact_trap", "trigger_radius", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
             ("active_open_mic", "channel_cone", "slow", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
+            # #198 session A.
+            ("active_zap", "chain_bounce", "radius", {"unit": "cm", "numerator": 0, "denominator": 1}, "InvalidGeometry"),
+            ("active_zap", "chain_bounce", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
+            ("active_brace", "brace", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
+            ("active_brace", "brace", "record_ratio", {"unit": "ratio", "bp": 0}, "IneffectiveEffect"),
+            ("active_sock_shot", "grievous", "ratio", {"unit": "ratio", "bp": 0}, "NumericDomain"),
+            ("active_dirty_puddle", "zone_haste", "ratio", {"unit": "ratio", "bp": 10000}, "NumericDomain"),
         )
         for identity, op, field, value, error in cases:
             projected = schema.project(author)

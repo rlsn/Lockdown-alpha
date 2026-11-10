@@ -113,17 +113,10 @@ bool ProgressionUnsupportedElement(ELDDemoElement Element)
     return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric;
 }
 
-// Whether an installed component carries a water/electric element (its effects or its B18 binding).
-bool ProgressionCarriesUnsupportedElement(const FLDDemoComponentDefinition& Definition, const FLDComponentInstance& Instance)
-{
-    return ProgressionUnsupportedElement(Instance.Target.Element) || Definition.Effects.ContainsByPredicate(
-        [](const FLDDemoEffectDefinition& Effect) { return ProgressionUnsupportedElement(Effect.Element); });
-}
-
 // #198 F: whether Target is a legal install of the mod or connector Definition on Build now (spec §12.1, §13.1): the shape
 // its definition accepts (InvalidTarget), a learned active or an installed host component (InvalidTarget), C12's repeated
 // base installed (InvalidTarget), C01 on B18 only when B18 burns (InvalidTarget), no M08/M09 pair on one target
-// (TargetConflict), and nothing that needs #198 A's element state (C09 reactions, C12 water/electric, ElementUnsupported).
+// (TargetConflict).
 ELDGrowthReason ProgressionWorkshopTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
     const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
 {
@@ -166,16 +159,6 @@ ELDGrowthReason ProgressionWorkshopTargetReason(const FLDDemoContentDefinitions&
         {
             return ELDGrowthReason::TargetConflict;
         }
-    }
-    // #198 A: element reactions and water/electric repeats have no element state on this branch.
-    if (LDWorkshop::FindOp(Definition, ELDDemoEffectOp::ReactionEmpower))
-    {
-        return ELDGrowthReason::ElementUnsupported;
-    }
-    const FLDDemoComponentDefinition* BaseDefinition = Base ? ProgressionFindComponent(Content, Base->Id) : nullptr;
-    if (BaseDefinition && ProgressionCarriesUnsupportedElement(*BaseDefinition, *Base))
-    {
-        return ELDGrowthReason::ElementUnsupported;
     }
     return ELDGrowthReason::None;
 }

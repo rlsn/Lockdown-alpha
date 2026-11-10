@@ -3608,7 +3608,7 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
 #endif // WITH_DEV_AUTOMATION_TESTS
 
 // #198 F: mod/connector install targets (spec §12.1, §13.1): the kinds a definition accepts, a learned active or an installed
-// host, C12's installed base, the M08/M09 conflict, #198 A's element gate, and the uninstall cascade of a host.
+// host, C12's installed base, the M08/M09 conflict, element sources, and the uninstall cascade of a host.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthComponentsWorkshopTargetsTest, "Lockdown.Rules.DemoGrowthComponents.WorkshopTargets",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -3664,10 +3664,10 @@ bool FLDDemoGrowthComponentsWorkshopTargetsTest::RunTest(const FString& Paramete
         ELDGrowthReason::TargetConflict);
     bGood &= GrowthTestReason(*this, TEXT("M09 on another dash is fine"), Install(Rammed, Hop, Target(EKind::Active, BailOut)),
         ELDGrowthReason::None);
-    bGood &= GrowthTestReason(*this, TEXT("C09 waits for #198 A's reactions"), Install(Owned, Chase, Target(EKind::Component, Water)),
-        ELDGrowthReason::ElementUnsupported);
-    bGood &= GrowthTestReason(*this, TEXT("C12 repeating water waits for #198 A"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Water)),
-        ELDGrowthReason::ElementUnsupported);
+    bGood &= GrowthTestReason(*this, TEXT("C09 on an installed water source"), Install(Owned, Chase, Target(EKind::Component, Water)),
+        ELDGrowthReason::None);
+    bGood &= GrowthTestReason(*this, TEXT("C12 repeating the installed water fist"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Water)),
+        ELDGrowthReason::None);
     bGood &= GrowthTestReason(*this, TEXT("C12 needs its repeated base"), Install(Owned, Dirty, Target(EKind::Active, Elbow)),
         ELDGrowthReason::InvalidTarget);
     bGood &= GrowthTestReason(*this, TEXT("C12 repeating the installed ledger"), Install(Owned, Dirty, Target(EKind::Active, Elbow, Ledger)),

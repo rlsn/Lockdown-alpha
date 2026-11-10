@@ -58,6 +58,10 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Silence: return TEXT("silence");
     case ELDDemoStatusId::Burn: return TEXT("burn");
     case ELDDemoStatusId::AttackSlowed: return TEXT("attack_slowed");
+    case ELDDemoStatusId::Wet: return TEXT("wet");
+    case ELDDemoStatusId::Electrified: return TEXT("electrified");
+    case ELDDemoStatusId::Braced: return TEXT("braced");
+    case ELDDemoStatusId::Soured: return TEXT("soured");
     default: return nullptr;
     }
 }
@@ -933,6 +937,12 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionCone: return TEXT("方向扇形 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm · ")+HudRational(Target.AngleDegrees)+TEXT("°");
+    case ELDDemoTargetMode::DirectionLine:
+    {
+        FLDDemoRational Width=Target.LineHalfWidthCm;
+        Width.Numerator*=2;
+        return TEXT("方向直线 · 长 ")+HudRational(Target.RangeCm)+TEXT("cm · 宽 ")+HudRational(Width)+TEXT("cm");
+    }
     case ELDDemoTargetMode::DirectionDash: return TEXT("方向冲刺");
     case ELDDemoTargetMode::GroundPoint: return TEXT("指定地点 · 最远 ")+HudRational(Target.RangeCm)+TEXT("cm");
     default: return TEXT("未知目标方式");
@@ -1297,7 +1307,7 @@ TArray<FName> LDHUD::RepeatableBases(const FLDDemoComponentDefinition& Component
         const FLDComponentInstanceView* Held=Base==FName(*Component.Id)?nullptr
             :Progression.Components.FindByPredicate([Base](const FLDComponentInstanceView& C){return C.DefinitionId==Base&&C.bInstalled;});
         const FLDDemoComponentDefinition* Definition=Held&&Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
-        if(Definition&&ElementGate(Held->Target.Element)==ELDGrowthReason::None&&ComponentElementGate(*Definition)==ELDGrowthReason::None){Out.Add(Base);}
+        if(Definition){Out.Add(Base);}
     }
     return Out;
 }
@@ -1349,8 +1359,7 @@ ELDGrowthReason LDHUD::ComponentEnableReason(const FLDComponentInstanceView& Ins
     if(!Component){return ELDGrowthReason::DataNotReady;}
     if(Component->Kind!=ELDDemoComponentKind::Base)
     {
-        // #198 F: C09 reads element reactions, which wait for #198 A; the others need a place to go (C12 also a base).
-        if(LDWorkshop::FindOp(*Component,ELDDemoEffectOp::ReactionEmpower)){return ELDGrowthReason::ElementUnsupported;}
+        // #198 F: a mod or connector needs a place to go (C12 also a base).
         const bool bPlaced=!WorkshopTargets(*Component,Progression,Content).IsEmpty()
             &&(Component->ExtraBases.IsEmpty()||!RepeatableBases(*Component,Progression,Content).IsEmpty());
         return bPlaced?ELDGrowthReason::None:ELDGrowthReason::InvalidTarget;
@@ -1554,6 +1563,7 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     case ELDDemoStatusId::Empowered:
     case ELDDemoStatusId::RespawnProtection:
     case ELDDemoStatusId::CampReturning:
+    case ELDDemoStatusId::Braced:
         return true;
     case ELDDemoStatusId::Root:
     case ELDDemoStatusId::Slow:
@@ -1565,6 +1575,9 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
     case ELDDemoStatusId::AttackSlowed:
+    case ELDDemoStatusId::Wet:
+    case ELDDemoStatusId::Electrified:
+    case ELDDemoStatusId::Soured:
         return false;
     }
     return false;

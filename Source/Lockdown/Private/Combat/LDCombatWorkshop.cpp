@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Combat/LDCombatElements.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -73,7 +74,7 @@ namespace LDCombatWorkshopDetail
 
     constexpr ELDDemoEffectOp ActiveMods[]={ELDDemoEffectOp::KnockbackScale,ELDDemoEffectOp::ControlScale,ELDDemoEffectOp::RangeBonus,
         ELDDemoEffectOp::CooldownCost,ELDDemoEffectOp::CompressCone,ELDDemoEffectOp::CompressZone,ELDDemoEffectOp::DashScale,
-        ELDDemoEffectOp::SpreadUnit,ELDDemoEffectOp::SpreadProjectile};
+        ELDDemoEffectOp::SpreadUnit,ELDDemoEffectOp::SpreadProjectile,ELDDemoEffectOp::CompressChain};
 }
 
 bool ALDCombatDirector::WorkshopOn(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, const FLDCombatSourceRef& Exit,
@@ -155,6 +156,17 @@ bool ALDCombatDirector::CompileActive(const FLDAttributeProjection& Projection, 
                 break;
             case ELDDemoEffectOp::CompressZone:
                 if (Has(ELDDemoEffectOp::Zone) && Has(ELDDemoEffectOp::ZoneDamage)) { Terms.CompressZone=Effect; }
+                break;
+            case ELDDemoEffectOp::CompressChain:
+                // M07 on S10: the first body takes the planned hops' summed share (1 + r + r^2 ...) times the multiplier.
+                for (const FLDDemoEffectDefinition& Bounce : Values.Effects)
+                {
+                    if (Bounce.GetOp()!=ELDDemoEffectOp::ChainBounce) { continue; }
+                    int64 Total=10000, Kept=10000;
+                    for (int32 Hop=0; Hop<Bounce.Count; ++Hop) { Kept=Share(Kept,Bounce.RatioBp); Total+=Kept; }
+                    Terms.CompressChain=Effect;
+                    Terms.PackageScaleBp=Share(Terms.PackageScaleBp,Share(Total,Effect.MultiplierBp));
+                }
                 break;
             case ELDDemoEffectOp::DashScale:
                 // M08/M09: distance and time scale together (speed kept); the cooldown and the contact package follow.
@@ -245,6 +257,26 @@ bool ALDCombatDirector::TriggerAftershock(const FLDCombatBodyRef& OwnerRef, cons
         GroundEffects.Add(MoveTemp(Blast));
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_AFTERSHOCK t=%lld owner=%s exit=%s radius=%.0f"),NowMs,*LDLog::Id(OwnerRef.Victim.EntityId),
             *LDLog::Source(Exit),RadiusCm);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::ArmReactionEmpower(const FLDCombatReactionFact& Fact, int64 NowMs, FString& Error)
+{
+    FLDBodyCombatState* Trigger=FindBody(Fact.TriggerBody);
+    if (!Trigger || Trigger->bPendingDeath) { return true; }
+    TArray<FLDPassiveEffectRef> Chases;
+    if (!WorkshopOn(Trigger->AttributeProjection,ELDDemoEffectOp::ReactionEmpower,Fact.TriggerSource,Chases,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Chase : Chases)
+    {
+        // One package per reaction (not per struck body); a later reaction replaces the unused one of this connector.
+        FLDCombatEmpower Package;
+        if (!MakeEmpower(*Trigger,Chase.Source,Chase.Effect,FGuid::NewGuid(),NowMs,Package,Error)) { return false; }
+        LDCombatControl::ArmEmpower(Trigger->Empowers,Package);
+        ++Trigger->StateRevision;
+        MarkViewChanged(Trigger->Victim.EntityId);
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_REACTION_EMPOWER t=%lld holder=%s via=%s amount=%s"),NowMs,*LDLog::Id(Trigger->Victim.EntityId),
+            *LDLog::Source(Fact.TriggerSource),*LDLog::P2(Package.AmountP2));
     }
     return true;
 }
@@ -398,7 +430,8 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
     if (bEffective && Hit.bDirectAbilityDamage && Hit.Source.Kind==ELDCombatSourceKind::Learned)
     { Remember(Source->DirectHitMarks,TargetRef,NowMs); }
     // Skill damage hits (spec §8): native active damage and derived component damage; status, settle and debt hits are not.
-    const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bDebtPayment && bHostile;
+    const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bStatusSettle
+        && !Hit.bDebtPayment && bHostile;
     if (!bSkill) { return true; }
     // C11: a share of the real HP damage heals the holder, capped per original action and its derived hits.
     if (Damage.HPLostP2>0)
@@ -435,19 +468,27 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
             TArray<FLDPassiveEffectRef> Burns, Breaches, Ledgers, Elements;
             if (!OfBase(ELDDemoEffectOp::Burn,Burns) || !OfBase(ELDDemoEffectOp::Breach,Breaches) || !OfBase(ELDDemoEffectOp::Ledger,Ledgers)
                 || !OfBase(ELDDemoEffectOp::BasicElement,Elements)) { return false; }
-            if (!Elements.IsEmpty())
-            {
-                Error=FString::Printf(TEXT("%s repeats %s, which requires #198 A element state; installing it must have been refused."),
-                    *Repeat.Key,*Base.ToString());
-                return false;
-            }
+            // The repeated fire, water or electric is C12's own application (C01/C09 may read it as "C12 -> B01/B10/B11"),
+            // through the element batch so it can react; it is a new child fact, never part of the parent hit's batch.
+            FLDElementApplier Applier;
+            Applier.SourceEntity=Source->Victim.EntityId;
+            Applier.SourceBody={Source->Victim,Source->Identity};
+            Applier.CreditOwner=Source->Victim.Kind==ELDVictimKind::Contender ? Source->Victim.EntityId : FGuid();
+            Applier.Source=Repeat.Source;
+            Applier.Level=GrowthLevelOf(*Source);
+            Applier.SourceAPP2=FMath::Max<int64>(Source->AttributeProjection.Final.APP2,0);
             bool bChanged=false;
             for (const FLDPassiveEffectRef& Burn : Burns)
             {
-                // The repeated fire is C12's own layer (C01 may read it as "C12 -> B01").
-                FLDCombatBurnLayer Layer;
-                if (!BurnLayerOf(*Source,Repeat.Source,Layer,Error)) { return false; }
-                bChanged|=LDCombatKeywords::ApplyBurn(Target.Burn,Layer,Burn.Effect.BasicCount,NowMs,Terms);
+                if (!ApplyElement(Target,ELDCombatElement::Fire,Applier,Burn.Effect.BasicCount,FGuid::NewGuid(),NowMs,Error)) { return false; }
+            }
+            for (const FLDPassiveEffectRef& Element : Elements)
+            {
+                const ELDCombatElement Kind=Element.Effect.Element==ELDDemoElement::Water ? ELDCombatElement::Water
+                    : Element.Effect.Element==ELDDemoElement::Electric ? ELDCombatElement::Electric
+                    : Element.Effect.Element==ELDDemoElement::Fire ? ELDCombatElement::Fire : ELDCombatElement::None;
+                if (Kind==ELDCombatElement::None) { Error=FString::Printf(TEXT("%s repeats a base without an element."),*Repeat.Key); return false; }
+                if (!ApplyElement(Target,Kind,Applier,Kind==ELDCombatElement::Fire ? 1 : 0,FGuid::NewGuid(),NowMs,Error)) { return false; }
             }
             for (const FLDPassiveEffectRef& Breach : Breaches)
             { bChanged|=LDCombatKeywords::ApplyBreach(Target.SharedBreach,Breach.Effect.BasicCount,NowMs,Terms); }
@@ -459,7 +500,7 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
             }
             // The original hit's B02 entry and this repeat are two entries, not a duplicate delivery.
             if (!Ledgers.IsEmpty() && !RecordLedgerEntries(Target,Hit,*Source,Ledgers,NowMs,Error)) { return false; }
-            if (Burns.IsEmpty() && Breaches.IsEmpty() && Ledgers.IsEmpty())
+            if (Burns.IsEmpty() && Breaches.IsEmpty() && Ledgers.IsEmpty() && Elements.IsEmpty())
             {
                 UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_EXTRA_BASE_IDLE holder=%s base=%s reason=base_not_installed"),
                     *LDLog::Id(Source->Victim.EntityId),*Base.ToString());

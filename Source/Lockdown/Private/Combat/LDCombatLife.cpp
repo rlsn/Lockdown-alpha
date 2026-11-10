@@ -274,6 +274,9 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     GroundEffects.RemoveAll([&Entity](const auto& Ground) { return Ground.Payload.SourceEntity==Entity; });
     // #198 F M02: a leaving owner's locked batches never settle.
     LockedLedgers.RemoveAll([&Entity](const FLDCombatLockedLedger& Locked) { return Locked.Owner.Victim.EntityId==Entity; });
+    // #198: its fogs and chains end; marks it applied end below.
+    Fogs.RemoveAll([&Entity](const FLDCombatFog& Fog) { return Fog.Owner.SourceEntity==Entity; });
+    Chains.RemoveAll([&Entity](const FLDCombatChain& Chain) { return Chain.Payload.SourceEntity==Entity; });
     ContactMotion.RemoveAll([&Entity](const auto& Frame) { return Frame.Batch->Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
@@ -289,6 +292,11 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
         if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)
         {
             Body.Taunt.Reset();
+            ++Removed;
+        }
+        if (Body.ElementMark.Kind!=ELDCombatElement::None && Body.ElementMark.Applier.SourceEntity==Entity)
+        {
+            Body.ElementMark=FLDCombatElementMark();
             ++Removed;
         }
         // B02: a leaving owner's unsettled ledger entries end with it.

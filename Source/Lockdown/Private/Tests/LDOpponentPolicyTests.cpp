@@ -1760,6 +1760,8 @@ bool RunV7Activations(FAutomationTestBase& Test)
     for (const auto& Case : {
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_snark_bolt"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_hose_down"),ELDDemoTargetMode::DirectionLine),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
     {
@@ -1770,6 +1772,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s uses its approved target form"),Case.Key),
             IsCast(Cast,Case.Value)
             && (Case.Value!=ELDDemoTargetMode::DirectionCone && Case.Value!=ELDDemoTargetMode::DirectionProjectile
+                && Case.Value!=ELDDemoTargetMode::DirectionLine
                 || Cast.Body.Direction.Equals(Frame.Units[0].FootCm.GetSafeNormal2D(),1.e-4))
             && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
     }
@@ -2692,9 +2695,11 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     Self.Components.Last().Element = ELDDemoElement::Fire;
     bGood &= Test.TestTrue(TEXT("C01 goes onto a burning B18"), LDOpponentPolicy::WorkshopTarget(Self, C, *FireSkin, Target)
         && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
-    bGood &= Test.TestFalse(TEXT("C09 waits for element reactions (ElementUnsupported)"), LDOpponentPolicy::WorkshopTarget(Self, C, *BlastChase, Target));
+    bGood &= Test.TestTrue(TEXT("C09 goes onto the installed element source"), LDOpponentPolicy::WorkshopTarget(Self, C, *BlastChase, Target)
+        && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
     Self.Components.Add(Hosted(TEXT("component_fist_water")));
-    bGood &= Test.TestFalse(TEXT("C12 never repeats a water or electric base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target));
+    bGood &= Test.TestTrue(TEXT("C12 repeats an installed water base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_fist_water")));
     Self.Components.Add(Hosted(TEXT("component_tab_ledger")));
     bGood &= Test.TestTrue(TEXT("C12 repeats the first open installed base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
         && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_tab_ledger")));

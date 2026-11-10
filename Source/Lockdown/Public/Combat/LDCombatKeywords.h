@@ -35,8 +35,9 @@ struct FLDCombatSharedBreach
     int64 ExpiresAtMs = 0;
 };
 
-// One burn layer: who applied it (damage, kill and assist credit) and the applier's level and AP snapshotted when applied;
-// its damage per second is BurnLayerPerSecondP2(Level, SourceAPP2) (v7 4.2: 3 x G(L) + 3% AP).
+// One burn layer (#198, CONTENT_AND_BALANCE §4.4): who applied it (damage, kill and assist credit) and the applier's level
+// and AP snapshotted when applied; its damage per second is BurnLayerPerSecondP2(Level, SourceAPP2) (3 x G(L) + 3% AP).
+// Every layer keeps its own timer: it ticks every BurnTickMs from its application, the last tick at ExpiresAtMs.
 struct FLDCombatBurnLayer
 {
     FGuid SourceEntity;
@@ -45,19 +46,18 @@ struct FLDCombatBurnLayer
     FLDCombatSourceRef Source;
     int32 Level = 1;
     int64 SourceAPP2 = 0;
-};
-
-// The one burn of a target life (D11): its layers share one timer that a new layer restarts; at the cap a new layer
-// replaces the oldest one. Ticks fall every BurnTickMs from the first layer's application, the last one at ExpiresAtMs.
-struct FLDCombatBurn
-{
-    TArray<FLDCombatBurnLayer> Layers;   // oldest first
     int64 ExpiresAtMs = 0;
     int64 NextTickAtMs = 0;
 };
 
+// The fire of a target life: up to BurnMaxStacks independent layers; at the cap a new layer replaces the one that ends first.
+struct FLDCombatBurn
+{
+    TArray<FLDCombatBurnLayer> Layers;   // application order
+};
 
-// One tick's damage of every layer of one applier.
+
+// One tick's (or one early settle's) damage of every layer of one applier and source.
 struct FLDBurnTickShare
 {
     FGuid SourceEntity;
@@ -98,14 +98,26 @@ namespace LDCombatKeywords
     // Per-second damage of one layer: G(L) x BurnPerSec + BurnAPRatio x AP, floored to P2 (G(L) of LDSkillGrowth with
     // SKILL.GrowthPerLevel; skill amounts already arrive grown through FLDDemoContentSnapshot::FindValues).
     LOCKDOWN_API int64 BurnLayerPerSecondP2(int32 Level, int64 SourceAPP2, const FLDKeywordTerms& Terms);
+    // One tick of one layer: floor(PerSecond x BurnTickMs / 1000).
+    LOCKDOWN_API int64 BurnLayerTickP2(const FLDCombatBurnLayer& Layer, const FLDKeywordTerms& Terms);
+    // Ticks a layer still owes (its next tick through its last one).
+    LOCKDOWN_API int32 BurnLayerTicksLeft(const FLDCombatBurnLayer& Layer, const FLDKeywordTerms& Terms);
     LOCKDOWN_API bool BurnActive(const FLDCombatBurn& Burn, int64 AtMs);
-    // Adds Count copies of Layer: below the cap they join, at the cap each replaces the oldest; the shared timer
-    // restarts. A lapsed or empty burn starts again with its first tick one tick from AtMs. False for bad input.
+    // The latest layer end (the observed status expiry); 0 without layers.
+    LOCKDOWN_API int64 BurnExpiresAtMs(const FLDCombatBurn& Burn);
+    // The earliest due tick of any layer; MAX_int64 without layers.
+    LOCKDOWN_API int64 NextBurnTickAtMs(const FLDCombatBurn& Burn);
+    // Adds Count layers of Layer's applier, each with its own BurnMs timer from AtMs (first tick one BurnTickMs later);
+    // at the cap each replaces the layer that ends first. False for bad input (nothing changes then).
     LOCKDOWN_API bool ApplyBurn(FLDCombatBurn& Burn, const FLDCombatBurnLayer& Layer, int32 Count, int64 AtMs,
         const FLDKeywordTerms& Terms);
-    // One tick: per applier (first-layer order), the summed floor(PerSecond x Tick / 1000) of its layers, each at its snapshot.
-    LOCKDOWN_API void BurnTickShares(const FLDCombatBurn& Burn, const FLDKeywordTerms& Terms, TArray<FLDBurnTickShare>& Out);
-    // Clears a burn whose last tick has passed; true when it ended.
+    // The earliest tick due at or before AtMs: every layer ticking at that instant, merged per applier and source (first
+    // layer order) into Out, advanced, and finished layers removed. False when no tick is due (Out empty).
+    LOCKDOWN_API bool PopBurnTick(FLDCombatBurn& Burn, int64 AtMs, const FLDKeywordTerms& Terms, int64& OutTickAtMs,
+        TArray<FLDBurnTickShare>& Out);
+    // Every tick the layers still owe, merged per applier and source: the early settle of a consumed fire.
+    LOCKDOWN_API void BurnRemainingShares(const FLDCombatBurn& Burn, const FLDKeywordTerms& Terms, TArray<FLDBurnTickShare>& Out);
+    // Removes layers whose last tick has passed; true when any ended.
     LOCKDOWN_API bool ExpireBurn(FLDCombatBurn& Burn, int64 AtMs);
     // A leaving applier's layers end with it (POLICY.SourceLeave); returns the removed count.
     LOCKDOWN_API int32 RemoveBurnSource(FLDCombatBurn& Burn, const FGuid& Source);

@@ -170,7 +170,7 @@ namespace LDTactical
         }
         if (Input.DamageBonusBp < 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
             || Input.PrimaryGuardP2 < 0 || Input.PrimaryGuardCapBp < 0 || Input.PrimaryGuardCapBp >= 10000
-            || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.DeferRatioBp < 0 || Input.DeferRatioBp >= 10000)
+            || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.DeferRatioBp < 0 || Input.DeferRatioBp >= 10000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
         {
             return Fail(EError::Domain, TEXT("DamageBonusBp"), TEXT("A damage bonus, delivery share or guard is outside its domain"));
         }
@@ -190,6 +190,17 @@ namespace LDTactical
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Input.PackageScaleBp, 10000));
         }
+        // #198 S16 (AI spec §9.1): the stance cut follows every resistance and percentage term and precedes the flat guard.
+        int64 BraceCutP2 = 0;
+        if (Input.BraceCutBp > 0)
+        {
+            const auto Cut = Numbers.Mul(Damage, Numbers.Value(Input.BraceCutBp, 10000));
+            if (!QuantizeEvaluation(Cut, false, BraceCutP2, Check, TEXT("BraceCutP2")))
+            {
+                return Fail(EError::Overflow, TEXT("BraceCutP2"), MathError);
+            }
+            Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
+        }
         if (Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0)
         {
             const auto Flat = Numbers.Value(Input.PrimaryGuardP2);
@@ -202,7 +213,8 @@ namespace LDTactical
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
-        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; }
+        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; BraceCutP2 = 0; }
+        Value.BraceCutP2 = BraceCutP2;
         // #198 F M12: the deferred share leaves before the shield; it is paid later at its original amount.
         Value.DeferredP2 = Value.DamageP2 / 10000 * Input.DeferRatioBp + Value.DamageP2 % 10000 * Input.DeferRatioBp / 10000;
         Value.DamageP2 -= Value.DeferredP2;

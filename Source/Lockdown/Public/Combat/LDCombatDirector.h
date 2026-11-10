@@ -8,6 +8,7 @@
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Combat/LDCombatElements.h"
 #include "Development/LDBuildBlueprint.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
@@ -83,7 +84,7 @@ struct FLDCombatActiveTerms
     // The innate D's distance and cooldown multipliers (M08/M09); a learned active's are already in Values.
     int64 DashScaleBp=10000;
     int64 CooldownScaleBp=10000;
-    TOptional<FLDDemoEffectDefinition> SpreadUnit, SpreadProjectile, CompressCone, CompressZone;
+    TOptional<FLDDemoEffectDefinition> SpreadUnit, SpreadProjectile, CompressCone, CompressZone, CompressChain;
 };
 
 // #198 F C02: a knockback whose source holds C02 on it watches for its first real blocking fact.
@@ -245,6 +246,12 @@ struct FLDBodyCombatState
     // dash_contact_refund's rest.
     int64 ContactRefundReadyAtMs=0;
     TSharedPtr<FLDCombatDashContact> DashContact;
+    // #198 elements (LDCombatElements): the water or electric mark (fire is Burn), the electric discharge rest of this
+    // target, the S16 stance and the S21 cut of new heals and shields.
+    FLDCombatElementMark ElementMark;
+    int64 DischargeReadyAtMs=0;
+    FLDCombatBrace Brace;
+    FLDCombatGrievous Grievous;
     // #198 B12: the voluntary dash in flight (ResolveDashCompletions arms DashComplete empowers when it completes).
     TOptional<FLDCombatVoluntaryDash> VoluntaryDash;
     // #198 B02: every owner's ledger on this life, one per owner and component.
@@ -354,9 +361,17 @@ struct FLDCombatHit
     // #147 build v7 keyword payload (docs/systems/COMBAT_AND_GROWTH.md).
     int64 SilenceDurationMs=0;
     int32 BreachStacks=0;            // shared breach stacks this hit applies
-    int32 BurnStacks=0;              // burn layers this hit applies, at the applier level and AP snapshotted at release
-    int32 BurnLevel=1;
-    int64 BurnAPP2=0;
+    int32 BurnStacks=0;              // fire layers this hit applies (LDCombatElements batch: fire, water, electric)
+    // #198 elements: wet and electric this hit applies; ElementLevel/ElementAPP2 are the applier snapshot every element of
+    // the hit reads (fire damage, reaction damage, discharges). StampElementSnapshot fills them.
+    bool bApplyWet=false;
+    bool bApplyElectric=false;
+    int32 ElementLevel=1;
+    int64 ElementAPP2=0;
+    // Status or settle damage (early fire settle, discharge, reaction): never a skill hit for readers (AI spec §8).
+    bool bStatusSettle=false;
+    // S21: new heals and shields of the target are cut by GrievousBp for GrievousMs.
+    int64 GrievousBp=0, GrievousMs=0;
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
     int64 AttackSlowBp=0, AttackSlowMs=0;
     // Delivery scaling is separate from the additive damage bonus pool (impact outer ring, for example).
@@ -482,9 +497,27 @@ struct FLDCombatZone
     // #147 zone_burn: BurnStacks layers (at the owner's level and AP snapshotted at release) on every enemy inside,
     // every BurnIntervalMs from the zone's start while it lasts.
     int32 BurnStacks=0;
-    int32 BurnLevel=1;
-    int64 BurnIntervalMs=0, NextBurnAtMs=0, BurnAPP2=0;
+    int64 BurnIntervalMs=0, NextBurnAtMs=0;
+    // #198: the owner's element snapshot (level, AP) at release; zone_wet makes every pulse apply wet; zone_haste gives
+    // the owner HasteBp move speed while its foot stands inside.
+    int32 ElementLevel=1;
+    int64 ElementAPP2=0;
+    bool bWet=false;
+    int64 HasteBp=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
+};
+
+// #198 S10: after the first hit, every IntervalMs the nearest not yet struck legal enemy within RadiusCm of the last
+// struck body takes the payload at RatioBp of the previous bounce's share, until Remaining runs out or nobody is near.
+struct FLDCombatChain
+{
+    FLDCombatHit Payload;
+    TArray<FGuid> Struck;
+    FLDCombatBodyRef Last;
+    FVector LastFootCm=FVector::ZeroVector;
+    int32 Remaining=0;
+    int64 NextAtMs=0, IntervalMs=0, RatioBp=0, ScaleBp=10000;
+    double RadiusCm=0;
 };
 
 UCLASS()
@@ -832,13 +865,13 @@ private:
         int64 NowMs, FString& Error);
 
     // ---- #112 C2 mechanics (LDCombatMechanicsDirector.cpp).
-    // A one-time heal of Body (lifesteal, C11, pickups); regeneration never passes here. #198 F: M12 debts are repaid
-    // first, the rest heals; HealSource (when set) feeds the C08 installed on it with the real heal plus repayment.
-    // True when HP or a debt changed; OutApplied (optional) is healed plus repaid.
+    // A one-time heal of Body (lifesteal, C11, charms); regeneration never passes here. A live S21 grievous cuts it first. #198 F:
+    // M12 debts are repaid first, the rest heals; HealSource (when set) feeds the C08 installed on it with the real heal plus
+    // repayment. True when HP or a debt changed; OutApplied (optional) is healed plus repaid.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
         int64* OutApplied=nullptr);
-    // The single shield entry: applied ReplaceIfNotWeaker; a granted shield records its amount (ShieldGrantedP2) and its
-    // granting source (#198 F C10).
+    // The single shield entry: a live S21 grievous cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
+    // records its amount (ShieldGrantedP2) and its granting source (#198 F C10).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
     // A shield emptied by Hit: item_privacy_screen's retort to the breaker.
@@ -864,17 +897,47 @@ private:
     bool KeywordTerms(FLDKeywordTerms& Out, FString& Error) const;
     // The level a body's G(L) reads: a contender's build level; camp bodies use level 1.
     int32 GrowthLevelOf(const FLDBodyCombatState& Body) const;
-    // A burn layer of Source with Source's level and AP now snapshotted in it.
-    bool BurnLayerOf(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, FLDCombatBurnLayer& Out, FString& Error) const;
-    // Shared breach and burn of one committed hit on Target: the hit's own stacks, its component fire layers and its living
-    // source's held breach/burn triggers (basic_stacks on a primary basic, B01/B08). Assists are recorded per application.
+    // Shared breach of one committed hit on Target: the hit's own stacks and its living source's held breach triggers
+    // (basic_stacks on a primary basic, B08). Fire (hit layers, component layers) is an element (ApplyElements).
     bool ApplyKeywordStacks(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
-    // Burn ticks due by now: one damage hit per applier and tick; lapsed burns end.
+    // Burn ticks due by now: every layer on its own timer, one damage hit per applier, source and tick instant.
     bool AdvanceBurns(int64 NowMs, FString& Error);
     // The damage-triggered shield of Body after it took hostile positive damage (B09: the rest starts only on a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
+    // ---- #198 elements, reactions and the element actives (LDCombatElementsDirector.cpp).
+    bool ElementTerms(FLDElementTerms& Out, FString& Error) const;
+    // The applier snapshot of a hit's elements (fire damage, reaction damage, discharges): Source's level and AP now.
+    bool StampElementSnapshot(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
+    ELDCombatElement ElementOfBody(const FLDBodyCombatState& Body, int64 NowMs) const;
+    // The element batch of one committed hit on a controllable Target: fire (the hit's layers and its living source's held
+    // burn triggers), then water, then electric, each applying, refreshing or reacting with the element held.
+    bool ApplyElements(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
+    // One element on Target: installs or refreshes it, or reacts with a different one held (both consumed).
+    bool ApplyElement(FLDBodyCombatState& Target, ELDCombatElement Kind, const FLDElementApplier& Applier, int32 FireStacks,
+        const FGuid& HitId, int64 NowMs, FString& Error);
+    // Ends Body's water or electric mark now, with the wet slow it holds.
+    void ClearMark(FLDBodyCombatState& Body);
+    // An electrified Target that just took positive damage discharges R to the nearest other enemy of its applier.
+    bool TryDischarge(FLDBodyCombatState& Target, const FVector& TargetFoot, int64 NowMs, FString& Error);
+    // Fog pulses, chain bounces, S16 ends and lapsed marks due by now.
+    bool AdvanceElements(int64 NowMs, FString& Error);
+    int64 NextElementsDueMs(int64 NowMs) const;
+    // The single report of a completed reaction (AI spec §8); later connectors read ReactionFacts of this Effects step.
+    void OnReactionCompleted(const FLDCombatReactionFact& Fact);
+    // S16: Body's new stance (a newer one replaces the old record without its answer).
+    bool ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
+        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error);
+    // S10: the bounces after the first struck body.
+    bool StartChain(const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& FirstFoot,
+        const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error);
+    // S09: every legal body whose foot lies in the band LengthCm x 2 HalfWidthCm from Origin along Direction with clear
+    // sight from Origin, with its foot.
+    bool CollectLineTargets(const FVector& Origin, const FVector& Direction, double LengthCm, double HalfWidthCm,
+        const FLDBodyCombatState& Caster, TArray<TPair<FLDCombatBodyRef,FVector>>& Out, FString& Error) const;
+    // Wet, electrified, braced and soured cues for every observer.
+    void AppendElementStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone); #198 F M07 compresses it into one delayed blast (Terms).
     bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
         const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
@@ -902,6 +965,8 @@ private:
     // C06: a natural completion of Exit (zone end, trap detonation, impact landing, compressed blast) at Centre/Radius.
     bool TriggerAftershock(const FLDCombatBodyRef& Owner, const FLDCombatSourceRef& Exit, const FGuid& EffectId,
         const FVector& Centre, double RadiusCm, int64 NowMs, FString& Error);
+    // C09: a completed reaction whose trigger source carries the connector arms one empowered-basic package of it.
+    bool ArmReactionEmpower(const FLDCombatReactionFact& Fact, int64 NowMs, FString& Error);
     // C05/C07 after a hard control actually landed on Victim (CommitControl).
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // C02: arms the knockback watch of a committed push when its source holds C02 on the push's exit.
@@ -973,6 +1038,10 @@ private:
     TArray<FLDCombatGroundEffect> GroundEffects;
     // #198 F M02: locked ledger batches waiting for their delayed cash-out.
     TArray<FLDCombatLockedLedger> LockedLedgers;
+    // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.
+    TArray<FLDCombatFog> Fogs;
+    TArray<FLDCombatChain> Chains;
+    TArray<FLDCombatReactionFact> ReactionFacts;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;

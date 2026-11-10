@@ -22,14 +22,32 @@
       "height": 64
     },
     {
+      "id": "icon_active_brace",
+      "sha256": "22e1cc1d6837ea50b34b56f0b147225a8a3b187ca0a5140a4549803ef28f9734",
+      "width": 64,
+      "height": 64
+    },
+    {
       "id": "icon_active_calculus_drop",
       "sha256": "fd20569f68a149bc254e68987df2e6cde0929c19098630466a8e4043ed418008",
       "width": 64,
       "height": 64
     },
     {
+      "id": "icon_active_charged_ram",
+      "sha256": "240e8d80d86aabcf7beee2e4249057ea8e2fe433974ffed6f560e1e1c74e3f86",
+      "width": 64,
+      "height": 64
+    },
+    {
       "id": "icon_active_crotch_grab",
       "sha256": "95df66090532ec59fe72914bb7a85dd3bb21b31de0b989b981f236899c055dba",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_dirty_puddle",
+      "sha256": "f318486fee779e96a48201769adc1a1072d273e54c7ba464e7e118def7898690",
       "width": 64,
       "height": 64
     },
@@ -42,6 +60,12 @@
     {
       "id": "icon_active_flyer_trap",
       "sha256": "f274e8870dbe1a7a19f688d7750678ed8e3b03f4a83204d7c26b3eedb54db8f8",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_hose_down",
+      "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f",
       "width": 64,
       "height": 64
     },
@@ -106,8 +130,20 @@
       "height": 64
     },
     {
+      "id": "icon_active_zap",
+      "sha256": "3f2c9ae5145ba5a8a3d7eca82486634777aa53d28900f820de4c232b5d643518",
+      "width": 64,
+      "height": 64
+    },
+    {
       "id": "icon_attack_slowed",
       "sha256": "df22b3726a7b2648e3dc4ca3fa92f0c217033cf405f516e09d639fce5bfd192b",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_braced",
+      "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf",
       "width": 64,
       "height": 64
     },
@@ -394,6 +430,12 @@
       "height": 64
     },
     {
+      "id": "icon_electrified",
+      "sha256": "fd9691adb8307c2a5bd244ebb12ad51f72cb046374a73881d983c7316dd04586",
+      "width": 64,
+      "height": 64
+    },
+    {
       "id": "icon_empowered",
       "sha256": "b37c3a7f481d576e3f62ff35418ef9c92b215f701987d9e4051c1a754644e459",
       "width": 64,
@@ -448,6 +490,12 @@
       "height": 64
     },
     {
+      "id": "icon_soured",
+      "sha256": "c34332f05dc87a55c989ab9320136db465ec8bb08f1f7472ceb6b8fbf4449201",
+      "width": 64,
+      "height": 64
+    },
+    {
       "id": "icon_stat_agility",
       "sha256": "d64408b3ff71f89616a63ec8a23fb8188c65dd07278e6db7d9bbddab9e096c18",
       "width": 64,
@@ -492,6 +540,12 @@
     {
       "id": "icon_taunt",
       "sha256": "b036d57ac5b8ab8ea1164eb71d4e85fb84549acaea81e449fd9ee3196c296c95",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_wet",
+      "sha256": "f0a1025cf9922229f8847eefb3f85630d6b2395c662b25b680c772f90eed9422",
       "width": 64,
       "height": 64
     }
