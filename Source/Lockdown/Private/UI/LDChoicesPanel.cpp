@@ -144,8 +144,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Section->AddChildToVerticalBox(ElementLine)->SetPadding(FMargin(0,4,0,0));
             auto* CancelLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             CancelLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::CancelBinding,[this](){CancelBinding();},false,TEXT("GrowthBindCancel")));
-            BindingBlocked=OneLine(13);BindingBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-            auto* BlockedSlot=CancelLine->AddChildToHorizontalBox(BindingBlocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
             Section->AddChildToVerticalBox(CancelLine)->SetPadding(FMargin(0,4,0,0));
             BindingSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
@@ -733,17 +731,13 @@ void ULDChoicesPanel::RefreshBinding()
         GrowthEnabled(Pick,!PendingRequest);
     }
     GrowthShown(BindElementLine,!BindingActive.IsNone(),ESlateVisibility::SelfHitTestInvisible);
-    TArray<FString> Closed;
     const ELDDemoElement Elements[]={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric};
     for(int32 Index=0;Index<BindElementButtons.Num()&&Index<int32(UE_ARRAY_COUNT(Elements));++Index)
     {
         const bool bOffered=Definition->BindElements.Contains(Elements[Index]);
-        const bool bElementOpen=LDHUD::ElementGate(Elements[Index])==ELDGrowthReason::None;
         GrowthShown(BindElementButtons[Index],bOffered,ESlateVisibility::Visible);
-        GrowthEnabled(BindElementButtons[Index],bOffered&&bElementOpen&&!PendingRequest);
-        if(bOffered&&!bElementOpen){Closed.Add(LDHUD::ElementName(Elements[Index]));}
+        GrowthEnabled(BindElementButtons[Index],bOffered&&!PendingRequest);
     }
-    GrowthText(BindingBlocked,!BindingActive.IsNone()&&!Closed.IsEmpty()?FString::Join(Closed,TEXT("、"))+TEXT("：")+LDTerms::ElementClosed:FString());
 }
 bool ULDChoicesPanel::PickOpeningBase(int32 Index)
 {
@@ -923,7 +917,6 @@ bool ULDChoicesPanel::PickBindElement(ELDDemoElement Element)
     const FString Id=BindingComponent.ToString();
     const FLDDemoComponentDefinition* Definition=LatestContent?LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
     if(!Definition||!Definition->BindElements.Contains(Element)){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::InvalidTarget));return false;}
-    if(LDHUD::ElementGate(Element)!=ELDGrowthReason::None){SetFeedback(TEXT("没有提交：")+FString(LDTerms::ElementClosed));return false;}
     if(BindingKind==ELDBuildCommandKind::OpeningBase&&!Gate.bCanChoose){SetFeedback(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
     if(BindingKind==ELDBuildCommandKind::InstallComponent)
     {

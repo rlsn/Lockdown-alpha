@@ -433,9 +433,8 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out,
         FString& Error);
     // #198 B component picks (rule-based, no tunable numbers). Whether the AI could enable Component apart from the build
-    // gate: a base component whose elements are open (water and electric are refused as ElementUnsupported until #198 A)
-    // and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its BindActives lists, bound
-    // with fire (Out* stay empty / None without a binding).
+    // gate: a base component and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its
+    // BindActives lists, bound with the first element its BindElements lists (Out* stay empty / None without a binding).
     LOCKDOWN_API bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component,
         FString& OutBoundActive, ELDDemoElement& OutElement);
     // The opening base pick: the first option in catalog order that ComponentUsable accepts; false when none does.
@@ -444,8 +443,8 @@ namespace LDOpponentPolicy
     // #198 F: where the AI installs an owned mod or connector (rule-based, no tunable numbers): the first legal target in
     // catalog list order: a learned active of TargetActives, else an installed host of TargetComponents (C01 on B18 only
     // while B18 burns), else the innate D (bTargetDash), else the holder itself (bTargetSelf); C12 also repeats the first
-    // installed base of ExtraBases whose elements are open. Skips what growth refuses: C09 and water/electric repeats
-    // (ElementUnsupported until #198 A) and M08/M09 on a target the other already holds (TargetConflict). False for a base
+    // installed base of ExtraBases. Skips what growth refuses: M08/M09 on a target the other already holds (TargetConflict).
+    // False for a base
     // component or without any legal target.
     LOCKDOWN_API bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
         const FLDDemoComponentDefinition& Component, FLDOpponentComponentTarget& Out);

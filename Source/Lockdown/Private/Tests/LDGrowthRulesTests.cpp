@@ -227,7 +227,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
             LDGrowthWire::IsKnownFamily(static_cast<ELDGrowthFamily>(Retired)));
     }
     // Retired reasons keep their numbers reserved: none of them names a reason any more.
-    for (const uint16 Retired : {uint16(40), uint16(46), uint16(47), uint16(49), uint16(50), uint16(51)})
+    for (const uint16 Retired : {uint16(40), uint16(46), uint16(47), uint16(49), uint16(50), uint16(51), uint16(65)})
     {
         bGood &= Test.TestEqual(FString::Printf(TEXT("Retired growth reason %u has no name"), uint32(Retired)),
             FString(LDGrowthWire::ReasonName(LDGrowthWire::Reason(Retired))), FString(TEXT("Unknown")));
@@ -236,7 +236,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         {ELDGrowthReason::SlotOccupied, 54}, {ELDGrowthReason::NoBlueprint, 55}, {ELDGrowthReason::NotEnoughPoints, 56},
         {ELDGrowthReason::NoActiveOffer, 57}, {ELDGrowthReason::PhaseClosed, 58}, {ELDGrowthReason::NotOwned, 60},
         {ELDGrowthReason::AlreadyInstalled, 61}, {ELDGrowthReason::NotInstalled, 62}, {ELDGrowthReason::RestOnly, 63},
-        {ELDGrowthReason::InvalidTarget, 64}, {ELDGrowthReason::ElementUnsupported, 65}, {ELDGrowthReason::OpeningBaseUnavailable, 66},
+        {ELDGrowthReason::InvalidTarget, 64}, {ELDGrowthReason::OpeningBaseUnavailable, 66},
         {ELDGrowthReason::OpeningBaseTaken, 67}, {ELDGrowthReason::OpeningActiveFirst, 68}};
     for (const TPair<ELDGrowthReason, uint16>& Row : NewReasons)
     {
@@ -1101,12 +1101,13 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
             Opening.Add(FName(*Ability.Id));
         }
     }
-    const FName NotMad(TEXT("active_not_mad")), StareDown(TEXT("active_stare_down")), FlyerTrap(TEXT("active_flyer_trap"));
-    bool bGood = Test.TestTrue(TEXT("The approved catalog holds 16 actives, 13 of them in the opening pool"),
-        All.Num() == 16 && Opening.Num() == 13);
-    bGood &= Test.TestTrue(TEXT("S14, S15 and S19 stay out of the opening pool"),
-        !Opening.Contains(NotMad) && !Opening.Contains(StareDown) && !Opening.Contains(FlyerTrap)
-        && All.Contains(NotMad) && All.Contains(StareDown) && All.Contains(FlyerTrap));
+    const FName NotMad(TEXT("active_not_mad")), StareDown(TEXT("active_stare_down")), FlyerTrap(TEXT("active_flyer_trap")),
+        Brace(TEXT("active_brace"));
+    bool bGood = Test.TestTrue(TEXT("The approved catalog holds 22 actives, 18 of them in the opening pool"),
+        All.Num() == 22 && Opening.Num() == 18);
+    bGood &= Test.TestTrue(TEXT("S14, S15, S16 and S19 stay out of the opening pool"),
+        !Opening.Contains(NotMad) && !Opening.Contains(StareDown) && !Opening.Contains(FlyerTrap) && !Opening.Contains(Brace)
+        && All.Contains(NotMad) && All.Contains(StareDown) && All.Contains(FlyerTrap) && All.Contains(Brace));
 
     const FLDGrowthBuild Fresh = LDProgression::StartBuild(Content);
     TArray<FName> Eligible;
@@ -1198,7 +1199,7 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("With the opening pool exhausted ordinal 1 draws nothing while a later ordinal draws the rest"),
         LDProgression::DrawActiveOffer(Content, OpeningSpent, 1, 7, Offer) == ELDGrowthReason::None && Offer.IsEmpty()
         && LDProgression::DrawActiveOffer(Content, OpeningSpent, 2, 7, Offer) == ELDGrowthReason::None && Offer.Num() == 3
-        && Offer.Contains(NotMad) && Offer.Contains(StareDown) && Offer.Contains(FlyerTrap));
+        && !Offer.ContainsByPredicate([&](FName Id) { return Id != NotMad && Id != StareDown && Id != FlyerTrap && Id != Brace; }));
     return bGood;
 }
 
@@ -1882,15 +1883,17 @@ bool GrowthTestRunComponentInstall(FAutomationTestBase& Test)
     bGood &= Refused(TEXT("A base installed on an active target"), Install(Spiky, OnActive, Safe), ELDGrowthReason::InvalidTarget);
     bGood &= Refused(TEXT("A binding on a base that takes none"), Install(Spiky, GrowthTestBinding(Elbow, ELDDemoElement::Fire), Safe),
         ELDGrowthReason::InvalidTarget);
-    bGood &= Refused(TEXT("B10 water before the element state"), Install(Water, FLDComponentTarget(), RestAlive),
-        ELDGrowthReason::ElementUnsupported);
-    bGood &= Refused(TEXT("B11 electric before the element state"), Install(Shock, FLDComponentTarget(), RestAlive),
-        ELDGrowthReason::ElementUnsupported);
+    bGood &= Test.TestTrue(TEXT("B10 water installs"),
+        Install(Water, FLDComponentTarget(), Safe) == ELDGrowthReason::None && Out.FindComponent(Water)->bInstalled);
+    bGood &= Test.TestTrue(TEXT("B11 electric installs"),
+        Install(Shock, FLDComponentTarget(), Safe) == ELDGrowthReason::None && Out.FindComponent(Shock)->bInstalled);
     bGood &= Refused(TEXT("B18 without a binding"), Install(Dirty, FLDComponentTarget(), Safe), ELDGrowthReason::InvalidTarget);
-    bGood &= Refused(TEXT("B18 bound to water"), Install(Dirty, GrowthTestBinding(Elbow, ELDDemoElement::Water), Safe),
-        ELDGrowthReason::ElementUnsupported);
-    bGood &= Refused(TEXT("B18 bound to electric"), Install(Dirty, GrowthTestBinding(Elbow, ELDDemoElement::Electric), Safe),
-        ELDGrowthReason::ElementUnsupported);
+    for (const ELDDemoElement Element : {ELDDemoElement::Water, ELDDemoElement::Electric})
+    {
+        bGood &= Test.TestTrue(FString::Printf(TEXT("B18 bound to element %u installs with its binding"), uint32(Element)),
+            Install(Dirty, GrowthTestBinding(Elbow, Element), Safe) == ELDGrowthReason::None && Out.FindComponent(Dirty)->bInstalled
+            && Out.FindComponent(Dirty)->Target == GrowthTestBinding(Elbow, Element));
+    }
     bGood &= Refused(TEXT("B18 bound without an element"), Install(Dirty, GrowthTestBinding(Elbow, ELDDemoElement::None), Safe),
         ELDGrowthReason::InvalidTarget);
     bGood &= Refused(TEXT("B18 bound to an active that is not learned"), Install(Dirty, GrowthTestBinding(Seethe, ELDDemoElement::Fire), Safe),
@@ -2017,9 +2020,9 @@ bool GrowthTestRunOpeningBase(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A pick that does not ask to install is stored without a reason"),
         Pick(Start, Opened, Spiky, false, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && !Outcome.bInstalled
         && Outcome.StoredReason == ELDGrowthReason::None && !Out.Components[0].bInstalled);
-    bGood &= Test.TestTrue(TEXT("B10 is a legal pick but stays in the inventory, saying ElementUnsupported"),
+    bGood &= Test.TestTrue(TEXT("B10 is a legal pick and installs at once"),
         Pick(Start, Opened, FName(TEXT("component_fist_water")), true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None
-        && !Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::ElementUnsupported && Out.Components.Num() == 1);
+        && Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::None && Out.Components.Num() == 1);
     bGood &= Test.TestTrue(TEXT("B18 without a binding is stored, saying InvalidTarget"),
         Pick(Start, Opened, FName(TEXT("component_dirty_trick")), true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None
         && !Outcome.bInstalled && Outcome.StoredReason == ELDGrowthReason::InvalidTarget);

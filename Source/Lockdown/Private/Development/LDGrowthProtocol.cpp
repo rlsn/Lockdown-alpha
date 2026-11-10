@@ -187,7 +187,6 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NotInstalled: return TEXT("NotInstalled");
     case ELDGrowthReason::RestOnly: return TEXT("RestOnly");
     case ELDGrowthReason::InvalidTarget: return TEXT("InvalidTarget");
-    case ELDGrowthReason::ElementUnsupported: return TEXT("ElementUnsupported");
     case ELDGrowthReason::OpeningBaseUnavailable: return TEXT("OpeningBaseUnavailable");
     case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");
     case ELDGrowthReason::OpeningActiveFirst: return TEXT("OpeningActiveFirst");

@@ -177,7 +177,6 @@ private:
     UPROPERTY() TObjectPtr<UWidget> BindingSection;
     UPROPERTY() TObjectPtr<UTextBlock> BindingHeading;
     UPROPERTY() TObjectPtr<UWidget> BindElementLine;
-    UPROPERTY() TObjectPtr<UTextBlock> BindingBlocked;
     // Q/W/E order of the bindable learned actives; then fire, water, electric.
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> BindActiveButtons;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> BindElementButtons;

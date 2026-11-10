@@ -108,11 +108,6 @@ bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, con
     return false;
 }
 
-bool ProgressionUnsupportedElement(ELDDemoElement Element)
-{
-    return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric;
-}
-
 // #198 F: whether Target is a legal install of the mod or connector Definition on Build now (spec §12.1, §13.1): the shape
 // its definition accepts (InvalidTarget), a learned active or an installed host component (InvalidTarget), C12's repeated
 // base installed (InvalidTarget), C01 on B18 only when B18 burns (InvalidTarget), no M08/M09 pair on one target
@@ -1120,20 +1115,10 @@ ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitio
         {
             return ELDGrowthReason::InvalidTarget;
         }
-        if (ProgressionUnsupportedElement(Target.Element))
-        {
-            return ELDGrowthReason::ElementUnsupported;
-        }
     }
     else if (!Target.BoundActive.IsNone() || Target.Element != ELDDemoElement::None)
     {
         return ELDGrowthReason::InvalidTarget;
-    }
-    // Water (wet) and electric (shocked) have no element state before #198 A: such a component never reaches Combat.
-    if (Definition->Effects.ContainsByPredicate(
-        [](const FLDDemoEffectDefinition& Effect) { return ProgressionUnsupportedElement(Effect.Element); }))
-    {
-        return ELDGrowthReason::ElementUnsupported;
     }
     return ELDGrowthReason::None;
 }

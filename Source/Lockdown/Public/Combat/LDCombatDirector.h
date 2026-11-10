@@ -840,8 +840,8 @@ private:
     // carries a knockback of the primary target away from the holder, no damage).
     bool OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, FString& Error);
     // #198 B: one component's element on Hit (B10/B11 basic_element, B18 active_element). Fire adds one burn layer
-    // credited to Component. Water and electric are #198 A's element state: once it lands this is where they set the
-    // hit's bApplyWet / bApplyElectric; until then they are an explicit authority error (installation refuses them).
+    // credited to Component; water and electric set the hit's bApplyWet / bApplyElectric (the caller stamps its element
+    // snapshot) and ApplyElements applies them with their reactions.
     bool ApplyComponentElement(FLDCombatHit& Hit, ELDDemoElement Element, const FLDCombatSourceRef& Component, FString& Error) const;
     // #198 B02: one entry of every ledger Source holds on Target for an effective basic or skill damage hit; a full batch
     // queues its cash-out (a magic skill-class hit flagged bLedgerCashOut).

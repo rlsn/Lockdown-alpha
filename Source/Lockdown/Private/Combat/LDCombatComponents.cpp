@@ -17,17 +17,6 @@ namespace LDCombatComponentsDetail
         return ValueP2/10000*Bp+ValueP2%10000*Bp/10000;
     }
 
-    const TCHAR* ElementName(ELDDemoElement Element)
-    {
-        switch (Element)
-        {
-        case ELDDemoElement::Fire: return TEXT("fire");
-        case ELDDemoElement::Water: return TEXT("water");
-        case ELDDemoElement::Electric: return TEXT("electric");
-        default: return TEXT("none");
-        }
-    }
-
     // Base + AD and AP shares of one effect from a body's current attributes; false outside the checked domain.
     bool PackageP2(const FLDDemoEffectDefinition& Effect, const FLDProjectedAttributes& Final, int64& Out)
     {
@@ -56,11 +45,12 @@ bool ALDCombatDirector::ApplyComponentElement(FLDCombatHit& Hit, ELDDemoElement 
         Hit.ComponentBurnSource=Component;
         return true;
     case ELDDemoElement::Water:
+        Hit.bApplyWet=true;
+        return true;
     case ELDDemoElement::Electric:
-        // #198 A: Hit.bApplyWet / Hit.bApplyElectric (with StampElementSnapshot) are set here once its element state lands.
-        Error=FString::Printf(TEXT("%s applies %s, which requires #198 A element state; installing it must have been refused."),
-            *LDLog::Source(Component),LDCombatComponentsDetail::ElementName(Element));
-        return false;
+        // The caller stamps the hit's element snapshot (StampElementSnapshot); ApplyElements applies it and its reactions.
+        Hit.bApplyElectric=true;
+        return true;
     default:
         Error=FString::Printf(TEXT("%s names no element."),*LDLog::Source(Component));
         return false;

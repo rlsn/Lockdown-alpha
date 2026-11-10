@@ -108,7 +108,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Combat.Components.EmpowerMerge",
         "Lockdown.Rules.Combat.Components.DashEmpower",
         "Lockdown.Rules.Combat.Components.Ledger",
-        "Lockdown.Rules.Combat.Components.ElementGate",
+        "Lockdown.Rules.Combat.Components.Elements",
         "Lockdown.Rules.Combat.Workshop.Compile",
         "Lockdown.Rules.Combat.Workshop.ControlMark",
         "Lockdown.Rules.Combat.Workshop.KnockbackImpact",

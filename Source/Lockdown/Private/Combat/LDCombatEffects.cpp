@@ -256,6 +256,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 if (!ApplyComponentElement(Hit,Ref.Element,Ref.Source,Error)) { return false; }
             }
         }
+        // Water/electric of a component apply through ApplyElements at the source's level and AP now.
+        if ((Hit.bApplyWet || Hit.bApplyElectric) && !StampElementSnapshot(*Source,Hit,Error)) { return false; }
     }
     // #198 B02: an effective basic or skill damage hit of a living source enters its ledgers on this life (burn ticks and
     // cash-outs are status/settle damage and never do).

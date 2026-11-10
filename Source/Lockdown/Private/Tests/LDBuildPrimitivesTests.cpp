@@ -1486,10 +1486,13 @@ bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentElementGateTest, "Lockdown.Rules.Combat.Components.ElementGate",
+// #198 B10/B11/B18: a component's element rides its hit. Fire adds a burn layer credited to the component; water and
+// electric set the hit's element flags and ApplyElements marks the target (B10 wet / B11 electric on a primary basic, B18 on
+// a native direct hit of its bound active).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentElementsTest, "Lockdown.Rules.Combat.Components.Elements",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDComponentElementGateTest::RunTest(const FString& Parameters)
+bool FLDComponentElementsTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     FFixture F;
@@ -1499,13 +1502,32 @@ bool FLDComponentElementGateTest::RunTest(const FString& Parameters)
     FLDCombatHit Probe;
     TestTrue(TEXT("Fire adds one burn layer of the component"), FAccess::ApplyComponentElement(*F.Driver, Probe, ELDDemoElement::Fire,
         Trick, Error) && Probe.ComponentBurnStacks == 1 && Probe.ComponentBurnSource == Trick);
-    for (const ELDDemoElement Element : {ELDDemoElement::Water, ELDDemoElement::Electric})
-    {
-        FLDCombatHit Wet;
-        TestTrue(FString::Printf(TEXT("Element %u is an explicit error until #198 A"), uint32(Element)),
-            !FAccess::ApplyComponentElement(*F.Driver, Wet, Element, Trick, Error) && Error.Contains(TEXT("#198 A")));
-    }
+    FLDCombatHit Wet, Zap;
+    TestTrue(TEXT("Water sets the hit's wet flag"), FAccess::ApplyComponentElement(*F.Driver, Wet, ELDDemoElement::Water, Trick, Error)
+        && Wet.bApplyWet && !Wet.bApplyElectric);
+    TestTrue(TEXT("Electric sets the hit's electric flag"), FAccess::ApplyComponentElement(*F.Driver, Zap, ELDDemoElement::Electric,
+        Trick, Error) && Zap.bApplyElectric && !Zap.bApplyWet);
     TestFalse(TEXT("No element is an error"), FAccess::ApplyComponentElement(*F.Driver, Probe, ELDDemoElement::None, Trick, Error));
+
+    // B10 / B11: a primary basic of the holder marks its target wet / electric for four seconds; an ability hit does not.
+    const FLDCombatBodyRef Splasher = F.AddBody(), Shocker = F.AddBody(), Soaked = F.AddBody(), Shocked = F.AddBody();
+    if (!InstallComponents(*this, F, Splasher, 1, {{TEXT("component_fist_water"), NAME_None, ELDDemoElement::None}})
+        || !InstallComponents(*this, F, Shocker, 1, {{TEXT("component_fist_shock"), NAME_None, ELDDemoElement::None}}))
+    { return false; }
+    const auto Basic = [](const FLDCombatBodyRef& From, const FLDCombatBodyRef& To)
+    {
+        FLDCombatHit Hit = FFixture::Hit(From, To, 1000);
+        Hit.HitClass = ELDCombatHitClass::BasicPrimary;
+        Hit.DamageType = ELDDemoDamageType::Physical;
+        return Hit;
+    };
+    TestTrue(TEXT("An ability hit of B10's holder carries no water"), F.Apply(FFixture::Hit(Splasher, Soaked, 1000), Error)
+        && F.Body(Soaked).ElementMark.Kind == ELDCombatElement::None);
+    TestTrue(FString::Printf(TEXT("B10: a primary basic marks the target wet (%s)"), *Error), F.Apply(Basic(Splasher, Soaked), Error)
+        && F.Body(Soaked).ElementMark.Kind == ELDCombatElement::Water && F.Body(Soaked).ElementMark.ExpiresAtMs == 5000);
+    TestTrue(FString::Printf(TEXT("B11: a primary basic marks the target electric (%s)"), *Error), F.Apply(Basic(Shocker, Shocked), Error)
+        && F.Body(Shocked).ElementMark.Kind == ELDCombatElement::Electric && F.Body(Shocked).ElementMark.ExpiresAtMs == 5000);
+    TestTrue(TEXT("The hits land"), F.Flush(Error));
 
     // B18 bound to S01 (active_elbow) with fire: each native direct effective hit of S01 adds one layer.
     const FLDCombatBodyRef Owner = F.AddBody(), Target = F.AddBody();
@@ -1530,6 +1552,29 @@ bool FLDComponentElementGateTest::RunTest(const FString& Parameters)
     FLDCombatHit Zero = Native(TEXT("active_elbow"), true);
     Zero.BaseP2 = 0;
     TestTrue(TEXT("An ineffective hit adds none"), F.Apply(Zero, Error) && Victim.Burn.Layers.Num() == 1);
+
+    // B18 bound with water / electric: a native direct hit of the bound active marks the target; another active's does not.
+    for (const ELDDemoElement Element : {ELDDemoElement::Water, ELDDemoElement::Electric})
+    {
+        const FLDCombatBodyRef Binder = F.AddBody(), Marked = F.AddBody();
+        if (!InstallComponents(*this, F, Binder, 1, {{TEXT("component_dirty_trick"), TEXT("active_elbow"), Element}})) { return false; }
+        FAccess::Records(*F.Driver).FindChecked(Binder.Victim.EntityId).Build.Actives = {{TEXT("active_elbow"), ELDCombatEntry::Q},
+            {TEXT("active_snark_bolt"), ELDCombatEntry::W}};
+        const ELDCombatElement Expected = Element == ELDDemoElement::Water ? ELDCombatElement::Water : ELDCombatElement::Electric;
+        const auto BoundHit = [&](const TCHAR* Active)
+        {
+            FLDCombatHit Hit = FFixture::Hit(Binder, Marked, 1000);
+            Hit.Source = SourceOf(ELDCombatSourceKind::Learned, Active);
+            Hit.Token = 1;
+            Hit.bDirectAbilityDamage = true;
+            return Hit;
+        };
+        TestTrue(FString::Printf(TEXT("B18 element %u: another active's hit marks nothing"), uint32(Element)),
+            F.Apply(BoundHit(TEXT("active_snark_bolt")), Error) && F.Body(Marked).ElementMark.Kind == ELDCombatElement::None);
+        TestTrue(FString::Printf(TEXT("B18 element %u: the bound active's native hit marks the target (%s)"), uint32(Element), *Error),
+            F.Apply(BoundHit(TEXT("active_elbow")), Error) && F.Body(Marked).ElementMark.Kind == Expected);
+        TestTrue(TEXT("The hits land"), F.Flush(Error));
+    }
     return true;
 }
 #endif

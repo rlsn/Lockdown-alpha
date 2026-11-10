@@ -70,7 +70,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `ActiveChoice` | `OfferId`、`OfferRevision`、`Option`；`bLearnIfPossible` 时 `Slot` 为首选空槽 0..2 或 `AnySlot` | 消费队首机会；能学就学到首选或最低空槽（`Learned`），否则存为待学图纸（`StoredAsBlueprint`，`StoredReason` 为 `NotSafe`/`Dead`/`NoEmptySlot`）；之后才抽下一组 |
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换走 `ReplaceActive`）为 `SlotOccupied`，图纸保留 |
 | `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
-| `OpeningBase` = 10 | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；能装就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `NotSafe`/`Dead`/`InvalidTarget`/`ElementUnsupported`；开局主动未选为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
+| `OpeningBase` = 10 | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；能装就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `NotSafe`/`Dead`/`InvalidTarget`；开局主动未选为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
 | `InstallComponent` = 11 | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件的目标由 #198 F 接入，现在一律 `InvalidTarget`） |
 | `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；只在休息窗口（`RestOnly`） |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择（不能学就存为图纸）；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
@@ -81,7 +81,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 组件命令的 `Component` 必须可解码，目标种类与元素按白名单解码（`LDGrowthWire::IsKnownTargetKind`/`IsKnownElement`），
 不需要目标的命令（主动、加点、卸下、不要求安装的 `OpeningBase`）带任何目标字段都在受理时 `InvalidRequest`；
 主动与加点命令带组件字段同样拒绝。B18 的绑定须为已学且列在 `binding.actives` 的主动加 `binding.elements` 的一种元素，
-否则 `InvalidTarget`；水与电（B18 的绑定、B10/B11 的普攻元素）在 #198 A 的元素状态接入前一律 `ElementUnsupported`，不进 Combat。
+否则 `InvalidTarget`；水与电（B18 的绑定、B10/B11 的普攻元素）与火一样可以安装，由 Combat 的元素状态施加（`ApplyComponentElement` → `ApplyElements`）。
 
 客户端发送的 `Kind` 按白名单解码，未知编号（含 4–19、24 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
 每种 Kind 只接受上表的字段，其余字段必须为空。替换与遗忘之后 Combat 保留被遗忘主动的冷却轨道
@@ -133,10 +133,10 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 业务去重分层完成：请求序号屏障（64 份回执窗口与终结水位，同号同条款重放原回执、异条款 `RequestConflict`）、
 DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放，同键不同事实为 `DeathConflict`，窗口外的旧生命为 `StaleDeath`），
 以及地图事件的 (Event, Serial) 集合。窗口外的旧请求返回 `ReceiptExpired`，不重新执行；写闸关闭后的新序号为 `MatchClosed`，
-已受理的重放仍回原回执。拒绝原因编号：40、46、47、49–51 已退役，
+已受理的重放仍回原回执。拒绝原因编号：40、46、47、49–51 与 65（#198 B 元素接入前的 `ElementUnsupported`）已退役，
 新增 `ReplacementNotAllowed=48`（野外替换/遗忘）、`NotSafe=52`、`NoEmptySlot=53`、`SlotOccupied=54`、`NoBlueprint=55`、
 `NotEnoughPoints=56`、`NoActiveOffer=57`、`PhaseClosed=58`；#198 B 新增 `NotOwned=60`、`AlreadyInstalled=61`、`NotInstalled=62`、
-`RestOnly=63`、`InvalidTarget=64`、`ElementUnsupported=65`、`OpeningBaseUnavailable=66`、`OpeningBaseTaken=67`、`OpeningActiveFirst=68`；
+`RestOnly=63`、`InvalidTarget=64`、`OpeningBaseUnavailable=66`、`OpeningBaseTaken=67`、`OpeningActiveFirst=68`；
 休息服务 `BuildLocked=70`、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
 （76、77 未分配）。构筑命令种类 1–3 之外，组件命令为 10–12，休息服务为 20–23，其余编号未用。
 

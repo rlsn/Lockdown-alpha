@@ -413,11 +413,6 @@ namespace LDHUD
     // enabled (已启用构件：名称), stored with the reason or removed.
     LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,
         int64 BuildSafeAtMs,bool bClock,int64 NowMs);
-    // #198 B: an element a component carries or binds is open now, or ElementUnsupported (water and electric wait for the
-    // #198 A element state), exactly as the growth domain refuses it.
-    LOCKDOWN_API ELDGrowthReason ElementGate(ELDDemoElement Element);
-    // ElementUnsupported when any effect of the component carries a closed element (B10 water, B11 electric); None otherwise.
-    LOCKDOWN_API ELDGrowthReason ComponentElementGate(const FLDDemoComponentDefinition& Component);
     // 火 / 水 / 电.
     LOCKDOWN_API FString ElementName(ELDDemoElement Element);
     // The learned actives an ActiveElement component may bind (its BindActives), in Q/W/E order.
@@ -459,14 +454,13 @@ namespace LDHUD
     };
     LOCKDOWN_API FComponentCardView ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
     // Why an owned, not installed component cannot be enabled whatever the moment: a missing definition (DataNotReady), a
-    // closed element (ElementUnsupported: a base's effect, or C09's element reactions), a binding without any bindable
-    // learned active, or a mod or connector without any place to go (WorkshopTargets; C12 also without a repeatable base)
-    // (InvalidTarget). None when only the build gate decides (FBuildGateView: the first install, or the rest-only re-install
-    // of a once-installed one).
+    // binding without any bindable learned active, or a mod or connector without any place to go (WorkshopTargets; C12 also
+    // without a repeatable base) (InvalidTarget). None when only the build gate decides (FBuildGateView: the first install, or
+    // the rest-only re-install of a once-installed one).
     LOCKDOWN_API ELDGrowthReason ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
     // One owned component row of the growth panel: 已启用, or a 启用 button enabled when the server would admit it now and
-    // otherwise disabled with the reason (未脱战 N 秒, 阵亡中, 休息时才能重新安装, 该元素尚未开放...).
+    // otherwise disabled with the reason (未脱战 N 秒, 阵亡中, 休息时才能重新安装...).
     struct FComponentRowView
     {
         FName DefinitionId;
