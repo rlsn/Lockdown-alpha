@@ -591,7 +591,9 @@ Low 部分清理后，已死亡成员保持死亡，直到该组真正清空再�
 driver 在休息中跳过营地意图与世界推进，营地成员只以零输入推进运动（原地停住）。进入休息时 `ALDCampDirector::FreezeForRest` 先让到达退场时刻
 （`BOSS leave_at`，即第三次休息）的 Boss 经 `ALDGameMode::RetireCampBody` 无死亡、无奖励地退场，再停下每个营地成员与 Boss 的运动，
 Combat 把它们挂起（保持 HP/MP、不回复、不能被命中或行动，视野中对任何人隐藏）；返场时 `ThawAfterRest` 让它们在冻结处解冻，
-`ForgetTargetsForRest` 清掉目标、行为与敌对来源后重新选择，HP 不变，回位记录清空。这就是批准的规则：随 T 冻结并保留剩余 HP，休息中不回复、不刷新，不搬回营地。
+`ForgetTargetsForRest` 只清掉目标丢失计时与敌对来源，并推进旧接触拒绝水位；保留 Idle/Engaged/Returning 行为阶段和生命、回位/重置代次，HP 不变。
+Engaged 重新索敌，失去目标则按正常宽限期或拴绳回位；Returning 继续当前回位周期，导演重新建立路径与回位监视。
+这就是批准的规则：随 T 冻结并保留剩余 HP，休息中不回复、不刷新，不搬回营地。
 
 攻击事实重复或失视野后的隐藏伤害不能无限重启LoseTargetGrace；没有新合法观察时，只等待到期后回位，
 不盲追最后位置。Returning收到新受击/同营通知也不转回追逐，回营重置后不重放旧通知重开仇恨。

@@ -3,7 +3,7 @@
   "schema_version": 2,
   "experiment": {
     "id": "e3-first-levelup-branches",
-    "hypothesis": "同一前缀下，首个升级三选一（序号 2）的三个合法选项会改变固定策略中心点对决的结果。"
+    "hypothesis": "同一前缀下，首个升级主动技能三选一（3 级机会，序号 2）的三个合法选项会改变固定策略中心点对决的结果。"
   },
   "adapter": {
     "module": "BuildEvaluationLockdown",
@@ -22,7 +22,7 @@
   },
   "sample_class": "legal_search",
   "assumptions": [
-    "两名对决者在 T=0 各获得 440 XP 供给（升到 5 级，共 5 次选择机会：开局 + 4 次升级），经正常奖励复合事务提交；这是供给假设，不证明真实对局能在同样时间拿到。",
+    "两名对决者在 T=0 各获得 440 XP 供给（升到 5 级，共 2 次主动选择机会：开局 + 3 级），经正常奖励复合事务提交；这是供给假设，不证明真实对局能在同样时间拿到。",
     "候选由原生抽卡按 Case 种子真实抽出；分支点以外的选择与参考对手的全部选择都用生产 AI 选择规则。",
     "双方用同一个固定评估画像在中心点对决，交战微操是生产 AI 的 Engage。"
   ],
@@ -38,17 +38,11 @@
               {
                 "rule": "option_index",
                 "index": 0
-              },
-              "ai_select",
-              "ai_select",
-              "ai_select"
+              }
             ]
           },
           "opponent": {
             "choices": [
-              "ai_select",
-              "ai_select",
-              "ai_select",
               "ai_select",
               "ai_select"
             ]
@@ -64,17 +58,11 @@
               {
                 "rule": "option_index",
                 "index": 1
-              },
-              "ai_select",
-              "ai_select",
-              "ai_select"
+              }
             ]
           },
           "opponent": {
             "choices": [
-              "ai_select",
-              "ai_select",
-              "ai_select",
               "ai_select",
               "ai_select"
             ]
@@ -90,17 +78,11 @@
               {
                 "rule": "option_index",
                 "index": 2
-              },
-              "ai_select",
-              "ai_select",
-              "ai_select"
+              }
             ]
           },
           "opponent": {
             "choices": [
-              "ai_select",
-              "ai_select",
-              "ai_select",
               "ai_select",
               "ai_select"
             ]

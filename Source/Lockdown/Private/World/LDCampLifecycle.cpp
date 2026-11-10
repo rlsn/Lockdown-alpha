@@ -421,7 +421,7 @@ void FLDCampMatchState::ForgetTargetsForRest(double NowSeconds)
         for (FLDCampMemberState& Member : Group.Members)
         {
             if (!Member.bAlive) { continue; }
-            Member.Brain = {};
+            Member.Brain.LostTargetSinceSeconds.Reset();
             Member.HostileSources.Reset();
             Member.AggroFloorSeconds = FMath::Max(Member.AggroFloorSeconds, NowSeconds);
         }

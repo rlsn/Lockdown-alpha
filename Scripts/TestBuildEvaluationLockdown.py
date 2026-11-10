@@ -271,6 +271,19 @@ class PlanTest(AdapterCase):
             _, cases = core.plan(path, run, ROOT)
             return cases, (run / "native_input.json").exists()
 
+    def test_shipped_manifests_are_admitted_by_current_capabilities(self):
+        paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests").glob("*.json"))
+        self.assertTrue(paths)
+        for path in paths:
+            value = core.validate_manifest(core.read_json(path))
+            for arm in value["design"]["arms"]:
+                with self.subTest(manifest=path.name, arm=arm["id"]):
+                    needs = lockdown.requirements(value["scenario"], arm["plan"], self.caps)
+                    self.assertEqual(needs["problems"], [], "shipped experiments must satisfy current plan rules")
+                    self.assertEqual(core.admit_arm(
+                        self.caps, self.caps["scenarios"][value["scenario"]["kind"]], value, arm, lockdown), [],
+                        "shipped experiments must use supported mechanics and decisions")
+
     def test_known_illegal_plans_are_refused_before_any_run(self):
         needs = self.requirements({"choices": ["ai_select"] * 2})
         self.assertTrue(any("has 2 rules but its supply of 600 XP gives 3 active opportunities" in item for item in needs["problems"]))
