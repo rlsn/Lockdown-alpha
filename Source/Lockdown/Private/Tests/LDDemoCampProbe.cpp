@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Tests/LDScenarioWalk.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchLifecycleTypes.h"
@@ -12,6 +13,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -52,6 +54,9 @@ constexpr double CampTargetSearchCm = 600.0;
 constexpr double CampHomePlacementCm = 101.0;
 const FName CampLowId(TEXT("l09"));
 const FName CampHighId(TEXT("h05"));
+// #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without
+// a death and places the first field life, life 2, at a randomly drawn approved spawn.
+constexpr uint32 CampFieldLife = 2;
 
 // The approved reward of clearing one low camp: every member's stage-0 XP (the first lives spawn before T=0).
 bool CampLowClearReward(int64& OutXP)
@@ -103,9 +108,18 @@ public:
     TArray<TSharedPtr<FJsonValue>> Checks;
     // Owning-client state.
     int64 StartXP = -1;
-    bool bArrived = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
+    bool bArrived = false, bAtLowMarked = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
     bool bSawReturningCue = false, bCueShapeValid = true;
     TSet<FGuid> SeenScavengers;
+    // Fixture walking route to a camp approach (see Walk()).
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    TArray<LDScenarioWalk::FKeepout> WalkKeepouts;
+    TArray<FVector> WalkWaypoints;
+    FVector WalkGoal = FVector::ZeroVector;
+    double WalkArrivalCm = 0;
+    int32 WalkWaypoint = 0;
+    uint32 WalkLife = 0;
+    bool bWalkPrepared = false;
     // Client2's high-camp route; Client2 is also the rendered owner that keeps the presentation screenshots.
     enum class EHighStep : uint8 { Approach, Attack, Flee, FollowHome, ToLowCamp, Done };
     EHighStep HighStep = EHighStep::Approach;
@@ -244,8 +258,9 @@ public:
     // Every owner publishes its contender identity so the Host can correlate server-side camp aggro.
     bool TickPlaying(ALDPlayerController& Owner)
     {
+        // The public phase may reach field 1 a frame before this owner's projection leaves its R0 rest life.
         if (!Cast<ALDCharacter>(Owner.GetPawn()) || Owner.OwnerState.LifePhase != ELDLifePhase::Alive
-            || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand()) { return true; }
+            || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand() || Owner.OwnerState.Life < CampFieldLife) { return true; }
         auto Identity = MakeShared<FJsonObject>();
         Identity->SetStringField(TEXT("contender"), Owner.OwnerState.ContenderId.ToString(EGuidFormats::DigitsWithHyphens));
         if (!Mark(Role + TEXT("Identity.json"), Identity)) { return Finish(); }
@@ -272,6 +287,70 @@ public:
     void SnapshotGrowth(const ALDPlayerController& Owner)
     {
         StartXP = Owner.OwnerState.Growth.Progression.CumulativeXP;
+    }
+
+    bool PrepareWalk(const ULDMapRegistry& Registry, FString& Why)
+    {
+        if (bWalkPrepared) { return true; }
+        const FLDDemoWorldGeometry* Geometry = Registry.GetGeometry();
+        FCollisionShape Capsule;
+        if (!Geometry) { Why = TEXT("The registered world geometry is missing."); return false; }
+        if (!LDDemoEntry::LoadRuntimeContent(Catalog, Why) || !Catalog || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why))
+        {
+            if (Why.IsEmpty()) { Why = TEXT("The approved runtime content is unavailable."); }
+            return false;
+        }
+        WalkArrivalCm = Capsule.GetCapsuleRadius() + LDPathSteering::WaypointToleranceCm;
+        bWalkPrepared = LDScenarioWalk::Keepouts(*Geometry, *Catalog, Capsule.GetCapsuleRadius(), WalkArrivalCm, WalkKeepouts, Why);
+        return bWalkPrepared;
+    }
+
+    // Walks to a camp approach from wherever the body stands, such as the field spawn the R0 return drew at random from
+    // every approved spawn. Native moves follow fixture waypoints that keep clear of every authored camp member home and
+    // Boss waypoint (LDScenarioWalk, as the Growth and Vision probes do), so idle camp bodies standing on the direct
+    // line cannot block it (s09 -> l09 passes l19's homes). The approach itself and its arrival radius are unchanged.
+    bool Walk(double Now, ALDPlayerController& Owner, const FVector& Goal, const TCHAR* Id)
+    {
+        const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
+        const ULDMapRegistry* Registry = Owner.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        if (!Body || !Registry) { return Fail(Id, TEXT("The owned body or the registered world disappeared while walking to a camp")); }
+        const FVector Foot = Body->GetNavAgentLocation();
+        if (FVector::Dist2D(Foot, Goal) <= CampApproachArrivalCm) { bArrived = true; return true; }
+        bool bIssue = false;
+        if (WalkWaypoints.IsEmpty() || WalkLife != Owner.OwnerState.Life || !WalkGoal.Equals(Goal))
+        {
+            FString Why;
+            if (!PrepareWalk(*Registry, Why)
+                || !LDScenarioWalk::Plan(*Registry, *Catalog, Foot, Goal, WalkKeepouts, WalkArrivalCm, WalkWaypoints, Why)
+                || WalkWaypoints.IsEmpty())
+            {
+                WalkWaypoints.Reset();
+                return Fail(Id, TEXT("No camp-free fixture route leads from this field body to its camp approach: ") + Why);
+            }
+            WalkLife = Owner.OwnerState.Life;
+            WalkGoal = Goal;
+            WalkWaypoint = 0;
+            bIssue = true;
+            UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_CAMP_WALK role=%s life=%u from=%s goal=%s waypoints=%d"),
+                *Role, WalkLife, *Foot.ToCompactString(), *Goal.ToCompactString(), WalkWaypoints.Num());
+        }
+        while (WalkWaypoint < WalkWaypoints.Num() - 1 && FVector::Dist2D(Foot, WalkWaypoints[WalkWaypoint]) <= WalkArrivalCm)
+        {
+            ++WalkWaypoint;
+            bIssue = true;
+        }
+        // A new leg supersedes the current move order at once; otherwise only a finished order is retried.
+        if (bIssue) { NavigateAttempts = 0; }
+        else if (Owner.Navigation->HasMoveOrder() || Now < NextOrderAt) { return true; }
+        if (NavigateAttempts >= 4)
+        {
+            return Fail(Id, FString::Printf(TEXT("The owned body could not reach its camp approach (leg %d of %d): "),
+                WalkWaypoint + 1, WalkWaypoints.Num()) + Owner.IntentFeedback);
+        }
+        Owner.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
+        ++NavigateAttempts;
+        NextOrderAt = Now + 1;
+        return true;
     }
 
     // A new destination supersedes the current move order at once; Navigate() then only retries or arrives.
@@ -342,10 +421,16 @@ public:
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
         if (!bArrived)
         {
-            if (!Navigate(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
+            if (!Walk(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
             if (!bArrived) { return true; }
+        }
+        if (!bAtLowMarked)
+        {
+            // The first field life arrives protected; the no-first-strike window starts only once that protection ended.
+            if (Owner.OwnerState.ProtectedUntilMs != 0) { return true; }
             SnapshotGrowth(Owner);
             if (!Mark(TEXT("Client1AtLow.json"))) { return Finish(); }
+            bAtLowMarked = true;
         }
         if (!bIdleConfirmed)
         {
@@ -434,7 +519,7 @@ public:
         switch (HighStep)
         {
         case EHighStep::Approach:
-            if (!Navigate(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
+            if (!Walk(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
             if (!bArrived) { return true; }
             SnapshotGrowth(Owner);
             HighStep = EHighStep::Attack;
@@ -478,13 +563,14 @@ public:
                 TEXT("The visible returning guardian carried only the single-stack untimed camp_returning cue"));
             Check(XP == 0, TEXT("#C6"), FString::Printf(
                 TEXT("A leashed return and home reset paid nothing (XP +%lld)"), XP));
-            IssueMove(Now, Owner, CampLowApproachCm);
+            // Walk() plans the new leg and issues it at once, superseding the walk back to the high approach.
+            bArrived = false;
             HighStep = EHighStep::ToLowCamp;
             return true;
         }
         case EHighStep::ToLowCamp:
         {
-            if (!bArrived && !Navigate(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
+            if (!bArrived && !Walk(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
             if (!bArrived || !Exists(TEXT("LowRefreshed.json"))) { return true; }
             if (LowShotSince == 0) { LowShotSince = Now; }
             int32 Shown = 0;
@@ -621,12 +707,13 @@ public:
             if (WatchSince == 0) { WatchSince = Now; }
             FLDCombatBodyRef Body;
             FLDCombatBodyRead Read;
-            const bool bUntouched = CurrentBody(Mode, Client1, Body) && Mode.Combat->ReadCombatBody(Body, Read) && Read.HPP2 == Read.MaxHPP2
+            const bool bUntouched = CurrentBody(Mode, Client1, Body) && !Mode.IsContenderProtected(Client1)
+                && Mode.Combat->ReadCombatBody(Body, Read) && Read.HPP2 == Read.MaxHPP2
                 && !LowGroup.Members.ContainsByPredicate([](const FLDCampMemberState& Member)
                     { return !Member.bAlive || Member.Brain.Phase != ELDCampBrainPhase::Idle || !Member.HostileSources.IsEmpty(); });
-            if (!bUntouched) { return Fail(TEXT("#C3"), TEXT("An untouched low camp stays idle while a contender stands inside its perception")); }
+            if (!bUntouched) { return Fail(TEXT("#C3"), TEXT("An untouched low camp stays idle while an unprotected contender stands inside its perception")); }
             if (Now - WatchSince < 1.5) { return true; }
-            Check(true, TEXT("#C3"), TEXT("An untouched low camp stays idle while a contender stands inside its perception"));
+            Check(true, TEXT("#C3"), TEXT("An untouched low camp stays idle while an unprotected contender stands inside its perception"));
             if (!Mark(TEXT("LowIdleChecked.json"))) { return Finish(); }
             bLowIdle = true;
             WatchSince = 0;
@@ -661,7 +748,13 @@ public:
             LowDueMs = LowGroup.RespawnDueMs;
             bLowCleared = true;
         }
-        if (bLowCleared && !bLowRefreshed && Mode.GetAuthorityNowMs() >= LowDueMs && LowGroup.Generation == 2)
+        // #198: the clear instant and the refresh deadline are field progress T (paused in rests), not authority time.
+        if (bLowCleared && !bLowRefreshed && Mode.GetFieldNowMs() < LowDueMs && LowGroup.Generation != 1)
+        {
+            return Fail(TEXT("#C7"), FString::Printf(TEXT("The low camp refreshed before its field-T due time (T=%lld, due %lld)"),
+                Mode.GetFieldNowMs(), LowDueMs));
+        }
+        if (bLowCleared && !bLowRefreshed && Mode.GetFieldNowMs() >= LowDueMs && LowGroup.Generation == 2)
         {
             int32 Alive = 0, Placed = 0, Idle = 0;
             for (int32 Slot = 0; Slot < LowGroup.Members.Num(); ++Slot)
@@ -751,6 +844,12 @@ public:
                 ? Driver && Driver->ClientConnections.Num() == 2
                 : Driver && Driver->ServerConnection != nullptr;
             if (!bConnected) { return Fail(TEXT("#C1"), TEXT("An owning connection dropped before the scenario finished")); }
+        }
+        // Every camp step runs in field 1: a rest would move the bodies off the field and pause the field-T camp clock.
+        if ((Stage == 2 || Stage == 3) && Public->DemoLobby.Phase != ELDMatchPhase::Development)
+        {
+            return Fail(TEXT("#C8"), TEXT("The camp scenario left field 1 before it finished: ")
+                + StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Public->DemoLobby.Phase)));
         }
         switch (Stage)
         {
