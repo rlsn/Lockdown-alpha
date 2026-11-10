@@ -1,4 +1,7 @@
+import contextlib
+import io
 import json
+import runpy
 import shutil
 import subprocess
 import sys
@@ -83,6 +86,37 @@ class RunPythonTestsTests(unittest.TestCase):
                               cwd=self.root, capture_output=True, text=True, timeout=60)
         self.assertEqual(done.returncode, 2)
         self.assertIn('not allowed with argument', done.stderr)
+
+    def test_discovery_failure_clears_previous_record(self):
+        self.logs.mkdir(parents=True)
+        (self.logs / 'last-failed.json').write_text(
+            json.dumps({'failed': ['OldTest.Case.test_old']}), encoding='utf-8')
+        (self.root / 'Scripts' / 'TestBroken.py').write_text('raise RuntimeError("import failed")\n', encoding='utf-8')
+        code, out = self.run_runner()
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.recorded(), [])
+
+    def test_worker_crash_keeps_unfinished_test_ids(self):
+        (self.root / 'Scripts' / 'TestCrash.py').write_text(
+            'import os\nimport unittest\nclass Crash(unittest.TestCase):\n'
+            '    def test_worker_crash(self):\n        os._exit(7)\n', encoding='utf-8')
+        code, out = self.run_runner('--pattern', 'TestCrash.py')
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.recorded(), ['TestCrash.Crash.test_worker_crash'])
+
+    def test_log_close_error_still_prints_log_path(self):
+        namespace = runpy.run_path(str(RUNNER), run_name='runner_module')
+
+        class CloseErrorLog:
+            def close(self):
+                raise OSError('disk full')
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            namespace['finish_log'](Path('test.log'), CloseErrorLog())
+        lines = output.getvalue().splitlines()
+        self.assertIn('WARNING: log not written: disk full', lines[0])
+        self.assertEqual(lines[-1], 'Log: test.log')
 
     def test_keeps_latest_logs(self):
         self.logs.mkdir(parents=True)

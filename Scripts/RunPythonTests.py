@@ -128,6 +128,13 @@ def write_last_failed(ids: list[str]) -> None:
         print(f'WARNING: failed-test record not written: {error}')
 
 
+def clear_last_failed() -> None:
+    try:
+        LAST_FAILED.unlink(missing_ok=True)
+    except OSError as error:
+        print(f'WARNING: previous failed-test record not cleared: {error}')
+
+
 def read_last_failed() -> list[str]:
     try:
         ids = json.loads(LAST_FAILED.read_text(encoding='utf-8'))['failed']
@@ -150,54 +157,78 @@ def open_log():
         return None, None
 
 
+def finish_log(log_path, log) -> None:
+    if log is None:
+        return
+    try:
+        log.close()
+    except OSError as error:
+        print(f'WARNING: log not written: {error}')
+    try:
+        shown = log_path.relative_to(ROOT)
+    except ValueError:
+        shown = log_path
+    print(f'Log: {shown}', flush=True)
+
+
 def run(args) -> int:
     init_worker()
-    if args.failed:
-        ids = read_last_failed()
-        if not ids:
-            print(f'ERROR: no failed tests recorded in {LAST_FAILED}; run the tests without --failed first.')
-            return 2
-        print(f'PARTIAL RUN (--failed), NOT A GATE: rerunning {len(ids)} previously failed tests.')
-        units, expected = plan_units(ids=ids)
-    else:
-        units, expected = plan_units(args.pattern)
-    sys.stdout.flush()
-    started = time.perf_counter()
-    ran = skipped = 0
-    problems = []
-    rerun = []
-    slow = []
-    # ProcessPoolExecutor workers are not daemonic, so a test may start its own worker processes (fixture export).
-    with ProcessPoolExecutor(args.jobs, initializer=init_worker) as pool:
-        for future in as_completed([pool.submit(run_unit, unit) for unit in units]):
-            outcome = future.result()
-            ran += outcome['ran']
-            skipped += outcome['skipped']
-            problems += outcome['problems']
-            if outcome['problems'] or outcome['ran'] < len(outcome['ids']):
-                rerun += failed_ids(outcome)
-            slow.append((outcome['seconds'], outcome['ids'][0] + (f' (+{len(outcome["ids"]) - 1})' if len(outcome['ids']) > 1 else '')))
-            for test_id, kind, _ in outcome['problems']:
-                print(f'{kind}: {test_id}', flush=True)
-    write_last_failed(sorted(set(rerun)))
-    for test_id, kind, text in problems:
-        print(f'\n{"=" * 70}\n{kind}: {test_id}\n{"-" * 70}\n{text}')
-    print('\nSlowest units:')
-    for seconds, name in sorted(slow, reverse=True)[:5]:
-        print(f'  {seconds:6.1f}s  {name}')
-    wall = time.perf_counter() - started
-    print(f'\nRan {ran} of {expected} tests in {wall:.1f}s with {args.jobs} workers ({skipped} skipped).')
-    if args.failed:
-        print('PARTIAL RUN (--failed), NOT A GATE.')
-    if ran != expected:
-        print(f'FAILED: {expected - ran} discovered tests did not run.')
-    elif problems:
-        print(f'FAILED ({len(problems)} problems)')
-    else:
-        print('OK')
-        return 0
-    print(f'Rerun only the failed tests: {RERUN_HINT}')
-    return 1
+    pending = set()
+    rerun = set()
+    try:
+        if args.failed:
+            ids = read_last_failed()
+            if not ids:
+                print(f'ERROR: no failed tests recorded in {LAST_FAILED}; run the tests without --failed first.')
+                return 2
+            pending.update(ids)
+            write_last_failed(sorted(pending))
+            print(f'PARTIAL RUN (--failed), NOT A GATE: rerunning {len(ids)} previously failed tests.')
+            units, expected = plan_units(ids=ids)
+        else:
+            clear_last_failed()
+            units, expected = plan_units(args.pattern)
+            pending.update(test_id for unit in units for test_id in unit)
+            write_last_failed(sorted(pending))
+        sys.stdout.flush()
+        started = time.perf_counter()
+        ran = skipped = 0
+        problems = []
+        slow = []
+        # ProcessPoolExecutor workers are not daemonic, so a test may start its own worker processes (fixture export).
+        with ProcessPoolExecutor(args.jobs, initializer=init_worker) as pool:
+            for future in as_completed([pool.submit(run_unit, unit) for unit in units]):
+                outcome = future.result()
+                pending.difference_update(outcome['ids'])
+                ran += outcome['ran']
+                skipped += outcome['skipped']
+                problems += outcome['problems']
+                if outcome['problems'] or outcome['ran'] < len(outcome['ids']):
+                    rerun.update(failed_ids(outcome))
+                write_last_failed(sorted(pending | rerun))
+                slow.append((outcome['seconds'], outcome['ids'][0] + (f' (+{len(outcome["ids"]) - 1})' if len(outcome['ids']) > 1 else '')))
+                for test_id, kind, _ in outcome['problems']:
+                    print(f'{kind}: {test_id}', flush=True)
+        for test_id, kind, text in problems:
+            print(f'\n{"=" * 70}\n{kind}: {test_id}\n{"-" * 70}\n{text}')
+        print('\nSlowest units:')
+        for seconds, name in sorted(slow, reverse=True)[:5]:
+            print(f'  {seconds:6.1f}s  {name}')
+        wall = time.perf_counter() - started
+        print(f'\nRan {ran} of {expected} tests in {wall:.1f}s with {args.jobs} workers ({skipped} skipped).')
+        if args.failed:
+            print('PARTIAL RUN (--failed), NOT A GATE.')
+        if ran != expected:
+            print(f'FAILED: {expected - ran} discovered tests did not run.')
+        elif problems:
+            print(f'FAILED ({len(problems)} problems)')
+        else:
+            print('OK')
+            return 0
+        print(f'Rerun only the failed tests: {RERUN_HINT}')
+        return 1
+    finally:
+        write_last_failed(sorted(pending | rerun))
 
 
 def main() -> int:
@@ -220,13 +251,7 @@ def main() -> int:
         return 1
     finally:
         sys.stdout = stdout
-        if log is not None:
-            log.close()
-            try:
-                shown = log_path.relative_to(ROOT)
-            except ValueError:
-                shown = log_path
-            print(f'Log: {shown}', flush=True)
+        finish_log(log_path, log)
 
 
 if __name__ == '__main__':
