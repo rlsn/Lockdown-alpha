@@ -159,6 +159,22 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The opponent's roster slot has no registered PK sign-up disk.");
         return false;
     }
+    TArray<FLDOpponentPOI> Services;
+    for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
+    {
+        const FLDMapBinding* Anchor = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation);
+        if (!Anchor || Anchor->Surface.IsNone())
+        {
+            Error = TEXT("The opponent cannot resolve a registered rest service and its ground.");
+            return false;
+        }
+        FLDOpponentPOI& Place = Services.AddDefaulted_GetRef();
+        Place.Id = Anchor->Id;
+        Place.Kind = ELDOpponentPOIKind::RestService;
+        Place.RestService = static_cast<ELDRestService>(Index);
+        Place.SurfaceId = Anchor->Surface;
+        Place.FootCm = Anchor->Position;
+    }
     int32 OpeningSeed = 0;
     if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningSeed, Error)) { return false; }
     Binding = InBinding;
@@ -169,6 +185,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     SignupPOI.Kind = ELDOpponentPOIKind::PKSignup;
     SignupPOI.SurfaceId = SignupAnchor->Surface;
     SignupPOI.FootCm = SignupCentre;
+    RestServicePOIs = MoveTemp(Services);
 #if WITH_DEV_AUTOMATION_TESTS
     Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());
     if (Evaluation)
@@ -386,7 +403,11 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     Frame.Generation = Generation;
     Frame.POIs = POIs;
-    if (Public.Phase == ELDMatchPhase::Rest) { Frame.SignupPOI = SignupPOI; }
+    if (Public.Phase == ELDMatchPhase::Rest)
+    {
+        Frame.SignupPOI = SignupPOI;
+        Frame.RestServicePOIs = RestServicePOIs;
+    }
     Frame.Public.Phase = Public.Phase;
     Frame.Public.NowMs = NowMs;
     Frame.Public.StartedAtMs = Public.StartedAtMs;
@@ -421,6 +442,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Me.ContenderId = Own.ContenderId;
     Me.Phase = Own.LifePhase;
     Me.Life = Own.Life;
+    Me.NearbyRestService = Own.NearbyRestService;
     // Unspawned or left: the policy stops without any further read.
     if (Own.LifePhase != ELDLifePhase::Alive && Own.LifePhase != ELDLifePhase::Dead) { return true; }
     const FLDGrowthOwnerView& Growth = Own.Growth;
@@ -722,10 +744,14 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     FLDMoveIdentity Identity;
     FLDSpatialOrderRequest Request;
     FString Error;
-    // #198 站圈报名: the walk into the own sign-up disk is the only order to a place outside the public field POIs.
+    // Rest walks are admitted only to the own sign-up disk or the registered service anchors.
     const bool bSignupWalk = Frame.SignupPOI.IsSet() && Intent.Kind == ELDOpponentBodyKind::MoveGround && Intent.POI == SignupPOI.Id;
+    const bool bServiceWalk = Intent.Kind == ELDOpponentBodyKind::MoveGround
+        && Frame.RestServicePOIs.ContainsByPredicate([&Intent](const FLDOpponentPOI& Place) { return Place.Id == Intent.POI; });
+    const TArray<FLDOpponentPOI> SignupPlaces = bSignupWalk ? TArray<FLDOpponentPOI>{SignupPOI} : TArray<FLDOpponentPOI>();
+    const TArray<FLDOpponentPOI>& Places = bSignupWalk ? SignupPlaces : bServiceWalk ? Frame.RestServicePOIs : POIs;
     if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, false, Identity)
-        || !LDOpponentRequests::BuildOrder(Intent, bSignupWalk ? TArray<FLDOpponentPOI>{SignupPOI} : POIs, Identity, Request, Error))
+        || !LDOpponentRequests::BuildOrder(Intent, Places, Identity, Request, Error))
     {
         Problem = Error.IsEmpty() ? FString(TEXT("The order identity space of this life is exhausted.")) : Error;
         Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);

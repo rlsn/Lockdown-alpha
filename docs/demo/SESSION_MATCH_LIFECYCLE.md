@@ -44,7 +44,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | 开始条件 | 仅 Host 可开始；全部已连接真人含 Host 都准备；AI 不伪造玩家 Ready RPC；开始时锁定真实参赛名单。 |
 | 联机边界 | IP 直连；局域网和正确配置防火墙/手动端口转发的公网可达地址；无自动 NAT 穿透、中继、中途加入、重连或 Host 迁移。 |
 | 唯一目标 | 前三段定时野外可以战斗/成长而不能喷漆或获胜；R3 返场、最终野外开始时同一根旗杆开放并一直开放，不重新关闭、轮换或因无人守护成功而超时结算。 |
-| 外层流程（#198） | R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外 → Results；一条单调权威时钟，野外进度 T 只在野外推进、休息与 PK 中冻结。休息时每名参赛者在按名单槽位固定的私人休息位有一条休息生命，世界冻结；阶段边界（野外↔休息）结束生命而不是死亡，清除全部进行中效果并补满资源与冷却。用户 2026-11-10 批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)，原话：“批准整套方案，按票内参数实施”）；私人休息空间是协调者在用户授权（“你做最终审查和决策”）下的决定。详见 §3.4。 |
+| 外层流程（#198） | R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外 → Results；一条单调权威时钟，野外进度 T 只在野外推进、休息与 PK 中冻结。休息时每名参赛者在公共休息室的名单槽位有一条休息生命，野外世界冻结；阶段边界（野外↔休息）结束生命而不是死亡，清除全部进行中效果并补满资源与冷却。用户 2026-11-10 批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)，原话：“批准整套方案，按票内参数实施”）；后续试玩反馈将私人休息空间改为公共休息室（[App Spec §2.1](../APP_SPEC.md#21-从菜单到结算)）。详见 §3.4。 |
 | 喷漆与暂停 | 只有仍在本局、存活、非复活保护的参赛真人/AI 计数；野怪、尸体、技能表现不计数。喷漆区内只有一名有效参赛者且他不是涂鸦主人时，他的喷漆进度累积，满 `CAPTURE.SpraySec` 喷上涂鸦；两名以上时所有人的喷漆进度暂停并保留，争夺结束仍由他独自在区内时从暂停值续计，其他人既不累积也不继承。涂鸦主人在区内不喷漆。 |
 | 清零条件 | 喷漆者离区/死亡/离局（含争夺进行中），或在施加瞬间受到定身、眩晕、嘲讽、击退，即清零其进度；之后若仍独自在区内，从 0 重新累积。中间进出即使发生在同一帧也不能遗漏。 |
 | 不清零条件 | 区内移动、攻击、施法、普通伤害、减速、缴械不影响喷漆；由此实际离区或死亡才按相应事件处理。保护者既不喷漆，也不暂停别人的喷漆或冻结守护。 |
@@ -135,10 +135,14 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   公开读模型为 `FLDPublicMatchView.Timeline`（`FLDTimelineView`：阶段、休息序号、野外段、步骤与起止、报名开放时刻、T 基准、
   本段 T 终点、锁定人数、PK 是否跳过、报名名单），客户端与 AI 用 `LDMatchTimeline::FieldNowFromView` 按同一规则推导 T。
   `PublicMatch.StartedAtMs` 是开局（R0 开始）时刻；`OpenAtMs` 在最终野外开始前为 `MAX_int64`，由 `FLDCaptureReducer::ScheduleOpen` 定为最终野外开始的边界。
-- **私人休息空间**（协调者在用户授权“你做最终审查和决策”下的决定）：每名参赛者的休息生命站在按锁定名单槽位选出的已批准出生锚点
-  （`ALDGameMode::RestAnchorFor`：目录出生点序号 `slot*N/6`，当前 12 个锚点即 s00、s02、…、s10），同一世界、连接、参赛身份与成长记录；
-  身体在 Combat 中属于自己的隔离组，休息视野过滤让休息中的参赛者只看见本组，任何人都看不见冻结的世界。不新增几何；
-  唯一新增的锚点是 PK 报名圈（`PKSignup` 锚点 `pk_signup_<槽位>`，各离同槽位休息锚点 300 cm，世界布局修订 9，经世界 Sync 生成，不改地形）。
+- **公共休息室**：按用户试玩后批准，`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`，同世界、连接、身份与成长记录；
+  所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 仍按群组隔离野外/PK，
+  Vision 对同休息室身体与共享假人发布原有公开投影，不发布他人背包；`IsIsolated` 在该组只放行假人作为敌对效果目标，
+  因而人物互见却不受伤或控制。世界布局10/几何8在东侧增加全封闭房间，既有野外与 PK 锚点不移动。
+  `PKSignup` 的 `pk_signup_<槽位>` 移到同槽位新休息锚点旁300 cm。
+- **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，真人只可准备不可撤销；
+  OwnerState 发布 `bRestReady`/`bCanRestReady`，公共时间线 `ReadyContenders` 只含真人id。`AdvanceTimeline` 忽略AI，全部仍在局真人准备后，
+  `FinishBuildEarly` 仅缩短配装截止到当前时刻加 `REST.SignupSec`；已在最后报名窗口则不改，重复请求不延长。新休息/新局清空准备。
 - **休息步骤**：Build（R0 `REST.OpeningBuildSec`、R1–R3 `REST.BuildSec`；最后 `REST.SignupSec` 为 PK 站圈报名，截止时刻含在内）→
   锁定报名者 ≥2 时 Draw `REST.DrawSec` / Betting `REST.BettingSec` / PKReady `REST.PKReadySec` / PK（至多 `REST.PKMaxSec`）/
   Settlement `REST.SettlementSec` / Payout `REST.PayoutSec`，否则直接 → Return `REST.ReturnSec`。
@@ -182,7 +186,11 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   （保持 HP/MP、不回复、不能被命中或行动）。返场时 `ThawAfterRest` 让成员在冻结处解冻，忘掉目标与敌对来源后重新选择，HP 不变；
   刷新截止按 T 计算，休息既不执行也不跳过它们。这就是批准的规则：野怪与 Boss 随 T 冻结并保留剩余 HP，休息中不回复、不刷新，不搬回营地。
   冻结的成员仍每步以零输入推进运动（原地停住），以满足运动栅栏对全部已注册身体的覆盖。
-- **私人训练假人**：私人训练假人（协调者决定，按用户授权“你做最终审查和决策”：现有参赛者身体、按主人当前等级、没有构筑、生命归零即回满不会死亡、命中与结果只给主人、不给经验或奖励；“重置训练”让本人与假人回满并冷却就绪，训练中消耗的资源与冷却不带回野外）。休息生命放置后由 `SpawnTrainingDummy` 在本人休息锚点的空闲出生偏移处生成（与出生同样的合法地面与占位规则，无空位时记录 `LD_TRAINING_DUMMY_BLOCKED` 且本次没有假人）；它是参赛者类、隔离组为主人的身体，不进名单、不产生喷漆资格，Combat 在致死时回满（`LockDeath`）。`ServerTrainingReset` 只排队（`ELDTrainingResetResult`），在 RespawnsAndWorld 由 `Combat::ResetTraining` 清除双方效果并回满、冷却就绪；休息生命退休、离局或对局退休时 `RetireTrainingDummy` 移除它；阶段边界的补满保证训练资源不带回野外。
+- **共享训练假人**：`SpawnTrainingDummy` 在每个休息槽位旁生成一具，保留该槽位生成时等级的无构筑底盘；
+  固定为假人自身投影，不取首个攻击者成长。所有休息身体都可攻击，命中/状态/反馈使用既有 Combat 真实来源，不进名单或喷漆资格，
+  归零回满，不发奖励。PK 选手离开休息位时假人不退休；返野外前统一退休。无合法生成位置是明确场景失败，不算可用成功。
+  `ServerTrainingReset` 带 match/life/rest/步骤起点，入队和执行都重查窗口，只重置本人和对应槽位假人，不清掉其他假人；
+  下一休息、PK后新生命或新局的旧请求不会生效。训练资源与效果在阶段边界清理，不带入野外。
 - 其他世界拥有者（如后续的符咒）在 `EnterRestWorld/ExitRestWorld` 接入；查询入口为 `IsRestPhase`、`IsInputLocked`、`ReadBuildStage`、
   `GetFieldNowMs`、`IsFieldRunning`、`FieldDueAuthorityMs`、`NextTimelineDueMs`。
 
@@ -1042,7 +1050,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | `Lockdown.Rules.DemoCore.CaptureCompletesInsideStep` | 核心步序：Motion 后判定步内被冻结的守护恢复并完成，跳过边界时刻玩法阶段，Capture/Close 在守护获胜时刻锁定唯一结果 | 真实驱动与原生运动（步内守护完成在场景中不一定出现） |
 | `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame` | 喷漆区求交、公共 DTO（喷漆、涂鸦主人、守护字段组合）校验、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 | 真实连接 |
 | `Lockdown.Rules.DemoSessionReceipts`、`Lockdown.Rules.DemoCore.*`、`Lockdown.Rules.ViewPrivacySchema` | 会话窗口重放/拒旧、核心时间与许可、公开字段白名单 | 真实连接 |
-| `Lockdown.Rules.DemoRest.Timeline`、`.PhasePolicy`、`.EntryHold`、`.SpawnIdentity`；`Lockdown.Rules.DemoPK.RingOutsideTime`；`Lockdown.Rules.DemoVision.EffectAccess` | 纯时间线：批准时长、报名窗口（截止含在内）、锁定保持、PK 跳过、T 在休息冻结与野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按 T 的复活等待、客户端 T 推导；隔离组、冻结身体、阶段清理与补满；入场未就绪时 PKReady→PK 与 Return→野外停在边界、就绪后按实际时刻进入（`.EntryHold`）；被撤回的出生请求以新序号重试而不触发 `RequestConflict`、未定的请求仍挡住新序号（`.SpawnIdentity`）；圈伤按步内分段脚点路径的真实圈外时长切分（`.RingOutsideTime`）；观众/同队共享视野下飞行物的可见权限（`.EffectAccess`） | 真实驱动下的阶段生命放置、返场就近搜索与世界冻结；`RunDemoOpponentCheck.ps1` 另以夹具在真实驱动中制造 `Lives` 扩容（R01）、PK 出生点全被占（R02，等满 `REST.EntryReadyTimeoutSec` 后 NoContest）与返场时部分人放不下（R14） |
+| `Lockdown.Rules.DemoRest.Timeline`、`.PhasePolicy`、`.EntryHold`、`.SpawnIdentity`；`Lockdown.Rules.DemoPK.RingOutsideTime`；`Lockdown.Rules.DemoVision.EffectAccess` | 纯时间线：批准时长、报名窗口（截止含在内）、锁定保持、PK 跳过、T 在休息冻结与野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按 T 的复活等待、客户端 T 推导；隔离组、冻结身体、阶段清理与补满；入场未就绪时 PKReady→PK 与 Return→野外停在边界、就绪后按实际时刻进入（`.EntryHold`）；被撤回的出生请求以新序号重试而不触发 `RequestConflict`、未定的请求仍挡住新序号（`.SpawnIdentity`）；圈伤按步内分段脚点路径的真实圈外时长切分（`.RingOutsideTime`）；观众/同队共享视野下飞行物的可见权限（`.EffectAccess`） | 真实驱动下的阶段生命放置、返场就近搜索与世界冻结；`RunDemoOpponentCheck.ps1` 另检查假人槽位并尝试触发 `Lives` 扩容（R01，未发生扩容记为未覆盖），以夹具制造 PK 出生点全被占（R02，等满 `REST.EntryReadyTimeoutSec` 后 NoContest）与返场时部分人放不下（R14） |
 | `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个拥有客户端经正常大厅开局：名单与结算行显示所选名称；Client1 喷漆，Client2 进区争夺（暂停）后离开（续计），涂鸦喷上（C07）；主人走出喷漆区使守护暂停在当前值，Client2 独自改漆使守护保持冻结，3.5 s 前走出区（改漆进度清零、主人仍在区外所以守护仍暂停），主人独自回区后守护从保留值续计（C18）；Client2 进区与主人同在（守护冻结），主人再走出（守护清零、涂鸦保留），Client2 在改漆喷上前走出（区内无人，守护停在 0），主人独自回区后守护从 0 计时（C19）；主人独自在区内站满守护时长唯一胜利、原因 `GuardSucceeded`（C06）与计时（C08）；唯一结果与写闸关闭；边界环与涂鸦板在各端出现/变色/移除（C14）；同世界回新一代 Lobby 并正常开出第二局、核对干净开局与旧代请求拒绝 | 喷漆者被硬控或死亡、主人死亡清除涂鸦、3+3、AI、网络异常 |
 | `Scripts\RunDemoSessionFaultCheck.ps1` | 客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态、Host 经菜单离开 | 跨机器局域网与公网 |
 | `Scripts\RunDemoOpponentCheck.ps1` | AI 绑定、自主循环、喷漆/守护/围攻行为、AI 以 `GuardSucceeded` 获胜且是公开涂鸦主人、回 Lobby 后退役 | 真人离开、网络异常 |

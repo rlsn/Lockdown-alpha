@@ -28,6 +28,8 @@ namespace LDHUD
         int64 APP2=0;
         int64 MaxHPP2=0;
         int64 ArmorP2=0;
+        // A blueprint records a level but not the final projected attributes; show their coefficients instead.
+        bool bShowScalingFormula=false;
     };
     // Level from the progression, stats from the owner's projected attributes; zero stats without a projection.
     LOCKDOWN_API FCardStats CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes);
@@ -585,13 +587,12 @@ namespace LDHUD
         // #198 G: pending elite camp component choices (counted with the components in the caption).
         int32 ComponentChoices=0;
         bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||Components>0||ComponentChoices>0;}
-        // "开盲盒+1 · 3点", "开盲盒 · 图纸 1", "开盲盒 · 构件 1" or "开盲盒".
+        // Detailed pending summary for inspections, not the combat HUD's fixed-size entry.
         FString Prompt() const;
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
-    // The 开盲盒 button's caption: the pending counts, or "开盲盒 · 休息服务" when nothing is pending but the rest services
-    // are open (the button then stays enabled so the NPC, respec and forget remain reachable).
-    LOCKDOWN_API FString GrowthPrompt(const FGrowthPending& Pending,bool bRestServices);
+    // A bounded workspace entry caption, independent of inventory/queue size.
+    LOCKDOWN_API FString GrowthPrompt(const FGrowthPending& Pending);
     // #198 G: the own view already owns a component of this definition.
     LOCKDOWN_API bool OwnsComponent(const FLDProgressionView& Progression,FName Component);
     // #198 G: every option of a pending component choice is already owned, so only the empty-pool points remain to take.

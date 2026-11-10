@@ -104,7 +104,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 
 | 阶段（`EMatchStage`） | ActiveChoice | LearnBlueprint | AllocatePoints | BuyNpcOffer / Respec | ReplaceActive / ForgetActive |
 | --- | --- | --- | --- | --- | --- |
-| `Rest`（休息构筑窗口：构筑/训练 45 s/30 s 与 12 s 发放），活着，不看安全窗 | 允许，能学就学 | 允许 | 允许 | 允许 | 允许 |
+| `Rest`（休息构筑窗口：时长见内容与数值 `REST.*`），活着，不看安全窗 | 允许，能学就学 | 允许 | 允许 | 靠近对应NPC时允许 | 靠近训练师时允许 |
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许，存为图纸（`Dead`） | `Dead` | 允许 | `Dead` | `Dead` |
 | `Live`（野外段），活着且安全 | 允许，能学就学 | 允许 | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `Live`，活着但安全窗未过 | 允许，存为图纸（`NotSafe`） | `NotSafe` | `NotSafe` | `NotRestWindow` | `ReplacementNotAllowed` |
@@ -114,6 +114,12 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 
 开局倒计时已退役，开局休息 R0 取代它：开局选择与开局点数在 `Rest` 中提交。野外满槽选择照旧存为图纸，
 野外不能遗忘、替换、洗点或办 NPC。`IsRestWindow(Context)` 即 `Stage == Rest`，组件搬动与卸下同样以它为门。
+
+公共休息室的服务分为 `ELDRestService::SkillMerchant`（BuyNpcOffer）、`ComponentArtisan`（FillGap/Dismantle）与
+`Trainer`（Respec/ReplaceActive/ForgetActive）。GameMode 的 `NearbyRestService` 用本人当前休息生命的已提交脚点与
+`rest_service_1..3`、复用 `AIRDROP.PickupRadiusCm` 半径判定，只有 Build/Payout 返回服务类型；
+`CommitPendingBuild` 经 `CanUseRestService` 在扣费与构筑变更前重验，不在正确 NPC 旁为 `RestServiceUnavailable=76`。
+它不改变原有请求/生命/构筑修订和回执去重；重放已完成请求不重新收费。OwnerState 只发布本人的 NearbyRestService，不公开其他人成长。
 
 组件命令（`LDProgression::InstallGate`、`CommandGate`）：`OpeningBase` 的选取与 `ActiveChoice` 同表（同次安装部分按首次安装判断）；
 首次安装（实例从未安装过）与 `LearnBlueprint` 同表（休息窗口允许，野外存活且安全才允许，否则 `NotSafe`/`Dead`）；

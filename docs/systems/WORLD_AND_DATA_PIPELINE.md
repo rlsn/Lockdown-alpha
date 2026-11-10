@@ -29,6 +29,16 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 ## Demo 内容编译合同
 
+#198 公共休息室使用世界布局10/几何8，保持唯一地面与同一连接：地面东边界扩展，原东墙保留为野外隔墙，
+新增四面封闭休息室墙，原野外出生点、营地、旗杆与 PK 出生/投掷锚点不移动。
+`RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
+`RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师。`PKSignup` 移到公共休息室对应槽位旁，
+距离仍为300 cm，服务与报名范围均复用 `AIRDROP.PickupRadiusCm`。Python/native importer 都识别新增锚点，
+服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
+的完整室内原生路径；野外和 PK 出生仍以旗杆为路径参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
+改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
+`BootstrapAssets.ps1 -Mode Regenerate`；必须重生成原生地图与定义，不能只刷新旧定义或复制旧地图作为新几何。
+
 `Scripts\DemoContent.py` 与 `Scripts\SyncDemoContentData.py` 提供独立于旧目录的严格作者校验、
 定点投影和根身份生成。`SourceData\Demo\content.schema.json`、`native_ids.json` 以及
 `Public\Development\LDDemoContentIds.h` 只定义格式与编号保留，不批准候选技能或任何数值。
@@ -57,7 +67,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
-十 Spawn、五 Camp、一 Capture、两 Dorm、三 Airdrop、四 BossWaypoint 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
+Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点、营地成员 home 与七个局部落地偏移；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
 **不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
@@ -74,7 +84,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 场地内的可走路径不由 Python 证明。
 
 #198 站圈报名（用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）”）新增 `PKSignup` 锚点
-`pk_signup_0..5`（布局修订 9）：第 n 个是名单槽位 n 的报名圈，属于该槽位的休息锚点（内容出生点序号 `n*N/6`，即 s00、s02、…、s10）。
+`pk_signup_0..5`：第 n 个是名单槽位 n 的报名圈，属于公共休息室的 `rest_spawn_n`。
 `DemoWorld.py` 与 `LDMapGeometry.cpp`（`PKSignupDistanceCm`）检查：恰好六个、规范 id、与配对休息锚点同层且水平距离恰为 300 cm、
 `AIRDROP.PickupRadiusCm` 圆盘是合法站立地面、休息锚点的出生偏移都不落在圆盘内、从休息锚点到圆心的直线走在合法地面上、不与营地清空圈重叠。
 原生以 `LDDemoWorld::PKSignupId(槽位)` 经 `ULDMapRegistry::Resolve` 取位置（不进内容引用）；AI 公开地点、小地图与美术摆放跳过这些锚点，
@@ -321,8 +331,8 @@ Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者�
 因此不改变 D02 的墙体、视线与 navmesh。生成后按整个碰撞响应容器核对全部 Ignore；
 不要按 `ECC_MAX` 逐通道循环，它超出 64 项响应数组，打包版会读到垃圾值。
 `LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
-`outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
-`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地与旗杆；
+`outside` 不压野外场地或公共休息室的可用地面，只作外围背景（树、建筑外墙、看台、路灯）；扩展地面上两处之间的封闭隔离带仍可放背景；
+`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在野外或休息室墙体内侧 300 cm 内、低于视线采样高度，并避开出生点、营地与旗杆；
 `ground` 是场地上的矮地被（草、花、三叶草、蘑菇、石子），守 `wall_base` 除贴墙外的全部规则；生成时另离每个阻挡至少 60 cm，只落在身体能走到的导航面上；
 `blocker`（#97，碰撞跟随美术）是一个世界阻挡的外观：清单写 `blocker` 阻挡 id，道具站在阻挡底面、高度等于阻挡高度，
 转向后的模型包围矩形就是阻挡多边形（误差 `BlockerFitToleranceCm` 2 cm）；墙与围栏的多边形按选定模型、以阻挡高度定缩放后的脚印写入世界数据。

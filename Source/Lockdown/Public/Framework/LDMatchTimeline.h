@@ -17,6 +17,12 @@ enum class ELDMatchStage : uint8 { None = 0, Rest = 1, Field = 2, FinalField = 3
 UENUM()
 enum class ELDRestStep : uint8 { None = 0, Build = 1, Draw = 2, Betting = 3, PKReady = 4, PK = 5, Settlement = 6, Payout = 7, Return = 8 };
 
+UENUM()
+enum class ELDRestService : uint8 { None = 0, SkillMerchant = 1, ComponentArtisan = 2, Trainer = 3 };
+
+UENUM()
+enum class ELDRestReadyResult : uint8 { None = 0, Accepted = 1, NotContender = 2, StaleMatch = 3, StaleWindow = 4, NotOpen = 5 };
+
 // Public, replicated read model of the timeline. Times are authority ms; T values are field ms.
 USTRUCT()
 struct LOCKDOWN_API FLDTimelineView
@@ -46,6 +52,7 @@ struct LOCKDOWN_API FLDTimelineView
     UPROPERTY() bool bPKSkipped = false;
     // Public: standing in the sign-up disk is a visible act. Sorted contender ids; filled by GameMode, not the reducer.
     UPROPERTY() TArray<FGuid> Signups;
+    UPROPERTY() TArray<FGuid> ReadyContenders;
 };
 
 // Owner-sent training reset result (ALDPlayerController::ServerTrainingReset -> ClientTrainingReset). Queued commits at
@@ -137,6 +144,8 @@ public:
     bool IsEntryHeld() const { return bEntryHeld; }
     // PK ended early (a winner or a draw is decided): the PK step now ends at AtMs; the next Advance settles it.
     bool FinishPK(int64 AtMs, FString& Error);
+    // All humans are ready: shorten once, preserving the remaining signup window and never extending the deadline.
+    bool FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Error);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV only: from a running timed segment, jump straight to the final field (T = last segment end) at AtMs.
     bool DevSkipToFinalField(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);

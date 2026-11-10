@@ -106,7 +106,7 @@ inline FString DeathNote(){return TEXT("等级和构筑都还在，别慌");}
 inline constexpr TCHAR ProtectionRule[]=TEXT("一出手就没了，失手也没了");
 inline constexpr TCHAR OutOfCombatRegen[]=TEXT("脱战回复中");
 // 成长面板的入口按钮（#198：主动三选一、待学图纸与五维加点，APP_SPEC §4.2）。
-inline constexpr TCHAR Choice[]=TEXT("开盲盒");
+inline constexpr TCHAR Choice[]=TEXT("构筑");
 inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%d"),Level);}
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
@@ -296,7 +296,7 @@ inline constexpr TCHAR PKAwardWinner[]=TEXT("胜者");
 inline constexpr TCHAR PKAwardBet[]=TEXT("竞猜");
 inline FString PKAwardTotal(int64 Points){return FString::Printf(TEXT("共 %lld 点"),Points);}
 inline constexpr TCHAR PKSpectating[]=TEXT("观战镜头：竞技场");
-// 休息中的个人训练：只有本人看得见的训练假人，可随时重置（本人与假人回满、冷却就绪）。
+// 公共休息室中的训练；显示范围由获准观察帧裁定，重置结果由服务器回执确认。
 inline constexpr TCHAR TrainingReset[]=TEXT("重置训练");
 inline constexpr TCHAR TrainingDummy[]=TEXT("训练假人");
 inline FString FieldSegmentLine(int32 Segment,int32 Segments,const FString& Clock)

@@ -1,5 +1,6 @@
 #include "UI/LDWorldLabels.h"
 #include "Core/LDLog.h"
+#include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
@@ -130,6 +131,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
     // Nothing is drawn before the display content was tried, so a first frame never flashes fallback ids.
     if(!bDisplayContentTried||!PC||!Public||!Renderer){return Base;}
+    if(PC->HUDUI){PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
     const FLDOwnerState& Own=PC->OwnerState;
     // Only the current authorized frame of this match and life, read on every paint: a dead, stale or foreign frame
     // labels nothing, and no unit outlives the frame that lists it (no LastSeen).
@@ -141,7 +143,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
     const ALDCharacter* OwnBody=SelfBars.bVisible?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
-    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base;}
+    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base+1;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};

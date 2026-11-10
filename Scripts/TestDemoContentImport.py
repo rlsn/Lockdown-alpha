@@ -329,10 +329,8 @@ class DemoContentImport(unittest.TestCase):
         with self.assertRaisesRegex(demo.ContentError, "StaleWorldOutput"):
             demo.compile_content(self.root)
         def move_rest_anchor(source):
-            # #198: the rest anchor's PK sign-up disk stands a fixed distance from it, so it moves with it.
+            # A field spawn no longer owns a rest sign-up disk.
             rest = next(row for row in source["anchors"] if row["id"] == "s00")["position_cm"]
-            disk = next(row for row in source["anchors"] if row["id"] == "pk_signup_0")["position_cm"]
-            disk.update(x=disk["x"] + 4401 - rest["x"])
             rest.update(x=4401)
         self.edit(move_rest_anchor, demo.WORLD_SOURCE)
         world_sync.synchronize(self.root)

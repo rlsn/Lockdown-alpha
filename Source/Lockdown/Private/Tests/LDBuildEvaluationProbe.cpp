@@ -926,7 +926,7 @@ public:
         return true;
     }
 
-    bool TickRunning(ALDGameMode& Mode, UWorld& World, const ALDGameState& Public)
+    bool TickRunning(ALDPlayerController& PC, ALDGameMode& Mode, UWorld& World, const ALDGameState& Public)
     {
         const FLDEvalCase& Row = Case();
         const FLDPublicMatchView& View = Public.PublicMatch;
@@ -950,8 +950,32 @@ public:
             EndCase(Mode, World, TEXT("Faulted"), FString::Printf(TEXT("the match left play (phase %u)"), uint8(View.Phase)));
             return true;
         }
-        if (View.Phase == ELDMatchPhase::Rest) { return true; }
-        if (StartedAtMs < 0) { StartedAtMs = View.StartedAtMs; }
+        if (View.Phase == ELDMatchPhase::Rest)
+        {
+            if (StartedAtMs >= 0)
+            {
+                EndCase(Mode, World, TEXT("Invalid"), TEXT("the duel crossed the first field boundary"));
+                return true;
+            }
+            if (View.Timeline.RestIndex == 0 && View.Timeline.Step == ELDRestStep::Build
+                && Sides[0].Run && Sides[0].Run->State.bOpeningReady
+                && Sides[1].Run && Sides[1].Run->State.bOpeningReady
+                && !Mode.IsRestReady(PC.OwnerState.ContenderId) && Mode.CanRestReady(PC.OwnerState.ContenderId) && Resend(.5))
+            {
+                PC.SubmitRestReady(true);
+            }
+            return true;
+        }
+        if (View.Timeline.Stage != ELDMatchStage::Field || View.Timeline.FieldSegment != 0
+            || View.Timeline.FieldBaseMs != 0 || View.Timeline.FieldStartedAtMs < 0
+            || View.Timeline.StepEndsAtMs <= View.Timeline.FieldStartedAtMs
+            || Row.DuelTimeoutMs >= View.Timeline.StepEndsAtMs - View.Timeline.FieldStartedAtMs
+            || (StartedAtMs >= 0 && StartedAtMs != View.Timeline.FieldStartedAtMs))
+        {
+            EndCase(Mode, World, TEXT("Invalid"), TEXT("the duel must stay within the first field"));
+            return true;
+        }
+        if (StartedAtMs < 0) { StartedAtMs = View.Timeline.FieldStartedAtMs; }
         if (!bSupplySent)
         {
             bSupplySent = true;
@@ -1053,7 +1077,7 @@ public:
         case ELDEvalStage::Starting:
             return TickStarting(*PC, *Mode, *World, *Public);
         case ELDEvalStage::Running:
-            return TickRunning(*Mode, *World, *Public);
+            return TickRunning(*PC, *Mode, *World, *Public);
         case ELDEvalStage::Closing:
             if (View.Generation == MatchGeneration && View.Phase == ELDMatchPhase::Results)
             {

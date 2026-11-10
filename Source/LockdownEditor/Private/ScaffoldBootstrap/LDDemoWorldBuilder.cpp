@@ -1269,6 +1269,10 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             const bool Passed = Registry->QueryGround(Revision, Foot, Capsule, TEXT("demo_ground"), Legal, Failure, Why);
             return Check(Passed, TEXT("Local complete-capsule support: ") + Id + TEXT(" ") + Why);
         };
+        const auto* RestService = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(1)), Registry->Generation);
+        FLDLegalGround RestServiceGround;
+        const bool HasRestService = Check(RestService != nullptr, TEXT("The shared rest room has its reference service"))
+            && GroundAt(RestService->Position, LDDemoWorld::RestServiceId(1), RestServiceGround);
         FVector Standing = FVector::ZeroVector;
         for (const auto& Anchor : Geometry->Anchors)
         {
@@ -1276,13 +1280,20 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             if (!Anchor.PositionCm.ToVector(Foot, Error)) { return false; }
             FLDLegalGround Legal;
             if (GroundAt(Foot, Anchor.Id, Legal)) { Standing = Foot; }
-            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
+            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn)
             {
                 for (const auto& Offset : Geometry->SpawnOffsetsCm)
                 {
                     FVector Delta;
                     if (!Offset.ToVector(Delta, Error)) { return false; }
-                    GroundAt(Foot + Delta, Anchor.Id + TEXT(" placement"), Legal);
+                    const bool Grounded = GroundAt(Foot + Delta, Anchor.Id + TEXT(" placement"), Legal);
+                    if (Grounded && HasRestService && Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn)
+                    {
+                        FLDCompletePath Path;
+                        FString Why;
+                        const bool Reachable = Registry->QueryCompletePath(Revision, Legal, RestServiceGround, Capsule, Path, Failure, Why);
+                        Check(Reachable, TEXT("A rest placement can reach the shared-room service: ") + Anchor.Id + TEXT(" ") + Why);
+                    }
                     ++PlacementChecks;
                 }
             }

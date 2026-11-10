@@ -94,7 +94,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 17：#198 PK 改为站圈报名（用户选择 A），删除报名开关的 RPC，
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 18：#198 公共休息室增加真人准备 RPC、OwnerState 服务/准备字段与时间线准备名单，训练重置绑定当前生命和休息步骤。PK 使用站圈报名（用户选择 A），没有报名开关 RPC，
   世界多出报名圈锚点（布局修订 9）；双方须使用同一构建。
   16 是 #198 规则工坊整合后，公开对局视图新增时间线、符咒与 PK/观众数据，
   并新增蓝图、PK 与休息阶段的 RPC（观察 schema 仍为 8）时的版本。
@@ -140,7 +140,7 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。
 
 外层流程（#198，用户 2026-11-10 批准[外层参数](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，原话：“批准整套方案，按票内参数实施”）：
-#153 的开局倒计时已删除（`ELDMatchPhase` 数值 2 退役）。`StartDemoMatch` 把每名参赛者的第一条生命放在按名单槽位固定的私人休息锚点后进入 `Rest`（开局休息 R0），
+#153 的开局倒计时已删除（`ELDMatchPhase` 数值 2 退役）。`StartDemoMatch` 把每名参赛者的第一条生命放在公共休息室按名单槽位固定的 `rest_spawn_<槽位>` 后进入 `Rest`（开局休息 R0），
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs`）设为此刻，以 `MAX_int64` 开始喷漆归约器，
 并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息与 PK 中冻结，
 外卖、上热搜、画饼老板、营地刷新、营地成长阶段与营地标记都按 T 以 0 为起点计时（`GetFieldNowMs`、`FieldDueAuthorityMs`）；
@@ -297,6 +297,8 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 争夺暂停/续计/清零、保护与契约故障、喷漆区几何、公共读模型、提供者门禁、Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
+三名拥有者并发验证走动、停止与旧订单后，轮流验证各自的地面终点，避免他人途经目标时按合法的占点规则提前结束订单；
+轮转及占点几何由 `Lockdown.Rules.DemoCoreProbe.ArrivalTurn` 覆盖。
 `RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的喷漆、争夺暂停与续计、
 喷上涂鸦、主人离区使守护暂停、他人独自改漆使守护保持冻结且改漆失败后守护仍暂停、主人独自回区后续计、冻结期间主人走出使守护清零而涂鸦保留、
 主人独自在区内站满守护时长以 `GuardSucceeded` 守护成功的

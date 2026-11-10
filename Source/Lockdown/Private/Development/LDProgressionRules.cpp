@@ -576,6 +576,20 @@ ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
     return ELDGrowthReason::PhaseClosed;
 }
 
+ELDRestService LDProgression::RestServiceFor(ELDBuildCommandKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDBuildCommandKind::BuyNpcOffer: return ELDRestService::SkillMerchant;
+    case ELDBuildCommandKind::FillGap:
+    case ELDBuildCommandKind::Dismantle: return ELDRestService::ComponentArtisan;
+    case ELDBuildCommandKind::Respec:
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::ForgetActive: return ELDRestService::Trainer;
+    default: return ELDRestService::None;
+    }
+}
+
 ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context)
 {
     if (!LDGrowthWire::IsBuildLifePhase(Context.LifePhase))

@@ -67,10 +67,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         // D26: a Boss patrol point is the Boss's route, not a place a body goes; the visible Boss is a unit.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
-        // #198: the PK ring spawns, the spectator throw anchor and the sign-up disks serve only the rest-phase PK, not
-        // field decisions (the own sign-up disk reaches the policy through the rest frame).
+        // Rest-only places are supplied separately and never considered by field decisions.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
-            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup) { continue; }
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
+            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService) { continue; }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);

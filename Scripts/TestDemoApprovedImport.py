@@ -272,7 +272,7 @@ class ApprovedDemoData(unittest.TestCase):
             # #198 match timeline: three 180 s field segments, rest phases and field respawn waits by T at death
             # (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
             ("MATCH.FieldSegmentSec", "ms", "180"),
-            ("REST.OpeningBuildSec", "ms", "45"), ("REST.BuildSec", "ms", "30"), ("REST.SignupSec", "ms", "10"),
+            ("REST.OpeningBuildSec", "ms", "180"), ("REST.BuildSec", "ms", "120"), ("REST.SignupSec", "ms", "10"),
             ("REST.DrawSec", "ms", "5"), ("REST.BettingSec", "ms", "8"), ("REST.PKReadySec", "ms", "3"),
             ("REST.PKMaxSec", "ms", "60"), ("REST.SettlementSec", "ms", "3"), ("REST.PayoutSec", "ms", "12"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),

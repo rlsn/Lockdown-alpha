@@ -14,13 +14,14 @@
 #include "Engine/World.h"
 #include "Region/LDMapGeometry.h"
 #include "Misc/ScopeExit.h"
+#include "World/LDRestServiceNPC.h"
 
-// #198 rest phases (approved outer parameters, issue #198 comment 6752601175 §1/§8/§9; the private rest space is a
-// coordinator decision under the user's delegation). The pure FLDMatchTimeline schedules the rests and
+// #198 rest phases (approved outer parameters and the playtest's shared-room decision).
+// The pure FLDMatchTimeline schedules the rests and
 // the field progress T; this file applies its transitions to lives, the world and the public read model.
 //
-// Private rest space: every contender's rest life stands at a fixed approved spawn anchor chosen by its locked roster slot
-// (same world, same connection, same contender identity and growth record), in its own Combat isolation group. The frozen
+// Every contender stands in the closed shared room at its fixed roster slot, in one Combat isolation group
+// (same world, same connection, same contender identity and growth record). The frozen
 // world (camp members, Boss) is suspended in Combat and takes no motion, intent or contact.
 //
 // Phase boundaries (approved §8): a field -> rest boundary retires every living field life (no death, kill or reward),
@@ -43,6 +44,7 @@ bool ALDGameMode::InitializeTimeline(FString& Error)
     }
     TimelineRevision = 1;
     RestSignups.Reset();
+    RestReady.Reset();
     LockedEntrants.Reset();
     RestReturns.Reset();
     RestLives.Reset();
@@ -116,13 +118,65 @@ bool ALDGameMode::IsInRestSpace(const FGuid& Contender) const
 
 FName ALDGameMode::RestAnchorFor(const FGuid& Contender) const
 {
-    // The six roster slots spread evenly over the approved spawn anchors in catalog order (with the twelve current
-    // anchors: s00, s02, s04, s06, s08, s10, at least ~2200 cm apart).
     const int32 Slot = RosterOrder.IndexOfByKey(Contender);
     if (!DemoContent || Slot == INDEX_NONE || Slot >= 6) { return NAME_None; }
-    const TArray<FString>& Anchors = DemoContent->Get().World.SpawnIds;
-    if (Anchors.Num() < 6) { return NAME_None; }
-    return FName(*Anchors[Slot * Anchors.Num() / 6]);
+    return FName(*FString::Printf(TEXT("rest_spawn_%d"), Slot));
+}
+
+bool ALDGameMode::CanRestReady(const FGuid& Contender) const
+{
+    const FLDContenderRecord* Record = nullptr;
+    for (const auto& Pair : Contenders)
+    {
+        if (Pair.Value.State.ContenderId == Contender) { Record = &Pair.Value; break; }
+    }
+    return Record && !Record->bLeft && Record->Kind == ELDContenderKind::Human && IsRestPhase(MatchContext)
+        && Timeline.GetStep() == ELDRestStep::Build && AuthorityNowMs < Timeline.GetStepEndsAtMs()
+        && RestLives.Contains(Contender);
+}
+
+ELDRestReadyResult ALDGameMode::SubmitRestReady(ALDPlayerController& Controller, uint32 Generation, uint8 RestIndex,
+    int64 StartedAtMs, bool bReady)
+{
+    const FGuid Id = ContenderId(&Controller);
+    if (!Id.IsValid() || !IsMemberPresent(Id)) { return ELDRestReadyResult::NotContender; }
+    if (Generation != MatchContext.Generation) { return ELDRestReadyResult::StaleMatch; }
+    const FLDTimelineView View = Timeline.MakeView(Generation, TimelineRevision);
+    if (RestIndex != View.RestIndex || StartedAtMs != View.StepStartedAtMs) { return ELDRestReadyResult::StaleWindow; }
+    if (!bReady || !CanRestReady(Id)) { return ELDRestReadyResult::NotOpen; }
+    if (!RestReady.Contains(Id))
+    {
+        RestReady.Add(Id);
+        PublishTimeline();
+        SyncOwner(&Controller);
+        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_READY contender=%s rest=%u"), *LDLog::Id(Id), RestIndex);
+    }
+    return ELDRestReadyResult::Accepted;
+}
+
+ELDRestService ALDGameMode::NearbyRestService(const FGuid& Contender) const
+{
+    const FLDLifeRecord* Life = Lives.Find(Contender);
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!DemoContent || !Registry || !Life || Life->Phase != ELDLifePhase::Alive || !RestLives.Contains(Contender)
+        || !IsRestPhase(MatchContext) || !Timeline.IsRestBuildOpen()) { return ELDRestService::None; }
+    const auto& Radius = DemoContent->Get().Parameters.AirdropPickupRadiusCm;
+    const double Range = double(Radius.Numerator) / double(Radius.Denominator);
+    for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
+    {
+        const auto* Anchor = Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation);
+        if (Anchor && FVector::DistSquared2D(Life->MotionLastFoot, Anchor->Position) <= Range * Range)
+        {
+            return static_cast<ELDRestService>(Index);
+        }
+    }
+    return ELDRestService::None;
+}
+
+bool ALDGameMode::CanUseRestService(const FGuid& Contender, ELDBuildCommandKind Kind) const
+{
+    const ELDRestService Required = LDProgression::RestServiceFor(Kind);
+    return Required == ELDRestService::None || NearbyRestService(Contender) == Required;
 }
 
 void ALDGameMode::PublishTimeline()
@@ -141,7 +195,7 @@ bool ALDGameMode::SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, do
 {
     OutCentreCm = FVector::ZeroVector;
     OutRadiusCm = 0;
-    // The disk of the contender's roster slot, beside the private rest anchor of the same slot (RestAnchorFor).
+    // The disk beside the contender's shared-room slot (RestAnchorFor).
     const int32 Slot = RosterOrder.IndexOfByKey(Contender);
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     if (!DemoContent || !Registry || Slot == INDEX_NONE || Slot >= LDDemoWorld::PKSignups) { return false; }
@@ -222,6 +276,24 @@ bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString&
     ON_SCOPE_EXIT { ReleasePhasePrepared(PreparedFieldReturn); };
     bool bBodiesReady = true;
     TArray<FLDTimelineEvent> Events;
+    if (IsRestPhase(MatchContext) && Timeline.GetStep() == ELDRestStep::Build && AuthorityNowMs < Timeline.GetStepEndsAtMs())
+    {
+        int32 Humans = 0;
+        bool bAllReady = true;
+        for (const auto& Pair : Contenders)
+        {
+            const auto& Record = Pair.Value;
+            if (Record.bLeft || Record.Kind != ELDContenderKind::Human || !RosterOrder.Contains(Record.State.ContenderId)) { continue; }
+            ++Humans;
+            bAllReady &= RestReady.Contains(Record.State.ContenderId);
+        }
+        bool bChanged = false;
+        if (Humans > 0 && bAllReady)
+        {
+            if (!Timeline.FinishBuildEarly(AuthorityNowMs, bChanged, Error)) { return false; }
+            if (bChanged) { PublishTimeline(); }
+        }
+    }
     if (!PrepareEntry(Permit, bBodiesReady, Error)
         || !Timeline.Advance(Permit.GetBoundary().AtMs, RestSignups.Num(), false, bBodiesReady, Events, Error)
         || !ApplyTimelineEvents(Events, Permit, Error)
@@ -329,6 +401,7 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             if (Event.Step == ELDRestStep::Build)
             {
                 RestSignups.Reset();
+                RestReady.Reset();
                 LockedEntrants.Reset();
             }
             break;
@@ -338,6 +411,7 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             break;
         case ELDTimelineEventKind::EnterField:
         {
+            RestReady.Reset();
             const bool bFinal = Event.FieldSegment >= FLDTimelineParameters::TimedSegments;
             // Every field body was prepared jointly before the timeline entered the field; they stand together now, while
             // the phase is still Rest (the R0 return is every contender's spray-roster join).
@@ -387,7 +461,29 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
     if (!EndCharmsForRest(Permit, Error)) { return false; }
     // #198 outer §5: the segment's unclaimed camp markers expire with it.
     if (!EndFieldMarkersForRest(Permit, Error)) { return false; }
-    return Camps->FreezeForRest(Permit, Error);
+    if (!Camps->FreezeForRest(Permit, Error)) { return false; }
+    ClearRestServiceNPCs();
+    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    for (uint8 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
+    {
+        const auto* Anchor = Registry ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Index)), Registry->Generation) : nullptr;
+        if (!Anchor)
+        {
+            Error = TEXT("The shared rest room is missing a service NPC anchor.");
+            return false;
+        }
+        auto* NPC = GetWorld()->SpawnActor<ALDRestServiceNPC>(Anchor->Position + FVector(0, 0, 80), FRotator::ZeroRotator);
+        if (!NPC) { Error = TEXT("The shared rest service NPC could not spawn."); return false; }
+        NPC->SetService(static_cast<ELDRestService>(Index));
+        RestServiceNPCs.Add(NPC);
+    }
+    return true;
+}
+
+void ALDGameMode::ClearRestServiceNPCs()
+{
+    for (const auto& NPC : RestServiceNPCs) { if (NPC.IsValid()) { NPC->Destroy(); } }
+    RestServiceNPCs.Reset();
 }
 
 bool ALDGameMode::ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -403,6 +499,7 @@ bool ALDGameMode::ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& E
         Error = TEXT("Combat could not end the rest's effects at the field boundary.");
         return false;
     }
+    ClearRestServiceNPCs();
     return Camps->ThawAfterRest(Permit, Error);
 }
 
@@ -415,8 +512,6 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
         return false;
     }
     const FLDCombatBodyRef Body = Life->Body;
-    // The owner's training dummy leaves with its rest life; nothing of the training reaches the field.
-    RetireTrainingDummy(Contender);
     // #198 session D: a PK life (like a rest life) never joined the spray roster.
     if (!RestLives.Contains(Contender) && !PKLives.Contains(Contender))
     {
@@ -598,7 +693,7 @@ bool ALDGameMode::PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePe
     Target.Where.Anchor = RestAnchorFor(Contender);
     if (Target.Where.Anchor.IsNone())
     {
-        Error = TEXT("A contender has no private rest anchor.");
+        Error = TEXT("A contender has no shared-room rest anchor.");
         return false;
     }
     FLDPhasePrepared Prepared;
@@ -690,6 +785,9 @@ bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool&
     Order.Sort();
     if (!bFieldReturnStarted)
     {
+        TArray<FGuid> DummySlots;
+        TrainingDummies.GetKeys(DummySlots);
+        for (const FGuid& Slot : DummySlots) { RetireTrainingDummy(Slot); }
         // Every rest life leaves first (no death, nothing of the rest reaches the field); the field bodies then stand
         // only together.
         for (const FGuid& Id : Order)
@@ -802,7 +900,7 @@ bool ALDGameMode::RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FSt
     return true;
 }
 
-// ---- #198 personal training dummy ----
+// ---- #198 shared training dummies ----
 
 bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWritePermit& Permit, FString& Error)
 {
@@ -829,7 +927,6 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
     // The free approved local offset at the owner's rest anchor, searched from the far end of the list (the rest life
     // takes the first free one); the same legal-ground and occupancy rules as a spawn.
     const TArray<FLDDemoWorldPoint>& Offsets = Registry->GetGeometry()->SpawnOffsetsCm;
-    const double Gap = (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
     for (int32 Index = Offsets.Num() - 1; Index >= 0; --Index)
     {
         FVector Delta;
@@ -842,8 +939,9 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
                 || Failure == ELDWorldQueryFailure::WrongSurface) { continue; }
             return false;
         }
-        const FVector Origin = Ground.SurfaceCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + Gap);
-        if (GetWorld()->OverlapAnyTestByObjectType(Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), Capsule,
+        const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
+        if (LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule)
+            || GetWorld()->OverlapAnyTestByObjectType(Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), Capsule,
             FCollisionQueryParams(SCENE_QUERY_STAT(DemoTrainingDummy)))) { continue; }
         const FTransform Transform(FRotator::ZeroRotator, Origin);
         ALDCharacter* Body = GetWorld()->SpawnActorDeferred<ALDCharacter>(ALDCharacter::StaticClass(), Transform, nullptr, nullptr,
@@ -877,6 +975,8 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
         FLDBodyCombatState State;
         FLDCombatBodyRef Ref;
         if (!Movement->CurrentFloor.IsWalkableFloor()
+            || Movement->CurrentFloor.HitResult.GetComponent() != Ground.Floor.Get()
+            || !Body->GetActorLocation().Equals(Origin, .000001)
             || !Combat->PrepareTrainingDummy(*Body, {ELDVictimKind::Contender, Entity, 1}, OwnerId, Build->Level, Permit, State, Error)
             || !Combat->InstallCombatBody(*Body, MoveTemp(State), Permit, Ref, Error))
         {
@@ -902,10 +1002,10 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
         Error.Reset();
         return true;
     }
-    // No free spot: the owner trains without a dummy this rest; this is reported, never silently replaced.
+    // Missing shared training geometry is a failed scene, not a playable success.
     UE_LOG(LogLDMatch, Warning, TEXT("LD_TRAINING_DUMMY_BLOCKED owner=%s anchor=%s"), *LDLog::Id(OwnerId), *Anchor->Id.ToString());
-    Error.Reset();
-    return true;
+    Error = TEXT("The shared training dummy has no legal placement.");
+    return false;
 }
 
 void ALDGameMode::RetireTrainingDummy(const FGuid& OwnerId)
@@ -932,28 +1032,44 @@ bool ALDGameMode::AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const
     return Movement->AdvanceAuthorityMovement(AuthorityStep, Body, FVector::ZeroVector, Permit, Error);
 }
 
-ELDTrainingResetResult ALDGameMode::SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation)
+ELDTrainingResetResult ALDGameMode::SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation, uint32 LifeNumber,
+    uint8 RestIndex, int64 StartedAtMs)
 {
     const FGuid Id = ContenderId(&Controller);
     if (!Id.IsValid() || !IsMemberPresent(Id)) { return ELDTrainingResetResult::NotContender; }
     if (Generation != MatchContext.Generation) { return ELDTrainingResetResult::StaleMatch; }
-    if (!IsRestPhase(MatchContext) || !RestLives.Contains(Id)) { return ELDTrainingResetResult::NotInRest; }
+    const FLDTimelineView View = Timeline.MakeView(Generation, TimelineRevision);
+    const FLDLifeRecord* Life = Lives.Find(Id);
+    if (!IsRestPhase(MatchContext) || !Timeline.IsRestBuildOpen() || !RestLives.Contains(Id) || !Life
+        || Life->Life != LifeNumber || Life->Phase != ELDLifePhase::Alive || View.RestIndex != RestIndex
+        || View.StepStartedAtMs != StartedAtMs) { return ELDTrainingResetResult::NotInRest; }
     if (!TrainingDummies.Contains(Id)) { return ELDTrainingResetResult::NoDummy; }
-    PendingTrainingResets.Add(Id);
+    PendingTrainingResets.Add(Id, {LifeNumber, RestIndex, StartedAtMs});
     return ELDTrainingResetResult::Queued;
 }
 
 bool ALDGameMode::ProcessTrainingResets(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (PendingTrainingResets.IsEmpty()) { return true; }
-    TArray<FGuid> Owners = PendingTrainingResets.Array();
+    TMap<FGuid, FLDTrainingResetWindow> Pending = MoveTemp(PendingTrainingResets);
     PendingTrainingResets.Reset();
+    TArray<FGuid> Owners;
+    Pending.GetKeys(Owners);
     Owners.Sort();
     for (const FGuid& OwnerId : Owners)
     {
         const FLDTrainingDummy* Dummy = TrainingDummies.Find(OwnerId);
         // A request that outlived its rest space or dummy has nothing left to reset.
-        if (!Dummy || !RestLives.Contains(OwnerId) || Lives.FindChecked(OwnerId).Phase != ELDLifePhase::Alive) { continue; }
+        const auto& Window = Pending.FindChecked(OwnerId);
+        const FLDTimelineView View = Timeline.MakeView(MatchContext.Generation, TimelineRevision);
+        const FLDLifeRecord* Life = Lives.Find(OwnerId);
+        if (!Dummy || !RestLives.Contains(OwnerId) || !Life || Life->Phase != ELDLifePhase::Alive
+            || Life->Life != Window.Life || !Timeline.IsRestBuildOpen() || View.RestIndex != Window.RestIndex
+            || View.StepStartedAtMs != Window.StartedAtMs)
+        {
+            UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_RESET_EXPIRED contender=%s"), *LDLog::Id(OwnerId));
+            continue;
+        }
         if (!Combat->ResetTraining(OwnerId, Dummy->Entity, Permit, Error)) { return false; }
         UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_RESET owner=%s dummy=%s"), *LDLog::Id(OwnerId), *LDLog::Id(Dummy->Entity));
     }

@@ -1100,6 +1100,7 @@ FString HudScaling(const FLDDemoEffectDefinition& Effect)
     if(Effect.ADRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ADRatioBp)+LDTerms::AttackDamage;}
     if(Effect.APRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.APRatioBp)+LDTerms::AbilityPower;}
     if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身")+LDTerms::MaxHealth();}
+    if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
     return Text;
 }
 }
@@ -1243,6 +1244,12 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     {
     case EField::Amount: case EField::Burst:
     {
+        if(Stats.bShowScalingFormula&&(Effect->ADRatioBp>0||Effect->APRatioBp>0||Effect->MaxHPRatioBp>0||Effect->ArmorRatioBp>0))
+        {
+            Out=HudScaling(*Effect);
+            if(Token.Field==EField::Burst){Out=TEXT("(")+Out+TEXT(") × ")+HudPercent(Effect->SecondaryRatioBp);}
+            return true;
+        }
         int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
             +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
         if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
@@ -1671,9 +1678,9 @@ FString LDHUD::FGrowthPending::Prompt() const
     if(Parts>0){Text+=TEXT(" · ")+LDTerms::ComponentsPending(Parts);}
     return Text;
 }
-FString LDHUD::GrowthPrompt(const FGrowthPending& Pending,bool bRestServices)
+FString LDHUD::GrowthPrompt(const FGrowthPending& Pending)
 {
-    return Pending.Any()||!bRestServices?Pending.Prompt():FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::RestServices;
+    return Pending.Any()?FString(LDTerms::Choice)+TEXT(" · 有待处理"):FString(LDTerms::Choice);
 }
 bool LDHUD::OwnsComponent(const FLDProgressionView& Progression,FName Component)
 {
@@ -1861,6 +1868,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NothingToRespec: return TEXT("还没加过点，不用洗");
     case ELDGrowthReason::SlotEmpty: return TEXT("这个技能槽是空的");
     case ELDGrowthReason::NotRestWindow: return TEXT("休息时才能找 NPC 或洗点");
+    case ELDGrowthReason::RestServiceUnavailable: return TEXT("请靠近对应的服务NPC");
     case ELDGrowthReason::NotOwned: return FString(TEXT("你没有这个"))+LDTerms::Component;
     case ELDGrowthReason::AlreadyInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("已经启用了");
     case ELDGrowthReason::NotInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("还没有启用");

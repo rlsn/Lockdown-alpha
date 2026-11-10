@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDMatchTimeline.h"
 #include "Development/LDGrowthProtocol.h"
 #include "LDViewTypes.generated.h"
 
@@ -220,6 +221,9 @@ struct FLDOwnerState
     UPROPERTY() double Hp = 0;
     UPROPERTY() double MaxHp = 0;
     UPROPERTY() bool bReady = false;
+    UPROPERTY() bool bRestReady = false;
+    UPROPERTY() bool bCanRestReady = false;
+    UPROPERTY() ELDRestService NearbyRestService = ELDRestService::None;
     UPROPERTY() bool bLobbyHost = false;
     UPROPERTY() double Mp=0;
     UPROPERTY() double MaxMp=0;

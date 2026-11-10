@@ -5,12 +5,12 @@
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Framework/LDPlayerController.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
-#include "Components/CanvasPanel.h"
-#include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
@@ -18,6 +18,8 @@
 #include "Components/ScaleBox.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
+#include "Components/ScrollBox.h"
+#include "Components/WrapBox.h"
 #include "Components/TextBlock.h"
 #include "Components/RichTextBlock.h"
 #include "Components/VerticalBox.h"
@@ -27,10 +29,7 @@
 namespace
 {
 const FLinearColor GrowthCardIdle(.045f,.12f,.15f);
-// Compact card geometry (1080p reference units): every card has a name, the targeting/cost line, the full rule sentence
-// (#147, wrapped, never cut) and its action line, so the row takes the tallest card's height and never scrolls; larger
-// text preferences grow all cards alike.
-constexpr float GrowthPanelScale=.8f;
+// Card faces stay compact; complete rules live in the independent inspection column.
 constexpr float GrowthCardWidth=250.f,GrowthCardHeight=64.f,GrowthIconSize=44.f,GrowthDetailWidth=300.f,GrowthIconRadius=7.f;
 constexpr float GrowthPanelWidth=3*GrowthCardWidth+16.f;
 // #198 F target step: place buttons per line.
@@ -64,7 +63,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto OneLine=[&Text](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);return Line;};
         auto Wrapped=[&Text](int32 Size,float Width){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetWrapTextAt(Width);return Line;};
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
-        // No close button: the HUD's 开盲盒 button toggles the panel and Back closes it like every main panel.
+        PointsDock=WidgetTree->ConstructWidget<UVerticalBox>();
+        EmptyNote=Wrapped(15,GrowthPanelWidth);
+        Root->AddChildToVerticalBox(EmptyNote);
         {
             // The current active offer: up to three compact cards side by side; a click on a card is the choice.
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -91,10 +92,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 Card.Name=OneLine(17);Lines->AddChildToVerticalBox(Card.Name);
                 Card.Summary=Wrapped(12,GrowthCardWidth-GrowthIconSize-40.f);Card.Summary->SetColorAndOpacity(LDHUDStyle::TextSecondary);
                 Lines->AddChildToVerticalBox(Card.Summary)->SetPadding(FMargin(0,2,0,0));
-                // User 2026-11-07: the whole rule sentence wraps inside the card with this level's numbers.
-                Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*FString::Printf(TEXT("GrowthOfferSentence%d"),Index)));
-                Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);Card.Sentence->SetVisibility(ESlateVisibility::HitTestInvisible);
-                Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
                 Card.Action=Wrapped(13,GrowthCardWidth-GrowthIconSize-40.f);Card.Action->SetColorAndOpacity(LDHUDStyle::TextAccent);
                 Lines->AddChildToVerticalBox(Card.Action)->SetPadding(FMargin(0,4,0,0));
                 auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
@@ -175,7 +172,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             // Pending blueprints: one row each, built as needed, with a "学到 Q/W/E" button per empty slot.
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
             UTextBlock* Heading=OneLine(16);Heading->SetColorAndOpacity(LDHUDStyle::TextAccent);
-            Heading->SetText(FText::FromString(FString::Printf(TEXT("%s（选中的技能，学到空槽才能用）"),LDTerms::Blueprint)));
+            Heading->SetText(FText::FromString(TEXT("待学主动图纸 · 学到 Q / W / E 后才能使用")));
             Section->AddChildToVerticalBox(Heading);
             BlueprintList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(BlueprintList)->SetPadding(FMargin(0,4,0,0));
             BlueprintSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
@@ -183,9 +180,11 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         {
             // #198 B owned components: one row each, built as needed.
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
-            UTextBlock* Heading=OneLine(16);Heading->SetColorAndOpacity(LDHUDStyle::TextAccent);Heading->SetText(FText::FromString(LDTerms::Components));
-            Section->AddChildToVerticalBox(Heading);
-            ComponentList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(ComponentList)->SetPadding(FMargin(0,4,0,0));
+            ComponentHeading=OneLine(16);ComponentHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);
+            Section->AddChildToVerticalBox(ComponentHeading);
+            ComponentList=WidgetTree->ConstructWidget<UWrapBox>();ComponentList->SetInnerSlotPadding(FVector2D(8,8));
+            ComponentList->SetExplicitWrapSize(true);ComponentList->SetWrapSize(GrowthPanelWidth);
+            Section->AddChildToVerticalBox(ComponentList)->SetPadding(FMargin(0,4,0,0));
             ComponentSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
@@ -193,13 +192,13 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
             PointsHeading=OneLine(16);PointsHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(PointsHeading);
             StatList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(StatList)->SetPadding(FMargin(0,4,0,0));
-            auto* ConfirmLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            auto* ConfirmLine=WidgetTree->ConstructWidget<UVerticalBox>();
             ConfirmButton=LDWidgets::Button(WidgetTree,LDTerms::ConfirmPoints,[this](){ConfirmPoints();},false,TEXT("GrowthConfirmPoints"));
-            ConfirmLine->AddChildToHorizontalBox(ConfirmButton)->SetVerticalAlignment(VAlign_Center);
-            PointsBlocked=OneLine(13);PointsBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-            auto* BlockedSlot=ConfirmLine->AddChildToHorizontalBox(PointsBlocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
+            ConfirmLine->AddChildToVerticalBox(ConfirmButton);
+            PointsBlocked=Wrapped(13,220);PointsBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            ConfirmLine->AddChildToVerticalBox(PointsBlocked)->SetPadding(FMargin(0,6,0,0));
             Section->AddChildToVerticalBox(ConfirmLine)->SetPadding(FMargin(0,4,0,0));
-            PointsSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+            PointsSection=Section;PointsDock->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
             // #198 rest services: shown in a rest, enabled only in its build windows, each with its own reason when refused.
@@ -210,7 +209,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             {
                 auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
                 Line->AddChildToHorizontalBox(Lead)->SetVerticalAlignment(VAlign_Center);
-                OutBlocked=OneLine(13);OutBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                OutBlocked=Wrapped(13,260);OutBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
                 auto* BlockedSlot=Line->AddChildToHorizontalBox(OutBlocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
                 Section->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,4,0,0));
             };
@@ -224,6 +223,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             {
                 ULDCommandButton* Forget=LDWidgets::Button(WidgetTree,TEXT(""),[this,Key](){AskForget(Key);},false,
                     FName(*FString::Printf(TEXT("GrowthRestForget%s"),*LDHUD::SlotKey(Key))));
+                auto* Caption=CastChecked<UTextBlock>(Forget->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(130);
                 ForgetRow->AddChildToHorizontalBox(Forget)->SetPadding(FMargin(Key?6.f:0.f,0,0,0));
                 ForgetButtons.Add(Forget);
             }
@@ -233,9 +233,10 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ServiceLine(FillGapButton.Get(),Blocked);FillGapBlocked=Blocked;
             auto PickLine=[&](const TCHAR* Label)
             {
-                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
+                auto* Line=WidgetTree->ConstructWidget<UWrapBox>();Line->SetExplicitWrapSize(true);Line->SetWrapSize(GrowthPanelWidth-24);
+                Line->SetInnerSlotPadding(FVector2D(6,4));
                 UTextBlock* Lead=OneLine(13);Lead->SetText(FText::FromString(Label));
-                Line->AddChildToHorizontalBox(Lead)->SetVerticalAlignment(VAlign_Center);
+                Line->AddChildToWrapBox(Lead);
                 Line->SetVisibility(ESlateVisibility::Collapsed);
                 Section->AddChildToVerticalBox(Line)->SetPadding(FMargin(12,4,0,0));
                 return Line;
@@ -264,37 +265,78 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 ->SetPadding(FMargin(6,0,0,0));
             ConfirmRow->SetVisibility(ESlateVisibility::Collapsed);
             RestConfirmLine=ConfirmRow;
-            Section->AddChildToVerticalBox(ConfirmRow)->SetPadding(FMargin(0,6,0,0));
             Section->SetVisibility(ESlateVisibility::Collapsed);
             RestSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+            Root->AddChildToVerticalBox(ConfirmRow)->SetPadding(FMargin(0,6,0,0));
         }
         // Only a result or a refusal shows at the bottom (no standing instructions); it collapses while empty.
-        Feedback=Wrapped(14,GrowthPanelWidth);Feedback->SetVisibility(ESlateVisibility::Collapsed);Root->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,8,0,0));
-        // A see-through backing right above the HUD's skill slots (SetBottomDock), clear of the bottom band.
-        MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Left);Frame->SetVerticalAlignment(VAlign_Bottom);
-        // #97: drawn at 80% (user: "shrink the choice list and shop panel size to 80%").
-        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::UserSpecified);Scale->SetUserSpecifiedScale(GrowthPanelScale);
-        Scale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Scale->SetContent(MainPanel);
-        Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
-        DockFrame=Frame;SetBottomDock(BottomDock,DockLeft);
-        // The full description of the hovered or focused offer card pops up above that card, on its own canvas layer over the
-        // whole panel, so its size never moves or squeezes the cards; it takes no pointer input.
+        auto* Workspace=WidgetTree->ConstructWidget<UVerticalBox>();
+        auto* Header=WidgetTree->ConstructWidget<UHorizontalBox>();
+        Header->AddChildToHorizontalBox(Text(TEXT("构筑"),24))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        RestTrainingButton=LDWidgets::Button(WidgetTree,LDTerms::TrainingReset,[this]()
+        {if(ResetTraining){ResetTraining();}else{UE_LOG(LogLDUI,Error,TEXT("LD_GROWTH_TRAINING_RESET_UNBOUND"));}},false,TEXT("GrowthTrainingReset"));
+        RestTrainingButton->SetVisibility(ESlateVisibility::Collapsed);
+        Header->AddChildToHorizontalBox(RestTrainingButton)->SetPadding(FMargin(0,0,8,0));
+        RestReadyButton=LDWidgets::Button(WidgetTree,TEXT("准备完毕"),[this]()
+        {if(ReadyRest){ReadyRest();}else{UE_LOG(LogLDUI,Error,TEXT("LD_GROWTH_REST_READY_UNBOUND"));}},false,TEXT("GrowthRestReady"));
+        RestReadyButton->SetToolTipText(FText::FromString(TEXT("不可撤回。所有真人准备后提前进入最后 10 秒站圈报名，报名结束后锁定构筑。")));
+        RestReadyButton->SetVisibility(ESlateVisibility::Collapsed);
+        Header->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(0,0,8,0));
+        Header->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("GrowthClose")));
+        Workspace->AddChildToVerticalBox(Header)->SetPadding(FMargin(0,0,0,12));
+        auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();
+        auto* Character=WidgetTree->ConstructWidget<UVerticalBox>();
+        Character->AddChildToVerticalBox(Text(TEXT("当前属性与技能槽"),17));
+        AttributeSummary=Wrapped(15,220);
+        for(uint8 Key=0;Key<3;++Key)
+        {
+            auto* SkillRow=WidgetTree->ConstructWidget<UHorizontalBox>();
+            SkillRow->AddChildToHorizontalBox(Text(LDHUD::SlotKey(Key),15))->SetPadding(FMargin(0,0,8,0));
+            auto* Icon=WidgetTree->ConstructWidget<UImage>();auto* IconSize=WidgetTree->ConstructWidget<USizeBox>();
+            IconSize->SetWidthOverride(32);IconSize->SetHeightOverride(32);IconSize->SetContent(Icon);
+            SkillRow->AddChildToHorizontalBox(IconSize)->SetPadding(FMargin(0,0,8,0));EquippedIcons.Add(Icon);
+            auto* Name=Wrapped(14,150);SkillRow->AddChildToHorizontalBox(Name);EquippedNames.Add(Name);
+            Character->AddChildToVerticalBox(SkillRow)->SetPadding(FMargin(0,0,0,8));
+        }
+        Character->AddChildToVerticalBox(AttributeSummary)->SetPadding(FMargin(0,8,0,12));
+        Character->AddChildToVerticalBox(PointsDock);
+        auto* CharacterScroll=WidgetTree->ConstructWidget<UScrollBox>();CharacterScroll->SetClipping(EWidgetClipping::ClipToBounds);CharacterScroll->AddChild(Character);
+        auto* CharacterSize=WidgetTree->ConstructWidget<USizeBox>();CharacterSize->SetWidthOverride(230);CharacterSize->SetHeightOverride(560);CharacterSize->SetContent(CharacterScroll);
+        Columns->AddChildToHorizontalBox(CharacterSize)->SetPadding(FMargin(0,0,20,0));
+        auto* Inventory=WidgetTree->ConstructWidget<UVerticalBox>();
+        auto* Tabs=WidgetTree->ConstructWidget<UHorizontalBox>();
+        const TCHAR* Labels[]={TEXT("待选与图纸"),TEXT("构件背包"),TEXT("NPC 服务")};
+        for(int32 Tab=0;Tab<3;++Tab)
+        {
+            auto* Button=LDWidgets::Button(WidgetTree,Labels[Tab],[this,Tab](){ShowTab(Tab);},false,FName(*FString::Printf(TEXT("GrowthTab%d"),Tab)));
+            TabButtons.Add(Button);Tabs->AddChildToHorizontalBox(Button)->SetPadding(FMargin(0,0,8,0));
+        }
+        Inventory->AddChildToVerticalBox(Tabs)->SetPadding(FMargin(0,0,0,12));
+        auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Root);
+        auto* BodySize=WidgetTree->ConstructWidget<USizeBox>();BodySize->SetWidthOverride(GrowthPanelWidth+20);BodySize->SetHeightOverride(510);BodySize->SetContent(Scroll);
+        Inventory->AddChildToVerticalBox(BodySize);Columns->AddChildToHorizontalBox(Inventory)->SetPadding(FMargin(0,0,20,0));
         auto* DetailLines=WidgetTree->ConstructWidget<UVerticalBox>();
         auto FixedWrap=[](UTextBlock* Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(GrowthDetailWidth-28.f);return Line;};
         DetailName=FixedWrap(Text(TEXT(""),17));DetailLines->AddChildToVerticalBox(DetailName);
         DetailSummary=FixedWrap(Text(TEXT(""),13));DetailSummary->SetColorAndOpacity(LDHUDStyle::TextAccent);DetailLines->AddChildToVerticalBox(DetailSummary)->SetPadding(FMargin(0,2,0,0));
         DetailBody=LDWidgets::RichText(WidgetTree,14,TEXT("GrowthDetailBody"));DetailBody->SetAutoWrapText(false);DetailBody->SetWrapTextAt(GrowthDetailWidth-28.f);
         DetailLines->AddChildToVerticalBox(DetailBody)->SetPadding(FMargin(0,8,0,0));
-        Detail=LDWidgets::Panel(WidgetTree,DetailLines,FMargin(14,12));Detail->SetBrushColor(FLinearColor(.02f,.035f,.055f,.94f));
-        auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(GrowthDetailWidth);DetailWidth->SetContent(Detail);
-        DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
-        DetailLayer=WidgetTree->ConstructWidget<UCanvasPanel>();DetailLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        DetailSlot=DetailLayer->AddChildToCanvas(DetailWidth);DetailSlot->SetAutoSize(true);DetailSlot->SetAlignment(FVector2D(.5f,1));
-        auto* Layers=WidgetTree->ConstructWidget<UOverlay>();Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        auto* FrameLayer=Layers->AddChildToOverlay(Frame);FrameLayer->SetHorizontalAlignment(HAlign_Fill);FrameLayer->SetVerticalAlignment(VAlign_Fill);
-        auto* PopupLayer=Layers->AddChildToOverlay(DetailLayer);PopupLayer->SetHorizontalAlignment(HAlign_Fill);PopupLayer->SetVerticalAlignment(VAlign_Fill);
-        WidgetTree->RootWidget=Layers;
+        InspectState=Wrapped(14,GrowthDetailWidth-28);InspectState->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        DetailLines->AddChildToVerticalBox(InspectState)->SetPadding(FMargin(0,12,0,0));
+        InspectInstall=LDWidgets::Button(WidgetTree,TEXT("安装构件"),[this]()
+        {const int32 Index=ShownComponents.IndexOfByKey(InspectedComponent);if(Index!=INDEX_NONE){EnableComponent(Index);}},false,TEXT("GrowthInspectInstall"));
+        DetailLines->AddChildToVerticalBox(InspectInstall)->SetPadding(FMargin(0,12,0,0));
+        auto* DetailScroll=WidgetTree->ConstructWidget<UScrollBox>();DetailScroll->SetClipping(EWidgetClipping::ClipToBounds);DetailScroll->AddChild(DetailLines);
+        auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(GrowthDetailWidth);DetailWidth->SetHeightOverride(560);DetailWidth->SetContent(DetailScroll);
+        Detail=WidgetTree->ConstructWidget<UBorder>();Detail->SetBrushColor(FLinearColor::Transparent);Detail->SetPadding(FMargin(0));Detail->SetContent(DetailWidth);
+        Columns->AddChildToHorizontalBox(Detail);
+        Workspace->AddChildToVerticalBox(Columns);
+        Feedback=Wrapped(14,1300);Feedback->SetVisibility(ESlateVisibility::Collapsed);Workspace->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,12,0,0));
+        MainPanel=LDWidgets::Panel(WidgetTree,Workspace,FMargin(20));MainPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(1.f));
+        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);Scale->SetStretchDirection(EStretchDirection::DownOnly);Scale->SetContent(MainPanel);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetPadding(FMargin(32,90,32,175));
+        Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
+        WidgetTree->RootWidget=Frame;
         SetVisibility(ESlateVisibility::Collapsed);
     }
     return Super::RebuildWidget();
@@ -308,60 +350,108 @@ void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float Delta)
 void ULDChoicesPanel::SetFeedback(const FString& Text){GrowthText(Feedback,Text);}
 void ULDChoicesPanel::UpdateDetail()
 {
-    if(!Detail||!DetailSlot){return;}
-    // The pointer wins over keyboard focus, which wins over a pinned preview.
-    auto Shown=[this](int32 Index){return Cards.IsValidIndex(Index)&&Cards[Index].Button->IsVisible();};
+    if(!Detail){return;}
     int32 Next=INDEX_NONE;
-    if(bOpen&&ShownOffer.IsValid())
+    if(bOpen&&ActiveTab==0&&ShownOffer.IsValid())
     {
-        for(int32 Index=0;Index<Cards.Num()&&Next==INDEX_NONE;++Index){if(Shown(Index)&&Cards[Index].Button->IsHovered()){Next=Index;}}
-        for(int32 Index=0;Index<Cards.Num()&&Next==INDEX_NONE;++Index){if(Shown(Index)&&Cards[Index].Button->HasKeyboardFocus()){Next=Index;}}
-        if(Next==INDEX_NONE&&Shown(PinnedPreview)){Next=PinnedPreview;}
+        for(int32 Index=0;Index<Cards.Num()&&Next==INDEX_NONE;++Index)
+        {if(Cards[Index].Button->IsVisible()&&(Cards[Index].Button->IsHovered()||Cards[Index].Button->HasKeyboardFocus())){Next=Index;}}
+        if(Next==INDEX_NONE&&Cards.IsValidIndex(PinnedPreview)){Next=PinnedPreview;}
     }
-    UWidget* Popup=DetailSlot->Content;
-    if(Next!=DetailCard||bDetailStale)
+    FString Name=TEXT("构筑详情"),Summary=TEXT("悬停查看 · 点击构件图标固定"),Body=TEXT("左侧查看属性和技能槽；在背包选中构件后安装。所有改动由服务器确认。");
+    FString State;
+    DetailCard=Next;InspectedComponent=NAME_None;
+    if(Next!=INDEX_NONE&&CardViews.IsValidIndex(Next))
     {
-        DetailCard=Next;bDetailStale=false;
-        if(Popup){Popup->SetVisibility(Next==INDEX_NONE?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
-        if(Next!=INDEX_NONE&&CardViews.IsValidIndex(Next))
+        const LDHUD::FActiveCardView& View=CardViews[Next];
+        Name=View.Name;Summary=View.Target+TEXT(" · ")+View.Cost;
+        Body=View.Sentence+TEXT("\n\n")+FString::Join(View.Keywords,TEXT("\n"));
+    }
+    FName Component=ActiveTab==1?PinnedComponent:NAME_None;
+    if(ActiveTab==1)
+    {
+        for(const FComponentRow& Row:ComponentRows)
+        {if(Row.Inspect&&Row.Inspect->IsVisible()&&(Row.Inspect->IsHovered()||Row.Inspect->HasKeyboardFocus())){Component=Row.ShownId;break;}}
+    }
+    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([Component](const FLDComponentInstanceView& Row){return Row.DefinitionId==Component;});
+    bool bInstall=false;
+    if(Owned)
+    {
+        InspectedComponent=Component;
+        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Component,LatestContent,LatestStats);
+        const LDHUD::FComponentRowView Row=LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs);
+        Name=Card.Name;Summary=LDHUD::InstalledTargetText(*Owned,LatestContent);
+        Body=Card.Sentence;State=Row.bInstalled?TEXT("已安装"):Row.bCanEnable?TEXT("可安装"):TEXT("不可安装：")+Row.Blocked;
+        bInstall=!Row.bInstalled;
+        GrowthEnabled(InspectInstall,Row.bCanEnable&&!PendingRequest);
+    }
+    if((ActiveTab==0||(ActiveTab==2&&ServiceContext==ELDRestService::Trainer))&&!Owned)
+    {
+        auto PreviewBase=[&](const FBaseCard& Card)
         {
-            const LDHUD::FActiveCardView& View=CardViews[Next];
-            GrowthText(DetailName,View.Name);
-            GrowthText(DetailSummary,View.bKnown?View.Target+TEXT(" · ")+View.Cost:FString());
-            // The sentence with this level's numbers, then what each bold keyword means (#147 v7 §4.1; user 2026-11-07).
-            TArray<FString> Blocks{View.Sentence};
-            if(!View.Keywords.IsEmpty()){Blocks.Add(FString::Join(View.Keywords,TEXT("\n")));}
-            const FText Body=FText::FromString(FString::Join(Blocks,TEXT("\n\n")));
-            if(!DetailBody->GetText().EqualTo(Body)){DetailBody->SetText(Body);}
+            if(!Card.Button||!Card.Button->IsVisible()||(!Card.Button->IsHovered()&&!Card.Button->HasKeyboardFocus())){return;}
+            const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Card.ShownId,LatestContent,LatestStats);
+            Name=View.Name;Summary=TEXT("候选构件");Body=View.Sentence;
+        };
+        if(ActiveTab==0&&Latest.bOpeningBasePending){for(const FBaseCard& Card:BaseCards){PreviewBase(Card);}}
+        for(int32 Index=0;ActiveTab==0&&Index<ShownChoices.Num()&&Index<ChoiceLines.Num();++Index)
+        {for(const FBaseCard& Card:ChoiceLines[Index].Cards){PreviewBase(Card);}}
+        for(int32 Index=0;Index<BlueprintRows.Num()&&Index<ShownBlueprints.Num();++Index)
+        {
+            const FBlueprintRow& Row=BlueprintRows[Index];
+            if(!Row.Row->IsHovered()){continue;}
+            const LDHUD::FActiveCardView View=LDHUD::ActiveCard(ShownBlueprints[Index],LatestContent,LatestStats);
+            Name=View.Name;Summary=TEXT("待学主动图纸 · 不是整套构筑蓝图");Body=View.Sentence;
         }
     }
-    if(DetailCard!=INDEX_NONE&&DetailLayer&&Popup)
+    GrowthText(DetailName,Name);GrowthText(DetailSummary,Summary);GrowthText(InspectState,State);
+    const FText Text=FText::FromString(Body);if(!DetailBody->GetText().EqualTo(Text)){DetailBody->SetText(Text);}
+    GrowthShown(InspectInstall,bInstall,ESlateVisibility::Visible);
+}
+void ULDChoicesPanel::ShowTab(int32 Tab)
+{
+    if(Tab==2&&ServiceContext==ELDRestService::None)
+    {SetFeedback(TEXT("请靠近技能商人、构件工匠或训练师，再打开 NPC 服务。"));return;}
+    ActiveTab=FMath::Clamp(Tab,0,2);RefreshAll();UpdateDetail();
+}
+void ULDChoicesPanel::SetServiceContext(ELDRestService Service)
+{
+    if(ServiceContext==Service){return;}
+    ServiceContext=Service;
+    CancelRestAction();CloseMaterialPickers();
+    if(ServiceContext==ELDRestService::None&&ActiveTab==2){ActiveTab=0;SetFeedback(TEXT("已离开 NPC，服务已收起。"));}
+    RefreshAll();
+}
+bool ULDChoicesPanel::PreviewComponent(int32 Index)
+{
+    if(!ShownComponents.IsValidIndex(Index)){return false;}
+    PinnedComponent=ShownComponents[Index];ActiveTab=1;RefreshAll();UpdateDetail();return true;
+}
+void ULDChoicesPanel::PresentAttributes(const FLDCombatOwnerView* Combat)
+{
+    if(!AttributeSummary){return;}
+    TArray<FString> Lines;
+    if(Combat){for(const FLDCombatAttributeRowView& Row:Combat->Attributes)
     {
-        // Centred 8 units above the card, read from last frame's layout. The card's place does not depend on the popup, so
-        // this never feeds back; the popup is only pushed sideways to stay on screen.
-        const FGeometry& Layer=DetailLayer->GetCachedGeometry();const FGeometry& Card=Cards[DetailCard].Button->GetCachedGeometry();
-        const FVector2D CardTop=Layer.AbsoluteToLocal(Card.GetAbsolutePosition());
-        const FVector2D CardEnd=Layer.AbsoluteToLocal(Card.GetAbsolutePosition()+Card.GetAbsoluteSize());
-        const float Half=GrowthDetailWidth*.5f+8.f;const float Wide=float(Layer.GetLocalSize().X);
-        const float Centre=float(CardTop.X+CardEnd.X)*.5f;
-        const FVector2D Place(FMath::RoundToFloat(Wide>2*Half?FMath::Clamp(Centre,Half,Wide-Half):Centre),
-            FMath::RoundToFloat(FMath::Max(float(Popup->GetDesiredSize().Y),float(CardTop.Y)-8.f)));
-        if(!DetailSlot->GetPosition().Equals(Place,.5f)){DetailSlot->SetPosition(Place);}
-    }
+        const LDHUD::FAttributeRowView View=LDHUD::AttributeRow(Row);
+        Lines.Add(View.Name+TEXT("  ")+View.Final);
+    }}
+    GrowthText(AttributeSummary,Lines.IsEmpty()?TEXT("属性同步中"):FString::Join(Lines,TEXT("\n")));
 }
-void ULDChoicesPanel::SetBottomDock(float Bottom,float Left)
+void ULDChoicesPanel::PresentRestActions(bool bRest,bool bCanReset,bool bCanReady,const FString& ReadyLabel)
 {
-    BottomDock=Bottom;DockLeft=Left;
-    if(DockFrame){DockFrame->SetPadding(FMargin(FMath::Max(0.f,Left),0,0,Bottom));}
-}
-float ULDChoicesPanel::PanelTop() const
-{
-    return BottomDock+(MainPanel?float(MainPanel->GetDesiredSize().Y)*GrowthPanelScale:0.f);
+    GrowthShown(RestTrainingButton,bRest,ESlateVisibility::Visible);
+    GrowthShown(RestReadyButton,bRest,ESlateVisibility::Visible);
+    GrowthEnabled(RestTrainingButton,bCanReset);
+    GrowthEnabled(RestReadyButton,bCanReady);
+    if(RestReadyButton){GrowthText(Cast<UTextBlock>(RestReadyButton->GetContent()),ReadyLabel);}
 }
 UWidget* ULDChoicesPanel::FocusScope() const{return MainPanel;}
 UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}
 void ULDChoicesPanel::OpenPanel()
 {
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())
+    {PC->BuildBlueprints->ToggleViewer();}
     bOpen=true;ResultNotice.Reset();SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
     if(!PendingRequest){SetFeedback(FString());}
 }
@@ -370,7 +460,7 @@ bool ULDChoicesPanel::ClosePanel()
     // Closing only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their state;
     // an unconfirmed replace, forget, fill gap or dismantle is withdrawn with its pickers.
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
-    PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
+    PinnedPreview=INDEX_NONE;PinnedComponent=NAME_None;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
 }
 double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
 void ULDChoicesPanel::MarkOpenedAutomatically()
@@ -381,7 +471,7 @@ void ULDChoicesPanel::MarkOpenedAutomatically()
 }
 void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
-    if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
+    if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged()||(MainPanel&&MainPanel->IsHovered()),bOwnHit))
     {
         UE_LOG(LogLDUI,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));
         ClosePanel();
@@ -395,11 +485,6 @@ int32 ULDChoicesPanel::StagedTotal() const
 {
     int32 Total=0;for(const int32 Count:Staged){Total+=Count;}return Total;
 }
-bool ULDChoicesPanel::HasAnythingToDo() const
-{
-    // #198: in a rest the services stay on offer (or explain why they are locked), so the panel never closes itself there.
-    return LDHUD::GrowthPending(&Latest,LatestMatch,LatestContent).Any()||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||Gate.bInRest;
-}
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,int64 BuildSafeAtMs,
     bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
 {
@@ -411,15 +496,8 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     if(StagedMatch!=Match){StagedMatch=Match;Staged.Reset();}
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,BuildSafeAtMs,bClock,NowMs):LDHUD::FBuildGateView();
     if(Content&&StatRows.IsEmpty()){BuildStatRows();}
-    if(bStatsChanged){bDetailStale=true;bCardsStale=true;bComponentTextStale=true;}
+    if(bStatsChanged){bCardsStale=true;bComponentTextStale=true;}
     RefreshAll();
-    // Nothing left to do: an open panel would only say so, so it closes itself; the last result still reaches the player
-    // as a toast. A request in flight keeps it open.
-    if(bOpen&&Usable()&&!PendingRequest&&!HasAnythingToDo())
-    {
-        const FString Result=ResultNotice;ClosePanel();
-        if(!Result.IsEmpty()&&Notify){Notify(FString(LDTerms::Choice)+TEXT("：")+Result);}
-    }
 }
 void ULDChoicesPanel::RefreshOffer()
 {
@@ -435,7 +513,7 @@ void ULDChoicesPanel::RefreshOffer()
         // A new offer (or new numbers) replaces the cards; ids and revisions travel with the click, never a row index.
         if(bNewOffer){PinnedPreview=INDEX_NONE;}
         ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
-        bDetailStale=true;bCardsStale=false;
+        bCardsStale=false;
         for(int32 Index=0;Index<Cards.Num();++Index)
         {
             FCardWidgets& Card=Cards[Index];
@@ -446,7 +524,6 @@ void ULDChoicesPanel::RefreshOffer()
             CardViews[Index]=Shown;
             GrowthText(Card.Name,Shown.Name);GrowthText(Card.Glyph,Shown.Glyph);
             GrowthText(Card.Summary,Shown.bKnown?Shown.Target+TEXT(" · ")+Shown.Cost:FString());
-            Card.Sentence->SetText(FText::FromString(Shown.Sentence));
             const bool bPicture=LDUIIcons::Apply(Card.Picture,Shown.IconId,GrowthIconRadius);
             Card.IconSize->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
             Card.Glyph->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
@@ -476,8 +553,11 @@ ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
         auto MakeText=[this](int32 Size,const FLinearColor& Ink)
         {UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);ScaleNewText(Line);RowWidgets.Add(Line);return Line;};
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);
+        Row.Picture=WidgetTree->ConstructWidget<UImage>();RowWidgets.Add(Row.Picture);
+        auto* IconSize=WidgetTree->ConstructWidget<USizeBox>();IconSize->SetWidthOverride(36);IconSize->SetHeightOverride(36);IconSize->SetContent(Row.Picture);
+        RowWidgets.Add(IconSize);Line->AddChildToHorizontalBox(IconSize)->SetPadding(FMargin(0,0,8,0));
         auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
-        Row.Name=MakeText(15,LDHUDStyle::TextPrimary);Lines->AddChildToVerticalBox(Row.Name);
+        Row.Name=MakeText(15,LDHUDStyle::TextPrimary);Row.Name->SetWrapTextAt(200);Lines->AddChildToVerticalBox(Row.Name);
         Row.Summary=MakeText(12,LDHUDStyle::TextSecondary);Lines->AddChildToVerticalBox(Row.Summary);
         auto* LinesSlot=Line->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
         for(uint8 Key=0;Key<3;++Key)
@@ -497,7 +577,7 @@ ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
             Line->AddChildToHorizontalBox(Replace)->SetPadding(FMargin(6,0,0,0));
             Row.Replace.Add(Replace);
         }
-        Row.Blocked=MakeText(13,LDHUDStyle::TextSecondary);
+        Row.Blocked=MakeText(13,LDHUDStyle::TextSecondary);Row.Blocked->SetWrapTextAt(180);
         auto* BlockedSlot=Line->AddChildToHorizontalBox(Row.Blocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
         Row.Row=Line;
         BlueprintList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,4));
@@ -521,6 +601,7 @@ void ULDChoicesPanel::RefreshBlueprints()
         FBlueprintRow& Row=BlueprintRowAt(Index);
         GrowthShown(Row.Row,true,ESlateVisibility::Visible);
         const LDHUD::FActiveCardView View=LDHUD::ActiveCard(ShownBlueprints[Index],LatestContent,LatestStats);
+        LDUIIcons::Apply(Row.Picture,View.IconId,0);
         GrowthText(Row.Name,View.Name);
         GrowthText(Row.Summary,View.bKnown?View.Target+TEXT(" · ")+View.Cost:View.SentencePlain);
         if(!Row.Row->GetToolTipText().ToString().Equals(View.SentencePlain,ESearchCase::CaseSensitive)){Row.Row->SetToolTipText(FText::FromString(View.SentencePlain));}
@@ -528,7 +609,7 @@ void ULDChoicesPanel::RefreshBlueprints()
         {
             GrowthShown(Row.Learn[Key],bEmpty[Key],ESlateVisibility::Visible);
             GrowthEnabled(Row.Learn[Key],Gate.bCanLearn&&!PendingRequest);
-            GrowthShown(Row.Replace[Key],Gate.bInRest&&!bEmpty[Key],ESlateVisibility::Visible);
+            GrowthShown(Row.Replace[Key],Gate.bInRest&&ServiceContext==ELDRestService::Trainer&&!bEmpty[Key],ESlateVisibility::Visible);
             GrowthEnabled(Row.Replace[Key],ReplaceWhy.IsEmpty()&&!PendingRequest);
         }
         GrowthText(Row.Blocked,Blocked);
@@ -551,12 +632,10 @@ void ULDChoicesPanel::BuildStatRows()
         FStatRow& Row=StatRows.AddDefaulted_GetRef();
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);
         Row.Name=MakeText(15,LDHUDStyle::TextPrimary,false);
-        auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(80.f);NameBox->SetContent(Row.Name);RowWidgets.Add(NameBox);
+        auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(60.f);NameBox->SetContent(Row.Name);RowWidgets.Add(NameBox);
         Line->AddChildToHorizontalBox(NameBox)->SetVerticalAlignment(VAlign_Center);
-        Row.PerPoint=MakeText(13,LDHUDStyle::TextSecondary,true);
-        auto* PerPointSlot=Line->AddChildToHorizontalBox(Row.PerPoint);PerPointSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));PerPointSlot->SetVerticalAlignment(VAlign_Center);
         Row.Points=MakeText(15,LDHUDStyle::TextAccent,false);
-        auto* PointsBox=WidgetTree->ConstructWidget<USizeBox>();PointsBox->SetWidthOverride(90.f);PointsBox->SetContent(Row.Points);RowWidgets.Add(PointsBox);
+        auto* PointsBox=WidgetTree->ConstructWidget<USizeBox>();PointsBox->SetWidthOverride(68.f);PointsBox->SetContent(Row.Points);RowWidgets.Add(PointsBox);
         Line->AddChildToHorizontalBox(PointsBox)->SetVerticalAlignment(VAlign_Center);
         const FString Id=StatOrder[Index]->Id;
         Row.Minus=LDWidgets::Button(WidgetTree,TEXT("−"),[this,Index](){StagePoint(Index,-1);},false,FName(*(TEXT("GrowthPointMinus_")+Id)));
@@ -584,7 +663,7 @@ void ULDChoicesPanel::RefreshPoints()
         FStatRow& Row=StatRows[Index];
         const FLDDemoStatDefinition& Stat=*StatOrder[Index];
         const LDHUD::FStatRowView View=LDHUD::StatRow(Stat,LDHUD::StatPointsOf(Latest,FName(*Stat.Id)),LatestContent);
-        GrowthText(Row.Name,View.Name);GrowthText(Row.PerPoint,View.PerPoint);
+        GrowthText(Row.Name,View.Name);Row.Name->SetToolTipText(FText::FromString(View.PerPoint));
         GrowthText(Row.Points,Staged[Index]>0?FString::Printf(TEXT("%d 点 +%d"),View.Points,Staged[Index]):FString::Printf(TEXT("%d 点"),View.Points));
         GrowthEnabled(Row.Minus,Staged[Index]>0);
         GrowthEnabled(Row.Plus,StagedTotal()<Unspent&&Staged[Index]<MAX_uint8);
@@ -596,6 +675,23 @@ void ULDChoicesPanel::RefreshPoints()
 void ULDChoicesPanel::RefreshAll()
 {
     RefreshOffer();RefreshOpeningBase();RefreshComponentChoices();RefreshBinding();RefreshTarget();RefreshBlueprints();RefreshComponents();RefreshPoints();RefreshRest();
+    GrowthShown(OfferSection,ActiveTab==0&&(!Usable()||Latest.bHasActiveOffer||Latest.QueuedActiveOpportunities>0));
+    GrowthShown(OpeningBaseSection,ActiveTab==0&&Usable()&&Latest.bOpeningBasePending&&!ShownBaseOptions.IsEmpty());
+    GrowthShown(ComponentChoiceSection,ActiveTab==0&&!ShownChoices.IsEmpty());
+    GrowthShown(BlueprintSection,(ActiveTab==0||(ActiveTab==2&&ServiceContext==ELDRestService::Trainer))&&!ShownBlueprints.IsEmpty());
+    GrowthShown(ComponentSection,ActiveTab==1);
+    GrowthText(EmptyNote,!Usable()?TEXT("构筑数据同步中…"):TEXT("没有待选技能或主动图纸。属性点在左侧分配；持有的构件在“构件背包”。"));
+    GrowthShown(EmptyNote,ActiveTab==0&&!Latest.bHasActiveOffer&&!Latest.bOpeningBasePending&&ShownChoices.IsEmpty()&&ShownBlueprints.IsEmpty());
+    GrowthShown(RestSection,ActiveTab==2&&Gate.bInRest&&ServiceContext!=ELDRestService::None);
+    for(int32 Index=0;Index<TabButtons.Num();++Index)
+    {GrowthTint(TabButtons[Index],Index==ActiveTab?FLinearColor(.14f,.25f,.28f):GrowthCardIdle);}
+    for(uint8 Key=0;Key<3&&Key<EquippedNames.Num();++Key)
+    {
+        const FName Id=LDHUD::ActiveInSlot(Latest,Key);
+        const LDHUD::FActiveCardView Card=Id.IsNone()?LDHUD::FActiveCardView():LDHUD::ActiveCard(Id,LatestContent,LatestStats);
+        GrowthText(EquippedNames[Key],Id.IsNone()?TEXT("空槽"):Card.Name);
+        LDUIIcons::Apply(EquippedIcons[Key],Card.IconId,0);
+    }
     bComponentTextStale=false;
 }
 ULDChoicesPanel::FBaseCard& ULDChoicesPanel::BaseCardAt(int32 Index)
@@ -629,10 +725,6 @@ void ULDChoicesPanel::BuildComponentCard(FBaseCard& Card,FName ButtonName,TFunct
     auto* IconSlot=Face->AddChildToHorizontalBox(IconFrame);IconSlot->SetVerticalAlignment(VAlign_Top);IconSlot->SetPadding(FMargin(0,0,10,0));
     auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
     Card.Name=MakeText(17,LDHUDStyle::TextPrimary);Card.Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Lines->AddChildToVerticalBox(Card.Name);
-    Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*(ButtonName.ToString()+TEXT("Sentence"))));RowWidgets.Add(Card.Sentence);
-    if(!FMath::IsNearlyEqual(AppliedTextScale,1.f)){LDWidgets::SetRichTextSize(Card.Sentence,FMath::RoundToInt(13*AppliedTextScale));}
-    Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);Card.Sentence->SetVisibility(ESlateVisibility::HitTestInvisible);
-    Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
     Card.Action=MakeText(13,LDHUDStyle::TextAccent);Card.Action->SetWrapTextAt(GrowthCardWidth-GrowthIconSize-40.f);
     Lines->AddChildToVerticalBox(Card.Action)->SetPadding(FMargin(0,4,0,0));
     auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
@@ -650,8 +742,6 @@ void ULDChoicesPanel::ShowComponentCard(FBaseCard& Card,FName Id)
     const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Id,LatestContent,LatestStats);
     Card.ShownId=Id;Card.bBinding=View.bBinding;
     GrowthText(Card.Name,View.Name);GrowthText(Card.Glyph,View.Glyph);
-    Card.Sentence->SetText(FText::FromString(View.Sentence));
-    Card.Button->SetToolTipText(FText::FromString(View.SentencePlain));
     if(Card.AppliedIcon!=View.IconId||View.IconId.IsEmpty())
     {
         Card.AppliedIcon=View.IconId;
@@ -783,21 +873,18 @@ ULDChoicesPanel::FComponentRow& ULDChoicesPanel::ComponentRowAt(int32 Index)
         FComponentRow& Row=ComponentRows.AddDefaulted_GetRef();
         auto MakeText=[this](int32 Size,const FLinearColor& Ink)
         {UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);ScaleNewText(Line);RowWidgets.Add(Line);return Line;};
-        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);
         auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
-        Row.Name=MakeText(15,LDHUDStyle::TextPrimary);Lines->AddChildToVerticalBox(Row.Name);
-        Row.Summary=MakeText(12,LDHUDStyle::TextSecondary);Row.Summary->SetWrapTextAt(GrowthPanelWidth-300.f);Lines->AddChildToVerticalBox(Row.Summary);
-        auto* LinesSlot=Line->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
-        Row.State=MakeText(14,LDHUDStyle::TextAccent);
-        auto* StateSlot=Line->AddChildToHorizontalBox(Row.State);StateSlot->SetVerticalAlignment(VAlign_Center);StateSlot->SetPadding(FMargin(6,0,0,0));
-        Row.Enable=LDWidgets::Button(WidgetTree,LDTerms::EnableComponent,[this,RowIndex](){EnableComponent(RowIndex);},false,
-            FName(*FString::Printf(TEXT("GrowthEnableComponent%d"),RowIndex)));
-        ScaleNewText(Cast<UTextBlock>(Row.Enable->GetContent()));RowWidgets.Add(Row.Enable);
-        Line->AddChildToHorizontalBox(Row.Enable)->SetPadding(FMargin(6,0,0,0));
-        Row.Blocked=MakeText(13,LDHUDStyle::TextSecondary);
-        auto* BlockedSlot=Line->AddChildToHorizontalBox(Row.Blocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
-        Row.Row=Line;
-        ComponentList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,4));
+        Row.Picture=WidgetTree->ConstructWidget<UImage>();RowWidgets.Add(Row.Picture);
+        auto* Icon=WidgetTree->ConstructWidget<USizeBox>();Icon->SetWidthOverride(52);Icon->SetHeightOverride(52);Icon->SetContent(Row.Picture);
+        RowWidgets.Add(Icon);Lines->AddChildToVerticalBox(Icon)->SetHorizontalAlignment(HAlign_Center);
+        Row.Name=MakeText(14,LDHUDStyle::TextPrimary);Row.Name->SetWrapTextAt(128);
+        Lines->AddChildToVerticalBox(Row.Name)->SetPadding(FMargin(0,6,0,4));
+        Row.State=MakeText(12,LDHUDStyle::TextAccent);Row.State->SetWrapTextAt(128);Lines->AddChildToVerticalBox(Row.State);
+        Row.Inspect=LDWidgets::Button(WidgetTree,TEXT(""),[this,RowIndex](){PreviewComponent(RowIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthInspectComponent%d"),RowIndex)));
+        RowWidgets.Add(Row.Inspect);Row.Inspect->SetContent(Lines);
+        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(146);Size->SetHeightOverride(132);Size->SetContent(Row.Inspect);
+        RowWidgets.Add(Size);Row.Row=Size;ComponentList->AddChildToWrapBox(Size);
     }
     return ComponentRows[Index];
 }
@@ -805,6 +892,8 @@ void ULDChoicesPanel::RefreshComponents()
 {
     ShownComponents.Reset();
     if(Usable()){for(const FLDComponentInstanceView& Owned:Latest.Components){ShownComponents.Add(Owned.DefinitionId);}}
+    int32 Installed=0;for(const FLDComponentInstanceView& Owned:Latest.Components){Installed+=Owned.bInstalled?1:0;}
+    GrowthText(ComponentHeading,ShownComponents.IsEmpty()?TEXT("构件背包 · 暂无构件"):FString::Printf(TEXT("构件背包 · 已安装 %d / 持有 %d"),Installed,ShownComponents.Num()));
     GrowthShown(ComponentSection,!ShownComponents.IsEmpty());
     for(int32 Index=0;Index<FMath::Max(ShownComponents.Num(),ComponentRows.Num());++Index)
     {
@@ -816,19 +905,14 @@ void ULDChoicesPanel::RefreshComponents()
         {
             const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Owned.DefinitionId,LatestContent,LatestStats);
             Row.ShownId=Owned.DefinitionId;
-            GrowthText(Row.Summary,Card.SentencePlain);
+            LDUIIcons::Apply(Row.Picture,Card.IconId,0);
         }
         const LDHUD::FComponentRowView View=LDHUD::ComponentRow(Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs);
         FString Name=LDHUD::ContentName(LatestContent,Owned.DefinitionId.ToString());
-        // B18 shows what it is bound to once installed; a mod or connector where it sits (#198 F).
-        Name+=LDHUD::InstalledTargetText(Owned,LatestContent);
         GrowthText(Row.Name,Name);
-        GrowthText(Row.State,View.bInstalled?FString(LDTerms::ComponentEnabled):FString());
-        GrowthShown(Row.State,View.bInstalled,ESlateVisibility::HitTestInvisible);
-        GrowthShown(Row.Enable,!View.bInstalled,ESlateVisibility::Visible);
-        GrowthEnabled(Row.Enable,View.bCanEnable&&!PendingRequest);
-        GrowthText(Row.Blocked,View.Blocked);
-        GrowthShown(Row.Blocked,!View.Blocked.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        GrowthText(Row.State,View.bInstalled?TEXT("已安装"):View.bCanEnable?TEXT("可安装"):TEXT("不可安装"));
+        Row.Inspect->SetToolTipText(FText::FromString(View.Blocked));
+        GrowthTint(Row.Inspect,PinnedComponent==Owned.DefinitionId?FLinearColor(.14f,.25f,.28f):GrowthCardIdle);
     }
 }
 void ULDChoicesPanel::RefreshBinding()
@@ -1146,6 +1230,7 @@ bool ULDChoicesPanel::ConfirmPoints()
 FString ULDChoicesPanel::NpcRefusal() const
 {
     if(!Gate.bCanBuyNpc){return Gate.NpcBlocked;}
+    if(ServiceContext!=ELDRestService::SkillMerchant){return TEXT("请先靠近技能商人");}
     if(!LatestContent){return TEXT("内容数据同步中");}
     const int64 Price=LatestContent->Parameters.NpcActivePoints;
     if(Price<=0){return TEXT("NPC 价格数据缺失");}
@@ -1156,17 +1241,20 @@ FString ULDChoicesPanel::NpcRefusal() const
 FString ULDChoicesPanel::RespecRefusal() const
 {
     if(!Gate.bCanRespec){return Gate.RespecBlocked;}
+    if(ServiceContext!=ELDRestService::Trainer){return TEXT("请先靠近训练师");}
     int64 Allocated=0;for(const FLDStatPointsView& Row:Latest.StatPoints){Allocated+=FMath::Max(0,Row.Points);}
     return Allocated>0?FString():LDHUD::GrowthReasonText(ELDGrowthReason::NothingToRespec);
 }
 FString ULDChoicesPanel::ReplaceRefusal() const
 {
     if(!Gate.bCanReplace){return Gate.ReplaceBlocked;}
+    if(ServiceContext!=ELDRestService::Trainer){return TEXT("请先靠近训练师");}
     return Latest.bHasActiveOffer?LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding):FString();
 }
 FString ULDChoicesPanel::ForgetRefusal() const
 {
     if(!Gate.bCanForget){return Gate.ForgetBlocked;}
+    if(ServiceContext!=ELDRestService::Trainer){return TEXT("请先靠近训练师");}
     return Latest.bHasActiveOffer?LDHUD::GrowthReasonText(ELDGrowthReason::OfferOutstanding):FString();
 }
 bool ULDChoicesPanel::RestConfirmHolds() const
@@ -1203,7 +1291,12 @@ void ULDChoicesPanel::RefreshRest()
     if(!RestSection){return;}
     const bool bShown=Usable()&&Gate.bInRest;
     Materials=bShown?LDHUD::MaterialServices(Latest,LatestContent,Gate):LDHUD::FMaterialServicesView();
-    GrowthShown(RestSection,bShown);
+    if(ServiceContext!=ELDRestService::ComponentArtisan)
+    {
+        if(Materials.FillGapBlocked.IsEmpty()){Materials.FillGapBlocked=TEXT("请先靠近构件工匠");}
+        if(Materials.DismantleBlocked.IsEmpty()){Materials.DismantleBlocked=TEXT("请先靠近构件工匠");}
+    }
+    GrowthShown(RestSection,bShown&&ActiveTab==2&&ServiceContext!=ELDRestService::None);
     // A confirm line whose terms changed (another slot content, a used blueprint, changed components, the rest over) is
     // withdrawn, never resent.
     if(RestConfirm.Kind!=ELDBuildCommandKind::None&&(!bShown||!RestConfirmHolds()))
@@ -1239,6 +1332,13 @@ void ULDChoicesPanel::RefreshRest()
     GrowthText(ForgetBlocked,ForgetWhy);
     GrowthShown(ForgetBlocked,!ForgetWhy.IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshMaterials();
+    GrowthShown(NpcButton->GetParent(),ServiceContext==ELDRestService::SkillMerchant);
+    GrowthShown(RespecButton->GetParent(),ServiceContext==ELDRestService::Trainer);
+    GrowthShown(ForgetBlocked->GetParent(),ServiceContext==ELDRestService::Trainer);
+    GrowthShown(FillGapButton->GetParent(),ServiceContext==ELDRestService::ComponentArtisan);
+    GrowthShown(DismantleButton->GetParent(),ServiceContext==ELDRestService::ComponentArtisan);
+    if(ServiceContext!=ELDRestService::ComponentArtisan)
+    {GrowthShown(GapTargetLine,false);GrowthShown(GapFillerLine,false);GrowthShown(DismantleSection,false);}
     if(RestConfirm.Kind!=ELDBuildCommandKind::None)
     {
         const auto Name=[this](FName Id){return LDHUD::ContentName(LatestContent,Id.ToString());};
@@ -1281,7 +1381,8 @@ ULDCommandButton* ULDChoicesPanel::GapTargetButtonAt(int32 Index)
         ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickGapTarget(ButtonIndex);},false,
             FName(*FString::Printf(TEXT("GrowthRestGapTarget%d"),ButtonIndex)));
         ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
-        GapTargetLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
+        auto* Caption=CastChecked<UTextBlock>(Pick->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(180);
+        GapTargetLine->AddChildToWrapBox(Pick);
         GapTargetButtons.Add(Pick);
     }
     return GapTargetButtons[Index];
@@ -1294,7 +1395,8 @@ ULDCommandButton* ULDChoicesPanel::GapFillerButtonAt(int32 Index)
         ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickGapFiller(ButtonIndex);},false,
             FName(*FString::Printf(TEXT("GrowthRestGapFiller%d"),ButtonIndex)));
         ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
-        GapFillerLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
+        auto* Caption=CastChecked<UTextBlock>(Pick->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(180);
+        GapFillerLine->AddChildToWrapBox(Pick);
         GapFillerButtons.Add(Pick);
     }
     return GapFillerButtons[Index];
@@ -1312,6 +1414,7 @@ ULDCommandButton* ULDChoicesPanel::DismantleButtonAt(int32 Index)
         ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickDismantle(ButtonIndex);},false,
             FName(*FString::Printf(TEXT("GrowthRestDismantlePick%d"),ButtonIndex)));
         ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
+        auto* Caption=CastChecked<UTextBlock>(Pick->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(210);
         DismantleLines.Last()->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(ButtonIndex%GrowthDismantlePerLine?6.f:0.f,0,0,0));
         DismantleButtons.Add(Pick);
     }

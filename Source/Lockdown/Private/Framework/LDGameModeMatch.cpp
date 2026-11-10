@@ -106,11 +106,11 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     {
         if (IsMemberPresent(Id) && !RestLives.Contains(Id))
         {
-            Error = TEXT("A spawned contender has no private rest life; the life provider is not wired.");
+            Error = TEXT("A spawned contender has no rest life; the life provider is not wired.");
             return Abort(ELDSessionReject::MissingDemoDefinition);
         }
     }
-    // #198: everyone stands in the private rest space of the opening rest R0 (build, training, NPC, sign-up); the world is
+    // #198: everyone stands in the shared room of the opening rest R0 (build, training, NPC, sign-up); the world is
     // frozen until R0 returns to the field.
     MatchPhase = ELDMatchPhase::Rest;
     ++TimelineRevision;
@@ -227,6 +227,8 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     MatchStartedAtMs = 0;
     Timeline.Reset();
     RestSignups.Reset();
+    RestReady.Reset();
+    ClearRestServiceNPCs();
     LockedEntrants.Reset();
     RestReturns.Reset();
     RestLives.Reset();

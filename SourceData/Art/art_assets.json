@@ -972,21 +972,21 @@
     {
       "prop": "building_shops",
       "zone": "outside",
-      "x": 5950,
+      "x": 9950,
       "y": -1700,
       "yaw": -90
     },
     {
       "prop": "building_block",
       "zone": "outside",
-      "x": 6150,
+      "x": 10150,
       "y": 100,
       "yaw": -90
     },
     {
       "prop": "building_shops",
       "zone": "outside",
-      "x": 5950,
+      "x": 9950,
       "y": 1900,
       "yaw": -90
     },

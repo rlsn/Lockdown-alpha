@@ -492,6 +492,9 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
             return;
         }
         State->Match=MatchContext.Generation;
+        State->bRestReady=IsRestReady(State->ContenderId);
+        State->bCanRestReady=CanRestReady(State->ContenderId);
+        State->NearbyRestService=NearbyRestService(State->ContenderId);
         // Growth: the owner's level, XP and offer in the same publication.
         State->Growth=Growth?Growth->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;

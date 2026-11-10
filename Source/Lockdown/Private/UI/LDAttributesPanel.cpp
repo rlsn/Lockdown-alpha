@@ -4,12 +4,15 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Framework/LDPlayerController.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
+#include "Components/ScaleBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -141,13 +144,14 @@ TSharedRef<SWidget> ULDAttributesPanel::RebuildWidget()
         StatPointsText=AddSection(LDTerms::StatPoints);
         StatusText=AddSection(TEXT("临时状态"));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
-        auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetMaxDesiredHeight(620);HeightBox->SetContent(Scroll);
+        auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetHeightOverride(540);HeightBox->SetContent(Scroll);
         Root->AddChildToVerticalBox(HeightBox)->SetPadding(FMargin(0,12,0,0));
         Root->AddChildToVerticalBox(MakeText(TEXT("数值由战斗属性投影统一计算，界面只显示，不另行重算。"),13,AttrPanelDim,true))->SetPadding(FMargin(0,10,0,0));
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(720);WidthBox->SetContent(MainPanel);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Top);
-        Frame->SetPadding(FMargin(0,140,0,0));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(WidthBox);
+        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);Scale->SetStretchDirection(EStretchDirection::DownOnly);Scale->SetContent(WidthBox);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
+        Frame->SetPadding(FMargin(32,90,32,175));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
         WidgetTree->RootWidget=Frame;
         SetVisibility(bOpen?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     }
@@ -158,6 +162,8 @@ UWidget* ULDAttributesPanel::HitArea() const{return MainPanel;}
 bool ULDAttributesPanel::IsPanelOpen() const{return bOpen;}
 void ULDAttributesPanel::OpenPanel()
 {
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())
+    {PC->BuildBlueprints->ToggleViewer();}
     // Opening never takes keyboard focus: world input and any armed action stay where they were.
     bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }

@@ -1101,8 +1101,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     }
     const bool bAlive = Life.Phase == ELDLifePhase::Alive;
     TArray<const FLDObservedTarget*> Visible;
-    // #198 rest vision filter: a contender in its private rest space sees only its own rest group, and nobody sees the
-    // frozen world during a rest.
+    // #198 rest vision filter: contenders share the rest group, while the frozen field stays hidden.
     const ALDGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
     const ALDCombatDirector* Combat = Mode ? Mode->Combat.Get() : nullptr;
     // #198 session D (approved §3/§6): spectators (and the eliminated) are explicitly allowed to watch every arena body;
@@ -1152,6 +1151,12 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
                 continue;
             }
             if (Combat && Combat->IsHiddenFrom(Observer.ContenderId, Target.Body)) { continue; }
+            if (Mode->IsInRestSpace(Observer.ContenderId)
+                && (Mode->IsInRestSpace(Target.Body.Victim.EntityId) || Mode->IsTrainingDummy(Target.Body.Victim.EntityId)))
+            {
+                Visible.Add(&Target);
+                continue;
+            }
             bool bSeen = false;
             if (!Resolve(Foot, Target, bSeen)) { return false; }
             if (!bSeen && bPKObserver && bArenaBody)

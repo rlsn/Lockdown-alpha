@@ -7,13 +7,15 @@
 #include "PK/LDPKDirector.h"
 
 // #198 rest phases: the Combat side of the approved phase-boundary resource policy (issue #198 comment 6752601175 §8)
-// and of the private rest space. Field bodies have no isolation group; a rest life has its owner's group, so nothing
+// and of the shared rest space. Field bodies have no isolation group; rest lives share one group, so nothing
 // crosses between rest groups or into the frozen field. A frozen world body (camp member,
 // Boss) is suspended: it keeps HP/MP, regenerates nothing, and can neither be affected nor act.
 
 bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
 {
     if (IsOutOfGroup(SourceEntity,Target)) { return true; }
+    // Sharing visibility is not permission to damage/control another trainee (or oneself through a released effect).
+    if (Target.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Target.bTrainingDummy) { return true; }
     // #198 session D: PK friendly fire is off; a body still affects itself.
     if (Target.PKSide==0 || SourceEntity==Target.Victim.EntityId) { return false; }
     uint8 SourceSide=0;
@@ -38,7 +40,7 @@ bool ALDCombatDirector::ActingGroup(const FGuid& Entity, FGuid& OutGroup) const
     {
         // A contender between lives keeps the group of the space it is in: its released effects never cross it.
         const ALDGameMode* Mode=Core();
-        if (Mode && Mode->IsInRestSpace(Entity)) { OutGroup=Entity; }
+        if (Mode && Mode->IsInRestSpace(Entity)) { OutGroup=ALDGameMode::RestIsolationGroup(); }
         // #198 session D: an entrant between lives during the PK keeps the PK group.
         else if (Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive() && Mode->PKDirector->SideOf(Entity)!=0)
         {
@@ -70,7 +72,7 @@ bool ALDCombatDirector::SetRestIsolation(const FLDCombatBodyRef& Ref, bool bRest
         Error=TEXT("Rest isolation needs a living contender body and the current RespawnsAndWorld permit.");
         return false;
     }
-    const FGuid Group=bRest ? Ref.Victim.EntityId : FGuid();
+    const FGuid Group=bRest ? ALDGameMode::RestIsolationGroup() : FGuid();
     if (Body->IsolationGroup!=Group)
     {
         Body->IsolationGroup=Group;
@@ -243,7 +245,7 @@ bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictim
     Out.Resources.HpP2=Out.Resources.MaxHpP2=Chassis.Final.MaxHPP2;
     Out.Resources.MpP2=Out.Resources.MaxMpP2=Chassis.Final.MaxMPP2;
     if (Out.PublicFacts.IsSet()) { Out.PublicFacts->Level=OwnerLevel; }
-    Out.IsolationGroup=OwnerId;
+    Out.IsolationGroup=ALDGameMode::RestIsolationGroup();
     Out.bTrainingDummy=true;
     Error.Reset();
     return true;

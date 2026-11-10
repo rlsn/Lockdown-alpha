@@ -558,7 +558,7 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
     {
         ALDCharacter* Actor=nullptr;
         const FLDBodyCombatState* Body=FindBody(Ref,&Actor);
-        if (!Body || !Actor || Body==&Holder || Body->bPendingDeath || Body->IsolationGroup!=Holder.IsolationGroup) { return false; }
+        if (!Body || !Actor || Body==&Holder || Body->bPendingDeath || IsIsolated(Holder.Victim.EntityId,*Body)) { return false; }
         OutFoot=FootOf(*Actor);
         if (FVector::Dist2D(HolderFoot,OutFoot)>ReachCm) { return false; }
         const ELDSightResult Sight=Mode->Vision->TraceObservation(HolderFoot,*Actor,Registry->Revision());
@@ -719,7 +719,7 @@ bool ALDCombatDirector::ResolveKnockbackImpact(FLDBodyCombatState& Body, const F
         PendingHits.Add(MoveTemp(Hit));
     };
     const FLDBodyCombatState* Other=bBody && BlockerActor ? StateFor(BlockerActor) : nullptr;
-    const bool bLegalBody=Other && !Other->bPendingDeath && Other!=&Body && Other->IsolationGroup==Body.IsolationGroup
+    const bool bLegalBody=Other && !Other->bPendingDeath && Other!=&Body && !IsIsolated(Impact.Holder.Victim.EntityId,*Other)
         && Other->Victim.EntityId!=Impact.Holder.Victim.EntityId
         && !(Other->Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(Other->Victim.EntityId));
     if (!bBody)

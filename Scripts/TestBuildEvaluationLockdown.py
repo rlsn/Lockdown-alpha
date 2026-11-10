@@ -69,7 +69,8 @@ def contender(role, slot, contender_id, hp=31000, body=True, **rest):
 
 
 def result(kind="kill", victim="opponent", killer="subject", status="Completed", **rest):
-    out = {"schema": lockdown.NATIVE_RESULT_SCHEMA, "schema_version": 3, "run_id": "r", "case_id": "c000a-t", "seed": "7",
+    out = {"schema": lockdown.NATIVE_RESULT_SCHEMA, "schema_version": lockdown.NATIVE_RESULT_SCHEMA_VERSION,
+           "run_id": "r", "case_id": "c000a-t", "seed": "7",
            "status": status, "reason": "", "generation": 2, "content_root": CONTENT_ROOT, "started_at_ms": 5000, "ended_at_ms": 20000,
            "outcome": {"kind": kind, "victim": victim if kind == "kill" else "", "killer": killer if kind == "kill" else "",
                        "t_ms": 15000 if kind == "kill" else 45000},
@@ -99,11 +100,12 @@ def choice(t, contender_id, ordinal, card, result_kind, slot, stored, level, pen
 def trace(*extra, drop=()):
     lines = [
         ("begin", f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"),
-        ("start", "LD_MATCH_STARTED generation=2 contenders=3 open_at_ms=185000 countdown_ms=5000 started_at_ms=5000"),
+        ("start", "LD_MATCH_STARTED generation=2 contenders=3 started_at_ms=0 rest_ends_at_ms=5000"),
         ("s_offer1", f"LD_OFFER t=0 contender={S} ordinal=1 level=1 cards=active_elbow,active_open_mic,active_unplug"),
         ("o_offer1", f"LD_OFFER t=0 contender={O} ordinal=1 level=1 cards=active_open_mic,active_snark_bolt,active_unplug"),
         ("s_choice1", choice(33, S, 1, "active_elbow", "learned", "Q", "-", 1, 0)),
         ("o_choice1", choice(33, O, 1, "active_open_mic", "learned", "Q", "-", 1, 0)),
+        ("field", "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"),
         ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "),
         ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->6 choices_earned=2 unspent_points=5"),
         ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "),
@@ -157,7 +159,7 @@ def build_line(t, kind, card="-", points="-", installed="-", bind="-", unspent=0
 
 
 WORKSHOP_LINES = {
-    "field_enter": "LD_FIELD_ENTER generation=2 segment=0 at_ms=5010 field_t_ms=0 final=0",
+    "field_enter": "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0",
     "w_base": build_line(100, "OpeningBase", "component_dirty_trick", installed="1", bind="active_elbow:Water", unspent=3),
     "w_points": build_line(200, "AllocatePoints", points="0,0,3,0,0"),
     "w_off": build_line(300, "UninstallComponent", "component_dirty_trick", installed="0"),
@@ -171,7 +173,7 @@ WORKSHOP_LINES = {
 
 def workshop_trace(*extra, drop=(), replace=None):
     lines = dict(WORKSHOP_LINES, **(replace or {}))
-    return trace(*[line for key, line in lines.items() if key not in drop], *extra, drop=("s_points", "s_level"))
+    return trace(*[line for key, line in lines.items() if key not in drop], *extra, drop=("field", "s_points", "s_level"))
 
 
 def component(name, installed=False, source="LevelUp", target_kind="None", target_id="", element="None", bound_active=""):
@@ -245,7 +247,8 @@ class CapabilitiesTest(AdapterCase):
         self.assertEqual(self.caps["decisions"]["preset_offer"]["sample_classes"], ["diagnostic"])
         duel = self.caps["scenarios"]["duel_site"]
         self.assertIn("capture", duel["parameters"]["site"])
-        self.assertEqual(duel["parameters"]["duel_timeout_ms"][1], self.content["boss"]["appear_at"]["ms"])
+        self.assertEqual(duel["parameters"]["duel_timeout_ms"][1],
+                         min(self.content["parameters"]["MATCH.FieldSegmentSec"]["ms"], self.content["boss"]["appear_at"]["ms"]) - 1)
         self.assertEqual(duel["parameters"]["active_offer_levels"], self.content["progression"]["active_offer_levels"])
         self.assertEqual(duel["parameters"]["stat_design_order"], list(STATS))
         self.assertEqual((duel["parameters"]["opening_points"], duel["parameters"]["points_per_level"]),
@@ -270,6 +273,14 @@ class PlanTest(AdapterCase):
             run = Path(temp) / "run"
             _, cases = core.plan(path, run, ROOT)
             return cases, (run / "native_input.json").exists()
+
+    def test_duel_timeout_cannot_reach_the_next_rest(self):
+        scenario = manifest()["scenario"]
+        end = self.content["parameters"]["MATCH.FieldSegmentSec"]["ms"]
+        scenario["parameters"]["duel_timeout_ms"] = end - 1
+        self.assertEqual(lockdown.scenario_problems(scenario, self.caps), [])
+        scenario["parameters"]["duel_timeout_ms"] = end
+        self.assertTrue(any("duel_timeout_ms" in problem for problem in lockdown.scenario_problems(scenario, self.caps)))
 
     def test_shipped_manifests_are_admitted_by_current_capabilities(self):
         paths = sorted((ROOT / "Scripts" / "BuildEvaluationManifests").glob("*.json"))
@@ -504,6 +515,38 @@ class PlanTest(AdapterCase):
 
 
 class EvidenceTest(AdapterCase):
+    def test_first_field_is_duel_clock_origin_after_opening_rest(self):
+        out = self.evidence(text=trace())
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 15000, "censored": False})
+
+    def test_match_start_cannot_be_substituted_for_field_start(self):
+        value = result(started_at_ms=0)
+        value["outcome"]["t_ms"] = 20000
+        out = self.evidence(value, trace())
+        self.assertEqual(out["status"], "Invalid", out)
+        self.assertIn("field", out["reason"].lower())
+
+    def test_field_start_must_be_unique_and_match_generation_and_time(self):
+        field = "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"
+        for text in (trace(drop=("field",)), trace(field),
+                     trace().replace(field, field.replace("generation=2", "generation=3")),
+                     trace().replace(field, field.replace("at_ms=5000", "at_ms=5001")),
+                     trace().replace(field, field.replace("field_t_ms=0", "field_t_ms=1")),
+                     trace().replace("LD_MATCH_STARTED generation=2", "LD_MATCH_STARTED generation=3")):
+            with self.subTest(text=text):
+                out = self.evidence(text=text)
+                self.assertEqual(out["status"], "Invalid", out)
+                self.assertIn("TraceIncomplete", out["reason"])
+
+    def test_timeout_receipt_must_match_the_planned_horizon(self):
+        value = result(kind="timeout", ended_at_ms=50000)
+        value["contenders"][1] = contender("opponent", 1, O, hp=10000)
+        value["outcome"]["t_ms"] = 0
+        out = self.evidence(value, trace(drop=("lethal", "death", "death_reward")))
+        self.assertEqual(out["status"], "Invalid", out)
+        self.assertIn("horizon", out["reason"])
+
     def test_a_decided_duel_measures_only_committed_hits_up_to_the_outcome(self):
         out = self.evidence(text=trace(hit(21000, S, O, "9.00", "0.00", "9.00", "0.00", "0.00")))
         self.assertEqual(out["status"], "Completed", out["reason"])
@@ -589,7 +632,7 @@ class EvidenceTest(AdapterCase):
         self.assertEqual((self.evidence(native)["status"], self.evidence(native)["reason"]),
                          ("BudgetExceeded", "the Case exceeded its wall-clock budget"))
         self.assertIn("another Case", self.evidence(result(seed="8"))["reason"])
-        self.assertIn("another schema", self.evidence(result(schema_version=2))["reason"], "the retired result schema (no workshop plan)")
+        self.assertIn("another schema", self.evidence(result(schema_version=3))["reason"], "the old result uses the match clock")
 
     def test_malformed_events_and_terminal_values_are_rejected_without_crashing(self):
         traces = (
@@ -847,8 +890,8 @@ class EvidenceTest(AdapterCase):
         self.assertIn(f'InputSchema[] = TEXT("{lockdown.NATIVE_INPUT_SCHEMA}");', header)
         self.assertIn(f'ResultSchema[] = TEXT("{lockdown.NATIVE_RESULT_SCHEMA}");', header)
         self.assertIn(f'RunSchema[] = TEXT("{lockdown.NATIVE_RUN_SCHEMA}");', header)
-        self.assertIn(f"InputSchemaVersion = {lockdown.NATIVE_SCHEMA_VERSION};", header)
-        self.assertIn(f"ResultSchemaVersion = {lockdown.NATIVE_SCHEMA_VERSION};", header)
+        self.assertIn(f"InputSchemaVersion = {lockdown.NATIVE_INPUT_SCHEMA_VERSION};", header)
+        self.assertIn(f"ResultSchemaVersion = {lockdown.NATIVE_RESULT_SCHEMA_VERSION};", header)
 
 
 class WorkshopEvidenceTest(AdapterCase):
@@ -998,7 +1041,8 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertNotIn("subject@21000", spatial)
 
     def test_replay_evidence_contains_terminal_build_and_heartbeat_resources(self):
-        run = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": 3, "content_root": CONTENT_ROOT, "run_id": "r",
+        run = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": lockdown.NATIVE_RESULT_SCHEMA_VERSION,
+               "content_root": CONTENT_ROOT, "run_id": "r",
                "passed": True, "fixed_time_step": True, "seed_derivation": 1, "fixed_delta_seconds": 1 / 60,
                "product_version": "0.10.0", "engine_version": "5.8.4", "source_commit": "abc", "source_dirty": "false"}
         frozen = manifest()
@@ -1030,10 +1074,11 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertTrue(any("binary identity" in problem for problem in snapshot["problems"]))
 
     def test_run_identity(self):
-        good = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": 3, "content_root": self.caps["content"]["digest"].upper(),
+        good = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": lockdown.NATIVE_RESULT_SCHEMA_VERSION,
+                "content_root": self.caps["content"]["digest"].upper(),
                 "fixed_time_step": True, "seed_derivation": 1}
         self.assertEqual(lockdown.identity_problems(good, self.caps), [])
-        self.assertTrue(lockdown.identity_problems(dict(good, schema_version=2), self.caps), "the retired run schema")
+        self.assertTrue(lockdown.identity_problems(dict(good, schema_version=3), self.caps), "the old run uses the match clock")
         self.assertTrue(lockdown.identity_problems(dict(good, content_root="0" * 64), self.caps))
         self.assertTrue(lockdown.identity_problems(dict(good, fixed_time_step=False), self.caps))
         self.assertTrue(lockdown.identity_problems(dict(good, seed_derivation=2), self.caps))

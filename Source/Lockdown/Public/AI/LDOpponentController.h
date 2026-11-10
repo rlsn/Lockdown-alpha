@@ -161,6 +161,7 @@ private:
     TArray<FLDOpponentPOI> POIs;
     // #198 站圈报名: the own PK sign-up disk (this contender's roster slot); only rest frames carry it.
     FLDOpponentPOI SignupPOI;
+    TArray<FLDOpponentPOI> RestServicePOIs;
     FLDOpponentPolicyState Policy;
     FOrderTrack Incumbent;
     FOrderTrack Candidate;

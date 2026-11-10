@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 7
+ADAPTER_VERSION = 8
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -35,7 +35,8 @@ NATIVE_MAX_BUILD_STEPS = 32
 NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
 NATIVE_RESULT_SCHEMA = "lockdown.build_evaluation.native_result"
 NATIVE_RUN_SCHEMA = "lockdown.build_evaluation.native_run"
-NATIVE_SCHEMA_VERSION = 3
+NATIVE_INPUT_SCHEMA_VERSION = 3
+NATIVE_RESULT_SCHEMA_VERSION = 4
 SEED_DERIVATION = 1
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
@@ -95,7 +96,7 @@ METRICS = {
     "subject_hp_end_bp": {"unit": "basis points", "kind": "continuous", "direction": "higher_better",
                           "description": "the subject's HP share when the Case ended (0 when dead)"},
     "decision_time_ms": {"unit": "ms", "kind": "time_to_event", "direction": "descriptive",
-                         "description": "authority time from T=0 to the first duelist death, censored at the duel timeout"},
+                         "description": "authority time from first-field entry to the first duelist death, censored at the duel timeout"},
 }
 
 
@@ -152,6 +153,7 @@ def describe(project_root):
     places = sorted(anchor["id"] for anchor in world["anchors"] if anchor["kind"] in PUBLIC_PLACE_KINDS)
     progression = content["progression"]
     boss_appear_ms = int(content["boss"]["appear_at"]["ms"])
+    first_field_ms = int(content["parameters"]["MATCH.FieldSegmentSec"]["ms"])
     return {
         "schema": "build_evaluation.capabilities", "schema_version": 1,
         "adapter": {"id": ADAPTER_ID, "version": ADAPTER_VERSION},
@@ -191,7 +193,8 @@ def describe(project_root):
                 "sides": 2,
                 "budget_classes": ["standard"],
                 "metrics": list(METRICS),
-                "parameters": {"site": places, "duel_timeout_ms": [1000, boss_appear_ms],
+                "parameters": {"site": places, "duel_timeout_ms": [1000, min(first_field_ms, boss_appear_ms) - 1],
+                               "first_field_ms": first_field_ms,
                                "supply_xp": [0, cumulative_xp(progression)[-1]],
                                "xp_to_next": progression["xp_to_next"],
                                "active_offer_levels": progression["active_offer_levels"],
@@ -541,7 +544,7 @@ def scenario_problems(scenario, caps):
     timeout = params.get("duel_timeout_ms")
     low, high = spec["duel_timeout_ms"]
     if isinstance(timeout, bool) or not isinstance(timeout, int) or not low <= timeout <= high:
-        problems.append(f"IllegalScenario: duel_timeout_ms must be {low}..{high} (the Boss appears after that and is not a duelist)")
+        problems.append(f"IllegalScenario: duel_timeout_ms must be {low}..{high} (the duel must end before the first field ends or the Boss appears)")
     supply = params.get("supply_xp")
     low, high = spec["supply_xp"]
     if not isinstance(supply, dict) or set(supply) != set(ROLES) or any(
@@ -565,7 +568,7 @@ def native_input(run_id, manifest, caps, cases):
         out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
                     "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
                     "contenders": contenders})
-    return {"schema": NATIVE_INPUT_SCHEMA, "schema_version": NATIVE_SCHEMA_VERSION, "run_id": run_id,
+    return {"schema": NATIVE_INPUT_SCHEMA, "schema_version": NATIVE_INPUT_SCHEMA_VERSION, "run_id": run_id,
             "content_root": caps["content"]["digest"], "cases": out}
 
 
@@ -783,7 +786,7 @@ def build_problems(events, ids, plan, contenders, t_out, caps):
 
 def case_evidence(case, manifest, caps, result, trace_text):
     out = {"status": "Invalid", "reason": "", "metrics": {}, "facts": {}, "violations": []}
-    if result.get("schema") != NATIVE_RESULT_SCHEMA or result.get("schema_version") != NATIVE_SCHEMA_VERSION:
+    if result.get("schema") != NATIVE_RESULT_SCHEMA or result.get("schema_version") != NATIVE_RESULT_SCHEMA_VERSION:
         out["reason"] = "the native result has another schema"
         return out
     if result.get("case_id") != case["case_id"] or result.get("seed") != case["seed"]:
@@ -835,10 +838,10 @@ def case_evidence(case, manifest, caps, result, trace_text):
         return out
     if (not isinstance(result.get("outcome"), dict) or not {"kind", "victim", "killer", "t_ms"} <= result["outcome"].keys() or
             any(isinstance(result.get(key), bool) or not isinstance(result.get(key), int)
-                for key in ("started_at_ms", "ended_at_ms")) or
+                for key in ("generation", "started_at_ms", "ended_at_ms")) or
             any(not isinstance(result["outcome"][key], str) for key in ("kind", "victim", "killer")) or
             isinstance(result["outcome"]["t_ms"], bool) or not isinstance(result["outcome"]["t_ms"], int) or
-            result["started_at_ms"] < 0 or result["ended_at_ms"] < result["started_at_ms"]):
+            result["generation"] <= 0 or result["started_at_ms"] < 0 or result["ended_at_ms"] < result["started_at_ms"]):
         out["reason"] = "TraceIncomplete: native outcome or authority times are missing"
         return out
     if "side" in case and any(row["slot"] != (case["side"] if row["role"] == "subject" else 1 - case["side"]) for row in rows):
@@ -872,8 +875,16 @@ def case_evidence(case, manifest, caps, result, trace_text):
     starts = [fields for tag, fields, _ in events if tag == "LD_MATCH_STARTED"]
     if (len(begins) != 1 or begins[0].get("case") != case["case_id"] or begins[0].get("seed") != case["seed"]
             or any(begins[0].get(role) != ids[role] for role in ROLES)
-            or len(starts) != 1 or starts[0].get("started_at_ms") != str(t0)):
+            or len(starts) != 1 or starts[0].get("generation") != str(result["generation"])
+            or not starts[0].get("started_at_ms", "").isdigit() or int(starts[0]["started_at_ms"]) > t0):
         reasons.append("TraceIncomplete: the Case identity or match-start record is missing or inconsistent")
+    fields = [fields for tag, fields, _ in events if tag == "LD_FIELD_ENTER"]
+    if (len(fields) != 1 or fields[0].get("generation") != str(result["generation"])
+            or fields[0].get("segment") != "0" or fields[0].get("at_ms") != str(t0)
+            or fields[0].get("field_t_ms") != "0" or fields[0].get("final") != "0"):
+        reasons.append("TraceIncomplete: the first field entry is missing or disagrees with the duel start")
+    if result["ended_at_ms"] >= t0 + caps["scenarios"]["duel_site"]["parameters"]["first_field_ms"]:
+        reasons.append("TraceIncomplete: the Case crossed the first field boundary")
     if outcome["kind"] == "kill":
         victim = ids.get(outcome["victim"])
         deaths = [fields for tag, fields, _ in events if tag == "LD_DEATH_RECEIPT" and fields.get("contender") == victim]
@@ -891,6 +902,8 @@ def case_evidence(case, manifest, caps, result, trace_text):
         t_out = t0 + int(params["duel_timeout_ms"])
         if result["ended_at_ms"] < t_out:
             reasons.append("TraceIncomplete: the Case ended before the duel horizon")
+        if outcome["t_ms"] != int(params["duel_timeout_ms"]):
+            reasons.append("TraceIncomplete: the timeout disagrees with the duel horizon")
     else:
         reasons.append(f"TraceIncomplete: outcome {outcome['kind']}")
         t_out = int(result["ended_at_ms"])
@@ -944,7 +957,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
     subject, opponent = ids["subject"], ids["opponent"]
     dealt = taken = 0
     for tag, fields, _ in events:
-        if tag != "LD_HIT" or int(fields["t"]) > t_out:
+        if tag != "LD_HIT" or not t0 <= int(fields["t"]) <= t_out:
             continue
         if fields["src"] == subject and fields["victim"] == opponent:
             dealt += _hundredths(fields["hp_lost"])
@@ -1067,9 +1080,12 @@ def facts(case, manifest, result, events, ids):
     label, prefix = _branch_facts(case, manifest, offer_details, choice_details, chosen, build_steps, grants)
     fingerprint = hashlib.sha256(json.dumps([offers["subject"].get("1"), offers["opponent"].get("1"), spawn],
                                             sort_keys=True).encode("utf-8")).hexdigest()[:16]
-    first_hit = next(({"role": roles[fields["src"]], "t_ms": int(fields["t"]) - int(result.get("started_at_ms", 0))}
+    start = int(result["started_at_ms"])
+    horizon = min(int(result["ended_at_ms"]), start + int(manifest["scenario"]["parameters"]["duel_timeout_ms"]))
+    first_hit = next(({"role": roles[fields["src"]], "t_ms": int(fields["t"]) - start}
                       for tag, fields, _ in events if tag == "LD_HIT" and fields.get("src") in roles
-                      and fields.get("victim") in roles and fields.get("hp_lost", "0.00") != "0.00"), None)
+                      and fields.get("victim") in roles and fields.get("t", "").isdigit()
+                      and start <= int(fields["t"]) <= horizon and fields.get("hp_lost", "0.00") != "0.00"), None)
     builds = {row["role"]: {"level": row["level"], "unspent_points": row["unspent_points"],
                             "actives": [f"{active['id']}/{active['slot']}" for active in row["actives"]],
                             "blueprints": list(row["blueprints"]),
@@ -1253,7 +1269,7 @@ def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text
 
 def identity_problems(native_run, caps):
     problems = []
-    if native_run.get("schema") != NATIVE_RUN_SCHEMA or native_run.get("schema_version") != NATIVE_SCHEMA_VERSION:
+    if native_run.get("schema") != NATIVE_RUN_SCHEMA or native_run.get("schema_version") != NATIVE_RESULT_SCHEMA_VERSION:
         problems.append("the native run record has another schema")
     root = native_run.get("content_root")
     if not isinstance(root, str) or root.lower() != caps["content"]["digest"]:
@@ -1281,7 +1297,7 @@ def limitations(manifest, caps):
         "结果反映固定策略下的机制差异，不代表玩家适应或六类策略画像。",
         "成长由 T=0 的经验供给推动（cause=dev_fixture，经正常奖励复合事务），是计划假设，不证明真实对局中能在同样时间拿到这些经验。",
         "两名 AI 在真实 L_Demo 中移动、寻路与交战（NativeSpatial）；房主是唯一真人，只编排、不参战、不计分；没有拥有连接、网络或渲染证据。",
-        "营地、Boss、空投与房主的介入被判为 Invalid 并单列，不计入结果；对决时限不超过 Boss 出现时间。",
+        "营地、Boss、空投与房主的介入被判为 Invalid 并单列，不计入结果；对决时限须早于第一野外段结束和 Boss 出现。",
         "duel_score 为 0 表示到时未分胜负（删失），不是输；\"谁先被击倒\" 不是旗杆整局胜利。",
     ]
     if manifest["sample_class"] == "diagnostic":

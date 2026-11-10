@@ -988,6 +988,8 @@ bool RunProjections(FAutomationTestBase& Test)
         Anchor(TEXT("airdrop_s"), ELDDemoWorldAnchorKind::Airdrop, 0, -3300),
         // D26: Boss patrol points are not places a body goes; the projection leaves them out.
         Anchor(TEXT("boss_patrol_1"), ELDDemoWorldAnchorKind::BossWaypoint, 2400, 2400),
+        Anchor(TEXT("rest_spawn_0"), ELDDemoWorldAnchorKind::RestSpawn, 6500, -500),
+        Anchor(TEXT("rest_service_1"), ELDDemoWorldAnchorKind::RestService, 6700, 700),
         Anchor(TEXT("dorm_nw"), ELDDemoWorldAnchorKind::Dorm, -4400, 4400), Anchor(TEXT("dorm_se"), ELDDemoWorldAnchorKind::Dorm, 4400, -4400)};
     FString HighId, LowId, EliteId;
     for (int32 Index = 0; Index < C.Get().Camps.Num(); ++Index)
@@ -998,10 +1000,12 @@ bool RunProjections(FAutomationTestBase& Test)
         if (Seen.IsEmpty()) { Seen = Camp.AnchorId; }
         World.Anchors.Add(Anchor(*Camp.AnchorId, ELDDemoWorldAnchorKind::Camp, 300 * Index, -2000, bLow ? 2 : 1));
     }
-    const int32 Places = World.Anchors.Num() - 1;
+    const int32 Places = World.Anchors.Num() - 3;
     TArray<FLDOpponentPOI> POIs;
     bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
         LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == Places);
+    bGood &= Test.TestFalse(TEXT("Rest-only anchors never become field destinations"), POIs.ContainsByPredicate(
+        [](const FLDOpponentPOI& P) { return P.Id == TEXT("rest_spawn_0") || P.Id == TEXT("rest_service_1"); }));
     const auto* DropPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("airdrop_s"); });
     bGood &= Test.TestTrue(TEXT("D26: each airdrop point is a public place"),
         DropPOI && DropPOI->Kind == ELDOpponentPOIKind::Airdrop && DropPOI->FootCm.Equals(FVector(0, -3300, 0)));
@@ -2182,6 +2186,61 @@ bool RunCharms(FAutomationTestBase& Test)
     return bGood;
 }
 
+bool RunRecoveryCharmEscape(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(Test, *Catalog, Frame)) { return false; }
+    Frame.POIs.Add(POI(TEXT("retreat"), ELDOpponentPOIKind::Spawn, -2179, -4462));
+    Frame.POIs.Add(POI(TEXT("dorm_sw"), ELDOpponentPOIKind::Dorm, -4250, -4250));
+    Frame.POIs.Add(POI(TEXT("heal"), ELDOpponentPOIKind::Airdrop, -2384, 469));
+    Frame.Public.Charms = {{TEXT("heal"), ELDCharmKind::Heal}};
+    Frame.Self.FootCm = FVector(-2179, -4462, 0);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("retreat");
+    FLDOpponentPolicyState State;
+    State.Generation = Frame.Generation;
+    State.Life = Frame.Self.Life;
+    State.bRecovering = true;
+    State.RetreatPOI = TEXT("retreat");
+
+    bool bGood = Expect(Test, TEXT("After reaching a retreat, a recovering body goes to the dorm rather than turning back for a charm"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage,
+        ELDOpponentBodyKind::MoveGround, TEXT("dorm_sw"));
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("dorm_sw");
+    bGood &= Expect(Test, TEXT("The dorm walk remains in progress while the charm is still visible"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage,
+        ELDOpponentBodyKind::Keep, TEXT("dorm_sw"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, -1879, -4462)};
+    bGood &= Test.TestTrue(TEXT("A renewed visible threat still takes priority over recovery"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State).Reason == ELDOpponentReason::Recover);
+
+    Frame.Units.Reset();
+    Frame.Order = {};
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 7 / 10;
+    bGood &= Expect(Test, TEXT("Once recovered, the usable charm is eligible again"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Charm,
+        ELDOpponentBodyKind::MoveGround, TEXT("heal"));
+
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("retreat");
+    Frame.POIs.RemoveAll([](const FLDOpponentPOI& P) { return P.Kind == ELDOpponentPOIKind::Dorm; });
+    State = {};
+    State.Generation = Frame.Generation;
+    State.Life = Frame.Self.Life;
+    State.bRecovering = true;
+    State.RetreatPOI = TEXT("retreat");
+    bGood &= Expect(Test, TEXT("Without a reachable dorm, the body recovers rather than immediately retracing its escape"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage, ELDOpponentBodyKind::None);
+    return bGood;
+}
+
 bool RunHuntLeader(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -2746,6 +2805,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCharmsTest, "Lockdown.Rules.Demo
 bool FLDDemoOpponentCharmsTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunCharms(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryCharmEscapeTest, "Lockdown.Rules.DemoOpponentPolicy.RecoveryCharmEscape",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRecoveryCharmEscapeTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunRecoveryCharmEscape(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",
@@ -3379,6 +3446,7 @@ bool RunNpcGate(FAutomationTestBase& Test)
     if (!Test.TestTrue(TEXT("The approved content prices the NPC"), Price > 0)) { return false; }
     Mid.Self.Actives = {{TEXT("active_elbow"), 0}};
     Mid.Self.UnspentPoints = Price;
+    Mid.Self.NearbyRestService = ELDRestService::SkillMerchant;
     const auto BuildOf = [&C](const FLDOpponentDecisionFrame& Of)
     {
         FLDOpponentPolicyState Fresh;
@@ -3402,6 +3470,95 @@ bool RunNpcGate(FAutomationTestBase& Test)
         !LDOpponentPolicy::WantsNpcOffer(Short.Self, C, 1) && BuildOf(Short) == EKind::AllocatePoints);
     bGood &= Test.TestTrue(TEXT("No empty Q/W/E slot: no purchase"),
         !LDOpponentPolicy::WantsNpcOffer(Full.Self, C, 1) && BuildOf(Full) == EKind::AllocatePoints);
+    return bGood;
+}
+
+bool RunRestServiceTravel(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EBuild = ELDOpponentBuildKind;
+    using EBody = ELDOpponentBodyKind;
+    using EReason = ELDOpponentReason;
+    FLDOpponentDecisionFrame Frame;
+    if (!RestFrame(Test, C, Frame)) { return false; }
+    Frame.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Frame.Self.UnspentPoints = C.Get().Parameters.NpcActivePoints;
+    for (uint8 Index = 1; Index <= 3; ++Index)
+    {
+        FLDOpponentPOI& Place = Frame.RestServicePOIs.AddDefaulted_GetRef();
+        Place.Id = FName(*FString::Printf(TEXT("rest_service_%d"), Index));
+        Place.Kind = ELDOpponentPOIKind::RestService;
+        Place.RestService = static_cast<ELDRestService>(Index);
+        Place.SurfaceId = TEXT("demo_ground");
+        Place.FootCm = FVector(1000 * Index, 0, 0);
+    }
+    const auto Decide = [&C](const FLDOpponentDecisionFrame& Input)
+    {
+        FLDOpponentPolicyState State;
+        return LDOpponentPolicy::Decide(Input, C, State);
+    };
+    bool bGood = Test.TestTrue(TEXT("Each AI rest intent uses the authority's service mapping"),
+        LDOpponentPolicy::RestServiceForBuild(EBuild::BuyNpcOffer) == ELDRestService::SkillMerchant
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::FillGap) == ELDRestService::ComponentArtisan
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::Dismantle) == ELDRestService::ComponentArtisan
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::Respec) == ELDRestService::Trainer
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::ReplaceActive) == ELDRestService::Trainer
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::AllocatePoints) == ELDRestService::None
+        && LDProgression::RestServiceFor(ELDBuildCommandKind::ForgetActive) == ELDRestService::Trainer);
+    FLDOpponentDecision Decision = Decide(Frame);
+    bGood &= Test.TestTrue(TEXT("A distant purchase walks to the merchant without sending the build"),
+        Decision.Reason == EReason::RestService && Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == TEXT("rest_service_1") && Decision.Build.Kind == EBuild::None);
+    auto Walking = Frame;
+    Walking.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Walking.Order.Status = ELDOpponentOrderStatus::Active;
+    Walking.Order.POI = TEXT("rest_service_1");
+    Decision = Decide(Walking);
+    bGood &= Test.TestTrue(TEXT("An existing merchant walk is kept"),
+        Decision.Body.Kind == EBody::Keep && Decision.Build.Kind == EBuild::None);
+    auto Acting = Frame;
+    Acting.Self.bChanneling = true;
+    bGood &= Test.TestTrue(TEXT("A channel finishes before walking"), Decide(Acting).Body.Kind == EBody::Keep);
+    auto Nearby = Frame;
+    Nearby.Self.NearbyRestService = ELDRestService::SkillMerchant;
+    Decision = Decide(Nearby);
+    bGood &= Test.TestTrue(TEXT("Only the matching nearby service permits the purchase"),
+        Decision.Build.Kind == EBuild::BuyNpcOffer && Decision.Body.Kind == EBody::None);
+    Nearby.Self.NearbyRestService = ELDRestService::Trainer;
+    bGood &= Test.TestTrue(TEXT("A different nearby service does not permit the purchase"),
+        Decide(Nearby).Body.Kind == EBody::MoveGround && Decide(Nearby).Build.Kind == EBuild::None);
+    auto Missing = Frame;
+    Missing.RestServicePOIs.Reset();
+    bGood &= Test.TestTrue(TEXT("A missing service anchor is an explicit provider stop"),
+        Decide(Missing).Reason == EReason::ProviderUnavailable && Decide(Missing).Build.Kind == EBuild::None);
+
+    FLDOpponentPolicyState Retry;
+    Retry.Generation = Frame.Generation;
+    Retry.Life = Frame.Self.Life;
+    const FLDOpponentDecision First = LDOpponentPolicy::Decide(Frame, C, Retry);
+    LDOpponentPolicy::RecordOutcome(Retry, First.Body.Key, ELDOpponentOutcome::Failed, Frame.Self,
+        Frame.Public.NowMs, C.Get().Parameters.AI);
+    Decision = LDOpponentPolicy::Decide(Frame, C, Retry);
+    bGood &= Test.TestTrue(TEXT("A refused service path backs off rather than sending another order"),
+        Decision.Reason == EReason::TargetSuppressed && Decision.Body.Kind == EBody::None);
+
+    auto Signup = Frame;
+    Signup.Public.Timeline.SignupOpensAtMs = Signup.Public.NowMs;
+    Signup.Public.Timeline.StepEndsAtMs = Signup.Public.NowMs + 10000;
+    FLDOpponentPOI Disk;
+    Disk.Id = TEXT("pk_signup_0");
+    Disk.Kind = ELDOpponentPOIKind::PKSignup;
+    Disk.SurfaceId = TEXT("demo_ground");
+    Signup.SignupPOI = Disk;
+    Decision = Decide(Signup);
+    bGood &= Test.TestTrue(TEXT("The sign-up window takes priority over an NPC purchase"),
+        Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == Disk.Id && Decision.Build.Kind == EBuild::None);
+    Signup.Self.NearbyRestService = ELDRestService::SkillMerchant;
+    bGood &= Test.TestTrue(TEXT("Even a nearby purchase waits during sign-up"),
+        Decide(Signup).Build.Kind == EBuild::None);
     return bGood;
 }
 // #198 rest decisions (OPPONENT_AI.md §6.4): replacement, the components back on after a reclaim, moves to the preferred
@@ -3569,6 +3726,7 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     auto Npc = Rest;
     Npc.Self.Actives = {{TEXT("active_elbow"), 0}};
     Npc.Self.UnspentPoints = NpcPoints;
+    Npc.Self.NearbyRestService = ELDRestService::SkillMerchant;
     bGood &= Test.TestTrue(TEXT("The NPC rule holds"), LDOpponentPolicy::WantsNpcOffer(Npc.Self, C, 1))
         && Test.TestTrue(TEXT("An empty slot without a blueprint buys the offer before the points"), BuildOf(Npc) == EKind::BuyNpcOffer);
     bGood &= Test.TestTrue(TEXT("DecideFollowUpBuild leaves offers to its caller: it allocates instead"),
@@ -3619,7 +3777,7 @@ bool RunRestRebuild(FAutomationTestBase& Test)
         && Projected.Components[0].Element == ELDDemoElement::Fire);
     return bGood;
 }
-// #198 §16.3: in the rest build window, once nothing is left to build, the body tries its build on its own private dummy (the
+// In the rest build window, once nothing is left to build, the body tries its build on a shared dummy (a
 // visible contender outside the public roster) with the production engagement; never on anything else, never elsewhere.
 bool RunTraining(FAutomationTestBase& Test)
 {
@@ -3643,7 +3801,7 @@ bool RunTraining(FAutomationTestBase& Test)
     const auto Trains = [&Dummy](const FLDOpponentDecision& Decision, EBody Kind)
     { return Decision.Body.Kind == Kind && Decision.Body.Handle == Dummy.Handle; };
     const FLDOpponentUnit* Found = LDOpponentPolicy::TrainingDummy(Base);
-    bool bGood = Test.TestTrue(TEXT("The visible contender outside the public roster is the own dummy"), Found && Found->Handle == Dummy.Handle);
+    bool bGood = Test.TestTrue(TEXT("The visible contender outside the public roster is a shared dummy"), Found && Found->Handle == Dummy.Handle);
     FLDOpponentDecision Decision = Decide(Base);
     bGood &= Test.TestTrue(TEXT("Nothing to build: the body attacks its dummy, never the roster member in sight"),
         Decision.Mode == EMode::Engage && Decision.Reason == EReason::Train && Trains(Decision, EBody::AttackUnit)
@@ -3769,6 +3927,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentNpcGateTest, "Lockdown.Rules.Dem
 bool FLDDemoOpponentNpcGateTest::RunTest(const FString& Parameters)
 {
     return LDOpponentComponentTests::RunNpcGate(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestServiceTravelTest, "Lockdown.Rules.DemoOpponentPolicy.RestServiceTravel",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRestServiceTravelTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunRestServiceTravel(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentTrainingTest, "Lockdown.Rules.DemoOpponentPolicy.Training",

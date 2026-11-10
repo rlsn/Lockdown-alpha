@@ -77,9 +77,14 @@ public:
     // ---- #198 rest training (Framework/LDPlayerRest.cpp); the PK sign-up is standing in the own sign-up disk ----
     // Resets the own training in the rest space (owner and dummy refilled, cooldowns ready); OnTrainingReset answers.
     void SubmitTrainingReset();
+    void SubmitRestReady(bool bReady);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnRestReady, ELDRestReadyResult);
+    FLDOnRestReady OnRestReady;
+    UFUNCTION(Server,Reliable) void ServerRestReady(uint32 Generation, uint8 RestIndex, int64 StartedAtMs, bool bReady);
+    UFUNCTION(Client,Reliable) void ClientRestReady(ELDRestReadyResult Result);
     DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnTrainingReset, ELDTrainingResetResult);
     FLDOnTrainingReset OnTrainingReset;
-    UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation);
+    UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation, uint32 Life, uint8 RestIndex, int64 StartedAtMs);
     UFUNCTION(Client,Reliable) void ClientTrainingReset(ELDTrainingResetResult Result);
     // ---- #198 PK spectators (PK/LDPlayerPK.cpp): an eligible spectator bets on one side of the current PK (Side
     // 1..SideCount, changeable until the betting step ends) and throws at a ground point of the arena while the PK runs.

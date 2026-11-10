@@ -649,6 +649,19 @@ void ULDNavigationComponent::Face(const FVector& Direction)
     if (Body && !Direction.IsNearlyZero()) { Body->SetFacing(Direction.Rotation().Yaw); }
 }
 
+FVector ULDNavigationComponent::AvoidObservedRestBodies(const ALDCharacter& Body, const FVector& Waypoint, const FVector& Preferred,
+    const FLDWorldView& View, const FGuid& Self) const
+{
+    const double Radius=Body.GetCapsuleComponent()->GetScaledCapsuleRadius();
+    TArray<LDPathSteering::FBodyDisc> Others;
+    for (const FLDObservedUnitView& Unit : View.Units)
+    {
+        if (Unit.Kind==ELDObservedUnitKind::Contender && Unit.ContenderId!=Self)
+        { Others.Add({FVector2D(Unit.FeetCm.X,Unit.FeetCm.Y),Radius}); }
+    }
+    return LDPathSteering::AvoidVisibleBodies(Body.GetNavAgentLocation(),Waypoint,Preferred,Radius,Others);
+}
+
 void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FActorComponentTickFunction* Function)
 {
     Super::TickComponent(Delta,TickType,Function);
@@ -696,7 +709,15 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     TickHeldMove();
     if (!bFollowing || !Body || PC->HasAuthority()) { return; }
     if (LDPathSteering::AtGoal(*Body,Destination,AcceptanceRadius)) { bFollowing=false; LDPathSteering::HaltLocomotion(Body); return; }
-    const FVector Input=LDPathSteering::Steering(Points,PointIndex,*Body);
+    FVector Input=LDPathSteering::Steering(Points,PointIndex,*Body);
+    const ALDGameState* Public=GetWorld()->GetGameState<ALDGameState>();
+    const ALDWorldViewRelay* Relay=PC->LocalView();
+    const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+    if (ActiveKind==ELDSpatialOrderKind::MoveGround && Public && Public->PublicMatch.Generation==PC->OwnerState.Match
+        && LDMatchTimeline::IsRestBuildOpen(Public->PublicMatch.Timeline) && Points.IsValidIndex(PointIndex)
+        && Read.Frame && Read.Status==ELDObservedViewStatus::Current
+        && Read.Frame->MatchGeneration==PC->OwnerState.Match && Read.Frame->ObserverLife==PC->OwnerState.Life)
+    { Input=AvoidObservedRestBodies(*Body,Points[PointIndex],Input,*Read.Frame,PC->OwnerState.ContenderId); }
     Body->AddMovementInput(Input,1.);
     Face(Input);
     const double Progress=LDPathSteering::AlongPath(Points,Body->GetNavAgentLocation());

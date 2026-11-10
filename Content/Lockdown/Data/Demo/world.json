@@ -1813,15 +1813,15 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": -2233
+          "numerator": 6500
         },
         "y": {
           "denominator": 1,
-          "numerator": 4241
+          "numerator": -200
         },
         "z": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
@@ -1832,15 +1832,15 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 1975
+          "numerator": 6900
         },
         "y": {
           "denominator": 1,
-          "numerator": 4275
+          "numerator": -200
         },
         "z": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
@@ -1851,15 +1851,15 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": -4270
+          "numerator": 7300
         },
         "y": {
           "denominator": 1,
-          "numerator": 3060
+          "numerator": -200
         },
         "z": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
@@ -1870,15 +1870,15 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 2397
+          "numerator": 7700
         },
         "y": {
           "denominator": 1,
-          "numerator": -4267
+          "numerator": -200
         },
         "z": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
@@ -1889,15 +1889,15 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": -1999
+          "numerator": 8100
         },
         "y": {
           "denominator": 1,
-          "numerator": -4222
+          "numerator": -200
         },
         "z": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
@@ -1908,15 +1908,15 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 4450
+          "numerator": 8500
         },
         "y": {
           "denominator": 1,
-          "numerator": -3000
+          "numerator": -200
         },
         "z": {
           "denominator": 1,
-          "numerator": 100
+          "numerator": 0
         }
       },
       "surface_id": "demo_ground"
@@ -2046,6 +2046,177 @@
         "y": {
           "denominator": 1,
           "numerator": 1956
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_service_1",
+      "kind": "RestService",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 6700
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_service_2",
+      "kind": "RestService",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7500
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_service_3",
+      "kind": "RestService",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_0",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 6500
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_1",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 6900
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_2",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_3",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7700
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_4",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8100
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "rest_spawn_5",
+      "kind": "RestSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8500
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -500
         },
         "z": {
           "denominator": 1,
@@ -2287,7 +2458,7 @@
     "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CB 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps; 11-08 ramps, Elite camps. A playtest baseline, not a balance check.",
     "status": "approved"
   },
-  "author_schema_sha256": "7f1a110e6e430ea2127f0df540c388104061c7c80ead65a16fe4ad182086dfa8",
+  "author_schema_sha256": "8b284b6a3114bb87cffe07899595dac05957e59c146176fc098aa51e019a7ca4",
   "geometry": {
     "blockers": [
       {
@@ -2556,6 +2727,351 @@
             "y": {
               "denominator": 1,
               "numerator": 33
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 600
+        },
+        "id": "rest_boundary_e",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9000
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -5300
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9300
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -5300
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9300
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 5300
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9000
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 5300
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 600
+        },
+        "id": "rest_wall_e",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8800
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8900
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8900
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8800
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 600
+        },
+        "id": "rest_wall_n",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6100
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1100
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8900
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1100
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8900
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6100
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 600
+        },
+        "id": "rest_wall_s",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6100
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8900
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 8900
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1100
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6100
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1100
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 600
+        },
+        "id": "rest_wall_w",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6100
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6200
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6200
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1200
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 6100
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1200
             },
             "z": {
               "denominator": 1,
@@ -30745,7 +31261,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": -5300
+              "numerator": -5000
             },
             "z": {
               "denominator": 1,
@@ -30759,7 +31275,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": -5300
+              "numerator": -5000
             },
             "z": {
               "denominator": 1,
@@ -30773,7 +31289,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 5000
             },
             "z": {
               "denominator": 1,
@@ -30787,7 +31303,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 5000
             },
             "z": {
               "denominator": 1,
@@ -30824,7 +31340,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 9300
             },
             "y": {
               "denominator": 1,
@@ -30838,7 +31354,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 9300
             },
             "y": {
               "denominator": 1,
@@ -30893,7 +31409,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 9300
             },
             "y": {
               "denominator": 1,
@@ -30907,7 +31423,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 9300
             },
             "y": {
               "denominator": 1,
@@ -34988,7 +35504,7 @@
         "max_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 5000
+            "numerator": 9000
           },
           "y": {
             "denominator": 1,
@@ -35016,8 +35532,8 @@
       }
     ]
   },
-  "geometry_revision": 7,
-  "layout_revision": 9,
+  "geometry_revision": 8,
+  "layout_revision": 10,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -35136,5 +35652,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "e103329bdff05839c1cfdfb565fc40005dabf9378804f7a183c68e109c38962b"
+  "source_sha256": "3d1b85c7ee61c7750c7bb5c9484baf870739577e79fd7aaa753ffce8fa53abbc"
 }

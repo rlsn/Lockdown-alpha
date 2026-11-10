@@ -920,10 +920,9 @@ void LDDemoTests::StartCaptureProbe(ALDPlayerController& Controller)
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoCaptureProbe")) || !Controller.IsLocalController()
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoCaptureProbe>();
-    // #198: the flagpole opens at R0 45+5 s + three fields 3x180 s + R1..R3 3x(30+5) s = 695 s after the first start;
-    // the choreography and the 30 s guard take about a minute, and the second match is checked after its own R0 50 s and
-    // 3 s of return protection: about 810 s after the first start, plus the joins before it, well inside 1200 s.
-    int32 Timeout = 1200;
+    // #198: without early readiness, the flagpole opens at R0 180+5 s + three fields 3x180 s
+    // + R1..R3 3x(120+5) s = 1100 s after the first start. The second match is checked after its own R0.
+    int32 Timeout = 1800;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureRole="), Probe->Role)

@@ -171,11 +171,11 @@ struct FLDBodyCombatState
 {
     FGuid Identity;
     FLDVictimKey Victim;
-    // #198 rest phases (Combat/LDCombatRest.cpp): a rest life only interacts inside its owner's group; field bodies have
+    // #198 rest phases (Combat/LDCombatRest.cpp): rest lives share one group; field bodies have
     // none. A suspended body (frozen world during a rest) takes and deals nothing.
     FGuid IsolationGroup;
     bool bSuspended=false;
-    // #198 personal training dummy: never dies (refills at 0 HP), grants nothing; IsolationGroup names its owner.
+    // A shared training dummy never dies (refills at 0 HP) and grants nothing.
     bool bTrainingDummy=false;
     // #198 session D PK: the body's side in the PK isolation group (0: none). Same-side bodies never affect each other
     // (friendly fire off). ExposedUntilMs: a spectator throw revealed it to the PK entrants until then (half-open).
@@ -705,12 +705,12 @@ public:
     void MarkBuildUnsafe(const FGuid& Entity, int64 NowMs);
     // ---- #198 rest phases (Combat/LDCombatRest.cpp) ----
     // Whether SourceEntity may affect Target: a suspended target is out of reach, and bodies only interact inside the
-    // same isolation group (field bodies: none; a rest life and its own training dummy: the owner).
+    // same isolation group. Rest players cannot be hostile targets, but shared dummies can.
     bool IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
     // Rest vision filter: whether Observer must not see Target (another rest group, or the frozen world). False for a
     // body Combat does not hold.
     bool IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const;
-    // A rest life joins its owner's isolation group (bRest) or returns to the field group. RespawnsAndWorld permit.
+    // A rest life joins the shared rest group (bRest) or returns to the field group. RespawnsAndWorld permit.
     bool SetRestIsolation(const FLDCombatBodyRef& Body, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error);
     // Freezes or thaws a world body (camp member, Boss) for a rest; its HP/MP stay as they are. RespawnsAndWorld permit.
     bool SetBodySuspended(const FLDCombatBodyRef& Body, bool bSuspended, const FLDGameplayWritePermit& Permit, FString& Error);
@@ -723,8 +723,8 @@ public:
     bool ReadyAllForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
     // Retires a contender's living body for a phase boundary: its own unsettled effects end with it.
     void RetireBodyForPhase(const FLDCombatBodyRef& Body);
-    // #198 personal training dummy: the contender chassis at OwnerLevel with no build, full resources, in the owner's
-    // isolation group. RespawnsAndWorld permit; Victim is the dummy's own first life.
+    // Shared dummy: a fixed slot-level chassis without a build, full resources, in the rest group.
+    // RespawnsAndWorld permit; Victim is the dummy's own first life, never the attacker's identity.
     bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
         const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const;
     // The owner's training reset: owner and dummy refilled, statuses and in-flight effects of both cleared, every

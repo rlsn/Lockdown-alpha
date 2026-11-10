@@ -101,6 +101,8 @@ struct FLDEvaluationProfileState
     bool bStepIssued = false;
     // AllocatePoints: the own stat rows when the step was first sent.
     TArray<FLDOpponentStatPoints> StepBaseline;
+    // The opening choice and all R0 build work have settled; planned field work may remain.
+    bool bOpeningReady = false;
 };
 
 // One profile and its evaluation state, shared by the Host probe (reads the state) and the adapter (runs the strategy).

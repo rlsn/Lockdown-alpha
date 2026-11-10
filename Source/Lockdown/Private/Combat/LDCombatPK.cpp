@@ -77,6 +77,7 @@ bool ALDCombatDirector::ApplyThrowHit(const FLDCombatBodyRef& Ref, const FGuid& 
     App.EffectId=EffectId;
     App.DurationMs=SlowMs;
     App.RatioBp=SlowBp;
+    App.bSpectatorThrow=true;
     bool bApplied=false;
     if (!CommitControl(*Body,App,NowMs,bApplied,Error)) { return false; }
     int64 ExposedUntil=0;

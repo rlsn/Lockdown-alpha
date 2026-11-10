@@ -30,6 +30,8 @@ struct FLDLegalGround
     FLDWorldRevision World;
     FVector FootCm = FVector::ZeroVector;
     FVector SurfaceCm = FVector::ZeroVector;
+    // Capsule centre at physical terrain contact, before the native floor gap.
+    FVector SupportOriginCm = FVector::ZeroVector;
     FName SurfaceId;
     TWeakObjectPtr<UPrimitiveComponent> Floor;
 };
@@ -42,4 +44,3 @@ struct FLDCompletePath
     FVector EndProjectionCm = FVector::ZeroVector;
     double LengthCm = 0;
 };
-

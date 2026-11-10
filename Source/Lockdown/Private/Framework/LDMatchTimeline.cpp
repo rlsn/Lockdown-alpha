@@ -267,6 +267,23 @@ bool FLDMatchTimeline::FinishPK(int64 AtMs, FString& Error)
     return true;
 }
 
+bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Error)
+{
+    bChanged = false;
+    if (!IsRest() || Step != ELDRestStep::Build || AtMs < StepStartedAtMs || AtMs >= StepEndsAtMs)
+    {
+        Error = TEXT("Ready only applies inside the current rest build window.");
+        return false;
+    }
+    if (StepEndsAtMs - AtMs > Parameters.SignupMs)
+    {
+        StepEndsAtMs = AtMs + Parameters.SignupMs;
+        bChanged = true;
+    }
+    Error.Reset();
+    return true;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 bool FLDMatchTimeline::DevSkipToFinalField(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
 {

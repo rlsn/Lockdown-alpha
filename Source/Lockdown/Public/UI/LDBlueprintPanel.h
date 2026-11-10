@@ -36,6 +36,7 @@ private:
     void ShowImported(const FString& Path);
     void RefreshMatch();
     void SetAction(const FString& Text);
+    void ShowRecord(const FLDBlueprintRecord& Record,const FLDDemoContentDefinitions* Local);
     ULDBuildBlueprintComponent* Channel() const;
     const FLDDemoContentDefinitions* Definitions();
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
@@ -44,6 +45,17 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> NoticeText;
     UPROPERTY() TObjectPtr<UTextBlock> BodyText;
     UPROPERTY() TObjectPtr<UVerticalBox> FileList;
+    UPROPERTY() TObjectPtr<UVerticalBox> StructureList;
+    UPROPERTY() TObjectPtr<UTextBlock> PreviewText;
+    UPROPERTY() TObjectPtr<ULDCommandButton> HistoryButton;
+    struct FTilePreview
+    {
+        TObjectPtr<ULDCommandButton> Button;
+        FString Detail;
+    };
+    TArray<FTilePreview> TilePreviews;
+    FString PinnedDetail;
+    bool bHistory=false;
     UPROPERTY() TObjectPtr<UScrollBox> Scroll;
     UPROPERTY() TObjectPtr<ULDCommandButton> ExportButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> ImportButton;

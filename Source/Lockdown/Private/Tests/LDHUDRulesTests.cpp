@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "UI/LDBlueprintPanel.h"
 #include "Development/LDDemoCardText.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
@@ -660,6 +661,18 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     LDHUD::FCardStats L5=L1;L5.Level=5;
     TestEqualSensitive(TEXT("Level 5 grows the base (60 x 1.4 + 35) but not the duration"),
         LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,L5,1000).Plain,FString(TEXT("定身目标 1 秒，造成 119 物理伤害。")));
+    LDHUD::FCardStats BlueprintStats=L5;BlueprintStats.bShowScalingFormula=true;
+    const LDHUD::FCardText BlueprintFace=LDHUD::CardText(
+        TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Values,BlueprintStats,1000);
+    TestTrue(TEXT("A blueprint renders fixed values and attribute scaling without assuming the recorded player's attributes"),
+        BlueprintFace.bComplete&&BlueprintFace.Plain==TEXT("定身目标 1 秒，造成 84 + 50%攻击力 物理伤害。"));
+    FLDDemoEffectDefinition Shield;Shield.Opcode=uint8(ELDDemoEffectOp::Shield);Shield.BaseP2=2500;
+    Shield.ArmorRatioBp=3500;Shield.SecondaryRatioBp=2000;
+    FLDDemoAbilityValues ShieldValues;ShieldValues.Effects.Add(Shield);
+    BlueprintStats.Level=1;
+    TestEqualSensitive(TEXT("A blueprint burst keeps the armor coefficient and multiplier"),
+        LDHUD::CardText(TEXT("造成 [shield.burst] 伤害。"),ShieldValues,BlueprintStats,1000).Plain,
+        FString(TEXT("造成 (25 + 35%护甲) × 20% 伤害。")));
     LDHUD::FCardStats L12=L1;L12.Level=12;
     TestEqualSensitive(TEXT("After level 10 the slower growth applies (60 x (1 + 0.9 + 0.1) + 35)"),
         LDHUD::CardText(TEXT("造成 [damage.amount] 物理伤害。"),Values,L12,1000,500).Plain,FString(TEXT("造成 155 物理伤害。")));
@@ -691,6 +704,15 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     TArray<LDDemoCardText::FToken> Tokens;FString Error;
     TestFalse(TEXT("An unknown op is refused"),LDDemoCardText::Parse(TEXT("[teleport.amount]"),Tokens,Error));
     TestFalse(TEXT("A stray bracket is refused"),LDDemoCardText::Parse(TEXT("造成 ] 伤害"),Tokens,Error));
+    FLDBlueprintRecord BlueprintRecord;BlueprintRecord.FinalBuild.bComponentsCollected=true;
+    FLDBlueprintComponent& Installed=BlueprintRecord.FinalBuild.Components.AddDefaulted_GetRef();
+    Installed.Component=TEXT("component_quick_hop");
+    Installed.Parameters={{TEXT("bound_component"),TEXT("component_fist_water")},
+        {TEXT("element"),TEXT("fire")},{TEXT("target_kind"),TEXT("dash")}};
+    const FString BlueprintHistory=ULDBlueprintPanel::Describe(BlueprintRecord,nullptr);
+    TestTrue(TEXT("Blueprint install details use readable targets, elements and reused components"),
+        BlueprintHistory.Contains(TEXT("冲刺（D）"))&&BlueprintHistory.Contains(TEXT("绑定元素：火"))
+        &&BlueprintHistory.Contains(TEXT("复用构件：component_fist_water"))&&!BlueprintHistory.Contains(TEXT("target_kind")));
     TestTrue(TEXT("Keyword lines explain each keyword in bold"),LDHUD::KeywordLines({TEXT("定身")}).Num()==1
         &&LDHUD::KeywordLines({TEXT("定身")})[0].StartsWith(TEXT("<b>定身</>：")));
     for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords)
@@ -793,6 +815,7 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     if(!TestTrue(TEXT("The bare level-1 build projects"),Base.IsSuccess())){return false;}
     LDHUD::FCardStats L1;L1.ADP2=Base.Value->Final.ADP2;L1.APP2=Base.Value->Final.APP2;L1.MaxHPP2=Base.Value->Final.MaxHPP2;L1.ArmorP2=Base.Value->Final.ArmorP2;
     LDHUD::FCardStats L10=L1;L10.Level=10;
+    LDHUD::FCardStats Blueprint=L10;Blueprint.bShowScalingFormula=true;
     const auto Bad=[](const FString& Text){return Text.IsEmpty()||Text.Contains(TEXT("喷漆"))||Text.Contains(TEXT("守护"))||Text.Contains(TEXT("未知"))
         ||Text.Contains(TEXT("?"))||Text.Contains(TEXT("内容目录中找不到"))||Text.Contains(TEXT("同步中"));};
     TestTrue(TEXT("The approved catalog has actives, stats and components"),
@@ -813,6 +836,9 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             for(const FString& Line:Card.Keywords){TestFalse(At+TEXT(": keyword ")+Line,Bad(Line));}
             TestFalse(At+TEXT(": the card has an icon"),Card.IconId.IsEmpty());
         }
+        const LDHUD::FActiveCardView BlueprintCard=LDHUD::ActiveCard(FName(*Ability.Id),&Content,Blueprint);
+        TestTrue(Ability.Id+TEXT(": the blueprint resolves every active placeholder"),
+            BlueprintCard.bKnown&&!BlueprintCard.SentencePlain.Contains(TEXT("["))&&!BlueprintCard.SentencePlain.Contains(TEXT("]")));
     }
     for(const FLDDemoStatDefinition& Stat:Content.Stats)
     {
@@ -836,6 +862,9 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             for(const FString& Line:Card.Keywords){TestFalse(At+TEXT(": keyword ")+Line,Bad(Line));}
             TestFalse(At+TEXT(": the card has an icon"),Card.IconId.IsEmpty());
         }
+        const LDHUD::FComponentCardView BlueprintCard=LDHUD::ComponentCard(FName(*Component.Id),&Content,Blueprint);
+        TestTrue(Component.Id+TEXT(": the blueprint resolves every component placeholder"),
+            BlueprintCard.bKnown&&!BlueprintCard.SentencePlain.Contains(TEXT("["))&&!BlueprintCard.SentencePlain.Contains(TEXT("]")));
     }
     TestTrue(TEXT("Every active, stat and component of the approved catalog has its face checked"),
         ActiveFaces==Content.Abilities.Num()&&StatFaces==Content.Stats.Num()&&ComponentFaces==Content.Components.Num());
@@ -1413,9 +1442,8 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT(" · 图纸 1"));
     for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
     TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5,nullptr).Any());
-    TestEqualSensitive(TEXT("#198: nothing pending in a rest build window still offers the rest services"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5,nullptr),true),
-        FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::RestServices);
-    TestEqualSensitive(TEXT("Outside a rest nothing pending reads as the plain button"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5,nullptr),false),FString(LDTerms::Choice));
+    TestEqualSensitive(TEXT("#198: the workspace remains named consistently without pending growth"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5,nullptr)),
+        FString(LDTerms::Choice));
     TestTrue(TEXT("The slot reads come from the view"),LDHUD::ActiveInSlot(View,1)==FName(TEXT("held_1"))&&LDHUD::SlotKey(1)==TEXT("W"));
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
@@ -1821,6 +1849,23 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
         const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
         TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);
     }
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkspacePromptTest,"Lockdown.Rules.HUDWorkspacePrompt",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDWorkspacePromptTest::RunTest(const FString& Parameters)
+{
+    LDHUD::FGrowthPending Pending;
+    TestEqualSensitive(TEXT("The entry names the persistent workspace"),LDHUD::GrowthPrompt(Pending),FString(TEXT("构筑")));
+    Pending.Components=1;
+    const FString One=LDHUD::GrowthPrompt(Pending);
+    Pending.Components=100;Pending.Offers=50;Pending.Points=1000;Pending.Blueprints=40;Pending.ComponentChoices=20;
+    TestEqualSensitive(TEXT("Dense progression does not grow the combat HUD entry"),LDHUD::GrowthPrompt(Pending),One);
+    TestEqualSensitive(TEXT("The entry advertises pending work without expanding counts"),One,FString(TEXT("构筑 · 有待处理")));
+    TestEqualSensitive(TEXT("Service admission refusal gives the exact proximity instruction"),
+        LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable),FString(TEXT("请靠近对应的服务NPC")));
+    TestTrue(TEXT("Window and lock refusals remain distinct from NPC proximity"),
+        LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)!=LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable)
+        &&LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked)!=LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDevTestPanelTest,"Lockdown.Rules.HUDDevTestPanel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

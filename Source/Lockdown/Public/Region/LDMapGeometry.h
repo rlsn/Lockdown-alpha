@@ -69,6 +69,8 @@ namespace LDDemoWorld
     constexpr int32 PKSignups = 6, PKSignupDistanceCm = 300;
     // The sign-up disk anchor id of a roster slot (0..PKSignups-1).
     inline FString PKSignupId(int32 Slot) { return FString::Printf(TEXT("pk_signup_%d"), Slot); }
+    constexpr int32 RestServices = 3;
+    inline FString RestServiceId(int32 Index) { return FString::Printf(TEXT("rest_service_%d"), Index); }
     // Actor tag of every generated plateau and ramp floor piece; the base ground keeps its surface id tag.
     inline const FName TerrainTag(TEXT("LDDemoTerrain"));
     // Every generated blocker actor carries this tag and its blocker id as a second tag.
@@ -146,7 +148,7 @@ UENUM()
 // #198: PKSpawn is one of the six PK ring spawns pk_spawn_0..5 around the capture anchor; PKThrow is the fixed
 // off-arena spectator throw origin pk_throw. Points only, read through the content World references. PKSignup is the
 // PK sign-up disk of one roster slot's private rest space (pk_signup_0..5), read by its canonical id.
-enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, PKSpawn, PKThrow, PKSignup };
+enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, PKSpawn, PKThrow, PKSignup, RestSpawn, RestService };
 
 USTRUCT()
 struct FLDDemoWorldAnchor

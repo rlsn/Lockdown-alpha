@@ -186,12 +186,34 @@ bool RunPolicy(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Countdown: the planned opening (the production preference) and no body intent"),
         Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive && Decision.Build.Option == TEXT("active_snark_bolt")
         && Decision.Build.OfferId == FGuid(0xEB, 0, 0, 1) && Decision.Body.Kind == ELDOpponentBodyKind::None
-        && State.Phase == ELDEvaluationPhase::Building);
+        && State.Phase == ELDEvaluationPhase::Building && !State.bOpeningReady);
     auto InFlight = Countdown;
     InFlight.bBuildChangeInFlight = true;
     State = {};
     bGood &= Test.TestTrue(TEXT("No second choice while one is in flight"),
-        Decide(InFlight, Profile, State).Build.Kind == ELDOpponentBuildKind::None);
+        Decide(InFlight, Profile, State).Build.Kind == ELDOpponentBuildKind::None && !State.bOpeningReady);
+    auto OpeningDone = Countdown;
+    OpeningDone.Self.Offer.Reset();
+    OpeningDone.Self.OffersConsumed = 1;
+    State = {};
+    Decide(OpeningDone, Profile, State);
+    bGood &= Test.TestTrue(TEXT("The opening is ready once the unplanned production build is settled"), State.bOpeningReady);
+    FLDEvaluationProfile FieldPlan = Profile;
+    FieldPlan.Choices.Add(FLDEvaluationChoice());
+    FLDEvaluationBuildStep FieldStep;
+    FieldStep.Kind = ELDEvaluationStepKind::AllocatePoints;
+    FieldStep.Window = ELDEvaluationStepWindow::Field;
+    FieldStep.Points = {{TEXT("stat_strength"), 3}};
+    FieldPlan.Build = {FieldStep};
+    OpeningDone.Self.UnspentPoints = 3;
+    State = {};
+    Decide(OpeningDone, FieldPlan, State);
+    bGood &= Test.TestTrue(TEXT("A planned field step and reserved opening points do not hold R0"),
+        State.bOpeningReady && State.StepsCommitted == 0);
+    OpeningDone.bBuildChangeInFlight = true;
+    State = {};
+    Decide(OpeningDone, FieldPlan, State);
+    bGood &= Test.TestFalse(TEXT("An in-flight build never permits early ready"), State.bOpeningReady);
     // Until every planned choice is consumed the body holds, even with the rival in sight.
     FLDEvaluationProfile Two = Profile;
     Two.Choices.Add(FLDEvaluationChoice());
@@ -490,10 +512,22 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     Replace.Build[0].Slot = 0;
     auto RestPending = Rest;
     RestPending.Self.Blueprints = {TEXT("active_seethe")};
+    for (uint8 Index = 1; Index <= 3; ++Index)
+    {
+        FLDOpponentPOI Service = Place(*FString::Printf(TEXT("rest_service_%d"), Index), ELDOpponentPOIKind::RestService, 6000 + 800 * Index, 700);
+        Service.RestService = static_cast<ELDRestService>(Index);
+        RestPending.RestServicePOIs.Add(Service);
+    }
     Fresh = {};
     FreshPolicy = {};
     Decision = LDEvaluationPolicy::Decide(RestPending, C, Replace, FreshPolicy, Fresh);
-    bGood &= Test.TestTrue(TEXT("A replacement of the occupied slot in the rest window"), Decision.Build.Kind == EBuild::ReplaceActive
+    bGood &= Test.TestTrue(TEXT("Away from the trainer, a planned replacement walks there and sends nothing"),
+        Decision.Build.Kind == EBuild::None && Decision.Body.Kind == ELDOpponentBodyKind::MoveGround
+        && Decision.Body.POI == TEXT("rest_service_3") && Decision.Reason == ELDOpponentReason::RestService
+        && Fresh.Phase == ELDEvaluationPhase::Building && !Fresh.bOpeningReady);
+    RestPending.Self.NearbyRestService = ELDRestService::Trainer;
+    Decision = LDEvaluationPolicy::Decide(RestPending, C, Replace, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("A replacement of the occupied slot beside the trainer"), Decision.Build.Kind == EBuild::ReplaceActive
         && Decision.Build.Blueprint == TEXT("active_seethe") && Decision.Build.Slot == 0);
     FLDEvaluationProfile Occupied = Learn;
     Occupied.Build[0].Slot = 0;
@@ -501,12 +535,49 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     FLDEvaluationProfile Respec = Plan;
     Respec.Build = {Step(EKind::Respec, EWindow::OpeningRest)};
     auto Allocated = Rest;
+    Allocated.RestServicePOIs = RestPending.RestServicePOIs;
+    Allocated.Self.NearbyRestService = ELDRestService::Trainer;
     Allocated.Self.StatPoints[2].Points = 3;
     Fresh = {};
     FreshPolicy = {};
     Decision = LDEvaluationPolicy::Decide(Allocated, C, Respec, FreshPolicy, Fresh);
     bGood &= Test.TestTrue(TEXT("A respec in the rest window"), Decision.Build.Kind == EBuild::Respec);
     bGood &= Fails(TEXT("A respec with nothing allocated"), Rest, Respec, FLDEvaluationProfileState(), TEXT("no allocated point"));
+    // Allocate -> respec -> allocate: the plain allocations go anywhere; only the respec walks to the trainer first.
+    FLDEvaluationBuildStep One = Step(EKind::AllocatePoints, EWindow::OpeningRest);
+    One.Points = {{TEXT("stat_strength"), 3}};
+    FLDEvaluationBuildStep Again = Step(EKind::AllocatePoints, EWindow::OpeningRest);
+    Again.Points = {{TEXT("stat_physique"), 3}};
+    FLDEvaluationProfile Cycle = Plan;
+    Cycle.Build = {One, Step(EKind::Respec, EWindow::OpeningRest), Again};
+    auto Away = Rest;
+    Away.RestServicePOIs = RestPending.RestServicePOIs;
+    Away.Self.bOpeningBasePending = false;
+    Fresh = {};
+    FreshPolicy = {};
+    Decision = LDEvaluationPolicy::Decide(Away, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: the first allocation goes out away from any NPC"),
+        Decision.Build.Kind == EBuild::AllocatePoints && Decision.Body.Kind == ELDOpponentBodyKind::None);
+    auto Spent3 = Away;
+    Spent3.Self.BuildRevision = 2;
+    Spent3.Self.UnspentPoints = 0;
+    Spent3.Self.StatPoints[2].Points = 3;
+    Decision = LDEvaluationPolicy::Decide(Spent3, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: the respec walks to the trainer without sending"), Fresh.StepsCommitted == 1
+        && Decision.Build.Kind == EBuild::None && Decision.Body.Kind == ELDOpponentBodyKind::MoveGround
+        && Decision.Body.POI == TEXT("rest_service_3") && Fresh.Phase == ELDEvaluationPhase::Building);
+    auto AtTrainer = Spent3;
+    AtTrainer.Self.NearbyRestService = ELDRestService::Trainer;
+    Decision = LDEvaluationPolicy::Decide(AtTrainer, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: beside the trainer the respec goes out"), Decision.Build.Kind == EBuild::Respec);
+    auto Refunded = AtTrainer;
+    Refunded.Self.BuildRevision = 3;
+    Refunded.Self.UnspentPoints = 3;
+    Refunded.Self.StatPoints[2].Points = 0;
+    Refunded.Self.NearbyRestService = ELDRestService::None;
+    Decision = LDEvaluationPolicy::Decide(Refunded, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: the second allocation goes out wherever the body stands"), Fresh.StepsCommitted == 2
+        && Decision.Build.Kind == EBuild::AllocatePoints && Decision.Build.PointCounts == TArray<uint8>({3, 0, 0, 0, 0}));
     return bGood;
 }
 
@@ -671,7 +742,11 @@ bool RunInput(FAutomationTestBase& Test)
 bool RunHorizon(FAutomationTestBase& Test)
 {
     using LDBuildEvaluation::KillAtOrBeforeHorizon;
-    bool bGood = Test.TestTrue(TEXT("A kill before the non-frame-aligned horizon counts"),
+    bool bGood = Test.TestFalse(TEXT("A kill before the field begins never counts"),
+        KillAtOrBeforeHorizon(5000, 45001, 4999));
+    bGood &= Test.TestTrue(TEXT("A kill at the field start counts"),
+        KillAtOrBeforeHorizon(5000, 45001, 5000));
+    bGood &= Test.TestTrue(TEXT("A kill before the non-frame-aligned horizon counts"),
         KillAtOrBeforeHorizon(5000, 45001, 50000));
     bGood &= Test.TestTrue(TEXT("A kill exactly at the horizon counts"),
         KillAtOrBeforeHorizon(5000, 45001, 50001));

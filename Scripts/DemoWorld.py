@@ -28,7 +28,7 @@ PARAMETER_REFS = (
 # #198 PK sign-up (user decision A on issue #198: stand in the circle, reusing the existing 150 cm stand-in-disk radius
 # AIRDROP.PickupRadiusCm, no new number): PKSignup pk_signup_0..5 is the sign-up disk of the private rest space of roster
 # slot 0..5, PK_SIGNUP_DISTANCE_CM from that slot's rest anchor on its level.
-ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup")
+ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup", "RestSpawn", "RestService")
 # #97: anchor counts follow the authored world within these bounds. At least one spawn per match seat; one capture;
 # the Boss patrols exactly four waypoints.
 MAX_ANCHORS = 128
@@ -36,7 +36,7 @@ MAX_ANCHORS = 128
 MAX_BLOCKERS = 2048
 ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
                  "Airdrop": (1, 16), "BossWaypoint": (4, 4), "PKSpawn": (6, 6), "PKThrow": (1, 1),
-                 "PKSignup": (6, 6)}
+                 "PKSignup": (6, 6), "RestSpawn": (6, 6), "RestService": (3, 3)}
 # #198 approved PK geometry: spawns 1000..1400 cm from the ring centre, enemy spawns at least 1000 cm apart, six at
 # 60 degree steps counterclockwise in id order (+-1 degree after integer rounding); the throw anchor stands outside the
 # 1800 cm arena and its 4000 cm range covers the whole arena.
@@ -806,12 +806,19 @@ def validate_bindings(world, data):
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "PKSignup") == signup_ids,
             "WorldAnchors", "pk_signup", "the PK sign-up disks must be pk_signup_0 to pk_signup_5")
     signup_radius = p("AIRDROP.PickupRadiusCm")
-    spawn_ids = list(data["world"]["spawn_ids"])
-    require(len(spawn_ids) >= PK_SIGNUPS, "WorldAnchors", "pk_signup", "every roster slot needs its own rest anchor")
+    rest_ids = [f"rest_spawn_{n}" for n in range(PK_SIGNUPS)]
+    require(sorted(identity for identity, row in anchors.items() if row["kind"] == "RestSpawn") == rest_ids,
+            "WorldAnchors", "rest_spawn", "the shared room needs rest_spawn_0 to rest_spawn_5")
+    service_ids = [f"rest_service_{n}" for n in range(1, 4)]
+    require(sorted(identity for identity, row in anchors.items() if row["kind"] == "RestService") == service_ids,
+            "WorldAnchors", "rest_service", "the shared room needs three distinct service NPCs")
+    for identity in service_ids:
+        require(geometry.legal(point(anchors[identity]["position_cm"], identity), radius + signup_radius),
+                "InvalidGeometry", identity, "service interaction disk lacks legal capsule support")
     rest_offsets = [point(value, "spawn offset") for value in world["placement"]["spawn_offsets_cm"]]
     for slot, identity in enumerate(signup_ids):
         centre = point(anchors[identity]["position_cm"], identity)
-        rest_id = spawn_ids[slot * len(spawn_ids) // PK_SIGNUPS]
+        rest_id = rest_ids[slot]
         rest = point(anchors[rest_id]["position_cm"], rest_id)
         require(centre[2] == rest[2] and squared_distance(centre, rest) == PK_SIGNUP_DISTANCE_CM ** 2, "InvalidGeometry",
                 identity, f"PK sign-up disk must stand on the level of {rest_id}, {PK_SIGNUP_DISTANCE_CM} cm from it")
@@ -862,7 +869,7 @@ def validate_bindings(world, data):
     for identity, row in anchors.items():
         location = point(row["position_cm"], identity)
         require(geometry.legal(location, radius), "InvalidGeometry", identity, "anchor has no legal static capsule position")
-        if row["kind"] == "Spawn":
+        if row["kind"] in ("Spawn", "RestSpawn"):
             for index, offset in enumerate(offsets):
                 candidate = tuple(bounded(a + b) for a, b in zip(location, offset))
                 require(geometry.legal(candidate, radius), "WorldPlacement", identity, "local spawn candidate is blocked")

@@ -24,6 +24,9 @@ namespace LDPathSteering
     LOCKDOWN_API bool AtGoal(const ACharacter& Body, const FVector& Goal, double AcceptanceCm);
     // A blocking body's planar footprint.
     struct FBodyDisc { FVector2D Foot; double Radius=0; };
+    // Adjust a ground walk around nearby visible bodies without changing its destination or movement speed.
+    LOCKDOWN_API FVector AvoidVisibleBodies(const FVector& Foot, const FVector& Waypoint, const FVector& Preferred, double Radius,
+        TConstArrayView<FBodyDisc> Others);
     // #97: bodies block each other, so a clicked spot another body stands on can never be reached. The spot is held by
     // every other body too close to it for this body to stand there, and by any body touching a holder (a crowd at the
     // spot). A ground walk that touches the holding group has arrived. Touching means footprints within

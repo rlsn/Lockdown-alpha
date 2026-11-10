@@ -6,6 +6,19 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 
+FVector LDSpawnPlacement::StandingOrigin(const FLDLegalGround& Ground)
+{
+    const double Gap=(UCharacterMovementComponent::MIN_FLOOR_DIST+UCharacterMovementComponent::MAX_FLOOR_DIST)*.5;
+    return Ground.SupportOriginCm+FVector(0,0,Gap);
+}
+
+bool LDSpawnPlacement::OverlapsStatic(UWorld& World, const FVector& Origin, const FCollisionShape& Capsule)
+{
+    return World.OverlapAnyTestByObjectType(Origin,FQuat::Identity,
+        FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllStaticObjects),Capsule,
+        FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnStatic)));
+}
+
 bool LDSpawnPlacement::TryUniformSample(uint32 Sample, uint32 Bound, uint32& Index)
 {
     Index=0;
@@ -65,6 +78,13 @@ namespace
         const double StraightHalf=Capsule.GetCapsuleHalfHeight()-Radius;
         const double Vertical=FMath::Max(0.,FMath::Abs(First.Z-Second.Z)-2*StraightHalf);
         return FVector::DistSquared2D(First,Second)+Vertical*Vertical<FMath::Square(2*Radius);
+    }
+
+    bool IsRestSpawn(const FLDDemoWorldGeometry* Geometry, FName Anchor)
+    {
+        const FString Id=Anchor.ToString();
+        return Geometry && Geometry->Anchors.ContainsByPredicate([&Id](const FLDDemoWorldAnchor& Row)
+        { return Row.Kind==ELDDemoWorldAnchorKind::RestSpawn && Row.Id.Equals(Id,ESearchCase::CaseSensitive); });
     }
 }
 
@@ -189,10 +209,11 @@ bool ULDMapRegistry::SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName 
         Out=MoveTemp(Replay);
         return true;
     }
-    // #198: a contender's fixed rest anchor is an approved spawn, and a PK entrant's is one of the PK ring spawns.
+    // Rest anchors are validated by the world geometry, not the field spawn list.
     const auto& Refs=Content->Get().World;
-    if (!Refs.SpawnIds.Contains(Anchor.ToString()) && !Refs.PKSpawnIds.Contains(Anchor.ToString()))
-    { Error=FString::Printf(TEXT("%s is not an approved spawn or PK spawn anchor."),*Anchor.ToString()); return false; }
+    const FString AnchorId=Anchor.ToString();
+    if (!Refs.SpawnIds.Contains(AnchorId) && !Refs.PKSpawnIds.Contains(AnchorId) && !IsRestSpawn(Geometry.Get(),Anchor))
+    { Error=FString::Printf(TEXT("%s is not an approved field, rest, or PK spawn anchor."),*AnchorId); return false; }
     Out=RecordSpawnSelection(Request,Anchor);
     Error.Reset();
     return true;
@@ -236,7 +257,6 @@ bool ULDMapRegistry::ReserveSpawnNear(const FLDSpawnRequestKey& Request, const F
             Candidates.Add(FootCm+FVector(FMath::Cos(Angle)*Distance,FMath::Sin(Angle)*Distance,0));
         }
     }
-    const double Gap=(UCharacterMovementComponent::MIN_FLOOR_DIST+UCharacterMovementComponent::MAX_FLOOR_DIST)*.5;
     for (const FVector& Candidate : Candidates)
     {
         FLDLegalGround Ground;
@@ -246,8 +266,9 @@ bool ULDMapRegistry::ReserveSpawnNear(const FLDSpawnRequestKey& Request, const F
             return false;
         }
         if (FVector::DistSquared2D(Ground.SurfaceCm,FootCm)>FMath::Square(RadiusCm)+1) { continue; }
-        const FVector Origin=Ground.SurfaceCm+FVector(0,0,Required.GetCapsuleHalfHeight()+Gap);
-        bool Occupied=GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
+        const FVector Origin=LDSpawnPlacement::StandingOrigin(Ground);
+        bool Occupied=LDSpawnPlacement::OverlapsStatic(*GetWorld(),Origin,Required)
+            || GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
             FCollisionObjectQueryParams(ECC_Pawn),Required,FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnNear)));
         for (const auto& Pair : SpawnState->Requests)
         {
@@ -302,13 +323,15 @@ bool ULDMapRegistry::ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelect
         || Capsule.GetCapsuleHalfHeight()!=Required.GetCapsuleHalfHeight())
     { Error=TEXT("Spawn reservation requires the exact approved native capsule."); return false; }
     const auto* Anchor=Resolve(Selection->Anchor,Generation);
-    const auto* Capture=Resolve(FName(*Content->Get().World.CaptureId),Generation);
-    if (!Anchor || !Capture || Geometry->SpawnOffsetsCm.Num()!=7)
+    // The enclosed rest room cannot route to the field capture point; it must route to a room service instead.
+    const FName ReferenceId=IsRestSpawn(Geometry.Get(),Selection->Anchor)
+        ? FName(*LDDemoWorld::RestServiceId(1)) : FName(*Content->Get().World.CaptureId);
+    const auto* Reference=Resolve(ReferenceId,Generation);
+    if (!Anchor || !Reference || Geometry->SpawnOffsetsCm.Num()!=7)
     { Error=TEXT("Compiled spawn anchor, local offsets or reference path endpoint is missing."); return false; }
-    FLDLegalGround CaptureGround;
+    FLDLegalGround ReferenceGround;
     ELDWorldQueryFailure Failure;
-    if (!QueryGround(WorldRevision,Capture->Position,Required,Capture->Surface,CaptureGround,Failure,Error)) { return false; }
-    const double Gap=(UCharacterMovementComponent::MIN_FLOOR_DIST+UCharacterMovementComponent::MAX_FLOOR_DIST)*.5;
+    if (!QueryGround(WorldRevision,Reference->Position,Required,Reference->Surface,ReferenceGround,Failure,Error)) { return false; }
     for (int32 Offset=0; Offset<Geometry->SpawnOffsetsCm.Num(); ++Offset)
     {
         FVector Delta;
@@ -320,8 +343,9 @@ bool ULDMapRegistry::ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelect
             if (Failure==ELDWorldQueryFailure::Blocked) { continue; }
             return false;
         }
-        const FVector Origin=Ground.SurfaceCm+FVector(0,0,Required.GetCapsuleHalfHeight()+Gap);
-        bool Occupied=GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
+        const FVector Origin=LDSpawnPlacement::StandingOrigin(Ground);
+        bool Occupied=LDSpawnPlacement::OverlapsStatic(*GetWorld(),Origin,Required)
+            || GetWorld()->OverlapAnyTestByObjectType(Origin,FQuat::Identity,
             FCollisionObjectQueryParams(ECC_Pawn),Required,FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnReservation)));
         for (const auto& Pair : SpawnState->Requests)
         {
@@ -329,7 +353,7 @@ bool ULDMapRegistry::ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelect
         }
         if (Occupied) { continue; }
         FLDCompletePath Path;
-        if (!QueryCompletePath(WorldRevision,Ground,CaptureGround,Required,Path,Failure,Error)) { return false; }
+        if (!QueryCompletePath(WorldRevision,Ground,ReferenceGround,Required,Path,Failure,Error)) { return false; }
         TSharedPtr<FLDSpawnReservation> Reservation(new FLDSpawnReservation);
         Reservation->Owner=FObjectKey(this);
         Reservation->Key=Selection->Key;

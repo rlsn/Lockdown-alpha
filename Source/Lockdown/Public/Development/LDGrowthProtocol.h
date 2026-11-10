@@ -106,6 +106,7 @@ enum class ELDGrowthReason : uint16
     SlotEmpty = 74,
     // A rest service (NPC, respec) outside a rest window.
     NotRestWindow = 75,
+    RestServiceUnavailable = 76,
     DataNotReady = 78, StaleContext = 79,
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,

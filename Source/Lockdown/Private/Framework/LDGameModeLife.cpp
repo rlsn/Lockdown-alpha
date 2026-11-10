@@ -387,7 +387,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
         return false;
     }
     int64 RespawnAt = 0;
-    // #198: a rest life (private rest space) has no field eligibility; it stands up again at once at its rest anchor.
+    // #198: a rest life has no field eligibility; it stands up again at once at its shared-room seat.
     // A field death's wait is fixed by the field progress T of the death (8/10/12/15 s by segment).
     // #198 session D: a PK death is an elimination, never a field death: the contender stands up again in its private
     // rest space at once and watches the rest of the PK (no capture eligibility, K/D or respawn wait).
@@ -612,7 +612,10 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
         || Movement->CurrentFloor.HitResult.GetComponent() != Out.Reservation->Ground().Floor.Get()
         || !Body->GetActorLocation().Equals(Out.Reservation->BodyOrigin(), .000001))
     {
-        Error = TEXT("Prepared body does not occupy its exact registered placement.");
+        const FVector Delta = Body->GetActorLocation() - Out.Reservation->BodyOrigin();
+        Error = FString::Printf(TEXT("Prepared body does not occupy its exact registered placement: walkable=%d floor=%s expected_floor=%s delta=(%.9f,%.9f,%.9f)."),
+            Movement->CurrentFloor.IsWalkableFloor() ? 1 : 0, *GetNameSafe(Movement->CurrentFloor.HitResult.GetComponent()),
+            *GetNameSafe(Out.Reservation->Ground().Floor.Get()), Delta.X, Delta.Y, Delta.Z);
         ReleasePlacedBody(Out);
         return false;
     }
@@ -734,13 +737,13 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
             return false;
         }
         auto& Entry = Prepared.Emplace_GetRef();
-        // #198: the match opens with the rest R0, so every first life stands in its private rest space.
+        // #198: the match opens with the rest R0, so every first life stands at its shared-room seat.
         FLDPlacementTarget RestTarget;
         RestTarget.Kind = FLDPlacementTarget::EKind::Anchor;
         RestTarget.Anchor = RestAnchorFor(Id);
         if (RestTarget.Anchor.IsNone())
         {
-            Error = TEXT("A starting contender has no private rest anchor.");
+            Error = TEXT("A starting contender has no shared-room rest anchor.");
             return false;
         }
         if (!PlaceContenderBody(Id, 1, Permit, Entry.Placed, Error, RestTarget)) { return false; }
