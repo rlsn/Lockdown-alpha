@@ -244,7 +244,14 @@ def parameter_projection(parameters):
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
         ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
-        ("MATCH.CountdownSec", "CountdownMs"), ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
+        ("MATCH.FieldSegmentSec", "FieldSegmentMs"),
+        ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.SignupSec", "RestSignupMs"),
+        ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
+        ("REST.PKMaxSec", "RestPKMaxMs"), ("REST.SettlementSec", "RestSettlementMs"), ("REST.PayoutSec", "RestPayoutMs"),
+        ("REST.ReturnSec", "RestReturnMs"),
+        ("LIFE.RespawnSec.Field1", "RespawnField1Ms"), ("LIFE.RespawnSec.Field2", "RespawnField2Ms"),
+        ("LIFE.RespawnSec.Field3", "RespawnField3Ms"), ("LIFE.RespawnSec.Final", "RespawnFinalMs"),
+        ("LIFE.ProtectionSec", "ProtectionMs"),
         ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
@@ -275,6 +282,7 @@ def parameter_projection(parameters):
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
         ("COMBAT.DischargeRadiusCm", "DischargeRadiusCm"), ("COMBAT.FogRadiusCm", "FogRadiusCm"),
         ("COMBAT.ConductRadiusCm", "ConductRadiusCm"), ("COMBAT.OverloadRadiusCm", "OverloadRadiusCm"),
+        ("REST.ReturnSearchRadiusCm", "RestReturnSearchRadiusCm"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
@@ -286,6 +294,7 @@ def parameter_projection(parameters):
         ("COMBAT.OverloadBreachStacks", "OverloadBreachStacks"),
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
+        ("GROWTH.NpcActivePoints", "NpcActivePoints"),
         ("GROWTH.EmptyComponentPoolPoints", "EmptyComponentPoolPoints"),
     ):
         result[dest] = parameters[source]
@@ -652,7 +661,7 @@ def _export_runtime_refusal(output, index, base, written):
 
 def _export_cases(output, index, base, value_mutations, valid, written):
     exact = fixtures.content_fixture()
-    exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
+    exact["parameters"]["LIFE.RespawnSec.Final"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
     valid("above_double_integer", exact, literal=b"9007199254740.993")
     _export_exact_integer_case(valid)

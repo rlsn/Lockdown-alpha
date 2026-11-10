@@ -414,6 +414,20 @@ bool FLDCampMatchState::CompleteReset(const FLDCampResetKey& Key, double AtSecon
     return true;
 }
 
+void FLDCampMatchState::ForgetTargetsForRest(double NowSeconds)
+{
+    for (FLDCampGroupState& Group : Camps)
+    {
+        for (FLDCampMemberState& Member : Group.Members)
+        {
+            if (!Member.bAlive) { continue; }
+            Member.Brain = {};
+            Member.HostileSources.Reset();
+            Member.AggroFloorSeconds = FMath::Max(Member.AggroFloorSeconds, NowSeconds);
+        }
+    }
+}
+
 bool FLDCampMatchState::NextDirectSequence(const FLDCombatBodyRef& Body, uint64& Out, FString& Error)
 {
     FLDCampMemberState* Member = MutableLiving(Body, Error);

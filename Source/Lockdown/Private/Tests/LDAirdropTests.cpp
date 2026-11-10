@@ -32,6 +32,10 @@ FLDPublicMatchView ViewAt(const FLDAirdropState& State, int64 NowMs)
     View.ServerNowMs = NowMs;
     View.StartedAtMs = State.Schedule.StartedAtMs;
     View.OpenAtMs = 1000000;
+    // #198: world schedules are field progress T; a field running since T=0 at authority 0 makes T equal NowMs.
+    View.Timeline.Generation = View.Generation;
+    View.Timeline.Stage = ELDMatchStage::FinalField;
+    View.Timeline.FieldEndT = -1;
     View.Airdrop = State.View();
     return View;
 }

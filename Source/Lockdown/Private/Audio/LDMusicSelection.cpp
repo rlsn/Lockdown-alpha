@@ -18,13 +18,15 @@ FLDMusicRequest LDAudio::SelectMusic(const FLDMusicInput& Input)
     {
     case ELDMatchPhase::Lobby:
     case ELDMatchPhase::Starting:
-    case ELDMatchPhase::Countdown:
+    // #198: a rest is the calm between field segments.
+    case ELDMatchPhase::Rest:
     case ELDMatchPhase::Resetting:
         return Decide(ELDMusicTrack::Menu);
     case ELDMatchPhase::Development:
-        // Without the clock the offset is unknown; starting at 0 would drift from the flagpole opening.
-        if (!Input.bClock || Public->StartedAtMs <= 0) { return Request; }
-        return Decide(ELDMusicTrack::Farm, float(FMath::Max<int64>(0, Input.NowMs - Public->StartedAtMs)) / 1000.f);
+        // #198: the farm track (one field segment long) plays from the start of each field segment. Without the clock
+        // or a published segment start the offset is unknown, so nothing changes.
+        if (!Input.bClock || Public->Timeline.FieldStartedAtMs <= 0) { return Request; }
+        return Decide(ELDMusicTrack::Farm, float(FMath::Max<int64>(0, Input.NowMs - Public->Timeline.FieldStartedAtMs)) / 1000.f);
     case ELDMatchPhase::CaptureOpen:
         return Decide(ELDMusicTrack::Escalation);
     case ELDMatchPhase::Results:

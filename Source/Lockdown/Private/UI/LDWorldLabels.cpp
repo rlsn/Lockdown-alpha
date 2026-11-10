@@ -261,7 +261,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(!Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Centre)){continue;}
             const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
             FPending Entry;
-            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::RosterName(Public->DemoLobby,Unit.ContenderId):FString(),Content,Frame->SampledAtServerSec);
+            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::ObservedContenderName(Public->DemoLobby,Unit.ContenderId,
+                Public->PublicMatch.Phase==ELDMatchPhase::Rest):FString(),Content,Frame->SampledAtServerSec);
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;
             if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}

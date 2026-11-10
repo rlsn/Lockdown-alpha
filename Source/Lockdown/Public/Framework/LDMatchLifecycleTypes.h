@@ -15,8 +15,9 @@ struct FLDMatchContext
 UENUM()
 enum class ELDMatchPhase : uint8
 {
-    // Countdown (#153): every contender is spawned; until T=0 movement and the opening choice are admitted, attacks and trades are not.
-    Lobby, Starting, Countdown, Development, CaptureOpen, Results, Resetting, Closing, Faulted
+    // 2 is retired: the #153 opening countdown, replaced by the opening rest R0 (#198). Rest covers every rest step;
+    // field segments 1..3 are Development and the final field is CaptureOpen.
+    Lobby = 0, Starting = 1, Development = 3, CaptureOpen = 4, Results = 5, Resetting = 6, Closing = 7, Faulted = 8, Rest = 9
 };
 
 UENUM()
@@ -261,6 +262,9 @@ private:
 
 namespace LDMatchLifecycle
 {
+    // Whether a received phase byte names a current phase (not out of range, not the retired 2).
+    inline bool IsKnownPhase(ELDMatchPhase Phase)
+    { return uint8(Phase) <= uint8(ELDMatchPhase::Rest) && uint8(Phase) != 2; }
     LOCKDOWN_API bool AllocateGeneration(uint32& LastGeneration, uint32& Generation);
     LOCKDOWN_API bool AuthoritySecondsToNowMs(double Seconds, int64& Out, FString& Error);
     LOCKDOWN_API bool AuthoritySecondsToEventMs(double Seconds, int64& Out, FString& Error);

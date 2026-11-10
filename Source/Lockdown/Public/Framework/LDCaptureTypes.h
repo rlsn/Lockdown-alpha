@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDMatchTimeline.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "LDCaptureTypes.generated.h"
 
@@ -99,6 +100,8 @@ struct FLDPublicMatchView
     UPROPERTY() FLDAirdropView Airdrop;
     UPROPERTY() FLDLeaderView Leader;
     UPROPERTY() FLDBossView Boss;
+    // #198: the outer timeline (rest steps, field segment and T).
+    UPROPERTY() FLDTimelineView Timeline;
 };
 
 USTRUCT()
@@ -180,7 +183,9 @@ struct LOCKDOWN_API FLDCaptureEventTime
     static bool FromSeconds(double RawSeconds, FLDCaptureEventTime& Out, FString& Error);
 };
 
-enum class ELDCaptureEligibilityChange : uint8 { Joined, Respawned, ProtectionEnded, Died, Left };
+// PhaseRetired (#198): a living field life ended by a field -> rest boundary; it leaves the spray roster like a death
+// but counts no kill or death.
+enum class ELDCaptureEligibilityChange : uint8 { Joined, Respawned, ProtectionEnded, Died, Left, PhaseRetired };
 
 // Life-provider handoff into the capture reducer. Joined/Respawned carry the committed body's
 // native support; Respawned atomically carries its half-open protection end.

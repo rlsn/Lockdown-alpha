@@ -58,7 +58,8 @@ namespace
                 return false;
             }
             Mode.Camps = Director;
-            return Director->BeginMatch(Start.Match, Start.StartedAtMs, Error);
+            // #198: camp refresh, growth and the Boss count field progress T, which starts at 0.
+            return Director->BeginMatch(Start.Match, 0, Error);
         };
         Hooks.MatchReset = [](ALDGameMode& Mode, const FLDMatchReset&, FString& Error)
         {
@@ -105,6 +106,57 @@ bool ALDCampDirector::DevRefreshCleared(const FLDGameplayWritePermit& Permit, in
 }
 #endif
 
+int64 ALDCampDirector::NextRefreshDueMs() const
+{
+    const ALDGameMode* Mode = AuthorityMode();
+    if (!Mode || !Mode->IsFieldRunning()) { return MAX_int64; }
+    const int64 DueT = FMath::Min(State.NextRespawnDueMs(), Boss.NextDueMs());
+    return DueT == MAX_int64 ? MAX_int64 : Mode->FieldDueAuthorityMs(DueT);
+}
+
+bool ALDCampDirector::FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    ALDGameMode* Mode = AuthorityMode();
+    int32 Frozen = 0;
+    // Every living camp member and the Boss (all registered world bodies of this director).
+    for (const auto& Pair : Bodies)
+    {
+        FLDCombatBodyRef Ref;
+        const ALDCampMemberCharacter* Body = Pair.Value.Get();
+        if (!Body || !Mode->ReadBodyRef(*Body, Ref)) { continue; }
+        StopMotion(Pair.Key);
+        if (!Mode->Combat->SetBodySuspended(Ref, true, Permit, Error)) { return false; }
+        ++Frozen;
+    }
+    UE_LOG(LogLDWorld, Display, TEXT("LD_WORLD_FROZEN bodies=%d field_t_ms=%lld"), Frozen, Mode->GetFieldNowMs());
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    ALDGameMode* Mode = AuthorityMode();
+    // Members keep their HP and stand where they were frozen; they forget targets and paths and choose again. One beyond
+    // its leash walks home by the ordinary field return.
+    State.ForgetTargetsForRest(Mode->GetAuthorityNowSeconds());
+    Returns.Reset();
+    int32 Thawed = 0;
+    for (const auto& Pair : Bodies)
+    {
+        FLDCombatBodyRef Ref;
+        const ALDCampMemberCharacter* Body = Pair.Value.Get();
+        if (!Body || !Mode->ReadBodyRef(*Body, Ref)) { continue; }
+        StopMotion(Pair.Key);
+        if (!Mode->Combat->SetBodySuspended(Ref, false, Permit, Error)) { return false; }
+        ++Thawed;
+    }
+    UE_LOG(LogLDWorld, Display, TEXT("LD_WORLD_THAWED bodies=%d field_t_ms=%lld"), Thawed, Mode->GetFieldNowMs());
+    Error.Reset();
+    return true;
+}
+
 bool ALDCampDirector::CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase, FString& Error) const
 {
     const ALDGameMode* Mode = AuthorityMode();
@@ -140,7 +192,6 @@ bool ALDCampDirector::BeginMatch(const FLDMatchContext& Match, int64 StartedAtMs
         return false;
     }
     Content = Loaded;
-    MatchStartedAtMs = StartedAtMs;
     Error.Reset();
     return true;
 }
@@ -642,7 +693,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     if (Boss.IsBody(Fact.VictimBody))
     {
         const FGuid Entity = Fact.VictimBody.Victim.EntityId;
-        Boss.Died(Fact.VictimBody, Fact.CreditOwner, Fact.OccurredAtMs);
+        Boss.Died(Fact.VictimBody, Fact.CreditOwner, AuthorityMode()->GetTimeline().FieldMsAt(Fact.OccurredAtMs));
         Motion.Remove(Entity);
         if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
         Bodies.Remove(Entity);
@@ -652,7 +703,8 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     }
     int32 Camp = INDEX_NONE;
     State.FindMember(Fact.Key.Victim.EntityId, &Camp);
-    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, Fact.OccurredAtMs, Error);
+    // #198: the clear instant and the refresh deadline are field progress T, so a rest neither runs nor skips them.
+    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, AuthorityMode()->GetTimeline().FieldMsAt(Fact.OccurredAtMs), Error);
     if (Result == ELDCampDeathResult::Rejected) { return false; }
     if (Result == ELDCampDeathResult::Duplicate)
     {
@@ -752,7 +804,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
     }
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
-        if (!State.IsRespawnDue(Camp, Mode->GetAuthorityNowMs())) { continue; }
+        if (!State.IsRespawnDue(Camp, Mode->GetFieldNowMs())) { continue; }
         bool bBlocked = false;
         if (!SpawnGroup(Camp, Permit, bBlocked, Error)) { return false; }
         if (!bBlocked)
@@ -767,7 +819,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
             BlockedRefresh.Add(Camp);
         }
     }
-    if (Boss.IsSpawnDue(Mode->GetAuthorityNowMs()))
+    if (Boss.IsSpawnDue(Mode->GetFieldNowMs()))
     {
         bool bBlocked = false;
         if (!SpawnBoss(Permit, bBlocked, Error)) { return false; }
@@ -802,7 +854,7 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers({{Boss.EntityId, Body, Boss.Rules.MonsterId}}, Permit, Refs, Error)) { return false; }
     bCommitted = true;
-    if (Refs.Num() != 1 || !Boss.Spawned(Refs[0], Mode->GetAuthorityNowMs()))
+    if (Refs.Num() != 1 || !Boss.Spawned(Refs[0], Mode->GetFieldNowMs()))
     {
         Error = TEXT("Core committed a Boss life that the Boss state refused.");
         return false;
@@ -942,7 +994,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         if (!bCreated) { return false; }
     }
     // #97: the whole group takes the growth stage of this spawn moment and keeps it for these lives.
-    const uint8 Stage = LDCampGrowth::Stage(Content->Get().Parameters, Mode->GetAuthorityNowMs() - MatchStartedAtMs);
+    const uint8 Stage = LDCampGrowth::Stage(Content->Get().Parameters, Mode->GetFieldNowMs());
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {

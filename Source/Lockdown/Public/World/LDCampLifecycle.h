@@ -136,6 +136,9 @@ public:
     bool ReadResetKey(const FLDCombatBodyRef& Member, FLDCampResetKey& Out, FString& Error) const;
     bool CompleteReset(const FLDCampResetKey& Key, double AtSeconds, FString& Error);
     bool NextDirectSequence(const FLDCombatBodyRef& Member, uint64& Out, FString& Error);
+    // #198 rest return: every living member forgets its brain state and hostile sources (contacts before NowSeconds no
+    // longer count) and chooses again in the field; HP and the refresh deadlines are untouched.
+    void ForgetTargetsForRest(double NowSeconds);
 
     // Camp-owned public facts for a currently registered living member: creature identity and the
     // camp_returning cue (one stack, untimed). Existing combat facts are kept; conflicts are rejected.

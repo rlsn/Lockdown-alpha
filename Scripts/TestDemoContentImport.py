@@ -232,7 +232,8 @@ class DemoContentImport(unittest.TestCase):
         self.assertFalse({"max_choices", "max_skill_rank", "opening_offer", "reroll_levels"} & set(data["progression"]))
         self.assertFalse({"attributes", "opening_cards"} & set(data))
         for key, expected in (("GROWTH.OpeningPoints", 2), ("GROWTH.PointsPerLevel", 4), ("GROWTH.MaxLevelPointsXP", 250),
-                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
+                              ("GROWTH.MaxLevelPoints", 1), ("GROWTH.NpcActivePoints", 5),
+                              ("GROWTH.BuildSafeWindowSec", {"unit": "ms", "ms": 2500})):
             self.assertEqual(self.baseline.catalog.parameter(key), expected)
         self.assertFalse([key for key in data["parameters"] if key.startswith("CHOICE.")])
 
@@ -397,8 +398,10 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["STAT.AD.Base"].update(unit="hp"),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=1.0001),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=0.00001),
-            lambda data: data["parameters"]["LIFE.RespawnSec"].update(value=0.0001),
-            lambda data: data["parameters"]["LIFE.RespawnSec"].update(value=0),
+            lambda data: data["parameters"]["LIFE.RespawnSec.Field1"].update(value=0.0001),
+            lambda data: data["parameters"]["LIFE.RespawnSec.Final"].update(value=0),
+            lambda data: data["parameters"]["MATCH.FieldSegmentSec"].update(value=0),
+            lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(unit="s"),
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),
             lambda data: data["parameters"]["STAT.BaseAttackSpeed"].update(value=0),
             lambda data: data["abilities"][0]["target"].update(projectile_speed={"unit": "cm/s", "value": -1}),
@@ -648,6 +651,16 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
+            # #198 rest phases: PK sign-up is the tail of every build window; retired timeline keys stay rejected.
+            (lambda data: data["parameters"]["REST.SignupSec"].update(value=26), "InvalidTiming"),
+            (lambda data: data["parameters"]["REST.OpeningBuildSec"].update(value=7), "InvalidTiming"),
+            (lambda data: data["parameters"]["REST.SignupSec"].update(value=25), None),
+            (lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"].update({"GROWTH.NpcActivePoints": 0}), "NumericDomain"),
+            (lambda data: data["parameters"].pop("REST.PKMaxSec"), "MissingField"),
+            (lambda data: data["parameters"].update({"MATCH.DevelopmentSec": {"unit": "s", "value": 180}}), "UnknownField"),
+            (lambda data: data["parameters"].update({"MATCH.CountdownSec": {"unit": "s", "value": 5}}), "UnknownField"),
+            (lambda data: data["parameters"].update({"LIFE.RespawnSec": {"unit": "s", "value": 15}}), "UnknownField"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):

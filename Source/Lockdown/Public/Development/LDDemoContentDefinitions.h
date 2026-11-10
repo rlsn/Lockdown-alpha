@@ -107,10 +107,27 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
-    // #153: the opening countdown between the initial spawn and the match's T=0; every match timer counts from T=0.
-    UPROPERTY() int64 CountdownMs = 0;
-    UPROPERTY() int64 DevelopmentMs = 0;
-    UPROPERTY() int64 RespawnMs = 0;
+    // #198: each of the three field segments; the field progress T only advances in the field.
+    UPROPERTY() int64 FieldSegmentMs = 0;
+    // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
+    // PK ready lock, PK cap, settlement, payout and the return-to-field countdown.
+    UPROPERTY() int64 RestOpeningBuildMs = 0;
+    UPROPERTY() int64 RestBuildMs = 0;
+    UPROPERTY() int64 RestSignupMs = 0;
+    UPROPERTY() int64 RestDrawMs = 0;
+    UPROPERTY() int64 RestBettingMs = 0;
+    UPROPERTY() int64 RestPKReadyMs = 0;
+    UPROPERTY() int64 RestPKMaxMs = 0;
+    UPROPERTY() int64 RestSettlementMs = 0;
+    UPROPERTY() int64 RestPayoutMs = 0;
+    UPROPERTY() int64 RestReturnMs = 0;
+    // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
+    UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
+    // #198: field respawn wait fixed by T at death: [0, 1), [1, 2), [2, 3) field segments, then the final field.
+    UPROPERTY() int64 RespawnField1Ms = 0;
+    UPROPERTY() int64 RespawnField2Ms = 0;
+    UPROPERTY() int64 RespawnField3Ms = 0;
+    UPROPERTY() int64 RespawnFinalMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
     // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
@@ -195,6 +212,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PointsPerLevel = 0;
     UPROPERTY() int64 MaxLevelPointsXP = 0;
     UPROPERTY() int64 MaxLevelPoints = 0;
+    // #198: points a rest NPC charges for one active-only three-choice.
+    UPROPERTY() int64 NpcActivePoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
     // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
     // (GROWTH.EmptyComponentPoolPoints).

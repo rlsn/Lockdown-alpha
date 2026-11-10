@@ -886,7 +886,7 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
             FLDDemoMonsterDefinition Grown;
             if (C.Catalog.FindMonster(POI.MonsterId, Monster, Error) && Monster
                 && LDCampGrowth::ScaleBody(C.Catalog.Get().Parameters, *Monster,
-                    LDCampGrowth::Stage(C.Catalog.Get().Parameters, C.Now - C.Frame.Public.StartedAtMs), Grown, Error))
+                    LDCampGrowth::Stage(C.Catalog.Get().Parameters, C.Frame.Public.FieldNowMs), Grown, Error))
             {
                 const auto Estimate = LDOpponentPolicy::EstimateCampCost(Input, Grown, C.Catalog);
                 const int64 Reserve = Monster->Tier == ELDDemoCampTier::Low ? C.AI.LowCampReserveHPBp : C.AI.HighCampReserveHPBp;
@@ -1035,10 +1035,7 @@ bool ExploreBody(const FContext& C, FLDOpponentBodyIntent& Out)
 LDProgression::FBuildContext BuildContext(const FLDOpponentDecisionFrame& Frame)
 {
     LDProgression::FBuildContext Context;
-    const ELDMatchPhase Phase = Frame.Public.Phase;
-    Context.Stage = Phase == ELDMatchPhase::Countdown ? LDProgression::EMatchStage::Countdown
-        : Phase == ELDMatchPhase::Development || Phase == ELDMatchPhase::CaptureOpen ? LDProgression::EMatchStage::Live
-        : LDProgression::EMatchStage::Closed;
+    Context.Stage = Frame.Public.BuildStage();
     Context.LifePhase = Frame.Self.Phase;
     Context.bSafe = Frame.Self.BuildSafeAtMs <= Frame.Public.NowMs;
     return Context;
@@ -1688,18 +1685,20 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Out;
     };
     const bool bRunning = Frame.Public.Phase == ELDMatchPhase::Development || Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
-    // #153: the opening countdown admits only build steps, from this adapter's drawn moment on; the body never moves.
-    const bool bCountdown = Frame.Public.Phase == ELDMatchPhase::Countdown;
-    if (!Frame.Generation || !(bRunning || bCountdown) || !Self.ContenderId.IsValid()
+    // #198: in a rest the body stays in its private rest space; only build steps are sent (the same commands a human
+    // uses), from this adapter's drawn moment on and only while the rest build window is open.
+    const bool bRest = Frame.Public.Phase == ELDMatchPhase::Rest;
+    if (!Frame.Generation || !(bRunning || bRest) || !Self.ContenderId.IsValid()
         || (Self.Phase != ELDLifePhase::Alive && Self.Phase != ELDLifePhase::Dead))
     {
         ForgetBody(State);
         return Finish(EMode::Stopped, EReason::Stopped);
     }
-    if (bCountdown)
+    if (bRest)
     {
         ForgetBody(State);
-        if (Frame.Public.NowMs >= Self.OpeningPickAtMs && DecideBuild(Frame, Catalog, State, true, Out.Build))
+        if (Frame.Public.BuildStage() == LDProgression::EMatchStage::Rest && Frame.Public.NowMs >= Self.OpeningPickAtMs
+            && DecideBuild(Frame, Catalog, State, true, Out.Build))
         {
             return Finish(EMode::Choose, EReason::ChooseOffer);
         }

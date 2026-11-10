@@ -8,7 +8,8 @@
 
 int64 ALDGameMode::NextLeaderDueMs() const
 {
-    return LeaderNotice.IsActive() ? LeaderNotice.NextDueMs(AuthorityNowMs) : MAX_int64;
+    // #198: refreshes count field progress T; nothing is due while a rest pauses the field.
+    return LeaderNotice.IsActive() && IsFieldRunning() ? FieldDueAuthorityMs(LeaderNotice.NextDueMs(GetFieldNowMs())) : MAX_int64;
 }
 
 bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -19,7 +20,8 @@ bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FStr
         Error = TEXT("The leader notice requires the current RespawnsAndWorld permit, active rules, Combat and growth.");
         return false;
     }
-    const int64 NowMs = Permit.GetBoundary().AtMs;
+    if (!IsFieldRunning()) { return true; }
+    const int64 NowMs = Timeline.FieldMsAt(Permit.GetBoundary().AtMs);
     if (!LeaderNotice.IsRefreshDue(NowMs)) { return true; }
     TArray<LDAirdrop::FCandidate> Feet;
     Combat->ReadLivingContenderFeet(Feet);
@@ -45,7 +47,7 @@ bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FStr
     if (LeaderNotice.Refresh(NowMs, Candidates)) { bPublicMatchDirty = true; }
     if (LeaderNotice.Leader != Before || LeaderNotice.Leader.IsValid())
     {
-        UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s at_ms=%lld"),
+        UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s field_t_ms=%lld"),
             LeaderNotice.RefreshIndex, *LeaderNotice.Leader.ToString(), NowMs);
     }
     return true;

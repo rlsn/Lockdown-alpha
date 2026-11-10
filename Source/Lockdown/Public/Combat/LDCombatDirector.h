@@ -71,6 +71,12 @@ struct FLDBodyCombatState
 {
     FGuid Identity;
     FLDVictimKey Victim;
+    // #198 rest phases (Combat/LDCombatRest.cpp): a rest life only interacts inside its owner's group; field bodies have
+    // none. A suspended body (frozen world during a rest) takes and deals nothing.
+    FGuid IsolationGroup;
+    bool bSuspended=false;
+    // #198 personal training dummy: never dies (refills at 0 HP), grants nothing; IsolationGroup names its owner.
+    bool bTrainingDummy=false;
     struct FResources
     {
         int64 HpP2=0,MaxHpP2=0,MpP2=0,MaxMpP2=0,ShieldP2=0;
@@ -540,9 +546,39 @@ public:
     // #198 build safe window: Entity's latest combat action happened at NowMs (an accepted basic windup, a released
     // offensive skill, hostile positive damage dealt or taken, a hard control or knockback received). Contenders only.
     void MarkBuildUnsafe(const FGuid& Entity, int64 NowMs);
+    // ---- #198 rest phases (Combat/LDCombatRest.cpp) ----
+    // Whether SourceEntity may affect Target: a suspended target is out of reach, and bodies only interact inside the
+    // same isolation group (field bodies: none; a rest life and its own training dummy: the owner).
+    bool IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
+    // Rest vision filter: whether Observer must not see Target (another rest group, or the frozen world). False for a
+    // body Combat does not hold.
+    bool IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const;
+    // A rest life joins its owner's isolation group (bRest) or returns to the field group. RespawnsAndWorld permit.
+    bool SetRestIsolation(const FLDCombatBodyRef& Body, bool bRest, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Freezes or thaws a world body (camp member, Boss) for a rest; its HP/MP stay as they are. RespawnsAndWorld permit.
+    bool SetBodySuspended(const FLDCombatBodyRef& Body, bool bSuspended, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Phase boundary cleanup (approved §8): every in-flight effect is cancelled (CancelledByPhase, no damage, break or
+    // death is invented) and every control, mark, burn, breach, shield and temporary term on every remaining body ends.
+    // Returns the number of cancelled effects. RespawnsAndWorld permit.
+    int32 CancelAllForPhase(const FLDGameplayWritePermit& Permit);
+    // Phase refill (approved §8): every cooldown track of the contender (skills, dash, held tracks of forgotten actives)
+    // and its basic cadence are ready at the boundary. New lives start at full HP/MP by construction.
+    bool ReadyAllForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Retires a contender's living body for a phase boundary: its own unsettled effects end with it.
+    void RetireBodyForPhase(const FLDCombatBodyRef& Body);
+    // #198 personal training dummy: the contender chassis at OwnerLevel with no build, full resources, in the owner's
+    // isolation group. RespawnsAndWorld permit; Victim is the dummy's own first life.
+    bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
+        const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const;
+    // The owner's training reset: owner and dummy refilled, statuses and in-flight effects of both cleared, every
+    // owner cooldown ready. RespawnsAndWorld permit.
+    bool ResetTraining(const FGuid& Owner, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Retires the dummy's body and drops its Combat record (a dummy entity never returns).
+    void RetireTrainingEntity(const FLDCombatBodyRef& Body);
 
 private:
     friend class ALDGameMode;
+    friend class FLDRestPhaseTest;
     friend class FLDGroundBossBodyTest;
     friend class FLDDemoCoreTest;
     friend class FLDCaptureCombatInterruptTest;
@@ -569,6 +605,8 @@ private:
     void RemoveRegisteredBody(const FLDCombatBodyRef& Ref);
     // Leave: cancel every unsettled effect owned by the entity; committed facts stay.
     void CancelEntityEffects(const FGuid& Entity);
+    // #198: ends every control, mark, burn, breach, shield, taunt, empower, temporary term and the DR chain of one body.
+    bool ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error);
 
     // ---- Driver phases (LDCombatDriver.cpp).
     ALDGameMode* Core() const;

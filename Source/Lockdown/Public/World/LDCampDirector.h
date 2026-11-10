@@ -44,9 +44,13 @@ public:
     bool ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error);
     // RespawnsAndWorld: home resets, then due whole-group refreshes, then the Boss's appearance when due.
     bool AdvanceCamps(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Driver step planning: the earliest pending refresh or Boss appearance in authority ms, MAX_int64 when none.
-    // AdvanceCamps refreshes a camp at the first boundary whose AuthorityNowMs reaches that deadline.
-    int64 NextRefreshDueMs() const { return FMath::Min(State.NextRespawnDueMs(), Boss.NextDueMs()); }
+    // Driver step planning: the earliest pending refresh or Boss appearance, converted from field progress T to authority
+    // ms (#198); MAX_int64 when none or while a rest pauses the field.
+    int64 NextRefreshDueMs() const;
+    // #198 rest: freezes every living member (Combat suspends it; no motion, intent or contact) and, at the return, drops
+    // targets and paths so members choose again with their kept HP. RespawnsAndWorld permit.
+    bool FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error);
     // D26: the public Boss view and state (read-only).
     FLDBossView BossView() const { return Boss.View(); }
     const FLDBossState& GetBoss() const { return Boss; }
@@ -116,8 +120,6 @@ private:
     TSet<FGuid> Stranded;
     TSet<int32> BlockedRefresh;
     FLDBossState Boss;
-    // #97: the match's T=0 in authority ms; a camp life's growth stage counts from here.
-    int64 MatchStartedAtMs = 0;
     bool bBossBlockedLogged = false;
     uint64 BossSequence = 0;
 };

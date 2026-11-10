@@ -76,6 +76,10 @@ FLDPublicMatchView ViewAt(const FLDBossState& State, int64 NowMs)
     View.ServerNowMs = NowMs;
     View.StartedAtMs = State.Rules.StartedAtMs;
     View.OpenAtMs = 1000000;
+    // #198: world schedules are field progress T; a field running since T=0 at authority 0 makes T equal NowMs.
+    View.Timeline.Generation = View.Generation;
+    View.Timeline.Stage = ELDMatchStage::FinalField;
+    View.Timeline.FieldEndT = -1;
     View.Boss = State.View();
     return View;
 }
