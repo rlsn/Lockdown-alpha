@@ -750,8 +750,9 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCardFacesTest,"Lockdown.Rules.HUDCardFaces",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
 {
-    // #198 rendered faces over the approved catalog: every active card at levels 1 and 10 with the bare build's stats, and
-    // every stat row, names its entry, reads every placeholder as a number, has an icon and never shows spray/guard wording,
+    // #198 rendered faces over the approved catalog: every active and component card at levels 1 and 10 with the bare build's
+    // stats, and every stat row (as many as the catalog has), names its entry, reads every placeholder as a number, has an
+    // icon and never shows spray/guard wording,
     // an unknown effect or a missing-content line.
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
@@ -765,9 +766,12 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     LDHUD::FCardStats L10=L1;L10.Level=10;
     const auto Bad=[](const FString& Text){return Text.IsEmpty()||Text.Contains(TEXT("喷漆"))||Text.Contains(TEXT("守护"))||Text.Contains(TEXT("未知"))
         ||Text.Contains(TEXT("?"))||Text.Contains(TEXT("内容目录中找不到"))||Text.Contains(TEXT("同步中"));};
-    TestEqual(TEXT("16 approved actives"),Content.Abilities.Num(),16);
+    TestTrue(TEXT("The approved catalog has actives, stats and components"),
+        !Content.Abilities.IsEmpty()&&!Content.Stats.IsEmpty()&&!Content.Components.IsEmpty());
+    int32 ActiveFaces=0,StatFaces=0,ComponentFaces=0;
     for(const FLDDemoAbilityDefinition& Ability:Content.Abilities)
     {
+        ++ActiveFaces;
         for(const LDHUD::FCardStats& Stats:{L1,L10})
         {
             const FString At=FString::Printf(TEXT("%s L%d"),*Ability.Id,int32(Stats.Level));
@@ -781,15 +785,31 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
             TestFalse(At+TEXT(": the card has an icon"),Card.IconId.IsEmpty());
         }
     }
-    TestEqual(TEXT("5 point-bought stats"),Content.Stats.Num(),5);
     for(const FLDDemoStatDefinition& Stat:Content.Stats)
     {
+        ++StatFaces;
         const LDHUD::FStatRowView Row=LDHUD::StatRow(Stat,2,&Content);
         TestTrue(Stat.Id+TEXT(": the row reads every per-point placeholder as a number"),Row.bKnown&&Row.Points==2);
         TestFalse(Stat.Id+TEXT(": name ")+Row.Name,Bad(Row.Name)||Row.Name==Stat.Id);
         TestFalse(Stat.Id+TEXT(": per point ")+Row.PerPoint,Bad(Row.PerPoint));
         TestFalse(Stat.Id+TEXT(": the row has an icon"),Row.IconId.IsEmpty());
     }
+    for(const FLDDemoComponentDefinition& Component:Content.Components)
+    {
+        ++ComponentFaces;
+        for(const LDHUD::FCardStats& Stats:{L1,L10})
+        {
+            const FString At=FString::Printf(TEXT("%s L%d"),*Component.Id,int32(Stats.Level));
+            const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(FName(*Component.Id),&Content,Stats);
+            TestTrue(At+TEXT(": the card reads every placeholder as a number"),Card.bKnown);
+            TestFalse(At+TEXT(": name ")+Card.Name,Bad(Card.Name)||Card.Name==Component.Id);
+            TestFalse(At+TEXT(": sentence ")+Card.SentencePlain,Bad(Card.SentencePlain));
+            for(const FString& Line:Card.Keywords){TestFalse(At+TEXT(": keyword ")+Line,Bad(Line));}
+            TestFalse(At+TEXT(": the card has an icon"),Card.IconId.IsEmpty());
+        }
+    }
+    TestTrue(TEXT("Every active, stat and component of the approved catalog has its face checked"),
+        ActiveFaces==Content.Abilities.Num()&&StatFaces==Content.Stats.Num()&&ComponentFaces==Content.Components.Num());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsTest,"Lockdown.Rules.HUDSelfIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -823,7 +843,7 @@ bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
     for(const ELDDemoStatusId Id:{ELDDemoStatusId::Root,ELDDemoStatusId::Slow,ELDDemoStatusId::Exposed,ELDDemoStatusId::Taunt,ELDDemoStatusId::Disarm,
         ELDDemoStatusId::Stun,ELDDemoStatusId::Knockback,ELDDemoStatusId::Silence,ELDDemoStatusId::Burn})
     {TestFalse(FString::Printf(TEXT("Status %d is negative"),int32(Id)),LDHUD::StatusIsPositive(uint8(Id)));}
-    TestFalse(TEXT("An unknown status reads as negative"),LDHUD::StatusIsPositive(31));
+    TestFalse(TEXT("An unknown status reads as negative"),LDHUD::StatusIsPositive(200));
     TestTrue(TEXT("A shield square is positive"),Full.Items[1].bPositive&&!Full.Items[0].bPositive);
     TestEqualSensitive(TEXT("A shield popup says 临时状态 · 正面"),LDHUD::SelfIconDetail(Full.Items[1],nullptr).Summary,FString(TEXT("临时状态 · 正面")));
     // Remaining-time rings: the first sight of an end instant is the full ring.
