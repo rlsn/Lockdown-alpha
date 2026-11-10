@@ -272,6 +272,8 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     Zones.RemoveAll([&Entity](const FLDCombatZone& Zone) { return Zone.SourceEntity==Entity; });
     Channels.RemoveAll([&Entity](const auto& Channel) { return Channel.Payload.SourceEntity==Entity; });
     GroundEffects.RemoveAll([&Entity](const auto& Ground) { return Ground.Payload.SourceEntity==Entity; });
+    // #198 F M02: a leaving owner's locked batches never settle.
+    LockedLedgers.RemoveAll([&Entity](const FLDCombatLockedLedger& Locked) { return Locked.Owner.Victim.EntityId==Entity; });
     ContactMotion.RemoveAll([&Entity](const auto& Frame) { return Frame.Batch->Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {

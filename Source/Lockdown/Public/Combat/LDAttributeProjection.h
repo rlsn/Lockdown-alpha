@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Development/LDGrowthProtocol.h"
 
 class FLDDemoContentSnapshot;
 
@@ -35,9 +36,17 @@ struct FLDInstalledComponentValue
     FName ComponentId;
     FName BoundActive;
     ELDDemoElement Element = ELDDemoElement::None;
+    // #198 F: a mod/connector's install target (an active, a component, the innate D or the holder itself) and C12's
+    // repeated base component.
+    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    FName TargetId;
+    FName BoundComponent;
 
     bool operator==(const FLDInstalledComponentValue& Other) const
-    { return ComponentId == Other.ComponentId && BoundActive == Other.BoundActive && Element == Other.Element; }
+    {
+        return ComponentId == Other.ComponentId && BoundActive == Other.BoundActive && Element == Other.Element
+            && TargetKind == Other.TargetKind && TargetId == Other.TargetId && BoundComponent == Other.BoundComponent;
+    }
 };
 
 struct FLDAttributeBuildValues
@@ -135,6 +144,10 @@ struct FLDInstalledComponentTerm
     FName ComponentId;
     FName BoundActive;
     ELDDemoElement Element = ELDDemoElement::None;
+    // #198 F install target and C12's repeated base (FLDInstalledComponentValue).
+    ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    FName TargetId;
+    FName BoundComponent;
     // The holder's level when projected; a level-up reprojects the build.
     uint8 Level = 0;
 };

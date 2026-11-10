@@ -1276,7 +1276,7 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     Shown=Row(Owned(TEXT("hud_fixture_trick")),Safe,1000);
     TestTrue(TEXT("With a bindable learned active it can be enabled (the panel then asks for the binding)"),Shown.bCanEnable&&Shown.bBinding);
     TestTrue(TEXT("Only the learned actives its binding lists are offered"),LDHUD::BindableActives(Content.Components[3],View)==TArray<FName>{FName(TEXT("hud_fixture_bolt"))});
-    TestEqualSensitive(TEXT("A mod has no target before #198 F"),Row(Owned(TEXT("hud_fixture_mod")),Safe,1000).Blocked,LDHUD::GrowthReasonText(ELDGrowthReason::InvalidTarget));
+    TestEqualSensitive(TEXT("A mod without any place to go says so"),Row(Owned(TEXT("hud_fixture_mod")),Safe,1000).Blocked,FString(LDTerms::NoInstallTarget));
     TestEqualSensitive(TEXT("An unknown component is never shown as enabled or enable-able"),Row(Owned(TEXT("hud_fixture_unknown")),Safe,1000).Blocked,
         FString(TEXT("内容目录中找不到该构件")));
     TestTrue(TEXT("Only fire is open among the binding elements"),LDHUD::ElementGate(ELDDemoElement::Fire)==ELDGrowthReason::None
@@ -1338,6 +1338,100 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A pick enabled at once opens nothing"),AutoOpen.Observe(Growth,11));
     Growth.Components.Add(Owned(TEXT("hud_fixture_trick")));
     TestFalse(TEXT("A new component from a level-up opens nothing"),AutoOpen.Observe(Growth,11));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkshopTargetsTest,"Lockdown.Rules.HUDWorkshopTargets",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
+{
+    // #198 F growth panel: the places an owned mod or connector may go now (learned actives, installed components, D, self,
+    // in catalog list order), C12's repeatable bases, what an installed one sits on, and the conflict reason's text.
+    FLDDemoContentDefinitions Content;
+    const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
+    {
+        FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
+        Row.Id=Id;Row.NativeId=uint8(Content.Components.Num());Row.Kind=Kind;
+        FLDDemoEffectDefinition& Effect=Row.Effects.AddDefaulted_GetRef();Effect.Element=Element;
+        return Row;
+    };
+    AddComponent(TEXT("hud_fixture_fist"),ELDDemoComponentKind::Base,ELDDemoElement::None);
+    AddComponent(TEXT("hud_fixture_wet"),ELDDemoComponentKind::Base,ELDDemoElement::Water);
+    AddComponent(TEXT("hud_fixture_ledger"),ELDDemoComponentKind::Base,ELDDemoElement::None);
+    // Each reference is used before the next row is added (adding may move the array).
+    {
+        FLDDemoComponentDefinition& Reach=AddComponent(TEXT("hud_fixture_reach"),ELDDemoComponentKind::Mod,ELDDemoElement::None);
+        Reach.TargetActives={TEXT("hud_fixture_kick"),TEXT("hud_fixture_bolt")};Reach.TargetComponents={TEXT("hud_fixture_wet"),TEXT("hud_fixture_fist")};
+        Reach.bTargetDash=true;
+    }
+    AddComponent(TEXT("hud_fixture_owe"),ELDDemoComponentKind::Mod,ELDDemoElement::None).bTargetSelf=true;
+    {
+        FLDDemoComponentDefinition& Repeat=AddComponent(TEXT("hud_fixture_repeat"),ELDDemoComponentKind::Connector,ELDDemoElement::None);
+        Repeat.TargetActives={TEXT("hud_fixture_bolt")};Repeat.ExtraBases={TEXT("hud_fixture_wet"),TEXT("hud_fixture_ledger")};
+    }
+    {
+        FLDDemoComponentDefinition& Reaction=AddComponent(TEXT("hud_fixture_reaction"),ELDDemoComponentKind::Connector,ELDDemoElement::None);
+        Reaction.TargetActives={TEXT("hud_fixture_bolt")};Reaction.Effects[0].Opcode=uint8(ELDDemoEffectOp::ReactionEmpower);
+    }
+    const auto Owned=[](const TCHAR* Id,bool bInstalled)
+    {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=View.bEverInstalled=bInstalled;return View;};
+    FLDProgressionView View;View.bValid=true;View.Generation=9;
+    const FLDDemoComponentDefinition& Reach=Content.Components[3];
+    const FLDDemoComponentDefinition& Repeat=Content.Components[5];
+    const auto Places=[&](const FLDDemoComponentDefinition& Component)
+    {
+        TArray<FString> Out;
+        for(const LDHUD::FWorkshopTargetView& Target:LDHUD::WorkshopTargets(Component,View,&Content))
+        {Out.Add(FString::Printf(TEXT("%d:%s:%s"),int32(Target.Kind),*Target.TargetId.ToString(),*Target.Label));}
+        return FString::Join(Out,TEXT("|"));
+    };
+    const auto Place=[&](ELDComponentTargetKind Kind,const TCHAR* Id,const FString& Label)
+    {return FString::Printf(TEXT("%d:%s:%s"),int32(Kind),Id,*Label);};
+    const FString Dash=Place(ELDComponentTargetKind::Dash,TEXT("None"),LDTerms::TargetDash);
+    TestEqualSensitive(TEXT("Without a learned active or installed host only D is offered"),Places(Reach),Dash);
+    View.Components={Owned(TEXT("hud_fixture_fist"),true),Owned(TEXT("hud_fixture_wet"),false),Owned(TEXT("hud_fixture_reach"),false)};
+    FLDActiveSlotView& Bolt=View.Actives.AddDefaulted_GetRef();Bolt.DefinitionId=TEXT("hud_fixture_bolt");Bolt.Slot=2;
+    TestEqualSensitive(TEXT("Learned actives, installed hosts, then D, in catalog list order"),Places(Reach),
+        Place(ELDComponentTargetKind::Active,TEXT("hud_fixture_bolt"),LDHUD::ContentName(&Content,TEXT("hud_fixture_bolt")))+TEXT("|")
+        +Place(ELDComponentTargetKind::Component,TEXT("hud_fixture_fist"),LDHUD::ContentName(&Content,TEXT("hud_fixture_fist")))+TEXT("|")+Dash);
+    TestEqualSensitive(TEXT("A self-installed mod goes on the holder"),Places(Content.Components[4]),
+        Place(ELDComponentTargetKind::None,TEXT("None"),LDTerms::TargetSelf));
+    const LDHUD::FBuildGateView Safe=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Alive,1000,true,1000);
+    TestTrue(TEXT("A mod with a place can be enabled (the panel then asks where)"),
+        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reach"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
+
+    // C12: a repeatable base must be installed and open.
+    View.Components.Add(Owned(TEXT("hud_fixture_repeat"),false));
+    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
+    TestTrue(TEXT("A water base is never repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content).IsEmpty());
+    TestEqualSensitive(TEXT("C12 without a repeatable base cannot be enabled"),
+        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_repeat"),false),View,&Content,Safe,1000,true,1000).Blocked,FString(LDTerms::NoInstallTarget));
+    View.Components.Add(Owned(TEXT("hud_fixture_ledger"),true));
+    TestTrue(TEXT("An installed open base is repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content)==TArray<FName>{FName(TEXT("hud_fixture_ledger"))});
+    TestTrue(TEXT("Then C12 can be enabled"),LDHUD::ComponentRow(Owned(TEXT("hud_fixture_repeat"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
+    TestEqualSensitive(TEXT("C09 waits for element reactions"),
+        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reaction"),false),View,&Content,Safe,1000,true,1000).Blocked,FString(LDTerms::ElementClosed));
+
+    // Installed rows name their place.
+    FLDComponentInstanceView Shown=Owned(TEXT("hud_fixture_reach"),true);
+    Shown.Target.Kind=ELDComponentTargetKind::Component;Shown.Target.Definition=TEXT("hud_fixture_fist");
+    TestEqualSensitive(TEXT("A mod names its host"),LDHUD::InstalledTargetText(Shown,&Content),LDTerms::InstalledOn(LDHUD::ContentName(&Content,TEXT("hud_fixture_fist"))));
+    Shown.Target.Kind=ELDComponentTargetKind::Dash;Shown.Target.Definition=NAME_None;
+    TestEqualSensitive(TEXT("A mod on D names D"),LDHUD::InstalledTargetText(Shown,&Content),LDTerms::InstalledOn(LDTerms::TargetDash));
+    Shown=Owned(TEXT("hud_fixture_owe"),true);
+    TestEqualSensitive(TEXT("A self mod names the holder"),LDHUD::InstalledTargetText(Shown,&Content),LDTerms::InstalledOn(LDTerms::TargetSelf));
+    Shown=Owned(TEXT("hud_fixture_repeat"),true);
+    Shown.Target.Kind=ELDComponentTargetKind::Active;Shown.Target.Definition=TEXT("hud_fixture_bolt");Shown.Target.BoundComponent=TEXT("hud_fixture_ledger");
+    TestEqualSensitive(TEXT("C12 names its place and its repeated base"),LDHUD::InstalledTargetText(Shown,&Content),
+        LDTerms::InstalledRepeating(LDHUD::ContentName(&Content,TEXT("hud_fixture_bolt")),LDHUD::ContentName(&Content,TEXT("hud_fixture_ledger"))));
+    TestTrue(TEXT("A plain base or an inventory item names nothing"),LDHUD::InstalledTargetText(Owned(TEXT("hud_fixture_fist"),true),&Content).IsEmpty()
+        &&LDHUD::InstalledTargetText(Owned(TEXT("hud_fixture_reach"),false),&Content).IsEmpty());
+
+    // The refusal of M08 and M09 on one place reads as itself.
+    TestEqualSensitive(TEXT("TargetConflict has its own text"),LDHUD::GrowthReasonText(ELDGrowthReason::TargetConflict),FString(LDTerms::TargetConflict));
+    FLDBuildReceipt Receipt;Receipt.Kind=ELDBuildCommandKind::InstallComponent;
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::TargetConflict);
+    TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        TEXT("没有生效：")+FString(LDTerms::TargetConflict));
     return true;
 }
 

@@ -1,4 +1,5 @@
 #include "Development/LDProgressionRules.h"
+#include "Development/LDWorkshopRules.h"
 
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -85,8 +86,14 @@ bool ProgressionListsId(const TArray<FString>& Ids, FName Id)
 // forgotten bound active only stops new triggers.
 bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
 {
-    if (Definition.Kind != ELDDemoComponentKind::Base || Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone()
-        || Target.Segment != 0)
+    // #198 F: a mod or connector stores its target (no segment form) in the shape its definition accepts.
+    if (Definition.Kind != ELDDemoComponentKind::Base)
+    {
+        return Target.Segment == 0 && LDWorkshop::TargetShape(Definition, Target.Kind, Target.Definition, Target.BoundActive,
+            Target.Element, Target.BoundComponent);
+    }
+    if (Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone() || Target.Segment != 0
+        || !Target.BoundComponent.IsNone())
     {
         return false;
     }
@@ -104,6 +111,73 @@ bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, con
 bool ProgressionUnsupportedElement(ELDDemoElement Element)
 {
     return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric;
+}
+
+// Whether an installed component carries a water/electric element (its effects or its B18 binding).
+bool ProgressionCarriesUnsupportedElement(const FLDDemoComponentDefinition& Definition, const FLDComponentInstance& Instance)
+{
+    return ProgressionUnsupportedElement(Instance.Target.Element) || Definition.Effects.ContainsByPredicate(
+        [](const FLDDemoEffectDefinition& Effect) { return ProgressionUnsupportedElement(Effect.Element); });
+}
+
+// #198 F: whether Target is a legal install of the mod or connector Definition on Build now (spec §12.1, §13.1): the shape
+// its definition accepts (InvalidTarget), a learned active or an installed host component (InvalidTarget), C12's repeated
+// base installed (InvalidTarget), C01 on B18 only when B18 burns (InvalidTarget), no M08/M09 pair on one target
+// (TargetConflict), and nothing that needs #198 A's element state (C09 reactions, C12 water/electric, ElementUnsupported).
+ELDGrowthReason ProgressionWorkshopTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
+{
+    if (Target.Segment != 0 || !LDWorkshop::TargetShape(Definition, Target.Kind, Target.Definition, Target.BoundActive, Target.Element,
+        Target.BoundComponent))
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    if (Target.Kind == ELDComponentTargetKind::Active && !Build.FindActive(Target.Definition))
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    const FName Self(*Definition.Id);
+    const auto Installed = [&Build, &Self](FName Id) -> const FLDComponentInstance*
+    {
+        const FLDComponentInstance* Host = Id == Self ? nullptr : Build.FindComponent(Id);
+        return Host && Host->bInstalled ? Host : nullptr;
+    };
+    const FLDComponentInstance* Host = Target.Kind == ELDComponentTargetKind::Component ? Installed(Target.Definition) : nullptr;
+    if (Target.Kind == ELDComponentTargetKind::Component && !Host)
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    const FLDComponentInstance* Base = Target.BoundComponent.IsNone() ? nullptr : Installed(Target.BoundComponent);
+    if (!Target.BoundComponent.IsNone() && !Base)
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    // C01 reads a fire source: B18 counts only while it is bound to fire.
+    if (LDWorkshop::FindOp(Definition, ELDDemoEffectOp::FireShield) && Host && Host->Target.BoundActive != NAME_None
+        && Host->Target.Element != ELDDemoElement::Fire)
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    for (const FLDComponentInstance& Other : Build.Components)
+    {
+        const FLDDemoComponentDefinition* OtherDefinition = ProgressionFindComponent(Content, Other.Id);
+        if (Other.bInstalled && Other.Id != Self && OtherDefinition && Other.Target.Kind == Target.Kind
+            && Other.Target.Definition == Target.Definition && LDWorkshop::Conflicts(Definition, *OtherDefinition))
+        {
+            return ELDGrowthReason::TargetConflict;
+        }
+    }
+    // #198 A: element reactions and water/electric repeats have no element state on this branch.
+    if (LDWorkshop::FindOp(Definition, ELDDemoEffectOp::ReactionEmpower))
+    {
+        return ELDGrowthReason::ElementUnsupported;
+    }
+    const FLDDemoComponentDefinition* BaseDefinition = Base ? ProgressionFindComponent(Content, Base->Id) : nullptr;
+    if (BaseDefinition && ProgressionCarriesUnsupportedElement(*BaseDefinition, *Base))
+    {
+        return ELDGrowthReason::ElementUnsupported;
+    }
+    return ELDGrowthReason::None;
 }
 
 void ProgressionSortBuild(FLDGrowthBuild& Build)
@@ -1047,9 +1121,12 @@ ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitio
     FName Component, const FLDComponentTarget& Target)
 {
     const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Component);
-    // Mods and connectors get their targets with #198 F.
-    if (!Definition || Definition->Kind != ELDDemoComponentKind::Base || Target.Kind != ELDComponentTargetKind::None
-        || !Target.Definition.IsNone() || Target.Segment != 0)
+    if (Definition && Definition->Kind != ELDDemoComponentKind::Base)
+    {
+        return ProgressionWorkshopTargetReason(Content, Build, *Definition, Target);
+    }
+    if (!Definition || Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone() || Target.Segment != 0
+        || !Target.BoundComponent.IsNone())
     {
         return ELDGrowthReason::InvalidTarget;
     }
@@ -1192,9 +1269,23 @@ ELDGrowthReason LDProgression::ApplyUninstallComponent(const FLDDemoContentDefin
     {
         return Reason;
     }
-    // Back to the inventory with its history: a later install is a rest-window move, never a first install.
-    FLDComponentInstance* Removed = Out.FindComponent(Component);
-    Removed->bInstalled = false;
-    Removed->Target = FLDComponentTarget();
+    // Back to the inventory with its history: a later install is a rest-window move, never a first install. #198 F: the mods
+    // and connectors installed on it (or repeating it, C12) come off with it, transitively.
+    TArray<FName> Removing{Component};
+    for (int32 Index = 0; Index < Removing.Num(); ++Index)
+    {
+        for (FLDComponentInstance& Instance : Out.Components)
+        {
+            const bool bOnIt = Instance.bInstalled && ((Instance.Target.Kind == ELDComponentTargetKind::Component
+                && Instance.Target.Definition == Removing[Index]) || Instance.Target.BoundComponent == Removing[Index]);
+            if (bOnIt && !Removing.Contains(Instance.Id)) { Removing.Add(Instance.Id); }
+        }
+    }
+    for (const FName& Id : Removing)
+    {
+        FLDComponentInstance* Removed = Out.FindComponent(Id);
+        Removed->bInstalled = false;
+        Removed->Target = FLDComponentTarget();
+    }
     return ELDGrowthReason::None;
 }

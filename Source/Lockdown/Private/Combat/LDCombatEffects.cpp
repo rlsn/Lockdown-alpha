@@ -185,9 +185,23 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Hit.ControlAmpBp>0 && bImpaired) { PoolBp+=Hit.ControlAmpBp; }
     Evaluation.DamageBonusBp=PoolBp;
     Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
+    Evaluation.PackageScaleBp=Hit.PackageScaleBp;
+    // #198 F M12: a deferred share is paid at its original amount: no second resistance, bonus or deferral.
+    if (Hit.bDebtPayment)
+    {
+        Evaluation.TargetResistanceP2=0;
+        Evaluation.DamageBonusBp=0;
+    }
+    // #198 F M12: the holder defers a share of enemy damage after resistance and reductions, before its shield.
+    else if (Hit.SourceEntity!=Body->Victim.EntityId)
+    {
+        TOptional<FLDPassiveEffectRef> Defer;
+        if (!FindTrigger(Body->AttributeProjection,ELDDemoEffectOp::DamageDefer,Defer,Error)) { return false; }
+        if (Defer.IsSet() && Defer->TargetKind==ELDComponentTargetKind::None) { Evaluation.DeferRatioBp=Defer->Effect.RatioBp; }
+    }
     // B16: an enemy primary basic is cut after resistance and before the shield by min(8G, 15% of that hit).
     TOptional<FLDPassiveEffectRef> PrimaryGuard;
-    if (Hit.HitClass==ELDCombatHitClass::BasicPrimary && Hit.SourceEntity!=Body->Victim.EntityId
+    if (Hit.HitClass==ELDCombatHitClass::BasicPrimary && Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment
         && !FindTrigger(Body->AttributeProjection,ELDDemoEffectOp::PrimaryGuard,PrimaryGuard,Error))
     { return false; }
     if (PrimaryGuard.IsSet())
@@ -213,7 +227,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Source && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::ManaOnHit,ManaGrants,Error)) { return false; }
     // #198 B10/B11 (a primary basic) and B18 (a native direct effective hit of the bound active): the source's component
     // elements on this hit. Derived, reflected, status and settle hits carry none.
-    if (Source && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bFromShieldTrigger)
+    if (Source && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bFromShieldTrigger
+        && !Hit.bDebtPayment)
     {
         if (Hit.HitClass==ELDCombatHitClass::BasicPrimary)
         {
@@ -242,7 +257,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // #198 B02: an effective basic or skill damage hit of a living source enters its ledgers on this life (burn ticks and
     // cash-outs are status/settle damage and never do).
     TArray<FLDPassiveEffectRef> Ledgers;
-    if (Source && bEffective && !Hit.bBurnTick && !Hit.bLedgerCashOut && Hit.SourceEntity!=Body->Victim.EntityId
+    if (Source && bEffective && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bDebtPayment && Hit.SourceEntity!=Body->Victim.EntityId
         && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability)
         && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Ledger,Ledgers,Error))
     { return false; }
@@ -361,9 +376,10 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     int64 VampHealedP2=0;
     if (Source && HealP2>0)
     {
-        const int64 SourceHPBefore=Source->Resources.HpP2;
-        HealBody(*Source,HealP2);
-        VampHealedP2=Source->Resources.HpP2-SourceHPBefore;
+        // B04 is the lifesteal source (#198 F: C08 may sit on it; M12 debts are repaid first).
+        TOptional<FLDPassiveEffectRef> Vamp;
+        if (!FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::Lifesteal,Vamp,Error)) { return false; }
+        HealBody(*Source,HealP2,Vamp.IsSet() ? Vamp->Source : FLDCombatSourceRef(),&VampHealedP2);
     }
     // Host playtest record of this committed hit (docs/DEVELOPMENT.md): every term the player could ask about afterwards.
     if (UE_LOG_ACTIVE(LogLDCombat,Log))
@@ -405,11 +421,14 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (!Ledgers.IsEmpty() && Body->Resources.HpP2>0 && !RecordLedgerEntries(*Body,Hit,*Source,Ledgers,NowMs,Error)) { return false; }
     }
     if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
-    // B09: hostile positive damage the holder survived may grant its shield.
-    if (Damage.DamageP2>0 && Body->Resources.HpP2>0 && Hit.SourceEntity!=Body->Victim.EntityId && !OnDamaged(*Body,NowMs,Error))
+    // #198 F connectors and mods on this committed hit (C01, C08 memory, M11, C11, C12, M12 debt, C10).
+    if (!ApplyWorkshopHit(Hit,*Body,Source,Damage,bShieldBroken,ShieldGrantedP2,NowMs,Error)) { return false; }
+    // B09: hostile positive damage the holder survived may grant its shield (a paid debt is no new hit).
+    if (Damage.DamageP2>0 && Body->Resources.HpP2>0 && Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment
+        && !OnDamaged(*Body,NowMs,Error))
     { return false; }
     // Thorns answer a hit the owner survived; a reflection never answers another reflection.
-    if (!Hit.bReflect && Damage.DamageP2>0 && Body->Resources.HpP2>0
+    if (!Hit.bReflect && !Hit.bDebtPayment && Damage.DamageP2>0 && Body->Resources.HpP2>0
         && !QueueThorns(Hit,*Actor,*Body,Damage.DamageP2,bCritical,Error)) { return false; }
     if (Body->Resources.HpP2==0 && !LockDeath(*Actor,*Body,Hit,Error)) { return false; }
     return true;
@@ -445,6 +464,9 @@ bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Proj
             Ref.Source.DefinitionId=Term.ComponentId;
             Ref.BoundActive=Term.BoundActive;
             Ref.Element=Term.Element;
+            Ref.TargetKind=Term.TargetKind;
+            Ref.TargetId=Term.TargetId;
+            Ref.BoundComponent=Term.BoundComponent;
             if (Factor<=0 || !LDSkillGrowth::GrowEffect(Authored,Factor,Ref.Effect))
             {
                 Out.Reset();
@@ -540,6 +562,18 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     TArray<FLDPassiveEffectRef> Sources;
     if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::Thorns,Sources,Error)) { return false; }
     if (Sources.IsEmpty()) { return true; }
+    // #198 F M05 on B03: its reach grows by the mod's distance.
+    for (FLDPassiveEffectRef& Source : Sources)
+    {
+        TArray<FLDPassiveEffectRef> Reach;
+        if (!WorkshopOn(Projection,ELDDemoEffectOp::CounterRangeBonus,Source.Source,Reach,Error)) { return false; }
+        for (const FLDPassiveEffectRef& Mod : Reach)
+        {
+            FLDDemoRational& Radius=Source.Effect.RadiusCm;
+            const FLDDemoRational& Add=Mod.Effect.DistanceCm;
+            Radius={Radius.Numerator*Add.Denominator+Add.Numerator*Radius.Denominator,Radius.Denominator*Add.Denominator};
+        }
+    }
     const int64 NowMs=Mode->GetAuthorityNowMs();
     const FVector OwnerFoot=FootOf(Holder), AttackerFoot=FootOf(*Attacker);
     FLDThornsContact Contact;
@@ -558,7 +592,6 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     const ELDSightResult Sight=Mode->Vision->TraceObservation(OwnerFoot,*Attacker,Registry->Revision());
     if (Sight==ELDSightResult::Blocked || Sight==ELDSightResult::OutOfRange) { return true; }
     if (Sight!=ELDSightResult::Visible) { Error=TEXT("Thorns sight failed on a registered body."); return false; }
-    const FLDCombatBodyRef OwnerRef{Body.Victim,Body.Identity};
     for (const FLDPassiveEffectRef& Source : Sources)
     {
         int64 BaseP2=0;
@@ -567,23 +600,12 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
         if (!LDCombatControl::ThornsBaseP2(Source.Effect,Projection.Final.ArmorP2,Body.Resources.MaxHpP2,bCritical,BaseP2,Error)) { return false; }
         LDCombatControl::MarkThorns(Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs,Source.Effect.IntervalMs);
         // The same hit, damage, ownership, death and reward path as any other hit; it is a skill-class hit, never a basic,
-        // so it never crits, heals or triggers the attacker's own thorns.
-        FLDCombatHit& Reflect=PendingHits.AddDefaulted_GetRef();
-        Reflect.HitId=FGuid::NewGuid();
-        Reflect.EffectId=FGuid::NewGuid();
-        Reflect.Token=0;
-        Reflect.Target=Hit.SourceBody;
-        Reflect.SourceBody=OwnerRef;
-        Reflect.SourceEntity=Body.Victim.EntityId;
-        Reflect.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
-        Reflect.Source=Source.Source;
-        Reflect.HitClass=ELDCombatHitClass::Ability;
-        Reflect.BaseP2=BaseP2;
-        Reflect.DamageType=Source.Effect.DamageType;
-        Reflect.SourceADP2=Projection.Final.ADP2;
-        Reflect.SourceAPP2=Projection.Final.APP2;
-        Reflect.bReflect=true;
-        if (!StampSourceTerms(Body,Reflect,Error)) { return false; }
+        // so it never crits, heals or triggers the attacker's own thorns. #198 F: the mods on B03 (M01/M02/M05/M11)
+        // shape its delivery.
+        const double ReachCm=Source.Effect.RadiusCm.Denominator>0
+            ? double(Source.Effect.RadiusCm.Numerator)/double(Source.Effect.RadiusCm.Denominator) : 0.;
+        bool bDelivered=false;
+        if (!DeliverCounter(Body,Source.Source,Hit.SourceBody,BaseP2,Source.Effect.DamageType,ReachCm,NowMs,bDelivered,Error)) { return false; }
     }
     Error.Reset();
     return true;
@@ -663,6 +685,27 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             Contact.HitId=FGuid::NewGuid();
             Contact.Target=Targets[Struck].Body;
             PendingHits.Add(Contact);
+            // #198 F M01: the first contact's damage also lands around the struck body (damage only; the slow and other
+            // controls stay on the struck body).
+            if (Projectile.SpreadRadiusCm>0)
+            {
+                TArray<FLDCombatBodyRef> Around;
+                const FLDBodyCombatState* Owner=FindBody(Projectile.SourceBody);
+                if (!CollectAreaTargets(Targets[Struck].FootCm,Projectile.SpreadRadiusCm,Owner,Projectile.SourceEntity,Around,Error))
+                { return false; }
+                for (const FLDCombatBodyRef& Other : Around)
+                {
+                    if (Other==Targets[Struck].Body) { continue; }
+                    FLDCombatHit Splash=Contact;
+                    Splash.HitId=FGuid::NewGuid();
+                    Splash.Target=Other;
+                    Splash.RootDurationMs=Splash.SlowBp=Splash.SlowDurationMs=Splash.DisarmDurationMs=Splash.StunDurationMs=0;
+                    Splash.SilenceDurationMs=Splash.AttackSlowBp=Splash.AttackSlowMs=Splash.KnockbackMs=0;
+                    Splash.KnockbackCm=0;
+                    Splash.BreachStacks=Splash.BurnStacks=0;
+                    PendingHits.Add(MoveTemp(Splash));
+                }
+            }
             Finished.Add(Index);
             continue;
         }

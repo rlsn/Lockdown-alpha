@@ -28,11 +28,13 @@ struct FLDComponentTarget
     uint8 Segment = 0;
     FName BoundActive;
     ELDDemoElement Element = ELDDemoElement::None;
+    // #198 F C12 (extra_base): the installed base component whose effect the exit repeats.
+    FName BoundComponent;
 
     bool operator==(const FLDComponentTarget& Other) const
     {
         return Kind == Other.Kind && Definition == Other.Definition && Segment == Other.Segment && BoundActive == Other.BoundActive
-            && Element == Other.Element;
+            && Element == Other.Element && BoundComponent == Other.BoundComponent;
     }
     bool IsEmpty() const { return *this == FLDComponentTarget(); }
 };

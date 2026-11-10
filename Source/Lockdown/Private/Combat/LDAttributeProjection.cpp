@@ -1,4 +1,5 @@
 #include "Combat/LDAttributeProjection.h"
+#include "Development/LDWorkshopRules.h"
 
 #include "../Development/LDDemoContentMath.h"
 #include "Development/LDSkillGrowth.h"
@@ -93,6 +94,17 @@ bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::PrimaryGuard: case ELDDemoEffectOp::IdleReadyAmp: case ELDDemoEffectOp::ActiveElement:
     case ELDDemoEffectOp::ManaOnHit: case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::DashContactRefund:
     case ELDDemoEffectOp::ShieldBreakRetort:
+    // #198 F mods and connectors (Combat reads them for their install target).
+    case ELDDemoEffectOp::SpreadUnit: case ELDDemoEffectOp::SpreadProjectile: case ELDDemoEffectOp::SpreadLedger:
+    case ELDDemoEffectOp::SpreadCounter: case ELDDemoEffectOp::DelayLedger: case ELDDemoEffectOp::DelayCounter:
+    case ELDDemoEffectOp::KnockbackScale: case ELDDemoEffectOp::ControlScale: case ELDDemoEffectOp::RangeBonus:
+    case ELDDemoEffectOp::CounterRangeBonus: case ELDDemoEffectOp::CooldownCost: case ELDDemoEffectOp::CompressCone:
+    case ELDDemoEffectOp::CompressZone: case ELDDemoEffectOp::DashScale: case ELDDemoEffectOp::LedgerVariant:
+    case ELDDemoEffectOp::MarkedCounter: case ELDDemoEffectOp::DamageDefer: case ELDDemoEffectOp::FireShield:
+    case ELDDemoEffectOp::KnockbackImpact: case ELDDemoEffectOp::ContactKnockback: case ELDDemoEffectOp::ControlMark:
+    case ELDDemoEffectOp::Aftershock: case ELDDemoEffectOp::ControlMana: case ELDDemoEffectOp::HealCounter:
+    case ELDDemoEffectOp::ReactionEmpower: case ELDDemoEffectOp::ShieldBurst: case ELDDemoEffectOp::SkillLifesteal:
+    case ELDDemoEffectOp::ExtraBase:
         return true;
     case ELDDemoEffectOp::EmpowerBasic:
         // B12: a component's empowered basic arms on a completed voluntary dash only.
@@ -273,12 +285,18 @@ private:
             {
                 return Refuse(EError::DuplicateSource, Field, Definition->Id + TEXT(" is installed more than once"));
             }
+            bool bBindingMatches = false;
             if (Definition->Kind != ELDDemoComponentKind::Base)
             {
-                return Refuse(EError::InputDomain, Field, Definition->Id + TEXT(" is a mod or connector; installing onto a target requires #198 F"));
+                // #198 F: a mod or connector carries its install target in the stored shape its definition accepts.
+                bBindingMatches = LDWorkshop::TargetShape(*Definition, Installed.TargetKind, Installed.TargetId, Installed.BoundActive,
+                    Installed.Element, Installed.BoundComponent);
             }
-            bool bBindingMatches = false;
-            if (Definition->Binding == ELDDemoComponentBinding::ActiveElement)
+            else if (!Installed.TargetId.IsNone() || Installed.TargetKind != ELDComponentTargetKind::None || !Installed.BoundComponent.IsNone())
+            {
+                bBindingMatches = false;
+            }
+            else if (Definition->Binding == ELDDemoComponentBinding::ActiveElement)
             {
                 bBindingMatches = !Installed.BoundActive.IsNone() && Installed.Element != ELDDemoElement::None
                     && Definition->BindActives.Contains(Installed.BoundActive.ToString())
@@ -633,6 +651,9 @@ private:
             Term.ComponentId = FName(*Components[Index].Definition->Id);
             Term.BoundActive = Installed.BoundActive;
             Term.Element = Installed.Element;
+            Term.TargetKind = Installed.TargetKind;
+            Term.TargetId = Installed.TargetId;
+            Term.BoundComponent = Installed.BoundComponent;
             Term.Level = Build.Level;
         }
         Out.InstalledComponents.Sort([](const FLDInstalledComponentTerm& A, const FLDInstalledComponentTerm& B)

@@ -2579,7 +2579,111 @@ bool RunPickAndEnable(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("An installed component is not installed again"), LDOpponentRequests::BuildCommand(Enable, View, 11, Command, Error));
     return bGood;
 }
+
+FLDOpponentComponent Hosted(const TCHAR* Id, ELDComponentTargetKind Kind = ELDComponentTargetKind::None, const TCHAR* Target = TEXT(""),
+    ELDDemoElement Element = ELDDemoElement::None)
+{
+    FLDOpponentComponent Out = Owned(Id, true, true);
+    Out.TargetKind = Kind;
+    Out.TargetId = Target;
+    Out.Element = Element;
+    return Out;
 }
+
+// #198 F: the first legal target in catalog list order (learned active, installed host, D, self), C12's first open installed
+// base, and the refusals growth would answer (C09, M08/M09 on one target, C01 on a B18 that does not burn).
+bool RunWorkshopTargets(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    const FLDDemoComponentDefinition* LongKick = Component(Test, C, TEXT("component_long_kick"));
+    const FLDDemoComponentDefinition* Ram = Component(Test, C, TEXT("component_ram_through"));
+    const FLDDemoComponentDefinition* OweIt = Component(Test, C, TEXT("component_owe_it"));
+    const FLDDemoComponentDefinition* FireSkin = Component(Test, C, TEXT("component_fire_skin"));
+    const FLDDemoComponentDefinition* BlastChase = Component(Test, C, TEXT("component_blast_chase"));
+    const FLDDemoComponentDefinition* DirtyFist = Component(Test, C, TEXT("component_dirty_fist"));
+    if (!LongKick || !Ram || !OweIt || !FireSkin || !BlastChase || !DirtyFist) { return false; }
+
+    FLDOpponentSelf Self;
+    FLDOpponentComponentTarget Target;
+    const auto Is = [&Target](ELDComponentTargetKind Kind, const TCHAR* Id, const TCHAR* Base)
+    { return Target.Kind == Kind && Target.TargetId == Id && Target.BoundComponent == Base; };
+    bool bGood = Test.TestFalse(TEXT("M03 without its active or host has no target"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target));
+    Self.Components = {Hosted(TEXT("component_third_punch"))};
+    bGood &= Test.TestTrue(TEXT("M03 goes onto its installed host"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target)
+        && Is(ELDComponentTargetKind::Component, TEXT("component_third_punch"), TEXT("")));
+    Self.Actives.Add({TEXT("active_elbow"), 0});
+    bGood &= Test.TestTrue(TEXT("A learned listed active comes before a host"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("")));
+    bGood &= Test.TestTrue(TEXT("M08 without its actives goes onto the innate D"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target)
+        && Is(ELDComponentTargetKind::Dash, TEXT(""), TEXT("")));
+    Self.Components.Add(Hosted(TEXT("component_quick_hop"), ELDComponentTargetKind::Dash));
+    bGood &= Test.TestFalse(TEXT("M08 never joins M09 on the same D (TargetConflict)"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target));
+    bGood &= Test.TestTrue(TEXT("M12 installs on the holder itself"), LDOpponentPolicy::WorkshopTarget(Self, C, *OweIt, Target)
+        && Is(ELDComponentTargetKind::None, TEXT(""), TEXT("")));
+    Self.Components.Add(Hosted(TEXT("component_dirty_trick"), ELDComponentTargetKind::None, TEXT(""), ELDDemoElement::Water));
+    bGood &= Test.TestFalse(TEXT("C01 skips a B18 that does not burn"), LDOpponentPolicy::WorkshopTarget(Self, C, *FireSkin, Target));
+    Self.Components.Last().Element = ELDDemoElement::Fire;
+    bGood &= Test.TestTrue(TEXT("C01 goes onto a burning B18"), LDOpponentPolicy::WorkshopTarget(Self, C, *FireSkin, Target)
+        && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
+    bGood &= Test.TestFalse(TEXT("C09 waits for element reactions (ElementUnsupported)"), LDOpponentPolicy::WorkshopTarget(Self, C, *BlastChase, Target));
+    Self.Components.Add(Hosted(TEXT("component_fist_water")));
+    bGood &= Test.TestFalse(TEXT("C12 never repeats a water or electric base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target));
+    Self.Components.Add(Hosted(TEXT("component_tab_ledger")));
+    bGood &= Test.TestTrue(TEXT("C12 repeats the first open installed base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_tab_ledger")));
+
+    // The decision carries the target and the command names it.
+    FLDOpponentDecisionFrame Frame;
+    Frame.Generation = 1;
+    Frame.Public.Phase = ELDMatchPhase::Development;
+    Frame.Public.NowMs = 10000;
+    Frame.Self = Self;
+    Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 2);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.Life = 1;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    Frame.Self.Components.Add(Owned(TEXT("component_dirty_fist"), false, false));
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    FString Error;
+    bGood &= Test.TestTrue(TEXT("The fresh C12 is installed with its target and base"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::InstallComponent
+        && Intent.Component == TEXT("component_dirty_fist") && Intent.TargetKind == ELDComponentTargetKind::Active
+        && Intent.TargetId == TEXT("active_elbow") && Intent.BoundComponent == TEXT("component_tab_ledger"));
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 1;
+    View.Life = 1;
+    View.LifePhase = ELDLifePhase::Alive;
+    FLDActiveSlotView& Learned = View.Actives.AddDefaulted_GetRef();
+    Learned.DefinitionId = TEXT("active_elbow");
+    FLDComponentInstanceView& Base = View.Components.AddDefaulted_GetRef();
+    Base.DefinitionId = TEXT("component_tab_ledger");
+    Base.bInstalled = Base.bEverInstalled = true;
+    FLDComponentInstanceView& Fresh = View.Components.AddDefaulted_GetRef();
+    Fresh.DefinitionId = TEXT("component_dirty_fist");
+    FLDBuildCommand Command;
+    FName Decoded;
+    FName DecodedBase;
+    bGood &= Test.TestTrue(TEXT("The install command names the target and the repeated base: ") + Error,
+        LDOpponentRequests::BuildCommand(Intent, View, 12, Command, Error) && Command.Kind == ELDBuildCommandKind::InstallComponent
+        && Command.TargetKind == ELDComponentTargetKind::Active && Command.TargetDefinition.Decode(Decoded) && Decoded == FName(TEXT("active_elbow"))
+        && Command.BoundComponent.Decode(DecodedBase) && DecodedBase == FName(TEXT("component_tab_ledger")) && Command.TargetSegment == 0);
+    Intent.BoundComponent = TEXT("component_fist_fire");
+    bGood &= Test.TestFalse(TEXT("A base not installed is not named"), LDOpponentRequests::BuildCommand(Intent, View, 13, Command, Error));
+    return bGood;
+}
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentWorkshopTargetsTest, "Lockdown.Rules.DemoOpponentPolicy.WorkshopTargets",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentWorkshopTargetsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunWorkshopTargets(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentComponentsTest, "Lockdown.Rules.DemoOpponentPolicy.Components",

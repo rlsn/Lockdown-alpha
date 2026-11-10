@@ -72,6 +72,8 @@ enum class ELDGrowthReason : uint16
     // the current opening pick), OpeningBaseTaken (already picked), OpeningActiveFirst (opening active not chosen yet).
     NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, RestOnly = 63, InvalidTarget = 64, ElementUnsupported = 65,
     OpeningBaseUnavailable = 66, OpeningBaseTaken = 67, OpeningActiveFirst = 68,
+    // #198 F: TargetConflict (M08 and M09 on the same dash target).
+    TargetConflict = 150,
     // #198 rest: a rest step whose builds are locked (draw, betting, PK, settlement, return countdown).
     BuildLocked = 70,
     // Fewer than three actives are eligible for an NPC offer; nothing is charged.
@@ -202,6 +204,8 @@ struct LOCKDOWN_API FLDComponentTargetView
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
     // ActiveElement binding (B18): the bound learned active.
     UPROPERTY() FName BoundActive;
+    // #198 F C12: the installed base component the exit repeats.
+    UPROPERTY() FName BoundComponent;
 };
 
 // #198 B: one owned material instance (inventory and installed deduplicated: one per definition).
@@ -303,6 +307,8 @@ struct LOCKDOWN_API FLDBuildCommand
     UPROPERTY() FLDDefinitionWire TargetDefinition;
     UPROPERTY() uint8 TargetSegment = 0;
     UPROPERTY() FLDDefinitionWire BoundActive;
+    // #198 F InstallComponent of C12: the installed base component its exit repeats.
+    UPROPERTY() FLDDefinitionWire BoundComponent;
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
 
     bool SameTerms(const FLDBuildCommand& Other) const;

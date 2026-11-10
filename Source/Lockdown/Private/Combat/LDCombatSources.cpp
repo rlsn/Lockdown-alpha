@@ -381,27 +381,37 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
     return false;
 }
 
-bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Level, const FLDDemoAbilityDefinition* Ability,
-    const FLDDemoTargetDefinition*& OutTarget, const FLDDemoAbilityValues*& OutValues, int64& OutWindupMs) const
+bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDCombatSourceRef& Source,
+    const FLDDemoAbilityDefinition* Ability, FLDCombatActiveTerms& Out) const
 {
-    OutTarget=nullptr;
-    OutValues=nullptr;
-    OutWindupMs=0;
+    Out=FLDCombatActiveTerms();
     const FLDDemoContentSnapshot* Content=Catalog();
+    const FLDDemoAbilityValues* Values=nullptr;
     if (Ability && Content)
     {
-        OutTarget=&Ability->Target;
-        OutValues=Content->FindValues(*Ability,Level);
-        OutWindupMs=Ability->WindupMs;
+        Values=Content->FindValues(*Ability,Record.Build.Level);
+        if (!Values) { return false; }
+        Out.Target=Ability->Target;
+        Out.WindupMs=Ability->WindupMs;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
     {
         const FLDDemoDashDefinition& Dash=Content->Get().Character.Dash;
-        OutTarget=&Dash.Target;
-        OutValues=&Dash.Values;
-        OutWindupMs=Dash.WindupMs;
+        Values=&Dash.Values;
+        Out.Target=Dash.Target;
+        Out.WindupMs=Dash.WindupMs;
     }
-    return OutTarget && OutValues;
+    if (!Values) { return false; }
+    Out.Values=*Values;
+    // #198 F: the installed mods of this active rewrite its terms (an unresolvable build is no executable active).
+    FString Error;
+    if (!CompileActive(Record.Projection,Source,Out,Error))
+    {
+        UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_WORKSHOP_COMPILE_FAILED entity=%s source=%s error=%s"),*LDLog::Id(Record.Entity),
+            *LDLog::Source(Source),*Error);
+        return false;
+    }
+    return true;
 }
 
 bool ALDCombatDirector::InnateDashFor(FLDInnateDashTerms& Out, FString& Error) const
@@ -448,14 +458,14 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     }
     View.SourceKind=Source.Kind;
     View.DefinitionId=Source.DefinitionId;
-    const FLDDemoTargetDefinition* Target=nullptr;
-    const FLDDemoAbilityValues* Values=nullptr;
-    int64 WindupMs=0;
-    if (!ActiveOf(Source,Record.Build.Level,Ability,Target,Values,WindupMs))
+    FLDCombatActiveTerms Terms;
+    if (!ActiveOf(Record,Source,Ability,Terms))
     {
         View.Unavailable=ELDCombatReject::SourceUnavailable;
         return View;
     }
+    const FLDDemoTargetDefinition* Target=&Terms.Target;
+    const FLDDemoAbilityValues* Values=&Terms.Values;
     View.TargetMode=static_cast<uint8>(Target->Mode);
     View.ManaCostP2=Values->ManaCostP2;
     // A dash has no authored target range; its reach is the Dash effect distance of the active.
@@ -479,7 +489,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
             View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
             return View;
         }
-        View.RangeCm=LDCombatSourcesDetail::DisplayCm(Innate.DistanceCm);
+        View.RangeCm=int32(FMath::RoundToDouble(double(LDCombatSourcesDetail::DisplayCm(Innate.DistanceCm))*double(Terms.DashScaleBp)/10000.));
         View.ManaCostP2=Innate.ManaCostP2;
     }
     if (const FLDCombatTrack* Track=TrackFor(Record,Entry))

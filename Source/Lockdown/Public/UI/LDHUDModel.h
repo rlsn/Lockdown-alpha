@@ -417,6 +417,26 @@ namespace LDHUD
     LOCKDOWN_API FString ElementName(ELDDemoElement Element);
     // The learned actives an ActiveElement component may bind (its BindActives), in Q/W/E order.
     LOCKDOWN_API TArray<FName> BindableActives(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression);
+    // #198 F: one place an owned mod or connector may be installed now (a hint; the server decides): a learned active
+    // (Active, TargetId), another installed component (Component, TargetId), the innate D (Dash) or the holder (None).
+    struct FWorkshopTargetView
+    {
+        ELDComponentTargetKind Kind=ELDComponentTargetKind::None;
+        FName TargetId;
+        // The active's or component's display name, 冲刺(D) or 自身.
+        FString Label;
+    };
+    // The places Component takes now, in its catalog list order: each learned active of TargetActives, each installed other
+    // component of TargetComponents, then 冲刺(D) (bTargetDash) and 自身 (bTargetSelf). Empty for a base component.
+    LOCKDOWN_API TArray<FWorkshopTargetView> WorkshopTargets(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
+    // C12: the installed bases of its ExtraBases it may repeat, in list order, without a closed element (water and electric
+    // wait for #198 A). Empty for any other component.
+    LOCKDOWN_API TArray<FName> RepeatableBases(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
+    // What an installed component sits on, for its row: B18's "（技能 · 元素）", a mod or connector's "（装在：X）" and C12's
+    // "（X · 重复 Y）"; empty when it is not installed or a plain base.
+    LOCKDOWN_API FString InstalledTargetText(const FLDComponentInstanceView& Instance,const FLDDemoContentDefinitions* Content);
     // A component's card: icon, name and its display sentence with the owner's level grown numbers (like an active's).
     struct FComponentCardView
     {
@@ -433,10 +453,11 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FComponentCardView ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
-    // Why an owned, not installed component cannot be enabled whatever the moment: a missing definition (DataNotReady), not
-    // a base (InvalidTarget until mods and connectors get their targets), a closed element (ElementUnsupported) or a binding
-    // without any bindable learned active (InvalidTarget). None when only the build gate decides (FBuildGateView: the first
-    // install, or the rest-only re-install of a once-installed one).
+    // Why an owned, not installed component cannot be enabled whatever the moment: a missing definition (DataNotReady), a
+    // closed element (ElementUnsupported: a base's effect, or C09's element reactions), a binding without any bindable
+    // learned active, or a mod or connector without any place to go (WorkshopTargets; C12 also without a repeatable base)
+    // (InvalidTarget). None when only the build gate decides (FBuildGateView: the first install, or the rest-only re-install
+    // of a once-installed one).
     LOCKDOWN_API ELDGrowthReason ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
     // One owned component row of the growth panel: 已启用, or a 启用 button enabled when the server would admit it now and

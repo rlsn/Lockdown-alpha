@@ -20,7 +20,8 @@ struct FLDDemoContentDefinitions;
 // the pending blueprints with a "学到 Q/W/E" button per empty slot, and the unspent points with one row per stat whose +/−
 // only stage locally until one confirm sends AllocatePoints. #198 B adds the opening base pick (cards of the current options;
 // a click is an OpeningBase that installs it when allowed) and the owned components (已启用, or a 启用 button for a first-time
-// InstallComponent); B18 first asks for a learned active and an element. Every command carries the ids and versions of the view it was
+// InstallComponent); B18 first asks for a learned active and an element, and a mod or connector (#198 F) first asks where it
+// goes (C12 also which installed base it repeats). Every command carries the ids and versions of the view it was
 // built from; nothing shown changes before the server's receipt and the next owner view. Buttons the server would refuse
 // are disabled with the reason (LDHUD::BuildGate over LDProgression::StageForPublic, LDHUD::ComponentRow); the server still
 // decides each command. In a rest it also shows the rest services: the NPC's active offer, the respec, "替换 Q/W/E" on each
@@ -70,14 +71,19 @@ public:
     // #198 B: an opening base card click: takes the option at Index of the shown list with bInstallIfPossible. A binding
     // component (B18) with a bindable learned active first asks for that active and an element (PickBindActive/Element).
     bool PickOpeningBase(int32 Index);
-    // A component row's 启用: a first-time InstallComponent of the owned component at Index of the shown list (binding first
-    // as above).
+    // A component row's 启用: a first-time InstallComponent of the owned component at Index of the shown list (binding or
+    // target step first as above).
     bool EnableComponent(int32 Index);
     // The binding step of an opening pick or install: the bindable learned active at Index (Q/W/E order), then the element,
     // which sends the command.
     bool PickBindActive(int32 Index);
     bool PickBindElement(ELDDemoElement Element);
     void CancelBinding();
+    // #198 F: the target step of a mod or connector install: the place at Index of the shown list (LDHUD::WorkshopTargets),
+    // which sends the command, except for C12, which then asks for the installed base it repeats (PickRepeatedBase sends).
+    bool PickTarget(int32 Index);
+    bool PickRepeatedBase(int32 Index);
+    void CancelTarget();
     int32 StagedTotal() const;
     virtual bool IsPanelOpen() const override {return bOpen;}
     virtual void OpenPanel() override;
@@ -90,7 +96,7 @@ public:
     void UpdateFold(bool bOwnHit);
     // A card being read (hovered, focused or previewed), staged points, a binding being picked, a rest confirm line or a
     // request in flight.
-    bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||PendingRequest!=0||HasChildConfirmation();}
+    bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||PendingRequest!=0||HasChildConfirmation();}
     // The offer card whose detail popup is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
     // Distance of the panel's bottom edge from the screen bottom and of its left edge from the screen left: the HUD keeps
@@ -175,6 +181,14 @@ private:
     // Q/W/E order of the bindable learned actives; then fire, water, electric.
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> BindActiveButtons;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> BindElementButtons;
+    // #198 F target step: the place buttons (built as needed, a few per line) and C12's repeated-base line.
+    UPROPERTY() TObjectPtr<UWidget> TargetSection;
+    UPROPERTY() TObjectPtr<UTextBlock> TargetHeading;
+    UPROPERTY() TObjectPtr<UVerticalBox> TargetList;
+    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> TargetLines;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> TargetButtons;
+    UPROPERTY() TObjectPtr<UHorizontalBox> RepeatLine;
+    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RepeatButtons;
     UPROPERTY() TObjectPtr<UWidget> ComponentSection;
     UPROPERTY() TObjectPtr<UVerticalBox> ComponentList;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
@@ -235,6 +249,12 @@ private:
     ELDBuildCommandKind BindingKind=ELDBuildCommandKind::None;
     TArray<FName> BindingActives;
     FName BindingActive;
+    // A mod or connector (#198 F) waiting for its place: the places shown, the one picked (C12, waiting for its base) and
+    // C12's repeatable bases.
+    FName TargetComponent;
+    TArray<LDHUD::FWorkshopTargetView> TargetChoices;
+    int32 TargetPicked=INDEX_NONE;
+    TArray<FName> TargetBases;
     // Local staging of the point allocation, one count per stat in the stats' design order; never sent until ConfirmPoints.
     TArray<int32> Staged;
     uint32 StagedMatch=0;
@@ -274,10 +294,17 @@ private:
     void RefreshOpeningBase();
     void RefreshComponents();
     void RefreshBinding();
+    // #198 F: the target step, kept while the component is still owned and not installed and still has a place.
+    void RefreshTarget();
+    void ClearTarget();
+    ULDCommandButton* TargetButtonAt(int32 Index);
+    ULDCommandButton* RepeatButtonAt(int32 Index);
     void RefreshAll();
-    // Starts an OpeningBase or InstallComponent of Component: straight away, or after the binding step for B18.
+    // Starts an OpeningBase or InstallComponent of Component: straight away, or after the binding step for B18 or the
+    // target step for a mod or connector (#198 F).
     bool BeginComponent(ELDBuildCommandKind Kind,FName Component);
-    bool SendComponent(ELDBuildCommandKind Kind,FName Component,FName BoundActive,ELDDemoElement Element);
+    bool SendComponent(ELDBuildCommandKind Kind,FName Component,FName BoundActive,ELDDemoElement Element,
+        ELDComponentTargetKind TargetKind=ELDComponentTargetKind::None,FName TargetId=NAME_None,FName BoundComponent=NAME_None);
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);
     void FinishRequest();

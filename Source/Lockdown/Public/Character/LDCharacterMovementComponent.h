@@ -49,7 +49,20 @@ public:
         const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error);
     // Demo dash on the server authority body: one planar override root-motion source (Distance/Duration,
     // zero finish velocity) integrated by the issued authority steps; never a teleport.
-    bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error);
+    // bKnockback: a forced push, which other bodies block like static geometry (#198 F C02); a voluntary dash runs
+    // through bodies.
+    bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error, bool bKnockback=false);
+    // #198 F C02: the first real block of the current push (a body, or registered static geometry facing the push; walkable
+    // support and grazing slides are none). Watching starts with WatchKnockbackBlock and ends with the first fact.
+    struct FKnockbackBlock
+    {
+        bool bBody=false;
+        TWeakObjectPtr<AActor> Blocker;
+    };
+    void WatchKnockbackBlock() { bWatchKnockbackBlock=true; KnockbackBlock.Reset(); }
+    TOptional<FKnockbackBlock> TakeKnockbackBlock()
+    { TOptional<FKnockbackBlock> Out=MoveTemp(KnockbackBlock); KnockbackBlock.Reset(); return Out; }
+    void StopKnockbackWatch() { bWatchKnockbackBlock=false; KnockbackBlock.Reset(); }
     // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked.
     bool CanStartDash(const FVector& Direction, double ProbeCm) const;
     // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
@@ -93,6 +106,9 @@ protected:
 #endif
 private:
     void RememberStationarySupport();
+    bool bKnockbackMotion=false;
+    bool bWatchKnockbackBlock=false;
+    TOptional<FKnockbackBlock> KnockbackBlock;
     TWeakObjectPtr<UPrimitiveComponent> StationaryFloor;
     FTransform StationaryFloorTransform;
     FVector StationaryCapsuleSize=FVector::ZeroVector;

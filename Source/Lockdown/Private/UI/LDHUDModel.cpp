@@ -8,6 +8,7 @@
 #include "Development/LDDemoCardText.h"
 #include "Development/LDProgressionRules.h"
 #include "Development/LDSkillGrowth.h"
+#include "Development/LDWorkshopRules.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
@@ -1234,6 +1235,56 @@ TArray<FName> LDHUD::BindableActives(const FLDDemoComponentDefinition& Component
     }
     return Out;
 }
+TArray<LDHUD::FWorkshopTargetView> LDHUD::WorkshopTargets(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    TArray<FWorkshopTargetView> Out;
+    if(Component.Kind==ELDDemoComponentKind::Base){return Out;}
+    const FName Self(*Component.Id);
+    for(const FString& Id:Component.TargetActives)
+    {
+        const FName Active(*Id);
+        if(Progression.Actives.ContainsByPredicate([Active](const FLDActiveSlotView& A){return A.DefinitionId==Active;}))
+        {Out.Add({ELDComponentTargetKind::Active,Active,ContentName(Content,Id)});}
+    }
+    for(const FString& Id:Component.TargetComponents)
+    {
+        const FName Host(*Id);
+        if(Host!=Self&&Progression.Components.ContainsByPredicate([Host](const FLDComponentInstanceView& C){return C.DefinitionId==Host&&C.bInstalled;}))
+        {Out.Add({ELDComponentTargetKind::Component,Host,ContentName(Content,Id)});}
+    }
+    if(Component.bTargetDash){Out.Add({ELDComponentTargetKind::Dash,NAME_None,LDTerms::TargetDash});}
+    if(Component.bTargetSelf){Out.Add({ELDComponentTargetKind::None,NAME_None,LDTerms::TargetSelf});}
+    return Out;
+}
+TArray<FName> LDHUD::RepeatableBases(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    TArray<FName> Out;
+    for(const FString& Id:Component.ExtraBases)
+    {
+        const FName Base(*Id);
+        const FLDComponentInstanceView* Held=Base==FName(*Component.Id)?nullptr
+            :Progression.Components.FindByPredicate([Base](const FLDComponentInstanceView& C){return C.DefinitionId==Base&&C.bInstalled;});
+        const FLDDemoComponentDefinition* Definition=Held&&Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+        if(Definition&&ElementGate(Held->Target.Element)==ELDGrowthReason::None&&ComponentElementGate(*Definition)==ELDGrowthReason::None){Out.Add(Base);}
+    }
+    return Out;
+}
+FString LDHUD::InstalledTargetText(const FLDComponentInstanceView& Instance,const FLDDemoContentDefinitions* Content)
+{
+    if(!Instance.bInstalled){return FString();}
+    const FLDComponentTargetView& Target=Instance.Target;
+    if(!Target.BoundActive.IsNone()){return FString::Printf(TEXT("（%s · %s）"),*ContentName(Content,Target.BoundActive.ToString()),*ElementName(Target.Element));}
+    const FString Id=Instance.DefinitionId.ToString();
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    // A plain base sits on nothing; a mod or connector names its place (a missing catalog row still names an id it carries).
+    const bool bWorkshop=Component?Component->Kind!=ELDDemoComponentKind::Base:(!Target.Definition.IsNone()||Target.Kind==ELDComponentTargetKind::Dash);
+    if(!bWorkshop){return FString();}
+    const FString Place=Target.Kind==ELDComponentTargetKind::Dash?FString(LDTerms::TargetDash)
+        :Target.Definition.IsNone()?FString(LDTerms::TargetSelf):ContentName(Content,Target.Definition.ToString());
+    return Target.BoundComponent.IsNone()?LDTerms::InstalledOn(Place):LDTerms::InstalledRepeating(Place,ContentName(Content,Target.BoundComponent.ToString()));
+}
 LDHUD::FComponentCardView LDHUD::ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
 {
     FComponentCardView Card;
@@ -1266,7 +1317,14 @@ ELDGrowthReason LDHUD::ComponentEnableReason(const FLDComponentInstanceView& Ins
     const FString Id=Instance.DefinitionId.ToString();
     const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
     if(!Component){return ELDGrowthReason::DataNotReady;}
-    if(Component->Kind!=ELDDemoComponentKind::Base){return ELDGrowthReason::InvalidTarget;}
+    if(Component->Kind!=ELDDemoComponentKind::Base)
+    {
+        // #198 F: C09 reads element reactions, which wait for #198 A; the others need a place to go (C12 also a base).
+        if(LDWorkshop::FindOp(*Component,ELDDemoEffectOp::ReactionEmpower)){return ELDGrowthReason::ElementUnsupported;}
+        const bool bPlaced=!WorkshopTargets(*Component,Progression,Content).IsEmpty()
+            &&(Component->ExtraBases.IsEmpty()||!RepeatableBases(*Component,Progression,Content).IsEmpty());
+        return bPlaced?ELDGrowthReason::None:ELDGrowthReason::InvalidTarget;
+    }
     if(ComponentElementGate(*Component)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
     if(Component->Binding==ELDDemoComponentBinding::ActiveElement&&BindableActives(*Component,Progression).IsEmpty()){return ELDGrowthReason::InvalidTarget;}
     return ELDGrowthReason::None;
@@ -1284,6 +1342,7 @@ LDHUD::FComponentRowView LDHUD::ComponentRow(const FLDComponentInstanceView& Ins
     const ELDGrowthReason Reason=ComponentEnableReason(Instance,Progression,Content);
     if(Reason==ELDGrowthReason::DataNotReady){Row.Blocked=Content?FString(TEXT("内容目录中找不到该构件")):FString(TEXT("内容数据同步中"));return Row;}
     if(Reason==ELDGrowthReason::InvalidTarget&&Row.bBinding){Row.Blocked=LDTerms::NoBindableActive;return Row;}
+    if(Reason==ELDGrowthReason::InvalidTarget&&Component&&Component->Kind!=ELDDemoComponentKind::Base){Row.Blocked=LDTerms::NoInstallTarget;return Row;}
     if(Reason!=ELDGrowthReason::None){Row.Blocked=BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);return Row;}
     // A once-installed component moves again only in the rest window; a first install follows the field gate.
     Row.bCanEnable=Instance.bEverInstalled?Gate.bCanReinstall:Gate.bCanInstall;
@@ -1391,6 +1450,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::OpeningBaseUnavailable: return FString(TEXT("这个"))+LDTerms::Component+TEXT("不在开局可选范围内");
     case ELDGrowthReason::OpeningBaseTaken: return FString(TEXT("开局基础"))+LDTerms::Component+TEXT("已经选过了");
     case ELDGrowthReason::OpeningActiveFirst: return FString(TEXT("先选开局技能，再选开局基础"))+LDTerms::Component;
+    case ELDGrowthReason::TargetConflict: return LDTerms::TargetConflict;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");

@@ -33,6 +33,8 @@ const FLinearColor GrowthCardIdle(.045f,.12f,.15f);
 constexpr float GrowthPanelScale=.8f;
 constexpr float GrowthCardWidth=250.f,GrowthCardHeight=64.f,GrowthIconSize=44.f,GrowthDetailWidth=300.f,GrowthIconRadius=7.f;
 constexpr float GrowthPanelWidth=3*GrowthCardWidth+16.f;
+// #198 F target step: place buttons per line.
+constexpr int32 GrowthTargetsPerLine=4;
 void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
     auto Style=Button->GetStyle();Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
@@ -146,6 +148,22 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             auto* BlockedSlot=CancelLine->AddChildToHorizontalBox(BindingBlocked);BlockedSlot->SetVerticalAlignment(VAlign_Center);BlockedSlot->SetPadding(FMargin(10,0,0,0));
             Section->AddChildToVerticalBox(CancelLine)->SetPadding(FMargin(0,4,0,0));
             BindingSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
+        }
+        {
+            // #198 F target step of a mod or connector: one button per place it takes now, then C12's repeated base.
+            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
+            TargetHeading=Wrapped(15,GrowthPanelWidth);TargetHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(TargetHeading);
+            UTextBlock* PlaceLabel=OneLine(13);PlaceLabel->SetText(FText::FromString(LDTerms::PickInstallTarget));
+            Section->AddChildToVerticalBox(PlaceLabel)->SetPadding(FMargin(0,4,0,0));
+            TargetList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(TargetList)->SetPadding(FMargin(0,2,0,0));
+            RepeatLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            UTextBlock* BaseLabel=OneLine(13);BaseLabel->SetText(FText::FromString(LDTerms::PickRepeatedBase));
+            RepeatLine->AddChildToHorizontalBox(BaseLabel)->SetVerticalAlignment(VAlign_Center);
+            Section->AddChildToVerticalBox(RepeatLine)->SetPadding(FMargin(0,4,0,0));
+            auto* CancelLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            CancelLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::CancelBinding,[this](){CancelTarget();},false,TEXT("GrowthTargetCancel")));
+            Section->AddChildToVerticalBox(CancelLine)->SetPadding(FMargin(0,4,0,0));
+            TargetSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
             // Pending blueprints: one row each, built as needed, with a "学到 Q/W/E" button per empty slot.
@@ -349,7 +367,7 @@ int32 ULDChoicesPanel::StagedTotal() const
 bool ULDChoicesPanel::HasAnythingToDo() const
 {
     // #198: in a rest the services stay on offer (or explain why they are locked), so the panel never closes itself there.
-    return LDHUD::GrowthPending(&Latest,LatestMatch,LatestContent).Any()||StagedTotal()>0||!BindingComponent.IsNone()||Gate.bInRest;
+    return LDHUD::GrowthPending(&Latest,LatestMatch,LatestContent).Any()||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||Gate.bInRest;
 }
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,int64 BuildSafeAtMs,
     bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
@@ -546,7 +564,7 @@ void ULDChoicesPanel::RefreshPoints()
 }
 void ULDChoicesPanel::RefreshAll()
 {
-    RefreshOffer();RefreshOpeningBase();RefreshBinding();RefreshBlueprints();RefreshComponents();RefreshPoints();RefreshRest();
+    RefreshOffer();RefreshOpeningBase();RefreshBinding();RefreshTarget();RefreshBlueprints();RefreshComponents();RefreshPoints();RefreshRest();
     bComponentTextStale=false;
 }
 ULDChoicesPanel::FBaseCard& ULDChoicesPanel::BaseCardAt(int32 Index)
@@ -673,9 +691,8 @@ void ULDChoicesPanel::RefreshComponents()
         }
         const LDHUD::FComponentRowView View=LDHUD::ComponentRow(Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs);
         FString Name=LDHUD::ContentName(LatestContent,Owned.DefinitionId.ToString());
-        // B18 shows what it is bound to once installed.
-        if(Owned.bInstalled&&!Owned.Target.BoundActive.IsNone())
-        {Name+=FString::Printf(TEXT("（%s · %s）"),*LDHUD::ContentName(LatestContent,Owned.Target.BoundActive.ToString()),*LDHUD::ElementName(Owned.Target.Element));}
+        // B18 shows what it is bound to once installed; a mod or connector where it sits (#198 F).
+        Name+=LDHUD::InstalledTargetText(Owned,LatestContent);
         GrowthText(Row.Name,Name);
         GrowthText(Row.State,View.bInstalled?FString(LDTerms::ComponentEnabled):FString());
         GrowthShown(Row.State,View.bInstalled,ESlateVisibility::HitTestInvisible);
@@ -757,13 +774,139 @@ bool ULDChoicesPanel::BeginComponent(ELDBuildCommandKind Kind,FName Component)
         if(!Actives.IsEmpty())
         {
             BindingComponent=Component;BindingKind=Kind;BindingActives=Actives;BindingActive=Actives.Num()==1?Actives[0]:NAME_None;
+            ClearTarget();RefreshTarget();
             SetFeedback(FString());RefreshBinding();
             return true;
         }
         // An opening pick may still take it into the inventory (the server stores it with the reason); an install cannot.
         if(Kind!=ELDBuildCommandKind::OpeningBase){SetFeedback(TEXT("没有提交：")+FString(LDTerms::NoBindableActive));return false;}
     }
+    // #198 F: a mod or connector asks where it goes first (an opening pick is always a base).
+    if(Definition->Kind!=ELDDemoComponentKind::Base&&Kind==ELDBuildCommandKind::InstallComponent)
+    {
+        ClearTarget();
+        TargetComponent=Component;
+        RefreshTarget();
+        if(TargetComponent.IsNone()){SetFeedback(TEXT("没有提交：")+FString(LDTerms::NoInstallTarget));return false;}
+        BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;RefreshBinding();
+        SetFeedback(FString());
+        return true;
+    }
     return SendComponent(Kind,Component,NAME_None,ELDDemoElement::None);
+}
+ULDCommandButton* ULDChoicesPanel::TargetButtonAt(int32 Index)
+{
+    while(TargetButtons.Num()<=Index)
+    {
+        const int32 ButtonIndex=TargetButtons.Num();
+        if(ButtonIndex%GrowthTargetsPerLine==0)
+        {
+            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);TargetLines.Add(Line);
+            TargetList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,ButtonIndex?4.f:0.f,0,0));
+        }
+        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickTarget(ButtonIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthTarget%d"),ButtonIndex)));
+        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
+        TargetLines.Last()->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(ButtonIndex%GrowthTargetsPerLine?6.f:0.f,0,0,0));
+        TargetButtons.Add(Pick);
+    }
+    return TargetButtons[Index];
+}
+ULDCommandButton* ULDChoicesPanel::RepeatButtonAt(int32 Index)
+{
+    while(RepeatButtons.Num()<=Index)
+    {
+        const int32 ButtonIndex=RepeatButtons.Num();
+        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickRepeatedBase(ButtonIndex);},false,
+            FName(*FString::Printf(TEXT("GrowthRepeatBase%d"),ButtonIndex)));
+        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
+        RepeatLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
+        RepeatButtons.Add(Pick);
+    }
+    return RepeatButtons[Index];
+}
+void ULDChoicesPanel::ClearTarget()
+{
+    TargetComponent=NAME_None;TargetChoices.Reset();TargetPicked=INDEX_NONE;TargetBases.Reset();
+}
+void ULDChoicesPanel::RefreshTarget()
+{
+    // A target step lasts while the component is still owned, not installed and has a place; otherwise it is dropped silently.
+    const FLDDemoComponentDefinition* Definition=nullptr;
+    if(!TargetComponent.IsNone()&&Usable()&&LatestContent)
+    {
+        const FString Id=TargetComponent.ToString();
+        Definition=LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;});
+        const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==TargetComponent;});
+        if(!Owned||Owned->bInstalled||!Definition||Definition->Kind==ELDDemoComponentKind::Base){Definition=nullptr;}
+    }
+    if(Definition)
+    {
+        // The picked place survives a refresh only while it is still offered.
+        const LDHUD::FWorkshopTargetView Picked=TargetChoices.IsValidIndex(TargetPicked)?TargetChoices[TargetPicked]:LDHUD::FWorkshopTargetView();
+        const bool bHadPick=TargetChoices.IsValidIndex(TargetPicked);
+        TargetChoices=LDHUD::WorkshopTargets(*Definition,Latest,LatestContent);
+        TargetBases=LDHUD::RepeatableBases(*Definition,Latest,LatestContent);
+        TargetPicked=bHadPick?TargetChoices.IndexOfByPredicate([&Picked](const LDHUD::FWorkshopTargetView& T){return T.Kind==Picked.Kind&&T.TargetId==Picked.TargetId;}):INDEX_NONE;
+        if(TargetChoices.IsEmpty()||(!Definition->ExtraBases.IsEmpty()&&TargetBases.IsEmpty())){Definition=nullptr;}
+    }
+    if(!Definition){ClearTarget();}
+    GrowthShown(TargetSection,Definition!=nullptr);
+    if(!Definition){return;}
+    GrowthText(TargetHeading,LDHUD::ContentName(LatestContent,TargetComponent.ToString()));
+    for(int32 Index=0;Index<FMath::Max(TargetChoices.Num(),TargetButtons.Num());++Index)
+    {
+        const bool bShown=TargetChoices.IsValidIndex(Index);
+        ULDCommandButton* Pick=bShown?TargetButtonAt(Index):TargetButtons[Index].Get();
+        GrowthShown(Pick,bShown,ESlateVisibility::Visible);
+        if(!bShown){continue;}
+        const FString& Label=TargetChoices[Index].Label;
+        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Index==TargetPicked?TEXT("【")+Label+TEXT("】"):Label);
+        GrowthEnabled(Pick,!PendingRequest);
+    }
+    // C12 asks for the repeated base once its place is picked.
+    const bool bRepeat=!Definition->ExtraBases.IsEmpty()&&TargetPicked!=INDEX_NONE;
+    GrowthShown(RepeatLine,bRepeat,ESlateVisibility::SelfHitTestInvisible);
+    for(int32 Index=0;Index<FMath::Max(TargetBases.Num(),RepeatButtons.Num());++Index)
+    {
+        const bool bShown=bRepeat&&TargetBases.IsValidIndex(Index);
+        ULDCommandButton* Pick=bShown?RepeatButtonAt(Index):RepeatButtons.IsValidIndex(Index)?RepeatButtons[Index].Get():nullptr;
+        GrowthShown(Pick,bShown,ESlateVisibility::Visible);
+        if(!bShown){continue;}
+        GrowthText(Cast<UTextBlock>(Pick->GetContent()),LDHUD::ContentName(LatestContent,TargetBases[Index].ToString()));
+        GrowthEnabled(Pick,!PendingRequest);
+    }
+}
+bool ULDChoicesPanel::PickTarget(int32 Index)
+{
+    RefreshTarget();
+    if(TargetComponent.IsNone()||!TargetChoices.IsValidIndex(Index)){return false;}
+    const FString Id=TargetComponent.ToString();
+    const FLDDemoComponentDefinition* Definition=LatestContent?LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    if(!Definition){return false;}
+    if(!Definition->ExtraBases.IsEmpty()){TargetPicked=Index;RefreshTarget();return true;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==TargetComponent;});
+    const LDHUD::FComponentRowView Row=Owned?LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs):LDHUD::FComponentRowView();
+    if(!Row.bCanEnable){SetFeedback(TEXT("没有提交：")+(Row.Blocked.IsEmpty()?LDHUD::GrowthReasonText(ELDGrowthReason::NotOwned):Row.Blocked));return false;}
+    const LDHUD::FWorkshopTargetView Target=TargetChoices[Index];
+    return SendComponent(ELDBuildCommandKind::InstallComponent,TargetComponent,NAME_None,ELDDemoElement::None,Target.Kind,Target.TargetId);
+}
+bool ULDChoicesPanel::PickRepeatedBase(int32 Index)
+{
+    RefreshTarget();
+    if(TargetComponent.IsNone()||!TargetChoices.IsValidIndex(TargetPicked)||!TargetBases.IsValidIndex(Index)){return false;}
+    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
+    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==TargetComponent;});
+    const LDHUD::FComponentRowView Row=Owned?LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs):LDHUD::FComponentRowView();
+    if(!Row.bCanEnable){SetFeedback(TEXT("没有提交：")+(Row.Blocked.IsEmpty()?LDHUD::GrowthReasonText(ELDGrowthReason::NotOwned):Row.Blocked));return false;}
+    const LDHUD::FWorkshopTargetView Target=TargetChoices[TargetPicked];
+    return SendComponent(ELDBuildCommandKind::InstallComponent,TargetComponent,NAME_None,ELDDemoElement::None,Target.Kind,Target.TargetId,TargetBases[Index]);
+}
+void ULDChoicesPanel::CancelTarget()
+{
+    ClearTarget();
+    RefreshTarget();
 }
 bool ULDChoicesPanel::PickBindActive(int32 Index)
 {
@@ -795,21 +938,25 @@ void ULDChoicesPanel::CancelBinding()
     BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;
     RefreshBinding();
 }
-bool ULDChoicesPanel::SendComponent(ELDBuildCommandKind Kind,FName Component,FName BoundActive,ELDDemoElement Element)
+bool ULDChoicesPanel::SendComponent(ELDBuildCommandKind Kind,FName Component,FName BoundActive,ELDDemoElement Element,
+    ELDComponentTargetKind TargetKind,FName TargetId,FName BoundComponent)
 {
     FLDBuildCommand Command;
     Command.Kind=Kind;
     if(!FLDDefinitionWire::Encode(Component,Command.Component)){SetFeedback(TEXT("没有提交：这个构件的标识无效。"));return false;}
     // An opening pick always asks to enable it now; the server keeps it in the inventory with the reason when it may not.
     Command.bInstallIfPossible=Kind==ELDBuildCommandKind::OpeningBase;
-    // Base components take no target; B18 carries its binding.
-    Command.TargetKind=ELDComponentTargetKind::None;
+    // Base components take no target; B18 carries its binding; a mod or connector its place (#198 F, C12 also its base).
+    Command.TargetKind=TargetKind;
+    if(!TargetId.IsNone()&&!FLDDefinitionWire::Encode(TargetId,Command.TargetDefinition)){SetFeedback(TEXT("没有提交：安装位置的标识无效。"));return false;}
+    if(!BoundComponent.IsNone()&&!FLDDefinitionWire::Encode(BoundComponent,Command.BoundComponent)){SetFeedback(TEXT("没有提交：重复的基础构件标识无效。"));return false;}
     if(!BoundActive.IsNone())
     {
         if(!FLDDefinitionWire::Encode(BoundActive,Command.BoundActive)){SetFeedback(TEXT("没有提交：绑定的技能标识无效。"));return false;}
         Command.Element=Element;
     }
     BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;
+    ClearTarget();
     return Send(Command);
 }
 bool ULDChoicesPanel::ChooseOffer(int32 Index)
