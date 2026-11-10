@@ -1484,7 +1484,8 @@ bool ULDNavigationComponent::CastReady(ALDGameMode& Mode, const FLDCombatActionR
     const ELDDemoTargetMode TargetMode=ELDDemoTargetMode(Entry.TargetMode);
     const bool bModeFits=bUnit ? TargetMode==ELDDemoTargetMode::Unit
         : (TargetMode==ELDDemoTargetMode::GroundPoint && Cast.Target.Kind==ELDCombatTargetKind::Point)
-            || ((TargetMode==ELDDemoTargetMode::DirectionProjectile || TargetMode==ELDDemoTargetMode::DirectionCone)
+            || ((TargetMode==ELDDemoTargetMode::DirectionProjectile || TargetMode==ELDDemoTargetMode::DirectionCone
+                    || TargetMode==ELDDemoTargetMode::DirectionLine)
                 && Cast.Target.Kind==ELDCombatTargetKind::Direction);
     ELDCombatReject Refused=LDOrderRules::SkillRequestReady(Entry.Unavailable) ? ELDCombatReject::None : Entry.Unavailable;
     if (Refused==ELDCombatReject::None && (Entry.DefinitionId.IsNone() || Entry.RangeCm<=0 || !bModeFits))

@@ -164,14 +164,14 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertTrue(position_fields)
 
     def test_retired_growth_shapes_are_native_refusal_cases(self):
-        # #198: ranks, attribute/opening cards, rerolls, CHOICE weights, advanced lines, retired operations and the
-        # projection-less sock shot must reach the native importer as refusals with their own reason.
+        # #198: ranks, attribute/opening cards, rerolls, CHOICE weights, advanced lines, retired operations and an
+        # active on another active's target must reach the native importer as refusals with their own reason.
         invalid = {case["name"]: case["error_contains"] for case in self.index["invalid"]}
         for name, error in (
             ("retired_rank_field", "unknown field"), ("attribute_card_section", "unknown field"),
             ("retired_reroll_levels", "unknown field"), ("retired_choice_parameter", "unknown field"),
             ("advanced_display_line", "unknown field"), ("retired_effect_op", "opcode"),
-            ("reserved_sock_shot", "unimplemented ability projection"), ("retired_stat_id", "renumbered native ID"),
+            ("sock_shot_wrong_target", "wrong definition target"), ("retired_stat_id", "renumbered native ID"),
             ("wrong_stat_bonus", "wrong stat bonuses"), ("small_opening_pool", "opening pool"),
             ("unsorted_active_offer_levels", "active offer levels"), ("stat_card_absent_bonus", "card placeholder"),
         ):

@@ -48,7 +48,7 @@ BONUS_STATS = (
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
     "HPRegenFlat", "APBonusRatio", "MPRegenFlat",
 )
-TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint", "DirectionCone")
+TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint", "DirectionCone", "DirectionLine")
 BUNDLE_PATHS = (
     demo.MANIFEST_OUTPUT, demo.CONTENT_OUTPUT, demo.WORLD_OUTPUT, demo.CONTENT_CONTRACT,
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
@@ -128,6 +128,7 @@ def target(value=None):
         "AngleDegrees": rational(value.get("angle")),
         "AttackRangeRatioBp": scalar(value["attack_range_ratio"]) if "attack_range_ratio" in value else 0,
         "AttackRangeBonusCapCm": rational(value.get("attack_range_bonus_cap")),
+        "LineHalfWidthCm": rational(value.get("half_width")),
     }
 
 
@@ -148,7 +149,7 @@ def effect(value):
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
         "Trigger": 0, "Entries": 0, "AmountMs": 0,
         "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
-        "LimitP2": 0, "Element": 0,
+        "LimitP2": 0, "bEveryContact": False, "Element": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -161,6 +162,8 @@ def effect(value):
         ("hp_below", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
         ("lifesteal", "SecondaryRatioBp"), ("outer_ratio", "RatioBp"),
         ("mana_ratio", "SecondaryRatioBp"), ("mana_cap", "LimitP2"), ("slow_resistance", "SecondaryRatioBp"),
+        # #198 brace: the record cap and the record's share of the release.
+        ("limit", "LimitP2"), ("record_ratio", "SecondaryRatioBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
@@ -186,6 +189,11 @@ def effect(value):
         result["Element"] = ELEMENTS.index(value["element"])
     if value.get("op") == "channel_cone":
         result["DurationMs"] = result["IntervalMs"] * (result["Count"] - 1)
+    # #198 dash_contact: First touches one body (Count 1); Every touches each body once.
+    if value.get("targets") == "First":
+        result["Count"] = 1
+    elif value.get("targets") == "Every":
+        result["bEveryContact"] = True
     return result
 
 
@@ -269,6 +277,12 @@ def parameter_projection(parameters):
         ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
         ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
         ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"), ("COMBAT.LifestealCap", "LifestealCapBp"),
+        # #198 elements and reactions.
+        ("COMBAT.WetSec", "WetMs"), ("COMBAT.WetSlow", "WetSlowBp"), ("COMBAT.ElectrifiedSec", "ElectrifiedMs"),
+        ("COMBAT.DischargeIntervalSec", "DischargeIntervalMs"), ("COMBAT.ReactionBase", "ReactionBaseP2"),
+        ("COMBAT.ReactionPerLevel", "ReactionPerLevelP2"), ("COMBAT.ReactionAPRatio", "ReactionAPRatioBp"),
+        ("COMBAT.FogSec", "FogMs"), ("COMBAT.FogIntervalSec", "FogIntervalMs"),
+        ("COMBAT.ConductSlow", "ConductSlowBp"), ("COMBAT.ConductSlowSec", "ConductSlowMs"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
@@ -278,6 +292,8 @@ def parameter_projection(parameters):
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
         ("CHARM.PickupRadiusCm", "CharmPickupRadiusCm"),
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
+        ("COMBAT.DischargeRadiusCm", "DischargeRadiusCm"), ("COMBAT.FogRadiusCm", "FogRadiusCm"),
+        ("COMBAT.ConductRadiusCm", "ConductRadiusCm"), ("COMBAT.OverloadRadiusCm", "OverloadRadiusCm"),
         ("REST.ReturnSearchRadiusCm", "RestReturnSearchRadiusCm"),
         ("PK.ArenaRadiusCm", "PKArenaRadiusCm"), ("PK.RingMidRadiusCm", "PKRingMidRadiusCm"),
         ("PK.RingFinalRadiusCm", "PKRingFinalRadiusCm"),
@@ -291,6 +307,7 @@ def parameter_projection(parameters):
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("LEADER.MinLevel", "LeaderMinLevel"),
         ("CHARM.WaveCount", "CharmWaveCount"), ("CHARM.PerWave", "CharmPerWave"),
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
+        ("COMBAT.OverloadBreachStacks", "OverloadBreachStacks"),
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
         ("GROWTH.NpcActivePoints", "NpcActivePoints"),
@@ -712,8 +729,8 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     bad_content("long_id", lambda d: d["abilities"][0].update({"id": "a" * 64}), "string length")
     bad_content("duplicate_ability", lambda d: d["abilities"].__setitem__(1, deepcopy(d["abilities"][0])), "duplicate")
     bad_content("retired_rank_field", lambda d: d["abilities"][0].update({"ranks": []}), "unknown field")
-    bad_content("reserved_sock_shot", lambda d: d["abilities"][0].update({"id": "active_sock_shot", "native_id": 116}),
-                "unimplemented ability projection")
+    bad_content("sock_shot_wrong_target", lambda d: d["abilities"][0].update({"id": "active_sock_shot", "native_id": 116}),
+                "wrong definition target")
     bad_content("wrong_opcode", lambda d: d["abilities"][0]["effects"][0].update({"opcode": 255}), "opcode")
     bad_content("unknown_effect", lambda d: d["abilities"][0]["effects"][0].update({"op": "unknown_op"}), "opcode")
     bad_content("duplicate_effect", lambda d: d["abilities"][0]["effects"].append(deepcopy(d["abilities"][0]["effects"][0])), "duplicate effect")

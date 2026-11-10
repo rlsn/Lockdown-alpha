@@ -429,8 +429,8 @@ namespace LDOpponentPolicy
         const FLDDemoMonsterDefinition& Monster, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API FLDOpponentUsage AbilityUsage(const FLDDemoAbilityDefinition& Ability);
     // #198 active preference (OPPONENT_AI.md §6.4): an active that brings a role (engagement or self-protection) the learned
-    // actives and blueprints lack comes first; then the fixed target-mode order Unit > GroundPoint > DirectionCone >
-    // DirectionProjectile > Self > DirectionDash; then catalog order. Picks among the current offer's options.
+    // actives and blueprints lack comes first; then the fixed target-mode order Unit > GroundPoint > DirectionCone =
+    // DirectionLine > DirectionProjectile > Self > DirectionDash; then catalog order. Picks among the current offer's options.
     LOCKDOWN_API bool SelectActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Out, FString& Error);
     // The pending blueprint to learn first by the same preference and the lowest empty Q/W/E slot; false when either is missing.
     LOCKDOWN_API bool SelectBlueprint(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint,

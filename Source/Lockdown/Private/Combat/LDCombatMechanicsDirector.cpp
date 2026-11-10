@@ -64,6 +64,9 @@ bool ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, EL
 bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2)
 {
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
+    // #198 S21: a live grievous cuts every new heal once, before it lands.
+    if (const ALDGameMode* Mode=Core()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
+    if (AmountP2<=0) { return false; }
     auto& Pool=Body.Resources;
     const int64 Before=Pool.HpP2;
     Pool.HpP2=AmountP2>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+AmountP2;
@@ -79,6 +82,8 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     const FGuid& SourceEntity, int64 NowMs, FString& Error)
 {
     if (Body.bPendingDeath) { return true; }
+    // #198 S21: a live grievous cuts the new shield before the replacement check; existing shields are untouched.
+    AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,NowMs);
     int64 Expires=0;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,Expires,Error)) { return false; }
     // A weaker shield is a stated sub-effect outcome, not a failed release.
@@ -174,6 +179,7 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
     }
     for (const auto& Channel : Channels) { Consider(Channel.NextPulseMs); }
     for (const auto& Ground : GroundEffects) { Consider(Ground.ReadyAtMs); if (Ground.bTrap) { Consider(Ground.ExpiresAtMs); } }
+    Consider(NextElementsDueMs(NowMs));
     return Due;
 }
 
@@ -205,7 +211,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         while (Zone.Pulsed<Zone.Count && Zone.StartMs+Zone.DelayMs+Zone.IntervalMs*Zone.Pulsed<=NowMs)
         {
             ++Zone.Pulsed;
-            if (Zone.bDamage)
+            if (Zone.bDamage || Zone.bWet)
             {
                 TArray<FLDCombatBodyRef> Targets;
                 if (!Inside(Targets,Error)) { Error=TEXT("Zone pulse: ")+Error; return false; }
@@ -218,8 +224,12 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Hit.DamageType=Zone.DamageType;
                     Hit.bPeriodic=true;
                     // A native pulse is the active's direct damage (spec §8): B17's lock rides on it and B18 reads it.
-                    Hit.bDirectAbilityDamage=true;
+                    Hit.bDirectAbilityDamage=Zone.bDamage;
                     Hit.IdleReadyAmpBp=Zone.IdleReadyAmpBp;
+                    // #198 zone_wet: every pulse also applies wet with the owner's snapshot at release.
+                    Hit.bApplyWet=Zone.bWet;
+                    Hit.ElementLevel=Zone.ElementLevel;
+                    Hit.ElementAPP2=Zone.ElementAPP2;
                 }
             }
         }
@@ -249,12 +259,44 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                 FLDCombatHit& Hit=Emit(Target);
                 Hit.EffectId=PulseId;
                 Hit.BurnStacks=Zone.BurnStacks;
-                Hit.BurnLevel=Zone.BurnLevel;
-                Hit.BurnAPP2=Zone.BurnAPP2;
+                Hit.ElementLevel=Zone.ElementLevel;
+                Hit.ElementAPP2=Zone.ElementAPP2;
                 Hit.bPeriodic=true;
                 Hit.bSilent=true;
             }
             Zone.NextBurnAtMs+=Zone.BurnIntervalMs;
+        }
+        // #198 zone_haste: the owner's move speed while its foot stands inside (a timed bonus keyed to this zone).
+        if (Zone.HasteBp>0)
+        {
+            ALDCharacter* OwnerActor=nullptr;
+            FLDBodyCombatState* ZoneOwner=FindBody(Zone.SourceBody,&OwnerActor);
+            if (ZoneOwner && OwnerActor)
+            {
+                const bool bInside=!ZoneOwner->bPendingDeath && NowMs<Zone.EndMs
+                    && FVector::DistSquared2D(Zone.CentreCm,FootOf(*OwnerActor))<=Zone.RadiusCm*Zone.RadiusCm;
+                const bool bHeld=ZoneOwner->TimedBonuses.ContainsByPredicate([&Zone](const FLDCombatTimedBonus& Row)
+                { return Row.EffectId==Zone.EffectId; });
+                if (bInside && !bHeld)
+                {
+                    FLDCombatTimedBonus Bonus;
+                    Bonus.EffectId=Zone.EffectId;
+                    Bonus.SourceDefinition=Zone.Source.DefinitionId;
+                    FLDDemoStatBonus& Speed=Bonus.Stats.AddDefaulted_GetRef();
+                    Speed.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
+                    Speed.Amount=Zone.HasteBp;
+                    Bonus.ExpiresAtMs=Zone.EndMs;
+                    LDTactical::ApplyTimedBonus(ZoneOwner->TimedBonuses,Bonus);
+                    ++ZoneOwner->StateRevision;
+                    MarkViewChanged(ZoneOwner->Victim.EntityId);
+                }
+                else if (!bInside && bHeld)
+                {
+                    ZoneOwner->TimedBonuses.RemoveAll([&Zone](const FLDCombatTimedBonus& Row) { return Row.EffectId==Zone.EffectId; });
+                    ++ZoneOwner->StateRevision;
+                    MarkViewChanged(ZoneOwner->Victim.EntityId);
+                }
+            }
         }
         if (Zone.EndMs<=NowMs) { Zones.RemoveAt(Index); }
     }
@@ -318,17 +360,19 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
             Zone.SlowDurationMs=Slow->DurationMs;
             Zone.NextSlowAtMs=Now;
         }
+        // The owner's element snapshot at release (burn layers, wet pulses).
+        Zone.ElementLevel=GrowthLevelOf(Body);
+        Zone.ElementAPP2=FMath::Max<int64>(Body.AttributeProjection.Final.APP2,0);
         // #147: burn layers on the enemies inside, every interval from the zone's start.
         if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn))
         {
-            FLDCombatBurnLayer Layer;
-            if (!BurnLayerOf(Body,Source,Layer,Error)) { return false; }
             Zone.BurnStacks=Burn->Count;
             Zone.BurnIntervalMs=Burn->IntervalMs;
             Zone.NextBurnAtMs=Now;
-            Zone.BurnLevel=Layer.Level;
-            Zone.BurnAPP2=Layer.SourceAPP2;
         }
+        // #198: wet on every pulse, and the owner's move speed inside.
+        Zone.bWet=FindOp(Values,ELDDemoEffectOp::ZoneWet)!=nullptr;
+        if (const FLDDemoEffectDefinition* Haste=FindOp(Values,ELDDemoEffectOp::ZoneHaste)) { Zone.HasteBp=Haste->RatioBp; }
         if (const FLDDemoEffectDefinition* Damage=FindOp(Values,ELDDemoEffectOp::ZoneDamage))
         {
             Zone.bDamage=true;

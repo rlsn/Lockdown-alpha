@@ -34,6 +34,11 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
     case ELDDemoStatusId::AttackSlowed:
+    // #198 elements, the S16 stance and the S21 cut.
+    case ELDDemoStatusId::Wet:
+    case ELDDemoStatusId::Electrified:
+    case ELDDemoStatusId::Braced:
+    case ELDDemoStatusId::Soured:
         return true;
     default:
         return false;
@@ -245,10 +250,10 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if ((Mask & Mana) ? !IsObservedResourcePair(Unit.Mana, false) : !IsEmptyObservedResource(Unit.Mana))
     { return FailObservation(Error, TEXT("Observed mana is either an invalid P2 pair or present without authorization.")); }
     if (Unit.Statuses.Num() > MaxStatuses) { return FailObservation(Error, TEXT("Too many observed statuses.")); }
-    uint32 SeenStatuses = 0;
+    uint64 SeenStatuses = 0;
     for (const FLDObservedStatus& Status : Unit.Statuses)
     {
-        const uint32 Bit = Status.StatusId < 32 ? 1u << Status.StatusId : 0u;
+        const uint64 Bit = Status.StatusId < 64 ? uint64(1) << Status.StatusId : 0u;
         if (!IsPublicStatusId(Status.StatusId) || Status.Stacks == 0 || Status.ExpiresAtServerMs < 0 || (SeenStatuses & Bit) != 0
             // camp_returning is a camp-only marker with neither stacks nor expiry (SC-07).
             || (Status.StatusId == uint8(ELDDemoStatusId::CampReturning)
