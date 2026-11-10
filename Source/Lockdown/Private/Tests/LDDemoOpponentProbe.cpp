@@ -500,8 +500,8 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
             bReturnHeldSeen = true;
             for (const FGuid& Id : Mode.GetRosterOrder())
             {
-                const auto* Life = Mode.Lives.Find(Id);
-                bNobodyStood &= !Mode.IsContenderPresent(Id) || (Life && Life->Phase != ELDLifePhase::Alive);
+                // Held: every present contender still stands on its rest life in its private rest space, none in the field.
+                bNobodyStood &= !Mode.IsContenderPresent(Id) || Mode.IsInRestSpace(Id);
             }
             bNobodyStood &= !Mode.IsFieldRunning();
             if (Now >= ReturnDueMs + 1500) { ClearOccupants(); }

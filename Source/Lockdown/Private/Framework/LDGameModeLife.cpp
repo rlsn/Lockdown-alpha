@@ -561,8 +561,9 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
         {
             return false;
         }
-        else
+        else if (!Timeline.IsEntryHeld())
         {
+            // A held return retries every step; its first attempt (and LD_REST_RETURN_HELD) already tells why.
             UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN_FALLBACK contender=%s life=%u %s"), *Contender.ToString(), ProposedLife, *Error);
         }
     }
