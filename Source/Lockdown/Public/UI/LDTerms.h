@@ -161,6 +161,9 @@ inline constexpr TCHAR PKSkipped[]=TEXT("PK 跳过（报名不足 2 人）");
 inline constexpr TCHAR SignupJoin[]=TEXT("报名 PK");
 inline constexpr TCHAR SignupWithdraw[]=TEXT("取消报名");
 inline constexpr TCHAR NoPKProvider[]=TEXT("PK 尚未开放，本次休息跳过 PK");
+// 休息中的个人训练：只有本人看得见的训练假人，可随时重置（本人与假人回满、冷却就绪）。
+inline constexpr TCHAR TrainingReset[]=TEXT("重置训练");
+inline constexpr TCHAR TrainingDummy[]=TEXT("训练假人");
 inline FString FieldSegmentLine(int32 Segment,int32 Segments,const FString& Clock)
 {return FString::Printf(TEXT("野外 %d/%d · 下次休息 %s"),Segment,Segments,*Clock);}
 inline constexpr TCHAR FinalField[]=TEXT("最终野外 · 旗杆开放");

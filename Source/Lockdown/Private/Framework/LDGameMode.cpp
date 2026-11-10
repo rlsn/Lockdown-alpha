@@ -401,6 +401,7 @@ void ALDGameMode::Logout(AController* Exiting)
         PendingPhasePlacement.Remove(Session);
         RestLives.Remove(Session);
         RestReturns.Remove(Session);
+        RetireTrainingDummy(Session);
         Record->State.bActive=false;
         if (MatchPhase!=ELDMatchPhase::Lobby) { Record->bLeft=true; }
         if (InMatch)

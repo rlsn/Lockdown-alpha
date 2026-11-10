@@ -346,7 +346,8 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     { return ELDCommitReject::GeometryUnavailable; }
     // Capture reads every accepted contender batch synchronously; the driver releases it next step. A rest life (#198
     // private rest space) has no spray eligibility.
-    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive() && !RestLives.Contains(Body.Victim.EntityId))
+    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive() && !RestLives.Contains(Body.Victim.EntityId)
+        && !TrainingDummyIds.Contains(Body.Victim.EntityId))
     {
         const auto Captured=PublishCaptureMotion(Permit,*Batch);
         if (Captured!=ELDCommitReject::None) { return Captured; }

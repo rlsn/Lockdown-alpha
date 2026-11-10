@@ -77,6 +77,9 @@ namespace LDHUD
     LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).
     LOCKDOWN_API FString RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId);
+    // The name over an observed contender-kind unit: its roster name; in a rest (bInRest) a contender id the roster does not
+    // list is the own personal training dummy (only its owner observes it), named LDTerms::TrainingDummy. Empty otherwise.
+    LOCKDOWN_API FString ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest);
     // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
     // portraits match them.
     LOCKDOWN_API FLinearColor PaletteColor(uint8 Presentation);
@@ -150,6 +153,8 @@ namespace LDHUD
     // The player-facing result of an own sign-up toggle (ALDPlayerController::OnRestSignup); NoPKProvider says this rest
     // skips the PK, never a success.
     LOCKDOWN_API FString RestSignupText(ELDRestSignupResult Result);
+    // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
+    LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
     // The match timer over the minimap: whole seconds elapsed since the match start (StartedAtMs, the opening rest R0),

@@ -160,6 +160,15 @@ public:
     bool FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error);
     // Whether a contender currently stands in its private rest space (rest life), not in the field.
     bool IsInRestSpace(const FGuid& Contender) const;
+    // ---- #198 personal training dummy (coordinator decision under the user's delegation): the existing contender
+    // chassis at the owner's current level with no build, in the owner's rest isolation group, never dies (refills at 0
+    // HP), grants nothing; only its owner sees and reaches it. It exists while the owner's rest life stands. ----
+    bool IsTrainingDummy(const FGuid& Entity) const { return TrainingDummyIds.Contains(Entity); }
+    // Motion: the dummy integrates zero input (only forced motion such as a knockback moves it).
+    bool AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Owner-only: queues a reset of the owner's training (owner and dummy refilled, every cooldown ready, every training
+    // effect and status cleared) for the next boundary.
+    ELDTrainingResetResult SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation);
     const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
     double GetAuthorityNowSeconds() const { return AuthorityNowSeconds; }
     int64 GetAuthorityNowMs() const { return AuthorityNowMs; }
@@ -467,6 +476,20 @@ private:
     TSet<FGuid> RestLives;
     // Contenders still waiting for a rest/field placement that was blocked at its boundary (retried every boundary).
     TSet<FGuid> PendingPhasePlacement;
+    struct FLDTrainingDummy
+    {
+        FGuid Entity;
+        FLDCombatBodyRef Body;
+        TWeakObjectPtr<ALDCharacter> Actor;
+    };
+    // By owner; TrainingDummyIds holds the dummy entities.
+    TMap<FGuid, FLDTrainingDummy> TrainingDummies;
+    TSet<FGuid> TrainingDummyIds;
+    TSet<FGuid> PendingTrainingResets;
+    // RespawnsAndWorld: spawns the owner's dummy beside its rest anchor; a blocked spot leaves it without one (logged).
+    bool SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error);
+    void RetireTrainingDummy(const FGuid& Owner);
+    bool ProcessTrainingResets(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, const FLDGameplayWritePermit& Permit, FString& Error);
     bool MoveContendersToRest(const FLDGameplayWritePermit& Permit, FString& Error);
     bool MoveContendersToField(bool bFinalField, const FLDGameplayWritePermit& Permit, FString& Error);

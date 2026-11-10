@@ -234,13 +234,34 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     FString Error;
     int32 Cancelled = INDEX_NONE;
     bool bReady = false;
+    int64 HpAfterCleanup = -1;
+    bool bReset = false;
+    // A's second body becomes its personal training dummy: a fatal hit refills it instead of locking a death.
+    SD.bTrainingDummy = true;
+    SD.Resources.MaxHpP2 = 100000;
+    SD.Resources.HpP2 = 0;
+    {
+        FLDCombatHit Fatal;
+        Fatal.SourceEntity = A;
+        bGood &= TestTrue(TEXT("A training dummy never dies: a fatal commit refills it"),
+            Driver->LockDeath(*DummyA, SD, Fatal, Error) && !SD.bPendingDeath && SD.Resources.HpP2 == SD.Resources.MaxHpP2
+            && Driver->PendingDeaths.IsEmpty());
+    }
+    SD.Resources.HpP2 = 1234;
+    SD.Stuns.AddDefaulted();
+    SD.Stuns[0].ExpiresAtMs = 99999;
     const bool bRan = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, 6000) == ELDCommitReject::None
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
         && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::RespawnsAndWorld, [&](const FLDGameplayWritePermit& Permit)
         {
             Cancelled = Driver->CancelAllForPhase(Permit);
             bReady = Driver->ReadyAllForPhase(A, Permit, Error);
-            return Cancelled != INDEX_NONE && bReady;
+            HpAfterCleanup = SA.Resources.HpP2;
+            // The owner's training reset refills both training bodies and clears their statuses.
+            SD.Stuns.AddDefaulted();
+            SD.Stuns[0].ExpiresAtMs = 99999;
+            bReset = Driver->ResetTraining(A, Dummy, Permit, Error);
+            return Cancelled != INDEX_NONE && bReady && bReset;
         }, Error)
         && Mode->FinishAuthorityStep(*Driver, Error);
     if (!TestTrue(TEXT("The phase boundary step runs: ") + Error, bRan)) { return false; }
@@ -248,7 +269,9 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Nothing in flight survives and no hit was invented"), Driver->PendingHits.IsEmpty() && Driver->Projectiles.IsEmpty());
     bGood &= TestTrue(TEXT("Controls, shields and burns end on every body"),
         SA.Roots.IsEmpty() && !SA.Shield.IsSet() && SA.Resources.ShieldP2 == 0 && SA.Burn.Layers.IsEmpty());
-    bGood &= TestTrue(TEXT("The phase leaves HP alone (new lives start full by construction)"), SA.Resources.HpP2 == HpBeforePhase);
+    bGood &= TestTrue(TEXT("The phase leaves HP alone (new lives start full by construction)"), HpAfterCleanup == HpBeforePhase);
+    bGood &= TestTrue(TEXT("A training reset refills the owner and its dummy and clears the dummy's statuses"),
+        SA.Resources.HpP2 == SA.Resources.MaxHpP2 && SD.Resources.HpP2 == SD.Resources.MaxHpP2 && SD.Stuns.IsEmpty());
     bGood &= TestTrue(TEXT("Every cooldown, the forgotten active's held track included, and the basic cadence are ready"),
         Record.Tracks[0].ReadyAtMs == 6000 && Record.Tracks[1].ReadyAtMs == 6000 && Record.NextAttackAtMs == 6000
         && Record.Tracks[1].IssuedCooldownId == Forgotten.IssuedCooldownId);

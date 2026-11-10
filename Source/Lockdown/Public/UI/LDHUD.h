@@ -118,19 +118,25 @@ private:
     // then the rest's PK sign-up and lock detail.
     UPROPERTY() TObjectPtr<UTextBlock> TimelineText;
     UPROPERTY() TObjectPtr<UTextBlock> TimelineDetailText;
-    // Under the banner, shown only while the PK sign-up window is open: the join/withdraw toggle (an owner intent sent with
-    // ALDPlayerController::SubmitRestSignup; the server decides) and the last answer in this rest.
+    // Under the banner while the own contender is in a rest: "重置训练" (always in a rest; ALDPlayerController::
+    // SubmitTrainingReset) and, only while the PK sign-up window is open, the join/withdraw toggle (SubmitRestSignup). Both
+    // are owner intents the server decides; the last answer in this rest shows beside them and as a toast.
     UPROPERTY() TObjectPtr<UBorder> SignupPanel;
+    UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> SignupButton;
     UPROPERTY() TObjectPtr<UTextBlock> SignupResultText;
-    // A toggle is waiting for its answer (a Listen Host answers inside the call); the toggle stays disabled meanwhile.
+    // A toggle or reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bSignupInFlight=false;
-    // The last answer and the rest it belongs to; another rest or match never shows it.
+    bool bTrainingResetInFlight=false;
+    // The last answer to a rest action and the rest it belongs to; another rest or match never shows it.
     FString SignupResult;
     uint32 SignupResultMatch=0;
     uint8 SignupResultRest=0;
     void HandleRestSignup(ELDRestSignupResult Result);
     void SubmitSignupToggle();
+    void HandleTrainingReset(ELDTrainingResetResult Result);
+    void SubmitTrainingReset();
+    void ShowRestAnswer(const FString& Text);
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;

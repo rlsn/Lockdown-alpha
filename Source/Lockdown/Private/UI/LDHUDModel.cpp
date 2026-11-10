@@ -141,6 +141,11 @@ FString LDHUD::RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId)
     const FLDLobbyMember* Member=ContenderId.IsValid()?Lobby.Members.FindByPredicate([&ContenderId](const FLDLobbyMember& M){return M.ContenderId==ContenderId;}):nullptr;
     return Member?Member->Name:FString();
 }
+FString LDHUD::ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest)
+{
+    const FString Name=RosterName(Lobby,ContenderId);
+    return Name.IsEmpty()&&bInRest&&ContenderId.IsValid()?FString(LDTerms::TrainingDummy):Name;
+}
 FLinearColor LDHUD::PaletteColor(uint8 Presentation)
 {
     return ULDHumanoidVisualComponent::ContenderTint(Presentation);
@@ -338,6 +343,18 @@ FString LDHUD::RestSignupText(ELDRestSignupResult Result)
     case ELDRestSignupResult::NoPKProvider: return LDTerms::NoPKProvider;
     case ELDRestSignupResult::NotInRest: return TEXT("现在不在休息中，不能报名 PK");
     default: return FString::Printf(TEXT("PK 报名结果未知 #%d"),int32(Result));
+    }
+}
+FString LDHUD::TrainingResetText(ELDTrainingResetResult Result)
+{
+    switch(Result)
+    {
+    case ELDTrainingResetResult::Queued: return TEXT("训练已重置：你和假人回满，冷却就绪");
+    case ELDTrainingResetResult::NotInRest: return TEXT("现在不在休息中，不能重置训练");
+    case ELDTrainingResetResult::NotContender: return TEXT("不是本局参赛者，不能重置训练");
+    case ELDTrainingResetResult::StaleMatch: return TEXT("已不是当前对局，没有重置训练");
+    case ELDTrainingResetResult::NoDummy: return FString(TEXT("没有"))+LDTerms::TrainingDummy+TEXT("（休息位被占）");
+    default: return FString::Printf(TEXT("重置训练结果未知 #%d"),int32(Result));
     }
 }
 LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,

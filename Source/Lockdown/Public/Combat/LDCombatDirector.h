@@ -83,6 +83,8 @@ struct FLDBodyCombatState
     // none. A suspended body (frozen world during a rest) takes and deals nothing.
     FGuid IsolationGroup;
     bool bSuspended=false;
+    // #198 personal training dummy: never dies (refills at 0 HP), grants nothing; IsolationGroup names its owner.
+    bool bTrainingDummy=false;
     struct FResources
     {
         int64 HpP2=0,MaxHpP2=0,MpP2=0,MaxMpP2=0,ShieldP2=0;
@@ -531,6 +533,15 @@ public:
     bool ReadyAllForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
     // Retires a contender's living body for a phase boundary: its own unsettled effects end with it.
     void RetireBodyForPhase(const FLDCombatBodyRef& Body);
+    // #198 personal training dummy: the contender chassis at OwnerLevel with no build, full resources, in the owner's
+    // isolation group. RespawnsAndWorld permit; Victim is the dummy's own first life.
+    bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
+        const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const;
+    // The owner's training reset: owner and dummy refilled, statuses and in-flight effects of both cleared, every
+    // owner cooldown ready. RespawnsAndWorld permit.
+    bool ResetTraining(const FGuid& Owner, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Retires the dummy's body and drops its Combat record (a dummy entity never returns).
+    void RetireTrainingEntity(const FLDCombatBodyRef& Body);
 
 private:
     friend class ALDGameMode;
@@ -561,6 +572,8 @@ private:
     void RemoveRegisteredBody(const FLDCombatBodyRef& Ref);
     // Leave: cancel every unsettled effect owned by the entity; committed facts stay.
     void CancelEntityEffects(const FGuid& Entity);
+    // #198: ends every control, mark, burn, breach, shield, taunt, empower, temporary term and the DR chain of one body.
+    bool ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error);
 
     // ---- Driver phases (LDCombatDriver.cpp).
     ALDGameMode* Core() const;

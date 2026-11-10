@@ -78,6 +78,12 @@ public:
     FLDOnRestSignup OnRestSignup;
     UFUNCTION(Server,Reliable) void ServerRestSignup(uint32 Generation,bool bJoin);
     UFUNCTION(Client,Reliable) void ClientRestSignup(ELDRestSignupResult Result);
+    // Resets the own training in the rest space (owner and dummy refilled, cooldowns ready); OnTrainingReset answers.
+    void SubmitTrainingReset();
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnTrainingReset, ELDTrainingResetResult);
+    FLDOnTrainingReset OnTrainingReset;
+    UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation);
+    UFUNCTION(Client,Reliable) void ClientTrainingReset(ELDTrainingResetResult Result);
     // ---- end rest ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.

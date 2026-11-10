@@ -756,7 +756,7 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
     {
         const auto& Life = Lives.FindChecked(Entry.Placed.Contender);
         RestLives.Add(Entry.Placed.Contender);
-        if (!Combat->SetRestIsolation(Life.Body, true, Permit, Error))
+        if (!Combat->SetRestIsolation(Life.Body, true, Permit, Error) || !SpawnTrainingDummy(Entry.Placed.Contender, Permit, Error))
         {
             FaultAuthority(Error);
             return false;

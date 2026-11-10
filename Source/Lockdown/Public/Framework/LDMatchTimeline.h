@@ -55,6 +55,11 @@ enum class ELDRestSignupResult : uint8
     None = 0, Joined = 1, Withdrawn = 2, WindowClosed = 3, NotContender = 4, StaleMatch = 5, NoPKProvider = 6, NotInRest = 7
 };
 
+// Owner-sent training reset result (ALDPlayerController::ServerTrainingReset -> ClientTrainingReset). Queued commits at
+// the next authority boundary.
+UENUM()
+enum class ELDTrainingResetResult : uint8 { None = 0, Queued = 1, NotInRest = 2, NotContender = 3, StaleMatch = 4, NoDummy = 5 };
+
 struct LOCKDOWN_API FLDTimelineParameters
 {
     // Number of timed field segments, each followed by a mid rest. The approved flow has exactly three; it is a rule of

@@ -913,6 +913,14 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
 bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error)
 {
     if (Body.bPendingDeath) { return true; }
+    // #198: a personal training dummy never dies; a fatal hit refills it instead (no death, reward or assist).
+    if (Body.bTrainingDummy)
+    {
+        Body.Resources.HpP2=Body.Resources.MaxHpP2;
+        ++Body.Resources.Revision;
+        MarkViewChanged(Body.Victim.EntityId);
+        return true;
+    }
     const ALDGameMode* Mode=Core();
     const FLDDemoContentSnapshot* Content=Catalog();
     const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);

@@ -231,6 +231,11 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     RestReturns.Reset();
     RestLives.Reset();
     PendingPhasePlacement.Reset();
+    // Dummy bodies were destroyed with every life actor above; their life records go with the match.
+    for (const FGuid& Dummy : TrainingDummyIds) { Lives.Remove(Dummy); }
+    TrainingDummies.Reset();
+    TrainingDummyIds.Reset();
+    PendingTrainingResets.Reset();
     MatchContext = Next;
     MatchPhase = ELDMatchPhase::Lobby;
     if (!AdvanceRoster(Error)) { return false; }

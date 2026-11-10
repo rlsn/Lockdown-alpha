@@ -137,9 +137,14 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (Ref.Victim.Kind==ELDVictimKind::CampMember)
                 {
                     if (!Mode->Camps) { Error=TEXT("A registered camp body has no camp owner."); return false; }
-                    // #198: the world is frozen during a rest; its bodies stand still.
-                    if (Mode->IsRestPhase(Match)) { continue; }
+                    // #198: a frozen world body has no path (FreezeForRest stopped it), so it integrates zero input.
                     if (!Mode->Camps->AdvanceMemberMotion(Mode->GetAuthorityStep(),Ref,Permit,Error)) { return false; }
+                    continue;
+                }
+                // #198: a personal training dummy has no controller; it stands still (only forced motion moves it).
+                if (Mode->IsTrainingDummy(Ref.Victim.EntityId))
+                {
+                    if (!Mode->AdvanceTrainingDummyMotion(Ref,Permit,Error)) { return false; }
                     continue;
                 }
                 auto* PC=Cast<ALDPlayerController>(Body->GetController());

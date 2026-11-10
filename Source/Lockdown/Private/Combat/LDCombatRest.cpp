@@ -1,6 +1,8 @@
 #include "Combat/LDCombatDirector.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDAttributeProjection.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
 
 // #198 rest phases: the Combat side of the approved phase-boundary resource policy (issue #198 comment 6752601175 §8)
@@ -95,47 +97,11 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
     PendingContacts.Reset();
     for (auto& Pair : Bodies)
     {
-        FLDBodyCombatState& Body=Pair.Value;
-        if (Body.bPendingDeath) { continue; }
-        // An unreleased action of a body that stays (a world body) ends unreleased.
-        AbandonAction(Body,ELDCombatReject::Cancelled);
-        Body.Roots.Reset();
-        Body.Slows.Reset();
-        Body.TimedBonuses.Reset();
-        Body.Disarms.Reset();
-        Body.Stuns.Reset();
-        Body.Silences.Reset();
-        Body.Knockbacks.Reset();
-        Body.AttackSlows.Reset();
-        Body.Empower.Reset();
-        Body.ThornsMarks.Reset();
-        Body.AssistContributions.Reset();
-        Body.Taunt.Reset();
-        Body.ShieldBurst.Reset();
-        Body.SharedBreach={};
-        Body.Burn={};
-        // A new phase is a new fight: the hard-control diminishing returns start over (approved §9).
-        Body.HardControl={};
-        Body.DashContact.Reset();
-        Body.DashUntilMs=0;
-        Body.SlowResistanceUntilMs=0;
-        Body.SlowResistanceBp=0;
-        Body.ChannelEffectId={};
-        Body.ChannelDirectSequence=0;
-        Body.ChannelStartedAtMs=0;
-        if (Body.Shield.IsSet() || Body.Resources.ShieldP2!=0)
-        {
-            Body.Shield.Reset();
-            Body.Resources.ShieldP2=0;
-            Body.ShieldGrantedP2=0;
-            ++Body.Resources.Revision;
-        }
-        ++Body.StateRevision;
-        MarkViewChanged(Body.Victim.EntityId);
+        if (Pair.Value.bPendingDeath) { continue; }
         FString Error;
-        if (!RefreshTemporary(Body,Pair.Key.Get(),NowMs,Error))
+        if (!ClearBodyForPhase(Pair.Value,Pair.Key.Get(),NowMs,Error))
         {
-            UE_LOG(LogLDCombat,Error,TEXT("LD_PHASE_CLEANUP_REFRESH_FAILED entity=%s %s"),*LDLog::Id(Body.Victim.EntityId),*Error);
+            UE_LOG(LogLDCombat,Error,TEXT("LD_PHASE_CLEANUP_REFRESH_FAILED entity=%s %s"),*LDLog::Id(Pair.Value.Victim.EntityId),*Error);
             return INDEX_NONE;
         }
     }
@@ -171,4 +137,106 @@ void ALDCombatDirector::RetireBodyForPhase(const FLDCombatBodyRef& Body)
     // Its own unsettled effects end with the life; already committed damage and receipts stay.
     CancelEntityEffects(Body.Victim.EntityId);
     RemoveRegisteredBody(Body);
+}
+
+bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error)
+{
+    // An unreleased action of a body that stays (a world body, a training pair) ends unreleased.
+    AbandonAction(Body,ELDCombatReject::Cancelled);
+    Body.Roots.Reset();
+    Body.Slows.Reset();
+    Body.TimedBonuses.Reset();
+    Body.Disarms.Reset();
+    Body.Stuns.Reset();
+    Body.Silences.Reset();
+    Body.Knockbacks.Reset();
+    Body.AttackSlows.Reset();
+    Body.Empower.Reset();
+    Body.ThornsMarks.Reset();
+    Body.AssistContributions.Reset();
+    Body.Taunt.Reset();
+    Body.ShieldBurst.Reset();
+    Body.SharedBreach={};
+    Body.Burn={};
+    // A new phase is a new fight: the hard-control diminishing returns start over (approved §9).
+    Body.HardControl={};
+    Body.DashContact.Reset();
+    Body.DashUntilMs=0;
+    Body.SlowResistanceUntilMs=0;
+    Body.SlowResistanceBp=0;
+    Body.ChannelEffectId={};
+    Body.ChannelDirectSequence=0;
+    Body.ChannelStartedAtMs=0;
+    if (Body.Shield.IsSet() || Body.Resources.ShieldP2!=0)
+    {
+        Body.Shield.Reset();
+        Body.Resources.ShieldP2=0;
+        Body.ShieldGrantedP2=0;
+        ++Body.Resources.Revision;
+    }
+    ++Body.StateRevision;
+    MarkViewChanged(Body.Victim.EntityId);
+    return RefreshTemporary(Body,Actor,NowMs,Error);
+}
+
+bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
+    const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content || !Owner.IsValid() || OwnerLevel==0 || Victim.Life!=1 || FindRecord(Victim.EntityId))
+    {
+        Error=TEXT("A training dummy is a fresh entity of a known owner and level.");
+        return false;
+    }
+    if (!PrepareContenderBody(Body,Victim,Permit,Out,Error)) { return false; }
+    // The existing contender chassis at the owner's current level, without any build (coordinator decision).
+    const auto Projected=LDAttributeProjection::Project(FLDAttributeBuildValues(OwnerLevel,{}),*Content);
+    if (!Projected.IsSuccess())
+    {
+        Error=TEXT("The training dummy's chassis is invalid: ")+Projected.Error.Field+TEXT(": ")+Projected.Error.Message;
+        return false;
+    }
+    const FLDAttributeProjection& Chassis=Projected.Value.GetValue();
+    Out.BuildProjection=Chassis;
+    Out.AttributeProjection=Chassis;
+    Out.Resources.HpP2=Out.Resources.MaxHpP2=Chassis.Final.MaxHPP2;
+    Out.Resources.MpP2=Out.Resources.MaxMpP2=Chassis.Final.MaxMPP2;
+    if (Out.PublicFacts.IsSet()) { Out.PublicFacts->Level=OwnerLevel; }
+    Out.IsolationGroup=Owner;
+    Out.bTrainingDummy=true;
+    Error.Reset();
+    return true;
+}
+
+bool ALDCombatDirector::ResetTraining(const FGuid& Owner, const FGuid& Dummy, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    const ALDGameMode* Mode=Core();
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None)
+    {
+        Error=TEXT("A training reset needs the current RespawnsAndWorld permit.");
+        return false;
+    }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    for (const FGuid& Entity : {Owner,Dummy})
+    {
+        CancelEntityEffects(Entity);
+        ALDCharacter* Actor=nullptr;
+        FLDBodyCombatState* Body=FindEntityBody(Entity,&Actor);
+        if (!Body || Body->bPendingDeath)
+        {
+            Error=TEXT("A training reset needs the owner's rest body and its dummy.");
+            return false;
+        }
+        if (!ClearBodyForPhase(*Body,Actor,NowMs,Error)) { return false; }
+        Body->Resources.HpP2=Body->Resources.MaxHpP2;
+        Body->Resources.MpP2=Body->Resources.MaxMpP2;
+        ++Body->Resources.Revision;
+    }
+    return ReadyAllForPhase(Owner,Permit,Error);
+}
+
+void ALDCombatDirector::RetireTrainingEntity(const FLDCombatBodyRef& Body)
+{
+    RetireBodyForPhase(Body);
+    Records.Remove(Body.Victim.EntityId);
 }

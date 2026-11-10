@@ -32,3 +32,29 @@ void ALDPlayerController::ClientRestSignup_Implementation(ELDRestSignupResult Re
     }
     OnRestSignup.Broadcast(Result);
 }
+
+void ALDPlayerController::SubmitTrainingReset()
+{
+    if (OwnerState.Match == 0)
+    {
+        OnTrainingReset.Broadcast(ELDTrainingResetResult::StaleMatch);
+        return;
+    }
+    ServerTrainingReset(OwnerState.Match);
+}
+
+void ALDPlayerController::ServerTrainingReset_Implementation(uint32 Generation)
+{
+    ALDGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
+    ClientTrainingReset(Mode ? Mode->SubmitTrainingReset(*this, Generation) : ELDTrainingResetResult::NotContender);
+}
+
+void ALDPlayerController::ClientTrainingReset_Implementation(ELDTrainingResetResult Result)
+{
+    if (uint8(Result) > uint8(ELDTrainingResetResult::NoDummy))
+    {
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_TRAINING_RESET_RESULT_MALFORMED value=%u"), uint32(Result));
+        return;
+    }
+    OnTrainingReset.Broadcast(Result);
+}

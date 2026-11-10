@@ -320,6 +320,21 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("No PK provider says the PK is skipped"),LDHUD::RestSignupText(ELDRestSignupResult::NoPKProvider),FString(LDTerms::NoPKProvider));
     TestFalse(TEXT("No PK provider never reads as signed up"),LDHUD::RestSignupText(ELDRestSignupResult::NoPKProvider).Contains(TEXT("已报名")));
     TestTrue(TEXT("Joining and a closed window are told apart"),LDHUD::RestSignupText(ELDRestSignupResult::Joined)!=LDHUD::RestSignupText(ELDRestSignupResult::WindowClosed));
+    // The personal training reset: a queued reset says what it does; every refusal is explicit, never a success.
+    TestEqualSensitive(TEXT("A queued reset refills both and readies the cooldowns"),LDHUD::TrainingResetText(ELDTrainingResetResult::Queued),
+        FString(TEXT("训练已重置：你和假人回满，冷却就绪")));
+    TestEqualSensitive(TEXT("No dummy says the rest spot is taken"),LDHUD::TrainingResetText(ELDTrainingResetResult::NoDummy),
+        FString(TEXT("没有"))+LDTerms::TrainingDummy+TEXT("（休息位被占）"));
+    for(const ELDTrainingResetResult Refused:{ELDTrainingResetResult::NotInRest,ELDTrainingResetResult::NotContender,ELDTrainingResetResult::StaleMatch,ELDTrainingResetResult::None})
+    {
+        const FString Text=LDHUD::TrainingResetText(Refused);
+        TestTrue(FString::Printf(TEXT("Training reset refusal %d is explicit"),int32(Refused)),!Text.IsEmpty()&&!Text.Contains(TEXT("已重置")));
+    }
+    // An unlisted contender-kind unit is the own training dummy only in a rest; a listed one keeps its roster name.
+    FLDLobbyView Lobby;FLDLobbyMember& Member=Lobby.Members.AddDefaulted_GetRef();Member.ContenderId=Self;Member.Name=TEXT("玩家甲");
+    TestEqualSensitive(TEXT("A listed contender keeps its roster name in a rest"),LDHUD::ObservedContenderName(Lobby,Self,true),FString(TEXT("玩家甲")));
+    TestEqualSensitive(TEXT("An unlisted contender in a rest is the training dummy"),LDHUD::ObservedContenderName(Lobby,FGuid::NewGuid(),true),FString(LDTerms::TrainingDummy));
+    TestTrue(TEXT("Outside a rest an unlisted contender is not given a name"),LDHUD::ObservedContenderName(Lobby,FGuid::NewGuid(),false).IsEmpty());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
