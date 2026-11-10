@@ -112,7 +112,7 @@ enum class ELDCombatReject : uint8
     Cancelled, StaleSource, SourceUnavailable, Busy, Cooldown, AttackNotReady,
     InsufficientMana, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
     MatchClosed, AuthorityDataUnavailable, CapacityUnavailable,
-    // #153: the opening countdown admits no attack, ability or dash before T=0.
+    // #198: the rest return countdown locks every attack, ability and dash.
     NotStarted
 };
 

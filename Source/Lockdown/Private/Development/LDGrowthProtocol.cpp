@@ -102,6 +102,10 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::OpeningBase:
     case ELDBuildCommandKind::InstallComponent:
     case ELDBuildCommandKind::UninstallComponent:
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::ForgetActive:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -187,6 +191,13 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::OpeningBaseUnavailable: return TEXT("OpeningBaseUnavailable");
     case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");
     case ELDGrowthReason::OpeningActiveFirst: return TEXT("OpeningActiveFirst");
+    case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
+    case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
+    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("NpcPoolTooSmall");
+    case ELDGrowthReason::OfferOutstanding: return TEXT("OfferOutstanding");
+    case ELDGrowthReason::NothingToRespec: return TEXT("NothingToRespec");
+    case ELDGrowthReason::SlotEmpty: return TEXT("SlotEmpty");
+    case ELDGrowthReason::NotRestWindow: return TEXT("NotRestWindow");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");

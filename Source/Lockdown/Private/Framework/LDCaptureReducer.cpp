@@ -21,8 +21,7 @@ bool FLDCaptureReducer::Begin(int64 OpenAtMs, int64 SprayMs, int64 GuardMs, FStr
     return true;
 }
 
-#if WITH_DEV_AUTOMATION_TESTS
-bool FLDCaptureReducer::DevOpenAt(int64 AtMs, FString& Error)
+bool FLDCaptureReducer::ScheduleOpen(int64 AtMs, FString& Error)
 {
     if (!bActive || bOpen)
     {
@@ -31,7 +30,7 @@ bool FLDCaptureReducer::DevOpenAt(int64 AtMs, FString& Error)
     }
     if (AtMs <= ClosedThrough || AtMs >= OpenAt)
     {
-        Error = FString::Printf(TEXT("An early opening at %lld ms must follow the closed boundary %lld and precede the scheduled %lld."),
+        Error = FString::Printf(TEXT("An opening at %lld ms must follow the closed boundary %lld and precede the current schedule %lld."),
             AtMs, ClosedThrough, OpenAt);
         return false;
     }
@@ -39,7 +38,6 @@ bool FLDCaptureReducer::DevOpenAt(int64 AtMs, FString& Error)
     Error.Reset();
     return true;
 }
-#endif
 
 void FLDCaptureReducer::Reset()
 {
@@ -91,12 +89,13 @@ bool FLDCaptureReducer::Transition(TMap<FGuid, FMember>& Members, const FLDCaptu
     switch (Event.Kind)
     {
     case ELDCaptureEventKind::Joined:
-        if (Member || !Event.Body.IsValid() || Event.ProtectedUntilMs != 0)
+        // #198: the first field life starts at the R0 return with the shared return protection.
+        if (Member || !Event.Body.IsValid() || (Event.ProtectedUntilMs != 0 && Event.ProtectedUntilMs <= Event.Time.BucketMs))
         {
-            Error = TEXT("A contender joins the spray roster once, unprotected, with a valid first body.");
+            Error = TEXT("A contender joins the spray roster once, with a valid first body and a future or no protection end.");
             return false;
         }
-        Members.Add(Id, {Event.Body, ELDLifePhase::Alive, false, 0, Event.bInside});
+        Members.Add(Id, {Event.Body, ELDLifePhase::Alive, Event.ProtectedUntilMs != 0, Event.ProtectedUntilMs, Event.bInside});
         return true;
     case ELDCaptureEventKind::Respawned:
         if (!Member || Member->Phase != ELDLifePhase::Dead || !Event.Body.IsValid()

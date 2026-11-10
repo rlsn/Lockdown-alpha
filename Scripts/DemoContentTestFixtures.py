@@ -37,7 +37,13 @@ def content_fixture():
         ("UNIT.BasicAttackWindupSec", "s", 0.125), ("VISION.RadiusCm", "cm", 1200),
         ("CAPTURE.RadiusCm", "cm", 300),
         ("CAPTURE.SpraySec", "s", 3), ("CAPTURE.GuardSec", "s", 20),
-        ("MATCH.CountdownSec", "s", 3), ("MATCH.DevelopmentSec", "s", 90), ("LIFE.RespawnSec", "s", 22), ("LIFE.ProtectionSec", "s", 2),
+        ("MATCH.FieldSegmentSec", "s", 90),
+        ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 25), ("REST.SignupSec", "s", 8),
+        ("REST.DrawSec", "s", 4), ("REST.BettingSec", "s", 6), ("REST.PKReadySec", "s", 2), ("REST.PKMaxSec", "s", 45),
+        ("REST.SettlementSec", "s", 2.5), ("REST.PayoutSec", "s", 9), ("REST.ReturnSec", "s", 4),
+        ("REST.ReturnSearchRadiusCm", "cm", 250),
+        ("LIFE.RespawnSec.Field1", "s", 6), ("LIFE.RespawnSec.Field2", "s", 9), ("LIFE.RespawnSec.Field3", "s", 11),
+        ("LIFE.RespawnSec.Final", "s", 22), ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
@@ -68,6 +74,7 @@ def content_fixture():
         "LEADER.MinLevel": 2,
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
         "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
+        "GROWTH.NpcActivePoints": 5,
         "GROWTH.EmptyComponentPoolPoints": 2,
     })
     formulas = {

@@ -83,7 +83,7 @@ namespace
         {
         case ELDMatchPhase::Lobby: return TEXT("房间等待开始");
         case ELDMatchPhase::Starting: return TEXT("准备开局…");
-        case ELDMatchPhase::Countdown: return LDTerms::OpeningCountdown;
+        case ELDMatchPhase::Rest: return LDTerms::RestPhase;
         case ELDMatchPhase::Development: return LDTerms::Development;
         case ELDMatchPhase::CaptureOpen: return LDTerms::CaptureOpened;
         case ELDMatchPhase::Results: return TEXT("对局结束");
@@ -518,7 +518,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const FLDPublicMatchView* Match=CurrentMatch(Public);
     const bool bLobbyNow=Match&&Match->Phase==ELDMatchPhase::Lobby;
     const bool bResultsNow=Match&&Match->Phase==ELDMatchPhase::Results;
-    const bool bPlaying=Match&&(Match->Phase==ELDMatchPhase::Countdown||Match->Phase==ELDMatchPhase::Development
+    const bool bPlaying=Match&&(Match->Phase==ELDMatchPhase::Rest||Match->Phase==ELDMatchPhase::Development
         ||Match->Phase==ELDMatchPhase::CaptureOpen);
     if(bLobbyNow!=bInLobby)
     {
@@ -554,8 +554,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     if(bHeader){SetLine(Status,TEXT("对局阶段：")+MatchPhaseText(Match));}
     if(bInLobby){RefreshLobby(PC,*Public);}
-    // #153: the Host can end a match only after T=0; the opening countdown has no match time to end.
-    const bool bCanEnd=bPlaying&&Match->Phase!=ELDMatchPhase::Countdown&&PC.OwnerState.bLobbyHost&&PC.OwnerState.Match==Match->Generation;
+    const bool bCanEnd=bPlaying&&PC.OwnerState.bLobbyHost&&PC.OwnerState.Match==Match->Generation;
     if(Confirm==ELDRootConfirm::EndMatch&&!bCanEnd){CloseConfirm();}
     if(!bMenuOpen){return;}
     EndMatchButton->SetVisibility(bCanEnd?ESlateVisibility::Visible:ESlateVisibility::Collapsed);

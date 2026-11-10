@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,900)][int]$TimeoutSeconds=480)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,1800)][int]$TimeoutSeconds=1200)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs

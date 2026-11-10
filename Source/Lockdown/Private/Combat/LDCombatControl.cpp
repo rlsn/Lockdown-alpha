@@ -264,8 +264,10 @@ bool ALDCombatDirector::InterruptSpray(const FLDBodyCombatState& Target, FString
 {
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A spray interruption requires the current core."); return false; }
-    // Rule fixtures without a spray zone, and camp bodies, carry no spray progress.
-    if (Target.Victim.Kind!=ELDVictimKind::Contender || !Mode->CaptureReducer.IsActive() || !Mode->CaptureCircle.IsValid()) { return true; }
+    // Rule fixtures without a spray zone, camp bodies and rest-space bodies (#198: a rest life or a training dummy)
+    // carry no spray progress.
+    if (Target.Victim.Kind!=ELDVictimKind::Contender || Target.IsolationGroup.IsValid()
+        || !Mode->CaptureReducer.IsActive() || !Mode->CaptureCircle.IsValid()) { return true; }
     if (!Mode->ActiveWritePermit)
     {
         Error=TEXT("A spray interruption must be committed inside a gameplay permit.");

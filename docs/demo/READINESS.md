@@ -146,7 +146,7 @@ AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景�
 | 主动选择与学习 | 规则 `DemoGrowth*` 与 Growth 场景按 #198 第一部分改写：开局池与 3/6 级机会、排除已学与图纸、为零时排队、能学就学、学习图纸、构筑安全窗、死亡准入 | 未运行；旧的重抽、方向卡与卡位覆盖随规则删除，不再作为证据 |
 | 成长边界 | 规则 `DemoGrowth*` 按 #198 第一部分改写：开局点数与机会、逐级点数、16 级后按 XP 给点、加点原子性、新局重建 | 未运行；连升多级与满级只在规则层 |
 | 上限变化 | 规则：`DemoAttributeProjection.ResourceMaxChange`；Growth 场景原用死亡期间选择生命上限属性，按加点改写 | 未运行；存活时的百分比保持只在规则层 |
-| 技能替换 | 满槽替换只在休息时进行，随 #198 后续部分接入；当前满槽时新主动保留为图纸（规则按 #198 第一部分改写） | 未实现；未运行。此前遗忘重学与冷却债的场景证据来自已删除的野外替换流程 |
+| 技能替换 | 满槽替换与遗忘只在休息时进行（#198 会话 C，`ReplaceActive`/`ForgetActive`，冷却债保留）；野外满槽时新主动保留为图纸。规则：`DemoRest.*`、`DemoGrowthBuildCommands`、`HUDBuildGate` | 没有拥有连接场景；此前遗忘重学与冷却债的场景证据来自已删除的野外替换流程 |
 | 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 流量”飘字中看到精确奖励；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowth*` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)）；助攻分配由规则 `DemoAssist.*` 覆盖，满员局 `HostKillAssist.png` 只截到播报，助攻奖励只在遥测与规则层 |
 | 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
 | 喷漆与守护 | 场景 Capture：开局关闭；争夺暂停与续计、喷上涂鸦、主人出区守护暂停、他人独自改漆使守护保持冻结并在完成前出区（改漆清零、守护仍暂停）、主人独自回区从保留值续计（C18）、主人回区后与他人同在区内（守护冻结）再走出使守护清零、他人出区后守护停在 0、主人独自回区后从 0 计时（C19；2026-11-07 用户决定，待在打包版上运行）、主人独自在区内站满守护时长以 `GuardSucceeded` 唯一锁定；场景 Opponent：AI 以喷漆守护获胜，`HostSpray.png`/`HostGuard.png` 截图审阅喷漆与守护 HUD 和旗杆涂鸦。规则：`DemoCapture.*`（含 `SprayAndGuard`、`GuardFreeze`、`GuardNeedsOwner`、`SprayInterrupt`、`GraffitiCleared`、`CombatHitInterrupt`：真实命中的眩晕与击退在施加瞬间清零喷漆） | 喷漆者死亡、硬控打断、主人死亡清除涂鸦与被击退出区只在规则层 |
@@ -164,9 +164,10 @@ AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景�
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
   D19–D21、D24–D27、D29、D30 已经决定，但还没有实现或进入运行输入，见下文“剩余工作”。
 - **未实现（#198 其余部分）**：元素（水、火、电及起雾、导电、过载）与 6 个新主动（S09、S10、S13、S16、S20、S21）；基础构件 B01–B18；
-  改装件与连接件 M01–M12、C01–C12；休息、NPC、私人训练与洗点（含满槽替换与遗忘）；PK 与观众；符咒、构筑蓝图与评估工具（Harness）。
+  改装件与连接件 M01–M12、C01–C12；PK 与观众；符咒、构筑蓝图与评估工具（Harness）。
   在它们接入前，App Spec 的发育期、复活、Boss 与天降外卖等现行规则继续有效。
-- **未验证**：#198 第一部分（五维属性点、单级主动、主动机会与待学图纸、构筑安全窗）的构建、规则测试、拥有连接场景与打包版结果都还没有记录。
+- **未验证**：#198 第一部分（五维属性点、单级主动、主动机会与待学图纸、构筑安全窗）与外层休息流程（时间线与野外进度 T、私人休息位、世界冻结、NPC、洗点、替换/遗忘、私人训练假人）
+  只有构建与受影响规则测试的记录；改写到休息流程的拥有连接场景探针、全套规则与打包版都还没有运行。
 - **未运行**：跨机器局域网与公网直连（[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；人类试玩与数值平衡（[#88](https://github.com/rlsn/Lockdown-alpha/issues/88)）；Shipping 配置打包（[#95](https://github.com/rlsn/Lockdown-alpha/issues/95)）；
   真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#87](https://github.com/rlsn/Lockdown-alpha/issues/87)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
@@ -191,7 +192,7 @@ Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**�
 | 缺少的内容 | Issue |
 | --- | --- |
 | D 键冲刺、开局卡池和脱战慢回（D19、D21、D24）；核心数值（D17、D18、D22、D23）已进入运行输入，待试玩 | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
-| v0.11 规则工坊：第一部分（五维属性点、单级主动、构筑安全窗）已实现，待验证；其余部分未实现——元素与新主动（S09、S10、S13、S16、S20、S21）；基础构件 B01–B18；改装件与连接件 M01–M12、C01–C12；休息、NPC、训练与洗点（含满槽替换）；PK 与观众；符咒、蓝图与评估工具 | [#198](https://github.com/rlsn/Lockdown-alpha/issues/198) |
+| v0.11 规则工坊：第一部分（五维属性点、单级主动、构筑安全窗）已实现，待验证；其余部分未实现——元素与新主动（S09、S10、S13、S16、S20、S21）；基础构件 B01–B18；改装件与连接件 M01–M12、C01–C12；PK 与观众；符咒、蓝图与评估工具；外层休息流程、NPC、训练与洗点（含满槽替换）已接入，待验证 | [#198](https://github.com/rlsn/Lockdown-alpha/issues/198) |
 | 地图事件：躺平角（D21）、天降外卖与画饼老板 Boss（D26）、上热搜（D27）及 AI 应对，与营地回位无路收尾（#28，规则 `DemoCamp.ReturnDeadEnd`，原生场景未注入无路情形）已实现 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
 | Opponent 满员场景的严格门槛稳定通过（AI 施放 v7 全部主动已随 #147 实现，满员局尚未在新目录上运行） | [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) |
 | 地图布局与野怪重新设计（D30） | [#97](https://github.com/rlsn/Lockdown-alpha/issues/97) |

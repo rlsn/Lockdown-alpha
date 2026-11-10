@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Development/LDProgressionRules.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
@@ -76,6 +77,9 @@ namespace LDHUD
     LOCKDOWN_API FString AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId);
     // Public roster name of a contender; empty when the roster does not list it (never invented).
     LOCKDOWN_API FString RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId);
+    // The name over an observed contender-kind unit: its roster name; in a rest (bInRest) a contender id the roster does not
+    // list is the own personal training dummy (only its owner observes it), named LDTerms::TrainingDummy. Empty otherwise.
+    LOCKDOWN_API FString ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest);
     // The six roster-slot identity tints shared with the bodies (ULDHumanoidVisualComponent::ContenderTint), so
     // portraits match them.
     LOCKDOWN_API FLinearColor PaletteColor(uint8 Presentation);
@@ -122,15 +126,39 @@ namespace LDHUD
     // Death banner (APP_SPEC 7.1): waiting time only; build and property are kept, and the display never revives.
     LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs);
     LOCKDOWN_API FString PhaseLine(ELDMatchPhase Phase);
-    // #153: the centre-screen opening countdown of the public match: whole seconds rounded up ("5" .. "1") while the
-    // authority time is before T=0 (StartedAtMs), then "开淫！" for GoShowMs from T=0. Empty otherwise or without a clock;
-    // reaching zero only waits for the authority's development phase.
+    // #198: the centre-screen return countdown of a rest: whole seconds rounded up ("5" .. "1") during the Return step until
+    // its end (StepEndsAtMs; held at "1" until the authority enters the field), then LDTerms::CountdownGo for GoShowMs from
+    // the field segment's start (Timeline.FieldStartedAtMs). Empty otherwise, without a clock or for another generation's
+    // timeline; reaching zero only waits for the authority's field.
     inline constexpr int64 CountdownGoShowMs=1000;
-    LOCKDOWN_API FString OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
+    LOCKDOWN_API FString RestReturnCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
+    // The player-facing name of a rest step; empty for None.
+    LOCKDOWN_API FString RestStepText(ELDRestStep Step);
+    // #198 timeline banner over the public capture line. Rest: "休息 R{n} · <step> · 剩 X 秒" and a detail line: in the build
+    // step the PK sign-up window (opens in X s / open with X s left), the number signed up and whether Self is; after the
+    // lock "PK 跳过" or the entrants, and that the build is locked outside the build and payout steps. Field: "野外 n/3 ·
+    // 下次休息 m:ss" from the field progress T (LDMatchTimeline::FieldNowFromView); final field: "最终野外 · 旗杆开放".
+    // Empty for another generation's timeline or no stage. Without a clock no remainder is guessed.
+    struct FTimelineView
+    {
+        FString Headline;
+        FString Detail;
+        // The sign-up window is open at NowMs: the HUD shows the join/withdraw toggle (the server still decides).
+        bool bSignupOpen=false;
+        bool bSignedUp=false;
+        // The toggle's caption: 报名 PK or 取消报名.
+        FString SignupAction;
+    };
+    LOCKDOWN_API FTimelineView TimelineBanner(const FLDPublicMatchView& Public,const FGuid& Self,bool bClock,int64 NowMs);
+    // The player-facing result of an own sign-up toggle (ALDPlayerController::OnRestSignup); NoPKProvider says this rest
+    // skips the PK, never a success.
+    LOCKDOWN_API FString RestSignupText(ELDRestSignupResult Result);
+    // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
+    LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
-    // The match timer over the minimap: whole seconds elapsed since T=0 (StartedAtMs), rounded down, as m:ss with no
-    // leading zero on the minutes ("0:12", "12:05"). "0:00" through the opening countdown; empty without a clock or T=0.
+    // The match timer over the minimap: whole seconds elapsed since the match start (StartedAtMs, the opening rest R0),
+    // rounded down, as m:ss with no leading zero on the minutes ("0:12", "12:05"). Empty without a clock or a start.
     LOCKDOWN_API FString MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     struct FCircleView
     {
@@ -139,22 +167,27 @@ namespace LDHUD
         float Progress=0.f;
     };
     // Public spray and guard state (APP_SPEC 2.2). Reaching zero only waits for the authority; it never announces a
-    // spray or a winner. The progress bar shows the sole sprayer's progress (Solo), a paused holder's kept progress
-    // against SprayMs (Contested), otherwise the graffiti owner's guard against GuardMs (CAPTURE.SpraySec/GuardSec).
-    // The graffiti owner and the guard are named in every open state; a contest without a holder names no sprayer.
+    // spray or a winner. Before the final field the flagpole is closed and opens after the last rest (R3); its opening
+    // instant is not scheduled yet, so no countdown is printed. The progress bar shows the sole sprayer's progress (Solo),
+    // a paused holder's kept progress against SprayMs (Contested), otherwise the graffiti owner's guard against GuardMs
+    // (CAPTURE.SpraySec/GuardSec). The graffiti owner and the guard are named in every open state; a contest without a
+    // holder names no sprayer.
     LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
         int64 SprayMs=0,int64 GuardMs=0);
     // The one most useful next step for the own player, shown under the public spray line: pending growth (an active offer,
     // then unspent points, then a blueprint with an empty Q/W/E slot), then the open flagpole (spray, guard your own graffiti,
-    // or besiege its owner), then early farming. Own projections and the public match only; never a hidden unit. Empty when
-    // nothing applies or the match is not running.
+    // or besiege its owner), then early farming. In a rest only growth is hinted, and only in its build and payout steps.
+    // Own projections and the public match only; never a hidden unit. Empty when nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName=FString());
-    // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop. Empty when
-    // there is no drop to show; the claim is an event of the event feed (FEventFeed), not a standing line.
-    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 NowMs);
-    // D26 (#79): the public Boss line: a countdown shortly before it appears and a reminder while it patrols. Empty
-    // otherwise; who landed the last hit is an event of the event feed (FEventFeed).
-    LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 NowMs);
+    // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop. LandAtMs is a
+    // field progress T (#198), so FieldNowMs is LDMatchTimeline::FieldNowFromView of the public timeline at the synced
+    // server now. Empty when there is no drop to show; the claim is an event of the event feed (FEventFeed), not a
+    // standing line.
+    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNowMs);
+    // D26 (#79): the public Boss line: a countdown shortly before it appears and a reminder while it patrols. AppearAtMs is
+    // a field progress T compared with FieldNowMs like AirdropLine. Empty otherwise; who landed the last hit is an event
+    // of the event feed (FEventFeed).
+    LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 FieldNowMs);
     // The event feed's line for a downed Boss: the own last hit is told it ate the pie, others see the public roster name.
     LOCKDOWN_API FString BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName);
     // D27 (#79): the public 上热搜 line: who is named; the own player is told directly.
@@ -337,9 +370,10 @@ namespace LDHUD
     // "Q", "W" or "E".
     LOCKDOWN_API FString SlotKey(uint8 Slot);
     // What the own contender may do with its build right now, judged like the server judges a commit (LDProgression's
-    // LearnGate and CommandGate over the public match phase, the own life phase and the build safe window). A hint only:
-    // the server decides each command. Each Blocked line names the reason ("未脱战 2.4 秒", "阵亡中"); empty when allowed.
-    // Without the authority clock the safe window is unknown and learning or allocating while alive reads as syncing.
+    // CommandGate over the build stage of the public match, LDProgression::StageForPublic, the own life phase and the build
+    // safe window). A hint only: the server decides each command. Each Blocked line names the reason ("未脱战 2.4 秒",
+    // "阵亡中"); empty when allowed. Without the authority clock the safe window is unknown and learning or allocating while
+    // alive on the field reads as syncing. In a rest the safe window does not apply.
     struct FBuildGateView
     {
         bool bCanChoose=false;
@@ -348,6 +382,17 @@ namespace LDHUD
         FString LearnBlocked;
         bool bCanAllocate=false;
         FString AllocateBlocked;
+        // #198 rest services: open only in a rest build window (the build and payout steps).
+        bool bCanBuyNpc=false;
+        FString NpcBlocked;
+        bool bCanRespec=false;
+        FString RespecBlocked;
+        bool bCanReplace=false;
+        FString ReplaceBlocked;
+        bool bCanForget=false;
+        FString ForgetBlocked;
+        // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
+        bool bInRest=false;
         // #198 B: the first-time install of a never-installed component and the re-install of a once-installed one, as
         // growth gates them (LDProgression::InstallGate). The opening base pick itself follows bCanChoose.
         bool bCanInstall=false;
@@ -355,11 +400,12 @@ namespace LDHUD
         bool bCanReinstall=false;
         FString ReinstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(ELDMatchPhase Phase,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // The player-facing why of a refused or stored build step (NotSafe with the remaining seconds when known).
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
-    // component taken, enabled (已启用构件：名称), stored with the reason or removed.
+    // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or the component taken,
+    // enabled (已启用构件：名称), stored with the reason or removed.
     LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,
         int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // #198 B: an element a component carries or binds is open now, or ElementUnsupported (water and electric wait for the
@@ -421,6 +467,9 @@ namespace LDHUD
         FString Prompt() const;
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
+    // The 开盲盒 button's caption: the pending counts, or "开盲盒 · 休息服务" when nothing is pending but the rest services
+    // are open (the button then stays enabled so the NPC, respec and forget remain reachable).
+    LOCKDOWN_API FString GrowthPrompt(const FGrowthPending& Pending,bool bRestServices);
     struct FAttributeRowView
     {
         FString Name;

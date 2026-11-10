@@ -144,6 +144,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     FLDBodyCombatState* Body=FindBody(Hit.Target,&Actor);
     // A retired, replaced or already lethal life cannot be hit again.
     if (!Body || !Actor || Body->bPendingDeath) { return true; }
+    // #198: a frozen world body or another contender's rest group is out of reach (no hit, no event).
+    if (IsIsolated(Hit.SourceEntity,*Body)) { return true; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
     // Protection is the target life's state at this hit, not at the time the effect was accepted.
     const bool bProtected=Hit.Target.Victim.Kind==ELDVictimKind::Contender
@@ -642,7 +644,9 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         {
             const LDCombatEffectsDetail::FProjectileTarget& Candidate=Targets[TargetIndex];
             double Entry=0;
+            const FLDBodyCombatState* CandidateState=FindBody(Candidate.Body);
             if (Candidate.Body.Victim.EntityId==Projectile.SourceEntity
+                || !CandidateState || IsIsolated(Projectile.SourceEntity,*CandidateState)
                 || !LDCombatEffectsDetail::PlanarEntry(From,Stop,Candidate.FootCm,Projectile.RadiusCm+Candidate.RadiusCm,Entry))
             { continue; }
             if (Struck==INDEX_NONE || Entry<StruckAt)
@@ -693,6 +697,7 @@ bool ALDCombatDirector::CollectAreaTargets(const FVector& Anchor, double RadiusC
         const ALDCharacter* Other=Pair.Key.Get();
         const FLDBodyCombatState& State=Pair.Value;
         if (!Other || &State==Excluded || State.bPendingDeath || State.Victim.EntityId==SourceEntity
+            || IsIsolated(SourceEntity,State)
             || (State.Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(State.Victim.EntityId)))
         { continue; }
         const FVector OtherFoot=FootOf(*Other);
@@ -910,6 +915,12 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             return false;
         }
         if (NowMs==FromMs) { continue; }
+        // #198: a body frozen by a rest keeps its HP/MP; its interval is consumed without recovery.
+        if (Body.bSuspended)
+        {
+            Body.RegenThroughMs=NowMs;
+            continue;
+        }
         auto& Pool=Body.Resources;
         LDTactical::FRegenPools Pools;
         Pools.HpP2=Pool.HpP2;
@@ -952,6 +963,14 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
 bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error)
 {
     if (Body.bPendingDeath) { return true; }
+    // #198: a personal training dummy never dies; a fatal hit refills it instead (no death, reward or assist).
+    if (Body.bTrainingDummy)
+    {
+        Body.Resources.HpP2=Body.Resources.MaxHpP2;
+        ++Body.Resources.Revision;
+        MarkViewChanged(Body.Victim.EntityId);
+        return true;
+    }
     const ALDGameMode* Mode=Core();
     const FLDDemoContentSnapshot* Content=Catalog();
     const FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
