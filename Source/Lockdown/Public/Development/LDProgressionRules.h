@@ -20,7 +20,7 @@ struct FLDLearnedActive
 struct LOCKDOWN_API FLDGrowthBuild
 {
     uint8 Level = 1;
-    // Allocated points, one count per catalog stat in catalog order (LDProgression::StartBuild sizes it).
+    // Allocated points, one count per stat in the stats' design order (StatsInDesignOrder; LDProgression::StartBuild sizes it).
     TArray<int32> StatPoints;
     // Learned Q/W/E actives sorted by slot; one per slot and per id.
     TArray<FLDLearnedActive> Actives;
@@ -167,7 +167,7 @@ namespace LDProgression
     // LearnGate reason when refused.
     LOCKDOWN_API ELDGrowthReason ApplyLearnBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Blueprint, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out);
-    // Unspent points allocated across the stats in one step: one count per catalog stat summing to at least one and at
+    // Unspent points allocated across the stats in one step: one count per stat (design order) summing to at least one and at
     // most the unspent points (NotEnoughPoints), gated by CommandGate.
     LOCKDOWN_API ELDGrowthReason ApplyAllocation(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         int64 XP, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);

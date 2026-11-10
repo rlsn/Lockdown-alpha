@@ -14,7 +14,7 @@
 | `Development\LDGrowthProtocol.h` | 构筑命令、回执、查询、提交结果与本人视图的线协议 |
 | `Development\LDGrowthProviders.cpp` | 向对局门禁注册 Progression 提供者及最终等级读取 |
 
-成长状态是 `FLDGrowthBuild`（等级、按目录顺序每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
+成长状态是 `FLDGrowthBuild`（等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`；目录本身按 id 排序）每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
 构筑修订）与 `FLDProgressionState`（累计 XP、已得/已用主动机会、唯一队首候选组及其修订、已消费机会记录）。
 点数不存储：`LDProgression::EarnedPoints` 由等级与 XP 派生（开局 `GROWTH.OpeningPoints`、每升一级 `GROWTH.PointsPerLevel`，
 满级后每满 `GROWTH.MaxLevelPointsXP` 再加 `GROWTH.MaxLevelPoints`），未分配点数 = 派生值 − 已分配；派生值小于已分配是
@@ -46,7 +46,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | --- | --- | --- |
 | `ActiveChoice` | `OfferId`、`OfferRevision`、`Option`；`bLearnIfPossible` 时 `Slot` 为首选空槽 0..2 或 `AnySlot` | 消费队首机会；能学就学到首选或最低空槽（`Learned`），否则存为待学图纸（`StoredAsBlueprint`，`StoredReason` 为 `NotSafe`/`Dead`/`NoEmptySlot`）；之后才抽下一组 |
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换是 #198 后续的休息服务）为 `SlotOccupied`，图纸保留 |
-| `AllocatePoints` | `PointCounts`（每个五维一格、目录顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
+| `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
 
 合法性矩阵（`LDProgression::CommandGate`/`LearnGate`，提交时由 `ALDDevelopmentDirector` 读 Combat 的 `ReadBuildSafeAtMs` 与权威时间）：
 

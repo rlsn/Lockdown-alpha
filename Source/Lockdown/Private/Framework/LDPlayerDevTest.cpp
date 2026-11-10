@@ -192,9 +192,9 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
                 Ar.Logf(TEXT("  active %s %s%s"), *Ability.Id, *DevTestDisplayName(Definitions, Ability.Id),
                     Ability.Opening ? TEXT(" (opening)") : TEXT(""));
             }
-            for (const FLDDemoStatDefinition& Stat : Definitions.Stats)
+            for (const FLDDemoStatDefinition* Stat : Definitions.StatsInDesignOrder())
             {
-                Ar.Logf(TEXT("  stat   %s %s"), *Stat.Id, *DevTestDisplayName(Definitions, Stat.Id));
+                Ar.Logf(TEXT("  stat   %s %s"), *Stat->Id, *DevTestDisplayName(Definitions, Stat->Id));
             }
         }));
 

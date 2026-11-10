@@ -65,8 +65,9 @@ FString AttrPanelStatPoints(const FLDCombatOwnerView* Combat,const FLDProgressio
     // A progression of another match generation than the current combat projection is stale, not empty.
     if(!Progression||!Progression->bValid||(Combat&&Progression->Generation!=Combat->Generation)||!Definitions){return AttrPanelSyncing;}
     TArray<FString> Lines;
-    for(const FLDDemoStatDefinition& Stat:Definitions->Stats)
+    for(const FLDDemoStatDefinition* StatRow:Definitions->StatsInDesignOrder())
     {
+        const FLDDemoStatDefinition& Stat=*StatRow;
         const LDHUD::FStatRowView Row=LDHUD::StatRow(Stat,LDHUD::StatPointsOf(*Progression,FName(*Stat.Id)),Definitions);
         Lines.Add(FString::Printf(TEXT("%s %d 点 · %s"),*Row.Name,Row.Points,*Row.PerPoint));
     }

@@ -265,8 +265,9 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
         Line->AddChildToHorizontalBox(Replace);
         LearnNames.Add(Name);LearnHeld.Add(Held);LearnGrant.Add(Grant);LearnNow.Add(Learn);LearnReplace.Add(Replace);
     }
-    for(const FLDDemoStatDefinition& Stat:Content.Stats)
+    for(const FLDDemoStatDefinition* StatRow:Content.StatsInDesignOrder())
     {
+        const FLDDemoStatDefinition& Stat=*StatRow;
         const FName Id(*Stat.Id);
         ShownStats.Add(Id);
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();PointList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
@@ -306,9 +307,9 @@ void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDCom
         DevPanelShow(LearnReplace[Index],bProjected&&!bLearned&&bAllHeld,ESlateVisibility::SelfHitTestInvisible);
     }
     ShownUnspent=bProjected?FMath::Max<int64>(0,Progression->UnspentPoints):0;
-    for(int32 Index=0;Index<ShownStats.Num()&&Index<PointHeld.Num()&&Content&&Content->Stats.IsValidIndex(Index);++Index)
+    for(int32 Index=0;Index<ShownStats.Num()&&Index<PointHeld.Num()&&Content;++Index)
     {
-        DevPanelSetText(PointNames[Index],LDHUD::ContentName(Content,Content->Stats[Index].Id));
+        DevPanelSetText(PointNames[Index],LDHUD::ContentName(Content,ShownStats[Index].ToString()));
         DevPanelSetText(PointHeld[Index],bProjected?FString::Printf(TEXT("%d 点"),LDHUD::StatPointsOf(*Progression,ShownStats[Index])):FString(DevPanelSyncing));
     }
     DevPanelSetText(LearnHint,FString::Printf(TEXT("学习受真实规则约束：Q/W/E 三槽；Q/W/E 都满时用“替换”，被替换的技能遗忘。%s"),
