@@ -351,6 +351,9 @@ AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <
 `DemoAttributeProjection.ChoicesAndPassives/ExpansionPassives`、`DemoBuildPrimitives.ControlSwapAndWall/PassiveTriggers`、
 `DemoCombatEvaluation.AbilityCrit` 与 `DemoSkillExpansion.CastSustainBudget/DashRefundIdentity/PostureAndPublicEffects/UniqueHitAndArgumentChain`；
 `DemoGrowthWire/Requests/Progression/Opening/OpeningPool/PrivacySchema/SkillGrowth` 与 `DemoDevTestCommands` 按新构筑命令改写。
+#198 B（材料实例、安装与基础构件 B01–B18）新增 `Lockdown.Rules.DemoContent.ComponentCatalog`、
+`DemoGrowthComponents.InstanceDedupe/LevelGrantFixedSeed/InstallGate/OpeningBase`、
+`Combat.Components.Projection/EmpowerMerge/DashEmpower/Ledger/ElementGate`、`HUDComponents` 与 `DemoOpponentPolicy.Components`。
 Growth 场景在真实拥有客户端上核对开局主动选择学到 Q、倒计时内加点、交战后构筑安全窗内的 `NotSafe` 与窗口过后的学习和加点、
 死亡中存为图纸与加点、复活后学习；Opponent 场景的开局检查仍要求倒计时内选择且不移动。
 
