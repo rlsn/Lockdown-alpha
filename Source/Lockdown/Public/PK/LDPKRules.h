@@ -5,6 +5,7 @@
 #include "PK/LDPKTypes.h"
 
 struct FLDDemoContentParameters;
+struct FLDNativeMotionBatch;
 
 // #198 session D: the pure PK rules (approved outer parameters, issue #198 comment 6752601175 §2-§4 and §6). Format and
 // spawn draw, the shrinking ring and its damage, the outcome judge and the award split. No world access: the authority
@@ -72,6 +73,23 @@ namespace LDPKRules
     LOCKDOWN_API bool AccumulateRingDamage(const FLDPKParameters& Params, int64 MaxHpP2, int64 FromMs, int64 ToMs, int64& InOutAccumulatorE7);
     // Removes and returns the whole P2 part of the accumulator; the remainder stays for the next settlement.
     LOCKDOWN_API int64 TakeRingDamageP2(int64& InOutAccumulatorE7);
+    // One straight piece of an entrant's authoritative foot path, times in ms since the PK start (fractional): the foot
+    // moves linearly from FromCm to ToCm (stands still when they are equal).
+    struct FFootSegment
+    {
+        double FromMs = 0, ToMs = 0;
+        FVector FromCm = FVector::ZeroVector, ToCm = FVector::ZeroVector;
+    };
+    // The step's authoritative foot path over [FromMs, ToMs) (ms since the PK start) from its native motion: standing at
+    // the batch's start foot until the first record, every movement record as it was integrated, standing at the end foot
+    // after the last. False on a record outside the window, a discontinuous or non-finite record.
+    LOCKDOWN_API bool FootPathFromMotion(const FLDNativeMotionBatch& Batch, int64 FightStartedAtMs, int64 FromMs, int64 ToMs,
+        TArray<FFootSegment>& Out);
+    // Approved §2: the parts of the path spent outside the shrinking ring (XY, boundary inside), split exactly where the
+    // foot and the ring cross; each crossing falls into its authority event ms (rounded up, like every event instant). Out
+    // holds sorted, disjoint [From, To) ms intervals. False on a non-finite path.
+    LOCKDOWN_API bool OutsideRingIntervals(const FLDPKParameters& Params, const FVector& CentreCm, const TArray<FFootSegment>& Path,
+        TArray<TPair<int64, int64>>& Out);
     // Won (OutWinnerSide set) when exactly one side has a living member; Draw when none has, or at the deadline with two
     // or more; Running otherwise. None on malformed input. Never decided by HP, damage or order.
     LOCKDOWN_API ELDPKOutcome Judge(const TArray<uint8>& SideOfSeat, const TArray<bool>& AliveOfSeat, bool bDeadline, uint8& OutWinnerSide);

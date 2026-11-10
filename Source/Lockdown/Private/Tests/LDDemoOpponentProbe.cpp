@@ -129,8 +129,9 @@ public:
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
     // #198: each AI's current rest life in its private rest space during the opening rest R0 and that life's foot at its
-    // first sample, the largest drift seen before field 1, the AIs seen on a PK life in R0 (evidence only), and the ms
-    // since the match start (R0) at which each AI's opening choice was first seen.
+    // first sample; the largest drift seen before the PK sign-up window opens, and afterwards the largest step away from
+    // the own sign-up disk (站圈报名: the only walk is into it); the AIs that stood in their disks at the lock and the AIs
+    // seen on a PK life in R0; and the ms since the match start (R0) at which each AI's opening choice was first seen.
     struct FRest0Foot
     {
         uint32 Life = 0;
@@ -138,8 +139,10 @@ public:
     };
     TMap<FGuid, FRest0Foot> Rest0AIFeet;
     TSet<FGuid> Rest0PKEntrants;
+    TSet<FGuid> Rest0Signed;
     TMap<FGuid, int64> Rest0Picks;
     double MaxRest0AIDriftCm = 0;
+    double MaxRest0AIStrayCm = 0;
     int32 Rest0Samples = 0;
     uint32 FirstGeneration = 0;
     // Development: the three timed field segments before the flagpole opens at the final field.
@@ -762,31 +765,43 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 no opponent AI moves in its private rest space (sampled on the authority until
-        // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights
-        // on a PK life in the arena during the PK step (approved R0 PK); that life is not a rest-space body, and the
-        // rest life it returns to afterwards is measured from its own first sample.
+        // #198: through the opening rest R0 no opponent AI moves in its private rest space before the PK sign-up window
+        // opens, and afterwards it only walks into its own sign-up disk (站圈报名, user decision A), so every AI stands
+        // in its disk at the lock (sampled on the authority until field 1); each picks its opening active in the R0 build
+        // step after its drawn delay. An AI that signed up fights on a PK life in the arena during the PK step (approved
+        // R0 PK); that life is not a rest-space body, and the rest life it returns to afterwards is measured from its own
+        // first sample.
         if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
             && Mode->GetTimeline().GetRestIndex() == 0)
         {
+            const FLDTimelineView Line = Mode->ReadPublicMatch().Timeline;
+            const bool bBeforeWindow = Line.Step == ELDRestStep::Build && Mode->GetAuthorityNowMs() < Line.SignupOpensAtMs;
             for (TActorIterator<ALDOpponentController> It(World); It; ++It)
             {
                 const FGuid Id = Mode->ContenderId(*It);
                 if (Mode->IsPKLife(Id)) { Rest0PKEntrants.Add(Id); }
+                if (Mode->GetLockedEntrants().Contains(Id)) { Rest0Signed.Add(Id); }
                 const APawn* Pawn = It->GetPawn();
                 FLDContenderLifeRead Life;
                 FString ReadError;
+                FVector Disk;
+                double DiskRadius = 0;
                 if (Pawn && Mode->IsInRestSpace(Id) && Mode->ReadContenderLife(Mode->GetMatchContext(), Id, Life, ReadError)
                     && Life.Phase == ELDLifePhase::Alive)
                 {
                     const FVector Foot = Pawn->GetActorLocation();
                     FRest0Foot& Seen = Rest0AIFeet.FindOrAdd(Id);
-                    if (Seen.Life == Life.Life) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
-                    else
+                    if (Seen.Life != Life.Life)
                     {
                         Seen.Life = Life.Life;
                         Seen.Foot = Foot;
                     }
+                    else if (bBeforeWindow) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
+                    else if (Mode->SignupDiskFor(Id, Disk, DiskRadius))
+                    {
+                        MaxRest0AIStrayCm = FMath::Max(MaxRest0AIStrayCm, FVector::Dist2D(Foot, Disk) - FVector::Dist2D(Seen.Foot, Disk));
+                    }
+                    else { MaxRest0AIStrayCm = TNumericLimits<double>::Max(); }
                 }
                 const FLDProgressionView Growth = Mode->Development->ReadProgression(Id);
                 if (Growth.ActiveOpportunitiesConsumed == 1 && !Rest0Picks.Contains(Id))
@@ -804,10 +819,14 @@ bool FLDDemoOpponentProbe::Tick()
             TEXT("The room plays with three humans and three AI on the locked roster"));
         if (bHost)
         {
-            Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1.,
-                TEXT("No opponent AI moves in its private rest space during the opening rest R0"));
+            Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1. && MaxRest0AIStrayCm < 1.,
+                TEXT("In the opening rest R0 an opponent AI stays still before the sign-up window and then only walks into its own sign-up disk"));
+            Check(Rest0Signed.Num() == OpponentCount && Rest0PKEntrants.Num() == OpponentCount,
+                TEXT("Every opponent AI stood in its own sign-up disk at the R0 lock and entered the PK (站圈报名)"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
             Summary->SetNumberField(TEXT("rest0_ai_drift_cm"), MaxRest0AIDriftCm);
+            Summary->SetNumberField(TEXT("rest0_ai_stray_cm"), MaxRest0AIStrayCm);
+            Summary->SetNumberField(TEXT("rest0_signed"), Rest0Signed.Num());
             Summary->SetNumberField(TEXT("rest0_pk_entrants"), Rest0PKEntrants.Num());
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }

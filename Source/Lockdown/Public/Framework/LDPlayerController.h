@@ -74,13 +74,7 @@ public:
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
     UFUNCTION(Client,Reliable) void ClientBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     // ---- end Growth ----
-    // ---- #198 rest PK sign-up (Framework/LDPlayerRest.cpp) ----
-    // Joins or leaves the PK sign-up of the current rest; the result arrives as OnRestSignup (a Listen Host inside the call).
-    void SubmitRestSignup(bool bJoin);
-    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnRestSignup, ELDRestSignupResult);
-    FLDOnRestSignup OnRestSignup;
-    UFUNCTION(Server,Reliable) void ServerRestSignup(uint32 Generation,bool bJoin);
-    UFUNCTION(Client,Reliable) void ClientRestSignup(ELDRestSignupResult Result);
+    // ---- #198 rest training (Framework/LDPlayerRest.cpp); the PK sign-up is standing in the own sign-up disk ----
     // Resets the own training in the rest space (owner and dummy refilled, cooldowns ready); OnTrainingReset answers.
     void SubmitTrainingReset();
     DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnTrainingReset, ELDTrainingResetResult);

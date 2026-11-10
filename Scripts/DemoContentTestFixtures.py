@@ -41,7 +41,7 @@ def content_fixture():
         ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 25), ("REST.SignupSec", "s", 8),
         ("REST.DrawSec", "s", 4), ("REST.BettingSec", "s", 6), ("REST.PKReadySec", "s", 2), ("REST.PKMaxSec", "s", 45),
         ("REST.SettlementSec", "s", 2.5), ("REST.PayoutSec", "s", 9), ("REST.ReturnSec", "s", 4),
-        ("REST.ReturnSearchRadiusCm", "cm", 250),
+        ("REST.ReturnSearchRadiusCm", "cm", 250), ("REST.EntryReadyTimeoutSec", "s", 20),
         ("PK.ArenaRadiusCm", "cm", 1500), ("PK.RingMidRadiusCm", "cm", 500), ("PK.RingFinalRadiusCm", "cm", 100),
         ("PK.RingShrinkStartSec", "s", 8), ("PK.RingMidSec", "s", 30), ("PK.RingFinalSec", "s", 40),
         ("PK.RingPreviewSec", "s", 8), ("PK.RingDamageTickSec", "s", 0.5),

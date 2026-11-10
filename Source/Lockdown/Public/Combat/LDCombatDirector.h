@@ -717,6 +717,9 @@ public:
     // Whether SourceEntity and Target are in different isolation groups (or either is suspended); vision uses this (team
     // mates still see each other), IsIsolated adds the PK friendly-fire rule.
     bool IsOutOfGroup(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
+    // The isolation group Entity acts in (its body's, or for a contender between lives the space it is in); false when it
+    // is a suspended world body. Vision gives skill effects the permissions of their source's group (#198 R15).
+    bool ActingGroup(const FGuid& Entity, FGuid& OutGroup) const;
     // A PK life joins the PK isolation group with its side. RespawnsAndWorld permit.
     bool SetPKBody(const FLDCombatBodyRef& Body, const FGuid& Group, uint8 Side, const FLDGameplayWritePermit& Permit, FString& Error);
     // The PK ring's environmental damage (approved §2): straight to HP, no resistance, shield, reduction, delay,

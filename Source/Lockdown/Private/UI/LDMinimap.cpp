@@ -233,8 +233,9 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
         // D26 (#79): a public Boss patrol point, a small gold ring.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::BossWaypoint){Site.Kind=FLDMinimapStatic::ESite::BossWaypoint;}
-        // #198: PK ring spawns and the spectator throw anchor are not field sites.
-        else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow){continue;}
+        // #198: PK ring spawns, the spectator throw anchor and the rest-space sign-up disks are not field sites.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
+            ||Anchor.Kind==ELDDemoWorldAnchorKind::PKSignup){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }

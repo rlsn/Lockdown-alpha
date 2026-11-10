@@ -145,11 +145,30 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The approved AI decision interval is not positive.");
         return false;
     }
+    // #198 站圈报名: the sign-up disk of this contender's rest space, as public as the world (its roster slot's anchor).
+    FVector SignupCentre;
+    double SignupRadius = 0;
+    const FLDMapBinding* SignupAnchor = nullptr;
+    if (Mode->SignupDiskFor(InBinding.GetContender(), SignupCentre, SignupRadius))
+    {
+        const int32 Slot = Mode->GetRosterOrder().IndexOfByKey(InBinding.GetContender());
+        SignupAnchor = Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Slot)), Registry->Generation);
+    }
+    if (!SignupAnchor)
+    {
+        Error = TEXT("The opponent's roster slot has no registered PK sign-up disk.");
+        return false;
+    }
     int32 OpeningSeed = 0;
     if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningSeed, Error)) { return false; }
     Binding = InBinding;
     Content = MoveTemp(Snapshot);
     POIs = MoveTemp(Places);
+    SignupPOI = FLDOpponentPOI();
+    SignupPOI.Id = SignupAnchor->Id;
+    SignupPOI.Kind = ELDOpponentPOIKind::PKSignup;
+    SignupPOI.SurfaceId = SignupAnchor->Surface;
+    SignupPOI.FootCm = SignupCentre;
 #if WITH_DEV_AUTOMATION_TESTS
     Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());
     if (Evaluation)
@@ -356,6 +375,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     Frame.Generation = Generation;
     Frame.POIs = POIs;
+    if (Public.Phase == ELDMatchPhase::Rest) { Frame.SignupPOI = SignupPOI; }
     Frame.Public.Phase = Public.Phase;
     Frame.Public.NowMs = NowMs;
     Frame.Public.StartedAtMs = Public.StartedAtMs;
@@ -691,8 +711,10 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     FLDMoveIdentity Identity;
     FLDSpatialOrderRequest Request;
     FString Error;
+    // #198 站圈报名: the walk into the own sign-up disk is the only order to a place outside the public field POIs.
+    const bool bSignupWalk = Frame.SignupPOI.IsSet() && Intent.Kind == ELDOpponentBodyKind::MoveGround && Intent.POI == SignupPOI.Id;
     if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, false, Identity)
-        || !LDOpponentRequests::BuildOrder(Intent, POIs, Identity, Request, Error))
+        || !LDOpponentRequests::BuildOrder(Intent, bSignupWalk ? TArray<FLDOpponentPOI>{SignupPOI} : POIs, Identity, Request, Error))
     {
         Problem = Error.IsEmpty() ? FString(TEXT("The order identity space of this life is exhausted.")) : Error;
         Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
@@ -700,6 +722,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     }
     LastIdentity = Identity;
     ++Tally.Orders;
+    Tally.PKSignUps += bSignupWalk ? 1 : 0;
     const FLDOrderReceipt Receipt = Navigation->SubmitOrder(OrderCaller(Reads), Request);
     StopTrack = FStopTrack();
     if (Receipt.Status == ELDOrderStatus::Rejected)
@@ -762,21 +785,6 @@ void ALDOpponentController::DispatchPK(ALDGameMode& Mode, const FLDOpponentDecis
     if (Intent.Kind == ELDOpponentPKKind::None) { return; }
     const uint32 Generation = Binding.GetMatch().Generation;
     const FString Contender = Binding.GetContender().ToString();
-    if (Intent.Kind == ELDOpponentPKKind::SignUp)
-    {
-        // The policy sends one sign-up per rest whatever the answer: NoPKProvider means no PK this rest, WindowClosed or
-        // NotInRest a missed window; none is retried.
-        ++Tally.PKSignUps;
-        const ELDRestSignupResult Result = Mode.SubmitRestSignup(*this, Generation, true);
-        UE_LOG(LogLDAI, Display, TEXT("LD_AI_PK_SIGNUP contender=%s gen=%u rest=%u result=%u"), *Contender, Generation,
-            uint32(Frame.Public.Timeline.RestIndex), uint32(Result));
-        if (Result != ELDRestSignupResult::Joined)
-        {
-            ++Tally.PKRefused;
-            Problem = FString::Printf(TEXT("PK sign-up refused result=%u"), uint32(Result));
-        }
-        return;
-    }
     if (!Mode.PKDirector)
     {
         // A bet or throw names a public PK, so its director must exist; a missing one is an explicit stop of this request.

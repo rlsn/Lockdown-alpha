@@ -276,6 +276,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.DrawSec", "ms", "5"), ("REST.BettingSec", "ms", "8"), ("REST.PKReadySec", "ms", "3"),
             ("REST.PKMaxSec", "ms", "60"), ("REST.SettlementSec", "ms", "3"), ("REST.PayoutSec", "ms", "12"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
+            ("REST.EntryReadyTimeoutSec", "ms", "30"),
             # #198 PK ring, format and spectator throw (approved
             # https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
             ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),

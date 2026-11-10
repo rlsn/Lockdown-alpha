@@ -2011,15 +2011,20 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             }
             return Finish(EMode::PK, Fight == EPKFight::Ring ? EReason::PKRing : EReason::PKFight);
         }
-        // Everyone else stays in its private rest space and never moves; spectating sends no order while the arena runs.
+        // Everyone else stays in its private rest space; the only walk is into the own sign-up disk while the window is
+        // open, and spectating sends no order while the arena runs.
         ForgetBody(State);
-        // #198 D: at most one PK request per decision, each family once (sign-up per rest, bet per PK); throws wait for the
-        // own cooldown from the latest throw answer.
+        // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
+        // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot.
         EReason PKReason = EReason::None;
-        if (WantsPKSignUp(Frame.Public, Self.ContenderId) && State.PKSignUpRest != int32(Timeline.RestIndex))
+        if (WantsPKSignUp(Frame.Public, Self.ContenderId) && Frame.SignupPOI.IsSet() && Self.Phase == ELDLifePhase::Alive)
         {
-            State.PKSignUpRest = int32(Timeline.RestIndex);
-            Out.PK.Kind = ELDOpponentPKKind::SignUp;
+            const FLDOpponentPOI& Disk = Frame.SignupPOI.GetValue();
+            const auto& Order = Frame.Order;
+            Out.Body.POI = Disk.Id;
+            Out.Body.Key = FContext::PathKey(Disk.Id);
+            Out.Body.Kind = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Disk.Id
+                ? EBody::Keep : EBody::MoveGround;
             PKReason = EReason::PKSignUp;
         }
         else if (const uint8 Side = PKBetSide(Frame.Public, Self.ContenderId); Side != 0 && State.PKBetSerial != PK.Serial)

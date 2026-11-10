@@ -75,6 +75,7 @@
     "REST.PayoutSec": {"unit": "s", "value": 12},
     "REST.ReturnSec": {"unit": "s", "value": 5},
     "REST.ReturnSearchRadiusCm": {"unit": "cm", "value": 300},
+    "REST.EntryReadyTimeoutSec": {"unit": "s", "value": 30},
     "PK.ArenaRadiusCm": {"unit": "cm", "value": 1800},
     "PK.RingMidRadiusCm": {"unit": "cm", "value": 600},
     "PK.RingFinalRadiusCm": {"unit": "cm", "value": 150},

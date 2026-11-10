@@ -120,22 +120,23 @@ private:
     // then the rest's PK sign-up and lock detail.
     UPROPERTY() TObjectPtr<UTextBlock> TimelineText;
     UPROPERTY() TObjectPtr<UTextBlock> TimelineDetailText;
-    // Under the banner while the own contender is in a rest: "重置训练" (always in a rest; ALDPlayerController::
-    // SubmitTrainingReset) and, only while the PK sign-up window is open, the join/withdraw toggle (SubmitRestSignup). Both
-    // are owner intents the server decides; the last answer in this rest shows beside them and as a toast.
-    UPROPERTY() TObjectPtr<UBorder> SignupPanel;
+    // Under the banner while the own contender is in a rest: "重置训练" (ALDPlayerController::SubmitTrainingReset), an owner
+    // intent the server decides; the last answer in this rest shows beside it and as a toast. The PK sign-up has no button:
+    // standing in the own sign-up disk is the sign-up (the banner detail and ALDSignupMarker show it).
+    UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> SignupButton;
-    UPROPERTY() TObjectPtr<UTextBlock> SignupResultText;
-    // A toggle or reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
-    bool bSignupInFlight=false;
+    UPROPERTY() TObjectPtr<UTextBlock> RestAnswerText;
+    // A reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bTrainingResetInFlight=false;
     // The last answer to a rest action and the rest it belongs to; another rest or match never shows it.
-    FString SignupResult;
-    uint32 SignupResultMatch=0;
-    uint8 SignupResultRest=0;
-    void HandleRestSignup(ELDRestSignupResult Result);
-    void SubmitSignupToggle();
+    FString RestAnswer;
+    uint32 RestAnswerMatch=0;
+    uint8 RestAnswerRest=0;
+    // #198 站圈报名: the own sign-up disk (ALDSignupMarker) during a rest's build step, from the own body's roster slot
+    // (its public PresentationKey) and the local world and content; never replicated, rebuilt per match and slot.
+    TWeakObjectPtr<class ALDSignupMarker> SignupMarker;
+    uint32 SignupMarkerFailedMatch=0;
+    void SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp);
     void HandleTrainingReset(ELDTrainingResetResult Result);
     void SubmitTrainingReset();
     void ShowRestAnswer(const FString& Text);

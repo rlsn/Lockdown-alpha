@@ -94,7 +94,7 @@ def expected_world_projection(compilation):
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn",
-                                      "PKThrow").index(row["kind"]),
+                                      "PKThrow", "PKSignup").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -257,7 +257,7 @@ def parameter_projection(parameters):
         ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.SignupSec", "RestSignupMs"),
         ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
         ("REST.PKMaxSec", "RestPKMaxMs"), ("REST.SettlementSec", "RestSettlementMs"), ("REST.PayoutSec", "RestPayoutMs"),
-        ("REST.ReturnSec", "RestReturnMs"),
+        ("REST.ReturnSec", "RestReturnMs"), ("REST.EntryReadyTimeoutSec", "RestEntryReadyTimeoutMs"),
         ("PK.RingShrinkStartSec", "PKRingShrinkStartMs"), ("PK.RingMidSec", "PKRingMidMs"), ("PK.RingFinalSec", "PKRingFinalMs"),
         ("PK.RingPreviewSec", "PKRingPreviewMs"), ("PK.RingDamageTickSec", "PKRingTickMs"),
         ("PK.RingDamageEarlyMaxHPRatioPerSec", "PKRingEarlyDamageBp"), ("PK.RingDamageMidMaxHPRatioPerSec", "PKRingMidDamageBp"),

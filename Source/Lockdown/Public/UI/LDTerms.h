@@ -245,14 +245,12 @@ inline constexpr TCHAR BuildLockedNow[]=TEXT("配装已锁定");
 inline FString SignupOpensIn(int64 Seconds){return FString::Printf(TEXT("PK 报名 %lld 秒后开放"),Seconds);}
 inline FString SignupOpenFor(int64 Seconds){return FString::Printf(TEXT("PK 报名中 · 剩 %lld 秒"),Seconds);}
 inline FString SignedUpCount(int32 Count){return FString::Printf(TEXT("已报名 %d 人"),Count);}
-inline constexpr TCHAR SignedUpSelf[]=TEXT("你已报名");
-inline constexpr TCHAR NotSignedUpSelf[]=TEXT("你没报名");
+// 站圈报名（#198 用户选择 A）：报名窗内本人站在自己休息位旁的报名圈里就是报名，截止时站在圈里的人锁定参赛。
+inline constexpr TCHAR SignedUpSelf[]=TEXT("你在报名圈里，已报名");
+inline constexpr TCHAR NotSignedUpSelf[]=TEXT("站进报名圈即报名");
+inline constexpr TCHAR SignupCircleHint[]=TEXT("报名圈在你休息位旁，截止时站在圈里才参赛");
 inline FString PKEntrants(int32 Count){return FString::Printf(TEXT("PK %d 人参赛"),Count);}
 inline constexpr TCHAR PKSkipped[]=TEXT("PK 跳过（报名不足 2 人）");
-inline constexpr TCHAR SignupJoin[]=TEXT("报名 PK");
-inline constexpr TCHAR SignupWithdraw[]=TEXT("取消报名");
-inline constexpr TCHAR NoPKProvider[]=TEXT("PK 尚未开放，本次休息跳过 PK");
-inline constexpr TCHAR SignupHint[]=TEXT("PK 报名：配装的最后一段可以报名或取消，满 2 人才开打");
 // PK 与观众（#198 D，APP_SPEC §5）：抽签公布赛制与分队；没参赛的观众押一方会赢（免费、一人一票、押注结束前可改）；
 // PK 中观众可以往竞技场地面投掷干扰；出局的参赛者只能观战。数值来自内容参数，这里不写数字。
 inline constexpr TCHAR PKDuel[]=TEXT("单挑");

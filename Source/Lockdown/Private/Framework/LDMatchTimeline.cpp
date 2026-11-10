@@ -179,7 +179,8 @@ bool FLDMatchTimeline::EnterField(int64 AtMs, TArray<FLDTimelineEvent>& Out, FSt
     return true;
 }
 
-bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, TArray<FLDTimelineEvent>& Out, FString& Error)
+bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out,
+    FString& Error)
 {
     if (!IsActive())
     {
@@ -228,11 +229,24 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, TArr
         }
         case ELDRestStep::Draw: bStepped = EnterStep(ELDRestStep::Betting, Due, Out, Error); break;
         case ELDRestStep::Betting: bStepped = EnterStep(ELDRestStep::PKReady, Due, Out, Error); break;
-        case ELDRestStep::PKReady: bStepped = EnterStep(ELDRestStep::PK, Due, Out, Error); break;
+        case ELDRestStep::PKReady:
+        case ELDRestStep::Return:
+        {
+            if (!bBodiesReady)
+            {
+                bEntryHeld = true;
+                Error.Reset();
+                return true;
+            }
+            // A held entry starts when its bodies stand ready; the paused T and the PK's full length start then.
+            const int64 At = bEntryHeld ? AtMs : Due;
+            bEntryHeld = false;
+            bStepped = Step == ELDRestStep::PKReady ? EnterStep(ELDRestStep::PK, At, Out, Error) : EnterField(At, Out, Error);
+            break;
+        }
         case ELDRestStep::PK: bStepped = EnterStep(ELDRestStep::Settlement, Due, Out, Error); break;
         case ELDRestStep::Settlement: bStepped = EnterStep(ELDRestStep::Payout, Due, Out, Error); break;
         case ELDRestStep::Payout: bStepped = EnterStep(ELDRestStep::Return, Due, Out, Error); break;
-        case ELDRestStep::Return: bStepped = EnterField(Due, Out, Error); break;
         default: Error = TEXT("A rest has no current step."); return false;
         }
         if (!bStepped) { return false; }

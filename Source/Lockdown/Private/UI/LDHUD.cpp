@@ -17,6 +17,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
 #include "World/LDPKRingMarker.h"
+#include "World/LDSignupMarker.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -341,22 +342,18 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
         PhaseBanner=Panel(CircleBox,false);
         {
-            // The rest actions sit in their own hit panel right under the click-through banner, shown only in a rest: the
-            // training reset always, the PK sign-up toggle only while its window is open; the stack grows downward from the
-            // top edge, so a taller banner never covers it.
-            auto* SignupLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            // The rest actions sit in their own hit panel right under the click-through banner, shown only in a rest (the
+            // training reset; the PK sign-up is standing in the own disk, no button); the stack grows downward from the top
+            // edge, so a taller banner never covers it.
+            auto* RestLine=WidgetTree->ConstructWidget<UHorizontalBox>();
             TrainingResetButton=LDWidgets::Button(WidgetTree,LDTerms::TrainingReset,[this](){SubmitTrainingReset();},true,TEXT("HUDTrainingReset"));
-            SignupLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
-            SignupButton=LDWidgets::Button(WidgetTree,LDTerms::SignupJoin,[this](){SubmitSignupToggle();},true,TEXT("HUDRestSignup"));
-            SignupButton->SetToolTipText(FText::FromString(LDTerms::SignupHint));
-            SignupButton->SetVisibility(ESlateVisibility::Collapsed);
-            auto* SignupButtonSlot=SignupLine->AddChildToHorizontalBox(SignupButton);SignupButtonSlot->SetVerticalAlignment(VAlign_Center);SignupButtonSlot->SetPadding(FMargin(8,0,0,0));
-            SignupResultText=OneLine(TEXT(""),14,420);SignupResultText->SetColorAndOpacity(LDHUDStyle::TextSecondary);SignupResultText->SetVisibility(ESlateVisibility::Collapsed);
-            auto* ResultSlot=SignupLine->AddChildToHorizontalBox(SignupResultText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
-            SignupPanel=Panel(SignupLine,true);SignupPanel->SetVisibility(ESlateVisibility::Collapsed);
+            RestLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
+            RestAnswerText=OneLine(TEXT(""),14,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
+            auto* ResultSlot=RestLine->AddChildToHorizontalBox(RestAnswerText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
+            RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
             auto* TopCentre=WidgetTree->ConstructWidget<UVerticalBox>();TopCentre->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
             TopCentre->AddChildToVerticalBox(PhaseBanner)->SetHorizontalAlignment(HAlign_Center);
-            auto* SignupSlot=TopCentre->AddChildToVerticalBox(SignupPanel);SignupSlot->SetHorizontalAlignment(HAlign_Center);SignupSlot->SetPadding(FMargin(0,6,0,0));
+            auto* RestSlot=TopCentre->AddChildToVerticalBox(RestActionsPanel);RestSlot->SetHorizontalAlignment(HAlign_Center);RestSlot->SetPadding(FMargin(0,6,0,0));
             {
                 // #198 session D: the PK panel under the rest actions; its bet and throw buttons are owner intents.
                 auto* PKBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -711,7 +708,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         }
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
         PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
-        PC->OnRestSignup.AddUObject(this,&ULDHUD::HandleRestSignup);
         PC->OnTrainingReset.AddUObject(this,&ULDHUD::HandleTrainingReset);
         PC->OnPKBet.AddUObject(this,&ULDHUD::HandlePKBet);
         PC->OnPKThrow.AddUObject(this,&ULDHUD::HandlePKThrow);
@@ -912,7 +908,7 @@ void ULDHUD::RefreshReadModel()
         // A covered HUD keeps no armed throw: the next world click must not throw blind.
         bPKThrowArmed=false;
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
-            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(SignupPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
+            static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         return;
     }
@@ -965,24 +961,18 @@ void ULDHUD::RefreshReadModel()
         const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(Public,O.ContenderId,bClock,NowMs);
         HudSetText(TimelineText,Timeline.Headline);HudSetShown(TimelineText,!Timeline.Headline.IsEmpty(),ESlateVisibility::HitTestInvisible);
         HudSetText(TimelineDetailText,Timeline.Detail);HudSetShown(TimelineDetailText,!Timeline.Detail.IsEmpty(),ESlateVisibility::HitTestInvisible);
-        // Each toggle exists only while it applies; leaving that drops a wait the server will still answer.
-        if(!Timeline.bSignupOpen){bSignupInFlight=false;}
+        // The reset exists only in a rest; leaving it drops a wait the server will still answer.
         const bool bRestActions=Public.Phase==ELDMatchPhase::Rest;
         if(!bRestActions){bTrainingResetInFlight=false;}
-        HudSetShown(SignupPanel,bRestActions,ESlateVisibility::Visible);
-        HudSetShown(SignupButton,bRestActions&&Timeline.bSignupOpen,ESlateVisibility::Visible);
+        HudSetShown(RestActionsPanel,bRestActions,ESlateVisibility::Visible);
         if(bRestActions)
         {
             if(TrainingResetButton->GetIsEnabled()==bTrainingResetInFlight){TrainingResetButton->SetIsEnabled(!bTrainingResetInFlight);}
-            if(Timeline.bSignupOpen)
-            {
-                HudSetText(CastChecked<UTextBlock>(SignupButton->GetContent()),Timeline.SignupAction);
-                if(SignupButton->GetIsEnabled()==bSignupInFlight){SignupButton->SetIsEnabled(!bSignupInFlight);}
-            }
-            const bool bThisRest=SignupResultMatch==Public.Generation&&SignupResultRest==Public.Timeline.RestIndex;
-            HudSetText(SignupResultText,bThisRest?SignupResult:FString());
-            HudSetShown(SignupResultText,bThisRest&&!SignupResult.IsEmpty(),ESlateVisibility::HitTestInvisible);
+            const bool bThisRest=RestAnswerMatch==Public.Generation&&RestAnswerRest==Public.Timeline.RestIndex;
+            HudSetText(RestAnswerText,bThisRest?RestAnswer:FString());
+            HudSetShown(RestAnswerText,bThisRest&&!RestAnswer.IsEmpty(),ESlateVisibility::HitTestInvisible);
         }
+        SyncSignupMarker(Public,O.Match,bRestActions&&Timeline.bSignupStep,Timeline.bSignupOpen,Timeline.bSignedUp);
     }
     RefreshPK(*PC,Public,Lobby,bClock,NowMs);
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),OwnerName));
@@ -1356,23 +1346,42 @@ void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
     if(Result.Family==ELDGrowthFamily::Build&&ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
 }
 void ULDHUD::HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result){if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}}
-void ULDHUD::SubmitSignupToggle()
+void ULDHUD::SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp)
 {
-    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
-    const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
-    if(!PC||!GS||bSignupInFlight||GS->PublicMatch.Generation==0||GS->PublicMatch.Generation!=PC->OwnerState.Match){return;}
-    int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
-    // The toggle reads the same public view it shows; the server answers with the authoritative result.
-    const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(GS->PublicMatch,PC->OwnerState.ContenderId,bClock,NowMs);
-    if(!Timeline.bSignupOpen){return;}
-    bSignupInFlight=true;
-    PC->SubmitRestSignup(!Timeline.bSignedUp);
-}
-void ULDHUD::HandleRestSignup(ELDRestSignupResult Result)
-{
-    bSignupInFlight=false;
-    UE_LOG(LogLDUI,Log,TEXT("LD_HUD_REST_SIGNUP_RESULT %d"),int32(Result));
-    ShowRestAnswer(LDHUD::RestSignupText(Result));
+    ALDSignupMarker* Marker=SignupMarker.Get();
+    const auto* Body=Cast<ALDCharacter>(GetOwningPlayerPawn());
+    const int32 OwnSlot=Body?int32(Body->PresentationKey):INDEX_NONE;
+    UWorld* World=GetWorld();
+    if(!bShow||!World||!Body||Public.Generation==0||Public.Generation!=OwnMatch)
+    {
+        if(Marker){Marker->Destroy();SignupMarker.Reset();}
+        return;
+    }
+    if(Marker&&(Marker->GetGeneration()!=Public.Generation||Marker->GetSlot()!=OwnSlot)){Marker->Destroy();SignupMarker.Reset();Marker=nullptr;}
+    if(!Marker)
+    {
+        // A failed build is reported once per match, never retried every frame or replaced by a guessed disk.
+        if(SignupMarkerFailedMatch==Public.Generation){return;}
+        const ULDMapRegistry* Registry=World->GetSubsystem<ULDMapRegistry>();
+        const FLDMapBinding* Disk=Registry&&OwnSlot<LDDemoWorld::PKSignups?Registry->Resolve(FName(*LDDemoWorld::PKSignupId(OwnSlot)),Registry->Generation):nullptr;
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        FString Error;
+        const bool bContent=LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content;
+        const FLDDemoRational Radius=bContent?Content->Get().Parameters.AirdropPickupRadiusCm:FLDDemoRational();
+        FActorSpawnParameters Spawn;
+        Spawn.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+        Marker=Disk&&bContent&&Radius.Denominator>0?World->SpawnActor<ALDSignupMarker>(Spawn):nullptr;
+        if(!Marker||!Marker->Build(Disk->Position,double(Radius.Numerator)/double(Radius.Denominator),Public.Generation,OwnSlot,Error))
+        {
+            if(Marker){Marker->Destroy();}
+            SignupMarkerFailedMatch=Public.Generation;
+            UE_LOG(LogLDUI,Error,TEXT("LD_HUD_SIGNUP_DISK_UNAVAILABLE slot=%d %s"),OwnSlot,
+                Error.IsEmpty()?TEXT("the own sign-up disk is not in the registered world or content"):*Error);
+            return;
+        }
+        SignupMarker=Marker;
+    }
+    Marker->Show(bWindowOpen,bSignedUp);
 }
 void ULDHUD::SubmitTrainingReset()
 {
@@ -1392,9 +1401,9 @@ void ULDHUD::HandleTrainingReset(ELDTrainingResetResult Result)
 void ULDHUD::ShowRestAnswer(const FString& Text)
 {
     const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
-    SignupResult=Text;
-    SignupResultMatch=GS?GS->PublicMatch.Generation:0;
-    SignupResultRest=GS?GS->PublicMatch.Timeline.RestIndex:0;
+    RestAnswer=Text;
+    RestAnswerMatch=GS?GS->PublicMatch.Generation:0;
+    RestAnswerRest=GS?GS->PublicMatch.Timeline.RestIndex:0;
     ShowToast(Text);
 }
 LDHUD::FPKPanelInput ULDHUD::PKInput(const ALDPlayerController& PC,bool bClock,int64 NowMs)
@@ -1595,6 +1604,8 @@ void ULDHUD::NativeDestruct()
 {
     if(ALDPKRingMarker* Ring=PKRing.Get()){Ring->Destroy();}
     PKRing.Reset();
+    if(ALDSignupMarker* Marker=SignupMarker.Get()){Marker->Destroy();}
+    SignupMarker.Reset();
     Super::NativeDestruct();
 }
 void ULDHUD::ObserveAudio(ALDPlayerController& PC,const ALDGameState& Public)

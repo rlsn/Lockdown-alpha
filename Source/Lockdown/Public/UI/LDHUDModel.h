@@ -136,24 +136,23 @@ namespace LDHUD
     // The player-facing name of a rest step; empty for None.
     LOCKDOWN_API FString RestStepText(ELDRestStep Step);
     // #198 timeline banner over the public capture line. Rest: "休息 R{n} · <step> · 剩 X 秒" and a detail line: in the build
-    // step the PK sign-up window (opens in X s / open with X s left), the number signed up and whether Self is; after the
-    // lock "PK 跳过" or the entrants, and that the build is locked outside the build and payout steps. Field: "野外 n/3 ·
-    // 下次休息 m:ss" from the field progress T (LDMatchTimeline::FieldNowFromView); final field: "最终野外 · 旗杆开放".
-    // Empty for another generation's timeline or no stage. Without a clock no remainder is guessed.
+    // step the PK sign-up window (opens in X s, with where the sign-up disk is / open with X s left), the number standing in
+    // their disks and whether Self does; after the lock "PK 跳过" or the entrants, and that the build is locked outside the
+    // build and payout steps. Field: "野外 n/3 · 下次休息 m:ss" from the field progress T
+    // (LDMatchTimeline::FieldNowFromView); final field: "最终野外 · 旗杆开放". Empty for another generation's timeline or no
+    // stage. Without a clock no remainder is guessed.
     struct FTimelineView
     {
         FString Headline;
         FString Detail;
-        // The sign-up window is open at NowMs: the HUD shows the join/withdraw toggle (the server still decides).
+        // The build step of a rest: the own sign-up disk is drawn (ALDSignupMarker).
+        bool bSignupStep=false;
+        // The sign-up window is open at NowMs: standing in the own disk signs up (the server judges the committed foot).
         bool bSignupOpen=false;
+        // The public sign-ups name Self (it stands in its disk).
         bool bSignedUp=false;
-        // The toggle's caption: 报名 PK or 取消报名.
-        FString SignupAction;
     };
     LOCKDOWN_API FTimelineView TimelineBanner(const FLDPublicMatchView& Public,const FGuid& Self,bool bClock,int64 NowMs);
-    // The player-facing result of an own sign-up toggle (ALDPlayerController::OnRestSignup); NoPKProvider says this rest
-    // skips the PK, never a success.
-    LOCKDOWN_API FString RestSignupText(ELDRestSignupResult Result);
     // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
     LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);
     // ---- #198 session D: the PK of a rest and its spectators (public FLDPublicMatchView::PK, approved issue #198 comment

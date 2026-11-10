@@ -1,5 +1,6 @@
 #include "PK/LDPKDirector.h"
 #include "Core/LDLog.h"
+#include "Character/LDNativeMotionTypes.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -345,18 +346,31 @@ bool ALDPKDirector::EnterArena(const FLDGameplayWritePermit& Permit, FString& Er
     }
     // The arena is active while its lives are placed: their effects and sight belong to the PK group from the start.
     bArenaActive = true;
-    TArray<FGuid> Blocked;
-    if (!Core->EnterPKLives(Placements, Permit, Blocked, Error)) { return false; }
-    if (!Blocked.IsEmpty())
+    bool bPlaced = false;
+    if (!Core->EnterPKLives(Placements, Permit, bPlaced, Error)) { return false; }
+    if (!bPlaced)
     {
-        // A blocked approved anchor is an arena failure, reported and never replaced: nobody fights or is paid.
-        UE_LOG(LogLDMatch, Error, TEXT("LD_PK_ARENA_BLOCKED serial=%u blocked=%d outcome=NoContest"), Serial, Blocked.Num());
-        bArenaActive = false;
-        bDecided = true;
-        View.Outcome = ELDPKOutcome::NoContest;
-        View.DecidedAtMs = Core->GetAuthorityNowMs();
-        if (!Core->ReturnPKLivesToRest(Permit, Error)) { return false; }
+        // Approved §1: a blocked approved anchor freezes the entry (never replaced); the authority tries the bodies again
+        // every boundary and ends the PK as NoContest (AbandonArena) when the arena is still not legal after the wait.
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_PK_ARENA_WAITING serial=%u entrants=%d"), Serial, Placements.Num());
     }
+    Publish();
+    Error.Reset();
+    return true;
+}
+
+bool ALDPKDirector::AbandonArena(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (View.Serial == 0 || bDecided || !CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Only an undecided PK arena of this match can be abandoned."); }
+        return false;
+    }
+    UE_LOG(LogLDMatch, Error, TEXT("LD_PK_ARENA_BLOCKED serial=%u outcome=NoContest at_ms=%lld"), Serial, Permit.GetBoundary().AtMs);
+    bArenaActive = false;
+    bDecided = true;
+    View.Outcome = ELDPKOutcome::NoContest;
+    View.DecidedAtMs = Permit.GetBoundary().AtMs;
     Publish();
     Error.Reset();
     return true;
@@ -686,20 +700,30 @@ bool ALDPKDirector::BurnRing(const FLDGameplayWritePermit& Permit, FString& Erro
     if (NowMs <= RingSettledThroughMs) { Error.Reset(); return true; }
     const int64 From = RingSettledThroughMs - FightStartedAtMs;
     const int64 To = NowMs - FightStartedAtMs;
-    // Outside time of this step, judged at the step's authoritative foot (boundary inside), accumulates per entrant.
+    // Approved §2: the real outside time of this step along each entrant's authoritative foot path (its native motion),
+    // split where the foot and the shrinking ring cross, accumulates per entrant.
     for (int32 Seat = 0; Seat < Entrants.Num(); ++Seat)
     {
         FLDCombatBodyRef Body;
         FVector Foot;
-        if (!Core->IsPKLife(Entrants[Seat]) || !Core->ReadLivingBody(Entrants[Seat], Body, Foot)
-            || LDPKRules::IsInsideRing(Parameters, ArenaCentreCm, Foot, To))
+        if (!Core->IsPKLife(Entrants[Seat]) || !Core->ReadLivingBody(Entrants[Seat], Body, Foot)) { continue; }
+        const FLDNativeMotionBatch* Motion = Core->ReadStepMotion(Entrants[Seat]);
+        TArray<LDPKRules::FFootSegment> Path;
+        TArray<TPair<int64, int64>> Outside;
+        if (!Motion || !LDPKRules::FootPathFromMotion(*Motion, FightStartedAtMs, From, To, Path)
+            || !LDPKRules::OutsideRingIntervals(Parameters, ArenaCentreCm, Path, Outside))
         {
-            continue;
-        }
-        if (!LDPKRules::AccumulateRingDamage(Parameters, StartMaxHpP2[Seat], From, To, RingAccumulatorE7[Seat]))
-        {
-            Error = TEXT("The PK ring damage left its checked numeric domain.");
+            Error = FString::Printf(TEXT("The PK ring has no consistent authoritative motion of living entrant %s for this step."),
+                *LDLog::Id(Entrants[Seat]));
             return false;
+        }
+        for (const TPair<int64, int64>& Interval : Outside)
+        {
+            if (!LDPKRules::AccumulateRingDamage(Parameters, StartMaxHpP2[Seat], Interval.Key, Interval.Value, RingAccumulatorE7[Seat]))
+            {
+                Error = TEXT("The PK ring damage left its checked numeric domain.");
+                return false;
+            }
         }
     }
     RingSettledThroughMs = NowMs;
