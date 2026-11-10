@@ -91,7 +91,6 @@ struct FLDBuildPrimitivesAccess
     static TArray<FLDCombatChannel>& Channels(ALDCombatDirector& Driver) { return Driver.Channels; }
     static TArray<FLDCombatLockedLedger>& Locked(ALDCombatDirector& Driver) { return Driver.LockedLedgers; }
     static bool AdvanceWorkshop(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceWorkshop(NowMs, Error); }
-    static bool Heal(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2) { return Driver.HealBody(Body, AmountP2); }
     static bool Watch(ALDCombatDirector& Driver, ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs,
         FString& Error)
     { return Driver.WatchKnockbackImpact(Target, Body, Hit, NowMs, Error); }

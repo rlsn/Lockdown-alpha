@@ -409,20 +409,10 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         Payload.PackageScaleBp=Terms.PackageScaleBp/10000*Scale+Terms.PackageScaleBp%10000*Scale/10000;
         if (const FLDDemoEffectDefinition* Slow=FindOp(Values,ELDDemoEffectOp::ZoneSlow))
         { Payload.SlowBp=Slow->RatioBp; Payload.SlowDurationMs=Slow->DurationMs; }
-        // S20's wet once, with the owner's element snapshot now; its in-zone haste has no zone to live in.
-        if (FindOp(Values,ELDDemoEffectOp::ZoneWet))
-        {
-            Payload.bApplyWet=true;
-            if (!StampElementSnapshot(Body,Payload,Error)) { return false; }
-        }
-        if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn))
-        {
-            FLDCombatBurnLayer Layer;
-            if (!BurnLayerOf(Body,Source,Layer,Error)) { return false; }
-            Payload.BurnStacks=Burn->Count;
-            Payload.BurnLevel=Layer.Level;
-            Payload.BurnAPP2=Layer.SourceAPP2;
-        }
+        // S20's wet once; its in-zone haste has no zone to live in. The burn and wet take the owner's element snapshot now.
+        Payload.bApplyWet=FindOp(Values,ELDDemoEffectOp::ZoneWet)!=nullptr;
+        if (!StampElementSnapshot(Body,Payload,Error)) { return false; }
+        if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn)) { Payload.BurnStacks=Burn->Count; }
         if (!StampSourceTerms(Body,Payload,Error)) { return false; }
         Blast.CentreCm=FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
         Blast.RadiusCm=Cm(ZoneDef->RadiusCm)*double(Compress.RatioBp)/10000.;
