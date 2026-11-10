@@ -279,6 +279,8 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
         Error = TEXT("Combat could not end the field's effects at the rest boundary.");
         return false;
     }
+    // #198: unclaimed charms leave at rest entry without any reward.
+    if (!EndCharmsForRest(Permit, Error)) { return false; }
     return Camps->FreezeForRest(Permit, Error);
 }
 

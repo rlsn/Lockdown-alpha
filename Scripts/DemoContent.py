@@ -51,6 +51,8 @@ RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 
                                  [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite"))
+# #198 field charms: heal, mana and move speed (native ELDCharmKind).
+CHARM_KINDS = 3
 # Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
 # #198 base components; no active may use them.
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
@@ -965,6 +967,12 @@ def validate_numbers(data):
     require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
             and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
             "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
+    # #198 charms: each wave draws PerWave distinct kinds of the three (heal, mana, move speed) onto distinct airdrop
+    # points, and a charm leaves before the next wave of its points could reuse them.
+    require(params["CHARM.PerWave"] <= CHARM_KINDS and p("CHARM.LifetimeSec") <= p("CHARM.WaveIntervalSec")
+            and p("CHARM.PickupRadiusCm") > 0 and p("CHARM.HealMaxHPRatio") > 0 and p("CHARM.ManaMaxMPRatio") > 0
+            and p("CHARM.MoveSpeedRatio") > 0,
+            "InvalidPolicy", "CHARM", "a wave draws distinct kinds, lives inside one interval and every effect is positive")
     # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
     require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
             "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")

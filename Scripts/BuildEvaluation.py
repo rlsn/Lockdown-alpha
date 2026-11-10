@@ -7,9 +7,12 @@ statuses, metrics and facts. Whatever an adapter does not declare is refused as 
 
 Subcommands (all write only inside the run directory):
   plan         validate a manifest, admit it against the adapter's capabilities, expand Cases, write the native input
+  gate         measure the run directory and the evidence root against the frozen disk budget (exit 4 at the limit)
   analyze      read native evidence, judge every Case, compute paired statistics, write metrics, findings and report
   replay-plan  a new run of one recorded Case with the same identity, seed and plan
   compare      compare complete replay evidence, terminal state, resources, events and spatial tolerance
+
+The evidence root is the parent directory of the run directory; old evidence there is measured, never deleted.
 """
 
 import argparse
@@ -17,15 +20,29 @@ import hashlib
 import importlib
 import json
 import math
+import os
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 MANIFEST_SCHEMA = "build_evaluation.manifest"
+MANIFEST_SCHEMA_VERSION = 2
 CAPABILITIES_SCHEMA = "build_evaluation.capabilities"
 SCHEMA_VERSION = 1
 CORE_VERSION = 1
+
+# Approved Harness ceilings (#198 §11): one manually started experiment per class, never a schedule. A manifest may ask for
+# less, never more; every limit is stated in the manifest itself.
+GiB = 1024 ** 3
+BUDGET_CLASSES = {
+    "standard": {"max_cases": 60, "case_wall_timeout_s": 180, "run_wall_timeout_s": 5400},
+    "full_match": {"max_cases": 8, "case_wall_timeout_s": 1800, "run_wall_timeout_s": 7200},
+}
+BUDGET_CEILINGS = {"max_case_events": 200000, "max_run_disk_bytes": 2 * GiB, "max_root_disk_bytes": 6 * GiB}
+BUDGET_FLOORS = {"max_cases": 1, "case_wall_timeout_s": 10, "run_wall_timeout_s": 30,
+                 "max_case_events": 1, "max_run_disk_bytes": 1, "max_root_disk_bytes": 1}
+BUDGET_GATES = ("RunWall", "DiskBudget", "EventBudget")
 
 EXECUTION_STATUSES = ("NotRun", "Running", "Completed", "Unsupported", "Invalid", "Faulted", "BudgetExceeded", "Interrupted")
 EVIDENCE_LEVELS = ("Static", "NativeControlled", "NativeSpatial", "OwnedConnection", "Rendered")
@@ -113,6 +130,9 @@ def check_capabilities(caps, adapter):
         unknown = [metric for metric in scenario.get("metrics", []) if metric not in caps["metrics"]]
         if unknown:
             raise PlanError(f"capability scenario {kind} names undeclared metrics {unknown}")
+        classes = scenario.get("budget_classes")
+        if not isinstance(classes, list) or not classes or any(item not in BUDGET_CLASSES for item in classes):
+            raise PlanError(f"capability scenario {kind} must list its budget classes from {sorted(BUDGET_CLASSES)}")
 
 
 # ---------------------------------------------------------------- manifest
@@ -146,8 +166,8 @@ def validate_manifest(manifest):
     """Structure only; admission against capabilities happens in plan(). Every budget field is explicit."""
     _only(manifest, ("schema", "schema_version", "experiment", "adapter", "scenario", "sample_class", "assumptions",
                      "design", "blocks", "metrics", "budget"), "manifest")
-    if manifest.get("schema") != MANIFEST_SCHEMA or manifest.get("schema_version") != SCHEMA_VERSION:
-        raise PlanError(f"manifest: schema must be {MANIFEST_SCHEMA}/{SCHEMA_VERSION}")
+    if manifest.get("schema") != MANIFEST_SCHEMA or manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        raise PlanError(f"manifest: schema must be {MANIFEST_SCHEMA}/{MANIFEST_SCHEMA_VERSION}")
     experiment = _required(manifest, "experiment", "manifest", dict)
     _only(experiment, ("id", "hypothesis"), "manifest.experiment")
     _identifier(_required(experiment, "id", "manifest.experiment", str), "manifest.experiment.id")
@@ -227,12 +247,98 @@ def validate_manifest(manifest):
     if threshold is not None and (isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not threshold > 0):
         raise PlanError("manifest.metrics.material_difference: a positive number or null")
     budget = _required(manifest, "budget", "manifest", dict)
-    _only(budget, ("max_cases", "case_wall_timeout_s", "run_wall_timeout_s"), "manifest.budget")
-    for key, low, high in (("max_cases", 1, 100000), ("case_wall_timeout_s", 10, 3600), ("run_wall_timeout_s", 30, 604800)):
+    _only(budget, ("class", "max_cases", "case_wall_timeout_s", "run_wall_timeout_s", "max_case_events",
+                   "max_run_disk_bytes", "max_root_disk_bytes"), "manifest.budget")
+    budget_class = _required(budget, "class", "manifest.budget", str)
+    if budget_class not in BUDGET_CLASSES:
+        raise PlanError(f"manifest.budget.class must be one of {sorted(BUDGET_CLASSES)}")
+    ceilings = dict(BUDGET_CLASSES[budget_class], **BUDGET_CEILINGS)
+    for key, high in ceilings.items():
         value = _required(budget, key, "manifest.budget", int)
-        if not low <= value <= high:
-            raise PlanError(f"manifest.budget.{key}: {low}..{high}")
+        if not BUDGET_FLOORS[key] <= value <= high:
+            raise PlanError(f"manifest.budget.{key}: {BUDGET_FLOORS[key]}..{high} in the approved {budget_class} class")
+    if budget["max_run_disk_bytes"] > budget["max_root_disk_bytes"]:
+        raise PlanError("manifest.budget.max_run_disk_bytes cannot exceed max_root_disk_bytes")
     return manifest
+
+
+def frozen_budget(frozen):
+    """The budget of a planned run; runs planned before the disk and event gates are refused, not assumed protected."""
+    if frozen.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        raise PlanError(f"the run was planned under manifest schema v{frozen.get('schema_version')}, which declares no "
+                        f"disk or event budget; plan a new run under v{MANIFEST_SCHEMA_VERSION}")
+    return frozen["budget"]
+
+
+# ---------------------------------------------------------------- budget gates
+
+def disk_usage(path):
+    """Bytes of every file below path (file sizes, links not followed); a missing path holds nothing."""
+    total = 0
+    pending = [Path(path)]
+    while pending:
+        try:
+            entries = list(os.scandir(pending.pop()))
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        for entry in entries:
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    total += entry.stat(follow_symlinks=False).st_size
+            except FileNotFoundError:
+                continue
+    return total
+
+
+def evidence_root(run_dir):
+    return Path(run_dir).resolve().parent
+
+
+def disk_gate(run_dir, budget):
+    """Usage of the run directory and of the evidence root; 'exceeded' names the first limit reached, else None."""
+    run_bytes = disk_usage(run_dir)
+    root_bytes = disk_usage(evidence_root(run_dir))
+    exceeded = None
+    if run_bytes >= budget["max_run_disk_bytes"]:
+        exceeded = f"the run directory holds {run_bytes} bytes, at or above max_run_disk_bytes {budget['max_run_disk_bytes']}"
+    elif root_bytes >= budget["max_root_disk_bytes"]:
+        exceeded = (f"the evidence root {evidence_root(run_dir)} holds {root_bytes} bytes, at or above max_root_disk_bytes "
+                    f"{budget['max_root_disk_bytes']}; old evidence is never deleted to make room")
+    return {"run_bytes": run_bytes, "root_bytes": root_bytes, "exceeded": exceeded}
+
+
+def require_root_room(run_dir, budget):
+    root = evidence_root(run_dir)
+    used = disk_usage(root)
+    if used >= budget["max_root_disk_bytes"]:
+        raise PlanError(f"DiskBudget: the evidence root {root} holds {used} bytes, at or above max_root_disk_bytes "
+                        f"{budget['max_root_disk_bytes']}; old evidence is never deleted to make room; nothing is started")
+    return used
+
+
+def trace_events(trace):
+    """A native trace holds one authoritative evaluation event per non-empty line."""
+    return [line for line in trace.splitlines() if line.strip()]
+
+
+def event_budget_problem(trace, budget):
+    events = trace_events(trace)
+    limit = budget["max_case_events"]
+    if len(events) <= limit:
+        return None
+    return {"events": len(events), "limit": limit, "first_over_limit": events[limit]}
+
+
+def runner_budget_stop(runner):
+    stop = runner.get("budget_stop")
+    if stop is None:
+        return None
+    if (not isinstance(stop, dict) or stop.get("gate") not in BUDGET_GATES or not isinstance(stop.get("detail"), str)
+            or not isinstance(stop.get("case", ""), (str, type(None)))):
+        raise PlanError(f"runner.json budget_stop is malformed: {stop!r}")
+    return stop
 
 
 def block_seed(root_seed, split, index):
@@ -297,6 +403,7 @@ def plan(manifest_path, run_dir, project_root):
         raise PlanError(f"manifest.adapter.id {manifest['adapter']['id']} is not the module's adapter {adapter.ADAPTER_ID}")
     caps = adapter.describe(Path(project_root))
     check_capabilities(caps, adapter)
+    root_bytes = require_root_room(run_dir, manifest["budget"])
     run_dir.mkdir(parents=True, exist_ok=True)
     blocks = expand_blocks(manifest["blocks"])
     scenario_reasons = []
@@ -306,6 +413,8 @@ def plan(manifest_path, run_dir, project_root):
     else:
         if manifest["sample_class"] not in scenario_caps.get("sample_classes", []):
             scenario_reasons.append(f"UnsupportedSampleClass: {manifest['sample_class']} in {manifest['scenario']['kind']}")
+        if manifest["budget"]["class"] not in scenario_caps["budget_classes"]:
+            scenario_reasons.append(f"UnsupportedBudgetClass: {manifest['budget']['class']} in {manifest['scenario']['kind']}")
         if manifest["blocks"]["sides"] > scenario_caps.get("sides", 1):
             scenario_reasons.append("UnsupportedSides: the scenario has no swappable sides")
         for metric in [manifest["metrics"]["primary"]] + manifest["metrics"]["secondary"]:
@@ -343,13 +452,14 @@ def plan(manifest_path, run_dir, project_root):
     write_json(run_dir / "manifest.json", frozen)
     write_json(run_dir / "capabilities.json", caps)
     write_cases(run_dir, cases)
-    write_json(run_dir / "coverage.json", coverage(frozen, cases, arms))
+    write_json(run_dir / "coverage.json", coverage(frozen, cases, arms,
+                                                   {"limits": frozen["budget"], "root_bytes_at_plan": root_bytes}))
     if runnable:
         write_json(run_dir / "native_input.json", adapter.native_input(run_id, frozen, caps, runnable))
     return frozen, cases
 
 
-def coverage(manifest, cases, admission=None):
+def coverage(manifest, cases, admission=None, budget=None):
     by_status = {status: 0 for status in EXECUTION_STATUSES}
     for case in cases:
         by_status[case["status"]] += 1
@@ -360,9 +470,12 @@ def coverage(manifest, cases, admission=None):
                                                              for status in EXECUTION_STATUSES if any(case["status"] == status for case in rows)}}
         if admission is not None:
             arms[arm["id"]]["admission"] = admission[arm["id"]] or ["Supported"]
-    return {"requested": len(cases), "by_status": by_status, "arms": arms,
-            "denominator_note": ("Only Completed Cases enter statistics. Inference uses independent seeds, averaging the "
-                                 "requested sides within each complete seed; incomplete seeds are excluded.") }
+    out = {"requested": len(cases), "by_status": by_status, "arms": arms,
+           "denominator_note": ("Only Completed Cases enter statistics. Inference uses independent seeds, averaging the "
+                                "requested sides within each complete seed; incomplete seeds are excluded.") }
+    if budget is not None:
+        out["budget"] = budget
+    return out
 
 
 # ---------------------------------------------------------------- statistics
@@ -586,6 +699,7 @@ def analyze(run_dir, rejudge=False):
     if (not isinstance(recorded_adapter, dict) or recorded_adapter.get("id") != adapter.ADAPTER_ID
             or manifest["adapter"]["id"] != adapter.ADAPTER_ID):
         raise PlanError("the recorded evidence belongs to another adapter; --rejudge only accepts the same adapter id")
+    budget = frozen_budget(manifest)
 
     def same_adapter_version(record):
         return isinstance(record, dict) and all(record.get(key) == value for key, value in evidence_adapter.items())
@@ -604,6 +718,7 @@ def analyze(run_dir, rejudge=False):
     native_dir = run_dir / "native"
     run_record = read_json(native_dir / "native_run.json") if (native_dir / "native_run.json").exists() else None
     runner = read_json(run_dir / "runner.json") if (run_dir / "runner.json").exists() else {}
+    stop = runner_budget_stop(runner)
     identity_problems = adapter.identity_problems(run_record, caps) if run_record else []
     if not run_record and any((native_dir / "results" / f"{case['case_id']}.json").exists()
                               for case in cases if case["status"] != "Unsupported"):
@@ -619,6 +734,12 @@ def analyze(run_dir, rejudge=False):
             continue
         result_path = native_dir / "results" / f"{case['case_id']}.json"
         if not result_path.exists():
+            if stop:
+                # A budget gate stopped the run: the Case in progress and every later one ran out of budget, never lost.
+                reason = (stop["detail"] if stop.get("case") == case["case_id"]
+                          else f"the run was stopped before this Case finished ({stop['detail']})")
+                case.update(status="BudgetExceeded", reason=f"{stop['gate']}: {reason}")
+                continue
             detail = (run_record or {}).get("detail") or runner.get("detail") or "no native result"
             case.update(status="Interrupted", reason=f"no native result ({detail})")
             continue
@@ -627,6 +748,15 @@ def analyze(run_dir, rejudge=False):
         trace = trace_path.read_text(encoding="utf-8") if trace_path.exists() else ""
         if identity_problems:
             case.update(status="Invalid", reason="; ".join(identity_problems))
+            continue
+        over = event_budget_problem(trace, budget)
+        if over:
+            # The trace is kept whole; the native status is kept beside the budget refusal, not judged as a result.
+            case.update(status="BudgetExceeded", metrics={}, violations=[],
+                        reason=(f"EventBudget: the trace holds {over['events']} authoritative events, above max_case_events "
+                                f"{over['limit']}; the Case is not a result"),
+                        facts={"event_budget": over, "native_status": result.get("status"),
+                               "native_reason": result.get("reason", "")})
             continue
         evidence = adapter.case_evidence(case, manifest, caps, result, trace)
         if evidence.get("status") not in EXECUTION_STATUSES or evidence["status"] in ("NotRun", "Running", "Unsupported"):
@@ -637,7 +767,11 @@ def analyze(run_dir, rejudge=False):
                     evidence_adapter=evidence_adapter)
     violations = [{"case": case["case_id"], "detail": item} for case in cases for item in case.get("violations", [])]
     write_cases(run_dir, cases)
-    write_json(run_dir / "coverage.json", coverage(manifest, cases))
+    usage = disk_gate(run_dir, budget)
+    budget_state = {"limits": budget, "stop": stop, "runner_disk": runner.get("disk"),
+                    "run_bytes_at_analysis": usage["run_bytes"], "root_bytes_at_analysis": usage["root_bytes"],
+                    "event_budget_cases": [case["case_id"] for case in cases if "event_budget" in case.get("facts", {})]}
+    write_json(run_dir / "coverage.json", coverage(manifest, cases, budget=budget_state))
     metrics = compute_metrics(manifest, caps, cases)
     evidence_versions = sorted({str(case.get("evidence_adapter", {}).get("version", "unknown"))
                                 for case in cases if case["status"] == "Completed"})
@@ -646,7 +780,8 @@ def analyze(run_dir, rejudge=False):
     findings = compute_findings(manifest, caps, cases, metrics, violations, identity_problems, run_record, runner)
     write_json(run_dir / "metrics.json", metrics)
     write_json(run_dir / "findings.json", findings)
-    write_text(run_dir / "report.md", render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, run_record))
+    write_text(run_dir / "report.md", render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, run_record,
+                                                    budget_state))
     return metrics, findings
 
 
@@ -715,6 +850,10 @@ def compute_findings(manifest, caps, cases, metrics, violations, identity_proble
         add("RuleViolation", "证据合同被违反", detail=item["detail"], evidence=[item["case"]])
     for fault in runner.get("log_errors", []):
         add("RuleViolation", "运行日志出现错误或权威故障", detail=fault)
+    stop = runner_budget_stop(runner)
+    if stop:
+        add("InsufficientEvidence", f"预算门禁 {stop['gate']} 中止了运行；未完成的 Case 记为 BudgetExceeded，证据保留",
+            detail=stop["detail"], evidence=[stop["case"]] if stop.get("case") else [])
     # Branches of one decision must share the prefix before the branch point; a mismatch makes the comparison unpaired.
     if manifest["design"]["kind"] == "decision":
         for split in SPLITS:
@@ -793,8 +932,9 @@ def _share(contrast):
     return f"{contrast['nonzero_blocks']}/{contrast['n']} [{_number(bound[0])}, {_number(bound[1])}]"
 
 
-def render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, run_record):
+def render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, run_record, budget_state):
     resolved = manifest["resolved"]
+    budget = manifest["budget"]
     lines = [f"# 构筑评估报告：{manifest['experiment']['id']}", "",
              f"**结论范围：在本次覆盖的构筑、策略、场景与预算内。** 有限搜索不能证明不存在其他更强组合；未发现反例只说明已覆盖范围。",
              "", f"假设：{manifest['experiment']['hypothesis']}", "", "## 身份与输入", "",
@@ -810,12 +950,22 @@ def render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, ru
              f"| 设计 | {manifest['design']['kind']}，{len(manifest['design']['arms'])} 个 arm |",
              f"| 种子 | root `{manifest['blocks']['root_seed']}`；搜索 {manifest['blocks']['splits']['search']} 个，确认 {manifest['blocks']['splits']['confirm']} 个；每个种子 {manifest['blocks']['sides']} 侧 |",
              f"| 主指标 / 实质差异阈值 | `{manifest['metrics']['primary']}` / {_number(manifest['metrics']['material_difference']) if manifest['metrics']['material_difference'] is not None else '未批准（证据足够时为 NoTarget）'} |",
-             f"| 预算 | 最多 {manifest['budget']['max_cases']} 个 Case；单 Case {manifest['budget']['case_wall_timeout_s']} s；整次 {manifest['budget']['run_wall_timeout_s']} s |"]
+             f"| 预算 | {budget['class']} 类：最多 {budget['max_cases']} 个 Case；单 Case {budget['case_wall_timeout_s']} s；"
+             f"整次 {budget['run_wall_timeout_s']} s；单 Case 最多 {budget['max_case_events']} 条权威事件；"
+             f"本批磁盘 {budget['max_run_disk_bytes']} B；证据根 {budget['max_root_disk_bytes']} B |"]
     if run_record:
         lines += [f"| 原生运行 | 源码 `{run_record.get('source_commit')}`（dirty {run_record.get('source_dirty')}），产品 {run_record.get('product_version')}，"
                   f"引擎 {run_record.get('engine_version')}，固定步长 {run_record.get('fixed_time_step')} ({_number(run_record.get('fixed_delta_seconds'), 5)} s)，"
                   f"{_number(run_record.get('wall_seconds'), 1)} s |"]
     lines += ["", "假设与准备：", ""] + [f"- {item}" for item in manifest["assumptions"]] + [""]
+    stop = budget_state["stop"]
+    runner_disk = budget_state.get("runner_disk") or {}
+    lines += ["## 预算门禁", "",
+              f"- 中止：{stop['gate'] + '，' + stop['detail'] if stop else '无'}",
+              (f"- 原生运行结束时：本批 {runner_disk.get('run_bytes')} B，证据根 {runner_disk.get('root_bytes')} B" if runner_disk
+               else "- 原生运行结束时：未测量（没有原生运行记录）"),
+              f"- 分析时：本批 {budget_state['run_bytes_at_analysis']} B，证据根 {budget_state['root_bytes_at_analysis']} B",
+              f"- 超出事件预算的 Case：{', '.join(budget_state['event_budget_cases']) or '无'}", ""]
     lines += ["## 覆盖与执行状态", "", "| arm | Case | 状态 |", "| --- | --- | --- |"]
     for arm in manifest["design"]["arms"]:
         rows = [case for case in cases if case["arm"] == arm["id"]]
@@ -905,6 +1055,7 @@ def replay_plan(source_dir, case_id, run_dir):
     if digest_json(caps) != digest_json(caps_then):
         raise PlanError("the adapter's capabilities changed since the source run; a replay compares like with like only")
     require_fresh_run_dir(run_dir)
+    root_bytes = require_root_room(run_dir, frozen_budget(manifest))
     run_dir.mkdir(parents=True, exist_ok=True)
     frozen = dict(manifest)
     frozen["resolved"] = dict(manifest["resolved"], run_id=run_dir.name, replay_of={"run": str(source_dir), "case": case_id},
@@ -913,7 +1064,8 @@ def replay_plan(source_dir, case_id, run_dir):
     write_json(run_dir / "manifest.json", frozen)
     write_json(run_dir / "capabilities.json", caps)
     write_cases(run_dir, [case])
-    write_json(run_dir / "coverage.json", coverage(frozen, [case]))
+    write_json(run_dir / "coverage.json", coverage(frozen, [case], budget={"limits": frozen["budget"],
+                                                                         "root_bytes_at_plan": root_bytes}))
     write_json(run_dir / "native_input.json", adapter.native_input(run_dir.name, frozen, caps, [case]))
     return frozen, case
 
@@ -978,6 +1130,9 @@ def compare(source_dir, replay_dir, case_id, spatial_tolerance_cm):
         trace = trace_path.read_text(encoding="utf-8") if trace_path.exists() else ""
         if not trace.strip():
             problems.append("the native trace is missing or empty")
+        over = event_budget_problem(trace, frozen_budget(frozen))
+        if over:
+            problems.append(f"the trace holds {over['events']} authoritative events, above max_case_events {over['limit']}")
         judged = adapter.case_evidence(case, frozen, caps, result, trace)
         if judged.get("status") != "Completed":
             problems.append(f"the Case is {judged.get('status')}: {judged.get('reason', '')}")
@@ -1064,6 +1219,8 @@ def main(argv=None):
     p.add_argument("--manifest", required=True)
     p.add_argument("--run-dir", required=True)
     p.add_argument("--project-root", default=str(_project_root()))
+    g = sub.add_parser("gate")
+    g.add_argument("--run-dir", required=True)
     a = sub.add_parser("analyze")
     a.add_argument("--run-dir", required=True)
     a.add_argument("--rejudge", action="store_true", help="judge every recorded Case again from its native evidence")
@@ -1084,6 +1241,10 @@ def main(argv=None):
             runnable = frozen["resolved"]["runnable_cases"]
             print(f"Planned {len(cases)} Case(s), {runnable} runnable, {len(cases) - runnable} unsupported: {args.run_dir}")
             return 0 if runnable else 3
+        if args.command == "gate":
+            usage = disk_gate(args.run_dir, frozen_budget(read_json(Path(args.run_dir) / "manifest.json")))
+            print(json.dumps(usage, ensure_ascii=False))
+            return 4 if usage["exceeded"] else 0
         if args.command == "analyze":
             metrics, findings = analyze(args.run_dir, args.rejudge)
             counts = {}

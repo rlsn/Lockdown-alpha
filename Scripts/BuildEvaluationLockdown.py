@@ -121,6 +121,7 @@ def describe(project_root):
                 "evidence_level": "NativeSpatial",
                 "sample_classes": ["legal_search", "diagnostic"],
                 "sides": 2,
+                "budget_classes": ["standard"],
                 "metrics": list(METRICS),
                 "parameters": {"site": places, "duel_timeout_ms": [1000, boss_appear_ms],
                                "supply_xp": [0, cumulative_xp(progression)[-1]],

@@ -620,6 +620,18 @@ $$
 (Recommended)”）、领取规则（“No protected; random tie (Recommended)”）与只公开“已领走”（“Only 'claimed' (Recommended)”）
 在 2026-11-05 批准。均为首轮试玩值，未经平衡验证。
 
+**符咒（#198 外层参数 §7，技术标识 charm）**：野外进度 T（只在野外推进，休息和 PK 暂停）到
+`CHARM.FirstWaveSec=30` + n × `CHARM.WaveIntervalSec=90` 秒（n < `CHARM.WaveCount=7`，即 T=30/120/…/570）各落一波，
+每波 `CHARM.PerWave=2` 枚，整局最多 14 枚。同波从血量、蓝量、移速三类中无放回均匀抽 2 类，放到两个不同的现有外卖落点上；
+当前已公开或已落地的外卖所在点和仍在地上的符咒所在点不参与，空点不足时明确跳过缺少的那枚并记录原因（`LD_CHARM_SKIPPED`），不改成隐形发放。
+每枚在地上 `CHARM.LifetimeSec=45` 个野外秒；脚点进入 `CHARM.PickupRadiusCm=100` 圆内、存活且不在复活保护中的参赛者拿到，
+同一拍多人在圈内由服务器固定的公平随机键一次裁决（不按距离或编号）。效果：血量恢复最大生命的 `CHARM.HealMaxHPRatio=20%`，
+蓝量恢复最大法力的 `CHARM.ManaMaxMPRatio=25%`，均不超过上限；移速给移速加法池 +`CHARM.MoveSpeedRatio=20%`、
+持续 `CHARM.MoveSpeedSec=6` 秒，同名不叠加，后拾取刷新时长。进入休息时未拾取的符咒退场，不发任何奖励；移速效果随阶段清理移除。
+公开视图只列出地上的符咒（种类、落点、到期 T），不公开拾取者。世界生成器要求符咒拾取圆不大于外卖拾取圆，且外卖落点多于一波的数量。
+数值由用户在 #198 外层参数中批准（“批准整套方案，按票内参数实施”），未经平衡验证。
+恢复目前直接走 `HealBody`/`GrantMana`；“按正常治疗修正、有欠款先还款再补生命”需等 M12 欠款与治疗修正接入同一治疗入口后自动生效。
+
 **上热搜（D27，#79）**：从开局起每 `LEADER.RefreshSec=10` 秒刷新。仍在对局中、等级不低于 `LEADER.MinLevel=3` 的参赛者里
 等级唯一最高者上热搜，等级相同按击杀数，仍相同则无人上热搜；此刻已死亡也不上热搜。公开圆半径 `LEADER.CircleRadiusCm=1500`，
 圆心是刷新瞬间脚点加均匀随机偏移，最多 `LEADER.CircleMaxOffsetCm=1000`（内容校验要求不超过半径，上热搜者总在圈内）；

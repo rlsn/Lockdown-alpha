@@ -5,6 +5,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Development/LDProgressionRules.h"
 
 class FLDDemoContentSnapshot;
@@ -18,7 +19,9 @@ enum class ELDOpponentMode : uint8
 {
     Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Contest, Farm, Explore,
     // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
-    Airdrop
+    Airdrop,
+    // #198: walking onto a lying field charm whose effect the body can use now.
+    Charm
 };
 
 // Bounded diagnostic cause of a decision; never a coordinate or private source.
@@ -26,7 +29,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
+    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss, TakeCharm
 };
 
 enum class ELDOpponentSourceSlot : uint8 { Q, W, E, Dash };
@@ -159,6 +162,8 @@ struct FLDOpponentPublicMatch
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;
     bool bAirdropLanded = false;
+    // #198: the public airdrop points that hold a lying field charm now, with its kind, in serial order.
+    TArray<TPair<FName, ELDCharmKind>> Charms;
     // D27: the public 上热搜 notice; Leader invalid when nobody is named.
     FGuid Leader;
     FVector LeaderCircleCentreCm = FVector::ZeroVector;

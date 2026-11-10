@@ -52,6 +52,13 @@ inline FString AirdropSoon(){return FString(Airdrop)+TEXT("即将落地 · 小�
 inline constexpr TCHAR AirdropLanded[]=TEXT("外卖到了 · 先到先得");
 inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！");}
 inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
+// 符咒（#198）：野外血量、蓝量、移速三种，落在外卖点上，走进去就拿到
+inline constexpr TCHAR Charm[]=TEXT("符咒");
+inline constexpr TCHAR CharmHeal[]=TEXT("血量符咒");
+inline constexpr TCHAR CharmMana[]=TEXT("蓝量符咒");
+inline constexpr TCHAR CharmMoveSpeed[]=TEXT("移速符咒");
+inline FString CharmsLying(const FString& Kinds){return FString(Charm)+TEXT("：")+Kinds+TEXT(" · 小地图彩色圆点");}
+inline FString CharmsAppeared(){return FString(Charm)+TEXT("出现了 · 走进去就能拿");}
 inline constexpr TCHAR Boss[]=TEXT("画饼老板");
 inline constexpr TCHAR BossBuff[]=TEXT("吃到大饼");
 inline FString BossCountdown(const FString& Name,const FString& Clock){return Name+TEXT(" ")+Clock+TEXT(" 后出现 · 小地图金色巡逻点");}
@@ -235,6 +242,20 @@ inline constexpr TCHAR Scoreboard[]=TEXT("排行榜");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
 inline constexpr TCHAR ResultAssists[]=TEXT("助攻");
+
+// 构筑蓝图（#198 §10）：局末本人只读记录，只保存配方，不授予能力；与学习用的“图纸”不是一回事。
+inline constexpr TCHAR BuildBlueprint[]=TEXT("构筑蓝图");
+inline constexpr TCHAR BlueprintReadOnly[]=TEXT("只读记录 · 只保存配方，不授予能力，也不会恢复遗忘的技能");
+inline constexpr TCHAR BlueprintExport[]=TEXT("导出文件");
+inline constexpr TCHAR BlueprintOpenFolder[]=TEXT("打开所在文件夹");
+inline constexpr TCHAR BlueprintImport[]=TEXT("导入查看");
+inline constexpr TCHAR BlueprintBack[]=TEXT("返回本局");
+inline constexpr TCHAR NotCollected[]=TEXT("未采集");
+// 按构筑版本汇总的事实，顺序与 ELDBlueprintFact 一致（LDBlueprintPanel.cpp 静态核对数量）。
+inline constexpr const TCHAR* BlueprintFactLabels[]={
+    TEXT("造成伤害"),TEXT("其中对玩家"),TEXT("承受伤害"),TEXT("自身护盾吸收"),TEXT("生命损失"),TEXT("一次性回复"),TEXT("获得护盾"),
+    TEXT("普攻"),TEXT("施法"),TEXT("自然回复"),TEXT("还款"),TEXT("减免"),TEXT("触发"),TEXT("拒绝"),
+};
 
 // 卡面关键词（#147，#198 删去横扫，见内容与数值 §4.5）：全局 12 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
 struct FCardKeyword { const TCHAR* Name; const TCHAR* Explain; };

@@ -541,6 +541,7 @@ void ALDGameMode::PublishMatchOutcome()
             Published = true;
         }
         bLobbyDirty = true;
+        PublishBuildBlueprints();
     }
     if (bPublicMatchDirty)
     {
@@ -594,6 +595,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     View.Airdrop = Airdrop.View();
+    Charms.View(View.Charms);
     View.Leader = LeaderNotice.View();
     View.Boss = Camps ? Camps->BossView() : FLDBossView();
     return View;

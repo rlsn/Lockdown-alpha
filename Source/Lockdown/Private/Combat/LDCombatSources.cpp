@@ -712,7 +712,9 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
             *Prepared.Contender.ToString()));
         return;
     }
+    const FLDBuildProjectionInput Previous=Record->Build;
     Record->Build=Prepared.Input;
+    LedgerBuildInstalled(Prepared.Contender,Previous);
     if (Body && Body->ChannelEffectId.IsValid())
     {
         const auto* Channel=Channels.FindByPredicate([Body](const auto& Row) { return Row.Payload.EffectId==Body->ChannelEffectId; });

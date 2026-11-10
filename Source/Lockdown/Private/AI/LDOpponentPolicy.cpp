@@ -302,6 +302,32 @@ struct FContext
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
     }
+    // #198: whether the body can use a charm of this kind now: heal below full HP, mana below full MP, move speed always.
+    bool CharmUseful(ELDCharmKind Kind) const
+    {
+        switch (Kind)
+        {
+        case ELDCharmKind::Heal: return Self.MaxHpP2 > 0 && Self.HpP2 < Self.MaxHpP2;
+        case ELDCharmKind::Mana: return Self.MaxMpP2 > 0 && Self.MpP2 < Self.MaxMpP2;
+        case ELDCharmKind::MoveSpeed: return true;
+        default: return false;
+        }
+    }
+    // #198: the nearest public point holding a lying charm of Kind (any useful kind when Kind is None) whose walk is not
+    // suppressed by failure memory; ties by stable id. Charms lie on airdrop points.
+    const FLDOpponentPOI* CharmTarget(ELDCharmKind Kind) const
+    {
+        const FLDOpponentPOI* Best = nullptr;
+        for (const TPair<FName, ELDCharmKind>& Charm : Frame.Public.Charms)
+        {
+            if (Kind != ELDCharmKind::None ? Charm.Value != Kind : !CharmUseful(Charm.Value)) { continue; }
+            const FLDOpponentPOI* POI = FindPOI(Charm.Key);
+            if (!POI || POI->Kind != ELDOpponentPOIKind::Airdrop || !CanAttempt(PathKey(POI->Id))) { continue; }
+            if (!Best || Distance(POI->FootCm) < Distance(Best->FootCm)
+                || (Distance(POI->FootCm) == Distance(Best->FootCm) && POI->Id.Compare(Best->Id) < 0)) { Best = POI; }
+        }
+        return Best;
+    }
     // D27: the public place nearest the centre of another contender's 上热搜 circle, inside that circle, when its walk
     // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
     // minimum level with high-camp entry health.
@@ -1928,6 +1954,12 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         // reach instead: walking off to a corner would flip the public urgency on and off at every step.
         // Without a reachable dorm, wait on genuine regeneration.
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
+        // #198: a lying heal charm is an immediate recovery, taken before the slower dorm walk.
+        if (const FLDOpponentPOI* Heal = bRivalHolds ? nullptr : C.CharmTarget(ELDCharmKind::Heal))
+        {
+            Body(MoveTo(C, *Heal));
+            return Finish(EMode::Charm, EReason::TakeCharm);
+        }
         if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
         {
             Body(MoveTo(C, *Dorm));
@@ -1946,6 +1978,13 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         EndVisit(State, false);
         Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
         return Finish(EMode::Airdrop, EReason::ContestAirdrop);
+    }
+    // #198: a lying charm the body can use now, under the same limits as the airdrop; charms are taken by walking in.
+    if (const FLDOpponentPOI* Charm = State.VisitEngagedAtMs == 0 ? C.CharmTarget(ELDCharmKind::None) : nullptr)
+    {
+        EndVisit(State, false);
+        Body(MoveTo(C, *Charm));
+        return Finish(EMode::Charm, EReason::TakeCharm);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

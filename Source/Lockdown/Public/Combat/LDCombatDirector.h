@@ -8,12 +8,15 @@
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Development/LDBuildBlueprint.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
 
 struct FLDDormZones;
 namespace LDAirdrop { struct FCandidate; }
+enum class ELDCharmKind : uint8;
+struct FLDCharmEffectFact;
 
 class ALDCharacter;
 class ALDGameMode;
@@ -573,6 +576,9 @@ public:
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
+    // #198 §10 build blueprint ledger of this match (LDCombatBlueprintLedger.cpp): every installed build version of each
+    // contender and the real facts credited to it. Read once by the core when the result is published.
+    const FLDBuildLedger& GetBuildLedger() const { return BuildLedger; }
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
@@ -613,6 +619,12 @@ public:
     // body already gone or dying gets nothing (bOutApplied false). False only on an authority fault.
     bool GrantTimedBonus(const FLDCombatBodyRef& Body, FName Source, const TArray<FLDDemoStatBonus>& Stats, int64 DurationMs,
         const FLDGameplayWritePermit& Permit, bool& bOutApplied, FString& Error);
+    // #198 field charm (Transactions): applies Kind's approved effect to the living body of Contender — heal a share of
+    // max HP through HealBody, mana a share of max MP through GrantMana (both capped at the maximum), or refresh the
+    // charm move-speed timed bonus. A body already gone or dying gets nothing (bOutApplied false). False only on an
+    // authority fault.
+    bool ApplyCharm(const FGuid& Contender, ELDCharmKind Kind, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
+        FLDCharmEffectFact& Out, FString& Error);
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // ---- Shared combat primitives (#112 section 5).
@@ -932,6 +944,21 @@ private:
         ELDCombatEntry Entry, int64 NowMs) const;
     void MarkViewChanged(const FGuid& Entity);
 
+    // ---- #198 §10 build blueprint ledger (LDCombatBlueprintLedger.cpp). Each fact is recorded once where Combat commits it.
+    // The ledger version of Contender's installed build now; INDEX_NONE for an entity without a contender record.
+    int32 LedgerVersion(const FGuid& Contender);
+    // Right after ApplyBuildChange installed the contender's new build; Previous is the build it replaced.
+    void LedgerBuildInstalled(const FGuid& Contender, const FLDBuildProjectionInput& Previous);
+    // A contender body released an effect (a landed basic swing or an ability release): its hits belong to this version.
+    // Counted is the release fact it adds one to (BasicAttacks or AbilityCasts), Count for none (the innate dash).
+    void LedgerEffectReleased(const FLDBodyCombatState& Body, const FGuid& EffectId, ELDBlueprintFact Counted);
+    // One committed hit on Victim: damage dealt once to the credited contender (the version that created the effect),
+    // damage taken, own shield absorption and HP lost to the victim contender's current version.
+    void LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage);
+    // HP a one-time heal actually restored to a contender body, and a shield granted to it.
+    void LedgerHealed(const FLDBodyCombatState& Body, int64 HealedP2);
+    void LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2);
+
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TMap<FGuid,FLDCombatEntityRecord> Records;
     TArray<FLDCombatHit> PendingHits;
@@ -948,4 +975,5 @@ private:
     TArray<FLDCommittedDeath> RetryRewards;
     FRandomStream CritRandom;
     bool bAdvancing=false;
+    FLDBuildLedger BuildLedger;
 };
