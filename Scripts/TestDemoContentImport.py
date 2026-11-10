@@ -724,7 +724,7 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["display"][1].update(name_text=1), "SchemaType"),
             (lambda data: data["display"][1].update(description_text=""), "StringLength"),
             (lambda data: data["display"][1].update(name_text="名" * 33), "StringLength"),
-            (lambda data: data["display"][1].update(description_text="说" * 161), "StringLength"),
+            (lambda data: data["display"][1].update(description_text="说" * 321), "StringLength"),
             (lambda data: data["display"][1].update(description_text="换行\n说明"), "DisplayText"),
             (lambda data: data["display"][1].update(name_text="名称\u200b"), "DisplayText"),
             (lambda data: data["display"][1].update(name_text="名称\u202e"), "DisplayText"),
