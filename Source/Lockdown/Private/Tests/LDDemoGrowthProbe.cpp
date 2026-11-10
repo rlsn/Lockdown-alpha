@@ -400,7 +400,8 @@ public:
     int32 Rest0Step = 0;
     int64 Rest0StartedAtMs = 0, Rest0BuildEndsAtMs = 0;
     FVector Rest0Foot = FVector::ZeroVector;
-    FLDMoveIdentity Rest0Attack, Rest0Shift, Rest0Move;
+    FLDMoveIdentity Rest0Attack, Rest0Shift, Rest0Move, Rest0QOrder;
+    bool bRest0QOrder = false;
     uint32 Rest0CombatMark = 0;
     TSharedPtr<FJsonObject> Rest0Row;
 
@@ -1310,7 +1311,7 @@ public:
                 Rest0CombatMark = PC.CombatReceipts.Serial();
                 PC.ActivateCombatEntry(ELDCombatEntry::Q);
                 // An aimed opening active (snark_bolt aims a direction) only arms on Q; the probe confirms it toward the
-                // capture point like the player's left click, so the attempt still reaches the server.
+                // capture point like the player's left click, which sends it as a cast order the server must refuse.
                 ELDCombatEntry Armed = ELDCombatEntry::None;
                 if (PC.ReadArmedCombatEntry(Armed))
                 {
@@ -1322,8 +1323,28 @@ public:
                     FLDCombatTarget Aim;
                     Aim.Kind = ELDCombatTargetKind::Direction;
                     Aim.Direction = Toward;
+                    const FLDMoveIdentity Before = PC.Navigation->LocalIdentity();
                     PC.ConfirmArmedEntry(Aim, &Capture->Position);
+                    Rest0QOrder = PC.Navigation->LocalIdentity();
+                    if (Rest0QOrder == Before)
+                    {
+                        return Fail(TEXT("Rest0"), TEXT("The confirmed Q aim sent no cast order in the R0 return countdown"));
+                    }
+                    bRest0QOrder = true;
+                    Rest0Step = 7;
+                    return true;
                 }
+                PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
+                Rest0Attack = PC.Navigation->LocalIdentity();
+                Rest0Step = 4;
+                return true;
+            }
+            if (Rest0Step == 7)
+            {
+                if (!Refused(Rest0QOrder)) { return true; }
+                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Rest0"),
+                    TEXT("The server refuses Q's aimed cast order in the R0 return countdown"),
+                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
                 PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
                 Rest0Attack = PC.Navigation->LocalIdentity();
                 Rest0Step = 4;
@@ -1349,11 +1370,15 @@ public:
                 Rest0Step = 6;
                 return true;
             }
-            const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(Rest0CombatMark,
-                [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
-            if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
-            Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Rest0"), TEXT("The server refuses Q in the R0 return countdown"),
-                StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
+            // A direct Q (a self-cast opening active) answers with a combat receipt; an aimed one was refused as an order.
+            if (!bRest0QOrder)
+            {
+                const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(Rest0CombatMark,
+                    [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
+                if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
+                Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Rest0"), TEXT("The server refuses Q in the R0 return countdown"),
+                    StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
+            }
             if (!Passed) { return Finish(); }
             bRest0Refused = true;
             return true;
