@@ -1311,8 +1311,76 @@ int32 ProgressionHeldEntries(const FLDDemoComponentDefinition& Definition, const
     return Held;
 }
 
+// The element kinds one held entry applies natively (spec §4.5, C09): an active's burn/wet/electrify effects, a base's burn or
+// basic element, and B18's bound element while it is installed with one. bUnbound adds every element a still-unbound
+// binding could take (an unowned filler candidate).
+void ProgressionEntryElements(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Id, bool bUnbound,
+    TSet<ELDDemoElement>& Out)
+{
+    const auto FromEffects = [&Out](const TArray<FLDDemoEffectDefinition>& Effects)
+    {
+        for (const FLDDemoEffectDefinition& Effect : Effects)
+        {
+            switch (Effect.GetOp())
+            {
+            case ELDDemoEffectOp::Burn:
+            case ELDDemoEffectOp::ZoneBurn: Out.Add(ELDDemoElement::Fire); break;
+            case ELDDemoEffectOp::Wet:
+            case ELDDemoEffectOp::ZoneWet: Out.Add(ELDDemoElement::Water); break;
+            case ELDDemoEffectOp::Electrify: Out.Add(ELDDemoElement::Electric); break;
+            case ELDDemoEffectOp::BasicElement:
+                if (Effect.Element != ELDDemoElement::None) { Out.Add(Effect.Element); }
+                break;
+            default: break;
+            }
+        }
+    };
+    if (const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Id))
+    {
+        FromEffects(Ability->Values.Effects);
+        return;
+    }
+    const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Id);
+    if (!Definition)
+    {
+        return;
+    }
+    FromEffects(Definition->Effects);
+    if (Definition->Binding == ELDDemoComponentBinding::ActiveElement)
+    {
+        const FLDComponentInstance* Instance = Build.FindComponent(Id);
+        if (Instance && Instance->bInstalled && Instance->Target.Element != ELDDemoElement::None)
+        {
+            Out.Add(Instance->Target.Element);
+        }
+        else if (bUnbound && !Instance)
+        {
+            Out.Append(Definition->BindElements);
+        }
+    }
+}
+
+// The distinct element kinds C09's held entries (learned actives, pending blueprints, owned components it targets) apply.
+TSet<ELDDemoElement> ProgressionHeldElements(const FLDDemoContentDefinitions& Content, const FLDDemoComponentDefinition& Definition,
+    const FLDGrowthBuild& Build)
+{
+    TSet<ELDDemoElement> Kinds;
+    for (const FString& Row : Definition.TargetActives)
+    {
+        const FName Id(*Row);
+        if (Build.FindActive(Id) || Build.HasBlueprint(Id)) { ProgressionEntryElements(Content, Build, Id, false, Kinds); }
+    }
+    for (const FString& Row : Definition.TargetComponents)
+    {
+        const FName Id(*Row);
+        if (Build.FindComponent(Id)) { ProgressionEntryElements(Content, Build, Id, false, Kinds); }
+    }
+    return Kinds;
+}
+
 // Whether the owned Target is a gap now (spec §4.5): a mod/connector never enabled, not yet filled, without any compatible
-// held entry; a reaction connector needs two distinct entries before a reaction is possible at all.
+// held entry. A reaction connector (C09) has an entry only once its held entries apply two distinct element kinds: two fire
+// sources can never react.
 ELDGrowthReason ProgressionGapReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Target)
 {
     const FLDComponentInstance* Instance = Build.FindComponent(Target);
@@ -1325,9 +1393,12 @@ ELDGrowthReason ProgressionGapReason(const FLDDemoContentDefinitions& Content, c
     {
         return ELDGrowthReason::GapAlreadyFilled;
     }
+    if (LDWorkshop::FindOp(*Definition, ELDDemoEffectOp::ReactionEmpower))
+    {
+        return ProgressionHeldElements(Content, *Definition, Build).Num() < 2 ? ELDGrowthReason::None : ELDGrowthReason::NotAGap;
+    }
     const int32 Held = ProgressionHeldEntries(*Definition, Build);
-    const int32 Needed = LDWorkshop::FindOp(*Definition, ELDDemoEffectOp::ReactionEmpower) ? 2 : 1;
-    return Held >= 0 && Held < Needed ? ELDGrowthReason::None : ELDGrowthReason::NotAGap;
+    return Held == 0 ? ELDGrowthReason::None : ELDGrowthReason::NotAGap;
 }
 }
 
@@ -1591,14 +1662,27 @@ ELDGrowthReason LDProgression::GapFillers(const FLDDemoContentDefinitions& Conte
         return Reason;
     }
     const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Target);
+    // C09: a filler must add an element kind its held entries do not apply yet.
+    const bool bReaction = LDWorkshop::FindOp(*Definition, ELDDemoEffectOp::ReactionEmpower) != nullptr;
+    const TSet<ELDDemoElement> HeldKinds = bReaction ? ProgressionHeldElements(Content, *Definition, Build) : TSet<ELDDemoElement>();
     for (const FLDDemoComponentDefinition& Candidate : Content.Components)
     {
         const FName Id(*Candidate.Id);
-        if (Candidate.Kind == ELDDemoComponentKind::Base && Candidate.Pool == ELDDemoComponentPool::Common && !Build.FindComponent(Id)
-            && (LDWorkshop::Lists(Definition->TargetComponents, Id) || LDWorkshop::Lists(Definition->ExtraBases, Id)))
+        if (Candidate.Kind != ELDDemoComponentKind::Base || Candidate.Pool != ELDDemoComponentPool::Common || Build.FindComponent(Id)
+            || !(LDWorkshop::Lists(Definition->TargetComponents, Id) || LDWorkshop::Lists(Definition->ExtraBases, Id)))
         {
-            Out.Add(Id);
+            continue;
         }
+        if (bReaction)
+        {
+            TSet<ELDDemoElement> Adds;
+            ProgressionEntryElements(Content, Build, Id, true, Adds);
+            if (Adds.Difference(HeldKinds).IsEmpty())
+            {
+                continue;
+            }
+        }
+        Out.Add(Id);
     }
     return ELDGrowthReason::None;
 }

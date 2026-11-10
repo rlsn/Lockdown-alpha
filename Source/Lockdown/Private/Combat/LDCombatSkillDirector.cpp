@@ -146,10 +146,18 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Ground.OuterRatioBp=Impact ? Shape.RatioBp : 10000;
         Ground.bTrap=Trap != nullptr;
         Ground.Origin=Trap ? ELDCombatGroundOrigin::Trap : ELDCombatGroundOrigin::Impact;
-        if (!LDMatchLifecycle::AddDurationMs(NowMs, Shape.DelayMs, Ground.ReadyAtMs, Error)
+        if (Trap)
+        {
+            // S19 (spec §9): armed from its placement for its life; a trigger starts its own fuse (AdvanceSkillContent).
+            Ground.ReadyAtMs=NowMs;
+            Ground.FuseMs=Shape.DelayMs;
+            if (Ground.FuseMs < 0 || !LDMatchLifecycle::AddDurationMs(NowMs, Shape.DurationMs, Ground.ExpiresAtMs, Error)) { return false; }
+        }
+        else if (!LDMatchLifecycle::AddDurationMs(NowMs, Shape.DelayMs, Ground.ReadyAtMs, Error)
             || !LDMatchLifecycle::AddDurationMs(Ground.ReadyAtMs, Shape.DurationMs, Ground.ExpiresAtMs, Error)) { return false; }
         if (Trap)
         {
+            // One trap per owner (content §4): a newer one ends the old one, armed or fusing, without its blast.
             GroundEffects.RemoveAll([&Body](const auto& Existing)
             { return Existing.bTrap && Existing.Payload.SourceEntity == Body.Victim.EntityId; });
         }
@@ -219,17 +227,24 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
     {
         auto& Ground=GroundEffects[Index];
         if (Ground.ReadyAtMs > NowMs) { continue; }
-        if (Ground.bTrap && NowMs >= Ground.ExpiresAtMs) { GroundEffects.RemoveAt(Index); continue; }
         auto* Holder=FindBody(Ground.Payload.SourceBody);
-        // C06 (#198 F) answers the natural completion; the blast record is copied first because the list may grow.
-        const FLDCombatGroundEffect Completed=Ground;
         TArray<FLDCombatBodyRef> Targets;
-        if (Ground.bTrap)
+        // S19: an armed trap waits for a legal enemy within its trigger radius; untriggered at the end of its life it ends
+        // without a blast. A trigger starts the fuse; the blast then lands at the trap's own point even past that life.
+        if (Ground.bTrap && !Ground.bTriggered)
         {
+            if (NowMs >= Ground.ExpiresAtMs) { GroundEffects.RemoveAt(Index); continue; }
             if (!CollectAreaTargets(Ground.CentreCm, Ground.InnerRadiusCm, Holder,
                 Ground.Payload.SourceEntity, Targets, Error)) { return false; }
             if (Targets.IsEmpty()) { continue; }
+            Ground.bTriggered=true;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs, Ground.FuseMs, Ground.ReadyAtMs, Error)) { return false; }
+            UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_TRAP_TRIGGERED t=%lld owner=%s blast_at=%lld"),NowMs,
+                *LDLog::Id(Ground.Payload.SourceEntity),Ground.ReadyAtMs);
+            if (Ground.ReadyAtMs > NowMs) { continue; }
         }
+        // C06 (#198 F) answers the natural completion; the blast record is copied first because the list may grow.
+        const FLDCombatGroundEffect Completed=Ground;
         if (!CollectAreaTargets(Ground.CentreCm, Ground.RadiusCm, Holder, Ground.Payload.SourceEntity, Targets, Error)) { return false; }
         for (const auto& Ref : Targets)
         {

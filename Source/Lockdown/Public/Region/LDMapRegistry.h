@@ -86,6 +86,8 @@ public:
     bool FinalizeSpawnPlacement(TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, FString& Error);
 private:
+    // Combat rule tests give an isolated world the registered revision of the approved geometry.
+    friend struct FLDBuildPrimitivesAccess;
     // Shared admission of a spawn request: Replay is set when the same request was already selected.
     bool AdmitSpawnRequest(const FLDSpawnRequestKey& Request, const FLDGameplayWritePermit& Permit,
         TSharedPtr<const FLDSpawnSelection>& Replay, FString& Error);

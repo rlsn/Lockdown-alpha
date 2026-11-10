@@ -31,4 +31,14 @@ int64 NextPulseAtMs(int64 StartMs, int64 DelayMs, int64 IntervalMs, int32 Count,
     const int64 Steps = (FromMs - First + IntervalMs - 1) / IntervalMs;
     return Steps < Count ? First + Steps * IntervalMs : 0;
 }
+
+bool FixedWindowEndMs(int64 AnchorMs, int64 IntervalMs, int64 AtMs, int64& OutEndMs)
+{
+    OutEndMs = 0;
+    if (IntervalMs <= 0 || AnchorMs < 0 || AtMs < AnchorMs) { return false; }
+    const int64 Windows = FMath::Max<int64>(1, (AtMs - AnchorMs + IntervalMs - 1) / IntervalMs);
+    if (Windows > (MAX_int64 - AnchorMs) / IntervalMs) { return false; }
+    OutEndMs = AnchorMs + Windows * IntervalMs;
+    return true;
+}
 }

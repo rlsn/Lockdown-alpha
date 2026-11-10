@@ -205,8 +205,17 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 - 改装件在出手时由 `CompileActive` 编进 `FLDCombatActiveTerms`（伤害包倍率、接触/冲刺倍率、冷却与费用、M01 范围化、M07 压缩），
   命中经 `PackageScaleBp` 进入伤害评估；顺序为伤害包倍率、顶着揍、格挡、护盾前的 M12 延后。
 - C02 读角色移动组件在击退中记录的第一次阻挡（静态阻挡或另一合法敌人身体），不用位移近似；击退不再穿过身体。
-- C05/C07 挂在 `CommitControl` 末尾（`OnHardControl`）；C08/C11/M12 还款都经 `HealBody`；C09 在元素反应完成后武装下一次普攻；
-  M11 改变放电与反击的选目标；C02 阻挡读取、M12 到期债务与 C08 周期反击由 `AdvanceWorkshop` 驱动。
+- C05/C07 挂在 `CommitControl` 末尾（`OnHardControl`）；命中转成的控制带命中的来源（`FLDControlApplication::Source`＝主动、C02 撞墙眩晕、
+  C06 定身），C05/C07 按它匹配出口。C08/C11/M12 还款都经 `HealBody`；C09 在元素反应完成后武装下一次普攻，反应的触发来源是新元素的施加来源
+  （B10/B11/B18 的水电是构件自己的施加，见“基础构件”）；M11 改变放电与反击的选目标；C02 阻挡读取、M12 到期债务与 C08 周期反击由
+  `AdvanceWorkshop` 驱动。
+- M01 的扩散（单体主动的扇形、飞弹首击点的圆）一律经 `SpreadCopy`：旁人只受伤害，控制、减速、攻速降低、击退、破防/灼烧层、原生元素与
+  S21 削减只给主目标。C10 一次破盾反击给所有被波及者同一个效果 id，C11 在其上的 30G 治疗预算因此是一份。
+- M12 到期欠款按原量支付：不再过抗性、加成、延后，也不享受 S16 减伤、不进入其记录。
+- C01 首次安装时在实体记录上登记 `FireWindowAnchorMs`（`NoteWorkshopInstall`，跨生命、卸下与重装保留），窗口为固定的
+  (锚点+(k−1)秒, 锚点+k秒]（`LDCombatMechanics::FixedWindowEndMs`）；同生产火源的实际 HP 伤害计入所在窗口，
+  `ApplyPendingHits` 在本边界全部命中提交后才由 `SettleFireWindows` 结算到点的窗口；零输入不给盾，死亡/阶段退役随身体清窗口，
+  卸下或改绑丢弃未结窗口。
 - 新反馈只写日志行（`LD_COMBAT_AFTERSHOCK`、`LD_COMBAT_KNOCKBACK_IMPACT`、`LD_COMBAT_LEDGER_*`、`LD_COMBAT_FIRE_SHIELD`、
   `LD_COMBAT_DEBT_REPAID`、`LD_COMBAT_CONTROL_MARK_CONSUMED`、`LD_COMBAT_REACTION_EMPOWER`），没有新增状态编号。
 
@@ -227,7 +236,9 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它�
 - **治疗入口**：一次性治疗（吸血）经 `HealBody`；自然与脱战回复不经过它。没有治疗削减。
 - **区域**（`zone`，脚底开锅）：目标 `GroundPoint` 的请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），释放时夹到目标射程，
   `ReleaseMechanics` 在该点登记 `FLDCombatZone`（载荷在释放时快照）。`zone_damage` 按 `NextPulseAtMs` 的定次脉冲结算伤害；
-  `zone_slow` 每 `IntervalMs` 判定一次，给区内敌人施加持续 `DurationMs` 的减速（不再有 linger）；`zone_burn` 每 `interval` 给区内敌人加灼烧层。
+  `zone_slow` 每 `IntervalMs` 判定一次，给区内敌人施加持续 `DurationMs` 的减速（不再有 linger）；有伤害的区域的 `zone_burn` 必须与脉冲同拍
+  （同间隔、无延迟、脉冲覆盖整个时长，否则释放时明确失败），每一跳的伤害命中就带 `PulseBurnStacks` 层火，与该命中的 B18 水电同一元素批次；
+  没有伤害的区域的 `zone_burn` 才按自己的 `interval` 单独加层。
   `zone` 的 `count` 是脉冲次数，从释放时刻起每 `interval` 一次（含 +0）：脚底开锅（3 次、间隔 1 s、时长 3 s）在 +0/+1/+2 各脉冲一次，
   每次的 `zone_slow` 持续 0.5 s（`Lockdown.Rules.DemoBuildPrimitives.ZonePulses`）。
   区内目标与横扫一样经 `CollectAreaTargets`（含边界、要求视线、排除保护者）。
@@ -265,7 +276,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   G(L) 取 `LDSkillGrowth::FactorBp`（施加者等级由 `GrowthLevelOf` 给出，营地身体按 1 级）。被反应消费时 `BurnRemainingShares` 给出各层尚欠的跳数之和。
 - **施加途径**：破防的 `stacks` 随命中载荷，构件形式（B08 的 `basic_stacks`）在 `ApplyKeywordStacks` 中按存活施加者对每次普攻主击结算；
   火（命中载荷的 `BurnStacks`、B01 的 `basic_stacks` 与构件的火 `ComponentBurnStacks`，见下节 B18）属于元素批次（`ApplyElements`，见“水火电与反应”）；
-  周期、结算、反伤、附加伤害与护盾触发的命中不算；`zone_burn` 让区域每 `interval` 给区内敌人加层。
+  周期、结算、反伤、附加伤害与护盾触发的命中不算；区域的火见上文 `zone_burn`。
 - **多次强化普攻**：`empower_basic` 的 `charges`（`FLDCombatEmpower::Charges`，`ConsumeEmpowers` 每次取一层）与 `stats`（期间的限时属性，
   随最后一层或窗口结束）。
 - **受伤触发护盾**：`triggered_shield` 的 `Damaged` 触发（`OnDamaged`，B09）：承受敌对正伤害且仍存活后给护盾（按等级成长的 base + 生命上限比例），
@@ -284,12 +295,13 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **元素槽**：每个目标生命一个元素。火 = 存在活的灼烧层；水（潮湿）与电（感电）是 `FLDBodyCombatState::ElementMark`（施加者与其等级、法强快照、
   到期时刻）；潮湿另带一个 `COMBAT.WetSlow` 的减速实例（`SlowEffectId`，与标记同生同灭，最强减速生效）。同元素刷新（施加者换成最新者）。
 - **批次**：`ApplyHit` 在伤害、控制与 `ApplyKeywordStacks` 之后、`bControllable` 时调用 `ApplyElements`：先火（命中的 `BurnStacks` 与存活来源的
-  触发项 `burn`），再水（`bApplyWet`），再电（`bApplyElectric`）；每次 `ApplyElement` 安装、刷新或与已有的不同元素反应，反应的即时结果可接后面的元素。
-  命中的施加者快照是 `ElementLevel/ElementAPP2`，由 `StampElementSnapshot` 填写；构件只需在命中上置位并填快照，不直接调 `ApplyElement`。
+  触发项 `burn` 与构件火），再水（原生 `bApplyWet`，再构件的 `ComponentWetSource`），再电（原生 `bApplyElectric`，再 `ComponentElectricSource`）；
+  每次 `ApplyElement` 安装、刷新或与已有的不同元素反应，反应的即时结果可接后面的元素。原生元素读命中的施加者快照 `ElementLevel/ElementAPP2`
+  （释放时由 `StampElementSnapshot` 填写）；构件的水电以该构件为来源、按存活持有者当时的等级与法强施加。
 - **反应**（`ELDCombatReaction`，触发者 = 新元素施加者，两种元素都被消费）：R = `COMBAT.ReactionBase` + `COMBAT.ReactionPerLevel`×(L−1) +
   `COMBAT.ReactionAPRatio`×法强（魔法，不乘 G）。火的部分立即结算：已有火按 `BurnRemainingShares` 各归原施加者与来源，新火按其完整预算归触发者；
   这些结算命中带 `bBurnTick`。起雾（火＋水）：主目标受 R，在主目标脚下生成固定雾区（`FLDCombatFog`，每拥有者一个，新雾替换旧雾），
-  生成时与之后每 `COMBAT.FogIntervalSec` 给区内**无元素**敌人潮湿；导电（水＋电）：主目标与其 `COMBAT.ConductRadiusCm` 内此刻潮湿的敌人各受 R
+  生成时（`PulseFog`，在造成它的元素批次继续之前，所以同一命中后面的电已经遇到潮湿）与之后每 `COMBAT.FogIntervalSec` 给区内**无元素**敌人潮湿；导电（水＋电）：主目标与其 `COMBAT.ConductRadiusCm` 内此刻潮湿的敌人各受 R
   并减速，被波及者的潮湿被消费；过载（火＋电）：主目标 `COMBAT.OverloadRadiusCm` 内的敌人（含主目标）各受 R 与 `COMBAT.OverloadBreachStacks` 层破防。
   完成的反应经 `OnReactionCompleted` 记入本次 Effects 的 `ReactionFacts`（触发者、触发来源、主目标、命中），并写 `LD_REACTION` 日志。
 - **放电**：感电目标受到正伤害后（在本次命中的元素之前判定，所以新施的电不读父伤害），若已过 `DischargeReadyAtMs`，向
@@ -305,8 +317,8 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   `EvaluateDamage` 中于抗性、加成池与投送比例之后、主击平减之前被削 `BraceCutBp`，实际削掉的 `BraceCutP2` 计入记录（最多上限，受保护目标为 0）。
   不因攻击、移动或施法取消；自然结束时存活身体在当时脚下对 `radius` 内敌人造成 `base + record_ratio×记录` 的魔法直接伤害（`LD_BRACE_ANSWER`）；
   死亡（`bPendingDeath`）、离局或新释放直接丢弃，不补爆。状态 `braced` 显示剩余时间。
-- **S20**：`zone_wet` 让每次区域脉冲同时施潮湿，`zone_haste` 在拥有者脚站在区内时给它一份以区域效果 id 为键、到区域结束的移速限时增益，离开即撤；
-  本场队友尚无队伍概念，接入 PK 队伍时再扩到队友。
+- **S20**：`zone_wet` 让每次区域脉冲同时施潮湿，`zone_haste`（`UpdateZoneHaste`）在拥有者及其本场队友（释放时的 PK 隔离组与同一非零 PK 方）
+  脚站在区内时给一份以区域效果 id 为键、到区域结束的移速限时增益，离开、死亡或冻结即撤；敌人与区外队友没有。
 - **S21 馊水糊脸**（`grievous`，`FLDCombatGrievous`）：命中给目标较强比例与较晚到期；`HealBody` 与 `GrantShieldTo` 对新治疗、新护盾先按比例削减
   （护盾削减后再做替换判断），已有护盾不变；状态 `soured`。
 - 观察：`wet`、`electrified`、`braced`、`soured` 是公开状态（30–33）；观察唯一性检查是 64 位掩码，`LDObservation::MaxStatuses` 为 16。
@@ -320,7 +332,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 
 - **B01/B08**：普攻主击加 1 层灼烧/破防（`basic_stacks`）。**B04**：主击实际 HP 损失（含并入的强化包）的 12% 治疗。
 - **B02 账目**（`ledger`，`FLDCombatLedger` 存在目标这条生命上，每拥有者每构件一份）：存活拥有者的每个有效普攻或技能伤害命中
-  （HP 损失或盾吸收 >0；灼烧 tick 与兑现本身不算）按当时 `10G+0.08AP` 记一笔；批次首笔固定门槛 `Count` 与窗口 `DurationMs`，
+  （HP 损失或盾吸收 >0；灼烧 tick、反应与放电结算、兑现本身不算）按当时 `10G+0.08AP` 记一笔；批次首笔固定门槛 `Count` 与窗口 `DurationMs`，
   满批立即兑现为一次魔法技能类命中（`bLedgerCashOut`，状态/结算类，不再记账、不触发 B18），窗口内无新增则清空未锁定笔数；
   目标换命或拥有者离局清空。
 - **B03 反伤**、**B09 受伤护盾**、**B16 主普攻减伤**见上文；**B05** 每次 D 或主动冲刺对每个真实接触的敌人追加一份物理包。
@@ -332,8 +344,10 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **B17** `idle_ready_amp`：释放时从该主动轨道的真实 `ReadyAtMs` 起已等 `DelayMs` 则锁定 `RatioBp`，只随本次释放的原生直接伤害
   （`bDirectAbilityDamage` 的载荷与其区域每一跳）进入加成池；派生、状态伤害不继承；释放后重新等待。
 - **B10/B11/B18 元素**：唯一入口 `ApplyComponentElement(Hit, Element, Component)`：火给命中加一层构件来源的灼烧
-  （`ComponentBurnStacks`）；水/电属于 #198 A 的元素状态，A 合入后在此设置命中的 `bApplyWet`/`bApplyElectric`，在此之前是明确的权威错误
-  （安装已拒绝，不应到达）。B10/B11 作用于普攻主击；B18 只作用于绑定主动（仍已学）的原生直接有效命中。
+  （`ComponentBurnStacks`）；水/电记为命中的 `ComponentWetSource`/`ComponentElectricSource`（同一命中两个构件的同种元素是明确错误），
+  由元素批次作为该构件自己的施加结算，C09/M11 读到的来源是构件而不是父攻击。B10/B11 作用于普攻主击；B18 只作用于绑定主动（仍已学）的
+  原生直接有效命中。
+- **B02** 只记普攻主击与技能伤害命中；灼烧 tick、反应/放电/提前结算（`bStatusSettle`）、兑现与欠款都不记。
 
 ## 构筑与来源
 
@@ -411,7 +425,10 @@ DEV 重置把它清零。
 `DemoBuildPrimitives.*`（#147、#198）覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、构筑安全窗的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/BraceAndGrievous`（#198）覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
 `Combat.Components.*`（#198 B）覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04/B06/B14）、B12 冲刺完成武装、B02 账目批次与兑现、
-元素入口（火加层，水/电明确报错）与 B18 绑定，
+元素入口（火加层，水/电记为构件自己的施加）与 B18 绑定，
+`Combat.Events.*`（#198 H）在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻、灼烧与工坊入口驱动：命中转控制带出口（C05/C07）、
+B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后电及雾的即时潮湿、B02 不记结算、S19 触发后引信与到期不爆、
+欠款不吃 S16、C10 共享 C11 预算、M01 只扩散伤害、S20 队友加速、C01 固定窗口与边界收齐，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、
 时间段与收尾，以及没有生产者的事实为未采集，
