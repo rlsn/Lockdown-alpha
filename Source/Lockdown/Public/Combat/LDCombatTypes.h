@@ -174,7 +174,8 @@ struct FLDProtectionReceipt
 // ---------------------------------------------------------------- death facts (Combat -> Life / Growth / Camps / Capture)
 
 UENUM()
-enum class ELDNoRewardReason : uint8 { None, NoOwner, SelfInflicted, OwnerLeft };
+// PKArena (#198 session D): the victim was a PK life; PK pays only its own settlement points.
+enum class ELDNoRewardReason : uint8 { None, NoOwner, SelfInflicted, OwnerLeft, PKArena };
 
 UENUM()
 enum class ELDDeathCause : uint8 { Damage };

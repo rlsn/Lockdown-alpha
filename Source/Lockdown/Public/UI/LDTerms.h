@@ -172,7 +172,7 @@ inline constexpr TCHAR RestPhase[]=TEXT("课间休息，抓紧配装");
 inline FString RestLabel(int32 Index){return FString::Printf(TEXT("休息 R%d"),Index);}
 // 休息的各步（配装的最后一段兼作 PK 报名；派奖时可以再调整配装）。
 inline constexpr TCHAR RestBuild[]=TEXT("配装与训练");
-inline constexpr TCHAR RestDraw[]=TEXT("PK 抽签");
+inline constexpr TCHAR RestDraw[]=TEXT("PK 公布赛制与分队");
 inline constexpr TCHAR RestBetting[]=TEXT("押注");
 inline constexpr TCHAR RestPKReady[]=TEXT("PK 准备");
 inline constexpr TCHAR RestPK[]=TEXT("PK 中");
@@ -190,6 +190,52 @@ inline constexpr TCHAR PKSkipped[]=TEXT("PK 跳过（报名不足 2 人）");
 inline constexpr TCHAR SignupJoin[]=TEXT("报名 PK");
 inline constexpr TCHAR SignupWithdraw[]=TEXT("取消报名");
 inline constexpr TCHAR NoPKProvider[]=TEXT("PK 尚未开放，本次休息跳过 PK");
+inline constexpr TCHAR SignupHint[]=TEXT("PK 报名：配装的最后一段可以报名或取消，满 2 人才开打");
+// PK 与观众（#198 D，APP_SPEC §5）：抽签公布赛制与分队；没参赛的观众押一方会赢（免费、一人一票、押注结束前可改）；
+// PK 中观众可以往竞技场地面投掷干扰；出局的参赛者只能观战。数值来自内容参数，这里不写数字。
+inline constexpr TCHAR PKDuel[]=TEXT("单挑");
+inline constexpr TCHAR PKFreeForAll[]=TEXT("混战");
+inline FString PKTeams(int32 PerSide){return FString::Printf(TEXT("%dv%d"),PerSide,PerSide);}
+inline FString PKTitle(uint32 Serial,const FString& Format,int32 Entrants)
+{return FString::Printf(TEXT("第 %u 场 PK · %s · %d 人"),Serial,*Format,Entrants);}
+inline FString PKSide(int32 Side){return FString::Printf(TEXT("第 %d 方"),Side);}
+inline constexpr TCHAR PKFormatPending[]=TEXT("赛制公布中");
+inline constexpr TCHAR PKClockSync[]=TEXT("PK 时间同步中");
+inline constexpr TCHAR PKUnlisted[]=TEXT("未列名参赛者");
+inline constexpr TCHAR PKOut[]=TEXT("出局");
+inline constexpr TCHAR PKForfeit[]=TEXT("离场");
+inline FString PKBetCount(int32 Count){return FString::Printf(TEXT("%d 人押"),Count);}
+inline constexpr TCHAR PKOwnSide[]=TEXT("你在这方");
+inline constexpr TCHAR PKOwnBet[]=TEXT("你押了这方");
+inline FString PKStartsIn(int64 Seconds){return FString::Printf(TEXT("%lld 秒后开打 · 准备中不能移动和攻击"),Seconds);}
+inline FString PKTimeLeft(int64 Seconds){return FString::Printf(TEXT("最长还剩 %lld 秒 · 最后一方存活获胜"),Seconds);}
+inline FString PKRingNow(const FString& Meters){return FString::Printf(TEXT("安全圈 %s 米"),*Meters);}
+inline FString PKRingSoon(const FString& Meters,int64 Seconds){return FString::Printf(TEXT("%lld 秒后开始缩到 %s 米"),Seconds,*Meters);}
+inline FString PKRingShrinking(const FString& Meters){return FString::Printf(TEXT("正在缩到 %s 米"),*Meters);}
+inline constexpr TCHAR PKRoleFighter[]=TEXT("你在场上：活到最后就赢，圈外会持续掉血");
+inline constexpr TCHAR PKRoleEntrant[]=TEXT("你已参赛：等观众押注后入场");
+inline constexpr TCHAR PKRoleOut[]=TEXT("你已出局，只能观战");
+inline constexpr TCHAR PKRoleBet[]=TEXT("押一方会赢：免费，一人一票，押注结束前可以改");
+inline constexpr TCHAR PKRoleThrow[]=TEXT("观战中：点“投掷”再点竞技场地面，砸中的人会减速并破防");
+inline constexpr TCHAR PKRoleWatch[]=TEXT("观战中");
+inline FString PKBetOn(const FString& Names){return FString(TEXT("押 "))+Names;}
+inline constexpr TCHAR PKThrow[]=TEXT("投掷");
+inline constexpr TCHAR PKThrowAim[]=TEXT("点竞技场地面投掷 · 右键取消");
+inline constexpr TCHAR PKThrowSending[]=TEXT("投掷中…");
+inline FString PKThrowCooling(const FString& Left){return FString::Printf(TEXT("投掷冷却 %s 秒"),*Left);}
+inline constexpr TCHAR PKThrowCoolingSync[]=TEXT("投掷冷却时间同步中");
+inline constexpr TCHAR PKThrowNoGround[]=TEXT("这里没有可投掷的地面");
+inline FString PKWinners(const FString& Names){return FString(TEXT("PK 胜方："))+Names;}
+inline constexpr TCHAR PKWonSelf[]=TEXT("你赢了这场 PK！");
+inline constexpr TCHAR PKDraw[]=TEXT("PK 平局：没有分出唯一胜方");
+inline constexpr TCHAR PKNoContest[]=TEXT("本场 PK 无效：竞技场没能布置，不发奖励");
+inline constexpr TCHAR PKAwardsTitle[]=TEXT("PK 奖励（属性点）");
+inline constexpr TCHAR PKAwardsNone[]=TEXT("本场没有人得到奖励");
+inline constexpr TCHAR PKAwardParticipation[]=TEXT("参与");
+inline constexpr TCHAR PKAwardWinner[]=TEXT("胜者");
+inline constexpr TCHAR PKAwardBet[]=TEXT("竞猜");
+inline FString PKAwardTotal(int64 Points){return FString::Printf(TEXT("共 %lld 点"),Points);}
+inline constexpr TCHAR PKSpectating[]=TEXT("观战镜头：竞技场");
 // 休息中的个人训练：只有本人看得见的训练假人，可随时重置（本人与假人回满、冷却就绪）。
 inline constexpr TCHAR TrainingReset[]=TEXT("重置训练");
 inline constexpr TCHAR TrainingDummy[]=TEXT("训练假人");

@@ -49,6 +49,13 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     AppendMechanicsStatuses(*Body,NowMs,Out);
     // #147: silence, breach x stacks (status exposed) and burn x stacks.
     AppendKeywordStatuses(*Body,NowMs,Out);
+    // #198 session D: a spectator throw's Exposed shares the existing Exposed cue (one entry, latest deadline).
+    if (Body->ExposedUntilMs>NowMs)
+    {
+        FLDObservedStatus* Existing=Out.FindByPredicate([](const FLDObservedStatus& S) { return S.StatusId==uint8(ELDDemoStatusId::Exposed); });
+        if (Existing) { Existing->ExpiresAtServerMs=FMath::Max(Existing->ExpiresAtServerMs,Body->ExposedUntilMs); }
+        else { Out.Add({uint8(ELDDemoStatusId::Exposed),1,Body->ExposedUntilMs}); }
+    }
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,

@@ -17,6 +17,7 @@ struct FLDDemoTargetDefinition;
 struct FLDDemoAbilityValues;
 struct FLDDemoStatDefinition;
 struct FLDLobbyView;
+struct FLDPKParameters;
 namespace LDHUD
 {
     // #147/#198 card text: the owner's level grows an active's fixed amounts (G(L)); its stats fill the coefficients.
@@ -155,6 +156,92 @@ namespace LDHUD
     LOCKDOWN_API FString RestSignupText(ELDRestSignupResult Result);
     // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
     LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);
+    // ---- #198 session D: the PK of a rest and its spectators (public FLDPublicMatchView::PK, approved issue #198 comment
+    // 6752601175). Presentation only: the server decides every bet and throw and the outcome. ----
+    // 单挑 / 混战 / NvN from the drawn format: Teams split Entrants evenly over SideCount ("2v2", "3v3"). Empty for None or
+    // a malformed team split.
+    LOCKDOWN_API FString PKFormatText(ELDPKFormat Format,uint8 SideCount,int32 Entrants);
+    // The public PK of this rest: the match, its timeline and its PK name the same generation, the stage is a rest and the
+    // PK has a serial (0: this rest has no PK).
+    LOCKDOWN_API bool HasPK(const FLDPublicMatchView& Public);
+    // Self watches the arena: HasPK, the PKReady or PK step, and Self is not a living entrant (a spectator, an eliminated or
+    // a forfeited entrant). The camera centres on PK.ArenaCentreCm meanwhile (ALDCharacter::CalcCamera); the caller checks
+    // that the public view is the own match.
+    LOCKDOWN_API bool IsSpectatingPK(const FLDPublicMatchView& Public,const FGuid& Self);
+    // The contenders of one side in seat order, by public roster name ("、"-joined; an unlisted one is LDTerms::PKUnlisted).
+    LOCKDOWN_API FString PKSideNames(const FLDPKView& PK,uint8 Side,const FLDLobbyView& Lobby);
+    // The player-facing result of an own bet (ALDPlayerController::OnPKBet); only Placed reads as done, every refusal says why.
+    LOCKDOWN_API FString PKBetText(ELDPKBetResult Result);
+    // The player-facing result of an own throw (ALDPlayerController::OnPKThrow); only Thrown reads as done.
+    LOCKDOWN_API FString PKThrowText(ELDPKThrowResult Result);
+    // The own throw cooldown from the last answer's ReadyAtMs against the same-match authority time: "投掷冷却 X 秒" (like
+    // CooldownText, never 0.0 while time remains); empty when ready (ReadyAtMs <= NowMs or none); syncing without a clock.
+    LOCKDOWN_API FString PKThrowCooldown(int64 ReadyAtMs,bool bClock,int64 NowMs);
+    // The frozen result of a decided PK: the winning side's names, 平局 or 本场无效; empty while undecided.
+    LOCKDOWN_API FString PKResultText(const FLDPKView& PK,const FLDLobbyView& Lobby);
+    struct FPKAwardRow
+    {
+        FString Name;
+        // "参与 +1 · 胜者 +2 · 竞猜 +1 · 共 4 点" (zero parts left out).
+        FString Points;
+        int64 Total=0;
+        bool bSelf=false;
+    };
+    // One row per PK.Awards entry with any points, in award order; names from the public roster.
+    LOCKDOWN_API TArray<FPKAwardRow> PKAwardRows(const FLDPKView& PK,const FLDLobbyView& Lobby,const FGuid& Self);
+    struct FPKSideView
+    {
+        uint8 Side=0;
+        // The side's names with each member's 出局/离场 mark once the fight started, then the public bet count.
+        FString Line;
+        // "押 <names>" for the bet button.
+        FString BetAction;
+        bool bOwnSide=false;
+        bool bOwnBet=false;
+        bool bWinner=false;
+        // Every member is out (eliminated or forfeited) after the fight started.
+        bool bOut=false;
+    };
+    struct FPKPanelInput
+    {
+        FGuid Self;
+        bool bClock=false;
+        int64 NowMs=0;
+        // The last own throw answer's ReadyAtMs for this PK (0: none yet).
+        int64 ThrowReadyAtMs=0;
+        bool bThrowArmed=false;
+        bool bThrowInFlight=false;
+        // Approved ring parameters for the ring line; null shows no ring line.
+        const FLDPKParameters* Params=nullptr;
+    };
+    // The PK panel under the timeline: shown from the Draw to the Payout step of a rest with a PK. Bets show to an eligible
+    // bettor (PK.Bettors) during the betting step only; the throw shows to an eligible bettor during the PK step while the
+    // fight runs; the result and awards show in the settlement and payout steps. Eliminated entrants are read-only.
+    struct FPKPanelView
+    {
+        bool bVisible=false;
+        FString Title;
+        // PKReady: "N 秒后开打 …"; PK: "最长还剩 N 秒 …" (whole seconds rounded up to the step end).
+        FString Countdown;
+        // "安全圈 18.0 米 · 10 秒后缩到 6.0 米" during the PK step with parameters and a clock.
+        FString Ring;
+        TArray<FPKSideView> Sides;
+        FString Role;
+        bool bSpectating=false;
+        bool bCanBet=false;
+        uint8 OwnBet=0;
+        bool bCanThrow=false;
+        // The throw button can be pressed now (not cooling, not in flight).
+        bool bThrowReady=false;
+        FString ThrowAction;
+        bool bResult=false;
+        FString Result;
+        bool bOwnWin=false;
+        TArray<FPKAwardRow> Awards;
+    };
+    LOCKDOWN_API FPKPanelView PKPanel(const FLDPublicMatchView& Public,const FLDLobbyView& Lobby,const FPKPanelInput& Input);
+    // The ring clock: ms since PK.FightStartedAtMs at NowMs (0 before the fight or without a clock).
+    LOCKDOWN_API int64 PKRingElapsedMs(const FLDPKView& PK,bool bClock,int64 NowMs);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
     // The match timer over the minimap: whole seconds elapsed since the match start (StartedAtMs, the opening rest R0),

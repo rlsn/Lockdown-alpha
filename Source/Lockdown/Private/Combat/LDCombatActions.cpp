@@ -255,7 +255,7 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     // #153: before T=0 only the D dash is admitted; basic attacks and Q/W are refused. The refusal is kept, so a replay
     // after T=0 cannot start it late.
     // #198: the rest return countdown locks every input; the refusal is kept, so a replay never starts late.
-    if (Mode->IsInputLocked(Caller.Match))
+    if (Mode->IsInputLocked(Caller.Match,Caller.EntityId))
     {
         Refuse(ELDCombatReject::NotStarted);
         StoreReceipt(*Record,Request,Receipt);

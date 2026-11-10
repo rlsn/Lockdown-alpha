@@ -330,6 +330,7 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { MatchSecret = Seeds->MatchSecret; }
 #endif
     Records = MoveTemp(NewRecords);
+    PaidPKAwards.Reset();
 #if WITH_DEV_AUTOMATION_TESTS
     // Presets staged in the Lobby serve this match's first heads, the opening offer included; nothing older survives.
     LDDevGrowthFixture::TakeStaged(Roster, DevOfferQueue);
@@ -881,6 +882,32 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     Record->Unpublished.Add(Receipt);
     GameMode->Growth->MarkDirty(ContenderId);
     return Receipt;
+}
+
+ELDGrowthReason ALDDevelopmentDirector::GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId,
+    const FLDGameplayWritePermit& Permit)
+{
+    ALDGameMode* GameMode = Mode();
+    FRecord* Record = Records.Find(ContenderId);
+    if (!GameMode || GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    if (!Record) { return ELDGrowthReason::NotContender; }
+    if (Points < 1 || !AwardId.IsValid()) { return ELDGrowthReason::InvalidRequest; }
+    if (PaidPKAwards.Contains(AwardId)) { return ELDGrowthReason::PKAwardDuplicate; }
+    FLDGrowthBuild NewBuild = Record->Build;
+    if (NewBuild.AwardedPoints > MAX_int64 - Points) { return ELDGrowthReason::ArithmeticOverflow; }
+    NewBuild.AwardedPoints += Points;
+    FLDProgressionState NewProgression = Record->Progression;
+    const ELDGrowthReason Reason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression), false, Permit);
+    if (Reason == ELDGrowthReason::None)
+    {
+        PaidPKAwards.Add(AwardId);
+        UE_LOG(LogLDGrowth, Display, TEXT("LD_PK_POINTS contender=%s award=%s points=%lld awarded_total=%lld"),
+            *LDLog::Id(ContenderId), *LDLog::Id(AwardId), Points, Record->Build.AwardedPoints);
+    }
+    return Reason;
 }
 
 ELDGrowthReason ALDDevelopmentDirector::InstallBuild(const FGuid& ContenderId, FRecord& Record, FLDGrowthBuild&& NewBuild,

@@ -920,7 +920,7 @@ def validate_numbers(data):
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
     for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
-                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm"):
+                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "THROW.RadiusCm", "THROW.RangeCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
@@ -972,6 +972,14 @@ def validate_numbers(data):
     # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
     require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
             "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
+    # #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
+    require(0 < p("PK.RingShrinkStartSec") < p("PK.RingMidSec") < p("PK.RingFinalSec") < p("REST.PKMaxSec"),
+            "InvalidTiming", "PK.RingFinalSec", "ring shrink steps must be ordered and finish before the PK cap")
+    require(0 < p("PK.RingFinalRadiusCm") < p("PK.RingMidRadiusCm") < p("PK.ArenaRadiusCm"),
+            "InvalidGeometry", "PK.RingFinalRadiusCm", "ring radii must shrink strictly inside the arena")
+    for key in ("PK.RingDamageEarlyMaxHPRatioPerSec", "PK.RingDamageMidMaxHPRatioPerSec",
+                "PK.RingDamageFinalMaxHPRatioPerSec", "THROW.SlowRatio"):
+        require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage and throw slow must be positive")
 
     thresholds = [0]
     for level in range(1, data["progression"]["max_level"]):
@@ -1145,11 +1153,15 @@ def parse_world_contract(raw, world_raw):
 def validate_world_references(data, world, anchors):
     refs = data["world"]
     require(refs["map_id"] == world["map_id"], "InvalidReference", "world.map_id", "different world identity")
-    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]]}
+    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]],
+                "PKSpawn": refs["pk_spawn_ids"], "PKThrow": [refs["pk_throw_id"]]}
     for kind, identities in expected.items():
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
                 "InvalidReference", kind, "missing, extra or wrong-kind world anchor")
+    # #198: the PK ring is read in index order, so the content lists it exactly as pk_spawn_0..5.
+    require(list(refs["pk_spawn_ids"]) == [f"pk_spawn_{n}" for n in range(6)],
+            "InvalidReference", "world.pk_spawn_ids", "PK spawns must be listed as pk_spawn_0 to pk_spawn_5 in order")
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(set(placements) == set(refs["camp_ids"]), "InvalidReference", "camps", "camp placement set differs from world")
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")

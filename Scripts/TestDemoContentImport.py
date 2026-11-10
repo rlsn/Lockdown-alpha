@@ -661,6 +661,23 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"].update({"MATCH.DevelopmentSec": {"unit": "s", "value": 180}}), "UnknownField"),
             (lambda data: data["parameters"].update({"MATCH.CountdownSec": {"unit": "s", "value": 5}}), "UnknownField"),
             (lambda data: data["parameters"].update({"LIFE.RespawnSec": {"unit": "s", "value": 15}}), "UnknownField"),
+            # #198 PK ring and spectator throw: ordered shrink steps inside the PK cap, nested radii, positive throw.
+            (lambda data: data["parameters"]["PK.RingFinalSec"].update(value=45), "InvalidTiming"),
+            (lambda data: data["parameters"]["PK.RingFinalSec"].update(value=44.999), None),
+            (lambda data: data["parameters"]["PK.RingMidSec"].update(value=8), "InvalidTiming"),
+            (lambda data: data["parameters"]["PK.RingShrinkStartSec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"]["PK.RingDamageTickSec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"]["PK.RingMidRadiusCm"].update(value=1500), "InvalidGeometry"),
+            (lambda data: data["parameters"]["PK.RingFinalRadiusCm"].update(value=500), "InvalidGeometry"),
+            (lambda data: data["parameters"]["PK.RingFinalRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"]["PK.RingDamageMidMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"]["PK.TeamFormatRatio"].update(value=0), None),
+            (lambda data: data["parameters"]["PK.TeamFormatRatio"].update(value=1.5), "NumericOverflow"),
+            (lambda data: data["parameters"].update({"PK.WinnerPointsMax": 0}), "NumericDomain"),
+            (lambda data: data["parameters"]["THROW.RangeCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"]["THROW.RadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda data: data["parameters"]["THROW.SlowRatio"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"].pop("THROW.ExposeSec"), "MissingField"),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):

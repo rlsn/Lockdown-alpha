@@ -247,7 +247,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         ALDCharacter* SourceActor=nullptr;
         const auto* Source=FindBody(Dash.Body, &SourceActor);
         if (!Source || !SourceActor || Source->bPendingDeath
-            || Mode->IsContenderProtected(Source->Victim.EntityId) || Mode->IsInputLocked(Mode->GetMatchContext())) { continue; }
+            || Mode->IsContenderProtected(Source->Victim.EntityId) || Mode->IsInputLocked(Mode->GetMatchContext(),Source->Victim.EntityId)) { continue; }
         const double SourceRadius=SourceActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
         const double SourceHeight=SourceActor->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
         for (const auto& TargetFrame : ContactMotion)

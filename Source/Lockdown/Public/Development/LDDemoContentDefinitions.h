@@ -123,6 +123,38 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 RestReturnMs = 0;
     // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
     UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
+    // #198 PK ring centred on the capture anchor: PKArenaRadiusCm until PKRingShrinkStartMs, linear to PKRingMidRadiusCm
+    // at PKRingMidMs, linear to PKRingFinalRadiusCm at PKRingFinalMs, then held until RestPKMaxMs. The next ring is
+    // shown PKRingPreviewMs ahead. Ring damage is the start-of-PK max HP times the early/mid/final share per second of
+    // real outside time ([0, Mid), [Mid, Final), [Final, Max)), settled every PKRingTickMs.
+    UPROPERTY() FLDDemoRational PKArenaRadiusCm;
+    UPROPERTY() FLDDemoRational PKRingMidRadiusCm;
+    UPROPERTY() FLDDemoRational PKRingFinalRadiusCm;
+    UPROPERTY() int64 PKRingShrinkStartMs = 0;
+    UPROPERTY() int64 PKRingMidMs = 0;
+    UPROPERTY() int64 PKRingFinalMs = 0;
+    UPROPERTY() int64 PKRingPreviewMs = 0;
+    UPROPERTY() int64 PKRingTickMs = 0;
+    UPROPERTY() int64 PKRingEarlyDamageBp = 0;
+    UPROPERTY() int64 PKRingMidDamageBp = 0;
+    UPROPERTY() int64 PKRingFinalDamageBp = 0;
+    // #198 PK format and points: 4 or 6 entrants play free-for-all with this share, otherwise equal random teams;
+    // every entrant earns PKParticipationPoints, winners share ceil(N/2) points capped at PKWinnerPointsMax, and the
+    // betting pool is min(PKBettingPoolMaxPoints, eligible spectators).
+    UPROPERTY() int64 PKTeamFormatBp = 0;
+    UPROPERTY() int64 PKParticipationPoints = 0;
+    UPROPERTY() int64 PKWinnerPointsMax = 0;
+    UPROPERTY() int64 PKBettingPoolMaxPoints = 0;
+    // #198 spectator throw from the fixed off-arena throw anchor: ThrowCooldownMs from a successful throw,
+    // ThrowTelegraphMs warning, ThrowRadiusCm impact within ThrowRangeCm, ThrowSlowBp slow for ThrowSlowMs and
+    // Exposed for ThrowExposeMs.
+    UPROPERTY() int64 ThrowCooldownMs = 0;
+    UPROPERTY() int64 ThrowTelegraphMs = 0;
+    UPROPERTY() FLDDemoRational ThrowRadiusCm;
+    UPROPERTY() FLDDemoRational ThrowRangeCm;
+    UPROPERTY() int64 ThrowSlowBp = 0;
+    UPROPERTY() int64 ThrowSlowMs = 0;
+    UPROPERTY() int64 ThrowExposeMs = 0;
     // #198: field respawn wait fixed by T at death: [0, 1), [1, 2), [2, 3) field segments, then the final field.
     UPROPERTY() int64 RespawnField1Ms = 0;
     UPROPERTY() int64 RespawnField2Ms = 0;
@@ -657,6 +689,10 @@ struct FLDDemoWorldReferences
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
     UPROPERTY() FString CaptureId;
+    // #198 PK on the original map: the six ring spawns pk_spawn_0..5 in index order and the fixed off-arena
+    // spectator throw anchor; both resolve through ULDMapRegistry::Resolve like the other anchors.
+    UPROPERTY() TArray<FString> PKSpawnIds;
+    UPROPERTY() FString PKThrowId;
 };
 
 USTRUCT()

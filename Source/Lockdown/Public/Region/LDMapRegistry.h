@@ -65,7 +65,8 @@ public:
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
     // #198 private rest space: the same request bookkeeping as DrawSpawnAnchor, but the contender's fixed rest anchor
-    // (one of the approved spawn anchors) instead of a uniform draw. ReserveSpawnPlacement then picks its free offset.
+    // (one of the approved spawn anchors, or for a #198 PK entrant one of the PK ring spawns) instead of a uniform draw;
+    // DrawSpawnAnchor never draws a PK spawn. ReserveSpawnPlacement then picks its free offset.
     bool SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName Anchor,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
     // #198 return to the field: reserves a free placement for the next life at FootCm, else within RadiusCm on ground

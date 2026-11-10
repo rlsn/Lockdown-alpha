@@ -64,6 +64,15 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
 不能仅手写 world 和匹配摘要让正式链通过。
 
+#198 新增两类锚点（批准见 issue #198 评论 6752601175 §2）：`PKSpawn` 固定为 `pk_spawn_0..5`，
+`PKThrow` 固定为 `pk_throw`，内容 `world.pk_spawn_ids`/`world.pk_throw_id` 按序引用，
+原生为 `FLDDemoWorldReferences::PKSpawnIds`（索引序）与 `PKThrowId`，用 `ULDMapRegistry::Resolve` 取位置/支持面。
+`DemoWorld.py` 与 `LDMapGeometry.cpp` 同样检查：六个 PK 出生点与 capture 同层、距其1000–1400cm、两两≥1000cm、
+按 id 逆时针每步60°±1°；投掷锚点同层且距 capture 在 (1800, 2200] cm（4000cm 射程覆盖1800cm初始场）；
+全部为单胶囊合法站位且不在营地清空圈内。`SelectSpawnAnchor` 接受 PK 出生点（与出生点同一胶囊/落地/占位规则），
+`DrawSpawnAnchor` 只抽 `Spawn`；AI 公开地点与小地图不把 PK 锚点当野外地点，美术摆放只为其留出一具身体的净空。
+场地内的可走路径不由 Python 证明。
+
 世界生成头依次包含 `#pragma once`、`LD_DEMO_WORLD_SCHEMA_VERSION`、
 `LD_DEMO_WORLD_PROJECTION_REVISION` 和
 `LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT("…")`。根 manifest 覆盖内容、显示投影、作者 schema、

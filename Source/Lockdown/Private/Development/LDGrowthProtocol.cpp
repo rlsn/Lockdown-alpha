@@ -211,6 +211,8 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NoRewardOwnerLeft: return TEXT("NoRewardOwnerLeft");
     case ELDGrowthReason::DeathConflict: return TEXT("DeathConflict");
     case ELDGrowthReason::StaleDeath: return TEXT("StaleDeath");
+    case ELDGrowthReason::NoRewardPKArena: return TEXT("NoRewardPKArena");
+    case ELDGrowthReason::PKAwardDuplicate: return TEXT("PKAwardDuplicate");
     }
     return TEXT("Unknown");
 }

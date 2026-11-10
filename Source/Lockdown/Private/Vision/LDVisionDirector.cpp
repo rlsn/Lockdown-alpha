@@ -1,4 +1,5 @@
 #include "Vision/LDVisionDirector.h"
+#include "PK/LDPKDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -360,6 +361,16 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
             if (FVector2D::DistSquared(From, Centre) <= RadiusCm * RadiusCm && !SegmentBlocked(From, Centre, ObserverTier, CoverageTiers[Index]))
             { LDObservation::SetCoverageBit(OutBits, Index); }
         }
+    }
+}
+
+void FLDSightGeometry::AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const
+{
+    if (!IsValid() || InOutBits.Num() != LDObservation::CoverageBytes || !FMath::IsFinite(DiskRadiusCm) || DiskRadiusCm <= 0) { return; }
+    const FVector2D Centre(CentreCm);
+    for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
+    {
+        if (FVector2D::DistSquared(Centre, CellCentre(Index)) <= DiskRadiusCm * DiskRadiusCm) { LDObservation::SetCoverageBit(InOutBits, Index); }
     }
 }
 
@@ -1063,20 +1074,64 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     // frozen world during a rest.
     const ALDGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
     const ALDCombatDirector* Combat = Mode ? Mode->Combat.Get() : nullptr;
+    // #198 session D (approved §3/§6): spectators (and the eliminated) are explicitly allowed to watch every arena body;
+    // a PK life additionally sees what its living teammates legally see, and an Exposed entrant for the exposure.
+    const ALDPKDirector* PK = Mode ? Mode->PKDirector.Get() : nullptr;
+    const bool bArena = PK && PK->IsArenaActive();
+    const bool bSpectating = bAlive && bArena && PK->CanSpectate(Observer.ContenderId);
+    const bool bPKObserver = bAlive && bArena && Mode->IsPKLife(Observer.ContenderId);
+    TArray<FVector> TeammateFeet;
+    if (bPKObserver)
+    {
+        TArray<FGuid> Mates;
+        PK->LivingTeammates(Observer.ContenderId, Mates);
+        for (const FGuid& Mate : Mates)
+        {
+            FLDCombatBodyRef MateBody;
+            FVector MateFoot;
+            if (Mode->ReadLivingBody(Mate, MateBody, MateFoot)) { TeammateFeet.Add(MateFoot); }
+        }
+    }
+    const auto IsArenaBody = [&](const FLDObservedTarget& Target)
+    {
+        const FGuid& Id = Target.Body.Victim.EntityId;
+        return bArena && Target.Body.Victim.Kind == ELDVictimKind::Contender && PK->SideOf(Id) != 0 && Mode->IsPKLife(Id);
+    };
+    const auto Resolve = [&](const FVector& From, const FLDObservedTarget& Target, bool& bOut)
+    {
+        const ELDSightResult Result = Sight.Trace(From, Target.FootCm);
+        const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
+        if (Outcome == ELDObservedResolve::AuthorityFault)
+        {
+            Error = FString::Printf(TEXT("Observation sight failed for a registered body (%u)."), uint32(Result));
+            return false;
+        }
+        bOut = Outcome == ELDObservedResolve::Resolved;
+        return true;
+    };
     if (bAlive)
     {
         for (const FLDObservedTarget& Target : Targets)
         {
             if (Target.Body.Victim.EntityId == Observer.ContenderId) { continue; }
-            if (Combat && Combat->IsHiddenFrom(Observer.ContenderId, Target.Body)) { continue; }
-            const ELDSightResult Result = Sight.Trace(Foot, Target.FootCm);
-            const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
-            if (Outcome == ELDObservedResolve::AuthorityFault)
+            const bool bArenaBody = IsArenaBody(Target);
+            if (bSpectating && bArenaBody)
             {
-                Error = FString::Printf(TEXT("Observation sight failed for a registered body (%u)."), uint32(Result));
-                return false;
+                Visible.Add(&Target);
+                continue;
             }
-            if (Outcome == ELDObservedResolve::Resolved) { Visible.Add(&Target); }
+            if (Combat && Combat->IsHiddenFrom(Observer.ContenderId, Target.Body)) { continue; }
+            bool bSeen = false;
+            if (!Resolve(Foot, Target, bSeen)) { return false; }
+            if (!bSeen && bPKObserver && bArenaBody)
+            {
+                bSeen = Combat && Combat->IsExposed(Target.Body, Mode->GetAuthorityNowMs());
+                for (int32 Index = 0; !bSeen && Index < TeammateFeet.Num(); ++Index)
+                {
+                    if (!Resolve(TeammateFeet[Index], Target, bSeen)) { return false; }
+                }
+            }
+            if (bSeen) { Visible.Add(&Target); }
         }
     }
     TArray<FGuid> Removed;
@@ -1118,6 +1173,20 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.SourceFeetCm = Foot;
         View.Footprint.RadiusCm = float(Sight.Radius());
         Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
+        // #198 session D: a spectator's authorized coverage includes the whole arena; a PK life's includes its teammates'.
+        if (bPublish && Relay && (bSpectating || !TeammateFeet.IsEmpty()))
+        {
+            if (bSpectating) { Sight.AddDisk(PK->GetView().ArenaCentreCm, PK->GetParameters().ArenaRadiusCm, View.Footprint.CurrentBits); }
+            for (const FVector& MateFoot : TeammateFeet)
+            {
+                TArray<uint8> MateBits;
+                Sight.Coverage(MateFoot, MateBits);
+                for (int32 Index = 0; Index < MateBits.Num() && Index < View.Footprint.CurrentBits.Num(); ++Index)
+                {
+                    View.Footprint.CurrentBits[Index] |= MateBits[Index];
+                }
+            }
+        }
         View.Units = MoveTemp(Units);
         View.Projectiles = MoveTemp(Projectiles);
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
