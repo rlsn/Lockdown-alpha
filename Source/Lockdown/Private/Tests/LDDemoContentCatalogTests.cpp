@@ -933,12 +933,13 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
-    // One row per definition (character, actives, stats, monsters) and per native status: statuses 1..6, 9, 10 and 12..14
-    // (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses (silence, burn)
-    // and attack_slowed (#198 retires cowering and contact_guard).
+    // One row per definition (character, actives, stats, components, monsters) and per native status: statuses 1..6, 9, 10
+    // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
+    // (silence, burn) and attack_slowed (#198 retires cowering and contact_guard).
     const int32 Statuses = 6 + 5 + 1 + 2 + 1;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Monsters.Num() + Statuses);
+        1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.Monsters.Num()
+        + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
         FString Name, Description;
