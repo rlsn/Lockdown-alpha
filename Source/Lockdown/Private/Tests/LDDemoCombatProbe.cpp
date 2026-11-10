@@ -93,11 +93,12 @@ constexpr int32 CombatProbeChaseBearings = 16;
 constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
-// Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range (active_pants_down,
-// 400 cm) and beyond the basic range (220 cm) even when both bodies stop at the far edge of Navigation's 40 cm goal
-// acceptance, so the Host's basic chase must close in before its hit lands. Client1 throws its snark bolt from its farther
-// duel site, so the flight spans several 100 ms observation publications the Host can render.
-constexpr double CombatProbeSkillGapCm = 365.0;
+// Skills: Client1's skill site lies on the open duel line midway between the Host's approved basic range and the snare's
+// approved range (both read from the catalog in PrepareSites), so it stays inside the snare's range and beyond the basic
+// range even when both bodies stop at the far edge of Navigation's goal acceptance, and the Host's basic chase must close in
+// before its hit lands. Client1 throws its snark bolt from its farther duel site, so the flight spans several 100 ms
+// observation publications the Host can render.
+constexpr double CombatProbeGoalAcceptanceCm = 40.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
 // Client1's Shift-queue walk to the skill site: a detour waypoint at one of these fractions of the straight walk and this
@@ -126,10 +127,16 @@ constexpr double CombatProbeFeelSettleSeconds = 0.5;
 constexpr double CombatProbeBesideCm = 250.0;
 
 // The fixture's preset actives each role learns, in opportunity order (the opening offer first, then the first offer
-// level's); two other actives only fill each offer. Client1's not_mad shields and also dispels a root (#198).
+// level's); two other actives only fill each offer. Client1's not_mad shields and also dispels a root (#198). The Host's
+// only planned active, from its opening offer, is the snare.
+FName CombatProbeSnare()
+{
+    return FName(TEXT("active_pants_down"));
+}
+
 TArray<FName> CombatProbeSkillPlan(bool bHost)
 {
-    return bHost ? TArray<FName>{FName(TEXT("active_pants_down"))}
+    return bHost ? TArray<FName>{CombatProbeSnare()}
         : TArray<FName>{FName(TEXT("active_not_mad")), FName(TEXT("active_snark_bolt"))};
 }
 
@@ -411,6 +418,14 @@ public:
         {
             return Fail(TEXT("Net"), TEXT("The Listen Host lost its authoritative game mode or Combat owner"));
         }
+        // #198: the whole duel runs inside the first field segment; a mid rest retires every field life, so its start is a
+        // failure of its own rather than of whichever stage it interrupts.
+        const FLDTimelineView& Timeline = Public->PublicMatch.Timeline;
+        if (Stage > EStage::Spawned && Timeline.Stage == ELDMatchStage::Rest && Timeline.RestIndex > 0)
+        {
+            return Fail(TEXT("Net"), FString::Printf(TEXT("The mid rest R%u opened before the scenario finished inside the first field segment (stage %d, field_t_ms=%lld)"),
+                uint32(Timeline.RestIndex), int32(Stage), Timeline.FieldBaseMs));
+        }
         switch (Stage)
         {
         case EStage::Join: return TickJoin(*Current, *PC, Lobby, Driver);
@@ -658,6 +673,20 @@ public:
         const double AttackReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
         const double SightReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.VisionRadiusCm);
         const double Gap = LDDemoCombatScenario::CombatProbeGapCm;
+        // Client1's skill site: midway between the approved basic range and the snare's approved range, which must leave
+        // room for both bodies to stop up to the goal acceptance off their points on either side.
+        const FLDDemoAbilityDefinition* SnareDefinition = nullptr;
+        FString SnareError;
+        const double SnareReach = Catalog->FindAbility(LDDemoCombatScenario::CombatProbeSnare().ToString(), SnareDefinition, SnareError)
+            && SnareDefinition ? LDDemoCombatScenario::CombatProbeRational(SnareDefinition->Target.RangeCm) : -1.0;
+        const double SkillGap = .5 * (AttackReach + SnareReach);
+        if (!Check(SnareReach - AttackReach > 4.0 * LDDemoCombatScenario::CombatProbeGoalAcceptanceCm && SkillGap < Gap, TEXT("Start"),
+            TEXT("The snare's approved range exceeds the approved basic range by more than both bodies' goal acceptance"),
+            FString::Printf(TEXT("snare_cm=%.1f basic_cm=%.1f skill_gap_cm=%.1f duel_gap_cm=%.1f %s"), SnareReach, AttackReach, SkillGap, Gap,
+                *SnareError)))
+        {
+            return false;
+        }
         // The Host kills Client1 inside the first field segment, whose approved respawn wait is LIFE.RespawnSec.Field1.
         RespawnSeconds = double(Defs.Parameters.RespawnField1Ms) / 1000.0;
         if (!CaptureAnchor || CaptureReach <= 0 || BodyRadius <= 0 || AttackReach <= 0
@@ -694,7 +723,7 @@ public:
         {
             const FVector Direction = Across.RotateAngleAxis(45.0 * Bearing, FVector::UpVector);
             ClientSite = HostSite + Direction * Gap;
-            SkillSite = HostSite + Direction * LDDemoCombatScenario::CombatProbeSkillGapCm;
+            SkillSite = HostSite + Direction * SkillGap;
             FLDLegalGround ClientGround, SkillGround;
             FLDCompletePath Route;
             ELDWorldQueryFailure RouteFailure = ELDWorldQueryFailure::None;
@@ -2005,7 +2034,7 @@ public:
     {
         const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
         const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, ClientId) : nullptr;
-        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[1]);
+        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSnare());
         const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Snare](const FLDCombatEntryView& Entry) { return Entry.Entry == Snare; });
         const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
         const ALDCharacter* Other = ClientBody(Mode);
@@ -2075,7 +2104,11 @@ public:
             && Sent->ObservationEpoch == HostCastTargetEpoch, TEXT("CastFollowUp"),
             TEXT("The Listen Host's unit cast starts an accepted attack on its target"))) { return Finish(); }
 
-        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[1]);
+        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSnare());
+        if (Snare == ELDCombatEntry::None)
+        {
+            return Fail(TEXT("CastFollowUp"), TEXT("The learned snare holds no Q/W/E entry for the refused-cast check"));
+        }
         FLDCombatTarget RefusedAim;
         RefusedAim.Kind = ELDCombatTargetKind::Unit;
         RefusedAim.Observed = FGuid::NewGuid();

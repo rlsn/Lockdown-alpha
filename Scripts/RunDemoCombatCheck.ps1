@@ -87,8 +87,9 @@ try {
         $reports[$role] = $report
     }
     $hostReport = $reports['Host']
-    if ($reports['Client1'].generation -ne $hostReport.generation -or $reports['Client1'].life -ne 2) {
-        throw "Roles observed different matches or Client1 did not finish on its second life: $output"
+    # #198: life 1 is the R0 rest body, life 2 the first field life the Host kills; Client1 finishes on life 3.
+    if ($reports['Client1'].generation -ne $hostReport.generation -or $reports['Client1'].life -ne 3) {
+        throw "Roles observed different matches or Client1 did not finish on its respawned field life (life 3): $output"
     }
     if ($hostReport.growth_fixture -ne $true -or $reports['Client1'].growth_fixture -ne $false) {
         throw "Only the Host may run with the DEV growth fixture: $output"
