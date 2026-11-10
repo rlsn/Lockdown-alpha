@@ -288,6 +288,9 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
   `RunTests.ps1 -Filter <测试路径前缀>`（可给多个，例如
   `-Filter Lockdown.Rules.DemoGrowth,Lockdown.Rules.HUDScoreboard`）。不要在每次小编辑后重复构建或测试。
   带 `-Filter` 的运行会明确报告“PARTIAL RUN, NOT A GATE”；它是 PR 的受影响测试证据，但不代替 CI 门禁。
+- **Python 测试**：本地只跑相关模块（`python -B .\Scripts\RunPythonTests.py --pattern <模块>.py`），
+  全量由 CI 的 `python` 作业负责。失败详情看结尾 `Log:` 指向的日志，不要为看详情整组重跑；
+  修复后用 `--failed` 只重跑上次失败的测试，见下文 [PR 检查与每日试玩包](#pr-检查与每日试玩包) 的 `python` 作业。
 - **PR 转 Ready 前**：本地只补齐一次增量 `BuildEditor.ps1` 和受影响的规则前缀；保持 Draft 直到改动稳定，
   避免每次推送都占用自托管 runner。CI 在 Ready 后负责更宽的规则门禁。本地不再重复跑 `-FullUnity`
   或完整规则套件。
@@ -421,6 +424,10 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
   （`--jobs` 可调，输出字节与串行一致），`RunTests.ps1` 经 `--cache` 走同一导出。
   其中 `TestRuleReport.py` 核对源码注册与必需集合一致，跳过数据导入组的原生运行依赖这一点发现漏登记的测试。
   不需要 Unreal 与 LFS 内容；本地也可直接运行 `python -B .\Scripts\RunPythonTests.py`。
+  每次运行的完整输出另存到 `Artifacts\PythonTests\<时间>-<pid>.log`（保留最近 10 个），输出最后一行 `Log:` 给出路径；
+  失败的测试 id 记在 `Artifacts\PythonTests\last-failed.json`，每次运行覆盖。`--failed` 只重跑这些测试，
+  输出标注“PARTIAL RUN (--failed), NOT A GATE”，不能代替 CI 门禁；没有失败记录时报错退出。
+  该脚本自身的测试：`python -B -m unittest discover -s .\Scripts -p TestRunPythonTests.py`。
 - `native`（维护者本机的自托管 runner，仅在需要原生门槛且分支在本仓库内时）：增量 `BuildEditor.ps1` 与
   `RunTests.ps1`，失败时上传 Artifacts 证据。runner 关闭时它在 GitHub 上排队；fork PR 不在这台 runner 上运行。
   `CIResetWorkspace.ps1` 清空 Artifacts 时保留按输入哈希校验的夹具缓存 `Artifacts\DemoContentFixtureCache`。
