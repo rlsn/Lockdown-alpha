@@ -61,7 +61,10 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // D21: a dorm is only a judgment disk at the wall base; collision-free low furniture there neither blocks a body
         // nor hides one, and the dorm's own ring marks it.
         // D26: a Boss waypoint is a patrol target only; props keep the path open through the navmesh like anywhere else.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+        // #198 session D: a PK spawn or the throw anchor is a placement target only; collision-free decorations never block
+        // the body the registry places there.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;
@@ -73,9 +76,6 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CaptureRadius + Body; break;
         // D26: the pickup disk stays clear so the crate and every body reaching it read plainly.
         case ELDDemoWorldAnchorKind::Airdrop: KeepOut.Radius = AirdropRadius + Body; break;
-        // #198: a PK ring spawn or the spectator throw anchor holds one body; the registry checks its capsule ground.
-        case ELDDemoWorldAnchorKind::PKSpawn:
-        case ELDDemoWorldAnchorKind::PKThrow: KeepOut.Radius = Body; break;
         default: return PlaceFail(Error, TEXT("Unknown Demo world anchor kind: ") + Anchor.Id);
         }
     }
