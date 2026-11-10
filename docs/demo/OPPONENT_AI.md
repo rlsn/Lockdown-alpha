@@ -133,7 +133,7 @@ NotGrounded 是明确否定结果，原域仍完成已处理边界，不是缺�
 | --- | --- | --- |
 | `ULDNavigationComponent::SubmitOrder(FLDOrderCaller, FLDSpatialOrderRequest)`；`CancelOrder`；`QueryOrder` | 绑定本人的 MatchContext/BodyRef；`FLDMoveIdentity{Match,Life,Order,Epoch}`；按 kind 为单一 Ground/ObservedUnit 目标。Ground 带脚点 cm、必要 MapRevision 和必填 SurfaceHint；POI 从注册记录给支持面，目标可显式 Missing，不补默认值。 | Submit 只收件。Actions 阶段的 `ProcessAuthorityOrders` 才可激活；Queued 不取消旧单，完整准入后才替换现役订单。OrderRevision/ReceiptSerial 单调，Query 只读且不延寿。 |
 | `ALDCombatDirector::SubmitAction`、`QueryActionReceipt`、`QueryAvailability`、`CancelAction` | `FLDCombatActionRequest{Generation,Life,DirectSequence,Entry(Q/W/E/Dash),Target(Missing/Self/Unit/Direction),ExpectedSourceRevision}`；DirectSequence 由 adapter 单调分配，Q/W/E/D 共用一个序列；Unit 目标是观察句柄。`FLDCombatRequestKey` 的 Direct 键由此生成，Nav 键只由服务器 Navigation 的攻击订单内部生成。 | 两种 RequestKey 不撞号；准入成功后由 Combat 统一分配 authority CombatToken:uint64，ActionId/AttackId 是该 Token 在 Match/Caller 下的身份，不另发序列。Queued 无已接受 Token；查询/取消用原 RequestKey。导航独占 AttackCycle，Combat 独占 NextAttackAt，AI 不另开普攻循环或伪造 Nav 键。 |
-| `ALDDevelopmentDirector::ReadProgression`、`QueueBuild`、`QueryBuildReceipt` | `FLDBuildCommand`：Generation、当前 Life、ExpectedLifePhase、独立 RequestId、ExpectedBuildRevision、CatalogDigest 与 Kind。ActiveChoice 带当前 OfferId/Revision、Option 和 `bLearnIfPossible=true`（Slot 为 AnySlot，由服务器取最低空槽）；LearnBlueprint 带图纸与最低空槽；AllocatePoints 带按目录顺序每项一个点数。由 `LDOpponentRequests::BuildCommand` 从本人最新成长投影构造，候选已不是当前候选时拒绝构造。 | 原候选不重抽；选择（学到空槽或存为图纸）与机会消费原子提交后才生成下一组。服务器提交时按阶段、生死与构筑安全窗重判；死亡阶段合法的选择与加点可成功，死前 Alive 请求不能冒充当前 Dead 请求。 |
+| `ALDDevelopmentDirector::ReadProgression`、`QueueBuild`、`QueryBuildReceipt` | `FLDBuildCommand`：Generation、当前 Life、ExpectedLifePhase、独立 RequestId、ExpectedBuildRevision、CatalogDigest 与 Kind。ActiveChoice 带当前 OfferId/Revision、Option 和 `bLearnIfPossible=true`（Slot 为 AnySlot，由服务器取最低空槽）；LearnBlueprint 带图纸与最低空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数。由 `LDOpponentRequests::BuildCommand` 从本人最新成长投影构造，候选已不是当前候选时拒绝构造。 | 原候选不重抽；选择（学到空槽或存为图纸）与机会消费原子提交后才生成下一组。服务器提交时按阶段、生死与构筑安全窗重判；死亡阶段合法的选择与加点可成功，死前 Alive 请求不能冒充当前 Dead 请求。 |
 | `LDTactical::EvaluateDamage(const FLDDamageEvaluationInput&, const FLDDemoContentSnapshot&) -> FLDDamageEvaluationResult`；`EvaluateBasicTiming(const FLDBasicTimingInput&, const FLDDemoContentSnapshot&) -> FLDBasicTimingResult` | 仅数值假设：公开编译定义、本人所需属性、显式非暴击假设、匿名模板抗性/HP/盾/保护；Timing 用对应单位普攻定义及已解析 AS。目录快照是批准编译的不可变内容。 | 位于 LDTacticalRules，成功给数值/时长，定义域失败显式返回错误；无 Actor/World/Bodies/Camp 查询、时钟、RNG、状态或 Token。真实 ApplyHit/AttackStart 也必须调用这两个同源纯函数，再经 Permit 提交；估计结果不是 Hit/Death/奖励事实。 |
 
 每域独立请求空间和有界回执窗口：同 ID 同条款只重放原结果；同 ID 异条款
@@ -439,7 +439,7 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
 2. **学图纸**：有图纸、有空的 Q/W/E 且允许学习（开局倒计时，或存活且在构筑安全窗内）时，按同一偏好选一份图纸学到最低空槽。
    Q/W/E 已满时不学，图纸留待休息时替换（尚未实现）。
 3. **加点**：有未分配点数且允许加点（开局倒计时、死亡等待，或存活且在构筑安全窗内）时，一次分配全部未分配点：
-   每一点给相关属性中当前点数最少的一项，平局按目录顺序；相关属性固定含体格与脸皮，基础普攻或任一已学主动有 AD 系数时加力道，
+   每一点给相关属性中当前点数最少的一项，平局按五维设计顺序（体格、脸皮、力道、脑力、身手）；相关属性固定含体格与脸皮，基础普攻或任一已学主动有 AD 系数时加力道，
    任一已学主动有 AP 系数时加脑力；身手不在其中。
 
 主动偏好（`SelectActive`/`SelectBlueprint` 共用）：先选能补上已学主动与图纸都没覆盖的用途（交战或自保）的主动；

@@ -958,13 +958,14 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         bool bOpening = Test.TestTrue(Who + TEXT(": level 1 at the opening XP holds exactly the opening opportunity"),
             View.bValid && View.Generation == Generation && View.Level == 1 && View.MaxLevel == 16 && View.CumulativeXP == 0
             && View.ActiveOpportunitiesEarned == 1 && View.ActiveOpportunitiesConsumed == 0 && View.QueuedActiveOpportunities == 1);
-        bOpening &= Test.TestTrue(Who + TEXT(": the opening points are unspent, one row per stat in catalog order, nothing learned"),
+        bOpening &= Test.TestTrue(Who + TEXT(": the opening points are unspent, one row per stat in design order, nothing learned"),
             View.UnspentPoints == 3 && View.StatPoints.Num() == Content.Stats.Num() && View.Actives.IsEmpty()
             && View.PendingBlueprints.IsEmpty() && View.BuildRevision == 1);
-        for (int32 Index = 0; Index < View.StatPoints.Num() && Index < Content.Stats.Num(); ++Index)
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+        for (int32 Index = 0; Index < View.StatPoints.Num() && Index < StatOrder.Num(); ++Index)
         {
-            bOpening &= Test.TestTrue(FString::Printf(TEXT("%s: stat row %d is %s with no point"), *Who, Index, *Content.Stats[Index].Id),
-                View.StatPoints[Index].StatId == FName(*Content.Stats[Index].Id) && View.StatPoints[Index].Points == 0);
+            bOpening &= Test.TestTrue(FString::Printf(TEXT("%s: stat row %d is %s with no point"), *Who, Index, *StatOrder[Index]->Id),
+                View.StatPoints[Index].StatId == FName(*StatOrder[Index]->Id) && View.StatPoints[Index].Points == 0);
         }
         bOpening &= Test.TestTrue(Who + TEXT(": the opening offer is kept as opportunity 1 with three distinct actives"),
             View.bHasActiveOffer && View.ActiveOffer.OpportunityOrdinal == 1 && View.ActiveOffer.OfferId.IsValid()
@@ -2673,10 +2674,8 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Rejected(Commit(Tester, Consumed, 1002, TEXT("A second choice of the consumed opening offer")), ELDGrowthReason::OfferAlreadyCommitted,
         TEXT("A second choice of the consumed opening offer"));
 
-    // One physique and two strength points, at their catalog positions (the catalog lists stats by id).
-    const auto StatAt = [&Content](const TCHAR* Id)
-    { return Content.Stats.IndexOfByPredicate([Id](const FLDDemoStatDefinition& Stat) { return Stat.Id == Id; }); };
-    const int32 PhysiqueAt = StatAt(TEXT("stat_physique")), StrengthAt = StatAt(TEXT("stat_strength"));
+    // One physique and two strength points, at their design-order positions.
+    const int32 PhysiqueAt = Content.StatDesignIndex(TEXT("stat_physique")), StrengthAt = Content.StatDesignIndex(TEXT("stat_strength"));
     if (!TestTrue(TEXT("The catalog has physique and strength"), PhysiqueAt != INDEX_NONE && StrengthAt != INDEX_NONE)) { return false; }
     TArray<uint8> Counts;
     Counts.SetNumZeroed(Content.Stats.Num());

@@ -138,7 +138,7 @@ private:
     uint64 ShownOfferRevision=0;
     // The blueprints the rows show, in the view's order.
     TArray<FName> ShownBlueprints;
-    // Local staging of the point allocation, one count per catalog stat; never sent until ConfirmPoints.
+    // Local staging of the point allocation, one count per stat in the stats' design order; never sent until ConfirmPoints.
     TArray<int32> Staged;
     uint32 StagedMatch=0;
     // PreviewOffer's pinned card, shown when no card is hovered or focused; DetailCard is the one on screen.

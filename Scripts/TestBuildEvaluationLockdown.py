@@ -22,7 +22,8 @@ S, O, H, CAMP = "1" * 32, "2" * 32, "3" * 32, "4" * 32
 CONTENT_ROOT = hashlib.sha256((ROOT / "Content/Lockdown/Data/Demo/manifest.json").read_bytes()).hexdigest()
 # 600 XP reaches level 6: the opening opportunity plus the ones of levels 3 and 6.
 SUPPLY = 600
-STATS = ("stat_agility", "stat_brains", "stat_physique", "stat_strength", "stat_thick_skin")
+# The stats' design order (ascending native id), the order of every per-stat row and points= list.
+STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "stat_agility")
 
 
 def stat_points(*points):
@@ -32,10 +33,10 @@ def stat_points(*points):
 BUILDS = {
     "subject": {"actives": [{"id": "active_elbow", "slot": "Q"}, {"id": "active_flyer_trap", "slot": "W"},
                             {"id": "active_not_mad", "slot": "E"}],
-                "blueprints": [], "stat_points": stat_points(2, 0, 1, 2, 0)},
+                "blueprints": [], "stat_points": stat_points(1, 0, 2, 0, 2)},
     "opponent": {"actives": [{"id": "active_open_mic", "slot": "Q"}, {"id": "active_stare_down", "slot": "W"},
                              {"id": "active_bail_out", "slot": "E"}],
-                 "blueprints": [], "stat_points": stat_points(0, 2, 1, 0, 2)},
+                 "blueprints": [], "stat_points": stat_points(1, 2, 0, 2, 0)},
 }
 
 
@@ -114,8 +115,8 @@ def trace(*extra, drop=()):
         ("o_offer3", f"LD_OFFER t=5033 contender={O} ordinal=3 level=6 cards=active_not_mad,active_bail_out,active_triple_combo"),
         ("s_choice3", choice(5283, S, 3, "active_not_mad", "learned", "E", "-", 6, 0)),
         ("o_choice3", choice(5283, O, 3, "active_bail_out", "blueprint", "-", "NotSafe", 6, 0)),
-        ("s_points", f"LD_BUILD t=5300 contender={S} kind=AllocatePoints card=- slot=- points=2,0,1,2,0 unspent=0 level=6"),
-        ("o_points", f"LD_BUILD t=5300 contender={O} kind=AllocatePoints card=- slot=- points=0,2,1,0,2 unspent=0 level=6"),
+        ("s_points", f"LD_BUILD t=5300 contender={S} kind=AllocatePoints card=- slot=- points=1,0,2,0,2 unspent=0 level=6"),
+        ("o_points", f"LD_BUILD t=5300 contender={O} kind=AllocatePoints card=- slot=- points=1,2,0,2,0 unspent=0 level=6"),
         ("s_heartbeat", heartbeat(6000, S, "100,0,0")),
         ("o_heartbeat", heartbeat(6000, O, "-100,5,0")),
         ("o_learn", f"LD_BUILD t=9300 contender={O} kind=LearnBlueprint card=active_bail_out slot=E points=- unspent=0 level=6"),
@@ -309,7 +310,7 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(facts["choices"]["subject"]["2"], "active_flyer_trap→W")
         self.assertEqual(facts["choices"]["opponent"]["3"], "active_bail_out→blueprint", "a stored choice is a blueprint")
         self.assertEqual([(step["kind"], step["card"], step["slot"], step["points"]) for step in facts["build_steps"]["opponent"]],
-                         [("AllocatePoints", "-", "-", "0,2,1,0,2"), ("LearnBlueprint", "active_bail_out", "E", "-")])
+                         [("AllocatePoints", "-", "-", "1,2,0,2,0"), ("LearnBlueprint", "active_bail_out", "E", "-")])
         self.assertEqual(facts["builds"]["subject"]["actives"], ["active_elbow/Q", "active_flyer_trap/W", "active_not_mad/E"])
         self.assertEqual(facts["builds"]["subject"]["stat_points"]["stat_strength"], 2)
         self.assertEqual(facts["builds"]["opponent"]["blueprints"], [])

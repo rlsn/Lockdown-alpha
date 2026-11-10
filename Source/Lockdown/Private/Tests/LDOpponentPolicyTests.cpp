@@ -158,28 +158,28 @@ bool Pick(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, cons
     return Test.TestTrue(Label + TEXT(": ") + Out + TEXT(" ") + Error, bSelected && Out == Expected);
 }
 
-// One stat row per catalog stat in catalog order, with the given allocated points by stat id.
+// One stat row per stat in the stats' design order, with the given allocated points by stat id.
 TArray<FLDOpponentStatPoints> StatRows(const FLDDemoContentSnapshot& Catalog, const TMap<FString, int32>& Points)
 {
     TArray<FLDOpponentStatPoints> Out;
-    for (const auto& Stat : Catalog.Get().Stats)
+    for (const FLDDemoStatDefinition* Stat : Catalog.Get().StatsInDesignOrder())
     {
         FLDOpponentStatPoints Row;
-        Row.StatId = Stat.Id;
-        Row.Points = Points.FindRef(Stat.Id);
+        Row.StatId = Stat->Id;
+        Row.Points = Points.FindRef(Stat->Id);
         Out.Add(Row);
     }
     return Out;
 }
 
-// An allocation (one count per catalog stat) by stat id.
+// An allocation (one count per stat in design order) by stat id.
 TMap<FString, int32> ById(const FLDDemoContentSnapshot& Catalog, const TArray<uint8>& Counts)
 {
     TMap<FString, int32> Out;
-    const auto& Stats = Catalog.Get().Stats;
+    const TArray<const FLDDemoStatDefinition*> Stats = Catalog.Get().StatsInDesignOrder();
     for (int32 Index = 0; Index < Stats.Num() && Index < Counts.Num(); ++Index)
     {
-        if (Counts[Index] > 0) { Out.Add(Stats[Index].Id, Counts[Index]); }
+        if (Counts[Index] > 0) { Out.Add(Stats[Index]->Id, Counts[Index]); }
     }
     return Out;
 }
@@ -245,7 +245,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("No blueprint: nothing to learn"), LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error));
 
     // Points: each to the fewest-points stat among physique, thick skin, strength (the basic attack scales with AD) and
-    // brains (only with a learned AP active); ties by catalog order; agility never.
+    // brains (only with a learned AP active); ties by the stats' design order (physique first); agility never.
     const auto& Stats = C.Get().Stats;
     if (!Test.TestTrue(TEXT("The approved catalog has the five #198 stats"), Stats.Num() == 5)) { return false; }
     const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),
@@ -258,13 +258,8 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts.Num() == Stats.Num()
         && SameCounts(ById(C, Counts), {{Physique, 1}, {Skin, 1}, {Strength, 1}}));
     Spender.UnspentPoints = 1;
-    FString FirstRelevant;
-    for (const auto& Stat : Stats)
-    {
-        if (Stat.Id == Physique || Stat.Id == Skin || Stat.Id == Strength) { FirstRelevant = Stat.Id; break; }
-    }
-    bGood &= Test.TestTrue(TEXT("A tie goes to the first relevant stat in catalog order"),
-        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && SameCounts(ById(C, Counts), {{FirstRelevant, 1}}));
+    bGood &= Test.TestTrue(TEXT("A tie goes to physique, first in the stats' design order, and the counts follow that order"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({1, 0, 0, 0, 0}));
     Spender.Actives = {Active(TEXT("active_snark_bolt"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
@@ -279,7 +274,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("No unspent points: nothing to allocate"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.UnspentPoints = 1;
     Swap(Spender.StatPoints[0], Spender.StatPoints[1]);
-    bGood &= Test.TestFalse(TEXT("Stat rows out of catalog order are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
+    bGood &= Test.TestFalse(TEXT("Stat rows out of design order are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.StatPoints.Pop();
     bGood &= Test.TestFalse(TEXT("Missing stat rows are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
 

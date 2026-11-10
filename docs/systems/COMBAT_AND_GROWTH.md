@@ -263,7 +263,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 
 ## 构筑与来源
 
-成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、按目录顺序每个五维一格的已分配点数、至多三个 `{Id, Slot}`
+成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`）每个五维一格的已分配点数、至多三个 `{Id, Slot}`
 主动、按 id 排序的待学图纸与 Revision）。#198 第一部分删除了三选一、被动、属性卡与品质、开局方向卡与重抽，以及技能 rank；
 点数、主动机会与命令合法性见 [成长事务](GROWTH_TRANSACTIONS.md)。
 `MakeProjectionInput` 把构筑交给 `FLDBuildProjectionInput`（等级、持有点数的五维 `StatPoints`、Q/W/E 主动、构筑修订）；

@@ -577,4 +577,11 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoProgressionDefinition Progression;
     UPROPERTY() FLDDemoWorldReferences World;
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;
+
+    // #198: the point-bought stats in their design order 体格, 脸皮, 力道, 脑力, 身手 (ascending native id). Stats itself is
+    // id-sorted like every catalog list; every per-stat array (build points, AllocatePoints counts, received points, owner
+    // view rows, UI rows, AI ties) is indexed in this order.
+    TArray<const FLDDemoStatDefinition*> StatsInDesignOrder() const;
+    // Index of StatId in StatsInDesignOrder, or INDEX_NONE.
+    int32 StatDesignIndex(const FString& StatId) const;
 };

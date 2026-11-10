@@ -24,7 +24,7 @@ namespace LDGameModeTraceDetail
         return Connection ? Connection->LowLevelGetRemoteAddress(true) : FString(TEXT("-"));
     }
 
-    // #198: Q/W/E actives with their slots, pending blueprints and the allocated points per stat (catalog order).
+    // #198: Q/W/E actives with their slots, pending blueprints and the allocated points per stat (the stats' design order).
     FString BuildText(const FLDGrowthBuild& Build)
     {
         FString Skills, Blueprints;
