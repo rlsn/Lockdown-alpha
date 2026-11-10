@@ -514,10 +514,11 @@ namespace LDOpponentPolicy
     // last AP or AD active away, say). After the respec AllocatePoints spends only into that set, so it does not repeat
     // until the learned actives change. False with Error when the stat rows are not the catalog's.
     LOCKDOWN_API bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error);
-    // #198 rest NPC: buy one active offer exactly when growth would charge for it and it fills a gap: no offer and no queued
-    // opportunity, at least GROWTH.NpcActivePoints unspent, at least three catalog actives neither learned nor pending (the
-    // offer's draw), and an empty Q/W/E slot with no pending blueprint to fill it.
-    LOCKDOWN_API bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog);
+    // #198 rest NPC: buy one active offer exactly when growth would charge for it and it fills a gap: a mid rest (RestIndex
+    // 1..3; never the opening rest R0, whose opening points go to the stats), no offer and no queued opportunity, at least
+    // GROWTH.NpcActivePoints unspent, at least three catalog actives neither learned nor pending (the offer's draw), and an
+    // empty Q/W/E slot with no pending blueprint to fill it.
+    LOCKDOWN_API bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8 RestIndex);
     // #198 B component picks (rule-based, no tunable numbers). Whether the AI could enable Component apart from the build
     // gate: a base component and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its
     // BindActives lists, bound with the first element its BindElements lists (Out* stay empty / None without a binding).

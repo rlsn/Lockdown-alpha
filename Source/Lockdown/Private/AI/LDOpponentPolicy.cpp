@@ -1452,11 +1452,12 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
-    // #198 rest NPC: an offer bought to fill an empty slot; its choice comes first at the next decision.
+    // #198 rest NPC: in a mid rest, an offer bought to fill an empty slot; its choice comes first at the next decision.
     if (bChooseOffer && LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer, Context) == ELDGrowthReason::None)
     {
         const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::BuyNpcOffer);
-        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::WantsNpcOffer(Self, Catalog))
+        if (State.Failures.CanAttempt(Key, Print, Now)
+            && LDOpponentPolicy::WantsNpcOffer(Self, Catalog, Frame.Public.Timeline.RestIndex))
         {
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::BuyNpcOffer;
@@ -1980,10 +1981,12 @@ bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cata
     return false;
 }
 
-bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog)
+bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8 RestIndex)
 {
     const auto& Content = Catalog.Get();
     const int64 Cost = Content.Parameters.NpcActivePoints;
+    // Coordinator decision (#198 J2): the opening rest R0 spends its opening points on the stats, never on the NPC.
+    if (RestIndex == 0) { return false; }
     // Growth refuses without a charge: OfferOutstanding, NotEnoughPoints (a cost below one is invalid data).
     if (Self.Offer.IsSet() || Self.QueuedOpportunities > 0 || Cost < 1 || Self.UnspentPoints < Cost) { return false; }
     // The gap it fills: an empty Q/W/E slot that no pending blueprint is waiting for.
