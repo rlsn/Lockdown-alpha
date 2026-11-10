@@ -113,8 +113,15 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     if (bLivingSource && Hit.ComponentBurnStacks>0
         && !ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.ComponentBurnSource),Hit.ComponentBurnStacks,Hit.HitId,
             NowMs,Error)) { return false; }
+    // Water, then electric: the hit's native element (its release snapshot) before a component's own application (B10/B11/
+    // B18 at the living source's level and AP now, credited to that component).
     if (Hit.bApplyWet && !ApplyElement(Target,ELDCombatElement::Water,ApplierOf(Hit),0,Hit.HitId,NowMs,Error)) { return false; }
+    if (bLivingSource && Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None
+        && !ApplyElement(Target,ELDCombatElement::Water,SourceApplier(Hit.ComponentWetSource),0,Hit.HitId,NowMs,Error)) { return false; }
     if (Hit.bApplyElectric && !ApplyElement(Target,ELDCombatElement::Electric,ApplierOf(Hit),0,Hit.HitId,NowMs,Error)) { return false; }
+    if (bLivingSource && Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None
+        && !ApplyElement(Target,ELDCombatElement::Electric,SourceApplier(Hit.ComponentElectricSource),0,Hit.HitId,NowMs,Error))
+    { return false; }
     return true;
 }
 
@@ -207,6 +214,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         PendingHits.Add(MoveTemp(Settle));
     }
     TArray<FLDCombatBodyRef> Struck;
+    TOptional<FLDCombatFog> NewFog;
     switch (Reaction)
     {
     case ELDCombatReaction::Fog:
@@ -219,8 +227,10 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         Fog.CentreCm=PrimaryFoot;
         Fog.RadiusCm=Terms.FogRadiusCm;
         Fog.StartMs=NowMs;
-        Fog.NextPulseMs=NowMs;
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Terms.FogMs,Fog.EndMs,Error)) { return false; }
+        // Its 0 s pulse lands below, inside this batch; the next one follows an interval later.
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Terms.FogIntervalMs,Fog.NextPulseMs,Error)
+            || !LDMatchLifecycle::AddDurationMs(NowMs,Terms.FogMs,Fog.EndMs,Error)) { return false; }
+        NewFog=Fog;
         break;
     }
     case ELDCombatReaction::Conduct:
@@ -274,6 +284,22 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     UE_LOG(LogLDCombat,Log,TEXT("LD_REACTION t=%lld kind=%s trigger=%s via=%s primary=%s struck=%d r=%s fire_settles=%d"),
         NowMs,LDCombatElements::ReactionName(Reaction),*LDLog::Id(Applier.SourceEntity),*LDLog::Source(Applier.Source),
         *LDLog::Id(Target.Victim.EntityId),Struck.Num(),*LDLog::P2(R),FireShares.Num());
+    // Spec §11.1/§18.1: a new fog's 0 s wet lands before the batch that made it continues (a later electric of the same hit
+    // already finds its centre body wet), and later bodies of this boundary read the bodies it wetted.
+    return !NewFog.IsSet() || PulseFog(NewFog.GetValue(),NowMs,Error);
+}
+
+bool ALDCombatDirector::PulseFog(const FLDCombatFog& Fog, int64 NowMs, FString& Error)
+{
+    TArray<FLDCombatBodyRef> Inside;
+    if (!CollectAreaTargets(Fog.CentreCm,Fog.RadiusCm,FindBody(Fog.Owner.SourceBody),Fog.Owner.SourceEntity,Inside,Error))
+    { Error=TEXT("Fog: ")+Error; return false; }
+    for (const FLDCombatBodyRef& Ref : Inside)
+    {
+        FLDBodyCombatState* Body=FindBody(Ref);
+        if (!Body || Body->bPendingDeath || ElementOfBody(*Body,NowMs)!=ELDCombatElement::None) { continue; }
+        if (!ApplyElement(*Body,ELDCombatElement::Water,Fog.Owner,0,Fog.EffectId,NowMs,Error)) { return false; }
+    }
     return true;
 }
 
@@ -416,26 +442,19 @@ int64 ALDCombatDirector::NextElementsDueMs(int64 NowMs) const
 bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
 {
     using namespace LDCombatElementsDirectorDetail;
-    // Fog pulses: wet on every element-free enemy of the owner inside, at the start and every interval until it ends.
+    // Fog pulses: wet on every element-free enemy of the owner inside, at the start (inside the batch that made it) and
+    // every interval until it ends.
     for (int32 Index=Fogs.Num()-1; Index>=0; --Index)
     {
-        FLDCombatFog& Fog=Fogs[Index];
-        while (Fog.NextPulseMs<=NowMs && Fog.NextPulseMs<Fog.EndMs)
+        while (Fogs.IsValidIndex(Index) && Fogs[Index].NextPulseMs<=NowMs && Fogs[Index].NextPulseMs<Fogs[Index].EndMs)
         {
             FLDElementTerms Terms;
             if (!ElementTerms(Terms,Error)) { return false; }
-            TArray<FLDCombatBodyRef> Inside;
-            if (!CollectAreaTargets(Fog.CentreCm,Fog.RadiusCm,FindBody(Fog.Owner.SourceBody),Fog.Owner.SourceEntity,Inside,Error))
-            { Error=TEXT("Fog: ")+Error; return false; }
-            for (const FLDCombatBodyRef& Ref : Inside)
-            {
-                FLDBodyCombatState* Body=FindBody(Ref);
-                if (!Body || Body->bPendingDeath || ElementOfBody(*Body,NowMs)!=ELDCombatElement::None) { continue; }
-                if (!ApplyElement(*Body,ELDCombatElement::Water,Fog.Owner,0,Fog.EffectId,NowMs,Error)) { return false; }
-            }
-            if (!LDMatchLifecycle::AddDurationMs(Fog.NextPulseMs,Terms.FogIntervalMs,Fog.NextPulseMs,Error)) { return false; }
+            const FLDCombatFog Pulse=Fogs[Index];
+            if (!LDMatchLifecycle::AddDurationMs(Pulse.NextPulseMs,Terms.FogIntervalMs,Fogs[Index].NextPulseMs,Error)) { return false; }
+            if (!PulseFog(Pulse,NowMs,Error)) { return false; }
         }
-        if (Fog.EndMs<=NowMs) { Fogs.RemoveAt(Index); }
+        if (Fogs.IsValidIndex(Index) && Fogs[Index].EndMs<=NowMs) { Fogs.RemoveAt(Index); }
     }
     // S10 bounces: the nearest not yet struck enemy around the last struck body.
     for (int32 Index=Chains.Num()-1; Index>=0; --Index)

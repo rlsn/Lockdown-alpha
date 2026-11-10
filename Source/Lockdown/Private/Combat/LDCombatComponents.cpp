@@ -45,12 +45,19 @@ bool ALDCombatDirector::ApplyComponentElement(FLDCombatHit& Hit, ELDDemoElement 
         Hit.ComponentBurnSource=Component;
         return true;
     case ELDDemoElement::Water:
-        Hit.bApplyWet=true;
-        return true;
     case ELDDemoElement::Electric:
-        // The caller stamps the hit's element snapshot (StampElementSnapshot); ApplyElements applies it and its reactions.
-        Hit.bApplyElectric=true;
+    {
+        // The component's own application (spec §11.1/§11.4): C09 and M11 read this source, never the parent attack's.
+        FLDCombatSourceRef& Slot=Element==ELDDemoElement::Water ? Hit.ComponentWetSource : Hit.ComponentElectricSource;
+        if (Slot.Kind!=ELDCombatSourceKind::None && Slot!=Component)
+        {
+            Error=FString::Printf(TEXT("Hit %s carries %s of two components (%s, %s)."),*Hit.HitId.ToString(),
+                Element==ELDDemoElement::Water ? TEXT("water") : TEXT("electric"),*LDLog::Source(Slot),*LDLog::Source(Component));
+            return false;
+        }
+        Slot=Component;
         return true;
+    }
     default:
         Error=FString::Printf(TEXT("%s names no element."),*LDLog::Source(Component));
         return false;

@@ -231,6 +231,8 @@ public:
     static constexpr int64 SamplePeriodMs = 50;
     static constexpr int64 PublishPeriodMs = 100;
 private:
+    // Combat rule tests give an isolated world the registered sight of the approved geometry.
+    friend struct FLDBuildPrimitivesAccess;
     struct FObserver
     {
         FGuid ContenderId;

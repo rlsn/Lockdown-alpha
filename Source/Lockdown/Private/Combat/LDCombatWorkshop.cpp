@@ -54,16 +54,6 @@ namespace LDCombatWorkshopDetail
         return Hit;
     }
 
-    // A damage-only copy: the original target keeps the controls and debuffs (M01).
-    void StripToDamage(FLDCombatHit& Hit)
-    {
-        Hit.RootDurationMs=Hit.SlowBp=Hit.SlowDurationMs=Hit.DisarmDurationMs=Hit.StunDurationMs=Hit.SilenceDurationMs=0;
-        Hit.AttackSlowBp=Hit.AttackSlowMs=Hit.KnockbackMs=0;
-        Hit.KnockbackCm=0;
-        Hit.BreachStacks=Hit.BurnStacks=0;
-        Hit.KnockbackSource=FLDCombatSourceRef();
-    }
-
     void Remember(TArray<FLDCombatBodyMark>& Marks, const FLDCombatBodyRef& Body, int64 AtMs)
     {
         Marks.RemoveAll([&Body](const FLDCombatBodyMark& Row) { return Row.Body==Body; });
@@ -222,11 +212,7 @@ bool ALDCombatDirector::SpreadUnitHits(const FLDBodyCombatState& Body, const FLD
         if (Other==Primary || !FindBody(Other,&OtherActor) || !OtherActor) { continue; }
         const FVector Toward=(FootOf(*OtherActor)-Origin).GetSafeNormal2D();
         if (!Facing.IsNearlyZero() && !Toward.IsNearlyZero() && FVector::DotProduct(Facing,Toward)<CosHalf) { continue; }
-        FLDCombatHit Hit=Template;
-        Hit.HitId=FGuid::NewGuid();
-        Hit.Target=Other;
-        LDCombatWorkshopDetail::StripToDamage(Hit);
-        PendingHits.Add(MoveTemp(Hit));
+        PendingHits.Add(SpreadCopy(Template,Other));
     }
     return true;
 }
@@ -402,9 +388,11 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
             if (!TargetActor) { break; }
             if (!CollectAreaTargets(FootOf(*TargetActor),Cm(Burst.Effect.RadiusCm),&Target,Target.Victim.EntityId,Around,Error))
             { return false; }
+            // One answer is one effect: every body it reaches shares its identity, so C11's 30G budget on it is one budget.
+            const FGuid BurstId=FGuid::NewGuid();
             for (const FLDCombatBodyRef& Other : Around)
             {
-                FLDCombatHit Answer=MakeHit(Target,Burst.Source,Other,FGuid());
+                FLDCombatHit Answer=MakeHit(Target,Burst.Source,Other,BurstId);
                 Answer.BaseP2=Share(ShieldGrantedP2,Burst.Effect.RatioBp);
                 Answer.DamageType=ELDDemoDamageType::Magical;
                 if (!StampSourceTerms(Target,Answer,Error)) { return false; }
@@ -413,16 +401,30 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
         }
     }
     if (!Source) { return true; }
-    // C01: the bound fire source's real HP damage joins the open one-second window.
+    // C01: the bound fire source's real HP damage joins the fixed window it falls in (spec §13.3); it settles after this
+    // boundary's hits (SettleFireWindows).
     if (Hit.bBurnTick && Damage.HPLostP2>0)
     {
         TArray<FLDPassiveEffectRef> Shields;
         if (!WorkshopOn(Source->AttributeProjection,ELDDemoEffectOp::FireShield,Hit.Source,Shields,Error)) { return false; }
         if (!Shields.IsEmpty())
         {
+            const FLDCombatEntityRecord* Record=FindRecord(Source->Victim.EntityId);
+            int64 EndMs=0;
+            if (!Record || !Record->FireWindowAnchorMs.IsSet()
+                || !LDCombatMechanics::FixedWindowEndMs(Record->FireWindowAnchorMs.GetValue(),Shields[0].Effect.IntervalMs,NowMs,EndMs))
+            {
+                Error=FString::Printf(TEXT("C01 of %s has no install boundary for a fire fact at %lld."),*Source->Victim.EntityId.ToString(),NowMs);
+                return false;
+            }
+            if (Source->FireWindowEndMs>0 && Source->FireWindowEndMs!=EndMs)
+            {
+                Error=FString::Printf(TEXT("C01 of %s still holds the window ending %lld when a fact of the window ending %lld arrives."),
+                    *Source->Victim.EntityId.ToString(),Source->FireWindowEndMs,EndMs);
+                return false;
+            }
             Source->FireWindowSumP2+=Damage.HPLostP2;
-            if (Source->FireWindowEndMs<=0 && !LDMatchLifecycle::AddDurationMs(NowMs,Shields[0].Effect.IntervalMs,Source->FireWindowEndMs,Error))
-            { return false; }
+            Source->FireWindowEndMs=EndMs;
         }
     }
     const bool bEffective=Damage.HPLostP2>0 || Damage.ShieldAbsorbedP2>0;
@@ -749,23 +751,6 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             Pay.bDebtPayment=true;
             PendingHits.Add(MoveTemp(Pay));
         }
-        // C01: a closed window grants its candidate shield (no damage, no shield; the fire itself is never consumed).
-        if (Body.FireWindowEndMs>0 && NowMs>=Body.FireWindowEndMs)
-        {
-            const int64 Sum=Body.FireWindowSumP2;
-            Body.FireWindowSumP2=0;
-            Body.FireWindowEndMs=0;
-            TArray<FLDPassiveEffectRef> Shields;
-            if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::FireShield,Shields,Error)) { return false; }
-            if (!Shields.IsEmpty() && Sum>0)
-            {
-                const FLDDemoEffectDefinition& Effect=Shields[0].Effect;
-                const int64 Amount=FMath::Min(Effect.BaseP2+Share(Sum,Effect.RatioBp),Share(Body.Resources.MaxHpP2,Effect.MultiplierBp));
-                if (!GrantShieldTo(Body,Amount,Effect.DurationMs,FGuid::NewGuid(),Body.Victim.EntityId,NowMs,Error,Shields[0].Source)) { return false; }
-                UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_FIRE_SHIELD t=%lld body=%s fire=%s candidate=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId),
-                    *LDLog::P2(Sum),*LDLog::P2(Amount));
-            }
-        }
         // C08: the store fires once per interval at the nearest legal attacker; idle for its window, it clears.
         if (Body.CounterStoreP2>0)
         {
@@ -847,6 +832,53 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             if (!StampSourceTerms(*Settler,Cash,Error)) { return false; }
             PendingHits.Add(MoveTemp(Cash));
         }
+    }
+    return true;
+}
+
+bool ALDCombatDirector::SettleFireWindows(int64 NowMs, FString& Error)
+{
+    using namespace LDCombatWorkshopDetail;
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        if (Body.FireWindowEndMs<=0 || NowMs<Body.FireWindowEndMs) { continue; }
+        // C01: a closed window grants its candidate shield once (no input, no shield; the fire itself is never consumed).
+        const int64 Sum=Body.FireWindowSumP2, EndMs=Body.FireWindowEndMs;
+        Body.FireWindowSumP2=0;
+        Body.FireWindowEndMs=0;
+        if (Body.bPendingDeath || Sum<=0) { continue; }
+        TArray<FLDPassiveEffectRef> Shields;
+        if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::FireShield,Shields,Error)) { return false; }
+        if (Shields.IsEmpty())
+        {
+            Error=FString::Printf(TEXT("A C01 window of %s closed without its connector installed."),*Body.Victim.EntityId.ToString());
+            return false;
+        }
+        const FLDDemoEffectDefinition& Effect=Shields[0].Effect;
+        const int64 Amount=FMath::Min(Effect.BaseP2+Share(Sum,Effect.RatioBp),Share(Body.Resources.MaxHpP2,Effect.MultiplierBp));
+        if (!GrantShieldTo(Body,Amount,Effect.DurationMs,FGuid::NewGuid(),Body.Victim.EntityId,NowMs,Error,Shields[0].Source)) { return false; }
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_FIRE_SHIELD t=%lld body=%s window_end=%lld fire=%s candidate=%s"),NowMs,
+            *LDLog::Id(Body.Victim.EntityId),EndMs,*LDLog::P2(Sum),*LDLog::P2(Amount));
+    }
+    return true;
+}
+
+bool ALDCombatDirector::NoteWorkshopInstall(FLDCombatEntityRecord& Record, const FLDAttributeProjection& Previous,
+    FLDBodyCombatState* Body, int64 NowMs, FString& Error)
+{
+    TArray<FLDPassiveEffectRef> Before, After;
+    if (!CollectPassiveEffects(Previous,ELDDemoEffectOp::FireShield,Before,Error)
+        || !CollectPassiveEffects(Record.Projection,ELDDemoEffectOp::FireShield,After,Error)) { return false; }
+    // Spec §13.3: the first install fixes the boundaries for good; a reinstall keeps them (no replay, no early claim).
+    if (!After.IsEmpty() && !Record.FireWindowAnchorMs.IsSet()) { Record.FireWindowAnchorMs=NowMs; }
+    // An uninstall (or a binding moved to another fire source) stops collecting and drops the unsettled window.
+    const bool bSameBinding=!Before.IsEmpty() && !After.IsEmpty() && Before[0].TargetKind==After[0].TargetKind
+        && Before[0].TargetId==After[0].TargetId;
+    if (Body && !bSameBinding && (Body->FireWindowEndMs>0 || Body->FireWindowSumP2>0))
+    {
+        Body->FireWindowSumP2=0;
+        Body->FireWindowEndMs=0;
     }
     return true;
 }
