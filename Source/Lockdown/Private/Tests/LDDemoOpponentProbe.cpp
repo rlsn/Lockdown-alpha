@@ -134,18 +134,23 @@ public:
     bool RosterKept = true, ReadsKept = true;
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
-    // #198: each AI's current rest life in its private rest space during the opening rest R0 and that life's foot at its
-    // first sample; the largest drift seen before the PK sign-up window opens, and afterwards the largest step away from
-    // the own sign-up disk (站圈报名: the only walk is into it); the AIs that stood in their disks at the lock and the AIs
-    // seen on a PK life in R0; and the ms since the match start (R0) at which each AI's opening choice was first seen.
+    // #198: each AI's current rest life in its private rest space during the opening rest R0, that life's foot at its first
+    // sample, whether it has decided to train on its own dummy (§6.4: the only reason to move there before the PK sign-up
+    // window) and its distance to its own sign-up disk at the first sample inside the window (站圈报名: afterwards the only
+    // walk is into that disk); the largest drift seen before training, the largest step away from the disk inside the
+    // window, the AIs that stood in their disks at the lock, the AIs seen training or on a PK life in R0, and the ms since
+    // the match start (R0) at which each AI's opening choice was first seen.
     struct FRest0Foot
     {
         uint32 Life = 0;
         FVector Foot = FVector::ZeroVector;
+        bool bTrained = false;
+        double WindowDiskCm = -1;
     };
     TMap<FGuid, FRest0Foot> Rest0AIFeet;
     TSet<FGuid> Rest0PKEntrants;
     TSet<FGuid> Rest0Signed;
+    TSet<FGuid> Rest0Trainers;
     TMap<FGuid, int64> Rest0Picks;
     double MaxRest0AIDriftCm = 0;
     double MaxRest0AIStrayCm = 0;
@@ -987,12 +992,12 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 no opponent AI moves in its private rest space before the PK sign-up window
-        // opens, and afterwards it only walks into its own sign-up disk (站圈报名, user decision A), so every AI stands
-        // in its disk at the lock (sampled on the authority until field 1); each picks its opening active in the R0 build
-        // step after its drawn delay. An AI that signed up fights on a PK life in the arena during the PK step (approved
-        // R0 PK); that life is not a rest-space body, and the rest life it returns to afterwards is measured from its own
-        // first sample.
+        // #198: through the opening rest R0 an opponent AI moves in its private rest space only to train on its own dummy
+        // once nothing is left to build (OPPONENT_AI.md §6.4) and, once the PK sign-up window opens, only to walk into its own
+        // sign-up disk (站圈报名, user decision A), so every AI stands in its disk at the lock (sampled on the authority until
+        // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights on
+        // a PK life in the arena during the PK step (approved R0 PK); that life is not a rest-space body, and the rest life
+        // it returns to afterwards is measured from its own first sample.
         if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
             && Mode->GetTimeline().GetRestIndex() == 0)
         {
@@ -1003,6 +1008,8 @@ bool FLDDemoOpponentProbe::Tick()
                 const FGuid Id = Mode->ContenderId(*It);
                 if (Mode->IsPKLife(Id)) { Rest0PKEntrants.Add(Id); }
                 if (Mode->GetLockedEntrants().Contains(Id)) { Rest0Signed.Add(Id); }
+                const bool bTraining = It->GetReportedReason() == ELDOpponentReason::Train;
+                if (bTraining) { Rest0Trainers.Add(Id); }
                 const APawn* Pawn = It->GetPawn();
                 FLDContenderLifeRead Life;
                 FString ReadError;
@@ -1017,11 +1024,20 @@ bool FLDDemoOpponentProbe::Tick()
                     {
                         Seen.Life = Life.Life;
                         Seen.Foot = Foot;
+                        Seen.bTrained = false;
+                        Seen.WindowDiskCm = -1;
                     }
-                    else if (bBeforeWindow) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
+                    // The training order may outlive the decision that sent it, so a life that trained is not measured again.
+                    Seen.bTrained |= bTraining;
+                    if (bBeforeWindow)
+                    {
+                        if (!Seen.bTrained) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
+                    }
                     else if (Mode->SignupDiskFor(Id, Disk, DiskRadius))
                     {
-                        MaxRest0AIStrayCm = FMath::Max(MaxRest0AIStrayCm, FVector::Dist2D(Foot, Disk) - FVector::Dist2D(Seen.Foot, Disk));
+                        const double DiskCm = FVector::Dist2D(Foot, Disk);
+                        if (Seen.WindowDiskCm < 0) { Seen.WindowDiskCm = DiskCm; }
+                        MaxRest0AIStrayCm = FMath::Max(MaxRest0AIStrayCm, DiskCm - Seen.WindowDiskCm);
                     }
                     else { MaxRest0AIStrayCm = TNumericLimits<double>::Max(); }
                 }
@@ -1042,7 +1058,7 @@ bool FLDDemoOpponentProbe::Tick()
         if (bHost)
         {
             Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1. && MaxRest0AIStrayCm < 1.,
-                TEXT("In the opening rest R0 an opponent AI stays still before the sign-up window and then only walks into its own sign-up disk"));
+                TEXT("In the opening rest R0 an opponent AI moves only to train on its own dummy before the sign-up window and then only walks into its own sign-up disk"));
             Check(Rest0Signed.Num() == OpponentCount && Rest0PKEntrants.Num() == OpponentCount,
                 TEXT("Every opponent AI stood in its own sign-up disk at the R0 lock and entered the PK (站圈报名)"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
@@ -1050,6 +1066,7 @@ bool FLDDemoOpponentProbe::Tick()
             Summary->SetNumberField(TEXT("rest0_ai_stray_cm"), MaxRest0AIStrayCm);
             Summary->SetNumberField(TEXT("rest0_signed"), Rest0Signed.Num());
             Summary->SetNumberField(TEXT("rest0_pk_entrants"), Rest0PKEntrants.Num());
+            Summary->SetNumberField(TEXT("rest0_trainers"), Rest0Trainers.Num());
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
         if (!Passed) { return Finish(); }

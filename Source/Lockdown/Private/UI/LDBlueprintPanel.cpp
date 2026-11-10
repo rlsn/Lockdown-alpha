@@ -68,9 +68,22 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
         for(const FLDBlueprintComponent& Component:Structure.Components)
         {
             TArray<FString> Parameters;
-            for(const FLDBlueprintParameter& Parameter:Component.Parameters){Parameters.Add(Parameter.Key+TEXT("=")+Parameter.Value);}
+            FString Where=Component.Host.IsEmpty()?FString():BlueprintName(Definitions,Component.Host);
+            for(const FLDBlueprintParameter& Parameter:Component.Parameters)
+            {
+                if(Parameter.Key==TEXT("target_kind")){if(Parameter.Value==TEXT("dash")){Where=TEXT("D");}continue;}
+                if(Parameter.Key==TEXT("element"))
+                {
+                    const ELDDemoElement Element=Parameter.Value==TEXT("fire")?ELDDemoElement::Fire:Parameter.Value==TEXT("water")
+                        ?ELDDemoElement::Water:Parameter.Value==TEXT("electric")?ELDDemoElement::Electric:ELDDemoElement::None;
+                    Parameters.Add(Element==ELDDemoElement::None?Parameter.Value:LDHUD::ElementName(Element));
+                    continue;
+                }
+                if(Parameter.Key==TEXT("bound_component")){Parameters.Add(TEXT("复用 ")+BlueprintName(Definitions,Parameter.Value));continue;}
+                Parameters.Add(Parameter.Key+TEXT("=")+Parameter.Value);
+            }
             FString Row=BlueprintName(Definitions,Component.Component);
-            if(!Component.Host.IsEmpty()){Row+=TEXT(" @")+Component.Host;}
+            if(!Where.IsEmpty()){Row+=TEXT(" → ")+Where;}
             if(!Parameters.IsEmpty()){Row+=TEXT("（")+FString::Join(Parameters,TEXT("，"))+TEXT("）");}
             Rows.Add(MoveTemp(Row));
         }

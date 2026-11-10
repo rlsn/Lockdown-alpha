@@ -373,6 +373,17 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         Error = TEXT("The public match view belongs to another match.");
         return false;
     }
+    // #198 §16.3: in a rest, the public room roster as every participant's HUD reads it (the own training dummy is not on it).
+    if (Public.Phase == ELDMatchPhase::Rest)
+    {
+        const FLDLobbyView Lobby = Mode.ReadLobby();
+        if (Lobby.Generation != Generation)
+        {
+            Error = TEXT("The public room roster belongs to another match.");
+            return false;
+        }
+        for (const FLDLobbyMember& Member : Lobby.Members) { Frame.Public.Roster.Add(Member.ContenderId); }
+    }
     Frame.Generation = Generation;
     Frame.POIs = POIs;
     if (Public.Phase == ELDMatchPhase::Rest) { Frame.SignupPOI = SignupPOI; }
@@ -748,7 +759,7 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
     const FLDOpponentSelf& Self = Frame.Self;
     FString Error;
     FLDBuildCommand Command;
-    if (!Mode.Development || !LDOpponentRequests::BuildCommand(Intent, Reads.Owner.Growth.Progression, BuildRequestId,
+    if (!Mode.Development || !LDOpponentRequests::BuildCommand(Intent, Reads.Owner.Growth.Progression, *Content, BuildRequestId,
         Command, Error))
     {
         Problem = Error.IsEmpty() ? FString(TEXT("The progression domain is unavailable.")) : Error;

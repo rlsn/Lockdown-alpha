@@ -119,6 +119,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
     LedgerHealed(Body,Pool.HpP2-Before);
+    LedgerDebtRepaid(Body,Repaid);
     return true;
 }
 

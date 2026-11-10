@@ -381,17 +381,36 @@ DEV 重置把它清零。
 ### 局末构筑蓝图（#198 §10）
 
 `ALDCombatDirector` 持有本局唯一的 `FLDBuildLedger`（`Development/LDBuildBlueprint.h`，挂点在 `LDCombatBlueprintLedger.cpp`），
-它只读 Combat 已安装的 `FLDBuildProjectionInput`，不是第二份构筑真相。版本按**结构**划分：持有点数的五维、Q/W/E 主动与构件
-（当前构筑还没有构件字段，记为未采集）；只升级或只改 DEV 测试层的修订留在当前版本（更新等级区间与修订区间，
+它只读 Combat 已安装的 `FLDBuildProjectionInput`，不是第二份构筑真相。版本按**结构**划分：持有点数的五维、Q/W/E 主动与已安装构件
+及其安装参数（`host` 为所在主动/宿主构件或 B18 绑定的主动，参数按键排序：`target_kind` active/component/dash、`element`、
+`bound_component`）；只换安装、改目标或改绑定也开新版本，重构前后的收益分段归属。只升级或只改 DEV 测试层的修订留在当前版本（更新等级区间与修订区间，
 `dev_layer` 标记测试层），结构相同的修订不另造版本。每个版本带 `[from_ms,to_ms)`（权威毫秒，含开局倒计时）与修订区间；
 第一个版本从 0 开始，即开局的空构筑。
 
 事实只在 Combat 提交它的地方记一次：`ApplyBuildChange` 安装后（先补记被替换的开局构筑）、`LandBasic` 落地的普攻与
-`ReleaseAbility` 的主动释放（记下 EffectId 所属版本；天生冲刺不计施法）、`ApplyHit` 的已提交命中、`HealBody` 实际回复的生命、
-`GrantShieldTo` 实际授予的护盾。命中的造成伤害（`DamageP2`，含被目标护盾吸收部分，每次命中一次）记给记功参赛者**释放该效果时**的版本；
-没有登记释放的反应命中（反伤、盾破反击、爆盾）记给提交时安装的版本；承受伤害、自身护盾吸收与生命损失、一次性回复和获得护盾
-记给受影响者提交时安装的版本。自伤与受保护的零结果不记。自然回复、还款（M12）、减免、触发与拒绝目前没有生产者，
-文件里写 `collected:false` 与 `null`，不写 0。
+`ReleaseAbility` 的主动释放（记下 EffectId 所属版本；天生冲刺不计施法）、`ApplyHit` 的已提交命中、`HealBody` 实际回复的生命与
+实际偿还的 M12 欠款（分列，还款不算回复）、`SettleRegen` 实际恢复的自然（含宿舍）生命、`GrantShieldTo` 实际授予的护盾。
+命中的造成伤害（`DamageP2`，含被目标护盾吸收部分，每次命中一次）记给记功参赛者**释放该效果时**的版本；
+没有登记释放的反应命中（反伤、盾破反击、爆盾）记给提交时安装的版本；承受伤害、自身护盾吸收与生命损失、
+本人削减实际减掉的量（S16 姿态 `BraceCutP2` 加主击护甲 `GuardCutP2`，记为减免）、一次性回复、还款、自然恢复和获得护盾
+记给受影响者提交时安装的版本。自伤与受保护的零结果不记。触发为已安装构件一次产生真实结果的触发（`LedgerComponentTriggered`，
+被动数值项不计）；拒绝为本人战斗请求因玩法门槛被拒（忙碌、冷却、普攻间隔、法力、控制、目标、方向、射程、视线；协议、过期与阶段拒绝不计），
+直接请求在回执首次转为拒绝时（`StoreReceipt`）计一次，寻路普攻在出手被拒时计。休息中的私人训练（本人休息生命与其假人，§16.3）
+一律不记。早期版本写下的 `collected:false` 与 `null` 照原样读出，不当作 0。
+
+触发的计数点（每次触发给持有者记 1，不按受击人数；读取活着持有者的触发在其生命已结束时不记）：
+
+- 改变一次命中，在 `ApplyHit` 提交时：B04 吸血实际回复或还款；B07 增伤进入一次正伤害命中（每次命中）；B10/B11/B18 元素随可控命中施加；
+  B16 实际削减（`GuardCutP2>0`）；B17 每次释放的首个正伤害命中（`FLDCombatCastLedger`）；B06/C04 的击退实际生效；
+  B01/B08 在主击的火层与破防实际施加时（`ApplyElements`、`ApplyKeywordStacks`）。
+- 产出自己的投递，在为已解析的目标发出时：B02 兑现（M02 锁定的批次在 `AdvanceWorkshop` 结算成立时计，失效不计）；
+  B03/C08 反击（`DeliverCounter`）；B05 每个接触体；C02 撞墙或撞到合法身体；C05 标记被消耗的追击；C06 余震释放；C10 爆盾波及到身体。
+- 授予与消耗：B09/C01 护盾实际授予；C03 退还生效；C07 法力实际增加；C11 治疗实际生效；C12 重放已安装的基础构件；
+  B12/C09 强化包被落地普攻消耗；M12 一次命中的份额转为欠款。
+- 改装件：M01 扩散实际波及另一具身体（每次投递一次；M02 爆点下只塑形，不计）；M02 锁定反击爆点或账目批次；M11 反击或放电转向标记目标。
+- 不计：常驻与编译期改写（B13–B15、M03–M10）、预览与候选（B02 记账条目、C01 火伤累计、C05 设标、C08 储存、
+  B12/C09 武装）以及被拒、为零或没有目标的触发。`Combat.Components.Ledger` 与 `EmpowerMerge` 检查 B02 兑现与 B12 消耗各计一次、
+  记账条目与 B14 常驻项不计。
 
 结果发布时 `ALDGameMode::PublishBuildBlueprints`（`LDGameModeBlueprint.cpp`）用 `LDBuildBlueprint::Compose` 把台账与冻结结果
 （公开 ResultId 作为 Match ID、原因、胜负、开始/结束时刻、本人等级与 K/D/A、产品版本、协议版本、目录根摘要与 schema/handler/projection
@@ -431,7 +450,8 @@ B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后�
 欠款不吃 S16、C10 共享 C11 预算、M01 只扩散伤害、S20 队友加速、C01 固定窗口与边界收齐，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、
-时间段与收尾，以及没有生产者的事实为未采集，
+时间段与收尾，以及全部事实自开局即采集并按版本分列，`BuildBlueprint.Components` 覆盖只改安装/目标/绑定即开新版本、
+构件行的宿主与参数、严格往返与失效安装提示，
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
 强制目标与恢复；成长的纯规则是
 `DemoGrowth*`，见 [成长事务](GROWTH_TRANSACTIONS.md)。

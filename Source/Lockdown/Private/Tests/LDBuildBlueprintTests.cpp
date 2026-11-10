@@ -98,19 +98,21 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     const FDateTime At(2026,11,10,2,3,4,567);
     FLDBlueprintRecord Record;
     if(!BlueprintSample(*this,Match,At,Record)){return false;}
+    // A record written by an earlier build may state a fact as not collected; it keeps that statement.
+    Record.Versions[1].Facts[int32(ELDBlueprintFact::DebtRepaid)].bCollected=false;
     TArray<uint8> Bytes;
     FString Error;
     TestTrue(TEXT("A composed record serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error));
     const FString Text=BlueprintUtf8(Bytes);
     TestTrue(TEXT("The file names its schema and version"),Text.Contains(TEXT("\"schema\": \"lockdown.build-blueprint\""))
         &&Text.Contains(TEXT("\"schema_version\": 1"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
-    const int32 Debt=Text.Find(TEXT("\"debt_repaid_p2\""));
+    const int32 Debt=Text.Find(TEXT("\"debt_repaid_p2\""),ESearchCase::CaseSensitive,ESearchDir::FromEnd);
     const FString DebtObject=Debt==INDEX_NONE?FString():Text.Mid(Debt,160);
-    TestTrue(TEXT("A fact without a producer is written as not collected with a null value, never 0"),
+    TestTrue(TEXT("A fact stated as not collected is written with a null value, never 0"),
         DebtObject.Contains(TEXT("\"collected\": false"))&&DebtObject.Contains(TEXT("\"value\": null")));
     const int32 Components=Text.Find(TEXT("\"components\""));
-    TestTrue(TEXT("Components the build does not hold yet are not collected (null), never an empty list"),
-        Components!=INDEX_NONE&&Text.Mid(Components,120).Contains(TEXT("\"items\": null")));
+    TestTrue(TEXT("Components are recorded: a build without installs states an empty list"),
+        Components!=INDEX_NONE&&Text.Mid(Components,120).Contains(TEXT("\"collected\": true"))&&Text.Mid(Components,120).Contains(TEXT("\"items\": []")));
     TestFalse(TEXT("No contender identity, account or address is written"),Text.Contains(TEXT("\"contender"))||Text.Contains(TEXT("address")));
 
     FLDBlueprintRecord Parsed;
@@ -140,6 +142,8 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
 {
     FLDBlueprintRecord Record;
     if(!BlueprintSample(*this,FGuid::NewGuid(),FDateTime(2026,11,10),Record)){return false;}
+    // An earlier writer's not-collected fact: its null must never be read back as 0.
+    Record.Versions[0].Facts[int32(ELDBlueprintFact::Triggers)].bCollected=false;
     TArray<uint8> Bytes;
     FString Error;
     if(!TestTrue(TEXT("Sample serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error))){return false;}
@@ -313,13 +317,24 @@ bool FLDBuildBlueprintAttributionTest::RunTest(const FString& Parameters)
         Versions[0].Facts[int32(ELDBlueprintFact::DamageDealt)].Value==150&&Versions[1].Facts[int32(ELDBlueprintFact::DamageDealt)].Value==0);
     TestTrue(TEXT("Recovery is its own fact"),Versions[1].Facts[int32(ELDBlueprintFact::Healing)].Value==30
         &&Versions[0].Facts[int32(ELDBlueprintFact::Healing)].Value==0);
-    for(const ELDBlueprintFact Missing:{ELDBlueprintFact::DebtRepaid,ELDBlueprintFact::DamageReduced,ELDBlueprintFact::Regeneration,
+    for(int32 Index=0;Index<int32(ELDBlueprintFact::Count);++Index)
+    {
+        const ELDBlueprintFact Fact=ELDBlueprintFact(Index);
+        TestTrue(FString::Printf(TEXT("%s has a producer and is collected from the start"),LDBuildBlueprint::FactKey(Fact)),
+            LDBuildBlueprint::IsFactCollected(Fact)&&Versions[0].Facts[Index].bCollected&&Versions[1].Facts[Index].bCollected);
+    }
+    for(const ELDBlueprintFact Fact:{ELDBlueprintFact::DebtRepaid,ELDBlueprintFact::DamageReduced,ELDBlueprintFact::Regeneration,
         ELDBlueprintFact::Triggers,ELDBlueprintFact::Rejections})
     {
-        TestTrue(FString::Printf(TEXT("%s has no producer and is not collected"),LDBuildBlueprint::FactKey(Missing)),
-            !LDBuildBlueprint::IsFactCollected(Missing)&&!Versions[0].Facts[int32(Missing)].bCollected&&!Versions[1].Facts[int32(Missing)].bCollected);
+        Ledger.Add(Contender,Next,Fact,7);
     }
-    TestTrue(TEXT("Components are not collected while the build holds none"),!Versions[1].Structure.bComponentsCollected);
+    TArray<FLDBlueprintVersion> Summed;
+    TestTrue(TEXT("Repayment, reduction, regeneration, triggers and refusals sum into their own version"),
+        Ledger.Close(Contender,9000,Summed)&&Summed[1].Facts[int32(ELDBlueprintFact::DebtRepaid)].Value==7
+        &&Summed[1].Facts[int32(ELDBlueprintFact::Rejections)].Value==7&&Summed[0].Facts[int32(ELDBlueprintFact::Triggers)].Value==0
+        &&Summed[1].Facts[int32(ELDBlueprintFact::Healing)].Value==30);
+    TestTrue(TEXT("Components are recorded, an empty list while none is installed"),
+        Versions[1].Structure.bComponentsCollected&&Versions[1].Structure.Components.IsEmpty());
     FLDBlueprintRecord Record;
     FString Error;
     TestTrue(TEXT("The record composes from the closed versions"),
@@ -328,6 +343,109 @@ bool FLDBuildBlueprintAttributionTest::RunTest(const FString& Parameters)
         &&Record.FinalBuild.Stats.Num()==2&&Record.FinalBuild.Stats[0].Stat==TEXT("grit"));
     TestFalse(TEXT("Versions that do not end with the match are refused"),
         LDBuildBlueprint::Compose(BlueprintHeader(FGuid::NewGuid(),FDateTime(2026,11,10),8000),Versions,Record,Error));
+    return true;
+}
+
+// #198 §16.4 / review R17: the installed components and their install parameters are structure. A change of only an install,
+// its target or its binding starts a new version, so a rebuild's contribution is never merged into the earlier segment; the
+// recipe round-trips strictly and is checked against the local catalog.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildBlueprintComponentsTest,"Lockdown.Rules.BuildBlueprint.Components",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDBuildBlueprintComponentsTest::RunTest(const FString& Parameters)
+{
+    const auto Installed=[](const TCHAR* Id,ELDComponentTargetKind Kind=ELDComponentTargetKind::None,const TCHAR* Target=nullptr,
+        const TCHAR* Bound=nullptr,ELDDemoElement Element=ELDDemoElement::None,const TCHAR* Base=nullptr)
+    {
+        FLDInstalledComponentValue Value;
+        Value.ComponentId=FName(Id);
+        Value.TargetKind=Kind;
+        Value.TargetId=Target?FName(Target):NAME_None;
+        Value.BoundActive=Bound?FName(Bound):NAME_None;
+        Value.Element=Element;
+        Value.BoundComponent=Base?FName(Base):NAME_None;
+        return Value;
+    };
+    const auto Build=[](uint64 Revision,TArray<FLDInstalledComponentValue> Components)
+    {
+        FLDBuildProjectionInput Out=BlueprintBuild(4,Revision,{{TEXT("might"),2}},{{TEXT("bolt"),ELDCombatEntry::Q},{TEXT("zap"),ELDCombatEntry::W}});
+        Out.Components=MoveTemp(Components);
+        return Out;
+    };
+    using EKind=ELDComponentTargetKind;
+    FLDBuildLedger Ledger;
+    const FGuid Contender=FGuid::NewGuid();
+    const int32 First=Ledger.Observe(Contender,Build(1,{Installed(TEXT("component_dirty_trick"),EKind::None,nullptr,TEXT("bolt"),ELDDemoElement::Fire),
+        Installed(TEXT("component_crowd_hit"),EKind::Active,TEXT("bolt"))}),0);
+    Ledger.Add(Contender,First,ELDBlueprintFact::DamageDealt,100);
+    const int32 Rebound=Ledger.Observe(Contender,Build(2,{Installed(TEXT("component_dirty_trick"),EKind::None,nullptr,TEXT("zap"),ELDDemoElement::Water),
+        Installed(TEXT("component_crowd_hit"),EKind::Active,TEXT("bolt"))}),4000);
+    TestTrue(TEXT("Rebinding only B18 (points and actives unchanged) starts a new version"),Rebound==First+1);
+    Ledger.Add(Contender,Rebound,ELDBlueprintFact::DamageDealt,40);
+    const int32 Moved=Ledger.Observe(Contender,Build(3,{Installed(TEXT("component_dirty_trick"),EKind::None,nullptr,TEXT("zap"),ELDDemoElement::Water),
+        Installed(TEXT("component_crowd_hit"),EKind::Component,TEXT("component_tab_ledger")),Installed(TEXT("component_fist_water")),
+        Installed(TEXT("component_quick_hop"),EKind::Dash),
+        Installed(TEXT("component_dirty_fist"),EKind::Active,TEXT("zap"),nullptr,ELDDemoElement::None,TEXT("component_fist_water"))}),6000);
+    TestTrue(TEXT("Moving a mod to another target and adding installs starts a new version"),Moved==Rebound+1);
+    const int32 Uninstalled=Ledger.Observe(Contender,Build(4,{}),8000);
+    TestTrue(TEXT("Uninstalling everything starts a new version"),Uninstalled==Moved+1);
+    TestEqual(TEXT("The same installs at a level-only revision stay in that version"),Ledger.Observe(Contender,Build(5,{}),8500),Uninstalled);
+    TArray<FLDBlueprintVersion> Versions;
+    if(!TestTrue(TEXT("Four versions close"),Ledger.Close(Contender,9000,Versions)&&Versions.Num()==4)){return false;}
+    TestTrue(TEXT("Each segment keeps its own contribution"),Versions[0].Facts[int32(ELDBlueprintFact::DamageDealt)].Value==100
+        &&Versions[1].Facts[int32(ELDBlueprintFact::DamageDealt)].Value==40&&Versions[2].Facts[int32(ELDBlueprintFact::DamageDealt)].Value==0);
+    const FLDBlueprintStructure& Rich=Versions[2].Structure;
+    const auto Row=[&Rich](const TCHAR* Id){return Rich.Components.FindByPredicate([Id](const FLDBlueprintComponent& C){return C.Component==Id;});};
+    const auto Params=[](const FLDBlueprintComponent* C)
+    {
+        TArray<FString> Out;
+        if(C){for(const FLDBlueprintParameter& P:C->Parameters){Out.Add(P.Key+TEXT("=")+P.Value);}}
+        return FString::Join(Out,TEXT(";"));
+    };
+    TestTrue(TEXT("Components are recorded, sorted by id"),Rich.bComponentsCollected&&Rich.Components.Num()==5
+        &&Rich.Components[0].Component==TEXT("component_crowd_hit")&&Rich.Components[4].Component==TEXT("component_quick_hop"));
+    TestTrue(TEXT("B18 records its bound active and element"),Row(TEXT("component_dirty_trick"))&&Row(TEXT("component_dirty_trick"))->Host==TEXT("zap")
+        &&Params(Row(TEXT("component_dirty_trick")))==TEXT("element=water"));
+    TestTrue(TEXT("A mod on a component records its host and target kind"),Row(TEXT("component_crowd_hit"))
+        &&Row(TEXT("component_crowd_hit"))->Host==TEXT("component_tab_ledger")&&Params(Row(TEXT("component_crowd_hit")))==TEXT("target_kind=component"));
+    TestTrue(TEXT("C12 records its active and repeated base"),Row(TEXT("component_dirty_fist"))&&Row(TEXT("component_dirty_fist"))->Host==TEXT("zap")
+        &&Params(Row(TEXT("component_dirty_fist")))==TEXT("bound_component=component_fist_water;target_kind=active"));
+    TestTrue(TEXT("A mod on D and a plain base"),Row(TEXT("component_quick_hop"))&&Row(TEXT("component_quick_hop"))->Host.IsEmpty()
+        &&Params(Row(TEXT("component_quick_hop")))==TEXT("target_kind=dash")&&Row(TEXT("component_fist_water"))
+        &&Row(TEXT("component_fist_water"))->Host.IsEmpty()&&Row(TEXT("component_fist_water"))->Parameters.IsEmpty());
+
+    FLDBlueprintRecord Record;
+    FString Error;
+    if(!TestTrue(TEXT("The record composes"),LDBuildBlueprint::Compose(BlueprintHeader(FGuid::NewGuid(),FDateTime(2026,11,10),9000),Versions,Record,Error))){return false;}
+    Record.FinalBuild=Versions[2].Structure;
+    Record.Versions.SetNum(3);
+    Record.Versions.Last().ToMs=9000;
+    Record.FinalRevision=Record.Versions.Last().LastRevision;
+    TArray<uint8> Bytes;
+    if(!TestTrue(TEXT("The recipe serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error))){return false;}
+    FLDBlueprintRecord Parsed;
+    FString Detail;
+    TestTrue(FString::Printf(TEXT("The recipe reads back strictly (%s)"),*Detail),
+        LDBuildBlueprint::Parse(Bytes,LDBuildBlueprint::MaxFileBytes,Parsed,Detail)==ELDBlueprintParseError::None
+        &&Parsed.FinalBuild==Versions[2].Structure&&Parsed.Versions[1].Structure==Versions[1].Structure);
+    const FString Text=BlueprintUtf8(Bytes);
+    TestTrue(TEXT("An unknown install parameter is refused"),
+        BlueprintParseText(Text.Replace(TEXT("\"key\": \"element\""),TEXT("\"key\": \"grant\"")))==ELDBlueprintParseError::BadField);
+    TestTrue(TEXT("An unknown element value is refused"),
+        BlueprintParseText(Text.Replace(TEXT("\"value\": \"water\""),TEXT("\"value\": \"lava\"")))==ELDBlueprintParseError::BadField);
+
+    // Notices: a component, host or repeated base the local catalog lacks is a stale install; known ids give none.
+    FLDDemoContentDefinitions Local;
+    for(const TCHAR* Id:{TEXT("bolt"),TEXT("zap")}){Local.Abilities.AddDefaulted_GetRef().Id=Id;}
+    Local.Stats.AddDefaulted_GetRef().Id=TEXT("might");
+    for(const TCHAR* Id:{TEXT("component_dirty_trick"),TEXT("component_crowd_hit"),TEXT("component_tab_ledger"),TEXT("component_quick_hop"),
+        TEXT("component_dirty_fist")}){Local.Components.AddDefaulted_GetRef().Id=Id;}
+    Parsed.CatalogRoot=Local.Identity.Root.ToHex();
+    TArray<FString> Notices;
+    LDBuildBlueprint::Notices(Parsed,&Local,TEXT("0.10.0"),Notices);
+    TestTrue(TEXT("Only the base the local catalog lacks is a stale install"),Notices.Num()==1&&Notices[0].Contains(TEXT("component_fist_water")));
+    Local.Components.AddDefaulted_GetRef().Id=TEXT("component_fist_water");
+    Notices.Reset();
+    LDBuildBlueprint::Notices(Parsed,&Local,TEXT("0.10.0"),Notices);
+    TestTrue(TEXT("A recipe the local catalog fully knows gives no notice"),Notices.IsEmpty());
     return true;
 }
 #endif

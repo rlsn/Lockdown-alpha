@@ -1090,12 +1090,17 @@ struct FComponentPick
     FLDOpponentComponentTarget Target;
 };
 
-// The opening base options (bOpening) or the owned never-installed components, in catalog order, that ComponentUsable
-// accepts (a base) or WorkshopTarget places (a mod or connector). False with Error when a listed id is not a catalog component.
-bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, bool bOpening, TArray<FComponentPick>& Out,
+// Which components ComponentPicks lists: the open opening base options, the owned never-installed inventory (first installs)
+// or the owned once-installed inventory (a rest move back onto the build).
+enum class EPicks : uint8 { Opening, FirstInstall, Reinstall };
+
+// The listed components, in catalog order, that ComponentUsable accepts (a base) or WorkshopTarget places (a mod or
+// connector). False with Error when a listed id is not a catalog component.
+bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, EPicks Which, TArray<FComponentPick>& Out,
     FString& Error)
 {
     Out.Reset();
+    const bool bOpening = Which == EPicks::Opening;
     const TArray<FLDDemoComponentDefinition>& Definitions = Catalog.Get().Components;
     if (bOpening)
     {
@@ -1127,7 +1132,7 @@ bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         {
             const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
                 [&Same](const FLDOpponentComponent& Component) { return Same(Component.DefinitionId); });
-            if (!Owned || Owned->bInstalled || Owned->bEverInstalled) { continue; }
+            if (!Owned || Owned->bInstalled || Owned->bEverInstalled != (Which == EPicks::Reinstall)) { continue; }
         }
         FComponentPick Pick;
         Pick.Component = Definition.Id;
@@ -1162,9 +1167,107 @@ bool FirstAttemptable(const TArray<FComponentPick>& Picks, ELDOpponentBuildKind 
     return false;
 }
 
+bool SameId(const FString& A, const FString& B)
+{
+    return A.Equals(B, ESearchCase::CaseSensitive);
+}
+
+// Self after an uninstall of Component: it and everything installed on it (a mod or connector targeting it, C12 repeating
+// it, transitively, the closure growth applies) back in the inventory with their history.
+FLDOpponentSelf WithoutAttached(const FLDOpponentSelf& Self, const FString& Component)
+{
+    TArray<FString> Removing{Component};
+    const auto Removed = [&Removing](const FString& Id) { return Removing.ContainsByPredicate([&Id](const FString& R) { return SameId(R, Id); }); };
+    for (int32 Index = 0; Index < Removing.Num(); ++Index)
+    {
+        const FString Host = Removing[Index];
+        for (const FLDOpponentComponent& Attached : Self.Components)
+        {
+            const bool bOnIt = Attached.bInstalled && ((Attached.TargetKind == ELDComponentTargetKind::Component
+                && SameId(Attached.TargetId, Host)) || SameId(Attached.BoundComponent, Host));
+            if (bOnIt && !Removed(Attached.DefinitionId)) { Removing.Add(Attached.DefinitionId); }
+        }
+    }
+    FLDOpponentSelf Out = Self;
+    for (FLDOpponentComponent& Owned : Out.Components)
+    {
+        if (!Removed(Owned.DefinitionId)) { continue; }
+        Owned.bInstalled = false;
+        Owned.TargetKind = ELDComponentTargetKind::None;
+        Owned.TargetId.Reset();
+        Owned.BoundActive.Reset();
+        Owned.Element = ELDDemoElement::None;
+        Owned.BoundComponent.Reset();
+    }
+    return Out;
+}
+
+// An installed component away from the placement its rules prefer on the build its uninstall leaves: a binding (B18) other
+// than ComponentUsable's, or a target other than WorkshopTarget's. That build does not contain the component's own
+// placement, so the preferred placement is a pure function of the rest of the committed build and the reinstall reads the
+// same one. Without a preferred legal placement the component stays where it is.
+bool Misplaced(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDOpponentComponent& Owned,
+    const FLDDemoComponentDefinition& Definition)
+{
+    if (!Owned.bInstalled) { return false; }
+    const FLDOpponentSelf Without = WithoutAttached(Self, Owned.DefinitionId);
+    if (Definition.Kind == ELDDemoComponentKind::Base)
+    {
+        FString BoundActive;
+        ELDDemoElement Element = ELDDemoElement::None;
+        return LDOpponentPolicy::ComponentUsable(Without, Definition, BoundActive, Element)
+            && (!SameId(BoundActive, Owned.BoundActive) || Element != Owned.Element);
+    }
+    FLDOpponentComponentTarget Target;
+    return LDOpponentPolicy::WorkshopTarget(Without, Catalog, Definition, Target)
+        && (Target.Kind != Owned.TargetKind || !SameId(Target.TargetId, Owned.TargetId) || !SameId(Target.BoundComponent, Owned.BoundComponent));
+}
+
+// The installed components Misplaced finds, in catalog order. False with Error when an owned id is not a catalog component.
+bool ComponentMoves(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FString>& Out, FString& Error)
+{
+    Out.Reset();
+    const TArray<FLDDemoComponentDefinition>& Definitions = Catalog.Get().Components;
+    for (const FLDOpponentComponent& Owned : Self.Components)
+    {
+        if (CatalogIndex(Definitions, Owned.DefinitionId) == INDEX_NONE)
+        {
+            Error = FString::Printf(TEXT("Owned component %s is not a catalog component."), *Owned.DefinitionId);
+            return false;
+        }
+    }
+    for (const FLDDemoComponentDefinition& Definition : Definitions)
+    {
+        const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
+            [&Definition](const FLDOpponentComponent& Component) { return SameId(Component.DefinitionId, Definition.Id); });
+        if (Owned && Misplaced(Self, Catalog, *Owned, Definition)) { Out.Add(Definition.Id); }
+    }
+    return true;
+}
+
+// The first subject whose failure memory admits another attempt of Kind now, with its key.
+bool FirstAttemptableSubject(const TArray<FString>& Subjects, ELDOpponentBuildKind Kind, const FLDOpponentPolicyState& State,
+    uint64 Print, int64 Now, FString& OutSubject, FLDOpponentRetryKey& OutKey)
+{
+    for (const FString& Subject : Subjects)
+    {
+        OutKey = BuildKey(Kind);
+        OutKey.POI = FName(*Subject);
+        if (State.Failures.CanAttempt(OutKey, Print, Now))
+        {
+            OutSubject = Subject;
+            return true;
+        }
+    }
+    return false;
+}
+
 // §6.4 build order: the current offer's choice first, then the opening base pick (#198 B), the pending component choices
-// (#198 G), a blueprint into an empty slot, the next owned component to enable (#198 B), a gap fill in a rest window (#198 G),
-// then the unspent points. Each is sent only when the growth domain would admit it now; one build request at a time.
+// (#198 G) and a blueprint into an empty slot; in a rest build window the replacement, the once-installed components back on
+// the build and one misplaced component off it; the next owned component to enable for the first time (#198 B); in a rest
+// build window a gap fill and a dismantle (#198 G), a respec and (with the offer choice) the NPC purchase; then the unspent
+// points. Each is sent only when the growth domain would admit it now; one build request at a time. The NPC comes before
+// the points because the points step spends every unspent point.
 bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State,
     bool bChooseOffer, FLDOpponentBuildIntent& Out)
 {
@@ -1193,7 +1296,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         && LDProgression::CommandGate(ELDBuildCommandKind::OpeningBase, Context) == ELDGrowthReason::None)
     {
         TArray<FComponentPick> Picks;
-        if (ComponentPicks(Self, Catalog, true, Picks, Error)
+        if (ComponentPicks(Self, Catalog, EPicks::Opening, Picks, Error)
             && FirstAttemptable(Picks, ELDOpponentBuildKind::OpeningBase, State, Print, Now, Out))
         {
             return true;
@@ -1241,11 +1344,60 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             }
         }
     }
+    // #198 rest replacement: a pending blueprint that the preference ranks strictly above the lowest learned active takes
+    // its slot (never while an offer is undecided: OfferOutstanding).
+    if (!Self.Offer.IsSet() && !Self.Blueprints.IsEmpty()
+        && LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive, Context) == ELDGrowthReason::None)
+    {
+        FString Blueprint;
+        uint8 Slot = 0;
+        if (LDOpponentPolicy::SelectReplacement(Self, Catalog, Blueprint, Slot, Error))
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::ReplaceActive);
+            Key.POI = FName(*Blueprint);
+            if (State.Failures.CanAttempt(Key, Print, Now))
+            {
+                Out = FLDOpponentBuildIntent();
+                Out.Kind = ELDOpponentBuildKind::ReplaceActive;
+                Out.Blueprint = Blueprint;
+                Out.Slot = Slot;
+                Out.Key = Key;
+                return true;
+            }
+        }
+    }
+    // #198 rest moves: every once-installed inventory component (what a replacement or an uninstall returned) goes back
+    // where its rules place it, in catalog order; then one installed component away from its preferred placement comes off,
+    // to go back on at the next decision.
+    if (LDProgression::InstallGate(Context, true) == ELDGrowthReason::None)
+    {
+        TArray<FComponentPick> Picks;
+        if (ComponentPicks(Self, Catalog, EPicks::Reinstall, Picks, Error)
+            && FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out))
+        {
+            return true;
+        }
+    }
+    if (LDProgression::CommandGate(ELDBuildCommandKind::UninstallComponent, Context) == ELDGrowthReason::None)
+    {
+        TArray<FString> Moves;
+        FString Component;
+        FLDOpponentRetryKey Key;
+        if (ComponentMoves(Self, Catalog, Moves, Error)
+            && FirstAttemptableSubject(Moves, ELDOpponentBuildKind::UninstallComponent, State, Print, Now, Component, Key))
+        {
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::UninstallComponent;
+            Out.Component = Component;
+            Out.Key = Key;
+            return true;
+        }
+    }
     // #198 B: then every owned, never-installed component the first-install gate admits, in catalog order.
     if (LDProgression::InstallGate(Context, false) == ELDGrowthReason::None)
     {
         TArray<FComponentPick> Picks;
-        if (ComponentPicks(Self, Catalog, false, Picks, Error)
+        if (ComponentPicks(Self, Catalog, EPicks::FirstInstall, Picks, Error)
             && FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out))
         {
             return true;
@@ -1266,6 +1418,49 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out.Kind = ELDOpponentBuildKind::FillGap;
             Out.Component = Fill.Target;
             Out.Filler = Fill.Filler;
+            Out.Key = Key;
+            return true;
+        }
+    }
+    // #198 G rest dismantle: owned common components the build cannot use become one received common component.
+    if (LDProgression::CommandGate(ELDBuildCommandKind::Dismantle, Context) == ELDGrowthReason::None)
+    {
+        TArray<FString> Surrendered;
+        if (LDOpponentPolicy::SelectDismantle(Self, Catalog, Surrendered, Error))
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::Dismantle);
+            Key.POI = FName(*Surrendered[0]);
+            if (State.Failures.CanAttempt(Key, Print, Now))
+            {
+                Out = FLDOpponentBuildIntent();
+                Out.Kind = ELDOpponentBuildKind::Dismantle;
+                Out.Surrendered = MoveTemp(Surrendered);
+                Out.Key = Key;
+                return true;
+            }
+        }
+    }
+    // #198 rest respec: points sitting outside the stats the AI spends on come back once; the points step re-spends them.
+    if (LDProgression::CommandGate(ELDBuildCommandKind::Respec, Context) == ELDGrowthReason::None)
+    {
+        const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::Respec);
+        if (State.Failures.CanAttempt(Key, Print, Now) && LDOpponentPolicy::WantsRespec(Self, Catalog, Error))
+        {
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::Respec;
+            Out.Key = Key;
+            return true;
+        }
+    }
+    // #198 rest NPC: in a mid rest, an offer bought to fill an empty slot; its choice comes first at the next decision.
+    if (bChooseOffer && LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer, Context) == ELDGrowthReason::None)
+    {
+        const FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::BuyNpcOffer);
+        if (State.Failures.CanAttempt(Key, Print, Now)
+            && LDOpponentPolicy::WantsNpcOffer(Self, Catalog, Frame.Public.Timeline.RestIndex))
+        {
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::BuyNpcOffer;
             Out.Key = Key;
             return true;
         }
@@ -1304,46 +1499,114 @@ int32 TargetModePreference(ELDDemoTargetMode Mode)
     }
 }
 
+// The engagement and self-protection roles (§6.4) a set of actives covers.
+struct FRoleCover
+{
+    bool bEngage = false;
+    bool bProtect = false;
+};
+
+bool CoverRoles(const FLDDemoContentSnapshot& Catalog, const FString& Id, FRoleCover& Cover, FString& Error)
+{
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    if (!Catalog.FindAbility(Id, Ability, Error) || !Ability) { return false; }
+    const FLDOpponentUsage Usage = LDOpponentPolicy::AbilityUsage(*Ability);
+    Cover.bEngage |= Usage.bEngage;
+    Cover.bProtect |= Usage.bSelfProtect;
+    return true;
+}
+
+// One active's place in the §6.4 preference against the roles others cover: whether it brings a role they lack, its target
+// mode, then its catalog order. Catalog order is unique per active, so Before is a strict total order.
+struct FActiveRank
+{
+    bool bGain = false;
+    int32 Mode = 0;
+    int32 Order = 0;
+    bool Before(const FActiveRank& Other) const
+    {
+        return bGain != Other.bGain ? bGain : Mode != Other.Mode ? Mode < Other.Mode : Order < Other.Order;
+    }
+};
+
+bool RankActive(const FLDDemoContentSnapshot& Catalog, const FString& Id, const FRoleCover& Others, FActiveRank& Out,
+    FString& Error)
+{
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    if (!Catalog.FindAbility(Id, Ability, Error) || !Ability) { return false; }
+    const FLDOpponentUsage Usage = LDOpponentPolicy::AbilityUsage(*Ability);
+    Out.bGain = (Usage.bEngage && !Others.bEngage) || (Usage.bSelfProtect && !Others.bProtect);
+    Out.Mode = TargetModePreference(Ability->Target.Mode);
+    Out.Order = CatalogIndex(Catalog.Get().Abilities, Id);
+    return true;
+}
+
 // Picks the preferred of Candidates (active ids) against the roles the learned actives and blueprints already cover.
 bool PreferActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const TArray<FString>& Candidates,
     FString& Out, FString& Error)
 {
-    const auto& Content = Catalog.Get();
-    bool bEngageCovered = false;
-    bool bProtectCovered = false;
-    const auto Cover = [&](const FString& Id)
-    {
-        const FLDDemoAbilityDefinition* Ability = nullptr;
-        if (!Catalog.FindAbility(Id, Ability, Error) || !Ability) { return false; }
-        const FLDOpponentUsage Usage = LDOpponentPolicy::AbilityUsage(*Ability);
-        bEngageCovered |= Usage.bEngage;
-        bProtectCovered |= Usage.bSelfProtect;
-        return true;
-    };
-    for (const FLDOpponentActive& Active : Self.Actives) { if (!Cover(Active.DefinitionId)) { return false; } }
-    for (const FString& Blueprint : Self.Blueprints) { if (!Cover(Blueprint)) { return false; } }
+    FRoleCover Cover;
+    for (const FLDOpponentActive& Active : Self.Actives) { if (!CoverRoles(Catalog, Active.DefinitionId, Cover, Error)) { return false; } }
+    for (const FString& Blueprint : Self.Blueprints) { if (!CoverRoles(Catalog, Blueprint, Cover, Error)) { return false; } }
     bool bFound = false;
-    bool bBestGain = false;
-    int32 BestMode = 0, BestOrder = 0;
+    FActiveRank Best;
     for (const FString& Id : Candidates)
     {
-        const FLDDemoAbilityDefinition* Ability = nullptr;
-        if (!Catalog.FindAbility(Id, Ability, Error) || !Ability) { return false; }
-        const FLDOpponentUsage Usage = LDOpponentPolicy::AbilityUsage(*Ability);
-        const bool bGain = (Usage.bEngage && !bEngageCovered) || (Usage.bSelfProtect && !bProtectCovered);
-        const int32 Mode = TargetModePreference(Ability->Target.Mode);
-        const int32 Order = CatalogIndex(Content.Abilities, Id);
-        if (!bFound || (bGain != bBestGain ? bGain : Mode != BestMode ? Mode < BestMode : Order < BestOrder))
+        FActiveRank Rank;
+        if (!RankActive(Catalog, Id, Cover, Rank, Error)) { return false; }
+        if (!bFound || Rank.Before(Best))
         {
             bFound = true;
-            bBestGain = bGain;
-            BestMode = Mode;
-            BestOrder = Order;
+            Best = Rank;
             Out = Id;
         }
     }
     if (!bFound) { Error = TEXT("No candidate active to prefer."); }
     return bFound;
+}
+
+// The own allocated points per stat (design order) and whether AllocatePoints spends on each: physique and thick skin
+// always, strength when the basic attack or a learned active scales with AD, brains when a learned active scales with AP.
+bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<int64>& OutPoints,
+    TArray<bool>& OutRelevant, FString& Error)
+{
+    OutPoints.Reset();
+    OutRelevant.Reset();
+    const auto& Content = Catalog.Get();
+    if (Self.StatPoints.Num() != Content.Stats.Num())
+    {
+        Error = TEXT("The own stat points do not list every catalog stat.");
+        return false;
+    }
+    bool bAD = Content.Character.BasicADRatioBp > 0;
+    bool bAP = false;
+    for (const FLDOpponentActive& Active : Self.Actives)
+    {
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        if (!Catalog.FindAbility(Active.DefinitionId, Ability, Error) || !Ability) { return false; }
+        for (const FLDDemoEffectDefinition& Effect : Ability->Values.Effects)
+        {
+            bAD |= Effect.ADRatioBp > 0;
+            bAP |= Effect.APRatioBp > 0;
+        }
+    }
+    const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
+    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
+    {
+        const FLDDemoStatDefinition& Stat = *StatOrder[Index];
+        if (!Self.StatPoints[Index].StatId.Equals(Stat.Id, ESearchCase::CaseSensitive))
+        {
+            Error = TEXT("The own stat points are not in the stats' design order.");
+            OutPoints.Reset();
+            OutRelevant.Reset();
+            return false;
+        }
+        OutPoints.Add(Self.StatPoints[Index].Points);
+        const ELDDemoStatId Id = Stat.GetNativeId();
+        OutRelevant.Add(Id == ELDDemoStatId::StatPhysique || Id == ELDDemoStatId::StatThickSkin
+            || (Id == ELDDemoStatId::StatStrength && bAD) || (Id == ELDDemoStatId::StatBrains && bAP));
+    }
+    return true;
 }
 
 enum class EPKFight : uint8 { Ring, Fight };
@@ -1609,51 +1872,80 @@ bool SelectBlueprint(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& 
     return PreferActive(Self, Catalog, Self.Blueprints, OutBlueprint, Error);
 }
 
+bool SelectReplacement(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutBlueprint, uint8& OutSlot,
+    FString& Error)
+{
+    using namespace Detail;
+    OutBlueprint.Reset();
+    OutSlot = 0;
+    const FLDOpponentActive* BySlot[3] = {nullptr, nullptr, nullptr};
+    for (const FLDOpponentActive& Active : Self.Actives) { if (Active.Slot < 3) { BySlot[Active.Slot] = &Active; } }
+    if (!BySlot[0] || !BySlot[1] || !BySlot[2])
+    {
+        Error = TEXT("A Q/W/E slot is empty: a blueprint is learned into it, never replacing an active.");
+        return false;
+    }
+    if (Self.Blueprints.IsEmpty())
+    {
+        Error = TEXT("No pending blueprint.");
+        return false;
+    }
+    // The learned active ranked lowest against the roles of the other two, and those two roles.
+    int32 Lowest = INDEX_NONE;
+    FActiveRank LowestRank;
+    FRoleCover Kept;
+    for (int32 Slot = 0; Slot < 3; ++Slot)
+    {
+        FRoleCover Others;
+        for (int32 Other = 0; Other < 3; ++Other)
+        {
+            if (Other != Slot && !CoverRoles(Catalog, BySlot[Other]->DefinitionId, Others, Error)) { return false; }
+        }
+        FActiveRank Rank;
+        if (!RankActive(Catalog, BySlot[Slot]->DefinitionId, Others, Rank, Error)) { return false; }
+        if (Lowest == INDEX_NONE || LowestRank.Before(Rank))
+        {
+            Lowest = Slot;
+            LowestRank = Rank;
+            Kept = Others;
+        }
+    }
+    bool bFound = false;
+    FActiveRank BestRank;
+    for (const FString& Blueprint : Self.Blueprints)
+    {
+        FActiveRank Rank;
+        if (!RankActive(Catalog, Blueprint, Kept, Rank, Error)) { return false; }
+        if (!bFound || Rank.Before(BestRank))
+        {
+            bFound = true;
+            BestRank = Rank;
+            OutBlueprint = Blueprint;
+        }
+    }
+    if (!BestRank.Before(LowestRank))
+    {
+        OutBlueprint.Reset();
+        Error = TEXT("No pending blueprint ranks above the lowest learned active.");
+        return false;
+    }
+    OutSlot = uint8(Lowest);
+    return true;
+}
+
 bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out, FString& Error)
 {
     using namespace Detail;
     Out.Reset();
-    const auto& Content = Catalog.Get();
     if (Self.UnspentPoints <= 0)
     {
         Error = TEXT("No unspent points.");
         return false;
     }
-    if (Self.StatPoints.Num() != Content.Stats.Num())
-    {
-        Error = TEXT("The own stat points do not list every catalog stat.");
-        return false;
-    }
-    // Strength serves a body that scales with AD (any learned active or the basic attack), brains one that scales with AP.
-    bool bAD = Content.Character.BasicADRatioBp > 0;
-    bool bAP = false;
-    for (const FLDOpponentActive& Active : Self.Actives)
-    {
-        const FLDDemoAbilityDefinition* Ability = nullptr;
-        if (!Catalog.FindAbility(Active.DefinitionId, Ability, Error) || !Ability) { return false; }
-        for (const FLDDemoEffectDefinition& Effect : Ability->Values.Effects)
-        {
-            bAD |= Effect.ADRatioBp > 0;
-            bAP |= Effect.APRatioBp > 0;
-        }
-    }
     TArray<int64> Points;
     TArray<bool> Relevant;
-    const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
-    for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
-    {
-        const FLDDemoStatDefinition& Stat = *StatOrder[Index];
-        if (!Self.StatPoints[Index].StatId.Equals(Stat.Id, ESearchCase::CaseSensitive))
-        {
-            Error = TEXT("The own stat points are not in the stats' design order.");
-            return false;
-        }
-        Points.Add(Self.StatPoints[Index].Points);
-        const ELDDemoStatId Id = Stat.GetNativeId();
-        Relevant.Add(Id == ELDDemoStatId::StatPhysique || Id == ELDDemoStatId::StatThickSkin
-            || (Id == ELDDemoStatId::StatStrength && bAD) || (Id == ELDDemoStatId::StatBrains && bAP));
-    }
-    Out.SetNumZeroed(Content.Stats.Num());
+    if (!RelevantStats(Self, Catalog, Points, Relevant, Error)) { return false; }
+    Out.SetNumZeroed(Catalog.Get().Stats.Num());
     for (int64 Left = Self.UnspentPoints; Left > 0; --Left)
     {
         int32 Best = INDEX_NONE;
@@ -1673,6 +1965,43 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         return false;
     }
     return true;
+}
+
+bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& Error)
+{
+    using namespace Detail;
+    TArray<int64> Points;
+    TArray<bool> Relevant;
+    if (!RelevantStats(Self, Catalog, Points, Relevant, Error)) { return false; }
+    for (int32 Index = 0; Index < Points.Num(); ++Index)
+    {
+        if (Points[Index] > 0 && !Relevant[Index]) { return true; }
+    }
+    Error = TEXT("Every allocated point sits in a stat the AI spends on.");
+    return false;
+}
+
+bool WantsNpcOffer(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, uint8 RestIndex)
+{
+    const auto& Content = Catalog.Get();
+    const int64 Cost = Content.Parameters.NpcActivePoints;
+    // Coordinator decision (#198 J2): the opening rest R0 spends its opening points on the stats, never on the NPC.
+    if (RestIndex == 0) { return false; }
+    // Growth refuses without a charge: OfferOutstanding, NotEnoughPoints (a cost below one is invalid data).
+    if (Self.Offer.IsSet() || Self.QueuedOpportunities > 0 || Cost < 1 || Self.UnspentPoints < Cost) { return false; }
+    // The gap it fills: an empty Q/W/E slot that no pending blueprint is waiting for.
+    bool bTaken[3] = {false, false, false};
+    for (const FLDOpponentActive& Active : Self.Actives) { if (Active.Slot < 3) { bTaken[Active.Slot] = true; } }
+    if (!Self.Blueprints.IsEmpty() || (bTaken[0] && bTaken[1] && bTaken[2])) { return false; }
+    // NpcPoolTooSmall: the offer draws three actives neither learned nor pending.
+    int32 Eligible = 0;
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        const bool bLearned = Self.Actives.ContainsByPredicate(
+            [&Ability](const FLDOpponentActive& Active) { return Active.DefinitionId.Equals(Ability.Id, ESearchCase::CaseSensitive); });
+        Eligible += bLearned ? 0 : 1;
+    }
+    return Eligible >= 3;
 }
 
 bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component, FString& OutBoundActive,
@@ -1776,7 +2105,7 @@ bool SelectOpeningBase(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot
         return false;
     }
     TArray<FComponentPick> Picks;
-    if (!ComponentPicks(Self, Catalog, true, Picks, Error)) { return false; }
+    if (!ComponentPicks(Self, Catalog, EPicks::Opening, Picks, Error)) { return false; }
     if (Picks.IsEmpty())
     {
         Error = TEXT("No opening base option can be enabled.");
@@ -1796,7 +2125,7 @@ bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSna
     OutBoundActive.Reset();
     OutElement = ELDDemoElement::None;
     TArray<FComponentPick> Picks;
-    if (!ComponentPicks(Self, Catalog, false, Picks, Error)) { return false; }
+    if (!ComponentPicks(Self, Catalog, EPicks::FirstInstall, Picks, Error)) { return false; }
     if (Picks.IsEmpty())
     {
         Error = TEXT("No owned component waits for its first install.");
@@ -1846,6 +2175,75 @@ bool SelectComponentChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnap
     return true;
 }
 
+bool SelectComponentMove(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FString& OutComponent, FString& Error)
+{
+    using namespace Detail;
+    OutComponent.Reset();
+    TArray<FString> Moves;
+    if (!ComponentMoves(Self, Catalog, Moves, Error)) { return false; }
+    if (Moves.IsEmpty())
+    {
+        Error = TEXT("Every installed component sits where its rules place it.");
+        return false;
+    }
+    OutComponent = Moves[0];
+    return true;
+}
+
+bool SelectDismantle(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FString>& Out, FString& Error)
+{
+    using namespace Detail;
+    Out.Reset();
+    const auto& Content = Catalog.Get();
+    const int64 Count = Content.Parameters.DismantleInputCount;
+    if (Count < 2)
+    {
+        Error = TEXT("A dismantle that does not leave fewer owned components is never chosen.");
+        return false;
+    }
+    for (const FLDOpponentComponent& Owned : Self.Components)
+    {
+        if (CatalogIndex(Content.Components, Owned.DefinitionId) == INDEX_NONE)
+        {
+            Error = FString::Printf(TEXT("Owned component %s is not a catalog component."), *Owned.DefinitionId);
+            return false;
+        }
+    }
+    bool bPoolLeft = false;
+    TArray<FString> Unusable;
+    for (const FLDDemoComponentDefinition& Definition : Content.Components)
+    {
+        if (Definition.Pool != ELDDemoComponentPool::Common) { continue; }
+        const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
+            [&Definition](const FLDOpponentComponent& Component) { return SameId(Component.DefinitionId, Definition.Id); });
+        if (!Owned)
+        {
+            bPoolLeft = true;
+            continue;
+        }
+        if (Owned->bInstalled || Owned->bEverInstalled
+            || Self.GapFills.ContainsByPredicate([&Definition](const FLDOpponentGapFill& Fill) { return SameId(Fill.Target, Definition.Id); }))
+        {
+            continue;
+        }
+        FString BoundActive;
+        ELDDemoElement Element = ELDDemoElement::None;
+        FLDOpponentComponentTarget Target;
+        const bool bUsable = Definition.Kind == ELDDemoComponentKind::Base
+            ? ComponentUsable(Self, Definition, BoundActive, Element)
+            : WorkshopTarget(Self, Catalog, Definition, Target);
+        if (!bUsable) { Unusable.Add(Definition.Id); }
+    }
+    if (!bPoolLeft || Unusable.Num() < Count)
+    {
+        Error = !bPoolLeft ? TEXT("No unowned common component is left to receive.")
+            : TEXT("Fewer owned common components than a dismantle takes are unusable on this build.");
+        return false;
+    }
+    Out.Append(Unusable.GetData(), int32(Count));
+    return true;
+}
+
 bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input)
 {
     using namespace Detail;
@@ -1892,12 +2290,16 @@ bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSna
     return Capture && FVector::Dist2D(Frame.Self.FootCm, Capture->FootCm) <= Detail::ToDouble(Catalog.Get().Parameters.CaptureRadiusCm);
 }
 
-bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self)
+bool SignupWindowOpen(const FLDOpponentPublicMatch& Public)
 {
     const FLDTimelineView& Timeline = Public.Timeline;
     return Public.Phase == ELDMatchPhase::Rest && Timeline.Stage == ELDMatchStage::Rest && Timeline.Step == ELDRestStep::Build
-        && Timeline.SignupOpensAtMs > 0 && Public.NowMs >= Timeline.SignupOpensAtMs && Public.NowMs < Timeline.StepEndsAtMs
-        && Self.IsValid() && !Timeline.Signups.Contains(Self);
+        && Timeline.SignupOpensAtMs > 0 && Public.NowMs >= Timeline.SignupOpensAtMs && Public.NowMs < Timeline.StepEndsAtMs;
+}
+
+bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self)
+{
+    return SignupWindowOpen(Public) && Self.IsValid() && !Public.Timeline.Signups.Contains(Self);
 }
 
 uint8 PKOwnBetSide(const FLDPKView& PK, const FGuid& Self)
@@ -1951,6 +2353,22 @@ bool PKRingRetreat(const FLDPKParameters& Params, const FLDPKView& PK, const FVe
     double PreviewCm = 0;
     int64 PreviewAtMs = 0;
     return LDPKRules::RingPreview(Params, ElapsedMs, PreviewCm, PreviewAtMs) && DistanceCm > PreviewCm;
+}
+
+const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame)
+{
+    const TArray<FGuid>& Roster = Frame.Public.Roster;
+    if (Frame.Public.Phase != ELDMatchPhase::Rest || !Frame.Self.ContenderId.IsValid() || !Roster.Contains(Frame.Self.ContenderId))
+    {
+        return nullptr;
+    }
+    const FLDOpponentUnit* Out = nullptr;
+    for (const FLDOpponentUnit& Unit : Frame.Units)
+    {
+        if (Unit.Kind != ELDOpponentUnitKind::Contender || !Unit.ContenderId.IsValid() || Roster.Contains(Unit.ContenderId)) { continue; }
+        if (!Out || Unit.Handle < Out->Handle) { Out = &Unit; }
+    }
+    return Out;
 }
 
 FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
@@ -2015,16 +2433,27 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         // open, and spectating sends no order while the arena runs.
         ForgetBody(State);
         // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
-        // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot.
+        // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot,
+        // so while the window is open the body walks into it and then stays there (no training) until the lock; an accepted
+        // action or a channel finishes first.
         EReason PKReason = EReason::None;
-        if (WantsPKSignUp(Frame.Public, Self.ContenderId) && Frame.SignupPOI.IsSet() && Self.Phase == ELDLifePhase::Alive)
+        if (SignupWindowOpen(Frame.Public) && Frame.SignupPOI.IsSet() && Self.Phase == ELDLifePhase::Alive)
         {
             const FLDOpponentPOI& Disk = Frame.SignupPOI.GetValue();
             const auto& Order = Frame.Order;
-            Out.Body.POI = Disk.Id;
-            Out.Body.Key = FContext::PathKey(Disk.Id);
-            Out.Body.Kind = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Disk.Id
-                ? EBody::Keep : EBody::MoveGround;
+            const bool bWalking = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Disk.Id;
+            const bool bActing = Self.bChanneling || (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::Action);
+            if (bWalking || bActing) { Out.Body.Kind = EBody::Keep; }
+            else if (Frame.Public.Timeline.Signups.Contains(Self.ContenderId))
+            {
+                Out.Body.Kind = Order.IsLive() ? EBody::Stop : EBody::Keep;
+            }
+            else
+            {
+                Out.Body.POI = Disk.Id;
+                Out.Body.Key = FContext::PathKey(Disk.Id);
+                Out.Body.Kind = EBody::MoveGround;
+            }
             PKReason = EReason::PKSignUp;
         }
         else if (const uint8 Side = PKBetSide(Frame.Public, Self.ContenderId); Side != 0 && State.PKBetSerial != PK.Serial)
@@ -2046,10 +2475,38 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
                 PKReason = EReason::PKThrow;
             }
         }
-        if (Frame.Public.BuildStage() == LDProgression::EMatchStage::Rest && Frame.Public.NowMs >= Self.OpeningPickAtMs
-            && DecideBuild(Frame, Catalog, State, true, Out.Build))
+        const bool bBuildWindow = Frame.Public.BuildStage() == LDProgression::EMatchStage::Rest;
+        const bool bBuildsNow = bBuildWindow && Frame.Public.NowMs >= Self.OpeningPickAtMs;
+        if (bBuildsNow && DecideBuild(Frame, Catalog, State, true, Out.Build))
         {
             return Finish(EMode::Choose, EReason::ChooseOffer);
+        }
+        // #198 §16.3 training: once nothing is left to build and nothing is in flight, a living body tries its build on its
+        // own private dummy with the production engagement (§6.3 activations, then the basic attack), the only unit it ever
+        // engages here; the dummy is known only by the HUD's roster rule. A decision sending a PK request sends no body
+        // intent (a running training order goes on); training resumes at the next decision.
+        if (bBuildsNow && PKReason == EReason::None && !Frame.bBuildChangeInFlight && Self.Phase == ELDLifePhase::Alive)
+        {
+            if (const FLDOpponentUnit* Dummy = TrainingDummy(Frame))
+            {
+                FContext C(Frame, Catalog, State);
+                if (!C.Initialize()) { return Finish(EMode::Stopped, EReason::ProviderUnavailable); }
+                if (!Dummy->bProtected && !HandleSuppressed(C, *Dummy))
+                {
+                    Out.Body = EngageBody(C, *Dummy);
+                    if (Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action))
+                    {
+                        Out.Body = FLDOpponentBodyIntent();
+                        Out.Body.Kind = EBody::Keep;
+                    }
+                    return Finish(EMode::Engage, EReason::Train);
+                }
+            }
+        }
+        // Once the build window closes, a training order still running stops; an accepted action finishes first.
+        if (!bBuildWindow && Frame.Order.IsLive() && Frame.Order.Kind != ELDOpponentOrderKind::Action)
+        {
+            Out.Body.Kind = EBody::Stop;
         }
         if (PKReason != EReason::None) { return Finish(EMode::PK, PKReason); }
         return Finish(EMode::Stopped, EReason::Stopped);

@@ -32,10 +32,12 @@ struct FLDInnateDashTerms;
 struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
-// What one release shares across all of its hits: a mana grant pays once per release.
+// What one release shares across all of its hits: a mana grant pays once per release, and its B17 amplification is one
+// §10 trigger (at its first positive hit).
 struct FLDCombatCastLedger
 {
     bool bManaGrantPaid=false;
+    bool bIdleAmpTriggered=false;
 };
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
@@ -1080,6 +1082,7 @@ private:
     void MarkViewChanged(const FGuid& Entity);
 
     // ---- #198 §10 build blueprint ledger (LDCombatBlueprintLedger.cpp). Each fact is recorded once where Combat commits it.
+    // Private training (a rest life and its own dummy, §16.3) is no match fact and records nothing.
     // The ledger version of Contender's installed build now; INDEX_NONE for an entity without a contender record.
     int32 LedgerVersion(const FGuid& Contender);
     // Right after ApplyBuildChange installed the contender's new build; Previous is the build it replaced.
@@ -1088,11 +1091,21 @@ private:
     // Counted is the release fact it adds one to (BasicAttacks or AbilityCasts), Count for none (the innate dash).
     void LedgerEffectReleased(const FLDBodyCombatState& Body, const FGuid& EffectId, ELDBlueprintFact Counted);
     // One committed hit on Victim: damage dealt once to the credited contender (the version that created the effect),
-    // damage taken, own shield absorption and HP lost to the victim contender's current version.
+    // damage taken, own shield absorption, HP lost and what the victim's own cuts (S16 stance, primary guard) took off,
+    // to the victim contender's current version.
     void LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage);
     // HP a one-time heal actually restored to a contender body, and a shield granted to it.
     void LedgerHealed(const FLDBodyCombatState& Body, int64 HealedP2);
     void LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2);
+    // M12 debt a heal actually repaid (never counted as healing), and HP natural regeneration actually restored.
+    void LedgerDebtRepaid(const FLDBodyCombatState& Body, int64 RepaidP2);
+    void LedgerRegenerated(const FLDBodyCombatState& Body, int64 RestoredP2);
+    // One proc of an installed component of Holder that committed a real result (a hit, heal, shield, mana, status, cut or
+    // change of an outcome); never a passive stat term, a candidate or a refused proc.
+    void LedgerComponentTriggered(const FLDBodyCombatState& Holder, FName Component);
+    // One own combat action request of Entity that Combat refused for a gameplay gate (busy, cooldown, attack cadence,
+    // mana, control, target, direction, range or sight); protocol, staleness and phase refusals are not counted.
+    void LedgerActionRefused(const FGuid& Entity, ELDCombatReject Reason);
 
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TMap<FGuid,FLDCombatEntityRecord> Records;

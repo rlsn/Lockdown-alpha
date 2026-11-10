@@ -108,6 +108,8 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
             if (Ref.Effect.BasicCount<=0) { continue; }
             if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Ref.Source),Ref.Effect.BasicCount,Hit.HitId,NowMs,Error))
             { return false; }
+            // §10: B01's layers on this primary basic are one trigger.
+            LedgerComponentTriggered(*Source,Ref.Source.DefinitionId);
         }
     }
     if (bLivingSource && Hit.ComponentBurnStacks>0
@@ -342,7 +344,13 @@ bool ALDCombatDirector::TryDischarge(FLDBodyCombatState& Target, const FVector& 
                 const FLDCombatBodyMark& Mark=ApplierBody->DirectHitMarks[Index];
                 const FLDCombatBodyRef* Legal=Around.FindByPredicate([&Mark,&Self](const FLDCombatBodyRef& Ref)
                 { return Ref==Mark.Body && Ref!=Self; });
-                if (NowMs-Mark.AtMs<=Mod.Effect.DurationMs && Legal) { Nearest=Legal; break; }
+                if (NowMs-Mark.AtMs<=Mod.Effect.DurationMs && Legal)
+                {
+                    // §10: M11 is one trigger when the discharge goes to the marked body.
+                    Nearest=Legal;
+                    LedgerComponentTriggered(*ApplierBody,Mod.Source.DefinitionId);
+                    break;
+                }
             }
         }
     }

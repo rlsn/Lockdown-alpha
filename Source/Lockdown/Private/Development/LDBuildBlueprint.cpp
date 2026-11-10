@@ -35,6 +35,43 @@ int32 SlotOrder(const FString& Slot)
     return Slot == TEXT("Q") ? 0 : Slot == TEXT("W") ? 1 : Slot == TEXT("E") ? 2 : INDEX_NONE;
 }
 
+// Stable install-parameter values of a blueprint component (the catalog element ids; no value for None).
+const TCHAR* ElementKey(ELDDemoElement Element)
+{
+    switch (Element)
+    {
+    case ELDDemoElement::Fire: return TEXT("fire");
+    case ELDDemoElement::Water: return TEXT("water");
+    case ELDDemoElement::Electric: return TEXT("electric");
+    default: return nullptr;
+    }
+}
+
+const TCHAR* TargetKindKey(ELDComponentTargetKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDComponentTargetKind::Active: return TEXT("active");
+    case ELDComponentTargetKind::Component: return TEXT("component");
+    case ELDComponentTargetKind::Dash: return TEXT("dash");
+    default: return nullptr;
+    }
+}
+
+// A recorded parameter is one of the keys StructureOf writes, with a value it can write.
+bool ValidParameter(const FLDBlueprintParameter& Parameter)
+{
+    if (Parameter.Key == TEXT("element"))
+    {
+        return Parameter.Value == TEXT("fire") || Parameter.Value == TEXT("water") || Parameter.Value == TEXT("electric");
+    }
+    if (Parameter.Key == TEXT("target_kind"))
+    {
+        return Parameter.Value == TEXT("active") || Parameter.Value == TEXT("component") || Parameter.Value == TEXT("dash");
+    }
+    return Parameter.Key == TEXT("bound_component") && !Parameter.Value.IsEmpty();
+}
+
 bool Before(const FString& A, const FString& B) { return A.Compare(B, ESearchCase::CaseSensitive) < 0; }
 
 bool IsHex(const FString& Text, int32 Length)
@@ -178,13 +215,18 @@ bool ReadStructure(FFields& Fields, FLDBlueprintStructure& Out)
         {
             FFields Pair(Check, (*Parameters)[ParameterIndex], FString::Printf(TEXT("%s.parameters[%d]"), *Row.Path, ParameterIndex));
             FLDBlueprintParameter Parameter;
-            if (!Pair.Identifier(TEXT("key"), Parameter.Key) || !Pair.Text(TEXT("value"), Parameter.Value, 0, 256) || !Pair.Done())
+            if (!Pair.Identifier(TEXT("key"), Parameter.Key) || !Pair.Text(TEXT("value"), Parameter.Value, 0, 256) || !Pair.Done()
+                || !Check.Require(ValidParameter(Parameter), Pair.Path, TEXT("unknown install parameter or value"))
+                || !Check.Require(Component.Parameters.IsEmpty() || Before(Component.Parameters.Last().Key, Parameter.Key), Pair.Path,
+                    TEXT("parameters must be unique and sorted by key")))
             {
                 return false;
             }
             Component.Parameters.Add(MoveTemp(Parameter));
         }
-        if (!Row.Done())
+        if (!Row.Done()
+            || !Check.Require(Out.Components.IsEmpty() || Before(Out.Components.Last().Component, Component.Component), Row.Path,
+                TEXT("components must be unique and sorted by id")))
         {
             return false;
         }
@@ -271,21 +313,7 @@ const TCHAR* LDBuildBlueprint::FactKey(ELDBlueprintFact Fact)
 
 bool LDBuildBlueprint::IsFactCollected(ELDBlueprintFact Fact)
 {
-    switch (Fact)
-    {
-    case ELDBlueprintFact::DamageDealt:
-    case ELDBlueprintFact::DamageToContenders:
-    case ELDBlueprintFact::DamageTaken:
-    case ELDBlueprintFact::ShieldAbsorbed:
-    case ELDBlueprintFact::HealthLost:
-    case ELDBlueprintFact::Healing:
-    case ELDBlueprintFact::ShieldGranted:
-    case ELDBlueprintFact::BasicAttacks:
-    case ELDBlueprintFact::AbilityCasts:
-        return true;
-    default:
-        return false;
-    }
+    return int32(Fact) >= 0 && int32(Fact) < int32(ELDBlueprintFact::Count);
 }
 
 // ---------------------------------------------------------------- ledger
@@ -311,6 +339,32 @@ FLDBlueprintStructure FLDBuildLedger::StructureOf(const FLDBuildProjectionInput&
     }
     Out.Actives.Sort([](const FLDBlueprintActive& A, const FLDBlueprintActive& B)
     { return LDBuildBlueprintDetail::SlotOrder(A.Slot) < LDBuildBlueprintDetail::SlotOrder(B.Slot); });
+    // #198 §16.4: the installed components and their install parameters are structure: changing only an install, its
+    // target or its binding is a new version, so its contribution is never merged into the old one.
+    Out.bComponentsCollected = true;
+    for (const FLDInstalledComponentValue& Installed : Build.Components)
+    {
+        FLDBlueprintComponent& Row = Out.Components.AddDefaulted_GetRef();
+        Row.Component = Installed.ComponentId.ToString();
+        const bool bNamedTarget = Installed.TargetKind == ELDComponentTargetKind::Active
+            || Installed.TargetKind == ELDComponentTargetKind::Component;
+        Row.Host = bNamedTarget ? Installed.TargetId.ToString()
+            : Installed.BoundActive.IsNone() ? FString() : Installed.BoundActive.ToString();
+        if (!Installed.BoundComponent.IsNone())
+        {
+            Row.Parameters.Add({TEXT("bound_component"), Installed.BoundComponent.ToString()});
+        }
+        if (const TCHAR* Element = LDBuildBlueprintDetail::ElementKey(Installed.Element))
+        {
+            Row.Parameters.Add({TEXT("element"), Element});
+        }
+        if (const TCHAR* Kind = LDBuildBlueprintDetail::TargetKindKey(Installed.TargetKind))
+        {
+            Row.Parameters.Add({TEXT("target_kind"), Kind});
+        }
+    }
+    Out.Components.Sort([](const FLDBlueprintComponent& A, const FLDBlueprintComponent& B)
+    { return LDBuildBlueprintDetail::Before(A.Component, B.Component); });
     return Out;
 }
 
@@ -735,8 +789,19 @@ void LDBuildBlueprint::Notices(const FLDBlueprintRecord& Record, const FLDDemoCo
             if (!Local->Abilities.ContainsByPredicate([&Active](const FLDDemoAbilityDefinition& Row) { return Row.Id == Active.Ability; }))
             { Missing.Add(Active.Ability); }
         }
-        // Components have no local catalog yet; a recorded component is always reported as unverifiable.
-        for (const FLDBlueprintComponent& Component : Structure.Components) { Missing.Add(Component.Component); }
+        const auto IsComponent = [Local](const FString& Id)
+        { return Local->Components.ContainsByPredicate([&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; }); };
+        const auto IsActive = [Local](const FString& Id)
+        { return Local->Abilities.ContainsByPredicate([&Id](const FLDDemoAbilityDefinition& Row) { return Row.Id == Id; }); };
+        for (const FLDBlueprintComponent& Component : Structure.Components)
+        {
+            if (!IsComponent(Component.Component)) { Missing.Add(Component.Component); }
+            if (!Component.Host.IsEmpty() && !IsComponent(Component.Host) && !IsActive(Component.Host)) { Missing.Add(Component.Host); }
+            for (const FLDBlueprintParameter& Parameter : Component.Parameters)
+            {
+                if (Parameter.Key == TEXT("bound_component") && !IsComponent(Parameter.Value)) { Missing.Add(Parameter.Value); }
+            }
+        }
     };
     CheckStructure(Record.FinalBuild);
     for (const FLDBlueprintVersion& Version : Record.Versions) { CheckStructure(Version.Structure); }

@@ -28,8 +28,9 @@ B01–B18 的获取和安装，休息窗口另有 NPC 主动候选、洗点、�
 
 材料实例 `FLDComponentInstance`（#198 B）是本局真实获得的一件材料：`{Id, Source, SourceLevel, bInstalled, bEverInstalled, Target}`，
 每个定义至多一件，库存与已安装合并去重。`ValidateBuild` 要求 id 已知且严格升序、来源合法（`OpeningPick` 为 1 级且整局至多一件，
-`LevelUp` 为 2..当前等级且每级至多一件）、已安装必有首次历史、库存实例没有目标；已安装的只能是基础构件、目标为空，
-带 `active_element` 绑定的（B18）绑定其列表内的主动与元素（被遗忘的绑定主动不使构筑非法，只停止新触发）。
+`LevelUp` 为 2..当前等级且每级至多一件）、已安装必有首次历史、库存实例没有目标；已安装的按定义形状安装，
+带 `active_element` 绑定的（B18）绑定其列表内的主动与元素；安装所在的主动、宿主构件与 C12 复用的基础构件都必须仍然有效
+（已学会／已安装），否则构筑非法（`DataInvalid`），因为遗忘与卸下会在同一次提交里先回收它们（见下表 `ReplaceActive`/`ForgetActive`）。
 已安装实例按 id 排序进入 `FLDBuildProjectionInput::Components`，库存实例不进 Combat。死亡、复活与重连不改实例与首次历史。
 
 - **开局基础构件**：开局主动选定（1 号机会记录的 `Chosen`）后、整局一次。候选是普通池里 `opening: always` 的基础构件加上
@@ -75,8 +76,8 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；只在休息窗口（`RestOnly`） |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择（不能学就存为图纸）；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
-| `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
-| `ForgetActive` = 23 | 已占槽 `Slot` 0..2 | 遗忘该槽主动，回执 `ForgottenId`；它重新成为候选与 NPC 的合格主动，但只有新的来源才能再得到。空槽为 `SlotEmpty`，有未完成候选组为 `OfferOutstanding` |
+| `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；旧主动上的挂件同次回收（见 `ForgetActive`），不会自动绑到新主动；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
+| `ForgetActive` = 23 | 已占槽 `Slot` 0..2 | 遗忘该槽主动，回执 `ForgottenId`；它重新成为候选与 NPC 的合格主动，但只有新的来源才能再得到。同一次提交里，以它为目标的改装／连接、绑定它的 B18，以及（传递地）装在这些构件上或复用它们的构件，全部带首次历史退回库存（`LDProgression::ReclaimAttachments`），不复制、不丢失、不自动改绑；玩家可在同一休息窗口自行搬到合法对象。空槽为 `SlotEmpty`，有未完成候选组为 `OfferOutstanding` |
 | `ComponentChoice` = 13 | `OfferId` = 待选的精英营地二选一 `ChoiceId`；`Component` = 所选项，全零 = 改领点数 | 与 `ActiveChoice` 同表（野外存活或死亡、休息窗口都可选）。所选项成为库存实例（`EliteChoice`），该二选一结束；没有该 `ChoiceId` 为 `NoComponentChoice` = 160，不是候选项为 `InvalidOption`，所选项已持有为 `ComponentOwned` = 161。只有全部候选都已持有时才能带全零 `Component` 改领 `GROWTH.EmptyComponentPoolPoints`（计入 `AwardedPoints`），否则也是 `ComponentOwned` |
 | `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未启用、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 要求这些入口原生施加至少两种不同元素——主动的灼烧/潮湿/感电、B01/B10/B11 与 B18 已绑定的元素，两个火源不算），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`；C09 只列能补上一种缺少元素的，未绑定的 B18 按可绑元素计），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
 | `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
@@ -137,7 +138,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 每笔装入的奖励都打一行 `LD_REWARD t=… contender=… cause=death|map_event|dev_fixture role=killer|assist|recipient xp=… xp_after=… level=a->b <来源>`，
 升级时另打 `LD_LEVEL_UP`（`components=` 列出每级所得材料，池空的级为 `-`，`empty_pool_grants=` 为其个数）；候选组打 `LD_OFFER`（没有合格主动时 `LD_OFFER_WAITING`；NPC 候选组另带 `source=npc`），主动选择打 `LD_CHOICE`，
-其余构筑命令打 `LD_BUILD`（`forgot=… refunded=… paid=… ordinal=…` 记录遗忘、洗点退回、NPC 付费与所购机会；组件命令的 `card=` 为组件 id，另有 `installed=`、`bind=主动:元素` 与 `install_stored=`）。`ProcessTransactions` 按服务器受理顺序处理构筑命令（DEV 构建另有测试命令）。
+其余构筑命令打 `LD_BUILD`（`forgot=… refunded=… paid=… ordinal=…` 记录遗忘、洗点退回、NPC 付费与所购机会；组件命令的 `card=` 为组件 id，另有 `installed=`、`bind=主动:元素` 与 `install_stored=`；`reclaimed=` 为遗忘／替换同次退回库存的构件 id，逗号分隔，没有为 `-`）。`ProcessTransactions` 按服务器受理顺序处理构筑命令（DEV 构建另有测试命令）。
 单条请求失败只形成拒绝回执；只有失去写许可等权威故障才返回 false。
 `PublishGrowth(Boundary)` 在 Close 之后执行，不需要许可，只对变化者调用 `SyncOwner` 并推送终态回执。
 

@@ -75,6 +75,9 @@ struct FLDDamageEvaluation
     int64 RemainingShieldP2 = 0;
     // The amount BraceCutBp actually took off (floored P2; zero for a protected target).
     int64 BraceCutP2 = 0;
+    // The amount the primary guard actually took off a primary basic (the floored damage before it minus the floored damage
+    // after it; zero for a protected target).
+    int64 GuardCutP2 = 0;
     // #198 F M12: the deferred part of DamageP2's mitigated amount (DamageP2 is what this hit applies now).
     int64 DeferredP2 = 0;
 };
