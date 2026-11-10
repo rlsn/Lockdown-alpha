@@ -94,8 +94,10 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 16：#198 规则工坊整合后，公开对局视图新增时间线、符咒与 PK/观众数据，
-  并新增蓝图、PK 与休息阶段的 RPC（观察 schema 仍为 8）；双方须使用同一构建。
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 17：#198 PK 改为站圈报名（用户选择 A），删除报名开关的 RPC，
+  世界多出报名圈锚点（布局修订 9）；双方须使用同一构建。
+  16 是 #198 规则工坊整合后，公开对局视图新增时间线、符咒与 PK/观众数据，
+  并新增蓝图、PK 与休息阶段的 RPC（观察 schema 仍为 8）时的版本。
   15 是 #198 以构建命令（选主动技能、学图纸、分配属性点）取代三选一卡牌，
   成长本人视图带属性点、待学图纸与构建安全窗口，观察 schema 8 的公开 Q/W/E 不再带技能等级时的版本。
   14 是 #144 删除装备、金钱与商店（观察单位不再带装备槽，成长本人视图与回执不再带账户、装备与商店字段）时的版本；13 是观察 schema 7 公开 Q/W/E 三个主动槽与扩展的技能表现、
@@ -153,11 +155,11 @@ Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果�
 写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）。
 返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
 这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行，休息中只在构筑开放的步骤处理成长。
-PK 报名经 `ALDPlayerController::ServerRestSignup` 交 `ALDGameMode::SubmitRestSignup` 判定，回 `ClientRestSignup`；
-可选提供者 `ELDMatchProvider::PK` 未注册时报名以 `NoPKProvider` 拒绝，每次休息跳过 PK。
-会话 D 注册该提供者（`ALDPKDirector`）：竞猜与投掷经 `ALDPlayerController::ServerPKBet`/`ServerPKThrow` 交 `ALDPKDirector::SubmitBet`/`SubmitThrow`
-判定，回 `ClientPKBet`/`ClientPKThrow`（投掷另带下次可投时刻）；AI 走同一入口。观众与被淘汰者由观察所有者显式授权看见全部场内选手与场区覆盖，
-同队 PK 生命共享各自合法视线的并集，被暴露的选手只对本场 PK 生命额外可见。
+PK 报名是实体的站圈报名（用户选择 A）：没有报名 RPC，`ALDGameMode::RefreshRestSignups` 在报名窗口内每拍按已提交脚点是否在本人
+`pk_signup_<槽位>` 圆盘（`SignupDiskFor`，半径 `AIRDROP.PickupRadiusCm`）内重算公开名单，截止时刻再算一次并锁定。
+会话 D 注册可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`）：竞猜与投掷经 `ALDPlayerController::ServerPKBet`/`ServerPKThrow` 交 `ALDPKDirector::SubmitBet`/`SubmitThrow`
+判定，回 `ClientPKBet`/`ClientPKThrow`（投掷另带下次可投时刻）；AI 走同一入口。观众与被淘汰者由观察所有者显式授权看见全部场内选手、场区覆盖
+与场内技能投射物和预警，同队 PK 生命共享各自合法视线的并集（投射物与预警同样按队友的脚点与视线判定），被暴露的选手只对本场 PK 生命额外可见。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
 GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/MP/盾仍只在
 `Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。

@@ -121,6 +121,9 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 RestSettlementMs = 0;
     UPROPERTY() int64 RestPayoutMs = 0;
     UPROPERTY() int64 RestReturnMs = 0;
+    // #198 approved outer parameters §1: a PK start or field return whose bodies cannot all stand waits at most this long
+    // after its boundary (then the PK is NoContest and an unready field return is an explicit fault).
+    UPROPERTY() int64 RestEntryReadyTimeoutMs = 0;
     // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
     UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
     // #198 PK ring centred on the capture anchor: PKArenaRadiusCm until PKRingShrinkStartMs, linear to PKRingMidRadiusCm

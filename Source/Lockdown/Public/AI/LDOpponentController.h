@@ -53,7 +53,8 @@ struct FLDOpponentRequestTally
     uint32 ChallengesReleased = 0;
     uint32 HolderAttacks = 0;
     uint32 OwnerAttacks = 0;
-    // #198 D: PK requests sent through the player's entries (sign-ups, bets, throws) and those the authority refused.
+    // #198 D: PK actions sent through the player's entries (walks into the own sign-up disk, bets, throws) and the bets
+    // and throws the authority refused.
     uint32 PKSignUps = 0;
     uint32 PKBets = 0;
     uint32 PKThrows = 0;
@@ -158,6 +159,8 @@ private:
     FLDAIContenderBinding Binding;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TArray<FLDOpponentPOI> POIs;
+    // #198 站圈报名: the own PK sign-up disk (this contender's roster slot); only rest frames carry it.
+    FLDOpponentPOI SignupPOI;
     FLDOpponentPolicyState Policy;
     FOrderTrack Incumbent;
     FOrderTrack Candidate;

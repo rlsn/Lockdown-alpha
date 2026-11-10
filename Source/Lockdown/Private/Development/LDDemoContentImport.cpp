@@ -357,6 +357,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REST.SettlementSec"), TEXT("ms"), TEXT("ms"), &P.RestSettlementMs, 1, MAX_int64},
         {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 1, MAX_int64},
         {TEXT("REST.ReturnSec"), TEXT("ms"), TEXT("ms"), &P.RestReturnMs, 1, MAX_int64},
+        {TEXT("REST.EntryReadyTimeoutSec"), TEXT("ms"), TEXT("ms"), &P.RestEntryReadyTimeoutMs, 1, MAX_int64},
         {TEXT("PK.RingShrinkStartSec"), TEXT("ms"), TEXT("ms"), &P.PKRingShrinkStartMs, 1, MAX_int64},
         {TEXT("PK.RingMidSec"), TEXT("ms"), TEXT("ms"), &P.PKRingMidMs, 1, MAX_int64},
         {TEXT("PK.RingFinalSec"), TEXT("ms"), TEXT("ms"), &P.PKRingFinalMs, 1, MAX_int64},

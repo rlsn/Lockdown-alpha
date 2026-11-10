@@ -2290,12 +2290,16 @@ bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSna
     return Capture && FVector::Dist2D(Frame.Self.FootCm, Capture->FootCm) <= Detail::ToDouble(Catalog.Get().Parameters.CaptureRadiusCm);
 }
 
-bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self)
+bool SignupWindowOpen(const FLDOpponentPublicMatch& Public)
 {
     const FLDTimelineView& Timeline = Public.Timeline;
     return Public.Phase == ELDMatchPhase::Rest && Timeline.Stage == ELDMatchStage::Rest && Timeline.Step == ELDRestStep::Build
-        && Timeline.SignupOpensAtMs > 0 && Public.NowMs >= Timeline.SignupOpensAtMs && Public.NowMs < Timeline.StepEndsAtMs
-        && Self.IsValid() && !Timeline.Signups.Contains(Self);
+        && Timeline.SignupOpensAtMs > 0 && Public.NowMs >= Timeline.SignupOpensAtMs && Public.NowMs < Timeline.StepEndsAtMs;
+}
+
+bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self)
+{
+    return SignupWindowOpen(Public) && Self.IsValid() && !Public.Timeline.Signups.Contains(Self);
 }
 
 uint8 PKOwnBetSide(const FLDPKView& PK, const FGuid& Self)
@@ -2425,15 +2429,31 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             }
             return Finish(EMode::PK, Fight == EPKFight::Ring ? EReason::PKRing : EReason::PKFight);
         }
-        // Everyone else stays in its private rest space and never moves; spectating sends no order while the arena runs.
+        // Everyone else stays in its private rest space; the only walk is into the own sign-up disk while the window is
+        // open, and spectating sends no order while the arena runs.
         ForgetBody(State);
-        // #198 D: at most one PK request per decision, each family once (sign-up per rest, bet per PK); throws wait for the
-        // own cooldown from the latest throw answer.
+        // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
+        // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot,
+        // so while the window is open the body walks into it and then stays there (no training) until the lock; an accepted
+        // action or a channel finishes first.
         EReason PKReason = EReason::None;
-        if (WantsPKSignUp(Frame.Public, Self.ContenderId) && State.PKSignUpRest != int32(Timeline.RestIndex))
+        if (SignupWindowOpen(Frame.Public) && Frame.SignupPOI.IsSet() && Self.Phase == ELDLifePhase::Alive)
         {
-            State.PKSignUpRest = int32(Timeline.RestIndex);
-            Out.PK.Kind = ELDOpponentPKKind::SignUp;
+            const FLDOpponentPOI& Disk = Frame.SignupPOI.GetValue();
+            const auto& Order = Frame.Order;
+            const bool bWalking = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Disk.Id;
+            const bool bActing = Self.bChanneling || (Order.IsLive() && Order.Kind == ELDOpponentOrderKind::Action);
+            if (bWalking || bActing) { Out.Body.Kind = EBody::Keep; }
+            else if (Frame.Public.Timeline.Signups.Contains(Self.ContenderId))
+            {
+                Out.Body.Kind = Order.IsLive() ? EBody::Stop : EBody::Keep;
+            }
+            else
+            {
+                Out.Body.POI = Disk.Id;
+                Out.Body.Key = FContext::PathKey(Disk.Id);
+                Out.Body.Kind = EBody::MoveGround;
+            }
             PKReason = EReason::PKSignUp;
         }
         else if (const uint8 Side = PKBetSide(Frame.Public, Self.ContenderId); Side != 0 && State.PKBetSerial != PK.Serial)

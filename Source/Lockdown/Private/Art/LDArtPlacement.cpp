@@ -64,7 +64,8 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // #198 session D: a PK spawn or the throw anchor is a placement target only; collision-free decorations never block
         // the body the registry places there.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint
-            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow) { continue; }
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;

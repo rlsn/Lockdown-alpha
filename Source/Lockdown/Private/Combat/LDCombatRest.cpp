@@ -25,27 +25,33 @@ bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyComba
     return SourceSide!=0 && SourceSide==Target.PKSide;
 }
 
-bool ALDCombatDirector::IsOutOfGroup(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
+bool ALDCombatDirector::ActingGroup(const FGuid& Entity, FGuid& OutGroup) const
 {
-    if (Target.bSuspended) { return true; }
-    FGuid SourceGroup;
-    if (const FLDBodyCombatState* Source=FindEntityBody(SourceEntity))
+    OutGroup.Invalidate();
+    if (const FLDBodyCombatState* Source=FindEntityBody(Entity))
     {
-        if (Source->bSuspended) { return true; }
-        SourceGroup=Source->IsolationGroup;
+        if (Source->bSuspended) { return false; }
+        OutGroup=Source->IsolationGroup;
+        return true;
     }
-    else if (const FLDCombatEntityRecord* Record=FindRecord(SourceEntity); Record && Record->Kind==ELDVictimKind::Contender)
+    if (const FLDCombatEntityRecord* Record=FindRecord(Entity); Record && Record->Kind==ELDVictimKind::Contender)
     {
         // A contender between lives keeps the group of the space it is in: its released effects never cross it.
         const ALDGameMode* Mode=Core();
-        if (Mode && Mode->IsInRestSpace(SourceEntity)) { SourceGroup=SourceEntity; }
+        if (Mode && Mode->IsInRestSpace(Entity)) { OutGroup=Entity; }
         // #198 session D: an entrant between lives during the PK keeps the PK group.
-        else if (Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive() && Mode->PKDirector->SideOf(SourceEntity)!=0)
+        else if (Mode && Mode->PKDirector && Mode->PKDirector->IsArenaActive() && Mode->PKDirector->SideOf(Entity)!=0)
         {
-            SourceGroup=Mode->PKDirector->GetGroup();
+            OutGroup=Mode->PKDirector->GetGroup();
         }
     }
-    return SourceGroup!=Target.IsolationGroup;
+    return true;
+}
+
+bool ALDCombatDirector::IsOutOfGroup(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
+{
+    FGuid SourceGroup;
+    return Target.bSuspended || !ActingGroup(SourceEntity, SourceGroup) || SourceGroup!=Target.IsolationGroup;
 }
 
 bool ALDCombatDirector::IsHiddenFrom(const FGuid& Observer, const FLDCombatBodyRef& Target) const

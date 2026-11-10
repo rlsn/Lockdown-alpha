@@ -317,10 +317,14 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     TArray<FString> Detail;
     if(Timeline.Step==ELDRestStep::Build)
     {
+        View.bSignupStep=true;
         View.bSignedUp=Self.IsValid()&&Timeline.Signups.Contains(Self);
-        View.SignupAction=View.bSignedUp?FString(LDTerms::SignupWithdraw):FString(LDTerms::SignupJoin);
         if(!bClock){Detail.Add(TEXT("PK 报名时间同步中"));}
-        else if(NowMs<Timeline.SignupOpensAtMs){Detail.Add(LDTerms::SignupOpensIn(Seconds(Timeline.SignupOpensAtMs-NowMs)));}
+        else if(NowMs<Timeline.SignupOpensAtMs)
+        {
+            Detail.Add(LDTerms::SignupOpensIn(Seconds(Timeline.SignupOpensAtMs-NowMs)));
+            Detail.Add(LDTerms::SignupCircleHint);
+        }
         else if(NowMs<=Timeline.StepEndsAtMs){View.bSignupOpen=true;Detail.Add(LDTerms::SignupOpenFor(Seconds(Timeline.StepEndsAtMs-NowMs)));}
         else{Detail.Add(TEXT("PK 报名已截止"));}
         if(View.bSignupOpen||!Timeline.Signups.IsEmpty())
@@ -336,20 +340,6 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     }
     View.Detail=FString::Join(Detail,TEXT(" · "));
     return View;
-}
-FString LDHUD::RestSignupText(ELDRestSignupResult Result)
-{
-    switch(Result)
-    {
-    case ELDRestSignupResult::Joined: return TEXT("已报名 PK");
-    case ELDRestSignupResult::Withdrawn: return TEXT("已取消 PK 报名");
-    case ELDRestSignupResult::WindowClosed: return TEXT("PK 报名没有开放，本次没有改动");
-    case ELDRestSignupResult::NotContender: return TEXT("不是本局参赛者，不能报名 PK");
-    case ELDRestSignupResult::StaleMatch: return TEXT("已不是当前对局，没有报名");
-    case ELDRestSignupResult::NoPKProvider: return LDTerms::NoPKProvider;
-    case ELDRestSignupResult::NotInRest: return TEXT("现在不在休息中，不能报名 PK");
-    default: return FString::Printf(TEXT("PK 报名结果未知 #%d"),int32(Result));
-    }
 }
 FString LDHUD::TrainingResetText(ELDTrainingResetResult Result)
 {

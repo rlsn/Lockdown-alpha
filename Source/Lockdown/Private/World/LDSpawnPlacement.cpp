@@ -24,11 +24,25 @@ struct ULDMapRegistry::FSpawnState
         TSharedPtr<const FLDSpawnSelection> Selection;
         TSharedPtr<const FLDSpawnReservation> Held;
         bool Finalized=false;
+        bool Withdrawn=false;
     };
     FLDMatchContext Match;
     FLDWorldRevision World;
     TMap<FGuid,FMemo> Requests;
 };
+
+LDSpawnPlacement::EAdmission LDSpawnPlacement::Admit(const FPriorRequest* Previous, const FLDSpawnRequestKey& Request)
+{
+    if (!Previous) { return EAdmission::New; }
+    if (Request.Sequence==Previous->Request.Sequence)
+    {
+        if (!(Request==Previous->Request)) { return EAdmission::Conflict; }
+        return Previous->bWithdrawn ? EAdmission::Refused : EAdmission::Replay;
+    }
+    if (Request.Sequence<Previous->Request.Sequence || Previous->bHeld) { return EAdmission::Refused; }
+    if (Previous->bWithdrawn) { return Request.ProposedLife>=Previous->Request.ProposedLife ? EAdmission::New : EAdmission::Refused; }
+    return Previous->bFinalized && Request.ProposedLife>Previous->Request.ProposedLife ? EAdmission::New : EAdmission::Refused;
+}
 
 namespace
 {
@@ -94,19 +108,30 @@ bool ULDMapRegistry::AdmitSpawnRequest(const FLDSpawnRequestKey& Request, const 
         return false;
     }
     auto* Previous=SpawnState->Requests.Find(Request.ContenderId);
-    if (Previous && Request.Sequence==Previous->Request.Sequence)
+    LDSpawnPlacement::FPriorRequest Prior;
+    if (Previous)
     {
-        if (!(Request==Previous->Request))
-        { Error=TEXT("RequestConflict: spawn request identity has different terms."); return false; }
+        Prior.Request=Previous->Request;
+        Prior.bFinalized=Previous->Finalized;
+        Prior.bHeld=Previous->Held.IsValid();
+        Prior.bWithdrawn=Previous->Withdrawn;
+    }
+    switch (LDSpawnPlacement::Admit(Previous ? &Prior : nullptr,Request))
+    {
+    case LDSpawnPlacement::EAdmission::Replay:
         Replay=Previous->Selection;
         Error.Reset();
         return true;
-    }
-    if (Previous && (Request.Sequence<Previous->Request.Sequence
-        || Request.ProposedLife<=Previous->Request.ProposedLife || !Previous->Finalized || Previous->Held))
-    {
-        Error=TEXT("An expired or still-pending spawn request cannot redraw its anchor.");
+    case LDSpawnPlacement::EAdmission::Conflict:
+        Error=TEXT("RequestConflict: spawn request identity has different terms.");
         return false;
+    case LDSpawnPlacement::EAdmission::Refused:
+        Error=Prior.bWithdrawn && Request.Sequence==Prior.Request.Sequence
+            ? TEXT("A withdrawn spawn request never replays; its life is placed under a newer sequence.")
+            : TEXT("An expired or still-pending spawn request cannot redraw its anchor.");
+        return false;
+    default:
+        break;
     }
     auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
     FLDContenderLifeRead Life;
@@ -355,6 +380,26 @@ bool ULDMapRegistry::ReleaseSpawnReservation(TSharedPtr<const FLDSpawnReservatio
     { Error=TEXT("Spawn reservation was already finalized or released."); return false; }
     Memo->Held.Reset();
     Reservation.Reset();
+    Error.Reset();
+    return true;
+}
+
+bool ULDMapRegistry::WithdrawSpawnRequest(const FLDSpawnRequestKey& Request, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!SpawnState || SpawnState->Match!=Request.Match || !Request.IsValid() || !SpawnPermission(*GetWorld(),Request.Match,Permit,Error))
+    {
+        if (Error.IsEmpty()) { Error=TEXT("A spawn request is withdrawn only in its current match, under the current permit."); }
+        return false;
+    }
+    auto* Memo=SpawnState->Requests.Find(Request.ContenderId);
+    // The attempt failed before it recorded a selection under this identity: there is nothing to withdraw.
+    if (!Memo || Memo->Request.Sequence<Request.Sequence) { Error.Reset(); return true; }
+    if (!(Memo->Request==Request) || Memo->Finalized || Memo->Held)
+    {
+        Error=TEXT("Only the latest unfinalized, released spawn request of a contender can be withdrawn.");
+        return false;
+    }
+    Memo->Withdrawn=true;
     Error.Reset();
     return true;
 }

@@ -712,6 +712,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("BossWaypoint"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::BossWaypoint; }
         else if (Kind.Equals(TEXT("PKSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSpawn; }
         else if (Kind.Equals(TEXT("PKThrow"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKThrow; }
+        else if (Kind.Equals(TEXT("PKSignup"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSignup; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
         // The Boss patrol order and the #198 PK ring order are canonical; every other anchor is named by the world and
@@ -725,6 +726,10 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             for (int32 I = 0; I < LDDemoWorld::PKSpawns; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("pk_spawn_%d"), I), ESearchCase::CaseSensitive); }
         }
         else if (Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow) { KnownId = Anchor.Id.Equals(TEXT("pk_throw"), ESearchCase::CaseSensitive); }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup)
+        {
+            for (int32 I = 0; I < LDDemoWorld::PKSignups; ++I) { KnownId |= Anchor.Id.Equals(LDDemoWorld::PKSignupId(I), ESearchCase::CaseSensitive); }
+        }
         else { KnownId = true; }
         if (!Check.Require(KnownId, Anchor.Id, TEXT("unknown canonical Demo anchor"))) { return false; }
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -757,12 +762,14 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             const FExact Clearance = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? N.Value(Out.CampClearanceCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup
+                    ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
             const double Body = Approx(Content.Parameters.CollisionRadiusCm);
             const double Reach = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? Approx(Out.CampClearanceCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? Approx(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? Body + Approx(Content.Parameters.DormRadiusCm)
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm) : Body;
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup
+                    ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm) : Body;
             if (!Check.Require(ClearCircle(XY(Anchor.PositionCm, N), N.Value(Anchor.PositionCm.Z), Clearance, Reach, Out, N), Anchor.Id,
                 TEXT("anchor clearance intersects static geometry, a cliff or a ramp, or is off its level's height")))
             {
@@ -877,6 +884,29 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             || !OutsideCamps(*Throw))
         {
             return false;
+        }
+        // #198 PK sign-up disks (user decision A on issue #198): pk_signup_N belongs to the rest anchor of roster slot N (the
+        // spawn list spread evenly over the six seats, as ALDGameMode::RestAnchorFor picks it), on its level exactly
+        // PKSignupDistanceCm away; its whole disk passed the capsule clearance above.
+        if (!Check.Require(Content.World.SpawnIds.Num() >= LDDemoWorld::PKSignups, Root.Path,
+            TEXT("every roster slot needs its own rest anchor for its PK sign-up disk")))
+        {
+            return false;
+        }
+        const FExact SignupDistance = N.Value(int64(LDDemoWorld::PKSignupDistanceCm) * LDDemoWorld::PKSignupDistanceCm);
+        for (int32 Slot = 0; Slot < LDDemoWorld::PKSignups; ++Slot)
+        {
+            const FString Id = LDDemoWorld::PKSignupId(Slot);
+            const FLDDemoWorldAnchor* Signup = Find(Id);
+            const FLDDemoWorldAnchor* Rest = Find(Content.World.SpawnIds[Slot * Content.World.SpawnIds.Num() / LDDemoWorld::PKSignups]);
+            if (!Check.Require(Signup && Signup->Kind == ELDDemoWorldAnchorKind::PKSignup && Rest
+                && N.EQ(N.Value(Signup->PositionCm.Z), N.Value(Rest->PositionCm.Z))
+                && N.EQ(DistanceSquared(XY(Signup->PositionCm, N), XY(Rest->PositionCm, N), N), SignupDistance),
+                Id, TEXT("PK sign-up disk is missing, or not on its rest anchor's level 300 cm from it"))
+                || !OutsideCamps(*Signup))
+            {
+                return false;
+            }
         }
     }
     // D21 dorms and D26 airdrop points are the anchors content does not name; each event disk stays apart from the

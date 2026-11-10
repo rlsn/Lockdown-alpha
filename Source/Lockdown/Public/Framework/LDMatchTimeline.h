@@ -44,15 +44,8 @@ struct LOCKDOWN_API FLDTimelineView
     // Locked PK entrants of this rest (0 before the lock); fewer than two skip straight to Return.
     UPROPERTY() uint8 LockedEntrants = 0;
     UPROPERTY() bool bPKSkipped = false;
-    // Public: standing in the sign-up is a visible act. Sorted contender ids; filled by GameMode, not the reducer.
+    // Public: standing in the sign-up disk is a visible act. Sorted contender ids; filled by GameMode, not the reducer.
     UPROPERTY() TArray<FGuid> Signups;
-};
-
-// Owner-sent PK sign-up result (ALDPlayerController::ServerRestSignup -> ClientRestSignup).
-UENUM()
-enum class ELDRestSignupResult : uint8
-{
-    None = 0, Joined = 1, Withdrawn = 2, WindowClosed = 3, NotContender = 4, StaleMatch = 5, NoPKProvider = 6, NotInRest = 7
 };
 
 // Owner-sent training reset result (ALDPlayerController::ServerTrainingReset -> ClientTrainingReset). Queued commits at
@@ -130,10 +123,18 @@ public:
     int64 RespawnWaitMs(int64 FieldT) const;
 
     // Applies every transition due at or before AtMs. SignedUp is read once, when the build step locks. Without
-    // bAllowLock a due build lock stops the chain (the caller locks later in the same boundary).
-    bool Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, TArray<FLDTimelineEvent>& Out, FString& Error);
+    // bAllowLock a due build lock stops the chain (the caller locks later in the same boundary). bBodiesReady says whether
+    // every body of a due entry (PKReady -> PK, Return -> field) stands prepared: without it the entry holds (approved
+    // outer parameters §1: entry freezes while the scene is not ready), the step stays due and the chain stops; once
+    // ready, a held entry happens at the AtMs it became ready, not at its old scheduled instant.
+    bool Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool bBodiesReady, TArray<FLDTimelineEvent>& Out, FString& Error);
     // Whether the build step's lock is due at or before AtMs.
     bool IsBuildLockDue(int64 AtMs) const { return Stage == ELDMatchStage::Rest && Step == ELDRestStep::Build && StepEndsAtMs <= AtMs; }
+    // Whether a body entry (the PK start after PKReady or the field after Return) is due at or before AtMs.
+    bool IsEntryDue(int64 AtMs) const
+    { return Stage == ELDMatchStage::Rest && (Step == ELDRestStep::PKReady || Step == ELDRestStep::Return) && StepEndsAtMs <= AtMs; }
+    // Whether a due entry is currently held for its bodies.
+    bool IsEntryHeld() const { return bEntryHeld; }
     // PK ended early (a winner or a draw is decided): the PK step now ends at AtMs; the next Advance settles it.
     bool FinishPK(int64 AtMs, FString& Error);
 #if WITH_DEV_AUTOMATION_TESTS
@@ -161,6 +162,7 @@ private:
     int64 FieldStartedAtMs = 0;
     uint8 LockedEntrants = 0;
     bool bPKSkipped = false;
+    bool bEntryHeld = false;
 };
 
 namespace LDMatchTimeline

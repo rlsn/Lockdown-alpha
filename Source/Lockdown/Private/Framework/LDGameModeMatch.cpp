@@ -232,6 +232,9 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     RestLives.Reset();
     PKLives.Reset();
     PendingPhasePlacement.Reset();
+    PendingPKEntry.Reset();
+    bFieldReturnStarted = false;
+    ReleasePhasePrepared(PreparedFieldReturn);
     // Dummy bodies were destroyed with every life actor above; their life records go with the match.
     for (const FGuid& Dummy : TrainingDummyIds) { Lives.Remove(Dummy); }
     TrainingDummies.Reset();

@@ -561,8 +561,9 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
         {
             return false;
         }
-        else
+        else if (!Timeline.IsEntryHeld())
         {
+            // A held return retries every step; its first attempt (and LD_REST_RETURN_HELD) already tells why.
             UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN_FALLBACK contender=%s life=%u %s"), *Contender.ToString(), ProposedLife, *Error);
         }
     }
@@ -778,17 +779,20 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
             return false;
         }
     }
-    // The capture roster is joined when R0 returns to the field (MoveContendersToField); rest lives have no eligibility.
+    // The capture roster is joined when R0 returns to the field (CommitFieldReturn); rest lives have no eligibility.
     for (const auto& Entry : Prepared)
     {
-        const auto& Life = Lives.FindChecked(Entry.Placed.Contender);
+        // Copies of the committed life: the training dummy's own record is added to Lives below, which may move every record.
+        const FLDLifeRecord& Life = Lives.FindChecked(Entry.Placed.Contender);
+        const FLDCombatBodyRef Body = Life.Body;
+        const uint64 Revision = Life.Revision;
         RestLives.Add(Entry.Placed.Contender);
-        if (!Combat->SetRestIsolation(Life.Body, true, Permit, Error) || !SpawnTrainingDummy(Entry.Placed.Contender, Permit, Error))
+        if (!Combat->SetRestIsolation(Body, true, Permit, Error) || !SpawnTrainingDummy(Entry.Placed.Contender, Permit, Error))
         {
             FaultAuthority(Error);
             return false;
         }
-        NotifyLife(Life.Body, ELDLifeChange::Joined, Life.Revision, AuthorityNowMs);
+        NotifyLife(Body, ELDLifeChange::Joined, Revision, AuthorityNowMs);
     }
     // The camps populate the world after every contender stands; a refusal aborts this start explicitly.
     if (!Camps)
@@ -811,6 +815,13 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
         return false;
     }
     TArray<FGuid> Due;
+    // #198: field respawn waits run only while a field segment runs; in a rest (and while a held entry waits for its
+    // bodies) every contender is placed by the rest module.
+    if (!IsFieldRunning())
+    {
+        Error.Reset();
+        return true;
+    }
     for (const auto& Pair : Lives)
     {
         const auto& Life = Pair.Value;

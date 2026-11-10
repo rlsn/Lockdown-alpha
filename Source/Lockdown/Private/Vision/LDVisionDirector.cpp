@@ -601,11 +601,38 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
     return true;
 }
 
+ELDObservedFlightAccess LDObservation::ClassifyFlight(bool bSourceActs, const FGuid& SourceGroup, bool bObserverGroup,
+    const FGuid& ObserverGroup, const FGuid& ArenaGroup, bool bSpectating, bool bPKObserver)
+{
+    // A suspended (frozen) world body's effect is never shown, like the body itself.
+    if (!bSourceActs) { return ELDObservedFlightAccess::Hidden; }
+    const bool bArenaFlight = ArenaGroup.IsValid() && SourceGroup == ArenaGroup;
+    // Spectators watch the whole arena: its effects need no sight line, like its bodies.
+    if (bSpectating && bArenaFlight) { return ELDObservedFlightAccess::Granted; }
+    // Another isolation group (another rest space, the arena for a non-spectator) stays hidden, like its bodies.
+    if (!bObserverGroup || SourceGroup != ObserverGroup) { return ELDObservedFlightAccess::Hidden; }
+    // A PK life sees what its living teammates legally see.
+    return bPKObserver && bArenaFlight ? ELDObservedFlightAccess::SharedSight : ELDObservedFlightAccess::Sight;
+}
+
 bool LDObservation::SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
-    const TArray<FLDObservedProjectileFact>& Facts, TArray<const FLDObservedProjectileFact*>& Out, FString& Error)
+    const TArray<FVector>& SharedFeetCm, const TArray<FLDObservedProjectileFact>& Facts,
+    TFunctionRef<ELDObservedFlightAccess(const FLDObservedProjectileFact&)> Access,
+    TArray<const FLDObservedProjectileFact*>& Out, FString& Error)
 {
     Out.Reset();
     TArray<TPair<double, const FLDObservedProjectileFact*>> InSight;
+    const auto Seen = [&Sight, &Error](const FVector& From, const FLDObservedProjectileFact& Fact, bool& bOut)
+    {
+        const ELDSightResult Result = Sight.Trace(From, Fact.PositionCm);
+        if (Result == ELDSightResult::StaleWorld)
+        {
+            Error = TEXT("StaleWorld: projectile sight has no current world.");
+            return false;
+        }
+        bOut = Result == ELDSightResult::Visible;
+        return true;
+    };
     for (const FLDObservedProjectileFact& Fact : Facts)
     {
         if (!Fact.Key.IsValid() || !FMath::IsFinite(Fact.PositionCm.X) || !FMath::IsFinite(Fact.PositionCm.Y) || !FMath::IsFinite(Fact.PositionCm.Z))
@@ -613,13 +640,17 @@ bool LDObservation::SelectVisibleProjectiles(const FLDSightGeometry& Sight, cons
             Error = TEXT("A Combat flight has no key or no finite position.");
             return false;
         }
-        const ELDSightResult Result = Sight.Trace(SourceFootCm, Fact.PositionCm);
-        if (Result == ELDSightResult::StaleWorld)
+        const ELDObservedFlightAccess Rule = Access(Fact);
+        bool bVisible = Rule == ELDObservedFlightAccess::Granted;
+        if (Rule == ELDObservedFlightAccess::Sight || Rule == ELDObservedFlightAccess::SharedSight)
         {
-            Error = TEXT("StaleWorld: projectile sight has no current world.");
-            return false;
+            if (!Seen(SourceFootCm, Fact, bVisible)) { return false; }
+            for (int32 Index = 0; !bVisible && Rule == ELDObservedFlightAccess::SharedSight && Index < SharedFeetCm.Num(); ++Index)
+            {
+                if (!Seen(SharedFeetCm[Index], Fact, bVisible)) { return false; }
+            }
         }
-        if (Result == ELDSightResult::Visible)
+        if (bVisible)
         { InSight.Emplace(FVector2D::DistSquared(FVector2D(SourceFootCm.X, SourceFootCm.Y), FVector2D(Fact.PositionCm.X, Fact.PositionCm.Y)), &Fact); }
     }
     InSight.Sort([](const TPair<double, const FLDObservedProjectileFact*>& A, const TPair<double, const FLDObservedProjectileFact*>& B)
@@ -1137,9 +1168,23 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     TArray<FGuid> Removed;
     TArray<FLDObservedUnitView> Units;
     if (!Observer.Ledger.Sample(Visible, Removed, Units, Error)) { return false; }
-    // Flights use the same sight rule; a flight that left sight or ended is concealed with the units.
+    // #198 R15: a skill effect has its source's body permissions: hidden across isolation groups, the whole arena for a
+    // spectator, the living teammates' sight for a PK life; a flight that left sight or ended is concealed with the units.
+    FGuid ObserverGroup;
+    const bool bObserverGroup = Combat && Combat->ActingGroup(Observer.ContenderId, ObserverGroup);
+    const FGuid ArenaGroup = bArena ? PK->GetGroup() : FGuid();
+    const auto FlightAccess = [&](const FLDObservedProjectileFact& Fact)
+    {
+        if (!Combat) { return ELDObservedFlightAccess::Sight; }
+        FGuid Group;
+        const bool bSourceActs = Combat->ActingGroup(Fact.SourceEntity, Group);
+        return LDObservation::ClassifyFlight(bSourceActs, Group, bObserverGroup, ObserverGroup, ArenaGroup, bSpectating, bPKObserver);
+    };
     TArray<const FLDObservedProjectileFact*> VisibleFlights;
-    if (bAlive && !LDObservation::SelectVisibleProjectiles(Sight, Foot, Flights, VisibleFlights, Error)) { return false; }
+    if (bAlive && !LDObservation::SelectVisibleProjectiles(Sight, Foot, TeammateFeet, Flights, FlightAccess, VisibleFlights, Error))
+    {
+        return false;
+    }
     TArray<FGuid> RemovedFlights;
     TArray<FLDObservedProjectileView> Projectiles;
     if (!Observer.Ledger.SampleProjectiles(VisibleFlights, RemovedFlights, Projectiles, Error)) { return false; }

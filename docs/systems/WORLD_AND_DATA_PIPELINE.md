@@ -73,6 +73,13 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 `DrawSpawnAnchor` 只抽 `Spawn`；AI 公开地点与小地图不把 PK 锚点当野外地点，美术摆放只为其留出一具身体的净空。
 场地内的可走路径不由 Python 证明。
 
+#198 站圈报名（用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）”）新增 `PKSignup` 锚点
+`pk_signup_0..5`（布局修订 9）：第 n 个是名单槽位 n 的报名圈，属于该槽位的休息锚点（内容出生点序号 `n*N/6`，即 s00、s02、…、s10）。
+`DemoWorld.py` 与 `LDMapGeometry.cpp`（`PKSignupDistanceCm`）检查：恰好六个、规范 id、与配对休息锚点同层且水平距离恰为 300 cm、
+`AIRDROP.PickupRadiusCm` 圆盘是合法站立地面、休息锚点的出生偏移都不落在圆盘内、从休息锚点到圆心的直线走在合法地面上、不与营地清空圈重叠。
+原生以 `LDDemoWorld::PKSignupId(槽位)` 经 `ULDMapRegistry::Resolve` 取位置（不进内容引用）；AI 公开地点、小地图与美术摆放跳过这些锚点，
+只有 `ALDGameMode::SignupDiskFor`、AI 的 `Frame.SignupPOI` 与本人可见的 `ALDSignupMarker` 使用它们。
+
 世界生成头依次包含 `#pragma once`、`LD_DEMO_WORLD_SCHEMA_VERSION`、
 `LD_DEMO_WORLD_PROJECTION_REVISION` 和
 `LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT("…")`。根 manifest 覆盖内容、显示投影、作者 schema、

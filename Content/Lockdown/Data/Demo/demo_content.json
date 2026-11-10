@@ -4699,6 +4699,10 @@
       "ms": 5000,
       "unit": "ms"
     },
+    "REST.EntryReadyTimeoutSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
     "REST.OpeningBuildSec": {
       "ms": 45000,
       "unit": "ms"

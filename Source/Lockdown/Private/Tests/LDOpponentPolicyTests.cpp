@@ -2497,8 +2497,14 @@ bool RunPK(FAutomationTestBase& Test)
     Base.Public.Timeline.Stage = ELDMatchStage::Rest;
     Base.Public.Timeline.RestIndex = 1;
 
-    // Sign-up: once per rest, inside the window of the build step only.
+    // Sign-up (站圈报名): inside the window of the build step only, the body walks into its own sign-up disk.
     auto Frame = Base;
+    FLDOpponentPOI Disk;
+    Disk.Id = TEXT("pk_signup_1");
+    Disk.Kind = ELDOpponentPOIKind::PKSignup;
+    Disk.SurfaceId = TEXT("demo_ground");
+    Disk.FootCm = Base.Self.FootCm + FVector(300, 0, 0);
+    Frame.SignupPOI = Disk;
     Frame.Public.Timeline.Step = ELDRestStep::Build;
     Frame.Public.Timeline.SignupOpensAtMs = 20000;
     Frame.Public.Timeline.StepEndsAtMs = 30000;
@@ -2510,15 +2516,29 @@ bool RunPK(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Every AI signs up inside the window"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
     FLDOpponentPolicyState SignUp;
     auto Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
-    bGood &= Expect(Test, TEXT("Signing up never moves"), Decision, EMode::PK, EBody::None)
-        && Test.TestTrue(TEXT("The sign-up goes out through the player's entry"),
-            Decision.PK.Kind == EPK::SignUp && Decision.Reason == EReason::PKSignUp);
+    bGood &= Expect(Test, TEXT("Signing up walks into the own disk"), Decision, EMode::PK, EBody::MoveGround)
+        && Test.TestTrue(TEXT("The walk names the own disk and no request replaces standing in it"),
+            Decision.Body.POI == Disk.Id && Decision.PK.Kind == EPK::None && Decision.Reason == EReason::PKSignUp);
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.POI = Disk.Id;
     Frame.Public.NowMs = 20250;
-    bGood &= Test.TestTrue(TEXT("A sign-up is sent once per rest whatever its answer"),
-        LDOpponentPolicy::Decide(Frame, C, SignUp).PK.Kind == EPK::None);
+    bGood &= Test.TestTrue(TEXT("A live walk to the disk is kept, not sent again"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::Keep);
+    Frame.Order = FLDOpponentOrder();
+    Frame.Public.NowMs = 19999;
+    bGood &= Test.TestTrue(TEXT("Before the window the body stays in its rest space"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::None);
+    Frame.Public.NowMs = 20250;
     Frame.Public.Timeline.Signups = {Me};
-    bGood &= Test.TestFalse(TEXT("A contender in the public sign-up does not sign up again"),
-        LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
+    bGood &= Test.TestTrue(TEXT("A contender standing in its disk stays there until the lock"),
+        !LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me) && Decision.Body.Kind == EBody::Keep && Decision.Reason == EReason::PKSignUp);
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.Kind = ELDOpponentOrderKind::AttackUnit;
+    bGood &= Test.TestTrue(TEXT("Any other order a signed contender still runs stops in the disk"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::Stop);
+    Frame.Order = FLDOpponentOrder();
     Frame.Public.Timeline.Signups.Reset();
     Frame.Public.Timeline.Step = ELDRestStep::Payout;
     bGood &= Test.TestFalse(TEXT("No sign-up outside the build step"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
@@ -3653,14 +3673,24 @@ bool RunTraining(FAutomationTestBase& Test)
     auto SignUp = Base;
     SignUp.Public.Timeline.SignupOpensAtMs = SignUp.Public.NowMs;
     SignUp.Public.Timeline.StepEndsAtMs = SignUp.Public.NowMs + 1000;
-    FLDOpponentPolicyState SignUpState;
-    Decision = LDOpponentPolicy::Decide(SignUp, C, SignUpState);
-    bGood &= Test.TestTrue(TEXT("A decision sending a PK sign-up sends no body intent"),
-        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKSignUp && Decision.PK.Kind == ELDOpponentPKKind::SignUp
-        && Decision.Body.Kind == EBody::None);
-    Decision = LDOpponentPolicy::Decide(SignUp, C, SignUpState);
-    bGood &= Test.TestTrue(TEXT("The next decision trains"), Decision.Reason == EReason::Train && Trains(Decision, EBody::AttackUnit)
-        && Decision.PK.Kind == ELDOpponentPKKind::None);
+    FLDOpponentPOI Disk;
+    Disk.Id = TEXT("pk_signup_0");
+    Disk.Kind = ELDOpponentPOIKind::PKSignup;
+    Disk.SurfaceId = TEXT("demo_ground");
+    Disk.FootCm = Base.Self.FootCm + FVector(300, 0, 0);
+    SignUp.SignupPOI = Disk;
+    Decision = Decide(SignUp);
+    bGood &= Test.TestTrue(TEXT("The open sign-up window walks into the own disk instead of training (站圈报名)"),
+        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == Disk.Id && Decision.PK.Kind == ELDOpponentPKKind::None);
+    SignUp.Public.Timeline.Signups = {Base.Self.ContenderId};
+    Decision = Decide(SignUp);
+    bGood &= Test.TestTrue(TEXT("Signed up, the body stays in its disk and does not train until the lock"),
+        Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::Keep);
+    SignUp.Public.Timeline.Signups.Reset();
+    SignUp.Order = Live.Order;
+    SignUp.Order.Kind = ELDOpponentOrderKind::Action;
+    bGood &= Test.TestTrue(TEXT("An accepted training action finishes before the walk"), Decide(SignUp).Body.Kind == EBody::Keep);
 
     // Never before or while something is built, never outside the rest build window, never on anything but the dummy.
     auto Building = Base;

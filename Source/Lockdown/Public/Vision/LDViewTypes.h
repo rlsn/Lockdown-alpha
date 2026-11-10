@@ -196,6 +196,7 @@ struct FLDObservedPublicFacts
 struct FLDObservedProjectileFact
 {
     FGuid Key;                                   // the release's EffectId
+    FGuid SourceEntity;                          // the releasing entity: its isolation group decides who may see it
     FVector PositionCm = FVector::ZeroVector;    // current centre; Z is the releasing foot height
     FVector2D Heading = FVector2D::ZeroVector;   // planar unit direction
     ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;

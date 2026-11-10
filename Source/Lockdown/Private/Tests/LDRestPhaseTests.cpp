@@ -65,14 +65,14 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Sign-up opens for the last 10 s of the build, its deadline included"),
         !Line.IsSignupOpen(Start + 34999) && Line.IsSignupOpen(Start + 35000) && Line.IsSignupOpen(Start + 45000));
     bGood &= TestTrue(TEXT("Without the lock permission the due build lock waits"),
-        Line.Advance(Start + 45000, 0, false, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + 45000));
+        Line.Advance(Start + 45000, 0, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + 45000));
     // One entrant: the PK is skipped and the 5 s return follows the lock at once.
-    bGood &= TestTrue(TEXT("Lock with one sign-up skips the PK"), Line.Advance(Start + 45000, 1, true, Events, Error)
+    bGood &= TestTrue(TEXT("Lock with one sign-up skips the PK"), Line.Advance(Start + 45000, 1, true, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::LockBuild) && FindEvent(Events, ELDTimelineEventKind::LockBuild)->Value == 1
         && Line.GetStep() == ELDRestStep::Return && Line.MakeView(1, 1).bPKSkipped && !Line.IsRestBuildOpen());
     Events.Reset();
     const int64 Field1 = Start + 50000;
-    bGood &= TestTrue(TEXT("The return countdown ends in field 1 at T=0"), Line.Advance(Field1, 0, true, Events, Error)
+    bGood &= TestTrue(TEXT("The return countdown ends in field 1 at T=0"), Line.Advance(Field1, 0, true, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterField) && Line.GetStage() == ELDMatchStage::Field
         && Line.GetFieldSegment() == 0 && Line.FieldMsAt(Field1) == 0 && Line.IsFieldRunning());
     bGood &= TestTrue(TEXT("T runs with the authority clock in the field"), Line.FieldMsAt(Field1 + 12345) == 12345);
@@ -82,12 +82,12 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Field 1 ends after 180 s"), Line.NextDueMs() == Field1 + 180000);
     Events.Reset();
     const int64 Rest1 = Field1 + 180000;
-    bGood &= TestTrue(TEXT("T=180 s enters R1 with T frozen"), Line.Advance(Rest1, 0, false, Events, Error)
+    bGood &= TestTrue(TEXT("T=180 s enters R1 with T frozen"), Line.Advance(Rest1, 0, false, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterRest) && Line.GetRestIndex() == 1 && Line.FieldMsAt(Rest1 + 99999) == 180000
         && Line.NextDueMs() == Rest1 + 30000 && Line.FieldDueAuthorityMs(Rest1, 200000) == MAX_int64);
     // Two entrants run every PK step; a PK that runs to its limit makes the approved 126 s rest.
     Events.Reset();
-    bGood &= TestTrue(TEXT("Two entrants: draw follows the lock"), Line.Advance(Rest1 + 30000, 2, true, Events, Error)
+    bGood &= TestTrue(TEXT("Two entrants: draw follows the lock"), Line.Advance(Rest1 + 30000, 2, true, true, Events, Error)
         && Line.GetStep() == ELDRestStep::Draw && Line.MakeView(1, 1).LockedEntrants == 2);
     const ELDRestStep Chain[] = {ELDRestStep::Betting, ELDRestStep::PKReady, ELDRestStep::PK, ELDRestStep::Settlement,
         ELDRestStep::Payout, ELDRestStep::Return};
@@ -95,35 +95,35 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     {
         const int64 Due = Line.NextDueMs();
         bGood &= TestTrue(FString::Printf(TEXT("Step %s at %lld"), LDMatchTimeline::StepName(Next), Due),
-            Line.Advance(Due, 2, true, Events, Error) && Line.GetStep() == Next);
+            Line.Advance(Due, 2, true, true, Events, Error) && Line.GetStep() == Next);
         if (Next == ELDRestStep::Payout) { bGood &= TestTrue(TEXT("The payout reopens the build"), Line.IsRestBuildOpen()); }
     }
     bGood &= TestEqual(TEXT("A full R1 with a 60 s PK lasts 126 s"), Line.NextDueMs() - Rest1, int64(126000));
     Events.Reset();
     const int64 Field2 = Line.NextDueMs();
-    bGood &= TestTrue(TEXT("R1 returns to field 2 at T=180 s"), Line.Advance(Field2, 0, true, Events, Error)
+    bGood &= TestTrue(TEXT("R1 returns to field 2 at T=180 s"), Line.Advance(Field2, 0, true, true, Events, Error)
         && Line.GetFieldSegment() == 1 && Line.FieldMsAt(Field2 + 1) == 180001);
     // R2 with a PK that ends early: the PK step ends at the reported instant.
     const int64 Rest2 = Field2 + 180000;
-    bGood &= TestTrue(TEXT("R2 begins at T=360 s"), Line.Advance(Rest2, 0, false, Events, Error) && Line.GetRestIndex() == 2);
-    bGood &= TestTrue(TEXT("R2 locks with three entrants"), Line.Advance(Rest2 + 30000, 3, true, Events, Error));
-    while (Line.GetStep() != ELDRestStep::PK) { Line.Advance(Line.NextDueMs(), 3, true, Events, Error); }
+    bGood &= TestTrue(TEXT("R2 begins at T=360 s"), Line.Advance(Rest2, 0, false, true, Events, Error) && Line.GetRestIndex() == 2);
+    bGood &= TestTrue(TEXT("R2 locks with three entrants"), Line.Advance(Rest2 + 30000, 3, true, true, Events, Error));
+    while (Line.GetStep() != ELDRestStep::PK) { Line.Advance(Line.NextDueMs(), 3, true, true, Events, Error); }
     const int64 PKStart = Line.GetStepEndsAtMs() - P.PKMaxMs;
     bGood &= TestFalse(TEXT("A PK cannot end after its limit"), Line.FinishPK(PKStart + P.PKMaxMs + 1, Error));
     bGood &= TestTrue(TEXT("A PK decided after 15 s ends then"), Line.FinishPK(PKStart + 15000, Error)
-        && Line.NextDueMs() == PKStart + 15000 && Line.Advance(PKStart + 15000, 3, true, Events, Error)
+        && Line.NextDueMs() == PKStart + 15000 && Line.Advance(PKStart + 15000, 3, true, true, Events, Error)
         && Line.GetStep() == ELDRestStep::Settlement);
     bGood &= TestFalse(TEXT("Only a running PK ends early"), Line.FinishPK(PKStart + 16000, Error));
-    while (Line.GetStage() == ELDMatchStage::Rest) { Line.Advance(Line.NextDueMs(), 3, true, Events, Error); }
+    while (Line.GetStage() == ELDMatchStage::Rest) { Line.Advance(Line.NextDueMs(), 3, true, true, Events, Error); }
     const int64 Field3 = Line.GetStepEndsAtMs() - P.FieldSegmentMs;
     bGood &= TestTrue(TEXT("Field 3 runs from T=360 s"), Line.GetFieldSegment() == 2 && Line.FieldMsAt(Field3) == 360000);
-    Line.Advance(Line.NextDueMs(), 0, false, Events, Error);
+    Line.Advance(Line.NextDueMs(), 0, false, true, Events, Error);
     bGood &= TestTrue(TEXT("R3 at T=540 s"), Line.GetRestIndex() == 3 && Line.FieldMsAt(Line.NextDueMs()) == 540000);
-    Line.Advance(Line.NextDueMs(), 0, true, Events, Error);
+    Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error);
     Events.Reset();
     const int64 Final = Line.NextDueMs();
     bGood &= TestTrue(TEXT("R3 returns to the final field, which never ends on its own"),
-        Line.Advance(Final, 0, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
+        Line.Advance(Final, 0, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->FieldSegment == 3 && Line.NextDueMs() == MAX_int64
         && Line.FieldMsAt(Final + 60000) == 600000);
     bGood &= TestTrue(TEXT("Respawn waits by death T, boundaries included"),

@@ -79,6 +79,10 @@ public:
     bool ValidateSpawnReservation(const TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, const AActor* PreparedBody, FString& Error) const;
     bool ReleaseSpawnReservation(TSharedPtr<const FLDSpawnReservation>& Reservation, FString& Error);
+    // #198: drops the contender's latest released, unfinalized request (a blocked phase entry): it never replays, and the
+    // same life is placed under a newer sequence (another anchor or a fresh joint attempt). Nothing recorded under this
+    // identity is not an error. RespawnsAndWorld permit.
+    bool WithdrawSpawnRequest(const FLDSpawnRequestKey& Request, const FLDGameplayWritePermit& Permit, FString& Error);
     bool FinalizeSpawnPlacement(TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, FString& Error);
 private:

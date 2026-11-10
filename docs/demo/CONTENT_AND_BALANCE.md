@@ -266,7 +266,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `MATCH.FieldSegmentSec` | s/Sec | 180 | 2026-11-10 用户批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施”。三段野外各180s；野外进度T只在野外推进，休息与PK暂停T；R3返场后最终野外立即开放旗杆。取代 `MATCH.CountdownSec`（开局5秒倒计时退役，由R0与返场倒计时取代）和 `MATCH.DevelopmentSec` |
 | `REST.OpeningBuildSec` | s/Sec | 45 | 2026-11-10 用户批准（同上 #198 方案/审批，原话：“批准整套方案，按票内参数实施”）；开局休息R0的构筑/试招窗，第一段野外之前 |
 | `REST.BuildSec` | s/Sec | 30 | 2026-11-10 用户批准（同上）；R1–R3构筑/试招窗 |
-| `REST.SignupSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；构筑窗最后10s兼作PK站圈报名，不另加等待；不得长于 `REST.BuildSec` 或 `REST.OpeningBuildSec`（导入校验拒绝） |
+| `REST.SignupSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；构筑窗最后10s兼作PK站圈报名，不另加等待；不得长于 `REST.BuildSec` 或 `REST.OpeningBuildSec`（导入校验拒绝）。报名圈是每个名单槽位一个 `pk_signup_<槽位>` 锚点（离该槽位休息锚点 300 cm，世界数据布局修订 9），半径复用 `AIRDROP.PickupRadiusCm`，用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）” |
 | `REST.DrawSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；抽签与公布，构筑已锁 |
 | `REST.BettingSec` | s/Sec | 8 | 2026-11-10 用户批准（同上）；非选手竞猜，到截止封盘 |
 | `REST.PKReadySec` | s/Sec | 3 | 2026-11-10 用户批准（同上）；PK就位倒计时，双方禁止移动和进攻 |
@@ -275,6 +275,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `REST.PayoutSec` | s/Sec | 12 | 2026-11-10 用户批准（同上）；休息兑现，处理奖励、NPC、重构和试招 |
 | `REST.ReturnSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；返野外倒计时，锁构筑与输入；报名不足2人时构筑截止后直接进入此倒计时 |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 2026-11-10 用户批准（同上）；返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
+| `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 2026-11-10 用户批准（[外层参数方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175) §1，原话：“阶段资源/加载未就绪时冻结入场，30秒仍无法建立合法场景则本场NoContest并明确报错，不偷偷改阵地或开赛”）。PK入场与返回野外都是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；PK超时记本场NoContest（不发奖励）并回到休息位，返回野外超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
 | `PK.ArenaRadiusCm` | cm/Cm | 1800 | 2026-11-10 用户批准（[外层参数方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施”。PK圈以旗杆锚点为圆心，0–10s 安全半径保持1800cm |
 | `PK.RingMidRadiusCm` | cm/Cm | 600 | 2026-11-10 用户批准（同上）；10–40s 由1800cm线性缩到600cm |
 | `PK.RingFinalRadiusCm` | cm/Cm | 150 | 2026-11-10 用户批准（同上）；40–55s 由600cm线性缩到150cm，55–60s 保持150cm；须满足 终圈 < 中圈 < 场地半径（导入校验拒绝） |

@@ -154,10 +154,9 @@ public:
     // world owners (charms, ...) add their own rest entry/exit here.
     bool EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
-    // PK sign-up during the last REST.SignupSec of a build step. Owner-only; refused explicitly when no PK provider is
-    // registered (session D plugs it in) or the window is closed.
-    ELDRestSignupResult SubmitRestSignup(ALDPlayerController& Controller, uint32 Generation, bool bJoin);
-    bool IsSignedUp(const FGuid& Contender) const { return RestSignups.Contains(Contender); }
+    // #198 站圈报名 (user decision A on issue #198): the PK sign-up disk of a contender's private rest space (its roster
+    // slot's pk_signup anchor, radius AIRDROP.PickupRadiusCm); false when the world or the slot has none.
+    bool SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, double& OutRadiusCm) const;
     // The locked PK entrants of the current rest (sorted); empty before the lock or when PK was skipped.
     const TArray<FGuid>& GetLockedEntrants() const { return LockedEntrants; }
     // Session D: a running PK ended early at this boundary (a side won or a draw was decided).
@@ -173,16 +172,21 @@ public:
         FGuid Group;
         uint8 Side = 0;
     };
-    // RespawnsAndWorld: each listed contender's rest life retires and a PK life stands at its anchor in Group with Side,
-    // at full resources with every cooldown ready. A blocked anchor leaves that contender bodiless (OutBlocked); it
-    // returns to its rest space through the pending phase placement. False only on an authority fault.
-    bool EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit, TArray<FGuid>& OutBlocked,
-        FString& Error);
+    // RespawnsAndWorld: each listed contender's rest life retires, then a PK life is prepared for every entrant at its
+    // anchor in Group with Side (full resources, every cooldown ready). The bodies stand only together (bPlaced); while
+    // any anchor is blocked nobody stands and the entry waits, tried again every boundary (approved outer parameters §1:
+    // entry freezes while the scene is not ready). False only on an authority fault.
+    bool EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit, bool& bPlaced, FString& Error);
     // RespawnsAndWorld: every living PK life retires and stands again in its rest space (blocked: pending placement).
     bool ReturnPKLivesToRest(const FLDGameplayWritePermit& Permit, FString& Error);
     bool IsPKLife(const FGuid& Contender) const { return PKLives.Contains(Contender); }
+    // Whether a PK entry still waits for its bodies.
+    bool IsPKEntryWaiting() const { return !PendingPKEntry.IsEmpty(); }
     // The current living body of a contender and its committed foot; false when it has none.
     bool ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBody, FVector& OutFootCm) const;
+    // Inside an authority step, after Motion: the native motion the contender's living body completed in this step;
+    // null when it has none.
+    const FLDNativeMotionBatch* ReadStepMotion(const FGuid& Contender) const;
     bool IsContenderPresent(const FGuid& Contender) const { return IsMemberPresent(Contender); }
     const TArray<FGuid>& GetRosterOrder() const { return RosterOrder; }
     // ---- #198 personal training dummy (coordinator decision under the user's delegation): the existing contender
@@ -349,6 +353,7 @@ private:
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
     friend class FLDRestPhaseTest;
+    friend class FLDDemoOpponentProbe;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord
@@ -532,8 +537,11 @@ private:
     // ---- #198 rest phases (Framework/LDGameModeRest.cpp) ----
     FLDMatchTimeline Timeline;
     uint64 TimelineRevision = 0;
-    // PK sign-ups of the current build step and the entrants locked from them.
+    // PK sign-ups of the current build step (the rest lives standing in their sign-up disks while the window is open) and
+    // the entrants locked from them.
     TSet<FGuid> RestSignups;
+    // RespawnsAndWorld and the lock: RestSignups from the committed feet (empty outside the window). False on a fault.
+    bool RefreshRestSignups(FString& Error);
     TArray<FGuid> LockedEntrants;
     // Per contender: where its field life stood when the rest began (returns there), and whether it was alive.
     struct FLDRestReturn
@@ -547,8 +555,50 @@ private:
     TSet<FGuid> RestLives;
     // #198 session D: contenders whose current life is a PK life in the arena.
     TSet<FGuid> PKLives;
-    // Contenders still waiting for a rest/field placement that was blocked at its boundary (retried every boundary).
+    // Contenders still waiting for a rest placement that was blocked at its boundary (retried every boundary of the rest).
     TSet<FGuid> PendingPhasePlacement;
+    // A phase body prepared but not committed: approved §8 joint allocation verifies every body of an entry before any
+    // of them stands.
+    struct FLDPhasePrepared
+    {
+        FLDPlacedBody Placed;
+        TSharedPtr<FLDBodyCombatState> CombatState;
+    };
+    struct FLDPhaseTarget
+    {
+        FGuid Contender;
+        FLDPlacementTarget Where;
+    };
+    // Prepares the next life of a bodiless contender at Where without committing it. bBlocked (nothing kept, the reason in
+    // BlockedReason) when the placement is not free or the retired body's motion is not consumed yet. False only on a
+    // fault.
+    bool PreparePhaseBody(const FLDPhaseTarget& Target, const FLDGameplayWritePermit& Permit, FLDPhasePrepared& Out,
+        bool& bBlocked, FString& BlockedReason, FString& Error);
+    // Commits and activates a prepared life; any failure is an authority fault.
+    bool CommitPhaseBody(FLDPhasePrepared& Prepared, int64 ProtectedUntilMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    void ReleasePhasePrepared(TArray<FLDPhasePrepared>& Prepared);
+    // The contender's pending spawn request for its next life never replays: the next attempt (another anchor, or the
+    // same entry tried again) uses a newer request identity.
+    bool WithdrawPhaseRequest(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Prepares every target in order. When one is blocked every prepared body is released, every target's request is
+    // withdrawn and bBlocked names the first blocked contender's reason; Out is then empty.
+    bool PrepareJointPhase(const TArray<FLDPhaseTarget>& Targets, const FLDGameplayWritePermit& Permit,
+        TArray<FLDPhasePrepared>& Out, bool& bBlocked, FString& BlockedReason, FString& Error);
+    // The return to the field of the current Return step: started (every rest life retired) when it first fell due, its
+    // bodies prepared jointly at the boundary that enters the field and committed there together.
+    bool bFieldReturnStarted = false;
+    TArray<FLDPhasePrepared> PreparedFieldReturn;
+    // #198 session D: the PK entrants whose arena bodies wait to stand together (the PK cannot start before they do).
+    TArray<FLDPKPlacement> PendingPKEntry;
+    bool bPKEntryLogged = false;
+    // RespawnsAndWorld, before the timeline advances: tries a waiting PK entry again, and for a due entry (PK start or
+    // field) reports whether its bodies stand ready. A field return still unready REST.EntryReadyTimeoutSec after its
+    // boundary is an explicit fault; a PK entry still waiting then ends as NoContest (approved outer parameters §1).
+    bool PrepareEntry(const FLDGameplayWritePermit& Permit, bool& bBodiesReady, FString& Error);
+    bool PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool& bReady, FString& Error);
+    bool CommitFieldReturn(bool bFinalField, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool TryPKEntry(const FLDGameplayWritePermit& Permit, bool& bPlaced, FString& Error);
+    bool AbandonPKEntry(const FLDGameplayWritePermit& Permit, FString& Error);
     struct FLDTrainingDummy
     {
         FGuid Entity;
@@ -565,12 +615,10 @@ private:
     bool ProcessTrainingResets(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, const FLDGameplayWritePermit& Permit, FString& Error);
     bool MoveContendersToRest(const FLDGameplayWritePermit& Permit, FString& Error);
-    bool MoveContendersToField(bool bFinalField, const FLDGameplayWritePermit& Permit, FString& Error);
     // Ends a living contender life without a death (phase boundary): no K/D, kill feed, reward or respawn wait.
     bool RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
-    // Places the next life of a bodiless contender at its rest anchor (bRest) or back in the field.
-    bool PlacePhaseLife(const FGuid& Contender, bool bRest, int64 ProtectedUntilMs, const FLDGameplayWritePermit& Permit,
-        bool& bBlocked, FString& Error);
+    // Places the next life of a bodiless contender at its private rest anchor (with its training dummy).
+    bool PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
     bool RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FString& Error);
     FName RestAnchorFor(const FGuid& Contender) const;
     void PublishTimeline();

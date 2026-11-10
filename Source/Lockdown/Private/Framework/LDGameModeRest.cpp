@@ -9,8 +9,11 @@
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
+#include "World/LDSpawnPlacement.h"
 #include "World/LDCampDirector.h"
 #include "Engine/World.h"
+#include "Region/LDMapGeometry.h"
+#include "Misc/ScopeExit.h"
 
 // #198 rest phases (approved outer parameters, issue #198 comment 6752601175 §1/§8/§9; the private rest space is a
 // coordinator decision under the user's delegation). The pure FLDMatchTimeline schedules the rests and
@@ -24,7 +27,10 @@
 // ends the remaining field respawn waits, cancels every in-flight effect and control, and gives everyone a fresh rest life
 // at full HP/MP with every cooldown ready. A rest -> field boundary does the same in reverse: every rest life is retired and
 // the next field life stands at the remembered field foot (or within REST.ReturnSearchRadiusCm, else a normal spawn; a
-// contender dead at the rest entry takes a normal spawn) with the shared LIFE.ProtectionSec.
+// contender dead at the rest entry takes a normal spawn) with the shared LIFE.ProtectionSec. The field bodies (and a PK's
+// arena bodies) are prepared jointly and stand only together; while any is blocked the entry holds (T, the flagpole and
+// the PK clock wait), each attempt under a newer spawn identity, until REST.EntryReadyTimeoutSec ends it explicitly
+// (approved outer parameters §1/§8).
 
 bool ALDGameMode::InitializeTimeline(FString& Error)
 {
@@ -42,6 +48,9 @@ bool ALDGameMode::InitializeTimeline(FString& Error)
     RestLives.Reset();
     PKLives.Reset();
     PendingPhasePlacement.Reset();
+    PendingPKEntry.Reset();
+    bFieldReturnStarted = false;
+    ReleasePhasePrepared(PreparedFieldReturn);
     UE_LOG(LogLDMatch, Display, TEXT("LD_TIMELINE_BEGIN generation=%u at_ms=%lld rest=0 build_ends_at_ms=%lld"),
         MatchContext.Generation, AuthorityNowMs, Timeline.GetStepEndsAtMs());
     Error.Reset();
@@ -128,24 +137,66 @@ void ALDGameMode::PublishTimeline()
     bLobbyDirty = true;
 }
 
-ELDRestSignupResult ALDGameMode::SubmitRestSignup(ALDPlayerController& Controller, uint32 Generation, bool bJoin)
+bool ALDGameMode::SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, double& OutRadiusCm) const
 {
-    const FGuid Id = ContenderId(&Controller);
-    if (!Id.IsValid() || !IsMemberPresent(Id)) { return ELDRestSignupResult::NotContender; }
-    if (Generation != MatchContext.Generation) { return ELDRestSignupResult::StaleMatch; }
-    if (!IsRestPhase(MatchContext) || !RestLives.Contains(Id)) { return ELDRestSignupResult::NotInRest; }
-    if (!Timeline.IsSignupOpen(AuthorityNowMs)) { return ELDRestSignupResult::WindowClosed; }
+    OutCentreCm = FVector::ZeroVector;
+    OutRadiusCm = 0;
+    // The disk of the contender's roster slot, beside the private rest anchor of the same slot (RestAnchorFor).
+    const int32 Slot = RosterOrder.IndexOfByKey(Contender);
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!DemoContent || !Registry || Slot == INDEX_NONE || Slot >= LDDemoWorld::PKSignups) { return false; }
+    const FLDMapBinding* Disk = Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Slot)), Registry->Generation);
+    // User decision A on issue #198: the existing "stand in the disk" radius, AIRDROP.PickupRadiusCm.
+    const FLDDemoRational& Radius = DemoContent->Get().Parameters.AirdropPickupRadiusCm;
+    if (!Disk || Radius.Denominator <= 0 || Radius.Numerator <= 0) { return false; }
+    OutCentreCm = Disk->Position;
+    OutRadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
+    return true;
+}
+
+bool ALDGameMode::RefreshRestSignups(FString& Error)
+{
+    // Approved 站圈报名: during the sign-up window a contender is signed up exactly while its rest life's committed foot
+    // stands in its own sign-up disk (XY, boundary inside); the lock takes whoever stands inside at the deadline.
+    TSet<FGuid> Inside;
     const FLDMatchProviderHooks* PK = LDMatchProviders::Find(ELDMatchProvider::PK);
-    if (!PK || !PK->RestStep) { return ELDRestSignupResult::NoPKProvider; }
-    const bool bChanged = bJoin ? !RestSignups.Contains(Id) : RestSignups.Contains(Id);
-    if (bJoin) { RestSignups.Add(Id); } else { RestSignups.Remove(Id); }
+    if (IsRestPhase(MatchContext) && Timeline.IsSignupOpen(AuthorityNowMs) && PK && PK->RestStep)
+    {
+        for (const FGuid& Id : RosterOrder)
+        {
+            const FLDLifeRecord* Life = Lives.Find(Id);
+            if (!IsMemberPresent(Id) || !RestLives.Contains(Id) || !Life || Life->Phase != ELDLifePhase::Alive) { continue; }
+            FVector Centre;
+            double Radius = 0;
+            if (!SignupDiskFor(Id, Centre, Radius))
+            {
+                Error = FString::Printf(TEXT("Contender %s has no registered PK sign-up disk."), *LDLog::Id(Id));
+                return false;
+            }
+            if (FVector::DistSquared2D(Life->MotionLastFoot, Centre) <= Radius * Radius) { Inside.Add(Id); }
+        }
+    }
+    bool bChanged = Inside.Num() != RestSignups.Num();
+    for (const FGuid& Id : Inside)
+    {
+        if (RestSignups.Contains(Id)) { continue; }
+        bChanged = true;
+        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_SIGNUP contender=%s join=1 rest=%u at_ms=%lld signups=%d"), *LDLog::Id(Id),
+            Timeline.GetRestIndex(), AuthorityNowMs, Inside.Num());
+    }
+    for (const FGuid& Id : RestSignups)
+    {
+        if (Inside.Contains(Id)) { continue; }
+        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_SIGNUP contender=%s join=0 rest=%u at_ms=%lld signups=%d"), *LDLog::Id(Id),
+            Timeline.GetRestIndex(), AuthorityNowMs, Inside.Num());
+    }
     if (bChanged)
     {
+        RestSignups = MoveTemp(Inside);
         bPublicMatchDirty = true;
-        UE_LOG(LogLDMatch, Display, TEXT("LD_REST_SIGNUP contender=%s join=%d rest=%u signups=%d"),
-            *LDLog::Id(Id), bJoin ? 1 : 0, Timeline.GetRestIndex(), RestSignups.Num());
     }
-    return bJoin ? ELDRestSignupResult::Joined : ELDRestSignupResult::Withdrawn;
+    Error.Reset();
+    return true;
 }
 
 bool ALDGameMode::FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -167,15 +218,56 @@ bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString&
         Error = TEXT("The timeline advances only under the current RespawnsAndWorld permit of an active match.");
         return false;
     }
+    // Prepared field bodies live only inside this boundary: whatever the entry did not commit is released.
+    ON_SCOPE_EXIT { ReleasePhasePrepared(PreparedFieldReturn); };
+    bool bBodiesReady = true;
     TArray<FLDTimelineEvent> Events;
-    if (!Timeline.Advance(Permit.GetBoundary().AtMs, RestSignups.Num(), false, Events, Error)
+    if (!PrepareEntry(Permit, bBodiesReady, Error)
+        || !Timeline.Advance(Permit.GetBoundary().AtMs, RestSignups.Num(), false, bBodiesReady, Events, Error)
         || !ApplyTimelineEvents(Events, Permit, Error)
         || !RetryPhasePlacements(Permit, Error)
+        || !RefreshRestSignups(Error)
         || (IsRestPhase(MatchContext) && !ProcessTrainingResets(Permit, Error)))
     {
         return false;
     }
     if (!Events.IsEmpty()) { PublishTimeline(); }
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::PrepareEntry(const FLDGameplayWritePermit& Permit, bool& bBodiesReady, FString& Error)
+{
+    bBodiesReady = true;
+    if (!IsRestPhase(MatchContext) || !DemoContent) { Error.Reset(); return true; }
+    const int64 AtMs = Permit.GetBoundary().AtMs;
+    if (!PendingPKEntry.IsEmpty() && Timeline.GetStep() == ELDRestStep::PKReady)
+    {
+        bool bPlaced = false;
+        if (!TryPKEntry(Permit, bPlaced, Error)) { return false; }
+    }
+    if (!Timeline.IsEntryDue(AtMs)) { Error.Reset(); return true; }
+    const int64 TimeoutMs = DemoContent->Get().Parameters.RestEntryReadyTimeoutMs;
+    const int64 HeldMs = AtMs - Timeline.GetStepEndsAtMs();
+    if (Timeline.GetStep() == ELDRestStep::Return)
+    {
+        if (!PrepareFieldReturn(Permit, bBodiesReady, Error)) { return false; }
+        if (!bBodiesReady && HeldMs >= TimeoutMs)
+        {
+            Error = FString::Printf(TEXT("LD_REST_RETURN_UNREADY rest=%u: the field return could not stand every contender within %lld ms of its boundary."),
+                Timeline.GetRestIndex(), TimeoutMs);
+            return false;
+        }
+        Error.Reset();
+        return true;
+    }
+    bBodiesReady = PendingPKEntry.IsEmpty();
+    if (!bBodiesReady && HeldMs >= TimeoutMs)
+    {
+        // The arena never became legal: this PK is NoContest and the entry no longer waits.
+        if (!AbandonPKEntry(Permit, Error)) { return false; }
+        bBodiesReady = true;
+    }
     Error.Reset();
     return true;
 }
@@ -189,7 +281,9 @@ bool ALDGameMode::LockTimelineBuild(const FLDGameplayWritePermit& Permit, FStrin
     }
     const int64 AtMs = Permit.GetBoundary().AtMs;
     if (!Timeline.IsBuildLockDue(AtMs)) { return true; }
-    // Only present contenders still standing in their rest space enter; the locked list never changes afterwards.
+    // Whoever stands in its sign-up disk at the deadline (this boundary's committed feet) enters; only present contenders
+    // still standing in their rest space do, and the locked list never changes afterwards.
+    if (!RefreshRestSignups(Error)) { return false; }
     LockedEntrants.Reset();
     for (const FGuid& Id : RestSignups)
     {
@@ -198,7 +292,8 @@ bool ALDGameMode::LockTimelineBuild(const FLDGameplayWritePermit& Permit, FStrin
     LockedEntrants.Sort();
     RestSignups.Reset();
     TArray<FLDTimelineEvent> Events;
-    if (!Timeline.Advance(AtMs, LockedEntrants.Num(), true, Events, Error)) { return false; }
+    // The lock enters Draw or Return, never a body entry, so no body readiness is claimed here.
+    if (!Timeline.Advance(AtMs, LockedEntrants.Num(), true, false, Events, Error)) { return false; }
     if (Timeline.GetStep() == ELDRestStep::Return) { LockedEntrants.Reset(); }
     for (const FLDTimelineEvent& Event : Events)
     {
@@ -244,8 +339,9 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
         case ELDTimelineEventKind::EnterField:
         {
             const bool bFinal = Event.FieldSegment >= FLDTimelineParameters::TimedSegments;
-            // Rest lives return while the phase is still Rest (the R0 return is every contender's spray-roster join).
-            if (!ExitRestWorld(Permit, Error) || !MoveContendersToField(bFinal, Permit, Error)) { return false; }
+            // Every field body was prepared jointly before the timeline entered the field; they stand together now, while
+            // the phase is still Rest (the R0 return is every contender's spray-roster join).
+            if (!ExitRestWorld(Permit, Error) || !CommitFieldReturn(bFinal, Permit, Error)) { return false; }
             MatchPhase = ELDMatchPhase::Development;
             if (bFinal && !CaptureReducer.ScheduleOpen(Event.AtMs, Error)) { return false; }
             LockedEntrants.Reset();
@@ -364,12 +460,13 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
     return true;
 }
 
-bool ALDGameMode::PlacePhaseLife(const FGuid& Contender, bool bRest, int64 ProtectedUntilMs,
-    const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error)
+bool ALDGameMode::PreparePhaseBody(const FLDPhaseTarget& Target, const FLDGameplayWritePermit& Permit, FLDPhasePrepared& Out,
+    bool& bBlocked, FString& BlockedReason, FString& Error)
 {
     bBlocked = false;
+    BlockedReason.Reset();
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    const FLDLifeRecord* Life = Lives.Find(Contender);
+    const FLDLifeRecord* Life = Lives.Find(Target.Contender);
     if (!Registry || !Combat || !Life || Life->Phase != ELDLifePhase::Dead || Life->Life == MAX_uint32)
     {
         Error = TEXT("A phase placement needs a bodiless contender, its next life and the registered world.");
@@ -377,88 +474,158 @@ bool ALDGameMode::PlacePhaseLife(const FGuid& Contender, bool bRest, int64 Prote
     }
     if (!Life->NativeMotion.IsEmpty())
     {
-        // The retired body's last motion is consumed next step; the placement retries then.
+        // The retired body's last motion is consumed next step; the placement is tried again then.
         bBlocked = true;
-        return true;
-    }
-    FLDPlacementTarget Target;
-    if (bRest)
-    {
-        Target.Kind = FLDPlacementTarget::EKind::Anchor;
-        Target.Anchor = RestAnchorFor(Contender);
-        if (Target.Anchor.IsNone())
-        {
-            Error = TEXT("A contender has no private rest anchor.");
-            return false;
-        }
-    }
-    else if (const FLDRestReturn* Return = RestReturns.Find(Contender); Return && Return->bAliveAtRest)
-    {
-        double RadiusCm = 0;
-        const FLDDemoRational& Radius = DemoContent->Get().Parameters.RestReturnSearchRadiusCm;
-        if (Radius.Denominator <= 0 || Radius.Numerator < 0)
-        {
-            Error = TEXT("The approved return search radius is invalid.");
-            return false;
-        }
-        RadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
-        Target.Kind = FLDPlacementTarget::EKind::Near;
-        Target.FootCm = Return->FieldFootCm;
-        Target.Surface = Return->FieldSurface;
-        Target.RadiusCm = RadiusCm;
-    }
-    const uint32 NewLife = Life->Life + 1;
-    FLDPlacedBody Placed;
-    FLDBodyCombatState CombatState;
-    if (!PlaceContenderBody(Contender, NewLife, Permit, Placed, Error, Target)
-        || !Combat->PrepareContenderBody(*Placed.Body.Get(), {ELDVictimKind::Contender, Contender, NewLife}, Permit, CombatState, Error)
-        || !Registry->ValidateSpawnReservation(Placed.Reservation, Permit, Placed.Body.Get(), Error))
-    {
-        ReleasePlacedBody(Placed);
-        if (!Error.StartsWith(TEXT("SpawnBlocked"))) { return false; }
-        bBlocked = true;
-        UE_LOG(LogLDMatch, Warning, TEXT("LD_PHASE_PLACEMENT_BLOCKED contender=%s life=%u rest=%d %s"),
-            *LDLog::Id(Contender), NewLife, bRest ? 1 : 0, *Error);
+        BlockedReason = TEXT("the retired body's last motion is not consumed yet");
         Error.Reset();
         return true;
     }
-    if (!CommitPlacedLife(Placed, MoveTemp(CombatState), ProtectedUntilMs, Permit, Error)
-        || !ActivatePlacedBody(Placed, Permit, Error))
+    const uint32 NewLife = Life->Life + 1;
+    Out.Placed = {};
+    Out.CombatState = MakeShared<FLDBodyCombatState>();
+    if (!PlaceContenderBody(Target.Contender, NewLife, Permit, Out.Placed, Error, Target.Where)
+        || !Combat->PrepareContenderBody(*Out.Placed.Body.Get(), {ELDVictimKind::Contender, Target.Contender, NewLife}, Permit,
+            *Out.CombatState, Error)
+        || !Registry->ValidateSpawnReservation(Out.Placed.Reservation, Permit, Out.Placed.Body.Get(), Error))
+    {
+        ReleasePlacedBody(Out.Placed);
+        Out.CombatState.Reset();
+        if (!Error.StartsWith(TEXT("SpawnBlocked"))) { return false; }
+        bBlocked = true;
+        BlockedReason = MoveTemp(Error);
+        Error.Reset();
+        return true;
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::CommitPhaseBody(FLDPhasePrepared& Prepared, int64 ProtectedUntilMs, const FLDGameplayWritePermit& Permit,
+    FString& Error)
+{
+    if (!Prepared.CombatState.IsValid())
+    {
+        Error = TEXT("A phase body was committed without its prepared combat state.");
+        FaultAuthority(Error);
+        return false;
+    }
+    if (!CommitPlacedLife(Prepared.Placed, MoveTemp(*Prepared.CombatState), ProtectedUntilMs, Permit, Error)
+        || !ActivatePlacedBody(Prepared.Placed, Permit, Error))
     {
         FaultAuthority(Error);
         return false;
     }
+    Prepared.CombatState.Reset();
+    // The body now belongs to its committed life: releasing this entry later must not touch it.
+    Prepared.Placed.Body.Reset();
+    PendingPhasePlacement.Remove(Prepared.Placed.Contender);
+    Error.Reset();
+    return true;
+}
+
+void ALDGameMode::ReleasePhasePrepared(TArray<FLDPhasePrepared>& Prepared)
+{
+    for (FLDPhasePrepared& Entry : Prepared) { ReleasePlacedBody(Entry.Placed); }
+    Prepared.Reset();
+}
+
+bool ALDGameMode::WithdrawPhaseRequest(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    FLDLifeRecord* Life = Lives.Find(Contender);
+    if (!Registry || !Life || Life->Life == MAX_uint32)
+    {
+        Error = TEXT("A phase spawn request is withdrawn only for a registered contender of the registered world.");
+        return false;
+    }
+    // No request was issued for the next life yet.
+    if (Life->SpawnForLife != Life->Life + 1 || Life->SpawnSequence == 0)
+    {
+        Error.Reset();
+        return true;
+    }
+    if (!Registry->WithdrawSpawnRequest({MatchContext, Contender, Life->SpawnForLife, Life->SpawnSequence}, Permit, Error)) { return false; }
+    // The next attempt for this life issues a newer sequence (PlaceContenderBody).
+    Life->SpawnForLife = 0;
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::PrepareJointPhase(const TArray<FLDPhaseTarget>& Targets, const FLDGameplayWritePermit& Permit,
+    TArray<FLDPhasePrepared>& Out, bool& bBlocked, FString& BlockedReason, FString& Error)
+{
+    ReleasePhasePrepared(Out);
+    bBlocked = false;
+    BlockedReason.Reset();
+    for (const FLDPhaseTarget& Target : Targets)
+    {
+        FLDPhasePrepared Entry;
+        FString Reason;
+        if (!PreparePhaseBody(Target, Permit, Entry, bBlocked, Reason, Error))
+        {
+            ReleasePhasePrepared(Out);
+            return false;
+        }
+        if (bBlocked)
+        {
+            BlockedReason = FString::Printf(TEXT("contender=%s %s"), *LDLog::Id(Target.Contender), *Reason);
+            break;
+        }
+        Out.Add(MoveTemp(Entry));
+    }
+    if (!bBlocked)
+    {
+        Error.Reset();
+        return true;
+    }
+    // Nobody stands until everybody can: every prepared body is released, and each target tries again later under a newer
+    // spawn identity (another anchor or the same one; a withdrawn identity never replays).
+    ReleasePhasePrepared(Out);
+    for (const FLDPhaseTarget& Target : Targets)
+    {
+        if (!WithdrawPhaseRequest(Target.Contender, Permit, Error)) { return false; }
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error)
+{
+    bBlocked = false;
+    FLDPhaseTarget Target;
+    Target.Contender = Contender;
+    Target.Where.Kind = FLDPlacementTarget::EKind::Anchor;
+    Target.Where.Anchor = RestAnchorFor(Contender);
+    if (Target.Where.Anchor.IsNone())
+    {
+        Error = TEXT("A contender has no private rest anchor.");
+        return false;
+    }
+    FLDPhasePrepared Prepared;
+    FString Reason;
+    if (!PreparePhaseBody(Target, Permit, Prepared, bBlocked, Reason, Error)) { return false; }
+    if (bBlocked)
+    {
+        if (!PendingPhasePlacement.Contains(Contender))
+        {
+            UE_LOG(LogLDMatch, Warning, TEXT("LD_PHASE_PLACEMENT_BLOCKED contender=%s rest=1 %s"), *LDLog::Id(Contender), *Reason);
+        }
+        PendingPhasePlacement.Add(Contender);
+        Error.Reset();
+        return true;
+    }
+    if (!CommitPhaseBody(Prepared, 0, Permit, Error)) { return false; }
+    // Copies of the committed life: the training dummy's own record is added to Lives below, which may move every record.
     const FLDLifeRecord& Committed = Lives.FindChecked(Contender);
-    if (bRest)
-    {
-        RestLives.Add(Contender);
-        if (!Combat->SetRestIsolation(Committed.Body, true, Permit, Error) || !SpawnTrainingDummy(Contender, Permit, Error))
-        {
-            return false;
-        }
-        NotifyLife(Committed.Body, ELDLifeChange::Respawned, Committed.Revision, AuthorityNowMs);
-    }
-    else
-    {
-        // The first field life (the R0 return) joins the spray roster; every later one returns to it.
-        FLDCaptureEligibilityEvent Fact;
-        Fact.Body = Committed.Body;
-        Fact.Change = CaptureReducer.IsCommittedMember(Contender) ? ELDCaptureEligibilityChange::Respawned
-            : ELDCaptureEligibilityChange::Joined;
-        Fact.ProtectedUntilMs = Committed.ProtectedUntilMs;
-        Fact.InitialFootCm = Committed.MotionLastFoot;
-        Fact.InitialSupport.Grounded = Committed.MotionGrounded;
-        Fact.InitialSupport.Floor = Committed.MotionFloor;
-        if (!FLDCaptureEventTime::FromMs(AuthorityNowMs, Fact.Time, Error) || !PublishEligibility(Permit, Fact, Error))
-        {
-            return false;
-        }
-        NotifyLife(Committed.Body, Fact.Change == ELDCaptureEligibilityChange::Joined ? ELDLifeChange::Joined
-            : ELDLifeChange::Respawned, Committed.Revision, AuthorityNowMs);
-    }
-    PendingPhasePlacement.Remove(Contender);
-    UE_LOG(LogLDMatch, Display, TEXT("LD_PHASE_PLACED contender=%s life=%u rest=%d anchor=%s protected_until_ms=%lld"),
-        *LDLog::Id(Contender), NewLife, bRest ? 1 : 0, *Committed.SpawnAnchor.ToString(), ProtectedUntilMs);
+    const FLDCombatBodyRef Body = Committed.Body;
+    const uint64 Revision = Committed.Revision;
+    const uint32 NewLife = Committed.Life;
+    const FName Anchor = Committed.SpawnAnchor;
+    RestLives.Add(Contender);
+    if (!Combat->SetRestIsolation(Body, true, Permit, Error) || !SpawnTrainingDummy(Contender, Permit, Error)) { return false; }
+    NotifyLife(Body, ELDLifeChange::Respawned, Revision, AuthorityNowMs);
+    UE_LOG(LogLDMatch, Display, TEXT("LD_PHASE_PLACED contender=%s life=%u rest=1 anchor=%s protected_until_ms=0"),
+        *LDLog::Id(Contender), NewLife, *Anchor.ToString());
     return Combat->ReadyAllForPhase(Contender, Permit, Error);
 }
 
@@ -478,10 +645,10 @@ bool ALDGameMode::MoveContendersToRest(const FLDGameplayWritePermit& Permit, FSt
     // Every field body is retired before any rest body is placed.
     for (const FGuid& Id : Order)
     {
-        FLDLifeRecord& Life = Lives.FindChecked(Id);
         FLDRestReturn& Return = RestReturns.FindOrAdd(Id);
         Return = {};
         PendingPhasePlacement.Remove(Id);
+        FLDLifeRecord& Life = Lives.FindChecked(Id);
         if (Life.Phase == ELDLifePhase::Alive)
         {
             Return.bAliveAtRest = true;
@@ -498,32 +665,39 @@ bool ALDGameMode::MoveContendersToRest(const FLDGameplayWritePermit& Permit, FSt
     for (const FGuid& Id : Order)
     {
         bool bBlocked = false;
-        if (!PlacePhaseLife(Id, true, 0, Permit, bBlocked, Error)) { return false; }
-        if (bBlocked) { PendingPhasePlacement.Add(Id); }
+        if (!PlaceRestLife(Id, Permit, bBlocked, Error)) { return false; }
     }
     Error.Reset();
     return true;
 }
 
-bool ALDGameMode::MoveContendersToField(bool bFinalField, const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool& bReady, FString& Error)
 {
+    bReady = false;
     if (!DemoContent)
     {
         Error = TEXT("The field return needs the approved content.");
         return false;
     }
-    int64 ProtectedUntil = 0;
-    if (!LDMatchLifecycle::AddDurationMs(AuthorityNowMs, DemoContent->Get().Parameters.ProtectionMs, ProtectedUntil, Error))
+    const FLDDemoRational& Radius = DemoContent->Get().Parameters.RestReturnSearchRadiusCm;
+    if (Radius.Denominator <= 0 || Radius.Numerator < 0)
     {
+        Error = TEXT("The approved return search radius is invalid.");
         return false;
     }
     TArray<FGuid> Order = RosterOrder;
     Order.RemoveAll([this](const FGuid& Id) { return !IsMemberPresent(Id); });
     Order.Sort();
-    for (const FGuid& Id : Order)
+    if (!bFieldReturnStarted)
     {
-        PendingPhasePlacement.Remove(Id);
-        if (Lives.FindChecked(Id).Phase == ELDLifePhase::Alive && !RetireLifeForPhase(Id, Permit, Error)) { return false; }
+        // Every rest life leaves first (no death, nothing of the rest reaches the field); the field bodies then stand
+        // only together.
+        for (const FGuid& Id : Order)
+        {
+            if (Lives.FindChecked(Id).Phase == ELDLifePhase::Alive && !RetireLifeForPhase(Id, Permit, Error)) { return false; }
+        }
+        PendingPhasePlacement.Reset();
+        bFieldReturnStarted = true;
     }
     // Survivors claim their old spots first, so a normal draw never takes a returning foot.
     Order.StableSort([this](const FGuid& A, const FGuid& B)
@@ -532,30 +706,87 @@ bool ALDGameMode::MoveContendersToField(bool bFinalField, const FLDGameplayWrite
         const FLDRestReturn* RB = RestReturns.Find(B);
         return (RA && RA->bAliveAtRest) && !(RB && RB->bAliveAtRest);
     });
+    TArray<FLDPhaseTarget> Targets;
     for (const FGuid& Id : Order)
     {
-        bool bBlocked = false;
-        if (!PlacePhaseLife(Id, false, ProtectedUntil, Permit, bBlocked, Error)) { return false; }
-        if (bBlocked) { PendingPhasePlacement.Add(Id); }
+        FLDPhaseTarget& Target = Targets.AddDefaulted_GetRef();
+        Target.Contender = Id;
+        // Alive at the rest entry: the old foot or a free spot within the approved radius, else a normal spawn; dead at
+        // the rest entry: a normal spawn.
+        if (const FLDRestReturn* Return = RestReturns.Find(Id); Return && Return->bAliveAtRest)
+        {
+            Target.Where.Kind = FLDPlacementTarget::EKind::Near;
+            Target.Where.FootCm = Return->FieldFootCm;
+            Target.Where.Surface = Return->FieldSurface;
+            Target.Where.RadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
+        }
     }
+    bool bBlocked = false;
+    FString Reason;
+    if (!PrepareJointPhase(Targets, Permit, PreparedFieldReturn, bBlocked, Reason, Error)) { return false; }
+    if (bBlocked && !Timeline.IsEntryHeld())
+    {
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_REST_RETURN_HELD generation=%u rest=%u at_ms=%lld %s"), MatchContext.Generation,
+            Timeline.GetRestIndex(), Permit.GetBoundary().AtMs, *Reason);
+    }
+    bReady = !bBlocked;
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::CommitFieldReturn(bool bFinalField, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    int64 ProtectedUntil = 0;
+    if (!bFieldReturnStarted || !DemoContent
+        || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, DemoContent->Get().Parameters.ProtectionMs, ProtectedUntil, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The field entry has no jointly prepared return."); }
+        return false;
+    }
+    // Every body was verified free together; they all stand now, with the shared protection, and the field starts after.
+    for (FLDPhasePrepared& Prepared : PreparedFieldReturn)
+    {
+        if (!CommitPhaseBody(Prepared, ProtectedUntil, Permit, Error)) { return false; }
+    }
+    for (const FLDPhasePrepared& Prepared : PreparedFieldReturn)
+    {
+        const FGuid Contender = Prepared.Placed.Contender;
+        const FLDLifeRecord& Committed = Lives.FindChecked(Contender);
+        // The first field life (the R0 return) joins the spray roster; every later one returns to it.
+        FLDCaptureEligibilityEvent Fact;
+        Fact.Body = Committed.Body;
+        Fact.Change = CaptureReducer.IsCommittedMember(Contender) ? ELDCaptureEligibilityChange::Respawned
+            : ELDCaptureEligibilityChange::Joined;
+        Fact.ProtectedUntilMs = Committed.ProtectedUntilMs;
+        Fact.InitialFootCm = Committed.MotionLastFoot;
+        Fact.InitialSupport.Grounded = Committed.MotionGrounded;
+        Fact.InitialSupport.Floor = Committed.MotionFloor;
+        if (!FLDCaptureEventTime::FromMs(AuthorityNowMs, Fact.Time, Error) || !PublishEligibility(Permit, Fact, Error))
+        {
+            return false;
+        }
+        NotifyLife(Committed.Body, Fact.Change == ELDCaptureEligibilityChange::Joined ? ELDLifeChange::Joined
+            : ELDLifeChange::Respawned, Committed.Revision, AuthorityNowMs);
+        UE_LOG(LogLDMatch, Display, TEXT("LD_PHASE_PLACED contender=%s life=%u rest=0 anchor=%s protected_until_ms=%lld"),
+            *LDLog::Id(Contender), Committed.Life, *Committed.SpawnAnchor.ToString(), ProtectedUntil);
+        if (!Combat->ReadyAllForPhase(Contender, Permit, Error)) { return false; }
+    }
+    const int32 Placed = PreparedFieldReturn.Num();
+    PreparedFieldReturn.Reset();
     RestReturns.Reset();
-    UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN generation=%u final=%d protected_until_ms=%lld pending=%d"),
-        MatchContext.Generation, bFinalField ? 1 : 0, ProtectedUntil, PendingPhasePlacement.Num());
+    bFieldReturnStarted = false;
+    UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN generation=%u final=%d protected_until_ms=%lld placed=%d"),
+        MatchContext.Generation, bFinalField ? 1 : 0, ProtectedUntil, Placed);
     Error.Reset();
     return true;
 }
 
 bool ALDGameMode::RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    if (PendingPhasePlacement.IsEmpty()) { return true; }
+    // Only rest lives wait here; the field return and a PK entry stand their bodies jointly.
+    if (PendingPhasePlacement.IsEmpty() || !IsRestPhase(MatchContext) || bFieldReturnStarted) { return true; }
     TArray<FGuid> Pending = PendingPhasePlacement.Array();
     Pending.Sort();
-    const bool bRest = MatchPhase == ELDMatchPhase::Rest;
-    int64 ProtectedUntil = 0;
-    if (!bRest && !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, DemoContent->Get().Parameters.ProtectionMs, ProtectedUntil, Error))
-    {
-        return false;
-    }
     for (const FGuid& Id : Pending)
     {
         const FLDLifeRecord* Life = Lives.Find(Id);
@@ -565,7 +796,7 @@ bool ALDGameMode::RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FSt
             continue;
         }
         bool bBlocked = false;
-        if (!PlacePhaseLife(Id, bRest, ProtectedUntil, Permit, bBlocked, Error)) { return false; }
+        if (!PlaceRestLife(Id, Permit, bBlocked, Error)) { return false; }
     }
     Error.Reset();
     return true;
@@ -577,12 +808,20 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
 {
     if (TrainingDummies.Contains(OwnerId)) { Error.Reset(); return true; }
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    const FLDLifeRecord* OwnerLife = Lives.Find(OwnerId);
     const FLDGrowthBuild* Build = Development ? Development->FindBuild(OwnerId) : nullptr;
     const FLDMapBinding* Anchor = Registry ? Registry->Resolve(RestAnchorFor(OwnerId), Registry->Generation) : nullptr;
     FCollisionShape Capsule;
+    // Only a copy of the owner's slot is kept: the dummy's own life record is added to Lives below, which may move every
+    // record of the map.
+    bool bOwnerLife = false;
+    uint8 OwnerSlot = MAX_uint8;
+    if (const FLDLifeRecord* OwnerLife = Lives.Find(OwnerId))
+    {
+        bOwnerLife = true;
+        OwnerSlot = OwnerLife->PresentationSlot;
+    }
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Combat || !DemoContent
-        || !OwnerLife || !Build || !Anchor || !Registry->GetGeometry() || !ULDMapRegistry::ContentCapsule(*DemoContent, Capsule, Error))
+        || !bOwnerLife || !Build || !Anchor || !Registry->GetGeometry() || !ULDMapRegistry::ContentCapsule(*DemoContent, Capsule, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("A training dummy needs its owner's rest anchor, growth record and the RespawnsAndWorld permit."); }
         return false;
@@ -617,7 +856,7 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
         Body->SetReplicates(false);
         Body->SetActorHiddenInGame(true);
         Body->SetActorTickEnabled(false);
-        Body->PresentationKey = OwnerLife->PresentationSlot;
+        Body->PresentationKey = OwnerSlot;
         if (!Body->ConfigureDemoMovement(*DemoContent, Error))
         {
             Body->Destroy();
@@ -652,7 +891,7 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
         Life.Revision = 1;
         Life.Body = Ref;
         Life.Actor = Body;
-        Life.PresentationSlot = OwnerLife->PresentationSlot;
+        Life.PresentationSlot = OwnerSlot;
         BeginLifeMotion(Life, Ref, *Body);
         Body->SetActorHiddenInGame(false);
         Body->SetActorTickEnabled(true);

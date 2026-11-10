@@ -1,11 +1,14 @@
 #include "Framework/LDGameMode.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDNativeMotionTypes.h"
 #include "Combat/LDCombatDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
 #include "Engine/World.h"
+#include "Misc/ScopeExit.h"
+#include "PK/LDPKDirector.h"
 
 // #198 session D: PK lives (approved outer parameters, issue #198 comment 6752601175 §2/§3/§8). The PK director
 // (PK/LDPKDirector.cpp) decides who fights where; this file owns the life side. Entering the arena retires the entrant's
@@ -25,20 +28,27 @@ bool ALDGameMode::ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBo
     return true;
 }
 
-bool ALDGameMode::EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit,
-    TArray<FGuid>& OutBlocked, FString& Error)
+const FLDNativeMotionBatch* ALDGameMode::ReadStepMotion(const FGuid& Contender) const
 {
-    OutBlocked.Reset();
-    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const FLDLifeRecord* Life = Lives.Find(Contender);
+    if (!bAuthorityStepOpen || !Life || Life->Phase != ELDLifePhase::Alive || Life->NativeMotion.IsEmpty()) { return nullptr; }
+    const TSharedPtr<const FLDNativeMotionBatch>& Last = Life->NativeMotion.Last();
+    return Last.IsValid() && Last->Step == AuthorityStep && Last->Body == Life->Body ? Last.Get() : nullptr;
+}
+
+bool ALDGameMode::EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit, bool& bPlaced,
+    FString& Error)
+{
+    bPlaced = false;
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !IsRestPhase(MatchContext)
-        || !Combat || !Registry)
+        || !Combat || !PendingPKEntry.IsEmpty())
     {
-        Error = TEXT("PK lives enter only in a rest, under the current RespawnsAndWorld permit.");
+        Error = TEXT("PK lives enter once per PK, only in a rest, under the current RespawnsAndWorld permit.");
         return false;
     }
     TArray<FLDPKPlacement> Order = Placements;
     Order.Sort([](const FLDPKPlacement& A, const FLDPKPlacement& B) { return A.Contender < B.Contender; });
-    // Every rest body of the entrants retires before any PK body is placed.
+    // Every rest body of the entrants retires before any PK body is prepared.
     for (const FLDPKPlacement& Placement : Order)
     {
         if (!Placement.Group.IsValid() || Placement.Side == 0 || Placement.Anchor.IsNone())
@@ -50,41 +60,47 @@ bool ALDGameMode::EnterPKLives(const TArray<FLDPKPlacement>& Placements, const F
         const FLDLifeRecord* Life = Lives.Find(Placement.Contender);
         if (Life && Life->Phase == ELDLifePhase::Alive && !RetireLifeForPhase(Placement.Contender, Permit, Error)) { return false; }
     }
-    for (const FLDPKPlacement& Placement : Order)
+    PendingPKEntry = MoveTemp(Order);
+    bPKEntryLogged = false;
+    return TryPKEntry(Permit, bPlaced, Error);
+}
+
+bool ALDGameMode::TryPKEntry(const FLDGameplayWritePermit& Permit, bool& bPlaced, FString& Error)
+{
+    bPlaced = false;
+    // An entrant that left since the lock forfeits: no body stands for it (the PK judges it as forfeited).
+    PendingPKEntry.RemoveAll([this](const FLDPKPlacement& Placement) { return !IsMemberPresent(Placement.Contender); });
+    TArray<FLDPhaseTarget> Targets;
+    for (const FLDPKPlacement& Placement : PendingPKEntry)
     {
-        const FLDLifeRecord* Life = Lives.Find(Placement.Contender);
-        if (!IsMemberPresent(Placement.Contender) || !Life || Life->Phase != ELDLifePhase::Dead || Life->Life == MAX_uint32)
+        FLDPhaseTarget& Target = Targets.AddDefaulted_GetRef();
+        Target.Contender = Placement.Contender;
+        Target.Where.Kind = FLDPlacementTarget::EKind::Anchor;
+        Target.Where.Anchor = Placement.Anchor;
+    }
+    TArray<FLDPhasePrepared> Prepared;
+    ON_SCOPE_EXIT { ReleasePhasePrepared(Prepared); };
+    bool bBlocked = false;
+    FString Reason;
+    if (!PrepareJointPhase(Targets, Permit, Prepared, bBlocked, Reason, Error)) { return false; }
+    if (bBlocked)
+    {
+        // A blocked approved anchor is reported and never replaced: the entry waits, nobody stands meanwhile.
+        if (!bPKEntryLogged)
         {
-            OutBlocked.Add(Placement.Contender);
-            continue;
+            UE_LOG(LogLDMatch, Warning, TEXT("LD_PK_ENTRY_WAITING generation=%u at_ms=%lld %s"), MatchContext.Generation,
+                Permit.GetBoundary().AtMs, *Reason);
+            bPKEntryLogged = true;
         }
-        const uint32 NewLife = Life->Life + 1;
-        FLDPlacementTarget Target;
-        Target.Kind = FLDPlacementTarget::EKind::Anchor;
-        Target.Anchor = Placement.Anchor;
-        FLDPlacedBody Placed;
-        FLDBodyCombatState CombatState;
-        if (!Life->NativeMotion.IsEmpty()
-            || !PlaceContenderBody(Placement.Contender, NewLife, Permit, Placed, Error, Target)
-            || !Combat->PrepareContenderBody(*Placed.Body.Get(), {ELDVictimKind::Contender, Placement.Contender, NewLife}, Permit,
-                CombatState, Error)
-            || !Registry->ValidateSpawnReservation(Placed.Reservation, Permit, Placed.Body.Get(), Error))
-        {
-            ReleasePlacedBody(Placed);
-            if (!Error.IsEmpty() && !Error.StartsWith(TEXT("SpawnBlocked"))) { return false; }
-            // A blocked PK anchor is reported, never silently replaced; the contender returns to its rest space.
-            UE_LOG(LogLDMatch, Warning, TEXT("LD_PK_SPAWN_BLOCKED contender=%s anchor=%s %s"), *LDLog::Id(Placement.Contender),
-                *Placement.Anchor.ToString(), *Error);
-            Error.Reset();
-            OutBlocked.Add(Placement.Contender);
-            PendingPhasePlacement.Add(Placement.Contender);
-            continue;
-        }
-        if (!CommitPlacedLife(Placed, MoveTemp(CombatState), 0, Permit, Error) || !ActivatePlacedBody(Placed, Permit, Error))
-        {
-            FaultAuthority(Error);
-            return false;
-        }
+        Error.Reset();
+        return true;
+    }
+    for (FLDPhasePrepared& Entry : Prepared)
+    {
+        if (!CommitPhaseBody(Entry, 0, Permit, Error)) { return false; }
+    }
+    for (const FLDPKPlacement& Placement : PendingPKEntry)
+    {
         const FLDLifeRecord& Committed = Lives.FindChecked(Placement.Contender);
         PKLives.Add(Placement.Contender);
         if (!Combat->SetPKBody(Committed.Body, Placement.Group, Placement.Side, Permit, Error)
@@ -94,7 +110,34 @@ bool ALDGameMode::EnterPKLives(const TArray<FLDPKPlacement>& Placements, const F
         }
         NotifyLife(Committed.Body, ELDLifeChange::Respawned, Committed.Revision, AuthorityNowMs);
         UE_LOG(LogLDMatch, Display, TEXT("LD_PK_PLACED contender=%s life=%u anchor=%s side=%u"), *LDLog::Id(Placement.Contender),
-            NewLife, *Committed.SpawnAnchor.ToString(), uint32(Placement.Side));
+            Committed.Life, *Committed.SpawnAnchor.ToString(), uint32(Placement.Side));
+    }
+    Prepared.Reset();
+    PendingPKEntry.Reset();
+    bPlaced = true;
+    Error.Reset();
+    return true;
+}
+
+bool ALDGameMode::AbandonPKEntry(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || PendingPKEntry.IsEmpty())
+    {
+        Error = TEXT("Only a waiting PK entry is abandoned, under the current RespawnsAndWorld permit.");
+        return false;
+    }
+    const TArray<FLDPKPlacement> Waiting = MoveTemp(PendingPKEntry);
+    PendingPKEntry.Reset();
+    // NoContest: nobody fights or is paid (the arena never became legal).
+    if (PKDirector && !PKDirector->AbandonArena(Permit, Error)) { return false; }
+    // Every waiting entrant goes back to its rest space under a newer spawn identity: its PK request was withdrawn when
+    // the joint entry failed, so the rest anchor is never a conflicting replay of the PK anchor.
+    for (const FLDPKPlacement& Placement : Waiting)
+    {
+        if (!IsMemberPresent(Placement.Contender)) { continue; }
+        if (!WithdrawPhaseRequest(Placement.Contender, Permit, Error)) { return false; }
+        bool bBlocked = false;
+        if (!PlaceRestLife(Placement.Contender, Permit, bBlocked, Error)) { return false; }
     }
     Error.Reset();
     return true;
@@ -118,8 +161,7 @@ bool ALDGameMode::ReturnPKLivesToRest(const FLDGameplayWritePermit& Permit, FStr
     {
         if (!IsMemberPresent(Id)) { continue; }
         bool bBlocked = false;
-        if (!PlacePhaseLife(Id, true, 0, Permit, bBlocked, Error)) { return false; }
-        if (bBlocked) { PendingPhasePlacement.Add(Id); }
+        if (!PlaceRestLife(Id, Permit, bBlocked, Error)) { return false; }
     }
     Error.Reset();
     return true;

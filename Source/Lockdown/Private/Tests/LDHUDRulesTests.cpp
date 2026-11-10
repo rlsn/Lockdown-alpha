@@ -275,17 +275,18 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     LDHUD::FTimelineView View=LDHUD::TimelineBanner(Public,Self,true,105000);
     TestEqualSensitive(TEXT("A rest names its index, step and whole seconds left"),View.Headline,
         LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestBuild+TEXT(" · 剩 25 秒"));
-    TestTrue(TEXT("Before the sign-up window it says when it opens and shows no toggle"),View.Detail==LDTerms::SignupOpensIn(15)&&!View.bSignupOpen);
+    TestTrue(TEXT("Before the sign-up window it says when it opens and where the disk is"),
+        View.Detail==LDTerms::SignupOpensIn(15)+TEXT(" · ")+LDTerms::SignupCircleHint&&!View.bSignupOpen&&View.bSignupStep);
     View=LDHUD::TimelineBanner(Public,Self,true,121500);
-    TestTrue(TEXT("Inside the window the toggle shows and the line counts the sign-ups"),View.bSignupOpen&&!View.bSignedUp&&View.SignupAction==LDTerms::SignupJoin
+    TestTrue(TEXT("Inside the window the line counts who stands in a disk and asks Self to step in"),View.bSignupOpen&&!View.bSignedUp
         &&View.Detail==LDTerms::SignupOpenFor(9)+TEXT(" · ")+LDTerms::SignedUpCount(0)+TEXT(" · ")+LDTerms::NotSignedUpSelf);
     Timeline.Signups={Self};
     View=LDHUD::TimelineBanner(Public,Self,true,130000);
-    TestTrue(TEXT("The deadline instant is still inside the window; an own sign-up offers withdrawing"),View.bSignupOpen&&View.bSignedUp
-        &&View.SignupAction==LDTerms::SignupWithdraw&&View.Detail.Contains(LDTerms::SignedUpCount(1))&&View.Detail.Contains(LDTerms::SignedUpSelf));
+    TestTrue(TEXT("The deadline instant is still inside the window; standing inside reads as signed up"),View.bSignupOpen&&View.bSignedUp
+        &&View.Detail.Contains(LDTerms::SignedUpCount(1))&&View.Detail.Contains(LDTerms::SignedUpSelf));
     TestFalse(TEXT("Another contender's sign-up is not the own one"),LDHUD::TimelineBanner(Public,FGuid::NewGuid(),true,125000).bSignedUp);
     View=LDHUD::TimelineBanner(Public,Self,false,0);
-    TestTrue(TEXT("Without the authority clock nothing is guessed and no toggle shows"),!View.bSignupOpen&&View.Headline.EndsWith(TEXT("时间同步中"))
+    TestTrue(TEXT("Without the authority clock nothing is guessed and the window is not open"),!View.bSignupOpen&&View.Headline.EndsWith(TEXT("时间同步中"))
         &&View.Detail.StartsWith(TEXT("PK 报名时间同步中")));
     Timeline.Signups.Reset();
     Timeline.Step=ELDRestStep::PK;Timeline.LockedEntrants=3;Timeline.StepStartedAtMs=140000;Timeline.StepEndsAtMs=200000;
@@ -317,10 +318,7 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     Timeline.Generation=3;
     TestTrue(TEXT("Another generation's timeline shows nothing"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline.IsEmpty()
         &&LDHUD::RestReturnCountdown(Public,true,200500).IsEmpty());
-    // Sign-up answers are explicit; without a PK provider the rest says it skips the PK, never a success.
-    TestEqualSensitive(TEXT("No PK provider says the PK is skipped"),LDHUD::RestSignupText(ELDRestSignupResult::NoPKProvider),FString(LDTerms::NoPKProvider));
-    TestFalse(TEXT("No PK provider never reads as signed up"),LDHUD::RestSignupText(ELDRestSignupResult::NoPKProvider).Contains(TEXT("已报名")));
-    TestTrue(TEXT("Joining and a closed window are told apart"),LDHUD::RestSignupText(ELDRestSignupResult::Joined)!=LDHUD::RestSignupText(ELDRestSignupResult::WindowClosed));
+    // The PK sign-up has no answer to show: standing in the own disk is the sign-up, read from the public timeline above.
     // The personal training reset: a queued reset says what it does; every refusal is explicit, never a success.
     TestEqualSensitive(TEXT("A queued reset refills both and readies the cooldowns"),LDHUD::TrainingResetText(ELDTrainingResetResult::Queued),
         FString(TEXT("训练已重置：你和假人回满，冷却就绪")));

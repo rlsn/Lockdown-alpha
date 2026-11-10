@@ -1,5 +1,6 @@
 #include "PK/LDPKRules.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Character/LDNativeMotionTypes.h"
 
 // Named (not anonymous) so unity builds cannot collide with another file's helpers.
 namespace LDPKRulesDetail
@@ -46,6 +47,28 @@ void Shuffle(TArray<int32>& Values, FRandomStream& Random)
         Values.Swap(Index, Other);
     }
 }
+
+// The ring radius at a (fractional) elapsed ms: held, then linear between the approved nodes.
+double RadiusAtMs(const FLDPKParameters& Params, double ElapsedMs)
+{
+    if (ElapsedMs <= double(Params.ShrinkStartMs) || Params.MidMs <= Params.ShrinkStartMs) { return Params.ArenaRadiusCm; }
+    if (ElapsedMs <= double(Params.MidMs))
+    {
+        const double Alpha = (ElapsedMs - double(Params.ShrinkStartMs)) / double(Params.MidMs - Params.ShrinkStartMs);
+        return Params.ArenaRadiusCm + (Params.MidRadiusCm - Params.ArenaRadiusCm) * Alpha;
+    }
+    if (ElapsedMs <= double(Params.FinalMs) && Params.FinalMs > Params.MidMs)
+    {
+        const double Alpha = (ElapsedMs - double(Params.MidMs)) / double(Params.FinalMs - Params.MidMs);
+        return Params.MidRadiusCm + (Params.FinalRadiusCm - Params.MidRadiusCm) * Alpha;
+    }
+    return Params.FinalRadiusCm;
+}
+
+// Motion record instants convert from authority seconds; this much of a ms is floating noise, not time.
+constexpr double PathToleranceMs = 1e-3;
+// A crossing at an exact whole ms (up to floating noise) stays in that ms; any later instant rounds up to the next.
+constexpr double EventEpsilonMs = 1e-6;
 }
 
 bool FLDPKParameters::FromContent(const FLDDemoContentParameters& Content, FLDPKParameters& Out, FString& Error)
@@ -255,18 +278,7 @@ bool LDPKRules::Draw(int32 Entrants, const FLDPKParameters& Params, FRandomStrea
 
 double LDPKRules::RingRadiusCm(const FLDPKParameters& Params, int64 ElapsedMs)
 {
-    if (ElapsedMs <= Params.ShrinkStartMs || Params.MidMs <= Params.ShrinkStartMs) { return Params.ArenaRadiusCm; }
-    if (ElapsedMs <= Params.MidMs)
-    {
-        const double Alpha = double(ElapsedMs - Params.ShrinkStartMs) / double(Params.MidMs - Params.ShrinkStartMs);
-        return Params.ArenaRadiusCm + (Params.MidRadiusCm - Params.ArenaRadiusCm) * Alpha;
-    }
-    if (ElapsedMs <= Params.FinalMs && Params.FinalMs > Params.MidMs)
-    {
-        const double Alpha = double(ElapsedMs - Params.MidMs) / double(Params.FinalMs - Params.MidMs);
-        return Params.MidRadiusCm + (Params.FinalRadiusCm - Params.MidRadiusCm) * Alpha;
-    }
-    return Params.FinalRadiusCm;
+    return LDPKRulesDetail::RadiusAtMs(Params, double(ElapsedMs));
 }
 
 bool LDPKRules::RingPreview(const FLDPKParameters& Params, int64 ElapsedMs, double& OutRadiusCm, int64& OutAtMs)
@@ -344,6 +356,138 @@ int64 LDPKRules::TakeRingDamageP2(int64& InOutAccumulatorE7)
     const int64 Whole = InOutAccumulatorE7 / LDPKRulesDetail::RingDamageScale;
     InOutAccumulatorE7 -= Whole * LDPKRulesDetail::RingDamageScale;
     return Whole;
+}
+
+bool LDPKRules::FootPathFromMotion(const FLDNativeMotionBatch& Batch, int64 FightStartedAtMs, int64 FromMs, int64 ToMs,
+    TArray<FFootSegment>& Out)
+{
+    Out.Reset();
+    if (FromMs < 0 || ToMs < FromMs || Batch.StartFootCm.ContainsNaN() || Batch.EndFootCm.ContainsNaN()) { return false; }
+    const double From = double(FromMs), To = double(ToMs);
+    double Cursor = From;
+    FVector Foot = Batch.StartFootCm;
+    const auto Stand = [&Out, &Cursor, &Foot](double Until)
+    {
+        if (Until > Cursor) { Out.Add({Cursor, Until, Foot, Foot}); }
+        Cursor = FMath::Max(Cursor, Until);
+    };
+    for (const FLDNativeMotionRecord& Record : Batch.Records)
+    {
+        const double Start = Record.StartServerSeconds * 1000. - double(FightStartedAtMs);
+        const double End = Record.EndServerSeconds * 1000. - double(FightStartedAtMs);
+        if (!FMath::IsFinite(Start) || !FMath::IsFinite(End) || End < Start || Start + LDPKRulesDetail::PathToleranceMs < Cursor
+            || End > To + LDPKRulesDetail::PathToleranceMs || Record.ToFootCm.ContainsNaN()
+            || !Record.FromFootCm.Equals(Foot, .001))
+        {
+            Out.Reset();
+            return false;
+        }
+        const double S = FMath::Clamp(Start, Cursor, To);
+        const double E = FMath::Clamp(End, S, To);
+        Stand(S);
+        if (E > S)
+        {
+            // Noise-clamped ends keep the record's own straight line.
+            const double Span = End - Start;
+            const FVector AtS = Span > 0 ? FMath::Lerp(Record.FromFootCm, Record.ToFootCm, (S - Start) / Span) : Record.FromFootCm;
+            const FVector AtE = Span > 0 ? FMath::Lerp(Record.FromFootCm, Record.ToFootCm, (E - Start) / Span) : Record.ToFootCm;
+            Out.Add({S, E, AtS, AtE});
+            Cursor = E;
+        }
+        // A record without duration (a support change or an instant correction) moves the foot at once.
+        Foot = Record.ToFootCm;
+    }
+    if (!Foot.Equals(Batch.EndFootCm, .001))
+    {
+        Out.Reset();
+        return false;
+    }
+    Stand(To);
+    return true;
+}
+
+bool LDPKRules::OutsideRingIntervals(const FLDPKParameters& Params, const FVector& CentreCm, const TArray<FFootSegment>& Path,
+    TArray<TPair<int64, int64>>& Out)
+{
+    Out.Reset();
+    const auto Push = [&Out](double From, double To)
+    {
+        const int64 A = int64(FMath::CeilToDouble(From - LDPKRulesDetail::EventEpsilonMs));
+        const int64 B = int64(FMath::CeilToDouble(To - LDPKRulesDetail::EventEpsilonMs));
+        if (B <= A) { return; }
+        if (!Out.IsEmpty() && Out.Last().Value >= A)
+        {
+            Out.Last().Value = FMath::Max(Out.Last().Value, B);
+            return;
+        }
+        Out.Emplace(A, B);
+    };
+    const double Nodes[] = {double(Params.ShrinkStartMs), double(Params.MidMs), double(Params.FinalMs)};
+    for (const FFootSegment& Segment : Path)
+    {
+        if (!FMath::IsFinite(Segment.FromMs) || !FMath::IsFinite(Segment.ToMs) || Segment.FromMs < 0 || Segment.ToMs < Segment.FromMs
+            || Segment.FromCm.ContainsNaN() || Segment.ToCm.ContainsNaN())
+        {
+            Out.Reset();
+            return false;
+        }
+        if (Segment.ToMs == Segment.FromMs) { continue; }
+        // Between the ring's nodes both the foot and the radius are linear in time, so the crossings are the roots of one
+        // quadratic: |P(s) - C|^2 - R(s)^2 = 0.
+        TArray<double, TInlineAllocator<5>> Cuts;
+        Cuts.Add(Segment.FromMs);
+        for (const double Node : Nodes)
+        {
+            if (Node > Segment.FromMs && Node < Segment.ToMs) { Cuts.Add(Node); }
+        }
+        Cuts.Add(Segment.ToMs);
+        const double Length = Segment.ToMs - Segment.FromMs;
+        const auto FootAt = [&Segment, &CentreCm, Length](double T)
+        {
+            const double Alpha = (T - Segment.FromMs) / Length;
+            return FVector2D(FMath::Lerp(double(Segment.FromCm.X), double(Segment.ToCm.X), Alpha) - double(CentreCm.X),
+                FMath::Lerp(double(Segment.FromCm.Y), double(Segment.ToCm.Y), Alpha) - double(CentreCm.Y));
+        };
+        for (int32 Index = 0; Index + 1 < Cuts.Num(); ++Index)
+        {
+            const double A = Cuts[Index], B = Cuts[Index + 1], Span = B - A;
+            if (Span <= 0) { continue; }
+            const FVector2D P0 = FootAt(A), V = (FootAt(B) - P0) / Span;
+            const double R0 = LDPKRulesDetail::RadiusAtMs(Params, A);
+            const double K = (LDPKRulesDetail::RadiusAtMs(Params, B) - R0) / Span;
+            const double QA = FVector2D::DotProduct(V, V) - K * K;
+            const double QB = 2. * (FVector2D::DotProduct(P0, V) - R0 * K);
+            const double QC = FVector2D::DotProduct(P0, P0) - R0 * R0;
+            const auto Outside = [QA, QB, QC](double S) { return (QA * S + QB) * S + QC > 0; };
+            TArray<double, TInlineAllocator<4>> Splits;
+            Splits.Add(0);
+            const double Scale = FMath::Max3(FMath::Abs(QA) * Span * Span, FMath::Abs(QB) * Span, FMath::Abs(QC));
+            if (FMath::Abs(QA) * Span * Span <= 1e-12 * FMath::Max(Scale, 1.))
+            {
+                if (QB != 0) { Splits.Add(-QC / QB); }
+            }
+            else
+            {
+                const double Disc = QB * QB - 4. * QA * QC;
+                if (Disc >= 0)
+                {
+                    const double Root = FMath::Sqrt(Disc);
+                    const double Q = -.5 * (QB + (QB >= 0 ? Root : -Root));
+                    Splits.Add(Q / QA);
+                    if (Q != 0) { Splits.Add(QC / Q); }
+                }
+            }
+            Splits.Add(Span);
+            Splits.RemoveAll([Span](double S) { return !FMath::IsFinite(S) || S < 0 || S > Span; });
+            Splits.Sort();
+            for (int32 Part = 0; Part + 1 < Splits.Num(); ++Part)
+            {
+                const double Lo = Splits[Part], Hi = Splits[Part + 1];
+                if (Hi > Lo && Outside(.5 * (Lo + Hi))) { Push(A + Lo, A + Hi); }
+            }
+        }
+    }
+    return true;
 }
 
 ELDPKOutcome LDPKRules::Judge(const TArray<uint8>& SideOfSeat, const TArray<bool>& AliveOfSeat, bool bDeadline, uint8& OutWinnerSide)

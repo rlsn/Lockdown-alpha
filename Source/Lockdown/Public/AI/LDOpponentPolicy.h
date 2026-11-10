@@ -222,7 +222,8 @@ struct FLDOpponentUnit
     bool bProtected = false;
 };
 
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop };
+// PKSignup (#198 站圈报名): the own PK sign-up disk beside the private rest anchor; only a rest frame names it.
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, PKSignup };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -265,6 +266,9 @@ struct FLDOpponentDecisionFrame
     bool bBuildChangeInFlight = false;
     // #198 D: when this contender may throw again in the current PK, from its own latest throw answer (0 when none).
     int64 PKThrowReadyAtMs = 0;
+    // #198 站圈报名 (user decision A on issue #198): in a rest, the own PK sign-up disk (its roster slot's public anchor);
+    // unset outside a rest. Never part of POIs, so no field decision ever walks there.
+    TOptional<FLDOpponentPOI> SignupPOI;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
@@ -345,9 +349,9 @@ struct FLDOpponentBuildIntent
     FLDOpponentRetryKey Key;
 };
 
-// #198 D: one PK request, as a player sends it through the same server entries: join the sign-up of this rest, bet on one
-// side, or throw at a ground point of the running arena.
-enum class ELDOpponentPKKind : uint8 { None, SignUp, Bet, Throw };
+// #198 D: one PK request, as a player sends it through the same server entries: bet on one side, or throw at a ground
+// point of the running arena. The sign-up is no request: the body walks into its own sign-up disk (站圈报名).
+enum class ELDOpponentPKKind : uint8 { None, Bet, Throw };
 
 struct FLDOpponentPKIntent
 {
@@ -435,9 +439,7 @@ struct FLDOpponentPolicyState
     int64 TargetEngagedAtMs = 0;
     TArray<FLDOpponentVisit> Visits;
     FLDOpponentRetryLedger Failures;
-    // #198 D: each PK request family is sent once whatever its answer (no retry storm): the rest whose sign-up and the PK
-    // serial whose bet this adapter already sent.
-    int32 PKSignUpRest = INDEX_NONE;
+    // #198 D: a bet is sent once per PK whatever its answer (no retry storm): the PK serial whose bet this adapter sent.
     uint32 PKBetSerial = 0;
 };
 
@@ -566,7 +568,8 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool InsideCircle(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog);
     // ---- #198 D rest PK (OPPONENT_AI.md §6.6; issue #198 comment 6752601175 §2-§6): deterministic, public reads only ----
     // The PK sign-up window of a build step is open at Public.NowMs (from SignupOpensAtMs until before StepEndsAtMs) and
-    // Self does not stand in the public sign-up yet. Every AI signs up; there is no chance.
+    // Self does not stand in the public sign-up yet. Every AI signs up, walking into its own sign-up disk; there is no
+    // chance.
     LOCKDOWN_API bool WantsPKSignUp(const FLDOpponentPublicMatch& Public, const FGuid& Self);
     // Self's public bet side in this PK; 0 without one.
     LOCKDOWN_API uint8 PKOwnBetSide(const FLDPKView& PK, const FGuid& Self);

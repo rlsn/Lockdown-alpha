@@ -2739,7 +2739,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         TArray<FLDTimelineEvent> Events;
         FString TimelineError;
         if (!TestTrue(TEXT("The fixture timeline reaches field 1"), Mode->Timeline.Begin(Fast, 0, TimelineError)
-            && Mode->Timeline.Advance(1, 0, true, Events, TimelineError) && Mode->Timeline.Advance(2, 0, true, Events, TimelineError)
+            && Mode->Timeline.Advance(1, 0, true, true, Events, TimelineError) && Mode->Timeline.Advance(2, 0, true, true, Events, TimelineError)
             && Mode->Timeline.GetStage() == ELDMatchStage::Field))
         {
             AddError(TimelineError);

@@ -16,8 +16,10 @@ class FLDGameplayWritePermit;
 //   lock (Transactions)        the locked entrants and the eligible spectators (present non-entrants) are fixed;
 //   Draw (Transactions)        format, sides and spawn anchors are drawn once from the director's match stream;
 //   Betting                    eligible spectators bet on one side (changeable until the step ends);
-//   PKReady (RespawnsAndWorld) every entrant's rest life retires and a PK life stands at its drawn anchor in the PK
-//                              isolation group with its side; inputs are locked (ALDGameMode::IsInputLocked);
+//   PKReady (RespawnsAndWorld) every entrant's rest life retires and the PK lives stand together at their drawn anchors in
+//                              the PK isolation group with their sides; inputs are locked (ALDGameMode::IsInputLocked). A
+//                              blocked anchor freezes the entry (the PK does not start) until every body stands, or ends
+//                              the PK as NoContest after REST.EntryReadyTimeoutSec (AbandonArena);
 //   PK                         the ring shrinks and burns; throws land; the last side alive wins, the deadline or a
 //                              simultaneous wipe is a draw (FinishRestPK ends the step early);
 //   Settlement                 the result freezes, PK lives return to their rest spaces and the points are paid once in
@@ -48,6 +50,8 @@ public:
     bool JudgeAfterDeaths(const FLDGameplayWritePermit& Permit, FString& Error);
     // Transactions: the frozen awards of a settled PK are paid once.
     bool ProcessTransactions(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld (ALDGameMode::AbandonPKEntry): the waiting arena never became legal; the PK is NoContest.
+    bool AbandonArena(const FLDGameplayWritePermit& Permit, FString& Error);
 
     // ---- Owner requests (ALDPlayerController::ServerPKBet / ServerPKThrow and the opponent AI, same entry) ----
     ELDPKBetResult SubmitBet(const FGuid& Contender, uint32 Generation, uint32 Serial, uint8 Side);
