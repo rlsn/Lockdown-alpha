@@ -1309,6 +1309,21 @@ public:
                 // Q first, so its refusal cannot depend on the attack-moves that follow it on the same connection.
                 Rest0CombatMark = PC.CombatReceipts.Serial();
                 PC.ActivateCombatEntry(ELDCombatEntry::Q);
+                // An aimed opening active (snark_bolt aims a direction) only arms on Q; the probe confirms it toward the
+                // capture point like the player's left click, so the attempt still reaches the server.
+                ELDCombatEntry Armed = ELDCombatEntry::None;
+                if (PC.ReadArmedCombatEntry(Armed))
+                {
+                    const FVector Toward = Body ? (Capture->Position - Body->GetActorLocation()).GetSafeNormal2D() : FVector::ZeroVector;
+                    if (Armed != ELDCombatEntry::Q || Toward.IsNearlyZero())
+                    {
+                        return Fail(TEXT("Rest0"), TEXT("Q did not arm the opening active with a usable aim in the R0 return countdown"));
+                    }
+                    FLDCombatTarget Aim;
+                    Aim.Kind = ELDCombatTargetKind::Direction;
+                    Aim.Direction = Toward;
+                    PC.ConfirmArmedEntry(Aim, &Capture->Position);
+                }
                 PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
                 Rest0Attack = PC.Navigation->LocalIdentity();
                 Rest0Step = 4;
