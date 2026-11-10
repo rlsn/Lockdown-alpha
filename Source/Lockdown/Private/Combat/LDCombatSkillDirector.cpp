@@ -55,7 +55,17 @@ bool ALDCombatDirector::IsAggressiveEntry(const FLDCombatBodyRef& Ref, ELDCombat
 {
     if (Entry != ELDCombatEntry::Dash) { return true; }
     const auto* Body=FindBody(Ref);
-    return Body && FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage);
+    if (!Body) { return false; }
+    // B05: a D that can hurt on contact is an offensive entry.
+    TOptional<FLDPassiveEffectRef> Contact;
+    FString Error;
+    if (!FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage, Contact, Error))
+    {
+        UE_LOG(LogLDCombat, Error, TEXT("LD_COMBAT_TRIGGER_UNRESOLVED body=%s op=dash_contact_damage error=%s"),
+            *LDLog::Id(Ref.Victim.EntityId), *Error);
+        return true;
+    }
+    return Contact.IsSet();
 }
 
 void ALDCombatDirector::CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch)
@@ -298,26 +308,26 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             PendingHits.Add(MoveTemp(Hit));
             --Dash.NativeHitsRemaining;
         }
-        FLDCombatSourceRef PassiveSource;
-        if (const auto* Damage=Dash.bCanDamage
-            ? FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage, &PassiveSource) : nullptr)
+        // B05: the holder's own added package for each real contact, once per dash per body.
+        TOptional<FLDPassiveEffectRef> Held;
+        if (Dash.bCanDamage && !FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage, Held, Error)) { return false; }
+        if (Held.IsSet())
         {
+            const FLDDemoEffectDefinition& Damage=Held->Effect;
             FLDCombatHit Hit;
             Hit.HitId=FGuid::NewGuid();
             Hit.EffectId=Dash.EffectId;
             Hit.SourceBody=Dash.Body;
             Hit.SourceEntity=Hit.CreditOwner=Body->Victim.EntityId;
-            Hit.Source=PassiveSource;
+            Hit.Source=Held->Source;
             Hit.Target=Contact.Target;
             Hit.HitClass=ELDCombatHitClass::Ability;
-            Hit.BaseP2=Damage->BaseP2;
-            Hit.ADRatioBp=Damage->ADRatioBp;
-            Hit.APRatioBp=Damage->APRatioBp;
+            Hit.BaseP2=Damage.BaseP2;
+            Hit.ADRatioBp=Damage.ADRatioBp;
+            Hit.APRatioBp=Damage.APRatioBp;
             Hit.SourceADP2=Body->AttributeProjection.Final.ADP2;
             Hit.SourceAPP2=Body->AttributeProjection.Final.APP2;
-            Hit.DamageType=Damage->DamageType;
-            Hit.SlowBp=Damage->SecondaryRatioBp;
-            Hit.SlowDurationMs=Damage->SecondaryDurationMs;
+            Hit.DamageType=Damage.DamageType;
             Hit.bAddedDamage=Hit.bDashContactHit=true;
             if (!StampSourceTerms(*Body, Hit, Error)) { return false; }
             PendingHits.Add(MoveTemp(Hit));
@@ -338,8 +348,11 @@ bool ALDCombatDirector::OnDashContact(FLDBodyCombatState& Body, FLDCombatDashCon
     { Error=TEXT("Dash contact belongs to another body life."); return false; }
     if (Dash.bCanRefund && !Dash.bRefunded && NowMs >= Body.ContactRefundReadyAtMs)
     {
-        if (const auto* Refund=FindTrigger(Body.AttributeProjection, ELDDemoEffectOp::DashContactRefund))
+        TOptional<FLDPassiveEffectRef> Held;
+        if (!FindTrigger(Body.AttributeProjection, ELDDemoEffectOp::DashContactRefund, Held, Error)) { return false; }
+        if (Held.IsSet())
         {
+            const FLDDemoEffectDefinition* Refund=&Held->Effect;
             auto* Record=FindRecord(Body.Victim.EntityId);
             auto* Track=Record ? Record->Tracks.FindByPredicate([&Dash](const auto& Row)
             { return Row.Kind == Dash.Source.Kind && Row.DefinitionId == Dash.Source.DefinitionId; }) : nullptr;

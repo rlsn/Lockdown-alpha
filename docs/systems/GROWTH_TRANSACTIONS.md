@@ -1,8 +1,8 @@
 # 成长事务与回执
 
 可复用的是身份、版本校验、原子提交和反馈机制。Demo 没有装备、金钱与商店（#144 删除）；
-#198 第一部分起成长只有经验、等级、派生的五维点数、单级主动、主动机会与待学图纸，休息窗口另有 NPC 主动候选、洗点、
-替换与遗忘主动四项服务，范围见 [App Spec](../APP_SPEC.md)，
+#198 第一部分起成长只有经验、等级、派生的五维点数、单级主动、主动机会与待学图纸，第二部分（B）加入材料实例与基础构件
+B01–B18 的获取和安装，休息窗口另有 NPC 主动候选、洗点、替换与遗忘主动四项服务，范围见 [App Spec](../APP_SPEC.md)，
 目标合同见 [成长与奖励](../demo/PROGRESSION_AND_REWARDS.md)，数值见 [内容与数值](../demo/CONTENT_AND_BALANCE.md)。
 
 ## 状态与入口
@@ -16,14 +16,31 @@
 | `Development\LDGrowthProviders.cpp` | 向对局门禁注册 Progression 提供者及最终等级读取 |
 
 成长状态是 `FLDGrowthBuild`（等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`；目录本身按 id 排序）每个五维一格的已分配点数、至多三个 `{Id, Slot}` 主动、按 id 排序的待学图纸、
-永久消费点数 `PermanentSpentPoints`、构筑修订）与 `FLDProgressionState`（累计 XP、已得/已用主动机会、其中 NPC 购买的机会数
-`NpcPurchased`、唯一队首候选组及其修订、已消费机会记录）。
-点数不存储：`LDProgression::EarnedPoints` 由等级与 XP 派生（开局 `GROWTH.OpeningPoints`、每升一级 `GROWTH.PointsPerLevel`，
-满级后每满 `GROWTH.MaxLevelPointsXP` 再加 `GROWTH.MaxLevelPoints`），未分配点数 = 派生值 − 已分配 − 永久消费；结果为负是
+永久消费点数 `PermanentSpentPoints`、按 id 排序的材料实例、构筑修订）与 `FLDProgressionState`（累计 XP、已得/已用主动机会、其中 NPC 购买的机会数
+`NpcPurchased`、唯一队首候选组及其修订、已消费机会记录、材料池耗尽改给点数的升级次数 `EmptyPoolGrants`）。
+点数不存储：`LDProgression::EarnedPoints` 由等级、XP 与 `EmptyPoolGrants` 派生（开局 `GROWTH.OpeningPoints`、每升一级
+`GROWTH.PointsPerLevel`，满级后每满 `GROWTH.MaxLevelPointsXP` 再加 `GROWTH.MaxLevelPoints`，每次池空升级再加
+`GROWTH.EmptyComponentPoolPoints`），未分配点数 = 派生值 − 已分配 − 永久消费；结果为负是
 `AuthorityFault`，永久消费为负是 `DataInvalid`。本人视图的 `UnspentPoints` 按此计算，`PermanentSpentPoints` 另列。
 主动机会按获得顺序编号 1..`ActiveEarned`：开局一次（`BeginMatch`），之后 `active_offer_levels` 中的等级各加一次（连升逐一排队），
 休息 NPC 每次付费再加一次；`ActiveEarned` 恒等于 `ActiveOpportunitiesAt(等级) + NpcPurchased`，`PlanExperience` 只接收等级部分，
 `PrepareExperience` 把 NPC 部分原样带过升级。
+
+材料实例 `FLDComponentInstance`（#198 B）是本局真实获得的一件材料：`{Id, Source, SourceLevel, bInstalled, bEverInstalled, Target}`，
+每个定义至多一件，库存与已安装合并去重。`ValidateBuild` 要求 id 已知且严格升序、来源合法（`OpeningPick` 为 1 级且整局至多一件，
+`LevelUp` 为 2..当前等级且每级至多一件）、已安装必有首次历史、库存实例没有目标；已安装的只能是基础构件、目标为空，
+带 `active_element` 绑定的（B18）绑定其列表内的主动与元素（被遗忘的绑定主动不使构筑非法，只停止新触发）。
+已安装实例按 id 排序进入 `FLDBuildProjectionInput::Components`，库存实例不进 Combat。死亡、复活与重连不改实例与首次历史。
+
+- **开局基础构件**：开局主动选定（1 号机会记录的 `Chosen`）后、整局一次。候选是普通池里 `opening: always` 的基础构件加上
+  `opening.actives` 含开局主动的基础构件，排除已持有，目录顺序（`LDProgression::OpeningBaseOptions`；本人视图的
+  `bOpeningBasePending`/`OpeningBaseOptions`）。倒计时与发育期均可选，活着或死亡都可以。
+- **升级材料**：每次正常升级（2..MaxLevel）与 XP 同一提交给一件：按新等级所在 `progression.component_category_weights`
+  档位的基础/改装/连接百分比抽类别，再在该类别尚未持有的普通定义中按目录顺序等概率取一件；空类别剔除、其余按原权重归一化；
+  全部为空时该级改给 `GROWTH.EmptyComponentPoolPoints` 点（`EmptyPoolGrants` 加一）。随机材料由本局私有 `MatchSecret`
+  按参赛者与等级派生（`LDProgression::ComponentSeed`，与同号的 `OfferSeed` 不同）；`DrawLevelComponent` 是单级纯规则，
+  `GrantLevelComponents` 逐级串联。满级后的 XP 不给材料。档位表缺级、重叠、百分比和不为 100 或只剩不可抽的类别时是
+  `DataInvalid`，不当作池空；`BeginMatch` 预检全部等级，失败拒绝开局。
 
 `ALDGrowthDirector::SpawnDomain` 在核心初始化时创建成长与发育两个 director，`RetireDomain` 随
 `ALDGameMode::RetireMatchDomains` 退休；Progression 提供者的 Prepare 以锁定名单（真人加 AI 槽）
@@ -53,10 +70,18 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `ActiveChoice` | `OfferId`、`OfferRevision`、`Option`；`bLearnIfPossible` 时 `Slot` 为首选空槽 0..2 或 `AnySlot` | 消费队首机会；能学就学到首选或最低空槽（`Learned`），否则存为待学图纸（`StoredAsBlueprint`，`StoredReason` 为 `NotSafe`/`Dead`/`NoEmptySlot`）；之后才抽下一组 |
 | `LearnBlueprint` | `Blueprint`、空槽 `Slot` 0..2 | 把一张待学图纸学到该空槽；没有该图纸为 `NoBlueprint`，槽已被占（含满槽；替换走 `ReplaceActive`）为 `SlotOccupied`，图纸保留 |
 | `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
+| `OpeningBase` = 10 | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；能装就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `NotSafe`/`Dead`/`InvalidTarget`/`ElementUnsupported`；开局主动未选为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
+| `InstallComponent` = 11 | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件的目标由 #198 F 接入，现在一律 `InvalidTarget`） |
+| `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；只在休息窗口（`RestOnly`） |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择（不能学就存为图纸）；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
 | `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
 | `ForgetActive` = 23 | 已占槽 `Slot` 0..2 | 遗忘该槽主动，回执 `ForgottenId`；它重新成为候选与 NPC 的合格主动，但只有新的来源才能再得到。空槽为 `SlotEmpty`，有未完成候选组为 `OfferOutstanding` |
+
+组件命令的 `Component` 必须可解码，目标种类与元素按白名单解码（`LDGrowthWire::IsKnownTargetKind`/`IsKnownElement`），
+不需要目标的命令（主动、加点、卸下、不要求安装的 `OpeningBase`）带任何目标字段都在受理时 `InvalidRequest`；
+主动与加点命令带组件字段同样拒绝。B18 的绑定须为已学且列在 `binding.actives` 的主动加 `binding.elements` 的一种元素，
+否则 `InvalidTarget`；水与电（B18 的绑定、B10/B11 的普攻元素）在 #198 A 的元素状态接入前一律 `ElementUnsupported`，不进 Combat。
 
 客户端发送的 `Kind` 按白名单解码，未知编号（含 4–19、24 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
 每种 Kind 只接受上表的字段，其余字段必须为空。替换与遗忘之后 Combat 保留被遗忘主动的冷却轨道
@@ -78,6 +103,10 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 开局倒计时已退役，开局休息 R0 取代它：开局选择与开局点数在 `Rest` 中提交。野外满槽选择照旧存为图纸，
 野外不能遗忘、替换、洗点或办 NPC。`IsRestWindow(Context)` 即 `Stage == Rest`，组件搬动与卸下同样以它为门。
 
+组件命令（`LDProgression::InstallGate`、`CommandGate`）：`OpeningBase` 的选取与 `ActiveChoice` 同表（同次安装部分按首次安装判断）；
+首次安装（实例从未安装过）与 `LearnBlueprint` 同表（休息窗口允许，野外存活且安全才允许，否则 `NotSafe`/`Dead`）；
+重装曾经安装过的实例与 `UninstallComponent` 只在休息窗口（死亡为 `Dead`），野外为 `RestOnly`，`RestLocked` 为 `BuildLocked`。
+
 构筑安全窗：Combat 在实体记录上保存 `LastBuildUnsafeAtMs`（跨生命，不回退），普攻起手、进攻性主动释放、
 造成或受到敌方正伤害（含灼烧与区域跳伤）、被施加硬控（定身、眩晕、缴械、嘲讽、沉默）或击退时刷新；
 单独减速、菜单、视野与回复不刷新。`BuildSafeAtMs = LastBuildUnsafeAtMs + GROWTH.BuildSafeWindowSec`（没有记录为 0），
@@ -91,13 +120,13 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 | 事务 | 同次提交 |
 | --- | --- |
-| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；无主/自杀/离局为 NoReward 且没有助攻 |
+| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数、材料与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻 |
 | `CommitEventReward` | 地图事件（空投）以 (Event, Serial) 为业务身份，整局只付一次；同一事件的第二次领取以 `DataInvalid` 永久拒绝，不付任何经验 |
-| `CommitPendingBuild` | 许可 → 旧局/目录/上下文/离局/旧生命/生死阶段/`BuildStale` 重查 → 按 Kind 校验（`NoActiveOffer`、`OfferAlreadyCommitted`、`UnknownOffer`、`OfferGuardStale`、`InvalidOption`；休息服务的 `OfferOutstanding`、`NpcPoolTooSmall`、`NothingToRespec`、`SlotEmpty`、`NoBlueprint`）→ 合法性矩阵 → 安装构筑（等级、点数或 Q/W/E 变化时才重投影 Combat；只改图纸、永久消费或机会时推进构筑修订而不重装 Combat；NPC 的付费与固定候选组同次安装）→ 抽下一组 |
+| `CommitPendingBuild` | 许可 → 旧局/目录/上下文/离局/旧生命/生死阶段/`BuildStale` 重查 → 按 Kind 校验（`NoActiveOffer`、`OfferAlreadyCommitted`、`UnknownOffer`、`OfferGuardStale`、`InvalidOption`；休息服务的 `OfferOutstanding`、`NpcPoolTooSmall`、`NothingToRespec`、`SlotEmpty`、`NoBlueprint`；组件命令见上）→ 合法性矩阵 → 安装构筑（等级、点数、Q/W/E 或已安装组件变化时才重投影 Combat；只改图纸、库存实例、永久消费或机会时推进构筑修订而不重装 Combat；NPC 的付费与固定候选组同次安装）→ 抽下一组 |
 
 每笔装入的奖励都打一行 `LD_REWARD t=… contender=… cause=death|map_event|dev_fixture role=killer|assist|recipient xp=… xp_after=… level=a->b <来源>`，
-升级时另打 `LD_LEVEL_UP`；候选组打 `LD_OFFER`（没有合格主动时 `LD_OFFER_WAITING`；NPC 候选组另带 `source=npc`），主动选择打 `LD_CHOICE`，
-其余构筑命令打 `LD_BUILD`（末尾 `forgot=… refunded=… paid=… ordinal=…` 记录遗忘、洗点退回、NPC 付费与所购机会）。`ProcessTransactions` 按服务器受理顺序处理构筑命令（DEV 构建另有测试命令）。
+升级时另打 `LD_LEVEL_UP`（`components=` 列出每级所得材料，池空的级为 `-`，`empty_pool_grants=` 为其个数）；候选组打 `LD_OFFER`（没有合格主动时 `LD_OFFER_WAITING`；NPC 候选组另带 `source=npc`），主动选择打 `LD_CHOICE`，
+其余构筑命令打 `LD_BUILD`（`forgot=… refunded=… paid=… ordinal=…` 记录遗忘、洗点退回、NPC 付费与所购机会；组件命令的 `card=` 为组件 id，另有 `installed=`、`bind=主动:元素` 与 `install_stored=`）。`ProcessTransactions` 按服务器受理顺序处理构筑命令（DEV 构建另有测试命令）。
 单条请求失败只形成拒绝回执；只有失去写许可等权威故障才返回 false。
 `PublishGrowth(Boundary)` 在 Close 之后执行，不需要许可，只对变化者调用 `SyncOwner` 并推送终态回执。
 
@@ -106,13 +135,15 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 以及地图事件的 (Event, Serial) 集合。窗口外的旧请求返回 `ReceiptExpired`，不重新执行；写闸关闭后的新序号为 `MatchClosed`，
 已受理的重放仍回原回执。拒绝原因编号：40、46、47、49–51 已退役，
 新增 `ReplacementNotAllowed=48`（野外替换/遗忘）、`NotSafe=52`、`NoEmptySlot=53`、`SlotOccupied=54`、`NoBlueprint=55`、
-`NotEnoughPoints=56`、`NoActiveOffer=57`、`PhaseClosed=58`，休息服务 `BuildLocked=70`、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、
-`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`（76、77 未分配）。构筑命令种类 1–3 之外，休息服务为 20–23。
+`NotEnoughPoints=56`、`NoActiveOffer=57`、`PhaseClosed=58`；#198 B 新增 `NotOwned=60`、`AlreadyInstalled=61`、`NotInstalled=62`、
+`RestOnly=63`、`InvalidTarget=64`、`ElementUnsupported=65`、`OpeningBaseUnavailable=66`、`OpeningBaseTaken=67`、`OpeningActiveFirst=68`；
+休息服务 `BuildLocked=70`、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
+（76、77 未分配）。构筑命令种类 1–3 之外，组件命令为 10–12，休息服务为 20–23，其余编号未用。
 
 ## 对外信息
 
-普通客户端只接收自己的等级、经验、点数、候选组、图纸、安全窗与自身回执。可见对手只经世界/视野发布获得等级与 Q/W/E 主动，
-不含冷却、XP、点数、候选或图纸。拒绝原因只给有权的本人。
+普通客户端只接收自己的等级、经验、点数、候选组、图纸、材料实例（含安装与绑定）、开局基础构件候选、安全窗与自身回执。
+可见对手只经世界/视野发布获得等级与 Q/W/E 主动，不含冷却、XP、点数、候选、图纸或材料。拒绝原因只给有权的本人。
 
 ## 检查入口
 
@@ -121,7 +152,10 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 开局机会与开局点数及 3、6 级机会（`DemoGrowthOpening`）、候选池与开局池排除、合格不足与空池排队（`DemoGrowthOpeningPool`）、
 本人视图白名单（`DemoGrowthPrivacySchema`）、合法性矩阵与三种命令的原子 Apply（`DemoGrowthBuildRules`）、
 director 提交链（受理形状、倒计时学习与加点、重放/冲突/旧修订、安全窗 `NotSafe`、满槽与图纸、死亡时选择与加点、
-空池排队后再抽、关局，`DemoGrowthBuildCommands`）与技能等级成长 G(L)（`DemoGrowthSkillGrowth`）；
+空池排队后再抽、关局，`DemoGrowthBuildCommands`；其中开局基础构件经拥有命令在开局休息 R0 同次安装进 Combat、重选 `OpeningBaseTaken`、
+野外卸下 `RestOnly`，升到 3 级各得一件库存材料）与技能等级成长 G(L)（`DemoGrowthSkillGrowth`）；
+`Lockdown.Rules.DemoGrowthComponents.*` 覆盖材料实例去重与形状（`InstanceDedupe`）、固定种子的升级材料、类别归一化与池空给点
+（`LevelGrantFixedSeed`）、首次安装/重装/卸下门禁与 B18 绑定、水电拒绝（`InstallGate`）、开局基础构件候选与选取（`OpeningBase`）；
 `Lockdown.Rules.DemoRest.Services.*` 覆盖休息服务的纯规则：每种命令在 Live/Rest/RestLocked/Closed 的合法性与 `IsRestWindow`、
 休息种类与原因的线编号（`Gates`），NPC 恰好收取 `GROWTH.NpcActivePoints` 并从全部主动池固定三个候选、有候选或排队机会/池不足三项/
 点数不足都不收费（`Npc`），洗点只退已分配点数（`Respec`），替换消费图纸并遗忘旧主动、遗忘清空槽位并让该主动重新合格，
@@ -165,7 +199,7 @@ DEV 构筑操作要求 Alive 或 Dead，不受构筑安全窗限制。
 | `LearnActive`（主动 id，槽 0..3） | `ALDDevelopmentDirector::DevLearnActive`：不需要机会、图纸或安全窗；0 为最低空槽（满槽 `NoEmptySlot`），1..3 为 Q/W/E 并遗忘该槽原主动（Combat 保留其冷却轨道供重学）；已学为 `InvalidOption`；同名图纸一并移除 |
 | `AllocatePoints`（五维 id，数量 > 0） | `ALDDevelopmentDirector::DevAllocatePoints`：把未分配点数加到该五维；超过未分配为 `NotEnoughPoints`（明细写出请求与剩余） |
 | `SetAttribute`（Stat，数量 ≥ 0）/ `ClearAttributes`（数量 0） | `ALDCombatDirector::DevSetAttribute`：改 Combat 已安装构筑的测试层 `FLDBuildProjectionInput::DevBonuses`（每个属性至多一项、按属性排序；点数 P2、比例基点、射程整厘米；不接受只限临时项的 `ADBonusRatio`；0 去掉该项，Clear 全部去掉），经 `PrepareProjected`/`ApplyBuildChange` 重投影安装：资源上限按比例换算，活着的身体保留本命临时项，不推进构筑修订，成长域在途请求不失效；投影拒绝（最终值越界）为 `NumericDomain`、不改任何状态；Alive 或 Dead（首次出生前还没有 Combat 记录，为 `DataInvalid`） |
-| `ResetToMatchStart`（什么都不带） | `ALDGrowthDirector::CommitDevReset` 一笔复合提交：`ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无主动、图纸、已分配与永久消费点数，没有 NPC 机会，只有开局机会与开局点数、Apply 时与 `BeginMatch` 一样抽开局候选；各修订继续递增，旧状态的在途命令按过期拒绝）与 `ALDCombatDirector::DevPrepareReset(Contender, ResultBuildRevision)`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层）都可行才依次安装，随后 `DevFinishReset` 丢弃全部技能冷却轨道、冲刺就绪、构筑安全窗清零、活着的身体补满；Alive 或 Dead |
+| `ResetToMatchStart`（什么都不带） | `ALDGrowthDirector::CommitDevReset` 一笔复合提交：`ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无主动、图纸、材料实例、已分配与永久消费点数，没有 NPC 机会，只有开局机会与开局点数、Apply 时与 `BeginMatch` 一样抽开局候选；各修订继续递增，旧状态的在途命令按过期拒绝）与 `ALDCombatDirector::DevPrepareReset(Contender, ResultBuildRevision)`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层）都可行才依次安装，随后 `DevFinishReset` 丢弃全部技能冷却轨道、冲刺就绪、构筑安全窗清零、活着的身体补满；Alive 或 Dead |
 | `RefreshCamps`（只限 Host） | `ALDCampDirector::DevRefreshCleared` → `FLDCampMatchState::DevRefreshNow`：每个已清空、等待刷新的营地截止时间提前到本边界（不推迟更早的截止），下一个 RespawnsAndWorld 经 `AdvanceCamps` 正常整组刷新（含出生点被占时的等待）；存活营地不动；回执写出等待中的营地数；没有营地 director 为 `DataNotReady` |
 | `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放旗杆的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；喷漆、守护时长与全部规则不变；其他阶段为 `StaleContext` |
 

@@ -12,9 +12,10 @@ class AController;
 // ---------------------------------------------------------------- sources and entries
 
 // Innate: the D dash every contender has (D19); it is no learned source and is never forgotten.
-// 3 was the retired equipment (Gear) source (#144); Innate keeps its number.
+// 3 was the retired equipment (Gear) source (#144); Innate keeps its number. Component (#198 B): an installed workshop
+// component (DefinitionId = component id); it is never an entry or a cooldown track.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4 };
+enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5 };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
@@ -233,6 +234,8 @@ struct FLDBuildProjectionInput
     // #198: the allocated points of each stat that holds any (canonical stat id, positive count).
     TArray<FLDStatPointsValue> StatPoints;
     TArray<FLDLearnedActiveValue> Actives;
+    // #198 B: installed components (FLDAttributeBuildValues::Components), sorted by id.
+    TArray<FLDInstalledComponentValue> Components;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;
@@ -396,6 +399,7 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational Base;
     UPROPERTY() FLDDemoRational Level;
     UPROPERTY() FLDDemoRational Choices;             // #198: the allocated stat points' flat term
+    UPROPERTY() FLDDemoRational Components;          // #198 B: the installed components' stat_bonus flat term
     UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build, the DEV layer excluded
     UPROPERTY() FLDDemoRational Dev;                 // DEV test layer flat term; zero outside a DEV test session
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term

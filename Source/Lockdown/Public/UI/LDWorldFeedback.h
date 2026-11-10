@@ -27,7 +27,8 @@ namespace LDWorldFeedback
         uint32 Epoch=0;
         int32 Level=0;             // LevelUp: the level reached
         int32 Offers=0;            // LevelUp: active opportunities newly earned with it (#198)
-        FString Name;              // Kill: the victim's public roster name; UnitCast: the cast's display name; empty when unknown
+        FString Name;              // Kill: the victim's public roster name; UnitCast: the cast's display name; LevelUp: the
+                                   // components it granted (#198 B), joined; empty when unknown or none
         double SampledAtServerSec=0; // UnitDamage/UnitHeal: SampledAtServerSec of the frame that showed the change
     };
     // One sample of the SC-07 inputs: the owner's own projections, room-public DTOs and the current authorized frame of
@@ -50,6 +51,8 @@ namespace LDWorldFeedback
         TFunction<FString(const FGuid&)> RosterName;
         // Display name of a visible cast's ability native id; empty when unknown.
         TFunction<FString(uint8)> CastName;
+        // Display name of an own component definition; its id when unset.
+        TFunction<FString(FName)> ComponentName;
     };
     // The sample of PC's own projections, the room-public views of Public and PC's current authorized frame of this match
     // and life (none while dead or for another generation), as both the feedback layer and the playtest log observe it.
@@ -102,6 +105,8 @@ namespace LDWorldFeedback
         // Earned stat points: the unspent plus the allocated ones, so an allocation in the same sample never hides a grant.
         int64 PointsEarned=0;
         int64 XP=0;
+        // #198 B: the owned component ids of the last growth view.
+        TArray<FName> ComponentsSeen;
         bool bKills=false;
         uint64 KillSerial=0;
         bool bFrame=false;
@@ -112,8 +117,8 @@ namespace LDWorldFeedback
     // "-37", "+12", then the LDTerms lines: shield gained/absorbed, experience, level-up and kill (an unlisted victim reads
     // LDTerms::UnknownVictim),
     LOCKDOWN_API FString Text(const FEvent& Event);
-    // Smaller second line of a level-up banner (LDTerms::LevelUpGains: the points and active opportunities it brought);
-    // empty for every other event.
+    // Smaller second line of a level-up banner (LDTerms::LevelUpGains: the points, active opportunities and components it
+    // brought); empty for every other event.
     LOCKDOWN_API FString Subline(const FEvent& Event);
     // A visible unit's number waits for the relay's presentation clock to reach the frame that produced it, so it shows
     // with the proxy's delayed hit pose. It is released once the clock reaches its stamp, at once without a clock and

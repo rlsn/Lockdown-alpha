@@ -98,20 +98,25 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEmpowerTest, "Lockdown.Rules.DemoContr
 
 bool FLDCombatEmpowerTest::RunTest(const FString& Parameters)
 {
-    TOptional<FLDCombatEmpower> Armed;
-    TestFalse(TEXT("Nothing armed, nothing taken"), LDCombatControl::ConsumeEmpower(Armed, 100).IsSet());
+    TArray<FLDCombatEmpower> Armed;
+    TArray<FLDCombatEmpower> Taken;
+    int64 SumP2 = -1;
+    TestTrue(TEXT("Nothing armed, nothing taken"), LDCombatControl::ConsumeEmpowers(Armed, 100, Taken, SumP2) && Taken.IsEmpty() && SumP2 == 0);
     FLDCombatEmpower Value;
     Value.EffectId = FGuid::NewGuid();
-    Value.BaseP2 = 5000;
-    Value.ADRatioBp = 4000;
+    Value.Source.Kind = ELDCombatSourceKind::Learned;
+    Value.Source.DefinitionId = TEXT("active_apology_slide");
+    Value.AmountP2 = 5000;
     Value.ExpiresAtMs = 3100;
-    Armed = Value;
-    const TOptional<FLDCombatEmpower> First = LDCombatControl::ConsumeEmpower(Armed, 3099);
-    TestTrue(TEXT("The first landed basic takes the armed bonus"), First.IsSet() && First->EffectId == Value.EffectId && First->BaseP2 == 5000);
-    TestFalse(TEXT("It is consumed exactly once"), Armed.IsSet() || LDCombatControl::ConsumeEmpower(Armed, 3099).IsSet());
-    Armed = Value;
-    TestFalse(TEXT("At its deadline it has expired and gives nothing"), LDCombatControl::ConsumeEmpower(Armed, 3100).IsSet());
-    TestFalse(TEXT("An expired bonus is dropped, not kept for later"), Armed.IsSet());
+    LDCombatControl::ArmEmpower(Armed, Value);
+    TestTrue(TEXT("The first landed basic takes the armed bonus"), LDCombatControl::ConsumeEmpowers(Armed, 3099, Taken, SumP2)
+        && Taken.Num() == 1 && Taken[0].EffectId == Value.EffectId && SumP2 == 5000);
+    TestTrue(TEXT("It is consumed exactly once"), Armed.IsEmpty() && LDCombatControl::ConsumeEmpowers(Armed, 3099, Taken, SumP2)
+        && Taken.IsEmpty());
+    LDCombatControl::ArmEmpower(Armed, Value);
+    TestTrue(TEXT("At its deadline it has expired and gives nothing"), LDCombatControl::ConsumeEmpowers(Armed, 3100, Taken, SumP2)
+        && Taken.IsEmpty() && SumP2 == 0);
+    TestTrue(TEXT("An expired bonus is dropped, not kept for later"), Armed.IsEmpty());
     return true;
 }
 

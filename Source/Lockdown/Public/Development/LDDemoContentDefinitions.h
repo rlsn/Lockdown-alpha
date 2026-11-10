@@ -189,6 +189,20 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
+    // #198 field charms: CharmWaveCount waves at field progress T = CharmFirstWave + n * CharmWaveInterval, each of
+    // CharmPerWave distinct kinds on distinct airdrop points, lasting CharmLifetimeMs of field progress. Heal restores
+    // CharmHealMaxHPBp of max HP, mana CharmManaMaxMPBp of max MP; move speed adds CharmMoveSpeedBp to the additive
+    // move-speed ratio for CharmMoveSpeedMs (a later pickup refreshes it). See World/LDCharms.h.
+    UPROPERTY() int64 CharmFirstWaveMs = 0;
+    UPROPERTY() int64 CharmWaveIntervalMs = 0;
+    UPROPERTY() int64 CharmWaveCount = 0;
+    UPROPERTY() int64 CharmPerWave = 0;
+    UPROPERTY() int64 CharmLifetimeMs = 0;
+    UPROPERTY() FLDDemoRational CharmPickupRadiusCm;
+    UPROPERTY() int64 CharmHealMaxHPBp = 0;
+    UPROPERTY() int64 CharmManaMaxMPBp = 0;
+    UPROPERTY() int64 CharmMoveSpeedBp = 0;
+    UPROPERTY() int64 CharmMoveSpeedMs = 0;
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
@@ -224,6 +238,9 @@ struct FLDDemoContentParameters
     // #198: points a rest NPC charges for one active-only three-choice.
     UPROPERTY() int64 NpcActivePoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
+    // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
+    // (GROWTH.EmptyComponentPoolPoints).
+    UPROPERTY() int64 EmptyComponentPoolPoints = 0;
     UPROPERTY() FLDDemoAIParameters AI;
 };
 
@@ -304,8 +321,27 @@ enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, Directio
 
 // When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
 // (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
+// #198 B: DashComplete arms an empower_basic of a component when a voluntary dash (D or an active dash) completes with
+// a positive displacement (B12).
 UENUM()
-enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged };
+enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete };
+
+// #198 water/fire/electric. Fire is burn stacks; water (wet) and electric (shocked) are owned by the element state of
+// #198 A. A component effect or binding names one of them.
+UENUM()
+enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3 };
+
+// #198 workshop material kinds (基础构件 / 改装件 / 连接件).
+UENUM()
+enum class ELDDemoComponentKind : uint8 { Base = 0, Mod = 1, Connector = 2 };
+
+// Which supply may hand a component out: Common (normal level-ups) or Scarce (boss/airdrop sources only).
+UENUM()
+enum class ELDDemoComponentPool : uint8 { Common = 0, Scarce = 1 };
+
+// The install parameters a component takes besides its target: none, or one learned damaging active plus one element (B18).
+UENUM()
+enum class ELDDemoComponentBinding : uint8 { None = 0, ActiveElement = 1 };
 
 // Which cooldown tracks a cooldown_refund shortens: all learned actives (Q/W/E).
 UENUM()
@@ -405,6 +441,8 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 SecondaryDurationMs = 0;
     // dash_contact_refund caps actual mana grants; this cap never grows with level.
     UPROPERTY() int64 LimitP2 = 0;
+    // #198 B basic_element: the element a primary basic applies (Water/Electric/Fire); None for every other operation.
+    UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
     // #147/#198 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // zone Count pulses at DelayMs + k x IntervalMs inside DurationMs; zone_slow RatioBp every IntervalMs for DurationMs;
     // zone_burn Count+IntervalMs; knockback DistanceCm+DurationMs; channel_cone SecondaryRatioBp+SecondaryDurationMs (a
@@ -412,6 +450,14 @@ struct FLDDemoEffectDefinition
     // triggered_shield Damaged IntervalMs, SecondaryRatioBp+RadiusCm (burst on break); thorns SecondaryRatioBp+
     // SecondaryDurationMs (move-only slow); control_damage_amp SecondaryRatioBp (low-HP targets count too); lifesteal
     // SecondaryRatioBp+MultiplierBp (multiplier against low-HP targets); low_hp_stat_bonus SecondaryRatioBp (basic lifesteal).
+    // #198 B component forms (a component's effects; actives never carry them): burn/breach BasicCount only (stacks per
+    // primary basic hit); thorns IntervalMs 0 = no per-attacker repeat window; nth_basic_bonus Count (every Count-th landed
+    // primary basic) + DistanceCm + DurationMs (a knockback of the primary target away from the holder, no damage);
+    // empower_basic Trigger DashComplete + DurationMs + Count (charges per armed package); ledger BaseP2+ADRatioBp+APRatioBp+
+    // DamageType per entry, Count entries cash out, DurationMs without a new entry clears the unlocked entries;
+    // basic_element Element; basic_damage_scale RatioBp (0 < ratio < 1, the primary basic's own package only);
+    // idle_ready_amp DelayMs (ready and idle) + RatioBp (next native direct damage bonus); active_element no fields (the
+    // install binds the active and element, FLDDemoComponentDefinition::Binding).
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };
@@ -456,6 +502,45 @@ struct FLDDemoStatDefinition
     UPROPERTY() TArray<FLDDemoStatBonus> PerPoint;
 
     ELDDemoStatId GetNativeId() const { return static_cast<ELDDemoStatId>(NativeId); }
+};
+
+// #198 B: one workshop material definition (component catalog row). A base component is a complete automatic ability
+// whose effects Combat reads while it is installed (ALDCombatDirector::CollectPassiveEffects); mods and connectors (#198 F)
+// install onto a target.
+USTRUCT()
+struct FLDDemoComponentDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FString Id;
+    UPROPERTY() uint8 NativeId = 0;
+    UPROPERTY() ELDDemoComponentKind Kind = ELDDemoComponentKind::Base;
+    UPROPERTY() ELDDemoComponentPool Pool = ELDDemoComponentPool::Common;
+    // Opening base pick (spec §4.3): bOpeningAlways bases are always offered; otherwise the base is offered only when the
+    // opening active is one of OpeningActives (empty and not always = never an opening option).
+    UPROPERTY() bool bOpeningAlways = false;
+    UPROPERTY() TArray<FString> OpeningActives;
+    // ActiveElement: the install binds one learned active of BindActives and one element of BindElements.
+    UPROPERTY() ELDDemoComponentBinding Binding = ELDDemoComponentBinding::None;
+    UPROPERTY() TArray<FString> BindActives;
+    UPROPERTY() TArray<ELDDemoElement> BindElements;
+    // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
+    UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
+
+    ELDDemoComponentId GetNativeId() const { return static_cast<ELDDemoComponentId>(NativeId); }
+};
+
+// #198 B: the normal level-up component roll of one level band: category percentages (base + mod + connector = 100).
+USTRUCT()
+struct FLDDemoComponentCategoryWeights
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 MinLevel = 0;
+    UPROPERTY() int32 MaxLevel = 0;
+    UPROPERTY() int32 BasePercent = 0;
+    UPROPERTY() int32 ModPercent = 0;
+    UPROPERTY() int32 ConnectorPercent = 0;
 };
 
 USTRUCT()
@@ -559,6 +644,8 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() TArray<int64> XPToNext;
     // #198: reaching each of these levels enqueues one more active opportunity (after the opening one), distinct and ascending.
     UPROPERTY() TArray<int32> ActiveOfferLevels;
+    // #198 B: one band per level range covering every level 2..MaxLevel exactly once, ascending.
+    UPROPERTY() TArray<FLDDemoComponentCategoryWeights> ComponentCategoryWeights;
 };
 
 USTRUCT()
@@ -622,6 +709,8 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoCharacterDefinition Character;
     UPROPERTY() TArray<FLDDemoAbilityDefinition> Abilities;
     UPROPERTY() TArray<FLDDemoStatDefinition> Stats;
+    // #198 B: the workshop material catalog (base B01–B18 now; mods/connectors by #198 F), in native id order.
+    UPROPERTY() TArray<FLDDemoComponentDefinition> Components;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
     UPROPERTY() FLDDemoBossDefinition Boss;

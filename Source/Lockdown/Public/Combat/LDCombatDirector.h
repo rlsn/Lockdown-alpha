@@ -8,12 +8,15 @@
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Development/LDBuildBlueprint.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
 
 struct FLDDormZones;
 namespace LDAirdrop { struct FCandidate; }
+enum class ELDCharmKind : uint8;
+struct FLDCharmEffectFact;
 
 class ALDCharacter;
 class ALDGameMode;
@@ -28,34 +31,25 @@ struct FLDInnateDashTerms;
 struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
-// What one release shares across all of its hits: a cone's waves apply keyword stacks once per target, and a mana grant
-// pays once per release.
+// What one release shares across all of its hits: a mana grant pays once per release.
 struct FLDCombatCastLedger
 {
-    TArray<FLDCombatBodyRef> KeywordTargets;
-    bool bUniqueSkillHits=false;
     bool bManaGrantPaid=false;
 };
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
 
-// #147 damage-triggered shield with a burst: when the shield it granted (ShieldEffectId) is broken, the holder answers
-// the bodies within RadiusCm with RatioBp of the granted amount as magic damage.
-struct FLDCombatShieldBurst
-{
-    FGuid ShieldEffectId;
-    FLDCombatSourceRef Source;
-    int64 GrantedP2=0;
-    int64 RatioBp=0;
-    double RadiusCm=0;
-};
-
-// One trigger effect a body holds, resolved from the approved catalog (ALDCombatDirector::CollectPassiveEffects).
+// One trigger effect a body holds, resolved from the approved catalog (ALDCombatDirector::CollectPassiveEffects): an
+// installed component's effect, its fixed amounts grown for the holder's level. Held by value: the projection it came
+// from may be replaced while the caller still reads it.
 struct FLDPassiveEffectRef
 {
-    FString Key;                    // ability id or equipment family; the dedup key of per-source marks
-    FLDCombatSourceRef Source;
-    const FLDDemoEffectDefinition* Effect=nullptr;
+    FString Key;                    // component id; the dedup key of per-source marks and ledgers
+    FLDCombatSourceRef Source;      // Kind Component, DefinitionId = component id
+    FLDDemoEffectDefinition Effect;
+    // The install parameters of an ActiveElement binding (B18); empty/None otherwise.
+    FName BoundActive;
+    ELDDemoElement Element=ELDDemoElement::None;
 };
 
 // One accepted, not yet released action of one body life. Dies with the life.
@@ -107,15 +101,16 @@ struct FLDBodyCombatState
     TArray<FLDCombatTimedBonus> TimedBonuses;
     // Hard-control diminishing returns of this life (LDCombatControl::DiminishHardControl).
     FLDHardControlChain HardControl;
-    // item_edge_blade's landed-basic count.
+    // B06 (nth_basic_bonus): this life's landed primary basics while the counter is held; it survives target changes and
+    // ends with the life.
     int32 LandedBasics=0;
     // Once-per-release mana grant of item_runic_focus (ability hit).
     FGuid LastAbilityManaEffect;
     // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
     TArray<FLDCombatRoot> Disarms;
     TArray<FLDCombatRoot> Stuns;
-    // The armed next-basic bonus (one consumption) and this life's thorns repeat windows.
-    TOptional<FLDCombatEmpower> Empower;
+    // The pending empowered-basic packages, at most one per source (spec §10.2), and this life's thorns repeat windows.
+    TArray<FLDCombatEmpower> Empowers;
     TArray<FLDThornsMark> ThornsMarks;
     // Assist contributions other contenders made to this life (LDAssist); read once when the life locks its death.
     TArray<FLDAssistContribution> AssistContributions;
@@ -143,20 +138,22 @@ struct FLDBodyCombatState
     int64 ShieldGrantedP2=0;
     int64 RetortReadyAtMs=0;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
-    // and burn of this life, the damage-triggered shield's rest and the burst its current shield carries.
+    // and burn of this life and the damage-triggered shield's rest (B09: it starts only on a granted shield).
     TArray<FLDCombatRoot> Silences;
     FLDCombatSharedBreach SharedBreach;
     FLDCombatBurn Burn;
     int64 DamagedShieldReadyAtMs=0;
-    TOptional<FLDCombatShieldBurst> ShieldBurst;
     TArray<FLDCombatSlow> AttackSlows;
     FGuid ChannelEffectId;
     uint64 ChannelDirectSequence=0;
     int64 ChannelStartedAtMs=0;
-    // primary_guard's slow resistance after a guarded hit, and dash_contact_refund's rest.
-    int64 SlowResistanceUntilMs=0, SlowResistanceBp=0;
+    // dash_contact_refund's rest.
     int64 ContactRefundReadyAtMs=0;
     TSharedPtr<FLDCombatDashContact> DashContact;
+    // #198 B12: the voluntary dash in flight (ResolveDashCompletions arms DashComplete empowers when it completes).
+    TOptional<FLDCombatVoluntaryDash> VoluntaryDash;
+    // #198 B02: every owner's ledger on this life, one per owner and component.
+    TArray<FLDCombatLedger> Ledgers;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -222,9 +219,12 @@ struct FLDCombatHit
     bool bCritical=false;
     int64 RootDurationMs=0;
     int64 SlowBp=0, SlowDurationMs=0;
-    // Snapshot of the releasing source's control amplification (control_damage_amp), applied when the target is under any
-    // control or slow.
+    // Snapshot of the source's control amplification (control_damage_amp, B07): joins the damage bonus pool when the target
+    // was move-slowed, hard-controlled or knocked back before this hit.
     int64 ControlAmpBp=0;
+    // #198 B17 (idle_ready_amp): locked at the release of an active that stood ready and idle long enough; carried only by
+    // that release's native direct damage (every pulse of it) and added into the damage bonus pool.
+    int64 IdleReadyAmpBp=0;
     int64 DisarmDurationMs=0;
     int64 StunDurationMs=0;
     // A reflection never crits, heals or triggers another reflection.
@@ -234,7 +234,7 @@ struct FLDCombatHit
     int64 OnHitScaleBp=0;
     bool bLifesteal=false;
     int64 LifestealRatioBp=0;
-    // Added damage (nth_basic_bonus, dash contact damage): never an on-hit trigger.
+    // Added damage (dash contact damage): never an on-hit trigger.
     bool bAddedDamage=false;
     // #112 C2 (LDCombatMechanicsDirector.cpp).
     bool bPeriodic=false;            // a zone pulse or burn tick: no crit, no on-hit
@@ -251,18 +251,19 @@ struct FLDCombatHit
     int32 BurnLevel=1;
     int64 BurnAPP2=0;
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
-    int64 ControlAmpBelowBp=0;       // the source's control amplification also counts a target below this HP share
-    int64 LifestealLowHPBp=0;        // extra on-hit lifesteal against a target below LifestealLowHPBelowBp
-    int64 LifestealLowHPBelowBp=0;
-    int64 LowHPBasicLifestealBp=0;   // the source's primary-basic lifesteal while it is below SourceLowHPBelowBp
-    int64 SourceLowHPBelowBp=0;      // the source's low-HP trigger threshold (low_hp_stat_bonus)
     int64 AttackSlowBp=0, AttackSlowMs=0;
     // Delivery scaling is separate from the additive damage bonus pool (impact outer ring, for example).
     int64 DeliveryScaleBp=10000;
+    // Native direct damage of an active (spec §8 主动直接伤害): its damage segment, its zone pulses and the hits copied
+    // from its payload (projectile, cone wave, impact, dash contact). B17 and B18 read it; derived hits never set it.
     bool bDirectAbilityDamage=false;
     bool bDashContactHit=false;
     bool bChannelHit=false;
-    bool bSuppressSkillTriggers=false;
+    // #198 B02: a ledger cash-out, a status/settle hit: it never adds a ledger entry or triggers B18.
+    bool bLedgerCashOut=false;
+    // #198 B: burn layers a component's fire adds to this hit (ApplyComponentElement), credited to ComponentBurnSource.
+    int32 ComponentBurnStacks=0;
+    FLDCombatSourceRef ComponentBurnSource;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
@@ -350,6 +351,8 @@ struct FLDCombatZone
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
     int64 SourceADP2=0, SourceAPP2=0;
+    // #198 B17: the release's locked idle amplification, carried by every damage pulse.
+    int64 IdleReadyAmpBp=0;
     // #147 zone_burn: BurnStacks layers (at the owner's level and AP snapshotted at release) on every enemy inside,
     // every BurnIntervalMs from the zone's start while it lasts.
     int32 BurnStacks=0;
@@ -447,6 +450,9 @@ public:
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
+    // #198 §10 build blueprint ledger of this match (LDCombatBlueprintLedger.cpp): every installed build version of each
+    // contender and the real facts credited to it. Read once by the core when the result is published.
+    const FLDBuildLedger& GetBuildLedger() const { return BuildLedger; }
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
@@ -487,6 +493,12 @@ public:
     // body already gone or dying gets nothing (bOutApplied false). False only on an authority fault.
     bool GrantTimedBonus(const FLDCombatBodyRef& Body, FName Source, const TArray<FLDDemoStatBonus>& Stats, int64 DurationMs,
         const FLDGameplayWritePermit& Permit, bool& bOutApplied, FString& Error);
+    // #198 field charm (Transactions): applies Kind's approved effect to the living body of Contender — heal a share of
+    // max HP through HealBody, mana a share of max MP through GrantMana (both capped at the maximum), or refresh the
+    // charm move-speed timed bonus. A body already gone or dying gets nothing (bOutApplied false). False only on an
+    // authority fault.
+    bool ApplyCharm(const FGuid& Contender, ELDCharmKind Kind, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
+        FLDCharmEffectFact& Out, FString& Error);
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // ---- Shared combat primitives (#112 section 5).
@@ -505,7 +517,7 @@ public:
     bool ReduceLearnedCooldown(const FGuid& Entity, FName DefinitionId, int64 AmountMs);
     // Lifesteal terms of a source's held trigger effects for a hit triggering on-hit effects at ScaleBp.
     bool SnapshotOnHit(const FLDBodyCombatState& Source, int64 ScaleBp, FLDCombatHit& InOut, FString& Error) const;
-    // Source-side terms every hit of this body carries: the control amplification and the low-HP basic lifesteal.
+    // Source-side terms every hit of this body carries: the control amplification (B07).
     bool StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
     // A separate damage instance riding on Primary (added damage) with no damage terms yet: never a crit, control,
     // keyword stack or on-hit trigger.
@@ -625,7 +637,8 @@ private:
     bool AdvanceProjectiles(FString& Error);
     // The root and slow cleanses of one released value set on its caster; true when slows (a temporary term) ended.
     bool ApplyCleanses(FLDBodyCombatState& Body, const FLDDemoAbilityValues& Values, int64 NowMs);
-    // The victim's thorns reflections of one committed hit.
+    // The victim's thorns reflections of one committed hit (B03: an enemy primary basic with positive damage, the holder
+    // alive, the attacker within reach and observed with clear sight).
     bool QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2, bool bCritical, FString& Error);
     void ExpireStatuses(int64 NowMs);
     // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
@@ -655,18 +668,35 @@ private:
     // debuff path calls it once per committed contact; camp bodies and unowned or self contacts are ignored.
     // Returns whether a contribution was recorded or refreshed.
     bool RecordAssistContribution(FLDBodyCombatState& Victim, const FGuid& CreditOwner, int64 NowMs);
-    // The lone resolver of the trigger effects a body holds (thorns, lifesteal, mana_on_hit, cooldown_refund,
-    // nth_basic_bonus, passive breach/burn, triggered_shield, shield_break_retort, primary_guard, low_hp_stat_bonus,
-    // control_damage_amp, dash contact damage/refund). #198 PR1 builds hold none (passives are retired); the base
-    // components of #198 PR3 feed it through the projection.
+    // The lone resolver of the trigger effects a body holds: every installed component's effects of Op
+    // (FLDAttributeProjection::InstalledComponents, catalog order of each component's effects), fixed amounts grown for the
+    // holder's level (LDSkillGrowth::GrowEffect). False with Error when a listed component or its growth is missing.
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
     // Mana grant of a triggered effect; marks the owner view.
     void GrantMana(FLDBodyCombatState& Body, int64 AmountP2);
     // Cast range of an active for this body now: the authored range and its share of the extra basic-attack range.
     bool CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm, FString& Error) const;
-    // Hooks of one landed basic: refunds and counters.
-    bool OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatHit& Primary, FString& Error);
+    // Hooks of one landing primary basic before it is queued: cooldown refunds and the B06 counter (every Count-th basic
+    // carries a knockback of the primary target away from the holder, no damage).
+    bool OnBasicLanded(FLDBodyCombatState& Body, FLDCombatHit& Primary, FString& Error);
+    // #198 B: one component's element on Hit (B10/B11 basic_element, B18 active_element). Fire adds one burn layer
+    // credited to Component. Water and electric are #198 A's element state: once it lands this is where they set the
+    // hit's bApplyWet / bApplyElectric; until then they are an explicit authority error (installation refuses them).
+    bool ApplyComponentElement(FLDCombatHit& Hit, ELDDemoElement Element, const FLDCombatSourceRef& Component, FString& Error) const;
+    // #198 B02: one entry of every ledger Source holds on Target for an effective basic or skill damage hit; a full batch
+    // queues its cash-out (a magic skill-class hit flagged bLedgerCashOut).
+    bool RecordLedgerEntries(FLDBodyCombatState& Target, const FLDCombatHit& Hit, const FLDBodyCombatState& Source,
+        const TArray<FLDPassiveEffectRef>& Ledgers, int64 NowMs, FString& Error);
+    // #198 B17: the idle amplification a release of the learned active on Track takes now (0 when none is held or the active
+    // has not stood ready for the effect's DelayMs).
+    bool IdleReadyAmpBp(const FLDBodyCombatState& Body, const FLDCombatTrack& Track, int64 NowMs, int64& OutBp, FString& Error) const;
+    // #198 B12: voluntary dashes that ended by NowMs; one that completed with a real displacement arms every held
+    // DashComplete empower_basic (values snapshotted now).
+    bool ResolveDashCompletions(int64 NowMs, FString& Error);
+    // A pending empowered-basic package of Effect from Body now (base + AD/AP shares); physical only.
+    bool MakeEmpower(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoEffectDefinition& Effect,
+        const FGuid& EffectId, int64 NowMs, FLDCombatEmpower& Out, FString& Error) const;
     // Recomputes the effective projection from BuildProjection when the active temporary terms changed.
     bool RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error);
     // Ends lapsed slows and timed bonuses of every body and refreshes their effective projections.
@@ -694,11 +724,10 @@ private:
     int64 NextMechanicsDueMs(int64 NowMs) const;
     // Status cue of the #112 records: knockback, for every observer.
     void AppendMechanicsStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
-    // The first trigger effect Op the body holds (CollectPassiveEffects), or null.
-    const FLDDemoEffectDefinition* FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
-        FLDCombatSourceRef* OutSource=nullptr) const;
-    // The held low-HP trigger (low_hp_stat_bonus) as the conditional term of the temporary projection, or unset.
-    TOptional<FLDLowHPBonusTerm> HeldLowHPBonus(const FLDAttributeProjection& Projection) const;
+    // The first trigger effect Op the body holds (CollectPassiveEffects), unset when none; false with Error on a resolver
+    // failure.
+    bool FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TOptional<FLDPassiveEffectRef>& Out,
+        FString& Error) const;
     // The registered actor of one body state, or null.
     ALDCharacter* ActorOf(const FLDBodyCombatState& Body) const;
     // ---- #147 build v7 keywords (LDCombatKeywordsDirector.cpp).
@@ -707,16 +736,13 @@ private:
     int32 GrowthLevelOf(const FLDBodyCombatState& Body) const;
     // A burn layer of Source with Source's level and AP now snapshotted in it.
     bool BurnLayerOf(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, FLDCombatBurnLayer& Out, FString& Error) const;
-    // Shared breach and burn of one committed hit on Target: the hit's own stacks and its living source's held
-    // breach/burn triggers (basic_stacks on a primary basic, stacks on a learned Q/W hit). Assists are recorded per application.
+    // Shared breach and burn of one committed hit on Target: the hit's own stacks, its component fire layers and its living
+    // source's held breach/burn triggers (basic_stacks on a primary basic, B01/B08). Assists are recorded per application.
     bool ApplyKeywordStacks(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
     // Burn ticks due by now: one damage hit per applier and tick; lapsed burns end.
     bool AdvanceBurns(int64 NowMs, FString& Error);
-    // The damage-triggered shield of Body after it took positive damage (rest only after a granted shield).
+    // The damage-triggered shield of Body after it took hostile positive damage (B09: the rest starts only on a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
-    // The burst of a damage-triggered shield: the breaker always takes the full answer and other nearby enemies take half.
-    bool BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId,
-        const FLDCombatBodyRef& BreakerBody, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone).
@@ -757,6 +783,21 @@ private:
         ELDCombatEntry Entry, int64 NowMs) const;
     void MarkViewChanged(const FGuid& Entity);
 
+    // ---- #198 §10 build blueprint ledger (LDCombatBlueprintLedger.cpp). Each fact is recorded once where Combat commits it.
+    // The ledger version of Contender's installed build now; INDEX_NONE for an entity without a contender record.
+    int32 LedgerVersion(const FGuid& Contender);
+    // Right after ApplyBuildChange installed the contender's new build; Previous is the build it replaced.
+    void LedgerBuildInstalled(const FGuid& Contender, const FLDBuildProjectionInput& Previous);
+    // A contender body released an effect (a landed basic swing or an ability release): its hits belong to this version.
+    // Counted is the release fact it adds one to (BasicAttacks or AbilityCasts), Count for none (the innate dash).
+    void LedgerEffectReleased(const FLDBodyCombatState& Body, const FGuid& EffectId, ELDBlueprintFact Counted);
+    // One committed hit on Victim: damage dealt once to the credited contender (the version that created the effect),
+    // damage taken, own shield absorption and HP lost to the victim contender's current version.
+    void LedgerHitCommitted(const FLDCombatHit& Hit, const FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage);
+    // HP a one-time heal actually restored to a contender body, and a shield granted to it.
+    void LedgerHealed(const FLDBodyCombatState& Body, int64 HealedP2);
+    void LedgerShieldGranted(const FLDBodyCombatState& Body, int64 AmountP2);
+
     TMap<TWeakObjectPtr<ALDCharacter>,FLDBodyCombatState> Bodies;
     TMap<FGuid,FLDCombatEntityRecord> Records;
     TArray<FLDCombatHit> PendingHits;
@@ -771,4 +812,5 @@ private:
     TArray<FLDCommittedDeath> RetryRewards;
     FRandomStream CritRandom;
     bool bAdvancing=false;
+    FLDBuildLedger BuildLedger;
 };

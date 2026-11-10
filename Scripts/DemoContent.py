@@ -30,8 +30,8 @@ WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
 SCHEMA_VERSION = 2
-HANDLER_REVISION = 2
-PROJECTION_REVISION = 4
+HANDLER_REVISION = 3
+PROJECTION_REVISION = 5
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -39,7 +39,7 @@ ID_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,62}")
 HEX_PATTERN = re.compile(r"[0-9a-f]{64}")
 NATIVE_ENUMS = {
     "character": "ELDDemoCharacterId", "abilities": "ELDDemoAbilityId",
-    "stats": "ELDDemoStatId",
+    "stats": "ELDDemoStatId", "components": "ELDDemoComponentId",
     "monsters": "ELDDemoMonsterId", "statuses": "ELDDemoStatusId",
     "effect_ops": "ELDDemoEffectOp",
 }
@@ -51,6 +51,8 @@ RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 
                                  [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
 CAMP_TIERS = frozenset(("Low", "High", "Elite"))
+# #198 field charms: heal, mana and move speed (native ELDCharmKind).
+CHARM_KINDS = 3
 # Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
 # #198 base components; no active may use them.
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
@@ -59,7 +61,16 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "cooldown_refund", "triggered_shield", "nth_basic_bonus", "mana_on_hit", "dispel_slow",
                        "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
-                       "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund"))
+                       "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
+                       "ledger", "basic_element", "basic_damage_scale", "idle_ready_amp", "active_element"))
+# #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
+# and empower_basic also have an active form; the rest are component-only and no active may carry them.
+COMPONENT_OPS = frozenset(("burn", "breach", "empower_basic", "ledger", "thorns", "lifesteal", "dash_contact_damage",
+                           "nth_basic_bonus", "control_damage_amp", "triggered_shield", "basic_element", "stat_bonus",
+                           "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element"))
+COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"}
+ELEMENTS = ("fire", "water", "electric")
+CATEGORY_KEYS = ("base", "mod", "connector")
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Effects a self area delivers to the bodies it names.
@@ -549,6 +560,10 @@ def _validate_action(target, effects, path):
         "DirectionCone": frozenset(("channel_cone", "damage")),
     }[mode]
     ops = _effect_set(effects, path)
+    require(not ops & COMPONENT_ONLY_OPS, "ComponentOnlyEffect", path,
+            f"an active cannot carry component operations {sorted(ops & COMPONENT_ONLY_OPS)}")
+    require(not any("trigger" in effect for effect in effects if effect["op"] == "empower_basic"), "ObjectShape", path,
+            "an active's empowered basic is armed by its release, not by a trigger")
     require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
     if mode in ("Self", "DirectionDash") and "dash_contact" not in ops:
         require(("self_area" in ops) == bool(ops & AREA_HIT_OPS), "TargetEffectMismatch", path,
@@ -604,6 +619,101 @@ def _validate_action(target, effects, path):
         require(quantity(target["projectile_radius"]) > 0, "NumericDomain", path, "projectile radius must be positive")
 
 
+def _validate_component_effects(row, abilities, path):
+    """#198 B: a component carries only component operations, each in its component form."""
+    effects = row["effects"]
+    ops = _effect_set(effects, path)
+    require(ops <= COMPONENT_OPS, "ComponentEffect", path, f"not a component operation: {sorted(ops - COMPONENT_OPS)}")
+    for effect in effects:
+        _validate_new_effect(effect, path)
+        op = effect["op"]
+        if op in ("burn", "breach"):
+            require("basic_stacks" in effect and "stacks" not in effect, "ObjectShape", path,
+                    "a component applies its stacks with each primary basic hit")
+        if op == "thorns":
+            require(any(quantity(effect[key]) > 0 for key in ("base", "armor_ratio", "max_hp_ratio") if key in effect),
+                    "IneffectiveEffect", path, "a reflection needs magnitude or scaling")
+            require(quantity(effect["radius"]) > 0 and quantity(effect["critical_multiplier"]) >= 1, "NumericDomain", path,
+                    "a reflection needs a positive radius and a critical multiplier of at least one")
+        if op == "lifesteal":
+            require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "lifesteal ratio must be positive")
+        if op == "nth_basic_bonus":
+            require(quantity(effect["distance"]) > 0, "NumericDomain", path, "the knockback distance must be positive")
+        if op in ("control_damage_amp", "idle_ready_amp"):
+            require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "damage bonus must be positive")
+        if op == "triggered_shield":
+            require(quantity(effect["base"]) > 0 or quantity(effect["max_hp_ratio"]) > 0, "IneffectiveEffect", path,
+                    "a shield needs magnitude or scaling")
+        if op == "empower_basic":
+            require(effect.get("trigger") == "DashComplete" and "charges" in effect, "ObjectShape", path,
+                    "a component's empowered basic needs its DashComplete trigger and its charges")
+            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect", path,
+                    "an empowered attack adds neither damage nor scaling")
+            require(effect["damage_type"] == "Physical", "NumericDomain", path, "an empowered basic stays physical")
+            if "stats" in effect:
+                require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "timed bonuses cannot change resource maxima")
+                _positive_stats(effect["stats"], path)
+        if op == "ledger":
+            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect", path,
+                    "a ledger entry needs magnitude or scaling")
+        if op == "basic_damage_scale":
+            require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
+                    "the primary basic's scale must be strictly between zero and one")
+        if op == "stat_bonus":
+            _positive_stats(effect["stats"], path)
+        if op == "low_hp_stat_bonus":
+            require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", path, "the HP threshold must be a fraction")
+            require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "conditional bonuses cannot change resource maxima")
+            _positive_stats(effect["stats"], path)
+    binding = row.get("binding")
+    require(("active_element" in ops) == (binding is not None), "ComponentBinding", path,
+            "active_element and its active/element binding come together")
+    if binding is not None:
+        actives = binding["actives"]
+        require(len(set(actives)) == len(actives) and set(actives) <= set(abilities), "InvalidReference", path,
+                "a binding names distinct known actives")
+        require(all({"damage", "zone_damage"} & {effect["op"] for effect in abilities[identity]["effects"]} for identity in actives),
+                "ComponentBinding", path, "a bound active needs native direct damage")
+        elements = binding["elements"]
+        require(len(set(elements)) == len(elements) and set(elements) <= set(ELEMENTS), "ComponentBinding", path,
+                "binding elements are distinct fire/water/electric")
+
+
+def _validate_components(data, abilities):
+    previous = 0
+    for row in data["components"]:
+        identity = row["id"]
+        require(row["native_id"] > previous, "ComponentOrder", "components",
+                "components are authored once each in ascending native ID order")
+        previous = row["native_id"]
+        opening = row.get("opening")
+        if opening is not None:
+            require(row["kind"] == "base" and row["pool"] == "common", "OpeningPool", identity,
+                    "only common base components are opening options")
+        if type(opening) is not str and opening is not None:
+            actives = opening["actives"]
+            require(len(set(actives)) == len(actives) and set(actives) <= set(abilities), "InvalidReference", identity,
+                    "opening actives are distinct known actives")
+            require(all(abilities[active]["opening"] for active in actives), "OpeningPool", identity,
+                    "an opening condition names actives of the opening pool")
+        _validate_component_effects(row, abilities, identity)
+
+
+def _validate_category_weights(progression):
+    """#198 B: one band per level range covering every level-up 2..max_level once, each a percentage split."""
+    expected = 2
+    for index, band in enumerate(progression["component_category_weights"]):
+        path = f"progression.component_category_weights[{index}]"
+        low, high = band["levels"]
+        require(low == expected and low <= high <= progression["max_level"], "CategoryWeights", path,
+                "bands must cover levels 2..max_level contiguously, ascending and exactly once")
+        require(sum(band[key] for key in CATEGORY_KEYS) == 100, "CategoryWeights", path,
+                "base, mod and connector percentages must add up to 100")
+        expected = high + 1
+    require(expected == progression["max_level"] + 1, "CategoryWeights", "progression.component_category_weights",
+            "bands must reach max_level")
+
+
 # #198 PR1 actives (CONTENT_AND_BALANCE): one value set each; (target mode, handlers).
 ACTIVE_CONTRACTS = {
     "active_elbow": ("Unit", {"damage", "knockback"}),
@@ -638,7 +748,7 @@ OPENING_OFFER_SIZE = 3
 
 def validate_definitions(data, ids):
     collections = {"character": [data["character"]], "abilities": data["abilities"], "stats": data["stats"],
-                   "monsters": data["camps"]["monsters"] + [data["boss"]]}
+                   "components": data["components"], "monsters": data["camps"]["monsters"] + [data["boss"]]}
     all_ids = set()
     for section, rows in collections.items():
         index = rows_by_id(rows, section)
@@ -674,8 +784,10 @@ def validate_definitions(data, ids):
     require(levels == sorted(set(levels)) and all(2 <= level <= progression["max_level"] for level in levels),
             "ActiveOfferLevels", "progression.active_offer_levels",
             "active offer levels must be distinct, ascending and reachable by levelling up")
+    _validate_category_weights(progression)
+    _validate_components(data, rows_by_id(data["abilities"], "abilities"))
 
-    for row in data["abilities"]:
+    for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
             effect["opcode"] = ids["effect_ops"][effect["op"]]
 
@@ -683,6 +795,7 @@ def validate_definitions(data, ids):
     expected_display = all_ids | set(ids["statuses"])
     require(set(display) == expected_display, "DisplayReference", "display", "missing or extra display definition")
     abilities = rows_by_id(data["abilities"], "abilities")
+    components = rows_by_id(data["components"], "components")
     names = set()
     for identity, row in display.items():
         require(row["name_key"] == identity + ".name" and row["description_key"] == identity + ".description"
@@ -696,6 +809,8 @@ def validate_definitions(data, ids):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
         if identity in abilities:
             card_template(row["description_text"], abilities[identity]["effects"], f"{identity}.description_text")
+        elif identity in components:
+            card_template(row["description_text"], components[identity]["effects"], f"{identity}.description_text")
         elif identity in stats:
             stat_template(row["description_text"], stats[identity]["per_point"], f"{identity}.description_text")
         require(row["name_text"] not in names, "DisplayText", identity, "duplicate display name")
@@ -806,6 +921,12 @@ def validate_numbers(data):
     require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
             and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
             "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
+    # #198 charms: each wave draws PerWave distinct kinds of the three (heal, mana, move speed) onto distinct airdrop
+    # points, and a charm leaves before the next wave of its points could reuse them.
+    require(params["CHARM.PerWave"] <= CHARM_KINDS and p("CHARM.LifetimeSec") <= p("CHARM.WaveIntervalSec")
+            and p("CHARM.PickupRadiusCm") > 0 and p("CHARM.HealMaxHPRatio") > 0 and p("CHARM.ManaMaxMPRatio") > 0
+            and p("CHARM.MoveSpeedRatio") > 0,
+            "InvalidPolicy", "CHARM", "a wave draws distinct kinds, lives inside one interval and every effect is positive")
     # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
     require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
             "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
@@ -832,6 +953,10 @@ def validate_numbers(data):
     # GROWTH.MaxLevelPointsXP beyond the top threshold grants GROWTH.MaxLevelPoints.
     checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
                 "GROWTH.OpeningPoints")
+    # #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
+    checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, checked_add(
+        params["GROWTH.PointsPerLevel"], params["GROWTH.EmptyComponentPoolPoints"], "GROWTH.EmptyComponentPoolPoints"),
+        "GROWTH.EmptyComponentPoolPoints"), "GROWTH.EmptyComponentPoolPoints")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),
@@ -905,7 +1030,7 @@ def _validate_build_envelope(data):
     grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
-    for row in data["abilities"]:
+    for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
             if effect["op"] != "mana_on_hit":
@@ -915,7 +1040,7 @@ def _validate_build_envelope(data):
                     for storage in ("p2", "bp"):
                         if storage in stat:
                             grow(stat[storage], row["id"])
-            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage", "dash_contact_damage"):
+            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage", "dash_contact_damage", "ledger"):
                 numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] != "shield":

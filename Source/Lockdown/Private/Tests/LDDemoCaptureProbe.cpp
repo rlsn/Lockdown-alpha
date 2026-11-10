@@ -660,7 +660,7 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry)
     { return Entry.Entry != ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); });
     int64 OpeningPoints = 0;
-    const bool bOpeningPoints = LDProgression::EarnedPoints(Defs, StartLevel, Defs.Progression.XPStart, OpeningPoints) == ELDGrowthReason::None;
+    const bool bOpeningPoints = LDProgression::EarnedPoints(Defs, StartLevel, Defs.Progression.XPStart, 0, OpeningPoints) == ELDGrowthReason::None;
     Check(Progress.Actives.IsEmpty() && Progress.PendingBlueprints.IsEmpty() && bOpeningPoints && Progress.UnspentPoints == OpeningPoints
         && !Progress.StatPoints.ContainsByPredicate([](const FLDStatPointsView& Row) { return Row.Points != 0; })
         && Progress.ActiveOpportunitiesEarned == 1 && Progress.ActiveOpportunitiesConsumed == 0 && Progress.QueuedActiveOpportunities == 1

@@ -6,9 +6,10 @@ facts. It reads the authority LD_* lines the Host log contract already defines; 
 decides an outcome itself. A definition that is not in the runtime catalog has no native handler and is unsupported.
 
 #198 growth: a plan fixes the active choice of each active opportunity (the opening one and one per level of
-progression.active_offer_levels reached). Learning blueprints and allocating points always follow the production AI rule
-(LDOpponentPolicy::DecideLearnOrAllocate); a plan cannot express them, nor replacements or rerolls, and such a plan is
-refused as UnsupportedDecision.
+progression.active_offer_levels reached). Learning blueprints, allocating points and (#198 B) the opening base component
+pick and every first component install always follow the production AI rule (LDOpponentPolicy::DecideFollowUpBuild); a
+plan cannot express them, nor replacements or rerolls, and such a plan is refused as UnsupportedDecision. Components are
+not evaluation mechanics yet: a plan naming one is UnsupportedMechanic.
 """
 
 import hashlib
@@ -18,7 +19,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 5
+ADAPTER_VERSION = 6
 # LDBuildEvaluation::MaxCases of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused before any run.
 NATIVE_MAX_CASES = 500
 NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
@@ -41,6 +42,8 @@ UNPLANNABLE = {
     "replace": "replace_active",
     "points": "allocate_points",
     "learn": "learn_blueprint",
+    "opening_base": "choose_opening_base",
+    "components": "install_component",
 }
 
 METRICS = {
@@ -118,6 +121,7 @@ def describe(project_root):
                 "evidence_level": "NativeSpatial",
                 "sample_classes": ["legal_search", "diagnostic"],
                 "sides": 2,
+                "budget_classes": ["standard"],
                 "metrics": list(METRICS),
                 "parameters": {"site": places, "duel_timeout_ms": [1000, boss_appear_ms],
                                "supply_xp": [0, cumulative_xp(progression)[-1]],
@@ -125,7 +129,8 @@ def describe(project_root):
                                "active_offer_levels": progression["active_offer_levels"]},
                 "description": ("A Listen Host of L_Demo runs one ordinary match per Case: the Host only orchestrates; two AI "
                                 "contenders choose their active offers along their plans from a T=0 XP supply, learn their "
-                                "blueprints and allocate their points by the production AI rule, walk to a public place and "
+                                "blueprints, allocate their points, pick their opening base component and enable their components by the "
+                                "production AI rule, walk to a public place and "
                                 "fight each other with the production engagement until a death or the duel timeout."),
             }
         },
@@ -769,8 +774,8 @@ def limitations(manifest, caps):
     out = [
         f"内容为当前运行目录 {caps['content']['version']}（{caps['content']['abilities']} 个主动技能、{caps['content']['stats']} 项属性）；"
         "目录外的机制一律 UnsupportedMechanic，不代表 v0.11 候选内容已被评估。",
-        "计划只规定每次主动机会选哪个主动（并总是请求立即学会）；学习图纸与分配属性点固定用生产 AI 规则，"
-        "替换主动、指定加点或指定学习的计划是 UnsupportedDecision。",
+        "计划只规定每次主动机会选哪个主动（并总是请求立即学会）；学习图纸、分配属性点、开局基础构件与启用构件固定用生产 AI 规则，"
+        "替换主动、指定加点、指定学习、指定开局构件或指定启用构件的计划是 UnsupportedDecision。",
         "对决双方使用同一个固定的 DEV 评估画像：按计划选择、走到公开地点、只攻击指定对手、不撤退；交战微操是生产 AI 的 Engage。"
         "结果反映固定策略下的机制差异，不代表玩家适应或六类策略画像。",
         "成长由 T=0 的经验供给推动（cause=dev_fixture，经正常奖励复合事务），是计划假设，不证明真实对局中能在同样时间拿到这些经验。",

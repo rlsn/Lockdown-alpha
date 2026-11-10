@@ -40,21 +40,43 @@ namespace LDCombatControl
         return Removed > 0;
     }
 
-    TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs)
+    void ArmEmpower(TArray<FLDCombatEmpower>& Armed, const FLDCombatEmpower& Package)
     {
-        TOptional<FLDCombatEmpower> Taken;
-        if (Armed.IsSet() && Armed->ExpiresAtMs > AtMs)
+        Armed.RemoveAll([&Package](const FLDCombatEmpower& Pending) { return Pending.Source == Package.Source; });
+        Armed.Add(Package);
+    }
+
+    bool ConsumeEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs, TArray<FLDCombatEmpower>& OutTaken, int64& OutSumP2)
+    {
+        OutTaken.Reset();
+        OutSumP2 = 0;
+        ExpireEmpowers(Armed, AtMs);
+        int64 Sum = 0;
+        for (const FLDCombatEmpower& Pending : Armed)
         {
-            Taken = Armed;
-            Taken->Charges = FMath::Max(Armed->Charges, 1) - 1;
-            if (Taken->Charges > 0)
-            {
-                Armed->Charges = Taken->Charges;
-                return Taken;
-            }
+            if (Pending.AmountP2 < 0 || Pending.AmountP2 > MAX_int64 - Sum) { return false; }
+            Sum += Pending.AmountP2;
         }
-        Armed.Reset();
-        return Taken;
+        for (int32 Index = Armed.Num() - 1; Index >= 0; --Index)
+        {
+            FLDCombatEmpower Taken = Armed[Index];
+            Taken.Charges = FMath::Max(Armed[Index].Charges, 1) - 1;
+            if (Taken.Charges > 0) { Armed[Index].Charges = Taken.Charges; }
+            else { Armed.RemoveAt(Index); }
+            OutTaken.Insert(Taken, 0);
+        }
+        OutSumP2 = Sum;
+        return true;
+    }
+
+    bool ExpireEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs)
+    {
+        return Armed.RemoveAll([AtMs](const FLDCombatEmpower& Pending) { return Pending.ExpiresAtMs <= AtMs; }) > 0;
+    }
+
+    bool DashCompleted(const FLDCombatVoluntaryDash& Dash, int64 AtMs, const FVector& FootCm)
+    {
+        return AtMs >= Dash.EndMs && FVector::Dist2D(Dash.StartFootCm, FootCm) > DashDisplacementEpsilonCm;
     }
 
     bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,

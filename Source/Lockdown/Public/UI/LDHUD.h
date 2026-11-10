@@ -142,6 +142,7 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
     UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
+    UPROPERTY() TObjectPtr<UTextBlock> CharmText;
     UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
     UPROPERTY() TObjectPtr<UTextBlock> BossText;
     // Top-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
@@ -212,7 +213,7 @@ private:
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // 开盲盒 button right above the band's left block (#97), with the growth panel it opens in the same row: disabled while
     // nothing is pending (LDHUD::GrowthPending) and no rest build window offers the rest services (#198); it pulses for a
-    // few seconds after the opportunities or points rise.
+    // few seconds after the opportunities, points or pending components rise.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
@@ -221,6 +222,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptOffers=0;
     int64 PromptPoints=0;
+    int32 PromptComponents=0;
     double PromptPulseAt=-1;
     float AppliedPromptWave=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;

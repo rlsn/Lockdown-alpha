@@ -13,6 +13,7 @@
 #include "UI/LDUIRoot.h"
 #include "UI/LDUIIcons.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
@@ -318,6 +319,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         AirdropText=OneLine(TEXT(""),15,520);AirdropText->SetJustification(ETextJustify::Center);
         AirdropText->SetColorAndOpacity(FSlateColor(ALDAirdropMarker::Color()));AirdropText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(AirdropText)->SetHorizontalAlignment(HAlign_Center);
+        // #198: the public charm line, in the move-speed charm's gold.
+        CharmText=OneLine(TEXT(""),15,520);CharmText->SetJustification(ETextJustify::Center);
+        CharmText->SetColorAndOpacity(FSlateColor(LDHUD::CharmColor(ELDCharmKind::MoveSpeed)));CharmText->SetVisibility(ESlateVisibility::Collapsed);
+        CircleBox->AddChildToVerticalBox(CharmText)->SetHorizontalAlignment(HAlign_Center);
         // D27: the public 上热搜 line, in the minimap circle's red.
         LeaderText=OneLine(TEXT(""),15,520);LeaderText->SetJustification(ETextJustify::Center);
         LeaderText->SetColorAndOpacity(FSlateColor(FLinearColor(1.f,.32f,.28f)));LeaderText->SetVisibility(ESlateVisibility::Collapsed);
@@ -370,6 +375,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
         ResultActions->AddChildToHorizontalBox(ReturnButton)->SetPadding(FMargin(0,0,12,0));
         ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("离开房间"),[PC](){if(PC->RootUI){PC->RootUI->LeaveRoom();}},false,TEXT("ResultLeaveRoom")));
+        // #198 §10: the own build blueprint of this match, read-only.
+        ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::BuildBlueprint,[PC](){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}},false,TEXT("ResultBuildBlueprint")))->SetPadding(FMargin(12,0,0,0));
         auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(720);ResultWidth->SetContent(ResultBox);
         ResultPanel=Panel(ResultWidth,true);Place(ResultPanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,0));ResultPanel->SetVisibility(ESlateVisibility::Collapsed);
 
@@ -894,6 +901,8 @@ void ULDHUD::RefreshReadModel()
     const int64 FieldNowMs=LDMatchTimeline::FieldNowFromView(Public.Timeline,NowMs);
     HudSetText(AirdropText,LDHUD::AirdropLine(Public.Airdrop,bClock,FieldNowMs));
     HudSetShown(AirdropText,!AirdropText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    HudSetText(CharmText,LDHUD::CharmLine(Public.Charms));
+    HudSetShown(CharmText,!CharmText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(LeaderText,LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
     HudSetShown(LeaderText,!LeaderText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     {
@@ -1087,16 +1096,17 @@ void ULDHUD::RefreshReadModel()
         }
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
-    const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match);
+    const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match,Content);
     // #198: in a rest build window the rest services (NPC, respec, replace, forget) keep the panel reachable without pending growth.
     const bool bRestServices=bOwnMatch&&LDProgression::StageForPublic(Public.Phase,Public.Timeline)==LDProgression::EMatchStage::Rest;
     const bool bPromptLit=Pending.Any()||bRestServices;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
     // The 开盲盒 button stays above the left block: greyed out and disabled while nothing is pending and no rest service is
-    // open (an open panel with nothing left closes itself), lit with the counts otherwise; after the opportunities or points
-    // rise it pulses at ~1 Hz for a few seconds.
-    if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints){PromptPulseAt=UiNow;}
-    PromptOffers=Pending.Offers;PromptPoints=Pending.Points;
+    // open (an open panel with nothing left closes itself), lit with the counts otherwise; after the opportunities, points or
+    // pending components rise it pulses at ~1 Hz for a few seconds.
+    const int32 PendingComponents=Pending.Components+(Pending.bOpeningBase?1:0);
+    if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
+    PromptOffers=Pending.Offers;PromptPoints=Pending.Points;PromptComponents=PendingComponents;
     HudSetText(PromptText,LDHUD::GrowthPrompt(Pending,bRestServices));
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     if(PromptButton->GetIsEnabled()!=bPromptLit){PromptButton->SetIsEnabled(bPromptLit);}

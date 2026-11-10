@@ -52,6 +52,13 @@ inline FString AirdropSoon(){return FString(Airdrop)+TEXT("即将落地 · 小�
 inline constexpr TCHAR AirdropLanded[]=TEXT("外卖到了 · 先到先得");
 inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！");}
 inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
+// 符咒（#198）：野外血量、蓝量、移速三种，落在外卖点上，走进去就拿到
+inline constexpr TCHAR Charm[]=TEXT("符咒");
+inline constexpr TCHAR CharmHeal[]=TEXT("血量符咒");
+inline constexpr TCHAR CharmMana[]=TEXT("蓝量符咒");
+inline constexpr TCHAR CharmMoveSpeed[]=TEXT("移速符咒");
+inline FString CharmsLying(const FString& Kinds){return FString(Charm)+TEXT("：")+Kinds+TEXT(" · 小地图彩色圆点");}
+inline FString CharmsAppeared(){return FString(Charm)+TEXT("出现了 · 走进去就能拿");}
 inline constexpr TCHAR Boss[]=TEXT("画饼老板");
 inline constexpr TCHAR BossBuff[]=TEXT("吃到大饼");
 inline FString BossCountdown(const FString& Name,const FString& Clock){return Name+TEXT(" ")+Clock+TEXT(" 后出现 · 小地图金色巡逻点");}
@@ -91,12 +98,35 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
 inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
-// 升级横幅的第二行：这次升级得到的属性点与主动机会。
-inline FString LevelUpGains(int64 Points,int32 Offers)
+// #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件；脱战后首次启用，休息时才能重新安装。
+inline constexpr TCHAR Component[]=TEXT("构件");
+inline constexpr TCHAR OpeningBase[]=TEXT("选一个开局基础构件");
+inline constexpr TCHAR TakeComponent[]=TEXT("拿这个");
+inline constexpr TCHAR Components[]=TEXT("构件（拿到后脱战启用）");
+inline constexpr TCHAR ComponentEnabled[]=TEXT("已启用");
+inline constexpr TCHAR EnableComponent[]=TEXT("启用");
+inline constexpr TCHAR ReinstallAtRest[]=TEXT("休息时才能重新安装");
+inline constexpr TCHAR ElementClosed[]=TEXT("该元素尚未开放");
+inline constexpr TCHAR NoBindableActive[]=TEXT("先学会一个能绑定的伤害技能");
+inline constexpr TCHAR PickBoundActive[]=TEXT("绑定哪个技能：");
+inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
+inline constexpr TCHAR CancelBinding[]=TEXT("取消");
+inline constexpr TCHAR ElementFire[]=TEXT("火");
+inline constexpr TCHAR ElementWater[]=TEXT("水");
+inline constexpr TCHAR ElementElectric[]=TEXT("电");
+inline FString ComponentsPending(int32 Count){return FString::Printf(TEXT("%s %d"),Component,Count);}
+inline FString ComponentTaken(const FString& Name){return FString::Printf(TEXT("已拿到%s：%s"),Component,*Name);}
+inline FString ComponentInstalled(const FString& Name){return FString::Printf(TEXT("已启用%s：%s"),Component,*Name);}
+inline FString ComponentStored(const FString& Name,const FString& Why)
+{return Why.IsEmpty()?ComponentTaken(Name):FString::Printf(TEXT("已拿到%s：%s，先存着（%s）"),Component,*Name,*Why);}
+inline FString ComponentRemoved(const FString& Name){return FString::Printf(TEXT("已拆下%s：%s"),Component,*Name);}
+// 升级横幅的第二行：这次升级得到的属性点、主动机会与构件（构件名用顿号连接，空表示没有）。
+inline FString LevelUpGains(int64 Points,int32 Offers,const FString& NewComponents)
 {
     TArray<FString> Parts;
     if(Points>0){Parts.Add(FString::Printf(TEXT("%lld %s"),Points,StatPoints));}
     if(Offers>0){Parts.Add(OfferChance(Offers));}
+    if(!NewComponents.IsEmpty()){Parts.Add(FString(Component)+TEXT("「")+NewComponents+TEXT("」"));}
     return Parts.IsEmpty()?FString():TEXT("获得 ")+FString::Join(Parts,TEXT(" · "));
 }
 inline FString OffersQueued(int32 Count){return FString::Printf(TEXT("还有 %d 次选技能"),Count);}
@@ -203,6 +233,20 @@ inline constexpr TCHAR Scoreboard[]=TEXT("排行榜");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
 inline constexpr TCHAR ResultAssists[]=TEXT("助攻");
+
+// 构筑蓝图（#198 §10）：局末本人只读记录，只保存配方，不授予能力；与学习用的“图纸”不是一回事。
+inline constexpr TCHAR BuildBlueprint[]=TEXT("构筑蓝图");
+inline constexpr TCHAR BlueprintReadOnly[]=TEXT("只读记录 · 只保存配方，不授予能力，也不会恢复遗忘的技能");
+inline constexpr TCHAR BlueprintExport[]=TEXT("导出文件");
+inline constexpr TCHAR BlueprintOpenFolder[]=TEXT("打开所在文件夹");
+inline constexpr TCHAR BlueprintImport[]=TEXT("导入查看");
+inline constexpr TCHAR BlueprintBack[]=TEXT("返回本局");
+inline constexpr TCHAR NotCollected[]=TEXT("未采集");
+// 按构筑版本汇总的事实，顺序与 ELDBlueprintFact 一致（LDBlueprintPanel.cpp 静态核对数量）。
+inline constexpr const TCHAR* BlueprintFactLabels[]={
+    TEXT("造成伤害"),TEXT("其中对玩家"),TEXT("承受伤害"),TEXT("自身护盾吸收"),TEXT("生命损失"),TEXT("一次性回复"),TEXT("获得护盾"),
+    TEXT("普攻"),TEXT("施法"),TEXT("自然回复"),TEXT("还款"),TEXT("减免"),TEXT("触发"),TEXT("拒绝"),
+};
 
 // 卡面关键词（#147，#198 删去横扫，见内容与数值 §4.5）：全局 12 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
 struct FCardKeyword { const TCHAR* Name; const TCHAR* Explain; };

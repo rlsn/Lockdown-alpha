@@ -1,6 +1,6 @@
 {
   "schema": "build_evaluation.manifest",
-  "schema_version": 1,
+  "schema_version": 2,
   "experiment": {
     "id": "e3-freeloader-fast-hands-interaction",
     "hypothesis": "吸血被动（passive_freeloader）与攻速属性卡（attr_fast_hands）相对等预算参考（attr_canteen / attr_protein）在固定策略对决中存在交互。"
@@ -215,8 +215,12 @@
     "material_difference": null
   },
   "budget": {
+    "class": "standard",
     "max_cases": 24,
     "case_wall_timeout_s": 180,
-    "run_wall_timeout_s": 1800
+    "run_wall_timeout_s": 1800,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944
   }
 }

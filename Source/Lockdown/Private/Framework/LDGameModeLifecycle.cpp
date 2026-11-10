@@ -112,6 +112,12 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
+    // #198: the field charms land on the airdrop points.
+    if (!LDCharms::Resolve(Airdrop, *DemoContent, Charms, Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
     // D27 (#79): the leader notice refreshes in field progress T as well.
     if (!LDLeaderNotice::Resolve(*DemoContent, 0, MatchContext.LedgerMatch, LeaderNotice, Error))
     {
@@ -139,6 +145,7 @@ void ALDGameMode::RetireMatchDomains()
     CaptureCircle={};
     DormZones={};
     Airdrop={};
+    Charms={};
     LeaderNotice={};
     CaptureTracks.Reset();
     PendingCapture.Reset();

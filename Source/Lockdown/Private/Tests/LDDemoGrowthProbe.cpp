@@ -2724,8 +2724,9 @@ public:
         uint8 ExpectedLevel = 0;
         const ELDGrowthReason LevelReason = LDProgression::LevelForXP(Defs.Progression, KillBefore.CumulativeXP + KillXP, ExpectedLevel);
         int64 EarnedPoints = 0;
+        // The 18 common bases outnumber every component a match can grant, so no level-up of this probe pays the exhausted-pool points.
         const ELDGrowthReason PointsReason = LevelReason != ELDGrowthReason::None ? LevelReason
-            : LDProgression::EarnedPoints(Defs, ExpectedLevel, KillBefore.CumulativeXP + KillXP, EarnedPoints);
+            : LDProgression::EarnedPoints(Defs, ExpectedLevel, KillBefore.CumulativeXP + KillXP, 0, EarnedPoints);
         int64 Allocated = 0;
         for (const FLDStatPointsView& Row : ProgView.StatPoints) { Allocated += Row.Points; }
         const uint8 ExpectedOpportunities = LevelReason == ELDGrowthReason::None

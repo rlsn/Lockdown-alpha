@@ -54,6 +54,24 @@ struct FLDLeaderView
     UPROPERTY() int64 RefreshedAtMs = 0;
 };
 
+// #198 field charms: heal (max HP share), mana (max MP share) and a timed move-speed bonus. Wire values are stable.
+UENUM()
+enum class ELDCharmKind : uint8 { None = 0, Heal = 1, Mana = 2, MoveSpeed = 3 };
+
+// #198: one charm lying on a public airdrop point, public to every connection like the airdrop. Serial is its 1-based
+// number in this match; ExpireAtFieldMs is the field progress T at which it leaves unclaimed. A claim only removes it:
+// the public view never names who took it.
+USTRUCT()
+struct FLDCharmView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() ELDCharmKind Kind = ELDCharmKind::None;
+    UPROPERTY() FName PointId;
+    UPROPERTY() FVector PositionCm = FVector::ZeroVector;
+    UPROPERTY() int64 ExpireAtFieldMs = 0;
+};
+
 // D26 (#79) 画饼老板 Boss, public to every connection: when it appears and who landed the last hit. Its body is seen only
 // through the ordinary fog of war, never through this view.
 USTRUCT()
@@ -99,6 +117,8 @@ struct FLDPublicMatchView
     UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
     UPROPERTY() FLDAirdropView Airdrop;
+    // #198: the charms lying in the field now, in serial order.
+    UPROPERTY() TArray<FLDCharmView> Charms;
     UPROPERTY() FLDLeaderView Leader;
     UPROPERTY() FLDBossView Boss;
     // #198: the outer timeline (rest steps, field segment and T).

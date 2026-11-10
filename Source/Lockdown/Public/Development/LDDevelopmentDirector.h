@@ -27,6 +27,8 @@ public:
     const FLDProgressionState& Progression() const { return NewProgression; }
     bool ChangesBuild() const { return NewBuild.Revision != ExpectedBuildRevision; }
     uint8 LevelBefore() const { return OldLevel; }
+    // #198 B: the component of each normal level-up this change crosses, in level order (None: points instead).
+    const TArray<FLDComponentGrant>& ComponentGrants() const { return Grants; }
 
     // Records what Combat will have installed once the caller applies its prepared projection.
     void SetCombatInstall(const FLDExpectedBuildVersions& Installed) { bCombatInstall = true; CombatInstall = Installed; }
@@ -40,6 +42,7 @@ private:
     uint8 OldLevel = 0;
     FLDGrowthBuild NewBuild;
     FLDProgressionState NewProgression;
+    TArray<FLDComponentGrant> Grants;
     bool bCombatInstall = false;
     FLDExpectedBuildVersions CombatInstall;
 };
@@ -69,8 +72,9 @@ struct FLDPendingGrowthIntent
 };
 
 // N04 growth owner (#198): level/XP, derived points, their allocation and the permanent rest spend, Q/W/E actives, pending
-// blueprints and the active opportunity queue (level and NPC opportunities) with its one current offer. Contender records
-// persist across deaths and are rebuilt only by a new match.
+// blueprints, the active opportunity queue (level and NPC opportunities) with its one current offer, and (#198 B) the owned
+// component instances with their install state and first-install history. Contender records persist across deaths and are
+// rebuilt only by a new match.
 UCLASS()
 class LOCKDOWN_API ALDDevelopmentDirector : public AActor
 {
@@ -96,8 +100,9 @@ public:
     FLDBuildReceipt CommitPendingBuild(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
     // ---- Composite-commit parts for rewards ----
-    // Cumulative XP, level and one active opportunity per active_offer_levels entry reached (NPC purchases carry over);
-    // BuildRevision advances only with the level. The points follow from the level and XP.
+    // Cumulative XP, level, one active opportunity per active_offer_levels entry reached (NPC purchases carry over) and
+    // (#198 B) one component per normal level-up crossed (or the exhausted-pool points); BuildRevision advances only with the
+    // level. The points follow from the level, XP and exhausted-pool grants.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
     // No-fail: installs the prepared build/progression and draws the queue head when one is due.
     void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
@@ -132,8 +137,8 @@ public:
     ELDGrowthReason DevAllocatePoints(const FGuid& ContenderId, FName StatId, int64 Amount, const FLDGameplayWritePermit& Permit,
         FString& Detail);
     // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no
-    // actives, blueprints, allocated or permanently spent points, the opening opportunity only (none consumed or bought, no
-    // records) and a fresh opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer
+    // actives, blueprints, components, allocated or permanently spent points, the opening opportunity only (none consumed or
+    // bought, no records) and a fresh opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer
     // revisions keep rising, so every in-flight command of the old state is refused as stale; request streams and receipts
     // stay.
     FLDPrepareGrowthResult DevPrepareReset(const FGuid& ContenderId) const;
@@ -157,7 +162,8 @@ private:
     // no eligible active the opportunity keeps waiting without an offer.
     void DrawHead(const FGuid& ContenderId, FRecord& Record);
     // Installs NewBuild (and NewProgression when bProgressionChanged) with the next revisions and the Combat projection
-    // when the build changes what Combat sees (level, points or learned actives), all prepared before anything is written,
+    // when the build changes what Combat sees (level, points, learned actives or installed components), all prepared before
+    // anything is written,
     // then draws a due head. None when installed; a rejection reason when nothing changed; AuthorityFault when the domain
     // or the permit was lost before the install.
     ELDGrowthReason InstallBuild(const FGuid& ContenderId, FRecord& Record, FLDGrowthBuild&& NewBuild,

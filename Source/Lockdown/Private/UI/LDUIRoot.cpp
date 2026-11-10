@@ -1,6 +1,7 @@
 #include "UI/LDUIRoot.h"
 #include "Core/LDLog.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
@@ -277,6 +278,11 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     LobbyFeedback=Label(FString(),16);
     Add(Lobby,LobbyFeedback,4);
     Add(Lobby,Label(TEXT("最多 3 名真人（含房主）与 0–3 个 AI，空位不会自动补满；成员或 AI 数量变化会清除真人准备。"),15,MutedColor),6);
+    // #198 §10: the own last build blueprint and the read-only import view, outside any match.
+    Add(Lobby,MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
+    {
+        if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}}
+    }),8);
     Add(Lobby,MakeButton(TEXT("离开房间"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
 
     UVerticalBox* Menu=nullptr;

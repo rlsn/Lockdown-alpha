@@ -1188,17 +1188,17 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
 
     // The 开盲盒 button: queued opportunities, unspent points and learnable blueprints of the current match's own view.
     FLDProgressionView View;View.bValid=true;View.Generation=5;View.QueuedActiveOpportunities=2;View.UnspentPoints=3;
-    LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&View,5);
+    LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&View,5,nullptr);
     TestTrue(TEXT("Offers and points light the button with their counts"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT("+2 · 3点"));
-    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&View,4).Any()||LDHUD::GrowthPending(nullptr,5).Any());
+    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&View,4,nullptr).Any()||LDHUD::GrowthPending(nullptr,5,nullptr).Any());
     View.QueuedActiveOpportunities=0;View.UnspentPoints=0;View.PendingBlueprints={FName(TEXT("active_elbow"))};
-    Pending=LDHUD::GrowthPending(&View,5);
+    Pending=LDHUD::GrowthPending(&View,5,nullptr);
     TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT(" · 图纸 1"));
     for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
-    TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5).Any());
-    TestEqualSensitive(TEXT("#198: nothing pending in a rest build window still offers the rest services"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5),true),
+    TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5,nullptr).Any());
+    TestEqualSensitive(TEXT("#198: nothing pending in a rest build window still offers the rest services"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5,nullptr),true),
         FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::RestServices);
-    TestEqualSensitive(TEXT("Outside a rest nothing pending reads as the plain button"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5),false),FString(LDTerms::Choice));
+    TestEqualSensitive(TEXT("Outside a rest nothing pending reads as the plain button"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5,nullptr),false),FString(LDTerms::Choice));
     TestTrue(TEXT("The slot reads come from the view"),LDHUD::ActiveInSlot(View,1)==FName(TEXT("held_1"))&&LDHUD::SlotKey(1)==TEXT("W"));
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
@@ -1216,6 +1216,128 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A view of another match opens nothing"),AutoOpen.Observe(Growth,8));
     Growth.Generation=8;Growth.ActiveOffer.OpportunityOrdinal=1;Growth.ActiveOffer.OfferId=FGuid::NewGuid();
     TestTrue(TEXT("A new match's opening offer opens it again"),AutoOpen.Observe(Growth,8));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDComponentsTest,"Lockdown.Rules.HUDComponents",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
+{
+    // #198 B growth panel: the 启用 button of each owned component and its disabled reason, as growth would judge it (a hint
+    // only; the server decides each command). A private fixture catalog keeps the rule apart from the approved content.
+    FLDDemoContentDefinitions Content;
+    const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
+    {
+        FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
+        Row.Id=Id;Row.NativeId=uint8(Content.Components.Num());Row.Kind=Kind;
+        FLDDemoEffectDefinition& Effect=Row.Effects.AddDefaulted_GetRef();Effect.Element=Element;
+        return Row;
+    };
+    AddComponent(TEXT("hud_fixture_fist"),ELDDemoComponentKind::Base,ELDDemoElement::None);
+    AddComponent(TEXT("hud_fixture_wet"),ELDDemoComponentKind::Base,ELDDemoElement::Water);
+    AddComponent(TEXT("hud_fixture_shock"),ELDDemoComponentKind::Base,ELDDemoElement::Electric);
+    // The reference is used before the next row is added (adding may move the array).
+    FLDDemoComponentDefinition& Trick=AddComponent(TEXT("hud_fixture_trick"),ELDDemoComponentKind::Base,ELDDemoElement::None);
+    Trick.Binding=ELDDemoComponentBinding::ActiveElement;Trick.BindActives={TEXT("hud_fixture_bolt")};
+    Trick.BindElements={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric};
+    AddComponent(TEXT("hud_fixture_mod"),ELDDemoComponentKind::Mod,ELDDemoElement::None);
+    const auto Owned=[](const TCHAR* Id,bool bInstalled=false,bool bEver=false)
+    {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=bInstalled;View.bEverInstalled=bEver||bInstalled;return View;};
+    FLDProgressionView View;View.bValid=true;View.Generation=9;
+    const LDHUD::FBuildGateView Safe=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Alive,1000,true,1000);
+    const LDHUD::FBuildGateView Unsafe=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Alive,3400,true,1000);
+    const LDHUD::FBuildGateView Dead=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Dead,0,true,1000);
+    const LDHUD::FBuildGateView Rest=LDHUD::BuildGate(LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,99999,true,1000);
+    TestTrue(TEXT("A first install follows the learn matrix: the rest window and a safe body, not an unsafe or dead one"),
+        Safe.bCanInstall&&Rest.bCanInstall&&!Unsafe.bCanInstall&&!Dead.bCanInstall);
+    TestFalse(TEXT("Outside the rest window nothing installed before moves again"),Safe.bCanReinstall);
+    TestTrue(TEXT("In the rest window a once-installed component moves again"),Rest.bCanReinstall);
+    const auto Row=[&](const FLDComponentInstanceView& Instance,const LDHUD::FBuildGateView& Gate,int64 SafeAtMs)
+    {return LDHUD::ComponentRow(Instance,View,&Content,Gate,SafeAtMs,true,1000);};
+
+    LDHUD::FComponentRowView Shown=Row(Owned(TEXT("hud_fixture_fist")),Safe,1000);
+    TestTrue(TEXT("A fresh base component out of combat can be enabled"),Shown.bCanEnable&&!Shown.bInstalled&&Shown.Blocked.IsEmpty());
+    Shown=Row(Owned(TEXT("hud_fixture_fist")),Unsafe,3400);
+    TestTrue(TEXT("In combat the button waits with the countdown"),!Shown.bCanEnable&&Shown.Blocked==TEXT("未脱战 2.4 秒"));
+    Shown=Row(Owned(TEXT("hud_fixture_fist")),Dead,0);
+    TestTrue(TEXT("A dead contender cannot enable it"),!Shown.bCanEnable&&Shown.Blocked==LDTerms::DeadNoLearn);
+    Shown=Row(Owned(TEXT("hud_fixture_fist"),false,true),Safe,1000);
+    TestTrue(TEXT("A once-installed component waits for the rest window"),!Shown.bCanEnable&&Shown.Blocked==LDTerms::ReinstallAtRest);
+    Shown=Row(Owned(TEXT("hud_fixture_fist"),true),Safe,1000);
+    TestTrue(TEXT("An installed component reads as enabled, without a button"),Shown.bInstalled&&!Shown.bCanEnable&&Shown.Blocked.IsEmpty());
+    for(const TCHAR* Closed:{TEXT("hud_fixture_wet"),TEXT("hud_fixture_shock")})
+    {
+        Shown=Row(Owned(Closed),Rest,0);
+        TestTrue(FString(TEXT("Water and electric stay closed even in the rest window: "))+Closed,!Shown.bCanEnable&&Shown.Blocked==LDTerms::ElementClosed);
+    }
+    Shown=Row(Owned(TEXT("hud_fixture_trick")),Safe,1000);
+    TestTrue(TEXT("A binding component without a bindable learned active says so"),!Shown.bCanEnable&&Shown.bBinding&&Shown.Blocked==LDTerms::NoBindableActive);
+    FLDActiveSlotView& Bolt=View.Actives.AddDefaulted_GetRef();Bolt.DefinitionId=TEXT("hud_fixture_bolt");Bolt.Slot=1;
+    FLDActiveSlotView& Other=View.Actives.AddDefaulted_GetRef();Other.DefinitionId=TEXT("hud_fixture_other");Other.Slot=0;
+    Shown=Row(Owned(TEXT("hud_fixture_trick")),Safe,1000);
+    TestTrue(TEXT("With a bindable learned active it can be enabled (the panel then asks for the binding)"),Shown.bCanEnable&&Shown.bBinding);
+    TestTrue(TEXT("Only the learned actives its binding lists are offered"),LDHUD::BindableActives(Content.Components[3],View)==TArray<FName>{FName(TEXT("hud_fixture_bolt"))});
+    TestEqualSensitive(TEXT("A mod has no target before #198 F"),Row(Owned(TEXT("hud_fixture_mod")),Safe,1000).Blocked,LDHUD::GrowthReasonText(ELDGrowthReason::InvalidTarget));
+    TestEqualSensitive(TEXT("An unknown component is never shown as enabled or enable-able"),Row(Owned(TEXT("hud_fixture_unknown")),Safe,1000).Blocked,
+        FString(TEXT("内容目录中找不到该构件")));
+    TestTrue(TEXT("Only fire is open among the binding elements"),LDHUD::ElementGate(ELDDemoElement::Fire)==ELDGrowthReason::None
+        &&LDHUD::ElementGate(ELDDemoElement::Water)==ELDGrowthReason::ElementUnsupported&&LDHUD::ElementGate(ELDDemoElement::Electric)==ELDGrowthReason::ElementUnsupported);
+    TestTrue(TEXT("Element names"),LDHUD::ElementName(ELDDemoElement::Fire)==LDTerms::ElementFire&&LDHUD::ElementName(ELDDemoElement::Water)==LDTerms::ElementWater
+        &&LDHUD::ElementName(ELDDemoElement::Electric)==LDTerms::ElementElectric);
+
+    // Every #198 B reason names itself; none falls through to the unknown line.
+    for(const ELDGrowthReason Reason:{ELDGrowthReason::NotOwned,ELDGrowthReason::AlreadyInstalled,ELDGrowthReason::NotInstalled,ELDGrowthReason::RestOnly,
+        ELDGrowthReason::InvalidTarget,ELDGrowthReason::ElementUnsupported,ELDGrowthReason::OpeningBaseUnavailable,ELDGrowthReason::OpeningBaseTaken,
+        ELDGrowthReason::OpeningActiveFirst})
+    {
+        const FString Text=LDHUD::GrowthReasonText(Reason);
+        TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因")));
+    }
+    TestEqualSensitive(TEXT("RestOnly reads as the rest-window rule"),LDHUD::BuildBlockedText(ELDGrowthReason::RestOnly,0,true,0),FString(LDTerms::ReinstallAtRest));
+
+    // Receipt lines: an opening pick enabled or kept with the reason, an install, an uninstall and a refusal.
+    FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Kind=ELDBuildCommandKind::OpeningBase;
+    Receipt.ComponentId=TEXT("hud_fixture_fist");Receipt.bComponentInstalled=true;
+    TestEqualSensitive(TEXT("An opening pick enabled at once"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
+    Receipt.bComponentInstalled=false;Receipt.InstallStoredReason=uint16(ELDGrowthReason::NotSafe);
+    TestEqualSensitive(TEXT("An opening pick kept for later names the wait"),LDHUD::BuildReceiptText(Receipt,nullptr,2500,true,1000),
+        LDTerms::ComponentStored(TEXT("hud_fixture_fist"),TEXT("未脱战 1.5 秒")));
+    Receipt.InstallStoredReason=uint16(ELDGrowthReason::ElementUnsupported);
+    TestEqualSensitive(TEXT("A closed element keeps it stored"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        LDTerms::ComponentStored(TEXT("hud_fixture_fist"),LDTerms::ElementClosed));
+    Receipt.Kind=ELDBuildCommandKind::InstallComponent;Receipt.bComponentInstalled=true;Receipt.InstallStoredReason=0;
+    TestEqualSensitive(TEXT("An install names the component"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
+    Receipt.bComponentInstalled=false;
+    TestEqualSensitive(TEXT("An applied install that installed nothing never claims success"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        FString(TEXT("回执缺少结果，请以当前状态为准。")));
+    Receipt.Kind=ELDBuildCommandKind::UninstallComponent;
+    TestEqualSensitive(TEXT("An uninstall names the component"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentRemoved(TEXT("hud_fixture_fist")));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::OpeningActiveFirst);
+    TestEqualSensitive(TEXT("A refused component command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+        TEXT("没有生效：")+LDHUD::GrowthReasonText(ELDGrowthReason::OpeningActiveFirst));
+
+    // The 开盲盒 button counts the opening pick and the components that could be enabled; closed or moved ones wait.
+    FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=9;
+    Pending.bOpeningBasePending=true;Pending.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
+    Pending.Components={Owned(TEXT("hud_fixture_wet")),Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_shock"),false,true)};
+    LDHUD::FGrowthPending Counted=LDHUD::GrowthPending(&Pending,9,&Content);
+    TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase&&Counted.Components==0
+        &&Counted.Prompt()==FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::ComponentsPending(1));
+    Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();Pending.Components.Add(Owned(TEXT("hud_fixture_fist")));
+    Counted=LDHUD::GrowthPending(&Pending,9,&Content);
+    TestTrue(TEXT("A fresh enable-able component lights it"),Counted.Any()&&Counted.Components==1);
+    Pending.Components.Last().bInstalled=Pending.Components.Last().bEverInstalled=true;
+    TestFalse(TEXT("Nothing left to enable lights nothing"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
+
+    // Auto-open: the opening base pick once; a new component from a level-up only lights the button (no fight cover).
+    LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=11;
+    TestFalse(TEXT("An empty first view opens nothing"),AutoOpen.Observe(Growth,11));
+    Growth.bOpeningBasePending=true;Growth.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
+    TestTrue(TEXT("The opening base pick opens the panel"),AutoOpen.Observe(Growth,11));
+    TestFalse(TEXT("The same pick does not open it again"),AutoOpen.Observe(Growth,11));
+    Growth.bOpeningBasePending=false;Growth.OpeningBaseOptions.Reset();Growth.Components={Owned(TEXT("hud_fixture_fist"),true)};
+    TestFalse(TEXT("A pick enabled at once opens nothing"),AutoOpen.Observe(Growth,11));
+    Growth.Components.Add(Owned(TEXT("hud_fixture_trick")));
+    TestFalse(TEXT("A new component from a level-up opens nothing"),AutoOpen.Observe(Growth,11));
     return true;
 }
 

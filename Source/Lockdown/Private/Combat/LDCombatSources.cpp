@@ -112,6 +112,7 @@ namespace LDCombatSourcesDetail
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
         FLDAttributeBuildValues Values(Build.Level,Build.StatPoints);
+        Values.Components=Build.Components;
         Values.DevBonuses=Build.DevBonuses;
         return LDAttributeProjection::Project(Values,Content);
     }
@@ -701,7 +702,9 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
             *Prepared.Contender.ToString()));
         return;
     }
+    const FLDBuildProjectionInput Previous=Record->Build;
     Record->Build=Prepared.Input;
+    LedgerBuildInstalled(Prepared.Contender,Previous);
     if (Body && Body->ChannelEffectId.IsValid())
     {
         const auto* Channel=Channels.FindByPredicate([Body](const auto& Row) { return Row.Payload.EffectId==Body->ChannelEffectId; });
@@ -834,12 +837,18 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 SilenceStatus.ExpiresAtMs=SilencedUntilMs;
                 SilenceStatus.ControlBlocks=LDCombatControl::SilenceBlockBits();
             }
-            // An armed next-basic bonus (empower_basic) is the owner's Empowered status.
-            if (Body->Empower.IsSet() && Body->Empower->ExpiresAtMs>NowMs)
+            // The pending empowered-basic packages (empower_basic: S11, S17, B12) are the owner's one Empowered status, until
+            // the latest of them lapses.
+            int64 EmpoweredUntilMs=0;
+            for (const FLDCombatEmpower& Package : Body->Empowers)
+            {
+                if (Package.ExpiresAtMs>NowMs) { EmpoweredUntilMs=FMath::Max(EmpoweredUntilMs,Package.ExpiresAtMs); }
+            }
+            if (EmpoweredUntilMs>0)
             {
                 FLDCombatStatusView& EmpowerStatus=Out.Statuses.AddDefaulted_GetRef();
                 EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
-                EmpowerStatus.ExpiresAtMs=Body->Empower->ExpiresAtMs;
+                EmpowerStatus.ExpiresAtMs=EmpoweredUntilMs;
             }
             if (Body->Shield.IsSet() && Body->Resources.ShieldP2>0)
             {
@@ -927,13 +936,16 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Base=Row.Base;
         RowView.Level=Row.LevelGrowth.Flat;
         RowView.Choices=Row.PermanentChoices.Flat;
+        RowView.Components=Row.Components.Flat;
         RowView.Dev=Row.Dev.Flat;
         RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
         RowView.TemporaryPercent=Row.Temporary.AdditiveRatio;
         RowView.Final=Row.Final;
         RowView.bClamped=Row.bClamped;
-        if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus))
+        FLDDemoRational BuildPercent;
+        if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,BuildPercent)
+            || !LDCombatSourcesDetail::AddRatios(BuildPercent,Row.Components.AdditiveRatio,RowView.PercentBonus))
         {
             UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_OWNER_VIEW_RATIO contender=%s attribute=%u"),
                 *Caller.EntityId.ToString(),uint32(Row.Attribute));
@@ -1039,13 +1051,13 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->TimedBonuses.Reset();
     Body->Disarms.Reset();
     Body->Stuns.Reset();
-    Body->Empower.Reset();
+    Body->Empowers.Reset();
     Body->Shield.Reset();
-    // #147 keyword records end with the reset too (the camp's burn clears on its return).
+    // #147 keyword records end with the reset too (the camp's burn clears on its return), and so do the ledgers on it.
     Body->Silences.Reset();
     Body->SharedBreach=FLDCombatSharedBreach();
     Body->Burn=FLDCombatBurn();
-    Body->ShieldBurst.Reset();
+    Body->Ledgers.Reset();
     // The #112 knockback window ends with the reset too.
     Body->Knockbacks.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);

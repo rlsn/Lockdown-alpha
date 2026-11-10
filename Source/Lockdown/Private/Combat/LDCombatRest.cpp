@@ -151,19 +151,23 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.Silences.Reset();
     Body.Knockbacks.Reset();
     Body.AttackSlows.Reset();
-    Body.Empower.Reset();
+    Body.Empowers.Reset();
+    Body.Ledgers.Reset();
+    Body.VoluntaryDash.Reset();
+    Body.LandedBasics=0;
     Body.ThornsMarks.Reset();
     Body.AssistContributions.Reset();
     Body.Taunt.Reset();
-    Body.ShieldBurst.Reset();
     Body.SharedBreach={};
     Body.Burn={};
     // A new phase is a new fight: the hard-control diminishing returns start over (approved §9).
     Body.HardControl={};
     Body.DashContact.Reset();
     Body.DashUntilMs=0;
-    Body.SlowResistanceUntilMs=0;
-    Body.SlowResistanceBp=0;
+    // Component rests are cooldowns too: every one is ready in the new phase.
+    Body.RetortReadyAtMs=0;
+    Body.DamagedShieldReadyAtMs=0;
+    Body.ContactRefundReadyAtMs=0;
     Body.ChannelEffectId={};
     Body.ChannelDirectSequence=0;
     Body.ChannelStartedAtMs=0;
