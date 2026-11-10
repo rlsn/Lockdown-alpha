@@ -865,6 +865,9 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoAbilityValues& V
     case EField::Delay: Out=HudDecimal(double(Effect->DelayMs)/1000.);return true;
     case EField::SecondaryRatio: Out=HudDecimal(double(Effect->SecondaryRatioBp)/100.);return true;
     case EField::SecondaryDuration: Out=HudDecimal(double(Effect->SecondaryDurationMs)/1000.);return true;
+    case EField::Multiplier: Out=HudDecimal(double(Effect->MultiplierBp)/100.);return true;
+    case EField::CostRatio: Out=HudDecimal(double(Effect->CostRatioBp)/100.);return true;
+    case EField::Angle: Out=HudRational(Effect->AngleDegrees);return true;
     case EField::Stat:
     {
         const FLDDemoStatBonus* Stat=Effect->Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S){return S.Stat==Token.Stat;});

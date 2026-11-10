@@ -60,12 +60,25 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
                        "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
-                       "ledger", "basic_element", "basic_damage_scale", "idle_ready_amp", "active_element"))
+                       "ledger", "basic_element", "basic_damage_scale", "idle_ready_amp", "active_element",
+                       *("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
+                         "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
+                         "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
+                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_mana",
+                         "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base")))
+# #198 F: the operations of mods (M01-M12) and connectors (C01-C12); they act on the install target the component names.
+WORKSHOP_OPS = frozenset(("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
+                          "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
+                          "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
+                          "fire_shield", "knockback_impact", "dash_contact_refund", "contact_knockback", "control_mark",
+                          "aftershock", "control_mana", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
+                          "extra_base"))
 # #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
 # and empower_basic also have an active form; the rest are component-only and no active may carry them.
 COMPONENT_OPS = frozenset(("burn", "breach", "empower_basic", "ledger", "thorns", "lifesteal", "dash_contact_damage",
                            "nth_basic_bonus", "control_damage_amp", "triggered_shield", "basic_element", "stat_bonus",
-                           "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element"))
+                           "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element",
+                           *WORKSHOP_OPS))
 COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"}
 ELEMENTS = ("fire", "water", "electric")
 CATEGORY_KEYS = ("base", "mod", "connector")
@@ -695,6 +708,38 @@ def _validate_components(data, abilities):
             require(all(abilities[active]["opening"] for active in actives), "OpeningPool", identity,
                     "an opening condition names actives of the opening pool")
         _validate_component_effects(row, abilities, identity)
+    _validate_component_targets(data, abilities)
+
+
+def _validate_component_targets(data, abilities):
+    """#198 F: a mod or connector names the install targets it accepts; a base component names none."""
+    kinds = {row["id"]: row["kind"] for row in data["components"]}
+    for row in data["components"]:
+        identity = row["id"]
+        targets = row.get("targets")
+        ops = {effect["op"] for effect in row["effects"]}
+        require((targets is not None) == (row["kind"] != "base"), "ComponentTargets", identity,
+                "mods and connectors name their install targets; base components take none")
+        require(row["kind"] == "base" or not ops - WORKSHOP_OPS, "ComponentEffect", identity,
+                "a mod or connector carries only workshop operations")
+        require(row["kind"] != "base" or not ops & WORKSHOP_OPS, "ComponentEffect", identity,
+                "a base component carries no workshop operation")
+        if targets is None:
+            continue
+        require("binding" not in row and "opening" not in row, "ComponentTargets", identity,
+                "a mod or connector has no opening condition or active/element binding")
+        for key, known in (("actives", abilities), ("components", kinds)):
+            names = targets.get(key, [])
+            require(len(set(names)) == len(names) and set(names) <= set(known) and identity not in names, "InvalidReference",
+                    identity, f"install {key} are distinct known definitions other than itself")
+        require(all(kinds[name] != "mod" for name in targets.get("components", [])), "ComponentTargets", identity,
+                "a mod is no install target")
+        bases = targets.get("bases", [])
+        require(("extra_base" in ops) == bool(bases), "ComponentTargets", identity, "extra_base and its base list come together")
+        require(len(set(bases)) == len(bases) and all(kinds.get(name) == "base" for name in bases), "InvalidReference", identity,
+                "extra_base names distinct base components")
+        require(not targets.get("self") or set(targets) == {"self"}, "ComponentTargets", identity,
+                "a self-installed mod takes no other target")
 
 
 def _validate_category_weights(progression):
@@ -817,7 +862,8 @@ def validate_definitions(data, ids):
 
 
 CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
-                         "secondary_ratio", "secondary_duration", "basic_count", "refund", "burst", "limit"))
+                         "secondary_ratio", "secondary_duration", "basic_count", "refund", "burst", "limit",
+                         "multiplier", "angle", "cost_ratio"))
 CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
 # A stat card names one bonus of its single point: [per_point.<Stat>].
 PER_POINT = "per_point"

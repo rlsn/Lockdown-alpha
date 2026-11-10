@@ -20,7 +20,9 @@ namespace LDDemoCardText
         // shield's burst).
         BasicCount, Refund, Burst,
         // One stat of the effect's Stats, or of a stat's PerPoint.
-        Stat, Limit
+        Stat, Limit,
+        // #198 F: MultiplierBp and CostRatioBp as percents, AngleDegrees in degrees.
+        Multiplier, Angle, CostRatio
     };
 
     struct FToken

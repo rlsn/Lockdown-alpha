@@ -147,7 +147,7 @@ def effect(value):
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
         "Trigger": 0, "Entries": 0, "AmountMs": 0,
         "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
-        "LimitP2": 0, "Element": 0,
+        "LimitP2": 0, "Element": 0, "AngleDegrees": rational(), "CostRatioBp": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -160,6 +160,9 @@ def effect(value):
         ("hp_below", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
         ("lifesteal", "SecondaryRatioBp"), ("outer_ratio", "RatioBp"),
         ("mana_ratio", "SecondaryRatioBp"), ("mana_cap", "LimitP2"), ("slow_resistance", "SecondaryRatioBp"),
+        # #198 F workshop terms.
+        ("damage_ratio", "MultiplierBp"), ("cooldown_ratio", "SecondaryRatioBp"), ("cost_ratio", "CostRatioBp"),
+        ("stun_duration", "SecondaryDurationMs"), ("root_duration", "SecondaryDurationMs"), ("cap_ratio", "MultiplierBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
@@ -169,7 +172,8 @@ def effect(value):
     if "basic_stacks" in value:
         result["BasicCount"] = value["basic_stacks"]
     for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"), ("burst_radius", "RadiusCm"),
-                         ("inner_radius", "DistanceCm"), ("trigger_radius", "DistanceCm")):
+                         ("inner_radius", "DistanceCm"), ("trigger_radius", "DistanceCm"), ("range_cap", "RadiusCm"),
+                         ("angle", "AngleDegrees")):
         if source in value:
             result[dest] = rational(value[source])
     if "damage_type" in value:
@@ -205,6 +209,10 @@ def component(row):
         "Binding": COMPONENT_BINDINGS.index(None if binding is None else binding["kind"]),
         "BindActives": [] if binding is None else list(binding["actives"]),
         "BindElements": [] if binding is None else [ELEMENTS.index(element) for element in binding["elements"]],
+        "TargetActives": list(row.get("targets", {}).get("actives", [])),
+        "TargetComponents": list(row.get("targets", {}).get("components", [])),
+        "bTargetDash": bool(row.get("targets", {}).get("dash", False)), "bTargetSelf": bool(row.get("targets", {}).get("self", False)),
+        "ExtraBases": list(row.get("targets", {}).get("bases", [])),
         "Effects": [effect(value) for value in row["effects"]],
     }
 

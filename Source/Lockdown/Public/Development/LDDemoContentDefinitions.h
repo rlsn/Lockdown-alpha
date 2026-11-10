@@ -378,6 +378,14 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 LimitP2 = 0;
     // #198 B basic_element: the element a primary basic applies (Water/Electric/Fire); None for every other operation.
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
+    // #198 F workshop terms: a cone angle (spread_unit, compress_cone) and a mana-cost multiplier (cooldown_cost).
+    UPROPERTY() FLDDemoRational AngleDegrees;
+    UPROPERTY() int64 CostRatioBp = 0;
+    // #198 F workshop field use (content.json key -> field): damage_ratio MultiplierBp (a damage multiplier of the target's
+    // package), ratio RatioBp (a geometry/time multiplier or a share), cooldown_ratio SecondaryRatioBp, cost_ratio CostRatioBp,
+    // angle AngleDegrees, range_cap and radius RadiusCm, distance DistanceCm, stun_duration/root_duration SecondaryDurationMs,
+    // cap_ratio MultiplierBp (C01's max-HP cap), mana BaseP2 + mana_cap LimitP2 (C07), base BaseP2 (a damage/shield base,
+    // or the grown cap of C08's store and C11's heal), delay DelayMs, interval IntervalMs, duration DurationMs, count Count.
     // #147/#198 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // zone Count pulses at DelayMs + k x IntervalMs inside DurationMs; zone_slow RatioBp every IntervalMs for DurationMs;
     // zone_burn Count+IntervalMs; knockback DistanceCm+DurationMs; channel_cone SecondaryRatioBp+SecondaryDurationMs (a
@@ -459,6 +467,14 @@ struct FLDDemoComponentDefinition
     UPROPERTY() ELDDemoComponentBinding Binding = ELDDemoComponentBinding::None;
     UPROPERTY() TArray<FString> BindActives;
     UPROPERTY() TArray<ELDDemoElement> BindElements;
+    // #198 F install targets of a mod or connector (a base component has none): learned actives (TargetActives), installed
+    // components (TargetComponents), the innate D (bTargetDash) or the holder itself (bTargetSelf). ExtraBases (C12): the
+    // installed base component the install binds as its second parameter.
+    UPROPERTY() TArray<FString> TargetActives;
+    UPROPERTY() TArray<FString> TargetComponents;
+    UPROPERTY() bool bTargetDash = false;
+    UPROPERTY() bool bTargetSelf = false;
+    UPROPERTY() TArray<FString> ExtraBases;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 

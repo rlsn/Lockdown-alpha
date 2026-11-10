@@ -38,6 +38,9 @@ bool Configured(const LDDemoCardText::FToken& Token, const FLDDemoEffectDefiniti
     case EField::SecondaryRatio: return Effect.SecondaryRatioBp != 0;
     case EField::SecondaryDuration: return Effect.SecondaryDurationMs != 0;
     case EField::Limit: return Effect.LimitP2 != 0;
+    case EField::Multiplier: return Effect.MultiplierBp != 0;
+    case EField::Angle: return Effect.AngleDegrees.Numerator != 0;
+    case EField::CostRatio: return Effect.CostRatioBp != 0;
     case EField::Stat:
     {
         const FLDDemoStatBonus* Stat = Effect.Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S) { return S.Stat == Token.Stat; });
