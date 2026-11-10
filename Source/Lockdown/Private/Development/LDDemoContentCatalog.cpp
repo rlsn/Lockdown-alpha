@@ -202,6 +202,11 @@ bool FLDDemoContentSnapshot::FindStat(const FString& Id, const FLDDemoStatDefini
     return Find(Definitions.Stats, Id, Out, Error);
 }
 
+bool FLDDemoContentSnapshot::FindComponent(const FString& Id, const FLDDemoComponentDefinition*& Out, FString& Error) const
+{
+    return Find(Definitions.Components, Id, Out, Error);
+}
+
 bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const
 {
     return Find(Definitions.Monsters, Id, Out, Error);

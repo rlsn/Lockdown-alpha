@@ -17,7 +17,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 // #147 build v7 combat primitives (docs/systems/COMBAT_AND_GROWTH.md, "构筑 v7 战斗原语") and the #198 build safe window.
-// The trigger handlers kept for the #198 PR3 base components have no producer in PR1, so nothing here holds one.
+// The installed base components that feed the trigger handlers are covered by LDComponentCombatTests.
 
 struct FLDBuildPrimitivesAccess
 {
@@ -61,6 +61,14 @@ struct FLDBuildPrimitivesAccess
     static bool GrantShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2, int64 NowMs, FString& Error)
     { return Driver.GrantShieldTo(Body, AmountP2, 3000, FGuid::NewGuid(), Body.Victim.EntityId, NowMs, Error); }
     static bool Heal(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2) { return Driver.HealBody(Body, AmountP2); }
+    // #198 B components.
+    static bool ResolveDashCompletions(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ResolveDashCompletions(NowMs, Error); }
+    static bool ApplyComponentElement(const ALDCombatDirector& Driver, FLDCombatHit& Hit, ELDDemoElement Element,
+        const FLDCombatSourceRef& Component, FString& Error)
+    { return Driver.ApplyComponentElement(Hit, Element, Component, Error); }
+    static bool Collect(const ALDCombatDirector& Driver, const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+        TArray<FLDPassiveEffectRef>& Out, FString& Error)
+    { return Driver.CollectPassiveEffects(Projection, Op, Out, Error); }
 };
 
 namespace LDBuildPrimitivesTests
@@ -256,18 +264,27 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("below the cap it is kept"), CapLifestealBp(2000, T), int64(2000));
 
     // Charged empowerment.
-    TOptional<FLDCombatEmpower> Armed = FLDCombatEmpower();
-    Armed->Charges = 3;
-    Armed->BaseP2 = 2000;
-    Armed->ExpiresAtMs = 5000;
-    TestTrue(TEXT("The first charge"), LDCombatControl::ConsumeEmpower(Armed, 1000).IsSet() && Armed.IsSet() && Armed->Charges == 2);
-    TestTrue(TEXT("the second"), LDCombatControl::ConsumeEmpower(Armed, 1100).IsSet() && Armed.IsSet() && Armed->Charges == 1);
-    const TOptional<FLDCombatEmpower> Last = LDCombatControl::ConsumeEmpower(Armed, 1200);
-    TestTrue(TEXT("and the last end the record"), Last.IsSet() && Last->Charges == 0 && !Armed.IsSet());
-    TestFalse(TEXT("then nothing is left"), LDCombatControl::ConsumeEmpower(Armed, 1300).IsSet());
-    Armed = FLDCombatEmpower();
-    Armed->ExpiresAtMs = 1000;
-    TestTrue(TEXT("An expired empowerment is dropped untaken"), !LDCombatControl::ConsumeEmpower(Armed, 1000).IsSet() && !Armed.IsSet());
+    TArray<FLDCombatEmpower> Armed;
+    FLDCombatEmpower Charged;
+    Charged.Source.Kind = ELDCombatSourceKind::Learned;
+    Charged.Source.DefinitionId = TEXT("active_triple_combo");
+    Charged.Charges = 3;
+    Charged.AmountP2 = 2000;
+    Charged.ExpiresAtMs = 5000;
+    LDCombatControl::ArmEmpower(Armed, Charged);
+    TArray<FLDCombatEmpower> Taken;
+    int64 SumP2 = 0;
+    TestTrue(TEXT("The first charge"), LDCombatControl::ConsumeEmpowers(Armed, 1000, Taken, SumP2) && SumP2 == 2000
+        && Armed.Num() == 1 && Armed[0].Charges == 2);
+    TestTrue(TEXT("the second"), LDCombatControl::ConsumeEmpowers(Armed, 1100, Taken, SumP2) && SumP2 == 2000
+        && Armed.Num() == 1 && Armed[0].Charges == 1);
+    TestTrue(TEXT("and the last end the record"), LDCombatControl::ConsumeEmpowers(Armed, 1200, Taken, SumP2)
+        && Taken.Num() == 1 && Taken[0].Charges == 0 && Armed.IsEmpty());
+    TestTrue(TEXT("then nothing is left"), LDCombatControl::ConsumeEmpowers(Armed, 1300, Taken, SumP2) && Taken.IsEmpty() && SumP2 == 0);
+    Charged.ExpiresAtMs = 1000;
+    LDCombatControl::ArmEmpower(Armed, Charged);
+    TestTrue(TEXT("An expired empowerment is dropped untaken"), LDCombatControl::ConsumeEmpowers(Armed, 1000, Taken, SumP2)
+        && Taken.IsEmpty() && Armed.IsEmpty());
     return true;
 }
 
@@ -468,13 +485,12 @@ bool FLDBuildPoolHitsTest::RunTest(const FString& Parameters)
     };
     FLDCombatHit Hit = FFixture::Hit(Source, Target, 10000);
     Hit.ControlAmpBp = 1200;
-    TestEqual(TEXT("Neither slowed nor low: no bonus"), Lost(Hit, 100000, false), int64(10000));
+    TestEqual(TEXT("Neither slowed nor controlled: no bonus"), Lost(Hit, 100000, false), int64(10000));
     TestEqual(TEXT("Slowed: +12%"), Lost(Hit, 40000, true), int64(11200));
-    FLDCombatHit LowHP = FFixture::Hit(Source, Target, 10000);
-    LowHP.ControlAmpBp = 1200;
-    LowHP.ControlAmpBelowBp = 5000;
-    TestEqual(TEXT("An amplification that also counts low-HP bodies needs no control"), Lost(LowHP, 40000, false), int64(11200));
-    TestEqual(TEXT("Exactly half is not below half"), Lost(LowHP, 50000, false), int64(10000));
+    TestEqual(TEXT("A low-HP body alone gains nothing (B07 reads controls only)"), Lost(Hit, 40000, false), int64(10000));
+    FLDCombatHit Idle = Hit;
+    Idle.IdleReadyAmpBp = 2000;
+    TestEqual(TEXT("B07 and B17 add into one pool, never multiplied"), Lost(Idle, 100000, true), int64(13200));
     FLDCombatHit Basic = FFixture::Hit(Source, Target, 10000);
     Basic.HitClass = ELDCombatHitClass::BasicPrimary;
     Basic.DamageType = ELDDemoDamageType::Physical;
@@ -494,7 +510,6 @@ bool FLDBuildLifestealCapTest::RunTest(const FString& Parameters)
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Source = F.AddBody(), Target = F.AddBody();
     FLDBodyCombatState& Healer = F.Body(Source);
-    FLDBodyCombatState& Body = F.Body(Target);
     FString Error;
     FLDCombatHit Hit = FFixture::Hit(Source, Target, 10000);
     Hit.HitClass = ELDCombatHitClass::BasicPrimary;
@@ -502,13 +517,10 @@ bool FLDBuildLifestealCapTest::RunTest(const FString& Parameters)
     Hit.OnHitScaleBp = 10000;
     Hit.bLifesteal = true;
     Hit.LifestealRatioBp = 3000;
-    Hit.LifestealLowHPBp = 3000;
-    Hit.LifestealLowHPBelowBp = 5000;
     Healer.Resources.HpP2 = 50000;
-    TestTrue(TEXT("Against a healthy body only the base lifesteal heals"), F.Apply(Hit, Error) && Healer.Resources.HpP2 == 53000);
-    Body.Resources.HpP2 = 40000;
-    TestTrue(TEXT("Against a low body the doubled share adds, then the sum stops at 35%"), F.Apply(Hit, Error)
-        && Healer.Resources.HpP2 == 56500);
+    TestTrue(TEXT("A primary basic heals its lifesteal share of the HP lost"), F.Apply(Hit, Error) && Healer.Resources.HpP2 == 53000);
+    Hit.LifestealRatioBp = 6000;
+    TestTrue(TEXT("Lifesteal stops at the 35% cap"), F.Apply(Hit, Error) && Healer.Resources.HpP2 == 56500);
     FLDCombatHit Tick = FFixture::Hit(Source, Target, 1000);
     Tick.bBurnTick = Tick.bPeriodic = true;
     Tick.OnHitScaleBp = 10000;
@@ -729,15 +741,16 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
     const FGuid Release = FGuid::NewGuid();
     FLDCombatEmpower Armed;
     Armed.EffectId = Release;
-    Armed.SourceDefinitionId = TEXT("active_triple_combo");
-    Armed.BaseP2 = 1600;
+    Armed.Source.Kind = ELDCombatSourceKind::Learned;
+    Armed.Source.DefinitionId = TEXT("active_triple_combo");
+    Armed.AmountP2 = 1600;
     Armed.ExpiresAtMs = 6000;
     Armed.Charges = 3;
     Armed.bChargeBonus = true;
-    Body.Empower = Armed;
+    Body.Empowers.Add(Armed);
     FLDCombatTimedBonus Haste;
     Haste.EffectId = Release;
-    Haste.SourceDefinition = Armed.SourceDefinitionId;
+    Haste.SourceDefinition = Armed.Source.DefinitionId;
     Haste.Stats.Add({ELDDemoBonusStat::AttackSpeedBonusRatio, 2500, {}});
     Haste.ExpiresAtMs = 6000;
     Body.TimedBonuses.Add(Haste);
@@ -769,7 +782,7 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
         }
         else
         {
-            TestTrue(TEXT("After three charges the basic is plain"), Primary->BaseP2 == 0 && !Body.Empower.IsSet());
+            TestTrue(TEXT("After three charges the basic is plain"), Primary->BaseP2 == 0 && Body.Empowers.IsEmpty());
         }
         TestFalse(TEXT("Without a held trigger a basic carries no lifesteal"), Primary->bLifesteal);
     }
@@ -1127,4 +1140,361 @@ bool FLDDemoElementBraceTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// #198 B base components (docs/systems/COMBAT_AND_GROWTH.md, "基础构件"): the projection terms, the merged empowered basic,
+// B12's dash completion, the B02 ledger and the component element gate, over the approved component catalog.
+namespace LDBuildPrimitivesTests
+{
+struct FInstall
+{
+    const TCHAR* Id = nullptr;
+    FName BoundActive;
+    ELDDemoElement Element = ELDDemoElement::None;
+};
+
+FLDAttributeProjectionResult ProjectComponents(const FLDDemoContentSnapshot& Catalog, uint8 Level, const TArray<FInstall>& Rows)
+{
+    FLDAttributeBuildValues Values(Level, {});
+    for (const FInstall& Row : Rows)
+    {
+        FLDInstalledComponentValue& Installed = Values.Components.AddDefaulted_GetRef();
+        Installed.ComponentId = FName(Row.Id);
+        Installed.BoundActive = Row.BoundActive;
+        Installed.Element = Row.Element;
+    }
+    return LDAttributeProjection::Project(Values, Catalog);
+}
+
+// Installs a projection with Rows on a fixture contender at Level (its record's level is what G reads).
+bool InstallComponents(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Ref, uint8 Level, const TArray<FInstall>& Rows)
+{
+    const FLDAttributeProjectionResult Result = ProjectComponents(*F.Catalog, Level, Rows);
+    if (!Result.IsSuccess())
+    {
+        Test.AddError(FString::Printf(TEXT("Component projection: %s: %s"), *Result.Error.Field, *Result.Error.Message));
+        return false;
+    }
+    FLDBodyCombatState& Body = F.Body(Ref);
+    Body.BuildProjection = Body.AttributeProjection = Result.Value.GetValue();
+    FAccess::Records(*F.Driver).FindChecked(Ref.Victim.EntityId).Build.Level = Level;
+    return true;
+}
+
+bool SameRational(const FLDDemoRational& Value, int64 Numerator, int64 Denominator = 1)
+{
+    return Value.Denominator > 0 && Value.Numerator * Denominator == Numerator * Value.Denominator;
+}
+
+FLDCombatSourceRef SourceOf(ELDCombatSourceKind Kind, const TCHAR* Id)
+{
+    FLDCombatSourceRef Out;
+    Out.Kind = Kind;
+    Out.DefinitionId = FName(Id);
+    return Out;
+}
+
+FLDCombatAction BasicAt(const FLDCombatBodyRef& Target, uint64 Token)
+{
+    FLDCombatAction Action;
+    Action.Kind = ELDCombatActionKind::Basic;
+    Action.Key.Origin = ELDCombatRequestOrigin::Nav;
+    Action.Token = Token;
+    Action.Entry = ELDCombatEntry::Basic;
+    Action.Source.Kind = ELDCombatSourceKind::Basic;
+    Action.TargetBody = Target;
+    return Action;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentProjectionTest, "Lockdown.Rules.Combat.Components.Projection",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentProjectionTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EAttribute = ELDProjectedAttribute;
+    using EError = ELDAttributeProjectionError;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDDemoContentParameters& P = F.Catalog->Get().Parameters;
+    // B13/B14 stats, B15's low-HP term and B07's control amplification, listed out of order.
+    const FLDAttributeProjectionResult Result = ProjectComponents(*F.Catalog, 10, {{TEXT("component_seeing_red")},
+        {TEXT("component_catch_breath")}, {TEXT("component_kick_down")}, {TEXT("component_long_arm")}});
+    if (!TestTrue(FString::Printf(TEXT("Installed components project: %s"), *Result.Error.Message), Result.IsSuccess())) { return false; }
+    const FLDAttributeProjection& Projected = Result.Value.GetValue();
+    const auto Row = [&Projected](EAttribute Attribute) -> const FLDAttributeContributions& { return Projected.Contributions[int32(Attribute)]; };
+    TestTrue(TEXT("B13: haste +15 is the Components term, not grown with the level"),
+        SameRational(Row(EAttribute::CooldownHaste).Components.Flat, 15) && Projected.Final.CooldownHasteP2 == P.CooldownHasteBaseP2 + 1500);
+    TestTrue(TEXT("B13: mana regeneration +1/s"), SameRational(Row(EAttribute::MPRegen).Components.Flat, 1));
+    TestTrue(TEXT("B14: basic range +120 cm"), SameRational(Row(EAttribute::AttackRange).Components.Flat, 120)
+        && SameRational(Projected.Final.AttackRangeCm, P.AttackRangeCm.Base.Numerator + 120 * P.AttackRangeCm.Base.Denominator,
+            P.AttackRangeCm.Base.Denominator));
+    TestTrue(TEXT("B15 is a conditional term below 40% HP, never a build term"), Projected.LowHPBonus.IsSet()
+        && Projected.LowHPBonus->ThresholdBp == 4000 && Projected.LowHPBonus->Stats.Num() == 2
+        && SameRational(Row(EAttribute::AttackSpeed).Components.AdditiveRatio, 0));
+    TestTrue(TEXT("B07 is the control amplification term (+12%)"), Projected.ControlAmp.IsSet()
+        && Projected.ControlAmp->RatioBp == 1200 && Projected.ControlAmp->ComponentId == FName(TEXT("component_kick_down")));
+    TestTrue(TEXT("Every installed component is listed once, sorted by id, at the build level"),
+        Projected.InstalledComponents.Num() == 4
+        && Projected.InstalledComponents[0].ComponentId == FName(TEXT("component_catch_breath"))
+        && Projected.InstalledComponents[1].ComponentId == FName(TEXT("component_kick_down"))
+        && Projected.InstalledComponents[2].ComponentId == FName(TEXT("component_long_arm"))
+        && Projected.InstalledComponents[3].ComponentId == FName(TEXT("component_seeing_red"))
+        && !Projected.InstalledComponents.ContainsByPredicate([](const FLDInstalledComponentTerm& Term) { return Term.Level != 10; }));
+    const FLDAttributeProjectionResult Plain = ProjectComponents(*F.Catalog, 10, {});
+    TestTrue(TEXT("Without components there is no term"), Plain.IsSuccess() && !Plain.Value->LowHPBonus.IsSet()
+        && !Plain.Value->ControlAmp.IsSet() && Plain.Value->InstalledComponents.IsEmpty()
+        && SameRational(Plain.Value->Contributions[int32(EAttribute::CooldownHaste)].Components.Flat, 0));
+
+    // Explicit refusals.
+    const auto Refused = [&F](const TArray<FInstall>& Rows, EError Code)
+    {
+        const FLDAttributeProjectionResult Bad = ProjectComponents(*F.Catalog, 1, Rows);
+        return !Bad.IsSuccess() && Bad.Error.Code == Code;
+    };
+    TestTrue(TEXT("A component installed twice is refused"), Refused({{TEXT("component_long_arm")}, {TEXT("component_long_arm")}},
+        EError::DuplicateSource));
+    TestTrue(TEXT("An unknown component is refused"), Refused({{TEXT("component_nope")}}, EError::UnknownDefinition));
+    TestTrue(TEXT("B18 without its binding is refused"), Refused({{TEXT("component_dirty_trick")}}, EError::InputDomain));
+    TestTrue(TEXT("A binding on an unbound component is refused"),
+        Refused({{TEXT("component_long_arm"), TEXT("active_elbow"), ELDDemoElement::Fire}}, EError::InputDomain));
+    TestTrue(TEXT("B18 bound to an active outside its list is refused"),
+        Refused({{TEXT("component_dirty_trick"), TEXT("active_bail_out"), ELDDemoElement::Fire}}, EError::InputDomain));
+    const FLDAttributeProjectionResult Bound = ProjectComponents(*F.Catalog, 1,
+        {{TEXT("component_dirty_trick"), TEXT("active_elbow"), ELDDemoElement::Fire}});
+    TestTrue(TEXT("B18 keeps its bound active and element"), Bound.IsSuccess() && Bound.Value->InstalledComponents.Num() == 1
+        && Bound.Value->InstalledComponents[0].BoundActive == FName(TEXT("active_elbow"))
+        && Bound.Value->InstalledComponents[0].Element == ELDDemoElement::Fire);
+
+    // Trigger effects arrive with their fixed amounts grown for the holder's level; ratios never grow (B16 at G(10)=2.35).
+    const FLDAttributeProjectionResult Guard = ProjectComponents(*F.Catalog, 10, {{TEXT("component_thick_hide")}});
+    TArray<FLDPassiveEffectRef> Held;
+    FString Error;
+    if (!TestTrue(TEXT("B16 projects"), Guard.IsSuccess())
+        || !TestTrue(FString::Printf(TEXT("B16 resolves: %s"), *Error),
+            FAccess::Collect(*F.Driver, Guard.Value.GetValue(), ELDDemoEffectOp::PrimaryGuard, Held, Error)))
+    { return false; }
+    TestTrue(TEXT("B16 holds 8G = 18.8 at level 10 and its 15% cap"), Held.Num() == 1 && Held[0].Effect.BaseP2 == 1880
+        && Held[0].Effect.RatioBp == 1500 && Held[0].Source.Kind == ELDCombatSourceKind::Component
+        && Held[0].Source.DefinitionId == FName(TEXT("component_thick_hide")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentEmpowerMergeTest, "Lockdown.Rules.Combat.Components.EmpowerMerge",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentEmpowerMergeTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Attacker = F.AddBody(), Camp = F.AddBody(ELDVictimKind::CampMember);
+    if (!InstallComponents(*this, F, Attacker, 1, {{TEXT("component_long_arm")}, {TEXT("component_punch_heal")},
+        {TEXT("component_third_punch")}}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Attacker);
+    // Spec §10.2: one pending package per source; the same source re-arming replaces its unused value, others coexist.
+    FLDCombatEmpower Dash;
+    Dash.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_apology_slide"));
+    Dash.AmountP2 = 4000;
+    Dash.ExpiresAtMs = 4000;
+    LDCombatControl::ArmEmpower(Body.Empowers, Dash);
+    Dash.AmountP2 = 5000;
+    LDCombatControl::ArmEmpower(Body.Empowers, Dash);
+    TestTrue(TEXT("The same source re-arming replaces its package"), Body.Empowers.Num() == 1 && Body.Empowers[0].AmountP2 == 5000);
+    FLDCombatEmpower Punch;
+    Punch.Source = SourceOf(ELDCombatSourceKind::Component, TEXT("component_dash_punch"));
+    Punch.AmountP2 = 2500;
+    Punch.ExpiresAtMs = 4000;
+    LDCombatControl::ArmEmpower(Body.Empowers, Punch);
+    TestEqual(TEXT("Another source's package coexists"), Body.Empowers.Num(), 2);
+    const int64 BasicRatioBp = F.Catalog->Get().Character.BasicADRatioBp;
+    FString Error;
+    for (int32 Swing = 1; Swing <= 3; ++Swing)
+    {
+        FAccess::PendingHits(*F.Driver).Reset();
+        if (!TestTrue(FString::Printf(TEXT("Swing %d lands: %s"), Swing, *Error),
+            FAccess::LandBasic(*F.Driver, F.Actor(Attacker), Body, BasicAt(Camp, uint64(Swing)), Error)))
+        { return false; }
+        const TArray<FLDCombatHit>& Hits = FAccess::PendingHits(*F.Driver);
+        if (!TestEqual(FString::Printf(TEXT("Swing %d is one primary hit"), Swing), Hits.Num(), 1)) { return false; }
+        const FLDCombatHit& Primary = Hits[0];
+        TestTrue(FString::Printf(TEXT("Swing %d: B14 scales only the basic's own AD package"), Swing),
+            Primary.ADRatioBp == BasicRatioBp * 9000 / 10000);
+        TestTrue(FString::Printf(TEXT("Swing %d: B04 lifesteal rides on the one primary hit"), Swing),
+            Primary.bLifesteal && Primary.LifestealRatioBp == 1200 && Primary.OnHitScaleBp == 10000);
+        TestEqual(FString::Printf(TEXT("Swing %d: B06 counts one primary hit per swing"), Swing), Body.LandedBasics, Swing);
+        if (Swing == 1)
+        {
+            TestTrue(TEXT("Both packages merge into the first primary hit, unscaled, and are consumed once"),
+                Primary.BaseP2 == 7500 && Body.Empowers.IsEmpty());
+        }
+        else
+        {
+            TestEqual(FString::Printf(TEXT("Swing %d is plain"), Swing), Primary.BaseP2, int64(0));
+        }
+        TestTrue(FString::Printf(TEXT("Swing %d: B06 pushes 120 cm over 0.12 s on the third basic only"), Swing),
+            Swing == 3 ? Primary.KnockbackCm == 120. && Primary.KnockbackMs == 120 && !Primary.bKnockbackFromAnchor
+                : Primary.KnockbackCm == 0. && Primary.KnockbackMs == 0);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentDashEmpowerTest, "Lockdown.Rules.Combat.Components.DashEmpower",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentDashEmpowerTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Runner = F.AddBody(), Plain = F.AddBody();
+    if (!InstallComponents(*this, F, Runner, 1, {{TEXT("component_dash_punch")}})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Runner);
+    ALDCharacter& Actor = F.Actor(Runner);
+    Actor.SetActorLocation(FVector(0, 0, 200));
+    const auto StartDash = [](FLDBodyCombatState& Into, const ALDCharacter& From, int64 EndMs)
+    {
+        FLDCombatVoluntaryDash& Dash = Into.VoluntaryDash.Emplace();
+        Dash.EffectId = FGuid::NewGuid();
+        Dash.Source = SourceOf(ELDCombatSourceKind::Innate, TEXT("innate_dash"));
+        Dash.StartFootCm = ALDCombatDirector::FootOf(From);
+        Dash.EndMs = EndMs;
+    };
+    FString Error;
+    StartDash(Body, Actor, 1200);
+    Actor.SetActorLocation(FVector(300, 0, 200));
+    TestTrue(TEXT("Before its end a dash arms nothing"), FAccess::ResolveDashCompletions(*F.Driver, 1100, Error)
+        && Body.Empowers.IsEmpty() && Body.VoluntaryDash.IsSet());
+    TestTrue(TEXT("A completed voluntary dash that moved arms B12"), FAccess::ResolveDashCompletions(*F.Driver, 1200, Error)
+        && Body.Empowers.Num() == 1 && !Body.VoluntaryDash.IsSet());
+    const int64 ExpectedP2 = 2500 + Body.AttributeProjection.Final.ADP2 * 2500 / 10000;
+    TestTrue(TEXT("B12 snapshots 25G + 0.25 AD at the completion and lasts 3 s"), Body.Empowers.Num() == 1
+        && Body.Empowers[0].AmountP2 == ExpectedP2 && Body.Empowers[0].ExpiresAtMs == 4200 && Body.Empowers[0].Charges == 1
+        && Body.Empowers[0].Source.Kind == ELDCombatSourceKind::Component
+        && Body.Empowers[0].Source.DefinitionId == FName(TEXT("component_dash_punch")));
+    StartDash(Body, Actor, 2000);
+    TestTrue(TEXT("A dash blocked in place is no completed dash"), FAccess::ResolveDashCompletions(*F.Driver, 2000, Error)
+        && Body.Empowers.Num() == 1 && Body.Empowers[0].ExpiresAtMs == 4200 && !Body.VoluntaryDash.IsSet());
+    StartDash(Body, Actor, 2500);
+    Actor.SetActorLocation(FVector(600, 0, 200));
+    // ApplyKnockback drops the voluntary dash it interrupts.
+    Body.VoluntaryDash.Reset();
+    TestTrue(TEXT("A knocked-back (cancelled) dash arms nothing"), FAccess::ResolveDashCompletions(*F.Driver, 2500, Error)
+        && Body.Empowers[0].ExpiresAtMs == 4200);
+    StartDash(Body, Actor, 3000);
+    Actor.SetActorLocation(FVector(900, 0, 200));
+    TestTrue(TEXT("A later completed dash replaces the unused package of the same source"),
+        FAccess::ResolveDashCompletions(*F.Driver, 3000, Error) && Body.Empowers.Num() == 1 && Body.Empowers[0].ExpiresAtMs == 6000);
+    FLDBodyCombatState& Other = F.Body(Plain);
+    StartDash(Other, F.Actor(Plain), 3000);
+    F.Actor(Plain).SetActorLocation(FVector(0, 500, 200));
+    TestTrue(TEXT("Without B12 a completed dash arms nothing"), FAccess::ResolveDashCompletions(*F.Driver, 3000, Error)
+        && Other.Empowers.IsEmpty() && !Other.VoluntaryDash.IsSet());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentLedgerTest, "Lockdown.Rules.Combat.Components.Ledger",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using namespace LDCombatKeywords;
+    // The pure batch rule.
+    FLDCombatLedger Ledger;
+    int64 CashP2 = 0;
+    bool bRefused = false;
+    for (int32 Entry = 1; Entry <= 4; ++Entry)
+    {
+        TestFalse(FString::Printf(TEXT("Entry %d is booked"), Entry), AddLedgerEntry(Ledger, 1000, 1000 + Entry * 100, 5, 6000, CashP2, bRefused)
+            || bRefused);
+    }
+    TestTrue(TEXT("The fifth entry cashes the batch out at once"), AddLedgerEntry(Ledger, 1300, 1500, 5, 6000, CashP2, bRefused)
+        && CashP2 == 5300 && Ledger.EntriesP2.IsEmpty());
+    TestFalse(TEXT("A new batch starts"), AddLedgerEntry(Ledger, 1000, 2000, 5, 6000, CashP2, bRefused));
+    TestFalse(TEXT("Its window has not passed"), ExpireLedger(Ledger, 7999));
+    TestTrue(TEXT("6 s without a new entry clears the unlocked entries"), ExpireLedger(Ledger, 8000) && Ledger.EntriesP2.IsEmpty());
+    TestFalse(TEXT("A batch fixes its threshold at its first entry"), AddLedgerEntry(Ledger, 1000, 9000, 3, 6000, CashP2, bRefused));
+    TestFalse(TEXT("a later threshold does not move it"), AddLedgerEntry(Ledger, 1000, 9100, 5, 6000, CashP2, bRefused));
+    TestTrue(TEXT("so the third entry cashes out"), AddLedgerEntry(Ledger, 1000, 9200, 5, 6000, CashP2, bRefused) && CashP2 == 3000);
+    TestFalse(TEXT("An idle batch is cleared before the next entry"), AddLedgerEntry(Ledger, 1000, 10000, 5, 6000, CashP2, bRefused)
+        || AddLedgerEntry(Ledger, 1000, 16000, 5, 6000, CashP2, bRefused));
+    TestEqual(TEXT("leaving only the new entry"), Ledger.EntriesP2.Num(), 1);
+    TestTrue(TEXT("A ledger without a threshold is refused"), !AddLedgerEntry(Ledger, 1000, 16100, 0, 6000, CashP2, bRefused) && bRefused);
+
+    // B02 on Combat: an owner at level 3 books 10G = 13 per effective hit; the fifth cashes out once as magic damage.
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Owner = F.AddBody(), Target = F.AddBody();
+    if (!InstallComponents(*this, F, Owner, 3, {{TEXT("component_tab_ledger")}})) { return false; }
+    FLDBodyCombatState& Victim = F.Body(Target);
+    FString Error;
+    for (int32 Hit = 1; Hit <= 4; ++Hit)
+    {
+        TestTrue(FString::Printf(TEXT("Hit %d lands: %s"), Hit, *Error), F.Apply(FFixture::Hit(Owner, Target, 10000), Error));
+    }
+    TestTrue(TEXT("Four effective hits book four entries of 13 on the target life"), Victim.Ledgers.Num() == 1
+        && Victim.Ledgers[0].EntriesP2 == TArray<int64>({1300, 1300, 1300, 1300}) && FAccess::PendingHits(*F.Driver).IsEmpty());
+    FLDCombatHit Tick = FFixture::Hit(Owner, Target, 1000);
+    Tick.bBurnTick = Tick.bPeriodic = true;
+    TestTrue(TEXT("A burn tick is status damage and books nothing"), F.Apply(Tick, Error) && Victim.Ledgers[0].EntriesP2.Num() == 4);
+    TestTrue(TEXT("A zero hit books nothing"), F.Apply(FFixture::Hit(Owner, Target, 0), Error) && Victim.Ledgers[0].EntriesP2.Num() == 4);
+    TestTrue(TEXT("The fifth hit lands"), F.Apply(FFixture::Hit(Owner, Target, 10000), Error));
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("The batch cashes out as one magic skill-class package of 65"), Pending.Num() == 1 && Pending[0].bLedgerCashOut
+        && Pending[0].BaseP2 == 6500 && Pending[0].DamageType == ELDDemoDamageType::Magical
+        && Pending[0].HitClass == ELDCombatHitClass::Ability && Pending[0].Source.DefinitionId == FName(TEXT("component_tab_ledger"))
+        && Victim.Ledgers.IsEmpty());
+    const int64 Before = Victim.Resources.HpP2;
+    TestTrue(TEXT("The cash-out lands"), F.Flush(Error) && Before - Victim.Resources.HpP2 == 6500);
+    TestTrue(TEXT("and never books an entry itself"), Victim.Ledgers.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentElementGateTest, "Lockdown.Rules.Combat.Components.ElementGate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentElementGateTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatSourceRef Trick = SourceOf(ELDCombatSourceKind::Component, TEXT("component_dirty_trick"));
+    FString Error;
+    FLDCombatHit Probe;
+    TestTrue(TEXT("Fire adds one burn layer of the component"), FAccess::ApplyComponentElement(*F.Driver, Probe, ELDDemoElement::Fire,
+        Trick, Error) && Probe.ComponentBurnStacks == 1 && Probe.ComponentBurnSource == Trick);
+    for (const ELDDemoElement Element : {ELDDemoElement::Water, ELDDemoElement::Electric})
+    {
+        FLDCombatHit Wet;
+        TestTrue(FString::Printf(TEXT("Element %u is an explicit error until #198 A"), uint32(Element)),
+            !FAccess::ApplyComponentElement(*F.Driver, Wet, Element, Trick, Error) && Error.Contains(TEXT("#198 A")));
+    }
+    TestFalse(TEXT("No element is an error"), FAccess::ApplyComponentElement(*F.Driver, Probe, ELDDemoElement::None, Trick, Error));
+
+    // B18 bound to S01 (active_elbow) with fire: each native direct effective hit of S01 adds one layer.
+    const FLDCombatBodyRef Owner = F.AddBody(), Target = F.AddBody();
+    if (!InstallComponents(*this, F, Owner, 1, {{TEXT("component_dirty_trick"), TEXT("active_elbow"), ELDDemoElement::Fire}}))
+    { return false; }
+    FAccess::Records(*F.Driver).FindChecked(Owner.Victim.EntityId).Build.Actives = {{TEXT("active_elbow"), ELDCombatEntry::Q},
+        {TEXT("active_snark_bolt"), ELDCombatEntry::W}};
+    const auto Native = [&](const TCHAR* Active, bool bDirect)
+    {
+        FLDCombatHit Hit = FFixture::Hit(Owner, Target, 1000);
+        Hit.Source = SourceOf(ELDCombatSourceKind::Learned, Active);
+        Hit.Token = 1;
+        Hit.bDirectAbilityDamage = bDirect;
+        return Hit;
+    };
+    FLDBodyCombatState& Victim = F.Body(Target);
+    TestTrue(TEXT("A native hit of the bound active lands"), F.Apply(Native(TEXT("active_elbow"), true), Error));
+    TestTrue(TEXT("and adds one fire layer credited to B18"), Victim.Burn.Layers.Num() == 1 && Victim.Burn.Layers[0].Source == Trick);
+    TestTrue(TEXT("Another active's hit adds none"), F.Apply(Native(TEXT("active_snark_bolt"), true), Error) && Victim.Burn.Layers.Num() == 1);
+    TestTrue(TEXT("A derived hit of the bound active adds none"), F.Apply(Native(TEXT("active_elbow"), false), Error)
+        && Victim.Burn.Layers.Num() == 1);
+    FLDCombatHit Zero = Native(TEXT("active_elbow"), true);
+    Zero.BaseP2 = 0;
+    TestTrue(TEXT("An ineffective hit adds none"), F.Apply(Zero, Error) && Victim.Burn.Layers.Num() == 1);
+    return true;
+}
 #endif

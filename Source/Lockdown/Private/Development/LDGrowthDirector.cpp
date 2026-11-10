@@ -451,6 +451,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
             Receipt.LevelAfter = GrowthPlan.Build().Level;
             Receipt.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
             Receipt.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
+            Receipt.ComponentGrants = GrowthPlan.ComponentGrants();
             Receipt.Revisions.bHasProgression = true;
             Receipt.Revisions.ProgressionRevision = GrowthPlan.Progression().Revision;
             Receipt.Revisions.bHasBuild = true;
@@ -464,6 +465,7 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
         Part.LevelAfter = GrowthPlan.Build().Level;
         Part.OpportunityFirst = uint8(Progression->ActiveEarned + 1);
         Part.OpportunityLast = GrowthPlan.Progression().ActiveEarned;
+        Part.ComponentGrants = GrowthPlan.ComponentGrants();
     }
     for (int32 Index = 0; Index < Shares.Num(); ++Index)
     {
@@ -492,14 +494,19 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
         {
             int64 Unspent = 0;
             const FLDGrowthBuild* Build = M->Development->FindBuild(Share.Recipient);
-            if (!Build || !Progression
-                || LDProgression::UnspentPoints(Content->Get(), *Build, Progression->CumulativeXP, Unspent) != ELDGrowthReason::None)
+            if (!Build || !Progression || LDProgression::UnspentPoints(Content->Get(), *Build, Progression->CumulativeXP,
+                Progression->EmptyPoolGrants, Unspent) != ELDGrowthReason::None)
             {
                 Unspent = -1;
             }
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d unspent_points=%lld"),
+            // #198 B: the component of each level crossed; "-" marks a level whose exhausted pool paid points instead.
+            const TArray<FLDComponentGrant>& Grants = Index == 0 ? Receipt.ComponentGrants : Receipt.Assists[Index - 1].ComponentGrants;
+            const FString Components = FString::JoinBy(Grants, TEXT(","),
+                [](const FLDComponentGrant& Grant) { return Grant.Component.IsNone() ? FString(TEXT("-")) : Grant.Component.ToString(); });
+            const int32 EmptyPool = Grants.FilterByPredicate([](const FLDComponentGrant& Grant) { return Grant.Component.IsNone(); }).Num();
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d unspent_points=%lld components=%s empty_pool_grants=%d"),
                 Permit.GetBoundary().AtMs, *LDLog::Id(Share.Recipient), uint32(Before), uint32(After),
-                Last >= First ? int32(Last) - int32(First) + 1 : 0, Unspent);
+                Last >= First ? int32(Last) - int32(First) + 1 : 0, Unspent, Components.IsEmpty() ? TEXT("-") : *Components, EmptyPool);
         }
     }
     return ELDRewardOutcome::Granted;

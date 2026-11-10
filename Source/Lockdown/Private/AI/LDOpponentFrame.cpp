@@ -182,6 +182,9 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     Out.Blueprints.Reset();
     Out.StatPoints.Reset();
     Out.Offer.Reset();
+    Out.Components.Reset();
+    Out.OpeningBaseOptions.Reset();
+    Out.bOpeningBasePending = false;
     for (const FLDActiveSlotView& Active : Progression.Actives)
     {
         if (Active.Slot > 2 || Active.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own active is outside the Q/W/E slots.")); }
@@ -204,7 +207,19 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
     }
-    const auto Projection = LDAttributeProjection::Project(FLDAttributeBuildValues(Progression.Level, MoveTemp(Points)), Catalog);
+    // #198 B: owned components; the installed ones (with their binding) also feed the own attribute projection.
+    TArray<FLDInstalledComponentValue> Installed;
+    for (const FLDComponentInstanceView& Owned : Progression.Components)
+    {
+        if (Owned.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own component has no definition.")); }
+        Out.Components.Add({CanonicalId(Owned.DefinitionId), Owned.bInstalled, Owned.bEverInstalled});
+        if (Owned.bInstalled) { Installed.Add({Owned.DefinitionId, Owned.Target.BoundActive, Owned.Target.Element}); }
+    }
+    Out.bOpeningBasePending = Progression.bOpeningBasePending;
+    for (const FName& Option : Progression.OpeningBaseOptions) { Out.OpeningBaseOptions.Add(CanonicalId(Option)); }
+    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Points));
+    Values.Components = MoveTemp(Installed);
+    const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;
     Out.BuildRevision = Progression.BuildRevision;

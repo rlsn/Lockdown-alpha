@@ -81,31 +81,38 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     FString& Error)
 {
     using namespace LDCombatElementsDirectorDetail;
-    // Fire first: the hit's own layers, then the living source's held burn triggers (basic_stacks on a primary basic,
-    // stacks on a learned Q/W/E hit; ticks, settles, reflections, added damage and shield answers are neither).
+    // Fire first: the hit's own layers, then the living source's held burn triggers (basic_stacks on a primary basic, B01)
+    // and a component's fire on this hit (B18, ApplyComponentElement), at the living source's level and AP now. Ticks,
+    // settles, reflections, added damage and shield answers carry none of the source's triggers.
     if (Hit.BurnStacks>0
         && !ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error)) { return false; }
-    const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
-    const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && Hit.Source.Kind==ELDCombatSourceKind::Learned && Hit.Token!=0;
-    if (Source && !Source->bPendingDeath && (bBasic || bSkill) && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
-        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger && !Hit.bSuppressSkillTriggers)
+    const bool bLivingSource=Source && !Source->bPendingDeath;
+    const auto SourceApplier=[this,Source](const FLDCombatSourceRef& Ref)
+    {
+        FLDElementApplier Applier;
+        Applier.SourceEntity=Source->Victim.EntityId;
+        Applier.SourceBody={Source->Victim,Source->Identity};
+        Applier.CreditOwner=Source->Victim.Kind==ELDVictimKind::Contender ? Source->Victim.EntityId : FGuid();
+        Applier.Source=Ref;
+        Applier.Level=GrowthLevelOf(*Source);
+        Applier.SourceAPP2=FMath::Max<int64>(Source->AttributeProjection.Final.APP2,0);
+        return Applier;
+    };
+    if (bLivingSource && Hit.HitClass==ELDCombatHitClass::BasicPrimary && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
+        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger)
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Burn,Passives,Error)) { return false; }
         for (const FLDPassiveEffectRef& Ref : Passives)
         {
-            const int32 Stacks=bBasic ? Ref.Effect->BasicCount : Ref.Effect->Count;
-            if (Stacks<=0) { continue; }
-            FLDElementApplier Applier;
-            Applier.SourceEntity=Source->Victim.EntityId;
-            Applier.SourceBody={Source->Victim,Source->Identity};
-            Applier.CreditOwner=Source->Victim.Kind==ELDVictimKind::Contender ? Source->Victim.EntityId : FGuid();
-            Applier.Source=Ref.Source;
-            Applier.Level=GrowthLevelOf(*Source);
-            Applier.SourceAPP2=FMath::Max<int64>(Source->AttributeProjection.Final.APP2,0);
-            if (!ApplyElement(Target,ELDCombatElement::Fire,Applier,Stacks,Hit.HitId,NowMs,Error)) { return false; }
+            if (Ref.Effect.BasicCount<=0) { continue; }
+            if (!ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Ref.Source),Ref.Effect.BasicCount,Hit.HitId,NowMs,Error))
+            { return false; }
         }
     }
+    if (bLivingSource && Hit.ComponentBurnStacks>0
+        && !ApplyElement(Target,ELDCombatElement::Fire,SourceApplier(Hit.ComponentBurnSource),Hit.ComponentBurnStacks,Hit.HitId,
+            NowMs,Error)) { return false; }
     if (Hit.bApplyWet && !ApplyElement(Target,ELDCombatElement::Water,ApplierOf(Hit),0,Hit.HitId,NowMs,Error)) { return false; }
     if (Hit.bApplyElectric && !ApplyElement(Target,ELDCombatElement::Electric,ApplierOf(Hit),0,Hit.HitId,NowMs,Error)) { return false; }
     return true;

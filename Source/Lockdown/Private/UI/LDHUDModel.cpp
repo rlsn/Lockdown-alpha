@@ -1029,6 +1029,8 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool 
     case ELDGrowthReason::Dead: return LDTerms::DeadNoLearn;
     case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
     case ELDGrowthReason::SlotOccupied: return LDTerms::ReplaceAtRest;
+    case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
+    case ELDGrowthReason::ElementUnsupported: return LDTerms::ElementClosed;
     default: return GrowthReasonText(Reason);
     }
 }
@@ -1039,17 +1041,20 @@ LDHUD::FBuildGateView LDHUD::BuildGate(ELDMatchPhase Phase,ELDLifePhase LifePhas
         :Phase==ELDMatchPhase::Development||Phase==ELDMatchPhase::CaptureOpen?LDProgression::EMatchStage::Live:LDProgression::EMatchStage::Closed;
     Context.LifePhase=LifePhase;
     Context.bSafe=bClock&&BuildSafeAtMs<=NowMs;
-    const auto Gate=[&](ELDBuildCommandKind Kind,bool& bAllowed,FString& Blocked)
+    const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
-        const ELDGrowthReason Reason=LDProgression::CommandGate(Kind,Context);
         bAllowed=Reason==ELDGrowthReason::None;
         // An unknown safe window is no countdown: say it is syncing instead of naming a wait.
         Blocked=Reason==ELDGrowthReason::NotSafe&&!bClock?FString(TEXT("构筑安全窗同步中")):BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);
     };
     FBuildGateView View;
-    Gate(ELDBuildCommandKind::ActiveChoice,View.bCanChoose,View.ChooseBlocked);
-    Gate(ELDBuildCommandKind::LearnBlueprint,View.bCanLearn,View.LearnBlocked);
-    Gate(ELDBuildCommandKind::AllocatePoints,View.bCanAllocate,View.AllocateBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice,Context),View.bCanChoose,View.ChooseBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::LearnBlueprint,Context),View.bCanLearn,View.LearnBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::AllocatePoints,Context),View.bCanAllocate,View.AllocateBlocked);
+    // #198 B: a first-time component install is admitted exactly as growth admits it (LDProgression::InstallGate: the
+    // countdown, the rest window, or alive and safe); re-installing a once-installed one only in the rest window.
+    Gate(LDProgression::InstallGate(Context,false),View.bCanInstall,View.InstallBlocked);
+    Gate(LDProgression::InstallGate(Context,true),View.bCanReinstall,View.ReinstallBlocked);
     return View;
 }
 FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
@@ -1074,16 +1079,124 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         int64 Spent=0;for(const uint8 Count:Receipt.PointsSpent){Spent+=Count;}
         return LDTerms::PointsAdded(Spent,Receipt.UnspentPointsAfter);
     }
+    case ELDBuildCommandKind::OpeningBase:
+    {
+        if(Receipt.ComponentId.IsNone()){return TEXT("回执缺少结果，请以当前状态为准。");}
+        const FString Name=ContentName(Content,Receipt.ComponentId.ToString());
+        if(Receipt.bComponentInstalled){return LDTerms::ComponentInstalled(Name);}
+        return LDTerms::ComponentStored(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.InstallStoredReason),BuildSafeAtMs,bClock,NowMs));
+    }
+    case ELDBuildCommandKind::InstallComponent:
+        if(Receipt.ComponentId.IsNone()||!Receipt.bComponentInstalled){return TEXT("回执缺少结果，请以当前状态为准。");}
+        return LDTerms::ComponentInstalled(ContentName(Content,Receipt.ComponentId.ToString()));
+    case ELDBuildCommandKind::UninstallComponent:
+        if(Receipt.ComponentId.IsNone()||Receipt.bComponentInstalled){return TEXT("回执缺少结果，请以当前状态为准。");}
+        return LDTerms::ComponentRemoved(ContentName(Content,Receipt.ComponentId.ToString()));
     default: return TEXT("回执缺少结果，请以当前状态为准。");
     }
 }
-LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match)
+ELDGrowthReason LDHUD::ElementGate(ELDDemoElement Element)
+{
+    return Element==ELDDemoElement::Water||Element==ELDDemoElement::Electric?ELDGrowthReason::ElementUnsupported:ELDGrowthReason::None;
+}
+ELDGrowthReason LDHUD::ComponentElementGate(const FLDDemoComponentDefinition& Component)
+{
+    for(const FLDDemoEffectDefinition& Effect:Component.Effects)
+    {
+        if(ElementGate(Effect.Element)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
+    }
+    return ELDGrowthReason::None;
+}
+FString LDHUD::ElementName(ELDDemoElement Element)
+{
+    switch(Element)
+    {
+    case ELDDemoElement::Fire: return LDTerms::ElementFire;
+    case ELDDemoElement::Water: return LDTerms::ElementWater;
+    case ELDDemoElement::Electric: return LDTerms::ElementElectric;
+    default: return FString::Printf(TEXT("未知元素 #%d"),int32(Element));
+    }
+}
+TArray<FName> LDHUD::BindableActives(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression)
+{
+    TArray<FName> Out;
+    if(Component.Binding!=ELDDemoComponentBinding::ActiveElement){return Out;}
+    for(uint8 Slot=0;Slot<3;++Slot)
+    {
+        const FName Held=ActiveInSlot(Progression,Slot);
+        if(!Held.IsNone()&&Component.BindActives.Contains(Held.ToString())){Out.Add(Held);}
+    }
+    return Out;
+}
+LDHUD::FComponentCardView LDHUD::ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
+{
+    FComponentCardView Card;
+    Card.DefinitionId=DefinitionId;
+    const FString Id=DefinitionId.ToString();
+    Card.Name=ContentName(Content,Id);
+    Card.Glyph=IconGlyph(Card.Name);
+    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    if(Display){Card.IconId=Display->IconId;}
+    if(!Component||!Display)
+    {
+        Card.SentencePlain=Card.Sentence=Content?FString(TEXT("内容目录中找不到该构件")):FString(TEXT("内容数据同步中"));
+        return Card;
+    }
+    Card.bBinding=Component->Binding==ELDDemoComponentBinding::ActiveElement;
+    // A component's fixed amounts grow with the holder's level like an active's (LDSkillGrowth), so its card renders the
+    // same way against a value set that holds only its effects.
+    FLDDemoAbilityValues Values;Values.Effects=Component->Effects;
+    const FCardText Sentence=CardText(Display->DescriptionText,Values,Stats,Content->Parameters.SkillGrowthPerLevelBp,
+        Content->Parameters.SkillGrowthPerLevelAfter10Bp);
+    Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
+    Card.Keywords=KeywordLines(Sentence.Keywords);
+    Card.bKnown=Sentence.bComplete;
+    return Card;
+}
+ELDGrowthReason LDHUD::ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    const FString Id=Instance.DefinitionId.ToString();
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    if(!Component){return ELDGrowthReason::DataNotReady;}
+    if(Component->Kind!=ELDDemoComponentKind::Base){return ELDGrowthReason::InvalidTarget;}
+    if(ComponentElementGate(*Component)!=ELDGrowthReason::None){return ELDGrowthReason::ElementUnsupported;}
+    if(Component->Binding==ELDDemoComponentBinding::ActiveElement&&BindableActives(*Component,Progression).IsEmpty()){return ELDGrowthReason::InvalidTarget;}
+    return ELDGrowthReason::None;
+}
+LDHUD::FComponentRowView LDHUD::ComponentRow(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+{
+    FComponentRowView Row;
+    Row.DefinitionId=Instance.DefinitionId;
+    Row.bInstalled=Instance.bInstalled;
+    if(Row.bInstalled){return Row;}
+    const FString Id=Instance.DefinitionId.ToString();
+    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    Row.bBinding=Component&&Component->Binding==ELDDemoComponentBinding::ActiveElement;
+    const ELDGrowthReason Reason=ComponentEnableReason(Instance,Progression,Content);
+    if(Reason==ELDGrowthReason::DataNotReady){Row.Blocked=Content?FString(TEXT("内容目录中找不到该构件")):FString(TEXT("内容数据同步中"));return Row;}
+    if(Reason==ELDGrowthReason::InvalidTarget&&Row.bBinding){Row.Blocked=LDTerms::NoBindableActive;return Row;}
+    if(Reason!=ELDGrowthReason::None){Row.Blocked=BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);return Row;}
+    // A once-installed component moves again only in the rest window; a first install follows the field gate.
+    Row.bCanEnable=Instance.bEverInstalled?Gate.bCanReinstall:Gate.bCanInstall;
+    Row.Blocked=Row.bCanEnable?FString():Instance.bEverInstalled?Gate.ReinstallBlocked:Gate.InstallBlocked;
+    return Row;
+}
+LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
 {
     FGrowthPending Pending;
     if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return Pending;}
     Pending.Offers=Progression->QueuedActiveOpportunities;
     Pending.Points=FMath::Max<int64>(0,Progression->UnspentPoints);
     Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
+    Pending.bOpeningBase=Progression->bOpeningBasePending&&!Progression->OpeningBaseOptions.IsEmpty();
+    for(const FLDComponentInstanceView& Owned:Progression->Components)
+    {
+        if(Owned.bInstalled||Owned.bEverInstalled){continue;}
+        if(!Content||ComponentEnableReason(Owned,*Progression,Content)==ELDGrowthReason::None){++Pending.Components;}
+    }
     return Pending;
 }
 FString LDHUD::FGrowthPending::Prompt() const
@@ -1092,6 +1205,8 @@ FString LDHUD::FGrowthPending::Prompt() const
     if(Offers>0){Text+=FString::Printf(TEXT("+%d"),Offers);}
     if(Points>0){Text+=FString::Printf(TEXT(" · %lld点"),Points);}
     if(Offers<=0&&Points<=0&&Blueprints>0){Text+=FString::Printf(TEXT(" · %s %d"),LDTerms::Blueprint,Blueprints);}
+    const int32 Parts=Components+(bOpeningBase?1:0);
+    if(Parts>0){Text+=TEXT(" · ")+LDTerms::ComponentsPending(Parts);}
     return Text;
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
@@ -1150,6 +1265,15 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NotEnoughPoints: return TEXT("未分配点数不够");
     case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
     case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
+    case ELDGrowthReason::NotOwned: return FString(TEXT("你没有这个"))+LDTerms::Component;
+    case ELDGrowthReason::AlreadyInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("已经启用了");
+    case ELDGrowthReason::NotInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("还没有启用");
+    case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
+    case ELDGrowthReason::InvalidTarget: return TEXT("安装位置或绑定无效");
+    case ELDGrowthReason::ElementUnsupported: return LDTerms::ElementClosed;
+    case ELDGrowthReason::OpeningBaseUnavailable: return FString(TEXT("这个"))+LDTerms::Component+TEXT("不在开局可选范围内");
+    case ELDGrowthReason::OpeningBaseTaken: return FString(TEXT("开局基础"))+LDTerms::Component+TEXT("已经选过了");
+    case ELDGrowthReason::OpeningActiveFirst: return FString(TEXT("先选开局技能，再选开局基础"))+LDTerms::Component;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
@@ -1400,8 +1524,10 @@ bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
 bool LDHUD::FGrowthAutoOpen::Observe(const FLDProgressionView& View,uint32 Match)
 {
     if(!View.bValid||Match==0||View.Generation!=Match){return false;}
-    if(SeenMatch!=Match){SeenMatch=Match;bOpeningShown=false;}
-    if(bOpeningShown||!View.bHasActiveOffer||!View.ActiveOffer.OfferId.IsValid()||View.ActiveOffer.OpportunityOrdinal!=1){return false;}
-    bOpeningShown=true;
-    return true;
+    if(SeenMatch!=Match){SeenMatch=Match;bOpeningShown=false;bOpeningBaseShown=false;}
+    const bool bOpeningOffer=!bOpeningShown&&View.bHasActiveOffer&&View.ActiveOffer.OfferId.IsValid()&&View.ActiveOffer.OpportunityOrdinal==1;
+    const bool bOpeningBase=!bOpeningBaseShown&&View.bOpeningBasePending&&!View.OpeningBaseOptions.IsEmpty();
+    if(bOpeningOffer){bOpeningShown=true;}
+    if(bOpeningBase){bOpeningBaseShown=true;}
+    return bOpeningOffer||bOpeningBase;
 }

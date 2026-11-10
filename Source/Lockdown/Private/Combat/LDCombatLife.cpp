@@ -297,6 +297,8 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
             Body.ElementMark=FLDCombatElementMark();
             ++Removed;
         }
+        // B02: a leaving owner's unsettled ledger entries end with it.
+        Body.Ledgers.RemoveAll([&Entity](const FLDCombatLedger& Ledger) { return Ledger.Owner==Entity; });
         if (Removed>0)
         {
             ++Body.StateRevision;

@@ -215,8 +215,8 @@ bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
         }
     }
 #if LD_HAS_DEMO_CONTRACT
-    if (LD_DEMO_CONTENT_SCHEMA_VERSION != 2 || LD_DEMO_CONTENT_HANDLER_REVISION != 2
-        || LD_DEMO_CONTENT_PROJECTION_REVISION != 4 || LD_DEMO_WORLD_SCHEMA_VERSION != 3
+    if (LD_DEMO_CONTENT_SCHEMA_VERSION != 2 || LD_DEMO_CONTENT_HANDLER_REVISION != 3
+        || LD_DEMO_CONTENT_PROJECTION_REVISION != 5 || LD_DEMO_WORLD_SCHEMA_VERSION != 3
         || LD_DEMO_WORLD_PROJECTION_REVISION != 3)
     {
         Error = TEXT("不支持的 Demo 内容/世界 schema。请重新生成已批准的输入，并与原生代码一起重新构建。");

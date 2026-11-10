@@ -15,9 +15,6 @@ namespace LDCombatKeywordsDetail
         if (ValueP2<=0 || Bp<=0) { return 0; }
         return ValueP2/10000*Bp+ValueP2%10000*Bp/10000;
     }
-
-    double Cm(const FLDDemoRational& Value)
-    { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; }
 }
 
 bool ALDCombatDirector::KeywordTerms(FLDKeywordTerms& Out, FString& Error) const
@@ -49,16 +46,15 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
     };
     // The hit's own stacks (an active's payload, a zone pulse or an overload). Fire is an element (ApplyElements).
     Breach(Hit.BreachStacks,Hit.CreditOwner);
-    // The living source's held breach triggers: basic_stacks on a primary basic hit, stacks on a learned Q/W/E hit. Ticks,
-    // pulses, settles, reflections, added damage and shield-triggered answers are neither.
+    // The living source's held breach trigger on a primary basic hit (basic_stacks: B08). Ticks, pulses, settles,
+    // reflections, added damage and shield-triggered answers are none.
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
-    const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && Hit.Source.Kind==ELDCombatSourceKind::Learned && Hit.Token!=0;
-    if (Source && !Source->bPendingDeath && (bBasic || bSkill) && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
-        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger && !Hit.bSuppressSkillTriggers)
+    if (Source && !Source->bPendingDeath && bBasic && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic && !Hit.bStatusSettle
+        && !Hit.bFromShieldTrigger)
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Breach,Passives,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Ref : Passives) { Breach(bBasic ? Ref.Effect->BasicCount : Ref.Effect->Count,Hit.CreditOwner); }
+        for (const FLDPassiveEffectRef& Ref : Passives) { Breach(Ref.Effect.BasicCount,Hit.CreditOwner); }
     }
     if (bChanged)
     {
@@ -98,15 +94,11 @@ bool ALDCombatDirector::AdvanceBurns(int64 NowMs, FString& Error)
                 Tick.DamageType=ELDDemoDamageType::Magical;
                 Tick.bPeriodic=true;
                 Tick.bBurnTick=true;
-                // A burn takes its living applier's slowed-or-controlled amplification (v7 4.2) in the damage bonus pool;
-                // nothing else of it.
-                if (const FLDBodyCombatState* Applier=FindBody(Share.SourceBody); Applier && !Applier->bPendingDeath)
+                // A burn takes its living applier's control amplification (B07) in the damage bonus pool; nothing else of it.
+                if (const FLDBodyCombatState* Applier=FindBody(Share.SourceBody); Applier && !Applier->bPendingDeath
+                    && Applier->AttributeProjection.ControlAmp.IsSet())
                 {
-                    if (const FLDDemoEffectDefinition* Amp=FindTrigger(Applier->AttributeProjection,ELDDemoEffectOp::ControlDamageAmp))
-                    {
-                        Tick.ControlAmpBp=Amp->RatioBp;
-                        Tick.ControlAmpBelowBp=Amp->SecondaryRatioBp;
-                    }
+                    Tick.ControlAmpBp=Applier->AttributeProjection.ControlAmp->RatioBp;
                 }
             }
             bChanged=true;
@@ -126,78 +118,17 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     TArray<FLDPassiveEffectRef> Shields;
     if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::TriggeredShield,Shields,Error)) { return false; }
     const FLDPassiveEffectRef* Ref=Shields.FindByPredicate([](const FLDPassiveEffectRef& Row)
-    { return Row.Effect->Trigger==ELDDemoEffectTrigger::Damaged; });
+    { return Row.Effect.Trigger==ELDDemoEffectTrigger::Damaged; });
     if (!Ref) { return true; }
-    const FLDDemoEffectDefinition& Effect=*Ref->Effect;
-    // A held trigger's fixed amount already arrives grown for the holder's level (CollectPassiveEffects).
+    const FLDDemoEffectDefinition& Effect=Ref->Effect;
+    // B09: the fixed amount already arrives grown for the holder's level (CollectPassiveEffects), plus its max-HP share now.
     const int64 Amount=Effect.BaseP2
         +LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Effect.MaxHPRatioBp);
     const FGuid ShieldId=FGuid::NewGuid();
     if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error)) { return false; }
-    // A weaker shield than the one held is not granted, and then the rest does not start.
+    // A weaker shield than the one held is not granted (no fake grant, no refresh), and then the rest does not start.
     if (!Body.Shield.IsSet() || Body.Shield->EffectId!=ShieldId) { return true; }
-    if (!LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error)) { return false; }
-    Body.ShieldBurst.Reset();
-    if (Effect.SecondaryRatioBp>0)
-    {
-        FLDCombatShieldBurst& Burst=Body.ShieldBurst.Emplace();
-        Burst.ShieldEffectId=ShieldId;
-        Burst.Source=Ref->Source;
-        Burst.GrantedP2=Body.ShieldGrantedP2;
-        Burst.RatioBp=Effect.SecondaryRatioBp;
-        Burst.RadiusCm=LDCombatKeywordsDetail::Cm(Effect.RadiusCm);
-    }
-    return true;
-}
-
-bool ALDCombatDirector::BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId,
-    const FLDCombatBodyRef& BreakerBody, int64 NowMs, FString& Error)
-{
-    if (!Body.ShieldBurst.IsSet()) { return true; }
-    const FLDCombatShieldBurst Burst=Body.ShieldBurst.GetValue();
-    Body.ShieldBurst.Reset();
-    ALDCharacter* Actor=ActorOf(Body);
-    if (!BrokenShieldId.IsValid() || Burst.ShieldEffectId!=BrokenShieldId || !Actor || Body.bPendingDeath) { return true; }
-    TArray<FLDCombatBodyRef> Targets;
-    if (!CollectAreaTargets(FootOf(*Actor),Burst.RadiusCm,&Body,Body.Victim.EntityId,Targets,Error))
-    { Error=TEXT("Shield burst: ")+Error; return false; }
-    const FGuid EffectId=FGuid::NewGuid();
-    const FLDBodyCombatState* Breaker=FindBody(BreakerBody);
-    if (Breaker && Breaker!=&Body && !Breaker->bPendingDeath)
-    {
-        FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
-        Hit.HitId=FGuid::NewGuid();
-        Hit.EffectId=EffectId;
-        Hit.Target=BreakerBody;
-        Hit.SourceBody={Body.Victim,Body.Identity};
-        Hit.SourceEntity=Body.Victim.EntityId;
-        Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
-        Hit.Source=Burst.Source;
-        Hit.HitClass=ELDCombatHitClass::Ability;
-        Hit.BaseP2=LDCombatKeywords::ShieldBurstShareP2(Burst.GrantedP2,Burst.RatioBp,false);
-        Hit.DamageType=ELDDemoDamageType::Magical;
-        Hit.bFromShieldTrigger=true;
-    }
-    for (const FLDCombatBodyRef& Target : Targets)
-    {
-        if (Target==BreakerBody) { continue; }
-        FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
-        Hit.HitId=FGuid::NewGuid();
-        Hit.EffectId=EffectId;
-        Hit.Target=Target;
-        Hit.SourceBody={Body.Victim,Body.Identity};
-        Hit.SourceEntity=Body.Victim.EntityId;
-        Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
-        Hit.Source=Burst.Source;
-        Hit.HitClass=ELDCombatHitClass::Ability;
-        Hit.BaseP2=LDCombatKeywords::ShieldBurstShareP2(Burst.GrantedP2,Burst.RatioBp,true);
-        Hit.DamageType=ELDDemoDamageType::Magical;
-        // A burst never grants another shield-triggered effect.
-        Hit.bFromShieldTrigger=true;
-    }
-    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_SHIELD_BURST holder=%s targets=%d breaker=%s at=%lld"),*LDLog::Id(Body.Victim.EntityId),
-        Targets.Num(),*LDLog::Id(BreakerBody.Victim.EntityId),NowMs);
-    return true;
+    return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error);
 }
 
 void ALDCombatDirector::AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const

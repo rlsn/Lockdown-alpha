@@ -21,7 +21,8 @@
 **一份参赛者成长、一条 Combat 来源链。**
 XP、等级、属性点、主动机会与待学图纸由 Development 持有；装备、金币与商店已按 [#144](https://github.com/rlsn/Lockdown-alpha/issues/144) 删除。
 成长规则按 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198)（2026-11-10 批准）改为五维属性点与单级主动，产品规则见 App Spec §4.2–§4.4；
-本域已接入其第一部分，构件、休息服务与 PK 由 #198 后续部分接入。
+本域已接入其第一部分与第二部分（B：材料实例、开局与升级的基础构件 B01–B18 及其安装），改装件/连接件、休息服务与 PK
+由 #198 后续部分接入。
 死亡奖励和成长命令各自在同一权威批次内复合提交：
 先准备成长与 Combat 投影，全部成功才一起应用，不先改 OwnerState 再补写。
 
@@ -29,6 +30,8 @@ XP、等级、属性点、主动机会与待学图纸由 Development 持有；�
 | --- | --- |
 | 所有人初始近战、单体普攻；普攻可成长（距离、元素、强化、反应范围等），不要求群攻（2026-11-10 用户决定） | 初始构筑不授主动；获准的攻击距离、元素与强化进入同一 Combat 投影，不是只有面板数值。当前运行目录只有强化普攻主动。 |
 | 1 至 16 级；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一；16 级后按 XP 继续给点 | 开局点数与机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、点数与主动机会同一提交；连升排队，满级后继续累计 XP 并按阈值给点。 |
+| 开局主动选定后自选一个当前可用基础构件；每次正常升级（2–16 级）给一件普通构件，先按等级档位抽类别再在未持有定义中等概率取，空类别按剩余权重归一化，普通池耗尽改给 3 点（App Spec、AI 规范 §4.1–§4.3） | 开局基础构件整局一次，候选为常驻起手加开局主动解锁的，排除已持有；升级材料与 XP 同一提交、按本局私有种子抽取，满级后的 XP 不给材料；死亡与重连不重发、不洗首次安装历史。 |
+| 首次启用基础构件与学习同表；搬动、卸下和重装旧件只在休息（AI 规范 §5） | 本分支没有休息阶段，卸下与重装一律 `RestOnly`；水与电在元素状态接入前拒绝安装（`ElementUnsupported`）。 |
 | 主动候选互不重复，排除已学与待学图纸；技能只有一级 | 开局取开局池，3/6 级取全部主动；只有 1–2 个合格时如实显示，为零时机会排队；没有重抽。 |
 | Q/W/E 三角色主动；选中即成待学图纸，可学习且有空槽时同次学到 | 学习与野外加点需要构筑安全窗；满槽在野外不能替换（替换只在休息，未接入），新主动保留为图纸；遗忘不退款、不保留备用库。 |
 | 失去来源期间继续计时，重持有沿用原结束时间 | 遗忘、换槽、死亡不缩短已开始的 `ReadyAtMs`；重学承接原记录的截止时刻。 |
@@ -69,8 +72,8 @@ V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 O
 
 | 唯一写入者 / 类型 | 真相与限制 | 只读消费者 |
 | --- | --- | --- |
-| `ALDDevelopmentDirector` 修改参赛记录中的 `FLDGrowthBuild` | Level；五维各自的已分配点数；Q/W/E 已学主动；待学图纸（不含已学定义）；BuildRevision。奖励与成长命令只改其获准字段。不得接客户端完整 Build。 | Combat 准备投影、自身 UI、该参赛 AI。 |
-| 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、主动机会队列（已获/已消费）、当前至多一组主动候选（最多 3 个定义）及每次机会的处理记录；随机材料由本局私有 `MatchSecret` 按参赛者与机会序号派生（`LDProgression::OfferSeed`）。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
+| `ALDDevelopmentDirector` 修改参赛记录中的 `FLDGrowthBuild` | Level；五维各自的已分配点数；Q/W/E 已学主动；待学图纸（不含已学定义）；材料实例（每定义至多一件，含来源、安装、首次历史与绑定）；BuildRevision。奖励与成长命令只改其获准字段。不得接客户端完整 Build。 | Combat 准备投影（只含已安装组件）、自身 UI、该参赛 AI。 |
+| 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、主动机会队列（已获/已消费）、当前至多一组主动候选（最多 3 个定义）及每次机会的处理记录、材料池耗尽改给点数的升级次数；随机材料由本局私有 `MatchSecret` 按参赛者与机会序号或等级派生（`LDProgression::OfferSeed`、`ComponentSeed`）。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
 | Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、ReadyAtMs）与 `SourceRevision`；构筑安全窗的最近不安全时刻（跨生命保留）。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W/E、D、属性面板、AI 自身读模型（`FLDCombatOwnerView`）。 |
 | `FLDOwnerState` / 各 View | 上述真相的一次一致投影，携带 Match/Life 和发布修订；不得反向写成长或 Combat。 | 拥有连接；GameState 不持有全体私有构筑。 |
 
