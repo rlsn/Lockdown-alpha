@@ -412,9 +412,8 @@ namespace LDOpponentPolicy
     LOCKDOWN_API bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<uint8>& Out,
         FString& Error);
     // #198 B component picks (rule-based, no tunable numbers). Whether the AI could enable Component apart from the build
-    // gate: a base component whose elements are open (water and electric are refused as ElementUnsupported until #198 A)
-    // and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its BindActives lists, bound
-    // with fire (Out* stay empty / None without a binding).
+    // gate: a base component and, for an ActiveElement binding (B18), the first learned active in Q/W/E order that its
+    // BindActives lists, bound with the first element its BindElements lists (Out* stay empty / None without a binding).
     LOCKDOWN_API bool ComponentUsable(const FLDOpponentSelf& Self, const FLDDemoComponentDefinition& Component,
         FString& OutBoundActive, ELDDemoElement& OutElement);
     // The opening base pick: the first option in catalog order that ComponentUsable accepts; false when none does.
