@@ -128,9 +128,16 @@ public:
     bool RosterKept = true, ReadsKept = true;
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
-    // #198: each AI body's foot when the opening rest R0 was first sampled, the largest drift seen before field 1, and
-    // the ms since the match start (R0) at which each AI's opening choice was first seen.
-    TMap<TWeakObjectPtr<ALDOpponentController>, FVector> Rest0AIFeet;
+    // #198: each AI's current rest life in its private rest space during the opening rest R0 and that life's foot at its
+    // first sample, the largest drift seen before field 1, the AIs seen on a PK life in R0 (evidence only), and the ms
+    // since the match start (R0) at which each AI's opening choice was first seen.
+    struct FRest0Foot
+    {
+        uint32 Life = 0;
+        FVector Foot = FVector::ZeroVector;
+    };
+    TMap<FGuid, FRest0Foot> Rest0AIFeet;
+    TSet<FGuid> Rest0PKEntrants;
     TMap<FGuid, int64> Rest0Picks;
     double MaxRest0AIDriftCm = 0;
     int32 Rest0Samples = 0;
@@ -243,6 +250,7 @@ public:
     bool BindOpponents(UWorld& World, ALDGameMode& Mode, const FLDLobbyView& Lobby);
     void Sample(UWorld& World, ALDGameMode& Mode);
     void ReadGrowth(ALDGameMode& Mode, FLDOpponentProbeTrack& Track) const;
+    static void CountRequests(FLDOpponentProbeTrack& Track, int64 Now);
     void CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const FLDResultView& Result);
 };
 
@@ -289,6 +297,15 @@ void FLDDemoOpponentProbe::ReadGrowth(ALDGameMode& Mode, FLDOpponentProbeTrack& 
     }
 }
 
+void FLDDemoOpponentProbe::CountRequests(FLDOpponentProbeTrack& Track, int64 Now)
+{
+    using namespace LDDemoOpponentProbeDetail;
+    const uint32 Body = Track.Tally.BodyRequests();
+    Track.Requests.Add(TPair<int64, uint32>(Now, Body));
+    while (Track.Requests.Num() > 1 && Track.Requests[0].Key < Now - RequestWindowMs) { Track.Requests.RemoveAt(0); }
+    Track.MaxWindowRequests = FMath::Max(Track.MaxWindowRequests, Body - Track.Requests[0].Value);
+}
+
 void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
 {
     using namespace LDDemoOpponentProbeDetail;
@@ -300,13 +317,16 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
     const bool bDevelopment = Public.Phase == ELDMatchPhase::Development;
     // #198: a rest retires every field life without a death, ends every running respawn wait and stands each body in its
     // private rest space; the field return places a new life. None of that is a death, a respawn or travel through the map.
+    // The request window keeps counting through the rest, so a PK fight is held to the same bound and its requests are
+    // never folded into the first field window after the rest.
     if (Public.Phase == ELDMatchPhase::Rest)
     {
         for (FLDOpponentProbeTrack& Track : Tracks)
         {
+            const ALDOpponentController* AI = Track.Controller.Get();
             FLDContenderLifeRead Life;
             FString ReadError;
-            if (!Track.Controller.Get() || !Mode.ReadContenderLife(Mode.GetMatchContext(), Track.Contender, Life, ReadError))
+            if (!AI || !Mode.ReadContenderLife(Mode.GetMatchContext(), Track.Contender, Life, ReadError))
             {
                 ReadsKept = false;
                 continue;
@@ -317,6 +337,8 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
             Track.ActCheckDueMs = -1;
             Track.bHasFeet = false;
             ReadGrowth(Mode, Track);
+            Track.Tally = AI->GetRequestTally();
+            CountRequests(Track, Now);
         }
         return;
     }
@@ -385,9 +407,7 @@ void FLDDemoOpponentProbe::Sample(UWorld& World, ALDGameMode& Mode)
             const bool bRecovering = Life.Phase == ELDLifePhase::Dead || AI->GetReportedReason() == ELDOpponentReason::Recover;
             Track.DevRecoverOrDeadMs += bRecovering ? SampleMs : 0;
         }
-        Track.Requests.Add(TPair<int64, uint32>(Now, Body));
-        while (Track.Requests.Num() > 1 && Track.Requests[0].Key < Now - RequestWindowMs) { Track.Requests.RemoveAt(0); }
-        Track.MaxWindowRequests = FMath::Max(Track.MaxWindowRequests, Body - Track.Requests[0].Value);
+        CountRequests(Track, Now);
     }
 }
 
@@ -742,23 +762,36 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 no opponent AI moves (sampled on the authority until field 1); each picks its
-        // opening active in the R0 build step after its drawn delay.
+        // #198: through the opening rest R0 no opponent AI moves in its private rest space (sampled on the authority until
+        // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights
+        // on a PK life in the arena during the PK step (approved R0 PK); that life is not a rest-space body, and the
+        // rest life it returns to afterwards is measured from its own first sample.
         if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsRestPhase(Mode->GetMatchContext())
             && Mode->GetTimeline().GetRestIndex() == 0)
         {
             for (TActorIterator<ALDOpponentController> It(World); It; ++It)
             {
+                const FGuid Id = Mode->ContenderId(*It);
+                if (Mode->IsPKLife(Id)) { Rest0PKEntrants.Add(Id); }
                 const APawn* Pawn = It->GetPawn();
-                if (!Pawn) { continue; }
-                const FVector Foot = Pawn->GetActorLocation();
-                if (const FVector* First = Rest0AIFeet.Find(*It))
-                { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(*First, Foot)); }
-                else { Rest0AIFeet.Add(*It, Foot); }
-                const FLDProgressionView Growth = Mode->Development->ReadProgression(Mode->ContenderId(*It));
-                if (Growth.ActiveOpportunitiesConsumed == 1 && !Rest0Picks.Contains(Mode->ContenderId(*It)))
+                FLDContenderLifeRead Life;
+                FString ReadError;
+                if (Pawn && Mode->IsInRestSpace(Id) && Mode->ReadContenderLife(Mode->GetMatchContext(), Id, Life, ReadError)
+                    && Life.Phase == ELDLifePhase::Alive)
                 {
-                    Rest0Picks.Add(Mode->ContenderId(*It), Mode->GetAuthorityNowMs() - Mode->ReadPublicMatch().StartedAtMs);
+                    const FVector Foot = Pawn->GetActorLocation();
+                    FRest0Foot& Seen = Rest0AIFeet.FindOrAdd(Id);
+                    if (Seen.Life == Life.Life) { MaxRest0AIDriftCm = FMath::Max(MaxRest0AIDriftCm, FVector::Dist2D(Seen.Foot, Foot)); }
+                    else
+                    {
+                        Seen.Life = Life.Life;
+                        Seen.Foot = Foot;
+                    }
+                }
+                const FLDProgressionView Growth = Mode->Development->ReadProgression(Id);
+                if (Growth.ActiveOpportunitiesConsumed == 1 && !Rest0Picks.Contains(Id))
+                {
+                    Rest0Picks.Add(Id, Mode->GetAuthorityNowMs() - Mode->ReadPublicMatch().StartedAtMs);
                 }
             }
             ++Rest0Samples;
@@ -772,9 +805,10 @@ bool FLDDemoOpponentProbe::Tick()
         if (bHost)
         {
             Check(Rest0Samples > 0 && Rest0AIFeet.Num() == OpponentCount && MaxRest0AIDriftCm < 1.,
-                TEXT("No opponent AI moves during the opening rest R0"));
+                TEXT("No opponent AI moves in its private rest space during the opening rest R0"));
             Summary->SetNumberField(TEXT("rest0_samples"), Rest0Samples);
             Summary->SetNumberField(TEXT("rest0_ai_drift_cm"), MaxRest0AIDriftCm);
+            Summary->SetNumberField(TEXT("rest0_pk_entrants"), Rest0PKEntrants.Num());
         }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
         if (!Passed) { return Finish(); }
@@ -871,8 +905,12 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         || Cast<ALDOpponentController>(&Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoOpponentProbe>();
-    // #198: a full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final field.
-    int32 Timeout = 1200;
+    // #198: a full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final
+    // field. The AI sign up for every PK, so each rest can run its whole approved PK: R0 45+5+8+3+60+3+12+5 = 141 s, each
+    // of R1..R3 30+5+8+3+60+3+12+5 = 126 s, fields 3 x 180 s: the flagpole opens at most 141 + 3 x 126 + 540 = 1059 s
+    // after the start (695 s with no PK). The lobby, the capture contest and the results keep the 505 s they had over
+    // the 695 s opening (1200 - 695): 1059 + 505 = 1564 s, rounded up.
+    int32 Timeout = 1570;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentRole="), Probe->Role)
