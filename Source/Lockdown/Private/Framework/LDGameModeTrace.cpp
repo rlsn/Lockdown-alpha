@@ -24,10 +24,11 @@ namespace LDGameModeTraceDetail
         return Connection ? Connection->LowLevelGetRemoteAddress(true) : FString(TEXT("-"));
     }
 
-    // #198: Q/W/E actives with their slots, pending blueprints and the allocated points per stat (catalog order).
+    // #198: Q/W/E actives with their slots, pending blueprints, the allocated points per stat (catalog order) and (#198 B)
+    // the owned components, installed ones marked with '+' and their binding.
     FString BuildText(const FLDGrowthBuild& Build)
     {
-        FString Skills, Blueprints;
+        FString Skills, Blueprints, Components;
         for (const FLDLearnedActive& Active : Build.Actives)
         {
             Skills += FString::Printf(TEXT("%s%s/%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Active.Id.ToString(),
@@ -37,9 +38,16 @@ namespace LDGameModeTraceDetail
         {
             Blueprints += FString::Printf(TEXT("%s%s"), Blueprints.IsEmpty() ? TEXT("") : TEXT(","), *Id.ToString());
         }
+        for (const FLDComponentInstance& Instance : Build.Components)
+        {
+            Components += FString::Printf(TEXT("%s%s%s%s"), Components.IsEmpty() ? TEXT("") : TEXT(","), Instance.bInstalled ? TEXT("+") : TEXT(""),
+                *Instance.Id.ToString(), Instance.Target.BoundActive.IsNone() ? TEXT("")
+                    : *FString::Printf(TEXT("@%s:%s"), *Instance.Target.BoundActive.ToString(), *LDLog::EnumName(Instance.Target.Element)));
+        }
         const FString Points = FString::JoinBy(Build.StatPoints, TEXT(","), [](int32 Count) { return FString::FromInt(Count); });
-        return FString::Printf(TEXT("skills=%s blueprints=%s points=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills,
-            Blueprints.IsEmpty() ? TEXT("-") : *Blueprints, Points.IsEmpty() ? TEXT("-") : *Points);
+        return FString::Printf(TEXT("skills=%s blueprints=%s points=%s components=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills,
+            Blueprints.IsEmpty() ? TEXT("-") : *Blueprints, Points.IsEmpty() ? TEXT("-") : *Points,
+            Components.IsEmpty() ? TEXT("-") : *Components);
     }
 }
 

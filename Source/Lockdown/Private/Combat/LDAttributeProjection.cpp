@@ -1,6 +1,7 @@
 #include "Combat/LDAttributeProjection.h"
 
 #include "../Development/LDDemoContentMath.h"
+#include "Development/LDSkillGrowth.h"
 
 namespace LDAttributeProjection
 {
@@ -79,6 +80,35 @@ bool IsRationalStat(ELDDemoBonusStat Stat)
         || Stat == ELDDemoBonusStat::MPRegenFlat;
 }
 
+// #198 B: the effects an installed component may carry. The projection consumes stat_bonus, low_hp_stat_bonus and
+// control_damage_amp; Combat's trigger handlers read the rest through ALDCombatDirector::CollectPassiveEffects.
+bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
+{
+    switch (Effect.GetOp())
+    {
+    case ELDDemoEffectOp::StatBonus: case ELDDemoEffectOp::LowHpStatBonus: case ELDDemoEffectOp::ControlDamageAmp:
+    case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Ledger: case ELDDemoEffectOp::Thorns:
+    case ELDDemoEffectOp::Lifesteal: case ELDDemoEffectOp::DashContactDamage: case ELDDemoEffectOp::NthBasicBonus:
+    case ELDDemoEffectOp::TriggeredShield: case ELDDemoEffectOp::BasicElement: case ELDDemoEffectOp::BasicDamageScale:
+    case ELDDemoEffectOp::PrimaryGuard: case ELDDemoEffectOp::IdleReadyAmp: case ELDDemoEffectOp::ActiveElement:
+    case ELDDemoEffectOp::ManaOnHit: case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::DashContactRefund:
+    case ELDDemoEffectOp::ShieldBreakRetort:
+        return true;
+    case ELDDemoEffectOp::EmpowerBasic:
+        // B12: a component's empowered basic arms on a completed voluntary dash only.
+        return Effect.Trigger == ELDDemoEffectTrigger::DashComplete;
+    default:
+        return false;
+    }
+}
+
+// One resolved installed component: its catalog row and its effects grown for the build level.
+struct FResolvedComponent
+{
+    const FLDDemoComponentDefinition* Definition = nullptr;
+    TArray<FLDDemoEffectDefinition> Effects;
+};
+
 struct FTermSum
 {
     FExact Flat;
@@ -90,6 +120,7 @@ struct FAttributeSum
     FExact Base;
     FTermSum Level;
     FTermSum Choices;
+    FTermSum Components;
     FTermSum Dev;
 };
 
@@ -185,6 +216,10 @@ private:
             }
             Stats.Add(Stat);
         }
+        if (!ResolveComponents())
+        {
+            return false;
+        }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
         {
             const FLDDemoStatBonus& Bonus = Build.DevBonuses[Index];
@@ -210,6 +245,124 @@ private:
             }
         }
         return true;
+    }
+
+    // #198 B: every installed component once, a catalog base component whose install parameters match its binding; its
+    // effects grown for the build level (LDSkillGrowth::GrowEffect, the same rule as an active's value set).
+    bool ResolveComponents()
+    {
+        const FLDDemoContentParameters& P = Content.Parameters;
+        const int64 Factor = LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp, P.SkillGrowthPerLevelAfter10Bp, Build.Level);
+        if (!Build.Components.IsEmpty() && Factor <= 0)
+        {
+            return Refuse(EError::Catalog, TEXT("Components"), TEXT("The skill growth parameters give no factor for this level"));
+        }
+        FString LookupError;
+        for (int32 Index = 0; Index < Build.Components.Num(); ++Index)
+        {
+            const FLDInstalledComponentValue& Installed = Build.Components[Index];
+            const FString Field = FString::Printf(TEXT("Components[%d]"), Index);
+            const FLDDemoComponentDefinition* Definition = nullptr;
+            if (Installed.ComponentId.IsNone() || !Catalog.FindComponent(Installed.ComponentId.ToString(), Definition, LookupError)
+                || !Definition)
+            {
+                return Refuse(EError::UnknownDefinition, Field,
+                    LookupError.IsEmpty() ? FString(TEXT("An installed component needs a catalog id")) : LookupError);
+            }
+            if (Components.ContainsByPredicate([Definition](const FResolvedComponent& Row) { return Row.Definition == Definition; }))
+            {
+                return Refuse(EError::DuplicateSource, Field, Definition->Id + TEXT(" is installed more than once"));
+            }
+            if (Definition->Kind != ELDDemoComponentKind::Base)
+            {
+                return Refuse(EError::InputDomain, Field, Definition->Id + TEXT(" is a mod or connector; installing onto a target requires #198 F"));
+            }
+            bool bBindingMatches = false;
+            if (Definition->Binding == ELDDemoComponentBinding::ActiveElement)
+            {
+                bBindingMatches = !Installed.BoundActive.IsNone() && Installed.Element != ELDDemoElement::None
+                    && Definition->BindActives.Contains(Installed.BoundActive.ToString())
+                    && Definition->BindElements.Contains(Installed.Element);
+            }
+            else
+            {
+                bBindingMatches = Definition->Binding == ELDDemoComponentBinding::None && Installed.BoundActive.IsNone()
+                    && Installed.Element == ELDDemoElement::None;
+            }
+            if (!bBindingMatches)
+            {
+                return Refuse(EError::InputDomain, Field, Definition->Id + TEXT(" has install parameters outside its binding"));
+            }
+            FResolvedComponent& Row = Components.AddDefaulted_GetRef();
+            Row.Definition = Definition;
+            Row.Effects.SetNum(Definition->Effects.Num());
+            for (int32 Effect = 0; Effect < Definition->Effects.Num(); ++Effect)
+            {
+                if (!IsComponentEffectOp(Definition->Effects[Effect]))
+                {
+                    return Refuse(EError::Catalog, Field, FString::Printf(TEXT("%s effect %d (opcode %u) has no Combat handler"),
+                        *Definition->Id, Effect, uint32(Definition->Effects[Effect].Opcode)));
+                }
+                if (!LDSkillGrowth::GrowEffect(Definition->Effects[Effect], Factor, Row.Effects[Effect]))
+                {
+                    return Refuse(EError::Overflow, Field, Definition->Id + TEXT(" does not grow within the checked numeric domain"));
+                }
+            }
+        }
+        return true;
+    }
+
+    // #198 B: always-on stat_bonus terms and the conditional terms of the installed components.
+    bool AccumulateComponents()
+    {
+        const FExact One = Numbers.Value(1);
+        for (int32 Index = 0; Index < Components.Num(); ++Index)
+        {
+            const FResolvedComponent& Row = Components[Index];
+            const FString Field = FString::Printf(TEXT("Components[%d]"), Index);
+            for (const FLDDemoEffectDefinition& Effect : Row.Effects)
+            {
+                if (Effect.GetOp() == ELDDemoEffectOp::StatBonus)
+                {
+                    for (const FLDDemoStatBonus& Bonus : Effect.Stats)
+                    {
+                        if (!AddBonus(Bonus, &FAttributeSum::Components, One, Field))
+                        {
+                            return false;
+                        }
+                    }
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::LowHpStatBonus)
+                {
+                    if (LowHP.IsSet())
+                    {
+                        return Refuse(EError::Aggregation, Field, TEXT("Several low-HP terms have no approved aggregation rule"));
+                    }
+                    if (Effect.RatioBp <= 0 || Effect.RatioBp >= 10000 || Effect.Stats.IsEmpty())
+                    {
+                        return Refuse(EError::Catalog, Field, TEXT("A low-HP term requires a threshold inside the pool and stats"));
+                    }
+                    FLDLowHPBonusTerm& Term = LowHP.Emplace();
+                    Term.ThresholdBp = Effect.RatioBp;
+                    Term.Stats = Effect.Stats;
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::ControlDamageAmp)
+                {
+                    if (ControlAmp.IsSet())
+                    {
+                        return Refuse(EError::Aggregation, Field, TEXT("Several control amplifications have no approved aggregation rule"));
+                    }
+                    if (Effect.RatioBp <= 0)
+                    {
+                        return Refuse(EError::Catalog, Field, TEXT("A control amplification requires a positive ratio"));
+                    }
+                    FLDControlDamageAmpTerm& Term = ControlAmp.Emplace();
+                    Term.ComponentId = FName(*Row.Definition->Id);
+                    Term.RatioBp = Effect.RatioBp;
+                }
+            }
+        }
+        return Check.Good || ArithmeticFailure(TEXT("Components"));
     }
 
     bool AddBonus(const FLDDemoStatBonus& Bonus, FTermSum FAttributeSum::* Category, const FExact& Multiplier,
@@ -281,6 +434,10 @@ private:
             }
         }
         const FExact One = Numbers.Value(1);
+        if (!AccumulateComponents())
+        {
+            return false;
+        }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
         {
             if (!AddBonus(Build.DevBonuses[Index], &FAttributeSum::Dev, One, FString::Printf(TEXT("DevBonuses[%d]"), Index)))
@@ -415,8 +572,10 @@ private:
             const EAttribute Attribute = static_cast<EAttribute>(Index);
             const FString Field = AttributeName(Attribute);
             const FAttributeSum& Sum = Sums[Index];
-            const FExact Flat = Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat), Sum.Dev.Flat);
-            const FExact Ratio = Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio), Sum.Dev.Ratio);
+            const FExact Flat = Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat), Sum.Components.Flat),
+                Sum.Dev.Flat);
+            const FExact Ratio = Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio), Sum.Components.Ratio),
+                Sum.Dev.Ratio);
             FExact Value = Numbers.Mul(Numbers.Add(Sum.Base, Flat), Numbers.Add(One, Ratio));
             // Every attribute clamps last to its catalog bounds (#112 §4): allocated points may push a sum past a cap.
             bool bClamped = false, bAboveMax = false;
@@ -454,6 +613,8 @@ private:
                 && ToRational(Sum.Level.Ratio, Row.LevelGrowth.AdditiveRatio, Field)
                 && ToRational(Sum.Choices.Flat, Row.PermanentChoices.Flat, Field)
                 && ToRational(Sum.Choices.Ratio, Row.PermanentChoices.AdditiveRatio, Field)
+                && ToRational(Sum.Components.Flat, Row.Components.Flat, Field)
+                && ToRational(Sum.Components.Ratio, Row.Components.AdditiveRatio, Field)
                 && ToRational(Sum.Dev.Flat, Row.Dev.Flat, Field)
                 && ToRational(Sum.Dev.Ratio, Row.Dev.AdditiveRatio, Field)
                 && ToRational(Value, Row.Final, Field);
@@ -462,6 +623,20 @@ private:
                 return ArithmeticFailure(Field);
             }
         }
+        Out.LowHPBonus = LowHP;
+        Out.ControlAmp = ControlAmp;
+        Out.InstalledComponents.Reset(Components.Num());
+        for (int32 Index = 0; Index < Components.Num(); ++Index)
+        {
+            const FLDInstalledComponentValue& Installed = Build.Components[Index];
+            FLDInstalledComponentTerm& Term = Out.InstalledComponents.AddDefaulted_GetRef();
+            Term.ComponentId = FName(*Components[Index].Definition->Id);
+            Term.BoundActive = Installed.BoundActive;
+            Term.Element = Installed.Element;
+            Term.Level = Build.Level;
+        }
+        Out.InstalledComponents.Sort([](const FLDInstalledComponentTerm& A, const FLDInstalledComponentTerm& B)
+        { return A.ComponentId.LexicalLess(B.ComponentId); });
         return true;
     }
 
@@ -474,6 +649,10 @@ private:
     TArray<FAttributeSum> Sums;
     // The catalog stat of each Build.StatPoints row, in input order.
     TArray<const FLDDemoStatDefinition*, TInlineAllocator<8>> Stats;
+    // #198 B: each Build.Components row resolved, in input order, and the conditional terms they hold.
+    TArray<FResolvedComponent> Components;
+    TOptional<FLDLowHPBonusTerm> LowHP;
+    TOptional<FLDControlDamageAmpTerm> ControlAmp;
 };
 
 // Exact value of one projected attribute as stored in Final.
@@ -619,7 +798,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         {
             const FLDAttributeContributions& Row = Build.Contributions[Index];
             Base = N.Value(Row.Base);
-            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Dev})
+            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Components, &Row.Dev})
             {
                 Flat = N.Add(Flat, N.Value(Terms2->Flat));
                 Ratio = N.Add(Ratio, N.Value(Terms2->AdditiveRatio));

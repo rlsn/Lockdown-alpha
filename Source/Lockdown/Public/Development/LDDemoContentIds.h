@@ -17,6 +17,14 @@ enum class ELDDemoStatId : uint8
 {
     StatPhysique=27, StatThickSkin=28, StatStrength=29, StatBrains=30, StatAgility=31
 };
+// #198 B: workshop materials. Base components B01-B18 are 1-18; mods M01-M12 take 19-30 and connectors C01-C12 31-42 (#198 F).
+enum class ELDDemoComponentId : uint8
+{
+    ComponentFistFire=1, ComponentTabLedger=2, ComponentSpikyHide=3, ComponentPunchHeal=4, ComponentDashBump=5,
+    ComponentThirdPunch=6, ComponentKickDown=7, ComponentBreachFist=8, ComponentHardSkin=9, ComponentFistWater=10,
+    ComponentFistShock=11, ComponentDashPunch=12, ComponentCatchBreath=13, ComponentLongArm=14, ComponentSeeingRed=15,
+    ComponentThickHide=16, ComponentHeldShot=17, ComponentDirtyTrick=18
+};
 enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4 };
 // Public statuses travel in a 32-bit observation mask, so status ids stay below 32 (#112 C2 uses 20, #147 v7 25..26).
 // Retired status identities must never be reused: 7..8, 11, 15..19, 21..24, 28..29 (native_ids.json retired_ranges).
@@ -26,7 +34,7 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
     Knockback=20, Silence=25, Burn=26, AttackSlowed=27 };
 // #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md); #198 keeps the passive-form operations for base
 // components. Retired operation identities must never be reused: 6, 9..11, 16, 19, 23, 25, 27..30, 32..34, 38..39,
-// 41..49, 51, 53, 55..66, 68, 72..76, 83..85, 89 (native_ids.json).
+// 41..49, 51, 53, 55..66, 68, 72..76, 83..85, 89 (native_ids.json). #198 B owns 100..119 for component-only operations.
 enum class ELDDemoEffectOp : uint8
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
@@ -39,5 +47,6 @@ enum class ELDDemoEffectOp : uint8
     ShieldBreakRetort=67,
     Silence=69, Breach=70, Burn=71, ZoneBurn=77,
     ChannelCone=78, GroundImpact=79, AttackSlow=80, ContactTrap=81, DashContact=82,
-    PrimaryGuard=86, DashContactDamage=87, DashContactRefund=88
+    PrimaryGuard=86, DashContactDamage=87, DashContactRefund=88,
+    Ledger=100, BasicElement=101, BasicDamageScale=102, IdleReadyAmp=103, ActiveElement=104
 };

@@ -408,10 +408,21 @@ void FLDPlaytestTrace::LogGrowth(const ALDPlayerController& PC)
             {
                 Points += FString::Printf(TEXT("%s%s:%d"), Points.IsEmpty() ? TEXT("") : TEXT(","), *Stat.StatId.ToString(), Stat.Points);
             }
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_BUILD t=%lld level=%u xp=%lld pending=%u unspent=%lld skills=%s blueprints=%s points=%s"),
+            // #198 B: owned components, installed ones marked with '+' and their binding.
+            FString Components;
+            for (const FLDComponentInstanceView& Component : Progression->Components)
+            {
+                Components += FString::Printf(TEXT("%s%s%s%s"), Components.IsEmpty() ? TEXT("") : TEXT(","),
+                    Component.bInstalled ? TEXT("+") : TEXT(""), *Component.DefinitionId.ToString(),
+                    Component.Target.BoundActive.IsNone() ? TEXT("") : *FString::Printf(TEXT("@%s:%s"),
+                        *Component.Target.BoundActive.ToString(), *LDLog::EnumName(Component.Target.Element)));
+            }
+            const FString OpeningBases = FString::JoinBy(Progression->OpeningBaseOptions, TEXT(","), [](FName Id) { return Id.ToString(); });
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_BUILD t=%lld level=%u xp=%lld pending=%u unspent=%lld skills=%s blueprints=%s points=%s components=%s opening_bases=%s"),
                 NowMs, uint32(Progression->Level), Progression->CumulativeXP, uint32(Progression->QueuedActiveOpportunities),
                 Progression->UnspentPoints, Skills.IsEmpty() ? TEXT("-") : *Skills, Blueprints.IsEmpty() ? TEXT("-") : *Blueprints,
-                Points.IsEmpty() ? TEXT("-") : *Points);
+                Points.IsEmpty() ? TEXT("-") : *Points, Components.IsEmpty() ? TEXT("-") : *Components,
+                Progression->bOpeningBasePending && !OpeningBases.IsEmpty() ? *OpeningBases : TEXT("-"));
         }
     }
 }

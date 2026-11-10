@@ -91,12 +91,35 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
 inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
-// 升级横幅的第二行：这次升级得到的属性点与主动机会。
-inline FString LevelUpGains(int64 Points,int32 Offers)
+// #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件；脱战后首次启用，休息时才能重新安装。
+inline constexpr TCHAR Component[]=TEXT("构件");
+inline constexpr TCHAR OpeningBase[]=TEXT("选一个开局基础构件");
+inline constexpr TCHAR TakeComponent[]=TEXT("拿这个");
+inline constexpr TCHAR Components[]=TEXT("构件（拿到后脱战启用）");
+inline constexpr TCHAR ComponentEnabled[]=TEXT("已启用");
+inline constexpr TCHAR EnableComponent[]=TEXT("启用");
+inline constexpr TCHAR ReinstallAtRest[]=TEXT("休息时才能重新安装");
+inline constexpr TCHAR ElementClosed[]=TEXT("该元素尚未开放");
+inline constexpr TCHAR NoBindableActive[]=TEXT("先学会一个能绑定的伤害技能");
+inline constexpr TCHAR PickBoundActive[]=TEXT("绑定哪个技能：");
+inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
+inline constexpr TCHAR CancelBinding[]=TEXT("取消");
+inline constexpr TCHAR ElementFire[]=TEXT("火");
+inline constexpr TCHAR ElementWater[]=TEXT("水");
+inline constexpr TCHAR ElementElectric[]=TEXT("电");
+inline FString ComponentsPending(int32 Count){return FString::Printf(TEXT("%s %d"),Component,Count);}
+inline FString ComponentTaken(const FString& Name){return FString::Printf(TEXT("已拿到%s：%s"),Component,*Name);}
+inline FString ComponentInstalled(const FString& Name){return FString::Printf(TEXT("已启用%s：%s"),Component,*Name);}
+inline FString ComponentStored(const FString& Name,const FString& Why)
+{return Why.IsEmpty()?ComponentTaken(Name):FString::Printf(TEXT("已拿到%s：%s，先存着（%s）"),Component,*Name,*Why);}
+inline FString ComponentRemoved(const FString& Name){return FString::Printf(TEXT("已拆下%s：%s"),Component,*Name);}
+// 升级横幅的第二行：这次升级得到的属性点、主动机会与构件（构件名用顿号连接，空表示没有）。
+inline FString LevelUpGains(int64 Points,int32 Offers,const FString& NewComponents)
 {
     TArray<FString> Parts;
     if(Points>0){Parts.Add(FString::Printf(TEXT("%lld %s"),Points,StatPoints));}
     if(Offers>0){Parts.Add(OfferChance(Offers));}
+    if(!NewComponents.IsEmpty()){Parts.Add(FString(Component)+TEXT("「")+NewComponents+TEXT("」"));}
     return Parts.IsEmpty()?FString():TEXT("获得 ")+FString::Join(Parts,TEXT(" · "));
 }
 inline FString OffersQueued(int32 Count){return FString::Printf(TEXT("还有 %d 次选技能"),Count);}

@@ -70,10 +70,47 @@ const FLDDemoAbilityDefinition* ProgressionFindAbility(const FLDDemoContentDefin
     return Content.Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Row) { return FName(*Row.Id) == Id; });
 }
 
+const FLDDemoComponentDefinition* ProgressionFindComponent(const FLDDemoContentDefinitions& Content, FName Id)
+{
+    return Content.Components.FindByPredicate([&](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Id; });
+}
+
+bool ProgressionListsId(const TArray<FString>& Ids, FName Id)
+{
+    return !Id.IsNone() && Ids.ContainsByPredicate([Id](const FString& Row) { return FName(*Row) == Id; });
+}
+
+// The stored shape of an installed component (ValidateBuild): a base component without a target, carrying exactly the
+// binding parameters its definition takes. Whether the bound active is still learned is not part of the shape: a
+// forgotten bound active only stops new triggers.
+bool ProgressionInstalledShape(const FLDDemoComponentDefinition& Definition, const FLDComponentTarget& Target)
+{
+    if (Definition.Kind != ELDDemoComponentKind::Base || Target.Kind != ELDComponentTargetKind::None || !Target.Definition.IsNone()
+        || Target.Segment != 0)
+    {
+        return false;
+    }
+    switch (Definition.Binding)
+    {
+    case ELDDemoComponentBinding::None:
+        return Target.BoundActive.IsNone() && Target.Element == ELDDemoElement::None;
+    case ELDDemoComponentBinding::ActiveElement:
+        return ProgressionListsId(Definition.BindActives, Target.BoundActive) && Target.Element != ELDDemoElement::None
+            && Definition.BindElements.Contains(Target.Element);
+    }
+    return false;
+}
+
+bool ProgressionUnsupportedElement(ELDDemoElement Element)
+{
+    return Element == ELDDemoElement::Water || Element == ELDDemoElement::Electric;
+}
+
 void ProgressionSortBuild(FLDGrowthBuild& Build)
 {
     Build.Actives.Sort([](const FLDLearnedActive& A, const FLDLearnedActive& B) { return A.Slot < B.Slot; });
     Build.PendingBlueprints.Sort([](FName A, FName B) { return ProgressionIdLess(A, B); });
+    Build.Components.Sort([](const FLDComponentInstance& A, const FLDComponentInstance& B) { return ProgressionIdLess(A.Id, B.Id); });
 }
 }
 
@@ -90,6 +127,16 @@ int32 FLDGrowthBuild::ActiveInSlot(uint8 Slot) const
 bool FLDGrowthBuild::HasBlueprint(FName Id) const
 {
     return PendingBlueprints.Contains(Id);
+}
+
+const FLDComponentInstance* FLDGrowthBuild::FindComponent(FName Id) const
+{
+    return Components.FindByPredicate([&](const FLDComponentInstance& Instance) { return Instance.Id == Id; });
+}
+
+FLDComponentInstance* FLDGrowthBuild::FindComponent(FName Id)
+{
+    return Components.FindByPredicate([&](const FLDComponentInstance& Instance) { return Instance.Id == Id; });
 }
 
 bool FLDGrowthBuild::SpentPoints(int64& Out) const
@@ -204,7 +251,8 @@ ELDGrowthReason LDProgression::MonsterKillReward(const FLDDemoContentSnapshot& C
     return ELDGrowthReason::None;
 }
 
-ELDGrowthReason LDProgression::EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out)
+ELDGrowthReason LDProgression::EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, uint8 EmptyPoolGrants,
+    int64& Out)
 {
     Out = 0;
     const FLDDemoContentParameters& P = Content.Parameters;
@@ -214,12 +262,16 @@ ELDGrowthReason LDProgression::EarnedPoints(const FLDDemoContentDefinitions& Con
     {
         return Reason;
     }
-    if (XPLevel != Level || P.OpeningPoints < 0 || P.PointsPerLevel < 0 || P.MaxLevelPoints < 0 || P.MaxLevelPointsXP <= 0)
+    // Each exhausted-pool grant replaced the component of one normal level-up, so there are never more than levels crossed.
+    if (XPLevel != Level || P.OpeningPoints < 0 || P.PointsPerLevel < 0 || P.MaxLevelPoints < 0 || P.MaxLevelPointsXP <= 0
+        || P.EmptyComponentPoolPoints < 0 || int32(EmptyPoolGrants) > int32(Level) - 1)
     {
         return ELDGrowthReason::DataInvalid;
     }
-    int64 Earned = 0, Grants = 0, Extra = 0;
-    if (!ProgressionCheckedMul(P.PointsPerLevel, int64(Level) - 1, Earned) || !ProgressionCheckedAdd(Earned, P.OpeningPoints, Earned))
+    int64 Earned = 0, Grants = 0, Extra = 0, PoolPoints = 0;
+    if (!ProgressionCheckedMul(P.PointsPerLevel, int64(Level) - 1, Earned) || !ProgressionCheckedAdd(Earned, P.OpeningPoints, Earned)
+        || !ProgressionCheckedMul(P.EmptyComponentPoolPoints, EmptyPoolGrants, PoolPoints)
+        || !ProgressionCheckedAdd(Earned, PoolPoints, Earned))
     {
         return ELDGrowthReason::ArithmeticOverflow;
     }
@@ -237,11 +289,11 @@ ELDGrowthReason LDProgression::EarnedPoints(const FLDDemoContentDefinitions& Con
 }
 
 ELDGrowthReason LDProgression::UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
-    int64& Out)
+    uint8 EmptyPoolGrants, int64& Out)
 {
     Out = 0;
     int64 Earned = 0, Spent = 0;
-    if (const ELDGrowthReason Reason = EarnedPoints(Content, Build.Level, XP, Earned); Reason != ELDGrowthReason::None)
+    if (const ELDGrowthReason Reason = EarnedPoints(Content, Build.Level, XP, EmptyPoolGrants, Earned); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
@@ -298,6 +350,34 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
         {
             return ELDGrowthReason::DataInvalid;
         }
+    }
+    // #198 B: one instance per definition sorted by id, at most one opening pick and one level-up grant per level.
+    int32 OpeningPicks = 0;
+    TSet<uint8> GrantLevels;
+    for (int32 Index = 0; Index < Build.Components.Num(); ++Index)
+    {
+        const FLDComponentInstance& Instance = Build.Components[Index];
+        const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Instance.Id);
+        bool bDuplicateLevel = false;
+        if (Instance.Source == ELDComponentSource::LevelUp)
+        {
+            GrantLevels.Add(Instance.SourceLevel, &bDuplicateLevel);
+        }
+        OpeningPicks += Instance.Source == ELDComponentSource::OpeningPick ? 1 : 0;
+        const bool bSource = Instance.Source == ELDComponentSource::OpeningPick ? Instance.SourceLevel == 1
+            : Instance.Source == ELDComponentSource::LevelUp
+                ? Instance.SourceLevel >= 2 && Instance.SourceLevel <= Build.Level && !bDuplicateLevel
+                : false;
+        if (!Definition || !bSource || (Index > 0 && !ProgressionIdLess(Build.Components[Index - 1].Id, Instance.Id))
+            || (Instance.bInstalled && !Instance.bEverInstalled)
+            || (Instance.bInstalled ? !ProgressionInstalledShape(*Definition, Instance.Target) : !Instance.Target.IsEmpty()))
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+    }
+    if (OpeningPicks > 1)
+    {
+        return ELDGrowthReason::DataInvalid;
     }
     return ELDGrowthReason::None;
 }
@@ -392,6 +472,12 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::AllocatePoints:
         return Context.Stage == EMatchStage::Countdown || Context.LifePhase == ELDLifePhase::Dead || Context.bSafe
             ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
+    case ELDBuildCommandKind::OpeningBase:
+        return ELDGrowthReason::None;
+    case ELDBuildCommandKind::InstallComponent:
+        return InstallGate(Context, false);
+    case ELDBuildCommandKind::UninstallComponent:
+        return IsRestWindow(Context) ? ELDGrowthReason::None : ELDGrowthReason::RestOnly;
     default:
         return ELDGrowthReason::InvalidRequest;
     }
@@ -494,7 +580,7 @@ ELDGrowthReason LDProgression::ApplyLearnBlueprint(const FLDDemoContentDefinitio
 }
 
 ELDGrowthReason LDProgression::ApplyAllocation(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-    int64 XP, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out)
+    int64 XP, uint8 EmptyPoolGrants, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out)
 {
     Out = Current;
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
@@ -515,7 +601,7 @@ ELDGrowthReason LDProgression::ApplyAllocation(const FLDDemoContentDefinitions& 
         return Reason;
     }
     int64 Unspent = 0;
-    if (const ELDGrowthReason Reason = UnspentPoints(Content, Current, XP, Unspent); Reason != ELDGrowthReason::None)
+    if (const ELDGrowthReason Reason = UnspentPoints(Content, Current, XP, EmptyPoolGrants, Unspent); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
@@ -532,5 +618,350 @@ ELDGrowthReason LDProgression::ApplyAllocation(const FLDDemoContentDefinitions& 
         }
         Out.StatPoints[Index] += PointCounts[Index];
     }
+    return ELDGrowthReason::None;
+}
+
+// ---- #198 B components ----
+
+ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
+    uint64 Seed, FName& OutComponent)
+{
+    OutComponent = NAME_None;
+    const FLDDemoProgressionDefinition& Progression = Content.Progression;
+    if (Level < 2 || int32(Level) > Progression.MaxLevel)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    const FLDDemoComponentCategoryWeights* Band = nullptr;
+    for (const FLDDemoComponentCategoryWeights& Row : Progression.ComponentCategoryWeights)
+    {
+        if (Row.MinLevel <= int32(Level) && int32(Level) <= Row.MaxLevel)
+        {
+            if (Band)
+            {
+                return ELDGrowthReason::DataInvalid;
+            }
+            Band = &Row;
+        }
+    }
+    if (!Band || Band->BasePercent < 0 || Band->ModPercent < 0 || Band->ConnectorPercent < 0
+        || Band->BasePercent + Band->ModPercent + Band->ConnectorPercent != 100)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Build); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    // Indexed by ELDDemoComponentKind: Base, Mod, Connector.
+    const int64 Weights[3] = {Band->BasePercent, Band->ModPercent, Band->ConnectorPercent};
+    TArray<FName> Pools[3];
+    for (const FLDDemoComponentDefinition& Definition : Content.Components)
+    {
+        const int32 Kind = int32(Definition.Kind);
+        if (Kind < 0 || Kind > 2)
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        const FName Id(*Definition.Id);
+        if (Definition.Pool == ELDDemoComponentPool::Common && !Build.FindComponent(Id))
+        {
+            Pools[Kind].Add(Id);
+        }
+    }
+    // An empty category is dropped; the others keep their relative weights.
+    int64 Total = 0;
+    bool bAnyLeft = false;
+    for (int32 Kind = 0; Kind < 3; ++Kind)
+    {
+        bAnyLeft |= !Pools[Kind].IsEmpty();
+        Total += Pools[Kind].IsEmpty() ? 0 : Weights[Kind];
+    }
+    if (!bAnyLeft)
+    {
+        return ELDGrowthReason::None;
+    }
+    // Definitions are left only in categories this band never rolls: a table that cannot hand them out, not an empty pool.
+    if (Total <= 0)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    uint64 State = Seed;
+    int64 Roll = int64(ProgressionSplitMix64(State) % uint64(Total));
+    for (int32 Kind = 0; Kind < 3; ++Kind)
+    {
+        if (Pools[Kind].IsEmpty())
+        {
+            continue;
+        }
+        if (Roll < Weights[Kind])
+        {
+            OutComponent = Pools[Kind][int32(ProgressionSplitMix64(State) % uint64(Pools[Kind].Num()))];
+            return ELDGrowthReason::None;
+        }
+        Roll -= Weights[Kind];
+    }
+    return ELDGrowthReason::DataInvalid;
+}
+
+uint64 LDProgression::ComponentSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Level)
+{
+    // The trailing tag keeps the component roll of level N apart from active opportunity N's OfferSeed.
+    uint32 Words[10] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
+        Contender.A, Contender.B, Contender.C, Contender.D, Level, 0x434F4D50u};
+    return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
+}
+
+ELDGrowthReason LDProgression::GrantLevelComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    uint8 LevelBefore, uint8 LevelAfter, const FGuid& MatchSecret, const FGuid& Contender, FLDGrowthBuild& Out,
+    uint8& OutEmptyPoolGrants, TArray<FLDComponentGrant>& OutGrants)
+{
+    Out = Current;
+    OutEmptyPoolGrants = 0;
+    OutGrants.Reset();
+    if (LevelBefore < 1 || LevelAfter < LevelBefore)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    for (int32 Level = int32(LevelBefore) + 1; Level <= int32(LevelAfter); ++Level)
+    {
+        FName Picked;
+        const ELDGrowthReason Reason = DrawLevelComponent(Content, Out, uint8(Level), ComponentSeed(MatchSecret, Contender, uint8(Level)),
+            Picked);
+        if (Reason != ELDGrowthReason::None)
+        {
+            Out = Current;
+            OutEmptyPoolGrants = 0;
+            OutGrants.Reset();
+            return Reason;
+        }
+        OutGrants.Add({uint8(Level), Picked});
+        if (Picked.IsNone())
+        {
+            ++OutEmptyPoolGrants;
+            continue;
+        }
+        FLDComponentInstance& Instance = Out.Components.AddDefaulted_GetRef();
+        Instance.Id = Picked;
+        Instance.Source = ELDComponentSource::LevelUp;
+        Instance.SourceLevel = uint8(Level);
+        ProgressionSortBuild(Out);
+    }
+    return ELDGrowthReason::None;
+}
+
+FName LDProgression::OpeningActive(const FLDProgressionState& Progression)
+{
+    const FLDActiveOpportunityRecord* Opening = Progression.Records.FindByPredicate(
+        [](const FLDActiveOpportunityRecord& Row) { return Row.Ordinal == 1; });
+    return Opening ? Opening->Chosen : NAME_None;
+}
+
+bool LDProgression::OpeningBaseTaken(const FLDGrowthBuild& Build)
+{
+    return Build.Components.ContainsByPredicate(
+        [](const FLDComponentInstance& Instance) { return Instance.Source == ELDComponentSource::OpeningPick; });
+}
+
+ELDGrowthReason LDProgression::OpeningBaseOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    FName OpeningChoice, TArray<FName>& Out)
+{
+    Out.Reset();
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Build); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    for (const FLDDemoComponentDefinition& Definition : Content.Components)
+    {
+        const FName Id(*Definition.Id);
+        if (Definition.Kind != ELDDemoComponentKind::Base || Definition.Pool != ELDDemoComponentPool::Common || Build.FindComponent(Id))
+        {
+            continue;
+        }
+        if (Definition.bOpeningAlways || ProgressionListsId(Definition.OpeningActives, OpeningChoice))
+        {
+            Out.Add(Id);
+        }
+    }
+    return ELDGrowthReason::None;
+}
+
+bool LDProgression::IsRestWindow(const FBuildContext& /*Context*/)
+{
+    // #198 C replaces this with its EMatchStage::Rest; this branch has no rest window.
+    return false;
+}
+
+ELDGrowthReason LDProgression::InstallGate(const FBuildContext& Context, bool bEverInstalled)
+{
+    if (!LDGrowthWire::IsBuildLifePhase(Context.LifePhase))
+    {
+        return ELDGrowthReason::LifePhaseChanged;
+    }
+    if (Context.Stage != EMatchStage::Countdown && Context.Stage != EMatchStage::Live)
+    {
+        return ELDGrowthReason::PhaseClosed;
+    }
+    if (IsRestWindow(Context))
+    {
+        return ELDGrowthReason::None;
+    }
+    // A once-installed instance moving again is a rest service; first installs follow the learn matrix.
+    return bEverInstalled ? ELDGrowthReason::RestOnly : LearnGate(Context);
+}
+
+ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    FName Component, const FLDComponentTarget& Target)
+{
+    const FLDDemoComponentDefinition* Definition = ProgressionFindComponent(Content, Component);
+    // Mods and connectors get their targets with #198 F.
+    if (!Definition || Definition->Kind != ELDDemoComponentKind::Base || Target.Kind != ELDComponentTargetKind::None
+        || !Target.Definition.IsNone() || Target.Segment != 0)
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    if (Definition->Binding == ELDDemoComponentBinding::ActiveElement)
+    {
+        if (!ProgressionListsId(Definition->BindActives, Target.BoundActive) || !Build.FindActive(Target.BoundActive)
+            || Target.Element == ELDDemoElement::None || !Definition->BindElements.Contains(Target.Element))
+        {
+            return ELDGrowthReason::InvalidTarget;
+        }
+        if (ProgressionUnsupportedElement(Target.Element))
+        {
+            return ELDGrowthReason::ElementUnsupported;
+        }
+    }
+    else if (!Target.BoundActive.IsNone() || Target.Element != ELDDemoElement::None)
+    {
+        return ELDGrowthReason::InvalidTarget;
+    }
+    // Water (wet) and electric (shocked) have no element state before #198 A: such a component never reaches Combat.
+    if (Definition->Effects.ContainsByPredicate(
+        [](const FLDDemoEffectDefinition& Effect) { return ProgressionUnsupportedElement(Effect.Element); }))
+    {
+        return ELDGrowthReason::ElementUnsupported;
+    }
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyOpeningBase(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDProgressionState& Progression, FName Component, bool bInstallIfPossible, const FLDComponentTarget& Target,
+    const FBuildContext& Context, FLDGrowthBuild& Out, FInstallOutcome& Outcome)
+{
+    Out = Current;
+    Outcome = FInstallOutcome();
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (!bInstallIfPossible && !Target.IsEmpty())
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::OpeningBase, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const FName Opening = OpeningActive(Progression);
+    if (Opening.IsNone())
+    {
+        return ELDGrowthReason::OpeningActiveFirst;
+    }
+    if (OpeningBaseTaken(Current))
+    {
+        return ELDGrowthReason::OpeningBaseTaken;
+    }
+    TArray<FName> Options;
+    if (const ELDGrowthReason Reason = OpeningBaseOptions(Content, Current, Opening, Options); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Component.IsNone() || !Options.Contains(Component))
+    {
+        return ELDGrowthReason::OpeningBaseUnavailable;
+    }
+    FLDComponentInstance Instance;
+    Instance.Id = Component;
+    Instance.Source = ELDComponentSource::OpeningPick;
+    Instance.SourceLevel = 1;
+    if (bInstallIfPossible)
+    {
+        // The install half never fails the pick; it only keeps the component in the inventory with the reason.
+        Outcome.StoredReason = InstallGate(Context, false);
+        if (Outcome.StoredReason == ELDGrowthReason::None)
+        {
+            Outcome.StoredReason = InstallTargetReason(Content, Current, Component, Target);
+        }
+        if (Outcome.StoredReason == ELDGrowthReason::None)
+        {
+            Instance.bInstalled = true;
+            Instance.bEverInstalled = true;
+            Instance.Target = Target;
+            Outcome.bInstalled = true;
+        }
+    }
+    Out.Components.Add(MoveTemp(Instance));
+    ProgressionSortBuild(Out);
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyInstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    FName Component, const FLDComponentTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out)
+{
+    Out = Current;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const FLDComponentInstance* Instance = Current.FindComponent(Component);
+    if (Component.IsNone() || !Instance)
+    {
+        return ELDGrowthReason::NotOwned;
+    }
+    if (Instance->bInstalled)
+    {
+        return ELDGrowthReason::AlreadyInstalled;
+    }
+    if (const ELDGrowthReason Reason = InstallGate(Context, Instance->bEverInstalled); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (const ELDGrowthReason Reason = InstallTargetReason(Content, Current, Component, Target); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    FLDComponentInstance* Installed = Out.FindComponent(Component);
+    Installed->bInstalled = true;
+    Installed->bEverInstalled = true;
+    Installed->Target = Target;
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplyUninstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    FName Component, const FBuildContext& Context, FLDGrowthBuild& Out)
+{
+    Out = Current;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const FLDComponentInstance* Instance = Current.FindComponent(Component);
+    if (Component.IsNone() || !Instance)
+    {
+        return ELDGrowthReason::NotOwned;
+    }
+    if (!Instance->bInstalled)
+    {
+        return ELDGrowthReason::NotInstalled;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::UninstallComponent, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    // Back to the inventory with its history: a later install is a rest-window move, never a first install.
+    FLDComponentInstance* Removed = Out.FindComponent(Component);
+    Removed->bInstalled = false;
+    Removed->Target = FLDComponentTarget();
     return ELDGrowthReason::None;
 }

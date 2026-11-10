@@ -145,10 +145,45 @@ namespace LDCombatKeywords
         return FMath::Clamp<int64>(SumBp, 0, FMath::Max<int64>(Terms.LifestealCapBp, 0));
     }
 
-    int64 ShieldBurstShareP2(int64 GrantedP2, int64 RatioBp, bool bNearbyEnemy)
+    bool ExpireLedger(FLDCombatLedger& Ledger, int64 AtMs)
     {
-        const int64 AppliedRatio = bNearbyEnemy ? RatioBp / 2 : RatioBp;
-        if (GrantedP2 <= 0 || AppliedRatio <= 0 || AppliedRatio > 10000) { return 0; }
-        return GrantedP2 / 10000 * AppliedRatio + GrantedP2 % 10000 * AppliedRatio / 10000;
+        if (Ledger.EntriesP2.IsEmpty() || Ledger.WindowMs <= 0 || Ledger.LastEntryAtMs > MAX_int64 - Ledger.WindowMs
+            || AtMs < Ledger.LastEntryAtMs + Ledger.WindowMs)
+        {
+            return false;
+        }
+        Ledger.EntriesP2.Reset();
+        return true;
+    }
+
+    bool AddLedgerEntry(FLDCombatLedger& Ledger, int64 ValueP2, int64 AtMs, int32 Count, int64 WindowMs, int64& OutCashOutP2,
+        bool& bOutRefused)
+    {
+        OutCashOutP2 = 0;
+        bOutRefused = ValueP2 < 0 || Count < 1 || WindowMs < 1;
+        if (bOutRefused) { return false; }
+        ExpireLedger(Ledger, AtMs);
+        const bool bNewBatch = Ledger.EntriesP2.IsEmpty();
+        const int32 Threshold = bNewBatch ? Count : Ledger.Count;
+        int64 Sum = ValueP2;
+        for (const int64 Entry : Ledger.EntriesP2)
+        {
+            if (Entry > MAX_int64 - Sum) { bOutRefused = true; return false; }
+            Sum += Entry;
+        }
+        if (bNewBatch)
+        {
+            Ledger.Count = Count;
+            Ledger.WindowMs = WindowMs;
+        }
+        Ledger.LastEntryAtMs = AtMs;
+        if (Ledger.EntriesP2.Num() + 1 >= Threshold)
+        {
+            Ledger.EntriesP2.Reset();
+            OutCashOutP2 = Sum;
+            return true;
+        }
+        Ledger.EntriesP2.Add(ValueP2);
+        return false;
     }
 }

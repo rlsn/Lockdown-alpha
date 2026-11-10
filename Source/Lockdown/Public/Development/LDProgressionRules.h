@@ -17,6 +17,39 @@ struct FLDLearnedActive
     uint8 Slot = 0;
 };
 
+// #198 B: where an installed component sits and its install parameters. Base components take Kind None; an ActiveElement
+// binding (B18) names one learned active and one element. Empty while the instance is in the inventory.
+struct FLDComponentTarget
+{
+    ELDComponentTargetKind Kind = ELDComponentTargetKind::None;
+    // Active / EffectSegment: the learned active; Component: the host component (#198 F).
+    FName Definition;
+    uint8 Segment = 0;
+    FName BoundActive;
+    ELDDemoElement Element = ELDDemoElement::None;
+
+    bool operator==(const FLDComponentTarget& Other) const
+    {
+        return Kind == Other.Kind && Definition == Other.Definition && Segment == Other.Segment && BoundActive == Other.BoundActive
+            && Element == Other.Element;
+    }
+    bool IsEmpty() const { return *this == FLDComponentTarget(); }
+};
+
+// #198 B: one owned material instance; inventory and installed are one list, at most one instance per definition.
+struct FLDComponentInstance
+{
+    FName Id;
+    ELDComponentSource Source = ELDComponentSource::None;
+    // OpeningPick: 1; LevelUp: the level whose normal reward granted it.
+    uint8 SourceLevel = 0;
+    bool bInstalled = false;
+    // First-time history (spec §5): once installed, a later re-install is a rest-window move; death, reconnect and
+    // uninstalling never clear it.
+    bool bEverInstalled = false;
+    FLDComponentTarget Target;
+};
+
 struct LOCKDOWN_API FLDGrowthBuild
 {
     uint8 Level = 1;
@@ -26,12 +59,16 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FLDLearnedActive> Actives;
     // Chosen actives waiting to be learned (待学图纸), sorted by id; never a learned id.
     TArray<FName> PendingBlueprints;
+    // #198 B: owned components sorted by id, one per definition.
+    TArray<FLDComponentInstance> Components;
     uint64 Revision = 1;
 
     const FLDLearnedActive* FindActive(FName Id) const;
     // Index into Actives of the active in Slot, or INDEX_NONE.
     int32 ActiveInSlot(uint8 Slot) const;
     bool HasBlueprint(FName Id) const;
+    const FLDComponentInstance* FindComponent(FName Id) const;
+    FLDComponentInstance* FindComponent(FName Id);
     // Sum of StatPoints; false on a negative count or an overflow.
     bool SpentPoints(int64& Out) const;
 };
@@ -63,6 +100,9 @@ struct FLDProgressionState
     // opening one granted by BeginMatch; each level of progression.active_offer_levels reached adds one more.
     uint8 ActiveEarned = 0;
     uint8 ActiveConsumed = 0;
+    // #198 B: normal level-ups whose component roll found the whole common pool owned; each earned
+    // GROWTH.EmptyComponentPoolPoints instead (LDProgression::EarnedPoints).
+    uint8 EmptyPoolGrants = 0;
     // The head's offer; unset while the queue is empty or no active is eligible for the head.
     TOptional<FLDActiveOfferState> Offer;
     uint64 LastOfferRevision = 0;
@@ -124,17 +164,21 @@ namespace LDProgression
         FRewardAmounts& Out);
 
     // Points earned by a contender at Level with cumulative XP: GROWTH.OpeningPoints, GROWTH.PointsPerLevel for every level
-    // crossed, and at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold.
-    LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, int64& Out);
+    // crossed, at the top level GROWTH.MaxLevelPoints for every full GROWTH.MaxLevelPointsXP past its threshold, and
+    // GROWTH.EmptyComponentPoolPoints for each of the EmptyPoolGrants level-ups that found the component pool exhausted.
+    LOCKDOWN_API ELDGrowthReason EarnedPoints(const FLDDemoContentDefinitions& Content, uint8 Level, int64 XP, uint8 EmptyPoolGrants,
+        int64& Out);
     // Earned minus allocated; AuthorityFault when the allocation exceeds what was earned.
     LOCKDOWN_API ELDGrowthReason UnspentPoints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP,
-        int64& Out);
-    // The level-1 build of a match start: no actives, blueprints or allocated points.
+        uint8 EmptyPoolGrants, int64& Out);
+    // The level-1 build of a match start: no actives, blueprints, components or allocated points.
     LOCKDOWN_API FLDGrowthBuild StartBuild(const FLDDemoContentDefinitions& Content);
-    // Actives by slot and blueprints by id, the order ValidateBuild requires.
+    // Actives by slot, blueprints and components by id, the order ValidateBuild requires.
     LOCKDOWN_API void NormalizeBuild(FLDGrowthBuild& Build);
     // Build has the shape this catalog allows: one point count per stat, at most three distinct known actives in distinct
-    // slots 0..2, distinct known blueprints sorted by id that are not learned.
+    // slots 0..2, distinct known blueprints sorted by id that are not learned, and distinct known components sorted by id
+    // whose source, history and install target are legal (installed implies ever installed; an inventory instance has no
+    // target; only a base component is installed, with the binding its definition takes).
     LOCKDOWN_API ELDGrowthReason ValidateBuild(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
 
     // The actives opportunity Ordinal may draw for Build, in catalog order: the opening pool (abilities flagged opening)
@@ -153,6 +197,8 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason LearnGate(const FBuildContext& Context);
     // The legality matrix of one command kind: ActiveChoice in the countdown and the development phases, alive or dead;
     // LearnBlueprint like LearnGate; AllocatePoints in the countdown, while dead, or alive inside the safe window.
+    // #198 B: OpeningBase like ActiveChoice; InstallComponent as a first install (InstallGate); UninstallComponent the rest
+    // window only (RestOnly).
     LOCKDOWN_API ELDGrowthReason CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context);
     // The slot a learn takes: Preferred when it is an empty slot 0..2, otherwise the lowest empty one; false when full.
     LOCKDOWN_API bool PickLearnSlot(const FLDGrowthBuild& Build, uint8 Preferred, uint8& OutSlot);
@@ -170,5 +216,66 @@ namespace LDProgression
     // Unspent points allocated across the stats in one step: one count per catalog stat summing to at least one and at
     // most the unspent points (NotEnoughPoints), gated by CommandGate.
     LOCKDOWN_API ELDGrowthReason ApplyAllocation(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        int64 XP, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);
+        int64 XP, uint8 EmptyPoolGrants, const TArray<uint8>& PointCounts, const FBuildContext& Context, FLDGrowthBuild& Out);
+
+    // ---- #198 B components ----
+
+    // The component of one normal level-up to Level (2..MaxLevel): a category rolled by the progression
+    // component_category_weights band of Level, then a uniform pick among the unowned Common definitions of that kind in
+    // catalog order. A category without such a definition is dropped and the others keep their relative weights.
+    // OutComponent is None when every category is empty (the caller grants GROWTH.EmptyComponentPoolPoints instead).
+    // Deterministic in Seed; DataInvalid for a level outside 2..MaxLevel or a broken band table, never an "empty" pool.
+    LOCKDOWN_API ELDGrowthReason DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
+        uint64 Seed, FName& OutComponent);
+    // Private per-level random material of the component roll, distinct from OfferSeed of the same number.
+    LOCKDOWN_API uint64 ComponentSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Level);
+    // Every normal level-up LevelBefore+1..LevelAfter in order draws its component into Out (Source LevelUp, inventory);
+    // an exhausted pool adds one to OutEmptyPoolGrants instead. OutGrants lists each level's result (None = points).
+    LOCKDOWN_API ELDGrowthReason GrantLevelComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        uint8 LevelBefore, uint8 LevelAfter, const FGuid& MatchSecret, const FGuid& Contender, FLDGrowthBuild& Out,
+        uint8& OutEmptyPoolGrants, TArray<FLDComponentGrant>& OutGrants);
+
+    // The active of the consumed opening opportunity (ordinal 1), None before the opening choice.
+    LOCKDOWN_API FName OpeningActive(const FLDProgressionState& Progression);
+    // Whether the build already took its opening base (an instance with Source OpeningPick).
+    LOCKDOWN_API bool OpeningBaseTaken(const FLDGrowthBuild& Build);
+    // Spec §4.3 opening base options for OpeningChoice (the opening active), in catalog order: Common base components flagged
+    // opening-always plus those listing OpeningChoice, without the owned ones.
+    LOCKDOWN_API ELDGrowthReason OpeningBaseOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        FName OpeningChoice, TArray<FName>& Out);
+
+    // Whether Context is the rest window. #198 C's EMatchStage::Rest replaces this; there is no rest window on this branch.
+    LOCKDOWN_API bool IsRestWindow(const FBuildContext& Context);
+    // Whether an owned component may be installed now. First install (never installed): the countdown, the rest window, or
+    // alive inside the build safe window (Dead / NotSafe otherwise). Re-installing a once-installed instance: the rest window
+    // only (RestOnly). PhaseClosed or LifePhaseChanged outside the match.
+    LOCKDOWN_API ELDGrowthReason InstallGate(const FBuildContext& Context, bool bEverInstalled);
+    // Whether Target is a legal install of Component on Build: a base component takes no target; its binding needs a learned
+    // active of BindActives and an element of BindElements (InvalidTarget otherwise). Water and electric (a binding or an
+    // effect element) are ElementUnsupported until the #198 A element state lands. Mods and connectors are InvalidTarget
+    // until #198 F adds their targets.
+    LOCKDOWN_API ELDGrowthReason InstallTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        FName Component, const FLDComponentTarget& Target);
+
+    // What an OpeningBase did with its component.
+    struct FInstallOutcome
+    {
+        bool bInstalled = false;
+        // Stored after bInstallIfPossible: why it was not installed (InstallGate or InstallTargetReason); None when not asked.
+        ELDGrowthReason StoredReason = ELDGrowthReason::None;
+    };
+
+    // The opening base pick: once (OpeningBaseTaken), after the opening active was chosen (OpeningActiveFirst), one of
+    // OpeningBaseOptions (OpeningBaseUnavailable). Countdown and live stages, alive or dead. With bInstallIfPossible the
+    // instance is installed on Target in the same commit when InstallGate and InstallTargetReason allow, otherwise stored.
+    LOCKDOWN_API ELDGrowthReason ApplyOpeningBase(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        const FLDProgressionState& Progression, FName Component, bool bInstallIfPossible, const FLDComponentTarget& Target,
+        const FBuildContext& Context, FLDGrowthBuild& Out, FInstallOutcome& Outcome);
+    // An owned, uninstalled component installed on Target: NotOwned, AlreadyInstalled, an InstallGate or an
+    // InstallTargetReason reason when refused.
+    LOCKDOWN_API ELDGrowthReason ApplyInstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        FName Component, const FLDComponentTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out);
+    // An installed component back to the inventory (its history stays): rest window only (RestOnly), NotOwned, NotInstalled.
+    LOCKDOWN_API ELDGrowthReason ApplyUninstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        FName Component, const FBuildContext& Context, FLDGrowthBuild& Out);
 }

@@ -121,6 +121,43 @@ STAT_POINTS = {
 }
 
 
+# #198 B base components B01-B18: (display name, opening "always" / actives / None, effects in author units at G=1).
+DIRECT_DAMAGE_OPENING = ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug",
+                         "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide",
+                         "active_calculus_drop", "active_open_mic"]
+COMPONENT_FRAMES = {
+    "component_fist_fire": ("拳头冒火", "always", [("burn", {"basic_stacks": 1})]),
+    "component_tab_ledger": ("揍一下记一笔", "always", [
+        ("ledger", {"ad_ratio": 0, "ap_ratio": r(".08"), "base": 10, "count": 5, "damage_type": "Magical", "duration": 6})]),
+    "component_spiky_hide": ("打我也硌手", "always", [
+        ("thorns", {"armor_ratio": 0, "base": 10, "critical_multiplier": 1, "damage_type": "Magical", "max_hp_ratio": r(".01"),
+                    "radius": 600, "trigger": "Basic"})]),
+    "component_punch_heal": ("揍人续命", "always", [("lifesteal", {"ratio": r(".12")})]),
+    "component_dash_bump": ("撞你个趔趄", "always", [
+        ("dash_contact_damage", {"ad_ratio": r(".25"), "ap_ratio": r(".25"), "base": 30, "damage_type": "Physical"})]),
+    "component_third_punch": ("第三拳滚蛋", "always", [("nth_basic_bonus", {"count": 3, "distance": 120, "duration": r(".12")})]),
+    "component_kick_down": ("逮住就往狠了打", ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned",
+                                       "active_unplug", "active_snark_bolt", "active_quick_meeting", "active_apology_slide",
+                                       "active_open_mic"], [("control_damage_amp", {"ratio": r(".12")})]),
+    "component_breach_fist": ("越揍越不经打", None, [("breach", {"basic_stacks": 1})]),
+    "component_hard_skin": ("挨揍起硬皮", "always", [
+        ("triggered_shield", {"base": 45, "duration": 3, "interval": 10, "max_hp_ratio": r(".035"), "trigger": "Damaged"})]),
+    "component_fist_water": ("拳头甩脏水", "always", [("basic_element", {"element": "water"})]),
+    "component_fist_shock": ("拳头漏电", ["active_seethe", "active_quick_meeting"], [("basic_element", {"element": "electric"})]),
+    "component_dash_punch": ("蹿过去抡一拳", "always", [
+        ("empower_basic", {"ad_ratio": r(".25"), "ap_ratio": 0, "base": 25, "charges": 1, "damage_type": "Physical", "duration": 3,
+                           "trigger": "DashComplete"})]),
+    "component_catch_breath": ("喘口气接着干", None, [("stat_bonus", {"stats": {"CooldownHasteFlat": 15, "MPRegenFlat": 1}})]),
+    "component_long_arm": ("伸长胳膊抽你", None, [
+        ("stat_bonus", {"stats": {"AttackRangeCmFlat": 120}}), ("basic_damage_scale", {"ratio": r(".9")})]),
+    "component_seeing_red": ("打急眼了", None, [
+        ("low_hp_stat_bonus", {"stats": {"AttackSpeedBonusRatio": r(".25"), "MoveSpeedBonusRatio": r(".1")}, "threshold": r(".4")})]),
+    "component_thick_hide": ("脸皮磨厚点", None, [("primary_guard", {"base": 8, "ratio": r(".15")})]),
+    "component_held_shot": ("憋着一发狠的", DIRECT_DAMAGE_OPENING, [("idle_ready_amp", {"delay": 2, "ratio": r(".2")})]),
+    "component_dirty_trick": ("招里掺点脏的", DIRECT_DAMAGE_OPENING, [("active_element", {})]),
+}
+
+
 class ApprovedDemoData(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -150,7 +187,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 2, 4))
+                          self.data["identity"]["projection_revision"]), (2, 3, 5))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -214,6 +251,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
             # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
+            # #198 B: a level-up whose component roll finds the common pool empty gives 3 points instead.
+            ("GROWTH.EmptyComponentPoolPoints", 3),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))
@@ -255,7 +294,8 @@ class ApprovedDemoData(unittest.TestCase):
             "knockback": 40, "zone": 50, "zone_slow": 52, "zone_damage": 54, "shield_break_retort": 67,
             "silence": 69, "breach": 70, "burn": 71, "zone_burn": 77,
             "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82,
-            "primary_guard": 86, "dash_contact_damage": 87, "dash_contact_refund": 88})
+            "primary_guard": 86, "dash_contact_damage": 87, "dash_contact_refund": 88,
+            "ledger": 100, "basic_element": 101, "basic_damage_scale": 102, "idle_ready_amp": 103, "active_element": 104})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -279,6 +319,8 @@ class ApprovedDemoData(unittest.TestCase):
             "active_triple_combo": "左右开抽", "active_calculus_drop": "板砖糊脸", "active_flyer_trap": "踩一脚试试",
             "active_open_mic": "扯嗓子喷你",
             "stat_physique": "体格", "stat_thick_skin": "脸皮", "stat_strength": "力道", "stat_brains": "脑力", "stat_agility": "身手",
+            # #198 B base components B01-B18.
+            **{identity: frame[0] for identity, frame in COMPONENT_FRAMES.items()},
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
@@ -299,6 +341,8 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertFalse({"advanced_key", "advanced_text"} & set(row))
                 if row["id"] in ACTIVE_FRAMES or row["id"] in STAT_POINTS:
                     self.assertIn("[", row["description_text"])
+                if row["id"] in COMPONENT_FRAMES:
+                    self.assertEqual(row["icon_id"], "icon_" + row["id"])
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
@@ -360,7 +404,29 @@ class ApprovedDemoData(unittest.TestCase):
                          {"active_not_mad", "active_stare_down", "active_flyer_trap"})
         self.assertEqual(self.data["progression"]["active_offer_levels"], (3, 6))
         self.assertEqual(set(self.data["progression"]),
-                         {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels"})
+                         {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels",
+                          "component_category_weights"})
+
+    def test_all_base_component_values_openings_and_category_bands(self):
+        # #198 B: B01-B18 at G=1 in native ID order (issue #198 catalog section 7, AI spec section 4.3).
+        self.assertEqual([row["id"] for row in self.data["components"]], list(COMPONENT_FRAMES))
+        for number, (identity, (name, opening, effects)) in enumerate(COMPONENT_FRAMES.items(), 1):
+            with self.subTest(identity=identity):
+                row = self.catalog.definition(identity)
+                self.assertEqual((row["native_id"], row["kind"], row["pool"]), (number, "base", "common"))
+                self.assertEqual(row.get("opening"), opening if type(opening) is not list else {"actives": tuple(opening)})
+                self.assertEqual([(effect["op"], author_units(effect)) for effect in row["effects"]], effects)
+        self.assertEqual({identity for identity, frame in COMPONENT_FRAMES.items() if frame[1] == "always"},
+                         {"component_fist_fire", "component_tab_ledger", "component_spiky_hide", "component_punch_heal",
+                          "component_dash_bump", "component_third_punch", "component_hard_skin", "component_fist_water",
+                          "component_dash_punch"})
+        binding = self.catalog.definition("component_dirty_trick")["binding"]
+        self.assertEqual((binding["kind"], binding["elements"]), ("active_element", ("fire", "water", "electric")))
+        self.assertEqual(set(binding["actives"]), set(ACTIVE_FRAMES) - {"active_bail_out", "active_not_mad", "active_stare_down",
+                                                                        "active_triple_combo"})
+        self.assertEqual([(band["levels"], band["base"], band["mod"], band["connector"])
+                          for band in self.data["progression"]["component_category_weights"]],
+                         [((2, 6), 55, 25, 20), ((7, 11), 40, 30, 30), ((12, 16), 25, 35, 40)])
 
     def test_retired_content_ids_stay_reserved_and_absent(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")

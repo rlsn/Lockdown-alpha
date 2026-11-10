@@ -5,7 +5,8 @@
 struct FLDDemoContentParameters;
 
 // #147 build v7 keywords (docs/systems/COMBAT_AND_GROWTH.md, "构筑 v7 战斗原语"): the shared breach and burn records of
-// one target life and the lifesteal cap. Pure rules over primitive values; the director applies them to its body records.
+// one target life, the lifesteal cap and (#198 B02) the ledger batch. Pure rules over primitive values; the director
+// applies them to its body records.
 
 // The approved keyword terms (COMBAT.Breach*, COMBAT.Burn*, COMBAT.LifestealCap).
 struct LOCKDOWN_API FLDKeywordTerms
@@ -66,6 +67,20 @@ struct FLDBurnTickShare
     int64 DamageP2 = 0;
 };
 
+// #198 B02 账目: one owner's ledger on one target life (kept on the target's body, so a new life starts clean). Every
+// effective basic or skill damage hit of the owner adds one entry valued at that moment; the batch's first entry fixes
+// its threshold (Count) and its idle window (WindowMs). At Count entries the batch cashes out at once; WindowMs without a
+// new entry clears the unlocked entries.
+struct FLDCombatLedger
+{
+    FGuid Owner;
+    FLDCombatSourceRef Source;
+    TArray<int64> EntriesP2;   // oldest first
+    int32 Count = 0;
+    int64 WindowMs = 0;
+    int64 LastEntryAtMs = 0;
+};
+
 namespace LDCombatKeywords
 {
     LOCKDOWN_API int32 BreachStacks(const FLDCombatSharedBreach& Breach, int64 AtMs);
@@ -100,6 +115,13 @@ namespace LDCombatKeywords
 
     // D22: every lifesteal of one hit adds up, at most COMBAT.LifestealCap.
     LOCKDOWN_API int64 CapLifestealBp(int64 SumBp, const FLDKeywordTerms& Terms);
-    // triggered_shield burst: the breaker takes RatioBp of the granted shield; another nearby enemy takes half.
-    LOCKDOWN_API int64 ShieldBurstShareP2(int64 GrantedP2, int64 RatioBp, bool bNearbyEnemy);
+
+    // B02: adds one entry of ValueP2 at AtMs. A batch idle for its WindowMs is cleared first; an empty batch takes Count and
+    // WindowMs as its terms. At Count entries the batch cashes out: true with OutCashOutP2 = the summed entries, and the
+    // ledger is empty again (a cash-out never adds an entry itself). False with no cash-out otherwise, or on bad input
+    // (Count < 1, WindowMs < 1, a negative value or an int64 overflow; bOutRefused is set and no entry is added).
+    LOCKDOWN_API bool AddLedgerEntry(FLDCombatLedger& Ledger, int64 ValueP2, int64 AtMs, int32 Count, int64 WindowMs,
+        int64& OutCashOutP2, bool& bOutRefused);
+    // Clears unlocked entries idle for the batch's window (half-open at LastEntryAtMs + WindowMs); true when it cleared.
+    LOCKDOWN_API bool ExpireLedger(FLDCombatLedger& Ledger, int64 AtMs);
 }

@@ -1067,6 +1067,11 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         Expect(TEXT("Stat"), Row.Id, [&](const FString& Id)
         { const FLDDemoStatDefinition* Out = nullptr; return Snapshot->FindStat(Id, Out, Error) ? Out : nullptr; });
     }
+    for (const FLDDemoComponentDefinition& Row : Definitions.Components)
+    {
+        Expect(TEXT("Component"), Row.Id, [&](const FString& Id)
+        { const FLDDemoComponentDefinition* Out = nullptr; return Snapshot->FindComponent(Id, Out, Error) ? Out : nullptr; });
+    }
     for (const FLDDemoMonsterDefinition& Row : Definitions.Monsters)
     {
         Expect(TEXT("Monster"), Row.Id, [&](const FString& Id)
@@ -1078,8 +1083,9 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         { const FLDDemoDisplayDefinition* Out = nullptr; return Snapshot->FindDisplay(Id, Out, Error) ? Out : nullptr; });
     }
     TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
-        !Definitions.Abilities.IsEmpty() && !Definitions.Stats.IsEmpty() && !Definitions.Monsters.IsEmpty()
-        && Identities == Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+        !Definitions.Abilities.IsEmpty() && !Definitions.Stats.IsEmpty() && !Definitions.Components.IsEmpty() && !Definitions.Monsters.IsEmpty()
+        && Identities == Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.Monsters.Num()
+            + Definitions.Display.Num());
     for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
     {
         const FLDDemoDisplayDefinition* Out = nullptr;
@@ -1202,6 +1208,169 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("The reserved sock shot has no definition yet"), Snapshot->FindAbility(TEXT("active_sock_shot"), Retired, Error));
     TestFalse(TEXT("Retired passives are absent"), Snapshot->FindAbility(TEXT("passive_lucky_star"), Retired, Error));
     TestFalse(TEXT("Retired attribute cards are absent"), Snapshot->FindStat(TEXT("attr_protein"), Card, Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentComponentCatalogTest, "Lockdown.Rules.DemoContent.ComponentCatalog",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// #198 B: the approved catalog carries B01-B18 in native ID order with their kind, pool, opening condition, the B18
+// active/element binding, the component-form effect fields and the level-up category bands; FindComponent resolves them.
+bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const FCase* Approved = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("approved_base"); });
+    if (!TestNotNull(TEXT("approved_base fixture is exported"), Approved)) { return false; }
+    FString Error;
+    FLDDemoContentBundle Bundle;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Fixtures.Root, Approved->Name), Bundle, Error)
+        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Approved->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Approved->Digest, Error) || !Asset->Read(Approved->Digest, Snapshot, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
+    if (!TestEqual(TEXT("Eighteen base components"), Definitions.Components.Num(), 18)) { return false; }
+    TSet<FString> AlwaysOpening;
+    for (int32 Index = 0; Index < Definitions.Components.Num(); ++Index)
+    {
+        const FLDDemoComponentDefinition& Row = Definitions.Components[Index];
+        TestTrue(FString::Printf(TEXT("%s is a common base component numbered B%02d"), *Row.Id, Index + 1),
+            int32(Row.GetNativeId()) == Index + 1 && Row.Kind == ELDDemoComponentKind::Base && Row.Pool == ELDDemoComponentPool::Common);
+        const FLDDemoComponentDefinition* Found = nullptr;
+        TestTrue(FString::Printf(TEXT("FindComponent resolves %s to its own row: %s"), *Row.Id, *Error),
+            Snapshot->FindComponent(Row.Id, Found, Error) && Found == &Row);
+        const FLDDemoDisplayDefinition* Display = nullptr;
+        TestTrue(FString::Printf(TEXT("%s has a display row with its own icon"), *Row.Id),
+            Snapshot->FindDisplay(Row.Id, Display, Error) && Display->IconId == TEXT("icon_") + Row.Id);
+        TestTrue(FString::Printf(TEXT("%s binds only through active_element"), *Row.Id),
+            (Row.Binding == ELDDemoComponentBinding::ActiveElement) == (Row.Id == TEXT("component_dirty_trick")));
+        if (Row.bOpeningAlways)
+        {
+            TestTrue(FString::Printf(TEXT("%s is always offered without an active condition"), *Row.Id), Row.OpeningActives.IsEmpty());
+            AlwaysOpening.Add(Row.Id);
+        }
+    }
+    TestTrue(TEXT("B01-B06, B09, B10 and B12 are the always-offered opening bases"), AlwaysOpening.Num() == 9
+        && Algo::AllOf(TArray<FString>{TEXT("component_fist_fire"), TEXT("component_tab_ledger"), TEXT("component_spiky_hide"),
+            TEXT("component_punch_heal"), TEXT("component_dash_bump"), TEXT("component_third_punch"), TEXT("component_hard_skin"),
+            TEXT("component_fist_water"), TEXT("component_dash_punch")}, [&AlwaysOpening](const FString& Id) { return AlwaysOpening.Contains(Id); }));
+
+    const auto Component = [&Snapshot, &Error](const TCHAR* Id)
+    {
+        const FLDDemoComponentDefinition* Out = nullptr;
+        return Snapshot->FindComponent(Id, Out, Error) ? Out : nullptr;
+    };
+    const FLDDemoComponentDefinition* Fire = Component(TEXT("component_fist_fire"));
+    const FLDDemoComponentDefinition* Ledger = Component(TEXT("component_tab_ledger"));
+    const FLDDemoComponentDefinition* Spiky = Component(TEXT("component_spiky_hide"));
+    const FLDDemoComponentDefinition* Third = Component(TEXT("component_third_punch"));
+    const FLDDemoComponentDefinition* Kick = Component(TEXT("component_kick_down"));
+    const FLDDemoComponentDefinition* Breach = Component(TEXT("component_breach_fist"));
+    const FLDDemoComponentDefinition* Water = Component(TEXT("component_fist_water"));
+    const FLDDemoComponentDefinition* Shock = Component(TEXT("component_fist_shock"));
+    const FLDDemoComponentDefinition* DashPunch = Component(TEXT("component_dash_punch"));
+    const FLDDemoComponentDefinition* LongArm = Component(TEXT("component_long_arm"));
+    const FLDDemoComponentDefinition* HeldShot = Component(TEXT("component_held_shot"));
+    const FLDDemoComponentDefinition* Trick = Component(TEXT("component_dirty_trick"));
+    if (!TestTrue(TEXT("Named components resolve: ") + Error, Fire && Ledger && Spiky && Third && Kick && Breach && Water && Shock
+        && DashPunch && LongArm && HeldShot && Trick))
+    {
+        return false;
+    }
+    using EOp = ELDDemoEffectOp;
+    const auto Only = [this](const FLDDemoComponentDefinition& Row, EOp Op) -> const FLDDemoEffectDefinition*
+    {
+        const FLDDemoEffectDefinition* Effect = Row.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Candidate) { return Candidate.GetOp() == Op; });
+        TestNotNull(*FString::Printf(TEXT("%s carries operation %d"), *Row.Id, int32(Op)), Effect);
+        return Effect;
+    };
+    if (const auto* Burn = Only(*Fire, EOp::Burn))
+    {
+        TestTrue(TEXT("B01 applies one burn stack per primary basic and none per active hit"), Burn->BasicCount == 1 && Burn->Count == 0);
+    }
+    if (const auto* Entry = Only(*Ledger, EOp::Ledger))
+    {
+        TestTrue(TEXT("B02 records 10 + 0.08 AP magic entries, cashes 5 and clears after 6 s"),
+            Entry->BaseP2 == 1000 && Entry->ADRatioBp == 0 && Entry->APRatioBp == 800 && Entry->DamageType == ELDDemoDamageType::Magical
+            && Entry->Count == 5 && Entry->DurationMs == 6000);
+    }
+    if (const auto* Thorns = Only(*Spiky, EOp::Thorns))
+    {
+        TestTrue(TEXT("B03 reflects 10 + 1% max HP inside 600 cm with no repeat window"),
+            Thorns->BaseP2 == 1000 && Thorns->MaxHPRatioBp == 100 && Thorns->IntervalMs == 0 && Thorns->CriticalMultiplierBp == 10000
+            && Thorns->RadiusCm.Numerator == 600 && Thorns->RadiusCm.Denominator == 1);
+    }
+    if (const auto* Push = Only(*Third, EOp::NthBasicBonus))
+    {
+        TestTrue(TEXT("B06 pushes every third primary basic target 120 cm in 0.12 s without damage"),
+            Push->Count == 3 && Push->DistanceCm.Numerator == 120 && Push->DistanceCm.Denominator == 1 && Push->DurationMs == 120
+            && Push->BaseP2 == 0);
+    }
+    if (const auto* Empower = Only(*DashPunch, EOp::EmpowerBasic))
+    {
+        TestTrue(TEXT("B12 arms one 25 + 0.25 AD package for 3 s when a dash completes"),
+            Empower->Trigger == ELDDemoEffectTrigger::DashComplete && Empower->Count == 1 && Empower->DurationMs == 3000
+            && Empower->BaseP2 == 2500 && Empower->ADRatioBp == 2500);
+    }
+    const FLDDemoEffectDefinition* WaterFist = Only(*Water, EOp::BasicElement);
+    const FLDDemoEffectDefinition* ShockFist = Only(*Shock, EOp::BasicElement);
+    TestTrue(TEXT("B10 and B11 name water and electric"), WaterFist && ShockFist
+        && WaterFist->Element == ELDDemoElement::Water && ShockFist->Element == ELDDemoElement::Electric);
+    const FLDDemoEffectDefinition* Scale = Only(*LongArm, EOp::BasicDamageScale);
+    TestTrue(TEXT("B14 adds range and keeps 90% of the primary basic package"),
+        Scale && Scale->RatioBp == 9000 && Only(*LongArm, EOp::StatBonus) != nullptr && LongArm->Effects.Num() == 2);
+    const FLDDemoEffectDefinition* Idle = Only(*HeldShot, EOp::IdleReadyAmp);
+    TestTrue(TEXT("B17 waits 2 s for +20%"), Idle && Idle->DelayMs == 2000 && Idle->RatioBp == 2000);
+    for (const FLDDemoComponentDefinition& Row : Definitions.Components)
+    {
+        for (const FLDDemoEffectDefinition& Effect : Row.Effects)
+        {
+            TestTrue(FString::Printf(TEXT("%s names an element only on basic_element"), *Row.Id),
+                (Effect.Element != ELDDemoElement::None) == (Effect.GetOp() == EOp::BasicElement));
+        }
+    }
+
+    TestTrue(TEXT("B07 opens with an active that slows, hard-controls or knocks back (existing S01-S06, S08, S12, S22)"),
+        !Kick->bOpeningAlways && Kick->OpeningActives == TArray<FString>{TEXT("active_elbow"), TEXT("active_pants_down"),
+            TEXT("active_crotch_grab"), TEXT("active_account_banned"), TEXT("active_unplug"), TEXT("active_snark_bolt"),
+            TEXT("active_quick_meeting"), TEXT("active_apology_slide"), TEXT("active_open_mic")});
+    TestTrue(TEXT("B11 opens with a fire active (existing S07, S08)"),
+        Shock->OpeningActives == TArray<FString>{TEXT("active_seethe"), TEXT("active_quick_meeting")});
+    TestTrue(TEXT("B08 is never an opening option"), !Breach->bOpeningAlways && Breach->OpeningActives.IsEmpty());
+    TestTrue(TEXT("B18 binds one of twelve damaging actives and fire, water or electric"),
+        Trick->Binding == ELDDemoComponentBinding::ActiveElement && Trick->BindActives.Num() == 12
+        && !Trick->BindActives.Contains(TEXT("active_bail_out")) && Trick->BindActives.Contains(TEXT("active_flyer_trap"))
+        && Trick->BindElements == TArray<ELDDemoElement>{ELDDemoElement::Fire, ELDDemoElement::Water, ELDDemoElement::Electric}
+        && Trick->Effects.Num() == 1 && Trick->Effects[0].GetOp() == EOp::ActiveElement);
+
+    const TArray<FLDDemoComponentCategoryWeights>& Bands = Definitions.Progression.ComponentCategoryWeights;
+    const auto Band = [&Bands](int32 Index, int32 Min, int32 Max, int32 Base, int32 Mod, int32 Connector)
+    {
+        return Bands.IsValidIndex(Index) && Bands[Index].MinLevel == Min && Bands[Index].MaxLevel == Max && Bands[Index].BasePercent == Base
+            && Bands[Index].ModPercent == Mod && Bands[Index].ConnectorPercent == Connector;
+    };
+    TestTrue(TEXT("Level-up category bands are 2-6 55/25/20, 7-11 40/30/30 and 12-16 25/35/40"),
+        Bands.Num() == 3 && Band(0, 2, 6, 55, 25, 20) && Band(1, 7, 11, 40, 30, 30) && Band(2, 12, 16, 25, 35, 40));
+    TestEqual(TEXT("An empty common pool grants 3 points"), Definitions.Parameters.EmptyComponentPoolPoints, int64(3));
+
+    TArray<LDDemoCardText::FToken> Tokens;
+    if (TestTrue(TEXT("A component card placeholder parses: ") + Error, LDDemoCardText::Parse(TEXT("满 [ledger.count] 笔"), Tokens, Error))
+        && TestEqual(TEXT("A literal, one value token and a literal"), Tokens.Num(), 3))
+    {
+        const FLDDemoEffectDefinition* Read = LDDemoCardText::FindEffect(Ledger->Effects, Tokens[1]);
+        TestTrue(TEXT("B02's effects answer [ledger.count]"), Read && Read->GetOp() == EOp::Ledger);
+        TestNull(TEXT("Another component does not answer it"), LDDemoCardText::FindEffect(Fire->Effects, Tokens[1]));
+    }
+    const FLDDemoComponentDefinition* Missing = nullptr;
+    TestFalse(TEXT("An absent component stays absent"), Snapshot->FindComponent(TEXT("component_missing"), Missing, Error));
+    TestTrue(TEXT("The absent component reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
+    TestFalse(TEXT("An active is not a component"), Snapshot->FindComponent(TEXT("active_elbow"), Missing, Error));
     return true;
 }
 
