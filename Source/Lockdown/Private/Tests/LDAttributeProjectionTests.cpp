@@ -805,8 +805,8 @@ bool RunTemporaryTerms(FAutomationTestBase& Test)
     return bGood;
 }
 
-// The conditional low-HP bonus (low_hp_stat_bonus, kept for the #198 PR3 base components): its stats join the temporary
-// terms only strictly below the threshold, and never the build projection itself.
+// The conditional low-HP bonus (low_hp_stat_bonus, B15): its stats join the temporary terms only strictly below the
+// threshold, and never the build projection itself.
 bool RunLowHPTerm(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -822,7 +822,6 @@ bool RunLowHPTerm(FAutomationTestBase& Test)
     FLDLowHPBonusTerm Term;
     Term.ThresholdBp = 5000;
     Term.Stats = {TempBonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 2000), TempBonus(ELDDemoBonusStat::MoveSpeedBonusRatio, 1000)};
-    Term.BasicLifestealBp = 800;
     const TOptional<FLDLowHPBonusTerm> Held(Term);
     FLDAttributeProjection Pushed;
     const FLDTemporaryAttributeTerms Low = LDTactical::TemporaryTerms({}, {}, Held, 49, 100, 0);

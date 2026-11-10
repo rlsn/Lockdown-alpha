@@ -187,7 +187,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // 开盲盒 button right above the band's left block (#97), with the growth panel it opens in the same row: disabled while
-    // nothing is pending (LDHUD::GrowthPending); it pulses for a few seconds after the opportunities or points rise.
+    // nothing is pending (LDHUD::GrowthPending); it pulses for a few seconds after the opportunities, points or pending
+    // components rise.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
@@ -196,6 +197,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptOffers=0;
     int64 PromptPoints=0;
+    int32 PromptComponents=0;
     double PromptPulseAt=-1;
     float AppliedPromptWave=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;

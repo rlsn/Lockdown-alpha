@@ -130,7 +130,12 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged")
+TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete")
+# ELDDemoElement, ELDDemoComponentKind, ELDDemoComponentPool and ELDDemoComponentBinding in declaration order.
+ELEMENTS = ("none", "fire", "water", "electric")
+COMPONENT_KINDS = ("base", "mod", "connector")
+COMPONENT_POOLS = ("common", "scarce")
+COMPONENT_BINDINGS = (None, "active_element")
 COOLDOWN_ENTRIES = ("None", "Actives")
 
 
@@ -142,7 +147,7 @@ def effect(value):
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
         "Trigger": 0, "Entries": 0, "AmountMs": 0,
         "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
-        "LimitP2": 0,
+        "LimitP2": 0, "Element": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -176,6 +181,8 @@ def effect(value):
         result["Trigger"] = TRIGGERS.index(value["trigger"])
     if "entries" in value:
         result["Entries"] = COOLDOWN_ENTRIES.index(value["entries"])
+    if "element" in value:
+        result["Element"] = ELEMENTS.index(value["element"])
     if value.get("op") == "channel_cone":
         result["DurationMs"] = result["IntervalMs"] * (result["Count"] - 1)
     return result
@@ -185,6 +192,20 @@ def values(value):
     return {
         "ManaCostP2": scalar(value["mana_cost"]), "CooldownMs": scalar(value["cooldown"]),
         "Effects": [effect(row) for row in value["effects"]],
+    }
+
+
+def component(row):
+    opening = row.get("opening")
+    binding = row.get("binding")
+    return {
+        "Id": row["id"], "NativeId": row["native_id"], "Kind": COMPONENT_KINDS.index(row["kind"]),
+        "Pool": COMPONENT_POOLS.index(row["pool"]), "bOpeningAlways": opening == "always",
+        "OpeningActives": list(opening["actives"]) if type(opening) is dict else [],
+        "Binding": COMPONENT_BINDINGS.index(None if binding is None else binding["kind"]),
+        "BindActives": [] if binding is None else list(binding["actives"]),
+        "BindElements": [] if binding is None else [ELEMENTS.index(element) for element in binding["elements"]],
+        "Effects": [effect(value) for value in row["effects"]],
     }
 
 
@@ -248,6 +269,7 @@ def parameter_projection(parameters):
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
+        ("GROWTH.EmptyComponentPoolPoints", "EmptyComponentPoolPoints"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}
@@ -302,11 +324,15 @@ def expected_projection(compilation):
             "WindupMs": scalar(row["windup"]), "CooldownFamily": row["cooldown_family"], "Values": values(row),
         } for row in data["abilities"]],
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
+        "Components": [component(row) for row in data["components"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
         "Progression": {dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"), ("active_offer_levels", "ActiveOfferLevels"),
-        )},
+        )} | {"ComponentCategoryWeights": [{
+            "MinLevel": band["levels"][0], "MaxLevel": band["levels"][1], "BasePercent": band["base"],
+            "ModPercent": band["mod"], "ConnectorPercent": band["connector"],
+        } for band in data["progression"]["component_category_weights"]]},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("capture_id", "CaptureId"),
         )},
@@ -694,6 +720,30 @@ def _export_cases(output, index, base, value_mutations, valid, written):
                 "active offer levels")
     bad_content("retired_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [5]}), "unknown field")
     bad_content("missing_opening", lambda d: d["abilities"][0].pop("opening"), "missing")
+    # #198 B: components, their bindings and the level-up category bands.
+    piece = lambda d, identity: next(row for row in d["components"] if row["id"] == identity)
+    bad_content("component_band_gap", lambda d: d["progression"]["component_category_weights"][1]["levels"].__setitem__(0, 10),
+                "category bands")
+    bad_content("component_band_sum", lambda d: d["progression"]["component_category_weights"][0].update({"base": 61}),
+                "add up to 100")
+    bad_content("component_band_short", lambda d: d["progression"]["component_category_weights"].pop(), "reach max_level")
+    bad_content("component_unknown_bind_active", lambda d: piece(d, "component_dirty_trick")["binding"]["actives"].append("active_missing"),
+                "active reference")
+    bad_content("component_bind_without_damage", lambda d: piece(d, "component_dirty_trick")["binding"]["actives"].append("active_not_mad"),
+                "native direct damage")
+    bad_content("component_closed_opening", lambda d: piece(d, "component_kick_down")["opening"]["actives"].append("active_stare_down"),
+                "opening pool")
+    bad_content("component_unbound_element", lambda d: piece(d, "component_dirty_trick").pop("binding"), "binding come together")
+    bad_content("component_unsorted", lambda d: d["components"].reverse(), "ascending native ID")
+    bad_content("component_op_on_active", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["effects"].append(
+        {"op": "lifesteal", "opcode": ids_data["effect_ops"]["lifesteal"], "ratio": {"unit": "ratio", "bp": 1000}}),
+        "component operation")
+    bad_content("active_op_on_component", lambda d: piece(d, "component_fist_fire")["effects"].append(
+        {"op": "root", "opcode": ids_data["effect_ops"]["root"], "duration": {"unit": "ms", "ms": 1000}}), "not a component operation")
+    bad_content("component_active_burn", lambda d: piece(d, "component_fist_fire")["effects"][0].update({"stacks": 1}),
+                "primary basic hit")
+    bad_content("component_untriggered_empower", lambda d: piece(d, "component_dash_punch")["effects"][0].pop("trigger"), "missing")
+    bad_content("zero_empty_pool_points", lambda d: d["parameters"].update({"GROWTH.EmptyComponentPoolPoints": 0}), "integer outside")
     bad_content("small_opening_pool", lambda d: [row.update({"opening": False}) for row in d["abilities"][:2]], "opening pool")
     bad_content("zero_points_per_level", lambda d: d["parameters"].update({"GROWTH.PointsPerLevel": 0}), "integer outside")
     bad_content("zero_build_safe_window", lambda d: d["parameters"]["GROWTH.BuildSafeWindowSec"].update({"ms": 0}), "integer outside")
@@ -740,6 +790,8 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     bad_content("stat_card_absent_bonus", lambda d: display(d, "stat_brains").update({"description_text": "[per_point.ADFlat]"}),
                 "card placeholder")
     bad_content("per_point_on_active", lambda d: display(d, "active_snark_bolt").update({"description_text": "[per_point.APFlat]"}),
+                "card placeholder")
+    bad_content("component_card_absent_effect", lambda d: display(d, "component_fist_fire").update({"description_text": "[root.duration]"}),
                 "card placeholder")
     bad_content("unapproved_metadata", lambda d: d["identity"]["approval"].update({"status": "candidate"}), "approval metadata")
     bad_content("bad_policy", lambda d: d["policies"].update({"MissingSourceCooldown": "Disallowed"}), "unsupported constant")

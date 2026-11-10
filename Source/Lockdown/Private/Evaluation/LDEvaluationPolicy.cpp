@@ -103,10 +103,10 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
             Out.Build.Key = Key;
         }
     }
-    if (Out.Build.Kind == ELDOpponentBuildKind::None) { LDOpponentPolicy::DecideLearnOrAllocate(Frame, Catalog, Policy, Out.Build); }
+    if (Out.Build.Kind == ELDOpponentBuildKind::None) { LDOpponentPolicy::DecideFollowUpBuild(Frame, Catalog, Policy, Out.Build); }
     const bool bBuilds = Out.Build.Kind != ELDOpponentBuildKind::None;
     // The body waits in the countdown, while dead, and until every planned choice is consumed and the build steps it
-    // unlocked (learning blueprints, allocating points) are settled.
+    // unlocked (the opening base pick, learning blueprints, enabling components, allocating points) are settled.
     const bool bSettling = State.Phase == ELDEvaluationPhase::Waiting || State.Phase == ELDEvaluationPhase::Building;
     if (int32(Self.OffersConsumed) < Planned || (bSettling && (bBuilds || Frame.bBuildChangeInFlight)))
     {
