@@ -4,7 +4,7 @@
 
 bool FLDBossRules::IsValid() const
 {
-    return StartedAtMs >= 0 && AppearAtMs > 0 && FMath::IsFinite(AggroRadiusCm) && FMath::IsFinite(AttackRangeCm)
+    return StartedAtMs >= 0 && AppearAtMs > 0 && LeaveAtMs > AppearAtMs && FMath::IsFinite(AggroRadiusCm) && FMath::IsFinite(AttackRangeCm)
         && AttackRangeCm > 0 && AggroRadiusCm > AttackRangeCm && AttackerMemoryMs > 0 && !MonsterId.IsNone()
         && CreatureId != 0 && !SurfaceId.IsNone() && Waypoints.Num() == 4
         && !Waypoints.ContainsByPredicate([](const FVector& Point) { return Point.ContainsNaN(); });
@@ -39,6 +39,15 @@ bool FLDBossState::Died(const FLDCombatBodyRef& Ref, const FGuid& Killer, int64 
     Attackers.Reset();
     KilledBy = Killer;
     DownAtMs = AtMs;
+    return true;
+}
+
+bool FLDBossState::Leave(int64 NowMs)
+{
+    if (!IsLeaveDue(NowMs)) { return false; }
+    Phase = ELDBossPhase::Left;
+    Body = {};
+    Attackers.Reset();
     return true;
 }
 
@@ -93,6 +102,7 @@ FLDBossView FLDBossState::View() const
     if (!IsActive()) { return Out; }
     Out.Phase = Phase;
     Out.AppearAtMs = AppearAtMs();
+    Out.LeaveAtMs = LeaveAtMs();
     Out.KilledBy = KilledBy;
     Out.DownAtMs = DownAtMs;
     return Out;
@@ -110,6 +120,7 @@ bool LDBoss::Resolve(const FLDDemoContentSnapshot& Content, const FLDDemoWorldGe
     FLDBossRules& R = Candidate.Rules;
     R.StartedAtMs = StartedAtMs;
     R.AppearAtMs = D.Boss.AppearAtMs;
+    R.LeaveAtMs = D.Boss.LeaveAtMs;
     R.AggroRadiusCm = Cm(D.Boss.AggroRadiusCm);
     R.AttackerMemoryMs = D.Boss.AttackerMemoryMs;
     if (Body)

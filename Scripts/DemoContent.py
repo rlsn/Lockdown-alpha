@@ -102,6 +102,9 @@ STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFla
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
+# #198 outer flow: three timed field segments precede the final field (FLDTimelineParameters::TimedSegments). Map build
+# reward targets (airdrops, Boss, camp markers) live only inside them.
+TIMED_FIELD_SEGMENTS = 3
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -996,10 +999,18 @@ def validate_numbers(data):
     require(0 < p("LEADER.CircleMaxOffsetCm") <= p("LEADER.CircleRadiusCm")
             and params["LEADER.MinLevel"] <= data["progression"]["max_level"],
             "InvalidPolicy", "LEADER", "the circle must contain the leader and the level must exist")
-    # D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
-    require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
-            and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
-            "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
+    # #198 outer §5: the approved drops land at explicit field progress instants T (strictly increasing), each announced
+    # AIRDROP.AnnounceLeadSec earlier and gone unclaimed AIRDROP.ExpireSec after landing, before the next announcement;
+    # the last one is gone before the final field, which has no build reward target.
+    timed_field = p("MATCH.FieldSegmentSec") * TIMED_FIELD_SEGMENTS
+    lands = [quantity(value) for value in params["AIRDROP.LandSec"]]
+    lead, expire = p("AIRDROP.AnnounceLeadSec"), p("AIRDROP.ExpireSec")
+    require(lead <= lands[0] and all(land + expire + lead <= after for land, after in zip(lands, lands[1:]))
+            and lands[-1] + expire <= timed_field,
+            "InvalidTiming", "AIRDROP", "drops must be announced after T=0, leave before the next announcement and before the final field")
+    # #198 outer §5 camp markers: one reveal per timed field segment, CAMPMARK.RevealSec after its start.
+    require(p("CAMPMARK.RevealSec") < p("MATCH.FieldSegmentSec"), "InvalidTiming", "CAMPMARK.RevealSec",
+            "a camp marker must be revealed inside its field segment")
     # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
     for key in ("COMBAT.DischargeRadiusCm", "COMBAT.FogRadiusCm", "COMBAT.ConductRadiusCm", "COMBAT.OverloadRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "reaction radius must be positive")
@@ -1088,15 +1099,18 @@ def validate_numbers(data):
     require(boss["attack_windup"]["ms"] < boss["attack_interval"]["ms"], "InvalidTiming", "boss", "windup exceeds attack interval")
     require(p("STAT.MoveSpeed.Min") <= quantity(boss["move_speed"]) <= p("STAT.MoveSpeed.Max"),
             "NumericDomain", "boss", "Boss move speed outside the move speed clamp")
-    stats = boss["approval"]["stats"]
-    require(set(stats) <= TEMPORARY_STATS and all(key.endswith("BonusRatio") for key in stats), "UnknownField", "boss.approval",
-            "the approval buff takes temporary ratio stats only")
-    _positive_stats(stats, "boss.approval")
+    # #198 outer §5: the Boss appears once at field T=appear_at and leaves unkilled at T=leave_at, never in the final field.
+    require(quantity(boss["appear_at"]) < quantity(boss["leave_at"]) <= timed_field, "InvalidTiming", "boss",
+            "the Boss must appear before it leaves, and leave before the final field")
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(all(row["monster_id"] in monsters for row in placements.values()),
             "InvalidReference", "camps", "unknown monster reference")
     require({monsters[row["monster_id"]]["tier"] for row in placements.values()} == CAMP_TIERS,
             "CampTiers", "camps", "every camp tier must be placed")
+    # Camp markers never pick the previous segment's camp, so each marked tier needs at least two camps.
+    for tier in ("High", "Elite"):
+        require(sum(monsters[row["monster_id"]]["tier"] == tier for row in placements.values()) >= 2,
+                "CampTiers", "camps", f"camp markers need at least two {tier} camps")
     _validate_build_envelope(data)
 
 

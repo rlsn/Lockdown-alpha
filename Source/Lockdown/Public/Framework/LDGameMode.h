@@ -12,6 +12,7 @@
 #include "World/LDCaptureMarker.h"
 #include "World/LDAirdrop.h"
 #include "World/LDCharms.h"
+#include "World/LDFieldMarkers.h"
 #include "World/LDDormZones.h"
 #include "World/LDLeaderNotice.h"
 #include "World/LDDormMarker.h"
@@ -238,6 +239,25 @@ public:
     bool EndCharmsForRest(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the authority instant of the next charm wave or expiry in the running field, MAX_int64 when none.
     int64 NextCharmDueMs() const;
+    // #198 outer §5 camp markers (World/LDFieldMarkers.h, Framework/LDGameModeFieldMarkers.cpp), keyed to field progress T.
+    const FLDFieldMarkerState& GetFieldMarkers() const { return FieldMarkers; }
+    // RespawnsAndWorld, only while a field segment runs: reveals the segment's markers when due. False only on a fault.
+    bool AdvanceFieldMarkers(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld at a field-to-rest boundary: the segment's unclaimed markers expire without any reward.
+    bool EndFieldMarkersForRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    int64 NextFieldMarkerDueMs() const;
+    // DeathsAndRewards (camp owner, after the death that cleared CampId at field progress FieldMs): the first clear of a
+    // revealed marker's camp gives its credit owner the marker reward once. Without an eligible contender owner it stays open.
+    bool ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 FieldMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    // DeathsAndRewards or Transactions: pays one map event reward (#198 G) through the growth composite. A retryable
+    // refusal stays owed and is retried at each later Transactions boundary; any other refusal is an authority fault.
+    bool PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions: retries every owed map event reward once.
+    bool RetryFieldRewards(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld: retires a living camp body (the Boss leaving the field) without a death: no kill credit, reward
+    // or refresh. The camp owner destroys its actor afterwards.
+    bool RetireCampBody(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     // D27 (#79) 上热搜: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
     bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
     int64 NextLeaderDueMs() const;
@@ -325,7 +345,6 @@ private:
     friend class FLDPlaytestLogHitVampTest;
     friend class FLDCombatCommitControlTest;
     friend class FLDDemoDevTestCommandsTest;
-    friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
@@ -481,6 +500,19 @@ private:
     FLDAirdropState Airdrop;
     // #198 field charms of this match; inactive outside a running match.
     FLDCharmState Charms;
+    // #198 outer §5 camp markers of this match; inactive outside a running match.
+    FLDFieldMarkerState FieldMarkers;
+    // Map event rewards refused as retryable, paid at the next Transactions boundaries.
+    struct FLDOwedFieldReward
+    {
+        FGuid Recipient;
+        FName Event;
+        uint64 Serial = 0;
+        int64 XP = 0;
+        ELDFieldRewardKind Kind = ELDFieldRewardKind::None;
+    };
+    TArray<FLDOwedFieldReward> OwedFieldRewards;
+    bool CommitOwedFieldReward(const FLDOwedFieldReward& Reward, const FLDGameplayWritePermit& Permit, FString& Error);
     FLDLeaderState LeaderNotice;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;

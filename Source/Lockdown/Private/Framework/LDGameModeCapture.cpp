@@ -602,6 +602,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     Charms.View(View.Charms);
     View.Leader = LeaderNotice.View();
     View.Boss = Camps ? Camps->BossView() : FLDBossView();
+    FieldMarkers.View(View.Markers);
     return View;
 }
 

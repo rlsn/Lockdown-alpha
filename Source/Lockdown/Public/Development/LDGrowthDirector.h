@@ -33,10 +33,12 @@ public:
 
     // DeathsAndRewards: called once per committed death after its Effects set locked every RewardBasis.
     FLDRewardReceipt CommitDeathReward(const FLDCommittedDeath& Death, const FLDGameplayWritePermit& Permit);
-    // D26 (#79): one map event payout through the same reward composite as a death reward. Event + Serial is its
-    // business identity: the match pays each event once, so any second claim is refused. Needs the Transactions or
+    // D26 (#79) / #198 G: one map event payout through the same reward composite as a death reward: XP (>= 0) and the build
+    // part Kind (ELDFieldRewardKind; None pays XP only, which must then be positive), prepared together and installed once.
+    // Event + Serial is its business identity: the match pays each event once, so any second claim is refused
+    // (FieldRewardDuplicate). The build part draws from private per-event random material. Needs the Transactions or
     // DeathsAndRewards permit, where growth applies.
-    ELDRewardOutcome CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
+    ELDRewardOutcome CommitFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
         const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
     // Transactions: build commands (and DEV test commands) in server arrival order. Single rejections are receipts; false only
     // on a fault.
@@ -78,11 +80,14 @@ private:
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthBuildCommandsTest;
     void RecordReward(const FLDRewardReceipt& Receipt);
-    // One recipient's part of a composite reward.
+    // One recipient's part of a composite reward; #198 G: a map event's share may carry its build part.
     struct FRewardShare
     {
         FGuid Recipient;
         LDProgression::FRewardAmounts Amounts;
+        ELDFieldRewardKind FieldKind = ELDFieldRewardKind::None;
+        FName Event;
+        uint64 Serial = 0;
     };
     // The reward composite (PROGRESSION_AND_REWARDS): the XP of every share with its levels, opportunities and Combat
     // projection, all prepared before any is installed, so the whole reward commits once or not at all (a contender kill

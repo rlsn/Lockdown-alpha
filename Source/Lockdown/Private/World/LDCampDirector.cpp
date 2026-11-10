@@ -118,6 +118,8 @@ bool ALDCampDirector::FreezeForRest(const FLDGameplayWritePermit& Permit, FStrin
 {
     if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
     ALDGameMode* Mode = AuthorityMode();
+    // #198 outer §5: the rest that reaches the Boss's leave instant (R3 at T=540) ends its stay before anything freezes.
+    if (!LeaveBossIfDue(Permit, Error)) { return false; }
     int32 Frozen = 0;
     // Every living camp member and the Boss (all registered world bodies of this director).
     for (const auto& Pair : Bodies)
@@ -699,12 +701,13 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
         Bodies.Remove(Entity);
         AuthorityMode()->MarkPublicMatchDirty();
         UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_DOWN killer=%s at_ms=%lld"), *Fact.CreditOwner.ToString(), Fact.OccurredAtMs);
-        return GrantApproval(Fact.CreditOwner, Permit, Error);
+        return RewardBossKill(Fact.CreditOwner, Permit, Error);
     }
     int32 Camp = INDEX_NONE;
     State.FindMember(Fact.Key.Victim.EntityId, &Camp);
     // #198: the clear instant and the refresh deadline are field progress T, so a rest neither runs nor skips them.
-    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, AuthorityMode()->GetTimeline().FieldMsAt(Fact.OccurredAtMs), Error);
+    const int64 FieldMs = AuthorityMode()->GetTimeline().FieldMsAt(Fact.OccurredAtMs);
+    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, FieldMs, Error);
     if (Result == ELDCampDeathResult::Rejected) { return false; }
     if (Result == ELDCampDeathResult::Duplicate)
     {
@@ -720,6 +723,11 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
         *State.GetRoster()->Camps[Camp].CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
         Result == ELDCampDeathResult::CampCleared, State.FindCamp(Camp)->RespawnDueMs);
+    // #198 outer §5: the first clear of a marked camp takes its segment's marker.
+    if (Result == ELDCampDeathResult::CampCleared)
+    {
+        return AuthorityMode()->ConsumeCampClear(State.GetRoster()->Camps[Camp].CampId, Fact.CreditOwner, FieldMs, Permit, Error);
+    }
     Error.Reset();
     return true;
 }
@@ -790,6 +798,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
 {
     if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
     ALDGameMode* Mode = AuthorityMode();
+    if (!LeaveBossIfDue(Permit, Error)) { return false; }
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
         for (int32 Slot = 0; Slot < State.FindCamp(Camp)->Members.Num(); ++Slot)
@@ -870,24 +879,47 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     return true;
 }
 
-bool ALDCampDirector::GrantApproval(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     ALDGameMode* Mode = AuthorityMode();
     FLDContenderLifeRead Life;
-    // Only a contender's last hit is approved; a killer already dead by the same step gets nothing.
+    // #198 outer §5: only a contender's last hit is rewarded, under the existing eligibility: a killer already dead by the
+    // same step gets nothing. Its 300 XP is the ordinary kill reward of the Boss row; this adds one build reward draw.
     if (!Killer.IsValid() || !Mode->ReadContenderLife(State.GetMatch(), Killer, Life, Error) || Life.Phase != ELDLifePhase::Alive)
+    {
+        UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_REWARD_SKIPPED killer=%s"), *Killer.ToString());
+        Error.Reset();
+        return true;
+    }
+    return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error);
+}
+
+bool ALDCampDirector::LeaveBossIfDue(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    const int64 FieldMs = Mode->GetFieldNowMs();
+    if (!Boss.IsLeaveDue(FieldMs))
     {
         Error.Reset();
         return true;
     }
-    const FLDDemoBossDefinition& Rules = Content->Get().Boss;
-    bool bApplied = false;
-    if (!Mode->Combat->GrantTimedBonus(Life.Body, FName(*Rules.Id), Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bApplied, Error))
+    const bool bAlive = Boss.Phase == ELDBossPhase::Alive;
+    if (bAlive)
     {
+        const FGuid Entity = Boss.EntityId;
+        if (!Mode->RetireCampBody(Boss.Body, Permit, Error)) { return false; }
+        Motion.Remove(Entity);
+        if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
+        Bodies.Remove(Entity);
+    }
+    if (!Boss.Leave(FieldMs))
+    {
+        Error = TEXT("The Boss state refused its due departure.");
         return false;
     }
-    UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_APPROVAL contender=%s applied=%d duration_ms=%lld"), *Killer.ToString(), bApplied ? 1 : 0,
-        Rules.ApprovalDurationMs);
+    Mode->MarkPublicMatchDirty();
+    UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_LEAVE alive=%d field_t_ms=%lld"), bAlive ? 1 : 0, FieldMs);
+    Error.Reset();
     return true;
 }
 

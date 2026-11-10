@@ -50,6 +50,8 @@ struct FLDComponentInstance
     // First-time history (spec §5): once installed, a later re-install is a rest-window move; death, reconnect and
     // uninstalling never clear it.
     bool bEverInstalled = false;
+    // #198 G: this mod/connector received its one FillGap.
+    bool bGapFilled = false;
     FLDComponentTarget Target;
 };
 
@@ -64,7 +66,9 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FName> PendingBlueprints;
     // Points paid for rest services (the NPC active offer); never refunded, a respec only returns StatPoints.
     int64 PermanentSpentPoints = 0;
-    // #198 session D: points paid by PK settlements (participation, winner share, betting pool); unspent until allocated.
+    // #198 session D: points paid by PK settlements (participation, winner share, betting pool); #198 G: also the
+    // GROWTH.EmptyComponentPoolPoints of a field reward or elite choice that found its material pool empty. Unspent until
+    // allocated.
     int64 AwardedPoints = 0;
     // #198 B: owned components sorted by id, one per definition.
     TArray<FLDComponentInstance> Components;
@@ -118,6 +122,13 @@ struct FLDProgressionState
     TOptional<FLDActiveOfferState> Offer;
     uint64 LastOfferRevision = 0;
     TArray<FLDActiveOpportunityRecord> Records;
+    // #198 G: pending elite-camp component choices, oldest first (ChoiceId, event, serial and the fixed options).
+    TArray<FLDComponentChoiceView> ComponentChoices;
+    // #198 G: high-tier camp blueprints held because no active was eligible, and how many were ever held (seed index).
+    uint8 HeldBlueprints = 0;
+    uint32 HeldBlueprintsEver = 0;
+    // #198 G: every field reward received, oldest first.
+    TArray<FLDFieldRewardView> FieldRewards;
 
     uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
@@ -329,4 +340,81 @@ namespace LDProgression
     // An installed component back to the inventory (its history stays): rest window only (RestOnly), NotOwned, NotInstalled.
     LOCKDOWN_API ELDGrowthReason ApplyUninstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Component, const FBuildContext& Context, FLDGrowthBuild& Out);
+
+    // ---- #198 G field rewards (spec §4.2/§4.4, outer parameters §5) and the rest material services (spec §4.5) ----
+
+    // The growth state an FLDProgressionView publishes, as a build (level, allocated stats, actives, blueprints and
+    // components with their install targets and history), so a client or the AI evaluates FillGap/Dismantle eligibility
+    // with the server's own rules. Revision and permanent spend are copied; nothing else is invented.
+    LOCKDOWN_API FLDGrowthBuild BuildFromView(const FLDDemoContentDefinitions& Content, const FLDProgressionView& View);
+    // Actives a field blueprint may give, in catalog order: every active neither learned nor kept as a blueprint.
+    LOCKDOWN_API void EligibleBlueprints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out);
+    // Components of Pool the build does not own, in catalog order.
+    LOCKDOWN_API void UnownedComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        ELDDemoComponentPool Pool, TArray<FName>& Out);
+
+    // What one field reward's build part gives (decided before anything installs).
+    struct FFieldGrant
+    {
+        ELDFieldRewardResult Result = ELDFieldRewardResult::None;
+        FName Definition;
+        // ComponentChoice: one or two distinct known common components.
+        TArray<FName> ChoiceOptions;
+    };
+    // Kind's build part for Build, deterministic in Seed. BuildDraw: a fair class roll between an eligible active blueprint and
+    // an unowned scarce component, each uniform; one empty class uses the other; both empty: one common material drawn like a
+    // normal level-up of max(Build.Level, 2) (PoolPoints when the common pool is exhausted). Blueprint: one uniform eligible
+    // active, BlueprintHeld when none is. ComponentChoice: two distinct unowned common components uniformly without
+    // replacement (one when only one is left; PoolPoints when none is). DataInvalid for None.
+    LOCKDOWN_API ELDGrowthReason DrawFieldReward(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        ELDFieldRewardKind Kind, uint64 Seed, FFieldGrant& Out);
+    // Private per-event random material of one recipient's field reward.
+    LOCKDOWN_API uint64 FieldRewardSeed(const FGuid& MatchSecret, const FGuid& Contender, FName Event, uint64 Serial);
+    // Private random material of one held high-tier blueprint (the Index-th held grant of the match, 1-based).
+    LOCKDOWN_API uint64 HeldBlueprintSeed(const FGuid& MatchSecret, const FGuid& Contender, uint32 Index);
+    // Installs one drawn field grant on Build/Progression (Revision untouched) and records it in Progression.FieldRewards:
+    // a blueprint as a pending blueprint, a component as an owned inventory instance (Source BuildReward), PoolPoints as
+    // GROWTH.EmptyComponentPoolPoints added to AwardedPoints, a ComponentChoice as a pending choice ChoiceId, BlueprintHeld
+    // as one more held blueprint. DataInvalid when the grant does not fit Build.
+    LOCKDOWN_API ELDGrowthReason ApplyFieldGrant(const FLDDemoContentDefinitions& Content, const FFieldGrant& Grant, FName Event,
+        uint64 Serial, int64 XP, const FGuid& ChoiceId, FLDGrowthBuild& Build, FLDProgressionState& Progression);
+    // Grants every held blueprint that an eligible active now exists for (each its own uniform draw); true when any was.
+    LOCKDOWN_API bool ReleaseHeldBlueprints(const FLDDemoContentDefinitions& Content, const FGuid& MatchSecret, const FGuid& Contender,
+        FLDGrowthBuild& Build, FLDProgressionState& Progression);
+
+    // Spec §4.5 gap targets in catalog order: owned mods/connectors never installed, not yet filled, with no compatible
+    // entry among the owned components, learned actives and pending blueprints (the innate D and the holder itself always
+    // are one). A reaction connector (reaction_empower) has an entry only with at least two distinct held entries.
+    LOCKDOWN_API void GapTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out);
+    // The unowned common base components that would give Target its missing entry (its component targets and extra bases),
+    // in catalog order. NotAGap / GapAlreadyFilled when Target is no gap target (Out empty).
+    LOCKDOWN_API ELDGrowthReason GapFillers(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Target,
+        TArray<FName>& Out);
+    // FillGap: GROWTH.FillGapPoints moved to PermanentSpentPoints, Filler owned (Source FillGap, inventory) and Target marked
+    // filled, atomically. NotRestWindow outside a rest window, NotAGap/GapAlreadyFilled, NoGapFiller, NotEnoughPoints.
+    LOCKDOWN_API ELDGrowthReason ApplyFillGap(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current, int64 XP,
+        uint8 EmptyPoolGrants, FName Target, FName Filler, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPaid);
+    // Whether Surrendered is a legal dismantle input: GROWTH.DismantleInputCount distinct owned common components
+    // (DismantleInvalid otherwise).
+    LOCKDOWN_API ELDGrowthReason DismantleInputReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        const TArray<FName>& Surrendered);
+    struct FDismantleOutcome
+    {
+        FName Received;
+        // Installed mods/connectors whose host was surrendered, back in the inventory (history kept).
+        TArray<FName> Uninstalled;
+    };
+    // Dismantle: the surrendered components removed, every install left without its host component (or C12 base) returned
+    // to the inventory, and one uniform unowned common component outside the surrendered ones received (Source Dismantle),
+    // fixed by Seed. NotRestWindow outside a rest window, DismantleInvalid, DismantlePoolEmpty (nothing removed).
+    LOCKDOWN_API ELDGrowthReason ApplyDismantle(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        const TArray<FName>& Surrendered, uint64 Seed, const FBuildContext& Context, FLDGrowthBuild& Out, FDismantleOutcome& Outcome);
+    // Private random material of one dismantle, fixed by its request.
+    LOCKDOWN_API uint64 DismantleSeed(const FGuid& MatchSecret, const FGuid& Contender, uint64 RequestId);
+    // ComponentChoice: the pending choice ChoiceId resolved with Option (owned, Source EliteChoice) or, when Option is None and
+    // every option is already owned, with GROWTH.EmptyComponentPoolPoints (OutEmptyPoolGrant). Gated like ActiveChoice.
+    // NoComponentChoice, InvalidOption (not an option), ComponentOwned (the option is owned, or None while one is free).
+    LOCKDOWN_API ELDGrowthReason ApplyComponentChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        const FLDProgressionState& Progression, const FGuid& ChoiceId, FName Option, const FBuildContext& Context,
+        FLDGrowthBuild& Out, FLDProgressionState& OutProgression, bool& OutEmptyPoolGrant);
 }

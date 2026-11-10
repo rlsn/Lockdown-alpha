@@ -118,6 +118,14 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
+    // #198 outer §5: the camp markers of the timed field segments, drawn from a seed derived from the airdrop's.
+    if (!DormRegistry->GetGeometry()
+        || !LDFieldMarkers::Resolve(*DemoContent, *DormRegistry->GetGeometry(), 0, Airdrop.Schedule.Seed, FieldMarkers, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Camp markers require the registered Demo world geometry."); }
+        RetireMatchDomains();
+        return false;
+    }
     // D27 (#79): the leader notice refreshes in field progress T as well.
     if (!LDLeaderNotice::Resolve(*DemoContent, 0, MatchContext.LedgerMatch, LeaderNotice, Error))
     {
@@ -146,6 +154,8 @@ void ALDGameMode::RetireMatchDomains()
     DormZones={};
     Airdrop={};
     Charms={};
+    FieldMarkers={};
+    OwedFieldRewards.Reset();
     LeaderNotice={};
     CaptureTracks.Reset();
     PendingCapture.Reset();

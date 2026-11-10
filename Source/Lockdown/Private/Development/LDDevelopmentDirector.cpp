@@ -44,8 +44,31 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     const bool bNoComponent = Command.Component == FLDDefinitionWire() && !Command.bInstallIfPossible && bTarget && Target.IsEmpty();
     const bool bOnlyComponent = bNoOffer && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
         && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot && Command.Component.Decode(Decoded) && bTarget;
+    // #198 G: Filler belongs to FillGap and Surrendered to Dismantle only.
+    if ((Command.Kind != ELDBuildCommandKind::FillGap && Command.Filler != FLDDefinitionWire())
+        || (Command.Kind != ELDBuildCommandKind::Dismantle && !Command.Surrendered.IsEmpty()))
+    {
+        return false;
+    }
+    const bool bServiceShape = Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && !Command.bLearnIfPossible
+        && Command.Slot == FLDBuildCommand::AnySlot && !Command.bInstallIfPossible && bTarget && Target.IsEmpty();
     switch (Command.Kind)
     {
+    case ELDBuildCommandKind::ComponentChoice:
+        return Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option == FLDDefinitionWire() && bServiceShape
+            && LDGrowthWire::DecodeOptional(Command.Component, Decoded);
+    case ELDBuildCommandKind::FillGap:
+        return bNoOffer && bServiceShape && Command.Component.Decode(Decoded) && Command.Filler.Decode(Decoded);
+    case ELDBuildCommandKind::Dismantle:
+    {
+        // A bounded list; its exact count is the content's rule, checked at the commit.
+        bool bDecoded = Command.Surrendered.Num() >= 1 && Command.Surrendered.Num() <= 16;
+        for (const FLDDefinitionWire& Wire : Command.Surrendered)
+        {
+            bDecoded &= Wire.Decode(Decoded);
+        }
+        return bNoOffer && bServiceShape && Command.Component == FLDDefinitionWire() && bDecoded;
+    }
     case ELDBuildCommandKind::ActiveChoice:
         return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option.Decode(Decoded)
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
@@ -107,6 +130,17 @@ void DevelopmentFillCommand(FLDBuildReceipt& Receipt, const FLDBuildCommand& Com
     Receipt.Kind = Command.Kind;
     Receipt.OfferId = Command.OfferId;
     FName Definition;
+    // #198 G: the received component (a Dismantle's is drawn at the commit).
+    if (Command.Kind == ELDBuildCommandKind::ComponentChoice || Command.Kind == ELDBuildCommandKind::FillGap
+        || Command.Kind == ELDBuildCommandKind::Dismantle)
+    {
+        const FLDDefinitionWire& Received = Command.Kind == ELDBuildCommandKind::FillGap ? Command.Filler : Command.Component;
+        if (LDGrowthWire::DecodeOptional(Received, Definition))
+        {
+            Receipt.ComponentId = Definition;
+        }
+        return;
+    }
     if (DevelopmentIsComponentKind(Command.Kind))
     {
         if (Command.Component.Decode(Definition))
@@ -214,6 +248,7 @@ FLDComponentInstanceView DevelopmentComponentView(const FLDComponentInstance& In
     View.Target.Element = Instance.Target.Element;
     View.Target.BoundActive = Instance.Target.BoundActive;
     View.Target.BoundComponent = Instance.Target.BoundComponent;
+    View.bGapFilled = Instance.bGapFilled;
     return View;
 }
 
@@ -446,6 +481,9 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.BuildSafeAtMs = GameMode && GameMode->Combat ? GameMode->Combat->ReadBuildSafeAtMs(ContenderId) : 0;
     View.CatalogDigest = Definitions.Identity.Root;
     View.PermanentSpentPoints = Build.PermanentSpentPoints;
+    View.ComponentChoices = Progression.ComponentChoices;
+    View.HeldBlueprints = Progression.HeldBlueprints;
+    View.FieldRewards = Progression.FieldRewards;
     return View;
 }
 
@@ -640,6 +678,10 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     int64 Refunded = 0;
     int64 NpcPaid = 0;
     uint8 Ordinal = 0;
+    // #198 G: FillGap's payment, Dismantle's draw and surrendered components.
+    int64 ServicePaid = 0;
+    LDProgression::FDismantleOutcome Dismantled;
+    TArray<FName> Removed;
     // The points of the committed record no longer derive: the boundary must fault.
     const auto PointsFault = [&]()
     {
@@ -806,8 +848,71 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         }
         break;
     }
+    case ELDBuildCommandKind::ComponentChoice:
+    {
+        FName Option;
+        if (!LDGrowthWire::DecodeOptional(Command.Component, Option))
+        {
+            return Reject(ELDGrowthReason::InvalidRequest);
+        }
+        bool bPoints = false;
+        const ELDGrowthReason ChoiceReason = LDProgression::ApplyComponentChoice(Definitions, Build, Progression, Command.OfferId,
+            Option, Context, NewBuild, NewProgression, bPoints);
+        if (ChoiceReason != ELDGrowthReason::None)
+        {
+            return Reject(ChoiceReason);
+        }
+        bProgressionChanged = true;
+        break;
+    }
+    case ELDBuildCommandKind::FillGap:
+    {
+        FName Target, Filler;
+        if (!Command.Component.Decode(Target) || !Command.Filler.Decode(Filler))
+        {
+            return Reject(ELDGrowthReason::InvalidRequest);
+        }
+        const ELDGrowthReason FillReason = LDProgression::ApplyFillGap(Definitions, Build, Progression.CumulativeXP,
+            Progression.EmptyPoolGrants, Target, Filler, Context, NewBuild, ServicePaid);
+        if (FillReason == ELDGrowthReason::AuthorityFault)
+        {
+            return PointsFault();
+        }
+        if (FillReason != ELDGrowthReason::None)
+        {
+            return Reject(FillReason);
+        }
+        break;
+    }
+    case ELDBuildCommandKind::Dismantle:
+    {
+        TArray<FName> Surrendered;
+        for (const FLDDefinitionWire& Wire : Command.Surrendered)
+        {
+            FName Id;
+            if (!Wire.Decode(Id))
+            {
+                return Reject(ELDGrowthReason::InvalidRequest);
+            }
+            Surrendered.Add(Id);
+        }
+        // The random result is fixed by this request's identity: a retry replays the receipt, never a new draw.
+        const ELDGrowthReason DismantleReason = LDProgression::ApplyDismantle(Definitions, Build, Surrendered,
+            LDProgression::DismantleSeed(MatchSecret, ContenderId, Command.RequestId), Context, NewBuild, Dismantled);
+        if (DismantleReason != ELDGrowthReason::None)
+        {
+            return Reject(DismantleReason);
+        }
+        Removed = MoveTemp(Surrendered);
+        break;
+    }
     default:
         return Reject(ELDGrowthReason::InvalidRequest);
+    }
+    // #198 G: a held high-tier blueprint is granted as soon as this change leaves an active eligible for it.
+    if (LDProgression::ReleaseHeldBlueprints(Definitions, MatchSecret, ContenderId, NewBuild, NewProgression))
+    {
+        bProgressionChanged = true;
     }
 
     const ELDGrowthReason InstallReason = InstallBuild(ContenderId, *Record, MoveTemp(NewBuild), MoveTemp(NewProgression),
@@ -841,6 +946,13 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     Receipt.ForgottenId = Forgotten;
     Receipt.PointsRefunded = Refunded;
     Receipt.NpcPointsPaid = NpcPaid;
+    Receipt.ServicePointsPaid = ServicePaid;
+    Receipt.RemovedComponents = Removed;
+    Receipt.UninstalledComponents = Dismantled.Uninstalled;
+    if (Command.Kind == ELDBuildCommandKind::Dismantle)
+    {
+        Receipt.ComponentId = Dismantled.Received;
+    }
     const FLDComponentInstance* Committed = DevelopmentIsComponentKind(Command.Kind)
         ? Record->Build.FindComponent(Receipt.ComponentId) : nullptr;
     Receipt.bComponentInstalled = Committed && Committed->bInstalled;
@@ -867,7 +979,9 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     }
     else
     {
-        const FName Card = DevelopmentIsComponentKind(Command.Kind) ? Receipt.ComponentId : Receipt.DefinitionId;
+        const bool bMaterial = DevelopmentIsComponentKind(Command.Kind) || Command.Kind == ELDBuildCommandKind::ComponentChoice
+            || Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle;
+        const FName Card = bMaterial ? Receipt.ComponentId : Receipt.DefinitionId;
         const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
             || Command.Kind == ELDBuildCommandKind::ForgetActive;
         UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s"),
@@ -879,6 +993,19 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             uint32(Ordinal), !Committed ? TEXT("-") : Committed->bInstalled ? TEXT("1") : TEXT("0"),
             Committed ? *DevelopmentBindingText(Committed->Target) : TEXT("-"),
             Install.StoredReason == ELDGrowthReason::None ? TEXT("-") : LDGrowthWire::ReasonName(Install.StoredReason));
+        if (Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle)
+        {
+            const auto Names = [](const TArray<FName>& Ids)
+            {
+                return Ids.IsEmpty() ? FString(TEXT("-")) : FString::JoinBy(Ids, TEXT(","), [](FName Id) { return Id.ToString(); });
+            };
+            FName Target;
+            Command.Component.Decode(Target);
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_MATERIAL_SERVICE t=%lld contender=%s kind=%s received=%s gap=%s paid=%lld removed=%s uninstalled=%s"),
+                GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind), *Receipt.ComponentId.ToString(),
+                Command.Kind == ELDBuildCommandKind::FillGap ? *Target.ToString() : TEXT("-"), ServicePaid, *Names(Removed),
+                *Names(Dismantled.Uninstalled));
+        }
         if (Command.Kind == ELDBuildCommandKind::BuyNpcOffer && Record->Progression.Offer.IsSet())
         {
             // Host playtest record of the actives shown, like every drawn head (DrawHead).
@@ -1086,6 +1213,70 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
     }
     FLDPrepareGrowthResult Result;
     Result.Value.Emplace(MoveTemp(Prepared));
+    return Result;
+}
+
+FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& ContenderId, int64 GrantXP, ELDFieldRewardKind Kind,
+    FName Event, uint64 Serial) const
+{
+    FLDPrepareGrowthResult Result = PrepareExperience(ContenderId, GrantXP);
+    if (!Result.IsSuccess() || Kind == ELDFieldRewardKind::None)
+    {
+        return Result;
+    }
+    if (Event.IsNone() || Serial == 0)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, TEXT("A field reward needs its event identity."));
+    }
+    FLDPreparedGrowthChange& Prepared = Result.Value.GetValue();
+    const FLDDemoContentDefinitions& Definitions = Content->Get();
+    LDProgression::FFieldGrant Grant;
+    const ELDGrowthReason DrawReason = LDProgression::DrawFieldReward(Definitions, Prepared.NewBuild, Kind,
+        LDProgression::FieldRewardSeed(MatchSecret, ContenderId, Event, Serial), Grant);
+    if (DrawReason != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(DrawReason, TEXT("The field reward does not draw from the approved supply."));
+    }
+    // A pending choice keeps one stable identity for its whole life, fixed when it is granted.
+    const FGuid ChoiceId = Grant.Result == ELDFieldRewardResult::ComponentChoice ? FGuid::NewGuid() : FGuid();
+    const FLDGrowthBuild BuildBefore = Prepared.NewBuild;
+    const ELDGrowthReason GrantReason = LDProgression::ApplyFieldGrant(Definitions, Grant, Event, Serial, GrantXP, ChoiceId,
+        Prepared.NewBuild, Prepared.NewProgression);
+    if (GrantReason != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(GrantReason, TEXT("The field reward does not fit the contender's build."));
+    }
+    // One revision step each for the whole reward, whether or not the XP part already moved it.
+    if (Prepared.NewBuild.Revision == Prepared.ExpectedBuildRevision
+        && (Prepared.NewBuild.PendingBlueprints != BuildBefore.PendingBlueprints
+            || Prepared.NewBuild.Components.Num() != BuildBefore.Components.Num()
+            || Prepared.NewBuild.AwardedPoints != BuildBefore.AwardedPoints))
+    {
+        if (Prepared.NewBuild.Revision == MAX_uint64)
+        {
+            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The build revision is exhausted."));
+        }
+        ++Prepared.NewBuild.Revision;
+    }
+    if (Prepared.NewProgression.Revision == Prepared.ExpectedProgressionRevision)
+    {
+        if (Prepared.NewProgression.Revision == MAX_uint64)
+        {
+            return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The progression revision is exhausted."));
+        }
+        ++Prepared.NewProgression.Revision;
+    }
+    int64 Unspent = 0;
+    if (const ELDGrowthReason Reason = LDProgression::ValidateBuild(Definitions, Prepared.NewBuild); Reason != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(Reason, TEXT("The field reward leaves an invalid build."));
+    }
+    if (const ELDGrowthReason Reason = LDProgression::UnspentPoints(Definitions, Prepared.NewBuild, Prepared.NewProgression.CumulativeXP,
+            Prepared.NewProgression.EmptyPoolGrants, Unspent); Reason != ELDGrowthReason::None)
+    {
+        return DevelopmentPrepareFailure(Reason, TEXT("The points of the field reward do not derive."));
+    }
+    Prepared.Field = MoveTemp(Grant);
     return Result;
 }
 

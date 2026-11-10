@@ -800,39 +800,6 @@ bool ALDCombatDirector::RecordAssistContribution(FLDBodyCombatState& Victim, con
     return LDAssist::RecordContribution(Victim.AssistContributions,CreditOwner,Victim.Victim.EntityId,NowMs);
 }
 
-bool ALDCombatDirector::GrantTimedBonus(const FLDCombatBodyRef& Ref, FName Source, const TArray<FLDDemoStatBonus>& Stats,
-    int64 DurationMs, const FLDGameplayWritePermit& Permit, bool& bOutApplied, FString& Error)
-{
-    bOutApplied=false;
-    ALDGameMode* Mode=Core();
-    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None || Source.IsNone()
-        || Stats.IsEmpty() || DurationMs<=0)
-    {
-        Error=TEXT("A granted timed bonus needs the current DeathsAndRewards permit, a source, stats and a duration.");
-        return false;
-    }
-    ALDCharacter* Actor=nullptr;
-    FLDBodyCombatState* Body=FindBody(Ref,&Actor);
-    if (!Body || Body->bPendingDeath || Body->Resources.HpP2<=0 || Body->Victim.Kind!=ELDVictimKind::Contender)
-    {
-        Error.Reset();
-        return true;
-    }
-    const int64 Now=Permit.GetBoundary().AtMs;
-    FLDCombatTimedBonus Bonus;
-    Bonus.EffectId=FGuid::NewGuid();
-    Bonus.SourceDefinition=Source;
-    Bonus.Stats=Stats;
-    if (!LDMatchLifecycle::AddDurationMs(Now,DurationMs,Bonus.ExpiresAtMs,Error)) { return false; }
-    LDTactical::ApplyTimedBonus(Body->TimedBonuses,Bonus);
-    if (!RefreshTemporary(*Body,Actor,Now,Error)) { return false; }
-    ++Body->StateRevision;
-    MarkViewChanged(Body->Victim.EntityId);
-    bOutApplied=true;
-    Error.Reset();
-    return true;
-}
-
 bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error)
 {
     const FLDDemoContentSnapshot* Content=Catalog();

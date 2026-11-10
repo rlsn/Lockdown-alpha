@@ -26,6 +26,7 @@ FLDBossState MakeState()
     FLDBossRules& R = State.Rules;
     R.StartedAtMs = 1000;
     R.AppearAtMs = 20000;
+    R.LeaveAtMs = 60000;
     R.AggroRadiusCm = 300.;
     R.AttackRangeCm = 200.;
     R.AttackerMemoryMs = 4000;
@@ -99,7 +100,7 @@ bool FLDBossRulesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("An early spawn is refused"), State.Spawned(Self, Appear - 1));
     TestFalse(TEXT("A spawn of another entity is refused"), State.Spawned(BodyOf(9, ELDVictimKind::CampMember), Appear));
     TestTrue(TEXT("At its time the Boss spawns"), State.Spawned(Self, Appear) && State.Phase == ELDBossPhase::Alive);
-    TestEqual(TEXT("Once alive nothing more is due"), State.NextDueMs(), MAX_int64);
+    TestEqual(TEXT("Once alive only its departure is due"), State.NextDueMs(), int64(61000));
     TestFalse(TEXT("It never spawns twice"), State.Spawned(Self, Appear + 1));
 
     // Patrol: the four waypoints in order, looping.
@@ -177,39 +178,28 @@ bool FLDBossRulesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A waypoint must be a number"), Invalid.IsActive());
     return true;
 }
-// D26 (#79) 画饼老板 reward: the last hit earns the approved monster_dean DeathReward and the 吃到大饼 buff. The buff is
-// granted only in DeathsAndRewards and only to a living contender body; it raises AD, AP and move speed by the
-// approved ratios and expires after the approved duration.
-namespace LDBossRewardTests
-{
-bool RatioIs(const FLDDemoRational& Value, int64 Numerator, int64 Denominator)
-{
-    return Value.Denominator > 0 && Value.Numerator * Denominator == Numerator * Value.Denominator;
-}
-
-int64 StatOf(const TArray<FLDDemoStatBonus>& Stats, ELDDemoBonusStat Stat)
-{
-    const FLDDemoStatBonus* Found = Stats.FindByPredicate([Stat](const FLDDemoStatBonus& Bonus) { return Bonus.Stat == Stat; });
-    return Found ? Found->Amount : -1;
-}
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBossRewardTest, "Lockdown.Rules.DemoBoss.Reward",
+// #198 outer §5 Boss lifecycle (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175, comment
+// 6752628806: "批准整套方案，按票内参数实施"): the approved Boss appears once at field T=240 s, leaves unkilled at T=540 s
+// (the third rest, so never in the final field) and never respawns. Its last hit keeps the monster_dean DeathReward
+// (300 XP) and adds one build reward draw; the old 90 s AD/AP +25%, move speed +10% approval buff is gone.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBossFieldLifecycleTest, "Lockdown.Rules.DemoBossFieldLifecycle",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDBossRewardTest::RunTest(const FString& Parameters)
+bool FLDBossFieldLifecycleTest::RunTest(const FString& Parameters)
 {
-    using namespace LDBossRewardTests;
+    using namespace LDBossTests;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& D = Catalog->Get();
     const FLDDemoBossDefinition& Rules = D.Boss;
-
-    // 1. The approved values (#79 "已批准决定"; gold removed in #144): 300 流量 through the monster_dean DeathReward, and 吃到大饼 =
-    //    AD +25%, AP +25%, move speed +10% for 90 s.
     const FLDDemoMonsterDefinition* Row = D.Monsters.FindByPredicate(
         [&Rules](const FLDDemoMonsterDefinition& M) { return M.Id == Rules.Id; });
     bool bGood = TestTrue(TEXT("The Boss is the monster_dean row of the Boss tier"),
         Rules.Id == TEXT("monster_dean") && Row && Row->Tier == ELDDemoCampTier::Boss);
+    bGood &= TestTrue(TEXT("It appears at field T=240 s and leaves at T=540 s, the third rest"),
+        Rules.AppearAtMs == 240000 && Rules.LeaveAtMs == 540000
+        && Rules.LeaveAtMs == D.Parameters.FieldSegmentMs * FLDTimelineParameters::TimedSegments);
+    bGood &= TestTrue(TEXT("Its combat values stay as approved (4500 HP, 210 attack)"),
+        Row && Row->HPP2 == 450000 && Row->AttackP2 == 21000);
     LDProgression::FRewardAmounts Amounts;
     bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 300 XP"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 0, Amounts) == ELDGrowthReason::None
@@ -217,108 +207,59 @@ bool FLDBossRewardTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("The Boss is not a camp and never takes a camp growth stage"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 1, Amounts) == ELDGrowthReason::DataInvalid
         && Amounts.XP == 0);
-    bGood &= TestTrue(TEXT("The approved buff is AD +25%, AP +25% and move speed +10% for 90 s"),
-        Rules.ApprovalDurationMs == 90000 && Rules.ApprovalStats.Num() == 3
-        && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::ADBonusRatio) == 2500
-        && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::APBonusRatio) == 2500
-        && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::MoveSpeedBonusRatio) == 1000);
+    bGood &= TestTrue(TEXT("The approval buff no longer exists in the Boss rules"),
+        !FindFProperty<FProperty>(FLDDemoBossDefinition::StaticStruct(), TEXT("ApprovalStats"))
+        && !FindFProperty<FProperty>(FLDDemoBossDefinition::StaticStruct(), TEXT("ApprovalDurationMs")));
 
-    // 2. The authority grant, in a real DeathsAndRewards boundary.
-    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}), *Catalog);
-    if (!TestTrue(TEXT("A level-1 contender projects"), Projected.IsSuccess())) { return false; }
-    const FLDAttributeProjection& Base = Projected.Value.GetValue();
-    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
-        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
-    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
-    if (!TestNotNull(TEXT("An isolated reward world"), World)) { return false; }
-    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
-    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
-    auto* Mode = World->SpawnActor<ALDGameMode>();
-    auto* Public = World->SpawnActor<ALDGameState>();
-    auto* Driver = World->SpawnActor<ALDCombatDirector>();
-    ALDCharacter* Killer = World->SpawnActor<ALDCharacter>();
-    ALDCharacter* Fallen = World->SpawnActor<ALDCharacter>();
-    ALDCharacter* Guard = World->SpawnActor<ALDCharacter>();
-    if (!Mode || !Public || !Driver || !Killer || !Fallen || !Guard) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
-    // Combat reaches its authority through UWorld::GetAuthGameMode; a bare test world has none, so the spawned mode is
-    // registered through the reflected engine property instead of a full GameInstance boot.
-    FObjectPropertyBase* AuthorityProperty = FindFProperty<FObjectPropertyBase>(UWorld::StaticClass(), TEXT("AuthorityGameMode"));
-    if (!TestNotNull(TEXT("The engine exposes the world's authority game mode"), AuthorityProperty)) { return false; }
-    AuthorityProperty->SetObjectPropertyValue_InContainer(World, Mode);
-    if (!TestTrue(TEXT("Combat sees the test authority"), World->GetAuthGameMode() == Mode)) { return false; }
-    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
-    Mode->GameState = Public;
-    Mode->MatchContext = {1, FGuid::NewGuid()};
-    Mode->MatchPhase = ELDMatchPhase::Development;
-    Mode->Combat = Driver;
-    Mode->DemoContent = Catalog;
-    Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
-    const auto Install = [&](ALDCharacter* Actor, ELDVictimKind Kind, bool bDead)
-    {
-        FLDBodyCombatState State;
-        State.Identity = FGuid::NewGuid();
-        State.Victim = {Kind, FGuid::NewGuid(), 1};
-        State.Resources.MaxHpP2 = State.Resources.HpP2 = 10000;
-        State.Resources.Revision = 1;
-        State.BuildProjection = State.AttributeProjection = Base;
-        State.bPendingDeath = bDead;
-        const FLDCombatBodyRef Ref{State.Victim, State.Identity};
-        Driver->Bodies.Add(Actor, MoveTemp(State));
-        return Ref;
-    };
-    const FLDCombatBodyRef KillerRef = Install(Killer, ELDVictimKind::Contender, false);
-    const FLDCombatBodyRef FallenRef = Install(Fallen, ELDVictimKind::Contender, true);
-    const FLDCombatBodyRef GuardRef = Install(Guard, ELDVictimKind::CampMember, false);
-    World->Tick(LEVELTICK_TimeOnly, .025f);
+    // The approved rules drive the lifecycle in field progress T (the field starts at T=0).
+    FLDBossState State = MakeState();
+    State.Rules.StartedAtMs = 0;
+    State.Rules.AppearAtMs = Rules.AppearAtMs;
+    State.Rules.LeaveAtMs = Rules.LeaveAtMs;
+    if (!TestTrue(TEXT("The lifecycle rules are valid"), State.IsActive())) { return false; }
+    const FLDCombatBodyRef Self = BossBody(State);
+    bGood &= TestTrue(TEXT("Pending, the next instant is its appearance at T=240 s"),
+        State.NextDueMs() == 240000 && !State.IsSpawnDue(239999) && State.IsSpawnDue(240000) && !State.IsLeaveDue(539999));
+    bGood &= TestTrue(TEXT("It appears at T=240 s"), State.Spawned(Self, 240000) && State.Phase == ELDBossPhase::Alive);
+    bGood &= TestTrue(TEXT("Alive, the next instant is its departure at T=540 s"),
+        State.NextDueMs() == 540000 && !State.IsLeaveDue(539999) && State.IsLeaveDue(540000));
+    FString Error;
+    FLDPublicMatchView View = ViewAt(State, 300000);
+    bGood &= TestTrue(TEXT("A living Boss publishes its leave instant: ") + Error,
+        LDCapture::ValidatePublicMatchView(View, Error) && View.Boss.LeaveAtMs == 540000);
+    bGood &= TestTrue(TEXT("It does not leave early"), !State.Leave(539999) && State.Phase == ELDBossPhase::Alive);
+    bGood &= TestTrue(TEXT("At T=540 s it leaves without a killer"), State.Leave(540000) && State.Phase == ELDBossPhase::Left
+        && !State.KilledBy.IsValid() && State.DownAtMs == 0 && !State.Body.IsValid());
+    bGood &= TestTrue(TEXT("A Boss that left neither dies, respawns nor leaves again"),
+        !State.Died(Self, FGuid(1, 0, 0, 0), 540000) && !State.IsSpawnDue(600000) && !State.Spawned(Self, 600000)
+        && !State.Leave(600000) && State.NextDueMs() == MAX_int64);
+    View = ViewAt(State, 540000);
+    bGood &= TestTrue(TEXT("A Boss that left is a valid public view: ") + Error, LDCapture::ValidatePublicMatchView(View, Error));
+    View = ViewAt(State, 539999);
+    bGood &= TestFalse(TEXT("It cannot have left before its leave instant"), LDCapture::ValidatePublicMatchView(View, Error));
+    View = ViewAt(State, 540000);
+    View.Boss.KilledBy = FGuid(1, 0, 0, 0);
+    bGood &= TestFalse(TEXT("A Boss that left names no killer"), LDCapture::ValidatePublicMatchView(View, Error));
 
-    const FName Source(*Rules.Id);
-    FString Error, GrantError;
-    bool bKiller = false, bFallen = true, bGuard = true, bLate = true, bLateOk = true, bRan = true;
-    // Inside the 25 ms the isolated world has ticked, like the other authority-boundary rule tests.
-    const int64 GrantAtMs = 10;
-    bRan = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, GrantAtMs) == ELDCommitReject::None
-        && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
-        && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards, [&](const FLDGameplayWritePermit& Permit)
-            {
-                return Driver->GrantTimedBonus(KillerRef, Source, Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bKiller, Error)
-                    && Driver->GrantTimedBonus(FallenRef, Source, Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bFallen, Error)
-                    && Driver->GrantTimedBonus(GuardRef, Source, Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bGuard, Error);
-            }, Error)
-        && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
-            {
-                // Outside DeathsAndRewards the grant is refused as an authority fault, and nothing changes.
-                bLateOk = Driver->GrantTimedBonus(KillerRef, Source, Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bLate,
-                    GrantError);
-                return true;
-            }, Error)
-        && Mode->FinishAuthorityStep(*Driver, Error);
-    if (!TestTrue(FString::Printf(TEXT("The authority boundary ran (%s)"), *Error), bRan)) { return false; }
-    bGood &= TestTrue(TEXT("The grant phase itself reported no fault"), Error.IsEmpty());
-    const FLDBodyCombatState& K = Driver->Bodies.FindChecked(Killer);
-    const FLDBodyCombatState& F = Driver->Bodies.FindChecked(Fallen);
-    const FLDBodyCombatState& G = Driver->Bodies.FindChecked(Guard);
-    bGood &= TestTrue(TEXT("The living last hitter receives the buff once, from the Boss, for exactly 90 s"),
-        bKiller && K.TimedBonuses.Num() == 1 && K.TimedBonuses[0].SourceDefinition == Source
-        && K.TimedBonuses[0].ExpiresAtMs == GrantAtMs + Rules.ApprovalDurationMs);
-    const auto& C = K.AttributeProjection.Contributions;
-    bGood &= TestTrue(TEXT("It raises AD and AP by 25% and move speed by 10% through the temporary terms"),
-        RatioIs(C[int32(ELDProjectedAttribute::AD)].Temporary.AdditiveRatio, 1, 4)
-        && RatioIs(C[int32(ELDProjectedAttribute::AP)].Temporary.AdditiveRatio, 1, 4)
-        && RatioIs(C[int32(ELDProjectedAttribute::MoveSpeed)].Temporary.AdditiveRatio, 1, 10)
-        && K.AttributeProjection.Final.ADP2 == Base.Final.ADP2 * 12500 / 10000);
-    bGood &= TestTrue(TEXT("A last hitter already dead gets nothing"), !bFallen && F.TimedBonuses.IsEmpty()
-        && F.AttributeProjection.Final.ADP2 == Base.Final.ADP2);
-    bGood &= TestTrue(TEXT("A camp body is never approved"), !bGuard && G.TimedBonuses.IsEmpty());
-    bGood &= TestTrue(TEXT("Outside DeathsAndRewards the grant is refused and adds nothing"),
-        !bLateOk && !bLate && !GrantError.IsEmpty() && K.TimedBonuses.Num() == 1);
-
-    // 3. Expiry: present until its end, gone at it.
-    const FLDTemporaryAttributeTerms Before = LDTactical::TemporaryTerms(K.TimedBonuses, {}, {}, K.Resources.HpP2,
-        K.Resources.MaxHpP2, GrantAtMs + Rules.ApprovalDurationMs - 1);
-    const FLDTemporaryAttributeTerms After = LDTactical::TemporaryTerms(K.TimedBonuses, {}, {}, K.Resources.HpP2,
-        K.Resources.MaxHpP2, GrantAtMs + Rules.ApprovalDurationMs);
-    bGood &= TestTrue(TEXT("The buff holds until its 90 s run out and is gone at the end"),
-        Before.Bonuses.Num() == Rules.ApprovalStats.Num() && After.Bonuses.IsEmpty());
+    // An appearance still blocked at the leave instant never happens: the Boss leaves from Pending.
+    FLDBossState Blocked = MakeState();
+    Blocked.Rules.StartedAtMs = 0;
+    Blocked.Rules.AppearAtMs = Rules.AppearAtMs;
+    Blocked.Rules.LeaveAtMs = Rules.LeaveAtMs;
+    bGood &= TestTrue(TEXT("A Boss still pending at T=540 s cannot appear any more and leaves"),
+        !Blocked.IsSpawnDue(540000) && !Blocked.Spawned(BossBody(Blocked), 540000) && Blocked.IsLeaveDue(540000)
+        && Blocked.Leave(540000) && Blocked.Phase == ELDBossPhase::Left);
+    // A Boss killed first keeps its death; it never leaves.
+    FLDBossState Killed = MakeState();
+    Killed.Rules.StartedAtMs = 0;
+    Killed.Rules.AppearAtMs = Rules.AppearAtMs;
+    Killed.Rules.LeaveAtMs = Rules.LeaveAtMs;
+    bGood &= TestTrue(TEXT("A Boss killed at T=540 s is down, not gone"),
+        Killed.Spawned(BossBody(Killed), 240000) && Killed.Died(BossBody(Killed), FGuid(2, 0, 0, 0), 540000)
+        && !Killed.IsLeaveDue(540000) && !Killed.Leave(540000) && Killed.Phase == ELDBossPhase::Down);
+    FLDBossState Inverted = MakeState();
+    Inverted.Rules.LeaveAtMs = Inverted.Rules.AppearAtMs;
+    bGood &= TestFalse(TEXT("A leave instant not after the appearance is not valid"), Inverted.IsActive());
     return bGood;
 }
 #endif

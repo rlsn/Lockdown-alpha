@@ -60,7 +60,7 @@ def content_fixture():
         ("CAMP.ReturnDeadEndSec", "s", 4), ("CAMP.GrowthStageSec", "s", 30),
         ("CAMP.GrowthHPRatioPerStage", "ratio", 0.1), ("CAMP.GrowthAttackRatioPerStage", "ratio", 0.05),
         ("CAMP.GrowthResistPerStage", "points", 1), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", 0.25),
-        ("AIRDROP.FirstLandSec", "s", 30), ("AIRDROP.IntervalSec", "s", 60), ("AIRDROP.AnnounceLeadSec", "s", 10),
+        ("AIRDROP.ExpireSec", "s", 20), ("AIRDROP.AnnounceLeadSec", "s", 10), ("CAMPMARK.RevealSec", "s", 10),
         ("AIRDROP.PickupRadiusCm", "cm", 120),
         ("CHARM.FirstWaveSec", "s", 20), ("CHARM.WaveIntervalSec", "s", 60), ("CHARM.LifetimeSec", "s", 30),
         ("CHARM.PickupRadiusCm", "cm", 80), ("CHARM.HealMaxHPRatio", "ratio", 0.15),
@@ -84,6 +84,7 @@ def content_fixture():
         ("COMBAT.OverloadRadiusCm", "cm", 150),
     ):
         parameters[key] = q(unit, value)
+    parameters["AIRDROP.LandSec"] = [q("s", 30), q("s", 90), q("s", 150)]
     parameters.update({
         "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2, "AI.RetryPolicy.MaxAttempts": 2,
@@ -95,6 +96,7 @@ def content_fixture():
         "GROWTH.NpcActivePoints": 5,
         "PK.ParticipationPoints": 2, "PK.WinnerPointsMax": 4, "PK.BettingPoolMaxPoints": 3,
         "GROWTH.EmptyComponentPoolPoints": 2,
+        "GROWTH.FillGapPoints": 6, "GROWTH.DismantleInputCount": 2,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
@@ -196,9 +198,7 @@ def content_fixture():
     boss = {"id": "monster_dean", "hp": q("hp", 200), "armor": q("points", 5), "magic_resist": q("points", 5), "attack": q("points", 12),
             "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),
             "collision_radius": q("cm", 20), "aggro_radius": q("cm", 150), "attacker_memory": q("s", 2), "appear_at": q("s", 20),
-            "reward_xp": 30,
-            "approval": {"duration": q("s", 15), "stats": {"ADBonusRatio": q("ratio", 0.1), "APBonusRatio": q("ratio", 0.1),
-                                                           "MoveSpeedBonusRatio": q("ratio", 0.05)}}}
+            "leave_at": q("s", 200), "reward_xp": 30}
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]

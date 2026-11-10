@@ -898,6 +898,7 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
     TMap<FString, bool> Feasible;
     const FLDOpponentPOI* Best = nullptr;
     bool bBestVisible = false;
+    bool bBestMarked = false;
     for (const auto& POI : C.Frame.POIs)
     {
         // #97: the Elite tier takes the High tier's entry and reserve rules, with its own (higher) cost estimate.
@@ -924,13 +925,16 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
         if (!Feasible.FindChecked(POI.MonsterId)) { continue; }
         bool bVisible = false;
         for (const auto* Member : CampMembers(C, POI)) { bVisible |= !Member->bReturning; }
-        // Visible attackable members first, then the least recently visited, nearest, stable id.
+        // #198 outer §5: a publicly marked camp first (its first clear takes the marker), then visible attackable
+        // members, then the least recently visited, nearest, stable id.
+        const bool bMarked = C.Frame.Public.MarkedCamps.Contains(POI.Id);
         bool bBetter = !Best;
         if (Best)
         {
             const int64 Visited = C.VisitedAt(POI.Id), BestVisited = C.VisitedAt(Best->Id);
             const double Distance = C.Distance(POI.FootCm), BestDistance = C.Distance(Best->FootCm);
-            bBetter = bVisible != bBestVisible ? bVisible
+            bBetter = bMarked != bBestMarked ? bMarked
+                : bVisible != bBestVisible ? bVisible
                 : Visited != BestVisited ? Visited < BestVisited
                 : Distance != BestDistance ? Distance < BestDistance
                 : POI.Id.Compare(Best->Id) < 0;
@@ -939,6 +943,7 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
         {
             Best = &POI;
             bBestVisible = bVisible;
+            bBestMarked = bMarked;
         }
     }
     return Best;
@@ -1157,9 +1162,9 @@ bool FirstAttemptable(const TArray<FComponentPick>& Picks, ELDOpponentBuildKind 
     return false;
 }
 
-// §6.4 build order: the current offer's choice first, then the opening base pick (#198 B), a blueprint into an empty slot, the
-// next owned component to enable (#198 B), then the unspent points. Each is sent only when the growth domain would admit it
-// now; one build request at a time.
+// §6.4 build order: the current offer's choice first, then the opening base pick (#198 B), the pending component choices
+// (#198 G), a blueprint into an empty slot, the next owned component to enable (#198 B), a gap fill in a rest window (#198 G),
+// then the unspent points. Each is sent only when the growth domain would admit it now; one build request at a time.
 bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog, FLDOpponentPolicyState& State,
     bool bChooseOffer, FLDOpponentBuildIntent& Out)
 {
@@ -1194,6 +1199,28 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
+    // #198 G: every pending elite camp component choice is resolved (never left pending), oldest first, under the active
+    // choice's gate (field or rest, alive or dead).
+    if (!Self.ComponentChoices.IsEmpty()
+        && LDProgression::CommandGate(ELDBuildCommandKind::ComponentChoice, Context) == ELDGrowthReason::None)
+    {
+        for (const FLDOpponentComponentChoice& Choice : Self.ComponentChoices)
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::ComponentChoice);
+            Key.Target = Choice.ChoiceId;
+            FString Option;
+            if (!State.Failures.CanAttempt(Key, Print, Now) || !LDOpponentPolicy::SelectComponentChoice(Self, Catalog, Choice, Option, Error))
+            {
+                continue;
+            }
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::ComponentChoice;
+            Out.ChoiceId = Choice.ChoiceId;
+            Out.Component = Option;
+            Out.Key = Key;
+            return true;
+        }
+    }
     if (!Self.Blueprints.IsEmpty()
         && LDProgression::CommandGate(ELDBuildCommandKind::LearnBlueprint, Context) == ELDGrowthReason::None)
     {
@@ -1221,6 +1248,25 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         if (ComponentPicks(Self, Catalog, false, Picks, Error)
             && FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out))
         {
+            return true;
+        }
+    }
+    // #198 G: in a rest window, the first gap the unspent points can pay to fill (it makes an owned mod or connector usable)
+    // before the points go to the stats.
+    const int64 FillGapPoints = Catalog.Get().Parameters.FillGapPoints;
+    if (!Self.GapFills.IsEmpty() && FillGapPoints > 0 && Self.UnspentPoints >= FillGapPoints
+        && LDProgression::CommandGate(ELDBuildCommandKind::FillGap, Context) == ELDGrowthReason::None)
+    {
+        for (const FLDOpponentGapFill& Fill : Self.GapFills)
+        {
+            FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FillGap);
+            Key.POI = FName(*Fill.Target);
+            if (!State.Failures.CanAttempt(Key, Print, Now)) { continue; }
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::FillGap;
+            Out.Component = Fill.Target;
+            Out.Filler = Fill.Filler;
+            Out.Key = Key;
             return true;
         }
     }
@@ -1759,6 +1805,44 @@ bool SelectComponentInstall(const FLDOpponentSelf& Self, const FLDDemoContentSna
     OutComponent = Picks[0].Component;
     OutBoundActive = Picks[0].BoundActive;
     OutElement = Picks[0].Element;
+    return true;
+}
+
+bool SelectComponentChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, const FLDOpponentComponentChoice& Choice,
+    FString& OutOption, FString& Error)
+{
+    OutOption.Reset();
+    const auto Owned = [&Self](const FString& Id)
+    {
+        return Self.Components.ContainsByPredicate([&Id](const FLDOpponentComponent& Held) { return Held.DefinitionId.Equals(Id, ESearchCase::CaseSensitive); });
+    };
+    FString FirstFree;
+    for (const FString& Option : Choice.Options)
+    {
+        const FLDDemoComponentDefinition* Definition = nullptr;
+        FString Ignored;
+        if (!Catalog.FindComponent(Option, Definition, Ignored) || !Definition)
+        {
+            Error = FString::Printf(TEXT("Component choice option %s is not a catalog component."), *Option);
+            return false;
+        }
+        if (Owned(Option)) { continue; }
+        // One it could enable right away first; otherwise the first one still free.
+        FString BoundActive;
+        ELDDemoElement Element = ELDDemoElement::None;
+        FLDOpponentComponentTarget Target;
+        const bool bUsable = Definition->Kind == ELDDemoComponentKind::Base
+            ? ComponentUsable(Self, *Definition, BoundActive, Element)
+            : WorkshopTarget(Self, Catalog, *Definition, Target);
+        if (bUsable)
+        {
+            OutOption = Option;
+            return true;
+        }
+        if (FirstFree.IsEmpty()) { FirstFree = Option; }
+    }
+    // Empty when every option is owned: the empty-pool points.
+    OutOption = FirstFree;
     return true;
 }
 

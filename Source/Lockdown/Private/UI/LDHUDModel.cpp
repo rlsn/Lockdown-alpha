@@ -658,7 +658,8 @@ FString LDHUD::AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNow
     {
     case ELDAirdropPhase::Announced:
         return bClock?LDTerms::AirdropCountdown(Clock(Drop.LandAtMs-FieldNowMs)):LDTerms::AirdropSoon();
-    case ELDAirdropPhase::Landed: return LDTerms::AirdropLanded;
+    case ELDAirdropPhase::Landed:
+        return bClock&&Drop.ExpireAtMs>FieldNowMs?LDTerms::AirdropLandedLeft(Clock(Drop.ExpireAtMs-FieldNowMs)):FString(LDTerms::AirdropLanded);
     default: return FString();
     }
 }
@@ -702,9 +703,27 @@ FString LDHUD::BossLine(const FLDBossView& Boss,const FString& BossName,bool bCl
     case ELDBossPhase::Pending:
         if(!bClock||Boss.AppearAtMs-FieldNowMs>CountdownMs){return FString();}
         return Boss.AppearAtMs>FieldNowMs?LDTerms::BossCountdown(Name,Clock(Boss.AppearAtMs-FieldNowMs)):LDTerms::BossSoon(Name);
-    case ELDBossPhase::Alive: return LDTerms::BossPatrol(Name);
+    case ELDBossPhase::Alive:
+        return bClock&&Boss.LeaveAtMs>FieldNowMs?LDTerms::BossPatrolLeaving(Name,Clock(Boss.LeaveAtMs-FieldNowMs)):LDTerms::BossPatrol(Name);
     default: return FString();
     }
+}
+FString LDHUD::MarkerLine(const TArray<FLDFieldMarkerView>& Markers,bool bClock,int64 FieldNowMs)
+{
+    TArray<FString> Lines;
+    for(const FLDFieldMarkerView& Marker:Markers)
+    {
+        if(Marker.Phase!=ELDFieldMarkerPhase::Revealed){continue;}
+        const FString Mark=Marker.Kind==ELDFieldMarkerKind::High?FString(LDTerms::CampMarkHigh)
+            :Marker.Kind==ELDFieldMarkerKind::Elite?FString(LDTerms::CampMarkElite):FString();
+        if(Mark.IsEmpty()){continue;}
+        Lines.Add(bClock&&Marker.EndAtMs>FieldNowMs?LDTerms::CampMarkLeft(Mark,Clock(Marker.EndAtMs-FieldNowMs)):Mark);
+    }
+    return FString::Join(Lines,TEXT("\n"));
+}
+FLinearColor LDHUD::MarkerColor()
+{
+    return FLinearColor(.74f,.48f,1.f);
 }
 FString LDHUD::BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName)
 {
@@ -719,10 +738,11 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
     const uint32 Match=In.Public?In.Public->Generation:0;
     // A new match (or none) starts an empty feed whose first observation only records the state.
     if(Match!=Generation){Generation=Match;bPrimed=false;KillSerial=0;Shown.Reset();}
-    auto Add=[this,Now](const FString& Text,bool bSelf,uint64 ClaimSerial=0)
+    auto Add=[this,Now](const FString& Text,bool bSelf,uint64 ClaimSerial=0,ELDFieldMarkerKind MarkerKind=ELDFieldMarkerKind::None,uint8 MarkerSegment=0)
     {
         if(Text.IsEmpty()){return;}
         FEventLine& Line=Shown.AddDefaulted_GetRef();Line.Text=Text;Line.bSelf=bSelf;Line.At=Now;Line.AirdropClaimSerial=ClaimSerial;
+        Line.MarkerKind=MarkerKind;Line.MarkerSegment=MarkerSegment;
     };
     auto Name=[&In](const FGuid& Id){return In.Lobby?RosterName(*In.Lobby,Id):FString();};
     if(Match!=0)
@@ -752,6 +772,7 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 if(Public.Airdrop.Phase==ELDAirdropPhase::Landed){Add(LDTerms::AirdropLanded,false);}
                 // Labelled below from the own claim serial; the public view never says who took it.
                 else if(Public.Airdrop.Phase==ELDAirdropPhase::Claimed){Add(LDTerms::AirdropTaken(),false,Public.Airdrop.Serial);}
+                else if(Public.Airdrop.Phase==ELDAirdropPhase::Expired){Add(LDTerms::AirdropExpired(),false);}
             }
             if(Public.Boss.Phase!=BossPhase)
             {
@@ -759,6 +780,24 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 if(Public.Boss.Phase==ELDBossPhase::Alive){Add(LDTerms::BossAppeared(Boss),false);}
                 else if(Public.Boss.Phase==ELDBossPhase::Down)
                 {Add(BossDownLine(Public.Boss,In.Self,Name(Public.Boss.KilledBy),Boss),In.Self.IsValid()&&Public.Boss.KilledBy==In.Self);}
+                else if(Public.Boss.Phase==ELDBossPhase::Left){Add(LDTerms::BossLeft(Boss),false);}
+            }
+            // #198 outer §5 camp markers: a new segment's reveal, then each marker's claim or expiry once.
+            {
+                bool bExpired=false;
+                for(const FLDFieldMarkerView& Marker:Public.Markers)
+                {
+                    const int32 Slot=Marker.Kind==ELDFieldMarkerKind::High?0:Marker.Kind==ELDFieldMarkerKind::Elite?1:INDEX_NONE;
+                    if(Slot==INDEX_NONE){continue;}
+                    const ELDFieldMarkerPhase Before=Marker.Segment==MarkerSegment?MarkerPhases[Slot]:ELDFieldMarkerPhase::None;
+                    if(Marker.Phase==Before){continue;}
+                    const bool bHigh=Slot==0;
+                    if(Marker.Phase==ELDFieldMarkerPhase::Revealed){Add(FString(bHigh?LDTerms::CampMarkHigh:LDTerms::CampMarkElite),false);}
+                    // Labelled below from the own field rewards; the public view never says who took it.
+                    else if(Marker.Phase==ELDFieldMarkerPhase::Claimed){Add(LDTerms::CampMarkTaken(bHigh),false,0,Marker.Kind,Marker.Segment);}
+                    else if(Marker.Phase==ELDFieldMarkerPhase::Expired){bExpired=true;}
+                }
+                if(bExpired){Add(LDTerms::CampMarkExpired(),false);}
             }
             if(Public.Leader.Leader.IsValid()&&Public.Leader.Leader!=Leader)
             {Add(LeaderLine(Public.Leader,In.Self,Name(Public.Leader.Leader)),In.Self.IsValid()&&Public.Leader.Leader==In.Self);}
@@ -774,10 +813,25 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
             {Add(LDTerms::GuardReset,In.Self.IsValid()&&Public.GraffitiOwner==In.Self);}
         }
         bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
+        MarkerSegment=Public.Markers.IsEmpty()?0:Public.Markers[0].Segment;MarkerPhases[0]=MarkerPhases[1]=ELDFieldMarkerPhase::None;
+        for(const FLDFieldMarkerView& Marker:Public.Markers)
+        {
+            if(Marker.Kind==ELDFieldMarkerKind::High){MarkerPhases[0]=Marker.Phase;}
+            else if(Marker.Kind==ELDFieldMarkerKind::Elite){MarkerPhases[1]=Marker.Phase;}
+        }
         Leader=Public.Leader.Leader;GraffitiOwner=Public.GraffitiOwner;GuardKeptMs=Public.GuardKeptMs;GuardDueAtMs=Public.GuardDueAtMs;
     }
     for(FEventLine& Line:Shown)
     {
+        if(Line.MarkerKind!=ELDFieldMarkerKind::None)
+        {
+            const FName Event=Line.MarkerKind==ELDFieldMarkerKind::High?FName(TEXT("camp_marker_high")):FName(TEXT("camp_marker_elite"));
+            const bool bOwn=In.OwnFieldRewards&&In.OwnFieldRewards->ContainsByPredicate([&Line,Event](const FLDFieldRewardView& Reward)
+                {return Reward.Event==Event&&Reward.Serial==Line.MarkerSegment;});
+            const bool bHigh=Line.MarkerKind==ELDFieldMarkerKind::High;
+            Line.Text=bOwn?LDTerms::CampMarkOwnClaim(bHigh):LDTerms::CampMarkTaken(bHigh);Line.bSelf=bOwn;
+            continue;
+        }
         if(Line.AirdropClaimSerial==0){continue;}
         const bool bOwn=In.OwnAirdropClaimSerial==Line.AirdropClaimSerial;
         Line.Text=bOwn?LDTerms::AirdropOwnClaim():LDTerms::AirdropTaken();Line.bSelf=bOwn;
@@ -1401,6 +1455,9 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::Respec,Context),View.bCanRespec,View.RespecBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive,Context),View.bCanReplace,View.ReplaceBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ForgetActive,Context),View.bCanForget,View.ForgetBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::ComponentChoice,Context),View.bCanComponentChoice,View.ComponentChoiceBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::FillGap,Context),View.bCanFillGap,View.FillGapBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::Dismantle,Context),View.bCanDismantle,View.DismantleBlocked);
     View.bInRest=Stage==LDProgression::EMatchStage::Rest||Stage==LDProgression::EMatchStage::RestLocked;
     return View;
 }
@@ -1449,6 +1506,19 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     case ELDBuildCommandKind::UninstallComponent:
         if(Receipt.ComponentId.IsNone()||Receipt.bComponentInstalled){return Missing;}
         return LDTerms::ComponentRemoved(ContentName(Content,Receipt.ComponentId.ToString()));
+    case ELDBuildCommandKind::ComponentChoice:
+        // None: every option was owned, so the empty-pool points were taken instead.
+        return Receipt.ComponentId.IsNone()?FString(LDTerms::ComponentChoiceTookPoints):LDTerms::ComponentTaken(ContentName(Content,Receipt.ComponentId.ToString()));
+    case ELDBuildCommandKind::FillGap:
+        if(Receipt.ComponentId.IsNone()||Receipt.ServicePointsPaid<=0){return Missing;}
+        return LDTerms::GapFilled(Receipt.ServicePointsPaid,ContentName(Content,Receipt.ComponentId.ToString()));
+    case ELDBuildCommandKind::Dismantle:
+    {
+        if(Receipt.ComponentId.IsNone()||Receipt.RemovedComponents.IsEmpty()){return Missing;}
+        const auto Names=[Content](const TArray<FName>& Ids)
+        {TArray<FString> Out;for(const FName& Id:Ids){Out.Add(ContentName(Content,Id.ToString()));}return FString::Join(Out,TEXT("、"));};
+        return LDTerms::Dismantled(Names(Receipt.RemovedComponents),ContentName(Content,Receipt.ComponentId.ToString()),Names(Receipt.UninstalledComponents));
+    }
     default: return Missing;
     }
 }
@@ -1598,6 +1668,7 @@ LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression
         if(Owned.bInstalled||Owned.bEverInstalled){continue;}
         if(!Content||ComponentEnableReason(Owned,*Progression,Content)==ELDGrowthReason::None){++Pending.Components;}
     }
+    Pending.ComponentChoices=Progression->ComponentChoices.Num();
     return Pending;
 }
 FString LDHUD::FGrowthPending::Prompt() const
@@ -1606,13 +1677,136 @@ FString LDHUD::FGrowthPending::Prompt() const
     if(Offers>0){Text+=FString::Printf(TEXT("+%d"),Offers);}
     if(Points>0){Text+=FString::Printf(TEXT(" · %lld点"),Points);}
     if(Offers<=0&&Points<=0&&Blueprints>0){Text+=FString::Printf(TEXT(" · %s %d"),LDTerms::Blueprint,Blueprints);}
-    const int32 Parts=Components+(bOpeningBase?1:0);
+    const int32 Parts=Components+(bOpeningBase?1:0)+ComponentChoices;
     if(Parts>0){Text+=TEXT(" · ")+LDTerms::ComponentsPending(Parts);}
     return Text;
 }
 FString LDHUD::GrowthPrompt(const FGrowthPending& Pending,bool bRestServices)
 {
     return Pending.Any()||!bRestServices?Pending.Prompt():FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::RestServices;
+}
+bool LDHUD::OwnsComponent(const FLDProgressionView& Progression,FName Component)
+{
+    return !Component.IsNone()&&Progression.Components.ContainsByPredicate([Component](const FLDComponentInstanceView& Owned){return Owned.DefinitionId==Component;});
+}
+bool LDHUD::ComponentChoiceAllOwned(const FLDComponentChoiceView& Choice,const FLDProgressionView& Progression)
+{
+    for(const FName& Option:Choice.Options){if(!OwnsComponent(Progression,Option)){return false;}}
+    return true;
+}
+LDHUD::FMaterialServicesView LDHUD::MaterialServices(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate)
+{
+    FMaterialServicesView View;
+    const bool bData=Content&&Progression.bValid;
+    TArray<FName> Targets;
+    bool bPoolEmpty=false;
+    if(bData)
+    {
+        View.FillGapPoints=Content->Parameters.FillGapPoints;
+        View.DismantleCount=Content->Parameters.DismantleInputCount;
+        // Growth's own rules over the published build: the same targets, fillers and pool the server will judge.
+        const FLDGrowthBuild Build=LDProgression::BuildFromView(*Content,Progression);
+        LDProgression::GapTargets(*Content,Build,Targets);
+        for(const FName& Target:Targets)
+        {
+            FGapTargetView Gap;Gap.Target=Target;
+            if(LDProgression::GapFillers(*Content,Build,Target,Gap.Fillers)==ELDGrowthReason::None&&!Gap.Fillers.IsEmpty()){View.Gaps.Add(MoveTemp(Gap));}
+        }
+        for(const FLDComponentInstanceView& Owned:Progression.Components)
+        {
+            const FString Id=Owned.DefinitionId.ToString();
+            const FLDDemoComponentDefinition* Definition=Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;});
+            if(Definition&&Definition->Pool==ELDDemoComponentPool::Common){View.DismantleCandidates.Add(Owned.DefinitionId);}
+        }
+        TArray<FName> Unowned;LDProgression::UnownedComponents(*Content,Build,ELDDemoComponentPool::Common,Unowned);
+        bPoolEmpty=Unowned.IsEmpty();
+    }
+    const FString Syncing(TEXT("内容数据同步中"));
+    View.FillGapBlocked=!Gate.bCanFillGap?Gate.FillGapBlocked:!bData?Syncing
+        :View.FillGapPoints<=0?FString(TEXT("补缺价格数据缺失"))
+        :Targets.IsEmpty()?FString(LDTerms::NoGapTarget)
+        :View.Gaps.IsEmpty()?FString(LDTerms::NoGapFillerLeft)
+        :Progression.UnspentPoints<View.FillGapPoints?FString::Printf(TEXT("未分配点数不够（要 %lld 点）"),View.FillGapPoints):FString();
+    View.DismantleBlocked=!Gate.bCanDismantle?Gate.DismantleBlocked:!bData?Syncing
+        :View.DismantleCount<=0?FString(TEXT("拆解数量数据缺失"))
+        :View.DismantleCandidates.Num()<View.DismantleCount?LDTerms::DismantleTooFew(View.DismantleCount)
+        :bPoolEmpty?GrowthReasonText(ELDGrowthReason::DismantlePoolEmpty):FString();
+    return View;
+}
+FString LDHUD::DismantleSelectionRefusal(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,const TArray<FName>& Surrendered)
+{
+    if(!Content||!Progression.bValid){return TEXT("内容数据同步中");}
+    return GrowthReasonText(LDProgression::DismantleInputReason(*Content,LDProgression::BuildFromView(*Content,Progression),Surrendered));
+}
+TArray<FName> LDHUD::DismantleDetached(const FLDProgressionView& Progression,const TArray<FName>& Surrendered)
+{
+    // A host that leaves (surrendered, or itself sent back) takes every install sitting on it or repeating it along.
+    TSet<FName> Gone;
+    for(const FName& Id:Surrendered){Gone.Add(Id);}
+    for(bool bChanged=true;bChanged;)
+    {
+        bChanged=false;
+        for(const FLDComponentInstanceView& Owned:Progression.Components)
+        {
+            if(!Owned.bInstalled||Gone.Contains(Owned.DefinitionId)){continue;}
+            const FLDComponentTargetView& Target=Owned.Target;
+            if((Target.Kind==ELDComponentTargetKind::Component&&Gone.Contains(Target.Definition))
+                ||(!Target.BoundComponent.IsNone()&&Gone.Contains(Target.BoundComponent)))
+            {Gone.Add(Owned.DefinitionId);bChanged=true;}
+        }
+    }
+    TArray<FName> Out;
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {if(Owned.bInstalled&&Gone.Contains(Owned.DefinitionId)&&!Surrendered.Contains(Owned.DefinitionId)){Out.Add(Owned.DefinitionId);}}
+    return Out;
+}
+FString LDHUD::FieldRewardEventName(FName Event)
+{
+    if(Event==FName(TEXT("airdrop"))){return LDTerms::Airdrop;}
+    if(Event==FName(TEXT("boss"))){return LDTerms::Boss;}
+    if(Event==FName(TEXT("camp_marker_high"))){return LDTerms::FieldRewardHighCamp;}
+    if(Event==FName(TEXT("camp_marker_elite"))){return LDTerms::FieldRewardEliteCamp;}
+    return FString::Printf(TEXT("未知事件 %s"),*Event.ToString());
+}
+FString LDHUD::FieldRewardNotice(const FLDFieldRewardView& Reward,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FString> Parts;
+    if(Reward.XP>0){Parts.Add(FString::Printf(TEXT("+%lld %s"),Reward.XP,LDTerms::Experience));}
+    const FString Missing(TEXT("奖励记录缺少内容，请以当前状态为准"));
+    const FString Name=Reward.Definition.IsNone()?FString():ContentName(Content,Reward.Definition.ToString());
+    switch(Reward.Result)
+    {
+    case ELDFieldRewardResult::None: break;
+    case ELDFieldRewardResult::Blueprint: Parts.Add(Name.IsEmpty()?Missing:LDTerms::FieldRewardBlueprint(Name)); break;
+    case ELDFieldRewardResult::ScarceComponent: Parts.Add(Name.IsEmpty()?Missing:LDTerms::FieldRewardScarce(Name)); break;
+    case ELDFieldRewardResult::CommonComponent: Parts.Add(Name.IsEmpty()?Missing:LDTerms::FieldRewardCommon(Name)); break;
+    case ELDFieldRewardResult::PoolPoints:
+    {
+        const int64 Points=Content?Content->Parameters.EmptyComponentPoolPoints:0;
+        Parts.Add(Points>0?LDTerms::FieldRewardPoolPoints(Points):FString(LDTerms::Component)+TEXT("池已空，改得点数"));
+        break;
+    }
+    case ELDFieldRewardResult::ComponentChoice: Parts.Add(LDTerms::FieldRewardChoiceReady()); break;
+    case ELDFieldRewardResult::BlueprintHeld: Parts.Add(LDTerms::FieldRewardBlueprintHeld()); break;
+    default: Parts.Add(FString::Printf(TEXT("未知奖励 #%d"),int32(Reward.Result))); break;
+    }
+    if(Parts.IsEmpty()){return FString();}
+    return FieldRewardEventName(Reward.Event)+TEXT("：")+FString::Join(Parts,TEXT("，"));
+}
+TArray<FLDFieldRewardView> LDHUD::NewFieldRewards(const FLDProgressionView& Progression,int32 Known)
+{
+    TArray<FLDFieldRewardView> Out;
+    for(int32 Index=FMath::Max(0,Known);Index<Progression.FieldRewards.Num();++Index){Out.Add(Progression.FieldRewards[Index]);}
+    return Out;
+}
+TArray<FLDFieldRewardView> LDHUD::FFieldRewardWatch::Observe(const FLDProgressionView* Progression,uint32 Match)
+{
+    if(!Progression||!Progression->bValid||Match==0||Progression->Generation!=Match){return TArray<FLDFieldRewardView>();}
+    // The first view of a match primes: rewards it already lists were told before (or before a reconnect) and never replay.
+    if(SeenMatch!=Match){SeenMatch=Match;Known=Progression->FieldRewards.Num();return TArray<FLDFieldRewardView>();}
+    TArray<FLDFieldRewardView> Out=NewFieldRewards(*Progression,Known);
+    Known=Progression->FieldRewards.Num();
+    return Out;
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
 {
@@ -1695,6 +1889,14 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::PrepareUnavailable: return TEXT("暂时无法提交，请稍后重试");
     case ELDGrowthReason::AuthorityFault: return TEXT("服务器故障，本次没有提交");
     case ELDGrowthReason::CapacityExceeded: return TEXT("服务器容量已满");
+    case ELDGrowthReason::NoComponentChoice: return FString(TEXT("这组"))+LDTerms::Component+TEXT("二选一已失效");
+    case ELDGrowthReason::ComponentOwned: return FString(TEXT("已经有这个"))+LDTerms::Component+TEXT("了；还有没拿过的选项时不能改领点数");
+    case ELDGrowthReason::NotAGap: return FString(TEXT("它不是缺口：已有能装的位置，或已经启用过"));
+    case ELDGrowthReason::NoGapFiller: return FString(TEXT("选的基础"))+LDTerms::Component+TEXT("补不上它缺的入口");
+    case ELDGrowthReason::GapAlreadyFilled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("已经补过缺了");
+    case ELDGrowthReason::DismantleInvalid: return FString(TEXT("要交出规定数量的不同普通"))+LDTerms::Component+TEXT("（稀缺件不收）");
+    case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
+    case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
     }
 }

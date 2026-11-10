@@ -28,8 +28,9 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
     {
         bPublicMatchDirty = true;
         const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
-        UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s field_t_ms=%lld"),
-            Airdrop.Phase == ELDAirdropPhase::Landed ? TEXT("LAND") : TEXT("ANNOUNCE"), Airdrop.Serial,
+        const TCHAR* Event = Airdrop.Phase == ELDAirdropPhase::Expired ? TEXT("EXPIRE")
+            : Airdrop.Phase == ELDAirdropPhase::Landed ? TEXT("LAND") : TEXT("ANNOUNCE");
+        UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s field_t_ms=%lld"), Event, Airdrop.Serial,
             Point ? *Point->Id.ToString() : TEXT("none"), NowMs);
     }
     return true;
@@ -54,8 +55,9 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
     const auto& Parameters = DemoContent->Get().Parameters;
     FLDRewardReceipt Receipt;
     ELDGrowthReason Reason = ELDGrowthReason::None;
-    const ELDRewardOutcome Outcome = Growth->CommitEventReward(Claimer, TEXT("airdrop"), Airdrop.Serial,
-        Parameters.AirdropRewardXP, Permit, Receipt, Reason);
+    // #198 outer §5: 200 XP and one build reward draw (50% active blueprint / 50% scarce component) in one commit.
+    const ELDRewardOutcome Outcome = Growth->CommitFieldReward(Claimer, TEXT("airdrop"), Airdrop.Serial,
+        Parameters.AirdropRewardXP, ELDFieldRewardKind::BuildDraw, Permit, Receipt, Reason);
     if (Outcome == ELDRewardOutcome::RetryableNotCommitted)
     {
         // Nothing was installed; the drop stays on the ground for the next boundary's first toucher.
@@ -70,7 +72,8 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         return false;
     }
     bPublicMatchDirty = true;
-    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld field_t_ms=%lld"),
-        Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, NowMs);
+    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld build=%u definition=%s field_t_ms=%lld"),
+        Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, uint32(Receipt.FieldResult),
+        *Receipt.FieldDefinition.ToString(), NowMs);
     return true;
 }

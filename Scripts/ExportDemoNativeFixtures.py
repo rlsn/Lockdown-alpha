@@ -276,7 +276,7 @@ def parameter_projection(parameters):
         ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"), ("CAMP.GrowthStageSec", "CampGrowthStageMs"),
         ("CAMP.GrowthHPRatioPerStage", "CampGrowthHPPerStageBp"), ("CAMP.GrowthAttackRatioPerStage", "CampGrowthAttackPerStageBp"),
         ("CAMP.GrowthResistPerStage", "CampGrowthResistPerStageP2"), ("CAMP.GrowthRewardXPRatioPerStage", "CampGrowthRewardXPPerStageBp"),
-        ("AIRDROP.FirstLandSec", "AirdropFirstLandMs"), ("AIRDROP.IntervalSec", "AirdropIntervalMs"),
+        ("AIRDROP.ExpireSec", "AirdropExpireMs"), ("CAMPMARK.RevealSec", "CampMarkRevealMs"),
         ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"),
         ("CHARM.FirstWaveSec", "CharmFirstWaveMs"), ("CHARM.WaveIntervalSec", "CharmWaveIntervalMs"),
         ("CHARM.LifetimeSec", "CharmLifetimeMs"), ("CHARM.MoveSpeedSec", "CharmMoveSpeedMs"),
@@ -293,6 +293,7 @@ def parameter_projection(parameters):
         ("COMBAT.ConductSlow", "ConductSlowBp"), ("COMBAT.ConductSlowSec", "ConductSlowMs"),
     ):
         result[dest] = scalar(parameters[source])
+    result["AirdropLandMs"] = [scalar(value) for value in parameters["AIRDROP.LandSec"]]
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
@@ -322,6 +323,7 @@ def parameter_projection(parameters):
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("GROWTH.EmptyComponentPoolPoints", "EmptyComponentPoolPoints"),
+        ("GROWTH.FillGapPoints", "FillGapPoints"), ("GROWTH.DismantleInputCount", "DismantleInputCount"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}
@@ -418,9 +420,8 @@ def expected_projection(compilation):
     boss = data["boss"]
     interval = scalar(boss["attack_interval"])
     divisor = math.gcd(1000, interval)
-    result["Boss"] = {"Id": boss["id"], "AppearAtMs": scalar(boss["appear_at"]), "AggroRadiusCm": rational(boss["aggro_radius"]),
-                      "AttackerMemoryMs": scalar(boss["attacker_memory"]),
-                      "ApprovalDurationMs": scalar(boss["approval"]["duration"]), "ApprovalStats": stats(boss["approval"]["stats"])}
+    result["Boss"] = {"Id": boss["id"], "AppearAtMs": scalar(boss["appear_at"]), "LeaveAtMs": scalar(boss["leave_at"]),
+                      "AggroRadiusCm": rational(boss["aggro_radius"]), "AttackerMemoryMs": scalar(boss["attacker_memory"])}
     result["Monsters"].append({
         "Id": boss["id"], "NativeId": boss["native_id"], "Tier": 2, "CountPerCamp": 1, "AttackIntervalMs": interval,
         "RewardXP": boss["reward_xp"], "HPP2": scalar(boss["hp"]), "ArmorP2": scalar(boss["armor"]),

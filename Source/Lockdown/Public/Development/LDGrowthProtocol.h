@@ -26,13 +26,16 @@ enum class ELDReceiptLookup : uint8 { None = 0, Pending = 1, Final = 2, NotFound
 // or allocate unspent points across the stats. #198 B: pick the opening base component (once, after the opening active
 // choice), install/enable an owned component for the first time, or uninstall one (rest window only). In a rest window also
 // the rest services: buy an NPC active offer, respec the allocated points, replace a learned active with a pending blueprint,
-// or forget a learned active.
+// or forget a learned active. #198 G: take one option of a pending elite-camp component choice (ComponentChoice, rest and
+// field, alive or dead), and the rest services FillGap (pay GROWTH.FillGapPoints for one unowned common base that gives a
+// never-enabled mod/connector its first compatible entry) and Dismantle (GROWTH.DismantleInputCount distinct owned common
+// components for one random unowned common component).
 UENUM()
 enum class ELDBuildCommandKind : uint8
 {
     None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
-    OpeningBase = 10, InstallComponent = 11, UninstallComponent = 12,
-    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23
+    OpeningBase = 10, InstallComponent = 11, UninstallComponent = 12, ComponentChoice = 13,
+    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25
 };
 
 // #198 B: where an installed component sits. Base components take None (enabled on the build); mods/connectors
@@ -40,9 +43,26 @@ enum class ELDBuildCommandKind : uint8
 UENUM()
 enum class ELDComponentTargetKind : uint8 { None = 0, Active = 1, EffectSegment = 2, Component = 3, Dash = 4 };
 
-// #198 B: how a component instance was obtained (one stable business identity each).
+// #198 B: how a component instance was obtained (one stable business identity each). #198 G: BuildReward (a Boss or airdrop
+// build reward: scarce, or the common fallback), EliteChoice (an elite camp marker's two-choice), FillGap, Dismantle.
 UENUM()
-enum class ELDComponentSource : uint8 { None = 0, OpeningPick = 1, LevelUp = 2 };
+enum class ELDComponentSource : uint8 { None = 0, OpeningPick = 1, LevelUp = 2, BuildReward = 3, EliteChoice = 4, FillGap = 5, Dismantle = 6 };
+
+// #198 G (spec §4.2, outer parameters §5): what one field reward gave its recipient. Blueprint: an active blueprint;
+// ScarceComponent / CommonComponent: a component; PoolPoints: GROWTH.EmptyComponentPoolPoints because the material pool was
+// empty; ComponentChoice: a pending two-choice of known common components; BlueprintHeld: the active pool was empty, the
+// blueprint waits until an active becomes eligible again.
+UENUM()
+enum class ELDFieldRewardResult : uint8
+{
+    None = 0, Blueprint = 1, ScarceComponent = 2, CommonComponent = 3, PoolPoints = 4, ComponentChoice = 5, BlueprintHeld = 6
+};
+
+// #198 G: the build part a map event pays (server-internal). BuildDraw: the Boss/airdrop build reward (50% active blueprint /
+// 50% scarce component, each uniform among the unheld ones; an empty class uses the other, both empty one common material);
+// Blueprint: the high-tier camp marker's active blueprint (an empty pool holds it); ComponentChoice: the elite camp marker's
+// two known common components (one when only one is left, the empty-pool points when none is).
+enum class ELDFieldRewardKind : uint8 { None = 0, BuildDraw = 1, Blueprint = 2, ComponentChoice = 3 };
 
 // What an applied ActiveChoice or LearnBlueprint did with its active.
 UENUM()
@@ -91,7 +111,15 @@ enum class ELDGrowthReason : uint16
     AuthorityFault = 95, CapacityExceeded = 96,
     NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114,
     // #198 session D (allocated 140-149): a PK arena death pays no kill/assist reward; a PK award identity paid twice.
-    NoRewardPKArena = 140, PKAwardDuplicate = 141
+    NoRewardPKArena = 140, PKAwardDuplicate = 141,
+    // #198 G (allocated 160-169): NoComponentChoice (no pending choice of that id), ComponentOwned (the option is already
+    // owned, or the points fallback while an option is still free), NotAGap (the target is no owned, never-enabled
+    // mod/connector without any compatible entry), NoGapFiller (the base is not one that gives it its missing entry),
+    // GapAlreadyFilled (the target was filled once), DismantleInvalid (not distinct owned common components of the approved
+    // count), DismantlePoolEmpty (no common component left to receive; nothing is removed), FieldRewardDuplicate (a map event
+    // paid twice).
+    NoComponentChoice = 160, ComponentOwned = 161, NotAGap = 162, NoGapFiller = 163, GapAlreadyFilled = 164,
+    DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -225,6 +253,36 @@ struct LOCKDOWN_API FLDComponentInstanceView
     // Installed at least once: a later re-install is a rest-window move, never a field first-time install.
     UPROPERTY() bool bEverInstalled = false;
     UPROPERTY() FLDComponentTargetView Target;
+    // #198 G: this mod/connector already received its one FillGap; uninstalling its entry never opens another.
+    UPROPERTY() bool bGapFilled = false;
+};
+
+// #198 G: one pending elite-camp two-choice: one or two distinct known common components fixed when it was granted.
+USTRUCT()
+struct LOCKDOWN_API FLDComponentChoiceView
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FGuid ChoiceId;
+    // The map event that paid it (camp_marker_elite) and its serial.
+    UPROPERTY() FName Event;
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() TArray<FName> Options;
+};
+
+// #198 G: one field reward this contender received (owner-only history, oldest first; at most the room's 13 opportunities).
+USTRUCT()
+struct LOCKDOWN_API FLDFieldRewardView
+{
+    GENERATED_BODY()
+
+    // airdrop, boss, camp_marker_high or camp_marker_elite, and its serial.
+    UPROPERTY() FName Event;
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() int64 XP = 0;
+    UPROPERTY() ELDFieldRewardResult Result = ELDFieldRewardResult::None;
+    // Blueprint: the active; Scarce/CommonComponent: the component; otherwise None.
+    UPROPERTY() FName Definition;
 };
 
 // The owner's whole growth state. Opponents never receive it; they see only the public level and Q/W/E.
@@ -268,8 +326,14 @@ struct LOCKDOWN_API FLDProgressionView
     // Combat's build safe window (absolute authority ms; <= now is safe), copied at publication like the owner CombatView's.
     UPROPERTY() int64 BuildSafeAtMs = 0;
     UPROPERTY() FLDDemoContentDigest CatalogDigest;
-    // Points paid for rest services (the NPC); a respec never returns them.
+    // Points paid for rest services (the NPC, FillGap); a respec never returns them.
     UPROPERTY() int64 PermanentSpentPoints = 0;
+    // #198 G: pending elite-camp component choices, oldest first.
+    UPROPERTY() TArray<FLDComponentChoiceView> ComponentChoices;
+    // #198 G: high-tier camp blueprints held because no active was eligible; each is granted once one becomes eligible.
+    UPROPERTY() uint8 HeldBlueprints = 0;
+    // #198 G: every field reward received, oldest first.
+    UPROPERTY() TArray<FLDFieldRewardView> FieldRewards;
 };
 
 USTRUCT()
@@ -313,6 +377,12 @@ struct LOCKDOWN_API FLDBuildCommand
     // #198 F InstallComponent of C12: the installed base component its exit repeats.
     UPROPERTY() FLDDefinitionWire BoundComponent;
     UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
+    // #198 G ComponentChoice: OfferId names the pending choice and Component the chosen option; an all-zero Component takes
+    // the empty-pool points, allowed only once every option is owned. FillGap: Component is the gap target (an owned
+    // mod/connector) and Filler the unowned common base received. Dismantle: Surrendered lists the owned common components
+    // given up (distinct, GROWTH.DismantleInputCount of them).
+    UPROPERTY() FLDDefinitionWire Filler;
+    UPROPERTY() TArray<FLDDefinitionWire> Surrendered;
 
     bool SameTerms(const FLDBuildCommand& Other) const;
 };
@@ -352,6 +422,12 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() int64 PointsRefunded = 0;
     // BuyNpcOffer: the points permanently paid.
     UPROPERTY() int64 NpcPointsPaid = 0;
+    // #198 G: ComponentChoice / FillGap / Dismantle put ComponentId (the received component; None when a ComponentChoice
+    // took the empty-pool points) into the inventory. FillGap: the points permanently paid. Dismantle: the surrendered
+    // components and every installed mod/connector left without its host that went back to the inventory.
+    UPROPERTY() int64 ServicePointsPaid = 0;
+    UPROPERTY() TArray<FName> RemovedComponents;
+    UPROPERTY() TArray<FName> UninstalledComponents;
 };
 
 USTRUCT()
@@ -442,6 +518,9 @@ struct LOCKDOWN_API FLDRewardReceipt
     uint8 OpportunityLast = 0;
     // #198 B: the component of each level crossed, in level order (None: the pool was exhausted, points instead).
     TArray<FLDComponentGrant> ComponentGrants;
+    // #198 G: the build part of a field reward (None for a death or a reward without one) and its definition.
+    ELDFieldRewardResult FieldResult = ELDFieldRewardResult::None;
+    FName FieldDefinition;
     FLDResultRevisions Revisions;
     // Assisters of a contender kill in the fact's order, each with the part granted in the same commit.
     TArray<FLDRewardShareReceipt> Assists;

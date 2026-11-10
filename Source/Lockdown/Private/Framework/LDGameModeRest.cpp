@@ -289,6 +289,8 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
     }
     // #198: unclaimed charms leave at rest entry without any reward.
     if (!EndCharmsForRest(Permit, Error)) { return false; }
+    // #198 outer §5: the segment's unclaimed camp markers expire with it.
+    if (!EndFieldMarkersForRest(Permit, Error)) { return false; }
     return Camps->FreezeForRest(Permit, Error);
 }
 
