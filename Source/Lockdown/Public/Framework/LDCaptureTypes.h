@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDMatchTimeline.h"
+#include "PK/LDPKTypes.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "LDCaptureTypes.generated.h"
 
@@ -102,6 +103,8 @@ struct FLDPublicMatchView
     UPROPERTY() FLDBossView Boss;
     // #198: the outer timeline (rest steps, field segment and T).
     UPROPERTY() FLDTimelineView Timeline;
+    // #198 session D: the current rest's PK (Serial 0: none); public like the sign-ups.
+    UPROPERTY() FLDPKView PK;
 };
 
 USTRUCT()

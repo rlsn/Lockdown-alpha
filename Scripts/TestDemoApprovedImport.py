@@ -188,6 +188,16 @@ class ApprovedDemoData(unittest.TestCase):
             ("REST.DrawSec", "ms", "5"), ("REST.BettingSec", "ms", "8"), ("REST.PKReadySec", "ms", "3"),
             ("REST.PKMaxSec", "ms", "60"), ("REST.SettlementSec", "ms", "3"), ("REST.PayoutSec", "ms", "12"),
             ("REST.ReturnSec", "ms", "5"), ("REST.ReturnSearchRadiusCm", "cm", "300"),
+            # #198 PK ring, format and spectator throw (approved
+            # https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
+            ("PK.ArenaRadiusCm", "cm", "1800"), ("PK.RingMidRadiusCm", "cm", "600"), ("PK.RingFinalRadiusCm", "cm", "150"),
+            ("PK.RingShrinkStartSec", "ms", "10"), ("PK.RingMidSec", "ms", "40"), ("PK.RingFinalSec", "ms", "55"),
+            ("PK.RingPreviewSec", "ms", "10"), ("PK.RingDamageTickSec", "ms", ".25"),
+            ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", ".05"), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", ".12"),
+            ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", ".25"), ("PK.TeamFormatRatio", "ratio", ".5"),
+            ("THROW.CooldownSec", "ms", "10"), ("THROW.TelegraphSec", "ms", ".8"), ("THROW.RadiusCm", "cm", "120"),
+            ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
+            ("THROW.ExposeSec", "ms", "2"),
             ("LIFE.RespawnSec.Field1", "ms", "8"), ("LIFE.RespawnSec.Field2", "ms", "10"),
             ("LIFE.RespawnSec.Field3", "ms", "12"), ("LIFE.RespawnSec.Final", "ms", "15"),
             ("LIFE.ProtectionSec", "ms", "3"),
@@ -225,6 +235,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
             # #198: a rest NPC charges 3 points for one active-only three-choice.
             ("GROWTH.NpcActivePoints", 3),
+            # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
+            ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))

@@ -265,6 +265,20 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REST.SettlementSec"), TEXT("ms"), TEXT("ms"), &P.RestSettlementMs, 1, MAX_int64},
         {TEXT("REST.PayoutSec"), TEXT("ms"), TEXT("ms"), &P.RestPayoutMs, 1, MAX_int64},
         {TEXT("REST.ReturnSec"), TEXT("ms"), TEXT("ms"), &P.RestReturnMs, 1, MAX_int64},
+        {TEXT("PK.RingShrinkStartSec"), TEXT("ms"), TEXT("ms"), &P.PKRingShrinkStartMs, 1, MAX_int64},
+        {TEXT("PK.RingMidSec"), TEXT("ms"), TEXT("ms"), &P.PKRingMidMs, 1, MAX_int64},
+        {TEXT("PK.RingFinalSec"), TEXT("ms"), TEXT("ms"), &P.PKRingFinalMs, 1, MAX_int64},
+        {TEXT("PK.RingPreviewSec"), TEXT("ms"), TEXT("ms"), &P.PKRingPreviewMs, 1, MAX_int64},
+        {TEXT("PK.RingDamageTickSec"), TEXT("ms"), TEXT("ms"), &P.PKRingTickMs, 1, MAX_int64},
+        {TEXT("PK.RingDamageEarlyMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingEarlyDamageBp, 1, 10000},
+        {TEXT("PK.RingDamageMidMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingMidDamageBp, 1, 10000},
+        {TEXT("PK.RingDamageFinalMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingFinalDamageBp, 1, 10000},
+        {TEXT("PK.TeamFormatRatio"), TEXT("ratio"), TEXT("bp"), &P.PKTeamFormatBp, 0, 10000},
+        {TEXT("THROW.CooldownSec"), TEXT("ms"), TEXT("ms"), &P.ThrowCooldownMs, 1, MAX_int64},
+        {TEXT("THROW.TelegraphSec"), TEXT("ms"), TEXT("ms"), &P.ThrowTelegraphMs, 1, MAX_int64},
+        {TEXT("THROW.SlowRatio"), TEXT("ratio"), TEXT("bp"), &P.ThrowSlowBp, 1, 10000},
+        {TEXT("THROW.SlowSec"), TEXT("ms"), TEXT("ms"), &P.ThrowSlowMs, 1, MAX_int64},
+        {TEXT("THROW.ExposeSec"), TEXT("ms"), TEXT("ms"), &P.ThrowExposeMs, 1, MAX_int64},
         {TEXT("LIFE.RespawnSec.Field1"), TEXT("ms"), TEXT("ms"), &P.RespawnField1Ms, 1, MAX_int64},
         {TEXT("LIFE.RespawnSec.Field2"), TEXT("ms"), TEXT("ms"), &P.RespawnField2Ms, 1, MAX_int64},
         {TEXT("LIFE.RespawnSec.Field3"), TEXT("ms"), TEXT("ms"), &P.RespawnField3Ms, 1, MAX_int64},
@@ -321,7 +335,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("CAPTURE.RadiusCm"), &P.CaptureRadiusCm}, {TEXT("CAMP.ResetArrivalRadiusCm"), &P.CampResetArrivalRadiusCm},
         {TEXT("DORM.RadiusCm"), &P.DormRadiusCm}, {TEXT("AIRDROP.PickupRadiusCm"), &P.AirdropPickupRadiusCm},
         {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm},
-        {TEXT("REST.ReturnSearchRadiusCm"), &P.RestReturnSearchRadiusCm}})
+        {TEXT("REST.ReturnSearchRadiusCm"), &P.RestReturnSearchRadiusCm},
+        {TEXT("PK.ArenaRadiusCm"), &P.PKArenaRadiusCm}, {TEXT("PK.RingMidRadiusCm"), &P.PKRingMidRadiusCm},
+        {TEXT("PK.RingFinalRadiusCm"), &P.PKRingFinalRadiusCm},
+        {TEXT("THROW.RadiusCm"), &P.ThrowRadiusCm}, {TEXT("THROW.RangeCm"), &P.ThrowRangeCm}})
     {
         if (!F.Fraction(Field.Key, TEXT("cm"), *Field.Out, true))
         {
@@ -339,7 +356,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.BreachMaxStacks"), &P.BreachMaxStacks, 1}, {TEXT("COMBAT.BurnMaxStacks"), &P.BurnMaxStacks, 1},
         {TEXT("GROWTH.OpeningPoints"), &P.OpeningPoints, 1}, {TEXT("GROWTH.PointsPerLevel"), &P.PointsPerLevel, 1},
         {TEXT("GROWTH.MaxLevelPointsXP"), &P.MaxLevelPointsXP, 1}, {TEXT("GROWTH.MaxLevelPoints"), &P.MaxLevelPoints, 1},
-        {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1}})
+        {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1},
+        {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
+        {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})
     {
         if (!F.Int(Field.Key, *Field.Out, Field.Min))
         {

@@ -6,6 +6,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
+#include "PK/LDPKTypes.h"
 #include "Templates/PimplPtr.h"
 #include "LDPlayerController.generated.h"
 
@@ -84,6 +85,20 @@ public:
     FLDOnTrainingReset OnTrainingReset;
     UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation);
     UFUNCTION(Client,Reliable) void ClientTrainingReset(ELDTrainingResetResult Result);
+    // ---- #198 PK spectators (PK/LDPlayerPK.cpp): an eligible spectator bets on one side of the current PK (Side
+    // 1..SideCount, changeable until the betting step ends) and throws at a ground point of the arena while the PK runs.
+    // Results arrive as OnPKBet / OnPKThrow (a Listen Host inside the call); the authority decides in ALDPKDirector.
+    void SubmitPKBet(uint8 Side);
+    void SubmitPKThrow(const FVector& TargetCm);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnPKBet, ELDPKBetResult);
+    FLDOnPKBet OnPKBet;
+    // ReadyAtMs: authority ms from which this spectator may throw again (on Thrown and CoolingDown; 0 otherwise).
+    DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnPKThrow, ELDPKThrowResult, int64);
+    FLDOnPKThrow OnPKThrow;
+    UFUNCTION(Server,Reliable) void ServerPKBet(uint32 Generation,uint32 Serial,uint8 Side);
+    UFUNCTION(Client,Reliable) void ClientPKBet(ELDPKBetResult Result);
+    UFUNCTION(Server,Reliable) void ServerPKThrow(uint32 Generation,uint32 Serial,FVector_NetQuantize TargetCm);
+    UFUNCTION(Client,Reliable) void ClientPKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
     // ---- end rest ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.

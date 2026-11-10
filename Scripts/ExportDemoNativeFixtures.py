@@ -220,6 +220,12 @@ def parameter_projection(parameters):
         ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
         ("REST.PKMaxSec", "RestPKMaxMs"), ("REST.SettlementSec", "RestSettlementMs"), ("REST.PayoutSec", "RestPayoutMs"),
         ("REST.ReturnSec", "RestReturnMs"),
+        ("PK.RingShrinkStartSec", "PKRingShrinkStartMs"), ("PK.RingMidSec", "PKRingMidMs"), ("PK.RingFinalSec", "PKRingFinalMs"),
+        ("PK.RingPreviewSec", "PKRingPreviewMs"), ("PK.RingDamageTickSec", "PKRingTickMs"),
+        ("PK.RingDamageEarlyMaxHPRatioPerSec", "PKRingEarlyDamageBp"), ("PK.RingDamageMidMaxHPRatioPerSec", "PKRingMidDamageBp"),
+        ("PK.RingDamageFinalMaxHPRatioPerSec", "PKRingFinalDamageBp"), ("PK.TeamFormatRatio", "PKTeamFormatBp"),
+        ("THROW.CooldownSec", "ThrowCooldownMs"), ("THROW.TelegraphSec", "ThrowTelegraphMs"),
+        ("THROW.SlowRatio", "ThrowSlowBp"), ("THROW.SlowSec", "ThrowSlowMs"), ("THROW.ExposeSec", "ThrowExposeMs"),
         ("LIFE.RespawnSec.Field1", "RespawnField1Ms"), ("LIFE.RespawnSec.Field2", "RespawnField2Ms"),
         ("LIFE.RespawnSec.Field3", "RespawnField3Ms"), ("LIFE.RespawnSec.Final", "RespawnFinalMs"),
         ("LIFE.ProtectionSec", "ProtectionMs"),
@@ -246,6 +252,9 @@ def parameter_projection(parameters):
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
         ("REST.ReturnSearchRadiusCm", "RestReturnSearchRadiusCm"),
+        ("PK.ArenaRadiusCm", "PKArenaRadiusCm"), ("PK.RingMidRadiusCm", "PKRingMidRadiusCm"),
+        ("PK.RingFinalRadiusCm", "PKRingFinalRadiusCm"),
+        ("THROW.RadiusCm", "ThrowRadiusCm"), ("THROW.RangeCm", "ThrowRangeCm"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
@@ -257,6 +266,8 @@ def parameter_projection(parameters):
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
         ("GROWTH.NpcActivePoints", "NpcActivePoints"),
+        ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
+        ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}
