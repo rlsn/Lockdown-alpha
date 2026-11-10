@@ -216,6 +216,7 @@ bool ALDCombatDirector::SpreadUnitHits(const FLDBodyCombatState& Body, const FLD
     const double CosHalf=FMath::Cos(FMath::DegreesToRadians(LDCombatWorkshopDetail::Cm(Terms.SpreadUnit->AngleDegrees)*.5));
     TArray<FLDCombatBodyRef> Around;
     if (!CollectAreaTargets(Origin,RangeCm,&Body,Body.Victim.EntityId,Around,Error)) { return false; }
+    bool bSpread=false;
     for (const FLDCombatBodyRef& Other : Around)
     {
         ALDCharacter* OtherActor=nullptr;
@@ -227,7 +228,12 @@ bool ALDCombatDirector::SpreadUnitHits(const FLDBodyCombatState& Body, const FLD
         Hit.Target=Other;
         LDCombatWorkshopDetail::StripToDamage(Hit);
         PendingHits.Add(MoveTemp(Hit));
+        bSpread=true;
     }
+    // §10: M01 is one trigger per release whose cone reached another body.
+    TArray<FLDPassiveEffectRef> Spreads;
+    if (bSpread && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::SpreadUnit,Template.Source,Spreads,Error)) { return false; }
+    if (!Spreads.IsEmpty()) { LedgerComponentTriggered(Body,Spreads[0].Source.DefinitionId); }
     return true;
 }
 
@@ -255,6 +261,8 @@ bool ALDCombatDirector::TriggerAftershock(const FLDCombatBodyRef& OwnerRef, cons
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Shock.Effect.DelayMs,Blast.ReadyAtMs,Error)) { return false; }
         Blast.ExpiresAtMs=Blast.ReadyAtMs;
         GroundEffects.Add(MoveTemp(Blast));
+        // §10: C06 is one trigger when its blast is released (not per struck body).
+        LedgerComponentTriggered(*Holder,Shock.Source.DefinitionId);
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_AFTERSHOCK t=%lld owner=%s exit=%s radius=%.0f"),NowMs,*LDLog::Id(OwnerRef.Victim.EntityId),
             *LDLog::Source(Exit),RadiusCm);
     }
@@ -308,6 +316,8 @@ bool ALDCombatDirector::OnHardControl(FLDBodyCombatState& Victim, const FLDContr
         if (!StampSourceTerms(*Holder,Hit,Error)) { return false; }
         PendingHits.Add(MoveTemp(Hit));
         bConsumed=true;
+        // §10: C05 is one trigger when its mark is consumed for the follow-up; setting the mark is none.
+        LedgerComponentTriggered(*Holder,Installed->Source.DefinitionId);
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_CONTROL_MARK_CONSUMED t=%lld holder=%s target=%s first=%u second=%u"),NowMs,
             *LDLog::Id(Holder->Victim.EntityId),*LDLog::Id(Victim.Victim.EntityId),uint32(Mark.Kind),uint32(App.Kind));
     }
@@ -336,7 +346,10 @@ bool ALDCombatDirector::OnHardControl(FLDBodyCombatState& Victim, const FLDContr
         const int64 Grant=FMath::Min(Mana.Effect.BaseP2,Mana.Effect.LimitP2-Budget->SpentP2);
         if (Grant<=0) { continue; }
         Budget->SpentP2+=Grant;
+        const int64 MpBeforeP2=Holder->Resources.MpP2;
         GrantMana(*Holder,Grant);
+        // §10: C07 is one trigger per grant that actually raised the holder's mana.
+        if (Holder->Resources.MpP2>MpBeforeP2) { LedgerComponentTriggered(*Holder,Mana.Source.DefinitionId); }
     }
     // Budgets of actions long finished are no longer read.
     Holder->EffectBudgets.RemoveAll([NowMs](const FLDCombatEffectBudget& Row) { return NowMs-Row.AtMs>30000; });
@@ -386,6 +399,8 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Defer->Effect.DurationMs,Debt.DueAtMs,Error)) { return false; }
         ++Target.Resources.Revision;
         MarkViewChanged(Target.Victim.EntityId);
+        // §10: M12 is one trigger per hit whose share it deferred into a debt.
+        LedgerComponentTriggered(Target,Defer->Source.DefinitionId);
     }
     // C08's memory: the bodies that recently hurt this one.
     if (bHostile && Damage.DamageP2+Damage.DeferredP2>0) { Remember(Target.RecentAttackers,Hit.SourceBody,NowMs); }
@@ -410,6 +425,8 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
                 if (!StampSourceTerms(Target,Answer,Error)) { return false; }
                 PendingHits.Add(MoveTemp(Answer));
             }
+            // §10: C10 is one trigger per burst that reached a body (not per struck body).
+            if (!Around.IsEmpty()) { LedgerComponentTriggered(Target,Burst.Source.DefinitionId); }
         }
     }
     if (!Source) { return true; }
@@ -446,7 +463,7 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
             const int64 Amount=FMath::Min(Share(Damage.HPLostP2,Heal.Effect.RatioBp),Heal.Effect.BaseP2-Budget->SpentP2);
             if (Amount<=0) { continue; }
             Budget->SpentP2+=Amount;
-            HealBody(*Source,Amount,Heal.Source);
+            if (HealBody(*Source,Amount,Heal.Source)) { LedgerComponentTriggered(*Source,Heal.Source.DefinitionId); }
         }
     }
     // C12: each effective hit of the bound exit runs the chosen enabled base once more (no basic attack is made).
@@ -505,6 +522,7 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
                 UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_EXTRA_BASE_IDLE holder=%s base=%s reason=base_not_installed"),
                     *LDLog::Id(Source->Victim.EntityId),*Base.ToString());
             }
+            else { LedgerComponentTriggered(*Source,Repeat.Source.DefinitionId); }
         }
     }
     return true;
@@ -548,13 +566,14 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
     FLDCombatBodyRef Chosen;
     FVector ChosenFoot=FVector::ZeroVector;
     bool bFault=false;
+    const FLDPassiveEffectRef* MarkedBy=nullptr;
     // M11: the most recent body this holder's actives hit directly, when it is a legal target of this exit.
     for (const FLDPassiveEffectRef& Mod : Marked)
     {
         for (int32 Index=Holder.DirectHitMarks.Num()-1; Index>=0 && !Chosen.IsValid(); --Index)
         {
             const FLDCombatBodyMark& Mark=Holder.DirectHitMarks[Index];
-            if (NowMs-Mark.AtMs<=Mod.Effect.DurationMs && Legal(Mark.Body,ChosenFoot,bFault)) { Chosen=Mark.Body; }
+            if (NowMs-Mark.AtMs<=Mod.Effect.DurationMs && Legal(Mark.Body,ChosenFoot,bFault)) { Chosen=Mark.Body; MarkedBy=&Mod; }
             if (bFault) { Error=TEXT("Counter sight failed on a registered body."); return false; }
         }
     }
@@ -571,6 +590,14 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
     Hit.bReflect=true;
     if (!StampSourceTerms(Holder,Hit,Error)) { return false; }
     bDelivered=true;
+    // §10: one counter is one trigger of its exit (B03, C08) and of each mod that changed it: M11's marked target, M02's
+    // locked blast, M01's spread that reached a body other than the chosen one (under M02 it only shapes the blast).
+    const auto Triggered=[&](const FLDPassiveEffectRef* Shape)
+    {
+        LedgerComponentTriggered(Holder,Exit.DefinitionId);
+        if (MarkedBy) { LedgerComponentTriggered(Holder,MarkedBy->Source.DefinitionId); }
+        if (Shape) { LedgerComponentTriggered(Holder,Shape->Source.DefinitionId); }
+    };
     const double SpreadRadius=Spreads.IsEmpty() ? 0. : Cm(Spreads[0].Effect.RadiusCm);
     if (!Delays.IsEmpty())
     {
@@ -584,6 +611,7 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Delays[0].Effect.DelayMs,Blast.ReadyAtMs,Error)) { return false; }
         Blast.ExpiresAtMs=Blast.ReadyAtMs;
         GroundEffects.Add(MoveTemp(Blast));
+        Triggered(&Delays[0]);
         return true;
     }
     if (SpreadRadius>0)
@@ -598,9 +626,12 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
             Copy.Target=Other;
             PendingHits.Add(MoveTemp(Copy));
         }
+        if (!Around.IsEmpty())
+        { Triggered(Around.ContainsByPredicate([&Chosen](const FLDCombatBodyRef& Ref) { return Ref!=Chosen; }) ? &Spreads[0] : nullptr); }
         return true;
     }
     PendingHits.Add(MoveTemp(Hit));
+    Triggered(nullptr);
     return true;
 }
 
@@ -629,6 +660,8 @@ bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Holder, const FL
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Delays[0].Effect.DelayMs,Locked.DueAtMs,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_LEDGER_LOCKED t=%lld owner=%s victim=%s amount=%s due=%lld"),NowMs,
             *LDLog::Id(Holder.Victim.EntityId),*LDLog::Id(Target.Victim.EntityId),*LDLog::P2(AmountP2),Locked.DueAtMs);
+        // §10: locking the batch is M02's trigger; B02's is its settle (AdvanceWorkshop), a lapse is none.
+        LedgerComponentTriggered(Holder,Delays[0].Source.DefinitionId);
         return true;
     }
     ALDCharacter* TargetActor=nullptr;
@@ -651,6 +684,9 @@ bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Holder, const FL
         if (!StampSourceTerms(Holder,Cash,Error)) { return false; }
         PendingHits.Add(MoveTemp(Cash));
     }
+    // §10: one cash-out is one B02 trigger, and one of M01 when its spread reached another body.
+    LedgerComponentTriggered(Holder,Source.DefinitionId);
+    if (Struck.Num()>1) { LedgerComponentTriggered(Holder,Spreads[0].Source.DefinitionId); }
     return true;
 }
 
@@ -694,6 +730,11 @@ bool ALDCombatDirector::ResolveKnockbackImpact(FLDBodyCombatState& Body, const F
         // Another legal enemy: both take the same physical package; nobody is pushed or stunned further.
         Package(SelfRef,false);
         Package({Other->Victim,Other->Identity},false);
+    }
+    // §10: an answered block is one C02 trigger of its holder (both packages of a body block included).
+    if (!bBody || bLegalBody)
+    {
+        if (const FLDBodyCombatState* Holder=FindBody(Impact.Holder)) { LedgerComponentTriggered(*Holder,Impact.Impact.Source.DefinitionId); }
     }
     UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_KNOCKBACK_IMPACT t=%lld victim=%s holder=%s kind=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId),
         *LDLog::Id(Impact.Holder.Victim.EntityId),!bBody ? TEXT("wall") : bLegalBody ? TEXT("body") : TEXT("blocked_no_answer"));
@@ -761,7 +802,10 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             {
                 const FLDDemoEffectDefinition& Effect=Shields[0].Effect;
                 const int64 Amount=FMath::Min(Effect.BaseP2+Share(Sum,Effect.RatioBp),Share(Body.Resources.MaxHpP2,Effect.MultiplierBp));
-                if (!GrantShieldTo(Body,Amount,Effect.DurationMs,FGuid::NewGuid(),Body.Victim.EntityId,NowMs,Error,Shields[0].Source)) { return false; }
+                const FGuid ShieldId=FGuid::NewGuid();
+                if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error,Shields[0].Source)) { return false; }
+                // §10: C01 is one trigger when its shield is actually granted (a weaker one is not), never the fire summed.
+                if (Body.Shield.IsSet() && Body.Shield->EffectId==ShieldId) { LedgerComponentTriggered(Body,Shields[0].Source.DefinitionId); }
                 UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_FIRE_SHIELD t=%lld body=%s fire=%s candidate=%s"),NowMs,*LDLog::Id(Body.Victim.EntityId),
                     *LDLog::P2(Sum),*LDLog::P2(Amount));
             }
@@ -847,6 +891,8 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             if (!StampSourceTerms(*Settler,Cash,Error)) { return false; }
             PendingHits.Add(MoveTemp(Cash));
         }
+        // §10: the settle of a locked batch is its B02 trigger.
+        LedgerComponentTriggered(*Settler,Locked.Source.DefinitionId);
     }
     return true;
 }

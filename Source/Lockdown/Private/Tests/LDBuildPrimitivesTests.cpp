@@ -1227,6 +1227,13 @@ FLDCombatSourceRef SourceOf(ELDCombatSourceKind Kind, const TCHAR* Id)
     return Out;
 }
 
+// #198 §10: the component triggers of a contender's current build version (0 before its first fact).
+int64 Triggers(const FFixture& F, const FLDCombatBodyRef& Ref)
+{
+    const TArray<FLDBlueprintVersion>* Versions = F.Driver->GetBuildLedger().Find(Ref.Victim.EntityId);
+    return Versions && !Versions->IsEmpty() ? Versions->Last().Facts[int32(ELDBlueprintFact::Triggers)].Value : 0;
+}
+
 FLDCombatAction BasicAt(const FLDCombatBodyRef& Target, uint64 Token)
 {
     FLDCombatAction Action;
@@ -1371,6 +1378,8 @@ bool FLDComponentEmpowerMergeTest::RunTest(const FString& Parameters)
             Swing == 3 ? Primary.KnockbackCm == 120. && Primary.KnockbackMs == 120 && !Primary.bKnockbackFromAnchor
                 : Primary.KnockbackCm == 0. && Primary.KnockbackMs == 0);
     }
+    TestEqual(TEXT("Only the consumed B12 package is a trigger; B14's scale on every swing (a passive term) is none"),
+        Triggers(F, Attacker), int64(1));
     return true;
 }
 
@@ -1470,6 +1479,7 @@ bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Four effective hits book four entries of 13 on the target life"), Victim.Ledgers.Num() == 1
         && Victim.Ledgers[0].EntriesP2 == TArray<int64>({1300, 1300, 1300, 1300}) && FAccess::PendingHits(*F.Driver).IsEmpty());
+    TestEqual(TEXT("Booked entries are records, not B02 triggers"), Triggers(F, Owner), int64(0));
     FLDCombatHit Tick = FFixture::Hit(Owner, Target, 1000);
     Tick.bBurnTick = Tick.bPeriodic = true;
     TestTrue(TEXT("A burn tick is status damage and books nothing"), F.Apply(Tick, Error) && Victim.Ledgers[0].EntriesP2.Num() == 4);
@@ -1483,6 +1493,7 @@ bool FLDComponentLedgerTest::RunTest(const FString& Parameters)
     const int64 Before = Victim.Resources.HpP2;
     TestTrue(TEXT("The cash-out lands"), F.Flush(Error) && Before - Victim.Resources.HpP2 == 6500);
     TestTrue(TEXT("and never books an entry itself"), Victim.Ledgers.IsEmpty());
+    TestEqual(TEXT("The cash-out is one B02 trigger of its owner, its hit no second one"), Triggers(F, Owner), int64(1));
     return true;
 }
 

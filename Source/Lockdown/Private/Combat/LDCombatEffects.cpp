@@ -229,7 +229,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     TArray<FLDPassiveEffectRef> ManaGrants;
     if (Source && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::ManaOnHit,ManaGrants,Error)) { return false; }
     // #198 B10/B11 (a primary basic) and B18 (a native direct effective hit of the bound active): the source's component
-    // elements on this hit. Derived, reflected, status and settle hits carry none.
+    // elements on this hit. Derived, reflected, status and settle hits carry none. Each is a §10 trigger once the element
+    // batch applies it (bControllable).
+    TArray<FName> ElementTriggers;
     if (Source && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bBurnTick && !Hit.bLedgerCashOut && !Hit.bFromShieldTrigger
         && !Hit.bDebtPayment)
     {
@@ -240,6 +242,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             for (const FLDPassiveEffectRef& Ref : Elements)
             {
                 if (!ApplyComponentElement(Hit,Ref.Effect.Element,Ref.Source,Error)) { return false; }
+                ElementTriggers.Add(Ref.Source.DefinitionId);
             }
         }
         else if (bEffective && Hit.bDirectAbilityDamage && Hit.Source.Kind==ELDCombatSourceKind::Learned)
@@ -254,6 +257,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                     [&Ref](const FLDLearnedActiveValue& Active) { return Active.AbilityId==Ref.BoundActive; });
                 if (Ref.BoundActive!=Hit.Source.DefinitionId || !bStillLearned) { continue; }
                 if (!ApplyComponentElement(Hit,Ref.Element,Ref.Source,Error)) { return false; }
+                ElementTriggers.Add(Ref.Source.DefinitionId);
             }
         }
         // Water/electric of a component apply through ApplyElements at the source's level and AP now.
@@ -355,6 +359,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             if (!ApplyKnockback(*Actor,*Body,Hit,NowMs,bApplied,Error)) { return false; }
             bControlled|=bApplied;
             if (bApplied) { ControlMask|=LDCombatEffectsDetail::KnockbackBit; }
+            // §10: a push of a component (B06's third basic, C04's contact) is its trigger once it actually applies.
+            if (bApplied && Source && Hit.KnockbackSource.Kind==ELDCombatSourceKind::Component)
+            { LedgerComponentTriggered(*Source,Hit.KnockbackSource.DefinitionId); }
         }
         if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
         { return false; }
@@ -377,6 +384,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // element batch applies.
     if (bControllable && Damage.DamageP2>0 && !TryDischarge(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
     if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error)) { return false; }
+    if (bControllable) { for (const FName& Component : ElementTriggers) { LedgerComponentTriggered(*Source,Component); } }
     // A hit that harmed, controlled or slowed the body is its visible Hit cue (LDCombatCues).
     if (Damage.DamageP2>0 || bControlled)
     {
@@ -398,6 +406,24 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     LedgerHitCommitted(Hit,*Body,Damage);
+    // §10 triggers that changed this committed hit: B16's cut, B07's amplification (every amplified hit) and B17's locked
+    // amplification (once per release, at its first positive hit).
+    if (PrimaryGuard.IsSet() && Damage.GuardCutP2>0) { LedgerComponentTriggered(*Body,PrimaryGuard->Source.DefinitionId); }
+    if (Source && Damage.DamageP2>0 && !Hit.bDebtPayment)
+    {
+        if (Hit.ControlAmpBp>0 && bImpaired && Source->AttributeProjection.ControlAmp.IsSet())
+        { LedgerComponentTriggered(*Source,Source->AttributeProjection.ControlAmp->ComponentId); }
+        if (Hit.IdleReadyAmpBp>0 && Hit.CastLedger && !Hit.CastLedger->bIdleAmpTriggered)
+        {
+            TOptional<FLDPassiveEffectRef> IdleAmp;
+            if (!FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::IdleReadyAmp,IdleAmp,Error)) { return false; }
+            if (IdleAmp.IsSet())
+            {
+                Hit.CastLedger->bIdleAmpTriggered=true;
+                LedgerComponentTriggered(*Source,IdleAmp->Source.DefinitionId);
+            }
+        }
+    }
     const int64 HPAfterP2=Body->Resources.HpP2;
     // A one-time heal; the record below logs what the source actually regained.
     int64 VampHealedP2=0;
@@ -407,6 +433,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         TOptional<FLDPassiveEffectRef> Vamp;
         if (!FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::Lifesteal,Vamp,Error)) { return false; }
         HealBody(*Source,HealP2,Vamp.IsSet() ? Vamp->Source : FLDCombatSourceRef(),&VampHealedP2);
+        if (Vamp.IsSet() && VampHealedP2>0) { LedgerComponentTriggered(*Source,Vamp->Source.DefinitionId); }
     }
     // Host playtest record of this committed hit (docs/DEVELOPMENT.md): every term the player could ask about afterwards.
     if (UE_LOG_ACTIVE(LogLDCombat,Log))
@@ -720,6 +747,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 const FLDBodyCombatState* Thrower=FindBody(Projectile.SourceBody);
                 if (!CollectAreaTargets(Targets[Struck].FootCm,Projectile.SpreadRadiusCm,Thrower,Projectile.SourceEntity,Around,Error))
                 { return false; }
+                bool bSpread=false;
                 for (const FLDCombatBodyRef& Other : Around)
                 {
                     if (Other==Targets[Struck].Body) { continue; }
@@ -731,7 +759,14 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                     Splash.KnockbackCm=0;
                     Splash.BreachStacks=Splash.BurnStacks=0;
                     PendingHits.Add(MoveTemp(Splash));
+                    bSpread=true;
                 }
+                // §10: M01 is one trigger per contact whose spread reached another body.
+                TArray<FLDPassiveEffectRef> Spreads;
+                if (bSpread && Thrower
+                    && !WorkshopOn(Thrower->AttributeProjection,ELDDemoEffectOp::SpreadProjectile,Projectile.Source,Spreads,Error))
+                { return false; }
+                if (!Spreads.IsEmpty()) { LedgerComponentTriggered(*Thrower,Spreads[0].Source.DefinitionId); }
             }
             Finished.Add(Index);
             continue;
@@ -983,6 +1018,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             return false;
         }
         const bool bChanged=Pool.HpP2!=Pools.HpP2 || Pool.MpP2!=Pools.MpP2;
+        const int64 RestoredP2=Pools.HpP2-Pool.HpP2;
         Pool.HpP2=Pools.HpP2;
         Pool.MpP2=Pools.MpP2;
         Body.HpRegenMicroP2=Pools.HpMicroP2;
@@ -993,6 +1029,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
             ++Pool.Revision;
             MarkViewChanged(Body.Victim.EntityId);
         }
+        LedgerRegenerated(Body,RestoredP2);
     }
     return true;
 }

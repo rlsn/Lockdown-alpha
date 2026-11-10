@@ -126,9 +126,13 @@ void ALDCombatDirector::StoreReceipt(FLDCombatEntityRecord& Record, const FLDCom
     if (auto* Existing=Record.Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
         { return Entry.Request.DirectSequence==Request.DirectSequence; }))
     {
+        // #198 §10: a request is refused once, when its receipt first turns Rejected.
+        if (Existing->Receipt.Phase!=ELDCombatPhase::Rejected && Receipt.Phase==ELDCombatPhase::Rejected)
+        { LedgerActionRefused(Record.Entity,Receipt.Reject); }
         Existing->Receipt=Receipt;
         return;
     }
+    if (Receipt.Phase==ELDCombatPhase::Rejected) { LedgerActionRefused(Record.Entity,Receipt.Reject); }
     Record.Recent.Add({Request,Receipt});
     if (Record.Recent.Num()>LDCA::MaxRecentReceipts) { Record.Recent.RemoveAt(0,Record.Recent.Num()-LDCA::MaxRecentReceipts); }
 }
@@ -867,6 +871,8 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     if (Outcome!=ELDCombatReject::None)
     {
         UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=refused reason=%u"),Action.Token,uint32(Outcome));
+        // A Direct swing's refusal is counted when its receipt turns Rejected (StoreReceipt); a Nav-origin one only here.
+        if (Action.Key.Origin!=ELDCombatRequestOrigin::Direct) { LedgerActionRefused(Body.Victim.EntityId,Outcome); }
         FinishAction(Body,Outcome,false);
         return true;
     }
@@ -918,6 +924,8 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     bool bChargeBonusEnded=false;
     for (const FLDCombatEmpower& Package : Taken)
     {
+        // §10: a component's package (B12, C09) is one trigger when a landed basic consumes it; arming it is none.
+        if (Package.Source.Kind==ELDCombatSourceKind::Component) { LedgerComponentTriggered(Body,Package.Source.DefinitionId); }
         // The stats held while charges remain end with the last charge.
         if (Package.Charges==0 && Package.bChargeBonus)
         {

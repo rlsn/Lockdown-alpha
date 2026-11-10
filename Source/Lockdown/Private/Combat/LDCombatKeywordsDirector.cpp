@@ -40,9 +40,10 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
     bool bChanged=false;
     const auto Breach=[&](int32 Stacks, const FGuid& Credit)
     {
-        if (Stacks<=0 || !LDCombatKeywords::ApplyBreach(Target.SharedBreach,Stacks,NowMs,Terms)) { return; }
+        if (Stacks<=0 || !LDCombatKeywords::ApplyBreach(Target.SharedBreach,Stacks,NowMs,Terms)) { return false; }
         bChanged=true;
         RecordAssistContribution(Target,Credit,NowMs);
+        return true;
     };
     // The hit's own stacks (an active's payload, a zone pulse or an overload). Fire is an element (ApplyElements).
     Breach(Hit.BreachStacks,Hit.CreditOwner);
@@ -54,7 +55,11 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Breach,Passives,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Ref : Passives) { Breach(Ref.Effect.BasicCount,Hit.CreditOwner); }
+        for (const FLDPassiveEffectRef& Ref : Passives)
+        {
+            // §10: B08 is one trigger when its stacks apply or restart the shared breach.
+            if (Breach(Ref.Effect.BasicCount,Hit.CreditOwner)) { LedgerComponentTriggered(*Source,Ref.Source.DefinitionId); }
+        }
     }
     if (bChanged)
     {
@@ -128,6 +133,7 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error,Ref->Source)) { return false; }
     // A weaker shield than the one held is not granted (no fake grant, no refresh), and then the rest does not start.
     if (!Body.Shield.IsSet() || Body.Shield->EffectId!=ShieldId) { return true; }
+    LedgerComponentTriggered(Body,Ref->Source.DefinitionId);
     return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error);
 }
 
