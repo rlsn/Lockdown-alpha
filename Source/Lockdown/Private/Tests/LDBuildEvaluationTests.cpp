@@ -17,31 +17,20 @@ namespace LDBuildEvaluationTests
 constexpr uint64 GoldenStreamRoot0 = 5665713329989635553ull;
 constexpr int32 GoldenSpawnSeed = -2082328359;
 
-FLDOpponentOption Option(uint32 Id, ELDOpponentOptionKind Kind, const TCHAR* Definition, uint8 From = 0, uint8 To = 1)
+FLDOpponentActive Active(const TCHAR* Definition, uint8 Slot)
 {
-    FLDOpponentOption Out;
-    Out.OptionId = FGuid(0xEA, 0, 0, Id);
-    Out.Kind = Kind;
+    FLDOpponentActive Out;
     Out.DefinitionId = Definition;
-    Out.FromRank = From;
-    Out.ToRank = To;
-    return Out;
-}
-
-FLDOpponentSkill Skill(const TCHAR* Definition, uint8 Rank, ELDOpponentSkillSlot Slot)
-{
-    FLDOpponentSkill Out;
-    Out.DefinitionId = Definition;
-    Out.Rank = Rank;
     Out.Slot = Slot;
     return Out;
 }
 
-FLDOpponentOffer Offer(TArray<FLDOpponentOption> Options)
+FLDOpponentOffer Offer(TArray<FString> Options, uint8 Ordinal = 1)
 {
     FLDOpponentOffer Out;
     Out.OfferId = FGuid(0xEB, 0, 0, 1);
     Out.OfferRevision = 3;
+    Out.Ordinal = Ordinal;
     Out.Options = MoveTemp(Options);
     return Out;
 }
@@ -79,7 +68,7 @@ bool Frame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, FLD
     Self.ContenderId = FGuid(0xED, 0, 0, 1);
     Self.Phase = ELDLifePhase::Alive;
     Self.Life = 1;
-    const auto Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}), Catalog);
+    const auto Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}), Catalog);
     if (!Test.TestTrue(TEXT("Level 1 bare projection succeeds"), Projected.IsSuccess())) { return false; }
     Self.Attributes = Projected.Value->Final;
     Self.HpP2 = Self.MaxHpP2 = Self.Attributes.MaxHPP2;
@@ -128,16 +117,16 @@ bool RunSeeds(FAutomationTestBase& Test)
 }
 
 bool Pick(FAutomationTestBase& Test, const FString& Label, const FLDDemoContentSnapshot& Catalog, const FLDOpponentSelf& Self,
-    const FLDEvaluationChoice& Rule, bool bAccepted, uint32 Expected = 0, const TCHAR* ErrorPart = TEXT(""))
+    const FLDEvaluationChoice& Rule, bool bAccepted, const TCHAR* Expected = TEXT(""), const TCHAR* ErrorPart = TEXT(""))
 {
-    FLDOpponentChoicePick Out;
+    FString Out;
     FString Error;
     const bool bChosen = LDEvaluationPolicy::Choose(Self, Catalog, Rule, Out, Error);
     if (!bAccepted)
     {
         return Test.TestTrue(Label + TEXT(": ") + Error, !bChosen && Error.Contains(ErrorPart));
     }
-    return Test.TestTrue(Label + TEXT(": ") + Error, bChosen && Out.OptionId == FGuid(0xEA, 0, 0, Expected));
+    return Test.TestTrue(Label + TEXT(": ") + Error, bChosen && Out == Expected);
 }
 
 bool RunPolicy(FAutomationTestBase& Test)
@@ -145,50 +134,34 @@ bool RunPolicy(FAutomationTestBase& Test)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
     const FLDDemoContentSnapshot& C = *Catalog;
-    using EKind = ELDOpponentOptionKind;
-    using ESlot = ELDOpponentSkillSlot;
     using ERule = ELDEvaluationChoiceRule;
     FLDOpponentSelf Self;
-    Self.Offer = Offer({Option(1, EKind::Attribute, TEXT("attr_protein")), Option(2, EKind::LearnPassive, TEXT("passive_pressed")),
-        Option(3, EKind::LearnActive, TEXT("active_elbow"))});
+    Self.Offer = Offer({TEXT("active_elbow"), TEXT("active_seethe"), TEXT("active_not_mad")});
     FLDEvaluationChoice Rule;
     Rule.Rule = ERule::OptionIndex;
     Rule.Index = 1;
-    bool bGood = Pick(Test, TEXT("option_index takes that option of the actual offer"), C, Self, Rule, true, 2);
+    bool bGood = Pick(Test, TEXT("option_index takes that option of the actual offer"), C, Self, Rule, true, TEXT("active_seethe"));
     Rule.Index = 2;
-    bGood &= Pick(Test, TEXT("A free Q takes a new active without a replacement"), C, Self, Rule, true, 3);
+    bGood &= Pick(Test, TEXT("option_index 2 is the third option"), C, Self, Rule, true, TEXT("active_not_mad"));
     Rule = {};
     Rule.Rule = ERule::Definition;
-    Rule.DefinitionId = TEXT("passive_pressed");
-    bGood &= Pick(Test, TEXT("definition takes the offered card"), C, Self, Rule, true, 2);
-    Rule.DefinitionId = TEXT("passive_debt_collector");
-    bGood &= Pick(Test, TEXT("A planned card that is not offered is refused, never replaced"), C, Self, Rule, false, 0,
+    Rule.DefinitionId = TEXT("active_seethe");
+    bGood &= Pick(Test, TEXT("definition takes the offered active"), C, Self, Rule, true, TEXT("active_seethe"));
+    Rule.DefinitionId = TEXT("active_pants_down");
+    bGood &= Pick(Test, TEXT("A planned active that is not offered is refused, never replaced"), C, Self, Rule, false, TEXT(""),
         TEXT("is not in the actual offer"));
     FLDOpponentSelf Short = Self;
     Short.Offer->Options.SetNum(2);
     Rule = {};
     Rule.Rule = ERule::OptionIndex;
     Rule.Index = 2;
-    bGood &= Pick(Test, TEXT("An index past the actual offer is refused"), C, Short, Rule, false, 0, TEXT("has no option 2"));
-    FLDOpponentSelf Full = Self;
-    Full.Skills = {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W),
-        Skill(TEXT("active_pants_down"), 1, ESlot::E)};
+    bGood &= Pick(Test, TEXT("An index past the actual offer is refused"), C, Short, Rule, false, TEXT(""), TEXT("has no option 2"));
+    FLDOpponentSelf Offerless;
     Rule = {};
-    Rule.Rule = ERule::Definition;
-    Rule.DefinitionId = TEXT("active_elbow");
-    bGood &= Pick(Test, TEXT("A new active with Q/W/E taken needs a planned replacement"), C, Full, Rule, false, 0,
-        TEXT("needs a planned Q/W/E replacement"));
-    Rule.Replace = ESlot::W;
-    FLDOpponentChoicePick Replaced;
-    FString Error;
-    bGood &= Test.TestTrue(TEXT("The planned replacement confirms exactly that slot, skill and rank"),
-        LDEvaluationPolicy::Choose(Full, C, Rule, Replaced, Error) && Replaced.bReplace && Replaced.ReplaceSlot == ESlot::W
-        && Replaced.ReplacedSkillId == TEXT("active_snark_bolt") && Replaced.ReplacedRank == 2 && Replaced.OptionId == FGuid(0xEA, 0, 0, 3));
-    FLDOpponentChoicePick Production, Evaluated;
-    Rule = {};
-    bGood &= Test.TestTrue(TEXT("ai_select is the production choice"), LDOpponentPolicy::SelectChoice(Full, C, Production, Error)
-        && LDEvaluationPolicy::Choose(Full, C, Rule, Evaluated, Error) && Production.OptionId == Evaluated.OptionId
-        && Production.bReplace == Evaluated.bReplace && Production.bReroll == Evaluated.bReroll);
+    bGood &= Pick(Test, TEXT("Without an offer nothing is chosen"), C, Offerless, Rule, false, TEXT(""), TEXT("offer"));
+    FString Production, Evaluated, Error;
+    bGood &= Test.TestTrue(TEXT("ai_select is the production choice"), LDOpponentPolicy::SelectActive(Self, C, Production, Error)
+        && LDEvaluationPolicy::Choose(Self, C, Rule, Evaluated, Error) && Production == Evaluated);
 
     // ---- The fixed duel strategy over one authorized frame ----
     FLDOpponentDecisionFrame Base;
@@ -202,16 +175,14 @@ bool RunPolicy(FAutomationTestBase& Test)
         FLDOpponentPolicyState Policy;
         return LDEvaluationPolicy::Decide(At, C, Plan, Policy, State);
     };
-    // The opening countdown: the planned opening is chosen at once, the body does not move.
+    // The opening countdown: the planned opening active is chosen at once (asking to learn it), the body does not move.
     auto Countdown = Base;
     Countdown.Public.Phase = ELDMatchPhase::Countdown;
-    Countdown.Self.Offer = Offer({Option(1, EKind::Opening, TEXT("opening_athlete")), Option(2, EKind::Opening, TEXT("opening_grinder")),
-        Option(3, EKind::Opening, TEXT("opening_rider"))});
-    Countdown.Self.OpeningPickIndex = 1;
+    Countdown.Self.Offer = Offer({TEXT("active_seethe"), TEXT("active_snark_bolt"), TEXT("active_bail_out")});
     FLDEvaluationProfileState State;
     FLDOpponentDecision Decision = Decide(Countdown, Profile, State);
-    bGood &= Test.TestTrue(TEXT("Countdown: the planned opening (the production card index) and no body intent"),
-        Decision.Build.Kind == ELDOpponentBuildKind::Choose && Decision.Build.Choice.OptionId == FGuid(0xEA, 0, 0, 2)
+    bGood &= Test.TestTrue(TEXT("Countdown: the planned opening (the production preference) and no body intent"),
+        Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive && Decision.Build.Option == TEXT("active_snark_bolt")
         && Decision.Build.OfferId == FGuid(0xEB, 0, 0, 1) && Decision.Body.Kind == ELDOpponentBodyKind::None
         && State.Phase == ELDEvaluationPhase::Building);
     auto InFlight = Countdown;
@@ -223,7 +194,7 @@ bool RunPolicy(FAutomationTestBase& Test)
     FLDEvaluationProfile Two = Profile;
     Two.Choices.Add(FLDEvaluationChoice());
     auto Building = Base;
-    Building.Self.ChoicesConsumed = 1;
+    Building.Self.OffersConsumed = 1;
     Building.Units = {Rival(1, Profile.Opponent, 300, 0)};
     State = {};
     Decision = Decide(Building, Two, State);
@@ -231,13 +202,35 @@ bool RunPolicy(FAutomationTestBase& Test)
         Decision.Body.Kind == ELDOpponentBodyKind::None && State.Phase == ELDEvaluationPhase::Building);
     // Plan done and the rival in sight: the production engagement of the rival, not of a nearer other contender.
     auto Engage = Base;
-    Engage.Self.ChoicesConsumed = 1;
+    Engage.Self.OffersConsumed = 1;
     Engage.Units = {Rival(7, FGuid(0xED, 0, 0, 3), 100, 0), Rival(8, Profile.Opponent, 150, 0)};
     State = {};
     Decision = Decide(Engage, Profile, State);
     bGood &= Test.TestTrue(FString::Printf(TEXT("Engaging: only the designated rival is attacked (body %u)"), uint8(Decision.Body.Kind)),
         Decision.Body.Kind == ELDOpponentBodyKind::AttackUnit && Decision.Body.Handle == FGuid(0xEC, 0, 0, 8)
         && Decision.Mode == ELDOpponentMode::Engage && State.Phase == ELDEvaluationPhase::Engaging);
+    // Unspent points are settled by the production allocation before the first fight.
+    auto Points = Engage;
+    Points.Self.UnspentPoints = 3;
+    for (const auto& Stat : C.Get().Stats)
+    {
+        FLDOpponentStatPoints Row;
+        Row.StatId = Stat.Id;
+        Points.Self.StatPoints.Add(Row);
+    }
+    State = {};
+    Decision = Decide(Points, Profile, State);
+    bGood &= Test.TestTrue(TEXT("Building: the unspent points are allocated before the body moves"),
+        Decision.Build.Kind == ELDOpponentBuildKind::AllocatePoints && Decision.Body.Kind == ELDOpponentBodyKind::None
+        && State.Phase == ELDEvaluationPhase::Building);
+    // A blueprint with Q/W/E full waits for the rest-only replacement and never holds the duel.
+    auto Full = Engage;
+    Full.Self.Actives = {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1), Active(TEXT("active_elbow"), 2)};
+    Full.Self.Blueprints = {TEXT("active_seethe")};
+    State = {};
+    Decision = Decide(Full, Profile, State);
+    bGood &= Test.TestTrue(TEXT("A blueprint without an empty slot does not hold the duel"),
+        Decision.Build.Kind == ELDOpponentBuildKind::None && State.Phase == ELDEvaluationPhase::Engaging);
     auto Low = Engage;
     Low.Self.HpP2 = Low.Self.MaxHpP2 / 10;
     State = {};
@@ -246,7 +239,7 @@ bool RunPolicy(FAutomationTestBase& Test)
         Decision.Body.Kind == ELDOpponentBodyKind::AttackUnit && Decision.Body.Handle == FGuid(0xEC, 0, 0, 8));
     // The rival out of sight: walk to the meeting place; at it, hold.
     auto Approach = Base;
-    Approach.Self.ChoicesConsumed = 1;
+    Approach.Self.OffersConsumed = 1;
     Approach.Units = {Rival(7, FGuid(0xED, 0, 0, 3), 100, 0)};
     State = {};
     Decision = Decide(Approach, Profile, State);
@@ -269,19 +262,19 @@ bool RunPolicy(FAutomationTestBase& Test)
         && Decision.Build.Kind == ELDOpponentBuildKind::None && Decision.Mode == ELDOpponentMode::Stopped);
     FLDEvaluationProfile Missing = Two;
     Missing.Choices[1].Rule = ERule::Definition;
-    Missing.Choices[1].DefinitionId = TEXT("passive_debt_collector");
+    Missing.Choices[1].DefinitionId = TEXT("active_pants_down");
     auto Offered = Building;
-    Offered.Self.Offer = Self.Offer;
+    Offered.Self.Offer = Offer({TEXT("active_elbow"), TEXT("active_seethe")}, 2);
     State = {};
     Decision = Decide(Offered, Missing, State);
-    bGood &= Test.TestTrue(TEXT("An unoffered planned card fails the plan at its ordinal"), State.Phase == ELDEvaluationPhase::Failed
+    bGood &= Test.TestTrue(TEXT("An unoffered planned active fails the plan at its ordinal"), State.Phase == ELDEvaluationPhase::Failed
         && State.Failure.Contains(TEXT("ordinal 2")) && Decision.Build.Kind == ELDOpponentBuildKind::None);
     return bGood;
 }
 
 FString Input(const FString& Cases, const FString& Top = FString())
 {
-    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":1,\"run_id\":\"run-1\",")
+    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":2,\"run_id\":\"run-1\",")
         TEXT("\"content_root\":\"%s\"%s,\"cases\":[%s]}"), *FString::ChrN(64, TEXT('a')), *Top, *Cases);
 }
 
@@ -302,8 +295,8 @@ bool RunInput(FAutomationTestBase& Test)
 {
     using namespace LDBuildEvaluation;
     const FString Subject = Side(TEXT("subject"), 0, TEXT("[{\"rule\":\"ai_select\"},{\"rule\":\"option_index\",\"index\":2},")
-        TEXT("{\"rule\":\"definition\",\"definition\":\"active_elbow\",\"replace\":\"W\"}]"),
-        TEXT("[[\"attr_protein\",\"attr_canteen\",\"passive_pressed\"]]"));
+        TEXT("{\"rule\":\"definition\",\"definition\":\"active_elbow\"}]"),
+        TEXT("[[\"active_elbow\",\"active_seethe\",\"active_not_mad\"]]"));
     const FString Opponent = Side(TEXT("opponent"), 1);
     FLDEvalRunInput Parsed;
     FString Error;
@@ -318,8 +311,7 @@ bool RunInput(FAutomationTestBase& Test)
             && Case.Contenders[0].Choices[1].Rule == ELDEvaluationChoiceRule::OptionIndex && Case.Contenders[0].Choices[1].Index == 2
             && Case.Contenders[0].Choices[2].Rule == ELDEvaluationChoiceRule::Definition
             && Case.Contenders[0].Choices[2].DefinitionId == TEXT("active_elbow")
-            && Case.Contenders[0].Choices[2].Replace.Get(ELDOpponentSkillSlot::Passive) == ELDOpponentSkillSlot::W
-            && Case.Contenders[0].Presets.Num() == 1 && Case.Contenders[0].Presets[0][2] == FName(TEXT("passive_pressed")));
+            && Case.Contenders[0].Presets.Num() == 1 && Case.Contenders[0].Presets[0][2] == FName(TEXT("active_not_mad")));
     }
     const auto Refuse = [&Test](const FString& Label, const FString& Json, const TCHAR* Field)
     {
@@ -328,8 +320,8 @@ bool RunInput(FAutomationTestBase& Test)
         return Test.TestTrue(Label + TEXT(": ") + Why, !ParseInput(Json, Ignored, Why) && Why.Contains(Field));
     };
     bGood &= Refuse(TEXT("Not JSON"), TEXT("{"), TEXT("input"));
-    bGood &= Refuse(TEXT("Another schema version"), Input(CaseJson(Subject, Opponent)).Replace(TEXT("\"schema_version\":1"),
-        TEXT("\"schema_version\":2")), TEXT("schema"));
+    bGood &= Refuse(TEXT("The retired schema version 1 (three-card choices)"), Input(CaseJson(Subject, Opponent)).Replace(
+        TEXT("\"schema_version\":2"), TEXT("\"schema_version\":1")), TEXT("schema"));
     bGood &= Refuse(TEXT("An unknown top-level field"), Input(CaseJson(Subject, Opponent), TEXT(",\"budget\":1")), TEXT("budget"));
     bGood &= Refuse(TEXT("An unknown Case field"), Input(CaseJson(Subject, Opponent, TEXT("\"1\""), TEXT(",\"strategy\":\"x\""))),
         TEXT("strategy"));
@@ -346,14 +338,12 @@ bool RunInput(FAutomationTestBase& Test)
     bGood &= Refuse(TEXT("An unknown rule"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1, TEXT("[{\"rule\":\"best\"}]")))), TEXT("rule"));
     bGood &= Refuse(TEXT("An index past three options"),
         Input(CaseJson(Subject, Side(TEXT("opponent"), 1, TEXT("[{\"rule\":\"option_index\",\"index\":3}]")))), TEXT("index"));
-    bGood &= Refuse(TEXT("ai_select with a replacement"),
-        Input(CaseJson(Subject, Side(TEXT("opponent"), 1, TEXT("[{\"rule\":\"ai_select\",\"replace\":\"Q\"}]")))), TEXT("ai_select"));
-    bGood &= Refuse(TEXT("A replacement outside Q/W/E"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
-        TEXT("[{\"rule\":\"definition\",\"definition\":\"active_elbow\",\"replace\":\"R\"}]")))), TEXT("replace"));
-    bGood &= Refuse(TEXT("A preset of two cards"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1, TEXT("[{\"rule\":\"ai_select\"}]"),
-        TEXT("[[\"attr_protein\",\"attr_canteen\"]]")))), TEXT("presets"));
-    bGood &= Refuse(TEXT("A preset naming one card twice"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
-        TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[[\"attr_protein\",\"attr_protein\",\"attr_canteen\"]]")))), TEXT("presets"));
+    bGood &= Refuse(TEXT("The retired replacement field is unsupported"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
+        TEXT("[{\"rule\":\"definition\",\"definition\":\"active_elbow\",\"replace\":\"W\"}]")))), TEXT("replace"));
+    bGood &= Refuse(TEXT("A preset of four actives"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1, TEXT("[{\"rule\":\"ai_select\"}]"),
+        TEXT("[[\"active_elbow\",\"active_seethe\",\"active_not_mad\",\"active_unplug\"]]")))), TEXT("presets"));
+    bGood &= Refuse(TEXT("A preset naming one active twice"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
+        TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[[\"active_elbow\",\"active_elbow\"]]")))), TEXT("presets"));
     bGood &= Refuse(TEXT("A duel timeout below one second"),
         Input(CaseJson(Subject, Opponent).Replace(TEXT("\"duel_timeout_ms\":40000"), TEXT("\"duel_timeout_ms\":999"))), TEXT("duel_timeout_ms"));
     bGood &= Refuse(TEXT("A content root that is not a SHA-256 digest"),
