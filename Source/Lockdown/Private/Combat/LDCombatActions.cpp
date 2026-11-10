@@ -1280,119 +1280,13 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     if (bHostile)
     {
-        // One hit payload per target, snapshotted at release: damage terms, source AD/AP, controls and amplification.
+        // One hit payload per target, snapshotted at release; a skill's own delivery takes it, or the standard one does.
         FLDCombatHit Template;
-        Template.EffectId=EffectId;
-        Template.Token=Action.Token;
-        Template.SourceBody=SelfRef;
-        Template.SourceEntity=Body.Victim.EntityId;
-        Template.CreditOwner=Body.Victim.EntityId;
-        Template.Source=Source;
-        Template.HitClass=ELDCombatHitClass::Ability;
-        Template.CastLedger=CastLedger;
-        Template.bDirectAbilityDamage=DamageEffect!=nullptr;
-        // B17's locked amplification rides only on this release's native direct damage.
-        Template.IdleReadyAmpBp=DamageEffect ? IdleAmpBp : 0;
-        // #198 F: the mods' package multiplier of this native damage (M01/M03/M05); a dash's contact adds M08's.
-        Template.PackageScaleBp=Terms.PackageScaleBp;
-        if (LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
-        { Template.PackageScaleBp=Template.PackageScaleBp/10000*Terms.ContactScaleBp+Template.PackageScaleBp%10000*Terms.ContactScaleBp/10000; }
-        Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
-        Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
-        Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
-        Template.DamageType=DamageEffect ? DamageEffect->DamageType : ELDDemoDamageType::Physical;
-        Template.SourceADP2=Final.ADP2;
-        Template.SourceAPP2=Final.APP2;
-        Template.MaxHPRatioBp=DamageEffect ? DamageEffect->MaxHPRatioBp : 0;
-        Template.SourceMaxHPP2=Body.Resources.MaxHpP2;
-        Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
-        Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
-        Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
-        Template.DisarmDurationMs=DisarmEffect ? DisarmEffect->DurationMs : 0;
-        Template.StunDurationMs=StunEffect ? StunEffect->DurationMs : 0;
-        // #147 keyword payload: silence, shared breach and burn stacks (the burn snapshotted now).
-        Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
-        Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
-        Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
-        // #198 elements of every hit of this release, with the caster's snapshot now; S21's cut of new heals and shields.
-        Template.bApplyWet=WetEffect!=nullptr;
-        Template.bApplyElectric=ElectrifyEffect!=nullptr;
-        if (!StampElementSnapshot(Body,Template,Error)) { return false; }
-        Template.GrievousBp=GrievousEffect ? GrievousEffect->RatioBp : 0;
-        Template.GrievousMs=GrievousEffect ? GrievousEffect->DurationMs : 0;
-        // Abilities trigger no on-hit effects.
-        if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
-        FillMechanicsTemplate(*ValuesDef,ReleaseFoot,Template);
-        // #198 F C02 reads the push of this exit.
-        if (Template.KnockbackCm>0) { Template.KnockbackSource=Source; }
+        if (!BuildReleasePayload(Body,Source,Terms,ReleaseFoot,EffectId,Action.Token,IdleAmpBp,CastLedger,Template,Error)) { return false; }
         bool bHandled=false;
         if (!StartSkillDelivery(Body,Terms,DeliveryAction,Template,Now,bHandled,Error)) { return false; }
-        const auto Deliver=[this,&Template](const FLDCombatBodyRef& Target)
-        {
-            FLDCombatHit Hit=Template;
-            Hit.HitId=FGuid::NewGuid();
-            Hit.Target=Target;
-            PendingHits.Add(Hit);
-        };
-        if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
-        {
-            FLDCombatProjectile Projectile;
-            Projectile.EffectId=EffectId;
-            Projectile.FlightId=FGuid::NewGuid();
-            Projectile.Token=Action.Token;
-            Projectile.SourceBody=SelfRef;
-            Projectile.SourceEntity=Body.Victim.EntityId;
-            Projectile.CreditOwner=Body.Victim.EntityId;
-            Projectile.Source=Source;
-            Projectile.BaseP2=Template.BaseP2;
-            Projectile.ADRatioBp=Template.ADRatioBp;
-            Projectile.APRatioBp=Template.APRatioBp;
-            Projectile.DamageType=Template.DamageType;
-            Projectile.SourceADP2=Final.ADP2;
-            Projectile.SourceAPP2=Final.APP2;
-            Projectile.MaxHPRatioBp=Template.MaxHPRatioBp;
-            Projectile.SourceMaxHPP2=Template.SourceMaxHPP2;
-            Projectile.OriginCm=FootOf(Actor);
-            Projectile.Direction=Action.Direction;
-            Projectile.SpeedCmPerSec=LDCA::ToDouble(TargetDef.ProjectileSpeedCmPerSec);
-            if (!CastRangeCm(Body,TargetDef,Projectile.RangeCm,Error)) { return false; }
-            Projectile.RadiusCm=LDCA::ToDouble(TargetDef.ProjectileRadiusCm);
-            Projectile.AdvancedThroughMs=Now;
-            Projectile.SlowBp=Template.SlowBp;
-            Projectile.SlowDurationMs=Template.SlowDurationMs;
-            // #198 F M01: the first contact spreads its damage around the struck body.
-            Projectile.SpreadRadiusCm=Terms.SpreadProjectile.IsSet() ? LDCA::ToDouble(Terms.SpreadProjectile->RadiusCm) : 0.;
-            Projectile.Payload=Template;
-            Projectiles.Add(Projectile);
-        }
-        else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::Unit)
-        {
-            Deliver(UnitTarget);
-            // #198 F M01: a cone of the final range toward the primary target; controls stay on the primary target.
-            if (Terms.SpreadUnit.IsSet() && !SpreadUnitHits(Body,Terms,ReleaseFoot,TargetFoot,UnitTarget,Template,Error)) { return false; }
-            // #198 F M07: a compressed chain lands its whole budget on the first body (Terms) and bounces no further.
-            if (ChainEffect && !Terms.CompressChain.IsSet() && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,Now,Error)) { return false; }
-        }
-        else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::DirectionLine)
-        {
-            // #198 S09: every legal body in the band, pushed along the line (away from a point behind its own foot).
-            TArray<TPair<FLDCombatBodyRef,FVector>> Line;
-            if (!CollectLineTargets(ReleaseFoot,Action.Direction,LDCA::ToDouble(TargetDef.RangeCm),
-                LDCA::ToDouble(TargetDef.LineHalfWidthCm),Body,Line,Error)) { return false; }
-            const FVector Along=FVector(Action.Direction.X,Action.Direction.Y,0).GetSafeNormal();
-            for (const TPair<FLDCombatBodyRef,FVector>& Struck : Line)
-            {
-                FLDCombatHit Hit=Template;
-                Hit.HitId=FGuid::NewGuid();
-                Hit.Target=Struck.Key;
-                if (Hit.KnockbackCm>0) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Struck.Value-Along*100.; }
-                PendingHits.Add(MoveTemp(Hit));
-            }
-        }
-        else if (!bHandled)
-        {
-            for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
-        }
+        if (!bHandled && !DeliverReleasePayload(Actor,Body,Terms,Action,Template,UnitTarget,TargetFoot,ReleaseFoot,AreaTargets,Now,Error))
+        { return false; }
     }
     // A ground zone sits at the requested point, clamped to the authored reach.
     FVector ZonePoint=Action.TargetPoint;
@@ -1414,6 +1308,145 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if (bTimedBonus && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
+    return true;
+}
+
+bool ALDCombatDirector::BuildReleasePayload(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
+    const FLDCombatActiveTerms& Terms, const FVector& ReleaseFoot, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+    const TSharedPtr<FLDCombatCastLedger>& CastLedger, FLDCombatHit& Out, FString& Error) const
+{
+    const FLDDemoAbilityValues& Values=Terms.Values;
+    const FLDDemoEffectDefinition* DamageEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Damage);
+    const FLDDemoEffectDefinition* RootEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Root);
+    const FLDDemoEffectDefinition* SlowEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Slow);
+    const FLDDemoEffectDefinition* DisarmEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Disarm);
+    const FLDDemoEffectDefinition* StunEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Stun);
+    const FLDDemoEffectDefinition* SilenceEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Silence);
+    const FLDDemoEffectDefinition* BreachEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Breach);
+    const FLDDemoEffectDefinition* BurnEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Burn);
+    const FLDDemoEffectDefinition* GrievousEffect=LDCA::FindEffect(Values,ELDDemoEffectOp::Grievous);
+    const auto& Final=Body.AttributeProjection.Final;
+    FLDCombatHit Template;
+    Template.EffectId=EffectId;
+    Template.Token=Token;
+    Template.SourceBody={Body.Victim,Body.Identity};
+    Template.SourceEntity=Body.Victim.EntityId;
+    Template.CreditOwner=Body.Victim.EntityId;
+    Template.Source=Source;
+    Template.HitClass=ELDCombatHitClass::Ability;
+    Template.CastLedger=CastLedger;
+    Template.bDirectAbilityDamage=DamageEffect!=nullptr;
+    // B17's locked amplification rides only on this release's native direct damage.
+    Template.IdleReadyAmpBp=DamageEffect ? IdleAmpBp : 0;
+    // #198 F: the mods' package multiplier of this native damage (M01/M03/M05); a dash's contact adds M08's.
+    Template.PackageScaleBp=Terms.PackageScaleBp;
+    if (LDCA::FindEffect(Values,ELDDemoEffectOp::DashContact))
+    { Template.PackageScaleBp=Template.PackageScaleBp/10000*Terms.ContactScaleBp+Template.PackageScaleBp%10000*Terms.ContactScaleBp/10000; }
+    Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
+    Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
+    Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
+    Template.DamageType=DamageEffect ? DamageEffect->DamageType : ELDDemoDamageType::Physical;
+    Template.SourceADP2=Final.ADP2;
+    Template.SourceAPP2=Final.APP2;
+    Template.MaxHPRatioBp=DamageEffect ? DamageEffect->MaxHPRatioBp : 0;
+    Template.SourceMaxHPP2=Body.Resources.MaxHpP2;
+    Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
+    Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
+    Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
+    Template.DisarmDurationMs=DisarmEffect ? DisarmEffect->DurationMs : 0;
+    Template.StunDurationMs=StunEffect ? StunEffect->DurationMs : 0;
+    // #147 keyword payload: silence, shared breach and burn stacks (the burn snapshotted now).
+    Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
+    Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
+    Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
+    // #198 elements of every hit of this release, with the caster's snapshot now; S21's cut of new heals and shields.
+    Template.bApplyWet=LDCA::FindEffect(Values,ELDDemoEffectOp::Wet)!=nullptr;
+    Template.bApplyElectric=LDCA::FindEffect(Values,ELDDemoEffectOp::Electrify)!=nullptr;
+    if (!StampElementSnapshot(Body,Template,Error)) { return false; }
+    Template.GrievousBp=GrievousEffect ? GrievousEffect->RatioBp : 0;
+    Template.GrievousMs=GrievousEffect ? GrievousEffect->DurationMs : 0;
+    // Abilities trigger no on-hit effects.
+    if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
+    FillMechanicsTemplate(Values,ReleaseFoot,Template);
+    // #198 F C02 reads the push of this exit.
+    if (Template.KnockbackCm>0) { Template.KnockbackSource=Source; }
+    Out=MoveTemp(Template);
+    return true;
+}
+
+bool ALDCombatDirector::DeliverReleasePayload(const ALDCharacter& Actor, const FLDBodyCombatState& Body,
+    const FLDCombatActiveTerms& Terms, const FLDCombatAction& Action, const FLDCombatHit& Template, const FLDCombatBodyRef& UnitTarget,
+    const FVector& TargetFoot, const FVector& ReleaseFoot, const TArray<FLDCombatBodyRef>& AreaTargets, int64 NowMs, FString& Error)
+{
+    const FLDDemoTargetDefinition& TargetDef=Terms.Target;
+    const auto Deliver=[this,&Template](const FLDCombatBodyRef& Target)
+    {
+        FLDCombatHit Hit=Template;
+        Hit.HitId=FGuid::NewGuid();
+        Hit.Target=Target;
+        PendingHits.Add(Hit);
+    };
+    if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
+    {
+        FLDCombatProjectile Projectile;
+        Projectile.EffectId=Template.EffectId;
+        Projectile.FlightId=FGuid::NewGuid();
+        Projectile.Token=Template.Token;
+        Projectile.SourceBody=Template.SourceBody;
+        Projectile.SourceEntity=Template.SourceEntity;
+        Projectile.CreditOwner=Template.CreditOwner;
+        Projectile.Source=Template.Source;
+        Projectile.BaseP2=Template.BaseP2;
+        Projectile.ADRatioBp=Template.ADRatioBp;
+        Projectile.APRatioBp=Template.APRatioBp;
+        Projectile.DamageType=Template.DamageType;
+        Projectile.SourceADP2=Template.SourceADP2;
+        Projectile.SourceAPP2=Template.SourceAPP2;
+        Projectile.MaxHPRatioBp=Template.MaxHPRatioBp;
+        Projectile.SourceMaxHPP2=Template.SourceMaxHPP2;
+        Projectile.OriginCm=FootOf(Actor);
+        Projectile.Direction=Action.Direction;
+        Projectile.SpeedCmPerSec=LDCA::ToDouble(TargetDef.ProjectileSpeedCmPerSec);
+        if (!CastRangeCm(Body,TargetDef,Projectile.RangeCm,Error)) { return false; }
+        Projectile.RadiusCm=LDCA::ToDouble(TargetDef.ProjectileRadiusCm);
+        Projectile.AdvancedThroughMs=NowMs;
+        Projectile.SlowBp=Template.SlowBp;
+        Projectile.SlowDurationMs=Template.SlowDurationMs;
+        // #198 F M01: the first contact spreads its damage around the struck body.
+        Projectile.SpreadRadiusCm=Terms.SpreadProjectile.IsSet() ? LDCA::ToDouble(Terms.SpreadProjectile->RadiusCm) : 0.;
+        Projectile.Payload=Template;
+        Projectiles.Add(Projectile);
+    }
+    else if (TargetDef.Mode==ELDDemoTargetMode::Unit)
+    {
+        Deliver(UnitTarget);
+        // #198 F M01: a cone of the final range toward the primary target; controls stay on the primary target.
+        if (Terms.SpreadUnit.IsSet() && !SpreadUnitHits(Body,Terms,ReleaseFoot,TargetFoot,UnitTarget,Template,Error)) { return false; }
+        // #198 F M07: a compressed chain lands its whole budget on the first body (Terms) and bounces no further.
+        const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(Terms.Values,ELDDemoEffectOp::ChainBounce);
+        if (ChainEffect && !Terms.CompressChain.IsSet() && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,NowMs,Error))
+        { return false; }
+    }
+    else if (TargetDef.Mode==ELDDemoTargetMode::DirectionLine)
+    {
+        // #198 S09: every legal body in the band, pushed along the line (away from a point behind its own foot).
+        TArray<TPair<FLDCombatBodyRef,FVector>> Line;
+        if (!CollectLineTargets(ReleaseFoot,Action.Direction,LDCA::ToDouble(TargetDef.RangeCm),
+            LDCA::ToDouble(TargetDef.LineHalfWidthCm),Body,Line,Error)) { return false; }
+        const FVector Along=FVector(Action.Direction.X,Action.Direction.Y,0).GetSafeNormal();
+        for (const TPair<FLDCombatBodyRef,FVector>& Struck : Line)
+        {
+            FLDCombatHit Hit=Template;
+            Hit.HitId=FGuid::NewGuid();
+            Hit.Target=Struck.Key;
+            if (Hit.KnockbackCm>0) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Struck.Value-Along*100.; }
+            PendingHits.Add(MoveTemp(Hit));
+        }
+    }
+    else
+    {
+        for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
+    }
     return true;
 }
 

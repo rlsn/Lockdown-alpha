@@ -277,6 +277,8 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Hit.PackageScaleBp=Zone.PackageScaleBp;
                     // #198 zone_wet: every pulse also applies wet with the owner's snapshot at release.
                     Hit.bApplyWet=Zone.bWet;
+                    // #198 S08: the pulse's own fire, in the same batch before any water or electric of the hit.
+                    Hit.BurnStacks=Zone.PulseBurnStacks;
                     Hit.ElementLevel=Zone.ElementLevel;
                     Hit.ElementAPP2=Zone.ElementAPP2;
                 }
@@ -315,38 +317,8 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
             }
             Zone.NextBurnAtMs+=Zone.BurnIntervalMs;
         }
-        // #198 zone_haste: the owner's move speed while its foot stands inside (a timed bonus keyed to this zone).
-        if (Zone.HasteBp>0)
-        {
-            ALDCharacter* OwnerActor=nullptr;
-            FLDBodyCombatState* ZoneOwner=FindBody(Zone.SourceBody,&OwnerActor);
-            if (ZoneOwner && OwnerActor)
-            {
-                const bool bInside=!ZoneOwner->bPendingDeath && NowMs<Zone.EndMs
-                    && FVector::DistSquared2D(Zone.CentreCm,FootOf(*OwnerActor))<=Zone.RadiusCm*Zone.RadiusCm;
-                const bool bHeld=ZoneOwner->TimedBonuses.ContainsByPredicate([&Zone](const FLDCombatTimedBonus& Row)
-                { return Row.EffectId==Zone.EffectId; });
-                if (bInside && !bHeld)
-                {
-                    FLDCombatTimedBonus Bonus;
-                    Bonus.EffectId=Zone.EffectId;
-                    Bonus.SourceDefinition=Zone.Source.DefinitionId;
-                    FLDDemoStatBonus& Speed=Bonus.Stats.AddDefaulted_GetRef();
-                    Speed.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
-                    Speed.Amount=Zone.HasteBp;
-                    Bonus.ExpiresAtMs=Zone.EndMs;
-                    LDTactical::ApplyTimedBonus(ZoneOwner->TimedBonuses,Bonus);
-                    ++ZoneOwner->StateRevision;
-                    MarkViewChanged(ZoneOwner->Victim.EntityId);
-                }
-                else if (!bInside && bHeld)
-                {
-                    ZoneOwner->TimedBonuses.RemoveAll([&Zone](const FLDCombatTimedBonus& Row) { return Row.EffectId==Zone.EffectId; });
-                    ++ZoneOwner->StateRevision;
-                    MarkViewChanged(ZoneOwner->Victim.EntityId);
-                }
-            }
-        }
+        // #198 zone_haste: the owner's and its teammates' move speed while their foot stands inside.
+        if (Zone.HasteBp>0) { UpdateZoneHaste(Zone,NowMs); }
         if (Zone.EndMs<=NowMs)
         {
             // #198 F C06: a zone that ran its whole life completes naturally.
@@ -356,6 +328,43 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         }
     }
     return true;
+}
+
+void ALDCombatDirector::UpdateZoneHaste(const FLDCombatZone& Zone, int64 NowMs)
+{
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        const ALDCharacter* Actor=Pair.Key.Get();
+        // Spec §9 S20: its owner and the owner's current-match teammates (the PK group and side it was released in); never
+        // an enemy.
+        const bool bOwner=Body.Victim.EntityId==Zone.SourceEntity;
+        const bool bMate=!bOwner && Zone.OwnerPKSide!=0 && Body.PKSide==Zone.OwnerPKSide
+            && Body.IsolationGroup==Zone.OwnerGroup && Body.Victim.Kind==ELDVictimKind::Contender;
+        const bool bHeld=Body.TimedBonuses.ContainsByPredicate([&Zone](const FLDCombatTimedBonus& Row)
+        { return Row.EffectId==Zone.EffectId; });
+        if (!bOwner && !bMate && !bHeld) { continue; }
+        const bool bInside=(bOwner || bMate) && Actor && !Body.bPendingDeath && !Body.bSuspended && NowMs<Zone.EndMs
+            && FVector::DistSquared2D(Zone.CentreCm,FootOf(*Actor))<=Zone.RadiusCm*Zone.RadiusCm;
+        if (bInside && !bHeld)
+        {
+            FLDCombatTimedBonus Bonus;
+            Bonus.EffectId=Zone.EffectId;
+            Bonus.SourceDefinition=Zone.Source.DefinitionId;
+            FLDDemoStatBonus& Speed=Bonus.Stats.AddDefaulted_GetRef();
+            Speed.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
+            Speed.Amount=Zone.HasteBp;
+            Bonus.ExpiresAtMs=Zone.EndMs;
+            LDTactical::ApplyTimedBonus(Body.TimedBonuses,Bonus);
+        }
+        else if (!bInside && bHeld)
+        {
+            Body.TimedBonuses.RemoveAll([&Zone](const FLDCombatTimedBonus& Row) { return Row.EffectId==Zone.EffectId; });
+        }
+        else { continue; }
+        ++Body.StateRevision;
+        MarkViewChanged(Body.Victim.EntityId);
+    }
 }
 
 void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoAbilityValues& Values, const FVector& OriginFoot, FLDCombatHit& Template) const
@@ -461,16 +470,35 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         // The owner's element snapshot at release (burn layers, wet pulses).
         Zone.ElementLevel=GrowthLevelOf(Body);
         Zone.ElementAPP2=FMath::Max<int64>(Body.AttributeProjection.Final.APP2,0);
-        // #147: burn layers on the enemies inside, every interval from the zone's start.
+        // #147: burn layers on the enemies inside. #198 S08: a damaging zone's burn beats with its pulses and rides on them
+        // (one element batch per pulse); a burn of another rhythm is no approved zone shape.
         if (const FLDDemoEffectDefinition* Burn=FindOp(Values,ELDDemoEffectOp::ZoneBurn))
         {
-            Zone.BurnStacks=Burn->Count;
-            Zone.BurnIntervalMs=Burn->IntervalMs;
-            Zone.NextBurnAtMs=Now;
+            if (FindOp(Values,ELDDemoEffectOp::ZoneDamage))
+            {
+                if (Burn->IntervalMs!=ZoneDef->IntervalMs || ZoneDef->DelayMs!=0
+                    || int64(ZoneDef->Count)*ZoneDef->IntervalMs!=ZoneDef->DurationMs)
+                {
+                    Error=TEXT("A damaging zone's burn must beat with its pulses (same interval, no delay, pulses spanning its life).");
+                    return false;
+                }
+                Zone.PulseBurnStacks=Burn->Count;
+            }
+            else
+            {
+                Zone.BurnStacks=Burn->Count;
+                Zone.BurnIntervalMs=Burn->IntervalMs;
+                Zone.NextBurnAtMs=Now;
+            }
         }
-        // #198: wet on every pulse, and the owner's move speed inside.
+        // #198: wet on every pulse, and the owner's (and its current-match teammates') move speed inside.
         Zone.bWet=FindOp(Values,ELDDemoEffectOp::ZoneWet)!=nullptr;
-        if (const FLDDemoEffectDefinition* Haste=FindOp(Values,ELDDemoEffectOp::ZoneHaste)) { Zone.HasteBp=Haste->RatioBp; }
+        if (const FLDDemoEffectDefinition* Haste=FindOp(Values,ELDDemoEffectOp::ZoneHaste))
+        {
+            Zone.HasteBp=Haste->RatioBp;
+            Zone.OwnerGroup=Body.IsolationGroup;
+            Zone.OwnerPKSide=Body.PKSide;
+        }
         if (const FLDDemoEffectDefinition* Damage=FindOp(Values,ELDDemoEffectOp::ZoneDamage))
         {
             Zone.bDamage=true;

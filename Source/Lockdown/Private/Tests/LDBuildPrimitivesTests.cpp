@@ -8,7 +8,15 @@
 #include "Combat/LDCombatSourceRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Region/LDMapDefinition.h"
+#include "Region/LDMapGeometry.h"
+#include "Region/LDMapRegistry.h"
+#include "Vision/LDVisionDirector.h"
+#include "Components/CapsuleComponent.h"
+#include "Misc/PackageName.h"
+#include "UObject/Package.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
@@ -97,6 +105,36 @@ struct FLDBuildPrimitivesAccess
     static bool Impact(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatKnockbackImpact& Impact, bool bBody,
         const ALDCharacter* Blocker, int64 NowMs, FString& Error)
     { return Driver.ResolveKnockbackImpact(Body, Impact, bBody, Blocker, NowMs, Error); }
+    // #198 H combat event correctness: the real release, delivery and Effects entries.
+    static bool BuildPayload(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
+        const FLDCombatActiveTerms& Terms, const FVector& Foot, FLDCombatHit& Out, FString& Error)
+    { return Driver.BuildReleasePayload(Body, Source, Terms, Foot, FGuid::NewGuid(), 1, 0, MakeShared<FLDCombatCastLedger>(), Out, Error); }
+    static bool DeliverPayload(ALDCombatDirector& Driver, const ALDCharacter& Actor, const FLDBodyCombatState& Body,
+        const FLDCombatActiveTerms& Terms, const FLDCombatAction& Action, const FLDCombatHit& Template, const FLDCombatBodyRef& Unit,
+        const FVector& UnitFoot, const FVector& Foot, int64 NowMs, FString& Error)
+    { return Driver.DeliverReleasePayload(Actor, Body, Terms, Action, Template, Unit, UnitFoot, Foot, {}, NowMs, Error); }
+    static bool ApplyPendingHits(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ApplyPendingHits(NowMs, Error); }
+    static bool AdvanceMechanics(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceMechanics(NowMs, Error); }
+    static bool AdvanceSkillContent(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSkillContent(NowMs, Error); }
+    static bool AdvanceProjectiles(ALDCombatDirector& Driver, FString& Error) { return Driver.AdvanceProjectiles(Error); }
+    static TArray<FLDCombatProjectile>& Projectiles(ALDCombatDirector& Driver) { return Driver.Projectiles; }
+    static bool NoteInstall(ALDCombatDirector& Driver, FLDCombatEntityRecord& Record, const FLDAttributeProjection& Previous,
+        FLDBodyCombatState* Body, int64 NowMs, FString& Error)
+    { return Driver.NoteWorkshopInstall(Record, Previous, Body, NowMs, Error); }
+    // The registered sight of the approved geometry for an isolated world: the registry revision and the observation
+    // owner's sight, as a match's world binding would give them.
+    static bool GiveSight(ALDGameMode& Mode, UWorld& World, const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& Revision,
+        const FLDDemoRational& Radius, FString& Error)
+    {
+        ULDMapRegistry* Registry = World.GetSubsystem<ULDMapRegistry>();
+        ALDVisionDirector* Vision = World.SpawnActor<ALDVisionDirector>();
+        if (!Registry || !Vision) { Error = TEXT("The sight world needs its map registry and observation owner."); return false; }
+        Registry->WorldRevision = Revision;
+        if (!Vision->Sight.Build(Geometry, Revision, Radius, Error)) { return false; }
+        Mode.Vision = Vision;
+        return true;
+    }
+    static const FLDSightGeometry& Sight(const ALDVisionDirector& Vision) { return Vision.Sight; }
 };
 
 namespace LDBuildPrimitivesTests
@@ -110,6 +148,9 @@ struct FFixture
     ALDCombatDirector* Driver = nullptr;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     TMap<FGuid, ALDCharacter*> Actors;
+    // Sight worlds (Init with bSight): a flat open foot point of the approved geometry that Place offsets from (up to 6.75 m).
+    FVector Origin = FVector::ZeroVector;
+    LDDemoWorld::FTerrain Terrain;
 
     ~FFixture()
     {
@@ -120,12 +161,24 @@ struct FFixture
         }
     }
 
-    bool Init(FAutomationTestBase& Test)
+    // bSight: the world is bound as the Demo world (its map registry exists) with the registered sight of the approved
+    // geometry, so area, line, fog and projectile queries run as in a match; bodies are placed with Place.
+    bool Init(FAutomationTestBase& Test, bool bSight = false)
     {
         if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
         const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
             .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
-        World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+        UPackage* Package = nullptr;
+        FName WorldName = NAME_None;
+        if (bSight)
+        {
+            // A PIE-prefixed name of the Demo world package selects its map registry without touching the saved map.
+            const FString Short = FString::Printf(TEXT("UEDPIE_%u_%s"), (FGuid::NewGuid().A & 0xFFFF) + 100u,
+                *FPackageName::GetShortName(LDDemoEntry::WorldMap));
+            Package = CreatePackage(*(FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap) / Short));
+            WorldName = FName(*Short);
+        }
+        World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, Package, true, ERHIFeatureLevel::Num, &Values);
         if (!World) { Test.AddError(TEXT("Fixture world")); return false; }
         GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
         Mode = World->SpawnActor<ALDGameMode>();
@@ -134,8 +187,86 @@ struct FFixture
         FAccess::Bind(*Mode, *Driver, Catalog);
         World->CopyGameState(Mode, nullptr);
         Now(1000);
-        return true;
+        return !bSight || InitSight(Test);
     }
+
+    bool InitSight(FAutomationTestBase& Test)
+    {
+        TSharedPtr<const FLDDemoContentSnapshot> Runtime;
+        TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+        FString Error;
+        const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+        if (!Definition || !LDDemoEntry::LoadRuntimeContent(Runtime, Error) || !Definition->Read(*Runtime, Geometry, Error))
+        {
+            Test.AddError(TEXT("Sight fixture geometry: ") + Error);
+            return false;
+        }
+        FLDWorldRevision Revision;
+        Revision.MapId = FName(*Geometry->MapId);
+        Revision.LayoutRevision = Geometry->LayoutRevision;
+        Revision.GeometryRevision = Geometry->GeometryRevision;
+        if (!Terrain.Build(*Geometry, Error)
+            || !FAccess::GiveSight(*Mode, *World, *Geometry, Revision, Runtime->Get().Parameters.VisionRadiusCm, Error))
+        {
+            Test.AddError(TEXT("Sight fixture binding: ") + Error);
+            return false;
+        }
+        const ALDVisionDirector& Vision = *Mode->Vision;
+        // The first 13.5 x 13.5 m patch of one tier in the approved world, every sampled pair within 7 m in clear sight.
+        int32 MixedTiers = 0, Blocked = 0, Other = 0;
+        const auto Open = [&](const FVector2D& At, double& OutZ)
+        {
+            TArray<FVector> Feet;
+            FVector Normal;
+            Terrain.Ground(At, OutZ, Normal);
+            for (int32 X = -3; X <= 3; ++X)
+            {
+                for (int32 Y = -3; Y <= 3; ++Y)
+                {
+                    const FVector2D Point = At + FVector2D(X * 225., Y * 225.);
+                    double Z = 0;
+                    Terrain.Ground(Point, Z, Normal);
+                    if (Terrain.Tier(Point) != Terrain.Tier(At)) { ++MixedTiers; return false; }
+                    Feet.Emplace(Point.X, Point.Y, Z);
+                }
+            }
+            // Every pair within the sight radius sees each other (no body interaction of these tests reaches farther).
+            for (const FVector& From : Feet)
+            {
+                for (const FVector& To : Feet)
+                {
+                    const ELDSightResult Seen = FVector::Dist2D(From, To) <= 700. ? Vision.TraceSight(From, To, Revision) : ELDSightResult::Visible;
+                    if (Seen != ELDSightResult::Visible) { ++(Seen == ELDSightResult::Blocked ? Blocked : Other); return false; }
+                }
+            }
+            return true;
+        };
+        const FVector2D Low = FAccess::Sight(Vision).MinCm() + FVector2D(700.), High = FAccess::Sight(Vision).MaxCm() - FVector2D(700.);
+        for (double X = Low.X; X <= High.X; X += 300.)
+        {
+            for (double Y = Low.Y; Y <= High.Y; Y += 300.)
+            {
+                double Z = 0;
+                if (Open(FVector2D(X, Y), Z)) { Origin = FVector(X, Y, Z); return true; }
+            }
+        }
+        Test.AddError(FString::Printf(TEXT("Sight fixture: the approved world has no open patch (mixed tiers %d, blocked %d, other %d)"),
+            MixedTiers, Blocked, Other));
+        return false;
+    }
+
+    // Puts a registered body's foot on the ground at Origin + (X, Y) of the open patch.
+    void Place(const FLDCombatBodyRef& Ref, double X, double Y)
+    {
+        ALDCharacter& Body = Actor(Ref);
+        const FVector2D At(Origin.X + X, Origin.Y + Y);
+        double Z = Origin.Z;
+        FVector Normal;
+        if (Terrain.IsValid()) { Terrain.Ground(At, Z, Normal); }
+        Body.SetActorLocation(FVector(At.X, At.Y, Z + Body.GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+    }
+
+    FVector Foot(const FLDCombatBodyRef& Ref) { return ALDCombatDirector::FootOf(Actor(Ref)); }
 
     void Now(int64 Ms) { FAccess::SetNow(*Mode, Ms); }
 
@@ -725,7 +856,8 @@ bool FLDBuildZonePulsesTest::RunTest(const FString& Parameters)
         && Placed.Count == 3 && Placed.IntervalMs == 1000 && Placed.DelayMs == 0 && Placed.bDamage && Placed.CentreCm.X == 300);
     TestTrue(TEXT("Each slow check slows for the check's own duration, starting at the release"), Placed.bSlow && Placed.SlowBp == 2000
         && Placed.SlowIntervalMs == 1000 && Placed.SlowDurationMs == 500 && Placed.NextSlowAtMs == 5000);
-    TestTrue(TEXT("The burn checks start at the release"), Placed.BurnStacks == 1 && Placed.BurnIntervalMs == 1000 && Placed.NextBurnAtMs == 5000);
+    TestTrue(TEXT("The burn rides on every damage pulse (one element batch), with no separate burn checks"),
+        Placed.PulseBurnStacks == 1 && Placed.BurnStacks == 0);
     TArray<int64> Pulses;
     for (int64 At = Placed.StartMs; At <= Placed.EndMs; ++At)
     {
@@ -736,7 +868,7 @@ bool FLDBuildZonePulsesTest::RunTest(const FString& Parameters)
         Pulses == TArray<int64>({5000, 6000, 7000}));
     TArray<int64> Checks;
     for (int64 At = Placed.NextSlowAtMs; At < Placed.EndMs; At += Placed.SlowIntervalMs) { Checks.Add(At); }
-    TestTrue(TEXT("Exactly three slow and burn checks on the same beats (the end is no check)"),
+    TestTrue(TEXT("Exactly three slow checks on the pulse beats (the end is no check)"),
         Checks == TArray<int64>({5000, 6000, 7000}));
     return true;
 }
@@ -1052,7 +1184,8 @@ bool FLDDemoElementRulesTest::RunTest(const FString& Parameters)
 }
 
 // #198: one element slot per target; wet refreshes; a new fire on wet fogs (R plus the fire's whole budget at once); a new
-// water on fire settles the held layers to their own applier. One fog per owner.
+// water on fire settles the held layers to their own applier. One fog per owner; its 0 s pulse wets the element-free bodies
+// inside before the batch that made it continues (spec §11.1), the next one a second later.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoElementFogTest, "Lockdown.Rules.DemoElements.FogAndSlot",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -1060,8 +1193,14 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef A = F.AddBody(), B = F.AddBody(), Target = F.AddBody(), Second = F.AddBody();
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef A = F.AddBody(), B = F.AddBody(), Target = F.AddBody(), Second = F.AddBody(), Third = F.AddBody();
+    // Every body stands outside the others' 2.5 m fog.
+    F.Place(A, -600, -600);
+    F.Place(B, 600, -600);
+    F.Place(Target, -600, 600);
+    F.Place(Second, 600, 600);
+    F.Place(Third, 0, 0);
     FLDBodyCombatState& Body = F.Body(Target);
     FString Error;
     FLDCombatHit Wet = FFixture::Hit(A, Target, 0);
@@ -1079,14 +1218,16 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
     Fire.BurnStacks = 1;
     TestTrue(FString::Printf(TEXT("A fire hit on wet: %s"), *Error), F.Apply(Fire, Error));
     const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
-    TestTrue(TEXT("Fog consumes both elements and the wet slow"), Body.ElementMark.Kind == ELDCombatElement::None
-        && Body.Slows.IsEmpty() && Body.Burn.Layers.IsEmpty());
+    TestTrue(TEXT("Fog consumes both elements; its 0 s pulse wets the element-free target again as B's fog, with one new slow"),
+        Body.ElementMark.Kind == ELDCombatElement::Water && Body.ElementMark.Applier.SourceEntity == B.Victim.EntityId
+        && Body.ElementMark.ExpiresAtMs == 5500 && Body.Slows.Num() == 1 && Body.Burn.Layers.IsEmpty());
     TestTrue(TEXT("The new fire's whole budget (six ticks of 1.50) settles at once as B's fire, then R = 20 from B"),
         Pending.Num() == 2 && Pending[0].bBurnTick && Pending[0].BaseP2 == 900 && Pending[0].SourceEntity == B.Victim.EntityId
         && Pending[1].bStatusSettle && !Pending[1].bBurnTick && Pending[1].BaseP2 == 2000 && Pending[1].SourceEntity == B.Victim.EntityId
         && Pending[1].Target == Target);
-    TestTrue(TEXT("B owns one fog and the reaction is reported with B as trigger"), FAccess::Fogs(*F.Driver).Num() == 1
-        && FAccess::Fogs(*F.Driver)[0].Owner.SourceEntity == B.Victim.EntityId && FAccess::Reactions(*F.Driver).Num() == 1
+    TestTrue(TEXT("B owns one fog, its next pulse one second later, and the reaction is reported with B as trigger"),
+        FAccess::Fogs(*F.Driver).Num() == 1 && FAccess::Fogs(*F.Driver)[0].Owner.SourceEntity == B.Victim.EntityId
+        && FAccess::Fogs(*F.Driver)[0].NextPulseMs == 2500 && FAccess::Reactions(*F.Driver).Num() == 1
         && FAccess::Reactions(*F.Driver)[0].Kind == ELDCombatReaction::Fog
         && FAccess::Reactions(*F.Driver)[0].TriggerEntity == B.Victim.EntityId);
     TestTrue(TEXT("The settles land"), F.Flush(Error) && Body.Resources.HpP2 == 100000 - 2900);
@@ -1099,19 +1240,20 @@ bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
     FLDCombatHit Water = FFixture::Hit(B, Second, 0);
     Water.bApplyWet = true;
     TestTrue(FString::Printf(TEXT("Water on fire: %s"), *Error), F.Apply(Water, Error));
-    TestTrue(TEXT("A's held layers settle their remaining six ticks each to A; B's R follows; nothing stays"),
+    TestTrue(TEXT("A's held layers settle their remaining six ticks each to A; B's R follows; the new fog wets the target"),
         Pending.Num() == 2 && Pending[0].SourceEntity == A.Victim.EntityId && Pending[0].BaseP2 == 1800 && Pending[0].bBurnTick
         && Pending[1].SourceEntity == B.Victim.EntityId && Pending[1].BaseP2 == 2000
-        && Other.Burn.Layers.IsEmpty() && Other.ElementMark.Kind == ELDCombatElement::None);
+        && Other.Burn.Layers.IsEmpty() && Other.ElementMark.Kind == ELDCombatElement::Water);
     TestEqual(TEXT("B's newer fog replaced its first one"), FAccess::Fogs(*F.Driver).Num(), 1);
     TestTrue(TEXT("The settles land"), F.Flush(Error));
 
-    FLDCombatHit Zap = FFixture::Hit(A, Target, 0);
+    FLDBodyCombatState& Free = F.Body(Third);
+    FLDCombatHit Zap = FFixture::Hit(A, Third, 0);
     Zap.bApplyElectric = true;
     TestTrue(TEXT("Electric on an element-free target marks it"), F.Apply(Zap, Error)
-        && Body.ElementMark.Kind == ELDCombatElement::Electric && Body.ElementMark.ExpiresAtMs == 6000);
+        && Free.ElementMark.Kind == ELDCombatElement::Electric && Free.ElementMark.ExpiresAtMs == 6000);
     FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
-    TestTrue(TEXT("A leaving applier's mark ends with it"), Body.ElementMark.Kind == ELDCombatElement::None);
+    TestTrue(TEXT("A leaving applier's mark ends with it"), Free.ElementMark.Kind == ELDCombatElement::None);
     return true;
 }
 
@@ -1514,10 +1656,14 @@ bool FLDComponentElementsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Fire adds one burn layer of the component"), FAccess::ApplyComponentElement(*F.Driver, Probe, ELDDemoElement::Fire,
         Trick, Error) && Probe.ComponentBurnStacks == 1 && Probe.ComponentBurnSource == Trick);
     FLDCombatHit Wet, Zap;
-    TestTrue(TEXT("Water sets the hit's wet flag"), FAccess::ApplyComponentElement(*F.Driver, Wet, ELDDemoElement::Water, Trick, Error)
-        && Wet.bApplyWet && !Wet.bApplyElectric);
-    TestTrue(TEXT("Electric sets the hit's electric flag"), FAccess::ApplyComponentElement(*F.Driver, Zap, ELDDemoElement::Electric,
-        Trick, Error) && Zap.bApplyElectric && !Zap.bApplyWet);
+    TestTrue(TEXT("Water names the component as the hit's own water application"), FAccess::ApplyComponentElement(*F.Driver, Wet,
+        ELDDemoElement::Water, Trick, Error) && Wet.ComponentWetSource == Trick && !Wet.bApplyWet
+        && Wet.ComponentElectricSource.Kind == ELDCombatSourceKind::None);
+    TestTrue(TEXT("Electric names the component as the hit's own electric application"), FAccess::ApplyComponentElement(*F.Driver, Zap,
+        ELDDemoElement::Electric, Trick, Error) && Zap.ComponentElectricSource == Trick && !Zap.bApplyElectric
+        && Zap.ComponentWetSource.Kind == ELDCombatSourceKind::None);
+    TestFalse(TEXT("Two components' water on one hit is an error"), FAccess::ApplyComponentElement(*F.Driver, Wet,
+        ELDDemoElement::Water, SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_water")), Error));
     TestFalse(TEXT("No element is an error"), FAccess::ApplyComponentElement(*F.Driver, Probe, ELDDemoElement::None, Trick, Error));
 
     // B10 / B11: a primary basic of the holder marks its target wet / electric for four seconds; an ability hit does not.
@@ -1870,3 +2016,516 @@ bool FLDWorkshopLedgerTest::RunTest(const FString& Parameters)
     return true;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+// ---- #198 H combat event correctness (review R03-R05, R07-R11, S20 teammates, C01 windows). Every case starts from the
+// production release, delivery, zone, projectile, basic, burn or workshop entry; nothing hand-builds the event under test.
+namespace LDBuildPrimitivesTests
+{
+// One release of Active by Caster as Combat builds it: its catalog terms compiled with the caster's mods, then the payload.
+bool Released(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Caster, const TCHAR* Active, FLDCombatActiveTerms& Terms,
+    FLDCombatHit& Payload)
+{
+    FString Error;
+    if (!ActiveTerms(Test, F, Active, Terms)) { return false; }
+    const FLDCombatSourceRef Source = SourceOf(ELDCombatSourceKind::Learned, Active);
+    if (!FAccess::Compile(*F.Driver, F.Body(Caster).AttributeProjection, Source, Terms, Error)
+        || !FAccess::BuildPayload(*F.Driver, F.Body(Caster), Source, Terms, F.Foot(Caster), Payload, Error))
+    {
+        Test.AddError(FString::Printf(TEXT("Release of %s: %s"), Active, *Error));
+        return false;
+    }
+    return true;
+}
+
+// The standard unit delivery of a released payload onto Target.
+bool DeliverOnUnit(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Caster, const FLDCombatActiveTerms& Terms,
+    const FLDCombatHit& Payload, const FLDCombatBodyRef& Target)
+{
+    FLDCombatAction Action;
+    Action.Kind = ELDCombatActionKind::Ability;
+    Action.TargetBody = Target;
+    FString Error;
+    if (!FAccess::DeliverPayload(*F.Driver, F.Actor(Caster), F.Body(Caster), Terms, Action, Payload, Target, F.Foot(Target),
+        F.Foot(Caster), F.Mode->GetAuthorityNowMs(), Error))
+    {
+        Test.AddError(TEXT("Unit delivery: ") + Error);
+        return false;
+    }
+    return true;
+}
+
+// One landed primary basic of Holder on Target through LandBasic.
+bool Basic(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Holder, const FLDCombatBodyRef& Target)
+{
+    FString Error;
+    if (!FAccess::LandBasic(*F.Driver, F.Actor(Holder), F.Body(Holder), BasicAt(Target, 1), Error))
+    {
+        Test.AddError(TEXT("Basic: ") + Error);
+        return false;
+    }
+    return true;
+}
+
+bool Drain(FAutomationTestBase& Test, FFixture& F)
+{
+    FString Error;
+    if (!FAccess::ApplyPendingHits(*F.Driver, F.Mode->GetAuthorityNowMs(), Error)) { Test.AddError(TEXT("Effects: ") + Error); return false; }
+    return true;
+}
+
+// The one queued hit taken out and applied alone, leaving what it queued.
+bool ApplyFirst(FAutomationTestBase& Test, FFixture& F)
+{
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    if (Pending.IsEmpty()) { Test.AddError(TEXT("No queued hit")); return false; }
+    const FLDCombatHit First = Pending[0];
+    Pending.Reset();
+    FString Error;
+    if (!F.Apply(First, Error)) { Test.AddError(TEXT("Hit: ") + Error); return false; }
+    return true;
+}
+}
+
+// R03: a real S02 root and S03 stun carry their active as the control's exit, so C05 marks and consumes and C07 grants.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventControlSourceTest, "Lockdown.Rules.Combat.Events.ControlSource",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventControlSourceTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EKind = ELDComponentTargetKind;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Victim = F.AddBody(ELDVictimKind::Contender, 10000000);
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_pin_punch"), EKind::Active, TEXT("active_pants_down")),
+        On(TEXT("component_control_mana"), EKind::Active, TEXT("active_pants_down"))}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.Resources.MaxMpP2 = 100000;
+    Body.Resources.MpP2 = 0;
+    FLDCombatActiveTerms Root, Stun;
+    FLDCombatHit RootHit, StunHit;
+    if (!Released(*this, F, Holder, TEXT("active_pants_down"), Root, RootHit)
+        || !DeliverOnUnit(*this, F, Holder, Root, RootHit, Victim) || !Drain(*this, F)) { return false; }
+    TestTrue(TEXT("S02's root lands"), F.Body(Victim).Roots.Num() == 1);
+    TestTrue(TEXT("C05 reads S02 as the root's exit and marks the rooted life; C07 grants 4 MP"), Body.ControlMarks.Num() == 1
+        && Body.ControlMarks[0].Kind == ELDControlKind::Root && Body.Resources.MpP2 == 400);
+    F.Now(1500);
+    if (!Released(*this, F, Holder, TEXT("active_crotch_grab"), Stun, StunHit)
+        || !DeliverOnUnit(*this, F, Holder, Stun, StunHit, Victim) || !ApplyFirst(*this, F)) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("S03's stun (another kind) consumes the mark for C05's one physical 70G package"), F.Body(Victim).Stuns.Num() == 1
+        && Body.ControlMarks.IsEmpty() && Pending.Num() == 1 && Pending[0].Source.DefinitionId == FName(TEXT("component_pin_punch"))
+        && Pending[0].BaseP2 == 7000 && Pending[0].StunDurationMs == 0);
+    TestEqual(TEXT("C07 on S02 does not read S03"), Body.Resources.MpP2, int64(400));
+    return Drain(*this, F);
+}
+
+// R04: B10/B11 water and electric are their component's own applications: C09 on B11 arms on its conduct and M11 on B11 picks
+// its discharge target.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventElementSourceTest, "Lockdown.Rules.Combat.Events.ComponentElementSource",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventElementSourceTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EKind = ELDComponentTargetKind;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, Big),
+        Near = F.AddBody(ELDVictimKind::Contender, Big), Marked = F.AddBody(ELDVictimKind::Contender, Big),
+        Soaked = F.AddBody(ELDVictimKind::Contender, Big), Rain = F.AddBody(), Splasher = F.AddBody(),
+        Splashed = F.AddBody(ELDVictimKind::Contender, Big);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 150, 0);
+    F.Place(Near, 150, 200);
+    F.Place(Marked, 150, -320);
+    F.Place(Soaked, -300, 0);
+    F.Place(Rain, -600, 600);
+    F.Place(Splasher, 600, 600);
+    F.Place(Splashed, 600, 450);
+    const FLDCombatSourceRef Shock = SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_shock"));
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_fist_shock")},
+        On(TEXT("component_blast_chase"), EKind::Component, TEXT("component_fist_shock")),
+        On(TEXT("component_pick_you"), EKind::Component, TEXT("component_fist_shock"))})
+        || !InstallComponents(*this, F, Splasher, 1, {{TEXT("component_fist_water")}}))
+    { return false; }
+    FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId).Build.Actives = {{TEXT("active_pants_down"), ELDCombatEntry::Q}};
+    FString Error;
+    // C09 on B11: a wet body conducts on the holder's B11 basic; the reaction's trigger is B11, which arms C09.
+    FLDCombatHit Wet = FFixture::Hit(Rain, Soaked, 0);
+    Wet.bApplyWet = true;
+    if (!TestTrue(TEXT("The body is wet"), F.Apply(Wet, Error))) { return false; }
+    FAccess::Reactions(*F.Driver).Reset();
+    if (!Basic(*this, F, Holder, Soaked) || !Drain(*this, F)) { return false; }
+    const TArray<FLDCombatReactionFact>& Reactions = FAccess::Reactions(*F.Driver);
+    TestTrue(TEXT("B11's electric conducts as B11"), Reactions.Num() == 1 && Reactions[0].Kind == ELDCombatReaction::Conduct
+        && Reactions[0].TriggerSource == Shock);
+    TestTrue(TEXT("C09 on B11 arms one empowered basic"), F.Body(Holder).Empowers.ContainsByPredicate([](const FLDCombatEmpower& Row)
+    { return Row.Source.DefinitionId == FName(TEXT("component_blast_chase")); }));
+    // M11 on B11: the holder's S02 hits Marked directly; B11 electrifies Target; Target's next damage discharges to Marked
+    // instead of the nearer Near.
+    FLDCombatActiveTerms Root;
+    FLDCombatHit RootHit;
+    if (!Released(*this, F, Holder, TEXT("active_pants_down"), Root, RootHit) || !DeliverOnUnit(*this, F, Holder, Root, RootHit, Marked)
+        || !Drain(*this, F) || !Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
+    const FLDBodyCombatState& Charged = F.Body(Target);
+    TestTrue(TEXT("B11 electrifies the target as B11"), Charged.ElementMark.Kind == ELDCombatElement::Electric
+        && Charged.ElementMark.Applier.Source == Shock);
+    F.Now(1200);
+    if (!Basic(*this, F, Holder, Target) || !ApplyFirst(*this, F)) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const FLDCombatHit* Discharge = Pending.FindByPredicate([](const FLDCombatHit& Row) { return Row.bStatusSettle; });
+    TestTrue(TEXT("M11 on B11 sends the discharge to the holder's most recent direct target at 85%"), Discharge
+        && Discharge->Target == Marked && Discharge->PackageScaleBp == 8500 && Discharge->Source == Shock);
+    if (!Drain(*this, F)) { return false; }
+    // B10: its wet is credited to B10, not to the basic attack.
+    if (!Basic(*this, F, Splasher, Splashed) || !Drain(*this, F)) { return false; }
+    TestTrue(TEXT("B10 wets as B10"), F.Body(Splashed).ElementMark.Kind == ELDCombatElement::Water
+        && F.Body(Splashed).ElementMark.Applier.Source == SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_water")));
+    return true;
+}
+
+// R05 (spec §11.1/§18.1): an S08 pulse carries its native fire and B18's electric in one batch: fire fogs the wet target, the
+// fog's 0 s wet lands at once, then the electric conducts. Fire before electric, never the other way round.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventZoneBatchTest, "Lockdown.Rules.Combat.Events.ZoneElementBatch",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventZoneBatchTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Mage = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000), Rain = F.AddBody();
+    F.Place(Mage, 0, 0);
+    F.Place(Target, 400, 0);
+    F.Place(Rain, -600, 0);
+    FInstall Trick{TEXT("component_dirty_trick"), TEXT("active_quick_meeting"), ELDDemoElement::Electric};
+    if (!InstallComponents(*this, F, Mage, 1, {Trick})) { return false; }
+    FAccess::Records(*F.Driver).FindChecked(Mage.Victim.EntityId).Build.Actives = {{TEXT("active_quick_meeting"), ELDCombatEntry::Q}};
+    FString Error;
+    FLDCombatHit Wet = FFixture::Hit(Rain, Target, 0);
+    Wet.bApplyWet = true;
+    if (!TestTrue(TEXT("The target is wet"), F.Apply(Wet, Error))) { return false; }
+    FLDCombatActiveTerms Zone;
+    if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), Zone)) { return false; }
+    const FLDCombatSourceRef S08 = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_quick_meeting"));
+    FAccess::Reactions(*F.Driver).Reset();
+    if (!TestTrue(FString::Printf(TEXT("S08 is released on the target: %s"), *Error), FAccess::Compile(*F.Driver,
+        F.Body(Mage).AttributeProjection, S08, Zone, Error) && FAccess::ReleaseTerms(*F.Driver, F.Body(Mage), S08, Zone, F.Foot(Mage),
+        F.Foot(Target), Error))
+        || !TestTrue(FString::Printf(TEXT("Its first pulse: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1000, Error))
+        || !Drain(*this, F))
+    { return false; }
+    const TArray<FLDCombatReactionFact>& Reactions = FAccess::Reactions(*F.Driver);
+    TestTrue(TEXT("Fog from S08's fire first, then conduct from B18's electric on the fog's immediate wet"), Reactions.Num() == 2
+        && Reactions[0].Kind == ELDCombatReaction::Fog && Reactions[0].TriggerSource == S08
+        && Reactions[1].Kind == ELDCombatReaction::Conduct
+        && Reactions[1].TriggerSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_dirty_trick")));
+    const FLDBodyCombatState& Struck = F.Body(Target);
+    TestTrue(TEXT("Nothing is left on the target: the fire settled in the fog, the fog's wet in the conduct"),
+        Struck.ElementMark.Kind == ELDCombatElement::None && Struck.Burn.Layers.IsEmpty());
+    TestTrue(TEXT("The fog's next pulse is a second later"), FAccess::Fogs(*F.Driver).Num() == 1
+        && FAccess::Fogs(*F.Driver)[0].NextPulseMs == 2000);
+    return true;
+}
+
+// R07: B02 counts the basic, not the reaction or fire settle the same basic set off.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventLedgerSettleTest, "Lockdown.Rules.Combat.Events.LedgerSkipsSettles",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventLedgerSettleTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 150, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_fist_fire")}, {TEXT("component_fist_water")},
+        {TEXT("component_tab_ledger")}})) { return false; }
+    FAccess::Reactions(*F.Driver).Reset();
+    if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
+    const TArray<FLDCombatReactionFact>& Reactions = FAccess::Reactions(*F.Driver);
+    TestTrue(TEXT("The basic's own fire then water fog as B10"), Reactions.Num() == 1 && Reactions[0].Kind == ELDCombatReaction::Fog
+        && Reactions[0].TriggerSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_water")));
+    const FLDBodyCombatState& Victim = F.Body(Target);
+    TestTrue(TEXT("One B02 entry: the basic; the reaction and the fire settle add none"), Victim.Ledgers.Num() == 1
+        && Victim.Ledgers[0].EntriesP2.Num() == 1);
+    TestTrue(TEXT("The fog's 0 s pulse leaves the target wet"), Victim.ElementMark.Kind == ELDCombatElement::Water);
+    return true;
+}
+
+// R08 (spec §9 S19): armed for 6 s from placement; a trigger starts a 0.45 s fuse at the trap's point; untriggered it ends
+// without a blast; a trigger just before the end still blows.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventTrapFuseTest, "Lockdown.Rules.Combat.Events.TrapFuse",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventTrapFuseTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Caster = F.AddBody(), Enemy = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Caster, 0, 0);
+    F.Place(Enemy, 500, 0);
+    TArray<FLDCombatGroundEffect>& Ground = FAccess::Ground(*F.Driver);
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    FString Error;
+    const auto Place = [&](int64 AtMs)
+    {
+        F.Now(AtMs);
+        FLDCombatActiveTerms Trap;
+        FLDCombatHit Payload;
+        if (!Released(*this, F, Caster, TEXT("active_flyer_trap"), Trap, Payload)) { return false; }
+        FLDCombatAction Action;
+        Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+        bool bHandled = false;
+        return TestTrue(FString::Printf(TEXT("The trap is placed: %s"), *Error), FAccess::DeliverTerms(*F.Driver, F.Body(Caster), Trap,
+            Action, Payload, AtMs, bHandled, Error) && bHandled && Ground.Num() == 1);
+    };
+    const auto Advance = [&](int64 AtMs)
+    {
+        F.Now(AtMs);
+        return TestTrue(FString::Printf(TEXT("Skill content at %lld: %s"), AtMs, *Error), FAccess::AdvanceSkillContent(*F.Driver, AtMs, Error));
+    };
+    if (!Place(1000)) { return false; }
+    TestTrue(TEXT("Armed from placement for 6 s with a 0.45 s fuse"), Ground[0].ReadyAtMs == 1000 && Ground[0].ExpiresAtMs == 7000
+        && Ground[0].FuseMs == 450 && !Ground[0].bTriggered);
+    if (!Advance(3000)) { return false; }
+    TestTrue(TEXT("Nobody within 1 m: it waits"), Ground.Num() == 1 && !Ground[0].bTriggered && Pending.IsEmpty());
+    F.Place(Enemy, 350, 0);
+    if (!Advance(3000)) { return false; }
+    TestTrue(TEXT("A step inside triggers the fuse; nothing blows yet"), Ground.Num() == 1 && Ground[0].bTriggered
+        && Ground[0].ReadyAtMs == 3450 && Pending.IsEmpty());
+    if (!Advance(3449)) { return false; }
+    TestTrue(TEXT("Still fusing"), Ground.Num() == 1 && Pending.IsEmpty());
+    if (!Advance(3450)) { return false; }
+    TestTrue(TEXT("It blows at its own point 0.45 s after the trigger"), Ground.IsEmpty() && Pending.Num() == 1 && Pending[0].Target == Enemy);
+    FAccess::PendingHits(*F.Driver).Reset();
+    F.Place(Enemy, 650, 0);
+    if (!Place(4000) || !Advance(9999)) { return false; }
+    TestTrue(TEXT("An untriggered trap lasts until its 6 s end"), Ground.Num() == 1 && Pending.IsEmpty());
+    if (!Advance(10000)) { return false; }
+    TestTrue(TEXT("and ends without a blast"), Ground.IsEmpty() && Pending.IsEmpty());
+    if (!Place(10000) || !Advance(15900)) { return false; }
+    F.Place(Enemy, 330, 0);
+    if (!Advance(15900) || !Advance(16000)) { return false; }
+    TestTrue(TEXT("A trigger before its end keeps fusing past the end"), Ground.Num() == 1 && Ground[0].bTriggered && Pending.IsEmpty());
+    if (!Advance(16350)) { return false; }
+    TestTrue(TEXT("and blows"), Ground.IsEmpty() && Pending.Num() == 1);
+    return true;
+}
+
+// R09 (spec §9.1/§12.1): a due M12 debt is paid at its original amount through a live S16 stance and feeds no record.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventDebtBraceTest, "Lockdown.Rules.Combat.Events.DebtBypassesBrace",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventDebtBraceTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Attacker = F.AddBody(), Holder = F.AddBody(ELDVictimKind::Contender, 10000000);
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_owe_it"), ELDComponentTargetKind::None)})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FString Error;
+    if (!TestTrue(TEXT("A hostile hit"), F.Apply(FFixture::Hit(Attacker, Holder, 40000), Error)) || !TestEqual(TEXT("One debt"),
+        Body.Debts.Num(), 1)) { return false; }
+    const int64 Debt = Body.Debts[0].AmountP2;
+    FLDCombatActiveTerms Brace;
+    if (!ActiveTerms(*this, F, TEXT("active_brace"), Brace)) { return false; }
+    const FLDDemoEffectDefinition* Stance = FindEffect(Brace.Values, ELDDemoEffectOp::Brace);
+    F.Now(2000);
+    if (!TestNotNull(TEXT("S16's stance"), Stance) || !TestTrue(TEXT("S16 starts"), FAccess::ReleaseBrace(*F.Driver, Body, *Stance, 2000, Error)))
+    { return false; }
+    F.Now(4000);
+    const int64 Before = Body.Resources.HpP2;
+    if (!TestTrue(FString::Printf(TEXT("The debt falls due: %s"), *Error), FAccess::AdvanceWorkshop(*F.Driver, 4000, Error))
+        || !Drain(*this, F)) { return false; }
+    TestTrue(TEXT("Paid in full through the stance, which records nothing"), Debt > 0 && Body.Resources.HpP2 == Before - Debt
+        && Body.Brace.EffectId.IsValid() && Body.Brace.RecordedP2 == 0);
+    return true;
+}
+
+// R10: C10's one answer to a broken shield shares one effect identity over every body it reaches, so C11's 30G on it is one
+// budget.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventShieldBurstTest, "Lockdown.Rules.Combat.Events.ShieldBurstBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventShieldBurstTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EKind = ELDComponentTargetKind;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, Big), First = F.AddBody(ELDVictimKind::Contender, Big),
+        Second = F.AddBody(ELDVictimKind::Contender, Big);
+    F.Place(Holder, 0, 0);
+    F.Place(First, 150, 0);
+    F.Place(Second, -150, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_hard_skin")},
+        On(TEXT("component_shell_burst"), EKind::Component, TEXT("component_hard_skin")),
+        On(TEXT("component_hurt_heal"), EKind::Component, TEXT("component_shell_burst"))}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FString Error;
+    if (!TestTrue(TEXT("A hostile hit grants B09's shield"), F.Apply(FFixture::Hit(First, Holder, 1000), Error)
+        && Body.Resources.ShieldP2 > 0 && Body.ShieldGrantSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_hard_skin"))))
+    { return false; }
+    F.Now(1100);
+    FAccess::PendingHits(*F.Driver).Reset();
+    if (!TestTrue(FString::Printf(TEXT("A big hit breaks it: %s"), *Error), F.Apply(FFixture::Hit(First, Holder, 2000000), Error)
+        && Body.Resources.ShieldP2 == 0)) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("C10 answers both bodies around the holder as one effect"), Pending.Num() == 2 && Pending[0].EffectId == Pending[1].EffectId
+        && Pending[0].Source.DefinitionId == FName(TEXT("component_shell_burst")) && Pending[0].Target != Pending[1].Target);
+    const int64 Before = Body.Resources.HpP2;
+    if (!Drain(*this, F)) { return false; }
+    TestEqual(TEXT("C11 heals 30G in all for that one answer, not 30G per body"), Body.Resources.HpP2 - Before, int64(3000));
+    return true;
+}
+
+// R11 (spec §12.1): M01 spreads S21's damage around the struck body; the cut of heals and shields and the attack slow stay on it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventSpreadTest, "Lockdown.Rules.Combat.Events.SpreadDamageOnly",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventSpreadTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Caster = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, Big),
+        Beside = F.AddBody(ELDVictimKind::Contender, Big);
+    F.Place(Caster, 0, 0);
+    F.Place(Target, 300, 0);
+    F.Place(Beside, 300, 130);
+    if (!InstallComponents(*this, F, Caster, 1, {On(TEXT("component_crowd_hit"), ELDComponentTargetKind::Active, TEXT("active_sock_shot"))}))
+    { return false; }
+    FLDCombatActiveTerms Sock;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Caster, TEXT("active_sock_shot"), Sock, Payload)) { return false; }
+    TestTrue(TEXT("S21's payload carries its cut"), Payload.GrievousBp == 3500 && Payload.AttackSlowBp > 0 && Sock.SpreadProjectile.IsSet());
+    FLDCombatAction Action;
+    Action.Direction = FVector(1, 0, 0);
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("The sock flies: %s"), *Error), FAccess::DeliverPayload(*F.Driver, F.Actor(Caster), F.Body(Caster),
+        Sock, Action, Payload, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Caster), 1000, Error)
+        && FAccess::Projectiles(*F.Driver).Num() == 1)) { return false; }
+    F.Now(1400);
+    if (!TestTrue(FString::Printf(TEXT("It lands: %s"), *Error), FAccess::AdvanceProjectiles(*F.Driver, Error)
+        && FAccess::PendingHits(*F.Driver).Num() == 2) || !Drain(*this, F)) { return false; }
+    const FLDBodyCombatState& Struck = F.Body(Target);
+    const FLDBodyCombatState& Splashed = F.Body(Beside);
+    TestTrue(TEXT("The struck body takes the cut and the slow"), Struck.Grievous.RatioBp == 3500 && !Struck.AttackSlows.IsEmpty());
+    TestTrue(TEXT("The body beside it takes the damage only"), Splashed.Resources.HpP2 < Big && Splashed.Grievous.RatioBp == 0
+        && Splashed.Grievous.ExpiresAtMs == 0 && Splashed.AttackSlows.IsEmpty());
+    return true;
+}
+
+// S20 (spec §9): its owner and the owner's current-match teammates run faster inside the puddle; enemies and teammates outside do
+// not; leaving drops it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventZoneHasteTest, "Lockdown.Rules.Combat.Events.ZoneHasteTeam",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventZoneHasteTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Owner = F.AddBody(), Mate = F.AddBody(ELDVictimKind::Contender, Big), Far = F.AddBody(ELDVictimKind::Contender, Big),
+        Enemy = F.AddBody(ELDVictimKind::Contender, Big);
+    const FGuid Group = FGuid::NewGuid();
+    const auto Join = [&](const FLDCombatBodyRef& Ref, uint8 Side)
+    {
+        F.Body(Ref).IsolationGroup = Group;
+        F.Body(Ref).PKSide = Side;
+    };
+    Join(Owner, 1);
+    Join(Mate, 1);
+    Join(Far, 1);
+    Join(Enemy, 2);
+    F.Place(Owner, 250, 0);
+    F.Place(Mate, 350, 60);
+    F.Place(Far, -600, 0);
+    F.Place(Enemy, 300, -80);
+    FLDCombatActiveTerms Puddle;
+    if (!ActiveTerms(*this, F, TEXT("active_dirty_puddle"), Puddle)) { return false; }
+    FString Error;
+    const FLDCombatSourceRef S20 = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_dirty_puddle"));
+    if (!TestTrue(FString::Printf(TEXT("S20 is released: %s"), *Error), FAccess::ReleaseTerms(*F.Driver, F.Body(Owner), S20, Puddle,
+        F.Foot(Owner), F.Origin + FVector(300, 0, 0), Error) && FAccess::Zones(*F.Driver).Num() == 1)) { return false; }
+    const FGuid ZoneId = FAccess::Zones(*F.Driver)[0].EffectId;
+    const auto Hasted = [&](const FLDCombatBodyRef& Ref)
+    { return F.Body(Ref).TimedBonuses.ContainsByPredicate([&ZoneId](const FLDCombatTimedBonus& Row) { return Row.EffectId == ZoneId; }); };
+    if (!TestTrue(FString::Printf(TEXT("The zone runs: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1000, Error))) { return false; }
+    TestTrue(TEXT("The owner and its teammate inside are hasted"), Hasted(Owner) && Hasted(Mate));
+    TestTrue(TEXT("A teammate outside and an enemy inside are not"), !Hasted(Far) && !Hasted(Enemy));
+    TestTrue(TEXT("Its pulse still reaches the enemy, never the teammate"), FAccess::PendingHits(*F.Driver).ContainsByPredicate(
+        [&Enemy](const FLDCombatHit& Row) { return Row.Target == Enemy; }) && !FAccess::PendingHits(*F.Driver).ContainsByPredicate(
+        [&Mate](const FLDCombatHit& Row) { return Row.Target == Mate; }));
+    FAccess::PendingHits(*F.Driver).Reset();
+    F.Place(Mate, 650, 0);
+    F.Place(Far, 300, 60);
+    F.Now(1100);
+    if (!TestTrue(FString::Printf(TEXT("The zone runs on: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1100, Error))) { return false; }
+    TestTrue(TEXT("Leaving drops it; entering grants it"), !Hasted(Mate) && Hasted(Far) && Hasted(Owner));
+    return true;
+}
+
+// C01 (spec §13.3): fixed 1 s windows from its first install; a window settles after every fire fact up to its boundary;
+// an uninstall drops the open window and a reinstall keeps the original boundaries.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventFireWindowTest, "Lockdown.Rules.Combat.Events.FireShieldWindows",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventFireWindowTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_fist_fire")},
+        On(TEXT("component_fire_skin"), ELDComponentTargetKind::Component, TEXT("component_fist_fire"))}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId);
+    const FLDAttributeProjection Installed = Body.BuildProjection;
+    const FLDAttributeProjection Bare = ProjectComponents(*F.Catalog, 1, {{TEXT("component_fist_fire")}}).Value.GetValue();
+    FString Error;
+    Record.Projection = Installed;
+    if (!TestTrue(TEXT("C01 is installed at 1000"), FAccess::NoteInstall(*F.Driver, Record, Bare, &Body, 1000, Error)
+        && Record.FireWindowAnchorMs.IsSet() && Record.FireWindowAnchorMs.GetValue() == 1000)) { return false; }
+    // B01's layer at 1500 ticks 1.50 at 2000, 2500, 3000, 3500 ...
+    F.Now(1500);
+    if (!Basic(*this, F, Holder, Target) || !Drain(*this, F) || !TestEqual(TEXT("One B01 layer"), F.Body(Target).Burn.Layers.Num(), 1))
+    { return false; }
+    const auto Boundary = [&](int64 AtMs)
+    {
+        F.Now(AtMs);
+        return TestTrue(FString::Printf(TEXT("Burns at %lld: %s"), AtMs, *Error), FAccess::AdvanceBurns(*F.Driver, AtMs, Error))
+            && Drain(*this, F);
+    };
+    if (!Boundary(2000)) { return false; }
+    TestTrue(TEXT("(1000, 2000] holds the tick on its boundary and settles after it: 12G + 60% of 1.50"),
+        Body.Resources.ShieldP2 == 1290 && Body.FireWindowEndMs == 0);
+    if (!Boundary(2500)) { return false; }
+    TestTrue(TEXT("(2000, 3000] stays open"), Body.FireWindowEndMs == 3000 && Body.FireWindowSumP2 == 150 && Body.Resources.ShieldP2 == 1290);
+    if (!Boundary(3000)) { return false; }
+    TestTrue(TEXT("Its boundary tick joins it before it settles: 12G + 60% of 3.00 replaces the weaker shield"),
+        Body.Resources.ShieldP2 == 1380 && Body.FireWindowEndMs == 0);
+    if (!Boundary(3500)) { return false; }
+    Record.Projection = Bare;
+    TestTrue(TEXT("An uninstall drops the open window"), FAccess::NoteInstall(*F.Driver, Record, Installed, &Body, 3600, Error)
+        && Body.FireWindowEndMs == 0 && Body.FireWindowSumP2 == 0);
+    Record.Projection = Installed;
+    TestTrue(TEXT("A reinstall keeps the first boundaries"), FAccess::NoteInstall(*F.Driver, Record, Bare, &Body, 3700, Error)
+        && Record.FireWindowAnchorMs.GetValue() == 1000);
+    if (!Boundary(4000)) { return false; }
+    TestEqual(TEXT("The tick on 4000 closes (3000, 4000] at once"), Body.FireWindowEndMs, int64(0));
+    return true;
+}
+#endif

@@ -731,7 +731,17 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         }
     }
     Record->Installed.BuildRevision=Prepared.Input.ResultBuildRevision;
+    const FLDAttributeProjection PreviousProjection=Record->Projection;
     Record->Projection=Prepared.Projection;
+    {
+        FString Error;
+        if (!NoteWorkshopInstall(*Record,PreviousProjection,Body,Mode->GetAuthorityNowMs(),Error))
+        {
+            Mode->FaultAuthority(FString::Printf(TEXT("Combat build install for %s lost its connector terms: %s"),
+                *Prepared.Contender.ToString(),*Error));
+            return;
+        }
+    }
     for (const FLDCombatBindingPlan& Row : Prepared.BindingPlan)
     {
         FLDCombatTrack* Track=Row.bNewTrack ? &Record->Tracks.AddDefaulted_GetRef()
