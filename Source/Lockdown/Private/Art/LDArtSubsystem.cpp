@@ -1,11 +1,15 @@
 #include "Art/LDArtSubsystem.h"
 #include "Core/LDLog.h"
 #include "Art/LDDecorationSet.h"
+#include "Character/LDModelPicking.h"
 #include "Engine/GameInstance.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapGeometry.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "Tests/LDDemoArtCaptureProbe.h"
 
 bool ULDArtSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -29,6 +33,20 @@ void ULDArtSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     {
         UE_LOG(LogLDContent, Display, TEXT("LD_ART_CATALOG_READY %d characters, %d props and %d decorations resolved."),
             Catalog->Characters.Num(), Catalog->Props.Num(), Catalog->Decorations.Num());
+        // Each body's shared picking model is built while loading rather than on the first pointer hover.
+        for (const FLDArtCharacter& Body : Catalog->Characters)
+        {
+            const FSkeletalMeshRenderData* RenderData = Body.Mesh->GetResourceForRendering();
+            for (int32 LOD = 0; RenderData && LOD < RenderData->LODRenderData.Num(); ++LOD)
+            {
+                const FSkeletalMeshLODRenderData& Data = RenderData->LODRenderData[LOD];
+                if (!Data.GetSkinWeightVertexBuffer() || !LDModelPicking::SharedSkinnedModel(*Body.Mesh, LOD, Data, *Data.GetSkinWeightVertexBuffer()))
+                {
+                    UE_LOG(LogLDContent, Error, TEXT("LD_PICK_MODEL_UNAVAILABLE mesh=%s lod=%d keeps no CPU mesh data; rerun ImportDemoArt.ps1 -Mode Import."),
+                        *LDLog::Quote(Body.Mesh->GetName()), LOD);
+                }
+            }
+        }
         return;
     }
     Resolved = FLDArtResolved();

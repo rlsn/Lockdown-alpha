@@ -290,8 +290,8 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     Clip = ELDArtAnim::Count;
     bFlashing = false;
     PickingFrame = MAX_uint64;
-    PickingVertices.Reset();
-    PickingIndices.Reset();
+    PickingModel.Reset();
+    PickingPose = {};
     if (!Art)
     {
         // The art subsystem has logged why its catalog is unavailable; this body draws nothing rather than a stand-in.
@@ -353,28 +353,28 @@ bool ULDHumanoidVisualComponent::TracePresentedModel(const FVector& Start, const
     if (!RenderData || !RenderData->LODRenderData.IsValidIndex(LODIndex)) { return false; }
     const FSkeletalMeshLODRenderData& LOD = RenderData->LODRenderData[LODIndex];
     FSkinWeightVertexBuffer* Weights = Mesh->GetSkinWeightBuffer(LODIndex);
-    const auto* IndexBuffer = LOD.MultiSizeIndexContainer.GetIndexBuffer();
     const FSkeletalMeshLODInfo* LODInfo=Mesh->GetSkeletalMeshAsset()->GetLODInfo(LODIndex);
-    if (!ensureMsgf(Weights && IndexBuffer && LODInfo && LODInfo->bAllowCPUAccess,
+    if (!ensureMsgf(Weights && LODInfo && LODInfo->bAllowCPUAccess,
         TEXT("Presented model picking needs CPU mesh data; rerun ImportDemoArt.ps1 -Mode Import."))) { return false; }
     if (PickingFrame != GFrameCounter)
     {
-        TArray<FMatrix44f> RefToLocal;
-        Mesh->CacheRefToLocalMatrices(RefToLocal);
-        // Unlike GetCPUSkinnedVertices this never flushes the render thread or changes the skinning mode.
-        USkinnedMeshComponent::ComputeSkinnedPositions(Mesh, PickingVertices, RefToLocal, LOD, *Weights);
-        PickingIndices.Reset();
-        for (const FSkelMeshRenderSection& Section : LOD.RenderSections)
+        PickingFrame = MAX_uint64;
+        PickingModel = LDModelPicking::SharedSkinnedModel(*Mesh->GetSkeletalMeshAsset(), LODIndex, LOD, *Weights);
+        if (!ensureMsgf(PickingModel, TEXT("Presented model picking needs CPU mesh data; rerun ImportDemoArt.ps1 -Mode Import.")))
         {
-            if (Section.bDisabled || Mesh->IsMaterialSectionShown(Section.MaterialIndex, LODIndex) == false) { continue; }
-            for (uint32 Index = Section.BaseIndex; Index < Section.BaseIndex + Section.NumTriangles * 3; ++Index)
-            { PickingIndices.Add(IndexBuffer->Get(Index)); }
+            return false;
         }
+        // Unlike GetCPUSkinnedVertices this never flushes the render thread or changes the skinning mode; only the
+        // leaves a ray reaches are skinned.
+        Mesh->CacheRefToLocalMatrices(PickingPose.RefToLocal);
+        if (!ensureMsgf(LDModelPicking::PoseBounds(*PickingModel, PickingPose),
+            TEXT("%s has fewer bone matrices than its picking model needs."), *Mesh->GetSkeletalMeshAsset()->GetName())) { return false; }
         PickingFrame = GFrameCounter;
     }
     const FTransform& Transform = Mesh->GetComponentTransform();
-    return LDModelPicking::Trace(PickingVertices, PickingIndices,
-        Transform.InverseTransformPosition(Start), Transform.InverseTransformPosition(End), OutFraction);
+    return LDModelPicking::TraceSkinned(*PickingModel, PickingPose, Transform.InverseTransformPosition(Start),
+        Transform.InverseTransformPosition(End), [this, LODIndex](int32 Material) { return Mesh->IsMaterialSectionShown(Material, LODIndex); },
+        OutFraction);
 }
 
 bool ULDHumanoidVisualComponent::PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const
