@@ -378,7 +378,7 @@ FString LDHUD::PKRelationText(const FLDPublicMatchView& Public,const FGuid& Self
     const FLDPKEntrantView* TargetEntry=Public.PK.FindEntrant(Target);
     if(!TargetEntry||TargetEntry->Side==0||TargetEntry->Side>Public.PK.SideCount){return FString();}
     const FLDPKEntrantView* SelfEntry=Public.PK.FindEntrant(Self);
-    if(!SelfEntry){return LDTerms::PKSide(TargetEntry->Side);}
+    if(!SelfEntry||IsSpectatingPK(Public,Self)){return LDTerms::PKSide(TargetEntry->Side);}
     if(Self==Target){return FString(LDTerms::PKOwnSide);}
     return SelfEntry->Side==TargetEntry->Side?FString(LDTerms::PKTeammate):FString(LDTerms::PKEnemy);
 }

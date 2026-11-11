@@ -416,6 +416,12 @@ bool FLDHUDPKViewTest::RunTest(const FString& Parameters)
     Timeline.Step=ELDRestStep::PK;Timeline.StepStartedAtMs=111000;Timeline.StepEndsAtMs=171000;
     PK.FightStartedAtMs=111000;PK.Outcome=ELDPKOutcome::Running;PK.Entrants[1].bAlive=false;
     TestTrue(TEXT("An eliminated entrant watches the arena"),LDHUD::IsSpectatingPK(Public,B)&&!LDHUD::IsSpectatingPK(Public,C));
+    TestEqualSensitive(TEXT("An eliminated entrant sees its former teammate's side, not a teammate relation"),
+        LDHUD::PKRelationText(Public,B,D),LDTerms::PKSide(2));
+    TestEqualSensitive(TEXT("An eliminated entrant sees the other side, not an enemy relation"),
+        LDHUD::PKRelationText(Public,B,A),LDTerms::PKSide(1));
+    TestTrue(TEXT("Living PK fighters retain teammate and enemy relations"),
+        LDHUD::PKRelationText(Public,A,C)==LDTerms::PKTeammate&&LDHUD::PKRelationText(Public,A,D)==LDTerms::PKEnemy);
     In.Self=B;In.NowMs=116000;View=LDHUD::PKPanel(Public,Lobby,In);
     TestTrue(TEXT("The eliminated entrant is read-only and told so"),View.bSpectating&&!View.bCanBet&&!View.bCanThrow&&View.Role==LDTerms::PKRoleOut);
     TestTrue(TEXT("Its name carries the out mark once the fight started"),View.Sides[1].Line.Contains(FString(TEXT("乙（"))+LDTerms::PKOut+TEXT("）"))
