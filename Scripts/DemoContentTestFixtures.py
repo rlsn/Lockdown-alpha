@@ -47,6 +47,7 @@ def content_fixture():
         ("PK.RingPreviewSec", "s", 8), ("PK.RingDamageTickSec", "s", 0.5),
         ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", 0.04), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", 0.1),
         ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", 0.2), ("PK.TeamFormatRatio", "ratio", 0.25),
+        ("PK.RewardMultiplier", "ratio", 1.5),
         ("THROW.CooldownSec", "s", 8), ("THROW.TelegraphSec", "s", 0.5), ("THROW.RadiusCm", "cm", 100),
         ("THROW.RangeCm", "cm", 3000), ("THROW.SlowRatio", "ratio", 0.25), ("THROW.SlowSec", "s", 1.5),
         ("THROW.ExposeSec", "s", 3),
@@ -213,7 +214,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
     next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 2, "handler_revision": 3, "projection_revision": 5,
+        "identity": {"schema_version": 2, "handler_revision": 4, "projection_revision": 6,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},

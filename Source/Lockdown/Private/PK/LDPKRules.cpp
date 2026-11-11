@@ -11,6 +11,7 @@ constexpr int64 DurationBound = int64(MAX_int32) * 1000;
 constexpr double RadiusBoundCm = 1000000.0;
 constexpr int64 PointsBound = 64;
 constexpr int64 BpWhole = 10000;
+constexpr int64 MaxAwardMultiplierBp = MAX_int64 / (LDPKRules::SpawnAnchors * PointsBound);
 // MaxHpP2 * bp * ms / RingDamageScale = P2 (bp = 1e-4, ms = 1e-3 s).
 constexpr int64 RingDamageScale = 10000000;
 
@@ -35,6 +36,16 @@ bool CheckedMul(int64 A, int64 B, int64& Out)
     check(A >= 0 && B >= 0);
     if (A != 0 && B > MAX_int64 / A) { return false; }
     Out = A * B;
+    return true;
+}
+
+bool ScaleAwardPool(int64 BasePool, int64 MultiplierBp, int64& Out)
+{
+    int64 Scaled;
+    if (BasePool < 0 || MultiplierBp < BpWhole || MultiplierBp > MaxAwardMultiplierBp
+        || !CheckedMul(BasePool, MultiplierBp, Scaled)) { return false; }
+    Out = Scaled / BpWhole;
+    if (Scaled % BpWhole != 0) { ++Out; }
     return true;
 }
 
@@ -93,6 +104,7 @@ bool FLDPKParameters::FromContent(const FLDDemoContentParameters& Content, FLDPK
     Out.MidDamageBp = Content.PKRingMidDamageBp;
     Out.FinalDamageBp = Content.PKRingFinalDamageBp;
     Out.TeamFormatBp = Content.PKTeamFormatBp;
+    Out.RewardMultiplierBp = Content.PKRewardMultiplierBp;
     Out.ParticipationPoints = Content.PKParticipationPoints;
     Out.WinnerPointsMax = Content.PKWinnerPointsMax;
     Out.BettingPoolMaxPoints = Content.PKBettingPoolMaxPoints;
@@ -148,6 +160,11 @@ bool FLDPKParameters::Validate(FString& Error) const
     if (TeamFormatBp < 0 || TeamFormatBp > LDPKRulesDetail::BpWhole)
     {
         Error = TEXT("The approved PK team format probability must be in [0, 10000] basis points.");
+        return false;
+    }
+    if (RewardMultiplierBp < LDPKRulesDetail::BpWhole || RewardMultiplierBp > LDPKRulesDetail::MaxAwardMultiplierBp)
+    {
+        Error = TEXT("The approved PK reward multiplier is outside the safe range.");
         return false;
     }
     const int64 Points[] = {ParticipationPoints, WinnerPointsMax, BettingPoolMaxPoints};
@@ -553,6 +570,12 @@ bool LDPKRules::ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcom
             return false;
         }
     }
+    if (Params.RewardMultiplierBp < LDPKRulesDetail::BpWhole
+        || Params.RewardMultiplierBp > LDPKRulesDetail::MaxAwardMultiplierBp)
+    {
+        Error = TEXT("PK reward multiplier is outside the safe range.");
+        return false;
+    }
     uint8 MaxSide = 0;
     for (const uint8 Side : SideOfSeat)
     {
@@ -585,10 +608,25 @@ bool LDPKRules::ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcom
     const int32 Entrants = SideOfSeat.Num();
     TArray<FLDPKAward> Seats;
     Seats.SetNum(Entrants);
+    TArray<int32> EligibleParticipants;
     for (int32 Seat = 0; Seat < Entrants; ++Seat)
     {
         Seats[Seat].Seat = Seat;
-        if (EligibleOfSeat[Seat]) { Seats[Seat].Participation = Params.ParticipationPoints; }
+        if (EligibleOfSeat[Seat]) { EligibleParticipants.Add(Seat); }
+    }
+    int64 ParticipationBasePool = 0;
+    int64 ParticipationPool = 0;
+    if (!LDPKRulesDetail::CheckedMul(EligibleParticipants.Num(), Params.ParticipationPoints, ParticipationBasePool)
+        || !LDPKRulesDetail::ScaleAwardPool(ParticipationBasePool, Params.RewardMultiplierBp, ParticipationPool))
+    {
+        Error = TEXT("PK participation award pool is not representable.");
+        return false;
+    }
+    TArray<int64> Split;
+    SplitWithRotation(ParticipationPool, EligibleParticipants.Num(), Serial, Split);
+    for (int32 Index = 0; Index < EligibleParticipants.Num(); ++Index)
+    {
+        Seats[EligibleParticipants[Index]].Participation = Split[Index];
     }
     TArray<FLDPKAward> Bettors;
     Bettors.SetNum(BetSideOfBettor.Num());
@@ -602,8 +640,14 @@ bool LDPKRules::ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcom
         {
             if (SideOfSeat[Seat] == WinnerSide && EligibleOfSeat[Seat]) { Winners.Add(Seat); }
         }
-        TArray<int64> Split;
-        SplitWithRotation(FMath::Min<int64>((Entrants + 1) / 2, Params.WinnerPointsMax), Winners.Num(), Serial, Split);
+        const int64 WinnerBasePool = FMath::Min<int64>((Entrants + 1) / 2, Params.WinnerPointsMax);
+        int64 WinnerPool = 0;
+        if (!LDPKRulesDetail::ScaleAwardPool(WinnerBasePool, Params.RewardMultiplierBp, WinnerPool))
+        {
+            Error = TEXT("PK winner award pool is not representable.");
+            return false;
+        }
+        SplitWithRotation(WinnerPool, Winners.Num(), Serial, Split);
         for (int32 Index = 0; Index < Winners.Num(); ++Index) { Seats[Winners[Index]].Winner = Split[Index]; }
 
         TArray<int32> Correct;
@@ -611,10 +655,29 @@ bool LDPKRules::ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcom
         {
             if (BetSideOfBettor[Bettor] == WinnerSide && BettorPresent[Bettor]) { Correct.Add(Bettor); }
         }
-        SplitWithRotation(FMath::Min<int64>(BetSideOfBettor.Num(), Params.BettingPoolMaxPoints), Correct.Num(), Serial, Split);
+        const int64 BettingBasePool = FMath::Min<int64>(BetSideOfBettor.Num(), Params.BettingPoolMaxPoints);
+        int64 BettingPool = 0;
+        if (!LDPKRulesDetail::ScaleAwardPool(BettingBasePool, Params.RewardMultiplierBp, BettingPool))
+        {
+            Error = TEXT("PK betting award pool is not representable.");
+            return false;
+        }
+        SplitWithRotation(BettingPool, Correct.Num(), Serial, Split);
         for (int32 Index = 0; Index < Correct.Num(); ++Index) { Bettors[Correct[Index]].Bet = Split[Index]; }
     }
 
+    // Validate the entire settlement before exposing any row to the uint8 public/payment projection.
+    for (const TArray<FLDPKAward>* Group : {&Seats, &Bettors})
+    {
+        for (const FLDPKAward& Award : *Group)
+        {
+            if (Award.Participation > MAX_uint8 || Award.Winner > MAX_uint8 || Award.Bet > MAX_uint8)
+            {
+                Error = TEXT("A PK award exceeds the public payment representation.");
+                return false;
+            }
+        }
+    }
     for (const FLDPKAward& Award : Seats)
     {
         if (Award.Participation + Award.Winner + Award.Bet > 0) { Out.Add(Award); }

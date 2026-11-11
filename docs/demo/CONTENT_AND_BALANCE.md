@@ -288,9 +288,10 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `PK.RingDamageMidMaxHPRatioPerSec` | ratio/R4 | 0.12 | 2026-11-10 用户批准（同上）；40–55s 圈外每秒12% |
 | `PK.RingDamageFinalMaxHPRatioPerSec` | ratio/R4 | 0.25 | 2026-11-10 用户批准（同上）；55–60s 圈外每秒25% |
 | `PK.TeamFormatRatio` | ratio/R4 | 0.5 | 2026-11-10 用户批准（同上）；4或6人参赛时以此概率混战，否则平均随机分队 |
-| `PK.ParticipationPoints` | Count | 1 | 2026-11-10 用户批准（同上）；每名参赛者的参与点数 |
-| `PK.WinnerPointsMax` | Count | 3 | 2026-11-10 用户批准（同上）；胜方共享 ⌈N/2⌉ 点，最多这么多 |
-| `PK.BettingPoolMaxPoints` | Count | 2 | 2026-11-10 用户批准（同上）；竞猜奖池 = min(此值, 合格观众数) |
+| `PK.RewardMultiplier` | ratio/R4 | 1.5 | 2026-11-12 用户批准（#225，原话：“所有休息期 PK（单挑、混战、组队）”“三类奖励都提升”“奖池向上取整、余数轮流分配：4.5→5 点（推荐）”）；三类基准奖池各自乘此值后向上取整，再轮换分配 |
+| `PK.ParticipationPoints` | Count | 1 | 2026-11-10 用户批准（#198）；每位合资格选手的基准参与点数；本场参与基准奖池为合资格选手数 × 此值 |
+| `PK.WinnerPointsMax` | Count | 3 | 2026-11-10 用户批准（#198）；胜方基准奖池为 ⌈N/2⌉ 点，最多这么多；再乘 `PK.RewardMultiplier` |
+| `PK.BettingPoolMaxPoints` | Count | 2 | 2026-11-10 用户批准（#198）；竞猜基准奖池 = min(此值, 合格观众数)；再乘 `PK.RewardMultiplier` |
 | `THROW.CooldownSec` | s/Sec | 10 | 2026-11-10 用户批准（同上）；观众投掷冷却，从一次成功投掷开始计 |
 | `THROW.TelegraphSec` | s/Sec | 0.8 | 2026-11-10 用户批准（同上）；投掷落点预警时长 |
 | `THROW.RadiusCm` | cm/Cm | 120 | 2026-11-10 用户批准（同上）；落点作用半径，须大于0 |

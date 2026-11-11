@@ -262,6 +262,7 @@ def parameter_projection(parameters):
         ("PK.RingPreviewSec", "PKRingPreviewMs"), ("PK.RingDamageTickSec", "PKRingTickMs"),
         ("PK.RingDamageEarlyMaxHPRatioPerSec", "PKRingEarlyDamageBp"), ("PK.RingDamageMidMaxHPRatioPerSec", "PKRingMidDamageBp"),
         ("PK.RingDamageFinalMaxHPRatioPerSec", "PKRingFinalDamageBp"), ("PK.TeamFormatRatio", "PKTeamFormatBp"),
+        ("PK.RewardMultiplier", "PKRewardMultiplierBp"),
         ("THROW.CooldownSec", "ThrowCooldownMs"), ("THROW.TelegraphSec", "ThrowTelegraphMs"),
         ("THROW.SlowRatio", "ThrowSlowBp"), ("THROW.SlowSec", "ThrowSlowMs"), ("THROW.ExposeSec", "ThrowExposeMs"),
         ("LIFE.RespawnSec.Field1", "RespawnField1Ms"), ("LIFE.RespawnSec.Field2", "RespawnField2Ms"),

@@ -4282,11 +4282,11 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.",
       "status": "approved"
     },
-    "handler_revision": 3,
-    "projection_revision": 5,
+    "handler_revision": 4,
+    "projection_revision": 6,
     "schema_version": 2
   },
   "parameters": {
@@ -4628,6 +4628,10 @@
     },
     "PK.BettingPoolMaxPoints": 2,
     "PK.ParticipationPoints": 1,
+    "PK.RewardMultiplier": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
     "PK.RingDamageEarlyMaxHPRatioPerSec": {
       "bp": 500,
       "unit": "ratio"

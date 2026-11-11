@@ -177,6 +177,13 @@ public:
     double UIActionDueAt=0;
     bool ReviewExplicitServices(ALDPlayerController& PC,double Now);
     bool ReviewPayout(ALDPlayerController& PC,double Now);
+    bool ReviewPKRewards(ALDPlayerController& PC, const ALDGameState& Public, ALDGameMode* Mode, double Now);
+    bool bPKRewardBaseline = false, bPKRewardRows = false, bPKRewardCredited = false, bPKRewardReplay = false;
+    bool bPKRewardReplayQueued = false, bPKRewardReplayComplete = false;
+    int64 PKRewardBefore = 0, PKRewardXP = 0, PKRewardExpected = 0;
+    uint8 PKRewardLevel = 0;
+    double PKRewardSeenAt = 0, PKRewardReplaySeenAt = 0, PKBetRetryAt = 0;
+    TMap<FGuid, int64> PKReplayBalances;
     bool ReviewField(ALDPlayerController& PC,const FLDPublicMatchView& View,double Now);
     uint64 UIRewardTicket = 0, UIBuildRevisionBefore = 0;
     int64 UIPointsBefore = 0;
@@ -1233,6 +1240,11 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
     const FLDPublicMatchView& View = Public.PublicMatch;
     const double Now = FPlatformTime::Seconds();
     const int32 Entrants = UIReview == TEXT("2v2") ? 4 : 6;
+    if (!ReviewPKRewards(PC, Public, Mode, Now)) { return Finish(); }
+    if (View.Phase == ELDMatchPhase::Rest && View.Timeline.Step >= ELDRestStep::Settlement
+        && !bPKRewardReplay) { return true; }
+    if ((View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen) && !Check(bPKRewardReplay,
+        TEXT("PK225: settlement and replay evidence completed before field return"))) { return Finish(); }
     if (View.Phase != ELDMatchPhase::Rest) { return ReviewField(PC,View,Now); }
     if(View.Timeline.Step==ELDRestStep::Payout){return ReviewPayout(PC,Now);}
     if(View.Timeline.Step==ELDRestStep::Return&&FApp::CanEverRender()&&!bUIPayoutChecked)
@@ -1518,7 +1530,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if(UIReadyOpenStep==1)
             {
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab2"))),
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
                     TEXT("UI: entrant selects points during the build window"))){return Finish();}
                 LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),12.f);
                 UIReadyOpenStep=2;return true;
@@ -1540,8 +1552,9 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
     {
         if(UIReadyFoldDueAt==0){UIReadyFoldDueAt=Now+.2;return true;}
         if(Now<UIReadyFoldDueAt){return true;}
-        if(!Check(!PC.HUDUI->ChoicesPanel->IsPanelOpen()&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
-            TEXT("UI: actual PK entry folds the entrant workspace without discarding its staged point"))){return Finish();}
+        if(!Check(PC.HUDUI->ChoicesPanel->IsPanelOpen()&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
+            TEXT("UI: actual PK entry keeps the player-opened workspace and its staged point"))){return Finish();}
+        PC.HUDUI->ChoicesPanel->ClosePanel();
         UIReadyOpenStep=4;
     }
     if(bUIPKShotsDone){return true;}
@@ -1721,6 +1734,201 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         &&UIChoiceSubmitted.Component.Decode(Selected)&&Selected==Candidate.ShownId,
         TEXT("UI: isolated elite selection submits the exact second candidate"))){return false;}
     UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();UIChoiceStep=6;return true;
+}
+
+bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGameState& Public,
+    ALDGameMode* Mode, double Now)
+{
+    const FLDPublicMatchView& View = Public.PublicMatch;
+    const FLDPKView& PK = View.PK;
+    const FLDProgressionView* Growth = PC.ReadOwnProgression();
+    const FGuid Self = PC.OwnerState.ContenderId;
+    if (!Growth || !Growth->bValid || Growth->Generation != View.Generation) { return true; }
+    const auto Budget = [](const FLDProgressionView& Owner)
+    {
+        int64 Total = Owner.UnspentPoints + Owner.PermanentSpentPoints;
+        for (const FLDStatPointsView& Stat : Owner.StatPoints) { Total += Stat.Points; }
+        return Total;
+    };
+    if (View.Phase != ELDMatchPhase::Rest || View.Timeline.Step < ELDRestStep::Draw) { return true; }
+    if (View.Timeline.Step < ELDRestStep::Settlement)
+    {
+        // Freeze before the fight: owner growth replication may arrive before the public settlement step.
+        // Spending/refunding points in the concurrent build review does not change this earned budget.
+        if (!bPKRewardBaseline)
+        {
+            PKRewardBefore = Budget(*Growth);
+            PKRewardXP = Growth->CumulativeXP;
+            PKRewardLevel = Growth->Level;
+            bPKRewardBaseline = true;
+        }
+        if (UIReview == TEXT("2v2") && View.Timeline.Step == ELDRestStep::Betting && PK.IsBettor(Self))
+        {
+            const uint8 Side = Role == TEXT("Host") ? 1 : 2;
+            const FLDPKBetView* Bet = PK.Bets.FindByPredicate([&Self](const FLDPKBetView& B) { return B.Spectator == Self; });
+            if ((!Bet || Bet->Side != Side) && Now >= PKBetRetryAt)
+            { PC.SubmitPKBet(Side); PKBetRetryAt = Now + .5; }
+        }
+        return true;
+    }
+    if (bPKRewardReplay) { return true; }
+    if (!bPKRewardRows)
+    {
+        if (FApp::CanEverRender() && FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        if (PKRewardSeenAt == 0)
+        {
+            PKRewardSeenAt = Now;
+            if (PC.HUDUI && PC.HUDUI->ChoicesPanel)
+            {
+                PC.HUDUI->ChoicesPanel->ClosePanel();
+                PC.HUDUI->RefreshReadModel();
+            }
+            return true;
+        }
+        if (Now - PKRewardSeenAt < .3) { return true; }
+        const auto& P = Content->Get().Parameters;
+        if (!Check(bPKRewardBaseline && PK.Generation == View.Generation && PK.Serial > 0
+            && PK.RestIndex == 0 && PK.Outcome == ELDPKOutcome::Won
+            && P.PKRewardMultiplierBp == 15000 && P.PKParticipationPoints == 1
+            && P.PKWinnerPointsMax == 3 && P.PKBettingPoolMaxPoints == 2,
+            TEXT("PK225: a real won R0 PK exercises the approved reward inputs"))) { return false; }
+        TArray<FLDPKAwardView> Expected;
+        TArray<int32> Winners;
+        for (const FLDPKEntrantView& Entrant : PK.Entrants)
+        {
+            if (!Check(!Entrant.bForfeited, TEXT("PK225: the connected review roster has no forfeited entrants"))) { return false; }
+            FLDPKAwardView& Row = Expected.AddDefaulted_GetRef();
+            Row.Contender = Entrant.Contender;
+            if (Entrant.Side == PK.WinnerSide) { Winners.Add(Expected.Num() - 1); }
+        }
+        // Independent oracle: ceil(base * 3 / 2), then serial-rotated integer shares; not ComputeAwards.
+        const auto Share = [&PK](int64 Pool, int32 Count, int32 Index)
+        {
+            const int32 Start = int32((PK.Serial - 1) % uint32(Count));
+            return uint8(Pool / Count + ((Index + Count - Start) % Count < Pool % Count ? 1 : 0));
+        };
+        const int64 ParticipationPool = (PK.Entrants.Num() * P.PKParticipationPoints * 3 + 1) / 2;
+        const int64 WinnerPool = (FMath::Min<int64>((PK.Entrants.Num() + 1) / 2, P.PKWinnerPointsMax) * 3 + 1) / 2;
+        if (!Check(!Expected.IsEmpty() && !Winners.IsEmpty(), TEXT("PK225: settlement includes participants and a winning side"))) { return false; }
+        for (int32 Index = 0; Index < Expected.Num(); ++Index)
+        { Expected[Index].Participation = Share(ParticipationPool, Expected.Num(), Index); }
+        for (int32 Index = 0; Index < Winners.Num(); ++Index)
+        { Expected[Winners[Index]].Winner = Share(WinnerPool, Winners.Num(), Index); }
+        TArray<FGuid> Correct;
+        for (const FGuid& Bettor : PK.Bettors)
+        {
+            const FLDPKBetView* Bet = PK.Bets.FindByPredicate([&Bettor](const FLDPKBetView& B) { return B.Spectator == Bettor; });
+            if (Bet && Bet->Side == PK.WinnerSide) { Correct.Add(Bettor); }
+        }
+        if (UIReview == TEXT("2v2") && !Check(PK.Bettors.Num() == 2 && PK.Bets.Num() == 2
+            && Correct.Num() == 1, TEXT("PK225: 2v2 exercises a real correctly betting spectator"))) { return false; }
+        const int64 BettingPool = (FMath::Min<int64>(PK.Bettors.Num(), P.PKBettingPoolMaxPoints) * 3 + 1) / 2;
+        for (int32 Index = 0; Index < Correct.Num(); ++Index)
+        {
+            FLDPKAwardView& Row = Expected.AddDefaulted_GetRef();
+            Row.Contender = Correct[Index];
+            Row.Bet = Share(BettingPool, Correct.Num(), Index);
+        }
+        bool RowsAgree = Expected.Num() == PK.Awards.Num();
+        FString Fingerprint;
+        int64 OwnBet = 0;
+        for (int32 Index = 0; Index < Expected.Num(); ++Index)
+        {
+            const auto& E = Expected[Index];
+            const auto* A = PK.Awards.IsValidIndex(Index) ? &PK.Awards[Index] : nullptr;
+            RowsAgree &= A && A->Contender == E.Contender && A->Participation == E.Participation
+                && A->Winner == E.Winner && A->Bet == E.Bet;
+            Fingerprint += FString::Printf(TEXT("%s:%u,%u,%u;"), *LDLog::Id(E.Contender),
+                uint32(E.Participation), uint32(E.Winner), uint32(E.Bet));
+            if (E.Contender == Self)
+            { PKRewardExpected = int64(E.Participation) + E.Winner + E.Bet; OwnBet = E.Bet; }
+        }
+        if (!Check(RowsAgree, TEXT("PK225: public award rows equal independently scaled and rotated pools"))) { return false; }
+        if (FApp::CanEverRender())
+        {
+            auto* HUD = PC.HUDUI.Get();
+            if (!Check(HUD && HUD->ChoicesPanel, TEXT("PK225: rendered owner has its actual settlement HUD"))) { return false; }
+            if (HUD->ChoicesPanel->IsPanelOpen()) { HUD->ChoicesPanel->ClosePanel(); }
+            HUD->RefreshReadModel();
+            const auto Rows = LDHUD::PKAwardRows(PK, Public.DemoLobby, Self);
+            bool Visible = Rows.Num() == Expected.Num() && HUD->PKAwardsTitle && HUD->PKAwardsTitle->IsVisible();
+            for (int32 Index = 0; Index < Rows.Num(); ++Index)
+            {
+                const auto& E = Expected[Index];
+                const int64 Total = int64(E.Participation) + E.Winner + E.Bet;
+                TArray<FString> Parts;
+                if (E.Participation) { Parts.Add(FString::Printf(TEXT("%s +%u"), LDTerms::PKAwardParticipation, uint32(E.Participation))); }
+                if (E.Winner) { Parts.Add(FString::Printf(TEXT("%s +%u"), LDTerms::PKAwardWinner, uint32(E.Winner))); }
+                if (E.Bet) { Parts.Add(FString::Printf(TEXT("%s +%u"), LDTerms::PKAwardBet, uint32(E.Bet))); }
+                Parts.Add(LDTerms::PKAwardTotal(Total));
+                const FString Points = FString::Join(Parts, TEXT(" · "));
+                const auto* Text = HUD->PKAwardTexts.IsValidIndex(Index) ? HUD->PKAwardTexts[Index].Get() : nullptr;
+                Visible &= Text && Text->GetText().ToString() == Rows[Index].Name + TEXT("：") + Points
+                    && LDSlateProbeInput::FullyVisible(Text, HUD) && LDSlateProbeInput::FullyVisible(Text, HUD->PKScroll)
+                    && Rows[Index].Points == Points && Rows[Index].Total == Total && Rows[Index].bSelf == (E.Contender == Self);
+            }
+            if (!Check(Visible, TEXT("PK225: rendered settlement text visibly matches every public award row"))) { return false; }
+            const FString File = Role + TEXT("-PKSettlement.png");
+            FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, File), true, false);
+            Screenshots.Add(MakeShared<FJsonValueString>(File));
+        }
+        Check(true, TEXT("PK225: approved scaled public settlement agrees"));
+        Summary->SetNumberField(TEXT("pk_serial"), PK.Serial);
+        Summary->SetStringField(TEXT("pk_awards"), Fingerprint);
+        Summary->SetNumberField(TEXT("pk_points_before"), double(PKRewardBefore));
+        Summary->SetNumberField(TEXT("pk_expected_points"), double(PKRewardExpected));
+        Summary->SetNumberField(TEXT("pk_bet_points"), double(OwnBet));
+        PKRewardSeenAt = Now;
+        bPKRewardRows = true;
+    }
+    if (!bPKRewardCredited)
+    {
+        const bool Credited = Budget(*Growth) == PKRewardBefore + PKRewardExpected
+            && Growth->CumulativeXP == PKRewardXP && Growth->Level == PKRewardLevel;
+        if (!Credited && Now - PKRewardSeenAt < 5.) { return true; }
+        if (!Check(Credited, TEXT("PK225: owning connection receives its exact award"))) { return false; }
+        Summary->SetNumberField(TEXT("pk_points_after"), double(Budget(*Growth)));
+        if (!Mark(Role + TEXT("PKCredited.json"))) { return false; }
+        bPKRewardCredited = true;
+    }
+    if (Mode && Mode->PKDirector && Mode->Development)
+    {
+        auto* Director = Mode->PKDirector.Get();
+        if (!bPKRewardReplayQueued && AllMarkers(TEXT("PKCredited.json")))
+        {
+            if (!Check(Director->bAwardsPaid && !Director->PendingAwards.IsEmpty(),
+                TEXT("PK225: authority has paid nonempty awards before replay"))) { return false; }
+            for (const auto& Row : Director->PendingAwards)
+            {
+                const auto* Build = Mode->Development->FindBuild(Row.Contender);
+                if (!Check(Build != nullptr, TEXT("PK225: each replay recipient has a real growth record"))) { return false; }
+                PKReplayBalances.Add(Row.Contender, Build->AwardedPoints);
+            }
+            // Retry the same production transaction with the same business identities on the next authority boundary.
+            Director->bAwardsPaid = false;
+            bPKRewardReplayQueued = true;
+            return true;
+        }
+        if (bPKRewardReplayQueued && !bPKRewardReplayComplete && Director->bAwardsPaid)
+        {
+            bool Unchanged = true;
+            for (const auto& Pair : PKReplayBalances)
+            {
+                const auto* Build = Mode->Development->FindBuild(Pair.Key);
+                Unchanged &= Build && Build->AwardedPoints == Pair.Value;
+            }
+            if (!Check(Unchanged, TEXT("PK225: authority replays identical awards without increasing balances"))
+                || !Mark(TEXT("HostPKReplayComplete.json"))) { return false; }
+            bPKRewardReplayComplete = true;
+        }
+    }
+    if (!FPaths::FileExists(FPaths::Combine(Output, TEXT("HostPKReplayComplete.json")))) { return true; }
+    if (PKRewardReplaySeenAt == 0) { PKRewardReplaySeenAt = Now; }
+    if (Now - PKRewardReplaySeenAt < 1.) { return true; }
+    if (!Check(Budget(*Growth) == PKRewardBefore + PKRewardExpected,
+        TEXT("PK225: replayed award identities do not credit twice"))) { return false; }
+    bPKRewardReplay = true;
+    return true;
 }
 
         bool FLDDemoOpponentProbe::ReviewPayout(ALDPlayerController& PC,double Now)
@@ -1928,8 +2136,9 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
                         {UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;}
                         return true;
                     }
-                    if(!Check(!Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight,
-                        TEXT("UI: actual field combat folds planning without losing staged points"))){return Finish();}
+                    if(!Check(Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight,
+                        TEXT("UI: actual field combat keeps the player-opened planning and its staged points"))){return Finish();}
+                    Panel->ClosePanel();
                     if(!CheckSummary(false,1280,720)){return Finish();}
                     Capture(TEXT("Client1FieldCombatFold.png"));UIFieldStep=40;return true;
                 }

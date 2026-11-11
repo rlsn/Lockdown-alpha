@@ -231,14 +231,14 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertIn("camera 2250", approval["decision"])
         for text in ("2026-11-07 movement -25%", "flagpole 180s", "vision/leash 1050", "#147 build v7",
                      "2026-11-08 #166 level 16/QWE", "#97 camp growth stages, Elite camp tier",
-                     "2026-11-09 #144 equipment, gold and shops removed",
+                     "2026-11-09 #144 equipment, gold and shops removed", "#225: PK +50%",
                      "2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据"):
             self.assertIn(text, approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (22, 5, 3))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 3, 5))
+                          self.data["identity"]["projection_revision"]), (2, 4, 6))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -284,6 +284,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("PK.RingPreviewSec", "ms", "10"), ("PK.RingDamageTickSec", "ms", ".25"),
             ("PK.RingDamageEarlyMaxHPRatioPerSec", "ratio", ".05"), ("PK.RingDamageMidMaxHPRatioPerSec", "ratio", ".12"),
             ("PK.RingDamageFinalMaxHPRatioPerSec", "ratio", ".25"), ("PK.TeamFormatRatio", "ratio", ".5"),
+            ("PK.RewardMultiplier", "ratio", "1.5"),
             ("THROW.CooldownSec", "ms", "10"), ("THROW.TelegraphSec", "ms", ".8"), ("THROW.RadiusCm", "cm", "120"),
             ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
             ("THROW.ExposeSec", "ms", "2"),

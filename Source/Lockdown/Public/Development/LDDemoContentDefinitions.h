@@ -141,10 +141,11 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PKRingEarlyDamageBp = 0;
     UPROPERTY() int64 PKRingMidDamageBp = 0;
     UPROPERTY() int64 PKRingFinalDamageBp = 0;
-    // #198 PK format and points: 4 or 6 entrants play free-for-all with this share, otherwise equal random teams;
-    // every entrant earns PKParticipationPoints, winners share ceil(N/2) points capped at PKWinnerPointsMax, and the
-    // betting pool is min(PKBettingPoolMaxPoints, eligible spectators).
+    // #198/#225 PK format and points: the three base award pools are multiplied by PKRewardMultiplierBp, rounded up,
+    // then split with serial rotation; participation is based on eligible entrants, wins use ceil(N/2) capped at
+    // PKWinnerPointsMax, and betting uses min(PKBettingPoolMaxPoints, eligible spectators).
     UPROPERTY() int64 PKTeamFormatBp = 0;
+    UPROPERTY() int64 PKRewardMultiplierBp = 0;
     UPROPERTY() int64 PKParticipationPoints = 0;
     UPROPERTY() int64 PKWinnerPointsMax = 0;
     UPROPERTY() int64 PKBettingPoolMaxPoints = 0;

@@ -170,8 +170,10 @@ Lockdown 是一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏�
   3 秒内禁止移动与攻击。PK 在原地图进行，安全圈按 `PK.*` 缩小（1800→600→150 cm，节点 0/10/40/55/60 s，提前 `PK.RingPreviewSec` 显示下一圈），
   圈外按开赛时最大生命的 5%/12%/25% 每秒、每 `PK.RingDamageTickSec` 结算真实圈外时长，直扣生命、不吃抗性护盾、不触发构件与奖励。
   最后一方存活即胜并提前结束；时限到仍有多方存活或同批全灭为平局。被淘汰者立即回到休息位只读观战，不复活。
-  结算：未弃权且仍在局的选手各得 `PK.ParticipationPoints`；胜方分享 `min(ceil(N/2), PK.WinnerPointsMax)`，余数按席位顺序从场次序号轮换；
-  竞猜池 `min(PK.BettingPoolMaxPoints, 竞猜资格观众数)` 同样分给猜中且在局的观众；平局只发参与点，场地失败（NoContest）不发。点数是未分配属性点。
+  结算：以 `PK.ParticipationPoints` 乘符合资格的选手数作为参与奖池；胜方基准奖池为 `min(ceil(N/2), PK.WinnerPointsMax)`；
+  竞猜基准奖池为 `min(PK.BettingPoolMaxPoints, 竞猜资格观众数)`。所有三类奖池都乘 `PK.RewardMultiplier` 后向上取整，
+  再按场次序号与席位顺序轮换分配；参与奖只分给未弃权且仍在局的选手，胜方奖分给未弃权且仍在局的胜方成员（包括已淘汰但仍在局的队友），
+  竞猜奖分给猜中且仍在局的观众。平局只发参与奖，场地失败（NoContest）不发。点数是未分配属性点。
   PK 死亡不给击杀/助攻奖励、不计 K/D，不进入喷漆名单。
 - **观众**：锁定时在场且未报名的参赛者可在押注步骤免费押一方（可改，步骤结束封盘），PK 中可向 PK 区内合法地面投掷：
   冷却 `THROW.CooldownSec`（自成功投掷起）、预警 `THROW.TelegraphSec`、半径 `THROW.RadiusCm`、从场外投掷锚点起射程 `THROW.RangeCm`，

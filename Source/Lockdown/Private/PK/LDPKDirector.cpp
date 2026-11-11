@@ -516,9 +516,10 @@ bool ALDPKDirector::Settle(const FLDGameplayWritePermit& Permit, FString& Error)
             Row->Contender = Recipient;
             AwardIds.Add(FGuid::NewGuid());
         }
-        Row->Participation = uint8(FMath::Clamp<int64>(Row->Participation + Award.Participation, 0, MAX_uint8));
-        Row->Winner = uint8(FMath::Clamp<int64>(Row->Winner + Award.Winner, 0, MAX_uint8));
-        Row->Bet = uint8(FMath::Clamp<int64>(Row->Bet + Award.Bet, 0, MAX_uint8));
+        // Entrants and bettors are disjoint; ComputeAwards checked every component before returning any row.
+        Row->Participation = uint8(Award.Participation);
+        Row->Winner = uint8(Award.Winner);
+        Row->Bet = uint8(Award.Bet);
     }
     bAwardsPaid = PendingAwards.IsEmpty();
     bArenaActive = false;

@@ -367,6 +367,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("PK.RingDamageMidMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingMidDamageBp, 1, 10000},
         {TEXT("PK.RingDamageFinalMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.PKRingFinalDamageBp, 1, 10000},
         {TEXT("PK.TeamFormatRatio"), TEXT("ratio"), TEXT("bp"), &P.PKTeamFormatBp, 0, 10000},
+        {TEXT("PK.RewardMultiplier"), TEXT("ratio"), TEXT("bp"), &P.PKRewardMultiplierBp, 10000, MAX_int64},
         {TEXT("THROW.CooldownSec"), TEXT("ms"), TEXT("ms"), &P.ThrowCooldownMs, 1, MAX_int64},
         {TEXT("THROW.TelegraphSec"), TEXT("ms"), TEXT("ms"), &P.ThrowTelegraphMs, 1, MAX_int64},
         {TEXT("THROW.SlowRatio"), TEXT("ratio"), TEXT("bp"), &P.ThrowSlowBp, 1, 10000},
@@ -1977,8 +1978,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
     if (!Identity.Int(TEXT("schema_version"), Revision, 2, 2)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 3, 3)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 5, 5))
+        || !Identity.Int(TEXT("handler_revision"), Revision, 4, 4)
+        || !Identity.Int(TEXT("projection_revision"), Revision, 6, 6))
     {
         return false;
     }
@@ -2235,8 +2236,8 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 3\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 5\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 4\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 6\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -2278,8 +2279,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
         || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 2, 2)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 3, 3)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 5, 5)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 4, 4)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 6, 6)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)
