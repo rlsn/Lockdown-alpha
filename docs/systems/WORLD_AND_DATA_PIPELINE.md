@@ -21,7 +21,7 @@ SourceData 不是“给 AI 看的文档”，也不是新 Demo 的数值方案�
 | `SourceData\Demo\content.json`、`SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo world→content 生成链及原生 Bootstrap；不是旧 prototype 导入入口 |
 
 `CatalogTools.py` 提供 Demo 生成器复用的确定性编码与原生 ID 校验。
-schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.10.0`。
+schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.11.0`。
 
 源数据按 UTF-8 读取；涉及按字节计算的 SHA/MD5 时保留原始编码和换行。
 `native_ids.json` 保留稳定原生编号，不通过重排枚举自动“修正”已有 ID。

@@ -1,6 +1,6 @@
 # Demo 会话、对局与生命周期
 
-**目标：v0.10.0 · 架构职责：M1 / M2 / M5 · Unreal Engine 5.8.4**
+**目标：v0.11.0 · 架构职责：M1 / M2 / M5 · Unreal Engine 5.8.4**
 
 产品规则以 [App Spec](../APP_SPEC.md) 为准；跨模块接口以
 [架构审计](ARCHITECTURE.md) 和 [共享契约](SHARED_CONTRACTS.md) 为准。
@@ -107,7 +107,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 
 兼容性分三层检查：Unreal 既有网络版本、项目 wire 协议版本、产品版本与内容摘要。
 项目须增加自身可解释的版本/内容准入，不声称 Unreal 没有网络版本检查；
-`0.10.0` 不是目录 schema、枚举值或协议号。
+`0.11.0` 不是目录 schema、枚举值或协议号。
 
 ### 3.3 同世界回 Lobby，不复原旧世界快照
 

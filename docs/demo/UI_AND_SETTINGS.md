@@ -1,6 +1,6 @@
 # Demo UI 与本地设置
 
-**目标：v0.10.0 Demo · 职责：M11 · 引擎基线：Unreal 5.8.4**
+**目标：v0.11.0 Demo · 职责：M11 · 引擎基线：Unreal 5.8.4**
 
 本报告衔接 [App Spec](../APP_SPEC.md)、[架构审计](ARCHITECTURE.md)、
 [共享契约](SHARED_CONTRACTS.md) SC-01–09 和 [实施计划](IMPLEMENTATION_PLAN.md)。

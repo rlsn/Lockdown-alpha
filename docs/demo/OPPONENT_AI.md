@@ -1,6 +1,6 @@
 # Demo 对手 AI
 
-**目标：v0.10.0 · 职责：M12 · 引擎：Unreal 5.8.4**
+**目标：v0.11.0 · 职责：M12 · 引擎：Unreal 5.8.4**
 
 本文描述对手 AI 的当前实现、约束与验收边界，对应 [App Spec](../APP_SPEC.md) §6.2
 与已批准决定 D01（含 AI 参数）、D03、D10（开局选择）、[#198](https://github.com/rlsn/Lockdown-alpha/issues/198) 的成长规则，以及 [#112](https://github.com/rlsn/Lockdown-alpha/issues/112) §9 的喷漆 + 守护终局。
