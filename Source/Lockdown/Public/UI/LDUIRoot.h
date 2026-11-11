@@ -24,7 +24,7 @@ UENUM()
 enum class ELDUIMainPanel : uint8 { None, Menu, Settings, Attributes, Choices, DevTest };
 enum class ELDUIInputLayer : uint8 { None, TextEditing, ChildConfirmation, MainPanel };
 enum class ELDFrontendAttempt : uint8 { None, Host, Join };
-enum class ELDRootConfirm : uint8 { None, Exit, LeaveRoom, LeaveMatch, EndMatch };
+enum class ELDRootConfirm : uint8 { None, Exit, LeaveRoom };
 
 // UE reloads the frontend map after a failed join or host, so the typed endpoint, the open page and the attempt
 // outcome must outlive the root widget. Held by the GameInstance for this process only; never written to disk.
@@ -108,7 +108,6 @@ private:
     UPROPERTY() TObjectPtr<USizeBox> MenuPage;
     UPROPERTY() TObjectPtr<UTextBlock> MenuPhase;
     UPROPERTY() TObjectPtr<UTextBlock> MenuPause;
-    UPROPERTY() TObjectPtr<ULDCommandButton> EndMatchButton;
     UPROPERTY() TObjectPtr<UTextBlock> MenuFeedback;
     UPROPERTY() TObjectPtr<UBorder> ConfirmLayer;
     UPROPERTY() TObjectPtr<UTextBlock> ConfirmText;

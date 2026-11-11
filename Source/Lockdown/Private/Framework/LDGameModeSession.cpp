@@ -15,7 +15,7 @@ namespace
         switch (Reason)
         {
         case ELDSessionReject::NotOwner: return TEXT("这个连接不是房间成员。");
-        case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始或结束本局、带房间返回 Lobby。");
+        case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始本局或带房间返回 Lobby。");
         case ELDSessionReject::WrongPhase: return TEXT("当前阶段不能执行这个房间命令。");
         case ELDSessionReject::RoomFull: return TEXT("房间已有 3 名真人（含房主）。");
         case ELDSessionReject::NotAllReady: return TEXT("所有在线真人（含房主）都准备后才能开始对局。");
@@ -27,7 +27,7 @@ namespace
         case ELDSessionReject::MatchClosed: return TEXT("本局结果已锁定。");
         case ELDSessionReject::SpawnBlocked: return TEXT("开局出生位置无法放置，房间已回到 Lobby。");
         case ELDSessionReject::MissingDemoDefinition: return TEXT("当前版本无法开始 Demo 对局，房间已回到 Lobby。");
-        case ELDSessionReject::AuthorityFault: return TEXT("房间因权威错误已停止，请离开对局返回主菜单。");
+        case ELDSessionReject::AuthorityFault: return TEXT("房间因权威错误已停止，请离开房间并返回主菜单。");
         case ELDSessionReject::None: return TEXT("");
         default: return TEXT("无效的房间命令。");
         }

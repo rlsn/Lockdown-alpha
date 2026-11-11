@@ -134,7 +134,7 @@ NPC 服务不作为常驻任务页：仅在配装或派奖窗口、本人处于�
 | 构筑蓝图 | 大厅和结果页可查看只读对局记录：Q/W/E、属性、构件图标与独立详情，历史数据默认折叠。 | 蓝图记录不授予物品或技能；记录未保存的历史属性用公式说明，不冒充实际数值。文件与隐私边界见[视野与 UI](../systems/VISION_AND_UI.md#构筑蓝图文件与查看)。 |
 | 加点 | 段标题“未分配点数 N”（已扣去本地暂存）；五维各一行：名称、每点收益、已分配点数（有暂存时写“K 点 +S”）与 −/+；一个“确认加点”按钮，不能加点时在旁边写原因 | −/+ 只改本地暂存，暂存总数不超过未分配点数；“确认加点”一次发送 AllocatePoints（按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数），回执生效后清空暂存。已分配的点不能撤回（洗点只在休息时）。时机：对局进行中随时（交战中、死亡等待与 PK 中也可以，#222）。 |
 | 死亡/保护 | 死因（取本人这一命被确认存活之后的公开击杀通知，未到前不显示）、“你寄了 · 回出租屋 emo <秒>”复活等待、一行小字“等级和构筑都还在，别慌”与待选入口；复活保护图标/期限与“一出手就没了，失手也没了” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
-| 局内 Settings | 画面、音频、操作、镜头、界面五个分类页签；各页恢复本页默认，画面页应用/撤销；继续、离开在局内菜单；Host 另有结束本局 | 常驻“对局不会暂停”。离开说明不能重连；Host 离开说明整个房间结束。结束本局与离开房间是不同确认。 |
+| 局内 Settings | 画面、音频、操作、镜头、界面五个分类页签；各页恢复本页默认，画面页应用/撤销；继续、离开在局内菜单 | 常驻“对局不会暂停”。离开说明不能重连；Host 离开说明整个房间结束。没有单独的结束本局入口。 |
 | Result | 全员名称/Kills/Deaths/Assists/FinalLevel（列名：淫了几个 · 寄了几次 · 助攻 · 最终等级），赢家标记、原因、用时；Host 回 Lobby；每人可离开 | 按冻结 roster 顺序，不按击杀产生排名/第二胜者。HostEnd 无赢家。Host 失联且未收合法结果只显示会话中断，不编造全零表。 |
 
 ### 3.3 原创线框与可读性
@@ -394,7 +394,7 @@ Host 原生非本人身体及附件**从创建起默认不向本机曝光**，�
 | --- | --- | --- |
 | Host/Join/Cancel / GameInstance 会话入口 | 本人名称、有效端点与 ConnectionAttemptSerial/WorldContext；创建和准入归会话域 | 即刻进入 Connecting；取消只处理对应 attempt。新的连接不继承旧 callback；网络失败不能假装房间成功。 |
 | `ServerSetReady / SetAICount / StartMatch` | `SessionCommandKey{Generation,RequestSequence}`；`ExpectedRosterRevision`，Ready/Count；caller 从拥有连接解析，Host 权限由 GameMode 验证 | 单连接会话命令单在途。`FLDSessionReceipt` 的 Pending/Committed/Rejected、拒绝码、CurrentPhase/RosterRevision 驱动页面；不能通过改按钮制造 Host 权限。 |
-| `EndMatch / ReturnToLobby / LeaveRoom` | 当前 SessionKey；回 Lobby 带 `ExpectedResultReceipt`，只能由真正 Host 在适用阶段执行；旅行和新 Generation 归会话域 | HostEnd 无胜者且可回 Lobby；Host Leave 结束房间。确认弹窗区分后果，不用本地 OpenLevel 假装带房间返回。 |
+| `EndMatch / ReturnToLobby / LeaveRoom` | 当前 SessionKey；回 Lobby 带 `ExpectedResultReceipt`，只能由真正 Host 在适用阶段执行；旅行和新 Generation 归会话域 | 玩家不提供 EndMatch 入口；测试用 HostEnd 无胜者且可回 Lobby。Host Leave 结束房间，不用本地 OpenLevel 假装带房间返回。 |
 | `ALDDevelopmentDirector::QueueBuild(ContenderId,FLDBuildCommand)` | Generation、当前 Life+ExpectedLifePhase、递增 RequestId、ExpectedBuildRevision、CatalogDigest 与 `Kind`：ActiveChoice 带 OfferId/OfferRevision、Option 与 `bLearnIfPossible`（UI 总是请求，Slot 为 AnySlot）；LearnBlueprint 带图纸与指定空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数（合计至少 1） | 选择（学到最低空槽或存为图纸）与机会消费、学图纸、加点各自整次原子提交；只有终态和新投影确认后展示完成，回执写明学到哪个槽或存为图纸的原因（NoEmptySlot）。旧阶段/修订按新投影重画后由玩家重新操作，不能改旧请求条款或自动换卡。 |
 | Combat `SubmitAction(Caller,FLDCombatActionRequest)` | `RequestKey{Generation,Contender,Life,DirectSequence:uint64}`，Contender 必须匹配服务器从 caller 解析的本人；规范化 ActivationSlot/SourceRef、相关 source/build/catalog 版本及目标模式；单位只用当前 handle+epoch，地面/方向/自身分别校验 | Queued 不等于 Accepted/Released；release 前复验成功才原子提交 MP/CD/effect。 |
 | Stop / `CancelAction` / `CancelArmed` | 已发送订单按 `FLDMoveIdentity{Match,Life,Order,Epoch}` 取消；本地 Armed 仅清预览 | 不回滚已释放效果、不退款、不清来源 CD；迟到 ACK 不复活旧订单，普通 panel 关闭不隐式 Stop。 |
@@ -465,7 +465,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | 对手 conceal / stale / epoch 改变 | §5.3 全部敏感呈现、锁定和该追击订单清除 | 只剩静态地图与明确公共旗杆状态/事件 | 不留 LastSeen，不把 public identity 重新解析成隐藏 Actor。 |
 | 终局 | 先权威关写闸，UI 收合法 Result 后关闭主面板/确认、清实时观察和战斗输入 | 一份冻结结果；仍可设置、合法回执查询、Host 回 Lobby、离开 | 边界前已提交业务保留真实结果，之后未提交拒绝；toast 不重复、旧回包不恢复玩法，关闭设置不应用未应用的显示草稿。 |
 | 普通正式离局/断线 | 服务器立即移除身体及其未结束独立效果；客户端清代理/附件/面板/缓存/delegate | 他人继续对局，不自动胜；最终统计由域保留，不保留可操作身体 | 离局不是死亡；失效 request/observer 不能重建幽灵 UI/效果。 |
-| Host 结束本局 / 离开房间 | EndMatch 产生无赢家结果；Leave/HostLost 清整个会话 | 前者可同房间回 Lobby；后者回主菜单并说明原因 | 未收到最终统计的断线不能伪造结果；旧 attempt 失败不能退出新房间。 |
+| Host 离开房间 / 失联 | Leave/HostLost 清整个会话 | 所有客户端回主菜单并说明原因 | 未收到最终统计的断线不能伪造结果；旧 attempt 失败不能退出新房间。 |
 | 回 Lobby / 新局 | 旅行前按 §8 保存已应用的本地值；核心统一推进代次并清旧 Offer/target/result/receipt 执行权；UI 等新合法投影 | 仅名称及已确认应用的本地设置保留；不短暂闪回旧技能/CD | generation、ledger match 映射归核心；不靠 Widget 清数组或世界 checkpoint 假装完成新局。 |
 
 ## 8. SC-09 D：最小本地设置及保存

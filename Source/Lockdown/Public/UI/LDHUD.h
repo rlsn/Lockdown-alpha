@@ -223,6 +223,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
     UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> LeaveRoomButton;
     UPROPERTY() TObjectPtr<UBorder> DeathBanner;
     UPROPERTY() TObjectPtr<UTextBlock> DeathTitle;
     UPROPERTY() TObjectPtr<UTextBlock> DeathCauseText;
