@@ -218,13 +218,41 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
     };
     return Values;
 }
+namespace
+{
+    FString LocalizedKeyName(const FKey& Key)
+    {
+        const FName Name=Key.GetFName();
+        if(Name==TEXT("LeftMouseButton")){return TEXT("鼠标左键");}
+        if(Name==TEXT("RightMouseButton")){return TEXT("鼠标右键");}
+        if(Name==TEXT("MiddleMouseButton")){return TEXT("鼠标中键");}
+        if(Name==TEXT("ThumbMouseButton")){return TEXT("鼠标侧键 1");}
+        if(Name==TEXT("ThumbMouseButton2")){return TEXT("鼠标侧键 2");}
+        if(Name==TEXT("MouseWheelAxis")){return TEXT("鼠标滚轮");}
+        if(Name==TEXT("SpaceBar")){return TEXT("空格");}
+        if(Name==TEXT("Escape")){return TEXT("Esc");}
+        if(Name==TEXT("Return")){return TEXT("Enter");}
+        if(Name==TEXT("BackSpace")){return TEXT("退格");}
+        if(Name==TEXT("LeftShift")){return TEXT("左 Shift");}
+        if(Name==TEXT("RightShift")){return TEXT("右 Shift");}
+        if(Name==TEXT("LeftControl")){return TEXT("左 Ctrl");}
+        if(Name==TEXT("RightControl")){return TEXT("右 Ctrl");}
+        if(Name==TEXT("LeftAlt")){return TEXT("左 Alt");}
+        if(Name==TEXT("RightAlt")){return TEXT("右 Alt");}
+        if(Name==TEXT("Up")){return TEXT("上方向键");}
+        if(Name==TEXT("Down")){return TEXT("下方向键");}
+        if(Name==TEXT("Left")){return TEXT("左方向键");}
+        if(Name==TEXT("Right")){return TEXT("右方向键");}
+        return Key.GetDisplayName().ToString();
+    }
+}
 FKey ULDControlSettings::Key(FName Action) const
 {
     if (!IsRegistered(Action)) { return FKey(); }
     const FKey* Key = Bindings.Find(Action);
     return Key ? *Key : FKey();
 }
-FString ULDControlSettings::Label(FName Action) const {return Key(Action).GetDisplayName().ToString();}
+FString ULDControlSettings::Label(FName Action) const {return LocalizedKeyName(Key(Action));}
 void ULDControlSettings::ResetBindings()
 {
     Bindings.Reset();
@@ -642,7 +670,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         if (Default && !Settings->Bindings.FindKey(Default->Key))
         {
             Settings->Bindings.Add(Added.Action, Default->Key);
-            MigrationNotes += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + Default->Key.GetDisplayName().ToString() + TEXT("。");
+            MigrationNotes += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + LocalizedKeyName(Default->Key) + TEXT("。");
         }
     }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");

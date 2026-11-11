@@ -3777,7 +3777,7 @@ bool RunRestRebuild(FAutomationTestBase& Test)
         && Projected.Components[0].Element == ELDDemoElement::Fire);
     return bGood;
 }
-// In the rest build window, once nothing is left to build, the body tries its build on a shared dummy (a
+// In the rest build window, once nothing is left to build, the body tries its build on its private target (a
 // visible contender outside the public roster) with the production engagement; never on anything else, never elsewhere.
 bool RunTraining(FAutomationTestBase& Test)
 {
@@ -3801,7 +3801,7 @@ bool RunTraining(FAutomationTestBase& Test)
     const auto Trains = [&Dummy](const FLDOpponentDecision& Decision, EBody Kind)
     { return Decision.Body.Kind == Kind && Decision.Body.Handle == Dummy.Handle; };
     const FLDOpponentUnit* Found = LDOpponentPolicy::TrainingDummy(Base);
-    bool bGood = Test.TestTrue(TEXT("The visible contender outside the public roster is a shared dummy"), Found && Found->Handle == Dummy.Handle);
+    bool bGood = Test.TestTrue(TEXT("The visible contender outside the public roster is its training target"), Found && Found->Handle == Dummy.Handle);
     FLDOpponentDecision Decision = Decide(Base);
     bGood &= Test.TestTrue(TEXT("Nothing to build: the body attacks its dummy, never the roster member in sight"),
         Decision.Mode == EMode::Engage && Decision.Reason == EReason::Train && Trains(Decision, EBody::AttackUnit)

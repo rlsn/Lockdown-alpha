@@ -71,6 +71,7 @@ public:
     bool PointerOverUI() const;
     // Called by the hit-test-invisible world layer, below the HUD's panels.
     void PaintWorldPreviews(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const;
+    TArray<FSlateRect> WorldLabelReservedAreas(const FGeometry& PaintGeometry) const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
     // The two normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time. ChoicesPanel is
     // the #198 growth panel (active offer, blueprints and points) behind the 开盲盒 button.
@@ -202,13 +203,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
-    UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
-    UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
-    UPROPERTY() TObjectPtr<UTextBlock> CharmText;
-    UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
-    UPROPERTY() TObjectPtr<UTextBlock> BossText;
-    // #198 outer §5: the open camp markers of the current field segment.
-    UPROPERTY() TObjectPtr<UTextBlock> MarkerText;
+    // Secondary objective details and the own next step sit with the minimap, away from the screen centre.
+    UPROPERTY() TObjectPtr<UTextBlock> WorldSummaryText;
     // Top-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
     UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
@@ -292,8 +288,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;
     double FeedbackAt=0;
+    double FeedbackDuration=5;
+    int32 FeedbackRepeatCount=0;
     // The toast shows controller intent feedback and local panel notices; SeenIntent tracks only the former.
-    FString LastFeedback;
+    FString LastFeedback,LastFeedbackBase;
     FString SeenIntent;
     uint32 SeenFeedback=0;
     void ShowToast(const FString& Text);

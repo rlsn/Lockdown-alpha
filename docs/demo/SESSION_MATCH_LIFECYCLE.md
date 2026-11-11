@@ -136,9 +136,9 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   本段 T 终点、锁定人数、PK 是否跳过、报名名单），客户端与 AI 用 `LDMatchTimeline::FieldNowFromView` 按同一规则推导 T。
   `PublicMatch.StartedAtMs` 是开局（R0 开始）时刻；`OpenAtMs` 在最终野外开始前为 `MAX_int64`，由 `FLDCaptureReducer::ScheduleOpen` 定为最终野外开始的边界。
 - **公共休息室**：按用户试玩后批准，`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`，同世界、连接、身份与成长记录；
-  所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 仍按群组隔离野外/PK，
-  Vision 对同休息室身体与共享假人发布原有公开投影，不发布他人背包；`IsIsolated` 在该组只放行假人作为敌对效果目标，
-  因而人物互见却不受伤或控制。世界布局10/几何8在东侧增加全封闭房间，既有野外与 PK 锚点不移动。
+  所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 仍按群组隔离野外/PK；
+  Vision 向休息室连接的获准观察帧发布全部活体真实训练目标的白名单状态，不发布玩家背包或私有成长；
+  `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许任一休息室参赛者攻击共享训练目标。世界布局10/几何8在东侧增加全封闭房间，既有野外与 PK 锚点不移动。
   `PKSignup` 的 `pk_signup_<槽位>` 移到同槽位新休息锚点旁300 cm。
 - **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，真人只可准备不可撤销；
   OwnerState 发布 `bRestReady`/`bCanRestReady`，公共时间线 `ReadyContenders` 只含真人id。`AdvanceTimeline` 忽略AI，全部仍在局真人准备后，
@@ -186,9 +186,12 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   （保持 HP/MP、不回复、不能被命中或行动）。返场时 `ThawAfterRest` 让成员在冻结处解冻，忘掉目标与敌对来源后重新选择，HP 不变；
   刷新截止按 T 计算，休息既不执行也不跳过它们。这就是批准的规则：野怪与 Boss 随 T 冻结并保留剩余 HP，休息中不回复、不刷新，不搬回营地。
   冻结的成员仍每步以零输入推进运动（原地停住），以满足运动栅栏对全部已注册身体的覆盖。
-- **共享训练假人**：`SpawnTrainingDummy` 在每个休息槽位旁生成一具，保留该槽位生成时等级的无构筑底盘；
-  固定为假人自身投影，不取首个攻击者成长。所有休息身体都可攻击，命中/状态/反馈使用既有 Combat 真实来源，不进名单或喷漆资格，
-  归零回满，不发奖励。PK 选手离开休息位时假人不退休；返野外前统一退休。无合法生成位置是明确场景失败，不算可用成功。
+- **休息室训练区**：`ALDTrainingRoomDisplay` 仅呈现开放地面边界，不创建假人模型替身；中文区域名与 NPC 职责由 CJK Slate 投影文字显示。
+  `SpawnTrainingDummy` 在各名单槽位的批准锚点建立一个真实共享目标，权威身体不直接复制，
+  各休息室连接的获准观察代理呈现该目标的实际位置与战斗状态。保留该槽位生成时公开等级的无构筑底盘，不取首个攻击者或所属玩家的私有构筑。
+  命中/状态/反馈使用既有 Combat 真实来源，不进名单或喷漆资格，归零回满，不发奖励。PK 选手离开休息位时假人不退休；
+  返野外前统一退休。保留合法地面、静态和 Pawn 胶囊净空检查；临时有人站在训练锚点时复用既有七个合法偏移，仍在批准训练区内。
+  七处全被占用时，待入休息位者保持等待并重试，不先提交新生命；位置恢复后才共同提交玩家生命与真实假人，不能因普通占位把整局带入 authority fault。
   `ServerTrainingReset` 带 match/life/rest/步骤起点，入队和执行都重查窗口，只重置本人和对应槽位假人，不清掉其他假人；
   下一休息、PK后新生命或新局的旧请求不会生效。训练资源与效果在阶段边界清理，不带入野外。
 - 其他世界拥有者（如后续的符咒）在 `EnterRestWorld/ExitRestWorld` 接入；查询入口为 `IsRestPhase`、`IsInputLocked`、`ReadBuildStage`、

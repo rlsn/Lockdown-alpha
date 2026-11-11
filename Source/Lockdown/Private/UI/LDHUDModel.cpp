@@ -145,7 +145,15 @@ FString LDHUD::AbilityName(const FLDDemoContentDefinitions* Content,uint8 Abilit
 FString LDHUD::RosterName(const FLDLobbyView& Lobby,const FGuid& ContenderId)
 {
     const FLDLobbyMember* Member=ContenderId.IsValid()?Lobby.Members.FindByPredicate([&ContenderId](const FLDLobbyMember& M){return M.ContenderId==ContenderId;}):nullptr;
-    return Member?Member->Name:FString();
+    if(!Member||Member->Name.IsEmpty()){return FString();}
+    int32 Matches=0,Ordinal=0;
+    for(const FLDLobbyMember& Candidate:Lobby.Members)
+    {
+        if(Candidate.Name!=Member->Name){continue;}
+        ++Matches;
+        if(&Candidate==Member){Ordinal=Matches;}
+    }
+    return Matches>1?FString::Printf(TEXT("%s %d"),*Member->Name,Ordinal):Member->Name;
 }
 FString LDHUD::ObservedContenderName(const FLDLobbyView& Lobby,const FGuid& ContenderId,bool bInRest)
 {
@@ -363,6 +371,16 @@ FString LDHUD::PKFormatText(ELDPKFormat Format,uint8 SideCount,int32 Entrants)
         return SideCount>=2&&Entrants>=int32(SideCount)&&Entrants%int32(SideCount)==0?LDTerms::PKTeams(Entrants/int32(SideCount)):FString();
     default: return FString();
     }
+}
+FString LDHUD::PKRelationText(const FLDPublicMatchView& Public,const FGuid& Self,const FGuid& Target)
+{
+    if(!Self.IsValid()||!Target.IsValid()||!HasPK(Public)||Public.PK.Format!=ELDPKFormat::Teams){return FString();}
+    const FLDPKEntrantView* TargetEntry=Public.PK.FindEntrant(Target);
+    if(!TargetEntry||TargetEntry->Side==0||TargetEntry->Side>Public.PK.SideCount){return FString();}
+    const FLDPKEntrantView* SelfEntry=Public.PK.FindEntrant(Self);
+    if(!SelfEntry){return LDTerms::PKSide(TargetEntry->Side);}
+    if(Self==Target){return FString(LDTerms::PKOwnSide);}
+    return SelfEntry->Side==TargetEntry->Side?FString(LDTerms::PKTeammate):FString(LDTerms::PKEnemy);
 }
 bool LDHUD::HasPK(const FLDPublicMatchView& Public)
 {
@@ -2114,6 +2132,16 @@ FString LDHUD::CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrive
     return FString::Join(Notices,TEXT(" · "));
 }
 
+bool LDHUD::ChoicesCombatActive(const FLDPublicMatchView& Public,const FLDOwnerState& Own,
+    const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,bool bOwnHit)
+{
+    if(Public.Generation==0||Public.Generation!=Own.Match||Own.LifePhase!=ELDLifePhase::Alive){return false;}
+    if(Public.Phase==ELDMatchPhase::Rest)
+    {return Public.Timeline.Step==ELDRestStep::PK&&Public.PK.FindEntrant(Own.ContenderId)!=nullptr;}
+    const bool bField=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
+    const bool bCurrent=Combat&&Combat->bHasBody&&Combat->Generation==Own.Match&&Combat->Life==Own.Life;
+    return bField&&(bOwnHit||(bCurrent&&bClock&&NowMs<Combat->BuildSafeAtMs));
+}
 void LDHUD::FChoicesFold::Opened(bool bAutomaticOpen,double Now)
 {
     // A player's own opening right after a hit folded the panel is respected: hits no longer fold it until it closes.
@@ -2125,9 +2153,10 @@ void LDHUD::FChoicesFold::Closed()
 {
     bOpen=false;bAutomatic=false;bHitImmune=false;
 }
-bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
+bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit,bool bCombatActive)
 {
     if(!bOpen){return false;}
+    if(bCombatActive){return true;}
     // Engaging with the automatic opening makes it the player's own: it no longer times out.
     if(bEngaged){bAutomatic=false;return false;}
     if(bOwnHit&&!bHitImmune){bFoldedByHit=true;return true;}

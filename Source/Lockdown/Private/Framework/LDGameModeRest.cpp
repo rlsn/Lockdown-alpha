@@ -15,6 +15,7 @@
 #include "Region/LDMapGeometry.h"
 #include "Misc/ScopeExit.h"
 #include "World/LDRestServiceNPC.h"
+#include "World/LDTrainingRoomDisplay.h"
 
 // #198 rest phases (approved outer parameters and the playtest's shared-room decision).
 // The pure FLDMatchTimeline schedules the rests and
@@ -477,6 +478,13 @@ bool ALDGameMode::EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& 
         NPC->SetService(static_cast<ELDRestService>(Index));
         RestServiceNPCs.Add(NPC);
     }
+    ALDTrainingRoomDisplay* Display = GetWorld()->SpawnActor<ALDTrainingRoomDisplay>();
+    if (!Display)
+    {
+        Error = TEXT("The shared training area boundary could not spawn.");
+        return false;
+    }
+    TrainingRoomDisplay = Display;
     return true;
 }
 
@@ -484,6 +492,8 @@ void ALDGameMode::ClearRestServiceNPCs()
 {
     for (const auto& NPC : RestServiceNPCs) { if (NPC.IsValid()) { NPC->Destroy(); } }
     RestServiceNPCs.Reset();
+    if (TrainingRoomDisplay.IsValid()) { TrainingRoomDisplay->Destroy(); }
+    TrainingRoomDisplay.Reset();
 }
 
 bool ALDGameMode::ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -699,6 +709,18 @@ bool ALDGameMode::PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePe
     FLDPhasePrepared Prepared;
     FString Reason;
     if (!PreparePhaseBody(Target, Permit, Prepared, bBlocked, Reason, Error)) { return false; }
+    if (!bBlocked && !TrainingDummies.Contains(Contender))
+    {
+        FLDLegalGround Ground;
+        if (!PrepareTrainingGround(Contender, Ground, Error))
+        {
+            ReleasePlacedBody(Prepared.Placed);
+            Prepared.CombatState.Reset();
+            if (!Error.StartsWith(TEXT("SpawnBlocked"))) { return false; }
+            bBlocked = true;
+            Reason = MoveTemp(Error);
+        }
+    }
     if (bBlocked)
     {
         if (!PendingPhasePlacement.Contains(Contender))
@@ -902,13 +924,45 @@ bool ALDGameMode::RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FSt
 
 // ---- #198 shared training dummies ----
 
+bool ALDGameMode::PrepareTrainingGround(const FGuid& OwnerId, FLDLegalGround& Out, FString& Error) const
+{
+    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    const FLDLifeRecord* Life = Lives.Find(OwnerId);
+    const FLDMapBinding* Anchor = Registry && Life
+        ? Registry->Resolve(FName(*LDDemoWorld::TrainingDummyId(Life->PresentationSlot)), Registry->Generation) : nullptr;
+    FCollisionShape Capsule;
+    if (!DemoContent || !Anchor || !Registry->GetGeometry()
+        || !ULDMapRegistry::ContentCapsule(*DemoContent, Capsule, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Training placement needs a registered slot and capsule."); }
+        return false;
+    }
+    for (const auto& Value : Registry->GetGeometry()->SpawnOffsetsCm)
+    {
+        FVector Offset;
+        if (!Value.ToVector(Offset, Error)) { return false; }
+        FLDLegalGround Candidate;
+        ELDWorldQueryFailure Failure;
+        if (!Registry->QueryGround(Registry->Revision(), Anchor->Position + Offset, Capsule, Anchor->Surface,
+            Candidate, Failure, Error)) { continue; }
+        const FVector Origin = LDSpawnPlacement::StandingOrigin(Candidate);
+        if (LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule)
+            || GetWorld()->OverlapAnyTestByObjectType(Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn),
+                Capsule, FCollisionQueryParams(SCENE_QUERY_STAT(TrainingPlacement))))
+        { continue; }
+        Out = MoveTemp(Candidate);
+        Error.Reset();
+        return true;
+    }
+    Error = TEXT("SpawnBlocked: all legal offsets of the approved training slot are temporarily occupied.");
+    return false;
+}
+
 bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (TrainingDummies.Contains(OwnerId)) { Error.Reset(); return true; }
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
     const FLDGrowthBuild* Build = Development ? Development->FindBuild(OwnerId) : nullptr;
-    const FLDMapBinding* Anchor = Registry ? Registry->Resolve(RestAnchorFor(OwnerId), Registry->Generation) : nullptr;
-    FCollisionShape Capsule;
     // Only a copy of the owner's slot is kept: the dummy's own life record is added to Lives below, which may move every
     // record of the map.
     bool bOwnerLife = false;
@@ -918,94 +972,76 @@ bool ALDGameMode::SpawnTrainingDummy(const FGuid& OwnerId, const FLDGameplayWrit
         bOwnerLife = true;
         OwnerSlot = OwnerLife->PresentationSlot;
     }
+    const FLDMapBinding* Anchor = Registry && OwnerSlot < LDDemoWorld::TrainingDummies
+        ? Registry->Resolve(FName(*LDDemoWorld::TrainingDummyId(OwnerSlot)), Registry->Generation) : nullptr;
+    FCollisionShape Capsule;
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Combat || !DemoContent
         || !bOwnerLife || !Build || !Anchor || !Registry->GetGeometry() || !ULDMapRegistry::ContentCapsule(*DemoContent, Capsule, Error))
     {
-        if (Error.IsEmpty()) { Error = TEXT("A training dummy needs its owner's rest anchor, growth record and the RespawnsAndWorld permit."); }
+        if (Error.IsEmpty()) { Error = TEXT("A training dummy needs its owner's public training slot, growth record and the RespawnsAndWorld permit."); }
         return false;
     }
-    // The free approved local offset at the owner's rest anchor, searched from the far end of the list (the rest life
-    // takes the first free one); the same legal-ground and occupancy rules as a spawn.
-    const TArray<FLDDemoWorldPoint>& Offsets = Registry->GetGeometry()->SpawnOffsetsCm;
-    for (int32 Index = Offsets.Num() - 1; Index >= 0; --Index)
+    FLDLegalGround Ground;
+    if (!PrepareTrainingGround(OwnerId, Ground, Error)) { return false; }
+    const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
+    const FTransform Transform(FRotator::ZeroRotator, Origin);
+    ALDCharacter* Body = GetWorld()->SpawnActorDeferred<ALDCharacter>(ALDCharacter::StaticClass(), Transform, nullptr, nullptr,
+        ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!Body)
     {
-        FVector Delta;
-        if (!Offsets[Index].ToVector(Delta, Error)) { return false; }
-        FLDLegalGround Ground;
-        ELDWorldQueryFailure Failure;
-        if (!Registry->QueryGround(Registry->Revision(), Anchor->Position + Delta, Capsule, Anchor->Surface, Ground, Failure, Error))
-        {
-            if (Failure == ELDWorldQueryFailure::Blocked || Failure == ELDWorldQueryFailure::NotGrounded
-                || Failure == ELDWorldQueryFailure::WrongSurface) { continue; }
-            return false;
-        }
-        const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
-        if (LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule)
-            || GetWorld()->OverlapAnyTestByObjectType(Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), Capsule,
-            FCollisionQueryParams(SCENE_QUERY_STAT(DemoTrainingDummy)))) { continue; }
-        const FTransform Transform(FRotator::ZeroRotator, Origin);
-        ALDCharacter* Body = GetWorld()->SpawnActorDeferred<ALDCharacter>(ALDCharacter::StaticClass(), Transform, nullptr, nullptr,
-            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-        if (!Body)
-        {
-            Error = TEXT("The training dummy body could not be allocated.");
-            return false;
-        }
-        Body->SetReplicates(false);
-        Body->SetActorHiddenInGame(true);
-        Body->SetActorTickEnabled(false);
-        Body->PresentationKey = OwnerSlot;
-        if (!Body->ConfigureDemoMovement(*DemoContent, Error))
-        {
-            Body->Destroy();
-            return false;
-        }
-        Body->FinishSpawning(Transform);
-        auto* Movement = IsValid(Body) ? Body->GetCharacterMovement() : nullptr;
-        if (!Movement)
-        {
-            Error = TEXT("The training dummy failed native construction.");
-            return false;
-        }
-        Movement->SetComponentTickEnabled(false);
-        Movement->SetMovementMode(MOVE_Walking);
-        Movement->FindFloor(Body->GetActorLocation(), Movement->CurrentFloor, false, nullptr);
-        Movement->SetBaseFromFloor(Movement->CurrentFloor);
-        const FGuid Entity = FGuid::NewGuid();
-        FLDBodyCombatState State;
-        FLDCombatBodyRef Ref;
-        if (!Movement->CurrentFloor.IsWalkableFloor()
-            || Movement->CurrentFloor.HitResult.GetComponent() != Ground.Floor.Get()
-            || !Body->GetActorLocation().Equals(Origin, .000001)
-            || !Combat->PrepareTrainingDummy(*Body, {ELDVictimKind::Contender, Entity, 1}, OwnerId, Build->Level, Permit, State, Error)
-            || !Combat->InstallCombatBody(*Body, MoveTemp(State), Permit, Ref, Error))
-        {
-            if (Error.IsEmpty()) { Error = TEXT("The training dummy does not stand on its registered placement."); }
-            Body->Destroy();
-            return false;
-        }
-        FLDLifeRecord& Life = Lives.Add(Entity);
-        Life.Kind = ELDVictimKind::Contender;
-        Life.Phase = ELDLifePhase::Alive;
-        Life.Life = 1;
-        Life.Revision = 1;
-        Life.Body = Ref;
-        Life.Actor = Body;
-        Life.PresentationSlot = OwnerSlot;
-        BeginLifeMotion(Life, Ref, *Body);
-        Body->SetActorHiddenInGame(false);
-        Body->SetActorTickEnabled(true);
-        TrainingDummies.Add(OwnerId, {Entity, Ref, Body});
-        TrainingDummyIds.Add(Entity);
-        UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_DUMMY_SPAWN owner=%s dummy=%s level=%u offset=%d"),
-            *LDLog::Id(OwnerId), *LDLog::Id(Entity), uint32(Build->Level), Index);
-        Error.Reset();
-        return true;
+        Error = TEXT("The training dummy body could not be allocated.");
+        return false;
     }
-    // Missing shared training geometry is a failed scene, not a playable success.
-    UE_LOG(LogLDMatch, Warning, TEXT("LD_TRAINING_DUMMY_BLOCKED owner=%s anchor=%s"), *LDLog::Id(OwnerId), *Anchor->Id.ToString());
-    Error = TEXT("The shared training dummy has no legal placement.");
-    return false;
+    Body->SetReplicates(false);
+    // The authority body is presented through each authorized observation proxy, including on the listen server.
+    Body->SetActorHiddenInGame(true);
+    Body->SetActorTickEnabled(false);
+    Body->PresentationKey = OwnerSlot;
+    if (!Body->ConfigureDemoMovement(*DemoContent, Error))
+    {
+        Body->Destroy();
+        return false;
+    }
+    Body->FinishSpawning(Transform);
+    auto* Movement = IsValid(Body) ? Body->GetCharacterMovement() : nullptr;
+    if (!Movement)
+    {
+        Error = TEXT("The training dummy failed native construction.");
+        return false;
+    }
+    Movement->SetComponentTickEnabled(false);
+    Movement->SetMovementMode(MOVE_Walking);
+    Movement->FindFloor(Body->GetActorLocation(), Movement->CurrentFloor, false, nullptr);
+    Movement->SetBaseFromFloor(Movement->CurrentFloor);
+    const FGuid Entity = FGuid::NewGuid();
+    FLDBodyCombatState State;
+    FLDCombatBodyRef Ref;
+    if (!Movement->CurrentFloor.IsWalkableFloor()
+        || Movement->CurrentFloor.HitResult.GetComponent() != Ground.Floor.Get()
+        || !Body->GetActorLocation().Equals(Origin, .000001)
+        || !Combat->PrepareTrainingDummy(*Body, {ELDVictimKind::Contender, Entity, 1}, OwnerId, Build->Level, Permit, State, Error)
+        || !Combat->InstallCombatBody(*Body, MoveTemp(State), Permit, Ref, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The training dummy does not stand on its registered placement."); }
+        Body->Destroy();
+        return false;
+    }
+    FLDLifeRecord& Life = Lives.Add(Entity);
+    Life.Kind = ELDVictimKind::Contender;
+    Life.Phase = ELDLifePhase::Alive;
+    Life.Life = 1;
+    Life.Revision = 1;
+    Life.Body = Ref;
+    Life.Actor = Body;
+    Life.PresentationSlot = OwnerSlot;
+    BeginLifeMotion(Life, Ref, *Body);
+    Body->SetActorTickEnabled(true);
+    TrainingDummies.Add(OwnerId, {Entity, Ref, Body});
+    TrainingDummyIds.Add(Entity);
+    UE_LOG(LogLDMatch, Display, TEXT("LD_TRAINING_DUMMY_SPAWN owner=%s dummy=%s level=%u slot=%u"),
+        *LDLog::Id(OwnerId), *LDLog::Id(Entity), uint32(Build->Level), uint32(OwnerSlot));
+    Error.Reset();
+    return true;
 }
 
 void ALDGameMode::RetireTrainingDummy(const FGuid& OwnerId)

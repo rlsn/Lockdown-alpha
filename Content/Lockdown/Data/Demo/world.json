@@ -2064,7 +2064,7 @@
         },
         "y": {
           "denominator": 1,
-          "numerator": 700
+          "numerator": -500
         },
         "z": {
           "denominator": 1,
@@ -2083,7 +2083,7 @@
         },
         "y": {
           "denominator": 1,
-          "numerator": 700
+          "numerator": -500
         },
         "z": {
           "denominator": 1,
@@ -2102,7 +2102,7 @@
         },
         "y": {
           "denominator": 1,
-          "numerator": 700
+          "numerator": -500
         },
         "z": {
           "denominator": 1,
@@ -2452,13 +2452,127 @@
         }
       },
       "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_0",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 6500
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_1",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 6900
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_2",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_3",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 7700
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_4",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8100
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "training_dummy_5",
+      "kind": "TrainingDummy",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 8500
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 700
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
     }
   ],
   "approval": {
-    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CB 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps; 11-08 ramps, Elite camps. A playtest baseline, not a balance check.",
+    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 (2026-11-11) approved rest services x=6700/7500/8300 y=-500 cm and six training anchors x=6500..8500 step 400 y=700 cm. A playtest baseline, not a balance check.",
     "status": "approved"
   },
-  "author_schema_sha256": "8b284b6a3114bb87cffe07899595dac05957e59c146176fc098aa51e019a7ca4",
+  "author_schema_sha256": "19b475cf8db4689b50cad9e14dfe5c364e72f1977727a6803116d7ce299dd3da",
   "geometry": {
     "blockers": [
       {
@@ -35532,8 +35646,8 @@
       }
     ]
   },
-  "geometry_revision": 8,
-  "layout_revision": 10,
+  "geometry_revision": 9,
+  "layout_revision": 11,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -35652,5 +35766,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "3d1b85c7ee61c7750c7bb5c9484baf870739577e79fd7aaa753ffce8fa53abbc"
+  "source_sha256": "22e3a1b90f7cef752381a5efcfaec41adf7fe7fffbe2887361e016f50bdec09c"
 }

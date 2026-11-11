@@ -546,6 +546,7 @@ private:
     TSet<FGuid> RestSignups;
     TSet<FGuid> RestReady;
     TArray<TWeakObjectPtr<class ALDRestServiceNPC>> RestServiceNPCs;
+    TWeakObjectPtr<class ALDTrainingRoomDisplay> TrainingRoomDisplay;
     void ClearRestServiceNPCs();
     // RespawnsAndWorld and the lock: RestSignups from the committed feet (empty outside the window). False on a fault.
     bool RefreshRestSignups(FString& Error);
@@ -617,7 +618,8 @@ private:
     TSet<FGuid> TrainingDummyIds;
     struct FLDTrainingResetWindow { uint32 Life = 0; uint8 RestIndex = 0; int64 StartedAtMs = 0; };
     TMap<FGuid, FLDTrainingResetWindow> PendingTrainingResets;
-    // RespawnsAndWorld: spawns the owner's dummy beside its rest anchor; a blocked spot leaves it without one (logged).
+    bool PrepareTrainingGround(const FGuid& Owner, struct FLDLegalGround& Out, FString& Error) const;
+    // RespawnsAndWorld: shared target at its approved slot, using the existing legal offsets when temporarily occupied.
     bool SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error);
     void RetireTrainingDummy(const FGuid& Owner);
     bool ProcessTrainingResets(const FLDGameplayWritePermit& Permit, FString& Error);
@@ -625,7 +627,7 @@ private:
     bool MoveContendersToRest(const FLDGameplayWritePermit& Permit, FString& Error);
     // Ends a living contender life without a death (phase boundary): no K/D, kill feed, reward or respawn wait.
     bool RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
-    // Places the next life of a bodiless contender at its shared-room slot (with its shared training dummy).
+    // Places the next life and its shared training target only after both placements are available.
     bool PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
     bool RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FString& Error);
     FName RestAnchorFor(const FGuid& Contender) const;

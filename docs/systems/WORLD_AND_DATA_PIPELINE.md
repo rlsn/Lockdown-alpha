@@ -32,9 +32,11 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 #198 公共休息室使用世界布局10/几何8，保持唯一地面与同一连接：地面东边界扩展，原东墙保留为野外隔墙，
 新增四面封闭休息室墙，原野外出生点、营地、旗杆与 PK 出生/投掷锚点不移动。
 `RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
-`RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师。`PKSignup` 移到公共休息室对应槽位旁，
-距离仍为300 cm，服务与报名范围均复用 `AIRDROP.PickupRadiusCm`。Python/native importer 都识别新增锚点，
-服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
+`RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师，位于玩家聚集排上、y=-500 cm；
+服务交互仍复用 `AIRDROP.PickupRadiusCm` 的150 cm范围。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
+y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
+训练锚点不进入野外 POI 或小地图地点。`PKSignup` 移到公共休息室对应槽位旁，距离仍为300 cm，报名范围仍复用 `AIRDROP.PickupRadiusCm`。
+Python/native importer 都识别新增锚点，服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
 的完整室内原生路径；野外和 PK 出生仍以旗杆为路径参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
 改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
 `BootstrapAssets.ps1 -Mode Regenerate`；必须重生成原生地图与定义，不能只刷新旧定义或复制旧地图作为新几何。

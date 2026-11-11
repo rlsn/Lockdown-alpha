@@ -79,6 +79,7 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // The pickup and service disks stay clear so their occupants and approaching bodies read plainly.
         case ELDDemoWorldAnchorKind::Airdrop:
         case ELDDemoWorldAnchorKind::RestService: KeepOut.Radius = AirdropRadius + Body; break;
+        case ELDDemoWorldAnchorKind::TrainingDummy: KeepOut.Radius = SpawnRadius + Body; break;
         default: return PlaceFail(Error, TEXT("Unknown Demo world anchor kind: ") + Anchor.Id);
         }
     }

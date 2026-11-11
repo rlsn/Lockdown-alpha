@@ -2,11 +2,16 @@
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Tests/LDSlateProbeInput.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/ScrollBox.h"
+#include "Components/PanelSlot.h"
 #include "AI/LDOpponentController.h"
 #include "Character/LDCharacter.h"
 #include "Containers/Ticker.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -14,7 +19,10 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "PK/LDPKDirector.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
@@ -34,6 +42,9 @@
 #include "World/LDCaptureMarker.h"
 #include "UI/LDHUD.h"
 #include "UI/LDChoicesPanel.h"
+#include "UI/LDControlSettings.h"
+#include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 
 // Three humans ready a full room with three opponent AI and then stay out of play, so every growth step,
 // fight and the capture win below come from the AI's own requests through the shared domain entries.
@@ -133,7 +144,37 @@ class FLDDemoOpponentProbe : public TSharedFromThis<FLDDemoOpponentProbe>
 {
 public:
     TWeakObjectPtr<ALDPlayerController> Controller;
-    FString Output, Role, Error;
+    FString Output, Role, Error, UIReview;
+    bool bUISeeded = false, bUISignupSent = false, bUIRelationsChecked = false;
+    int32 UIShot = 0;
+    int32 UIBuildStage = 0;
+    int32 UIPointWheelSteps=0,UIComponentIndex=INDEX_NONE,UIComponentRewardGrants=0;
+    TWeakPtr<SWidget> UIPressedSlate;
+    TWeakObjectPtr<UPanelSlot> UIPressedSlot;
+    FName UIInstalledComponent;
+    int32 UIServiceStep=0,UIServicePick=0,UIServiceWheels=0;
+    int32 UIServiceObservedStep=INDEX_NONE;
+    double UIServiceStepAt=0;
+    uint64 UIServiceGrowthBefore=0;
+    int32 UIServiceInventoryBefore=0;
+    FName UIReplacement;
+    bool bUIOtherServicesDone=false,bUIPKShotsDone=false,bUIPayoutChecked=false,bUIPointsShot=false;
+    int32 UIReadyOpenStep=0,UIPayoutStep=0,UIFieldStep=0;
+    int32 UIFieldActivesBefore=0,UIStagedBeforeFight=0;
+    double UIFieldFightSince=0,UIFieldRetryAt=0;
+    FGuid UIFieldTarget,UIFieldRejectedTarget;
+    bool bUIFieldChecked=false,bUIAnnouncementChecked=false;
+    double UIActionDueAt=0;
+    bool ReviewExplicitServices(ALDPlayerController& PC,double Now);
+    bool ReviewPayout(ALDPlayerController& PC,double Now);
+    bool ReviewField(ALDPlayerController& PC,const FLDPublicMatchView& View,double Now);
+    uint64 UIRewardTicket = 0, UIBuildRevisionBefore = 0;
+    int64 UIPointsBefore = 0;
+    bool bUIServicePurchaseSent = false, bUIServicePurchaseChecked = false;
+    uint64 UIServiceRevisionBefore = 0;
+    int64 UIServicePointsBefore = 0;
+    double UIShotDueAt = 0, UIBuildDueAt = 0;
+    double UIReadyFoldDueAt=0;
     double Deadline = 0, LastCommandAt = -100, ReturnedAt = 0;
     ELDOpponentProbeStage Stage = ELDOpponentProbeStage::Join;
     bool Passed = true, Written = false, StartSent = false, ReturnSent = false;
@@ -141,7 +182,7 @@ public:
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
     // #198: each AI's current life in the shared opening rest room, that life's foot at its first
-    // sample, whether it has decided to train on a shared dummy (§6.4: the only reason to move there before the PK sign-up
+    // sample, whether it has decided to train on its target (§6.4: the only reason to move there before the PK sign-up
     // window) and its distance to its own sign-up disk at the first sample inside the window (站圈报名: afterwards the only
     // walk is into that disk); the largest drift seen before training, the largest step away from the disk inside the
     // window, the AIs that stood in their disks at the lock, the AIs seen training or on a PK life in R0, and the ms since
@@ -179,8 +220,13 @@ public:
     TSet<FString> ReviewTaken;
     FString ReviewPending;
     double ReviewDueAt = 0, LastReviewAt = 0;
+    int32 RestReviewIndex = INDEX_NONE, RestServiceReviewStage = 0, RestServiceReviewShot = 0;
+    double RestReviewStartAt = 0, RestReviewDueAt = 0;
+    float RestReviewOriginalScale = 1, RestReviewOriginalArm = 0;
+    bool bRestReviewStarted = false, bRestReviewCapturePending = false, bRestReviewLayoutDone = false, bRestReviewDone = false;
     uint64 ReviewKillSerial = 0;
     bool bPannedToFlagpole = false;
+    bool ReviewRestScreens(ALDPlayerController& Owner, const ALDGameState& Public, double Now);
     void ReviewShots(ALDPlayerController& Owner, const ALDGameState& Public, bool bResults);
     TSet<FGuid> OpponentIds;
     TArray<FLDOpponentProbeTrack> Tracks;
@@ -258,7 +304,9 @@ public:
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only full room: participating Listen Host, two owning clients and three opponent AI through the normal lobby; the humans stay out of play. Not hidden-state non-interference, field whitelists, a leaving human or network faults."));
+        Report->SetStringField(TEXT("scope"), UIReview.IsEmpty()
+            ? TEXT("DEV-only full room: participating Listen Host, two owning clients and three opponent AI through the normal lobby; the humans stay out of play. Not hidden-state non-interference, field whitelists, a leaving human or network faults.")
+            : TEXT("DEV-only R0 team UI: three real owning connections, ordinary sign-up movement and production PK draw/replication with a pinned random seed. Not full-match AI acceptance."));
         Summary->SetArrayField(TEXT("not_exercised"), NotExercised);
         Report->SetObjectField(TEXT("summary"), Summary);
         Report->SetArrayField(TEXT("checks"), Checks);
@@ -269,6 +317,7 @@ public:
     }
 
     bool Tick();
+    bool TickUIReview(ALDPlayerController& PC, ALDGameState& Public, ALDGameMode* Mode);
     bool BindOpponents(UWorld& World, ALDGameMode& Mode, const FLDLobbyView& Lobby);
     void Sample(UWorld& World, ALDGameMode& Mode);
     void ReadGrowth(ALDGameMode& Mode, FLDOpponentProbeTrack& Track) const;
@@ -522,19 +571,20 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
             if (Now >= ReturnDueMs + 1500) { ClearOccupants(); }
         }
     }
-    if (bReturnBlocked && !bReturnChecked && Mode.IsFieldRunning() && Line.GetFieldSegment() == 2)
+    if (bReturnBlocked && !bReturnChecked && Mode.IsFieldRunning())
     {
         ClearOccupants();
         bool bTogether = true;
         int64 Protection = INDEX_NONE;
+        const int64 FieldStartedAtMs = Mode.ReadPublicMatch().Timeline.FieldStartedAtMs;
         for (const FGuid& Id : Mode.GetRosterOrder())
         {
             const auto* Life = Mode.Lives.Find(Id);
             if (!Mode.IsContenderPresent(Id)) { continue; }
-            bTogether &= Life && Life->Phase == ELDLifePhase::Alive && (Protection == INDEX_NONE || Life->ProtectedUntilMs == Protection);
+            bTogether &= Life && Life->Phase == ELDLifePhase::Alive && Life->ProtectedUntilMs > FieldStartedAtMs
+                && (Protection == INDEX_NONE || Life->ProtectedUntilMs == Protection);
             if (Life) { Protection = Life->ProtectedUntilMs; }
         }
-        const int64 FieldStartedAtMs = Mode.ReadPublicMatch().Timeline.FieldStartedAtMs;
         Summary->SetNumberField(TEXT("r14_return_due_ms"), double(ReturnDueMs));
         Summary->SetNumberField(TEXT("r14_field_started_at_ms"), double(FieldStartedAtMs));
         Summary->SetBoolField(TEXT("r14_held_seen"), bReturnHeldSeen);
@@ -696,6 +746,246 @@ void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
     Screenshots.Add(MakeShared<FJsonValueString>(File));
 }
 
+bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const ALDGameState& Public, double Now)
+{
+    const FLDTimelineView& Timeline = Public.PublicMatch.Timeline;
+    if (bRestReviewDone || !bRestChoicesShot || Public.PublicMatch.Phase != ELDMatchPhase::Rest
+        || Timeline.Stage != ELDMatchStage::Rest || Timeline.Step != ELDRestStep::Build)
+    {
+        return false;
+    }
+
+    ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
+    if (!Panel || !Owner.Controls) { return false; }
+
+    struct FReviewShot { const TCHAR* Name; int32 Tab, Width, Height; float Scale; };
+    static constexpr FReviewShot ReviewShots[] = {
+        {TEXT("HostRestSkills_1280x720_100.png"), 0, 1280, 720, 1.f},
+        {TEXT("HostRestComponents_1280x720_100.png"), 1, 1280, 720, 1.f},
+        {TEXT("HostRestPoints_1280x720_100.png"), 2, 1280, 720, 1.f},
+        {TEXT("HostRestSkills_1280x720_125.png"), 0, 1280, 720, 1.25f},
+        {TEXT("HostRestComponents_1280x720_125.png"), 1, 1280, 720, 1.25f},
+        {TEXT("HostRestPoints_1280x720_125.png"), 2, 1280, 720, 1.25f},
+        {TEXT("HostRestSkills_1920x1080_100.png"), 0, 1920, 1080, 1.f},
+        {TEXT("HostRestComponents_1920x1080_100.png"), 1, 1920, 1080, 1.f},
+        {TEXT("HostRestPoints_1920x1080_100.png"), 2, 1920, 1080, 1.f},
+        {TEXT("HostRestSkills_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
+        {TEXT("HostRestComponents_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
+        {TEXT("HostRestPoints_1920x1080_125.png"), 2, 1920, 1080, 1.25f},
+    };
+    static constexpr FReviewShot ServiceShots[] = {
+        {TEXT("HostRestService_1280x720_100.png"), 0, 1280, 720, 1.f},
+        {TEXT("HostRestService_1280x720_125.png"), 0, 1280, 720, 1.25f},
+        {TEXT("HostRestService_1920x1080_100.png"), 0, 1920, 1080, 1.f},
+        {TEXT("HostRestService_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
+    };
+    const auto Configure = [&](int32 Index)
+    {
+        const FReviewShot& Shot = ReviewShots[Index];
+        Owner.Controls->TextScale = Shot.Scale;
+        Panel->ShowTab(Shot.Tab);
+        Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
+        RestReviewDueAt = Now + .65;
+    };
+    const auto Capture = [&](const TCHAR* Name)
+    {
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Name), true, false);
+        Screenshots.Add(MakeShared<FJsonValueString>(Name));
+    };
+    const auto ConfigureService = [&]()
+    {
+        const FReviewShot& Shot = ServiceShots[RestServiceReviewShot];
+        Owner.Controls->TextScale = Shot.Scale;
+        Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
+        RestReviewDueAt = Now + .65;
+    };
+
+    if (!bRestReviewStarted)
+    {
+        if (RestReviewStartAt == 0) { RestReviewStartAt = Now + .75; return true; }
+        if (Now < RestReviewStartAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        RestReviewOriginalScale = Owner.Controls->TextScale;
+        bRestReviewStarted = true;
+        Panel->OpenPanel();
+        RestReviewIndex = 0;
+        Configure(RestReviewIndex);
+        return true;
+    }
+    if (!bRestReviewLayoutDone)
+    {
+        if (bRestReviewCapturePending)
+        {
+            if (FScreenshotRequest::IsScreenshotRequested()) { return true; }
+            bRestReviewCapturePending = false;
+            ++RestReviewIndex;
+            if (RestReviewIndex < UE_ARRAY_COUNT(ReviewShots))
+            {
+                Configure(RestReviewIndex);
+                return true;
+            }
+            Owner.Controls->TextScale = RestReviewOriginalScale;
+            Panel->ShowTab(0);
+            Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true);
+            bRestReviewLayoutDone = true;
+            RestServiceReviewStage = 0;
+            RestReviewDueAt = Now + .65;
+            return true;
+        }
+        if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        Capture(ReviewShots[RestReviewIndex].Name);
+        bRestReviewCapturePending = true;
+        return true;
+    }
+
+    if (RestServiceReviewStage == 0)
+    {
+        if(Now<RestReviewDueAt){return true;}
+        const FLDProgressionView* Growth=Owner.ReadOwnProgression();
+        if(!UIReview.IsEmpty()&&Growth)
+        {
+            if(Panel->HasPendingRequest()){return true;}
+            if(Growth->bHasActiveOffer)
+            {
+                UWidget* Offer=Panel->GetWidgetFromName(TEXT("GrowthOffer0"));
+                if(!LDSlateProbeInput::Path(Offer).IsValid())
+                {
+                    if(!Check(++UIServiceWheels<=80
+                        &&LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),3.f),
+                        TEXT("UI: actual scrolling reaches the outstanding level-up offer"))){return false;}
+                    RestReviewDueAt=Now+.1;return true;
+                }
+                UIServiceWheels=0;
+                if(!Check(LDSlateProbeInput::SendClick(Offer),TEXT("UI: actual pointer resolves the level-up offer before buying another"))){return false;}
+                RestReviewDueAt=Now+.4;return true;
+            }
+            if(Growth->QueuedActiveOpportunities){return true;}
+        }
+        if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant)
+        {
+            if(!LDSlateProbeInput::Path(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
+            if(!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
+                TEXT("UI: actual merchant interaction opens the service window"))){return false;}
+            RestServiceReviewStage = 2;
+            ConfigureService();
+            return true;
+        }
+        ULDMapRegistry* Registry = Owner.GetWorld() ? Owner.GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+        const FLDMapBinding* Service = Registry
+            ? Registry->Resolve(FName(*LDDemoWorld::RestServiceId(1)), Registry->Generation) : nullptr;
+        if (Owner.Navigation && Owner.CanWorldCommand() && Service)
+        {
+            Owner.Navigation->NavigateGround(Service->Position, Service->Surface);
+            RestServiceReviewStage = 1;
+            RestReviewDueAt = Now + 15.;
+            return true;
+        }
+        RestServiceReviewStage = 3;
+    }
+    if (RestServiceReviewStage == 1)
+    {
+        if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant && Owner.HUDUI)
+        {
+            if(!LDSlateProbeInput::Path(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
+            if(!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
+                TEXT("UI: actual merchant interaction opens the service window after walking"))){return false;}
+            RestServiceReviewStage = 2;
+            ConfigureService();
+            return true;
+        }
+        if (Now < RestReviewDueAt) { return true; }
+        RestServiceReviewStage = 3;
+    }
+    if (RestServiceReviewStage == 2)
+    {
+        if(Now<RestReviewDueAt){return true;}
+        if (!UIReview.IsEmpty() && !bUIServicePurchaseChecked)
+        {
+            const FLDProgressionView* Growth = Owner.ReadOwnProgression();
+            if (!Growth || Panel->HasPendingRequest()) { return true; }
+            if (!bUIServicePurchaseSent)
+            {
+                UIServiceRevisionBefore = Growth->BuildRevision;
+                UIServicePointsBefore = Growth->UnspentPoints;
+                if (!Check(LDSlateProbeInput::SendClick(Panel->NpcButton), TEXT("UI: actual pointer submits the visible NPC purchase"))) { return false; }
+                bUIServicePurchaseSent = true;
+                RestReviewDueAt = Now + .5;
+                return true;
+            }
+            if (Now < RestReviewDueAt || Growth->BuildRevision <= UIServiceRevisionBefore) { return true; }
+            const bool bAppliedOnce = Growth->UnspentPoints == UIServicePointsBefore - Content->Get().Parameters.NpcActivePoints;
+            const bool bRefused = !Panel->NpcButton->GetIsEnabled()&&!Panel->NpcBlocked->GetText().IsEmpty();
+            if (!Check(bAppliedOnce && bRefused && Panel->Feedback && !Panel->Feedback->GetText().IsEmpty()
+                && Panel->Feedback->GetParent() == Panel->ServiceBody,
+                TEXT("UI: service purchase charges once and the unavailable next purchase explains why inside its service window"))) { return false; }
+            bUIServicePurchaseChecked = true;
+            RestReviewDueAt = Now + .65;
+            return true;
+        }
+        if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        if (bRestReviewCapturePending)
+        {
+            bRestReviewCapturePending = false;
+            if (++RestServiceReviewShot == UE_ARRAY_COUNT(ServiceShots))
+            {
+                RestServiceReviewStage = 3;
+                Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true);
+                RestReviewDueAt = Now + .65;
+                return true;
+            }
+            ConfigureService();
+            return true;
+        }
+        Capture(ServiceShots[RestServiceReviewShot].Name);
+        bRestReviewCapturePending = true;
+        return true;
+    }
+    if (RestServiceReviewStage == 3)
+    {
+        if (FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        if(!UIReview.IsEmpty()&&!bUIOtherServicesDone){return ReviewExplicitServices(Owner,Now);}
+        Panel->ClosePanel();
+        Owner.Controls->TextScale = 1.f;
+        if (Owner.Navigation) { Owner.Navigation->PanTo(FVector(7500, 100, 0)); }
+        if (ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn()); Body && Body->CameraArm)
+        {
+            RestReviewOriginalArm = Body->CameraArm->TargetArmLength;
+            Body->CameraArm->TargetArmLength = 4500.f;
+        }
+        RestServiceReviewStage = 4;
+        RestReviewDueAt = Now + .65;
+        return true;
+    }
+    if (RestServiceReviewStage == 4)
+    {
+        if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        Capture(TEXT("HostRestPanorama_1280x720.png"));
+        RestServiceReviewStage = 5;
+        RestReviewDueAt = Now + .3;
+        return true;
+    }
+    if(RestServiceReviewStage==5)
+    {
+        if(Now<RestReviewDueAt||FScreenshotRequest::IsScreenshotRequested()){return true;}
+        Owner.ConsoleCommand(TEXT("r.SetRes 1920x1080w"),true);Owner.Controls->TextScale=1.25f;
+        RestServiceReviewStage=6;RestReviewDueAt=Now+.65;return true;
+    }
+    if(RestServiceReviewStage==6)
+    {
+        if(Now<RestReviewDueAt||FScreenshotRequest::IsScreenshotRequested()){return true;}
+        Capture(TEXT("HostRestPanorama.png"));
+        RestServiceReviewStage=7;RestReviewDueAt=Now+.3;return true;
+    }
+    if (FScreenshotRequest::IsScreenshotRequested()) { return true; }
+    if (ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn()); Body && Body->CameraArm)
+    {
+        if (RestReviewOriginalArm > 0) { Body->CameraArm->TargetArmLength = RestReviewOriginalArm; }
+        if (Owner.Navigation) { Owner.Navigation->PanTo(Body->GetActorLocation()); }
+    }
+    Owner.Controls->TextScale = RestReviewOriginalScale;
+    bRestReviewDone = true;
+    return true;
+}
+
 void FLDDemoOpponentProbe::ReviewShots(ALDPlayerController& Owner, const ALDGameState& Public, bool bResults)
 {
     if (!FApp::CanEverRender()) { return; }
@@ -711,6 +1001,7 @@ void FLDDemoOpponentProbe::ReviewShots(ALDPlayerController& Owner, const ALDGame
         LastReviewAt = Now;
         return;
     }
+    if (ReviewRestScreens(Owner, Public, Now)) { return; }
     if (Now - LastReviewAt < .6 || Now - LastShotAt < .6) { return; }
     const auto Queue = [&](const TCHAR* Name, double Delay)
     {
@@ -722,7 +1013,9 @@ void FLDDemoOpponentProbe::ReviewShots(ALDPlayerController& Owner, const ALDGame
     if (bResults) { Queue(TEXT("HostResults"), .5); return; }
     // The opening active offer with its points. The Host opens it and previews the first card only so a hit does not fold it
     // before the shot; it never confirms.
-    if (Now - MatchSeenAt >= 2. && !ReviewTaken.Contains(TEXT("HostChoices")))
+    if (Public.PublicMatch.Phase == ELDMatchPhase::Rest && Public.PublicMatch.Timeline.Stage == ELDMatchStage::Rest
+        && Public.PublicMatch.Timeline.Step == ELDRestStep::Build && Now - MatchSeenAt >= 2.
+        && !ReviewTaken.Contains(TEXT("HostChoices")))
     {
         ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
         if (Panel)
@@ -917,6 +1210,814 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         TEXT("The authority gate is closed by the same result it published"));
 }
 
+bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& Public, ALDGameMode* Mode)
+{
+    const FLDPublicMatchView& View = Public.PublicMatch;
+    const double Now = FPlatformTime::Seconds();
+    const int32 Entrants = UIReview == TEXT("2v2") ? 4 : 6;
+    if (View.Phase != ELDMatchPhase::Rest) { return ReviewField(PC,View,Now); }
+    if(View.Timeline.Step==ELDRestStep::Payout){return ReviewPayout(PC,Now);}
+    if(View.Timeline.Step==ELDRestStep::Return&&FApp::CanEverRender()&&!bUIPayoutChecked)
+    {Check(false,TEXT("UI: the actual payout service window was exercised before return"));return Finish();}
+    if (Mode && Mode->PKDirector && !bUISeeded)
+    {
+        // Pin a possible draw, not the approved 5000 bp probability or the actual production draw implementation.
+        for (int32 Seed = 0; Seed < 100; ++Seed)
+        {
+            FRandomStream Trial(Seed);
+            FLDPKDraw Draw;
+            FString DrawError;
+            if (LDPKRules::Draw(Entrants, Mode->PKDirector->GetParameters(), Trial, Draw, DrawError)
+                && Draw.Format == ELDPKFormat::Teams)
+            {
+                Mode->PKDirector->Random.Initialize(Seed);
+                Summary->SetNumberField(TEXT("draw_seed"), Seed);
+                bUISeeded = true;
+                break;
+            }
+        }
+        if (!Check(bUISeeded, TEXT("UI: an approved team draw seed exists"))) { return Finish(); }
+    }
+    if (View.Timeline.Step == ELDRestStep::Build)
+    {
+        if (Role == TEXT("Host") && FApp::CanEverRender() && PC.HUDUI && PC.HUDUI->ChoicesPanel)
+        {
+            ULDChoicesPanel* Panel = PC.HUDUI->ChoicesPanel;
+            const FLDProgressionView* Growth = PC.ReadOwnProgression();
+            if (!Growth || !Mode || !Mode->Growth) { return true; }
+            if (Now < UIBuildDueAt) { return true; }
+            if (UIBuildStage == 0)
+            {
+                if (!Growth->bHasActiveOffer) { return true; }
+                if (!Check(Panel->ChooseOffer(0), TEXT("UI: owner chooses an opening skill through the panel"))) { return Finish(); }
+                UIBuildStage = 1;
+                UIBuildDueAt = Now + .5;
+                return true;
+            }
+            if (UIBuildStage == 1)
+            {
+                if (!Growth->bOpeningBasePending || Panel->HasPendingRequest()) { return true; }
+                for (int32 Index = 0; Index < Growth->OpeningBaseOptions.Num(); ++Index)
+                {
+                    const FString Id = Growth->OpeningBaseOptions[Index].ToString();
+                    const FLDDemoComponentDefinition* Definition = Content->Get().Components.FindByPredicate(
+                        [&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; });
+                    if (Definition && Definition->BindElements.IsEmpty())
+                    {
+                        if (!Check(Panel->PickOpeningBase(Index), TEXT("UI: owner installs its opening base through the panel"))) { return Finish(); }
+                        UIBuildStage = 2;
+                        UIBuildDueAt = Now + .5;
+                        return true;
+                    }
+                }
+                Check(false, TEXT("UI: opening skill has a base that needs no binding"));
+                return Finish();
+            }
+            if (UIBuildStage == 2)
+            {
+                if (Growth->Components.IsEmpty() || Panel->HasPendingRequest()) { return true; }
+                UIRewardTicket = Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId, Growth->NextThresholdXP - Growth->CumulativeXP, Error);
+                if (!Check(UIRewardTicket != 0, TEXT("UI: DEV XP queues a normal level-up inventory component"))) { return Finish(); }
+                UIBuildStage = 3;
+                UIBuildDueAt = Now + .5;
+                return true;
+            }
+            if (UIBuildStage == 3)
+            {
+                FString Detail;
+                const ELDDevGrantStatus Status = Mode->Growth->DevGrantStatus(UIRewardTicket, Detail);
+                if (Status == ELDDevGrantStatus::Pending) { return true; }
+                if (!Check(Status == ELDDevGrantStatus::Granted, TEXT("UI: DEV XP commits through the reward composite"))) { return Finish(); }
+                if (Growth->Components.Num() < 2) { return true; }
+                int32 Installed = 0;
+                for (const FLDComponentInstanceView& Component : Growth->Components) { Installed += Component.bInstalled ? 1 : 0; }
+                if (!Check(Installed > 0 && Installed < Growth->Components.Num(), TEXT("UI: real inventory has installed and uninstalled components"))) { return Finish(); }
+                UIBuildStage = 4;
+                UIBuildDueAt = Now + .5;
+                return true;
+            }
+            if (UIBuildStage == 4)
+            {
+                UIBuildRevisionBefore = Growth->BuildRevision;
+                UIPointsBefore = Growth->UnspentPoints;
+                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                Panel->OpenPanel();
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab2"))),
+                    TEXT("UI: actual pointer selects the points task"))){return Finish();}
+                UIBuildStage = 5;
+                UIBuildDueAt = Now + .5;
+                return true;
+            }
+            if (UIBuildStage == 5)
+            {
+                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+                const auto& Last=Panel->StatRows.Last();
+                if(!LDSlateProbeInput::FullyVisible(Last.Row,Scroll)||!LDSlateProbeInput::FullyVisible(Panel->ConfirmButton,Scroll))
+                {
+                    if(!Check(++UIPointWheelSteps<30&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
+                        TEXT("UI: real mouse wheel scrolls the points viewport"))){return Finish();}
+                    UIBuildDueAt=Now+.15;return true;
+                }
+                if(!Check(LDSlateProbeInput::FullyVisible(Last.PerPoint,Scroll)&&!Last.PerPoint->GetText().IsEmpty()
+                    &&LDSlateProbeInput::SendClick(Last.Plus),
+                    TEXT("UI: 720p125 last attribute, its complete benefit and confirm are visible; plus is hit-tested"))){return Finish();}
+                UIBuildStage=6;UIBuildDueAt=Now+.2;return true;
+            }
+            if(UIBuildStage==6)
+            {
+                if(!bUIPointsShot)
+                {
+                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostPointsScrolled_1280x720_125.png")),true,false);
+                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostPointsScrolled_1280x720_125.png")));
+                    bUIPointsShot=true;return true;
+                }
+                if(FScreenshotRequest::IsScreenshotRequested()){return true;}
+                if(!Check(Panel->StagedTotal()==1&&LDSlateProbeInput::SendClick(Panel->ConfirmButton),
+                    TEXT("UI: the visible confirm button receives an actual Slate click"))){return Finish();}
+                UIBuildStage=7;UIBuildDueAt=Now+.5;return true;
+            }
+            if (UIBuildStage == 7)
+            {
+                if (Growth->BuildRevision <= UIBuildRevisionBefore || Panel->HasPendingRequest()) { return true; }
+                if (!Check(Growth->UnspentPoints == UIPointsBefore - 1 && Panel->StagedTotal() == 0,
+                    TEXT("UI: point confirmation applies once and clears only committed staging"))) { return Finish(); }
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
+                    TEXT("UI: pointer opens component inventory"))){return Finish();}
+                UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
+            }
+            if(UIBuildStage==8)
+            {
+                for(int32 Index=0;Index<Growth->Components.Num();++Index)
+                {
+                    const auto& Owned=Growth->Components[Index];
+                    const FString Id=Owned.DefinitionId.ToString();
+                    const auto* Def=Content->Get().Components.FindByPredicate([&Id](const auto& Row){return Row.Id==Id;});
+                    if(!Owned.bInstalled&&Def&&LDHUD::ComponentEnableReason(Owned,*Growth,&Content->Get())==ELDGrowthReason::None)
+                    {UIComponentIndex=Index;UIInstalledComponent=Owned.DefinitionId;break;}
+                }
+                if(UIComponentIndex==INDEX_NONE)
+                {
+                    if(!Check(++UIComponentRewardGrants<=10&&Growth->Level<Content->Get().Progression.MaxLevel,
+                        TEXT("UI: normal level rewards supply an applicable inventory fixture within a bound"))){return Finish();}
+                    UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
+                    if(!Check(UIRewardTicket!=0,TEXT("UI: applicable component fixture uses the ordinary level reward composite"))){return Finish();}
+                    UIBuildStage=81;UIBuildDueAt=Now+.5;return true;
+                }
+                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+                auto& Row=Panel->ComponentRows[UIComponentIndex];
+                if(!LDSlateProbeInput::Path(Row.Inspect).IsValid())
+                {
+                    const float Direction=Row.Row->GetCachedGeometry().GetAbsolutePosition().Y
+                        <Scroll->GetCachedGeometry().GetAbsolutePosition().Y?1.f:-1.f;
+                    if(!Check(LDSlateProbeInput::SendWheel(Scroll,Direction),TEXT("UI: pointer wheel reveals the component row"))){return Finish();}
+                    UIBuildDueAt=Now+.15;return true;
+                }
+                Row.Inspect->SetKeyboardFocus();
+                UIPressedSlate=Row.Inspect->GetCachedWidget();UIPressedSlot=Row.Row->Slot;
+                if(!Check(LDSlateProbeInput::Pointer(Row.Inspect,EKeys::LeftMouseButton,true,false),
+                    TEXT("UI: real component row receives pointer down"))){return Finish();}
+                UIBuildStage=9;UIBuildDueAt=Now+.2;return true;
+            }
+            if(UIBuildStage==81)
+            {
+                FString Detail;const auto Status=Mode->Growth->DevGrantStatus(UIRewardTicket,Detail);
+                if(Status==ELDDevGrantStatus::Pending){return true;}
+                if(!Check(Status==ELDDevGrantStatus::Granted,TEXT("UI: additional normal component reward is committed"))){return Finish();}
+                UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
+            }
+            if(UIBuildStage==9)
+            {
+                auto& Row=Panel->ComponentRows[UIComponentIndex];
+                PC.HUDUI->RefreshReadModel();
+                if(!Check(Row.Row->Slot==UIPressedSlot.Get(),TEXT("UI: component slot persists across a real read-model refresh"))
+                    ||!Check(Row.Inspect->GetCachedWidget()==UIPressedSlate.Pin(),TEXT("UI: component Slate widget persists across refresh"))
+                    ||!Check(Row.Inspect->HasKeyboardFocus(),TEXT("UI: component keyboard focus persists across refresh"))
+                    ||!Check(Row.Inspect->IsPressed(),TEXT("UI: actual pointer capture remains pressed across frames and refresh"))
+                    ||!Check(LDSlateProbeInput::Pointer(Row.Inspect,EKeys::LeftMouseButton,false,false)&&Row.Inspect->IsHovered(),
+                        TEXT("UI: actual pointer movement hovers the persistent component row")))
+                {return Finish();}
+                PC.HUDUI->RefreshReadModel();
+                if(!Check(Row.Inspect->IsHovered(),TEXT("UI: actual hover survives a read-model refresh"))
+                    ||!Check(LDSlateProbeInput::Pointer(Row.Inspect,EKeys::LeftMouseButton,false,true)
+                        &&Panel->PinnedComponent==UIInstalledComponent,TEXT("UI: actual pointer release after refresh activates the same component")))
+                {return Finish();}
+                UIBuildStage=10;UIBuildDueAt=Now+.25;return true;
+            }
+            if(UIBuildStage==10)
+            {
+                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+                if(!LDSlateProbeInput::Path(Panel->InspectInstall).IsValid())
+                {
+                    if(!Check(LDSlateProbeInput::SendWheel(Scroll,-1.f),TEXT("UI: wheel reveals the real install action"))){return Finish();}
+                    UIBuildDueAt=Now+.15;return true;
+                }
+                if(!Check(LDSlateProbeInput::SendClick(Panel->InspectInstall),TEXT("UI: actual pointer installs the inspected inventory component"))){return Finish();}
+                UIBuildStage=11;UIBuildDueAt=Now+.5;return true;
+            }
+            if(UIBuildStage==11)
+            {
+                if(Panel->HasPendingRequest()){return true;}
+                const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
+                if(Owned&&!Owned->bInstalled&&(!Panel->TargetComponent.IsNone()||!Panel->BindingComponent.IsNone()))
+                {
+                    UWidget* Choice=nullptr;
+                    if(!Panel->TargetComponent.IsNone())
+                    {
+                        Choice=Panel->TargetPicked!=INDEX_NONE&&!Panel->RepeatButtons.IsEmpty()
+                            ?Panel->RepeatButtons[0].Get():!Panel->TargetButtons.IsEmpty()?Panel->TargetButtons[0].Get():nullptr;
+                    }
+                    else
+                    {
+                        for(const auto& Button:Panel->BindElementButtons)
+                        {if(Button&&Button->IsVisible()&&Button->GetIsEnabled()){Choice=Button.Get();break;}}
+                    }
+                    auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+                    if(!LDSlateProbeInput::Path(Choice).IsValid())
+                    {
+                        const float Direction=Choice&&Choice->GetCachedGeometry().GetAbsolutePosition().Y
+                            <Scroll->GetCachedGeometry().GetAbsolutePosition().Y?1.f:-1.f;
+                        if(!Check(LDSlateProbeInput::SendWheel(Scroll,Direction),TEXT("UI: actual wheel reveals installation target or binding"))){return Finish();}
+                        UIBuildDueAt=Now+.15;return true;
+                    }
+                    if(!Check(LDSlateProbeInput::SendClick(Choice),TEXT("UI: actual pointer selects the component installation target or binding"))){return Finish();}
+                    UIBuildDueAt=Now+.5;return true;
+                }
+                if(!Check(Owned&&Owned->bInstalled&&Panel->ComponentRows[UIComponentIndex].Row->GetParent()==Panel->InstalledComponentList,
+                    TEXT("UI: authority installation moves the same item from uninstalled to installed"))){return Finish();}
+                UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
+                if(!Check(UIRewardTicket!=0,TEXT("UI: normal next-level reward replenishes the uninstalled evidence group"))){return Finish();}
+                UIBuildStage=12;UIBuildDueAt=Now+.5;return true;
+            }
+            if(UIBuildStage==12)
+            {
+                FString Detail;const auto Status=Mode->Growth->DevGrantStatus(UIRewardTicket,Detail);
+                if(Status==ELDDevGrantStatus::Pending){return true;}
+                if(!Check(Status==ELDDevGrantStatus::Granted,TEXT("UI: replenishing reward commits normally"))){return Finish();}
+                UIBuildStage=13;
+            }
+            bRestChoicesShot = true;
+            ReviewRestScreens(PC, Public, Now);
+            if (!Passed) { return Finish(); }
+        }
+        int64 AtMs = 0;
+        if (!PC.ReadDemoAuthorityTimeMs(AtMs) || AtMs < View.Timeline.SignupOpensAtMs - 20000) { return true; }
+        if (!bUISignupSent && PC.Navigation && PC.CanWorldCommand())
+        {
+            if (PC.HUDUI && PC.HUDUI->ChoicesPanel) { PC.HUDUI->ChoicesPanel->ClosePanel(); }
+            // Three AI sign normally. Client1 makes four entrants; all three humans make six.
+            if (Entrants == 6 || Role == TEXT("Client1"))
+            {
+                const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
+                ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                const FLDMapBinding* Disk = Body && Registry
+                    ? Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Body->PresentationKey)), Registry->Generation) : nullptr;
+                if (!Check(Disk != nullptr, TEXT("UI: owner resolves its public sign-up anchor"))) { return Finish(); }
+                PC.Navigation->NavigateGround(Disk->Position, Disk->Surface);
+            }
+            bUISignupSent = true;
+        }
+        if(bUISignupSent&&FApp::CanEverRender()&&(Entrants==6||Role==TEXT("Client1"))
+            &&UIReadyOpenStep<3&&Now>=UIActionDueAt)
+        {
+            auto* Panel=PC.HUDUI->ChoicesPanel.Get();
+            UIActionDueAt=Now+.2;
+            if(UIReadyOpenStep==0)
+            {
+                if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))).IsValid()){return true;}
+                if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                    TEXT("UI: entrant opens planning during the actual build window before PK"))){return Finish();}
+                UIReadyOpenStep=1;return true;
+            }
+            if(UIReadyOpenStep==1)
+            {
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab2"))),
+                    TEXT("UI: entrant selects points during the build window"))){return Finish();}
+                LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),12.f);
+                UIReadyOpenStep=2;return true;
+            }
+            if(!Check(LDSlateProbeInput::SendClick(Panel->StatRows[0].Plus)&&Panel->StagedTotal()==1,
+                TEXT("UI: entrant leaves an actual staged point open before entering PK"))){return Finish();}
+            UIReadyOpenStep=3;
+        }
+        return true;
+    }
+    if (View.Timeline.Step != ELDRestStep::PKReady && View.Timeline.Step != ELDRestStep::PK) { return true; }
+    if(View.Timeline.Step==ELDRestStep::PKReady&&FApp::CanEverRender()&&View.PK.FindEntrant(PC.OwnerState.ContenderId))
+    {
+        if(!Check(UIReadyOpenStep==3&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
+            TEXT("UI: actual build-window staging survives the locked PK preparation"))){return Finish();}
+        return true;
+    }
+    if(View.Timeline.Step==ELDRestStep::PK&&FApp::CanEverRender()&&View.PK.FindEntrant(PC.OwnerState.ContenderId)&&UIReadyOpenStep==3)
+    {
+        if(UIReadyFoldDueAt==0){UIReadyFoldDueAt=Now+.2;return true;}
+        if(Now<UIReadyFoldDueAt){return true;}
+        if(!Check(!PC.HUDUI->ChoicesPanel->IsPanelOpen()&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
+            TEXT("UI: actual PK entry folds the entrant workspace without discarding its staged point"))){return Finish();}
+        UIReadyOpenStep=4;
+    }
+    if(bUIPKShotsDone){return true;}
+    if (!bUIRelationsChecked)
+    {
+        if (View.PK.Outcome != ELDPKOutcome::Running) { return true; }
+        const FGuid Self = PC.OwnerState.ContenderId;
+        const FLDPKEntrantView* Own = View.PK.FindEntrant(Self);
+        bool Relations = View.PK.Format == ELDPKFormat::Teams && View.PK.SideCount == 2 && View.PK.Entrants.Num() == Entrants
+            && LDHUD::PKFormatText(View.PK.Format, View.PK.SideCount, Entrants) == UIReview;
+        int32 Allies = 0, Enemies = 0;
+        for (const FLDPKEntrantView& Entry : View.PK.Entrants)
+        {
+            const FString Label = LDHUD::PKRelationText(View, Self, Entry.Contender);
+            if (Own)
+            {
+                Relations &= Label == (Entry.Contender == Self ? LDTerms::PKOwnSide
+                    : Entry.Side == Own->Side ? LDTerms::PKTeammate : LDTerms::PKEnemy);
+                Allies += Entry.Side == Own->Side && Entry.Contender != Self ? 1 : 0;
+                Enemies += Entry.Side != Own->Side ? 1 : 0;
+            }
+            else { Relations &= Label==LDTerms::PKSide(Entry.Side)&&!Label.Contains(LDTerms::PKRoleWatch); }
+        }
+        const ALDWorldViewRelay* Relay = PC.LocalView();
+        const FLDObservedFrameRead Read = Relay ? Relay->ReadObservedFrame() : FLDObservedFrameRead{};
+        int32 Seen = 0;
+        if (Read.Frame && Read.Status == ELDObservedViewStatus::Current)
+        {
+            for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+            {
+                if (Unit.Kind == ELDObservedUnitKind::Contender && View.PK.FindEntrant(Unit.ContenderId))
+                {
+                    ++Seen;
+                    Relations &= !LDHUD::PKRelationText(View, Self, Unit.ContenderId).IsEmpty();
+                }
+            }
+        }
+        if (!Seen) { return true; }
+        Relations &= Own ? Allies == Entrants / 2 - 1 && Enemies == Entrants / 2
+            : LDHUD::IsSpectatingPK(View, Self);
+        if (!Check(Relations, TEXT("UI: owning connection reads team relations and observed arena bodies"))) { return Finish(); }
+        Summary->SetStringField(TEXT("ui_format"), UIReview);
+        Summary->SetNumberField(TEXT("observed_entrants"), Seen);
+        Summary->SetBoolField(TEXT("spectator"), Own == nullptr);
+        bUIRelationsChecked = true;
+        if (!FApp::CanEverRender())
+        {
+            Summary->SetArrayField(TEXT("screenshots"), Screenshots);
+            bUIPKShotsDone=true;return true;
+        }
+        if (PC.Navigation) { PC.Navigation->PanTo(View.PK.ArenaCentreCm); }
+        if (ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn()); Body && Body->CameraArm)
+        { Body->CameraArm->TargetArmLength = 2600.f; }
+        if (PC.Controls) { PC.Controls->TextScale = 1.f; }
+        PC.ConsoleCommand(Role == TEXT("Client1") ? TEXT("r.SetRes 1280x720w") : TEXT("r.SetRes 1920x1080w"), true);
+        UIShotDueAt = Now + .75;
+        return true;
+    }
+    if (Now < UIShotDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+    if (UIShot == 1)
+    {
+        if (PC.Controls) { PC.Controls->TextScale = 1.25f; }
+        ++UIShot;
+        UIShotDueAt = Now + .75;
+        return true;
+    }
+    if (UIShot == 0 || UIShot == 2)
+    {
+        const UWidget* SidePanel = PC.HUDUI ? PC.HUDUI->GetWidgetFromName(TEXT("HUDPKSidePanel")) : nullptr;
+        if (!Check(SidePanel != nullptr, TEXT("UI: rendered owner has its public PK side panel"))) { return Finish(); }
+        const FGeometry& HudGeometry = PC.HUDUI->GetCachedGeometry();
+        const FVector2D Left = HudGeometry.AbsoluteToLocal(
+            SidePanel->GetCachedGeometry().LocalToAbsolute(FVector2D::ZeroVector));
+        if (!Check(SidePanel->GetCachedGeometry().GetLocalSize().X > 0
+            && Left.X > HudGeometry.GetLocalSize().X * .6,
+            UIShot == 0 ? TEXT("UI: PK side panel leaves arena centre clear at 100%")
+                : TEXT("UI: PK side panel leaves arena centre clear at 125%"))) { return Finish(); }
+        const FString Name = FString::Printf(TEXT("%s-PK-%s-%s.png"), *Role, *UIReview, UIShot == 0 ? TEXT("100") : TEXT("125"));
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Name), true, false);
+        Screenshots.Add(MakeShared<FJsonValueString>(Name));
+        ++UIShot;
+        UIShotDueAt = Now + .75;
+        return true;
+    }
+    if (Role == TEXT("Host"))
+    {
+        if (!Check(bRestReviewDone && RestServiceReviewShot == 4, TEXT("UI: task pages and NPC service captured at both sizes and scales")))
+        { return Finish(); }
+    }
+    Summary->SetArrayField(TEXT("screenshots"), Screenshots);
+    bUIPKShotsDone=true;return true;
+}
+
+        bool FLDDemoOpponentProbe::ReviewPayout(ALDPlayerController& PC,double Now)
+        {
+            if(bUIPayoutChecked||Now<UIActionDueAt){return true;}
+            if(!FApp::CanEverRender()){bUIPayoutChecked=true;return true;}
+            auto* HUD=PC.HUDUI.Get();auto* Panel=HUD?HUD->ChoicesPanel.Get():nullptr;
+            if(!Check(HUD&&Panel,TEXT("UI: payout owner has its actual HUD"))){return Finish();}
+            UIActionDueAt=Now+.2;
+            if(UIPayoutStep==0)
+            {
+                if(Panel->IsPanelOpen()){Panel->ClosePanel();return true;}
+                if(!LDSlateProbeInput::Path(HUD->GetWidgetFromName(TEXT("HUDTrainingReset"))).IsValid()){return true;}
+                if(!Check(!HUD->GetWidgetFromName(TEXT("HUDRestReady"))->IsVisible()
+                    &&LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDTrainingReset"))),
+                    TEXT("UI: payout exposes actual training reset but not the build-only ready button"))){return Finish();}
+                auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                const auto* Anchor=Registry?Registry->Resolve(TEXT("rest_service_1"),Registry->Generation):nullptr;
+                if(!Check(Anchor&&PC.Navigation,TEXT("UI: payout service anchor is available"))){return Finish();}
+                PC.Navigation->NavigateGround(Anchor->Position,Anchor->Surface);UIPayoutStep=1;return true;
+            }
+            if(UIPayoutStep==1)
+            {
+                if(PC.OwnerState.NearbyRestService!=ELDRestService::SkillMerchant){return true;}
+                if(!LDSlateProbeInput::Path(HUD->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
+                if(!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDRestService"))),
+                    TEXT("UI: owning connection can actually interact with an NPC during payout"))){return Finish();}
+                UIPayoutStep=2;return true;
+            }
+            if(!Check(Panel->bServicePanelOpen&&Panel->RestSection->IsVisible()
+                &&!Cast<UTextBlock>(Panel->NpcButton->GetContent())->GetText().IsEmpty()
+                &&!HUD->GetWidgetFromName(TEXT("HUDPKSidePanel"))->GetParent()->IsVisible(),
+                TEXT("UI: payout interaction presents its real service actions and reasons"))){return Finish();}
+            const FString Name=Role+TEXT("PayoutService.png");
+            FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);
+            Screenshots.Add(MakeShared<FJsonValueString>(Name));
+            bUIPayoutChecked=true;
+            return true;
+        }
+
+        bool FLDDemoOpponentProbe::ReviewField(ALDPlayerController& PC,const FLDPublicMatchView& View,double Now)
+        {
+            if(View.Phase!=ELDMatchPhase::Development&&View.Phase!=ELDMatchPhase::CaptureOpen){return true;}
+            auto* HUD=PC.HUDUI.Get();auto* Panel=HUD?HUD->ChoicesPanel.Get():nullptr;
+            if(!Check(bUIPayoutChecked,TEXT("UI: payout was exercised before field return"))){return Finish();}
+            int64 AuthorityNow=0;
+            if(!PC.ReadDemoAuthorityTimeMs(AuthorityNow)||!HUD||!Panel){return true;}
+            if(FApp::CanEverRender()&&FScreenshotRequest::IsScreenshotRequested()){return true;}
+            if(!bUIAnnouncementChecked&&View.Airdrop.Phase==ELDAirdropPhase::Announced)
+            {
+                HUD->RefreshReadModel();
+                if(FApp::CanEverRender())
+                {
+                    const auto* Events=Cast<UTextBlock>(HUD->GetWidgetFromName(TEXT("HUDPublicEvents")));
+                    const FString Countdown=LDHUD::AirdropLine(View.Airdrop,true,LDMatchTimeline::FieldNowFromView(View.Timeline,AuthorityNow));
+                    if(!Check(Events&&Events->IsVisible()&&Events->GetText().ToString().Contains(Countdown)
+                        &&LDSlateProbeInput::FullyVisible(Events,HUD),
+                        TEXT("UI: actual field HUD visibly shows the public announced airdrop countdown"))){return Finish();}
+                    const FString File=Role+TEXT("FieldAirdropAnnouncement.png");
+                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,File),true,false);
+                    Screenshots.Add(MakeShared<FJsonValueString>(File));
+                }
+                bUIAnnouncementChecked=true;
+                return true;
+            }
+            if(Role!=TEXT("Client1")||!FApp::CanEverRender()){bUIFieldChecked=true;}
+            if(!bUIFieldChecked&&Now>=UIActionDueAt)
+            {
+                UIActionDueAt=Now+.2;
+                const auto* Growth=PC.ReadOwnProgression();
+                const auto& Combat=PC.CombatView;
+                if(!Growth||PC.OwnerState.LifePhase!=ELDLifePhase::Alive||!Combat.bHasBody||!PC.GetPawn()){return true;}
+                if((UIFieldStep==30||UIFieldStep==4)&&UIFieldFightSince>0&&Now-UIFieldFightSince>20.)
+                {
+                    Error=TEXT("Field attack never reached combat: ")+PC.Navigation->Status;
+                    Check(false,TEXT("UI: a fresh observed field attack reaches real combat within twenty seconds"));return Finish();
+                }
+                auto* Scroll=Panel->GetWidgetFromName(TEXT("GrowthTaskScroll"));
+                const auto Capture=[&](const TCHAR* Name)
+                {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
+                const auto PlanningDetails=[&]()
+                {
+                    TArray<FString> Details;
+                    Details.Add(LDHUD::CharmLine(View.Charms));
+                    Details.Add(LDHUD::LeaderLine(View.Leader,PC.OwnerState.ContenderId,
+                        LDHUD::RosterName(PC.GetWorld()->GetGameState<ALDGameState>()->DemoLobby,View.Leader.Leader)));
+                    Details.Add(LDHUD::MarkerLine(View.Markers,true,LDMatchTimeline::FieldNowFromView(View.Timeline,AuthorityNow)));
+                    return Details;
+                };
+                const auto CheckSummary=[&](bool bDetails,int32 Width,int32 Height)
+                {
+                    int32 ActualWidth=0,ActualHeight=0;PC.GetViewportSize(ActualWidth,ActualHeight);
+                    const auto* Events=Cast<UTextBlock>(HUD->GetWidgetFromName(TEXT("HUDPublicEvents")));
+                    if(!Check(ActualWidth==Width&&ActualHeight==Height&&Events,
+                        TEXT("UI: field summary is checked on the actual requested viewport"))){return false;}
+                    const FString Text=Events->GetText().ToString();
+                    const int64 FieldNow=LDMatchTimeline::FieldNowFromView(View.Timeline,AuthorityNow);
+                    const FString Airdrop=LDHUD::AirdropLine(View.Airdrop,true,FieldNow);
+                    if(!bDetails&&!Check(!Airdrop.IsEmpty(),
+                        TEXT("UI: real combat summary coverage overlaps an active public airdrop deadline"))){return false;}
+                    if(!Check(Airdrop.IsEmpty()||(Events->IsVisible()&&Text.Contains(Airdrop)),
+                        TEXT("UI: combat and safe HUD both retain every current public airdrop countdown"))){return false;}
+                    const FString Boss=LDHUD::BossLine(View.Boss,LDTerms::Boss,true,FieldNow);
+                    if(!Check(Boss.IsEmpty()||(Events->IsVisible()&&Text.Contains(Boss)),
+                        TEXT("UI: combat and safe HUD both retain the current public Boss deadline"))){return false;}
+                    bool bHasDetail=false;
+                    for(const FString& Detail:PlanningDetails())
+                    {
+                        bHasDetail|=!Detail.IsEmpty();
+                        if(!Detail.IsEmpty()&&!Check(Text.Contains(Detail)==bDetails,
+                            TEXT("UI: actual field HUD hides planning detail in combat and restores it when safe"))){return false;}
+                    }
+                    return Check(bHasDetail,TEXT("UI: field summary verification actually exercises public planning details"))
+                        &&Check(Text.IsEmpty()?!Events->IsVisible():LDSlateProbeInput::FullyVisible(Events,HUD),
+                        TEXT("UI: field summary has no empty standing box and its remaining text fits"));
+                };
+                if(UIFieldStep==0)
+                {
+                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
+                    if(Panel->IsPanelOpen()){Panel->ClosePanel();return true;}
+                    UIFieldActivesBefore=Growth->Actives.Num();
+                    if(!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                        TEXT("UI: remote owner opens field-safe planning through the actual HUD entry"))){return Finish();}
+                    UIFieldStep=1;return true;
+                }
+                if(UIFieldStep==1)
+                {
+                    if(!Check(Panel->IsPanelOpen(),TEXT("UI: safe field planning survives the next real HUD refresh"))){return Finish();}
+                    if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab0"))),
+                        TEXT("UI: remote owner selects skills in the safe field workspace"))){return Finish();}
+                    LDSlateProbeInput::SendWheel(Scroll,12.f);UIFieldStep=2;return true;
+                }
+                if(UIFieldStep==2)
+                {
+                    if(!Check(Growth->bHasActiveOffer&&LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthOffer0"))),
+                        TEXT("UI: remote owner actually clicks its field-safe skill choice"))){return Finish();}
+                    UIFieldStep=3;UIActionDueAt=Now+.5;return true;
+                }
+                if(UIFieldStep==3)
+                {
+                    if(Panel->HasPendingRequest()){return true;}
+                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsPanelOpen(),
+                        TEXT("UI: a real field-safe build commits and the actual workspace remains usable"))){return Finish();}
+                    Capture(TEXT("Client1FieldSafeBuild.png"));
+                    UIFieldStep=30;return true;
+        }
+        if(UIFieldStep==30)
+        {
+                    if(!PlanningDetails().ContainsByPredicate([](const FString& Line){return !Line.IsEmpty();})){return true;}
+                    if(UIFieldFightSince<=0)
+                    {
+                        if(View.Airdrop.Phase!=ELDAirdropPhase::Announced){return true;}
+                        UIFieldFightSince=Now;
+                    }
+                    const auto* Relay=PC.LocalView();
+                    const auto Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+                    if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current||Read.Frame->Units.IsEmpty()){return true;}
+                    const FLDObservedUnitView* Target=nullptr;double Nearest=MAX_dbl;
+                    const FVector OwnFoot=PC.GetPawn()->GetActorLocation();
+                    for(const FLDObservedUnitView& Unit:Read.Frame->Units)
+                    {
+                        const double Distance=FVector::DistSquared2D(OwnFoot,FVector(Unit.FeetCm));
+                        if(Unit.Health.CurrentP2>0&&Unit.Handle!=UIFieldRejectedTarget&&Distance<Nearest)
+                        {Target=&Unit;Nearest=Distance;}
+                    }
+                    if(!Target){return true;}
+                    UIStagedBeforeFight=Panel->StagedTotal();
+                    const FLDMoveIdentity Before=PC.Navigation->LocalIdentity();
+                    PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
+                    if(!Check(PC.Navigation->LocalIdentity()!=Before,
+                        TEXT("UI: the remote owner actually submits its field attack intent"))){return Finish();}
+                    UIFieldTarget=Target->Handle;UIFieldRetryAt=Now+1.;
+                    UIFieldStep=4;return true;
+                }
+                if(UIFieldStep==4)
+                {
+                    if(AuthorityNow>=Combat.BuildSafeAtMs)
+                    {
+                        const FLDOrderReceipt& Receipt=PC.Navigation->LatestReceipt();
+                        if(Now>=UIFieldRetryAt&&Receipt.Identity==PC.Navigation->LocalIdentity()
+                            &&(Receipt.Status==ELDOrderStatus::Rejected||Receipt.Status==ELDOrderStatus::Cancelled||Receipt.Status==ELDOrderStatus::Completed))
+                        {UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;}
+                        return true;
+                    }
+                    if(!Check(!Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight,
+                        TEXT("UI: actual field combat folds planning without losing staged points"))){return Finish();}
+                    if(!CheckSummary(false,1280,720)){return Finish();}
+                    Capture(TEXT("Client1FieldCombatFold.png"));UIFieldStep=40;return true;
+                }
+                if(UIFieldStep==40)
+                {
+                    PC.ConsoleCommand(TEXT("r.SetRes 1920x1080w"),true);
+                    UIFieldStep=41;UIActionDueAt=Now+.3;return true;
+                }
+                if(UIFieldStep==41)
+                {
+                    if(!Check(AuthorityNow<Combat.BuildSafeAtMs,
+                        TEXT("UI: the 1080p combat screenshot is still inside a real authority combat window"))
+                        ||!CheckSummary(false,1920,1080)){return Finish();}
+                    Capture(TEXT("Client1FieldCombatFold_1920x1080.png"));UIFieldStep=42;return true;
+                }
+                if(UIFieldStep==42)
+                {
+                    PC.StopCombatAndOrders();PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                    UIFieldStep=5;UIActionDueAt=Now+.3;return true;
+                }
+                if(UIFieldStep==5)
+                {
+                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
+                    UIFieldStep=49;return true;
+                }
+                if(UIFieldStep==49)
+                {
+                    if(AuthorityNow<Combat.BuildSafeAtMs){UIFieldStep=5;return true;}
+                    if(!CheckSummary(true,1280,720)){return Finish();}
+                    Capture(TEXT("Client1FieldSafeSummary_1280x720.png"));UIFieldStep=50;return true;
+                }
+                if(UIFieldStep==50)
+                {
+                    PC.ConsoleCommand(TEXT("r.SetRes 1920x1080w"),true);
+                    UIFieldStep=51;UIActionDueAt=Now+.3;return true;
+                }
+                if(UIFieldStep==51)
+                {
+                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
+                    if(!CheckSummary(true,1920,1080)){return Finish();}
+                    Capture(TEXT("Client1FieldSafeSummary_1920x1080.png"));UIFieldStep=52;return true;
+                }
+                if(UIFieldStep==52)
+                {
+                    PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                    UIFieldStep=53;UIActionDueAt=Now+.3;return true;
+                }
+                if(UIFieldStep==53)
+                {
+                    if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
+                    if(!Check(!Panel->IsPanelOpen()&&LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                        TEXT("UI: expiry never auto-opens planning; the remote player manually reopens it"))){return Finish();}
+                    UIFieldStep=6;return true;
+                }
+                if(!Check(Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight&&!Panel->HasPendingRequest(),
+                    TEXT("UI: safe reopening survives refresh, preserves staging and does not resend a settled request"))){return Finish();}
+                Capture(TEXT("Client1FieldSafeReopened.png"));bUIFieldChecked=true;UIActionDueAt=Now+.5;
+            }
+            if(bUIFieldChecked&&bUIAnnouncementChecked&&!FScreenshotRequest::IsScreenshotRequested())
+            {
+                Summary->SetArrayField(TEXT("screenshots"),Screenshots);return Finish();
+            }
+            return true;
+        }
+
+bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double Now)
+{
+    if(UIServiceObservedStep!=UIServiceStep){UIServiceObservedStep=UIServiceStep;UIServiceStepAt=Now;}
+    if(Now-UIServiceStepAt>20.)
+    {
+        Error=FString::Printf(TEXT("Actual service UI stalled at step %d; nearby=%u; world_command=%d; navigation=%s"),
+            UIServiceStep,uint8(PC.OwnerState.NearbyRestService),PC.CanWorldCommand(),PC.Navigation?*PC.Navigation->Status:TEXT("missing"));
+        Check(false,TEXT("UI: each actual service interaction completes within twenty seconds"));return false;
+    }
+    if(Now<UIActionDueAt){return true;}
+    UIActionDueAt=Now+.15;
+    auto* Panel=PC.HUDUI->ChoicesPanel.Get();
+    const auto* Growth=PC.ReadOwnProgression();
+    auto* Mode=PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if(!Growth||Panel->HasPendingRequest()){return true;}
+    const auto Click=[&](UWidget* Target)
+    {
+        auto* Scroll=Panel->GetWidgetFromName(Panel->bServicePanelOpen?TEXT("GrowthServiceScroll"):TEXT("GrowthTaskScroll"));
+        if(!LDSlateProbeInput::Path(Target).IsValid())
+        {
+            if(!Target||!Target->IsVisible()||++UIServiceWheels>80)
+            {
+                Error=FString::Printf(TEXT("Actual service control %s is unreachable at step %d."),Target?*Target->GetName():TEXT("missing"),UIServiceStep);
+                Check(false,TEXT("UI: requested service control is actually visible and reachable"));return false;
+            }
+            const double Y=Scroll->GetCachedGeometry().AbsoluteToLocal(Target->GetCachedGeometry().GetAbsolutePosition()).Y;
+            if(!LDSlateProbeInput::SendWheel(Scroll,Y<0?1.f:-1.f))
+            {Check(false,TEXT("UI: pointer wheel reaches the service action"));}
+            return false;
+        }
+        UIServiceWheels=0;
+        return Check(Target->GetIsEnabled()&&LDSlateProbeInput::SendClick(Target),TEXT("UI: visible service control accepts a real pointer click"));
+    };
+    const auto Capture=[&](const TCHAR* Name)
+    {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
+    const auto Walk=[&](uint8 Service)
+    {
+        auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        const auto* Anchor=Registry?Registry->Resolve(FName(*LDDemoWorld::RestServiceId(Service)),Registry->Generation):nullptr;
+        if(!Check(Anchor&&PC.Navigation,TEXT("UI: service walk uses its approved anchor"))){return false;}
+        PC.Navigation->NavigateGround(Anchor->Position,Anchor->Surface);return true;
+    };
+    switch(UIServiceStep)
+    {
+    case 0:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
+        ++UIServiceStep;return true;
+    case 1:
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: normal planning reopens after leaving merchant service"))){return false;}
+        ++UIServiceStep;return true;
+    case 2:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthTab0")))){return Passed;}
+        LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),12.f);
+        ++UIServiceStep;return true;
+    case 3:
+        if(Growth->bHasActiveOffer)
+        {
+            if(!Click(Panel->GetWidgetFromName(TEXT("GrowthOffer0")))){return Passed;}
+            UIActionDueAt=Now+.4;return true;
+        }
+        if(Growth->QueuedActiveOpportunities){return true;}
+        if(!Growth->PendingBlueprints.IsEmpty())
+        {
+            UIReplacement=Growth->PendingBlueprints[0];
+            if(!Click(Panel->GetWidgetFromName(TEXT("GrowthClose")))){return Passed;}
+            UIServiceStep=31;return true;
+        }
+        if(!Check(Growth->Level<6,TEXT("UI: approved level 3/6 and NPC offers supply the replacement fixture"))){return false;}
+        UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
+        if(!Check(UIRewardTicket!=0,TEXT("UI: normal XP supplies the next approved offer"))){return false;}
+        UIActionDueAt=Now+.5;return true;
+    case 31:
+        if(!PC.CanWorldCommand()){return true;}
+        if(!Walk(3)){return false;}UIServiceStep=4;return true;
+    case 4:
+        if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: proximity alone still opens the ordinary build page"))){return false;}
+        ++UIServiceStep;return true;
+    case 5:
+        for(const auto& Row:Panel->BlueprintRows)
+        {for(const auto& Replace:Row.Replace){if(!Check(!Replace->IsVisible(),TEXT("UI: trainer proximity does not expose a hidden-confirm replacement"))){return false;}}}
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
+            TEXT("UI: actual trainer interaction opens its separate service window"))){return false;}
+        ++UIServiceStep;return true;
+    case 6:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthReplace0Q")))){return Passed;}
+        ++UIServiceStep;return true;
+    case 7:
+        if(!Check(Panel->RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive&&Panel->RestConfirmLine->IsVisible(),
+            TEXT("UI: replacement has a visible trainer confirmation"))){return false;}
+        Capture(TEXT("HostTrainerReplaceConfirm.png"));++UIServiceStep;return true;
+    case 8:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestCancel")))){return Passed;}
+        if(!Check(Panel->RestConfirm.Kind==ELDBuildCommandKind::None,TEXT("UI: actual cancel withdraws trainer replacement"))){return false;}
+        ++UIServiceStep;return true;
+    case 9:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthReplace0Q")))){return Passed;}
+        ++UIServiceStep;return true;
+    case 10:
+        UIServiceGrowthBefore=Growth->BuildRevision;
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
+        ++UIServiceStep;UIActionDueAt=Now+.4;return true;
+    case 11:
+        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(!Check(LDHUD::ActiveInSlot(*Growth,0)==UIReplacement&&Panel->Feedback->GetParent()==Panel->ServiceBody
+            &&!Panel->Feedback->GetText().IsEmpty(),TEXT("UI: confirmed replacement commits and its receipt is visible in the trainer window"))){return false;}
+        Capture(TEXT("HostTrainerReplacementApplied.png"));
+        UIServiceGrowthBefore=Growth->BuildRevision;++UIServiceStep;return true;
+    case 12:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
+        ++UIServiceStep;UIActionDueAt=Now+.4;return true;
+    case 13:
+        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(!Check(!Panel->Feedback->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
+        UIServiceStep=131;return true;
+    case 131:
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: actual HUD entry returns from trainer service to ordinary planning"))){return false;}
+        UIServiceStep=132;return true;
+    case 132:
+        if(!Check(Panel->IsPanelOpen()&&!Panel->bServicePanelOpen&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None
+            &&Panel->BlueprintSection->GetParent()==Panel->TaskContent,
+            TEXT("UI: trainer close restores the ordinary blueprint page without hidden confirmation"))){return false;}
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthClose")))){return Passed;}
+        UIServiceStep=133;return true;
+    case 133:
+        if(!PC.CanWorldCommand()){return true;}
+        if(!Walk(2)){return false;}UIServiceStep=14;return true;
+    case 14:
+        if(PC.OwnerState.NearbyRestService!=ELDRestService::ComponentArtisan){return true;}
+        if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
+            TEXT("UI: actual artisan interaction opens its service window"))){return false;}
+        ++UIServiceStep;return true;
+    case 15:
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestDismantle")))){return Passed;}
+        ++UIServiceStep;return true;
+    case 16:
+        if(UIServicePick<Panel->Materials.DismantleCount)
+        {
+            if(!Check(Panel->DismantleButtons.IsValidIndex(UIServicePick),TEXT("UI: actual inventory supplies the approved dismantle inputs"))){return false;}
+            if(!Click(Panel->DismantleButtons[UIServicePick])){return Passed;}
+            ++UIServicePick;return true;
+        }
+        Capture(TEXT("HostArtisanDismantleConfirm.png"));++UIServiceStep;return true;
+    case 17:
+        UIServiceGrowthBefore=Growth->BuildRevision;UIServiceInventoryBefore=Growth->Components.Num();
+        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
+        ++UIServiceStep;UIActionDueAt=Now+.4;return true;
+    case 18:
+        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(!Check(Growth->Components.Num()==UIServiceInventoryBefore-Panel->Materials.DismantleCount+1
+            &&Panel->Feedback->GetParent()==Panel->ServiceBody&&!Panel->Feedback->GetText().IsEmpty(),
+            TEXT("UI: artisan consumes the selected real components and displays its authoritative result"))){return false;}
+        Capture(TEXT("HostArtisanDismantleApplied.png"));bUIOtherServicesDone=true;return true;
+    default:Check(false,TEXT("UI: explicit service review has a valid step"));return false;
+    }
+}
+
 bool FLDDemoOpponentProbe::Tick()
 {
     using namespace LDDemoOpponentProbeDetail;
@@ -953,6 +2054,8 @@ bool FLDDemoOpponentProbe::Tick()
     if (bHost && !Mode) { return true; }
     const FLDLobbyView& Lobby = Public->DemoLobby;
     const FLDPublicMatchView& View = Public->PublicMatch;
+    if (!UIReview.IsEmpty() && Stage == ELDOpponentProbeStage::Starting)
+    { return TickUIReview(*PC, *Public, Mode); }
     switch (Stage)
     {
     case ELDOpponentProbeStage::Join:
@@ -1010,7 +2113,7 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
-        // #198: through the opening rest R0 an opponent AI moves in the shared room only to train on a shared dummy
+        // #198: through the opening rest R0 an opponent AI moves in the shared room only to train on its private target
         // once nothing is left to build (OPPONENT_AI.md §6.4) and, once the PK sign-up window opens, only to walk into its own
         // sign-up disk (站圈报名, user decision A), so every AI stands in its disk at the lock (sampled on the authority until
         // field 1); each picks its opening active in the R0 build step after its drawn delay. An AI that signed up fights on
@@ -1090,6 +2193,10 @@ bool FLDDemoOpponentProbe::Tick()
                 }
             }
             ++Rest0Samples;
+            if (bRestChoicesShot && FApp::CanEverRender())
+            {
+                ReviewRestScreens(*PC, *Public, FPlatformTime::Seconds());
+            }
             return true;
         }
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Cast<ALDCharacter>(PC->GetPawn())
@@ -1226,6 +2333,13 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         || Cast<ALDOpponentController>(&Controller)
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoOpponentProbe>();
+    FParse::Value(FCommandLine::Get(), TEXT("LDDemoUIReview="), Probe->UIReview);
+    if (!Probe->UIReview.IsEmpty() && Probe->UIReview != TEXT("2v2") && Probe->UIReview != TEXT("3v3"))
+    {
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_OPPONENT_PROBE Invalid UI review format."));
+        FPlatformMisc::RequestExitWithStatus(false, 2);
+        return;
+    }
     // #198: a full match runs R0, three timed field segments and the rests R1..R3 before the flagpole opens in the final
     // field. Without early readiness, each rest can run its whole approved PK: R0 180+5+8+3+60+3+12+5 = 276 s,
     // R1..R3 each 120+5+8+3+60+3+12+5 = 216 s, fields 3 x 180 s. The flagpole opens after at most

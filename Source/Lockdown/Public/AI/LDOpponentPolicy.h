@@ -35,7 +35,7 @@ enum class ELDOpponentReason : uint8
     TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss, TakeCharm,
     // #198 D: PK sign-up, bet and throw requests, an entrant's fight and its walk back inside the ring.
     PKSignUp, PKBet, PKThrow, PKFight, PKRing,
-    // #198 §16.3: the own private training dummy engaged in the rest build window once nothing is left to build.
+    // #198 §16.3: a visible shared training dummy engaged in the rest build window once nothing is left to build.
     Train, RestService
 };
 
@@ -202,7 +202,7 @@ struct FLDOpponentPublicMatch
     // #198 D: the current rest's public PK (Serial 0: none), exactly as every participant's public view shows it.
     FLDPKView PK;
     // The public room roster's contender ids (FLDLobbyView members), as every participant's HUD reads them; the adapter reads
-    // it in a rest, where the visible contender unit outside it is the own private training dummy (LDHUD::ObservedContenderName).
+    // it in a rest, where visible contender units outside it are shared training dummies (LDHUD::ObservedContenderName).
     TArray<FGuid> Roster;
 };
 
@@ -589,7 +589,7 @@ namespace LDOpponentPolicy
     // An entrant at FootCm must walk back toward the arena centre at NowMs: outside the current safe radius, or outside the
     // previewed next radius while one is shown (LDPKRules on the approved ring parameters). False before the fight starts.
     LOCKDOWN_API bool PKRingRetreat(const FLDPKParameters& Params, const FLDPKView& PK, const FVector& FootCm, int64 NowMs);
-    // A visible shared training dummy by the HUD's roster rule: lowest handle first; nullptr
+    // The owner's visible training target by the HUD's roster rule: lowest handle first; nullptr
     // outside a rest, without one, or when the own id is not on the roster (an unread roster names nothing).
     LOCKDOWN_API const FLDOpponentUnit* TrainingDummy(const FLDOpponentDecisionFrame& Frame);
     LOCKDOWN_API ELDRestService RestServiceForBuild(ELDOpponentBuildKind Kind);

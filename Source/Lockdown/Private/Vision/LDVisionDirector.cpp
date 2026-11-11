@@ -1152,7 +1152,8 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
             }
             if (Combat && Combat->IsHiddenFrom(Observer.ContenderId, Target.Body)) { continue; }
             if (Mode->IsInRestSpace(Observer.ContenderId)
-                && (Mode->IsInRestSpace(Target.Body.Victim.EntityId) || Mode->IsTrainingDummy(Target.Body.Victim.EntityId)))
+                && (Mode->IsInRestSpace(Target.Body.Victim.EntityId)
+                    || Mode->IsTrainingDummy(Target.Body.Victim.EntityId)))
             {
                 Visible.Add(&Target);
                 continue;

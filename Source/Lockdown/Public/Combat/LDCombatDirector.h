@@ -175,7 +175,7 @@ struct FLDBodyCombatState
     // none. A suspended body (frozen world during a rest) takes and deals nothing.
     FGuid IsolationGroup;
     bool bSuspended=false;
-    // A shared training dummy never dies (refills at 0 HP) and grants nothing.
+    // A shared training target never dies (refills at 0 HP) and grants nothing.
     bool bTrainingDummy=false;
     // #198 session D PK: the body's side in the PK isolation group (0: none). Same-side bodies never affect each other
     // (friendly fire off). ExposedUntilMs: a spectator throw revealed it to the PK entrants until then (half-open).
@@ -705,7 +705,7 @@ public:
     void MarkBuildUnsafe(const FGuid& Entity, int64 NowMs);
     // ---- #198 rest phases (Combat/LDCombatRest.cpp) ----
     // Whether SourceEntity may affect Target: a suspended target is out of reach, and bodies only interact inside the
-    // same isolation group. Rest players cannot be hostile targets, but shared dummies can.
+    // same isolation group. Rest players cannot be hostile targets, but training targets can.
     bool IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const;
     // Rest vision filter: whether Observer must not see Target (another rest group, or the frozen world). False for a
     // body Combat does not hold.

@@ -266,6 +266,8 @@ inline constexpr TCHAR PKOut[]=TEXT("出局");
 inline constexpr TCHAR PKForfeit[]=TEXT("离场");
 inline FString PKBetCount(int32 Count){return FString::Printf(TEXT("%d 人押"),Count);}
 inline constexpr TCHAR PKOwnSide[]=TEXT("你在这方");
+inline constexpr TCHAR PKTeammate[]=TEXT("队友");
+inline constexpr TCHAR PKEnemy[]=TEXT("敌方");
 inline constexpr TCHAR PKOwnBet[]=TEXT("你押了这方");
 inline FString PKStartsIn(int64 Seconds){return FString::Printf(TEXT("%lld 秒后开打 · 准备中不能移动和攻击"),Seconds);}
 inline FString PKTimeLeft(int64 Seconds){return FString::Printf(TEXT("最长还剩 %lld 秒 · 最后一方存活获胜"),Seconds);}

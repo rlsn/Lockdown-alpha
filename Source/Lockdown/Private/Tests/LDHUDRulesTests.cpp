@@ -352,6 +352,16 @@ bool FLDHUDPKViewTest::RunTest(const FString& Parameters)
     FLDLobbyView Lobby;
     const TPair<FGuid,const TCHAR*> Listed[]={{A,TEXT("甲")},{B,TEXT("乙")},{C,TEXT("丙")},{D,TEXT("丁")},{Watcher,TEXT("戊")}};
     for(const TPair<FGuid,const TCHAR*>& Entry:Listed){FLDLobbyMember& Member=Lobby.Members.AddDefaulted_GetRef();Member.ContenderId=Entry.Key;Member.Name=Entry.Value;}
+    {
+        FLDLobbyView DuplicateNames;
+        const FGuid First=FGuid::NewGuid(),Second=FGuid::NewGuid();
+        FLDLobbyMember& One=DuplicateNames.Members.AddDefaulted_GetRef();One.ContenderId=First;One.Name=TEXT("玩家");
+        FLDLobbyMember& Two=DuplicateNames.Members.AddDefaulted_GetRef();Two.ContenderId=Second;Two.Name=TEXT("玩家");
+        TestEqualSensitive(TEXT("Duplicate default roster names are disambiguated in published order"),
+            LDHUD::RosterName(DuplicateNames,First),FString(TEXT("玩家 1")));
+        TestEqualSensitive(TEXT("The second duplicate default roster name has a stable suffix"),
+            LDHUD::RosterName(DuplicateNames,Second),FString(TEXT("玩家 2")));
+    }
     FLDPublicMatchView Public;Public.Generation=7;Public.Phase=ELDMatchPhase::Rest;
     FLDTimelineView& Timeline=Public.Timeline;
     Timeline.Generation=7;Timeline.Stage=ELDMatchStage::Rest;Timeline.RestIndex=2;Timeline.Step=ELDRestStep::Betting;
@@ -363,6 +373,14 @@ bool FLDHUDPKViewTest::RunTest(const FString& Parameters)
     for(const TPair<FGuid,uint8>& Seat:Seats)
     {FLDPKEntrantView& Entrant=PK.Entrants.AddDefaulted_GetRef();Entrant.Contender=Seat.Key;Entrant.Side=Seat.Value;}
     PK.Bettors={Watcher};
+    TestEqualSensitive(TEXT("The public team PK labels a same-side observed entrant as a teammate"),
+        LDHUD::PKRelationText(Public,A,C),FString(LDTerms::PKTeammate));
+    TestEqualSensitive(TEXT("The public team PK labels an opposing observed entrant as an enemy"),
+        LDHUD::PKRelationText(Public,A,B),FString(LDTerms::PKEnemy));
+    TestEqualSensitive(TEXT("A spectator sees a side label, not a fabricated friendly/enemy relation"),
+        LDHUD::PKRelationText(Public,Watcher,A),LDTerms::PKSide(1));
+    FLDPublicMatchView FreeForAll=Public;FreeForAll.PK.Format=ELDPKFormat::FreeForAll;
+    TestTrue(TEXT("Team labels do not change free-for-all semantics"),LDHUD::PKRelationText(FreeForAll,A,B).IsEmpty());
 
     // Betting: an eligible spectator gets one button per side; an entrant or a contender outside the locked bettors gets none.
     LDHUD::FPKPanelInput In;In.Self=Watcher;In.bClock=true;In.NowMs=103000;
@@ -1317,6 +1335,31 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A later opening folds on a hit again"),Fold.ShouldFold(701.,false,true));
         Fold.Closed();Fold.Opened(true,800.);Fold.Closed();Fold.Opened(false,801.);
         TestTrue(TEXT("Only a hit fold, not a timed one, protects the next opening"),Fold.ShouldFold(802.,false,true));
+    }
+    {
+        LDHUD::FChoicesFold Fold;Fold.Opened(false,0.);
+        TestTrue(TEXT("Field combat folds the planning panel despite focus or a pending request"),Fold.ShouldFold(1.,true,false,true));
+    }
+    {
+        FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;
+        FLDOwnerState Own;Own.Match=4;Own.Life=2;Own.LifePhase=ELDLifePhase::Alive;Own.ContenderId=FGuid::NewGuid();
+        FLDCombatOwnerView Combat;Combat.Generation=4;Combat.Life=2;Combat.bHasBody=true;Combat.BuildSafeAtMs=3000;
+        TestFalse(TEXT("Safe field planning is not combat merely because development runs"),
+            LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,3000,false));
+        TestTrue(TEXT("The current own authority build window folds field planning"),
+            LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,2999,false));
+        TestFalse(TEXT("An unsynchronized authority clock does not invent a combat deadline"),
+            LDHUD::ChoicesCombatActive(Public,Own,&Combat,false,0,false));
+        Combat.Life=1;
+        TestFalse(TEXT("A stale life cannot fold the current life"),LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,0,false));
+        TestTrue(TEXT("An actual own hit folds even before a new window arrives"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,true));
+        Public.Phase=ELDMatchPhase::Rest;Public.Timeline.Step=ELDRestStep::PK;
+        Public.PK.Entrants.AddDefaulted_GetRef().Contender=Own.ContenderId;
+        TestTrue(TEXT("A living PK entrant folds even with staged planning"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
+        Own.ContenderId=FGuid::NewGuid();
+        TestFalse(TEXT("A PK spectator is not an arena combatant"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
+        Public.Timeline.Step=ELDRestStep::Payout;
+        TestFalse(TEXT("Payout is an open planning and service window"),LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,0,false));
     }
     {
         // The HUD reads hits from the same own-body changes the world feedback floats: lost health or an absorbed shield.
