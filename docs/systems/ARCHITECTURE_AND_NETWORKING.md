@@ -94,8 +94,10 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 18：#198 公共休息室增加真人准备 RPC、OwnerState 服务/准备字段与时间线准备名单，训练重置绑定当前生命和休息步骤。PK 使用站圈报名（用户选择 A），没有报名开关 RPC，
-  世界多出报名圈锚点（布局修订 9）；双方须使用同一构建。
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 19：#222 构筑随时可用，本人成长视图去掉 `BuildSafeAtMs`，
+  成长原因 52 `NotSafe` 与 63 `RestOnly` 退役；双方须使用同一构建。
+  18 是 #198 公共休息室增加真人准备 RPC、OwnerState 服务/准备字段与时间线准备名单、训练重置绑定当前生命和休息步骤时的版本。
+  PK 使用站圈报名（用户选择 A），没有报名开关 RPC，世界多出报名圈锚点（布局修订 9）。
   16 是 #198 规则工坊整合后，公开对局视图新增时间线、符咒与 PK/观众数据，
   并新增蓝图、PK 与休息阶段的 RPC（观察 schema 仍为 8）时的版本。
   15 是 #198 以构建命令（选主动技能、学图纸、分配属性点）取代三选一卡牌，
@@ -150,11 +152,11 @@ T+15 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/
 `ALDGameMode::PayFieldReward` 进入 `ALDGrowthDirector::CommitFieldReward`，可重试的拒绝在之后每个 Transactions 由 `RetryFieldRewards` 重付；
 最终野外开始的边界由 `FLDCaptureReducer::ScheduleOpen` 定为开放时刻，同一边界的 Capture 阶段从 Development 切到 CaptureOpen。
 `NextTimelineDueMs` 让每个休息步骤与野外段终点成为精确步边界；driver 在 RespawnsAndWorld 开头调用 `AdvanceTimeline`，
-在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算再锁定）。休息中 driver 跳过营地运动、营地意图与世界推进，
+在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算，再锁定报名名单；#222 起不锁构筑）。休息中 driver 跳过营地运动、营地意图与世界推进，
 Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果取消与资源补满见[会话、对局与生命周期 §3.4](../demo/SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界198)。
-写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）。
+写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务（#222）。
 返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
-这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行，休息中只在构筑开放的步骤处理成长。
+这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行；成长命令与真人同一闸门，但 AI 策略在休息中仍只在配装与派奖步骤做构筑决策。
 PK 报名是实体的站圈报名（用户选择 A）：没有报名 RPC，`ALDGameMode::RefreshRestSignups` 在报名窗口内每拍按已提交脚点是否在本人
 `pk_signup_<槽位>` 圆盘（`SignupDiskFor`，半径 `AIRDROP.PickupRadiusCm`）内重算公开名单，截止时刻再算一次并锁定。
 会话 D 注册可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`）：竞猜与投掷经 `ALDPlayerController::ServerPKBet`/`ServerPKThrow` 交 `ALDPKDirector::SubmitBet`/`SubmitThrow`

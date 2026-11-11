@@ -344,16 +344,14 @@ EStepResult AdvanceBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoCon
         LDProgression::FBuildContext Context;
         Context.Stage = Public.BuildStage();
         Context.LifePhase = Self.Phase;
-        Context.bSafe = Self.BuildSafeAtMs <= Public.NowMs;
-        const FLDOpponentComponent* Owned = FindOwned(Self, Step.Component);
         const ELDGrowthReason Gate = Step.Kind == ELDEvaluationStepKind::InstallComponent
-            ? LDProgression::InstallGate(Context, Owned && Owned->bEverInstalled)
+            ? LDProgression::InstallGate(Context)
             : LDProgression::CommandGate(CommandKind(Step.Kind), Context);
         if (Gate != ELDGrowthReason::None)
         {
-            // Spec §5: moves, uninstalls, replacements and respecs never open on the field.
-            if (Context.Stage == LDProgression::EMatchStage::Live && (Gate == ELDGrowthReason::RestOnly
-                || Gate == ELDGrowthReason::NotRestWindow || Gate == ELDGrowthReason::ReplacementNotAllowed))
+            // Spec §4.4: the NPC services (replacements, respecs) never open on the field.
+            if (Context.Stage == LDProgression::EMatchStage::Live && (Gate == ELDGrowthReason::NotRestWindow
+                || Gate == ELDGrowthReason::ReplacementNotAllowed))
             {
                 return Fail(FString::Printf(TEXT("%s: %s on the field"), *What, LDGrowthWire::ReasonName(Gate)));
             }

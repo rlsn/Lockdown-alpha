@@ -135,7 +135,7 @@ diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_w
 | 验证主题 | 必须观察的结果 |
 | --- | --- |
 | 从零发育 | 未学习技能的基础角色通过正常普攻清理低档营地并完成首次升级与加点 |
-| 成长与学习 | 主动候选不重复且排除已学与待学图纸；连升排队逐次生成；野外学习与加点受构筑安全窗约束；满槽不在野外替换 |
+| 成长与学习 | 主动候选不重复且排除已学与待学图纸；连升排队逐次生成；学习、加点与构件安装在对局进行中随时可做（交战中、死亡等待、PK 中，#222），没有构筑安全窗；满槽不在野外替换 |
 | 冷却与来源 | 升级、换槽、来源失去与恢复、死亡都不能提前获得相同能力的下一次释放 |
 | 奖励与生命 | 最后一击、持续效果归属、同刻多次致死和重复回包均只结算一次 |
 | 营地循环 | 清空后刷新；回位重置不发奖；玩家不能借旧效果伤害新生命或重复结算 |
@@ -156,7 +156,7 @@ diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_w
 | --- | --- | --- |
 | CB-P01 普攻形态与成长 | **用户已确认**“所有人初始都是近战单体普通，群攻/攻击距离可以通过装备或者属性增加”；具体首轮方案于2026-11-02批准 | 初始近战单体；普攻可成长（距离、元素、强化、反应范围等），不要求群攻（2026-11-10 用户决定，原话：“删掉群攻部分，只保留‘普攻可成长（距离、元素、强化、反应范围等）’”）；当前运行目录除贴脸补一拳、左右开抽的强化普攻外，有射程构件“伸长胳膊抽你”（B14）与普攻元素构件（B01、B10、B11，§4.4）；不引入追踪普攻弹体 |
 | CB-P05 来源缺席期间的冷却 | **用户已确认**“失去来源期间继续计时，重新持有时沿用原结束时间” | 遗忘不改原截止时刻；重学重新关联原有债务，不冻结、不重置 |
-| CB-P06 死亡时处理成长 | **用户已确认允许** | 死亡中可加点、把主动选择存为图纸，只改保留构筑，不学到槽、不治疗/复活死体 |
+| CB-P06 死亡时处理成长 | **用户已确认允许** | 死亡中可加点、选择并学到空槽、安装构件（#222 起），只改保留构筑，不治疗/复活死体 |
 | CB-P07 最大资源变更 | **用户已确认保持原生命/法力百分比** | 所有普通升级/加点/学习只对最终Max同比换算一次；P2量化与下溢拒绝是本报告技术方案 |
 | CB-P08 已释放效果与失源/离局 | **用户已确认** | 正常死亡/遗忘不取消已成功释放的独立效果；未释放动作死亡取消；正式离局取消未结束效果并移除身体。持续被动/维持型来源失效另按绑定条件处理 |
 | CB-P09 无效进攻与保护 | **用户已确认进攻意图即解除** | 基本鉴权、当前match/life、去重和写闸先行；之后即使目标/距离/MP等失败也解除，失败仍不收费 |
@@ -267,13 +267,13 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `REST.OpeningBuildSec` | s/Sec | 180 | #198 试玩后用户批准“开局180秒、中场120秒；所有真人准备后可提前结束”；取代原45s，开局R0构筑/试招窗 |
 | `REST.BuildSec` | s/Sec | 120 | 同上批准；取代原30s，R1–R3构筑/试招窗 |
 | `REST.SignupSec` | s/Sec | 10 | 构筑窗最后10s兼作PK站圈报名；用户再批准“保留最后10秒报名，之后结束休息”。所有真人准备后只缩短到最后10s，不延长或重置已开放窗口；AI不阻塞。每个槽位一个 `pk_signup_<槽位>`，离公共休息室 `rest_spawn_<槽位>` 300 cm（布局修订10），半径仍复用 `AIRDROP.PickupRadiusCm`；原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）” |
-| `REST.DrawSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；抽签与公布，构筑已锁 |
+| `REST.DrawSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；抽签与公布；报名名单已锁，自己的构筑不锁（#222），NPC 服务关闭 |
 | `REST.BettingSec` | s/Sec | 8 | 2026-11-10 用户批准（同上）；非选手竞猜，到截止封盘 |
 | `REST.PKReadySec` | s/Sec | 3 | 2026-11-10 用户批准（同上）；PK就位倒计时，双方禁止移动和进攻 |
 | `REST.PKMaxSec` | s/Sec | 60 | 2026-11-10 用户批准（同上）；PK最长时长，提前决出胜方立即结束 |
 | `REST.SettlementSec` | s/Sec | 3 | 2026-11-10 用户批准（同上）；冻结结果并一次性结算 |
 | `REST.PayoutSec` | s/Sec | 12 | 2026-11-10 用户批准（同上）；休息兑现，处理奖励、NPC、重构和试招 |
-| `REST.ReturnSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；返野外倒计时，锁构筑与输入；报名不足2人时构筑截止后直接进入此倒计时 |
+| `REST.ReturnSec` | s/Sec | 5 | 2026-11-10 用户批准（同上）；返野外倒计时，锁移动、攻击、施法与冲刺输入（自己的构筑不锁，#222；NPC 服务关闭）；报名不足2人时配装截止后直接进入此倒计时 |
 | `REST.ReturnSearchRadiusCm` | cm/Cm | 300 | 2026-11-10 用户批准（同上）；返场原脚点被占用时只在同可达面此半径内找不重叠位置，仍失败用现有批准出生点 |
 | `REST.EntryReadyTimeoutSec` | s/Sec | 30 | 2026-11-10 用户批准（[外层参数方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175) §1，原话：“阶段资源/加载未就绪时冻结入场，30秒仍无法建立合法场景则本场NoContest并明确报错，不偷偷改阵地或开赛”）。PK入场与返回野外都是全员一次性共同提交：有人放不下时入场冻结、时间线停在边界并每拍重试；PK超时记本场NoContest（不发奖励）并回到休息位，返回野外超时为明确的权威故障 `LD_REST_RETURN_UNREADY` |
 | `PK.ArenaRadiusCm` | cm/Cm | 1800 | 2026-11-10 用户批准（[外层参数方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施”。PK圈以旗杆锚点为圆心，0–10s 安全半径保持1800cm |
@@ -315,7 +315,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | --- | --- | --- |
 | `POLICY.StatStacking` | AddFlatThenAdditivePercent | 固定属性相加已确认；完整聚合/量纲按2026-11-02批准的本报告首轮方案 |
 | `POLICY.MissingSourceCooldown` | ContinueServerTime | 用户确认；重持原来源沿用原结束时间 |
-| `POLICY.DeadChoiceCommit` | Allowed | 用户确认；死亡中可加点、把主动选择存为图纸，仅改保留构筑，不学到槽、不操作尸体资源 |
+| `POLICY.DeadChoiceCommit` | Allowed | 用户确认；死亡中可选择、学到空槽、加点与安装构件（#222），仅改保留构筑、不操作尸体资源 |
 | `POLICY.ResourceMaxChange` | PreserveRatio | 用户确认比例策略；P2量化/拒绝细节见 `FORMULA.ResourceMaxChange` |
 | `POLICY.ReleasedEffectSourceLoss` | ContinueForRemainingContender | 用户确认；死亡/遗忘后已释放独立快照按原期限继续，所有者仍须在本局 |
 | `POLICY.SourceLeave` | CancelUnsettledNoRefund | 用户确认；正式离局立即取消未结束效果，已提交结果不回滚、不退款 |
@@ -332,7 +332,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 原话：“全部按当前规范批准，进入运行数据”；推进方式原话：“先实现已批准核心；同时由设计会话起草缺失参数方案给我批”。
 批准范围是 #198 的[玩法与完整目录](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6739619912)
 （下称“目录”）与 [AI 实现规范](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6739620418)（下称“AI 规范”）中的
-22 个主动、18 个基础构件、12 个改装件、12 个连接件的效果与数值，五维每点收益、G 曲线、材料类别概率、4 秒脱战安装窗，
+22 个主动、18 个基础构件、12 个改装件、12 个连接件的效果与数值，五维每点收益、G 曲线、材料类别概率、4 秒脱战安装窗（#222 起不再限制学习、加点与安装，见下），
 以及补缺（4 点）、拆解（3 换 1）、满级每 400XP 给 3 点。同日批准的外层参数（原话：“批准整套方案，按票内参数实施。”）
 见 [#198 外层参数](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)。
 
@@ -365,7 +365,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `GROWTH.MaxLevelPointsXP` | 400 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
 | `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不发构件 |
 | `GROWTH.NpcActivePoints` | 3 | 休息NPC一次支付这么多点数换一次只含主动的三选一；2026-11-10 用户批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施” |
-| `GROWTH.BuildSafeWindowSec` | 4 s | 构筑安全窗（§4.3） |
+| `GROWTH.BuildSafeWindowSec` | 4 s | 交战窗口（§4.3）：只供 HUD 在交战中收起野外文字摘要（#219）；#222 起不限制任何成长命令 |
 | `progression.active_offer_levels` | [3, 6] | 额外主动机会的等级 |
 
 点数不单独存储：已得点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
@@ -444,10 +444,10 @@ $$
 | 3、6 级 | `progression.active_offer_levels=[3,6]`：每达到其中一级加一次机会，从全部主动中等概率、不放回抽 3 个；该级的点数照发 |
 | 排除与不足 | 已学主动与待学图纸不进入候选；只有 1–2 个合格时只给这些；没有合格时机会排队、不生成候选，构筑变化后重新判定；排队不阻挡加点 |
 | 队列与随机 | 同时只有一组候选，其余机会排队；随机由本局私有种子、参赛者与机会序号决定，同一序号重试不换种子；没有权重、没有重抽 |
-| 选择 | 选中项成为待学图纸；此刻可学习（休息的配装与派奖期间，或野外存活且在安全窗内）且有空槽时，同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），否则存为图纸，回执写明原因（未脱战、阵亡、没有空槽） |
-| 学习图纸 | 学到指定的空槽，时机同上；学到已占用的槽被拒绝（满槽替换只在休息，§4.4） |
-| 加点 | 一次至少 1 点，按五维分配，合计不超过未分配点数；休息的配装与派奖期间、野外存活且在安全窗内、或野外死亡等待中可以加；整次生效或拒绝；洗点只在休息的配装与派奖期间 |
-| 构筑安全窗 | `GROWTH.BuildSafeWindowSec=4`：连续 4s 内本人没有普攻成功起手或进攻技能释放、没有对敌方造成正伤害（含灼烧与区域跳伤）、没有受到敌方正伤害、没有被施加定身/眩晕/沉默/缴械/嘲讽/击退（单独减速不算）；菜单、视野与回复不刷新；死亡不重置；学习与加点提交时服务器重查 |
+| 选择 | 选中项成为待学图纸；有空槽时同一次提交学到首选空槽（未指定则按 Q、W、E 第一个空槽），Q/W/E 已满时存为图纸，回执写明原因（没有空槽）；对局进行中随时可选（交战中、死亡等待、休息每个步骤含 PK，#222 用户决定：“all the time 可以学新技能和加点 all the time”） |
+| 学习图纸 | 学到指定的空槽，时机同上（死亡等待中也可以）；学到已占用的槽被拒绝（满槽替换只在休息，§4.4） |
+| 加点 | 一次至少 1 点，按五维分配，合计不超过未分配点数；时机同上（对局进行中随时，含交战、死亡等待与 PK）；整次生效或拒绝；洗点只在休息的配装与派奖期间 |
+| 交战窗口 | `GROWTH.BuildSafeWindowSec=4`：普攻成功起手或进攻技能释放、对敌方造成正伤害（含灼烧与区域跳伤）、受到敌方正伤害、被施加定身/眩晕/沉默/缴械/嘲讽/击退（单独减速不算）后 4s 内算交战；菜单、视野与回复不刷新；死亡不重置。只用于 HUD 交战中收起野外摘要，#222 起不再限制学习、加点或构件安装 |
 
 - 重学同一定义（包括休息替换后再获得被遗忘的技能）沿用该定义原有的冷却记录与结束时间（§10.2）。
 - DEV 成长夹具可预置主动候选（最多 3 个），不作为随机分布证据。
@@ -501,7 +501,7 @@ $$
 | --- | --- | --- |
 | `progression.component_category_weights` | 上表三段 | 每段覆盖一段等级，合起来恰好覆盖 2–16 级各一次；每段三类百分比之和为 100 |
 | `GROWTH.EmptyComponentPoolPoints` | 3 | 普通池耗尽时代替该次材料的点数，计入已得点数 |
-| `GROWTH.FillGapPoints` | 4 | 休息“补缺”一次永久支付的点数：为一件从未启用、完全没有兼容入口的改装件/连接件领一件能给它入口的未持有普通基础构件，每件目标只补一次（规范 §4.5“有限补缺建议4点一次”）；2026-11-10 用户批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施” |
+| `GROWTH.FillGapPoints` | 4 | 休息“补缺”一次永久支付的点数：为一件从未安装过、完全没有兼容入口的改装件/连接件领一件能给它入口的未持有普通基础构件，每件目标只补一次（规范 §4.5“有限补缺建议4点一次”）；2026-11-10 用户批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)），原话：“批准整套方案，按票内参数实施” |
 | `GROWTH.DismantleInputCount` | 3 | 休息“拆解”交出的互异已持有普通构件数，换一件随机未持有普通构件（排除当前持有与交出项，稀缺件不收，池空不删除；规范 §4.5“3种不同普通构件换1件随机普通构件”）；同一批准 |
 
 **野外构筑奖励**（#198 G，运行中，规范 §4.2 与外层参数 §5）：空投与 Boss 的一次构筑奖励先公平抽类别，50% 一张未学且非待学的主动图纸、
@@ -544,7 +544,7 @@ $$
 | C12 | 拳上的脏活也算 | 运行中（稀缺） | 技能命中额外执行一次所选基础构件的效果 |
 
 实现取舍（#198 F）：C01 的 1 秒窗口是从首次安装起的固定边界，边界时刻的火伤先计入再结算；改装件装在之后被遗忘的主动上时保留安装、
-不再生效（同 B18）；卸下宿主构件时，装在它上面的改装件、连接件一起卸回库存；新反馈用日志行，没有新增状态编号。
+不再生效（同 B18）；卸下宿主构件时，装在它上面的改装件、连接件一起卸回构件库；新反馈用日志行，没有新增状态编号。
 
 **元素、账目、供给与服务**：
 
@@ -558,7 +558,7 @@ $$
 | 休息 NPC：3 点换一次主动三选一 | 运行中 | AI 规范 §4.4 |
 | 补缺 4 点、拆解 3 换 1 | 运行中 | AI 规范 §4.5 |
 | 满级每 400XP 给 3 点 | 运行中（§4.1） | AI 规范 §4.5 |
-| 4 秒脱战安装窗 | 运行中（`GROWTH.BuildSafeWindowSec`，学习与构件安装共用） | AI 规范 §5 |
+| 4 秒脱战安装窗 | 已取消（#222）：学习、加点与构件安装、拆下、搬动在对局进行中随时可做；`GROWTH.BuildSafeWindowSec` 只保留为 HUD 的交战折叠窗口 | AI 规范 §5；#222 |
 | 外层流程：休息时刻、PK 赛制与缩圈、PK 与竞猜奖励、观众投掷、符咒、返场资源、野外复活、蓝图、评估预算 | 参数与入口已接入；整体验收及评估工具限制见[实施就绪评估](READINESS.md) | #198 外层参数 |
 | 外层参数 §5：空投固定 6 次与 40s 消失、Boss T=240–540s 无增益、标记营地 | 运行中（§4 天降外卖、画饼老板、标记营地；构筑奖励内容见上文“野外构筑奖励”） | #198 外层参数 §5 |
 
@@ -913,7 +913,7 @@ $k=\min(	ext{CAMP.GrowthMaxStage},\lfloor T_{生成}/	ext{CAMP.GrowthStageSec}f
 
 #198 目录的数学依据与手算样例见 AI 规范 §7、§18（离线推导，未运行数值程序、随机模拟或对战），**不是平衡证据**；
 仓库检查与真人试玩都没有覆盖它们。#147 v7 目录的离线模型随该目录删除。
-主动候选的分布、构筑安全窗、硬控递减链与喷漆打断矩阵须由规则测试验证，本节不代替测试结果。
+主动候选的分布、构筑命令的随时准入（#222）、硬控递减链与喷漆打断矩阵须由规则测试验证，本节不代替测试结果。
 
 ### 7.2 普攻开荒与战力样例
 
@@ -1067,7 +1067,7 @@ $T(D)=\min(D,300)/1500+\max(0,D-300)/300$；冲刺冷却18s，返场途中只用
 | --- | --- | --- |
 | `character`、`UNIT.*`、`STAT.*`、`FORMULA.*` | 基值、成长、完整量纲、边界、普攻、回复/伤害/冷却公式 ID | `FLDGrowthBuild` 输入 Combat 的单一属性投影（`LDAttributeProjection`），UI/AI 只读 |
 | `abilities`、`ABILITY.*` | 每项一份效果值与 `opening` 开局池标记；target、windup、费用/CD、各 typed effect、来源/生命周期；固定数值按 `SKILL.GrowthPerLevel` 随等级成长 | 统一技能目录投影和所选原生 handler |
-| `stats`、`GROWTH.*`、`XP.*`、`progression` | 五维每点收益、点数供给与构筑安全窗、正确整数阈值、额外主动机会等级 | `ALDDevelopmentDirector` 的服务器主动候选与 `LDProgressionRules`；客户端不能上传任意 Build |
+| `stats`、`GROWTH.*`、`XP.*`、`progression` | 五维每点收益、点数供给与 HUD 交战窗口、正确整数阈值、额外主动机会等级 | `ALDDevelopmentDirector` 的服务器主动候选与 `LDProgressionRules`；客户端不能上传任意 Build |
 | `camps`、`CAMP.Low.*`、`CAMP.High.*`、`REWARD.*` | 构成/战斗/每生命收益/清空刷新/回位，五个锚点引用 | 营地域与 Combat 产生致死事实，`ALDGrowthDirector::CommitDeathReward` 单一奖励提交 |
 | `timing`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` | 秒制作者参数及公式；不混入地图坐标或当前 deadline | 现有对局时钟、生命与喷漆/守护域，不创建第二时钟 |
 | `identity` | schema、原生定义 ID、handler/projection revision、世界合同摘要 | `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json`、生成的 `Private\Development\LDDemoContentContract.h` |
@@ -1217,7 +1217,7 @@ DeathTax/掉物/有限奖励等旧死亡与奖励政策、旧启动/打包依赖
 | `ABILITY.*` → 完整 effect/geometry 定义 | `LDDemoContentImport` 的 typed 定义；`LDCombatActions`/`LDCombatEffects` 按 `ELDDemoEffectOp` 分派 | 缺字段、额外/未知操作、参数与目标类型不匹配、小数截断 | 每个伤害/系数/盾量/控制期限的变化，以及拥有者等级经 G(L) 的变化，都影响实际结果，不只SHA |
 | `ABILITY.*` 的 MP/时间/族 → cost/timing/source 投影 | `LDCombatActions`（释放扣费）、`LDCombatSources`（`FLDCombatTrack` 冷却轨道） | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣MP/CD；改技能ManaCost确实改变MP；换槽/重学不能重置 |
 | `EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDCombatEffects`、`LDCombatSources`、`LDTacticalRules`（Root/屏障/回复） | 未支持事件、递归、模糊source、未知状态/stack族 | 吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
-| `XP.*`、`REWARD.*`、`GROWTH.*`、`stats`、`progression` → progression/reward/build 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（点数/主动机会/候选/学习/加点）、`ALDGrowthDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧候选、重放death、溢出 | 开局点数与一次主动机会、逐级点数、3/6 级机会与 16 级后按 XP 给点；击杀者与助攻者的XP一起一次提交；16级边界、死亡中候选与图纸保留、安全窗准入 |
+| `XP.*`、`REWARD.*`、`GROWTH.*`、`stats`、`progression` → progression/reward/build 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（点数/主动机会/候选/学习/加点）、`ALDGrowthDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧候选、重放death、溢出 | 开局点数与一次主动机会、逐级点数、3/6 级机会与 16 级后按 XP 给点；击杀者与助攻者的XP一起一次提交；16级边界、死亡中选择与学习、构筑命令随时准入（只有阶段关闭拒绝） |
 | `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | `ALDCampDirector`/`LDCampLifecycle`/`LDCampDecision`、GameMode 生命与喷漆/守护（`LDGameModeLife`、`LDGameModeCapture`） | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查喷漆与守护完成 |
 | 定义/handler/family/schema ID → 不可变索引/来源键 | `LDDemoContentIds.h` 原生编号、`FLDDefinitionWire`、`FLDCombatSourceRef` | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重学仍读应有债务 |
 | 名称/说明/图标/目标预览 → 本人或获准的表现投影 | `LDDemoContentText`（`DemoContent` 字符串表）、HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效 |
@@ -1253,7 +1253,7 @@ Nav连续普攻仅增加请求中的AttackCycle，仍复用Combat节拍与同一
 | --- | --- |
 | CB-T01 | 严格输入和每字段 typed投影/行为变异；NaN/Infinity/bool整数/精度损失/unknown op/retired ID拒绝且产物不变 |
 | CB-T02 | 基础角色正常低营首次升级；技能等级成长、五维属性点均通过真实效果链，不靠授予演示完整循环 |
-| CB-T03 | 实际目录主动候选枚举（开局池、3/6 级、排除已学与图纸、不足与为零）、连升级、关闭/死亡/重发同组、构筑安全窗与死亡准入、加点原子性；服务器不能接受任意Build草稿 |
+| CB-T03 | 实际目录主动候选枚举（开局池、3/6 级、排除已学与图纸、不足与为零）、连升级、关闭/死亡/重发同组、交战中与死亡中准入（#222）、加点原子性；服务器不能接受任意Build草稿 |
 | CB-T04 | 源伪造、换槽、重学、死亡/新局的CD |
 | CB-T05 | 伤害分量、0.01精度、屏障顺序、主击hp_lost吸血、无副击递归/暴击重抽、回复余数、MaxHP/MP同比/零上限/下溢拒绝与往返无收益 |
 | CB-T06 | 每成员last-hit一次XP、同刻互杀/多来源、来源先死后命中、无owner、断线非击杀、回位非死亡、旧life不可再命中 |

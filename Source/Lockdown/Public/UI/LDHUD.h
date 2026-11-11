@@ -20,6 +20,7 @@ class ULDMinimap;
 class ULDPanel;
 class ULDAttributesPanel;
 class ULDChoicesPanel;
+class ULDComponentStorage;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
@@ -77,6 +78,10 @@ public:
     // the #198 growth panel (active offer, blueprints and points) behind the 开盲盒 button.
     UPROPERTY() TObjectPtr<ULDAttributesPanel> AttributesPanel;
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
+    // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
+    UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
+    // Back: closes the storage's chooser or drops its drag (V05Back, after an armed preview).
+    bool CancelStorage();
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
@@ -232,6 +237,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
     UPROPERTY() TObjectPtr<UTextBlock> SightText;
     UPROPERTY() TObjectPtr<UBorder> Band;
+    // The band's identity block: the storage's 本体 column rises over it.
+    UPROPERTY() TObjectPtr<UWidget> SelfBlock;
     UPROPERTY() TObjectPtr<UBorder> Portrait;
     UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
@@ -271,9 +278,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // 开盲盒 button right above the band's left block (#97), with the growth panel it opens in the same row: disabled while
-    // nothing is pending (LDHUD::GrowthPending) and no rest build window offers the rest services (#198); it pulses for a
-    // few seconds after the opportunities, points or pending components rise.
+    // 构筑 button right above the band's left block (#97), with the growth panel it opens in the same row: it counts what is
+    // pending (LDHUD::GrowthPending) and pulses for a few seconds after the opportunities, points or component choices rise.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;

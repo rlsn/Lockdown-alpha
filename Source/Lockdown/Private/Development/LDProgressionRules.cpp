@@ -557,23 +557,9 @@ ELDGrowthReason LDProgression::LearnGate(const FBuildContext& Context)
     {
         return ELDGrowthReason::LifePhaseChanged;
     }
-    switch (Context.Stage)
-    {
-    case EMatchStage::Rest:
-        // The rest window has no build safe window; only a dead contender keeps the death-wait rules.
-        return Context.LifePhase == ELDLifePhase::Dead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
-    case EMatchStage::Live:
-        if (Context.LifePhase == ELDLifePhase::Dead)
-        {
-            return ELDGrowthReason::Dead;
-        }
-        return Context.bSafe ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
-    case EMatchStage::RestLocked:
-        return ELDGrowthReason::BuildLocked;
-    case EMatchStage::Closed:
-        return ELDGrowthReason::PhaseClosed;
-    }
-    return ELDGrowthReason::PhaseClosed;
+    // #222 (2026-11-12, "all the time 可以学新技能和加点 all the time"): learning is open on the field, in every rest step
+    // (PK included) and in the death wait alike; there is no build safe window and no build lock any more.
+    return Context.Stage == EMatchStage::Closed ? ELDGrowthReason::PhaseClosed : ELDGrowthReason::None;
 }
 
 ELDRestService LDProgression::RestServiceFor(ELDBuildCommandKind Kind)
@@ -615,11 +601,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     default:
         return ELDGrowthReason::InvalidRequest;
     }
-    if (Context.Stage == EMatchStage::RestLocked)
-    {
-        return ELDGrowthReason::BuildLocked;
-    }
-    if (Context.Stage != EMatchStage::Live && Context.Stage != EMatchStage::Rest)
+    if (Context.Stage == EMatchStage::Closed)
     {
         return ELDGrowthReason::PhaseClosed;
     }
@@ -627,28 +609,27 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     const bool bDead = Context.LifePhase == ELDLifePhase::Dead;
     switch (Kind)
     {
+    // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a PK; the
+    // server still checks the resources, slots and structure of each one.
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::ComponentChoice:
-        return ELDGrowthReason::None;
+    case ELDBuildCommandKind::OpeningBase:
     case ELDBuildCommandKind::LearnBlueprint:
-        return LearnGate(Context);
     case ELDBuildCommandKind::AllocatePoints:
-        return bRest || bDead || Context.bSafe ? ELDGrowthReason::None : ELDGrowthReason::NotSafe;
+    case ELDBuildCommandKind::InstallComponent:
+    case ELDBuildCommandKind::UninstallComponent:
+        return ELDGrowthReason::None;
+    // The NPC services keep their rest build window (the build and payout steps), their NPC and a living body.
     case ELDBuildCommandKind::BuyNpcOffer:
     case ELDBuildCommandKind::Respec:
     case ELDBuildCommandKind::FillGap:
     case ELDBuildCommandKind::Dismantle:
-        return !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
+        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
+            : !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     case ELDBuildCommandKind::ReplaceActive:
-        return !bRest ? ELDGrowthReason::ReplacementNotAllowed : LearnGate(Context);
     case ELDBuildCommandKind::ForgetActive:
-        return !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
-    case ELDBuildCommandKind::OpeningBase:
-        return ELDGrowthReason::None;
-    case ELDBuildCommandKind::InstallComponent:
-        return InstallGate(Context, false);
-    case ELDBuildCommandKind::UninstallComponent:
-        return !bRest ? ELDGrowthReason::RestOnly : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
+        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
+            : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     default:
         return ELDGrowthReason::InvalidRequest;
     }
@@ -697,14 +678,14 @@ ELDGrowthReason LDProgression::ApplyActiveChoice(const FLDDemoContentDefinitions
     }
     if (bLearnIfPossible)
     {
-        // The learn half is decided in the same commit: it never fails the choice, it only keeps the active stored.
-        Outcome.StoredReason = LearnGate(Context);
+        // The learn half is decided in the same commit: it never fails the choice, it only keeps the active stored when
+        // Q/W/E are full (#222: the moment never stores it).
         uint8 Slot = 0;
-        if (Outcome.StoredReason == ELDGrowthReason::None && !PickLearnSlot(Current, PreferredSlot, Slot))
+        if (!PickLearnSlot(Current, PreferredSlot, Slot))
         {
             Outcome.StoredReason = ELDGrowthReason::NoEmptySlot;
         }
-        if (Outcome.StoredReason == ELDGrowthReason::None)
+        else
         {
             Out.Actives.Add({Option, Slot});
             ProgressionSortBuild(Out);
@@ -1168,26 +1149,10 @@ ELDGrowthReason LDProgression::OpeningBaseOptions(const FLDDemoContentDefinition
     return ELDGrowthReason::None;
 }
 
-ELDGrowthReason LDProgression::InstallGate(const FBuildContext& Context, bool bEverInstalled)
+ELDGrowthReason LDProgression::InstallGate(const FBuildContext& Context)
 {
-    if (!LDGrowthWire::IsBuildLifePhase(Context.LifePhase))
-    {
-        return ELDGrowthReason::LifePhaseChanged;
-    }
-    if (Context.Stage == EMatchStage::RestLocked)
-    {
-        return ELDGrowthReason::BuildLocked;
-    }
-    if (Context.Stage != EMatchStage::Live && Context.Stage != EMatchStage::Rest)
-    {
-        return ELDGrowthReason::PhaseClosed;
-    }
-    if (IsRestWindow(Context))
-    {
-        return Context.LifePhase == ELDLifePhase::Dead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
-    }
-    // A once-installed instance moving again is a rest service; first installs follow the learn matrix.
-    return bEverInstalled ? ELDGrowthReason::RestOnly : LearnGate(Context);
+    // #222: a first install and a move of a once-installed component follow the same open matrix as a learn.
+    return LearnGate(Context);
 }
 
 ELDGrowthReason LDProgression::InstallTargetReason(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
@@ -1260,12 +1225,8 @@ ELDGrowthReason LDProgression::ApplyOpeningBase(const FLDDemoContentDefinitions&
     Instance.SourceLevel = 1;
     if (bInstallIfPossible)
     {
-        // The install half never fails the pick; it only keeps the component in the inventory with the reason.
-        Outcome.StoredReason = InstallGate(Context, false);
-        if (Outcome.StoredReason == ELDGrowthReason::None)
-        {
-            Outcome.StoredReason = InstallTargetReason(Content, Current, Component, Target);
-        }
+        // The install half never fails the pick; it only keeps the component in the inventory when the target is not legal.
+        Outcome.StoredReason = InstallTargetReason(Content, Current, Component, Target);
         if (Outcome.StoredReason == ELDGrowthReason::None)
         {
             Instance.bInstalled = true;
@@ -1296,7 +1257,7 @@ ELDGrowthReason LDProgression::ApplyInstallComponent(const FLDDemoContentDefinit
     {
         return ELDGrowthReason::AlreadyInstalled;
     }
-    if (const ELDGrowthReason Reason = InstallGate(Context, Instance->bEverInstalled); Reason != ELDGrowthReason::None)
+    if (const ELDGrowthReason Reason = InstallGate(Context); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
@@ -1332,7 +1293,7 @@ ELDGrowthReason LDProgression::ApplyUninstallComponent(const FLDDemoContentDefin
     {
         return Reason;
     }
-    // Back to the inventory with its history: a later install is a rest-window move, never a first install. #198 F: the mods
+    // Back to the inventory with its history (bEverInstalled stays: it was enabled once). #198 F: the mods
     // and connectors installed on it (or repeating it, C12) come off with it, transitively.
     TArray<FName> Removing{Component};
     ProgressionCloseOverAttached(Out, Removing);

@@ -463,7 +463,8 @@ struct FLDCombatOwnerView
     UPROPERTY() bool bDormRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;
-    // #198 build safe window (absolute authority ms): from here on, with no new combat action, the contender may learn and
-    // allocate in the development phases; <= now means safe, 0 means no combat action yet. Persists across lives.
+    // #198 combat window (absolute authority ms): until here the contender counts as in combat for the HUD's fold of the
+    // field summary (#219); <= now means out of combat, 0 means no combat action yet. Persists across lives. #222: no build
+    // command reads it.
     UPROPERTY() int64 BuildSafeAtMs=0;
 };

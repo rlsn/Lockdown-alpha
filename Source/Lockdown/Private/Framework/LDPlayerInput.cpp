@@ -205,6 +205,7 @@ void ALDPlayerController::V05Back()
     if (RootUI->CloseTopModal()) { return; }
     if (CancelArmedCombat()) { return; }
     if (HUDUI && HUDUI->CancelPKThrowAim()) { return; }
+    if (HUDUI && HUDUI->CancelStorage()) { return; }
     if (RootUI->CloseTopPanel()) { return; }
     if (!bFreshInputRequired) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
 }

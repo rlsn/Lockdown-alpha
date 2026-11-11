@@ -314,8 +314,9 @@ struct FLDCombatEntityRecord
     uint64 ReceiptRevision=0;
     uint64 ViewRevision=0;
     uint64 PublishedViewRevision=0;
-    // #198 build safe window (contenders): the authority ms of the last combat action that keeps the contender from
-    // learning and allocating (MarkBuildUnsafe); 0 = none yet. Kept across lives; the window is GROWTH.BuildSafeWindowSec.
+    // #198 combat window (contenders): the authority ms of the last combat action (MarkBuildUnsafe); 0 = none yet. Kept
+    // across lives; the window is GROWTH.BuildSafeWindowSec. #222: it no longer gates any build command; the owner view
+    // publishes it only for the HUD's combat fold of the field summary.
     int64 LastBuildUnsafeAtMs=0;
     // #198 F C01 (spec §13.3): the authority ms of its first install, from which its fixed window boundaries run; kept across
     // lives, uninstalls and reinstalls (a reinstall keeps the original boundaries). Unset until C01 is first installed.
@@ -624,8 +625,8 @@ public:
     // approved definition or a slot other than Q/W/E.
     static bool PublicActivesOf(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content,
         FLDObservedActivesView& Out);
-    // #198 build safe window of a contender: the absolute authority ms from which it may learn and allocate in the
-    // development phases (<= now: safe); 0 when it has no combat action yet or no Combat record.
+    // #198 combat window of a contender: the absolute authority ms until which it counts as in combat (<= now: out of
+    // combat); 0 when it has no combat action yet or no Combat record. #222: no build command reads it.
     int64 ReadBuildSafeAtMs(const FGuid& Contender) const;
 
     // ---- Growth compound commits.

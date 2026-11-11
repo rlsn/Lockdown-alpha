@@ -117,7 +117,8 @@ FString LDHUD::CreatureName(const FLDDemoContentDefinitions* Content,uint8 Creat
 FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName)
 {
     if(Public.Phase!=ELDMatchPhase::Rest&&Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
-    // #198: a rest's locked steps (draw .. settlement, the return countdown) refuse every build command, so nothing is hinted.
+    // #198: a rest hints growth only in its build and payout steps; the draw .. settlement steps and the return countdown keep
+    // the line for the PK (#222 keeps builds open there, through the 构筑 entry and the storage).
     if(Public.Phase==ELDMatchPhase::Rest&&!LDMatchTimeline::IsRestBuildOpen(Public.Timeline)){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
     if(bGrowth&&Progression->bHasActiveOffer)
@@ -343,8 +344,8 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     }
     else
     {
+        // #222: builds stay open through the PK steps, so no 配装已锁定 line; only the NPC services wait for the payout.
         Detail.Add(Timeline.bPKSkipped?FString(LDTerms::PKSkipped):LDTerms::PKEntrants(Timeline.LockedEntrants));
-        if(!LDMatchTimeline::IsRestBuildOpen(Timeline)){Detail.Add(LDTerms::BuildLockedNow);}
     }
     View.Detail=FString::Join(Detail,TEXT(" · "));
     return View;
@@ -1427,45 +1428,33 @@ FString LDHUD::SlotKey(uint8 Slot)
 {
     return Slot==0?FString(TEXT("Q")):Slot==1?FString(TEXT("W")):Slot==2?FString(TEXT("E")):FString::Printf(TEXT("槽 %d"),int32(Slot));
 }
-FString LDHUD::BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
 {
     switch(Reason)
     {
     case ELDGrowthReason::None: return FString();
-    case ELDGrowthReason::NotSafe:
-    {
-        if(!bClock||BuildSafeAtMs<=NowMs){return LDTerms::NotSafe;}
-        // Rounded up to the next tenth, so the wait never reads 0.0 while it lasts.
-        const int64 Tenths=(BuildSafeAtMs-NowMs+99)/100;
-        return LDTerms::NotSafeFor(FString::Printf(TEXT("%lld.%lld"),Tenths/10,Tenths%10));
-    }
     case ELDGrowthReason::Dead: return LDTerms::DeadNoLearn;
     case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
     case ELDGrowthReason::SlotOccupied: return LDTerms::ReplaceAtRest;
-    case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
-    Context.bSafe=bClock&&BuildSafeAtMs<=NowMs;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
         bAllowed=Reason==ELDGrowthReason::None;
-        // An unknown safe window is no countdown: say it is syncing instead of naming a wait.
-        Blocked=Reason==ELDGrowthReason::NotSafe&&!bClock?FString(TEXT("构筑安全窗同步中")):BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);
+        Blocked=BuildBlockedText(Reason);
     };
     FBuildGateView View;
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice,Context),View.bCanChoose,View.ChooseBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::LearnBlueprint,Context),View.bCanLearn,View.LearnBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::AllocatePoints,Context),View.bCanAllocate,View.AllocateBlocked);
-    // #198 B: a first-time component install is admitted exactly as growth admits it (LDProgression::InstallGate: the
-    // countdown, the rest window, or alive and safe); re-installing a once-installed one only in the rest window.
-    Gate(LDProgression::InstallGate(Context,false),View.bCanInstall,View.InstallBlocked);
-    Gate(LDProgression::InstallGate(Context,true),View.bCanReinstall,View.ReinstallBlocked);
+    // #198 B: a component install, move or uninstall is admitted exactly as growth admits it (LDProgression::InstallGate).
+    Gate(LDProgression::InstallGate(Context),View.bCanInstall,View.InstallBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer,Context),View.bCanBuyNpc,View.NpcBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::Respec,Context),View.bCanRespec,View.RespecBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive,Context),View.bCanReplace,View.ReplaceBlocked);
@@ -1476,11 +1465,11 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     View.bInRest=Stage==LDProgression::EMatchStage::Rest||Stage==LDProgression::EMatchStage::RestLocked;
     return View;
 }
-FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content)
 {
     if(Receipt.Header.Outcome!=ELDReceiptOutcome::Applied)
     {
-        return TEXT("没有生效：")+BuildBlockedText(LDGrowthWire::Reason(Receipt.Header.Reason),BuildSafeAtMs,bClock,NowMs);
+        return TEXT("没有生效：")+BuildBlockedText(LDGrowthWire::Reason(Receipt.Header.Reason));
     }
     const FString Missing(TEXT("回执缺少结果，请以当前状态为准。"));
     switch(Receipt.Kind)
@@ -1491,7 +1480,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         const FString Name=ContentName(Content,Receipt.DefinitionId.ToString());
         if(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned){return LDTerms::LearnedInto(Name,SlotKey(Receipt.LearnedSlot));}
         if(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint)
-        {return LDTerms::StoredAsBlueprint(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.StoredReason),BuildSafeAtMs,bClock,NowMs));}
+        {return LDTerms::StoredAsBlueprint(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.StoredReason)));}
         return Missing;
     }
     case ELDBuildCommandKind::AllocatePoints:
@@ -1513,7 +1502,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         if(Receipt.ComponentId.IsNone()){return Missing;}
         const FString Name=ContentName(Content,Receipt.ComponentId.ToString());
         if(Receipt.bComponentInstalled){return LDTerms::ComponentInstalled(Name);}
-        return LDTerms::ComponentStored(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.InstallStoredReason),BuildSafeAtMs,bClock,NowMs));
+        return LDTerms::ComponentStored(Name,BuildBlockedText(LDGrowthWire::Reason(Receipt.InstallStoredReason)));
     }
     case ELDBuildCommandKind::InstallComponent:
         if(Receipt.ComponentId.IsNone()||!Receipt.bComponentInstalled){return Missing;}
@@ -1634,41 +1623,190 @@ LDHUD::FComponentCardView LDHUD::ComponentCard(FName DefinitionId,const FLDDemoC
     Card.bKnown=Sentence.bComplete;
     return Card;
 }
-ELDGrowthReason LDHUD::ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
-    const FLDDemoContentDefinitions* Content)
+namespace
 {
-    const FString Id=Instance.DefinitionId.ToString();
-    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
-    if(!Component){return ELDGrowthReason::DataNotReady;}
-    if(Component->Kind!=ELDDemoComponentKind::Base)
+    const FLDDemoComponentDefinition* HudComponentDefinition(const FLDDemoContentDefinitions* Content,FName Id)
     {
-        // #198 F: a mod or connector needs a place to go (C12 also a base).
-        const bool bPlaced=!WorkshopTargets(*Component,Progression,Content).IsEmpty()
-            &&(Component->ExtraBases.IsEmpty()||!RepeatableBases(*Component,Progression,Content).IsEmpty());
-        return bPlaced?ELDGrowthReason::None:ELDGrowthReason::InvalidTarget;
+        if(!Content||Id.IsNone()){return nullptr;}
+        const FString Text=Id.ToString();
+        return Content->Components.FindByPredicate([&Text](const FLDDemoComponentDefinition& D){return D.Id==Text;});
     }
-    if(Component->Binding==ELDDemoComponentBinding::ActiveElement&&BindableActives(*Component,Progression).IsEmpty()){return ELDGrowthReason::InvalidTarget;}
-    return ELDGrowthReason::None;
+    const FLDComponentInstanceView* HudOwned(const FLDProgressionView& Progression,FName Id)
+    {
+        return Progression.Components.FindByPredicate([Id](const FLDComponentInstanceView& C){return C.DefinitionId==Id;});
+    }
+    // The column of a learned active, or Body when it is not learned (a build the server keeps legal never shows one).
+    LDHUD::EStorageColumn HudActiveColumn(const FLDProgressionView& Progression,FName Active)
+    {
+        const FLDActiveSlotView* Held=Progression.Actives.FindByPredicate([Active](const FLDActiveSlotView& A){return A.DefinitionId==Active;});
+        return Held&&Held->Slot<3?LDHUD::SlotColumn(Held->Slot):LDHUD::EStorageColumn::Body;
+    }
+    // Where an installed instance sits: its column and its host component (None: the column itself).
+    void HudPlacement(const FLDProgressionView& Progression,const FLDComponentInstanceView& Instance,LDHUD::EStorageColumn& OutColumn,FName& OutHost)
+    {
+        const FLDComponentTargetView& Target=Instance.Target;
+        OutHost=NAME_None;
+        if(!Target.BoundActive.IsNone()){OutColumn=HudActiveColumn(Progression,Target.BoundActive);return;}
+        switch(Target.Kind)
+        {
+        case ELDComponentTargetKind::Active:
+        case ELDComponentTargetKind::EffectSegment: OutColumn=HudActiveColumn(Progression,Target.Definition);return;
+        case ELDComponentTargetKind::Dash: OutColumn=LDHUD::EStorageColumn::Dash;return;
+        case ELDComponentTargetKind::Component:
+        {
+            OutHost=Target.Definition;
+            // The host's own column, following its chain (bounded: a legal build never nests deeper than its components).
+            FName Host=Target.Definition;
+            for(int32 Guard=0;Guard<=Progression.Components.Num();++Guard)
+            {
+                const FLDComponentInstanceView* HostInstance=HudOwned(Progression,Host);
+                if(!HostInstance||!HostInstance->bInstalled){break;}
+                if(HostInstance->Target.Kind!=ELDComponentTargetKind::Component||!HostInstance->Target.BoundActive.IsNone())
+                {
+                    FName Ignored;HudPlacement(Progression,*HostInstance,OutColumn,Ignored);return;
+                }
+                Host=HostInstance->Target.Definition;
+            }
+            OutColumn=LDHUD::EStorageColumn::Body;return;
+        }
+        default: OutColumn=LDHUD::EStorageColumn::Body;return;
+        }
+    }
 }
-LDHUD::FComponentRowView LDHUD::ComponentRow(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
-    const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate,int64 BuildSafeAtMs,bool bClock,int64 NowMs)
+LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
-    FComponentRowView Row;
-    Row.DefinitionId=Instance.DefinitionId;
-    Row.bInstalled=Instance.bInstalled;
-    if(Row.bInstalled){return Row;}
-    const FString Id=Instance.DefinitionId.ToString();
-    const FLDDemoComponentDefinition* Component=Content?Content->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
-    Row.bBinding=Component&&Component->Binding==ELDDemoComponentBinding::ActiveElement;
-    const ELDGrowthReason Reason=ComponentEnableReason(Instance,Progression,Content);
-    if(Reason==ELDGrowthReason::DataNotReady){Row.Blocked=Content?FString(TEXT("内容目录中找不到该构件")):FString(TEXT("内容数据同步中"));return Row;}
-    if(Reason==ELDGrowthReason::InvalidTarget&&Row.bBinding){Row.Blocked=LDTerms::NoBindableActive;return Row;}
-    if(Reason==ELDGrowthReason::InvalidTarget&&Component&&Component->Kind!=ELDDemoComponentKind::Base){Row.Blocked=LDTerms::NoInstallTarget;return Row;}
-    if(Reason!=ELDGrowthReason::None){Row.Blocked=BuildBlockedText(Reason,BuildSafeAtMs,bClock,NowMs);return Row;}
-    // A once-installed component moves again only in the rest window; a first install follows the field gate.
-    Row.bCanEnable=Instance.bEverInstalled?Gate.bCanReinstall:Gate.bCanInstall;
-    Row.Blocked=Row.bCanEnable?FString():Instance.bEverInstalled?Gate.ReinstallBlocked:Gate.InstallBlocked;
-    return Row;
+    return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
+}
+LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    FStorageView View;
+    View.Columns.SetNum(StorageColumnCount);
+    for(int32 Index=0;Index<StorageColumnCount;++Index)
+    {
+        FStorageColumnView& Column=View.Columns[Index];
+        Column.Column=static_cast<EStorageColumn>(Index);
+        Column.Title=Index==0?FString(LDTerms::ColumnBody):Index==4?FString(LDTerms::TargetDash):SlotKey(uint8(Index-1));
+        if(Index>=1&&Index<=3){Column.Active=ActiveInSlot(Progression,uint8(Index-1));}
+    }
+    if(!Progression.bValid){return View;}
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        if(Owned.bInstalled){continue;}
+        View.Stored.Add(Owned.DefinitionId);
+        if(!Owned.bEverInstalled){++View.Fresh;}
+    }
+    // Each column lists its own installs in the view's order, each followed by what is installed on it (depth first).
+    TMap<FName,EStorageColumn> Columns;
+    TMultiMap<FName,FName> Children;
+    TArray<FName> Roots;
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        if(!Owned.bInstalled){continue;}
+        EStorageColumn Column=EStorageColumn::Body;FName Host;
+        HudPlacement(Progression,Owned,Column,Host);
+        Columns.Add(Owned.DefinitionId,Column);
+        const FLDComponentInstanceView* HostInstance=Host.IsNone()?nullptr:HudOwned(Progression,Host);
+        if(HostInstance&&HostInstance->bInstalled){Children.Add(Host,Owned.DefinitionId);}else{Roots.Add(Owned.DefinitionId);}
+    }
+    TSet<FName> Placed;
+    TFunction<void(FName,FName,int32)> Place=[&](FName Id,FName Host,int32 Depth)
+    {
+        if(Placed.Contains(Id)){return;}
+        Placed.Add(Id);
+        const FLDComponentInstanceView* Instance=HudOwned(Progression,Id);
+        FEquippedView Entry;Entry.Component=Id;Entry.Host=Host;Entry.Depth=Depth;
+        if(Instance&&!Instance->Target.BoundActive.IsNone()){Entry.Note=ElementName(Instance->Target.Element);}
+        else if(Instance&&!Instance->Target.BoundComponent.IsNone()){Entry.Note=LDTerms::RepeatingNote(ContentName(Content,Instance->Target.BoundComponent.ToString()));}
+        View.Columns[int32(Columns.FindRef(Id))].Entries.Add(MoveTemp(Entry));
+        TArray<FName> Mine;Children.MultiFind(Id,Mine,true);
+        for(const FName& Child:Mine){Place(Child,Id,Depth+1);}
+    };
+    for(const FName& Root:Roots){Place(Root,NAME_None,0);}
+    return View;
+}
+TArray<FName> LDHUD::DetachedWith(FName Component,const FLDProgressionView& Progression)
+{
+    TArray<FName> Out;
+    const FLDComponentInstanceView* Self=HudOwned(Progression,Component);
+    if(!Self||!Self->bInstalled){return Out;}
+    TSet<FName> Off{Component};
+    // Transitive closure over "installed on" and C12's "repeating", like the server's uninstall cascade.
+    for(bool bGrew=true;bGrew;)
+    {
+        bGrew=false;
+        for(const FLDComponentInstanceView& Owned:Progression.Components)
+        {
+            if(!Owned.bInstalled||Off.Contains(Owned.DefinitionId)){continue;}
+            const bool bOnOff=(Owned.Target.Kind==ELDComponentTargetKind::Component&&Off.Contains(Owned.Target.Definition))
+                ||(!Owned.Target.BoundComponent.IsNone()&&Off.Contains(Owned.Target.BoundComponent));
+            if(bOnOff){Off.Add(Owned.DefinitionId);bGrew=true;}
+        }
+    }
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        if(Owned.DefinitionId!=Component&&Off.Contains(Owned.DefinitionId)){Out.Add(Owned.DefinitionId);}
+    }
+    return Out;
+}
+TArray<LDHUD::FComponentDrop> LDHUD::ComponentDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FComponentDrop> Out;
+    const FLDDemoComponentDefinition* Definition=HudComponentDefinition(Content,Component);
+    if(!Definition||!HudOwned(Progression,Component)){return Out;}
+    if(Definition->Kind==ELDDemoComponentKind::Base)
+    {
+        if(Definition->Binding!=ELDDemoComponentBinding::ActiveElement)
+        {
+            FComponentDrop Drop;Drop.Column=EStorageColumn::Body;Out.Add(Drop);
+            return Out;
+        }
+        for(const FName& Active:BindableActives(*Definition,Progression))
+        {
+            FComponentDrop Drop;Drop.Column=HudActiveColumn(Progression,Active);Drop.BindActive=Active;Drop.Elements=Definition->BindElements;
+            if(!Drop.Elements.IsEmpty()){Out.Add(MoveTemp(Drop));}
+        }
+        return Out;
+    }
+    // A mod or connector: C12 also needs a base to repeat; without one it has no place at all.
+    TArray<FName> Bases;
+    if(!Definition->ExtraBases.IsEmpty())
+    {
+        Bases=RepeatableBases(*Definition,Progression,Content);
+        if(Bases.IsEmpty()){return Out;}
+    }
+    const TArray<FName> Off=DetachedWith(Component,Progression);
+    for(const FWorkshopTargetView& Target:WorkshopTargets(*Definition,Progression,Content))
+    {
+        FComponentDrop Drop;Drop.Kind=Target.Kind;Drop.TargetId=Target.TargetId;Drop.Bases=Bases;
+        switch(Target.Kind)
+        {
+        case ELDComponentTargetKind::Active: Drop.Column=HudActiveColumn(Progression,Target.TargetId);break;
+        case ELDComponentTargetKind::Dash: Drop.Column=EStorageColumn::Dash;break;
+        case ELDComponentTargetKind::Component:
+        {
+            if(Target.TargetId==Component||Off.Contains(Target.TargetId)){continue;}
+            const FLDComponentInstanceView* Host=HudOwned(Progression,Target.TargetId);
+            if(!Host){continue;}
+            FName Ignored;HudPlacement(Progression,*Host,Drop.Column,Ignored);
+            Drop.Host=Target.TargetId;
+            break;
+        }
+        default: Drop.Column=EStorageColumn::Body;break;
+        }
+        // C12 repeats an installed base, never one coming off with it.
+        Drop.Bases.RemoveAll([&Off](const FName& Base){return Off.Contains(Base);});
+        if(!Bases.IsEmpty()&&Drop.Bases.IsEmpty()){continue;}
+        Out.Add(MoveTemp(Drop));
+    }
+    return Out;
+}
+const LDHUD::FComponentDrop* LDHUD::FindDrop(const TArray<FComponentDrop>& Drops,EStorageColumn Column,FName Host)
+{
+    if(!Host.IsNone())
+    {
+        if(const FComponentDrop* OnHost=Drops.FindByPredicate([Column,Host](const FComponentDrop& D){return D.Column==Column&&D.Host==Host;})){return OnHost;}
+    }
+    return Drops.FindByPredicate([Column](const FComponentDrop& D){return D.Column==Column&&D.Host.IsNone();});
 }
 LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
 {
@@ -1678,11 +1816,6 @@ LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression
     Pending.Points=FMath::Max<int64>(0,Progression->UnspentPoints);
     Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
     Pending.bOpeningBase=Progression->bOpeningBasePending&&!Progression->OpeningBaseOptions.IsEmpty();
-    for(const FLDComponentInstanceView& Owned:Progression->Components)
-    {
-        if(Owned.bInstalled||Owned.bEverInstalled){continue;}
-        if(!Content||ComponentEnableReason(Owned,*Progression,Content)==ELDGrowthReason::None){++Pending.Components;}
-    }
     Pending.ComponentChoices=Progression->ComponentChoices.Num();
     return Pending;
 }
@@ -1692,7 +1825,7 @@ FString LDHUD::FGrowthPending::Prompt() const
     if(Offers>0){Text+=FString::Printf(TEXT("+%d"),Offers);}
     if(Points>0){Text+=FString::Printf(TEXT(" · %lld点"),Points);}
     if(Offers<=0&&Points<=0&&Blueprints>0){Text+=FString::Printf(TEXT(" · %s %d"),LDTerms::Blueprint,Blueprints);}
-    const int32 Parts=Components+(bOpeningBase?1:0)+ComponentChoices;
+    const int32 Parts=(bOpeningBase?1:0)+ComponentChoices;
     if(Parts>0){Text+=TEXT(" · ")+LDTerms::ComponentsPending(Parts);}
     return Text;
 }
@@ -1872,7 +2005,6 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("这组技能已经选过了");
     case ELDGrowthReason::OfferGuardStale: return TEXT("内容已更新，请重新确认");
     case ELDGrowthReason::BuildStale: return TEXT("构筑已变化，请重新确认");
-    case ELDGrowthReason::NotSafe: return FString(LDTerms::NotSafe)+TEXT("，暂时不能学习或加点");
     case ELDGrowthReason::NoEmptySlot: return LDTerms::SlotsFull;
     case ELDGrowthReason::SlotOccupied: return FString(TEXT("这个技能槽已有技能，"))+LDTerms::ReplaceAtRest;
     case ELDGrowthReason::NoBlueprint: return FString(TEXT("没有这份"))+LDTerms::Blueprint;
@@ -1880,7 +2012,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoActiveOffer: return TEXT("当前没有可选的技能");
     case ELDGrowthReason::PhaseClosed: return TEXT("现在不是成长时段");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("休息时才能替换或遗忘技能");
-    case ELDGrowthReason::BuildLocked: return FString(LDTerms::BuildLockedNow)+TEXT("：PK 与返回倒计时期间不能改");
+    case ELDGrowthReason::BuildLocked: return TEXT("PK 与返回倒计时期间不能找 NPC");
     case ELDGrowthReason::NpcPoolTooSmall: return TEXT("能抽的主动不足 3 个，NPC 没收点数");
     case ELDGrowthReason::OfferOutstanding: return TEXT("还有没选的技能，先选完");
     case ELDGrowthReason::NothingToRespec: return TEXT("还没加过点，不用洗");
@@ -1890,7 +2022,6 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NotOwned: return FString(TEXT("你没有这个"))+LDTerms::Component;
     case ELDGrowthReason::AlreadyInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("已经启用了");
     case ELDGrowthReason::NotInstalled: return FString(TEXT("这个"))+LDTerms::Component+TEXT("还没有启用");
-    case ELDGrowthReason::RestOnly: return LDTerms::ReinstallAtRest;
     case ELDGrowthReason::InvalidTarget: return TEXT("安装位置或绑定无效");
     case ELDGrowthReason::OpeningBaseUnavailable: return FString(TEXT("这个"))+LDTerms::Component+TEXT("不在开局可选范围内");
     case ELDGrowthReason::OpeningBaseTaken: return FString(TEXT("开局基础"))+LDTerms::Component+TEXT("已经选过了");
@@ -2147,23 +2278,19 @@ bool LDHUD::ChoicesCombatActive(const FLDPublicMatchView& Public,const FLDOwnerS
 }
 void LDHUD::FChoicesFold::Opened(bool bAutomaticOpen,double Now)
 {
-    // A player's own opening right after a hit folded the panel is respected: hits no longer fold it until it closes.
-    bHitImmune=!bAutomaticOpen&&bFoldedByHit;
-    bFoldedByHit=false;
     bOpen=true;bAutomatic=bAutomaticOpen;OpenedAt=Now;
 }
 void LDHUD::FChoicesFold::Closed()
 {
-    bOpen=false;bAutomatic=false;bHitImmune=false;
+    bOpen=false;bAutomatic=false;
 }
-bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit,bool bCombatActive)
+bool LDHUD::FChoicesFold::ShouldFold(double Now,bool bEngaged,bool bOwnHit)
 {
-    if(!bOpen){return false;}
-    if(bCombatActive){return true;}
-    // Engaging with the automatic opening makes it the player's own: it no longer times out.
+    // #222: a panel the player opened (or engaged with) stays until the player closes it, in combat and in a PK too.
+    if(!bOpen||!bAutomatic){return false;}
+    // Engaging with the automatic opening makes it the player's own.
     if(bEngaged){bAutomatic=false;return false;}
-    if(bOwnHit&&!bHitImmune){bFoldedByHit=true;return true;}
-    return bAutomatic&&Now-OpenedAt>=AutoOpenSeconds;
+    return bOwnHit||Now-OpenedAt>=AutoOpenSeconds;
 }
 bool LDHUD::FGrowthAutoOpen::Observe(const FLDProgressionView& View,uint32 Match)
 {
