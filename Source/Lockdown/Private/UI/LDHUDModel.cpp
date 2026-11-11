@@ -2137,7 +2137,10 @@ bool LDHUD::ChoicesCombatActive(const FLDPublicMatchView& Public,const FLDOwnerS
 {
     if(Public.Generation==0||Public.Generation!=Own.Match||Own.LifePhase!=ELDLifePhase::Alive){return false;}
     if(Public.Phase==ELDMatchPhase::Rest)
-    {return Public.Timeline.Step==ELDRestStep::PK&&Public.PK.FindEntrant(Own.ContenderId)!=nullptr;}
+    {
+        const FLDPKEntrantView* Entrant=Public.PK.FindEntrant(Own.ContenderId);
+        return Public.Timeline.Step==ELDRestStep::PK&&Entrant&&Entrant->bAlive;
+    }
     const bool bField=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
     const bool bCurrent=Combat&&Combat->bHasBody&&Combat->Generation==Own.Match&&Combat->Life==Own.Life;
     return bField&&(bOwnHit||(bCurrent&&bClock&&NowMs<Combat->BuildSafeAtMs));

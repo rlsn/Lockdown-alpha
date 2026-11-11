@@ -6,6 +6,8 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/ScrollBox.h"
 #include "Components/PanelSlot.h"
+#include "Components/RichTextBlock.h"
+#include "UObject/StrongObjectPtr.h"
 #include "AI/LDOpponentController.h"
 #include "Character/LDCharacter.h"
 #include "Containers/Ticker.h"
@@ -149,6 +151,13 @@ public:
     int32 UIShot = 0;
     int32 UIBuildStage = 0;
     int32 UIPointWheelSteps=0,UIComponentIndex=INDEX_NONE,UIComponentRewardGrants=0;
+    int32 UIOpeningIndex=INDEX_NONE,UIOpeningWheels=0,UIChoiceStep=0,UIChoiceWheels=0;
+    bool bUIOpeningShot=false;
+    FName UIOpeningComponent;
+    TArray<FName> UIOpeningOptions;
+    TStrongObjectPtr<ULDChoicesPanel> UIChoiceFixture;
+    FLDBuildCommand UIChoiceSubmitted;
+    bool ReviewChoiceCards(ALDPlayerController& PC,double Now);
     TWeakPtr<SWidget> UIPressedSlate;
     TWeakObjectPtr<UPanelSlot> UIPressedSlot;
     FName UIInstalledComponent;
@@ -163,6 +172,7 @@ public:
     int32 UIFieldActivesBefore=0,UIStagedBeforeFight=0;
     double UIFieldFightSince=0,UIFieldRetryAt=0;
     FGuid UIFieldTarget,UIFieldRejectedTarget;
+    TSet<FName> UIFieldVisitedCamps;
     bool bUIFieldChecked=false,bUIAnnouncementChecked=false;
     double UIActionDueAt=0;
     bool ReviewExplicitServices(ALDPlayerController& PC,double Now);
@@ -300,6 +310,7 @@ public:
 
     bool Finish()
     {
+        if(UIChoiceFixture.IsValid()){UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();}
         auto Report = MakeShared<FJsonObject>();
         Report->SetBoolField(TEXT("passed"), Passed);
         Report->SetStringField(TEXT("role"), Role);
@@ -1257,25 +1268,54 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             if (UIBuildStage == 1)
             {
                 if (!Growth->bOpeningBasePending || Panel->HasPendingRequest()) { return true; }
-                for (int32 Index = 0; Index < Growth->OpeningBaseOptions.Num(); ++Index)
+                for (int32 Index = 1; Index < Growth->OpeningBaseOptions.Num(); ++Index)
                 {
                     const FString Id = Growth->OpeningBaseOptions[Index].ToString();
                     const FLDDemoComponentDefinition* Definition = Content->Get().Components.FindByPredicate(
                         [&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; });
-                    if (Definition && Definition->BindElements.IsEmpty())
+                    FLDComponentInstanceView Fresh;Fresh.DefinitionId=Growth->OpeningBaseOptions[Index];
+                    if (Definition && Definition->BindElements.IsEmpty()
+                        &&LDHUD::ComponentEnableReason(Fresh,*Growth,&Content->Get())==ELDGrowthReason::None)
                     {
-                        if (!Check(Panel->PickOpeningBase(Index), TEXT("UI: owner installs its opening base through the panel"))) { return Finish(); }
-                        UIBuildStage = 2;
+                        UIOpeningIndex=Index;UIOpeningComponent=Fresh.DefinitionId;UIOpeningOptions=Growth->OpeningBaseOptions;
+                        PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                        Panel->OpenPanel();Panel->ShowTab(0);
+                        UIBuildStage = 14;
                         UIBuildDueAt = Now + .5;
                         return true;
                     }
                 }
-                Check(false, TEXT("UI: opening skill has a base that needs no binding"));
+                Check(false, TEXT("UI: opening skill has a non-first installable base that needs no binding"));
                 return Finish();
+            }
+            if(UIBuildStage==14)
+            {
+                if(!Check(Panel->BaseCards.IsValidIndex(UIOpeningIndex),TEXT("UI: the non-first opening candidate has a rendered row"))){return Finish();}
+                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+                const auto& Card=Panel->BaseCards[UIOpeningIndex];
+                if(!LDSlateProbeInput::FullyVisible(Card.Frame,Scroll))
+                {
+                    if(!Check(++UIOpeningWheels<25&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
+                        TEXT("UI: vertical scrolling makes the non-first opening candidate fully reachable"))){return Finish();}
+                    UIBuildDueAt=Now+.15;return true;
+                }
+                if(!bUIOpeningShot)
+                {
+                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostOpeningNonFirst_720_125.png")),true,false);
+                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostOpeningNonFirst_720_125.png")));
+                    bUIOpeningShot=true;return true;
+                }
+                if(FScreenshotRequest::IsScreenshotRequested()){return true;}
+                if(!Check(LDSlateProbeInput::SendClick(Card.Button),TEXT("UI: real pointer selects a non-first opening base at 720p125"))){return Finish();}
+                UIBuildStage=2;UIBuildDueAt=Now+.5;return true;
             }
             if (UIBuildStage == 2)
             {
                 if (Growth->Components.IsEmpty() || Panel->HasPendingRequest()) { return true; }
+                if(!Check(Growth->Components.ContainsByPredicate([this](const FLDComponentInstanceView& Row)
+                    {return Row.DefinitionId==UIOpeningComponent&&Row.bInstalled;}),
+                    TEXT("UI: authority installs the exact non-first pointer-selected opening base"))){return Finish();}
+                if(UIChoiceStep<6){if(!ReviewChoiceCards(PC,Now)){return Finish();}return true;}
                 UIRewardTicket = Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId, Growth->NextThresholdXP - Growth->CumulativeXP, Error);
                 if (!Check(UIRewardTicket != 0, TEXT("UI: DEV XP queues a normal level-up inventory component"))) { return Finish(); }
                 UIBuildStage = 3;
@@ -1302,6 +1342,10 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 UIPointsBefore = Growth->UnspentPoints;
                 PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
                 Panel->OpenPanel();
+                UIBuildStage=15;UIBuildDueAt=Now+.3;return true;
+            }
+            if(UIBuildStage==15)
+            {
                 if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab2"))),
                     TEXT("UI: actual pointer selects the points task"))){return Finish();}
                 UIBuildStage = 5;
@@ -1607,6 +1651,96 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
     bUIPKShotsDone=true;return true;
 }
 
+bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
+{
+    UIBuildDueAt=Now+.2;
+    if(UIChoiceStep==0)
+    {
+        auto* Real=PC.HUDUI->ChoicesPanel.Get();
+        FLDProgressionView Sample=Real->Latest;
+        Sample.bHasActiveOffer=false;Sample.bOpeningBasePending=false;Sample.PendingBlueprints.Reset();Sample.ComponentChoices.Reset();
+        FLDComponentChoiceView& Choice=Sample.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid::NewGuid();
+        for(const FName Id:UIOpeningOptions)
+        {if(!LDHUD::OwnsComponent(Sample,Id)&&Choice.Options.Num()<2){Choice.Options.Add(Id);}}
+        if(!Check(Choice.Options.Num()==2&&!Sample.Components.IsEmpty(),
+            TEXT("UI: isolated elite-choice fixture uses two known unowned candidates and a pinned owned component"))){return false;}
+        Real->ClosePanel();
+        UIChoiceFixture.Reset(CreateWidget<ULDChoicesPanel>(&PC));
+        if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
+        auto* Panel=UIChoiceFixture.Get();
+        Panel->AddToPlayerScreen(100);
+        Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
+            0,true,0,Real->LatestContent,Real->LatestStats);
+        Panel->ApplyTextScale(1.25f);Panel->OpenPanel();Panel->ShowTab(1);
+        Panel->PinnedComponent=Sample.Components[0].DefinitionId;
+        // This isolated presentation fixture records the real button's command without granting a gameplay reward.
+        Panel->PeekRequestId=[](){return uint64(900001);};
+        Panel->SubmitBuild=[this](const FLDBuildCommand& Command,ELDGrowthReason& Reason)
+        {UIChoiceSubmitted=Command;Reason=ELDGrowthReason::None;return uint64(900001);};
+        UIChoiceStep=1;return true;
+    }
+    auto* Panel=UIChoiceFixture.Get();
+    auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+    const auto& Candidate=Panel->ChoiceLines[0].Cards[1];
+    const auto Expected=LDHUD::ComponentCard(Candidate.ShownId,Panel->LatestContent,Panel->LatestStats);
+    auto RulesShown=[&]()
+    {
+        return !Expected.Sentence.IsEmpty()&&Panel->DetailName->GetText().ToString()==Expected.Name
+            &&Panel->DetailBody->GetText().ToString()==Expected.Sentence
+            &&Panel->InspectedComponent.IsNone()&&!Panel->InspectInstall->IsVisible();
+    };
+    if(UIChoiceStep==1)
+    {
+        if(!Check(LDSlateProbeInput::FullyVisible(Panel->ChoiceLines[0].Cards[0].Frame,Scroll)
+            &&LDSlateProbeInput::FullyVisible(Candidate.Frame,Scroll)
+            &&LDSlateProbeInput::Pointer(Candidate.Button,EKeys::LeftMouseButton,false,false),
+            TEXT("UI: both elite candidates fit horizontally and the second receives actual pointer hover at 720p125"))){return false;}
+        Panel->UpdateDetail();
+        if(!Check(Candidate.Button->IsHovered()&&RulesShown(),
+            TEXT("UI: elite candidate hover overrides pinned inventory with its exact rules"))){return false;}
+        UIChoiceStep=2;return true;
+    }
+    if(UIChoiceStep==2)
+    {
+        if(!Check(LDSlateProbeInput::SendKey(Candidate.Button,EKeys::LeftShift)
+            &&LDSlateProbeInput::Pointer(Panel->GetWidgetFromName(TEXT("GrowthClose")),EKeys::LeftMouseButton,false,false),
+            TEXT("UI: actual keyboard focus inspects a candidate after the pointer leaves it"))){return false;}
+        UIChoiceStep=3;return true;
+    }
+    if(UIChoiceStep==3)
+    {
+        if(!Check(Candidate.Button->HasKeyboardFocus()&&RulesShown(),
+            TEXT("UI: elite candidate keyboard focus preserves its rules ahead of a pinned inventory component"))){return false;}
+        if(!LDSlateProbeInput::FullyVisible(Panel->DetailBody,Scroll))
+        {
+            if(!Check(++UIChoiceWheels<30&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
+                TEXT("UI: focused candidate rules are reachable with actual vertical scrolling"))){return false;}
+            return true;
+        }
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostEliteCandidateRules_720_125.png")),true,false);
+        Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostEliteCandidateRules_720_125.png")));
+        UIChoiceStep=4;UIChoiceWheels=0;return true;
+    }
+    if(UIChoiceStep==4)
+    {
+        if(FScreenshotRequest::IsScreenshotRequested()){return true;}
+        if(!LDSlateProbeInput::FullyVisible(Candidate.Frame,Scroll))
+        {
+            if(!Check(++UIChoiceWheels<30&&LDSlateProbeInput::SendWheel(Scroll,1.f),
+                TEXT("UI: vertical scrolling returns to the non-first elite candidate"))){return false;}
+            return true;
+        }
+        if(!Check(LDSlateProbeInput::SendClick(Candidate.Button),TEXT("UI: actual pointer selects the second elite candidate"))){return false;}
+        UIChoiceStep=5;return true;
+    }
+    FName Selected;
+    if(!Check(UIChoiceSubmitted.Kind==ELDBuildCommandKind::ComponentChoice
+        &&UIChoiceSubmitted.OfferId==Panel->Latest.ComponentChoices[0].ChoiceId
+        &&UIChoiceSubmitted.Component.Decode(Selected)&&Selected==Candidate.ShownId,
+        TEXT("UI: isolated elite selection submits the exact second candidate rather than the pinned owned component"))){return false;}
+    UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();UIChoiceStep=6;return true;
+}
+
         bool FLDDemoOpponentProbe::ReviewPayout(ALDPlayerController& PC,double Now)
         {
             if(bUIPayoutChecked||Now<UIActionDueAt){return true;}
@@ -1761,7 +1895,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                     }
                     const auto* Relay=PC.LocalView();
                     const auto Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-                    if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current||Read.Frame->Units.IsEmpty()){return true;}
+                    if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
                     const FLDObservedUnitView* Target=nullptr;double Nearest=MAX_dbl;
                     const FVector OwnFoot=PC.GetPawn()->GetActorLocation();
                     for(const FLDObservedUnitView& Unit:Read.Frame->Units)
@@ -1770,7 +1904,30 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                         if(Unit.Health.CurrentP2>0&&Unit.Handle!=UIFieldRejectedTarget&&Distance<Nearest)
                         {Target=&Unit;Nearest=Distance;}
                     }
-                    if(!Target){return true;}
+                    if(!Target)
+                    {
+                        if(!UIFieldVisitedCamps.IsEmpty())
+                        {
+                            const auto& Receipt=PC.Navigation->LatestReceipt();
+                            if(Receipt.Identity!=PC.Navigation->LocalIdentity()
+                                ||(Receipt.Status!=ELDOrderStatus::Rejected&&Receipt.Status!=ELDOrderStatus::Cancelled
+                                    &&Receipt.Status!=ELDOrderStatus::Completed)){return true;}
+                        }
+                        const auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                        const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
+                        const FLDMapBinding* NextCamp=nullptr;double Distance=MAX_dbl;
+                        if(Geometry){for(const auto& Anchor:Geometry->Anchors)
+                        {
+                            if(Anchor.Kind!=ELDDemoWorldAnchorKind::Camp||UIFieldVisitedCamps.Contains(FName(*Anchor.Id))){continue;}
+                            const auto* Site=Registry->Resolve(FName(*Anchor.Id),Registry->Generation);
+                            if(Site&&FVector::DistSquared2D(OwnFoot,Site->Position)<Distance)
+                            {NextCamp=Site;Distance=FVector::DistSquared2D(OwnFoot,Site->Position);}
+                        }}
+                        if(!Check(NextCamp!=nullptr,TEXT("UI: an empty observed frame can explore another public camp anchor"))){return Finish();}
+                        UIFieldVisitedCamps.Add(NextCamp->Id);
+                        PC.Navigation->NavigateGround(NextCamp->Position,NextCamp->Surface);
+                        return true;
+                    }
                     UIStagedBeforeFight=Panel->StagedTotal();
                     const FLDMoveIdentity Before=PC.Navigation->LocalIdentity();
                     PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
@@ -1801,6 +1958,12 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 }
                 if(UIFieldStep==41)
                 {
+                    if(AuthorityNow>=Combat.BuildSafeAtMs)
+                    {
+                        // Viewport recreation can outlast this target; reacquire within the original twenty-second bound.
+                        PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                        UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;UIActionDueAt=Now+.3;return true;
+                    }
                     if(!Check(AuthorityNow<Combat.BuildSafeAtMs,
                         TEXT("UI: the 1080p combat screenshot is still inside a real authority combat window"))
                         ||!CheckSummary(false,1920,1080)){return Finish();}

@@ -108,7 +108,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             OfferSection=Section;Root->AddChildToVerticalBox(Section);
         }
         {
-            // #198 B opening base pick: one card per current option, three per line, built as needed.
+            // Opening base candidates share the task workspace's full-width rows.
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
             UTextBlock* Heading=OneLine(16);Heading->SetColorAndOpacity(LDHUDStyle::TextAccent);Heading->SetText(FText::FromString(LDTerms::OpeningBase));
             Section->AddChildToVerticalBox(Heading);
@@ -383,8 +383,28 @@ void ULDChoicesPanel::UpdateDetail()
         for(const FComponentRow& Row:ComponentRows)
         {if(Row.Inspect&&Row.Inspect->IsVisible()&&(Row.Inspect->IsHovered()||Row.Inspect->HasKeyboardFocus())){Component=Row.ShownId;break;}}
     }
-    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([Component](const FLDComponentInstanceView& Row){return Row.DefinitionId==Component;});
+    const FBaseCard* Candidate=nullptr;
+    auto FindCandidate=[&Candidate](const TArray<FBaseCard>& Options)
+    {
+        for(const FBaseCard& Card:Options)
+        {
+            if(Card.Frame->IsVisible()&&Card.Button->IsVisible()&&(Card.Button->IsHovered()||Card.Button->HasKeyboardFocus()))
+            {Candidate=&Card;break;}
+        }
+    };
+    if(ActiveTab==0&&Latest.bOpeningBasePending){FindCandidate(BaseCards);}
+    if(ActiveTab==1)
+    {
+        for(int32 Index=0;!Candidate&&Index<ShownChoices.Num()&&Index<ChoiceLines.Num();++Index)
+        {FindCandidate(ChoiceLines[Index].Cards);}
+    }
+    const FLDComponentInstanceView* Owned=Candidate?nullptr:Latest.Components.FindByPredicate([Component](const FLDComponentInstanceView& Row){return Row.DefinitionId==Component;});
     bool bInstall=false;
+    if(Candidate)
+    {
+        const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Candidate->ShownId,LatestContent,LatestStats);
+        Name=View.Name;Summary=TEXT("候选构件");Body=View.Sentence;
+    }
     if(Owned)
     {
         InspectedComponent=Component;
@@ -395,17 +415,8 @@ void ULDChoicesPanel::UpdateDetail()
         bInstall=!Row.bInstalled;
         GrowthEnabled(InspectInstall,Row.bCanEnable&&!PendingRequest);
     }
-    if(ActiveTab==0&&!Owned)
+    if(ActiveTab==0&&!Owned&&!Candidate)
     {
-        auto PreviewBase=[&](const FBaseCard& Card)
-        {
-            if(!Card.Button||!Card.Button->IsVisible()||(!Card.Button->IsHovered()&&!Card.Button->HasKeyboardFocus())){return;}
-            const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Card.ShownId,LatestContent,LatestStats);
-            Name=View.Name;Summary=TEXT("候选构件");Body=View.Sentence;
-        };
-        if(ActiveTab==0&&Latest.bOpeningBasePending){for(const FBaseCard& Card:BaseCards){PreviewBase(Card);}}
-        for(int32 Index=0;ActiveTab==0&&Index<ShownChoices.Num()&&Index<ChoiceLines.Num();++Index)
-        {for(const FBaseCard& Card:ChoiceLines[Index].Cards){PreviewBase(Card);}}
         for(int32 Index=0;Index<BlueprintRows.Num()&&Index<ShownBlueprints.Num();++Index)
         {
             const FBlueprintRow& Row=BlueprintRows[Index];
@@ -749,14 +760,9 @@ ULDChoicesPanel::FBaseCard& ULDChoicesPanel::BaseCardAt(int32 Index)
     while(BaseCards.Num()<=Index)
     {
         const int32 CardIndex=BaseCards.Num();
-        if(CardIndex%3==0)
-        {
-            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);BaseCardLines.Add(Line);
-            BaseCardList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,CardIndex?6.f:0.f,0,0));
-        }
         FBaseCard& Card=BaseCards.AddDefaulted_GetRef();
         BuildComponentCard(Card,FName(*FString::Printf(TEXT("GrowthBase%d"),CardIndex)),[this,CardIndex](){PickOpeningBase(CardIndex);});
-        BaseCardLines.Last()->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(CardIndex%3?8.f:0.f,0,0,0));
+        BaseCardList->AddChildToVerticalBox(Card.Frame)->SetPadding(FMargin(0,CardIndex?6.f:0.f,0,0));
     }
     return BaseCards[Index];
 }
@@ -833,18 +839,18 @@ ULDChoicesPanel::FChoiceLine& ULDChoicesPanel::ChoiceLineAt(int32 Index)
         UTextBlock* Title=LDWidgets::Text(WidgetTree,TEXT(""),16);Title->SetAutoWrapText(false);Title->SetColorAndOpacity(LDHUDStyle::TextAccent);
         ScaleNewText(Title);RowWidgets.Add(Title);Line.Title=Title;
         Box->AddChildToVerticalBox(Title);
-        auto* CardLine=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(CardLine);
+        auto* CardLine=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(CardLine);
         for(int32 Option=0;Option<2;++Option)
         {
             // The reference is used before the next card is added (adding may move the array).
             FBaseCard& Card=Line.Cards.AddDefaulted_GetRef();
             BuildComponentCard(Card,FName(*FString::Printf(TEXT("GrowthComponentChoice%d_%d"),LineIndex,Option)),[this,LineIndex,Option](){PickComponentChoice(LineIndex,Option);});
-            CardLine->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(Option?8.f:0.f,0,0,0));
+            CardLine->AddChildToVerticalBox(Card.Frame)->SetPadding(FMargin(0,Option?6.f:0.f,0,0));
         }
         ULDCommandButton* Points=LDWidgets::Button(WidgetTree,TEXT(""),[this,LineIndex](){TakeComponentChoicePoints(LineIndex);},false,
             FName(*FString::Printf(TEXT("GrowthComponentChoicePoints%d"),LineIndex)));
         ScaleNewText(Cast<UTextBlock>(Points->GetContent()));RowWidgets.Add(Points);Line.Points=Points;
-        auto* PointsSlot=CardLine->AddChildToHorizontalBox(Points);PointsSlot->SetVerticalAlignment(VAlign_Center);PointsSlot->SetPadding(FMargin(8,0,0,0));
+        CardLine->AddChildToVerticalBox(Points)->SetPadding(FMargin(0,6,0,0));
         Box->AddChildToVerticalBox(CardLine)->SetPadding(FMargin(0,6,0,0));
         Line.Row=Box;
         ComponentChoiceList->AddChildToVerticalBox(Box)->SetPadding(FMargin(0,LineIndex?8.f:0.f,0,0));

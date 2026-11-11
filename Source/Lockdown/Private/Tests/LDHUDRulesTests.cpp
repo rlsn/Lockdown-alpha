@@ -1355,7 +1355,12 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("An actual own hit folds even before a new window arrives"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,true));
         Public.Phase=ELDMatchPhase::Rest;Public.Timeline.Step=ELDRestStep::PK;
         Public.PK.Entrants.AddDefaulted_GetRef().Contender=Own.ContenderId;
+        Public.PK.Entrants[0].bAlive=true;
         TestTrue(TEXT("A living PK entrant folds even with staged planning"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
+        Public.PK.Entrants[0].bAlive=false;
+        ++Own.Life;
+        TestFalse(TEXT("An eliminated entrant with a new alive rest-room body can inspect its read-only workspace"),
+            LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
         Own.ContenderId=FGuid::NewGuid();
         TestFalse(TEXT("A PK spectator is not an arena combatant"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
         Public.Timeline.Step=ELDRestStep::Payout;

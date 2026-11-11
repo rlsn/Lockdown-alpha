@@ -196,8 +196,6 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> ComponentChoiceList;
     UPROPERTY() TObjectPtr<UWidget> OpeningBaseSection;
     UPROPERTY() TObjectPtr<UVerticalBox> BaseCardList;
-    // Three cards per line; a line is added when a card beyond the last one is needed.
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> BaseCardLines;
     UPROPERTY() TObjectPtr<UWidget> BindingSection;
     UPROPERTY() TObjectPtr<UTextBlock> BindingHeading;
     UPROPERTY() TObjectPtr<UWidget> BindElementLine;
