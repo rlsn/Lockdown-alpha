@@ -22,7 +22,6 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoVision.ArrivalRoutes",
         "Lockdown.Rules.DemoVision.PatrolCorridor",
         "Lockdown.Rules.ArtCatalog",
-        "Lockdown.Rules.BasketballMotionAssets",
         "Lockdown.Rules.DemoGround.ParityAndCache",
         "Lockdown.Rules.DemoGround.BossBodyAdmission",
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",

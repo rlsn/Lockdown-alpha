@@ -26,6 +26,22 @@ struct LOCKDOWN_API FLDArtAnimation
     UPROPERTY(VisibleAnywhere) FString SubstituteNote;
 };
 
+// A part worn on a body: a rigid prop on a socket of the body mesh (the Boss's ladle) or a skinned garment on the body
+// skeleton that follows the body pose (the Boss's cloth cape). Display only, like the body: no collision, no picking.
+USTRUCT()
+struct LOCKDOWN_API FLDArtAttachment
+{
+    GENERATED_BODY()
+    UPROPERTY(VisibleAnywhere) FString Id;
+    // Exactly one of the two meshes is set.
+    UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMesh> StaticMesh;
+    UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMesh> SkinnedMesh;
+    // Static parts only: the body mesh socket (or bone) the part hangs from.
+    UPROPERTY(VisibleAnywhere) FName Socket;
+    // Material slots of this part that take the identity tint, like FLDArtCharacter::TintSlots.
+    UPROPERTY(VisibleAnywhere) TArray<FName> TintSlots;
+};
+
 USTRUCT()
 struct LOCKDOWN_API FLDArtCharacter
 {
@@ -38,8 +54,11 @@ struct LOCKDOWN_API FLDArtCharacter
     // Displayed height from the feet to the top of the head after MeshTransform, for overhead labels.
     UPROPERTY(VisibleAnywhere) float HeightCm = 0.f;
     // Material slots that take the identity tint through ULDArtCatalog::TintParameter: the seat palette for contenders,
-    // the camp tier tint for NPCs. Every other slot keeps its imported colour.
+    // the camp tier tint for NPCs. Every other slot keeps its imported colour. The body or one of its attachments
+    // carries at least one tint slot.
     UPROPERTY(VisibleAnywhere) TArray<FName> TintSlots;
+    // Parts worn on the body, drawn and flashed with it.
+    UPROPERTY(VisibleAnywhere) TArray<FLDArtAttachment> Attachments;
     // Bone in the right hand for hand-anchored effects.
     UPROPERTY(VisibleAnywhere) FName HandBone;
     // Ground speed (cm/s, after MeshTransform) at which Run at rate 1 shows no foot sliding: play rate = speed / this.
@@ -108,7 +127,8 @@ struct LOCKDOWN_API FLDArtResolved
 };
 
 // Typed Demo art table imported from SourceData\Art\art_assets.json by Scripts\ImportDemoArt.ps1: the body of every
-// seat and camp tier, their clips per presentation state, and the decoration props with their placements.
+// seat and camp tier (imported glTF packs, or authored bodies kept as finished assets in their body folder), their clips per
+// presentation state and worn parts, and the decoration props with their placements.
 // The game resolves it once at startup; any missing entry is an explicit error, never a silent default.
 UCLASS()
 class LOCKDOWN_API ULDArtCatalog : public UDataAsset

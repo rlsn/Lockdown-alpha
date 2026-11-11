@@ -128,6 +128,36 @@ namespace
                     Paint->SetVectorParameterValue(ULDArtCatalog::TintParameter, Tint);
                 }
             }
+            // Worn parts as the body component wears them: rigid parts on their socket, garments in the body pose.
+            for (const FLDArtAttachment& Part : Look.Attachments)
+            {
+                UMeshComponent* Worn = nullptr;
+                if (Part.StaticMesh)
+                {
+                    auto* Rigid = NewObject<UStaticMeshComponent>(Actor);
+                    Rigid->SetStaticMesh(Part.StaticMesh);
+                    Rigid->SetupAttachment(Mesh, Part.Socket);
+                    Worn = Rigid;
+                }
+                else
+                {
+                    auto* Garment = NewObject<USkeletalMeshComponent>(Actor);
+                    Garment->SetSkeletalMeshAsset(Part.SkinnedMesh);
+                    Garment->SetupAttachment(Mesh);
+                    Garment->SetLeaderPoseComponent(Mesh);
+                    Worn = Garment;
+                }
+                Worn->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+                Worn->SetCanEverAffectNavigation(false);
+                Worn->RegisterComponent();
+                for (const FName Slot : Part.TintSlots)
+                {
+                    if (UMaterialInstanceDynamic* Paint = Worn->CreateDynamicMaterialInstance(Worn->GetMaterialIndex(Slot)))
+                    {
+                        Paint->SetVectorParameterValue(ULDArtCatalog::TintParameter, Tint);
+                    }
+                }
+            }
             if (const FLDArtAnimation* Clip = Look.Find(State))
             {
                 Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
@@ -334,18 +364,20 @@ namespace
             const FVector Across(UE_INV_SQRT_2, UE_INV_SQRT_2, 0.);
             const float FaceCamera = 135.f;
             const FVector Identity(0., -1100., 0.), States(0., -3300., 0.);
-            const uint8 Tiers[] = { uint8(ELDDemoMonsterId::MonsterScavenger), uint8(ELDDemoMonsterId::MonsterGuardian) };
+            const uint8 Tiers[] = { uint8(ELDDemoMonsterId::MonsterScavenger), uint8(ELDDemoMonsterId::MonsterGuardian),
+                uint8(ELDDemoMonsterId::MonsterDean), uint8(ELDDemoMonsterId::MonsterAdvisor) };
             int32 Slot = 0;
             for (uint8 Seat = 0; Seat < LDArt::SeatCount; ++Seat, ++Slot)
             {
-                SpawnBody(Target, *Art->ForSeat(Seat), ULDHumanoidVisualComponent::ContenderTint(Seat), Identity + Across * ((Slot - 3.5f) * 125.f), FaceCamera, ELDArtAnim::Idle);
+                SpawnBody(Target, *Art->ForSeat(Seat), ULDHumanoidVisualComponent::ContenderTint(Seat), Identity + Across * ((Slot - 4.5f) * 125.f), FaceCamera, ELDArtAnim::Idle);
             }
             for (const uint8 Tier : Tiers)
             {
-                SpawnBody(Target, *Art->ForMonster(Tier), ULDHumanoidVisualComponent::MonsterTint(Tier), Identity + Across * ((Slot++ - 3.5f) * 125.f), FaceCamera, ELDArtAnim::Idle);
+                SpawnBody(Target, *Art->ForMonster(Tier), ULDHumanoidVisualComponent::MonsterTint(Tier), Identity + Across * ((Slot++ - 4.5f) * 125.f), FaceCamera, ELDArtAnim::Idle);
             }
-            const FLDArtCharacter* Rows[] = { Art->ForSeat(0), Art->ForMonster(Tiers[0]), Art->ForMonster(Tiers[1]) };
-            const FLinearColor RowTints[] = { ULDHumanoidVisualComponent::ContenderTint(0), ULDHumanoidVisualComponent::MonsterTint(Tiers[0]), ULDHumanoidVisualComponent::MonsterTint(Tiers[1]) };
+            const FLDArtCharacter* Rows[] = { Art->ForSeat(0), Art->ForMonster(Tiers[0]), Art->ForMonster(Tiers[1]), Art->ForMonster(Tiers[2]) };
+            const FLinearColor RowTints[] = { ULDHumanoidVisualComponent::ContenderTint(0), ULDHumanoidVisualComponent::MonsterTint(Tiers[0]),
+                ULDHumanoidVisualComponent::MonsterTint(Tiers[1]), ULDHumanoidVisualComponent::MonsterTint(Tiers[2]) };
             const FVector Down(UE_INV_SQRT_2, -UE_INV_SQRT_2, 0.);
             for (int32 Row = 0; Row < UE_ARRAY_COUNT(Rows); ++Row)
             {

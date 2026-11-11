@@ -178,6 +178,9 @@ def main():
     failures = []
     report = {}
     for character in manifest["characters"]:
+        # Authored bodies (finished Unreal assets) are measured from their Unreal clips by the native importer.
+        if character.get("kind") == "authored":
+            continue
         clips = {anim["state"]: anim["clip"] for anim in character["animations"]}
         measured = measure(ART / character["source"], clips, character["hand_bone"], character["foot_bone"])
         scale = character["height_cm"] / (measured["bind_height_m"] * 100.0)

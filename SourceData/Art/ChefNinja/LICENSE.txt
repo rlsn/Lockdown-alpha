@@ -1,0 +1,9 @@
+Chef ninja body, cloth cape and iron ladle (Lockdown body id "chef", the D26 Boss)
+
+License: Project-owned. Made for Lockdown by WunhaoLi and committed as art test content on 2026-11-09
+(commit f76b26ab "角色测试"); the project owner approved owned and licensed (non-CC0) art sources on 2026-11-11.
+
+Source files: not in this repository. The assets record their import from
+D:/MonkeyAI/ChefNinja/models/game-ready/SK_ChefNinja_Body.fbx and D:/MonkeyAI/ChefNinja/models/polished/*.fbx on the
+author's machine. The finished assets live in /Game/Lockdown/Art/Characters/chef; Validate cannot compare them with
+source bytes until the FBX sources are committed here.

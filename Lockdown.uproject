@@ -38,16 +38,6 @@
 			]
 		},
 		{
-			"Name": "PoseSearch",
-			"Enabled": true,
-			"TargetAllowList": ["Editor"]
-		},
-		{
-			"Name": "BlendStack",
-			"Enabled": true,
-			"TargetAllowList": ["Editor"]
-		},
-		{
 			"Name": "EnhancedInput",
 			"Enabled": true
 		},
