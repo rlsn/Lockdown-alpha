@@ -764,6 +764,11 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
             return false;
         }
     }
+    for (const auto& Entry : Prepared)
+    {
+        FLDLegalGround Ground;
+        if (!PrepareTrainingGround(Entry.Placed.Contender, Ground, Error)) { return false; }
+    }
     CommitStarted = true;
     // The opening spawn grants no protection; only a respawn does.
     for (auto& Entry : Prepared)

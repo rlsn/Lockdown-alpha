@@ -17,11 +17,15 @@
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "World/LDSpawnPlacement.h"
+#include "UI/LDChoicesPanel.h"
+#include "UI/LDHUD.h"
+#include "UI/LDUIRoot.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/GameNetworkManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
@@ -62,8 +66,17 @@ public:
     int64 FieldStartedAtMs=0;
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
-    bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bSharedRestSeen=false;
-    bool bReadyWindowObserved=false, bLeftFirstService=false;
+    bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
+    bool bReadyWindowObserved=false, bLeftFirstService=false, bChoicesPanelOpened=false, bServicePanelOpened=false, bServicePanelClosed=false;
+    bool bNpcPurchaseSent=false, bNpcPurchaseApplied=false;
+    uint64 NpcPurchaseRevision=0;
+    int64 NpcPurchasePointsBefore=0;
+    double NpcPurchaseSentAt=0;
+    double RestObservationStartedAt=0;
+    int32 SharedTrainingStage=0;
+    uint32 ObservedRestLife=1;
+    uint64 ObservedRestRevision=1;
+    bool bSharedTrainingDone=false;
     int32 RestServiceStage=0;
     FLDCombatBodyRef OriginalBody;
     FLDMoveIdentity OldOrder, AcceptedOrder, RestServiceOrder;
@@ -172,6 +185,85 @@ public:
         return true;
     }
 
+    bool ReviewSharedTraining(ALDPlayerController& PC)
+        {
+            const auto* Relay=PC.LocalView();
+            const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+            if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
+            const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
+            const auto* Target=Read.Frame->Units.FindByPredicate([Public](const FLDObservedUnitView& Unit)
+            {
+                return Unit.Kind==ELDObservedUnitKind::Contender&&Unit.Presentation==0
+                    &&!Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& Member)
+                    {return Member.ContenderId==Unit.ContenderId;});
+            });
+            if(!Target){return true;}
+            if(SharedTrainingStage==0)
+            {
+                if(!Mark(Role+TEXT("SharedTargetSeen.json"))){return Finish();}
+                SharedTrainingStage=1;
+            }
+            if(!AllMarkers(TEXT("SharedTargetSeen.json"))){return true;}
+            if(Role==TEXT("Client1")&&SharedTrainingStage==1)
+            {
+                const auto* Body=Cast<ALDCharacter>(PC.GetPawn());
+                if(!Check(Body&&Body->PresentationKey!=Target->Presentation,TEXT("The remote attacker does not own the shared target"))){return Finish();}
+                if(PC.HUDUI&&PC.HUDUI->ChoicesPanel){PC.HUDUI->ChoicesPanel->ClosePanel();}
+                if(!PC.CanWorldCommand()){return true;}
+                auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                const auto* Anchor=Registry?Registry->Resolve(TEXT("training_dummy_0"),Registry->Generation):nullptr;
+                if(!Check(Anchor!=nullptr,TEXT("The remote trainee approaches the shared target on registered rest ground"))){return Finish();}
+                PC.Navigation->NavigateGround(FVector(Target->FeetCm)+FVector(0,-120,0),Anchor->Surface);
+                SharedTrainingStage=10;
+            }
+            if(Role==TEXT("Client1")&&SharedTrainingStage==10)
+            {
+                const auto* Body=Cast<ALDCharacter>(PC.GetPawn());
+                if(!Body||FVector::DistSquared2D(ALDCombatDirector::FootOf(*Body),Target->FeetCm)>FMath::Square(300.)){return true;}
+                PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
+                if(!Mark(TEXT("SharedAttackStarted.json"))){return Finish();}
+                SharedTrainingStage=2;
+            }
+            const bool bStarted=FPaths::FileExists(FPaths::Combine(Output,TEXT("SharedAttackStarted.json")));
+            if(Role==TEXT("Client1")&&SharedTrainingStage==2)
+            {
+                const auto& Receipt=PC.Navigation->LatestReceipt();
+                if(Receipt.Kind==ELDSpatialOrderKind::AttackUnit&&Receipt.Status==ELDOrderStatus::Rejected)
+                {
+                    Error=FString::Printf(TEXT("Shared training attack rejected: failure=%u"),uint32(Receipt.Failure));
+                    Check(false,TEXT("A non-owner training attack is admitted through the normal order receipt"));
+                    return Finish();
+                }
+            }
+            const FString HitFile=Role+TEXT("SharedHit.json");
+            if(bStarted&&Target->Health.CurrentP2<Target->Health.MaxP2&&!FPaths::FileExists(FPaths::Combine(Output,HitFile)))
+            {
+                Check(Target->Health.CurrentP2>0,TEXT("The same real shared target publishes a non-owner training hit to this connection"));
+                auto Hit=MakeShared<FJsonObject>();Hit->SetStringField(TEXT("target"),Target->ContenderId.ToString());
+                Hit->SetNumberField(TEXT("hp_p2"),Target->Health.CurrentP2);Hit->SetNumberField(TEXT("max_hp_p2"),Target->Health.MaxP2);
+                if(!Save(Hit,HitFile)){Check(false,TEXT("Shared hit evidence persists"));return Finish();}
+                if(Role==TEXT("Client1")){PC.StopCombatAndOrders();}
+            }
+            if(!AllMarkers(TEXT("SharedHit.json"))){return true;}
+            if(Role==TEXT("Host")&&SharedTrainingStage==1)
+            {
+                PC.SubmitTrainingReset();
+                if(!Mark(TEXT("SharedResetSent.json"))){return Finish();}
+                SharedTrainingStage=2;
+            }
+            if(FPaths::FileExists(FPaths::Combine(Output,TEXT("SharedResetSent.json")))
+                &&Target->Health.CurrentP2==Target->Health.MaxP2)
+            {
+                const FString ResetFile=Role+TEXT("SharedResetSeen.json");
+                if(!FPaths::FileExists(FPaths::Combine(Output,ResetFile)))
+                {
+                    Check(true,TEXT("Owner reset restores the same shared target on this owning connection"));
+                    if(!Mark(ResetFile)){return Finish();}
+                }
+            }
+            bSharedTrainingDone=AllMarkers(TEXT("SharedResetSeen.json"));
+            return true;
+        }
     bool Initialize(ALDGameMode& Mode, ULDMapRegistry& Registry)
     {
         bStartGateOpenBefore=Mode.CheckDemoStartInputs(StartGateBefore);
@@ -283,7 +375,7 @@ public:
                     FQuat::Identity,FCollisionObjectQueryParams(ECC_Pawn),Capsule,
                     FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnOccupancyFixture)));
             }
-            if (!Check(AllOccupied,TEXT("All seven fixture bodies have native query collision despite ignoring Pawn contacts"))) { return false; }
+            if (!Check(AllOccupied,TEXT("All seven fixture bodies have native query collision with Pawn blocking responses"))) { return false; }
             TSharedPtr<const FLDSpawnReservation> Blocked;
             FString BlockedError;
             const int32 BlockedSeed=Mode.SpawnRandom.GetCurrentSeed();
@@ -309,8 +401,22 @@ public:
                 && Retry->OffsetIndex()==0 && FirstLife.Life==0,
                 TEXT("Unblocked retry reuses the original anchor and starts at its centre"))) { return false; }
             if (!Registry.ReleaseSpawnReservation(Retry,Error)) { return false; }
+            const auto* TrainingAnchor=Registry.Resolve(TEXT("training_dummy_1"),Registry.Generation);
+            if(!Check(TrainingAnchor!=nullptr,TEXT("The occupied training-slot fixture uses an approved anchor"))){return false;}
+            APawn* TrainingOccupant=Mode.GetWorld()->SpawnActor<APawn>();
+            if(!TrainingOccupant){Error=TEXT("Training occupancy fixture allocation failed.");return false;}
+            ON_SCOPE_EXIT {TrainingOccupant->SetActorEnableCollision(false);TrainingOccupant->Destroy();};
+            auto* TrainingShape=NewObject<UCapsuleComponent>(TrainingOccupant);
+            TrainingOccupant->SetRootComponent(TrainingShape);TrainingOccupant->AddInstanceComponent(TrainingShape);
+            TrainingShape->SetCapsuleSize(Capsule.GetCapsuleRadius(),Capsule.GetCapsuleHalfHeight());
+            TrainingShape->SetWorldLocation(TrainingAnchor->Position+FVector(0,0,Capsule.GetCapsuleHalfHeight()+FloorGap));
+            TrainingShape->SetCollisionObjectType(ECC_Pawn);TrainingShape->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+            TrainingShape->SetCollisionResponseToChannels(GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetCollisionResponseToChannels());
+            TrainingShape->SetCanEverAffectNavigation(false);TrainingShape->RegisterComponentWithWorld(Mode.GetWorld());
             // The real start: every first life stands in the shared rest space and the world enters the R0 rest.
             if (!Mode.SpawnInitialContenders(Permit,Error) || !Mode.EnterRestWorld(Permit,Error)) { return false; }
+            Check(Mode.TrainingDummies.Num()==3&&Mode.MatchPhase!=ELDMatchPhase::Faulted,
+                TEXT("A Pawn temporarily occupying a future training slot does not fault or duplicate committed lives"));
             FString DuplicateError;
             if (!Check(!Mode.SpawnInitialContenders(Permit,DuplicateError) && !DuplicateError.IsEmpty(),
                 TEXT("Repeated roster spawn cannot grant another life or resource reset"))) { return false; }
@@ -349,6 +455,40 @@ public:
             for (const auto& Pair : Mode.TrainingDummies) { DummiesPerOwner&=Mode.IsInRestSpace(Pair.Key); }
             if (!Check(RestContenders==3 && DummiesPerOwner,
                 TEXT("Each of the three roster bodies stands in its rest space with exactly one training dummy"))) { return false; }
+            const FGuid RetryOwner=Mode.RosterOrder[1];
+            const uint32 RetryLife=Mode.Lives.FindChecked(RetryOwner).Life;
+            Mode.RetireTrainingDummy(RetryOwner);
+            if(!Mode.RetireLifeForPhase(RetryOwner,Permit,Error)){return false;}
+            for(const auto& Point:SpawnGeometry->SpawnOffsetsCm)
+            {
+                FVector Offset;if(!Point.ToVector(Offset,Error)){return false;}
+                auto* Pawn=Mode.GetWorld()->SpawnActor<APawn>();
+                if(!Pawn){Error=TEXT("Training retry occupancy allocation failed.");return false;}
+                Occupants.Add(Pawn);
+                auto* Shape=NewObject<UCapsuleComponent>(Pawn);
+                Pawn->SetRootComponent(Shape);Pawn->AddInstanceComponent(Shape);
+                Shape->SetCapsuleSize(Capsule.GetCapsuleRadius(),Capsule.GetCapsuleHalfHeight());
+                Shape->SetWorldLocation(TrainingAnchor->Position+Offset+FVector(0,0,Capsule.GetCapsuleHalfHeight()+FloorGap));
+                Shape->SetCollisionObjectType(ECC_Pawn);Shape->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+                Shape->SetCollisionResponseToChannels(GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetCollisionResponseToChannels());
+                Shape->SetCanEverAffectNavigation(false);Shape->RegisterComponentWithWorld(Mode.GetWorld());
+            }
+            bool bRetryBlocked=false;
+            if(!Check(Mode.PlaceRestLife(RetryOwner,Permit,bRetryBlocked,Error)&&bRetryBlocked
+                &&Mode.Lives.FindChecked(RetryOwner).Life==RetryLife
+                &&Mode.Lives.FindChecked(RetryOwner).Phase==ELDLifePhase::Dead
+                &&Mode.PendingPhasePlacement.Contains(RetryOwner)&&!Mode.TrainingDummies.Contains(RetryOwner),
+                TEXT("A pending rest retry blocked at every training offset commits neither player life nor target and does not fault")))
+            {return false;}
+            for(const auto& Weak:Occupants){if(auto* Pawn=Weak.Get()){Pawn->SetActorEnableCollision(false);Pawn->Destroy();}}
+            Occupants.Reset();
+            if(!Check(Mode.PlaceRestLife(RetryOwner,Permit,bRetryBlocked,Error)&&!bRetryBlocked
+                &&Mode.Lives.FindChecked(RetryOwner).Life==RetryLife+1
+                &&Mode.Lives.FindChecked(RetryOwner).Phase==ELDLifePhase::Alive
+                &&!Mode.PendingPhasePlacement.Contains(RetryOwner)&&Mode.TrainingDummies.Contains(RetryOwner)
+                &&Mode.TrainingDummies.Num()==3,
+                TEXT("Unblocked pending rest retry commits one next life and one real shared target together")))
+            {return false;}
             return true;
         },Error);
         if (!Check(Registered,TEXT("Three real controllers receive one committed body each"))) { return false; }
@@ -368,7 +508,8 @@ public:
         Report->SetBoolField(TEXT("passed"),Passed);
         Report->SetBoolField(TEXT("fixture_only"),true);
         Report->SetBoolField(TEXT("full_ct06"),false);
-        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body initial rest-anchor spawn/reservation, core/ground/CMC and native-prefix audit fixture. Not a playable match, death/respawn, final motion Fence, vision, combat effects or 3+3 AI acceptance."));
+        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body rest placement/retry, optional EarlyRestReady shared training observation/hit/reset, core/ground/CMC and native-prefix audit fixture. Not a full playable match, death/respawn, final motion Fence, general vision/combat or 3+3 AI acceptance."));
+        Report->SetBoolField(TEXT("shared_training_exercised"),bSharedTrainingDone);
         Report->SetStringField(TEXT("role"),Role);
         Report->SetStringField(TEXT("catalog_sha256"),CatalogDigest);
         Report->SetStringField(TEXT("detail"),Error);
@@ -382,6 +523,7 @@ public:
             Report->SetStringField(TEXT("entity"),PC->OwnerState.BodyRef.Victim.EntityId.ToString(EGuidFormats::Digits));
             Report->SetStringField(TEXT("body"),PC->OwnerState.BodyRef.BodyIdentity.ToString(EGuidFormats::Digits));
             Report->SetNumberField(TEXT("life"),PC->OwnerState.Life);
+            Report->SetNumberField(TEXT("rest_life_before_field"),ObservedRestLife);
             Report->SetStringField(TEXT("navigation_status"),PC->Navigation->Status);
             if (const auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
             {
@@ -461,7 +603,8 @@ public:
                         if (Pair.Value.Phase==ELDLifePhase::Left)
                         {
                             ++Left;
-                            Retired&=Pair.Value.RetiredThroughLife==2 && !Pair.Value.Body.IsValid() && !Pair.Value.Actor.IsValid();
+                            Retired&=Pair.Value.RetiredThroughLife==Pair.Value.Life && Pair.Value.Life>=2
+                                && !Pair.Value.Body.IsValid() && !Pair.Value.Actor.IsValid();
                         }
                         else if (Pair.Value.Phase==ELDLifePhase::Alive) { ++Alive; }
                     }
@@ -525,8 +668,14 @@ public:
         if (Stage==1)
         {
             int64 DisplayNowMs=0;
-            // #198: life 1 is the R0 rest body; the scenario walks the first field life, placed when R0 returns.
+            // Record the actual R0 life, including a placement-retry fixture, before its exact next field life.
             const FLDTimelineView& Line=Public->PublicMatch.Timeline;
+            if(Public->PublicMatch.Phase==ELDMatchPhase::Rest&&Line.Stage==ELDMatchStage::Rest
+                &&Line.Step==ELDRestStep::Build&&PC->OwnerState.bActive)
+            {
+                ObservedRestLife=PC->OwnerState.Life;
+                ObservedRestRevision=PC->OwnerState.LifeRevision;
+            }
             if (bEarlyRestReady && Public->PublicMatch.Phase==ELDMatchPhase::Rest
                 && Line.Stage==ELDMatchStage::Rest && Line.Step==ELDRestStep::Build && Body && Movement && Nav
                 && PC->OwnerState.bActive && PC->OwnerState.Match==Public->PublicMatch.Generation)
@@ -545,10 +694,18 @@ public:
                             if (bRoster && Unit.ContenderId!=PC->OwnerState.ContenderId) { Others.Add(Unit.ContenderId); }
                             else if (!bRoster) { Dummies.Add(Unit.ContenderId); }
                         }
-                        bSharedRestSeen |= Others.Num()==2 && Dummies.Num()==3;
+                        if (!RestObservationStartedAt) { RestObservationStartedAt=FPlatformTime::Seconds(); }
+                        if (FPlatformTime::Seconds()-RestObservationStartedAt>3. && !bRestPresentationSeen)
+                        {
+                            if (!Check(Others.Num()==2 && Dummies.Num()==Public->DemoLobby.Members.Num(),
+                                TEXT("Every owning connection observes all live shared training dummies and the other players")))
+                            { return Finish(); }
+                            bRestPresentationSeen=true;
+                        }
                     }
                 }
-                if (Role==TEXT("Client1") && bSharedRestSeen)
+                if(bRestPresentationSeen&&!bSharedTrainingDone){return ReviewSharedTraining(*PC);}
+                if (Role==TEXT("Client1") && bRestPresentationSeen)
                 {
                     if (RestServiceStage==0 && PC->CanWorldCommand() && Movement->IsMovingOnGround()
                         && Movement->CurrentFloor.IsWalkableFloor())
@@ -561,19 +718,95 @@ public:
                     }
                     else if (RestServiceStage==1 && PC->OwnerState.NearbyRestService==ELDRestService::SkillMerchant)
                     {
-                        const auto* Service=Registry->Resolve(TEXT("rest_service_2"),Registry->Generation);
-                        if (!Check(Service!=nullptr,TEXT("The second rest service is registered"))) { return Finish(); }
-                        Nav->NavigateGround(Service->Position,Service->Surface);
-                        RestServiceOrder=Nav->LocalIdentity();
-                        RestServiceStage=2;
+                        ULDChoicesPanel* Panel=PC->HUDUI?PC->HUDUI->ChoicesPanel.Get():nullptr;
+                        if (!Check(Panel && PC->RootUI,TEXT("The remote owner has the shared choices panel and root UI"))) { return Finish(); }
+                        if (!bChoicesPanelOpened)
+                        {
+                            if (!Check(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices),
+                                TEXT("The remote owner opens the shared choices panel"))) { return Finish(); }
+                            Panel->OpenPanel();
+                            if (!Check(Panel->IsPanelOpen(),TEXT("The remote choices panel is visible before resolving its opening offer")))
+                            {
+                                return Finish();
+                            }
+                            bChoicesPanelOpened=true;
+                            return true;
+                        }
+                        const FLDProgressionView* Growth=PC->ReadOwnProgression();
+                        if (!Growth || !Growth->bValid) { return true; }
+                        if (Panel->HasPendingRequest()) { return true; }
+                        if (bNpcPurchaseSent)
+                        {
+                            if (Growth->BuildRevision==NpcPurchaseRevision
+                                || Growth->UnspentPoints!=NpcPurchasePointsBefore-Content->Get().Parameters.NpcActivePoints)
+                            {
+                                if (FPlatformTime::Seconds()-NpcPurchaseSentAt<=10.) { return true; }
+                                Check(false,TEXT("The non-host NPC purchase did not receive an applied owner projection"));
+                                return Finish();
+                            }
+                            bNpcPurchaseApplied=Growth->BuildRevision==NpcPurchaseRevision+1
+                                && Growth->bHasActiveOffer && Growth->QueuedActiveOpportunities==1
+                                && Growth->UnspentPoints==NpcPurchasePointsBefore-Content->Get().Parameters.NpcActivePoints;
+                            if (!Check(bNpcPurchaseApplied,TEXT("The non-host owner receives an applied NPC purchase with the authoritative point charge")))
+                            {
+                                return Finish();
+                            }
+                            const auto* Service=Registry->Resolve(TEXT("rest_service_2"),Registry->Generation);
+                            if (!Check(Service!=nullptr,TEXT("The second rest service is registered"))) { return Finish(); }
+                            Nav->NavigateGround(Service->Position,Service->Surface);
+                            RestServiceOrder=Nav->LocalIdentity();
+                            RestServiceStage=2;
+                            return true;
+                        }
+                        if (Growth->bHasActiveOffer)
+                        {
+                            if (!Panel->ChooseOffer(0)) { return true; }
+                            return true;
+                        }
+                        if (Growth->QueuedActiveOpportunities>0) { return true; }
+                        if (!bServicePanelOpened)
+                        {
+                            Panel->SetServiceContext(PC->OwnerState.NearbyRestService);
+                            if (!Panel->OpenServicePanel() || !Panel->IsPanelOpen())
+                            {
+                                Check(false,TEXT("The remote owner opens the contextual NPC service panel"));
+                                return Finish();
+                            }
+                            bServicePanelOpened=true;
+                            return true;
+                        }
+                        if (!bNpcPurchaseSent)
+                        {
+                            const int64 Price=Content->Get().Parameters.NpcActivePoints;
+                            if (Growth->UnspentPoints<Price)
+                            {
+                                Check(false,TEXT("The remote owner has enough opening points for the NPC purchase"));
+                                return Finish();
+                            }
+                            NpcPurchaseRevision=Growth->BuildRevision;
+                            NpcPurchasePointsBefore=Growth->UnspentPoints;
+                            if (!Panel->BuyNpcOffer())
+                            {
+                                Check(false,TEXT("The remote owner submits the skill merchant purchase through the shared panel"));
+                                return Finish();
+                            }
+                            NpcPurchaseSentAt=FPlatformTime::Seconds();
+                            bNpcPurchaseSent=true;
+                            return true;
+                        }
                     }
                     else if (RestServiceStage==2)
                     {
                         bLeftFirstService |= PC->OwnerState.NearbyRestService==ELDRestService::None;
+                        if (bLeftFirstService && PC->HUDUI && PC->HUDUI->ChoicesPanel)
+                        {
+                            bServicePanelClosed |= !PC->HUDUI->ChoicesPanel->IsPanelOpen();
+                        }
                         if (bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan)
                         {
-                            Check(bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan,
-                                TEXT("The remote owner observes service entry, exit and the next service after moving"));
+                            Check(bLeftFirstService && bServicePanelOpened && bServicePanelClosed
+                                && bNpcPurchaseApplied && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan,
+                                TEXT("The non-host owner completes an NPC purchase, then the service panel closes on leaving before the next service"));
                             if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
                             RestServiceStage=3;
                         }
@@ -589,7 +822,7 @@ public:
                         return Finish();
                     }
                 }
-                if (!bRestReadySent && bSharedRestSeen && PC->OwnerState.bCanRestReady
+                if (!bRestReadySent && bRestPresentationSeen && PC->OwnerState.bCanRestReady
                     && FPaths::FileExists(FPaths::Combine(Output,TEXT("RestServicesVisited.json"))))
                 {
                     bRestReadySent=true;
@@ -613,13 +846,14 @@ public:
                 || !PC->CanWorldCommand() || !PC->ReadDemoAuthorityTimeMs(DisplayNowMs)) { return true; }
             if (bEarlyRestReady)
             {
-                Check(bSharedRestSeen,TEXT("This owning connection saw the other players and all shared training dummies"));
+                Check(bRestPresentationSeen,TEXT("This owning connection sees both other players and all real shared training dummies"));
                 Check(bRestReadySent && bRestReadyProjected,TEXT("This owning connection submitted ready and received its owner projection"));
                 if (Role==TEXT("Host")) { Check(bReadyWindowObserved,TEXT("The host observed the shortened final window")); }
             }
             Check(DisplayNowMs==Public->DemoClock.NowMs && Public->DemoClock.Generation==PC->OwnerState.Match,
                 TEXT("Owner display time reads the matching completed Core clock without local extrapolation"));
-            Check(Body->GetController()==PC && PC->OwnerState.Life==2 && PC->OwnerState.LifeRevision==3,
+            Check(Body->GetController()==PC && PC->OwnerState.Life==ObservedRestLife+1
+                && PC->OwnerState.LifeRevision==ObservedRestRevision+2,
                 TEXT("Possession, body identity and the first field life after the R0 rest life agree"));
             Check(PC->OwnerState.Hp*100==Content->Get().Parameters.MaxHP.BaseP2
                 && PC->OwnerState.Mp*100==Content->Get().Parameters.MaxMP.BaseP2,
@@ -786,7 +1020,7 @@ public:
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
                 && FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
-            Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==2,
+            Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==OriginalBody.Victim.Life,
                 TEXT("Navigation and corrections do not allocate a new body or life"));
             if (!Passed || !Mark(Role+TEXT("Arrived.json"))) { return Finish(); }
             Stage=10;

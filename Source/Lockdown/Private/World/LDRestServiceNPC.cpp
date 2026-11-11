@@ -1,6 +1,5 @@
 #include "World/LDRestServiceNPC.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/StaticMesh.h"
@@ -11,17 +10,13 @@ ALDRestServiceNPC::ALDRestServiceNPC()
     bAlwaysRelevant = true;
     Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
     SetRootComponent(Body);
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> Mesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-    Body->SetStaticMesh(Mesh.Object);
-    Body->SetWorldScale3D(FVector(.6, .6, 1.6));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Merchant(TEXT("/Engine/BasicShapes/Cone.Cone"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Artisan(TEXT("/Engine/BasicShapes/Cube.Cube"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Trainer(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    MerchantMesh=Merchant.Object;ArtisanMesh=Artisan.Object;TrainerMesh=Trainer.Object;
+    Body->SetStaticMesh(MerchantMesh);
+    Body->SetRelativeScale3D(FVector(.75, .75, 1.35));
     Body->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Service"));
-    Label->SetupAttachment(Body);
-    Label->SetAbsolute(false, false, true);
-    Label->SetRelativeLocation(FVector(0, 0, 90));
-    Label->SetRelativeRotation(FRotator(60, 0, 0));
-    Label->SetHorizontalAlignment(EHTA_Center);
-    Label->SetWorldSize(32);
 }
 
 void ALDRestServiceNPC::SetService(ELDRestService Value)
@@ -33,10 +28,15 @@ void ALDRestServiceNPC::SetService(ELDRestService Value)
 
 void ALDRestServiceNPC::OnRep_Service()
 {
-    const TCHAR* Name = Service == ELDRestService::SkillMerchant ? TEXT("1  SKILLS")
-        : Service == ELDRestService::ComponentArtisan ? TEXT("2  COMPONENTS")
-        : Service == ELDRestService::Trainer ? TEXT("3  TRAINER") : TEXT("");
-    Label->SetText(FText::FromString(Name));
+    UStaticMesh* Mesh=MerchantMesh;
+    FVector Scale(.75,.75,1.35);
+    if(Service==ELDRestService::SkillMerchant)
+    {Mesh=MerchantMesh;Scale=FVector(.75,.75,1.35);}
+    else if(Service==ELDRestService::ComponentArtisan)
+    {Mesh=ArtisanMesh;Scale=FVector(.8,.8,.9);}
+    else if(Service==ELDRestService::Trainer)
+    {Mesh=TrainerMesh;Scale=FVector(.75,.75,.75);}
+    if(Body){Body->SetStaticMesh(Mesh);Body->SetRelativeScale3D(Scale);}
 }
 
 void ALDRestServiceNPC::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

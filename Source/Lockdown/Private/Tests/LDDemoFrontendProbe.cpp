@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Tests/LDSlateProbeInput.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDUIRoot.h"
@@ -65,12 +66,7 @@ namespace
     // as they see a key press.
     bool SendKey(UWidget* Focus, const FKey& Key)
     {
-        if (!Focus || !FSlateApplication::IsInitialized()) { return false; }
-        Focus->SetKeyboardFocus();
-        const FKeyEvent Event(Key, FModifierKeysState(), FSlateApplication::Get().GetUserIndexForKeyboard(), false, 0, 0);
-        FSlateApplication::Get().ProcessKeyDownEvent(Event);
-        FSlateApplication::Get().ProcessKeyUpEvent(Event);
-        return true;
+        return LDSlateProbeInput::SendKey(Focus,Key);
     }
 
     FKey DefaultKey(FName Action)
@@ -84,21 +80,7 @@ namespace
     // False when the hit test does not reach the target.
     bool SendClick(UWidget* Target, const FKey& Button)
     {
-        if (!Target || !FSlateApplication::IsInitialized()) { return false; }
-        const TSharedPtr<SWidget> Slate = Target->GetCachedWidget();
-        auto& App = FSlateApplication::Get();
-        const TSharedPtr<SWindow> Window = Slate ? App.FindWidgetWindow(Slate.ToSharedRef()) : nullptr;
-        if (!Window) { return false; }
-        const FVector2D Point = Target->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5, .5));
-        const uint32 User = App.GetUserIndexForMouse();
-        TArray<FWidgetAndPointer> Hits = Window->GetHittestGrid().GetBubblePath(Point, 0.f, false, User);
-        const FWidgetPath Path(Hits);
-        if (!Path.IsValid() || !Path.ContainsWidget(Slate.Get())) { return false; }
-        const uint32 Pointer = FSlateApplicationBase::CursorPointerIndex;
-        App.RoutePointerMoveEvent(Path, FPointerEvent(User, Pointer, Point, Point, TSet<FKey>(), EKeys::Invalid, 0, FModifierKeysState()), false);
-        App.RoutePointerDownEvent(Path, FPointerEvent(User, Pointer, Point, Point, TSet<FKey>({ Button }), Button, 0, FModifierKeysState()));
-        App.RoutePointerUpEvent(Path, FPointerEvent(User, Pointer, Point, Point, TSet<FKey>(), Button, 0, FModifierKeysState()));
-        return true;
+        return LDSlateProbeInput::SendClick(Target,Button);
     }
 
     struct FFrontendProbe

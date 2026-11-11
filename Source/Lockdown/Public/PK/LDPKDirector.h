@@ -74,6 +74,9 @@ public:
     bool CanSpectate(const FGuid& Observer) const;
 
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDDemoOpponentProbe;
+#endif
     ALDGameMode* AuthorityMode() const;
     bool CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase, FString& Error) const;
     void ResetRest();

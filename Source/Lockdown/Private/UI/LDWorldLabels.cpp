@@ -13,6 +13,9 @@
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "World/LDRestServiceNPC.h"
+#include "World/LDTrainingRoomDisplay.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Fonts/FontMeasure.h"
@@ -126,7 +129,7 @@ void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
 int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
-    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());const UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());UWorld* World=GetWorld();
     const ALDGameState* Public=World?World->GetGameState<ALDGameState>():nullptr;
     FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
     // Nothing is drawn before the display content was tried, so a first frame never flashes fallback ids.
@@ -195,6 +198,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
     }
     TArray<FSlateRect> Placed;
+    const TArray<FSlateRect> HudReserved=PC->HUDUI?PC->HUDUI->WorldLabelReservedAreas(G):TArray<FSlateRect>();
     FVector2D OwnScreen;
     if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
     {
@@ -252,8 +256,33 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     {
         LDWorldLabels::FLabel Label;
         float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,Height=0.f,Row=0.f;
+        bool bPublicService=false;
     };
     TArray<FPending> Pending;
+    if(Public->PublicMatch.Generation==Own.Match&&Public->PublicMatch.Phase==ELDMatchPhase::Rest)
+    {
+        const auto PublicLabel=[&](const FVector& Position,const FString& Name)
+        {
+            FVector2D Screen;
+            if(!PC->ProjectWorldLocationToScreen(Position,Screen)){return;}
+            FPending Entry;Entry.Label.Name=Name;Entry.bPublicService=true;
+            Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
+            if(Culled(Entry.CentreX,Entry.Bottom)){return;}
+            const FVector2f Extent=FontMeasure->Measure(Name,CampFont);
+            Entry.LeftReach=Entry.RightReach=Extent.X*.5f;Entry.Height=Extent.Y;
+            Pending.Add(MoveTemp(Entry));
+        };
+        for(TActorIterator<ALDRestServiceNPC> It(World);It;++It)
+        {
+            const ELDRestService Service=It->GetService();
+            const FString Name=Service==ELDRestService::SkillMerchant?TEXT("技能商人 · 主动技能")
+                :Service==ELDRestService::ComponentArtisan?TEXT("构件工匠 · 构件整理")
+                :Service==ELDRestService::Trainer?TEXT("训练师 · 属性与技能"):TEXT("");
+            if(!Name.IsEmpty()){PublicLabel(It->GetActorLocation()+FVector(0,0,120),Name);}
+        }
+        for(TActorIterator<ALDTrainingRoomDisplay> It(World);It;++It)
+        {PublicLabel(It->GetActorLocation()+FVector(7500,950,40),TEXT("训练区 · 共享假人"));}
+    }
     if(Frame)
     {
         for(const FLDObservedUnitView& Unit:Frame->Units)
@@ -265,6 +294,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             FPending Entry;
             Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::ObservedContenderName(Public->DemoLobby,Unit.ContenderId,
                 Public->PublicMatch.Phase==ELDMatchPhase::Rest):FString(),Content,Frame->SampledAtServerSec);
+            if(bContender)
+            {
+                const FString Relation=LDHUD::PKRelationText(Public->PublicMatch,Own.ContenderId,Unit.ContenderId);
+                if(!Entry.Label.Name.IsEmpty()&&!Relation.IsEmpty()){Entry.Label.Name+=TEXT(" · ")+Relation;}
+            }
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;
             if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}
@@ -300,11 +334,35 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         for(bool bMoved=true;bMoved;)
         {
             bMoved=false;
+            for(const FSlateRect& Other:HudReserved)
+            {
+                if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
+                {Bottom=Other.Top-2.f;bMoved=true;}
+            }
             for(const FSlateRect& Other:Placed)
             {
                 if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top){Bottom=Other.Top-2.f;bMoved=true;}
             }
         }
+        if(Entry.bPublicService&&Bottom<Entry.Height)
+        {
+            Bottom=Entry.Bottom+Entry.Height+2.f;
+            for(bool bMoved=true;bMoved;)
+            {
+                bMoved=false;
+                const auto MoveBelow=[&](const TArray<FSlateRect>& Areas)
+                {
+                    for(const FSlateRect& Other:Areas)
+                    {
+                        if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
+                        {Bottom=Other.Bottom+Entry.Height+2.f;bMoved=true;}
+                    }
+                };
+                MoveBelow(HudReserved);MoveBelow(Placed);
+            }
+            if(Bottom>Size.Y){continue;}
+        }
+        if(Bottom<Entry.Height){continue;}
         Placed.Add(FSlateRect(Left,Bottom-Entry.Height,Right,Bottom));
         const LDWorldLabels::FLabel& Label=Entry.Label;
         const float CentreX=Entry.CentreX;

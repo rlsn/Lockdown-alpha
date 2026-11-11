@@ -218,7 +218,7 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     FLDBodyCombatState& SD = Driver->Bodies.FindChecked(DummyA);
     FLDBodyCombatState& SB = Driver->Bodies.FindChecked(OwnerB);
     FLDBodyCombatState& SM = Driver->Bodies.FindChecked(Monster);
-    bool bGood = TestTrue(TEXT("Every trainee can attack the same shared dummy"),
+    bool bGood = TestTrue(TEXT("Rest isolation admits the training-dummy target, not other rest players"),
         !Driver->IsIsolated(A, SD) && !Driver->IsIsolated(B, SD));
     bGood &= TestTrue(TEXT("Rest players are visible, but cannot damage or control one another"),
         Driver->IsIsolated(A, SB) && Driver->IsIsolated(B, SA)

@@ -329,7 +329,18 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\BootstrapAssets.ps1
 .\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
 .\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
+.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 2v2 -TimeoutSeconds 300 # 仅 R0 团队 UI，正常报名与真实拥有连接
+.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 3v3 -TimeoutSeconds 300 # 同上，六人报名
 ```
+
+`-UIReview` 固定一个能按获准概率抽到团队的 DEV 随机种子，不改产品参数或复制视图。三个拥有连接
+经正常大厅开局并自行走进报名圈（2v2 仅 Client1 加三 AI；3v3 全员），核对公开阵营和当前获准观察，
+Host 与 Client1 保存 100%/125% 团队截图，Client2 无渲染但同样检查真实拥有连接的公开关系与观察；
+Host 另存两种分辨率、两档文字缩放的构筑与服务图，避免三路渲染挤占同机显存。
+Host 沿既有 `LDDevGrowthFixture` 经验入口取得一次普通升级构件，真实选择并安装开局构件，
+使背包同时含已安装/未安装项，并经面板执行加点增减和一次确认、服务购买与后续拒绝反馈；
+不把这些夹具成长当作自然对局结果。
+此模式在 R0 PK 内结束，不运行 R01/R02/R14 阻挡夹具，也不是完整 AI 对局验收。
 
 AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <1-50>` 只启动一个无渲染的 Listen Host，
 它作为唯一真人留在房间里不动，与三个 AI 经正常大厅连打 N 局（每局各有 `-TimeoutSeconds`，局间回 Lobby）。

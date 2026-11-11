@@ -105,7 +105,7 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 `ProcessAuthorityO
 | 获准输入 | 正式来源 | 限制与撤销 |
 | --- | --- | --- |
 | 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView | 可以读本人血蓝/资源/等级/技能、图纸、属性点、控制、真实 readiness、构筑安全窗（`ReadOwnCombat` 取 Combat 的 `BuildSafeAtMs`，比成长发布里的副本新）、候选和回执；不能取得可写 StateFor 或全账本。 |
-| 公共对局 | `FLDPublicMatchView` → `FLDOpponentPublicMatch`；休息中另读公开房间名单 `ReadLobby`（成员 ID，`Roster`） | 名单只用于按 HUD 规则认出共享训练假人（§6.4）。Phase、OpenAtMs、CircleState（`Empty / Solo / Contested / Guarded`）、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、GraffitiOwner（策略帧中为 `Owner`）、GuardDueAtMs、Result；Occupier 在 Solo（独自喷漆）和争夺暂停（Contested 且有人持有喷漆进度）时有效，DueAtMs 只在 Solo 时有效；Owner 是当前涂鸦主人，GuardDueAtMs 是运行中守护的获胜时刻，只在 Guarded（主人独自在区内）时非 0；Empty（主人在区外、区内无人，守护暂停（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”））与 Solo/Contested（区内有主人以外的有效参赛者，守护冻结）时为 0。喷漆者和涂鸦主人的身份与进度不附送其隐藏精确坐标。 |
+| 公共对局 | `FLDPublicMatchView` → `FLDOpponentPublicMatch`；休息中另读公开房间名单 `ReadLobby`（成员 ID，`Roster`） | 名单只用于按 HUD 规则认出获准观察帧里的共享真实训练目标（§6.4），不借此读取所属玩家私有成长。Phase、OpenAtMs、CircleState（`Empty / Solo / Contested / Guarded`）、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、GraffitiOwner（策略帧中为 `Owner`）、GuardDueAtMs、Result；Occupier 在 Solo（独自喷漆）和争夺暂停（Contested 且有人持有喷漆进度）时有效，DueAtMs 只在 Solo 时有效；Owner 是当前涂鸦主人，GuardDueAtMs 是运行中守护的获胜时刻，只在 Guarded（主人独自在区内）时非 0；Empty（主人在区外、区内无人，守护暂停（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”））与 Solo/Contested（区内有主人以外的有效参赛者，守护冻结）时为 0。喷漆者和涂鸦主人的身份与进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
 | 可见营地回位提示 | 同一观察帧单位 `Statuses` 中只读 `StatusId=CampReturning`（`ELDDemoStatusId`，内容 id `camp_returning`） | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回位”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
 | 可见资源 | 上述观察帧的展示字段 | 不含 IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP/MP 按世界 Resources 的 P2 Current/Max 读取；NPC 不适用的 MP/Level 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
@@ -492,11 +492,11 @@ adapter 每局只从服务器随机流抽一次这个时刻，策略不读隐藏
 其余身体意图为下面的训练与 PK 步骤内的存活参赛者（§6.6）。
 
 **训练**：休息构筑窗口内到了 `OpeningPickAtMs`、没有可做的构筑也没有在途构筑请求时，
-存活的 AI 用生产交战（§6.3 的主动顺序，然后普攻）攻击一个共享训练假人（模式 `Engage`、原因 `Train`，`DemoOpponentPolicy.Training`）。
-假人只按 HUD 的同一规则（`LDHUD::ObservedContenderName`）认出：休息中本人观察帧里可见、ID 不在公开房间名单
+存活的 AI 用生产交战（§6.3 的主动顺序，然后普攻）攻击本人获准观察帧中的训练目标（模式 `Engage`、原因 `Train`，`DemoOpponentPolicy.Training`）。
+共享训练目标只按 HUD 的同一规则（`LDHUD::ObservedContenderName`）认出：休息中本人观察帧里可见、ID 不在公开房间名单
 （`FLDLobbyView` 成员，adapter 只在休息中读取）上的参赛者类单位（`LDOpponentPolicy::TrainingDummy`）；本人不在名单上时不认任何单位，
-多个假人按当前观察句柄从小到大选择，不保证对应本人的名单槽位；受保护或已被失败记录抑制的单位不打。
-假人可供所有休息室玩家使用、从不死亡、不给经验或奖励，训练消耗的资源与冷却不带回野外。
+训练目标按当前观察句柄从小到大选择，不保证对应本人的名单槽位；受保护或已被失败记录抑制的单位不打。
+获准观察代理呈现同一真实目标的生命、位置、受击与控制结果，不设公共静态替身；目标可被任一休息室参赛者攻击，从不死亡、不给经验或奖励，训练消耗的资源与冷却不带回野外。
 同一决策发出 PK 请求时不发身体意图（正在进行的训练订单继续），下一次决策再训练；构筑窗口关闭（锁定步骤）时仍在进行的训练订单
 由一次 Stop 结束，已受理的动作先完成。
 发育期和旗杆开放后，构筑意图与身体意图在同一决策里并行：AI 不为等安全窗而停止交战、回防或撤离。
@@ -560,7 +560,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
    队友（组队赛同阵营）永远不是攻击、技能或交战目标。先看缩圈：脚点在当前安全半径外，或有下一圈预告时在预告半径外，
    就以普通移动订单走向离场地中心最近的公共地点（旗杆锚点）（原因 `PKRing`）；否则打最近的可见敌方参赛者（`PKFight`）；
    都看不到时走到最终圈半径内后保持。PKReady 步骤输入锁定，什么也不发。
-5. **观战**：其余时间（含被淘汰回到休息空间后）除报名外不发移动订单；构筑开放步骤内无事可做时对共享训练假人的试招见 §6.4
+5. **观战**：其余时间（含被淘汰回到休息空间后）除报名外不发移动订单；构筑开放步骤内无事可做时对本人训练目标的试招见 §6.4
    （报名窗口内让位于报名），构筑窗口关闭时仍在进行的训练订单只发一次 Stop。
 
 模式 `PK`，原因 `PKSignUp`/`PKBet`/`PKThrow`/`PKFight`/`PKRing`；每个请求输出一行 `LD_AI_PK_SIGNUP`/`LD_AI_PK_BET`/`LD_AI_PK_THROW`
@@ -621,7 +621,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 `RunDemoOpponentCheck.ps1` 已部分覆盖下表：满员房间（参赛 Listen Host、两个拥有客户端、三个 AI）经正常大厅开局，真人不参与。
 它核对 AI-A01 的独立绑定与不补位，以及 AI-A02 中的每个 AI 自主移动、获胜 AI 升级并确认选择、
 死亡期间不发任何身体请求、死亡后按批准时长复活并继续行动、请求速率有界、由 AI 按喷漆 + 守护规则以 `GuardSucceeded` 获胜且获胜 AI 是公开涂鸦主人，最后回到新 Lobby 并退役全部 AI。
-它还核对每个 AI 在开局休息 R0 的构筑步骤内处理掉开局方向卡（#198，落在开局后 1000 ms 至 R0 构筑结束之间），公共休息室中的身体在报名窗口开放前，首次报告原因 `Train` 之前保持静止（报告 `rest0_trainers`；探针不核对使用的是哪一个共享假人），窗口开放后只走向本人报名圈（`rest0_ai_stray_cm`：窗口内离圈距离不超过窗口内首个样本），锁定后又只为训练移动（派奖步骤也训练），且每个 AI 在 R0 锁定时站在圈内并进入 PK（`rest0_signed`、`rest0_pk_entrants`）；PK 生命在竞技场作战，不算休息室移动；请求速率上界在休息与 PK 中照常计数。
+它还核对每个 AI 在开局休息 R0 的构筑步骤内处理掉开局方向卡（#198，落在开局后 1000 ms 至 R0 构筑结束之间），公共休息室中的身体在报名窗口开放前，首次报告原因 `Train` 之前保持静止（报告 `rest0_trainers`；探针不核对观察帧中的训练目标句柄），窗口开放后只走向本人报名圈（`rest0_ai_stray_cm`：窗口内离圈距离不超过窗口内首个样本），锁定后又只为训练移动（派奖步骤也训练），且每个 AI 在 R0 锁定时站在圈内并进入 PK（`rest0_signed`、`rest0_pk_entrants`）；PK 生命在竞技场作战，不算休息室移动；请求速率上界在休息与 PK 中照常计数。
 Host 另用夹具在真实驱动中检查 #198 R01/R02/R14：R1 前尝试压缩 `Lives`，分别核对假人槽位与生成假人时实际分配是否增长；未增长时扩容检查记为 NotExercised，不计为通过。R1 中占满全部 PK 出生偏移，核对 PK 入场等待、满 `REST.EntryReadyTimeoutSec` 后 NoContest 并回到休息位；R2 返场时挡住最后一人的近处与全部出生锚点，核对全员都未返场、T 与旗杆不开始，移除阻挡后共同返场；
 返场受阻时休息生命已退役，夹具检查权威生命无身体、无待提交身体且 T 冻结；`Lockdown.Rules.DemoOpponentProbe.ReturnHold` 覆盖生命状态判定。
 旗杆开放前每个 AI 都取得过经验，除非发育期至少一半时间处于死亡或回血恢复（1 级开局互打后按批准回血等回 ResumeFarm 可能占去大半个发育期，这是批准节奏，不算卡住）；以及争夺暂停下的两类决策：

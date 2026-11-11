@@ -162,6 +162,8 @@ namespace LDHUD
     // 单挑 / 混战 / NvN from the drawn format: Teams split Entrants evenly over SideCount ("2v2", "3v3"). Empty for None or
     // a malformed team split.
     LOCKDOWN_API FString PKFormatText(ELDPKFormat Format,uint8 SideCount,int32 Entrants);
+    // Relationship to an observed, publicly identified PK entrant. Team labels exist only for the current public team PK.
+    LOCKDOWN_API FString PKRelationText(const FLDPublicMatchView& Public,const FGuid& Self,const FGuid& Target);
     // The public PK of this rest: the match, its timeline and its PK name the same generation, the stage is a rest and the
     // PK has a serial (0: this rest has no PK).
     LOCKDOWN_API bool HasPK(const FLDPublicMatchView& Public);
@@ -732,10 +734,8 @@ namespace LDHUD
     // When the docked growth panel folds back to the 开盲盒 button by itself, so it does not keep covering the battlefield.
     // Folding only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their
     // state, and nothing is chosen. Local presentation time only.
-    // - An automatic open (the opening offer, D10) folds after AutoOpenSeconds unless the player
-    //   has engaged with it (a previewed card, staged points or a request in flight); engaging ends that timer.
-    // - A hit on the own body folds an open panel unless the player is engaged. After such a fold, the player's next own
-    //   opening is respected and is not folded by hits again until it closes.
+    // Field combat and a live PK entrant always fold the panel, regardless of hover or in-flight work. Outside combat, automatic opens
+    // fold after AutoOpenSeconds unless engaged; own-body hits fold an open panel unless engaged.
     class LOCKDOWN_API FChoicesFold
     {
     public:
@@ -743,7 +743,7 @@ namespace LDHUD
         void Opened(bool bAutomatic,double Now);
         void Closed();
         // True when the open panel should fold now; the caller closes the panel, which reports Closed().
-        bool ShouldFold(double Now,bool bEngaged,bool bOwnHit);
+        bool ShouldFold(double Now,bool bEngaged,bool bOwnHit,bool bCombatActive=false);
         bool IsAutomatic() const {return bOpen&&bAutomatic;}
     private:
         bool bOpen=false;
@@ -752,6 +752,8 @@ namespace LDHUD
         bool bFoldedByHit=false;
         double OpenedAt=0;
     };
+    LOCKDOWN_API bool ChoicesCombatActive(const FLDPublicMatchView& Public,const FLDOwnerState& Own,
+        const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,bool bOwnHit);
     // D10/APP_SPEC §4.2: the growth panel opens by itself once per match, when the opening active offer (opportunity 1) is
     // first seen in a valid view of the current match, and (#198 B) once when the opening base pick first opens. Later
     // offers, new points and new components never open it (they only light the 开盲盒 button's count), so it does not

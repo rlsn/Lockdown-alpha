@@ -715,6 +715,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("PKSignup"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::PKSignup; }
         else if (Kind.Equals(TEXT("RestSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestSpawn; }
         else if (Kind.Equals(TEXT("RestService"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestService; }
+        else if (Kind.Equals(TEXT("TrainingDummy"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::TrainingDummy; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
         // The Boss patrol order and the #198 PK ring order are canonical; every other anchor is named by the world and
@@ -731,6 +732,10 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup)
         {
             for (int32 I = 0; I < LDDemoWorld::PKSignups; ++I) { KnownId |= Anchor.Id.Equals(LDDemoWorld::PKSignupId(I), ESearchCase::CaseSensitive); }
+        }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy)
+        {
+            for (int32 I = 0; I < LDDemoWorld::TrainingDummies; ++I) { KnownId |= Anchor.Id.Equals(LDDemoWorld::TrainingDummyId(I), ESearchCase::CaseSensitive); }
         }
         else { KnownId = true; }
         if (!Check.Require(KnownId, Anchor.Id, TEXT("unknown canonical Demo anchor"))) { return false; }
@@ -910,19 +915,35 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
                 return false;
             }
         }
-        int32 RestSpawns = 0, Services = 0;
+        int32 RestSpawns = 0, Services = 0, TrainingDummyCount = 0;
         for (const auto& Anchor : Out.Anchors)
         {
             RestSpawns += Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn ? 1 : 0;
             Services += Anchor.Kind == ELDDemoWorldAnchorKind::RestService ? 1 : 0;
+            TrainingDummyCount += Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy ? 1 : 0;
         }
-        if (!Check.Require(RestSpawns == 6 && Services == LDDemoWorld::RestServices, Root.Path,
-            TEXT("the shared rest room needs six seats and three services"))) { return false; }
+        if (!Check.Require(RestSpawns == 6 && Services == LDDemoWorld::RestServices
+            && TrainingDummyCount == LDDemoWorld::TrainingDummies, Root.Path,
+            TEXT("the shared rest room needs six seats, three services and six training dummy positions"))) { return false; }
         for (int32 Index = 1; Index <= LDDemoWorld::RestServices; ++Index)
         {
             const auto* Service = Find(LDDemoWorld::RestServiceId(Index));
             if (!Check.Require(Service && Service->Kind == ELDDemoWorldAnchorKind::RestService, Root.Path,
                 TEXT("missing canonical shared rest service anchor"))) { return false; }
+        }
+        for (int32 Slot = 0; Slot < LDDemoWorld::TrainingDummies; ++Slot)
+        {
+            const FString Id = LDDemoWorld::TrainingDummyId(Slot);
+            const auto* Dummy = Find(Id);
+            if (!Check.Require(Dummy && Dummy->Kind == ELDDemoWorldAnchorKind::TrainingDummy
+                && N.EQ(N.Value(Dummy->PositionCm.X), N.Value(int64(6500 + 400 * Slot)))
+                && N.EQ(N.Value(Dummy->PositionCm.Y), N.Value(700))
+                && N.EQ(N.Value(Dummy->PositionCm.Z), N.Value(0)), Id,
+                TEXT("training dummy anchor differs from the approved rest-room layout"))
+                || !OutsideCamps(*Dummy))
+            {
+                return false;
+            }
         }
     }
     // D21 dorms and D26 airdrop points are the anchors content does not name; each event disk stays apart from the

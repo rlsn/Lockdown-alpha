@@ -2520,7 +2520,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             }
             return Finish(EMode::Choose, EReason::ChooseOffer);
         }
-        // Once nothing is left to build and nothing is in flight, a living body tries its build on a shared dummy with
+        // Once nothing is left to build and nothing is in flight, a living body tries its build on its training target with
         // the production engagement (§6.3 activations, then the basic attack), the only unit it ever
         // engages here; the dummy is known only by the HUD's roster rule. A decision sending a PK request sends no body
         // intent (a running training order goes on); training resumes at the next decision.

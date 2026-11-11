@@ -15,7 +15,7 @@ class UHorizontalBox;
 class UWrapBox;
 struct FLDDemoContentDefinitions;
 
-// A bounded workspace: published attributes/skill slots, paged growth/inventory/NPC context, and a fixed inspector.
+// A bounded task workspace and contextual NPC service panel.
 // All mutations retain the existing build commands, revision checks, confirmations and authority receipts.
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
@@ -41,6 +41,7 @@ public:
     void PresentRestActions(bool bRest,bool bCanReset,bool bCanReady,const FString& ReadyLabel);
     // Local view context only; the owning authority still admits every service command.
     void SetServiceContext(ELDRestService Service);
+    bool OpenServicePanel();
     void ShowTab(int32 Tab);
     bool PreviewComponent(int32 Index);
     // An offer card click: chooses that active with bLearnIfPossible.
@@ -96,7 +97,7 @@ public:
     bool PickRepeatedBase(int32 Index);
     void CancelTarget();
     int32 StagedTotal() const;
-    virtual bool IsPanelOpen() const override {return bOpen;}
+    virtual bool IsPanelOpen() const override {return bOpen||bServicePanelOpen;}
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
     bool HasPendingRequest() const {return PendingRequest!=0;}
@@ -104,9 +105,8 @@ public:
     // unless the player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
     // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
-    void UpdateFold(bool bOwnHit);
-    // A card being read (hovered, focused or previewed), staged points, a binding being picked, a rest confirm line or a
-    // request in flight.
+    void UpdateFold(bool bOwnHit,bool bCombatActive);
+    // A card being read, staged points, a binding being picked, a rest confirm line or a request in flight.
     bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||PendingRequest!=0||HasChildConfirmation()
         ||bFillGapOpen||bDismantleOpen||(RestTrainingButton&&RestTrainingButton->HasKeyboardFocus())||(RestReadyButton&&RestReadyButton->HasKeyboardFocus());}
     // The offer card whose inspection is showing, or INDEX_NONE.
@@ -117,6 +117,9 @@ protected:
     virtual UWidget* FocusScope() const override;
     virtual UWidget* HitArea() const override;
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDDemoOpponentProbe;
+#endif
     struct FCardWidgets
     {
         TObjectPtr<ULDCommandButton> Button;
@@ -151,7 +154,7 @@ private:
     struct FStatRow
     {
         TObjectPtr<UWidget> Row;
-        TObjectPtr<UTextBlock> Name,Points;
+        TObjectPtr<UTextBlock> Name,PerPoint,Points;
         TObjectPtr<ULDCommandButton> Minus,Plus;
     };
     // #198 B: one opening base option card (icon, name, the rendered sentence and what a click does).
@@ -193,8 +196,6 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> ComponentChoiceList;
     UPROPERTY() TObjectPtr<UWidget> OpeningBaseSection;
     UPROPERTY() TObjectPtr<UVerticalBox> BaseCardList;
-    // Three cards per line; a line is added when a card beyond the last one is needed.
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> BaseCardLines;
     UPROPERTY() TObjectPtr<UWidget> BindingSection;
     UPROPERTY() TObjectPtr<UTextBlock> BindingHeading;
     UPROPERTY() TObjectPtr<UWidget> BindElementLine;
@@ -210,10 +211,14 @@ private:
     UPROPERTY() TObjectPtr<UHorizontalBox> RepeatLine;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RepeatButtons;
     UPROPERTY() TObjectPtr<UWidget> ComponentSection;
-    UPROPERTY() TObjectPtr<UWrapBox> ComponentList;
+    UPROPERTY() TObjectPtr<UVerticalBox> InstalledComponentList;
+    UPROPERTY() TObjectPtr<UVerticalBox> UninstalledComponentList;
     UPROPERTY() TObjectPtr<UTextBlock> ComponentHeading;
+    UPROPERTY() TObjectPtr<UTextBlock> InstalledComponentHeading;
+    UPROPERTY() TObjectPtr<UTextBlock> UninstalledComponentHeading;
     UPROPERTY() TObjectPtr<UTextBlock> EmptyNote;
     UPROPERTY() TObjectPtr<UVerticalBox> PointsDock;
+    UPROPERTY() TObjectPtr<UWidget> CurrentBuildSection;
     UPROPERTY() TObjectPtr<UTextBlock> AttributeSummary;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> EquippedNames;
     UPROPERTY() TArray<TObjectPtr<UImage>> EquippedIcons;
@@ -225,12 +230,16 @@ private:
     FName PinnedComponent;
     FName InspectedComponent;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
+    UPROPERTY() TObjectPtr<UBorder> ServicePanel;
+    UPROPERTY() TObjectPtr<UVerticalBox> TaskContent;
+    UPROPERTY() TObjectPtr<UVerticalBox> TaskBody;
+    UPROPERTY() TObjectPtr<UVerticalBox> ServiceBody;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestTrainingButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
     UPROPERTY() TObjectPtr<UTextBlock> OfferHeading;
     UPROPERTY() TObjectPtr<UTextBlock> OfferNote;
     UPROPERTY() TObjectPtr<UWidget> OfferSection;
-    UPROPERTY() TObjectPtr<UHorizontalBox> CardRow;
+    UPROPERTY() TObjectPtr<UVerticalBox> CardRow;
     UPROPERTY() TObjectPtr<UWidget> BlueprintSection;
     UPROPERTY() TObjectPtr<UVerticalBox> BlueprintList;
     UPROPERTY() TObjectPtr<UWidget> PointsSection;
@@ -324,6 +333,7 @@ private:
     // The last request's result while the panel was open; toasted if the panel then closes itself (nothing left to do).
     FString ResultNotice;
     bool bOpen=false;
+    bool bServicePanelOpen=false;
     LDHUD::FChoicesFold Fold;
     double UiNow() const;
     bool Usable() const;

@@ -43,6 +43,7 @@
 #include "Components/OverlaySlot.h"
 #include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
+#include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -302,9 +303,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // Top-centre: the public capture state, then the own death banner. None takes pointer input.
         auto* CircleBox=WidgetTree->ConstructWidget<UVerticalBox>();
         // A DEV test room is marked on every member's screen for the whole match (#78).
-        DevMarkerText=OneLine(TEXT(""),15,0);DevMarkerText->SetJustification(ETextJustify::Center);DevMarkerText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        DevMarkerText=OneLine(TEXT(""),12,0);DevMarkerText->SetJustification(ETextJustify::Right);DevMarkerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         DevMarkerText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(DevMarkerText)->SetHorizontalAlignment(HAlign_Center);
         // #198: the timeline (rest step or field segment) above the capture line, with the rest's sign-up/PK detail.
         TimelineText=OneLine(TEXT(""),18,0);TimelineText->SetJustification(ETextJustify::Center);HudFace(TimelineText,true,0);
         TimelineText->SetVisibility(ESlateVisibility::Collapsed);
@@ -317,29 +317,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         CircleProgress=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(CircleProgress,FLinearColor(1,.78f,.25f));CircleProgress->SetPercent(0);
         auto* CircleBarSize=WidgetTree->ConstructWidget<USizeBox>();CircleBarSize->SetWidthOverride(360);CircleBarSize->SetHeightOverride(8);CircleBarSize->SetContent(CircleProgress);
         CircleBox->AddChildToVerticalBox(CircleBarSize)->SetPadding(FMargin(0,6,0,0));
-        // D26: the public airdrop line, in the airdrop marker's orange.
-        AirdropText=OneLine(TEXT(""),15,520);AirdropText->SetJustification(ETextJustify::Center);
-        AirdropText->SetColorAndOpacity(FSlateColor(ALDAirdropMarker::Color()));AirdropText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(AirdropText)->SetHorizontalAlignment(HAlign_Center);
-        // #198: the public charm line, in the move-speed charm's gold.
-        CharmText=OneLine(TEXT(""),15,520);CharmText->SetJustification(ETextJustify::Center);
-        CharmText->SetColorAndOpacity(FSlateColor(LDHUD::CharmColor(ELDCharmKind::MoveSpeed)));CharmText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(CharmText)->SetHorizontalAlignment(HAlign_Center);
-        // D27: the public 上热搜 line, in the minimap circle's red.
-        LeaderText=OneLine(TEXT(""),15,520);LeaderText->SetJustification(ETextJustify::Center);
-        LeaderText->SetColorAndOpacity(FSlateColor(FLinearColor(1.f,.32f,.28f)));LeaderText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(LeaderText)->SetHorizontalAlignment(HAlign_Center);
-        // D26: the public Boss line, in the minimap waypoints' gold.
-        BossText=OneLine(TEXT(""),15,520);BossText->SetJustification(ETextJustify::Center);
-        BossText->SetColorAndOpacity(FSlateColor(FLinearColor(.98f,.76f,.2f)));BossText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(BossText)->SetHorizontalAlignment(HAlign_Center);
-        // #198: the open camp markers, in the minimap marker violet.
-        MarkerText=OneLine(TEXT(""),15,520);MarkerText->SetJustification(ETextJustify::Center);
-        MarkerText->SetColorAndOpacity(FSlateColor(LDHUD::MarkerColor()));MarkerText->SetVisibility(ESlateVisibility::Collapsed);
-        CircleBox->AddChildToVerticalBox(MarkerText)->SetHorizontalAlignment(HAlign_Center);
-        // The own next step under the public line, in the accent colour so it reads as advice rather than match state.
-        NextStepText=OneLine(TEXT(""),15,520);NextStepText->SetJustification(ETextJustify::Center);NextStepText->SetColorAndOpacity(LDHUDStyle::TextAccent);
-        CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
         PhaseBanner=Panel(CircleBox,false);
         {
             // The rest actions sit in their own hit panel right under the click-through banner, shown only in a rest (the
@@ -360,19 +337,19 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             TopCentre->AddChildToVerticalBox(PhaseBanner)->SetHorizontalAlignment(HAlign_Center);
             auto* RestSlot=TopCentre->AddChildToVerticalBox(RestActionsPanel);RestSlot->SetHorizontalAlignment(HAlign_Center);RestSlot->SetPadding(FMargin(0,6,0,0));
             {
-                // #198 session D: the PK panel under the rest actions; its bet and throw buttons are owner intents.
+                // PK actions and public sides stay off the arena centre, including at the largest text scale.
                 auto* PKBox=WidgetTree->ConstructWidget<UVerticalBox>();
                 auto Centred=[PKBox](UWidget* Child,float Top){auto* S=PKBox->AddChildToVerticalBox(Child);S->SetHorizontalAlignment(HAlign_Center);S->SetPadding(FMargin(0,Top,0,0));};
                 PKTitleText=OneLine(TEXT(""),17,0);PKTitleText->SetJustification(ETextJustify::Center);HudFace(PKTitleText,true,0);Centred(PKTitleText,0);
-                PKCountdownText=OneLine(TEXT(""),22,520);PKCountdownText->SetJustification(ETextJustify::Center);HudFace(PKCountdownText,true,2);
+                PKCountdownText=OneLine(TEXT(""),20,336);PKCountdownText->SetJustification(ETextJustify::Center);HudFace(PKCountdownText,true,2);
                 PKCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);Centred(PKCountdownText,4);
-                PKRingText=OneLine(TEXT(""),14,520);PKRingText->SetJustification(ETextJustify::Center);PKRingText->SetColorAndOpacity(FSlateColor(ALDPKRingMarker::SafeColor()));Centred(PKRingText,2);
+                PKRingText=OneLine(TEXT(""),14,336);PKRingText->SetJustification(ETextJustify::Center);PKRingText->SetColorAndOpacity(FSlateColor(ALDPKRingMarker::SafeColor()));Centred(PKRingText,2);
                 for(int32 Index=0;Index<6;++Index)
                 {
-                    UTextBlock* SideText=OneLine(TEXT(""),15,520);SideText->SetJustification(ETextJustify::Center);SideText->SetVisibility(ESlateVisibility::Collapsed);
+                    UTextBlock* SideText=OneLine(TEXT(""),15,336);SideText->SetJustification(ETextJustify::Center);SideText->SetVisibility(ESlateVisibility::Collapsed);
                     Centred(SideText,Index?2.f:6.f);PKSideTexts.Add(SideText);
                 }
-                PKRoleText=OneLine(TEXT(""),14,520);PKRoleText->SetJustification(ETextJustify::Center);PKRoleText->SetColorAndOpacity(LDHUDStyle::TextAccent);Centred(PKRoleText,6);
+                PKRoleText=OneLine(TEXT(""),14,336);PKRoleText->SetJustification(ETextJustify::Center);PKRoleText->SetColorAndOpacity(LDHUDStyle::TextAccent);Centred(PKRoleText,6);
                 for(int32 Index=0;Index<6;++Index)
                 {
                     ULDCommandButton* Bet=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){SubmitPKBet(Index);},true,FName(*FString::Printf(TEXT("HUDPKBet%d"),Index+1)));
@@ -380,23 +357,25 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 }
                 PKThrowButton=LDWidgets::Button(WidgetTree,LDTerms::PKThrow,[this](){TogglePKThrowAim();},true,TEXT("HUDPKThrow"));
                 PKThrowButton->SetVisibility(ESlateVisibility::Collapsed);Centred(PKThrowButton,6);
-                PKResultLine=OneLine(TEXT(""),20,520);PKResultLine->SetJustification(ETextJustify::Center);HudFace(PKResultLine,true,0);
+                PKResultLine=OneLine(TEXT(""),20,336);PKResultLine->SetJustification(ETextJustify::Center);HudFace(PKResultLine,true,0);
                 PKResultLine->SetColorAndOpacity(LDHUDStyle::Celebration);Centred(PKResultLine,6);
                 PKAwardsTitle=OneLine(LDTerms::PKAwardsTitle,14,0);PKAwardsTitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAwardsTitle,6);
                 for(int32 Index=0;Index<6;++Index)
                 {
-                    UTextBlock* AwardText=OneLine(TEXT(""),14,520);AwardText->SetJustification(ETextJustify::Center);AwardText->SetVisibility(ESlateVisibility::Collapsed);
+                    UTextBlock* AwardText=OneLine(TEXT(""),14,336);AwardText->SetJustification(ETextJustify::Center);AwardText->SetVisibility(ESlateVisibility::Collapsed);
                     Centred(AwardText,2);PKAwardTexts.Add(AwardText);
                 }
-                PKAnswerText=OneLine(TEXT(""),14,520);PKAnswerText->SetJustification(ETextJustify::Center);PKAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAnswerText,6);
+                PKAnswerText=OneLine(TEXT(""),14,336);PKAnswerText->SetJustification(ETextJustify::Center);PKAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);Centred(PKAnswerText,6);
                 for(UWidget* Hidden:{static_cast<UWidget*>(PKTitleText.Get()),static_cast<UWidget*>(PKCountdownText.Get()),static_cast<UWidget*>(PKRingText.Get()),
                     static_cast<UWidget*>(PKRoleText.Get()),static_cast<UWidget*>(PKResultLine.Get()),static_cast<UWidget*>(PKAwardsTitle.Get()),
                     static_cast<UWidget*>(PKAnswerText.Get())}){Hidden->SetVisibility(ESlateVisibility::Collapsed);}
-                auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>();PKWidth->SetMinDesiredWidth(360);PKWidth->SetContent(PKBox);
+                auto* PKScroll=WidgetTree->ConstructWidget<UScrollBox>();PKScroll->SetAlwaysShowScrollbar(true);PKScroll->AddChild(PKBox);
+                auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDPKSidePanel"));PKWidth->SetWidthOverride(360);PKWidth->SetMaxDesiredHeight(480);PKWidth->SetContent(PKScroll);
                 PKPanelBorder=Panel(PKWidth,true);PKPanelBorder->SetVisibility(ESlateVisibility::Collapsed);
-                auto* PKSlot=TopCentre->AddChildToVerticalBox(PKPanelBorder);PKSlot->SetHorizontalAlignment(HAlign_Center);PKSlot->SetPadding(FMargin(0,6,0,0));
+                Place(PKPanelBorder,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,58));
             }
             Place(TopCentre,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,16));
+            Place(DevMarkerText,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
         }
         auto* DeathBox=WidgetTree->ConstructWidget<UVerticalBox>();
         DeathTitle=OneLine(TEXT(""),34,0);HudFace(DeathTitle,true,0);DeathTitle->SetColorAndOpacity(LDHUDStyle::TextDanger);
@@ -453,6 +432,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // minimap, which sits in the corner. #97: no standing camera-mode line.
         auto* MapBox=WidgetTree->ConstructWidget<UVerticalBox>();
         SightText=Text(TEXT(""),14);SightText->SetColorAndOpacity(LDHUDStyle::TextWarning);MapBox->AddChildToVerticalBox(SightText)->SetPadding(FMargin(0,0,0,4));
+        WorldSummaryText=LDWidgets::Text(WidgetTree,TEXT(""),14,TEXT("HUDPublicEvents"));
+        WorldSummaryText->SetAutoWrapText(false);WorldSummaryText->SetWrapTextAt(320);WorldSummaryText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        MapBox->AddChildToVerticalBox(WorldSummaryText)->SetPadding(FMargin(0,0,0,4));
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
         // The match timer sits centred over the map frame itself, so a wide sight line above never shifts it.
         auto* MapStack=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -734,6 +716,29 @@ bool ULDHUD::PointerOverUI() const
 {
     if(!IsVisible()||!FSlateApplication::IsInitialized()){return false;}return IsUIAt(FSlateApplication::Get().GetCursorPos());
 }
+TArray<FSlateRect> ULDHUD::WorldLabelReservedAreas(const FGeometry& PaintGeometry) const
+{
+    TArray<FSlateRect> Areas;
+    const auto Add=[&](const UWidget* Widget)
+    {
+        if(!Widget||!Widget->IsVisible()){return;}
+        const FGeometry& Geometry=Widget->GetCachedGeometry();
+        const FVector2D TopLeft=PaintGeometry.AbsoluteToLocal(Geometry.LocalToAbsolute(FVector2D::ZeroVector));
+        const FVector2D BottomRight=PaintGeometry.AbsoluteToLocal(Geometry.LocalToAbsolute(Geometry.GetLocalSize()));
+        Areas.Add(FSlateRect(TopLeft.X,TopLeft.Y,BottomRight.X,BottomRight.Y));
+    };
+    Add(Band);
+    Add(PromptFrame);
+    Add(TargetCard);
+    Add(MapColumn);
+    Add(PhaseBanner);
+    Add(RestActionsPanel);
+    Add(PKPanelBorder);
+    Add(DeathBanner);
+    Add(EventFeedPanel);
+    Add(ToastPanel);
+    return Areas;
+}
 bool ULDHUD::IsUIAt(FVector2D P) const
 {
     if(Minimap&&Minimap->IsDragging()){return true;}
@@ -947,7 +952,17 @@ void ULDHUD::RefreshReadModel()
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
         Content?Content->Parameters.CaptureSprayMs:0,Content?Content->Parameters.CaptureGuardMs:0);
     const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen();
-    HudSetText(PhaseText,Circle.Line);HudSetShown(PhaseText,!bChoicesRestOpen,ESlateVisibility::HitTestInvisible);
+    const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
+    const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
+    LDWorldFeedback::FSample OwnSample;OwnSample.Match=O.Match;OwnSample.Life=O.Life;OwnSample.LifePhase=O.LifePhase;OwnSample.Self=O.ContenderId;OwnSample.OwnCombat=OwnCombat;
+    TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(OwnSample,BodyEvents);
+    const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
+    {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
+    const bool bCombatActive=LDHUD::ChoicesCombatActive(Public,O,OwnCombat,bClock,NowMs,bOwnHit);
+    const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
+    HudSetText(PhaseText,Circle.Line);
+    HudSetShown(PhaseText,!bChoicesRestOpen&&Public.Phase!=ELDMatchPhase::Development
+        &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning),ESlateVisibility::HitTestInvisible);
     CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
@@ -955,35 +970,25 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
     // #198: airdrop and Boss instants are field progress T; they are compared with the T derived from the public timeline.
     const int64 FieldNowMs=LDMatchTimeline::FieldNowFromView(Public.Timeline,NowMs);
-    HudSetText(AirdropText,LDHUD::AirdropLine(Public.Airdrop,bClock,FieldNowMs));
-    HudSetShown(AirdropText,!AirdropText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    HudSetText(CharmText,LDHUD::CharmLine(Public.Charms));
-    HudSetShown(CharmText,!CharmText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    HudSetText(LeaderText,LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
-    HudSetShown(LeaderText,!LeaderText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    {
-        FString Low,High,Elite,Dean;HudCampNames(Content,Low,High,Elite,Dean);
-        HudSetText(BossText,LDHUD::BossLine(Public.Boss,Dean,bClock,FieldNowMs));
-        HudSetShown(BossText,!BossText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    }
-    HudSetText(MarkerText,LDHUD::MarkerLine(Public.Markers,bClock,FieldNowMs));
-    HudSetShown(MarkerText,!MarkerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     {
         const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(Public,O.ContenderId,bClock,NowMs);
         HudSetText(TimelineText,Timeline.Headline);HudSetShown(TimelineText,!Timeline.Headline.IsEmpty(),ESlateVisibility::HitTestInvisible);
-        HudSetText(TimelineDetailText,Timeline.Detail);HudSetShown(TimelineDetailText,!Timeline.Detail.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        HudSetText(TimelineDetailText,Timeline.Detail);
+        HudSetShown(TimelineDetailText,!bFieldPhase&&!bChoicesRestOpen&&!Timeline.Detail.IsEmpty()
+            &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning),ESlateVisibility::HitTestInvisible);
         // The reset exists only in a rest; leaving it drops a wait the server will still answer.
-        const bool bRestActions=Public.Phase==ELDMatchPhase::Rest;
+        const bool bRestActions=bRestPlanning||(Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Payout);
         if(!bRestActions){bTrainingResetInFlight=false;bRestReadyInFlight=false;}
-        HudSetShown(RestActionsPanel,bRestActions&&!bChoicesRestOpen,ESlateVisibility::Visible);
+        HudSetShown(RestActionsPanel,bRestActions,ESlateVisibility::Visible);
         const FString ReadyLabel=O.bRestReady?TEXT("已准备"):bRestReadyInFlight?TEXT("提交中…"):TEXT("准备完毕");
-        if(ChoicesPanel){ChoicesPanel->PresentRestActions(bRestActions,!bTrainingResetInFlight,
+        if(ChoicesPanel){ChoicesPanel->PresentRestActions(false,!bTrainingResetInFlight,
             O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight,ReadyLabel);}
         if(bRestActions)
         {
             if(TrainingResetButton->GetIsEnabled()==bTrainingResetInFlight){TrainingResetButton->SetIsEnabled(!bTrainingResetInFlight);}
             HudSetText(Cast<UTextBlock>(RestReadyButton->GetContent()),ReadyLabel);
             RestReadyButton->SetIsEnabled(O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight);
+            HudSetShown(RestReadyButton,bRestPlanning,ESlateVisibility::Visible);
             const ELDRestService Service=O.NearbyRestService;
             const FString Npc=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
             HudSetText(Cast<UTextBlock>(RestServiceButton->GetContent()),TEXT("与")+Npc+TEXT("交互"));
@@ -995,8 +1000,25 @@ void ULDHUD::RefreshReadModel()
         SyncSignupMarker(Public,O.Match,bRestActions&&Timeline.bSignupStep,Timeline.bSignupOpen,Timeline.bSignedUp);
     }
     RefreshPK(*PC,Public,Lobby,bClock,NowMs);
-    HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),OwnerName));
-    HudSetShown(NextStepText,!bChoicesRestOpen&&!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    {
+        TArray<FString> Summary;
+        const auto Add=[&Summary](FString Line){if(!Line.IsEmpty()){Summary.Add(MoveTemp(Line));}};
+        Add(LDHUD::AirdropLine(Public.Airdrop,bClock,FieldNowMs));
+        FString Low,High,Elite,Dean;HudCampNames(Content,Low,High,Elite,Dean);
+        Add(LDHUD::BossLine(Public.Boss,Dean,bClock,FieldNowMs));
+        // Public event deadlines remain visible in combat; planning detail waits for a verified safe window.
+        const bool bDetails=!bFieldPhase||O.LifePhase==ELDLifePhase::Dead
+            ||(bClock&&OwnCombat&&OwnCombat->bHasBody&&!bCombatActive);
+        if(bDetails)
+        {
+            Add(LDHUD::CharmLine(Public.Charms));
+            Add(LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
+            Add(LDHUD::MarkerLine(Public.Markers,bClock,FieldNowMs));
+        }
+        if(!bChoicesRestOpen&&!bFieldPhase){Add(LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),OwnerName));}
+        HudSetText(WorldSummaryText,FString::Join(Summary,TEXT("\n")));
+        HudSetShown(WorldSummaryText,!Summary.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    }
     RefreshEventFeed(*GS,O,Content,bClock,NowMs);
     RefreshScoreboard(*GS,O);
     HudSetText(ReturnCountdownText,LDHUD::RestReturnCountdown(Public,bClock,NowMs));
@@ -1025,7 +1047,6 @@ void ULDHUD::RefreshReadModel()
     HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));HudSetShown(LifeText,!bPlainAlive,ESlateVisibility::HitTestInvisible);
     HudSetColor(LifeText,bAlive?LDHUDStyle::Shield:O.LifePhase==ELDLifePhase::Dead?LDHUDStyle::TextDanger:LDHUDStyle::TextSecondary);
     // Owner projections of this match and life only; anything older reads as syncing, never as zero.
-    const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
     const FLDProgressionView* Progression=PC->ReadOwnProgression();
     LDHUD::FResourceView Health,Mana;double ShieldPoints=0;
     if(OwnCombat&&OwnCombat->bHasBody)
@@ -1103,7 +1124,8 @@ void ULDHUD::RefreshReadModel()
         const int64 SafeAtMs=OwnCombat?OwnCombat->BuildSafeAtMs:Progression?Progression->BuildSafeAtMs:0;
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
-        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,SafeAtMs,bClock,NowMs,Content,ChoiceStats);
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,SafeAtMs,
+            bClock&&(!bFieldPhase||(OwnCombat&&OwnCombat->bHasBody)),NowMs,Content,ChoiceStats);
         ChoicesPanel->PresentAttributes(OwnCombat);
         ChoicesPanel->SetServiceContext(O.NearbyRestService);
     }
@@ -1111,7 +1133,11 @@ void ULDHUD::RefreshReadModel()
     // open; later offers and new points light the 构筑 entry instead. It never opens over the player's own UI
     // or armed preview, and nothing is chosen for the player. The root may still be leaving the lobby on the match's first
     // frames, so a refused open is retried for a short while; the player's own panel or captured input ends the chance at once.
-    if(ChoicesPanel&&PC->RootUI&&Progression&&GrowthAutoOpen.Observe(*Progression,O.Match)){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
+    if(ChoicesPanel&&PC->RootUI&&Progression)
+    {
+        const bool bNewAutoOpen=GrowthAutoOpen.Observe(*Progression,O.Match);
+        if(bNewAutoOpen&&!bFieldPhase){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
+    }
     {
         // #198 G: a field reward (天降外卖, 画饼老板, a high or elite camp marker) tells what it gave once, as a toast.
         TArray<FString> Lines;
@@ -1124,25 +1150,24 @@ void ULDHUD::RefreshReadModel()
     }
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
     {
-        const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
-        const double UiTime=GetWorld()->GetRealTimeSeconds();
-        if(ChoicesPanel->IsPanelOpen()||bPlayerUI){AutoOpenSince=-1;}
-        else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoOpenSince=-1;ChoicesPanel->MarkOpenedAutomatically();}
-        else if(UiTime-AutoOpenSince>5.)
+        if(bFieldPhase){AutoOpenSince=-1;}
+        else
         {
-            AutoOpenSince=-1;
-            UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_GROWTH_AUTO_OPEN_FAILED The growth panel could not open within 5 s."));
+            const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
+            const double UiTime=GetWorld()->GetRealTimeSeconds();
+            if(ChoicesPanel->IsPanelOpen()||bPlayerUI){AutoOpenSince=-1;}
+            else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoOpenSince=-1;ChoicesPanel->MarkOpenedAutomatically();}
+            else if(UiTime-AutoOpenSince>5.)
+            {
+                AutoOpenSince=-1;
+                UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_GROWTH_AUTO_OPEN_FAILED The growth panel could not open within 5 s."));
+            }
         }
     }
     if(ChoicesPanel)
     {
-        // The panel docks over the battlefield: a hit on the own body, or an automatic open running its few seconds
-        // unattended, folds it back to the 构筑 entry (LDHUD::FChoicesFold).
-        LDWorldFeedback::FSample Body;Body.Match=O.Match;Body.Life=O.Life;Body.LifePhase=O.LifePhase;Body.Self=O.ContenderId;Body.OwnCombat=OwnCombat;
-        TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(Body,BodyEvents);
-        const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
-        {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
-        ChoicesPanel->UpdateFold(bOwnHit);
+        // The own authority-published build window, not the field phase, decides whether planning interrupts combat.
+        ChoicesPanel->UpdateFold(bOwnHit,bCombatActive);
     }
     // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
@@ -1320,7 +1345,9 @@ void ULDHUD::RefreshReadModel()
     {
         const FString SubjectName=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::ObservedContenderName(Lobby,Subject.ContenderId,Public.Phase==ELDMatchPhase::Rest):FString();
         const LDHUD::FObservedCard Card=LDHUD::ObservedCard(Subject,SubjectName,Content,Frame.Frame?Frame.Frame->SampledAtServerSec:0.);
-        HudSetText(TargetTitle,Card.Title);HudSetText(TargetGlyph,Card.Title.Left(1));
+        const FString Relation=Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PKRelationText(Public,O.ContenderId,Subject.ContenderId):FString();
+        const FString TargetTitleText=Relation.IsEmpty()?Card.Title:Card.Title+TEXT(" · ")+Relation;
+        HudSetText(TargetTitle,TargetTitleText);HudSetText(TargetGlyph,Card.Title.Left(1));
         TargetPortrait->SetBrushColor(Subject.Kind==ELDObservedUnitKind::Contender?LDHUD::PaletteColor(Subject.Presentation):ULDHumanoidVisualComponent::MonsterTint(Subject.CreatureId));
         // The bar speaks the shared language: other contenders red, camp members amber (the own body would read green).
         const bool bContender=Subject.Kind==ELDObservedUnitKind::Contender;
@@ -1341,7 +1368,7 @@ void ULDHUD::RefreshReadModel()
 
     // The toast fades on local presentation time.
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
-    HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
+    HudSetText(Toast,UiNow-FeedbackAt<FeedbackDuration?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {
@@ -1351,7 +1378,15 @@ void ULDHUD::RefreshReadModel()
 }
 void ULDHUD::ShowToast(const FString& Text)
 {
-    LastFeedback=Text;FeedbackAt=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
+    if(Text.IsEmpty()){return;}
+    const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
+    if(Text==LastFeedbackBase&&Now-FeedbackAt<=HudNoticeSeconds)
+    {
+        LastFeedback=Text+FString::Printf(TEXT("（重复 %d 次）"),++FeedbackRepeatCount);
+        return;
+    }
+    LastFeedbackBase=Text;LastFeedback=Text;FeedbackAt=Now;FeedbackRepeatCount=0;
+    FeedbackDuration=Text==TEXT("对局开始。")?HudNoticeSeconds:5.;
 }
 void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 {
@@ -1434,7 +1469,10 @@ void ULDHUD::OpenRestService()
     if(PC->OwnerState.NearbyRestService==ELDRestService::None)
     {ShowRestAnswer(TEXT("请靠近对应的服务 NPC。"));return;}
     ChoicesPanel->SetServiceContext(PC->OwnerState.NearbyRestService);
-    if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){ChoicesPanel->ShowTab(2);}
+    if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
+    {
+        if(!ChoicesPanel->OpenServicePanel()){ShowRestAnswer(TEXT("当前没有可用的 NPC 服务。"));}
+    }
     else{ShowRestAnswer(TEXT("请先关闭当前确认或设置，再与 NPC 交互。"));}
 }
 void ULDHUD::HandleTrainingReset(ELDTrainingResetResult Result)
@@ -1472,8 +1510,10 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     // Each button exists only while it applies; leaving that drops a wait the server will still answer.
     if(!View.bCanBet){bPKBetInFlight=false;}
     if(!View.bCanThrow){bPKThrowArmed=false;bPKThrowInFlight=false;}
-    HudSetShown(PKPanelBorder,View.bVisible,ESlateVisibility::Visible);
-    if(!View.bVisible){return;}
+    const bool bWorkspaceOpen=ChoicesPanel&&ChoicesPanel->IsPanelOpen();
+    if(bWorkspaceOpen){bPKThrowArmed=false;}
+    HudSetShown(PKPanelBorder,View.bVisible&&!bWorkspaceOpen,ESlateVisibility::Visible);
+    if(!View.bVisible||bWorkspaceOpen){return;}
     const auto Line=[](UTextBlock* Text,const FString& Value){HudSetText(Text,Value);HudSetShown(Text,!Value.IsEmpty(),ESlateVisibility::HitTestInvisible);};
     Line(PKTitleText,View.Title);
     Line(PKCountdownText,View.Countdown);

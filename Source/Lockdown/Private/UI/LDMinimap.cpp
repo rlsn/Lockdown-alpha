@@ -236,7 +236,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         // #198: PK and rest-space anchors are not field sites.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
             ||Anchor.Kind==ELDDemoWorldAnchorKind::PKSignup||Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn
-            ||Anchor.Kind==ELDDemoWorldAnchorKind::RestService){continue;}
+            ||Anchor.Kind==ELDDemoWorldAnchorKind::RestService||Anchor.Kind==ELDDemoWorldAnchorKind::TrainingDummy){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
@@ -560,10 +560,27 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         {
             // Currently visible units only, where their world proxy is presented (the frame sample until it is placed), so
             // they glide with the world instead of jumping per frame: contenders in their identity tint, camp members amber.
+            const ALDGameState* PublicState=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
             for(const FLDObservedUnitView& Unit:Frame->Units)
             {
                 FVector Presented=FVector::ZeroVector;const FVector2f At=Spot(Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Presented)?Presented:FVector(Unit.FeetCm));
-                if(Unit.Kind==ELDObservedUnitKind::Contender){Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));}
+                if(Unit.Kind==ELDObservedUnitKind::Contender)
+                {
+                    const FString Relation=PublicState?LDHUD::PKRelationText(PublicState->PublicMatch,Own.ContenderId,Unit.ContenderId):FString();
+                    if(Relation==LDTerms::PKTeammate||Relation==LDTerms::PKOwnSide)
+                    {
+                        Diamond(8,At,10.f,Ink);Diamond(9,At,7.f,LDHUD::PaletteColor(Unit.Presentation));
+                    }
+                    else
+                    {
+                        Disc(8,At,9.f,Ink);Disc(9,At,6.5f,LDHUD::PaletteColor(Unit.Presentation));
+                        if(Relation==LDTerms::PKEnemy)
+                        {
+                            Lines(10,{At+FVector2f(-2.f,-2.f),At+FVector2f(2.f,2.f)},FLinearColor::White,1.5f);
+                            Lines(10,{At+FVector2f(-2.f,2.f),At+FVector2f(2.f,-2.f)},FLinearColor::White,1.5f);
+                        }
+                    }
+                }
                 else if(Unit.Kind==ELDObservedUnitKind::CampMember)
                 {for(const FLDMinimapStatic::FRun& Run:Cache.MemberShadow){Box(8,At+Run.Position,Run.Extent,Ink);}for(const FLDMinimapStatic::FRun& Run:Cache.MemberBody){Box(9,At+Run.Position,Run.Extent,FLinearColor(.98f,.84f,.30f));}}
             }

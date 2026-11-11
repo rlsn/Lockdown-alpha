@@ -1064,6 +1064,8 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     }
     auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
     TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
+    TestEqual(TEXT("Left mouse binding uses its Chinese display name"),Settings->Label(TEXT("Select")),FString(TEXT("鼠标左键")));
+    TestEqual(TEXT("Right mouse binding uses its Chinese display name"),Settings->Label(TEXT("Navigate")),FString(TEXT("鼠标右键")));
     TestTrue(TEXT("Spec defaults: Q/W/E abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
         Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
         && Settings->Key(TEXT("SkillE")) == EKeys::E

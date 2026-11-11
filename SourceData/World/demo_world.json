@@ -2,11 +2,11 @@
   "schema_version": 3,
   "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 10,
-  "geometry_revision": 8,
+  "layout_revision": 11,
+  "geometry_revision": 9,
   "approval": {
     "status": "approved",
-    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CB 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps; 11-08 ramps, Elite camps. A playtest baseline, not a balance check."
+    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 (2026-11-11) approved rest services x=6700/7500/8300 y=-500 cm and six training anchors x=6500..8500 step 400 y=700 cm. A playtest baseline, not a balance check."
   },
   "coordinate_unit": "cm",
   "geometry": {
@@ -5001,9 +5001,15 @@
     {"id": "rest_spawn_3", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7700, "y": -500, "z": 0}},
     {"id": "rest_spawn_4", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8100, "y": -500, "z": 0}},
     {"id": "rest_spawn_5", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8500, "y": -500, "z": 0}},
-    {"id": "rest_service_1", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 6700, "y": 700, "z": 0}},
-    {"id": "rest_service_2", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": 700, "z": 0}},
-    {"id": "rest_service_3", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 8300, "y": 700, "z": 0}},
+    {"id": "rest_service_1", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 6700, "y": -500, "z": 0}},
+    {"id": "rest_service_2", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": -500, "z": 0}},
+    {"id": "rest_service_3", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 8300, "y": -500, "z": 0}},
+    {"id": "training_dummy_0", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6500, "y": 700, "z": 0}},
+    {"id": "training_dummy_1", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6900, "y": 700, "z": 0}},
+    {"id": "training_dummy_2", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7300, "y": 700, "z": 0}},
+    {"id": "training_dummy_3", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7700, "y": 700, "z": 0}},
+    {"id": "training_dummy_4", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 8100, "y": 700, "z": 0}},
+    {"id": "training_dummy_5", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 8500, "y": 700, "z": 0}},
     {
       "id": "airdrop_e", "kind": "Airdrop", "surface_id": "demo_ground", "position_cm": {"x": 2702, "y": -214, "z": 0}
     },

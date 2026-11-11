@@ -276,7 +276,8 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto AddPage=[this,Body](UWidget* Page){Pages.Add(Page);Body->AddChildToVerticalBox(Page)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));};
         auto NewPage=[Tree](UScrollBox*& Scroll)
         {
-            Scroll=Tree->ConstructWidget<UScrollBox>();auto* Content=Tree->ConstructWidget<UVerticalBox>();
+            Scroll=Tree->ConstructWidget<UScrollBox>();Scroll->SetScrollBarVisibility(ESlateVisibility::Visible);
+            auto* Content=Tree->ConstructWidget<UVerticalBox>();
             CastChecked<UScrollBoxSlot>(Scroll->AddChild(Content))->SetPadding(FMargin(0,4,18,16));return Content;
         };
 
