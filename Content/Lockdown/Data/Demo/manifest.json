@@ -1,15 +1,15 @@
 {
-  "author_schema_sha256": "152eaf020a8818a0a527c130b9208c2cf5e024b20659f8e9d852e04a3d207d41",
+  "author_schema_sha256": "db7fdcc5aa260574cec90854c2f8526448d06c932f5d90c1e7676d636933c17f",
   "content": {
     "file": "demo_content.json",
-    "sha256": "4edfb8ab15365ae6b0670d5759d08940f334b359b442b1c4c589cb8c669de14b"
+    "sha256": "46e1705821577fff4ab0f7adbc0b85eb9fe2c88f0b2b42b62e18f4a5a8ab7ee3"
   },
   "display_sha256": "5994f3553f19a5d0938d0318c71e237017d100a7ea210b6c2c851c8f6c9e7873",
   "format": "lockdown-demo-content",
-  "handler_revision": 3,
+  "handler_revision": 4,
   "native_contract_sha256": "59ca280685f2f030c187af88eb7d9b74b8eee891c34cb3096b10a0f00d8923c2",
   "native_ids_sha256": "fd59e78405d7cb78cfb8eac9121eb6f83acaee8dae89bf8a38bb937484b76c09",
-  "projection_revision": 5,
+  "projection_revision": 6,
   "schema_version": 2,
   "world": {
     "contract": {

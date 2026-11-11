@@ -369,7 +369,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 for(UWidget* Hidden:{static_cast<UWidget*>(PKTitleText.Get()),static_cast<UWidget*>(PKCountdownText.Get()),static_cast<UWidget*>(PKRingText.Get()),
                     static_cast<UWidget*>(PKRoleText.Get()),static_cast<UWidget*>(PKResultLine.Get()),static_cast<UWidget*>(PKAwardsTitle.Get()),
                     static_cast<UWidget*>(PKAnswerText.Get())}){Hidden->SetVisibility(ESlateVisibility::Collapsed);}
-                auto* PKScroll=WidgetTree->ConstructWidget<UScrollBox>();PKScroll->SetAlwaysShowScrollbar(true);PKScroll->AddChild(PKBox);
+                PKScroll=WidgetTree->ConstructWidget<UScrollBox>();PKScroll->SetAlwaysShowScrollbar(true);PKScroll->AddChild(PKBox);
                 auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDPKSidePanel"));PKWidth->SetWidthOverride(360);PKWidth->SetMaxDesiredHeight(480);PKWidth->SetContent(PKScroll);
                 PKPanelBorder=Panel(PKWidth,true);PKPanelBorder->SetVisibility(ESlateVisibility::Collapsed);
                 Place(PKPanelBorder,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,58));
@@ -1503,7 +1503,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     if(PKStateMatch!=Public.Generation||PKStateSerial!=Public.PK.Serial)
     {
         PKStateMatch=Public.Generation;PKStateSerial=Public.PK.Serial;
-        PKAnswer.Reset();PKThrowReadyAtMs=0;bPKThrowArmed=false;bPKBetInFlight=false;bPKThrowInFlight=false;
+        PKAnswer.Reset();PKThrowReadyAtMs=0;bPKThrowArmed=false;bPKBetInFlight=false;bPKThrowInFlight=false;bPKAwardsRevealed=false;
     }
     const bool bOwnMatch=Public.Generation!=0&&Public.Generation==PC.OwnerState.Match;
     const LDHUD::FPKPanelView View=bOwnMatch?LDHUD::PKPanel(Public,Lobby,PKInput(PC,bClock,NowMs)):LDHUD::FPKPanelView();
@@ -1560,6 +1560,13 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
         const LDHUD::FPKAwardRow* Row=View.bResult&&View.Awards.IsValidIndex(Index)?&View.Awards[Index]:nullptr;
         Line(PKAwardTexts[Index],Row?Row->Name+TEXT("：")+Row->Points:FString());
         if(Row){HudSetColor(PKAwardTexts[Index],Row->bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);}
+    }
+    // The settlement is the panel's newest information: bring the award list to the top once, after it has been laid out,
+    // so every row fits the scroll area even with all sides listed at the largest text scale; the player may scroll back.
+    if(View.bResult&&!bPKAwardsRevealed&&PKScroll)
+    {
+        PKScroll->ScrollWidgetIntoView(PKResultLine,false,EDescendantScrollDestination::TopOrLeft);
+        bPKAwardsRevealed=PKResultLine->GetCachedGeometry().GetLocalSize().Y>0;
     }
     Line(PKAnswerText,PKAnswer);
 }

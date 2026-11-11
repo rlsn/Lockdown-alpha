@@ -12,7 +12,7 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
     # Telemetry only: DEV content hot reload (-LDDevContentReload, editor build only), so a re-synced demo_content.json
     # is played without rebuilding C++. Each match records the content root it played.
     [switch]$DevContentReload,
-    # Presentation-only R0 check on real owning connections, not a full AI match. Pins only the DEV draw seed.
+    # R0 UI and PK reward transactions on real owning connections, not a full AI match. Pins only the DEV draw seed.
     [ValidateSet('2v2','3v3')][string]$UIReview)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
@@ -117,6 +117,44 @@ function Invoke-OpponentTelemetry {
     Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
 }
 
+function Assert-PKRewardReports {
+    param([object[]]$Reports, [string]$Format)
+    foreach ($role in 'Host','Client1','Client2') {
+        $roleReports = @($Reports | Where-Object { $_.role -eq $role })
+        if ($roleReports.Count -ne 1) { throw "PK reward evidence requires exactly one report for $role." }
+        $r = $roleReports[0]
+        $required = @(
+            'PK225: approved scaled public settlement agrees',
+            'PK225: owning connection receives its exact award',
+            'PK225: replayed award identities do not credit twice'
+        )
+        if ($role -eq 'Host') { $required += 'PK225: authority replays identical awards without increasing balances' }
+        if ($role -ne 'Client2') { $required += 'PK225: rendered settlement text visibly matches every public award row' }
+        if ($Format -eq '2v2') { $required += 'PK225: 2v2 exercises a real correctly betting spectator' }
+        foreach ($name in $required) {
+            if (@($r.checks | Where-Object { $_.name -eq $name }).Count -ne 1 -or
+                @($r.checks | Where-Object { $_.name -eq $name -and $_.status -eq 'passed' }).Count -ne 1) {
+                throw "PK reward check missing, duplicated, failed or not exercised for $role`: $name"
+            }
+        }
+        if ($r.summary.pk_serial -ne 1 -or -not $r.summary.pk_awards -or
+            $null -eq $r.summary.pk_expected_points -or $null -eq $r.summary.pk_points_before -or
+            $null -eq $r.summary.pk_points_after -or $null -eq $r.summary.pk_bet_points -or
+            $r.summary.pk_points_after - $r.summary.pk_points_before -ne $r.summary.pk_expected_points) {
+            throw "PK reward totals missing or inconsistent for $role."
+        }
+        if ($r.summary.pk_serial -ne $Reports[0].summary.pk_serial -or
+            $r.summary.pk_awards -cne $Reports[0].summary.pk_awards) {
+            throw 'Owning connections disagree on the frozen public PK settlement.'
+        }
+    }
+    $entrant = $Reports | Where-Object { $_.role -eq 'Client1' }
+    if ($entrant.summary.pk_expected_points -le 0) { throw 'The real Client1 entrant did not receive a PK reward.' }
+    if ($Format -eq '2v2' -and @($Reports | Where-Object {
+        $_.role -ne 'Client1' -and $_.summary.pk_bet_points -gt 0
+    }).Count -ne 1) { throw 'The 2v2 review did not credit exactly one real correctly betting spectator.' }
+}
+
 try {
     if ($Telemetry) { Invoke-OpponentTelemetry; return }
     Start-OpponentRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoOpponentHost'
@@ -161,6 +199,7 @@ try {
     if ($errors.Count) { throw "Opponent scenario logged an error: $($errors[0].Line). Evidence: $output" }
     Assert-LDNetEmulationApplied -Output $output -Roles @('Host','Client1','Client2') -NetEmulation $NetEmulation
     if ($UIReview) {
+        Assert-PKRewardReports -Reports $reports -Format $UIReview
         foreach ($role in 'Host','Client1','Client2') {
             $r = $reports | Where-Object { $_.role -eq $role }
             if ($r.summary.ui_format -ne $UIReview -or @($r.checks | Where-Object { $_.name -eq 'UI: owning connection reads team relations and observed arena bodies' -and $_.status -eq 'passed' }).Count -ne 1) {
@@ -170,8 +209,11 @@ try {
                 $shot = Join-Path $evidence "$role-PK-$UIReview-$scale.png"
                 if (-not (Test-Path -LiteralPath $shot)) { throw "UI review screenshot missing: $shot" }
             }
+            if ($role -ne 'Client2' -and -not (Test-Path -LiteralPath (Join-Path $evidence "$role-PKSettlement.png"))) {
+                throw "PK settlement screenshot missing for $role. Evidence: $output"
+            }
         }
-        Write-Host "DEV-only $UIReview UI evidence passed on three real owning connections with the approved probability and a pinned draw seed. Not full-match AI acceptance. Evidence: $output"
+        Write-Host "DEV-only $UIReview UI and PK rewards passed on three real owning connections, including exact scaled settlement, owner credit and duplicate-award replay. Not full-match AI acceptance. Evidence: $output"
         return
     }
     foreach ($ai in $first.opponents) {

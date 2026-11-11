@@ -25,6 +25,7 @@ FLDPKParameters ApprovedPKParameters()
     P.MidDamageBp = 1200;
     P.FinalDamageBp = 2500;
     P.TeamFormatBp = 5000;
+    P.RewardMultiplierBp = 15000;
     P.ParticipationPoints = 1;
     P.WinnerPointsMax = 3;
     P.BettingPoolMaxPoints = 2;
@@ -340,7 +341,7 @@ bool FLDPKAwardsTest::RunTest(const FString& Parameters)
     const FLDPKParameters P = ApprovedPKParameters();
     FString Error;
 
-    const int64 FreeForAllMax[] = {0, 0, 5, 7, 8, 9, 9};
+    const int64 FreeForAllMax[] = {0, 0, 8, 11, 12, 15, 14};
     int64 RoomMax = 0;
     for (int32 N = 2; N <= 6; ++N)
     {
@@ -348,70 +349,106 @@ bool FLDPKAwardsTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("N=%d best case total"), N), Total, FreeForAllMax[N]);
         RoomMax = FMath::Max(RoomMax, Total);
     }
-    TestEqual(TEXT("2v2 best case total"), BestCaseTotal(*this, P, 4, true, 1), int64(8));
-    TestEqual(TEXT("3v3 best case total"), BestCaseTotal(*this, P, 6, true, 1), int64(9));
-    TestTrue(TEXT("Four PKs of a six-seat room never exceed 36 points"), RoomMax * 4 <= 36);
-    TestEqual(TEXT("Four five-entrant PKs reach exactly 36"), BestCaseTotal(*this, P, 5, false, 1) + BestCaseTotal(*this, P, 5, false, 2)
-        + BestCaseTotal(*this, P, 5, false, 3) + BestCaseTotal(*this, P, 5, false, 4), int64(36));
+    TestEqual(TEXT("2v2 best case total"), BestCaseTotal(*this, P, 4, true, 1), int64(12));
+    TestEqual(TEXT("3v3 best case total"), BestCaseTotal(*this, P, 6, true, 1), int64(14));
+    TestTrue(TEXT("Four PKs of a six-seat room never exceed 60 points"), RoomMax * 4 <= 60);
+    TestEqual(TEXT("Four five-entrant PKs reach exactly 60"), BestCaseTotal(*this, P, 5, false, 1) + BestCaseTotal(*this, P, 5, false, 2)
+        + BestCaseTotal(*this, P, 5, false, 3) + BestCaseTotal(*this, P, 5, false, 4), int64(60));
 
     TArray<FLDPKAward> Awards;
-    // Free-for-all of six: the single winner gets the capped pool of 3.
+    // Free-for-all of six: the three-point base pool scales to five after ceiling.
     TArray<uint8> Six = {1, 2, 3, 4, 5, 6};
     TArray<bool> SixEligible;
     SixEligible.Init(true, 6);
     TestTrue(TEXT("Six-way free-for-all awards"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 4, 1, Six, SixEligible, {}, {}, Awards, Error));
     const FLDPKAward* Winner = SeatAward(Awards, 3);
-    TestTrue(TEXT("The single winner gets the cap of 3"), Winner && Winner->Winner == 3 && Winner->Participation == 1);
+    TestTrue(TEXT("The single winner gets the five-point scaled pool"), Winner && Winner->Winner == 5 && Winner->Participation == 1);
     FLDPKParameters Capped = P;
     Capped.WinnerPointsMax = 2;
     LDPKRules::ComputeAwards(Capped, ELDPKOutcome::Won, 4, 1, Six, SixEligible, {}, {}, Awards, Error);
     Winner = SeatAward(Awards, 3);
-    TestTrue(TEXT("The winner pool follows the content cap"), Winner && Winner->Winner == 2);
+    TestTrue(TEXT("The scaled winner pool follows the content base cap"), Winner && Winner->Winner == 3);
 
-    // 3v3: W = 3, one each, including an eliminated but present teammate.
+    // 3v3: a five-point winner pool rotates the remainder among present winners.
     TestTrue(TEXT("3v3 awards"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 2, 1, {1, 2, 1, 2, 1, 2}, SixEligible, {}, {}, Awards, Error));
-    TestTrue(TEXT("Every 3v3 winner gets 1"), SeatWinner(Awards, 1) == 1 && SeatWinner(Awards, 3) == 1 && SeatWinner(Awards, 5) == 1
+    TestTrue(TEXT("3v3 winner remainder rotates by seat"), SeatWinner(Awards, 1) == 2 && SeatWinner(Awards, 3) == 2 && SeatWinner(Awards, 5) == 1
         && SeatWinner(Awards, 0) == 0);
-    // 2v2: W = 2, one each; a forfeited winner gets nothing and the present teammate takes the pool.
+    // 2v2: a three-point winner pool rotates; a forfeited winner gets nothing.
     TestTrue(TEXT("2v2 awards"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 1, 1, {1, 2, 2, 1}, {true, true, true, true}, {}, {}, Awards, Error));
-    TestTrue(TEXT("Every 2v2 winner gets 1"), SeatWinner(Awards, 0) == 1 && SeatWinner(Awards, 3) == 1);
+    TestTrue(TEXT("2v2 winner pool remainder rotates"), SeatWinner(Awards, 0) == 2 && SeatWinner(Awards, 3) == 1);
     TestTrue(TEXT("2v2 with a forfeited winner"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 1, 1, {1, 2, 2, 1}, {true, true, true, false}, {}, {}, Awards, Error));
     TestTrue(TEXT("The forfeited winner gets nothing"), SeatAward(Awards, 3) == nullptr);
-    TestTrue(TEXT("The present teammate takes the winner pool"), SeatWinner(Awards, 0) == 2);
+    TestTrue(TEXT("The present teammate takes the scaled winner pool"), SeatWinner(Awards, 0) == 3);
     TestTrue(TEXT("Duel with a forfeited loser"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 1, 1, {1, 2}, {true, false}, {}, {}, Awards, Error));
-    TestTrue(TEXT("The forfeited loser gets no participation"), SeatAward(Awards, 1) == nullptr && TotalPoints(Awards) == 2);
+    TestTrue(TEXT("The forfeited loser gets no participation"), SeatAward(Awards, 1) == nullptr && TotalPoints(Awards) == 4);
 
-    // A pool of 2 over 3 correct bettors: one each, the remainder rotating with the PK serial.
+    // A three-point betting pool over four correct bettors rotates the remainder with the PK serial.
     TArray<int64> Split;
-    const int64 Expected[3][3] = {{1, 1, 0}, {0, 1, 1}, {1, 0, 1}};
+    const int64 Expected[4][4] = {{1, 1, 1, 0}, {0, 1, 1, 1}, {1, 0, 1, 1}, {1, 1, 0, 1}};
     for (uint32 Serial = 1; Serial <= 4; ++Serial)
     {
-        const TArray<uint8> Bets = {2, 2, 2};
-        TestTrue(TEXT("Three-way PK with three bettors"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 2, Serial, {1, 2, 3},
-            {true, true, true}, Bets, {true, true, true}, Awards, Error));
-        for (int32 Bettor = 0; Bettor < 3; ++Bettor)
+        const TArray<uint8> Bets = {2, 2, 2, 2};
+        TestTrue(TEXT("Three-way PK with four bettors"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 2, Serial, {1, 2, 3},
+            {true, true, true}, Bets, {true, true, true, true}, Awards, Error));
+        for (int32 Bettor = 0; Bettor < 4; ++Bettor)
         {
             const FLDPKAward* Row = BettorAward(Awards, Bettor);
-            TestEqual(*FString::Printf(TEXT("Serial %u bettor %d"), Serial, Bettor), Row ? Row->Bet : int64(0), Expected[(Serial - 1) % 3][Bettor]);
+            TestEqual(*FString::Printf(TEXT("Serial %u bettor %d"), Serial, Bettor), Row ? Row->Bet : int64(0), Expected[(Serial - 1) % 4][Bettor]);
         }
-        LDPKRules::SplitWithRotation(2, 3, Serial, Split);
-        TestTrue(*FString::Printf(TEXT("Serial %u split"), Serial), Split.Num() == 3 && Split[0] == Expected[(Serial - 1) % 3][0]
-            && Split[1] == Expected[(Serial - 1) % 3][1] && Split[2] == Expected[(Serial - 1) % 3][2]);
+        LDPKRules::SplitWithRotation(3, 4, Serial, Split);
+        TestTrue(*FString::Printf(TEXT("Serial %u split"), Serial), Split.Num() == 4 && Split[0] == Expected[(Serial - 1) % 4][0]
+            && Split[1] == Expected[(Serial - 1) % 4][1] && Split[2] == Expected[(Serial - 1) % 4][2]
+            && Split[3] == Expected[(Serial - 1) % 4][3]);
     }
     TestTrue(TEXT("Wrong, absent and abstaining bettors"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 1, 1, {1, 2},
         {true, true}, {1, 2, 0, 1}, {true, true, true, false}, Awards, Error));
-    TestTrue(TEXT("Only the present correct bettor takes the pool of 2"), BettorAward(Awards, 0) && BettorAward(Awards, 0)->Bet == 2
+    TestTrue(TEXT("Only the present correct bettor takes the scaled pool of 3"), BettorAward(Awards, 0) && BettorAward(Awards, 0)->Bet == 3
         && !BettorAward(Awards, 1) && !BettorAward(Awards, 2) && !BettorAward(Awards, 3));
 
     TestTrue(TEXT("Draw awards"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Draw, 0, 1, {1, 2, 3}, {true, true, false}, {1, 2, 3},
         {true, true, true}, Awards, Error));
-    TestTrue(TEXT("A draw pays participation only"), Awards.Num() == 2 && TotalPoints(Awards) == 2 && SeatAward(Awards, 2) == nullptr);
+    const FLDPKAward* DrawSeat0 = SeatAward(Awards, 0);
+    const FLDPKAward* DrawSeat1 = SeatAward(Awards, 1);
+    TestTrue(TEXT("A draw rounds and rotates the eligible participation pool"), Awards.Num() == 2 && TotalPoints(Awards) == 3
+        && DrawSeat0 && DrawSeat0->Participation == 2 && DrawSeat1 && DrawSeat1->Participation == 1 && SeatAward(Awards, 2) == nullptr);
+    TestTrue(TEXT("Participation remainder rotates on the next serial"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Draw, 0, 2,
+        {1, 2, 3}, {true, true, false}, {}, {}, Awards, Error));
+    DrawSeat0 = SeatAward(Awards, 0);
+    DrawSeat1 = SeatAward(Awards, 1);
+    TestTrue(TEXT("Participation remainder rotates on the next serial"), DrawSeat0 && DrawSeat0->Participation == 1
+        && DrawSeat1 && DrawSeat1->Participation == 2);
     TestTrue(TEXT("No-contest awards"), LDPKRules::ComputeAwards(P, ELDPKOutcome::NoContest, 0, 1, {1, 2}, {true, true}, {1}, {true}, Awards, Error));
     TestTrue(TEXT("A no-contest pays nothing"), Awards.IsEmpty());
 
     TestFalse(TEXT("A running PK has no awards"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Running, 0, 1, {1, 2}, {true, true}, {}, {}, Awards, Error));
     TestFalse(TEXT("A bet on a missing side is refused"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 1, 1, {1, 2}, {true, true}, {3}, {true}, Awards, Error));
     TestFalse(TEXT("A winner side that does not exist is refused"), LDPKRules::ComputeAwards(P, ELDPKOutcome::Won, 3, 1, {1, 2}, {true, true}, {}, {}, Awards, Error));
+    FLDPKParameters InvalidMultiplier = P;
+    InvalidMultiplier.RewardMultiplierBp = 9999;
+    TestFalse(TEXT("A sub-100% reward multiplier is refused"),
+        LDPKRules::ComputeAwards(InvalidMultiplier, ELDPKOutcome::Draw, 0, 1, {1, 2}, {true, true}, {}, {}, Awards, Error));
+    FLDPKParameters Boundary = P;
+    Boundary.ParticipationPoints = 64;
+    Boundary.RewardMultiplierBp = 40000;
+    TestFalse(TEXT("A 256-point participation award is refused instead of clamped to 255"),
+        LDPKRules::ComputeAwards(Boundary, ELDPKOutcome::Draw, 0, 1, {1, 2}, {true, true}, {}, {}, Awards, Error));
+    TestTrue(TEXT("Overflow exposes no partially payable rows and explains the refusal"), Awards.IsEmpty() && !Error.IsEmpty());
+    Boundary.RewardMultiplierBp = 39843;
+    TestTrue(TEXT("The representable 255-point participation boundary is preserved"),
+        LDPKRules::ComputeAwards(Boundary, ELDPKOutcome::Draw, 0, 1, {1, 2}, {true, true}, {}, {}, Awards, Error));
+    TestTrue(TEXT("Both participants receive the full representable award"),
+        Awards.Num() == 2 && Awards[0].Participation == 255 && Awards[1].Participation == 255);
+    Boundary.ParticipationPoints = 0;
+    Boundary.RewardMultiplierBp = 2560000;
+    TestFalse(TEXT("A 256-point winner pool cannot silently truncate"),
+        LDPKRules::ComputeAwards(Boundary, ELDPKOutcome::Won, 1, 1, {1, 2}, {true, true}, {}, {}, Awards, Error));
+    TestTrue(TEXT("Winner overflow returns no payable rows"), Awards.IsEmpty() && !Error.IsEmpty());
+    Boundary.WinnerPointsMax = 0;
+    Boundary.ParticipationPoints = 1;
+    Boundary.RewardMultiplierBp = 1280000;
+    TestFalse(TEXT("A late 256-point betting overflow with valid participant rows is atomic"),
+        LDPKRules::ComputeAwards(Boundary, ELDPKOutcome::Won, 1, 1, {1, 2}, {true, true}, {1, 2}, {true, true}, Awards, Error));
+    TestTrue(TEXT("Betting overflow returns no partially payable participants"), Awards.IsEmpty() && !Error.IsEmpty());
     return true;
 }
 

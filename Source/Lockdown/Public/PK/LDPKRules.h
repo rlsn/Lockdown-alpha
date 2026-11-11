@@ -19,6 +19,7 @@ struct LOCKDOWN_API FLDPKParameters
     int64 ShrinkStartMs = 0, MidMs = 0, FinalMs = 0, PreviewMs = 0, MaxMs = 0, TickMs = 0;
     int64 EarlyDamageBp = 0, MidDamageBp = 0, FinalDamageBp = 0;
     int64 TeamFormatBp = 0;
+    int64 RewardMultiplierBp = 0;
     int64 ParticipationPoints = 0, WinnerPointsMax = 0, BettingPoolMaxPoints = 0;
     int64 ThrowCooldownMs = 0, ThrowTelegraphMs = 0, ThrowSlowBp = 0, ThrowSlowMs = 0, ThrowExposeMs = 0;
     double ThrowRadiusCm = 0, ThrowRangeCm = 0;
@@ -97,7 +98,8 @@ namespace LDPKRules
     LOCKDOWN_API void SplitWithRotation(int64 Points, int32 Recipients, uint32 Serial, TArray<int64>& Out);
     // Awards of a decided PK. EligibleOfSeat: not forfeited and still present at settlement. Bettors: the eligible bettors
     // locked at the roster lock (sorted id order) with BetSide (0 = no bet) and BettorPresent. Out: one row per seat with
-    // non-zero points, then one row per bettor with non-zero points.
+    // non-zero points, then one row per bettor with non-zero points. An unrepresentable uint8 award component rejects the
+    // entire settlement with empty Out; no row may be clamped or paid partially.
     LOCKDOWN_API bool ComputeAwards(const FLDPKParameters& Params, ELDPKOutcome Outcome, uint8 WinnerSide, uint32 Serial,
         const TArray<uint8>& SideOfSeat, const TArray<bool>& EligibleOfSeat, const TArray<uint8>& BetSideOfBettor,
         const TArray<bool>& BettorPresent, TArray<FLDPKAward>& Out, FString& Error);

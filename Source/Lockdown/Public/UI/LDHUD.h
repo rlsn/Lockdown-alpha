@@ -99,6 +99,8 @@ protected:
     void UpdateDrag();
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
+    // #225 DEV probe reads the rendered PK settlement rows.
+    friend class FLDDemoOpponentProbe;
     UPROPERTY() TObjectPtr<UBorder> DiagnosticsPanel;
     UPROPERTY() TObjectPtr<UTextBlock> DiagnosticsText;
     LDHUD::FFrameDiagnostics FrameDiagnostics;
@@ -167,11 +169,13 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
     UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
+    UPROPERTY() TObjectPtr<class UScrollBox> PKScroll;
     // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
     // throw aim, the last throw answer's ReadyAtMs and the last answer line.
     bool bPKBetInFlight=false;
     bool bPKThrowArmed=false;
     bool bPKThrowInFlight=false;
+    bool bPKAwardsRevealed=false;
     int64 PKThrowReadyAtMs=0;
     uint32 PKStateMatch=0;
     uint32 PKStateSerial=0;
