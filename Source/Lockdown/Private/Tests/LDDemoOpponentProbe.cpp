@@ -1530,7 +1530,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if(UIReadyOpenStep==1)
             {
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab2"))),
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
                     TEXT("UI: entrant selects points during the build window"))){return Finish();}
                 LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),12.f);
                 UIReadyOpenStep=2;return true;
@@ -1552,8 +1552,9 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
     {
         if(UIReadyFoldDueAt==0){UIReadyFoldDueAt=Now+.2;return true;}
         if(Now<UIReadyFoldDueAt){return true;}
-        if(!Check(!PC.HUDUI->ChoicesPanel->IsPanelOpen()&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
-            TEXT("UI: actual PK entry folds the entrant workspace without discarding its staged point"))){return Finish();}
+        if(!Check(PC.HUDUI->ChoicesPanel->IsPanelOpen()&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
+            TEXT("UI: actual PK entry keeps the player-opened workspace and its staged point"))){return Finish();}
+        PC.HUDUI->ChoicesPanel->ClosePanel();
         UIReadyOpenStep=4;
     }
     if(bUIPKShotsDone){return true;}
@@ -2135,8 +2136,9 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                         {UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;}
                         return true;
                     }
-                    if(!Check(!Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight,
-                        TEXT("UI: actual field combat folds planning without losing staged points"))){return Finish();}
+                    if(!Check(Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight,
+                        TEXT("UI: actual field combat keeps the player-opened planning and its staged points"))){return Finish();}
+                    Panel->ClosePanel();
                     if(!CheckSummary(false,1280,720)){return Finish();}
                     Capture(TEXT("Client1FieldCombatFold.png"));UIFieldStep=40;return true;
                 }
