@@ -47,14 +47,14 @@ ProductMismatch、ContentMismatch、InvalidName）；`PreLogin` 的这些检查�
 `PostLogin` 拒绝时客户端已载入房间，原因经 `ClientWasKicked` 送达后返回前端。拒绝或网络、旅行失败使客户端离开房间世界时，
 第一个原因保留到前端，随后同一世界的断线不再覆盖它；正在离开的房间世界也不再建立房间界面，以免界面把该原因记为已显示。
 前端不创建参赛记录，Lobby 中的身体阶段为 Unspawned。正常开局由 `LDMatchProviders` 门禁：
-Combat、Progression（含最终等级读取）、Shop、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
+Combat、Progression（含最终等级读取）、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
 Demo 世界注册表已加载，才允许 Host 开始；缺失项逐个写进 Lobby 的 StartBlocker 与 Start 回执。
 提供者以各自翻译单元中的静态 `FRegistrar` 登记钩子（Prepare/MatchClosed/MatchReset/LifeCommitted/
 ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于玩法已正确接通。
 
 `ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
 发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
-`EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果（开局倒计时内以 `WrongPhase` 拒绝：T=0 之前没有可结算的用时）；
+`EndMatch` 只在 Rest/Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果（其他阶段以 `WrongPhase` 拒绝）；
 有待重试的死亡奖励（或因此等待结算边界的守护完成）时返回 `RequestInFlight`，下一边界结清后才可结束。
 `ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
 Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；
@@ -65,7 +65,7 @@ Ready 是设置布尔值，不是服务器 Toggle。准备变化只推进公共�
 成员/AI 数量改变才推进结构版本并清除所有真人 Ready。
 `FLDSessionRequestWindow` 只保存当前在途请求、最近终态及处理水位：
 同键同条款重放，改条款拒绝，过窗拒旧，同域重入不能开始第二次写入。
-这是会话窗口，不代替经济账本、战斗或导航各自的去重机制。
+这是会话窗口，不代替成长、战斗或导航各自的去重机制。
 
 Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹配服务，也不会自动解决 NAT。
 必须分别验证独立拥有客户端和可见的 Listen Host；拥有 Host 进程的人本来就能访问权威状态，
@@ -94,8 +94,14 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 13：观察 schema 7 公开 Q/W/E 三个主动槽与扩展的技能表现，
-  每个单位最多 14 个公开状态；双方须使用同一构建。12 是观察 schema 6 使用有界无损覆盖游程编码时的版本；
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 18：#198 公共休息室增加真人准备 RPC、OwnerState 服务/准备字段与时间线准备名单，训练重置绑定当前生命和休息步骤。PK 使用站圈报名（用户选择 A），没有报名开关 RPC，
+  世界多出报名圈锚点（布局修订 9）；双方须使用同一构建。
+  16 是 #198 规则工坊整合后，公开对局视图新增时间线、符咒与 PK/观众数据，
+  并新增蓝图、PK 与休息阶段的 RPC（观察 schema 仍为 8）时的版本。
+  15 是 #198 以构建命令（选主动技能、学图纸、分配属性点）取代三选一卡牌，
+  成长本人视图带属性点、待学图纸与构建安全窗口，观察 schema 8 的公开 Q/W/E 不再带技能等级时的版本。
+  14 是 #144 删除装备、金钱与商店（观察单位不再带装备槽，成长本人视图与回执不再带账户、装备与商店字段）时的版本；13 是观察 schema 7 公开 Q/W/E 三个主动槽与扩展的技能表现、
+  每个单位最多 14 个公开状态时的版本；12 是观察 schema 6 使用有界无损覆盖游程编码时的版本；
   11 是 #153 新增开局方向选项、本人已选方向与选择后的技能揭晓回执时的版本；
   隐藏分配不在复制结构中。10 是 #147 第 2 层删除旧目录专用状态（狂暴、伏击就绪、重伤、格挡、易伤）后，
   每个单位的公开状态上限（`LDObservation::MaxStatuses`）降为全部公开状态同时存在的 11 个；
@@ -103,20 +109,23 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   7 是去掉装备主动入口（`ELDCombatEntry` 只剩 Q/W/D）与公开施法的装备来源时的版本。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
+- 局末构筑蓝图（#198 §10）不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
+  （`ALDPlayerController` 默认子对象）发出 Offer，拥有者按顺序拉取分块并在本机 `Saved/Blueprints` 写文件；
+  见[视野与 UI](VISION_AND_UI.md#构筑蓝图文件与查看)。
 
 详细可见性机制见 [视野与 UI](VISION_AND_UI.md)。
 
 ## 请求、代次与回执
 
 所有权由拥有连接决定，不能相信客户端传入的另一名玩家标识。
-命令携带其所需的 match、life、sequence/order、build/inventory/object revision，
+命令携带其所需的 match、life、sequence/order、build/object revision，
 目标使用当前获准的观察句柄或公开地点 ID，不使用隐藏 Actor 指针。
 
 先验证代次、身份、目标和资源，再提交一次结果。重复的已接受请求返回原回执，
 不能重复发钱、创建物品或施放效果。旧 life 的投射物、输入、菜单报价和移动确认不能作用于新身体。
 UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执。
 
-`ULDNavigationComponent` 的取消 epoch 与库存/商店的 request 回执
+`ULDNavigationComponent` 的取消 epoch 与成长的 request 回执
 是不同领域的版本，不要用一个全局“最新版本号”替代全部语义。
 
 ## 生命周期与失败
@@ -125,25 +134,37 @@ Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当�
 Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
 死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
 （撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
-到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
+复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
-成长、商店、营地与终局按各自提供者接入。
-`IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Countdown/Development/CaptureOpen 为真。
+成长、营地与终局按各自提供者接入。
+`IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。
 
-开局倒计时（#153）：`StartDemoMatch` 完成初次出生后进入 `Countdown`，不直接进入 Development。
-`InitializeCaptureMatch` 把 `MatchStartedAtMs`（本局 T=0）设为权威时间起点加 `MATCH.CountdownSec`，
-发育期截止、外卖、上热搜与画饼老板的时间表都从这个 T=0 计算，`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs` 也是它。
-倒计时内写闸保持打开：权威时钟照常推进，移动、开局三选一、离局与观测照常提交（2026-11-07 用户决定倒计时内允许移动和选技能、不允许攻击和购买）；
-`ALDGameMode::IsOpeningCountdown` 加上 `LDOrderRules::CountdownAdmitsOrder/CountdownAdmitsAction` 决定拒绝范围：导航的攻击移动、攻击单位与施法订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，地面移动与走向小摊照常受理；
-Combat 的普攻与 Q/W 回 `ELDCombatReject::NotStarted`，冲刺 D 属于移动照常受理；商店买卖与进阶在提交时回 `ELDGrowthReason::MatchNotStarted`；
-这些拒绝都记入各自的回执窗口，T=0 后重放仍得到同一拒绝。营地在倒计时内不处理意图，对手 AI 的决策在非 Development/CaptureOpen 阶段停止。
-`NextCountdownDueMs` 让 T=0 成为精确的步边界；到达 T=0 的这一步仍属于倒计时，`ExecuteCapturePhase` 在它闭合后切到 Development，
-第一个可行动的步从 T=0 开始。
+外层流程（#198，用户 2026-11-10 批准[外层参数](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，原话：“批准整套方案，按票内参数实施”）：
+#153 的开局倒计时已删除（`ELDMatchPhase` 数值 2 退役）。`StartDemoMatch` 把每名参赛者的第一条生命放在公共休息室按名单槽位固定的 `rest_spawn_<槽位>` 后进入 `Rest`（开局休息 R0），
+`InitializeCaptureMatch` 把 `MatchStartedAtMs`（`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs`）设为此刻，以 `MAX_int64` 开始喷漆归约器，
+并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息与 PK 中冻结，
+外卖、上热搜、画饼老板、营地刷新、营地成长阶段与营地标记都按 T 以 0 为起点计时（`GetFieldNowMs`、`FieldDueAuthorityMs`）；
+#198 外层参数 §5 的地图事件（外卖固定落地表与 40 s 消失、老板 T=240 s 出现并在进入第三次休息的 `FreezeForRest` 中退场、营地标记在各段
+T+15 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/`AdvanceFieldMarkers`（RespawnsAndWorld）与
+`ALDCampDirector::AdvanceCamps`/`FreezeForRest` 驱动；标记由营地死亡（`ConsumeMemberDeath` 的 CampCleared）领取，奖励经
+`ALDGameMode::PayFieldReward` 进入 `ALDGrowthDirector::CommitFieldReward`，可重试的拒绝在之后每个 Transactions 由 `RetryFieldRewards` 重付；
+最终野外开始的边界由 `FLDCaptureReducer::ScheduleOpen` 定为开放时刻，同一边界的 Capture 阶段从 Development 切到 CaptureOpen。
+`NextTimelineDueMs` 让每个休息步骤与野外段终点成为精确步边界；driver 在 RespawnsAndWorld 开头调用 `AdvanceTimeline`，
+在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算再锁定）。休息中 driver 跳过营地运动、营地意图与世界推进，
+Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果取消与资源补满见[会话、对局与生命周期 §3.4](../demo/SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界198)。
+写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）。
+返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
+这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行，休息中只在构筑开放的步骤处理成长。
+PK 报名是实体的站圈报名（用户选择 A）：没有报名 RPC，`ALDGameMode::RefreshRestSignups` 在报名窗口内每拍按已提交脚点是否在本人
+`pk_signup_<槽位>` 圆盘（`SignupDiskFor`，半径 `AIRDROP.PickupRadiusCm`）内重算公开名单，截止时刻再算一次并锁定。
+会话 D 注册可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`）：竞猜与投掷经 `ALDPlayerController::ServerPKBet`/`ServerPKThrow` 交 `ALDPKDirector::SubmitBet`/`SubmitThrow`
+判定，回 `ClientPKBet`/`ClientPKThrow`（投掷另带下次可投时刻）；AI 走同一入口。观众与被淘汰者由观察所有者显式授权看见全部场内选手、场区覆盖
+与场内技能投射物和预警，同队 PK 生命共享各自合法视线的并集（投射物与预警同样按队友的脚点与视线判定），被暴露的选手只对本场 PK 生命额外可见。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
 GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/MP/盾仍只在
 `Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。
 初次身体绑定只接受已登记的 Unspawned 主体、当前 Starting permit 和重新核验的真实合法位置，
-重复调用不再初始化资源。初次出生与复活共用同一抽点/落地/准备/提交路径；初次出生不附加保护。
+重复调用不再初始化资源。初次出生（放在休息锚点）、阶段放置与复活共用同一落地/准备/提交路径（`PlaceContenderBody` 的目标为抽点、指定锚点或就近搜索）；初次出生不附加保护。
 
 GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Combat driver 按真实可达整数上界
 推进同一 CMC 区间；不写 `UWorld::TimeSeconds`。`AuthoritySecondsToNowMs` 使用受检 floor，
@@ -227,7 +248,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 | --- | --- |
 | `LogLDMatch` | 入口、房间、开局头与名单、生命与死亡、喷漆守护、结果与对局汇总、标记 |
 | `LogLDCombat` | 战斗驱动、Host 命中行、本人战斗输入与回执、客户端本人受伤/状态/所见施法 |
-| `LogLDGrowth` | 奖励、升级、三选一、商店、账本、DEV 成长夹具，客户端本人成长 |
+| `LogLDGrowth` | 奖励、升级、三选一、DEV 成长夹具，客户端本人成长 |
 | `LogLDNav` / `LogLDAI` / `LogLDWorld` | 订单与移动 / 对手 AI / 营地、Boss、空投、地图注册与视野中继 |
 | `LogLDNet` | 10 秒帧耗时与连接汇总、卡顿行 |
 | `LogLDUI` / `LogLDContent` / `LogLDTest` | 界面与本地设置 / 内容、美术与音效目录 / DEV 场景探针 |
@@ -238,20 +259,19 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 | 标签 | 写入位置 | 字段要点 |
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
-| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
-| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
-| `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级、悬赏 |
-| `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
+| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、待选、当前订单与目标点、正在前摇的动作、公开状态 |
+| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
+| `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级 |
+| `LD_REWARD` / `LD_LEVEL_UP` | `LDGrowthDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（`cause=death`/`map_event`/`dev_fixture`，`role=killer`/`assist`/`recipient`）、经验及其结余、等级变化、获得的三选一次数 |
 | `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡（含重抽）的三张卡；确认的卡、等级、替换 |
-| `LD_SHOP_TRADE` / `LD_SHOP_REJECTED` | `LDVendorDirector.cpp` | 买、卖、进阶成功的物品、槽位、金币变化与结余；拒绝原因 |
-| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于开局倒计时、发育期或旗杆开放时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
-| `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、金币、K/D/A、技能及等级、属性卡、装备 |
+| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于休息（Rest）、野外（Development）或旗杆开放（CaptureOpen）时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
+| `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、K/D/A、技能及等级、属性卡 |
 | `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
 
 远端客户端只记录该玩家本来就能看到的信息（`FLDPlaytestTrace`，读法与 [视野与 UI](VISION_AND_UI.md#ui-只读模型) 的允许来源一致）：
 `LD_SELF_MATCH`/`LD_SELF_ROSTER`（本人身份与公开名单）、`LD_SELF_STATE`（每秒一行本人投影）、`LD_SELF_LIFE`、
 `LD_SELF_HP`/`LD_SELF_STATUS`（本人受伤、护盾吸收、治疗与状态，由与 HUD 飘字同一 `LDWorldFeedback::FTracker` 得出）、
-`LD_SELF_REWARD`/`LD_SELF_LEVEL`/`LD_SELF_OFFER`/`LD_SELF_BUILD`/`LD_SELF_ITEMS`（本人成长投影）、
+`LD_SELF_REWARD`/`LD_SELF_LEVEL`/`LD_SELF_OFFER`/`LD_SELF_BUILD`（本人成长投影）、
 `LD_SELF_KILLFEED`/`LD_SELF_DEATH`/`LD_SELF_KILL`/`LD_SELF_RESULT`（公开击杀通知与结果）、`LD_SELF_SEEN_CAST`（当前授权帧内可见单位的施法）、
 `LD_SELF_ORDER` 与已有的 `LD_COMBAT_INPUT`（本人发出的订单与战斗输入，按住右键的重复订单最多每 0.25 秒一行）
 和 `LD_PLAYER_MARK source=self`。客户端日志不含隐藏单位的位置、他人的经济或伤害公式拆解；本人视角各行都在该局的
@@ -277,9 +297,11 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 争夺暂停/续计/清零、保护与契约故障、喷漆区几何、公共读模型、提供者门禁、Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
+三名拥有者并发验证走动、停止与旧订单后，轮流验证各自的地面终点，避免他人途经目标时按合法的占点规则提前结束订单；
+轮转及占点几何由 `Lockdown.Rules.DemoCoreProbe.ArrivalTurn` 覆盖。
 `RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的喷漆、争夺暂停与续计、
 喷上涂鸦、主人离区使守护暂停、他人独自改漆使守护保持冻结且改漆失败后守护仍暂停、主人独自回区后续计、冻结期间主人走出使守护清零而涂鸦保留、
 主人独自在区内站满守护时长以 `GuardSucceeded` 守护成功的
-唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
+唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP、
 空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、旗杆与涂鸦复位与旧代请求以 StaleMatch 拒绝；
 它同样不代替 3+3、AI 或网络异常验收。

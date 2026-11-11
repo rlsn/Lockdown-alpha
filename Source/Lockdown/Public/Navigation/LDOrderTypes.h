@@ -24,7 +24,7 @@ struct FLDMoveIdentity
 // Q/W reaches it; both then cast (2026-11-06 decisions) and carry that Direct request beside the order
 // (ULDNavigationComponent::SubmitCast).
 UENUM()
-enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, ApproachShop, CastUnit, CastPoint };
+enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, CastUnit, CastPoint };
 
 // Exactly one target arm is meaningful for each kind; the others must stay at their defaults.
 USTRUCT()
@@ -39,8 +39,6 @@ struct FLDSpatialOrderRequest
     // AttackUnit: observer-local opaque handle and observation epoch.
     UPROPERTY() FGuid Observed;
     UPROPERTY() uint32 ObservationEpoch=0;
-    // ApproachShop: public POI id.
-    UPROPERTY() FName ShopId;
     // Shift (2026-11-06 user decision): wait behind the current order and the steps already queued instead of
     // replacing them (ULDNavigationComponent shift queue, LDOrderRules::MaxQueuedSteps).
     UPROPERTY() bool bQueue=false;
@@ -53,12 +51,10 @@ struct FLDSpatialOrderRequest
         case ELDSpatialOrderKind::MoveGround:
         case ELDSpatialOrderKind::AttackMove:
         case ELDSpatialOrderKind::CastPoint:
-            return !Observed.IsValid() && !ObservationEpoch && ShopId.IsNone();
+            return !Observed.IsValid() && !ObservationEpoch;
         case ELDSpatialOrderKind::AttackUnit:
         case ELDSpatialOrderKind::CastUnit:
-            return GroundCm.IsZero() && SurfaceHint.IsNone() && ShopId.IsNone();
-        case ELDSpatialOrderKind::ApproachShop:
-            return GroundCm.IsZero() && SurfaceHint.IsNone() && !Observed.IsValid() && !ObservationEpoch && !ShopId.IsNone();
+            return GroundCm.IsZero() && SurfaceHint.IsNone();
         default:
             return false;
         }
@@ -67,7 +63,7 @@ struct FLDSpatialOrderRequest
     {
         return Identity==Other.Identity && Kind==Other.Kind && FVector(GroundCm)==FVector(Other.GroundCm)
             && SurfaceHint==Other.SurfaceHint && Observed==Other.Observed
-            && ObservationEpoch==Other.ObservationEpoch && ShopId==Other.ShopId && bQueue==Other.bQueue;
+            && ObservationEpoch==Other.ObservationEpoch && bQueue==Other.bQueue;
     }
     bool IsAggressive() const
     {
@@ -83,7 +79,7 @@ UENUM()
 enum class ELDOrderFailure : uint8
 {
     None, InvalidRequest, NotOwner, StaleMatch, StaleLife, StaleOrder, RequestConflict, SequenceExhausted,
-    InvalidGround, NoCompletePath, PathBlocked, TargetUnavailable, TargetDied, ShopUnavailable,
+    InvalidGround, NoCompletePath, PathBlocked, TargetUnavailable, TargetDied,
     Dead, MatchEnded, Superseded, Stopped, Expired,
     // A taunted body takes no order of its own; Navigation chases its taunter instead.
     Taunted,
@@ -93,7 +89,7 @@ enum class ELDOrderFailure : uint8
     QueueFull,
     // A CastUnit's skill could not be cast (not ready, refused by Combat); its Combat receipt carries the reason.
     CastRefused,
-    // #153: the opening countdown admits no new order before the match's T=0.
+    // #198: the rest return countdown locks every order (approved: 锁构筑与输入).
     NotStarted
 };
 

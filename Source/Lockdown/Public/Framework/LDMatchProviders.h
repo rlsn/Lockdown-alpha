@@ -8,7 +8,8 @@ class ALDGameMode;
 
 // Gameplay providers that a normal Demo match needs. A provider registers once from its own
 // translation unit (LDMatchProviders::FRegistrar); GameMode never includes provider headers.
-enum class ELDMatchProvider : uint8 { Combat, Progression, Shop, Camps, Vision, OpponentAI, Count };
+// PK (#198 session D) is optional: without it rest sign-ups are refused explicitly and every rest skips its PK.
+enum class ELDMatchProvider : uint8 { Combat, Progression, Camps, Vision, OpponentAI, PK, Count };
 
 struct FLDMatchStartContext
 {
@@ -36,7 +37,8 @@ struct FLDMatchReset
     bool bAbortedStart = false;
 };
 
-enum class ELDLifeChange : uint8 { Joined, Died, Respawned, ProtectionEnded, Left };
+// PhaseRetired (#198): a life ended by a rest/field boundary, not a death; the contender gets its next life at once.
+enum class ELDLifeChange : uint8 { Joined, Died, Respawned, ProtectionEnded, Left, PhaseRetired };
 
 struct FLDLifeNotice
 {
@@ -45,6 +47,18 @@ struct FLDLifeNotice
     ELDLifeChange Change = ELDLifeChange::Joined;
     uint64 LifeRevision = 0;
     int64 OccurredAtMs = 0;
+};
+
+// #198 rest step entered (or the build locked) at AtMs. Entrants are the locked PK entrants (sorted), empty before the
+// lock and when the PK was skipped.
+struct FLDRestStepNotice
+{
+    FLDMatchContext Match;
+    uint8 RestIndex = 0;
+    ELDRestStep Step = ELDRestStep::None;
+    bool bBuildLocked = false;
+    int64 AtMs = 0;
+    TArray<FGuid> Entrants;
 };
 
 struct FLDMatchProviderHooks
@@ -60,6 +74,9 @@ struct FLDMatchProviderHooks
     TFunction<void(ALDGameMode&, const FLDLifeNotice&)> LifeCommitted;
     // Progression only: committed final level for the frozen result rows.
     TFunction<bool(const ALDGameMode&, const FGuid& Contender, uint8& Level, FString&)> ReadFinalLevel;
+    // PK only (#198 session D): every rest step entry and the build lock, under the boundary's permit
+    // (RespawnsAndWorld, or Transactions for the lock and the step it enters). False is an authority fault.
+    TFunction<bool(ALDGameMode&, const FLDRestStepNotice&, const FLDGameplayWritePermit&, FString&)> RestStep;
 };
 
 namespace LDMatchProviders

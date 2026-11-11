@@ -16,6 +16,7 @@ class ALDGameMode;
 class ALDPointerFeedback;
 class FLDDemoContentSnapshot;
 struct FLDAuthorityTargetSample;
+struct FLDWorldView;
 struct FCollisionShape;
 
 // The only writer of a contender body's current order. The owning client sends typed intents and predicts
@@ -31,12 +32,9 @@ public:
     // ---- Owning client intents; each takes a fresh local identity. bQueue (Shift) appends the order to the server's
     // shift queue instead of replacing the current order and the queue (LDOrderRules::MaxQueuedSteps).
     void Navigate(const FVector& Surface, bool bQueue=false);
-    // MarkerCm is where the move marker appears when it is not the order's own point (a right click on the stall model
-    // walks beside it but marks where the click landed); its colour still answers the order's own point.
-    void NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm=nullptr, bool bQueue=false);
+    void NavigateGround(const FVector& Surface, FName SurfaceHint, bool bQueue=false);
     void AttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue=false);
     void AttackMove(const FVector& Surface, FName SurfaceHint, bool bQueue=false);
-    void ApproachShop(FName ShopId);
     void Stop();
     void ResetLife();
     // Right click: visible unit under the pointer, else the public shop, else ground. One class per click. A ground
@@ -58,11 +56,6 @@ public:
     bool PointerPosition(FVector2D& Out) const;
     // The ground under the pointer on the world-click channel.
     bool GroundUnderPointer(FHitResult& Out) const;
-    // The public shop whose decoration model lies under the pointer ray (its mesh bounds, not the interaction radius).
-    bool ShopUnderPointer(FName& OutShop);
-    // The ground goal of a right click: the pointer's ground point, or over the stall model the nearest walkable point
-    // beside it (the model takes a right click like a wall: where the body already stands when it is beside the model).
-    void PointerGoal(const FHitResult& GroundHit, FVector& OutGoal);
     // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
@@ -89,16 +82,6 @@ public:
     {return !bLocalStop && ClientActive.Order!=0 && ClientActive.Epoch==Local.Epoch ? ClientActive : Local;}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
-    // Owning client: the shop of the current ApproachShop order, en route or arrived and awaiting the
-    // shop domain's open result. A new order, Stop, a non-completed end or a new life ends the binding.
-    bool ReadShopInteraction(FName& OutShopId, uint32& OutLife) const;
-    // Owning client, once per binding: the current ApproachShop order completed inside the shop's range.
-    // The shop domain requests its session from here; Navigation itself never opens a shop.
-    DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnShopArrived, FName /*ShopId*/, uint32 /*Life*/);
-    FLDOnShopArrived OnShopArrived;
-    // Owning client: whether the own body's feet stand inside the shop's interaction radius, by the same check as a
-    // right-click on the shop. A local trigger for shop pre-orders only; the server re-checks reach on every trade.
-    bool OwnBodyAtShop(FName& OutShop);
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
@@ -160,8 +143,6 @@ private:
     static constexpr double OrderNoProgressSeconds=2.;
     static constexpr double GoalShiftCm=50.;
     static constexpr double GoalAcceptanceCm=40.;
-    // Spacing of the goals tried from beside the stall back toward the body when the stall model is right-clicked.
-    static constexpr double ShopStopStepCm=25.;
     static constexpr int32 MaxOrderRecords=16;
     // A CastUnit casts this far inside the skill's reach, so the target's next step does not take it out of range.
     static constexpr double CastMarginCm=10.;
@@ -190,7 +171,6 @@ private:
         int32 PointIndex=0;
         FVector Goal=FVector::ZeroVector;          // end of the current path
         FVector Destination=FVector::ZeroVector;   // fixed ground destination (MoveGround/AttackMove)
-        FVector ShopCentre=FVector::ZeroVector;
         FVector TargetFoot=FVector::ZeroVector;    // pinned target at the latest authorized sample
         FVector PlannedTargetFoot=FVector::ZeroVector;
         FVector SentGoal=FVector::ZeroVector;
@@ -261,7 +241,6 @@ private:
     // body goal (LDPathSteering::PlanRoute). Projected is the planned end.
     bool Plan(const FVector& Goal, FName SurfaceHint, LDPathSteering::EGoal GoalKind, TArray<FVector>& Out, FVector& Projected,
         ELDWorldQueryFailure& Failure, FString& Error);
-    bool ShopAt(const FVector& GroundPoint, FName& OutShop, bool bNotify=true);
     // Local route check of a ground point from this body, for click feedback only: false with bKnown when the route
     // fails; true without bKnown when the body's own support cannot be read this frame. The server still decides.
     bool ProbeGround(const FVector& GroundCm, bool& bKnown) const;
@@ -337,6 +316,8 @@ private:
         bool& bRetry, ELDCombatReject& Reject, FString& Error);
     // CastPoint: walks toward the aimed point and casts once it lies within reach.
     bool AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
+    FVector AvoidObservedRestBodies(const ALDCharacter& Body, const FVector& Waypoint, const FVector& Preferred,
+        const FLDWorldView& View, const FGuid& Self) const;
     FVector AuthoritySteering(const ALDCharacter& Body);
     void TrackProgress(const ALDCharacter& Body, double Now, bool bMoving);
     bool GroundArrived(const ALDCharacter& Body, const FActiveOrder& Order) const;
@@ -366,9 +347,6 @@ private:
     TArray<FQueuedMark> QueuedMarks;
     void RefreshQueuedPath();
     FLDMoveIdentity Local, ClientActive;
-    FName ShopBindingId;
-    FLDMoveIdentity ShopBindingIdentity;
-    bool bShopArrived=false;
     // Targets of sent AttackUnit orders, retained until their terminal receipts. ClientActive selects the accepted one;
     // pending and Shift-queued attacks cannot replace it. The receipt itself does not carry an observation handle.
     struct FAttackIntent

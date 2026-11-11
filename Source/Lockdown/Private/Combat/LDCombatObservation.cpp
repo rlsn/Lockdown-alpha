@@ -97,6 +97,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
         // Each flight is observed by its own identity.
         Fact.Key=Projectile.FlightId;
+        Fact.SourceEntity=Projectile.SourceEntity;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
         Fact.Look=Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot)
@@ -109,6 +110,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
     {
         FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
         Fact.Key=Ground.Payload.EffectId;
+        Fact.SourceEntity=Ground.Payload.SourceEntity;
         Fact.PositionCm=Ground.CentreCm;
         Fact.Heading=FVector2D(1,0);
         Fact.Look=!Ground.bTrap ? ELDObservedProjectileLook::BookShadow
@@ -123,6 +125,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         if (!Body || !Actor || Body->bPendingDeath || Body->ChannelEffectId!=Channel.Payload.EffectId) { continue; }
         FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
         Fact.Key=Channel.Payload.EffectId;
+        Fact.SourceEntity=Channel.Payload.SourceEntity;
         Fact.PositionCm=FootOf(*Actor);
         Fact.Heading=FVector2D(Channel.Direction.X,Channel.Direction.Y);
         Fact.Look=ELDObservedProjectileLook::SpeechCone;

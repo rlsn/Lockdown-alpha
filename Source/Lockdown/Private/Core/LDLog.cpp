@@ -193,8 +193,8 @@ FString LDLog::Source(const FLDCombatSourceRef& Source)
     {
     case ELDCombatSourceKind::Basic: return TEXT("basic");
     case ELDCombatSourceKind::Learned: return TEXT("learned:") + Source.DefinitionId.ToString();
-    case ELDCombatSourceKind::Gear: return TEXT("gear:") + Source.DefinitionId.ToString();
     case ELDCombatSourceKind::Innate: return TEXT("innate:") + Source.DefinitionId.ToString();
+    case ELDCombatSourceKind::Component: return TEXT("component:") + Source.DefinitionId.ToString();
     default: return TEXT("none");
     }
 }

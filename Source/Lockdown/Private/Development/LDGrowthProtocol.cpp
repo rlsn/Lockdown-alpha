@@ -21,8 +21,8 @@ bool GrowthWireSameDigest(const FLDDemoContentDigest& A, const FLDDemoContentDig
 bool FLDDefinitionWire::Encode(FName Id, FLDDefinitionWire& Out)
 {
     Out = FLDDefinitionWire();
-    // FName identity ignores case and non-editor builds keep only the first registered casing (a reflected "Shop"
-    // turns "shop" into "Shop"), so the wire carries the canonical lowercase spelling of the same name.
+    // FName identity ignores case and non-editor builds keep only the first registered casing (a reflected
+    // name spelled with other capitals changes how the same id prints), so the wire carries the canonical lowercase spelling of the same name.
     const FString Text = Id.ToString().ToLower();
     if (Id.IsNone() || Text.IsEmpty() || Text.Len() >= int32(sizeof(Out.Bytes)))
     {
@@ -75,38 +75,82 @@ bool FLDDefinitionWire::Decode(FName& Out) const
     return true;
 }
 
-bool FLDChoiceCommand::SameTerms(const FLDChoiceCommand& Other) const
+bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
 {
     return Generation == Other.Generation && Life == Other.Life && ExpectedLifePhase == Other.ExpectedLifePhase
-        && RequestId == Other.RequestId && OfferId == Other.OfferId && OfferRevision == Other.OfferRevision
-        && OptionId == Other.OptionId && ExpectedBuildRevision == Other.ExpectedBuildRevision
-        && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && bReplace == Other.bReplace && ReplaceSlot == Other.ReplaceSlot
-        && ExpectedOldSkillId == Other.ExpectedOldSkillId && ExpectedOldRank == Other.ExpectedOldRank
-        && bReplaceConfirmed == Other.bReplaceConfirmed && bReroll == Other.bReroll;
-}
-
-bool FLDShopCommand::SameTerms(const FLDShopCommand& Other) const
-{
-    return Generation == Other.Generation && Life == Other.Life && RequestId == Other.RequestId && Kind == Other.Kind
-        && SessionId == Other.SessionId && QuoteRevision == Other.QuoteRevision && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest)
-        && WorldMapId == Other.WorldMapId && WorldLayoutRevision == Other.WorldLayoutRevision
-        && WorldGeometryRevision == Other.WorldGeometryRevision && ExpectedAccountRevision == Other.ExpectedAccountRevision
-        && ExpectedInventoryRevision == Other.ExpectedInventoryRevision && ExpectedBuildRevision == Other.ExpectedBuildRevision
-        && DefinitionId == Other.DefinitionId && BuyPrice == Other.BuyPrice && Instance == Other.Instance
-        && ExpectedItemRevision == Other.ExpectedItemRevision && SellPrice == Other.SellPrice && UpgradePrice == Other.UpgradePrice;
+        && RequestId == Other.RequestId && ExpectedBuildRevision == Other.ExpectedBuildRevision
+        && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && Kind == Other.Kind && OfferId == Other.OfferId
+        && OfferRevision == Other.OfferRevision && Option == Other.Option && bLearnIfPossible == Other.bLearnIfPossible
+        && Slot == Other.Slot && Blueprint == Other.Blueprint && PointCounts == Other.PointCounts
+        && Component == Other.Component && bInstallIfPossible == Other.bInstallIfPossible && TargetKind == Other.TargetKind
+        && TargetDefinition == Other.TargetDefinition && TargetSegment == Other.TargetSegment && BoundActive == Other.BoundActive
+        && Element == Other.Element && BoundComponent == Other.BoundComponent && Filler == Other.Filler
+        && Surrendered == Other.Surrendered;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
 {
-    return Family == ELDGrowthFamily::Choice || Family == ELDGrowthFamily::Shop;
+    return Family == ELDGrowthFamily::Build;
 }
 
-bool LDGrowthWire::IsKnownShopKind(ELDShopCommandKind Kind)
+bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
 {
-    return Kind == ELDShopCommandKind::Buy || Kind == ELDShopCommandKind::Sell || Kind == ELDShopCommandKind::Upgrade;
+    switch (Kind)
+    {
+    case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::LearnBlueprint:
+    case ELDBuildCommandKind::AllocatePoints:
+    case ELDBuildCommandKind::OpeningBase:
+    case ELDBuildCommandKind::InstallComponent:
+    case ELDBuildCommandKind::UninstallComponent:
+    case ELDBuildCommandKind::BuyNpcOffer:
+    case ELDBuildCommandKind::Respec:
+    case ELDBuildCommandKind::ReplaceActive:
+    case ELDBuildCommandKind::ForgetActive:
+    case ELDBuildCommandKind::ComponentChoice:
+    case ELDBuildCommandKind::FillGap:
+    case ELDBuildCommandKind::Dismantle:
+        return true;
+    case ELDBuildCommandKind::None:
+        break;
+    }
+    return false;
 }
 
-bool LDGrowthWire::IsChoicePhase(ELDLifePhase Phase)
+bool LDGrowthWire::IsKnownTargetKind(ELDComponentTargetKind Kind)
+{
+    switch (Kind)
+    {
+    case ELDComponentTargetKind::None:
+    case ELDComponentTargetKind::Active:
+    case ELDComponentTargetKind::EffectSegment:
+    case ELDComponentTargetKind::Component:
+    case ELDComponentTargetKind::Dash:
+        return true;
+    }
+    return false;
+}
+
+bool LDGrowthWire::IsKnownElement(ELDDemoElement Element)
+{
+    switch (Element)
+    {
+    case ELDDemoElement::None:
+    case ELDDemoElement::Fire:
+    case ELDDemoElement::Water:
+    case ELDDemoElement::Electric:
+        return true;
+    }
+    return false;
+}
+
+bool LDGrowthWire::DecodeOptional(const FLDDefinitionWire& Wire, FName& Out)
+{
+    Out = NAME_None;
+    return Wire == FLDDefinitionWire() || Wire.Decode(Out);
+}
+
+bool LDGrowthWire::IsBuildLifePhase(ELDLifePhase Phase)
 {
     return Phase == ELDLifePhase::Alive || Phase == ELDLifePhase::Dead;
 }
@@ -126,45 +170,41 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::CatalogMismatch: return TEXT("CatalogMismatch");
     case ELDGrowthReason::NotAuthority: return TEXT("NotAuthority");
     case ELDGrowthReason::Dead: return TEXT("Dead");
-    case ELDGrowthReason::MatchNotStarted: return TEXT("MatchNotStarted");
     case ELDGrowthReason::RequestConflict: return TEXT("RequestConflict");
     case ELDGrowthReason::OutOfOrder: return TEXT("OutOfOrder");
     case ELDGrowthReason::ReceiptExpired: return TEXT("ReceiptExpired");
     case ELDGrowthReason::RequestInFlight: return TEXT("RequestInFlight");
-    case ELDGrowthReason::NoOffer: return TEXT("NoOffer");
     case ELDGrowthReason::UnknownOffer: return TEXT("UnknownOffer");
     case ELDGrowthReason::InvalidOption: return TEXT("InvalidOption");
     case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("OfferAlreadyCommitted");
     case ELDGrowthReason::OfferGuardStale: return TEXT("OfferGuardStale");
     case ELDGrowthReason::BuildStale: return TEXT("BuildStale");
-    case ELDGrowthReason::ReplacementRequired: return TEXT("ReplacementRequired");
-    case ELDGrowthReason::ReplacementMismatch: return TEXT("ReplacementMismatch");
+    case ELDGrowthReason::NotSafe: return TEXT("NotSafe");
+    case ELDGrowthReason::NoEmptySlot: return TEXT("NoEmptySlot");
+    case ELDGrowthReason::SlotOccupied: return TEXT("SlotOccupied");
+    case ELDGrowthReason::NoBlueprint: return TEXT("NoBlueprint");
+    case ELDGrowthReason::NotEnoughPoints: return TEXT("NotEnoughPoints");
+    case ELDGrowthReason::NoActiveOffer: return TEXT("NoActiveOffer");
+    case ELDGrowthReason::PhaseClosed: return TEXT("PhaseClosed");
+    case ELDGrowthReason::NotOwned: return TEXT("NotOwned");
+    case ELDGrowthReason::AlreadyInstalled: return TEXT("AlreadyInstalled");
+    case ELDGrowthReason::NotInstalled: return TEXT("NotInstalled");
+    case ELDGrowthReason::RestOnly: return TEXT("RestOnly");
+    case ELDGrowthReason::InvalidTarget: return TEXT("InvalidTarget");
+    case ELDGrowthReason::OpeningBaseUnavailable: return TEXT("OpeningBaseUnavailable");
+    case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");
+    case ELDGrowthReason::OpeningActiveFirst: return TEXT("OpeningActiveFirst");
+    case ELDGrowthReason::TargetConflict: return TEXT("TargetConflict");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
-    case ELDGrowthReason::NoReroll: return TEXT("NoReroll");
-    case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("OfferAlreadyRerolled");
-    case ELDGrowthReason::OpeningNoReroll: return TEXT("OpeningNoReroll");
-    case ELDGrowthReason::NoShopSession: return TEXT("NoShopSession");
-    case ELDGrowthReason::QuoteStale: return TEXT("QuoteStale");
-    case ELDGrowthReason::PriceChanged: return TEXT("PriceChanged");
-    case ELDGrowthReason::UnknownItem: return TEXT("UnknownItem");
-    case ELDGrowthReason::ItemNotOwned: return TEXT("ItemNotOwned");
-    case ELDGrowthReason::ItemStale: return TEXT("ItemStale");
-    case ELDGrowthReason::EquipmentFull: return TEXT("EquipmentFull");
-    case ELDGrowthReason::InsufficientGold: return TEXT("InsufficientGold");
-    case ELDGrowthReason::InventoryStale: return TEXT("InventoryStale");
-    case ELDGrowthReason::AccountStale: return TEXT("AccountStale");
-    case ELDGrowthReason::UnknownShop: return TEXT("UnknownShop");
-    case ELDGrowthReason::StaleWorld: return TEXT("StaleWorld");
-    case ELDGrowthReason::OutsideRange: return TEXT("OutsideRange");
-    case ELDGrowthReason::NotGrounded: return TEXT("NotGrounded");
-    case ELDGrowthReason::InvalidGround: return TEXT("InvalidGround");
-    case ELDGrowthReason::WrongSurface: return TEXT("WrongSurface");
-    case ELDGrowthReason::InvalidApproachRegion: return TEXT("InvalidApproachRegion");
+    case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
+    case ELDGrowthReason::NpcPoolTooSmall: return TEXT("NpcPoolTooSmall");
+    case ELDGrowthReason::OfferOutstanding: return TEXT("OfferOutstanding");
+    case ELDGrowthReason::NothingToRespec: return TEXT("NothingToRespec");
+    case ELDGrowthReason::SlotEmpty: return TEXT("SlotEmpty");
+    case ELDGrowthReason::NotRestWindow: return TEXT("NotRestWindow");
+    case ELDGrowthReason::RestServiceUnavailable: return TEXT("RestServiceUnavailable");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
-    case ELDGrowthReason::UpgradeUsed: return TEXT("UpgradeUsed");
-    case ELDGrowthReason::UpgradeUnavailable: return TEXT("UpgradeUnavailable");
-    case ELDGrowthReason::AlreadyUpgraded: return TEXT("AlreadyUpgraded");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");
     case ELDGrowthReason::NumericDomain: return TEXT("NumericDomain");
     case ELDGrowthReason::ArithmeticOverflow: return TEXT("ArithmeticOverflow");
@@ -177,6 +217,16 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NoRewardOwnerLeft: return TEXT("NoRewardOwnerLeft");
     case ELDGrowthReason::DeathConflict: return TEXT("DeathConflict");
     case ELDGrowthReason::StaleDeath: return TEXT("StaleDeath");
+    case ELDGrowthReason::NoRewardPKArena: return TEXT("NoRewardPKArena");
+    case ELDGrowthReason::PKAwardDuplicate: return TEXT("PKAwardDuplicate");
+    case ELDGrowthReason::NoComponentChoice: return TEXT("NoComponentChoice");
+    case ELDGrowthReason::ComponentOwned: return TEXT("ComponentOwned");
+    case ELDGrowthReason::NotAGap: return TEXT("NotAGap");
+    case ELDGrowthReason::NoGapFiller: return TEXT("NoGapFiller");
+    case ELDGrowthReason::GapAlreadyFilled: return TEXT("GapAlreadyFilled");
+    case ELDGrowthReason::DismantleInvalid: return TEXT("DismantleInvalid");
+    case ELDGrowthReason::DismantlePoolEmpty: return TEXT("DismantlePoolEmpty");
+    case ELDGrowthReason::FieldRewardDuplicate: return TEXT("FieldRewardDuplicate");
     }
     return TEXT("Unknown");
 }

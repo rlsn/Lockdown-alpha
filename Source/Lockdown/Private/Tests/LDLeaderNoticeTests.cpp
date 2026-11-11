@@ -17,8 +17,6 @@ FLDLeaderState MakeState()
     R.MinLevel = 2;
     R.CircleRadiusCm = 1200.;
     R.CircleMaxOffsetCm = 700.;
-    R.BountyGoldPerRefresh = 40;
-    R.BountyGoldMax = 100;
     R.Seed = 0x5eed;
     return State;
 }
@@ -44,6 +42,10 @@ FLDPublicMatchView ViewAt(const FLDLeaderState& State, int64 NowMs)
     View.ServerNowMs = NowMs;
     View.StartedAtMs = State.Rules.StartedAtMs;
     View.OpenAtMs = 1000000;
+    // #198: world schedules are field progress T; a field running since T=0 at authority 0 makes T equal NowMs.
+    View.Timeline.Generation = View.Generation;
+    View.Timeline.Stage = ELDMatchStage::FinalField;
+    View.Timeline.FieldEndT = -1;
     View.Leader = State.View();
     return View;
 }
@@ -75,11 +77,10 @@ bool FLDLeaderNoticeRulesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Nothing is due before the first refresh"), State.IsRefreshDue(R1 - 1));
     TestFalse(TEXT("A refresh is never applied early"), State.Refresh(R1 - 1, {Candidate(1, 4, 0)}));
 
-    // The leader is named with one bounty step, inside a circle no farther than the maximum offset.
+    // The leader is named inside a circle no farther than the maximum offset.
     const FVector Foot(300, -200, 0);
     TestTrue(TEXT("The first refresh names the leader"), State.Refresh(R1, {Candidate(1, 4, 0), Candidate(2, 3, 0)}));
-    TestTrue(TEXT("The leader carries one bounty step"), State.Leader == A && State.Streak == 1 && State.BountyFor(A) == 40);
-    TestEqual(TEXT("Only the leader carries a bounty"), State.BountyFor(B), int64(0));
+    TestTrue(TEXT("The highest level is the leader"), State.Leader == A && State.RefreshIndex == 1);
     TestTrue(TEXT("The centre is within the maximum offset of the foot, so the leader is inside the circle"),
         FVector::Dist2D(State.CircleCentreCm, Foot) <= State.Rules.CircleMaxOffsetCm + 1e-6 && State.RefreshedAtMs == R1);
     const FVector FirstCentre = State.CircleCentreCm;
@@ -89,36 +90,31 @@ bool FLDLeaderNoticeRulesTest::RunTest(const FString& Parameters)
     Replay.Refresh(R1, {Candidate(1, 4, 0), Candidate(2, 3, 0)});
     TestTrue(TEXT("The offset depends only on the match seed and refresh index"), Replay.CircleCentreCm == FirstCentre);
 
-    // Staying leader grows the bounty up to the cap; the offset moves with the refresh.
+    // Staying leader keeps the notice; the offset moves with the refresh.
     TestTrue(TEXT("The second refresh keeps the leader"), State.Refresh(R2, {Candidate(1, 5, 0), Candidate(2, 3, 0)}));
-    TestTrue(TEXT("Each refresh as leader adds one step"), State.Streak == 2 && State.BountyFor(A) == 80);
+    TestTrue(TEXT("The kept leader is still named"), State.Leader == A && State.View().Leader == A);
     State.Refresh(R3, {Candidate(1, 5, 0)});
-    TestEqual(TEXT("The bounty stops at the cap"), State.BountyFor(A), int64(100));
-    TestEqual(TEXT("The public view shows the capped bounty"), State.View().BountyGold, int64(100));
 
     // A skipped boundary is applied once, at the boundary the authority reached.
     FLDLeaderState Late = MakeState();
     TestTrue(TEXT("A late step applies only the latest boundary"), Late.Refresh(R2 + 5, {Candidate(1, 4, 0)})
-        && Late.RefreshIndex == 2 && Late.Streak == 1);
+        && Late.RefreshIndex == 2 && Late.Leader == A);
 
-    // A new leader starts a new streak.
+    // Another contender overtaking replaces the leader.
     TestTrue(TEXT("Another contender overtaking is named"), State.Refresh(R4, {Candidate(1, 5, 0), Candidate(2, 6, 0)}));
-    TestTrue(TEXT("The new leader starts at one step"), State.Leader == B && State.Streak == 1 && State.BountyFor(B) == 40
-        && State.BountyFor(A) == 0);
+    TestTrue(TEXT("The new leader replaces the old one"), State.Leader == B && State.View().Leader == B);
 
     // The leader's death ends the notice; the next refresh starts over.
     TestFalse(TEXT("Another contender's death leaves the notice"), State.LeaderDied(A, R4 + 100));
     TestTrue(TEXT("The leader's death ends the notice"), State.LeaderDied(B, R4 + 200));
-    TestTrue(TEXT("The death keeps who fell, when, and the bounty it paid"), State.LastDownLeader == B
-        && State.LastDownAtMs == R4 + 200 && State.LastDownBountyGold == 40);
-    TestTrue(TEXT("Nothing is shown after the leader's death"), !State.View().Leader.IsValid() && State.BountyFor(B) == 0
-        && State.Streak == 0);
+    TestTrue(TEXT("The death keeps who fell and when"), State.LastDownLeader == B && State.LastDownAtMs == R4 + 200);
+    TestTrue(TEXT("Nothing is shown after the leader's death"), !State.View().Leader.IsValid() && !State.Leader.IsValid());
     State.Refresh(R4 + 8000, {Candidate(2, 6, 0)});
-    TestTrue(TEXT("A leader named again after a death starts a new streak"), State.Leader == B && State.Streak == 1);
+    TestTrue(TEXT("A leader can be named again after a death"), State.Leader == B);
 
     // A leader dead at the refresh, or nobody unique, shows nothing.
     TestTrue(TEXT("A leader dead at the refresh is not shown"),
-        State.Refresh(R4 + 16000, {Candidate(2, 6, 0, false)}) && !State.Leader.IsValid() && State.Streak == 0);
+        State.Refresh(R4 + 16000, {Candidate(2, 6, 0, false)}) && !State.Leader.IsValid());
     TestFalse(TEXT("Still nobody: the view does not change"), State.Refresh(R4 + 24000, {Candidate(1, 3, 1), Candidate(2, 3, 1)}));
 
     // The public view must match its leader and the match clock.
@@ -127,13 +123,11 @@ bool FLDLeaderNoticeRulesTest::RunTest(const FString& Parameters)
     FString Error;
     FLDPublicMatchView View = ViewAt(Public, R1);
     TestTrue(TEXT("A named leader is a valid public view: ") + Error, LDCapture::ValidatePublicMatchView(View, Error));
-    View.Leader.BountyGold = 0;
-    TestFalse(TEXT("A named leader carries a bounty"), LDCapture::ValidatePublicMatchView(View, Error));
     View = ViewAt(Public, R1 - 1);
     TestFalse(TEXT("A notice cannot be from the future"), LDCapture::ValidatePublicMatchView(View, Error));
     View = ViewAt(MakeState(), R1);
-    View.Leader.BountyGold = 40;
-    TestFalse(TEXT("Nobody named carries no bounty"), LDCapture::ValidatePublicMatchView(View, Error));
+    View.Leader.RefreshedAtMs = R1;
+    TestFalse(TEXT("Nobody named carries no refresh time"), LDCapture::ValidatePublicMatchView(View, Error));
     View = ViewAt(Public, R1);
     View.Leader.CircleCentreCm.X = std::numeric_limits<double>::quiet_NaN();
     TestFalse(TEXT("A circle centre must be a number"), LDCapture::ValidatePublicMatchView(View, Error));

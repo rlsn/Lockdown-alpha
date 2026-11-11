@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "packs": [
     {
       "id": "kenney-music-jingles",
@@ -48,18 +48,6 @@
       "license": "CC0 1.0 Universal (Creative Commons Zero)",
       "license_file": "Kenney/InterfaceSounds/License.txt",
       "license_sha256": "f7966c773bbed0eca6a9c75081c44a178b38eae112724dbb5fdfbd4192d118a9"
-    },
-    {
-      "id": "kenney-rpg-audio",
-      "name": "RPG Audio",
-      "author": "Kenney (www.kenney.nl)",
-      "page_url": "https://kenney.nl/assets/rpg-audio",
-      "download_url": "https://kenney.nl/download/6173736574732f7270672d617564696f/6bba393cf4e98344a60cb59560f1cb3a396b0240efc88a01296590919bab4361?expires=1793671229",
-      "downloaded": "2026-11-03",
-      "zip_sha256": "6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b",
-      "license": "CC0 1.0 Universal (Creative Commons Zero)",
-      "license_file": "Kenney/RpgAudio/License.txt",
-      "license_sha256": "5735dfd72cb64cbbceda4ebc00c380c41ca680edb82ff153aa7c9ab97614c539"
     }
   ],
   "cues": [
@@ -163,28 +151,6 @@
       "volume": 1.073
     },
     {
-      "cue": "PurchaseSucceeded",
-      "pack": "kenney-rpg-audio",
-      "source": "Kenney/RpgAudio/handleCoins.ogg",
-      "pack_path": "Audio/handleCoins.ogg",
-      "sha256": "8a91f969e932df709df80ee124d86a51389eed9b67f22e5e716bc2bbf60d8dab",
-      "duration_sec": 0.846,
-      "purpose": "购买或出售成功",
-      "loudness_lufs": -19.4,
-      "volume": 0.929
-    },
-    {
-      "cue": "TradeRejected",
-      "pack": "kenney-interface-sounds",
-      "source": "Kenney/InterfaceSounds/error_006.ogg",
-      "pack_path": "Audio/error_006.ogg",
-      "sha256": "a97513d7fd2b12b1210c423be943b4c1ab0e899b11db95855e9b74836e646ae0",
-      "duration_sec": 0.5,
-      "purpose": "交易被拒",
-      "loudness_lufs": -18.4,
-      "volume": 1.039
-    },
-    {
       "cue": "LevelUp",
       "pack": "kenney-digital-audio",
       "source": "Kenney/DigitalAudio/powerUp7.ogg",
@@ -251,29 +217,32 @@
       "loudness_lufs": -16.67,
       "level_db": -6.0,
       "volume": 0.541
+    }
+  ],
+  "music": [
+    {
+      "track": "Menu",
+      "source": "Music/menu.mp3",
+      "sha256": "e763df5cff01b1851e32262f1f882f60fe2953f298fdab0b2a2ab2a74ab24655",
+      "loop": true,
+      "purpose": "Main menu and room lobby loop; keeps playing across the travel between them",
+      "provenance": "Original track made for Lockdown, supplied by the project owner in the 2026-11-09 BGM request (#94); project-owned, not a third-party pack."
     },
     {
-      "cue": "ShopMarked",
-      "pack": "kenney-interface-sounds",
-      "source": "Kenney/InterfaceSounds/confirmation_002.ogg",
-      "pack_path": "Audio/confirmation_002.ogg",
-      "sha256": "33b17a9a9a2397c62b285c52c33a907fdffb476909c99e42dde603f6a7a8b12c",
-      "duration_sec": 0.539,
-      "purpose": "加入预购或标记预售：复用复活音，低 6 dB",
-      "loudness_lufs": -12.04,
-      "level_db": -6.0,
-      "volume": 0.425
+      "track": "Farm",
+      "source": "Music/farm.mp3",
+      "sha256": "42416ce99bbcfa5d6262ca5056dff10d97a80156171fa3f6b7df8ae3ebbfe1f1",
+      "loop": false,
+      "purpose": "Development phase, played once from T=0; about 3 minutes, matching MATCH.DevelopmentSec until the flagpole opens",
+      "provenance": "Original track made for Lockdown, supplied by the project owner in the 2026-11-09 BGM request (#94); project-owned, not a third-party pack."
     },
     {
-      "cue": "ShopUnmarked",
-      "pack": "kenney-interface-sounds",
-      "source": "Kenney/InterfaceSounds/select_002.ogg",
-      "pack_path": "Audio/select_002.ogg",
-      "sha256": "4cc6ac5341b9b2c86fef80c347de028e9ab9f2e037586ac7d9fa59a403a1c012",
-      "duration_sec": 0.043,
-      "purpose": "取消预购或取消预售：复用界面点击音",
-      "loudness_lufs": -22.35,
-      "volume": 1.062
+      "track": "Escalation",
+      "source": "Music/escalation.mp3",
+      "sha256": "613ff5063ef4ed9f2075309c718443d2b3bb4401f4964d9f6543e7934d929054",
+      "loop": true,
+      "purpose": "From the flagpole opening until the match ends, looping",
+      "provenance": "Original track made for Lockdown, supplied by the project owner in the 2026-11-09 BGM request (#94); project-owned, not a third-party pack."
     }
   ]
 }

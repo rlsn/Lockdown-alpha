@@ -49,7 +49,20 @@ public:
         const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error);
     // Demo dash on the server authority body: one planar override root-motion source (Distance/Duration,
     // zero finish velocity) integrated by the issued authority steps; never a teleport.
-    bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error);
+    // bKnockback: a forced push, which other bodies block like static geometry (#198 F C02); a voluntary dash runs
+    // through bodies.
+    bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error, bool bKnockback=false);
+    // #198 F C02: the first real block of the current push (a body, or registered static geometry facing the push; walkable
+    // support and grazing slides are none). Watching starts with WatchKnockbackBlock and ends with the first fact.
+    struct FKnockbackBlock
+    {
+        bool bBody=false;
+        TWeakObjectPtr<AActor> Blocker;
+    };
+    void WatchKnockbackBlock() { bWatchKnockbackBlock=true; KnockbackBlock.Reset(); }
+    TOptional<FKnockbackBlock> TakeKnockbackBlock()
+    { TOptional<FKnockbackBlock> Out=MoveTemp(KnockbackBlock); KnockbackBlock.Reset(); return Out; }
+    void StopKnockbackWatch() { bWatchKnockbackBlock=false; KnockbackBlock.Reset(); }
     // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked.
     bool CanStartDash(const FVector& Direction, double ProbeCm) const;
     // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
@@ -77,8 +90,10 @@ public:
     double MaxCorrectionCm=0;
     double LastCorrectionCm=0;
     uint64 AuthorityIntegrationCount=0, RejectedAuthorityMoves=0, NetworkBookkeepingMoves=0, SuppressedNetworkSimulationMoves=0;
+    uint64 AuthorityStationarySteps=0;
     double AuthorityIntegratedSeconds=0;
 protected:
+    bool TryAdvanceStationaryMovement(float DeltaSeconds);
     // The dash root motion itself (no authority or Demo-world gate): a planar override force covering DistanceCm in
     // DurationSeconds that stops against blocking geometry and ends with zero velocity. Only StartDemoDash and the
     // isolated native probes call it.
@@ -90,6 +105,15 @@ protected:
     bool EndIsolatedNativeMotionProbe(TSharedPtr<const FLDNativeMotionBatch>& Out, FString& Error);
 #endif
 private:
+    void RememberStationarySupport();
+    bool bKnockbackMotion=false;
+    bool bWatchKnockbackBlock=false;
+    TOptional<FKnockbackBlock> KnockbackBlock;
+    TWeakObjectPtr<UPrimitiveComponent> StationaryFloor;
+    FTransform StationaryFloorTransform;
+    FVector StationaryCapsuleSize=FVector::ZeroVector;
+    FLDWorldRevision StationaryWorld;
+    FLDCombatBodyRef StationaryBody;
     struct FNativeCapture;
     TSharedPtr<FNativeCapture> NativeCapture;
     uint64 NativeRecordSequence=0;
@@ -98,6 +122,7 @@ private:
     bool FinishNativeMotionCapture(TSharedPtr<const FLDNativeMotionBatch>& Out, FString& Error);
     void CaptureNativeSupport() const;
     bool bAuthorityMovementRunning=false;
+    bool bStationaryAuthorityInput=false;
     bool bNativeIntegrationActive=false;
     const FLDGameplayWritePermit* NativeWritePermit=nullptr;
     FLDCombatBodyRef NativeBody;

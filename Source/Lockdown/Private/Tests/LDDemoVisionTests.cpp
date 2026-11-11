@@ -51,14 +51,9 @@ FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
     Root.StatusId = uint8(ELDDemoStatusId::Root);
     Root.ExpiresAtServerMs = 12345;
     Unit.Statuses.Add(Root);
-    Unit.Equipment.Slots[0] = uint8(ELDDemoEquipmentId::ItemEdgeBlade);
-    Unit.Equipment.Slots[1] = uint8(ELDDemoEquipmentId::ItemEdgeBlade);
     Unit.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActivePantsDown);
-    Unit.Actives.Ranks[0] = 2;
     Unit.Actives.Abilities[1] = uint8(ELDDemoAbilityId::ActiveSnarkBolt);
-    Unit.Actives.Ranks[1] = 1;
     Unit.Actives.Abilities[2] = uint8(ELDDemoAbilityId::ActiveNotMad);
-    Unit.Actives.Ranks[2] = 1;
     return Unit;
 }
 
@@ -115,17 +110,13 @@ FLDObservedCatalog TestCatalog()
 {
     FLDObservedCatalog Catalog;
     Catalog.MaxLevel = 16;
-    for (uint8 Id = uint8(ELDDemoEquipmentId::ItemIronPlate); Id <= uint8(ELDDemoEquipmentId::ItemEchoMaul); ++Id) { Catalog.Equipment.Add(Id); }
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterScavenger));
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterGuardian));
-    Catalog.MaxSkillRank = 2;
     for (const ELDDemoAbilityId Id : {
         ELDDemoAbilityId::ActivePantsDown, ELDDemoAbilityId::ActiveSnarkBolt, ELDDemoAbilityId::ActiveNotMad})
     {
         Catalog.Abilities.Add(uint8(Id));
-        Catalog.ActiveAbilities.Add(uint8(Id));
     }
-    Catalog.Abilities.Add(uint8(ELDDemoAbilityId::PassiveThickFace));
     return Catalog;
 }
 
@@ -344,9 +335,9 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     const FLDObservedUnitView& Contender = Read.Units[0];
     TestTrue(TEXT("Contender whitelist survives exactly"), Contender.ContenderId == Full.Units[0].ContenderId && Contender.Level == 3
         && Contender.Health.CurrentP2 == 45000 && Contender.Health.MaxP2 == 60000 && Contender.Mana.MaxP2 == 30000
-        && Contender.Statuses.Num() == 1 && Contender.Equipment.Slots[0] == Contender.Equipment.Slots[1]);
+        && Contender.Statuses.Num() == 1);
     TestTrue(TEXT("Camp NotApplicable fields stay absent"), Read.Units[1].Level == 0 && Read.Units[1].Mana.MaxP2 == 0
-        && Read.Units[1].Equipment.Slots[0] == 0 && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
+        && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
     TestTrue(TEXT("Defined camp mana is a closed pair"), Read.Units[3].Mana.MaxP2 == 5000);
 
     auto Mutated = [&](TFunctionRef<void(FLDWorldView&)> Change)
@@ -368,7 +359,6 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
     { V.Units[0].AuthorizedFieldMask &= ~uint32(LDObservation::Level); })));
     TestFalse(TEXT("Missing level is not a default"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Level = 0; })));
-    TestFalse(TEXT("Unknown equipment refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Equipment.Slots[1] = 98; })));
     TestFalse(TEXT("Unknown status refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Statuses[0].StatusId = 200; })));
     TestFalse(TEXT("Duplicate status refused"), Encodes(Mutated([](FLDWorldView& V)
     { const FLDObservedStatus Copy = V.Units[0].Statuses[0]; V.Units[0].Statuses.Add(Copy); })));
@@ -390,7 +380,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Resources are closed pairs"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Health.CurrentP2 = V.Units[0].Health.MaxP2 + 1; })));
     TestFalse(TEXT("Unauthorized camp mana refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Mana.MaxP2 = 10; })));
     TestFalse(TEXT("Camp level refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Level = 1; })));
-    TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 4; })));
+    TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 5; })));
     TestFalse(TEXT("Unknown action cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCue = static_cast<ELDObservedActionCue>(4); })));
     TestFalse(TEXT("A cue age without a cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCueAgeMs = 120; })));
     TestFalse(TEXT("Unknown unit kind refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Kind = static_cast<ELDObservedUnitKind>(3); })));
@@ -537,15 +527,14 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
-        TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Equipment"), TEXT("Actives")});
+        TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
         TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
-    Exact(FLDObservedEquipmentView::StaticStruct(), {TEXT("Slots")});
-    // #112 §10: the two Q/W actives and their ranks only; no cooldown, passive or mana field.
-    Exact(FLDObservedActivesView::StaticStruct(), {TEXT("Abilities"), TEXT("Ranks")});
+    // #112 §10, #198: the Q/W/E active ids only; no rank, cooldown or mana field.
+    Exact(FLDObservedActivesView::StaticStruct(), {TEXT("Abilities")});
     Exact(FLDObservedUnitTermination::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("Generation"),
         TEXT("TerminationSequence"), TEXT("OccurredAtServerMs"), TEXT("Kind")});
     Exact(FLDObservedFootprint::StaticStruct(), {TEXT("SourceStatus"), TEXT("SourceFeetCm"), TEXT("RadiusCm"), TEXT("CurrentBits")});
@@ -554,8 +543,6 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles")});
     Exact(FLDObservedConceal::StaticStruct(), {TEXT("MatchGeneration"), TEXT("Generation"), TEXT("Revision"), TEXT("Removed")});
     Exact(FLDObservedTerminationNotice::StaticStruct(), {TEXT("MatchGeneration"), TEXT("Revision"), TEXT("Termination")});
-    const FProperty* Slots = FLDObservedEquipmentView::StaticStruct()->FindPropertyByName(TEXT("Slots"));
-    TestTrue(TEXT("Exactly two public equipment slots"), Slots && Slots->GetSize() == 2 * int32(sizeof(uint8)));
 
     FLDObserverLedger Ledger;
     FString Error;
@@ -663,12 +650,6 @@ bool FLDDemoVisionOrderingTest::RunTest(const FString& Parameters)
     FLDObservedUnitView TooHigh = ContenderUnit(3);
     TooHigh.Level = 17;
     TestTrue(TEXT("Levels above the approved maximum are rejected"), Full(8, 1, 3, {TooHigh}) == EResult::Rejected);
-    FLDObservedCatalog Narrow = Catalog;
-    Narrow.Equipment.Remove(uint8(ELDDemoEquipmentId::ItemEdgeBlade));
-    FLDWorldView Unknown = ActiveFrame(8, 1, 3);
-    Unknown.Units.Add(ContenderUnit(3));
-    Cleared.Reset();
-    TestTrue(TEXT("Unapproved equipment definitions are rejected"), Receiver.AcceptFull(Unknown, World, Narrow, 30, Cleared, Error) == EResult::Rejected);
 
     FLDObservedFrameReceiver Deaths;
     FLDObservedUnitView E = ContenderUnit(1), F = ContenderUnit(2), G = ContenderUnit(3);
@@ -974,6 +955,59 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionCoveragePublicationTest, "Lockdown.Rules.DemoVision.CoveragePublication",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionCoveragePublicationTest::RunTest(const FString& Parameters)
+{
+    FString Error;
+    FLDSightGeometry Sight;
+    FLDWorldRevision World = DemoRevision();
+    if (!TestTrue(TEXT("Publication geometry builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error))) { return false; }
+    const FVector West(-1000, 0, 2), East(1000, 0, 2);
+    FLDObserverCoverage Human, AI;
+    TArray<uint8> Expected, Actual;
+    Sight.Coverage(West, Expected);
+    FLDWorldView View = ActiveFrame(7, 3, 1);
+    View.Units = {ContenderUnit(), CampUnit()};
+    const auto DarkValidFrame = [&]()
+    {
+        View.Footprint.CurrentBits = Actual;
+        return Actual.Num() == LDObservation::CoverageBytes
+            && !Actual.ContainsByPredicate([](uint8 Byte) { return Byte != 0; }) && LDObservation::ValidateView(View, Error);
+    };
+    TestFalse(TEXT("A human's non-publication sample performs no coverage"), Human.Sample(Sight, West, false, true, Actual));
+    TestTrue(TEXT("A non-publication frame remains codec-valid, with a zero bitmap"), DarkValidFrame());
+    TestFalse(TEXT("An AI never computes coverage, even at a publication boundary"), AI.Sample(Sight, East, true, false, Actual));
+    TestTrue(TEXT("An AI frame remains codec-valid, with its own units unchanged"), DarkValidFrame());
+    TestTrue(TEXT("The first human publication computes coverage"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("The published human bitmap matches all 2048 reference bytes"), Actual == Expected);
+    TestFalse(TEXT("An unchanged foot and world reuse the prior coverage"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("Reused coverage is byte-identical"), Actual == Expected);
+    TestFalse(TEXT("Movement at a non-publication sample computes nothing"), Human.Sample(Sight, East, false, true, Actual));
+    TestTrue(TEXT("It does not copy an obsolete human bitmap into the internal frame"), DarkValidFrame());
+    TestFalse(TEXT("A non-publication sample did not replace the stationary cache"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("The next stationary publication still carries the authorized bitmap"), Actual == Expected);
+    TestTrue(TEXT("Sub-millimetre movement invalidates, without tolerance"), Human.Sample(Sight, West + FVector(.000001, 0, 0), true, true, Actual));
+    TestTrue(TEXT("A changed foot height also invalidates"), Human.Sample(Sight, West + FVector(.000001, 0, 1), true, true, Actual));
+    TestTrue(TEXT("A moved publication recomputes"), Human.Sample(Sight, East, true, true, Actual));
+    Sight.Coverage(East, Expected);
+    TestTrue(TEXT("Moved coverage matches that observer, not the other side of the wall"), Actual == Expected);
+    TestTrue(TEXT("A second observer cannot borrow the human's cached coverage"), AI.Sample(Sight, West, true, true, Actual));
+    Sight.Coverage(West, Expected);
+    TestTrue(TEXT("Its first eligible publication uses its own source"), Actual == Expected);
+    ++World.GeometryRevision;
+    if (!TestTrue(TEXT("A new world revision builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error))) { return false; }
+    TestTrue(TEXT("A changed world revision invalidates stationary coverage"), AI.Sample(Sight, West, true, true, Actual));
+    AI.Reset();
+    TestTrue(TEXT("A life/generation reset invalidates even an identical source and world"), AI.Sample(Sight, West, true, true, Actual));
+    View.Footprint.CurrentBits = Actual;
+    FLDWorldView Read;
+    TestTrue(TEXT("Publication and AI-frame coverage selection never changes the unit fields"),
+        Wire(View, Read) && Read.Units.Num() == 2 && Read.Units[0].Handle == View.Units[0].Handle
+        && Read.Units[1].Handle == View.Units[1].Handle && Read.Footprint.CurrentBits == Actual);
+    return true;
+}
+
 // #97 tiers: a level-1 plateau east of the wall with a level-2 plateau on it, a ramp from the ground onto its west edge
 // and a tree standing on level 1.
 FLDDemoWorldGeometry TieredGeometry()
@@ -1235,14 +1269,15 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     const TArray<FLDObservedProjectileFact> Facts = {Fact(FVector(-900, 0, 2)), Fact(FVector(300, 0, 2)), Fact(FVector(-600, 2000, 2)),
         Fact(FVector(-650, 50, 2)), Fact(FVector(9000, 0, 2))};
     TArray<const FLDObservedProjectileFact*> Visible;
+    const auto BySight = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::Sight; };
     TestTrue(TEXT("Only flights in sight are selected, nearest first (wall, range and ground edge exclude the rest)"),
-        LDObservation::SelectVisibleProjectiles(Sight, West, Facts, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
+        LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, BySight, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
     TArray<FLDObservedProjectileFact> Many;
     for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 10, 100, 2))); }
-    TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, Many, Visible, Error)
+    TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Many, BySight, Visible, Error)
         && Visible.Num() == LDObservation::MaxProjectiles && Visible[0] == &Many[0] && Visible.Last() == &Many[LDObservation::MaxProjectiles - 1]);
     const TArray<FLDObservedProjectileFact> Broken = {Fact(FVector(std::numeric_limits<double>::quiet_NaN(), 0, 2))};
-    TestFalse(TEXT("A non-finite flight is a fault, not a hidden one"), LDObservation::SelectVisibleProjectiles(Sight, West, Broken, Visible, Error));
+    TestFalse(TEXT("A non-finite flight is a fault, not a hidden one"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Broken, BySight, Visible, Error));
 
     // Observer-local handles: fresh per visibility interval, never the flight key, dropped with the observer generation.
     FLDObserverLedger Ledger;
@@ -1291,6 +1326,60 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A receive timeout drops every flight"), Receiver.Tick(20.0 + FLDObservedFrameReceiver::StaleAfterSeconds + .01, Cleared)
         && Receiver.Read().Frame && Receiver.Read().Frame->Projectiles.IsEmpty());
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionEffectAccessTest, "Lockdown.Rules.DemoVision.EffectAccess",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionEffectAccessTest::RunTest(const FString& Parameters)
+{
+    // #198 R15: a skill effect carries its source's body permissions: hidden across isolation groups and from the frozen
+    // world, granted over the whole arena to a spectator, seen through a living teammate's sight by a PK life.
+    const FGuid Field, RestA = FGuid::NewGuid(), RestB = FGuid::NewGuid(), Arena = FGuid::NewGuid();
+    using EAccess = ELDObservedFlightAccess;
+    bool bGood = TestTrue(TEXT("Field effects keep the plain sight rule in the field"),
+        LDObservation::ClassifyFlight(true, Field, true, Field, FGuid(), false, false) == EAccess::Sight);
+    bGood &= TestTrue(TEXT("A frozen world body's effect is hidden"),
+        LDObservation::ClassifyFlight(false, Field, true, Field, FGuid(), false, false) == EAccess::Hidden);
+    bGood &= TestTrue(TEXT("Another rest space's training effect is hidden, the own one follows sight"),
+        LDObservation::ClassifyFlight(true, RestB, true, RestA, FGuid(), false, false) == EAccess::Hidden
+        && LDObservation::ClassifyFlight(true, RestA, true, RestA, FGuid(), false, false) == EAccess::Sight);
+    bGood &= TestTrue(TEXT("A spectator sees every arena effect without a sight line"),
+        LDObservation::ClassifyFlight(true, Arena, true, RestA, Arena, true, false) == EAccess::Granted);
+    bGood &= TestTrue(TEXT("A spectator still sees no other rest space's effect"),
+        LDObservation::ClassifyFlight(true, RestB, true, RestA, Arena, true, false) == EAccess::Hidden);
+    bGood &= TestTrue(TEXT("A PK life sees arena effects through its team's sight"),
+        LDObservation::ClassifyFlight(true, Arena, true, Arena, Arena, false, true) == EAccess::SharedSight);
+    bGood &= TestTrue(TEXT("A non-spectator outside the arena (a waiting entrant's rest group) does not see the arena"),
+        LDObservation::ClassifyFlight(true, Arena, true, RestA, Arena, false, false) == EAccess::Hidden);
+
+    FString Error;
+    FLDSightGeometry Sight;
+    if (!TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), Error))) { return false; }
+    const FVector West(-600, 0, 2), Mate(-650, 2000, 2);
+    auto Fact = [](const FVector& Position)
+    {
+        FLDObservedProjectileFact Out;
+        Out.Key = FGuid::NewGuid();
+        Out.SourceEntity = FGuid::NewGuid();
+        Out.PositionCm = Position;
+        Out.Heading = FVector2D(1, 0);
+        return Out;
+    };
+    // [0] in sight but of another group; [1] out of range but granted; [2] beside the teammate only; [3] beside the teammate,
+    // but plain sight; [4] plainly in sight.
+    const TArray<FLDObservedProjectileFact> Facts = {Fact(FVector(-650, 50, 2)), Fact(FVector(9000, 0, 2)), Fact(FVector(-600, 2050, 2)),
+        Fact(FVector(-600, 1950, 2)), Fact(FVector(-900, 0, 2))};
+    const TMap<FGuid, EAccess> Rules = {{Facts[0].SourceEntity, EAccess::Hidden}, {Facts[1].SourceEntity, EAccess::Granted},
+        {Facts[2].SourceEntity, EAccess::SharedSight}, {Facts[3].SourceEntity, EAccess::Sight}, {Facts[4].SourceEntity, EAccess::Sight}};
+    const auto Access = [&Rules](const FLDObservedProjectileFact& One) { return Rules.FindChecked(One.SourceEntity); };
+    TArray<const FLDObservedProjectileFact*> Visible;
+    bGood &= TestTrue(TEXT("Selection follows each effect's access, nearest first"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, {Mate}, Facts, Access, Visible, Error) && Visible.Num() == 3
+        && Visible[0] == &Facts[4] && Visible[1] == &Facts[2] && Visible[2] == &Facts[1]);
+    bGood &= TestTrue(TEXT("Without a teammate the shared-sight effect stays unseen"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, Access, Visible, Error) && Visible.Num() == 2
+        && !Visible.Contains(&Facts[2]));
+    return bGood;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPresentationTest, "Lockdown.Rules.DemoVision.Presentation",
@@ -1391,8 +1480,8 @@ bool FLDDemoVisionFlightTrailTest::RunTest(const FString& Parameters)
     }
     return true;
 }
-// A visible contender shows its Q/W/E actives, ranks and the advanced mark through the same authorized frame; the camp
-// carries none; malformed or unapproved actives are refused; the card shows no cooldown.
+// A visible contender shows its Q/W/E actives through the same authorized frame; the camp carries none; malformed or
+// unapproved actives are refused; the card shows no cooldown.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionOpponentActivesTest, "Lockdown.Rules.DemoVision.OpponentActives",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
@@ -1405,10 +1494,10 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
     FLDWorldView Read;
     if (!TestTrue(TEXT("A frame with Q/W/E actives round-trips"), Wire(Frame, Read) && Read.Units.Num() == 2)) { return false; }
     const FLDObservedActivesView& Got = Read.Units[0].Actives;
-    TestTrue(TEXT("All three slots keep their ability and rank"), Got.Abilities[0] == uint8(ELDDemoAbilityId::ActivePantsDown) && Got.Ranks[0] == 2
-        && Got.Abilities[1] == uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Got.Ranks[1] == 1
-        && Got.Abilities[2] == uint8(ELDDemoAbilityId::ActiveNotMad) && Got.Ranks[2] == 1);
-    TestTrue(TEXT("The camp member carries no actives"), Read.Units[1].Actives.Abilities[0] == 0 && Read.Units[1].Actives.Ranks[1] == 0);
+    TestTrue(TEXT("All three slots keep their ability"), Got.Abilities[0] == uint8(ELDDemoAbilityId::ActivePantsDown)
+        && Got.Abilities[1] == uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Got.Abilities[2] == uint8(ELDDemoAbilityId::ActiveNotMad));
+    TestTrue(TEXT("The camp member carries no actives"), Read.Units[1].Actives.Abilities[0] == 0 && Read.Units[1].Actives.Abilities[1] == 0
+        && Read.Units[1].Actives.Abilities[2] == 0);
     auto Refused = [&](const TCHAR* What, TFunctionRef<void(FLDObservedUnitView&, FLDObservedUnitView&)> Change)
     {
         FLDWorldView Candidate = ActiveFrame(7, 3, 43);
@@ -1417,12 +1506,9 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
         Change(Candidate.Units[0], Candidate.Units[1]);
         TestFalse(What, Encodes(Candidate));
     };
-    Refused(TEXT("A rank without an ability is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Abilities[1] = 0; });
-    Refused(TEXT("An ability without a rank is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Ranks[0] = 0; });
-    Refused(TEXT("A rank above 2 is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Ranks[0] = 3; });
-    Refused(TEXT("The same ability in both slots is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Abilities[1] = C.Actives.Abilities[0]; });
+    Refused(TEXT("The same ability in two slots is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Abilities[1] = C.Actives.Abilities[0]; });
     Refused(TEXT("A camp member with actives is refused"), [](FLDObservedUnitView&, FLDObservedUnitView& M)
-    { M.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActiveSnarkBolt); M.Actives.Ranks[0] = 1; });
+    { M.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActiveSnarkBolt); });
     Refused(TEXT("A contender without the actives field is not complete"), [](FLDObservedUnitView& C, FLDObservedUnitView&)
     { C.AuthorizedFieldMask &= ~uint32(LDObservation::Actives); });
     FLDObservedUnitView Empty = ContenderUnit();
@@ -1431,22 +1517,17 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Three empty slots are a valid contender"), LDObservation::ValidateUnit(Empty, Error));
 
     const FLDObservedCatalog Catalog = TestCatalog();
-    TestTrue(TEXT("Approved actives at approved ranks are accepted"), Catalog.Accepts(ContenderUnit(), Error));
-    FLDObservedUnitView Passive = ContenderUnit();
-    Passive.Actives.Abilities[1] = uint8(ELDDemoAbilityId::PassiveThickFace);
-    TestFalse(TEXT("A passive in a Q/W/E slot is refused"), Catalog.Accepts(Passive, Error));
-    FLDObservedCatalog Narrow = Catalog;
-    Narrow.MaxSkillRank = 1;
-    TestFalse(TEXT("A rank above the approved maximum is refused"), Narrow.Accepts(ContenderUnit(), Error));
+    TestTrue(TEXT("Approved actives are accepted"), Catalog.Accepts(ContenderUnit(), Error));
+    FLDObservedUnitView Unapproved = ContenderUnit();
+    Unapproved.Actives.Abilities[1] = uint8(ELDDemoAbilityId::ActiveStareDown);
+    TestFalse(TEXT("An active outside the approved catalog is refused"), Catalog.Accepts(Unapproved, Error));
 
     const LDHUD::FObservedCard Card = LDHUD::ObservedCard(ContenderUnit(), TEXT("对手"), nullptr, 0.);
     TestTrue(TEXT("The target card shows all Q/W/E tiles"), Card.bActives && Card.Actives[0].Key == TEXT("Q")
         && Card.Actives[1].Key == TEXT("W") && Card.Actives[2].Key == TEXT("E")
         && !Card.Actives[0].bEmpty && !Card.Actives[1].bEmpty && !Card.Actives[2].bEmpty);
-    TestTrue(TEXT("The advanced rank is marked, the basic rank is not"), Card.Actives[0].bMaxRank && Card.Actives[0].Rank == TEXT("高级")
-        && !Card.Actives[1].bMaxRank && Card.Actives[1].Rank == TEXT("初级"));
     const FString Text = LDHUD::ObservedUnit(ContenderUnit(), TEXT("对手"), nullptr, 0.);
-    TestTrue(TEXT("The card text names the ranks and never a cooldown"), Text.Contains(TEXT("高级")) && !Text.Contains(TEXT("冷却")));
+    TestTrue(TEXT("The card text never names a cooldown"), !Text.Contains(TEXT("冷却")));
     const LDHUD::FObservedCard CampCard = LDHUD::ObservedCard(CampUnit(), FString(), nullptr, 0.);
     TestFalse(TEXT("A camp member's card has no Q/W/E tiles"), CampCard.bActives);
     return true;
@@ -1496,7 +1577,7 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("A frame of fully debuffed units round-trips"), Wire(Frame, Read, &Bytes) && Read.Units.Num() == LDObservation::MaxUnits))
     { return false; }
     AddInfo(FString::Printf(TEXT("Fully debuffed observation frame: %lld bytes"), Bytes));
-    // #97: with 50 units every one fully debuffed the frame is about 12 KB; the unreliable full view still travels as
+    // #97: with 58 units every one fully debuffed the frame is about 13 KB; the unreliable full view still travels as
     // partial bunches, so the bound is twice the old 8 KB rather than a cap the runtime enforces.
     TestTrue(TEXT("and stays inside the frame capacity"), Bytes < 16384);
     TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()

@@ -80,6 +80,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> QualityNote;
     UPROPERTY() TObjectPtr<USlider> VolumeSlider;
     UPROPERTY() TObjectPtr<UTextBlock> VolumeValue;
+    UPROPERTY() TObjectPtr<USlider> MusicSlider;
+    UPROPERTY() TObjectPtr<UTextBlock> MusicValue;
     UPROPERTY() TObjectPtr<UTextBlock> ZoomValue;
     UPROPERTY() TObjectPtr<UTextBlock> FollowNote;
     // Built once in ULDControlSettings::Definitions() order, so a rebind keeps focus and every name stays stable.
@@ -152,6 +154,8 @@ private:
     void PreviewMasterVolume();
     void EndVolumeCapture(bool& bCaptured);
     UFUNCTION() void HandleMasterVolumeChanged(float Value);
+    // The music itself is the preview: the slider changes the playing track's level, so no click sounds.
+    UFUNCTION() void HandleMusicVolumeChanged(float Value);
     UFUNCTION() void HandleVolumeMouseCaptureBegin();
     UFUNCTION() void HandleVolumeMouseCaptureEnd();
     UFUNCTION() void HandleVolumeControllerCaptureBegin();

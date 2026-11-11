@@ -9,44 +9,33 @@ class UTextBlock;
 class UVerticalBox;
 struct FLDCombatOwnerView;
 struct FLDDemoContentDefinitions;
-struct FLDEquipmentView;
 struct FLDProgressionView;
 
 // Pure formatting of the DEV test panel (#78): rows from the approved runtime catalog and the own projections only.
 // Nothing here decides a result; every action is one DEV test command the authority admits or refuses.
 namespace LDDevPanel
 {
-    // One catalog entry the panel can take as the current choice: a skill (active or passive) or an attribute card.
-    struct FLearnRow
+    // What the own build holds of one catalog active (#198).
+    enum class EActiveHeld : uint8 { None, Blueprint, Learned };
+    struct FActiveRow
     {
         FName Id;
         FString Name;
-        FString Kind;
-        bool bActiveSkill=false;
-        // The learned rank of a skill (0 = not learned) or how many of a card are held.
-        int32 Held=0;
+        EActiveHeld Held=EActiveHeld::None;
+        // Learned: its slot, 0 = Q, 1 = W, 2 = E.
+        uint8 Slot=0;
     };
-    // Catalog order: skills, then attribute cards.
-    LOCKDOWN_API TArray<FLearnRow> LearnRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression);
-    // Q/W/E all hold an active, so a new active needs a confirmed replacement; the server checks it again.
-    LOCKDOWN_API bool BothActiveSlotsHeld(const FLDProgressionView* Progression);
-    LOCKDOWN_API FString HeldText(const FLearnRow& Row);
-    struct FItemRow
-    {
-        FName Id;
-        FString Name;
-        int64 Price=0;
-        FString Traits;
-    };
-    LOCKDOWN_API TArray<FItemRow> ItemRows(const FLDDemoContentDefinitions& Content);
-    // Level, XP, gold and unused choice opportunities; an unprojected view reads as syncing, never as 0.
-    LOCKDOWN_API FString StatusLine(const FLDProgressionView* Progression,const FLDEquipmentView* Equipment);
+    // Every active of the catalog in catalog order, with what the own progression holds of it.
+    LOCKDOWN_API TArray<FActiveRow> ActiveRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression);
+    // Q/W/E all hold an active, so a DEV learn names the slot whose active it forgets; the server checks it again.
+    LOCKDOWN_API bool AllActiveSlotsHeld(const FLDProgressionView* Progression);
+    LOCKDOWN_API FString HeldText(const FActiveRow& Row);
+    // Level, XP, unspent points and queued active opportunities; an unprojected view reads as syncing, never as 0.
+    LOCKDOWN_API FString StatusLine(const FLDProgressionView* Progression);
     // The stat's name in player terms with its entry unit.
     LOCKDOWN_API FString StatLabel(const LDDevTest::FStatField& Field);
     // The committed final value with its sources (the test layer included) from the owner projection only.
     LOCKDOWN_API FString AttributeLine(const FLDCombatOwnerView* Combat,uint8 Attribute);
-    // The equipment slot (1 or 2) as the own view shows it.
-    LOCKDOWN_API FString SlotLine(const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,uint8 SlotNumber);
     // The authority's answer in one line: admission refusal, applied, or refused with its reason.
     LOCKDOWN_API FString ResultLine(const FLDDevTestResult& Result);
 }
@@ -62,8 +51,7 @@ public:
     // The controller's SubmitDevTest: the request id, or 0 with the local refusal reason.
     TFunction<uint64(ELDDevTestOp,int64,ELDGrowthReason&,FName,uint8,uint8)> Submit;
     // Called on every HUD refresh with the own projections (nullptr when not projected) and the approved catalog.
-    void Present(const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDCombatOwnerView* Combat,
-        const FLDDemoContentDefinitions* Content,bool bHost);
+    void Present(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content,bool bHost);
     void HandleResult(const FLDDevTestResult& Result);
     // Sends one command and shows the local answer; the panel's buttons and automation both use it.
     bool Send(ELDDevTestOp Op,int64 Amount=0,FName Definition=NAME_None,uint8 SlotIndex=0,uint8 Stat=0);
@@ -83,21 +71,22 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> StatusText;
     UPROPERTY() TObjectPtr<UTextBlock> FeedbackLine;
     UPROPERTY() TObjectPtr<UEditableTextBox> XPBox;
-    UPROPERTY() TObjectPtr<UEditableTextBox> GoldBox;
     UPROPERTY() TArray<TObjectPtr<UEditableTextBox>> StatBoxes;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> StatLines;
-    UPROPERTY() TObjectPtr<UTextBlock> SlotLines[2];
     UPROPERTY() TObjectPtr<UTextBlock> LearnHint;
     UPROPERTY() TObjectPtr<UVerticalBox> LearnList;
-    UPROPERTY() TObjectPtr<UVerticalBox> ItemList;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ItemNames;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ItemPrices;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> LearnNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> LearnHeld;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> LearnGrant;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> LearnNow;
     UPROPERTY() TArray<TObjectPtr<UWidget>> LearnReplace;
+    UPROPERTY() TObjectPtr<UVerticalBox> PointList;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PointNames;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PointHeld;
     UPROPERTY() TObjectPtr<UWidget> HostSection;
-    TArray<LDDevPanel::FItemRow> ShownItems;
-    TArray<LDDevPanel::FLearnRow> ShownLearn;
+    TArray<LDDevPanel::FActiveRow> ShownActives;
+    TArray<FName> ShownStats;
+    int64 ShownUnspent=0;
     bool bCatalogBuilt=false;
     FString Feedback;
     bool bOpen=false;

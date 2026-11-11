@@ -1,5 +1,8 @@
 #include "Framework/LDPlayerController.h"
 #include "Core/LDLog.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "Audio/LDMusicSelection.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDDemoEntry.h"
@@ -15,6 +18,7 @@
 #include "Tests/LDDemoCaptureProbe.h"
 #include "Tests/LDDemoOpponentProbe.h"
 #include "Tests/LDDemoSessionFaultProbe.h"
+#include "Tests/LDBuildEvaluationProbe.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlSettings.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -30,6 +34,7 @@
 ALDPlayerController::ALDPlayerController()
 {
     Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));
+    BuildBlueprints=CreateDefaultSubobject<ULDBuildBlueprintComponent>(TEXT("BuildBlueprints"));
     bAutoManageActiveCameraTarget=false;
 }
 
@@ -53,8 +58,6 @@ void ALDPlayerController::BeginPlay()
 {
     Super::BeginPlay();
     InitializeLocalUI();
-    // Growth/Shop: shop arrival requests the shop session (LDPlayerGrowth.cpp).
-    BindGrowthClient();
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartWorldRoomProbe(*this);
     LDDemoTests::StartCoreProbe(*this);
@@ -65,6 +68,7 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartCaptureProbe(*this);
     LDDemoTests::StartOpponentProbe(*this);
     LDDemoTests::StartSessionFaultProbe(*this);
+    LDDemoTests::StartBuildEvaluation(*this);
 #endif
 }
 
@@ -219,8 +223,22 @@ void ALDPlayerController::PlayerTick(float Delta)
     Super::PlayerTick(Delta);
     InitializeLocalUI();
     UpdateV05Inputs(Delta);
+    UpdateMusic();
     if (!GetLocalPlayer() || IsFrontend()) { return; }
     Trace().Tick(*this);
+}
+
+void ALDPlayerController::UpdateMusic()
+{
+    if (!GetLocalPlayer()) { return; }
+    UGameInstance* Instance = GetGameInstance();
+    auto* AudioOutput = Instance ? Instance->GetSubsystem<ULDAudioSubsystem>() : nullptr;
+    if (!AudioOutput) { return; }
+    FLDMusicInput Input;
+    Input.bFrontend = IsFrontend();
+    if (const auto* Public = GetWorld()->GetGameState<ALDGameState>()) { Input.Public = &Public->PublicMatch; }
+    Input.bClock = ReadDemoAuthorityTimeMs(Input.NowMs);
+    AudioOutput->SetMusic(LDAudio::SelectMusic(Input));
 }
 
 #if WITH_DEV_AUTOMATION_TESTS

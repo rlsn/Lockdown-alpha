@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,900)][int]$TimeoutSeconds=720,
+# The default bound is derived in LDDemoOpponentProbe.cpp (StartOpponentProbe): the flagpole opens at most 1464 s after the
+# start when every rest runs its whole approved PK, plus the 505 s kept for the lobby, the capture contest and the results.
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$TimeoutSeconds=1980,
     # Optional engine packet simulation for every role, e.g. '-PktLag=40 -PktLagVariance=10 -PktLoss=1'.
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # Optional log verbosity for every role, e.g. 'LogLDNav Verbose' or 'LogLDTrace off, LogLDCombat Display' (passed as -LogCmds).
@@ -9,14 +11,17 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,900)][int]$T
     [switch]$Telemetry, [ValidateRange(1,50)][int]$MatchCount=1,
     # Telemetry only: DEV content hot reload (-LDDevContentReload, editor build only), so a re-synced demo_content.json
     # is played without rebuilding C++. Each match records the content root it played.
-    [switch]$DevContentReload)
+    [switch]$DevContentReload,
+    # Presentation-only R0 check on real owning connections, not a full AI match. Pins only the DEV draw seed.
+    [ValidateSet('2v2','3v3')][string]$UIReview)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
 if ($Telemetry -and $NetEmulation) { throw 'Telemetry runs the Host alone on loopback; -NetEmulation has no connection to impair.' }
 if (-not $Telemetry -and $PSBoundParameters.ContainsKey('MatchCount')) { throw '-MatchCount applies only to -Telemetry.' }
 if ($DevContentReload -and (-not $Telemetry -or $PackageRoot)) { throw '-DevContentReload applies only to -Telemetry on the editor build; a package must be cooked again.' }
-$scenario = if ($Telemetry) { 'DemoOpponent-Telemetry' } else { 'DemoOpponent-FullRoom' }
+if ($UIReview -and $Telemetry) { throw '-UIReview and -Telemetry are separate checks.' }
+$scenario = if ($UIReview) { "DemoUI-$UIReview" } elseif ($Telemetry) { 'DemoOpponent-Telemetry' } else { 'DemoOpponent-FullRoom' }
 $output = New-LDArtifactDirectory ($scenario + $(if ($PackageRoot) { '-Packaged' } else { '' }) +
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
@@ -41,10 +46,13 @@ function Start-OpponentRole {
     # Host stay headless.
     $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
         elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount$(if ($DevContentReload) { ' -LDDevContentReload' })" }
+        elseif ($UIReview -and $Role -eq 'Client1') { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
         else { '-nullrhi' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($NetEmulation) { $arguments += " $NetEmulation" }
     if ($LogCmds) { $arguments += " -LogCmds=""$LogCmds""" }
+    if ($UIReview) { $arguments += " -LDDemoUIReview=$UIReview" }
+    if ($UIReview -and $Role -eq 'Host') { $arguments += ' -LDDevGrowthFixture' }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 
@@ -127,7 +135,7 @@ try {
         $r
     }
     $first = $reports[0].summary
-    foreach ($r in $reports) {
+    foreach ($r in $reports | Where-Object { -not $UIReview }) {
         if ($r.summary.winner -ne $first.winner -or $r.summary.ended_at_ms -ne $first.ended_at_ms -or
             $r.summary.next_generation -ne $first.next_generation) {
             throw "Roles disagree on the unique result or the next Lobby generation: $output"
@@ -139,14 +147,37 @@ try {
     }
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
     if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
-    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
+    $loggedErrors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    # R02 intentionally blocks every PK spawn. Only its single Host marker, backed by the passed assertion, is expected.
+    $r02Passed = @($reports | Where-Object { $_.role -eq 'Host' } | ForEach-Object { $_.checks } |
+        Where-Object { $_.name -like 'R02:*' -and $_.status -eq 'passed' }).Count -eq 1
+    $expectedBlocked = @($loggedErrors | Where-Object {
+        $_.Filename -eq 'Host.log' -and $_.Line -match 'LogLDMatch: Error: LD_PK_ARENA_BLOCKED serial=2 outcome=NoContest at_ms=\d+$'
+    })
+    $errors = @($loggedErrors | Where-Object {
+        -not ($r02Passed -and $expectedBlocked.Count -eq 1 -and $_.Path -eq $expectedBlocked[0].Path -and $_.LineNumber -eq $expectedBlocked[0].LineNumber)
+    })
     if ($errors.Count) { throw "Opponent scenario logged an error: $($errors[0].Line). Evidence: $output" }
     Assert-LDNetEmulationApplied -Output $output -Roles @('Host','Client1','Client2') -NetEmulation $NetEmulation
+    if ($UIReview) {
+        foreach ($role in 'Host','Client1','Client2') {
+            $r = $reports | Where-Object { $_.role -eq $role }
+            if ($r.summary.ui_format -ne $UIReview -or @($r.checks | Where-Object { $_.name -eq 'UI: owning connection reads team relations and observed arena bodies' -and $_.status -eq 'passed' }).Count -ne 1) {
+                throw "UI review did not prove $UIReview for $role. Evidence: $output"
+            }
+            foreach ($scale in @('100','125') | Where-Object { $role -ne 'Client2' }) {
+                $shot = Join-Path $evidence "$role-PK-$UIReview-$scale.png"
+                if (-not (Test-Path -LiteralPath $shot)) { throw "UI review screenshot missing: $shot" }
+            }
+        }
+        Write-Host "DEV-only $UIReview UI evidence passed on three real owning connections with the approved probability and a pinned draw seed. Not full-match AI acceptance. Evidence: $output"
+        return
+    }
     foreach ($ai in $first.opponents) {
-        Write-Host ('AI slot {0}: level {1}, choices {2}, items {3} [{4}], deaths {5}, respawns {6}, kills {7}, orders {8} (refused {9}, refused at admission {14}), actions {10}, trades {11}, max 30 s body requests {12}{13}' -f
-            $ai.slot,$ai.level,$ai.choices,$ai.items_max,$ai.gear,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
-            $ai.actions,$ai.trades,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }),$ai.orders_rejected)
+        Write-Host ('AI slot {0}: level {1}, choices {2}, deaths {3}, respawns {4}, kills {5}, orders {6} (refused {7}, refused at admission {11}), actions {8}, max 30 s body requests {9}{10}' -f
+            $ai.slot,$ai.level,$ai.choices,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
+            $ai.actions,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }),$ai.orders_rejected)
     }
     $notExercised = @($reports | ForEach-Object { @($_.checks) } | Where-Object { $_.status -eq 'not_exercised' } |
         ForEach-Object { [string]$_.name } | Sort-Object -Unique)

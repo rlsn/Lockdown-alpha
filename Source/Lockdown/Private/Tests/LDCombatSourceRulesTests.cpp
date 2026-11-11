@@ -7,104 +7,13 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "../Development/LDDemoContentJson.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 
 namespace LDCombatSourceRulesTestDetail
 {
-    // Same isolated approved_base fixture as the evaluator tests; no live-data fallback.
-    bool ReadApprovedContent(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
-    {
-        using namespace LDDemoContent;
-        FString Root, Error;
-        if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty())
-        {
-            Test.AddError(TEXT("Missing -LDDemoContentFixtures=<isolated Artifacts directory>; export approved_base first."));
-            return false;
-        }
-        if (!Test.TestTrue(TEXT("Source-rule fixtures are isolated under this project's Artifacts"),
-            FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-                FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts")))))
-        {
-            return false;
-        }
-        FCheck Check(Error);
-        TArray<uint8> Bytes;
-        FValue IndexValue;
-        if (!ReadFile(FPaths::Combine(Root, TEXT("index.json")), Bytes, Error)
-            || !Parse(Bytes, IndexValue, Check, TEXT("fixture index")))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        FFields Index(Check, IndexValue, TEXT("fixture index"));
-        bool bTestOnly = false;
-        const TArray<FValue>* Valid = nullptr;
-        const TArray<FValue>* Invalid = nullptr;
-        if (!Index.Literal(TEXT("format"), TEXT("demo-native-fixtures-1"))
-            || !Index.Flag(TEXT("test_only"), bTestOnly) || !Check.Require(bTestOnly, Index.Path, TEXT("test-only marker required"))
-            || !Array(Index.Take(TEXT("valid")), Valid, Check, Index.Path, 1, 1024)
-            || !Array(Index.Take(TEXT("invalid")), Invalid, Check, Index.Path, 0, 1024) || !Index.Done())
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        bool bFound = false;
-        FLDDemoContentDigest Digest;
-        for (const auto& RowValue : *Valid)
-        {
-            FFields Row(Check, RowValue, TEXT("fixture case"));
-            FString Name;
-            if (!Row.Identifier(TEXT("name"), Name))
-            {
-                Test.AddError(Error);
-                return false;
-            }
-            if (Name != TEXT("approved_base")) { continue; }
-            const TArray<FValue>* ChangedPaths = nullptr;
-            FString MutatedQuantity;
-            if (!Check.Require(!bFound, Row.Path, TEXT("duplicate approved_base fixture"))
-                || !Row.Digest(TEXT("catalog_sha256"), Digest)
-                || !Array(Row.Take(TEXT("changed_paths")), ChangedPaths, Check, Row.Path, 0, MaxFileBytes)
-                || !Row.Text(TEXT("mutated_quantity"), MutatedQuantity, 0) || !Row.Done())
-            {
-                Test.AddError(Error);
-                return false;
-            }
-            bFound = true;
-        }
-        if (!Test.TestTrue(TEXT("approved_base fixture is present"), bFound)) { return false; }
-        FLDDemoContentBundle Bundle;
-        auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-        TUniquePtr<FLDDemoPreparedContent> Prepared;
-        if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-            || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-            || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, Out, Error))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        return true;
-    }
-
-    const FName Battery(TEXT("item_arcane_battery"));
-    const FName Spikes(TEXT("item_phase_anchor"));
-    const FName Maul(TEXT("item_echo_maul"));
     const FName Bolt(TEXT("active_snark_bolt"));
     constexpr int64 NowMs = 60000;
-
-    FLDEquippedItemValue Item(uint8 Slot, const FGuid& Instance, FName Definition)
-    {
-        FLDEquippedItemValue Value;
-        Value.Slot = Slot;
-        Value.Instance = Instance;
-        Value.DefinitionId = Definition;
-        return Value;
-    }
 
     bool Plan(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, const FLDDemoContentSnapshot& Content,
         TArray<FLDCombatBindingPlan>& Out, ELDCombatPrepareError& Code)
@@ -131,7 +40,7 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatSourceRulesTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!ReadApprovedContent(*this, Content)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Content)) { return false; }
     TArray<FLDCombatBindingPlan> Out;
     ELDCombatPrepareError Code = ELDCombatPrepareError::None;
 
@@ -146,7 +55,6 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     FLDBuildProjectionInput Active;
     FLDLearnedActiveValue Skill;
     Skill.AbilityId = Bolt;
-    Skill.Rank = 1;
     Skill.Entry = ELDCombatEntry::W;
     Active.Actives.Add(Skill);
     TestTrue(TEXT("A learned definition returns to its single track and end time in any slot"),
@@ -157,12 +65,6 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
         Plan(Empty, Active, *Content, Out, Code) && Out.Num() == 1 && Out[0].bNewTrack && Out[0].ReadyAtMs == 0
         && Out[0].Entry == ELDCombatEntry::W && Out[0].Source.Kind == ELDCombatSourceKind::Learned && Out[0].IssuedCooldownId.IsValid());
 
-    FLDBuildProjectionInput Worn;
-    Worn.Equipment.Add(Item(0, FGuid::NewGuid(), Battery));
-    Worn.Equipment.Add(Item(1, FGuid::NewGuid(), Maul));
-    TestTrue(TEXT("Equipment binds no cooldown track"),
-        Plan(Empty, Worn, *Content, Out, Code) && Out.IsEmpty());
-
     FLDBuildProjectionInput Duplicate = Active;
     Skill.Entry = ELDCombatEntry::Q;
     Duplicate.Actives.Add(Skill);
@@ -171,9 +73,8 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// D19/D20: the innate dash terms come from the approved character; the spikes passive halves the cooldown and lengthens
-// the distance once per family; the shared gate refuses a cooling, unaffordable or rooted dash; build changes never
-// plan or rebind the innate track.
+// D19: the innate dash terms come from the approved character; the shared gate refuses a cooling, unaffordable or rooted
+// dash; build changes never plan or rebind the innate track.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatInnateDashTest, "Lockdown.Rules.DemoCombatSources.InnateDash",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -181,82 +82,27 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatSourceRulesTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!ReadApprovedContent(*this, Content)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Content)) { return false; }
     const FLDDemoDashDefinition& Dash = Content->Get().Character.Dash;
     if (!TestTrue(TEXT("The approved character projects one executable dash"),
-        Dash.Target.Mode == ELDDemoTargetMode::DirectionDash && Dash.WindupMs == 0 && Dash.Rank.Effects.Num() == 1
-        && Dash.Rank.Effects[0].GetOp() == ELDDemoEffectOp::Dash && Dash.Rank.CooldownMs > Dash.Rank.Effects[0].DurationMs))
+        Dash.Target.Mode == ELDDemoTargetMode::DirectionDash && Dash.WindupMs == 0 && Dash.Values.Effects.Num() == 1
+        && Dash.Values.Effects[0].GetOp() == ELDDemoEffectOp::Dash && Dash.Values.CooldownMs > Dash.Values.Effects[0].DurationMs))
     { return false; }
-    const FLDDemoEffectDefinition& Move = Dash.Rank.Effects[0];
-    const FLDDemoEquipmentDefinition* SpikesItem = nullptr;
+    const FLDDemoEffectDefinition& Move = Dash.Values.Effects[0];
     FString Error;
-    if (!TestTrue(TEXT("The spikes are approved equipment"), Content->FindEquipment(Spikes.ToString(), SpikesItem, Error) && SpikesItem))
-    { return false; }
-    const FLDDemoEffectDefinition* Boost = SpikesItem->HasPassive ? SpikesItem->Passive.Effects.FindByPredicate(
-        [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::DashBoost; }) : nullptr;
-    TestTrue(TEXT("The spikes hold one dash boost passive"), Boost != nullptr);
-    if (!Boost) { return false; }
-    const auto Families = [&](const TArray<FString>& Items, TArray<FLDEquipmentPassiveFamily>& Out)
-    {
-        const auto Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}, Items), *Content);
-        if (!Projected.IsSuccess()) { return false; }
-        Out = Projected.Value->EquipmentPassives;
-        return true;
-    };
-    TArray<FLDEquipmentPassiveFamily> None, One, Two, Other;
-    FLDInnateDashTerms Base, Single, Double, Unrelated;
-    TestTrue(TEXT("Bare terms are the approved character dash"),
-        Families({}, None) && LDCombatSourceRules::InnateDashTerms(*Content, None, {}, Base, Error) && !Base.bBoosted
-        && Base.CooldownMs == Dash.Rank.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Rank.ManaCostP2
+    FLDInnateDashTerms Base;
+    TestTrue(TEXT("The terms are the approved character dash"),
+        LDCombatSourceRules::InnateDashTerms(*Content, Base, Error)
+        && Base.CooldownMs == Dash.Values.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Values.ManaCostP2
         && Base.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Base.DistanceCm.Denominator);
-    const int64 Scaled = Dash.Rank.CooldownMs * Boost->CooldownRatioBp;
-    const int64 BoostedCooldown = Scaled / 10000 + (Scaled % 10000 != 0 ? 1 : 0);
-    TestTrue(TEXT("Worn spikes scale the cooldown and the distance, never the duration"),
-        Families({Spikes.ToString()}, One) && LDCombatSourceRules::InnateDashTerms(*Content, One, {}, Single, Error) && Single.bBoosted
-        && Single.CooldownMs == BoostedCooldown && Single.DurationMs == Move.DurationMs
-        && Single.DistanceCm.Numerator * Move.DistanceCm.Denominator * 10000
-            == Move.DistanceCm.Numerator * (10000 + Boost->DistanceBonusBp) * Single.DistanceCm.Denominator);
-    TestTrue(TEXT("Two pairs of spikes apply the same-named passive once"),
-        Families({Spikes.ToString(), Spikes.ToString()}, Two) && Two.Num() == 1
-        && LDCombatSourceRules::InnateDashTerms(*Content, Two, {}, Double, Error)
-        && Double.CooldownMs == Single.CooldownMs && Double.DistanceCm.Numerator == Single.DistanceCm.Numerator
-        && Double.DistanceCm.Denominator == Single.DistanceCm.Denominator);
-    TestTrue(TEXT("Another equipment passive leaves the dash unchanged"),
-        Families({Maul.ToString()}, Other) && LDCombatSourceRules::InnateDashTerms(*Content, Other, {}, Unrelated, Error)
-        && !Unrelated.bBoosted && Unrelated.CooldownMs == Base.CooldownMs);
-    // #147: passive_special_forces advanced ("dash (D) cooldown -30%") boosts the dash like an equipment family; its basic rank does not.
-    FLDInnateDashTerms Learned, LearnedBasic;
-    const int64 LearnedScaled = Dash.Rank.CooldownMs * 7000;
-    TestTrue(TEXT("Advanced special forces: dash cooldown x0.70, distance unchanged"),
-        LDCombatSourceRules::InnateDashTerms(*Content, None, {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 2, 5}}, Learned, Error)
-        && Learned.bBoosted && Learned.CooldownMs == LearnedScaled / 10000 + (LearnedScaled % 10000 != 0 ? 1 : 0)
-        && Learned.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Learned.DistanceCm.Denominator);
     AddInfo(Error);
-    TestTrue(TEXT("Basic special forces leaves the dash unchanged"),
-        LDCombatSourceRules::InnateDashTerms(*Content, None, {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 1, 5}}, LearnedBasic, Error)
-        && !LearnedBasic.bBoosted && LearnedBasic.CooldownMs == Base.CooldownMs);
-    // #112 §5: the same boost lengthens and quickens every character active that displaces its caster
-    // (active_bail_out basic: approved 350 -> 437.5 cm, base cooldown x0.80; upgraded +35% / x0.72).
     const FLDDemoAbilityDefinition* LungeSkill = nullptr;
     const FLDDemoAbilityDefinition* BoltSkill = nullptr;
     if (TestTrue(TEXT("Bail out and the bolt are approved"), Content->FindAbility(TEXT("active_bail_out"), LungeSkill, Error) && LungeSkill
-        && !LungeSkill->Ranks.IsEmpty() && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill && !BoltSkill->Ranks.IsEmpty()))
+        && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill))
     {
-        const FLDDemoEffectDefinition* Lunge = LungeSkill->Ranks[0].Effects.FindByPredicate(
-            [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Dash; });
-        TestTrue(TEXT("Bail out displaces its caster; a bolt does not"), Lunge
-            && LDCombatSourceRules::DisplacesCaster(LungeSkill->Ranks[0]) && !LDCombatSourceRules::DisplacesCaster(BoltSkill->Ranks[0]));
-        int64 CooldownRatioBp = 0, DistanceBonusBp = 0;
-        TestTrue(TEXT("Worn spikes: bail out goes 25% farther and its base cooldown is x0.80"),
-            Lunge && LDCombatSourceRules::SkillDisplacementBoost(*Content, One, CooldownRatioBp, DistanceBonusBp, Error)
-            && CooldownRatioBp == 8000 && DistanceBonusBp == 2500
-            && FMath::IsNearlyEqual(double(Lunge->DistanceCm.Numerator) / double(Lunge->DistanceCm.Denominator)
-                * double(10000 + DistanceBonusBp) / 10000., 437.5));
-        TArray<FLDEquipmentPassiveFamily> Upgraded = One;
-        if (Upgraded.Num() == 1) { Upgraded[0].bUpgraded = true; }
-        TestTrue(TEXT("Upgraded spikes: +35% and x0.72"), Upgraded.Num() == 1
-            && LDCombatSourceRules::SkillDisplacementBoost(*Content, Upgraded, CooldownRatioBp, DistanceBonusBp, Error)
-            && CooldownRatioBp == 7200 && DistanceBonusBp == 3500);
+        TestTrue(TEXT("Bail out displaces its caster; a bolt does not"),
+            LDCombatSourceRules::DisplacesCaster(LungeSkill->Values) && !LDCombatSourceRules::DisplacesCaster(BoltSkill->Values));
     }
 
     const FLDDemoPolicies& Policies = Content->Get().Policies;
@@ -321,8 +167,7 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A stun blocks the dash"),
         LDCombatControl::Blocks(NoControl, NoControl, Disarms, NowMs, Policies, ELDCombatControlAction::Displacement));
 
-    // Buying or selling spikes is a build change, which plans only learned tracks; the innate
-    // track keeps the absolute end fixed at its release.
+    // A build change plans only learned tracks; the innate track keeps the absolute end fixed at its release.
     FLDCombatEntityRecord Record;
     FLDCombatTrack Innate;
     Innate.IssuedCooldownId = FGuid::NewGuid();
@@ -330,12 +175,11 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     Innate.DefinitionId = LDCombatSourceRules::InnateDashId();
     Innate.ReadyAtMs = NowMs + Base.CooldownMs;
     Record.Tracks.Add(Innate);
-    FLDBuildProjectionInput Wear;
-    Wear.Equipment.Add(Item(0, FGuid::NewGuid(), Spikes));
+    FLDBuildProjectionInput Change;
     TArray<FLDCombatBindingPlan> Out;
     ELDCombatPrepareError Code = ELDCombatPrepareError::None;
-    TestTrue(TEXT("Wearing spikes plans no binding and never touches the innate track"),
-        Plan(Record, Wear, *Content, Out, Code) && Out.IsEmpty() && Record.Tracks[0].ReadyAtMs == NowMs + Base.CooldownMs);
+    TestTrue(TEXT("A build change without actives plans no binding and never touches the innate track"),
+        Plan(Record, Change, *Content, Out, Code) && Out.IsEmpty() && Record.Tracks[0].ReadyAtMs == NowMs + Base.CooldownMs);
     return true;
 }
 

@@ -32,7 +32,7 @@ namespace LDPlayerInputDetail
     {
         const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
         return Public && Public->PublicMatch.Generation!=0 && Public->PublicMatch.Generation==PC.OwnerState.Match
-            && (Public->PublicMatch.Phase==ELDMatchPhase::Countdown || Public->PublicMatch.Phase==ELDMatchPhase::Development
+            && (Public->PublicMatch.Phase==ELDMatchPhase::Rest || Public->PublicMatch.Phase==ELDMatchPhase::Development
                 || Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
     }
 
@@ -204,6 +204,7 @@ void ALDPlayerController::V05Back()
     if (RootUI->YieldingConfirmation() && CancelArmedCombat()) { return; }
     if (RootUI->CloseTopModal()) { return; }
     if (CancelArmedCombat()) { return; }
+    if (HUDUI && HUDUI->CancelPKThrowAim()) { return; }
     if (RootUI->CloseTopPanel()) { return; }
     if (!bFreshInputRequired) { RootUI->ToggleMainPanel(ELDUIMainPanel::Menu); }
 }
@@ -234,6 +235,15 @@ void ALDPlayerController::V05Pressed(FName Action)
         CastChecked<ULDGameInstance>(GetGameInstance())->RequestLocalSettingsFlush();
         return;
     }
+    // #198 PK spectators: an armed throw aim owns the next world click; the left button throws at the ground under the
+    // pointer, the right button only cancels, and neither becomes an inspect, move or attack order.
+    if ((Action==TEXT("Select") || Action==TEXT("Navigate")) && HUDUI && HUDUI->IsPKThrowArmed())
+    {
+        if (RootUI && RootUI->PointerOverUI()) { return; }
+        if (Action==TEXT("Select")) { HUDUI->ThrowPKAtPointer(); }
+        else { HUDUI->CancelPKThrowAim(); }
+        return;
+    }
     if (!CanWorldCommand()) { return; }
     if (Action==TEXT("Select"))
     {
@@ -241,13 +251,7 @@ void ALDPlayerController::V05Pressed(FName Action)
         if (ConfirmArmedCombat()) { return; }
         FGuid Handle;
         uint32 ObservationEpoch=0;
-        FName Shop;
-        // A left click on the shop model opens the shop page without moving; a unit in front of it is inspected.
-        if (!ObservedUnderPointer(Handle,ObservationEpoch) && RootUI && Navigation->ShopUnderPointer(Shop))
-        {
-            RootUI->ShowMainPanel(ELDUIMainPanel::Shop);
-            return;
-        }
+        ObservedUnderPointer(Handle,ObservationEpoch);
         Inspect(Handle,ObservationEpoch);
     }
     else if (Action==TEXT("Navigate"))

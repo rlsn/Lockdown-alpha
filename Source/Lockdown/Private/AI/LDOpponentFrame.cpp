@@ -4,6 +4,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Development/LDProgressionRules.h"
 #include "Navigation/LDOrderTypes.h"
 #include "Region/LDMapGeometry.h"
 #include "Vision/LDViewTypes.h"
@@ -17,20 +18,6 @@ bool Fail(FString& Error, const FString& Message)
 {
     Error = Message;
     return false;
-}
-
-bool OptionKind(ELDChoiceOptionKind Kind, ELDOpponentOptionKind& Out)
-{
-    switch (Kind)
-    {
-    case ELDChoiceOptionKind::LearnActive: Out = ELDOpponentOptionKind::LearnActive; return true;
-    case ELDChoiceOptionKind::UpgradeActive: Out = ELDOpponentOptionKind::UpgradeActive; return true;
-    case ELDChoiceOptionKind::LearnPassive: Out = ELDOpponentOptionKind::LearnPassive; return true;
-    case ELDChoiceOptionKind::UpgradePassive: Out = ELDOpponentOptionKind::UpgradePassive; return true;
-    case ELDChoiceOptionKind::Attribute: Out = ELDOpponentOptionKind::Attribute; return true;
-    case ELDChoiceOptionKind::Opening: Out = ELDOpponentOptionKind::Opening; return true;
-    default: return false;
-    }
 }
 
 bool SourceSlot(ELDCombatEntry Entry, ELDOpponentSourceSlot& Out)
@@ -66,7 +53,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
-    int32 Shops = 0, Captures = 0, Dorms = 0, Airdrops = 0;
+    int32 Captures = 0, Dorms = 0, Airdrops = 0;
     for (const auto& Anchor : World.Anchors)
     {
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -80,6 +67,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         // D26: a Boss patrol point is the Boss's route, not a place a body goes; the visible Boss is a unit.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+        // Rest-only places are supplied separately and never considered by field decisions.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
+            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy) { continue; }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);
@@ -89,11 +80,6 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         case ELDDemoWorldAnchorKind::Spawn:
             POI.Kind = ELDOpponentPOIKind::Spawn;
             bApproved = References.SpawnIds.Contains(Anchor.Id);
-            break;
-        case ELDDemoWorldAnchorKind::Shop:
-            POI.Kind = ELDOpponentPOIKind::Shop;
-            bApproved = References.ShopIds.Contains(Anchor.Id);
-            ++Shops;
             break;
         case ELDDemoWorldAnchorKind::Capture:
             POI.Kind = ELDOpponentPOIKind::Capture;
@@ -128,10 +114,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Shops != References.ShopIds.Num() || Captures != 1 || Dorms < 1 || Airdrops < 1)
+    if (Captures != 1 || Dorms < 1 || Airdrops < 1)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose every approved shop, one capture place, and at least one dorm and airdrop point."));
+        return Fail(Error, TEXT("The public world must expose one capture place, and at least one dorm and airdrop point."));
     }
     Error.Reset();
     return true;
@@ -189,87 +175,107 @@ bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const F
     return true;
 }
 
-bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView& Equipment,
-    const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out, FString& Error)
+bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out,
+    FString& Error)
 {
     using namespace Detail;
-    if (!Progression.bValid || !Equipment.bValid || Progression.Generation != Equipment.Generation
-        || Equipment.Slots.Num() != 2 || Progression.Level == 0)
+    if (!Progression.bValid || Progression.Level == 0)
     {
-        return Fail(Error, TEXT("Own progression and equipment views must be one valid publication of this match."));
+        return Fail(Error, TEXT("The own progression view must be a valid publication of this match."));
     }
-    Out.Skills.Reset();
+    Out.Actives.Reset();
+    Out.Blueprints.Reset();
+    Out.StatPoints.Reset();
     Out.Offer.Reset();
-    TArray<FLDLearnedPassiveValue> Passives;
-    for (const auto& Skill : Progression.Skills)
+    Out.Components.Reset();
+    Out.OpeningBaseOptions.Reset();
+    Out.bOpeningBasePending = false;
+    Out.ComponentChoices.Reset();
+    Out.GapFills.Reset();
+    for (const FLDActiveSlotView& Active : Progression.Actives)
     {
-        FLDOpponentSkill Mapped;
-        Mapped.DefinitionId = CanonicalId(Skill.DefinitionId);
-        Mapped.Rank = Skill.Rank;
-        if (Skill.bActive)
-        {
-            if (Skill.Slot > 2) { return Fail(Error, TEXT("An own active skill is outside the Q/W/E slots.")); }
-            Mapped.Slot = Skill.Slot == 0 ? ELDOpponentSkillSlot::Q
-                : Skill.Slot == 1 ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::E;
-        }
-        else
-        {
-            Mapped.Slot = ELDOpponentSkillSlot::Passive;
-            Passives.Emplace(Mapped.DefinitionId, Skill.Rank);
-        }
-        Out.Skills.Add(MoveTemp(Mapped));
+        if (Active.Slot > 2 || Active.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own active is outside the Q/W/E slots.")); }
+        Out.Actives.Add({CanonicalId(Active.DefinitionId), Active.Slot});
     }
-    TArray<FLDAttributeCardValue> Cards;
-    for (const auto& Card : Progression.AttributeCards)
-    { Cards.Emplace(CanonicalId(Card.DefinitionId), Card.Count, Card.Quality); }
-    if (Progression.bHasOffer && Progression.bCanChoose)
+    for (const FName& Blueprint : Progression.PendingBlueprints) { Out.Blueprints.Add(CanonicalId(Blueprint)); }
+    TArray<FLDStatPointsValue> Points;
+    for (const FLDStatPointsView& Stat : Progression.StatPoints)
+    {
+        Out.StatPoints.Add({CanonicalId(Stat.StatId), Stat.Points});
+        if (Stat.Points > 0) { Points.Emplace(CanonicalId(Stat.StatId), Stat.Points); }
+    }
+    if (Progression.bHasActiveOffer)
     {
         FLDOpponentOffer Offer;
-        Offer.OfferId = Progression.Offer.OfferId;
-        Offer.OfferRevision = Progression.Offer.OfferRevision;
-        Offer.bRerolled = Progression.Offer.bRerolled;
-        for (const auto& Option : Progression.Offer.Options)
-        {
-            FLDOpponentOption Mapped;
-            Mapped.OptionId = Option.OptionId;
-            if (!OptionKind(Option.Kind, Mapped.Kind)) { return Fail(Error, TEXT("The own offer has an unknown option kind.")); }
-            Mapped.DefinitionId = CanonicalId(Option.DefinitionId);
-            Mapped.FromRank = Option.FromRank;
-            Mapped.ToRank = Option.ToRank;
-            Mapped.AttributeQuality = Option.AttributeQuality;
-            Offer.Options.Add(MoveTemp(Mapped));
-        }
+        Offer.OfferId = Progression.ActiveOffer.OfferId;
+        Offer.OfferRevision = Progression.ActiveOffer.OfferRevision;
+        Offer.Ordinal = Progression.ActiveOffer.OpportunityOrdinal;
+        for (const FName& Option : Progression.ActiveOffer.Options) { Offer.Options.Add(CanonicalId(Option)); }
+        if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
     }
-    TArray<FString> Equipped;
-    TArray<bool> Upgraded;
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    // #198 B: owned components; the installed ones (with their binding, and #198 F their target) also feed the own
+    // attribute projection.
+    TArray<FLDInstalledComponentValue> Installed;
+    for (const FLDComponentInstanceView& Owned : Progression.Components)
     {
-        const auto& View = Equipment.Slots[Slot];
-        if (View.SlotIndex != Slot || (View.bOccupied && View.DefinitionId.IsNone()))
+        if (Owned.DefinitionId.IsNone()) { return Fail(Error, TEXT("An own component has no definition.")); }
+        FLDOpponentComponent& Component = Out.Components.AddDefaulted_GetRef();
+        Component.DefinitionId = CanonicalId(Owned.DefinitionId);
+        Component.bInstalled = Owned.bInstalled;
+        Component.bEverInstalled = Owned.bEverInstalled;
+        if (!Owned.bInstalled) { continue; }
+        Component.TargetKind = Owned.Target.Kind;
+        Component.TargetId = Owned.Target.Definition.IsNone() ? FString() : CanonicalId(Owned.Target.Definition);
+        Component.BoundActive = Owned.Target.BoundActive.IsNone() ? FString() : CanonicalId(Owned.Target.BoundActive);
+        Component.Element = Owned.Target.Element;
+        Component.BoundComponent = Owned.Target.BoundComponent.IsNone() ? FString() : CanonicalId(Owned.Target.BoundComponent);
+        FLDInstalledComponentValue& Value = Installed.AddDefaulted_GetRef();
+        Value.ComponentId = Owned.DefinitionId;
+        Value.BoundActive = Owned.Target.BoundActive;
+        Value.Element = Owned.Target.Element;
+        Value.TargetKind = Owned.Target.Kind;
+        Value.TargetId = Owned.Target.Definition;
+        Value.BoundComponent = Owned.Target.BoundComponent;
+    }
+    Out.bOpeningBasePending = Progression.bOpeningBasePending;
+    for (const FName& Option : Progression.OpeningBaseOptions) { Out.OpeningBaseOptions.Add(CanonicalId(Option)); }
+    // #198 G: the pending component choices, and the gap fills growth's own rules allow over this view (first filler each).
+    for (const FLDComponentChoiceView& Pending : Progression.ComponentChoices)
+    {
+        if (!Pending.ChoiceId.IsValid() || Pending.Options.IsEmpty() || Pending.Options.Contains(NAME_None))
         {
-            return Fail(Error, TEXT("Own equipment slots must be the two ordered positions."));
+            return Fail(Error, TEXT("An own component choice has no id or no option."));
         }
-        Out.Equipment[Slot] = View.bOccupied ? CanonicalId(View.DefinitionId) : FString();
-        Out.EquipmentUpgraded[Slot] = View.bOccupied && View.bUpgraded;
-        if (View.bOccupied)
+        FLDOpponentComponentChoice& Choice = Out.ComponentChoices.AddDefaulted_GetRef();
+        Choice.ChoiceId = Pending.ChoiceId;
+        for (const FName& Option : Pending.Options) { Choice.Options.Add(CanonicalId(Option)); }
+    }
+    {
+        const FLDDemoContentDefinitions& Content = Catalog.Get();
+        const FLDGrowthBuild Build = LDProgression::BuildFromView(Content, Progression);
+        TArray<FName> Targets;
+        LDProgression::GapTargets(Content, Build, Targets);
+        for (const FName& Target : Targets)
         {
-            Equipped.Add(Out.Equipment[Slot]);
-            Upgraded.Add(View.bUpgraded);
+            TArray<FName> Fillers;
+            if (LDProgression::GapFillers(Content, Build, Target, Fillers) == ELDGrowthReason::None && !Fillers.IsEmpty())
+            {
+                Out.GapFills.Add({CanonicalId(Target), CanonicalId(Fillers[0])});
+            }
         }
     }
-    Out.bUpgradeUsed = Equipment.bUpgradeUsed;
-    Out.RerollTokens = Progression.RerollTokens;
-    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Passives), MoveTemp(Cards), MoveTemp(Equipped));
-    Values.EquippedUpgraded = MoveTemp(Upgraded);
-    Values.OpeningCard = CanonicalId(Progression.OpeningCard);
+    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Points));
+    Values.Components = MoveTemp(Installed);
     const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;
-    Out.Gold = Equipment.Gold;
     Out.BuildRevision = Progression.BuildRevision;
     Out.Level = Progression.Level;
-    Out.ChoicesConsumed = Progression.ConsumedThrough;
+    Out.UnspentPoints = Progression.UnspentPoints;
+    Out.OffersConsumed = Progression.ActiveOpportunitiesConsumed;
+    Out.QueuedOpportunities = Progression.QueuedActiveOpportunities;
+    Out.BuildSafeAtMs = Progression.BuildSafeAtMs;
     Error.Reset();
     return true;
 }
@@ -289,11 +295,11 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
     Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;
-    Out.bCowering = false;
+    // #198: Combat's own build safe window is fresher than the growth publication's copy.
+    Out.BuildSafeAtMs = Combat.BuildSafeAtMs;
     int64 SilencedUntilMs = 0;
     for (const auto& Status : Combat.Statuses)
     {
-        if (Status.StatusId == uint8(ELDDemoStatusId::Cowering) && Status.ExpiresAtMs > NowMs) { Out.bCowering = true; }
         // Root and Stun both hold the body in place; the policy plans no movement until they end.
         if (Status.StatusId == uint8(ELDDemoStatusId::Root) || Status.StatusId == uint8(ELDDemoStatusId::Stun))
         { Out.MoveBlockedUntilMs = FMath::Max(Out.MoveBlockedUntilMs, Status.ExpiresAtMs); }

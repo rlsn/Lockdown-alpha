@@ -30,6 +30,8 @@ public:
     FString CaptureError;
     bool PrepareGround();
     void TraceWalking(const FVector& InVelocity, float Seconds);
+    bool TraceStationary(const FVector& Input=FVector::ZeroVector);
+    virtual void PerformMovement(float DeltaSeconds) override;
     void TraceUnrecordedMove();
     // Applies the production dash root motion and integrates it in fixed native steps outside any capture scope.
     bool TraceDash(const FVector& Direction, double DistanceCm, double DurationSeconds, float StepSeconds, int32 Steps, FString& Error);
@@ -50,6 +52,7 @@ protected:
     virtual bool MoveUpdatedComponentImpl(const FVector& Delta, const FQuat& Rotation, bool Sweep,
         FHitResult* Hit=nullptr, ETeleportType Teleport=ETeleportType::None) override;
 private:
+    bool CheckStationary=false, SkippedStationary=false;
     int32 BeginTrace(FName Kind, double Seconds=0, double Fraction=0) const;
     void EndTrace(int32 Index, bool Result) const;
 };

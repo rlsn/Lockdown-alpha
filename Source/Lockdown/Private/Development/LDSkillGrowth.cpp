@@ -27,7 +27,14 @@ bool LDSkillGrowth::GrowP2(int64 AmountP2, int64 Factor, int64& Out)
 bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Factor, FLDDemoEffectDefinition& Out)
 {
     Out = Authored;
-    if (Authored.GetOp() != ELDDemoEffectOp::ManaOnHit && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
+    // Mana grants never grow (mana_on_hit, #198 F control_mana).
+    const bool bMana = Authored.GetOp() == ELDDemoEffectOp::ManaOnHit || Authored.GetOp() == ELDDemoEffectOp::ControlMana;
+    if (!bMana && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
+    {
+        return false;
+    }
+    // #198 S16: the record cap is a fixed amount (100G) like the answer's base.
+    if (Authored.GetOp() == ELDDemoEffectOp::Brace && !GrowP2(Authored.LimitP2, Factor, Out.LimitP2))
     {
         return false;
     }
@@ -46,8 +53,8 @@ bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Fa
     return true;
 }
 
-bool LDSkillGrowth::GrowRank(const FLDDemoRankDefinition& Authored, int64 ThroughTenBp, int64 AfterTenBp,
-    uint8 Level, FLDDemoRankDefinition& Out)
+bool LDSkillGrowth::GrowValues(const FLDDemoAbilityValues& Authored, int64 ThroughTenBp, int64 AfterTenBp,
+    uint8 Level, FLDDemoAbilityValues& Out)
 {
     Out = Authored;
     const int64 Factor = FactorBp(ThroughTenBp, AfterTenBp, Level);

@@ -20,7 +20,8 @@ namespace LDPlayerOrdersDetail
     bool IsArmedMode(ELDDemoTargetMode Mode)
     {
         return Mode==ELDDemoTargetMode::Unit || Mode==ELDDemoTargetMode::DirectionProjectile
-            || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::GroundPoint || Mode==ELDDemoTargetMode::DirectionCone;
+            || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::GroundPoint || Mode==ELDDemoTargetMode::DirectionCone
+            || Mode==ELDDemoTargetMode::DirectionLine;
     }
 }
 
@@ -135,7 +136,8 @@ bool ALDPlayerController::ConfirmArmedCombat()
             Aim.ObservationEpoch=Epoch;
         }
     }
-    else if (Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::DirectionCone)
+    else if (Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::DirectionCone
+        || Mode==ELDDemoTargetMode::DirectionLine)
     {
         FHitResult GroundHit;
         const auto* Body=Cast<ALDCharacter>(GetPawn());
@@ -193,13 +195,6 @@ void ALDPlayerController::StopCombatAndOrders()
     ServerCancelCombatAction(Request);
 }
 
-bool ALDPlayerController::ReadShopInteraction(FName& OutShopId, uint32& OutLife) const
-{
-    OutShopId=NAME_None;
-    OutLife=0;
-    return Navigation && Navigation->ReadShopInteraction(OutShopId,OutLife);
-}
-
 void ALDPlayerController::PostIntentNotice(const FString& Text)
 {
     if (Text.IsEmpty() || !IsLocalController()) { return; }
@@ -235,7 +230,8 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         const ELDDemoTargetMode Mode=View?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
         const FVector Point=Aim.Kind==ELDCombatTargetKind::Point?FVector(Aim.Point):AimCm?*AimCm:FVector::ZeroVector;
         const bool bPointCast=(Mode==ELDDemoTargetMode::GroundPoint && Aim.Kind==ELDCombatTargetKind::Point)
-            || ((Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionCone)
+            || ((Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionCone
+                    || Mode==ELDDemoTargetMode::DirectionLine)
                 && Aim.Kind==ELDCombatTargetKind::Direction && AimCm);
         if (bPointCast)
         {

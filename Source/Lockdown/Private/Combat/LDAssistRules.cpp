@@ -30,20 +30,12 @@ void LDAssist::SelectAssisters(const TArray<FLDAssistContribution>& Contribution
     Out.Sort();
 }
 
-bool LDAssist::SplitKillReward(int64 BaseGold, int64 BaseXP, int32 AssisterCount, int64 AssistGoldBp,
-    FLDAssistRewardShares& Out)
+bool LDAssist::SplitKillReward(int64 BaseXP, int32 AssisterCount, FLDAssistRewardShares& Out)
 {
     Out=FLDAssistRewardShares();
-    if (BaseGold<0 || BaseXP<0 || AssisterCount<0 || AssistGoldBp<0 || AssistGoldBp>10000) { return false; }
-    if (BaseGold>0 && AssistGoldBp>MAX_int64/BaseGold) { return false; }
-    Out.KillerGold=BaseGold;
+    if (BaseXP<0 || AssisterCount<0) { return false; }
     const int64 Sharers=int64(AssisterCount)+1;
     Out.KillerXP=BaseXP/Sharers;
-    if (AssisterCount>0)
-    {
-        const int64 AssistPool=BaseGold*AssistGoldBp/10000;
-        Out.AssisterGold=AssistPool/AssisterCount;
-        Out.AssisterXP=BaseXP/Sharers;
-    }
+    Out.AssisterXP=AssisterCount>0 ? BaseXP/Sharers : 0;
     return true;
 }

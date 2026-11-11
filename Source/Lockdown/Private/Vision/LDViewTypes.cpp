@@ -34,32 +34,11 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
     case ELDDemoStatusId::AttackSlowed:
-    case ELDDemoStatusId::Cowering:
-    case ELDDemoStatusId::ContactGuard:
-        return true;
-    default:
-        return false;
-    }
-}
-
-bool IsPublicEquipmentOrEmpty(uint8 Id)
-{
-    if (Id == 0) { return true; }
-    switch (static_cast<ELDDemoEquipmentId>(Id))
-    {
-    case ELDDemoEquipmentId::ItemIronPlate:
-    case ELDDemoEquipmentId::ItemEdgeBlade:
-    case ELDDemoEquipmentId::ItemRunicFocus:
-    case ELDDemoEquipmentId::ItemSiphonEmblem:
-    case ELDDemoEquipmentId::ItemPhaseAnchor:
-    case ELDDemoEquipmentId::ItemArcaneBattery:
-    case ELDDemoEquipmentId::ItemEchoMaul:
-    case ELDDemoEquipmentId::ItemSlingshot:
-    case ELDDemoEquipmentId::ItemNailUniform:
-    case ELDDemoEquipmentId::ItemMegaphone:
-    case ELDDemoEquipmentId::ItemDossier:
-    case ELDDemoEquipmentId::ItemPrivacyScreen:
-    case ELDDemoEquipmentId::ItemSkateboard:
+    // #198 elements, the S16 stance and the S21 cut.
+    case ELDDemoStatusId::Wet:
+    case ELDDemoStatusId::Electrified:
+    case ELDDemoStatusId::Braced:
+    case ELDDemoStatusId::Soured:
         return true;
     default:
         return false;
@@ -73,6 +52,7 @@ bool IsPublicCreatureId(uint8 Id)
     case ELDDemoMonsterId::MonsterScavenger:
     case ELDDemoMonsterId::MonsterGuardian:
     case ELDDemoMonsterId::MonsterDean:
+    case ELDDemoMonsterId::MonsterAdvisor:
         return true;
     default:
         return false;
@@ -164,12 +144,9 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
         if (Ar.IsLoading()) { Unit.Statuses.SetNum(Count); }
         for (FLDObservedStatus& Status : Unit.Statuses) { Ar << Status.StatusId << Status.Stacks << Status.ExpiresAtServerMs; }
     }
-    if (Mask & LDObservation::Equipment) { Ar << Unit.Equipment.Slots[0] << Unit.Equipment.Slots[1]; }
     if (Mask & LDObservation::Actives)
     {
-        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0]
-            << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1]
-            << Unit.Actives.Abilities[2] << Unit.Actives.Ranks[2];
+        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Abilities[1] << Unit.Actives.Abilities[2];
     }
     return !Ar.IsError();
 }
@@ -273,10 +250,10 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if ((Mask & Mana) ? !IsObservedResourcePair(Unit.Mana, false) : !IsEmptyObservedResource(Unit.Mana))
     { return FailObservation(Error, TEXT("Observed mana is either an invalid P2 pair or present without authorization.")); }
     if (Unit.Statuses.Num() > MaxStatuses) { return FailObservation(Error, TEXT("Too many observed statuses.")); }
-    uint32 SeenStatuses = 0;
+    uint64 SeenStatuses = 0;
     for (const FLDObservedStatus& Status : Unit.Statuses)
     {
-        const uint32 Bit = Status.StatusId < 32 ? 1u << Status.StatusId : 0u;
+        const uint64 Bit = Status.StatusId < 64 ? uint64(1) << Status.StatusId : 0u;
         if (!IsPublicStatusId(Status.StatusId) || Status.Stacks == 0 || Status.ExpiresAtServerMs < 0 || (SeenStatuses & Bit) != 0
             // camp_returning is a camp-only marker with neither stacks nor expiry (SC-07).
             || (Status.StatusId == uint8(ELDDemoStatusId::CampReturning)
@@ -287,23 +264,14 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         { return FailObservation(Error, TEXT("Observed statuses must be unique public definitions with valid stacks and expiry.")); }
         SeenStatuses |= Bit;
     }
-    if (Contender
-        ? !IsPublicEquipmentOrEmpty(Unit.Equipment.Slots[0]) || !IsPublicEquipmentOrEmpty(Unit.Equipment.Slots[1])
-        : Unit.Equipment.Slots[0] != 0 || Unit.Equipment.Slots[1] != 0)
-    { return FailObservation(Error, TEXT("Observed equipment must be two public equipment definitions or empty slots.")); }
     const FLDObservedActivesView& Actives = Unit.Actives;
-    bool bActives = true;
-    for (int32 Slot = 0; Slot < 3; ++Slot)
-    {
-        bActives &= Contender
-            ? (Actives.Abilities[Slot] == 0) == (Actives.Ranks[Slot] == 0) && Actives.Ranks[Slot] <= MaxActiveRank
-            : Actives.Abilities[Slot] == 0 && Actives.Ranks[Slot] == 0;
-    }
+    const bool bActives = Contender
+        || (Actives.Abilities[0] == 0 && Actives.Abilities[1] == 0 && Actives.Abilities[2] == 0);
     const bool bDuplicate = (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1])
         || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[2])
         || (Actives.Abilities[1] != 0 && Actives.Abilities[1] == Actives.Abilities[2]);
     if (!bActives || bDuplicate)
-    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct ranked abilities or empty slots, contenders only.")); }
+    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct abilities or empty slots, contenders only.")); }
     Error.Reset();
     return true;
 }

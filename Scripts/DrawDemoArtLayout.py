@@ -1,7 +1,7 @@
 """Draw the Demo art layout map from a CaptureDemoArt.ps1 report.
 
 Top view in the same orientation as the Map-TopDown screenshot (+X right, +Y down, 10 cm per pixel): the approved
-D02 floor, walls, spawn/camp/shop/capture places, every decoration footprint coloured by zone, props taller than
+D02 floor, walls, spawn/camp/capture places, every decoration footprint coloured by zone, props taller than
 150 cm in red, and the floor points where the occlusion sweep found a body hidden behind a prop.
 """
 
@@ -15,10 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENT_CM = 7200
 SCALE = 0.1
 OCCLUDER_CM = 150
-ZONE_COLOURS = {"outside": (96, 125, 160), "wall_base": (46, 150, 80), "capture": (150, 70, 190), "shop": (150, 70, 190),
+ZONE_COLOURS = {"outside": (96, 125, 160), "wall_base": (46, 150, 80), "capture": (150, 70, 190),
                 "blocker": (120, 90, 60), "ground": (150, 190, 120)}
 CODES = {"tree_round": "T", "tree_tall": "T", "tree_pine": "P", "flower_bed": "F", "planter": "p", "bench": "B", "trash_bin": "b",
-         "flagpole": "FLAG", "grandstand": "G", "bleachers": "S", "snack_stall": "SHOP", "building_shops": "H", "building_block": "H",
+         "flagpole": "FLAG", "grandstand": "G", "bleachers": "S", "building_shops": "H", "building_block": "H",
          "street_lamp": "L", "shipping_container": "C", "container_small": "C", "broken_car": "V", "fence_long": "f"}
 # #97: trees and ground cover are too many to label; their boxes alone show where they stand.
 UNLABELLED = {"common_tree_1", "common_tree_2", "common_tree_5", "pine_tree_1", "pine_tree_2", "pine_tree_5", "grass_short", "grass_wispy",
@@ -26,7 +26,7 @@ UNLABELLED = {"common_tree_1", "common_tree_2", "common_tree_5", "pine_tree_1", 
 
 
 # Anchor rings drawn on the layout: kind -> (radius cm, colour). Event points and patrol waypoints are not drawn.
-ANCHOR_RINGS = {"Spawn": (200, (60, 110, 220)), "Camp": (500, (200, 120, 40)), "Shop": (350, (150, 70, 190)),
+ANCHOR_RINGS = {"Spawn": (200, (60, 110, 220)), "Camp": (500, (200, 120, 40)),
                 "Capture": (600, (190, 150, 20))}
 
 def px(x, y):
@@ -79,8 +79,8 @@ def main():
             tall.append(f"{decoration['prop']} {z1:.0f} cm")
     occluders = ", ".join(f"{o['prop']} ({o['zone']}, {o['height_cm']:.0f} cm): {o['hidden_points']} points" for o in report.get("occluders", [])) or "none"
     lines = [
-        "Demo art layout, top view: +X right, +Y down, 10 cm/px. Grey walls block sight; tan shop stall blocks movement only.",
-        "Boxes = decoration footprints. Blue outside the walls, green low wall-base props (<=120 cm), purple capture/shop landmarks,",
+        "Demo art layout, top view: +X right, +Y down, 10 cm/px. Grey walls block sight; tan blocks stop movement only.",
+        "Boxes = decoration footprints. Blue outside the walls, green low wall-base props (<=120 cm), purple capture landmark,",
         "brown = art drawing a world block (trees, car, containers, fences), pale green = low ground cover,",
         f"red = taller than {OCCLUDER_CM} cm on the arena floor: {', '.join(tall) or 'none'}. Orange = floor points where a body's chest/head is hidden.",
         f"Occluders found by the sweep: {occluders}.",

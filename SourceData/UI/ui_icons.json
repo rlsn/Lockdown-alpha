@@ -1,0 +1,553 @@
+{
+  "schema": 1,
+  "folder": "Icons",
+  "provenance": "Wugang icon set delivered 2026-11-09 (Artifacts/Art/WugangIcons/2026-11-09, Lockdown_Wugang_Icons_64px.zip): generated for this project with the built-in imagegen in the approved hand-painted style, 64x64 area-sampled exports of the originals; no third-party art.",
+  "icons": [
+    {
+      "id": "icon_active_account_banned",
+      "sha256": "4c9b6d4fbe819f7e2c3257b10bb0543cbd670df67a6a34a3b72ec4c755a5f3eb",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_apology_slide",
+      "sha256": "fce3cacd6935d82c2d7f63425d9000d37bc8d48e76081b3dcf8be57053a8ce75",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_bail_out",
+      "sha256": "e0c3fb75ae25b96af666cbf3985156c38d0a965675fe4b9a0a44c5e144eed899",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_brace",
+      "sha256": "22e1cc1d6837ea50b34b56f0b147225a8a3b187ca0a5140a4549803ef28f9734",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_calculus_drop",
+      "sha256": "fd20569f68a149bc254e68987df2e6cde0929c19098630466a8e4043ed418008",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_charged_ram",
+      "sha256": "240e8d80d86aabcf7beee2e4249057ea8e2fe433974ffed6f560e1e1c74e3f86",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_crotch_grab",
+      "sha256": "95df66090532ec59fe72914bb7a85dd3bb21b31de0b989b981f236899c055dba",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_dirty_puddle",
+      "sha256": "f318486fee779e96a48201769adc1a1072d273e54c7ba464e7e118def7898690",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_elbow",
+      "sha256": "2cb26ff2d2066c28ab275d13d9483fa55bac955fad30abb0eb62448973315606",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_flyer_trap",
+      "sha256": "f274e8870dbe1a7a19f688d7750678ed8e3b03f4a83204d7c26b3eedb54db8f8",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_hose_down",
+      "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_not_mad",
+      "sha256": "22e1cc1d6837ea50b34b56f0b147225a8a3b187ca0a5140a4549803ef28f9734",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_open_mic",
+      "sha256": "d3c64fcc5b03e302f588d61eb521e216e0d9b7736f89c9f89b092a9a890d4ea9",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_pants_down",
+      "sha256": "61ec886cdfcca27728a1aed849e01413bfb75036366548196bb2fcc86589c714",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_quick_meeting",
+      "sha256": "f318486fee779e96a48201769adc1a1072d273e54c7ba464e7e118def7898690",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_seethe",
+      "sha256": "c9b2023e6587f36e399061ed11ae4860ec0482b9a1267b3117821e056be575c2",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_snark_bolt",
+      "sha256": "90967fa170dc1cc3c01b58e4b927e5c4faa6402446e5306c1ed562621e4b6315",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_sock_shot",
+      "sha256": "c34332f05dc87a55c989ab9320136db465ec8bb08f1f7472ceb6b8fbf4449201",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_stare_down",
+      "sha256": "2ee9357caf059f33f95d821c2e86f720d8b329874e6e1e7614788450b5dc7c74",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_triple_combo",
+      "sha256": "f31950a16bef5e652ac756a7cce34823c32d5b5db77a64e64a6c793e21baa591",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_unplug",
+      "sha256": "3f2c9ae5145ba5a8a3d7eca82486634777aa53d28900f820de4c232b5d643518",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_active_zap",
+      "sha256": "3f2c9ae5145ba5a8a3d7eca82486634777aa53d28900f820de4c232b5d643518",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_attack_slowed",
+      "sha256": "df22b3726a7b2648e3dc4ca3fa92f0c217033cf405f516e09d639fce5bfd192b",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_braced",
+      "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_burn",
+      "sha256": "72250aef64026afdd796d6dc1de1e4cebb7505266b3aa57e7face1d02b2cb179",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_camp_returning",
+      "sha256": "8aa4065f40477e338a8ef155271cb152e92b3eab32f93cbb701680b9aa75df05",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_after_pin",
+      "sha256": "f274e8870dbe1a7a19f688d7750678ed8e3b03f4a83204d7c26b3eedb54db8f8",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_again_now",
+      "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_ball_kick",
+      "sha256": "2cb26ff2d2066c28ab275d13d9483fa55bac955fad30abb0eb62448973315606",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_big_tab",
+      "sha256": "046ef8bdcc5f6c921c11c19748f28a89b24a95f23b02795ddc19c7e478fb8efc",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_blast_chase",
+      "sha256": "18fa119bc3016f30b936b5737f2010d812cdd6b52f8ca245f8dbe07b676a95aa",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_breach_fist",
+      "sha256": "789479f2936f2d7a99f096ed31c0f5b91272d8b2b48763b1a76d5965238f76d5",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_breath_strike",
+      "sha256": "f6e52d54134a258b6e5520d82964839e79d68489e4fa2a4487bbe9fb4070dad5",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_bump_again",
+      "sha256": "31951a361c3c61f4f552e0b832ed0a2269d62c3dac5e11bd7590dd02e3e3ef2a",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_catch_breath",
+      "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_control_mana",
+      "sha256": "82e0e4224b8bcd60a12ffdc4f867c5100e1a42993daf64c1debce2ce454b6d64",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_crowd_hit",
+      "sha256": "c9b2023e6587f36e399061ed11ae4860ec0482b9a1267b3117821e056be575c2",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_dash_bump",
+      "sha256": "31951a361c3c61f4f552e0b832ed0a2269d62c3dac5e11bd7590dd02e3e3ef2a",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_dash_punch",
+      "sha256": "9028fa0d8eaa5c617e37eb850b6b07d756f82da56b469363e7c30e93d917675e",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_dirty_fist",
+      "sha256": "c9b2023e6587f36e399061ed11ae4860ec0482b9a1267b3117821e056be575c2",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_dirty_trick",
+      "sha256": "c9b2023e6587f36e399061ed11ae4860ec0482b9a1267b3117821e056be575c2",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_fire_skin",
+      "sha256": "72250aef64026afdd796d6dc1de1e4cebb7505266b3aa57e7face1d02b2cb179",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_fist_fire",
+      "sha256": "1c14a5e97b4b8c2d2e690152cbd6da06c03445ed88119659c10bda57691da4d6",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_fist_shock",
+      "sha256": "18fa119bc3016f30b936b5737f2010d812cdd6b52f8ca245f8dbe07b676a95aa",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_fist_water",
+      "sha256": "62b84ebb6dca90aa3acdaa289a7f12d375b32a69e0b6f3aaed62acfa51757d5f",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_hard_skin",
+      "sha256": "4611d1e4b87ab85169b94e090ddddb75839fc7010c14438df3f2bd6ef86c238f",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_held_shot",
+      "sha256": "807631835714630c50f30c51fbb4f70bc62c0ae07ac80bacadcbcdedb1407f82",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_hold_down",
+      "sha256": "dcaa1cb5c9f0c90d9fcc9f3e21a7d276ff82fcf9193848508df636e06a6c8b29",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_hurt_heal",
+      "sha256": "e3fafa2bb6fec6218a84d22a7451797f5bc22ef5fc3417eb0faaa717db76122b",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_kick_down",
+      "sha256": "5509ca143ece0520f56593e94ef1d86c880358eb720c5b32827fabdfca58579d",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_long_arm",
+      "sha256": "240e8d80d86aabcf7beee2e4249057ea8e2fe433974ffed6f560e1e1c74e3f86",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_long_kick",
+      "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_one_slam",
+      "sha256": "fd20569f68a149bc254e68987df2e6cde0929c19098630466a8e4043ed418008",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_owe_it",
+      "sha256": "6e89bc054f316d45c2801c21dc12b60c0282739474726a12a027f1f78d0b76dc",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_pick_you",
+      "sha256": "6957a0a11c1c55a7db624d950f0ca899ad8d35e0d6bff8c43922e7292cc8c755",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_pin_punch",
+      "sha256": "fd9691adb8307c2a5bd244ebb12ad51f72cb046374a73881d983c7316dd04586",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_punch_heal",
+      "sha256": "f6e52d54134a258b6e5520d82964839e79d68489e4fa2a4487bbe9fb4070dad5",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_quick_hop",
+      "sha256": "9eacdba37cddf2869393216b9caf3a443c26671aa2d70f9ef6a552f0c540e6f7",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_ram_through",
+      "sha256": "fce3cacd6935d82c2d7f63425d9000d37bc8d48e76081b3dcf8be57053a8ce75",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_reach_out",
+      "sha256": "240e8d80d86aabcf7beee2e4249057ea8e2fe433974ffed6f560e1e1c74e3f86",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_roll_bump",
+      "sha256": "e0c3fb75ae25b96af666cbf3985156c38d0a965675fe4b9a0a44c5e144eed899",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_seeing_red",
+      "sha256": "58f3142be46e99ce556302777ad06ab5da118350f33c13b8ca81a8ff0875eb5d",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_settle_later",
+      "sha256": "807631835714630c50f30c51fbb4f70bc62c0ae07ac80bacadcbcdedb1407f82",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_shell_burst",
+      "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_spiky_hide",
+      "sha256": "08947f52dd0df3dbd461d3d14fdad6fd08cf3cae553d7844821834ec340d4f43",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_tab_ledger",
+      "sha256": "046ef8bdcc5f6c921c11c19748f28a89b24a95f23b02795ddc19c7e478fb8efc",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_thick_hide",
+      "sha256": "6e89bc054f316d45c2801c21dc12b60c0282739474726a12a027f1f78d0b76dc",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_component_third_punch",
+      "sha256": "2cb26ff2d2066c28ab275d13d9483fa55bac955fad30abb0eb62448973315606",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_dash",
+      "sha256": "9eacdba37cddf2869393216b9caf3a443c26671aa2d70f9ef6a552f0c540e6f7",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_disarm",
+      "sha256": "0b533c239b83f35363495686793961baa4b595a890d4a7fe7fcda779ec97629d",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_dorm_regen",
+      "sha256": "e3fafa2bb6fec6218a84d22a7451797f5bc22ef5fc3417eb0faaa717db76122b",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_electrified",
+      "sha256": "fd9691adb8307c2a5bd244ebb12ad51f72cb046374a73881d983c7316dd04586",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_empowered",
+      "sha256": "b37c3a7f481d576e3f62ff35418ef9c92b215f701987d9e4051c1a754644e459",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_exposed",
+      "sha256": "6957a0a11c1c55a7db624d950f0ca899ad8d35e0d6bff8c43922e7292cc8c755",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_knockback",
+      "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_out_of_combat_regen",
+      "sha256": "4b258b187364116c6b04213023ac4517996b7d03027b8bac165fde097d5849b1",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_respawn_protection",
+      "sha256": "d0f0a730cbb5b2be1ebf220c5deac12b2050d9cdbe4711c4f4464169446e7db0",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_root",
+      "sha256": "dcaa1cb5c9f0c90d9fcc9f3e21a7d276ff82fcf9193848508df636e06a6c8b29",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_shield",
+      "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_silence",
+      "sha256": "91bdb920a77e016a8f606afa68349b164a88cb18423f1a4c9fb475fdc6e1ebc4",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_slow",
+      "sha256": "f0a1025cf9922229f8847eefb3f85630d6b2395c662b25b680c772f90eed9422",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_soured",
+      "sha256": "c34332f05dc87a55c989ab9320136db465ec8bb08f1f7472ceb6b8fbf4449201",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_agility",
+      "sha256": "d64408b3ff71f89616a63ec8a23fb8188c65dd07278e6db7d9bbddab9e096c18",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_boost",
+      "sha256": "1e0ccf203331355924ff77473251f2c80f0204ec1c4816817fea68dcff4f2553",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_brains",
+      "sha256": "82e0e4224b8bcd60a12ffdc4f867c5100e1a42993daf64c1debce2ce454b6d64",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_physique",
+      "sha256": "794d5bbc20a2261778beba96b6163611d223d3552abec84ee8d3bb2495307e04",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_strength",
+      "sha256": "fcc5136196378d598f28f0cf101df525a01950c87035d3c4bd75f1be9eff445d",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stat_thick_skin",
+      "sha256": "08947f52dd0df3dbd461d3d14fdad6fd08cf3cae553d7844821834ec340d4f43",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_stun",
+      "sha256": "fd9691adb8307c2a5bd244ebb12ad51f72cb046374a73881d983c7316dd04586",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_taunt",
+      "sha256": "b036d57ac5b8ab8ea1164eb71d4e85fb84549acaea81e449fd9ee3196c296c95",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "icon_wet",
+      "sha256": "f0a1025cf9922229f8847eefb3f85630d6b2395c662b25b680c772f90eed9422",
+      "width": 64,
+      "height": 64
+    }
+  ]
+}

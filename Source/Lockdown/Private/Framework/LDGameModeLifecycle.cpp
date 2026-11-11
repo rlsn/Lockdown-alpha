@@ -7,8 +7,9 @@
 #include "Combat/LDCombatDirector.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Engine/World.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Region/LDMapRegistry.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "World/LDSpawnPlacement.h"
@@ -60,6 +61,10 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         Error = TEXT("The sole Combat driver could not be created.");
         return false;
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    // Build evaluation (-LDBuildEvaluation only): an armed Case replays its critical rolls.
+    if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { Combat->CritRandom.Initialize(Seeds->CritSeed); }
+#endif
     LastWorldClockSample = AuthorityOriginWorldSeconds;
     AuthorityNowSeconds = 0;
     AuthorityNowMs = 0;
@@ -81,8 +86,8 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
             return false;
         }
     }
-    // Growth/Shop: ledger, growth, equipment and shop directors for this match; roster setup is the provider Prepare.
-    if (!ALDEconomyDirector::SpawnDomain(*this,Spawn,Error))
+    // Growth: the growth and development directors for this match; roster setup is the provider Prepare.
+    if (!ALDGrowthDirector::SpawnDomain(*this,Spawn,Error))
     {
         RetireMatchDomains();
         return false;
@@ -101,14 +106,28 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
-    // D26 (#79): the airdrop schedule from this match's start.
-    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, Airdrop, Error))
+    // D26 (#79): the airdrop schedule in field progress T (#198: T starts at 0 in the first field and pauses in rests).
+    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, 0, MatchContext.LedgerMatch, Airdrop, Error))
     {
         RetireMatchDomains();
         return false;
     }
-    // D27 (#79): the leader notice refreshes from this match's start.
-    if (!LDLeaderNotice::Resolve(*DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, LeaderNotice, Error))
+    // #198: the field charms land on the airdrop points.
+    if (!LDCharms::Resolve(Airdrop, *DemoContent, Charms, Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
+    // #198 outer §5: the camp markers of the timed field segments, drawn from a seed derived from the airdrop's.
+    if (!DormRegistry->GetGeometry()
+        || !LDFieldMarkers::Resolve(*DemoContent, *DormRegistry->GetGeometry(), 0, Airdrop.Schedule.Seed, FieldMarkers, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Camp markers require the registered Demo world geometry."); }
+        RetireMatchDomains();
+        return false;
+    }
+    // D27 (#79): the leader notice refreshes in field progress T as well.
+    if (!LDLeaderNotice::Resolve(*DemoContent, 0, MatchContext.LedgerMatch, LeaderNotice, Error))
     {
         RetireMatchDomains();
         return false;
@@ -128,12 +147,15 @@ void ALDGameMode::RetireMatchDomains()
     // and when RetireAuthorityCore ends a match for the next Lobby generation.
     if (Vision) { Vision->Destroy(); Vision=nullptr; }
     if (Combat) { Combat->Destroy(); Combat=nullptr; }
-    // Growth/Shop: the ledger, growth, equipment and shop directors of the retired match.
-    ALDEconomyDirector::RetireDomain(*this);
+    // Growth: the growth and development directors of the retired match.
+    ALDGrowthDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
     DormZones={};
     Airdrop={};
+    Charms={};
+    FieldMarkers={};
+    OwedFieldRewards.Reset();
     LeaderNotice={};
     CaptureTracks.Reset();
     PendingCapture.Reset();
@@ -339,8 +361,11 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     if (Sequence!=Batch->ThroughSequence || !Foot.Equals(Batch->EndFootCm,.000001)
         || Support.Grounded!=Batch->FinalSupport.Grounded || Support.Floor!=Batch->FinalSupport.Floor)
     { return ELDCommitReject::GeometryUnavailable; }
-    // Capture reads every accepted contender batch synchronously; the driver releases it next step.
-    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive())
+    // Capture reads every accepted contender batch synchronously; the driver releases it next step. A rest life (#198
+    // shared rest space) and a PK life (#198 D: the PK runs no flagpole and its lives never join the spray roster) have
+    // no spray eligibility.
+    if (Body.Victim.Kind==ELDVictimKind::Contender && CaptureReducer.IsActive() && !RestLives.Contains(Body.Victim.EntityId)
+        && !PKLives.Contains(Body.Victim.EntityId) && !TrainingDummyIds.Contains(Body.Victim.EntityId))
     {
         const auto Captured=PublishCaptureMotion(Permit,*Batch);
         if (Captured!=ELDCommitReject::None) { return Captured; }
@@ -352,6 +377,11 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     if (Combat) { Combat->CaptureSkillMotion(Batch); }
     Life.NativeMotion.Add(MoveTemp(Batch));
     Life.CompletedMotionStep = Step.StepSerial;
+    if (ALDPlayerController* Controller = FindContenderController(Body.Victim.EntityId);
+        Controller && Controller->OwnerState.NearbyRestService != NearbyRestService(Body.Victim.EntityId))
+    {
+        SyncOwner(Controller);
+    }
     return ELDCommitReject::None;
 }
 

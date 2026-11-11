@@ -3,7 +3,7 @@
 Give it the Host log, one or more client logs, or both (``Saved/Logs/Lockdown.log`` of each player, or the Host.log and
 ClientN.log files of a scenario run). Lines are merged by their UTC timestamps, split by match generation and every
 contender id is replaced by its roster name. For each match the report lists the header and roster, the result, every
-death with the hits (Host) or own damage (client) before it, the economy timeline, the events around each player mark,
+death with the hits (Host) or own damage (client) before it, the growth timeline, the events around each player mark,
 the frame-time and connection summaries, and the warnings and errors.
 
 ``--check-client`` exits non-zero when a log carries Host-only authority lines written while that process was not hosting
@@ -29,8 +29,8 @@ ID = re.compile(r"\b[0-9A-F]{32}\b")
 # Authority lines only the Host writes; a client log must never contain them.
 HOST_ONLY_TAGS = frozenset(
     {
-        "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_CHOICE", "LD_SHOP_TRADE",
-        "LD_SHOP_REJECTED", "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
+        "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
+        "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
         "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED",
     }
@@ -39,9 +39,9 @@ HOST_ONLY_TAGS = frozenset(
 PERIODIC_TAGS = frozenset({"LD_HEARTBEAT", "LD_SELF_STATE", "LD_PERF", "LD_NET", "LD_PERF_HITCH"})
 # Routine AI and order bookkeeping: counted around a mark, listed only with --mark-all.
 ROUTINE_TAGS = frozenset({"LD_AI_DECISION", "LD_NAV_ACCEPT", "LD_NAV_END", "LD_CAMP_ATTACK", "LD_CAMP_CHASE_PATH_REJECTED"})
-ECONOMY_TAGS = (
-    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_CHOICE", "LD_SHOP_TRADE", "LD_SHOP_REJECTED",
-    "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD", "LD_SELF_ITEMS",
+GROWTH_TAGS = (
+    "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_OFFER_WAITING", "LD_CHOICE", "LD_BUILD",
+    "LD_SELF_REWARD", "LD_SELF_LEVEL", "LD_SELF_OFFER", "LD_SELF_BUILD",
 )
 
 
@@ -225,7 +225,7 @@ class Report:
         self.roster(events)
         self.result(events, start)
         self.deaths(events, start)
-        self.economy(events, start)
+        self.growth(events, start)
         self.marks(events, start)
         self.performance(events)
         self.problems(events, start)
@@ -258,11 +258,10 @@ class Report:
             if row.get("contender") in seen:
                 continue
             seen.add(row.get("contender"))
-            build = (f" skills {row.get('skills')} cards {row.get('cards')} items {row.get('equipment')}"
-                     if row.get("skills") else "")
-            gold = f" gold {row.get('gold')}" if row.get("gold") else ""
+            build = (f" skills {row.get('skills')} blueprints {row.get('blueprints')} points {row.get('points')}"
+                 if row.get("skills") else "")
             self.out(f"- {self.names(row.get('contender'))}: K/D/A {row.get('kills')}/{row.get('deaths')}/{row.get('assists')} "
-                     f"level {row.get('level')}{gold}{build}")
+                     f"level {row.get('level')}{build}")
         self.out()
 
     def deaths(self, events, start):
@@ -306,11 +305,11 @@ class Report:
                     self.out(f"  - {clock(item, start)} {self.names.text(item.message)}")
         self.out()
 
-    def economy(self, events, start):
-        rows = [event for event in events if event.tag in ECONOMY_TAGS]
+    def growth(self, events, start):
+        rows = [event for event in events if event.tag in GROWTH_TAGS]
         if not rows:
             return
-        self.out("### Economy")
+        self.out("### Growth")
         for event in rows:
             who = self.names(event.get("contender")) if event.get("contender") else event.source
             if event.tag == "LD_REWARD":
@@ -318,24 +317,25 @@ class Report:
                 of = (f" of {self.names(victim)}" if event.get("victim_kind") == "contender"
                       else f" of camp:{self.monsters.get(victim, victim[:8])}" if event.get("victim_kind") == "camp"
                       else f" {event.get('event')} #{event.get('serial')}" if event.get("event") else "")
-                text = (f"+{event.get('gold')} gold +{event.get('xp')} xp ({event.get('cause')} {event.get('role')}{of}) "
-                        f"gold {event.get('gold_after')} level {event.get('level')}")
+                text = (f"+{event.get('xp')} xp ({event.get('cause')} {event.get('role')}{of}) "
+                        f"xp {event.get('xp_after')} level {event.get('level')}")
             elif event.tag in ("LD_LEVEL_UP", "LD_SELF_LEVEL"):
-                text = f"level {event.get('level')} (+{event.get('choices_earned')} choices)"
+                text = f"level {event.get('level')} (+{event.get('choices_earned')} active offers)"
             elif event.tag in ("LD_OFFER", "LD_SELF_OFFER"):
-                text = f"offer #{event.get('ordinal')}{' reroll' if event.get('rerolled') == '1' else ''}: {event.get('cards')}"
+                text = f"offer #{event.get('ordinal')}: {event.get('cards')}"
+            elif event.tag == "LD_OFFER_WAITING":
+                text = f"offer #{event.get('ordinal')} waits for an eligible active"
             elif event.tag == "LD_CHOICE":
-                text = f"chose {event.get('card')} rank {event.get('rank')} ({event.get('kind')}) replaced {event.get('replaced')}"
-            elif event.tag == "LD_SHOP_TRADE":
-                text = f"{event.get('kind')} {event.get('item')} slot {event.get('slot')} gold {event.get('gold_delta')} -> {event.get('gold_after')}"
-            elif event.tag == "LD_SHOP_REJECTED":
-                text = f"shop {event.get('kind')} rejected: {event.get('reason')}"
+                text = (f"chose {event.get('card')} ({event.get('result')}, slot {event.get('slot')}, "
+                        f"stored {event.get('stored')})")
+            elif event.tag == "LD_BUILD":
+                text = (f"{event.get('kind')} {event.get('card')} slot {event.get('slot')} points {event.get('points')} "
+                        f"unspent {event.get('unspent')}")
             elif event.tag == "LD_SELF_REWARD":
                 text = f"+{event.get('amount')} {event.get('kind')}"
-            elif event.tag == "LD_SELF_BUILD":
-                text = f"build level {event.get('level')}: skills {event.get('skills')} cards {event.get('cards')}"
             else:
-                text = f"gold {event.get('gold')} items {event.get('items')}"
+                text = (f"build level {event.get('level')}: skills {event.get('skills')} blueprints {event.get('blueprints')} "
+                        f"points {event.get('points')} unspent {event.get('unspent')}")
             self.out(f"- {clock(event, start)} {who}: {text}")
         self.out()
 

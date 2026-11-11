@@ -1,6 +1,7 @@
 #include "UI/LDUIRoot.h"
 #include "Core/LDLog.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
@@ -44,7 +45,7 @@ namespace
     const FLinearColor SectionColor(.55f,.86f,.92f);
     const FLinearColor MutedColor(.66f,.74f,.78f);
     const FLinearColor WarningColor(1.f,.78f,.55f);
-    constexpr int32 MainPanelCount=4;
+    constexpr int32 MainPanelCount=3;
 
     int32 MainPanelIndex(ELDUIMainPanel Panel)
     {
@@ -83,7 +84,7 @@ namespace
         {
         case ELDMatchPhase::Lobby: return TEXT("房间等待开始");
         case ELDMatchPhase::Starting: return TEXT("准备开局…");
-        case ELDMatchPhase::Countdown: return LDTerms::OpeningCountdown;
+        case ELDMatchPhase::Rest: return LDTerms::RestPhase;
         case ELDMatchPhase::Development: return LDTerms::Development;
         case ELDMatchPhase::CaptureOpen: return LDTerms::CaptureOpened;
         case ELDMatchPhase::Results: return TEXT("对局结束");
@@ -277,6 +278,11 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     LobbyFeedback=Label(FString(),16);
     Add(Lobby,LobbyFeedback,4);
     Add(Lobby,Label(TEXT("最多 3 名真人（含房主）与 0–3 个 AI，空位不会自动补满；成员或 AI 数量变化会清除真人准备。"),15,MutedColor),6);
+    // #198 §10: the own last build blueprint and the read-only import view, outside any match.
+    Add(Lobby,MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
+    {
+        if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}}
+    }),8);
     Add(Lobby,MakeButton(TEXT("离开房间"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
 
     UVerticalBox* Menu=nullptr;
@@ -385,7 +391,7 @@ UWidget* ULDUIRoot::AddBackground(UCanvasPanel& Canvas,const TCHAR* AssetPath)
     UTexture2D* Texture=LoadObject<UTexture2D>(nullptr,AssetPath);
     if(!Texture)
     {
-        UE_LOG(LogLDUI,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportBackgrounds."),AssetPath);
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportUI."),AssetPath);
         return nullptr;
     }
     auto* Picture=WidgetTree->ConstructWidget<UImage>();
@@ -518,7 +524,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const FLDPublicMatchView* Match=CurrentMatch(Public);
     const bool bLobbyNow=Match&&Match->Phase==ELDMatchPhase::Lobby;
     const bool bResultsNow=Match&&Match->Phase==ELDMatchPhase::Results;
-    const bool bPlaying=Match&&(Match->Phase==ELDMatchPhase::Countdown||Match->Phase==ELDMatchPhase::Development
+    const bool bPlaying=Match&&(Match->Phase==ELDMatchPhase::Rest||Match->Phase==ELDMatchPhase::Development
         ||Match->Phase==ELDMatchPhase::CaptureOpen);
     if(bLobbyNow!=bInLobby)
     {
@@ -554,8 +560,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     if(bHeader){SetLine(Status,TEXT("对局阶段：")+MatchPhaseText(Match));}
     if(bInLobby){RefreshLobby(PC,*Public);}
-    // #153: the Host can end a match only after T=0; the opening countdown has no match time to end.
-    const bool bCanEnd=bPlaying&&Match->Phase!=ELDMatchPhase::Countdown&&PC.OwnerState.bLobbyHost&&PC.OwnerState.Match==Match->Generation;
+    const bool bCanEnd=bPlaying&&PC.OwnerState.bLobbyHost&&PC.OwnerState.Match==Match->Generation;
     if(Confirm==ELDRootConfirm::EndMatch&&!bCanEnd){CloseConfirm();}
     if(!bMenuOpen){return;}
     EndMatchButton->SetVisibility(bCanEnd?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
@@ -995,7 +1000,7 @@ void ULDUIRoot::RegisterMainPanel(ELDUIMainPanel Panel,ULDPanel* Widget)
     const int32 Index=MainPanelIndex(Panel);
     if(Index==INDEX_NONE)
     {
-        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices, Shop and DevTest are registered panels."),int32(Panel));
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices and DevTest are registered panels."),int32(Panel));
         return;
     }
     MainPanels[Index]=Widget;

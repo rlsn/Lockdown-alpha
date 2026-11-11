@@ -1,8 +1,10 @@
 #include "Tests/LDDemoVisionProbe.h"
+#include "Tests/LDScenarioWalk.h"
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDDemoEntry.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
@@ -11,6 +13,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Combat/LDCombatTypes.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDVisionDirector.h"
@@ -45,7 +48,7 @@
 namespace LDDemoVisionScenario
 {
 const TCHAR* const VisionRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
-// All three bodies walk to the public capture anchor; a crowded arrival may stop short of its exact point.
+// Each owner has a separate legal arrival disk near the public capture anchor.
 constexpr double ArrivalCm = 150.0;
 
 struct FLDSeenUnit
@@ -137,11 +140,49 @@ public:
     TWeakObjectPtr<UWorld> World;
     FString Output, Role, Error, CatalogDigest, PendingImage, SpawnViolation;
     double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0, BlockedSince = 0, SightDeadline = 0, ImageAt = 0, DisconnectAt = 0;
-    int32 Stage = 0, NavigateAttempts = 0, SpawnFramesChecked = 0, PreStallProxies = 0;
+    int32 Stage = 0, WalkWaypoint = 0, SpawnFramesChecked = 0, PreStallProxies = 0;
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false, bStallAnnounced = false;
     bool bControlObserved = false, bControlViolated = false, bEmulating = false, DisconnectVerified = false;
     EStall Stall = EStall::Waiting;
     FLDCombatBodyRef OwnBody;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    TArray<LDScenarioWalk::FKeepout> WalkKeepouts;
+    TArray<FVector> WalkWaypoints;
+    TArray<FVector> ArrivalGoals;
+    int32 FixtureRoute = 0;
+    int32 NativeQueries = 0;
+    double MaxRouteSeconds = 0;
+    double MaxRouteTickSeconds = 0, MaxQuerySeconds = 0, RouteStarted = 0;
+    bool bPlanning = false;
+    LDScenarioWalk::FPlanner RoutePlanner;
+
+    LDScenarioWalk::EPlan PlanWalk(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Goal,
+        TArray<FVector>& Route, FString& Why)
+    {
+        const double Began = FPlatformTime::Seconds();
+        if (!bPlanning)
+        {
+            RouteStarted = Began;
+            Route.Reset();
+            if (!LDScenarioWalk::Begin(RoutePlanner, Registry, *Catalog, Foot, Goal, WalkKeepouts, ArrivalCm, Why, &MaxQuerySeconds, &NativeQueries))
+            { return LDScenarioWalk::EPlan::Failed; }
+            bPlanning = true;
+        }
+        const auto Result = LDScenarioWalk::Step(RoutePlanner, Registry, *Catalog, Route, Why, &MaxQuerySeconds, &NativeQueries);
+        const double Seconds = FPlatformTime::Seconds() - Began;
+        MaxRouteTickSeconds = FMath::Max(MaxRouteTickSeconds, Seconds);
+        UE_LOG(LogLDTest, Display, TEXT("LD_VISION_FIXTURE_WORK role=%s validation=%d tick_seconds=%.6f max_query_seconds=%.6f"),
+            *Role, FixtureRoute, Seconds, MaxQuerySeconds);
+        if (Result != LDScenarioWalk::EPlan::Working)
+        {
+            bPlanning = false;
+            const double WallSeconds = FPlatformTime::Seconds() - RouteStarted;
+            MaxRouteSeconds = FMath::Max(MaxRouteSeconds, WallSeconds);
+            UE_LOG(LogLDTest, Display, TEXT("LD_VISION_FIXTURE_ROUTE role=%s validation=%d wall_seconds=%.6f result=%u from=%s goal=%s"),
+                *Role, FixtureRoute, WallSeconds, uint32(Result), *Foot.ToString(), *Goal.ToString());
+        }
+        return Result;
+    }
     TArray<FLDSeenUnit> PreStall;
     TSet<FGuid> RemoteContenders;
     TArray<TWeakObjectPtr<APawn>> SpawnedPawns;
@@ -391,7 +432,7 @@ public:
     bool TickLobby(double Now, ALDPlayerController& Owner, const FLDLobbyView& Lobby)
     {
         if (Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen) { Stage = 2; return true; }
-        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Rest) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
             return Fail(TEXT("#1"), TEXT("The room left the lobby without opening play: ")
@@ -424,38 +465,93 @@ public:
         return Fail(TEXT("#1"), TEXT("The normal lobby Start stays refused with every human ready: ") + Lobby.StartBlocker);
     }
 
-    bool TickBody(double Now, ALDPlayerController& Owner, const FLDMapBinding& Goal)
+    bool TickBody(double Now, ALDPlayerController& Owner, const ULDMapRegistry& Registry, const FLDMapBinding& Capture)
     {
-        if (!Cast<ALDCharacter>(Owner.GetPawn()) || Owner.OwnerState.LifePhase != ELDLifePhase::Alive
+        const auto* Body = Cast<ALDCharacter>(Owner.GetPawn());
+        if (!Body || Owner.OwnerState.LifePhase != ELDLifePhase::Alive
             || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand()) { return true; }
+        FString Why;
+        const auto* Geometry = Registry.GetGeometry();
+        FCollisionShape Capsule;
+        if (!Catalog)
+        {
+            if (!Geometry || !LDDemoEntry::LoadRuntimeContent(Catalog, Why)
+                || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why)
+                || !LDScenarioWalk::Keepouts(*Geometry, *Catalog, Capsule.GetCapsuleRadius(), ArrivalCm, WalkKeepouts, Why))
+            { return Fail(TEXT("#1"), TEXT("The approved Vision arrival fixture could not be prepared: ") + Why); }
+            TArray<FLDCompletePath> Patrol;
+            if (!LDScenarioWalk::PatrolPaths(Registry, *Catalog, Patrol, Why))
+            { return Fail(TEXT("#1"), Why); }
+            const auto& Aggro = Catalog->Get().Boss.AggroRadiusCm;
+            // 150 cm bounds the final arrival disk; 12 cm covers the native waypoint contact tolerance.
+            const double CorridorRadius = double(Aggro.Numerator) / Aggro.Denominator
+                + Capsule.GetCapsuleRadius() + ArrivalCm + LDPathSteering::WaypointToleranceCm;
+            LDScenarioWalk::PatrolKeepouts(Patrol, CorridorRadius, WalkKeepouts);
+            FLDSightGeometry FixtureSight;
+            if (!FixtureSight.Build(*Geometry, Registry.Revision(), Catalog->Get().Parameters.VisionRadiusCm, Why))
+            { return Fail(TEXT("#1"), Why); }
+            const auto Validate = [&](TArray<FVector>& Goals)
+            {
+                for (FVector& Goal : Goals)
+                {
+                    FVector Normal;
+                    Registry.GetTerrain().Ground(FVector2D(Goal), Goal.Z, Normal);
+                    FLDLegalGround Legal;
+                    ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+                    const double Began = FPlatformTime::Seconds();
+                    ++NativeQueries;
+                    const bool bLegal = Registry.QueryGround(Registry.Revision(), Goal, Capsule, Capture.Surface, Legal, Failure, Why);
+                    MaxQuerySeconds = FMath::Max(MaxQuerySeconds, FPlatformTime::Seconds() - Began);
+                    if (!bLegal) { return false; }
+                }
+                for (int32 A = 0; A < Goals.Num(); ++A)
+                { for (int32 B = 0; B < Goals.Num(); ++B)
+                    { if (A != B && FixtureSight.Trace(Goals[A], Goals[B]) != ELDSightResult::Visible) { return false; } } }
+                return true;
+            };
+            if (!LDScenarioWalk::VisionTargets(Capture.Position, Capsule.GetCapsuleRadius(), ArrivalCm, FixtureSight.Radius(),
+                WalkKeepouts, Validate, ArrivalGoals, Why)) { return Fail(TEXT("#1"), Why); }
+            Check(true, TEXT("#1"), TEXT("Three native legal-ground targets are mutually visible outside the complete public Boss patrol corridor"));
+        }
+        const int32 RoleIndex = Role == TEXT("Host") ? 0 : Role == TEXT("Client1") ? 1 : Role == TEXT("Client2") ? 2 : INDEX_NONE;
+        if (RoleIndex == INDEX_NONE) { return Fail(TEXT("#1"), TEXT("The Vision fixture role is unknown")); }
+        const auto Result = PlanWalk(Registry, Body->GetNavAgentLocation(), ArrivalGoals[RoleIndex], WalkWaypoints, Why);
+        if (Result == LDScenarioWalk::EPlan::Failed)
+        { return Fail(TEXT("#1"), TEXT("The owner's bounded Vision fixture route is unavailable: ") + Why); }
+        if (Result == LDScenarioWalk::EPlan::Working) { return true; }
+        FixtureRoute = 1;
+        Check(true, TEXT("#1"), TEXT("This owner's route and every detour pass native legal-ground and complete-path validation"));
         OwnBody = Owner.OwnerState.BodyRef;
-        Owner.Navigation->Navigate(Goal.Position);
-        NavigateAttempts = 1;
+        WalkWaypoint = 0;
+        Owner.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
         StageAt = Now;
         Stage = 3;
         return true;
     }
 
-    // Each owner walks its own body to the public capture anchor with an ordinary ground order.
-    bool TickArrive(double Now, ALDPlayerController& Owner, const FLDMapBinding& Goal)
+    bool TickArrive(double Now, ALDPlayerController& Owner)
     {
         const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
         if (!Body || Owner.OwnerState.BodyRef != OwnBody)
         { return Fail(TEXT("#1"), TEXT("The owned body changed identity before observation was established")); }
         if (Owner.Navigation->HasMoveOrder()) { return true; }
-        if (FVector::Dist2D(Body->GetNavAgentLocation(), Goal.Position) <= ArrivalCm)
+        const double Acceptance = WalkWaypoint == WalkWaypoints.Num() - 1 ? ArrivalCm
+            : Body->GetCapsuleComponent()->GetScaledCapsuleRadius() + LDPathSteering::WaypointToleranceCm;
+        if (FVector::Dist2D(Body->GetNavAgentLocation(), WalkWaypoints[WalkWaypoint]) <= Acceptance)
         {
+            if (++WalkWaypoint < WalkWaypoints.Num())
+            {
+                Owner.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
+                StageAt = Now;
+                return true;
+            }
             if (!Mark(Role + TEXT("Arrived.json"))) { return Finish(); }
             Stage = 4;
             return true;
         }
         if (Now - StageAt < 1) { return true; }
-        if (NavigateAttempts >= 3)
-        { return Fail(TEXT("#1"), TEXT("The owned body could not reach the public capture anchor: ") + Owner.IntentFeedback); }
-        Owner.Navigation->Navigate(Goal.Position);
-        ++NavigateAttempts;
-        StageAt = Now;
-        return true;
+        return Fail(TEXT("#1"), FString::Printf(TEXT("The bounded Vision fixture route stopped before waypoint %d/%d: "),
+            WalkWaypoint + 1, WalkWaypoints.Num()) + Owner.IntentFeedback);
     }
 
     bool TickSight(double Now, UWorld& InWorld, ALDPlayerController& Owner)
@@ -633,6 +729,11 @@ public:
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);
+        Report->SetNumberField(TEXT("validated_routes"), FixtureRoute);
+        Report->SetNumberField(TEXT("max_route_seconds"), MaxRouteSeconds);
+        Report->SetNumberField(TEXT("max_route_tick_seconds"), MaxRouteTickSeconds);
+        Report->SetNumberField(TEXT("max_native_query_seconds"), MaxQuerySeconds);
+        Report->SetNumberField(TEXT("native_fixture_queries"), NativeQueries);
         Report->SetArrayField(TEXT("checks"), Checks);
         Report->SetArrayField(TEXT("screenshots"), Images);
         if (const ALDPlayerController* Owner = Controller.Get())
@@ -726,8 +827,8 @@ public:
         {
         case 0: return TickJoin(*Current, *Owner, Lobby, Driver);
         case 1: return TickLobby(Now, *Owner, Lobby);
-        case 2: return TickBody(Now, *Owner, *Goal);
-        case 3: return TickArrive(Now, *Owner, *Goal);
+        case 2: return TickBody(Now, *Owner, *Registry, *Goal);
+        case 3: return TickArrive(Now, *Owner);
         case 4: return TickSight(Now, *Current, *Owner);
         case 5: return TickImage(Now);
         case 6: return TickStall(Now, *Current, *Owner);
@@ -760,6 +861,12 @@ void LDDemoTests::StartVisionProbe(ALDPlayerController& Controller)
     Probe->World = Controller.GetWorld();
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     if (Probe->Role == TEXT("Host")) { Probe->WatchSpawns(*Controller.GetWorld()); }
-    FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
+    FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe, Next = 0.0](float) mutable
+    {
+        const double Now = FPlatformTime::Seconds();
+        if (Probe->Stage != 2 && Now < Next) { return true; }
+        Next = Now + .1;
+        return Probe->Tick();
+    }));
 }
 #endif

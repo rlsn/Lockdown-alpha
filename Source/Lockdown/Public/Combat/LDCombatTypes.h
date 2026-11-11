@@ -12,9 +12,10 @@ class AController;
 // ---------------------------------------------------------------- sources and entries
 
 // Innate: the D dash every contender has (D19); it is no learned source and is never forgotten.
-// Gear credits the hits of an equipment passive; equipment has no action entries or cooldown tracks.
+// 3 was the retired equipment (Gear) source (#144); Innate keeps its number. Component (#198 B): an installed workshop
+// component (DefinitionId = component id); it is never an entry or a cooldown track.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None, Basic, Learned, Gear, Innate };
+enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5 };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
@@ -111,7 +112,7 @@ enum class ELDCombatReject : uint8
     Cancelled, StaleSource, SourceUnavailable, Busy, Cooldown, AttackNotReady,
     InsufficientMana, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
     MatchClosed, AuthorityDataUnavailable, CapacityUnavailable,
-    // #153: the opening countdown admits no attack, ability or dash before T=0.
+    // #198: the rest return countdown locks every attack, ability and dash.
     NotStarted
 };
 
@@ -173,7 +174,8 @@ struct FLDProtectionReceipt
 // ---------------------------------------------------------------- death facts (Combat -> Life / Growth / Camps / Capture)
 
 UENUM()
-enum class ELDNoRewardReason : uint8 { None, NoOwner, SelfInflicted, OwnerLeft };
+// PKArena (#198 session D): the victim was a PK life; PK pays only its own settlement points.
+enum class ELDNoRewardReason : uint8 { None, NoOwner, SelfInflicted, OwnerLeft, PKArena };
 
 UENUM()
 enum class ELDDeathCause : uint8 { Damage };
@@ -185,7 +187,7 @@ struct FLDRewardBasis
     uint64 VictimBuildRevisionAtDeath=0;      // contender branch only (last build revision Combat installed)
     bool bCreditOwnerEligibleAtDeath=false;   // another contender, still in the match at the fatal time
     ELDNoRewardReason NoRewardReason=ELDNoRewardReason::NoOwner; // None iff eligible
-    int64 LeaderBountyGoldAtDeath=0;          // D27 contender branch only: the shown leader's bounty at the fatal moment
+    uint8 CampStageAtDeath=0;                 // #97 camp member branch only: the growth stage this life spawned with
 };
 
 // Locked once at the first zero-HP commit; never rebuilt from HP, last attacker or current pawn.
@@ -219,45 +221,32 @@ struct FLDCombatHostileContact
 
 // ---------------------------------------------------------------- build change (Growth compound commits -> Combat)
 
+// #198: a learned active has one level; its values grow with the owner's level (LDSkillGrowth).
 struct FLDLearnedActiveValue
 {
     FName AbilityId;
-    uint8 Rank=0;                                // 1..3
     ELDCombatEntry Entry=ELDCombatEntry::None;   // Q, W or E
-};
-
-struct FLDEquippedItemValue
-{
-    uint8 Slot=0;                                // 0 or 1 (slot order)
-    FGuid Instance;
-    FName DefinitionId;
-    uint64 ItemRevision=0;
-    // 112 §7: read stats and passive terms through LDDemoEquipment::Effective*.
-    bool bUpgraded=false;
 };
 
 // Complete post-change build. Empty arrays mean "none held"; nothing is merged with the previous build.
 struct FLDBuildProjectionInput
 {
     uint8 Level=0;
-    TArray<FLDLearnedPassiveValue> Passives;
-    TArray<FLDAttributeCardValue> AttributeCards;
-    // #153: the chosen opening direction card (canonical id), empty before the opening choice.
-    FString OpeningCard;
+    // #198: the allocated points of each stat that holds any (canonical stat id, positive count).
+    TArray<FLDStatPointsValue> StatPoints;
     TArray<FLDLearnedActiveValue> Actives;
-    TArray<FLDEquippedItemValue> Equipment;
+    // #198 B: installed components (FLDAttributeBuildValues::Components), sorted by id.
+    TArray<FLDInstalledComponentValue> Components;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;
     uint64 ResultBuildRevision=0;      // strictly increasing
-    uint64 ResultInventoryRevision=0;  // strictly increasing or unchanged
 };
 
-// Revisions Combat last installed for this contender (match start: 0/0 = the empty level-1 build).
+// The build revision Combat last installed for this contender (match start: 0 = the empty level-1 build).
 struct FLDExpectedBuildVersions
 {
     uint64 BuildRevision=0;
-    uint64 InventoryRevision=0;
 };
 
 enum class ELDCombatPrepareError : uint8
@@ -375,7 +364,6 @@ struct FLDCombatEntryView
     UPROPERTY() ELDCombatEntry Entry=ELDCombatEntry::None;
     UPROPERTY() ELDCombatSourceKind SourceKind=ELDCombatSourceKind::None;
     UPROPERTY() FName DefinitionId;                  // None = empty slot
-    UPROPERTY() uint8 Rank=0;                        // learned only
     UPROPERTY() uint8 TargetMode=0;                  // ELDDemoTargetMode
     UPROPERTY() int32 RangeCm=0;
     UPROPERTY() int64 ManaCostP2=0;
@@ -411,16 +399,13 @@ struct FLDCombatAttributeRowView
     UPROPERTY() uint8 Attribute=0;                   // ELDProjectedAttribute
     UPROPERTY() FLDDemoRational Base;
     UPROPERTY() FLDDemoRational Level;
-    UPROPERTY() FLDDemoRational Choices;
-    UPROPERTY() FLDDemoRational Passives;
-    UPROPERTY() FLDDemoRational Equipment;
+    UPROPERTY() FLDDemoRational Choices;             // #198: the allocated stat points' flat term
+    UPROPERTY() FLDDemoRational Components;          // #198 B: the installed components' stat_bonus flat term
     UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build, the DEV layer excluded
     UPROPERTY() FLDDemoRational Dev;                 // DEV test layer flat term; zero outside a DEV test session
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
     UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
     UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
-    UPROPERTY() FLDDemoRational Penalty;             // wild-card flat deduction (positive magnitude, subtracted)
-    UPROPERTY() FLDDemoRational PenaltyPercent;      // wild-card ratio deduction (positive magnitude, subtracted)
     UPROPERTY() FLDDemoRational Final;
     UPROPERTY() bool bClamped=false;
 };
@@ -472,12 +457,13 @@ struct FLDCombatOwnerView
     UPROPERTY() float MoveSpeedCmPerSec=0;
     UPROPERTY() float AttackRangeCm=0;
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
-    UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
-    UPROPERTY() TArray<FName> UpgradedEquipmentPassives; // 112 §7: families applying their upgraded terms
     UPROPERTY() bool bOutOfCombatRegenActive=false;
     // D21 (#79): the own body stands in a dorm, and the dorm's fast recovery is running.
     UPROPERTY() bool bInDorm=false;
     UPROPERTY() bool bDormRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;
+    // #198 build safe window (absolute authority ms): from here on, with no new combat action, the contender may learn and
+    // allocate in the development phases; <= now means safe, 0 means no combat action yet. Persists across lives.
+    UPROPERTY() int64 BuildSafeAtMs=0;
 };

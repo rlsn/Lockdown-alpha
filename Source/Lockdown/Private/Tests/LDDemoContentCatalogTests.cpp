@@ -4,6 +4,8 @@
 
 #include "../Development/LDDemoContentJson.h"
 #include "../Development/LDDemoContentMath.h"
+#include "Algo/AllOf.h"
+#include "Development/LDDemoCardText.h"
 #include "Development/LDDemoContentText.h"
 #include "Framework/LDDemoEntry.h"
 #include "HAL/FileManager.h"
@@ -244,7 +246,7 @@ bool AssertFields(FAutomationTestBase& Test, const UStruct* Type, const void* Da
     {
         const FString Path(Pair.Key.ToView());
         FString ExpectedText;
-        if (!String(Pair.Value, ExpectedText, Check, Path, 0))
+        if (!String(Pair.Value, ExpectedText, Check, Path, 0, 1024))
         {
             Test.AddError(Error);
             return false;
@@ -292,7 +294,8 @@ void QuantityPaths(const FValue& Value, const FString& Path, TSet<FString>& Out)
     }
 }
 
-bool RankQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, FString& Error)
+// #198: the quantities of every active's single value set (cost, cooldown and every effect term).
+bool ValueQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, FString& Error)
 {
     FValue Root;
     FCheck Check(Error);
@@ -303,7 +306,10 @@ bool RankQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, F
     const auto& Abilities = Root->AsObject()->GetArrayField(TEXT("abilities"));
     for (int32 I = 0; I < Abilities.Num(); ++I)
     {
-        QuantityPaths(Abilities[I]->AsObject()->GetField<EJson::Array>(TEXT("ranks")), FString::Printf(TEXT("content.abilities[%d].ranks"), I), Out);
+        for (const TCHAR* Field : {TEXT("mana_cost"), TEXT("cooldown"), TEXT("effects")})
+        {
+            QuantityPaths(Abilities[I]->AsObject()->TryGetField(Field), FString::Printf(TEXT("content.abilities[%d].%s"), I, Field), Out);
+        }
     }
     return true;
 }
@@ -410,7 +416,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
     FFixtures Fixtures;
     if (!FixtureIndex(*this, Fixtures)) { return false; }
     TMap<FString, FString> Baseline;
-    TSet<FString> UnchangedRankQuantities;
+    TSet<FString> UnchangedValueQuantities;
     FString Error;
     for (const auto& Case : Fixtures.Valid)
     {
@@ -436,7 +442,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         if (Case.Name == TEXT("base"))
         {
             Baseline = Actual;
-            if (!RankQuantityPaths(Bundle, UnchangedRankQuantities, Error))
+            if (!ValueQuantityPaths(Bundle, UnchangedValueQuantities, Error))
             {
                 AddError(Error);
                 return false;
@@ -457,18 +463,16 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         }
         if (!Case.MutatedQuantity.IsEmpty())
         {
-            TestTrue(TEXT("Each rank quantity mutation is unique and has a native change assertion"),
-                UnchangedRankQuantities.Remove(Case.MutatedQuantity) == 1 && !Case.ChangedPaths.IsEmpty());
+            TestTrue(TEXT("Each active value quantity mutation is unique and has a native change assertion"),
+                UnchangedValueQuantities.Remove(Case.MutatedQuantity) == 1 && !Case.ChangedPaths.IsEmpty());
         }
         const FLDDemoAbilityDefinition* Ability = nullptr;
-        const FLDDemoAttributeDefinition* Attribute = nullptr;
-        const FLDDemoEquipmentDefinition* Item = nullptr;
+        const FLDDemoStatDefinition* Stat = nullptr;
         const FLDDemoMonsterDefinition* Monster = nullptr;
         const FLDDemoDisplayDefinition* Display = nullptr;
         TestTrue(TEXT("Typed lookups consume enabled definitions"),
             Snapshot->FindAbility(TEXT("active_snark_bolt"), Ability, Error)
-            && Snapshot->FindAttribute(TEXT("attr_all_nighter"), Attribute, Error)
-            && Snapshot->FindEquipment(TEXT("item_arcane_battery"), Item, Error)
+            && Snapshot->FindStat(TEXT("stat_brains"), Stat, Error)
             && Snapshot->FindMonster(TEXT("monster_guardian"), Monster, Error)
             && Snapshot->FindDisplay(TEXT("camp_returning"), Display, Error));
         const auto* OldAbility = Ability;
@@ -479,7 +483,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A case alias resolves to the canonical definition"),
             Snapshot->FindAbility(TEXT("Active_snark_bolt"), Ability, Error) && Ability == OldAbility);
     }
-    TestEqual(TEXT("Every rank's typed quantity has a compiler-backed native change case"), UnchangedRankQuantities.Num(), 0);
+    TestEqual(TEXT("Every active value quantity has a compiler-backed native change case"), UnchangedValueQuantities.Num(), 0);
 
     FCheck Check(Error);
     const ANSICHAR* BoundaryText = "{\n  \"max\": 9223372036854775807,\n  \"min\": -9223372036854775808\n}\n";
@@ -610,7 +614,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     Stored->Abilities.RemoveAt(0);
     TestFalse(TEXT("A dropped definition is not a valid partial asset"), Restored->ValidatePrepared(*Expected, Error));
     *Stored = Original;
-    Stored->Abilities[0].Ranks[0].Effects.AddDefaulted();
+    Stored->Abilities[0].Values.Effects.AddDefaulted();
     TestFalse(TEXT("An extra stored effect is rejected"), Restored->ValidatePrepared(*Expected, Error));
     *Stored = Original;
     TestTrue(TEXT("Restoring test mutation recovers exact original projection"), Restored->ValidatePrepared(*Expected, Error));
@@ -623,7 +627,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
         !BadWriter.IsError() && !BadReader.IsError() && !BadRestored->Validate(Base.Digest, Error));
     *Stored = Original;
 
-    const FCase* NewCase = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("exact_gold"); });
+    const FCase* NewCase = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("exact_integer"); });
     if (!TestNotNull(TEXT("Changed-root fixture exists"), NewCase)) { return false; }
     TSharedPtr<const FLDDemoContentSnapshot> Current = First;
     TestFalse(TEXT("Saved asset is stale against a new externally expected root"), Asset->Read(NewCase->Digest, Current, Error));
@@ -640,8 +644,8 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    TestEqual(TEXT("New snapshot preserves above-2^53 integer gold"), Current->Get().Parameters.StartingGold, int64(9007199254740993LL));
-    TestEqual(TEXT("Previous snapshot keeps its original definitions"), First->Get().Parameters.StartingGold, Original.Parameters.StartingGold);
+    TestEqual(TEXT("New snapshot preserves an above-2^53 integer"), Current->Get().Parameters.AirdropRewardXP, int64(9007199254740993LL));
+    TestEqual(TEXT("Previous snapshot keeps its original definitions"), First->Get().Parameters.AirdropRewardXP, Original.Parameters.AirdropRewardXP);
     TestFalse(TEXT("New asset refuses the prior root identity"), Asset->Validate(Base.Digest, Error));
 
     auto* RaceAsset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
@@ -733,7 +737,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         if (!Case.MutatedQuantity.IsEmpty())
         {
-            // A rank quantity mutation only changes ability/equipment ranks. Its world payload and expected world
+            // An active value mutation only changes an active's value set. Its world payload and expected world
             // projection must match base byte for byte, so importing it again would only repeat base's assertions.
             if (!TestTrue(*FString::Printf(TEXT("%s keeps the base world payload and expected world projection"), *Case.Name),
                 !BaseWorld.IsEmpty() && Bundle.World == BaseWorld && Expected == BaseExpected)) { return false; }
@@ -770,7 +774,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         ++Imported;
     }
-    TestTrue(TEXT("Every non-rank case is fully imported and every case is covered"),
+    TestTrue(TEXT("Every non-value-mutation case is fully imported and every case is covered"),
         !BaseWorld.IsEmpty() && Imported > 1 && Imported + SharedBase == Fixtures.Valid.Num());
     return true;
 }
@@ -928,22 +932,15 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     int32 Entries = 0;
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
-    // #147: every skill row also carries its advanced line; no other row does.
-    int32 AdvancedLines = 0;
-    for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
-    {
-        AdvancedLines += Row.AdvancedKey.IsEmpty() ? 0 : 1;
-    }
-    TestEqual(TEXT("Every skill row carries an advanced line"), AdvancedLines, Definitions.Abilities.Num());
-    TestEqual(TEXT("Every display row contributes exactly a name and a description, a skill row also its advanced line"),
-        Entries, Definitions.Display.Num() * 2 + AdvancedLines);
-    // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
-    // Statuses 1..6, 9, 10 and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed) and the
-    // two #147 statuses (silence, burn).
-    const int32 Statuses = 6 + 5 + 1 + 2 + 3;
+    TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
+    // One row per definition (character, actives, stats, components, monsters) and per native status: statuses 1..6, 9, 10
+    // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
+    // (silence, burn), attack_slowed (#198 retires cowering and contact_guard) and the #198 wet, electrified,
+    // braced and soured.
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num() + Definitions.Equipment.Num()
-        + Definitions.Monsters.Num() + Statuses);
+        1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.Monsters.Num()
+        + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
         FString Name, Description;
@@ -952,9 +949,6 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Description resolves from the display key: ") + Row.Id,
             Table->GetSourceString(FTextKey(Row.DescriptionKey), Description)
             && Description.Equals(Row.DescriptionText, ESearchCase::CaseSensitive));
-        FString Advanced;
-        TestTrue(TEXT("An advanced line resolves from its display key: ") + Row.Id, Row.AdvancedKey.IsEmpty()
-            || (Table->GetSourceString(FTextKey(Row.AdvancedKey), Advanced) && Advanced.Equals(Row.AdvancedText, ESearchCase::CaseSensitive)));
     }
     // The statuses system text names directly read the same in the table as in the glossary (#111).
     for (const TPair<const TCHAR*, const TCHAR*>& Expected : {
@@ -1070,20 +1064,15 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         Expect(TEXT("Ability"), Row.Id, [&](const FString& Id)
         { const FLDDemoAbilityDefinition* Out = nullptr; return Snapshot->FindAbility(Id, Out, Error) ? Out : nullptr; });
     }
-    for (const FLDDemoAttributeDefinition& Row : Definitions.Attributes)
+    for (const FLDDemoStatDefinition& Row : Definitions.Stats)
     {
-        Expect(TEXT("Attribute"), Row.Id, [&](const FString& Id)
-        { const FLDDemoAttributeDefinition* Out = nullptr; return Snapshot->FindAttribute(Id, Out, Error) ? Out : nullptr; });
+        Expect(TEXT("Stat"), Row.Id, [&](const FString& Id)
+        { const FLDDemoStatDefinition* Out = nullptr; return Snapshot->FindStat(Id, Out, Error) ? Out : nullptr; });
     }
-    for (const FLDDemoOpeningCardDefinition& Row : Definitions.OpeningCards)
+    for (const FLDDemoComponentDefinition& Row : Definitions.Components)
     {
-        Expect(TEXT("Opening"), Row.Id, [&](const FString& Id)
-        { const FLDDemoOpeningCardDefinition* Out = nullptr; return Snapshot->FindOpeningCard(Id, Out, Error) ? Out : nullptr; });
-    }
-    for (const FLDDemoEquipmentDefinition& Row : Definitions.Equipment)
-    {
-        Expect(TEXT("Equipment"), Row.Id, [&](const FString& Id)
-        { const FLDDemoEquipmentDefinition* Out = nullptr; return Snapshot->FindEquipment(Id, Out, Error) ? Out : nullptr; });
+        Expect(TEXT("Component"), Row.Id, [&](const FString& Id)
+        { const FLDDemoComponentDefinition* Out = nullptr; return Snapshot->FindComponent(Id, Out, Error) ? Out : nullptr; });
     }
     for (const FLDDemoMonsterDefinition& Row : Definitions.Monsters)
     {
@@ -1096,9 +1085,9 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         { const FLDDemoDisplayDefinition* Out = nullptr; return Snapshot->FindDisplay(Id, Out, Error) ? Out : nullptr; });
     }
     TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
-        !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.Equipment.IsEmpty()
-        && !Definitions.Monsters.IsEmpty() && Identities == Definitions.Abilities.Num() + Definitions.Attributes.Num()
-        + Definitions.OpeningCards.Num() + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+        !Definitions.Abilities.IsEmpty() && !Definitions.Stats.IsEmpty() && !Definitions.Components.IsEmpty() && !Definitions.Monsters.IsEmpty()
+        && Identities == Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.Monsters.Num()
+            + Definitions.Display.Num());
     for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
     {
         const FLDDemoDisplayDefinition* Out = nullptr;
@@ -1113,10 +1102,298 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
             Snapshot->FindDisplay(Bad, Out, Error));
         TestTrue(FString::Printf(TEXT("Malformed lookup '%s' is explicit"), Bad), Out == nullptr && !Error.IsEmpty());
     }
-    const FLDDemoEquipmentDefinition* Missing = nullptr;
+    const FLDDemoStatDefinition* Missing = nullptr;
     TestFalse(TEXT("A well-formed but absent identity stays absent in any casing"),
-        Snapshot->FindEquipment(TEXT("Item_Absent"), Missing, Error));
+        Snapshot->FindStat(TEXT("Stat_Absent"), Missing, Error));
     TestTrue(TEXT("The absent identity reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentGrowthCatalogTest, "Lockdown.Rules.DemoContent.GrowthCatalog",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// #198: the approved catalog carries five point-bought stats, single-level actives with an opening pool, the active offer
+// levels and the growth parameters; an active's value set grows with its owner's level and stat cards read one point.
+bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const FCase* Approved = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("approved_base"); });
+    if (!TestNotNull(TEXT("approved_base fixture is exported"), Approved)) { return false; }
+    FString Error;
+    FLDDemoContentBundle Bundle;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Fixtures.Root, Approved->Name), Bundle, Error)
+        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Approved->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Approved->Digest, Error) || !Asset->Read(Approved->Digest, Snapshot, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
+    using S = ELDDemoBonusStat;
+    struct FExpectedStat { const TCHAR* Id; ELDDemoStatId NativeId; TArray<S> PerPoint; };
+    const FExpectedStat ExpectedStats[] = {
+        {TEXT("stat_physique"), ELDDemoStatId::StatPhysique, {S::MaxHPFlat, S::HPRegenFlat}},
+        {TEXT("stat_thick_skin"), ELDDemoStatId::StatThickSkin, {S::ArmorFlat, S::MagicResistFlat}},
+        {TEXT("stat_strength"), ELDDemoStatId::StatStrength, {S::ADFlat, S::CritChanceBonusRatio}},
+        {TEXT("stat_brains"), ELDDemoStatId::StatBrains, {S::APFlat, S::CooldownHasteFlat, S::MPRegenFlat}},
+        {TEXT("stat_agility"), ELDDemoStatId::StatAgility, {S::AttackSpeedBonusRatio, S::MoveSpeedBonusRatio}}};
+    TestEqual(TEXT("Exactly five point-bought stats"), Definitions.Stats.Num(), 5);
+    // Per-stat arrays (points, AllocatePoints counts, owner rows, UI rows, AI ties) follow the approved design order 体格,
+    // 脸皮, 力道, 脑力, 身手 (ascending native id), never the id-sorted catalog list.
+    const TArray<const FLDDemoStatDefinition*> DesignOrder = Definitions.StatsInDesignOrder();
+    bool bDesignOrder = DesignOrder.Num() == UE_ARRAY_COUNT(ExpectedStats);
+    for (int32 Index = 0; bDesignOrder && Index < DesignOrder.Num(); ++Index)
+    {
+        bDesignOrder = DesignOrder[Index]->Id == ExpectedStats[Index].Id && DesignOrder[Index]->GetNativeId() == ExpectedStats[Index].NativeId
+            && Definitions.StatDesignIndex(ExpectedStats[Index].Id) == Index;
+    }
+    TestTrue(TEXT("The stats' design order is physique, thick skin, strength, brains, agility"), bDesignOrder);
+    for (const FExpectedStat& Expected : ExpectedStats)
+    {
+        const FLDDemoStatDefinition* Stat = nullptr;
+        if (!TestTrue(FString::Printf(TEXT("%s resolves: %s"), Expected.Id, *Error), Snapshot->FindStat(Expected.Id, Stat, Error)))
+        {
+            continue;
+        }
+        TestTrue(FString::Printf(TEXT("%s keeps its native number"), Expected.Id), Stat->GetNativeId() == Expected.NativeId);
+        TSet<S> Actual;
+        for (const FLDDemoStatBonus& Bonus : Stat->PerPoint)
+        {
+            Actual.Add(Bonus.Stat);
+        }
+        TestTrue(FString::Printf(TEXT("%s adds exactly its per-point bonuses"), Expected.Id),
+            Actual.Num() == Expected.PerPoint.Num() && Algo::AllOf(Expected.PerPoint, [&Actual](S Bonus) { return Actual.Contains(Bonus); }));
+    }
+    int32 OpeningPool = 0;
+    for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
+    {
+        OpeningPool += Ability.Opening ? 1 : 0;
+    }
+    TestEqual(TEXT("Twenty-two single-level actives"), Definitions.Abilities.Num(), 22);
+    TestEqual(TEXT("Eighteen actives form the opening pool (AI spec §4.3)"), OpeningPool, 18);
+    TestTrue(TEXT("Levels 3 and 6 each enqueue one more active opportunity"), Definitions.Progression.ActiveOfferLevels == TArray<int32>{3, 6});
+    const FLDDemoContentParameters& P = Definitions.Parameters;
+    TestTrue(TEXT("Growth points and the build safe window are the approved values"),
+        P.OpeningPoints == 3 && P.PointsPerLevel == 3 && P.MaxLevelPointsXP == 400 && P.MaxLevelPoints == 3 && P.BuildSafeWindowMs == 4000);
+    TestTrue(TEXT("Skill growth steps are 0.15 through level 10 and 0.075 after"),
+        P.SkillGrowthPerLevelBp == 1500 && P.SkillGrowthPerLevelAfter10Bp == 750);
+
+    const FLDDemoAbilityDefinition* Elbow = nullptr;
+    if (!TestTrue(TEXT("active_elbow resolves: ") + Error, Snapshot->FindAbility(TEXT("active_elbow"), Elbow, Error))) { return false; }
+    const FLDDemoAbilityValues* First = Snapshot->FindValues(*Elbow, 1);
+    const FLDDemoAbilityValues* Top = Snapshot->FindValues(*Elbow, 16);
+    if (!TestTrue(TEXT("The value set resolves for levels 1 and 16"), First && Top)) { return false; }
+    TestTrue(TEXT("Level 1 uses the authored G=1 values"),
+        First->Effects[0].BaseP2 == 7500 && First->Effects[0].ADRatioBp == 6500 && First->ManaCostP2 == 5000 && First->CooldownMs == 10000);
+    TestTrue(TEXT("Level 16 grows the base by G(16)=2.8 and keeps ratios, cost and cooldown"),
+        Top->Effects[0].BaseP2 == 21000 && Top->Effects[0].ADRatioBp == 6500 && Top->ManaCostP2 == 5000 && Top->CooldownMs == 10000);
+    const FLDDemoAbilityDefinition Detached = *Elbow;
+    TestTrue(TEXT("Levels outside 1..16 and abilities outside the snapshot have no value set"),
+        !Snapshot->FindValues(*Elbow, 0) && !Snapshot->FindValues(*Elbow, 17) && !Snapshot->FindValues(Detached, 1));
+
+    TArray<LDDemoCardText::FToken> Tokens;
+    const FLDDemoStatDefinition* Brains = nullptr;
+    const FLDDemoStatDefinition* Strength = nullptr;
+    if (!TestTrue(TEXT("A stat card placeholder parses: ") + Error, LDDemoCardText::Parse(TEXT("每点 +[per_point.APFlat]"), Tokens, Error))
+        || !TestTrue(TEXT("Stats resolve"), Snapshot->FindStat(TEXT("stat_brains"), Brains, Error) && Snapshot->FindStat(TEXT("stat_strength"), Strength, Error))
+        || !TestEqual(TEXT("A literal and one value token"), Tokens.Num(), 2))
+    {
+        return false;
+    }
+    const LDDemoCardText::FToken& PerPoint = Tokens[1];
+    TestTrue(TEXT("The token reads one stat of a single point"),
+        PerPoint.bValue && PerPoint.bPerPoint && PerPoint.Field == LDDemoCardText::EField::Stat && PerPoint.Stat == S::APFlat);
+    const FLDDemoStatBonus* Bonus = LDDemoCardText::FindPerPoint(*Brains, PerPoint);
+    TestTrue(TEXT("stat_brains answers its own per-point AP"), Bonus && Bonus->Stat == S::APFlat && Bonus->Amount == 500);
+    TestNull(TEXT("Another stat does not answer it"), LDDemoCardText::FindPerPoint(*Strength, PerPoint));
+    TestNull(TEXT("An active's value set does not answer a per-point token"), LDDemoCardText::FindEffect(*First, PerPoint));
+    for (const TCHAR* Bad : {TEXT("[per_point.amount]"), TEXT("[dash_boost.ratio]"), TEXT("[damage.cooldown_cut]"), TEXT("[cower.ratio]")})
+    {
+        TestFalse(FString::Printf(TEXT("Retired or malformed placeholder %s is refused"), Bad), LDDemoCardText::Parse(Bad, Tokens, Error));
+    }
+    const FLDDemoAbilityDefinition* Retired = nullptr;
+    const FLDDemoStatDefinition* Card = nullptr;
+    TestFalse(TEXT("The retired cower is absent"), Snapshot->FindAbility(TEXT("active_cower"), Retired, Error));
+    TestFalse(TEXT("Retired passives are absent"), Snapshot->FindAbility(TEXT("passive_lucky_star"), Retired, Error));
+    TestFalse(TEXT("Retired attribute cards are absent"), Snapshot->FindStat(TEXT("attr_protein"), Card, Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentComponentCatalogTest, "Lockdown.Rules.DemoContent.ComponentCatalog",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// #198 B: the approved catalog carries B01-B18 in native ID order with their kind, pool, opening condition, the B18
+// active/element binding, the component-form effect fields and the level-up category bands; FindComponent resolves them.
+bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const FCase* Approved = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("approved_base"); });
+    if (!TestNotNull(TEXT("approved_base fixture is exported"), Approved)) { return false; }
+    FString Error;
+    FLDDemoContentBundle Bundle;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Fixtures.Root, Approved->Name), Bundle, Error)
+        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Approved->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Approved->Digest, Error) || !Asset->Read(Approved->Digest, Snapshot, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
+    // #198 B bases B01-B18 (1-18), #198 F mods M01-M12 (19-30) and connectors C01-C12 (31-42); M11, M12 and C12 are scarce.
+    if (!TestEqual(TEXT("Eighteen bases, twelve mods and twelve connectors"), Definitions.Components.Num(), 42)) { return false; }
+    TSet<FString> AlwaysOpening;
+    for (int32 Index = 0; Index < Definitions.Components.Num(); ++Index)
+    {
+        const FLDDemoComponentDefinition& Row = Definitions.Components[Index];
+        const ELDDemoComponentKind Kind = Index < 18 ? ELDDemoComponentKind::Base
+            : Index < 30 ? ELDDemoComponentKind::Mod : ELDDemoComponentKind::Connector;
+        const bool bScarce = Row.Id == TEXT("component_pick_you") || Row.Id == TEXT("component_owe_it") || Row.Id == TEXT("component_dirty_fist");
+        TestTrue(FString::Printf(TEXT("%s is numbered %d with its kind and pool"), *Row.Id, Index + 1),
+            int32(Row.GetNativeId()) == Index + 1 && Row.Kind == Kind
+            && Row.Pool == (bScarce ? ELDDemoComponentPool::Scarce : ELDDemoComponentPool::Common));
+        TestTrue(FString::Printf(TEXT("%s names install targets exactly when it is a mod or connector"), *Row.Id),
+            (Kind == ELDDemoComponentKind::Base) == (Row.TargetActives.IsEmpty() && Row.TargetComponents.IsEmpty() && !Row.bTargetDash
+                && !Row.bTargetSelf));
+        const FLDDemoComponentDefinition* Found = nullptr;
+        TestTrue(FString::Printf(TEXT("FindComponent resolves %s to its own row: %s"), *Row.Id, *Error),
+            Snapshot->FindComponent(Row.Id, Found, Error) && Found == &Row);
+        const FLDDemoDisplayDefinition* Display = nullptr;
+        TestTrue(FString::Printf(TEXT("%s has a display row with its own icon"), *Row.Id),
+            Snapshot->FindDisplay(Row.Id, Display, Error) && Display->IconId == TEXT("icon_") + Row.Id);
+        TestTrue(FString::Printf(TEXT("%s binds only through active_element"), *Row.Id),
+            (Row.Binding == ELDDemoComponentBinding::ActiveElement) == (Row.Id == TEXT("component_dirty_trick")));
+        if (Row.bOpeningAlways)
+        {
+            TestTrue(FString::Printf(TEXT("%s is always offered without an active condition"), *Row.Id), Row.OpeningActives.IsEmpty());
+            AlwaysOpening.Add(Row.Id);
+        }
+    }
+    TestTrue(TEXT("B01-B06, B09, B10 and B12 are the always-offered opening bases"), AlwaysOpening.Num() == 9
+        && Algo::AllOf(TArray<FString>{TEXT("component_fist_fire"), TEXT("component_tab_ledger"), TEXT("component_spiky_hide"),
+            TEXT("component_punch_heal"), TEXT("component_dash_bump"), TEXT("component_third_punch"), TEXT("component_hard_skin"),
+            TEXT("component_fist_water"), TEXT("component_dash_punch")}, [&AlwaysOpening](const FString& Id) { return AlwaysOpening.Contains(Id); }));
+
+    const auto Component = [&Snapshot, &Error](const TCHAR* Id)
+    {
+        const FLDDemoComponentDefinition* Out = nullptr;
+        return Snapshot->FindComponent(Id, Out, Error) ? Out : nullptr;
+    };
+    const FLDDemoComponentDefinition* Fire = Component(TEXT("component_fist_fire"));
+    const FLDDemoComponentDefinition* Ledger = Component(TEXT("component_tab_ledger"));
+    const FLDDemoComponentDefinition* Spiky = Component(TEXT("component_spiky_hide"));
+    const FLDDemoComponentDefinition* Third = Component(TEXT("component_third_punch"));
+    const FLDDemoComponentDefinition* Kick = Component(TEXT("component_kick_down"));
+    const FLDDemoComponentDefinition* Breach = Component(TEXT("component_breach_fist"));
+    const FLDDemoComponentDefinition* Water = Component(TEXT("component_fist_water"));
+    const FLDDemoComponentDefinition* Shock = Component(TEXT("component_fist_shock"));
+    const FLDDemoComponentDefinition* DashPunch = Component(TEXT("component_dash_punch"));
+    const FLDDemoComponentDefinition* LongArm = Component(TEXT("component_long_arm"));
+    const FLDDemoComponentDefinition* HeldShot = Component(TEXT("component_held_shot"));
+    const FLDDemoComponentDefinition* Trick = Component(TEXT("component_dirty_trick"));
+    if (!TestTrue(TEXT("Named components resolve: ") + Error, Fire && Ledger && Spiky && Third && Kick && Breach && Water && Shock
+        && DashPunch && LongArm && HeldShot && Trick))
+    {
+        return false;
+    }
+    using EOp = ELDDemoEffectOp;
+    const auto Only = [this](const FLDDemoComponentDefinition& Row, EOp Op) -> const FLDDemoEffectDefinition*
+    {
+        const FLDDemoEffectDefinition* Effect = Row.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Candidate) { return Candidate.GetOp() == Op; });
+        TestNotNull(*FString::Printf(TEXT("%s carries operation %d"), *Row.Id, int32(Op)), Effect);
+        return Effect;
+    };
+    if (const auto* Burn = Only(*Fire, EOp::Burn))
+    {
+        TestTrue(TEXT("B01 applies one burn stack per primary basic and none per active hit"), Burn->BasicCount == 1 && Burn->Count == 0);
+    }
+    if (const auto* Entry = Only(*Ledger, EOp::Ledger))
+    {
+        TestTrue(TEXT("B02 records 10 + 0.08 AP magic entries, cashes 5 and clears after 6 s"),
+            Entry->BaseP2 == 1000 && Entry->ADRatioBp == 0 && Entry->APRatioBp == 800 && Entry->DamageType == ELDDemoDamageType::Magical
+            && Entry->Count == 5 && Entry->DurationMs == 6000);
+    }
+    if (const auto* Thorns = Only(*Spiky, EOp::Thorns))
+    {
+        TestTrue(TEXT("B03 reflects 10 + 1% max HP inside 600 cm with no repeat window"),
+            Thorns->BaseP2 == 1000 && Thorns->MaxHPRatioBp == 100 && Thorns->IntervalMs == 0 && Thorns->CriticalMultiplierBp == 10000
+            && Thorns->RadiusCm.Numerator == 600 && Thorns->RadiusCm.Denominator == 1);
+    }
+    if (const auto* Push = Only(*Third, EOp::NthBasicBonus))
+    {
+        TestTrue(TEXT("B06 pushes every third primary basic target 120 cm in 0.12 s without damage"),
+            Push->Count == 3 && Push->DistanceCm.Numerator == 120 && Push->DistanceCm.Denominator == 1 && Push->DurationMs == 120
+            && Push->BaseP2 == 0);
+    }
+    if (const auto* Empower = Only(*DashPunch, EOp::EmpowerBasic))
+    {
+        TestTrue(TEXT("B12 arms one 25 + 0.25 AD package for 3 s when a dash completes"),
+            Empower->Trigger == ELDDemoEffectTrigger::DashComplete && Empower->Count == 1 && Empower->DurationMs == 3000
+            && Empower->BaseP2 == 2500 && Empower->ADRatioBp == 2500);
+    }
+    const FLDDemoEffectDefinition* WaterFist = Only(*Water, EOp::BasicElement);
+    const FLDDemoEffectDefinition* ShockFist = Only(*Shock, EOp::BasicElement);
+    TestTrue(TEXT("B10 and B11 name water and electric"), WaterFist && ShockFist
+        && WaterFist->Element == ELDDemoElement::Water && ShockFist->Element == ELDDemoElement::Electric);
+    const FLDDemoEffectDefinition* Scale = Only(*LongArm, EOp::BasicDamageScale);
+    TestTrue(TEXT("B14 adds range and keeps 90% of the primary basic package"),
+        Scale && Scale->RatioBp == 9000 && Only(*LongArm, EOp::StatBonus) != nullptr && LongArm->Effects.Num() == 2);
+    const FLDDemoEffectDefinition* Idle = Only(*HeldShot, EOp::IdleReadyAmp);
+    TestTrue(TEXT("B17 waits 2 s for +20%"), Idle && Idle->DelayMs == 2000 && Idle->RatioBp == 2000);
+    for (const FLDDemoComponentDefinition& Row : Definitions.Components)
+    {
+        for (const FLDDemoEffectDefinition& Effect : Row.Effects)
+        {
+            TestTrue(FString::Printf(TEXT("%s names an element only on basic_element"), *Row.Id),
+                (Effect.Element != ELDDemoElement::None) == (Effect.GetOp() == EOp::BasicElement));
+        }
+    }
+
+    TestTrue(TEXT("B07 opens with an active that slows, hard-controls or knocks back (S01-S06, S08, S09, S12, S20, S22)"),
+        !Kick->bOpeningAlways && Kick->OpeningActives == TArray<FString>{TEXT("active_elbow"), TEXT("active_pants_down"),
+            TEXT("active_crotch_grab"), TEXT("active_account_banned"), TEXT("active_unplug"), TEXT("active_snark_bolt"),
+            TEXT("active_quick_meeting"), TEXT("active_apology_slide"), TEXT("active_open_mic"), TEXT("active_hose_down"),
+            TEXT("active_dirty_puddle")});
+    TestTrue(TEXT("B11 opens with a fire or water active (S07, S08, S09, S20)"),
+        Shock->OpeningActives == TArray<FString>{TEXT("active_seethe"), TEXT("active_quick_meeting"), TEXT("active_hose_down"),
+            TEXT("active_dirty_puddle")});
+    TestTrue(TEXT("B08 is never an opening option"), !Breach->bOpeningAlways && Breach->OpeningActives.IsEmpty());
+    TestTrue(TEXT("B18 binds one of eighteen damaging actives and fire, water or electric"),
+        Trick->Binding == ELDDemoComponentBinding::ActiveElement && Trick->BindActives.Num() == 18
+        && !Trick->BindActives.Contains(TEXT("active_bail_out")) && Trick->BindActives.Contains(TEXT("active_flyer_trap"))
+        && Trick->BindActives.Contains(TEXT("active_brace"))
+        && Trick->BindElements == TArray<ELDDemoElement>{ELDDemoElement::Fire, ELDDemoElement::Water, ELDDemoElement::Electric}
+        && Trick->Effects.Num() == 1 && Trick->Effects[0].GetOp() == EOp::ActiveElement);
+
+    const TArray<FLDDemoComponentCategoryWeights>& Bands = Definitions.Progression.ComponentCategoryWeights;
+    const auto Band = [&Bands](int32 Index, int32 Min, int32 Max, int32 Base, int32 Mod, int32 Connector)
+    {
+        return Bands.IsValidIndex(Index) && Bands[Index].MinLevel == Min && Bands[Index].MaxLevel == Max && Bands[Index].BasePercent == Base
+            && Bands[Index].ModPercent == Mod && Bands[Index].ConnectorPercent == Connector;
+    };
+    TestTrue(TEXT("Level-up category bands are 2-6 55/25/20, 7-11 40/30/30 and 12-16 25/35/40"),
+        Bands.Num() == 3 && Band(0, 2, 6, 55, 25, 20) && Band(1, 7, 11, 40, 30, 30) && Band(2, 12, 16, 25, 35, 40));
+    TestEqual(TEXT("An empty common pool grants 3 points"), Definitions.Parameters.EmptyComponentPoolPoints, int64(3));
+
+    TArray<LDDemoCardText::FToken> Tokens;
+    if (TestTrue(TEXT("A component card placeholder parses: ") + Error, LDDemoCardText::Parse(TEXT("满 [ledger.count] 笔"), Tokens, Error))
+        && TestEqual(TEXT("A literal, one value token and a literal"), Tokens.Num(), 3))
+    {
+        const FLDDemoEffectDefinition* Read = LDDemoCardText::FindEffect(Ledger->Effects, Tokens[1]);
+        TestTrue(TEXT("B02's effects answer [ledger.count]"), Read && Read->GetOp() == EOp::Ledger);
+        TestNull(TEXT("Another component does not answer it"), LDDemoCardText::FindEffect(Fire->Effects, Tokens[1]));
+    }
+    const FLDDemoComponentDefinition* Missing = nullptr;
+    TestFalse(TEXT("An absent component stays absent"), Snapshot->FindComponent(TEXT("component_missing"), Missing, Error));
+    TestTrue(TEXT("The absent component reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
+    TestFalse(TEXT("An active is not a component"), Snapshot->FindComponent(TEXT("active_elbow"), Missing, Error));
     return true;
 }
 
@@ -1129,9 +1406,9 @@ bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
     if (!FixtureIndex(*this, Fixtures)) { return false; }
     const auto Find = [&Fixtures](const TCHAR* Name) { return Fixtures.Valid.FindByPredicate([Name](const FCase& Case) { return Case.Name == Name; }); };
     const FCase* Base = Find(TEXT("base"));
-    const FCase* Gold = Find(TEXT("exact_gold"));
+    const FCase* Exact = Find(TEXT("exact_integer"));
     const FCase* World = Find(TEXT("world_spawn_shift"));
-    if (!TestNotNull(TEXT("Base fixture"), Base) || !TestNotNull(TEXT("Content-only fixture"), Gold)
+    if (!TestNotNull(TEXT("Base fixture"), Base) || !TestNotNull(TEXT("Content-only fixture"), Exact)
         || !TestNotNull(TEXT("World fixture"), World)) { return false; }
     // The asset plays the compiled build: imported from the base fixture.
     FString Error;
@@ -1149,18 +1426,18 @@ bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
         Asset->ReadDevReloadFiles(BaseRoot, Base->Digest, Base->Digest, Same, Error) && Same
         && Same->Get().Identity.Root == Base->Digest);
     TestTrue(TEXT("A re-synced content payload reloads without a rebuild"),
-        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Gold->Name), Base->Digest, Gold->Digest, Reloaded, Error));
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Exact->Name), Base->Digest, Exact->Digest, Reloaded, Error));
     if (!TestNotNull(TEXT("Reloaded snapshot"), Reloaded.Get()) || !Same) { return false; }
     TestTrue(TEXT("The reloaded snapshot carries the new number and root; the earlier snapshot keeps its own"),
-        Reloaded->Get().Parameters.StartingGold == int64(9007199254740993LL) && Reloaded->Get().Identity.Root == Gold->Digest
-        && Same->Get().Parameters.StartingGold != Reloaded->Get().Parameters.StartingGold);
+        Reloaded->Get().Parameters.AirdropRewardXP == int64(9007199254740993LL) && Reloaded->Get().Identity.Root == Exact->Digest
+        && Same->Get().Parameters.AirdropRewardXP != Reloaded->Get().Parameters.AirdropRewardXP);
     TestFalse(TEXT("A changed world needs Bootstrap and a rebuild, not a reload"),
         Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, World->Name), Base->Digest, World->Digest, Refused, Error));
     TestTrue(TEXT("The world refusal names what changed"), !Refused && Error.Contains(TEXT("world")));
     TestFalse(TEXT("Files that do not hash to the read manifest root are refused"),
-        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Gold->Name), Base->Digest, Base->Digest, Refused, Error));
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Exact->Name), Base->Digest, Base->Digest, Refused, Error));
     TestFalse(TEXT("An asset that does not match the compiled root cannot anchor a reload"),
-        Asset->ReadDevReloadFiles(BaseRoot, Gold->Digest, Base->Digest, Refused, Error));
+        Asset->ReadDevReloadFiles(BaseRoot, Exact->Digest, Base->Digest, Refused, Error));
     TestFalse(TEXT("Absent Sync outputs are refused, never replaced by the stored bytes"),
         Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, TEXT("absent")), Base->Digest, Base->Digest, Refused, Error));
     TestTrue(TEXT("No refused reload produced a snapshot"), !Refused);
@@ -1168,7 +1445,7 @@ bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
     // Only the content payload, its display text and the root may differ from the compiled identity.
     const FLDDemoContentIdentity Compiled = Same->Get().Identity;
     FLDDemoContentIdentity Changed = Compiled;
-    Changed.Root = Gold->Digest;
+    Changed.Root = Exact->Digest;
     Changed.Content.Bytes[0] ^= 1;
     Changed.Display.Bytes[0] ^= 1;
     Changed.ApprovalStatus += TEXT("x");

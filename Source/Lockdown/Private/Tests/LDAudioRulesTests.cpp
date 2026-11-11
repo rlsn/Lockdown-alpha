@@ -1,12 +1,15 @@
 #include "Audio/LDAudioCatalog.h"
 #include "Audio/LDAudioCueTracker.h"
 #include "Audio/LDAudioTypes.h"
+#include "Audio/LDMusicSelection.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Misc/AutomationTest.h"
 #include "Sound/SoundClass.h"
 #include "Sound/SoundMix.h"
 #include "Sound/SoundWave.h"
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Tests/LDTestApprovedFixture.h"
 namespace
 {
 TArray<ELDAudioCue> AudioSample(FLDAudioCueTracker& Tracker,const FLDAudioFrame& Frame)
@@ -142,13 +145,13 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=17;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
     TestTrue(TEXT("An older release time never sounds"),AudioSample(Tracker,Frame).IsEmpty());
 
-    Growth.Level=2;Growth.EarnedThrough=1;
+    Growth.Level=2;Growth.ActiveOpportunitiesEarned=1;
     TestTrue(TEXT("A level up sounds once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
     TestTrue(TEXT("The same level stays silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Growth.EarnedThrough=2;
-    TestTrue(TEXT("A newly earned three-choice sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
-    Growth.ConsumedThrough=1;Growth.PendingChoiceCount=1;
-    TestTrue(TEXT("Picking a card and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Growth.ActiveOpportunitiesEarned=2;
+    TestTrue(TEXT("A newly earned active opportunity sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
+    Growth.ActiveOpportunitiesConsumed=1;Growth.QueuedActiveOpportunities=1;
+    TestTrue(TEXT("Picking an active and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
 
     Frame.OwnLifePhase=ELDLifePhase::Dead;Combat.Revision=5;Combat.HPP2=0;Frame.LocalSeconds=6;
     TestTrue(TEXT("Death sounds once without a hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfDeath}));
@@ -161,7 +164,7 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A release in the old life's view stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Life=2;Combat.Revision=2;Combat.Cues.ReleasedStartedAtMs=10700;Combat.Cues.ReleasedAtMs=11000;Combat.AsOfMs=11000;
     TestTrue(TEXT("The new life's own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;
+    Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.ActiveOpportunitiesEarned=0;
     TestTrue(TEXT("A new match never sounds a respawn or level"),AudioSample(Tracker,Frame).IsEmpty());
 
     TArray<ELDAudioCue> Out;
@@ -180,30 +183,6 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Basic attacks, refusals, cancels and receipts of another match or life stay silent"),Out.IsEmpty());
     FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
     TestTrue(TEXT("The innate dash sounds as a cast"),AudioIs(Out,{ELDAudioCue::SelfCast}));
-
-    Out.Reset();
-    FLDSubmitResult Buy;Buy.Generation=4;Buy.Family=ELDGrowthFamily::Shop;Buy.RequestId=1;Buy.Status=ELDAdmissionStatus::Final;
-    Buy.bHasShopReceipt=true;Buy.ShopReceipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    Tracker.ObserveShopSubmit(Buy,4,Out);TestTrue(TEXT("An applied trade sounds"),AudioIs(Out,{ELDAudioCue::PurchaseSucceeded}));
-    Out.Reset();
-    FLDShopReceiptQueryResult Query;Query.Query.Generation=4;Query.Query.Family=ELDGrowthFamily::Shop;Query.Query.RequestId=1;
-    Query.Lookup=ELDReceiptLookup::Final;Query.bHasReceipt=true;Query.Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    Tracker.ObserveShopReceipt(Query,4,Out);TestTrue(TEXT("The same request's later receipt stays silent"),Out.IsEmpty());
-    FLDSubmitResult Refusal=Buy;Refusal.RequestId=2;Refusal.Status=ELDAdmissionStatus::AdmissionRejected;Refusal.bSequenceReserved=false;Refusal.bHasShopReceipt=false;
-    Tracker.ObserveShopSubmit(Refusal,4,Out);TestTrue(TEXT("An unreserved refusal sounds rejected"),AudioIs(Out,{ELDAudioCue::TradeRejected}));
-    Out.Reset();
-    FLDSubmitResult Reused=Buy;Reused.RequestId=2;Tracker.ObserveShopSubmit(Reused,4,Out);
-    TestTrue(TEXT("The reused id of a refused request still sounds its final result"),AudioIs(Out,{ELDAudioCue::PurchaseSucceeded}));
-    Out.Reset();
-    FLDSubmitResult Reserved=Refusal;Reserved.RequestId=3;Reserved.bSequenceReserved=true;Tracker.ObserveShopSubmit(Reserved,4,Out);
-    TestTrue(TEXT("A reserved refusal waits for its final receipt"),Out.IsEmpty());
-    Query.Query.RequestId=3;Query.Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Tracker.ObserveShopReceipt(Query,4,Out);
-    TestTrue(TEXT("The final rejected receipt sounds"),AudioIs(Out,{ELDAudioCue::TradeRejected}));
-    Out.Reset();
-    Query.Query.RequestId=1;Query.Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Tracker.ObserveShopReceipt(Query,4,Out);
-    FLDSubmitResult Foreign=Buy;Foreign.RequestId=9;Foreign.Generation=3;Tracker.ObserveShopSubmit(Foreign,4,Out);
-    FLDSubmitResult Choice=Buy;Choice.RequestId=10;Choice.Family=ELDGrowthFamily::Choice;Tracker.ObserveShopSubmit(Choice,4,Out);
-    TestTrue(TEXT("Late, foreign-match and choice results stay silent"),Out.IsEmpty());
     return true;
 }
 
@@ -295,34 +274,103 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
     TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::SelfAttack),uint8(17));
-    for(int32 Index=1;Index<int32(ELDAudioCue::Count);++Index)
+    TestEqual(TEXT("The level-up cue keeps its number past the retired shop trade cues"),uint8(ELDAudioCue::LevelUp),uint8(12));
+    TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11)));
+    for(int32 Index=0;Index<LDAudio::CueCount;++Index)
     {
+        const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
         ELDAudioCue Parsed=ELDAudioCue::None;
-        TestTrue(TEXT("Every cue id round-trips"),LDAudio::ParseCueId(LDAudio::CueId(ELDAudioCue(Index)),Parsed)&&Parsed==ELDAudioCue(Index));
+        TestTrue(TEXT("Every cue id round-trips"),LDAudio::IsPlayableCue(Cue)&&LDAudio::ParseCueId(LDAudio::CueId(Cue),Parsed)&&Parsed==Cue);
     }
+    TestTrue(TEXT("The playable cues end before Count"),LDAudio::PlayableCue(LDAudio::CueCount)==ELDAudioCue::None&&LDAudio::PlayableCue(-1)==ELDAudioCue::None);
     ELDAudioCue Parsed=ELDAudioCue::None;
     TestFalse(TEXT("Cue ids are case-sensitive and None is not a cue"),LDAudio::ParseCueId(TEXT("killnotice"),Parsed)||LDAudio::ParseCueId(TEXT("None"),Parsed));
-    auto* Master=NewObject<USoundClass>();auto* Mix=NewObject<USoundMix>();auto* Catalog=NewObject<ULDAudioCatalog>();
+    TestTrue(TEXT("Music track numbering is stable"),uint8(ELDMusicTrack::Menu)==1&&uint8(ELDMusicTrack::Farm)==2&&uint8(ELDMusicTrack::Escalation)==3
+        &&LDAudio::MusicTrackCount==3);
+    for(int32 Index=1;Index<int32(ELDMusicTrack::Count);++Index)
+    {
+        ELDMusicTrack Track=ELDMusicTrack::None;
+        TestTrue(TEXT("Every music track id round-trips"),LDAudio::ParseMusicTrackId(LDAudio::MusicTrackId(ELDMusicTrack(Index)),Track)&&Track==ELDMusicTrack(Index));
+    }
+    ELDMusicTrack ParsedTrack=ELDMusicTrack::None;
+    TestFalse(TEXT("Music ids are case-sensitive and None is not a track"),LDAudio::ParseMusicTrackId(TEXT("menu"),ParsedTrack)||LDAudio::ParseMusicTrackId(TEXT("None"),ParsedTrack));
+    TestTrue(TEXT("Menu and Escalation loop, Farm plays once"),LDAudio::MusicTrackLoops(ELDMusicTrack::Menu)&&LDAudio::MusicTrackLoops(ELDMusicTrack::Escalation)
+        &&!LDAudio::MusicTrackLoops(ELDMusicTrack::Farm)&&!LDAudio::MusicTrackLoops(ELDMusicTrack::None));
+    auto* Master=NewObject<USoundClass>();auto* MusicClass=NewObject<USoundClass>();auto* Mix=NewObject<USoundMix>();auto* Catalog=NewObject<ULDAudioCatalog>();
     auto Fill=[&]()
     {
-        Catalog->MasterClass=Master;Catalog->UserMix=Mix;Catalog->Cues.Reset();
-        for(int32 Index=1;Index<int32(ELDAudioCue::Count);++Index)
+        MusicClass->ParentClass=Master;Master->ChildClasses={MusicClass};
+        Catalog->MasterClass=Master;Catalog->MusicClass=MusicClass;Catalog->UserMix=Mix;Catalog->Cues.Reset();Catalog->Music.Reset();
+        for(int32 Index=0;Index<LDAudio::CueCount;++Index)
         {
             auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=Master;Wave->Duration=.5f;
-            FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=ELDAudioCue(Index);Entry.Sound=Wave;
+            FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=LDAudio::PlayableCue(Index);Entry.Sound=Wave;
+        }
+        for(int32 Index=1;Index<int32(ELDMusicTrack::Count);++Index)
+        {
+            auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=MusicClass;Wave->Duration=180.f;Wave->bLooping=LDAudio::MusicTrackLoops(ELDMusicTrack(Index));
+            FLDMusicTrackEntry& Entry=Catalog->Music.AddDefaulted_GetRef();Entry.Track=ELDMusicTrack(Index);Entry.Sound=Wave;
         }
     };
-    TArray<USoundWave*> Sounds;FString Error;
+    TArray<USoundWave*> Sounds,Music;FString Error;
     Fill();
-    TestTrue(TEXT("A complete catalog resolves every cue"),Catalog->Resolve(Sounds,Error)&&Sounds.Num()==int32(ELDAudioCue::Count)
+    TestTrue(TEXT("A complete catalog resolves every cue"),Catalog->Resolve(Sounds,Music,Error)&&Sounds.Num()==int32(ELDAudioCue::Count)
         &&Sounds[int32(ELDAudioCue::Count)-1]==Catalog->Cues.Last().Sound&&!Sounds[0]);
-    Catalog->Cues.Pop();TestFalse(TEXT("A missing cue is an error"),Catalog->Resolve(Sounds,Error));
-    Fill();Catalog->Cues.Swap(0,1);TestFalse(TEXT("Entries out of cue order are an error"),Catalog->Resolve(Sounds,Error));
-    Fill();Catalog->Cues[3].Sound=nullptr;TestFalse(TEXT("A cue without sound is an error"),Catalog->Resolve(Sounds,Error));
-    Fill();Catalog->Cues[0].Sound->SoundClassObject=NewObject<USoundClass>();TestFalse(TEXT("A sound outside the master class is an error"),Catalog->Resolve(Sounds,Error));
-    Fill();Catalog->Cues[1].Sound->bLooping=true;TestFalse(TEXT("A looping cue is an error"),Catalog->Resolve(Sounds,Error));
-    Fill();Catalog->Cues[2].Sound->Duration=0.f;TestFalse(TEXT("A cue without audio is an error"),Catalog->Resolve(Sounds,Error));
-    Fill();Catalog->UserMix=nullptr;TestFalse(TEXT("A catalog without the user mix is an error"),Catalog->Resolve(Sounds,Error));
+    TestTrue(TEXT("A complete catalog resolves every music track by track value"),Music.Num()==int32(ELDMusicTrack::Count)&&!Music[0]
+        &&Music[int32(ELDMusicTrack::Escalation)]==Catalog->Music.Last().Sound);
+    Catalog->Cues.Pop();TestFalse(TEXT("A missing cue is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues.Swap(0,1);TestFalse(TEXT("Entries out of cue order are an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues[9].Cue=ELDAudioCue(10);TestFalse(TEXT("A retired cue number is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues[3].Sound=nullptr;TestFalse(TEXT("A cue without sound is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues[0].Sound->SoundClassObject=NewObject<USoundClass>();TestFalse(TEXT("A sound outside the master class is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues[0].Sound->SoundClassObject=MusicClass;TestFalse(TEXT("A cue routed to the music class is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues[1].Sound->bLooping=true;TestFalse(TEXT("A looping cue is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Cues[2].Sound->Duration=0.f;TestFalse(TEXT("A cue without audio is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->UserMix=nullptr;TestFalse(TEXT("A catalog without the user mix is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->MusicClass=nullptr;TestFalse(TEXT("A catalog without the music class is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();MusicClass->ParentClass=nullptr;TestFalse(TEXT("A music class outside the master class is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Master->ChildClasses.Reset();TestFalse(TEXT("A master class that does not list the music class is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music.Pop();TestFalse(TEXT("A missing music track is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music.Swap(0,1);TestFalse(TEXT("Music out of track order is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music[1].Sound=nullptr;TestFalse(TEXT("A music track without sound is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music[0].Sound->SoundClassObject=Master;TestFalse(TEXT("Music routed straight to the master class is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music[0].Sound->bLooping=false;TestFalse(TEXT("A menu track that does not loop is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music[1].Sound->bLooping=true;TestFalse(TEXT("A looping farm track is an error"),Catalog->Resolve(Sounds,Music,Error));
+    Fill();Catalog->Music[2].Sound->Duration=0.f;TestFalse(TEXT("A music track without audio is an error"),Catalog->Resolve(Sounds,Music,Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioMusicSelectionTest,"Lockdown.Rules.AudioMusicSelection",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDAudioMusicSelectionTest::RunTest(const FString& Parameters)
+{
+    FLDPublicMatchView Public;Public.Generation=7;Public.StartedAtMs=50000;Public.OpenAtMs=280000;Public.Timeline.FieldStartedAtMs=100000;
+    auto Select=[&](ELDMatchPhase Phase,bool bClock=true,int64 NowMs=100000)
+    {
+        Public.Phase=Phase;FLDMusicInput Input;Input.Public=&Public;Input.bClock=bClock;Input.NowMs=NowMs;
+        return LDAudio::SelectMusic(Input);
+    };
+    auto Is=[](const FLDMusicRequest& Request,ELDMusicTrack Track,float StartSec=0.f)
+    {return Request.bDecided&&Request.Track==Track&&FMath::IsNearlyEqual(Request.StartSec,StartSec,1e-3f);};
+    FLDMusicInput Frontend;Frontend.bFrontend=true;
+    TestTrue(TEXT("The main menu plays the menu loop"),Is(LDAudio::SelectMusic(Frontend),ELDMusicTrack::Menu));
+    Frontend.Public=&Public;Public.Phase=ELDMatchPhase::CaptureOpen;
+    TestTrue(TEXT("The frontend world ignores any public match view"),Is(LDAudio::SelectMusic(Frontend),ELDMusicTrack::Menu));
+    TestFalse(TEXT("No room state yet keeps whatever plays"),LDAudio::SelectMusic(FLDMusicInput()).bDecided);
+    FLDPublicMatchView Unsynced;FLDMusicInput Pending;Pending.Public=&Unsynced;
+    TestFalse(TEXT("A generation-0 view keeps whatever plays (the menu carries on into the lobby)"),LDAudio::SelectMusic(Pending).bDecided);
+    for(const ELDMatchPhase Phase:{ELDMatchPhase::Lobby,ELDMatchPhase::Starting,ELDMatchPhase::Rest,ELDMatchPhase::Resetting})
+    {TestTrue(FString::Printf(TEXT("Phase %d shares the menu loop with the main menu"),int32(Phase)),Is(Select(Phase),ELDMusicTrack::Menu));}
+    TestTrue(TEXT("A field segment starts the farm track at its start"),Is(Select(ELDMatchPhase::Development,true,100000),ELDMusicTrack::Farm,0.f));
+    TestTrue(TEXT("A late start joins the farm track at the time since the segment started"),Is(Select(ELDMatchPhase::Development,true,172500),ELDMusicTrack::Farm,72.5f));
+    TestTrue(TEXT("A clock behind the segment start starts the farm track at its beginning"),Is(Select(ELDMatchPhase::Development,true,99000),ELDMusicTrack::Farm,0.f));
+    TestFalse(TEXT("Without the authority clock the farm offset is unknown, so nothing changes"),Select(ELDMatchPhase::Development,false).bDecided);
+    Public.Timeline.FieldStartedAtMs=0;
+    TestFalse(TEXT("Without a segment start the farm offset is unknown, so nothing changes"),Select(ELDMatchPhase::Development).bDecided);
+    Public.Timeline.FieldStartedAtMs=100000;
+    TestTrue(TEXT("The flagpole opening switches to the escalation loop from its start"),Is(Select(ELDMatchPhase::CaptureOpen,true,400000),ELDMusicTrack::Escalation));
+    TestTrue(TEXT("The escalation loop does not need the clock"),Is(Select(ELDMatchPhase::CaptureOpen,false),ELDMusicTrack::Escalation));
+    for(const ELDMatchPhase Phase:{ELDMatchPhase::Results,ELDMatchPhase::Closing,ELDMatchPhase::Faulted})
+    {TestTrue(FString::Printf(TEXT("Phase %d stops the music so the result jingle stands alone"),int32(Phase)),Is(Select(Phase),ELDMusicTrack::None));}
     return true;
 }
 
@@ -332,11 +380,22 @@ bool FLDAudioCatalogAssetTest::RunTest(const FString& Parameters)
     // The shipped catalog: every cue resolves to an imported one-shot routed through the single master chain.
     const auto* Catalog=LoadObject<ULDAudioCatalog>(nullptr,ULDAudioCatalog::AssetPath);
     if(!TestNotNull(TEXT("The Demo audio catalog asset exists"),Catalog)){return false;}
-    TArray<USoundWave*> Sounds;FString Error;
-    const bool bResolved=Catalog->Resolve(Sounds,Error);
+    TArray<USoundWave*> Sounds,Music;FString Error;
+    const bool bResolved=Catalog->Resolve(Sounds,Music,Error);
     TestTrue(FString(TEXT("The Demo audio catalog resolves: "))+Error,bResolved);
-    TestTrue(TEXT("The catalog uses SC_DemoMaster and SMix_DemoUser"),Catalog->MasterClass&&Catalog->UserMix
-        &&Catalog->MasterClass->GetPathName()==ULDAudioCatalog::MasterClassPath&&Catalog->UserMix->GetPathName()==ULDAudioCatalog::UserMixPath);
+    TestTrue(TEXT("The catalog uses SC_DemoMaster, SC_DemoMusic and SMix_DemoUser"),Catalog->MasterClass&&Catalog->UserMix&&Catalog->MusicClass
+        &&Catalog->MasterClass->GetPathName()==ULDAudioCatalog::MasterClassPath&&Catalog->UserMix->GetPathName()==ULDAudioCatalog::UserMixPath
+        &&Catalog->MusicClass->GetPathName()==ULDAudioCatalog::MusicClassPath);
+    if(!bResolved){return false;}
+    // The farm track spans one field segment (#94: "farm is exactly 3 mins to fit the first 3 mins of the game until the flag
+    // opens"; #198 made that the 180 s field segment); a changed segment length needs a matching track rather than music that
+    // stops early or runs into the next rest.
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    if(!LDTestApprovedFixture::Read(*this,Content)){return false;}
+    const float SegmentSec=float(Content->Get().Parameters.FieldSegmentMs)/1000.f;
+    const float FarmSec=Music[int32(ELDMusicTrack::Farm)]->Duration;
+    TestTrue(FString::Printf(TEXT("The farm track (%.2f s) lasts a field segment (%.0f s) within 2 s"),FarmSec,SegmentSec),
+        FarmSec>=SegmentSec&&FarmSec<=SegmentSec+2.f);
     return true;
 }
 #endif

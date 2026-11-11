@@ -4,13 +4,13 @@
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatEvaluationTypes.h"
 
-struct FLDDemoRankDefinition;
+struct FLDDemoAbilityValues;
 
 struct FLDCombatEntityRecord;
 struct FLDDemoPolicies;
 class FLDDemoContentSnapshot;
 
-// The executable terms of the innate D dash (D19) for one set of held equipment passives (D20).
+// The executable terms of the innate D dash (D19).
 struct FLDInnateDashTerms
 {
     FLDDemoRational DistanceCm;
@@ -18,7 +18,6 @@ struct FLDInnateDashTerms
     // Whole cooldown issued at release; cooldown haste does not apply to the innate dash.
     int64 CooldownMs=0;
     int64 ManaCostP2=0;
-    bool bBoosted=false;
 };
 
 // Execution limits shared by admission, release and the owner view, checked in this fixed order.
@@ -78,12 +77,8 @@ namespace LDCombatSourceRules
         uint64 HighWater, bool bQueuedStep);
     // Persistent source and cooldown identity of the innate dash on every contender record.
     LOCKDOWN_API const FName& InnateDashId();
-    // D19/D20: approved CHARACTER dash terms; each held passive family with a DashBoost effect applies once,
-    // multiplying the cooldown by CooldownRatioBp (ceil to whole ms) and the distance by (1 + DistanceBonusBp).
-    // The duration is unchanged, so a boosted dash covers its longer distance in the same time. A learned trigger
-    // passive whose rank holds DashBoost (passive_special_forces advanced) applies the same way.
-    LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
-        const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error);
+    // D19: the approved CHARACTER dash terms.
+    LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, FLDInnateDashTerms& Out, FString& Error);
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
@@ -98,16 +93,18 @@ namespace LDCombatSourceRules
         int64 NowMs, const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out,
         ELDCombatPrepareError& Code, FString& Error);
 
-    // The remaining-cooldown cut shared by every refund (cooldown_refund, e.g. passive_iced_americano advanced):
+    // The remaining-cooldown cut shared by every refund (cooldown_refund, dash_contact_refund):
     // a cooling track ends AmountMs earlier but never before NowMs; MAX_int64 makes it ready now. A ready track
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
 
-    // Whether a rank displaces its caster (a dash): such a release is a dash for the root matrix and takes the
-    // item_phase_anchor skill boost.
-    LOCKDOWN_API bool DisplacesCaster(const FLDDemoRankDefinition& Rank);
-    // item_phase_anchor: the boost of every character active with a dash, fixed at its release. Each held
-    // family with DashBoost skill terms applies once: cooldown x SkillCooldownRatioBp, distance x (1 + SkillDistanceBonusBp).
-    LOCKDOWN_API bool SkillDisplacementBoost(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
-        int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error);
+    // Whether a value set displaces its caster (a dash): such a release is a dash for the root matrix.
+    LOCKDOWN_API bool DisplacesCaster(const FLDDemoAbilityValues& Values);
+    // #198 build safe window: whether a release of this value set is an offensive action that keeps its caster from
+    // learning and allocating (damage, a control, a slow, a keyword stack or a delivery that carries them). A pure self
+    // buff, shield, cleanse or plain dash is not.
+    LOCKDOWN_API bool IsOffensive(const FLDDemoAbilityValues& Values);
+    // The absolute ms from which a contender whose last combat action was at LastUnsafeAtMs (0 = none) is safe to build
+    // again: LastUnsafeAtMs + WindowMs, or 0 without an action.
+    LOCKDOWN_API int64 BuildSafeAtMs(int64 LastUnsafeAtMs, int64 WindowMs);
 }

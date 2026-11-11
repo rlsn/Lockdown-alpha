@@ -25,7 +25,6 @@
 #include "Character/LDCameraSettings.h"
 #include "UI/LDHUD.h"
 #include "UI/LDMinimap.h"
-#include "Art/LDArtSubsystem.h"
 #include "Vision/LDWorldViewRelay.h"
 
 namespace LDNavigationDetail
@@ -47,7 +46,6 @@ namespace LDNavigationDetail
         case ELDOrderFailure::PathBlocked: return TEXT("路线受阻");
         case ELDOrderFailure::TargetUnavailable: return TEXT("目标不可见");
         case ELDOrderFailure::TargetDied: { static const FString Text=FString(TEXT("目标已经"))+LDTerms::Dead; return *Text; }
-        case ELDOrderFailure::ShopUnavailable: { static const FString Text=FString(LDTerms::Shop)+TEXT("不可用"); return *Text; }
         case ELDOrderFailure::Dead: { static const FString Text=FString(TEXT("你已经"))+LDTerms::Dead; return *Text; }
         case ELDOrderFailure::MatchEnded: return TEXT("本局已结束");
         case ELDOrderFailure::Superseded: return TEXT("已被新订单替换");
@@ -72,7 +70,6 @@ namespace LDNavigationDetail
         case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动已发送");
         case ELDSpatialOrderKind::CastUnit:
         case ELDSpatialOrderKind::CastPoint: return TEXT("施法请求已发送");
-        case ELDSpatialOrderKind::ApproachShop: { static const FString Text=FString(TEXT("正在前往"))+LDTerms::Shop; return *Text; }
         default: return TEXT("移动请求已发送");
         }
     }
@@ -86,7 +83,6 @@ namespace LDNavigationDetail
         {
         case ELDSpatialOrderKind::AttackUnit: return TEXT("追击目标");
         case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动中");
-        case ELDSpatialOrderKind::ApproachShop: { static const FString Text=FString(TEXT("前往"))+LDTerms::Shop; return *Text; }
         default: return TEXT("移动中");
         }
     }
@@ -259,34 +255,6 @@ bool ULDNavigationComponent::Plan(const FVector& Goal, FName SurfaceHint, LDPath
     return true;
 }
 
-bool ULDNavigationComponent::ShopAt(const FVector& GroundPoint, FName& OutShop, bool bNotify)
-{
-    OutShop=NAME_None;
-    const auto* Loaded=DemoContent();
-    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-    // #97: the nearest of the registered shops; a ground point is at a shop when it lies in that shop's reach.
-    const FName ShopId=Loaded && Registry?Registry->NearestShop(GroundPoint):NAME_None;
-    const FLDMapBinding* Shop=Registry && !ShopId.IsNone()?Registry->Resolve(ShopId,Registry->Generation):nullptr;
-    if (!Shop || Loaded->Get().Parameters.ShopInteractRadiusCm.Denominator<=0)
-    {
-        if (auto* PC=Controller(); PC && bNotify) { Status=FString(LDTerms::Shop)+TEXT("不可用"); PC->PostIntentNotice(Status); }
-        return false;
-    }
-    const auto& Radius=Loaded->Get().Parameters.ShopInteractRadiusCm;
-    const double Reach=double(Radius.Numerator)/double(Radius.Denominator);
-    if (FVector::DistSquared2D(GroundPoint,Shop->Position)<=FMath::Square(Reach)) { OutShop=ShopId; }
-    return true;
-}
-
-bool ULDNavigationComponent::OwnBodyAtShop(FName& OutShop)
-{
-    OutShop=NAME_None;
-    auto* PC=Controller();
-    const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
-    if (!Body || !Body->GetCharacterMovement()) { return false; }
-    return ShopAt(Body->GetCharacterMovement()->GetActorFeetLocation(),OutShop,false) && !OutShop.IsNone();
-}
-
 bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out)
 {
     auto* PC=Controller();
@@ -311,10 +279,10 @@ void ULDNavigationComponent::Navigate(const FVector& Surface, bool bQueue)
         if (auto* PC=Controller()) { PC->PostIntentNotice(Status); }
         return;
     }
-    NavigateGround(Surface,Hint,nullptr,bQueue);
+    NavigateGround(Surface,Hint,bQueue);
 }
 
-void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm, bool bQueue)
+void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint, bool bQueue)
 {
     bHeldMove=false;
     FLDSpatialOrderRequest Request;
@@ -327,7 +295,7 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
     // server's own refusal still follows as the notice).
     bool bKnown=false;
     const bool bReachable=ProbeGround(Surface,bKnown) || !bKnown;
-    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(MarkerCm?*MarkerCm:Surface,bReachable); }
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable); }
 }
 
 void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue)
@@ -440,15 +408,6 @@ void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHin
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable,true); }
 }
 
-void ULDNavigationComponent::ApproachShop(FName ShopId)
-{
-    bHeldMove=false;
-    FLDSpatialOrderRequest Request;
-    Request.Kind=ELDSpatialOrderKind::ApproachShop;
-    Request.ShopId=ShopId;
-    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
-}
-
 // The previous accepted order keeps running (and is still predicted) until the server activates this one.
 bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus,
     const FLDCombatActionRequest* Cast, bool bAutomaticAttack)
@@ -463,10 +422,6 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     // Listen hosts can receive a terminal receipt synchronously inside the server call.
     RememberSentOrder(Request,FollowUp,FollowUpEpoch,bAutomaticAttack);
     LogOwnOrder(Request);
-    // Only the newest local order can carry the shop interaction binding.
-    ShopBindingId=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Request.ShopId : NAME_None;
-    ShopBindingIdentity=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Local : FLDMoveIdentity();
-    bShopArrived=false;
     bLocalStop=false;
     bLocalPending=true;
     // A non-Shift order replaces the server's queue, so its waypoints go now; a Shift ground step adds one. A cast only
@@ -520,9 +475,6 @@ void ULDNavigationComponent::Stop()
     PC->CancelArmedCombat();
     if (!NextLocalIdentity(true,Local)) { return; }
     ClearCastFollowUp();
-    ShopBindingId=NAME_None;
-    ShopBindingIdentity={};
-    bShopArrived=false;
     bLocalStop=bLocalPending=true;
     bFollowing=false;
     Points.Reset();
@@ -553,7 +505,6 @@ void ULDNavigationComponent::LogOwnOrder(const FLDSpatialOrderRequest& Request)
             : Unit.Kind==ELDObservedUnitKind::Contender ? FString::Printf(TEXT(" target=%s"),*LDLog::Id(Unit.ContenderId))
             : FString::Printf(TEXT(" target_monster=%u"),uint32(Unit.CreatureId));
     }
-    else if (Request.Kind==ELDSpatialOrderKind::ApproachShop) { Target=TEXT(" shop=")+Request.ShopId.ToString(); }
     else { Target=TEXT(" point=")+LDLog::Cm(Request.GroundCm); }
     UE_LOG(LogLDNav,Log,TEXT("LD_SELF_ORDER kind=%s match=%u life=%u order=%u%s suppressed=%u"),*LDLog::EnumName(Request.Kind),
         Request.Identity.Match,Request.Identity.Life,Request.Identity.Order,*Target,Suppressed);
@@ -568,9 +519,6 @@ void ULDNavigationComponent::ResetLife()
     ClearCastFollowUp();
     SentAttackTargets.Reset();
     AutoAttackIdentity={};
-    ShopBindingId=NAME_None;
-    ShopBindingIdentity={};
-    bShopArrived=false;
     Points.Reset();
     QueuedMarks.Reset();
     RefreshQueuedPath();
@@ -652,37 +600,7 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
         { PC->PostIntentNotice(LDNavigationDetail::NoticeText(Receipt)); }
     }
     RefreshLocalActive();
-    if (!ShopBindingId.IsNone() && Identity==ShopBindingIdentity)
-    {
-        if (Receipt.Status==ELDOrderStatus::Completed)
-        {
-            if (!bShopArrived)
-            {
-                bShopArrived=true;
-                OnShopArrived.Broadcast(ShopBindingId,Identity.Life);
-            }
-        }
-        else if (Receipt.Status==ELDOrderStatus::Rejected || Receipt.Status==ELDOrderStatus::Cancelled)
-        {
-            ShopBindingId=NAME_None;
-            ShopBindingIdentity={};
-            bShopArrived=false;
-        }
-    }
     StepCastFollowUp(Receipt);
-}
-
-bool ULDNavigationComponent::ReadShopInteraction(FName& OutShopId, uint32& OutLife) const
-{
-    OutShopId=NAME_None;
-    OutLife=0;
-    const auto* PC=Controller();
-    if (!PC || !IsLocalOwner() || ShopBindingId.IsNone() || ShopBindingIdentity.Match!=PC->OwnerState.Match
-        || ShopBindingIdentity.Life!=PC->OwnerState.Life || ShopBindingIdentity!=Local)
-    { return false; }
-    OutShopId=ShopBindingId;
-    OutLife=ShopBindingIdentity.Life;
-    return true;
 }
 
 // Owning-client prediction of the server's current order; never a second authority.
@@ -729,6 +647,19 @@ void ULDNavigationComponent::Face(const FVector& Direction)
     auto* PC=Controller();
     auto* Body=Cast<ALDCharacter>(PC->GetPawn());
     if (Body && !Direction.IsNearlyZero()) { Body->SetFacing(Direction.Rotation().Yaw); }
+}
+
+FVector ULDNavigationComponent::AvoidObservedRestBodies(const ALDCharacter& Body, const FVector& Waypoint, const FVector& Preferred,
+    const FLDWorldView& View, const FGuid& Self) const
+{
+    const double Radius=Body.GetCapsuleComponent()->GetScaledCapsuleRadius();
+    TArray<LDPathSteering::FBodyDisc> Others;
+    for (const FLDObservedUnitView& Unit : View.Units)
+    {
+        if (Unit.Kind==ELDObservedUnitKind::Contender && Unit.ContenderId!=Self)
+        { Others.Add({FVector2D(Unit.FeetCm.X,Unit.FeetCm.Y),Radius}); }
+    }
+    return LDPathSteering::AvoidVisibleBodies(Body.GetNavAgentLocation(),Waypoint,Preferred,Radius,Others);
 }
 
 void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FActorComponentTickFunction* Function)
@@ -778,7 +709,15 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     TickHeldMove();
     if (!bFollowing || !Body || PC->HasAuthority()) { return; }
     if (LDPathSteering::AtGoal(*Body,Destination,AcceptanceRadius)) { bFollowing=false; LDPathSteering::HaltLocomotion(Body); return; }
-    const FVector Input=LDPathSteering::Steering(Points,PointIndex,*Body);
+    FVector Input=LDPathSteering::Steering(Points,PointIndex,*Body);
+    const ALDGameState* Public=GetWorld()->GetGameState<ALDGameState>();
+    const ALDWorldViewRelay* Relay=PC->LocalView();
+    const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+    if (ActiveKind==ELDSpatialOrderKind::MoveGround && Public && Public->PublicMatch.Generation==PC->OwnerState.Match
+        && LDMatchTimeline::IsRestBuildOpen(Public->PublicMatch.Timeline) && Points.IsValidIndex(PointIndex)
+        && Read.Frame && Read.Status==ELDObservedViewStatus::Current
+        && Read.Frame->MatchGeneration==PC->OwnerState.Match && Read.Frame->ObserverLife==PC->OwnerState.Life)
+    { Input=AvoidObservedRestBodies(*Body,Points[PointIndex],Input,*Read.Frame,PC->OwnerState.ContenderId); }
     Body->AddMovementInput(Input,1.);
     Face(Input);
     const double Progress=LDPathSteering::AlongPath(Points,Body->GetNavAgentLocation());
@@ -816,15 +755,11 @@ void ULDNavigationComponent::ClickMove(bool bQueue)
     if (PC->ObservedUnderPointer(Observed,ObservationEpoch)) { AttackUnit(Observed,ObservationEpoch,bQueue); return; }
     FHitResult GroundHit;
     if (!GroundUnderPointer(GroundHit)) { return; }
-    // The stall model takes a right click like a wall: an ordinary ground order to the nearest walkable point beside it.
-    // The left click opens the shop page.
-    FVector Goal;
-    PointerGoal(GroundHit,Goal);
+    const FVector Goal=GroundHit.ImpactPoint;
     const uint32 Before=Local.Order;
     const FName Hint=GroundSurfaceHint();
     if (Hint.IsNone()) { Navigate(Goal,bQueue); }
-    // The marker stays where the click landed, as for any obstacle; only the order's point moves beside the model.
-    else { NavigateGround(Goal,Hint,&GroundHit.ImpactPoint,bQueue); }
+    else { NavigateGround(Goal,Hint,bQueue); }
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing, and a
     // Shift click is a single queued step.
     bHeldMove=!bQueue && Local.Order!=Before;
@@ -853,58 +788,6 @@ bool ULDNavigationComponent::GroundUnderPointer(FHitResult& Out) const
     const auto* PC=Controller();
     FVector2D At;
     return PC && PointerPosition(At) && PC->GetHitResultAtScreenPosition(At,ECC_GameTraceChannel1,false,Out);
-}
-
-bool ULDNavigationComponent::ShopUnderPointer(FName& OutShop)
-{
-    OutShop=NAME_None;
-    const auto* PC=Controller();
-    const FLDArtResolved* Art=ULDArtSubsystem::Get(this);
-    const auto* Loaded=DemoContent();
-    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-    FVector2D At;
-    FVector Start, Direction;
-    if (!PC || !Art || Art->ShopModelBounds.IsEmpty() || !Loaded || !Registry || !PointerPosition(At)
-        || !PC->DeprojectScreenPositionToWorld(float(At.X),float(At.Y),Start,Direction)) { return false; }
-    const FVector End=Start+Direction*1000000.;
-    for (const FBox& Model : Art->ShopModelBounds)
-    {
-        // Each shop model stands on its own shop anchor; the pointed model names the shop nearest to it.
-        const FName ShopId=Registry->NearestShop(Model.GetCenter());
-        if (!ShopId.IsNone() && Registry->Resolve(ShopId,Registry->Generation)
-            && FMath::LineBoxIntersection(Model,Start,End,End-Start)) { OutShop=ShopId; return true; }
-    }
-    return false;
-}
-
-void ULDNavigationComponent::PointerGoal(const FHitResult& GroundHit, FVector& OutGoal)
-{
-    OutGoal=GroundHit.ImpactPoint;
-    FName Shop;
-    if (!ShopUnderPointer(Shop)) { return; }
-    // The ground trace passes through the collision-free stall, so its own point would lead into the model.
-    auto* PC=Controller();
-    const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
-    const FLDArtResolved* Art=ULDArtSubsystem::Get(this);
-    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-    if (!Body || !Art || !Registry) { return; }
-    // Only the pointed shop's own models: each shop stands apart.
-    FBox2D Footprint(ForceInit);
-    for (const FBox& Model : Art->ShopModelBounds)
-    {
-        if (Registry->NearestShop(Model.GetCenter())==Shop) { Footprint+=FBox2D(FVector2D(Model.Min),FVector2D(Model.Max)); }
-    }
-    FVector Foot=Body->GetNavAgentLocation();
-    Foot.Z=GroundHit.ImpactPoint.Z;
-    FVector Front;
-    // Already standing beside the model: the nearest walkable point is where the body is.
-    if (!LDOrderRules::ShopFrontPoint(Footprint,Foot,Body->GetCapsuleComponent()->GetScaledCapsuleRadius(),Front)) { OutGoal=Foot; return; }
-    for (const FVector& Candidate : LDOrderRules::ShopStopCandidates(Front,Foot,ShopStopStepCm))
-    {
-        bool bKnown=false;
-        // An unknown local route is still sent: the server judges it like any ground order.
-        if (ProbeGround(Candidate,bKnown) || !bKnown) { OutGoal=Candidate; return; }
-    }
 }
 
 bool ULDNavigationComponent::ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const
@@ -966,7 +849,7 @@ bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown) 
 
 // Hover: the visible unit a right click would attack gets the ring, read from the authorized frame only. The pointer is
 // the plain arrow except while an order waits for its left click: a confirmed attack-move glows red, a confirmed active
-// skill or equipment active blue (LDCursor); hovering a unit or the shop never changes it.
+// skill blue (LDCursor); hovering a unit never changes it.
 void ULDNavigationComponent::TickPointer()
 {
     auto* PC=Controller();
@@ -1026,9 +909,8 @@ void ULDNavigationComponent::TickHeldMove()
     if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
     const double Now=GetWorld()->GetTimeSeconds();
     FHitResult GroundHit;
-    FVector Goal;
     if (!GroundUnderPointer(GroundHit) || !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)) { return; }
-    PointerGoal(GroundHit,Goal);
+    const FVector Goal=GroundHit.ImpactPoint;
     bool bKnown=false;
     const FName Hint=GroundSurfaceHint();
     if (Hint.IsNone() || (!ProbeGround(Goal,bKnown) && bKnown)) { return; }

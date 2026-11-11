@@ -12,7 +12,11 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
+#include "Tests/LDScenarioWalk.h"
+#include "Vision/LDViewTypes.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "World/LDCampDirector.h"
 #include "World/LDCampLifecycle.h"
 #include "World/LDCaptureMarker.h"
@@ -29,15 +33,30 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 
-// Host stays at its spawn and Client1 sprays. Client2's contest pauses Client1's spray progress and Client1 resumes
-// it until his graffiti lands. The owner then walks away, which pauses his guard (2026-11-07 user decision: it counts
-// only while he stands alone in the zone); Client2 repaints alone, keeping it frozen, and walks out before his spray
-// lands, losing his progress, while the guard stays paused. The owner walks back in and the guard resumes from its kept
-// value; Client2 joins him (the guard freezes again) and the owner walks out under Client2, which resets the frozen
-// guard to zero. Client2 walks out before repainting, the empty zone keeps the guard paused at zero, and the owner
-// walks back in and stands alone in the zone for the whole guard to win. After the result the Host returns the same
-// connections to a new Lobby generation and starts a second match.
+// Host stays at its spawn and Client1 sprays. Client1 and Client2 wait inside the closed zone through fields 1-3, where the
+// patrolling Boss never reaches; at the open Client2 walks out so Client1 sprays alone. Client2's contest pauses Client1's
+// spray progress and Client1 resumes it until his graffiti lands. The owner then walks away, which pauses his guard
+// (2026-11-07 user decision: it counts only while he stands alone in the zone); Client2 repaints alone, keeping it frozen,
+// and walks out before his spray lands, losing his progress, while the guard stays paused. The owner walks back in and the
+// guard resumes from its kept value; Client2 joins him (the guard freezes again) and the owner walks out under Client2,
+// which resets the frozen guard to zero. Client2 walks out before repainting, the empty zone keeps the guard paused at zero,
+// and the owner walks back in and stands alone in the zone for the whole guard to win. After the result the Host returns
+// the same connections to a new Lobby generation and starts a second match.
 enum class ELDCaptureProbeStage : uint8 { Join, Lobby, Starting, Match, Results, SecondLobby, SecondMatch, Done };
+// #198: every match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without a
+// death and places the first field life, life 2.
+constexpr uint32 LDCaptureProbeFirstFieldLife = 2;
+// D26 (#79, #97): the Boss patrols a loop around the flagpole, so every point just outside the zone enters its acquire band
+// at some moment of each lap, and a body standing still there is chased down. A body that has to wait outside the zone
+// therefore stands on a ring this far outside the edge, opposite the Boss it observes, and follows it around in hops no
+// wider than the hop angle; a hop's straight chord stays (radius + outside) * cos(hop / 2) from the centre, outside the
+// zone. Fixture placement for this scenario only, never a product value.
+constexpr double LDCaptureStationOutsideCm = 100.;
+constexpr double LDCaptureStationHopDeg = 40.;
+// A stationed body re-centres once the Boss has moved this far from straight across; the two clients keep this spacing
+// to either side so they never contend for one ring point.
+constexpr double LDCaptureStationSlackDeg = 20.;
+constexpr double LDCaptureStationSpacingDeg = 25.;
 
 // The public spray and guard sequence every role must observe in the first match.
 enum class ELDCaptureProbeSeen : uint8
@@ -67,10 +86,18 @@ public:
     int64 AwayKeptMs = 0, RepaintSinceMs = 0, RepaintLeftAtMs = 0, ResumedGuardDueMs = 0;
     int64 FrozenKeptMs = 0, ResetAtMs = 0, ResetLeftAtMs = 0, RestartedGuardDueMs = 0;
     int32 MarkerObservations = 0, MarkerMismatches = 0;
-    int64 SprayMs = 0, GuardMs = 0, DevelopmentMs = 0;
-    FVector Center = FVector::ZeroVector, Staging = FVector::ZeroVector, Inside = FVector::ZeroVector;
+    int64 SprayMs = 0, GuardMs = 0, FieldSegmentMs = 0, Rest0Ms = 0, ProtectionMs = 0;
+    // The second match's first field life as first seen: its R0 return protection, checked once it has ended.
+    int64 SecondProtectedUntilMs = -1;
+    FVector Center = FVector::ZeroVector, Inside = FVector::ZeroVector;
     FName Surface;
     double RadiusCm = 0;
+    // D26: the Boss's native patrol corridor, the creature id it is observed under, and this role's waiting ring state.
+    TArray<FLDCompletePath> BossPatrol;
+    uint8 BossCreature = 0;
+    double HomeAngle = 0, StationAngle = 0, StationOffset = 0, GoalAngle = 0, BossAngle = 0, BossSeenAt = -1, NextStationOrderAt = 0;
+    double NextRecoverAt = 0;
+    bool bStationing = false, bLeftForSpray = false;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TArray<TSharedPtr<FJsonValue>> Checks;
     TSharedPtr<FJsonObject> Summary = MakeShared<FJsonObject>();
@@ -331,9 +358,104 @@ public:
             && Marker->GetSegmentCount() > 0 && Marker->GetShownState() == ELDCircleState::NotOpen;
     }
 
+    double AngleOf(const FVector& Point) const { return FMath::Atan2(Point.Y - Center.Y, Point.X - Center.X); }
+
+    FVector RingPoint(double Angle) const
+    { return Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.) * (RadiusCm + LDCaptureStationOutsideCm); }
+
+    // Planar distance from Point to the Boss's native patrol corridor.
+    double CorridorDistance(const FVector& Point) const
+    {
+        double Best = DBL_MAX;
+        const FVector Flat(Point.X, Point.Y, 0.);
+        for (const FLDCompletePath& Path : BossPatrol)
+        {
+            for (int32 I = 1; I < Path.Points.Num(); ++I)
+            {
+                Best = FMath::Min(Best, double(FMath::PointDistToSegment(Flat, FVector(Path.Points[I - 1].X, Path.Points[I - 1].Y, 0.),
+                    FVector(Path.Points[I].X, Path.Points[I].Y, 0.))));
+            }
+        }
+        return Best;
+    }
+
+    // The Boss as this owner's own authorized view shows it; unseen (out of sight, or down) keeps the last sighting.
+    void ObserveBoss(const ALDPlayerController& PC)
+    {
+        const ALDWorldViewRelay* Relay = PC.LocalView();
+        if (!Relay) { return; }
+        const FLDObservedFrameRead Read = Relay->ReadObservedFrame();
+        if (Read.Status != ELDObservedViewStatus::Current || !Read.Frame) { return; }
+        for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+        {
+            if (Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == BossCreature)
+            {
+                BossAngle = AngleOf(FVector(Unit.FeetCm));
+                BossSeenAt = FPlatformTime::Seconds();
+                return;
+            }
+        }
+    }
+
+    bool BossFresh() const { return BossSeenAt >= 0 && FPlatformTime::Seconds() - BossSeenAt <= 1.; }
+
+    // Leaves the zone (or stays out of it) for the ring point straight across from the observed Boss.
+    void BeginStation(ULDNavigationComponent& Nav)
+    {
+        StationAngle = (BossFresh() ? BossAngle + UE_DOUBLE_PI : HomeAngle) + StationOffset;
+        GoalAngle = StationAngle;
+        bStationing = true;
+        NextStationOrderAt = FPlatformTime::Seconds() + .5;
+        Nav.NavigateGround(RingPoint(StationAngle), Surface);
+    }
+
+    void WalkIn(ULDNavigationComponent& Nav, const FVector& Goal)
+    {
+        bStationing = false;
+        Nav.NavigateGround(Goal, Surface);
+    }
+
+    // A rest return may set a body down anywhere within its search radius of the foot it left (and a death would respawn
+    // it far away): it walks back to its waiting point inside the zone, at most one order every two seconds.
+    void ReturnTo(const ALDPlayerController& PC, ULDNavigationComponent& Nav, const FVector& Goal)
+    {
+        const APawn* Body = PC.GetPawn();
+        const double Now = FPlatformTime::Seconds();
+        if (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.CanWorldCommand() || Nav.HasMoveOrder()
+            || Now < NextRecoverAt || FVector::Dist2D(Body->GetActorLocation(), Goal) <= 100.) { return; }
+        NextRecoverAt = Now + 2.;
+        Nav.NavigateGround(Goal, Surface);
+    }
+
+    // Keeps a waiting body on the ring opposite the Boss: from inside the zone straight to its ring point, from just
+    // outside radially onto the ring, then along the ring in bounded hops once the Boss has moved on. A walk still heading
+    // more than a quarter turn away from where the Boss now leaves room is replaced.
+    void KeepStation(const ALDPlayerController& PC, ULDNavigationComponent& Nav)
+    {
+        const APawn* Body = PC.GetPawn();
+        if (!bStationing || !Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.CanWorldCommand()) { return; }
+        if (BossFresh()) { StationAngle = BossAngle + UE_DOUBLE_PI + StationOffset; }
+        const double Now = FPlatformTime::Seconds();
+        if (Now < NextStationOrderAt || (Nav.HasMoveOrder()
+            && FMath::Abs(FMath::FindDeltaAngleRadians(GoalAngle, StationAngle)) <= UE_DOUBLE_HALF_PI)) { return; }
+        const FVector Foot = Body->GetActorLocation();
+        const double Out = FVector::Dist2D(Foot, Center), Along = AngleOf(Foot);
+        const double Behind = FMath::FindDeltaAngleRadians(Along, StationAngle);
+        if (Out <= RadiusCm) { GoalAngle = StationAngle; }
+        else if (Out < RadiusCm + LDCaptureStationOutsideCm / 2) { GoalAngle = Along; }
+        else if (FMath::Abs(Behind) > FMath::DegreesToRadians(LDCaptureStationSlackDeg))
+        {
+            const double Hop = FMath::DegreesToRadians(LDCaptureStationHopDeg);
+            GoalAngle = Along + FMath::Clamp(Behind, -Hop, Hop);
+        }
+        else { return; }
+        NextStationOrderAt = Now + .5;
+        Nav.NavigateGround(RingPoint(GoalAngle), Surface);
+    }
+
     bool Tick();
     bool CheckSecondMatch(ALDPlayerController& PC, ALDGameMode* Mode, const FLDLobbyView& Lobby, const FLDPublicMatchView& View,
-        const FLDProgressionView& Progress, const FLDEquipmentView& Equipment);
+        const FLDProgressionView& Progress);
 };
 
 bool FLDDemoCaptureProbe::Tick()
@@ -374,7 +496,49 @@ bool FLDDemoCaptureProbe::Tick()
         RadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
         SprayMs = Content->Get().Parameters.CaptureSprayMs;
         GuardMs = Content->Get().Parameters.CaptureGuardMs;
-        DevelopmentMs = Content->Get().Parameters.DevelopmentMs;
+        FieldSegmentMs = Content->Get().Parameters.FieldSegmentMs;
+        // No sign-up ever happens here, so R0 skips its PK: the build step, then the return countdown.
+        Rest0Ms = Content->Get().Parameters.RestOpeningBuildMs + Content->Get().Parameters.RestReturnMs;
+        ProtectionMs = Content->Get().Parameters.ProtectionMs;
+        // D26: the Boss's public native patrol corridor fixes where bodies may wait. The centre, where the owner sprays and
+        // guards, and the contester's inside point must both lie outside the Boss's acquire band, or this choreography
+        // cannot exist on the approved map. The inside point keeps two body radii and the contact tolerance from the
+        // centre, so neither client ever pushes the other off its point, in the direction farthest from the corridor.
+        const FLDDemoContentDefinitions& Defs = Content->Get();
+        const FLDDemoMonsterDefinition* BossBody = Defs.Monsters.FindByPredicate([&Defs](const FLDDemoMonsterDefinition& Row)
+        { return Row.Tier == ELDDemoCampTier::Boss && Row.Id == Defs.Boss.Id; });
+        FString Why;
+        FCollisionShape Capsule;
+        bool bFixture = BossBody && Defs.Boss.AggroRadiusCm.Denominator > 0
+            && ULDMapRegistry::ContentCapsule(*Content, Capsule, Why)
+            && LDScenarioWalk::PatrolPaths(*Registry, *Content, BossPatrol, Why)
+            && !BossPatrol.ContainsByPredicate([](const FLDCompletePath& Path) { return Path.Points.Num() < 2; });
+        if (bFixture)
+        {
+            BossCreature = BossBody->NativeId;
+            const double Band = double(Defs.Boss.AggroRadiusCm.Numerator) / double(Defs.Boss.AggroRadiusCm.Denominator)
+                + LDPathSteering::WaypointToleranceCm;
+            const double Apart = 2 * (Capsule.GetCapsuleRadius() + LDPathSteering::WaypointToleranceCm);
+            double Clearest = -1;
+            for (int32 Step = 0; Step < 16; ++Step)
+            {
+                const double Angle = Step * UE_DOUBLE_TWO_PI / 16;
+                const FVector Point = Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.) * Apart;
+                const double Clear = CorridorDistance(Point);
+                if (Clear > Clearest) { Clearest = Clear; Inside = Point; }
+            }
+            bFixture = Apart > 0 && Apart + Capsule.GetCapsuleRadius() < RadiusCm
+                && CorridorDistance(Center) > Band && Clearest > Band
+                && (RadiusCm + LDCaptureStationOutsideCm) * FMath::Cos(FMath::DegreesToRadians(LDCaptureStationHopDeg) / 2)
+                    > RadiusCm + LDPathSteering::WaypointToleranceCm;
+        }
+        if (!bFixture)
+        {
+            Check(false, TEXT("P01"), TEXT("The flagpole centre and the contester's inside point lie outside the Boss's acquire band around its native patrol corridor"));
+            if (!Why.IsEmpty()) { Error += TEXT(" ") + Why; }
+            return Finish();
+        }
+        StationOffset = FMath::DegreesToRadians(Role == TEXT("Client1") ? LDCaptureStationSpacingDeg : -LDCaptureStationSpacingDeg);
     }
     const FLDLobbyView& Lobby = Public->DemoLobby;
     const FLDPublicMatchView& View = Public->PublicMatch;
@@ -422,8 +586,11 @@ bool FLDDemoCaptureProbe::Tick()
     case ELDCaptureProbeStage::Starting:
     {
         const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
+        // The match opens in the rest R0 (life 1 in a private rest space); the R0 return places the first field life. The
+        // public phase may reach Development a frame before this owner's projection leaves its rest life.
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Body
-            || PC->OwnerState.LifePhase != ELDLifePhase::Alive || !PC->CanWorldCommand()) { return true; }
+            || PC->OwnerState.LifePhase != ELDLifePhase::Alive || PC->OwnerState.Life < LDCaptureProbeFirstFieldLife
+            || !PC->CanWorldCommand()) { return true; }
         // A freshly spawned body may still be settling; a ground order sent before it stands fails its local plan.
         if (!Body->GetCharacterMovement() || !Body->GetCharacterMovement()->IsMovingOnGround()) { return true; }
         const FLDLobbyMember* Capturer = Lobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
@@ -436,54 +603,75 @@ bool FLDDemoCaptureProbe::Tick()
             && (Role != TEXT("Client1") || CapturerId == PC->OwnerState.ContenderId)
             && (Role != TEXT("Client2") || ContesterId == PC->OwnerState.ContenderId),
             TEXT("C03"), TEXT("The capturing and the contesting contenders are on the locked roster"));
-        Check(View.Generation == FirstGeneration && View.OpenAtMs == View.StartedAtMs + DevelopmentMs
+        // #198: the flagpole exists only in the final field, so it is not scheduled (MAX) while field 1 runs from T=0 right
+        // after the R0 return.
+        const FLDTimelineView& Line = View.Timeline;
+        Check(View.Generation == FirstGeneration && View.OpenAtMs == MAX_int64 && Line.Stage == ELDMatchStage::Field
+            && Line.FieldSegment == 0 && Line.FieldBaseMs == 0 && Line.FieldEndT == FieldSegmentMs
+            && Line.FieldStartedAtMs == View.StartedAtMs + Rest0Ms
             && View.CircleState == ELDCircleState::NotOpen && !View.Occupier.IsValid() && !View.GraffitiOwner.IsValid(),
-            TEXT("C04"), TEXT("Normal start opens the approved development phase with a closed, bare flagpole"));
+            TEXT("C04"), TEXT("Normal start runs the opening rest R0, then field 1 from T=0 with a closed, bare and unscheduled flagpole"));
         FVector Direction = Body->GetActorLocation() - Center;
         Direction.Z = 0;
         Direction = Direction.GetSafeNormal();
         Check(!Direction.IsNearlyZero(), TEXT("C05"), TEXT("Spawned body is outside the circle centre"));
         Check(FreshMarker(*Public, *World, View.Generation), TEXT("C13"),
             TEXT("Every role shows one flat flagpole boundary at the approved radius around the anchor, without collision"));
-        Staging = Center + Direction * (RadiusCm + 300.);
-        Inside = Center + Direction * (RadiusCm - 250.);
+        // A body that waits outside the zone with the Boss unseen (down) takes the side it came from.
+        HomeAngle = FMath::Atan2(Direction.Y, Direction.X);
         // The second match proves freshness against these first-match identities.
         FirstBody = PC->OwnerState.BodyRef;
         if (Mode) { CampMembers(*Mode, FirstCampMembers); }
         if (!Passed) { return Finish(); }
+        // Both clients wait inside the closed zone, clear of the Boss, until the final field opens it; each rest returns a
+        // body near the field foot it left. The walk in ends long before the Boss first appears.
         if (Role == TEXT("Client1")) { Nav->NavigateGround(Center, Surface); }
-        else if (Role == TEXT("Client2")) { Nav->NavigateGround(Staging, Surface); }
+        else if (Role == TEXT("Client2")) { Nav->NavigateGround(Inside, Surface); }
         Stage = ELDCaptureProbeStage::Match;
         return true;
     }
     case ELDCaptureProbeStage::Match:
     {
+        // #198: the flagpole opens only when the final field starts, after the three timed field segments and the rests
+        // R1..R3. This normal-start scenario runs without the DEV growth fixture, so it has no DEV OpenCapture shortcut and
+        // honestly waits for that boundary (the runner's timeout must cover it). Each rest moves every body to its private
+        // rest space and back near the field foot it left, so both clients return inside the zone, each with the shared
+        // return protection. D26: whenever a client has to be outside the zone it waits on the ring opposite the Boss.
         int64 NowMs = 0;
         PC->ReadDemoAuthorityTimeMs(NowMs);
+        if (Role != TEXT("Host") && View.Phase == ELDMatchPhase::Development && View.Timeline.Stage == ELDMatchStage::Field)
+        { ReturnTo(*PC, *Nav, Role == TEXT("Client1") ? Center : Inside); }
+        if (Role != TEXT("Host") && View.Phase == ELDMatchPhase::CaptureOpen) { ObserveBoss(*PC); }
         if (Role == TEXT("Client2") && View.Phase == ELDMatchPhase::CaptureOpen)
         {
-            // Contest early in the short spray, walk out to let it resume, then repaint alone and give up before it lands.
-            if (ContestStep == 0 && Seeing(ELDCaptureProbeSeen::Solo) && !Nav->HasMoveOrder() && NowMs - FirstSoloSinceMs >= 300)
+            // Leave the zone at the open so the owner sprays alone; contest early in the short spray, walk out to let it
+            // resume, then repaint alone and give up before it lands.
+            if (ContestStep == 0 && !bLeftForSpray) { BeginStation(*Nav); bLeftForSpray = true; }
+            else if (ContestStep == 0 && Seeing(ELDCaptureProbeSeen::Solo) && NowMs - FirstSoloSinceMs >= 300)
             {
-                Nav->NavigateGround(Inside, Surface);
+                WalkIn(*Nav, Inside);
                 ContestStep = 1;
             }
-            else if (After(ELDCaptureProbeSeen::Paused, 1, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 3; }
-            else if (After(ELDCaptureProbeSeen::OwnerAway, 3, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 5; }
-            else if (After(ELDCaptureProbeSeen::Repainting, 5, 1.)) { Nav->NavigateGround(Staging, Surface); ContestStep = 7; }
+            else if (After(ELDCaptureProbeSeen::Paused, 1, 1.5)) { BeginStation(*Nav); ContestStep = 3; }
+            else if (After(ELDCaptureProbeSeen::OwnerAway, 3, 1.)) { WalkIn(*Nav, Inside); ContestStep = 5; }
+            else if (After(ELDCaptureProbeSeen::Repainting, 5, 1.)) { BeginStation(*Nav); ContestStep = 7; }
             // Join the owner once he is back in the zone, then give up the repaint the owner's exit hands over.
-            else if (After(ELDCaptureProbeSeen::OwnerBack, 7, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 9; }
-            else if (After(ELDCaptureProbeSeen::GuardReset, 9, 1.)) { Nav->NavigateGround(Staging, Surface); ContestStep = 11; }
+            else if (After(ELDCaptureProbeSeen::OwnerBack, 7, 1.)) { WalkIn(*Nav, Inside); ContestStep = 9; }
+            else if (After(ELDCaptureProbeSeen::GuardReset, 9, 1.)) { BeginStation(*Nav); ContestStep = 11; }
+            KeepStation(*PC, *Nav);
         }
         else if (Role == TEXT("Client1") && View.Phase == ELDMatchPhase::CaptureOpen)
         {
             // The owner walks away once his graffiti stands, which pauses his guard. He comes back after the abandoned
             // repaint, resuming it, and walks out again under the challenger, which resets his frozen guard. Once the
-            // challenger has left he stands alone in the zone for the whole guard.
-            if (After(ELDCaptureProbeSeen::Sprayed, 0, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 2; }
-            else if (After(ELDCaptureProbeSeen::RepaintLeft, 2, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 4; }
-            else if (After(ELDCaptureProbeSeen::GuardFrozen, 4, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 6; }
-            else if (After(ELDCaptureProbeSeen::ResetPaused, 6, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 8; }
+            // challenger has left he stands alone in the zone for the whole guard. Until he first sprays alone he keeps to
+            // the centre, should the R3 return have set him down away from it.
+            if (ContestStep == 0 && !Seeing(ELDCaptureProbeSeen::Solo)) { ReturnTo(*PC, *Nav, Center); }
+            else if (After(ELDCaptureProbeSeen::Sprayed, 0, 1.5)) { BeginStation(*Nav); ContestStep = 2; }
+            else if (After(ELDCaptureProbeSeen::RepaintLeft, 2, 1.)) { WalkIn(*Nav, Center); ContestStep = 4; }
+            else if (After(ELDCaptureProbeSeen::GuardFrozen, 4, 1.5)) { BeginStation(*Nav); ContestStep = 6; }
+            else if (After(ELDCaptureProbeSeen::ResetPaused, 6, 1.)) { WalkIn(*Nav, Center); ContestStep = 8; }
+            KeepStation(*PC, *Nav);
         }
         if (View.Phase != ELDMatchPhase::Results) { return true; }
         const FLDResultView& Result = Public->MatchResult;
@@ -599,15 +787,18 @@ bool FLDDemoCaptureProbe::Tick()
             SecondStartSent = true;
             return true;
         }
-        // The first frame on which the owner's own views all describe the new match's living first body.
+        // The first frame on which the owner's own views all describe the new match's living first field body, once its
+        // R0 return protection has ended.
         const FLDProgressionView* Progress = PC->ReadOwnProgression();
-        const FLDEquipmentView* Equipment = PC->ReadOwnEquipment();
         const FLDCombatOwnerView& Own = PC->CombatView;
         if (View.Phase != ELDMatchPhase::Development || !Cast<ALDCharacter>(PC->GetPawn())
             || PC->OwnerState.Match != SecondGeneration || PC->OwnerState.LifePhase != ELDLifePhase::Alive
-            || !PC->OwnerState.BodyRef.IsValid() || !Progress || !Equipment
+            || PC->OwnerState.Life < LDCaptureProbeFirstFieldLife
+            || !PC->OwnerState.BodyRef.IsValid() || !Progress
             || Own.Generation != SecondGeneration || Own.Life != PC->OwnerState.Life || !Own.bHasBody) { return true; }
-        return CheckSecondMatch(*PC, Mode, Lobby, View, *Progress, *Equipment);
+        if (SecondProtectedUntilMs < 0) { SecondProtectedUntilMs = PC->OwnerState.ProtectedUntilMs; }
+        if (PC->OwnerState.ProtectedUntilMs != 0) { return true; }
+        return CheckSecondMatch(*PC, Mode, Lobby, View, *Progress);
     }
     default:
         return true;
@@ -615,7 +806,7 @@ bool FLDDemoCaptureProbe::Tick()
 }
 
 bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode* Mode, const FLDLobbyView& Lobby,
-    const FLDPublicMatchView& View, const FLDProgressionView& Progress, const FLDEquipmentView& Equipment)
+    const FLDPublicMatchView& View, const FLDProgressionView& Progress)
 {
     const FLDDemoContentDefinitions& Defs = Content->Get();
     const FLDOwnerState& Self = PC.OwnerState;
@@ -625,26 +816,27 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         Check(SecondStartSent && Lobby.Phase == ELDMatchPhase::Development,
             TEXT("R01"), TEXT("The Host's normal start opened the second match in the new generation without aborting"));
     }
-    Check(Self.Match == SecondGeneration && Self.Life == 1 && Progress.Life == Self.Life
+    Check(Self.Match == SecondGeneration && Self.Life == LDCaptureProbeFirstFieldLife && Progress.Life == Self.Life
         && FirstBody.IsValid() && Self.BodyRef != FirstBody,
-        TEXT("R02"), TEXT("The first Alive frame is the new generation's first life in a fresh body"));
+        TEXT("R02"), TEXT("The first Alive field frame is the new generation's first field life (after its R0 rest life) in a fresh body"));
     uint8 StartLevel = 0;
     const bool bStartLevel = LDProgression::LevelForXP(Defs.Progression, Defs.Progression.XPStart, StartLevel) == ELDGrowthReason::None;
-    Check(bStartLevel && Progress.Level == StartLevel && Progress.CumulativeXP == Defs.Progression.XPStart
-        && Equipment.Gold == Defs.Parameters.StartingGold,
-        TEXT("R03"), TEXT("Level, XP and gold are the content's opening values (start level, XP.Start, SHOP.StartingGold)"));
-    bool bSlotsEmpty = Equipment.Slots.Num() == Defs.Progression.EquipmentSlots;
-    for (const FLDEquipmentSlotView& Slot : Equipment.Slots) { bSlotsEmpty &= !Slot.bOccupied; }
+    Check(bStartLevel && Progress.Level == StartLevel && Progress.CumulativeXP == Defs.Progression.XPStart,
+        TEXT("R03"), TEXT("Level and XP are the content's opening values (start level, XP.Start)"));
     // Only the innate D dash, which every contender holds, may name a source at a fresh start.
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry)
     { return Entry.Entry != ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); });
-    Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 1
-        && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 1 && Progress.bHasOffer && Progress.Offer.OpportunityOrdinal == 1
-        && bSlotsEmpty && bNoEntries && Own.EquipmentPassives.IsEmpty() && PC.ReadOwnShop() == nullptr,
-        TEXT("R04"), TEXT("No learned skill, attribute card, equipment or shop session; only this match's unconsumed opening choice"));
-    Check(Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
+    int64 OpeningPoints = 0;
+    const bool bOpeningPoints = LDProgression::EarnedPoints(Defs, StartLevel, Defs.Progression.XPStart, 0, OpeningPoints) == ELDGrowthReason::None;
+    Check(Progress.Actives.IsEmpty() && Progress.PendingBlueprints.IsEmpty() && bOpeningPoints && Progress.UnspentPoints == OpeningPoints
+        && !Progress.StatPoints.ContainsByPredicate([](const FLDStatPointsView& Row) { return Row.Points != 0; })
+        && Progress.ActiveOpportunitiesEarned == 1 && Progress.ActiveOpportunitiesConsumed == 0 && Progress.QueuedActiveOpportunities == 1
+        && Progress.bHasActiveOffer && Progress.ActiveOffer.OpportunityOrdinal == 1 && bNoEntries,
+        TEXT("R04"), TEXT("No learned active, blueprint or allocated point; only the opening points and this match's opening offer"));
+    Check((SecondProtectedUntilMs == 0 || SecondProtectedUntilMs == View.Timeline.FieldStartedAtMs + ProtectionMs)
+        && Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
-        TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));
+        TEXT("R05"), TEXT("The first field body carries only the shared R0 return protection; once it ends the body has full HP and no shield, root, protection or other status"));
     const bool bTracksReady = !Own.Entries.ContainsByPredicate([&Own](const FLDCombatEntryView& Entry)
     {
         // The dash track is issued fresh for every match: ready, with no duration issued yet.
@@ -693,7 +885,8 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
             return Match.Generation == SecondGeneration && Match.Phase == ELDMatchPhase::Development
                 && Match.CircleState == ELDCircleState::NotOpen && !Match.Occupier.IsValid() && !Match.SoloSinceMs && !Match.GraffitiOwner.IsValid()
                 && !Match.DueAtMs && !Match.PausedProgressMs && !Match.CaptureEpoch && !Match.ResultId.IsValid()
-                && Match.OpenAtMs == Match.StartedAtMs + DevelopmentMs;
+                && Match.OpenAtMs == MAX_int64 && Match.Timeline.Stage == ELDMatchStage::Field && Match.Timeline.FieldSegment == 0
+                && Match.Timeline.FieldStartedAtMs == Match.StartedAtMs + Rest0Ms;
         };
         Check(Clean(View) && Clean(Authority) && Public && Public->KillFeed.Generation == SecondGeneration
             && Public->KillFeed.Notices.IsEmpty()
@@ -727,12 +920,14 @@ void LDDemoTests::StartCaptureProbe(ALDPlayerController& Controller)
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoCaptureProbe")) || !Controller.IsLocalController()
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoCaptureProbe>();
-    int32 Timeout = 480;
+    // #198: without early readiness, the flagpole opens at R0 180+5 s + three fields 3x180 s
+    // + R1..R3 3x(120+5) s = 1100 s after the first start. The second match is checked after its own R0.
+    int32 Timeout = 1800;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureRole="), Probe->Role)
         || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2"))
-        || Timeout < 120 || Timeout > 900
+        || Timeout < 120 || Timeout > 1800
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {

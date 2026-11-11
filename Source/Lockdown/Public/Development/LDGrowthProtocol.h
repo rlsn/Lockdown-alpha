@@ -5,11 +5,13 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "LDGrowthProtocol.generated.h"
 
-// Growth/shop protocol (PROGRESSION_EQUIPMENT_ECONOMY §3.1, §8). Client-sent enums are decoded by an
-// explicit whitelist; unknown values are rejected, never clamped to a neighbouring meaning.
+// Growth protocol (PROGRESSION_AND_REWARDS). Client-sent enums are decoded by an explicit whitelist; unknown values are
+// rejected, never clamped to a neighbouring meaning. Retired values (the #144 shop family and trade reasons, the #198
+// three-card choice family, rerolls and replacements) are never reused.
 
+// Retired: 1 the three-card Choice family (#198), 2 the shop family (#144).
 UENUM()
-enum class ELDGrowthFamily : uint8 { None = 0, Choice = 1, Shop = 2 };
+enum class ELDGrowthFamily : uint8 { None = 0, Build = 3 };
 
 UENUM()
 enum class ELDAdmissionStatus : uint8 { None = 0, AcceptedPending = 1, Final = 2, AdmissionRejected = 3 };
@@ -20,41 +22,105 @@ enum class ELDReceiptOutcome : uint8 { None = 0, Applied = 1, Rejected = 2 };
 UENUM()
 enum class ELDReceiptLookup : uint8 { None = 0, Pending = 1, Final = 2, NotFound = 3, ReceiptExpired = 4, InvalidContext = 5 };
 
-// Opening (#153): an opening direction card (DefinitionId) that also teaches one hidden draftable active, revealed only
-// by the applied receipt; only ever opportunity 1.
+// #198 build commands: choose one active of the current active offer, learn a pending blueprint into an empty Q/W/E slot,
+// or allocate unspent points across the stats. #198 B: pick the opening base component (once, after the opening active
+// choice), install/enable an owned component for the first time, or uninstall one (rest window only). In a rest window also
+// the rest services: buy an NPC active offer, respec the allocated points, replace a learned active with a pending blueprint,
+// or forget a learned active. #198 G: take one option of a pending elite-camp component choice (ComponentChoice, rest and
+// field, alive or dead), and the rest services FillGap (pay GROWTH.FillGapPoints for one unowned common base that gives a
+// never-enabled mod/connector its first compatible entry) and Dismantle (GROWTH.DismantleInputCount distinct owned common
+// components for one random unowned common component).
 UENUM()
-enum class ELDChoiceOptionKind : uint8 { None = 0, LearnActive = 1, UpgradeActive = 2, LearnPassive = 3, UpgradePassive = 4, Attribute = 5, Opening = 6 };
+enum class ELDBuildCommandKind : uint8
+{
+    None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
+    OpeningBase = 10, InstallComponent = 11, UninstallComponent = 12, ComponentChoice = 13,
+    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25
+};
 
+// #198 B: where an installed component sits. Base components take None (enabled on the build); mods/connectors
+// (#198 F) take an active, an effect segment of an active, another component, or the innate D dash.
 UENUM()
-enum class ELDShopOpenStatus : uint8 { None = 0, Pending = 1, Opened = 2, Rejected = 3 };
+enum class ELDComponentTargetKind : uint8 { None = 0, Active = 1, EffectSegment = 2, Component = 3, Dash = 4 };
 
+// #198 B: how a component instance was obtained (one stable business identity each). #198 G: BuildReward (a Boss or airdrop
+// build reward: scarce, or the common fallback), EliteChoice (an elite camp marker's two-choice), FillGap, Dismantle.
 UENUM()
-enum class ELDShopCommandKind : uint8 { None = 0, Buy = 1, Sell = 2, Upgrade = 3 };
+enum class ELDComponentSource : uint8 { None = 0, OpeningPick = 1, LevelUp = 2, BuildReward = 3, EliteChoice = 4, FillGap = 5, Dismantle = 6 };
+
+// #198 G (spec §4.2, outer parameters §5): what one field reward gave its recipient. Blueprint: an active blueprint;
+// ScarceComponent / CommonComponent: a component; PoolPoints: GROWTH.EmptyComponentPoolPoints because the material pool was
+// empty; ComponentChoice: a pending two-choice of known common components; BlueprintHeld: the active pool was empty, the
+// blueprint waits until an active becomes eligible again.
+UENUM()
+enum class ELDFieldRewardResult : uint8
+{
+    None = 0, Blueprint = 1, ScarceComponent = 2, CommonComponent = 3, PoolPoints = 4, ComponentChoice = 5, BlueprintHeld = 6
+};
+
+// #198 G: the build part a map event pays (server-internal). BuildDraw: the Boss/airdrop build reward (50% active blueprint /
+// 50% scarce component, each uniform among the unheld ones; an empty class uses the other, both empty one common material);
+// Blueprint: the high-tier camp marker's active blueprint (an empty pool holds it); ComponentChoice: the elite camp marker's
+// two known common components (one when only one is left, the empty-pool points when none is).
+enum class ELDFieldRewardKind : uint8 { None = 0, BuildDraw = 1, Blueprint = 2, ComponentChoice = 3 };
+
+// What an applied ActiveChoice or LearnBlueprint did with its active.
+UENUM()
+enum class ELDBuildChoiceResult : uint8 { None = 0, Learned = 1, StoredAsBlueprint = 2 };
 
 enum class ELDRewardOutcome : uint8 { None = 0, Granted = 1, NoReward = 2, RetryableNotCommitted = 3, PermanentlyRejected = 4 };
 
-// Travels as UPROPERTY uint16 Reason; read through LDGrowthWire::Reason.
+// Travels as UPROPERTY uint16 Reason; read through LDGrowthWire::Reason. Retired numbers stay reserved: 40 NoOffer,
+// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198), and 65
+// ElementUnsupported (#198 B, water/electric before the #198 A element state).
 enum class ELDGrowthReason : uint16
 {
     None = 0,
     InvalidRequest = 1, OldMatch = 2, OldLife = 3, LifePhaseChanged = 4, LeftMatch = 5, MatchClosed = 6,
     NotContender = 7, CatalogMismatch = 8, NotAuthority = 9, Dead = 10,
-    // #153: a trade before the match's T=0 (the opening countdown).
-    MatchNotStarted = 11,
     RequestConflict = 20, OutOfOrder = 21, ReceiptExpired = 22, RequestInFlight = 23,
-    NoOffer = 40, UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44,
-    BuildStale = 45, ReplacementRequired = 46, ReplacementMismatch = 47, ReplacementNotAllowed = 48,
-    NoReroll = 49, OfferAlreadyRerolled = 50,
-    // #153 D9: the opening direction offer is never rerolled, not even with a token earned at a reroll level.
-    OpeningNoReroll = 51,
-    NoShopSession = 60, QuoteStale = 61, PriceChanged = 62, UnknownItem = 63, ItemNotOwned = 64, ItemStale = 65,
-    EquipmentFull = 66, InsufficientGold = 67, InventoryStale = 68, AccountStale = 69,
-    UnknownShop = 71, StaleWorld = 72, OutsideRange = 73, NotGrounded = 74, InvalidGround = 75, WrongSurface = 76,
-    InvalidApproachRegion = 77, DataNotReady = 78, StaleContext = 79,
-    UpgradeUsed = 80, UpgradeUnavailable = 81, AlreadyUpgraded = 82,
+    UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44, BuildStale = 45,
+    // #198: replacing or forgetting a learned active outside a rest window.
+    ReplacementNotAllowed = 48,
+    // #198: the build safe window (GROWTH.BuildSafeWindowSec) has not passed since the last combat action.
+    NotSafe = 52,
+    NoEmptySlot = 53, SlotOccupied = 54, NoBlueprint = 55, NotEnoughPoints = 56, NoActiveOffer = 57,
+    // The match is outside the field segments and the rest steps (results and every other phase).
+    PhaseClosed = 58,
+    // #198 B components: NotOwned (no such instance), AlreadyInstalled, NotInstalled, RestOnly (moving/uninstalling or
+    // re-installing a once-installed instance needs the rest window), InvalidTarget (wrong target kind/binding),
+    // OpeningBaseUnavailable (not an option of the current opening pick), OpeningBaseTaken (already picked),
+    // OpeningActiveFirst (opening active not chosen yet).
+    NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, RestOnly = 63, InvalidTarget = 64,
+    OpeningBaseUnavailable = 66, OpeningBaseTaken = 67, OpeningActiveFirst = 68,
+    // #198 F: TargetConflict (M08 and M09 on the same dash target).
+    TargetConflict = 150,
+    // #198 rest: a rest step whose builds are locked (draw, betting, PK, settlement, return countdown).
+    BuildLocked = 70,
+    // Fewer than three actives are eligible for an NPC offer; nothing is charged.
+    NpcPoolTooSmall = 71,
+    // An active offer (or, for the NPC, any queued active opportunity) is outstanding.
+    OfferOutstanding = 72,
+    NothingToRespec = 73,
+    // ReplaceActive/ForgetActive name an empty slot.
+    SlotEmpty = 74,
+    // A rest service (NPC, respec) outside a rest window.
+    NotRestWindow = 75,
+    RestServiceUnavailable = 76,
+    DataNotReady = 78, StaleContext = 79,
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,
-    NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114
+    NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114,
+    // #198 session D (allocated 140-149): a PK arena death pays no kill/assist reward; a PK award identity paid twice.
+    NoRewardPKArena = 140, PKAwardDuplicate = 141,
+    // #198 G (allocated 160-169): NoComponentChoice (no pending choice of that id), ComponentOwned (the option is already
+    // owned, or the points fallback while an option is still free), NotAGap (the target is no owned, never-enabled
+    // mod/connector without any compatible entry), NoGapFiller (the base is not one that gives it its missing entry),
+    // GapAlreadyFilled (the target was filled once), DismantleInvalid (not distinct owned common components of the approved
+    // count), DismantlePoolEmpty (no common component left to receive; nothing is removed), FieldRewardDuplicate (a map event
+    // paid twice).
+    NoComponentChoice = 160, ComponentOwned = 161, NotAGap = 162, NoGapFiller = 163, GapAlreadyFilled = 164,
+    DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -96,14 +162,10 @@ struct LOCKDOWN_API FLDResultRevisions
 {
     GENERATED_BODY()
 
-    UPROPERTY() bool bHasAccount = false;
-    UPROPERTY() uint64 AccountRevision = 0;
     UPROPERTY() bool bHasProgression = false;
     UPROPERTY() uint64 ProgressionRevision = 0;
     UPROPERTY() bool bHasBuild = false;
     UPROPERTY() uint64 BuildRevision = 0;
-    UPROPERTY() bool bHasInventory = false;
-    UPROPERTY() uint64 InventoryRevision = 0;
     UPROPERTY() bool bHasOffer = false;
     UPROPERTY() uint64 OfferRevision = 0;
 };
@@ -126,60 +188,105 @@ struct LOCKDOWN_API FLDGrowthReceiptHeader
     UPROPERTY() FLDResultRevisions Revisions;
 };
 
-// ---- Choice -----------------------------------------------------------------------------------
+// ---- Build (#198) -----------------------------------------------------------------------------
 
 USTRUCT()
-struct LOCKDOWN_API FLDChoiceOption
+struct LOCKDOWN_API FLDStatPointsView
 {
     GENERATED_BODY()
 
-    UPROPERTY() FGuid OptionId;
-    UPROPERTY() ELDChoiceOptionKind Kind = ELDChoiceOptionKind::None;
-    // Ability id for skills, attribute id for attribute cards; the effect is DefinitionId at ToRank.
-    UPROPERTY() FName DefinitionId;
-    UPROPERTY() uint8 FromRank = 0;
-    UPROPERTY() uint8 ToRank = 0;
-    // Attribute options only. Opening and skill options always carry None.
-    UPROPERTY() ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
+    UPROPERTY() FName StatId;
+    UPROPERTY() int32 Points = 0;
 };
 
 USTRUCT()
-struct LOCKDOWN_API FLDChoiceOfferView
+struct LOCKDOWN_API FLDActiveSlotView
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FName DefinitionId;
+    // 0 = Q, 1 = W, 2 = E.
+    UPROPERTY() uint8 Slot = 0;
+};
+
+USTRUCT()
+struct LOCKDOWN_API FLDActiveOfferView
 {
     GENERATED_BODY()
 
     UPROPERTY() FGuid OfferId;
     UPROPERTY() uint8 OpportunityOrdinal = 0;
     UPROPERTY() uint64 OfferRevision = 0;
-    UPROPERTY() uint64 GuardBuildRevision = 0;
-    // This offer is the opportunity's free reroll; it cannot be rerolled again.
-    UPROPERTY() bool bRerolled = false;
-    // Exactly three distinct options, immutable for the offer's lifetime.
-    UPROPERTY() TArray<FLDChoiceOption> Options;
+    // One to three distinct active ids, immutable for the offer's lifetime.
+    UPROPERTY() TArray<FName> Options;
 };
 
+// #198 B: an install target on the wire and in views (ELDComponentTargetKind; unused fields zero/None).
 USTRUCT()
-struct LOCKDOWN_API FLDLearnedSkillView
+struct LOCKDOWN_API FLDComponentTargetView
+{
+    GENERATED_BODY()
+
+    UPROPERTY() ELDComponentTargetKind Kind = ELDComponentTargetKind::None;
+    // Active / EffectSegment: the learned active; Component: the host component.
+    UPROPERTY() FName Definition;
+    // EffectSegment: index of the effect in the active's value set.
+    UPROPERTY() uint8 Segment = 0;
+    // ActiveElement binding (B18): the chosen element.
+    UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
+    // ActiveElement binding (B18): the bound learned active.
+    UPROPERTY() FName BoundActive;
+    // #198 F C12: the installed base component the exit repeats.
+    UPROPERTY() FName BoundComponent;
+};
+
+// #198 B: one owned material instance (inventory and installed deduplicated: one per definition).
+USTRUCT()
+struct LOCKDOWN_API FLDComponentInstanceView
 {
     GENERATED_BODY()
 
     UPROPERTY() FName DefinitionId;
-    UPROPERTY() bool bActive = false;
-    UPROPERTY() uint8 Rank = 0;
-    // Active skills only: 0 = Q, 1 = W, 2 = E.
-    UPROPERTY() uint8 Slot = 0;
+    UPROPERTY() ELDComponentSource Source = ELDComponentSource::None;
+    // LevelUp: the level whose reward granted it; OpeningPick: 1.
+    UPROPERTY() uint8 SourceLevel = 0;
+    UPROPERTY() bool bInstalled = false;
+    // Installed at least once: a later re-install is a rest-window move, never a field first-time install.
+    UPROPERTY() bool bEverInstalled = false;
+    UPROPERTY() FLDComponentTargetView Target;
+    // #198 G: this mod/connector already received its one FillGap; uninstalling its entry never opens another.
+    UPROPERTY() bool bGapFilled = false;
 };
 
+// #198 G: one pending elite-camp two-choice: one or two distinct known common components fixed when it was granted.
 USTRUCT()
-struct LOCKDOWN_API FLDAttributeCardView
+struct LOCKDOWN_API FLDComponentChoiceView
 {
     GENERATED_BODY()
 
-    UPROPERTY() FName DefinitionId;
-    UPROPERTY() uint8 Count = 0;
-    UPROPERTY() ELDAttributeQuality Quality = ELDAttributeQuality::None;
+    UPROPERTY() FGuid ChoiceId;
+    // The map event that paid it (camp_marker_elite) and its serial.
+    UPROPERTY() FName Event;
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() TArray<FName> Options;
 };
 
+// #198 G: one field reward this contender received (owner-only history, oldest first; at most the room's 13 opportunities).
+USTRUCT()
+struct LOCKDOWN_API FLDFieldRewardView
+{
+    GENERATED_BODY()
+
+    // airdrop, boss, camp_marker_high or camp_marker_elite, and its serial.
+    UPROPERTY() FName Event;
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() int64 XP = 0;
+    UPROPERTY() ELDFieldRewardResult Result = ELDFieldRewardResult::None;
+    // Blueprint: the active; Scarce/CommonComponent: the component; otherwise None.
+    UPROPERTY() FName Definition;
+};
+
+// The owner's whole growth state. Opponents never receive it; they see only the public level and Q/W/E.
 USTRUCT()
 struct LOCKDOWN_API FLDProgressionView
 {
@@ -189,7 +296,6 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint32 Generation = 0;
     UPROPERTY() uint32 Life = 0;
     UPROPERTY() ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
-    UPROPERTY() bool bCanChoose = false;
     UPROPERTY() uint8 Level = 0;
     UPROPERTY() uint8 MaxLevel = 0;
     UPROPERTY() int64 CumulativeXP = 0;
@@ -198,223 +304,131 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() int64 NextThresholdXP = 0;
     UPROPERTY() uint64 ProgressionRevision = 0;
     UPROPERTY() uint64 BuildRevision = 0;
-    UPROPERTY() uint8 EarnedThrough = 0;
-    UPROPERTY() uint8 ConsumedThrough = 0;
-    UPROPERTY() uint8 PendingChoiceCount = 0;
-    // Free rerolls left (earned at the reroll levels, kept until used).
-    UPROPERTY() uint8 RerollTokens = 0;
-    UPROPERTY() bool bHasOffer = false;
-    UPROPERTY() FLDChoiceOfferView Offer;
-    UPROPERTY() TArray<FLDLearnedSkillView> Skills;
-    UPROPERTY() TArray<FLDAttributeCardView> AttributeCards;
-    // #153: the chosen opening direction card, a permanent stat source; None until the opening choice is taken.
-    UPROPERTY() FName OpeningCard;
+    // Earned (opening, levels and the max-level XP grants) minus allocated minus permanently spent.
+    UPROPERTY() int64 UnspentPoints = 0;
+    // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
+    UPROPERTY() TArray<FLDStatPointsView> StatPoints;
+    // Learned Q/W/E actives, by slot.
+    UPROPERTY() TArray<FLDActiveSlotView> Actives;
+    // Chosen actives waiting to be learned (待学图纸), sorted by id.
+    UPROPERTY() TArray<FName> PendingBlueprints;
+    UPROPERTY() uint8 ActiveOpportunitiesEarned = 0;
+    UPROPERTY() uint8 ActiveOpportunitiesConsumed = 0;
+    // Earned and not yet chosen, the current offer's included; one without an eligible active waits without an offer.
+    UPROPERTY() uint8 QueuedActiveOpportunities = 0;
+    UPROPERTY() bool bHasActiveOffer = false;
+    UPROPERTY() FLDActiveOfferView ActiveOffer;
+    // #198 B: owned components sorted by id.
+    UPROPERTY() TArray<FLDComponentInstanceView> Components;
+    // #198 B opening base pick: open once the opening active is chosen, until a base is picked; its options are the
+    // currently available bases (spec §4.3) not owned, in catalog order.
+    UPROPERTY() bool bOpeningBasePending = false;
+    UPROPERTY() TArray<FName> OpeningBaseOptions;
+    // Combat's build safe window (absolute authority ms; <= now is safe), copied at publication like the owner CombatView's.
+    UPROPERTY() int64 BuildSafeAtMs = 0;
     UPROPERTY() FLDDemoContentDigest CatalogDigest;
+    // Points paid for rest services (the NPC, FillGap); a respec never returns them.
+    UPROPERTY() int64 PermanentSpentPoints = 0;
+    // #198 G: pending elite-camp component choices, oldest first.
+    UPROPERTY() TArray<FLDComponentChoiceView> ComponentChoices;
+    // #198 G: high-tier camp blueprints held because no active was eligible; each is granted once one becomes eligible.
+    UPROPERTY() uint8 HeldBlueprints = 0;
+    // #198 G: every field reward received, oldest first.
+    UPROPERTY() TArray<FLDFieldRewardView> FieldRewards;
 };
 
 USTRUCT()
-struct LOCKDOWN_API FLDChoiceCommand
+struct LOCKDOWN_API FLDBuildCommand
 {
     GENERATED_BODY()
+
+    // Slot of an ActiveChoice without a preferred slot (the lowest empty one); every other kind leaves Slot here
+    // except LearnBlueprint, ReplaceActive and ForgetActive, which name 0..2.
+    static constexpr uint8 AnySlot = 0xFF;
 
     UPROPERTY() uint32 Generation = 0;
     UPROPERTY() uint32 Life = 0;
     UPROPERTY() ELDLifePhase ExpectedLifePhase = ELDLifePhase::Unspawned;
     UPROPERTY() uint64 RequestId = 0;
+    UPROPERTY() uint64 ExpectedBuildRevision = 0;
+    UPROPERTY() FLDDemoContentDigest CatalogDigest;
+    UPROPERTY() ELDBuildCommandKind Kind = ELDBuildCommandKind::None;
+    // ActiveChoice: the offer and the chosen active of it.
     UPROPERTY() FGuid OfferId;
     UPROPERTY() uint64 OfferRevision = 0;
-    UPROPERTY() FGuid OptionId;
-    UPROPERTY() uint64 ExpectedBuildRevision = 0;
-    UPROPERTY() FLDDemoContentDigest CatalogDigest;
-    UPROPERTY() bool bReplace = false;
-    UPROPERTY() uint8 ReplaceSlot = 0;
-    UPROPERTY() FLDDefinitionWire ExpectedOldSkillId;
-    UPROPERTY() uint8 ExpectedOldRank = 0;
-    UPROPERTY() bool bReplaceConfirmed = false;
-    // 112 §6: spend one free reroll on OfferId instead of choosing; OptionId stays empty and nothing is replaced.
-    UPROPERTY() bool bReroll = false;
+    UPROPERTY() FLDDefinitionWire Option;
+    // ActiveChoice: learn it in the same commit when the contender may learn now and a slot is empty, else store it.
+    UPROPERTY() bool bLearnIfPossible = false;
+    // ActiveChoice with bLearnIfPossible: the preferred slot 0..2 or AnySlot; LearnBlueprint: the empty slot 0..2;
+    // ReplaceActive and ForgetActive: the learned slot 0..2. BuyNpcOffer and Respec carry no further field.
+    UPROPERTY() uint8 Slot = AnySlot;
+    // LearnBlueprint and ReplaceActive: the pending blueprint to learn.
+    UPROPERTY() FLDDefinitionWire Blueprint;
+    // AllocatePoints: one count per stat in the stats' design order, at least one point in total.
+    UPROPERTY() TArray<uint8> PointCounts;
+    // #198 B OpeningBase / InstallComponent / UninstallComponent: the component definition.
+    UPROPERTY() FLDDefinitionWire Component;
+    // OpeningBase: install it in the same commit when allowed (like bLearnIfPossible), else keep it in the inventory.
+    UPROPERTY() bool bInstallIfPossible = false;
+    // InstallComponent (and OpeningBase with bInstallIfPossible): the target kind and binding.
+    UPROPERTY() ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    UPROPERTY() FLDDefinitionWire TargetDefinition;
+    UPROPERTY() uint8 TargetSegment = 0;
+    UPROPERTY() FLDDefinitionWire BoundActive;
+    // #198 F InstallComponent of C12: the installed base component its exit repeats.
+    UPROPERTY() FLDDefinitionWire BoundComponent;
+    UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
+    // #198 G ComponentChoice: OfferId names the pending choice and Component the chosen option; an all-zero Component takes
+    // the empty-pool points, allowed only once every option is owned. FillGap: Component is the gap target (an owned
+    // mod/connector) and Filler the unowned common base received. Dismantle: Surrendered lists the owned common components
+    // given up (distinct, GROWTH.DismantleInputCount of them).
+    UPROPERTY() FLDDefinitionWire Filler;
+    UPROPERTY() TArray<FLDDefinitionWire> Surrendered;
 
-    bool SameTerms(const FLDChoiceCommand& Other) const;
+    bool SameTerms(const FLDBuildCommand& Other) const;
 };
 
 USTRUCT()
-struct LOCKDOWN_API FLDChoiceReceipt
+struct LOCKDOWN_API FLDBuildReceipt
 {
     GENERATED_BODY()
 
     UPROPERTY() FLDGrowthReceiptHeader Header;
+    UPROPERTY() ELDBuildCommandKind Kind = ELDBuildCommandKind::None;
+    // ActiveChoice: the consumed offer and its opportunity; BuyNpcOffer: the bought opportunity (OfferId stays unset,
+    // its drawn offer is NextOfferId).
     UPROPERTY() FGuid OfferId;
-    UPROPERTY() FGuid OptionId;
     UPROPERTY() uint8 OpportunityOrdinal = 0;
-    UPROPERTY() uint8 ConsumedThrough = 0;
-    UPROPERTY() ELDChoiceOptionKind Kind = ELDChoiceOptionKind::None;
+    // ActiveChoice: the chosen active; LearnBlueprint and ReplaceActive: the learned blueprint.
     UPROPERTY() FName DefinitionId;
-    UPROPERTY() uint8 NewRank = 0;
-    UPROPERTY() ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
-    UPROPERTY() bool bReplaced = false;
-    UPROPERTY() uint8 ReplacedSlot = 0;
-    UPROPERTY() FName ReplacedSkillId;
-    UPROPERTY() uint8 ReplacedRank = 0;
-    // #153: an applied opening choice reveals the active it taught (learned into Q at rank 1); None for every other receipt.
-    UPROPERTY() FName OpeningActiveId;
+    UPROPERTY() ELDBuildChoiceResult ChoiceResult = ELDBuildChoiceResult::None;
+    // Learned: its slot (0 = Q, 1 = W, 2 = E).
+    UPROPERTY() uint8 LearnedSlot = 0;
+    // StoredAsBlueprint after bLearnIfPossible: why it was not learned (NotSafe, Dead or NoEmptySlot); None when the
+    // command did not ask to learn.
+    UPROPERTY() uint16 StoredReason = 0;
+    // AllocatePoints: the points spent per stat, in the stats' design order.
+    UPROPERTY() TArray<uint8> PointsSpent;
+    UPROPERTY() int64 UnspentPointsAfter = 0;
+    // #198 B component kinds: the component, whether it is installed after the commit, and (OpeningBase stored without
+    // install) why not (NotSafe, Dead, InvalidTarget); None when not asked.
+    UPROPERTY() FName ComponentId;
+    UPROPERTY() bool bComponentInstalled = false;
+    UPROPERTY() uint16 InstallStoredReason = 0;
     UPROPERTY() bool bHasNextOffer = false;
     UPROPERTY() FGuid NextOfferId;
-    // Applied reroll: NextOfferId replaced OfferId for the same opportunity.
-    UPROPERTY() bool bRerolled = false;
-    UPROPERTY() uint8 RerollTokensLeft = 0;
-};
-
-// ---- Equipment and shop -----------------------------------------------------------------------
-
-USTRUCT()
-struct LOCKDOWN_API FLDEquipmentSlotView
-{
-    GENERATED_BODY()
-
-    UPROPERTY() uint8 SlotIndex = 0;
-    UPROPERTY() bool bOccupied = false;
-    UPROPERTY() FGuid Instance;
-    UPROPERTY() uint64 IssueSerial = 0;
-    UPROPERTY() FName DefinitionId;
-    UPROPERTY() uint64 ItemRevision = 0;
-    // 112 §7: this instance is upgraded; the state leaves with the instance.
-    UPROPERTY() bool bUpgraded = false;
-};
-
-// Own gold and the two real equipment positions.
-USTRUCT()
-struct LOCKDOWN_API FLDEquipmentView
-{
-    GENERATED_BODY()
-
-    UPROPERTY() bool bValid = false;
-    UPROPERTY() uint32 Generation = 0;
-    UPROPERTY() int64 Gold = 0;
-    UPROPERTY() uint64 AccountRevision = 0;
-    UPROPERTY() uint64 InventoryRevision = 0;
-    // The one upgrade of the match is spent (even if that item was sold since).
-    UPROPERTY() bool bUpgradeUsed = false;
-    // Always two rows, slot 0 then slot 1; an empty slot is explicit.
-    UPROPERTY() TArray<FLDEquipmentSlotView> Slots;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopItemView
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FName DefinitionId;
-    UPROPERTY() int64 BuyPrice = 0;
-    UPROPERTY() int64 SellGold = 0;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopSellView
-{
-    GENERATED_BODY()
-
-    UPROPERTY() uint8 SlotIndex = 0;
-    UPROPERTY() FGuid Instance;
-    UPROPERTY() uint64 ItemRevision = 0;
-    UPROPERTY() FName DefinitionId;
-    UPROPERTY() int64 SellPrice = 0;
-    UPROPERTY() bool bUpgraded = false;
-    // The upgrade of this instance is offered now: unspent, not upgraded and the item has approved upgraded terms.
-    UPROPERTY() bool bCanUpgrade = false;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopView
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FName ShopId;
-    UPROPERTY() FGuid SessionId;
-    UPROPERTY() uint32 Life = 0;
-    UPROPERTY() uint64 QuoteRevision = 0;
-    UPROPERTY() FLDDemoContentDigest CatalogDigest;
-    UPROPERTY() FName WorldMapId;
-    UPROPERTY() uint32 WorldLayoutRevision = 0;
-    UPROPERTY() uint32 WorldGeometryRevision = 0;
-    UPROPERTY() TArray<FLDShopItemView> Items;
-    UPROPERTY() TArray<FLDShopSellView> Sellable;
-    UPROPERTY() int64 UpgradePrice = 0;
-    UPROPERTY() bool bUpgradeUsed = false;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopOpenCommand
-{
-    GENERATED_BODY()
-
-    UPROPERTY() uint32 Generation = 0;
-    UPROPERTY() uint32 Life = 0;
-    UPROPERTY() FLDDefinitionWire ShopId;
-    UPROPERTY() FLDDefinitionWire WorldMapId;
-    UPROPERTY() uint32 WorldLayoutRevision = 0;
-    UPROPERTY() uint32 WorldGeometryRevision = 0;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopOpenResult
-{
-    GENERATED_BODY()
-
-    UPROPERTY() uint32 Generation = 0;
-    UPROPERTY() uint32 Life = 0;
-    UPROPERTY() FName ShopId;
-    UPROPERTY() ELDShopOpenStatus OpenStatus = ELDShopOpenStatus::None;
-    UPROPERTY() uint16 Reason = 0;
-    UPROPERTY() bool bHasView = false;
-    UPROPERTY() FLDShopView View;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopCommand
-{
-    GENERATED_BODY()
-
-    UPROPERTY() uint32 Generation = 0;
-    UPROPERTY() uint32 Life = 0;
-    UPROPERTY() uint64 RequestId = 0;
-    UPROPERTY() ELDShopCommandKind Kind = ELDShopCommandKind::None;
-    UPROPERTY() FGuid SessionId;
-    UPROPERTY() uint64 QuoteRevision = 0;
-    UPROPERTY() FLDDemoContentDigest CatalogDigest;
-    UPROPERTY() FLDDefinitionWire WorldMapId;
-    UPROPERTY() uint32 WorldLayoutRevision = 0;
-    UPROPERTY() uint32 WorldGeometryRevision = 0;
-    UPROPERTY() uint64 ExpectedAccountRevision = 0;
-    UPROPERTY() uint64 ExpectedInventoryRevision = 0;
-    UPROPERTY() uint64 ExpectedBuildRevision = 0;
-    // Buy only.
-    UPROPERTY() FLDDefinitionWire DefinitionId;
-    UPROPERTY() int64 BuyPrice = 0;
-    // Sell and Upgrade.
-    UPROPERTY() FGuid Instance;
-    UPROPERTY() uint64 ExpectedItemRevision = 0;
-    // Sell only.
-    UPROPERTY() int64 SellPrice = 0;
-    // Upgrade only: the quoted SHOP.UpgradeCost.
-    UPROPERTY() int64 UpgradePrice = 0;
-
-    bool SameTerms(const FLDShopCommand& Other) const;
-};
-
-USTRUCT()
-struct LOCKDOWN_API FLDShopReceipt
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FLDGrowthReceiptHeader Header;
-    UPROPERTY() ELDShopCommandKind Kind = ELDShopCommandKind::None;
-    UPROPERTY() FGuid Instance;
-    UPROPERTY() uint64 IssueSerial = 0;
-    UPROPERTY() FName DefinitionId;
-    UPROPERTY() uint8 SlotIndex = 0;
-    UPROPERTY() int64 ActualGoldDelta = 0;
-    UPROPERTY() bool bHasLedgerSerial = false;
-    UPROPERTY() uint64 LedgerSerial = 0;
+    // ReplaceActive and ForgetActive: the forgotten active.
+    UPROPERTY() FName ForgottenId;
+    // Respec: the allocated points returned to the unspent ones.
+    UPROPERTY() int64 PointsRefunded = 0;
+    // BuyNpcOffer: the points permanently paid.
+    UPROPERTY() int64 NpcPointsPaid = 0;
+    // #198 G: ComponentChoice / FillGap / Dismantle put ComponentId (the received component; None when a ComponentChoice
+    // took the empty-pool points) into the inventory. FillGap: the points permanently paid. Dismantle: the surrendered
+    // components and every installed mod/connector left without its host that went back to the inventory.
+    UPROPERTY() int64 ServicePointsPaid = 0;
+    UPROPERTY() TArray<FName> RemovedComponents;
+    UPROPERTY() TArray<FName> UninstalledComponents;
 };
 
 USTRUCT()
@@ -428,14 +442,12 @@ struct LOCKDOWN_API FLDSubmitResult
     UPROPERTY() ELDAdmissionStatus Status = ELDAdmissionStatus::None;
     UPROPERTY() uint16 Reason = 0;
     UPROPERTY() bool bSequenceReserved = false;
-    UPROPERTY() bool bHasChoiceReceipt = false;
-    UPROPERTY() FLDChoiceReceipt ChoiceReceipt;
-    UPROPERTY() bool bHasShopReceipt = false;
-    UPROPERTY() FLDShopReceipt ShopReceipt;
+    UPROPERTY() bool bHasBuildReceipt = false;
+    UPROPERTY() FLDBuildReceipt BuildReceipt;
 };
 
 USTRUCT()
-struct LOCKDOWN_API FLDChoiceReceiptQueryResult
+struct LOCKDOWN_API FLDBuildReceiptQueryResult
 {
     GENERATED_BODY()
 
@@ -444,24 +456,10 @@ struct LOCKDOWN_API FLDChoiceReceiptQueryResult
     UPROPERTY() bool bHasPending = false;
     UPROPERTY() FLDPendingReceiptInfo Pending;
     UPROPERTY() bool bHasReceipt = false;
-    UPROPERTY() FLDChoiceReceipt Receipt;
+    UPROPERTY() FLDBuildReceipt Receipt;
 };
 
-USTRUCT()
-struct LOCKDOWN_API FLDShopReceiptQueryResult
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FLDReceiptQuery Query;
-    UPROPERTY() ELDReceiptLookup Lookup = ELDReceiptLookup::None;
-    UPROPERTY() bool bHasPending = false;
-    UPROPERTY() FLDPendingReceiptInfo Pending;
-    UPROPERTY() bool bHasReceipt = false;
-    UPROPERTY() FLDShopReceipt Receipt;
-};
-
-// One owner-only publication inside FLDOwnerState: gold, items, level and offer always move together.
-// Shop is the current-life session: Opened carries a quote view refreshed on every publication.
+// One owner-only publication inside FLDOwnerState: level, XP, points, actives, blueprints and offer always move together.
 USTRUCT()
 struct LOCKDOWN_API FLDGrowthOwnerView
 {
@@ -470,8 +468,6 @@ struct LOCKDOWN_API FLDGrowthOwnerView
     UPROPERTY() uint32 Generation = 0;
     UPROPERTY() uint64 PublishRevision = 0;
     UPROPERTY() FLDProgressionView Progression;
-    UPROPERTY() FLDEquipmentView Equipment;
-    UPROPERTY() FLDShopOpenResult Shop;
     // D26: the serial of the current 天降外卖 when this contender claimed it; 0 otherwise. Owner-only: the public
     // view never names the claimer.
     UPROPERTY() uint64 AirdropClaimedSerial = 0;
@@ -479,24 +475,31 @@ struct LOCKDOWN_API FLDGrowthOwnerView
 
 // Local presentation notifications on the owning controller; listeners never write gameplay state.
 DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnGrowthSubmit, const FLDSubmitResult&);
-DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnChoiceReceipt, const FLDChoiceReceiptQueryResult&);
-DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnShopReceipt, const FLDShopReceiptQueryResult&);
-DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnShopOpenResult, const FLDShopOpenResult&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnBuildReceipt, const FLDBuildReceiptQueryResult&);
 
 // ---- Server-internal death reward result ------------------------------------------------------
+
+// #198 B: one normal level-up's component reward: the granted definition, or None when the common pool was exhausted and
+// GROWTH.EmptyComponentPoolPoints were earned instead.
+struct FLDComponentGrant
+{
+    uint8 Level = 0;
+    FName Component;
+
+    bool operator==(const FLDComponentGrant& Other) const { return Level == Other.Level && Component == Other.Component; }
+};
 
 // One assister's part of a contender kill reward, committed in the same composite as the killer's part.
 struct LOCKDOWN_API FLDRewardShareReceipt
 {
     FGuid Recipient;
-    bool bHasLedgerSerial = false;
-    uint64 LedgerSerial = 0;
-    int64 GoldDelta = 0;
     int64 XPDelta = 0;
     uint8 LevelBefore = 0;
     uint8 LevelAfter = 0;
     uint8 OpportunityFirst = 1;
     uint8 OpportunityLast = 0;
+    // #198 B: the component of each level crossed, in level order.
+    TArray<FLDComponentGrant> ComponentGrants;
 };
 
 struct LOCKDOWN_API FLDRewardReceipt
@@ -506,17 +509,19 @@ struct LOCKDOWN_API FLDRewardReceipt
     uint8 Fingerprint[32] = {};
     ELDRewardOutcome Outcome = ELDRewardOutcome::None;
     ELDGrowthReason Reason = ELDGrowthReason::None;
-    // The killer (or the only recipient of a camp or DEV reward); the fields below are his part.
+    // The killer (or the only recipient of a camp, map event or DEV reward); the fields below are their part.
     FGuid Recipient;
-    bool bHasLedgerSerial = false;
-    uint64 LedgerSerial = 0;
-    int64 GoldDelta = 0;
     int64 XPDelta = 0;
     uint8 LevelBefore = 0;
     uint8 LevelAfter = 0;
-    // Opportunity ordinals granted by this reward, inclusive; First > Last when none.
+    // Active opportunity ordinals granted by this reward, inclusive; First > Last when none.
     uint8 OpportunityFirst = 1;
     uint8 OpportunityLast = 0;
+    // #198 B: the component of each level crossed, in level order (None: the pool was exhausted, points instead).
+    TArray<FLDComponentGrant> ComponentGrants;
+    // #198 G: the build part of a field reward (None for a death or a reward without one) and its definition.
+    ELDFieldRewardResult FieldResult = ELDFieldRewardResult::None;
+    FName FieldDefinition;
     FLDResultRevisions Revisions;
     // Assisters of a contender kill in the fact's order, each with the part granted in the same commit.
     TArray<FLDRewardShareReceipt> Assists;
@@ -527,8 +532,13 @@ namespace LDGrowthWire
     inline ELDGrowthReason Reason(uint16 Raw) { return static_cast<ELDGrowthReason>(Raw); }
     inline uint16 Raw(ELDGrowthReason Reason) { return static_cast<uint16>(Reason); }
     LOCKDOWN_API bool IsKnownFamily(ELDGrowthFamily Family);
-    LOCKDOWN_API bool IsKnownShopKind(ELDShopCommandKind Kind);
-    // Only Alive and Dead may confirm a choice; Unspawned/Left never can.
-    LOCKDOWN_API bool IsChoicePhase(ELDLifePhase Phase);
+    // #198 B whitelists of client-sent enums: build command kinds, install target kinds and elements.
+    LOCKDOWN_API bool IsKnownBuildKind(ELDBuildCommandKind Kind);
+    LOCKDOWN_API bool IsKnownTargetKind(ELDComponentTargetKind Kind);
+    LOCKDOWN_API bool IsKnownElement(ELDDemoElement Element);
+    // An optional definition field: all-zero bytes are None (true); anything else must decode.
+    LOCKDOWN_API bool DecodeOptional(const FLDDefinitionWire& Wire, FName& Out);
+    // Only an Alive or Dead contender may send a build command; Unspawned/Left never can.
+    LOCKDOWN_API bool IsBuildLifePhase(ELDLifePhase Phase);
     LOCKDOWN_API const TCHAR* ReasonName(ELDGrowthReason Reason);
 }

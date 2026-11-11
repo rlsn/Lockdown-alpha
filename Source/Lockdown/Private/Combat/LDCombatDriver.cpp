@@ -1,10 +1,11 @@
 #include "Combat/LDCombatDirector.h"
+#include "PK/LDPKDirector.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Framework/LDGameMode.h"
 #include "World/LDCampDirector.h"
 #include "Framework/LDPlayerController.h"
@@ -45,8 +46,9 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // #147: silences, the shared breach and the burn's ticks end or fall on exact boundaries.
         for (const auto& Silence : Body.Silences) { Consider(Silence.ExpiresAtMs); }
         if (Body.SharedBreach.Stacks>0) { Consider(Body.SharedBreach.ExpiresAtMs); }
-        if (!Body.Burn.Layers.IsEmpty()) { Consider(Body.Burn.NextTickAtMs); }
-        if (Body.Empower.IsSet()) { Consider(Body.Empower->ExpiresAtMs); }
+        if (!Body.Burn.Layers.IsEmpty()) { Consider(LDCombatKeywords::NextBurnTickAtMs(Body.Burn)); }
+        for (const auto& Package : Body.Empowers) { Consider(Package.ExpiresAtMs); }
+        if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
@@ -59,14 +61,13 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         { Consider(Body.LastCombatAtMs+DormDelayMs); }
         // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
+        // #198 session D: a throw's Exposed ends on its exact boundary.
+        Consider(Body.ExposedUntilMs);
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
     }
-    // #147: a second blast and a knockback's wall check resolve on their exact boundaries.
-    for (const auto& Echo : Echoes) { Consider(Echo.AtMs); }
-    for (const auto& Check : WallChecks) { Consider(Check.AtMs); }
-    // #112 mechanics: zone pulses and their records' ends; a dash's path sweep resolves when it ends.
+    // #112 mechanics: zone pulses and their records' ends.
     Consider(NextMechanicsDueMs(NowMs));
-    for (const auto& Sweep : DashSweeps) { Consider(Sweep.EndAtMs); }
+    Consider(NextWorkshopDueMs(NowMs));
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
     {
@@ -76,8 +77,10 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     if (const auto* Mode=Core())
     {
         Consider(Mode->NextLifeDueMs());
-        // #153: the opening countdown ends (T=0) on an exact boundary.
-        Consider(Mode->NextCountdownDueMs());
+        // #198: every rest step and field segment ends on an exact boundary.
+        Consider(Mode->NextTimelineDueMs());
+        // #198 session D: PK ring ticks and throw landings.
+        if (Mode->PKDirector) { Consider(Mode->PKDirector->NextDueMs()); }
         // Opening time and the Solo completion must each be an exact step boundary; a resume inside a paused
         // contest is closed at its own instant by CaptureCompletesInsideStep, so it adds no stop here.
         Consider(Mode->NextCaptureDueMs());
@@ -85,6 +88,10 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
         // D26: an airdrop is announced and lands on its exact boundary.
         Consider(Mode->NextAirdropDueMs());
+        // #198: a charm wave lands and a charm leaves on its exact field-progress boundary.
+        Consider(Mode->NextCharmDueMs());
+        // #198 outer §5: a camp marker is revealed on its exact field-progress boundary.
+        Consider(Mode->NextFieldMarkerDueMs());
         // D27: the leader notice refreshes on its exact boundary.
         Consider(Mode->NextLeaderDueMs());
     }
@@ -141,7 +148,14 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (Ref.Victim.Kind==ELDVictimKind::CampMember)
                 {
                     if (!Mode->Camps) { Error=TEXT("A registered camp body has no camp owner."); return false; }
+                    // #198: a frozen world body has no path (FreezeForRest stopped it), so it integrates zero input.
                     if (!Mode->Camps->AdvanceMemberMotion(Mode->GetAuthorityStep(),Ref,Permit,Error)) { return false; }
+                    continue;
+                }
+                // #198: a personal training dummy has no controller; it stands still (only forced motion moves it).
+                if (Mode->IsTrainingDummy(Ref.Victim.EntityId))
+                {
+                    if (!Mode->AdvanceTrainingDummyMotion(Ref,Permit,Error)) { return false; }
                     continue;
                 }
                 auto* PC=Cast<ALDPlayerController>(Body->GetController());
@@ -157,7 +171,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         const bool bWorldRan=bCaptureInside
             ? Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
             {
-                if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+                if (!Mode->Growth) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
                 return RunRewardRetries(Permit,Error);
             },Error)
             : (Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Session,[&](const FLDGameplayWritePermit& Permit)
@@ -165,19 +179,35 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Actions,[&](const FLDGameplayWritePermit& Permit)
             { return RunActions(Permit,Error); },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Effects,[&](const FLDGameplayWritePermit& Permit)
-            { return RunEffects(Permit,Error); },Error)
+            {
+                // #198 session D: throws land and the PK ring burns after this boundary's ordinary effects.
+                return RunEffects(Permit,Error) && (!Mode->PKDirector || Mode->PKDirector->AdvanceEffects(Permit,Error));
+            },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
-            { return RunDeaths(Permit,Error); },Error)
+            {
+                // #198 session D: the PK is judged after every death of the boundary (a decided PK ends here).
+                return RunDeaths(Permit,Error) && (!Mode->PKDirector || Mode->PKDirector->JudgeAfterDeaths(Permit,Error));
+            },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
-                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error)
-                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
+                // #198: the timeline first (rest entry/exit moves every contender), then field respawns; the world only
+                // advances while a field segment runs.
+                if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)) { return false; }
+                if (!Mode->IsFieldRunning()) { return true; }
+                return Mode->Camps->AdvanceCamps(Permit,Error)
+                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceFieldMarkers(Permit,Error)
+                    && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
-                if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
-                return Mode->ClaimAirdrop(Permit,Error) && Mode->Economy->ProcessTransactions(Permit,Error);
+                if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
+                // #198: commands committed at a build deadline settle before the lock of the same boundary.
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error) && Mode->RetryFieldRewards(Permit,Error)
+                    && Mode->Growth->ProcessTransactions(Permit,Error)
+                    && Mode->LockTimelineBuild(Permit,Error)
+                    // #198 session D: a settled PK pays its frozen awards once.
+                    && (!Mode->PKDirector || Mode->PKDirector->ProcessTransactions(Permit,Error));
             },Error));
         if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)
@@ -187,10 +217,10 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             { return Mode->ExecuteClosePhase(Permit,Error); },Error)
             || !Mode->FinishAuthorityStep(*this,Error)
             // Publish has no permit: growth receipts and owner projections, then the capture outcome.
-            || !Mode->Economy || !Mode->Economy->PublishGrowth(Mode->AuthorityBoundary,Error)
+            || !Mode->Growth || !Mode->Growth->PublishGrowth(Mode->AuthorityBoundary,Error)
             || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error))
         {
-            if (Error.IsEmpty() && !Mode->Economy) { Error=TEXT("Growth publication requires the growth domain of this match."); }
+            if (Error.IsEmpty() && !Mode->Growth) { Error=TEXT("Growth publication requires the growth domain of this match."); }
             return false;
         }
     }
@@ -220,16 +250,16 @@ bool ALDCombatDirector::RunSettlementStep(const FLDMatchContext& Match, FString&
     }
     if (!Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
         {
-            if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+            if (!Mode->Growth) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
             return RunRewardRetries(Permit,Error);
         },Error)
         || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Close,[&](const FLDGameplayWritePermit& Permit)
         { return Mode->ExecuteClosePhase(Permit,Error); },Error)
         || !Mode->FinishAuthorityStep(*this,Error)
-        || !Mode->Economy || !Mode->Economy->PublishGrowth(Mode->AuthorityBoundary,Error)
+        || !Mode->Growth || !Mode->Growth->PublishGrowth(Mode->AuthorityBoundary,Error)
         || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error))
     {
-        if (Error.IsEmpty() && !Mode->Economy) { Error=TEXT("Growth publication requires the growth domain of this match."); }
+        if (Error.IsEmpty() && !Mode->Growth) { Error=TEXT("Growth publication requires the growth domain of this match."); }
         return false;
     }
     return true;
@@ -248,8 +278,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     if (!RefreshTaunts(Error)) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
-    // #153: camps stay idle (no aggro, chase or attack) until the opening countdown ends.
-    if (!Mode->IsOpeningCountdown(Mode->GetMatchContext()) && !Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
+    // #198: camps stay idle (no aggro, chase or attack) while a rest freezes the world.
+    if (!Mode->IsRestPhase(Mode->GetMatchContext()) && !Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
     // Direct intents first: an ability may interrupt a basic windup before Navigation starts the next one.
     TArray<FGuid> Entities;
     Records.GetKeys(Entities);
@@ -293,15 +323,17 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     const int64 Now=Mode->GetAuthorityNowMs();
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
-    // Zones and burns due now join this boundary's hits and projectiles.
-    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveEchoes(Error)
-        || !ResolveWallChecks(Error) || !ResolveDashSweeps(Error) || !AdvanceProjectiles(Error)) { return false; }
-    for (int32 Index=0; Index<PendingHits.Num(); ++Index)
-    {
-        const FLDCombatHit Hit=PendingHits[Index];
-        if (!ApplyHit(Hit,Error)) { return false; }
-    }
-    PendingHits.Reset();
+    // B12: voluntary dashes that completed by now (motion already ran to this boundary) arm their empowered packages.
+    if (!ResolveDashCompletions(Now,Error)) { return false; }
+    // Zones, burns and element records due now join this boundary's hits and projectiles.
+    ReactionFacts.Reset();
+    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceBurns(Now,Error)
+        || !AdvanceProjectiles(Error))
+    { return false; }
+    // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.
+    if (!AdvanceWorkshop(Now,Error)) { return false; }
+    // Every hit of this boundary, then the C01 windows it closed.
+    if (!ApplyPendingHits(Now,Error)) { return false; }
     // Slows and HP changes of this boundary reach the effective attributes before the next motion step.
     if (!RefreshAllTemporary(Now,Error)) { return false; }
     if (PendingContacts.IsEmpty()) { return true; }
@@ -320,7 +352,7 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     auto* Mode=Core();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
     { Error=TEXT("Deaths require the current DeathsAndRewards permit."); return false; }
-    if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+    if (!Mode->Growth) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
     if (!RunRewardRetries(Permit,Error)) { return false; }
     if (PendingDeaths.IsEmpty()) { return true; }
     // Every fact of this Effects set was locked before any of them is consumed.
@@ -351,13 +383,6 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     return true;
 }
 
-bool ALDCombatDirector::OwesRewardTo(const FGuid& Recipient) const
-{
-    const auto Owed=[&Recipient](const FLDCommittedDeath& Fact)
-    { return Fact.CreditOwner==Recipient || Fact.Assisters.Contains(Recipient); };
-    return Recipient.IsValid() && (RetryRewards.ContainsByPredicate(Owed) || PendingDeaths.ContainsByPredicate(Owed));
-}
-
 bool ALDCombatDirector::RunRewardRetries(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     auto* Mode=Core();
@@ -375,7 +400,7 @@ bool ALDCombatDirector::RunRewardRetries(const FLDGameplayWritePermit& Permit, F
 
 bool ALDCombatDirector::CommitReward(const FLDCommittedDeath& Fact, bool bRetry, const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    const FLDRewardReceipt Receipt=Core()->Economy->CommitDeathReward(Fact,Permit);
+    const FLDRewardReceipt Receipt=Core()->Growth->CommitDeathReward(Fact,Permit);
     if (Receipt.Outcome==ELDRewardOutcome::Granted || Receipt.Outcome==ELDRewardOutcome::NoReward) { return true; }
     if (Receipt.Outcome==ELDRewardOutcome::RetryableNotCommitted && !bRetry)
     {

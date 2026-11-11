@@ -8,17 +8,13 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
-#include "../Development/LDDemoContentJson.h"
+#include "Algo/Accumulate.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
 #include "Navigation/LDOrderTypes.h"
 #include "Region/LDMapGeometry.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 #include "Vision/LDViewTypes.h"
-#include "World/LDWorldQueryTypes.h"
 
 namespace LDOpponentPolicyTests
 {
@@ -27,76 +23,8 @@ namespace
 // Reads the producer-exported approved_base only; there is no live-data fallback.
 bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
 {
-    using namespace LDDemoContent;
-    FString Root, Error;
-    if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty())
+    if (!LDTestApprovedFixture::Read(Test, Out))
     {
-        Test.AddError(TEXT("Missing -LDDemoContentFixtures=<isolated Artifacts directory>; export approved_base first. No live-data fallback."));
-        return false;
-    }
-    if (!Test.TestTrue(TEXT("Opponent fixtures are isolated under this project's Artifacts"),
-        FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-            FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts")))))
-    {
-        return false;
-    }
-    FCheck Check(Error);
-    TArray<uint8> Bytes;
-    FValue IndexValue;
-    if (!ReadFile(FPaths::Combine(Root, TEXT("index.json")), Bytes, Error)
-        || !Parse(Bytes, IndexValue, Check, TEXT("fixture index")))
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    FFields Index(Check, IndexValue, TEXT("fixture index"));
-    bool bTestOnly = false;
-    const TArray<FValue>* Valid = nullptr;
-    const TArray<FValue>* Invalid = nullptr;
-    if (!Index.Literal(TEXT("format"), TEXT("demo-native-fixtures-1"))
-        || !Index.Flag(TEXT("test_only"), bTestOnly) || !Check.Require(bTestOnly, Index.Path, TEXT("test-only marker required"))
-        || !Array(Index.Take(TEXT("valid")), Valid, Check, Index.Path, 1, 1024)
-        || !Array(Index.Take(TEXT("invalid")), Invalid, Check, Index.Path, 0, 1024) || !Index.Done())
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    bool bFound = false;
-    FLDDemoContentDigest Digest;
-    for (const auto& RowValue : *Valid)
-    {
-        FFields Row(Check, RowValue, TEXT("fixture case"));
-        FString Name;
-        if (!Row.Identifier(TEXT("name"), Name))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        if (Name != TEXT("approved_base")) { continue; }
-        const TArray<FValue>* ChangedPaths = nullptr;
-        FString MutatedQuantity;
-        if (!Check.Require(!bFound, Row.Path, TEXT("duplicate approved_base fixture"))
-            || !Row.Digest(TEXT("catalog_sha256"), Digest)
-            || !Array(Row.Take(TEXT("changed_paths")), ChangedPaths, Check, Row.Path, 0, MaxFileBytes)
-            || !Row.Text(TEXT("mutated_quantity"), MutatedQuantity, 0) || !Row.Done())
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        bFound = true;
-    }
-    if (!Test.TestTrue(TEXT("approved_base is explicit; synthetic base is not an approved balance fixture"), bFound))
-    {
-        return false;
-    }
-    FLDDemoContentBundle Bundle;
-    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-    TUniquePtr<FLDDemoPreparedContent> Prepared;
-    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-        || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, Out, Error))
-    {
-        Test.AddError(Error);
         return false;
     }
     const auto& AI = Out->Get().Parameters.AI;
@@ -109,7 +37,7 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
 
 bool ProjectLevel(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, uint8 Level, FLDProjectedAttributes& Out)
 {
-    const auto Result = LDAttributeProjection::Project(FLDAttributeBuildValues(Level, {}, {}, {}), Catalog);
+    const auto Result = LDAttributeProjection::Project(FLDAttributeBuildValues(Level, {}), Catalog);
     if (!Test.TestTrue(FString::Printf(TEXT("Level %u bare projection succeeds"), Level), Result.IsSuccess())) { return false; }
     Out = Result.Value->Final;
     return true;
@@ -150,15 +78,15 @@ bool RunCampCost(FAutomationTestBase& Test)
     // CONTENT_AND_BALANCE §7.2 timings; damage is the regen-free conservative sum of its listed retaliations.
     bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 4 x 8.47"),
         LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 58612);
-    bGood &= CheckCamp(Test, TEXT("L1 high camp: 8 hits, 5 x 40.67"),
-        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 8034, 8, 5, 20335, 41665);
+    bGood &= CheckCamp(Test, TEXT("L1 high camp: 11 hits, 7 x 61.01"),
+        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 11370, 11, 7, 42707, 19293);
     FLDCampCostInput Ten = Input;
     Ten.CurrentHpP2 = Ten.MaxHpP2 = L10.MaxHPP2;
     Ten.Attributes = L10;
     bGood &= CheckCamp(Test, TEXT("L10 low camp uses projected attack speed and windup"),
         LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 1154, 2, 1, 735, L10.MaxHPP2 - 735);
     bGood &= CheckCamp(Test, TEXT("L10 high camp"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 4922, 6, 3, 10587, L10.MaxHPP2 - 10587);
+        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 6806, 8, 4, 21176, L10.MaxHPP2 - 21176);
 
     bGood &= Test.TestEqual(TEXT("A retaliation landing exactly at the death time counts"),
         LDOpponentPolicy::RetaliationHits(0, 350, 1250, 350), int64(1));
@@ -198,221 +126,191 @@ bool RunCampCost(FAutomationTestBase& Test)
     return bGood;
 }
 
-FLDOpponentOption Option(uint32 Id, ELDOpponentOptionKind Kind, const TCHAR* Definition, uint8 From = 0, uint8 To = 1)
-{
-    FLDOpponentOption Out;
-    Out.OptionId = FGuid(0xA0, 0, 0, Id);
-    Out.Kind = Kind;
-    Out.DefinitionId = Definition;
-    Out.FromRank = From;
-    Out.ToRank = To;
-    return Out;
-}
+bool BaseFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, FLDOpponentDecisionFrame& Out);
 
-FLDOpponentSkill Skill(const TCHAR* Definition, uint8 Rank, ELDOpponentSkillSlot Slot)
+FLDOpponentActive Active(const TCHAR* Definition, uint8 Slot)
 {
-    FLDOpponentSkill Out;
+    FLDOpponentActive Out;
     Out.DefinitionId = Definition;
-    Out.Rank = Rank;
     Out.Slot = Slot;
     return Out;
 }
 
+FLDOpponentOffer ActiveOffer(TArray<FString> Options, uint32 Id = 1, uint64 Revision = 1)
+{
+    FLDOpponentOffer Out;
+    Out.OfferId = FGuid(0xB0, 0, 0, Id);
+    Out.OfferRevision = Revision;
+    Out.Ordinal = 1;
+    Out.Options = MoveTemp(Options);
+    return Out;
+}
+
 bool Pick(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, const FString& Label,
-    TArray<FLDOpponentSkill> Skills, TArray<FLDOpponentOption> Options, uint32 ExpectedOption,
-    TOptional<ELDOpponentSkillSlot> ExpectedReplace = {}, const TCHAR* ExpectedReplaced = TEXT(""), uint8 ExpectedRank = 0)
+    TArray<FLDOpponentActive> Actives, TArray<FString> Blueprints, TArray<FString> Options, const TCHAR* Expected)
 {
     FLDOpponentSelf Self;
-    Self.Skills = MoveTemp(Skills);
-    FLDOpponentOffer Offer;
-    Offer.OfferId = FGuid(0xB0, 0, 0, 1);
-    Offer.OfferRevision = 1;
-    Offer.Options = MoveTemp(Options);
-    Self.Offer = Offer;
-    FLDOpponentChoicePick Out;
-    FString Error;
-    const bool bSelected = LDOpponentPolicy::SelectChoice(Self, Catalog, Out, Error);
-    return Test.TestTrue(Label + TEXT(": ") + Error, bSelected && Out.OptionId == FGuid(0xA0, 0, 0, ExpectedOption)
-        && Out.bReplace == ExpectedReplace.IsSet()
-        && (!ExpectedReplace.IsSet() || (Out.ReplaceSlot == ExpectedReplace.GetValue()
-            && Out.ReplacedSkillId == ExpectedReplaced && Out.ReplacedRank == ExpectedRank)));
+    Self.Actives = MoveTemp(Actives);
+    Self.Blueprints = MoveTemp(Blueprints);
+    Self.Offer = ActiveOffer(MoveTemp(Options));
+    FString Out, Error;
+    const bool bSelected = LDOpponentPolicy::SelectActive(Self, Catalog, Out, Error);
+    return Test.TestTrue(Label + TEXT(": ") + Out + TEXT(" ") + Error, bSelected && Out == Expected);
+}
+
+// One stat row per stat in the stats' design order, with the given allocated points by stat id.
+TArray<FLDOpponentStatPoints> StatRows(const FLDDemoContentSnapshot& Catalog, const TMap<FString, int32>& Points)
+{
+    TArray<FLDOpponentStatPoints> Out;
+    for (const FLDDemoStatDefinition* Stat : Catalog.Get().StatsInDesignOrder())
+    {
+        FLDOpponentStatPoints Row;
+        Row.StatId = Stat->Id;
+        Row.Points = Points.FindRef(Stat->Id);
+        Out.Add(Row);
+    }
+    return Out;
+}
+
+// An allocation (one count per stat in design order) by stat id.
+TMap<FString, int32> ById(const FLDDemoContentSnapshot& Catalog, const TArray<uint8>& Counts)
+{
+    TMap<FString, int32> Out;
+    const TArray<const FLDDemoStatDefinition*> Stats = Catalog.Get().StatsInDesignOrder();
+    for (int32 Index = 0; Index < Stats.Num() && Index < Counts.Num(); ++Index)
+    {
+        if (Counts[Index] > 0) { Out.Add(Stats[Index]->Id, Counts[Index]); }
+    }
+    return Out;
+}
+
+bool SameCounts(const TMap<FString, int32>& Actual, const TMap<FString, int32>& Expected)
+{
+    if (Actual.Num() != Expected.Num()) { return false; }
+    for (const auto& Pair : Expected) { if (Actual.FindRef(Pair.Key) != Pair.Value) { return false; } }
+    return true;
 }
 
 bool RunChoiceOrder(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(Test, Catalog)) { return false; }
-    using EKind = ELDOpponentOptionKind;
-    using ESlot = ELDOpponentSkillSlot;
     const auto& C = *Catalog;
-    bool bGood = Pick(Test, C, TEXT("Empty W: a self-protection active fills the missing role first"),
-        {Skill(TEXT("active_snark_bolt"), 1, ESlot::Q)},
-        {Option(1, EKind::Attribute, TEXT("attr_protein")), Option(2, EKind::LearnActive, TEXT("active_not_mad")),
-         Option(3, EKind::LearnPassive, TEXT("passive_iced_americano"))}, 2);
-    bGood &= Pick(Test, C, TEXT("Two engage actives leave E free for self-protection"),
-        {Skill(TEXT("active_snark_bolt"), 1, ESlot::Q), Skill(TEXT("active_pants_down"), 2, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_not_mad")), Option(2, EKind::Attribute, TEXT("attr_canteen")),
-         Option(3, EKind::UpgradeActive, TEXT("active_snark_bolt"), 1, 2)}, 1);
-    bGood &= Pick(Test, C, TEXT("Both roles covered: an upgrade beats a replacing active and an attribute"),
-        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::UpgradeActive, TEXT("active_not_mad"), 1, 2),
-         Option(3, EKind::Attribute, TEXT("attr_protein"))}, 2);
-    bGood &= Pick(Test, C, TEXT("Maxed actives: a new passive precedes attributes and replacements"),
-        {Skill(TEXT("active_not_mad"), 2, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W),
-         Skill(TEXT("active_pants_down"), 2, ESlot::E)},
-        {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::LearnPassive, TEXT("passive_pressed")),
-         Option(3, EKind::Attribute, TEXT("attr_hand_out"))}, 2);
-    bGood &= Pick(Test, C, TEXT("An attribute precedes a replacement that adds no missing role"),
-        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W),
-         Skill(TEXT("active_elbow"), 1, ESlot::E)},
-        {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::Attribute, TEXT("attr_protein"))}, 2);
-    bGood &= Pick(Test, C, TEXT("A forced replacement keeps the unique self-protection"),
-        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W),
-         Skill(TEXT("active_elbow"), 1, ESlot::E)},
-        {Option(1, EKind::LearnActive, TEXT("active_pants_down"))}, 1, ESlot::W, TEXT("active_snark_bolt"), 1);
-    bGood &= Pick(Test, C, TEXT("No actives: every role is missing, so the first in public (id) catalog order"),
-        {}, {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::LearnActive, TEXT("active_not_mad")),
-             Option(3, EKind::LearnActive, TEXT("active_snark_bolt"))}, 2);
-    bGood &= Pick(Test, C, TEXT("A 112 opening offer (two new actives and a passive): an active fills the empty Q"),
-        {}, {Option(1, EKind::LearnActive, TEXT("active_not_mad")), Option(2, EKind::LearnPassive, TEXT("passive_thick_face")),
-             Option(3, EKind::LearnActive, TEXT("active_pants_down"))}, 1);
-    const auto& Attributes = C.Get().Attributes;
-    const FString* First = nullptr;
-    uint32 FirstOption = 0;
-    const TCHAR* Ids[] = {TEXT("attr_big_talk"), TEXT("attr_canteen"), TEXT("attr_all_nighter")};
-    for (uint32 Index = 0; Index < 3; ++Index)
-    {
-        const int32 Order = Attributes.IndexOfByPredicate([&](const auto& A) { return A.Id == Ids[Index]; });
-        if (Order != INDEX_NONE && (!First || Order < Attributes.IndexOfByPredicate([&](const auto& A) { return A.Id == *First; })))
-        {
-            First = &Attributes[Order].Id;
-            FirstOption = Index + 1;
-        }
-    }
-    bGood &= Test.TestTrue(TEXT("Approved attributes are present"), First != nullptr)
-        && Pick(Test, C, TEXT("Attributes tie on stable public order"), {},
-            {Option(1, EKind::Attribute, Ids[0]), Option(2, EKind::Attribute, Ids[1]), Option(3, EKind::Attribute, Ids[2])}, FirstOption);
-    // 112 §6: an offer whose best card is only an attribute spends a free reroll when one is held; a rerolled offer is chosen.
-    FLDOpponentSelf Rolling;
-    FLDOpponentOffer Plain;
-    Plain.OfferId = FGuid(0xB0, 0, 0, 2);
-    Plain.Options = {Option(1, EKind::Attribute, TEXT("attr_protein")), Option(2, EKind::Attribute, TEXT("attr_all_nighter"))};
-    Rolling.Offer = Plain;
-    Rolling.RerollTokens = 1;
-    FLDOpponentChoicePick Rolled;
-    FString RollError;
-    bGood &= Test.TestTrue(TEXT("Attributes only and a token: reroll"),
-        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && Rolled.bReroll && !Rolled.OptionId.IsValid());
-    Rolling.Offer->bRerolled = true;
-    bGood &= Test.TestTrue(TEXT("A rerolled offer is chosen from"),
-        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId.IsValid());
-    Rolling.Offer->bRerolled = false;
-    Rolling.RerollTokens = 0;
-    bGood &= Test.TestTrue(TEXT("Without a token the attribute is taken"),
-        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll);
-    Rolling.RerollTokens = 1;
-    Rolling.Offer->Options.Add(Option(3, EKind::LearnPassive, TEXT("passive_iced_americano")));
-    bGood &= Test.TestTrue(TEXT("A good card is taken even with a token"),
-        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId == FGuid(0xA0, 0, 0, 3));
+    // §6.4: a missing role first, then the target mode Unit > GroundPoint > DirectionCone > DirectionProjectile > Self >
+    // DirectionDash, then catalog order.
+    bool bGood = Pick(Test, C, TEXT("No actives: an engaging active beats roleless ones"), {}, {},
+        {TEXT("active_bail_out"), TEXT("active_seethe"), TEXT("active_snark_bolt")}, TEXT("active_snark_bolt"));
+    bGood &= Pick(Test, C, TEXT("Both roles missing: the target mode decides between engage and self-protection"), {}, {},
+        {TEXT("active_not_mad"), TEXT("active_elbow")}, TEXT("active_elbow"));
+    bGood &= Pick(Test, C, TEXT("Engagement covered by a learned active: self-protection fills the missing role"),
+        {Active(TEXT("active_snark_bolt"), 0)}, {}, {TEXT("active_elbow"), TEXT("active_not_mad")}, TEXT("active_not_mad"));
+    bGood &= Pick(Test, C, TEXT("A pending blueprint covers its role like a learned active"),
+        {}, {TEXT("active_pants_down")}, {TEXT("active_elbow"), TEXT("active_not_mad")}, TEXT("active_not_mad"));
+    bGood &= Pick(Test, C, TEXT("Roles covered: GroundPoint beats DirectionCone and DirectionProjectile"),
+        {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1)}, {},
+        {TEXT("active_snark_bolt"), TEXT("active_open_mic"), TEXT("active_quick_meeting")}, TEXT("active_quick_meeting"));
+    bGood &= Pick(Test, C, TEXT("Roles covered: DirectionCone beats Self and DirectionDash"),
+        {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_elbow"), 1)}, {},
+        {TEXT("active_bail_out"), TEXT("active_triple_combo"), TEXT("active_open_mic")}, TEXT("active_open_mic"));
+    bGood &= Pick(Test, C, TEXT("Roles covered: Self beats DirectionDash"),
+        {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_elbow"), 1)}, {},
+        {TEXT("active_apology_slide"), TEXT("active_triple_combo")}, TEXT("active_triple_combo"));
+    bGood &= Pick(Test, C, TEXT("The same target mode ties on catalog order"),
+        {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1)}, {},
+        {TEXT("active_unplug"), TEXT("active_elbow")}, TEXT("active_elbow"));
     FLDOpponentSelf Unknown;
-    FLDOpponentOffer Offer;
-    Offer.Options = {Option(1, EKind::Attribute, TEXT("attr_unknown"))};
-    Unknown.Offer = Offer;
-    FLDOpponentChoicePick Ignored;
-    FString Error;
+    Unknown.Offer = ActiveOffer({TEXT("active_unknown")});
+    FString Ignored, Error;
     bGood &= Test.TestFalse(TEXT("An unknown definition is refused, never defaulted"),
-        LDOpponentPolicy::SelectChoice(Unknown, C, Ignored, Error));
-    return bGood;
-}
+        LDOpponentPolicy::SelectActive(Unknown, C, Ignored, Error));
+    FLDOpponentSelf NoOffer;
+    bGood &= Test.TestFalse(TEXT("Without an offer nothing is chosen"), LDOpponentPolicy::SelectActive(NoOffer, C, Ignored, Error));
 
-bool Plan(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, const FString& Label, const TCHAR* First,
-    const TCHAR* Second, int64 Gold, int32 ExpectedSell, const TCHAR* ExpectedBuy)
-{
-    FLDOpponentSelf Self;
-    Self.Equipment[0] = First;
-    Self.Equipment[1] = Second;
-    Self.Gold = Gold;
-    // Trade order only; the one upgrade of the match is covered on its own below.
-    Self.bUpgradeUsed = true;
-    TOptional<FLDOpponentEquipmentPlan> Out;
-    FString Error;
-    const bool bPlanned = LDOpponentPolicy::PlanEquipment(Self, Catalog, Out, Error);
-    const bool bNone = FCString::Strlen(ExpectedBuy) == 0;
-    return Test.TestTrue(Label + TEXT(": ") + Error, bPlanned && (bNone ? !Out.IsSet()
-        : Out.IsSet() && Out->SellSlot == ExpectedSell && Out->BuyItemId == ExpectedBuy));
-}
+    // Blueprints: the preferred one into the lowest empty slot; none while Q/W/E are full.
+    FLDOpponentSelf Learner;
+    Learner.Actives = {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1)};
+    Learner.Blueprints = {TEXT("active_elbow"), TEXT("active_seethe")};
+    FString Blueprint;
+    uint8 Slot = 0xFF;
+    bGood &= Test.TestTrue(TEXT("The preferred blueprint goes to the empty E"),
+        LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error) && Blueprint == TEXT("active_elbow") && Slot == 2);
+    Learner.Actives = {Active(TEXT("active_not_mad"), 1)};
+    bGood &= Test.TestTrue(TEXT("The lowest empty slot is taken first"),
+        LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error) && Slot == 0);
+    Learner.Actives = {Active(TEXT("active_not_mad"), 0), Active(TEXT("active_snark_bolt"), 1), Active(TEXT("active_unplug"), 2)};
+    bGood &= Test.TestFalse(TEXT("Full Q/W/E: the blueprint waits for the rest-only replacement"),
+        LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error));
+    Learner.Actives.Reset();
+    Learner.Blueprints.Reset();
+    bGood &= Test.TestFalse(TEXT("No blueprint: nothing to learn"), LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error));
 
-bool RunEquipmentPlan(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
-    const auto& C = *Catalog;
-    bool bGood = Test.TestEqual(TEXT("Approved starting gold is 320"), C.Get().Parameters.StartingGold, int64(320));
-    bGood &= Plan(Test, C, TEXT("Starting gold 320 exactly affords the basic-growth edge blade"), TEXT(""), TEXT(""), 320,
-        INDEX_NONE, TEXT("item_edge_blade"));
-    bGood &= Plan(Test, C, TEXT("319 gold: only the survival iron plate is affordable"), TEXT(""), TEXT(""), 319, INDEX_NONE,
-        TEXT("item_iron_plate"));
-    bGood &= Plan(Test, C, TEXT("One gold below the cheapest item affords nothing; no plan"), TEXT(""), TEXT(""), 309, INDEX_NONE,
-        TEXT(""));
-    bGood &= Plan(Test, C, TEXT("330 gold: basic growth before survival"), TEXT(""), TEXT(""), 330, INDEX_NONE, TEXT("item_edge_blade"));
-    bGood &= Plan(Test, C, TEXT("360 gold: one item covering basic growth and survival"), TEXT(""), TEXT(""), 360,
-        INDEX_NONE, TEXT("item_siphon_emblem"));
-    bGood &= Plan(Test, C, TEXT("Second slot: a distinct passive, ties in public catalog order"), TEXT("item_siphon_emblem"), TEXT(""),
-        400, INDEX_NONE, TEXT("item_echo_maul"));
-    bGood &= Plan(Test, C, TEXT("Full pair: sell the first piece whose real sale value covers a strictly better pair"),
-        TEXT("item_edge_blade"), TEXT("item_echo_maul"), 102, 0, TEXT("item_iron_plate"));
-    bGood &= Plan(Test, C, TEXT("One gold short of that: the next strict improvement within real sale value"),
-        TEXT("item_edge_blade"), TEXT("item_echo_maul"), 101, 1, TEXT("item_iron_plate"));
-    bGood &= Plan(Test, C, TEXT("A pair with a passiveless piece trades it for a second distinct passive"), TEXT("item_echo_maul"),
-        TEXT("item_arcane_battery"), 100000, 1, TEXT("item_iron_plate"));
-    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_edge_blade"),
-        TEXT("item_iron_plate"), 100000, INDEX_NONE, TEXT(""));
-    FLDEquipmentPairRank Rank;
-    FString Error;
-    bGood &= Test.TestTrue(TEXT("Two identical passives count once"),
-        LDOpponentPolicy::RankEquipmentPair(TEXT("item_siphon_emblem"), TEXT("item_siphon_emblem"), C, Rank, Error)
-        && Rank.Filled == 2 && Rank.BasicGrowth == 1 && Rank.Survival == 1 && Rank.DistinctPassives == 1);
-    bGood &= Test.TestTrue(TEXT("A stats-only item adds no passive family"),
-        LDOpponentPolicy::RankEquipmentPair(TEXT("item_arcane_battery"), TEXT("item_arcane_battery"), C, Rank, Error)
-        && Rank.Filled == 2 && Rank.BasicGrowth == 0 && Rank.Survival == 1 && Rank.DistinctPassives == 0);
-    // #112 C1: the reworked item passives classify on their own, without the items' attribute stats.
-    const auto PassiveOnly = [&C](const TCHAR* Id)
-    {
-        const FLDDemoEquipmentDefinition* Item = C.Get().Equipment.FindByPredicate(
-            [Id](const FLDDemoEquipmentDefinition& Row) { return Row.Id == Id; });
-        FLDDemoEquipmentDefinition Copy = Item ? *Item : FLDDemoEquipmentDefinition();
-        Copy.Stats.Reset();
-        return LDOpponentPolicy::EquipmentUsage(Copy);
-    };
-    const FLDOpponentUsage Plate = PassiveOnly(TEXT("item_iron_plate"));
-    const FLDOpponentUsage Blade = PassiveOnly(TEXT("item_edge_blade"));
-    bGood &= Test.TestTrue(TEXT("Critical damage reduction is a survival use"), Plate.bSurvival && !Plate.bBasicGrowth);
-    bGood &= Test.TestTrue(TEXT("An every-Nth-basic bonus is a basic-growth use"), Blade.bBasicGrowth && !Blade.bSurvival);
-    FLDOpponentSelf Unknown;
-    Unknown.Equipment[0] = TEXT("item_unknown");
-    TOptional<FLDOpponentEquipmentPlan> Out;
-    bGood &= Test.TestFalse(TEXT("An unknown held item is refused"), LDOpponentPolicy::PlanEquipment(Unknown, C, Out, Error));
-    // 112 §7: with no affordable trade, the AI spends its one upgrade on a held item that has approved upgraded terms.
-    const FLDDemoEquipmentDefinition* Upgradable = C.Get().Equipment.FindByPredicate(
-        [](const FLDDemoEquipmentDefinition& Item) { return LDDemoEquipment::Upgradable(Item); });
-    if (Test.TestNotNull(TEXT("An approved item can be upgraded"), Upgradable))
-    {
-        const int64 Cost = C.Get().Parameters.UpgradeCost;
-        FLDOpponentSelf Holder;
-        Holder.Equipment[0] = Upgradable->Id;
-        Holder.Gold = Cost;
-        bGood &= Test.TestTrue(TEXT("Exactly the upgrade cost and nothing to buy: upgrade slot 0"),
-            LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && Out.IsSet() && Out->UpgradeSlot == 0 && Out->BuyItemId.IsEmpty()
-            && Out->SellSlot == INDEX_NONE);
-        Holder.Gold = Cost - 1;
-        bGood &= Test.TestTrue(TEXT("One gold short: no upgrade"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
-        Holder.Gold = Cost;
-        Holder.bUpgradeUsed = true;
-        bGood &= Test.TestTrue(TEXT("A spent upgrade is never planned again"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
-        Holder.bUpgradeUsed = false;
-        Holder.EquipmentUpgraded[0] = true;
-        bGood &= Test.TestTrue(TEXT("An upgraded item is not upgraded twice"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
-    }
+    // Points: each to the fewest-points stat among physique, thick skin, strength (the basic attack scales with AD) and
+    // brains (only with a learned AP active); ties by the stats' design order (physique first); agility never.
+    const auto& Stats = C.Get().Stats;
+    if (!Test.TestTrue(TEXT("The approved catalog has the five #198 stats"), Stats.Num() == 5)) { return false; }
+    const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),
+        Brains(TEXT("stat_brains")), Agility(TEXT("stat_agility"));
+    FLDOpponentSelf Spender;
+    Spender.StatPoints = StatRows(C, {});
+    Spender.UnspentPoints = 3;
+    TArray<uint8> Counts;
+    bGood &= Test.TestTrue(TEXT("Without an AP active: physique, thick skin, strength"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts.Num() == Stats.Num()
+        && SameCounts(ById(C, Counts), {{Physique, 1}, {Skin, 1}, {Strength, 1}}));
+    Spender.UnspentPoints = 1;
+    bGood &= Test.TestTrue(TEXT("A tie goes to physique, first in the stats' design order, and the counts follow that order"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({1, 0, 0, 0, 0}));
+    Spender.Actives = {Active(TEXT("active_snark_bolt"), 0)};
+    Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
+    Spender.UnspentPoints = 4;
+    // Brains (0) and strength (1) are the fewest; thick skin (3) and physique (4) stay out of reach of four points, which
+    // level brains and strength to within one of each other.
+    bGood &= Test.TestTrue(TEXT("An AP active adds brains; the fewest points go first and agility never"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && ById(C, Counts).FindRef(Agility) == 0
+        && ById(C, Counts).FindRef(Physique) == 0 && ById(C, Counts).FindRef(Skin) == 0
+        && ById(C, Counts).FindRef(Brains) + ById(C, Counts).FindRef(Strength) == 4
+        && FMath::Abs((0 + ById(C, Counts).FindRef(Brains)) - (1 + ById(C, Counts).FindRef(Strength))) <= 1);
+    Spender.UnspentPoints = 0;
+    bGood &= Test.TestFalse(TEXT("No unspent points: nothing to allocate"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
+    Spender.UnspentPoints = 1;
+    Swap(Spender.StatPoints[0], Spender.StatPoints[1]);
+    bGood &= Test.TestFalse(TEXT("Stat rows out of design order are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
+    Spender.StatPoints.Pop();
+    bGood &= Test.TestFalse(TEXT("Missing stat rows are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
+
+    // The learn/allocate step follows the growth domain's gates: learning only in the countdown or alive inside the build
+    // safe window, allocating also while dead.
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(Test, C, Frame)) { return false; }
+    Frame.Self.StatPoints = StatRows(C, {});
+    Frame.Self.UnspentPoints = 2;
+    Frame.Self.Blueprints = {TEXT("active_elbow")};
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 1;
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    bGood &= Test.TestFalse(TEXT("Alive inside combat: neither learn nor allocate"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    Frame.Self.Phase = ELDLifePhase::Dead;
+    bGood &= Test.TestTrue(TEXT("Dead: points are allocated, the blueprint waits"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
+        && ById(C, Intent.PointCounts).FindRef(Agility) == 0 && ById(C, Intent.PointCounts).FindRef(Brains) == 0
+        && Algo::Accumulate(Intent.PointCounts, 0) == 2);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    bGood &= Test.TestTrue(TEXT("Safe: the blueprint is learned first"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
+        && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 0);
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 4000;
+    bGood &= Test.TestTrue(TEXT("The rest build window is always safe"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
+    Frame.bBuildChangeInFlight = true;
+    bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    Frame.bBuildChangeInFlight = false;
+    Frame.Public.Phase = ELDMatchPhase::Results;
+    bGood &= Test.TestFalse(TEXT("Closed phase: nothing"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     return bGood;
 }
 
@@ -520,14 +418,11 @@ bool BaseFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog,
     if (!ProjectLevel(Test, Catalog, 1, Self.Attributes)) { return false; }
     Self.HpP2 = Self.MaxHpP2 = Self.Attributes.MaxHPP2;
     Self.MpP2 = Self.MaxMpP2 = Self.Attributes.MaxMPP2;
-    // Below every approved price, so these frames isolate the non-shopping priorities; the approved start can shop.
-    Self.Gold = 150;
     Self.BuildRevision = 1;
     Out.Public.Phase = ELDMatchPhase::Development;
     Out.Public.NowMs = 10000;
     Out.POIs = {
         POI(TEXT("capture"), ELDOpponentPOIKind::Capture, 0, 3000),
-        POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -3000, 0),
         POI(TEXT("l1"), ELDOpponentPOIKind::Camp, 2000, 0, TEXT("monster_scavenger")),
         POI(TEXT("l2"), ELDOpponentPOIKind::Camp, 0, -2500, TEXT("monster_scavenger")),
         POI(TEXT("l3"), ELDOpponentPOIKind::Camp, -2000, -2000, TEXT("monster_scavenger")),
@@ -565,75 +460,59 @@ bool RunPriorities(FAutomationTestBase& Test)
     auto Decision = Decide(Frame);
     bool bGood = Expect(Test, TEXT("Outside a running match nothing is proposed"), Decision, EMode::Stopped, EBody::None)
         && Test.TestTrue(TEXT("No build change outside a running match"), Decision.Build.Kind == ELDOpponentBuildKind::None);
-    // #153: only an opening direction pick at the adapter's drawn time is permitted during the countdown.
+    // #198: in a rest, build steps only, from the adapter's drawn time, while the rest build window is open.
     Frame = Base;
-    Frame.Public.Phase = ELDMatchPhase::Countdown;
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
     Decision = Decide(Frame);
-    bGood &= Expect(Test, TEXT("The opening countdown proposes no body intent"), Decision, EMode::Stopped, EBody::None)
-        && Test.TestTrue(TEXT("Nor a build change before T=0"), Decision.Build.Kind == ELDOpponentBuildKind::None);
-    FLDOpponentOffer Opening;
-    Opening.OfferId = FGuid(0x153, 0, 0, 1);
-    Opening.OfferRevision = 1;
-    Opening.Options = {Option(1, ELDOpponentOptionKind::Opening, TEXT("opening_athlete")),
-        Option(2, ELDOpponentOptionKind::Opening, TEXT("opening_grinder")),
-        Option(3, ELDOpponentOptionKind::Opening, TEXT("opening_keyboard"))};
+    bGood &= Expect(Test, TEXT("A rest proposes no body intent"), Decision, EMode::Stopped, EBody::None)
+        && Test.TestTrue(TEXT("Nor a build change without an offer"), Decision.Build.Kind == ELDOpponentBuildKind::None);
+    const FLDOpponentOffer Opening = ActiveOffer({TEXT("active_seethe"), TEXT("active_snark_bolt"), TEXT("active_bail_out")}, 0x153);
     Frame.Self.Offer = Opening;
     Frame.Self.OpeningPickAtMs = Frame.Public.NowMs + 1;
     Decision = Decide(Frame);
     bGood &= Test.TestTrue(TEXT("Before the drawn time no choice is proposed"), Decision.Build.Kind == ELDOpponentBuildKind::None);
     Frame.Public.NowMs += 1;
-    for (uint8 Index = 0; Index < 3; ++Index)
-    {
-        Frame.Self.OpeningPickIndex = Index;
-        Decision = Decide(Frame);
-        bGood &= Expect(Test, TEXT("The opening pick never moves"), Decision, EMode::Choose, EBody::None)
-            && Test.TestTrue(TEXT("Every randomly planned position selects its own direction without reading a skill"),
-                Decision.Build.Kind == ELDOpponentBuildKind::Choose
-                && Decision.Build.Choice.OptionId == Opening.Options[Index].OptionId && !Decision.Build.Choice.bReroll);
-    }
+    Decision = Decide(Frame);
+    bGood &= Expect(Test, TEXT("The opening pick never moves"), Decision, EMode::Choose, EBody::None)
+        && Test.TestTrue(TEXT("The opening offer is chosen by the active preference"),
+            Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive && Decision.Build.OfferId == Opening.OfferId
+            && Decision.Build.Option == TEXT("active_snark_bolt"));
     Frame.bBuildChangeInFlight = true;
     bGood &= Test.TestTrue(TEXT("An in-flight opening choice is not resubmitted"),
         Decide(Frame).Build.Kind == ELDOpponentBuildKind::None);
 
     Frame = Base;
     Frame.Self.Phase = ELDLifePhase::Dead;
-    FLDOpponentOffer Offer;
-    Offer.OfferId = FGuid(0xB0, 0, 0, 2);
-    Offer.OfferRevision = 3;
-    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_protein")),
-        Option(2, ELDOpponentOptionKind::LearnActive, TEXT("active_snark_bolt"))};
+    const FLDOpponentOffer Offer = ActiveOffer({TEXT("active_bail_out"), TEXT("active_snark_bolt")}, 2, 3);
     Frame.Self.Offer = Offer;
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("Dead: no body intent"), Decision, EMode::DeadWaiting, EBody::None)
-        && Test.TestTrue(TEXT("Dead: the persistent choice is still confirmed"), Decision.Build.Kind == ELDOpponentBuildKind::Choose
+        && Test.TestTrue(TEXT("Dead: the persistent choice is still confirmed"), Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive
             && Decision.Build.OfferId == Offer.OfferId && Decision.Build.OfferRevision == 3
-            && Decision.Build.Choice.OptionId == FGuid(0xA0, 0, 0, 2));
+            && Decision.Build.Option == TEXT("active_snark_bolt"));
     Frame.bBuildChangeInFlight = true;
     bGood &= Test.TestTrue(TEXT("A choice awaiting its receipt is not proposed again"),
         Decide(Frame).Build.Kind == ELDOpponentBuildKind::None);
 
     Decision = Decide(Base);
-    bGood &= Expect(Test, TEXT("A bare start with nothing affordable farms the nearest feasible low camp, not a high camp"), Decision,
+    bGood &= Expect(Test, TEXT("A bare start farms the nearest feasible low camp, not a high camp"), Decision,
         EMode::Farm, EBody::MoveGround, TEXT("l1"));
-    Frame = Base;
-    Frame.Self.Gold = C.Get().Parameters.StartingGold;
-    Decision = Decide(Frame);
-    bGood &= Expect(Test, TEXT("The approved starting gold sends a bare start to the public shop first"), Decision, EMode::Shop,
-        EBody::ApproachShop, TEXT("shop"));
     auto Shuffled = Base;
     Algo::Reverse(Shuffled.POIs);
     bGood &= Expect(Test, TEXT("Public POI order does not change the decision"), Decide(Shuffled), EMode::Farm, EBody::MoveGround,
         TEXT("l1"));
 
-    // D10: the opening pick is confirmed on the first living decision and does not count as growth for high camps.
+    // D10: the offer is confirmed on the first living decision and does not count as growth for high camps.
     Frame = Base;
     Frame.Self.Offer = Offer;
     Decision = Decide(Frame);
-    bGood &= Expect(Test, TEXT("The opening offer is resolved alongside the first body intent"), Decision, EMode::Farm,
-        EBody::MoveGround, TEXT("l1")) && Test.TestTrue(TEXT("The opening offer is confirmed at once"),
-        Decision.Build.Kind == ELDOpponentBuildKind::Choose && Decision.Build.OfferId == Offer.OfferId);
+    bGood &= Expect(Test, TEXT("The offer is resolved alongside the first body intent"), Decision, EMode::Farm,
+        EBody::MoveGround, TEXT("l1")) && Test.TestTrue(TEXT("The offer is confirmed at once"),
+        Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive && Decision.Build.OfferId == Offer.OfferId);
     Frame = Base;
-    Frame.Self.ChoicesConsumed = 1;
+    Frame.Self.OffersConsumed = 1;
     bGood &= Expect(Test, TEXT("A level-one start with its opening pick still farms a low camp"), Decide(Frame), EMode::Farm,
         EBody::MoveGround, TEXT("l1"));
 
@@ -662,12 +541,7 @@ bool RunPriorities(FAutomationTestBase& Test)
     const FLDOpponentPOI* Retreat = Frame.POIs.FindByPredicate([&](const FLDOpponentPOI& P) { return P.Id == Decision.Body.POI; });
     bGood &= Expect(Test, TEXT("Below the retreat line with a visible threat the AI disengages"), Decision, EMode::Disengage,
         EBody::MoveGround) && Test.TestTrue(TEXT("The retreat leads away from the threat"), Retreat && Retreat->FootCm.X < 0)
-        && Test.TestTrue(TEXT("The retreat never targets the shop building as ground"), Retreat && Retreat->Kind != ELDOpponentPOIKind::Shop);
-    auto ShopOnly = Frame;
-    ShopOnly.POIs = {POI(TEXT("capture"), ELDOpponentPOIKind::Capture, 0, 3000), POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -4400, 0),
-        POI(TEXT("s05"), ELDOpponentPOIKind::Spawn, -3000, 500)};
-    bGood &= Expect(Test, TEXT("Even with the shop farthest from the threat, the retreat walks to public ground"), Decide(ShopOnly),
-        EMode::Disengage, EBody::MoveGround, TEXT("s05"));
+        && Test.TestTrue(TEXT("The retreat never targets the circle as ground"), Retreat && Retreat->Kind != ELDOpponentPOIKind::Capture);
     Frame.Units.Reset();
     Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
@@ -723,14 +597,14 @@ bool RunPriorities(FAutomationTestBase& Test)
         Frame.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
         Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
         const auto Low = LDOpponentPolicy::Decide(Frame, C, Defence);
-        Frame.Self.Skills = {Skill(TEXT("active_not_mad"), 1, ELDOpponentSkillSlot::Q)};
+        Frame.Self.Actives = {Active(TEXT("active_not_mad"), 0)};
         FLDOpponentSource Guard;
         Guard.Slot = ELDOpponentSourceSlot::Q;
         Guard.DefinitionId = TEXT("active_not_mad");
         Guard.bReady = true;
         Frame.Self.Sources = {Guard};
         const auto Shielded = LDOpponentPolicy::Decide(Frame, C, Defence);
-        Frame.Self.Skills.Reset();
+        Frame.Self.Actives.Reset();
         Frame.Self.Sources.Reset();
         Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 2;
         const auto Band = LDOpponentPolicy::Decide(Frame, C, Defence);
@@ -939,7 +813,7 @@ bool RunPriorities(FAutomationTestBase& Test)
         Spray.Public.DueAtMs = Spray.Public.NowMs + 2000;
         Spray.Self.FootCm = FVector(0, 2750, 0);
         Spray.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
-        Spray.Self.Skills = {Skill(TEXT("active_stare_down"), 1, ELDOpponentSkillSlot::Q)};
+        Spray.Self.Actives = {Active(TEXT("active_stare_down"), 0)};
         FLDOpponentSource Taunt;
         Taunt.Slot = ELDOpponentSourceSlot::Q;
         Taunt.DefinitionId = TEXT("active_stare_down");
@@ -958,28 +832,16 @@ bool RunPriorities(FAutomationTestBase& Test)
     }
 
     Frame = Base;
-    Frame.Self.Gold = 330;
-    bGood &= Expect(Test, TEXT("An affordable strict improvement goes to the public shop"), Decide(Frame), EMode::Shop,
-        EBody::ApproachShop, TEXT("shop"));
-    Frame.bShopOpen = true;
-    Decision = Decide(Frame);
-    bGood &= Expect(Test, TEXT("An opened shop holds position"), Decision, EMode::Shop, EBody::None)
-        && Test.TestTrue(TEXT("and buys the planned item"), Decision.Build.Kind == ELDOpponentBuildKind::Buy
-            && Decision.Build.BuyItemId == TEXT("item_edge_blade"));
-
-    Frame = Base;
-    Frame.Self.Gold = 400;
     Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
     Frame.Public.Circle = ELDOpponentCircle::Solo;
     Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
     Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
     Frame.CapturePathCm = 3000.;
     Decision = Decide(Frame);
-    bGood &= Expect(Test, TEXT("An urgent public solo deadline outranks shopping"), Decision, EMode::DefendOrHold,
+    bGood &= Expect(Test, TEXT("An urgent public solo deadline outranks farming"), Decision, EMode::DefendOrHold,
         EBody::MoveGround, TEXT("capture"))
         && Test.TestTrue(TEXT("Defence reason"), Decision.Reason == ELDOpponentReason::PublicCaptureUrgent);
     Frame.Public.Circle = ELDOpponentCircle::Empty;
-    Frame.Self.Gold = 150;
     bGood &= Expect(Test, TEXT("An open, empty circle is contested"), Decide(Frame), EMode::Contest, EBody::MoveGround,
         TEXT("capture"));
     // Both feet inside the 300 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
@@ -1002,10 +864,9 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Order.POI = TEXT("l1");
     bGood &= Expect(Test, TEXT("A still-valid order is kept, not re-sent"), Decide(Frame), EMode::Farm, EBody::Keep, TEXT("l1"));
     auto Explore = Base;
-    Explore.POIs = {POI(TEXT("capture"), ELDOpponentPOIKind::Capture, 0, 3000), POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -300, 0),
-        POI(TEXT("s00"), ELDOpponentPOIKind::Spawn, 4000, 4000)};
-    bGood &= Expect(Test, TEXT("Exploring never walks onto the shop anchor"), Decide(Explore), EMode::Explore, EBody::MoveGround,
-        TEXT("s00"));
+    Explore.POIs = {POI(TEXT("capture"), ELDOpponentPOIKind::Capture, 0, 3000), POI(TEXT("s00"), ELDOpponentPOIKind::Spawn, 4000, 4000)};
+    bGood &= Expect(Test, TEXT("Exploring never walks onto the capture anchor, even when it is the nearest place"), Decide(Explore),
+        EMode::Explore, EBody::MoveGround, TEXT("s00"));
     Frame.Order.Kind = ELDOpponentOrderKind::Action;
     bGood &= Expect(Test, TEXT("A live accepted action is never cancelled by a new body intent"), Decide(Frame), EMode::Farm,
         EBody::Keep);
@@ -1017,7 +878,7 @@ bool RunPriorities(FAutomationTestBase& Test)
         EBody::MoveGround, TEXT("l1"));
 
     Frame = Base;
-    Frame.Self.Skills = {Skill(TEXT("active_snark_bolt"), 1, ELDOpponentSkillSlot::Q)};
+    Frame.Self.Actives = {Active(TEXT("active_snark_bolt"), 0)};
     FLDOpponentSource Bolt;
     Bolt.Slot = ELDOpponentSourceSlot::Q;
     Bolt.DefinitionId = TEXT("active_snark_bolt");
@@ -1117,7 +978,7 @@ bool RunProjections(FAutomationTestBase& Test)
     const auto& C = *Catalog;
     FString Error;
 
-    // The approved ids, at synthetic positions: every shop and camp of the catalog, one spawn, three airdrops, two dorms.
+    // The approved ids, at synthetic positions: every camp of the catalog, one spawn, three airdrops, two dorms.
     const auto& Refs = C.Get().World;
     FLDDemoWorldGeometry World;
     World.Anchors = {Anchor(*Refs.CaptureId, ELDDemoWorldAnchorKind::Capture, 0, 3000),
@@ -1127,23 +988,24 @@ bool RunProjections(FAutomationTestBase& Test)
         Anchor(TEXT("airdrop_s"), ELDDemoWorldAnchorKind::Airdrop, 0, -3300),
         // D26: Boss patrol points are not places a body goes; the projection leaves them out.
         Anchor(TEXT("boss_patrol_1"), ELDDemoWorldAnchorKind::BossWaypoint, 2400, 2400),
+        Anchor(TEXT("rest_spawn_0"), ELDDemoWorldAnchorKind::RestSpawn, 6500, -500),
+        Anchor(TEXT("rest_service_1"), ELDDemoWorldAnchorKind::RestService, 6700, 700),
         Anchor(TEXT("dorm_nw"), ELDDemoWorldAnchorKind::Dorm, -4400, 4400), Anchor(TEXT("dorm_se"), ELDDemoWorldAnchorKind::Dorm, 4400, -4400)};
-    for (int32 Index = 0; Index < Refs.ShopIds.Num(); ++Index)
-    {
-        World.Anchors.Add(Anchor(*Refs.ShopIds[Index], ELDDemoWorldAnchorKind::Shop, -3000, 400 * Index));
-    }
-    FString HighId, LowId;
+    FString HighId, LowId, EliteId;
     for (int32 Index = 0; Index < C.Get().Camps.Num(); ++Index)
     {
         const FLDDemoCampPlacement& Camp = C.Get().Camps[Index];
-        const bool bHigh = Camp.MonsterId == TEXT("monster_guardian");
-        (bHigh ? HighId : LowId) = (bHigh ? HighId : LowId).IsEmpty() ? Camp.AnchorId : (bHigh ? HighId : LowId);
-        World.Anchors.Add(Anchor(*Camp.AnchorId, ELDDemoWorldAnchorKind::Camp, 300 * Index, -2000, bHigh ? 1 : 2));
+        const bool bLow = Camp.MonsterId == TEXT("monster_scavenger");
+        FString& Seen = bLow ? LowId : Camp.MonsterId == TEXT("monster_advisor") ? EliteId : HighId;
+        if (Seen.IsEmpty()) { Seen = Camp.AnchorId; }
+        World.Anchors.Add(Anchor(*Camp.AnchorId, ELDDemoWorldAnchorKind::Camp, 300 * Index, -2000, bLow ? 2 : 1));
     }
-    const int32 Places = World.Anchors.Num() - 1;
+    const int32 Places = World.Anchors.Num() - 3;
     TArray<FLDOpponentPOI> POIs;
     bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
         LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == Places);
+    bGood &= Test.TestFalse(TEXT("Rest-only anchors never become field destinations"), POIs.ContainsByPredicate(
+        [](const FLDOpponentPOI& P) { return P.Id == TEXT("rest_spawn_0") || P.Id == TEXT("rest_service_1"); }));
     const auto* DropPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("airdrop_s"); });
     bGood &= Test.TestTrue(TEXT("D26: each airdrop point is a public place"),
         DropPOI && DropPOI->Kind == ELDOpponentPOIKind::Airdrop && DropPOI->FootCm.Equals(FVector(0, -3300, 0)));
@@ -1152,10 +1014,12 @@ bool RunProjections(FAutomationTestBase& Test)
         DormPOI && DormPOI->Kind == ELDOpponentPOIKind::Dorm && DormPOI->FootCm.Equals(FVector(4400, -4400, 0)));
     const auto* High = POIs.FindByPredicate([&HighId](const FLDOpponentPOI& P) { return P.Id == FName(*HighId); });
     const auto* Low = POIs.FindByPredicate([&LowId](const FLDOpponentPOI& P) { return P.Id == FName(*LowId); });
+    const auto* Elite = POIs.FindByPredicate([&EliteId](const FLDOpponentPOI& P) { return P.Id == FName(*EliteId); });
     const auto* Spawn = POIs.FindByPredicate([&Refs](const FLDOpponentPOI& P) { return P.Id == FName(*Refs.SpawnIds[0]); });
     bGood &= Test.TestTrue(TEXT("Camp tier and creature come from the public catalog"),
         High && High->Kind == ELDOpponentPOIKind::Camp && High->Tier == ELDDemoCampTier::High && High->MonsterId == TEXT("monster_guardian")
         && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
+        && Elite && Elite->Tier == ELDDemoCampTier::Elite && Elite->MonsterId == TEXT("monster_advisor")
         && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
     const auto Without = [&World](ELDDemoWorldAnchorKind Kind, int32 Count)
     {
@@ -1175,8 +1039,8 @@ bool RunProjections(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A camp anchor outside the approved roster is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
     bGood &= Test.TestFalse(TEXT("A world missing an approved camp is refused"),
         LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Camp, 1), C, POIs, Error));
-    bGood &= Test.TestFalse(TEXT("A world missing an approved shop is refused"),
-        LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Shop, 1), C, POIs, Error));
+    bGood &= Test.TestFalse(TEXT("A world without its capture place is refused"),
+        LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Capture, 1), C, POIs, Error));
     auto Unknown = World;
     Unknown.Anchors.Add(Anchor(TEXT("s99"), ELDDemoWorldAnchorKind::Spawn, 0, 0));
     bGood &= Test.TestFalse(TEXT("An unapproved public anchor is refused"), LDOpponentFrame::ReadPublicPOIs(Unknown, C, POIs, Error));
@@ -1220,106 +1084,77 @@ bool RunProjections(FAutomationTestBase& Test)
     Progression.bValid = true;
     Progression.Generation = 7;
     Progression.Level = 3;
-    Progression.bCanChoose = true;
     Progression.BuildRevision = 9;
-    Progression.ConsumedThrough = 2;
-    FLDLearnedSkillView Bolt;
+    Progression.UnspentPoints = 4;
+    Progression.ActiveOpportunitiesConsumed = 2;
+    Progression.BuildSafeAtMs = 12345;
+    FLDActiveSlotView Bolt;
     Bolt.DefinitionId = TEXT("active_snark_bolt");
-    Bolt.bActive = true;
-    Bolt.Rank = 1;
     Bolt.Slot = 0;
-    FLDLearnedSkillView Rhythm;
-    Rhythm.DefinitionId = TEXT("passive_pressed");
-    Rhythm.Rank = 1;
-    Progression.Skills = {Bolt, Rhythm};
-    FLDAttributeCardView Might;
-    Might.DefinitionId = TEXT("attr_protein");
-    Might.Count = 1;
-    Might.Quality = ELDAttributeQuality::Blue;
-    Progression.AttributeCards = {Might};
-    Progression.bHasOffer = true;
-    Progression.Offer.OfferId = FGuid(0xF2, 0, 0, 1);
-    Progression.Offer.OfferRevision = 4;
-    FLDChoiceOption Guard;
-    Guard.OptionId = FGuid(0xF2, 0, 0, 2);
-    Guard.Kind = ELDChoiceOptionKind::LearnActive;
-    Guard.DefinitionId = TEXT("active_not_mad");
-    Guard.ToRank = 1;
-    Progression.Offer.Options = {Guard};
-    FLDEquipmentView Equipment;
-    Equipment.bValid = true;
-    Equipment.Generation = 7;
-    Equipment.Gold = 42;
-    FLDEquipmentSlotView Blade;
-    Blade.SlotIndex = 0;
-    Blade.bOccupied = true;
-    Blade.DefinitionId = TEXT("item_edge_blade");
-    FLDEquipmentSlotView Empty;
-    Empty.SlotIndex = 1;
-    Equipment.Slots = {Blade, Empty};
+    Progression.Actives = {Bolt};
+    Progression.PendingBlueprints = {TEXT("active_elbow")};
+    for (const auto& Stat : C.Get().Stats)
+    {
+        FLDStatPointsView Row;
+        Row.StatId = FName(*Stat.Id);
+        Row.Points = Stat.Id == TEXT("stat_strength") ? 2 : 0;
+        Progression.StatPoints.Add(Row);
+    }
+    Progression.bHasActiveOffer = true;
+    Progression.ActiveOffer.OfferId = FGuid(0xF2, 0, 0, 1);
+    Progression.ActiveOffer.OfferRevision = 4;
+    Progression.ActiveOffer.OpportunityOrdinal = 3;
+    Progression.ActiveOffer.Options = {TEXT("active_not_mad")};
     FLDOpponentSelf Self;
     const auto Expected = LDAttributeProjection::Project(FLDAttributeBuildValues(3,
-        {FLDLearnedPassiveValue(TEXT("passive_pressed"), 1)}, {FLDAttributeCardValue(TEXT("attr_protein"), 1)},
-        {TEXT("item_edge_blade")}), C);
+        {FLDStatPointsValue(TEXT("stat_strength"), 2)}), C);
     bGood &= Test.TestTrue(TEXT("Own build maps through the shared attribute projection: ") + Error,
-        Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Progression, Equipment, C, Self, Error)
+        Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Progression, C, Self, Error)
         && Self.Attributes.ADP2 == Expected.Value->Final.ADP2 && Self.Attributes.ArmorP2 == Expected.Value->Final.ArmorP2
         && Self.Attributes.AttackSpeed.Numerator * Expected.Value->Final.AttackSpeed.Denominator
             == Expected.Value->Final.AttackSpeed.Numerator * Self.Attributes.AttackSpeed.Denominator
-        && Self.Gold == 42 && Self.Equipment[0] == TEXT("item_edge_blade") && Self.Equipment[1].IsEmpty()
-        && Self.BuildRevision == 9 && Self.Level == 3 && Self.ChoicesConsumed == 2 && Self.Skills.Num() == 2
-        && Self.Skills[0].Slot == ELDOpponentSkillSlot::Q && Self.Skills[1].Slot == ELDOpponentSkillSlot::Passive
-        && Self.Offer.IsSet() && Self.Offer->Options.Num() == 1 && Self.Offer->Options[0].Kind == ELDOpponentOptionKind::LearnActive);
-    Progression.bCanChoose = false;
-    bGood &= Test.TestTrue(TEXT("An offer that cannot be confirmed now is not proposed"),
-        LDOpponentFrame::ReadOwnBuild(Progression, Equipment, C, Self, Error) && !Self.Offer.IsSet());
-    auto OneSlot = Equipment;
-    OneSlot.Slots.SetNum(1);
-    bGood &= Test.TestFalse(TEXT("Equipment must expose both ordered slots"), LDOpponentFrame::ReadOwnBuild(Progression, OneSlot, C, Self, Error));
-    auto OtherMatch = Equipment;
-    OtherMatch.Generation = 8;
-    bGood &= Test.TestFalse(TEXT("Views from different publications are refused"),
-        LDOpponentFrame::ReadOwnBuild(Progression, OtherMatch, C, Self, Error));
+        && Self.BuildRevision == 9 && Self.Level == 3 && Self.OffersConsumed == 2 && Self.UnspentPoints == 4
+        && Self.BuildSafeAtMs == 12345 && Self.Actives.Num() == 1 && Self.Actives[0].Slot == 0
+        && Self.Blueprints == TArray<FString>({TEXT("active_elbow")}) && Self.StatPoints.Num() == C.Get().Stats.Num()
+        && Self.Offer.IsSet() && Self.Offer->Ordinal == 3 && Self.Offer->Options == TArray<FString>({TEXT("active_not_mad")}));
+    Progression.bHasActiveOffer = false;
+    bGood &= Test.TestTrue(TEXT("Without a current offer none is proposed"),
+        LDOpponentFrame::ReadOwnBuild(Progression, C, Self, Error) && !Self.Offer.IsSet());
+    auto Optionless = Progression;
+    Optionless.bHasActiveOffer = true;
+    Optionless.ActiveOffer.Options.Reset();
+    bGood &= Test.TestFalse(TEXT("An offer without an option is refused"), LDOpponentFrame::ReadOwnBuild(Optionless, C, Self, Error));
+    auto Unpublished = Progression;
+    Unpublished.bValid = false;
+    bGood &= Test.TestFalse(TEXT("An unpublished progression view is refused"), LDOpponentFrame::ReadOwnBuild(Unpublished, C, Self, Error));
+    auto Levelless = Progression;
+    Levelless.Level = 0;
+    bGood &= Test.TestFalse(TEXT("A progression view without a level is refused"), LDOpponentFrame::ReadOwnBuild(Levelless, C, Self, Error));
     {
         // A game build prints each id with whichever spelling registered first; the editor keeps these spellings, so
         // this exercises the mapping back to the lowercase content ids that the policy compares as text.
         auto Cased = Progression;
-        Cased.bCanChoose = true;
-        Cased.Skills[0].DefinitionId = TEXT("Active_Snark_Bolt");
-        Cased.Skills[1].DefinitionId = TEXT("PASSIVE_PRESSED");
-        Cased.AttributeCards[0].DefinitionId = TEXT("Attr_Protein");
-        Cased.Offer.Options[0].DefinitionId = TEXT("Active_Not_Mad");
-        auto CasedEquipment = Equipment;
-        CasedEquipment.Slots[0].DefinitionId = TEXT("Item_Edge_Blade");
+        Cased.bHasActiveOffer = true;
+        Cased.Actives[0].DefinitionId = TEXT("Active_Snark_Bolt");
+        Cased.PendingBlueprints[0] = TEXT("ACTIVE_ELBOW");
+        for (auto& Row : Cased.StatPoints) { if (Row.StatId == TEXT("stat_strength")) { Row.StatId = TEXT("Stat_Strength"); } }
+        Cased.ActiveOffer.Options[0] = TEXT("Active_Not_Mad");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("Ids printed in another casing map to the lowercase content ids and the same build: ") + Error,
-            Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Cased, CasedEquipment, C, CasedSelf, Error)
-            && CasedSelf.Skills.Num() == 2 && CasedSelf.Skills[0].DefinitionId == TEXT("active_snark_bolt")
-            && CasedSelf.Skills[1].DefinitionId == TEXT("passive_pressed") && CasedSelf.Equipment[0] == TEXT("item_edge_blade")
-            && CasedSelf.Offer.IsSet() && CasedSelf.Offer->Options[0].DefinitionId == TEXT("active_not_mad")
+            Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Cased, C, CasedSelf, Error)
+            && CasedSelf.Actives.Num() == 1 && CasedSelf.Actives[0].DefinitionId == TEXT("active_snark_bolt")
+            && CasedSelf.Blueprints[0] == TEXT("active_elbow")
+            && CasedSelf.Offer.IsSet() && CasedSelf.Offer->Options[0] == TEXT("active_not_mad")
             && CasedSelf.Attributes.ADP2 == Expected.Value->Final.ADP2 && CasedSelf.Attributes.ArmorP2 == Expected.Value->Final.ArmorP2);
     }
     {
         // Packaged-casing variants: canonical ids reach the same catalog entries and make exactly the canonical decisions.
         bGood &= Test.TestTrue(TEXT("Canonical ids are the lowercase content ids; an absent id is empty"),
-            LDOpponentFrame::CanonicalId(FName(TEXT("Item_Iron_Plate"))) == TEXT("item_iron_plate")
+            LDOpponentFrame::CanonicalId(FName(TEXT("Attr_Protein"))) == TEXT("attr_protein")
             && LDOpponentFrame::CanonicalId(FName(TEXT("Monster_Scavenger"))) == TEXT("monster_scavenger")
             && LDOpponentFrame::CanonicalId(NAME_None).IsEmpty());
         FLDOpponentDecisionFrame CaseBase;
         if (!BaseFrame(Test, C, CaseBase)) { return false; }
-        FLDOpponentSelf CaseCanonSelf = CaseBase.Self;
-        CaseCanonSelf.Gold = 400;
-        CaseCanonSelf.Equipment[0] = TEXT("item_iron_plate");
-        FLDOpponentSelf CaseMappedSelf = CaseCanonSelf;
-        CaseMappedSelf.Equipment[0] = LDOpponentFrame::CanonicalId(FName(TEXT("Item_Iron_Plate")));
-        TOptional<FLDOpponentEquipmentPlan> CaseCanonPlan, CaseMappedPlan;
-        FString CasePlanError;
-        bGood &= Test.TestTrue(TEXT("An equipped id printed as Item_Iron_Plate plans exactly like the content id: ") + CasePlanError,
-            LDOpponentPolicy::PlanEquipment(CaseCanonSelf, C, CaseCanonPlan, CasePlanError)
-            && LDOpponentPolicy::PlanEquipment(CaseMappedSelf, C, CaseMappedPlan, CasePlanError)
-            && CaseCanonPlan.IsSet() == CaseMappedPlan.IsSet()
-            && (!CaseCanonPlan.IsSet() || (CaseCanonPlan->SellSlot == CaseMappedPlan->SellSlot
-                && CaseCanonPlan->BuyItemId == CaseMappedPlan->BuyItemId)));
         auto CaseCanonFrame = CaseBase;
         CaseCanonFrame.Units = {Unit(1, ELDOpponentUnitKind::CampMember, 2000, 100, TEXT("monster_scavenger"))};
         auto CaseMappedFrame = CaseCanonFrame;
@@ -1450,7 +1285,7 @@ bool RunOutcomes(FAutomationTestBase& Test)
         Decision.Body.Kind == EBody::AttackUnit && Decision.Body.Handle == Second && State.TargetHandle == Second);
 
     Frame = Base;
-    Frame.Self.Skills = {Skill(TEXT("active_snark_bolt"), 1, ELDOpponentSkillSlot::Q)};
+    Frame.Self.Actives = {Active(TEXT("active_snark_bolt"), 0)};
     FLDOpponentSource Bolt;
     Bolt.Slot = ELDOpponentSourceSlot::Q;
     Bolt.DefinitionId = TEXT("active_snark_bolt");
@@ -1467,34 +1302,30 @@ bool RunOutcomes(FAutomationTestBase& Test)
         Decision.Body.Kind == EBody::MoveGround && Decision.Body.POI == TEXT("l1"));
 
     Frame = Base;
-    Frame.Self.Gold = 330;
-    FLDOpponentOffer Offer;
-    Offer.OfferId = FGuid(0xB0, 0, 0, 5);
-    Offer.OfferRevision = 2;
-    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_protein"))};
+    const FLDOpponentOffer Offer = ActiveOffer({TEXT("active_elbow")}, 5, 2);
     Frame.Self.Offer = Offer;
     State = FLDOpponentPolicyState();
     Decision = LDOpponentPolicy::Decide(Frame, C, State);
-    bGood &= Test.TestTrue(TEXT("A choice carries its offer key"), Decision.Build.Kind == ELDOpponentBuildKind::Choose
-        && KeyIs(Decision.Build.Key, EFailure::Choice, NAME_None, Offer.OfferId));
-    bGood &= Test.TestTrue(TEXT("A shop approach carries the shop visit key"), Decision.Body.Kind == EBody::ApproachShop
-        && KeyIs(Decision.Body.Key, EFailure::Shop, TEXT("shop"), FGuid()));
-    Frame.Self.Offer.Reset();
-    Frame.bShopOpen = true;
-    Decision = LDOpponentPolicy::Decide(Frame, C, State);
-    const FLDOpponentRetryKey ShopKey = Decision.Build.Key;
-    bGood &= Test.TestTrue(TEXT("A trade carries the same shop visit key"), Decision.Build.Kind == ELDOpponentBuildKind::Buy
-        && KeyIs(ShopKey, EFailure::Shop, TEXT("shop"), FGuid()));
+    bGood &= Test.TestTrue(TEXT("A choice carries its offer key"), Decision.Build.Kind == ELDOpponentBuildKind::ChooseActive
+        && KeyIs(Decision.Build.Key, EFailure::Build, NAME_None, Offer.OfferId, uint8(ELDOpponentBuildKind::ChooseActive)));
+    bGood &= Test.TestTrue(TEXT("The body keeps farming alongside the choice"), Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == TEXT("l1"));
+    const FLDOpponentRetryKey ChoiceKey = Decision.Build.Key;
     for (int64 Attempt = 0; Attempt < AI.RetryMaxAttempts; ++Attempt)
     {
-        LDOpponentPolicy::RecordOutcome(State, ShopKey, ELDOpponentOutcome::Failed, Frame.Self, Frame.Public.NowMs, AI);
+        LDOpponentPolicy::RecordOutcome(State, ChoiceKey, ELDOpponentOutcome::Failed, Frame.Self, Frame.Public.NowMs, AI);
     }
     Decision = LDOpponentPolicy::Decide(Frame, C, State);
-    bGood &= Test.TestTrue(TEXT("An exhausted shop visit stops trading and returns to farming"),
+    bGood &= Test.TestTrue(TEXT("An exhausted choice is not proposed again for this offer revision; farming goes on"),
         Decision.Build.Kind == ELDOpponentBuildKind::None && Decision.Body.Kind == EBody::MoveGround && Decision.Body.POI == TEXT("l1"));
-    LDOpponentPolicy::RecordOutcome(State, ShopKey, ELDOpponentOutcome::Succeeded, Frame.Self, Frame.Public.NowMs, AI);
-    bGood &= Test.TestTrue(TEXT("A final success clears the shop visit"),
-        LDOpponentPolicy::Decide(Frame, C, State).Build.Kind == ELDOpponentBuildKind::Buy);
+    auto Revised = Frame;
+    Revised.Self.Offer->OfferRevision += 1;
+    FLDOpponentPolicyState RevisedState = State;
+    bGood &= Test.TestTrue(TEXT("A new offer revision gives the choice a fresh budget"),
+        LDOpponentPolicy::Decide(Revised, C, RevisedState).Build.Kind == ELDOpponentBuildKind::ChooseActive);
+    LDOpponentPolicy::RecordOutcome(State, ChoiceKey, ELDOpponentOutcome::Succeeded, Frame.Self, Frame.Public.NowMs, AI);
+    bGood &= Test.TestTrue(TEXT("A final success clears the choice key"),
+        LDOpponentPolicy::Decide(Frame, C, State).Build.Kind == ELDOpponentBuildKind::ChooseActive);
     return bGood;
 }
 
@@ -1502,6 +1333,9 @@ bool RunRequests(FAutomationTestBase& Test)
 {
     using EBody = ELDOpponentBodyKind;
     using ESettle = ELDOpponentSettle;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
     FString Error;
     FLDMoveIdentity Last, Next;
     bool bGood = Test.TestTrue(TEXT("The first order of a life is Order 1 at Epoch 0"),
@@ -1522,8 +1356,7 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("No identity without a match and a life"),
         LDOpponentRequests::NextMoveIdentity(FLDMoveIdentity(), 0, 1, false, Next));
 
-    const TArray<FLDOpponentPOI> Places = {POI(TEXT("shop"), ELDOpponentPOIKind::Shop, -3000, 0),
-        POI(TEXT("l1"), ELDOpponentPOIKind::Camp, 2000, 0, TEXT("monster_scavenger"))};
+    const TArray<FLDOpponentPOI> Places = {POI(TEXT("l1"), ELDOpponentPOIKind::Camp, 2000, 0, TEXT("monster_scavenger"))};
     FLDMoveIdentity Identity;
     Identity.Match = 7;
     Identity.Life = 1;
@@ -1545,14 +1378,6 @@ bool RunRequests(FAutomationTestBase& Test)
     Attack.Epoch = 0;
     bGood &= Test.TestFalse(TEXT("A handle without its observation epoch is refused"),
         LDOpponentRequests::BuildOrder(Attack, Places, Identity, Order, Error));
-    FLDOpponentBodyIntent Approach;
-    Approach.Kind = EBody::ApproachShop;
-    Approach.POI = TEXT("shop");
-    bGood &= Test.TestTrue(TEXT("ApproachShop names the public shop"),
-        LDOpponentRequests::BuildOrder(Approach, Places, Identity, Order, Error) && Order.Kind == ELDSpatialOrderKind::ApproachShop
-        && Order.ShopId == FName(TEXT("shop")));
-    Approach.POI = TEXT("l1");
-    bGood &= Test.TestFalse(TEXT("ApproachShop to a camp is refused"), LDOpponentRequests::BuildOrder(Approach, Places, Identity, Order, Error));
     Move.POI = TEXT("nowhere");
     bGood &= Test.TestFalse(TEXT("An unknown place is refused"), LDOpponentRequests::BuildOrder(Move, Places, Identity, Order, Error));
     Move.POI = TEXT("l1");
@@ -1561,6 +1386,11 @@ bool RunRequests(FAutomationTestBase& Test)
     FLDOpponentBodyIntent Stop;
     Stop.Kind = EBody::Stop;
     bGood &= Test.TestFalse(TEXT("Stop is a cancel, not an order"), LDOpponentRequests::BuildOrder(Stop, Places, Identity, Order, Error));
+    FLDOpponentBodyIntent Activation;
+    Activation.Kind = EBody::Activate;
+    Activation.POI = TEXT("l1");
+    bGood &= Test.TestFalse(TEXT("An activation is a combat action, not a spatial order"),
+        LDOpponentRequests::BuildOrder(Activation, Places, Identity, Order, Error));
 
     FLDCombatActionRequest Action;
     FLDOpponentBodyIntent Cast;
@@ -1606,141 +1436,174 @@ bool RunRequests(FAutomationTestBase& Test)
     Progression.Generation = 7;
     Progression.Life = 1;
     Progression.LifePhase = ELDLifePhase::Dead;
-    Progression.bCanChoose = true;
     Progression.BuildRevision = 9;
     Progression.CatalogDigest.Bytes[0] = 0xAB;
-    Progression.bHasOffer = true;
-    Progression.Offer.OfferId = FGuid(0xF2, 0, 0, 1);
-    Progression.Offer.OfferRevision = 4;
-    FLDChoiceOption Learn;
-    Learn.OptionId = FGuid(0xF2, 0, 0, 2);
-    Learn.Kind = ELDChoiceOptionKind::LearnActive;
-    Learn.DefinitionId = TEXT("active_not_mad");
-    Learn.ToRank = 1;
-    Progression.Offer.Options = {Learn};
-    FLDLearnedSkillView Bolt;
+    Progression.bHasActiveOffer = true;
+    Progression.ActiveOffer.OfferId = FGuid(0xF2, 0, 0, 1);
+    Progression.ActiveOffer.OfferRevision = 4;
+    Progression.ActiveOffer.Options = {TEXT("active_not_mad"), TEXT("active_elbow")};
+    FLDActiveSlotView Bolt;
     Bolt.DefinitionId = TEXT("active_snark_bolt");
-    Bolt.bActive = true;
-    Bolt.Rank = 2;
     Bolt.Slot = 1;
-    Progression.Skills = {Bolt};
+    Progression.Actives = {Bolt};
+    Progression.PendingBlueprints = {TEXT("active_seethe")};
+    Progression.UnspentPoints = 3;
+    for (int32 Index = 0; Index < 5; ++Index)
+    {
+        FLDStatPointsView Row;
+        Row.StatId = FName(*FString::Printf(TEXT("stat_%d"), Index));
+        Progression.StatPoints.Add(Row);
+    }
     FLDOpponentBuildIntent Choose;
-    Choose.Kind = ELDOpponentBuildKind::Choose;
-    Choose.OfferId = Progression.Offer.OfferId;
+    Choose.Kind = ELDOpponentBuildKind::ChooseActive;
+    Choose.OfferId = Progression.ActiveOffer.OfferId;
     Choose.OfferRevision = 4;
-    Choose.Choice.OptionId = Learn.OptionId;
-    FLDChoiceCommand Command;
-    bGood &= Test.TestTrue(TEXT("A choice echoes the head offer, the current life phase and revisions: ") + Error,
-        LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error) && Command.Generation == 7 && Command.Life == 1
-        && Command.ExpectedLifePhase == ELDLifePhase::Dead && Command.RequestId == 3 && Command.OfferId == Choose.OfferId
-        && Command.OfferRevision == 4 && Command.OptionId == Learn.OptionId && Command.ExpectedBuildRevision == 9
-        && Command.CatalogDigest == Progression.CatalogDigest && !Command.bReplace && Command.ReplaceSlot == 0
-        && Command.ExpectedOldSkillId == FLDDefinitionWire() && !Command.bReplaceConfirmed);
-    Choose.Choice.bReplace = true;
-    Choose.Choice.ReplaceSlot = ELDOpponentSkillSlot::W;
-    Choose.Choice.ReplacedSkillId = TEXT("active_snark_bolt");
-    Choose.Choice.ReplacedRank = 2;
+    Choose.Option = TEXT("active_elbow");
+    FLDBuildCommand Command;
     FName Decoded;
-    bGood &= Test.TestTrue(TEXT("A full-slot learn names the exact held victim"),
-        LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error) && Command.bReplace && Command.ReplaceSlot == 1
-        && Command.ExpectedOldSkillId.Decode(Decoded) && Decoded == FName(TEXT("active_snark_bolt")) && Command.ExpectedOldRank == 2
-        && Command.bReplaceConfirmed);
-    Choose.Choice.ReplacedRank = 1;
-    bGood &= Test.TestFalse(TEXT("A victim at another rank is stale"), LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
-    Choose.Choice = FLDOpponentChoicePick();
-    Choose.Choice.OptionId = Learn.OptionId;
+    bGood &= Test.TestTrue(TEXT("A choice echoes the offer, the current life phase and revisions and asks to learn now: ") + Error,
+        LDOpponentRequests::BuildCommand(Choose, Progression, C, 3, Command, Error) && Command.Kind == ELDBuildCommandKind::ActiveChoice
+        && Command.Generation == 7 && Command.Life == 1 && Command.ExpectedLifePhase == ELDLifePhase::Dead && Command.RequestId == 3
+        && Command.OfferId == Choose.OfferId && Command.OfferRevision == 4 && Command.Option.Decode(Decoded)
+        && Decoded == FName(TEXT("active_elbow")) && Command.ExpectedBuildRevision == 9 && Command.CatalogDigest == Progression.CatalogDigest
+        && Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot && Command.PointCounts.IsEmpty());
     Choose.OfferRevision = 5;
-    bGood &= Test.TestFalse(TEXT("A stale offer revision is refused"), LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
+    bGood &= Test.TestFalse(TEXT("A stale offer revision is refused"), LDOpponentRequests::BuildCommand(Choose, Progression, C, 3, Command, Error));
     Choose.OfferRevision = 4;
-    Choose.Choice.OptionId = FGuid(0xF2, 0, 0, 9);
-    bGood &= Test.TestFalse(TEXT("An option outside the head offer is refused"),
-        LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
-    Choose.Choice.OptionId = Learn.OptionId;
-    bGood &= Test.TestFalse(TEXT("Request id 0 is never sent"), LDOpponentRequests::BuildChoice(Choose, Progression, 0, Command, Error));
+    Choose.Option = TEXT("active_pants_down");
+    bGood &= Test.TestFalse(TEXT("An active outside the offer is refused"),
+        LDOpponentRequests::BuildCommand(Choose, Progression, C, 3, Command, Error));
+    Choose.Option = TEXT("active_elbow");
+    bGood &= Test.TestFalse(TEXT("Request id 0 is never sent"), LDOpponentRequests::BuildCommand(Choose, Progression, C, 0, Command, Error));
+    auto Offerless = Progression;
+    Offerless.bHasActiveOffer = false;
+    bGood &= Test.TestFalse(TEXT("A choice without a current offer is refused"),
+        LDOpponentRequests::BuildCommand(Choose, Offerless, C, 3, Command, Error));
 
-    FLDWorldRevision World;
-    World.MapId = TEXT("demo_world");
-    World.LayoutRevision = 2;
-    World.GeometryRevision = 3;
-    FLDShopOpenCommand Open;
-    bGood &= Test.TestTrue(TEXT("Opening names the public shop and the current world revision"),
-        LDOpponentRequests::BuildShopOpen(TEXT("shop"), 7, 1, World, Open, Error) && Open.Generation == 7 && Open.Life == 1
-        && Open.ShopId.Decode(Decoded) && Decoded == FName(TEXT("shop")) && Open.WorldMapId.Decode(Decoded)
-        && Decoded == FName(TEXT("demo_world")) && Open.WorldLayoutRevision == 2 && Open.WorldGeometryRevision == 3);
-    bGood &= Test.TestFalse(TEXT("An unregistered world is refused"),
-        LDOpponentRequests::BuildShopOpen(TEXT("shop"), 7, 1, FLDWorldRevision(), Open, Error));
-    bGood &= Test.TestFalse(TEXT("An id outside the wire alphabet is refused"),
-        LDOpponentRequests::BuildShopOpen(TEXT("bad-id"), 7, 1, World, Open, Error))
-        && Test.TestTrue(TEXT("The refusal names the printed id so a build-specific casing is diagnosable"),
-            Error.Contains(TEXT("'bad-id'")));
+    FLDOpponentBuildIntent Learn;
+    Learn.Kind = ELDOpponentBuildKind::LearnBlueprint;
+    Learn.Blueprint = TEXT("active_seethe");
+    Learn.Slot = 0;
+    bGood &= Test.TestTrue(TEXT("A blueprint learn names the blueprint and its empty slot: ") + Error,
+        LDOpponentRequests::BuildCommand(Learn, Progression, C, 4, Command, Error) && Command.Kind == ELDBuildCommandKind::LearnBlueprint
+        && Command.Blueprint.Decode(Decoded) && Decoded == FName(TEXT("active_seethe")) && Command.Slot == 0
+        && Command.ExpectedBuildRevision == 9);
+    Learn.Slot = 1;
+    bGood &= Test.TestFalse(TEXT("An occupied slot is refused"), LDOpponentRequests::BuildCommand(Learn, Progression, C, 4, Command, Error));
+    Learn.Slot = 3;
+    bGood &= Test.TestFalse(TEXT("A slot beyond E is refused"), LDOpponentRequests::BuildCommand(Learn, Progression, C, 4, Command, Error));
+    Learn.Slot = 2;
+    Learn.Blueprint = TEXT("active_elbow");
+    bGood &= Test.TestFalse(TEXT("A blueprint no longer pending is refused"),
+        LDOpponentRequests::BuildCommand(Learn, Progression, C, 4, Command, Error));
 
-    Progression.LifePhase = ELDLifePhase::Alive;
-    FLDEquipmentView Equipment;
-    Equipment.bValid = true;
-    Equipment.Generation = 7;
-    Equipment.Gold = 500;
-    Equipment.AccountRevision = 5;
-    Equipment.InventoryRevision = 6;
-    FLDShopOpenResult Shop;
-    Shop.Generation = 7;
-    Shop.Life = 1;
-    Shop.OpenStatus = ELDShopOpenStatus::Opened;
-    Shop.bHasView = true;
-    Shop.View.SessionId = FGuid(0xA5, 0, 0, 1);
-    Shop.View.Life = 1;
-    Shop.View.QuoteRevision = 2;
-    Shop.View.CatalogDigest = Progression.CatalogDigest;
-    Shop.View.WorldMapId = TEXT("demo_world");
-    Shop.View.WorldLayoutRevision = 2;
-    Shop.View.WorldGeometryRevision = 3;
-    FLDShopItemView Blade;
-    Blade.DefinitionId = TEXT("item_edge_blade");
-    Blade.BuyPrice = 320;
-    Shop.View.Items = {Blade};
-    FLDShopSellView Plate;
-    Plate.SlotIndex = 1;
-    Plate.Instance = FGuid(0xA6, 0, 0, 1);
-    Plate.ItemRevision = 4;
-    Plate.DefinitionId = TEXT("item_iron_plate");
-    Plate.SellPrice = 201;
-    Shop.View.Sellable = {Plate};
-    FLDOpponentBuildIntent Buy;
-    Buy.Kind = ELDOpponentBuildKind::Buy;
-    Buy.BuyItemId = TEXT("item_edge_blade");
-    FLDShopCommand Trade;
-    bGood &= Test.TestTrue(TEXT("Buy takes the shown quote and the current owner revisions: ") + Error,
-        LDOpponentRequests::BuildTrade(Buy, Shop, Equipment, Progression, 2, Trade, Error) && Trade.Kind == ELDShopCommandKind::Buy
-        && Trade.Generation == 7 && Trade.Life == 1 && Trade.RequestId == 2 && Trade.SessionId == Shop.View.SessionId
-        && Trade.QuoteRevision == 2 && Trade.CatalogDigest == Progression.CatalogDigest && Trade.DefinitionId.Decode(Decoded)
-        && Decoded == FName(TEXT("item_edge_blade")) && Trade.BuyPrice == 320 && Trade.ExpectedAccountRevision == 5
-        && Trade.ExpectedInventoryRevision == 6 && Trade.ExpectedBuildRevision == 9 && Trade.WorldMapId.Decode(Decoded)
-        && Decoded == FName(TEXT("demo_world")) && Trade.WorldLayoutRevision == 2 && Trade.WorldGeometryRevision == 3
-        && !Trade.Instance.IsValid() && Trade.SellPrice == 0);
-    FLDOpponentBuildIntent Sell;
-    Sell.Kind = ELDOpponentBuildKind::Sell;
-    Sell.SellSlot = 1;
-    bGood &= Test.TestTrue(TEXT("Sell names the exact instance revision at the shown price"),
-        LDOpponentRequests::BuildTrade(Sell, Shop, Equipment, Progression, 3, Trade, Error) && Trade.Kind == ELDShopCommandKind::Sell
-        && Trade.Instance == Plate.Instance && Trade.ExpectedItemRevision == 4 && Trade.SellPrice == 201 && Trade.BuyPrice == 0
-        && Trade.DefinitionId == FLDDefinitionWire());
-    Sell.SellSlot = 0;
-    bGood &= Test.TestFalse(TEXT("A slot without a sellable instance is refused"),
-        LDOpponentRequests::BuildTrade(Sell, Shop, Equipment, Progression, 3, Trade, Error));
-    Buy.BuyItemId = TEXT("item_echo_maul");
-    bGood &= Test.TestFalse(TEXT("An item outside the shown quote is never bought at a catalog price"),
-        LDOpponentRequests::BuildTrade(Buy, Shop, Equipment, Progression, 2, Trade, Error));
-    Buy.BuyItemId = TEXT("item_edge_blade");
-    auto Pending = Shop;
-    Pending.OpenStatus = ELDShopOpenStatus::Pending;
-    Pending.bHasView = false;
-    bGood &= Test.TestFalse(TEXT("No trade while the open is only pending"),
-        LDOpponentRequests::BuildTrade(Buy, Pending, Equipment, Progression, 2, Trade, Error));
-    auto OtherLife = Shop;
-    OtherLife.View.Life = 2;
-    bGood &= Test.TestFalse(TEXT("A session of another life never trades"),
-        LDOpponentRequests::BuildTrade(Buy, OtherLife, Equipment, Progression, 2, Trade, Error));
-    Progression.LifePhase = ELDLifePhase::Dead;
-    bGood &= Test.TestFalse(TEXT("No trade while dead"), LDOpponentRequests::BuildTrade(Buy, Shop, Equipment, Progression, 2, Trade, Error));
+    FLDOpponentBuildIntent Allocate;
+    Allocate.Kind = ELDOpponentBuildKind::AllocatePoints;
+    Allocate.PointCounts = {1, 1, 1, 0, 0};
+    bGood &= Test.TestTrue(TEXT("An allocation carries one count per stat: ") + Error,
+        LDOpponentRequests::BuildCommand(Allocate, Progression, C, 5, Command, Error) && Command.Kind == ELDBuildCommandKind::AllocatePoints
+        && Command.PointCounts == Allocate.PointCounts);
+    Allocate.PointCounts = {2, 1, 1, 0, 0};
+    bGood &= Test.TestFalse(TEXT("More than the unspent points is refused"),
+        LDOpponentRequests::BuildCommand(Allocate, Progression, C, 5, Command, Error));
+    Allocate.PointCounts = {0, 0, 0, 0, 0};
+    bGood &= Test.TestFalse(TEXT("An empty allocation is refused"), LDOpponentRequests::BuildCommand(Allocate, Progression, C, 5, Command, Error));
+    Allocate.PointCounts = {1, 1};
+    bGood &= Test.TestFalse(TEXT("An allocation missing stats is refused"),
+        LDOpponentRequests::BuildCommand(Allocate, Progression, C, 5, Command, Error));
+
+    // #198 rest services, each built from the own latest view with its current guards; a stale subject is refused.
+    FLDComponentInstanceView Hide;
+    Hide.DefinitionId = TEXT("component_spiky_hide");
+    Hide.bInstalled = Hide.bEverInstalled = true;
+    FLDComponentInstanceView Crowd;
+    Crowd.DefinitionId = TEXT("component_crowd_hit");
+    Crowd.bEverInstalled = true;
+    FLDComponentInstanceView Ram;
+    Ram.DefinitionId = TEXT("component_ram_through");
+    FLDComponentInstanceView Owe;
+    Owe.DefinitionId = TEXT("component_owe_it");
+    Progression.Components = {Crowd, Owe, Ram, Hide};
+    FLDOpponentBuildIntent Uninstall;
+    Uninstall.Kind = ELDOpponentBuildKind::UninstallComponent;
+    Uninstall.Component = TEXT("component_spiky_hide");
+    bGood &= Test.TestTrue(TEXT("An uninstall names the installed component with the current guards: ") + Error,
+        LDOpponentRequests::BuildCommand(Uninstall, Progression, C, 6, Command, Error)
+        && Command.Kind == ELDBuildCommandKind::UninstallComponent && Command.Component.Decode(Decoded)
+        && Decoded == FName(TEXT("component_spiky_hide")) && Command.ExpectedBuildRevision == 9 && Command.RequestId == 6);
+    Uninstall.Component = TEXT("component_crowd_hit");
+    bGood &= Test.TestFalse(TEXT("A component in the inventory is not uninstalled"),
+        LDOpponentRequests::BuildCommand(Uninstall, Progression, C, 6, Command, Error));
+    Uninstall.Component = TEXT("component_hard_skin");
+    bGood &= Test.TestFalse(TEXT("An unowned component is not uninstalled"), LDOpponentRequests::BuildCommand(Uninstall, Progression, C, 6, Command, Error));
+    FLDOpponentBuildIntent Reinstall;
+    Reinstall.Kind = ELDOpponentBuildKind::InstallComponent;
+    Reinstall.Component = TEXT("component_crowd_hit");
+    Reinstall.TargetKind = ELDComponentTargetKind::Component;
+    Reinstall.TargetId = TEXT("component_spiky_hide");
+    bGood &= Test.TestTrue(TEXT("A once-installed inventory component goes back on as a rest move (growth judges the gate): ") + Error,
+        LDOpponentRequests::BuildCommand(Reinstall, Progression, C, 7, Command, Error) && Command.Kind == ELDBuildCommandKind::InstallComponent
+        && Command.TargetKind == ELDComponentTargetKind::Component && Command.TargetDefinition.Decode(Decoded)
+        && Decoded == FName(TEXT("component_spiky_hide")));
+    Reinstall.Component = TEXT("component_spiky_hide");
+    Reinstall.TargetKind = ELDComponentTargetKind::None;
+    Reinstall.TargetId.Reset();
+    bGood &= Test.TestFalse(TEXT("An installed component is not installed again"),
+        LDOpponentRequests::BuildCommand(Reinstall, Progression, C, 7, Command, Error));
+    FLDOpponentBuildIntent Npc;
+    Npc.Kind = ELDOpponentBuildKind::BuyNpcOffer;
+    bGood &= Test.TestTrue(TEXT("An NPC purchase carries only the guards: ") + Error,
+        LDOpponentRequests::BuildCommand(Npc, Progression, C, 8, Command, Error) && Command.Kind == ELDBuildCommandKind::BuyNpcOffer
+        && Command.ExpectedBuildRevision == 9 && Command.Life == 1 && Command.ExpectedLifePhase == ELDLifePhase::Dead
+        && Command.Component == FLDDefinitionWire() && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
+        && Command.Surrendered.IsEmpty());
+    FLDOpponentBuildIntent Respec;
+    Respec.Kind = ELDOpponentBuildKind::Respec;
+    bGood &= Test.TestTrue(TEXT("A respec carries only the guards: ") + Error,
+        LDOpponentRequests::BuildCommand(Respec, Progression, C, 9, Command, Error) && Command.Kind == ELDBuildCommandKind::Respec
+        && Command.ExpectedBuildRevision == 9 && Command.PointCounts.IsEmpty() && Command.Component == FLDDefinitionWire());
+    bGood &= Test.TestFalse(TEXT("Request id 0 is never sent for a rest service either"),
+        LDOpponentRequests::BuildCommand(Respec, Progression, C, 0, Command, Error));
+    FLDOpponentBuildIntent Replace;
+    Replace.Kind = ELDOpponentBuildKind::ReplaceActive;
+    Replace.Blueprint = TEXT("active_seethe");
+    Replace.Slot = 1;
+    bGood &= Test.TestTrue(TEXT("A replacement names the pending blueprint and the learned slot: ") + Error,
+        LDOpponentRequests::BuildCommand(Replace, Progression, C, 10, Command, Error) && Command.Kind == ELDBuildCommandKind::ReplaceActive
+        && Command.Slot == 1 && Command.Blueprint.Decode(Decoded) && Decoded == FName(TEXT("active_seethe")));
+    Replace.Slot = 0;
+    bGood &= Test.TestFalse(TEXT("An empty slot is learned into, never replaced"),
+        LDOpponentRequests::BuildCommand(Replace, Progression, C, 10, Command, Error));
+    Replace.Slot = 3;
+    bGood &= Test.TestFalse(TEXT("A replacement beyond E is refused"), LDOpponentRequests::BuildCommand(Replace, Progression, C, 10, Command, Error));
+    Replace.Slot = 1;
+    Replace.Blueprint = TEXT("active_elbow");
+    bGood &= Test.TestFalse(TEXT("A blueprint no longer pending replaces nothing"),
+        LDOpponentRequests::BuildCommand(Replace, Progression, C, 10, Command, Error));
+    // #198 G Dismantle: exactly GROWTH.DismantleInputCount distinct, still-owned common components.
+    if (!Test.TestEqual(TEXT("The approved dismantle takes three components"), C.Get().Parameters.DismantleInputCount, int64(3)))
+    {
+        return false;
+    }
+    FLDOpponentBuildIntent Dismantle;
+    Dismantle.Kind = ELDOpponentBuildKind::Dismantle;
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_ram_through"), TEXT("component_spiky_hide")};
+    FName Second, Third;
+    bGood &= Test.TestTrue(TEXT("A dismantle names the surrendered components in order: ") + Error,
+        LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error) && Command.Kind == ELDBuildCommandKind::Dismantle
+        && Command.Surrendered.Num() == 3 && Command.Surrendered[0].Decode(Decoded) && Decoded == FName(TEXT("component_crowd_hit"))
+        && Command.Surrendered[1].Decode(Second) && Second == FName(TEXT("component_ram_through"))
+        && Command.Surrendered[2].Decode(Third) && Third == FName(TEXT("component_spiky_hide")) && Command.ExpectedBuildRevision == 9);
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_ram_through")};
+    bGood &= Test.TestFalse(TEXT("Fewer than the approved count is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_crowd_hit"), TEXT("component_spiky_hide")};
+    bGood &= Test.TestFalse(TEXT("A repeated component is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_owe_it"), TEXT("component_spiky_hide")};
+    bGood &= Test.TestFalse(TEXT("A scarce component is never surrendered"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_hard_skin"), TEXT("component_spiky_hide")};
+    bGood &= Test.TestFalse(TEXT("A component no longer owned is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_unknown"), TEXT("component_spiky_hide")};
+    bGood &= Test.TestFalse(TEXT("A component outside the catalog is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
 
     const auto OrderAt = [](ELDOrderStatus Status, ELDOrderFailure Failure)
     {
@@ -1783,7 +1646,7 @@ bool RunRequests(FAutomationTestBase& Test)
         && ActionAt(ELDCombatPhase::Rejected, ELDCombatReject::MatchClosed) == ESettle::Dropped);
 
     FLDSubmitResult Submit;
-    Submit.Family = ELDGrowthFamily::Choice;
+    Submit.Family = ELDGrowthFamily::Build;
     Submit.Status = ELDAdmissionStatus::AcceptedPending;
     bGood &= Test.TestTrue(TEXT("An accepted pending submit stays in flight"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::InFlight);
     Submit.Status = ELDAdmissionStatus::AdmissionRejected;
@@ -1791,44 +1654,27 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("An admission refusal is a bounded failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
     Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::OldLife);
     bGood &= Test.TestTrue(TEXT("A request of an older life is dropped"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
+    Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::NotSafe);
+    bGood &= Test.TestTrue(TEXT("A closed safe window is re-read, not retried"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
     Submit.Status = ELDAdmissionStatus::Final;
     bGood &= Test.TestTrue(TEXT("A final answer without its receipt is a failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
-    Submit.bHasChoiceReceipt = true;
-    Submit.ChoiceReceipt.Header.Outcome = ELDReceiptOutcome::Applied;
-    bGood &= Test.TestTrue(TEXT("A replayed applied choice succeeded"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Succeeded);
-    Submit.ChoiceReceipt.Header.Outcome = ELDReceiptOutcome::Rejected;
-    Submit.ChoiceReceipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::BuildStale);
+    Submit.bHasBuildReceipt = true;
+    Submit.BuildReceipt.Header.Outcome = ELDReceiptOutcome::Applied;
+    bGood &= Test.TestTrue(TEXT("A replayed applied build command succeeded"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Succeeded);
+    Submit.BuildReceipt.Header.Outcome = ELDReceiptOutcome::Rejected;
+    Submit.BuildReceipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::BuildStale);
     bGood &= Test.TestTrue(TEXT("A stale guard is a bounded failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
-    Submit.ChoiceReceipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::OfferAlreadyCommitted);
+    Submit.BuildReceipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::OfferAlreadyCommitted);
     bGood &= Test.TestTrue(TEXT("An already consumed offer is re-read, not retried"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
-    FLDChoiceReceiptQueryResult ChoiceQuery;
-    ChoiceQuery.Lookup = ELDReceiptLookup::Pending;
-    bGood &= Test.TestTrue(TEXT("A pending lookup stays in flight"), LDOpponentRequests::SettleChoiceQuery(ChoiceQuery) == ESettle::InFlight);
-    ChoiceQuery.Lookup = ELDReceiptLookup::Final;
-    ChoiceQuery.bHasReceipt = true;
-    ChoiceQuery.Receipt.Header.Outcome = ELDReceiptOutcome::Applied;
-    bGood &= Test.TestTrue(TEXT("A final applied lookup succeeded"), LDOpponentRequests::SettleChoiceQuery(ChoiceQuery) == ESettle::Succeeded);
-    ChoiceQuery.Lookup = ELDReceiptLookup::ReceiptExpired;
-    bGood &= Test.TestTrue(TEXT("An expired record is never read as success"), LDOpponentRequests::SettleChoiceQuery(ChoiceQuery) == ESettle::Dropped);
-    FLDShopReceiptQueryResult ShopQuery;
-    ShopQuery.Lookup = ELDReceiptLookup::Final;
-    ShopQuery.bHasReceipt = true;
-    ShopQuery.Receipt.Header.Outcome = ELDReceiptOutcome::Rejected;
-    ShopQuery.Receipt.Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::InsufficientGold);
-    bGood &= Test.TestTrue(TEXT("A trade refused for gold is a bounded failure"), LDOpponentRequests::SettleShopQuery(ShopQuery) == ESettle::Failed);
-    FLDShopOpenResult OpenAnswer;
-    OpenAnswer.OpenStatus = ELDShopOpenStatus::Pending;
-    bGood &= Test.TestTrue(TEXT("A pending open stays in flight"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::InFlight);
-    OpenAnswer.OpenStatus = ELDShopOpenStatus::Opened;
-    bGood &= Test.TestTrue(TEXT("Opened without a view is not an open shop"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Failed);
-    OpenAnswer.bHasView = true;
-    bGood &= Test.TestTrue(TEXT("Opened with its view succeeded"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Succeeded);
-    OpenAnswer.OpenStatus = ELDShopOpenStatus::Rejected;
-    OpenAnswer.Reason = LDGrowthWire::Raw(ELDGrowthReason::OutsideRange);
-    bGood &= Test.TestTrue(TEXT("An open refused out of reach is a bounded failure"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Failed);
-    OpenAnswer.Reason = LDGrowthWire::Raw(ELDGrowthReason::Dead);
-    bGood &= Test.TestTrue(TEXT("An open refused after death is dropped"), LDOpponentRequests::SettleShopOpen(OpenAnswer) == ESettle::Dropped);
-
+    FLDBuildReceiptQueryResult BuildQuery;
+    BuildQuery.Lookup = ELDReceiptLookup::Pending;
+    bGood &= Test.TestTrue(TEXT("A pending lookup stays in flight"), LDOpponentRequests::SettleBuildQuery(BuildQuery) == ESettle::InFlight);
+    BuildQuery.Lookup = ELDReceiptLookup::Final;
+    BuildQuery.bHasReceipt = true;
+    BuildQuery.Receipt.Header.Outcome = ELDReceiptOutcome::Applied;
+    bGood &= Test.TestTrue(TEXT("A final applied lookup succeeded"), LDOpponentRequests::SettleBuildQuery(BuildQuery) == ESettle::Succeeded);
+    BuildQuery.Lookup = ELDReceiptLookup::ReceiptExpired;
+    bGood &= Test.TestTrue(TEXT("An expired record is never read as success"), LDOpponentRequests::SettleBuildQuery(BuildQuery) == ESettle::Dropped);
     ELDOpponentOutcome Outcome = ELDOpponentOutcome::Failed;
     bGood &= Test.TestTrue(TEXT("Final settlements teach the failure memory; in-flight and dropped ones do not"),
         LDOpponentRequests::ToOutcome(ESettle::Succeeded, Outcome) && Outcome == ELDOpponentOutcome::Succeeded
@@ -1849,9 +1695,9 @@ bool RunInnateDash(FAutomationTestBase& Test)
     using EBody = ELDOpponentBodyKind;
     FLDOpponentDecisionFrame Base;
     if (!BaseFrame(Test, C, Base)) { return false; }
-    const auto& DashRank = C.Get().Character.Dash.Rank;
-    if (!Test.TestTrue(TEXT("The approved character has one dash effect"), DashRank.Effects.Num() == 1)) { return false; }
-    const auto& Distance = DashRank.Effects[0].DistanceCm;
+    const auto& DashValues = C.Get().Character.Dash.Values;
+    if (!Test.TestTrue(TEXT("The approved character has one dash effect"), DashValues.Effects.Num() == 1)) { return false; }
+    const auto& Distance = DashValues.Effects[0].DistanceCm;
     const double Reach = double(Distance.Numerator) / double(Distance.Denominator);
     const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
     FLDOpponentSource Dash;
@@ -1944,7 +1790,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
             Out = double(Ability->Target.RangeCm.Numerator) / double(Ability->Target.RangeCm.Denominator);
             return Out > 0;
         }
-        const auto* Effect = Ability->Ranks[0].Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& E) { return E.GetOp() == Op; });
+        const auto* Effect = Ability->Values.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& E) { return E.GetOp() == Op; });
         if (!Effect) { return false; }
         const FLDDemoRational& Value = Op == ELDDemoEffectOp::Dash ? Effect->DistanceCm : Effect->RadiusCm;
         Out = double(Value.Numerator) / double(Value.Denominator);
@@ -1954,10 +1800,10 @@ bool RunV7Activations(FAutomationTestBase& Test)
     if (!Test.TestTrue(TEXT("The v7 actives are approved"), Read(TEXT("active_seethe"), ELDDemoEffectOp::SelfArea, Area)
         && Read(TEXT("active_quick_meeting"), ELDDemoEffectOp(0), ZoneRange) && Read(TEXT("active_bail_out"), ELDDemoEffectOp::Dash, BailReach)))
     { return false; }
-    const auto With = [&Base](const TCHAR* Id, uint8 Rank)
+    const auto With = [&Base](const TCHAR* Id)
     {
         auto Frame = Base;
-        Frame.Self.Skills = {Skill(Id, Rank, ELDOpponentSkillSlot::Q)};
+        Frame.Self.Actives = {Active(Id, 0)};
         FLDOpponentSource Source;
         Source.Slot = ELDOpponentSourceSlot::Q;
         Source.DefinitionId = Id;
@@ -1970,7 +1816,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
         && Decision.Body.TargetMode == Mode; };
     bool bGood = true;
 
-    auto Frame = With(TEXT("active_seethe"), 1);
+    auto Frame = With(TEXT("active_seethe"));
     Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, FMath::Min(Area, Attack) - 10, 0)};
     FLDOpponentPolicyState Seethe;
     bGood &= Test.TestTrue(TEXT("A rival inside the self area is burned with a self cast"),
@@ -1979,7 +1825,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("The engaged rival outside the self area is not"),
         IsCast(LDOpponentPolicy::Decide(Frame, C, Seethe), ELDDemoTargetMode::Self));
 
-    Frame = With(TEXT("active_quick_meeting"), 1);
+    Frame = With(TEXT("active_quick_meeting"));
     Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 120)};
     FLDOpponentPolicyState Meeting;
     const auto Zone = LDOpponentPolicy::Decide(Frame, C, Meeting);
@@ -1989,7 +1835,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("and beyond the cast range it does not"),
         IsCast(LDOpponentPolicy::Decide(Frame, C, Meeting), ELDDemoTargetMode::GroundPoint));
 
-    Frame = With(TEXT("active_triple_combo"), 1);
+    Frame = With(TEXT("active_triple_combo"));
     Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 0)};
     FLDOpponentPolicyState Combo;
     bGood &= Test.TestTrue(TEXT("A rival inside attack range triggers the empowered basics"),
@@ -1998,7 +1844,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("Out of attack range the empowerment waits"),
         IsCast(LDOpponentPolicy::Decide(Frame, C, Combo), ELDDemoTargetMode::Self));
 
-    Frame = With(TEXT("active_bail_out"), 1);
+    Frame = With(TEXT("active_bail_out"));
     Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack + 10, 0)};
     FLDOpponentPolicyState Bail;
     bGood &= Expect(Test, TEXT("A rival within half a dash of attack range is attacked"), LDOpponentPolicy::Decide(Frame, C, Bail),
@@ -2013,62 +1859,48 @@ bool RunV7Activations(FAutomationTestBase& Test)
 
     for (const auto& Case : {
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_snark_bolt"),ELDDemoTargetMode::DirectionProjectile),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_hose_down"),ELDDemoTargetMode::DirectionLine),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
     {
-        Frame=With(Case.Key,1);
+        Frame=With(Case.Key);
         Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack-10,80)};
         FLDOpponentPolicyState Expanded;
         const auto Cast=LDOpponentPolicy::Decide(Frame,C,Expanded);
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s uses its approved target form"),Case.Key),
             IsCast(Cast,Case.Value)
             && (Case.Value!=ELDDemoTargetMode::DirectionCone && Case.Value!=ELDDemoTargetMode::DirectionProjectile
+                && Case.Value!=ELDDemoTargetMode::DirectionLine
                 || Cast.Body.Direction.Equals(Frame.Units[0].FootCm.GetSafeNormal2D(),1.e-4))
             && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
     }
 
-    Frame=With(TEXT("active_apology_slide"),1);
+    Frame=With(TEXT("active_apology_slide"));
     Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack+20,0)};
     FLDOpponentPolicyState Slide;
     const auto Sliding=LDOpponentPolicy::Decide(Frame,C,Slide);
     bGood &= Test.TestTrue(TEXT("The mixed dash hits a rival just beyond basic range through its contact path"),
         IsCast(Sliding,ELDDemoTargetMode::DirectionDash) && Sliding.Body.Direction.Equals(FVector(1,0,0),1.e-4));
 
-    Frame=With(TEXT("active_cower"),1);
-    Frame.Public.Phase=ELDMatchPhase::CaptureOpen;
-    Frame.Public.Circle=ELDOpponentCircle::Solo;
-    Frame.Public.Occupier=FGuid(0xE0,0,0,5);
-    Frame.Public.DueAtMs=Frame.Public.NowMs+5000;
-    Frame.CapturePathCm=3000.;
-    Frame.Units={Unit(5,ELDOpponentUnitKind::Contender,0,2900)};
-    Frame.Self.HpP2=Frame.Self.MaxHpP2/5;
-    FLDOpponentPolicyState Cower;
-    const auto Cowering=LDOpponentPolicy::Decide(Frame,C,Cower);
-    bGood &= Test.TestTrue(TEXT("A low urgent defender cowers before it answers the capture"),
-        IsCast(Cowering,ELDDemoTargetMode::Self));
-
-    // Rooted on an urgent capture defence at full health: only the advanced rank's root cleanse is worth casting.
-    for (const uint8 Rank : {uint8(1), uint8(2)})
-    {
-        Frame = With(TEXT("active_not_mad"), Rank);
-        Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
-        Frame.Public.Circle = ELDOpponentCircle::Solo;
-        Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
-        Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
-        Frame.CapturePathCm = 3000.;
-        Frame.Self.MoveBlockedUntilMs = Frame.Public.NowMs + 1000;
-        FLDOpponentPolicyState Rooted;
-        const bool bCast = IsCast(LDOpponentPolicy::Decide(Frame, C, Rooted), ELDDemoTargetMode::Self);
-        bGood &= Test.TestTrue(FString::Printf(TEXT("Rank %d not_mad cleanses the root: %s"), Rank, bCast ? TEXT("yes") : TEXT("no")),
-            bCast == (Rank == 2));
-    }
+    // Rooted on an urgent capture defence at full health: the single-level not_mad's root cleanse is worth casting.
+    Frame = With(TEXT("active_not_mad"));
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+    Frame.CapturePathCm = 3000.;
+    Frame.Self.MoveBlockedUntilMs = Frame.Public.NowMs + 1000;
+    FLDOpponentPolicyState Rooted;
+    bGood &= Test.TestTrue(TEXT("not_mad cleanses the root of an urgent defender"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Rooted), ELDDemoTargetMode::Self));
     return bGood;
 }
 
-// #79: §6.1 P2 outranks P6. A recovering body that can afford an improvement finishes its escape before it turns to
-// the shop, however often the pursuer slips in and out of sight, and only then shops.
-bool RunEscapeBeforeShop(FAutomationTestBase& Test)
+// #79: §6.1 P2. A recovering body finishes its escape however often the pursuer slips in and out of sight, then waits
+// on regeneration; a threat seen again starts a new escape.
+bool RunRecoveryEscapeKept(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(Test, Catalog)) { return false; }
@@ -2077,13 +1909,12 @@ bool RunEscapeBeforeShop(FAutomationTestBase& Test)
     using EBody = ELDOpponentBodyKind;
     FLDOpponentDecisionFrame Frame;
     if (!BaseFrame(Test, C, Frame)) { return false; }
-    Frame.Self.Gold = C.Get().Parameters.StartingGold;
     Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
     const FLDOpponentUnit Pursuer = Unit(2, ELDOpponentUnitKind::Contender, 300, 0);
     FLDOpponentPolicyState State;
     Frame.Units = {Pursuer};
     const auto Fled = LDOpponentPolicy::Decide(Frame, C, State);
-    bool bGood = Expect(Test, TEXT("Below the retreat line with the approved starting gold, a visible threat still comes first"),
+    bool bGood = Expect(Test, TEXT("Below the retreat line a visible threat comes first"),
         Fled, EMode::Disengage, EBody::MoveGround, TEXT("l3"));
     Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
@@ -2094,26 +1925,26 @@ bool RunEscapeBeforeShop(FAutomationTestBase& Test)
         Frame.Units.Reset();
         if (Glimpse % 2) { Frame.Units.Add(Pursuer); }
         const auto Step = LDOpponentPolicy::Decide(Frame, C, State);
-        bKept &= Expect(Test, FString::Printf(TEXT("Glimpse %d: the escape under way keeps walking instead of turning to the shop"),
+        bKept &= Expect(Test, FString::Printf(TEXT("Glimpse %d: the escape under way keeps walking instead of re-ranking or turning to an errand"),
             Glimpse), Step, EMode::Disengage, EBody::Keep, TEXT("l3"));
     }
     bGood &= bKept;
     Frame.Units.Reset();
     Frame.Order.Status = ELDOpponentOrderStatus::Completed;
     const auto Arrived = LDOpponentPolicy::Decide(Frame, C, State);
-    bGood &= Expect(Test, TEXT("Arrived and unseen, a recovering body with an affordable improvement goes shopping"), Arrived,
-        EMode::Shop, EBody::ApproachShop, TEXT("shop"));
-    Frame.Order.Kind = ELDOpponentOrderKind::ApproachShop;
+    bGood &= Expect(Test, TEXT("Arrived and unseen, the recovering body waits on regeneration"), Arrived, EMode::Disengage,
+        EBody::None) && Test.TestTrue(TEXT("Waiting is a recovery decision"), Arrived.Reason == ELDOpponentReason::Recover);
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
-    Frame.Order.POI = TEXT("shop");
+    Frame.Order.POI = TEXT("l1");
     Frame.Units = {Pursuer};
-    bGood &= Expect(Test, TEXT("A threat seen on the way to the shop starts a new escape"),
+    bGood &= Expect(Test, TEXT("A threat seen on a later walk starts a new escape"),
         LDOpponentPolicy::Decide(Frame, C, State), EMode::Disengage, EBody::MoveGround);
     return bGood;
 }
 
-// D21 (#79): a recovering body uses the public dorms. With nothing to buy it walks to the nearest one; inside it waits
-// for the fast recovery before shopping and stays until full; the dorm is not a safe zone, so a threat still sends it off.
+// D21 (#79): a recovering body uses the public dorms. Outside one it walks to the nearest; inside it waits for the fast
+// recovery and stays until full; the dorm is not a safe zone, so a threat still sends it off.
 bool RunDormRecovery(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -2131,7 +1962,7 @@ bool RunDormRecovery(FAutomationTestBase& Test)
 
     auto Frame = Base;
     FLDOpponentPolicyState Walk;
-    bool bGood = Expect(Test, TEXT("Recovering with nothing to buy, the body walks to the nearest dorm"),
+    bool bGood = Expect(Test, TEXT("Recovering, the body walks to the nearest dorm"),
         LDOpponentPolicy::Decide(Frame, C, Walk), EMode::Disengage, EBody::MoveGround, TEXT("dorm_se"));
     Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
@@ -2140,14 +1971,10 @@ bool RunDormRecovery(FAutomationTestBase& Test)
         EMode::Disengage, EBody::Keep, TEXT("dorm_se"));
 
     Frame = Base;
-    Frame.Self.Gold = C.Get().Parameters.StartingGold;
-    FLDOpponentPolicyState Buyer;
-    bGood &= Expect(Test, TEXT("Outside a dorm an affordable improvement is still bought first"),
-        LDOpponentPolicy::Decide(Frame, C, Buyer), EMode::Shop, EBody::ApproachShop, TEXT("shop"));
     Frame.Self.FootCm = InDorm;
     FLDOpponentPolicyState Rester;
     const auto Resting = LDOpponentPolicy::Decide(Frame, C, Rester);
-    bGood &= Expect(Test, TEXT("Inside a dorm the fast recovery comes before shopping"), Resting, EMode::Disengage, EBody::None)
+    bGood &= Expect(Test, TEXT("Inside a dorm the recovering body rests for the fast recovery"), Resting, EMode::Disengage, EBody::None)
         && Test.TestTrue(TEXT("Resting is a recovery decision"), Resting.Reason == ELDOpponentReason::Recover);
 
     // Past the resume line a body in a dorm stays until full; elsewhere it resumes at once.
@@ -2156,7 +1983,6 @@ bool RunDormRecovery(FAutomationTestBase& Test)
         LDOpponentPolicy::Decide(Frame, C, Rester), EMode::Disengage, EBody::None);
     auto Away = Frame;
     Away.Self.FootCm = Base.Self.FootCm;
-    Away.Self.Gold = 150;
     FLDOpponentPolicyState Resumed = Rester;
     bGood &= Expect(Test, TEXT("Above the resume line outside a dorm the body farms again"),
         LDOpponentPolicy::Decide(Away, C, Resumed), EMode::Farm, EBody::MoveGround);
@@ -2236,12 +2062,6 @@ bool RunAirdrop(FAutomationTestBase& Test)
 
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
-    Frame.Self.Gold = C.Get().Parameters.StartingGold;
-    FLDOpponentPolicyState Buyer;
-    bGood &= Expect(Test, TEXT("An affordable improvement is still bought first"),
-        LDOpponentPolicy::Decide(Frame, C, Buyer), EMode::Shop, EBody::ApproachShop, TEXT("shop"));
-    Frame = Base;
-    Frame.Public.AirdropPOI = TEXT("airdrop_s");
     Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
     FLDOpponentPolicyState Hurt;
     bGood &= Test.TestTrue(TEXT("A recovering body does not go for the drop"),
@@ -2261,6 +2081,26 @@ bool RunAirdrop(FAutomationTestBase& Test)
     FLDOpponentPolicyState Stray;
     bGood &= Test.TestTrue(TEXT("A drop that names no public airdrop point is ignored"),
         LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestAirdrop);
+
+    // #198 outer §5: an open camp marker makes its camp the first farm choice, under the ordinary camp entry rules.
+    Frame = Base;
+    FLDOpponentPolicyState Plain;
+    bGood &= Expect(Test, TEXT("Without a marker the nearest camp is farmed"), LDOpponentPolicy::Decide(Frame, C, Plain),
+        EMode::Farm, EBody::MoveGround, TEXT("l1"));
+    Frame.Public.MarkedCamps = {TEXT("l3")};
+    FLDOpponentPolicyState Marked;
+    bGood &= Expect(Test, TEXT("An open camp marker draws the farm to its camp"), LDOpponentPolicy::Decide(Frame, C, Marked),
+        EMode::Farm, EBody::MoveGround, TEXT("l3"));
+    Frame.Public.MarkedCamps = {TEXT("h2")};
+    FLDOpponentPolicyState Weak;
+    bGood &= Expect(Test, TEXT("A body below the high-camp entry does not enter a marked High camp"),
+        LDOpponentPolicy::Decide(Frame, C, Weak), EMode::Farm, EBody::MoveGround, TEXT("l1"));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Public.MarkedCamps = {TEXT("l3")};
+    FLDOpponentPolicyState Both;
+    bGood &= Test.TestTrue(TEXT("A live airdrop outranks a camp marker"),
+        LDOpponentPolicy::Decide(Frame, C, Both).Reason == ELDOpponentReason::ContestAirdrop);
 
     // A stop-loss exit from the drop is not a failed contest of the circle: after more such exits than the retry policy
     // allows, an urgent public defence is still answered. The same exits from a contest of the circle do suppress it.
@@ -2286,6 +2126,118 @@ bool RunAirdrop(FAutomationTestBase& Test)
         ExitsThenDefends(EMode::Airdrop));
     bGood &= Test.TestFalse(TEXT("Control: the same exits from a contest of the circle do stop urgent defences"),
         ExitsThenDefends(EMode::Contest));
+    return bGood;
+}
+
+bool RunCharms(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
+    Base.POIs.Add(POI(TEXT("airdrop_w"), ELDOpponentPOIKind::Airdrop, -2300, 400));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    const auto IsCharm = [](const FLDOpponentDecision& D) { return D.Mode == ELDOpponentMode::Charm && D.Reason == ELDOpponentReason::TakeCharm; };
+
+    auto Frame = Base;
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::Mana}};
+    FLDOpponentPolicyState Full;
+    bool bGood = Test.TestFalse(TEXT("#198: a full body ignores a mana charm it cannot use"),
+        IsCharm(LDOpponentPolicy::Decide(Frame, C, Full)));
+    Frame.Self.MpP2 = Frame.Self.MaxMpP2 / 2;
+    FLDOpponentPolicyState Thirsty;
+    const auto Mana = LDOpponentPolicy::Decide(Frame, C, Thirsty);
+    bGood &= Expect(Test, TEXT("#198: a body short of mana walks onto the mana charm"), Mana, EMode::Charm, EBody::MoveGround,
+        TEXT("airdrop_s")) && Test.TestTrue(TEXT("Taking a charm is its own reason"), IsCharm(Mana));
+
+    Frame = Base;
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}, {TEXT("airdrop_w"), ELDCharmKind::MoveSpeed}};
+    Frame.Self.FootCm = FVector(-2000, 0, 0);
+    FLDOpponentPolicyState Nearest;
+    bGood &= Expect(Test, TEXT("#198: of two usable charms the nearer point is taken"), LDOpponentPolicy::Decide(Frame, C, Nearest),
+        EMode::Charm, EBody::MoveGround, TEXT("airdrop_w"));
+
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::Heal}};
+    FLDOpponentPolicyState Hurt;
+    bGood &= Expect(Test, TEXT("#198: a recovering body takes a lying heal charm"), LDOpponentPolicy::Decide(Frame, C, Hurt),
+        EMode::Charm, EBody::MoveGround, TEXT("airdrop_s"));
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}};
+    FLDOpponentPolicyState HurtNoHeal;
+    bGood &= Test.TestFalse(TEXT("A recovering body does not detour for a charm that does not heal"),
+        IsCharm(LDOpponentPolicy::Decide(Frame, C, HurtNoHeal)));
+
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_w");
+    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}};
+    FLDOpponentPolicyState Drop;
+    bGood &= Test.TestTrue(TEXT("The airdrop outranks a charm"),
+        LDOpponentPolicy::Decide(Frame, C, Drop).Reason == ELDOpponentReason::ContestAirdrop);
+    Frame = Base;
+    Frame.Public.Charms = {{TEXT("unknown_point"), ELDCharmKind::MoveSpeed}};
+    FLDOpponentPolicyState Stray;
+    bGood &= Test.TestFalse(TEXT("A charm that names no public airdrop point is ignored"),
+        IsCharm(LDOpponentPolicy::Decide(Frame, C, Stray)));
+    return bGood;
+}
+
+bool RunRecoveryCharmEscape(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(Test, *Catalog, Frame)) { return false; }
+    Frame.POIs.Add(POI(TEXT("retreat"), ELDOpponentPOIKind::Spawn, -2179, -4462));
+    Frame.POIs.Add(POI(TEXT("dorm_sw"), ELDOpponentPOIKind::Dorm, -4250, -4250));
+    Frame.POIs.Add(POI(TEXT("heal"), ELDOpponentPOIKind::Airdrop, -2384, 469));
+    Frame.Public.Charms = {{TEXT("heal"), ELDCharmKind::Heal}};
+    Frame.Self.FootCm = FVector(-2179, -4462, 0);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("retreat");
+    FLDOpponentPolicyState State;
+    State.Generation = Frame.Generation;
+    State.Life = Frame.Self.Life;
+    State.bRecovering = true;
+    State.RetreatPOI = TEXT("retreat");
+
+    bool bGood = Expect(Test, TEXT("After reaching a retreat, a recovering body goes to the dorm rather than turning back for a charm"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage,
+        ELDOpponentBodyKind::MoveGround, TEXT("dorm_sw"));
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("dorm_sw");
+    bGood &= Expect(Test, TEXT("The dorm walk remains in progress while the charm is still visible"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage,
+        ELDOpponentBodyKind::Keep, TEXT("dorm_sw"));
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, -1879, -4462)};
+    bGood &= Test.TestTrue(TEXT("A renewed visible threat still takes priority over recovery"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State).Reason == ELDOpponentReason::Recover);
+
+    Frame.Units.Reset();
+    Frame.Order = {};
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 7 / 10;
+    bGood &= Expect(Test, TEXT("Once recovered, the usable charm is eligible again"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Charm,
+        ELDOpponentBodyKind::MoveGround, TEXT("heal"));
+
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("retreat");
+    Frame.POIs.RemoveAll([](const FLDOpponentPOI& P) { return P.Kind == ELDOpponentPOIKind::Dorm; });
+    State = {};
+    State.Generation = Frame.Generation;
+    State.Life = Frame.Self.Life;
+    State.bRecovering = true;
+    State.RetreatPOI = TEXT("retreat");
+    bGood &= Expect(Test, TEXT("Without a reachable dorm, the body recovers rather than immediately retracing its escape"),
+        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage, ELDOpponentBodyKind::None);
     return bGood;
 }
 
@@ -2356,9 +2308,9 @@ bool RunHuntLeader(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A hurt body does not hunt"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Hurt)));
     Frame = Base;
     Frame.Public.LeaderCircleCentreCm = FVector(-3000, 0, 0);
-    FLDOpponentPolicyState Shopside;
-    bGood &= Test.TestFalse(TEXT("A circle with only the shop inside gives no place to hunt"),
-        IsHunt(LDOpponentPolicy::Decide(Frame, C, Shopside)));
+    FLDOpponentPolicyState Empty;
+    bGood &= Test.TestFalse(TEXT("A circle with no public place inside gives no place to hunt"),
+        IsHunt(LDOpponentPolicy::Decide(Frame, C, Empty)));
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
     FLDOpponentPolicyState Both;
@@ -2423,7 +2375,7 @@ bool RunAvoidBoss(FAutomationTestBase& Test)
 }
 
 // #160: the Opponent scenario saw a body flip every decision between stepping away from the Boss and the errand that led
-// back to it (Shop/Farm against AvoidBoss), a new order each time.
+// back to it (Farm against AvoidBoss), a new order each time.
 bool RunBossEscapeKept(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -2509,7 +2461,7 @@ bool RunWalkRefusals(FAutomationTestBase& Test)
     };
     auto Walks = [](const FLDOpponentDecision& D)
     {
-        return D.Body.Kind == EBody::MoveGround || D.Body.Kind == EBody::ApproachShop || D.Body.Kind == EBody::AttackUnit;
+        return D.Body.Kind == EBody::MoveGround || D.Body.Kind == EBody::AttackUnit;
     };
     auto Frame = Base;
     FLDOpponentPolicyState State;
@@ -2569,7 +2521,226 @@ bool RunWalkRefusals(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("An admitted walk lets the next walk go at once"), Walks(LDOpponentPolicy::Decide(Frame, C, Cleared)));
     return bGood;
 }
+
+FLDPKEntrantView PKEntrant(uint32 Handle, uint8 Side, bool bAlive = true)
+{
+    FLDPKEntrantView Out;
+    Out.Contender = FGuid(0xE0, 0, 0, Handle);
+    Out.Side = Side;
+    Out.bAlive = bAlive;
+    return Out;
 }
+
+FLDPKBetView PKBet(const FGuid& Spectator, uint8 Side)
+{
+    FLDPKBetView Out;
+    Out.Spectator = Spectator;
+    Out.Side = Side;
+    return Out;
+}
+
+// #198 D (issue #198 comment 6752601175 §2-§6): sign-up, bet, throw, teammate exclusion and the ring, from public reads only.
+bool RunPK(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EReason = ELDOpponentReason;
+    using EBody = ELDOpponentBodyKind;
+    using EPK = ELDOpponentPKKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    const FGuid Me = Base.Self.ContenderId;
+    Base.Public.Phase = ELDMatchPhase::Rest;
+    Base.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Base.Public.Timeline.RestIndex = 1;
+
+    // Sign-up (站圈报名): inside the window of the build step only, the body walks into its own sign-up disk.
+    auto Frame = Base;
+    FLDOpponentPOI Disk;
+    Disk.Id = TEXT("pk_signup_1");
+    Disk.Kind = ELDOpponentPOIKind::PKSignup;
+    Disk.SurfaceId = TEXT("demo_ground");
+    Disk.FootCm = Base.Self.FootCm + FVector(300, 0, 0);
+    Frame.SignupPOI = Disk;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    Frame.Public.Timeline.SignupOpensAtMs = 20000;
+    Frame.Public.Timeline.StepEndsAtMs = 30000;
+    Frame.Public.NowMs = 19999;
+    bool bGood = Test.TestFalse(TEXT("No sign-up before the window opens"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Frame.Public.NowMs = 30000;
+    bGood &= Test.TestFalse(TEXT("No sign-up at the step's end"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    Frame.Public.NowMs = 20000;
+    bGood &= Test.TestTrue(TEXT("Every AI signs up inside the window"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+    FLDOpponentPolicyState SignUp;
+    auto Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
+    bGood &= Expect(Test, TEXT("Signing up walks into the own disk"), Decision, EMode::PK, EBody::MoveGround)
+        && Test.TestTrue(TEXT("The walk names the own disk and no request replaces standing in it"),
+            Decision.Body.POI == Disk.Id && Decision.PK.Kind == EPK::None && Decision.Reason == EReason::PKSignUp);
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.POI = Disk.Id;
+    Frame.Public.NowMs = 20250;
+    bGood &= Test.TestTrue(TEXT("A live walk to the disk is kept, not sent again"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::Keep);
+    Frame.Order = FLDOpponentOrder();
+    Frame.Public.NowMs = 19999;
+    bGood &= Test.TestTrue(TEXT("Before the window the body stays in its rest space"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::None);
+    Frame.Public.NowMs = 20250;
+    Frame.Public.Timeline.Signups = {Me};
+    Decision = LDOpponentPolicy::Decide(Frame, C, SignUp);
+    bGood &= Test.TestTrue(TEXT("A contender standing in its disk stays there until the lock"),
+        !LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me) && Decision.Body.Kind == EBody::Keep && Decision.Reason == EReason::PKSignUp);
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.Kind = ELDOpponentOrderKind::AttackUnit;
+    bGood &= Test.TestTrue(TEXT("Any other order a signed contender still runs stops in the disk"),
+        LDOpponentPolicy::Decide(Frame, C, SignUp).Body.Kind == EBody::Stop);
+    Frame.Order = FLDOpponentOrder();
+    Frame.Public.Timeline.Signups.Reset();
+    Frame.Public.Timeline.Step = ELDRestStep::Payout;
+    bGood &= Test.TestFalse(TEXT("No sign-up outside the build step"), LDOpponentPolicy::WantsPKSignUp(Frame.Public, Me));
+
+    // Bet: the side of the lowest-seat entrant, once, for an eligible bettor without a public bet.
+    FLDPKView PK;
+    PK.Generation = Base.Generation;
+    PK.Serial = 2;
+    PK.Format = ELDPKFormat::FreeForAll;
+    PK.SideCount = 4;
+    PK.Entrants = {PKEntrant(11, 2), PKEntrant(12, 1), PKEntrant(13, 3), PKEntrant(14, 4)};
+    PK.Bettors = {Me};
+    Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::Betting;
+    Frame.Public.PK = PK;
+    bGood &= Test.TestTrue(TEXT("The bet goes to the lowest seat's side"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 2);
+    FLDOpponentPolicyState Bet;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Bet);
+    bGood &= Expect(Test, TEXT("Betting never moves"), Decision, EMode::PK, EBody::None)
+        && Test.TestTrue(TEXT("One bet on that side of this PK"), Decision.PK.Kind == EPK::Bet && Decision.PK.Side == 2
+            && Decision.PK.Serial == PK.Serial && Decision.Reason == EReason::PKBet);
+    bGood &= Test.TestTrue(TEXT("A bet is sent once per PK"), LDOpponentPolicy::Decide(Frame, C, Bet).PK.Kind == EPK::None);
+    Frame.Public.PK.Bets = {PKBet(Me, 3)};
+    bGood &= Test.TestTrue(TEXT("A placed bet is not replaced"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 0);
+    Frame.Public.PK.Bets.Reset();
+    Frame.Public.PK.Bettors.Reset();
+    bGood &= Test.TestTrue(TEXT("A non-bettor does not bet"), LDOpponentPolicy::PKBetSide(Frame.Public, Me) == 0);
+
+    // Throw: the lowest visible seat not on the bet side, within the throw range of the public anchor.
+    PK.Bets = {PKBet(Me, 2)};
+    PK.Outcome = ELDPKOutcome::Running;
+    PK.FightStartedAtMs = 5000;
+    TArray<FLDOpponentUnit> Seen = {
+        Unit(11, ELDOpponentUnitKind::Contender, 10, 0), Unit(13, ELDOpponentUnitKind::Contender, 30, 0),
+        Unit(14, ELDOpponentUnitKind::Contender, 40, 0)};
+    const FLDOpponentUnit* Target = LDOpponentPolicy::PKThrowTarget(PK, 2, Seen, 1000.);
+    bGood &= Test.TestTrue(TEXT("The bet side is never thrown at and an unseen entrant is skipped"),
+        Target && Target->ContenderId == FGuid(0xE0, 0, 0, 13));
+    Seen[1].FootCm = FVector(1500, 0, 0);
+    Target = LDOpponentPolicy::PKThrowTarget(PK, 2, Seen, 1000.);
+    bGood &= Test.TestTrue(TEXT("An entrant out of throw range is skipped"), Target && Target->ContenderId == FGuid(0xE0, 0, 0, 14));
+    bGood &= Test.TestNull(TEXT("Without a bet there is no throw"), LDOpponentPolicy::PKThrowTarget(PK, 0, Seen, 1000.));
+    const TArray<FLDOpponentUnit> BetSideOnly = {Unit(11, ELDOpponentUnitKind::Contender, 10, 0)};
+    bGood &= Test.TestNull(TEXT("Only the bet side in sight: no throw"), LDOpponentPolicy::PKThrowTarget(PK, 2, BetSideOnly, 1000.));
+    Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::PK;
+    Frame.Public.PK = PK;
+    Frame.Public.NowMs = 9000;
+    Frame.Units = {Unit(11, ELDOpponentUnitKind::Contender, 10, 0), Unit(13, ELDOpponentUnitKind::Contender, 30, 0)};
+    FLDOpponentPolicyState Throw;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Throw);
+    bGood &= Expect(Test, TEXT("A spectator never moves while the arena runs"), Decision, EMode::PK, EBody::None)
+        && Test.TestTrue(TEXT("A ready bettor throws at the current foot of the chosen entrant"), Decision.PK.Kind == EPK::Throw
+            && Decision.PK.Serial == PK.Serial && Decision.PK.TargetCm.Equals(FVector(30, 0, 0)) && Decision.Reason == EReason::PKThrow);
+    Frame.PKThrowReadyAtMs = Frame.Public.NowMs + 1;
+    bGood &= Test.TestTrue(TEXT("No throw before the own cooldown passed"), LDOpponentPolicy::Decide(Frame, C, Throw).PK.Kind == EPK::None);
+
+    // Teammates: only a team format shares a side.
+    FLDPKView Teams;
+    Teams.Serial = 3;
+    Teams.Format = ELDPKFormat::Teams;
+    Teams.SideCount = 2;
+    Teams.Entrants = {PKEntrant(21, 2), PKEntrant(22, 1), PKEntrant(999, 1), PKEntrant(23, 2)};
+    const FGuid Mate = FGuid(0xE0, 0, 0, 22), Rival = FGuid(0xE0, 0, 0, 21);
+    bGood &= Test.TestTrue(TEXT("Same side is a teammate"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Mate))
+        && Test.TestFalse(TEXT("Another side is not"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Rival))
+        && Test.TestFalse(TEXT("Self is not its own teammate"), LDOpponentPolicy::IsPKTeammate(Teams, Me, Me))
+        && Test.TestFalse(TEXT("A free-for-all has no teammates"), LDOpponentPolicy::IsPKTeammate(PK, FGuid(0xE0, 0, 0, 11),
+            FGuid(0xE0, 0, 0, 12)));
+
+    // Ring: outside the current radius, or outside the previewed next radius while one is shown.
+    FLDPKParameters Ring;
+    Ring.ArenaRadiusCm = 1000;
+    Ring.MidRadiusCm = 600;
+    Ring.FinalRadiusCm = 300;
+    Ring.ShrinkStartMs = 10000;
+    Ring.MidMs = 20000;
+    Ring.FinalMs = 30000;
+    Ring.PreviewMs = 5000;
+    Ring.MaxMs = 40000;
+    FLDPKView Arena;
+    Arena.FightStartedAtMs = 100000;
+    const auto Out = [&Ring, &Arena](double X, int64 ElapsedMs)
+    { return LDOpponentPolicy::PKRingRetreat(Ring, Arena, FVector(X, 0, 0), Arena.FightStartedAtMs + ElapsedMs); };
+    bGood &= Test.TestFalse(TEXT("No ring before the fight starts"), Out(2000, -1))
+        && Test.TestFalse(TEXT("Inside the full arena before any preview"), Out(900, 0))
+        && Test.TestTrue(TEXT("Outside the current radius walks back"), Out(1100, 0))
+        && Test.TestTrue(TEXT("Outside the previewed mid radius walks back"), Out(900, 6000))
+        && Test.TestFalse(TEXT("Inside the previewed radius stays"), Out(500, 6000))
+        && Test.TestTrue(TEXT("Outside the previewed final radius during the second shrink"), Out(400, 25000))
+        && Test.TestFalse(TEXT("Inside the final radius during the second shrink"), Out(250, 25000))
+        && Test.TestTrue(TEXT("Outside the final radius after the shrink"), Out(301, 35000))
+        && Test.TestFalse(TEXT("Inside the final radius after the shrink"), Out(299, 35000));
+
+    // Fighting as an entrant: the ring first, then the nearest visible enemy entrant, never a teammate.
+    FLDPKParameters Approved;
+    FString Error;
+    if (!Test.TestTrue(TEXT("The approved ring parameters load"), FLDPKParameters::FromContent(C.Get().Parameters, Approved, Error)))
+    {
+        Test.AddError(Error);
+        return false;
+    }
+    Teams.Outcome = ELDPKOutcome::Running;
+    Teams.ArenaCentreCm = FVector(0, 3000, 0);
+    Teams.FightStartedAtMs = 5000;
+    Frame = Base;
+    Frame.Public.Timeline.Step = ELDRestStep::PK;
+    Frame.Public.PK = Teams;
+    Frame.Public.NowMs = 5000;
+    Frame.Self.FootCm = Teams.ArenaCentreCm + FVector(Approved.ArenaRadiusCm + 100., 0, 0);
+    FLDOpponentPolicyState Fight;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Fight);
+    bGood &= Expect(Test, TEXT("Outside the ring the entrant walks to the arena centre first"), Decision, EMode::PK,
+        EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("The ring is its own reason"), Decision.Reason == EReason::PKRing);
+    Frame.Self.FootCm = Teams.ArenaCentreCm;
+    Frame.Units = {Unit(22, ELDOpponentUnitKind::Contender, 100, 3000), Unit(21, ELDOpponentUnitKind::Contender, 400, 3000)};
+    FLDOpponentPolicyState Engage;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Engage);
+    bGood &= Test.TestTrue(TEXT("The nearer teammate is passed over for the enemy entrant"),
+        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKFight && Decision.Body.Kind == EBody::AttackUnit
+        && Decision.Body.Handle == Frame.Units[1].Handle);
+    Frame.Units = {Unit(22, ELDOpponentUnitKind::Contender, 100, 3000)};
+    FLDOpponentPolicyState MateOnly;
+    Decision = LDOpponentPolicy::Decide(Frame, C, MateOnly);
+    bGood &= Expect(Test, TEXT("A teammate alone in sight is never a target"), Decision, EMode::PK, EBody::None);
+    Frame.Public.Timeline.Step = ELDRestStep::PKReady;
+    Frame.Public.PK.Outcome = ELDPKOutcome::Pending;
+    Frame.Units = {Unit(21, ELDOpponentUnitKind::Contender, 400, 3000)};
+    FLDOpponentPolicyState Ready;
+    Decision = LDOpponentPolicy::Decide(Frame, C, Ready);
+    bGood &= Expect(Test, TEXT("PKReady: inputs are locked, nothing is sent"), Decision, EMode::Stopped, EBody::None)
+        && Test.TestTrue(TEXT("PKReady: no PK request either"), Decision.PK.Kind == EPK::None);
+    return bGood;
+}
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentPKTest, "Lockdown.Rules.DemoOpponentPolicy.PK",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentPKTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunPK(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAirdropTest, "Lockdown.Rules.DemoOpponentPolicy.Airdrop",
@@ -2620,12 +2791,28 @@ bool FLDDemoOpponentDormRecoveryTest::RunTest(const FString& Parameters)
     return LDOpponentPolicyTests::RunDormRecovery(*this);
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEscapeBeforeShopTest, "Lockdown.Rules.DemoOpponentPolicy.EscapeBeforeShop",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryEscapeKeptTest, "Lockdown.Rules.DemoOpponentPolicy.RecoveryEscapeKept",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDDemoOpponentEscapeBeforeShopTest::RunTest(const FString& Parameters)
+bool FLDDemoOpponentRecoveryEscapeKeptTest::RunTest(const FString& Parameters)
 {
-    return LDOpponentPolicyTests::RunEscapeBeforeShop(*this);
+    return LDOpponentPolicyTests::RunRecoveryEscapeKept(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCharmsTest, "Lockdown.Rules.DemoOpponentPolicy.Charms",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentCharmsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunCharms(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryCharmEscapeTest, "Lockdown.Rules.DemoOpponentPolicy.RecoveryCharmEscape",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRecoveryCharmEscapeTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunRecoveryCharmEscape(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",
@@ -2654,14 +2841,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentChoiceOrderTest, "Lockdown.Rules
 bool FLDDemoOpponentChoiceOrderTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunChoiceOrder(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEquipmentPlanTest, "Lockdown.Rules.DemoOpponentPolicy.EquipmentPlan",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoOpponentEquipmentPlanTest::RunTest(const FString& Parameters)
-{
-    return LDOpponentPolicyTests::RunEquipmentPlan(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCaptureUrgencyTest, "Lockdown.Rules.DemoOpponentPolicy.CaptureUrgency",
@@ -2710,6 +2889,1060 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRequestsTest, "Lockdown.Rules.De
 bool FLDDemoOpponentRequestsTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunRequests(*this);
+}
+
+namespace LDOpponentComponentTests
+{
+namespace
+{
+const FLDDemoComponentDefinition* Component(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, const TCHAR* Id)
+{
+    const FLDDemoComponentDefinition* Out = nullptr;
+    FString Error;
+    if (!Catalog.FindComponent(Id, Out, Error) || !Out) { Test.AddError(FString::Printf(TEXT("%s: %s"), Id, *Error)); return nullptr; }
+    return Out;
+}
+
+FLDOpponentComponent Owned(const TCHAR* Id, bool bInstalled, bool bEverInstalled)
+{
+    FLDOpponentComponent Out;
+    Out.DefinitionId = Id;
+    Out.bInstalled = bInstalled;
+    Out.bEverInstalled = bEverInstalled || bInstalled;
+    return Out;
+}
+
+bool RunPickAndEnable(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    const FLDDemoComponentDefinition* Fire = Component(Test, C, TEXT("component_fist_fire"));
+    const FLDDemoComponentDefinition* Water = Component(Test, C, TEXT("component_fist_water"));
+    const FLDDemoComponentDefinition* Shock = Component(Test, C, TEXT("component_fist_shock"));
+    const FLDDemoComponentDefinition* Trick = Component(Test, C, TEXT("component_dirty_trick"));
+    if (!Fire || !Water || !Shock || !Trick || !Test.TestTrue(TEXT("B18 binds a listed active"), !Trick->BindActives.IsEmpty())) { return false; }
+    // A learned active B18 can bind, and one it cannot (any catalog active its binding does not list).
+    const FString Bindable = Trick->BindActives[0];
+    const FLDDemoAbilityDefinition* Unbindable = C.Get().Abilities.FindByPredicate([Trick](const FLDDemoAbilityDefinition& Ability)
+        { return !Trick->BindActives.Contains(Ability.Id); });
+
+    FLDOpponentSelf Self;
+    FString Bound;
+    ELDDemoElement Element = ELDDemoElement::Electric;
+    bool bGood = Test.TestTrue(TEXT("A plain base component is usable without a binding"),
+        LDOpponentPolicy::ComponentUsable(Self, *Fire, Bound, Element) && Bound.IsEmpty() && Element == ELDDemoElement::None);
+    bGood &= Test.TestTrue(TEXT("Water and electric base components are usable like any other"),
+        LDOpponentPolicy::ComponentUsable(Self, *Water, Bound, Element) && LDOpponentPolicy::ComponentUsable(Self, *Shock, Bound, Element));
+    bGood &= Test.TestFalse(TEXT("B18 without a bindable learned active is skipped (InvalidTarget)"),
+        LDOpponentPolicy::ComponentUsable(Self, *Trick, Bound, Element));
+    if (Unbindable) { Self.Actives.Add({Unbindable->Id, 0}); }
+    Self.Actives.Add({Bindable, 1});
+    bGood &= Test.TestTrue(TEXT("B18 binds the first bindable learned active (Q/W/E order) with its first listed element (fire)"),
+        LDOpponentPolicy::ComponentUsable(Self, *Trick, Bound, Element) && Bound == Bindable && Element == ELDDemoElement::Fire);
+
+    // Opening base: the first option in catalog order the AI can enable now.
+    Self.bOpeningBasePending = true;
+    Self.OpeningBaseOptions = {TEXT("component_fist_water"), TEXT("component_fist_shock"), TEXT("component_dash_punch")};
+    FString Picked;
+    FString Error;
+    bGood &= Test.TestTrue(TEXT("A water option is picked like any other: ") + Error,
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_water") && Bound.IsEmpty());
+    Self.OpeningBaseOptions = {TEXT("component_fist_fire"), TEXT("component_dash_punch")};
+    bGood &= Test.TestTrue(TEXT("The first usable option in catalog order wins"),
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_fire"));
+    Self.OpeningBaseOptions = {TEXT("component_dirty_trick")};
+    const TArray<FLDOpponentActive> HeldActives = Self.Actives;
+    Self.Actives.Reset();
+    bGood &= Test.TestFalse(TEXT("No usable option picks nothing, never a refused one"),
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error));
+    Self.Actives = HeldActives;
+    Self.OpeningBaseOptions = {TEXT("component_unknown")};
+    bGood &= Test.TestFalse(TEXT("An unknown option is refused, never defaulted"),
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error));
+    Self.bOpeningBasePending = false;
+    Self.OpeningBaseOptions.Reset();
+
+    // Enabling: every owned, never-installed component in catalog order; installed and moved ones are skipped.
+    Self.Components = {Owned(TEXT("component_dirty_trick"), false, false), Owned(TEXT("component_dash_bump"), false, true),
+        Owned(TEXT("component_fist_water"), false, false), Owned(TEXT("component_hard_skin"), false, false),
+        Owned(TEXT("component_tab_ledger"), true, true)};
+    bGood &= Test.TestTrue(TEXT("The first fresh usable component in catalog order: ") + Error,
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_hard_skin"));
+    Self.Components[3].bInstalled = Self.Components[3].bEverInstalled = true;
+    bGood &= Test.TestTrue(TEXT("Then B10 water"),
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_water"));
+    Self.Components[2].bInstalled = Self.Components[2].bEverInstalled = true;
+    bGood &= Test.TestTrue(TEXT("Then B18 with its binding"),
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_dirty_trick")
+        && Bound == Bindable && Element == ELDDemoElement::Fire);
+    Self.Actives.RemoveAll([&Bindable](const FLDOpponentActive& Active) { return Active.DefinitionId == Bindable; });
+    bGood &= Test.TestFalse(TEXT("Nothing usable is left without a bindable active"),
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error));
+    Self.Actives.Add({Bindable, 1});
+
+    // The decision: the opening pick in the opening rest, installs only inside the safe window, one request at a time.
+    FLDOpponentDecisionFrame Frame;
+    Frame.Generation = 1;
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    Frame.Public.NowMs = 10000;
+    Frame.Self = Self;
+    Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 1);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.Life = 1;
+    Frame.Self.Components = {Owned(TEXT("component_hard_skin"), false, false)};
+    Frame.Self.bOpeningBasePending = true;
+    Frame.Self.OpeningBaseOptions = {TEXT("component_fist_fire"), TEXT("component_dash_punch")};
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    bGood &= Test.TestTrue(TEXT("The opening pick comes before any install"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::OpeningBase
+        && Intent.Component == TEXT("component_fist_fire") && Intent.Key.POI == FName(TEXT("component_fist_fire")));
+    Frame.Self.bOpeningBasePending = false;
+    Frame.Self.OpeningBaseOptions.Reset();
+    Frame.Public.Phase = ELDMatchPhase::Development;
+    Frame.Public.Timeline = FLDTimelineView();
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 1;
+    bGood &= Test.TestFalse(TEXT("No install inside combat"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    bGood &= Test.TestTrue(TEXT("Out of combat the fresh component is enabled"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::InstallComponent
+        && Intent.Component == TEXT("component_hard_skin"));
+    Frame.bBuildChangeInFlight = true;
+    bGood &= Test.TestFalse(TEXT("Nothing while a build request is in flight"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+
+    // Commands: built from the own latest view, binding only to a learned active.
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 1;
+    View.Life = 1;
+    View.LifePhase = ELDLifePhase::Alive;
+    View.BuildRevision = 4;
+    View.bOpeningBasePending = true;
+    View.OpeningBaseOptions = {FName(TEXT("component_fist_fire"))};
+    FLDActiveSlotView& Learned = View.Actives.AddDefaulted_GetRef();
+    Learned.DefinitionId = FName(*Bindable);
+    Learned.Slot = 1;
+    FLDComponentInstanceView& Held = View.Components.AddDefaulted_GetRef();
+    Held.DefinitionId = TEXT("component_dirty_trick");
+    Held.Source = ELDComponentSource::LevelUp;
+    Held.SourceLevel = 2;
+    FLDOpponentBuildIntent Pick;
+    Pick.Kind = ELDOpponentBuildKind::OpeningBase;
+    Pick.Component = TEXT("component_fist_fire");
+    FLDBuildCommand Command;
+    FName Decoded;
+    bGood &= Test.TestTrue(TEXT("An opening pick always asks to enable it now: ") + Error,
+        LDOpponentRequests::BuildCommand(Pick, View, C, 7, Command, Error) && Command.Kind == ELDBuildCommandKind::OpeningBase
+        && Command.bInstallIfPossible && Command.TargetKind == ELDComponentTargetKind::None && Command.Element == ELDDemoElement::None
+        && Command.Component.Decode(Decoded) && Decoded == FName(TEXT("component_fist_fire")) && Command.ExpectedBuildRevision == 4);
+    Pick.Component = TEXT("component_dash_punch");
+    bGood &= Test.TestFalse(TEXT("An option no longer offered is not sent"), LDOpponentRequests::BuildCommand(Pick, View, C, 8, Command, Error));
+    FLDOpponentBuildIntent Enable;
+    Enable.Kind = ELDOpponentBuildKind::InstallComponent;
+    Enable.Component = TEXT("component_dirty_trick");
+    Enable.BoundActive = Bindable;
+    Enable.Element = ELDDemoElement::Fire;
+    bGood &= Test.TestTrue(TEXT("An install carries its binding: ") + Error,
+        LDOpponentRequests::BuildCommand(Enable, View, C, 9, Command, Error) && Command.Kind == ELDBuildCommandKind::InstallComponent
+        && !Command.bInstallIfPossible && Command.Element == ELDDemoElement::Fire && Command.BoundActive.Decode(Decoded) && Decoded == FName(*Bindable));
+    Enable.BoundActive = TEXT("active_not_learned_anywhere");
+    bGood &= Test.TestFalse(TEXT("A binding to an active not learned is not sent"), LDOpponentRequests::BuildCommand(Enable, View, C, 10, Command, Error));
+    Held.bInstalled = Held.bEverInstalled = true;
+    Enable.BoundActive = Bindable;
+    bGood &= Test.TestFalse(TEXT("An installed component is not installed again"), LDOpponentRequests::BuildCommand(Enable, View, C, 11, Command, Error));
+    return bGood;
+}
+
+FLDOpponentComponent Hosted(const TCHAR* Id, ELDComponentTargetKind Kind = ELDComponentTargetKind::None, const TCHAR* Target = TEXT(""),
+    ELDDemoElement Element = ELDDemoElement::None)
+{
+    FLDOpponentComponent Out = Owned(Id, true, true);
+    Out.TargetKind = Kind;
+    Out.TargetId = Target;
+    Out.Element = Element;
+    return Out;
+}
+
+// #198 F: the first legal target in catalog list order (learned active, installed host, D, self), C12's first open installed
+// base, and the refusals growth would answer (C09, M08/M09 on one target, C01 on a B18 that does not burn).
+bool RunWorkshopTargets(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    const FLDDemoComponentDefinition* LongKick = Component(Test, C, TEXT("component_long_kick"));
+    const FLDDemoComponentDefinition* Ram = Component(Test, C, TEXT("component_ram_through"));
+    const FLDDemoComponentDefinition* OweIt = Component(Test, C, TEXT("component_owe_it"));
+    const FLDDemoComponentDefinition* FireSkin = Component(Test, C, TEXT("component_fire_skin"));
+    const FLDDemoComponentDefinition* BlastChase = Component(Test, C, TEXT("component_blast_chase"));
+    const FLDDemoComponentDefinition* DirtyFist = Component(Test, C, TEXT("component_dirty_fist"));
+    if (!LongKick || !Ram || !OweIt || !FireSkin || !BlastChase || !DirtyFist) { return false; }
+
+    FLDOpponentSelf Self;
+    FLDOpponentComponentTarget Target;
+    const auto Is = [&Target](ELDComponentTargetKind Kind, const TCHAR* Id, const TCHAR* Base)
+    { return Target.Kind == Kind && Target.TargetId == Id && Target.BoundComponent == Base; };
+    bool bGood = Test.TestFalse(TEXT("M03 without its active or host has no target"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target));
+    Self.Components = {Hosted(TEXT("component_third_punch"))};
+    bGood &= Test.TestTrue(TEXT("M03 goes onto its installed host"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target)
+        && Is(ELDComponentTargetKind::Component, TEXT("component_third_punch"), TEXT("")));
+    Self.Actives.Add({TEXT("active_elbow"), 0});
+    bGood &= Test.TestTrue(TEXT("A learned listed active comes before a host"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("")));
+    bGood &= Test.TestTrue(TEXT("M08 without its actives goes onto the innate D"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target)
+        && Is(ELDComponentTargetKind::Dash, TEXT(""), TEXT("")));
+    Self.Components.Add(Hosted(TEXT("component_quick_hop"), ELDComponentTargetKind::Dash));
+    bGood &= Test.TestFalse(TEXT("M08 never joins M09 on the same D (TargetConflict)"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target));
+    bGood &= Test.TestTrue(TEXT("M12 installs on the holder itself"), LDOpponentPolicy::WorkshopTarget(Self, C, *OweIt, Target)
+        && Is(ELDComponentTargetKind::None, TEXT(""), TEXT("")));
+    Self.Components.Add(Hosted(TEXT("component_dirty_trick"), ELDComponentTargetKind::None, TEXT(""), ELDDemoElement::Water));
+    bGood &= Test.TestFalse(TEXT("C01 skips a B18 that does not burn"), LDOpponentPolicy::WorkshopTarget(Self, C, *FireSkin, Target));
+    Self.Components.Last().Element = ELDDemoElement::Fire;
+    bGood &= Test.TestTrue(TEXT("C01 goes onto a burning B18"), LDOpponentPolicy::WorkshopTarget(Self, C, *FireSkin, Target)
+        && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
+    bGood &= Test.TestTrue(TEXT("C09 goes onto the installed element source"), LDOpponentPolicy::WorkshopTarget(Self, C, *BlastChase, Target)
+        && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
+    Self.Components.Add(Hosted(TEXT("component_fist_water")));
+    bGood &= Test.TestTrue(TEXT("C12 repeats an installed water base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_fist_water")));
+    Self.Components.Add(Hosted(TEXT("component_tab_ledger")));
+    bGood &= Test.TestTrue(TEXT("C12 repeats the first open installed base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_tab_ledger")));
+
+    // The decision carries the target and the command names it.
+    FLDOpponentDecisionFrame Frame;
+    Frame.Generation = 1;
+    Frame.Public.Phase = ELDMatchPhase::Development;
+    Frame.Public.NowMs = 10000;
+    Frame.Self = Self;
+    Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 2);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.Life = 1;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    Frame.Self.Components.Add(Owned(TEXT("component_dirty_fist"), false, false));
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    FString Error;
+    bGood &= Test.TestTrue(TEXT("The fresh C12 is installed with its target and base"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::InstallComponent
+        && Intent.Component == TEXT("component_dirty_fist") && Intent.TargetKind == ELDComponentTargetKind::Active
+        && Intent.TargetId == TEXT("active_elbow") && Intent.BoundComponent == TEXT("component_tab_ledger"));
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 1;
+    View.Life = 1;
+    View.LifePhase = ELDLifePhase::Alive;
+    FLDActiveSlotView& Learned = View.Actives.AddDefaulted_GetRef();
+    Learned.DefinitionId = TEXT("active_elbow");
+    FLDComponentInstanceView& Base = View.Components.AddDefaulted_GetRef();
+    Base.DefinitionId = TEXT("component_tab_ledger");
+    Base.bInstalled = Base.bEverInstalled = true;
+    FLDComponentInstanceView& Fresh = View.Components.AddDefaulted_GetRef();
+    Fresh.DefinitionId = TEXT("component_dirty_fist");
+    FLDBuildCommand Command;
+    FName Decoded;
+    FName DecodedBase;
+    bGood &= Test.TestTrue(TEXT("The install command names the target and the repeated base: ") + Error,
+        LDOpponentRequests::BuildCommand(Intent, View, C, 12, Command, Error) && Command.Kind == ELDBuildCommandKind::InstallComponent
+        && Command.TargetKind == ELDComponentTargetKind::Active && Command.TargetDefinition.Decode(Decoded) && Decoded == FName(TEXT("active_elbow"))
+        && Command.BoundComponent.Decode(DecodedBase) && DecodedBase == FName(TEXT("component_tab_ledger")) && Command.TargetSegment == 0);
+    Intent.BoundComponent = TEXT("component_fist_fire");
+    bGood &= Test.TestFalse(TEXT("A base not installed is not named"), LDOpponentRequests::BuildCommand(Intent, View, C, 13, Command, Error));
+    return bGood;
+}
+
+// #198 G: a pending elite camp component choice is always resolved (an unowned option it can enable first, then the first
+// unowned one, the empty-pool points once every option is owned) under the active choice's gate, even in combat or dead;
+// a rest window spends unspent points on a gap fill before the stats. Commands come from the own latest view only.
+bool RunComponentChoice(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    if (!Component(Test, C, TEXT("component_long_kick")) || !Component(Test, C, TEXT("component_hard_skin"))
+        || !Component(Test, C, TEXT("component_third_punch")))
+    {
+        return false;
+    }
+    const FGuid ChoiceId(0xC4, 0, 0, 1);
+    FLDOpponentComponentChoice Choice;
+    Choice.ChoiceId = ChoiceId;
+    // M03 has no learned active or installed host here, so only the base can be enabled right away.
+    Choice.Options = {TEXT("component_long_kick"), TEXT("component_hard_skin")};
+    FLDOpponentSelf Self;
+    FString Option;
+    FString Error;
+    bool bGood = Test.TestTrue(TEXT("An option it can enable now comes first: ") + Error,
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Choice, Option, Error) && Option == TEXT("component_hard_skin"));
+    Self.Components = {Owned(TEXT("component_hard_skin"), false, false)};
+    bGood &= Test.TestTrue(TEXT("An owned option is skipped for the first free one"),
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Choice, Option, Error) && Option == TEXT("component_long_kick"));
+    Self.Components.Add(Owned(TEXT("component_long_kick"), false, false));
+    bGood &= Test.TestTrue(TEXT("Every option owned takes the empty-pool points"),
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Choice, Option, Error) && Option.IsEmpty());
+    FLDOpponentComponentChoice Unknown = Choice;
+    Unknown.Options = {TEXT("component_unknown")};
+    bGood &= Test.TestFalse(TEXT("An option outside the catalog is refused, never defaulted"),
+        LDOpponentPolicy::SelectComponentChoice(Self, C, Unknown, Option, Error));
+
+    // The decision: resolved in combat and while dead, keyed by the choice.
+    FLDOpponentDecisionFrame Frame;
+    Frame.Generation = 1;
+    Frame.Public.Phase = ELDMatchPhase::Development;
+    Frame.Public.NowMs = 10000;
+    Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 3);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.Life = 1;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 5000;
+    Frame.Self.ComponentChoices = {Choice};
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    bGood &= Test.TestTrue(TEXT("A pending choice is resolved even inside combat"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::ComponentChoice
+        && Intent.ChoiceId == ChoiceId && Intent.Component == TEXT("component_hard_skin") && Intent.Key.Target == ChoiceId);
+    Frame.Self.Phase = ELDLifePhase::Dead;
+    bGood &= Test.TestTrue(TEXT("And while dead"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::ComponentChoice);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.bBuildChangeInFlight = true;
+    bGood &= Test.TestFalse(TEXT("Nothing while a build request is in flight"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    Frame.bBuildChangeInFlight = false;
+    Frame.Self.ComponentChoices.Reset();
+
+    // Gap fills: only in a rest window and only when the unspent points pay the approved price.
+    const int64 FillGapPoints = C.Get().Parameters.FillGapPoints;
+    if (!Test.TestTrue(TEXT("The approved content prices FillGap"), FillGapPoints > 0)) { return false; }
+    Frame.Self.GapFills = {{TEXT("component_long_kick"), TEXT("component_third_punch")}};
+    Frame.Self.UnspentPoints = FillGapPoints;
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    bGood &= Test.TestFalse(TEXT("No gap fill on the field"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap);
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    bGood &= Test.TestTrue(TEXT("A rest window fills the gap before allocating"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap
+        && Intent.Component == TEXT("component_long_kick") && Intent.Filler == TEXT("component_third_punch")
+        && Intent.Key.POI == FName(TEXT("component_long_kick")));
+    Frame.Self.UnspentPoints = FillGapPoints - 1;
+    bGood &= Test.TestFalse(TEXT("Not without the price in unspent points"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap);
+
+    // Commands from the own latest view.
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 1;
+    View.Life = 1;
+    View.LifePhase = ELDLifePhase::Alive;
+    View.BuildRevision = 6;
+    FLDComponentChoiceView& Pending = View.ComponentChoices.AddDefaulted_GetRef();
+    Pending.ChoiceId = ChoiceId;
+    Pending.Event = TEXT("camp_marker_elite");
+    Pending.Serial = 1;
+    Pending.Options = {FName(TEXT("component_long_kick")), FName(TEXT("component_hard_skin"))};
+    FLDComponentInstanceView& Skin = View.Components.AddDefaulted_GetRef();
+    Skin.DefinitionId = TEXT("component_hard_skin");
+    FLDOpponentBuildIntent Take;
+    Take.Kind = ELDOpponentBuildKind::ComponentChoice;
+    Take.ChoiceId = ChoiceId;
+    Take.Component = TEXT("component_long_kick");
+    FLDBuildCommand Command;
+    FName Decoded;
+    bGood &= Test.TestTrue(TEXT("A choice names the pending choice and the option: ") + Error,
+        LDOpponentRequests::BuildCommand(Take, View, C, 20, Command, Error) && Command.Kind == ELDBuildCommandKind::ComponentChoice
+        && Command.OfferId == ChoiceId && Command.Component.Decode(Decoded) && Decoded == FName(TEXT("component_long_kick"))
+        && Command.Slot == FLDBuildCommand::AnySlot && Command.ExpectedBuildRevision == 6);
+    Take.Component = TEXT("component_hard_skin");
+    bGood &= Test.TestFalse(TEXT("An owned option is not sent"), LDOpponentRequests::BuildCommand(Take, View, C, 21, Command, Error));
+    Take.Component.Reset();
+    bGood &= Test.TestFalse(TEXT("The points are not taken while an option is free"), LDOpponentRequests::BuildCommand(Take, View, C, 22, Command, Error));
+    FLDComponentInstanceView& Kick = View.Components.AddDefaulted_GetRef();
+    Kick.DefinitionId = TEXT("component_long_kick");
+    bGood &= Test.TestTrue(TEXT("Every option owned: the all-zero component takes the points: ") + Error,
+        LDOpponentRequests::BuildCommand(Take, View, C, 23, Command, Error) && Command.Kind == ELDBuildCommandKind::ComponentChoice
+        && Command.OfferId == ChoiceId && Command.Component == FLDDefinitionWire());
+    Take.ChoiceId = FGuid(0xC4, 0, 0, 2);
+    bGood &= Test.TestFalse(TEXT("A choice no longer pending is not sent"), LDOpponentRequests::BuildCommand(Take, View, C, 24, Command, Error));
+
+    FLDOpponentBuildIntent Fill;
+    Fill.Kind = ELDOpponentBuildKind::FillGap;
+    Fill.Component = TEXT("component_long_kick");
+    Fill.Filler = TEXT("component_third_punch");
+    bGood &= Test.TestTrue(TEXT("A gap fill names the target and the filler: ") + Error,
+        LDOpponentRequests::BuildCommand(Fill, View, C, 25, Command, Error) && Command.Kind == ELDBuildCommandKind::FillGap
+        && Command.Component.Decode(Decoded) && Decoded == FName(TEXT("component_long_kick"))
+        && Command.Filler.Decode(Decoded) && Decoded == FName(TEXT("component_third_punch")));
+    Kick.bGapFilled = true;
+    bGood &= Test.TestFalse(TEXT("A filled target is not filled again"), LDOpponentRequests::BuildCommand(Fill, View, C, 26, Command, Error));
+    Kick.bGapFilled = false;
+    FLDComponentInstanceView& Punch = View.Components.AddDefaulted_GetRef();
+    Punch.DefinitionId = TEXT("component_third_punch");
+    bGood &= Test.TestFalse(TEXT("An owned filler is not sent"), LDOpponentRequests::BuildCommand(Fill, View, C, 27, Command, Error));
+    return bGood;
+}
+
+// Stands in for growth: commits one rest build decision on the own view (an uninstall with everything installed on it, a
+// replacement returning what sat on the forgotten active, a respec, an allocation, a learn). False for anything else.
+bool ApplyBuild(const FLDOpponentBuildIntent& Intent, FLDOpponentSelf& Self)
+{
+    const auto Find = [&Self](const FString& Id)
+    { return Self.Components.FindByPredicate([&Id](const FLDOpponentComponent& Held) { return Held.DefinitionId == Id; }); };
+    const auto Detach = [&Self](TArray<FString> Removing)
+    {
+        for (int32 Index = 0; Index < Removing.Num(); ++Index)
+        {
+            const FString Host = Removing[Index];
+            for (const FLDOpponentComponent& Attached : Self.Components)
+            {
+                const bool bOnIt = Attached.bInstalled && ((Attached.TargetKind == ELDComponentTargetKind::Component
+                    && Attached.TargetId == Host) || Attached.BoundComponent == Host);
+                if (bOnIt && !Removing.Contains(Attached.DefinitionId)) { Removing.Add(Attached.DefinitionId); }
+            }
+        }
+        for (FLDOpponentComponent& Held : Self.Components)
+        {
+            if (!Removing.Contains(Held.DefinitionId)) { continue; }
+            Held.bInstalled = false;
+            Held.TargetKind = ELDComponentTargetKind::None;
+            Held.TargetId.Reset();
+            Held.BoundActive.Reset();
+            Held.Element = ELDDemoElement::None;
+            Held.BoundComponent.Reset();
+        }
+    };
+    switch (Intent.Kind)
+    {
+    case ELDOpponentBuildKind::InstallComponent:
+    {
+        FLDOpponentComponent* Held = Find(Intent.Component);
+        if (!Held || Held->bInstalled) { return false; }
+        Held->bInstalled = Held->bEverInstalled = true;
+        Held->TargetKind = Intent.TargetKind;
+        Held->TargetId = Intent.TargetId;
+        Held->BoundActive = Intent.BoundActive;
+        Held->Element = Intent.Element;
+        Held->BoundComponent = Intent.BoundComponent;
+        break;
+    }
+    case ELDOpponentBuildKind::UninstallComponent:
+    {
+        const FLDOpponentComponent* Held = Find(Intent.Component);
+        if (!Held || !Held->bInstalled) { return false; }
+        Detach({Intent.Component});
+        break;
+    }
+    case ELDOpponentBuildKind::ReplaceActive:
+    {
+        FLDOpponentActive* Old = Self.Actives.FindByPredicate([&Intent](const FLDOpponentActive& Active) { return Active.Slot == Intent.Slot; });
+        if (!Old || !Self.Blueprints.Contains(Intent.Blueprint)) { return false; }
+        const FString Forgotten = Old->DefinitionId;
+        Old->DefinitionId = Intent.Blueprint;
+        Self.Blueprints.Remove(Intent.Blueprint);
+        TArray<FString> OnIt;
+        for (const FLDOpponentComponent& Attached : Self.Components)
+        {
+            if (Attached.bInstalled && ((Attached.TargetKind == ELDComponentTargetKind::Active && Attached.TargetId == Forgotten)
+                || Attached.BoundActive == Forgotten)) { OnIt.Add(Attached.DefinitionId); }
+        }
+        Detach(OnIt);
+        break;
+    }
+    case ELDOpponentBuildKind::Respec:
+    {
+        int64 Refunded = 0;
+        for (FLDOpponentStatPoints& Row : Self.StatPoints) { Refunded += Row.Points; Row.Points = 0; }
+        if (Refunded == 0) { return false; }
+        Self.UnspentPoints += Refunded;
+        break;
+    }
+    case ELDOpponentBuildKind::AllocatePoints:
+    {
+        if (Intent.PointCounts.Num() != Self.StatPoints.Num()) { return false; }
+        for (int32 Index = 0; Index < Intent.PointCounts.Num(); ++Index)
+        {
+            Self.StatPoints[Index].Points += Intent.PointCounts[Index];
+            Self.UnspentPoints -= Intent.PointCounts[Index];
+        }
+        if (Self.UnspentPoints < 0) { return false; }
+        break;
+    }
+    case ELDOpponentBuildKind::LearnBlueprint:
+    {
+        if (Intent.Slot > 2 || !Self.Blueprints.Contains(Intent.Blueprint)
+            || Self.Actives.ContainsByPredicate([&Intent](const FLDOpponentActive& Active) { return Active.Slot == Intent.Slot; }))
+        {
+            return false;
+        }
+        Self.Actives.Add({Intent.Blueprint, Intent.Slot});
+        Self.Blueprints.Remove(Intent.Blueprint);
+        break;
+    }
+    default:
+        return false;
+    }
+    ++Self.BuildRevision;
+    return true;
+}
+
+TArray<ELDOpponentBuildKind> KindsOf(const TArray<FLDOpponentBuildIntent>& Intents)
+{
+    TArray<ELDOpponentBuildKind> Out;
+    for (const FLDOpponentBuildIntent& Intent : Intents) { Out.Add(Intent.Kind); }
+    return Out;
+}
+
+// Runs the follow-up build decisions of Frame to their end, committing each like growth; a decision the stand-in cannot
+// commit, or more than twelve decisions (a loop), is an error. OutSelf is the own view at the end.
+bool RunRestBuilds(FAutomationTestBase& Test, const FLDDemoContentSnapshot& C, FLDOpponentDecisionFrame Frame,
+    TArray<FLDOpponentBuildIntent>& Out, FLDOpponentSelf& OutSelf)
+{
+    Out.Reset();
+    FLDOpponentPolicyState State;
+    for (int32 Step = 0; Step < 12; ++Step)
+    {
+        FLDOpponentBuildIntent Intent;
+        if (!LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent))
+        {
+            OutSelf = Frame.Self;
+            return true;
+        }
+        Out.Add(Intent);
+        if (!ApplyBuild(Intent, Frame.Self))
+        {
+            Test.AddError(FString::Printf(TEXT("The growth stand-in cannot commit build kind %u"), uint32(Intent.Kind)));
+            return false;
+        }
+    }
+    Test.AddError(TEXT("The rest build decisions never reached an end"));
+    return false;
+}
+
+// A rest build window frame of the shared base frame, with one zero stat row per stat.
+bool RestFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& C, FLDOpponentDecisionFrame& Out)
+{
+    if (!LDOpponentPolicyTests::BaseFrame(Test, C, Out)) { return false; }
+    Out.Public.Phase = ELDMatchPhase::Rest;
+    Out.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Out.Public.Timeline.Step = ELDRestStep::Build;
+    // A mid rest (R1); the opening rest R0 differs only for the NPC (RunNpcGate).
+    Out.Public.Timeline.RestIndex = 1;
+    Out.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {});
+    return true;
+}
+// #198 J2 coordinator decision: the opening rest R0 never buys the NPC (its opening points go to the stats); a mid rest buys
+// only for an empty Q/W/E slot and only when the unspent points cover the price.
+bool RunNpcGate(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EKind = ELDOpponentBuildKind;
+    FLDOpponentDecisionFrame Mid;
+    if (!RestFrame(Test, C, Mid)) { return false; }
+    const int64 Price = C.Get().Parameters.NpcActivePoints;
+    if (!Test.TestTrue(TEXT("The approved content prices the NPC"), Price > 0)) { return false; }
+    Mid.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Mid.Self.UnspentPoints = Price;
+    Mid.Self.NearbyRestService = ELDRestService::SkillMerchant;
+    const auto BuildOf = [&C](const FLDOpponentDecisionFrame& Of)
+    {
+        FLDOpponentPolicyState Fresh;
+        return LDOpponentPolicy::Decide(Of, C, Fresh).Build.Kind;
+    };
+    auto Opening = Mid;
+    Opening.Public.Timeline.RestIndex = 0;
+    auto Short = Mid;
+    Short.Self.UnspentPoints = Price - 1;
+    auto Full = Mid;
+    Full.Self.Actives = {{TEXT("active_elbow"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_snark_bolt"), 2}};
+    bool bGood = Test.TestTrue(TEXT("A mid rest with an empty slot and the price buys the NPC offer"),
+        LDOpponentPolicy::WantsNpcOffer(Mid.Self, C, 1) && BuildOf(Mid) == EKind::BuyNpcOffer);
+    for (uint8 Index = 2; Index <= 3; ++Index)
+    {
+        bGood &= Test.TestTrue(FString::Printf(TEXT("R%u buys like R1"), Index), LDOpponentPolicy::WantsNpcOffer(Mid.Self, C, Index));
+    }
+    bGood &= Test.TestTrue(TEXT("The opening rest R0 spends the opening points on the stats instead"),
+        !LDOpponentPolicy::WantsNpcOffer(Opening.Self, C, 0) && BuildOf(Opening) == EKind::AllocatePoints);
+    bGood &= Test.TestTrue(TEXT("Points short of the price: no purchase"),
+        !LDOpponentPolicy::WantsNpcOffer(Short.Self, C, 1) && BuildOf(Short) == EKind::AllocatePoints);
+    bGood &= Test.TestTrue(TEXT("No empty Q/W/E slot: no purchase"),
+        !LDOpponentPolicy::WantsNpcOffer(Full.Self, C, 1) && BuildOf(Full) == EKind::AllocatePoints);
+    return bGood;
+}
+
+bool RunRestServiceTravel(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EBuild = ELDOpponentBuildKind;
+    using EBody = ELDOpponentBodyKind;
+    using EReason = ELDOpponentReason;
+    FLDOpponentDecisionFrame Frame;
+    if (!RestFrame(Test, C, Frame)) { return false; }
+    Frame.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Frame.Self.UnspentPoints = C.Get().Parameters.NpcActivePoints;
+    for (uint8 Index = 1; Index <= 3; ++Index)
+    {
+        FLDOpponentPOI& Place = Frame.RestServicePOIs.AddDefaulted_GetRef();
+        Place.Id = FName(*FString::Printf(TEXT("rest_service_%d"), Index));
+        Place.Kind = ELDOpponentPOIKind::RestService;
+        Place.RestService = static_cast<ELDRestService>(Index);
+        Place.SurfaceId = TEXT("demo_ground");
+        Place.FootCm = FVector(1000 * Index, 0, 0);
+    }
+    const auto Decide = [&C](const FLDOpponentDecisionFrame& Input)
+    {
+        FLDOpponentPolicyState State;
+        return LDOpponentPolicy::Decide(Input, C, State);
+    };
+    bool bGood = Test.TestTrue(TEXT("Each AI rest intent uses the authority's service mapping"),
+        LDOpponentPolicy::RestServiceForBuild(EBuild::BuyNpcOffer) == ELDRestService::SkillMerchant
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::FillGap) == ELDRestService::ComponentArtisan
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::Dismantle) == ELDRestService::ComponentArtisan
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::Respec) == ELDRestService::Trainer
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::ReplaceActive) == ELDRestService::Trainer
+        && LDOpponentPolicy::RestServiceForBuild(EBuild::AllocatePoints) == ELDRestService::None
+        && LDProgression::RestServiceFor(ELDBuildCommandKind::ForgetActive) == ELDRestService::Trainer);
+    FLDOpponentDecision Decision = Decide(Frame);
+    bGood &= Test.TestTrue(TEXT("A distant purchase walks to the merchant without sending the build"),
+        Decision.Reason == EReason::RestService && Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == TEXT("rest_service_1") && Decision.Build.Kind == EBuild::None);
+    auto Walking = Frame;
+    Walking.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Walking.Order.Status = ELDOpponentOrderStatus::Active;
+    Walking.Order.POI = TEXT("rest_service_1");
+    Decision = Decide(Walking);
+    bGood &= Test.TestTrue(TEXT("An existing merchant walk is kept"),
+        Decision.Body.Kind == EBody::Keep && Decision.Build.Kind == EBuild::None);
+    auto Acting = Frame;
+    Acting.Self.bChanneling = true;
+    bGood &= Test.TestTrue(TEXT("A channel finishes before walking"), Decide(Acting).Body.Kind == EBody::Keep);
+    auto Nearby = Frame;
+    Nearby.Self.NearbyRestService = ELDRestService::SkillMerchant;
+    Decision = Decide(Nearby);
+    bGood &= Test.TestTrue(TEXT("Only the matching nearby service permits the purchase"),
+        Decision.Build.Kind == EBuild::BuyNpcOffer && Decision.Body.Kind == EBody::None);
+    Nearby.Self.NearbyRestService = ELDRestService::Trainer;
+    bGood &= Test.TestTrue(TEXT("A different nearby service does not permit the purchase"),
+        Decide(Nearby).Body.Kind == EBody::MoveGround && Decide(Nearby).Build.Kind == EBuild::None);
+    auto Missing = Frame;
+    Missing.RestServicePOIs.Reset();
+    bGood &= Test.TestTrue(TEXT("A missing service anchor is an explicit provider stop"),
+        Decide(Missing).Reason == EReason::ProviderUnavailable && Decide(Missing).Build.Kind == EBuild::None);
+
+    FLDOpponentPolicyState Retry;
+    Retry.Generation = Frame.Generation;
+    Retry.Life = Frame.Self.Life;
+    const FLDOpponentDecision First = LDOpponentPolicy::Decide(Frame, C, Retry);
+    LDOpponentPolicy::RecordOutcome(Retry, First.Body.Key, ELDOpponentOutcome::Failed, Frame.Self,
+        Frame.Public.NowMs, C.Get().Parameters.AI);
+    Decision = LDOpponentPolicy::Decide(Frame, C, Retry);
+    bGood &= Test.TestTrue(TEXT("A refused service path backs off rather than sending another order"),
+        Decision.Reason == EReason::TargetSuppressed && Decision.Body.Kind == EBody::None);
+
+    auto Signup = Frame;
+    Signup.Public.Timeline.SignupOpensAtMs = Signup.Public.NowMs;
+    Signup.Public.Timeline.StepEndsAtMs = Signup.Public.NowMs + 10000;
+    FLDOpponentPOI Disk;
+    Disk.Id = TEXT("pk_signup_0");
+    Disk.Kind = ELDOpponentPOIKind::PKSignup;
+    Disk.SurfaceId = TEXT("demo_ground");
+    Signup.SignupPOI = Disk;
+    Decision = Decide(Signup);
+    bGood &= Test.TestTrue(TEXT("The sign-up window takes priority over an NPC purchase"),
+        Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == Disk.Id && Decision.Build.Kind == EBuild::None);
+    Signup.Self.NearbyRestService = ELDRestService::SkillMerchant;
+    bGood &= Test.TestTrue(TEXT("Even a nearby purchase waits during sign-up"),
+        Decide(Signup).Build.Kind == EBuild::None);
+    return bGood;
+}
+// #198 rest decisions (OPPONENT_AI.md §6.4): replacement, the components back on after a reclaim, moves to the preferred
+// placement, respec, dismantle and the NPC; each only in a rest build window, each run reaching an end.
+bool RunRestRebuild(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EKind = ELDOpponentBuildKind;
+    FLDOpponentDecisionFrame Rest;
+    if (!RestFrame(Test, C, Rest)) { return false; }
+    const auto OnField = [](FLDOpponentDecisionFrame Frame)
+    {
+        Frame.Public.Phase = ELDMatchPhase::Development;
+        Frame.Public.Timeline = FLDTimelineView();
+        Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+        return Frame;
+    };
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    FLDOpponentSelf After;
+    TArray<FLDOpponentBuildIntent> Steps;
+    FString Blueprint, Error;
+    uint8 Slot = 0xFF;
+
+    // Replacement: bail_out brings neither engagement nor self-protection to the other two, so it ranks lowest; the best
+    // blueprint against those two (Unit before DirectionCone) takes its slot. Each replacement spends a blueprint.
+    auto Frame = Rest;
+    Frame.Self.Actives = {{TEXT("active_snark_bolt"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_bail_out"), 2}};
+    Frame.Self.Blueprints = {TEXT("active_elbow"), TEXT("active_open_mic")};
+    bool bGood = Test.TestTrue(TEXT("The best blueprint takes the lowest active's slot: ") + Error,
+        LDOpponentPolicy::SelectReplacement(Frame.Self, C, Blueprint, Slot, Error) && Blueprint == TEXT("active_elbow") && Slot == 2);
+    bGood &= Test.TestTrue(TEXT("A rest build window sends the replacement"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == EKind::ReplaceActive
+        && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 2 && Intent.Key.POI == FName(TEXT("active_elbow")));
+    bGood &= RunRestBuilds(Test, C, Frame, Steps, After) && Test.TestTrue(TEXT("Then snark_bolt ranks lowest and open_mic replaces it; nothing after"),
+        KindsOf(Steps) == TArray<EKind>({EKind::ReplaceActive, EKind::ReplaceActive}) && Steps[1].Blueprint == TEXT("active_open_mic")
+        && Steps[1].Slot == 0 && After.Blueprints.IsEmpty());
+    bGood &= Test.TestFalse(TEXT("On the field the blueprints wait: no replacement"),
+        LDOpponentPolicy::DecideFollowUpBuild(OnField(Frame), C, State, Intent));
+    auto Offered = Frame;
+    Offered.Self.Offer = LDOpponentPolicyTests::ActiveOffer({TEXT("active_seethe")});
+    bGood &= Test.TestFalse(TEXT("An undecided offer holds the replacement (OfferOutstanding)"),
+        LDOpponentPolicy::DecideFollowUpBuild(Offered, C, State, Intent));
+    auto Dead = Frame;
+    Dead.Self.Phase = ELDLifePhase::Dead;
+    bGood &= Test.TestFalse(TEXT("Dead in a rest: no replacement"), LDOpponentPolicy::DecideFollowUpBuild(Dead, C, State, Intent));
+    auto Kept = Rest;
+    Kept.Self.Actives = {{TEXT("active_elbow"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_snark_bolt"), 2}};
+    Kept.Self.Blueprints = {TEXT("active_apology_slide")};
+    bGood &= Test.TestFalse(TEXT("A blueprint ranked below the lowest learned active is kept"),
+        LDOpponentPolicy::SelectReplacement(Kept.Self, C, Blueprint, Slot, Error))
+        && Test.TestFalse(TEXT("And nothing else is to be built"), LDOpponentPolicy::DecideFollowUpBuild(Kept, C, State, Intent));
+
+    // Respec: the replacement takes the last AP active away, so the brains points come back once and go to the AD stats.
+    const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),
+        Brains(TEXT("stat_brains"));
+    auto Spec = Rest;
+    Spec.Self.Actives = {{TEXT("active_elbow"), 0}, {TEXT("active_pants_down"), 1}, {TEXT("active_snark_bolt"), 2}};
+    Spec.Self.Blueprints = {TEXT("active_crotch_grab")};
+    Spec.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {{Physique, 1}, {Skin, 1}, {Strength, 1}, {Brains, 2}});
+    FString Ignored;
+    bGood &= Test.TestFalse(TEXT("Brains serve a learned AP active: no respec"), LDOpponentPolicy::WantsRespec(Spec.Self, C, Ignored));
+    bGood &= RunRestBuilds(Test, C, Spec, Steps, After) && Test.TestTrue(TEXT("Replacement, one respec, then the points go to the AD stats only"),
+        KindsOf(Steps) == TArray<EKind>({EKind::ReplaceActive, EKind::Respec, EKind::AllocatePoints})
+        && Steps[0].Blueprint == TEXT("active_crotch_grab") && Steps[0].Slot == 2
+        && LDOpponentPolicyTests::SameCounts(LDOpponentPolicyTests::ById(C, Steps[2].PointCounts), {{Physique, 2}, {Skin, 2}, {Strength, 1}})
+        && !LDOpponentPolicy::WantsRespec(After, C, Ignored));
+    auto FieldSpec = OnField(Rest);
+    FieldSpec.Self.Actives = {{TEXT("active_elbow"), 0}};
+    FieldSpec.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {{Brains, 2}});
+    bGood &= Test.TestTrue(TEXT("Brains without an AP active want a respec"), LDOpponentPolicy::WantsRespec(FieldSpec.Self, C, Ignored))
+        && Test.TestFalse(TEXT("On the field there is no respec"), LDOpponentPolicy::DecideFollowUpBuild(FieldSpec, C, State, Intent));
+    // Moves: M03 on its host while a listed active is learned comes off and goes back onto the active, then stays.
+    const auto Is = [](const FLDOpponentBuildIntent& Step, EKind Kind, const TCHAR* Component)
+    { return Step.Kind == Kind && Step.Component == Component; };
+    auto Move = Rest;
+    Move.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Move.Self.Components = {Hosted(TEXT("component_long_kick"), ELDComponentTargetKind::Component, TEXT("component_third_punch")),
+        Hosted(TEXT("component_third_punch"))};
+    FString Moved;
+    bGood &= Test.TestTrue(TEXT("M03 on its host is misplaced once its listed active is learned: ") + Error,
+        LDOpponentPolicy::SelectComponentMove(Move.Self, C, Moved, Error) && Moved == TEXT("component_long_kick"));
+    bGood &= RunRestBuilds(Test, C, Move, Steps, After) && Test.TestTrue(TEXT("Uninstall, then the install onto the active; no move after"),
+        Steps.Num() == 2 && Is(Steps[0], EKind::UninstallComponent, TEXT("component_long_kick"))
+        && Is(Steps[1], EKind::InstallComponent, TEXT("component_long_kick")) && Steps[1].TargetKind == ELDComponentTargetKind::Active
+        && Steps[1].TargetId == TEXT("active_elbow") && !LDOpponentPolicy::SelectComponentMove(After, C, Moved, Error));
+    bGood &= Test.TestFalse(TEXT("On the field nothing moves"), LDOpponentPolicy::DecideFollowUpBuild(OnField(Move), C, State, Intent));
+
+    // Reclaim: a replacement returns M08 from the forgotten active; it goes back on in the same rest (here the innate D).
+    auto Reclaim = Rest;
+    Reclaim.Self.Actives = {{TEXT("active_snark_bolt"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_bail_out"), 2}};
+    Reclaim.Self.Blueprints = {TEXT("active_elbow")};
+    Reclaim.Self.Components = {Hosted(TEXT("component_ram_through"), ELDComponentTargetKind::Active, TEXT("active_bail_out"))};
+    bGood &= RunRestBuilds(Test, C, Reclaim, Steps, After) && Test.TestTrue(TEXT("Replacement, then the reclaimed M08 back on the innate D"),
+        Steps.Num() == 2 && Steps[0].Kind == EKind::ReplaceActive && Is(Steps[1], EKind::InstallComponent, TEXT("component_ram_through"))
+        && Steps[1].TargetKind == ELDComponentTargetKind::Dash && After.Components.Num() == 1 && After.Components[0].bInstalled);
+    auto FieldReclaim = OnField(Reclaim);
+    FieldReclaim.Self.Blueprints.Reset();
+    FieldReclaim.Self.Components = {Owned(TEXT("component_ram_through"), false, true)};
+    bGood &= Test.TestFalse(TEXT("On the field a once-installed component stays in the inventory (RestOnly)"),
+        LDOpponentPolicy::DecideFollowUpBuild(FieldReclaim, C, State, Intent));
+
+    // Rebinding: B18 bound to W while a bindable active sits in Q rebinds to Q; C01 on it comes off and goes back on.
+    auto Bind = Rest;
+    Bind.Self.Actives = {{TEXT("active_snark_bolt"), 0}, {TEXT("active_elbow"), 1}};
+    FLDOpponentComponent Trick = Hosted(TEXT("component_dirty_trick"), ELDComponentTargetKind::None, TEXT(""), ELDDemoElement::Fire);
+    Trick.BoundActive = TEXT("active_elbow");
+    Bind.Self.Components = {Trick, Hosted(TEXT("component_fire_skin"), ELDComponentTargetKind::Component, TEXT("component_dirty_trick"))};
+    bGood &= RunRestBuilds(Test, C, Bind, Steps, After) && Test.TestTrue(TEXT("B18 off, back on bound to Q with fire, then C01 back onto it"),
+        Steps.Num() == 3 && Is(Steps[0], EKind::UninstallComponent, TEXT("component_dirty_trick"))
+        && Is(Steps[1], EKind::InstallComponent, TEXT("component_dirty_trick")) && Steps[1].BoundActive == TEXT("active_snark_bolt")
+        && Steps[1].Element == ELDDemoElement::Fire && Is(Steps[2], EKind::InstallComponent, TEXT("component_fire_skin"))
+        && Steps[2].TargetKind == ELDComponentTargetKind::Component && Steps[2].TargetId == TEXT("component_dirty_trick"));
+
+    // No oscillation: M08 moves onto its listed active, M09 then takes the free D, and neither moves again (TargetConflict).
+    auto Dash = Rest;
+    Dash.Self.Actives = {{TEXT("active_apology_slide"), 0}};
+    Dash.Self.Components = {Owned(TEXT("component_quick_hop"), false, false), Hosted(TEXT("component_ram_through"), ELDComponentTargetKind::Dash)};
+    bGood &= RunRestBuilds(Test, C, Dash, Steps, After) && Test.TestTrue(TEXT("M08 to the active, M09 to the free D, then a fixed point"),
+        Steps.Num() == 3 && Is(Steps[0], EKind::UninstallComponent, TEXT("component_ram_through"))
+        && Is(Steps[1], EKind::InstallComponent, TEXT("component_ram_through")) && Steps[1].TargetKind == ELDComponentTargetKind::Active
+        && Steps[1].TargetId == TEXT("active_apology_slide") && Is(Steps[2], EKind::InstallComponent, TEXT("component_quick_hop"))
+        && Steps[2].TargetKind == ELDComponentTargetKind::Dash && !LDOpponentPolicy::SelectComponentMove(After, C, Moved, Error));
+
+    // Dismantle: three never-installed common components the build cannot place, in catalog order; a scarce one, a
+    // once-installed one and a gap the build may still fill are never given up.
+    if (!Test.TestEqual(TEXT("The approved dismantle takes three components"), C.Get().Parameters.DismantleInputCount, int64(3))) { return false; }
+    auto Junk = Rest;
+    Junk.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Junk.Self.Components = {Owned(TEXT("component_after_pin"), false, false), Owned(TEXT("component_hold_down"), false, false),
+        Owned(TEXT("component_one_slam"), false, false), Owned(TEXT("component_pick_you"), false, false)};
+    TArray<FString> Surrendered;
+    const TArray<FString> Expected = {TEXT("component_hold_down"), TEXT("component_one_slam"), TEXT("component_after_pin")};
+    bGood &= Test.TestTrue(TEXT("The unusable common components in catalog order, never the scarce one: ") + Error,
+        LDOpponentPolicy::SelectDismantle(Junk.Self, C, Surrendered, Error) && Surrendered == Expected);
+    bGood &= Test.TestTrue(TEXT("A rest build window dismantles them"),
+        LDOpponentPolicy::DecideFollowUpBuild(Junk, C, State, Intent) && Intent.Kind == EKind::Dismantle && Intent.Surrendered == Expected
+        && Intent.Key.POI == FName(TEXT("component_hold_down")));
+    bGood &= Test.TestFalse(TEXT("On the field nothing is dismantled"), LDOpponentPolicy::DecideFollowUpBuild(OnField(Junk), C, State, Intent));
+    auto Once = Junk;
+    Once.Self.Components[0].bEverInstalled = true;
+    bGood &= Test.TestFalse(TEXT("A once-installed component is never given up, and two are not enough"),
+        LDOpponentPolicy::SelectDismantle(Once.Self, C, Surrendered, Error));
+    auto Gap = Rest;
+    Gap.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Gap.Self.Components = {Owned(TEXT("component_big_tab"), false, false), Owned(TEXT("component_hold_down"), false, false),
+        Owned(TEXT("component_one_slam"), false, false)};
+    bGood &= Test.TestTrue(TEXT("Without a fill the build allows, the unhosted mod counts"),
+        LDOpponentPolicy::SelectDismantle(Gap.Self, C, Surrendered, Error) && Surrendered.Num() == 3
+        && Surrendered.Last() == TEXT("component_big_tab"));
+    Gap.Self.GapFills = {{TEXT("component_big_tab"), TEXT("component_tab_ledger")}};
+    bGood &= Test.TestFalse(TEXT("A gap the build may still fill is kept for the fill"),
+        LDOpponentPolicy::SelectDismantle(Gap.Self, C, Surrendered, Error))
+        && Test.TestFalse(TEXT("And nothing else is to be built"), LDOpponentPolicy::DecideFollowUpBuild(Gap, C, State, Intent));
+    // NPC: an empty Q/W/E slot without a pending blueprint buys the NPC's offer before the points, only when growth would charge.
+    const int64 NpcPoints = C.Get().Parameters.NpcActivePoints;
+    if (!Test.TestTrue(TEXT("The approved content prices the NPC"), NpcPoints > 0)) { return false; }
+    const auto BuildOf = [&C](const FLDOpponentDecisionFrame& Of)
+    {
+        FLDOpponentPolicyState Fresh;
+        return LDOpponentPolicy::Decide(Of, C, Fresh).Build.Kind;
+    };
+    auto Npc = Rest;
+    Npc.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Npc.Self.UnspentPoints = NpcPoints;
+    Npc.Self.NearbyRestService = ELDRestService::SkillMerchant;
+    bGood &= Test.TestTrue(TEXT("The NPC rule holds"), LDOpponentPolicy::WantsNpcOffer(Npc.Self, C, 1))
+        && Test.TestTrue(TEXT("An empty slot without a blueprint buys the offer before the points"), BuildOf(Npc) == EKind::BuyNpcOffer);
+    bGood &= Test.TestTrue(TEXT("DecideFollowUpBuild leaves offers to its caller: it allocates instead"),
+        LDOpponentPolicy::DecideFollowUpBuild(Npc, C, State, Intent) && Intent.Kind == EKind::AllocatePoints);
+    auto Poor = Npc;
+    Poor.Self.UnspentPoints = NpcPoints - 1;
+    auto Pending = Npc;
+    Pending.Self.Blueprints = {TEXT("active_open_mic")};
+    auto Full = Npc;
+    Full.Self.Actives = {{TEXT("active_elbow"), 0}, {TEXT("active_not_mad"), 1}, {TEXT("active_snark_bolt"), 2}};
+    auto Queued = Npc;
+    Queued.Self.QueuedOpportunities = 1;
+    auto Offer = Npc;
+    Offer.Self.Offer = LDOpponentPolicyTests::ActiveOffer({TEXT("active_open_mic"), TEXT("active_seethe")});
+    bGood &= Test.TestTrue(TEXT("Without the price the points are allocated"), BuildOf(Poor) == EKind::AllocatePoints)
+        && Test.TestTrue(TEXT("A pending blueprint fills the slot instead"), BuildOf(Pending) == EKind::LearnBlueprint)
+        && Test.TestTrue(TEXT("Full Q/W/E: no purchase"), BuildOf(Full) == EKind::AllocatePoints)
+        && Test.TestTrue(TEXT("A queued opportunity: no purchase (OfferOutstanding)"), BuildOf(Queued) == EKind::AllocatePoints)
+        && Test.TestTrue(TEXT("An offer is chosen first"), BuildOf(Offer) == EKind::ChooseActive)
+        && Test.TestTrue(TEXT("On the field there is no NPC"), BuildOf(OnField(Npc)) == EKind::AllocatePoints);
+
+    // The own view feeds these rules: the queued opportunities and B18's bound active.
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 7;
+    View.Level = 3;
+    View.BuildRevision = 2;
+    View.QueuedActiveOpportunities = 2;
+    for (const FLDDemoStatDefinition& Stat : C.Get().Stats)
+    {
+        FLDStatPointsView Row;
+        Row.StatId = FName(*Stat.Id);
+        View.StatPoints.Add(Row);
+    }
+    FLDActiveSlotView& Learned = View.Actives.AddDefaulted_GetRef();
+    Learned.DefinitionId = TEXT("active_snark_bolt");
+    FLDComponentInstanceView& Bound = View.Components.AddDefaulted_GetRef();
+    Bound.DefinitionId = TEXT("component_dirty_trick");
+    Bound.Source = ELDComponentSource::LevelUp;
+    Bound.SourceLevel = 2;
+    Bound.bInstalled = Bound.bEverInstalled = true;
+    Bound.Target.BoundActive = TEXT("active_snark_bolt");
+    Bound.Target.Element = ELDDemoElement::Fire;
+    FLDOpponentSelf Projected;
+    bGood &= Test.TestTrue(TEXT("The own view maps the queued opportunities and B18's bound active: ") + Error,
+        LDOpponentFrame::ReadOwnBuild(View, C, Projected, Error) && Projected.QueuedOpportunities == 2
+        && Projected.Components.Num() == 1 && Projected.Components[0].BoundActive == TEXT("active_snark_bolt")
+        && Projected.Components[0].Element == ELDDemoElement::Fire);
+    return bGood;
+}
+// In the rest build window, once nothing is left to build, the body tries its build on its private target (a
+// visible contender outside the public roster) with the production engagement; never on anything else, never elsewhere.
+bool RunTraining(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EReason = ELDOpponentReason;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!RestFrame(Test, C, Base)) { return false; }
+    const FLDOpponentUnit Rival = LDOpponentPolicyTests::Unit(7, ELDOpponentUnitKind::Contender, 60, 0);
+    const FLDOpponentUnit Dummy = LDOpponentPolicyTests::Unit(50, ELDOpponentUnitKind::Contender, 100, 0);
+    Base.Public.Roster = {Base.Self.ContenderId, Rival.ContenderId};
+    Base.Units = {Rival, Dummy};
+    const auto Decide = [&C](const FLDOpponentDecisionFrame& Frame)
+    {
+        FLDOpponentPolicyState State;
+        return LDOpponentPolicy::Decide(Frame, C, State);
+    };
+    const auto Trains = [&Dummy](const FLDOpponentDecision& Decision, EBody Kind)
+    { return Decision.Body.Kind == Kind && Decision.Body.Handle == Dummy.Handle; };
+    const FLDOpponentUnit* Found = LDOpponentPolicy::TrainingDummy(Base);
+    bool bGood = Test.TestTrue(TEXT("The visible contender outside the public roster is its training target"), Found && Found->Handle == Dummy.Handle);
+    FLDOpponentDecision Decision = Decide(Base);
+    bGood &= Test.TestTrue(TEXT("Nothing to build: the body attacks its dummy, never the roster member in sight"),
+        Decision.Mode == EMode::Engage && Decision.Reason == EReason::Train && Trains(Decision, EBody::AttackUnit)
+        && Decision.Build.Kind == ELDOpponentBuildKind::None);
+    auto Ready = Base;
+    FLDOpponentSource Elbow;
+    Elbow.Slot = ELDOpponentSourceSlot::Q;
+    Elbow.DefinitionId = TEXT("active_elbow");
+    Elbow.bReady = true;
+    Ready.Self.Actives = {{TEXT("active_elbow"), 0}};
+    Ready.Self.Sources = {Elbow};
+    Decision = Decide(Ready);
+    bGood &= Test.TestTrue(TEXT("A ready active goes first, at the dummy (§6.3 order)"), Decision.Reason == EReason::Train
+        && Trains(Decision, EBody::Activate) && Decision.Body.Source == ELDOpponentSourceSlot::Q);
+    auto Live = Base;
+    Live.Order.Kind = ELDOpponentOrderKind::AttackUnit;
+    Live.Order.Status = ELDOpponentOrderStatus::Active;
+    Live.Order.Handle = Dummy.Handle;
+    Live.Order.Epoch = Dummy.Epoch;
+    bGood &= Test.TestTrue(TEXT("A live attack on the dummy is kept, not re-sent"), Trains(Decide(Live), EBody::Keep));
+    auto Channel = Base;
+    Channel.Self.bChanneling = true;
+    bGood &= Test.TestTrue(TEXT("A channel is never cut"), Decide(Channel).Body.Kind == EBody::Keep);
+    auto Payout = Base;
+    Payout.Public.Timeline.Step = ELDRestStep::Payout;
+    bGood &= Test.TestTrue(TEXT("The payout step trains too"), Trains(Decide(Payout), EBody::AttackUnit));
+    auto SignUp = Base;
+    SignUp.Public.Timeline.SignupOpensAtMs = SignUp.Public.NowMs;
+    SignUp.Public.Timeline.StepEndsAtMs = SignUp.Public.NowMs + 1000;
+    FLDOpponentPOI Disk;
+    Disk.Id = TEXT("pk_signup_0");
+    Disk.Kind = ELDOpponentPOIKind::PKSignup;
+    Disk.SurfaceId = TEXT("demo_ground");
+    Disk.FootCm = Base.Self.FootCm + FVector(300, 0, 0);
+    SignUp.SignupPOI = Disk;
+    Decision = Decide(SignUp);
+    bGood &= Test.TestTrue(TEXT("The open sign-up window walks into the own disk instead of training (站圈报名)"),
+        Decision.Mode == EMode::PK && Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::MoveGround
+        && Decision.Body.POI == Disk.Id && Decision.PK.Kind == ELDOpponentPKKind::None);
+    SignUp.Public.Timeline.Signups = {Base.Self.ContenderId};
+    Decision = Decide(SignUp);
+    bGood &= Test.TestTrue(TEXT("Signed up, the body stays in its disk and does not train until the lock"),
+        Decision.Reason == EReason::PKSignUp && Decision.Body.Kind == EBody::Keep);
+    SignUp.Public.Timeline.Signups.Reset();
+    SignUp.Order = Live.Order;
+    SignUp.Order.Kind = ELDOpponentOrderKind::Action;
+    bGood &= Test.TestTrue(TEXT("An accepted training action finishes before the walk"), Decide(SignUp).Body.Kind == EBody::Keep);
+
+    // Never before or while something is built, never outside the rest build window, never on anything but the dummy.
+    auto Building = Base;
+    Building.Self.UnspentPoints = 2;
+    Decision = Decide(Building);
+    bGood &= Test.TestTrue(TEXT("Something to build comes first, without a body intent"),
+        Decision.Mode == EMode::Choose && Decision.Build.Kind == ELDOpponentBuildKind::AllocatePoints && Decision.Body.Kind == EBody::None);
+    auto InFlight = Base;
+    InFlight.bBuildChangeInFlight = true;
+    auto Early = Base;
+    Early.Self.OpeningPickAtMs = Early.Public.NowMs + 1;
+    auto Locked = Base;
+    Locked.Public.Timeline.Step = ELDRestStep::Betting;
+    auto RosterOnly = Base;
+    RosterOnly.Units = {Rival};
+    auto Unread = Base;
+    Unread.Public.Roster.Reset();
+    auto Protected = Base;
+    Protected.Units[1].bProtected = true;
+    auto DeadBody = Base;
+    DeadBody.Self.Phase = ELDLifePhase::Dead;
+    bGood &= Test.TestTrue(TEXT("A build in flight holds the training"), Decide(InFlight).Body.Kind == EBody::None)
+        && Test.TestTrue(TEXT("Before the drawn moment nothing"), Decide(Early).Body.Kind == EBody::None)
+        && Test.TestTrue(TEXT("A locked rest step never trains"), Decide(Locked).Body.Kind == EBody::None)
+        && Test.TestTrue(TEXT("Only roster members in sight: nothing to train on"), Decide(RosterOnly).Body.Kind == EBody::None)
+        && Test.TestNull(TEXT("An unread roster names no dummy"), LDOpponentPolicy::TrainingDummy(Unread))
+        && Test.TestTrue(TEXT("Nor is anything engaged then"), Decide(Unread).Body.Kind == EBody::None)
+        && Test.TestTrue(TEXT("A protected unit is not engaged"), Decide(Protected).Body.Kind == EBody::None)
+        && Test.TestTrue(TEXT("A dead body never trains"), Decide(DeadBody).Body.Kind == EBody::None);
+    Locked.Order = Live.Order;
+    bGood &= Test.TestTrue(TEXT("A training order still running when the window closes stops"), Decide(Locked).Body.Kind == EBody::Stop);
+    auto Field = Base;
+    Field.Public.Phase = ELDMatchPhase::Development;
+    Field.Public.Timeline = FLDTimelineView();
+    bGood &= Test.TestNull(TEXT("Outside a rest no unit is a dummy"), LDOpponentPolicy::TrainingDummy(Field));
+    return bGood;
+}
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentComponentChoiceTest, "Lockdown.Rules.DemoOpponentPolicy.ComponentChoice",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentComponentChoiceTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunComponentChoice(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentWorkshopTargetsTest, "Lockdown.Rules.DemoOpponentPolicy.WorkshopTargets",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentWorkshopTargetsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunWorkshopTargets(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentComponentsTest, "Lockdown.Rules.DemoOpponentPolicy.Components",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentComponentsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunPickAndEnable(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestRebuildTest, "Lockdown.Rules.DemoOpponentPolicy.RestRebuild",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRestRebuildTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunRestRebuild(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentNpcGateTest, "Lockdown.Rules.DemoOpponentPolicy.NpcGate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentNpcGateTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunNpcGate(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRestServiceTravelTest, "Lockdown.Rules.DemoOpponentPolicy.RestServiceTravel",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentRestServiceTravelTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunRestServiceTravel(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentTrainingTest, "Lockdown.Rules.DemoOpponentPolicy.Training",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentTrainingTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunTraining(*this);
 }
 
 #endif

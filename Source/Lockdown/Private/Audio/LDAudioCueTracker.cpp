@@ -139,7 +139,7 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
                 }
                 AttackReleasedAtMs = Facts.ReleasedAtMs;
             }
-            // Lost points with an unchanged or larger maximum: a smaller maximum (sold equipment) only clamps.
+            // Lost points with an unchanged or larger maximum: a smaller maximum only clamps.
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
             // A hit the own shield took whole: shield points lost while the shield is still listed or before its listed end
@@ -166,14 +166,14 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
         {
             GrowthMatch = Growth->Generation;
             GrowthLevel = Growth->Level;
-            GrowthEarned = Growth->EarnedThrough;
+            GrowthEarned = Growth->ActiveOpportunitiesEarned;
         }
         else
         {
-            // A level or a newly earned three-choice; the next queued offer shown after a pick is not new.
-            if (Growth->Level > GrowthLevel || Growth->EarnedThrough > GrowthEarned) { LDAudio::AddUnique(Out, ELDAudioCue::LevelUp); }
+            // A level or a newly earned active opportunity; the next queued offer shown after a pick is not new.
+            if (Growth->Level > GrowthLevel || Growth->ActiveOpportunitiesEarned > GrowthEarned) { LDAudio::AddUnique(Out, ELDAudioCue::LevelUp); }
             GrowthLevel = FMath::Max(GrowthLevel, Growth->Level);
-            GrowthEarned = FMath::Max(GrowthEarned, Growth->EarnedThrough);
+            GrowthEarned = FMath::Max(GrowthEarned, Growth->ActiveOpportunitiesEarned);
         }
     }
 }
@@ -198,32 +198,4 @@ void FLDAudioCueTracker::ObserveCombatReceipt(const FLDCombatActionReceipt& Rece
     if (CastKeys.Num() >= 16) { CastKeys.RemoveAt(0); }
     CastKeys.Add(Key);
     LDAudio::AddUnique(Out, ELDAudioCue::SelfCast);
-}
-
-void FLDAudioCueTracker::FinishShop(uint32 Generation, uint64 RequestId, ELDReceiptOutcome Outcome, TArray<ELDAudioCue>& Out)
-{
-    if (Generation != ShopMatch) { ShopMatch = Generation; ShopFinalThrough = 0; }
-    // Request ids only grow within a match once final: a repeated or late final answer stays silent.
-    if (RequestId == 0 || RequestId <= ShopFinalThrough) { return; }
-    if (Outcome != ELDReceiptOutcome::Applied && Outcome != ELDReceiptOutcome::Rejected) { return; }
-    ShopFinalThrough = RequestId;
-    LDAudio::AddUnique(Out, Outcome == ELDReceiptOutcome::Applied ? ELDAudioCue::PurchaseSucceeded : ELDAudioCue::TradeRejected);
-}
-
-void FLDAudioCueTracker::ObserveShopSubmit(const FLDSubmitResult& Result, uint32 OwnMatch, TArray<ELDAudioCue>& Out)
-{
-    if (Result.Family != ELDGrowthFamily::Shop || OwnMatch == 0 || Result.Generation != OwnMatch) { return; }
-    if (Result.Status == ELDAdmissionStatus::Final && Result.bHasShopReceipt)
-    { FinishShop(Result.Generation, Result.RequestId, Result.ShopReceipt.Header.Outcome, Out); return; }
-    // An unreserved refusal is final for the player but does not consume the id, which the next request reuses.
-    if (Result.Status == ELDAdmissionStatus::AdmissionRejected && !Result.bSequenceReserved
-        && Result.RequestId != 0 && Result.RequestId > (Result.Generation == ShopMatch ? ShopFinalThrough : 0))
-    { LDAudio::AddUnique(Out, ELDAudioCue::TradeRejected); }
-}
-
-void FLDAudioCueTracker::ObserveShopReceipt(const FLDShopReceiptQueryResult& Result, uint32 OwnMatch, TArray<ELDAudioCue>& Out)
-{
-    if (Result.Query.Family != ELDGrowthFamily::Shop || OwnMatch == 0 || Result.Query.Generation != OwnMatch) { return; }
-    if (Result.Lookup != ELDReceiptLookup::Final || !Result.bHasReceipt) { return; }
-    FinishShop(Result.Query.Generation, Result.Query.RequestId, Result.Receipt.Header.Outcome, Out);
 }

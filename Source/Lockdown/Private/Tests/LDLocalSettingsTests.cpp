@@ -73,6 +73,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 AutoAttacklessFixtureSchema = 17;
     // Schema 18 stores auto attack after a cast but predates the third active binding.
     constexpr uint32 SkillElessFixtureSchema = 18;
+    // Schema 19 writes every current preference except the music volume (#94).
+    constexpr uint32 MusiclessFixtureSchema = 19;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -94,6 +96,7 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         if (Schema > DiagnosticslessFixtureSchema)
         { uint8 Network=Values.bShowNetworkDiagnostics?1:0, FPS=Values.bShowFPS?1:0; Payload << Network << FPS; }
         if (Schema > AutoAttacklessFixtureSchema) { uint8 AutoAttack = Values.bAutoAttackAfterCast ? 1 : 0; Payload << AutoAttack; }
+        if (Schema > MusiclessFixtureSchema) { float Music = Values.MusicVolume; Payload << Music; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -492,6 +495,80 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     DamagedPrevious.Last() ^= 1;
     Write(DamagedPrevious);
     ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsMusicVolumeTest, "Lockdown.Rules.LocalSettingsMusicVolume",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsMusicVolumeTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit music fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto OnDisk = [&](const TArray<uint8>& Expected) { TArray<uint8> Actual; return FFileHelper::LoadFileToArray(Actual, *Fixture.Storage.Filename()) && Actual == Expected; };
+    FString Error;
+
+    // The user's default (#94: "add bgm volume in audio settings, with a default of 60"), stored next to the master volume.
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestEqual(TEXT("The default music volume is 60%"), Applied->MusicVolume, .6f);
+    TestEqual(TEXT("The music default leaves the master volume full"), Applied->MasterVolume, 1.f);
+    TestTrue(TEXT("The applied owner accepts a non-default music volume and marks it unsaved"),
+        Applied->SetAppliedMusicVolume(.35f, Error) && Error.IsEmpty() && Applied->IsDirty() && Applied->MasterVolume == 1.f);
+    TestTrue(TEXT("The music volume is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A current-schema round trip restores the exact music volume"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->MusicVolume == .35f
+        && Loaded.Settings->MasterVolume == 1.f);
+
+    auto* Draft = Applied->CreateDraft();
+    TestFalse(TEXT("A draft cannot set the applied music volume"), Draft->SetAppliedMusicVolume(.5f, Error));
+    TestTrue(TEXT("A refused draft music volume is explained and leaves the draft unchanged"), !Error.IsEmpty() && Draft->MusicVolume == .35f);
+    for (float Invalid : { std::numeric_limits<float>::quiet_NaN(), -.01f, 1.01f, std::numeric_limits<float>::infinity() })
+    {
+        TestFalse(TEXT("A non-finite or out-of-range music volume is refused"), Applied->SetAppliedMusicVolume(Invalid, Error));
+        TestTrue(TEXT("A refused music volume is explained and keeps the applied value"), !Error.IsEmpty() && Applied->MusicVolume == .35f);
+    }
+    TestTrue(TEXT("Silent music is supported"), Applied->SetAppliedMusicVolume(0.f, Error) && Applied->MusicVolume == 0.f);
+    TestTrue(TEXT("Full music is supported"), Applied->SetAppliedMusicVolume(1.f, Error) && Applied->MusicVolume == 1.f);
+    Applied->ResetPreferenceGroup(ELDPreferenceGroup::Audio);
+    TestTrue(TEXT("Restoring the audio page returns the music volume to 60%"), Applied->MusicVolume == .6f && Applied->MasterVolume == 1.f);
+
+    // A saved music volume outside 0..1 rejects the whole file, which is left alone.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("王小明");
+    for (float Bad : { 1.5f, -.01f, std::numeric_limits<float>::quiet_NaN() })
+    {
+        Values->MusicVolume = Bad;
+        const auto BadFile = FixtureBytes(*Values);
+        Write(BadFile);
+        const auto BadLoad = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("An invalid saved music volume makes the file Corrupt"),
+            BadLoad.Status == ELDLocalSettingsLoadStatus::Corrupt && !BadLoad.Settings && !BadLoad.RecoverablePreferences
+            && BadLoad.Message.Contains(TEXT("音乐音量")));
+        TestTrue(TEXT("Rejecting a saved music volume leaves the file byte-identical"), OnDisk(BadFile));
+    }
+
+    // Schema 19 predates the music volume: the migration keeps everything it stored and uses the 60% default.
+    Values->Bindings[TEXT("Skill1")] = EKeys::F6;
+    Values->MasterVolume = .4f;
+    Values->bAutoAttackAfterCast = false;
+    // Never written by the schema 19 layout.
+    Values->MusicVolume = .1f;
+    const auto MusiclessFile = FixtureBytes(*Values, MusiclessFixtureSchema, 0);
+    Write(MusiclessFile);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 19 file migrates with its master volume, bindings and auto attack kept and music at 60%"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->MusicVolume == .6f && Migrated.Settings->MasterVolume == .4f
+        && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && !Migrated.Settings->GetAutoAttackAfterCast()
+        && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive) && Migrated.Settings->IsDirty());
+    TestTrue(TEXT("The schema 19 migration message names the music default"), Migrated.Message.Contains(TEXT("音乐音量使用默认值 60%")));
+    TestTrue(TEXT("Loading never rewrites the schema 19 file"), OnDisk(MusiclessFile));
+    TestTrue(TEXT("The migrated settings save with verification"), Migrated.Settings && Migrated.Settings->SaveLocalSettings().IsSaved());
+    const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The rewritten file loads as current with the music default"),
+        Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->MusicVolume == .6f
+        && Upgraded.Settings->MasterVolume == .4f);
     return true;
 }
 
@@ -987,6 +1064,8 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     }
     auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
     TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
+    TestEqual(TEXT("Left mouse binding uses its Chinese display name"),Settings->Label(TEXT("Select")),FString(TEXT("鼠标左键")));
+    TestEqual(TEXT("Right mouse binding uses its Chinese display name"),Settings->Label(TEXT("Navigate")),FString(TEXT("鼠标右键")));
     TestTrue(TEXT("Spec defaults: Q/W/E abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
         Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
         && Settings->Key(TEXT("SkillE")) == EKeys::E
@@ -1699,8 +1778,8 @@ bool FLDLocalSettingsSkillEMigrationTest::RunTest(const FString& Parameters)
         FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
     TestTrue(TEXT("The migrated settings save with verification"), Migrated.Settings->SaveLocalSettings().IsSaved());
     uint32 SavedSchema = 0;
-    TestTrue(TEXT("The verified file declares schema 19"),
-        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 19);
+    TestTrue(TEXT("The verified file declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
     const auto Saved = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The saved settings restore E, the custom binding and the disabled auto attack"),
         Saved.Status == ELDLocalSettingsLoadStatus::Loaded && Saved.Settings
@@ -1758,7 +1837,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 19);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 20);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1870,8 +1949,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 19"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 19);
+            TestTrue(TEXT("The verified replacement explicitly declares the current schema"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom
@@ -1974,6 +2053,7 @@ bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Rebind Stop away from its default"),Draft->Rebind(TEXT("Stop"),EKeys::K,Error));
         Draft->PlayerName=TEXT("GroupPlayer");
         Draft->MasterVolume=.35f;
+        Draft->MusicVolume=.25f;
         Draft->bQuickCast=!Defaults->bQuickCast;
         Draft->bAutoAttackAfterCast=!Defaults->bAutoAttackAfterCast;
         Draft->Zoom=1500;
@@ -1991,7 +2071,7 @@ bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
     {
         switch(Group)
         {
-        case ELDPreferenceGroup::Audio: return S.MasterVolume==Defaults->MasterVolume;
+        case ELDPreferenceGroup::Audio: return S.MasterVolume==Defaults->MasterVolume&&S.MusicVolume==Defaults->MusicVolume;
         case ELDPreferenceGroup::Controls: return S.Key(TEXT("Stop"))==Stop->Key&&S.bQuickCast==Defaults->bQuickCast
             &&S.bAutoAttackAfterCast==Defaults->bAutoAttackAfterCast;
         case ELDPreferenceGroup::Camera: return S.Zoom==Defaults->Zoom&&S.bEdgePan==Defaults->bEdgePan
@@ -2024,7 +2104,7 @@ bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
     Complete->ResetLocalDefaults();
     TestTrue(TEXT("All four groups together are exactly the complete local defaults"),
         Groupwise->Bindings.OrderIndependentCompareEqual(Complete->Bindings)
-        &&Groupwise->MasterVolume==Complete->MasterVolume&&Groupwise->bQuickCast==Complete->bQuickCast
+        &&Groupwise->MasterVolume==Complete->MasterVolume&&Groupwise->MusicVolume==Complete->MusicVolume&&Groupwise->bQuickCast==Complete->bQuickCast
         &&Groupwise->bAutoAttackAfterCast==Complete->bAutoAttackAfterCast
         &&Groupwise->Zoom==Complete->Zoom&&Groupwise->bEdgePan==Complete->bEdgePan&&Groupwise->bStartFollowing==Complete->bStartFollowing
         &&Groupwise->CameraPanCmPerSec==Complete->CameraPanCmPerSec&&Groupwise->TextScale==Complete->TextScale

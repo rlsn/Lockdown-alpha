@@ -40,12 +40,12 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
     if (!World.Surfaces[0].MinCm.ToVector(FloorMin, Error) || !World.Surfaces[0].MaxCm.ToVector(FloorMax, Error)) { return false; }
     const auto& Parameters = Content.Get().Parameters;
     const double Body = PlaceValue(Parameters.CollisionRadiusCm), CaptureRadius = PlaceValue(Parameters.CaptureRadiusCm);
-    const double ShopRadius = PlaceValue(Parameters.ShopInteractRadiusCm), SightHeight = PlaceValue(World.SightSampleHeightCm);
+    const double SightHeight = PlaceValue(World.SightSampleHeightCm);
     const double AirdropRadius = PlaceValue(Parameters.AirdropPickupRadiusCm);
     const double CampClearance = PlaceValue(World.CampClearanceCm), SpawnRadius = PlaceValue(World.SpawnValidationRadiusCm);
-    if (!(Body > 0 && CaptureRadius > 0 && ShopRadius > 0 && SightHeight > 0 && CampClearance > 0 && SpawnRadius > 0 && AirdropRadius > 0))
+    if (!(Body > 0 && CaptureRadius > 0 && SightHeight > 0 && CampClearance > 0 && SpawnRadius > 0 && AirdropRadius > 0))
     {
-        return PlaceFail(Error, TEXT("The approved body, capture, shop, sight, camp and spawn sizes are required to check decorations."));
+        return PlaceFail(Error, TEXT("The approved body, capture, sight, camp and spawn sizes are required to check decorations."));
     }
     double SpawnReach = 0.;
     for (const FLDDemoWorldPoint& Offset : World.SpawnOffsetsCm)
@@ -61,19 +61,25 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // D21: a dorm is only a judgment disk at the wall base; collision-free low furniture there neither blocks a body
         // nor hides one, and the dorm's own ring marks it.
         // D26: a Boss waypoint is a patrol target only; props keep the path open through the navmesh like anywhere else.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+        // #198 session D: a PK spawn or the throw anchor is a placement target only; collision-free decorations never block
+        // the body the registry places there.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;
         if (!Anchor.PositionCm.ToVector(KeepOut.Centre, Error)) { return false; }
         switch (Anchor.Kind)
         {
-        case ELDDemoWorldAnchorKind::Spawn: KeepOut.Radius = SpawnRadius + SpawnReach + Body; break;
+        case ELDDemoWorldAnchorKind::Spawn:
+        case ELDDemoWorldAnchorKind::RestSpawn: KeepOut.Radius = SpawnRadius + SpawnReach + Body; break;
         case ELDDemoWorldAnchorKind::Camp: KeepOut.Radius = CampClearance; break;
-        case ELDDemoWorldAnchorKind::Shop: KeepOut.Radius = ShopRadius + Body; break;
         case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CaptureRadius + Body; break;
-        // D26: the pickup disk stays clear so the crate and every body reaching it read plainly.
-        case ELDDemoWorldAnchorKind::Airdrop: KeepOut.Radius = AirdropRadius + Body; break;
+        // The pickup and service disks stay clear so their occupants and approaching bodies read plainly.
+        case ELDDemoWorldAnchorKind::Airdrop:
+        case ELDDemoWorldAnchorKind::RestService: KeepOut.Radius = AirdropRadius + Body; break;
+        case ELDDemoWorldAnchorKind::TrainingDummy: KeepOut.Radius = SpawnRadius + Body; break;
         default: return PlaceFail(Error, TEXT("Unknown Demo world anchor kind: ") + Anchor.Id);
         }
     }
@@ -90,6 +96,42 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         Blockers.Add(Box);
         BlockerIds.Add(Blocker.Id);
     }
+    // The east-side rest room extends the shared floor beyond the field wall. Decorations in the closed-off strip between
+    // them remain background, but neither the field nor the accessible rest room may be covered by outside scenery.
+    FBox FieldFloor(FloorMin, FloorMax), RestFloor(ForceInit);
+    if (World.Anchors.ContainsByPredicate([](const FLDDemoWorldAnchor& Anchor) { return Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn; }))
+    {
+        const auto WallBox = [&](const TCHAR* Id) -> const FBox*
+        {
+            const FLDDemoWorldBlocker* Wall = BlockersById.FindRef(Id);
+            const int32 Index = BlockerIds.IndexOfByKey(FString(Id));
+            return Wall && Wall->BlocksMovement && Wall->BlocksSight && Index != INDEX_NONE ? &Blockers[Index] : nullptr;
+        };
+        const FBox* FieldEast = WallBox(TEXT("wall_e"));
+        const FBox* RestWest = WallBox(TEXT("rest_wall_w"));
+        const FBox* RestEast = WallBox(TEXT("rest_wall_e"));
+        const FBox* RestSouth = WallBox(TEXT("rest_wall_s"));
+        const FBox* RestNorth = WallBox(TEXT("rest_wall_n"));
+        if (!FieldEast || !RestWest || !RestEast || !RestSouth || !RestNorth)
+        {
+            return PlaceFail(Error, TEXT("The field and shared rest room need their sight- and movement-blocking walls for art placement."));
+        }
+        FieldFloor.Max.X = FieldEast->Min.X;
+        RestFloor = FBox(FVector(RestWest->Max.X, RestSouth->Max.Y, FloorMin.Z),
+            FVector(RestEast->Min.X, RestNorth->Min.Y, FloorMax.Z));
+        if (!(FieldFloor.Max.X > FieldFloor.Min.X && FieldFloor.Max.X <= RestFloor.Min.X
+            && RestFloor.Min.X < RestFloor.Max.X && RestFloor.Min.Y < RestFloor.Max.Y
+            && RestFloor.Min.X >= FloorMin.X && RestFloor.Max.X <= FloorMax.X
+            && RestFloor.Min.Y >= FloorMin.Y && RestFloor.Max.Y <= FloorMax.Y
+            && FieldEast->Min.Y <= FloorMin.Y && FieldEast->Max.Y >= FloorMax.Y
+            && RestWest->Min.Y <= RestFloor.Min.Y && RestWest->Max.Y >= RestFloor.Max.Y
+            && RestEast->Min.Y <= RestFloor.Min.Y && RestEast->Max.Y >= RestFloor.Max.Y
+            && RestSouth->Min.X <= RestFloor.Min.X && RestSouth->Max.X >= RestFloor.Max.X
+            && RestNorth->Min.X <= RestFloor.Min.X && RestNorth->Max.X >= RestFloor.Max.X))
+        {
+            return PlaceFail(Error, TEXT("The field and shared rest room walls do not enclose valid separate art placement areas."));
+        }
+    }
     // #97: a wall-base decoration stands wholly on one flat level, at that level's height.
     LDDemoWorld::FTerrain Terrain;
     if (!Terrain.Build(World, Error)) { return false; }
@@ -102,21 +144,31 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         const FLDArtProp* Prop = Props.FindRef(Decoration.Prop);
         if (!Prop || !Prop->Mesh) { return PlaceFail(Error, Label + TEXT(" has no prop mesh.")); }
         const FBox Box = Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform);
-        const bool bOverFloor = Box.Max.X > FloorMin.X && Box.Min.X < FloorMax.X && Box.Max.Y > FloorMin.Y && Box.Min.Y < FloorMax.Y;
         switch (Decoration.Zone)
         {
         case ELDArtZone::Outside:
-            if (bOverFloor) { return PlaceFail(Error, Label + TEXT(" reaches over the arena floor.")); }
+            if (PlaceOverlap2D(Box, FieldFloor) || (RestFloor.IsValid && PlaceOverlap2D(Box, RestFloor)))
+            { return PlaceFail(Error, Label + TEXT(" reaches over the arena floor or shared rest room.")); }
             break;
         case ELDArtZone::WallBase:
         case ELDArtZone::Ground:
         {
             // Ground cover follows every wall-base rule except hugging an outer wall: low, flat, clear of places and blocks.
             const bool bOnFloor = Box.Min.X >= FloorMin.X && Box.Max.X <= FloorMax.X && Box.Min.Y >= FloorMin.Y && Box.Max.Y <= FloorMax.Y;
-            const double Reach = FMath::Min(FMath::Min(Box.Min.X - FloorMin.X, FloorMax.X - Box.Max.X), FMath::Min(Box.Min.Y - FloorMin.Y, FloorMax.Y - Box.Max.Y));
             if (!bOnFloor) { return PlaceFail(Error, Label + TEXT(" must stand on the arena floor.")); }
-            if (Decoration.Zone == ELDArtZone::WallBase && Reach > WallBaseReachCm)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s must stand on the floor within %.0f cm of an outer wall."), *Label, WallBaseReachCm)); }
+            if (Decoration.Zone == ELDArtZone::WallBase)
+            {
+                const auto NearWall = [&Box](const FBox& Area)
+                {
+                    if (!Area.IsValid || Box.Min.X < Area.Min.X || Box.Max.X > Area.Max.X
+                        || Box.Min.Y < Area.Min.Y || Box.Max.Y > Area.Max.Y) { return false; }
+                    const double Reach = FMath::Min(FMath::Min(Box.Min.X - Area.Min.X, Area.Max.X - Box.Max.X),
+                        FMath::Min(Box.Min.Y - Area.Min.Y, Area.Max.Y - Box.Max.Y));
+                    return Reach <= WallBaseReachCm;
+                };
+                if (!NearWall(FieldFloor) && !NearWall(RestFloor))
+                { return PlaceFail(Error, FString::Printf(TEXT("%s must stand on the floor within %.0f cm of an outer wall."), *Label, WallBaseReachCm)); }
+            }
             const int32 Tier = Terrain.Tier(FVector2D(Box.GetCenter()));
             bool bFlat = Tier % 2 == 0;
             for (const FVector2D Corner : { FVector2D(Box.Min.X, Box.Min.Y), FVector2D(Box.Max.X, Box.Min.Y),
@@ -142,27 +194,21 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             break;
         }
         case ELDArtZone::Capture:
-        case ELDArtZone::Shop:
         {
-            const bool bCapture = Decoration.Zone == ELDArtZone::Capture;
-            const ELDDemoWorldAnchorKind Kind = bCapture ? ELDDemoWorldAnchorKind::Capture : ELDDemoWorldAnchorKind::Shop;
-            // #97: several shops; each landmark sits on the nearest anchor of its kind.
+            // The landmark sits on the nearest capture anchor.
             const FPlaceKeepOut* Anchor = nullptr;
             for (const FPlaceKeepOut& KeepOut : KeepOuts)
             {
-                if (KeepOut.Kind == Kind && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
+                if (KeepOut.Kind == ELDDemoWorldAnchorKind::Capture && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
                 {
                     Anchor = &KeepOut;
                 }
             }
-            const double Limit = bCapture ? CaptureLandmarkHalfExtentCm : ShopLandmarkHalfExtentCm;
             // The transform carries the footprint pivot, so the anchor must lie within the landmark itself.
             if (!Anchor || PlaceDistance2D(Box, Anchor->Centre) > LandmarkCentreToleranceCm)
             { return PlaceFail(Error, Label + TEXT(" is not centred on its world anchor.")); }
-            if (FMath::Max(Box.GetExtent().X, Box.GetExtent().Y) > Limit)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s is wider than a %.0f cm landmark around its anchor."), *Label, Limit)); }
-            if (!bCapture && Box.Max.Z > OccluderHeightCm)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall; at the shop it would hide bodies above %.0f cm."), *Label, Box.Max.Z, OccluderHeightCm)); }
+            if (FMath::Max(Box.GetExtent().X, Box.GetExtent().Y) > CaptureLandmarkHalfExtentCm)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s is wider than a %.0f cm landmark around its anchor."), *Label, CaptureLandmarkHalfExtentCm)); }
             break;
         }
         case ELDArtZone::Blocker:
@@ -211,15 +257,15 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             return PlaceFail(Error, Label + TEXT(" has no placement zone."));
         }
     }
-    // A hidden block is drawn by Outside props instead, so it must lie wholly off the arena floor.
+    // A hidden block is drawn by Outside props instead, so it must not cross either playable area.
     for (const FString& Id : Catalog.HiddenBlockers)
     {
         const int32 Index = BlockerIds.IndexOfByKey(Id);
         if (Index == INDEX_NONE) { return PlaceFail(Error, TEXT("Hidden blocker is not a world blocker: ") + Id); }
         const FBox& Box = Blockers[Index];
-        if (!(Box.Min.X >= FloorMax.X || Box.Max.X <= FloorMin.X || Box.Min.Y >= FloorMax.Y || Box.Max.Y <= FloorMin.Y))
+        if (PlaceOverlap2D(Box, FieldFloor) || (RestFloor.IsValid && PlaceOverlap2D(Box, RestFloor)))
         {
-            return PlaceFail(Error, TEXT("Hidden blocker reaches over the arena floor: ") + Id);
+            return PlaceFail(Error, TEXT("Hidden blocker reaches over the arena floor or shared rest room: ") + Id);
         }
     }
     Error.Reset();

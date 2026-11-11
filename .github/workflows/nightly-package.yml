@@ -8,8 +8,8 @@
 #      commit is never pushed to main (the main ruleset requires a PR); only its tag is pushed, so the package, its
 #      manifest and the tag agree while main's ini keeps the base version and shows "build <commit>" on the title.
 #   2. Build, rule tests and package that commit.
-#   3. Push tag vX.Y.Z, publish Release vX.Y.Z with the zipped package, then delete all but the two newest vX.Y.Z
-#      Releases. Their tags stay: they hold the released commits and the version sequence.
+#   3. Push tag vX.Y.Z, publish Release vX.Y.Z with the zipped package and its separate symbols zip, then delete all
+#      but the two newest vX.Y.Z Releases. Their tags stay: they hold the released commits and the version sequence.
 # With nothing new on main the run stops after checkout; a manual run with `force` releases the next patch anyway.
 name: Nightly playtest package
 
@@ -144,7 +144,7 @@ jobs:
             '4. 用仓库脚本启动时会校验清单：.\Scripts\OpenPackaged.ps1 -PackageRoot ''<解压目录>\Archive'''
             '5. 测试模式：房主给 Lockdown.exe 加 -LDDevGrowthFixture（或 OpenPackaged.ps1 加 -DevTest）启动；对局中点底部“测试”按钮打开面板，'
             '   或按 ~ 打开控制台，'
-            '   输入 ld.Dev.List 查看 id；ld.Dev.XP/Gold <数量>、ld.Dev.Learn <id> [Q|W]、ld.Dev.Buy <id>、ld.Dev.Sell <1|2>、'
+            '   输入 ld.Dev.List 查看 id；ld.Dev.XP <数量>、ld.Dev.Learn <id> [Q|W]、'
             '   ld.Dev.Refill、ld.Dev.ResetCooldowns、ld.Dev.Attr <属性> <数值>、ld.Dev.ClearAttr、ld.Dev.Reset，只作用于自己。'
             '   房主另可用 ld.Dev.RefreshCamps 刷新已清空营地、ld.Dev.OpenCapture 在发育期提前开圈。测试模式的结果不算无作弊对局。'
             ''
@@ -156,13 +156,25 @@ jobs:
             '说明'
             '- 本包在规则测试（RunTests.ps1）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'
             '- 打包成功不代表 Demo 验收通过，验收状态见 docs/demo/READINESS.md。'
+            "- 调试符号 Lockdown.pdb 单独放在同一 Release 的 Lockdown-v$env:VERSION-win64-symbols.zip，试玩不需要。"
+            '  需要可读的崩溃调用栈时，把它解压到同一目录（与本包的 Archive 合并），再重现问题。'
           ) | Set-Content -LiteralPath $notes -Encoding utf8
+          # The PDB is about a third of the unpacked package and players never need it (#189); ship it as its own asset
+          # at the same relative path, so extracting both into one folder puts it beside the executable.
+          $pdb = 'Archive/Windows/Lockdown/Binaries/Win64/Lockdown.pdb'
+          if (-not (Test-Path -LiteralPath (Join-Path $output.FullName $pdb))) { throw "The package has no $pdb." }
+          $tar = "$env:SystemRoot\System32\tar.exe"
           $zip = Join-Path (Resolve-Path Artifacts) "Lockdown-v$env:VERSION-win64.zip"
           $entries = @(Get-ChildItem -LiteralPath $output.FullName -Name)
-          & "$env:SystemRoot\System32\tar.exe" -a -c -f $zip -C $output.FullName @entries
+          & $tar -a -c -f $zip --exclude $pdb -C $output.FullName @entries
           if ($LASTEXITCODE -ne 0) { throw "Zipping the package failed: $zip" }
+          if (@(& $tar -t -f $zip) -contains $pdb) { throw "$zip still contains $pdb." }
+          $symbols = Join-Path (Resolve-Path Artifacts) "Lockdown-v$env:VERSION-win64-symbols.zip"
+          & $tar -a -c -f $symbols -C $output.FullName $pdb
+          if ($LASTEXITCODE -ne 0) { throw "Zipping the symbols failed: $symbols" }
           "notes=$notes" >> $env:GITHUB_OUTPUT
           "zip=$zip" >> $env:GITHUB_OUTPUT
+          "symbols=$symbols" >> $env:GITHUB_OUTPUT
           "sha=$head" >> $env:GITHUB_OUTPUT
 
       - name: Publish release
@@ -173,6 +185,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           NOTES: ${{ steps.notes.outputs.notes }}
           ZIP: ${{ steps.notes.outputs.zip }}
+          SYMBOLS: ${{ steps.notes.outputs.symbols }}
           SHA: ${{ steps.notes.outputs.sha }}
         run: |
           if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is not on the runner PATH.' }
@@ -192,7 +205,7 @@ jobs:
             git tag -d $tag
             throw "Pushing tag $tag failed (does origin already have it?)."
           }
-          gh release create $tag $env:ZIP --verify-tag --title "Lockdown $env:VERSION" --notes-file $env:NOTES --latest
+          gh release create $tag $env:ZIP $env:SYMBOLS --verify-tag --title "Lockdown $env:VERSION" --notes-file $env:NOTES --latest
           if ($LASTEXITCODE -ne 0) {
             # A tag without its Release would mark this main commit as released and skip the next run; take it back.
             gh release delete $tag --yes 2>$null

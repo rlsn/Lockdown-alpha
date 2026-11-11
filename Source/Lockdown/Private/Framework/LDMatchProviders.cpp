@@ -35,10 +35,10 @@ const TCHAR* LDMatchProviders::Name(ELDMatchProvider Provider)
     {
     case ELDMatchProvider::Combat: return TEXT("Combat");
     case ELDMatchProvider::Progression: return TEXT("Progression");
-    case ELDMatchProvider::Shop: return TEXT("Shop");
     case ELDMatchProvider::Camps: return TEXT("Camps");
     case ELDMatchProvider::Vision: return TEXT("Vision");
     case ELDMatchProvider::OpponentAI: return TEXT("OpponentAI");
+    case ELDMatchProvider::PK: return TEXT("PK");
     default: return TEXT("Unknown");
     }
 }
@@ -58,7 +58,7 @@ FString LDMatchProviders::MissingForStart(bool bNeedsOpponentAI)
 {
     TArray<FString> Missing;
     for (ELDMatchProvider Provider : {ELDMatchProvider::Combat, ELDMatchProvider::Progression,
-        ELDMatchProvider::Shop, ELDMatchProvider::Camps, ELDMatchProvider::OpponentAI})
+        ELDMatchProvider::Camps, ELDMatchProvider::OpponentAI})
     {
         if (Provider == ELDMatchProvider::OpponentAI && !bNeedsOpponentAI) { continue; }
         const FLDMatchProviderHooks* Hooks = Find(Provider);

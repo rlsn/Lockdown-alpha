@@ -45,6 +45,8 @@ namespace
     // Schema 17 predates auto attack after cast; schema 18 stores that preference but predates the E binding.
     constexpr uint32 AutoAttacklessSchema = 17;
     constexpr uint32 SkillElessSchema = 18;
+    // Schema 19 has the current key list but predates the music volume (#94).
+    constexpr uint32 MusiclessSchema = 19;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -199,7 +201,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
     // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2. Labels are player-facing copy only.
     static const TArray<FLDControlBinding> Values={
         {TEXT("Select"),TEXT("选择 / 确认目标"),EKeys::LeftMouseButton},
-        {TEXT("Navigate"),FString(TEXT("移动 / 攻击 / 前往"))+LDTerms::Shop,EKeys::RightMouseButton},
+        {TEXT("Navigate"),TEXT("移动 / 攻击"),EKeys::RightMouseButton},
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
         {TEXT("SkillE"),TEXT("角色主动 E"),EKeys::E},
@@ -216,13 +218,41 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
     };
     return Values;
 }
+namespace
+{
+    FString LocalizedKeyName(const FKey& Key)
+    {
+        const FName Name=Key.GetFName();
+        if(Name==TEXT("LeftMouseButton")){return TEXT("鼠标左键");}
+        if(Name==TEXT("RightMouseButton")){return TEXT("鼠标右键");}
+        if(Name==TEXT("MiddleMouseButton")){return TEXT("鼠标中键");}
+        if(Name==TEXT("ThumbMouseButton")){return TEXT("鼠标侧键 1");}
+        if(Name==TEXT("ThumbMouseButton2")){return TEXT("鼠标侧键 2");}
+        if(Name==TEXT("MouseWheelAxis")){return TEXT("鼠标滚轮");}
+        if(Name==TEXT("SpaceBar")){return TEXT("空格");}
+        if(Name==TEXT("Escape")){return TEXT("Esc");}
+        if(Name==TEXT("Return")){return TEXT("Enter");}
+        if(Name==TEXT("BackSpace")){return TEXT("退格");}
+        if(Name==TEXT("LeftShift")){return TEXT("左 Shift");}
+        if(Name==TEXT("RightShift")){return TEXT("右 Shift");}
+        if(Name==TEXT("LeftControl")){return TEXT("左 Ctrl");}
+        if(Name==TEXT("RightControl")){return TEXT("右 Ctrl");}
+        if(Name==TEXT("LeftAlt")){return TEXT("左 Alt");}
+        if(Name==TEXT("RightAlt")){return TEXT("右 Alt");}
+        if(Name==TEXT("Up")){return TEXT("上方向键");}
+        if(Name==TEXT("Down")){return TEXT("下方向键");}
+        if(Name==TEXT("Left")){return TEXT("左方向键");}
+        if(Name==TEXT("Right")){return TEXT("右方向键");}
+        return Key.GetDisplayName().ToString();
+    }
+}
 FKey ULDControlSettings::Key(FName Action) const
 {
     if (!IsRegistered(Action)) { return FKey(); }
     const FKey* Key = Bindings.Find(Action);
     return Key ? *Key : FKey();
 }
-FString ULDControlSettings::Label(FName Action) const {return Key(Action).GetDisplayName().ToString();}
+FString ULDControlSettings::Label(FName Action) const {return LocalizedKeyName(Key(Action));}
 void ULDControlSettings::ResetBindings()
 {
     Bindings.Reset();
@@ -261,6 +291,8 @@ bool ULDControlSettings::ValidatePreferences(FString& Error) const
     { Error = TEXT("镜头缩放或文字大小超出当前支持范围。"); return false; }
     if (!FMath::IsFinite(MasterVolume) || MasterVolume < 0 || MasterVolume > 1)
     { Error = TEXT("主音量超出 0–100% 的支持范围。"); return false; }
+    if (!FMath::IsFinite(MusicVolume) || MusicVolume < 0 || MusicVolume > 1)
+    { Error = TEXT("音乐音量超出 0–100% 的支持范围。"); return false; }
     if (!FMath::IsFinite(CameraPanCmPerSec) || CameraPanCmPerSec < MinCameraPanCmPerSec || CameraPanCmPerSec > MaxCameraPanCmPerSec)
     {
         Error = FString::Printf(TEXT("镜头平移速度超出 %.0f–%.0f cm/s 的支持范围。"), MinCameraPanCmPerSec, MaxCameraPanCmPerSec);
@@ -316,6 +348,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     Zoom = Other.Zoom;
     PlayerName = Other.PlayerName;
     MasterVolume = Other.MasterVolume;
+    MusicVolume = Other.MusicVolume;
     CameraPanCmPerSec = Other.CameraPanCmPerSec;
     MinimapOrientation = Other.MinimapOrientation;
     bQuickCast = Other.bQuickCast;
@@ -367,6 +400,18 @@ bool ULDControlSettings::SetAppliedMasterVolume(float Value, FString& Error)
     if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
     { Error = TEXT("主音量未应用：音量必须在 0–100% 之间。"); return false; }
     MasterVolume = Value;
+    Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+    Error.Empty();
+    return true;
+}
+
+bool ULDControlSettings::SetAppliedMusicVolume(float Value, FString& Error)
+{
+    if (Phase == ELDLocalSettingsPhase::EditingDraft)
+    { Error = TEXT("音乐音量未应用：只能修改当前生效的本地设置，不能修改草稿。"); return false; }
+    if (!FMath::IsFinite(Value) || Value < 0 || Value > 1)
+    { Error = TEXT("音乐音量未应用：音量必须在 0–100% 之间。"); return false; }
+    MusicVolume = Value;
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
     Error.Empty();
     return true;
@@ -468,6 +513,7 @@ void ULDControlSettings::ResetPreferenceGroup(ELDPreferenceGroup Group)
     {
     case ELDPreferenceGroup::Audio:
         MasterVolume = CurrentDefaults->MasterVolume;
+        MusicVolume = CurrentDefaults->MusicVolume;
         break;
     case ELDPreferenceGroup::Controls:
         bQuickCast = CurrentDefaults->bQuickCast;
@@ -527,7 +573,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
-            || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema);
+            || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -551,6 +597,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema >= DashlessSchema) { Reader << Quick; }
     if (SavedSchema > DiagnosticslessSchema) { Reader << Network << FPS; }
     if (SavedSchema > AutoAttacklessSchema) { Reader << AutoAttack; }
+    if (SavedSchema > MusiclessSchema) { Reader << Settings->MusicVolume; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -623,7 +670,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         if (Default && !Settings->Bindings.FindKey(Default->Key))
         {
             Settings->Bindings.Add(Added.Action, Default->Key);
-            MigrationNotes += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + Default->Key.GetDisplayName().ToString() + TEXT("。");
+            MigrationNotes += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + LocalizedKeyName(Default->Key) + TEXT("。");
         }
     }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
@@ -637,13 +684,15 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–18 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–19 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         if (SavedSchema <= AutoAttacklessSchema) { MigrationNotes += TEXT("施法后自动攻击默认开启。"); }
-        if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema)
+        // Every migrated schema predates the music volume.
+        MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume));
+        if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema)
         {
-            const FString Preserved = SavedSchema == SkillElessSchema
+            const FString Preserved = SavedSchema != AutoAttacklessSchema
                 ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法、诊断与施法后自动攻击偏好已保留，下次保存时写入新格式。")
                 : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法与诊断偏好已保留，下次保存时写入新格式。");
             return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,
@@ -690,14 +739,14 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
     // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
-    // minimap orientation, quick cast, network diagnostics, FPS, auto attack after cast, binding count, bindings.
+    // minimap orientation, quick cast, network diagnostics, FPS, auto attack after cast, music volume, binding count, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
     uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0, AutoAttack = bAutoAttackAfterCast ? 1 : 0;
-    float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec;
+    float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec, SavedMusic = MusicVolume;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Network << FPS << AutoAttack << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Network << FPS << AutoAttack << SavedMusic << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

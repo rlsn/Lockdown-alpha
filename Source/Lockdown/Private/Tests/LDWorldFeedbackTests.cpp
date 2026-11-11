@@ -81,59 +81,56 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     using LDWorldFeedback::EKind;
     const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid();
     LDWorldFeedback::FTracker Tracker;
-    // Match 3 is already under way: a wounded and shielded body, gold, XP, a level, a fresh own kill and a hurt unit.
+    // Match 3 is already under way: a wounded and shielded body, XP, a level, a fresh own kill and a hurt unit.
     FLDCombatOwnerView Combat=WorldFeedbackTestBody(3,1,8,20000,30000);
     Combat.ShieldP2=1500;Combat.Statuses.Add(WorldFeedbackTestShield(1500,25000));
-    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=3;Growth.EarnedThrough=2;Growth.CumulativeXP=400;
-    FLDEquipmentView Purse;Purse.bValid=true;Purse.Generation=3;Purse.Gold=250;
+    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=3;Growth.UnspentPoints=9;Growth.ActiveOpportunitiesEarned=2;Growth.CumulativeXP=400;
     FLDKillFeedView Feed;Feed.Generation=3;Feed.Notices.Add(WorldFeedbackTestNotice(4,Self,Rival,99500));
     FLDWorldView Frame=WorldFeedbackTestFrame(3,1,1,7,20.);
     Frame.Units.Add(WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,20000,60000));
     LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,Self);
-    Sample.OwnCombat=&Combat;Sample.Progression=&Growth;Sample.Equipment=&Purse;Sample.KillFeed=&Feed;Sample.Frame=&Frame;
+    Sample.OwnCombat=&Combat;Sample.Progression=&Growth;Sample.KillFeed=&Feed;Sample.Frame=&Frame;
     Sample.RosterName=[Rival](const FGuid& Id){return Id==Rival?FString(TEXT("玩家甲")):FString();};
     TestTrue(TEXT("The first sample of a match only primes: nothing that happened before it is replayed"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     TestTrue(TEXT("An unchanged sample stays silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Combat.Revision=9;Combat.AsOfMs=20100;Combat.HPP2=29000;Purse.Gold=260;Growth.CumulativeXP=420;
+    Combat.Revision=9;Combat.AsOfMs=20100;Combat.HPP2=29000;Growth.CumulativeXP=420;
     TestTrue(TEXT("Changes after the first sample are reported against it"),
-        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::DamageTaken,10},{EKind::Gold,10},{EKind::Experience,20}}));
+        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::DamageTaken,10},{EKind::Experience,20}}));
 
-    // Match 4: every projection differs from match 3 (gold resets to 320) and its feed already lists a fresh own kill;
+    // Match 4: every projection differs from match 3 and its feed already lists a fresh own kill;
     // it only primes again.
     Sample.Match=4;Sample.PublicGeneration=4;
     Combat=WorldFeedbackTestBody(4,1,1,500,60000);
-    Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;Growth.CumulativeXP=0;
-    Purse.Generation=4;Purse.Gold=320;
+    Growth.Generation=4;Growth.Level=1;Growth.UnspentPoints=3;Growth.ActiveOpportunitiesEarned=1;Growth.CumulativeXP=0;
     Feed.Generation=4;Feed.Notices={WorldFeedbackTestNotice(1,Self,Rival,Sample.NowMs-100)};
     Frame=WorldFeedbackTestFrame(4,1,1,2,1.);Frame.Units.Add(WorldFeedbackTestUnit(ELDObservedUnitKind::CampMember,1000,30000));
     TestTrue(TEXT("A new match resets every baseline and primes silently"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
 
     // Late projections of match 3, a body view of another life and a feed of another public generation.
     FLDCombatOwnerView OldBody=WorldFeedbackTestBody(3,1,10,20200,1000);
-    FLDProgressionView OldGrowth=Growth;OldGrowth.Generation=3;OldGrowth.Level=6;OldGrowth.EarnedThrough=5;OldGrowth.CumulativeXP=5000;
-    FLDEquipmentView OldPurse=Purse;OldPurse.Generation=3;OldPurse.Gold=5000;
+    FLDProgressionView OldGrowth=Growth;OldGrowth.Generation=3;OldGrowth.Level=6;OldGrowth.UnspentPoints=18;OldGrowth.ActiveOpportunitiesEarned=3;OldGrowth.CumulativeXP=5000;
     FLDKillFeedView OldFeed;OldFeed.Generation=3;OldFeed.Notices.Add(WorldFeedbackTestNotice(9,Self,Rival,Sample.NowMs-100));
     FLDWorldView OldFrame=Frame;OldFrame.MatchGeneration=3;OldFrame.Revision=9;OldFrame.Units[0].Health.CurrentP2=1;
     LDWorldFeedback::FSample Foreign=Sample;
-    Foreign.OwnCombat=&OldBody;Foreign.Progression=&OldGrowth;Foreign.Equipment=&OldPurse;Foreign.KillFeed=&OldFeed;Foreign.Frame=&OldFrame;
+    Foreign.OwnCombat=&OldBody;Foreign.Progression=&OldGrowth;Foreign.KillFeed=&OldFeed;Foreign.Frame=&OldFrame;
     TestTrue(TEXT("Projections, notices and frames of another match stay silent"),WorldFeedbackTestObserve(Tracker,Foreign).IsEmpty());
     FLDCombatOwnerView OtherLife=WorldFeedbackTestBody(4,2,5,900,100);
     Feed.Notices.Add(WorldFeedbackTestNotice(2,Self,Rival,Sample.NowMs-50));
     Foreign.OwnCombat=&OtherLife;Foreign.KillFeed=&Feed;Foreign.PublicGeneration=5;
     TestTrue(TEXT("A body view of another life and a feed of another public generation stay silent"),WorldFeedbackTestObserve(Tracker,Foreign).IsEmpty());
-    Combat.Revision=2;Combat.AsOfMs=600;Combat.HPP2=59000;Purse.Gold=350;Growth.CumulativeXP=30;
+    Combat.Revision=2;Combat.AsOfMs=600;Combat.HPP2=59000;Growth.CumulativeXP=30;
     const FWorldFeedbackTestEvents After=WorldFeedbackTestObserve(Tracker,Sample);
     TestTrue(TEXT("Foreign data moved neither the body nor the kill baseline; growth views of another match only re-prime"),
         WorldFeedbackTestIs(After,{{EKind::DamageTaken,10},{EKind::Kill,1}})&&After[1].Name==TEXT("玩家甲"));
-    Purse.Gold=380;Growth.CumulativeXP=70;
+    Growth.CumulativeXP=70;
     TestTrue(TEXT("The re-primed growth then reports the next reward"),
-        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
+        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,40}}));
 
     // A paused observation primes the body and the units again but keeps rewards, levels and kills.
     Tracker.Interrupt();
-    Combat.Revision=3;Combat.AsOfMs=700;Combat.HPP2=50000;Purse.Gold=410;Growth.CumulativeXP=110;
+    Combat.Revision=3;Combat.AsOfMs=700;Combat.HPP2=50000;Growth.CumulativeXP=110;
     TestTrue(TEXT("After an interruption the body primes again while rewards keep their baseline"),
-        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
+        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,40}}));
     Combat.Revision=4;Combat.AsOfMs=800;Combat.HPP2=49000;
     TestTrue(TEXT("The next body change is reported against the new baseline"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::DamageTaken,10}}));
@@ -302,62 +299,59 @@ bool FLDWorldFeedbackRewardsAndLevelTest::RunTest(const FString& Parameters)
 {
     using LDWorldFeedback::EKind;
     LDWorldFeedback::FTracker Tracker;
-    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=1;Growth.MaxLevel=10;
-    FLDEquipmentView Purse;Purse.bValid=true;Purse.Generation=3;Purse.Gold=300;
-    LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.Progression=&Growth;Sample.Equipment=&Purse;
-    TestTrue(TEXT("The first growth sample only primes"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=330;Growth.CumulativeXP=60;
+    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Level=1;Growth.MaxLevel=10;Growth.UnspentPoints=3;Growth.ActiveOpportunitiesEarned=1;
+    LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.Progression=&Growth;
+    TestTrue(TEXT("The first growth sample only primes: the opening points and active offer float nothing"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    Growth.CumulativeXP=60;
     const FWorldFeedbackTestEvents Reward=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("A kill reward raises gold and XP together: a gold line and an experience line on the own body"),
-        WorldFeedbackTestIs(Reward,{{EKind::Gold,30},{EKind::Experience,60}})&&Reward[0].bOwn&&Reward[1].bOwn);
-    Purse.Gold=360;Growth.CumulativeXP=120;
-    TestTrue(TEXT("The next last hit is its own publication and its own +30"),
-        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,60}}));
-    Purse.Gold=60;
-    TestTrue(TEXT("Buying is silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=160;
-    TestTrue(TEXT("Selling raises gold without XP and is silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=200;Growth.CumulativeXP=220;Growth.Level=2;Growth.EarnedThrough=1;Growth.PendingChoiceCount=1;
+    TestTrue(TEXT("A kill reward floats an experience line on the own body"),
+        WorldFeedbackTestIs(Reward,{{EKind::Experience,60}})&&Reward[0].bOwn);
+    Growth.CumulativeXP=120;
+    TestTrue(TEXT("The next last hit is its own publication and its own +60"),
+        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,60}}));
+    Growth.CumulativeXP=220;Growth.Level=2;Growth.UnspentPoints=6;
     const FWorldFeedbackTestEvents Up=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("A reward reaching a level adds one level-up naming it and the three-choice it earned"),
-        WorldFeedbackTestIs(Up,{{EKind::Gold,40},{EKind::Experience,100},{EKind::LevelUp,1}})&&Up[2].Level==2&&Up[2].bChoiceEarned&&Up[2].bOwn);
-    Growth.ConsumedThrough=1;Growth.PendingChoiceCount=0;
-    TestTrue(TEXT("Picking the card is silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=120;Growth.CumulativeXP=260;
-    TestTrue(TEXT("Gold floats only when it grew: a reward landing together with a purchase shows its XP alone"),
+    TestTrue(TEXT("A reward reaching a level adds one level-up naming it and the stat points it earned"),
+        WorldFeedbackTestIs(Up,{{EKind::Experience,100},{EKind::LevelUp,3}})&&Up[1].Level==2&&Up[1].Offers==0&&Up[1].bOwn);
+    FLDStatPointsView& Physique=Growth.StatPoints.AddDefaulted_GetRef();Physique.StatId=FName(TEXT("stat_physique"));Physique.Points=6;
+    Growth.UnspentPoints=0;Growth.ActiveOpportunitiesConsumed=1;
+    TestTrue(TEXT("Allocating points and choosing an active are silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
+    Growth.CumulativeXP=260;
+    TestTrue(TEXT("A reward without a level-up floats its XP alone"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,40}}));
-    Purse.Gold=180;Growth.CumulativeXP=760;Growth.Level=4;Growth.EarnedThrough=3;Growth.PendingChoiceCount=2;
+    Growth.CumulativeXP=760;Growth.Level=4;Growth.UnspentPoints=6;Growth.ActiveOpportunitiesEarned=2;
     const FWorldFeedbackTestEvents Multi=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("Several levels at once are one level-up naming the level reached and every choice earned"),
-        WorldFeedbackTestIs(Multi,{{EKind::Gold,60},{EKind::Experience,500},{EKind::LevelUp,2}})&&Multi[2].Level==4&&Multi[2].bChoiceEarned);
-    Purse.Gold=200;Growth.CumulativeXP=9000;Growth.Level=10;Growth.EarnedThrough=9;
+    TestTrue(TEXT("Several levels at once are one level-up naming the level reached, every point and every active opportunity earned"),
+        WorldFeedbackTestIs(Multi,{{EKind::Experience,500},{EKind::LevelUp,6}})&&Multi[1].Level==4&&Multi[1].Offers==1);
+    Growth.CumulativeXP=9000;Growth.Level=10;Growth.ActiveOpportunitiesEarned=3;
+    // Four of the 18 new points are allocated in the same publication: the level-up still names all of them.
+    Growth.StatPoints[0].Points=10;Growth.UnspentPoints=20;
     const FWorldFeedbackTestEvents Last=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("Reaching the last level is a level-up like any other"),
-        WorldFeedbackTestIs(Last,{{EKind::Gold,20},{EKind::Experience,8240},{EKind::LevelUp,6}})&&Last[2].Level==10);
-    Purse.Gold=230;Growth.CumulativeXP=9100;
+    TestTrue(TEXT("Reaching the last level is a level-up like any other, and an allocation in the same view never hides a grant"),
+        WorldFeedbackTestIs(Last,{{EKind::Experience,8240},{EKind::LevelUp,18}})&&Last[1].Level==10&&Last[1].Offers==1);
+    Growth.CumulativeXP=9100;
     TestTrue(TEXT("XP keeps accumulating past the last level, so rewards still float there, without a level-up"),
-        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,100}}));
+        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,100}}));
 
-    Purse.bValid=false;Growth.bValid=false;Purse.Gold=260;Growth.CumulativeXP=9200;
+    Growth.bValid=false;Growth.CumulativeXP=9200;
     TestTrue(TEXT("An invalid view is never read"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.bValid=true;Growth.bValid=true;Purse.Gold=290;Growth.CumulativeXP=9300;
+    Growth.bValid=true;Growth.CumulativeXP=9300;
     TestTrue(TEXT("The first valid view after an invalid one only re-primes"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Sample.Progression=nullptr;Sample.Equipment=nullptr;
+    Sample.Progression=nullptr;
     TestTrue(TEXT("A missing view says nothing"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Sample.Progression=&Growth;Sample.Equipment=&Purse;Purse.Gold=320;Growth.CumulativeXP=9400;
+    Sample.Progression=&Growth;Growth.CumulativeXP=9400;
     TestTrue(TEXT("The first view after a missing one only re-primes"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=350;Growth.CumulativeXP=9500;
-    TestTrue(TEXT("The next reward floats again"),WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,100}}));
+    Growth.CumulativeXP=9500;
+    TestTrue(TEXT("The next reward floats again"),WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,100}}));
 
-    // The next match: its views reset gold to 320 and XP and level to their start, possibly before the owner follows.
-    Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;Growth.ConsumedThrough=0;Growth.PendingChoiceCount=0;Growth.CumulativeXP=0;
-    Purse.Generation=4;Purse.Gold=320;
+    // The next match: its views reset XP and level to their start, possibly before the owner follows.
+    Growth.Generation=4;Growth.Level=1;Growth.UnspentPoints=3;Growth.StatPoints.Reset();Growth.ActiveOpportunitiesEarned=1;Growth.ActiveOpportunitiesConsumed=0;Growth.CumulativeXP=0;
     TestTrue(TEXT("Views of a new generation before the owner's match follows are not read"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Sample.Match=4;Sample.PublicGeneration=4;
     TestTrue(TEXT("The new generation's reset only re-primes: nothing floats"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=350;Growth.CumulativeXP=40;
+    Growth.CumulativeXP=40;
     TestTrue(TEXT("Its first kill reward floats against the reset baseline"),
-        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
+        WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Experience,40}}));
     return true;
 }
 
@@ -423,21 +417,22 @@ bool FLDWorldFeedbackTextTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Heal on a visible unit"),LDWorldFeedback::Text(Make(EKind::UnitHeal,12)),FString(TEXT("+12")));
     TestEqualSensitive(TEXT("Shield gained"),LDWorldFeedback::Text(Make(EKind::ShieldGain,20)),FString::Printf(TEXT("+20 %s"),LDTerms::Shield));
     TestEqualSensitive(TEXT("Shield absorbed"),LDWorldFeedback::Text(Make(EKind::ShieldAbsorbed,15)),FString::Printf(TEXT("-15 %s"),LDTerms::Shield));
-    TestEqualSensitive(TEXT("Gold"),LDWorldFeedback::Text(Make(EKind::Gold,45)),FString::Printf(TEXT("+45 %s"),LDTerms::Gold));
     TestEqualSensitive(TEXT("Experience"),LDWorldFeedback::Text(Make(EKind::Experience,60)),FString::Printf(TEXT("+60 %s"),LDTerms::Experience));
-    LDWorldFeedback::FEvent Up=Make(EKind::LevelUp,1);Up.Level=3;Up.bChoiceEarned=true;
+    LDWorldFeedback::FEvent Up=Make(EKind::LevelUp,3);Up.Level=3;Up.Offers=1;
     TestEqualSensitive(TEXT("Level-up banner"),LDWorldFeedback::Text(Up),LDTerms::LevelUp(3));
-    TestEqualSensitive(TEXT("Level-up subline for one earned choice"),LDWorldFeedback::Subline(Up),LDTerms::ChoicesEarned(1));
-    Up.Amount=2;Up.Level=4;
-    TestEqualSensitive(TEXT("Level-up subline for several earned choices"),LDWorldFeedback::Subline(Up),LDTerms::ChoicesEarned(2));
-    Up.Amount=0;Up.bChoiceEarned=false;
-    TestTrue(TEXT("A level-up without an earned choice has no subline"),LDWorldFeedback::Subline(Up).IsEmpty());
+    TestEqualSensitive(TEXT("Level-up subline for points and one active opportunity"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 3 属性点 · 一次选技能机会")));
+    Up.Amount=6;Up.Level=4;Up.Offers=2;
+    TestEqualSensitive(TEXT("Level-up subline for several opportunities"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 6 属性点 · 2 次选技能机会")));
+    Up.Offers=0;
+    TestEqualSensitive(TEXT("Level-up subline for points alone"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 6 属性点")));
+    Up.Amount=0;
+    TestTrue(TEXT("A level-up that earned nothing has no subline"),LDWorldFeedback::Subline(Up).IsEmpty());
     LDWorldFeedback::FEvent Kill=Make(EKind::Kill,1);Kill.Name=TEXT("玩家甲");
     TestEqualSensitive(TEXT("Kill banner"),LDWorldFeedback::Text(Kill),LDTerms::KillFloat(TEXT("玩家甲")));
     Kill.Name.Reset();
     TestEqualSensitive(TEXT("Kill banner for an unlisted victim"),LDWorldFeedback::Text(Kill),LDTerms::KillFloat(LDTerms::UnknownVictim));
-    TestTrue(TEXT("Only a level-up has a subline"),LDWorldFeedback::Subline(Kill).IsEmpty()&&LDWorldFeedback::Subline(Make(EKind::Gold,45)).IsEmpty());
-    LDWorldFeedback::FEvent Number=Make(EKind::UnitDamage,37);Number.Name=TEXT("玩家甲");Number.Level=7;Number.bChoiceEarned=true;
+    TestTrue(TEXT("Only a level-up has a subline"),LDWorldFeedback::Subline(Kill).IsEmpty()&&LDWorldFeedback::Subline(Make(EKind::Experience,45)).IsEmpty());
+    LDWorldFeedback::FEvent Number=Make(EKind::UnitDamage,37);Number.Name=TEXT("玩家甲");Number.Level=7;Number.Offers=1;
     TestEqualSensitive(TEXT("A number shows its amount only, never a name or level"),LDWorldFeedback::Text(Number),FString(TEXT("-37")));
     return true;
 }

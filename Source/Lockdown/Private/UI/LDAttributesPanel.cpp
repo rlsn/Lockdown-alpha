@@ -4,12 +4,15 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Framework/LDPlayerController.h"
+#include "Framework/LDBuildBlueprintComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
+#include "Components/ScaleBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -58,55 +61,20 @@ FString AttrPanelLines(const TArray<FString>& Lines)
 {
     return Lines.IsEmpty()?FString(AttrPanelEmpty):FString::Join(Lines,TEXT("\n"));
 }
-// Learned passives from the growth projection, each with only its learned rank's effects.
-FString AttrPanelLearned(const FLDCombatOwnerView* Combat,const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Definitions)
+// #198: the points allocated to each catalog stat with its per-point bonuses, then the points still unallocated; the
+// attribute rows above show what they add as their 属性点 term.
+FString AttrPanelStatPoints(const FLDCombatOwnerView* Combat,const FLDProgressionView* Progression,const FLDDemoContentDefinitions* Definitions)
 {
     // A progression of another match generation than the current combat projection is stale, not empty.
-    if(!Progression||!Progression->bValid||(Combat&&Progression->Generation!=Combat->Generation)){return AttrPanelSyncing;}
+    if(!Progression||!Progression->bValid||(Combat&&Progression->Generation!=Combat->Generation)||!Definitions){return AttrPanelSyncing;}
     TArray<FString> Lines;
-    for(const FLDLearnedSkillView& Skill:Progression->Skills)
+    for(const FLDDemoStatDefinition* StatRow:Definitions->StatsInDesignOrder())
     {
-        if(Skill.bActive){continue;}
-        const FString Id=Skill.DefinitionId.ToString();
-        Lines.Add(LDHUD::ContentName(Definitions,Id)+TEXT("（")+LDHUD::SkillRankName(Skill.Rank)+TEXT("）"));
-        const FLDDemoAbilityDefinition* Ability=Definitions?Definitions->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
-        if(!Ability){if(Definitions){Lines.Add(TEXT("  内容目录中找不到该技能"));}continue;}
-        const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Skill](const FLDDemoRankDefinition& R){return R.Rank==int32(Skill.Rank);});
-        const FLDDemoDisplayDefinition* Display=Definitions->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
-        if(!Rank||!Display){Lines.Add(FString::Printf(TEXT("  缺少 %d 级定义"),int32(Skill.Rank)));continue;}
-        // #147: the passive's card sentence with this level's numbers and, once advanced, the change that rank adds.
-        const LDHUD::FCardStats Stats=LDHUD::CardStatsOf(Progression->Level,Combat?Combat->Attributes:TArray<FLDCombatAttributeRowView>());
-        for(const FString& Line:LDHUD::LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Skill.Rank,Stats,
-            Definitions->Parameters.SkillGrowthPerLevelBp,Definitions->Parameters.SkillGrowthPerLevelAfter10Bp))
-        {Lines.Add(TEXT("  ")+Line);}
+        const FLDDemoStatDefinition& Stat=*StatRow;
+        const LDHUD::FStatRowView Row=LDHUD::StatRow(Stat,LDHUD::StatPointsOf(*Progression,FName(*Stat.Id)),Definitions);
+        Lines.Add(FString::Printf(TEXT("%s %d 点 · %s"),*Row.Name,Row.Points,*Row.PerPoint));
     }
-    return AttrPanelLines(Lines);
-}
-// Combat applies each equipment passive family once. An entry is matched to an item id first and then to a passive
-// family; when neither exists the stable id stays visible as a content error instead of a guessed name.
-FString AttrPanelGear(const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Definitions)
-{
-    if(!Combat){return AttrPanelSyncing;}
-    TArray<FString> Lines;
-    TArray<FName> Seen;
-    for(const FName& Passive:Combat->EquipmentPassives)
-    {
-        if(Seen.Contains(Passive)){continue;}
-        Seen.Add(Passive);
-        const FString Id=Passive.ToString();
-        const FLDDemoEquipmentDefinition* Item=nullptr;
-        if(Definitions)
-        {
-            Item=Definitions->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&D.Id==Id;});
-            if(!Item){Item=Definitions->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&D.Passive.Family==Id;});}
-        }
-        const bool bUpgraded=Combat->UpgradedEquipmentPassives.Contains(Passive);
-        Lines.Add(LDHUD::ContentName(Definitions,Item?Item->Id:Id)+(bUpgraded?TEXT("（已进阶）"):TEXT("")));
-        if(!Item){if(Definitions){Lines.Add(TEXT("  内容目录中找不到该装备被动"));}continue;}
-        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,bUpgraded);
-        if(!Effects){Lines.Add(TEXT("  缺少进阶后的被动定义"));continue;}
-        for(const FLDDemoEffectDefinition& Effect:*Effects){Lines.Add(TEXT("  ")+LDHUD::EffectLine(Effect));}
-    }
+    Lines.Add(LDTerms::UnspentPoints(FMath::Max<int64>(0,Progression->UnspentPoints)));
     return AttrPanelLines(Lines);
 }
 FString AttrPanelStatuses(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Definitions)
@@ -173,17 +141,17 @@ TSharedRef<SWidget> ULDAttributesPanel::RebuildWidget()
             Body->AddChildToVerticalBox(MakeCard(Section));
             return Section;
         };
-        LearnedPassiveText=AddSection(TEXT("角色被动"));
-        EquipmentPassiveText=AddSection(TEXT("装备被动"));
+        StatPointsText=AddSection(LDTerms::StatPoints);
         StatusText=AddSection(TEXT("临时状态"));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
-        auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetMaxDesiredHeight(620);HeightBox->SetContent(Scroll);
+        auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetHeightOverride(540);HeightBox->SetContent(Scroll);
         Root->AddChildToVerticalBox(HeightBox)->SetPadding(FMargin(0,12,0,0));
         Root->AddChildToVerticalBox(MakeText(TEXT("数值由战斗属性投影统一计算，界面只显示，不另行重算。"),13,AttrPanelDim,true))->SetPadding(FMargin(0,10,0,0));
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(720);WidthBox->SetContent(MainPanel);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Top);
-        Frame->SetPadding(FMargin(0,140,0,0));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(WidthBox);
+        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);Scale->SetStretchDirection(EStretchDirection::DownOnly);Scale->SetContent(WidthBox);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Center);
+        Frame->SetPadding(FMargin(32,90,32,175));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
         WidgetTree->RootWidget=Frame;
         SetVisibility(bOpen?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     }
@@ -194,6 +162,8 @@ UWidget* ULDAttributesPanel::HitArea() const{return MainPanel;}
 bool ULDAttributesPanel::IsPanelOpen() const{return bOpen;}
 void ULDAttributesPanel::OpenPanel()
 {
+    if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())
+    {PC->BuildBlueprints->ToggleViewer();}
     // Opening never takes keyboard focus: world input and any armed action stay where they were.
     bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }
@@ -221,7 +191,6 @@ void ULDAttributesPanel::Present(const FLDCombatOwnerView* Combat,const FLDProgr
         AttrPanelText(RowBreakdowns[RowIndex].Get(),Shown.Breakdown);
         AttrPanelShow(RowBreakdowns[RowIndex].Get(),!Shown.Breakdown.IsEmpty());
     }
-    AttrPanelText(LearnedPassiveText,AttrPanelLearned(Combat,Progression,Definitions));
-    AttrPanelText(EquipmentPassiveText,AttrPanelGear(Combat,Definitions));
+    AttrPanelText(StatPointsText,AttrPanelStatPoints(Combat,Progression,Definitions));
     AttrPanelText(StatusText,AttrPanelStatuses(Combat,bClock,NowMs,Definitions));
 }

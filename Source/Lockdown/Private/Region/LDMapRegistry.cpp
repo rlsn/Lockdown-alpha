@@ -17,9 +17,18 @@
 #include "EngineUtils.h"
 #include "Dom/JsonObject.h"
 #include "GameFramework/PlayerStart.h"
+#include "Framework/LDMatchLifecycleTypes.h"
+#include "PhysicsEngine/BodyInstance.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace
 {
+struct FGroundFloor
+{
+    TWeakObjectPtr<UPrimitiveComponent> Component;
+    FBox Bounds;
+};
+
 bool Reject(ELDWorldQueryFailure Code, const TCHAR* Detail, ELDWorldQueryFailure& Failure, FString& Error)
 {
     Failure = Code;
@@ -33,9 +42,10 @@ bool Reject(ELDWorldQueryFailure Code, const TCHAR* Detail, ELDWorldQueryFailure
 // height, so the foot of a ramp or a plateau's rim beside the floor piece is not taken for an obstacle while a cliff
 // face still is.
 bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWorld::FTerrain& Terrain,
-    const FLDWorldRevision& Revision, const TArray<UPrimitiveComponent*>& Floors, const FCollisionShape& RequiredCapsule,
+    const FLDWorldRevision& Revision, const TArray<FGroundFloor>& Floors, const FCollisionQueryParams& Query,
+    double Step, const FCollisionShape& RequiredCapsule,
     const FVector& Foot, const FCollisionShape& Capsule, FName SurfaceHint, FLDLegalGround& Out,
-    ELDWorldQueryFailure& Failure, FString& Error)
+    ELDWorldQueryFailure& Failure, FString& Error, bool bPrefilter = true)
 {
     if (SurfaceHint.IsNone() || SurfaceHint != FName(*Geometry.Surfaces[0].Id))
     {
@@ -82,21 +92,23 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
         return Reject(ELDWorldQueryFailure::NotGrounded, *Detail, Failure, Error);
     }
     UPrimitiveComponent* Support = Hit.GetComponent();
-    if (!Floors.Contains(Support))
+    if (!Floors.ContainsByPredicate([Support](const FGroundFloor& Floor) { return Floor.Component.Get() == Support; }))
     {
         return Reject(ELDWorldQueryFailure::WrongSurface, TEXT("WrongSurface: the physical support differs from the supplied surface."), Failure, Error);
     }
-    FCollisionQueryParams Query(SCENE_QUERY_STAT(DemoGroundCapsule), false);
-    for (const UPrimitiveComponent* Floor : Floors) { Query.AddIgnoredActor(Floor->GetOwner()); }
     if (World.OverlapAnyTestByObjectType(Foot + FVector(0, 0, Height), FQuat::Identity,
         FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllStaticObjects), Capsule, Query))
     {
         return Reject(ELDWorldQueryFailure::Blocked, TEXT("Blocked: native capsule intersects static geometry."), Failure, Error);
     }
-    const double Step = GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight;
-    for (UPrimitiveComponent* Floor : Floors)
+    const FVector Center = Foot + FVector(0, 0, Height + Step);
+    const FVector Extent(Radius, Radius, Height);
+    const FBox CapsuleBounds(Center - Extent, Center + Extent);
+    for (const FGroundFloor& Piece : Floors)
     {
-        if (Floor != Support && Floor->OverlapComponent(Foot + FVector(0, 0, Height + Step), FQuat::Identity, Capsule))
+        UPrimitiveComponent* Floor = Piece.Component.Get();
+        if (Floor && Floor != Support && (!bPrefilter || Piece.Bounds.Intersect(CapsuleBounds))
+            && Floor->OverlapComponent(Center, FQuat::Identity, Capsule))
         {
             return Reject(ELDWorldQueryFailure::Blocked, TEXT("Blocked: native capsule meets a cliff or higher terrain."), Failure, Error);
         }
@@ -105,6 +117,7 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     Candidate.World = Revision;
     Candidate.FootCm = Foot;
     Candidate.SurfaceCm = FVector(Foot.X, Foot.Y, Expected);
+    Candidate.SupportOriginCm = Hit.Location;
     Candidate.SurfaceId = SurfaceHint;
     Candidate.Floor = Support;
     Out = MoveTemp(Candidate);
@@ -113,13 +126,32 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     return true;
 }
 
-TArray<UPrimitiveComponent*> Pieces(const TArray<TWeakObjectPtr<UPrimitiveComponent>>& Floors)
+}
+
+struct ULDMapRegistry::FGroundState
 {
-    TArray<UPrimitiveComponent*> Out;
-    for (const auto& Floor : Floors) { if (Floor.IsValid()) { Out.Add(Floor.Get()); } }
-    return Out;
-}
-}
+    FCollisionShape Capsule;
+    double Step = 0;
+    TArray<FGroundFloor> Floors;
+    FCollisionQueryParams Query{SCENE_QUERY_STAT(DemoGroundCapsule), false};
+    struct FBodyResult
+    {
+        FLDCombatBodyRef Body;
+        uint64 ResetEpoch = 0;
+        FVector Foot;
+        FName Surface;
+        FLDLegalGround Ground;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        FString Error;
+        bool bLegal = false;
+    };
+    FLDMatchContext Match;
+    FCollisionShape BodyCapsule;
+    TMap<FGuid, FBodyResult> Bodies;
+#if WITH_DEV_AUTOMATION_TESTS
+    uint64 Queries = 0;
+#endif
+};
 
 bool ULDMapRegistry::ShouldCreateSubsystem(UObject* Outer) const
 {
@@ -173,6 +205,7 @@ bool ULDMapRegistry::ContentCapsule(const FLDDemoContentSnapshot& Content, FColl
 bool ULDMapRegistry::Rebuild(FString& Error)
 {
     Definition.Reset(); Content.Reset(); Geometry.Reset(); GroundComponent.Reset(); TerrainFloors.Reset(); Terrain = {};
+    GroundState.Reset();
     WorldRevision = {}; Generation = 0; Bindings.Reset(); ServiceBindings.Reset();
     if (!GetWorld() || (GetWorld()->IsGameWorld()
         && UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap))
@@ -220,6 +253,22 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     }
     FCollisionShape Capsule;
     if (!ContentCapsule(*CandidateContent, Capsule, Error)) { return false; }
+    auto CandidateGround = MakeShared<FGroundState>();
+    CandidateGround->Capsule = Capsule;
+    CandidateGround->Step = GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight;
+    CandidateGround->Floors.Reserve(Floors.Num());
+    for (UPrimitiveComponent* Piece : Floors)
+    {
+        const FBodyInstance* Physics = Piece->GetBodyInstance();
+        if (!Physics || !Physics->IsValidBodyInstance())
+        {
+            Error = TEXT("Demo terrain requires initialized native collision bodies.");
+            return false;
+        }
+        // Use collision bounds, not render bounds; padding only admits extra narrow-phase candidates.
+        CandidateGround->Floors.Add({Piece, Physics->GetBodyBounds().ExpandBy(UCharacterMovementComponent::MAX_FLOOR_DIST)});
+        CandidateGround->Query.AddIgnoredActor(Piece->GetOwner());
+    }
     const FLDWorldRevision CandidateRevision{FName(*CandidateGeometry->MapId),
         uint32(CandidateGeometry->LayoutRevision), uint32(CandidateGeometry->GeometryRevision)};
     TArray<FLDMapBinding> Sites;
@@ -230,31 +279,12 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         Binding.Id = FName(*Anchor.Id);
         Binding.Surface = FName(*Anchor.SurfaceId);
         if (!Anchor.PositionCm.ToVector(Binding.Position, Error)) { return false; }
-        if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop)
-        {
-            FLDLegalGround Legal;
-            ELDWorldQueryFailure Failure;
-            if (!Ground(*GetWorld(), *CandidateGeometry, CandidateTerrain, CandidateRevision, Floors, Capsule, Binding.Position,
-                Capsule, Binding.Surface, Legal, Failure, Error)) { return false; }
-            Binding.Floor = Legal.Floor;
-        }
-        else
-        {
-            // A shop anchor stands in its stall; its floor is the terrain piece under the stall.
-            // The stall itself may answer the floor channel, so only the floor pieces are traced.
-            const FVector Above = Binding.Position + FVector(0, 0, 50), Below = Binding.Position - FVector(0, 0, 50);
-            for (UPrimitiveComponent* Piece : Floors)
-            {
-                FHitResult Hit;
-                if (Piece->LineTraceComponent(Hit, Above, Below, FCollisionQueryParams(SCENE_QUERY_STAT(DemoShopFloor), false))
-                    && FMath::Abs(Hit.ImpactPoint.Z - Binding.Position.Z) <= UE_KINDA_SMALL_NUMBER) { Binding.Floor = Piece; }
-            }
-            if (!Binding.Floor.IsValid())
-            {
-                Error = TEXT("Shop anchor has no registered floor beneath it: ") + Anchor.Id;
-                return false;
-            }
-        }
+        FLDLegalGround Legal;
+        ELDWorldQueryFailure Failure;
+        if (!Ground(*GetWorld(), *CandidateGeometry, CandidateTerrain, CandidateRevision, CandidateGround->Floors,
+            CandidateGround->Query, CandidateGround->Step, Capsule, Binding.Position,
+            Capsule, Binding.Surface, Legal, Failure, Error)) { return false; }
+        Binding.Floor = Legal.Floor;
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
         {
             const auto* Found = Starts.FindByPredicate([&](const APlayerStart* Start) { return Start->PlayerStartTag == Binding.Id; });
@@ -277,6 +307,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     Content = MoveTemp(CandidateContent);
     Geometry = MoveTemp(CandidateGeometry);
     GroundComponent = Floor;
+    GroundState = MoveTemp(CandidateGround);
     TerrainFloors.Reset();
     for (UPrimitiveComponent* Piece : Floors) { TerrainFloors.Add(Piece); }
     Terrain = MoveTemp(CandidateTerrain);
@@ -315,7 +346,8 @@ TSharedRef<FJsonObject> ULDMapRegistry::Report() const
 bool ULDMapRegistry::QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
     FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const
 {
-    if (!Enabled() || !Content || !GroundComponent.IsValid())
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDQueryGround);
+    if (!Enabled() || !Content || !GroundComponent.IsValid() || !GroundState)
     {
         return Reject(ELDWorldQueryFailure::MissingWorld, TEXT("MissingWorld: Demo ground bindings are unavailable."), Failure, Error);
     }
@@ -323,14 +355,75 @@ bool ULDMapRegistry::QueryGround(const FLDWorldRevision& Expected, const FVector
     {
         return Reject(ELDWorldQueryFailure::StaleWorld, TEXT("StaleWorld: world geometry revision changed."), Failure, Error);
     }
-    FCollisionShape Required;
-    if (!ContentCapsule(*Content, Required, Error))
-    {
-        Failure = ELDWorldQueryFailure::InvalidCapsule;
-        return false;
-    }
-    return Ground(*GetWorld(), *Geometry, Terrain, WorldRevision, Pieces(TerrainFloors), Required, FootCm, Capsule, SurfaceHint, Out, Failure, Error);
+#if WITH_DEV_AUTOMATION_TESTS
+    ++GroundState->Queries;
+#endif
+    return Ground(*GetWorld(), *Geometry, Terrain, WorldRevision, GroundState->Floors, GroundState->Query,
+        GroundState->Step, GroundState->Capsule, FootCm, Capsule, SurfaceHint, Out, Failure, Error);
 }
+
+bool ULDMapRegistry::QueryBodyGround(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, uint64 ResetEpoch,
+    const FLDDemoContentSnapshot& BodyContent,
+    const FVector& FootCm, FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const
+{
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDQueryBodyGround);
+    if (!Enabled() || !GroundComponent.IsValid() || !GroundState)
+    {
+        return Reject(ELDWorldQueryFailure::MissingWorld, TEXT("MissingWorld: Demo ground bindings are unavailable."), Failure, Error);
+    }
+    auto& Cache = *GroundState;
+    if (Cache.Match != Match)
+    {
+        Cache.Bodies.Reset();
+        if (!ContentCapsule(BodyContent, Cache.BodyCapsule, Error))
+        {
+            Failure = ELDWorldQueryFailure::InvalidCapsule;
+            return false;
+        }
+        Cache.Match = Match;
+    }
+    if (const auto* Previous = Cache.Bodies.Find(Body.Victim.EntityId);
+        Previous && Previous->Body == Body && Previous->ResetEpoch == ResetEpoch
+        && Previous->Foot == FootCm && Previous->Surface == SurfaceHint)
+    {
+        if (Previous->bLegal) { Out = Previous->Ground; }
+        Failure = Previous->Failure;
+        Error = Previous->Error;
+        return Previous->bLegal;
+    }
+    // A bounded geometry cache cannot retain every retired body in a long-running world.
+    if (Cache.Bodies.Num() >= 64) { Cache.Bodies.Reset(); }
+    FGroundState::FBodyResult Result;
+    Result.Body = Body;
+    Result.ResetEpoch = ResetEpoch;
+    Result.Foot = FootCm;
+    Result.Surface = SurfaceHint;
+    Result.bLegal = QueryGround(WorldRevision, FootCm, Cache.BodyCapsule, SurfaceHint, Result.Ground, Result.Failure, Result.Error);
+    if (Result.bLegal) { Out = Result.Ground; }
+    Failure = Result.Failure;
+    Error = Result.Error;
+    const bool bLegal = Result.bLegal;
+    Cache.Bodies.Add(Body.Victim.EntityId, MoveTemp(Result));
+    return bLegal;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+uint64 ULDMapRegistry::GroundQueryCountForTests() const
+{
+    return GroundState ? GroundState->Queries : 0;
+}
+
+bool ULDMapRegistry::QueryGroundReference(const FVector& FootCm, const FCollisionShape& Capsule, FName SurfaceHint,
+    FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const
+{
+    if (!Enabled() || !GroundState)
+    {
+        return Reject(ELDWorldQueryFailure::MissingWorld, TEXT("MissingWorld: Demo ground bindings are unavailable."), Failure, Error);
+    }
+    return Ground(*GetWorld(), *Geometry, Terrain, WorldRevision, GroundState->Floors, GroundState->Query,
+        GroundState->Step, GroundState->Capsule, FootCm, Capsule, SurfaceHint, Out, Failure, Error, false);
+}
+#endif
 
 bool ULDMapRegistry::IsTerrainFloor(const UPrimitiveComponent* Floor) const
 {
@@ -395,78 +488,6 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
         return Reject(ELDWorldQueryFailure::IncompletePath, TEXT("IncompletePath: native path length is invalid."), Failure, Error);
     }
     Out = MoveTemp(Candidate);
-    Failure = ELDWorldQueryFailure::None;
-    Error.Reset();
-    return true;
-}
-
-bool ULDMapRegistry::FindPublicApproach(const FLDWorldRevision& Expected, const FLDLegalGround& From, FName PublicAnchor,
-    const FCollisionShape& Capsule, FLDLegalGround& OutGround, FLDCompletePath& OutPath,
-    ELDWorldQueryFailure& Failure, FString& Error) const
-{
-    FLDLegalGround Origin;
-    if (From.World != Expected)
-    {
-        return Reject(ELDWorldQueryFailure::StaleWorld, TEXT("StaleWorld: approach origin belongs to another world."), Failure, Error);
-    }
-    if (!QueryGround(Expected, From.FootCm, Capsule, From.SurfaceId, Origin, Failure, Error)) { return false; }
-    const FString Id = PublicAnchor.ToString();
-    const auto* Target = Geometry->Anchors.FindByPredicate([&](const auto& A) { return A.Id == Id; });
-    if (!Target || (Target->Kind != ELDDemoWorldAnchorKind::Shop && Target->Kind != ELDDemoWorldAnchorKind::Capture))
-    {
-        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: public approach requires the registered shop or capture anchor."), Failure, Error);
-    }
-    const auto& Quantity = Target->Kind == ELDDemoWorldAnchorKind::Shop
-        ? Content->Get().Parameters.ShopInteractRadiusCm : Content->Get().Parameters.CaptureRadiusCm;
-    const double Range = double(Quantity.Numerator) / double(Quantity.Denominator);
-    FVector Centre;
-    if (!Target->PositionCm.ToVector(Centre, Error))
-    {
-        Failure = ELDWorldQueryFailure::InvalidPosition;
-        return false;
-    }
-    const FName Surface(*Target->SurfaceId);
-    if (FVector::DistSquared2D(Origin.FootCm, Centre) <= Range * Range)
-    {
-        FLDCompletePath Stationary;
-        if (!QueryCompletePath(Expected, Origin, Origin, Capsule, Stationary, Failure, Error)) { return false; }
-        OutGround = Origin;
-        OutPath = MoveTemp(Stationary);
-        return true;
-    }
-    FLDLegalGround BestGround;
-    FLDCompletePath BestPath;
-    bool Found = false;
-    const FVector Direct = (Origin.FootCm - Centre).GetSafeNormal2D();
-    for (int32 I = -1; I < 64; ++I)
-    {
-        const double Angle = double(I) * 2 * UE_PI / 64;
-        const FVector Direction = I < 0 ? Direct : FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0);
-        FVector Candidate = Centre + Direction * Range;
-        FVector Normal;
-        Terrain.Ground(FVector2D(Candidate.X, Candidate.Y), Candidate.Z, Normal);
-        if (FVector::DistSquared2D(Candidate, Centre) > Range * Range) { continue; }
-        FLDLegalGround CandidateGround;
-        FLDCompletePath Path;
-        if (!QueryGround(Expected, Candidate, Capsule, Surface, CandidateGround, Failure, Error)) { continue; }
-        if (!QueryCompletePath(Expected, Origin, CandidateGround, Capsule, Path, Failure, Error))
-        {
-            if (Failure == ELDWorldQueryFailure::MissingNavigation) { return false; }
-            continue;
-        }
-        if (!Found || Path.LengthCm < BestPath.LengthCm)
-        {
-            BestGround = CandidateGround;
-            BestPath = MoveTemp(Path);
-            Found = true;
-        }
-    }
-    if (!Found)
-    {
-        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: no complete path reaches the public anchor's legal range."), Failure, Error);
-    }
-    OutGround = BestGround;
-    OutPath = MoveTemp(BestPath);
     Failure = ELDWorldQueryFailure::None;
     Error.Reset();
     return true;

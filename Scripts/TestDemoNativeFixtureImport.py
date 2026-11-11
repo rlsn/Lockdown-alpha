@@ -62,7 +62,7 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(expected["Parameters.BasicAttackWindupMs"], "250")
         self.assertNotEqual(expected["Parameters.AD.BaseP2"], synthetic["Parameters.AD.BaseP2"])
 
-    def test_every_rank_quantity_has_a_distinct_native_change_assertion(self):
+    def test_every_active_value_quantity_has_a_distinct_native_change_assertion(self):
         baseline = json.loads((self.root / "base" / "native_expected.json").read_bytes())
         data = json.loads((self.root / "base" / demo.CONTENT_OUTPUT).read_bytes())
         expected = set()
@@ -79,7 +79,8 @@ class DemoNativeFixturesTest(unittest.TestCase):
                     quantities(child, f"{path}[{index}]")
 
         for index, ability in enumerate(data["abilities"]):
-            quantities(ability["ranks"], f"content.abilities[{index}].ranks")
+            for key in native.ABILITY_VALUE_FIELDS:
+                quantities(ability[key], f"content.abilities[{index}].{key}")
         seen = set()
         for case in self.index["valid"]:
             if not case["mutated_quantity"]:
@@ -162,6 +163,20 @@ class DemoNativeFixturesTest(unittest.TestCase):
         position_fields = [key for key in shifted if ".PositionCm." in key and shifted[key] != baseline[key]]
         self.assertTrue(position_fields)
 
+    def test_retired_growth_shapes_are_native_refusal_cases(self):
+        # #198: ranks, attribute/opening cards, rerolls, CHOICE weights, advanced lines, retired operations and an
+        # active on another active's target must reach the native importer as refusals with their own reason.
+        invalid = {case["name"]: case["error_contains"] for case in self.index["invalid"]}
+        for name, error in (
+            ("retired_rank_field", "unknown field"), ("attribute_card_section", "unknown field"),
+            ("retired_reroll_levels", "unknown field"), ("retired_choice_parameter", "unknown field"),
+            ("advanced_display_line", "unknown field"), ("retired_effect_op", "opcode"),
+            ("sock_shot_wrong_target", "wrong definition target"), ("retired_stat_id", "renumbered native ID"),
+            ("wrong_stat_bonus", "wrong stat bonuses"), ("small_opening_pool", "opening pool"),
+            ("unsorted_active_offer_levels", "active offer levels"), ("stat_card_absent_bonus", "card placeholder"),
+        ):
+            self.assertEqual(invalid.get(name), error, name)
+
     def test_refusals_reach_semantics_instead_of_only_hash_checks(self):
         for case in self.index["invalid"]:
             if case["name"].startswith("byte_identity_") or case["name"] in ("missing_world", "stale_expected_root"):
@@ -178,19 +193,19 @@ class DemoNativeFixturesTest(unittest.TestCase):
 
     def test_exact_integer_and_rational_expectations(self):
         expected = lambda name: json.loads((self.root / name / "native_expected.json").read_bytes())
-        self.assertEqual(expected("int64_max_ms")["Parameters.RespawnMs"], str(demo.INT64_MAX))
-        self.assertEqual(expected("above_double_integer")["Parameters.RespawnMs"], "9007199254740993")
-        self.assertEqual(expected("exact_gold")["Parameters.StartingGold"], "9007199254740993")
+        self.assertEqual(expected("int64_max_ms")["Parameters.RespawnFinalMs"], str(demo.INT64_MAX))
+        self.assertEqual(expected("above_double_integer")["Parameters.RespawnFinalMs"], "9007199254740993")
+        self.assertEqual(expected("exact_integer")["Parameters.AirdropRewardXP"], "9007199254740993")
         self.assertEqual(expected("exact_rational")["Parameters.MPRegen.PerLevel.Numerator"], "1")
         self.assertEqual(expected("exact_rational")["Parameters.MPRegen.PerLevel.Denominator"], "1000000000000000000")
         world = json.loads((self.root / "signed_world_boundary" / demo.WORLD_OUTPUT).read_bytes())
         self.assertEqual(world["geometry"]["surfaces"][0]["min_cm"]["x"]["numerator"], demo.INT64_MIN)
         self.assertNotIn("signed_world_boundary", {case["name"] for case in self.index["valid"]})
         self.assertIn("signed_world_boundary", {case["name"] for case in self.index["invalid"]})
-        self.assertEqual(expected("base")["Formulas.AttackMoveAcquireRadius"], "14")
+        self.assertEqual(expected("base")["Formulas.AttackMoveAcquireRadius"], "13")
         decision = expected("unicode_scalar_boundary")["Identity.ApprovalDecision"]
-        self.assertEqual(len(decision), 512)
-        self.assertEqual(len(decision.encode("utf-16-le")) // 2, 513)
+        self.assertEqual(len(decision), 1024)
+        self.assertEqual(len(decision.encode("utf-16-le")) // 2, 1025)
 
     def test_export_cannot_overwrite_or_create_live_inputs(self):
         baseline = (self.root / "base" / demo.CONTENT_OUTPUT).read_bytes()
@@ -210,7 +225,7 @@ class DemoNativeFixtureParallelismTest(unittest.TestCase):
             root = Path(temp) / "runtime"
             index = native.export(root, profile="runtime")
             self.assertEqual([case["name"] for case in index["valid"]],
-                             ["base", "approved_base", "exact_gold", "world_spawn_shift"])
+                             ["base", "approved_base", "exact_integer", "world_spawn_shift"])
             self.assertEqual([case["name"] for case in index["invalid"]], ["unknown_root_field"])
             self.assertEqual(native._file_hashes(root),
                              {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -223,7 +238,7 @@ class DemoNativeFixtureParallelismTest(unittest.TestCase):
             trees = {}
             for jobs in (1, 3):
                 root = Path(temp) / f"jobs-{jobs}"
-                native.export(root, rank_mutations=False, jobs=jobs)
+                native.export(root, value_mutations=False, jobs=jobs)
                 trees[jobs] = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
             self.assertGreater(len(trees[1]), 100)
             self.assertEqual(trees[1], trees[3])

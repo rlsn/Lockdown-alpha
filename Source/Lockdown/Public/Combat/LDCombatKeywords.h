@@ -5,7 +5,7 @@
 struct FLDDemoContentParameters;
 
 // #147 build v7 keywords (docs/systems/COMBAT_AND_GROWTH.md, "构筑 v7 战斗原语"): the shared breach and burn records of
-// one target life, the lifesteal cap and the knockback wall judgement. Pure rules over primitive values; the director
+// one target life, the lifesteal cap and (#198 B02) the ledger batch. Pure rules over primitive values; the director
 // applies them to its body records.
 
 // The approved keyword terms (COMBAT.Breach*, COMBAT.Burn*, COMBAT.LifestealCap).
@@ -35,8 +35,9 @@ struct FLDCombatSharedBreach
     int64 ExpiresAtMs = 0;
 };
 
-// One burn layer: who applied it (damage, kill and assist credit) and the applier's level and AP snapshotted when applied;
-// its damage per second is BurnLayerPerSecondP2(Level, SourceAPP2) (v7 4.2: 3 x G(L) + 3% AP).
+// One burn layer (#198, CONTENT_AND_BALANCE §4.4): who applied it (damage, kill and assist credit) and the applier's level
+// and AP snapshotted when applied; its damage per second is BurnLayerPerSecondP2(Level, SourceAPP2) (3 x G(L) + 3% AP).
+// Every layer keeps its own timer: it ticks every BurnTickMs from its application, the last tick at ExpiresAtMs.
 struct FLDCombatBurnLayer
 {
     FGuid SourceEntity;
@@ -45,26 +46,18 @@ struct FLDCombatBurnLayer
     FLDCombatSourceRef Source;
     int32 Level = 1;
     int64 SourceAPP2 = 0;
-};
-
-// The one burn of a target life (D11): its layers share one timer that a new layer restarts; at the cap a new layer
-// replaces the oldest one. Ticks fall every BurnTickMs from the first layer's application, the last one at ExpiresAtMs.
-struct FLDCombatBurn
-{
-    TArray<FLDCombatBurnLayer> Layers;   // oldest first
     int64 ExpiresAtMs = 0;
     int64 NextTickAtMs = 0;
 };
 
-// A body a projectile flight may meet: its life, foot and collision radius.
-struct FLDFlightCandidate
+// The fire of a target life: up to BurnMaxStacks independent layers; at the cap a new layer replaces the one that ends first.
+struct FLDCombatBurn
 {
-    FLDCombatBodyRef Body;
-    FVector FootCm = FVector::ZeroVector;
-    double RadiusCm = 0;
+    TArray<FLDCombatBurnLayer> Layers;   // application order
 };
 
-// One tick's damage of every layer of one applier.
+
+// One tick's (or one early settle's) damage of every layer of one applier and source.
 struct FLDBurnTickShare
 {
     FGuid SourceEntity;
@@ -72,6 +65,20 @@ struct FLDBurnTickShare
     FGuid CreditOwner;
     FLDCombatSourceRef Source;
     int64 DamageP2 = 0;
+};
+
+// #198 B02 账目: one owner's ledger on one target life (kept on the target's body, so a new life starts clean). Every
+// effective basic or skill damage hit of the owner adds one entry valued at that moment; the batch's first entry fixes
+// its threshold (Count) and its idle window (WindowMs). At Count entries the batch cashes out at once; WindowMs without a
+// new entry clears the unlocked entries.
+struct FLDCombatLedger
+{
+    FGuid Owner;
+    FLDCombatSourceRef Source;
+    TArray<int64> EntriesP2;   // oldest first
+    int32 Count = 0;
+    int64 WindowMs = 0;
+    int64 LastEntryAtMs = 0;
 };
 
 namespace LDCombatKeywords
@@ -89,31 +96,44 @@ namespace LDCombatKeywords
     LOCKDOWN_API bool ExpireBreach(FLDCombatSharedBreach& Breach, int64 AtMs);
 
     // Per-second damage of one layer: G(L) x BurnPerSec + BurnAPRatio x AP, floored to P2 (G(L) of LDSkillGrowth with
-    // SKILL.GrowthPerLevel; skill amounts already arrive grown through FLDDemoContentSnapshot::FindRank).
+    // SKILL.GrowthPerLevel; skill amounts already arrive grown through FLDDemoContentSnapshot::FindValues).
     LOCKDOWN_API int64 BurnLayerPerSecondP2(int32 Level, int64 SourceAPP2, const FLDKeywordTerms& Terms);
+    // One tick of one layer: floor(PerSecond x BurnTickMs / 1000).
+    LOCKDOWN_API int64 BurnLayerTickP2(const FLDCombatBurnLayer& Layer, const FLDKeywordTerms& Terms);
+    // Ticks a layer still owes (its next tick through its last one).
+    LOCKDOWN_API int32 BurnLayerTicksLeft(const FLDCombatBurnLayer& Layer, const FLDKeywordTerms& Terms);
     LOCKDOWN_API bool BurnActive(const FLDCombatBurn& Burn, int64 AtMs);
-    // Adds Count copies of Layer: below the cap they join, at the cap each replaces the oldest; the shared timer
-    // restarts. A lapsed or empty burn starts again with its first tick one tick from AtMs. False for bad input.
+    // The latest layer end (the observed status expiry); 0 without layers.
+    LOCKDOWN_API int64 BurnExpiresAtMs(const FLDCombatBurn& Burn);
+    // The earliest due tick of any layer; MAX_int64 without layers.
+    LOCKDOWN_API int64 NextBurnTickAtMs(const FLDCombatBurn& Burn);
+    // Adds Count layers of Layer's applier, each with its own BurnMs timer from AtMs (first tick one BurnTickMs later);
+    // at the cap each replaces the layer that ends first. False for bad input (nothing changes then).
     LOCKDOWN_API bool ApplyBurn(FLDCombatBurn& Burn, const FLDCombatBurnLayer& Layer, int32 Count, int64 AtMs,
         const FLDKeywordTerms& Terms);
-    // One tick: per applier (first-layer order), the summed floor(PerSecond x Tick / 1000) of its layers, each at its snapshot.
-    LOCKDOWN_API void BurnTickShares(const FLDCombatBurn& Burn, const FLDKeywordTerms& Terms, TArray<FLDBurnTickShare>& Out);
-    // Clears a burn whose last tick has passed; true when it ended.
+    // The earliest tick due at or before AtMs: every layer ticking at that instant, merged per applier and source (first
+    // layer order) into Out, advanced, and finished layers removed. False when no tick is due (Out empty).
+    LOCKDOWN_API bool PopBurnTick(FLDCombatBurn& Burn, int64 AtMs, const FLDKeywordTerms& Terms, int64& OutTickAtMs,
+        TArray<FLDBurnTickShare>& Out);
+    // Every tick the layers still owe, merged per applier and source: the early settle of a consumed fire.
+    LOCKDOWN_API void BurnRemainingShares(const FLDCombatBurn& Burn, const FLDKeywordTerms& Terms, TArray<FLDBurnTickShare>& Out);
+    // Removes layers whose last tick has passed; true when any ended.
     LOCKDOWN_API bool ExpireBurn(FLDCombatBurn& Burn, int64 AtMs);
     // A leaving applier's layers end with it (POLICY.SourceLeave); returns the removed count.
     LOCKDOWN_API int32 RemoveBurnSource(FLDCombatBurn& Burn, const FGuid& Source);
 
     // Earliest fraction (0..1) of From->To at which a moving point comes within Reach of Centre (planar); false when never.
     LOCKDOWN_API bool SegmentEntry(const FVector& From, const FVector& To, const FVector& Centre, double Reach, double& OutFraction);
-    // A piercing flight over From->To (radius FlightRadiusCm): the candidates it enters in flight order (ties keep the
-    // candidate order), skipping SourceEntity's bodies and the lives in Struck.
-    LOCKDOWN_API void PierceContacts(const FVector& From, const FVector& To, double FlightRadiusCm, const FGuid& SourceEntity,
-        const TArray<FLDCombatBodyRef>& Struck, const TArray<FLDFlightCandidate>& Candidates, TArray<int32>& OutIndices);
 
     // D22: every lifesteal of one hit adds up, at most COMBAT.LifestealCap.
     LOCKDOWN_API int64 CapLifestealBp(int64 SumBp, const FLDKeywordTerms& Terms);
-    // A knockback met a wall when its body travelled (planar) less than ThresholdCm.
-    LOCKDOWN_API bool KnockbackHitWall(const FVector& StartFootCm, const FVector& EndFootCm, double ThresholdCm);
-    // #166 passive_moral_victory: the breaker takes RatioBp of the granted shield; another nearby enemy takes half.
-    LOCKDOWN_API int64 ShieldBurstShareP2(int64 GrantedP2, int64 RatioBp, bool bNearbyEnemy);
+
+    // B02: adds one entry of ValueP2 at AtMs. A batch idle for its WindowMs is cleared first; an empty batch takes Count and
+    // WindowMs as its terms. At Count entries the batch cashes out: true with OutCashOutP2 = the summed entries, and the
+    // ledger is empty again (a cash-out never adds an entry itself). False with no cash-out otherwise, or on bad input
+    // (Count < 1, WindowMs < 1, a negative value or an int64 overflow; bOutRefused is set and no entry is added).
+    LOCKDOWN_API bool AddLedgerEntry(FLDCombatLedger& Ledger, int64 ValueP2, int64 AtMs, int32 Count, int64 WindowMs,
+        int64& OutCashOutP2, bool& bOutRefused);
+    // Clears unlocked entries idle for the batch's window (half-open at LastEntryAtMs + WindowMs); true when it cleared.
+    LOCKDOWN_API bool ExpireLedger(FLDCombatLedger& Ledger, int64 AtMs);
 }

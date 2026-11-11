@@ -193,8 +193,7 @@ ELDGrowthReason ALDCombatDirector::DevSetAttribute(const FGuid& Contender, bool 
     return ELDGrowthReason::None;
 }
 
-FLDCombatPrepareResult ALDCombatDirector::DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision,
-    uint64 ResultInventoryRevision) const
+FLDCombatPrepareResult ALDCombatDirector::DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision) const
 {
     const ALDGameMode* Mode = Core();
     const FLDDemoContentSnapshot* Content = Catalog();
@@ -206,16 +205,15 @@ FLDCombatPrepareResult ALDCombatDirector::DevPrepareReset(const FGuid& Contender
         Refused.Message = TEXT("UnknownContender: no persistent Combat record yet (the first life has not spawned).");
         return Refused;
     }
-    if (ResultBuildRevision <= Record->Installed.BuildRevision || ResultInventoryRevision < Record->Installed.InventoryRevision)
+    if (ResultBuildRevision <= Record->Installed.BuildRevision)
     {
         Refused.Error = ELDCombatPrepareError::InvalidInput;
-        Refused.Message = TEXT("InvalidInput: the reset must advance the build revision and keep the inventory revision.");
+        Refused.Message = TEXT("InvalidInput: the reset must advance the build revision.");
         return Refused;
     }
     FLDBuildProjectionInput Input;
     Input.Level = 1;
     Input.ResultBuildRevision = ResultBuildRevision;
-    Input.ResultInventoryRevision = ResultInventoryRevision;
     return PrepareProjected(*Mode, *Content, *Record, Contender, Input, Record->Installed);
 }
 
@@ -237,6 +235,8 @@ int32 ALDCombatDirector::DevFinishReset(const FGuid& Contender, int64 NowMs)
         return 0;
     }
     const int32 Dropped = DevDropTracks(Record->Tracks, NowMs);
+    // Back at the match start no combat action holds the build safe window.
+    Record->LastBuildUnsafeAtMs = 0;
     if (FLDBodyCombatState* Body = FindEntityBody(Contender); Body && !Body->bPendingDeath)
     {
         DevRefillPool(Body->Resources);

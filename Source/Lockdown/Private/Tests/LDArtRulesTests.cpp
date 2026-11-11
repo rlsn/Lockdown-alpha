@@ -192,12 +192,15 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
     const FLDArtCharacter* Monitor = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterScavenger));
     const FLDArtCharacter* Teacher = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterGuardian));
     const FLDArtCharacter* Dean = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterDean));
-    TestTrue(TEXT("Every seat, both camp tiers, the Boss and nothing else resolve"), Contender && Monitor && Teacher && Dean
-        && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(4));
-    TestTrue(TEXT("The teacher is the tallest camp body"), Contender && Monitor && Teacher && Teacher->HeightCm > Contender->HeightCm
-        && Teacher->HeightCm > Monitor->HeightCm);
-    TestTrue(TEXT("D26: the Boss is its own body, taller than every other"), Dean && Teacher && Dean != Teacher
-        && Dean->HeightCm > Teacher->HeightCm);
+    const FLDArtCharacter* Advisor = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterAdvisor));
+    TestTrue(TEXT("Every seat, the three camp tiers, the Boss and nothing else resolve"), Contender && Monitor && Teacher && Dean
+        && Advisor && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(5));
+    TestTrue(TEXT("The teacher stands taller than the Low tier and every contender"), Contender && Monitor && Teacher
+        && Teacher->HeightCm > Contender->HeightCm && Teacher->HeightCm > Monitor->HeightCm);
+    TestTrue(TEXT("#97: the Elite advisor is its own body and the tallest camp body"), Advisor && Teacher && Monitor
+        && Advisor != Teacher && Advisor != Monitor && Advisor->HeightCm > Teacher->HeightCm);
+    TestTrue(TEXT("D26: the Boss is its own body, taller than every other"), Dean && Teacher && Advisor && Dean != Teacher
+        && Dean != Advisor && Dean->HeightCm > Advisor->HeightCm);
     const float HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
     for (const FLDArtCharacter& Body : Catalog->Characters)
     {
@@ -253,9 +256,9 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
 
     // Placement zones against the saved Demo world.
     const int32 WallBase = ArtFindDecoration(*Catalog, ELDArtZone::WallBase), Outside = ArtFindDecoration(*Catalog, ELDArtZone::Outside);
-    const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture), Shop = ArtFindDecoration(*Catalog, ELDArtZone::Shop);
-    if (TestTrue(TEXT("The catalog has wall-base, outside, capture and shop decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
-        && Capture != INDEX_NONE && Shop != INDEX_NONE))
+    const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture);
+    if (TestTrue(TEXT("The catalog has wall-base, outside and capture decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
+        && Capture != INDEX_NONE))
     {
         ULDArtCatalog* Copy = ArtCopy(*Catalog);
         Copy->Decorations[WallBase].Transform.SetLocation(FVector(0, -400, 0));
@@ -280,9 +283,6 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Capture].Transform.AddToTranslation(FVector(250, 0, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("An off-centre capture landmark is rejected"), TEXT("centred"));
-        Copy = ArtCopy(*Catalog);
-        Copy->Decorations[Shop].Transform.SetScale3D(Copy->Decorations[Shop].Transform.GetScale3D() * FVector(1, 1, 2));
-        ArtExpectMisplaced(*this, *Copy, TEXT("A shop landmark tall enough to hide bodies is rejected"), TEXT("hide bodies"));
     }
 
     // #97: collision follows the art. A blocker's prop is its block's footprint and height; a tree's prop stands on it.
@@ -294,6 +294,31 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
     if (TestTrue(TEXT("The catalog draws a wall or fence, a tree, and ground cover"), Wall != INDEX_NONE && Tree != INDEX_NONE && Ground != INDEX_NONE))
     {
         TestTrue(TEXT("The saved art fits every block it draws: ") + Error, LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error));
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        TSharedPtr<const FLDDemoWorldGeometry> World;
+        const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+        if (TestTrue(TEXT("The rest anchors are readable: ") + Error, LDDemoEntry::LoadRuntimeContent(Content, Error) && Content
+            && Definition && Definition->Read(*Content, World, Error) && World))
+        {
+            for (const ELDDemoWorldAnchorKind Kind : {ELDDemoWorldAnchorKind::RestSpawn, ELDDemoWorldAnchorKind::RestService})
+            {
+                const FLDDemoWorldAnchor* Anchor = World->Anchors.FindByPredicate([Kind](const FLDDemoWorldAnchor& Row) { return Row.Kind == Kind; });
+                FVector Spot;
+                if (TestNotNull(TEXT("The shared rest has this anchor kind"), Anchor)
+                    && TestTrue(TEXT("Its position is readable"), Anchor->PositionCm.ToVector(Spot, Error)))
+                {
+                    ULDArtCatalog* RestCopy = ArtCopy(*Catalog);
+                    RestCopy->Decorations[Ground].Transform.SetLocation(Spot);
+                    ArtExpectMisplaced(*this, *RestCopy, TEXT("Ground cover cannot obscure a rest anchor"), Anchor->Id);
+                    if (Kind == ELDDemoWorldAnchorKind::RestSpawn && Outside != INDEX_NONE)
+                    {
+                        RestCopy = ArtCopy(*Catalog);
+                        RestCopy->Decorations[Outside].Transform.SetLocation(Spot);
+                        ArtExpectMisplaced(*this, *RestCopy, TEXT("Outside scenery cannot cover the shared rest room"), TEXT("shared rest room"));
+                    }
+                }
+            }
+        }
         ULDArtCatalog* Copy = ArtCopy(*Catalog);
         Copy->Decorations[Wall].Transform.AddToTranslation(FVector(50, 0, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("A block's prop shifted off its polygon is rejected"), TEXT("not the polygon"));

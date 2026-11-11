@@ -29,9 +29,9 @@ AUTHOR_INPUT_PATHS = (CONTENT_SOURCE, SCHEMA_SOURCE, IDS_SOURCE, NATIVE_IDS)
 WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
-SCHEMA_VERSION = 1
-HANDLER_REVISION = 1
-PROJECTION_REVISION = 3
+SCHEMA_VERSION = 2
+HANDLER_REVISION = 3
+PROJECTION_REVISION = 5
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -39,28 +39,61 @@ ID_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,62}")
 HEX_PATTERN = re.compile(r"[0-9a-f]{64}")
 NATIVE_ENUMS = {
     "character": "ELDDemoCharacterId", "abilities": "ELDDemoAbilityId",
-    "attributes": "ELDDemoAttributeId", "equipment": "ELDDemoEquipmentId",
+    "stats": "ELDDemoStatId", "components": "ELDDemoComponentId",
     "monsters": "ELDDemoMonsterId", "statuses": "ELDDemoStatusId",
     "effect_ops": "ELDDemoEffectOp",
 }
-EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "lifesteal", "dash", "cleave", "dash_boost",
+# Inclusive native numbers that are never reused (#198 retires the passives, cower, attribute cards, their statuses and
+# unused ops).
+RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 26]],
+                  "statuses": [[7, 8], [11, 11], [15, 19], [21, 24], [28, 29]],
+                  "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [38, 39],
+                                 [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
+# #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
+CAMP_TIERS = frozenset(("Low", "High", "Elite"))
+# #198 field charms: heal, mana and move speed (native ELDCharmKind).
+CHARM_KINDS = 3
+# Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
+# #198 base components; no active may use them.
+EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus", "lifesteal", "dash",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
                        "control_damage_amp", "taunt", "disarm", "stun", "empower_basic", "thorns",
-                       "cooldown_refund", "ability_crit", "triggered_shield", "crit_damage_reduction", "nth_basic_bonus",
-                       "mana_on_hit", "dispel_slow", "path_slow",
-                       # #112 §5 mechanics still used by the catalog.
-                       "knockback", "zone", "zone_slow", "zone_root", "zone_damage",
-                       "cast_frenzy", "affliction_amp", "shield_break_retort", "hit_haste",
-                       # #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
-                       "silence", "breach", "burn", "execute", "pierce", "echo", "taunt_shield", "dispel_disarm",
-                       "zone_burn", "channel_cone", "ground_impact", "attack_slow", "contact_trap", "dash_contact",
-                       "cower", "argument_chain", "spell_sustain", "primary_guard",
-                       "dash_contact_damage", "dash_contact_refund", "dash_contact_guard"))
+                       "cooldown_refund", "triggered_shield", "nth_basic_bonus", "mana_on_hit", "dispel_slow",
+                       "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
+                       "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
+                       "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
+                       # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
+                       "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste", "grievous",
+                       "ledger", "basic_element", "basic_damage_scale", "idle_ready_amp", "active_element",
+                       *("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
+                         "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
+                         "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
+                         "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_mana",
+                         "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base", "compress_chain")))
+# #198 F: the operations of mods (M01-M12) and connectors (C01-C12); they act on the install target the component names.
+WORKSHOP_OPS = frozenset(("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
+                          "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
+                          "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
+                          "fire_shield", "knockback_impact", "dash_contact_refund", "contact_knockback", "control_mark",
+                          "aftershock", "control_mana", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
+                          "extra_base", "compress_chain"))
+# #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
+# and empower_basic also have an active form; the rest are component-only and no active may carry them.
+COMPONENT_OPS = frozenset(("burn", "breach", "empower_basic", "ledger", "thorns", "lifesteal", "dash_contact_damage",
+                           "nth_basic_bonus", "control_damage_amp", "triggered_shield", "basic_element", "stat_bonus",
+                           "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element",
+                           *WORKSHOP_OPS))
+COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"}
+ELEMENTS = ("fire", "water", "electric")
+CATEGORY_KEYS = ("base", "mod", "connector")
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
+# Elements an active attaches to the bodies it hits (#198 CONTENT_AND_BALANCE §4.4).
+ELEMENT_OPS = frozenset(("wet", "electrify"))
 # Effects a self area delivers to the bodies it names.
-AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn"))
+AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn", *ELEMENT_OPS))
+# The payloads that give a zone a reason to exist; zone_haste only buffs its owner while inside one.
+ZONE_PAYLOAD_OPS = frozenset(("zone_slow", "zone_damage", "zone_burn", "zone_wet"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 # Every bonus stat name; a card placeholder may read one stat of its effect.
 STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
@@ -69,6 +102,9 @@ STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFla
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
+# #198 outer flow: three timed field segments precede the final field (FLDTimelineParameters::TimedSegments). Map build
+# reward targets (airdrops, Boss, camp markers) live only inside them.
+TIMED_FIELD_SEGMENTS = 3
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -418,12 +454,7 @@ def rows_by_id(rows, path, key="id"):
 def validate_native_ids(root, value):
     keys(value, {"schema_version", "retired_ranges", *NATIVE_ENUMS}, IDS_SOURCE)
     integer(value["schema_version"], IDS_SOURCE, SCHEMA_VERSION, SCHEMA_VERSION)
-    require(exact_equal(value["retired_ranges"], {"abilities": [[0, 91]], "attributes": [[0, 14]],
-                                                  "equipment": [[0, 98], [107, 107], [113, 114]],
-                                                  "statuses": [[7, 8], [11, 11], [15, 19], [21, 24]],
-                                                  "effect_ops": [[6, 6], [9, 9], [16, 16], [19, 19], [23, 23], [25, 25],
-                                                                 [28, 30], [32, 33], [39, 39], [41, 49], [51, 51],
-                                                                 [55, 64]]}),
+    require(exact_equal(value["retired_ranges"], RETIRED_RANGES),
             "RetiredId", IDS_SOURCE, "occupied legacy ranges must remain reserved")
     for section, enum_name in NATIVE_ENUMS.items():
         mapping = value[section]
@@ -478,38 +509,23 @@ def _effect_set(effects, path):
     return frozenset(operations)
 
 
-def _same_handlers(base, upgraded):
-    return [effect["op"] for effect in base] == [effect["op"] for effect in upgraded]
-
-
 def _positive_stats(stats, path):
     require(stats and all(quantity(value) > 0 for value in stats.values()),
             "IneffectiveChoice", path, "every declared stat bonus must be positive")
 
 
-def _validate_thorns(effect, path):
-    require(quantity(effect["base"]) > 0 or quantity(effect["armor_ratio"]) > 0,
-            "IneffectiveEffect", path, "a reflection has neither magnitude nor armor scaling")
-    require(quantity(effect["radius"]) > 0, "NumericDomain", path, "reflection reach must be positive")
-    require(quantity(effect["critical_multiplier"]) >= 1, "NumericDomain", path,
-            "a critical hit cannot shrink the reflection")
-
-
 # Positive-magnitude fields of the #112 handlers: at least one of each group must be positive.
 _NEW_OP_MAGNITUDES = {
-    "zone_damage": ("base", "ad_ratio", "ap_ratio"), "taunt_shield": ("base", "max_hp_ratio"), "execute": ("ratio",),
-    "knockback": ("distance",), "zone": ("radius",), "zone_slow": ("ratio",),
+    "zone_damage": ("base", "ad_ratio", "ap_ratio"), "knockback": ("distance",), "zone": ("radius",), "zone_slow": ("ratio",),
 }
 
 
 # #147 optional terms that only come in pairs (the native importer refuses the same shapes).
 _PAIRED_FIELDS = {
     "lifesteal": (("hp_below", "low_hp_multiplier"),), "thorns": (("slow", "slow_duration"),),
-    "triggered_shield": (("burst_ratio", "burst_radius"),), "knockback": (("wall_distance", "wall_stun"),),
-    "empower_basic": (("cleave_ratio", "cleave_radius"),),
+    "triggered_shield": (("burst_ratio", "burst_radius"),),
     "channel_cone": (("slow", "slow_duration"),),
     "dash_contact_damage": (("slow", "slow_duration"),),
-    "spell_sustain": (("mana_ratio", "mana_cap"),),
     "dash_contact_refund": (("mana_ratio", "mana_cap"),),
     "primary_guard": (("slow_resistance", "duration"),),
 }
@@ -528,12 +544,9 @@ def _validate_new_effect(effect, path):
     if effect["op"] == "zone":
         require(effect["delay"]["ms"] + effect["interval"]["ms"] * (effect["count"] - 1) <= effect["duration"]["ms"],
                 "InvalidTiming", path, "zone pulses must fall inside its duration")
-    if effect["op"] == "cast_frenzy":
-        require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "timed bonuses cannot change resource maxima")
-        _positive_stats(effect["stats"], path)
-    if effect["op"] in ("attack_slow", "cower", "primary_guard", "dash_contact_guard", "spell_sustain"):
+    if effect["op"] in ("attack_slow", "primary_guard"):
         require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
-                "reduction or recovery ratio must be strictly between zero and one")
+                "reduction ratio must be strictly between zero and one")
     if effect["op"] in ("ground_impact", "contact_trap"):
         inner = "inner_radius" if effect["op"] == "ground_impact" else "trigger_radius"
         require(0 < quantity(effect[inner]) <= quantity(effect["radius"]), "InvalidGeometry", path,
@@ -543,115 +556,280 @@ def _validate_new_effect(effect, path):
                 "outer damage must be a positive fraction of central damage")
     if effect["op"] == "channel_cone":
         checked_mul(effect["interval"]["ms"], effect["count"] - 1, path)
-    if effect["op"] in ("argument_chain", "dash_contact_damage"):
+    if effect["op"] == "dash_contact_damage":
         require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
                 "IneffectiveEffect", path, "additional damage needs magnitude or scaling")
-    for field in ("slow", "slow_resistance", "move_bonus", "mana_ratio"):
-        if field in effect and effect["op"] in (
-                "channel_cone", "dash_contact_damage", "primary_guard", "cower", "spell_sustain", "dash_contact_refund"):
+    for field in ("slow", "slow_resistance", "mana_ratio"):
+        if field in effect and effect["op"] in ("channel_cone", "dash_contact_damage", "primary_guard", "dash_contact_refund"):
             require(0 < quantity(effect[field]) < 1, "NumericDomain", path, f"{field} must be a positive fraction")
-    if effect["op"] in ("spell_sustain", "primary_guard"):
+    if effect["op"] == "primary_guard":
         require(quantity(effect["base"]) > 0, "IneffectiveEffect", path, "cap must be positive")
-    if effect["op"] in ("spell_sustain", "dash_contact_refund") and "mana_cap" in effect:
+    if effect["op"] == "dash_contact_refund" and "mana_cap" in effect:
         require(quantity(effect["mana_cap"]) > 0, "IneffectiveEffect", path, "mana cap must be positive")
+    # #198 session A (CONTENT_AND_BALANCE §4.2).
+    if effect["op"] in ("chain_bounce", "brace", "zone_haste", "grievous"):
+        require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
+                f"{effect['op']} ratio must be strictly between zero and one")
+    if effect["op"] in ("chain_bounce", "brace"):
+        require(quantity(effect["radius"]) > 0, "InvalidGeometry", path, f"{effect['op']} radius must be positive")
+    if effect["op"] == "brace":
+        require(quantity(effect["limit"]) > 0 and quantity(effect["record_ratio"]) > 0, "IneffectiveEffect", path,
+                "a brace records a positive amount and releases a positive share of it")
 
 
-def _validate_action(target, ranks, path):
+def _validate_action(target, effects, path):
     mode = target["mode"]
     allowed = {
         "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt", "stun",
-                           "knockback", *HOSTILE_OPS,
-                           "silence", "breach", "burn", "execute", "echo", "taunt_shield", "dispel_disarm", "empower_basic", "cower")),
-        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun",
-                           "silence", "breach", "burn", "execute", "knockback")),
-        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "execute", "pierce", "attack_slow")),
-        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "path_slow", "zone", "zone_damage",
-                                    *HOSTILE_OPS, "breach", "burn", "dash_contact")),
-        "GroundPoint": frozenset(("zone", "zone_slow", "zone_root", "zone_damage", "zone_burn",
+                           "knockback", *HOSTILE_OPS, "silence", "breach", "burn", "empower_basic", *ELEMENT_OPS,
+                           "brace")),
+        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "silence", "breach", "burn", "knockback",
+                           *ELEMENT_OPS, "chain_bounce", "grievous")),
+        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "attack_slow", *ELEMENT_OPS,
+                                          "grievous")),
+        "DirectionLine": frozenset(("damage", "knockback", "slow", "burn", *ELEMENT_OPS)),
+        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "zone", "zone_damage",
+                                    *HOSTILE_OPS, "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS)),
+        "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
                                   "ground_impact", "contact_trap", "damage", "root", "slow")),
         "DirectionCone": frozenset(("channel_cone", "damage")),
     }[mode]
-    signature = None
-    for rank in ranks:
-        ops = _effect_set(rank["effects"], path)
-        require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
-        # Lower ranks share their handlers; the advanced (top) rank may change them (#147 "高级 = 数值 + 一条玩法变化"),
-        # checked by its contract.
-        require(signature is None or rank["rank"] == len(ranks) or signature == ops, "RankShape", path,
-                "ranks must use the same handlers")
-        signature = signature if signature is not None else ops
-        if mode in ("Self", "DirectionDash") and "dash_contact" not in ops:
-            require(("self_area" in ops) == bool(ops & AREA_HIT_OPS), "TargetEffectMismatch", path,
-                    "hit effects of a self or dash action need exactly one self_area to name their targets")
-        if mode == "DirectionProjectile":
-            require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
-        require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap"}) == 1,
-                "MissingHandler", path, "a ground point needs exactly one delivery handler")
-        require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
-                "MissingHandler", path, "a cone needs its channel and damage")
-        require("dash_contact" not in ops or ("damage" in ops and "self_area" not in ops),
-                "TargetEffectMismatch", path, "contact damage must use the actual dash, not a release area")
-        require(not ops.intersection({"ground_impact", "contact_trap"}) or "damage" in ops,
-                "MissingHandler", path, "a delayed impact or trap needs damage")
-        require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
-        require(not (ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}) or "zone" in ops,
-                "MissingHandler", path, "zone payloads need their zone")
-        require("zone" not in ops or bool(ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}),
-                "IneffectiveEffect", path, "a zone needs a payload")
-        # #147: an execute bonus and a second blast amplify or repeat a damage effect; a pierce rides on a projectile;
-        # a per-taunt shield counts its own taunt's victims.
-        require("execute" not in ops or "damage" in ops, "MissingHandler", path, "an execute bonus amplifies a damage effect")
-        require("echo" not in ops or {"damage", "self_area"} <= ops, "MissingHandler", path,
-                "a second blast repeats a self-area damage effect")
-        require("taunt_shield" not in ops or "taunt" in ops, "MissingHandler", path, "a taunt shield needs its taunt")
-        for effect in rank["effects"]:
-            _validate_new_effect(effect, path)
-            if effect["op"] == "empower_basic":
-                require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
-                        "IneffectiveEffect", path, "an empowered attack adds neither damage nor scaling")
-                require(("cleave_ratio" in effect) == ("cleave_radius" in effect), "ObjectShape", path,
-                        "an empowered cleave needs its ratio and radius")
-                if "stats" in effect:
-                    require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path,
-                            "timed bonuses cannot change resource maxima")
-                    _positive_stats(effect["stats"], path)
-            if effect["op"] in ("breach", "burn"):
-                require("stacks" in effect and "basic_stacks" not in effect, "ObjectShape", path,
-                        "an active applies its stacks to the bodies it hits")
-            if effect["op"] == "knockback":
-                require(("wall_distance" in effect) == ("wall_stun" in effect), "ObjectShape", path,
-                        "a wall stun needs its travel threshold and duration")
-                require("wall_distance" not in effect or 0 < quantity(effect["wall_distance"]) < quantity(effect["distance"]),
-                        "NumericDomain", path, "the wall threshold lies strictly inside the push distance")
-            if effect["op"] in ("dash", "cleave"):
-                field = "distance" if effect["op"] == "dash" else "radius"
-                require(quantity(effect[field]) > 0, "NumericDomain", path, "geometry must be positive")
-            if effect["op"] in ("damage", "shield"):
-                quantities = [effect["base"], effect["ap_ratio"]] + ([effect["max_hp_ratio"]] if "max_hp_ratio" in effect else [])
-                if effect["op"] == "damage":
-                    quantities += [effect["ad_ratio"]]
-                require(any(quantity(value) > 0 for value in quantities),
-                        "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
-            if effect["op"] in ("slow", "path_slow"):
-                require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
-            if effect["op"] == "self_area":
-                require(quantity(effect["radius"]) > 0, "NumericDomain", path, "area radius must be positive")
-            if effect["op"] == "timed_stat_bonus":
+    ops = _effect_set(effects, path)
+    require(not ops & COMPONENT_ONLY_OPS, "ComponentOnlyEffect", path,
+            f"an active cannot carry component operations {sorted(ops & COMPONENT_ONLY_OPS)}")
+    require(not any("trigger" in effect for effect in effects if effect["op"] == "empower_basic"), "ObjectShape", path,
+            "an active's empowered basic is armed by its release, not by a trigger")
+    require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
+    if mode in ("Self", "DirectionDash") and "dash_contact" not in ops:
+        require(("self_area" in ops) == bool(ops & AREA_HIT_OPS), "TargetEffectMismatch", path,
+                "hit effects of a self or dash action need exactly one self_area to name their targets")
+    if mode == "DirectionProjectile":
+        require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
+    require(mode != "DirectionDash" or not ops & ELEMENT_OPS or "dash_contact" in ops, "TargetEffectMismatch", path,
+            "a dash attaches its element to the bodies it actually touches")
+    require("brace" not in ops or ops == {"brace"}, "TargetEffectMismatch", path,
+            "a brace is the whole action: it delivers nothing else")
+    require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
+    require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap"}) == 1,
+            "MissingHandler", path, "a ground point needs exactly one delivery handler")
+    require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
+            "MissingHandler", path, "a cone needs its channel and damage")
+    require("dash_contact" not in ops or ("damage" in ops and "self_area" not in ops),
+            "TargetEffectMismatch", path, "contact damage must use the actual dash, not a release area")
+    require(not ops.intersection({"ground_impact", "contact_trap"}) or "damage" in ops,
+            "MissingHandler", path, "a delayed impact or trap needs damage")
+    require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
+    require(not (ops & (ZONE_PAYLOAD_OPS | {"zone_haste"})) or "zone" in ops,
+            "MissingHandler", path, "zone payloads need their zone")
+    require("zone" not in ops or bool(ops & ZONE_PAYLOAD_OPS),
+            "IneffectiveEffect", path, "a zone needs a payload")
+    for effect in effects:
+        _validate_new_effect(effect, path)
+        if effect["op"] == "empower_basic":
+            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
+                    "IneffectiveEffect", path, "an empowered attack adds neither damage nor scaling")
+            if "stats" in effect:
                 require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path,
                         "timed bonuses cannot change resource maxima")
                 _positive_stats(effect["stats"], path)
-            if effect["op"] == "taunt":
-                require(quantity(effect["radius"]) > 0, "NumericDomain", path, "taunt radius must be positive")
-    if mode in ("Unit", "DirectionProjectile", "GroundPoint", "DirectionCone"):
+        if effect["op"] in ("breach", "burn"):
+            require("stacks" in effect and "basic_stacks" not in effect, "ObjectShape", path,
+                    "an active applies its stacks to the bodies it hits")
+        if effect["op"] == "dash":
+            require(quantity(effect["distance"]) > 0, "NumericDomain", path, "geometry must be positive")
+        if effect["op"] in ("damage", "shield"):
+            quantities = [effect["base"], effect["ap_ratio"]] + ([effect["max_hp_ratio"]] if "max_hp_ratio" in effect else [])
+            if effect["op"] == "damage":
+                quantities += [effect["ad_ratio"]]
+            require(any(quantity(value) > 0 for value in quantities),
+                    "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
+        if effect["op"] == "slow":
+            require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
+        if effect["op"] == "self_area":
+            require(quantity(effect["radius"]) > 0, "NumericDomain", path, "area radius must be positive")
+        if effect["op"] == "timed_stat_bonus":
+            require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path,
+                    "timed bonuses cannot change resource maxima")
+            _positive_stats(effect["stats"], path)
+        if effect["op"] == "taunt":
+            require(quantity(effect["radius"]) > 0, "NumericDomain", path, "taunt radius must be positive")
+    if mode in ("Unit", "DirectionProjectile", "GroundPoint", "DirectionCone", "DirectionLine"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
         require(quantity(target["projectile_radius"]) > 0, "NumericDomain", path, "projectile radius must be positive")
+    if mode == "DirectionLine":
+        require(quantity(target["half_width"]) > 0, "NumericDomain", path, "line half width must be positive")
+
+
+def _validate_component_effects(row, abilities, path):
+    """#198 B: a component carries only component operations, each in its component form."""
+    effects = row["effects"]
+    ops = _effect_set(effects, path)
+    require(ops <= COMPONENT_OPS, "ComponentEffect", path, f"not a component operation: {sorted(ops - COMPONENT_OPS)}")
+    for effect in effects:
+        _validate_new_effect(effect, path)
+        op = effect["op"]
+        if op in ("burn", "breach"):
+            require("basic_stacks" in effect and "stacks" not in effect, "ObjectShape", path,
+                    "a component applies its stacks with each primary basic hit")
+        if op == "thorns":
+            require(any(quantity(effect[key]) > 0 for key in ("base", "armor_ratio", "max_hp_ratio") if key in effect),
+                    "IneffectiveEffect", path, "a reflection needs magnitude or scaling")
+            require(quantity(effect["radius"]) > 0 and quantity(effect["critical_multiplier"]) >= 1, "NumericDomain", path,
+                    "a reflection needs a positive radius and a critical multiplier of at least one")
+        if op == "lifesteal":
+            require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "lifesteal ratio must be positive")
+        if op == "nth_basic_bonus":
+            require(quantity(effect["distance"]) > 0, "NumericDomain", path, "the knockback distance must be positive")
+        if op in ("control_damage_amp", "idle_ready_amp"):
+            require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "damage bonus must be positive")
+        if op == "triggered_shield":
+            require(quantity(effect["base"]) > 0 or quantity(effect["max_hp_ratio"]) > 0, "IneffectiveEffect", path,
+                    "a shield needs magnitude or scaling")
+        if op == "empower_basic":
+            require(effect.get("trigger") == "DashComplete" and "charges" in effect, "ObjectShape", path,
+                    "a component's empowered basic needs its DashComplete trigger and its charges")
+            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect", path,
+                    "an empowered attack adds neither damage nor scaling")
+            require(effect["damage_type"] == "Physical", "NumericDomain", path, "an empowered basic stays physical")
+            if "stats" in effect:
+                require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "timed bonuses cannot change resource maxima")
+                _positive_stats(effect["stats"], path)
+        if op == "ledger":
+            require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")), "IneffectiveEffect", path,
+                    "a ledger entry needs magnitude or scaling")
+        if op == "basic_damage_scale":
+            require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
+                    "the primary basic's scale must be strictly between zero and one")
+        if op == "stat_bonus":
+            _positive_stats(effect["stats"], path)
+        if op == "low_hp_stat_bonus":
+            require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", path, "the HP threshold must be a fraction")
+            require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "conditional bonuses cannot change resource maxima")
+            _positive_stats(effect["stats"], path)
+    binding = row.get("binding")
+    require(("active_element" in ops) == (binding is not None), "ComponentBinding", path,
+            "active_element and its active/element binding come together")
+    if binding is not None:
+        actives = binding["actives"]
+        require(len(set(actives)) == len(actives) and set(actives) <= set(abilities), "InvalidReference", path,
+                "a binding names distinct known actives")
+        # S16's natural-end answer (brace) is its native direct damage (AI spec §10.1).
+        require(all({"damage", "zone_damage", "brace"} & {effect["op"] for effect in abilities[identity]["effects"]} for identity in actives),
+                "ComponentBinding", path, "a bound active needs native direct damage")
+        elements = binding["elements"]
+        require(len(set(elements)) == len(elements) and set(elements) <= set(ELEMENTS), "ComponentBinding", path,
+                "binding elements are distinct fire/water/electric")
+
+
+def _validate_components(data, abilities):
+    previous = 0
+    for row in data["components"]:
+        identity = row["id"]
+        require(row["native_id"] > previous, "ComponentOrder", "components",
+                "components are authored once each in ascending native ID order")
+        previous = row["native_id"]
+        opening = row.get("opening")
+        if opening is not None:
+            require(row["kind"] == "base" and row["pool"] == "common", "OpeningPool", identity,
+                    "only common base components are opening options")
+        if type(opening) is not str and opening is not None:
+            actives = opening["actives"]
+            require(len(set(actives)) == len(actives) and set(actives) <= set(abilities), "InvalidReference", identity,
+                    "opening actives are distinct known actives")
+            require(all(abilities[active]["opening"] for active in actives), "OpeningPool", identity,
+                    "an opening condition names actives of the opening pool")
+        _validate_component_effects(row, abilities, identity)
+    _validate_component_targets(data, abilities)
+
+
+def _validate_component_targets(data, abilities):
+    """#198 F: a mod or connector names the install targets it accepts; a base component names none."""
+    kinds = {row["id"]: row["kind"] for row in data["components"]}
+    for row in data["components"]:
+        identity = row["id"]
+        targets = row.get("targets")
+        ops = {effect["op"] for effect in row["effects"]}
+        require((targets is not None) == (row["kind"] != "base"), "ComponentTargets", identity,
+                "mods and connectors name their install targets; base components take none")
+        require(row["kind"] == "base" or not ops - WORKSHOP_OPS, "ComponentEffect", identity,
+                "a mod or connector carries only workshop operations")
+        require(row["kind"] != "base" or not ops & WORKSHOP_OPS, "ComponentEffect", identity,
+                "a base component carries no workshop operation")
+        if targets is None:
+            continue
+        require("binding" not in row and "opening" not in row, "ComponentTargets", identity,
+                "a mod or connector has no opening condition or active/element binding")
+        for key, known in (("actives", abilities), ("components", kinds)):
+            names = targets.get(key, [])
+            require(len(set(names)) == len(names) and set(names) <= set(known) and identity not in names, "InvalidReference",
+                    identity, f"install {key} are distinct known definitions other than itself")
+        require(all(kinds[name] != "mod" for name in targets.get("components", [])), "ComponentTargets", identity,
+                "a mod is no install target")
+        bases = targets.get("bases", [])
+        require(("extra_base" in ops) == bool(bases), "ComponentTargets", identity, "extra_base and its base list come together")
+        require(len(set(bases)) == len(bases) and all(kinds.get(name) == "base" for name in bases), "InvalidReference", identity,
+                "extra_base names distinct base components")
+        require(not targets.get("self") or set(targets) == {"self"}, "ComponentTargets", identity,
+                "a self-installed mod takes no other target")
+
+
+def _validate_category_weights(progression):
+    """#198 B: one band per level range covering every level-up 2..max_level once, each a percentage split."""
+    expected = 2
+    for index, band in enumerate(progression["component_category_weights"]):
+        path = f"progression.component_category_weights[{index}]"
+        low, high = band["levels"]
+        require(low == expected and low <= high <= progression["max_level"], "CategoryWeights", path,
+                "bands must cover levels 2..max_level contiguously, ascending and exactly once")
+        require(sum(band[key] for key in CATEGORY_KEYS) == 100, "CategoryWeights", path,
+                "base, mod and connector percentages must add up to 100")
+        expected = high + 1
+    require(expected == progression["max_level"] + 1, "CategoryWeights", "progression.component_category_weights",
+            "bands must reach max_level")
+
+
+# #198 actives (CONTENT_AND_BALANCE §4.2): one value set each; (target mode, handlers).
+ACTIVE_CONTRACTS = {
+    "active_elbow": ("Unit", {"damage", "knockback"}),
+    "active_pants_down": ("Unit", {"damage", "root"}),
+    "active_crotch_grab": ("Unit", {"damage", "stun"}),
+    "active_account_banned": ("Unit", {"damage", "silence"}),
+    "active_unplug": ("Unit", {"damage", "disarm"}),
+    "active_snark_bolt": ("DirectionProjectile", {"damage", "slow"}),
+    "active_seethe": ("Self", {"self_area", "damage", "burn"}),
+    "active_quick_meeting": ("GroundPoint", {"zone", "zone_damage", "zone_slow", "zone_burn"}),
+    "active_bail_out": ("DirectionDash", {"dash", "empower_basic"}),
+    "active_apology_slide": ("DirectionDash", {"dash", "dash_contact", "damage", "slow"}),
+    "active_not_mad": ("Self", {"shield", "dispel_slow", "dispel_root"}),
+    "active_stare_down": ("Self", {"taunt", "timed_stat_bonus"}),
+    "active_triple_combo": ("Self", {"empower_basic"}),
+    "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}),
+    "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage", "slow"}),
+    "active_open_mic": ("DirectionCone", {"channel_cone", "damage"}),
+    "active_hose_down": ("DirectionLine", {"damage", "knockback", "wet"}),
+    "active_zap": ("Unit", {"damage", "electrify", "chain_bounce"}),
+    "active_charged_ram": ("DirectionDash", {"dash", "shield", "dash_contact", "damage", "electrify"}),
+    "active_brace": ("Self", {"brace"}),
+    "active_dirty_puddle": ("GroundPoint", {"zone", "zone_damage", "zone_wet", "zone_haste"}),
+    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "grievous"}),
+}
+TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
+# #198: the five point-bought stats and the bonuses one point of each adds (flat and additive percent terms).
+STAT_CONTRACTS = {
+    "stat_physique": {"MaxHPFlat", "HPRegenFlat"},
+    "stat_thick_skin": {"ArmorFlat", "MagicResistFlat"},
+    "stat_strength": {"ADFlat", "CritChanceBonusRatio"},
+    "stat_brains": {"APFlat", "CooldownHasteFlat", "MPRegenFlat"},
+    "stat_agility": {"AttackSpeedBonusRatio", "MoveSpeedBonusRatio"},
+}
+# The opening opportunity draws this many distinct actives from the opening pool.
+OPENING_OFFER_SIZE = 3
 
 
 def validate_definitions(data, ids):
-    collections = {"character": [data["character"]], "abilities": data["abilities"],
-                   "attributes": data["attributes"], "equipment": data["equipment"],
-                   "monsters": data["camps"]["monsters"] + [data["boss"]]}
+    collections = {"character": [data["character"]], "abilities": data["abilities"], "stats": data["stats"],
+                   "components": data["components"], "monsters": data["camps"]["monsters"] + [data["boss"]]}
     all_ids = set()
     for section, rows in collections.items():
         index = rows_by_id(rows, section)
@@ -661,234 +839,44 @@ def validate_definitions(data, ids):
         for row in rows:
             row["native_id"] = ids[section][row["id"]]
 
-    # #147 v7 catalog. Actives: (target mode, basic-rank handlers, advanced-rank handlers).
-    active_contracts = {
-        "active_pants_down": ("Unit", {"damage", "root"}, {"damage", "root"}),
-        "active_crotch_grab": ("Unit", {"damage", "stun"}, {"damage", "stun", "execute"}),
-        "active_snark_bolt": ("DirectionProjectile", {"damage", "slow"}, {"damage", "slow", "pierce"}),
-        "active_seethe": ("Self", {"self_area", "damage", "burn"}, {"self_area", "damage", "burn", "echo"}),
-        "active_bail_out": ("DirectionDash", {"dash", "empower_basic"}, {"dash", "empower_basic", "path_slow"}),
-        "active_elbow": ("Unit", {"damage", "knockback"}, {"damage", "knockback"}),
-        "active_not_mad": ("Self", {"shield", "dispel_slow"}, {"shield", "dispel_slow", "dispel_root", "dispel_disarm"}),
-        "active_stare_down": ("Self", {"taunt", "timed_stat_bonus"}, {"taunt", "timed_stat_bonus", "taunt_shield"}),
-        "active_quick_meeting": ("GroundPoint", {"zone", "zone_damage", "zone_slow", "zone_burn"},
-                                 {"zone", "zone_damage", "zone_slow", "zone_burn", "zone_root"}),
-        "active_account_banned": ("Unit", {"damage", "silence"}, {"damage", "silence", "breach"}),
-        "active_unplug": ("Unit", {"damage", "disarm"}, {"damage", "disarm", "slow"}),
-        "active_triple_combo": ("Self", {"empower_basic"}, {"empower_basic"}),
-        "active_open_mic": ("DirectionCone", {"channel_cone", "damage"}, {"channel_cone", "damage"}),
-        "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}, {"ground_impact", "damage", "root"}),
-        "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow"}, {"damage", "attack_slow", "slow"}),
-        "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage"}, {"contact_trap", "damage", "slow"}),
-        "active_apology_slide": ("DirectionDash", {"dash", "dash_contact", "damage"}, {"dash", "dash_contact", "damage", "slow"}),
-        "active_cower": ("Self", {"cower"}, {"cower"}),
-    }
-    timed_stats = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
-    # Passives: (basic-rank handlers, advanced-rank handlers, stats of a stat-bearing handler or None).
-    passive_contracts = {
-        "passive_pressed": ({"low_hp_stat_bonus"}, {"low_hp_stat_bonus"}, {"AttackSpeedBonusRatio", "MoveSpeedBonusRatio"}),
-        "passive_tilted": ({"breach"}, {"breach"}, None),
-        "passive_stoke": ({"burn"}, {"burn"}, None),
-        "passive_kick_down": ({"control_damage_amp"}, {"control_damage_amp"}, None),
-        "passive_thick_face": ({"thorns"}, {"thorns"}, None),
-        "passive_freeloader": ({"lifesteal"}, {"lifesteal"}, None),
-        "passive_special_forces": ({"cast_frenzy"}, {"cast_frenzy", "dash_boost"}, None),
-        "passive_moral_victory": ({"triggered_shield"}, {"triggered_shield"}, None),
-        "passive_iced_americano": ({"stat_bonus"}, {"stat_bonus", "cooldown_refund"}, {"CooldownHasteFlat", "MPRegenFlat"}),
-        "passive_lucky_star": ({"stat_bonus"}, {"stat_bonus", "ability_crit"}, {"CritChanceBonusRatio"}),
-        "passive_argument_chain": ({"argument_chain"}, {"argument_chain"}, None),
-        "passive_snack_cast": ({"spell_sustain"}, {"spell_sustain"}, None),
-        "passive_pressure_veteran": ({"primary_guard"}, {"primary_guard"}, None),
-        "passive_dash_contact_damage": ({"dash_contact_damage"}, {"dash_contact_damage"}, None),
-        "passive_dash_contact_refund": ({"dash_contact_refund"}, {"dash_contact_refund"}, None),
-        "passive_dash_contact_guard": ({"dash_contact_guard"}, {"dash_contact_guard"}, None),
-    }
-    top_rank = data["progression"]["max_skill_rank"]
     for ability in data["abilities"]:
         identity = ability["id"]
-        require([rank["rank"] for rank in ability["ranks"]] == list(range(1, top_rank + 1)),
-                "RankShape", identity, "every rank from 1 to max_skill_rank, in order, is required")
-        if ability["kind"] == "active":
-            require(identity in active_contracts, "MissingHandler", identity, "no active definition projection")
-            mode, effects, advanced = active_contracts[identity]
-            require(ability["target"]["mode"] == mode, "TargetEffectMismatch", identity, "wrong definition target")
-            _validate_action(ability["target"], ability["ranks"], identity)
-            require(all(_effect_set(rank["effects"], identity) == (advanced if rank["rank"] == top_rank else effects)
-                        for rank in ability["ranks"]),
-                    "MissingHandler", identity, "definition has missing or extra effects")
-            if identity in timed_stats:
-                require(all(set(effect["stats"]) == timed_stats[identity] for rank in ability["ranks"]
-                            for effect in rank["effects"] if effect["op"] == "timed_stat_bonus"),
-                        "UnknownField", identity, "wrong timed stat")
-            family = "cd_" + identity.removeprefix("active_")
-            require(ability["cooldown_family"] == family, "InvalidReference", identity, "wrong cooldown family")
-        else:
-            require(identity in passive_contracts, "MissingHandler", identity, "no passive definition projection")
-            operations, advanced, stat_fields = passive_contracts[identity]
-            for rank in ability["ranks"]:
-                require(_effect_set(rank["effects"], identity) == (advanced if rank["rank"] == top_rank else operations),
-                        "MissingHandler", identity, "invalid passive handlers")
-                for effect in rank["effects"]:
-                    operation = effect["op"]
-                    _validate_new_effect(effect, identity)
-                    if operation in ("stat_bonus", "low_hp_stat_bonus") and stat_fields is not None:
-                        require(set(effect["stats"]) == stat_fields, "UnknownField", identity, "wrong passive stat")
-                        _positive_stats(effect["stats"], identity)
-                    if operation == "low_hp_stat_bonus":
-                        require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", identity,
-                                "the HP threshold must lie strictly inside the pool")
-                    elif operation == "thorns":
-                        _validate_thorns(effect, identity)
-                    elif operation == "control_damage_amp":
-                        require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "amplification must be positive")
-                    elif operation == "ability_crit":
-                        require(set(effect["abilities"]) <= set(active_contracts),
-                                "InvalidReference", identity, "a passive ability crit names approved actives")
-                    elif operation in ("breach", "burn"):
-                        require("stacks" in effect or "basic_stacks" in effect, "ObjectShape", identity,
-                                "a passive keyword applies stacks on Q/W or basic hits")
-        # D2: the advanced rank keeps every coefficient and multiplies each growing base by 1.5 (#147).
-        basic, advanced_rank = ability["ranks"][0]["effects"], ability["ranks"][-1]["effects"]
-        for effect in basic:
-            twin = next((row for row in advanced_rank if row["op"] == effect["op"]), None)
-            if twin is None:
-                continue
-            for field in ("ad_ratio", "ap_ratio", "max_hp_ratio", "armor_ratio"):
-                if field in effect:
-                    require(exact_equal(effect[field], twin.get(field)), "AdvancedRank", identity,
-                            f"{effect['op']}.{field} changes between ranks")
-            if "base" in effect and effect["op"] != "mana_on_hit" and not (
-                    identity == "active_triple_combo" and effect["op"] == "empower_basic"):
-                require(quantity(twin["base"]) == quantity(effect["base"]) * Fraction(3, 2), "AdvancedRank", identity,
-                        f"{effect['op']}.base must be 1.5x in the advanced rank")
-    attribute_stats = {
-        "attr_protein": {"ADFlat", "MaxHPFlat"}, "attr_fast_hands": {"AttackSpeedBonusRatio", "ADFlat"},
-        "attr_all_nighter": {"APFlat", "CooldownHasteFlat"}, "attr_canteen": {"MaxHPFlat", "ArmorFlat", "MagicResistFlat"},
-        "attr_big_talk": {"APFlat", "MaxHPFlat"}, "attr_morning_rush": {"MoveSpeedBonusRatio", "MaxHPFlat"},
-        "attr_hand_out": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
-        "attr_wild_frenzy": {"ADFlat", "AttackSpeedBonusRatio"},
-        "attr_padded_thesis": {"APFlat", "MaxMPFlat"},
-        "attr_deadline_miracle": {"CooldownHasteFlat", "MaxMPFlat"},
-        "attr_running_defense": {"APFlat", "MoveSpeedBonusRatio"},
-        "attr_pe_essay": {"ADFlat", "APFlat"},
-    }
-    # Wild cards name their deductions explicitly (positive magnitudes the projection subtracts).
-    attribute_penalties = {"attr_wild_frenzy": {"MaxHPFlat"}, "attr_deadline_miracle": {"MaxHPFlat"},
-                           "attr_running_defense": {"MaxHPFlat"}, "attr_pe_essay": {"MaxMPFlat"}}
-    for attribute in data["attributes"]:
-        require(attribute["id"] in attribute_stats
-                and set(attribute["stats"]) == attribute_stats[attribute["id"]],
-                "UnknownField", attribute["id"], "attribute definition does not declare these stats")
-        _positive_stats(attribute["stats"], attribute["id"])
-        penalties = attribute_penalties.get(attribute["id"])
-        require(("penalties" in attribute) == (penalties is not None)
-                and (penalties is None or set(attribute["penalties"]) == penalties),
-                "UnknownField", attribute["id"], "attribute definition does not declare these penalties")
-        if penalties is not None:
-            _positive_stats(attribute["penalties"], attribute["id"])
-    # #153 opening direction cards (v7 §2.2): three permanent stats each, no native ID (never replicated by number).
-    opening_stats = {
-        "opening_athlete": {"ADFlat", "AttackSpeedBonusRatio", "MaxHPFlat"},
-        "opening_grinder": {"APFlat", "CooldownHasteFlat", "MaxMPFlat"},
-        "opening_dorm_warden": {"MaxHPFlat", "ArmorFlat", "MagicResistFlat"},
-        "opening_rider": {"MoveSpeedBonusRatio", "ADFlat", "AttackSpeedBonusRatio"},
-        "opening_keyboard": {"AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio"},
-        "opening_hexagon": {"ADFlat", "APFlat", "MaxHPFlat"},
-    }
-    openings = rows_by_id(data["opening_cards"], "opening_cards")
-    collections["opening_cards"] = data["opening_cards"]
-    require(not all_ids.intersection(openings), "DuplicateId", "opening_cards", "definition appears in another category")
-    all_ids.update(openings)
-    for card in data["opening_cards"]:
-        require(card["id"] in opening_stats and set(card["stats"]) == opening_stats[card["id"]],
-                "UnknownField", card["id"], "opening card does not declare these stats")
-        _positive_stats(card["stats"], card["id"])
+        require(identity in ACTIVE_CONTRACTS, "MissingHandler", identity, "no active definition projection")
+        mode, effects = ACTIVE_CONTRACTS[identity]
+        require(ability["target"]["mode"] == mode, "TargetEffectMismatch", identity, "wrong definition target")
+        _validate_action(ability["target"], ability["effects"], identity)
+        require(_effect_set(ability["effects"], identity) == effects, "MissingHandler", identity,
+                "definition has missing or extra effects")
+        if identity in TIMED_STATS:
+            require(all(set(effect["stats"]) == TIMED_STATS[identity] for effect in ability["effects"]
+                        if effect["op"] == "timed_stat_bonus"), "UnknownField", identity, "wrong timed stat")
+        family = "cd_" + identity.removeprefix("active_")
+        require(ability["cooldown_family"] == family, "InvalidReference", identity, "wrong cooldown family")
+    require(sum(1 for row in data["abilities"] if row["opening"]) >= OPENING_OFFER_SIZE, "OpeningPool", "abilities",
+            "the opening opportunity needs three distinct actives in the opening pool")
+    stats = rows_by_id(data["stats"], "stats")
+    require(set(stats) == set(STAT_CONTRACTS), "StatSet", "stats", "exactly the five point-bought stats are required")
+    for identity, stat in stats.items():
+        require(set(stat["per_point"]) == STAT_CONTRACTS[identity], "UnknownField", identity,
+                "stat definition does not declare these per-point bonuses")
+        _positive_stats(stat["per_point"], identity)
     progression = data["progression"]
-    # Each of the three opening cards hides a distinct new draftable active.
-    draftable_actives = sum(1 for row in data["abilities"] if row["kind"] == "active" and row["draftable"])
-    require(draftable_actives >= 3, "OpeningOffer", "progression.opening_offer",
-            "the opening offer must hide three distinct draftable actives")
-    reroll_levels = progression["reroll_levels"]
-    require(reroll_levels == sorted(set(reroll_levels))
-            and all(2 <= level <= progression["max_level"] for level in reroll_levels),
-            "RerollLevels", "progression.reroll_levels",
-            "reroll levels must be distinct, ascending and reachable by levelling up")
+    levels = progression["active_offer_levels"]
+    require(levels == sorted(set(levels)) and all(2 <= level <= progression["max_level"] for level in levels),
+            "ActiveOfferLevels", "progression.active_offer_levels",
+            "active offer levels must be distinct, ascending and reachable by levelling up")
+    _validate_category_weights(progression)
+    _validate_components(data, rows_by_id(data["abilities"], "abilities"))
 
-    item_stats = {
-        "item_iron_plate": {"MaxHPFlat", "ArmorFlat"},
-        "item_edge_blade": {"ADFlat", "AttackSpeedBonusRatio"},
-        "item_runic_focus": {"APFlat", "CooldownHasteFlat"},
-        "item_siphon_emblem": {"ADFlat", "MagicResistFlat"},
-        "item_phase_anchor": {"MoveSpeedBonusRatio"},
-        "item_arcane_battery": {"MaxMPFlat", "MagicResistFlat"},
-        "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
-        "item_slingshot": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
-        "item_nail_uniform": {"MaxHPFlat", "ArmorFlat"},
-        "item_megaphone": {"APFlat", "CooldownHasteFlat"},
-        "item_dossier": {"APFlat", "MaxHPFlat"},
-        "item_privacy_screen": {"MaxHPFlat", "APFlat"},
-        "item_skateboard": {"ADFlat", "MoveSpeedBonusRatio"},
-    }
-    item_passives = {
-        "item_iron_plate": ("passive_crit_guard", {"crit_damage_reduction"}),
-        "item_edge_blade": ("passive_third_strike", {"nth_basic_bonus"}),
-        "item_runic_focus": ("passive_mana_refund", {"mana_on_hit"}),
-        "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),
-        "item_phase_anchor": ("passive_stride", {"dash_boost"}),
-        "item_echo_maul": ("passive_cleave", {"cleave"}),
-        "item_nail_uniform": ("passive_prickle", {"thorns"}),
-        "item_megaphone": ("passive_megaphone", {"affliction_amp"}),
-        "item_privacy_screen": ("passive_privacy_screen", {"shield_break_retort"}),
-        "item_skateboard": ("passive_skateboard", {"hit_haste"}),
-    }
-    passive_families = {}
-    for item in data["equipment"]:
-        identity = item["id"]
-        require(identity in item_stats and set(item["stats"]) == item_stats[identity],
-                "UnknownField", identity, "equipment definition does not declare these stats")
-        _positive_stats(item["stats"], identity)
-        passive = item["passive"]
-        require((passive is not None) == (identity in item_passives), "MissingHandler", identity, "wrong passive presence")
-        if passive is not None:
-            family, effects = item_passives[identity]
-            require(passive["family"] == family and _effect_set(passive["effects"], identity) == effects,
-                    "InvalidReference", identity, "wrong passive family or effects")
-            upgraded_effects = passive["upgraded"]["effects"] if "upgraded" in passive else None
-            require(upgraded_effects is None or _same_handlers(passive["effects"], upgraded_effects), "UpgradeShape", identity,
-                    "the upgraded passive must keep the base handlers in the same order")
-            terms = (passive["effects"], upgraded_effects)
-            previous = passive_families.setdefault(family, terms)
-            require(previous == terms, "PassiveConflict", identity, "same family has different terms")
-            for effect in (*passive["effects"], *(upgraded_effects or ())):
-                if effect["op"] == "dash_boost":
-                    # D20: the innate dash cooldown is multiplied by cooldown_ratio and its distance by 1 + distance_bonus.
-                    require(quantity(effect["cooldown_ratio"]) > 0, "NumericDomain", identity,
-                            "a dash cooldown ratio must keep a positive cooldown")
-                    require(quantity(effect["cooldown_ratio"]) < 1 or quantity(effect["distance_bonus"]) > 0,
-                            "IneffectiveEffect", identity, "dash boost changes neither cooldown nor distance")
-                    continue
-                if effect["op"] == "thorns":
-                    _validate_thorns(effect, identity)
-                    continue
-                if effect["op"] in ("affliction_amp", "shield_break_retort", "hit_haste"):
-                    ratios = ("dot_ratio", "slow_scale") if effect["op"] == "affliction_amp" else ("ratio",)
-                    require(all(quantity(effect[field]) > 0 for field in ratios), "NumericDomain", identity,
-                            "passive ratio must be positive")
-                    continue
-                if effect["op"] in ("nth_basic_bonus", "mana_on_hit"):
-                    continue
-                require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "passive ratio must be positive")
-                if effect["op"] == "cleave":
-                    require(quantity(effect["radius"]) > 0, "NumericDomain", identity, "cleave radius must be positive")
-
-    for collection in (data["abilities"], data["equipment"]):
-        for row in collection:
-            for effect in all_effects(row):
-                effect["opcode"] = ids["effect_ops"][effect["op"]]
+    for row in (*data["abilities"], *data["components"]):
+        for effect in all_effects(row):
+            effect["opcode"] = ids["effect_ops"][effect["op"]]
 
     display = rows_by_id(data["display"], "display")
     expected_display = all_ids | set(ids["statuses"])
     require(set(display) == expected_display, "DisplayReference", "display", "missing or extra display definition")
+    abilities = rows_by_id(data["abilities"], "abilities")
+    components = rows_by_id(data["components"], "components")
     names = set()
     for identity, row in display.items():
         require(row["name_key"] == identity + ".name" and row["description_key"] == identity + ".description"
@@ -900,36 +888,47 @@ def validate_definitions(data, ids):
             require("portrait_icon_id" not in row, "DisplayReference", identity, "portrait belongs only to character")
         for field in ("name_text", "description_text"):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
-        ability = next((ability for ability in data["abilities"] if ability["id"] == identity), None)
-        require(("advanced_key" in row) == ("advanced_text" in row) and (ability is not None or "advanced_text" not in row),
-                "DisplayReference", identity, "only a skill has an advanced line, with its key")
-        if "advanced_text" in row:
-            require(row["advanced_key"] == identity + ".advanced", "DisplayReference", identity, "non-canonical advanced line reference")
-            display_text(row["advanced_text"], f"{identity}.advanced_text", False)
-        if ability is not None:
-            card_template(row["description_text"], ability["ranks"], f"{identity}.description_text")
-            card_template(row.get("advanced_text", ""), ability["ranks"][-1:], f"{identity}.advanced_text")
+        if identity in abilities:
+            card_template(row["description_text"], abilities[identity]["effects"], f"{identity}.description_text")
+        elif identity in components:
+            card_template(row["description_text"], components[identity]["effects"], f"{identity}.description_text")
+        elif identity in stats:
+            stat_template(row["description_text"], stats[identity]["per_point"], f"{identity}.description_text")
         require(row["name_text"] not in names, "DisplayText", identity, "duplicate display name")
         names.add(row["name_text"])
     return collections
 
 
 CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
-                         "secondary_ratio", "secondary_duration", "basic_count", "cooldown_cut", "refund", "burst", "limit"))
+                         "secondary_ratio", "secondary_duration", "basic_count", "refund", "burst", "limit",
+                         "multiplier", "angle", "cost_ratio"))
 CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
+# A stat card names one bonus of its single point: [per_point.<Stat>].
+PER_POINT = "per_point"
 
 
-def card_template(text, ranks, path):
-    """#147: [op.field] placeholders of a skill's card text read an effect present in every rank it is shown for."""
+def _template_brackets(text, path):
     require("[" not in CARD_PLACEHOLDER.sub("", text) and "]" not in CARD_PLACEHOLDER.sub("", text),
             "CardTemplate", path, "a bracket outside a [op.field] placeholder")
+
+
+def card_template(text, effects, path):
+    """#147/#198: [op.field] placeholders of an active's card text read one effect of its single value set."""
+    _template_brackets(text, path)
     for op, field in CARD_PLACEHOLDER.findall(text):
         require(op in EFFECT_OPS and (field in CARD_FIELDS or field in STAT_FIELDS), "CardTemplate", path,
                 f"unknown placeholder [{op}.{field}]")
-        for rank in ranks:
-            effect = next((effect for effect in rank["effects"] if effect["op"] == op), None)
-            require(effect is not None and (field in CARD_FIELDS or field in effect.get("stats", {})), "CardTemplate", path,
-                    f"[{op}.{field}] names no effect of rank {rank['rank']}")
+        effect = next((effect for effect in effects if effect["op"] == op), None)
+        require(effect is not None and (field in CARD_FIELDS or field in effect.get("stats", {})), "CardTemplate", path,
+                f"[{op}.{field}] names no effect of this active")
+
+
+def stat_template(text, per_point, path):
+    """#198: [per_point.<Stat>] placeholders of a stat's card text read one bonus of a single point."""
+    _template_brackets(text, path)
+    for op, field in CARD_PLACEHOLDER.findall(text):
+        require(op == PER_POINT and field in per_point, "CardTemplate", path,
+                f"[{op}.{field}] names no per-point bonus of this stat")
 
 
 def display_text(text, path, allow_digits):
@@ -943,29 +942,7 @@ def display_text(text, path, allow_digits):
 
 
 def all_effects(row):
-    for rank in row.get("ranks", []):
-        yield from rank["effects"]
-    passive = row.get("passive")
-    if passive is not None:
-        yield from passive["effects"]
-        if "upgraded" in passive:
-            yield from passive["upgraded"]["effects"]
-
-
-def upgraded_stats(stats, ratio_bp, path):
-    """112 §7: an upgraded item's fixed stats are 1 + SHOP.UpgradeStatBonusRatio times the base, floored per field
-    precision (P2 points/resources, R4 ratios, whole centimetres of attack range)."""
-    result = {}
-    for key, value in stats.items():
-        if "p2" in value or "bp" in value:
-            storage = "p2" if "p2" in value else "bp"
-            amount = checked_mul(value[storage], checked_add(10000, ratio_bp, path), path)
-            result[key] = {"unit": value["unit"], storage: amount // 10000}
-        else:
-            scaled = quantity(value) * Fraction(10000 + ratio_bp, 10000)
-            result[key] = {"unit": value["unit"], "numerator": integer(scaled.numerator // scaled.denominator, path),
-                           "denominator": 1}
-    return result
+    yield from row.get("effects", [])
 
 
 def validate_numbers(data):
@@ -991,14 +968,12 @@ def validate_numbers(data):
                 "StatBounds", prefix, "base must be within positive bounds")
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
-    for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
-                "AIRDROP.PickupRadiusCm"):
+    for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
+                "AIRDROP.PickupRadiusCm", "REST.ReturnSearchRadiusCm", "THROW.RadiusCm", "THROW.RangeCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")
-    require(p("STAT.AbilityCritMultiplier") >= 1, "NumericDomain", "STAT.AbilityCritMultiplier",
-            "ability critical multiplier must not reduce damage")
     require(quantity(data["character"]["basic_attack"]["ad_ratio"]) == 1,
             "NumericDomain", "basic_attack", "initial basic damage is exactly AD")
     dash = data["character"]["dash"]
@@ -1020,15 +995,48 @@ def validate_numbers(data):
             "InvalidPolicy", "AI", "camp reserve thresholds are inconsistent")
     require(p("AI.RetryPolicy.InitialBackoffSec") <= p("AI.RetryPolicy.MaxBackoffSec"),
             "InvalidTiming", "AI.RetryPolicy", "backoff interval exceeds its cap")
-    # D27 (#79): the leader circle always contains the leader, the minimum level exists, and the cap is reachable.
+    # D27 (#79): the leader circle always contains the leader and the minimum level exists.
     require(0 < p("LEADER.CircleMaxOffsetCm") <= p("LEADER.CircleRadiusCm")
-            and params["LEADER.MinLevel"] <= data["progression"]["max_level"]
-            and params["LEADER.BountyGoldPerRefresh"] <= params["LEADER.BountyGoldMax"],
-            "InvalidPolicy", "LEADER", "the circle must contain the leader, the level must exist and the cap must be reachable")
-    # D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
-    require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
-            and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
-            "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
+            and params["LEADER.MinLevel"] <= data["progression"]["max_level"],
+            "InvalidPolicy", "LEADER", "the circle must contain the leader and the level must exist")
+    # #198 outer §5: the approved drops land at explicit field progress instants T (strictly increasing), each announced
+    # AIRDROP.AnnounceLeadSec earlier and gone unclaimed AIRDROP.ExpireSec after landing, before the next announcement;
+    # the last one is gone before the final field, which has no build reward target.
+    timed_field = p("MATCH.FieldSegmentSec") * TIMED_FIELD_SEGMENTS
+    lands = [quantity(value) for value in params["AIRDROP.LandSec"]]
+    lead, expire = p("AIRDROP.AnnounceLeadSec"), p("AIRDROP.ExpireSec")
+    require(lead <= lands[0] and all(land + expire + lead <= after for land, after in zip(lands, lands[1:]))
+            and lands[-1] + expire <= timed_field,
+            "InvalidTiming", "AIRDROP", "drops must be announced after T=0, leave before the next announcement and before the final field")
+    # #198 outer §5 camp markers: one reveal per timed field segment, CAMPMARK.RevealSec after its start.
+    require(p("CAMPMARK.RevealSec") < p("MATCH.FieldSegmentSec"), "InvalidTiming", "CAMPMARK.RevealSec",
+            "a camp marker must be revealed inside its field segment")
+    # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
+    for key in ("COMBAT.DischargeRadiusCm", "COMBAT.FogRadiusCm", "COMBAT.ConductRadiusCm", "COMBAT.OverloadRadiusCm"):
+        require(p(key) > 0, "InvalidGeometry", key, "reaction radius must be positive")
+    for key in ("COMBAT.WetSlow", "COMBAT.ConductSlow"):
+        require(0 < p(key) < 1, "NumericDomain", key, "a slow must be strictly between zero and one")
+    require(p("COMBAT.FogIntervalSec") <= p("COMBAT.FogSec"), "InvalidTiming", "COMBAT.FogIntervalSec",
+            "fog pulses must fall inside the fog")
+    require(params["COMBAT.OverloadBreachStacks"] <= params["COMBAT.BreachMaxStacks"], "NumericDomain",
+            "COMBAT.OverloadBreachStacks", "overload cannot apply more breach stacks than the breach cap")
+    # #198 charms: each wave draws PerWave distinct kinds of the three (heal, mana, move speed) onto distinct airdrop
+    # points, and a charm leaves before the next wave of its points could reuse them.
+    require(params["CHARM.PerWave"] <= CHARM_KINDS and p("CHARM.LifetimeSec") <= p("CHARM.WaveIntervalSec")
+            and p("CHARM.PickupRadiusCm") > 0 and p("CHARM.HealMaxHPRatio") > 0 and p("CHARM.ManaMaxMPRatio") > 0
+            and p("CHARM.MoveSpeedRatio") > 0,
+            "InvalidPolicy", "CHARM", "a wave draws distinct kinds, lives inside one interval and every effect is positive")
+    # #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
+    require(p("REST.SignupSec") <= p("REST.BuildSec") and p("REST.SignupSec") <= p("REST.OpeningBuildSec"),
+            "InvalidTiming", "REST.SignupSec", "PK sign-up must fit inside every rest build window")
+    # #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
+    require(0 < p("PK.RingShrinkStartSec") < p("PK.RingMidSec") < p("PK.RingFinalSec") < p("REST.PKMaxSec"),
+            "InvalidTiming", "PK.RingFinalSec", "ring shrink steps must be ordered and finish before the PK cap")
+    require(0 < p("PK.RingFinalRadiusCm") < p("PK.RingMidRadiusCm") < p("PK.ArenaRadiusCm"),
+            "InvalidGeometry", "PK.RingFinalRadiusCm", "ring radii must shrink strictly inside the arena")
+    for key in ("PK.RingDamageEarlyMaxHPRatioPerSec", "PK.RingDamageMidMaxHPRatioPerSec",
+                "PK.RingDamageFinalMaxHPRatioPerSec", "THROW.SlowRatio"):
+        require(params[key]["bp"] > 0, "NumericDomain", key, "ring damage and throw slow must be positive")
 
     thresholds = [0]
     for level in range(1, data["progression"]["max_level"]):
@@ -1038,31 +1046,28 @@ def validate_numbers(data):
     require(data["progression"]["xp_thresholds"] == thresholds,
             "XPThresholds", "progression", "thresholds do not match the explicit linear XP parameters")
     data["progression"]["xp_to_next"] = [b - a for a, b in zip(thresholds, thresholds[1:])]
-    for reward in ("REWARD.PlayerXP", "REWARD.PlayerGold"):
-        checked_add(params[reward + ".Base"], checked_mul(level_steps, params[reward + ".PerLevel"], reward), reward)
-
-    for item in data["equipment"]:
-        price = item["buy_price"]
-        numerator = checked_mul(price, params["SHOP.SellRatio"]["bp"], item["id"])
-        item["sell_gold"] = numerator // 10000
-        require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
-        checked_add(params["SHOP.StartingGold"], price, item["id"])
-        item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
-    require(params["CHOICE.NewActiveFreeSlotWeight"]["bp"] > 0
-            and params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0,
-            "NumericDomain", "CHOICE", "active draft weights must be positive")
-    quality_chances = [params[f"CHOICE.AttributeQuality.{name}Chance"]["bp"]
-                       for name in ("Green", "Blue", "Purple", "Gold")]
-    quality_multipliers = [params[f"CHOICE.AttributeQuality.{name}Multiplier"]["bp"]
-                           for name in ("Green", "Blue", "Purple", "Gold")]
-    require(sum(quality_chances) == 10000 and all(value > 0 for value in quality_multipliers),
-            "InvalidPolicy", "CHOICE.AttributeQuality",
-            "attribute quality chances must sum to one and multipliers must be positive")
-    checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
+    checked_add(params["REWARD.PlayerXP.Base"], checked_mul(level_steps, params["REWARD.PlayerXP.PerLevel"], "REWARD.PlayerXP"),
+                "REWARD.PlayerXP")
+    # #198 points: the opening grant and one grant per level-up to the cap stay inside int64; past the cap every full
+    # GROWTH.MaxLevelPointsXP beyond the top threshold grants GROWTH.MaxLevelPoints.
+    checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
+                "GROWTH.OpeningPoints")
+    # #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
+    checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, checked_add(
+        params["GROWTH.PointsPerLevel"], params["GROWTH.EmptyComponentPoolPoints"], "GROWTH.EmptyComponentPoolPoints"),
+        "GROWTH.EmptyComponentPoolPoints"), "GROWTH.EmptyComponentPoolPoints")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
-    require({monster["tier"] for monster in monsters.values()} == {"Low", "High"},
-            "CampTiers", "monsters", "both difficulty tiers are required")
+    require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),
+            "CampTiers", "monsters", "exactly one monster per camp tier (Low, High, Elite) is required")
+    # #97 camp growth: a camp life takes stage min(MaxStage, floor(spawn time / StageSec)) at spawn and keeps it; the
+    # native stage is one byte. Scaled values stay integral in their stored units (P2, bp) at the cap.
+    max_stage = params["CAMP.GrowthMaxStage"]
+    require(params["CAMP.GrowthStageSec"]["ms"] > 0 and 1 <= max_stage <= 255, "NumericDomain", "CAMP.Growth",
+            "camp growth needs a positive stage length and 1..255 stages")
+    for key in ("CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage", "CAMP.GrowthRewardXPRatioPerStage"):
+        checked_add(10000, checked_mul(params[key]["bp"], max_stage, key), key)
+    checked_mul(params["CAMP.GrowthResistPerStage"]["p2"], max_stage, "CAMP.GrowthResistPerStage")
     for monster in monsters.values():
         path = monster["id"]
         require(quantity(monster["hp"]) > 0 and quantity(monster["attack"]) > 0,
@@ -1081,7 +1086,6 @@ def validate_numbers(data):
             require(quantity(monster[field]) == 0, "UnsupportedMonster", path,
                     f"{field} requires a different monster handler contract")
         checked_mul(monster["count_per_camp"], monster["reward_xp"], path)
-        checked_mul(monster["count_per_camp"], monster["reward_gold"], path)
         monster["attack_interval_ms"] = interval
         monster["perception_radius"] = dict(monster["leash_radius"])
     # D26 (#79): the 画饼老板 Boss is one roaming body: its own block, not a camp tier.
@@ -1095,25 +1099,27 @@ def validate_numbers(data):
     require(boss["attack_windup"]["ms"] < boss["attack_interval"]["ms"], "InvalidTiming", "boss", "windup exceeds attack interval")
     require(p("STAT.MoveSpeed.Min") <= quantity(boss["move_speed"]) <= p("STAT.MoveSpeed.Max"),
             "NumericDomain", "boss", "Boss move speed outside the move speed clamp")
-    stats = boss["approval"]["stats"]
-    require(set(stats) <= TEMPORARY_STATS and all(key.endswith("BonusRatio") for key in stats), "UnknownField", "boss.approval",
-            "the approval buff takes temporary ratio stats only")
-    _positive_stats(stats, "boss.approval")
+    # #198 outer §5: the Boss appears once at field T=appear_at and leaves unkilled at T=leave_at, never in the final field.
+    require(quantity(boss["appear_at"]) < quantity(boss["leave_at"]) <= timed_field, "InvalidTiming", "boss",
+            "the Boss must appear before it leaves, and leave before the final field")
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(all(row["monster_id"] in monsters for row in placements.values()),
             "InvalidReference", "camps", "unknown monster reference")
-    require({monsters[row["monster_id"]]["tier"] for row in placements.values()} == {"Low", "High"},
-            "CampTiers", "camps", "both tiers must appear in the five camps")
+    require({monsters[row["monster_id"]]["tier"] for row in placements.values()} == CAMP_TIERS,
+            "CampTiers", "camps", "every camp tier must be placed")
+    # Camp markers never pick the previous segment's camp, so each marked tier needs at least two camps.
+    for tier in ("High", "Elite"):
+        require(sum(monsters[row["monster_id"]]["tier"] == tier for row in placements.values()) >= 2,
+                "CampTiers", "camps", f"camp markers need at least two {tier} camps")
     _validate_build_envelope(data)
 
 
 def _validate_build_envelope(data):
-    # Every attribute clamps to its catalog bounds in the projection (#112 §4), so repeatable cards are never refused;
+    # Every attribute clamps to its catalog bounds in the projection (#112 §4), so stat points are never refused;
     # what remains is that every damage or shield term stays inside int64 at the extreme attributes.
     params = data["parameters"]
     max_ad = params["STAT.AD.Max"]["p2"]
     max_ap = params["STAT.AP.Max"]["p2"]
-    max_armor = params["STAT.Armor.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
     # #166: levels 2..10 grow by the first step, levels 11..16 by the second.
     top_level = data["progression"]["max_level"]
@@ -1126,31 +1132,34 @@ def _validate_build_envelope(data):
     grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
-    abilities = {id(row) for row in data["abilities"]}
-    for row in (*data["abilities"], *data["equipment"]):
-        skill = id(row) in abilities
+    # #198 reaction R = Base + (L - 1) x PerLevel + APRatio x AP; it never grows with G.
+    reaction = checked_add(params["COMBAT.ReactionBase"]["p2"],
+                           checked_mul(top_level - 1, params["COMBAT.ReactionPerLevel"]["p2"], "COMBAT.ReactionPerLevel"),
+                           "COMBAT.ReactionBase")
+    checked_add(reaction, checked_mul(max_ap, params["COMBAT.ReactionAPRatio"]["bp"], "COMBAT.ReactionAPRatio") // 10000,
+                "COMBAT.ReactionAPRatio")
+    for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
-            if skill and effect["op"] != "mana_on_hit":
+            if effect["op"] != "mana_on_hit":
                 base = grow(base, row["id"])
-            if skill and effect["op"] == "timed_stat_bonus":
+            if effect["op"] == "timed_stat_bonus":
                 for stat in effect.get("stats", {}).values():
                     for storage in ("p2", "bp"):
                         if storage in stat:
                             grow(stat[storage], row["id"])
-            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage", "argument_chain", "dash_contact_damage"):
+            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage", "dash_contact_damage", "ledger"):
                 numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] != "shield":
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
-            elif effect["op"] == "thorns":
-                numerator = checked_mul(base, 10000, row["id"])
-                numerator = checked_add(numerator, checked_mul(max_armor, effect["armor_ratio"]["bp"], row["id"]), row["id"])
-                if "max_hp_ratio" in effect:
-                    numerator = checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
-                checked_mul(numerator, effect["critical_multiplier"]["bp"], row["id"])
+            if effect["op"] == "brace":
+                # The release is the grown base plus its share of the grown record cap.
+                limit = grow(effect["limit"]["p2"], row["id"])
+                checked_add(checked_mul(base, 10000, row["id"]),
+                            checked_mul(limit, effect["record_ratio"]["bp"], row["id"]), row["id"])
 
 
 def _wire_fraction(value, path):
@@ -1204,11 +1213,15 @@ def parse_world_contract(raw, world_raw):
 def validate_world_references(data, world, anchors):
     refs = data["world"]
     require(refs["map_id"] == world["map_id"], "InvalidReference", "world.map_id", "different world identity")
-    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Shop": refs["shop_ids"], "Capture": [refs["capture_id"]]}
+    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]],
+                "PKSpawn": refs["pk_spawn_ids"], "PKThrow": [refs["pk_throw_id"]]}
     for kind, identities in expected.items():
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
                 "InvalidReference", kind, "missing, extra or wrong-kind world anchor")
+    # #198: the PK ring is read in index order, so the content lists it exactly as pk_spawn_0..5.
+    require(list(refs["pk_spawn_ids"]) == [f"pk_spawn_{n}" for n in range(6)],
+            "InvalidReference", "world.pk_spawn_ids", "PK spawns must be listed as pk_spawn_0 to pk_spawn_5 in order")
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(set(placements) == set(refs["camp_ids"]), "InvalidReference", "camps", "camp placement set differs from world")
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
@@ -1291,12 +1304,11 @@ def content_contract_bytes(payload_digest, catalog_digest):
 
 def _sort_definitions(data, fields):
     prefixes = {}
-    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "attributes", "opening_cards", "equipment", "display")]
+    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "stats", "display")]
     arrays.extend((("content.camps.monsters", data["camps"]["monsters"], "id"),
                    ("content.camps.placements", data["camps"]["placements"], "anchor_id"),
                    ("content.world.spawn_ids", data["world"]["spawn_ids"], None),
-                   ("content.world.camp_ids", data["world"]["camp_ids"], None),
-                   ("content.world.shop_ids", data["world"]["shop_ids"], None)))
+                   ("content.world.camp_ids", data["world"]["camp_ids"], None)))
     for path, rows, key in arrays:
         identity_for = (lambda row: row[key]) if key is not None else (lambda row: row)
         order = [identity_for(row) for row in rows]

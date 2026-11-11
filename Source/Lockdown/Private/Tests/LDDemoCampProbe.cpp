@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+#include "Tests/LDScenarioWalk.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchLifecycleTypes.h"
@@ -9,8 +10,10 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -32,24 +35,40 @@
 #include "UnrealClient.h"
 #include "UObject/Package.h"
 
-// Owned-connection camp checks (App Spec §6.2/§11, WORLD_CAMPS_AND_VISION §8.1): no first strike, whole-camp
+// Owned-connection camp checks (App Spec §5.2/§10, WORLD_CAMPS_AND_VISION §8.1): no first strike, whole-camp
 // retaliation, last-hit reward once per life, clear-then-refresh timing, leash return with the public cue and an
 // unrewarded home reset. Bookkeeping invariants stay in Lockdown.Rules.DemoCamp.*. Named, not anonymous: unity
 // builds merge files.
 namespace LDDemoCampScenario
 {
 const TCHAR* const CampRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
-// Approved world points (WORLD_CAMPS_AND_VISION §2.5): a legal melee approach to L1 and H1, and an outer-ring
-// flee goal more than the High leash away from H1.
-const FVector CampLowApproachCm(2616, 849, 0);
-const FVector CampHighApproachCm(0, 2800, 0);
-const FVector CampFleeGoalCm(1360, 4185, 0);
+// Basin points of the #97 layout, checked offline on the approved world: an open, reachable melee approach beside
+// Low camp l09 and High camp h05 (no other camp of the same creature within the target search), and a flee goal on
+// open basin ground 14.7 m from h05, beyond the High leash and away from the Boss patrol and the flagpole.
+const FVector CampLowApproachCm(1452, -2386, 0);
+const FVector CampHighApproachCm(1723, 818, 0);
+const FVector CampFleeGoalCm(2100, -850, 0);
 constexpr double CampApproachArrivalCm = 150.0;
 constexpr double CampTargetSearchCm = 600.0;
 // Local placement offsets reach 100.344 cm from a member home.
 constexpr double CampHomePlacementCm = 101.0;
-const FName CampLowId(TEXT("l1"));
-const FName CampHighId(TEXT("h1"));
+const FName CampLowId(TEXT("l09"));
+const FName CampHighId(TEXT("h05"));
+// #198: a match opens in the rest R0, whose private rest body is each contender's life 1; the R0 return retires it without
+// a death and places the first field life, life 2, at a randomly drawn approved spawn.
+constexpr uint32 CampFieldLife = 2;
+
+// The approved reward of clearing one low camp: every member's stage-0 XP (the first lives spawn before T=0).
+bool CampLowClearReward(int64& OutXP)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FString Error;
+    const FLDDemoMonsterDefinition* Monster = nullptr;
+    if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || !Content->FindMonster(TEXT("monster_scavenger"), Monster, Error)
+        || !Monster) { return false; }
+    OutXP = Monster->RewardXP * Monster->CountPerCamp;
+    return OutXP > 0;
+}
 
 // The owner's current authorized frame, or null while it is unavailable or stale.
 const FLDWorldView* CampCurrentFrame(const ALDPlayerController& Owner)
@@ -88,10 +107,19 @@ public:
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false;
     TArray<TSharedPtr<FJsonValue>> Checks;
     // Owning-client state.
-    int64 StartXP = -1, StartGold = -1;
-    bool bArrived = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
+    int64 StartXP = -1;
+    bool bArrived = false, bAtLowMarked = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
     bool bSawReturningCue = false, bCueShapeValid = true;
     TSet<FGuid> SeenScavengers;
+    // Fixture walking route to a camp approach (see Walk()).
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    TArray<LDScenarioWalk::FKeepout> WalkKeepouts;
+    TArray<FVector> WalkWaypoints;
+    FVector WalkGoal = FVector::ZeroVector;
+    double WalkArrivalCm = 0;
+    int32 WalkWaypoint = 0;
+    uint32 WalkLife = 0;
+    bool bWalkPrepared = false;
     // Client2's high-camp route; Client2 is also the rendered owner that keeps the presentation screenshots.
     enum class EHighStep : uint8 { Approach, Attack, Flee, FollowHome, ToLowCamp, Done };
     EHighStep HighStep = EHighStep::Approach;
@@ -194,7 +222,7 @@ public:
                 Lobby.Generation));
         }
         if (Lobby.Phase == ELDMatchPhase::Development || Lobby.Phase == ELDMatchPhase::CaptureOpen) { Stage = 2; return true; }
-        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Rest) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
             return Fail(TEXT("#C1"), TEXT("The room left the lobby without opening play: ")
@@ -230,8 +258,9 @@ public:
     // Every owner publishes its contender identity so the Host can correlate server-side camp aggro.
     bool TickPlaying(ALDPlayerController& Owner)
     {
+        // The public phase may reach field 1 a frame before this owner's projection leaves its R0 rest life.
         if (!Cast<ALDCharacter>(Owner.GetPawn()) || Owner.OwnerState.LifePhase != ELDLifePhase::Alive
-            || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand()) { return true; }
+            || !Owner.OwnerState.BodyRef.IsValid() || !Owner.CanWorldCommand() || Owner.OwnerState.Life < CampFieldLife) { return true; }
         auto Identity = MakeShared<FJsonObject>();
         Identity->SetStringField(TEXT("contender"), Owner.OwnerState.ContenderId.ToString(EGuidFormats::DigitsWithHyphens));
         if (!Mark(Role + TEXT("Identity.json"), Identity)) { return Finish(); }
@@ -255,10 +284,73 @@ public:
         return true;
     }
 
-    void SnapshotEconomy(const ALDPlayerController& Owner)
+    void SnapshotGrowth(const ALDPlayerController& Owner)
     {
         StartXP = Owner.OwnerState.Growth.Progression.CumulativeXP;
-        StartGold = Owner.OwnerState.Growth.Equipment.Gold;
+    }
+
+    bool PrepareWalk(const ULDMapRegistry& Registry, FString& Why)
+    {
+        if (bWalkPrepared) { return true; }
+        const FLDDemoWorldGeometry* Geometry = Registry.GetGeometry();
+        FCollisionShape Capsule;
+        if (!Geometry) { Why = TEXT("The registered world geometry is missing."); return false; }
+        if (!LDDemoEntry::LoadRuntimeContent(Catalog, Why) || !Catalog || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Why))
+        {
+            if (Why.IsEmpty()) { Why = TEXT("The approved runtime content is unavailable."); }
+            return false;
+        }
+        WalkArrivalCm = Capsule.GetCapsuleRadius() + LDPathSteering::WaypointToleranceCm;
+        bWalkPrepared = LDScenarioWalk::Keepouts(*Geometry, *Catalog, Capsule.GetCapsuleRadius(), WalkArrivalCm, WalkKeepouts, Why);
+        return bWalkPrepared;
+    }
+
+    // Walks to a camp approach from wherever the body stands, such as the field spawn the R0 return drew at random from
+    // every approved spawn. Native moves follow fixture waypoints that keep clear of every authored camp member home and
+    // Boss waypoint (LDScenarioWalk, as the Growth and Vision probes do), so idle camp bodies standing on the direct
+    // line cannot block it (s09 -> l09 passes l19's homes). The approach itself and its arrival radius are unchanged.
+    bool Walk(double Now, ALDPlayerController& Owner, const FVector& Goal, const TCHAR* Id)
+    {
+        const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
+        const ULDMapRegistry* Registry = Owner.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        if (!Body || !Registry) { return Fail(Id, TEXT("The owned body or the registered world disappeared while walking to a camp")); }
+        const FVector Foot = Body->GetNavAgentLocation();
+        if (FVector::Dist2D(Foot, Goal) <= CampApproachArrivalCm) { bArrived = true; return true; }
+        bool bIssue = false;
+        if (WalkWaypoints.IsEmpty() || WalkLife != Owner.OwnerState.Life || !WalkGoal.Equals(Goal))
+        {
+            FString Why;
+            if (!PrepareWalk(*Registry, Why)
+                || !LDScenarioWalk::Plan(*Registry, *Catalog, Foot, Goal, WalkKeepouts, WalkArrivalCm, WalkWaypoints, Why)
+                || WalkWaypoints.IsEmpty())
+            {
+                WalkWaypoints.Reset();
+                return Fail(Id, TEXT("No camp-free fixture route leads from this field body to its camp approach: ") + Why);
+            }
+            WalkLife = Owner.OwnerState.Life;
+            WalkGoal = Goal;
+            WalkWaypoint = 0;
+            bIssue = true;
+            UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_CAMP_WALK role=%s life=%u from=%s goal=%s waypoints=%d"),
+                *Role, WalkLife, *Foot.ToCompactString(), *Goal.ToCompactString(), WalkWaypoints.Num());
+        }
+        while (WalkWaypoint < WalkWaypoints.Num() - 1 && FVector::Dist2D(Foot, WalkWaypoints[WalkWaypoint]) <= WalkArrivalCm)
+        {
+            ++WalkWaypoint;
+            bIssue = true;
+        }
+        // A new leg supersedes the current move order at once; otherwise only a finished order is retried.
+        if (bIssue) { NavigateAttempts = 0; }
+        else if (Owner.Navigation->HasMoveOrder() || Now < NextOrderAt) { return true; }
+        if (NavigateAttempts >= 4)
+        {
+            return Fail(Id, FString::Printf(TEXT("The owned body could not reach its camp approach (leg %d of %d): "),
+                WalkWaypoint + 1, WalkWaypoints.Num()) + Owner.IntentFeedback);
+        }
+        Owner.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
+        ++NavigateAttempts;
+        NextOrderAt = Now + 1;
+        return true;
     }
 
     // A new destination supersedes the current move order at once; Navigate() then only retries or arrives.
@@ -329,10 +421,16 @@ public:
         if (!Exists(TEXT("CampsReady.json"))) { return true; }
         if (!bArrived)
         {
-            if (!Navigate(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
+            if (!Walk(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
             if (!bArrived) { return true; }
-            SnapshotEconomy(Owner);
+        }
+        if (!bAtLowMarked)
+        {
+            // The first field life arrives protected; the no-first-strike window starts only once that protection ended.
+            if (Owner.OwnerState.ProtectedUntilMs != 0) { return true; }
+            SnapshotGrowth(Owner);
             if (!Mark(TEXT("Client1AtLow.json"))) { return Finish(); }
+            bAtLowMarked = true;
         }
         if (!bIdleConfirmed)
         {
@@ -371,14 +469,15 @@ public:
         if (!bRewarded)
         {
             const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
-            const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
             // The clear marker can arrive before the last reward's owner projection; allow it 5 s to replicate.
             if (WatchSince == 0) { WatchSince = Now; }
-            if (XP < 80 && Now - WatchSince < 5) { return true; }
+            int64 WantXP = 0;
+            if (!CampLowClearReward(WantXP)) { return Fail(TEXT("#C5"), TEXT("The approved low-camp reward is unavailable")); }
+            if (XP < WantXP && Now - WatchSince < 5) { return true; }
             Check(bAttacking && bTookDamage, TEXT("#C4"), TEXT("The attacked camp retaliated against this contender"));
-            Check(XP == 80 && Gold == 60 && Owner.OwnerState.Growth.Progression.Level == 2, TEXT("#C5"), FString::Printf(
-                TEXT("Two last hits on the low camp paid exactly 2 x 40 XP / 30 gold to this contender (XP +%lld, gold +%lld, level %u)"),
-                XP, Gold, Owner.OwnerState.Growth.Progression.Level));
+            Check(XP == WantXP, TEXT("#C5"), FString::Printf(
+                TEXT("The last hits on the low camp paid exactly its approved reward to this contender (XP +%lld of %lld)"),
+                XP, WantXP));
             bRewarded = true;
             WatchSince = 0;
         }
@@ -402,7 +501,7 @@ public:
         return true;
     }
 
-    // Client2 leashes H1's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
+    // Client2 leashes h05's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
     // checks): the returning guardian with its name and cue, then the refreshed low pair with their names. Adjacent low
     // and high camps stand about 3057 cm apart, wider than any frame of the fixed camera, so each tier has its own shot.
     bool TickHighCamp(double Now, ALDPlayerController& Owner)
@@ -420,9 +519,9 @@ public:
         switch (HighStep)
         {
         case EHighStep::Approach:
-            if (!Navigate(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
+            if (!Walk(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
             if (!bArrived) { return true; }
-            SnapshotEconomy(Owner);
+            SnapshotGrowth(Owner);
             HighStep = EHighStep::Attack;
             return true;
         case EHighStep::Attack:
@@ -460,18 +559,18 @@ public:
             if (!bGuardianShot)
             { return Fail(TEXT("#C9"), TEXT("The returning guardian never stood in this owner's rendered view before its reset")); }
             const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
-            const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
             Check(bSawReturningCue && bCueShapeValid, TEXT("#C6"),
                 TEXT("The visible returning guardian carried only the single-stack untimed camp_returning cue"));
-            Check(XP == 0 && Gold == 0, TEXT("#C6"), FString::Printf(
-                TEXT("A leashed return and home reset paid nothing (XP +%lld, gold +%lld)"), XP, Gold));
-            IssueMove(Now, Owner, CampLowApproachCm);
+            Check(XP == 0, TEXT("#C6"), FString::Printf(
+                TEXT("A leashed return and home reset paid nothing (XP +%lld)"), XP));
+            // Walk() plans the new leg and issues it at once, superseding the walk back to the high approach.
+            bArrived = false;
             HighStep = EHighStep::ToLowCamp;
             return true;
         }
         case EHighStep::ToLowCamp:
         {
-            if (!bArrived && !Navigate(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
+            if (!bArrived && !Walk(Now, Owner, CampLowApproachCm, TEXT("#C9"))) { return false; }
             if (!bArrived || !Exists(TEXT("LowRefreshed.json"))) { return true; }
             if (LowShotSince == 0) { LowShotSince = Now; }
             int32 Shown = 0;
@@ -537,7 +636,7 @@ public:
         if (!State || !State->IsActive() || !Roster || !Mode.Combat)
         { return Fail(TEXT("#C2"), TEXT("A started match has no active camp director")); }
         const int32 Low = Roster->FindCamp(CampLowId), High = Roster->FindCamp(CampHighId);
-        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks L1 or H1")); }
+        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks l09 or h05")); }
         if (!bCampsReady)
         {
             int32 Alive = 0, Placed = 0, Idle = 0;
@@ -556,9 +655,11 @@ public:
                         && FVector::Dist2D(Foot, Roster->Camps[Camp].Members[Slot].HomeCm) <= CampHomePlacementCm ? 1 : 0;
                 }
             }
-            if (!Check(bFirstGeneration && Alive == 8 && Placed == 8 && Idle == 8, TEXT("#C2"), FString::Printf(
-                TEXT("Normal start spawned five camps once with eight idle first lives at their homes (alive %d, placed %d, idle %d)"),
-                Alive, Placed, Idle))) { return Finish(); }
+            int32 Members = 0;
+            for (const auto& Camp : Roster->Camps) { Members += Camp.Members.Num(); }
+            if (!Check(bFirstGeneration && Members > 0 && Alive == Members && Placed == Members && Idle == Members, TEXT("#C2"), FString::Printf(
+                TEXT("Normal start spawned every approved camp once with idle first lives at their homes (alive %d, placed %d, idle %d of %d)"),
+                Alive, Placed, Idle, Members))) { return Finish(); }
             if (!Mark(TEXT("CampsReady.json"))) { return Finish(); }
             bCampsReady = true;
         }
@@ -606,12 +707,13 @@ public:
             if (WatchSince == 0) { WatchSince = Now; }
             FLDCombatBodyRef Body;
             FLDCombatBodyRead Read;
-            const bool bUntouched = CurrentBody(Mode, Client1, Body) && Mode.Combat->ReadCombatBody(Body, Read) && Read.HPP2 == Read.MaxHPP2
+            const bool bUntouched = CurrentBody(Mode, Client1, Body) && !Mode.IsContenderProtected(Client1)
+                && Mode.Combat->ReadCombatBody(Body, Read) && Read.HPP2 == Read.MaxHPP2
                 && !LowGroup.Members.ContainsByPredicate([](const FLDCampMemberState& Member)
                     { return !Member.bAlive || Member.Brain.Phase != ELDCampBrainPhase::Idle || !Member.HostileSources.IsEmpty(); });
-            if (!bUntouched) { return Fail(TEXT("#C3"), TEXT("An untouched low camp stays idle while a contender stands inside its perception")); }
+            if (!bUntouched) { return Fail(TEXT("#C3"), TEXT("An untouched low camp stays idle while an unprotected contender stands inside its perception")); }
             if (Now - WatchSince < 1.5) { return true; }
-            Check(true, TEXT("#C3"), TEXT("An untouched low camp stays idle while a contender stands inside its perception"));
+            Check(true, TEXT("#C3"), TEXT("An untouched low camp stays idle while an unprotected contender stands inside its perception"));
             if (!Mark(TEXT("LowIdleChecked.json"))) { return Finish(); }
             bLowIdle = true;
             WatchSince = 0;
@@ -646,7 +748,13 @@ public:
             LowDueMs = LowGroup.RespawnDueMs;
             bLowCleared = true;
         }
-        if (bLowCleared && !bLowRefreshed && Mode.GetAuthorityNowMs() >= LowDueMs && LowGroup.Generation == 2)
+        // #198: the clear instant and the refresh deadline are field progress T (paused in rests), not authority time.
+        if (bLowCleared && !bLowRefreshed && Mode.GetFieldNowMs() < LowDueMs && LowGroup.Generation != 1)
+        {
+            return Fail(TEXT("#C7"), FString::Printf(TEXT("The low camp refreshed before its field-T due time (T=%lld, due %lld)"),
+                Mode.GetFieldNowMs(), LowDueMs));
+        }
+        if (bLowCleared && !bLowRefreshed && Mode.GetFieldNowMs() >= LowDueMs && LowGroup.Generation == 2)
         {
             int32 Alive = 0, Placed = 0, Idle = 0;
             for (int32 Slot = 0; Slot < LowGroup.Members.Num(); ++Slot)
@@ -736,6 +844,12 @@ public:
                 ? Driver && Driver->ClientConnections.Num() == 2
                 : Driver && Driver->ServerConnection != nullptr;
             if (!bConnected) { return Fail(TEXT("#C1"), TEXT("An owning connection dropped before the scenario finished")); }
+        }
+        // Every camp step runs in field 1: a rest would move the bodies off the field and pause the field-T camp clock.
+        if ((Stage == 2 || Stage == 3) && Public->DemoLobby.Phase != ELDMatchPhase::Development)
+        {
+            return Fail(TEXT("#C8"), TEXT("The camp scenario left field 1 before it finished: ")
+                + StaticEnum<ELDMatchPhase>()->GetNameStringByValue(int64(Public->DemoLobby.Phase)));
         }
         switch (Stage)
         {

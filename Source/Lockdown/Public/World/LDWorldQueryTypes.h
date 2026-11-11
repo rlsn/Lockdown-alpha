@@ -30,6 +30,8 @@ struct FLDLegalGround
     FLDWorldRevision World;
     FVector FootCm = FVector::ZeroVector;
     FVector SurfaceCm = FVector::ZeroVector;
+    // Capsule centre at physical terrain contact, before the native floor gap.
+    FVector SupportOriginCm = FVector::ZeroVector;
     FName SurfaceId;
     TWeakObjectPtr<UPrimitiveComponent> Floor;
 };
@@ -41,19 +43,4 @@ struct FLDCompletePath
     FVector StartProjectionCm = FVector::ZeroVector;
     FVector EndProjectionCm = FVector::ZeroVector;
     double LengthCm = 0;
-};
-
-struct FLDShopEligibilityResult
-{
-    bool Succeeded=false;
-    bool WithinReach=false;
-    ELDCommitReject CommitFailure=ELDCommitReject::AuthorityFault;
-    ELDWorldQueryFailure WorldFailure=ELDWorldQueryFailure::MissingWorld;
-    FLDCombatBodyRef Buyer;
-    FName ShopId;
-    FLDWorldRevision World;
-    FVector FootCm=FVector::ZeroVector;
-    FName SurfaceId;
-    double SampledAtServerSeconds=0;
-    FString Error;
 };

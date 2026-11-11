@@ -58,7 +58,7 @@ namespace LDTactical
             || Formulas.Crit != ELDDemoFormula::OncePerPrimaryAttack
             || Content.Policies.CritSampling != ELDDemoPolicy::OncePerAttackId
             || Content.Policies.BasicSecondaryTriggers != ELDDemoPolicy::Disabled
-            || Formulas.ResistanceScaleP2 <= 0 || Parameters.CritMultiplierBp < 10000 || Parameters.AbilityCritMultiplierBp < 10000)
+            || Formulas.ResistanceScaleP2 <= 0 || Parameters.CritMultiplierBp < 10000)
         {
             return Fail(EError::Definition, TEXT("Catalog"), TEXT("Unsupported damage, resistance or critical-hit contract"));
         }
@@ -71,8 +71,7 @@ namespace LDTactical
         {
             return Fail(EError::Definition, TEXT("DamageType"), TEXT("Only physical and magical damage are defined"));
         }
-        if (Input.HitClass != ELDCombatHitClass::BasicPrimary && Input.HitClass != ELDCombatHitClass::BasicSecondary
-            && Input.HitClass != ELDCombatHitClass::Ability)
+        if (Input.HitClass != ELDCombatHitClass::BasicPrimary && Input.HitClass != ELDCombatHitClass::Ability)
         {
             return Fail(EError::Definition, TEXT("HitClass"), TEXT("A resolved hit classification is required"));
         }
@@ -89,10 +88,10 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("bCritical"), TEXT("The critical-hit result must be explicit"));
         }
-        // Sweeps never crit; how a basic and an ability crit count is below (the bonus pool).
-        if (Input.bCritical.GetValue() && Input.HitClass == ELDCombatHitClass::BasicSecondary)
+        // #198: ability criticals are retired; only a primary basic crits.
+        if (Input.bCritical.GetValue() && Input.HitClass != ELDCombatHitClass::BasicPrimary)
         {
-            return Fail(EError::Domain, TEXT("bCritical"), TEXT("A secondary basic hit cannot be critical"));
+            return Fail(EError::Domain, TEXT("bCritical"), TEXT("Only a primary basic hit can be critical"));
         }
         if (Definition.ADRatioBp != 0 && !Input.SourceADP2.IsSet())
         {
@@ -164,28 +163,20 @@ namespace LDTactical
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceMaxHPP2.GetValue()),
                 Numbers.Value(Definition.MaxHPRatioBp, 10000)));
         }
-        // A primary basic crits at STAT.CritMultiplier before the bonus pool; an ability crit (#147 D21) adds
-        // STAT.AbilityCritMultiplier - 1 to the pool instead of multiplying. Sweeps never crit.
-        if (Input.bCritical.GetValue() && Input.HitClass != ELDCombatHitClass::Ability)
+        // A primary basic crits at STAT.CritMultiplier before the bonus pool.
+        if (Input.bCritical.GetValue())
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
-        if (Input.AmplifyBp < 0 || Input.DamageBonusBp < 0
-            || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
-            || Input.GuardMultiplierBp < 0 || Input.GuardMultiplierBp > 10000
-            || Input.PrimaryGuardP2 < 0 || Input.PrimaryGuardCapBp < 0 || Input.PrimaryGuardCapBp >= 10000)
+        if (Input.DamageBonusBp < 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
+            || Input.PrimaryGuardP2 < 0 || Input.PrimaryGuardCapBp < 0 || Input.PrimaryGuardCapBp >= 10000
+            || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.DeferRatioBp < 0 || Input.DeferRatioBp >= 10000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
         {
-            return Fail(EError::Domain, TEXT("AmplifyBp"), TEXT("A damage amplification cannot be negative"));
+            return Fail(EError::Domain, TEXT("DamageBonusBp"), TEXT("A damage bonus, delivery share or guard is outside its domain"));
         }
-        const int64 PoolBp = Input.DamageBonusBp
-            + (Input.bCritical.GetValue() && Input.HitClass == ELDCombatHitClass::Ability ? Parameters.AbilityCritMultiplierBp - 10000 : 0);
-        if (PoolBp != 0)
+        if (Input.DamageBonusBp != 0)
         {
-            Damage = Numbers.Mul(Damage, Numbers.Value(10000 + PoolBp, 10000));
-        }
-        if (Input.AmplifyBp != 10000)
-        {
-            Damage = Numbers.Mul(Damage, Numbers.Value(Input.AmplifyBp, 10000));
+            Damage = Numbers.Mul(Damage, Numbers.Value(10000 + Input.DamageBonusBp, 10000));
         }
         int64 ResistanceDenominatorP2;
         if (!Numbers.Add64(Formulas.ResistanceScaleP2, Input.TargetResistanceP2.GetValue(),
@@ -195,9 +186,29 @@ namespace LDTactical
         }
         Damage = Numbers.Mul(Damage, Numbers.Value(Formulas.ResistanceScaleP2, ResistanceDenominatorP2));
         Damage = Numbers.Mul(Damage, Numbers.Value(Input.DeliveryScaleBp, 10000));
-        Damage = Numbers.Mul(Damage, Numbers.Value(Input.GuardMultiplierBp, 10000));
-        if (Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0)
+        if (Input.PackageScaleBp != 10000)
         {
+            Damage = Numbers.Mul(Damage, Numbers.Value(Input.PackageScaleBp, 10000));
+        }
+        // #198 S16 (AI spec §9.1): the stance cut follows every resistance and percentage term and precedes the flat guard.
+        int64 BraceCutP2 = 0;
+        if (Input.BraceCutBp > 0)
+        {
+            const auto Cut = Numbers.Mul(Damage, Numbers.Value(Input.BraceCutBp, 10000));
+            if (!QuantizeEvaluation(Cut, false, BraceCutP2, Check, TEXT("BraceCutP2")))
+            {
+                return Fail(EError::Overflow, TEXT("BraceCutP2"), MathError);
+            }
+            Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
+        }
+        int64 BeforeGuardP2 = 0;
+        const bool bGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0;
+        if (bGuarded)
+        {
+            if (!QuantizeEvaluation(Damage, false, BeforeGuardP2, Check, TEXT("BeforeGuardP2")))
+            {
+                return Fail(EError::Overflow, TEXT("BeforeGuardP2"), MathError);
+            }
             const auto Flat = Numbers.Value(Input.PrimaryGuardP2);
             const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.PrimaryGuardCapBp, 10000));
             Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
@@ -207,8 +218,14 @@ namespace LDTactical
         {
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
+        int64 GuardCutP2 = bGuarded ? FMath::Max<int64>(0, BeforeGuardP2 - Value.DamageP2) : 0;
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
-        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; }
+        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; BraceCutP2 = 0; GuardCutP2 = 0; }
+        Value.BraceCutP2 = BraceCutP2;
+        Value.GuardCutP2 = GuardCutP2;
+        // #198 F M12: the deferred share leaves before the shield; it is paid later at its original amount.
+        Value.DeferredP2 = Value.DamageP2 / 10000 * Input.DeferRatioBp + Value.DamageP2 % 10000 * Input.DeferRatioBp / 10000;
+        Value.DamageP2 -= Value.DeferredP2;
         Value.ShieldAbsorbedP2 = FMath::Min(Value.DamageP2, Input.TargetShieldP2.GetValue());
         const int64 AfterShieldP2 = Value.DamageP2 - Value.ShieldAbsorbedP2;
         Value.HPLostP2 = FMath::Min(AfterShieldP2, Input.TargetHPP2.GetValue());

@@ -10,24 +10,52 @@
 #include "Character/LDNativeMotionTypes.h"
 #include "Components/CapsuleComponent.h"
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "World/LDSpawnPlacement.h"
+#include "UI/LDChoicesPanel.h"
+#include "UI/LDHUD.h"
+#include "UI/LDUIRoot.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/GameNetworkManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
+#include "Misc/AutomationTest.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/JsonSerializer.h"
+
+namespace LDDemoCoreProbeDetail
+{
+    bool CanStartArrival(int32 Slot, bool bHostArrived, bool bClient1Arrived)
+    {
+        return Slot==0 || (Slot==1 && bHostArrived) || (Slot==2 && bHostArrived && bClient1Arrived);
+    }
+
+    bool MatchesCurrentBasicTiming(const FLDBodyCombatState* Body, const FLDDemoContentSnapshot& Catalog)
+    {
+        if (!Body) { return false; }
+        FLDBasicTimingInput Input;
+        Input.BaseAttackSpeed=Catalog.Get().Parameters.AttackSpeed.Base;
+        Input.CurrentAttackSpeed=Body->AttributeProjection.Final.AttackSpeed;
+        Input.BaseWindupMs=Catalog.Get().Parameters.BasicAttackWindupMs;
+        const auto Expected=LDTactical::EvaluateBasicTiming(Input,Catalog);
+        return Expected.IsSuccess() && Body->BasicTiming.IntervalMs==Expected.Value->IntervalMs
+            && Body->BasicTiming.WindupMs==Expected.Value->WindupMs;
+    }
+}
 
 class FLDDemoCoreProbe : public TSharedFromThis<FLDDemoCoreProbe>
 {
@@ -35,10 +63,23 @@ public:
     TWeakObjectPtr<ALDPlayerController> Controller;
     FString Output, Role, Error, CatalogDigest;
     double Deadline=0, StageAt=0, ArrivalReceivedAt=0;
+    int64 FieldStartedAtMs=0;
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
+    bool bEarlyRestReady=false, bReplayFieldReturn=false, bRestReadySent=false, bRestReadyProjected=false, bRestPresentationSeen=false;
+    bool bReadyWindowObserved=false, bLeftFirstService=false, bChoicesPanelOpened=false, bServicePanelOpened=false, bServicePanelClosed=false;
+    bool bNpcPurchaseSent=false, bNpcPurchaseApplied=false;
+    uint64 NpcPurchaseRevision=0;
+    int64 NpcPurchasePointsBefore=0;
+    double NpcPurchaseSentAt=0;
+    double RestObservationStartedAt=0;
+    int32 SharedTrainingStage=0;
+    uint32 ObservedRestLife=1;
+    uint64 ObservedRestRevision=1;
+    bool bSharedTrainingDone=false;
+    int32 RestServiceStage=0;
     FLDCombatBodyRef OriginalBody;
-    FLDMoveIdentity OldOrder, AcceptedOrder;
+    FLDMoveIdentity OldOrder, AcceptedOrder, RestServiceOrder;
     FVector StartPosition=FVector::ZeroVector;
     FVector ArrivalGoal=FVector::ZeroVector;
     TMap<FGuid,FVector> StoppedBodies;
@@ -144,6 +185,85 @@ public:
         return true;
     }
 
+    bool ReviewSharedTraining(ALDPlayerController& PC)
+        {
+            const auto* Relay=PC.LocalView();
+            const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+            if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
+            const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
+            const auto* Target=Read.Frame->Units.FindByPredicate([Public](const FLDObservedUnitView& Unit)
+            {
+                return Unit.Kind==ELDObservedUnitKind::Contender&&Unit.Presentation==0
+                    &&!Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& Member)
+                    {return Member.ContenderId==Unit.ContenderId;});
+            });
+            if(!Target){return true;}
+            if(SharedTrainingStage==0)
+            {
+                if(!Mark(Role+TEXT("SharedTargetSeen.json"))){return Finish();}
+                SharedTrainingStage=1;
+            }
+            if(!AllMarkers(TEXT("SharedTargetSeen.json"))){return true;}
+            if(Role==TEXT("Client1")&&SharedTrainingStage==1)
+            {
+                const auto* Body=Cast<ALDCharacter>(PC.GetPawn());
+                if(!Check(Body&&Body->PresentationKey!=Target->Presentation,TEXT("The remote attacker does not own the shared target"))){return Finish();}
+                if(PC.HUDUI&&PC.HUDUI->ChoicesPanel){PC.HUDUI->ChoicesPanel->ClosePanel();}
+                if(!PC.CanWorldCommand()){return true;}
+                auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+                const auto* Anchor=Registry?Registry->Resolve(TEXT("training_dummy_0"),Registry->Generation):nullptr;
+                if(!Check(Anchor!=nullptr,TEXT("The remote trainee approaches the shared target on registered rest ground"))){return Finish();}
+                PC.Navigation->NavigateGround(FVector(Target->FeetCm)+FVector(0,-120,0),Anchor->Surface);
+                SharedTrainingStage=10;
+            }
+            if(Role==TEXT("Client1")&&SharedTrainingStage==10)
+            {
+                const auto* Body=Cast<ALDCharacter>(PC.GetPawn());
+                if(!Body||FVector::DistSquared2D(ALDCombatDirector::FootOf(*Body),Target->FeetCm)>FMath::Square(300.)){return true;}
+                PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
+                if(!Mark(TEXT("SharedAttackStarted.json"))){return Finish();}
+                SharedTrainingStage=2;
+            }
+            const bool bStarted=FPaths::FileExists(FPaths::Combine(Output,TEXT("SharedAttackStarted.json")));
+            if(Role==TEXT("Client1")&&SharedTrainingStage==2)
+            {
+                const auto& Receipt=PC.Navigation->LatestReceipt();
+                if(Receipt.Kind==ELDSpatialOrderKind::AttackUnit&&Receipt.Status==ELDOrderStatus::Rejected)
+                {
+                    Error=FString::Printf(TEXT("Shared training attack rejected: failure=%u"),uint32(Receipt.Failure));
+                    Check(false,TEXT("A non-owner training attack is admitted through the normal order receipt"));
+                    return Finish();
+                }
+            }
+            const FString HitFile=Role+TEXT("SharedHit.json");
+            if(bStarted&&Target->Health.CurrentP2<Target->Health.MaxP2&&!FPaths::FileExists(FPaths::Combine(Output,HitFile)))
+            {
+                Check(Target->Health.CurrentP2>0,TEXT("The same real shared target publishes a non-owner training hit to this connection"));
+                auto Hit=MakeShared<FJsonObject>();Hit->SetStringField(TEXT("target"),Target->ContenderId.ToString());
+                Hit->SetNumberField(TEXT("hp_p2"),Target->Health.CurrentP2);Hit->SetNumberField(TEXT("max_hp_p2"),Target->Health.MaxP2);
+                if(!Save(Hit,HitFile)){Check(false,TEXT("Shared hit evidence persists"));return Finish();}
+                if(Role==TEXT("Client1")){PC.StopCombatAndOrders();}
+            }
+            if(!AllMarkers(TEXT("SharedHit.json"))){return true;}
+            if(Role==TEXT("Host")&&SharedTrainingStage==1)
+            {
+                PC.SubmitTrainingReset();
+                if(!Mark(TEXT("SharedResetSent.json"))){return Finish();}
+                SharedTrainingStage=2;
+            }
+            if(FPaths::FileExists(FPaths::Combine(Output,TEXT("SharedResetSent.json")))
+                &&Target->Health.CurrentP2==Target->Health.MaxP2)
+            {
+                const FString ResetFile=Role+TEXT("SharedResetSeen.json");
+                if(!FPaths::FileExists(FPaths::Combine(Output,ResetFile)))
+                {
+                    Check(true,TEXT("Owner reset restores the same shared target on this owning connection"));
+                    if(!Mark(ResetFile)){return Finish();}
+                }
+            }
+            bSharedTrainingDone=AllMarkers(TEXT("SharedResetSeen.json"));
+            return true;
+        }
     bool Initialize(ALDGameMode& Mode, ULDMapRegistry& Registry)
     {
         bStartGateOpenBefore=Mode.CheckDemoStartInputs(StartGateBefore);
@@ -164,43 +284,54 @@ public:
             bPrepared=!Hooks || !Hooks->Prepare || Hooks->Prepare(Mode,Start,Error);
         }
         if (!Check(bPrepared,TEXT("Fixture prepares every registered provider like a normal start"))) { return false; }
-        const FName ShopId=Content->Get().World.ShopIds.IsEmpty() ? FName() : FName(*Content->Get().World.ShopIds[0]);
-        const auto* Shop=Registry.Resolve(ShopId,Registry.Generation);
-        if (!Shop) { Error=TEXT("Shop geometry fixture has no approved anchor."); return false; }
-        const auto& ShopRadius=Content->Get().Parameters.ShopInteractRadiusCm;
-        const double Radius=double(ShopRadius.Numerator)/double(ShopRadius.Denominator);
-        bool WithinReach=false;
-        ELDWorldQueryFailure ShopFailure;
-        FString ShopError;
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius-1,0,0),
-            WithinReach,ShopFailure,ShopError) && WithinReach && ShopFailure==ELDWorldQueryFailure::None,
-            TEXT("Registered shop reach accepts a legal in-range foot point"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius,0,0),
-            WithinReach,ShopFailure,ShopError) && WithinReach,
-            TEXT("Registered shop reach includes its exact approved radius"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius+1,0,0),
-            WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::None && ShopError.IsEmpty(),
-            TEXT("Outside shop range is a successful false query, not a world failure"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(!Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius,0,50),
-            WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::NotGrounded && !ShopError.IsEmpty(),
-            TEXT("Invalid shop support is explicitly rejected rather than treated as out of range"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        auto StaleShopWorld=Registry.Revision();
-        ++StaleShopWorld.GeometryRevision;
-        if (!Check(!Registry.QueryShopReach(StaleShopWorld,ShopId,Shop->Position+FVector(Radius,0,0),
-            WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::StaleWorld && !ShopError.IsEmpty(),
-            TEXT("Shop reach rejects a stale registered world before range evaluation"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
         bool Registered=Mode.ExecuteAuthorityPhase(*Mode.Combat,ELDCommitPhase::RespawnsAndWorld,
             [&](const FLDGameplayWritePermit& Permit)
         {
+            if (bReplayFieldReturn)
+            {
+                const FGuid ReplayId=Mode.RosterOrder[1];
+                const FLDDemoRational& Radius=Content->Get().Parameters.RestReturnSearchRadiusCm;
+                const FVector Foot(1312,-1600,4);
+                if (Radius.Denominator<=0) { Error=TEXT("Return replay requires the approved search radius."); return false; }
+                ALDGameMode::FLDPlacementTarget Target;
+                Target.Kind=ALDGameMode::FLDPlacementTarget::EKind::Near;
+                Target.FootCm=Foot;
+                Target.Surface=TEXT("demo_ground");
+                Target.RadiusCm=double(Radius.Numerator)/double(Radius.Denominator);
+                ALDGameMode::FLDPlacedBody Placed;
+                if (!Mode.PlaceContenderBody(ReplayId,1,Permit,Placed,Error,Target))
+                {
+                    Error=FString::Printf(TEXT("Return replay at %.3f,%.3f,%.3f: %s"),
+                        Target.FootCm.X,Target.FootCm.Y,Target.FootCm.Z,*Error);
+                    Check(false,TEXT("Captured field return position prepares without an authority fault"));
+                    return false;
+                }
+                const bool bAtCapturedFoot=Placed.Reservation && Placed.Reservation->AnchorId().IsNone()
+                    && Placed.Reservation->Ground().FootCm.Equals(Foot,.000001);
+                Mode.ReleasePlacedBody(Placed);
+                if (!bAtCapturedFoot || !Mode.WithdrawPhaseRequest(ReplayId,Permit,Error))
+                {
+                    if (Error.IsEmpty()) { Error=TEXT("The exact captured field foot could not be prepared."); }
+                    Check(false,TEXT("Captured field return position prepares without an authority fault"));
+                    return false;
+                }
+                Check(true,TEXT("Captured field return position prepares without an authority fault"));
+            }
             const FGuid FirstId=Mode.RosterOrder[0];
             auto& FirstLife=Mode.Lives.FindChecked(FirstId);
             FirstLife.SpawnSequence=1;
             FirstLife.SpawnForLife=1;
             const FLDSpawnRequestKey FirstRequest{Mode.GetMatchContext(),FirstId,1,1};
+            // #198: the first life opens R0 in the shared rest space, at the fixed anchor of its roster slot.
+            const FName FirstRestAnchor=Mode.RestAnchorFor(FirstId);
+            if (!Check(!FirstRestAnchor.IsNone(),TEXT("The first contender has a rest anchor by roster slot"))) { return false; }
             TSharedPtr<const FLDSpawnSelection> FirstSelection;
             FCollisionShape Capsule;
+            const int32 SelectSeed=Mode.SpawnRandom.GetCurrentSeed();
             if (!ULDMapRegistry::ContentCapsule(*Content,Capsule,Error)
-                || !Registry.DrawSpawnAnchor(FirstRequest,Mode.SpawnRandom,Permit,FirstSelection,Error)) { return false; }
+                || !Registry.SelectSpawnAnchor(FirstRequest,FirstRestAnchor,Permit,FirstSelection,Error)) { return false; }
+            if (!Check(FirstSelection->AnchorId()==FirstRestAnchor && Mode.SpawnRandom.GetCurrentSeed()==SelectSeed,
+                TEXT("The fixed rest anchor is selected without a random draw"))) { return false; }
             const auto* FirstAnchor=Registry.Resolve(FirstSelection->AnchorId(),Registry.Generation);
             const auto* SpawnGeometry=Registry.GetGeometry();
             if (!FirstAnchor || !SpawnGeometry) { Error=TEXT("Spawn fixture anchor is missing."); return false; }
@@ -244,7 +375,7 @@ public:
                     FQuat::Identity,FCollisionObjectQueryParams(ECC_Pawn),Capsule,
                     FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnOccupancyFixture)));
             }
-            if (!Check(AllOccupied,TEXT("All seven fixture bodies have native query collision despite ignoring Pawn contacts"))) { return false; }
+            if (!Check(AllOccupied,TEXT("All seven fixture bodies have native query collision with Pawn blocking responses"))) { return false; }
             TSharedPtr<const FLDSpawnReservation> Blocked;
             FString BlockedError;
             const int32 BlockedSeed=Mode.SpawnRandom.GetCurrentSeed();
@@ -264,25 +395,39 @@ public:
             Occupants.Reset();
             TSharedPtr<const FLDSpawnSelection> RetrySelection;
             TSharedPtr<const FLDSpawnReservation> Retry;
-            if (!Check(Registry.DrawSpawnAnchor(FirstRequest,Mode.SpawnRandom,Permit,RetrySelection,Error)
+            if (!Check(Registry.SelectSpawnAnchor(FirstRequest,FirstRestAnchor,Permit,RetrySelection,Error)
                 && RetrySelection==FirstSelection && Mode.SpawnRandom.GetCurrentSeed()==BlockedSeed
                 && Registry.ReserveSpawnPlacement(RetrySelection,Capsule,Permit,Retry,Error)
                 && Retry->OffsetIndex()==0 && FirstLife.Life==0,
                 TEXT("Unblocked retry reuses the original anchor and starts at its centre"))) { return false; }
             if (!Registry.ReleaseSpawnReservation(Retry,Error)) { return false; }
-            if (!Mode.SpawnInitialContenders(Permit,Error)) { return false; }
-            const auto ShopDenied=Registry.QueryShopEligibility(Permit,Mode.Lives.FindChecked(FirstId).Body,
-                ShopId,Registry.Revision());
-            if (!Check(!ShopDenied.Succeeded && ShopDenied.CommitFailure==ELDCommitReject::WrongPhase && !ShopDenied.Error.IsEmpty(),
-                TEXT("A valid spawned buyer cannot reuse a spawn permit for a shop transaction"))) { return false; }
+            const auto* TrainingAnchor=Registry.Resolve(TEXT("training_dummy_1"),Registry.Generation);
+            if(!Check(TrainingAnchor!=nullptr,TEXT("The occupied training-slot fixture uses an approved anchor"))){return false;}
+            APawn* TrainingOccupant=Mode.GetWorld()->SpawnActor<APawn>();
+            if(!TrainingOccupant){Error=TEXT("Training occupancy fixture allocation failed.");return false;}
+            ON_SCOPE_EXIT {TrainingOccupant->SetActorEnableCollision(false);TrainingOccupant->Destroy();};
+            auto* TrainingShape=NewObject<UCapsuleComponent>(TrainingOccupant);
+            TrainingOccupant->SetRootComponent(TrainingShape);TrainingOccupant->AddInstanceComponent(TrainingShape);
+            TrainingShape->SetCapsuleSize(Capsule.GetCapsuleRadius(),Capsule.GetCapsuleHalfHeight());
+            TrainingShape->SetWorldLocation(TrainingAnchor->Position+FVector(0,0,Capsule.GetCapsuleHalfHeight()+FloorGap));
+            TrainingShape->SetCollisionObjectType(ECC_Pawn);TrainingShape->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+            TrainingShape->SetCollisionResponseToChannels(GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetCollisionResponseToChannels());
+            TrainingShape->SetCanEverAffectNavigation(false);TrainingShape->RegisterComponentWithWorld(Mode.GetWorld());
+            // The real start: every first life stands in the shared rest space and the world enters the R0 rest.
+            if (!Mode.SpawnInitialContenders(Permit,Error) || !Mode.EnterRestWorld(Permit,Error)) { return false; }
+            Check(Mode.TrainingDummies.Num()==3&&Mode.MatchPhase!=ELDMatchPhase::Faulted,
+                TEXT("A Pawn temporarily occupying a future training slot does not fault or duplicate committed lives"));
             FString DuplicateError;
             if (!Check(!Mode.SpawnInitialContenders(Permit,DuplicateError) && !DuplicateError.IsEmpty(),
                 TEXT("Repeated roster spawn cannot grant another life or resource reset"))) { return false; }
+            int32 RestContenders=0;
             for (const auto& Pair : Mode.Lives)
             {
                 const auto& Life=Pair.Value;
-                // Camp members spawn at their camps, not at the contender anchors.
-                if (Life.Kind!=ELDVictimKind::Contender) { continue; }
+                // Camp members spawn at their camps, not at the contender anchors; each owner's rest training dummy is a
+                // contender-kind target that is checked against its owner below, not a roster body.
+                if (Life.Kind!=ELDVictimKind::Contender || Mode.IsTrainingDummy(Pair.Key)) { continue; }
+                ++RestContenders;
                 const auto* Anchor=Registry.Resolve(Life.SpawnAnchor,Registry.Generation);
                 const auto* Body=Life.Actor.Get();
                 FVector Offset;
@@ -290,6 +435,9 @@ public:
                     && SpawnGeometry->SpawnOffsetsCm[Life.SpawnOffset].ToVector(Offset,Error)
                     && Body && FVector::DistSquared2D(Body->GetActorLocation(),Anchor->Position+Offset)<.000001,
                     TEXT("Actual initial body uses one of the seven exact offsets at its fixed selected anchor"))) { return false; }
+                if (!Check(Life.SpawnAnchor==Mode.RestAnchorFor(Pair.Key),
+                    TEXT("Each initial body stands at the rest anchor of its roster slot"))) { return false; }
+                if (!Check(Life.ProtectedUntilMs==0,TEXT("Common initial-body path does not invent respawn protection"))) { return false; }
                 const int32 Seed=Mode.SpawnRandom.GetCurrentSeed();
                 FLDSpawnRequestKey Request{Mode.GetMatchContext(),Pair.Key,1,Life.SpawnSequence};
                 TSharedPtr<const FLDSpawnSelection> Replay;
@@ -303,10 +451,52 @@ public:
                     && !Conflict.IsValid() && !ConflictError.IsEmpty() && Mode.SpawnRandom.GetCurrentSeed()==Seed,
                     TEXT("Same spawn request with changed terms cannot redraw a safer anchor"))) { return false; }
             }
+            bool DummiesPerOwner=Mode.TrainingDummies.Num()==RestContenders && Mode.TrainingDummyIds.Num()==RestContenders;
+            for (const auto& Pair : Mode.TrainingDummies) { DummiesPerOwner&=Mode.IsInRestSpace(Pair.Key); }
+            if (!Check(RestContenders==3 && DummiesPerOwner,
+                TEXT("Each of the three roster bodies stands in its rest space with exactly one training dummy"))) { return false; }
+            const FGuid RetryOwner=Mode.RosterOrder[1];
+            const uint32 RetryLife=Mode.Lives.FindChecked(RetryOwner).Life;
+            Mode.RetireTrainingDummy(RetryOwner);
+            if(!Mode.RetireLifeForPhase(RetryOwner,Permit,Error)){return false;}
+            for(const auto& Point:SpawnGeometry->SpawnOffsetsCm)
+            {
+                FVector Offset;if(!Point.ToVector(Offset,Error)){return false;}
+                auto* Pawn=Mode.GetWorld()->SpawnActor<APawn>();
+                if(!Pawn){Error=TEXT("Training retry occupancy allocation failed.");return false;}
+                Occupants.Add(Pawn);
+                auto* Shape=NewObject<UCapsuleComponent>(Pawn);
+                Pawn->SetRootComponent(Shape);Pawn->AddInstanceComponent(Shape);
+                Shape->SetCapsuleSize(Capsule.GetCapsuleRadius(),Capsule.GetCapsuleHalfHeight());
+                Shape->SetWorldLocation(TrainingAnchor->Position+Offset+FVector(0,0,Capsule.GetCapsuleHalfHeight()+FloorGap));
+                Shape->SetCollisionObjectType(ECC_Pawn);Shape->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+                Shape->SetCollisionResponseToChannels(GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetCollisionResponseToChannels());
+                Shape->SetCanEverAffectNavigation(false);Shape->RegisterComponentWithWorld(Mode.GetWorld());
+            }
+            bool bRetryBlocked=false;
+            if(!Check(Mode.PlaceRestLife(RetryOwner,Permit,bRetryBlocked,Error)&&bRetryBlocked
+                &&Mode.Lives.FindChecked(RetryOwner).Life==RetryLife
+                &&Mode.Lives.FindChecked(RetryOwner).Phase==ELDLifePhase::Dead
+                &&Mode.PendingPhasePlacement.Contains(RetryOwner)&&!Mode.TrainingDummies.Contains(RetryOwner),
+                TEXT("A pending rest retry blocked at every training offset commits neither player life nor target and does not fault")))
+            {return false;}
+            for(const auto& Weak:Occupants){if(auto* Pawn=Weak.Get()){Pawn->SetActorEnableCollision(false);Pawn->Destroy();}}
+            Occupants.Reset();
+            if(!Check(Mode.PlaceRestLife(RetryOwner,Permit,bRetryBlocked,Error)&&!bRetryBlocked
+                &&Mode.Lives.FindChecked(RetryOwner).Life==RetryLife+1
+                &&Mode.Lives.FindChecked(RetryOwner).Phase==ELDLifePhase::Alive
+                &&!Mode.PendingPhasePlacement.Contains(RetryOwner)&&Mode.TrainingDummies.Contains(RetryOwner)
+                &&Mode.TrainingDummies.Num()==3,
+                TEXT("Unblocked pending rest retry commits one next life and one real shared target together")))
+            {return false;}
             return true;
         },Error);
         if (!Check(Registered,TEXT("Three real controllers receive one committed body each"))) { return false; }
-        Mode.MatchPhase=ELDMatchPhase::Development;
+        // Like a normal start, the match opens in the rest R0; the movement audit runs on the first field life after it.
+        Mode.MatchPhase=ELDMatchPhase::Rest;
+        ++Mode.TimelineRevision;
+        Mode.bPublicMatchDirty=true;
+        Mode.bLobbyDirty=true;
         Mode.PublishLobby();
         Check(WorldSeconds==Mode.GetWorld()->GetTimeSeconds(),TEXT("Core initialization does not rewrite UWorld time"));
         return Passed;
@@ -318,7 +508,8 @@ public:
         Report->SetBoolField(TEXT("passed"),Passed);
         Report->SetBoolField(TEXT("fixture_only"),true);
         Report->SetBoolField(TEXT("full_ct06"),false);
-        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body initial random spawn/reservation, core/ground/CMC and native-prefix audit fixture. Not a playable match, death/respawn, final motion Fence, vision, combat effects or 3+3 AI acceptance."));
+        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body rest placement/retry, optional EarlyRestReady shared training observation/hit/reset, core/ground/CMC and native-prefix audit fixture. Not a full playable match, death/respawn, final motion Fence, general vision/combat or 3+3 AI acceptance."));
+        Report->SetBoolField(TEXT("shared_training_exercised"),bSharedTrainingDone);
         Report->SetStringField(TEXT("role"),Role);
         Report->SetStringField(TEXT("catalog_sha256"),CatalogDigest);
         Report->SetStringField(TEXT("detail"),Error);
@@ -332,11 +523,18 @@ public:
             Report->SetStringField(TEXT("entity"),PC->OwnerState.BodyRef.Victim.EntityId.ToString(EGuidFormats::Digits));
             Report->SetStringField(TEXT("body"),PC->OwnerState.BodyRef.BodyIdentity.ToString(EGuidFormats::Digits));
             Report->SetNumberField(TEXT("life"),PC->OwnerState.Life);
+            Report->SetNumberField(TEXT("rest_life_before_field"),ObservedRestLife);
             Report->SetStringField(TEXT("navigation_status"),PC->Navigation->Status);
             if (const auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
             {
                 const auto* Movement=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
                 Report->SetStringField(TEXT("foot"),Body->GetNavAgentLocation().ToString());
+                if (Stage>=9)
+                {
+                    Report->SetStringField(TEXT("arrival_goal"),ArrivalGoal.ToString());
+                    Report->SetNumberField(TEXT("arrival_distance_cm"),FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal));
+                    Report->SetNumberField(TEXT("arrival_acceptance_cm"),PC->Navigation->LatestReceipt().AcceptanceCm);
+                }
                 Report->SetNumberField(TEXT("corrections"),Movement->CorrectionCount);
                 Report->SetNumberField(TEXT("max_correction_cm"),Movement->MaxCorrectionCm);
             }
@@ -405,7 +603,8 @@ public:
                         if (Pair.Value.Phase==ELDLifePhase::Left)
                         {
                             ++Left;
-                            Retired&=Pair.Value.RetiredThroughLife==1 && !Pair.Value.Body.IsValid() && !Pair.Value.Actor.IsValid();
+                            Retired&=Pair.Value.RetiredThroughLife==Pair.Value.Life && Pair.Value.Life>=2
+                                && !Pair.Value.Body.IsValid() && !Pair.Value.Actor.IsValid();
                         }
                         else if (Pair.Value.Phase==ELDLifePhase::Alive) { ++Alive; }
                     }
@@ -469,18 +668,200 @@ public:
         if (Stage==1)
         {
             int64 DisplayNowMs=0;
+            // Record the actual R0 life, including a placement-retry fixture, before its exact next field life.
+            const FLDTimelineView& Line=Public->PublicMatch.Timeline;
+            if(Public->PublicMatch.Phase==ELDMatchPhase::Rest&&Line.Stage==ELDMatchStage::Rest
+                &&Line.Step==ELDRestStep::Build&&PC->OwnerState.bActive)
+            {
+                ObservedRestLife=PC->OwnerState.Life;
+                ObservedRestRevision=PC->OwnerState.LifeRevision;
+            }
+            if (bEarlyRestReady && Public->PublicMatch.Phase==ELDMatchPhase::Rest
+                && Line.Stage==ELDMatchStage::Rest && Line.Step==ELDRestStep::Build && Body && Movement && Nav
+                && PC->OwnerState.bActive && PC->OwnerState.Match==Public->PublicMatch.Generation)
+            {
+                if (const ALDWorldViewRelay* Relay=PC->LocalView())
+                {
+                    const FLDObservedFrameRead Read=Relay->ReadObservedFrame();
+                    if (Read.Status==ELDObservedViewStatus::Current && Read.Frame)
+                    {
+                        TSet<FGuid> Others, Dummies;
+                        for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+                        {
+                            if (Unit.Kind!=ELDObservedUnitKind::Contender || !Unit.ContenderId.IsValid()) { continue; }
+                            const bool bRoster=Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& Member)
+                                { return Member.ContenderId==Unit.ContenderId; });
+                            if (bRoster && Unit.ContenderId!=PC->OwnerState.ContenderId) { Others.Add(Unit.ContenderId); }
+                            else if (!bRoster) { Dummies.Add(Unit.ContenderId); }
+                        }
+                        if (!RestObservationStartedAt) { RestObservationStartedAt=FPlatformTime::Seconds(); }
+                        if (FPlatformTime::Seconds()-RestObservationStartedAt>3. && !bRestPresentationSeen)
+                        {
+                            if (!Check(Others.Num()==2 && Dummies.Num()==Public->DemoLobby.Members.Num(),
+                                TEXT("Every owning connection observes all live shared training dummies and the other players")))
+                            { return Finish(); }
+                            bRestPresentationSeen=true;
+                        }
+                    }
+                }
+                if(bRestPresentationSeen&&!bSharedTrainingDone){return ReviewSharedTraining(*PC);}
+                if (Role==TEXT("Client1") && bRestPresentationSeen)
+                {
+                    if (RestServiceStage==0 && PC->CanWorldCommand() && Movement->IsMovingOnGround()
+                        && Movement->CurrentFloor.IsWalkableFloor())
+                    {
+                        const auto* Service=Registry->Resolve(TEXT("rest_service_1"),Registry->Generation);
+                        if (!Check(Service!=nullptr,TEXT("The first rest service is registered"))) { return Finish(); }
+                        Nav->NavigateGround(Service->Position,Service->Surface);
+                        RestServiceOrder=Nav->LocalIdentity();
+                        RestServiceStage=1;
+                    }
+                    else if (RestServiceStage==1 && PC->OwnerState.NearbyRestService==ELDRestService::SkillMerchant)
+                    {
+                        ULDChoicesPanel* Panel=PC->HUDUI?PC->HUDUI->ChoicesPanel.Get():nullptr;
+                        if (!Check(Panel && PC->RootUI,TEXT("The remote owner has the shared choices panel and root UI"))) { return Finish(); }
+                        if (!bChoicesPanelOpened)
+                        {
+                            if (!Check(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices),
+                                TEXT("The remote owner opens the shared choices panel"))) { return Finish(); }
+                            Panel->OpenPanel();
+                            if (!Check(Panel->IsPanelOpen(),TEXT("The remote choices panel is visible before resolving its opening offer")))
+                            {
+                                return Finish();
+                            }
+                            bChoicesPanelOpened=true;
+                            return true;
+                        }
+                        const FLDProgressionView* Growth=PC->ReadOwnProgression();
+                        if (!Growth || !Growth->bValid) { return true; }
+                        if (Panel->HasPendingRequest()) { return true; }
+                        if (bNpcPurchaseSent)
+                        {
+                            if (Growth->BuildRevision==NpcPurchaseRevision
+                                || Growth->UnspentPoints!=NpcPurchasePointsBefore-Content->Get().Parameters.NpcActivePoints)
+                            {
+                                if (FPlatformTime::Seconds()-NpcPurchaseSentAt<=10.) { return true; }
+                                Check(false,TEXT("The non-host NPC purchase did not receive an applied owner projection"));
+                                return Finish();
+                            }
+                            bNpcPurchaseApplied=Growth->BuildRevision==NpcPurchaseRevision+1
+                                && Growth->bHasActiveOffer && Growth->QueuedActiveOpportunities==1
+                                && Growth->UnspentPoints==NpcPurchasePointsBefore-Content->Get().Parameters.NpcActivePoints;
+                            if (!Check(bNpcPurchaseApplied,TEXT("The non-host owner receives an applied NPC purchase with the authoritative point charge")))
+                            {
+                                return Finish();
+                            }
+                            const auto* Service=Registry->Resolve(TEXT("rest_service_2"),Registry->Generation);
+                            if (!Check(Service!=nullptr,TEXT("The second rest service is registered"))) { return Finish(); }
+                            Nav->NavigateGround(Service->Position,Service->Surface);
+                            RestServiceOrder=Nav->LocalIdentity();
+                            RestServiceStage=2;
+                            return true;
+                        }
+                        if (Growth->bHasActiveOffer)
+                        {
+                            if (!Panel->ChooseOffer(0)) { return true; }
+                            return true;
+                        }
+                        if (Growth->QueuedActiveOpportunities>0) { return true; }
+                        if (!bServicePanelOpened)
+                        {
+                            Panel->SetServiceContext(PC->OwnerState.NearbyRestService);
+                            if (!Panel->OpenServicePanel() || !Panel->IsPanelOpen())
+                            {
+                                Check(false,TEXT("The remote owner opens the contextual NPC service panel"));
+                                return Finish();
+                            }
+                            bServicePanelOpened=true;
+                            return true;
+                        }
+                        if (!bNpcPurchaseSent)
+                        {
+                            const int64 Price=Content->Get().Parameters.NpcActivePoints;
+                            if (Growth->UnspentPoints<Price)
+                            {
+                                Check(false,TEXT("The remote owner has enough opening points for the NPC purchase"));
+                                return Finish();
+                            }
+                            NpcPurchaseRevision=Growth->BuildRevision;
+                            NpcPurchasePointsBefore=Growth->UnspentPoints;
+                            if (!Panel->BuyNpcOffer())
+                            {
+                                Check(false,TEXT("The remote owner submits the skill merchant purchase through the shared panel"));
+                                return Finish();
+                            }
+                            NpcPurchaseSentAt=FPlatformTime::Seconds();
+                            bNpcPurchaseSent=true;
+                            return true;
+                        }
+                    }
+                    else if (RestServiceStage==2)
+                    {
+                        bLeftFirstService |= PC->OwnerState.NearbyRestService==ELDRestService::None;
+                        if (bLeftFirstService && PC->HUDUI && PC->HUDUI->ChoicesPanel)
+                        {
+                            bServicePanelClosed |= !PC->HUDUI->ChoicesPanel->IsPanelOpen();
+                        }
+                        if (bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan)
+                        {
+                            Check(bLeftFirstService && bServicePanelOpened && bServicePanelClosed
+                                && bNpcPurchaseApplied && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan,
+                                TEXT("The non-host owner completes an NPC purchase, then the service panel closes on leaving before the next service"));
+                            if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
+                            RestServiceStage=3;
+                        }
+                    }
+                    if ((RestServiceStage==1 || RestServiceStage==2)
+                        && ((Nav->LatestReceipt().Identity==RestServiceOrder
+                            && (Nav->LatestReceipt().Status==ELDOrderStatus::Rejected
+                                || Nav->LatestReceipt().Status==ELDOrderStatus::Cancelled))
+                            || Nav->LocalIdentity()!=RestServiceOrder))
+                    {
+                        Error=FString::Printf(TEXT("Rest service walk did not continue: %u"),uint32(Nav->LatestReceipt().Failure));
+                        Check(false,TEXT("The remote owner can navigate to each rest service"));
+                        return Finish();
+                    }
+                }
+                if (!bRestReadySent && bRestPresentationSeen && PC->OwnerState.bCanRestReady
+                    && FPaths::FileExists(FPaths::Combine(Output,TEXT("RestServicesVisited.json"))))
+                {
+                    bRestReadySent=true;
+                    PC->SubmitRestReady(true);
+                }
+                bRestReadyProjected |= PC->OwnerState.bRestReady;
+                if (Role==TEXT("Host") && Mode && !bReadyWindowObserved && Line.ReadyContenders.Num()==3)
+                {
+                    const int64 Now=Mode->GetAuthorityNowMs();
+                    const int64 Remaining=Line.StepEndsAtMs-Now;
+                    if (Remaining>0 && Remaining<=10000)
+                    {
+                        bReadyWindowObserved=true;
+                        Check(Line.SignupOpensAtMs<=Now,TEXT("All three real owners shorten rest to the final ten-second window"));
+                    }
+                }
+            }
             if (!Body || !Movement || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive
                 || Public->PublicMatch.Generation!=PC->OwnerState.Match || Public->PublicMatch.Phase!=ELDMatchPhase::Development
-                || !Movement->CurrentFloor.IsWalkableFloor()
+                || PC->OwnerState.Life<2 || !Movement->CurrentFloor.IsWalkableFloor()
                 || !PC->CanWorldCommand() || !PC->ReadDemoAuthorityTimeMs(DisplayNowMs)) { return true; }
+            if (bEarlyRestReady)
+            {
+                Check(bRestPresentationSeen,TEXT("This owning connection sees both other players and all real shared training dummies"));
+                Check(bRestReadySent && bRestReadyProjected,TEXT("This owning connection submitted ready and received its owner projection"));
+                if (Role==TEXT("Host")) { Check(bReadyWindowObserved,TEXT("The host observed the shortened final window")); }
+            }
             Check(DisplayNowMs==Public->DemoClock.NowMs && Public->DemoClock.Generation==PC->OwnerState.Match,
                 TEXT("Owner display time reads the matching completed Core clock without local extrapolation"));
-            Check(Body->GetController()==PC && PC->OwnerState.Life==1 && PC->OwnerState.LifeRevision==1,
-                TEXT("Possession, body identity and logical first life agree"));
+            Check(Body->GetController()==PC && PC->OwnerState.Life==ObservedRestLife+1
+                && PC->OwnerState.LifeRevision==ObservedRestRevision+2,
+                TEXT("Possession, body identity and the first field life after the R0 rest life agree"));
             Check(PC->OwnerState.Hp*100==Content->Get().Parameters.MaxHP.BaseP2
                 && PC->OwnerState.Mp*100==Content->Get().Parameters.MaxMP.BaseP2,
                 TEXT("Approved P2 resources are projected from the sole Combat body record"));
-            Check(PC->OwnerState.ProtectedUntilMs==0,TEXT("Common initial-body path does not invent respawn protection"));
+            FieldStartedAtMs=Line.FieldStartedAtMs;
+            Check(Line.Stage==ELDMatchStage::Field && Line.FieldSegment==0 && FieldStartedAtMs>0
+                && PC->OwnerState.ProtectedUntilMs<=FieldStartedAtMs+Content->Get().Parameters.ProtectionMs,
+                TEXT("The first field life carries at most the shared R0 return protection"));
             Check(PC->CanWorldCommand(),TEXT("Owning connection can submit an ordinary ground intent"));
             Check(Nav->PredictedIdentity().Match==PC->OwnerState.Match && Nav->PredictedIdentity().Life==PC->OwnerState.Life,
                 TEXT("Idle saved moves retain the current match and life for native acknowledgements"));
@@ -613,9 +994,12 @@ public:
         }
         if (Stage==8 && FPaths::FileExists(FPaths::Combine(Output,TEXT("Continue.json"))))
         {
-            // Bodies block each other (#97), so the three owned bodies cannot all stand on the capture point: each role
-            // finishes on its own point of a ring around it, four capsule radii out, on the same open capture ground.
+            // A passing body can hold another role's goal (#97), so endpoint checks take turns after the shared walk/stop.
             const int32 Slot=Role==TEXT("Host")?0:Role==TEXT("Client1")?1:2;
+            const bool bHostArrived=FPaths::FileExists(FPaths::Combine(Output,TEXT("HostArrived.json")));
+            const bool bClient1Arrived=FPaths::FileExists(FPaths::Combine(Output,TEXT("Client1Arrived.json")));
+            if (!LDDemoCoreProbeDetail::CanStartArrival(Slot,bHostArrived,bClient1Arrived)) { return true; }
+            // The separate endpoints keep already-arrived bodies from holding another role's spot.
             const double Angle=Slot*UE_TWO_PI/3;
             ArrivalGoal=Goal->Position+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)
                 *4*Body->GetCapsuleComponent()->GetScaledCapsuleRadius();
@@ -625,9 +1009,8 @@ public:
         else if (Stage==9 && !Nav->HasMoveOrder() && Nav->LatestReceipt().Status==ELDOrderStatus::Completed
             && Nav->LatestReceipt().Failure==ELDOrderFailure::None)
         {
-            // The server completes the order with its own body inside the receipt's acceptance radius. The owning client's
-            // predicted foot is only kept within the engine's uncorrected position error of the server's, so that error
-            // bounds the client-side distance on top of the radius.
+            // For an unoccupied endpoint the server completes inside the receipt's acceptance radius. The owning client's
+            // predicted foot can differ by up to the engine's uncorrected position error.
             const FLDOrderReceipt& Arrived=Nav->LatestReceipt();
             const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
             // The reliable completion receipt can precede the final unreliable CMC correction under packet lag/loss.
@@ -637,9 +1020,9 @@ public:
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
                 && FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
-            Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==1,
+            Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==OriginalBody.Victim.Life,
                 TEXT("Navigation and corrections do not allocate a new body or life"));
-            if (!Mark(Role+TEXT("Arrived.json"))) { return Finish(); }
+            if (!Passed || !Mark(Role+TEXT("Arrived.json"))) { return Finish(); }
             Stage=10;
         }
         if (Stage==10 && AllMarkers(TEXT("Arrived.json")))
@@ -653,8 +1036,9 @@ public:
                     if (Pair.Value.Kind!=ELDVictimKind::Contender) { continue; }
                     const auto* Current=Pair.Value.Actor.Get();
                     const auto* Move=Current?Cast<ULDCharacterMovementComponent>(Current->GetCharacterMovement()):nullptr;
+                    // The field body exists from the R0 return (field 1 start); it integrates exactly that interval once.
                     Check(Move && !Move->IsComponentTickEnabled() && Move->AuthorityIntegrationCount>0
-                        && FMath::Abs(Move->AuthorityIntegratedSeconds-Mode->GetAuthorityNowSeconds())<.0001,
+                        && FMath::Abs(Move->AuthorityIntegratedSeconds-(Mode->GetAuthorityNowSeconds()-FieldStartedAtMs/1000.))<.0001,
                         TEXT("Each body integrates the match interval once, never native tick plus driver"));
                     if (Current && !Current->IsLocallyControlled())
                     {
@@ -662,8 +1046,7 @@ public:
                             TEXT("Real packed movement still runs native network bookkeeping without double simulation"));
                     }
                     const auto* Resource=Current?Mode->Combat->StateFor(Current):nullptr;
-                    Check(Resource && Resource->BasicTiming.IntervalMs>Resource->BasicTiming.WindupMs
-                        && Resource->BasicTiming.WindupMs==Content->Get().Parameters.BasicAttackWindupMs,
+                    Check(LDDemoCoreProbeDetail::MatchesCurrentBasicTiming(Resource,*Content),
                         TEXT("Registered body consumes the shared approved basic-timing evaluator"));
                 }
                 FString Blocker;
@@ -676,17 +1059,68 @@ public:
     }
 };
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoCoreProbeArrivalTurnTest, "Lockdown.Rules.DemoCoreProbe.ArrivalTurn",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoCoreProbeArrivalTurnTest::RunTest(const FString& Parameters)
+{
+    using LDDemoCoreProbeDetail::CanStartArrival;
+    TestTrue(TEXT("Host can start the first endpoint"),CanStartArrival(0,false,false));
+    TestFalse(TEXT("Client1 waits while the host can cross its goal"),CanStartArrival(1,false,false));
+    TestTrue(TEXT("Client1 can start after the host arrives"),CanStartArrival(1,true,false));
+    TestFalse(TEXT("Client2 waits until both earlier roles arrive"),CanStartArrival(2,true,false));
+    TestFalse(TEXT("Client2 cannot start if the host marker is missing"),CanStartArrival(2,false,true));
+    TestTrue(TEXT("Client2 can start after both earlier roles arrive"),CanStartArrival(2,true,true));
+    TestFalse(TEXT("Unknown roles cannot start"),CanStartArrival(3,true,true));
+
+    const FVector2D Goal(0,0), Foot(0,160);
+    const LDPathSteering::FBodyDisc PassingBody{FVector2D(0,70),40};
+    const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
+    TestTrue(TEXT("A passing body can legitimately complete a route beyond the strict endpoint check"),
+        LDPathSteering::BlockedAtHeldGoal(Foot,40,Goal,{PassingBody})
+        && FVector2D::Distance(Foot,Goal)>40+ClientErrorCm);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoCoreProbeGrowthTimingTest, "Lockdown.Rules.DemoCoreProbe.GrowthTiming",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoCoreProbeGrowthTimingTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    FString Error;
+    if (!TestTrue(TEXT("Approved runtime content"), LDDemoEntry::LoadRuntimeContent(Catalog,Error) && Catalog)) { return false; }
+    const auto Projection=LDAttributeProjection::Project(FLDAttributeBuildValues(3,{}),*Catalog);
+    if (!TestTrue(TEXT("Level-three attribute projection"),Projection.IsSuccess())) { return false; }
+    FLDBodyCombatState Body;
+    Body.AttributeProjection=Projection.Value.GetValue();
+    FLDBasicTimingInput Input;
+    Input.BaseAttackSpeed=Catalog->Get().Parameters.AttackSpeed.Base;
+    Input.CurrentAttackSpeed=Body.AttributeProjection.Final.AttackSpeed;
+    Input.BaseWindupMs=Catalog->Get().Parameters.BasicAttackWindupMs;
+    const auto Expected=LDTactical::EvaluateBasicTiming(Input,*Catalog);
+    if (!TestTrue(TEXT("Level-three basic timing"),Expected.IsSuccess())) { return false; }
+    Body.BasicTiming=Expected.Value.GetValue();
+    TestTrue(TEXT("Level growth changes the base windup"),Body.BasicTiming.WindupMs!=Catalog->Get().Parameters.BasicAttackWindupMs);
+    TestTrue(TEXT("Current projected timing is accepted"),LDDemoCoreProbeDetail::MatchesCurrentBasicTiming(&Body,*Catalog));
+    ++Body.BasicTiming.WindupMs;
+    TestFalse(TEXT("An incorrect current windup is rejected"),LDDemoCoreProbeDetail::MatchesCurrentBasicTiming(&Body,*Catalog));
+    return true;
+}
+
 void LDDemoTests::StartCoreProbe(ALDPlayerController& Controller)
 {
     if (!FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreProbe")) || !Controller.IsLocalController()
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName())!=LDDemoEntry::WorldMap) { return; }
     auto Probe=MakeShared<FLDDemoCoreProbe>();
-    int32 Timeout=120;
+    Probe->bEarlyRestReady=FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreReady"));
+    Probe->bReplayFieldReturn=FParse::Param(FCommandLine::Get(),TEXT("LDDemoCoreReplayFieldReturn"));
+    int32 Timeout=330;
     FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreTimeout="),Timeout);
     if (!FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreOutput="),Probe->Output)
         || !FParse::Value(FCommandLine::Get(),TEXT("LDDemoCoreRole="),Probe->Role)
         || (Probe->Role!=TEXT("Host") && Probe->Role!=TEXT("Client1") && Probe->Role!=TEXT("Client2"))
-        || Timeout<30 || Timeout>300
+        || Timeout<30 || Timeout>600
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(),TEXT("Artifacts"))))
     {

@@ -32,21 +32,22 @@ public:
     FLDDemoContentSnapshot& operator=(const FLDDemoContentSnapshot&) = delete;
     const FLDDemoContentDefinitions& Get() const { return Definitions; }
     bool FindAbility(const FString& Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const;
-    bool FindAttribute(const FString& Id, const FLDDemoAttributeDefinition*& Out, FString& Error) const;
-    bool FindOpeningCard(const FString& Id, const FLDDemoOpeningCardDefinition*& Out, FString& Error) const;
-    bool FindEquipment(const FString& Id, const FLDDemoEquipmentDefinition*& Out, FString& Error) const;
+    bool FindStat(const FString& Id, const FLDDemoStatDefinition*& Out, FString& Error) const;
+    // #198 B: a workshop component definition by canonical id.
+    bool FindComponent(const FString& Id, const FLDDemoComponentDefinition*& Out, FString& Error) const;
     bool FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
     bool FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const;
-    // #147 skill growth: Ability's rank row as its owner at Level uses it (LDSkillGrowth::GrowRank with SKILL.GrowthPerLevel).
-    // Null for an ability outside this snapshot, a missing rank or a level outside 1..MaxLevel. Stable for the snapshot's life.
-    const FLDDemoRankDefinition* FindRank(const FLDDemoAbilityDefinition& Ability, uint8 Rank, uint8 Level) const;
+    // #198 skill growth: Ability's value set as its owner at Level uses it (LDSkillGrowth::GrowValues with SKILL.GrowthPerLevel).
+    // Null for an ability outside this snapshot or a level outside 1..MaxLevel. Stable for the snapshot's life.
+    const FLDDemoAbilityValues* FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level) const;
 
 private:
     friend class ULDDemoContentCatalog;
     explicit FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In);
     FLDDemoContentDefinitions Definitions;
-    // Per ability (index into Definitions.Abilities): its rank rows grown for each level, rank-major.
-    TArray<TArray<FLDDemoRankDefinition>> GrownRanks;
+    // Per ability (index into Definitions.Abilities): its value set grown for each level 1..MaxLevel; unset where growth
+    // would overflow, which content validation refuses.
+    TArray<TArray<TOptional<FLDDemoAbilityValues>>> GrownValues;
 };
 
 class LOCKDOWN_API FLDDemoPreparedContent

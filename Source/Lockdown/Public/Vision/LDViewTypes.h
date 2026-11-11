@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Engine/NetSerialization.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDMatchTimeline.h"
 #include "Development/LDGrowthProtocol.h"
 #include "LDViewTypes.generated.h"
 
@@ -9,29 +10,30 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
-    constexpr uint32 Schema = 7;
+    // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
+    constexpr uint32 Schema = 8;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
     constexpr int32 CoverageBytes = CoverageCells / 8;
     // BeginMatch rejects a locked roster plus approved camp members that could exceed this. #97: derived from the
-    // approved content: one observer sees at most the five other contenders (3 humans + 3 AI), the 44 camp members of
-    // the 26 camps (8 high x 1, 18 low x 2) and the Boss, 50 units; the wire counts are uint8.
-    constexpr int32 MaxUnits = 50;
+    // approved content: one observer sees at most the five other contenders (3 humans + 3 AI), the 52 camp members of
+    // the 34 camps (18 low x 2, 12 high x 1, 4 elite x 1) and the Boss, 58 units; the wire counts are uint8.
+    // Lockdown.Rules.CampDecision fails when the approved camps outgrow this bound.
+    constexpr int32 MaxUnits = 58;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 14;
+    constexpr int32 MaxStatuses = 16;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 32;
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
-    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32, Actives = 64 };
-    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment | Actives;
+    // Bit 32 (the retired equipment slots, #144) is never reused.
+    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Actives = 64 };
+    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
-    // Highest public rank of a Q/W/E active: initial or advanced.
-    constexpr uint8 MaxActiveRank = 2;  // #147: 初级 and 高级
 }
 
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
@@ -60,20 +62,12 @@ struct FLDObservedStatus
     UPROPERTY() int64 ExpiresAtServerMs = 0; // 0 = untimed
 };
 
-USTRUCT()
-struct FLDObservedEquipmentView
-{
-    GENERATED_BODY()
-    UPROPERTY() uint8 Slots[2] = {0, 0}; // ELDDemoEquipmentId; 0 = empty slot
-};
-
-// The three Q/W/E actives of a visible contender and their ranks. No cooldown, passive, mana cost or other field.
+// The three Q/W/E actives of a visible contender (#198: an active has one level). No cooldown, mana cost or other field.
 USTRUCT()
 struct FLDObservedActivesView
 {
     GENERATED_BODY()
     UPROPERTY() uint8 Abilities[3] = {0, 0, 0}; // ELDDemoAbilityId in Q, W, E order; 0 = empty slot
-    UPROPERTY() uint8 Ranks[3] = {0, 0, 0};     // 1..MaxActiveRank with an ability, 0 for an empty slot
 };
 
 USTRUCT()
@@ -99,7 +93,6 @@ struct FLDObservedUnitView
     UPROPERTY() FLDObservedResource Health;
     UPROPERTY() FLDObservedResource Mana;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
-    UPROPERTY() FLDObservedEquipmentView Equipment;
     UPROPERTY() FLDObservedActivesView Actives;
 };
 
@@ -191,7 +184,6 @@ struct FLDObservedPublicFacts
 {
     uint8 Level = 0;
     uint8 CreatureId = 0;
-    FLDObservedEquipmentView Equipment;
     FLDObservedActivesView Actives;
     TArray<FLDObservedStatus> Statuses;
     // Combat's current action cue and the authority ms it started; None and 0 outside every cue window.
@@ -205,6 +197,7 @@ struct FLDObservedPublicFacts
 struct FLDObservedProjectileFact
 {
     FGuid Key;                                   // the release's EffectId
+    FGuid SourceEntity;                          // the releasing entity: its isolation group decides who may see it
     FVector PositionCm = FVector::ZeroVector;    // current centre; Z is the releasing foot height
     FVector2D Heading = FVector2D::ZeroVector;   // planar unit direction
     ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;
@@ -228,13 +221,16 @@ struct FLDOwnerState
     UPROPERTY() double Hp = 0;
     UPROPERTY() double MaxHp = 0;
     UPROPERTY() bool bReady = false;
+    UPROPERTY() bool bRestReady = false;
+    UPROPERTY() bool bCanRestReady = false;
+    UPROPERTY() ELDRestService NearbyRestService = ELDRestService::None;
     UPROPERTY() bool bLobbyHost = false;
     UPROPERTY() double Mp=0;
     UPROPERTY() double MaxMp=0;
     UPROPERTY() double Barrier=0;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;
-    // Growth/Shop: own gold, equipment, level, offer and shop session as one consistent owner projection.
+    // Growth: own level, XP and offer as one consistent owner projection.
     UPROPERTY() FLDGrowthOwnerView Growth;
 };
 

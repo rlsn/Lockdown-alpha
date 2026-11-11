@@ -3,7 +3,7 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,2400)][int]$
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoGrowth-OwnedShop-Packaged' } else { 'DemoGrowth-OwnedShop' })
+$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoGrowth-Owned-Packaged' } else { 'DemoGrowth-Owned' })
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
 # Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
 $evidence = $launch.ProbeOutput
@@ -17,22 +17,20 @@ $version = Get-LDProjectVersion
 $entryHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'Source\Lockdown\Public\Framework\LDDemoEntry.h') -Raw
 if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
 $wire = [int]$Matches[1]
-$checker = Join-Path $PSScriptRoot 'CheckEconomyEvidence.py'
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
-# Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
+# Every role must report the check groups it owns (PROGRESSION_AND_REWARDS §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Countdown','Opening','Ledger','Fixture','A14','N03','Iso','DevTest')
-    Client1 = @('Net','Start','Countdown','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A24','Iso','DevTest')
+    Host = @('Net','Start','Rest0','Rest','Opening','Fixture','A14','N03','Iso','DevTest')
+    Client1 = @('Net','Start','Rest0','Rest','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A24','Iso','DevTest')
 }
 
 function Start-GrowthRole {
     param([string]$Role,[string]$Url)
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host is a participating Listen Host with a real RHI main view and the DEV growth fixture that presets the buyer's
-    # offers and grants its own XP and gold; the owning client never carries the fixture and renders offscreen only for its
-    # shop review screenshot (#112 upgrade entries).
+    # The Host is a participating Listen Host with a real RHI main view and the DEV growth fixture that presets the owning
+    # client's active offers and grants its own XP; the owning client never carries the fixture and renders offscreen.
     $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port -LDDevGrowthFixture" } else { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthProbe -LDDemoGrowthRole={2} -LDDemoGrowthTimeout={3} -LDDemoGrowthOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
@@ -60,18 +58,6 @@ function Read-GrowthJson {
     Get-Content -LiteralPath (Join-Path $evidence $Name) -Raw | ConvertFrom-Json
 }
 
-# The independent replay of the exported ledger; a non-zero exit fails the run. The Host ran with the DEV growth fixture,
-# so its DevFixture mints are accepted only because they are declared here and listed in the evidence.
-function Assert-LedgerEvidence {
-    param([string]$Name)
-    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', $checker, '--dev-fixture', (Join-Path $evidence $Name)) -LogPath (Join-Path $output "$Name.check.txt")
-}
-
-function Get-ItemKeys {
-    param($Items)
-    @(@($Items) | Where-Object { $null -ne $_ } | ForEach-Object { '{0}|{1}|{2}' -f $_.instance, $_.definition, $_.slot } | Sort-Object)
-}
-
 try {
     Start-GrowthRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoGrowthHost'
     Wait-GrowthFiles @('HostReady.json')
@@ -95,110 +81,76 @@ try {
             if (@($reports[$role].checks | Where-Object { $_.id -eq $id }).Count -eq 0) { throw "$role report lacks its $id checks: $output" }
         }
     }
-    # D10: each owner opened both matches with exactly one pending opening choice; the buyer's first was its staged preset.
+    # D10: each owner opened both matches with exactly one queued opening opportunity and its unspent opening points; the
+    # client's first opening offer was its staged preset.
     foreach ($role in $roles) {
         foreach ($field in @('opening','second_opening')) {
             $row = $reports[$role].$field
-            if ($null -eq $row -or [long]$row.pending -ne 1 -or [long]$row.earned -ne 1 -or [long]$row.consumed -ne 0 -or [long]$row.ordinal -ne 1) {
-                throw "$role did not open its $field match with exactly one pending opening choice: $output"
+            if ($null -eq $row -or [long]$row.queued -ne 1 -or [long]$row.earned -ne 1 -or [long]$row.consumed -ne 0 -or
+                [long]$row.ordinal -ne 1 -or [long]$row.unspent_points -le 0) {
+                throw "$role did not open its $field match with exactly one queued opening opportunity and its opening points: $output"
             }
         }
         if ($reports[$role].opening.offer -eq $reports[$role].second_opening.offer) { throw "$role's second match reused its opening offer: $output" }
     }
-    if (-not $reports['Client1'].opening.staged_preset) { throw "The buyer's opening offer is not the Host's staged preset: $output" }
-    # #153: the remote owning connection had its move, Shift step, Q and buy refused during the opening countdown.
-    if (-not $reports['Client1'].countdown.refusals_checked -or [long]$reports['Client1'].countdown.started_at_ms -ne [long]$reports['Host'].countdown.started_at_ms) {
-        throw "The buyer's countdown refusals or the shared T=0 are missing from the reports: $output"
+    if (-not $reports['Client1'].opening.staged_preset) { throw "The client's opening offer is not the Host's staged preset: $output" }
+    # #198: in the opening rest R0 the remote owning connection learned its opening active into Q and allocated every opening
+    # point in the build step, then had its attack-move, Shift step and Q refused in the return countdown; both roles saw the
+    # same match start and field 1 start (T=0).
+    $rest0 = $reports['Client1'].rest0
+    $hostRest0 = $reports['Host'].rest0
+    if (-not $rest0.refusals_checked -or [long]$rest0.started_at_ms -ne [long]$hostRest0.started_at_ms -or
+        [long]$rest0.field_started_at_ms -ne [long]$hostRest0.field_started_at_ms -or
+        [long]$rest0.field_started_at_ms -le [long]$rest0.started_at_ms -or
+        -not $rest0.opening_active -or [long]$rest0.opening_slot -ne 0 -or
+        [long]$rest0.points_allocated -ne [long]$reports['Client1'].opening.unspent_points -or
+        [long]$rest0.max_hp_p2_after -le [long]$rest0.max_hp_p2_before) {
+        throw "The client's R0 refusals, opening learn, opening allocation or the shared field 1 start are missing from the reports: $output"
     }
     $hostReport = $reports['Host']
-    $buyer = $reports['Client1']
-    if (-not $hostReport.growth_fixture -or $buyer.growth_fixture -or -not $hostReport.buyer_killed) {
-        throw "Only the Host may run the DEV growth fixture, and it must have killed the buyer: $output"
+    $client = $reports['Client1']
+    # #198 mid rests: the first match crosses at least R1 for both roles; every rest retired the field life without a death
+    # (public death count unchanged), placed the rest life and returned the next field life, with T frozen at the segment end.
+    foreach ($role in $roles) {
+        $rests = @($reports[$role].rests)
+        if ($rests.Count -lt 1) { throw "$role crossed no mid rest in the first match: $output" }
+        foreach ($rest in $rests) {
+            if ([long]$rest.deaths_after -ne [long]$rest.deaths_before -or [long]$rest.rest_life -le [long]$rest.field_life_before -or
+                [long]$rest.field_life_after -ne [long]$rest.rest_life + 1 -or [long]$rest.rest -lt 1 -or [long]$rest.rest -gt 3) {
+                throw "$role's rest R$($rest.rest) counted a death or skipped its rest life: $output"
+            }
+        }
     }
-    # The Listen Host as killer: its contender and camp rewards reached its own view and HUD (the probe's N03 checks).
-    if ([long]$hostReport.host_killer.contender_gold -le 0 -or [long]$hostReport.host_killer.camp_kills -ne 2 -or
-        [long]$hostReport.host_killer.camp_gold -le 0) {
+    if (-not $hostReport.growth_fixture -or $client.growth_fixture -or -not $hostReport.buyer_killed) {
+        throw "Only the Host may run the DEV growth fixture, and it must have killed the owning client: $output"
+    }
+    # The Listen Host as killer: its contender and camp XP rewards reached its own view and HUD (the probe's N03 checks).
+    if ([long]$hostReport.host_killer.contender_xp -le 0 -or [long]$hostReport.host_killer.camp_kills -ne 2 -or
+        [long]$hostReport.host_killer.camp_xp -le 0) {
         throw "The Host's own kill rewards are missing from its report: $output"
     }
-    if (-not $buyer.replacement.track -or $buyer.replacement.track -ne $buyer.replacement.relearned_track -or
-        [long]$buyer.replacement.ready_at_ms -ne [long]$buyer.replacement.relearned_ready_at_ms -or
-        [long]$buyer.dead_choice.max_hp_p2_after -le [long]$buyer.dead_choice.max_hp_p2_before -or
-        [long]$buyer.dead_choice.respawned_life -ne [long]$buyer.dead_choice.life + 1) {
-        throw "The buyer's replacement or choice while dead is missing from its report: $output"
+    # #198 build safe window: the level offer kept as a blueprint and an allocation and a learn refused while it ran, then
+    # the learn into W and the allocation after it; while dead a blueprint kept, then learned into E after the respawn.
+    $window = $client.window
+    if ($window.stored_reason -ne 'NotSafe' -or $window.allocate_reason -ne 'NotSafe' -or $window.learn_reason -ne 'NotSafe' -or
+        [long]$window.learned_slot -ne 1 -or [long]$window.learn_sent_at_ms -lt [long]$window.passed_safe_at_ms -or
+        [long]$window.safe_at_ms -ge [long]$window.segment_ends_at_ms -or
+        [long]$window.points_allocated -le 0 -or [long]$window.max_hp_p2_after -le [long]$window.max_hp_p2_before) {
+        throw "The client's build safe window steps are missing from its report: $output"
     }
-    if ($buyer.match1.generation -ne $hostReport.match1.generation -or $buyer.second_generation -ne $hostReport.second_generation -or
-        $buyer.generation -ne $buyer.second_generation -or $hostReport.generation -ne $hostReport.second_generation -or
-        $buyer.second_generation -le $buyer.match1.generation) {
+    $dead = $client.dead_choice
+    if ($dead.stored_reason -ne 'Dead' -or [long]$dead.points_allocated -le 0 -or
+        [long]$dead.max_hp_p2_after -le [long]$dead.max_hp_p2_before -or
+        [long]$dead.respawned_life -ne [long]$dead.life + 1 -or [long]$dead.learned_slot -ne 2) {
+        throw "The client's build commands while dead or its learn after the respawn are missing from its report: $output"
+    }
+    if (-not $hostReport.opponent_view_checked) { throw "The Host never checked its opponent view of the buyer: $output" }
+    if ($client.match1.generation -ne $hostReport.match1.generation -or $client.second_generation -ne $hostReport.second_generation -or
+        $client.generation -ne $client.second_generation -or $hostReport.generation -ne $hostReport.second_generation -or
+        $client.second_generation -le $client.match1.generation) {
         throw "Roles did not observe the same first and second match generations: $output"
     }
-    foreach ($name in @('LedgerEvidence.json','LedgerEvidence2.json','LedgerEvidence3.json')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $evidence $name))) { throw "The Host exported no $name`: $output" }
-        # The independent replay of each exported ledger; a non-zero exit fails the run.
-        Assert-LedgerEvidence $name
-    }
-    # First match: the authority's final state must equal the owner's own projection at the end of that match.
-    $first = Read-GrowthJson 'LedgerEvidence.json'
-    $current = $first.current
-    # The only DevFixture mint of the run is the Host's own grant; the buyer's gold came from kills and trades.
-    $grants = @($first.devFixture.grants)
-    if (-not $first.devFixture.enabled -or $grants.Count -ne 1 -or $grants[0].account -ne $hostReport.match1.entity -or
-        [long]$grants[0].gold -ne [long]$hostReport.host_grant_gold -or [long]$first.devFixture.minted -ne [long]$hostReport.host_grant_gold) {
-        throw "The first match's ledger does not list exactly the Host's own DevFixture grant: $output"
-    }
-    $account = @($current.accounts | Where-Object { $_.id -eq $buyer.match1.entity })
-    if ($account.Count -ne 1 -or [long]$account[0].gold -ne [long]$buyer.match1.gold) {
-        throw "The first match's exported ledger and the owner projection disagree on the buyer's gold: $output"
-    }
-    $hostAccount = @($current.accounts | Where-Object { $_.id -eq $hostReport.match1.entity })
-    if ($hostAccount.Count -ne 1 -or [long]$hostAccount[0].gold -ne [long]$hostReport.match1.gold) {
-        throw "The first match's exported ledger and the Host's own projection disagree on the Host's gold: $output"
-    }
-    $ledgerItems = (Get-ItemKeys @($current.items | Where-Object { $_.owner -eq $buyer.match1.entity })) -join ','
-    if ($ledgerItems -ne ((Get-ItemKeys $buyer.match1.items) -join ',')) {
-        throw "The first match's exported ledger and the owner projection disagree on the buyer's items: $output"
-    }
-    # Second match: a fresh ledger under a new LedgerMatch with only the two contenders at the approved starting gold.
-    $second = Read-GrowthJson 'LedgerEvidence2.json'
-    $next = $second.current
-    if ($second.match -eq $first.match) { throw "The second match reused the first match's LedgerMatch: $output" }
-    if (-not $second.devFixture.enabled -or @($second.devFixture.grants).Count -ne 0 -or $second.devFixture.minted -ne '0') {
-        throw "The second match's ledger carries DevFixture mints: $output"
-    }
-    if ($second.prefix.throughSerial -ne '0' -or @($second.tail).Count -ne 0 -or $next.throughSerial -ne '0' -or
-        $next.issuedThrough -ne '0' -or $next.minted -ne '0' -or $next.burned -ne '0' -or @($next.items).Count -ne 0) {
-        throw "The second match's ledger is not freshly initialized: $output"
-    }
-    $accountIds = (@($next.accounts | ForEach-Object { $_.id }) | Sort-Object) -join ','
-    if ($accountIds -ne ((@($buyer.entity, $hostReport.entity) | Sort-Object) -join ',')) {
-        throw "The second match's ledger accounts are not exactly this match's two contenders: $output"
-    }
-    if (@($next.accounts | Where-Object { $_.gold -ne $second.startingGold -or $_.revision -ne '1' -or $_.retired }).Count -ne 0 -or
-        @($next.inventories | Where-Object { $_.revision -ne '1' }).Count -ne 0 -or [long]$buyer.match2_gold -ne [long]$second.startingGold) {
-        throw "A second-match account does not open at the approved starting gold and first revisions: $output"
-    }
-    # DEV test commands (#78), after the clean second ledger: exactly the two owners' own DEV gold grants are DevFixture mints;
-    # the buyer's DEV buy and sell are ordinary Buy/Sell entries, so its final gold and items equal the replayed ledger.
-    $third = Read-GrowthJson 'LedgerEvidence3.json'
-    if ($third.match -ne $second.match) { throw "The DEV-stage ledger is not the second match's: $output" }
-    $devGrants = @($third.devFixture.grants)
-    $buyerGrant = @($devGrants | Where-Object { $_.account -eq $buyer.entity })
-    $hostGrant = @($devGrants | Where-Object { $_.account -eq $hostReport.entity })
-    if (-not $third.devFixture.enabled -or $devGrants.Count -ne 2 -or $buyerGrant.Count -ne 1 -or $hostGrant.Count -ne 1 -or
-        [long]$buyerGrant[0].gold -ne [long]$buyer.dev_grant_gold -or [long]$hostGrant[0].gold -ne [long]$hostReport.host_dev_gold -or
-        [long]$buyer.dev_grant_gold -le 0 -or [long]$hostReport.host_dev_gold -le 0) {
-        throw "The DEV-stage ledger does not list exactly each owner's own DEV gold grant: $output"
-    }
-    $buyerAccount = @($third.current.accounts | Where-Object { $_.id -eq $buyer.entity })
-    if ($buyerAccount.Count -ne 1 -or [long]$buyerAccount[0].gold -ne [long]$buyer.final_gold -or
-        @($third.current.items | Where-Object { $_.owner -eq $buyer.entity }).Count -ne 0 -or @($buyer.final_items).Count -ne 0) {
-        throw "The DEV-stage ledger and the buyer's own projection disagree after its DEV buy and sell: $output"
-    }
-    $buyerResets = @($third.devFixture.resets | Where-Object { $_.account -eq $buyer.entity })
-    if ($buyerResets.Count -ne 2 -or @($buyerResets | Where-Object { $_.instance }).Count -ne 1 -or
-        @($third.devFixture.resets).Count -ne 2 -or [long]$buyer.final_gold -ne [long]$second.startingGold) {
-        throw "The DEV-stage ledger does not list exactly the buyer's reset (one item, one gold change back to the start): $output"
-    }
-    if (@($buyer.dev_test).Count -ne 16 -or @($hostReport.dev_test).Count -ne 3) {
+    if (@($client.dev_test).Count -ne 15 -or @($hostReport.dev_test).Count -ne 3) {
         throw "A DEV test step is missing from the reports: $output"
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
@@ -212,22 +164,22 @@ try {
         (Select-String -LiteralPath (Join-Path $output 'Client1.log') -Pattern 'LD_DEV_FIXTURE_ACTIVE' -Quiet)) {
         throw "LD_DEV_FIXTURE_ACTIVE must be logged by the Host and never by the owning client: $output"
     }
-    Write-Host ("DEV-only owned-connection growth/shop scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
-        "stages the buyer's offers in the Lobby) plus one owning client; each owner opened each match with exactly one pending opening " +
-        "choice, never re-granted by a respawn; level $($buyer.match1.level) from $($buyer.kills) kills, buy x2 / full / " +
-        "replay / sell / outside at the shop; Q's cooling rank-2 skill replaced after a refused " +
-        "unconfirmed pick, relearned at rank 1 on its old track and deadline; after the Host's own DevFixture grant it killed the buyer, " +
-        "which chose while dead without revive or heal and respawned full; the Host's own kill and two low-camp last hits paid their " +
-        "exact rewards into its own view and rendered HUD; first ledger replayed with --dev-fixture and equal to both owner projections. " +
-        "The Host then ended the match " +
-        "(no winner) and returned to Lobby generation $($buyer.second_generation): a second normal match started both owners at clean " +
-        "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, opened a fresh shop quote with nothing to sell " +
-        "and opened a fresh ledger under a new LedgerMatch (replayed). DEV test commands: the buyer through its remote owner RPC " +
-        "(stale match, replay and conflict refused or answered without a second commit; gold grant, buy and sell away from the shop, " +
-        "cooldown reset, refill, learn on the open opportunity, learn without one refused, a DEV AD term shown as its own row " +
-        "and cleared, a reset to the match start booked as DevReset entries, a match-wide camp refresh refused) and the Host " +
-        "through its own as Listen Host (gold grant, camp refresh, early capture opening); " +
-        "the DEV-stage ledger replayed with --dev-fixture lists exactly both owners' grants. " +
+    Write-Host ("DEV-only owned-connection growth scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
+        "stages the client's active offers in the Lobby) plus one owning client; each owner opened each match with exactly one queued " +
+        "opening opportunity and its opening points, never re-granted by a respawn; the client learned its opening active into Q and " +
+        "allocated its opening points in the opening rest R0; level $($client.match1.level) from $($client.kills) kills across " +
+        "$(@($client.rests).Count) mid rest(s), each retiring the field life without a death and returning the next field life with " +
+        "field T frozen through it (both roles hold through every rest; the client never died before it asked to); after the kill " +
+        "reaching the first offer level its choice was kept as a blueprint and an allocation and a learn were refused (NotSafe) while " +
+        "its build safe window ran, then the blueprint was learned into W and every point allocated after it; after the Host's own " +
+        "DevFixture XP grant it killed the client, which kept its next choice as a blueprint, had a learn refused and allocated points " +
+        "while dead without revive or heal, respawned full and learned the blueprint into E; the Host's own kill and two low-camp last " +
+        "hits paid their exact XP rewards into its own view and rendered HUD. The Host then ended the match (no winner) and returned to " +
+        "Lobby generation $($client.second_generation): a second normal match started both owners at clean growth, point and cooldown " +
+        "state and refused the first match's choice and receipt query. DEV test commands: the client through its remote owner RPC " +
+        "(stale match, replay and conflict refused or answered without a second commit; cooldown reset, refill, a DEV learn and its " +
+        "refused repeat, a DEV allocation and its refused overdraw, a DEV AD term shown as its own row and cleared, a reset to the match " +
+        "start, a match-wide camp refresh refused) and the Host through its own as Listen Host (camp refresh, early capture opening). " +
         "Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {

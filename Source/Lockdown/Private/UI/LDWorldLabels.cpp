@@ -1,5 +1,6 @@
 #include "UI/LDWorldLabels.h"
 #include "Core/LDLog.h"
+#include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
@@ -12,6 +13,9 @@
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "World/LDRestServiceNPC.h"
+#include "World/LDTrainingRoomDisplay.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Fonts/FontMeasure.h"
@@ -26,6 +30,7 @@ namespace
 // high-tier camp body larger, so its label sits higher; the own body's bars sit at a contender label's height.
 double WorldLabelHeadroomCm(const LDWorldLabels::FLabel& Label)
 {return Label.bContender?120.:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?175.
+    :Label.CreatureId==uint8(ELDDemoMonsterId::MonsterAdvisor)?160.
     :Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?150.:120.;}
 constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
@@ -36,6 +41,7 @@ constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
 float WorldBarWidth(const LDWorldLabels::FLabel& Label)
 {return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?110.f
+    :Label.CreatureId==uint8(ELDDemoMonsterId::MonsterAdvisor)?96.f
     :Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?84.f:64.f;}
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
 const FLinearColor WorldLabelCampInk(1.f,.8f,.42f);
@@ -55,8 +61,11 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::Silence: return FLinearColor(.62f,.48f,1.f);
     case ELDDemoStatusId::Burn: return FLinearColor(1.f,.36f,.12f);
     case ELDDemoStatusId::AttackSlowed: return FLinearColor(.65f,.4f,.9f);
-    case ELDDemoStatusId::Cowering: return FLinearColor(.95f,.8f,.3f);
-    case ELDDemoStatusId::ContactGuard: return FLinearColor(.3f,.9f,.8f);
+    // #198: wet water blue, electrified spark yellow-white, the S16 stance steel, the S21 cut sour green.
+    case ELDDemoStatusId::Wet: return FLinearColor(.3f,.6f,1.f);
+    case ELDDemoStatusId::Electrified: return FLinearColor(.85f,.95f,.3f);
+    case ELDDemoStatusId::Braced: return FLinearColor(.7f,.8f,.95f);
+    case ELDDemoStatusId::Soured: return FLinearColor(.55f,.8f,.25f);
     default: return WorldLabelStatusInk;
     }
 }
@@ -120,11 +129,12 @@ void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
 int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
-    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());const UWorld* World=GetWorld();
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());UWorld* World=GetWorld();
     const ALDGameState* Public=World?World->GetGameState<ALDGameState>():nullptr;
     FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
     // Nothing is drawn before the display content was tried, so a first frame never flashes fallback ids.
     if(!bDisplayContentTried||!PC||!Public||!Renderer){return Base;}
+    if(PC->HUDUI){PC->HUDUI->PaintWorldPreviews(G,E,Base+1);}
     const FLDOwnerState& Own=PC->OwnerState;
     // Only the current authorized frame of this match and life, read on every paint: a dead, stale or foreign frame
     // labels nothing, and no unit outlives the frame that lists it (no LastSeen).
@@ -136,7 +146,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
     const ALDCharacter* OwnBody=SelfBars.bVisible?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
-    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base;}
+    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base+1;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
@@ -188,6 +198,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
     }
     TArray<FSlateRect> Placed;
+    const TArray<FSlateRect> HudReserved=PC->HUDUI?PC->HUDUI->WorldLabelReservedAreas(G):TArray<FSlateRect>();
     FVector2D OwnScreen;
     if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
     {
@@ -245,8 +256,33 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     {
         LDWorldLabels::FLabel Label;
         float CentreX=0.f,Bottom=0.f,LeftReach=0.f,RightReach=0.f,Height=0.f,Row=0.f;
+        bool bPublicService=false;
     };
     TArray<FPending> Pending;
+    if(Public->PublicMatch.Generation==Own.Match&&Public->PublicMatch.Phase==ELDMatchPhase::Rest)
+    {
+        const auto PublicLabel=[&](const FVector& Position,const FString& Name)
+        {
+            FVector2D Screen;
+            if(!PC->ProjectWorldLocationToScreen(Position,Screen)){return;}
+            FPending Entry;Entry.Label.Name=Name;Entry.bPublicService=true;
+            Entry.CentreX=float(Screen.X)*ToLocalX;Entry.Bottom=float(Screen.Y)*ToLocalY;
+            if(Culled(Entry.CentreX,Entry.Bottom)){return;}
+            const FVector2f Extent=FontMeasure->Measure(Name,CampFont);
+            Entry.LeftReach=Entry.RightReach=Extent.X*.5f;Entry.Height=Extent.Y;
+            Pending.Add(MoveTemp(Entry));
+        };
+        for(TActorIterator<ALDRestServiceNPC> It(World);It;++It)
+        {
+            const ELDRestService Service=It->GetService();
+            const FString Name=Service==ELDRestService::SkillMerchant?TEXT("技能商人 · 主动技能")
+                :Service==ELDRestService::ComponentArtisan?TEXT("构件工匠 · 构件整理")
+                :Service==ELDRestService::Trainer?TEXT("训练师 · 属性与技能"):TEXT("");
+            if(!Name.IsEmpty()){PublicLabel(It->GetActorLocation()+FVector(0,0,120),Name);}
+        }
+        for(TActorIterator<ALDTrainingRoomDisplay> It(World);It;++It)
+        {PublicLabel(It->GetActorLocation()+FVector(7500,950,40),TEXT("训练区 · 共享假人"));}
+    }
     if(Frame)
     {
         for(const FLDObservedUnitView& Unit:Frame->Units)
@@ -256,7 +292,13 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(!Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Centre)){continue;}
             const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
             FPending Entry;
-            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::RosterName(Public->DemoLobby,Unit.ContenderId):FString(),Content,Frame->SampledAtServerSec);
+            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::ObservedContenderName(Public->DemoLobby,Unit.ContenderId,
+                Public->PublicMatch.Phase==ELDMatchPhase::Rest):FString(),Content,Frame->SampledAtServerSec);
+            if(bContender)
+            {
+                const FString Relation=LDHUD::PKRelationText(Public->PublicMatch,Own.ContenderId,Unit.ContenderId);
+                if(!Entry.Label.Name.IsEmpty()&&!Relation.IsEmpty()){Entry.Label.Name+=TEXT(" · ")+Relation;}
+            }
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;
             if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}
@@ -292,11 +334,35 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         for(bool bMoved=true;bMoved;)
         {
             bMoved=false;
+            for(const FSlateRect& Other:HudReserved)
+            {
+                if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
+                {Bottom=Other.Top-2.f;bMoved=true;}
+            }
             for(const FSlateRect& Other:Placed)
             {
                 if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top){Bottom=Other.Top-2.f;bMoved=true;}
             }
         }
+        if(Entry.bPublicService&&Bottom<Entry.Height)
+        {
+            Bottom=Entry.Bottom+Entry.Height+2.f;
+            for(bool bMoved=true;bMoved;)
+            {
+                bMoved=false;
+                const auto MoveBelow=[&](const TArray<FSlateRect>& Areas)
+                {
+                    for(const FSlateRect& Other:Areas)
+                    {
+                        if(Left<Other.Right&&Right>Other.Left&&Bottom-Entry.Height<Other.Bottom&&Bottom>Other.Top)
+                        {Bottom=Other.Bottom+Entry.Height+2.f;bMoved=true;}
+                    }
+                };
+                MoveBelow(HudReserved);MoveBelow(Placed);
+            }
+            if(Bottom>Size.Y){continue;}
+        }
+        if(Bottom<Entry.Height){continue;}
         Placed.Add(FSlateRect(Left,Bottom-Entry.Height,Right,Bottom));
         const LDWorldLabels::FLabel& Label=Entry.Label;
         const float CentreX=Entry.CentreX;

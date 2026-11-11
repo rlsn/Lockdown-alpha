@@ -194,6 +194,8 @@ FLinearColor ULDHumanoidVisualComponent::MonsterTint(uint8 CreatureId)
     case ELDDemoMonsterId::MonsterGuardian: return FLinearColor(.42f,.03f,.05f);
     // D26 画饼老板: a dark gold that reads apart from both camp tiers.
     case ELDDemoMonsterId::MonsterDean: return FLinearColor(.55f,.38f,.04f);
+    // #97 Elite 催毕设的导师: a deep violet, apart from the navy Low suit and the red High hoodie.
+    case ELDDemoMonsterId::MonsterAdvisor: return FLinearColor(.22f,.04f,.38f);
     default: return FLinearColor(.3f,.3f,.3f);
     }
 }

@@ -46,13 +46,6 @@ namespace LDOrderRules
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
         const FVector& GroundCm);
 
-    // Where a right click on the stall model walks to: the point nearest FromCm on the stall's planar footprint grown by
-    // the body radius, so the body stands right beside the model, never inside it (the decoration has no collision). Planar; Z is FromCm's. Returns false when FromCm already
-    // touches that grown footprint (the body stays where it is) or the footprint is empty.
-    LOCKDOWN_API bool ShopFrontPoint(const FBox2D& FootprintCm, const FVector& FromCm, double BodyRadiusCm, FVector& OutCm);
-    // Candidate goals from Front back toward From every StepCm (Front first, From last): the first reachable one is the
-    // nearest walkable point beside the stall.
-    LOCKDOWN_API TArray<FVector> ShopStopCandidates(const FVector& FrontCm, const FVector& FromCm, double StepCm);
 
     // Shift queue (2026-11-06 user decision): Shift + right click / A-click / Q W 1 2 D appends a step behind the current
     // order instead of replacing it. At most MaxQueuedSteps steps wait; a further Shift command is refused (QueueFull).
@@ -80,12 +73,6 @@ namespace LDOrderRules
     // order, the pending request and the shift queue as they were. Only a ready entry goes on (the own ability windup,
     // Busy, only delays it); an admitted request then replaces the order or drops the queue as before.
     LOCKDOWN_API bool SkillRequestReady(ELDCombatReject Unavailable);
-
-    // #153 opening countdown (2026-11-07 user decision: "开局五秒允许移动和选技能,但不允许攻击和购买"): before T=0 a
-    // movement order (ground move or the walk to the shop, Shift-queued or not) and the D dash are admitted; attack and
-    // cast orders and Q/W are refused. Trades are refused by the shop itself.
-    LOCKDOWN_API bool CountdownAdmitsOrder(const FLDSpatialOrderRequest& Request);
-    LOCKDOWN_API bool CountdownAdmitsAction(ELDCombatEntry Entry);
 
     // A taunt forces the one current order of a body (CONTENT_AND_BALANCE 15.5): Begin replaces any other order (or a
     // forced chase of an earlier taunter), Keep advances the forced chase, End returns control when the taunt is gone

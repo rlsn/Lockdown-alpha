@@ -4,7 +4,7 @@
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Region/LDMapRegistry.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Vision/LDVisionDirector.h"
@@ -57,7 +57,7 @@ void ALDGameState::SyncAirdropMarker()
 {
     UWorld* World=GetWorld();
     const FLDAirdropView& Drop=PublicMatch.Airdrop;
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Countdown||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Rest||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     const bool bShow=bActive&&Drop.Phase!=ELDAirdropPhase::None&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
         &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
@@ -119,7 +119,7 @@ void ALDGameState::ClearDormMarkers()
 void ALDGameState::SyncDormMarkers()
 {
     UWorld* World=GetWorld();
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Countdown||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Rest||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     // Like the flagpole boundary: Demo world presentation only, rebuilt for each match generation.
     const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
@@ -162,7 +162,7 @@ void ALDGameState::SyncDormMarkers()
 void ALDGameState::SyncCaptureMarker()
 {
     UWorld* World=GetWorld();
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Countdown||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Rest||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     // The boundary belongs to the Demo world's presentation; fixture worlds without its registry show none.
     const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
@@ -396,6 +396,14 @@ void ALDGameMode::Logout(AController* Exiting)
         Left.Change=ELDLifeChange::Left;
         Left.OccurredAtMs=AuthorityNowMs;
         RemoveLifeBinding(Session);
+        // #198: a leaver is out of the rest sign-up and of every pending rest placement (locked PK entrants stay for D).
+        RestSignups.Remove(Session);
+        PendingPhasePlacement.Remove(Session);
+        RestLives.Remove(Session);
+        // #198 session D: a PK entrant that leaves forfeits (ALDPKDirector reads presence at its next judgement).
+        PKLives.Remove(Session);
+        RestReturns.Remove(Session);
+        RetireTrainingDummy(Session);
         Record->State.bActive=false;
         if (MatchPhase!=ELDMatchPhase::Lobby) { Record->bLeft=true; }
         if (InMatch)
@@ -484,8 +492,11 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
             return;
         }
         State->Match=MatchContext.Generation;
-        // Growth/Shop: the owner's gold, equipment, level, offer and shop session in the same publication.
-        State->Growth=Economy?Economy->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
+        State->bRestReady=IsRestReady(State->ContenderId);
+        State->bCanRestReady=CanRestReady(State->ContenderId);
+        State->NearbyRestService=NearbyRestService(State->ContenderId);
+        // Growth: the owner's level, XP and offer in the same publication.
+        State->Growth=Growth?Growth->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;
         PC->OwnerState=*State;
         if (PC->IsLocalController()) { PC->OnRep_OwnerState(); }

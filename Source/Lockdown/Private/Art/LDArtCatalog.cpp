@@ -9,7 +9,7 @@ namespace
 {
     const TCHAR* const ArtAnimIds[] = { TEXT("Idle"), TEXT("Run"), TEXT("Attack"), TEXT("Cast"), TEXT("Hit"), TEXT("Death"), TEXT("Spawn") };
     static_assert(UE_ARRAY_COUNT(ArtAnimIds) == LDArt::AnimCount, "Every presentation state needs exactly one stable id.");
-    const TCHAR* const ArtZoneIds[] = { TEXT("outside"), TEXT("wall_base"), TEXT("capture"), TEXT("shop"), TEXT("blocker"), TEXT("ground") };
+    const TCHAR* const ArtZoneIds[] = { TEXT("outside"), TEXT("wall_base"), TEXT("capture"), TEXT("blocker"), TEXT("ground") };
     static_assert(UE_ARRAY_COUNT(ArtZoneIds) == int32(ELDArtZone::Count), "Every placement zone needs exactly one stable id.");
     // A flinch reads as a hit only if it ends before the next blow of a fast exchange.
     constexpr float ArtHitMaxSec = .3f;
@@ -156,9 +156,10 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         { return ArtFail(Error, FString::Printf(TEXT("Seat look %d must be seat %d with a catalog character, found seat %d '%s'."), Seat, Seat, Seats[Seat].Seat, *Seats[Seat].Character)); }
         Out.Seats[Seat] = Body;
     }
-    // The two camp tiers, then the D26 Boss (its own taller body, so it reads apart from the tier it resembles).
+    // The Low and High camp tiers, the D26 Boss (its own taller body, so it reads apart from the tier it resembles),
+    // then the #97 Elite tier (a taller body of its own).
     const uint8 Tiers[] = { uint8(ELDDemoMonsterId::MonsterScavenger), uint8(ELDDemoMonsterId::MonsterGuardian),
-        uint8(ELDDemoMonsterId::MonsterDean) };
+        uint8(ELDDemoMonsterId::MonsterDean), uint8(ELDDemoMonsterId::MonsterAdvisor) };
     if (Monsters.Num() != UE_ARRAY_COUNT(Tiers))
     { return ArtFail(Error, FString::Printf(TEXT("Expected %d monster looks, found %d."), int32(UE_ARRAY_COUNT(Tiers)), Monsters.Num())); }
     for (int32 Index = 0; Index < Monsters.Num(); ++Index)
@@ -210,7 +211,6 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         Placed.Add(Decoration.Prop);
         Out.DecorationProps.Add(Prop);
         Out.DecorationTransforms.Add(Decoration.Transform);
-        if (Decoration.Zone == ELDArtZone::Shop) { Out.ShopModelBounds.Add(Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform)); }
     }
     for (const FString& Blocker : HiddenBlockers)
     {

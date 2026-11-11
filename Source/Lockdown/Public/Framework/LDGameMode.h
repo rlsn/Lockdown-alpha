@@ -4,11 +4,15 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/GameStateBase.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDMatchTimeline.h"
+#include "Development/LDProgressionRules.h"
 #include "Framework/LDCaptureReducer.h"
 #include "Framework/LDMatchProviders.h"
 #include "World/LDCaptureCircle.h"
 #include "World/LDCaptureMarker.h"
 #include "World/LDAirdrop.h"
+#include "World/LDCharms.h"
+#include "World/LDFieldMarkers.h"
 #include "World/LDDormZones.h"
 #include "World/LDLeaderNotice.h"
 #include "World/LDDormMarker.h"
@@ -86,6 +90,7 @@ struct FLDCampMemberSpawn
     FGuid EntityId;
     ALDCharacter* Body=nullptr;
     FName MonsterId;
+    uint8 CampStage=0; // #97 growth stage of this life; the Boss is always 0
 };
 struct FLDContenderRecord
 {
@@ -119,9 +124,84 @@ public:
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
-    // #153 opening countdown: the write gate is open (the clock, movement, the dash, the opening choice and leaves commit),
-    // but no attack, Q/W or trade is admitted and camps stay idle until the match's T=0 (LDOrderRules::CountdownAdmits*).
-    bool IsOpeningCountdown(const FLDMatchContext& Context) const;
+    // ---- #198 rest phases and field clock (Framework/LDGameModeRest.cpp) ----
+    // A rest of the current match is running (any step); the world (camps, Boss, airdrop, leader) is frozen.
+    bool IsRestPhase(const FLDMatchContext& Context) const;
+    // The rest return countdown: build and every input (orders, attacks, casts, dash) are locked.
+    // #198 session D: the PK ready countdown locks every input too, and while the PK runs only PK lives act (spectators
+    // and the eliminated watch). Contender: the acting contender (invalid: judged as a non-PK life).
+    bool IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender = FGuid()) const;
+    // Build-command stage for the growth domain: Live in the field, Rest in the open rest steps (build/training and the
+    // payout), RestLocked in every other rest step, Closed otherwise.
+    LDProgression::EMatchStage ReadBuildStage(const FLDMatchContext& Match) const;
+    // Field progress T (ms) at the current authority instant; frozen outside the field, 0 before the first field.
+    int64 GetFieldNowMs() const;
+    bool IsFieldRunning() const;
+    // The authority ms at which T reaches FieldAtMs inside the running segment; MAX_int64 when the field is not running,
+    // it is already reached, or it lies after this segment's end. For driver step planning.
+    int64 FieldDueAuthorityMs(int64 FieldAtMs) const;
+    // Next timeline boundary (rest step end or segment end); MAX_int64 in the final field or outside a match.
+    int64 NextTimelineDueMs() const;
+    const FLDMatchTimeline& GetTimeline() const { return Timeline; }
+    // Field respawn wait of a death at field progress FieldT (approved 8/10/12/15 s by segment).
+    int64 RespawnWaitAtFieldMs(int64 FieldT) const;
+    // RespawnsAndWorld: settles every timeline transition due at this boundary except the build lock, which waits for
+    // the same boundary's Transactions so operations committed at the deadline count. False only on an authority fault.
+    bool AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions (after the growth commands of the boundary): locks the build and the PK entrants when due.
+    bool LockTimelineBuild(const FLDGameplayWritePermit& Permit, FString& Error);
+    // The field world pauses at a field -> rest boundary and resumes at rest -> field (RespawnsAndWorld permit). Other
+    // world owners (charms, ...) add their own rest entry/exit here.
+    bool EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
+    // #198 站圈报名: the contender's PK sign-up disk in the shared rest room (its roster
+    // slot's pk_signup anchor, radius AIRDROP.PickupRadiusCm); false when the world or the slot has none.
+    bool SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, double& OutRadiusCm) const;
+    // The locked PK entrants of the current rest (sorted); empty before the lock or when PK was skipped.
+    const TArray<FGuid>& GetLockedEntrants() const { return LockedEntrants; }
+    // Session D: a running PK ended early at this boundary (a side won or a draw was decided).
+    bool FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Whether a contender currently has a shared-room rest life, not a field or PK life.
+    bool IsInRestSpace(const FGuid& Contender) const;
+    static FGuid RestIsolationGroup() { return FGuid(0x198, 0x52455354, 0x4c4f554e, 0x47450001); }
+    ELDRestService NearbyRestService(const FGuid& Contender) const;
+    bool CanUseRestService(const FGuid& Contender, ELDBuildCommandKind Kind) const;
+    bool IsRestReady(const FGuid& Contender) const { return RestReady.Contains(Contender); }
+    bool CanRestReady(const FGuid& Contender) const;
+    ELDRestReadyResult SubmitRestReady(ALDPlayerController& Controller, uint32 Generation, uint8 RestIndex, int64 StartedAtMs, bool bReady);
+    // ---- #198 session D: PK lives (Framework/LDGameModePK.cpp). A PK life is a rest-phase life in the arena: no capture
+    // eligibility, no protection, no field respawn; its death returns the contender to its rest space at once. ----
+    struct FLDPKPlacement
+    {
+        FGuid Contender;
+        FName Anchor;
+        FGuid Group;
+        uint8 Side = 0;
+    };
+    // RespawnsAndWorld: each listed contender's rest life retires, then a PK life is prepared for every entrant at its
+    // anchor in Group with Side (full resources, every cooldown ready). The bodies stand only together (bPlaced); while
+    // any anchor is blocked nobody stands and the entry waits, tried again every boundary (approved outer parameters §1:
+    // entry freezes while the scene is not ready). False only on an authority fault.
+    bool EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit, bool& bPlaced, FString& Error);
+    // RespawnsAndWorld: every living PK life retires and stands again in its rest space (blocked: pending placement).
+    bool ReturnPKLivesToRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool IsPKLife(const FGuid& Contender) const { return PKLives.Contains(Contender); }
+    // Whether a PK entry still waits for its bodies.
+    bool IsPKEntryWaiting() const { return !PendingPKEntry.IsEmpty(); }
+    // The current living body of a contender and its committed foot; false when it has none.
+    bool ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBody, FVector& OutFootCm) const;
+    // Inside an authority step, after Motion: the native motion the contender's living body completed in this step;
+    // null when it has none.
+    const FLDNativeMotionBatch* ReadStepMotion(const FGuid& Contender) const;
+    bool IsContenderPresent(const FGuid& Contender) const { return IsMemberPresent(Contender); }
+    const TArray<FGuid>& GetRosterOrder() const { return RosterOrder; }
+    // Shared training dummies keep each slot's generation-time level chassis and no build; they grant nothing.
+    bool IsTrainingDummy(const FGuid& Entity) const { return TrainingDummyIds.Contains(Entity); }
+    // Motion: the dummy integrates zero input (only forced motion such as a knockback moves it).
+    bool AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Owner-only: queues a reset of the owner's training (owner and dummy refilled, every cooldown ready, every training
+    // effect and status cleared) for the next boundary.
+    ELDTrainingResetResult SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation, uint32 Life, uint8 RestIndex, int64 StartedAtMs);
     const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
     double GetAuthorityNowSeconds() const { return AuthorityNowSeconds; }
     int64 GetAuthorityNowMs() const { return AuthorityNowMs; }
@@ -145,8 +225,6 @@ public:
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
-    // #153: the countdown's end (T=0) is an exact step boundary; MAX_int64 outside the countdown.
-    int64 NextCountdownDueMs() const;
     // D21 (#79): the public dorm disks of this match; empty outside a running match.
     const FLDDormZones& GetDormZones() const { return DormZones; }
     // D26 (#79): the current airdrop of this match; inactive outside a running match.
@@ -158,11 +236,39 @@ public:
     bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
+    // #198 field charms (World/LDCharms.h, Framework/LDGameModeCharms.cpp), keyed to field progress T.
+    const FLDCharmState& GetCharms() const { return Charms; }
+    // RespawnsAndWorld, after AdvanceAirdrop and only while a field segment runs: expires charms and places due waves.
+    // False only on an authority fault.
+    bool AdvanceCharms(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions: each lying charm goes to one eligible contender inside its disk and applies its effect through Combat.
+    bool ClaimCharms(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld at a field-to-rest boundary: every unclaimed charm leaves without any reward.
+    bool EndCharmsForRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Driver step planning: the authority instant of the next charm wave or expiry in the running field, MAX_int64 when none.
+    int64 NextCharmDueMs() const;
+    // #198 outer §5 camp markers (World/LDFieldMarkers.h, Framework/LDGameModeFieldMarkers.cpp), keyed to field progress T.
+    const FLDFieldMarkerState& GetFieldMarkers() const { return FieldMarkers; }
+    // RespawnsAndWorld, only while a field segment runs: reveals the segment's markers when due. False only on a fault.
+    bool AdvanceFieldMarkers(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld at a field-to-rest boundary: the segment's unclaimed markers expire without any reward.
+    bool EndFieldMarkersForRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    int64 NextFieldMarkerDueMs() const;
+    // DeathsAndRewards (camp owner, after the death that cleared CampId at field progress FieldMs): the first clear of a
+    // revealed marker's camp gives its credit owner the marker reward once. Without an eligible contender owner it stays open.
+    bool ConsumeCampClear(FName CampId, const FGuid& ClearOwner, int64 FieldMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    // DeathsAndRewards or Transactions: pays one map event reward (#198 G) through the growth composite. A retryable
+    // refusal stays owed and is retried at each later Transactions boundary; any other refusal is an authority fault.
+    bool PayFieldReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, ELDFieldRewardKind Kind,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions: retries every owed map event reward once.
+    bool RetryFieldRewards(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld: retires a living camp body (the Boss leaving the field) without a death: no kill credit, reward
+    // or refresh. The camp owner destroys its actor afterwards.
+    bool RetireCampBody(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     // D27 (#79) 上热搜: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
     bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
     int64 NextLeaderDueMs() const;
-    // The bounty a kill of Victim earns now (zero unless Victim is the shown leader); Combat locks it at the fatal moment.
-    int64 LeaderBountyFor(const FGuid& Victim) const;
     const FLDLeaderState& GetLeaderNotice() const { return LeaderNotice; }
     // A world owner (the camp director's Boss) changed what the public match view shows.
     void MarkPublicMatchDirty() { bPublicMatchDirty = true; }
@@ -188,9 +294,10 @@ public:
     FLDPublicMatchView ReadPublicMatch() const;
     FLDAIRegistrationResult RegisterAIContender(AController& Controller, uint8 RosterSlot, const FLDMatchContext& Match);
     FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
-    // Server-only opening intent: draws once while a registered opponent binds during match preparation.
-    // Seed records the stream state before these two draws, so the plan can be replayed without a new RNG.
-    bool DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, uint8& Index, int32& Seed, FString& Error);
+    // Server-only opening timing: draws once while a registered opponent binds during match preparation (#198: the moment
+    // from which it makes its countdown build decisions). Seed records the stream state before the draw, so the plan can
+    // be replayed without a new RNG.
+    bool DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, int32& Seed, FString& Error);
     // ---- Playtest log (Framework/LDGameModeTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
     // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only).
     void LogPlaytestHeartbeat();
@@ -199,12 +306,10 @@ public:
     void LogPlaytestMark(ALDPlayerController& Controller, uint32 Match, uint32 Sequence, int64 ClientAuthorityMs);
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
-    // ---- Growth/Shop domain directors (spawned and retired by ALDEconomyDirector) ----
-    UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
-    UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
+    // ---- Growth domain directors (spawned and retired by ALDGrowthDirector) ----
+    UPROPERTY() TObjectPtr<class ALDGrowthDirector> Growth;
     UPROPERTY() TObjectPtr<class ALDDevelopmentDirector> Development;
-    UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
-    // ---- end Growth/Shop ----
+    // ---- end Growth ----
     // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
     // The only protection-removal entry: an admitted aggressive intent removes protection before
     // the action itself is checked; a later action rejection never restores it.
@@ -224,6 +329,8 @@ public:
     bool ResetCombatMatch(const FLDMatchReset& Reset, FString& Error);
     // Camps: spawned and destroyed by the Camps match provider (World/LDCampDirector.cpp).
     UPROPERTY() TObjectPtr<class ALDCampDirector> Camps;
+    // #198 session D: the optional PK provider's director of this match (PK/LDPKDirector.h); null without the provider.
+    UPROPERTY() TObjectPtr<class ALDPKDirector> PKDirector;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV test session (Transactions permit, Development only): the flagpole opens at this boundary's Capture phase
     // instead of after the full development time (FLDCaptureReducer::DevOpenAt); spray, guard and every rule stay.
@@ -234,6 +341,7 @@ public:
 #endif
 private:
     friend class FLDDemoSessionTest;
+    friend class FLDGroundBossBodyTest;
     friend class FLDOwnerViewTeardownTest;
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
@@ -244,13 +352,12 @@ private:
     friend class FLDDemoMechanicsEffectLifetimesTest;
     friend class FLDPlaytestLogHitVampTest;
     friend class FLDCombatCommitControlTest;
-    friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
-    friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
-    friend class FLDDemoGrowthRerollTest;
+    friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
-    friend class FLDDemoOpeningCountdownTest;
+    friend class FLDRestPhaseTest;
+    friend class FLDDemoOpponentProbe;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord
@@ -357,9 +464,20 @@ private:
         TWeakObjectPtr<ALDCharacter> Body;
         TSharedPtr<const class FLDSpawnReservation> Reservation;
     };
+    // Where a placed life stands: a uniform spawn draw, a fixed spawn anchor (#198 private rest space) or near an old
+    // field foot (#198 return to the field, falling back to a draw).
+    struct FLDPlacementTarget
+    {
+        enum class EKind : uint8 { Draw, Anchor, Near };
+        EKind Kind = EKind::Draw;
+        FName Anchor;
+        FVector FootCm = FVector::ZeroVector;
+        FName Surface;
+        double RadiusCm = 0;
+    };
     // Draws, reserves and physically places one contender body without committing any life state.
     bool PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife, const FLDGameplayWritePermit& Permit,
-        FLDPlacedBody& Out, FString& Error);
+        FLDPlacedBody& Out, FString& Error, const FLDPlacementTarget& Target = FLDPlacementTarget());
     void ReleasePlacedBody(FLDPlacedBody& Placed);
     // Life commit after every preparation succeeded; a failure here is an authority fault, never a retry.
     bool CommitPlacedLife(FLDPlacedBody& Placed, FLDBodyCombatState&& CombatState, int64 ProtectedUntilMs,
@@ -389,6 +507,21 @@ private:
     FLDCaptureCircle CaptureCircle;
     FLDDormZones DormZones;
     FLDAirdropState Airdrop;
+    // #198 field charms of this match; inactive outside a running match.
+    FLDCharmState Charms;
+    // #198 outer §5 camp markers of this match; inactive outside a running match.
+    FLDFieldMarkerState FieldMarkers;
+    // Map event rewards refused as retryable, paid at the next Transactions boundaries.
+    struct FLDOwedFieldReward
+    {
+        FGuid Recipient;
+        FName Event;
+        uint64 Serial = 0;
+        int64 XP = 0;
+        ELDFieldRewardKind Kind = ELDFieldRewardKind::None;
+    };
+    TArray<FLDOwedFieldReward> OwedFieldRewards;
+    bool CommitOwedFieldReward(const FLDOwedFieldReward& Reward, const FLDGameplayWritePermit& Permit, FString& Error);
     FLDLeaderState LeaderNotice;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
@@ -402,9 +535,104 @@ private:
     bool bPublicMatchDirty = false;
     bool bLobbyDirty = false;
     uint64 PublicMatchRevision = 0;
-    // The match's T=0: the end of the opening countdown. Every match timer (development, airdrop, leader notice, Boss)
-    // and the public match clock count from here; authority time before it belongs to the countdown.
+    // The authority instant the match started (R0 begins); the result duration and the public clock count from here.
+    // Field-progress timers (camp growth/refresh, Boss, airdrop, leader notice, field respawn waits) use T instead.
     int64 MatchStartedAtMs = 0;
+    // ---- #198 rest phases (Framework/LDGameModeRest.cpp) ----
+    FLDMatchTimeline Timeline;
+    uint64 TimelineRevision = 0;
+    // PK sign-ups of the current build step (the rest lives standing in their sign-up disks while the window is open) and
+    // the entrants locked from them.
+    TSet<FGuid> RestSignups;
+    TSet<FGuid> RestReady;
+    TArray<TWeakObjectPtr<class ALDRestServiceNPC>> RestServiceNPCs;
+    TWeakObjectPtr<class ALDTrainingRoomDisplay> TrainingRoomDisplay;
+    void ClearRestServiceNPCs();
+    // RespawnsAndWorld and the lock: RestSignups from the committed feet (empty outside the window). False on a fault.
+    bool RefreshRestSignups(FString& Error);
+    TArray<FGuid> LockedEntrants;
+    // Per contender: where its field life stood when the rest began (returns there), and whether it was alive.
+    struct FLDRestReturn
+    {
+        bool bAliveAtRest = false;
+        FVector FieldFootCm = FVector::ZeroVector;
+        FName FieldSurface;
+    };
+    TMap<FGuid, FLDRestReturn> RestReturns;
+    // Contenders whose current life is a rest life (private rest space, no capture eligibility).
+    TSet<FGuid> RestLives;
+    // #198 session D: contenders whose current life is a PK life in the arena.
+    TSet<FGuid> PKLives;
+    // Contenders still waiting for a rest placement that was blocked at its boundary (retried every boundary of the rest).
+    TSet<FGuid> PendingPhasePlacement;
+    // A phase body prepared but not committed: approved §8 joint allocation verifies every body of an entry before any
+    // of them stands.
+    struct FLDPhasePrepared
+    {
+        FLDPlacedBody Placed;
+        TSharedPtr<FLDBodyCombatState> CombatState;
+    };
+    struct FLDPhaseTarget
+    {
+        FGuid Contender;
+        FLDPlacementTarget Where;
+    };
+    // Prepares the next life of a bodiless contender at Where without committing it. bBlocked (nothing kept, the reason in
+    // BlockedReason) when the placement is not free or the retired body's motion is not consumed yet. False only on a
+    // fault.
+    bool PreparePhaseBody(const FLDPhaseTarget& Target, const FLDGameplayWritePermit& Permit, FLDPhasePrepared& Out,
+        bool& bBlocked, FString& BlockedReason, FString& Error);
+    // Commits and activates a prepared life; any failure is an authority fault.
+    bool CommitPhaseBody(FLDPhasePrepared& Prepared, int64 ProtectedUntilMs, const FLDGameplayWritePermit& Permit, FString& Error);
+    void ReleasePhasePrepared(TArray<FLDPhasePrepared>& Prepared);
+    // The contender's pending spawn request for its next life never replays: the next attempt (another anchor, or the
+    // same entry tried again) uses a newer request identity.
+    bool WithdrawPhaseRequest(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Prepares every target in order. When one is blocked every prepared body is released, every target's request is
+    // withdrawn and bBlocked names the first blocked contender's reason; Out is then empty.
+    bool PrepareJointPhase(const TArray<FLDPhaseTarget>& Targets, const FLDGameplayWritePermit& Permit,
+        TArray<FLDPhasePrepared>& Out, bool& bBlocked, FString& BlockedReason, FString& Error);
+    // The return to the field of the current Return step: started (every rest life retired) when it first fell due, its
+    // bodies prepared jointly at the boundary that enters the field and committed there together.
+    bool bFieldReturnStarted = false;
+    TArray<FLDPhasePrepared> PreparedFieldReturn;
+    // #198 session D: the PK entrants whose arena bodies wait to stand together (the PK cannot start before they do).
+    TArray<FLDPKPlacement> PendingPKEntry;
+    bool bPKEntryLogged = false;
+    // RespawnsAndWorld, before the timeline advances: tries a waiting PK entry again, and for a due entry (PK start or
+    // field) reports whether its bodies stand ready. A field return still unready REST.EntryReadyTimeoutSec after its
+    // boundary is an explicit fault; a PK entry still waiting then ends as NoContest (approved outer parameters §1).
+    bool PrepareEntry(const FLDGameplayWritePermit& Permit, bool& bBodiesReady, FString& Error);
+    bool PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool& bReady, FString& Error);
+    bool CommitFieldReturn(bool bFinalField, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool TryPKEntry(const FLDGameplayWritePermit& Permit, bool& bPlaced, FString& Error);
+    bool AbandonPKEntry(const FLDGameplayWritePermit& Permit, FString& Error);
+    struct FLDTrainingDummy
+    {
+        FGuid Entity;
+        FLDCombatBodyRef Body;
+        TWeakObjectPtr<ALDCharacter> Actor;
+    };
+    // By roster slot contender; the association fixes the chassis, not access or attack attribution.
+    TMap<FGuid, FLDTrainingDummy> TrainingDummies;
+    TSet<FGuid> TrainingDummyIds;
+    struct FLDTrainingResetWindow { uint32 Life = 0; uint8 RestIndex = 0; int64 StartedAtMs = 0; };
+    TMap<FGuid, FLDTrainingResetWindow> PendingTrainingResets;
+    bool PrepareTrainingGround(const FGuid& Owner, struct FLDLegalGround& Out, FString& Error) const;
+    // RespawnsAndWorld: shared target at its approved slot, using the existing legal offsets when temporarily occupied.
+    bool SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error);
+    void RetireTrainingDummy(const FGuid& Owner);
+    bool ProcessTrainingResets(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool MoveContendersToRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Ends a living contender life without a death (phase boundary): no K/D, kill feed, reward or respawn wait.
+    bool RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Places the next life and its shared training target only after both placements are available.
+    bool PlaceRestLife(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
+    bool RetryPhasePlacements(const FLDGameplayWritePermit& Permit, FString& Error);
+    FName RestAnchorFor(const FGuid& Contender) const;
+    void PublishTimeline();
+    bool InitializeTimeline(FString& Error);
     TArray<FGuid> LockedAISlots;
     bool InitializeCaptureMatch(FString& Error);
     FString StartGateBlocker() const;
@@ -418,6 +646,9 @@ private:
     bool IsCloseAwaitingSettlement() const { return PendingCapture.IsSet() && !bAuthorityStepOpen; }
     bool TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, int64 EndedAtMs, FString& Error);
     void PublishMatchOutcome();
+    // #198 §10 (Framework/LDGameModeBlueprint.cpp): once the result is published, each present human contender's own
+    // build blueprint (or the explicit reason it has none) goes to that contender's owning connection only.
+    void PublishBuildBlueprints();
     void PublishPublicMatch();
     void QueueLeaveFact(const FGuid& ContenderId);
     FLDContenderRecord* FindContender(const FGuid& ContenderId);

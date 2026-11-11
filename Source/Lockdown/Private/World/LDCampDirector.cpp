@@ -2,9 +2,11 @@
 #include "Core/LDLog.h"
 #include "World/LDCampMember.h"
 #include "World/LDCampDecision.h"
+#include "World/LDSpawnPlacement.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -57,7 +59,8 @@ namespace
                 return false;
             }
             Mode.Camps = Director;
-            return Director->BeginMatch(Start.Match, Start.StartedAtMs, Error);
+            // #198: camp refresh, growth and the Boss count field progress T, which starts at 0.
+            return Director->BeginMatch(Start.Match, 0, Error);
         };
         Hooks.MatchReset = [](ALDGameMode& Mode, const FLDMatchReset&, FString& Error)
         {
@@ -103,6 +106,59 @@ bool ALDCampDirector::DevRefreshCleared(const FLDGameplayWritePermit& Permit, in
     return true;
 }
 #endif
+
+int64 ALDCampDirector::NextRefreshDueMs() const
+{
+    const ALDGameMode* Mode = AuthorityMode();
+    if (!Mode || !Mode->IsFieldRunning()) { return MAX_int64; }
+    const int64 DueT = FMath::Min(State.NextRespawnDueMs(), Boss.NextDueMs());
+    return DueT == MAX_int64 ? MAX_int64 : Mode->FieldDueAuthorityMs(DueT);
+}
+
+bool ALDCampDirector::FreezeForRest(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    ALDGameMode* Mode = AuthorityMode();
+    // #198 outer §5: the rest that reaches the Boss's leave instant (R3 at T=540) ends its stay before anything freezes.
+    if (!LeaveBossIfDue(Permit, Error)) { return false; }
+    int32 Frozen = 0;
+    // Every living camp member and the Boss (all registered world bodies of this director).
+    for (const auto& Pair : Bodies)
+    {
+        FLDCombatBodyRef Ref;
+        const ALDCampMemberCharacter* Body = Pair.Value.Get();
+        if (!Body || !Mode->ReadBodyRef(*Body, Ref)) { continue; }
+        StopMotion(Pair.Key);
+        if (!Mode->Combat->SetBodySuspended(Ref, true, Permit, Error)) { return false; }
+        ++Frozen;
+    }
+    UE_LOG(LogLDWorld, Display, TEXT("LD_WORLD_FROZEN bodies=%d field_t_ms=%lld"), Frozen, Mode->GetFieldNowMs());
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::ThawAfterRest(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
+    ALDGameMode* Mode = AuthorityMode();
+    // Members keep their HP and stand where they were frozen; they forget targets and paths and choose again. One beyond
+    // its leash walks home by the ordinary field return.
+    State.ForgetTargetsForRest(Mode->GetAuthorityNowSeconds());
+    Returns.Reset();
+    int32 Thawed = 0;
+    for (const auto& Pair : Bodies)
+    {
+        FLDCombatBodyRef Ref;
+        const ALDCampMemberCharacter* Body = Pair.Value.Get();
+        if (!Body || !Mode->ReadBodyRef(*Body, Ref)) { continue; }
+        StopMotion(Pair.Key);
+        if (!Mode->Combat->SetBodySuspended(Ref, false, Permit, Error)) { return false; }
+        ++Thawed;
+    }
+    UE_LOG(LogLDWorld, Display, TEXT("LD_WORLD_THAWED bodies=%d field_t_ms=%lld"), Thawed, Mode->GetFieldNowMs());
+    Error.Reset();
+    return true;
+}
 
 bool ALDCampDirector::CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase, FString& Error) const
 {
@@ -173,9 +229,10 @@ bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMe
     ALDCampMemberCharacter* Body = Bodies.FindRef(Ref.Victim.EntityId).Get();
     ALDCharacter* Resolved = nullptr;
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-    FCollisionShape Capsule;
-    if (!Mode || !Body || !Registry || Mode->ResolveBody(State.GetMatch(), Ref, Resolved) != ELDCommitReject::None
-        || Resolved != Body || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
+    const FLDCampMemberState* Member = State.FindLiving(Ref);
+    if (!Mode || !Body || !Registry || (!Member && !Boss.IsBody(Ref))
+        || Mode->ResolveBody(State.GetMatch(), Ref, Resolved) != ELDCommitReject::None
+        || Resolved != Body)
     {
         if (Error.IsEmpty()) { Error = TEXT("A living camp member is not the core's current registered body."); }
         return false;
@@ -191,7 +248,8 @@ bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMe
     FLDLegalGround Ground;
     ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
     FString GroundError;
-    if (Registry->QueryGround(Registry->Revision(), Out.FootCm, Capsule, SurfaceId, Ground, Failure, GroundError))
+    if (Registry->QueryBodyGround(State.GetMatch(), Ref, Member ? Member->ResetThroughEpoch : 0, *Content,
+        Out.FootCm, SurfaceId, Ground, Failure, GroundError))
     {
         Out.bGrounded = Registry->IsTerrainFloor(Movement->CurrentFloor.HitResult.GetComponent());
         Out.SurfaceId = Out.bGrounded ? Ground.SurfaceId : NAME_None;
@@ -638,17 +696,19 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     if (Boss.IsBody(Fact.VictimBody))
     {
         const FGuid Entity = Fact.VictimBody.Victim.EntityId;
-        Boss.Died(Fact.VictimBody, Fact.CreditOwner, Fact.OccurredAtMs);
+        Boss.Died(Fact.VictimBody, Fact.CreditOwner, AuthorityMode()->GetTimeline().FieldMsAt(Fact.OccurredAtMs));
         Motion.Remove(Entity);
         if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
         Bodies.Remove(Entity);
         AuthorityMode()->MarkPublicMatchDirty();
         UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_DOWN killer=%s at_ms=%lld"), *Fact.CreditOwner.ToString(), Fact.OccurredAtMs);
-        return GrantApproval(Fact.CreditOwner, Permit, Error);
+        return RewardBossKill(Fact.CreditOwner, Permit, Error);
     }
     int32 Camp = INDEX_NONE;
     State.FindMember(Fact.Key.Victim.EntityId, &Camp);
-    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, Fact.OccurredAtMs, Error);
+    // #198: the clear instant and the refresh deadline are field progress T, so a rest neither runs nor skips them.
+    const int64 FieldMs = AuthorityMode()->GetTimeline().FieldMsAt(Fact.OccurredAtMs);
+    const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, FieldMs, Error);
     if (Result == ELDCampDeathResult::Rejected) { return false; }
     if (Result == ELDCampDeathResult::Duplicate)
     {
@@ -664,6 +724,11 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
         *State.GetRoster()->Camps[Camp].CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
         Result == ELDCampDeathResult::CampCleared, State.FindCamp(Camp)->RespawnDueMs);
+    // #198 outer §5: the first clear of a marked camp takes its segment's marker.
+    if (Result == ELDCampDeathResult::CampCleared)
+    {
+        return AuthorityMode()->ConsumeCampClear(State.GetRoster()->Camps[Camp].CampId, Fact.CreditOwner, FieldMs, Permit, Error);
+    }
     Error.Reset();
     return true;
 }
@@ -734,6 +799,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
 {
     if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
     ALDGameMode* Mode = AuthorityMode();
+    if (!LeaveBossIfDue(Permit, Error)) { return false; }
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
         for (int32 Slot = 0; Slot < State.FindCamp(Camp)->Members.Num(); ++Slot)
@@ -748,7 +814,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
     }
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
-        if (!State.IsRespawnDue(Camp, Mode->GetAuthorityNowMs())) { continue; }
+        if (!State.IsRespawnDue(Camp, Mode->GetFieldNowMs())) { continue; }
         bool bBlocked = false;
         if (!SpawnGroup(Camp, Permit, bBlocked, Error)) { return false; }
         if (!bBlocked)
@@ -763,7 +829,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
             BlockedRefresh.Add(Camp);
         }
     }
-    if (Boss.IsSpawnDue(Mode->GetAuthorityNowMs()))
+    if (Boss.IsSpawnDue(Mode->GetFieldNowMs()))
     {
         bool bBlocked = false;
         if (!SpawnBoss(Permit, bBlocked, Error)) { return false; }
@@ -798,7 +864,7 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers({{Boss.EntityId, Body, Boss.Rules.MonsterId}}, Permit, Refs, Error)) { return false; }
     bCommitted = true;
-    if (Refs.Num() != 1 || !Boss.Spawned(Refs[0], Mode->GetAuthorityNowMs()))
+    if (Refs.Num() != 1 || !Boss.Spawned(Refs[0], Mode->GetFieldNowMs()))
     {
         Error = TEXT("Core committed a Boss life that the Boss state refused.");
         return false;
@@ -814,24 +880,47 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     return true;
 }
 
-bool ALDCampDirector::GrantApproval(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error)
+bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     ALDGameMode* Mode = AuthorityMode();
     FLDContenderLifeRead Life;
-    // Only a contender's last hit is approved; a killer already dead by the same step gets nothing.
+    // #198 outer §5: only a contender's last hit is rewarded, under the existing eligibility: a killer already dead by the
+    // same step gets nothing. Its 300 XP is the ordinary kill reward of the Boss row; this adds one build reward draw.
     if (!Killer.IsValid() || !Mode->ReadContenderLife(State.GetMatch(), Killer, Life, Error) || Life.Phase != ELDLifePhase::Alive)
+    {
+        UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_REWARD_SKIPPED killer=%s"), *Killer.ToString());
+        Error.Reset();
+        return true;
+    }
+    return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error);
+}
+
+bool ALDCampDirector::LeaveBossIfDue(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    const int64 FieldMs = Mode->GetFieldNowMs();
+    if (!Boss.IsLeaveDue(FieldMs))
     {
         Error.Reset();
         return true;
     }
-    const FLDDemoBossDefinition& Rules = Content->Get().Boss;
-    bool bApplied = false;
-    if (!Mode->Combat->GrantTimedBonus(Life.Body, FName(*Rules.Id), Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bApplied, Error))
+    const bool bAlive = Boss.Phase == ELDBossPhase::Alive;
+    if (bAlive)
     {
+        const FGuid Entity = Boss.EntityId;
+        if (!Mode->RetireCampBody(Boss.Body, Permit, Error)) { return false; }
+        Motion.Remove(Entity);
+        if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
+        Bodies.Remove(Entity);
+    }
+    if (!Boss.Leave(FieldMs))
+    {
+        Error = TEXT("The Boss state refused its due departure.");
         return false;
     }
-    UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_APPROVAL contender=%s applied=%d duration_ms=%lld"), *Killer.ToString(), bApplied ? 1 : 0,
-        Rules.ApprovalDurationMs);
+    Mode->MarkPublicMatchDirty();
+    UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_LEAVE alive=%d field_t_ms=%lld"), bAlive ? 1 : 0, FieldMs);
+    Error.Reset();
     return true;
 }
 
@@ -874,7 +963,9 @@ bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const F
             continue;
         }
         // Bodies ignore pawn collision, so local placement keeps every current registered body apart explicitly.
-        bool bClear = !Reserved.ContainsByPredicate([&](const FVector& Other)
+        const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
+        bool bClear = !LDSpawnPlacement::OverlapsStatic(*GetWorld(), Origin, Capsule)
+            && !Reserved.ContainsByPredicate([&](const FVector& Other)
             { return FVector::DistSquared2D(Other, Foot) < Separation * Separation; });
         for (TActorIterator<ALDCharacter> It(GetWorld()); bClear && It; ++It)
         {
@@ -937,10 +1028,12 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         if (Body) { Spawned.Add(Body); }
         if (!bCreated) { return false; }
     }
+    // #97: the whole group takes the growth stage of this spawn moment and keeps it for these lives.
+    const uint8 Stage = LDCampGrowth::Stage(Content->Get().Parameters, Mode->GetFieldNowMs());
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
-        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Spec.MonsterId});
+        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Spec.MonsterId, Stage});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }
@@ -957,8 +1050,9 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Spawned[Slot]->SetActorHiddenInGame(false);
         Spawned[Slot]->SetActorTickEnabled(true);
     }
-    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u at=%.3f"),
-        *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, Mode->GetAuthorityNowSeconds());
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u stage=%u at=%.3f"),
+        *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, uint32(Stage),
+        Mode->GetAuthorityNowSeconds());
     Error.Reset();
     return true;
 }
@@ -969,9 +1063,7 @@ bool ALDCampDirector::CreateBody(const FLDLegalGround& Ground, const FLDDemoMons
     Out = nullptr;
     FCollisionShape Capsule;
     if (!ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
-    // Contender placement's support gap: the capsule rests inside CMC's stable floor band, not on the surface itself.
-    const double FloorGap = (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
-    const FVector Origin = Ground.SurfaceCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + FloorGap);
+    const FVector Origin = LDSpawnPlacement::StandingOrigin(Ground);
     const FTransform Transform(FRotator::ZeroRotator, Origin);
     auto* Body = GetWorld()->SpawnActorDeferred<ALDCampMemberCharacter>(ALDCampMemberCharacter::StaticClass(), Transform,
         this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);

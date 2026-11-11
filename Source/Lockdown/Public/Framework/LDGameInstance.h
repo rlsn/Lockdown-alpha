@@ -35,6 +35,7 @@ public:
     // Applies a linear 0..1 master volume to the live preferences and the audio output now; only the debounced flush
     // writes it, so a slider drag never saves every intermediate value.
     FLDLocalSettingsSaveResult SetAppliedMasterVolume(float Linear);
+    FLDLocalSettingsSaveResult SetAppliedMusicVolume(float Linear);
     FLDLocalSettingsSaveResult FlushLocalSettings(bool VerifyCurrent=false);
     FLDLocalSettingsSaveResult ConfirmLocalSettingsRecovery();
     void RequestLocalSettingsFlush();
