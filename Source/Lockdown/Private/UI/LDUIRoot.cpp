@@ -90,9 +90,9 @@ namespace
         case ELDMatchPhase::Results: return TEXT("对局结束");
         case ELDMatchPhase::Resetting: return TEXT("正在返回房间…");
         case ELDMatchPhase::Closing: return TEXT("房间正在关闭…");
-        case ELDMatchPhase::Faulted: return TEXT("房间因权威错误已停止，请离开对局返回主菜单");
+        case ELDMatchPhase::Faulted: return TEXT("房间因权威错误已停止，请离开房间并返回主菜单");
         }
-        return TEXT("未知阶段，请离开对局返回主菜单");
+        return TEXT("未知阶段，请离开房间并返回主菜单");
     }
 
     // Empty lines collapse, so a cleared message never keeps its space or reads as stale text.
@@ -283,7 +283,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     {
         if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}}
     }),8);
-    Add(Lobby,MakeButton(TEXT("离开房间"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
+    Add(Lobby,MakeButton(TEXT("离开房间并返回主菜单"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
 
     UVerticalBox* Menu=nullptr;
     MenuPage=MakePage(Canvas,520,Menu);
@@ -298,7 +298,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     EndMatchButton=MakeButton(TEXT("结束本局"),TEXT("EndMatch"),[this](){OpenConfirm(ELDRootConfirm::EndMatch);});
     EndMatchButton->SetVisibility(ESlateVisibility::Collapsed);
     Add(Menu,EndMatchButton,8);
-    Add(Menu,MakeButton(TEXT("离开对局"),TEXT("LeaveMatch"),[this](){OpenConfirm(ELDRootConfirm::LeaveMatch);}),8);
+    Add(Menu,MakeButton(TEXT("离开房间并返回主菜单"),TEXT("LeaveMatch"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
     MenuFeedback=Label(FString(),15,MutedColor);
     Add(Menu,MenuFeedback,4);
 }
@@ -324,7 +324,6 @@ void ULDUIRoot::BuildConfirm(UCanvasPanel& Canvas,bool bFrontend)
     else
     {
         AddChoice(ELDRootConfirm::LeaveRoom,TEXT("确认离开"),TEXT("ConfirmLeave"),[this](){LeaveRoom();},TEXT("CancelLeave"));
-        AddChoice(ELDRootConfirm::LeaveMatch,TEXT("确认离开"),TEXT("ConfirmLeaveMatch"),[this](){LeaveRoom();},TEXT("CancelLeaveMatch"));
         AddChoice(ELDRootConfirm::EndMatch,TEXT("确认结束"),TEXT("ConfirmEndMatch"),[this]()
         {
             CloseConfirm();
@@ -1018,7 +1017,7 @@ void ULDUIRoot::OpenMenu()
 void ULDUIRoot::CloseMenu()
 {
     if(!MenuPage){return;}
-    if(Confirm==ELDRootConfirm::LeaveMatch||Confirm==ELDRootConfirm::EndMatch){CloseConfirm();}
+    if(Confirm==ELDRootConfirm::LeaveRoom||Confirm==ELDRootConfirm::EndMatch){CloseConfirm();}
     bMenuOpen=false;
     MenuPage->SetVisibility(ESlateVisibility::Collapsed);
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){PC->SetMenuOpen(false);}
@@ -1031,6 +1030,9 @@ void ULDUIRoot::OpenConfirm(ELDRootConfirm Kind)
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     // The listen Host's departure ends the whole room for every player (APP_SPEC 9).
     const bool bHost=(PC&&PC->OwnerState.bLobbyHost)||GetWorld()->GetNetMode()==NM_ListenServer;
+    const FLDPublicMatchView* Match=CurrentMatch(GetWorld()->GetGameState<ALDGameState>());
+    const bool bLobbyPhase=Match&&Match->Phase==ELDMatchPhase::Lobby;
+    const bool bResultsPhase=Match&&Match->Phase==ELDMatchPhase::Results;
     FString Message;
     switch(Kind)
     {
@@ -1038,7 +1040,9 @@ void ULDUIRoot::OpenConfirm(ELDRootConfirm Kind)
     case ELDRootConfirm::EndMatch: Message=TEXT("结束本局后没有胜者，所有人进入结算，之后可由房主带房间返回 Lobby。");break;
     default:
         Message=bHost?TEXT("你是房主：离开将结束整个房间，所有玩家返回主菜单。")
-            :Kind==ELDRootConfirm::LeaveRoom?TEXT("离开后不能重新加入本局。"):TEXT("离开后不能重新加入本局，你的本局结算记录会保留。");
+            :bLobbyPhase?TEXT("离开后将返回主菜单；房间继续运行，其他成员仍留在 Lobby。")
+            :bResultsPhase?TEXT("离开后将返回主菜单，不能重新加入本局；结算已完成，你的记录会保留。")
+            :TEXT("离开后将返回主菜单，不能重新加入本局；你的离局记录会保留，其他玩家可以继续本局。");
         break;
     }
     ConfirmText->SetText(FText::FromString(Message));
@@ -1104,7 +1108,7 @@ void ULDUIRoot::DismissMenu()
         }
         return;
     }
-    if(Confirm==ELDRootConfirm::LeaveMatch||Confirm==ELDRootConfirm::EndMatch){CloseConfirm();}
+    if(Confirm==ELDRootConfirm::LeaveRoom||Confirm==ELDRootConfirm::EndMatch){CloseConfirm();}
     if(bMenuOpen&&MenuPage){bMenuOpen=false;MenuPage->SetVisibility(ESlateVisibility::Collapsed);}
 }
 

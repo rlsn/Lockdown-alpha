@@ -6,6 +6,7 @@
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
+#include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -28,7 +29,7 @@
 // Unity builds merge anonymous namespaces across files, so every internal name stays in this namespace.
 namespace LDSessionFaultProbeInternal
 {
-// Leave: three humans start normally; Client2 leaves through the in-match menu, the Host ends the match.
+// Leave: three humans start normally; Client2 checks and cancels the Lobby leave prompt, then leaves through the in-match menu.
 // HostLoss: two humans start normally; the runner kills the Host and Client1 must land on an interrupted menu.
 // Join: a frontend client presses Join for a closed port and for an unresolvable host.
 // Refuse: a live Host refuses real Join presses for another product version, a full room and a started match.
@@ -111,6 +112,7 @@ public:
     double Deadline = 0, StageAt = 0;
     bool Passed = true, Written = false, ReadySent = false, IdentitySaved = false, StartSent = false, EndSent = false;
     bool LeaveSent = false, HandedOff = false, MarkedResults = false, SawConnecting = false, Announced = false;
+    bool LobbyLeaveChecked = false;
     FGuid LeaverId;
     FString PreviousNotice;
     TArray<TSharedPtr<FJsonValue>> Checks;
@@ -212,25 +214,55 @@ public:
         return Check(Save(Report, Role + TEXT("Match.json")), TEXT("The in-match part of the role is persisted"));
     }
 
+    bool CheckLobbyLeaveConfirmation(ALDPlayerController& PC, const FLDLobbyView& Lobby)
+    {
+        UButton* Leave = FindIn<UButton>(PC.RootUI, TEXT("LeaveRoom"));
+        const UTextBlock* Caption = Leave ? Cast<UTextBlock>(Leave->GetContent()) : nullptr;
+        if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间并返回主菜单"),
+            TEXT("The Lobby leave action names its destination"))) { return false; }
+        Leave->OnClicked.Broadcast();
+        const FString Expected = TEXT("离开后将返回主菜单；房间继续运行，其他成员仍留在 Lobby。");
+        const bool bExplainsOutcome = Check(
+            FindShownText(PC.RootUI, [&Expected](const FString& Text) { return Text == Expected; }) == Expected,
+            TEXT("The Lobby leave confirmation explains the room remains open"));
+        UButton* Cancel = FindIn<UButton>(PC.RootUI, TEXT("CancelLeave"));
+        if (Cancel) { Cancel->OnClicked.Broadcast(); }
+        const bool bStayedInLobby = Check(Cancel && Leave->GetIsEnabled()
+            && Lobby.Phase == ELDMatchPhase::Lobby
+            && Lobby.Members.ContainsByPredicate([&PC](const FLDLobbyMember& Member)
+                { return Member.ContenderId == PC.OwnerState.ContenderId; }),
+            TEXT("Cancelling a Lobby leave keeps the member in the room"));
+        return bExplainsOutcome && bStayedInLobby;
+    }
+
     // The real in-match menu: open the leave confirmation, then confirm it.
     bool PressLeave(ALDPlayerController& PC)
     {
         UButton* Leave = FindIn<UButton>(PC.RootUI, TEXT("LeaveMatch"));
-        if (Leave) { Leave->OnClicked.Broadcast(); }
-        UButton* Confirm = FindIn<UButton>(PC.RootUI, TEXT("ConfirmLeaveMatch"));
+        const UTextBlock* Caption = Leave ? Cast<UTextBlock>(Leave->GetContent()) : nullptr;
+        if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间并返回主菜单"),
+            TEXT("The in-match leave action names its destination"))) { return false; }
+        Leave->OnClicked.Broadcast();
+        const FString Expected = PC.OwnerState.bLobbyHost
+            ? TEXT("你是房主：离开将结束整个房间，所有玩家返回主菜单。")
+            : TEXT("离开后将返回主菜单，不能重新加入本局；你的离局记录会保留，其他玩家可以继续本局。");
+        if (!Check(FindShownText(PC.RootUI, [&Expected](const FString& Text) { return Text == Expected; }) == Expected,
+            TEXT("The leave confirmation explains the role-specific outcome"))) { return false; }
+        UButton* Confirm = FindIn<UButton>(PC.RootUI, TEXT("ConfirmLeave"));
         if (Confirm) { Confirm->OnClicked.Broadcast(); }
-        return Check(Leave && Confirm, TEXT("The in-match menu offers leave and its confirmation"));
+        return Check(Confirm != nullptr, TEXT("The in-match menu offers the shared leave confirmation"));
     }
 
     bool Tick();
     bool TickMatch(ALDPlayerController& PC, UWorld& World, ALDGameState& Public);
     bool TickFrontend(ALDPlayerController& PC, UWorld& World);
     bool TickRefused(ALDPlayerController& PC, UWorld& World);
-    bool CheckLeaveResult(const ALDGameState& Public);
+    bool CheckLeaveResult(ALDPlayerController& PC, const ALDGameState& Public);
 };
 
-bool FLDDemoSessionFaultProbe::CheckLeaveResult(const ALDGameState& Public)
+bool FLDDemoSessionFaultProbe::CheckLeaveResult(ALDPlayerController& PC, const ALDGameState& Public)
 {
+    if (PC.HUDUI) { PC.HUDUI->RefreshReadModel(); }
     const FLDResultView& Result = Public.MatchResult;
     const FLDResultRow* Leaver = Result.Rows.FindByPredicate([this](const FLDResultRow& Row) { return Row.ContenderId == LeaverId; });
     Check(Result.Reason == ELDMatchEndReason::HostEnded && !Result.Winner.IsValid(),
@@ -239,6 +271,11 @@ bool FLDDemoSessionFaultProbe::CheckLeaveResult(const ALDGameState& Public)
         TEXT("The result keeps the leaver as left, not dead"));
     Check(!Result.Rows.ContainsByPredicate([this](const FLDResultRow& Row) { return Row.Kills != 0 || (Row.ContenderId != LeaverId && Row.bLeft); }),
         TEXT("Leaving credits no kill and marks no one else as left"));
+    const UButton* Leave = FindIn<UButton>(PC.HUDUI, TEXT("ResultLeaveRoom"));
+    const UTextBlock* Caption = Leave ? Cast<UTextBlock>(Leave->GetContent()) : nullptr;
+    Check(Caption && Caption->GetText().ToString()
+        == (PC.OwnerState.bLobbyHost ? TEXT("关闭房间并返回主菜单") : TEXT("离开房间并返回主菜单")),
+        TEXT("The result leave action explains whether it closes the room or only leaves it"));
     Summary->SetStringField(TEXT("result_id"), Result.ResultId.ToString(EGuidFormats::Digits));
     Summary->SetNumberField(TEXT("generation"), double(Result.Generation));
     return Passed;
@@ -290,6 +327,11 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         {
             if (!Mark(TEXT("HostFull.json"))) { return Finish(); }
             Announced = true;
+        }
+        if (Mode == ELDSessionFaultMode::Leave && Role == TEXT("Client2") && !LobbyLeaveChecked)
+        {
+            if (!CheckLobbyLeaveConfirmation(PC, Lobby)) { return Finish(); }
+            LobbyLeaveChecked = true;
         }
         const FLDLobbyMember* Self = Lobby.Members.FindByPredicate([&PC](const FLDLobbyMember& Row)
         { return Row.ContenderId == PC.OwnerState.ContenderId; });
@@ -408,7 +450,7 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         {
             if (View.Phase != ELDMatchPhase::Results) { return true; }
             if (Public.MatchResult.Generation != View.Generation || Public.MatchResult.ResultId != View.ResultId) { return true; }
-            CheckLeaveResult(Public);
+            CheckLeaveResult(PC, Public);
             return Finish();
         }
         // Host: the leaver's connection is gone and the room keeps playing before the Host ends it.
@@ -434,7 +476,7 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
     case ELDSessionFaultStage::Ending:
         if (View.Phase != ELDMatchPhase::Results) { return true; }
         if (Public.MatchResult.Generation != View.Generation || Public.MatchResult.ResultId != View.ResultId) { return true; }
-        CheckLeaveResult(Public);
+        CheckLeaveResult(PC, Public);
         return Finish();
     default:
         return true;

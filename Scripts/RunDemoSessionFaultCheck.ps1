@@ -24,7 +24,10 @@ $required = @{
         'Leaving credits no kill and marks no one else as left')
     'Leave/Client1' = @($connection, 'A Host-ended match records no winner', 'The result keeps the leaver as left, not dead',
         'Leaving credits no kill and marks no one else as left')
-    'Leave/Client2Match' = @($connection, 'The in-match menu offers leave and its confirmation')
+    'Leave/Client2Match' = @($connection, 'The Lobby leave action names its destination',
+        'The Lobby leave confirmation explains the room remains open', 'Cancelling a Lobby leave keeps the member in the room',
+        'The in-match leave action names its destination',
+        'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'Leave/Client2' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLoss/Host' = @($connection, 'Every provider is wired: the ready room may start normally', 'The Host holds a live match with its owning client before it is lost')
     'HostLoss/Client1Match' = @($connection)
@@ -45,7 +48,8 @@ $required = @{
         'A join that loses the race to the match start is refused with its own reason', 'A refused join stays on the frontend',
         'The Join control is usable again after a refusal')
     'HostLeave/HostMatch' = @($connection, 'Every provider is wired: the ready room may start normally',
-        'The Host holds a live match with its owning client before it leaves', 'The in-match menu offers leave and its confirmation')
+        'The Host holds a live match with its owning client before it leaves', 'The in-match leave action names its destination',
+        'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'HostLeave/Host' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLeave/Client1Match' = @($connection)
     'HostLeave/Client1' = @('The room closed because the Host left through its menu', 'The client shows that the Host left, not a lost connection',

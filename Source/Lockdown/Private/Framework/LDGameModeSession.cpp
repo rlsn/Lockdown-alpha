@@ -27,7 +27,7 @@ namespace
         case ELDSessionReject::MatchClosed: return TEXT("本局结果已锁定。");
         case ELDSessionReject::SpawnBlocked: return TEXT("开局出生位置无法放置，房间已回到 Lobby。");
         case ELDSessionReject::MissingDemoDefinition: return TEXT("当前版本无法开始 Demo 对局，房间已回到 Lobby。");
-        case ELDSessionReject::AuthorityFault: return TEXT("房间因权威错误已停止，请离开对局返回主菜单。");
+        case ELDSessionReject::AuthorityFault: return TEXT("房间因权威错误已停止，请离开房间并返回主菜单。");
         case ELDSessionReject::None: return TEXT("");
         default: return TEXT("无效的房间命令。");
         }
