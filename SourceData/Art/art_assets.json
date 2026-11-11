@@ -130,16 +130,31 @@
       "license": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
       "license_file": "Quaternius/ToonShooterGameKit/License.txt",
       "license_sha256": "907cb20163377df3fd050846c3b37fde09fee44ae04bff981a489e5eee11dfe4"
+    },
+    {
+      "id": "tripo-basketball-hero",
+      "name": "Basketball hero body (Tripo generation for Lockdown)",
+      "author": "WunhaoLi for the Lockdown project",
+      "page_url": "https://www.tripo3d.ai/",
+      "download_url": "",
+      "downloaded": "2026-11-09",
+      "license": "Project-owned",
+      "license_file": "Tripo/BasketballHero/LICENSE.txt",
+      "license_sha256": "011288b8de893d49e996c2ff6e27325db9118981ba615005ba19bb0e2a607cb2"
+    },
+    {
+      "id": "chef-ninja",
+      "name": "Chef ninja body, cloth cape and iron ladle (made for Lockdown)",
+      "author": "WunhaoLi for the Lockdown project",
+      "page_url": "",
+      "download_url": "",
+      "downloaded": "2026-11-09",
+      "license": "Project-owned",
+      "license_file": "ChefNinja/LICENSE.txt",
+      "license_sha256": "c25236e3634ddecb4be45fb4b1d7186c0f8dadbfc92b734c89bb13eb9b39c696"
     }
   ],
   "files": [
-    {
-      "path": "Quaternius/UltimateModularMen/Casual_2.gltf",
-      "pack": "quaternius-ultimate-modular-men",
-      "pack_path": "Ultimate Modular Men- Feb 2022/Individual Characters/glTF/Casual_2.gltf",
-      "sha256": "55c654d09a2a5ff6e3bd6158d4a1b462f181cd6f1e12a0f5e9d959f9c3abc438",
-      "purpose": "Contender body for all six seats (T-shirt tinted per seat) with its 24 embedded clips"
-    },
     {
       "path": "Quaternius/UltimateModularMen/Casual_Hoodie.gltf",
       "pack": "quaternius-ultimate-modular-men",
@@ -489,68 +504,135 @@
       "pack_path": "Crate.glb",
       "sha256": "30604302c679a2a9a2c83a28cd54ec8a5664989ec32a75c1f78299b3abfad669",
       "purpose": "Airdrop crate"
+    },
+    {
+      "path": "Tripo/BasketballHero/Hooper/T_Hooper_JerseyMask.png",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "Hooper/T_Hooper_JerseyMask.png",
+      "sha256": "06cbe12ab50a65d1f92f9f1ad9115a5a200390e7a7a86696a79b161b8bf53d42",
+      "purpose": "Seat tint mask of the hooper body texture (Scripts/MakeHooperJerseyMask.py)"
+    },
+    {
+      "path": "Tripo/BasketballHero/Smile/BasketballHero_SmileCloth.fbx",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "Smile/BasketballHero_SmileCloth.fbx",
+      "sha256": "c569f0c7b132c7c648ed804e87a9bc3ad27f53598580910aef9a4262e9bd1087",
+      "purpose": "Hooper body mesh source: the repaired body with the smiling head; SK_Hooper is imported from it"
+    },
+    {
+      "path": "Tripo/BasketballHero/Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/Kobe_Smile_Head_PBR18_metallic.JPEG",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/Kobe_Smile_Head_PBR18_metallic.JPEG",
+      "sha256": "1f7ae12155e4cf832964256fbe835d8885ea83840057d2d8b226a39a31376c89",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Tripo/BasketballHero/Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/Kobe_Smile_Head_PBR18_roughness.JPEG",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/Kobe_Smile_Head_PBR18_roughness.JPEG",
+      "sha256": "d4ff75ea7abf55049434dc43250ff3990e1f00a1cb24a9f5dc3072e16c21392f",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Tripo/BasketballHero/Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/tripo_normal_7a8753a1-7d62-4c4e-87d5-a00d7c806493.jpg",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/tripo_normal_7a8753a1-7d62-4c4e-87d5-a00d7c806493.jpg",
+      "sha256": "4a547c9ad82913390242f6f2868e29dd810ba13e2033dd6a67e9a6ca9ef0f915",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Tripo/BasketballHero/Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/tripo_rgb_ae6054a8-4734-4bcb-8d14-c243b9fbe231.jpg",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "Smile/Head18/tripo_convert_ef9b5a61-7ac8-49e6-8c94-ceef46ff870c.fbm/tripo_rgb_ae6054a8-4734-4bcb-8d14-c243b9fbe231.jpg",
+      "sha256": "a30fd48258e24dba61a4728a9bc9310beddafe89df18a7d33d849861c626c9bb",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Tripo/BasketballHero/tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_basecolor.JPEG",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_basecolor.JPEG",
+      "sha256": "61e9a1357eea160a04a1df099058522ec2d92985c5caeedde0b729204f5f0270",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Tripo/BasketballHero/tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_normal.JPEG",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_normal.JPEG",
+      "sha256": "0c4edd675d39a270f23013b04d807ee5dac13d9aeafc25e04c832363256a36da",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
+    },
+    {
+      "path": "Tripo/BasketballHero/tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_roughness.JPEG",
+      "pack": "tripo-basketball-hero",
+      "pack_path": "tripo_convert_e5a46437-aea5-4d48-ac2f-14ab0faa81e9.fbm/SK_BasketballHero_UE5_roughness.JPEG",
+      "sha256": "47b1b3985424117ad6df5871549209f709ccc7d59d8d917ede0cc136c0991b9a",
+      "purpose": "Texture the hooper body materials sample (imported as a T_Hooper_ texture)"
     }
   ],
   "characters": [
     {
-      "id": "contender",
-      "source": "Quaternius/UltimateModularMen/Casual_2.gltf",
+      "id": "hooper",
+      "kind": "authored",
+      "pack": "tripo-basketball-hero",
+      "mesh": "SK_Hooper",
+      "source": "Tripo/BasketballHero/Smile/BasketballHero_SmileCloth.fbx",
       "height_cm": 175,
-      "run_speed_cm_per_sec": 284.3,
-      "hand_bone": "Wrist_R",
-      "foot_bone": "Foot_L",
+      "run_speed_cm_per_sec": 256.7,
+      "hand_bone": "hand_r",
+      "hip_bone": "pelvis",
+      "foot_bone": "foot_l",
       "forward_bones": [
-        "PT_L",
-        "PT_R"
+        "ball_l",
+        "ball_r"
       ],
       "tint_slots": [
-        "LightBrown"
+        "tripo_mat_e5a46437"
       ],
-      "colors": {
-        "Red_Dark": [
-          0.03,
-          0.03,
-          0.035
-        ]
-      },
       "animations": [
         {
           "state": "Idle",
-          "clip": "Idle",
+          "asset": "Hooper_Idle",
+          "origin": "Quaternius Casual_2 Idle retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0
         },
         {
           "state": "Run",
-          "clip": "Run",
+          "asset": "Hooper_Run",
+          "origin": "Quaternius Casual_2 Run retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0
         },
         {
           "state": "Attack",
-          "clip": "Punch_Right",
+          "asset": "Hooper_Attack",
+          "origin": "Quaternius Casual_2 Punch_Right retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0,
           "impact_sec": 0.565,
           "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
         },
         {
           "state": "Cast",
-          "clip": "Interact",
+          "asset": "Hooper_Cast",
+          "origin": "Quaternius Casual_2 Interact retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0,
-          "impact_sec": 0.635,
+          "impact_sec": 0.736,
           "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
         },
         {
           "state": "Hit",
-          "clip": "HitRecieve",
+          "asset": "Hooper_Hit",
+          "origin": "Quaternius Casual_2 HitRecieve retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.9
         },
         {
           "state": "Death",
-          "clip": "Death",
+          "asset": "Hooper_Death",
+          "origin": "Quaternius Casual_2 Death retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0
         },
         {
           "state": "Spawn",
-          "clip": "Wave",
+          "asset": "Hooper_Spawn",
+          "origin": "Quaternius Casual_2 Wave retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0,
           "substitute": "No appear clip in the pack; a wave greets the field on arrival."
         }
@@ -671,59 +753,82 @@
       ]
     },
     {
-      "id": "dean",
-      "source": "Quaternius/UltimateModularMen/Casual_Hoodie.gltf",
+      "id": "chef",
+      "kind": "authored",
+      "pack": "chef-ninja",
+      "mesh": "SK_Chef",
       "height_cm": 240,
-      "run_speed_cm_per_sec": 387.3,
-      "hand_bone": "Wrist_R",
-      "foot_bone": "Foot_L",
+      "run_speed_cm_per_sec": 192.1,
+      "hand_bone": "hand_r",
+      "hip_bone": "pelvis",
+      "foot_bone": "foot_l",
       "forward_bones": [
-        "PT_L",
-        "PT_R"
+        "ball_l",
+        "ball_r"
       ],
-      "tint_slots": [
-        "Purple"
-      ],
+      "tint_slots": [],
       "animations": [
         {
           "state": "Idle",
-          "clip": "Idle",
+          "asset": "Chef_Idle",
+          "origin": "Chef ninja AN_Chef_Idle",
           "play_rate": 1.0
         },
         {
           "state": "Run",
-          "clip": "Run",
+          "asset": "Chef_Run",
+          "origin": "Chef ninja AN_Chef_NinjaRun",
           "play_rate": 1.0
         },
         {
           "state": "Attack",
-          "clip": "Punch_Right",
+          "asset": "Chef_Slash",
+          "origin": "Chef ninja AN_Chef_OneHandSlash",
           "play_rate": 1.0,
-          "impact_sec": 0.565,
-          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+          "impact_sec": 0.671
         },
         {
           "state": "Cast",
-          "clip": "Interact",
+          "asset": "Chef_Cast",
+          "origin": "Quaternius Casual_2 Interact retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0,
-          "impact_sec": 0.635,
+          "impact_sec": 0.736,
           "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
         },
         {
           "state": "Hit",
-          "clip": "HitRecieve",
+          "asset": "Chef_Hit",
+          "origin": "Quaternius Casual_2 HitRecieve retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.9
         },
         {
           "state": "Death",
-          "clip": "Death",
+          "asset": "Chef_Death",
+          "origin": "Quaternius Casual_2 Death retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0
         },
         {
           "state": "Spawn",
-          "clip": "Wave",
+          "asset": "Chef_Spawn",
+          "origin": "Quaternius Casual_2 Wave retargeted (IK Retargeter, 2026-11-11)",
           "play_rate": 1.0,
           "substitute": "No appear clip in the pack; a wave greets the field on arrival."
+        }
+      ],
+      "attachments": [
+        {
+          "id": "ladle",
+          "kind": "static",
+          "asset": "SM_Chef_Ladle",
+          "socket": "Weapon_R"
+        },
+        {
+          "id": "cape",
+          "kind": "skinned",
+          "asset": "SK_Chef_Cape",
+          "tint_slots": [
+            "Chef_Cape"
+          ]
         }
       ]
     },
@@ -786,12 +891,12 @@
     }
   ],
   "seats": [
-    "contender",
-    "contender",
-    "contender",
-    "contender",
-    "contender",
-    "contender"
+    "hooper",
+    "hooper",
+    "hooper",
+    "hooper",
+    "hooper",
+    "hooper"
   ],
   "monsters": [
     {
@@ -804,7 +909,7 @@
     },
     {
       "creature": "monster_dean",
-      "character": "dean"
+      "character": "chef"
     },
     {
       "creature": "monster_advisor",

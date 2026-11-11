@@ -174,6 +174,64 @@ void ULDHumanoidVisualComponent::OnRegister()
     {
         if (!Edge->IsRegistered()) { Edge->RegisterComponent(); }
     }
+    for (UMeshComponent* Part : Worn)
+    {
+        if (Part && !Part->IsRegistered()) { Part->RegisterComponent(); }
+    }
+}
+
+void ULDHumanoidVisualComponent::WearParts(const FLinearColor& Identity, const FString& What)
+{
+    for (UMeshComponent* Part : Worn)
+    {
+        if (Part) { Part->DestroyComponent(); }
+    }
+    Worn.Reset();
+    if (!Art) { return; }
+    UObject* Outer = GetOwner() ? static_cast<UObject*>(GetOwner()) : static_cast<UObject*>(this);
+    for (const FLDArtAttachment& Spec : Art->Attachments)
+    {
+        const FName Name = MakeUniqueObjectName(Outer, UMeshComponent::StaticClass(), FName(*(TEXT("Worn_") + Spec.Id)));
+        UMeshComponent* Part = nullptr;
+        if (Spec.StaticMesh)
+        {
+            auto* Rigid = NewObject<UStaticMeshComponent>(Outer, Name, RF_Transient);
+            Rigid->SetStaticMesh(Spec.StaticMesh);
+            Rigid->SetupAttachment(Mesh, Spec.Socket);
+            Part = Rigid;
+        }
+        else
+        {
+            // A garment on the body skeleton: it takes the body's pose and simulates its own cloth on top.
+            auto* Garment = NewObject<USkeletalMeshComponent>(Outer, Name, RF_Transient);
+            Garment->SetSkeletalMeshAsset(Spec.SkinnedMesh);
+            Garment->SetupAttachment(Mesh);
+            Garment->SetLeaderPoseComponent(Mesh);
+            Garment->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+            Part = Garment;
+        }
+        Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Part->SetGenerateOverlapEvents(false);
+        Part->SetCanEverAffectNavigation(false);
+        if (IsRegistered()) { Part->RegisterComponent(); }
+        for (int32 Index = 0; Index < Part->GetNumMaterials(); ++Index)
+        {
+            UMaterialInstanceDynamic* Paint = Part->CreateDynamicMaterialInstance(Index);
+            if (!ensureMsgf(Paint, TEXT("%s: art part %s.%s has no material %d; rerun the art import"), *What, *Art->Id, *Spec.Id, Index)) { continue; }
+            Paint->SetVectorParameterValue(ULDArtCatalog::FlashParameter, FLinearColor::Black);
+            Paints.Add(Paint);
+        }
+        for (const FName Slot : Spec.TintSlots)
+        {
+            const int32 Index = Part->GetMaterialIndex(Slot);
+            auto* Paint = Index == INDEX_NONE ? nullptr : Cast<UMaterialInstanceDynamic>(Part->GetMaterial(Index));
+            if (ensureMsgf(Paint, TEXT("%s: art part %s.%s has no tint slot %s; rerun the art import"), *What, *Art->Id, *Spec.Id, *Slot.ToString()))
+            {
+                Paint->SetVectorParameterValue(ULDArtCatalog::TintParameter, Identity);
+            }
+        }
+        Worn.Add(Part);
+    }
 }
 
 FLinearColor ULDHumanoidVisualComponent::ContenderTint(uint8 Slot)
@@ -238,6 +296,7 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     {
         // The art subsystem has logged why its catalog is unavailable; this body draws nothing rather than a stand-in.
         UE_LOG(LogLDContent, Error, TEXT("LD_BODY_ART_UNAVAILABLE %s has no body in the Demo art catalog; nothing is drawn."), *What);
+        WearParts(Identity, What);
         Mesh->SetSkeletalMeshAsset(nullptr);
         Mesh->SetHiddenInGame(true);
         for (UStaticMeshComponent* Part : Parts) { Part->SetHiddenInGame(true); }
@@ -266,6 +325,7 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
             Paint->SetVectorParameterValue(ULDArtCatalog::TintParameter, Identity);
         }
     }
+    WearParts(Identity, What);
     Mesh->SetHiddenInGame(false);
     UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }

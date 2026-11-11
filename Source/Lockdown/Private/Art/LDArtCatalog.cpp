@@ -44,6 +44,40 @@ namespace
         return true;
     }
 
+    template<typename TSlot>
+    bool ArtResolveSlots(const TArray<TSlot>& Slots, const TArray<FName>& TintSlots, const FString& Label, FString& Error)
+    {
+        if (Slots.IsEmpty()) { return ArtFail(Error, Label + TEXT(" mesh has no material slots.")); }
+        for (const TSlot& Slot : Slots)
+        {
+            if (!Slot.MaterialInterface) { return ArtFail(Error, Label + TEXT(" material slot has no material: ") + Slot.MaterialSlotName.ToString()); }
+        }
+        for (const FName Tint : TintSlots)
+        {
+            if (!Slots.ContainsByPredicate([Tint](const TSlot& Slot) { return Slot.MaterialSlotName == Tint; }))
+            { return ArtFail(Error, Label + TEXT(" tint slot is not a mesh material slot: ") + Tint.ToString()); }
+        }
+        return true;
+    }
+
+    // A worn part: exactly one mesh; a rigid part hangs from a body socket or bone, a skinned part shares the body
+    // skeleton so it can follow the body pose.
+    bool ArtResolveAttachment(const FLDArtCharacter& Body, const USkeleton& Skeleton, const FLDArtAttachment& Part, FString& Error)
+    {
+        const FString Label = FString::Printf(TEXT("Character %s part %s"), *Body.Id, *Part.Id);
+        if (!LDArt::IsValidId(Part.Id)) { return ArtFail(Error, Label + TEXT(" needs a lowercase id.")); }
+        if (!Part.StaticMesh == !Part.SkinnedMesh) { return ArtFail(Error, Label + TEXT(" needs exactly one static or skinned mesh.")); }
+        if (Part.StaticMesh)
+        {
+            if (Part.Socket.IsNone() || (!Body.Mesh->FindSocket(Part.Socket) && Body.Mesh->GetRefSkeleton().FindBoneIndex(Part.Socket) == INDEX_NONE))
+            { return ArtFail(Error, Label + TEXT(" hangs from no body socket or bone: ") + Part.Socket.ToString()); }
+            return ArtResolveSlots(Part.StaticMesh->GetStaticMaterials(), Part.TintSlots, Label, Error);
+        }
+        if (!Part.Socket.IsNone()) { return ArtFail(Error, Label + TEXT(" is skinned and follows the body pose; it names no socket.")); }
+        if (Part.SkinnedMesh->GetSkeleton() != &Skeleton) { return ArtFail(Error, Label + TEXT(" does not share the body skeleton.")); }
+        return ArtResolveSlots(Part.SkinnedMesh->GetMaterials(), Part.TintSlots, Label, Error);
+    }
+
     bool ArtResolveCharacter(const FLDArtCharacter& Body, FString& Error)
     {
         const FString Label = TEXT("Character ") + Body.Id;
@@ -68,12 +102,22 @@ namespace
         {
             if (!Slot.MaterialInterface) { return ArtFail(Error, Label + TEXT(" material slot has no material: ") + Slot.MaterialSlotName.ToString()); }
         }
-        if (Body.TintSlots.IsEmpty()) { return ArtFail(Error, Label + TEXT(" has no identity tint slot.")); }
         for (const FName Slot : Body.TintSlots)
         {
             if (!Materials.ContainsByPredicate([Slot](const FSkeletalMaterial& Material) { return Material.MaterialSlotName == Slot; }))
             { return ArtFail(Error, Label + TEXT(" tint slot is not a mesh material slot: ") + Slot.ToString()); }
         }
+        int32 TintSlots = Body.TintSlots.Num();
+        TSet<FString> PartIds;
+        for (const FLDArtAttachment& Part : Body.Attachments)
+        {
+            if (!ArtResolveAttachment(Body, *Skeleton, Part, Error)) { return false; }
+            bool bSeen = false;
+            PartIds.Add(Part.Id, &bSeen);
+            if (bSeen) { return ArtFail(Error, Label + TEXT(" wears two parts with id ") + Part.Id); }
+            TintSlots += Part.TintSlots.Num();
+        }
+        if (TintSlots == 0) { return ArtFail(Error, Label + TEXT(" has no identity tint slot on the body or a worn part.")); }
         if (Body.Animations.Num() < LDArt::AnimCount - 1 || Body.Animations.Num() > LDArt::AnimCount)
         { return ArtFail(Error, FString::Printf(TEXT("%s has %d clips; every state but the optional Spawn needs one."), *Label, Body.Animations.Num())); }
         for (int32 Index = 0; Index < Body.Animations.Num(); ++Index)

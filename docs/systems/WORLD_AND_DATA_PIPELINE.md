@@ -298,27 +298,31 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 
 ### 美术素材与装饰
 
-角色与场地道具只用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、Stylized Nature MegaKit、Toon Shooter Game Kit、
+场地道具与野怪身体用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、Stylized Nature MegaKit、Toon Shooter Game Kit、
 若干 Kenney 套件），只提交实际选用的 `.gltf`/`.bin`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
 Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者页面所写的 CC0 与核对日期。
+项目所有者 2026-11-11 批准使用项目自有或已授权的非 CC0 来源：参赛者身体（Tripo 生成，`tripo-basketball-hero`）、
+Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
+这类包的许可文件须原样写出清单声明的许可（如 `Project-owned`）；CC0 包仍须在许可原文中写明 CC0。
 `SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
-逐文件的包内路径、SHA-256 与用途；三个身体（参赛者、已读不回的 HR、追着办卡的私教）的显示身高、着色槽、右手骨骼、
-朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与两档野怪各用哪个身体；道具的基础缩放，
-以及每个装饰的放置区域、位置与朝向。出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py` 从 glTF 数据测得，
-`--check` 拒绝与清单不符的数值。
+逐文件的包内路径、SHA-256 与用途（模型、图像；`SourceData\Art` 下未列出的文件一律拒绝）；
+五个身体的显示身高、着色槽、右手骨骼、朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与四档野怪各用哪个身体；
+道具的基础缩放，以及每个装饰的放置区域、位置与朝向。glTF 身体的出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py`
+从 glTF 数据测得，`--check` 拒绝与清单不符的数值。
 
 `Scripts\ImportDemoArt.ps1 -Mode Import` 经 Interchange 导入到 `Content\Lockdown\Art`，
 所有材质槽换成 `M_ArtSurface` 的实例（向量参数 `Tint` 身份色、`Flash` 自发光；glTF `alphaMode` 为 MASK 的槽用 `M_ArtSurfaceMasked`，
 按源 `alphaCutoff` 裁切；贴图按 glTF 采样器：`magFilter` 为 LINEAR 时平滑采样带 mip，否则按 Kenney 调色板最近点采样），并保存类型化目录
 `DA_DemoArt`（`ULDArtCatalog`）。`-Mode Validate`（Bootstrap Validate 也执行）拒绝清单外的文件、
-许可原文不是 CC0 的包、源哈希变化、不是由当前源字节导入的资产、与清单不符的目录项和违反放置区域的装饰。
+许可原文与声明不符的包、源哈希变化、不是由当前源字节导入的资产、与清单不符的目录项和违反放置区域的装饰。
 资产经 `DirectoriesToAlwaysCook` 进入包。
 
 `ULDArtSubsystem` 在游戏实例启动时解析目录一次；缺失或不完整时记录 `LD_ART_CATALOG_INVALID` 并返回空，
 不用占位身体；身体接线拿不到条目时记录 `LD_BODY_ART_UNAVAILABLE` 且不绘制。
 
-身体：参赛者六个座位共用 Quaternius `Casual_2`（显示身高 175 cm），已读不回的 HR（`monster_scavenger`）用女装
-`Suit`（170 cm），追着办卡的私教（`monster_guardian`）用 `Casual_Hoodie`（205 cm）。只改显示，不改胶囊
+身体：参赛者六个座位共用编写身体 `hooper`（篮球手，显示身高 175 cm），已读不回的 HR（`monster_scavenger`）用女装
+`Suit`（170 cm），追着办卡的私教（`monster_guardian`）用 `Casual_Hoodie`（205 cm），画饼老板 Boss（`monster_dean`）用编写身体
+`chef`（240 cm），催毕设的导师（`monster_advisor`）用 `Suit`（220 cm）。只改显示，不改胶囊
 （半径 40、半高 90）。目录给出每个身体的 `MeshTransform`（缩放 = 显示身高 / 绑定姿势身高，偏航由清单的
 朝向骨骼算出、使模型正前方对齐 +X，脚底落在胶囊底面）、`TintSlots`（着色材质槽）、`HandBone`（`Wrist_R`）与 `RunSpeedCmPerSec`
 （Run 播放速率 = 移动速度 / 该值）。Interchange 把 glTF 骨骼名中的 `.` 换成 `_`。
@@ -326,6 +330,17 @@ Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者�
 状态动画均为原地播放、无根运动：Idle、Run、Attack = `Punch_Right`、Cast = `Interact`、Hit = `HitRecieve`
 （加速到 0.3 s 内）、Death、Spawn = `Wave`；包内没有对应动作的状态用相近动画替代，替代理由写在清单
 `substitute` 字段，出手时刻写在 `impact_sec`。
+
+编写身体（清单 `kind: authored`）是在 `Art/Characters/hooper`、`Art/Characters/chef` 中直接维护的成品资产（网格、骨架、物理、材质、贴图与动画），`-Mode Import` 不重新导入它们。每个材质带 `Tint` 与 `Flash`：`hooper` 身体材质只把球衣的金色与紫色
+（`Scripts\MakeHooperJerseyMask.py` 由底色贴图生成的 `T_Hooper_JerseyMask`，`--check` 拒绝与重新生成结果不符的遮罩）换成座位色并按亮度保留明暗，数字、皮肤与鞋不变；
+`chef` 的披风整体换成 Boss 色，其余材质为 `BaseColor × Tint`（默认白色）。`hooper` 的全部状态与 `chef` 的 Cast/Hit/Death/Spawn
+由 Quaternius `Casual_2` 经 IK Retargeter 重定向得到（清单 `origin` 字段）：去掉重定向器的 Root Motion 步骤以保持原地；Tripo 骨架以米为单位、根骨缩放 182.3，
+重定向后恢复根骨缩放并把骨盆位移换回米。`chef` 的 Idle/Run/Attack 是它自带的动作。替换这些资产后重跑 `-Mode Import` 刷新目录。
+`-Mode Import` 与 `-Mode Validate` 读取这些资产核对目录：有 `source` 时网格须由该源文件的当前字节导入；每段动作的根骨水平漂移不超过 2 cm；出手时刻与 Run 参考速度按 `MeasureDemoArt.py`
+的同一规则（240 Hz、手相对骨盆最靠前的时刻、着地脚后滑速度的中位数）从动作测得，与清单不符即失败并给出测得值。
+编写身体可带穿戴件（`FLDArtAttachment`）：挂在身体插槽上的静态件（Boss 的铁勺挂 `Weapon_R`），或共享身体骨架、
+以 Leader Pose 跟随身体并自带布料模拟的蒙皮件（Boss 的披风）。穿戴件只显示、无碰撞、不参与点选，随身体一起受击闪光，
+可列自己的着色槽；身体与穿戴件合计至少一个着色槽。
 
 装饰：`ULDArtWorldSubsystem` 在每台渲染 `L_Demo` 的机器上本地生成 `ALDDecorationSet`
 （成功 `LD_ART_DECORATIONS_READY`，失败 `LD_ART_DECORATIONS_UNAVAILABLE` 且不生成）：
