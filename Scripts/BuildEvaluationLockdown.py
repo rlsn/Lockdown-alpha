@@ -1,4 +1,4 @@
-"""Lockdown v0.10 Demo adapter of the build evaluation core (docs/systems/BUILD_EVALUATION.md).
+"""Lockdown v0.11 Demo adapter of the build evaluation core (docs/systems/BUILD_EVALUATION.md).
 
 It describes what the current runtime can evaluate, from the catalog the native game loads (demo_content.json, whose
 manifest digest is the native catalog root), and turns the native Host driver's evidence into Case statuses, metrics and

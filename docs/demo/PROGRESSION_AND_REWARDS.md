@@ -1,6 +1,6 @@
 # Demo 成长与奖励
 
-**目标：v0.10.0 · 架构职责：M6 / M7 · Unreal Engine 5.8.4**
+**目标：v0.11.0 · 架构职责：M6 / M7 · Unreal Engine 5.8.4**
 
 本报告将 [App Spec](../APP_SPEC.md) §4、§6–10 接到
 [架构 R09、N03/N04](ARCHITECTURE.md) 和
