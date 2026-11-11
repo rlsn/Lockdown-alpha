@@ -53,8 +53,8 @@ Demo 世界注册表已加载，才允许 Host 开始；缺失项逐个写进 Lo
 ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于玩法已正确接通。
 
 `ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
-发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
-`EndMatch` 只在 Rest/Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果（其他阶段以 `WrongPhase` 拒绝）；
+发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。玩家菜单不提供结束本局入口；
+服务器仍保留 `EndMatch` 命令供开发与规则测试使用，只在 Rest/Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果（其他阶段以 `WrongPhase` 拒绝）；
 有待重试的死亡奖励（或因此等待结算边界的守护完成）时返回 `RequestInFlight`，下一边界结清后才可结束。
 `ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
 Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；

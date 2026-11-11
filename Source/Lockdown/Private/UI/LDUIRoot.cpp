@@ -112,8 +112,8 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
         SetIsFocusable(true);
         auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();
         WidgetTree->RootWidget=Canvas;
-        ConfirmRows.SetNum(int32(ELDRootConfirm::EndMatch)+1);
-        ConfirmCancels.SetNum(int32(ELDRootConfirm::EndMatch)+1);
+        ConfirmRows.SetNum(int32(ELDRootConfirm::LeaveRoom)+1);
+        ConfirmCancels.SetNum(int32(ELDRootConfirm::LeaveRoom)+1);
         const bool bFrontend=PC->IsFrontend();
         if(bFrontend){BuildFrontend(*PC,*Canvas);}else{BuildWorld(*Canvas);}
         BuildConfirm(*Canvas,bFrontend);
@@ -295,9 +295,6 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Add(Menu,MenuPhase,2);
     Add(Menu,MakeButton(TEXT("继续"),TEXT("Resume"),[this](){Resume();}),8);
     Add(Menu,MakeButton(TEXT("设置"),TEXT("MatchSettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}),8);
-    EndMatchButton=MakeButton(TEXT("结束本局"),TEXT("EndMatch"),[this](){OpenConfirm(ELDRootConfirm::EndMatch);});
-    EndMatchButton->SetVisibility(ESlateVisibility::Collapsed);
-    Add(Menu,EndMatchButton,8);
     Add(Menu,MakeButton(TEXT("离开房间并返回主菜单"),TEXT("LeaveMatch"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
     MenuFeedback=Label(FString(),15,MutedColor);
     Add(Menu,MenuFeedback,4);
@@ -324,12 +321,6 @@ void ULDUIRoot::BuildConfirm(UCanvasPanel& Canvas,bool bFrontend)
     else
     {
         AddChoice(ELDRootConfirm::LeaveRoom,TEXT("确认离开"),TEXT("ConfirmLeave"),[this](){LeaveRoom();},TEXT("CancelLeave"));
-        AddChoice(ELDRootConfirm::EndMatch,TEXT("确认结束"),TEXT("ConfirmEndMatch"),[this]()
-        {
-            CloseConfirm();
-            // The receipt returns through IntentFeedback; an accepted end switches the room to Results.
-            if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){PC->EndDemoMatch();}
-        },TEXT("CancelEndMatch"));
     }
     auto* DialogWidth=WidgetTree->ConstructWidget<USizeBox>();
     DialogWidth->SetWidthOverride(560);
@@ -539,7 +530,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     if(bResultsNow!=bInResults)
     {
         bInResults=bResultsNow;
-        // The HUD result screen owns the centre; Back may reopen the menu, which then offers no 结束本局.
+        // The HUD result screen owns the centre; Back may reopen the menu.
         if(bInResults&&bMenuOpen){CloseMenu();}
     }
     // Closing Settings hands keyboard focus back to the root's own full page, as it was before Settings opened.
@@ -559,10 +550,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     HeaderPanel->SetVisibility(bHeader?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);
     if(bHeader){SetLine(Status,TEXT("对局阶段：")+MatchPhaseText(Match));}
     if(bInLobby){RefreshLobby(PC,*Public);}
-    const bool bCanEnd=bPlaying&&PC.OwnerState.bLobbyHost&&PC.OwnerState.Match==Match->Generation;
-    if(Confirm==ELDRootConfirm::EndMatch&&!bCanEnd){CloseConfirm();}
     if(!bMenuOpen){return;}
-    EndMatchButton->SetVisibility(bCanEnd?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     SetLine(MenuPause,bPlaying?FString(TEXT("对局不会暂停")):FString());
     SetLine(MenuPhase,TEXT("对局阶段：")+MatchPhaseText(Match));
     FString Notes=PC.IntentFeedback;
@@ -1017,7 +1005,7 @@ void ULDUIRoot::OpenMenu()
 void ULDUIRoot::CloseMenu()
 {
     if(!MenuPage){return;}
-    if(Confirm==ELDRootConfirm::LeaveRoom||Confirm==ELDRootConfirm::EndMatch){CloseConfirm();}
+    if(Confirm==ELDRootConfirm::LeaveRoom){CloseConfirm();}
     bMenuOpen=false;
     MenuPage->SetVisibility(ESlateVisibility::Collapsed);
     if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){PC->SetMenuOpen(false);}
@@ -1037,7 +1025,6 @@ void ULDUIRoot::OpenConfirm(ELDRootConfirm Kind)
     switch(Kind)
     {
     case ELDRootConfirm::Exit: Message=TEXT("确认退出游戏？");break;
-    case ELDRootConfirm::EndMatch: Message=TEXT("结束本局后没有胜者，所有人进入结算，之后可由房主带房间返回 Lobby。");break;
     default:
         Message=bHost?TEXT("你是房主：离开将结束整个房间，所有玩家返回主菜单。")
             :bLobbyPhase?TEXT("离开后将返回主菜单；房间继续运行，其他成员仍留在 Lobby。")
@@ -1108,7 +1095,7 @@ void ULDUIRoot::DismissMenu()
         }
         return;
     }
-    if(Confirm==ELDRootConfirm::LeaveRoom||Confirm==ELDRootConfirm::EndMatch){CloseConfirm();}
+    if(Confirm==ELDRootConfirm::LeaveRoom){CloseConfirm();}
     if(bMenuOpen&&MenuPage){bMenuOpen=false;MenuPage->SetVisibility(ESlateVisibility::Collapsed);}
 }
 

@@ -84,12 +84,12 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | `Lobby` / 真人进出 | 原子预留/释放真人容量；变更结构名单版本并使旧 Ready 失效 | PreLogin 检查之外，在最终入房提交点重查容量和阶段，覆盖同时到达的两个连接。 |
 | `Lobby` / Host Start | 重查 Host、名单版本和所有真人 Ready，关闭准入，进入 `Starting`，冻结参赛快照 | 重复 Start 重放原结果；同 ID 改条款拒绝。连接离开若先提交则改变名单并拒绝旧 Start。 |
 | `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；初次身体全部站到各自的休息锚点（休息生命、隔离组、世界冻结）后统一进入 `Rest`（R0 的配装步骤；`PublicMatch.StartedAtMs` 为此刻） | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
-| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。自己的构筑命令在每个休息步骤都受理（#222，PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；房主可结束本局；未选的开局机会保留、不代选 |
+| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。自己的构筑命令在每个休息步骤都受理（#222，PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；未选的开局机会保留、不代选 |
 | `Rest` / 返场 | 返回倒计时结束：清除休息效果、退休全部休息生命、按 §3.4 放置下一条野外生命并给 `LIFE.ProtectionSec`；进入 `Development`。R0 返场是每名参赛者在喷漆名单上的 `Joined` | 放置作为全员共同提交（§3.4“共同入场”）：有人放不下时谁都不返场，T 与旗杆停在边界、每拍重试，超过 `REST.EntryReadyTimeoutSec` 为 `LD_REST_RETURN_UNREADY` 权威故障；不跳过、不默认成功 |
 | `Development` / 野外段到期 | 定时野外段的 T 到达 `MATCH.FieldSegmentSec` 的整数倍时进入下一次休息（`Rest`），见 §3.4 | 进入休息不是死亡：无 K/D、击杀播报、奖励或复活等待 |
 | `Development` / 最终野外开放 | R3 返场即最终野外开始，`FLDCaptureReducer::ScheduleOpen` 把开放时刻定为该边界，同一边界的 Capture 阶段进入 `CaptureOpen`，只在开放后开始计喷漆进度 | 仍可升级、战斗；不能把前三段野外的区内停留时间算入喷漆。 |
 | `CaptureOpen` / 守护完成提案 | 闭合真实事件边界、重新判定涂鸦主人与连续守护；GameMode 先锁结果和写闸，进入 `Results` | 多个提案不能互相覆盖；未闭合水位不是成功，旧局/旧生命/旧 CaptureEpoch 的提案拒绝。 |
-| 活跃阶段 / Host 结束 | 在权威边界提交 `HostEnded`，无胜者，进入 `Results` | 不借终止挑选最高分；与自然胜利的竞争按批次顺序裁定，不能先发布两个结果。 |
+| 活跃阶段 / 测试用 Host 结束命令 | 在权威边界提交 `HostEnded`，无胜者，进入 `Results`；玩家菜单无此入口 | 不借终止挑选最高分；与自然胜利的竞争按批次顺序裁定，不能先发布两个结果。 |
 | `Results` / Host 返回 Lobby | 先保持旧闸关闭，进入 `Resetting`；全域失效、拆除身体和局内对象、换 Match 后发布 `Lobby` | 保留已连接房间，不要求客户端伪造一次重连；全真人 Ready 清除，不能自动重开。 |
 | 任意房间阶段 / 普通成员离开 | 立即撤销资格/命令、移除身体及碰撞、取消未结束独立效果；其余人继续正常规则 | 不是死亡、不发离开奖励、不接管AI；已发生命中/致死不回滚，已锁事实的结算接收记录不因身体移除而删除。 |
 | 任意阶段 / Host 离开或丢失 | 关闭服务器会话；所有客户端撤销输入/观测和 Pending，回前端显示原因 | 不停在失效地图，不迁移 Host，不自动恢复旧房间。 |
@@ -863,7 +863,7 @@ DEV 构建的归约器另记 `FLDCaptureDevTally` 遥测：每名持有者的开
 `TryCloseMatch` 的守护成功条件必须同时包括当前上下文、写闸开放、
 已封闭至 DueAtMs 的相关事件前缀、当前未过期的 CaptureEpoch、
 该时间边界该参赛者仍是涂鸦主人且守护连续满时长，以及没有未处理的必需死亡奖励/派生工作。
-结束原因为 `ELDMatchEndReason::GuardSucceeded`（“守护成功”）；Host 主动结束为 `HostEnded`。
+结束原因为 `ELDMatchEndReason::GuardSucceeded`（“守护成功”）；测试用 Host 结束命令为 `HostEnded`，玩家菜单无此入口。
 只通过 Timer 或 UI 倒计时不是完成证明。提交一次
 `FLDResultReceipt { Match, ResultId, ResultSerial, Reason, OptionalWinner, EndedAtMs }`，
 GameState 与归约器只读同一结果，不各写一个赢家。

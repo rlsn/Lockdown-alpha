@@ -238,6 +238,8 @@ public:
     // The real in-match menu: open the leave confirmation, then confirm it.
     bool PressLeave(ALDPlayerController& PC)
     {
+        if (!Check(!FindIn<UButton>(PC.RootUI, TEXT("EndMatch")),
+            TEXT("The in-match menu has no separate end-match action"))) { return false; }
         UButton* Leave = FindIn<UButton>(PC.RootUI, TEXT("LeaveMatch"));
         const UTextBlock* Caption = Leave ? Cast<UTextBlock>(Leave->GetContent()) : nullptr;
         if (!Check(Caption && Caption->GetText().ToString() == TEXT("离开房间并返回主菜单"),

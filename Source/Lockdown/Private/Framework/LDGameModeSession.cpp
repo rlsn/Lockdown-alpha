@@ -15,7 +15,7 @@ namespace
         switch (Reason)
         {
         case ELDSessionReject::NotOwner: return TEXT("这个连接不是房间成员。");
-        case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始或结束本局、带房间返回 Lobby。");
+        case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始本局或带房间返回 Lobby。");
         case ELDSessionReject::WrongPhase: return TEXT("当前阶段不能执行这个房间命令。");
         case ELDSessionReject::RoomFull: return TEXT("房间已有 3 名真人（含房主）。");
         case ELDSessionReject::NotAllReady: return TEXT("所有在线真人（含房主）都准备后才能开始对局。");

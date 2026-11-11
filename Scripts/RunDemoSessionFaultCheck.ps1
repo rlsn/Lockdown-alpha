@@ -26,7 +26,7 @@ $required = @{
         'Leaving credits no kill and marks no one else as left')
     'Leave/Client2Match' = @($connection, 'The Lobby leave action names its destination',
         'The Lobby leave confirmation explains the room remains open', 'Cancelling a Lobby leave keeps the member in the room',
-        'The in-match leave action names its destination',
+        'The in-match menu has no separate end-match action', 'The in-match leave action names its destination',
         'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'Leave/Client2' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLoss/Host' = @($connection, 'Every provider is wired: the ready room may start normally', 'The Host holds a live match with its owning client before it is lost')
@@ -48,7 +48,8 @@ $required = @{
         'A join that loses the race to the match start is refused with its own reason', 'A refused join stays on the frontend',
         'The Join control is usable again after a refusal')
     'HostLeave/HostMatch' = @($connection, 'Every provider is wired: the ready room may start normally',
-        'The Host holds a live match with its owning client before it leaves', 'The in-match leave action names its destination',
+        'The Host holds a live match with its owning client before it leaves', 'The in-match menu has no separate end-match action',
+        'The in-match leave action names its destination',
         'The leave confirmation explains the role-specific outcome', 'The in-match menu offers the shared leave confirmation')
     'HostLeave/Host' = @('A voluntary leave is not reported as a failure', 'The menu shows no failure or interruption after a voluntary leave')
     'HostLeave/Client1Match' = @($connection)
