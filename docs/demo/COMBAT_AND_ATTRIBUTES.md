@@ -1,6 +1,6 @@
 # Demo 战斗与属性
 
-**目标：v0.10.0 Demo · 职责：M4，衔接 M3/M5/M6/M7/M9/M10 · Unreal 5.8.4**
+**目标：v0.11.0 Demo · 职责：M4，衔接 M3/M5/M6/M7/M9/M10 · Unreal 5.8.4**
 
 本文依据 [App Spec](../APP_SPEC.md)、[共享契约](SHARED_CONTRACTS.md)与
 [架构审计](ARCHITECTURE.md)，定义战斗模块的规则与接缝，并标明其在当前代码中的落点。

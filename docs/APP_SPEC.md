@@ -1,6 +1,6 @@
 # Lockdown Demo App Spec
 
-**目标版本：v0.10.0**
+**目标版本：v0.11.0**
 
 **平台：Windows PC，键盘与鼠标，Unreal Engine 5.8.4**
 

@@ -1,6 +1,6 @@
 # Lockdown
 
-**v0.10.0 · Unreal Engine 5.8.4 · Windows PC**
+**v0.11.0 · Unreal Engine 5.8.4 · Windows PC**
 
 **对外标题：谁是雾港最强淫人王**（“淫”是雾港黑话，只指把人揍趴下）。技术项目名仍为 Lockdown。
 
