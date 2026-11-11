@@ -1,6 +1,6 @@
 # 战斗、效果与成长
 
-本文说明可复用的原生结算链。Demo 的属性与五维点数、主动机会、Q/W/E 三个主动槽、构筑安全窗和死亡保留规则来自
+本文说明可复用的原生结算链。Demo 的属性与五维点数、主动机会、Q/W/E 三个主动槽、构筑命令时机和死亡保留规则来自
 [App Spec](../APP_SPEC.md)，不能靠修改文档或目录标签宣称已经实现。
 
 ## 当前组件
@@ -371,11 +371,11 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 满槽时普通命令不替换已学主动（`SlotOccupied`/存为图纸），休息替换属于 #198 后续部分。
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
 
-构筑安全窗（`GROWTH.BuildSafeWindowSec`）由 Combat 记在实体记录的 `LastBuildUnsafeAtMs` 上（跨生命保留，只前进）：
+交战窗口（`GROWTH.BuildSafeWindowSec`）由 Combat 记在实体记录的 `LastBuildUnsafeAtMs` 上（跨生命保留，只前进）：#222 起它不限制任何成长命令，只供 HUD 在交战中收起野外摘要。
 `StartNavAttack` 受理的普攻起手、`LDCombatSourceRules::IsOffensive` 的主动释放、`ApplyHit` 中来源不是自己的正伤害（标记受害者并记入
 拥有者，灼烧 tick 同样经此路径）、`CommitControl` 实际落地的硬控（定身、眩晕、缴械、嘲讽、沉默）或击退都刷新它；
 减速、护盾、回复与非进攻主动（贴脸补一拳、锅盖挡脸、左右开抽与天生冲刺）不刷新。`LDCombatSourceRules::BuildSafeAtMs` 给出
-`LastBuildUnsafeAtMs + 窗口`（没有记录为 0），`ReadBuildSafeAtMs` 供成长域提交时读取，本人 `CombatView.BuildSafeAtMs` 发布同一值；
+`LastBuildUnsafeAtMs + 窗口`（没有记录为 0），本人 `CombatView.BuildSafeAtMs` 发布这一值（`ReadBuildSafeAtMs` 保留为读取入口，成长提交与 AI 不再读）；
 DEV 重置把它清零。
 
 ### 局末构筑蓝图（#198 §10）
@@ -441,7 +441,7 @@ DEV 重置把它清零。
 击退方向与区域脉冲时刻；`DemoControl.ActionMatrix/EmpowerOnce/ThornsRules/ExpansionContent` 覆盖动作禁止矩阵、强化普攻消费、反伤触发/去重/数值与条目的类型化导入与显示；
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的单级数值；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
-`DemoBuildPrimitives.*`（#147、#198）覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、构筑安全窗的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
+`DemoBuildPrimitives.*`（#147、#198）覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/BraceAndGrievous`（#198）覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
 `Combat.Components.*`（#198 B）覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04/B06/B14）、B12 冲刺完成武装、B02 账目批次与兑现、
 元素入口（火加层，水/电记为构件自己的施加）与 B18 绑定，
@@ -463,7 +463,7 @@ Host 站点附近按固定方位确定的收缩边外合法脚点作为点选地
 十点随机复活的精确保护和公共状态，以及空 Q 经同一 Direct 入口被拒但解除保护且不恢复；
 随后 Host 的 DEV 成长夹具（只有 Host 带 `-LDDevGrowthFixture`；候选在 Lobby 按 Start 前暂存，第一组即开局候选）为双方预置候选，
 并给 Client1 发放经验到首个主动机会等级；双方经普通 `SubmitBuild` 主动选择学会：Host 从开局候选学扒裤子，Client1 从开局候选学锅盖挡脸、
-从 3 级候选学甩你一鞋（选择时构筑安全窗未过则先存为图纸，窗口过后学到空槽），
+从 3 级候选学甩你一鞋（有空槽即同次学到，#222），
 再经快捷入口的准备与确认施放：扒裤子定身 Client1 且 Host 的观察帧看到 Root、锅盖挡脸在定身到期前加护盾并解除定身、
 Client1 的甩你一鞋作为 Chalk 投射物事实飞向 Host、命中并减速，Host 的右键追击从基础射程之外接近并在投影的基础射程内落下普攻。
 双方还检查施法后攻击：Listen Host 的单位技能跟进及同步拒绝后的目标保留，真实拥有客户端在排队失效目标、

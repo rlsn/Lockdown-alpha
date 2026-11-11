@@ -528,7 +528,7 @@ void ALDCombatDirector::MarkBuildUnsafe(const FGuid& Entity, int64 NowMs)
     FLDCombatEntityRecord* Record=FindRecord(Entity);
     if (!Record || Record->Kind!=ELDVictimKind::Contender || NowMs<=Record->LastBuildUnsafeAtMs) { return; }
     Record->LastBuildUnsafeAtMs=NowMs;
-    // The owner views (Combat's and growth's copy) republish the new BuildSafeAtMs.
+    // The owner Combat view republishes the new BuildSafeAtMs (#222: only the HUD's combat fold reads it).
     ++Record->ViewRevision;
 }
 

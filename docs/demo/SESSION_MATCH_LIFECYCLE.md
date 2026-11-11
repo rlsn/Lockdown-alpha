@@ -51,7 +51,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | 涂鸦与守护 | 喷上涂鸦即覆盖原涂鸦，守护计时从 0 开始（喷上时区内只有主人，守护随即计时）。守护只在涂鸦主人独自在区内时计时，受伤、受控不影响守护；主人离区、区内无人时守护暂停在当前值、不清零，主人重新独自回区后从该值继续（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”）。主人以外任一有效参赛者在区内（不论人数、是否在喷漆、主人在不在区内）守护即冻结，区内非主人全部离开（含死亡、离局）后，主人独自在区内时从冻结值继续、不在区内时保持暂停；冻结期间主人从区内走出、区内仍有非主人，守护清零、涂鸦保留，之后主人独自在区内时从 0 重新累积（2026-11-07 用户决定；对方进圈时主人已在区外只冻结，主人走出与最后一名非主人离开或与非主人进圈同一时刻时不清零）。涂鸦主人死亡或离局，涂鸦立即清除、旗杆回到无主。 |
 | 唯一结果 | 守护计时累积满 `CAPTURE.GuardSec`（暂停、冻结期间不计）时涂鸦主人获胜，结束原因 `GuardSucceeded`（“守护成功”）。到期时先处理相关真实事件并证明提供者水位闭合，再重查；成功只锁一个胜者。Host 主动结束无胜者；没有击杀/财富/等级/时间积分胜利。 |
 | 出生与复活 | 休息生命站在按开局名单槽位固定的休息锚点；返场时进入休息前存活者回到原脚点或其附近（§3.4）。首次进入野外、野外复活与返场找不到位置时，每次从同一组全部出生锚点独立等概率、有放回抽取；可抽回同点。碰撞只在选中点作必要合法落地/防重叠，不改按危险、视野或敌人距离挑点。 |
-| 死亡代价 | 只失去等待时间与场上位置。等级、XP、技能、永久属性加成、未用机会和已生成候选全部保留；可确认三选一，但只更新保留构筑，不提前复活或治疗尸体。 |
+| 死亡代价 | 只失去等待时间与场上位置。等级、XP、技能、永久属性加成、未用机会和已生成候选全部保留；可确认三选一、学到空槽与加点（#222），但只更新保留构筑，不提前复活或治疗尸体。 |
 | 已释放效果 | 释放者死亡不取消已经成功释放的独立效果，继续到原定结束，后续合法击杀归仍在本局的实际所有者；未完成释放的动作因死亡取消。 |
 | 成功复活 | 满 HP/MP，清除死亡前临时控制，获得短暂免伤免控保护；原有冷却按服务器时间继续，不因新 Pawn/新 Life 刷新。 |
 | 主动解除保护 | 本人当前 Match/Body/Life、请求新鲜性、包形状及写闸验证后，可识别的进攻意图就先解除保护；即使目标/距离/蓝量等使动作失败也解除。移动不解除。 |
@@ -84,7 +84,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | `Lobby` / 真人进出 | 原子预留/释放真人容量；变更结构名单版本并使旧 Ready 失效 | PreLogin 检查之外，在最终入房提交点重查容量和阶段，覆盖同时到达的两个连接。 |
 | `Lobby` / Host Start | 重查 Host、名单版本和所有真人 Ready，关闭准入，进入 `Starting`，冻结参赛快照 | 重复 Start 重放原结果；同 ID 改条款拒绝。连接离开若先提交则改变名单并拒绝旧 Start。 |
 | `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；初次身体全部站到各自的休息锚点（休息生命、隔离组、世界冻结）后统一进入 `Rest`（R0 的配装步骤；`PublicMatch.StartedAtMs` 为此刻） | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
-| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。构筑命令只在配装与派奖受理（不需安全窗），其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；房主可结束本局；未选的开局机会保留、不代选 |
+| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。自己的构筑命令在每个休息步骤都受理（#222，PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；房主可结束本局；未选的开局机会保留、不代选 |
 | `Rest` / 返场 | 返回倒计时结束：清除休息效果、退休全部休息生命、按 §3.4 放置下一条野外生命并给 `LIFE.ProtectionSec`；进入 `Development`。R0 返场是每名参赛者在喷漆名单上的 `Joined` | 放置作为全员共同提交（§3.4“共同入场”）：有人放不下时谁都不返场，T 与旗杆停在边界、每拍重试，超过 `REST.EntryReadyTimeoutSec` 为 `LD_REST_RETURN_UNREADY` 权威故障；不跳过、不默认成功 |
 | `Development` / 野外段到期 | 定时野外段的 T 到达 `MATCH.FieldSegmentSec` 的整数倍时进入下一次休息（`Rest`），见 §3.4 | 进入休息不是死亡：无 K/D、击杀播报、奖励或复活等待 |
 | `Development` / 最终野外开放 | R3 返场即最终野外开始，`FLDCaptureReducer::ScheduleOpen` 把开放时刻定为该边界，同一边界的 Capture 阶段进入 `CaptureOpen`，只在开放后开始计喷漆进度 | 仍可升级、战斗；不能把前三段野外的区内停留时间算入喷漆。 |
@@ -146,8 +146,8 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 - **休息步骤**：Build（R0 `REST.OpeningBuildSec`、R1–R3 `REST.BuildSec`；最后 `REST.SignupSec` 为 PK 站圈报名，截止时刻含在内）→
   锁定报名者 ≥2 时 Draw `REST.DrawSec` / Betting `REST.BettingSec` / PKReady `REST.PKReadySec` / PK（至多 `REST.PKMaxSec`）/
   Settlement `REST.SettlementSec` / Payout `REST.PayoutSec`，否则直接 → Return `REST.ReturnSec`。
-  构筑锁定在该边界成长命令之后的 Transactions 阶段执行（`LockTimelineBuild`，截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行（`AdvanceTimeline`）。
-  构筑命令在 Build/Payout 受理且不需构筑安全窗（`ReadBuildStage` = Rest），其他步骤以 `BuildLocked` 拒绝（RestLocked）；
+  报名锁定在该边界成长命令之后的 Transactions 阶段执行（`LockTimelineBuild`，截止时刻提交的命令有效；#222 起只锁报名名单，不锁构筑），其余转换在 RespawnsAndWorld 开始时执行（`AdvanceTimeline`）。
+  `ReadBuildStage` 在 Build/Payout 为 Rest、其他休息步骤为 RestLocked：自己的构筑命令在两者都受理（不锁定报名者构筑快照，每次权威构筑变更直接投影到当前 PK 生命），NPC 服务在 RestLocked 以 `BuildLocked` 拒绝；
   Return 步骤 `IsInputLocked` 为真，订单、攻击、施法与冲刺都以 `NotStarted` 拒绝。休息服务（NPC、洗点、替换、遗忘）见[成长事务](../systems/GROWTH_TRANSACTIONS.md)。
 - **PK 接口**：PK 是 #198 会话 D 的可选提供者 `ELDMatchProvider::PK`，`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定（`FLDRestStepNotice`）；
   报名是站圈报名（用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）”）：没有报名请求，
@@ -689,7 +689,7 @@ Combat 在一个已记录时间边界读取位置时只能使用该真实子段�
 | `PublishThrough(const FLDProviderFence&) -> FLDFenceReceipt` | 事件先于水位；检查注册流、当前 Match、连续序列和单调时间。重复完全相同水位可幂等，矛盾/退回/越过未发布事件拒绝。 |
 | `AckConsumed(const FLDAuthorityBoundary&)` | 只有 Combat 的边界位置读取和 GameMode 喷漆与守护归约均完成后通知提供者释放已消费前缀；保留下一段所需末端锚点。 |
 | `EndContenderLife(const FLDCommittedDeath&, const FLDGameplayWritePermit&) -> FLDLifeReceipt` | 消费一次 Combat 死亡事实，提交生命/资格和复活等待；不在此改 XP。 |
-| `AdvanceTimeline(Permit)` / `LockTimelineBuild(Permit)` | 仅 driver 在 RespawnsAndWorld 开始 / Transactions 末尾调用；应用到期的休息与野外转换及构筑锁定（§3.4），失败即边界故障。`EnterRestWorld/ExitRestWorld` 是阶段边界的世界清理与冻结/解冻，其他世界拥有者在此接入。 |
+| `AdvanceTimeline(Permit)` / `LockTimelineBuild(Permit)` | 仅 driver 在 RespawnsAndWorld 开始 / Transactions 末尾调用；应用到期的休息与野外转换及报名锁定（§3.4），失败即边界故障。`EnterRestWorld/ExitRestWorld` 是阶段边界的世界清理与冻结/解冻，其他世界拥有者在此接入。 |
 | `EndProtectionForAggressiveIntent(Caller, Match, Body, Intent, Permit) -> FLDProtectionReceipt` | 完整签名见 §5.3；Navigation/Combat 共享，识别新进攻意图即解保护，不等待语义动作成功。 |
 | `IsGameplayWriteOpen(const FLDMatchContext&) const -> bool` | 只读快速检查，不是足以绕过正式提交许可的证明。 |
 | `ValidateWritePermit(const FLDGameplayWritePermit&, ELDCommitPhase) -> ELDCommitReject` | 最终提交点核对当前 Match、批次、阶段、许可代次和闸门。 |
@@ -784,7 +784,7 @@ uint64 GateRevision; }` 只由核心为当前调用栈发放，不发给网络�
 | 3 `Effects` | 先按同一边界姿态收集到期命中，再提交伤害/控制和首次零 HP 锁存；位移通过原生运动路径补充实际事件 | 不因处理第一个死者而抹去另一份同刻已到期命中；不跳过必需工作；普通非致命伤害、减速、缴械不清喷漆进度，定身/眩晕/嘲讽/击退在提交时经 `PublishCaptureInterrupt` 清零被控者的喷漆进度。 |
 | 4 `DeathsAndRewards` | 当前Effects致死集合全锁RewardBasis后，消费各DeathKey生命失效并完成该集合复合奖励或明确零奖 | 同集合互杀不因先派奖改变另一死亡基准；必需准备失败不封水位，不越过它宣布胜利。 |
 | 5 `RespawnsAndWorld` | 先推进外层时间线（休息进出与阶段生命，§3.4），再到期复活/新身体保护；只在野外段运行时推进营地实际新生命与刷新、外卖与上热搜；为新身体建立位置/资格，退休旧流 | 死亡/离局/闸关闭重查；失败不安全重抽、不产生半个生命或离开奖励。 |
-| 6 `Transactions` | 当前选择/替换；按当前生命/阶段/版本重查，一次原子提交派生属性与来源；之后执行到期的休息构筑锁定（§3.4） | 死亡后不能使用阶段前的快照提交；旧生命确认不能自动作用复活身体。 |
+| 6 `Transactions` | 当前选择/替换；按当前生命/阶段/版本重查，一次原子提交派生属性与来源；之后执行到期的休息报名锁定（§3.4） | 死亡后不能使用阶段前的快照提交；旧生命确认不能自动作用复活身体。 |
 | 7 `Capture` | 确认所有提供者前缀及本批工作闭合，依真实发生次序归约全部中间事件，重查完成资格 | 不只看最终人数；不能略过先进入后死亡的争夺事实。 |
 | 8 `Close` | 先以唯一提案锁结果、关闭全域写闸、推进许可代次 | 禁止先调用取消服务再设置 Finished；已锁结果不再覆盖。 |
 | 9 `Publish` | 清理/取消、最终授权投影、回执及结果；确认消费并释放证据 | 清理不得提交伤害/奖励/选择，不把只读回执重放当作新提交。 |

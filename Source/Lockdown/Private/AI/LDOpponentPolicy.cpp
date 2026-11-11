@@ -1069,7 +1069,6 @@ LDProgression::FBuildContext BuildContext(const FLDOpponentDecisionFrame& Frame)
     LDProgression::FBuildContext Context;
     Context.Stage = Frame.Public.BuildStage();
     Context.LifePhase = Frame.Self.Phase;
-    Context.bSafe = Frame.Self.BuildSafeAtMs <= Frame.Public.NowMs;
     return Context;
 }
 
@@ -1368,8 +1367,10 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     }
     // #198 rest moves: every once-installed inventory component (what a replacement or an uninstall returned) goes back
     // where its rules place it, in catalog order; then one installed component away from its preferred placement comes off,
-    // to go back on at the next decision.
-    if (LDProgression::InstallGate(Context, true) == ELDGrowthReason::None)
+    // to go back on at the next decision. #222 opened moves at any time; the AI still keeps them to the rest build window
+    // (its pacing), so it never takes its own build apart in a fight.
+    const bool bMoveWindow = LDProgression::IsRestWindow(Context);
+    if (bMoveWindow && LDProgression::InstallGate(Context) == ELDGrowthReason::None)
     {
         TArray<FComponentPick> Picks;
         if (ComponentPicks(Self, Catalog, EPicks::Reinstall, Picks, Error)
@@ -1378,7 +1379,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
-    if (LDProgression::CommandGate(ELDBuildCommandKind::UninstallComponent, Context) == ELDGrowthReason::None)
+    if (bMoveWindow && LDProgression::CommandGate(ELDBuildCommandKind::UninstallComponent, Context) == ELDGrowthReason::None)
     {
         TArray<FString> Moves;
         FString Component;
@@ -1394,7 +1395,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         }
     }
     // #198 B: then every owned, never-installed component the first-install gate admits, in catalog order.
-    if (LDProgression::InstallGate(Context, false) == ELDGrowthReason::None)
+    if (LDProgression::InstallGate(Context) == ELDGrowthReason::None)
     {
         TArray<FComponentPick> Picks;
         if (ComponentPicks(Self, Catalog, EPicks::FirstInstall, Picks, Error)

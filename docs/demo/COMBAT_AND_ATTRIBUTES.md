@@ -827,7 +827,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
   `active_not_mad` 加盾并净化定身、`active_snark_bolt` 的弹体被观察并减速、右键追击在基础射程内落下普攻
   （#198 第一部分换目录后改用这些条目，需在新目录上重新运行确认）；
   Host 渲染截图供表现审阅（不做像素比较），并报告操作手感测量值。
-- `Scripts\RunDemoGrowthCheck.ps1`：开局主动在倒计时学到 Q、构筑安全窗内的 `NotSafe` 与窗口后的学习和加点、死亡中存为图纸；新局无冷却债务。
+- `Scripts\RunDemoGrowthCheck.ps1`：开局主动在倒计时学到 Q、交战窗口内选到的等级候选当场学到 W 并加点、死亡中选择学到 E 并加点（不复活，复活后 E 仍在）（#222）；新局无冷却债务。
 - `Scripts\RunDemoCampCheck.ps1`：野怪不先手、全营反击、每生命一次最后一击奖励、清营刷新、脱离回位与无奖励到家重置。
 - `Scripts\RunDemoOpponentCheck.ps1`：三名真人就绪满房并加入三个 AI 后不参战，AI 自行完成成长、战斗、喷漆与守护。
 - `RunDemoVisionCheck.ps1`、`RunDemoCoreCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1`

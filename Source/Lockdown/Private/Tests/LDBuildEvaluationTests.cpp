@@ -466,7 +466,14 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     Move.Build[0].Window = EWindow::Field;
     auto Moved = Early;
     Moved.Self.Components = {Owned(Trick, false, true)};
-    bGood &= Fails(TEXT("Moving a once-installed component on the field"), Moved, Move, FLDEvaluationProfileState(), TEXT("RestOnly"));
+    {
+        // #222: a once-installed component is installed again on the field as well.
+        FLDOpponentPolicyState Fresh;
+        FLDEvaluationProfileState Start;
+        const FLDOpponentDecision Out = LDEvaluationPolicy::Decide(Moved, C, Move, Fresh, Start);
+        bGood &= Test.TestTrue(TEXT("A once-installed component is installed again on the field: ") + Start.Failure,
+            Start.Phase != ELDEvaluationPhase::Failed && Out.Build.Kind == EBuild::InstallComponent);
+    }
     FLDEvaluationProfileState Issued;
     Issued.bStepIssued = true;
     auto Kept = Rest;

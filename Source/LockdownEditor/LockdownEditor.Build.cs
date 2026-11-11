@@ -10,5 +10,7 @@ public class LockdownEditor : ModuleRules
         PrivateDependencyModuleNames.Add("AudioEditor");
         // Art: CC0 glTF bodies, clips and props imported through Interchange.
         PrivateDependencyModuleNames.AddRange(new[] { "InterchangeCore", "InterchangeEngine", "InterchangePipelines" });
+        // Art: authored bodies are measured from their clips (AnimPose) as MeasureDemoArt.py measures glTF bodies.
+        PrivateDependencyModuleNames.Add("AnimationBlueprintLibrary");
     }
 }

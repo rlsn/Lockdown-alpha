@@ -129,20 +129,19 @@ try {
         [long]$hostReport.host_killer.camp_xp -le 0) {
         throw "The Host's own kill rewards are missing from its report: $output"
     }
-    # #198 build safe window: the level offer kept as a blueprint and an allocation and a learn refused while it ran, then
-    # the learn into W and the allocation after it; while dead a blueprint kept, then learned into E after the respawn.
+    # #222 build at all times: the level offer chosen in combat is learned into W at once and the points allocated in the same
+    # combat; while dead the next choice is learned into E and points allocated without revive, and E is still there after
+    # the respawn.
     $window = $client.window
-    if ($window.stored_reason -ne 'NotSafe' -or $window.allocate_reason -ne 'NotSafe' -or $window.learn_reason -ne 'NotSafe' -or
-        [long]$window.learned_slot -ne 1 -or [long]$window.learn_sent_at_ms -lt [long]$window.passed_safe_at_ms -or
-        [long]$window.safe_at_ms -ge [long]$window.segment_ends_at_ms -or
+    if ([long]$window.learned_slot -ne 1 -or [long]$window.combat_until_ms -ge [long]$window.segment_ends_at_ms -or
         [long]$window.points_allocated -le 0 -or [long]$window.max_hp_p2_after -le [long]$window.max_hp_p2_before) {
-        throw "The client's build safe window steps are missing from its report: $output"
+        throw "The client's in-combat learn and allocation are missing from its report: $output"
     }
     $dead = $client.dead_choice
-    if ($dead.stored_reason -ne 'Dead' -or [long]$dead.points_allocated -le 0 -or
+    if (-not $dead.learned_while_dead -or [long]$dead.points_allocated -le 0 -or
         [long]$dead.max_hp_p2_after -le [long]$dead.max_hp_p2_before -or
         [long]$dead.respawned_life -ne [long]$dead.life + 1 -or [long]$dead.learned_slot -ne 2) {
-        throw "The client's build commands while dead or its learn after the respawn are missing from its report: $output"
+        throw "The client's build commands while dead or its E after the respawn are missing from its report: $output"
     }
     if (-not $hostReport.opponent_view_checked) { throw "The Host never checked its opponent view of the buyer: $output" }
     if ($client.match1.generation -ne $hostReport.match1.generation -or $client.second_generation -ne $hostReport.second_generation -or
@@ -170,10 +169,9 @@ try {
         "allocated its opening points in the opening rest R0; level $($client.match1.level) from $($client.kills) kills across " +
         "$(@($client.rests).Count) mid rest(s), each retiring the field life without a death and returning the next field life with " +
         "field T frozen through it (both roles hold through every rest; the client never died before it asked to); after the kill " +
-        "reaching the first offer level its choice was kept as a blueprint and an allocation and a learn were refused (NotSafe) while " +
-        "its build safe window ran, then the blueprint was learned into W and every point allocated after it; after the Host's own " +
-        "DevFixture XP grant it killed the client, which kept its next choice as a blueprint, had a learn refused and allocated points " +
-        "while dead without revive or heal, respawned full and learned the blueprint into E; the Host's own kill and two low-camp last " +
+        "reaching the first offer level its choice was learned into W and every point allocated while its combat window still ran; " +
+        "after the Host's own DevFixture XP grant it killed the client, which learned its next choice into E and allocated points " +
+        "while dead without revive or heal, then respawned full with E learned; the Host's own kill and two low-camp last " +
         "hits paid their exact XP rewards into its own view and rendered HUD. The Host then ended the match (no winner) and returned to " +
         "Lobby generation $($client.second_generation): a second normal match started both owners at clean growth, point and cooldown " +
         "state and refused the first match's choice and receipt query. DEV test commands: the client through its remote owner RPC " +

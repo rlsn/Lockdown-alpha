@@ -32,8 +32,6 @@ const FLinearColor GrowthCardIdle(.045f,.12f,.15f);
 // Card faces stay compact; complete rules live in the independent inspection column.
 constexpr float GrowthCardWidth=540.f,GrowthCardHeight=72.f,GrowthIconSize=44.f,GrowthDetailWidth=540.f,GrowthIconRadius=7.f;
 constexpr float GrowthPanelWidth=540.f;
-// #198 F target step: place buttons per line.
-constexpr int32 GrowthTargetsPerLine=4;
 // #198 G dismantle selection buttons per line (their labels may carry the installed warning).
 constexpr int32 GrowthDismantlePerLine=1;
 void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
@@ -122,53 +120,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ComponentChoiceSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
-            // The binding step of B18: a learned active (one button each), then an element.
-            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
-            BindingHeading=Wrapped(15,GrowthPanelWidth);BindingHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(BindingHeading);
-            auto* ActiveLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            UTextBlock* ActiveLabel=OneLine(13);ActiveLabel->SetText(FText::FromString(LDTerms::PickBoundActive));
-            ActiveLine->AddChildToHorizontalBox(ActiveLabel)->SetVerticalAlignment(VAlign_Center);
-            for(int32 Index=0;Index<3;++Index)
-            {
-                ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){PickBindActive(Index);},false,FName(*FString::Printf(TEXT("GrowthBindActive%d"),Index)));
-                ActiveLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
-                BindActiveButtons.Add(Pick);
-            }
-            Section->AddChildToVerticalBox(ActiveLine)->SetPadding(FMargin(0,4,0,0));
-            auto* ElementLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            UTextBlock* ElementLabel=OneLine(13);ElementLabel->SetText(FText::FromString(LDTerms::PickElement));
-            ElementLine->AddChildToHorizontalBox(ElementLabel)->SetVerticalAlignment(VAlign_Center);
-            for(const ELDDemoElement Element:{ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric})
-            {
-                ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,LDHUD::ElementName(Element),[this,Element](){PickBindElement(Element);},false,
-                    FName(*FString::Printf(TEXT("GrowthBindElement%d"),int32(Element))));
-                ElementLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
-                BindElementButtons.Add(Pick);
-            }
-            BindElementLine=ElementLine;
-            Section->AddChildToVerticalBox(ElementLine)->SetPadding(FMargin(0,4,0,0));
-            auto* CancelLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            CancelLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::CancelBinding,[this](){CancelBinding();},false,TEXT("GrowthBindCancel")));
-            Section->AddChildToVerticalBox(CancelLine)->SetPadding(FMargin(0,4,0,0));
-            BindingSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
-        }
-        {
-            // #198 F target step of a mod or connector: one button per place it takes now, then C12's repeated base.
-            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
-            TargetHeading=Wrapped(15,GrowthPanelWidth);TargetHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);Section->AddChildToVerticalBox(TargetHeading);
-            UTextBlock* PlaceLabel=OneLine(13);PlaceLabel->SetText(FText::FromString(LDTerms::PickInstallTarget));
-            Section->AddChildToVerticalBox(PlaceLabel)->SetPadding(FMargin(0,4,0,0));
-            TargetList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(TargetList)->SetPadding(FMargin(0,2,0,0));
-            RepeatLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            UTextBlock* BaseLabel=OneLine(13);BaseLabel->SetText(FText::FromString(LDTerms::PickRepeatedBase));
-            RepeatLine->AddChildToHorizontalBox(BaseLabel)->SetVerticalAlignment(VAlign_Center);
-            Section->AddChildToVerticalBox(RepeatLine)->SetPadding(FMargin(0,4,0,0));
-            auto* CancelLine=WidgetTree->ConstructWidget<UHorizontalBox>();
-            CancelLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::CancelBinding,[this](){CancelTarget();},false,TEXT("GrowthTargetCancel")));
-            Section->AddChildToVerticalBox(CancelLine)->SetPadding(FMargin(0,4,0,0));
-            TargetSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
-        }
-        {
             // Pending blueprints: one row each, built as needed, with a "学到 Q/W/E" button per empty slot.
             auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
             UTextBlock* Heading=OneLine(16);Heading->SetColorAndOpacity(LDHUDStyle::TextAccent);
@@ -176,23 +127,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Section->AddChildToVerticalBox(Heading);
             BlueprintList=WidgetTree->ConstructWidget<UVerticalBox>();Section->AddChildToVerticalBox(BlueprintList)->SetPadding(FMargin(0,4,0,0));
             BlueprintSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
-        }
-        {
-            // #198 B owned components: one row each, built as needed.
-            auto* Section=WidgetTree->ConstructWidget<UVerticalBox>();
-            ComponentHeading=OneLine(16);ComponentHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);
-            Section->AddChildToVerticalBox(ComponentHeading);
-            InstalledComponentHeading=OneLine(16);InstalledComponentHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);
-            InstalledComponentHeading->SetText(FText::FromString(TEXT("已安装")));
-            Section->AddChildToVerticalBox(InstalledComponentHeading)->SetPadding(FMargin(0,8,0,2));
-            InstalledComponentList=WidgetTree->ConstructWidget<UVerticalBox>();
-            Section->AddChildToVerticalBox(InstalledComponentList);
-            UninstalledComponentHeading=OneLine(16);UninstalledComponentHeading->SetColorAndOpacity(LDHUDStyle::TextAccent);
-            UninstalledComponentHeading->SetText(FText::FromString(TEXT("未安装")));
-            Section->AddChildToVerticalBox(UninstalledComponentHeading)->SetPadding(FMargin(0,12,0,2));
-            UninstalledComponentList=WidgetTree->ConstructWidget<UVerticalBox>();
-            Section->AddChildToVerticalBox(UninstalledComponentList);
-            ComponentSection=Section;Root->AddChildToVerticalBox(Section)->SetPadding(FMargin(0,10,0,0));
         }
         {
             // Unspent points: one row per stat in design order (built from the first catalog seen), +/− stage locally, one confirm sends.
@@ -282,8 +216,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         Header->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("GrowthClose")));
         Workspace->AddChildToVerticalBox(Header)->SetPadding(FMargin(0,0,0,8));
         auto* Tabs=WidgetTree->ConstructWidget<UHorizontalBox>();
-        const TCHAR* Labels[]={TEXT("技能与图纸"),TEXT("构件"),TEXT("加点")};
-        for(int32 Tab=0;Tab<3;++Tab)
+        // #227: components live in the HUD's storage stack; the workspace keeps the skill, reward and points tasks.
+        const TCHAR* Labels[]={TEXT("技能与奖励"),TEXT("加点")};
+        for(int32 Tab=0;Tab<2;++Tab)
         {
             auto* Button=LDWidgets::Button(WidgetTree,Labels[Tab],[this,Tab](){ShowTab(Tab);},false,FName(*FString::Printf(TEXT("GrowthTab%d"),Tab)));
             TabButtons.Add(Button);Tabs->AddChildToHorizontalBox(Button)->SetPadding(FMargin(0,0,8,0));
@@ -311,11 +246,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         DetailSummary=FixedWrap(Text(TEXT(""),15));DetailSummary->SetColorAndOpacity(LDHUDStyle::TextAccent);DetailLines->AddChildToVerticalBox(DetailSummary)->SetPadding(FMargin(0,2,0,0));
         DetailBody=LDWidgets::RichText(WidgetTree,16,TEXT("GrowthDetailBody"));DetailBody->SetAutoWrapText(false);DetailBody->SetWrapTextAt(GrowthDetailWidth-28.f);
         DetailLines->AddChildToVerticalBox(DetailBody)->SetPadding(FMargin(0,8,0,0));
-        InspectState=Wrapped(16,GrowthDetailWidth-28);InspectState->SetColorAndOpacity(LDHUDStyle::TextWarning);
-        DetailLines->AddChildToVerticalBox(InspectState)->SetPadding(FMargin(0,12,0,0));
-        InspectInstall=LDWidgets::Button(WidgetTree,TEXT("安装构件"),[this]()
-        {const int32 Index=ShownComponents.IndexOfByKey(InspectedComponent);if(Index!=INDEX_NONE){EnableComponent(Index);}},false,TEXT("GrowthInspectInstall"));
-        DetailLines->AddChildToVerticalBox(InspectInstall)->SetPadding(FMargin(0,12,0,0));
         auto* DetailScroll=WidgetTree->ConstructWidget<UScrollBox>();DetailScroll->SetClipping(EWidgetClipping::ClipToBounds);DetailScroll->AddChild(DetailLines);
         auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(GrowthDetailWidth);DetailWidth->SetContent(DetailScroll);
         Detail=WidgetTree->ConstructWidget<UBorder>();Detail->SetBrushColor(FLinearColor::Transparent);Detail->SetPadding(FMargin(0));Detail->SetContent(DetailWidth);
@@ -368,21 +298,15 @@ void ULDChoicesPanel::UpdateDetail()
         {if(Cards[Index].Button->IsVisible()&&(Cards[Index].Button->IsHovered()||Cards[Index].Button->HasKeyboardFocus())){Next=Index;}}
         if(Next==INDEX_NONE&&Cards.IsValidIndex(PinnedPreview)){Next=PinnedPreview;}
     }
-    FString Name=TEXT("构筑详情"),Summary=TEXT("悬停查看 · 点击构件图标固定"),Body=TEXT("在技能与图纸查看技能，在加点查看属性与每点收益；选择背包构件后安装。所有改动由服务器确认。");
-    FString State;
-    DetailCard=Next;InspectedComponent=NAME_None;
+    FString Name=TEXT("构筑详情"),Summary=TEXT("悬停查看"),Body=TEXT("在技能与奖励选技能、学图纸、拿构件，在加点查看属性与每点收益；构件在下方 HUD 右侧的构件库里拖到技能上安装。所有改动由服务器确认。");
+    DetailCard=Next;
     if(Next!=INDEX_NONE&&CardViews.IsValidIndex(Next))
     {
         const LDHUD::FActiveCardView& View=CardViews[Next];
         Name=View.Name;Summary=View.Target+TEXT(" · ")+View.Cost;
         Body=View.Sentence+TEXT("\n\n")+FString::Join(View.Keywords,TEXT("\n"));
     }
-    FName Component=ActiveTab==1?PinnedComponent:NAME_None;
-    if(ActiveTab==1)
-    {
-        for(const FComponentRow& Row:ComponentRows)
-        {if(Row.Inspect&&Row.Inspect->IsVisible()&&(Row.Inspect->IsHovered()||Row.Inspect->HasKeyboardFocus())){Component=Row.ShownId;break;}}
-    }
+    // The hovered or focused opening base or elite candidate shows its rules (only reading it consumes nothing).
     const FBaseCard* Candidate=nullptr;
     auto FindCandidate=[&Candidate](const TArray<FBaseCard>& Options)
     {
@@ -392,30 +316,17 @@ void ULDChoicesPanel::UpdateDetail()
             {Candidate=&Card;break;}
         }
     };
-    if(ActiveTab==0&&Latest.bOpeningBasePending){FindCandidate(BaseCards);}
-    if(ActiveTab==1)
+    if(ActiveTab==0)
     {
-        for(int32 Index=0;!Candidate&&Index<ShownChoices.Num()&&Index<ChoiceLines.Num();++Index)
-        {FindCandidate(ChoiceLines[Index].Cards);}
+        if(Latest.bOpeningBasePending){FindCandidate(BaseCards);}
+        for(int32 Index=0;!Candidate&&Index<ShownChoices.Num()&&Index<ChoiceLines.Num();++Index){FindCandidate(ChoiceLines[Index].Cards);}
     }
-    const FLDComponentInstanceView* Owned=Candidate?nullptr:Latest.Components.FindByPredicate([Component](const FLDComponentInstanceView& Row){return Row.DefinitionId==Component;});
-    bool bInstall=false;
     if(Candidate)
     {
         const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Candidate->ShownId,LatestContent,LatestStats);
         Name=View.Name;Summary=TEXT("候选构件");Body=View.Sentence;
     }
-    if(Owned)
-    {
-        InspectedComponent=Component;
-        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Component,LatestContent,LatestStats);
-        const LDHUD::FComponentRowView Row=LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs);
-        Name=Card.Name;Summary=LDHUD::InstalledTargetText(*Owned,LatestContent);
-        Body=Card.Sentence;State=Row.bInstalled?TEXT("已安装"):Row.bCanEnable?TEXT("可安装"):TEXT("不可安装：")+Row.Blocked;
-        bInstall=!Row.bInstalled;
-        GrowthEnabled(InspectInstall,Row.bCanEnable&&!PendingRequest);
-    }
-    if(ActiveTab==0&&!Owned&&!Candidate)
+    if(ActiveTab==0&&!Candidate)
     {
         for(int32 Index=0;Index<BlueprintRows.Num()&&Index<ShownBlueprints.Num();++Index)
         {
@@ -425,13 +336,12 @@ void ULDChoicesPanel::UpdateDetail()
             Name=View.Name;Summary=TEXT("待学主动图纸 · 不是整套构筑蓝图");Body=View.Sentence;
         }
     }
-    GrowthText(DetailName,Name);GrowthText(DetailSummary,Summary);GrowthText(InspectState,State);
+    GrowthText(DetailName,Name);GrowthText(DetailSummary,Summary);
     const FText Text=FText::FromString(Body);if(!DetailBody->GetText().EqualTo(Text)){DetailBody->SetText(Text);}
-    GrowthShown(InspectInstall,bInstall,ESlateVisibility::Visible);
 }
 void ULDChoicesPanel::ShowTab(int32 Tab)
 {
-    ActiveTab=FMath::Clamp(Tab,0,2);RefreshAll();UpdateDetail();
+    ActiveTab=FMath::Clamp(Tab,0,1);RefreshAll();UpdateDetail();
 }
 void ULDChoicesPanel::SetServiceContext(ELDRestService Service)
 {
@@ -448,11 +358,6 @@ void ULDChoicesPanel::SetServiceContext(ELDRestService Service)
     else if(Previous!=ELDRestService::None&&Service==ELDRestService::None&&Notify)
     {Notify(TEXT("已离开 NPC，服务已收起。"));}
     RefreshAll();
-}
-bool ULDChoicesPanel::PreviewComponent(int32 Index)
-{
-    if(!ShownComponents.IsValidIndex(Index)){return false;}
-    PinnedComponent=ShownComponents[Index];ActiveTab=1;RefreshAll();UpdateDetail();return true;
 }
 void ULDChoicesPanel::PresentAttributes(const FLDCombatOwnerView* Combat)
 {
@@ -482,7 +387,7 @@ void ULDChoicesPanel::OpenPanel()
     if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())
     {PC->BuildBlueprints->ToggleViewer();}
     if(ServiceBody&&BlueprintSection&&BlueprintSection->GetParent()==ServiceBody)
-    {ServiceBody->RemoveChild(BlueprintSection);TaskContent->InsertChildAt(6,BlueprintSection);}
+    {ServiceBody->RemoveChild(BlueprintSection);TaskContent->InsertChildAt(4,BlueprintSection);}
     bServicePanelOpen=false;GrowthShown(ServicePanel,false);GrowthShown(MainPanel,true);
     bOpen=true;ResultNotice.Reset();SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
     if(!PendingRequest){SetFeedback(FString());}
@@ -507,8 +412,8 @@ bool ULDChoicesPanel::ClosePanel()
     // an unconfirmed replace, forget, fill gap or dismantle is withdrawn with its pickers.
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
     if(ServiceBody&&BlueprintSection&&BlueprintSection->GetParent()==ServiceBody)
-    {ServiceBody->RemoveChild(BlueprintSection);TaskContent->InsertChildAt(6,BlueprintSection);}
-    PinnedPreview=INDEX_NONE;PinnedComponent=NAME_None;ResultNotice.Reset();bOpen=false;bServicePanelOpen=false;
+    {ServiceBody->RemoveChild(BlueprintSection);TaskContent->InsertChildAt(4,BlueprintSection);}
+    PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;bServicePanelOpen=false;
     GrowthShown(MainPanel,false);GrowthShown(ServicePanel,false);SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
 }
 double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
@@ -518,11 +423,12 @@ void ULDChoicesPanel::MarkOpenedAutomatically()
     Fold.Opened(true,UiNow());
     UE_LOG(LogLDUI,Log,TEXT("LD_HUD_GROWTH_AUTO_OPEN The growth panel opened for a new active offer, new points, the opening base pick or a new component."));
 }
-void ULDChoicesPanel::UpdateFold(bool bOwnHit,bool bCombatActive)
+void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
-    if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged()||(MainPanel&&MainPanel->IsHovered()),bOwnHit,bCombatActive))
+    // #222: only an automatic opening folds by itself; a panel the player opened stays, in combat and in a PK too.
+    if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged()||(MainPanel&&MainPanel->IsHovered()),bOwnHit))
     {
-        UE_LOG(LogLDUI,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bCombatActive?TEXT("combat priority"):bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));
+        UE_LOG(LogLDUI,Log,TEXT("LD_HUD_CHOICES_FOLDED %s"),bOwnHit?TEXT("own hit"):TEXT("automatic open timed out"));
         ClosePanel();
     }
 }
@@ -534,16 +440,16 @@ int32 ULDChoicesPanel::StagedTotal() const
 {
     int32 Total=0;for(const int32 Count:Staged){Total+=Count;}return Total;
 }
-void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,int64 BuildSafeAtMs,
-    bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
+void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
+    const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats)
 {
     const bool bStatsChanged=Stats.Level!=LatestStats.Level||Stats.ADP2!=LatestStats.ADP2||Stats.APP2!=LatestStats.APP2
         ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Content!=LatestContent;
-    Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;LatestSafeAtMs=BuildSafeAtMs;
-    bLatestClock=bClock;LatestNowMs=NowMs;LatestContent=Content;LatestStats=Stats;
+    Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;
+    LatestContent=Content;LatestStats=Stats;
     if(!MainPanel){return;}
     if(StagedMatch!=Match){StagedMatch=Match;Staged.Reset();}
-    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,BuildSafeAtMs,bClock,NowMs):LDHUD::FBuildGateView();
+    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
     if(Content&&StatRows.IsEmpty()){BuildStatRows();}
     if(bStatsChanged){bCardsStale=true;bComponentTextStale=true;}
     RefreshAll();
@@ -733,16 +639,15 @@ void ULDChoicesPanel::RefreshPoints()
 }
 void ULDChoicesPanel::RefreshAll()
 {
-    RefreshOffer();RefreshOpeningBase();RefreshComponentChoices();RefreshBinding();RefreshTarget();RefreshBlueprints();RefreshComponents();RefreshPoints();RefreshRest();
+    RefreshOffer();RefreshOpeningBase();RefreshComponentChoices();RefreshBlueprints();RefreshPoints();RefreshRest();
     GrowthShown(CurrentBuildSection,ActiveTab==0);
     GrowthShown(OfferSection,ActiveTab==0&&(!Usable()||Latest.bHasActiveOffer||Latest.QueuedActiveOpportunities>0));
     GrowthShown(OpeningBaseSection,ActiveTab==0&&Usable()&&Latest.bOpeningBasePending&&!ShownBaseOptions.IsEmpty());
-    GrowthShown(ComponentChoiceSection,ActiveTab==1&&!ShownChoices.IsEmpty());
+    GrowthShown(ComponentChoiceSection,ActiveTab==0&&!ShownChoices.IsEmpty());
     GrowthShown(BlueprintSection,bServicePanelOpen?ServiceContext==ELDRestService::Trainer&&!ShownBlueprints.IsEmpty()
         :ActiveTab==0&&!ShownBlueprints.IsEmpty());
-    GrowthShown(ComponentSection,ActiveTab==1);
-    GrowthShown(PointsDock,ActiveTab==2);
-    GrowthText(EmptyNote,!Usable()?TEXT("构筑数据同步中…"):TEXT("目前没有待选技能或图纸。"));
+    GrowthShown(PointsDock,ActiveTab==1);
+    GrowthText(EmptyNote,!Usable()?TEXT("构筑数据同步中…"):TEXT("目前没有待选技能、图纸或构件奖励。"));
     GrowthShown(EmptyNote,ActiveTab==0&&!Latest.bHasActiveOffer&&!Latest.bOpeningBasePending&&ShownChoices.IsEmpty()&&ShownBlueprints.IsEmpty());
     for(int32 Index=0;Index<TabButtons.Num();++Index)
     {GrowthTint(TabButtons[Index],Index==ActiveTab?FLinearColor(.14f,.25f,.28f):GrowthCardIdle);}
@@ -816,15 +721,10 @@ void ULDChoicesPanel::RefreshOpeningBase()
         GrowthShown(Card.Frame,true,ESlateVisibility::SelfHitTestInvisible);
         const FName Id=ShownBaseOptions[Index];
         ShowComponentCard(Card,Id);
-        // What a click does now: take it and enable it at once, or keep it in the inventory and say why (the server decides).
-        FLDComponentInstanceView Fresh;Fresh.DefinitionId=Id;
-        const ELDGrowthReason Reason=LDHUD::ComponentEnableReason(Fresh,Latest,LatestContent);
-        const FString StoreWhy=Reason==ELDGrowthReason::InvalidTarget&&Card.bBinding?FString(LDTerms::NoBindableActive)
-            :Reason!=ELDGrowthReason::None?LDHUD::BuildBlockedText(Reason,LatestSafeAtMs,bLatestClock,LatestNowMs)
-            :Gate.bCanInstall?FString():Gate.InstallBlocked;
+        // What a click does now: a plain base is taken and installed on 本体 at once; B18 goes to the storage, to be dragged
+        // onto the skill it binds (#227). The server decides.
         const FString Action=!Gate.bCanChoose?Gate.ChooseBlocked
-            :StoreWhy.IsEmpty()?FString(LDTerms::TakeComponent)+TEXT(" → ")+LDTerms::EnableComponent
-            :FString(LDTerms::TakeComponent)+TEXT("（先存着：")+StoreWhy+TEXT("）");
+            :Card.bBinding?FString(LDTerms::TakeToStorage):FString(LDTerms::TakeAndEquip);
         GrowthText(Card.Action,Action);
         GrowthEnabled(Card.Button,Gate.bCanChoose&&!PendingRequest);
     }
@@ -921,322 +821,20 @@ bool ULDChoicesPanel::TakeComponentChoicePoints(int32 ChoiceIndex)
     Command.OfferId=Id;
     return Send(Command);
 }
-ULDChoicesPanel::FComponentRow& ULDChoicesPanel::ComponentRowAt(int32 Index)
-{
-    while(ComponentRows.Num()<=Index)
-    {
-        const int32 RowIndex=ComponentRows.Num();
-        FComponentRow& Row=ComponentRows.AddDefaulted_GetRef();
-        auto MakeText=[this](int32 Size,const FLinearColor& Ink)
-        {UTextBlock* Line=LDWidgets::Text(WidgetTree,TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetColorAndOpacity(Ink);ScaleNewText(Line);RowWidgets.Add(Line);return Line;};
-        auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();RowWidgets.Add(Lines);
-        Row.Picture=WidgetTree->ConstructWidget<UImage>();RowWidgets.Add(Row.Picture);
-        auto* Icon=WidgetTree->ConstructWidget<USizeBox>();Icon->SetWidthOverride(52);Icon->SetHeightOverride(52);Icon->SetContent(Row.Picture);
-        RowWidgets.Add(Icon);Lines->AddChildToVerticalBox(Icon)->SetHorizontalAlignment(HAlign_Center);
-        Row.Name=MakeText(16,LDHUDStyle::TextPrimary);Row.Name->SetWrapTextAt(GrowthPanelWidth-92);
-        Lines->AddChildToVerticalBox(Row.Name)->SetPadding(FMargin(0,6,0,4));
-        Row.State=MakeText(16,LDHUDStyle::TextAccent);Row.State->SetWrapTextAt(GrowthPanelWidth-92);Lines->AddChildToVerticalBox(Row.State);
-        Row.Inspect=LDWidgets::Button(WidgetTree,TEXT(""),[this,RowIndex](){PreviewComponent(RowIndex);},false,
-            FName(*FString::Printf(TEXT("GrowthInspectComponent%d"),RowIndex)));
-        RowWidgets.Add(Row.Inspect);Row.Inspect->SetContent(Lines);
-        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(GrowthPanelWidth);Size->SetMinDesiredHeight(84);Size->SetContent(Row.Inspect);
-        RowWidgets.Add(Size);Row.Row=Size;
-    }
-    return ComponentRows[Index];
-}
-void ULDChoicesPanel::RefreshComponents()
-{
-    ShownComponents.Reset();
-    if(Usable()){for(const FLDComponentInstanceView& Owned:Latest.Components){ShownComponents.Add(Owned.DefinitionId);}}
-    int32 Installed=0;for(const FLDComponentInstanceView& Owned:Latest.Components){Installed+=Owned.bInstalled?1:0;}
-    GrowthText(ComponentHeading,ShownComponents.IsEmpty()?TEXT("构件背包 · 暂无构件"):FString::Printf(TEXT("构件背包 · 已安装 %d / 持有 %d"),Installed,ShownComponents.Num()));
-    GrowthShown(ComponentSection,!ShownComponents.IsEmpty());
-    TArray<UWidget*> InstalledRows,UninstalledRows;
-    for(int32 Index=0;Index<FMath::Max(ShownComponents.Num(),ComponentRows.Num());++Index)
-    {
-        if(!ShownComponents.IsValidIndex(Index)){GrowthShown(ComponentRows[Index].Row,false);continue;}
-        FComponentRow& Row=ComponentRowAt(Index);
-        GrowthShown(Row.Row,true,ESlateVisibility::Visible);
-        const FLDComponentInstanceView& Owned=Latest.Components[Index];
-        (Owned.bInstalled?InstalledRows:UninstalledRows).Add(Row.Row);
-        if(Row.ShownId!=Owned.DefinitionId||bComponentTextStale)
-        {
-            const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Owned.DefinitionId,LatestContent,LatestStats);
-            Row.ShownId=Owned.DefinitionId;
-            LDUIIcons::Apply(Row.Picture,Card.IconId,0);
-        }
-        const LDHUD::FComponentRowView View=LDHUD::ComponentRow(Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs);
-        FString Name=LDHUD::ContentName(LatestContent,Owned.DefinitionId.ToString());
-        GrowthText(Row.Name,Name);
-        const FString State=View.bInstalled?LDHUD::InstalledTargetText(Owned,LatestContent)
-            :View.bCanEnable?TEXT("未安装 · 可安装"):FString(TEXT("未安装 · 不可安装："))+View.Blocked;
-        GrowthText(Row.State,State);
-        Row.Inspect->SetToolTipText(FText::FromString(View.Blocked));
-        GrowthTint(Row.Inspect,PinnedComponent==Owned.DefinitionId?FLinearColor(.14f,.25f,.28f):GrowthCardIdle);
-    }
-    const auto Reconcile=[](UVerticalBox* List,const TArray<UWidget*>& Rows)
-    {
-        bool bChanged=List->GetChildrenCount()!=Rows.Num();
-        for(int32 Index=0;!bChanged&&Index<Rows.Num();++Index){bChanged=List->GetChildAt(Index)!=Rows[Index];}
-        if(!bChanged){return;}
-        List->ClearChildren();
-        for(UWidget* Row:Rows){List->AddChildToVerticalBox(Row);}
-    };
-    Reconcile(InstalledComponentList,InstalledRows);
-    Reconcile(UninstalledComponentList,UninstalledRows);
-    GrowthShown(InstalledComponentHeading,Installed>0,ESlateVisibility::HitTestInvisible);
-    GrowthShown(UninstalledComponentHeading,ShownComponents.Num()>Installed,ESlateVisibility::HitTestInvisible);
-}
-void ULDChoicesPanel::RefreshBinding()
-{
-    // A binding in progress lasts while its command still applies to the latest view; otherwise it is dropped silently.
-    const FLDDemoComponentDefinition* Definition=nullptr;
-    if(!BindingComponent.IsNone()&&Usable()&&LatestContent)
-    {
-        const FString Id=BindingComponent.ToString();
-        Definition=LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;});
-        const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==BindingComponent;});
-        const bool bStill=BindingKind==ELDBuildCommandKind::OpeningBase?Latest.bOpeningBasePending&&Latest.OpeningBaseOptions.Contains(BindingComponent)
-            :BindingKind==ELDBuildCommandKind::InstallComponent&&Owned&&!Owned->bInstalled;
-        BindingActives=Definition?LDHUD::BindableActives(*Definition,Latest):TArray<FName>();
-        if(!bStill||!Definition||BindingActives.IsEmpty()){Definition=nullptr;}
-        else if(!BindingActives.Contains(BindingActive)){BindingActive=BindingActives.Num()==1?BindingActives[0]:NAME_None;}
-    }
-    if(!Definition){BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;}
-    GrowthShown(BindingSection,Definition!=nullptr);
-    if(!Definition){return;}
-    GrowthText(BindingHeading,LDHUD::ContentName(LatestContent,BindingComponent.ToString()));
-    for(int32 Index=0;Index<BindActiveButtons.Num();++Index)
-    {
-        ULDCommandButton* Pick=BindActiveButtons[Index];
-        const bool bShown=BindingActives.IsValidIndex(Index);
-        GrowthShown(Pick,bShown,ESlateVisibility::Visible);
-        if(!bShown){continue;}
-        FString Label=LDHUD::ContentName(LatestContent,BindingActives[Index].ToString());
-        if(BindingActives[Index]==BindingActive){Label=TEXT("【")+Label+TEXT("】");}
-        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Label);
-        GrowthEnabled(Pick,!PendingRequest);
-    }
-    GrowthShown(BindElementLine,!BindingActive.IsNone(),ESlateVisibility::SelfHitTestInvisible);
-    const ELDDemoElement Elements[]={ELDDemoElement::Fire,ELDDemoElement::Water,ELDDemoElement::Electric};
-    for(int32 Index=0;Index<BindElementButtons.Num()&&Index<int32(UE_ARRAY_COUNT(Elements));++Index)
-    {
-        const bool bOffered=Definition->BindElements.Contains(Elements[Index]);
-        GrowthShown(BindElementButtons[Index],bOffered,ESlateVisibility::Visible);
-        GrowthEnabled(BindElementButtons[Index],bOffered&&!PendingRequest);
-    }
-}
 bool ULDChoicesPanel::PickOpeningBase(int32 Index)
 {
     if(!Usable()||!Latest.bOpeningBasePending||!ShownBaseOptions.IsValidIndex(Index)||!Latest.OpeningBaseOptions.Contains(ShownBaseOptions[Index])){return false;}
     if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
     if(!Gate.bCanChoose){SetFeedback(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
-    return BeginComponent(ELDBuildCommandKind::OpeningBase,ShownBaseOptions[Index]);
-}
-bool ULDChoicesPanel::EnableComponent(int32 Index)
-{
-    if(!Usable()||!ShownComponents.IsValidIndex(Index)){return false;}
-    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this,Index](const FLDComponentInstanceView& C){return C.DefinitionId==ShownComponents[Index];});
-    if(!Owned){return false;}
-    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
-    const LDHUD::FComponentRowView Row=LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs);
-    if(Row.bInstalled){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::AlreadyInstalled));return false;}
-    if(!Row.bCanEnable){SetFeedback(TEXT("没有提交：")+Row.Blocked);return false;}
-    return BeginComponent(ELDBuildCommandKind::InstallComponent,Owned->DefinitionId);
-}
-bool ULDChoicesPanel::BeginComponent(ELDBuildCommandKind Kind,FName Component)
-{
-    const FString Id=Component.ToString();
-    const FLDDemoComponentDefinition* Definition=LatestContent?LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
+    const FName Id=ShownBaseOptions[Index];
+    const FString Text=Id.ToString();
+    const FLDDemoComponentDefinition* Definition=LatestContent?LatestContent->Components.FindByPredicate([&Text](const FLDDemoComponentDefinition& D){return D.Id==Text;}):nullptr;
     if(!Definition){SetFeedback(TEXT("没有提交：内容目录中找不到该构件。"));return false;}
-    if(Definition->Binding==ELDDemoComponentBinding::ActiveElement)
-    {
-        const TArray<FName> Actives=LDHUD::BindableActives(*Definition,Latest);
-        if(!Actives.IsEmpty())
-        {
-            BindingComponent=Component;BindingKind=Kind;BindingActives=Actives;BindingActive=Actives.Num()==1?Actives[0]:NAME_None;
-            ClearTarget();RefreshTarget();
-            SetFeedback(FString());RefreshBinding();
-            return true;
-        }
-        // An opening pick may still take it into the inventory (the server stores it with the reason); an install cannot.
-        if(Kind!=ELDBuildCommandKind::OpeningBase){SetFeedback(TEXT("没有提交：")+FString(LDTerms::NoBindableActive));return false;}
-    }
-    // #198 F: a mod or connector asks where it goes first (an opening pick is always a base).
-    if(Definition->Kind!=ELDDemoComponentKind::Base&&Kind==ELDBuildCommandKind::InstallComponent)
-    {
-        ClearTarget();
-        TargetComponent=Component;
-        RefreshTarget();
-        if(TargetComponent.IsNone()){SetFeedback(TEXT("没有提交：")+FString(LDTerms::NoInstallTarget));return false;}
-        BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;RefreshBinding();
-        SetFeedback(FString());
-        return true;
-    }
-    return SendComponent(Kind,Component,NAME_None,ELDDemoElement::None);
-}
-ULDCommandButton* ULDChoicesPanel::TargetButtonAt(int32 Index)
-{
-    while(TargetButtons.Num()<=Index)
-    {
-        const int32 ButtonIndex=TargetButtons.Num();
-        if(ButtonIndex%GrowthTargetsPerLine==0)
-        {
-            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);TargetLines.Add(Line);
-            TargetList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,ButtonIndex?4.f:0.f,0,0));
-        }
-        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickTarget(ButtonIndex);},false,
-            FName(*FString::Printf(TEXT("GrowthTarget%d"),ButtonIndex)));
-        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
-        TargetLines.Last()->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(ButtonIndex%GrowthTargetsPerLine?6.f:0.f,0,0,0));
-        TargetButtons.Add(Pick);
-    }
-    return TargetButtons[Index];
-}
-ULDCommandButton* ULDChoicesPanel::RepeatButtonAt(int32 Index)
-{
-    while(RepeatButtons.Num()<=Index)
-    {
-        const int32 ButtonIndex=RepeatButtons.Num();
-        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickRepeatedBase(ButtonIndex);},false,
-            FName(*FString::Printf(TEXT("GrowthRepeatBase%d"),ButtonIndex)));
-        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
-        RepeatLine->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(6,0,0,0));
-        RepeatButtons.Add(Pick);
-    }
-    return RepeatButtons[Index];
-}
-void ULDChoicesPanel::ClearTarget()
-{
-    TargetComponent=NAME_None;TargetChoices.Reset();TargetPicked=INDEX_NONE;TargetBases.Reset();
-}
-void ULDChoicesPanel::RefreshTarget()
-{
-    // A target step lasts while the component is still owned, not installed and has a place; otherwise it is dropped silently.
-    const FLDDemoComponentDefinition* Definition=nullptr;
-    if(!TargetComponent.IsNone()&&Usable()&&LatestContent)
-    {
-        const FString Id=TargetComponent.ToString();
-        Definition=LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;});
-        const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==TargetComponent;});
-        if(!Owned||Owned->bInstalled||!Definition||Definition->Kind==ELDDemoComponentKind::Base){Definition=nullptr;}
-    }
-    if(Definition)
-    {
-        // The picked place survives a refresh only while it is still offered.
-        const LDHUD::FWorkshopTargetView Picked=TargetChoices.IsValidIndex(TargetPicked)?TargetChoices[TargetPicked]:LDHUD::FWorkshopTargetView();
-        const bool bHadPick=TargetChoices.IsValidIndex(TargetPicked);
-        TargetChoices=LDHUD::WorkshopTargets(*Definition,Latest,LatestContent);
-        TargetBases=LDHUD::RepeatableBases(*Definition,Latest,LatestContent);
-        TargetPicked=bHadPick?TargetChoices.IndexOfByPredicate([&Picked](const LDHUD::FWorkshopTargetView& T){return T.Kind==Picked.Kind&&T.TargetId==Picked.TargetId;}):INDEX_NONE;
-        if(TargetChoices.IsEmpty()||(!Definition->ExtraBases.IsEmpty()&&TargetBases.IsEmpty())){Definition=nullptr;}
-    }
-    if(!Definition){ClearTarget();}
-    GrowthShown(TargetSection,Definition!=nullptr);
-    if(!Definition){return;}
-    GrowthText(TargetHeading,LDHUD::ContentName(LatestContent,TargetComponent.ToString()));
-    for(int32 Index=0;Index<FMath::Max(TargetChoices.Num(),TargetButtons.Num());++Index)
-    {
-        const bool bShown=TargetChoices.IsValidIndex(Index);
-        ULDCommandButton* Pick=bShown?TargetButtonAt(Index):TargetButtons[Index].Get();
-        GrowthShown(Pick,bShown,ESlateVisibility::Visible);
-        if(!bShown){continue;}
-        const FString& Label=TargetChoices[Index].Label;
-        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Index==TargetPicked?TEXT("【")+Label+TEXT("】"):Label);
-        GrowthEnabled(Pick,!PendingRequest);
-    }
-    // C12 asks for the repeated base once its place is picked.
-    const bool bRepeat=!Definition->ExtraBases.IsEmpty()&&TargetPicked!=INDEX_NONE;
-    GrowthShown(RepeatLine,bRepeat,ESlateVisibility::SelfHitTestInvisible);
-    for(int32 Index=0;Index<FMath::Max(TargetBases.Num(),RepeatButtons.Num());++Index)
-    {
-        const bool bShown=bRepeat&&TargetBases.IsValidIndex(Index);
-        ULDCommandButton* Pick=bShown?RepeatButtonAt(Index):RepeatButtons.IsValidIndex(Index)?RepeatButtons[Index].Get():nullptr;
-        GrowthShown(Pick,bShown,ESlateVisibility::Visible);
-        if(!bShown){continue;}
-        GrowthText(Cast<UTextBlock>(Pick->GetContent()),LDHUD::ContentName(LatestContent,TargetBases[Index].ToString()));
-        GrowthEnabled(Pick,!PendingRequest);
-    }
-}
-bool ULDChoicesPanel::PickTarget(int32 Index)
-{
-    RefreshTarget();
-    if(TargetComponent.IsNone()||!TargetChoices.IsValidIndex(Index)){return false;}
-    const FString Id=TargetComponent.ToString();
-    const FLDDemoComponentDefinition* Definition=LatestContent?LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
-    if(!Definition){return false;}
-    if(!Definition->ExtraBases.IsEmpty()){TargetPicked=Index;RefreshTarget();return true;}
-    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
-    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==TargetComponent;});
-    const LDHUD::FComponentRowView Row=Owned?LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs):LDHUD::FComponentRowView();
-    if(!Row.bCanEnable){SetFeedback(TEXT("没有提交：")+(Row.Blocked.IsEmpty()?LDHUD::GrowthReasonText(ELDGrowthReason::NotOwned):Row.Blocked));return false;}
-    const LDHUD::FWorkshopTargetView Target=TargetChoices[Index];
-    return SendComponent(ELDBuildCommandKind::InstallComponent,TargetComponent,NAME_None,ELDDemoElement::None,Target.Kind,Target.TargetId);
-}
-bool ULDChoicesPanel::PickRepeatedBase(int32 Index)
-{
-    RefreshTarget();
-    if(TargetComponent.IsNone()||!TargetChoices.IsValidIndex(TargetPicked)||!TargetBases.IsValidIndex(Index)){return false;}
-    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
-    const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==TargetComponent;});
-    const LDHUD::FComponentRowView Row=Owned?LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs):LDHUD::FComponentRowView();
-    if(!Row.bCanEnable){SetFeedback(TEXT("没有提交：")+(Row.Blocked.IsEmpty()?LDHUD::GrowthReasonText(ELDGrowthReason::NotOwned):Row.Blocked));return false;}
-    const LDHUD::FWorkshopTargetView Target=TargetChoices[TargetPicked];
-    return SendComponent(ELDBuildCommandKind::InstallComponent,TargetComponent,NAME_None,ELDDemoElement::None,Target.Kind,Target.TargetId,TargetBases[Index]);
-}
-void ULDChoicesPanel::CancelTarget()
-{
-    ClearTarget();
-    RefreshTarget();
-}
-bool ULDChoicesPanel::PickBindActive(int32 Index)
-{
-    if(BindingComponent.IsNone()||!BindingActives.IsValidIndex(Index)){return false;}
-    BindingActive=BindingActives[Index];
-    RefreshBinding();
-    return true;
-}
-bool ULDChoicesPanel::PickBindElement(ELDDemoElement Element)
-{
-    RefreshBinding();
-    if(BindingComponent.IsNone()||BindingActive.IsNone()){return false;}
-    if(PendingRequest){SetFeedback(TEXT("上一个请求仍在处理中。"));return false;}
-    const FString Id=BindingComponent.ToString();
-    const FLDDemoComponentDefinition* Definition=LatestContent?LatestContent->Components.FindByPredicate([&Id](const FLDDemoComponentDefinition& D){return D.Id==Id;}):nullptr;
-    if(!Definition||!Definition->BindElements.Contains(Element)){SetFeedback(TEXT("没有提交：")+LDHUD::GrowthReasonText(ELDGrowthReason::InvalidTarget));return false;}
-    if(BindingKind==ELDBuildCommandKind::OpeningBase&&!Gate.bCanChoose){SetFeedback(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
-    if(BindingKind==ELDBuildCommandKind::InstallComponent)
-    {
-        const FLDComponentInstanceView* Owned=Latest.Components.FindByPredicate([this](const FLDComponentInstanceView& C){return C.DefinitionId==BindingComponent;});
-        const LDHUD::FComponentRowView Row=Owned?LDHUD::ComponentRow(*Owned,Latest,LatestContent,Gate,LatestSafeAtMs,bLatestClock,LatestNowMs):LDHUD::FComponentRowView();
-        if(!Row.bCanEnable){SetFeedback(TEXT("没有提交：")+(Row.Blocked.IsEmpty()?LDHUD::GrowthReasonText(ELDGrowthReason::NotOwned):Row.Blocked));return false;}
-    }
-    return SendComponent(BindingKind,BindingComponent,BindingActive,Element);
-}
-void ULDChoicesPanel::CancelBinding()
-{
-    BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;
-    RefreshBinding();
-}
-bool ULDChoicesPanel::SendComponent(ELDBuildCommandKind Kind,FName Component,FName BoundActive,ELDDemoElement Element,
-    ELDComponentTargetKind TargetKind,FName TargetId,FName BoundComponent)
-{
     FLDBuildCommand Command;
-    Command.Kind=Kind;
-    if(!FLDDefinitionWire::Encode(Component,Command.Component)){SetFeedback(TEXT("没有提交：这个构件的标识无效。"));return false;}
-    // An opening pick always asks to enable it now; the server keeps it in the inventory with the reason when it may not.
-    Command.bInstallIfPossible=Kind==ELDBuildCommandKind::OpeningBase;
-    // Base components take no target; B18 carries its binding; a mod or connector its place (#198 F, C12 also its base).
-    Command.TargetKind=TargetKind;
-    if(!TargetId.IsNone()&&!FLDDefinitionWire::Encode(TargetId,Command.TargetDefinition)){SetFeedback(TEXT("没有提交：安装位置的标识无效。"));return false;}
-    if(!BoundComponent.IsNone()&&!FLDDefinitionWire::Encode(BoundComponent,Command.BoundComponent)){SetFeedback(TEXT("没有提交：重复的基础构件标识无效。"));return false;}
-    if(!BoundActive.IsNone())
-    {
-        if(!FLDDefinitionWire::Encode(BoundActive,Command.BoundActive)){SetFeedback(TEXT("没有提交：绑定的技能标识无效。"));return false;}
-        Command.Element=Element;
-    }
-    BindingComponent=NAME_None;BindingKind=ELDBuildCommandKind::None;BindingActives.Reset();BindingActive=NAME_None;
-    ClearTarget();
+    Command.Kind=ELDBuildCommandKind::OpeningBase;
+    if(!FLDDefinitionWire::Encode(Id,Command.Component)){SetFeedback(TEXT("没有提交：这个构件的标识无效。"));return false;}
+    // A plain base installs on 本体 in the same commit; B18 needs its skill and element, which the storage asks on its drop.
+    Command.bInstallIfPossible=Definition->Binding!=ELDDemoComponentBinding::ActiveElement;
     return Send(Command);
 }
 bool ULDChoicesPanel::ChooseOffer(int32 Index)
@@ -1755,7 +1353,7 @@ void ULDChoicesPanel::FinishRequest()
 }
 void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
 {
-    SetFeedback(LDHUD::BuildReceiptText(Receipt,LatestContent,LatestSafeAtMs,bLatestClock,LatestNowMs));
+    SetFeedback(LDHUD::BuildReceiptText(Receipt,LatestContent));
     // Applied points leave the staging; the rows show them once the owner view carries the receipt's revision.
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&Receipt.Kind==ELDBuildCommandKind::AllocatePoints){for(int32& Count:Staged){Count=0;}}
     // #198 G: a done fill gap or dismantle closes its picker; the receipt line names what was received and removed.

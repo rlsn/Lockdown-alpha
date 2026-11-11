@@ -1331,10 +1331,8 @@ public:
             SetStage(IsHost() ? EStage::Return : EStage::ToSkillSite);
             return true;
         }
-        // A choice made while the build safe window still ran keeps the active as a blueprint; once the window passed it
-        // is learned into the lowest empty slot.
-        int64 NowMs = 0;
-        if (bBlueprint && !bBuildLearnsBlueprint && PC.ReadDemoAuthorityTimeMs(NowMs) && View->BuildSafeAtMs <= NowMs)
+        // #222: a choice is learned at once into an empty slot; a blueprint kept anyway is learned into the lowest empty slot.
+        if (bBlueprint && !bBuildLearnsBlueprint)
         {
             uint8 Slot = 0;
             while (Slot < 3 && View->Actives.ContainsByPredicate([Slot](const FLDActiveSlotView& Row) { return Row.Slot == Slot; })) { ++Slot; }
@@ -1348,8 +1346,7 @@ public:
         }
         if (bBuildSent || bBlueprint)
         {
-            const double WindowSeconds = double(Catalog->Get().Parameters.BuildSafeWindowMs) / 1000.0;
-            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds + WindowSeconds) { return true; }
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
             return Fail(TEXT("Skills"), TEXT("The chosen preset active never reached the owner's Q/W/E: ") + Wanted.ToString());
         }
         // The next head offer is drawn with the build that consumed the previous one, or after the fixture's grant.
