@@ -521,8 +521,7 @@ ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason)
     case ELDGrowthReason::Dead:
     case ELDGrowthReason::StaleContext:
     case ELDGrowthReason::OfferAlreadyCommitted:
-    // #198: the window, the phase or the offer moved on between the read and the commit; the next decision rereads them.
-    case ELDGrowthReason::NotSafe:
+    // #198: the phase or the offer moved on between the read and the commit; the next decision rereads them.
     case ELDGrowthReason::PhaseClosed:
     // #198 G: the pending component choice was resolved meanwhile.
     case ELDGrowthReason::NoComponentChoice:

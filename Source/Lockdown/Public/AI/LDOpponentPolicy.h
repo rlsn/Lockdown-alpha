@@ -154,8 +154,6 @@ struct FLDOpponentSelf
     // #198 G: pending component choices (oldest first) and the gap fills the own build allows, in catalog order.
     TArray<FLDOpponentComponentChoice> ComponentChoices;
     TArray<FLDOpponentGapFill> GapFills;
-    // Combat's build safe window (absolute authority ms; at or before now is safe).
-    int64 BuildSafeAtMs = 0;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
     // #153: this adapter's own server-random opening timing (drawn once per match, never a hidden fact): the authority

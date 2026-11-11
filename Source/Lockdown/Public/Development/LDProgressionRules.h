@@ -149,8 +149,9 @@ namespace LDProgression
     };
 
     // Where the match is for a build command (ALDGameMode::ReadBuildStage): Live on the field segments; Rest in a rest
-    // build window (the build/training windows and the payout); RestLocked in the rest steps whose builds are locked
-    // (draw, betting, PK, settlement, return countdown); Closed otherwise (results and every other phase).
+    // build window (the build/training windows and the payout); RestLocked in the other rest steps (draw, betting, PK,
+    // settlement, return countdown), which close only the NPC services (#222); Closed otherwise (results and every other
+    // phase).
     enum class EMatchStage : uint8 { Live, Rest, RestLocked, Closed };
 
     // The server's view of one contender when a build command commits.
@@ -158,8 +159,6 @@ namespace LDProgression
     {
         EMatchStage Stage = EMatchStage::Closed;
         ELDLifePhase LifePhase = ELDLifePhase::Unspawned;
-        // Combat's build safe window has passed (BuildSafeAtMs <= now); only the Live stage reads it.
-        bool bSafe = false;
     };
 
     // Context is inside a rest build window, where the rest-only services and rebuilds are allowed.
@@ -172,7 +171,7 @@ namespace LDProgression
     {
         ELDBuildChoiceResult Result = ELDBuildChoiceResult::None;
         uint8 Slot = 0;
-        // StoredAsBlueprint after asking to learn: NotSafe, Dead or NoEmptySlot; None when not asked.
+        // StoredAsBlueprint after asking to learn: NoEmptySlot; None when not asked.
         ELDGrowthReason StoredReason = ELDGrowthReason::None;
     };
 
@@ -224,16 +223,14 @@ namespace LDProgression
     // Private per-opportunity random material; a redraw of the same ordinal reuses it.
     LOCKDOWN_API uint64 OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal);
 
-    // Whether Context may learn an active into a slot now: in a rest window while alive, or on the field alive inside the
-    // build safe window. PhaseClosed, BuildLocked, Dead, NotSafe or LifePhaseChanged otherwise.
+    // Whether Context may learn an active into a slot now (#222): in every stage of a running match (Live, Rest and
+    // RestLocked), alive or dead. PhaseClosed or LifePhaseChanged otherwise.
     LOCKDOWN_API ELDGrowthReason LearnGate(const FBuildContext& Context);
-    // The legality matrix of one command kind (GROWTH_TRANSACTIONS). Live: ActiveChoice alive or dead, LearnBlueprint like
-    // LearnGate, AllocatePoints while dead or alive inside the safe window, BuyNpcOffer/Respec NotRestWindow,
-    // ReplaceActive/ForgetActive ReplacementNotAllowed. Rest: every kind, the safe window ignored (a dead contender keeps
-    // the death-wait rules: ActiveChoice and AllocatePoints only, Dead otherwise). RestLocked: BuildLocked. Closed:
-    // PhaseClosed.
-    // #198 B: OpeningBase like ActiveChoice; InstallComponent as a first install (InstallGate); UninstallComponent the rest
-    // window only (RestOnly; Dead for a dead contender).
+    // The legality matrix of one command kind (GROWTH_TRANSACTIONS). #222: the own build commands (ActiveChoice,
+    // ComponentChoice, OpeningBase, LearnBlueprint, AllocatePoints, InstallComponent, UninstallComponent) are open in Live,
+    // Rest and RestLocked, alive or dead. The NPC services keep the rest window: BuyNpcOffer/Respec/FillGap/Dismantle are
+    // NotRestWindow on the field and ReplaceActive/ForgetActive ReplacementNotAllowed, all BuildLocked in RestLocked and Dead
+    // for a dead contender. Closed: PhaseClosed.
     LOCKDOWN_API ELDGrowthReason CommandGate(ELDBuildCommandKind Kind, const FBuildContext& Context);
     // The shared-room NPC required by a command, or None when no NPC proximity is needed.
     LOCKDOWN_API ELDRestService RestServiceFor(ELDBuildCommandKind Kind);
@@ -319,10 +316,8 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason OpeningBaseOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FName OpeningChoice, TArray<FName>& Out);
 
-    // Whether an owned component may be installed now. First install (never installed): the rest window (Dead for a dead
-    // contender) or alive inside the build safe window (Dead / NotSafe otherwise). Re-installing a once-installed instance: the rest window
-    // only (RestOnly). PhaseClosed or LifePhaseChanged outside the match.
-    LOCKDOWN_API ELDGrowthReason InstallGate(const FBuildContext& Context, bool bEverInstalled);
+    // Whether an owned component may be installed now: LearnGate (#222: a first install and a move alike).
+    LOCKDOWN_API ELDGrowthReason InstallGate(const FBuildContext& Context);
     // Whether Target is a legal install of Component on Build: a base component takes no target; its binding needs a learned
     // active of BindActives and an element of BindElements (InvalidTarget otherwise). Mods and connectors are InvalidTarget
     // until #198 F adds their targets.
@@ -347,7 +342,7 @@ namespace LDProgression
     // InstallTargetReason reason when refused.
     LOCKDOWN_API ELDGrowthReason ApplyInstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Component, const FLDComponentTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out);
-    // An installed component back to the inventory (its history stays): rest window only (RestOnly), NotOwned, NotInstalled.
+    // An installed component back to the inventory (its history stays): NotOwned, NotInstalled or a CommandGate reason.
     LOCKDOWN_API ELDGrowthReason ApplyUninstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Component, const FBuildContext& Context, FLDGrowthBuild& Out);
 

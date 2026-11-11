@@ -292,15 +292,15 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     Timeline.Signups.Reset();
     Timeline.Step=ELDRestStep::PK;Timeline.LockedEntrants=3;Timeline.StepStartedAtMs=140000;Timeline.StepEndsAtMs=200000;
     View=LDHUD::TimelineBanner(Public,Self,true,150000);
-    TestTrue(TEXT("A PK names its latest end and its entrants; the build is locked"),View.Headline.EndsWith(TEXT("最长剩 50 秒"))
-        &&View.Detail==LDTerms::PKEntrants(3)+TEXT(" · ")+LDTerms::BuildLockedNow&&!View.bSignupOpen);
+    TestTrue(TEXT("A PK names its latest end and its entrants; #222: no build lock to announce"),View.Headline.EndsWith(TEXT("最长剩 50 秒"))
+        &&View.Detail==LDTerms::PKEntrants(3)&&!View.bSignupOpen);
     Timeline.Step=ELDRestStep::Payout;
-    TestEqualSensitive(TEXT("The payout reopens the build"),LDHUD::TimelineBanner(Public,Self,true,150000).Detail,LDTerms::PKEntrants(3));
+    TestEqualSensitive(TEXT("The payout names the entrants the same way"),LDHUD::TimelineBanner(Public,Self,true,150000).Detail,LDTerms::PKEntrants(3));
     TestTrue(TEXT("No return countdown outside the return step"),LDHUD::RestReturnCountdown(Public,true,150000).IsEmpty());
     Timeline.Step=ELDRestStep::Return;Timeline.bPKSkipped=true;Timeline.LockedEntrants=1;Timeline.StepStartedAtMs=130000;Timeline.StepEndsAtMs=135000;
     View=LDHUD::TimelineBanner(Public,Self,true,131200);
-    TestTrue(TEXT("Fewer than two sign-ups skip the PK, and the return locks the build"),View.Headline==LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒")
-        &&View.Detail==FString(LDTerms::PKSkipped)+TEXT(" · ")+LDTerms::BuildLockedNow);
+    TestTrue(TEXT("Fewer than two sign-ups skip the PK"),View.Headline==LDTerms::RestLabel(1)+TEXT(" · ")+LDTerms::RestReturn+TEXT(" · 剩 4 秒")
+        &&View.Detail==FString(LDTerms::PKSkipped));
     TestEqualSensitive(TEXT("The return countdown shows whole seconds rounded up"),LDHUD::RestReturnCountdown(Public,true,131200),FString(TEXT("4")));
     TestEqualSensitive(TEXT("The last millisecond still reads 1"),LDHUD::RestReturnCountdown(Public,true,134999),FString(TEXT("1")));
     TestEqualSensitive(TEXT("Reaching the end holds 1 until the authority enters the field"),LDHUD::RestReturnCountdown(Public,true,136000),FString(TEXT("1")));
@@ -1327,24 +1327,19 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
     }
     {
         LDHUD::FChoicesFold Fold;Fold.Opened(true,0.);
+        TestTrue(TEXT("An own hit folds the automatic opening at once"),Fold.ShouldFold(1.,false,true));
+    }
+    {
+        LDHUD::FChoicesFold Fold;Fold.Opened(true,0.);
         TestFalse(TEXT("A previewed card or a request in flight keeps the panel open"),Fold.ShouldFold(Wait+1.,true,true));
-        TestFalse(TEXT("Engaging makes the automatic open the player's own: it no longer times out"),Fold.IsAutomatic()||Fold.ShouldFold(Wait+60.,false,false));
-        TestTrue(TEXT("A hit still folds it once the player is no longer engaged"),Fold.ShouldFold(Wait+61.,false,true));
+        TestFalse(TEXT("Engaging makes the automatic open the player's own: neither time nor hits fold it"),
+            Fold.IsAutomatic()||Fold.ShouldFold(Wait+60.,false,false)||Fold.ShouldFold(Wait+61.,false,true));
     }
     {
+        // #222: the player builds in combat and in a PK through the real UI, so a panel the player opened stays open.
         LDHUD::FChoicesFold Fold;Fold.Opened(false,0.);
-        TestFalse(TEXT("A panel the player opened never times out"),Fold.IsAutomatic()||Fold.ShouldFold(600.,false,false));
-        TestTrue(TEXT("A hit on the own body folds the open panel"),Fold.ShouldFold(601.,false,true));
-        Fold.Closed();Fold.Opened(false,602.);
-        TestFalse(TEXT("The player's own reopening after a hit fold is respected while hits continue"),Fold.ShouldFold(603.,false,true));
-        Fold.Closed();Fold.Opened(false,700.);
-        TestTrue(TEXT("A later opening folds on a hit again"),Fold.ShouldFold(701.,false,true));
-        Fold.Closed();Fold.Opened(true,800.);Fold.Closed();Fold.Opened(false,801.);
-        TestTrue(TEXT("Only a hit fold, not a timed one, protects the next opening"),Fold.ShouldFold(802.,false,true));
-    }
-    {
-        LDHUD::FChoicesFold Fold;Fold.Opened(false,0.);
-        TestTrue(TEXT("Field combat folds the planning panel despite focus or a pending request"),Fold.ShouldFold(1.,true,false,true));
+        TestFalse(TEXT("A panel the player opened never times out and never folds on a hit"),Fold.IsAutomatic()||Fold.ShouldFold(600.,false,false)
+            ||Fold.ShouldFold(601.,false,true));
     }
     {
         FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;
@@ -1395,36 +1390,28 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
 {
     // #198 growth panel: the disabled reasons follow the server's command gate (a hint only; the server decides each command).
     using EStage=LDProgression::EMatchStage;
-    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive,99999,true,1000);
-    TestTrue(TEXT("A rest build window allows every build step and rest service whatever the safe window"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
+    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive);
+    TestTrue(TEXT("A rest build window allows every build step and rest service"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate&&Gate.bCanInstall
         &&Gate.bCanBuyNpc&&Gate.bCanRespec&&Gate.bCanReplace&&Gate.bCanForget&&Gate.bInRest
         &&Gate.ChooseBlocked.IsEmpty()&&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty()&&Gate.NpcBlocked.IsEmpty());
-    Gate=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive,0,true,1000);
-    TestTrue(TEXT("A locked rest step refuses every command and still shows the rest services"),!Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate
-        &&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
+    Gate=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive);
+    TestTrue(TEXT("#222: a PK or return step keeps the own build open and locks only the rest services"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate
+        &&Gate.bCanInstall&&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget&&Gate.bInRest);
     TestEqualSensitive(TEXT("The locked reason names the lock"),Gate.NpcBlocked,LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
-    Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Dead,0,true,1000);
-    TestTrue(TEXT("A dead contender in a rest keeps the death-wait rules"),Gate.bCanChoose&&Gate.bCanAllocate&&!Gate.bCanLearn&&!Gate.bCanBuyNpc&&!Gate.bCanForget
-        &&Gate.LearnBlocked==LDTerms::DeadNoLearn);
-    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,1000);
-    TestTrue(TEXT("In combat an active can still be chosen; learning and allocating wait for the safe window"),Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate);
-    TestEqualSensitive(TEXT("The wait counts down in tenths"),Gate.LearnBlocked,FString(TEXT("未脱战 2.4 秒")));
-    TestEqualSensitive(TEXT("Allocating names the same wait"),Gate.AllocateBlocked,Gate.LearnBlocked);
+    Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Dead);
+    TestTrue(TEXT("#222: a dead contender in a rest chooses, learns, allocates and installs; the services wait for a living body"),
+        Gate.bCanChoose&&Gate.bCanAllocate&&Gate.bCanLearn&&Gate.bCanInstall&&!Gate.bCanBuyNpc&&!Gate.bCanForget);
+    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive);
+    TestTrue(TEXT("#222: on the field every own build step is open, in combat too"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate&&Gate.bCanInstall
+        &&Gate.LearnBlocked.IsEmpty()&&Gate.AllocateBlocked.IsEmpty());
     TestTrue(TEXT("The field hides the rest services and names why they are refused"),!Gate.bInRest&&!Gate.bCanBuyNpc&&!Gate.bCanRespec&&!Gate.bCanReplace&&!Gate.bCanForget
         &&Gate.NpcBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Gate.ReplaceBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::ReplacementNotAllowed));
-    TestEqualSensitive(TEXT("A last millisecond reads as a tenth, never 0.0"),LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,3399).LearnBlocked,
-        FString(TEXT("未脱战 0.1 秒")));
-    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,3400);
-    TestTrue(TEXT("Once the safe window is reached everything is allowed"),Gate.bCanChoose&&Gate.bCanLearn&&Gate.bCanAllocate);
-    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,0,false,0);
-    TestTrue(TEXT("Without the authority clock learning and allocating read as syncing, never as allowed"),Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate
-        &&Gate.LearnBlocked==TEXT("构筑安全窗同步中")&&Gate.AllocateBlocked==Gate.LearnBlocked);
-    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead,99999,true,1000);
-    TestTrue(TEXT("A dead contender chooses and allocates but cannot learn"),Gate.bCanChoose&&Gate.bCanAllocate&&!Gate.bCanLearn
-        &&Gate.LearnBlocked==LDTerms::DeadNoLearn);
-    Gate=LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive,0,true,1000);
-    TestTrue(TEXT("Results close every build step with a reason"),!Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate&&Gate.ChooseBlocked==TEXT("现在不是成长时段"));
-    TestFalse(TEXT("An unspawned contender sends nothing"),LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Unspawned,0,true,1000).bCanChoose);
+    Gate=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead);
+    TestTrue(TEXT("#222: a dead contender on the field builds as well"),Gate.bCanChoose&&Gate.bCanAllocate&&Gate.bCanLearn&&Gate.bCanInstall);
+    Gate=LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive);
+    TestTrue(TEXT("Results close every build step with a reason"),!Gate.bCanChoose&&!Gate.bCanLearn&&!Gate.bCanAllocate&&!Gate.bCanInstall
+        &&Gate.ChooseBlocked==TEXT("现在不是成长时段"));
+    TestFalse(TEXT("An unspawned contender sends nothing"),LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Unspawned).bCanChoose);
     {
         // The stage comes from the public match the same way the server reads it.
         FLDTimelineView Timeline;Timeline.Stage=ELDMatchStage::Rest;Timeline.Step=ELDRestStep::Build;
@@ -1436,45 +1423,40 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);
         TestTrue(TEXT("Results are closed"),LDProgression::StageForPublic(ELDMatchPhase::Results,FLDTimelineView())==EStage::Closed);
     }
-    TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied,0,true,0),FString(LDTerms::ReplaceAtRest));
-    TestEqualSensitive(TEXT("A full Q/W/E says so"),LDHUD::BuildBlockedText(ELDGrowthReason::NoEmptySlot,0,true,0),FString(LDTerms::SlotsFull));
+    TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied),FString(LDTerms::ReplaceAtRest));
+    TestEqualSensitive(TEXT("A full Q/W/E says so"),LDHUD::BuildBlockedText(ELDGrowthReason::NoEmptySlot),FString(LDTerms::SlotsFull));
 
     // Receipt lines: learned into a slot, stored as a blueprint with the reason, or the points added and left.
     FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Kind=ELDBuildCommandKind::ActiveChoice;
     Receipt.DefinitionId=TEXT("hud_rules_fixture_bolt");Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=2;
-    TestEqualSensitive(TEXT("A learned choice names its slot"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已学到 E：hud_rules_fixture_bolt")));
-    Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;Receipt.StoredReason=uint16(ELDGrowthReason::NotSafe);
-    TestEqualSensitive(TEXT("A stored choice names why it was not learned, with the wait"),LDHUD::BuildReceiptText(Receipt,nullptr,2500,true,1000),
-        FString(TEXT("已存为图纸：hud_rules_fixture_bolt（未脱战 1.5 秒）")));
-    Receipt.StoredReason=uint16(ELDGrowthReason::Dead);
-    TestEqualSensitive(TEXT("A dead contender's choice is stored"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已存为图纸：hud_rules_fixture_bolt（阵亡中）")));
-    Receipt.StoredReason=uint16(ELDGrowthReason::NoEmptySlot);
-    TestEqualSensitive(TEXT("A full Q/W/E stores the choice"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已存为图纸：hud_rules_fixture_bolt（Q/W/E 已满）")));
+    TestEqualSensitive(TEXT("A learned choice names its slot"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已学到 E：hud_rules_fixture_bolt")));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;Receipt.StoredReason=uint16(ELDGrowthReason::NoEmptySlot);
+    TestEqualSensitive(TEXT("A full Q/W/E stores the choice"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已存为图纸：hud_rules_fixture_bolt（Q/W/E 已满）")));
     Receipt.ChoiceResult=ELDBuildChoiceResult::None;
-    TestEqualSensitive(TEXT("A receipt without a result never claims one"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+    TestEqualSensitive(TEXT("A receipt without a result never claims one"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Kind=ELDBuildCommandKind::AllocatePoints;Receipt.PointsSpent={2,0,1,0,0};Receipt.UnspentPointsAfter=3;
-    TestEqualSensitive(TEXT("An allocation names the points added and left"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("已加 3 点，还剩 3 点")));
+    TestEqualSensitive(TEXT("An allocation names the points added and left"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已加 3 点，还剩 3 点")));
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::NotEnoughPoints);
-    TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("没有生效：未分配点数不够")));
+    TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("没有生效：未分配点数不够")));
     {
         // #198 rest services: each applied receipt names what it did; a missing field never reads as a success.
         FLDBuildReceipt Rest;Rest.Header.Outcome=ELDReceiptOutcome::Applied;
         Rest.Kind=ELDBuildCommandKind::BuyNpcOffer;Rest.NpcPointsPaid=4;
-        TestEqualSensitive(TEXT("An NPC purchase names the points paid"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),LDTerms::NpcBought(4));
+        TestEqualSensitive(TEXT("An NPC purchase names the points paid"),LDHUD::BuildReceiptText(Rest,nullptr),LDTerms::NpcBought(4));
         Rest.NpcPointsPaid=0;
-        TestEqualSensitive(TEXT("An NPC receipt without its payment claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+        TestEqualSensitive(TEXT("An NPC receipt without its payment claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
         Rest.Kind=ELDBuildCommandKind::Respec;Rest.PointsRefunded=5;Rest.UnspentPointsAfter=7;
-        TestEqualSensitive(TEXT("A respec names the refund and the unspent points"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),FString(TEXT("已洗点：返还 5 点，现有 7 点未分配")));
+        TestEqualSensitive(TEXT("A respec names the refund and the unspent points"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("已洗点：返还 5 点，现有 7 点未分配")));
         Rest.Kind=ELDBuildCommandKind::ReplaceActive;Rest.ChoiceResult=ELDBuildChoiceResult::Learned;Rest.LearnedSlot=1;
         Rest.DefinitionId=TEXT("hud_rules_fixture_bolt");Rest.ForgottenId=TEXT("hud_rules_fixture_old");
-        TestEqualSensitive(TEXT("A replacement names the slot, the new and the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),
+        TestEqualSensitive(TEXT("A replacement names the slot, the new and the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr),
             FString(TEXT("已在 W 用 hud_rules_fixture_bolt 替换 hud_rules_fixture_old")));
         Rest.ForgottenId=NAME_None;
-        TestEqualSensitive(TEXT("A replacement without the forgotten active claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+        TestEqualSensitive(TEXT("A replacement without the forgotten active claims nothing"),LDHUD::BuildReceiptText(Rest,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
         Rest.Kind=ELDBuildCommandKind::ForgetActive;Rest.ForgottenId=TEXT("hud_rules_fixture_old");
-        TestEqualSensitive(TEXT("A forget names the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),LDTerms::Forgotten(TEXT("hud_rules_fixture_old")));
+        TestEqualSensitive(TEXT("A forget names the forgotten active"),LDHUD::BuildReceiptText(Rest,nullptr),LDTerms::Forgotten(TEXT("hud_rules_fixture_old")));
         Rest.Header.Outcome=ELDReceiptOutcome::Rejected;Rest.Header.Reason=uint16(ELDGrowthReason::NpcPoolTooSmall);
-        TestEqualSensitive(TEXT("A refused rest service names its reason"),LDHUD::BuildReceiptText(Rest,nullptr,0,true,0),
+        TestEqualSensitive(TEXT("A refused rest service names its reason"),LDHUD::BuildReceiptText(Rest,nullptr),
             FString(TEXT("没有生效："))+LDHUD::GrowthReasonText(ELDGrowthReason::NpcPoolTooSmall));
         const ELDGrowthReason RestReasons[]={ELDGrowthReason::ReplacementNotAllowed,ELDGrowthReason::BuildLocked,ELDGrowthReason::NpcPoolTooSmall,
             ELDGrowthReason::OfferOutstanding,ELDGrowthReason::NothingToRespec,ELDGrowthReason::SlotEmpty,ELDGrowthReason::NotRestWindow};
@@ -1542,85 +1524,96 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     const auto Owned=[](const TCHAR* Id,bool bInstalled=false,bool bEver=false)
     {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=bInstalled;View.bEverInstalled=bEver||bInstalled;return View;};
     FLDProgressionView View;View.bValid=true;View.Generation=9;
-    const LDHUD::FBuildGateView Safe=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Alive,1000,true,1000);
-    const LDHUD::FBuildGateView Unsafe=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Alive,3400,true,1000);
-    const LDHUD::FBuildGateView Dead=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Dead,0,true,1000);
-    const LDHUD::FBuildGateView Rest=LDHUD::BuildGate(LDProgression::EMatchStage::Rest,ELDLifePhase::Alive,99999,true,1000);
-    TestTrue(TEXT("A first install follows the learn matrix: the rest window and a safe body, not an unsafe or dead one"),
-        Safe.bCanInstall&&Rest.bCanInstall&&!Unsafe.bCanInstall&&!Dead.bCanInstall);
-    TestFalse(TEXT("Outside the rest window nothing installed before moves again"),Safe.bCanReinstall);
-    TestTrue(TEXT("In the rest window a once-installed component moves again"),Rest.bCanReinstall);
-    const auto Row=[&](const FLDComponentInstanceView& Instance,const LDHUD::FBuildGateView& Gate,int64 SafeAtMs)
-    {return LDHUD::ComponentRow(Instance,View,&Content,Gate,SafeAtMs,true,1000);};
-
-    LDHUD::FComponentRowView Shown=Row(Owned(TEXT("hud_fixture_fist")),Safe,1000);
-    TestTrue(TEXT("A fresh base component out of combat can be enabled"),Shown.bCanEnable&&!Shown.bInstalled&&Shown.Blocked.IsEmpty());
-    Shown=Row(Owned(TEXT("hud_fixture_fist")),Unsafe,3400);
-    TestTrue(TEXT("In combat the button waits with the countdown"),!Shown.bCanEnable&&Shown.Blocked==TEXT("未脱战 2.4 秒"));
-    Shown=Row(Owned(TEXT("hud_fixture_fist")),Dead,0);
-    TestTrue(TEXT("A dead contender cannot enable it"),!Shown.bCanEnable&&Shown.Blocked==LDTerms::DeadNoLearn);
-    Shown=Row(Owned(TEXT("hud_fixture_fist"),false,true),Safe,1000);
-    TestTrue(TEXT("A once-installed component waits for the rest window"),!Shown.bCanEnable&&Shown.Blocked==LDTerms::ReinstallAtRest);
-    Shown=Row(Owned(TEXT("hud_fixture_fist"),true),Safe,1000);
-    TestTrue(TEXT("An installed component reads as enabled, without a button"),Shown.bInstalled&&!Shown.bCanEnable&&Shown.Blocked.IsEmpty());
-    for(const TCHAR* Element:{TEXT("hud_fixture_wet"),TEXT("hud_fixture_shock")})
+    using EColumn=LDHUD::EStorageColumn;
     {
-        Shown=Row(Owned(Element),Safe,1000);
-        TestTrue(FString(TEXT("Water and electric components can be enabled like any base: "))+Element,Shown.bCanEnable&&Shown.Blocked.IsEmpty());
+        // #222: installs, moves and uninstalls follow the learn gate: open on the field, in combat, in a PK and while dead.
+        using EStage=LDProgression::EMatchStage;
+        TestTrue(TEXT("Components install on the field and in every rest step, alive or dead"),
+            LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive).bCanInstall&&LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead).bCanInstall
+            &&LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive).bCanInstall&&LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Dead).bCanInstall);
+        TestFalse(TEXT("Results install nothing"),LDHUD::BuildGate(EStage::Closed,ELDLifePhase::Alive).bCanInstall);
     }
-    Shown=Row(Owned(TEXT("hud_fixture_trick")),Safe,1000);
-    TestTrue(TEXT("A binding component without a bindable learned active says so"),!Shown.bCanEnable&&Shown.bBinding&&Shown.Blocked==LDTerms::NoBindableActive);
+    // #227 storage drops: a plain base goes on 本体 only; B18 on the column of each bindable learned active, with its elements.
+    View.Components={Owned(TEXT("hud_fixture_fist")),Owned(TEXT("hud_fixture_wet")),Owned(TEXT("hud_fixture_trick")),Owned(TEXT("hud_fixture_mod"))};
+    TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_fist"),View,&Content);
+    TestTrue(TEXT("A plain base drops on 本体 only"),Drops.Num()==1&&Drops[0].Column==EColumn::Body&&Drops[0].Kind==ELDComponentTargetKind::None
+        &&Drops[0].Host.IsNone()&&Drops[0].Elements.IsEmpty()&&Drops[0].Bases.IsEmpty());
+    TestTrue(TEXT("A water base drops on 本体 like any base"),LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),View,&Content).Num()==1);
+    TestTrue(TEXT("B18 without a bindable learned active has nowhere to go"),LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),View,&Content).IsEmpty());
     FLDActiveSlotView& Bolt=View.Actives.AddDefaulted_GetRef();Bolt.DefinitionId=TEXT("hud_fixture_bolt");Bolt.Slot=1;
     FLDActiveSlotView& Other=View.Actives.AddDefaulted_GetRef();Other.DefinitionId=TEXT("hud_fixture_other");Other.Slot=0;
-    Shown=Row(Owned(TEXT("hud_fixture_trick")),Safe,1000);
-    TestTrue(TEXT("With a bindable learned active it can be enabled (the panel then asks for the binding)"),Shown.bCanEnable&&Shown.bBinding);
+    Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),View,&Content);
+    TestTrue(TEXT("B18 drops on the W column of its bindable active and asks for one of its elements"),Drops.Num()==1&&Drops[0].Column==EColumn::SlotW
+        &&Drops[0].BindActive==FName(TEXT("hud_fixture_bolt"))&&Drops[0].Kind==ELDComponentTargetKind::None&&Drops[0].Elements.Num()==3);
     TestTrue(TEXT("Only the learned actives its binding lists are offered"),LDHUD::BindableActives(Content.Components[3],View)==TArray<FName>{FName(TEXT("hud_fixture_bolt"))});
-    TestEqualSensitive(TEXT("A mod without any place to go says so"),Row(Owned(TEXT("hud_fixture_mod")),Safe,1000).Blocked,FString(LDTerms::NoInstallTarget));
-    TestEqualSensitive(TEXT("An unknown component is never shown as enabled or enable-able"),Row(Owned(TEXT("hud_fixture_unknown")),Safe,1000).Blocked,
-        FString(TEXT("内容目录中找不到该构件")));
+    TestTrue(TEXT("Over Q nothing takes B18; over W its drop"),LDHUD::FindDrop(Drops,EColumn::SlotQ,NAME_None)==nullptr
+        &&LDHUD::FindDrop(Drops,EColumn::SlotW,NAME_None)==&Drops[0]&&LDHUD::FindDrop(Drops,EColumn::SlotW,TEXT("hud_fixture_fist"))==&Drops[0]);
+    TestTrue(TEXT("A mod without any place has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_mod"),View,&Content).IsEmpty());
+    TestTrue(TEXT("An unknown or unowned component has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_unknown"),View,&Content).IsEmpty()
+        &&LDHUD::ComponentDrops(TEXT("hud_fixture_shock"),View,&Content).IsEmpty());
+    {
+        // The storage view: the stored ones in the view's order with the never-installed count; each installed one in its column.
+        FLDProgressionView Built=View;
+        Built.Components[0].bInstalled=Built.Components[0].bEverInstalled=true;
+        FLDComponentInstanceView& Bound=Built.Components[2];Bound.bInstalled=Bound.bEverInstalled=true;
+        Bound.Target.BoundActive=TEXT("hud_fixture_bolt");Bound.Target.Element=ELDDemoElement::Water;
+        Built.Components[3].bEverInstalled=true;
+        const LDHUD::FStorageView Storage=LDHUD::ComponentStorage(Built,&Content);
+        TestTrue(TEXT("Stored components in order; one was installed before, one never"),
+            Storage.Stored==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_mod"))})&&Storage.Fresh==1);
+        TestTrue(TEXT("Five columns: 本体, Q, W, E and D, each slot with its learned active"),Storage.Columns.Num()==LDHUD::StorageColumnCount
+            &&Storage.Columns[0].Title==LDTerms::ColumnBody&&Storage.Columns[4].Title==LDTerms::TargetDash
+            &&Storage.Columns[1].Active==FName(TEXT("hud_fixture_other"))&&Storage.Columns[2].Active==FName(TEXT("hud_fixture_bolt"))
+            &&Storage.Columns[3].Active.IsNone());
+        TestTrue(TEXT("The base sits on 本体 and B18 on W with its element"),Storage.Columns[0].Entries.Num()==1
+            &&Storage.Columns[0].Entries[0].Component==FName(TEXT("hud_fixture_fist"))&&Storage.Columns[2].Entries.Num()==1
+            &&Storage.Columns[2].Entries[0].Note==LDTerms::ElementWater&&Storage.Columns[1].Entries.IsEmpty());
+        const TArray<LDHUD::FComponentDrop> Moves=LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Built,&Content);
+        TestTrue(TEXT("An installed B18 still drops (a move) on its bindable column"),Moves.Num()==1&&Moves[0].Column==EColumn::SlotW);
+        TestTrue(TEXT("Nothing comes off with a component nothing sits on, or with a stored one"),LDHUD::DetachedWith(TEXT("hud_fixture_trick"),Built).IsEmpty()
+            &&LDHUD::DetachedWith(TEXT("hud_fixture_wet"),Built).IsEmpty());
+        TestTrue(TEXT("An invalid view shows the columns and nothing in them"),LDHUD::ComponentStorage(FLDProgressionView(),&Content).Stored.IsEmpty()
+            &&LDHUD::ComponentStorage(FLDProgressionView(),&Content).Columns.Num()==LDHUD::StorageColumnCount);
+    }
     TestTrue(TEXT("Element names"),LDHUD::ElementName(ELDDemoElement::Fire)==LDTerms::ElementFire&&LDHUD::ElementName(ELDDemoElement::Water)==LDTerms::ElementWater
         &&LDHUD::ElementName(ELDDemoElement::Electric)==LDTerms::ElementElectric);
 
     // Every #198 B reason names itself; none falls through to the unknown line.
-    for(const ELDGrowthReason Reason:{ELDGrowthReason::NotOwned,ELDGrowthReason::AlreadyInstalled,ELDGrowthReason::NotInstalled,ELDGrowthReason::RestOnly,
+    for(const ELDGrowthReason Reason:{ELDGrowthReason::NotOwned,ELDGrowthReason::AlreadyInstalled,ELDGrowthReason::NotInstalled,
         ELDGrowthReason::InvalidTarget,ELDGrowthReason::OpeningBaseUnavailable,ELDGrowthReason::OpeningBaseTaken,
         ELDGrowthReason::OpeningActiveFirst})
     {
         const FString Text=LDHUD::GrowthReasonText(Reason);
         TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因")));
     }
-    TestEqualSensitive(TEXT("RestOnly reads as the rest-window rule"),LDHUD::BuildBlockedText(ELDGrowthReason::RestOnly,0,true,0),FString(LDTerms::ReinstallAtRest));
 
     // Receipt lines: an opening pick enabled or kept with the reason, an install, an uninstall and a refusal.
     FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Kind=ELDBuildCommandKind::OpeningBase;
     Receipt.ComponentId=TEXT("hud_fixture_fist");Receipt.bComponentInstalled=true;
-    TestEqualSensitive(TEXT("An opening pick enabled at once"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
-    Receipt.bComponentInstalled=false;Receipt.InstallStoredReason=uint16(ELDGrowthReason::NotSafe);
-    TestEqualSensitive(TEXT("An opening pick kept for later names the wait"),LDHUD::BuildReceiptText(Receipt,nullptr,2500,true,1000),
-        LDTerms::ComponentStored(TEXT("hud_fixture_fist"),TEXT("未脱战 1.5 秒")));
+    TestEqualSensitive(TEXT("An opening pick enabled at once"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
+    Receipt.bComponentInstalled=false;Receipt.InstallStoredReason=uint16(ELDGrowthReason::InvalidTarget);
+    TestEqualSensitive(TEXT("An opening pick kept in the storage names why"),LDHUD::BuildReceiptText(Receipt,nullptr),
+        LDTerms::ComponentStored(TEXT("hud_fixture_fist"),LDHUD::BuildBlockedText(ELDGrowthReason::InvalidTarget)));
     Receipt.Kind=ELDBuildCommandKind::InstallComponent;Receipt.bComponentInstalled=true;Receipt.InstallStoredReason=0;
-    TestEqualSensitive(TEXT("An install names the component"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
+    TestEqualSensitive(TEXT("An install names the component"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentInstalled(TEXT("hud_fixture_fist")));
     Receipt.bComponentInstalled=false;
-    TestEqualSensitive(TEXT("An applied install that installed nothing never claims success"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+    TestEqualSensitive(TEXT("An applied install that installed nothing never claims success"),LDHUD::BuildReceiptText(Receipt,nullptr),
         FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Kind=ELDBuildCommandKind::UninstallComponent;
-    TestEqualSensitive(TEXT("An uninstall names the component"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentRemoved(TEXT("hud_fixture_fist")));
+    TestEqualSensitive(TEXT("An uninstall names the component"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentRemoved(TEXT("hud_fixture_fist")));
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::OpeningActiveFirst);
-    TestEqualSensitive(TEXT("A refused component command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+    TestEqualSensitive(TEXT("A refused component command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr),
         TEXT("没有生效：")+LDHUD::GrowthReasonText(ELDGrowthReason::OpeningActiveFirst));
 
-    // The 开盲盒 button counts the opening pick and the components that could be enabled; mods and moved ones wait.
+    // The 构筑 button counts the opening pick; #227: owned components wait in the storage stack instead.
     FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=9;
     Pending.bOpeningBasePending=true;Pending.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
-    Pending.Components={Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_shock"),false,true)};
-    LDHUD::FGrowthPending Counted=LDHUD::GrowthPending(&Pending,9,&Content);
-    TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase&&Counted.Components==0
+    Pending.Components={Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_wet"))};
+    const LDHUD::FGrowthPending Counted=LDHUD::GrowthPending(&Pending,9,&Content);
+    TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase
         &&Counted.Prompt()==FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::ComponentsPending(1));
-    Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();Pending.Components.Add(Owned(TEXT("hud_fixture_wet")));
-    Counted=LDHUD::GrowthPending(&Pending,9,&Content);
-    TestTrue(TEXT("A fresh enable-able water component lights it"),Counted.Any()&&Counted.Components==1);
-    Pending.Components.Last().bInstalled=Pending.Components.Last().bEverInstalled=true;
-    TestFalse(TEXT("Nothing left to enable lights nothing"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
+    Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();
+    TestFalse(TEXT("Stored components never light the button"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
 
     // Auto-open: the opening base pick once; a new component from a level-up only lights the button (no fight cover).
     LDHUD::FGrowthAutoOpen AutoOpen;FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=11;
@@ -1691,22 +1684,48 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
         +Place(ELDComponentTargetKind::Component,TEXT("hud_fixture_fist"),LDHUD::ContentName(&Content,TEXT("hud_fixture_fist")))+TEXT("|")+Dash);
     TestEqualSensitive(TEXT("A self-installed mod goes on the holder"),Places(Content.Components[4]),
         Place(ELDComponentTargetKind::None,TEXT("None"),LDTerms::TargetSelf));
-    const LDHUD::FBuildGateView Safe=LDHUD::BuildGate(LDProgression::EMatchStage::Live,ELDLifePhase::Alive,1000,true,1000);
-    TestTrue(TEXT("A mod with a place can be enabled (the panel then asks where)"),
-        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reach"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
+    {
+        // #227: each place is a drop: the active's column (E), the host in its column (本体) and D.
+        const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_reach"),View,&Content);
+        TestTrue(TEXT("A mod drops on each of its places"),Drops.Num()==3&&Drops[0].Column==LDHUD::EStorageColumn::SlotE
+            &&Drops[0].Kind==ELDComponentTargetKind::Active&&Drops[0].TargetId==FName(TEXT("hud_fixture_bolt"))
+            &&Drops[1].Column==LDHUD::EStorageColumn::Body&&Drops[1].Host==FName(TEXT("hud_fixture_fist"))
+            &&Drops[1].Kind==ELDComponentTargetKind::Component&&Drops[2].Column==LDHUD::EStorageColumn::Dash);
+        TestTrue(TEXT("Over its host the host's drop; over 本体 alone nothing (the mod is not a self mod)"),
+            LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,TEXT("hud_fixture_fist"))==&Drops[1]
+            &&LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,NAME_None)==nullptr);
+    }
 
     // C12: a repeatable base must be installed (water and electric included since #198 A).
     View.Components.Add(Owned(TEXT("hud_fixture_repeat"),false));
-    TestEqualSensitive(TEXT("C12 without an installed base cannot be enabled"),
-        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_repeat"),false),View,&Content,Safe,1000,true,1000).Blocked,FString(LDTerms::NoInstallTarget));
+    TestTrue(TEXT("C12 without an installed base has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_repeat"),View,&Content).IsEmpty());
     View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
     TestTrue(TEXT("An installed water base is repeatable"),LDHUD::RepeatableBases(Repeat,View,&Content)==TArray<FName>{FName(TEXT("hud_fixture_wet"))});
     View.Components.Add(Owned(TEXT("hud_fixture_ledger"),true));
     TestTrue(TEXT("Installed bases are offered in list order"),LDHUD::RepeatableBases(Repeat,View,&Content)
         ==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_ledger"))}));
-    TestTrue(TEXT("Then C12 can be enabled"),LDHUD::ComponentRow(Owned(TEXT("hud_fixture_repeat"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
-    TestTrue(TEXT("C09 with a place can be enabled"),
-        LDHUD::ComponentRow(Owned(TEXT("hud_fixture_reaction"),false),View,&Content,Safe,1000,true,1000).bCanEnable);
+    {
+        const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(TEXT("hud_fixture_repeat"),View,&Content);
+        TestTrue(TEXT("Then C12 drops on its active and asks for one of the bases"),Drops.Num()==1&&Drops[0].Column==LDHUD::EStorageColumn::SlotE
+            &&Drops[0].Bases==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_ledger"))}));
+    }
+    View.Components.Add(Owned(TEXT("hud_fixture_reaction"),false));
+    TestFalse(TEXT("C09 with a place drops there"),LDHUD::ComponentDrops(TEXT("hud_fixture_reaction"),View,&Content).IsEmpty());
+    {
+        // A mod on a host nests under it in the host's column; storing or moving the host takes the mod along.
+        FLDProgressionView Nest=View;
+        FLDComponentInstanceView& OnFist=*Nest.Components.FindByPredicate([](const FLDComponentInstanceView& C){return C.DefinitionId==FName(TEXT("hud_fixture_reach"));});
+        OnFist.bInstalled=OnFist.bEverInstalled=true;OnFist.Target.Kind=ELDComponentTargetKind::Component;OnFist.Target.Definition=TEXT("hud_fixture_fist");
+        const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(Nest,&Content);
+        const TArray<LDHUD::FEquippedView>& Body=Shown.Columns[0].Entries;
+        TestTrue(TEXT("The mod follows its host, one level deeper"),Body.Num()==4&&Body[0].Component==FName(TEXT("hud_fixture_fist"))
+            &&Body[1].Component==FName(TEXT("hud_fixture_reach"))&&Body[1].Host==FName(TEXT("hud_fixture_fist"))&&Body[1].Depth==1&&Body[2].Depth==0);
+        TestTrue(TEXT("Taking the host off takes the mod with it"),LDHUD::DetachedWith(TEXT("hud_fixture_fist"),Nest)==TArray<FName>{FName(TEXT("hud_fixture_reach"))});
+        const TArray<LDHUD::FComponentDrop> Moves=LDHUD::ComponentDrops(TEXT("hud_fixture_reach"),Nest,&Content);
+        TestTrue(TEXT("The installed mod may move to its other places"),Moves.Num()==4&&LDHUD::FindDrop(Moves,LDHUD::EStorageColumn::Body,TEXT("hud_fixture_wet"))!=nullptr);
+        const TArray<LDHUD::FComponentDrop> HostMoves=LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Nest,&Content);
+        TestTrue(TEXT("A base never drops on itself"),HostMoves.Num()==1&&HostMoves[0].Host.IsNone());
+    }
 
     // Installed rows name their place.
     FLDComponentInstanceView Shown=Owned(TEXT("hud_fixture_reach"),true);
@@ -1727,7 +1746,7 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("TargetConflict has its own text"),LDHUD::GrowthReasonText(ELDGrowthReason::TargetConflict),FString(LDTerms::TargetConflict));
     FLDBuildReceipt Receipt;Receipt.Kind=ELDBuildCommandKind::InstallComponent;
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::TargetConflict);
-    TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+    TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr),
         TEXT("没有生效：")+FString(LDTerms::TargetConflict));
     return true;
 }
@@ -1810,15 +1829,15 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
 {
     // #198 G panel hints: the component choice follows the active choice's gate, FillGap and Dismantle the rest window.
     using EStage=LDProgression::EMatchStage;
-    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive,99999,true,1000);
+    LDHUD::FBuildGateView Gate=LDHUD::BuildGate(EStage::Rest,ELDLifePhase::Alive);
     TestTrue(TEXT("A rest build window opens the choice and both material services"),Gate.bCanComponentChoice&&Gate.bCanFillGap&&Gate.bCanDismantle);
-    const LDHUD::FBuildGateView Field=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive,3400,true,1000);
+    const LDHUD::FBuildGateView Field=LDHUD::BuildGate(EStage::Live,ELDLifePhase::Alive);
     TestTrue(TEXT("In combat the choice is still taken; the material services wait for a rest"),Field.bCanComponentChoice&&!Field.bCanFillGap&&!Field.bCanDismantle
         &&Field.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::NotRestWindow)&&Field.DismantleBlocked==Field.FillGapBlocked);
-    TestTrue(TEXT("A dead contender still takes the choice"),LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead,0,true,1000).bCanComponentChoice);
-    const LDHUD::FBuildGateView Locked=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive,0,true,1000);
-    TestTrue(TEXT("A locked rest step refuses all three with the lock"),!Locked.bCanComponentChoice&&!Locked.bCanFillGap&&!Locked.bCanDismantle
-        &&Locked.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
+    TestTrue(TEXT("A dead contender still takes the choice"),LDHUD::BuildGate(EStage::Live,ELDLifePhase::Dead).bCanComponentChoice);
+    const LDHUD::FBuildGateView Locked=LDHUD::BuildGate(EStage::RestLocked,ELDLifePhase::Alive);
+    TestTrue(TEXT("#222: a locked rest step still takes the choice and refuses both services with the lock"),Locked.bCanComponentChoice
+        &&!Locked.bCanFillGap&&!Locked.bCanDismantle&&Locked.FillGapBlocked==LDHUD::GrowthReasonText(ELDGrowthReason::BuildLocked));
 
     // A private fixture: one mod whose only entry is an unowned common base, three common bases and a scarce one.
     FLDDemoContentDefinitions Content;
@@ -1880,20 +1899,20 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
     // Receipts name what was received, paid and removed; a missing field never reads as success.
     FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
     Receipt.Kind=ELDBuildCommandKind::ComponentChoice;Receipt.ComponentId=TEXT("hud_gap_base_a");
-    TestEqualSensitive(TEXT("A component choice names the component taken"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::ComponentTaken(TEXT("hud_gap_base_a")));
+    TestEqualSensitive(TEXT("A component choice names the component taken"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::ComponentTaken(TEXT("hud_gap_base_a")));
     Receipt.ComponentId=NAME_None;
-    TestEqualSensitive(TEXT("A component choice without a component took the points"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+    TestEqualSensitive(TEXT("A component choice without a component took the points"),LDHUD::BuildReceiptText(Receipt,nullptr),
         FString(LDTerms::ComponentChoiceTookPoints));
     Receipt.Kind=ELDBuildCommandKind::FillGap;Receipt.ComponentId=TEXT("hud_gap_base_a");Receipt.ServicePointsPaid=4;
-    TestEqualSensitive(TEXT("A gap fill names the price and the base"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),LDTerms::GapFilled(4,TEXT("hud_gap_base_a")));
+    TestEqualSensitive(TEXT("A gap fill names the price and the base"),LDHUD::BuildReceiptText(Receipt,nullptr),LDTerms::GapFilled(4,TEXT("hud_gap_base_a")));
     Receipt.ServicePointsPaid=0;
-    TestEqualSensitive(TEXT("A gap fill without its payment claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),FString(TEXT("回执缺少结果，请以当前状态为准。")));
+    TestEqualSensitive(TEXT("A gap fill without its payment claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Kind=ELDBuildCommandKind::Dismantle;Receipt.ComponentId=TEXT("new");
     Receipt.RemovedComponents={FName(TEXT("a")),FName(TEXT("b")),FName(TEXT("c"))};Receipt.UninstalledComponents={FName(TEXT("d"))};
-    TestEqualSensitive(TEXT("A dismantle names the removed, the received and the uninstalled"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+    TestEqualSensitive(TEXT("A dismantle names the removed, the received and the uninstalled"),LDHUD::BuildReceiptText(Receipt,nullptr),
         LDTerms::Dismantled(TEXT("a、b、c"),TEXT("new"),TEXT("d")));
     Receipt.RemovedComponents.Reset();
-    TestEqualSensitive(TEXT("A dismantle without its removed list claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr,0,true,0),
+    TestEqualSensitive(TEXT("A dismantle without its removed list claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),
         FString(TEXT("回执缺少结果，请以当前状态为准。")));
     // Every #198 G reason names itself; none falls through to the unknown line or repeats another.
     TSet<FString> Seen;
@@ -1910,9 +1929,9 @@ bool FLDHUDWorkspacePromptTest::RunTest(const FString& Parameters)
 {
     LDHUD::FGrowthPending Pending;
     TestEqualSensitive(TEXT("The entry names the persistent workspace"),LDHUD::GrowthPrompt(Pending),FString(TEXT("构筑")));
-    Pending.Components=1;
+    Pending.ComponentChoices=1;
     const FString One=LDHUD::GrowthPrompt(Pending);
-    Pending.Components=100;Pending.Offers=50;Pending.Points=1000;Pending.Blueprints=40;Pending.ComponentChoices=20;
+    Pending.Offers=50;Pending.Points=1000;Pending.Blueprints=40;Pending.ComponentChoices=20;
     TestEqualSensitive(TEXT("Dense progression does not grow the combat HUD entry"),LDHUD::GrowthPrompt(Pending),One);
     TestEqualSensitive(TEXT("The entry advertises pending work without expanding counts"),One,FString(TEXT("构筑 · 有待处理")));
     TestEqualSensitive(TEXT("Service admission refusal gives the exact proximity instruction"),

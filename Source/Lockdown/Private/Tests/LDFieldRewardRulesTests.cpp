@@ -21,7 +21,6 @@ LDProgression::FBuildContext FieldTestContext(LDProgression::EMatchStage Stage)
     LDProgression::FBuildContext Context;
     Context.Stage = Stage;
     Context.LifePhase = ELDLifePhase::Alive;
-    Context.bSafe = true;
     return Context;
 }
 

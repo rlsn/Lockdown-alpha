@@ -275,7 +275,6 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     Out.UnspentPoints = Progression.UnspentPoints;
     Out.OffersConsumed = Progression.ActiveOpportunitiesConsumed;
     Out.QueuedOpportunities = Progression.QueuedActiveOpportunities;
-    Out.BuildSafeAtMs = Progression.BuildSafeAtMs;
     Error.Reset();
     return true;
 }
@@ -295,8 +294,6 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
     Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;
-    // #198: Combat's own build safe window is fresher than the growth publication's copy.
-    Out.BuildSafeAtMs = Combat.BuildSafeAtMs;
     int64 SilencedUntilMs = 0;
     for (const auto& Status : Combat.Statuses)
     {

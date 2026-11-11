@@ -71,8 +71,9 @@ enum class ELDBuildChoiceResult : uint8 { None = 0, Learned = 1, StoredAsBluepri
 enum class ELDRewardOutcome : uint8 { None = 0, Granted = 1, NoReward = 2, RetryableNotCommitted = 3, PermanentlyRejected = 4 };
 
 // Travels as UPROPERTY uint16 Reason; read through LDGrowthWire::Reason. Retired numbers stay reserved: 40 NoOffer,
-// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198), and 65
-// ElementUnsupported (#198 B, water/electric before the #198 A element state).
+// 46 ReplacementRequired, 47 ReplacementMismatch, 49 NoReroll, 50 OfferAlreadyRerolled, 51 OpeningNoReroll (#198), 65
+// ElementUnsupported (#198 B, water/electric before the #198 A element state), and 52 NotSafe (the build safe window) and
+// 63 RestOnly (moves and uninstalls in a rest only), both retired when #222 opened the own build commands at all times.
 enum class ELDGrowthReason : uint16
 {
     None = 0,
@@ -82,20 +83,18 @@ enum class ELDGrowthReason : uint16
     UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44, BuildStale = 45,
     // #198: replacing or forgetting a learned active outside a rest window.
     ReplacementNotAllowed = 48,
-    // #198: the build safe window (GROWTH.BuildSafeWindowSec) has not passed since the last combat action.
-    NotSafe = 52,
     NoEmptySlot = 53, SlotOccupied = 54, NoBlueprint = 55, NotEnoughPoints = 56, NoActiveOffer = 57,
     // The match is outside the field segments and the rest steps (results and every other phase).
     PhaseClosed = 58,
-    // #198 B components: NotOwned (no such instance), AlreadyInstalled, NotInstalled, RestOnly (moving/uninstalling or
-    // re-installing a once-installed instance needs the rest window), InvalidTarget (wrong target kind/binding),
+    // #198 B components: NotOwned (no such instance), AlreadyInstalled, NotInstalled, InvalidTarget (wrong target kind/binding),
     // OpeningBaseUnavailable (not an option of the current opening pick), OpeningBaseTaken (already picked),
     // OpeningActiveFirst (opening active not chosen yet).
-    NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, RestOnly = 63, InvalidTarget = 64,
+    NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, InvalidTarget = 64,
     OpeningBaseUnavailable = 66, OpeningBaseTaken = 67, OpeningActiveFirst = 68,
     // #198 F: TargetConflict (M08 and M09 on the same dash target).
     TargetConflict = 150,
-    // #198 rest: a rest step whose builds are locked (draw, betting, PK, settlement, return countdown).
+    // #198 rest: an NPC service in a rest step outside the build and payout windows (draw, betting, PK, settlement, return
+    // countdown); #222 keeps the own build commands open there.
     BuildLocked = 70,
     // Fewer than three actives are eligible for an NPC offer; nothing is charged.
     NpcPoolTooSmall = 71,
@@ -324,8 +323,6 @@ struct LOCKDOWN_API FLDProgressionView
     // currently available bases (spec §4.3) not owned, in catalog order.
     UPROPERTY() bool bOpeningBasePending = false;
     UPROPERTY() TArray<FName> OpeningBaseOptions;
-    // Combat's build safe window (absolute authority ms; <= now is safe), copied at publication like the owner CombatView's.
-    UPROPERTY() int64 BuildSafeAtMs = 0;
     UPROPERTY() FLDDemoContentDigest CatalogDigest;
     // Points paid for rest services (the NPC, FillGap); a respec never returns them.
     UPROPERTY() int64 PermanentSpentPoints = 0;
@@ -404,14 +401,14 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() ELDBuildChoiceResult ChoiceResult = ELDBuildChoiceResult::None;
     // Learned: its slot (0 = Q, 1 = W, 2 = E).
     UPROPERTY() uint8 LearnedSlot = 0;
-    // StoredAsBlueprint after bLearnIfPossible: why it was not learned (NotSafe, Dead or NoEmptySlot); None when the
+    // StoredAsBlueprint after bLearnIfPossible: why it was not learned (NoEmptySlot); None when the
     // command did not ask to learn.
     UPROPERTY() uint16 StoredReason = 0;
     // AllocatePoints: the points spent per stat, in the stats' design order.
     UPROPERTY() TArray<uint8> PointsSpent;
     UPROPERTY() int64 UnspentPointsAfter = 0;
     // #198 B component kinds: the component, whether it is installed after the commit, and (OpeningBase stored without
-    // install) why not (NotSafe, Dead, InvalidTarget); None when not asked.
+    // install) why not (InvalidTarget); None when not asked.
     UPROPERTY() FName ComponentId;
     UPROPERTY() bool bComponentInstalled = false;
     UPROPERTY() uint16 InstallStoredReason = 0;

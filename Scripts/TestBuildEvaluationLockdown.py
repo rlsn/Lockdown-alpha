@@ -117,7 +117,7 @@ def trace(*extra, drop=()):
         ("s_offer3", f"LD_OFFER t=5033 contender={S} ordinal=3 level=6 cards=active_not_mad,active_snark_bolt,active_quick_meeting"),
         ("o_offer3", f"LD_OFFER t=5033 contender={O} ordinal=3 level=6 cards=active_not_mad,active_bail_out,active_triple_combo"),
         ("s_choice3", choice(5283, S, 3, "active_not_mad", "learned", "E", "-", 6, 0)),
-        ("o_choice3", choice(5283, O, 3, "active_bail_out", "blueprint", "-", "NotSafe", 6, 0)),
+        ("o_choice3", choice(5283, O, 3, "active_bail_out", "blueprint", "-", "NoEmptySlot", 6, 0)),
         ("s_points", f"LD_BUILD t=5300 contender={S} kind=AllocatePoints card=- slot=- points=1,0,2,0,2 unspent=0 level=6"),
         ("o_points", f"LD_BUILD t=5300 contender={O} kind=AllocatePoints card=- slot=- points=1,2,0,2,0 unspent=0 level=6"),
         ("s_heartbeat", heartbeat(6000, S, "100,0,0")),
@@ -712,7 +712,7 @@ class EvidenceTest(AdapterCase):
 
     def test_choice_metadata_required_for_prefix_cannot_be_missing_or_contradictory(self):
         subject_choice2 = choice(5033, S, 2, "active_flyer_trap", "learned", "W", "-", 6, 1)
-        opponent_choice3 = choice(5283, O, 3, "active_bail_out", "blueprint", "-", "NotSafe", 6, 0)
+        opponent_choice3 = choice(5283, O, 3, "active_bail_out", "blueprint", "-", "NoEmptySlot", 6, 0)
         variants = {
             "missing kind": (subject_choice2, subject_choice2.replace("kind=ActiveChoice ", "")),
             "missing result": (subject_choice2, subject_choice2.replace("result=learned ", "")),
@@ -722,9 +722,9 @@ class EvidenceTest(AdapterCase):
             "another command kind": (subject_choice2, subject_choice2.replace("kind=ActiveChoice", "kind=LearnBlueprint")),
             "unknown result": (subject_choice2, subject_choice2.replace("result=learned", "result=replaced")),
             "learned without a slot": (subject_choice2, subject_choice2.replace("slot=W", "slot=-")),
-            "learned with a stored reason": (subject_choice2, subject_choice2.replace("stored=-", "stored=NotSafe")),
+            "learned with a stored reason": (subject_choice2, subject_choice2.replace("stored=-", "stored=NoEmptySlot")),
             "blueprint in a slot": (opponent_choice3, opponent_choice3.replace("slot=-", "slot=E")),
-            "blueprint without stored": (opponent_choice3, opponent_choice3.replace("stored=NotSafe ", "")),
+            "blueprint without stored": (opponent_choice3, opponent_choice3.replace("stored=NoEmptySlot ", "")),
         }
         for name, (original, replacement) in variants.items():
             with self.subTest(variant=name):
@@ -813,7 +813,7 @@ class EvidenceTest(AdapterCase):
         plan["design"].pop("reference")
         plan["blocks"]["sides"] = 1
         learned = choice(5033, S, 2, "active_flyer_trap", "learned", "W", "-", 6, 1)
-        stored = choice(5033, S, 2, "active_flyer_trap", "blueprint", "-", "NotSafe", 6, 1)
+        stored = choice(5033, S, 2, "active_flyer_trap", "blueprint", "-", "NoEmptySlot", 6, 1)
         learn_later = f"LD_BUILD t=5300 contender={S} kind=LearnBlueprint card=active_flyer_trap slot=W points=- unspent=5 level=6"
 
         def case(arm, text):
@@ -852,7 +852,7 @@ class EvidenceTest(AdapterCase):
                          {"kind": "ActiveChoice", "card": "active_flyer_trap", "result": "learned", "slot": "W",
                           "stored": "-", "level": "6", "pending": "1"})
         subject_choice2 = choice(5033, S, 2, "active_flyer_trap", "learned", "W", "-", 6, 1)
-        for original, replacement in ((subject_choice2, choice(5033, S, 2, "active_flyer_trap", "blueprint", "-", "NotSafe", 6, 1)),
+        for original, replacement in ((subject_choice2, choice(5033, S, 2, "active_flyer_trap", "blueprint", "-", "NoEmptySlot", 6, 1)),
                                       (subject_choice2, subject_choice2.replace("slot=W", "slot=E")),
                                       (subject_choice2, subject_choice2.replace("pending=1", "pending=0")),
                                       (subject_choice2, subject_choice2.replace("level=6", "level=5")),
