@@ -6,6 +6,7 @@
 #include "LDHumanoidVisualComponent.generated.h"
 
 class UMaterialInstanceDynamic;
+class UMeshComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 struct FLDArtAnimation;
@@ -55,6 +56,8 @@ private:
 #endif
     // Resolves the catalog body and paints its tint slots; without a body nothing is drawn and the error is logged.
     void ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What);
+    // Builds the look's worn parts on the body mesh and adds their paints; drops the previous look's parts.
+    void WearParts(const FLinearColor& Identity, const FString& What);
     // Places the markers and effects for the body's displayed height.
     void Layout();
     // Shows the clip of the current state: dying, an action, the respawn, running or standing.
@@ -68,6 +71,8 @@ private:
     UPROPERTY() TObjectPtr<USkeletalMeshComponent> Mesh;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Edges;
+    // The catalog body's worn parts (FLDArtAttachment), rebuilt with every look; they hang from Mesh.
+    UPROPERTY() TArray<TObjectPtr<UMeshComponent>> Worn;
     UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Paints;
     // The resolved catalog entry; valid while the game instance's art catalog lives.
     const FLDArtCharacter* Art = nullptr;

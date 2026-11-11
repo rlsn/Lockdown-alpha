@@ -31,10 +31,9 @@ public:
     TFunction<void()> ResetTraining;
     TFunction<void()> ReadyRest;
     // Stats: the owner's level and stats, so every card shows its numbers for now (#147). Stage (the public match's build
-    // stage, LDProgression::StageForPublic), BuildSafeAtMs (the freshest own publication of Combat's safe window), bClock
-    // and NowMs judge what the server would refuse, for the disabled reasons.
-    void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,int64 BuildSafeAtMs,
-        bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats);
+    // stage, LDProgression::StageForPublic) and the life phase judge what the server would refuse, for the disabled reasons.
+    void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
+        const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
     void PresentAttributes(const FLDCombatOwnerView* Combat);
@@ -42,8 +41,8 @@ public:
     // Local view context only; the owning authority still admits every service command.
     void SetServiceContext(ELDRestService Service);
     bool OpenServicePanel();
+    // 0: 技能与奖励 (offers, blueprints, the opening base pick and elite component choices); 1: 加点.
     void ShowTab(int32 Tab);
-    bool PreviewComponent(int32 Index);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     // Shows an offer in the inspection column without choosing it (automation and review captures).
@@ -80,22 +79,9 @@ public:
     virtual bool HasChildConfirmation() const override {return RestConfirm.Kind!=ELDBuildCommandKind::None;}
     virtual bool CloseChildConfirmation() override;
     virtual bool ChildConfirmationYields() const override {return true;}
-    // #198 B: an opening base card click: takes the option at Index of the shown list with bInstallIfPossible. A binding
-    // component (B18) with a bindable learned active first asks for that active and an element (PickBindActive/Element).
+    // #198 B: an opening base card click: takes the option at Index of the shown list; a plain base asks to install it on
+    // 本体 in the same commit, B18 goes to the storage, where its drop on a skill asks for the element (#227).
     bool PickOpeningBase(int32 Index);
-    // A component row's 启用: a first-time InstallComponent of the owned component at Index of the shown list (binding or
-    // target step first as above).
-    bool EnableComponent(int32 Index);
-    // The binding step of an opening pick or install: the bindable learned active at Index (Q/W/E order), then the element,
-    // which sends the command.
-    bool PickBindActive(int32 Index);
-    bool PickBindElement(ELDDemoElement Element);
-    void CancelBinding();
-    // #198 F: the target step of a mod or connector install: the place at Index of the shown list (LDHUD::WorkshopTargets),
-    // which sends the command, except for C12, which then asks for the installed base it repeats (PickRepeatedBase sends).
-    bool PickTarget(int32 Index);
-    bool PickRepeatedBase(int32 Index);
-    void CancelTarget();
     int32 StagedTotal() const;
     virtual bool IsPanelOpen() const override {return bOpen||bServicePanelOpen;}
     virtual void OpenPanel() override;
@@ -104,10 +90,10 @@ public:
     // The HUD opened this panel for the opening offer (D10): it folds back to the 构筑 button after a few seconds
     // unless the player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
-    // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
-    void UpdateFold(bool bOwnHit,bool bCombatActive);
-    // A card being read, staged points, a binding being picked, a rest confirm line or a request in flight.
-    bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||!BindingComponent.IsNone()||!TargetComponent.IsNone()||PendingRequest!=0||HasChildConfirmation()
+    // Called on every HUD refresh with whether the own body was hit since the last one; folds an automatic opening when due.
+    void UpdateFold(bool bOwnHit);
+    // A card being read, staged points, a rest confirm line or a request in flight.
+    bool IsEngaged() const {return DetailCard!=INDEX_NONE||StagedTotal()>0||PendingRequest!=0||HasChildConfirmation()
         ||bFillGapOpen||bDismantleOpen||(RestTrainingButton&&RestTrainingButton->HasKeyboardFocus())||(RestReadyButton&&RestReadyButton->HasKeyboardFocus());}
     // The offer card whose inspection is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
@@ -168,15 +154,6 @@ private:
         FName ShownId;
         bool bBinding=false;
     };
-    // One owned component: its name and sentence, then 已启用 or a 启用 button with the reason it is disabled.
-    struct FComponentRow
-    {
-        TObjectPtr<UWidget> Row;
-        TObjectPtr<UTextBlock> Name,State;
-        TObjectPtr<ULDCommandButton> Inspect;
-        TObjectPtr<UImage> Picture;
-        FName ShownId;
-    };
     // #198 G: one pending elite camp component choice: its title, one card per option and the empty-pool points button.
     struct FChoiceLine
     {
@@ -190,32 +167,11 @@ private:
     TArray<FBlueprintRow> BlueprintRows;
     TArray<FStatRow> StatRows;
     TArray<FBaseCard> BaseCards;
-    TArray<FComponentRow> ComponentRows;
     TArray<FChoiceLine> ChoiceLines;
     UPROPERTY() TObjectPtr<UWidget> ComponentChoiceSection;
     UPROPERTY() TObjectPtr<UVerticalBox> ComponentChoiceList;
     UPROPERTY() TObjectPtr<UWidget> OpeningBaseSection;
     UPROPERTY() TObjectPtr<UVerticalBox> BaseCardList;
-    UPROPERTY() TObjectPtr<UWidget> BindingSection;
-    UPROPERTY() TObjectPtr<UTextBlock> BindingHeading;
-    UPROPERTY() TObjectPtr<UWidget> BindElementLine;
-    // Q/W/E order of the bindable learned actives; then fire, water, electric.
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> BindActiveButtons;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> BindElementButtons;
-    // #198 F target step: the place buttons (built as needed, a few per line) and C12's repeated-base line.
-    UPROPERTY() TObjectPtr<UWidget> TargetSection;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetHeading;
-    UPROPERTY() TObjectPtr<UVerticalBox> TargetList;
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> TargetLines;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> TargetButtons;
-    UPROPERTY() TObjectPtr<UHorizontalBox> RepeatLine;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> RepeatButtons;
-    UPROPERTY() TObjectPtr<UWidget> ComponentSection;
-    UPROPERTY() TObjectPtr<UVerticalBox> InstalledComponentList;
-    UPROPERTY() TObjectPtr<UVerticalBox> UninstalledComponentList;
-    UPROPERTY() TObjectPtr<UTextBlock> ComponentHeading;
-    UPROPERTY() TObjectPtr<UTextBlock> InstalledComponentHeading;
-    UPROPERTY() TObjectPtr<UTextBlock> UninstalledComponentHeading;
     UPROPERTY() TObjectPtr<UTextBlock> EmptyNote;
     UPROPERTY() TObjectPtr<UVerticalBox> PointsDock;
     UPROPERTY() TObjectPtr<UWidget> CurrentBuildSection;
@@ -223,12 +179,8 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> EquippedNames;
     UPROPERTY() TArray<TObjectPtr<UImage>> EquippedIcons;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> TabButtons;
-    UPROPERTY() TObjectPtr<ULDCommandButton> InspectInstall;
-    UPROPERTY() TObjectPtr<UTextBlock> InspectState;
     int32 ActiveTab=0;
     ELDRestService ServiceContext=ELDRestService::None;
-    FName PinnedComponent;
-    FName InspectedComponent;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
     UPROPERTY() TObjectPtr<UBorder> ServicePanel;
     UPROPERTY() TObjectPtr<UVerticalBox> TaskContent;
@@ -285,9 +237,6 @@ private:
     uint32 LatestMatch=0,LatestLife=0;
     ELDLifePhase LatestLifePhase=ELDLifePhase::Unspawned;
     LDProgression::EMatchStage LatestStage=LDProgression::EMatchStage::Closed;
-    bool bLatestClock=false;
-    int64 LatestNowMs=0;
-    int64 LatestSafeAtMs=0;
     const FLDDemoContentDefinitions* LatestContent=nullptr;
     LDHUD::FCardStats LatestStats;
     LDHUD::FBuildGateView Gate;
@@ -295,9 +244,8 @@ private:
     uint64 ShownOfferRevision=0;
     // The blueprints the rows show, in the view's order.
     TArray<FName> ShownBlueprints;
-    // #198 B: the opening base options and owned components the cards and rows show, in the view's order.
+    // #198 B: the opening base options the cards show, in the view's order.
     TArray<FName> ShownBaseOptions;
-    TArray<FName> ShownComponents;
     // #198 G: the pending component choices the lines show (ids, oldest first) and the rest material services of the latest
     // view: the open pickers, the picked gap target and the components picked for a dismantle.
     TArray<FGuid> ShownChoices;
@@ -306,17 +254,6 @@ private:
     FName GapTarget;
     bool bDismantleOpen=false;
     TArray<FName> DismantlePicked;
-    // A binding component (B18) waiting for its active and element: the command it will send and the choices so far.
-    FName BindingComponent;
-    ELDBuildCommandKind BindingKind=ELDBuildCommandKind::None;
-    TArray<FName> BindingActives;
-    FName BindingActive;
-    // A mod or connector (#198 F) waiting for its place: the places shown, the one picked (C12, waiting for its base) and
-    // C12's repeatable bases.
-    FName TargetComponent;
-    TArray<LDHUD::FWorkshopTargetView> TargetChoices;
-    int32 TargetPicked=INDEX_NONE;
-    TArray<FName> TargetBases;
     // Local staging of the point allocation, one count per stat in the stats' design order; never sent until ConfirmPoints.
     TArray<int32> Staged;
     uint32 StagedMatch=0;
@@ -325,7 +262,7 @@ private:
     int32 DetailCard=INDEX_NONE;
     // The owner's level, stats or catalog changed: the shown cards' numbers are redrawn.
     bool bCardsStale=true;
-    // The same for the opening base cards and component rows (cleared after each full refresh).
+    // The same for the opening base and elite choice cards (cleared after each full refresh).
     bool bComponentTextStale=true;
     uint64 PendingRequest=0;
     ELDBuildCommandKind PendingKind=ELDBuildCommandKind::None;
@@ -366,21 +303,8 @@ private:
     // The FillGap / Dismantle pickers and their confirm line still match the latest material services.
     void RefreshMaterials();
     void CloseMaterialPickers();
-    FComponentRow& ComponentRowAt(int32 Index);
     void RefreshOpeningBase();
-    void RefreshComponents();
-    void RefreshBinding();
-    // #198 F: the target step, kept while the component is still owned and not installed and still has a place.
-    void RefreshTarget();
-    void ClearTarget();
-    ULDCommandButton* TargetButtonAt(int32 Index);
-    ULDCommandButton* RepeatButtonAt(int32 Index);
     void RefreshAll();
-    // Starts an OpeningBase or InstallComponent of Component: straight away, or after the binding step for B18 or the
-    // target step for a mod or connector (#198 F).
-    bool BeginComponent(ELDBuildCommandKind Kind,FName Component);
-    bool SendComponent(ELDBuildCommandKind Kind,FName Component,FName BoundActive,ELDDemoElement Element,
-        ELDComponentTargetKind TargetKind=ELDComponentTargetKind::None,FName TargetId=NAME_None,FName BoundComponent=NAME_None);
     bool Send(FLDBuildCommand Command);
     void ShowFinal(const FLDBuildReceipt& Receipt);
     void FinishRequest();

@@ -478,7 +478,6 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     }
     View.bOpeningBasePending = !OpeningOptions.IsEmpty();
     View.OpeningBaseOptions = MoveTemp(OpeningOptions);
-    View.BuildSafeAtMs = GameMode && GameMode->Combat ? GameMode->Combat->ReadBuildSafeAtMs(ContenderId) : 0;
     View.CatalogDigest = Definitions.Identity.Root;
     View.PermanentSpentPoints = Build.PermanentSpentPoints;
     View.ComponentChoices = Progression.ComponentChoices;
@@ -599,8 +598,6 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
     Out.Stage = GameMode->ReadBuildStage(Match);
-    // The server re-reads Combat's window at the commit; the client's view of it is only a hint. Only Live reads it.
-    Out.bSafe = GameMode->Combat->ReadBuildSafeAtMs(ContenderId) <= GameMode->GetAuthorityNowMs();
     return true;
 }
 

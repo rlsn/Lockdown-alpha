@@ -17,12 +17,11 @@ bool RestTestReason(FAutomationTestBase& Test, const FString& What, ELDGrowthRea
     return Test.TestEqual(What, LDGrowthWire::ReasonName(Actual), LDGrowthWire::ReasonName(Expected));
 }
 
-LDProgression::FBuildContext RestTestContext(ERestTestStage Stage, ELDLifePhase Phase, bool bSafe)
+LDProgression::FBuildContext RestTestContext(ERestTestStage Stage, ELDLifePhase Phase)
 {
     LDProgression::FBuildContext Context;
     Context.Stage = Stage;
     Context.LifePhase = Phase;
-    Context.bSafe = bSafe;
     return Context;
 }
 
@@ -122,21 +121,19 @@ bool RestTestRunGates(FAutomationTestBase& Test)
     const EReason Locked = EReason::BuildLocked;
     const EReason Closed = EReason::PhaseClosed;
     const FRow Matrix[] = {
-        {TEXT("field, alive and safe"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true), false,
+        {TEXT("field, alive (in combat or not)"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), false,
             {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace}},
-        {TEXT("field, alive inside the safe window"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, false), false,
-            {EReason::None, EReason::NotSafe, EReason::NotSafe, NotRest, NotRest, NoReplace, NoReplace}},
-        {TEXT("field, dead"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead, false), false,
-            {EReason::None, EReason::Dead, EReason::None, NotRest, NotRest, NoReplace, NoReplace}},
-        {TEXT("rest window, alive inside the safe window"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false), true,
+        {TEXT("field, dead"), RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead), false,
+            {EReason::None, EReason::None, EReason::None, NotRest, NotRest, NoReplace, NoReplace}},
+        {TEXT("rest window, alive"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive), true,
             {EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None, EReason::None}},
-        {TEXT("rest window, dead"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead, true), true,
-            {EReason::None, EReason::Dead, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead}},
-        {TEXT("rest step with builds locked"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true), false,
-            {Locked, Locked, Locked, Locked, Locked, Locked, Locked}},
-        {TEXT("closed"), RestTestContext(ERestTestStage::Closed, ELDLifePhase::Alive, true), false,
+        {TEXT("rest window, dead"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Dead), true,
+            {EReason::None, EReason::None, EReason::None, EReason::Dead, EReason::Dead, EReason::Dead, EReason::Dead}},
+        {TEXT("rest PK or return step"), RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), false,
+            {EReason::None, EReason::None, EReason::None, Locked, Locked, Locked, Locked}},
+        {TEXT("closed"), RestTestContext(ERestTestStage::Closed, ELDLifePhase::Alive), false,
             {Closed, Closed, Closed, Closed, Closed, Closed, Closed}},
-        {TEXT("unspawned in the rest window"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Unspawned, true), true,
+        {TEXT("unspawned in the rest window"), RestTestContext(ERestTestStage::Rest, ELDLifePhase::Unspawned), true,
             {EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged,
              EReason::LifePhaseChanged, EReason::LifePhaseChanged, EReason::LifePhaseChanged}}};
     bool bGood = true;
@@ -151,11 +148,11 @@ bool RestTestRunGates(FAutomationTestBase& Test)
                 LDProgression::CommandGate(Kinds[Index], Row.Context), Row.Expected[Index]);
         }
     }
-    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, true);
-    bGood &= RestTestReason(Test, TEXT("LearnGate in the rest window ignores the safe window"),
-        LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false)), EReason::None);
-    bGood &= RestTestReason(Test, TEXT("LearnGate while builds are locked"),
-        LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true)), EReason::BuildLocked);
+    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
+    bGood &= RestTestReason(Test, TEXT("LearnGate in the rest window"),
+        LDProgression::LearnGate(RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive)), EReason::None);
+    bGood &= RestTestReason(Test, TEXT("LearnGate in a PK step (#222)"),
+        LDProgression::LearnGate(RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), EReason::None);
     for (const uint8 Unknown : {uint8(4), uint8(19), uint8(26), uint8(255)})
     {
         bGood &= RestTestReason(Test, FString::Printf(TEXT("Command kind %u is refused, not mapped to a neighbour"), uint32(Unknown)),
@@ -199,7 +196,7 @@ bool RestTestRunNpc(FAutomationTestBase& Test)
     const int64 Cost = Content.Parameters.NpcActivePoints;
     const FGuid Secret(0x198C, 1, 2, 3);
     const FGuid Contender(0x198C, 4, 5, 6);
-    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false);
+    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     FLDGrowthBuild Out;
     FLDProgressionState OutProgression;
     LDProgression::FNpcOfferOutcome Outcome;
@@ -276,10 +273,10 @@ bool RestTestRunNpc(FAutomationTestBase& Test)
     const FLDGrowthBuild Paid = RestTestBuild(Content, 1, {{Opening[0], 0}}, {}, {}, Cost);
     bGood &= Uncharged(TEXT("A second purchase with the points already paid"), Buy(Paid, Settled, Rest), ELDGrowthReason::NotEnoughPoints,
         Paid, Settled);
-    bGood &= Uncharged(TEXT("A purchase on the field"), Buy(Fresh, Settled, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true)),
+    bGood &= Uncharged(TEXT("A purchase on the field"), Buy(Fresh, Settled, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive)),
         ELDGrowthReason::NotRestWindow, Fresh, Settled);
     bGood &= Uncharged(TEXT("A purchase while builds are locked"),
-        Buy(Fresh, Settled, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true)), ELDGrowthReason::BuildLocked,
+        Buy(Fresh, Settled, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive)), ELDGrowthReason::BuildLocked,
         Fresh, Settled);
 
     // The bought opportunity stays an opportunity of its own when the level adds the next one.
@@ -304,7 +301,7 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const int64 Cost = Content.Parameters.NpcActivePoints;
-    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false);
+    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
     FLDGrowthBuild Out;
     int64 Refunded = -1;
     // Level 3 at 180 XP earned 3 + 2 x 3 = 9 points: 6 allocated and the NPC price paid.
@@ -322,11 +319,11 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
         LDProgression::ApplyRespec(Content, Respecced, XP, 0, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
     bGood &= Test.TestTrue(TEXT("A refused respec refunds nothing"), Refunded == 0 && Out.PermanentSpentPoints == Cost);
     bGood &= RestTestReason(Test, TEXT("A respec on the field"),
-        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true), Out, Refunded),
+        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive), Out, Refunded),
         ELDGrowthReason::NotRestWindow);
     bGood &= Test.TestTrue(TEXT("A respec refused on the field changes nothing"), Refunded == 0 && Out.StatPoints == Built.StatPoints);
     bGood &= RestTestReason(Test, TEXT("A respec while builds are locked"),
-        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true), Out,
+        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive), Out,
             Refunded), ELDGrowthReason::BuildLocked);
     bGood &= RestTestReason(Test, TEXT("A respec of a build that paid more than it earned"),
         LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {1, 0, 0, 0, 0}, 3), 0, 0, Rest, Out, Refunded),
@@ -346,9 +343,9 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const FName A = Opening[0], B = Opening[1], C = Opening[2], D = Opening[3], E = Opening[4];
-    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false);
-    const LDProgression::FBuildContext Field = RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true);
-    const LDProgression::FBuildContext Locked = RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true);
+    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
+    const LDProgression::FBuildContext Field = RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive);
+    const LDProgression::FBuildContext Locked = RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive);
     const FLDGrowthBuild Full = RestTestBuild(Content, 6, {{A, 0}, {B, 1}, {C, 2}}, {D});
     const FLDProgressionState Settled = RestTestSettled(600);
     FLDProgressionState Offered = Settled;
@@ -393,7 +390,7 @@ bool RestTestRunReplaceForget(FAutomationTestBase& Test)
         LDProgression::EligibleActives(Content, Out, 2, Eligible) == ELDGrowthReason::None && Eligible.Contains(B) && !Eligible.Contains(D));
     bGood &= Unchanged(TEXT("Replacing on the field"), Replace(Full, Settled, D, 1, Field), ELDGrowthReason::ReplacementNotAllowed, Full);
     bGood &= Unchanged(TEXT("Replacing while dead on the field"),
-        Replace(Full, Settled, D, 1, RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead, false)),
+        Replace(Full, Settled, D, 1, RestTestContext(ERestTestStage::Live, ELDLifePhase::Dead)),
         ELDGrowthReason::ReplacementNotAllowed, Full);
     bGood &= Unchanged(TEXT("Replacing while builds are locked"), Replace(Full, Settled, D, 1, Locked), ELDGrowthReason::BuildLocked, Full);
     bGood &= Unchanged(TEXT("Replacing while an active offer is outstanding"), Replace(Full, Offered, D, 1, Rest),
@@ -475,8 +472,8 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
     {
         return false;
     }
-    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive, false);
-    const LDProgression::FBuildContext Field = RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true);
+    const LDProgression::FBuildContext Rest = RestTestContext(ERestTestStage::Rest, ELDLifePhase::Alive);
+    const LDProgression::FBuildContext Field = RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive);
     const FLDProgressionState Settled = RestTestSettled(2000);
     FLDGrowthBuild Out;
     FName Forgotten;
@@ -516,8 +513,9 @@ bool RestTestRunForgetReclaim(FAutomationTestBase& Test)
     OnZap.BoundActive = Zap;
     OnZap.Element = ELDDemoElement::Water;
     FLDGrowthBuild Moved;
-    bGood &= RestTestReason(Test, TEXT("A reclaimed B18 is not re-installed on the field (a move)"),
-        LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Field, Moved), ELDGrowthReason::RestOnly);
+    bGood &= Test.TestTrue(TEXT("A reclaimed B18 can move to another legal active on the field too (#222)"),
+        LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Field, Moved) == ELDGrowthReason::None
+        && Moved.FindComponent(Trick)->bInstalled && Moved.FindComponent(Trick)->Target == OnZap);
     bGood &= Test.TestTrue(TEXT("The player moves the reclaimed B18 to another legal active in the rest window"),
         LDProgression::ApplyInstallComponent(Content, Replaced, Trick, OnZap, Rest, Moved) == ELDGrowthReason::None
         && Moved.FindComponent(Trick)->bInstalled && Moved.FindComponent(Trick)->Target == OnZap

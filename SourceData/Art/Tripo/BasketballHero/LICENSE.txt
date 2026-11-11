@@ -1,0 +1,12 @@
+Basketball hero body (Lockdown body id "hooper")
+
+License: Project-owned. Generated with Tripo for Lockdown and committed by WunhaoLi on 2026-11-09
+(commit f76b26ab "角色测试"); the project owner approved owned and licensed (non-CC0) art sources on 2026-11-11.
+
+Files: Smile/BasketballHero_SmileCloth.fbx, the body mesh /Game/Lockdown/Art/Characters/hooper/SK_Hooper is imported
+from (garment-repaired Tripo body with the smiling head), and the body and head textures its materials sample.
+Hooper/T_Hooper_JerseyMask.png is generated from the body base colour by Scripts/MakeHooperJerseyMask.py.
+
+Known limitation: the generated texture paints a real-team-style gold and purple kit with a jersey number.
+The game recolours the kit's gold and purple with each seat colour; the number and the face remain. A de-branded
+texture is to replace it under the formal art issue (#93).

@@ -470,10 +470,9 @@ namespace LDHUD
     // "Q", "W" or "E".
     LOCKDOWN_API FString SlotKey(uint8 Slot);
     // What the own contender may do with its build right now, judged like the server judges a commit (LDProgression's
-    // CommandGate over the build stage of the public match, LDProgression::StageForPublic, the own life phase and the build
-    // safe window). A hint only: the server decides each command. Each Blocked line names the reason ("未脱战 2.4 秒",
-    // "阵亡中"); empty when allowed. Without the authority clock the safe window is unknown and learning or allocating while
-    // alive on the field reads as syncing. In a rest the safe window does not apply.
+    // CommandGate over the build stage of the public match, LDProgression::StageForPublic, and the own life phase). A hint
+    // only: the server decides each command. Each Blocked line names the reason ("阵亡中", "休息时才能用"); empty when
+    // allowed. #222: choosing, learning, allocating and installing are open at all times of a running match.
     struct FBuildGateView
     {
         bool bCanChoose=false;
@@ -482,7 +481,7 @@ namespace LDHUD
         FString LearnBlocked;
         bool bCanAllocate=false;
         FString AllocateBlocked;
-        // #198 rest services: open only in a rest build window (the build and payout steps).
+        // #198 rest services: open only in a rest build window (the build and payout steps), alive.
         bool bCanBuyNpc=false;
         FString NpcBlocked;
         bool bCanRespec=false;
@@ -501,22 +500,19 @@ namespace LDHUD
         FString DismantleBlocked;
         // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
         bool bInRest=false;
-        // #198 B: the first-time install of a never-installed component and the re-install of a once-installed one, as
-        // growth gates them (LDProgression::InstallGate). The opening base pick itself follows bCanChoose.
+        // #198 B: installing, moving and uninstalling a component, as growth gates them (LDProgression::InstallGate). The
+        // opening base pick itself follows bCanChoose.
         bool bCanInstall=false;
         FString InstallBlocked;
-        bool bCanReinstall=false;
-        FString ReinstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
-    // The player-facing why of a refused or stored build step (NotSafe with the remaining seconds when known).
-    LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
+    // The player-facing why of a refused or stored build step.
+    LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
     // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or the component taken,
     // enabled (已启用构件：名称), stored with the reason or removed; #198 G the component choice taken (or its points), the gap
     // filled with its price, and the dismantle's removed, received and uninstalled components.
-    LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,
-        int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content);
     // 火 / 水 / 电.
     LOCKDOWN_API FString ElementName(ELDDemoElement Element);
     // The learned actives an ActiveElement component may bind (its BindActives), in Q/W/E order.
@@ -557,38 +553,79 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FComponentCardView ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
-    // Why an owned, not installed component cannot be enabled whatever the moment: a missing definition (DataNotReady), a
-    // binding without any bindable learned active, or a mod or connector without any place to go (WorkshopTargets; C12 also
-    // without a repeatable base) (InvalidTarget). None when only the build gate decides (FBuildGateView: the first install, or
-    // the rest-only re-install of a once-installed one).
-    LOCKDOWN_API ELDGrowthReason ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content);
-    // One owned component row of the growth panel: 已启用, or a 启用 button enabled when the server would admit it now and
-    // otherwise disabled with the reason (未脱战 N 秒, 阵亡中, 休息时才能重新安装...).
-    struct FComponentRowView
+
+    // #227 component storage (APP_SPEC §7): the owned components not installed, and the equipped columns 本体 (base components
+    // and the holder's own mods), Q, W and E by server slot, and 冲刺(D). Each installed component sits in the column of what it
+    // is installed on; one installed on another component nests under that host (Depth + 1), right after it. Local
+    // presentation over the own progression view only; the server decides every install, move and uninstall.
+    enum class EStorageColumn : uint8 { Body=0, SlotQ=1, SlotW=2, SlotE=3, Dash=4 };
+    constexpr int32 StorageColumnCount=5;
+    // The column of a learned active's server slot 0..2.
+    LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);
+    struct FEquippedView
     {
-        FName DefinitionId;
-        bool bInstalled=false;
-        bool bCanEnable=false;
-        FString Blocked;
-        bool bBinding=false;
+        FName Component;
+        // The installed component it sits on (None: the column itself) and how deep it nests.
+        FName Host;
+        int32 Depth=0;
+        // B18's bound element ("火") and C12's "重复 X"; empty otherwise.
+        FString Note;
     };
-    LOCKDOWN_API FComponentRowView ComponentRow(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
-        const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    struct FStorageColumnView
+    {
+        EStorageColumn Column=EStorageColumn::Body;
+        // 本体, Q/W/E or 冲刺(D).
+        FString Title;
+        // A slot column: its learned active; None for an empty slot (which takes nothing), the body and the dash.
+        FName Active;
+        TArray<FEquippedView> Entries;
+    };
+    struct FStorageView
+    {
+        // Owned components not installed, in the view's order.
+        TArray<FName> Stored;
+        // Of those, the ones never enabled yet (the stack's badge).
+        int32 Fresh=0;
+        // StorageColumnCount columns in EStorageColumn order.
+        TArray<FStorageColumnView> Columns;
+    };
+    LOCKDOWN_API FStorageView ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // One place a component may be dropped now: a column, or an installed host component in it, with the install target the
+    // command carries. B18 still asks for one of Elements (bound to BindActive); C12 for one of Bases.
+    struct FComponentDrop
+    {
+        EStorageColumn Column=EStorageColumn::Body;
+        FName Host;
+        ELDComponentTargetKind Kind=ELDComponentTargetKind::None;
+        FName TargetId;
+        FName BindActive;
+        TArray<ELDDemoElement> Elements;
+        TArray<FName> Bases;
+    };
+    // Every place Component may be dropped now, from the same lists the server's install rules read (BindableActives,
+    // WorkshopTargets, RepeatableBases): a base on 本体; B18 on each bindable learned active's column; a mod or connector on
+    // each learned active, installed host, D or 本体 it takes. A component dragged out of a column never lands on itself or on
+    // anything installed on it (those come off with it). Empty for an unknown component. A hint only.
+    LOCKDOWN_API TArray<FComponentDrop> ComponentDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // The drop of Drops a pointer over Column (and over the installed Host there, or None) selects: the host's own drop when
+    // it takes one, else the column's own; null when neither does.
+    LOCKDOWN_API const FComponentDrop* FindDrop(const TArray<FComponentDrop>& Drops,EStorageColumn Column,FName Host);
+    // The installed components that come off with Component (installed on it, transitively, or repeating it), in the view's
+    // order; empty when it is not installed.
+    LOCKDOWN_API TArray<FName> DetachedWith(FName Component,const FLDProgressionView& Progression);
+
     // What waits in the growth panel for the own view of Match: queued active opportunities, unspent points, blueprints
-    // while a Q/W/E slot is empty, the opening base pick and owned never-installed components (#198 B; with Content, those
-    // ComponentEnableReason does not rule out), and pending elite camp component choices (#198 G). The 开盲盒 button is lit
-    // and counts them while any is pending; empty otherwise.
+    // while a Q/W/E slot is empty, the opening base pick and pending elite camp component choices (#198 G). The 构筑 button is
+    // lit and counts them while any is pending; empty otherwise. #227: owned components wait in the storage stack instead.
     struct FGrowthPending
     {
         int32 Offers=0;
         int64 Points=0;
         int32 Blueprints=0;
         bool bOpeningBase=false;
-        int32 Components=0;
-        // #198 G: pending elite camp component choices (counted with the components in the caption).
+        // #198 G: pending elite camp component choices.
         int32 ComponentChoices=0;
-        bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||Components>0||ComponentChoices>0;}
+        bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||ComponentChoices>0;}
         // Detailed pending summary for inspections, not the combat HUD's fixed-size entry.
         FString Prompt() const;
     };
@@ -731,11 +768,11 @@ namespace LDHUD
     // arrival order. Receipts of another match or life tell nothing; the lost protection is told once per life revision.
     LOCKDOWN_API FString CombatReceiptsNotice(const TArray<FLDCombatActionReceipt>& Arrived,uint32 Match,uint32 Life,uint64& ToldProtectionLifeRevision);
 
-    // When the docked growth panel folds back to the 开盲盒 button by itself, so it does not keep covering the battlefield.
-    // Folding only hides the panel: the offer, the blueprints, the staged points and any submitted request keep their
-    // state, and nothing is chosen. Local presentation time only.
-    // Field combat and a live PK entrant always fold the panel, regardless of hover or in-flight work. Outside combat, automatic opens
-    // fold after AutoOpenSeconds unless engaged; own-body hits fold an open panel unless engaged.
+    // When the docked growth panel folds back to the 构筑 button by itself, so an automatic opening does not keep covering the
+    // battlefield. Folding only hides the panel: the offer, the blueprints, the staged points and any submitted request keep
+    // their state, and nothing is chosen. Local presentation time only.
+    // #222: the player builds at any time, so a panel the player opened never folds by itself (not in combat, a PK or on a
+    // hit). An automatic opening folds after AutoOpenSeconds or on an own-body hit, unless the player engages with it.
     class LOCKDOWN_API FChoicesFold
     {
     public:
@@ -743,15 +780,15 @@ namespace LDHUD
         void Opened(bool bAutomatic,double Now);
         void Closed();
         // True when the open panel should fold now; the caller closes the panel, which reports Closed().
-        bool ShouldFold(double Now,bool bEngaged,bool bOwnHit,bool bCombatActive=false);
+        bool ShouldFold(double Now,bool bEngaged,bool bOwnHit);
         bool IsAutomatic() const {return bOpen&&bAutomatic;}
     private:
         bool bOpen=false;
         bool bAutomatic=false;
-        bool bHitImmune=false;
-        bool bFoldedByHit=false;
         double OpenedAt=0;
     };
+    // Whether the own contender is in combat now (the field: an own hit or Combat's combat window of this life; a rest: a
+    // living PK entrant in the PK step), for the HUD's fold of the field summary (#219). #222: it never folds the 构筑 panel.
     LOCKDOWN_API bool ChoicesCombatActive(const FLDPublicMatchView& Public,const FLDOwnerState& Own,
         const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,bool bOwnHit);
     // D10/APP_SPEC §4.2: the growth panel opens by itself once per match, when the opening active offer (opportunity 1) is

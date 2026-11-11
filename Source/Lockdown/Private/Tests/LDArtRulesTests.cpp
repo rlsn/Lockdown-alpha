@@ -147,6 +147,37 @@ bool FLDArtCatalogTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Source); Copy->Characters[0].Animations[Idle].Sequence = Source->Characters[1].Animations[Idle].Sequence;
         ArtExpectRejected(*this, *Copy, TEXT("A clip of another skeleton is an error"), TEXT("mesh skeleton"));
     }
+    // Worn parts (the Boss's ladle and cape): one mesh each, a real socket for a rigid part, the body skeleton for a
+    // skinned one, and some identity tint on the body or its parts.
+    const int32 Wearer = Source->Characters.IndexOfByPredicate([](const FLDArtCharacter& Body)
+    {
+        return Body.Attachments.ContainsByPredicate([](const FLDArtAttachment& Part) { return Part.StaticMesh != nullptr; })
+            && Body.Attachments.ContainsByPredicate([](const FLDArtAttachment& Part) { return Part.SkinnedMesh != nullptr; });
+    });
+    const int32 Stranger = Source->Characters.IndexOfByPredicate([&](const FLDArtCharacter& Body)
+    {
+        return Wearer != INDEX_NONE && Body.Mesh && Body.Mesh->GetSkeleton() != Source->Characters[Wearer].Mesh->GetSkeleton();
+    });
+    if (TestTrue(TEXT("A body wears a rigid and a skinned part, and another body has its own skeleton"), Wearer != INDEX_NONE && Stranger != INDEX_NONE))
+    {
+        const auto PartOf = [](ULDArtCatalog& Catalog, int32 Body, bool bSkinned) -> FLDArtAttachment&
+        {
+            return *Catalog.Characters[Body].Attachments.FindByPredicate([bSkinned](const FLDArtAttachment& Part) { return (Part.SkinnedMesh != nullptr) == bSkinned; });
+        };
+        Copy = ArtCopy(*Source); PartOf(*Copy, Wearer, false).Socket = TEXT("NoSuchSocket");
+        ArtExpectRejected(*this, *Copy, TEXT("A rigid part on a missing socket is an error"), TEXT("NoSuchSocket"));
+        Copy = ArtCopy(*Source); PartOf(*Copy, Wearer, false).SkinnedMesh = Source->Characters[Wearer].Mesh;
+        ArtExpectRejected(*this, *Copy, TEXT("A part with two meshes is an error"), TEXT("exactly one"));
+        Copy = ArtCopy(*Source); PartOf(*Copy, Wearer, true).SkinnedMesh = Source->Characters[Stranger].Mesh;
+        ArtExpectRejected(*this, *Copy, TEXT("A skinned part of another skeleton is an error"), TEXT("body skeleton"));
+        Copy = ArtCopy(*Source); PartOf(*Copy, Wearer, true).TintSlots = { TEXT("NoSuchPartSlot") };
+        ArtExpectRejected(*this, *Copy, TEXT("A part tint slot outside the part is an error"), TEXT("NoSuchPartSlot"));
+        Copy = ArtCopy(*Source); Copy->Characters[Wearer].TintSlots.Reset();
+        for (FLDArtAttachment& Part : Copy->Characters[Wearer].Attachments) { Part.TintSlots.Reset(); }
+        ArtExpectRejected(*this, *Copy, TEXT("A body with no tint on itself or its parts is an error"), TEXT("no identity tint"));
+        Copy = ArtCopy(*Source); Copy->Characters[Wearer].Attachments.Add(FLDArtAttachment(Source->Characters[Wearer].Attachments[0]));
+        ArtExpectRejected(*this, *Copy, TEXT("Two parts with one id are an error"), TEXT("two parts"));
+    }
     Copy = ArtCopy(*Source); Copy->Props[0].Mesh = nullptr;
     ArtExpectRejected(*this, *Copy, TEXT("A prop without mesh is an error"), TEXT("no static mesh"));
     Copy = ArtCopy(*Source); Copy->Decorations[0].Prop = TEXT("nothing");
@@ -224,7 +255,25 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
         {
             TestTrue(TEXT("Clip lives in the art folder: ") + Body.Id + TEXT(" ") + LDArt::AnimId(Clip.State), Clip.Sequence->GetPathName().StartsWith(ArtRoot));
         }
+        for (const FLDArtAttachment& Part : Body.Attachments)
+        {
+            const UObject* PartMesh = Part.StaticMesh ? static_cast<const UObject*>(Part.StaticMesh) : static_cast<const UObject*>(Part.SkinnedMesh);
+            TestTrue(TEXT("Worn part lives in the art folder: ") + Body.Id + TEXT(".") + Part.Id, PartMesh && PartMesh->GetPathName().StartsWith(ArtRoot));
+            TArray<UMaterialInterface*> Materials;
+            if (Part.StaticMesh) { for (const FStaticMaterial& Slot : Part.StaticMesh->GetStaticMaterials()) { Materials.Add(Slot.MaterialInterface); } }
+            if (Part.SkinnedMesh) { for (const FSkeletalMaterial& Slot : Part.SkinnedMesh->GetMaterials()) { Materials.Add(Slot.MaterialInterface); } }
+            for (const UMaterialInterface* Material : Materials)
+            {
+                FLinearColor Value;
+                TestTrue(TEXT("Worn part material lives in the art folder and exposes the tint and flash: ") + Body.Id + TEXT(".") + Part.Id,
+                    Material && Material->GetPathName().StartsWith(ArtRoot)
+                    && Material->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::TintParameter), Value)
+                    && Material->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::FlashParameter), Value));
+            }
+        }
     }
+    TestTrue(TEXT("D26: the Boss wears its ladle and its cloth cape"), Dean && Dean->Attachments.ContainsByPredicate([](const FLDArtAttachment& Part) { return Part.StaticMesh != nullptr; })
+        && Dean->Attachments.ContainsByPredicate([](const FLDArtAttachment& Part) { return Part.SkinnedMesh && Part.SkinnedMesh->GetMeshClothingAssets().Num() > 0; }));
     if (Contender)
     {
         TestTrue(FString::Printf(TEXT("Contenders read as adults of the 180 cm capsule (%.1f cm)"), Contender->HeightCm),

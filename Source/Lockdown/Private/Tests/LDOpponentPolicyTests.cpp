@@ -278,33 +278,33 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     Spender.StatPoints.Pop();
     bGood &= Test.TestFalse(TEXT("Missing stat rows are refused"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
 
-    // The learn/allocate step follows the growth domain's gates: learning only in the countdown or alive inside the build
-    // safe window, allocating also while dead.
+    // The learn/allocate step follows the growth domain's gates (#222: the same for people and AI): learning and allocating
+    // at any time of a running match, in combat and while dead alike.
     FLDOpponentDecisionFrame Frame;
     if (!BaseFrame(Test, C, Frame)) { return false; }
     Frame.Self.StatPoints = StatRows(C, {});
     Frame.Self.UnspentPoints = 2;
     Frame.Self.Blueprints = {TEXT("active_elbow")};
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 1;
     FLDOpponentPolicyState State;
     FLDOpponentBuildIntent Intent;
-    bGood &= Test.TestFalse(TEXT("Alive inside combat: neither learn nor allocate"),
-        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    bGood &= Test.TestTrue(TEXT("Alive on the field, in combat or not: the blueprint is learned first"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
+        && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 0);
     Frame.Self.Phase = ELDLifePhase::Dead;
-    bGood &= Test.TestTrue(TEXT("Dead: points are allocated, the blueprint waits"),
+    bGood &= Test.TestTrue(TEXT("Dead: the blueprint is learned too"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
+        && Intent.Blueprint == TEXT("active_elbow"));
+    Frame.Self.Blueprints.Reset();
+    bGood &= Test.TestTrue(TEXT("Dead without a blueprint: points are allocated"),
         LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
         && ById(C, Intent.PointCounts).FindRef(Agility) == 0 && ById(C, Intent.PointCounts).FindRef(Brains) == 0
         && Algo::Accumulate(Intent.PointCounts, 0) == 2);
+    Frame.Self.Blueprints = {TEXT("active_elbow")};
     Frame.Self.Phase = ELDLifePhase::Alive;
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
-    bGood &= Test.TestTrue(TEXT("Safe: the blueprint is learned first"),
-        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
-        && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 0);
     Frame.Public.Phase = ELDMatchPhase::Rest;
     Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
     Frame.Public.Timeline.Step = ELDRestStep::Build;
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 4000;
-    bGood &= Test.TestTrue(TEXT("The rest build window is always safe"),
+    bGood &= Test.TestTrue(TEXT("The rest build window learns as well"),
         LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
     Frame.bBuildChangeInFlight = true;
     bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
@@ -1087,7 +1087,6 @@ bool RunProjections(FAutomationTestBase& Test)
     Progression.BuildRevision = 9;
     Progression.UnspentPoints = 4;
     Progression.ActiveOpportunitiesConsumed = 2;
-    Progression.BuildSafeAtMs = 12345;
     FLDActiveSlotView Bolt;
     Bolt.DefinitionId = TEXT("active_snark_bolt");
     Bolt.Slot = 0;
@@ -1114,7 +1113,7 @@ bool RunProjections(FAutomationTestBase& Test)
         && Self.Attributes.AttackSpeed.Numerator * Expected.Value->Final.AttackSpeed.Denominator
             == Expected.Value->Final.AttackSpeed.Numerator * Self.Attributes.AttackSpeed.Denominator
         && Self.BuildRevision == 9 && Self.Level == 3 && Self.OffersConsumed == 2 && Self.UnspentPoints == 4
-        && Self.BuildSafeAtMs == 12345 && Self.Actives.Num() == 1 && Self.Actives[0].Slot == 0
+        && Self.Actives.Num() == 1 && Self.Actives[0].Slot == 0
         && Self.Blueprints == TArray<FString>({TEXT("active_elbow")}) && Self.StatPoints.Num() == C.Get().Stats.Num()
         && Self.Offer.IsSet() && Self.Offer->Ordinal == 3 && Self.Offer->Options == TArray<FString>({TEXT("active_not_mad")}));
     Progression.bHasActiveOffer = false;
@@ -1654,8 +1653,8 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("An admission refusal is a bounded failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
     Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::OldLife);
     bGood &= Test.TestTrue(TEXT("A request of an older life is dropped"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
-    Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::NotSafe);
-    bGood &= Test.TestTrue(TEXT("A closed safe window is re-read, not retried"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
+    Submit.Reason = LDGrowthWire::Raw(ELDGrowthReason::PhaseClosed);
+    bGood &= Test.TestTrue(TEXT("A closed build phase is re-read, not retried"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Dropped);
     Submit.Status = ELDAdmissionStatus::Final;
     bGood &= Test.TestTrue(TEXT("A final answer without its receipt is a failure"), LDOpponentRequests::SettleSubmit(Submit) == ESettle::Failed);
     Submit.bHasBuildReceipt = true;
@@ -3004,10 +3003,7 @@ bool RunPickAndEnable(FAutomationTestBase& Test)
     Frame.Self.OpeningBaseOptions.Reset();
     Frame.Public.Phase = ELDMatchPhase::Development;
     Frame.Public.Timeline = FLDTimelineView();
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 1;
-    bGood &= Test.TestFalse(TEXT("No install inside combat"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
-    bGood &= Test.TestTrue(TEXT("Out of combat the fresh component is enabled"),
+    bGood &= Test.TestTrue(TEXT("On the field, in combat or not, the fresh component is enabled (#222)"),
         LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::InstallComponent
         && Intent.Component == TEXT("component_hard_skin"));
     Frame.bBuildChangeInFlight = true;
@@ -3121,7 +3117,6 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 2);
     Frame.Self.Phase = ELDLifePhase::Alive;
     Frame.Self.Life = 1;
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
     Frame.Self.Components.Add(Owned(TEXT("component_dirty_fist"), false, false));
     FLDOpponentPolicyState State;
     FLDOpponentBuildIntent Intent;
@@ -3196,7 +3191,6 @@ bool RunComponentChoice(FAutomationTestBase& Test)
     Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 3);
     Frame.Self.Phase = ELDLifePhase::Alive;
     Frame.Self.Life = 1;
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 5000;
     Frame.Self.ComponentChoices = {Choice};
     FLDOpponentPolicyState State;
     FLDOpponentBuildIntent Intent;
@@ -3217,7 +3211,6 @@ bool RunComponentChoice(FAutomationTestBase& Test)
     if (!Test.TestTrue(TEXT("The approved content prices FillGap"), FillGapPoints > 0)) { return false; }
     Frame.Self.GapFills = {{TEXT("component_long_kick"), TEXT("component_third_punch")}};
     Frame.Self.UnspentPoints = FillGapPoints;
-    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
     bGood &= Test.TestFalse(TEXT("No gap fill on the field"),
         LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::FillGap);
     Frame.Public.Phase = ELDMatchPhase::Rest;
@@ -3575,7 +3568,6 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     {
         Frame.Public.Phase = ELDMatchPhase::Development;
         Frame.Public.Timeline = FLDTimelineView();
-        Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
         return Frame;
     };
     FLDOpponentPolicyState State;
@@ -3647,7 +3639,8 @@ bool RunRestRebuild(FAutomationTestBase& Test)
         Steps.Num() == 2 && Is(Steps[0], EKind::UninstallComponent, TEXT("component_long_kick"))
         && Is(Steps[1], EKind::InstallComponent, TEXT("component_long_kick")) && Steps[1].TargetKind == ELDComponentTargetKind::Active
         && Steps[1].TargetId == TEXT("active_elbow") && !LDOpponentPolicy::SelectComponentMove(After, C, Moved, Error));
-    bGood &= Test.TestFalse(TEXT("On the field nothing moves"), LDOpponentPolicy::DecideFollowUpBuild(OnField(Move), C, State, Intent));
+    bGood &= Test.TestFalse(TEXT("On the field the AI moves nothing (its pacing; the server would allow it)"),
+        LDOpponentPolicy::DecideFollowUpBuild(OnField(Move), C, State, Intent));
 
     // Reclaim: a replacement returns M08 from the forgotten active; it goes back on in the same rest (here the innate D).
     auto Reclaim = Rest;
@@ -3660,7 +3653,7 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     auto FieldReclaim = OnField(Reclaim);
     FieldReclaim.Self.Blueprints.Reset();
     FieldReclaim.Self.Components = {Owned(TEXT("component_ram_through"), false, true)};
-    bGood &= Test.TestFalse(TEXT("On the field a once-installed component stays in the inventory (RestOnly)"),
+    bGood &= Test.TestFalse(TEXT("On the field the AI keeps a once-installed component for the next rest (its move pacing)"),
         LDOpponentPolicy::DecideFollowUpBuild(FieldReclaim, C, State, Intent));
 
     // Rebinding: B18 bound to W while a bindable active sits in Q rebinds to Q; C01 on it comes off and goes back on.

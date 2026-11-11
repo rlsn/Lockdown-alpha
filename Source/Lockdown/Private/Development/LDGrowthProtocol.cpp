@@ -179,7 +179,6 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::OfferAlreadyCommitted: return TEXT("OfferAlreadyCommitted");
     case ELDGrowthReason::OfferGuardStale: return TEXT("OfferGuardStale");
     case ELDGrowthReason::BuildStale: return TEXT("BuildStale");
-    case ELDGrowthReason::NotSafe: return TEXT("NotSafe");
     case ELDGrowthReason::NoEmptySlot: return TEXT("NoEmptySlot");
     case ELDGrowthReason::SlotOccupied: return TEXT("SlotOccupied");
     case ELDGrowthReason::NoBlueprint: return TEXT("NoBlueprint");
@@ -189,7 +188,6 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::NotOwned: return TEXT("NotOwned");
     case ELDGrowthReason::AlreadyInstalled: return TEXT("AlreadyInstalled");
     case ELDGrowthReason::NotInstalled: return TEXT("NotInstalled");
-    case ELDGrowthReason::RestOnly: return TEXT("RestOnly");
     case ELDGrowthReason::InvalidTarget: return TEXT("InvalidTarget");
     case ELDGrowthReason::OpeningBaseUnavailable: return TEXT("OpeningBaseUnavailable");
     case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");

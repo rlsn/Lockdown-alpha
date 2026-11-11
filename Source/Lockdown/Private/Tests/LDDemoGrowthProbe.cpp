@@ -78,8 +78,8 @@ constexpr double GrowthProbeQuietSeconds = 1.5;
 constexpr uint32 GrowthProbeFieldLife = 2;
 // The client sends its R0 return refusals only while at least this much of the return countdown is left (probe margin).
 constexpr int64 GrowthProbeReturnMarginMs = 1500;
-// A NotSafe probe is sent only while the build safe window has at least this long left, so the server cannot judge it
-// after the window passed (probe timing margin, not a product number).
+// An in-combat probe (#222) is sent only while the combat window has at least this long left, so the server commits it in
+// combat rather than after the window passed (probe timing margin, not a product number).
 constexpr int64 GrowthProbeUnsafeMarginMs = 500;
 
 enum class EGrowthProbeWait : uint8 { Waiting, Ready, Failed };
@@ -127,9 +127,9 @@ FString GrowthProbeActivesText(const FLDProgressionView& View)
 FString GrowthProbeProgressionText(const FLDProgressionView& View)
 {
     return FString::Printf(TEXT("level=%u xp=%lld earned=%u consumed=%u queued=%u offer=%d unspent=%lld points=[%s] actives=%s "
-        "safe_at=%lld progression=%llu build=%llu"), uint32(View.Level), View.CumulativeXP, uint32(View.ActiveOpportunitiesEarned),
+        "progression=%llu build=%llu"), uint32(View.Level), View.CumulativeXP, uint32(View.ActiveOpportunitiesEarned),
         uint32(View.ActiveOpportunitiesConsumed), uint32(View.QueuedActiveOpportunities), View.bHasActiveOffer ? 1 : 0,
-        View.UnspentPoints, *GrowthProbePointsText(View), *GrowthProbeActivesText(View), View.BuildSafeAtMs,
+        View.UnspentPoints, *GrowthProbePointsText(View), *GrowthProbeActivesText(View),
         View.ProgressionRevision, View.BuildRevision);
 }
 
@@ -198,9 +198,8 @@ bool GrowthProbeProtected(const FLDObservedUnitView& Seen)
 
 // The buyer's three active offers in order, staged by the Host in the Lobby through the DEV growth fixture
 // (-LDDevGrowthFixture): the match's opening offer, then the opportunities of the two approved offer levels. The buyer
-// takes the first option every time: snark_bolt learned into Q in the opening rest R0, not_mad kept as a blueprint while the
-// build safe window runs and learned into W after it, pants_down kept as a blueprint while dead and learned into E after
-// the respawn. A preset may name any active; the opening one stays inside the opening pool.
+// takes the first option every time: snark_bolt learned into Q in the opening rest R0, not_mad learned into W while its
+// combat window still runs, pants_down learned into E while dead (#222: build commands at all times). A preset may name any active; the opening one stays inside the opening pool.
 const TCHAR* const GrowthProbePlan[][3] = {
     {TEXT("active_snark_bolt"), TEXT("active_pants_down"), TEXT("active_seethe")},
     {TEXT("active_not_mad"), TEXT("active_stare_down"), TEXT("active_flyer_trap")},
@@ -319,11 +318,11 @@ public:
         // opening active and allocates its opening points in its build step.
         Join, Lobby, Rest0, Spawned, Victim,
         ToSite, KillSeek, KillWait,
-        // #198 build safe window after the kill that reaches the first offer level: the offer kept as a blueprint, an
-        // allocation and a learn refused while the window runs, then the learn and the allocation after it.
+        // #222 after the kill that reaches the first offer level: the offer learned into W and the points allocated while the
+        // own combat window still runs.
         Window,
-        // After the last planned kill the Host kills the buyer: the next offer kept as a blueprint, a learn refused and
-        // points allocated while dead, then the blueprint learned after the respawn.
+        // After the last planned kill the Host kills the buyer: the next offer learned into E and points allocated while dead,
+        // then E still learned after the respawn.
         AwaitDeath, Dead, Respawn,
         // New-match isolation: the Host ends the first match, the room returns to a new Lobby generation and a
         // second normal match must start from clean owner state.
@@ -424,7 +423,7 @@ public:
     int32 FieldRoomWaits = 0;
     bool bFieldRoomWaiting = false;
 
-    // Client1: the build safe window after the kill that reached the first offer level.
+    // Client1: the in-combat build after the kill that reached the first offer level.
     bool bWindowDone = false;
     TSharedPtr<FJsonObject> WindowRow;
 
@@ -805,9 +804,8 @@ public:
     }
 
     // Field room, from approved values and the probe's own step budgets. The kill that reaches the first offer level
-    // starts an attack order only while the order's budget plus GROWTH.BuildSafeWindowSec fits in the segment: the window
-    // it opens then ends before the next rest, so every NotSafe probe is judged in the field and never in a rest's build
-    // step, where no window applies.
+    // starts an attack order only while the order's budget plus GROWTH.BuildSafeWindowSec fits in the segment: the combat
+    // window it opens then ends before the next rest, so every in-combat probe is judged in the field.
     int64 WindowKillNeedMs() const
     {
         return int64(LDDemoGrowthScenario::GrowthProbeKillSeconds * 1000.0) + Catalog->Get().Parameters.BuildSafeWindowMs;
@@ -860,7 +858,7 @@ public:
         return bWaiting || Deaths > Expected;
     }
 
-    // Whether the buyer's kill in progress reaches the first offer level (the build safe window stage follows it).
+    // Whether the buyer's kill in progress reaches the first offer level (the in-combat build stage follows it).
     bool IsWindowKill() const
     {
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
@@ -914,12 +912,12 @@ public:
             {
                 return Fail(TEXT("Start"), TEXT("Field 1 ended before this role finished its first field checks: ") + Where);
             }
-            if ((Stage == EStage::Window && BuildStep <= 3) || (Stage == EStage::KillWait && IsWindowKill()))
+            if ((Stage == EStage::Window && BuildStep <= 2) || (Stage == EStage::KillWait && IsWindowKill()))
             {
-                return Fail(TEXT("A15"), TEXT("A rest began inside the kill reaching the first offer level or its NotSafe probes, "
+                return Fail(TEXT("A15"), TEXT("A rest began inside the kill reaching the first offer level or its in-combat probes, "
                     "which must be judged in one field segment: ") + Where);
             }
-            if (Stage == EStage::Dead || (Stage == EStage::Respawn && BuildStep == 0)
+            if (Stage == EStage::Dead || Stage == EStage::Respawn
                 || (Stage == EStage::AwaitDeath && PC.OwnerState.LifePhase == ELDLifePhase::Dead && PC.OwnerState.RespawnAtMs > 0))
             {
                 return Fail(TEXT("A14"), TEXT("A rest began inside the buyer's dead stage or before its respawn was checked, "
@@ -1446,8 +1444,7 @@ public:
             return SendBuild(PC, TEXT("rest0-points"), PointsCommand(View->UnspentPoints));
         }
         if (!AllocationShown(PC, *Final) && Now - Build.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
-        Check(AllocationShown(PC, *Final) && Build.Before.UnspentPoints == Catalog->Get().Parameters.OpeningPoints
-            && Build.Before.BuildSafeAtMs == 0, TEXT("A16"),
+        Check(AllocationShown(PC, *Final) && Build.Before.UnspentPoints == Catalog->Get().Parameters.OpeningPoints, TEXT("A16"),
             TEXT("Every opening point is allocated in the R0 build step in one commit: points, unspent count and maximum HP move together"),
             FString::Printf(TEXT("%s max hp %lld -> %lld"), *LDDemoGrowthScenario::GrowthProbeProgressionText(*View), Build.MaxHPBeforeP2,
                 PC.CombatView.MaxHPP2));
@@ -2040,7 +2037,7 @@ public:
         return Exists(TEXT("Client1Match1Done.json")) && bHostCampDone ? EndFirstMatch(Now, PC, *Mode) : true;
     }
 
-    // Host, once the buyer has used its offers and build safe window: its own DEV XP grant first (up to the buyer's level,
+    // Host, once the buyer has used its offers and its in-combat build: its own DEV XP grant first (up to the buyer's level,
     // so the duel is even), then its own attack orders kill the buyer for its build commands while dead.
     bool TickKillBuyer(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
@@ -2492,9 +2489,8 @@ public:
         {
             return Row.Choices.Numerator != 0 || Row.PercentBonus.Numerator != 0 || Row.Dev.Numerator != 0;
         });
-        Check(bNoSource && bNoContribution && Own.NextAttackAtMs <= Own.AsOfMs && Own.BuildSafeAtMs == 0
-            && Progress.BuildSafeAtMs == 0, TEXT("Iso"),
-            TEXT("Combat carries no learned source, no issued Q/W/E cooldown track, no point contribution and no build safe window"),
+        Check(bNoSource && bNoContribution && Own.NextAttackAtMs <= Own.AsOfMs && Own.BuildSafeAtMs == 0, TEXT("Iso"),
+            TEXT("Combat carries no learned source, no issued Q/W/E cooldown track, no point contribution and no combat window"),
             FString::Printf(TEXT("entries=%d attributes=%d as_of=%lld safe_at=%lld"), Own.Entries.Num(), Own.Attributes.Num(), Own.AsOfMs,
                 Own.BuildSafeAtMs));
         if (!IsHost()) { return; }
@@ -3071,8 +3067,8 @@ public:
             KillBefore = *ProgView;
             KillStartedAt = Now;
         }
-        // #198: the kill that reaches the first offer level waits for a segment with room for its attack order and the build
-        // safe window it opens (WindowKillNeedMs); the wait does not run the seek budget, and Tick holds through the rest.
+        // #198: the kill that reaches the first offer level waits for a segment with room for its attack order and the combat
+        // window it opens (WindowKillNeedMs); the wait does not run the seek budget, and Tick holds through the rest.
         if (IsWindowKill())
         {
             const int64 Left = FieldLeftMs(PC);
@@ -3156,7 +3152,7 @@ public:
         ++Kills;
         AttackOrders = 0;
         if (!Passed) { return Finish(); }
-        // The kill that reaches the first offer level left the buyer's own build safe window running; the victim stays
+        // The kill that reaches the first offer level left the buyer's own combat window running; the victim stays
         // dead for the approved respawn delay, so no reward races the window stage.
         if (!bWindowDone && int32(ProgView.Level) >= Defs.Progression.ActiveOfferLevels[0])
         {
@@ -3191,9 +3187,9 @@ public:
         return true;
     }
 
-    // The kill that reached the first offer level left the buyer's build safe window running (its own basic attacks and
-    // hits). While it runs, the offer's choice is kept as a blueprint, and an allocation and a learn are refused without
-    // changing anything; once it passed, the blueprint is learned into the empty W slot and every unspent point allocated.
+    // #222: the kill that reached the first offer level left the buyer in combat (its own basic attacks and hits; Combat's
+    // combat window, BuildSafeAtMs, still runs). Combat no longer blocks the build: the offer's choice is learned into the
+    // empty W slot at once and every unspent point is allocated in one commit while the window still runs.
     bool TickWindow(double Now, ALDPlayerController& PC)
     {
         const FLDProgressionView* View = PC.ReadOwnProgression();
@@ -3204,44 +3200,34 @@ public:
         }
         const FName Option = LDDemoGrowthScenario::GrowthProbePlannedOptions(1)[0];
         const FString Detail = LDDemoGrowthScenario::GrowthProbeProgressionText(*View) + FString::Printf(TEXT(" now=%lld"), NowMs);
-        // Every NotSafe probe leaves with a clear margin before the window's end, so the server judges it inside the window.
-        const auto SendUnsafe = [this, &PC, View, NowMs](const FString& Step, const FLDBuildCommand& Command)
+        // Combat's own window of the current life (the HUD's combat fold reads the same field).
+        const int64 CombatUntilMs = PC.CombatView.Generation == PC.OwnerState.Match && PC.CombatView.Life == PC.OwnerState.Life
+            ? PC.CombatView.BuildSafeAtMs : 0;
+        // Every in-combat probe leaves with a clear margin before the window's end, so the server commits it in combat.
+        const auto SendInCombat = [this, &PC, CombatUntilMs, NowMs](const FString& Step, const FLDBuildCommand& Command)
         {
-            return Check(View->BuildSafeAtMs - NowMs >= LDDemoGrowthScenario::GrowthProbeUnsafeMarginMs, TEXT("A15"),
-                Step + TEXT(": the build safe window still runs when the probe is sent"),
-                FString::Printf(TEXT("now=%lld safe_at=%lld"), NowMs, View->BuildSafeAtMs)) && SendBuild(PC, Step, Command);
+            return Check(CombatUntilMs - NowMs >= LDDemoGrowthScenario::GrowthProbeUnsafeMarginMs, TEXT("A15"),
+                Step + TEXT(": the combat window still runs when the probe is sent"),
+                FString::Printf(TEXT("now=%lld combat_until=%lld"), NowMs, CombatUntilMs)) && SendBuild(PC, Step, Command);
         };
         if (BuildStep == 0)
         {
             Check(LDDemoGrowthScenario::GrowthProbeIsPreset(*View) && View->ActiveOffer.OpportunityOrdinal == 2
                 && View->QueuedActiveOpportunities == 1 && View->UnspentPoints > 0, TEXT("Fixture"),
                 TEXT("The first offer level's head offer is exactly the Host's second preset, with new points unspent"), Detail);
-            // #198: the kill waited for field room (WindowKillNeedMs), so the window ends before the next rest begins.
+            // #198: the kill waited for field room (WindowKillNeedMs), so the combat window ends before the next rest begins.
             const int64 SegmentEndsAtMs = FieldEndsAtMs(PC);
-            Check(SegmentEndsAtMs >= 0 && View->BuildSafeAtMs < SegmentEndsAtMs, TEXT("A15"),
-                TEXT("The build safe window the kill opened ends inside this field segment, so every NotSafe probe is judged in the field"),
+            Check(SegmentEndsAtMs >= 0 && CombatUntilMs < SegmentEndsAtMs, TEXT("A15"),
+                TEXT("The combat window the kill opened ends inside this field segment, so every in-combat probe is judged in the field"),
                 FString::Printf(TEXT("%s segment_ends_at=%lld"), *Detail, SegmentEndsAtMs));
             if (!Passed) { return Finish(); }
             WindowRow = MakeShared<FJsonObject>();
             WindowRow->SetNumberField(TEXT("level"), View->Level);
-            WindowRow->SetNumberField(TEXT("safe_at_ms"), double(View->BuildSafeAtMs));
+            WindowRow->SetNumberField(TEXT("combat_until_ms"), double(CombatUntilMs));
             WindowRow->SetNumberField(TEXT("segment_ends_at_ms"), double(SegmentEndsAtMs));
             WindowRow->SetNumberField(TEXT("unspent_before"), double(View->UnspentPoints));
             BuildStep = 1;
-            return SendUnsafe(TEXT("choose-while-unsafe"), ChoiceCommand(*View, Option)) ? true : Finish();
-        }
-        if (BuildStep == 4)
-        {
-            if (View->BuildSafeAtMs <= 0 || NowMs < View->BuildSafeAtMs)
-            {
-                const double Budget = double(Catalog->Get().Parameters.BuildSafeWindowMs) / 1000. + LDDemoGrowthScenario::GrowthProbeRequestSeconds;
-                if (Now - StageAt <= Budget) { return true; }
-                return Fail(TEXT("A15"), TEXT("The build safe window never passed: ") + Detail);
-            }
-            WindowRow->SetNumberField(TEXT("learn_sent_at_ms"), double(NowMs));
-            WindowRow->SetNumberField(TEXT("passed_safe_at_ms"), double(View->BuildSafeAtMs));
-            BuildStep = 5;
-            return SendBuild(PC, TEXT("learn-after-window"), LearnCommand(Option, 1)) ? true : Finish();
+            return SendInCombat(TEXT("choose-in-combat"), ChoiceCommand(*View, Option)) ? true : Finish();
         }
         const FLDBuildReceipt* Final = nullptr;
         FString Why;
@@ -3251,63 +3237,28 @@ public:
         {
             return Fail(TEXT("A15"), Build.Step + TEXT(" did not complete: ") + Why);
         }
-        const ELDGrowthReason Reason = LDGrowthWire::Reason(Final->Header.Reason);
-        const bool bUnchanged = View->BuildRevision == Build.Before.BuildRevision && View->UnspentPoints == Build.Before.UnspentPoints
-            && LDDemoGrowthScenario::GrowthProbeSameOwner(*View, Build.Before);
         if (BuildStep == 1)
-        {
-            Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Kind == ELDBuildCommandKind::ActiveChoice
-                && Final->DefinitionId == Option && Final->OpportunityOrdinal == 2
-                && Final->ChoiceResult == ELDBuildChoiceResult::StoredAsBlueprint
-                && LDGrowthWire::Reason(Final->StoredReason) == ELDGrowthReason::NotSafe && !Final->bHasNextOffer, TEXT("A15"),
-                TEXT("A choice while the build safe window runs applies once and keeps the active as a blueprint (NotSafe)"), Detail);
-            Check(View->PendingBlueprints == TArray<FName>{Option} && View->Actives.Num() == Build.Before.Actives.Num()
-                && !LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1) && View->QueuedActiveOpportunities == 0 && !View->bHasActiveOffer
-                && View->ActiveOpportunitiesConsumed == Build.Before.ActiveOpportunitiesConsumed + 1, TEXT("A12"),
-                TEXT("The blueprint waits outside the slots; the opportunity is consumed and no further offer is drawn"), Detail);
-            WindowRow->SetStringField(TEXT("stored_reason"), LDGrowthWire::ReasonName(LDGrowthWire::Reason(Final->StoredReason)));
-            if (!Passed) { return Finish(); }
-            BuildStep = 2;
-            return SendUnsafe(TEXT("allocate-while-unsafe"), PointsCommand(1)) ? true : Finish();
-        }
-        if (BuildStep == 2)
-        {
-            Check(Final->Header.Outcome == ELDReceiptOutcome::Rejected && Reason == ELDGrowthReason::NotSafe && bUnchanged, TEXT("A15"),
-                TEXT("An allocation while the build safe window runs is refused as NotSafe and changes nothing"), Detail);
-            WindowRow->SetStringField(TEXT("allocate_reason"), LDGrowthWire::ReasonName(Reason));
-            if (!Passed) { return Finish(); }
-            BuildStep = 3;
-            return SendUnsafe(TEXT("learn-while-unsafe"), LearnCommand(Option, 1)) ? true : Finish();
-        }
-        if (BuildStep == 3)
-        {
-            Check(Final->Header.Outcome == ELDReceiptOutcome::Rejected && Reason == ELDGrowthReason::NotSafe && bUnchanged
-                && View->PendingBlueprints == TArray<FName>{Option}, TEXT("A15"),
-                TEXT("Learning the blueprint while the build safe window runs is refused as NotSafe; the blueprint is kept"), Detail);
-            WindowRow->SetStringField(TEXT("learn_reason"), LDGrowthWire::ReasonName(Reason));
-            if (!Passed) { return Finish(); }
-            Build = FBuildCall();
-            BuildStep = 4;
-            return true;
-        }
-        if (BuildStep == 5)
         {
             const FLDCombatEntryView* W = CurrentEntry(PC, ELDCombatEntry::W);
             if ((!W || W->DefinitionId != Option) && Now - Build.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
             const FLDActiveSlotView* Learned = LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1);
-            Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Kind == ELDBuildCommandKind::LearnBlueprint
-                && Final->DefinitionId == Option && Final->ChoiceResult == ELDBuildChoiceResult::Learned && Final->LearnedSlot == 1
-                && Learned && Learned->DefinitionId == Option && View->PendingBlueprints.IsEmpty() && W && W->DefinitionId == Option,
-                TEXT("A12"), TEXT("Once the build safe window passed, the blueprint is learned into the empty W slot and Combat installs it"),
-                Detail);
+            Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Kind == ELDBuildCommandKind::ActiveChoice
+                && Final->DefinitionId == Option && Final->OpportunityOrdinal == 2
+                && Final->ChoiceResult == ELDBuildChoiceResult::Learned && Final->LearnedSlot == 1
+                && LDGrowthWire::Reason(Final->StoredReason) == ELDGrowthReason::None && !Final->bHasNextOffer, TEXT("A15"),
+                TEXT("A choice in combat applies once and learns the active into the empty W slot (#222)"), Detail);
+            Check(Learned && Learned->DefinitionId == Option && View->PendingBlueprints.IsEmpty() && W && W->DefinitionId == Option
+                && View->QueuedActiveOpportunities == 0 && !View->bHasActiveOffer
+                && View->ActiveOpportunitiesConsumed == Build.Before.ActiveOpportunitiesConsumed + 1, TEXT("A12"),
+                TEXT("The opportunity is consumed, no further offer is drawn, and Combat installs the active in W"), Detail);
             WindowRow->SetNumberField(TEXT("learned_slot"), Final->LearnedSlot);
             if (!Passed) { return Finish(); }
-            BuildStep = 6;
-            return SendBuild(PC, TEXT("allocate-after-window"), PointsCommand(View->UnspentPoints)) ? true : Finish();
+            BuildStep = 2;
+            return SendInCombat(TEXT("allocate-in-combat"), PointsCommand(View->UnspentPoints)) ? true : Finish();
         }
         if (!AllocationShown(PC, *Final) && Now - Build.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
         Check(AllocationShown(PC, *Final) && View->UnspentPoints == 0, TEXT("A16"),
-            TEXT("Once the build safe window passed, every unspent point is allocated in one commit with the larger maximum HP"),
+            TEXT("In combat every unspent point is allocated in one commit with the larger maximum HP (#222)"),
             FString::Printf(TEXT("%s max hp %lld -> %lld"), *Detail, Build.MaxHPBeforeP2, PC.CombatView.MaxHPP2));
         WindowRow->SetNumberField(TEXT("points_allocated"), double(Build.Before.UnspentPoints));
         WindowRow->SetNumberField(TEXT("max_hp_p2_before"), double(Build.MaxHPBeforeP2));
@@ -3368,9 +3319,9 @@ public:
         return true;
     }
 
-    // While dead: the last offer's choice is kept as a blueprint (Dead), a learn is refused (Dead), and every unspent point
-    // is allocated. The owner stays dead on the same life with the same respawn time and no HP, while the projection of
-    // its next life grows by the points.
+    // While dead (#222): the last offer's choice is learned into the empty E slot at once and every unspent point is
+    // allocated. The owner stays dead on the same life with the same respawn time and no HP, while the projection of its
+    // next life grows by the points.
     bool TickDead(double Now, ALDPlayerController& PC)
     {
         const FLDProgressionView* View = PC.ReadOwnProgression();
@@ -3403,22 +3354,14 @@ public:
             Check(Build.Sent.ExpectedLifePhase == ELDLifePhase::Dead && Build.Sent.Life == DeathLife
                 && Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Header.OriginalLifePhase == ELDLifePhase::Dead
                 && Final->Header.OriginalLife == DeathLife && Final->DefinitionId == Option
-                && Final->ChoiceResult == ELDBuildChoiceResult::StoredAsBlueprint
-                && LDGrowthWire::Reason(Final->StoredReason) == ELDGrowthReason::Dead, TEXT("A14"),
-                TEXT("A choice confirmed while dead is admitted for the Dead phase of the current life and keeps the active as a blueprint"),
+                && Final->ChoiceResult == ELDBuildChoiceResult::Learned && Final->LearnedSlot == 2
+                && LDGrowthWire::Reason(Final->StoredReason) == ELDGrowthReason::None, TEXT("A14"),
+                TEXT("A choice confirmed while dead is admitted for the Dead phase of the current life and learned into the empty E (#222)"),
                 Detail);
-            Check(View->PendingBlueprints == TArray<FName>{Option} && View->Actives.Num() == Build.Before.Actives.Num()
+            const FLDActiveSlotView* Learned = LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2);
+            Check(Learned && Learned->DefinitionId == Option && View->PendingBlueprints.IsEmpty() && View->Actives.Num() == 3
                 && View->QueuedActiveOpportunities == 0, TEXT("A14"),
-                TEXT("While dead the chosen active waits as a blueprint; no slot changes"), Detail);
-            if (!Passed) { return Finish(); }
-            BuildStep = 2;
-            return SendBuild(PC, TEXT("learn-while-dead"), LearnCommand(Option, 2)) ? true : Finish();
-        }
-        if (BuildStep == 2)
-        {
-            Check(Final->Header.Outcome == ELDReceiptOutcome::Rejected && LDGrowthWire::Reason(Final->Header.Reason) == ELDGrowthReason::Dead
-                && LDDemoGrowthScenario::GrowthProbeSameOwner(*View, Build.Before), TEXT("A14"),
-                TEXT("Learning a blueprint while dead is refused as Dead; the blueprint is kept"), Detail);
+                TEXT("While dead the chosen active takes E in the persistent build, so Q/W/E are full"), Detail);
             if (!Passed) { return Finish(); }
             if (!Check(View->UnspentPoints > 0, TEXT("A14"), TEXT("The dead owner has unspent points to allocate"), Detail)) { return Finish(); }
             BuildStep = 3;
@@ -3454,8 +3397,7 @@ public:
         {
             DeathRow->SetNumberField(TEXT("field_segment"), Public->PublicMatch.Timeline.FieldSegment);
         }
-        DeathRow->SetStringField(TEXT("blueprint"), Option.ToString());
-        DeathRow->SetStringField(TEXT("stored_reason"), LDGrowthWire::ReasonName(ELDGrowthReason::Dead));
+        DeathRow->SetStringField(TEXT("learned_while_dead"), Option.ToString());
         DeathRow->SetNumberField(TEXT("points_allocated"), double(Build.Before.UnspentPoints));
         DeathRow->SetNumberField(TEXT("max_hp_p2_before"), double(DeadMaxHPP2));
         DeathRow->SetNumberField(TEXT("max_hp_p2_after"), double(GrownMaxHPP2));
@@ -3465,8 +3407,8 @@ public:
         return true;
     }
 
-    // The normal respawn after the approved delay: a new life with full HP and MP at the maximum grown while dead; the
-    // build safe window has long passed, so the blueprint kept while dead is learned into the empty E slot.
+    // The normal respawn after the approved delay: a new life with full HP and MP at the maximum grown while dead, and the
+    // active learned while dead already on E (#222: the new life follows the build changed while dead).
     bool TickRespawn(double Now, ALDPlayerController& PC)
     {
         const FLDCombatOwnerView& Own = PC.CombatView;
@@ -3498,35 +3440,22 @@ public:
             Check(Own.MaxHPP2 == GrownMaxHPP2 && Own.HPP2 == Own.MaxHPP2 && Own.MaxMPP2 > 0 && Own.MPP2 == Own.MaxMPP2, TEXT("A14"),
                 TEXT("The normal respawn restores full HP and MP at the maximum grown while dead"),
                 FString::Printf(TEXT("life %u hp %lld/%lld mp %lld/%lld"), PC.OwnerState.Life, Own.HPP2, Own.MaxHPP2, Own.MPP2, Own.MaxMPP2));
-            Check(View->BuildSafeAtMs <= NowMs && View->PendingBlueprints == TArray<FName>{Option}, TEXT("A15"),
-                TEXT("Death keeps the blueprint; after the respawn delay the build safe window has passed"),
+            const FLDCombatEntryView* E = CurrentEntry(PC, ELDCombatEntry::E);
+            const FLDActiveSlotView* Learned = LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2);
+            Check(Learned && Learned->DefinitionId == Option && View->Actives.Num() == 3 && View->PendingBlueprints.IsEmpty()
+                && E && E->DefinitionId == Option, TEXT("A12"),
+                TEXT("The new life follows the build changed while dead: the active learned while dead is ready on E, so Q/W/E are full"),
                 FString::Printf(TEXT("now=%lld %s"), NowMs, *LDDemoGrowthScenario::GrowthProbeProgressionText(*View)));
             if (!Passed) { return Finish(); }
             FieldLife = PC.OwnerState.Life;
             DeathRow->SetNumberField(TEXT("respawned_life"), PC.OwnerState.Life);
             DeathRow->SetNumberField(TEXT("respawn_hp_p2"), double(Own.HPP2));
-            BuildStep = 1;
-            return SendBuild(PC, TEXT("learn-after-respawn"), LearnCommand(Option, 2)) ? true : Finish();
+            DeathRow->SetNumberField(TEXT("learned_slot"), 2);
         }
-        const FLDBuildReceipt* Final = nullptr;
-        FString Why;
-        const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitBuild(Now, PC, Final, Why);
-        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
-        if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Failed)
+        else
         {
-            return Fail(TEXT("A12"), Build.Step + TEXT(" did not complete: ") + Why);
+            return Fail(TEXT("A12"), TEXT("The respawn check runs once"));
         }
-        const FLDCombatEntryView* E = CurrentEntry(PC, ELDCombatEntry::E);
-        if ((!E || E->DefinitionId != Option) && Now - Build.SentAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
-        const FLDProgressionView* View = PC.ReadOwnProgression();
-        const FLDActiveSlotView* Learned = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2) : nullptr;
-        Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->ChoiceResult == ELDBuildChoiceResult::Learned
-            && Final->LearnedSlot == 2 && Learned && Learned->DefinitionId == Option && View->Actives.Num() == 3
-            && View->PendingBlueprints.IsEmpty() && E && E->DefinitionId == Option, TEXT("A12"),
-            TEXT("After the respawn the blueprint kept while dead is learned into the empty E slot, so Q/W/E are full"),
-            View ? LDDemoGrowthScenario::GrowthProbeProgressionText(*View) : FString(TEXT("no progression view")));
-        DeathRow->SetNumberField(TEXT("learned_slot"), Final->LearnedSlot);
-        if (!Passed) { return Finish(); }
         // The first match is done and dirty; the Host ends it and the second match must start from clean owner state.
         RecordFirstMatch(PC);
         if (!Mark(TEXT("Client1Match1Done.json"))) { return Finish(); }
@@ -3597,7 +3526,7 @@ public:
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection growth scenario, victim and growth-audit role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's active offers in the Lobby (its opening offer first), opens each match with exactly one queued opening opportunity and its opening points, keeps its own untaken opening offer past T=0, checks its opponent view of the buyer, never attacks until the buyer asks to die, holds through every mid rest (a rest retirement is no death; T stays frozen) and walks back after each return, then takes its own DEV XP grant, kills the buyer inside one field segment and both scavengers of an authored low camp and sees each exact XP reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth scenario, buyer role: exactly one queued opening opportunity at each match start (never re-granted by a respawn), the opening active learned into Q and the opening points allocated in the opening rest R0, real kill XP, points and offers across the mid rests (each rest retires the field life without a death, and the buyer never dies before it asks to), the level offer kept as a blueprint and an allocation and a learn refused while its own build safe window runs, then the learn and the allocation after it, a blueprint kept, a learn refused and points allocated while dead and the blueprint learned after the respawn, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+            : TEXT("DEV-only owned-connection growth scenario, buyer role: exactly one queued opening opportunity at each match start (never re-granted by a respawn), the opening active learned into Q and the opening points allocated in the opening rest R0, real kill XP, points and offers across the mid rests (each rest retires the field life without a death, and the buyer never dies before it asks to), the level offer learned into W and the points allocated while its own combat window still runs, the next offer learned into E and points allocated while dead and E still learned after the respawn, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);

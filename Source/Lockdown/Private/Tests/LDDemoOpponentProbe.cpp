@@ -44,6 +44,7 @@
 #include "World/LDCaptureMarker.h"
 #include "UI/LDHUD.h"
 #include "UI/LDChoicesPanel.h"
+#include "UI/LDComponentStorage.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -150,16 +151,15 @@ public:
     bool bUISeeded = false, bUISignupSent = false, bUIRelationsChecked = false;
     int32 UIShot = 0;
     int32 UIBuildStage = 0;
-    int32 UIPointWheelSteps=0,UIComponentIndex=INDEX_NONE,UIComponentRewardGrants=0;
+    int32 UIPointWheelSteps=0,UIComponentRewardGrants=0;
     int32 UIOpeningIndex=INDEX_NONE,UIOpeningWheels=0,UIChoiceStep=0,UIChoiceWheels=0;
     bool bUIOpeningShot=false;
+    bool bUIStorageShot=false;
     FName UIOpeningComponent;
     TArray<FName> UIOpeningOptions;
     TStrongObjectPtr<ULDChoicesPanel> UIChoiceFixture;
     FLDBuildCommand UIChoiceSubmitted;
     bool ReviewChoiceCards(ALDPlayerController& PC,double Now);
-    TWeakPtr<SWidget> UIPressedSlate;
-    TWeakObjectPtr<UPanelSlot> UIPressedSlot;
     FName UIInstalledComponent;
     int32 UIServiceStep=0,UIServicePick=0,UIServiceWheels=0;
     int32 UIServiceObservedStep=INDEX_NONE;
@@ -769,21 +769,24 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
     if (!Panel || !Owner.Controls) { return false; }
 
+    // Tab -1 is the #227 component storage held open over the band with the panel closed.
     struct FReviewShot { const TCHAR* Name; int32 Tab, Width, Height; float Scale; };
     static constexpr FReviewShot ReviewShots[] = {
         {TEXT("HostRestSkills_1280x720_100.png"), 0, 1280, 720, 1.f},
-        {TEXT("HostRestComponents_1280x720_100.png"), 1, 1280, 720, 1.f},
-        {TEXT("HostRestPoints_1280x720_100.png"), 2, 1280, 720, 1.f},
+        {TEXT("HostRestStorage_1280x720_100.png"), -1, 1280, 720, 1.f},
+        {TEXT("HostRestPoints_1280x720_100.png"), 1, 1280, 720, 1.f},
         {TEXT("HostRestSkills_1280x720_125.png"), 0, 1280, 720, 1.25f},
-        {TEXT("HostRestComponents_1280x720_125.png"), 1, 1280, 720, 1.25f},
-        {TEXT("HostRestPoints_1280x720_125.png"), 2, 1280, 720, 1.25f},
+        {TEXT("HostRestStorage_1280x720_125.png"), -1, 1280, 720, 1.25f},
+        {TEXT("HostRestPoints_1280x720_125.png"), 1, 1280, 720, 1.25f},
         {TEXT("HostRestSkills_1920x1080_100.png"), 0, 1920, 1080, 1.f},
-        {TEXT("HostRestComponents_1920x1080_100.png"), 1, 1920, 1080, 1.f},
-        {TEXT("HostRestPoints_1920x1080_100.png"), 2, 1920, 1080, 1.f},
+        {TEXT("HostRestStorage_1920x1080_100.png"), -1, 1920, 1080, 1.f},
+        {TEXT("HostRestPoints_1920x1080_100.png"), 1, 1920, 1080, 1.f},
         {TEXT("HostRestSkills_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
-        {TEXT("HostRestComponents_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
-        {TEXT("HostRestPoints_1920x1080_125.png"), 2, 1920, 1080, 1.25f},
+        {TEXT("HostRestStorage_1920x1080_125.png"), -1, 1920, 1080, 1.25f},
+        {TEXT("HostRestPoints_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
     };
+    ULDComponentStorage* Storage = Owner.HUDUI ? Owner.HUDUI->Storage.Get() : nullptr;
+    if (!Storage) { return false; }
     static constexpr FReviewShot ServiceShots[] = {
         {TEXT("HostRestService_1280x720_100.png"), 0, 1280, 720, 1.f},
         {TEXT("HostRestService_1280x720_125.png"), 0, 1280, 720, 1.25f},
@@ -794,7 +797,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         const FReviewShot& Shot = ReviewShots[Index];
         Owner.Controls->TextScale = Shot.Scale;
-        Panel->ShowTab(Shot.Tab);
+        Storage->PinOpen(Shot.Tab < 0);
+        if (Shot.Tab < 0) { Panel->ClosePanel(); }
+        else { Panel->OpenPanel(); Panel->ShowTab(Shot.Tab); }
         Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
         RestReviewDueAt = Now + .65;
     };
@@ -835,6 +840,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
                 return true;
             }
             Owner.Controls->TextScale = RestReviewOriginalScale;
+            Storage->PinOpen(false);
+            Panel->OpenPanel();
             Panel->ShowTab(0);
             Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true);
             bRestReviewLayoutDone = true;
@@ -1273,11 +1280,10 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                     const FString Id = Growth->OpeningBaseOptions[Index].ToString();
                     const FLDDemoComponentDefinition* Definition = Content->Get().Components.FindByPredicate(
                         [&Id](const FLDDemoComponentDefinition& Row) { return Row.Id == Id; });
-                    FLDComponentInstanceView Fresh;Fresh.DefinitionId=Growth->OpeningBaseOptions[Index];
-                    if (Definition && Definition->BindElements.IsEmpty()
-                        &&LDHUD::ComponentEnableReason(Fresh,*Growth,&Content->Get())==ELDGrowthReason::None)
+                    // A plain base is installed on 本体 by the same click; B18 would go to the storage instead.
+                    if (Definition && Definition->Kind == ELDDemoComponentKind::Base && Definition->BindElements.IsEmpty())
                     {
-                        UIOpeningIndex=Index;UIOpeningComponent=Fresh.DefinitionId;UIOpeningOptions=Growth->OpeningBaseOptions;
+                        UIOpeningIndex=Index;UIOpeningComponent=Growth->OpeningBaseOptions[Index];UIOpeningOptions=Growth->OpeningBaseOptions;
                         PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
                         Panel->OpenPanel();Panel->ShowTab(0);
                         UIBuildStage = 14;
@@ -1346,7 +1352,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if(UIBuildStage==15)
             {
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab2"))),
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
                     TEXT("UI: actual pointer selects the points task"))){return Finish();}
                 UIBuildStage = 5;
                 UIBuildDueAt = Now + .5;
@@ -1385,42 +1391,31 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 if (Growth->BuildRevision <= UIBuildRevisionBefore || Panel->HasPendingRequest()) { return true; }
                 if (!Check(Growth->UnspentPoints == UIPointsBefore - 1 && Panel->StagedTotal() == 0,
                     TEXT("UI: point confirmation applies once and clears only committed staging"))) { return Finish(); }
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
-                    TEXT("UI: pointer opens component inventory"))){return Finish();}
+                // #227: owned components live in the HUD storage right of the band, not in the panel.
+                Panel->ClosePanel();
                 UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
             }
             if(UIBuildStage==8)
             {
-                for(int32 Index=0;Index<Growth->Components.Num();++Index)
+                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
+                if(!Check(Storage!=nullptr,TEXT("UI: the HUD has its component storage"))){return Finish();}
+                UIInstalledComponent=NAME_None;
+                for(const FLDComponentInstanceView& Owned:Growth->Components)
                 {
-                    const auto& Owned=Growth->Components[Index];
-                    const FString Id=Owned.DefinitionId.ToString();
-                    const auto* Def=Content->Get().Components.FindByPredicate([&Id](const auto& Row){return Row.Id==Id;});
-                    if(!Owned.bInstalled&&Def&&LDHUD::ComponentEnableReason(Owned,*Growth,&Content->Get())==ELDGrowthReason::None)
-                    {UIComponentIndex=Index;UIInstalledComponent=Owned.DefinitionId;break;}
+                    if(!Owned.bInstalled&&!LDHUD::ComponentDrops(Owned.DefinitionId,*Growth,&Content->Get()).IsEmpty())
+                    {UIInstalledComponent=Owned.DefinitionId;break;}
                 }
-                if(UIComponentIndex==INDEX_NONE)
+                if(UIInstalledComponent.IsNone())
                 {
                     if(!Check(++UIComponentRewardGrants<=10&&Growth->Level<Content->Get().Progression.MaxLevel,
-                        TEXT("UI: normal level rewards supply an applicable inventory fixture within a bound"))){return Finish();}
+                        TEXT("UI: normal level rewards supply an applicable stored component within a bound"))){return Finish();}
                     UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
                     if(!Check(UIRewardTicket!=0,TEXT("UI: applicable component fixture uses the ordinary level reward composite"))){return Finish();}
                     UIBuildStage=81;UIBuildDueAt=Now+.5;return true;
                 }
-                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
-                auto& Row=Panel->ComponentRows[UIComponentIndex];
-                if(!LDSlateProbeInput::Path(Row.Inspect).IsValid())
-                {
-                    const float Direction=Row.Row->GetCachedGeometry().GetAbsolutePosition().Y
-                        <Scroll->GetCachedGeometry().GetAbsolutePosition().Y?1.f:-1.f;
-                    if(!Check(LDSlateProbeInput::SendWheel(Scroll,Direction),TEXT("UI: pointer wheel reveals the component row"))){return Finish();}
-                    UIBuildDueAt=Now+.15;return true;
-                }
-                Row.Inspect->SetKeyboardFocus();
-                UIPressedSlate=Row.Inspect->GetCachedWidget();UIPressedSlot=Row.Row->Slot;
-                if(!Check(LDSlateProbeInput::Pointer(Row.Inspect,EKeys::LeftMouseButton,true,false),
-                    TEXT("UI: real component row receives pointer down"))){return Finish();}
-                UIBuildStage=9;UIBuildDueAt=Now+.2;return true;
+                PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
+                Storage->PinOpen(true);
+                UIBuildStage=9;UIBuildDueAt=Now+.6;return true;
             }
             if(UIBuildStage==81)
             {
@@ -1431,63 +1426,52 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if(UIBuildStage==9)
             {
-                auto& Row=Panel->ComponentRows[UIComponentIndex];
-                PC.HUDUI->RefreshReadModel();
-                if(!Check(Row.Row->Slot==UIPressedSlot.Get(),TEXT("UI: component slot persists across a real read-model refresh"))
-                    ||!Check(Row.Inspect->GetCachedWidget()==UIPressedSlate.Pin(),TEXT("UI: component Slate widget persists across refresh"))
-                    ||!Check(Row.Inspect->HasKeyboardFocus(),TEXT("UI: component keyboard focus persists across refresh"))
-                    ||!Check(Row.Inspect->IsPressed(),TEXT("UI: actual pointer capture remains pressed across frames and refresh"))
-                    ||!Check(LDSlateProbeInput::Pointer(Row.Inspect,EKeys::LeftMouseButton,false,false)&&Row.Inspect->IsHovered(),
-                        TEXT("UI: actual pointer movement hovers the persistent component row")))
-                {return Finish();}
-                PC.HUDUI->RefreshReadModel();
-                if(!Check(Row.Inspect->IsHovered(),TEXT("UI: actual hover survives a read-model refresh"))
-                    ||!Check(LDSlateProbeInput::Pointer(Row.Inspect,EKeys::LeftMouseButton,false,true)
-                        &&Panel->PinnedComponent==UIInstalledComponent,TEXT("UI: actual pointer release after refresh activates the same component")))
-                {return Finish();}
-                UIBuildStage=10;UIBuildDueAt=Now+.25;return true;
+                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
+                if(!bUIStorageShot)
+                {
+                    if(!Check(Storage->IsExpanded()&&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
+                        &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid(),
+                        TEXT("UI: the open storage shows its stack and card list over the band at 720p125"))){return Finish();}
+                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStorageOpen_1280x720_125.png")),true,false);
+                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStorageOpen_1280x720_125.png")));
+                    bUIStorageShot=true;return true;
+                }
+                if(FScreenshotRequest::IsScreenshotRequested()){return true;}
+                const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(UIInstalledComponent,*Growth,&Content->Get());
+                UIBuildRevisionBefore=Growth->BuildRevision;
+                if(!Check(!Drops.IsEmpty()&&Storage->DropOn(UIInstalledComponent,Drops[0].Column,Drops[0].Host),
+                    TEXT("UI: dropping a stored component on its first legal place sends the install or opens the chooser"))){return Finish();}
+                UIBuildStage=10;UIBuildDueAt=Now+.3;return true;
             }
             if(UIBuildStage==10)
             {
-                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
-                if(!LDSlateProbeInput::Path(Panel->InspectInstall).IsValid())
+                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
+                if(Storage->IsChoosing())
                 {
-                    if(!Check(LDSlateProbeInput::SendWheel(Scroll,-1.f),TEXT("UI: wheel reveals the real install action"))){return Finish();}
-                    UIBuildDueAt=Now+.15;return true;
+                    if(!Check(LDSlateProbeInput::SendClick(Storage->GetWidgetFromName(TEXT("HUDStorageChoice0"))),
+                        TEXT("UI: actual pointer picks the first element or base in the drop chooser"))){return Finish();}
+                    UIBuildDueAt=Now+.3;return true;
                 }
-                if(!Check(LDSlateProbeInput::SendClick(Panel->InspectInstall),TEXT("UI: actual pointer installs the inspected inventory component"))){return Finish();}
-                UIBuildStage=11;UIBuildDueAt=Now+.5;return true;
+                if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
+                const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
+                const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(*Growth,&Content->Get());
+                const bool bInColumn=Shown.Columns.ContainsByPredicate([this](const LDHUD::FStorageColumnView& Column)
+                {return Column.Entries.ContainsByPredicate([this](const LDHUD::FEquippedView& Entry){return Entry.Component==UIInstalledComponent;});});
+                if(!Check(Owned&&Owned->bInstalled&&bInColumn&&!Shown.Stored.Contains(UIInstalledComponent),
+                    TEXT("UI: authority installs the dropped component and the storage shows it in its column"))){return Finish();}
+                UIBuildRevisionBefore=Growth->BuildRevision;
+                if(!Check(Storage->DropInStorage(UIInstalledComponent),
+                    TEXT("UI: dropping the installed component back on the storage sends its uninstall"))){return Finish();}
+                UIBuildStage=11;UIBuildDueAt=Now+.3;return true;
             }
             if(UIBuildStage==11)
             {
-                if(Panel->HasPendingRequest()){return true;}
+                ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
+                if(Storage->HasPendingRequest()||Growth->BuildRevision<=UIBuildRevisionBefore){return true;}
                 const auto* Owned=Growth->Components.FindByPredicate([this](const auto& Row){return Row.DefinitionId==UIInstalledComponent;});
-                if(Owned&&!Owned->bInstalled&&(!Panel->TargetComponent.IsNone()||!Panel->BindingComponent.IsNone()))
-                {
-                    UWidget* Choice=nullptr;
-                    if(!Panel->TargetComponent.IsNone())
-                    {
-                        Choice=Panel->TargetPicked!=INDEX_NONE&&!Panel->RepeatButtons.IsEmpty()
-                            ?Panel->RepeatButtons[0].Get():!Panel->TargetButtons.IsEmpty()?Panel->TargetButtons[0].Get():nullptr;
-                    }
-                    else
-                    {
-                        for(const auto& Button:Panel->BindElementButtons)
-                        {if(Button&&Button->IsVisible()&&Button->GetIsEnabled()){Choice=Button.Get();break;}}
-                    }
-                    auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
-                    if(!LDSlateProbeInput::Path(Choice).IsValid())
-                    {
-                        const float Direction=Choice&&Choice->GetCachedGeometry().GetAbsolutePosition().Y
-                            <Scroll->GetCachedGeometry().GetAbsolutePosition().Y?1.f:-1.f;
-                        if(!Check(LDSlateProbeInput::SendWheel(Scroll,Direction),TEXT("UI: actual wheel reveals installation target or binding"))){return Finish();}
-                        UIBuildDueAt=Now+.15;return true;
-                    }
-                    if(!Check(LDSlateProbeInput::SendClick(Choice),TEXT("UI: actual pointer selects the component installation target or binding"))){return Finish();}
-                    UIBuildDueAt=Now+.5;return true;
-                }
-                if(!Check(Owned&&Owned->bInstalled&&Panel->ComponentRows[UIComponentIndex].Row->GetParent()==Panel->InstalledComponentList,
-                    TEXT("UI: authority installation moves the same item from uninstalled to installed"))){return Finish();}
+                if(!Check(Owned&&!Owned->bInstalled&&LDHUD::ComponentStorage(*Growth,&Content->Get()).Stored.Contains(UIInstalledComponent),
+                    TEXT("UI: authority uninstalls it and the storage holds it again"))){return Finish();}
+                Storage->PinOpen(false);
                 UIRewardTicket=Mode->Growth->DevGrantReward(PC.OwnerState.ContenderId,Growth->NextThresholdXP-Growth->CumulativeXP,Error);
                 if(!Check(UIRewardTicket!=0,TEXT("UI: normal next-level reward replenishes the uninstalled evidence group"))){return Finish();}
                 UIBuildStage=12;UIBuildDueAt=Now+.5;return true;
@@ -1663,16 +1647,15 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         for(const FName Id:UIOpeningOptions)
         {if(!LDHUD::OwnsComponent(Sample,Id)&&Choice.Options.Num()<2){Choice.Options.Add(Id);}}
         if(!Check(Choice.Options.Num()==2&&!Sample.Components.IsEmpty(),
-            TEXT("UI: isolated elite-choice fixture uses two known unowned candidates and a pinned owned component"))){return false;}
+            TEXT("UI: isolated elite-choice fixture uses two known unowned candidates beside owned components"))){return false;}
         Real->ClosePanel();
         UIChoiceFixture.Reset(CreateWidget<ULDChoicesPanel>(&PC));
         if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
         auto* Panel=UIChoiceFixture.Get();
         Panel->AddToPlayerScreen(100);
         Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
-            0,true,0,Real->LatestContent,Real->LatestStats);
-        Panel->ApplyTextScale(1.25f);Panel->OpenPanel();Panel->ShowTab(1);
-        Panel->PinnedComponent=Sample.Components[0].DefinitionId;
+            Real->LatestContent,Real->LatestStats);
+        Panel->ApplyTextScale(1.25f);Panel->OpenPanel();Panel->ShowTab(0);
         // This isolated presentation fixture records the real button's command without granting a gameplay reward.
         Panel->PeekRequestId=[](){return uint64(900001);};
         Panel->SubmitBuild=[this](const FLDBuildCommand& Command,ELDGrowthReason& Reason)
@@ -1686,8 +1669,7 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
     auto RulesShown=[&]()
     {
         return !Expected.Sentence.IsEmpty()&&Panel->DetailName->GetText().ToString()==Expected.Name
-            &&Panel->DetailBody->GetText().ToString()==Expected.Sentence
-            &&Panel->InspectedComponent.IsNone()&&!Panel->InspectInstall->IsVisible();
+            &&Panel->DetailBody->GetText().ToString()==Expected.Sentence;
     };
     if(UIChoiceStep==1)
     {
@@ -1697,7 +1679,7 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
             TEXT("UI: both elite candidates fit horizontally and the second receives actual pointer hover at 720p125"))){return false;}
         Panel->UpdateDetail();
         if(!Check(Candidate.Button->IsHovered()&&RulesShown(),
-            TEXT("UI: elite candidate hover overrides pinned inventory with its exact rules"))){return false;}
+            TEXT("UI: elite candidate hover shows its exact rules"))){return false;}
         UIChoiceStep=2;return true;
     }
     if(UIChoiceStep==2)
@@ -1710,7 +1692,7 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
     if(UIChoiceStep==3)
     {
         if(!Check(Candidate.Button->HasKeyboardFocus()&&RulesShown(),
-            TEXT("UI: elite candidate keyboard focus preserves its rules ahead of a pinned inventory component"))){return false;}
+            TEXT("UI: elite candidate keyboard focus keeps its rules"))){return false;}
         if(!LDSlateProbeInput::FullyVisible(Panel->DetailBody,Scroll))
         {
             if(!Check(++UIChoiceWheels<30&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
@@ -1737,7 +1719,7 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
     if(!Check(UIChoiceSubmitted.Kind==ELDBuildCommandKind::ComponentChoice
         &&UIChoiceSubmitted.OfferId==Panel->Latest.ComponentChoices[0].ChoiceId
         &&UIChoiceSubmitted.Component.Decode(Selected)&&Selected==Candidate.ShownId,
-        TEXT("UI: isolated elite selection submits the exact second candidate rather than the pinned owned component"))){return false;}
+        TEXT("UI: isolated elite selection submits the exact second candidate"))){return false;}
     UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();UIChoiceStep=6;return true;
 }
 

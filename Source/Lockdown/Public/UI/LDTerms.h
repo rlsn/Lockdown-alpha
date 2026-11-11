@@ -111,21 +111,17 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline constexpr TCHAR Blueprint[]=TEXT("图纸");
 inline constexpr TCHAR StatPoints[]=TEXT("属性点");
 inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 次选技能机会"),Count):FString(TEXT("一次选技能机会"));}
-// #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件；脱战后首次启用，休息时才能重新安装。
+// #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件。#222 起随时可以安装、拆下和搬动；
+// #227 起拿到的构件进 HUD 右侧的构件库，拖到技能列上安装。
 inline constexpr TCHAR Component[]=TEXT("构件");
 inline constexpr TCHAR OpeningBase[]=TEXT("选一个开局基础构件");
 inline constexpr TCHAR TakeComponent[]=TEXT("拿这个");
-inline constexpr TCHAR Components[]=TEXT("构件（拿到后脱战启用）");
-inline constexpr TCHAR ComponentEnabled[]=TEXT("已启用");
-inline constexpr TCHAR EnableComponent[]=TEXT("启用");
-inline constexpr TCHAR ReinstallAtRest[]=TEXT("休息时才能重新安装");
-inline constexpr TCHAR NoBindableActive[]=TEXT("先学会一个能绑定的伤害技能");
-inline constexpr TCHAR PickBoundActive[]=TEXT("绑定哪个技能：");
+inline constexpr TCHAR TakeAndEquip[]=TEXT("拿这个 → 装到本体");
+inline constexpr TCHAR TakeToStorage[]=TEXT("拿这个 → 放进构件库（再拖到技能上绑定）");
+// #227 构件库的放下选择：B18 放到技能上选元素，C12 选要重复的已安装基础构件。
 inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
 inline constexpr TCHAR CancelBinding[]=TEXT("取消");
-// #198 F 改装件 / 连接件的安装位置：已学的技能、已启用的构件、冲刺(D) 或自身；C12 另选一个要重复的已启用基础构件。
-inline constexpr TCHAR NoInstallTarget[]=TEXT("还没有能装的位置");
-inline constexpr TCHAR PickInstallTarget[]=TEXT("装在哪里：");
+// #198 F 改装件 / 连接件的安装位置：已学的技能、已安装的构件、冲刺(D) 或自身。
 inline constexpr TCHAR PickRepeatedBase[]=TEXT("重复哪个基础构件：");
 inline constexpr TCHAR TargetDash[]=TEXT("冲刺(D)");
 inline constexpr TCHAR TargetSelf[]=TEXT("自身");
@@ -157,14 +153,24 @@ inline FString LearnInto(const FString& Key){return FString(TEXT("学到 "))+Key
 inline FString LearnedInto(const FString& Name,const FString& Key){return FString::Printf(TEXT("已学到 %s：%s"),*Key,*Name);}
 inline FString StoredAsBlueprint(const FString& Name,const FString& Why)
 {return Why.IsEmpty()?FString::Printf(TEXT("已存为%s：%s"),Blueprint,*Name):FString::Printf(TEXT("已存为%s：%s（%s）"),Blueprint,*Name,*Why);}
-// 不能学习或加点的原因（构筑安全窗见 APP_SPEC §4.2）。
-inline constexpr TCHAR NotSafe[]=TEXT("未脱战");
-inline FString NotSafeFor(const FString& Seconds){return FString::Printf(TEXT("未脱战 %s 秒"),*Seconds);}
+// 不能学习、加点或使用休息服务的原因（#222：学习、加点与构件随时可用，休息服务仍要活着、在配装窗口和 NPC 旁边）。
 inline constexpr TCHAR DeadNoLearn[]=TEXT("阵亡中");
 inline constexpr TCHAR SlotsFull[]=TEXT("Q/W/E 已满");
 inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
 inline constexpr TCHAR ConfirmPoints[]=TEXT("确认加点");
+// #227 构件库（HUD 中央右侧的牌堆）与展开后的安装列：本体、Q/W/E 与冲刺(D) 各一列。
+inline constexpr TCHAR Storage[]=TEXT("构件库");
+inline constexpr TCHAR StorageEmpty[]=TEXT("构件库是空的：升级、野外奖励会送构件");
+inline constexpr TCHAR StorageHint[]=TEXT("拖到技能列上安装，拖回这里拆下");
+inline constexpr TCHAR ColumnBody[]=TEXT("本体");
+inline constexpr TCHAR ColumnEmptySlot[]=TEXT("空技能槽");
+inline constexpr TCHAR DropHere[]=TEXT("放这里");
+inline FString StorageFresh(int32 Count){return FString::Printf(TEXT("新 %d"),Count);}
+inline FString StorageCount(int32 Count){return FString::Printf(TEXT("%s %d"),Storage,Count);}
+inline FString RepeatingNote(const FString& Base){return FString::Printf(TEXT("重复 %s"),*Base);}
+inline FString CannotGoThere(const FString& Name,const FString& Where){return FString::Printf(TEXT("%s不能装在%s"),*Name,*Where);}
+inline FString MovingDetaches(const FString& Names){return FString::Printf(TEXT("装在它上面的%s一起回到构件库"),*Names);}
 inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("已加 %lld 点，还剩 %lld 点"),Spent,Left);}
 
 // 休息服务（#198，APP_SPEC §4.4/§5）：只在休息的配装窗口（配装与派奖）可用，服务器裁决每一条命令。
@@ -241,7 +247,6 @@ inline constexpr TCHAR RestPK[]=TEXT("PK 中");
 inline constexpr TCHAR RestSettlement[]=TEXT("PK 结算");
 inline constexpr TCHAR RestPayout[]=TEXT("派奖 · 可再配装");
 inline constexpr TCHAR RestReturn[]=TEXT("返回野外");
-inline constexpr TCHAR BuildLockedNow[]=TEXT("配装已锁定");
 inline FString SignupOpensIn(int64 Seconds){return FString::Printf(TEXT("PK 报名 %lld 秒后开放"),Seconds);}
 inline FString SignupOpenFor(int64 Seconds){return FString::Printf(TEXT("PK 报名中 · 剩 %lld 秒"),Seconds);}
 inline FString SignedUpCount(int32 Count){return FString::Printf(TEXT("已报名 %d 人"),Count);}

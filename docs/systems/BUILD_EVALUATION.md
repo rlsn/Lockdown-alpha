@@ -147,7 +147,7 @@ B18 式绑定（可绑主动与元素）和改装/连接的合法对象（主动
    条件实验用 `DevQueueOffer` 预置序号 2 起的候选。
 4. 每次主动机会按计划规则选择：`ai_select`（生产 `SelectActive`）、`option_index`（实际 Offer 的第 0–2 项）、
    `definition`（实际 Offer 中的指定主动）。规定的主动不在实际 Offer 中时 Case 判 `Invalid`，不替换成别的主动。
-5. 构筑：没有 `build` 的一方由生产规则（`LDOpponentPolicy::DecideFollowUpBuild`）学习、加点、选开局基础构件与启用构件；
+5. 构筑：没有 `build` 的一方由生产规则（`LDOpponentPolicy::DecideFollowUpBuild`）学习、加点、选开局基础构件与安装构件；
    有 `build` 的一方由计划拥有除主动选择外的全部构筑命令，生产规则不再为它构筑（见下节）。
 6. 计划选择与构筑步骤全部完成后双方走向公开地点 `site`，看见指定对手即用生产 AI 的交战（`LDOpponentPolicy::EngageUnit`）攻击，
    不撤退；第一名对决者死亡或到 `duel_timeout_ms` 结束，Host 结束本局并回到大厅。
@@ -160,7 +160,7 @@ B18 式绑定（可绑主动与元素）和改装/连接的合法对象（主动
 
 | `step` | 字段 | 决策 | 原生命令 |
 | --- | --- | --- | --- |
-| `opening_base` | `component`，B18 式构件另写 `bind: {active, element}` | `choose_opening_base` | `OpeningBase`（请求立即启用） |
+| `opening_base` | `component`，B18 式构件另写 `bind: {active, element}` | `choose_opening_base` | `OpeningBase`（请求立即安装） |
 | `allocate_points` | `points: {属性 id: 1–255}` | `allocate_points` | `AllocatePoints`（按设计顺序的逐属性点数） |
 | `install` | `component`；基础构件可写 `bind`；改装/连接写 `target: {kind: active\|component, id}` 或 `{kind: dash\|self}`，C12 另写 `base` | `install_component` | `InstallComponent` |
 | `uninstall` | `component` | `uninstall_component` | `UninstallComponent`（挂在它上面的一并卸下） |
@@ -192,7 +192,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 
 准入时拒绝 `duel_site` 证明做不到的计划（`IllegalDecision`）：构件只来自开局基础构件（开局主动须由 `definition` 规则指定才可证明资格）
 与升级普通池抽取（稀缺构件、供给不跨等级或所跨等级类别权重为 0 的种类不可得）；绑定或安装对象的主动须由 `definition` 规则选中；
-宿主与 C12 基础构件须由更早的步骤装上；开局休息只拥有开局基础构件，野外重装旧件、卸下、洗点与替换是休息专属（spec §5），
+宿主与 C12 基础构件须由更早的步骤装上；开局休息只拥有开局基础构件，评估准入仍把野外重装旧件、卸下、洗点与替换当作休息专属（spec §5；#222 后服务器已随时受理重装与卸下，洗点与替换仍只在休息），
 而 `duel_site` 唯一的休息在供给之前；每个计划选择都在选择时学会，所以学习图纸与替换在 `duel_site` 中不可达；
 开局休息的加点不超过开局点数，全部加点（洗点后重计）必须恰好花完供给赚到的点数（spec §4.1）。种子抽取能否给出计划要用的构件
 只能运行时知道：同一块的各分支共用种子，抽到时“同材料不同用法”的各分支只在安装对象、绑定或加点上不同；没抽到时整块判

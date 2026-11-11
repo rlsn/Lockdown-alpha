@@ -3,6 +3,7 @@
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtPlacement.h"
 #include "Animation/AnimSequence.h"
+#include "AnimPose.h"
 #include "Animation/Skeleton.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -35,6 +36,7 @@
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialInstanceConstant.h"
+#include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
@@ -78,18 +80,36 @@ namespace
     struct FArtClipSpec
     {
         ELDArtAnim State = ELDArtAnim::Count;
-        FString Clip, Substitute;
+        // glTF bodies: Clip is the clip name in the source file. Authored bodies: Clip is the provenance text and Asset
+        // the animation asset in the body folder.
+        FString Clip, Asset, Substitute;
         float PlayRate = 1.f, ImpactSec = 0.f;
+    };
+
+    // A worn part of an authored body (FLDArtAttachment): an asset in the body folder.
+    struct FArtAttachmentSpec
+    {
+        FString Id, Asset;
+        bool bSkinned = false;
+        FName Socket;
+        TArray<FName> TintSlots;
     };
 
     struct FArtCharacterSpec
     {
+        // Source: the glTF of an imported body; for an authored body the listed file its mesh was imported from, or
+        // empty when that file is not in the repository (the pack records where it lives).
         FString Id, Source;
+        // Authored bodies (finished assets in /Game/Lockdown/Art/Characters/<id>): their pack and mesh asset name.
+        bool bAuthored = false;
+        FString Pack, Mesh;
+        FName HipBone, FootBone;
         float HeightCm = 0.f, RunSpeedCmPerSec = 0.f;
         FName HandBone;
         TArray<FName> ForwardBones, TintSlots;
         TMap<FString, FLinearColor> Colors;
         TArray<FArtClipSpec> Clips;
+        TArray<FArtAttachmentSpec> Attachments;
     };
 
     struct FArtPropSpec
@@ -114,7 +134,7 @@ namespace
         TArray<TPair<uint8, FString>> Monsters;
         TArray<FArtPropSpec> Props;
         TArray<FArtDecorationSpec> Decorations;
-        TSet<FString> Files;
+        TSet<FString> Files, Packs;
         // #97 dressing: every tree blocker shows one of TreeProps; HiddenBlockers are drawn by Outside props; the crate.
         TArray<FString> TreeProps, HiddenBlockers;
         FString AirdropProp;
@@ -150,6 +170,17 @@ namespace
             Out.AppendChar(FChar::IsAlnum(Char) ? Char : TCHAR('_'));
         }
         return Out;
+    }
+
+    // An asset short name in a body folder: letters, digits and underscores.
+    bool ArtIsAssetName(const FString& Name)
+    {
+        if (Name.IsEmpty() || Name.Len() > 96) { return false; }
+        for (const TCHAR Char : Name)
+        {
+            if (!FChar::IsAlnum(Char) && Char != TCHAR('_')) { return false; }
+        }
+        return true;
     }
 
     bool ArtCheckHash(const FString& Relative, const FString& Sha256, FString& Error)
@@ -196,6 +227,8 @@ namespace
 
 namespace
 {
+    // CC0 packs prove their dedication by their own license text. Project-owned or otherwise licensed sources (approved
+    // by the project owner on 2026-11-11) quote their declared license verbatim in their license file.
     bool ArtLoadPacks(const TSharedPtr<FJsonObject>& Json, TSet<FString>& PackIds, TSet<FString>& Listed, FString& Error)
     {
         const TArray<TSharedPtr<FJsonValue>>* Packs = nullptr;
@@ -208,22 +241,38 @@ namespace
                 || !(*Pack)->TryGetStringField(TEXT("license"), License) || !(*Pack)->TryGetStringField(TEXT("download_url"), Url)
                 || !(*Pack)->TryGetStringField(TEXT("page_url"), Page) || !(*Pack)->TryGetStringField(TEXT("downloaded"), Date)
                 || !(*Pack)->TryGetStringField(TEXT("license_file"), LicenseFile) || !(*Pack)->TryGetStringField(TEXT("license_sha256"), LicenseHash)
-                || !ArtSafeRelative(LicenseFile) || !Url.StartsWith(TEXT("https://")) || !Page.StartsWith(TEXT("https://")))
+                || !ArtSafeRelative(LicenseFile) || License.IsEmpty() || Date.IsEmpty())
             {
-                return ArtFail(Error, TEXT("Every art pack needs a unique id, https page and download URLs, a date, license, license_file and license_sha256."));
+                return ArtFail(Error, TEXT("Every art pack needs a unique id, page and download URLs, a date, license, license_file and license_sha256."));
             }
-            if (!License.Contains(TEXT("CC0"))) { return ArtFail(Error, FString::Printf(TEXT("Pack %s is not declared CC0."), *Id)); }
+            const bool bCC0 = License.Contains(TEXT("CC0"));
+            if (bCC0 && (!Url.StartsWith(TEXT("https://")) || !Page.StartsWith(TEXT("https://"))))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("CC0 pack %s needs https page and download URLs."), *Id));
+            }
             if (!ArtCheckHash(LicenseFile, LicenseHash, Error)) { return false; }
             FString LicenseText;
             FFileHelper::LoadFileToString(LicenseText, *ArtAbsolute(LicenseFile));
-            if (!LicenseText.Contains(TEXT("CC0")) && !LicenseText.Contains(TEXT("Creative Commons Zero")))
+            if (bCC0 ? !LicenseText.Contains(TEXT("CC0")) && !LicenseText.Contains(TEXT("Creative Commons Zero")) : !LicenseText.Contains(License))
             {
-                return ArtFail(Error, FString::Printf(TEXT("The license file of pack %s does not state CC0."), *Id));
+                return ArtFail(Error, FString::Printf(TEXT("The license file of pack %s does not state its declared license: %s"), *Id, *License));
             }
             PackIds.Add(Id);
             Listed.Add(LicenseFile);
         }
         return true;
+    }
+
+    // Model and image sources; anything else under SourceData\Art (besides license files) is rejected.
+    bool ArtListedExtension(const FString& Path)
+    {
+        static const TCHAR* const Allowed[] = { TEXT("gltf"), TEXT("glb"), TEXT("bin"), TEXT("png"), TEXT("jpg"), TEXT("jpeg"), TEXT("fbx") };
+        const FString Extension = FPaths::GetExtension(Path).ToLower();
+        for (const TCHAR* Candidate : Allowed)
+        {
+            if (Extension == Candidate) { return true; }
+        }
+        return false;
     }
 
     bool ArtLoadFiles(const TSharedPtr<FJsonObject>& Json, const TSet<FString>& PackIds, TSet<FString>& Listed, FArtManifest& Out, FString& Error)
@@ -237,13 +286,67 @@ namespace
             if (!Value->TryGetObject(File) || !(*File)->TryGetStringField(TEXT("path"), Path) || !ArtSafeRelative(Path) || Listed.Contains(Path)
                 || !(*File)->TryGetStringField(TEXT("pack"), Pack) || !PackIds.Contains(Pack) || !(*File)->TryGetStringField(TEXT("pack_path"), PackPath)
                 || PackPath.IsEmpty() || !(*File)->TryGetStringField(TEXT("sha256"), Hash) || !(*File)->TryGetStringField(TEXT("purpose"), Purpose) || Purpose.IsEmpty()
-                || !(Path.EndsWith(TEXT(".gltf")) || Path.EndsWith(TEXT(".glb")) || Path.EndsWith(TEXT(".bin")) || Path.EndsWith(TEXT(".png"))))
+                || !ArtListedExtension(Path))
             {
-                return ArtFail(Error, TEXT("Every art file needs a unique .gltf/.glb/.bin/.png path, a declared pack, its pack_path, sha256 and purpose: ") + Path);
+                return ArtFail(Error, TEXT("Every art file needs a unique model or image source path (glTF, FBX, PNG, JPEG), a declared pack, its pack_path, sha256 and purpose: ") + Path);
             }
             if (!ArtCheckHash(Path, Hash, Error)) { return false; }
             Listed.Add(Path);
             Out.Files.Add(Path);
+        }
+        return true;
+    }
+
+    bool ArtLoadClips(const TSharedPtr<FJsonObject>& Object, bool bAuthored, FArtCharacterSpec& Spec, FString& Error)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Clips = nullptr;
+        if (!Object->TryGetArrayField(TEXT("animations"), Clips)) { return ArtFail(Error, FString::Printf(TEXT("Character %s lists no animations."), *Spec.Id)); }
+        for (int32 Index = 0; Index < Clips->Num(); ++Index)
+        {
+            const TSharedPtr<FJsonObject>* Clip = nullptr;
+            FArtClipSpec ClipSpec;
+            FString State;
+            const TCHAR* const ClipField = bAuthored ? TEXT("origin") : TEXT("clip");
+            if (!(*Clips)[Index]->TryGetObject(Clip) || !(*Clip)->TryGetStringField(TEXT("state"), State) || !LDArt::ParseAnimId(State, ClipSpec.State)
+                || ClipSpec.State != ELDArtAnim(Index) || !(*Clip)->TryGetStringField(ClipField, ClipSpec.Clip) || ClipSpec.Clip.IsEmpty()
+                || (bAuthored && (!(*Clip)->TryGetStringField(TEXT("asset"), ClipSpec.Asset) || !ArtIsAssetName(ClipSpec.Asset)))
+                || !ArtNumberField(*Clip, TEXT("play_rate"), .1, 10., ClipSpec.PlayRate))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s animation %d must be state %s with %s and a play_rate%s."), *Spec.Id, Index,
+                    *LDArt::AnimId(ELDArtAnim(Index)), ClipField, bAuthored ? TEXT(" and an asset name") : TEXT("")));
+            }
+            if (LDArt::HasImpact(ClipSpec.State) && !ArtNumberField(*Clip, TEXT("impact_sec"), .001, 30., ClipSpec.ImpactSec))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s %s needs impact_sec."), *Spec.Id, *State));
+            }
+            (*Clip)->TryGetStringField(TEXT("substitute"), ClipSpec.Substitute);
+            Spec.Clips.Add(MoveTemp(ClipSpec));
+        }
+        return true;
+    }
+
+    bool ArtLoadAttachments(const TSharedPtr<FJsonObject>& Object, FArtCharacterSpec& Spec, FString& Error)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Parts = nullptr;
+        if (!Object->TryGetArrayField(TEXT("attachments"), Parts)) { return true; }
+        for (const TSharedPtr<FJsonValue>& Value : *Parts)
+        {
+            const TSharedPtr<FJsonObject>* Part = nullptr;
+            FArtAttachmentSpec Attachment;
+            FString Kind, Socket;
+            if (!Value->TryGetObject(Part) || !(*Part)->TryGetStringField(TEXT("id"), Attachment.Id) || !LDArt::IsValidId(Attachment.Id)
+                || !(*Part)->TryGetStringField(TEXT("asset"), Attachment.Asset) || !ArtIsAssetName(Attachment.Asset)
+                || !(*Part)->TryGetStringField(TEXT("kind"), Kind) || !(Kind == TEXT("static") || Kind == TEXT("skinned")))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s attachments need an id, an asset name and kind static or skinned."), *Spec.Id));
+            }
+            Attachment.bSkinned = Kind == TEXT("skinned");
+            if ((*Part)->TryGetStringField(TEXT("socket"), Socket) && !Socket.IsEmpty()) { Attachment.Socket = FName(*Socket); }
+            if ((*Part)->HasField(TEXT("tint_slots")) && !ArtNameArray(*Part, TEXT("tint_slots"), Attachment.TintSlots))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s part %s tint_slots must name material slots."), *Spec.Id, *Attachment.Id));
+            }
+            Spec.Attachments.Add(MoveTemp(Attachment));
         }
         return true;
     }
@@ -256,23 +359,39 @@ namespace
         {
             const TSharedPtr<FJsonObject>* Object = nullptr;
             FArtCharacterSpec Spec;
-            FString Hand;
-            const TArray<TSharedPtr<FJsonValue>>* Clips = nullptr;
+            FString Hand, Kind, Hip, Foot;
             if (!Value->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("id"), Spec.Id) || !LDArt::IsValidId(Spec.Id)
-                || Out.Characters.ContainsByPredicate([&Spec](const FArtCharacterSpec& Other) { return Other.Id == Spec.Id; })
-                || !(*Object)->TryGetStringField(TEXT("source"), Spec.Source) || !Out.Files.Contains(Spec.Source)
-                || !ArtNumberField(*Object, TEXT("height_cm"), 120., 260., Spec.HeightCm)
-                || !ArtNumberField(*Object, TEXT("run_speed_cm_per_sec"), 50., 2000., Spec.RunSpeedCmPerSec)
-                || !(*Object)->TryGetStringField(TEXT("hand_bone"), Hand) || Hand.IsEmpty()
-                || !ArtNameArray(*Object, TEXT("forward_bones"), Spec.ForwardBones) || !ArtNameArray(*Object, TEXT("tint_slots"), Spec.TintSlots)
-                || !(*Object)->TryGetArrayField(TEXT("animations"), Clips))
+                || Out.Characters.ContainsByPredicate([&Spec](const FArtCharacterSpec& Other) { return Other.Id == Spec.Id; }))
             {
-                return ArtFail(Error, TEXT("Every character needs a unique id, a listed source, height_cm, run_speed_cm_per_sec, hand_bone, forward_bones, tint_slots and animations."));
+                return ArtFail(Error, TEXT("Every character needs a unique lowercase id."));
+            }
+            (*Object)->TryGetStringField(TEXT("kind"), Kind);
+            Spec.bAuthored = Kind == TEXT("authored");
+            if (!Kind.IsEmpty() && !Spec.bAuthored) { return ArtFail(Error, FString::Printf(TEXT("Character %s kind must be authored or absent (glTF)."), *Spec.Id)); }
+            const bool bSource = (*Object)->TryGetStringField(TEXT("source"), Spec.Source) && !Spec.Source.IsEmpty();
+            if (Spec.bAuthored
+                ? (!(*Object)->TryGetStringField(TEXT("pack"), Spec.Pack) || !Out.Packs.Contains(Spec.Pack) || !(*Object)->TryGetStringField(TEXT("mesh"), Spec.Mesh)
+                    || !ArtIsAssetName(Spec.Mesh) || (bSource && !Out.Files.Contains(Spec.Source)) || !(*Object)->TryGetStringField(TEXT("hip_bone"), Hip) || Hip.IsEmpty()
+                    || !(*Object)->TryGetStringField(TEXT("foot_bone"), Foot) || Foot.IsEmpty())
+                : (!bSource || !Out.Files.Contains(Spec.Source)))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s needs a listed glTF source, or as an authored body a declared pack, a mesh asset name, hip_bone, foot_bone and at most a listed source."), *Spec.Id));
+            }
+            const TArray<TSharedPtr<FJsonValue>>* Tints = nullptr;
+            if (!ArtNumberField(*Object, TEXT("height_cm"), 120., 260., Spec.HeightCm)
+                || !ArtNumberField(*Object, TEXT("run_speed_cm_per_sec"), 50., 2000., Spec.RunSpeedCmPerSec)
+                || !(*Object)->TryGetStringField(TEXT("hand_bone"), Hand) || Hand.IsEmpty() || !ArtNameArray(*Object, TEXT("forward_bones"), Spec.ForwardBones)
+                || !(*Object)->TryGetArrayField(TEXT("tint_slots"), Tints) || (!Tints->IsEmpty() && !ArtNameArray(*Object, TEXT("tint_slots"), Spec.TintSlots)))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s needs height_cm, run_speed_cm_per_sec, hand_bone, forward_bones and tint_slots."), *Spec.Id));
             }
             Spec.HandBone = FName(*Hand);
+            Spec.HipBone = FName(*Hip);
+            Spec.FootBone = FName(*Foot);
             const TSharedPtr<FJsonObject>* Colors = nullptr;
             if ((*Object)->TryGetObjectField(TEXT("colors"), Colors))
             {
+                if (Spec.bAuthored) { return ArtFail(Error, FString::Printf(TEXT("Authored character %s takes its colours from its own materials."), *Spec.Id)); }
                 for (const TPair<FString, TSharedPtr<FJsonValue>>& Color : (*Colors)->Values)
                 {
                     FLinearColor Linear;
@@ -280,24 +399,12 @@ namespace
                     Spec.Colors.Add(Color.Key, Linear);
                 }
             }
-            for (int32 Index = 0; Index < Clips->Num(); ++Index)
+            if (!ArtLoadClips(*Object, Spec.bAuthored, Spec, Error)) { return false; }
+            if ((*Object)->HasField(TEXT("attachments")) && !Spec.bAuthored)
             {
-                const TSharedPtr<FJsonObject>* Clip = nullptr;
-                FArtClipSpec ClipSpec;
-                FString State;
-                if (!(*Clips)[Index]->TryGetObject(Clip) || !(*Clip)->TryGetStringField(TEXT("state"), State) || !LDArt::ParseAnimId(State, ClipSpec.State)
-                    || ClipSpec.State != ELDArtAnim(Index) || !(*Clip)->TryGetStringField(TEXT("clip"), ClipSpec.Clip) || ClipSpec.Clip.IsEmpty()
-                    || !ArtNumberField(*Clip, TEXT("play_rate"), .1, 10., ClipSpec.PlayRate))
-                {
-                    return ArtFail(Error, FString::Printf(TEXT("Character %s animation %d must be state %s with a clip and a play_rate."), *Spec.Id, Index, *LDArt::AnimId(ELDArtAnim(Index))));
-                }
-                if (LDArt::HasImpact(ClipSpec.State) && !ArtNumberField(*Clip, TEXT("impact_sec"), .001, 30., ClipSpec.ImpactSec))
-                {
-                    return ArtFail(Error, FString::Printf(TEXT("Character %s %s needs impact_sec."), *Spec.Id, *State));
-                }
-                (*Clip)->TryGetStringField(TEXT("substitute"), ClipSpec.Substitute);
-                Spec.Clips.Add(MoveTemp(ClipSpec));
+                return ArtFail(Error, FString::Printf(TEXT("Only authored characters wear attachments: %s"), *Spec.Id));
             }
+            if (!ArtLoadAttachments(*Object, Spec, Error)) { return false; }
             Out.Characters.Add(MoveTemp(Spec));
         }
         return true;
@@ -416,7 +523,7 @@ namespace
         return true;
     }
 
-    // The manifest is the only art source list: CC0 packs proven by their own license text, one hashed file per use.
+    // The manifest is the only art source list: packs proven by their own license text, one hashed file per use.
     bool ArtLoadManifest(FArtManifest& Out, FString& Error)
     {
         Out = FArtManifest();
@@ -428,8 +535,8 @@ namespace
         {
             return ArtFail(Error, TEXT("art_assets.json must be valid JSON with schema 1."));
         }
-        TSet<FString> PackIds, Listed;
-        if (!ArtLoadPacks(Json, PackIds, Listed, Error) || !ArtLoadFiles(Json, PackIds, Listed, Out, Error) || !ArtLoadCharacters(Json, Out, Error)
+        TSet<FString> Listed;
+        if (!ArtLoadPacks(Json, Out.Packs, Listed, Error) || !ArtLoadFiles(Json, Out.Packs, Listed, Out, Error) || !ArtLoadCharacters(Json, Out, Error)
             || !ArtLoadLooks(Json, Out, Error) || !ArtLoadProps(Json, Out, Error))
         {
             return false;
@@ -1140,6 +1247,251 @@ namespace
     }
 }
 
+namespace
+{
+    // Authored bodies live as finished assets in their body folder (no importer rebuilds them); Import reads them into
+    // the catalog and Validate checks them against the manifest. Their numbers are measured from the clips as
+    // MeasureDemoArt.py measures the glTF bodies: the same sample rate, impact rule and planted-foot run speed.
+    constexpr double ArtSampleHz = 240.;
+    // Largest horizontal root travel (displayed cm) an in-place clip may show.
+    constexpr double ArtRootDriftCm = 2.;
+
+    template<typename T>
+    T* ArtLoadAuthored(const FString& Folder, const FString& Name)
+    {
+        return LoadObject<T>(nullptr, *(Folder / Name + TEXT(".") + Name));
+    }
+
+    // Clip times sampled at ArtSampleHz from 0 to the clip end, and the poses at those times (rate 1, no root motion).
+    void ArtSamplePoses(const UAnimSequence& Sequence, const USkeletalMesh& Mesh, TArray<double>& Times, TArray<FAnimPose>& Poses)
+    {
+        const double Length = Sequence.GetPlayLength();
+        const int32 Count = FMath::FloorToInt32(Length * ArtSampleHz) + 1;
+        Times.Reset(Count);
+        for (int32 Index = 0; Index < Count; ++Index) { Times.Add(Length * Index / FMath::Max(Count - 1, 1)); }
+        FAnimPoseEvaluationOptions Options;
+        Options.bExtractRootMotion = false;
+        Options.bShouldRetarget = false;
+        Options.OptionalSkeletalMesh = const_cast<USkeletalMesh*>(&Mesh);
+        Poses.Reset();
+        UAnimPoseExtensions::GetAnimPoseAtTimeIntervals(&Sequence, Times, Options, Poses);
+    }
+
+    struct FArtMeasured
+    {
+        float RunSpeedCmPerSec = 0.f;
+        TMap<ELDArtAnim, float> ImpactSec;
+    };
+
+    float ArtRound(double Value, double Step) { return float(FMath::RoundToDouble(Value / Step) * Step); }
+
+    bool ArtMeasureAuthored(const FArtCharacterSpec& Spec, const FLDArtCharacter& Body, FArtMeasured& Out, FString& Error)
+    {
+        const USkeletalMesh& Mesh = *Body.Mesh;
+        // The mesh's own forward: the catalog transform turns it onto the actor's +X.
+        const FVector Forward = Body.MeshTransform.GetRotation().Inverse().RotateVector(FVector::XAxisVector).GetSafeNormal2D();
+        const double Scale = Body.MeshTransform.GetScale3D().X;
+        TArray<double> Times;
+        TArray<FAnimPose> Poses;
+        const FName Root = Mesh.GetRefSkeleton().GetBoneName(0);
+        for (const FLDArtAnimation& Clip : Body.Animations)
+        {
+            ArtSamplePoses(*Clip.Sequence, Mesh, Times, Poses);
+            // In place: a body moves with its capsule only, so the root bone stays where the clip starts it.
+            double Drift = 0.;
+            for (const FAnimPose& Pose : Poses)
+            {
+                Drift = FMath::Max(Drift, FVector::Dist2D(UAnimPoseExtensions::GetBonePose(Pose, Root, EAnimPoseSpaces::World).GetLocation(),
+                    UAnimPoseExtensions::GetBonePose(Poses[0], Root, EAnimPoseSpaces::World).GetLocation()) * Scale);
+            }
+            if (Drift > ArtRootDriftCm)
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Character %s %s clip moves its root %.1f cm; author it in place."), *Spec.Id, *LDArt::AnimId(Clip.State), Drift));
+            }
+            if (!LDArt::HasImpact(Clip.State)) { continue; }
+            int32 Best = INDEX_NONE;
+            double Reach = -TNumericLimits<double>::Max();
+            for (int32 Index = 0; Index < Poses.Num(); ++Index)
+            {
+                const FVector Hand = UAnimPoseExtensions::GetBonePose(Poses[Index], Spec.HandBone, EAnimPoseSpaces::World).GetLocation();
+                const FVector Hip = UAnimPoseExtensions::GetBonePose(Poses[Index], Spec.HipBone, EAnimPoseSpaces::World).GetLocation();
+                const double Ahead = FVector::DotProduct(Hand - Hip, Forward);
+                if (Ahead > Reach) { Reach = Ahead; Best = Index; }
+            }
+            if (Best == INDEX_NONE) { return ArtFail(Error, FString::Printf(TEXT("Character %s %s clip has no poses to measure."), *Spec.Id, *LDArt::AnimId(Clip.State))); }
+            Out.ImpactSec.Add(Clip.State, ArtRound(Times[Best], .001));
+        }
+        const FLDArtAnimation* Run = Body.Find(ELDArtAnim::Run);
+        ArtSamplePoses(*Run->Sequence, Mesh, Times, Poses);
+        TArray<double> Height, Along;
+        for (const FAnimPose& Pose : Poses)
+        {
+            const FVector Foot = UAnimPoseExtensions::GetBonePose(Pose, Spec.FootBone, EAnimPoseSpaces::World).GetLocation();
+            Height.Add(Foot.Z);
+            Along.Add(FVector::DotProduct(Foot, Forward));
+        }
+        if (Height.Num() < 3) { return ArtFail(Error, FString::Printf(TEXT("Character %s Run clip is too short to measure."), *Spec.Id)); }
+        // While the foot is planted (within 2 displayed cm of its lowest point) it slides back at the body's ground speed.
+        const double Lowest = FMath::Min(Height);
+        TArray<double> Speeds;
+        for (int32 Index = 0; Index < Height.Num(); ++Index)
+        {
+            if (Height[Index] > Lowest + 2. / Scale) { continue; }
+            const int32 A = FMath::Max(Index - 1, 0), B = FMath::Min(Index + 1, Height.Num() - 1);
+            Speeds.Add(-(Along[B] - Along[A]) / (Times[B] - Times[A]) * Scale);
+        }
+        Speeds.Sort();
+        const int32 Mid = Speeds.Num() / 2;
+        Out.RunSpeedCmPerSec = ArtRound(Speeds.Num() % 2 ? Speeds[Mid] : .5 * (Speeds[Mid - 1] + Speeds[Mid]), .1);
+        return true;
+    }
+
+    // The manifest's numbers must be the measured ones; the message gives the measured values to copy.
+    bool ArtCheckMeasured(const FArtCharacterSpec& Spec, const FLDArtCharacter& Body, FString& Error)
+    {
+        FArtMeasured Measured;
+        if (!ArtMeasureAuthored(Spec, Body, Measured, Error)) { return false; }
+        TArray<FString> Wrong;
+        if (FMath::Abs(Measured.RunSpeedCmPerSec - Spec.RunSpeedCmPerSec) > .5f)
+        {
+            Wrong.Add(FString::Printf(TEXT("run_speed_cm_per_sec %.1f (manifest %.1f)"), Measured.RunSpeedCmPerSec, Spec.RunSpeedCmPerSec));
+        }
+        for (const FArtClipSpec& Clip : Spec.Clips)
+        {
+            const float* Impact = Measured.ImpactSec.Find(Clip.State);
+            if (Impact && FMath::Abs(*Impact - Clip.ImpactSec) > .0015f)
+            {
+                Wrong.Add(FString::Printf(TEXT("%s impact_sec %.3f (manifest %.3f)"), *LDArt::AnimId(Clip.State), *Impact, Clip.ImpactSec));
+            }
+        }
+        return Wrong.IsEmpty() || ArtFail(Error, FString::Printf(TEXT("Character %s measures %s."), *Spec.Id, *FString::Join(Wrong, TEXT(", "))));
+    }
+
+    // Every material the body component paints exposes the identity tint and the hit flash, and lives in the body folder.
+    template<typename TSlot>
+    bool ArtCheckAuthoredMaterials(const TArray<TSlot>& Slots, const FString& Folder, const FString& Owner, FString& Error)
+    {
+        for (const TSlot& Slot : Slots)
+        {
+            FLinearColor Value;
+            const UMaterialInterface* Material = Slot.MaterialInterface;
+            const UMaterial* Base = Material ? Material->GetMaterial() : nullptr;
+            if (!Material || !Base || !Material->GetPathName().StartsWith(Folder) || !Base->GetPathName().StartsWith(Folder)
+                || !Material->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::TintParameter), Value)
+                || !Material->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::FlashParameter), Value))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("%s slot %s needs a material of its body folder with the Tint and Flash parameters."),
+                    *Owner, *Slot.MaterialSlotName.ToString()));
+            }
+        }
+        return true;
+    }
+
+    bool ArtReadAuthored(const FArtCharacterSpec& Spec, FLDArtCharacter& Body, TArray<UObject*>* Assets, FString& Error)
+    {
+        const FString Folder = FString(ArtCharacterRoot) + Spec.Id;
+        const FString Hint = TEXT(" in its body folder.");
+        USkeletalMesh* Mesh = ArtLoadAuthored<USkeletalMesh>(Folder, Spec.Mesh);
+        if (!Mesh || !Mesh->GetSkeleton()) { return ArtFail(Error, FString::Printf(TEXT("Authored body %s has no mesh %s with a skeleton%s"), *Spec.Id, *Spec.Mesh, *Hint)); }
+        if (!Spec.Source.IsEmpty() && !ArtImportedFromCurrentBytes(Mesh->GetAssetImportData(), Spec.Source, Mesh->GetPathName(), Error)) { return false; }
+        if (!ArtCheckAuthoredMaterials(Mesh->GetMaterials(), Folder, Spec.Id, Error)) { return false; }
+        if (Assets)
+        {
+            for (int32 LOD = 0; LOD < Mesh->GetLODNum(); ++LOD) { Mesh->GetLODInfo(LOD)->bAllowCPUAccess = true; }
+            Mesh->PostEditChange();
+            Mesh->MarkPackageDirty();
+            Assets->Add(Mesh);
+        }
+        Body.Id = Spec.Id;
+        Body.Mesh = Mesh;
+        Body.HeightCm = Spec.HeightCm;
+        Body.TintSlots = Spec.TintSlots;
+        Body.HandBone = Spec.HandBone;
+        Body.RunSpeedCmPerSec = Spec.RunSpeedCmPerSec;
+        if (!ArtBodyTransform(*Mesh, Spec, Body.MeshTransform, Error)) { return false; }
+        Body.Animations.Reset();
+        for (const FArtClipSpec& Want : Spec.Clips)
+        {
+            UAnimSequence* Sequence = ArtLoadAuthored<UAnimSequence>(Folder, Want.Asset);
+            if (!Sequence) { return ArtFail(Error, FString::Printf(TEXT("Authored body %s has no clip %s%s"), *Spec.Id, *Want.Asset, *Hint)); }
+            if (Assets)
+            {
+                Sequence->bEnableRootMotion = false;
+                Sequence->MarkPackageDirty();
+                Assets->Add(Sequence);
+            }
+            FLDArtAnimation& Clip = Body.Animations.AddDefaulted_GetRef();
+            Clip.State = Want.State;
+            Clip.Sequence = Sequence;
+            Clip.bLoop = LDArt::IsLoopingAnim(Want.State);
+            Clip.PlayRate = Want.PlayRate;
+            Clip.ImpactSec = LDArt::HasImpact(Want.State) ? Want.ImpactSec : 0.f;
+            Clip.SourceClip = Want.Clip;
+            Clip.SubstituteNote = Want.Substitute;
+        }
+        Body.Attachments.Reset();
+        for (const FArtAttachmentSpec& Want : Spec.Attachments)
+        {
+            FLDArtAttachment& Part = Body.Attachments.AddDefaulted_GetRef();
+            Part.Id = Want.Id;
+            Part.Socket = Want.Socket;
+            Part.TintSlots = Want.TintSlots;
+            const FString Owner = Spec.Id + TEXT(".") + Want.Id;
+            if (Want.bSkinned)
+            {
+                Part.SkinnedMesh = ArtLoadAuthored<USkeletalMesh>(Folder, Want.Asset);
+                if (!Part.SkinnedMesh || !ArtCheckAuthoredMaterials(Part.SkinnedMesh->GetMaterials(), Folder, Owner, Error))
+                {
+                    return Error.IsEmpty() ? ArtFail(Error, FString::Printf(TEXT("Authored body %s has no skinned part %s%s"), *Spec.Id, *Want.Asset, *Hint)) : false;
+                }
+            }
+            else
+            {
+                Part.StaticMesh = ArtLoadAuthored<UStaticMesh>(Folder, Want.Asset);
+                if (!Part.StaticMesh || !ArtCheckAuthoredMaterials(Part.StaticMesh->GetStaticMaterials(), Folder, Owner, Error))
+                {
+                    return Error.IsEmpty() ? ArtFail(Error, FString::Printf(TEXT("Authored body %s has no static part %s%s"), *Spec.Id, *Want.Asset, *Hint)) : false;
+                }
+            }
+        }
+        return true;
+    }
+
+    bool ArtImportAuthored(const FArtCharacterSpec& Spec, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
+    {
+        FLDArtCharacter& Body = Catalog.Characters.AddDefaulted_GetRef();
+        if (!ArtReadAuthored(Spec, Body, &Assets, Error)) { return false; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_BODY %s authored mesh=%s skeleton=%s transform=%s parts=%d"), *Spec.Id, *Body.Mesh->GetPathName(),
+            *Body.Mesh->GetSkeleton()->GetPathName(), *Body.MeshTransform.ToHumanReadableString(), Body.Attachments.Num());
+        return ArtCheckMeasured(Spec, Body, Error);
+    }
+
+    bool ArtValidateAuthored(const FArtCharacterSpec& Spec, const FLDArtCharacter& Have, FString& Error)
+    {
+        FLDArtCharacter Want;
+        if (!ArtReadAuthored(Spec, Want, nullptr, Error)) { return false; }
+        bool bSame = Have.Id == Want.Id && Have.Mesh == Want.Mesh && Have.HeightCm == Want.HeightCm && Have.TintSlots == Want.TintSlots
+            && Have.HandBone == Want.HandBone && Have.RunSpeedCmPerSec == Want.RunSpeedCmPerSec && Have.MeshTransform.Equals(Want.MeshTransform, 1e-3)
+            && Have.Animations.Num() == Want.Animations.Num() && Have.Attachments.Num() == Want.Attachments.Num();
+        for (int32 Index = 0; bSame && Index < Want.Animations.Num(); ++Index)
+        {
+            const FLDArtAnimation& A = Have.Animations[Index];
+            const FLDArtAnimation& B = Want.Animations[Index];
+            bSame = A.State == B.State && A.Sequence == B.Sequence && A.bLoop == B.bLoop && A.PlayRate == B.PlayRate && A.ImpactSec == B.ImpactSec
+                && A.SourceClip == B.SourceClip && A.SubstituteNote == B.SubstituteNote && !A.Sequence->bEnableRootMotion;
+        }
+        for (int32 Index = 0; bSame && Index < Want.Attachments.Num(); ++Index)
+        {
+            const FLDArtAttachment& A = Have.Attachments[Index];
+            const FLDArtAttachment& B = Want.Attachments[Index];
+            bSame = A.Id == B.Id && A.StaticMesh == B.StaticMesh && A.SkinnedMesh == B.SkinnedMesh && A.Socket == B.Socket && A.TintSlots == B.TintSlots;
+        }
+        bSame = bSame && Have.Mesh->GetLODInfo(0) && Have.Mesh->GetLODInfo(0)->bAllowCPUAccess;
+        if (!bSame) { return ArtFail(Error, TEXT("Authored character differs from art_assets.json: ") + Spec.Id + TEXT("; run ImportDemoArt.ps1 -Mode Import.")); }
+        return ArtCheckMeasured(Spec, Have, Error);
+    }
+}
+
 bool LDDemoArtImport::Import(FString& Error)
 {
     if (!ArtRequireClient(Error)) { return false; }
@@ -1159,7 +1511,7 @@ bool LDDemoArtImport::Import(FString& Error)
     Catalog->HiddenBlockers = Manifest.HiddenBlockers;
     for (const FArtCharacterSpec& Spec : Manifest.Characters)
     {
-        if (!ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error)) { return false; }
+        if (!(Spec.bAuthored ? ArtImportAuthored(Spec, *Catalog, Assets, Error) : ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error))) { return false; }
     }
     for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
     {
@@ -1236,6 +1588,11 @@ bool LDDemoArtImport::Validate(FString& Error)
     {
         const FArtCharacterSpec& Spec = Manifest.Characters[Index];
         const FLDArtCharacter& Body = Catalog->Characters[Index];
+        if (Spec.bAuthored)
+        {
+            if (!ArtValidateAuthored(Spec, Body, Error)) { return false; }
+            continue;
+        }
         const FString Folder = FString(ArtCharacterRoot) + Spec.Id + TEXT("/");
         FTransform Expected;
         TMap<FString, FArtSourceMaterial> Sources;

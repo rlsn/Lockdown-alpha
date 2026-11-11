@@ -5,6 +5,7 @@
 #include "UI/LDTerms.h"
 #include "UI/LDAttributesPanel.h"
 #include "UI/LDChoicesPanel.h"
+#include "UI/LDComponentStorage.h"
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWidgets.h"
@@ -524,6 +525,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             SelfBox->AddChildToVerticalBox(SelfIconMore)->SetPadding(FMargin(0,2,0,0));
         }
         auto* SelfWidth=WidgetTree->ConstructWidget<USizeBox>();SelfWidth->SetWidthOverride(HudSideWidth);SelfWidth->SetClipping(EWidgetClipping::ClipToBounds);SelfWidth->SetContent(SelfBox);
+        SelfBlock=SelfWidth;
         Bottom->AddChildToHorizontalBox(SelfWidth)->SetVerticalAlignment(VAlign_Fill);
         {
             auto* Rule=WidgetTree->ConstructWidget<UBorder>();Rule->SetBrushColor(LDHUDStyle::PanelRim);Rule->SetVisibility(ESlateVisibility::HitTestInvisible);
@@ -683,6 +685,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
+        // #227: the storage fills the canvas with a hit-transparent frame above the band and below the main panels' popups.
+        Storage=CreateWidget<ULDComponentStorage>(PC);
+        if(Storage)
+        {
+            auto* StorageSlot=Canvas->AddChildToCanvas(Storage);StorageSlot->SetAnchors(FAnchors(0,0,1,1));StorageSlot->SetOffsets(FMargin(0));StorageSlot->SetZOrder(12);
+            Storage->Notify=[this](const FString& Notice){ShowToast(Notice);};
+        }
+        else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STORAGE_CREATION_FAILED"));}
         if(ChoicesPanel)
         {
             ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
@@ -696,6 +706,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ChoicesPanel->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
             {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
             ChoicesPanel->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
+        }
+        if(Storage)
+        {
+            Storage->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
+            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
+            Storage->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
         }
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
         PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
@@ -738,11 +754,13 @@ TArray<FSlateRect> ULDHUD::WorldLabelReservedAreas(const FGeometry& PaintGeometr
     Add(DeathBanner);
     Add(EventFeedPanel);
     Add(ToastPanel);
+    if(Storage){for(const UWidget* Shown:Storage->ReservedWidgets()){Add(Shown);}}
     return Areas;
 }
 bool ULDHUD::IsUIAt(FVector2D P) const
 {
     if(Minimap&&Minimap->IsDragging()){return true;}
+    if(Storage&&Storage->IsHit(P)){return true;}
     for(const ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelHit(P)){return true;}}
     for(const auto& Panel:HitPanels){if(Panel&&Panel->IsVisible()&&Panel->GetCachedGeometry().IsUnderLocation(P)){return true;}}return false;
 }
@@ -922,6 +940,7 @@ void ULDHUD::RefreshReadModel()
     {
         // A covered HUD keeps no armed throw: the next world click must not throw blind.
         bPKThrowArmed=false;
+        if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
@@ -1121,14 +1140,33 @@ void ULDHUD::RefreshReadModel()
         // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
         if(OwnCombat&&!OwnCombat->Attributes.IsEmpty()){ChoiceStats=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat->Attributes);}
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
-        // #198: the freshest own publication of Combat's build safe window: this life's combat view, else the growth copy.
-        const int64 SafeAtMs=OwnCombat?OwnCombat->BuildSafeAtMs:Progression?Progression->BuildSafeAtMs:0;
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
-        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,SafeAtMs,
-            bClock&&(!bFieldPhase||(OwnCombat&&OwnCombat->bHasBody)),NowMs,Content,ChoiceStats);
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats);
         ChoicesPanel->PresentAttributes(OwnCombat);
         ChoicesPanel->SetServiceContext(O.NearbyRestService);
+    }
+    if(Storage)
+    {
+        // #227: the storage lines up with last frame's band layout: the stack right of the band, 本体 over the identity block
+        // (above the 构筑 button), each server slot's column over the Q/W/E position the local slot order shows it at, D over D.
+        ULDComponentStorage::FAnchors Anchors;
+        const auto RectOf=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
+        Anchors.Band=RectOf(Band);
+        Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
+        FSlateRect Body=RectOf(SelfBlock);
+        const FSlateRect Prompt=RectOf(PromptFrame);
+        if(Prompt.Bottom>Prompt.Top){Body.Top=FMath::Min(Body.Top,Prompt.Top);}
+        Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=Body;
+        for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
+        {
+            const ELDCombatEntry Entry=PC->SkillAtKey[Index];
+            const int32 ServerSlot=Entry==ELDCombatEntry::Q?0:Entry==ELDCombatEntry::W?1:Entry==ELDCombatEntry::E?2:-1;
+            if(ServerSlot>=0){Anchors.Columns[int32(LDHUD::SlotColumn(uint8(ServerSlot)))]=RectOf(ActionSlots[Index].Box);}
+        }
+        if(ActionSlots.Num()>3){Anchors.Columns[int32(LDHUD::EStorageColumn::Dash)]=RectOf(ActionSlots[3].Box);}
+        const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
+        Storage->Present(Progression,O.Match,Stage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr);
     }
     // D10/APP_SPEC §4.2: the growth panel opens by itself only for the match's opening offer, and only when nothing else is
     // open; later offers and new points light the 构筑 entry instead. It never opens over the player's own UI
@@ -1167,8 +1205,8 @@ void ULDHUD::RefreshReadModel()
     }
     if(ChoicesPanel)
     {
-        // The own authority-published build window, not the field phase, decides whether planning interrupts combat.
-        ChoicesPanel->UpdateFold(bOwnHit,bCombatActive);
+        // #222: only an automatic opening folds on an own hit; a panel the player opened stays through combat.
+        ChoicesPanel->UpdateFold(bOwnHit);
     }
     // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
@@ -1193,8 +1231,8 @@ void ULDHUD::RefreshReadModel()
     // Inspection remains available without pending growth; service mutations keep their own gates.
     const bool bPromptLit=bOwnMatch&&Progression&&Progression->bValid;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
-    // New opportunities, points or components pulse the workspace entry briefly.
-    const int32 PendingComponents=Pending.Components+(Pending.bOpeningBase?1:0)+Pending.ComponentChoices;
+    // New opportunities, points or component choices pulse the workspace entry briefly; owned components wait in the storage.
+    const int32 PendingComponents=(Pending.bOpeningBase?1:0)+Pending.ComponentChoices;
     if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptPoints=Pending.Points;PromptComponents=PendingComponents;
     HudSetText(PromptText,LDHUD::GrowthPrompt(Pending));
@@ -1311,7 +1349,7 @@ void ULDHUD::RefreshReadModel()
         }
     }
     if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None)
-        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())){DetailOver=nullptr;}
+        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;}
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {
         HudSetShown(Popup,DetailOver!=nullptr,ESlateVisibility::HitTestInvisible);
@@ -1389,11 +1427,19 @@ void ULDHUD::ShowToast(const FString& Text)
     LastFeedbackBase=Text;LastFeedback=Text;FeedbackAt=Now;FeedbackRepeatCount=0;
     FeedbackDuration=Text==TEXT("对局开始。")?HudNoticeSeconds:5.;
 }
+// The panel and the storage each keep their own request; each answer reaches the one that sent it.
 void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 {
-    if(Result.Family==ELDGrowthFamily::Build&&ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
+    if(Result.Family!=ELDGrowthFamily::Build){return;}
+    if(ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
+    if(Storage){Storage->HandleSubmit(Result);}
 }
-void ULDHUD::HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result){if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}}
+void ULDHUD::HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result)
+{
+    if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}
+    if(Storage){Storage->HandleReceipt(Result);}
+}
+bool ULDHUD::CancelStorage(){return Storage&&Storage->CancelInteraction();}
 void ULDHUD::SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp)
 {
     ALDSignupMarker* Marker=SignupMarker.Get();
