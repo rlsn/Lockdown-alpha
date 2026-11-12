@@ -1215,27 +1215,6 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     const int32 Shown=Feed.Lines().Num();
     In.LocalSeconds=133.5;Feed.Observe(In);
     TestEqual(TEXT("Marker changes are told once"),Feed.Lines().Num(),Shown);
-    // #226: a charm wave is told once; claims and expiry say nothing (the public view never names who took one).
-    In.LocalSeconds=140;Feed.Observe(In);
-    FLDCharmView Heal;Heal.Serial=1;Heal.Kind=ELDCharmKind::Heal;Heal.PointId=TEXT("airdrop_e");Heal.ExpireAtFieldMs=75000;
-    FLDCharmView Mana=Heal;Mana.Serial=2;Mana.Kind=ELDCharmKind::Mana;Mana.PointId=TEXT("airdrop_nw");
-    Public.Charms={Heal,Mana};In.LocalSeconds=141;Feed.Observe(In);
-    TestTrue(TEXT("A charm wave is told with one line"),Texts()==TArray<FString>({LDTerms::CharmsAppeared()}));
-    Public.Charms={Mana};In.LocalSeconds=142;Feed.Observe(In);
-    TestEqual(TEXT("A claimed charm tells nothing"),Feed.Lines().Num(),1);
-    Public.Charms.Reset();In.LocalSeconds=143;Feed.Observe(In);
-    TestEqual(TEXT("An expired charm tells nothing"),Feed.Lines().Num(),1);
-    FLDCharmView Speed=Heal;Speed.Serial=3;Speed.Kind=ELDCharmKind::MoveSpeed;
-    Public.Charms={Speed};In.LocalSeconds=150;Feed.Observe(In);
-    TestTrue(TEXT("The next wave is told again"),Texts()==TArray<FString>({LDTerms::CharmsAppeared()}));
-    {
-        LDHUD::FEventFeed Late;Late.Observe(In);
-        TestTrue(TEXT("Joining while charms lie does not tell the wave already in place"),Late.Lines().IsEmpty());
-    }
-    Public.Generation=5;Kills.Generation=5;Speed.Serial=1;Public.Charms.Reset();In.LocalSeconds=160;Feed.Observe(In);
-    Public.Charms={Speed};In.LocalSeconds=161;Feed.Observe(In);
-    TestTrue(TEXT("A new match's first wave is told even though its serials restart"),
-        Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::CharmsAppeared());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDChoicesFoldTest,"Lockdown.Rules.HUDChoicesFold",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

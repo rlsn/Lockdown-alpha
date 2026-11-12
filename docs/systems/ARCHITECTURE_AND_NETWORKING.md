@@ -232,7 +232,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 当前外卖的 `ALDAirdropMarker`（`AIRDROP.PickupRadiusCm` 橙色圈，落地后加美术目录的箱子），以及每枚地上符咒一个
 `ALDCharmMarker`（#226：`CHARM.PickupRadiusCm` 圈和约 110cm 高的悬浮方块，颜色取 `LDHUD::CharmColor`，与小地图圆点同色）。
 符咒标记按 `PublicMatch.Charms` 的序号增删，被领走、到期或进休息清空即移除，不读取领取者；
-缺数据时记 `LD_CHARM_MARKER_UNAVAILABLE` 并整代不画。事件提示条在出现更高的符咒序号时报一行“符咒出现了”。
+缺数据时记 `LD_CHARM_MARKER_UNAVAILABLE` 并整代不画。符咒不进事件提示条。
 普通离局在受理时刻向归约器提交 Left，不发奖、不判胜，结果行保留。
 `ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
 `RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，
