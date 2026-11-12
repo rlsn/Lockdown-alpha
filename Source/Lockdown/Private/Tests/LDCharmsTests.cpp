@@ -1,5 +1,8 @@
 #include "World/LDCharms.h"
+#include "World/LDCharmMarker.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -178,6 +181,54 @@ bool FLDCharmsDrawTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A draw takes at most N values"), Out.Num() == 2 && Out[0] != Out[1]);
     LDCharms::DrawDistinct(7, 0, 2, Out);
     TestTrue(TEXT("No values from an empty pool"), Out.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCharmsMarkerTest, "Lockdown.Rules.DemoCharms.Marker",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCharmsMarkerTest::RunTest(const FString& Parameters)
+{
+    // #226: a lying charm is drawn in the scene as a ring at the pickup radius plus a floating token in its kind's
+    // colour, with no gameplay influence; a view that names no lying charm draws nothing.
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Isolated charm marker world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    FLDCharmView View;
+    View.Serial = 3;
+    View.Kind = ELDCharmKind::Mana;
+    View.PointId = TEXT("airdrop_nw");
+    View.PositionCm = FVector(-1800, 2100, 40);
+    View.ExpireAtFieldMs = 165000;
+    const FLinearColor Tint(.28f, .56f, 1.f);
+    ALDCharmMarker* Marker = World->SpawnActor<ALDCharmMarker>();
+    if (!TestNotNull(TEXT("The marker spawns"), Marker)) { return false; }
+    FString Error;
+    if (!TestTrue(TEXT("A lying charm builds its marker"), Marker->Build(View, 80., Tint, 7, Error))) { AddError(Error); return false; }
+    TestEqual(TEXT("The marker keeps the charm serial"), Marker->GetSerial(), uint64(3));
+    TestTrue(TEXT("The marker keeps the kind, generation and tint"),
+        Marker->GetKind() == ELDCharmKind::Mana && Marker->GetGeneration() == 7u && Marker->GetTint().Equals(Tint));
+    TestTrue(TEXT("The ring sits on the public point at the approved radius"),
+        Marker->GetActorLocation().Equals(View.PositionCm) && Marker->GetRadius() == 80. && Marker->GetSegmentCount() > 0);
+    TestTrue(TEXT("The token floats above the ring"), Marker->IsTokenVisible());
+    TestTrue(TEXT("The marker has no collision, overlap or navigation influence"), Marker->IsPresentationOnly());
+    TestFalse(TEXT("The marker is never replicated"), Marker->GetIsReplicated());
+    struct FBad { const TCHAR* What; FLDCharmView View; double Radius; uint32 Generation; };
+    FLDCharmView NoSerial = View; NoSerial.Serial = 0;
+    FLDCharmView NoKind = View; NoKind.Kind = ELDCharmKind::None;
+    FLDCharmView NoPoint = View; NoPoint.PointId = NAME_None;
+    const FBad Bad[] = {{TEXT("no serial"), NoSerial, 80., 7}, {TEXT("no kind"), NoKind, 80., 7}, {TEXT("no point"), NoPoint, 80., 7},
+        {TEXT("no generation"), View, 80., 0}, {TEXT("no approved radius"), View, 0., 7}};
+    for (const FBad& Case : Bad)
+    {
+        ALDCharmMarker* Rejected = World->SpawnActor<ALDCharmMarker>();
+        FString Reason;
+        TestFalse(FString::Printf(TEXT("A view with %s draws nothing"), Case.What),
+            !Rejected || Rejected->Build(Case.View, Case.Radius, Tint, Case.Generation, Reason));
+        TestFalse(FString::Printf(TEXT("The rejection with %s says why"), Case.What), Reason.IsEmpty());
+    }
     return true;
 }
 #endif

@@ -6,6 +6,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthDirector.h"
 #include "Region/LDMapRegistry.h"
+#include "UI/LDHUDModel.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/Engine.h"
@@ -51,16 +52,23 @@ void ALDGameState::OnRep_PublicMatch()
     SyncCaptureMarker();
     SyncDormMarkers();
     SyncAirdropMarker();
+    SyncCharmMarkers();
+}
+
+bool ALDGameState::ShowsWorldEvents() const
+{
+    const UWorld* World=GetWorld();
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Rest||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+        ||PublicMatch.Phase==ELDMatchPhase::Results;
+    return bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
+        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
 }
 
 void ALDGameState::SyncAirdropMarker()
 {
     UWorld* World=GetWorld();
     const FLDAirdropView& Drop=PublicMatch.Airdrop;
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Rest||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
-        ||PublicMatch.Phase==ELDMatchPhase::Results;
-    const bool bShow=bActive&&Drop.Phase!=ELDAirdropPhase::None&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
-        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    const bool bShow=Drop.Phase!=ELDAirdropPhase::None&&ShowsWorldEvents();
     ALDAirdropMarker* Marker=AirdropMarker.Get();
     if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation||Marker->GetSerial()!=Drop.Serial))
     {
@@ -95,6 +103,71 @@ void ALDGameState::SyncAirdropMarker()
         return;
     }
     AirdropMarker=Marker;
+}
+
+TArray<const ALDCharmMarker*> ALDGameState::GetCharmMarkers() const
+{
+    TArray<const ALDCharmMarker*> Out;
+    for (const TWeakObjectPtr<ALDCharmMarker>& Marker : CharmMarkers)
+    {
+        if (const ALDCharmMarker* Live=Marker.Get()) { Out.Add(Live); }
+    }
+    return Out;
+}
+
+void ALDGameState::ClearCharmMarkers()
+{
+    for (const TWeakObjectPtr<ALDCharmMarker>& Marker : CharmMarkers)
+    {
+        if (ALDCharmMarker* Live=Marker.Get()) { Live->Destroy(); }
+    }
+    CharmMarkers.Reset();
+}
+
+void ALDGameState::SyncCharmMarkers()
+{
+    // #226: every lying public charm gets its own ring and token; a claimed, expired or rest-cleared charm leaves the
+    // public view and its marker goes with it. Nothing here reads who took it.
+    const bool bShow=!PublicMatch.Charms.IsEmpty()&&ShowsWorldEvents();
+    TArray<TWeakObjectPtr<ALDCharmMarker>> Kept;
+    for (const TWeakObjectPtr<ALDCharmMarker>& Weak : CharmMarkers)
+    {
+        ALDCharmMarker* Marker=Weak.Get();
+        if (!Marker) { continue; }
+        const bool bLying=bShow&&Marker->GetGeneration()==PublicMatch.Generation&&PublicMatch.Charms.ContainsByPredicate(
+            [Marker](const FLDCharmView& Charm){return Charm.Serial==Marker->GetSerial();});
+        if (bLying) { Kept.Add(Marker); }
+        else { Marker->Destroy(); }
+    }
+    CharmMarkers=MoveTemp(Kept);
+    if (!bShow||CharmMarkerFailedGeneration==PublicMatch.Generation) { return; }
+    UWorld* World=GetWorld();
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    double Radius=0;
+    for (const FLDCharmView& Charm : PublicMatch.Charms)
+    {
+        if (CharmMarkers.ContainsByPredicate([&Charm](const TWeakObjectPtr<ALDCharmMarker>& Marker)
+            {return Marker.Get()&&Marker->GetSerial()==Charm.Serial;})) { continue; }
+        FString Error;
+        if (!Content&&LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content)
+        {
+            const FLDDemoRational& Approved=Content->Get().Parameters.CharmPickupRadiusCm;
+            Radius=Approved.Denominator>0?double(Approved.Numerator)/double(Approved.Denominator):0.;
+        }
+        FActorSpawnParameters Spawn;
+        Spawn.ObjectFlags|=RF_Transient;
+        ALDCharmMarker* Marker=Content&&World?World->SpawnActor<ALDCharmMarker>(Spawn):nullptr;
+        if (!Marker||!Marker->Build(Charm,Radius,LDHUD::CharmColor(Charm.Kind),PublicMatch.Generation,Error))
+        {
+            if (Marker) { Marker->Destroy(); }
+            if (Error.IsEmpty()) { Error=TEXT("The charm marker actor could not be spawned."); }
+            CharmMarkerFailedGeneration=PublicMatch.Generation;
+            ClearCharmMarkers();
+            UE_LOG(LogLDMatch,Error,TEXT("LD_CHARM_MARKER_UNAVAILABLE generation=%u serial=%llu %s"),PublicMatch.Generation,Charm.Serial,*Error);
+            return;
+        }
+        CharmMarkers.Add(Marker);
+    }
 }
 
 TArray<const ALDDormMarker*> ALDGameState::GetDormMarkers() const

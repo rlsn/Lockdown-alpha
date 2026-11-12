@@ -17,6 +17,7 @@
 #include "World/LDLeaderNotice.h"
 #include "World/LDDormMarker.h"
 #include "World/LDAirdropMarker.h"
+#include "World/LDCharmMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "Core/LDLog.h"
 #include "LDGameMode.generated.h"
@@ -52,7 +53,11 @@ public:
     TArray<const ALDDormMarker*> GetDormMarkers() const;
     // Local presentation only: the current public airdrop (D26, #79), never replicated.
     const ALDAirdropMarker* GetAirdropMarker() const { return AirdropMarker.Get(); }
+    // Local presentation only: one marker per lying public charm (#198, #226), in serial order, never replicated.
+    TArray<const ALDCharmMarker*> GetCharmMarkers() const;
 private:
+    // The match phases whose public world events (airdrop, charms) are drawn in the scene of this machine.
+    bool ShowsWorldEvents() const;
     // Builds the boundary from this machine's world data for an active public match, and removes it otherwise.
     void SyncCaptureMarker();
     TWeakObjectPtr<ALDCaptureMarker> CaptureMarker;
@@ -66,6 +71,11 @@ private:
     void SyncAirdropMarker();
     TWeakObjectPtr<ALDAirdropMarker> AirdropMarker;
     uint32 AirdropMarkerFailedGeneration = 0;
+    // The charm rings and tokens, one per lying charm serial; removed as soon as the public view drops the charm.
+    void SyncCharmMarkers();
+    void ClearCharmMarkers();
+    TArray<TWeakObjectPtr<ALDCharmMarker>> CharmMarkers;
+    uint32 CharmMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
     FLDPublicMatchView LatestPublicMatch;
