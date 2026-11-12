@@ -18,7 +18,7 @@ SourceData 不是“给 AI 看的文档”，也不是新 Demo 的数值方案�
 
 | 输入/入口 | 输出或消费者 |
 | --- | --- |
-| `SourceData\Demo\content.json`、`SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo world→content 生成链及原生 Bootstrap；不是旧 prototype 导入入口 |
+| `SourceData\Demo\content.json`、保存的 `L_Demo`、派生的 `SourceData\World\demo_world.json` 与两份 schema | 唯一 Demo 关卡→world→content 同步链及原生 Bootstrap |
 
 `CatalogTools.py` 提供 Demo 生成器复用的确定性编码与原生 ID 校验。
 schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品版本 `0.11.0`。
@@ -29,7 +29,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 ## Demo 内容编译合同
 
-#198 公共休息室使用世界布局10/几何8，保持唯一地面与同一连接：地面东边界扩展，原东墙保留为野外隔墙，
+#198 公共休息室使用当前世界布局11/几何9，保持唯一地面与同一连接：地面东边界扩展，原东墙保留为野外隔墙，
 新增四面封闭休息室墙，原野外出生点、营地、旗杆与 PK 出生/投掷锚点不移动。
 `RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
 `RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师，位于玩家聚集排上、y=-500 cm；
@@ -145,7 +145,7 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 （墙/围栏/树按声明阻挡移动与视线、坡道可走、悬崖不可走、锚点站位合法）；不检查当前布局的地点间连通或路线长度。
 它不把资产存在当作导航、战斗或真实联机验收。
 
-`LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、高台与坡道、全部真实阻挡、
+`LDDemoWorldBuilder` 复用原生 mesh/nav/保存能力，从关卡派生数据刷新唯一平地、高台与坡道、全部真实阻挡的碰撞载荷、
 每个出生锚点一个出生标记与一个原生导航区域。#97 起锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
 （`MaxAnchors`、`MinSpawns`/`MaxSpawns`、`MaxCamps`、`MaxDorms`、`MaxAirdrops`，Boss 巡逻点固定 4 个），
 阻挡上限 `MaxBlockers` = 2048（与身体同粗的树成片时需要一千多个圆柱）；`DemoWorld.py` 的 `ANCHOR_COUNTS`/`MAX_BLOCKERS`
@@ -168,19 +168,12 @@ Demo 的查询相关静态碰撞来自保存的世界，局中不生成、移除
 再在每段悬崖上方把胶囊抬过高侧横扫，确认被挡块拦下。所有生成几何 `CanCharacterStepUpOn = No`：
 身体不能迈上任何东西，只能走上可走的坡面；`MaxStepHeight` 只是下坡顶时贴地跟随的距离，
 `bMaintainHorizontalGroundVelocity` 让坡上水平速度与平地相同。旋转墙不是 AABB 近似。
-同一次生成还用代码重建三份只用引擎能力的表现材质，并布置场景光照：
-`M_DemoField` 按地面顶面的 0..1 纹理坐标画出两色草坪条纹（条纹间约 1 米柔和过渡，叠加几米尺度的低频明暗）、
-外圈红色跑道与白色内线，`M_DemoWall` 是奶白墙面加离地 45cm 的红色墙裙；
-`M_DemoApron` 是比草坪暗的暖灰铺地（约 2 米见方的板块、深色缝和轻微风化），
-铺在地面下方 1cm、每边超出场地 40m 的纯视觉铺地上，让墙外的装饰和建筑站在地面上而不是悬在虚空中；
-一个投影阴影（含短接触阴影）的大气太阳、SkyAtmosphere、
-实时捕获的较弱天光、轻度高度雾和一个无界后期（曝光补偿 -0.8、局部曝光对比还原为 1、泛光、饱和度、对比度、暗角）。
-它们不碰撞、不影响导航或视线，也不被任何规则读取；铺地也不投影、不带几何身份标签。
-Validate 要求它们各恰好一个，地面/阻挡/铺地分别使用这三份材质，并核对铺地的位置、尺寸和无碰撞、无导航。
-保存校验同时要求地面/阻挡保持 WorldStatic object type 和 Pawn 阻挡响应，
-并逐项核对凸元局部 Transform 为 Identity 及全部顶点，不能只看 Actor transform、
-原始 VertexData、导航或 LOS。专用原生规则使用隔离包真实保存、卸载和重载，
-覆盖仅改 Pawn 响应、object type 和凸元局部平移的损坏，不修改生产资产。
+场景材质、光照、天空、雾与后期都保存在关卡/原生资产中，可用标准编辑器调整；同步不重写材质图或重摆外观。
+地面、坡道与阻挡仍使用经过校验的简单凸碰撞；树、墙、围栏的可见根网格与隐藏 `GameplayCollision`
+组件一起保存在标准 `StaticMeshActor` 中。保存校验查询实际碰撞子组件，保留 WorldStatic、Pawn/地面/视线响应、
+凸元局部 Transform 和顶点、胶囊横扫、眼高射线与导航检查，不把外观无碰撞误当成没有游戏阻挡。
+铺地为独立纯视觉对象，不参与碰撞和导航；材质可以替换，不要求继续使用生成器的默认材质路径。
+保存场景须有可用的太阳与实时天光，其他环境表现由关卡维护。
 `ULDMapDefinition` 只导入根合同约束的 Demo 世界；保存投影逐字段精确回核，失败不先清空资产。
 它只保留 SourceJson/Checksum 与导入、投影准备、校验和读取；旧城市/河流/路线字段、
 旧 map JSON 导入和独立 B90 Builder/脚本入口已在资产引用审计后删除。
@@ -307,7 +300,7 @@ Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 `SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
 逐文件的包内路径、SHA-256 与用途（模型、图像；`SourceData\Art` 下未列出的文件一律拒绝）；
 五个身体的显示身高、着色槽、右手骨骼、朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与四档野怪各用哪个身体；
-道具的基础缩放，以及每个装饰的放置区域、位置与朝向。glTF 身体的出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py`
+道具的基础缩放、淡化能力与空投箱引用。静态装饰的位置与区域由保存关卡维护，不再在清单中存坐标或按树 id 生成外观。glTF 身体的出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py`
 从 glTF 数据测得，`--check` 拒绝与清单不符的数值。
 
 `Scripts\ImportDemoArt.ps1 -Mode Import` 经 Interchange 导入到 `Content\Lockdown\Art`，
@@ -342,25 +335,26 @@ Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 以 Leader Pose 跟随身体并自带布料模拟的蒙皮件（Boss 的披风）。穿戴件只显示、无碰撞、不参与点选，随身体一起受击闪光，
 可列自己的着色槽；身体与穿戴件合计至少一个着色槽。
 
-装饰：`ULDArtWorldSubsystem` 在每台渲染 `L_Demo` 的机器上本地生成 `ALDDecorationSet`
-（成功 `LD_ART_DECORATIONS_READY`，失败 `LD_ART_DECORATIONS_UNAVAILABLE` 且不生成）：
-不复制、不保存，全部实例无碰撞、不产生重叠、对所有通道 Ignore、不影响导航，
-因此不改变 D02 的墙体、视线与 navmesh。生成后按整个碰撞响应容器核对全部 Ignore；
-不要按 `ECC_MAX` 逐通道循环，它超出 64 项响应数组，打包版会读到垃圾值。
+装饰：正式 `L_Demo` 中全部静态外观是已保存的标准 `StaticMeshActor`，编辑模式即可选择、移动、旋转、缩放、复制和修改网格/材质。
+`Environment/Blockers` 下的树、墙与围栏以可见模型为根，隐藏的 `GameplayCollision` 是普通实例组件，随父 Actor 一起移动与复制；
+碰撞尺寸仍由其简单网格决定，替换外观不会自动扩大玩法范围。`Environment/Decorations` 下纯装饰的根组件为 NoCollision，
+全部响应 Ignore、不产生重叠、不参与导航。外围边界的隐藏几何另在 `Environment/BoundaryCollision` 中可查。
+`LDSceneVisual` 与 `LDSceneZone:<区域>` 是保存对象的分类标签；复制的阻挡在同步时按新的 Actor Guid 分配稳定唯一 id。
+`DA_DemoArt.Decorations/HiddenBlockers` 是从保存关卡生成的只读索引，不是第二个布局编辑入口。
+`ULDArtWorldSubsystem` 只核对该索引并启动显式 DEV 探针，不再生成、替换或隐藏场景对象。
 `LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
 `outside` 不压野外场地或公共休息室的可用地面，只作外围背景（树、建筑外墙、看台、路灯）；扩展地面上两处之间的封闭隔离带仍可放背景；
 `wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在野外或休息室墙体内侧 300 cm 内、低于视线采样高度，并避开出生点、营地与旗杆；
 `ground` 是场地上的矮地被（草、花、三叶草、蘑菇、石子），守 `wall_base` 除贴墙外的全部规则；生成时另离每个阻挡至少 60 cm，只落在身体能走到的导航面上；
-`blocker`（#97，碰撞跟随美术）是一个世界阻挡的外观：清单写 `blocker` 阻挡 id，道具站在阻挡底面、高度等于阻挡高度，
+`blocker`（碰撞跟随美术）是一个世界阻挡的外观：保存对象绑定其阻挡 id，道具站在阻挡底面、高度等于阻挡高度，
 转向后的模型包围矩形就是阻挡多边形（误差 `BlockerFitToleranceCm` 2 cm）；墙与围栏的多边形按选定模型、以阻挡高度定缩放后的脚印写入世界数据。
-清单 `dressing.tree_props` 规定每棵树（圆柱阻挡）的外观：导入时按树 id 的哈希选道具与朝向，按树高缩放并站在树心，展开为 `blocker` 装饰；
-`dressing.hidden_blockers` 是完全在场地外、改由 `outside` 装饰绘制的阻挡（四面外墙由集装箱排绘制）；`dressing.airdrop_prop` 是天降外卖落地后的箱子。
-被美术绘制的阻挡（`FLDArtResolved::HiddenBlockers`）在 `ULDArtWorldSubsystem` 生成装饰后隐藏生成的方块网格，碰撞与视线响应不变（`LD_ART_DECORATIONS_READY` 报告数目）。
-它整块站在同一平层上（#97 地图四周是高台，装饰的可选 `z` 写所在层高度，例如二层高台 100），世界在墙内侧留出无树走道；
+树的外观、朝向和缩放由各自 Actor 保存，不再从 id 哈希重建。隐藏边界由 `LDSceneHiddenGeometry` 标记并保存其隐藏状态；
+`dressing.airdrop_prop` 只为动态空投保留箱子引用。可见外观和碰撞分别检查，淡化不会关闭碰撞。
+阻挡外观须整块站在同一平层上（地图四周是高台），世界在墙内侧留出无树走道；
 `capture` 是覆盖其锚点的细小地标（旗杆）。
 除 #97 绘制世界阻挡的美术（树、废车、集装箱）外，只有旗杆会遮挡身体：
 清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·max(LDFade, 每实例自定义浮点 0)` 逐像素抖动，
-材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。
+材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 0.3、遮挡时设置 `LDFade`（0 不透明、1 保留约 70% 像素可见度），见[视野与 UI](VISION_AND_UI.md)。
 没有找到 CC0 的篮球架，未加入。
 
 母材质 `M_ArtSurface`、`M_ArtSurfaceFade` 的节点图就是导入器 C++ 中的 `ArtMasterMaterial`：
@@ -442,6 +436,30 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 
 本地按键与镜头偏好仍由 `ULDControlSettings::Save/Load` 管理，见
 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md#相机与小地图)，不保存局内战力或世界状态。
+
+## 标准关卡编辑与同步
+
+编辑器默认打开 `/Game/Lockdown/Generated/Maps/L_Demo`；游戏默认仍从 `L_Frontend` 进入。
+常规修改直接在关卡里完成，不再另改 JSON 坐标。`Layout/Locations` 是标准 TargetPoint；营地成员的 home 点挂在营地点下，
+移动营地时一起移动；出生点继续使用标准 PlayerStart。它们只提供保存的布局，不承载另一套游戏状态。
+
+1. 在关卡中修改并保存，关闭这个项目的编辑器。
+2. 执行 `Scripts/SyncDemoMap.ps1`。
+3. 同步完成后重开编辑器或游戏。只改材质而不改布局/模型绑定时，保存资产即可。
+
+同步先从保存对象导出坐标，再经 `ApplyDemoMapEdits.py` 更新派生的 `SourceData/World/demo_world.json`，
+沿原有两条 Sync 生成载荷和 contract，构建 Editor，最后刷新派生碰撞、导航和美术索引并做 Bootstrap 验证。
+无变化的导出保持世界源文件逐字节不变；坐标以 0.001 cm 精度导出，已有整数不会因浮点误差产生无关修订。
+工具验证导出所基于的源摘要，拒绝旧导出和未知字段；写入前继续做世界结构与内容绑定检查，不篡改生成哈希。
+
+树干保持直立、正缩放与等 X/Y 缩放；地面保持矩形且轴对齐，坡道、高台仍须满足现有层高和净空规则。
+复制树/墙可以增加阻挡；复制出生/服务等布局点造成身份或数量冲突会明确拒绝，不能暗中改变产品规定数量。
+新增外观使用素材清单中已导入的模型；优先复制同类场景对象以保留区域与碰撞配置。
+地图中的任意静态阻挡都必须注册，不能放一个带默认碰撞的无标签对象绕过视野数据。
+运行时注册表重新核对保存布局与派生几何/索引；布局未同步时拒绝运行并提示 `SyncDemoMap.ps1`，不以旧视野或旧坐标继续。
+
+专项测试：`Lockdown.Rules.StaticScene.PersistenceAndBinding` 与 `StaticScene.CopyIdentityAndSafety`，
+以及 `Scripts/TestApplyDemoMapEdits.py` 的字节保持、坐标更新、旧摘要/重复 id/越界字段拒绝检查。
 
 ## 检查入口
 

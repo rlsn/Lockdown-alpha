@@ -1,6 +1,5 @@
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtPlacement.h"
-#include "Art/LDDecorationSet.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/Skeleton.h"
 #include "Character/LDCharacter.h"
@@ -192,7 +191,8 @@ bool FLDArtCatalogTest::RunTest(const FString& Parameters)
     FLDArtProp& Unplaced = Copy->Props.AddDefaulted_GetRef();
     Unplaced.Id = TEXT("unplaced_prop");
     Unplaced.Mesh = Source->Props[0].Mesh;
-    ArtExpectRejected(*this, *Copy, TEXT("A prop that is never placed is an error"), TEXT("unplaced_prop"));
+    FLDArtResolved Stocked; FString StockError;
+    TestTrue(TEXT("Licensed prop definitions may be stocked without current placements"), Copy->Resolve(Stocked, StockError));
     // #97: a blocker's look names its block, only that zone names one, a block is drawn once, and the crate exists.
     const int32 Drawn = ArtFindDecoration(*Source, ELDArtZone::Blocker), Other = ArtFindDecoration(*Source, ELDArtZone::Outside);
     if (TestTrue(TEXT("The catalog draws a world block and places an outside prop"), Drawn != INDEX_NONE && Other != INDEX_NONE))
@@ -404,59 +404,6 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         ArtExpectMisplaced(*this, *Copy, TEXT("Hiding a block that stands on the floor is rejected"), TEXT("reaches over the arena floor"));
     }
 
-    // Display only in a live world: nothing collides, overlaps, blocks a trace or reaches navigation.
-    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(true)
-        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
-    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
-    if (!TestNotNull(TEXT("Isolated decoration fixture world"), World)) { return false; }
-    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
-    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
-    auto* Set = World->SpawnActor<ALDDecorationSet>();
-    if (!TestNotNull(TEXT("Decoration set spawns"), Set) || !TestTrue(TEXT("Decoration set builds: ") + Error, Set->Build(Art, Error))) { return false; }
-    TestFalse(TEXT("A built set refuses a second build"), Set->Build(Art, Error));
-    TestEqual(TEXT("Every catalog placement is one instance"), Set->GetInstanceCount(), Catalog->Decorations.Num());
-    TestTrue(TEXT("Every part is display only"), Set->IsPresentationOnly());
-    for (const UInstancedStaticMeshComponent* Part : Set->GetParts())
-    {
-        const FLDArtProp* Prop = Catalog->Props.FindByPredicate([Part](const FLDArtProp& Candidate) { return Candidate.Mesh == Part->GetStaticMesh(); });
-        TestTrue(TEXT("Exactly the fadeable props carry the fade tag on their own component"), Prop && Part->ComponentHasTag(ULDArtCatalog::FadeableTag) == Prop->bFadeable);
-    }
-    // A blocking control body proves the traces are live while decorations stay invisible to them.
-    const FVector Probe(0, 0, 50);
-    auto* Control = World->SpawnActor<AStaticMeshActor>(Probe, FRotator::ZeroRotator);
-    auto* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-    if (Control && Cube)
-    {
-        Control->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
-        Control->GetStaticMeshComponent()->SetStaticMesh(Cube);
-        Control->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
-        Control->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
-    }
-    FHitResult ControlHit;
-    TestTrue(TEXT("The trace fixture hits a blocking control body"), Control && Cube
-        && World->LineTraceSingleByChannel(ControlHit, Probe + FVector(0, 0, 500), Probe - FVector(0, 0, 500), ECC_GameTraceChannel2) && ControlHit.GetActor() == Control);
-    int32 Traces = 0, Hits = 0;
-    for (const UInstancedStaticMeshComponent* Part : Set->GetParts())
-    {
-        for (int32 Index = 0; Index < Part->GetInstanceCount(); ++Index)
-        {
-            FTransform Placement;
-            Part->GetInstanceTransform(Index, Placement, true);
-            const FBox Box = Part->GetStaticMesh()->GetBoundingBox().TransformBy(Placement);
-            for (const ECollisionChannel Channel : { ECC_GameTraceChannel2, ECC_GameTraceChannel1, ECC_Pawn, ECC_Visibility, ECC_Camera, ECC_WorldStatic })
-            {
-                TArray<FHitResult> Found;
-                World->LineTraceMultiByChannel(Found, Box.GetCenter() + FVector(0, 0, Box.GetExtent().Z + 100), Box.GetCenter() - FVector(0, 0, Box.GetExtent().Z + 100), Channel);
-                ++Traces;
-                Hits += Found.FilterByPredicate([Set](const FHitResult& Hit) { return Hit.GetActor() == Set; }).Num();
-            }
-            TArray<FOverlapResult> Overlaps;
-            World->OverlapMultiByObjectType(Overlaps, Box.GetCenter(), FQuat::Identity, FCollisionObjectQueryParams(FCollisionObjectQueryParams::AllObjects),
-                FCollisionShape::MakeBox(Box.GetExtent()));
-            Hits += Overlaps.FilterByPredicate([Set](const FOverlapResult& Overlap) { return Overlap.GetActor() == Set; }).Num();
-        }
-    }
-    TestTrue(FString::Printf(TEXT("%d traces and overlaps through decorations find none of them"), Traces), Traces > 0 && Hits == 0);
     return true;
 }
 #endif

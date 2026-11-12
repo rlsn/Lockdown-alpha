@@ -2,6 +2,8 @@
 #include "LDEditorLog.h"
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtPlacement.h"
+#include "Art/LDStaticScene.h"
+#include "Engine/World.h"
 #include "Animation/AnimSequence.h"
 #include "AnimPose.h"
 #include "Animation/Skeleton.h"
@@ -119,24 +121,13 @@ namespace
         bool bFadeable = false;
     };
 
-    struct FArtDecorationSpec
-    {
-        FString Prop, Blocker;
-        ELDArtZone Zone = ELDArtZone::Count;
-        FVector Location = FVector::ZeroVector;
-        float Yaw = 0.f, Scale = 1.f;
-    };
-
     struct FArtManifest
     {
         TArray<FArtCharacterSpec> Characters;
         TArray<FString> Seats;
         TArray<TPair<uint8, FString>> Monsters;
         TArray<FArtPropSpec> Props;
-        TArray<FArtDecorationSpec> Decorations;
         TSet<FString> Files, Packs;
-        // #97 dressing: every tree blocker shows one of TreeProps; HiddenBlockers are drawn by Outside props; the crate.
-        TArray<FString> TreeProps, HiddenBlockers;
         FString AirdropProp;
     };
 
@@ -445,10 +436,11 @@ namespace
     bool ArtLoadProps(const TSharedPtr<FJsonObject>& Json, FArtManifest& Out, FString& Error)
     {
         const TArray<TSharedPtr<FJsonValue>>* Props = nullptr;
-        const TArray<TSharedPtr<FJsonValue>>* Decorations = nullptr;
-        if (!Json->TryGetArrayField(TEXT("props"), Props) || Props->IsEmpty() || !Json->TryGetArrayField(TEXT("decorations"), Decorations) || Decorations->IsEmpty())
+        if (Json->HasField(TEXT("decorations")))
+        { return ArtFail(Error, TEXT("Decoration coordinates belong to the saved Demo map; remove the retired decorations input.")); }
+        if (!Json->TryGetArrayField(TEXT("props"), Props) || Props->IsEmpty())
         {
-            return ArtFail(Error, TEXT("art_assets.json needs props and decorations."));
+            return ArtFail(Error, TEXT("art_assets.json needs props."));
         }
         for (const TSharedPtr<FJsonValue>& Value : *Props)
         {
@@ -467,59 +459,14 @@ namespace
             }
             Out.Props.Add(MoveTemp(Spec));
         }
-        for (int32 Index = 0; Index < Decorations->Num(); ++Index)
-        {
-            const TSharedPtr<FJsonObject>* Object = nullptr;
-            FArtDecorationSpec Spec;
-            FString Zone;
-            float X = 0.f, Y = 0.f;
-            if (!(*Decorations)[Index]->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("prop"), Spec.Prop)
-                || !Out.Props.ContainsByPredicate([&Spec](const FArtPropSpec& Prop) { return Prop.Id == Spec.Prop; })
-                || !(*Object)->TryGetStringField(TEXT("zone"), Zone) || !LDArt::ParseZoneId(Zone, Spec.Zone)
-                || !ArtNumberField(*Object, TEXT("x"), -20000., 20000., X) || !ArtNumberField(*Object, TEXT("y"), -20000., 20000., Y)
-                || !ArtNumberField(*Object, TEXT("yaw"), -360., 360., Spec.Yaw))
-            {
-                return ArtFail(Error, FString::Printf(TEXT("Decoration %d needs a declared prop, a zone, x, y and yaw."), Index));
-            }
-            if ((*Object)->HasField(TEXT("scale")) && !ArtNumberField(*Object, TEXT("scale"), .1, 10., Spec.Scale))
-            {
-                return ArtFail(Error, FString::Printf(TEXT("Decoration %d scale must be 0.1..10."), Index));
-            }
-            // #97: the floor height the prop stands on (a raised level), 0 on the ground.
-            float Z = 0.f;
-            if ((*Object)->HasField(TEXT("z")) && !ArtNumberField(*Object, TEXT("z"), 0., 1000., Z))
-            {
-                return ArtFail(Error, FString::Printf(TEXT("Decoration %d z must be 0..1000."), Index));
-            }
-            Spec.Location = FVector(X, Y, Z);
-            // #97: a blocker-zone prop names the world blocker it draws.
-            if ((*Object)->TryGetStringField(TEXT("blocker"), Spec.Blocker) != (Spec.Zone == ELDArtZone::Blocker) || (Spec.Zone == ELDArtZone::Blocker && Spec.Blocker.IsEmpty()))
-            {
-                return ArtFail(Error, FString::Printf(TEXT("Decoration %d must name a blocker exactly when its zone is blocker."), Index));
-            }
-            Out.Decorations.Add(MoveTemp(Spec));
-        }
         const TSharedPtr<FJsonObject>* Dressing = nullptr;
         const auto KnownProp = [&Out](const FString& Id) { return Out.Props.ContainsByPredicate([&Id](const FArtPropSpec& Prop) { return Prop.Id == Id; }); };
         if (!Json->TryGetObjectField(TEXT("dressing"), Dressing) || !(*Dressing)->TryGetStringField(TEXT("airdrop_prop"), Out.AirdropProp) || !KnownProp(Out.AirdropProp))
         {
             return ArtFail(Error, TEXT("art_assets.json dressing needs the airdrop_prop of a declared prop."));
         }
-        for (const TPair<const TCHAR*, TArray<FString>*> List : { TPair<const TCHAR*, TArray<FString>*>(TEXT("tree_props"), &Out.TreeProps),
-                                                                   TPair<const TCHAR*, TArray<FString>*>(TEXT("hidden_blockers"), &Out.HiddenBlockers) })
-        {
-            const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
-            if (!(*Dressing)->TryGetArrayField(List.Key, Items)) { return ArtFail(Error, FString::Printf(TEXT("art_assets.json dressing needs %s."), List.Key)); }
-            for (const TSharedPtr<FJsonValue>& Item : *Items)
-            {
-                FString Id;
-                if (!Item->TryGetString(Id) || Id.IsEmpty() || List.Value->Contains(Id) || (List.Value == &Out.TreeProps && !KnownProp(Id)))
-                {
-                    return ArtFail(Error, FString::Printf(TEXT("dressing %s entries must be unique, and tree props declared props."), List.Key));
-                }
-                List.Value->Add(Id);
-            }
-        }
+        if ((*Dressing)->HasField(TEXT("tree_props")) || (*Dressing)->HasField(TEXT("hidden_blockers")))
+        { return ArtFail(Error, TEXT("Tree looks and hidden boundaries belong to the saved Demo map, not procedural dressing input.")); }
         return true;
     }
 
@@ -1002,14 +949,6 @@ namespace
         return true;
     }
 
-    bool ArtDecorationTransform(const FArtDecorationSpec& Spec, const FArtPropSpec& Prop, const UStaticMesh& Mesh, FTransform& Out, FString& Error)
-    {
-        FVector Pivot;
-        if (!ArtFootprintPivot(Mesh, Pivot, Error)) { return false; }
-        Out = FTransform(-Pivot) * FTransform(FRotator(0., Spec.Yaw, 0.), Spec.Location, FVector(Prop.Scale * Spec.Scale));
-        return true;
-    }
-
     // The master of one slot: masked sources cut on their alpha; a fadeable prop must be wholly opaque.
     bool ArtSlotSurface(const FArtSourceMaterial& Source, bool bFadeable, const FString& Owner, const FString& Slot, EArtSurface& Out, FString& Error)
     {
@@ -1194,36 +1133,12 @@ namespace
 
 namespace
 {
-    // The decorations the catalog holds: the manifest's own, then one look per tree blocker (#97): a tree prop picked
-    // and turned by a hash of the tree id, standing on the tree centre and scaled to the tree's height.
-    bool ArtExpandDecorations(const FArtManifest& Manifest, const ULDArtCatalog& Catalog, const FLDDemoWorldGeometry& World,
-        TArray<FArtDecorationSpec>& Out, FString& Error)
+    bool ArtReadSavedScene(const ULDArtCatalog& Catalog, TArray<FLDArtDecoration>& Placements, TArray<FString>& Hidden, FString& Error)
     {
-        Out = Manifest.Decorations;
-        if (Manifest.TreeProps.IsEmpty()) { return true; }
-        for (const FLDDemoWorldBlocker& Blocker : World.Blockers)
-        {
-            if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder) { continue; }
-            const uint32 Hash = FCrc::StrCrc32(*Blocker.Id);
-            const FString& PropId = Manifest.TreeProps[int32(Hash % uint32(Manifest.TreeProps.Num()))];
-            const int32 Index = Manifest.Props.IndexOfByPredicate([&PropId](const FArtPropSpec& Prop) { return Prop.Id == PropId; });
-            FVector Centre;
-            if (Index == INDEX_NONE || !Catalog.Props.IsValidIndex(Index) || !Catalog.Props[Index].Mesh || !Blocker.CenterCm.ToVector(Centre, Error)
-                || Blocker.HeightCm.Denominator <= 0)
-            {
-                return Error.IsEmpty() ? ArtFail(Error, TEXT("Tree dressing cannot place a prop on ") + Blocker.Id) : false;
-            }
-            const double MeshHeight = Catalog.Props[Index].Mesh->GetBoundingBox().GetSize().Z * Manifest.Props[Index].Scale;
-            if (MeshHeight < 1.) { return ArtFail(Error, TEXT("Tree prop has no height: ") + PropId); }
-            FArtDecorationSpec& Spec = Out.AddDefaulted_GetRef();
-            Spec.Prop = PropId;
-            Spec.Blocker = Blocker.Id;
-            Spec.Zone = ELDArtZone::Blocker;
-            Spec.Location = Centre;
-            Spec.Yaw = float((Hash >> 8) % 360u);
-            Spec.Scale = float(double(Blocker.HeightCm.Numerator) / double(Blocker.HeightCm.Denominator) / MeshHeight);
-        }
-        return true;
+        UPackage* Package = LoadPackage(nullptr, LDDemoEntry::WorldMap, LOAD_None);
+        UWorld* Map = Package ? UWorld::FindWorldInPackage(Package) : nullptr;
+        if (!Map) { return ArtFail(Error, TEXT("The saved editable Demo map is missing.")); }
+        return LDStaticScene::Read(*Map, Catalog, Placements, Hidden, Error);
     }
 
     // The crate stands with its footprint centre on the drop point at its manifest scale.
@@ -1231,7 +1146,10 @@ namespace
     {
         const int32 Index = Manifest.Props.IndexOfByPredicate([&Manifest](const FArtPropSpec& Prop) { return Prop.Id == Manifest.AirdropProp; });
         if (Index == INDEX_NONE || !Catalog.Props.IsValidIndex(Index) || !Catalog.Props[Index].Mesh) { return ArtFail(Error, TEXT("The airdrop prop is not imported.")); }
-        return ArtDecorationTransform(FArtDecorationSpec(), Manifest.Props[Index], *Catalog.Props[Index].Mesh, Out, Error);
+        FVector Pivot;
+        if (!ArtFootprintPivot(*Catalog.Props[Index].Mesh, Pivot, Error)) { return false; }
+        Out = FTransform(-Pivot) * FTransform(FQuat::Identity, FVector::ZeroVector, FVector(Manifest.Props[Index].Scale));
+        return true;
     }
 
     bool ArtLoadMasters(bool bCreate, TMap<EArtSurface, UMaterial*>& Out, FString& Error)
@@ -1508,7 +1426,7 @@ bool LDDemoArtImport::Import(FString& Error)
     Catalog->Monsters.Reset();
     Catalog->Props.Reset();
     Catalog->Decorations.Reset();
-    Catalog->HiddenBlockers = Manifest.HiddenBlockers;
+    Catalog->HiddenBlockers.Reset();
     for (const FArtCharacterSpec& Spec : Manifest.Characters)
     {
         if (!(Spec.bAuthored ? ArtImportAuthored(Spec, *Catalog, Assets, Error) : ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error))) { return false; }
@@ -1529,19 +1447,7 @@ bool LDDemoArtImport::Import(FString& Error)
     {
         if (!ArtImportProp(Spec, Masters, *Catalog, Assets, Error)) { return false; }
     }
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
-    TSharedPtr<const FLDDemoWorldGeometry> World;
-    TArray<FArtDecorationSpec> Decorations;
-    if (!LDArt::LoadDemoWorld(Content, World, Error) || !ArtExpandDecorations(Manifest, *Catalog, *World, Decorations, Error)) { return false; }
-    for (const FArtDecorationSpec& Spec : Decorations)
-    {
-        const int32 Index = Manifest.Props.IndexOfByPredicate([&Spec](const FArtPropSpec& Prop) { return Prop.Id == Spec.Prop; });
-        FLDArtDecoration& Decoration = Catalog->Decorations.AddDefaulted_GetRef();
-        Decoration.Prop = Spec.Prop;
-        Decoration.Zone = Spec.Zone;
-        Decoration.Blocker = Spec.Blocker;
-        if (!ArtDecorationTransform(Spec, Manifest.Props[Index], *Catalog->Props[Index].Mesh, Decoration.Transform, Error)) { return false; }
-    }
+    if (!ArtReadSavedScene(*Catalog, Catalog->Decorations, Catalog->HiddenBlockers, Error)) { return false; }
     Catalog->AirdropProp = Manifest.AirdropProp;
     if (!ArtAirdropTransform(Manifest, *Catalog, Catalog->AirdropTransform, Error)) { return false; }
     FLDArtResolved Resolved;
@@ -1571,15 +1477,16 @@ bool LDDemoArtImport::Validate(FString& Error)
     if (!Catalog->Resolve(Resolved, Error)) { return ArtFail(Error, TEXT("Art catalog is invalid: ") + Error); }
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TSharedPtr<const FLDDemoWorldGeometry> World;
-    TArray<FArtDecorationSpec> Decorations;
+    TArray<FLDArtDecoration> Decorations;
+    TArray<FString> Hidden;
     if (Catalog->Props.Num() != Manifest.Props.Num())
     {
         return ArtFail(Error, TEXT("Art catalog props differ from art_assets.json; run ImportDemoArt.ps1 -Mode Import."));
     }
-    if (!LDArt::LoadDemoWorld(Content, World, Error) || !ArtExpandDecorations(Manifest, *Catalog, *World, Decorations, Error)) { return false; }
+    if (!ArtReadSavedScene(*Catalog, Decorations, Hidden, Error)) { return false; }
     FTransform Crate;
     if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->Decorations.Num() != Decorations.Num()
-        || Catalog->HiddenBlockers != Manifest.HiddenBlockers || Catalog->AirdropProp != Manifest.AirdropProp
+        || Catalog->HiddenBlockers != Hidden || Catalog->AirdropProp != Manifest.AirdropProp
         || !ArtAirdropTransform(Manifest, *Catalog, Crate, Error) || !Crate.Equals(Catalog->AirdropTransform, 1e-2))
     {
         return ArtFail(Error, TEXT("Art catalog entries differ from art_assets.json or the world's trees; run ImportDemoArt.ps1 -Mode Import."));
@@ -1651,16 +1558,11 @@ bool LDDemoArtImport::Validate(FString& Error)
     }
     for (int32 Index = 0; Index < Decorations.Num(); ++Index)
     {
-        const FArtDecorationSpec& Spec = Decorations[Index];
-        const FLDArtDecoration& Have = Catalog->Decorations[Index];
-        const int32 Prop = Manifest.Props.IndexOfByPredicate([&Spec](const FArtPropSpec& Candidate) { return Candidate.Id == Spec.Prop; });
-        FTransform Expected;
-        if (Have.Prop != Spec.Prop || Have.Zone != Spec.Zone || Have.Blocker != Spec.Blocker
-            || !ArtDecorationTransform(Spec, Manifest.Props[Prop], *Catalog->Props[Prop].Mesh, Expected, Error)
-            || !Expected.Equals(Have.Transform, 1e-2))
-        {
-            return ArtFail(Error, FString::Printf(TEXT("Decoration %d (%s) differs from art_assets.json."), Index, *Spec.Prop));
-        }
+        const auto& Expected = Decorations[Index];
+        const auto& Have = Catalog->Decorations[Index];
+        if (Have.Prop != Expected.Prop || Have.Zone != Expected.Zone || Have.Blocker != Expected.Blocker
+            || !Expected.Transform.Equals(Have.Transform, 1e-2))
+        { return ArtFail(Error, TEXT("Saved scene differs from its derived art index; run SyncDemoMap.ps1.")); }
     }
     if (!LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error)) { return ArtFail(Error, TEXT("Decoration placement: ") + Error); }
     Error.Reset();

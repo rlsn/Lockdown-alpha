@@ -32,8 +32,8 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 `OpenStandalone.ps1` 当前可打开前端；`-HostRoom` 只选择 `L_Demo`，
 不会绕过已批准数据与原生合同检查。旧 Profile/NavigationCheckpoint 参数已移除。
 `BootstrapAssets.ps1` 默认只做 Validate，先执行 Demo compiler `--check`；
-缺批准输入、世界载荷/contract 或原生世界资产时失败。Generate 创建缺失的唯一 Demo 目录/世界资产，
-Regenerate 显式更新现有生成资产；两者均不生成旧地图或旧目录。
+缺批准输入、世界载荷/contract 或原生世界资产时失败。Generate 创建缺失的 Demo 目录资产，正式世界必须恢复已保存的 LFS 地图；
+Regenerate 刷新保存关卡的派生碰撞、导航和目录，不重新摆放对象或重写材质；两者均不生成旧地图或旧目录。
 仅内容/显示元数据或根摘要变化时，可用 RefreshDefinitions 重新导入已有的
 `DA_DemoContent`、`DA_DemoWorld`，不重写地图或 mesh；它仍重新加载并验证已有世界，
 几何或导航不匹配会失败，不会偷偷改为生成。该模式要求三个 Demo 资产已经存在。
@@ -96,7 +96,7 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 | `Source\LockdownEditor` | 原生导入、地图/资产生成与保存 |
 | `SourceData` | 当前生成器消费的内容定义、schema、ID 映射与 CSV |
 | `Content\Lockdown\Data` | 已生成并校验的运行载荷 |
-| `Content\Lockdown\Generated` | 受生成器管理的原生资产 |
+| `Content\Lockdown\Generated` | 原生目录、派生碰撞网格与保存的正式关卡 |
 | `Content\Lockdown\Audio` | `ImportDemoAudio.ps1` 由 `SourceData\Audio` 清单导入的音效目录与声音资产 |
 | `Content\Lockdown\Art` | `ImportDemoArt.ps1` 由 `SourceData\Art` 清单导入的身体、动画、装饰道具与美术目录；`Art\UI` 是 `-Mode ImportUI` 由 `SourceData\UI\ui_images.json`（项目方提供的标题与房间背景图，不属于 CC0 美术包）与 `ui_icons.json`（`SourceData\UI\Icons` 的主动、五维属性、基础构件与状态图标，#85）导入的 UI 纹理 |
 | `Config` | 项目、平台与布局配置；本机设置放忽略的 `Config\Local` |
@@ -105,6 +105,10 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 | `Artifacts` | 本机运行输出，Git 忽略 |
 
 ## 数据修改
+
+正式地图的布局在 UE 关卡里编辑，保存并关闭编辑器后执行 `Scripts/SyncDemoMap.ps1`；不要手动维护第二份世界坐标。
+细节与约束见[标准关卡编辑与同步](systems/WORLD_AND_DATA_PIPELINE.md#标准关卡编辑与同步)。以下 SourceData 创作规则继续适用于玩法内容和数值。
+
 
 根据系统手册找到源文件及对应 Sync 入口，修改 SourceData，而不是直接改生成载荷或 contract 宏。
 schema、单位、稳定 ID、来源与原生处理器要一致。源文件可能按字节哈希，避免无关换行或排版修改。
@@ -144,7 +148,7 @@ python -B -m unittest discover -s .\Scripts -p "Test*Import.py"
 
 ## 当前工程运行与联机
 
-`OpenStandalone.ps1`、编辑器启动配置和包内默认入口都打开 `L_Frontend`。
+`OpenStandalone.ps1` 和包内默认入口打开 `L_Frontend`；编辑器默认打开正式工作关卡 `L_Demo`。
 Host 仅请求 `/Game/Lockdown/Generated/Maps/L_Demo?listen`；
 `LDDemoEntry` 在本地旅行前及原生 GameMode 内拒绝旧 profile、旧地图和缺失/不匹配的 Demo 载荷。
 Join 还携带独立 wire 版本、产品版本和根 manifest 摘要；连接中不表示准入已成功。

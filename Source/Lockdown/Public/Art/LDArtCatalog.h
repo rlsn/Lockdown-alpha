@@ -104,7 +104,7 @@ struct LOCKDOWN_API FLDArtDecoration
     UPROPERTY(VisibleAnywhere) ELDArtZone Zone = ELDArtZone::Count;
     // Blocker zone only: the world blocker this prop draws in place of its generated block; empty for every other zone.
     UPROPERTY(VisibleAnywhere) FString Blocker;
-    // Demo-map world transform (cm). Decorations never collide, block sight or affect navigation.
+    // Derived from the saved Demo scene (cm). The visual itself never collides or affects navigation.
     UPROPERTY(VisibleAnywhere) FTransform Transform;
 };
 
@@ -113,11 +113,6 @@ struct LOCKDOWN_API FLDArtResolved
 {
     const FLDArtCharacter* Seats[LDArt::SeatCount] = {};
     TMap<uint8, const FLDArtCharacter*> Monsters;
-    TArray<const FLDArtProp*> DecorationProps;
-    TArray<FTransform> DecorationTransforms;
-    // World blockers whose generated block is hidden because art draws them: every Blocker-zone decoration's blocker
-    // and the catalog's HiddenBlockers. Hiding is display only; the block keeps its collision and sight response.
-    TSet<FString> HiddenBlockers;
     // The airdrop crate and its transform relative to the drop point (footprint centre on the ground).
     const FLDArtProp* AirdropCrate = nullptr;
     FTransform AirdropTransform;
@@ -128,7 +123,7 @@ struct LOCKDOWN_API FLDArtResolved
 
 // Typed Demo art table imported from SourceData\Art\art_assets.json by Scripts\ImportDemoArt.ps1: the body of every
 // seat and camp tier (imported glTF packs, or authored bodies kept as finished assets in their body folder), their clips per
-// presentation state and worn parts, and the decoration props with their placements.
+// presentation state and worn parts. Decoration placements are a derived index of the saved Demo map.
 // The game resolves it once at startup; any missing entry is an explicit error, never a silent default.
 UCLASS()
 class LOCKDOWN_API ULDArtCatalog : public UDataAsset

@@ -5,7 +5,7 @@
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtPlacement.h"
 #include "Art/LDArtSubsystem.h"
-#include "Art/LDDecorationSet.h"
+#include "Art/LDStaticScene.h"
 #include "Animation/AnimSequence.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -184,37 +184,29 @@ namespace
 
         void CheckDecorations(UWorld& Target)
         {
-            const auto* Subsystem = Target.GetSubsystem<ULDArtWorldSubsystem>();
-            const ALDDecorationSet* Set = Subsystem ? Subsystem->GetDecorations() : nullptr;
-            const FLDArtResolved* Art = ULDArtSubsystem::Get(&Target);
-            const auto* Instance = Target.GetGameInstance();
-            const auto* ArtSubsystem = Instance ? Instance->GetSubsystem<ULDArtSubsystem>() : nullptr;
-            if (!Check(Set && Art && ArtSubsystem && ArtSubsystem->GetCatalog(), TEXT("The resolved catalog placed the decoration set in the Demo map"))) { return; }
-            Check(Set->GetInstanceCount() == ArtSubsystem->GetCatalog()->Decorations.Num(), FString::Printf(TEXT("All %d catalog decorations are placed"), ArtSubsystem->GetCatalog()->Decorations.Num()));
-            Check(Set->IsPresentationOnly(), TEXT("Every decoration part has no collision, no overlap and no navigation relevance"));
+            const auto Parts = LDStaticScene::Visuals(Target);
+            const auto* ArtSubsystem = Target.GetGameInstance()->GetSubsystem<ULDArtSubsystem>();
+            if (!Check(!Parts.IsEmpty() && ArtSubsystem && ArtSubsystem->GetCatalog(), TEXT("Saved static scene actors are present"))) { return; }
+            Check(Parts.Num() == ArtSubsystem->GetCatalog()->Decorations.Num(), TEXT("Saved scene matches its derived index"));
             FString Error;
             Check(LDArt::CheckPlacementsAgainstDemoWorld(*ArtSubsystem->GetCatalog(), Error), TEXT("Decorations respect the D02 placement zones ") + Error);
             const ECollisionChannel Channels[] = { ECC_GameTraceChannel2, ECC_GameTraceChannel1, ECC_Pawn, ECC_Visibility, ECC_Camera };
             auto* Navigation = FNavigationSystem::GetCurrent<UNavigationSystemV1>(&Target);
             int32 Traces = 0, TraceHits = 0, NavChecks = 0, NavMisses = 0;
-            for (const UInstancedStaticMeshComponent* Part : Set->GetParts())
+            for (const UStaticMeshComponent* Part : Parts)
             {
-                const FBox Local = Part->GetStaticMesh()->GetBoundingBox();
-                for (int32 Index = 0; Index < Part->GetInstanceCount(); ++Index)
+                Check(Part->GetCollisionEnabled() == ECollisionEnabled::NoCollision && !Part->GetGenerateOverlapEvents()
+                    && !Part->CanEverAffectNavigation(), TEXT("Saved visual adds no collision or navigation"));
+                const FBox Box = Part->GetStaticMesh()->GetBoundingBox().TransformBy(Part->GetComponentTransform());
+                const FVector Centre = Box.GetCenter(), Extent = Box.GetExtent() + FVector(100.);
+                for (const ECollisionChannel Channel : Channels)
                 {
-                    FTransform Placement;
-                    Part->GetInstanceTransform(Index, Placement, true);
-                    const FBox Box = Local.TransformBy(Placement);
-                    const FVector Centre = Box.GetCenter(), Extent = Box.GetExtent() + FVector(100.);
-                    for (const ECollisionChannel Channel : Channels)
+                    for (const FVector& Axis : {FVector(0, 0, Extent.Z), FVector(Extent.X, 0, 0), FVector(0, Extent.Y, 0)})
                     {
-                        for (const FVector& Axis : {FVector(0, 0, Extent.Z), FVector(Extent.X, 0, 0), FVector(0, Extent.Y, 0)})
-                        {
-                            TArray<FHitResult> Hits;
-                            Target.LineTraceMultiByChannel(Hits, Centre + Axis, Centre - Axis, Channel, FCollisionQueryParams(SCENE_QUERY_STAT(LDArtCapture), true));
-                            ++Traces;
-                            TraceHits += Hits.FilterByPredicate([Set](const FHitResult& Hit) { return Hit.GetActor() == Set; }).Num();
-                        }
+                        TArray<FHitResult> Hits;
+                        Target.LineTraceMultiByChannel(Hits, Centre + Axis, Centre - Axis, Channel, FCollisionQueryParams(SCENE_QUERY_STAT(LDArtCapture), true));
+                        ++Traces;
+                        TraceHits += Hits.FilterByPredicate([Part](const FHitResult& Hit) { return Hit.GetComponent() == Part; }).Num();
                     }
                 }
             }

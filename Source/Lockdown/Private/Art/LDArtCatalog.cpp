@@ -224,7 +224,7 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         Out.Monsters.Add(Look.CreatureId, Body);
     }
     TMap<FString, const FLDArtProp*> PropsById;
-    TSet<FString> Placed;
+    TSet<FString> Drawn;
     for (int32 Index = 0; Index < Props.Num(); ++Index)
     {
         const FLDArtProp& Prop = Props[Index];
@@ -249,28 +249,20 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         if (!Decoration.Blocker.IsEmpty())
         {
             bool bAlready = false;
-            Out.HiddenBlockers.Add(Decoration.Blocker, &bAlready);
+            Drawn.Add(Decoration.Blocker, &bAlready);
             if (bAlready) { return ArtFail(Error, TEXT("Two decorations draw the same world blocker: ") + Decoration.Blocker); }
         }
-        Placed.Add(Decoration.Prop);
-        Out.DecorationProps.Add(Prop);
-        Out.DecorationTransforms.Add(Decoration.Transform);
     }
     for (const FString& Blocker : HiddenBlockers)
     {
         bool bAlready = false;
-        Out.HiddenBlockers.Add(Blocker, &bAlready);
+        Drawn.Add(Blocker, &bAlready);
         if (Blocker.IsEmpty() || bAlready) { return ArtFail(Error, TEXT("A hidden blocker is empty or already drawn by a decoration: ") + Blocker); }
     }
     Out.AirdropCrate = PropsById.FindRef(AirdropProp);
     if (!Out.AirdropCrate || !ArtUsableTransform(AirdropTransform))
     { return ArtFail(Error, TEXT("The airdrop crate needs a catalog prop and a usable transform, found '") + AirdropProp + TEXT("'.")); }
     Out.AirdropTransform = AirdropTransform;
-    Placed.Add(AirdropProp);
-    for (const FLDArtProp& Prop : Props)
-    {
-        if (!Placed.Contains(Prop.Id)) { return ArtFail(Error, TEXT("Prop is never placed: ") + Prop.Id); }
-    }
     Error.Reset();
     return true;
 }

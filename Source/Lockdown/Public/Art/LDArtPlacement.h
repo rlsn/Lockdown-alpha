@@ -12,7 +12,7 @@ namespace LDArt
     // clear of every spawn, camp and the capture circle; Ground follows the WallBase rules anywhere on the floor;
     // Capture is a thin landmark covering its anchor;
     // a Blocker prop stands exactly on its block (#97: collision follows the art). Hidden blockers lie off the floor. Collision, sight and navigation are untouched by
-    // construction (ALDDecorationSet::IsPresentationOnly).
+    // construction (LDStaticScene validates the saved visual components).
     LOCKDOWN_API bool CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeometry& World,
         const FLDDemoContentSnapshot& Content, FString& Error);
     // Loads the approved content and the saved DA_DemoWorld projection.
