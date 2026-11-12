@@ -207,7 +207,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("SkillE"),TEXT("角色主动 E"),EKeys::E},
         {TEXT("Dash"),FString(LDTerms::Dash)+TEXT("（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
-        {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
+        {TEXT("Attributes"),TEXT("属性/加点切换"),EKeys::P},
         {TEXT("Scoreboard"),FString(TEXT("按住显示"))+LDTerms::Scoreboard,EKeys::Tab},
         {TEXT("Mark"),TEXT("标记此刻（写入试玩日志）"),EKeys::F9},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},

@@ -3,9 +3,10 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
-#include "UI/LDAttributesPanel.h"
+
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDComponentStorage.h"
+#include "UI/LDStatBar.h"
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWidgets.h"
@@ -44,7 +45,7 @@
 #include "Components/OverlaySlot.h"
 #include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
-#include "Components/ScrollBox.h"
+
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -100,6 +101,22 @@ const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDComb
     uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Displacement)};
 static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUNT(HudActionNames)==HudActionCount
     && UE_ARRAY_COUNT(HudActionControl)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
+// The server slot (0..2) of a Q/W/E combat entry, or -1.
+int32 HudServerSlot(ELDCombatEntry Entry)
+{
+    return Entry==ELDCombatEntry::Q?0:Entry==ELDCombatEntry::W?1:Entry==ELDCombatEntry::E?2:-1;
+}
+// The key each server slot is fired with, as its HUD slot shows it (the local slot order puts the slot under a skill key).
+LDHUD::FSlotKeys HudSlotKeys(const ALDPlayerController& PC)
+{
+    LDHUD::FSlotKeys Keys;
+    for(int32 Index=0;Index<3;++Index)
+    {
+        const int32 Slot=HudServerSlot(PC.SkillAtKey[Index]);
+        if(Slot>=0){Keys.Keys[Slot]=PC.BindingLabel(HudActionBindings[Index]);}
+    }
+    return Keys;
+}
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
 // centre block, the 3+1 action entries over the resources, sits on the screen centre directly under the character.
 // #97: the whole band draws at HudBandScale of these sizes (user: "shrink them to about 75%").
@@ -107,10 +124,13 @@ constexpr float HudBandScale=.75f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
 constexpr float HudDragStartPx=8.f;
 constexpr float HudSideWidth=300.f;
-// The own status grid under the 属性 button: LDHUD::SelfIconColumns squares fill the side column.
-constexpr float HudSelfIconSize=44.f;
-constexpr float HudSelfIconGap=5.f;
-static_assert(LDHUD::SelfIconColumns*HudSelfIconSize+(LDHUD::SelfIconColumns-1)*HudSelfIconGap<=HudSideWidth,"The status grid fits the side column.");
+// The own status strip in the gap between the minimap column and the band, against the band's left edge: HudStatusPerRow
+// squares a row.
+constexpr int32 HudStatusPerRow=6;
+constexpr float HudStatusSize=48.f;
+constexpr float HudStatusGap=4.f;
+constexpr float HudStatusWidth=HudStatusPerRow*HudStatusSize+(HudStatusPerRow-1)*HudStatusGap;
+constexpr float HudStatusFromBand=10.f;
 constexpr float HudBandPadX=14.f;
 constexpr float HudBlockGap=16.f;
 // Square slots: the icon fills the face inside a 3u state ring; the key and the cost ride on its corners.
@@ -121,6 +141,8 @@ constexpr float HudGroupGap=24.f;
 constexpr float HudCentreWidth=4*HudSlotWidth+2*HudSlotGap+HudGroupGap;
 constexpr double HudNoticeSeconds=2.;
 constexpr float HudDetailWidth=300.f;
+// The 构筑 button's distance from the screen's bottom-right corner.
+constexpr float HudCornerInset=16.f;
 constexpr double HudPulseSeconds=6.;
 const FLinearColor HudReadyEdge(FColor(0x7F,0xE0,0xD0));
 const FLinearColor HudManaText(FColor(0x8F,0xB0,0xFF));
@@ -338,7 +360,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             TopCentre->AddChildToVerticalBox(PhaseBanner)->SetHorizontalAlignment(HAlign_Center);
             auto* RestSlot=TopCentre->AddChildToVerticalBox(RestActionsPanel);RestSlot->SetHorizontalAlignment(HAlign_Center);RestSlot->SetPadding(FMargin(0,6,0,0));
             {
-                // PK actions and public sides stay off the arena centre, including at the largest text scale.
+                // PK actions and public sides stay off the arena centre. No scroll view: when every side, bet and award row
+                // shows at a large text scale the panel scales down to its height cap.
                 auto* PKBox=WidgetTree->ConstructWidget<UVerticalBox>();
                 auto Centred=[PKBox](UWidget* Child,float Top){auto* S=PKBox->AddChildToVerticalBox(Child);S->SetHorizontalAlignment(HAlign_Center);S->SetPadding(FMargin(0,Top,0,0));};
                 PKTitleText=OneLine(TEXT(""),17,0);PKTitleText->SetJustification(ETextJustify::Center);HudFace(PKTitleText,true,0);Centred(PKTitleText,0);
@@ -370,8 +393,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 for(UWidget* Hidden:{static_cast<UWidget*>(PKTitleText.Get()),static_cast<UWidget*>(PKCountdownText.Get()),static_cast<UWidget*>(PKRingText.Get()),
                     static_cast<UWidget*>(PKRoleText.Get()),static_cast<UWidget*>(PKResultLine.Get()),static_cast<UWidget*>(PKAwardsTitle.Get()),
                     static_cast<UWidget*>(PKAnswerText.Get())}){Hidden->SetVisibility(ESlateVisibility::Collapsed);}
-                PKScroll=WidgetTree->ConstructWidget<UScrollBox>();PKScroll->SetAlwaysShowScrollbar(true);PKScroll->AddChild(PKBox);
-                auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDPKSidePanel"));PKWidth->SetWidthOverride(360);PKWidth->SetMaxDesiredHeight(480);PKWidth->SetContent(PKScroll);
+                auto* PKFit=WidgetTree->ConstructWidget<UScaleBox>();PKFit->SetStretch(EStretch::ScaleToFit);PKFit->SetStretchDirection(EStretchDirection::DownOnly);
+                PKFit->SetContent(PKBox);
+                auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDPKSidePanel"));PKWidth->SetWidthOverride(360);PKWidth->SetMaxDesiredHeight(480);PKWidth->SetContent(PKFit);
                 PKPanelBorder=Panel(PKWidth,true);PKPanelBorder->SetVisibility(ESlateVisibility::Collapsed);
                 Place(PKPanelBorder,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,58));
             }
@@ -430,13 +454,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ScorePanel=Panel(ScoreBox,false);Place(ScorePanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-60));ScorePanel->SetVisibility(ESlateVisibility::Collapsed);
         }
 
-        // Bottom-left, left of the bottom band: the sight state (only when it is not the normal current view) over the
-        // minimap, which sits in the corner. #97: no standing camera-mode line.
+        // Bottom-left, left of the bottom band: the minimap in the corner with the match timer over it and nothing else; the
+        // map's own markers carry the public events (2026-11-12 user decision: no text lines above the minimap).
         auto* MapBox=WidgetTree->ConstructWidget<UVerticalBox>();
-        SightText=Text(TEXT(""),14);SightText->SetColorAndOpacity(LDHUDStyle::TextWarning);MapBox->AddChildToVerticalBox(SightText)->SetPadding(FMargin(0,0,0,4));
-        WorldSummaryText=LDWidgets::Text(WidgetTree,TEXT(""),14,TEXT("HUDPublicEvents"));
-        WorldSummaryText->SetAutoWrapText(false);WorldSummaryText->SetWrapTextAt(320);WorldSummaryText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-        MapBox->AddChildToVerticalBox(WorldSummaryText)->SetPadding(FMargin(0,0,0,4));
+        // A square frame: the minimap fits either the field or the rest room (ULDMinimap), each with one uniform scale.
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
         // The match timer sits centred over the map frame itself, so a wide sight line above never shifts it.
         auto* MapStack=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -475,15 +496,24 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* LevelBadge=WidgetTree->ConstructWidget<UBorder>();LevelBadge->SetBrush(HudRound(4.f,LDHUDStyle::TextAccent,1.f));LevelBadge->SetBrushColor(FLinearColor(.02f,.03f,.05f,.96f));
         LevelBadge->SetPadding(FMargin(5,0));LevelBadge->SetContent(LevelBadgeText);LevelBadge->SetVisibility(ESlateVisibility::HitTestInvisible);LevelBadge->SetRenderTranslation(FVector2D(6,6));
         auto* BadgeSlot=PortraitStack->AddChildToOverlay(LevelBadge);BadgeSlot->SetHorizontalAlignment(HAlign_Right);BadgeSlot->SetVerticalAlignment(VAlign_Bottom);
-        auto* PortraitSlot=SelfHead->AddChildToHorizontalBox(PortraitStack);PortraitSlot->SetPadding(FMargin(0,0,14,0));PortraitSlot->SetVerticalAlignment(VAlign_Top);
+        // Unspent points in a yellow circle on the opposite corner; the stat icons below spend them.
+        PointsBadgeText=OneLine(TEXT(""),13,0);HudFace(PointsBadgeText,true,0);PointsBadgeText->SetColorAndOpacity(HudPromptInk);
+        PointsBadgeText->SetJustification(ETextJustify::Center);
+        PointsBadge=WidgetTree->ConstructWidget<UBorder>();PointsBadge->SetBrush(HudRound(11.f,LDHUDStyle::Rim,1.f));PointsBadge->SetBrushColor(HudPromptFill);
+        PointsBadge->SetPadding(FMargin(6,1));PointsBadge->SetHorizontalAlignment(HAlign_Center);PointsBadge->SetContent(PointsBadgeText);
+        PointsBadge->SetVisibility(ESlateVisibility::Collapsed);PointsBadge->SetRenderTranslation(FVector2D(-6,6));
+
+        auto* PointsSlot=PortraitStack->AddChildToOverlay(PointsBadge);PointsSlot->SetHorizontalAlignment(HAlign_Left);PointsSlot->SetVerticalAlignment(VAlign_Bottom);
+        // Padded in from the block's clipped left edge so the points badge hanging off the portrait's corner stays whole.
+        auto* PortraitSlot=SelfHead->AddChildToHorizontalBox(PortraitStack);PortraitSlot->SetPadding(FMargin(10,0,14,0));PortraitSlot->SetVerticalAlignment(VAlign_Top);
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
         // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (UI 3.3).
         SelfName=OneLine(TEXT(""),17,0);HudFace(SelfName,true,0);SelfName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SelfName->SetVisibility(ESlateVisibility::Visible);NameBox->AddChildToVerticalBox(SelfName);
         auto* NameSlot=SelfHead->AddChildToHorizontalBox(NameBox);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        // The own attribute sheet opens from the identity block that shows the level; own panels open while dead as well
-        // (UI 3.2) and the root keeps one main panel at a time. The DEV test entry shows only in a DEV test room (#78).
+        // The 属性 entry turns the stat icons below into the attribute view and back (alive or dead, never a panel). The DEV
+        // test entry shows only in a DEV test room (#78).
         auto* PanelColumn=WidgetTree->ConstructWidget<UVerticalBox>();
-        auto* Sheet=LDWidgets::Button(WidgetTree,TEXT("属性"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes);}},true,TEXT("HUDAttributes"));
+        auto* Sheet=LDWidgets::Button(WidgetTree,TEXT("属性"),[this](){ToggleAttributeView();},true,TEXT("HUDAttributes"));
         auto* Dev=LDWidgets::Button(WidgetTree,TEXT("测试"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::DevTest);}},true,TEXT("HUDDevTest"));
         Dev->SetVisibility(ESlateVisibility::Collapsed);
         Commands.Add(TEXT("Attributes"),Sheet);Commands.Add(TEXT("DevTest"),Dev);
@@ -492,40 +522,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* ColumnSlot=SelfHead->AddChildToHorizontalBox(PanelColumn);ColumnSlot->SetVerticalAlignment(VAlign_Center);ColumnSlot->SetPadding(FMargin(8,0,0,0));
         // The life line only when it says more than "alive"; it wraps inside the fixed column.
         LifeText=Text(TEXT(""),14);SelfBox->AddChildToVerticalBox(LifeText)->SetPadding(FMargin(0,8,0,0));
-        // The own status grid: temporary statuses first (control before the rest), then passives, one icon square each
-        // (the name's first character while a texture is missing; hover names it in full). A full grid ends in "…": the
-        // attribute panel lists all.
-        {
-            SelfIconSyncing=Text(TEXT("状态同步中"),14);SelfIconSyncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-            SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);SelfBox->AddChildToVerticalBox(SelfIconSyncing)->SetPadding(FMargin(0,6,0,0));
-            for(int32 Row=0;Row<LDHUD::SelfIconRows;++Row)
-            {
-                auto* RowBox=WidgetTree->ConstructWidget<UHorizontalBox>();RowBox->SetVisibility(ESlateVisibility::Collapsed);
-                for(int32 Col=0;Col<LDHUD::SelfIconColumns;++Col)
-                {
-                    UTextBlock* Glyph=OneLine(TEXT(""),18,0);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
-                    UTextBlock* Stacks=OneLine(TEXT(""),11,0);HudFace(Stacks,true,1);
-                    UImage* Picture=WidgetTree->ConstructWidget<UImage>();Picture->SetVisibility(ESlateVisibility::Collapsed);
-                    auto* Face=WidgetTree->ConstructWidget<UOverlay>();
-                    auto* PictureSlot=Face->AddChildToOverlay(Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
-                    auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
-                    auto* StackSlot=Face->AddChildToOverlay(Stacks);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);
-                    auto* Cell=WidgetTree->ConstructWidget<UBorder>();Cell->SetBrush(HudRound(5.f,LDHUDStyle::Rim,1.f));
-                    Cell->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));Cell->SetPadding(FMargin(2));Cell->SetContent(Face);
-                    Cell->SetVisibility(ESlateVisibility::Collapsed);
-                    auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HudSelfIconSize);CellBox->SetHeightOverride(HudSelfIconSize);CellBox->SetContent(Cell);
-                    RowBox->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?HudSelfIconGap:0.f,0,0,0));
-                    SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconTones.Add(-1);SelfIconRing.Add(-1.f);
-                    SelfIconPictures.Add(Picture);SelfIconApplied.AddDefaulted();
-                }
-                SelfIconRowBoxes.Add(RowBox);SelfBox->AddChildToVerticalBox(RowBox)->SetPadding(FMargin(0,Row?HudSelfIconGap:6.f,0,0));
-            }
-            SelfIconMore=OneLine(TEXT("…"),16,0);HudFace(SelfIconMore,true,0);SelfIconMore->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-            SelfIconMore->SetToolTipText(FText::FromString(TEXT("更多状态与被动见属性面板")));SelfIconMore->SetVisibility(ESlateVisibility::Collapsed);
-            SelfBox->AddChildToVerticalBox(SelfIconMore)->SetPadding(FMargin(0,2,0,0));
-        }
+        // The own point-bought stats: one icon each, a "+" over the hovered one spends a point at once.
+        StatBar=CreateWidget<ULDStatBar>(PC);
+        if(StatBar){SelfBox->AddChildToVerticalBox(StatBar)->SetPadding(FMargin(0,4,0,0));}
+        else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_STAT_BAR_CREATION_FAILED"));}
         auto* SelfWidth=WidgetTree->ConstructWidget<USizeBox>();SelfWidth->SetWidthOverride(HudSideWidth);SelfWidth->SetClipping(EWidgetClipping::ClipToBounds);SelfWidth->SetContent(SelfBox);
-        SelfBlock=SelfWidth;
         Bottom->AddChildToHorizontalBox(SelfWidth)->SetVerticalAlignment(VAlign_Fill);
         {
             auto* Rule=WidgetTree->ConstructWidget<UBorder>();Rule->SetBrushColor(LDHUDStyle::PanelRim);Rule->SetVisibility(ESlateVisibility::HitTestInvisible);
@@ -631,6 +632,21 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ToastSlot=Canvas->AddChildToCanvas(ToastPanel);ToastSlot->SetAnchors(FAnchors(.5f,1));ToastSlot->SetAlignment(FVector2D(.5f,1));ToastSlot->SetAutoSize(true);
         ToastSlot->SetPosition(FVector2D(0,-12-8));
         {
+            // The own status strip sits left of the band, its bottom on the band's bottom, drawn at the band's scale; rows are
+            // built as needed and stack upward (EnsureStatusCells). Only the squares take the pointer.
+            StatusRows=WidgetTree->ConstructWidget<UVerticalBox>();StatusRows->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+            auto* StatusBox=WidgetTree->ConstructWidget<UVerticalBox>();StatusBox->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+            StatusBox->AddChildToVerticalBox(StatusRows);
+            SelfIconSyncing=Text(TEXT("状态同步中"),14);SelfIconSyncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);StatusBox->AddChildToVerticalBox(SelfIconSyncing)->SetHorizontalAlignment(HAlign_Center);
+            auto* StatusWidth=WidgetTree->ConstructWidget<USizeBox>();StatusWidth->SetWidthOverride(HudStatusWidth);StatusWidth->SetContent(StatusBox);
+            StatusWidth->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+            auto* StatusScale=WidgetTree->ConstructWidget<UScaleBox>();StatusScale->SetStretch(EStretch::UserSpecified);StatusScale->SetUserSpecifiedScale(HudBandScale);
+            StatusScale->SetVisibility(ESlateVisibility::Collapsed);StatusScale->SetContent(StatusWidth);StatusStrip=StatusScale;
+            StatusSlot=Canvas->AddChildToCanvas(StatusScale);StatusSlot->SetAnchors(FAnchors(.5f,1));StatusSlot->SetAlignment(FVector2D(1,1));StatusSlot->SetAutoSize(true);
+            StatusSlot->SetPosition(FVector2D(0,-12));
+        }
+        {
             // The hovered slot's description: the blind-box popup's look, wrapped at a fixed width, centred above
             // the slot (RefreshReadModel places it each frame) and taking no pointer input.
             auto* DetailBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -644,8 +660,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
         }
 
-        // The workspace toggle stays above the action band and pulses when new growth arrives.
-        auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
+        // Bottom-right corner: the 构筑 button, which toggles the card tray right above it. It says 构筑 and nothing else; it
+        // is lit while the tray has cards (and pulses when new ones arrive), greyed out and unclickable otherwise.
+        auto* Prompt=LDWidgets::Button(WidgetTree,LDTerms::Choice,[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
         PromptButton=Prompt;
         PromptText=CastChecked<UTextBlock>(Prompt->GetContent());HudFace(PromptText,true,0);PromptText->SetColorAndOpacity(HudPromptInk);
         // The corner style stays consistent with the action band.
@@ -654,9 +671,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PendingPrompt->SetRenderTransformPivot(FVector2D(.5f,.5f));
         PromptText->SetJustification(ETextJustify::Center);
         if(UButtonSlot* CaptionSlot=Cast<UButtonSlot>(PromptText->Slot)){CaptionSlot->SetPadding(FMargin(0));CaptionSlot->SetHorizontalAlignment(HAlign_Center);CaptionSlot->SetVerticalAlignment(VAlign_Center);}
-        // RefreshReadModel keeps the blind-box button at the left edge of the band, right above its left block.
         PromptFrame=Panel(PendingPrompt,true);PromptFrame->SetPadding(FMargin(4));
-        PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(.5f,1));PromptSlot->SetAlignment(FVector2D(0,1));PromptSlot->SetAutoSize(true);
+        PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(1,1));PromptSlot->SetAlignment(FVector2D(1,1));PromptSlot->SetAutoSize(true);
+        PromptSlot->SetPosition(FVector2D(-HudCornerInset,-HudCornerInset));
         {
             // The dragged slot's ghost follows the pointer; it takes no input.
             DragGhostGlyph=OneLine(TEXT(""),26,0);HudFace(DragGhostGlyph,true,2);DragGhostGlyph->SetJustification(ETextJustify::Center);
@@ -675,10 +692,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         }
 
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
-        AttributesPanel=CreateWidget<ULDAttributesPanel>(PC);ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);
+        ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);
         DevTestPanel=CreateWidget<ULDDevTestPanel>(PC);
-        const TPair<ELDUIMainPanel,ULDPanel*> Docked[]={{ELDUIMainPanel::Attributes,AttributesPanel.Get()},{ELDUIMainPanel::Choices,ChoicesPanel.Get()},
-            {ELDUIMainPanel::DevTest,DevTestPanel.Get()}};
+        const TPair<ELDUIMainPanel,ULDPanel*> Docked[]={{ELDUIMainPanel::Choices,ChoicesPanel.Get()},{ELDUIMainPanel::DevTest,DevTestPanel.Get()}};
         for(const TPair<ELDUIMainPanel,ULDPanel*>& Entry:Docked)
         {
             if(!Entry.Value){UE_LOG(LogLDUI,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
@@ -696,8 +712,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         if(ChoicesPanel)
         {
             ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
-            ChoicesPanel->ResetTraining=[this](){SubmitTrainingReset();};
-            ChoicesPanel->ReadyRest=[this](){SubmitRestReady();};
         }
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
@@ -712,6 +726,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Storage->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
             {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
             Storage->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
+        }
+        if(StatBar)
+        {
+            StatBar->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            StatBar->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
+            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
+            StatBar->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
         }
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
         PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
@@ -729,6 +750,35 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
     }
     return Super::RebuildWidget();
 }
+void ULDHUD::EnsureStatusCells(int32 Count)
+{
+    // The strip grows by whole rows; a new row goes on top, so the first statuses stay on the band and later ones stack up.
+    while(SelfIconCells.Num()<Count&&StatusRows)
+    {
+        const int32 Col=SelfIconCells.Num()%HudStatusPerRow;
+        if(Col==0)
+        {
+            auto* RowBox=WidgetTree->ConstructWidget<UHorizontalBox>();RowBox->SetVisibility(ESlateVisibility::Collapsed);
+            StatusRows->InsertChildAt(0,RowBox);
+            if(auto* RowSlot=Cast<UVerticalBoxSlot>(RowBox->Slot)){RowSlot->SetPadding(FMargin(0,HudStatusGap,0,0));RowSlot->SetHorizontalAlignment(HAlign_Left);}
+            SelfIconRowBoxes.Add(RowBox);
+        }
+        UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT(""),20);Glyph->SetAutoWrapText(false);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
+        UTextBlock* Stacks=LDWidgets::Text(WidgetTree,TEXT(""),13);Stacks->SetAutoWrapText(false);HudFace(Stacks,true,1);
+        UImage* Picture=WidgetTree->ConstructWidget<UImage>();Picture->SetVisibility(ESlateVisibility::Collapsed);
+        auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+        auto* PictureSlot=Face->AddChildToOverlay(Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
+        auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+        auto* StackSlot=Face->AddChildToOverlay(Stacks);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);
+        auto* Cell=WidgetTree->ConstructWidget<UBorder>();Cell->SetBrush(HudRound(5.f,LDHUDStyle::Rim,1.f));
+        Cell->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));Cell->SetPadding(FMargin(2));Cell->SetContent(Face);
+        Cell->SetVisibility(ESlateVisibility::Collapsed);
+        auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HudStatusSize);CellBox->SetHeightOverride(HudStatusSize);CellBox->SetContent(Cell);
+        SelfIconRowBoxes.Last()->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?HudStatusGap:0.f,0,0,0));
+        SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconTones.Add(-1);SelfIconRing.Add(-1.f);
+        SelfIconPictures.Add(Picture);SelfIconApplied.AddDefaulted();
+    }
+}
 bool ULDHUD::PointerOverUI() const
 {
     if(!IsVisible()||!FSlateApplication::IsInitialized()){return false;}return IsUIAt(FSlateApplication::Get().GetCursorPos());
@@ -745,6 +795,7 @@ TArray<FSlateRect> ULDHUD::WorldLabelReservedAreas(const FGeometry& PaintGeometr
         Areas.Add(FSlateRect(TopLeft.X,TopLeft.Y,BottomRight.X,BottomRight.Y));
     };
     Add(Band);
+    if(!SelfIconViews.IsEmpty()){Add(StatusStrip);}
     Add(PromptFrame);
     Add(TargetCard);
     Add(MapColumn);
@@ -761,15 +812,21 @@ bool ULDHUD::IsUIAt(FVector2D P) const
 {
     if(Minimap&&Minimap->IsDragging()){return true;}
     if(Storage&&Storage->IsHit(P)){return true;}
+    // The status squares above the band take the pointer for their popups; the strip's empty space does not.
+    if(StatusStrip&&StatusStrip->IsVisible())
+    {for(const UBorder* Cell:SelfIconCells){if(Cell&&Cell->IsVisible()&&Cell->GetCachedGeometry().IsUnderLocation(P)){return true;}}}
     for(const ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelHit(P)){return true;}}
     for(const auto& Panel:HitPanels){if(Panel&&Panel->IsVisible()&&Panel->GetCachedGeometry().IsUnderLocation(P)){return true;}}return false;
 }
 TArray<ULDPanel*,TInlineAllocator<4>> ULDHUD::MainPanels() const
 {
     TArray<ULDPanel*,TInlineAllocator<4>> Result;
-    for(ULDPanel* Panel:{static_cast<ULDPanel*>(AttributesPanel.Get()),static_cast<ULDPanel*>(ChoicesPanel.Get()),
-        static_cast<ULDPanel*>(DevTestPanel.Get())}){if(Panel){Result.Add(Panel);}}
+    for(ULDPanel* Panel:{static_cast<ULDPanel*>(ChoicesPanel.Get()),static_cast<ULDPanel*>(DevTestPanel.Get())}){if(Panel){Result.Add(Panel);}}
     return Result;
+}
+void ULDHUD::ToggleAttributeView()
+{
+    if(StatBar){StatBar->ToggleView();}
 }
 void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
 {
@@ -931,7 +988,7 @@ void ULDHUD::RefreshReadModel()
         for(ULDPanel* Open:MainPanels()){if(Open->IsPanelOpen()){Open->ClosePanel();}}
     }
     if(bOwnMatch&&PC->SlotOrderMatch!=O.Match){PC->ResetSlotOrder(O.Match);}
-    HudSetShown(Band,bShow,ESlateVisibility::Visible);HudSetShown(PromptFrame,bShow,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
+    HudSetShown(Band,bShow,ESlateVisibility::Visible);HudSetShown(StatusStrip,bShow,ESlateVisibility::SelfHitTestInvisible);HudSetShown(PromptFrame,bShow,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
     // The arena rings are world presentation: they follow the PK even while a menu covers the HUD.
@@ -955,30 +1012,19 @@ void ULDHUD::RefreshReadModel()
     }
     // The docked panels own separate widget trees and follow the same preference themselves.
     for(ULDPanel* Docked:MainPanels()){Docked->ApplyTextScale(TextScale);}
-    if(MapAspect<=0)
-    {
-        // The frame follows the registered ground aspect so the minimap never stretches world distances.
-        const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();const FLDDemoWorldGeometry* Geometry=Registry&&Registry->Enabled()?Registry->GetGeometry():nullptr;
-        FVector Min,Max;FString Error;
-        if(Geometry&&Geometry->Surfaces.Num()==1&&Geometry->Surfaces[0].MinCm.ToVector(Min,Error)&&Geometry->Surfaces[0].MaxCm.ToVector(Max,Error)&&Max.X>Min.X&&Max.Y>Min.Y)
-        {
-            MapAspect=float((Max.Y-Min.Y)/(Max.X-Min.X));const float Width=MapAspect>1?240.f/MapAspect:240.f;
-            MapFrame->SetWidthOverride(Width);MapFrame->SetHeightOverride(Width*MapAspect);
-        }
-    }
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
     const FString OwnerName=LDHUD::RosterName(Lobby,Public.GraffitiOwner);
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
         Content?Content->Parameters.CaptureSprayMs:0,Content?Content->Parameters.CaptureGuardMs:0);
-    const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen();
+    // The NPC service window replaces the rest's top lines; the 构筑 tray in the corner does not.
+    const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen()&&!ChoicesPanel->IsTrayOpen();
     const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
     const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
     LDWorldFeedback::FSample OwnSample;OwnSample.Match=O.Match;OwnSample.Life=O.Life;OwnSample.LifePhase=O.LifePhase;OwnSample.Self=O.ContenderId;OwnSample.OwnCombat=OwnCombat;
     TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(OwnSample,BodyEvents);
     const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
     {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
-    const bool bCombatActive=LDHUD::ChoicesCombatActive(Public,O,OwnCombat,bClock,NowMs,bOwnHit);
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
     HudSetText(PhaseText,Circle.Line);
     HudSetShown(PhaseText,!bChoicesRestOpen&&Public.Phase!=ELDMatchPhase::Development
@@ -988,8 +1034,6 @@ void ULDHUD::RefreshReadModel()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
     HudSetShown(DevMarkerText,Lobby.DevTestSession||Lobby.DevContentReload,ESlateVisibility::HitTestInvisible);
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
-    // #198: airdrop and Boss instants are field progress T; they are compared with the T derived from the public timeline.
-    const int64 FieldNowMs=LDMatchTimeline::FieldNowFromView(Public.Timeline,NowMs);
     {
         const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(Public,O.ContenderId,bClock,NowMs);
         HudSetText(TimelineText,Timeline.Headline);HudSetShown(TimelineText,!Timeline.Headline.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -1001,8 +1045,6 @@ void ULDHUD::RefreshReadModel()
         if(!bRestActions){bTrainingResetInFlight=false;bRestReadyInFlight=false;}
         HudSetShown(RestActionsPanel,bRestActions,ESlateVisibility::Visible);
         const FString ReadyLabel=O.bRestReady?TEXT("已准备"):bRestReadyInFlight?TEXT("提交中…"):TEXT("准备完毕");
-        if(ChoicesPanel){ChoicesPanel->PresentRestActions(false,!bTrainingResetInFlight,
-            O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight,ReadyLabel);}
         if(bRestActions)
         {
             if(TrainingResetButton->GetIsEnabled()==bTrainingResetInFlight){TrainingResetButton->SetIsEnabled(!bTrainingResetInFlight);}
@@ -1020,25 +1062,6 @@ void ULDHUD::RefreshReadModel()
         SyncSignupMarker(Public,O.Match,bRestActions&&Timeline.bSignupStep,Timeline.bSignupOpen,Timeline.bSignedUp);
     }
     RefreshPK(*PC,Public,Lobby,bClock,NowMs);
-    {
-        TArray<FString> Summary;
-        const auto Add=[&Summary](FString Line){if(!Line.IsEmpty()){Summary.Add(MoveTemp(Line));}};
-        Add(LDHUD::AirdropLine(Public.Airdrop,bClock,FieldNowMs));
-        FString Low,High,Elite,Dean;HudCampNames(Content,Low,High,Elite,Dean);
-        Add(LDHUD::BossLine(Public.Boss,Dean,bClock,FieldNowMs));
-        // Public event deadlines remain visible in combat; planning detail waits for a verified safe window.
-        const bool bDetails=!bFieldPhase||O.LifePhase==ELDLifePhase::Dead
-            ||(bClock&&OwnCombat&&OwnCombat->bHasBody&&!bCombatActive);
-        if(bDetails)
-        {
-            Add(LDHUD::CharmLine(Public.Charms));
-            Add(LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
-            Add(LDHUD::MarkerLine(Public.Markers,bClock,FieldNowMs));
-        }
-        if(!bChoicesRestOpen&&!bFieldPhase){Add(LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),OwnerName));}
-        HudSetText(WorldSummaryText,FString::Join(Summary,TEXT("\n")));
-        HudSetShown(WorldSummaryText,!Summary.IsEmpty(),ESlateVisibility::HitTestInvisible);
-    }
     RefreshEventFeed(*GS,O,Content,bClock,NowMs);
     RefreshScoreboard(*GS,O);
     HudSetText(ReturnCountdownText,LDHUD::RestReturnCountdown(Public,bClock,NowMs));
@@ -1099,6 +1122,7 @@ void ULDHUD::RefreshReadModel()
         // A missing projection still reads as syncing, never as "no status".
         const LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(OwnCombat,bClock,NowMs,Content);
         SelfIconViews=Icons.Items;
+        EnsureStatusCells(Icons.Items.Num());
         HudSetShown(SelfIconSyncing,Icons.bSyncing,ESlateVisibility::HitTestInvisible);
         TArray<FName> LiveRings;
         for(int32 Index=0;Index<SelfIconCells.Num();++Index)
@@ -1127,14 +1151,19 @@ void ULDHUD::RefreshReadModel()
         }
         SelfIconRings.Retain(LiveRings);
         for(int32 Row=0;Row<SelfIconRowBoxes.Num();++Row)
-        {HudSetShown(SelfIconRowBoxes[Row],Icons.Items.Num()>Row*LDHUD::SelfIconColumns,ESlateVisibility::SelfHitTestInvisible);}
-        HudSetShown(SelfIconMore,Icons.Overflow>0,ESlateVisibility::Visible);
+        {HudSetShown(SelfIconRowBoxes[Row],Icons.Items.Num()>Row*HudStatusPerRow,ESlateVisibility::SelfHitTestInvisible);}
+    }
+    {
+        // Unspent points ride on the portrait; the stat icons under the name spend them.
+        const int64 Unspent=Progression&&Progression->bValid&&Progression->Generation==O.Match?FMath::Max<int64>(0,Progression->UnspentPoints):0;
+        HudSetText(PointsBadgeText,FString::Printf(TEXT("%lld"),Unspent));
+        HudSetShown(PointsBadge,Unspent>0,ESlateVisibility::Visible);
     }
 
     // New world commands follow Combat's input half (menu/Settings, child confirmation or text edit, held keys);
     // Combat itself refuses and cancels any armed preview while input is captured.
     const bool bInputSuppressed=PC->IsWorldInputSuppressed();
-    if(AttributesPanel){AttributesPanel->Present(OwnCombat,Progression,bClock,NowMs,Content);}
+
     if(ChoicesPanel)
     {
         // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
@@ -1142,26 +1171,36 @@ void ULDHUD::RefreshReadModel()
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
-        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats);
-        ChoicesPanel->PresentAttributes(OwnCombat);
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
         ChoicesPanel->SetServiceContext(O.NearbyRestService);
+    }
+    if(StatBar)
+    {
+        const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
+        StatBar->Present(Progression,O.Match,O.Life,Stage,O.LifePhase,Content,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>(),
+            bOwnMatch&&Progression!=nullptr);
     }
     if(Storage)
     {
-        // #227: the storage lines up with last frame's band layout: the stack right of the band, 本体 over the identity block
-        // (above the 构筑 button), each server slot's column over the Q/W/E position the local slot order shows it at, D over D.
+        // #227: the storage lines up with last frame's band layout: the stack right of the band and one row of columns, 本体
+        // one slot step left of the first Q/W/E slot, each server slot's column over the Q/W/E position the local slot order
+        // shows it at, D over D.
         ULDComponentStorage::FAnchors Anchors;
         const auto RectOf=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
         Anchors.Band=RectOf(Band);
         Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
-        FSlateRect Body=RectOf(SelfBlock);
-        const FSlateRect Prompt=RectOf(PromptFrame);
-        if(Prompt.Bottom>Prompt.Top){Body.Top=FMath::Min(Body.Top,Prompt.Top);}
-        Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=Body;
+        if(ActionSlots.Num()>1)
+        {
+            const FSlateRect First=RectOf(ActionSlots[0].Box);const FSlateRect Second=RectOf(ActionSlots[1].Box);
+            if(First.Right>First.Left&&Second.Left>First.Left)
+            {
+                const float Step=Second.Left-First.Left;
+                Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=FSlateRect(First.Left-Step,First.Top,First.Right-Step,First.Bottom);
+            }
+        }
         for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
         {
-            const ELDCombatEntry Entry=PC->SkillAtKey[Index];
-            const int32 ServerSlot=Entry==ELDCombatEntry::Q?0:Entry==ELDCombatEntry::W?1:Entry==ELDCombatEntry::E?2:-1;
+            const int32 ServerSlot=HudServerSlot(PC->SkillAtKey[Index]);
             if(ServerSlot>=0){Anchors.Columns[int32(LDHUD::SlotColumn(uint8(ServerSlot)))]=RectOf(ActionSlots[Index].Box);}
         }
         if(ActionSlots.Num()>3){Anchors.Columns[int32(LDHUD::EStorageColumn::Dash)]=RectOf(ActionSlots[3].Box);}
@@ -1211,11 +1250,12 @@ void ULDHUD::RefreshReadModel()
     // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
-    const float PromptTop=BandTop+8.f+(PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f);
-    if(PromptSlot)
+    // The tray stands right above the 构筑 button in the corner.
+    if(ChoicesPanel&&PromptFrame){ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y))+8.f);}
+    if(StatusSlot)
     {
-        const FVector2D Place(FMath::RoundToFloat(BandLeft),-FMath::RoundToFloat(BandTop+8.f));
-        if(!PromptSlot->GetPosition().Equals(Place,.5f)){PromptSlot->SetPosition(Place);}
+        const FVector2D Place(FMath::RoundToFloat(BandLeft-HudStatusFromBand),-12.f);
+        if(!StatusSlot->GetPosition().Equals(Place,.5f)){StatusSlot->SetPosition(Place);}
     }
     if(DevTestPanel)
     {
@@ -1228,14 +1268,21 @@ void ULDHUD::RefreshReadModel()
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
     const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match,Content);
-    // Inspection remains available without pending growth; service mutations keep their own gates.
-    const bool bPromptLit=bOwnMatch&&Progression&&Progression->bValid;
-    if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
-    // New opportunities, points or component choices pulse the workspace entry briefly; owned components wait in the storage.
+    // Lit only while the tray has cards; with nothing to choose the button is greyed out and the tray folds away (a request
+    // still in flight keeps it until its answer).
+    const bool bPromptLit=bOwnMatch&&Pending.Any();
+    if(!bPromptLit&&ChoicesPanel&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()){ChoicesPanel->ClosePanel();}
+    // The entry names the view it switches to.
+    if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes")))
+    {
+        const TCHAR* Next=StatBar&&StatBar->ShowsAttributes()?TEXT("加点"):TEXT("属性");
+        HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),FString(Next)+TEXT(" [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));
+    }
+    // New opportunities or component choices pulse the workspace entry briefly; owned components wait in the storage and
+    // unspent points on the portrait badge.
     const int32 PendingComponents=(Pending.bOpeningBase?1:0)+Pending.ComponentChoices;
-    if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
-    PromptOffers=Pending.Offers;PromptPoints=Pending.Points;PromptComponents=PendingComponents;
-    HudSetText(PromptText,LDHUD::GrowthPrompt(Pending));
+    if(Pending.Offers>PromptOffers||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
+    PromptOffers=Pending.Offers;PromptComponents=PendingComponents;
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     if(PromptButton->GetIsEnabled()!=bPromptLit){PromptButton->SetIsEnabled(bPromptLit);}
     {
@@ -1338,7 +1385,7 @@ void ULDHUD::RefreshReadModel()
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
         if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
     }
-    // Without a slot under the pointer, a hovered status square (LDHUD::SelfIconDetail) uses the same popup.
+    // Without a slot under the pointer, a hovered status square (LDHUD::SelfIconDetail) or stat icon uses the same popup.
     const UWidget* DetailOver=DetailIndex!=INDEX_NONE?ActionSlots[DetailIndex].Box.Get():nullptr;
     if(!DetailOver)
     {
@@ -1348,7 +1395,12 @@ void ULDHUD::RefreshReadModel()
             {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],Content);break;}
         }
     }
-    if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None)
+    // A hovered stat icon: its name, points and per-point text, above its "+".
+    if(!DetailOver&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
+    // A card of the open 构筑 tray: its full rules (the card shows only the icon and the name).
+    const bool bTrayOpen=ChoicesPanel&&ChoicesPanel->IsTrayOpen();
+    if(!DetailOver&&bTrayOpen){DetailOver=ChoicesPanel->Hovered(Pointer,DetailView);}
+    if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None&&!(bTrayOpen&&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::Choices))
         ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;}
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {
@@ -1371,12 +1423,6 @@ void ULDHUD::RefreshReadModel()
 
     const ALDWorldViewRelay* Relay=PC->LocalView();
     const FLDObservedFrameRead Frame=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-    const bool bSightCurrent=Frame.Frame&&Frame.Status==ELDObservedViewStatus::Current;
-    // The map already shows a normal current view; only a syncing, stale or dead view needs words under it.
-    HudSetText(SightText,!bAlive?FString(LDTerms::Dead)+TEXT("：仅显示静态地图与公开信息")
-        :bSightCurrent?FString::Printf(TEXT("视野：当前可见 %d 个单位"),Frame.Frame->Units.Num())
-        :Frame.Status==ELDObservedViewStatus::Stale?FString(TEXT("视野：已过期，等待刷新")):FString(TEXT("视野：同步中")));
-    HudSetShown(SightText,!bAlive||!bSightCurrent,ESlateVisibility::HitTestInvisible);
 
     FLDObservedUnitView Subject;const bool bSelected=PC->ReadInspected(Subject);
     HudSetShown(TargetCard,bSelected,ESlateVisibility::Visible);
@@ -1411,7 +1457,7 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {
-        const FVector2D Above(0,-FMath::RoundToFloat(PromptTop+8.f));
+        const FVector2D Above(0,-FMath::RoundToFloat(BandTop+8.f));
         if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
     }
 }
@@ -1427,17 +1473,19 @@ void ULDHUD::ShowToast(const FString& Text)
     LastFeedbackBase=Text;LastFeedback=Text;FeedbackAt=Now;FeedbackRepeatCount=0;
     FeedbackDuration=Text==TEXT("对局开始。")?HudNoticeSeconds:5.;
 }
-// The panel and the storage each keep their own request; each answer reaches the one that sent it.
+// The panel, the storage and the stat bar each keep their own request; each answer reaches the one that sent it.
 void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 {
     if(Result.Family!=ELDGrowthFamily::Build){return;}
     if(ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
     if(Storage){Storage->HandleSubmit(Result);}
+    if(StatBar){StatBar->HandleSubmit(Result);}
 }
 void ULDHUD::HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result)
 {
     if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}
     if(Storage){Storage->HandleReceipt(Result);}
+    if(StatBar){StatBar->HandleReceipt(Result);}
 }
 bool ULDHUD::CancelStorage(){return Storage&&Storage->CancelInteraction();}
 void ULDHUD::SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp)
@@ -1550,7 +1598,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     if(PKStateMatch!=Public.Generation||PKStateSerial!=Public.PK.Serial)
     {
         PKStateMatch=Public.Generation;PKStateSerial=Public.PK.Serial;
-        PKAnswer.Reset();PKThrowReadyAtMs=0;bPKThrowArmed=false;bPKBetInFlight=false;bPKThrowInFlight=false;bPKAwardsRevealed=false;
+        PKAnswer.Reset();PKThrowReadyAtMs=0;bPKThrowArmed=false;bPKBetInFlight=false;bPKThrowInFlight=false;
     }
     const bool bOwnMatch=Public.Generation!=0&&Public.Generation==PC.OwnerState.Match;
     const LDHUD::FPKPanelView View=bOwnMatch?LDHUD::PKPanel(Public,Lobby,PKInput(PC,bClock,NowMs)):LDHUD::FPKPanelView();
@@ -1608,13 +1656,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
         Line(PKAwardTexts[Index],Row?Row->Name+TEXT("：")+Row->Points:FString());
         if(Row){HudSetColor(PKAwardTexts[Index],Row->bSelf?LDHUDStyle::TextAccent:LDHUDStyle::TextPrimary);}
     }
-    // The settlement is the panel's newest information: bring the award list to the top once, after it has been laid out,
-    // so every row fits the scroll area even with all sides listed at the largest text scale; the player may scroll back.
-    if(View.bResult&&!bPKAwardsRevealed&&PKScroll)
-    {
-        PKScroll->ScrollWidgetIntoView(PKResultLine,false,EDescendantScrollDestination::TopOrLeft);
-        bPKAwardsRevealed=PKResultLine->GetCachedGeometry().GetLocalSize().Y>0;
-    }
+
     Line(PKAnswerText,PKAnswer);
 }
 void ULDHUD::SubmitPKBet(int32 SideIndex)

@@ -582,75 +582,14 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     const LDHUD::FResultRowView Shown=LDHUD::ResultRow(Row,Row.ContenderId,FGuid());
     TestTrue(TEXT("A frozen row keeps the departed AI and its statistics"),Shown.Name==TEXT("机器人（AI）（已离开）")&&Shown.Kills==TEXT("3")&&Shown.Deaths==TEXT("1")&&Shown.Level==TEXT("7")&&Shown.bWinner);
     TestFalse(TEXT("Statistics never mark a winner on their own"),LDHUD::ResultRow(Row,FGuid(),FGuid()).bWinner);
-    // D26: the public airdrop line.
-    FLDAirdropView Drop;
-    TestTrue(TEXT("No drop shows no airdrop line"),LDHUD::AirdropLine(Drop,true,0).IsEmpty());
-    Drop.Serial=1;Drop.Phase=ELDAirdropPhase::Announced;Drop.PointId=TEXT("airdrop_s");Drop.LandAtMs=45000;
-    TestEqualSensitive(TEXT("An announced drop counts down to its landing"),LDHUD::AirdropLine(Drop,true,30001),
-        LDTerms::AirdropCountdown(TEXT("0:15")));
-    TestTrue(TEXT("The countdown names the 天降外卖"),LDHUD::AirdropLine(Drop,true,30001).StartsWith(LDTerms::Airdrop));
-    {
-        // #198: LandAtMs is a field progress T; the HUD compares it with the T derived from the public timeline.
-        FLDTimelineView Field;Field.Generation=4;Field.Stage=ELDMatchStage::Field;Field.FieldSegment=0;Field.FieldBaseMs=0;Field.FieldStartedAtMs=500000;Field.FieldEndT=180000;
-        TestEqualSensitive(TEXT("The landing counts down in field time, not authority time"),
-            LDHUD::AirdropLine(Drop,true,LDMatchTimeline::FieldNowFromView(Field,530001)),LDTerms::AirdropCountdown(TEXT("0:15")));
-        Field.Stage=ELDMatchStage::Rest;Field.FieldBaseMs=30001;
-        TestEqualSensitive(TEXT("A rest freezes the field time, so the landing countdown pauses"),
-            LDHUD::AirdropLine(Drop,true,LDMatchTimeline::FieldNowFromView(Field,900000)),LDTerms::AirdropCountdown(TEXT("0:15")));
-    }
-    TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,false,0),
-        LDTerms::AirdropSoon());
-    Drop.Phase=ELDAirdropPhase::Landed;Drop.ExpireAtMs=85000;
-    // #198 outer §5: a landed drop counts down to the instant it leaves unclaimed.
-    TestEqualSensitive(TEXT("A landed drop is first come, first served, and counts down to its expiry"),LDHUD::AirdropLine(Drop,true,46000),
-        LDTerms::AirdropLandedLeft(TEXT("0:39")));
-    TestEqualSensitive(TEXT("Without the authority clock the expiry is not guessed"),LDHUD::AirdropLine(Drop,false,46000),
-        FString(LDTerms::AirdropLanded));
-    Drop.Phase=ELDAirdropPhase::Claimed;
-    TestTrue(TEXT("A claimed drop is an event of the feed, not a standing line"),LDHUD::AirdropLine(Drop,true,48000).IsEmpty());
-    Drop.Phase=ELDAirdropPhase::Expired;
-    TestTrue(TEXT("An expired drop is an event of the feed, not a standing line"),LDHUD::AirdropLine(Drop,true,85000).IsEmpty());
     const FGuid Me=FGuid::NewGuid();
-    // D26: the Boss line counts down shortly before it appears; the last hit is named by the event feed.
+    // D26: the event feed names the Boss's last hit.
     FLDBossView Dean;
-    TestTrue(TEXT("No Boss shows no Boss line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,0).IsEmpty());
-    Dean.Phase=ELDBossPhase::Pending;Dean.AppearAtMs=61000;Dean.LeaveAtMs=540000;
-    TestTrue(TEXT("Long before it appears there is no countdown"),LDHUD::BossLine(Dean,LDTerms::Boss,true,30000).IsEmpty());
-    TestEqualSensitive(TEXT("Shortly before it appears the Boss counts down"),LDHUD::BossLine(Dean,LDTerms::Boss,true,51000),
-        LDTerms::BossCountdown(LDTerms::Boss,TEXT("0:10")));
-    TestTrue(TEXT("The countdown names the 画饼老板"),LDHUD::BossLine(Dean,FString(),true,51000).StartsWith(LDTerms::Boss));
-    TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::BossLine(Dean,LDTerms::Boss,false,51000).IsEmpty());
-    // #198 outer §5: while it patrols the Boss counts down to its departure.
-    Dean.Phase=ELDBossPhase::Alive;
-    TestEqualSensitive(TEXT("A patrolling Boss counts down to its departure"),LDHUD::BossLine(Dean,LDTerms::Boss,true,300000),
-        LDTerms::BossPatrolLeaving(LDTerms::Boss,TEXT("4:00")));
-    TestEqualSensitive(TEXT("Without the authority clock the departure is not guessed"),LDHUD::BossLine(Dean,LDTerms::Boss,false,300000),
-        LDTerms::BossPatrol(LDTerms::Boss));
-    Dean.Phase=ELDBossPhase::Left;
-    TestTrue(TEXT("A Boss that left has no standing line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,540000).IsEmpty());
     Dean.Phase=ELDBossPhase::Down;Dean.KilledBy=Me;Dean.DownAtMs=90000;
-    TestTrue(TEXT("A downed Boss leaves the standing line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,91000).IsEmpty());
     TestEqualSensitive(TEXT("The last hit is told of its build reward"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss),
         LDTerms::BossDownSelf(LDTerms::Boss));
     TestTrue(TEXT("No 吃到大饼 buff is promised any more"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss).Contains(LDTerms::BossReward)
         &&!LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss).Contains(TEXT("吃到大饼")));
-    // #198 outer §5: the open camp markers, High first, each counting down to its segment end.
-    {
-        TArray<FLDFieldMarkerView> Marks;
-        TestTrue(TEXT("No marker shows no marker line"),LDHUD::MarkerLine(Marks,true,20000).IsEmpty());
-        FLDFieldMarkerView& HighMark=Marks.AddDefaulted_GetRef();
-        HighMark.Segment=1;HighMark.Kind=ELDFieldMarkerKind::High;HighMark.CampId=TEXT("h03");HighMark.Phase=ELDFieldMarkerPhase::Revealed;
-        HighMark.RevealAtMs=15000;HighMark.EndAtMs=180000;
-        FLDFieldMarkerView& EliteMark=Marks.AddDefaulted_GetRef();
-        EliteMark=Marks[0];EliteMark.Kind=ELDFieldMarkerKind::Elite;EliteMark.CampId=TEXT("e03");
-        TestEqualSensitive(TEXT("Both open markers are named with their time left"),LDHUD::MarkerLine(Marks,true,60000),
-            LDTerms::CampMarkLeft(LDTerms::CampMarkHigh,TEXT("2:00"))+TEXT("\n")+LDTerms::CampMarkLeft(LDTerms::CampMarkElite,TEXT("2:00")));
-        Marks[0].Phase=ELDFieldMarkerPhase::Claimed;
-        TestEqualSensitive(TEXT("A taken marker leaves the line; without the clock no time is guessed"),LDHUD::MarkerLine(Marks,false,60000),
-            FString(LDTerms::CampMarkElite));
-        Marks[1].Phase=ELDFieldMarkerPhase::Expired;
-        TestTrue(TEXT("Taken and expired markers show no line"),LDHUD::MarkerLine(Marks,true,180000).IsEmpty());
-    }
     TestEqualSensitive(TEXT("Others see the public roster name"),LDHUD::BossDownLine(Dean,FGuid::NewGuid(),TEXT("甲"),LDTerms::Boss),
         LDTerms::BossDownBy(TEXT("甲"),LDTerms::Boss));
     // D27: the 上热搜 line names the leader (#144: no bounty); the leader is told directly.
@@ -801,6 +740,19 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     const LDHUD::FStatRowView SkinRow=LDHUD::StatRow(Skin,3,&Content);
     TestTrue(TEXT("A stat row shows its per-point text, its icon and the allocated points"),SkinRow.bKnown&&SkinRow.Points==3
         &&SkinRow.PerPoint==TEXT("每点护甲和魔抗各 +2.5。")&&SkinRow.IconId==TEXT("icon_hud_rules_fixture_skin")&&SkinRow.StatId==FName(*Skin.Id));
+    {
+        // The stat icon's popup: each raised attribute's current value and the gain of one point; a missing row reads "?".
+        FLDCombatAttributeRowView ArmorRow;ArmorRow.Attribute=uint8(ELDProjectedAttribute::Armor);ArmorRow.Final.Numerator=105;ArmorRow.Final.Denominator=2;
+        FLDDemoStatDefinition Strong;Strong.Id=TEXT("hud_rules_fixture_strong");
+        FLDDemoStatBonus Crit;Crit.Stat=ELDDemoBonusStat::CritChanceBonusRatio;Crit.Amount=40;
+        FLDDemoStatBonus Regen;Regen.Stat=ELDDemoBonusStat::HPRegenFlat;Regen.Cm.Numerator=2;Regen.Cm.Denominator=25;
+        Strong.PerPoint={Armor,Crit,Regen};
+        const TArray<LDHUD::FStatEffectView> Effects=LDHUD::StatEffects(Strong,{ArmorRow});
+        TestTrue(TEXT("A stat's popup lists each raised attribute with its current value and per-point gain"),Effects.Num()==3
+            &&Effects[0].Attribute==LDTerms::Armor&&Effects[0].Current==TEXT("52.5")&&Effects[0].PerPoint==TEXT("+2.5")
+            &&Effects[1].Attribute==LDTerms::CritChance()&&Effects[1].Current==TEXT("?")&&Effects[1].PerPoint==TEXT("+0.4%")
+            &&Effects[2].Attribute==LDTerms::HealthRegen()&&Effects[2].PerPoint==TEXT("+0.08/s"));
+    }
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Numerator=1;Crit.Choices.Denominator=50;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);
@@ -900,7 +852,7 @@ bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A Latin name's icon is its upper-cased first letter"),LDHUD::IconGlyph(TEXT(" bolt")),FString(TEXT("B")));
     TestEqualSensitive(TEXT("A Chinese name's icon is its first character"),LDHUD::IconGlyph(TEXT("眩晕")),FString(TEXT("眩")));
     TestEqualSensitive(TEXT("An empty name is never a blank square"),LDHUD::IconGlyph(TEXT("  ")),FString(TEXT("?")));
-    // More temporary statuses and recoveries than the 6 x 2 grid: the first SelfIconMax show, the rest are counted for "…".
+    // More temporary statuses and recoveries than one strip row: every one shows, control statuses first.
     if(!HudRegisterFixtureTable(*this)){return false;}
     ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
     const FLDDemoContentDefinitions Content=HudFixtureContent();
@@ -908,13 +860,12 @@ bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
     FLDCombatStatusView Root;Root.StatusId=uint8(ELDDemoStatusId::Root);Root.ExpiresAtMs=5000;Root.ControlBlocks=uint8(ELDCombatControlBlock::Move);
     FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.ExpiresAtMs=4000;Shield.AmountP2=5000;
     Combat.Statuses={Shield,Root};
-    while(Combat.Statuses.Num()<LDHUD::SelfIconMax+2){Combat.Statuses.Add(Shield);}
+    while(Combat.Statuses.Num()<14){Combat.Statuses.Add(Shield);}
     Combat.bOutOfCombatRegenActive=true;
     const LDHUD::FSelfIconsView Full=LDHUD::SelfIcons(&Combat,true,0,&Content);
-    TestTrue(TEXT("A full grid keeps 12 squares and counts the rest"),LDHUD::SelfIconMax==12&&Full.Items.Num()==LDHUD::SelfIconMax&&Full.Overflow==3);
-    TestTrue(TEXT("A full grid shows control statuses first"),Full.Items[0].Kind==LDHUD::ESelfIconKind::Control);
-    Combat.Statuses.SetNum(LDHUD::SelfIconMax-1);
-    TestEqual(TEXT("Exactly 12 items need no \"…\""),LDHUD::SelfIcons(&Combat,true,0,&Content).Overflow,0);
+    TestEqual(TEXT("The strip has no cap: 14 statuses and a recovery all show"),Full.Items.Num(),15);
+    TestTrue(TEXT("Control statuses come first, the recovery last"),Full.Items[0].Kind==LDHUD::ESelfIconKind::Control
+        &&Full.Items.Last().Source==LDHUD::ESelfIconSource::OutOfCombatRegen);
     TestTrue(TEXT("Without the own projection the grid is syncing"),LDHUD::SelfIcons(nullptr,true,0,&Content).bSyncing);
     // The hover popup names the square and its kind; the description comes from the content catalog.
     const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],nullptr);
@@ -986,7 +937,7 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The dorm popup states the DORM delay and share"),Dorm.Body.StartsWith(FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 3s 后，每秒恢复 10% 生命上限和法力上限")));
     Combat.bOutOfCombatRegenActive=false;Combat.bDormRegenActive=false;
     Icons=LDHUD::SelfIcons(&Combat,true,10000,&Content);
-    TestTrue(TEXT("A known projection without statuses or recoveries shows an empty grid"),Icons.Items.IsEmpty()&&!Icons.bSyncing&&Icons.Overflow==0);
+    TestTrue(TEXT("A known projection without statuses or recoveries shows an empty strip"),Icons.Items.IsEmpty()&&!Icons.bSyncing);
     FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;
     Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::Cooldown;Receipt.bProtectionRemoved=true;
     TestEqualSensitive(TEXT("A failed own request and the lost protection are separate facts"),LDHUD::CombatReceiptNotice(Receipt),TEXT("角色技能 2 未执行：冷却中 · ")+LDTerms::ProtectionRemoved());
@@ -1266,51 +1217,6 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Marker changes are told once"),Feed.Lines().Num(),Shown);
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDNextStepTest,"Lockdown.Rules.HUDNextStep",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
-{
-    const FGuid Self=FGuid::NewGuid();
-    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;
-    FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=4;Growth.Level=1;
-    auto Step=[&](){return LDHUD::NextStep(Public,Self,&Growth);};
-    TestEqualSensitive(TEXT("A fresh contender is pointed at the camps"),Step(),FString::Printf(TEXT("下一步：去打附近的野怪涨%s（右键攻击）"),LDTerms::Experience));
-    Growth.Level=3;
-    TestTrue(TEXT("A grown contender needs no hint"),Step().IsEmpty());
-    Growth.bHasActiveOffer=true;Growth.QueuedActiveOpportunities=2;Growth.UnspentPoints=3;
-    TestEqualSensitive(TEXT("A current active offer comes first, with the opportunities still queued"),Step(),
-        FString::Printf(TEXT("下一步：点%s选一个技能（还有 2 次选技能）"),LDTerms::Choice));
-    Growth.bHasActiveOffer=false;Growth.QueuedActiveOpportunities=0;
-    TestEqualSensitive(TEXT("Unspent points come next"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
-    Growth.UnspentPoints=0;Growth.PendingBlueprints={FName(TEXT("active_elbow"))};
-    TestEqualSensitive(TEXT("A blueprint with an empty Q/W/E slot asks to learn it"),Step(),FString::Printf(TEXT("下一步：点%s把%s学到空槽"),LDTerms::Choice,LDTerms::Blueprint));
-    for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=Growth.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
-    TestTrue(TEXT("A blueprint waiting for a full Q/W/E (replacement is rest-only) gives no hint"),Step().IsEmpty());
-    // #198: in a rest's build or payout step only growth is hinted; its locked steps refuse every build, so nothing is.
-    Public.Phase=ELDMatchPhase::Rest;Public.Timeline.Generation=4;Public.Timeline.Stage=ELDMatchStage::Rest;Public.Timeline.Step=ELDRestStep::Build;
-    Growth.UnspentPoints=3;
-    TestEqualSensitive(TEXT("Points can be allocated in a rest's build step"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
-    Public.Timeline.Step=ELDRestStep::Payout;
-    TestEqualSensitive(TEXT("The payout reopens the build"),Step(),FString::Printf(TEXT("下一步：点%s加点（未分配点数 3）"),LDTerms::Choice));
-    Public.Timeline.Step=ELDRestStep::Return;
-    TestTrue(TEXT("A locked rest step hints nothing, even with points"),Step().IsEmpty());
-    Public.Timeline.Step=ELDRestStep::Build;Growth.UnspentPoints=0;
-    TestTrue(TEXT("In a rest nothing but growth is hinted"),Step().IsEmpty());
-    Public.Timeline=FLDTimelineView();
-    Public.Phase=ELDMatchPhase::CaptureOpen;
-    TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo);
-    Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;
-    TestEqualSensitive(TEXT("The own spray is encouraged instead"),Step(),FString(TEXT("稳住：你"))+LDTerms::Holding);
-    Public.CircleState=ELDCircleState::Guarded;Public.Occupier.Invalidate();Public.GraffitiOwner=Self;
-    TestEqualSensitive(TEXT("The own graffiti asks to survive the guard"),Step(),FString(LDTerms::GuardOwn));
-    Public.GraffitiOwner=FGuid::NewGuid();
-    TestEqualSensitive(TEXT("A rival graffiti asks to besiege its owner or repaint"),LDHUD::NextStep(Public,Self,&Growth,TEXT("玩家乙")),LDTerms::Besiege(TEXT("玩家乙")));
-    Public.GraffitiOwner.Invalidate();
-    Public.Phase=ELDMatchPhase::Results;
-    TestTrue(TEXT("Outside a running match there is no hint"),Step().IsEmpty());
-    Public.Phase=ELDMatchPhase::Development;Growth.Generation=3;Growth.Level=1;
-    TestTrue(TEXT("Projections of another match never give a hint"),Step().IsEmpty());
-    return true;
-}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDChoicesFoldTest,"Lockdown.Rules.HUDChoicesFold",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
 {
@@ -1340,32 +1246,6 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         LDHUD::FChoicesFold Fold;Fold.Opened(false,0.);
         TestFalse(TEXT("A panel the player opened never times out and never folds on a hit"),Fold.IsAutomatic()||Fold.ShouldFold(600.,false,false)
             ||Fold.ShouldFold(601.,false,true));
-    }
-    {
-        FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;
-        FLDOwnerState Own;Own.Match=4;Own.Life=2;Own.LifePhase=ELDLifePhase::Alive;Own.ContenderId=FGuid::NewGuid();
-        FLDCombatOwnerView Combat;Combat.Generation=4;Combat.Life=2;Combat.bHasBody=true;Combat.BuildSafeAtMs=3000;
-        TestFalse(TEXT("Safe field planning is not combat merely because development runs"),
-            LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,3000,false));
-        TestTrue(TEXT("The current own authority build window folds field planning"),
-            LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,2999,false));
-        TestFalse(TEXT("An unsynchronized authority clock does not invent a combat deadline"),
-            LDHUD::ChoicesCombatActive(Public,Own,&Combat,false,0,false));
-        Combat.Life=1;
-        TestFalse(TEXT("A stale life cannot fold the current life"),LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,0,false));
-        TestTrue(TEXT("An actual own hit folds even before a new window arrives"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,true));
-        Public.Phase=ELDMatchPhase::Rest;Public.Timeline.Step=ELDRestStep::PK;
-        Public.PK.Entrants.AddDefaulted_GetRef().Contender=Own.ContenderId;
-        Public.PK.Entrants[0].bAlive=true;
-        TestTrue(TEXT("A living PK entrant folds even with staged planning"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
-        Public.PK.Entrants[0].bAlive=false;
-        ++Own.Life;
-        TestFalse(TEXT("An eliminated entrant with a new alive rest-room body can inspect its read-only workspace"),
-            LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
-        Own.ContenderId=FGuid::NewGuid();
-        TestFalse(TEXT("A PK spectator is not an arena combatant"),LDHUD::ChoicesCombatActive(Public,Own,nullptr,false,0,false));
-        Public.Timeline.Step=ELDRestStep::Payout;
-        TestFalse(TEXT("Payout is an open planning and service window"),LDHUD::ChoicesCombatActive(Public,Own,&Combat,true,0,false));
     }
     {
         // The HUD reads hits from the same own-body changes the world feedback floats: lost health or an absorbed shield.
@@ -1430,6 +1310,13 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     FLDBuildReceipt Receipt;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Kind=ELDBuildCommandKind::ActiveChoice;
     Receipt.DefinitionId=TEXT("hud_rules_fixture_bolt");Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=2;
     TestEqualSensitive(TEXT("A learned choice names its slot"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已学到 E：hud_rules_fixture_bolt")));
+    {
+        // The slot reads as the key the HUD shows for it (rebound keys, dragged slot order), never the server's letter.
+        LDHUD::FSlotKeys Shown;Shown.Keys[0]=TEXT("E");Shown.Keys[1]=TEXT("Z");Shown.Keys[2]=TEXT("W");
+        TestEqualSensitive(TEXT("A learned choice names the slot's shown key"),LDHUD::BuildReceiptText(Receipt,nullptr,Shown),FString(TEXT("已学到 W：hud_rules_fixture_bolt")));
+        TestEqualSensitive(TEXT("Each server slot reads its shown key"),Shown.Of(0)+Shown.Of(1)+Shown.Of(2),FString(TEXT("EZW")));
+        TestEqualSensitive(TEXT("An unset key reads as the server slot"),LDHUD::FSlotKeys().Of(1),FString(TEXT("W")));
+    }
     Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;Receipt.StoredReason=uint16(ELDGrowthReason::NoEmptySlot);
     TestEqualSensitive(TEXT("A full Q/W/E stores the choice"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已存为图纸：hud_rules_fixture_bolt（Q/W/E 已满）")));
     Receipt.ChoiceResult=ELDBuildChoiceResult::None;
@@ -1468,18 +1355,23 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         }
     }
 
-    // The 开盲盒 button: queued opportunities, unspent points and learnable blueprints of the current match's own view.
+    // The 构筑 button is lit by what the tray has cards for: the shown offer and learnable blueprints of the current match's
+    // own view; unspent points wait on the HUD's stat icons instead.
     FLDProgressionView View;View.bValid=true;View.Generation=5;View.QueuedActiveOpportunities=2;View.UnspentPoints=3;
     LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&View,5,nullptr);
-    TestTrue(TEXT("Offers and points light the button with their counts"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT("+2 · 3点"));
-    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&View,4,nullptr).Any()||LDHUD::GrowthPending(nullptr,5,nullptr).Any());
-    View.QueuedActiveOpportunities=0;View.UnspentPoints=0;View.PendingBlueprints={FName(TEXT("active_elbow"))};
+    TestTrue(TEXT("Queued opportunities without a shown offer have no card to light the button"),!Pending.Any()&&Pending.Offers==2);
+    View.bHasActiveOffer=true;View.ActiveOffer.Options={FName(TEXT("active_elbow")),FName(TEXT("active_bolt"))};
     Pending=LDHUD::GrowthPending(&View,5,nullptr);
-    TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Prompt()==FString(LDTerms::Choice)+TEXT(" · 图纸 1"));
+    TestTrue(TEXT("A shown offer lights the button and keeps the queue count for the pulse"),Pending.Any()&&Pending.bOffer&&Pending.Offers==2);
+    View.bHasActiveOffer=false;View.ActiveOffer.Options.Reset();View.QueuedActiveOpportunities=0;
+    TestFalse(TEXT("Unspent points alone do not light the button"),LDHUD::GrowthPending(&View,5,nullptr).Any());
+    View.bHasActiveOffer=true;View.ActiveOffer.Options={FName(TEXT("active_elbow"))};
+    TestFalse(TEXT("Another match's view lights nothing"),LDHUD::GrowthPending(&View,4,nullptr).Any()||LDHUD::GrowthPending(nullptr,5,nullptr).Any());
+    View.bHasActiveOffer=false;View.ActiveOffer.Options.Reset();View.UnspentPoints=0;View.PendingBlueprints={FName(TEXT("active_elbow"))};
+    Pending=LDHUD::GrowthPending(&View,5,nullptr);
+    TestTrue(TEXT("A blueprint with an empty slot lights it alone"),Pending.Any()&&Pending.Blueprints==1);
     for(uint8 Key=0;Key<3;++Key){FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Key;Held.DefinitionId=FName(*FString::Printf(TEXT("held_%d"),Key));}
     TestFalse(TEXT("A blueprint waiting for the rest-only replacement does not light it"),LDHUD::GrowthPending(&View,5,nullptr).Any());
-    TestEqualSensitive(TEXT("#198: the workspace remains named consistently without pending growth"),LDHUD::GrowthPrompt(LDHUD::GrowthPending(&View,5,nullptr)),
-        FString(LDTerms::Choice));
     TestTrue(TEXT("The slot reads come from the view"),LDHUD::ActiveInSlot(View,1)==FName(TEXT("held_1"))&&LDHUD::SlotKey(1)==TEXT("W"));
     FLDStatPointsView& Physique=View.StatPoints.AddDefaulted_GetRef();Physique.StatId=TEXT("stat_physique");Physique.Points=4;
     TestTrue(TEXT("Stat points come from the view, 0 for an unlisted stat"),LDHUD::StatPointsOf(View,TEXT("stat_physique"))==4&&LDHUD::StatPointsOf(View,TEXT("stat_brains"))==0);
@@ -1562,7 +1454,8 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Stored components in order; one was installed before, one never"),
             Storage.Stored==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_mod"))})&&Storage.Fresh==1);
         TestTrue(TEXT("Five columns: 本体, Q, W, E and D, each slot with its learned active"),Storage.Columns.Num()==LDHUD::StorageColumnCount
-            &&Storage.Columns[0].Title==LDTerms::ColumnBody&&Storage.Columns[4].Title==LDTerms::TargetDash
+            &&Storage.Columns[0].Title==LDTerms::ColumnBody&&Storage.Columns[4].Title==LDTerms::Dash
+            &&Storage.Columns[2].Title.IsEmpty()&&Storage.Columns[3].Title==LDTerms::ColumnEmptySlot
             &&Storage.Columns[1].Active==FName(TEXT("hud_fixture_other"))&&Storage.Columns[2].Active==FName(TEXT("hud_fixture_bolt"))
             &&Storage.Columns[3].Active.IsNone());
         TestTrue(TEXT("The base sits on 本体 and B18 on W with its element"),Storage.Columns[0].Entries.Num()==1
@@ -1610,8 +1503,7 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     Pending.bOpeningBasePending=true;Pending.OpeningBaseOptions={FName(TEXT("hud_fixture_fist"))};
     Pending.Components={Owned(TEXT("hud_fixture_mod")),Owned(TEXT("hud_fixture_wet"))};
     const LDHUD::FGrowthPending Counted=LDHUD::GrowthPending(&Pending,9,&Content);
-    TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase
-        &&Counted.Prompt()==FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::ComponentsPending(1));
+    TestTrue(TEXT("Only the opening pick lights the button"),Counted.Any()&&Counted.bOpeningBase);
     Pending.bOpeningBasePending=false;Pending.OpeningBaseOptions.Reset();
     TestFalse(TEXT("Stored components never light the button"),LDHUD::GrowthPending(&Pending,9,&Content).Any());
 
@@ -1810,13 +1702,12 @@ bool FLDHUDFieldRewardNoticesTest::RunTest(const FString& Parameters)
     View.Generation=4;
     TestTrue(TEXT("A new match primes again"),Watch.Observe(&View,4).IsEmpty());
 
-    // The 开盲盒 button counts pending component choices with the components.
+    // The 构筑 button is lit by pending component choices.
     FLDProgressionView Pending;Pending.bValid=true;Pending.Generation=5;
     FLDComponentChoiceView& Choice=Pending.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid(1,2,3,4);
     Choice.Options={FName(TEXT("hud_fixture_a")),FName(TEXT("hud_fixture_b"))};
     const LDHUD::FGrowthPending Counts=LDHUD::GrowthPending(&Pending,5,nullptr);
-    TestTrue(TEXT("A pending component choice lights the button"),Counts.Any()&&Counts.ComponentChoices==1
-        &&Counts.Prompt()==FString(LDTerms::Choice)+TEXT(" · ")+LDTerms::ComponentsPending(1));
+    TestTrue(TEXT("A pending component choice lights the button"),Counts.Any()&&Counts.ComponentChoices==1);
     TestFalse(TEXT("Options not owned leave the points closed"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
     FLDComponentInstanceView& HeldA=Pending.Components.AddDefaulted_GetRef();HeldA.DefinitionId=TEXT("hud_fixture_a");
     TestFalse(TEXT("One free option still leaves the points closed"),LDHUD::ComponentChoiceAllOwned(Choice,Pending));
@@ -1924,16 +1815,39 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
     }
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkspacePromptTest,"Lockdown.Rules.HUDWorkspacePrompt",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDWorkspacePromptTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDChoiceTrayTest,"Lockdown.Rules.HUDChoiceTray",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDChoiceTrayTest::RunTest(const FString& Parameters)
 {
-    LDHUD::FGrowthPending Pending;
-    TestEqualSensitive(TEXT("The entry names the persistent workspace"),LDHUD::GrowthPrompt(Pending),FString(TEXT("构筑")));
-    Pending.ComponentChoices=1;
-    const FString One=LDHUD::GrowthPrompt(Pending);
-    Pending.Offers=50;Pending.Points=1000;Pending.Blueprints=40;Pending.ComponentChoices=20;
-    TestEqualSensitive(TEXT("Dense progression does not grow the combat HUD entry"),LDHUD::GrowthPrompt(Pending),One);
-    TestEqualSensitive(TEXT("The entry advertises pending work without expanding counts"),One,FString(TEXT("构筑 · 有待处理")));
+    // A card shows only its icon and name; the popup carries the kind, the full rule, the keywords (as plain text) and what
+    // a click does when that is not the plain take.
+    LDHUD::FActiveCardView Card;Card.Name=TEXT("肘击");Card.Target=TEXT("单体");Card.Cost=TEXT("法力 30");Card.bKnown=true;
+    Card.SentencePlain=TEXT("造成 10 点伤害并减速");Card.Keywords={TEXT("<b>减速</>：移速降低 &lt;30%&gt;")};
+    const LDHUD::FActionDetailView Offer=LDHUD::ActiveChoiceDetail(Card,false,LDTerms::LearnInto(TEXT("Q")));
+    TestEqualSensitive(TEXT("An offer popup is named after the active"),Offer.Name,FString(TEXT("肘击")));
+    TestEqualSensitive(TEXT("An offer popup names the kind, the targeting and the cost"),Offer.Summary,FString(TEXT("技能 · 单体 · 法力 30")));
+    TestEqualSensitive(TEXT("The rule, its plain keyword lines and the outcome follow"),Offer.Body,
+        FString(TEXT("造成 10 点伤害并减速\n\n减速：移速降低 <30%>\n\n"))+LDTerms::LearnInto(TEXT("Q")));
+    TestTrue(TEXT("A blueprint card says it is a blueprint"),LDHUD::ActiveChoiceDetail(Card,true,FString()).Summary.StartsWith(LDTerms::Blueprint));
+    Card.bKnown=false;
+    TestEqualSensitive(TEXT("An unknown active invents no targeting or cost"),LDHUD::ActiveChoiceDetail(Card,false,FString()).Summary,FString(TEXT("技能")));
+    LDHUD::FComponentCardView Part;Part.Name=TEXT("铁拳");Part.SentencePlain=TEXT("普攻多打 5 点");
+    const LDHUD::FActionDetailView Taken=LDHUD::ComponentChoiceDetail(Part,FString());
+    TestTrue(TEXT("A plain take adds no outcome line"),Taken.Summary==LDTerms::Component&&Taken.Body==TEXT("普攻多打 5 点"));
+    TestTrue(TEXT("A component that cannot be taken says why"),LDHUD::ComponentChoiceDetail(Part,LDTerms::ComponentChoiceOwned).Body.EndsWith(LDTerms::ComponentChoiceOwned));
+
+    // Component rows turn into icon tiles once they hold more than ChoiceTrayCardLimit cards together.
+    FLDProgressionView View;View.bValid=true;View.Generation=3;
+    for(int32 Index=0;Index<LDHUD::ChoiceTrayCardLimit;++Index){View.OpeningBaseOptions.Add(FName(*FString::Printf(TEXT("base_%d"),Index)));}
+    View.bOpeningBasePending=true;
+    TestFalse(TEXT("Up to the limit the cards keep their names"),LDHUD::ChoiceTrayTiles(View));
+    FLDComponentChoiceView& Choice=View.ComponentChoices.AddDefaulted_GetRef();Choice.ChoiceId=FGuid(1,2,3,4);Choice.Options={FName(TEXT("mod_a"))};
+    TestTrue(TEXT("One card past the limit makes a grid"),LDHUD::ChoiceTrayTiles(View));
+    View.bOpeningBasePending=false;
+    TestFalse(TEXT("A taken opening pick no longer counts"),LDHUD::ChoiceTrayTiles(View));
+    View.Components.AddDefaulted_GetRef().DefinitionId=TEXT("mod_a");
+    const FLDComponentChoiceView Owned=View.ComponentChoices[0];
+    for(int32 Index=0;Index<3;++Index){View.ComponentChoices.Add(Owned);}
+    TestTrue(TEXT("An all-owned choice counts its points card too"),LDHUD::ChoiceTrayTiles(View));
     TestEqualSensitive(TEXT("Service admission refusal gives the exact proximity instruction"),
         LDHUD::GrowthReasonText(ELDGrowthReason::RestServiceUnavailable),FString(TEXT("请靠近对应的服务NPC")));
     TestTrue(TEXT("Window and lock refusals remain distinct from NPC proximity"),
@@ -2080,3 +1994,29 @@ bool FLDHUDTermsGlossaryTest::RunTest(const FString& Parameters)
     return true;
 }
 #endif
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDAttributeViewTest,"Lockdown.Rules.HUDAttributeView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDAttributeViewTest::RunTest(const FString& Parameters)
+{
+    // The HUD attribute view lists each projected attribute once, except what the health and mana bars already show.
+    using A=ELDProjectedAttribute;
+    const TArray<uint8> Order=LDHUD::AttributeViewOrder();
+    for(const A Shown:{A::MaxHP,A::MaxMP,A::HPRegen,A::MPRegen})
+    {TestFalse(TEXT("The bars' maxima and regenerations are not repeated"),Order.Contains(uint8(Shown)));}
+    TestEqual(TEXT("Every other projected attribute is listed"),Order.Num(),int32(A::Count)-4);
+    TSet<FString> Glyphs;
+    for(const uint8 Attribute:Order)
+    {
+        FLDCombatAttributeRowView Probe;Probe.Attribute=Attribute;
+        Glyphs.Add(LDHUD::AttributeRow(Probe).Glyph);
+    }
+    TestEqual(TEXT("Each listed attribute has its own icon glyph"),Glyphs.Num(),Order.Num());
+    // The entry shows the final value alone; the popup keeps the unit, the clamp note and the sources.
+    FLDCombatAttributeRowView Speed;Speed.Attribute=uint8(A::AttackSpeed);Speed.Final.Numerator=5;Speed.Final.Denominator=4;Speed.bClamped=true;
+    const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Speed);
+    TestEqualSensitive(TEXT("The entry value has no unit"),Row.Value,FString(TEXT("1.25")));
+    TestTrue(TEXT("The popup line keeps the unit and the clamp"),Row.Final.StartsWith(TEXT("1.25 次/秒"))&&Row.Final.Contains(TEXT("上下限")));
+    FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(A::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=4;
+    TestEqualSensitive(TEXT("A ratio reads as a percentage"),LDHUD::AttributeRow(Crit).Value,FString(TEXT("25%")));
+    return true;
+}

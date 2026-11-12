@@ -74,7 +74,7 @@ V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 O
 | --- | --- | --- |
 | `ALDDevelopmentDirector` 修改参赛记录中的 `FLDGrowthBuild` | Level；五维各自的已分配点数；Q/W/E 已学主动；待学图纸（不含已学定义）；材料实例（每定义至多一件，含来源、安装、首次历史与绑定）；BuildRevision。奖励与成长命令只改其获准字段。不得接客户端完整 Build。 | Combat 准备投影（只含已安装组件）、自身 UI、该参赛 AI。 |
 | 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、主动机会队列（已获/已消费）、当前至多一组主动候选（最多 3 个定义）及每次机会的处理记录、材料池耗尽改给点数的升级次数；随机材料由本局私有 `MatchSecret` 按参赛者与机会序号或等级派生（`LDProgression::OfferSeed`、`ComponentSeed`）。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
-| Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、ReadyAtMs）与 `SourceRevision`；交战窗口的最近交战时刻（跨生命保留，只供 HUD 交战折叠）。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W/E、D、属性面板、AI 自身读模型（`FLDCombatOwnerView`）。 |
+| Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、ReadyAtMs）与 `SourceRevision`；交战窗口的最近交战时刻（跨生命保留，只供 HUD 交战折叠）。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W/E、D、属性视图、AI 自身读模型（`FLDCombatOwnerView`）。 |
 | `FLDOwnerState` / 各 View | 上述真相的一次一致投影，携带 Match/Life 和发布修订；不得反向写成长或 Combat。 | 拥有连接；GameState 不持有全体私有构筑。 |
 
 主动机会是一条有序队列：1 号是开局机会，由成长 `BeginMatch`（Progression 提供者 Prepare、开局休息 R0 之前）为每名参赛者（真人与 AI）授予，
@@ -294,7 +294,7 @@ XP 与阈值运算的任何越界必须在整奖准备阶段拒绝，
 | `NoOpportunity` | 奖励提交推进已获机会；没有当前候选时准备队首。 | 否 |
 | `Queued` | 队首没有合格主动（全部已学或已在图纸中）：不生成候选，机会保留，构筑变化后重新判定；不阻挡加点。 | 否 |
 | `Offered` | 以局内固定目录、队首私有随机材料生成至多 3 个不同的合格主动并保存一次。HUD 提示待选数；真人的开局候选在本局首次到达本人、且没有其他主面板或输入捕获时由 HUD 自动打开一次面板（不代选；若玩家已在用自己的面板则放弃这次自动打开；几秒内未操作或本人受击时收起回待选提示），其余由玩家主动开面板，不强夺战斗输入。不打开、关闭、重开、死亡均读同组。 | 否 |
-| 本地草稿 | 预览卡片、首选空槽与加点增减；返回、Esc 只清草稿，不改服务器状态。 | 否 |
+| 本地草稿 | 预览卡片与首选空槽（加点没有草稿：HUD 属性图标的“+”点一下即提交）；返回、Esc 只清草稿，不改服务器状态。 | 否 |
 | `RequestPending` | 提交一次选择（可带“能学就学”与首选空槽）；显示等待，不能本地先改 Q/W/E、图纸或点数。关闭面板不声称撤回已受理意图。 | 否 |
 | `Committed` | 同一复合提交：选中项成为待学图纸；能学时同时学到空槽并安装 Combat 投影；消费机会；之后才生成下一队首。回执写明学到的槽，或存为图纸及原因。 | 恰一次 |
 | 拒绝 / 版本恢复 | 返回原因和同一组候选的当前版本；重新明确确认，不换组。 | 否 |
@@ -442,7 +442,7 @@ View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FL
 重放的旧生命成功回执只能作为历史结果查询，不改当前生命资源/来源。
 等待期间关闭面板不撤销已受理事实，重开查询真实结果；请求失败不保留假成功图标。
 
-自身构件列表（#198 接入后）可展开/滚动，不新增玩法槽上限。Q/W/E 和 D 从真实输入映射显示按键，
+自身构件列表（#198 接入后）可展开（不滚动），不新增玩法槽上限。Q/W/E 和 D 从真实输入映射显示按键，
 选中别人不改变按钮所有者。
 UI 手势由输入域捕获，不穿透发世界命令；打开、选择都不暂停/授无敌。
 GameState、全场击杀通知不获取本域私有成长/候选/来源 ID。
@@ -551,7 +551,7 @@ XP、构筑、来源与显示格式化不能相互代算。
 | N04 新增 | `Development\LDDevelopmentDirector.*`、`LDProgressionRules.*`：属性点、持久主动机会与候选、窄成长命令（选择、学习、加点） | R09 `LDCharacterBuild` 与 `ULDCharacterCatalog`、职业六维/点数/开局技能、整份草稿与站点 hold |
 | D15/D16 | — | 书店 Vendor 与 `LDVendorTypes`、背包/重量/Quick/十一绑定/掉落整理、`LDInventoryTypes`/`ALDItem`、`LDGearRules`、`LDLoadoutRequest`、V07/V08 获取/装备/战术目录 |
 | R07/R09 来源 | Combat 唯一持有来源冷却轨道与回绑（`PrepareBuildChange/ApplyBuildChange`） | `LDV08Loadout`/`LDV08Modifiers`、ItemFamilies 共享主动 CD、施法伪库存修订 |
-| D16/N07 RPC 与投影 | `Framework\LDPlayerGrowth.cpp`、`FLDOwnerState.Growth`；HUD 的成长面板 | 旧背包请求 RPC、`LDPlayerBank/Commerce/Production/Development/Vendor.cpp`、OwnerState 的 Build/Inventory/Gold/Xp |
+| D16/N07 RPC 与投影 | `Framework\LDPlayerGrowth.cpp`、`FLDOwnerState.Growth`；HUD 的构筑选择卡 | 旧背包请求 RPC、`LDPlayerBank/Commerce/Production/Development/Vendor.cpp`、OwnerState 的 Build/Inventory/Gold/Xp |
 ### 11.1 数据、adapter、生成与资产退出
 
 旧链已按原子闭包退出：R09 构筑与 `ULDCharacterCatalog`、V08 Loadout/修正器、V07/V08 装备/获取/战术目录

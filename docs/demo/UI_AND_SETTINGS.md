@@ -15,7 +15,7 @@
 沿现有 **native UMG/Slate、Controller、动态 Enhanced Input、owner 投影和唯一观测 Relay**
 收敛一条界面流程，不引入第二套 UI 框架、成长状态、冷却表或视野系统。
 一个 Root 管导航与输入层；HUD、属性/选择、设置和小地图各消费窄只读投影。
-菜单、名单、本人 HUD、成长面板（开盲盒）、公开击杀、完整结果及设置均已按本文接线。
+菜单、名单、本人 HUD、构筑选择卡、公开击杀、完整结果及设置均已按本文接线。
 
 雾港换皮（[#111](https://github.com/rlsn/Lockdown-alpha/issues/111)）与规则术语改回通用词（[#148](https://github.com/rlsn/Lockdown-alpha/issues/148)）后的玩家可见中文术语与固定文案只引用 [App Spec §1.2](../APP_SPEC.md#12-玩家显示术语)，
 角色/技能/状态名称只引用内容报告当前目录；下文 HP/MP、状态与拒绝码等技术标识不改。
@@ -44,10 +44,11 @@
 | 组件 | 职责 |
 | --- | --- |
 | `ULDUIRoot`（`UI/LDUIRoot.*`） | 前端（主菜单/Start/连接/失败）、Lobby、局内菜单与确认、唯一主面板登记（`RegisterMainPanel/ShowMainPanel/ToggleMainPanel/CloseTopPanel`）、世界层（头顶标签与画面回馈）和文字缩放 |
-| `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态与下一步提示、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列、底部带（本人身份与属性入口、资源、Q/W/E 与 D、待选提示）、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠属性/成长面板并处理成长面板的自动打开与收起 |
-| `LDHUD::*`（`UI/LDHUDModel.*`） | 纯格式化读模型：`ActionInput/Action -> FActionView`、`ObservedCard/ObservedUnit`、`Circle`、`TimelineBanner`、`RestReturnCountdown`、`TrainingResetText`、`NextStep`、`ActiveCard`、`StatRow`、`BuildGate`、`GrowthPending`、`FChoicesFold`、`AbilityName`、`ContentText` 等；只读本人投影、公共状态与当前观察帧 |
-| `ULDAttributesPanel`、`ULDChoicesPanel` | 属性 P；成长面板（“技能与奖励”页：当前主动候选、待学图纸、开局基础构件自选与精英二选一；“加点”页：五维加点；休息中另有 NPC、洗点、替换与遗忘，#198）；命令经 `SubmitBuild` 带所见版本提交 |
-| `ULDComponentStorage`（`UI/LDComponentStorage.*`，#227） | 构件库：`ULDHUD` 放在底部横条右侧的牌堆与悬停展开的列表和五列已装构件（本体、Q/W/E、冲刺(D)），拖放安装/拆下/搬动与 B18 元素、C12 基础构件选择；读模型 `LDHUD::ComponentStorage/ComponentDrops/FindDrop/DetachedWith` 与 `EStorageColumn`（`UI/LDHUDModel.h`）；命令经同一 `SubmitBuild`，自持在途请求与回执 |
+| `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列（只有地图与对局用时）、底部带（本人身份、加点图标与属性视图切换、资源、Q/W/E 与 D）、右下角“构筑”按钮、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠构筑选择卡，处理选择卡的自动展开与收起，并用同一个悬停弹层显示选择卡的完整说明 |
+| `LDHUD::*`（`UI/LDHUDModel.*`） | 纯格式化读模型：`ActionInput/Action -> FActionView`、`ObservedCard/ObservedUnit`、`Circle`、`TimelineBanner`、`RestReturnCountdown`、`TrainingResetText`、`ActiveCard`、`ActiveChoiceDetail`、`ComponentChoiceDetail`、`ChoiceTrayTiles`、`StatRow`、`BuildGate`、`GrowthPending`、`FChoicesFold`、`AbilityName`、`ContentText` 等；只读本人投影、公共状态与当前观察帧 |
+| `ULDChoicesPanel` | 构筑选择卡（“构筑”按钮正上方一行一个待做决定：主动三选一、开局基础构件、精英二选一、有空槽时的待学图纸；卡上只有图标和名称，`Hovered` 把完整说明交给 HUD 弹层）与休息室 NPC 服务窗口（NPC、洗点、替换与遗忘、补缺与拆解，#198）；加点与属性视图在 HUD 的 `ULDStatBar` 上；命令经 `SubmitBuild` 带所见版本提交，结果与拒绝经 `Notify` 进 HUD 提示行 |
+| `ULDStatBar`（`UI/LDStatBar.*`） | HUD 底部带左块名称下方的五维属性图标与悬停时图标正上方的“+”：点一下立即发一点 `AllocatePoints`，在途时的连点在本地排队、等本人视图带上上一次的构筑版本后合并发送；读模型 `LDHUD::StatRow/StatPointsOf/BuildGate`；命令经同一 `SubmitBuild`，自持在途请求与回执 |
+| `ULDComponentStorage`（`UI/LDComponentStorage.*`，#227） | 构件库：`ULDHUD` 放在底部横条右侧的牌堆与悬停展开的图标网格和一排五列已装构件（本体在第一个 Q/W/E 格左边一格、Q/W/E、冲刺(D)），拖放安装/拆下/搬动与 B18 元素、C12 基础构件选择；读模型 `LDHUD::ComponentStorage/ComponentDrops/FindDrop/DetachedWith` 与 `EStorageColumn`（`UI/LDHUDModel.h`）；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
 | `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
 | `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 20）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，§3.3、§8） |
@@ -85,13 +86,13 @@ Settings 是当前页面的主面板；属性、Choices 也各占同一主面板
 DEV 测试会话另有第三个登记主面板“测试”（`ELDUIMainPanel::DevTest`，`ULDDevTestPanel`），只在 `FLDLobbyView::DevTestSession`
 为真的房间由 HUD 底部本人身份块里的“测试”按钮打开，顶部横幅与房间页同时标出“测试模式”；它与其他主面板同样一次只开一个，
 文本输入期间世界输入照常被捕获。
-Choices 沿用唯一主面板与输入捕获协议，由底部“构筑”入口打开，停靠在右侧；主面板按“技能与奖励／加点”两个任务页切换（#227 删除构件页，已持有构件在构件库），不再把属性、构筑与详情挤成固定三列。它只占自身矩形的点击，对局不暂停；720p/1080p 下按可用视口缩放，不遮住中央战斗区或底部 HUD。无待办成长时仍可查看，关闭或按 Back 只隐藏面板，不丢候选、图纸、本地暂存点数或已提交请求。
+Choices 沿用唯一主面板与输入捕获协议，由右下角“构筑”按钮切换（2026-11-12 用户决定，原话见 App Spec §7）：没有面板、标题、说明文字或滚动，只在按钮正上方叠一行行选择卡，离按钮最近的是主动三选一，往上是开局基础构件、精英二选一与有空槽时的待学图纸。卡上只有图标和名称，悬停弹出 HUD 同一个说明弹层（完整规则、关键词，以及现在拿不了的原因或点击的去向，如“学到 Q”“存为图纸：Q/W/E 已满”“已持有”），点一下即提交；构件卡合计超过 6 张时构件各行改为只有图标的网格（`LDHUD::ChoiceTrayTiles`）。选择卡只占卡片区域的点击，对局不暂停。没有可选内容时按钮变灰不可点，已展开的选择卡在没有在途请求时自动收起；收起或按 Back 只隐藏，不丢候选、图纸或已提交请求。
 NPC 服务不作为常驻任务页：仅在配装或派奖窗口、本人处于现有服务距离内并选择“与 NPC 交互”后，打开独立“NPC 服务”面板；服务上下文按附近 NPC 唯一选择，离开后关闭。训练师替换按钮及其确认只出现在主动打开的训练师服务框，普通技能页不会因靠近而出现替换。服务操作仍走既有服务器事务与回执。
-服务按钮下方换行显示不可用原因，事务结果和本地拒绝保留在当前服务窗口内，不藏到已收起的构筑任务页。
-公开 PK 的阵营、缩圈与观众操作收在右侧可滚动卡片，中央只保留阶段计时；进入 PK 后隐藏配装期的准备与重置训练按钮。观众或派奖时主动打开构筑／NPC 服务框，右侧 PK 卡暂时让位并取消未提交的投掷瞄准，关窗后恢复，不与工作区叠放；已提交事务仍按原回执处理。
-本局首次出现的开局主动机会或开局构件只在非野外阶段各自动打开一次；之后的候选与新增点数只更新“构筑”待办提示，不自动弹窗。#222 起（用户决定：“all the time 可以学新技能和加点 all the time”）构筑随时可做：交战中、PK 中与死亡等待中都可以手动打开并完成构筑。只有自动打开的面板会自己收起（本人受击或几秒未操作），玩家自己打开的面板不因交战或 PK 收起；脱战不自动重开，本地编辑和请求仍保留。野外缺失有效本人身体投影或权威时钟时不把未知状态伪造为交战。野外顶部压缩重复提示，保留时间线与必要旗杆状态；左下小地图上方在交战期间只保留空投公告/落地后倒数与 Boss 出现/退场倒数。交战按本人实际受击或当前生命 `CombatView.BuildSafeAtMs`（Combat 交战窗口 `GROWTH.BuildSafeWindowSec`，#222 起只用于这里）尚未到权威时间判断；符咒、上热搜与标记营地的文字摘要在交战窗口结束后恢复，死亡等待时也可查看；缺少本人投影或时钟时不假定已脱战。原小地图公开标记与短时事件播报不受收起影响，不新增常驻文字或另一套脱战计时，不常驻堆叠“下一步”教学。目标卡与事件播报仍显示。
-加点页先显示未分配点数、每项收益和增减/确认控件，当前属性汇总放在后方，不把加点任务挤到长属性表下面。
-开局构件与精英奖励候选均在“技能与奖励”页使用单列任务行，通过纵向滚动可选择非首项。悬停或聚焦精英候选时，详情展示该候选的规则；仅查看不消耗奖励。开局基础构件卡写明点击结果：普通基础构件为“拿这个 → 装到本体”（一次提交领取并装到本体），B18 为“拿这个 → 放进构件库（再拖到技能上绑定）”。
+服务按钮下方换行显示不可用原因；事务结果和本地拒绝用 HUD 提示行告知。服务窗口不滚动，内容放不下时整体按比例缩小。
+公开 PK 的阵营、缩圈与观众操作收在右侧卡片（不滚动，行多时整张卡按比例缩小），中央只保留阶段计时；进入 PK 后隐藏配装期的准备与重置训练按钮。观众或派奖时主动打开构筑／NPC 服务框，右侧 PK 卡暂时让位并取消未提交的投掷瞄准，关窗后恢复，不与工作区叠放；已提交事务仍按原回执处理。
+本局首次出现的开局主动机会或开局构件只在非野外阶段各自动展开一次选择卡；之后的候选只点亮并脉冲“构筑”按钮，新增点数只更新头像左下角的黄色点数圈，都不自动弹窗。#222 起（用户决定：“all the time 可以学新技能和加点 all the time”）构筑随时可做：交战中、PK 中与死亡等待中都可以手动打开并完成构筑。只有自动打开的面板会自己收起（本人受击或几秒未操作），玩家自己打开的面板不因交战或 PK 收起；脱战不自动重开，本地编辑和请求仍保留。野外缺失有效本人身体投影或权威时钟时不把未知状态伪造为交战。野外顶部压缩重复提示，保留时间线与必要旗杆状态。左下小地图上方除对局用时外没有文字行（2026-11-12 起删除空投、Boss、符咒、上热搜、标记营地与视野状态行和“下一步”提示，地图标记本身表达这些信息）；短时事件播报照常。
+加点不进面板：HUD 左块名称下方每一维一个属性图标，悬停图标时其正上方出现“+”，点一下即提交一点，没有暂存和确认（用户原话：“remove stat allocation tab and put stats into where we removed status icons. show them as stat icons, hovering on the icon draws a "+" button above for allocation, no confirm button, clicking on "+" immediately commits allocation. put available points as a number in a yellow circle on the bottom-left corner of the player avatar in that panel (bottom-right shows level as before)”）。
+开局构件与精英奖励候选都是选择卡，不滚动。悬停候选时弹层展示该候选的规则；仅查看不消耗奖励。开局基础构件的弹层最后一行写点击去向：普通基础构件为“装到本体”（一次提交领取并装到本体），B18 为“放进构件库”。
 
 构件库与面板的普通读模型刷新复用现有行及 Slate 身份；只有条目、安装分组或排序变化时才调整列表，避免按下/释放或拖动跨刷新时丢鼠标捕获或焦点。PK淘汰者即使已回休息室获得存活身体，也仍按观众处理，不因保留在公开名单中反复折叠只读工作区。
 
@@ -109,18 +110,17 @@ NPC 服务不作为常驻任务页：仅在配装或派奖窗口、本人处于�
 | Connecting | 当前端点、连接状态、取消；输入框仍可回看 | 同 attempt 禁双击新建；取消使该 attempt 失效。迟到成功清理对应旧连接，迟到失败不能把新世界退出。 |
 | 失败 | 名称/端口/地址格式、不可达/超时、RoomFull、MatchAlreadyStarted、产品/协议/内容不兼容、旅行/加载失败分别解释 | 保留本人编辑内容，允许修改后显式重试；不自动重连、不回落旧 profile、不显示空成功 Lobby。 |
 | Lobby | 全屏房间背景图 `T_LobbyBackground`（同样铺满裁切，只在 Lobby 阶段显示，盖住身后的 Demo 世界）；所有已连接真人与实际 AI 的名称、真人/AI、Host、准备；Host 调整 AI 数、全部真人 Ready 后 Start；本人 Ready、离开 | 所有人包括 Host 使用 Ready；AI 无真人准备按钮。结构改变按 RosterRevision 清 Ready；Ready 本身只改 PublicRevision。Start 等权威结果，不能本地切地图。 |
-| 自身 HUD | 底部带左块：头像（含等级角标）、名称、“属性 [P]”按钮（DEV 测试房间另有“测试”）、临时状态方格；中块（位于屏幕中央、本人正下方）：上排 Q/W/E、D 冲刺（单独一组，显示冷却与定身受控），其下 HP/MaxHP、MP/MaxMP、流量细条（悬停显示“等级 · 流量”数字）；
+| 自身 HUD | 底部带左块：头像（右下角等级角标，左下角黄色圆圈写未分配点数，为 0 时不显示）、名称、“属性 [P]”按钮（DEV 测试房间另有“测试”）、五维属性图标（角上写已分配点数，悬停时图标正上方出现“+”）；临时状态方格在小地图与底部带之间、贴着底部带左缘，每行 6 个，第一行与底部带底边齐平，更多的行向上叠，没有上限（用户原话：“move status icons from left HUD panel to above central HUD, 12 icons a row, pushed from bottom up, no max limitations.”；之后又改为 “status icon too small, make them 1.5x bigger, and move to the empty space between HUD and minimap, 6 icons per row, bottom up”）；中块（位于屏幕中央、本人正下方）：上排 Q/W/E、D 冲刺（单独一组，显示冷却与定身受控），其下 HP/MaxHP、MP/MaxMP、流量细条（悬停显示“等级 · 流量”数字）；
 整条底部带按 1080p 参考尺寸的 75% 绘制（#97，用户原话：“hp/mp/skill/item HUD and the panel to the left is too large, shrink them to about 75%”；
 “put hp/mp/exp bar below the skills/items in HUD”）；Q/W/E 三格之间可以拖放互换（用户原话：“support drag and drop skill and item to exchange slots”），
-只改本机的显示与热键路由（技能热键跟着技能走），像改键一样不发给服务器，每局开始恢复默认顺序；底部带没有右块，停止只用 S 键；左下角小地图上方只在视野异常时显示一行（#97 起不再常驻镜头状态行，用户原话：“remove the tutorial line above minimap”）；HUD 没有单独的设置按钮，设置从 Back 菜单进入；待选次数见待选提示；本人头顶另有名字、等级角标与生命/护盾/法力条（不画技能就绪点，技能状态只看底部动作栏） | Unknown/同步中不填 0；满级显示 MAX，仍显示待选次数。选中别人不改变自身热键所有者。平常的“存活”与正常视野计数不占行，异常（保护、同步中、过期、寄了）才显示。 |
+只改本机的显示与热键路由（技能热键跟着技能走），像改键一样不发给服务器，每局开始恢复默认顺序；底部带没有右块，停止只用 S 键；左下角小地图上方除对局用时外不显示文字（#97 用户原话：“remove the tutorial line above minimap”；2026-11-12 用户原话：“remove whatever is shown above minimap, ugly as fuck.”）；HUD 没有单独的设置按钮，设置从 Back 菜单进入；本人头顶另有名字、等级角标与生命/护盾/法力条（不画技能就绪点，技能状态只看底部动作栏） | Unknown/同步中不填 0；满级显示 MAX。选中别人不改变自身热键所有者。平常的“存活”不占行，保护、同步中与寄了才在名字下显示。 |
 | 动作栏冷却与限制 | 冷却中整格遮罩按剩余比例自上而下收起，中央显示剩余秒数（10 s 以上取整秒，以下保留一位并向上取整，未到不显示 0）；冷却结束且确实可用时闪一下；格面只有热键字母、技能图标（真图标到位前为按类别着色的圆角方块加名称首字）与法力消耗数字，不写名称与状态文字：就绪、准备态、冷却、法力不足（图标转蓝）、受控、不可用、空槽由外圈与图标颜色区分，悬停格子时在其正上方弹出与成长面板卡片同一画法的说明层（固定宽 300u，不挡点击）：名称、“类别 [热键] · 状态”、按本人当前等级与属性填数的规则句、目标方式及法力与冷却（D 冲刺写冲刺距离）；本人回执失败时被按下的格子外圈变红约 2 s，原因（如“目标不可用”）只在提示条上 | 限制只改变颜色，显式激活仍发送由服务器裁决。准备态与攻击移动不再显示“准备中：左键确认目标…”说明行，由格子外圈与世界里的射程/目标预览表示（2026-11-06 用户决定）。 |
-| 下一步提示 | 旗杆状态下方一行强调色文字，只给最有用的一步：先处理成长——有主动候选时“下一步：点构筑选一个技能（还有 N 次选技能）”，否则有未分配点数时“下一步：点构筑加点（未分配点数 N）”，否则有图纸且 Q/W/E 未满时“下一步：点构筑把图纸学到空槽” → 旗杆开放时“下一步：旗杆开放了，冲！去中心喷漆”（本人独自喷漆时改为“稳住：你正在旗杆上喷漆”；旗杆上是本人涂鸦时为“守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）”；旗杆上是别人涂鸦时为“下一步：去围攻 X，或者去旗杆改漆”）→ 1 级时提示“去打附近的野怪涨流量（右键攻击）”；都不适用时不显示 | 只在休息/发育期/开放期与同代次投影上计算，休息中只在配装与派奖步骤给成长这一步（#198）；不新增按键。 |
 | 时间线横幅（#198） | 旗杆行上方：休息中“休息 R{n} · <步骤> · 剩 X 秒”，配装步骤下一行写 PK 报名窗口（“PK 报名 X 秒后开放”/“PK 报名中 · 剩 X 秒”）、已报名人数与“你已报名/你没报名”，锁定后写“PK 跳过（报名不足 2 人）”或“PK N 人参赛”（#222 起锁定步骤不再写“配装已锁定”）；配装步骤的细节行同时写“报名圈在你休息位旁，截止时站在圈里才参赛”，休息位旁画出只有本人看得见的报名圈（开放前暗、开放中亮、已报名时金色），没有报名按钮（站圈报名，用户选择 A）；整个休息期间“重置训练”“准备完毕”和附近 NPC 交互按钮固定在横幅下方，不随构筑面板开关而移动；目标卡与头顶标签把假人写作“训练假人”；野外只显示“野外 n/3 · 下次休息 m:ss”时间线，重复的发育提示和下一步隐藏，旗杆开放阶段显示必要旗杆状态。返回步骤在屏幕中央大字整秒倒数，每段野外开始时显示“开淫！” | 只读公开时间线与同局权威时刻；剩余时间向上取整、不提前显示 0；野外剩余按野外进度 T（休息与 PK 期间冻结）。报名由服务器按已提交脚点是否在报名圈内判定，客户端不发报名请求。 |
 | PK 面板与观战（#198 D） | 休息按钮下方，从公布赛制到派奖：标题“第 n 场 PK · 单挑/混战/2v2/3v3 · N 人”；每方一行选手名（开打后出局“（出局）”、离开本局“（离场）”、押注人数、“你在这方”/“你押了这方”）；PK 准备与 PK 中的整秒倒数和安全圈半径（含下一圈）；押注步骤给有竞猜资格的观众每方一个“押 X、Y”按钮，本人当前押注高亮，可改到步骤结束；PK 中给这些观众“投掷”按钮：按下后进入瞄准，左键点竞技场地面投出、右键或 Esc 取消，冷却时显示“投掷冷却 X 秒”；结算与派奖显示胜方/平局/本场无效与每人奖励行（参与/胜者/竞猜），本人一行高亮；押注与投掷的结果显示在面板里并进提示条。世界里画出当前安全圈、提前显示的下一圈和每次投掷的落点预警圈。观众与出局者在 PK 准备和 PK 中镜头对准竞技场中心（最远缩放），出局者只读 | 只读公开 `PublicMatch.PK`、时间线、房间名单与同局权威时刻；安全圈半径用本机已批准内容参数按同一纯规则计算，不复制成第二套状态。押注与投掷只发本人意图，由服务器裁决；每个拒绝都写明原因，不读作成功。瞄准期间那次点击不会变成移动、攻击或查看；面板被菜单遮住时取消瞄准。镜头只换中心，场内单位与视野由服务器授权。 |
-| 构筑入口 | 底部带左块正上方常驻“构筑”按钮；有主动候选、未分配点数、有空槽可学的图纸、开局构件自选或精英二选一时显示“有待处理”并突出提示（已持有构件不计，它们在构件库），没有待办时也可打开查看。构筑工作区与属性面板互斥。 | 不新增按键，P 仍是属性页；只占提示自身矩形的点击。 |
-| 构件库（#227） | 用户原话：“gained upgrades goes to a storage on the right of the central HUD panel, shown as a stacked icon (like a stack of poker cards), upon hovering the stack opens up upwards into a list, the player can then browse through the list, with the focused one fully shown, others still in a stack (like how you browse your poker hands). hovering on an upgrade icon shows full description popup. in this view, the skills to the left also expands to a list of equipped upgrades, one column per skill. the player can then drag and drop upgrades across the storage and skills when compatible.” 底部 HUD 横条右侧一叠牌堆，写件数，从未装过的另标“新 n”；只放构件。悬停向上展开成列表（最新的离牌堆最近，聚焦的一张完整显示，其余为收拢窄条），同时升起五列已装构件：本体（头像身份区上方、构筑按钮之上：基础构件与自身改装件）、Q/W/E（在当前显示该服务器槽位的技能格上方）与冲刺(D)；装在构件上的件嵌在宿主下面。悬停任一卡片或图标显示完整说明。拖库存卡到合法列或宿主上安装（合法落点绿边、其余变暗，显示“放这里”），拖已装件回牌堆或列表拆下（提示条写出一起退下的件），拖到别处即搬动；B18 放到技能列先选火/水/电，C12 先选要重复的已安装基础构件，“取消”不发送。 | 交战中、死亡等待与 PK 中都可用（#222），对局已结束时由服务器拒绝并写明原因；Back（Esc）先关闭选择或放弃拖动。只发本人 `InstallComponent`/`UninstallComponent`（搬动为先卸后装），回执前不改本地构筑。 |
+| 构筑按钮 | 屏幕右下角常驻按钮，只写“构筑”；有主动候选、有空槽可学的图纸、开局构件自选或精英二选一时高亮（新候选到来时脉冲几秒），否则变灰不可点（`LDHUD::GrowthPending`；未分配点数在属性图标与头像黄圈，已持有构件在构件库，都不点亮它）。| 不新增按键；只占按钮自身矩形的点击。 |
+| 构件库（#227） | 用户原话：“gained upgrades goes to a storage on the right of the central HUD panel, shown as a stacked icon (like a stack of poker cards), upon hovering the stack opens up upwards into a list, the player can then browse through the list, with the focused one fully shown, others still in a stack (like how you browse your poker hands). hovering on an upgrade icon shows full description popup. in this view, the skills to the left also expands to a list of equipped upgrades, one column per skill. the player can then drag and drop upgrades across the storage and skills when compatible.” 底部 HUD 横条右侧一叠牌堆，写件数，从未装过的另标“新 n”；只放构件。悬停向上展开成图标网格（每行 4 个，最新的在最后、离牌堆最近；卡面只有图标，从未装过的角上标“新”，文字只在悬停弹层里，网格不写标题、件数或操作说明，库空时不展开（用户原话：“remove the lengthy explaination in component storage, let layout do the work.”），用户原话：“component storage only shows icons, no descriptions on card, there's popup after all”），同时升起一排五列已装构件：本体（第一个 Q/W/E 格左边一格：基础构件与自身改装件，用户原话：“move body component to the left of first skill so all component slots form a single table easier for drag and drop.”）、Q/W/E（在当前显示该服务器槽位的技能格上方）与冲刺(D)；只有本体列下写“本体”，技能列与冲刺列不写键位字母（键位由玩家设置决定，用户原话：“remove the redundant button letter from skill component slot (and it mismatch user setting too.”）；装在构件上的件嵌在宿主下面。悬停任一图标显示完整说明。拖库存卡到合法列或宿主上安装（合法落点绿边、其余变暗，显示“放这里”），拖已装件回牌堆或列表拆下（提示条写出一起退下的件），拖到别处即搬动；B18 放到技能列先选火/水/电，C12 先选要重复的已安装基础构件，“取消”不发送。 | 交战中、死亡等待与 PK 中都可用（#222），对局已结束时由服务器拒绝并写明原因；Back（Esc）先关闭选择或放弃拖动。只发本人 `InstallComponent`/`UninstallComponent`（搬动为先卸后装），回执前不改本地构筑。 |
 | 休息服务（#198） | 只有休息阶段且靠近技能商人、构件工匠或训练师时，横幅才显示对应的交互按钮；选择后单独打开“NPC 服务”框，按服务上下文显示主动三选一、补缺/拆解或洗点/替换/遗忘。平时不显示服务页，离开 150 cm 服务距离即关闭。费用来自内容参数；替换、遗忘、补缺和拆解先说明代价并要求确认，回执说明实际结果。 | 只在休息的配装与派奖步骤可用；点数、候选、材料、距离和阶段由服务器重验，失败显示原因。关闭面板撤销未提交的确认，不撤回在途命令。 |
-| 精英营地二选一与野外奖励（#198 G） | 有待选的精英营地奖励时，构筑工作区“技能与奖励”页按先后显示“精英营地奖励：二选一”（只剩一个已知材料时如实写“只剩这一个”）；点卡即拿该构件（进构件库），已持有项置灰，选项都已持有时可改领 `EmptyComponentPoolPoints` 点。待选奖励突出构筑入口，但不自动打开面板。天降外卖、画饼老板和标记营地奖励到账时提示本人。 | 二选一与选主动同一准入（对局进行中随时，含 PK 等锁定步骤，存活或阵亡；#222）。提示只读本人成长视图的 `FieldRewards`，每局第一份视图只建基线，重连不补报旧奖励。 |
+| 精英营地二选一与野外奖励（#198 G） | 有待选的精英营地奖励时，每个奖励在选择卡里占一行（按先后，只剩一个已知材料时就只有一张卡）；点卡即拿该构件（进构件库），已持有项置灰并在弹层写“已持有”，选项都已持有时同一行多一张“N 点”卡，可改领 `EmptyComponentPoolPoints` 点。待选奖励点亮构筑按钮，但不自动展开。天降外卖、画饼老板和标记营地奖励到账时提示本人。 | 二选一与选主动同一准入（对局进行中随时，含 PK 等锁定步骤，存活或阵亡；#222）。提示只读本人成长视图的 `FieldRewards`，每局第一份视图只建基线，重连不补报旧奖励。 |
 | 射程与目标预览 | 平时本人脚下一圈淡白普攻射程（随射程成长变化）；武装单位技能或攻击移动时射程圈变强调色，指针下有可见单位时射程圈按脚点距离在射程内变绿、否则变红（单位身上不画框）；方向技能画朝光标、长度为射程的指示线 | 只是预览，命中由服务器裁决；目标只取当前授权帧中与点击相同的选取。 |
 | 道具淡化 | 带 `LDFadeable` 标签的道具（目前只有旗杆）挡在镜头与本人或当前呈现的可见单位之间、或穿过站在其中/紧贴它的身体时淡化到完全消失，淡化期间不投影；只影响显示 | 只按已授权呈现的单位判断，不因隐藏单位而淡化。 |
 | 画面回馈 | 可见施法者施法那一刻在其身旁飘出技能名（如“扒裤子！”，不含等级/冷却，用户批准的 CB-P10 例外）；可见单位受到伤害/治疗、本人受伤/治疗/护盾变化的浮动数字；本人获得奖励时角色旁的“+N 流量”；本人淫了对手时的“淫了 某某！”；升级时“涨粉了！LvN”横幅（第二行写这次得到的属性点与选技能机会，如“获得 3 属性点 · 一次选技能机会”）与本人脚下光环、光柱 | 只来自本人投影、公开击杀通知与当前观察帧的白名单；首样本、换局、换命只重设基线，不补发；他人数字等该样本的延迟画面呈现后再出现。 |
@@ -128,11 +128,11 @@ NPC 服务不作为常驻任务页：仅在配装或派奖窗口、本人处于�
 | 旗杆喷漆与守护 | `LDHUD::Circle(Public, SprayerName, OwnerName, bClock, NowMs, SprayMs, GuardMs)`：发育期“猥琐发育中，别浪 · 旗杆在最后一次休息（R3）后开放”（#198：开放时刻在最终野外开始时才排定，此前不打印倒计时）；开放后旗杆无主且无人时“旗杆空着，没人敢上？”；独自喷漆“X 正在旗杆上喷漆 · 剩 <秒>s”；争夺时有暂停的喷漆者显示“旗杆底下打成一锅粥 · X 的喷漆进度先存着 <已存>/<所需> s”（精确到 0.1 s），无持有者时“旗杆底下打成一锅粥 · 谁也没存下进度”；有涂鸦时追加（或单独显示）“旗杆上是 X 的涂鸦 · 再守 <秒>s”，主人以外有人在喷漆区内（Solo 或 Contested）时为“旗杆上是 X 的涂鸦 · 有人进圈，守护冻结（再守 <秒>s）”，喷漆区内没人（Empty，主人不在圈内）时为“旗杆上是 X 的涂鸦 · 守擂者不在圈内，守护暂停（再守 <秒>s）”（2026-11-07 用户决定），两部分以“ · ”连接。进度条：独自喷漆显示喷漆进度，争夺显示暂存的喷漆进度，其余显示守护进度 | 公开状态不授予观察句柄/坐标；到零等待权威状态，不自动宣布开放、喷上涂鸦或胜利。 |
 | 事件播报 | 屏幕左下、紧贴小地图列上方的列表，最新一条在最下（贴着小地图）、旧的向上推，每条显示 5 s（最后 0.5 s 淡出），同时最多 6 条，再多时最旧的一条提前离开；目标卡固定在播报预留区下方。播报内容：击杀（去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、助攻者，“X 把 Y 淫了（助攻：A、B）”，可理解死因）、旗杆开放、天降外卖落地与被抢（本人抢到时“你抢到了天降外卖！经验和一份构筑奖励到手”，其他人只知道被抢走）与无人领取消失、画饼老板出现、被击败（击败者）与无人打倒退场、营地标记公开（高档/精英各一行）、被领走（本人领到时改写为“你领到了…”）与失效、新的上热搜对象、旗杆上新喷上的涂鸦、同一主人被冻结的守护归零（“守擂者离圈，守护清零”）；本人相关的行写“你”并高亮 | 只读公开对局视图、公开击杀通知、公开名单与本人的外卖领取序号和野外奖励记录；开局或中途进入的第一帧只记录现状，不补播已发生的事；已过 6 s 的击杀通知不补播。普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、构筑或伤害日志。旗杆下方的外卖/老板/营地标记常驻行只保留倒计时（外卖落地后到消失、老板巡逻到离场、标记到段末）、落地与巡逻，被抢、被击败、退场与标记被领走只进播报。 |
 | 排行榜 Tab | 按住“排行榜”键（默认 Tab，可改绑）时屏幕中央显示本局每名参赛者的名字与击杀/死亡/助攻，击杀多的在前、相同时死亡少的在前，再相同按名单顺序；本人行写“（你）”并高亮，AI 写“（AI）”，已不在房间名单里的写“（已离开）”；松开即收起，不接收点击 | 只读 `KillFeed.Scores`（服务器按名单顺序发布、仅随死亡变化）与房间名单；别的对局代次的数据不显示，没有数据时显示“统计同步中…”而不是零表。文字编辑或子确认占用输入时不显示。 |
-| 属性 P | 本人所有 Spec 属性：最终值，以及基础、等级、属性点、百分比、临时（DEV 测试房间另有测试层）各项来源；相关单位/公式说明；“属性点”分区列五维各自已分配的点数与每点收益及未分配点数；“临时状态”分区 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
-| 构筑工作区 | 右侧单面板按“技能与奖励／加点”切换。技能与奖励页分开展示当前技能槽、待选、待学图纸、开局基础构件自选与精英二选一；加点页每一维直接显示每点收益、已分配点数和暂存点数；已持有构件的安装与搬动在构件库。悬停或键盘聚焦显示详情；休息时标题区提供与 HUD 同一命令的“重置训练”和“准备完毕”。主面板避开画面中央和底部动作栏；NPC 服务使用独立面板，不占任务页。 | 不自动选择、学习或加点；悬停只查看，点击候选、学到、确认加点才提交。服务器回执决定结果；隐藏面板不丢候选、图纸、暂存点数或在途请求。 |
+| 属性视图（“属性”按钮 / P） | 头像下方的加点图标换成属性视图，再按换回：`LDHUD::AttributeViewOrder` 的九项（攻击、法强、护甲、魔抗、攻速、移速、攻击距离、暴击、急速；生命/法力上限与回复已在资源条上，不重复），每项一个图标（暂无图标纹理时为一字图标）和最终值，三项一行、与加点行同高；悬停弹出名称、带单位的最终值与基础、等级、属性点、百分比、临时（DEV 测试房间另有测试层）各项来源。没有单独的属性面板（2026-11-12 用户决定，原话见 App Spec §7） | 原生投影一次计算，UI 只格式化；切换不改焦点，也不取消 Armed。 |
+| 构筑选择卡 | 右下角按钮正上方的卡片行，每行一个待做决定；卡上只有图标与名称，完整说明在悬停弹层；当前技能槽看底部动作栏，加点在 HUD 属性图标上，已持有构件的安装与搬动在构件库，Q/W/E 已满时的替换在训练师处。NPC 服务使用独立窗口。 | 不自动选择或学习；悬停只查看，点卡才提交。服务器回执决定结果；收起不丢候选、图纸或在途请求。 |
 | 待学图纸 | 图纸是选中的单个主动技能，悬停查看详情，学到空 Q/W/E 槽后才能用；满槽时在休息的训练师处确认替换。 | 对局进行中随时可以学到空槽（交战中、死亡等待与 PK 中也可以，#222）。替换和遗忘只在休息服务中进行。 |
 | 构筑蓝图 | 大厅和结果页可查看只读对局记录：Q/W/E、属性、构件图标与独立详情，历史数据默认折叠。 | 蓝图记录不授予物品或技能；记录未保存的历史属性用公式说明，不冒充实际数值。文件与隐私边界见[视野与 UI](../systems/VISION_AND_UI.md#构筑蓝图文件与查看)。 |
-| 加点 | 段标题“未分配点数 N”（已扣去本地暂存）；五维各一行：名称、每点收益、已分配点数（有暂存时写“K 点 +S”）与 −/+；一个“确认加点”按钮，不能加点时在旁边写原因 | −/+ 只改本地暂存，暂存总数不超过未分配点数；“确认加点”一次发送 AllocatePoints（按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数），回执生效后清空暂存。已分配的点不能撤回（洗点只在休息时）。时机：对局进行中随时（交战中、死亡等待与 PK 中也可以，#222）。 |
+| 加点 | HUD 左块五维属性图标（按设计顺序：体格、脸皮、力道、脑力、身手），角上写已分配点数，有未落地的点时写“K+S”；悬停弹层写名称、“已加 K 点 · 未分配点数 N”，再逐项写该属性影响的属性当前值与每点收益，如“攻击力 52.5（每点 +2.5）”（用户原话：“hovering on stats icon should show the corresponding current stats (+stat gain per point)”），不能加点时写原因；有未分配点数时悬停图标正上方出现“+”（不能加点时置灰）；头像左下角黄色圆圈写未分配点数 | 点“+”立即发送一点 AllocatePoints（按五维设计顺序每项一个点数），没有暂存、没有确认；上一次还在途或尚未进入本人视图时，再点的点数在本地排队，之后合并成一次发送；被拒时丢弃排队的点并在提示条写原因。已分配的点不能撤回（洗点只在休息时）。时机：对局进行中随时（交战中、死亡等待与 PK 中也可以，#222）。 |
 | 死亡/保护 | 死因（取本人这一命被确认存活之后的公开击杀通知，未到前不显示）、“你寄了 · 回出租屋 emo <秒>”复活等待、一行小字“等级和构筑都还在，别慌”与待选入口；复活保护图标/期限与“一出手就没了，失手也没了” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
 | 局内 Settings | 画面、音频、操作、镜头、界面五个分类页签；各页恢复本页默认，画面页应用/撤销；继续、离开在局内菜单 | 常驻“对局不会暂停”。离开说明不能重连；Host 离开说明整个房间结束。没有单独的结束本局入口。 |
 | Result | 全员名称/Kills/Deaths/Assists/FinalLevel（列名：淫了几个 · 寄了几次 · 助攻 · 最终等级），赢家标记、原因、用时；Host 回 Lobby；每人可离开 | 按冻结 roster 顺序，不按击杀产生排名/第二胜者。HostEnd 无赢家。Host 失联且未收合法结果只显示会话中断，不编造全零表。 |
@@ -142,7 +142,7 @@ NPC 服务不作为常驻任务页：仅在配装或派奖窗口、本人处于�
 下图是功能布局，不是引擎截图。`名称/数值/时间` 均绑定实际投影，不是运行默认值。
 以 1920×1080 为布局样本，另验 1280×720、窗口调整、Windows DPI 和文字缩放；
 这些是验证样本，不是宣称已经达到的最低配置。参考样本正文 24px、交互行高至少 44px、
-相邻控件 8px 间隔；由统一 DPI/文字规则缩放，窄屏重排/滚动，不靠截断确认按钮适配。
+相邻控件 8px 间隔；由统一 DPI/文字规则缩放，窄屏重排或按比例缩小（主菜单、Lobby、局内菜单、设置菜单、构筑蓝图查看与 DEV 测试面板可滚动），不靠截断确认按钮适配。
 
 ```text
 主菜单                       Start：创建 / 加入
@@ -164,7 +164,7 @@ Lobby
 ```
 
 ```text
-对局 HUD（世界中央保持可见；小地图固定左下、事件播报在其正上方，目标卡左上，开盲盒按钮与成长面板在底部带左块上方同一行；统一圆角面板与扁平按钮）
+对局 HUD（世界中央保持可见；小地图固定左下、事件播报在其正上方，目标卡左上，构筑按钮在右下角、选择卡叠在它正上方；统一圆角面板与扁平按钮）
 ┌────────────────────────────────────────────────────────────────┐
 │ [当前可见目标卡]           [旗杆 / 喷漆者 / 涂鸦主人 / 进度]         │
 │                                                                │
@@ -172,23 +172,25 @@ Lobby
 │   世界 / 当前合法范围与方向预览；可见单位头顶：状态 / 名字 / 等级+血条 │
 │   本人头顶：名字 / 等级+生命(+护盾) / 法力；浮动数字与升级横幅                          │
 │                                                                │
-│ [事件播报，最新在下，5 s]                                       │
-│        [提示条（屏幕居中，固定换行宽度，半透明底，叠在中央块上方）]│
-│              [开盲盒+N · M点] [成长面板]                         │
-│ [视野异常]   [头像+等级][名称][属性 P] [Q][W][E] [D]              │
-│ [小地图]     [状态]        [生命·护盾] [法力] [流量细条]          │
-│ （左下角）                                                      │
+│ [事件播报，最新在下，5 s]                        [图纸卡…]      │
+│        [提示条（屏幕居中，固定换行宽度，半透明底）] [精英二选一卡] │
+│                                                  [开局构件卡…]  │
+│ [对局用时]   [头像+点数/等级][名称][属性 P] [Q][W][E] [D] [主动卡×3]│
+│                    [五维属性图标]                               │
+│ [小地图]     [状态]        [生命·护盾] [法力] [流量细条]  [构筑] │
+│ （左下角）                                         （右下角）   │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 ```text
-构筑工作区（下图只示结构）
-┌──────────────────┬──────────────────────────┬─────────────────────┐
-│ 属性 / Q W E     │ 待选与图纸 / 构件 / NPC   │ 所选条目详情         │
-│ 五维点数         │ 候选或构件图标背包        │ 名称、规则与状态     │
-│ 暂存与确认       │ 安装、绑定或服务          │ 安装与失败原因       │
-└──────────────────┴──────────────────────────┴─────────────────────┘
-悬停或聚焦查看详情，点击构件图标固定；候选选择与安装仍由服务器裁决。
+构筑选择卡（下图只示结构；没有面板底、标题或滚动）
+                    [图标][图标]          ← 待学图纸（有空槽时）
+             [图标][图标]  [N 点]         ← 精英二选一（都已持有时多一张点数卡）
+       [图标][图标][图标][图标]           ← 开局基础构件（构件卡多于 6 张时只剩图标的网格）
+             [图标][图标][图标]           ← 主动三选一
+              名称  名称  名称
+                                [ 构筑 ]  ← 右下角
+悬停任一卡弹出完整说明；点一下即提交，服务器裁决。
 图标按 IconId 显示，纹理缺失时显示名称首字并记录 `LD_UI_ICON_MISSING`。
 Q/W/E 已满时新主动保留为图纸；休息时靠近训练师可确认替换或遗忘。
 ```
@@ -241,9 +243,9 @@ Result
 └──────────────────────────────────────────────────────────────┘
 ```
 
-死亡横幅放在旗杆提示下方，复活倒计时与小字“等级和构筑都还在，别慌”分开；死亡时开盲盒面板与构件库照常可用：选技能有空槽就学到（#222），可以学图纸、加点和安装构件；不弹遮满地图的死亡模态。
+死亡横幅放在旗杆提示下方，复活倒计时与小字“等级和构筑都还在，别慌”分开；死亡时构筑选择卡与构件库照常可用：选技能有空槽就学到（#222），可以学图纸、加点和安装构件；不弹遮满地图的死亡模态。
 关键状态用文字+形状/图标+颜色，焦点有可见轮廓，不仅靠红绿或声音。长名称省略时能看完整文本，
-但 tooltip 仍受同一授权和失效边界约束。角色被动与临时状态分区，列表可展开/滚动，
+但 tooltip 仍受同一授权和失效边界约束。角色被动与临时状态分区，列表向上加行展开（不滚动），
 **UI 行数不是被动数量上限**。
 头像可用 native 原创头肩轮廓；合法 `IconId` 显示由 `SourceData\UI\Icons` 导入的本项目图标，纹理缺失时显示名称首字并报错，不借用外部游戏素材。
 未知定义不是“通用有效图标”：明确报告内容/协议错误，不能猜名称或能力。
@@ -303,7 +305,7 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | `ULDUIRoot::CloseTopPanel() -> bool`、`ShowMainPanel/ToggleMainPanel(ELDUIMainPanel)`；面板的 `ULDPanel::HasChildConfirmation/CloseChildConfirmation` | `ELDUIMainPanel` 仅本地导航枚举；唯一主面板/子确认/焦点状态，Controller 消费输入层。进入子确认先撤冲突 Armed 并保持释放抑制，Back 不越过模态，不反向创造第二栈。`ShowMainPanel` 用于权威事件打开，不顶掉玩家已开的菜单或设置。 |
 | `ULDUIRoot::TickFrontend/TickWorld` | 从已接受的投影更新前端与局内层；离局/换代只清本地呈现，不写领域数据。 |
 | `ULDHUD::RefreshReadModel()`、`LDHUD::Action(...) -> FActionView`、`LDHUD::AttributeRow(const FLDCombatAttributeRowView&) -> FAttributeRowView` | 纯本人/公共格式化；Action 消费 Combat 的本人 `CombatView` 条目与同步权威时刻，输出意图可提交性和执行限制，不查询敌 Actor 或重算派生公式。 |
-| `ULDChoicesPanel::Present(...) / ChooseOffer(int32) / PreviewOffer(int32) / LearnBlueprint(int32,uint8) / StagePoint(int32,int32) / ConfirmPoints()` | `ChooseOffer` 是点卡（“学这个”），`PreviewOffer` 只显示详情弹层，`LearnBlueprint` 是图纸行的“学到 Q/W/E”，`StagePoint` 只改本地暂存，`ConfirmPoints` 发送暂存的加点；卡/行 index 只选择屏幕中的不可变内容；最后发送稳定 OfferId/Revision、定义 ID、槽位或按五维设计顺序（体格、脸皮、力道、脑力、身手）的点数及 `ExpectedBuildRevision`/CatalogDigest，不把数组位置当业务身份。 |
+| `ULDChoicesPanel::Present(...) / ChooseOffer(int32) / PreviewOffer(int32) / LearnBlueprint(int32,uint8)`、`ULDStatBar::Allocate(int32)` | `ChooseOffer` 是点主动卡，`PreviewOffer` 只把该卡的说明弹层钉住（评审截图用），`LearnBlueprintCard` 是点图纸卡（学到最低的空槽），`LearnBlueprint` 是训练师窗口图纸行的“学到 Q/W/E”，`Allocate` 是 HUD 属性图标上的“+”，立即发送一点；卡/行 index 只选择屏幕中的不可变内容；最后发送稳定 OfferId/Revision、定义 ID、槽位或按五维设计顺序（体格、脸皮、力道、脑力、身手）的点数及 `ExpectedBuildRevision`/CatalogDigest，不把数组位置当业务身份。 |
 | `ALDPlayerController::SubmitBuild(const FLDBuildCommand&, ELDGrowthReason&)`、`QueryGrowthReceipt(const FLDReceiptQuery&)` | 经本人拥有连接转发 `ServerGrowthBuild`/`ServerQueryGrowthReceipt`；服务端调用 `ALDDevelopmentDirector::QueueBuild`/`QueryBuildReceipt`。query receipt 同样沿原领域键，不建通用万能 RPC。 |
 | `ALDWorldViewRelay::ReadObservedFrame() const` | 返回世界域唯一只读 `FLDWorldView` 与本地 `ViewStatus`，不接受 ObserverId；目标卡/Minimap/世界输入共享它。 |
 
@@ -443,7 +445,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | TargetUnavailable / InvalidGround / Direction / OutOfRange / Blocked | 来源按钮附近显示精简原因；TargetUnavailable 不细分隐藏对象是否存在/死亡 | 不沿隐藏位置追踪、不靠服务器错误反查目标；不把路径失败当到达。 |
 | NoSource / CD / InsufficientMana / ControlBlocked | 明确空槽、冷却、低蓝、控制类别；执行限制和意图派发分开 | 不把“保护中”一律禁进攻，不根据本地预测阻断全部无效意图。 |
 | `Rejected + ProtectionRemoved` | 同时显示“施法失败：法力不足”等执行结果和“复活保护没了”；按 LifeRevision 等待/接受相应 owner 变化 | **Rejected 不等于全部状态未变**。目标/资源失败不扣未提交 MP/CD，但真实保护变化不回滚。 |
-| NoEmptySlot / SlotOccupied / NotEnoughPoints / PhaseClosed / BuildLocked / NotRestWindow / Dead（成长） | 学到与确认加点按钮置灰并写原因：“Q/W/E 已满”、点数不足、对局已结束；NPC 服务写“PK 与返回倒计时期间不能找 NPC”、“休息时才能替换”或“阵亡中”；Q/W/E 已满时选技能照常可做，存为图纸并在回执里写明原因 | 不在回执前改本地构筑；不把存为图纸说成已学到，不替玩家自动学习或加点。#222 起没有“未脱战”原因（`NotSafe`、`RestOnly` 已退役）。 |
+| NoEmptySlot / SlotOccupied / NotEnoughPoints / PhaseClosed / BuildLocked / NotRestWindow / Dead（成长） | 学到按钮与属性图标的“+”置灰并写原因：“Q/W/E 已满”、点数不足、对局已结束；NPC 服务写“PK 与返回倒计时期间不能找 NPC”、“休息时才能替换”或“阵亡中”；Q/W/E 已满时选技能照常可做，存为图纸并在回执里写明原因 | 不在回执前改本地构筑；不把存为图纸说成已学到，不替玩家自动学习或加点。#222 起没有“未脱战”原因（`NotSafe`、`RestOnly` 已退役）。 |
 | NumericUnderflow / NumericDomain（成长） | 明确数值域非法、本次业务零提交；保留原候选并按域结果恢复可操作状态 | 不把下溢/非法结果钳成 0 后显示 Applied，不部分消费机会。 |
 | RequestConflict / ReceiptExpired / ServiceUnavailable / AuthorityFault | 明确拒绝、合法重读/查询或返回菜单；内部细节留服务器日志 | 不吞异常、不无限等待按钮；回执缓存清理不能重新执行旧请求。 |
 | MatchClosed / LeftMatch / HostLost | 关闭 gameplay 输入/会话，切合法结果或菜单中断原因 | 不把 HostLost 当赢、不伪造终局表、不把普通离开算击杀。 |
@@ -535,7 +537,7 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、XP/Offer/
 | `STAT.MaxHP/MaxMP/AD/AP/Armor/MagicResist/AttackSpeed/HPRegen/MPRegen/CritChance/CooldownHaste/AttackRangeCm/MoveSpeedCmPerSec` | 点、点/s、次/s、cm、cm/s、概率/倍率等沿 Unit/FormulaId；资源 P2 格式化不影响结算 | 本人属性/资源、合法瞄准范围。禁止以基础 `UNIT.BasicAttackRangeCm` 替代当前派生射程。 |
 | `FORMULA.ResourceMaxChange` 及属性 FormulaId | 运算/取整由 Combat，UI 只展示新 Final/资源 | 不重复缩放 HP/MP、不额外回血。 |
 | `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/ManaCost/CooldownSec`、`SKILL.GrowthPerLevel/GrowthPerLevelAfter10` | 每个主动一组值，目标模式与成本依目录；卡面数字按拥有者当前等级 G(L) 与属性填入；实时 CD 读 IssuedCooldownId/ReadyAtMs | Q/W/E、预览、说明、成长面板卡片。 |
-| `stats`、`GROWTH.OpeningPoints/PointsPerLevel/MaxLevelPointsXP/MaxLevelPoints/BuildSafeWindowSec`、`progression.active_offer_levels` | 五维每点收益（目录文本填数）；点数供给由成长判定，UI 只显示投影里的未分配点数；`BuildSafeWindowSec` 只是 Combat 交战窗口，UI 只读本人 `CombatView.BuildSafeAtMs` 做野外摘要的交战折叠 | 加点行、属性面板、野外摘要折叠；不另算点数、不另设交战计时，不再显示“未脱战 N 秒”。 |
+| `stats`、`GROWTH.OpeningPoints/PointsPerLevel/MaxLevelPointsXP/MaxLevelPoints/BuildSafeWindowSec`、`progression.active_offer_levels` | 五维每点收益（目录文本填数）；点数供给由成长判定，UI 只显示投影里的未分配点数；`BuildSafeWindowSec` 只是 Combat 交战窗口，HUD 不读它 | 加点行、属性视图；不另算点数、不另设交战计时，不再显示“未脱战 N 秒”。 |
 | `VISION.RadiusCm` | 脚点 XY 厘米，观测为最终授权 | 本人范围表示；镜头移动不改变该范围。 |
 | `DISPLAY.<contentId>.NameKey/DescriptionKey/IconId`、`DISPLAY.character_demo.PortraitIconId` | namespace `DemoContent`，`<id>.name/.description`、`icon_<id>`；头像 `portrait_character_demo`，不假称贴图已生成 | 技能/状态/卡/头像。 |
 | 操作域本地设置键 | §8 的倍率/厘米/cm/s/viewport 比例 | 相机/文字/标签；不在内容目录另设一套玩法值。 |

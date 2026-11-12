@@ -46,11 +46,13 @@ struct FLDMinimapStatic
     FString ContentError;
     bool bContentTried=false,bGroundLogged=false,bResolved=false,bValid=false;
     FLDWorldRevision World;
-    // Areas are clipped to the registered ground. Bounds is the box the view fits: every registered blocker, site, capture
-    // zone and spawn point as registered, kept to the ground (outer walls may lie wholly beyond it).
+    // Areas are clipped to the registered ground. The map shows one region at a time, the one the owner is in: the field
+    // (Field) or the #198 rest room (Rest, invalid when the world has none). Each is the box of its anchors plus every drawn
+    // area reaching within MinimapRegionReachCm of them, kept to the ground.
     TArray<FArea> Areas;
     TArray<FSite> Sites;
-    FBox2D Bounds=FBox2D(ForceInit);
+    FBox2D Field=FBox2D(ForceInit);
+    FBox2D Rest=FBox2D(ForceInit);
     // Transparent terrain raster above the separate opaque ground/coverage plane.
     FBox2D ResolvedGround=FBox2D(ForceInit);
     LDMinimapRaster::FStaticKey RasterKey;
@@ -161,21 +163,28 @@ double MinimapArea(const TArray<FVector2D>& Polygon)
 {double Twice=0;for(int32 I=0;I<Polygon.Num();++I){const FVector2D& From=Polygon[I];const FVector2D& To=Polygon[(I+1)%Polygon.Num()];Twice+=From.X*To.Y-To.X*From.Y;}return FMath::Abs(Twice)*.5;}
 // One registered world revision, in world cm. Any unresolved item fails the whole layer, because a partial map could pass
 // for the approved one. Spawn anchors are never drawn; they only keep the playable area inside the fit.
+// The walls around a region's anchors lie within this reach of them; the two regions lie farther apart than it.
+constexpr double MinimapRegionReachCm=1000.;
+// The rest room's anchors: everything else belongs to the field.
+bool MinimapRestAnchor(ELDDemoWorldAnchorKind Kind)
+{
+    return Kind==ELDDemoWorldAnchorKind::RestSpawn||Kind==ELDDemoWorldAnchorKind::RestService||Kind==ELDDemoWorldAnchorKind::TrainingDummy
+        ||Kind==ELDDemoWorldAnchorKind::PKSignup;
+}
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
-    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);
+    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);
     if(!Approved.World.MapId.Equals(Geometry.MapId,ESearchCase::CaseSensitive))
     {Error=FString::Printf(TEXT("Approved content names map %s but the registered world is %s."),*Approved.World.MapId,*Geometry.MapId);return false;}
     auto ToCm=[&Error](const FString& Id,const FLDDemoWorldPoint& Point,FVector2D& Result)
     {FVector Cm;if(!Point.ToVector(Cm,Error)){Error=Id+TEXT(": ")+Error;return false;}Result=FVector2D(Cm.X,Cm.Y);return true;};
-    FBox2D Content(ForceInit);
-    // An area is fitted as registered but keeps only its part on the ground; one left without area is not drawn.
-    auto Keep=[&Content,&Ground](FLDMinimapStatic::FArea& Area)
+    // An area keeps only its part on the ground; one left without area is not drawn.
+    auto Keep=[&Ground](FLDMinimapStatic::FArea& Area)
     {
-        for(const FVector2D& Point:Area.Cm){Content+=Point;}
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
+    FBox2D FieldAnchors(ForceInit),RestAnchors(ForceInit);
     auto Terrain=[&](const FString& Id,const TArray<FLDDemoWorldPoint>& Polygon,FLDMinimapStatic::EArea Style)
     {
         FLDMinimapStatic::FArea Area;Area.Style=Style;
@@ -203,7 +212,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     for(const FLDDemoWorldAnchor& Anchor:Geometry.Anchors)
     {
         FLDMinimapStatic::FSite Site;if(!ToCm(Anchor.Id,Anchor.PositionCm,Site.Cm)){return false;}
-        Content+=Site.Cm;
+        (MinimapRestAnchor(Anchor.Kind)?RestAnchors:FieldAnchors)+=Site.Cm;
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn){continue;}
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Capture)
         {
@@ -240,11 +249,22 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
-    // The fit never reaches beyond the ground, where nothing is drawn; content spanning no area there fits the whole ground.
-    if(Content.bIsValid)
-    {Cache.Bounds=FBox2D(FVector2D(FMath::Max(Content.Min.X,Ground.Min.X),FMath::Max(Content.Min.Y,Ground.Min.Y)),FVector2D(FMath::Min(Content.Max.X,Ground.Max.X),FMath::Min(Content.Max.Y,Ground.Max.Y)));}
-    const FVector2D Span=Cache.Bounds.GetSize();
-    if(!Cache.Bounds.bIsValid||!(Span.X>0.)||!(Span.Y>0.)){Cache.Bounds=Ground;}
+    // Each region grows by the drawn areas near its anchors (its walls, trees and zones) and never reaches beyond the ground,
+    // where nothing is drawn; a field without any anchor fits the whole ground.
+    const auto Region=[&](const FBox2D& Anchors)
+    {
+        if(!Anchors.bIsValid){return FBox2D(ForceInit);}
+        const FBox2D Reach=Anchors.ExpandBy(MinimapRegionReachCm);
+        FBox2D Box=Anchors;
+        for(const FLDMinimapStatic::FArea& Area:Cache.Areas){const FBox2D Footprint(Area.Cm);if(Footprint.bIsValid&&Footprint.Intersect(Reach)){Box+=Footprint;}}
+        Box=FBox2D(FVector2D(FMath::Max(Box.Min.X,Ground.Min.X),FMath::Max(Box.Min.Y,Ground.Min.Y)),FVector2D(FMath::Min(Box.Max.X,Ground.Max.X),FMath::Min(Box.Max.Y,Ground.Max.Y)));
+        const FVector2D Span=Box.GetSize();
+        return Span.X>0.&&Span.Y>0.?Box:FBox2D(ForceInit);
+    };
+    Cache.Field=Region(FieldAnchors);Cache.Rest=Region(RestAnchors);
+    if(!Cache.Field.bIsValid){Cache.Field=Ground;}
+    if(Cache.Rest.bIsValid&&Cache.Rest.Intersect(Cache.Field))
+    {Error=TEXT("The rest room and the field overlap on the minimap; their anchors are too close to tell apart.");return false;}
     return true;
 }
 class SLDMinimapRaster : public SLeafWidget
@@ -317,7 +337,7 @@ void MinimapResolveRevision(FLDMinimapStatic& Cache,const UWorld* World,const FB
     Cache.bValid=Cache.Content&&MinimapResolveStatic(Cache,*Geometry,Cache.Content->Get(),Ground,Error);
     if(!Cache.bValid)
     {
-        Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);
+        Cache.Areas.Reset();Cache.Sites.Reset();Cache.Field=FBox2D(ForceInit);Cache.Rest=FBox2D(ForceInit);
         const FString Reason=Cache.Content?Error:TEXT("Approved Demo content unavailable: ")+Cache.ContentError;
         UE_LOG(LogLDUI,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE %s %s"),*Cache.World.MapId.ToString(),*Reason);
     }
@@ -394,15 +414,32 @@ void MinimapUpdateCoverage(FLDMinimapStatic& Cache,const ALDPlayerController& PC
     }
     Cache.CoverageKey={Read.LocalSerial,PC.OwnerState.Match,PC.OwnerState.Life};
 }
-// The owner's live view: the applied orientation over the drawn content, or over the ground until that resolves.
-// Painting and gestures both use it, so a pointer lands where the map shows.
-LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FLDMinimapStatic& Cache,const UWorld* World,const FBox2D& Ground,const FVector2D& Size)
+// The region the map shows: the rest room while the owner's living body stands in it (without a body, while the camera
+// looks at it), else the field; the whole ground until the layer resolves. It is the map's own ground: the view fits it,
+// paint clips to it and gestures clamp into it.
+FBox2D MinimapRegion(const ALDPlayerController& PC,const FLDMinimapStatic& Cache,const UWorld* World,const FBox2D& Ground)
+{
+    if(!MinimapStaticCurrent(Cache,World)){return Ground;}
+    if(!Cache.Rest.bIsValid){return Cache.Field;}
+    FVector2D Where=FVector2D::ZeroVector;bool bWhere=false;
+    if(const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr){Where=FVector2D(Body->GetActorLocation());bWhere=true;}
+    else
+    {
+        int32 W=0,H=0;PC.GetViewportSize(W,H);FVector Origin,Direction;
+        if(W>0&&H>0&&PC.DeprojectScreenPositionToWorld(W*.5f,H*.5f,Origin,Direction)&&Direction.Z<-.001)
+        {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Where=FVector2D(Hit);bWhere=true;}
+    }
+    return bWhere&&Cache.Rest.IsInsideOrOn(Where)?Cache.Rest:Cache.Field;
+}
+// The owner's live view: the applied orientation over the shown region. Painting and gestures both use it, so a pointer
+// lands where the map shows.
+LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FBox2D& Region,const FVector2D& Size)
 {
     const ELDMinimapOrientation Mode=PC.Controls?PC.Controls->GetMinimapOrientation():GetDefault<ULDControlSettings>()->GetMinimapOrientation();
     // Without a camera manager the camera yaw is unknown; the Camera view then keeps the north yaw instead of a guess.
     const double CameraYaw=PC.PlayerCameraManager?double(PC.PlayerCameraManager->GetCameraRotation().Yaw):LDMinimap::NorthYawDeg;
     const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr;
-    return LDMinimap::MakeView(Mode,MinimapStaticCurrent(Cache,World)?Cache.Bounds:Ground,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.);
+    return LDMinimap::MakeView(Mode,Region,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.);
 }
 }
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()
@@ -416,11 +453,12 @@ bool ULDMinimap::Gesture(FVector2D P,bool Move)
     // Death keeps camera operations (UI 4); a ground order still needs the controller's world-command gate.
     if(Move&&!PC->CanWorldCommand()){if(PC->IsAwaitingRespawn()){PC->PostIntentNotice(FString(LDTerms::Dead)+TEXT("，只能移动镜头，不能下达移动"));}return false;}
     FBox2D Ground(ForceInit);if(!MinimapGroundBounds(GetWorld(),Ground)){PC->PostIntentNotice(TEXT("小地图不可用：未加载 Demo 世界"));return false;}
-    const LDMinimap::FView View=MinimapLiveView(*PC,MinimapCache(StaticMap),GetWorld(),Ground,FrameSize);
+    const FBox2D Region=MinimapRegion(*PC,MinimapCache(StaticMap),GetWorld(),Ground);
+    const LDMinimap::FView View=MinimapLiveView(*PC,Region,FrameSize);
     if(!View.IsValid()){PC->PostIntentNotice(TEXT("小地图不可用：尚未完成布局"));return false;}
     // A point off the ground (a turned corner, the fitted margin) is clamped onto it like any edge point; a move is then
     // still validated against the public ground below.
-    const FVector XY=LDMinimap::ClampToGround(LDMinimap::ToWorld(View,P*View.FrameSize),Ground);
+    const FVector XY=LDMinimap::ClampToGround(LDMinimap::ToWorld(View,P*View.FrameSize),Region);
     if(!Move){PC->Navigation->PanTo(XY);return true;}
     FVector Surface;if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
     // Shift queues the minimap move like a Shift right click in the world.
@@ -431,9 +469,11 @@ FReply ULDMinimap::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEven
     FrameSize=G.GetLocalSize();
     {
         const auto* Owner=CastChecked<ALDPlayerController>(GetOwningPlayer());FBox2D Ground(ForceInit);
-        if(!Owner->IsFrontend()&&MinimapGroundBounds(GetWorld(),Ground)
-            &&!LDMinimap::OnGround(MinimapLiveView(*Owner,MinimapCache(StaticMap),GetWorld(),Ground,FrameSize),Fraction(G,E)*FrameSize,Ground))
-        {return FReply::Unhandled();}
+        if(!Owner->IsFrontend()&&MinimapGroundBounds(GetWorld(),Ground))
+        {
+            const FBox2D Region=MinimapRegion(*Owner,MinimapCache(StaticMap),GetWorld(),Ground);
+            if(!LDMinimap::OnGround(MinimapLiveView(*Owner,Region,FrameSize),Fraction(G,E)*FrameSize,Region)){return FReply::Unhandled();}
+        }
     }
     if(E.GetEffectingButton()==EKeys::LeftMouseButton)
     {
@@ -456,8 +496,10 @@ void ULDMinimap::NativeTick(const FGeometry& G,float D)
     if(bGround)
     {
         MinimapResolveRevision(Cache,GetWorld(),Ground);
-        const LDMinimap::FView View=MinimapLiveView(*PC,Cache,GetWorld(),Ground,FrameSize);
-        if(View.IsValid()){MinimapUpdateStatic(Cache,GetWorld(),{Ground,FrameSize,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World});}
+        // The terrain raster covers only the shown region, at its scale.
+        const FBox2D Region=MinimapRegion(*PC,Cache,GetWorld(),Ground);
+        const LDMinimap::FView View=MinimapLiveView(*PC,Region,FrameSize);
+        if(View.IsValid()){MinimapUpdateStatic(Cache,GetWorld(),{Region,FrameSize,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World});}
         MinimapUpdateCoverage(Cache,*PC);
     }
     else if(!Cache.bGroundLogged){Cache.bGroundLogged=true;UE_LOG(LogLDUI,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE No single registered ground surface; only the background is drawn."));}
@@ -474,7 +516,9 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
     auto Lines=[&](int32 Layer,const TArray<FVector2f>& Points,const FLinearColor& Tint,float Thickness){FSlateDrawElement::MakeLines(E,Base+Layer,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Tint,true,Thickness);};
     E.PushClip(FSlateClippingZone(G));
     FBox2D Ground(ForceInit);FLDMinimapStatic& Cache=MinimapCache(StaticMap);
-    const LDMinimap::FView View=MinimapGroundBounds(GetWorld(),Ground)?MinimapLiveView(*PC,Cache,GetWorld(),Ground,Size):LDMinimap::FView();
+    const bool bGround=MinimapGroundBounds(GetWorld(),Ground);
+    const FBox2D Region=bGround?MinimapRegion(*PC,Cache,GetWorld(),Ground):FBox2D(ForceInit);
+    const LDMinimap::FView View=bGround?MinimapLiveView(*PC,Region,Size):LDMinimap::FView();
     if(View.IsValid())
     {
         // Every mark goes through the same view as the gestures; point glyphs stay upright at their mapped spot.
@@ -487,7 +531,12 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         const FGeometry Plane=G.MakeChild(PlaneSize,FSlateLayoutTransform(FVector2f(float(Size.X*.5),float(Size.Y*.5))-Pivot),
             FSlateRenderTransform(FMatrix2x2(float(View.Right.X),float(-View.Forward.X),float(View.Right.Y),float(-View.Forward.Y))),Pivot/PlaneSize);
         auto PlaneBox=[&](int32 Layer,const FVector2f& At,const FVector2f& Extent,const FLinearColor& Tint){FSlateDrawElement::MakeBox(E,Base+Layer,Plane.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),White,ESlateDrawEffect::None,Tint);};
-        PlaneBox(1,FVector2f::ZeroVector,PlaneSize,LDMinimapRaster::GroundColor());
+        // Everything is clipped to the shown region, turned with the view: the other region never shows.
+        const FVector2f RegionAt(float((Region.Min.X-Ground.Min.X)*View.Scale),float((Region.Min.Y-Ground.Min.Y)*View.Scale));
+        const FVector2D RegionSpan=Region.GetSize();const FVector2f RegionSize(float(RegionSpan.X*View.Scale),float(RegionSpan.Y*View.Scale));
+        auto Corner=[&](double X,double Y){return FVector2f(G.LocalToAbsolute(FVector2D(Spot(FVector(X,Y,0.)))));};
+        E.PushClip(FSlateClippingZone(Corner(Region.Min.X,Region.Min.Y),Corner(Region.Max.X,Region.Min.Y),Corner(Region.Min.X,Region.Max.Y),Corner(Region.Max.X,Region.Max.Y)));
+        PlaneBox(1,RegionAt,RegionSize,LDMinimapRaster::GroundColor());
         const FLDOwnerState& Own=PC->OwnerState;const bool bAlive=Own.LifePhase==ELDLifePhase::Alive;
         const ALDWorldViewRelay* Relay=bAlive?PC->LocalView():nullptr;const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
         // Dynamic marks only come from the current authorized frame of this match and life; dead, stale or foreign frames draw none.
@@ -497,9 +546,9 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         {
             FSlateDrawElement::MakeBox(E,Base+2,Plane.ToPaintGeometry(),&Cache.CoverageBrush,ESlateDrawEffect::NoGamma);
         }
-        if(MinimapStaticReady(Cache,GetWorld(),{Ground,Size,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World}))
+        if(MinimapStaticReady(Cache,GetWorld(),{Region,Size,View.Scale,G.GetAccumulatedLayoutTransform().GetScale(),Cache.World}))
         {
-            FSlateDrawElement::MakeBox(E,Base+3,Plane.ToPaintGeometry(Cache.RasterBrush.ImageSize,FSlateLayoutTransform(FVector2f(-2.f))),
+            FSlateDrawElement::MakeBox(E,Base+3,Plane.ToPaintGeometry(Cache.RasterBrush.ImageSize,FSlateLayoutTransform(RegionAt-FVector2f(2.f))),
                 &Cache.RasterBrush,ESlateDrawEffect::PreMultipliedAlpha|ESlateDrawEffect::NoGamma);
             // Capture: flag on the zone centre. Camps: small diamond or large bordered one.
             for(const FLDMinimapStatic::FSite& Site:Cache.Sites)
@@ -602,13 +651,14 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         {
             FVector Origin,Direction;
             if(PC->DeprojectScreenPositionToWorld(float(Pixel.X),float(Pixel.Y),Origin,Direction)&&Direction.Z<-.001)
-            {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Footprint.Add(Spot(FVector(FMath::Clamp(Hit.X,Ground.Min.X,Ground.Max.X),FMath::Clamp(Hit.Y,Ground.Min.Y,Ground.Max.Y),0.)));}
+            {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Footprint.Add(Spot(FVector(FMath::Clamp(Hit.X,Region.Min.X,Region.Max.X),FMath::Clamp(Hit.Y,Region.Min.Y,Region.Max.Y),0.)));}
         }
         if(Footprint.Num()==4){const FVector2f First=Footprint[0];Footprint.Add(First);Lines(11,Footprint,FLinearColor(1.f,1.f,1.f,.8f),1.5f);}
-        // #97: the map is the ground itself, turned with the view (a diamond in 跟随镜头) and drawn whole; its rim is the
-        // minimap's edge and the frame beyond it stays see-through.
-        TArray<FVector2f> Rim={Spot(FVector(Ground.Min.X,Ground.Min.Y,0.)),Spot(FVector(Ground.Max.X,Ground.Min.Y,0.)),
-            Spot(FVector(Ground.Max.X,Ground.Max.Y,0.)),Spot(FVector(Ground.Min.X,Ground.Max.Y,0.))};
+        E.PopClip();
+        // #97: the map is the shown region itself, turned with the view (a diamond in 跟随镜头) and drawn whole; its rim is
+        // the minimap's edge and the frame beyond it stays see-through.
+        TArray<FVector2f> Rim={Spot(FVector(Region.Min.X,Region.Min.Y,0.)),Spot(FVector(Region.Max.X,Region.Min.Y,0.)),
+            Spot(FVector(Region.Max.X,Region.Max.Y,0.)),Spot(FVector(Region.Min.X,Region.Max.Y,0.))};
         const FVector2f Closing=Rim[0];Rim.Add(Closing);Lines(13,Rim,FLinearColor(.42f,.55f,.62f,.9f),1.5f);
     }
     E.PopClip();return Base+14;

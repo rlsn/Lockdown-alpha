@@ -214,8 +214,8 @@ void ALDPlayerController::V05Pressed(FName Action)
 {
     if (Action==TEXT("Back")) { V05Back(); return; }
     if (bControlsSuppressed || bFreshInputRequired) { return; }
-    // Own panels also open while dead (UI_AND_SETTINGS 3.2); the root keeps one main panel at a time.
-    if (Action==TEXT("Attributes")) { if (RootUI) { RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes); } return; }
+    // The HUD's stat icons <-> attribute view, alive or dead (UI_AND_SETTINGS 3.2).
+    if (Action==TEXT("Attributes")) { if (HUDUI) { HUDUI->ToggleAttributeView(); } return; }
     // A child confirmation or a text edit owns every other key and click until it closes (UI 4).
     if (IsWorldInputCaptured()) { return; }
     // The playtest mark works alive or dead: it only writes the logs and never commands the world.

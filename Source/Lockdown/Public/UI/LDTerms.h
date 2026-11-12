@@ -47,29 +47,17 @@ inline constexpr TCHAR Dorm[]=TEXT("躺平角");
 inline FString DormRegenActive(){return FString(Dorm)+TEXT("回血中");}
 inline FString InDorm(){return FString(TEXT("在"))+Dorm+TEXT(" · 脱战后快速回复");}
 inline constexpr TCHAR Airdrop[]=TEXT("天降外卖");
-inline FString AirdropCountdown(const FString& Clock){return FString(Airdrop)+TEXT(" ")+Clock+TEXT(" 后落地 · 小地图橙色标记");}
-inline FString AirdropSoon(){return FString(Airdrop)+TEXT("即将落地 · 小地图橙色标记");}
 inline constexpr TCHAR AirdropLanded[]=TEXT("外卖到了 · 先到先得");
-// #198 外卖落地后限时：没人领就消失
-inline FString AirdropLandedLeft(const FString& Clock){return FString(AirdropLanded)+TEXT(" · ")+Clock+TEXT(" 后消失");}
 inline FString AirdropExpired(){return FString(Airdrop)+TEXT("没人领，消失了");}
 inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！经验和一份构筑奖励到手");}
 inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
 // 符咒（#198）：野外血量、蓝量、移速三种，落在外卖点上，走进去就拿到
 inline constexpr TCHAR Charm[]=TEXT("符咒");
-inline constexpr TCHAR CharmHeal[]=TEXT("血量符咒");
-inline constexpr TCHAR CharmMana[]=TEXT("蓝量符咒");
-inline constexpr TCHAR CharmMoveSpeed[]=TEXT("移速符咒");
-inline FString CharmsLying(const FString& Kinds){return FString(Charm)+TEXT("：")+Kinds+TEXT(" · 小地图彩色圆点");}
 inline FString CharmsAppeared(){return FString(Charm)+TEXT("出现了 · 走进去就能拿");}
 inline constexpr TCHAR Boss[]=TEXT("画饼老板");
 // #198 击败画饼老板的最后一击得一份构筑奖励（原“吃到大饼”加成已移除）
 inline constexpr TCHAR BossReward[]=TEXT("拿到一份构筑奖励");
-inline FString BossCountdown(const FString& Name,const FString& Clock){return Name+TEXT(" ")+Clock+TEXT(" 后出现 · 小地图金色巡逻点");}
-inline FString BossSoon(const FString& Name){return Name+TEXT(" 即将出现");}
 inline FString BossAppeared(const FString& Name){return Name+TEXT(" 出现了 · 小地图金色巡逻点");}
-inline FString BossPatrol(const FString& Name){return Name+TEXT(" 巡逻中 · 打它会被它追着打");}
-inline FString BossPatrolLeaving(const FString& Name,const FString& Clock){return BossPatrol(Name)+TEXT(" · ")+Clock+TEXT(" 后离场");}
 inline FString BossLeft(const FString& Name){return Name+TEXT(" 没人打倒，离场了");}
 inline FString BossDownSelf(const FString& Name){return FString(TEXT("你击败了"))+Name+TEXT("，")+BossReward+TEXT("！");}
 inline FString BossDownBy(const FString& Killer,const FString& Name){return Killer+TEXT(" 击败了")+Name;}
@@ -77,7 +65,6 @@ inline FString BossDown(const FString& Name){return Name+TEXT(" 倒下了");}
 // #198 营地标记：每个野外段各标一个大野怪营地和一个精英营地，首个清掉的人领奖
 inline constexpr TCHAR CampMarkHigh[]=TEXT("高档营地标记：首个清掉的人得一份主动图纸");
 inline constexpr TCHAR CampMarkElite[]=TEXT("精英营地标记：首个清掉的人得普通材料二选一");
-inline FString CampMarkLeft(const FString& Mark,const FString& Clock){return Mark+TEXT(" · ")+Clock+TEXT(" 后失效");}
 inline FString CampMarkTaken(bool bHigh){return FString(bHigh?TEXT("高档营地标记"):TEXT("精英营地标记"))+TEXT("被人领走了");}
 inline FString CampMarkOwnClaim(bool bHigh){return bHigh?FString(TEXT("你领到了高档营地标记：一份主动图纸")):FString(TEXT("你领到了精英营地标记：普通材料二选一"));}
 inline FString CampMarkExpired(){return FString(TEXT("本段营地标记没人领，失效了"));}
@@ -114,10 +101,8 @@ inline FString OfferChance(int32 Count){return Count>1?FString::Printf(TEXT("%d 
 // #198 B 构件（基础构件 / 改装件 / 连接件）：开局自选一个基础构件，正常升级送一个随机构件。#222 起随时可以安装、拆下和搬动；
 // #227 起拿到的构件进 HUD 右侧的构件库，拖到技能列上安装。
 inline constexpr TCHAR Component[]=TEXT("构件");
-inline constexpr TCHAR OpeningBase[]=TEXT("选一个开局基础构件");
-inline constexpr TCHAR TakeComponent[]=TEXT("拿这个");
-inline constexpr TCHAR TakeAndEquip[]=TEXT("拿这个 → 装到本体");
-inline constexpr TCHAR TakeToStorage[]=TEXT("拿这个 → 放进构件库（再拖到技能上绑定）");
+inline constexpr TCHAR TakeAndEquip[]=TEXT("装到本体");
+inline constexpr TCHAR TakeToStorage[]=TEXT("放进构件库");
 // #227 构件库的放下选择：B18 放到技能上选元素，C12 选要重复的已安装基础构件。
 inline constexpr TCHAR PickElement[]=TEXT("附加哪种元素：");
 inline constexpr TCHAR CancelBinding[]=TEXT("取消");
@@ -131,7 +116,6 @@ inline FString InstalledRepeating(const FString& Target,const FString& Base){ret
 inline constexpr TCHAR ElementFire[]=TEXT("火");
 inline constexpr TCHAR ElementWater[]=TEXT("水");
 inline constexpr TCHAR ElementElectric[]=TEXT("电");
-inline FString ComponentsPending(int32 Count){return FString::Printf(TEXT("%s %d"),Component,Count);}
 inline FString ComponentTaken(const FString& Name){return FString::Printf(TEXT("已拿到%s：%s"),Component,*Name);}
 inline FString ComponentInstalled(const FString& Name){return FString::Printf(TEXT("已启用%s：%s"),Component,*Name);}
 inline FString ComponentStored(const FString& Name,const FString& Why)
@@ -146,9 +130,6 @@ inline FString LevelUpGains(int64 Points,int32 Offers,const FString& NewComponen
     if(!NewComponents.IsEmpty()){Parts.Add(FString(Component)+TEXT("「")+NewComponents+TEXT("」"));}
     return Parts.IsEmpty()?FString():TEXT("获得 ")+FString::Join(Parts,TEXT(" · "));
 }
-inline FString OffersQueued(int32 Count){return FString::Printf(TEXT("还有 %d 次选技能"),Count);}
-inline constexpr TCHAR OfferWaitingEligible[]=TEXT("暂时没有能抽的新技能，机会先留着");
-inline constexpr TCHAR LearnThis[]=TEXT("学这个");
 inline FString LearnInto(const FString& Key){return FString(TEXT("学到 "))+Key;}
 inline FString LearnedInto(const FString& Name,const FString& Key){return FString::Printf(TEXT("已学到 %s：%s"),*Key,*Name);}
 inline FString StoredAsBlueprint(const FString& Name,const FString& Why)
@@ -158,16 +139,12 @@ inline constexpr TCHAR DeadNoLearn[]=TEXT("阵亡中");
 inline constexpr TCHAR SlotsFull[]=TEXT("Q/W/E 已满");
 inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
-inline constexpr TCHAR ConfirmPoints[]=TEXT("确认加点");
 // #227 构件库（HUD 中央右侧的牌堆）与展开后的安装列：本体、Q/W/E 与冲刺(D) 各一列。
 inline constexpr TCHAR Storage[]=TEXT("构件库");
-inline constexpr TCHAR StorageEmpty[]=TEXT("构件库是空的：升级、野外奖励会送构件");
-inline constexpr TCHAR StorageHint[]=TEXT("拖到技能列上安装，拖回这里拆下");
 inline constexpr TCHAR ColumnBody[]=TEXT("本体");
 inline constexpr TCHAR ColumnEmptySlot[]=TEXT("空技能槽");
 inline constexpr TCHAR DropHere[]=TEXT("放这里");
 inline FString StorageFresh(int32 Count){return FString::Printf(TEXT("新 %d"),Count);}
-inline FString StorageCount(int32 Count){return FString::Printf(TEXT("%s %d"),Storage,Count);}
 inline FString RepeatingNote(const FString& Base){return FString::Printf(TEXT("重复 %s"),*Base);}
 inline FString CannotGoThere(const FString& Name,const FString& Where){return FString::Printf(TEXT("%s不能装在%s"),*Name,*Where);}
 inline FString MovingDetaches(const FString& Names){return FString::Printf(TEXT("装在它上面的%s一起回到构件库"),*Names);}
@@ -216,8 +193,6 @@ inline FString Dismantled(const FString& Removed,const FString& Name,const FStri
         :FString::Printf(TEXT("已拆解 %s，换到%s「%s」；%s 退回背包"),*Removed,Component,*Name,*Detached);
 }
 // #198 G 精英营地奖励：两个已知普通构件二选一（只剩一个时如实只给一个）；全都已持有时改领点数。
-inline constexpr TCHAR ComponentChoiceTitle[]=TEXT("精英营地奖励：二选一");
-inline constexpr TCHAR ComponentChoiceSingle[]=TEXT("精英营地奖励：只剩这一个");
 inline FString ComponentChoicePoints(int64 Points){return FString::Printf(TEXT("都已持有，改领 %lld 点"),Points);}
 inline constexpr TCHAR ComponentChoiceOwned[]=TEXT("已持有");
 inline constexpr TCHAR ComponentChoiceTookPoints[]=TEXT("精英营地奖励的构件都已持有，已改领点数");
@@ -319,14 +294,12 @@ inline constexpr TCHAR Holding[]=TEXT("正在旗杆上喷漆");
 inline constexpr TCHAR HoldLeft[]=TEXT("剩");
 inline FString ProgressKept(const FString& Holder){return Holder+TEXT(" 的喷漆进度先存着");}
 inline constexpr TCHAR NoProgressKept[]=TEXT("谁也没存下进度");
-inline constexpr TCHAR CaptureGo[]=TEXT("去中心喷漆");
 inline FString GraffitiOf(const FString& Owner){return FString(TEXT("旗杆上是 "))+Owner+TEXT(" 的涂鸦");}
 inline FString GraffitiSprayed(const FString& Owner){return Owner+TEXT(" 在旗杆上喷上了涂鸦");}
 inline constexpr TCHAR GuardLeft[]=TEXT("再守");
 inline constexpr TCHAR GuardPaused[]=TEXT("有人进圈，守护冻结");
 inline constexpr TCHAR GuardAway[]=TEXT("守擂者不在圈内，守护暂停");
 inline constexpr TCHAR GuardReset[]=TEXT("守擂者离圈，守护清零");
-inline constexpr TCHAR GuardOwn[]=TEXT("守住：站在旗杆圈里守护，离圈会暂停（寄了涂鸦就没了）");
 inline FString Besiege(const FString& Owner){return FString(TEXT("下一步：去围攻 "))+Owner+TEXT("，或者去旗杆改漆");}
 
 // 击杀与结算
