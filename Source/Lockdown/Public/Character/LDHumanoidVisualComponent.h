@@ -3,6 +3,7 @@
 #include "Components/SceneComponent.h"
 #include "Art/LDArtTypes.h"
 #include "Character/LDBodyMotion.h"
+#include "Character/LDModelPicking.h"
 #include "LDHumanoidVisualComponent.generated.h"
 
 class UMaterialInstanceDynamic;
@@ -85,7 +86,8 @@ private:
     uint8 Cue = 0;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
     bool bCueSeen = false, bFlashing = false, bHitSeen = false;
+    // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
+    mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;
+    mutable LDModelPicking::FSkinnedPose PickingPose;
     mutable uint64 PickingFrame = MAX_uint64;
-    mutable TArray<FVector3f> PickingVertices;
-    mutable TArray<uint32> PickingIndices;
 };
