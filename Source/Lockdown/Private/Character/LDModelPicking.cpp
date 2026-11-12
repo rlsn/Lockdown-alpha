@@ -269,6 +269,17 @@ TSharedPtr<const LDModelPicking::FSkinnedModel> LDModelPicking::SharedSkinnedMod
     Cache.RemoveAll([&Key, LODIndex](const FEntry& Entry)
         { return !Entry.Mesh.ResolveObjectPtr() || (Entry.Mesh == Key && Entry.LODIndex == LODIndex); });
     Cache.Add({Key, LODIndex, &LOD, &Weights, Model});
+#if WITH_EDITOR
+    // A rebuild keeps the mesh object and may reallocate its LOD data at the freed address, so the address alone cannot
+    // prove the cached geometry is current; a rebuilt mesh drops its models instead.
+    static TSet<TObjectKey<USkeletalMesh>> Watched;
+    if (!Watched.Contains(Key))
+    {
+        Watched.Add(Key);
+        const_cast<USkeletalMesh&>(Mesh).OnPostMeshCached().AddLambda([Key](USkeletalMesh*)
+            { Cache.RemoveAll([&Key](const FEntry& Entry) { return Entry.Mesh == Key; }); });
+    }
+#endif
     return Model;
 }
 
