@@ -663,7 +663,7 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
     const double Now=In.LocalSeconds;
     const uint32 Match=In.Public?In.Public->Generation:0;
     // A new match (or none) starts an empty feed whose first observation only records the state.
-    if(Match!=Generation){Generation=Match;bPrimed=false;KillSerial=0;Shown.Reset();}
+    if(Match!=Generation){Generation=Match;bPrimed=false;KillSerial=0;CharmSerial=0;Shown.Reset();}
     auto Add=[this,Now](const FString& Text,bool bSelf,uint64 ClaimSerial=0,ELDFieldMarkerKind MarkerKind=ELDFieldMarkerKind::None,uint8 MarkerSegment=0)
     {
         if(Text.IsEmpty()){return;}
@@ -700,6 +700,9 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 else if(Public.Airdrop.Phase==ELDAirdropPhase::Claimed){Add(LDTerms::AirdropTaken(),false,Public.Airdrop.Serial);}
                 else if(Public.Airdrop.Phase==ELDAirdropPhase::Expired){Add(LDTerms::AirdropExpired(),false);}
             }
+            // #226: one line per wave; the charms of one wave land on the same boundary. A claim or expiry says nothing.
+            if(Public.Charms.ContainsByPredicate([this](const FLDCharmView& Charm){return Charm.Serial>CharmSerial;}))
+            {Add(LDTerms::CharmsAppeared(),false);}
             if(Public.Boss.Phase!=BossPhase)
             {
                 const FString Boss=In.BossName.IsEmpty()?FString(LDTerms::Boss):In.BossName;
@@ -739,6 +742,7 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
             {Add(LDTerms::GuardReset,In.Self.IsValid()&&Public.GraffitiOwner==In.Self);}
         }
         bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
+        for(const FLDCharmView& Charm:Public.Charms){CharmSerial=FMath::Max(CharmSerial,Charm.Serial);}
         MarkerSegment=Public.Markers.IsEmpty()?0:Public.Markers[0].Segment;MarkerPhases[0]=MarkerPhases[1]=ELDFieldMarkerPhase::None;
         for(const FLDFieldMarkerView& Marker:Public.Markers)
         {

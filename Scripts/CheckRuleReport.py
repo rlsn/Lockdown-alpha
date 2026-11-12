@@ -69,6 +69,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoFieldMarkers",
         "Lockdown.Rules.DemoCharms.Rules",
         "Lockdown.Rules.DemoCharms.Draw",
+        "Lockdown.Rules.DemoCharms.Marker",
         "Lockdown.Rules.DemoLeader.Rules",
         "Lockdown.Rules.DemoBoss.Rules",
         "Lockdown.Rules.DemoBossFieldLifecycle",

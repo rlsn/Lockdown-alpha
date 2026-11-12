@@ -866,6 +866,8 @@ namespace LDHUD
         uint64 AirdropSerial=0;
         ELDAirdropPhase AirdropPhase=ELDAirdropPhase::None;
         ELDBossPhase BossPhase=ELDBossPhase::None;
+        // The newest charm serial seen lying (#226): a higher one is a new wave.
+        uint64 CharmSerial=0;
         // The camp markers as last observed: their segment and the High / Elite phases.
         uint8 MarkerSegment=0;
         ELDFieldMarkerPhase MarkerPhases[2]={ELDFieldMarkerPhase::None,ELDFieldMarkerPhase::None};

@@ -51,9 +51,9 @@ inline constexpr TCHAR AirdropLanded[]=TEXT("外卖到了 · 先到先得");
 inline FString AirdropExpired(){return FString(Airdrop)+TEXT("没人领，消失了");}
 inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！经验和一份构筑奖励到手");}
 inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
-// 符咒（#198）：野外血量、蓝量、移速三种，落在外卖点上，走进去就拿到
+// 符咒（#198）：野外血量、蓝量、移速三种，落在外卖点上；场景里是同色地面圈和悬浮方块（#226）
 inline constexpr TCHAR Charm[]=TEXT("符咒");
-inline FString CharmsAppeared(){return FString(Charm)+TEXT("出现了 · 走进去就能拿");}
+inline FString CharmsAppeared(){return FString(Charm)+TEXT("出现了 · 先到先得");}
 inline constexpr TCHAR Boss[]=TEXT("画饼老板");
 // #198 击败画饼老板的最后一击得一份构筑奖励（原“吃到大饼”加成已移除）
 inline constexpr TCHAR BossReward[]=TEXT("拿到一份构筑奖励");
