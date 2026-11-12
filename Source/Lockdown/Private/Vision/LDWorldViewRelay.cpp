@@ -281,6 +281,14 @@ bool LDPropFade::Occludes(const FBox& Bounds, const FVector& Camera, const FVect
     return FMath::LineBoxIntersection(Bounds.ExpandBy(BoundsSlackCm), Camera, End, End - Camera);
 }
 
+FBox LDPropFade::Reach(const FVector& Camera, TConstArrayView<FVector> Targets)
+{
+    if (Targets.IsEmpty()) { return FBox(ForceInit); }
+    FBox Box(Camera, Camera);
+    for (const FVector& Target : Targets) { Box += Target; }
+    return Box.ExpandBy(FMath::Max(BoundsSlackCm, PierceRadiusCm));
+}
+
 float LDPropFade::Step(float Current, bool bOccluding, float DeltaSeconds)
 {
     const float Move = FadePerSecond * FMath::Max(DeltaSeconds, 0.f);
@@ -1061,6 +1069,13 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         Targets.Add(Pair.Value->GetActorLocation() + FVector(0, 0, 70));
     }
     const FVector Camera = Owning.PlayerCameraManager ? Owning.PlayerCameraManager->GetCameraLocation() : FVector::ZeroVector;
+    const FBox Reach = LDPropFade::Reach(Camera, Targets);
+    auto Hides = [&](const FBox& Bounds)
+    {
+        if (!Reach.IsValid || !Reach.Intersect(Bounds)) { return false; }
+        for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Bounds, Camera, Target)) { return true; } }
+        return false;
+    };
     for (FFadeableProp& Prop : FadeableProps)
     {
         UPrimitiveComponent* Primitive = Prop.Primitive.Get();
@@ -1098,6 +1113,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                         FTransform Placement;
                         Instanced->GetInstanceTransform(Index, Placement, true);
                         Prop.InstanceBounds.Add(Local.TransformBy(Placement));
+                        Prop.InstanceUnion += Prop.InstanceBounds.Last();
                     }
                     Prop.InstanceFades.SetNumZeroed(Prop.InstanceBounds.Num());
                 }
@@ -1111,23 +1127,22 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         }
         if (Prop.bPerInstance)
         {
+            if (Prop.InstancesFaded == 0 && (!Reach.IsValid || !Reach.Intersect(Prop.InstanceUnion))) { continue; }
             auto* Instanced = Cast<UInstancedStaticMeshComponent>(Primitive);
             bool bChanged = false;
             for (int32 Index = 0; Instanced && Index < Prop.InstanceBounds.Num(); ++Index)
             {
-                bool bHides = false;
-                for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Prop.InstanceBounds[Index], Camera, Target)) { bHides = true; break; } }
-                const float Next = LDPropFade::Step(Prop.InstanceFades[Index], bHides, Delta);
-                if (Next == Prop.InstanceFades[Index]) { continue; }
+                const float Was = Prop.InstanceFades[Index];
+                const float Next = LDPropFade::Step(Was, Hides(Prop.InstanceBounds[Index]), Delta);
+                if (Next == Was) { continue; }
+                Prop.InstancesFaded += (Was == 0.f) - (Next == 0.f);
                 Prop.InstanceFades[Index] = Next;
                 bChanged |= Instanced->SetCustomDataValue(Index, 0, Next, false);
             }
             if (bChanged) { Instanced->MarkRenderStateDirty(); }
             continue;
         }
-        bool bOccluding = false;
-        const FBox Bounds = Primitive->Bounds.GetBox();
-        for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Bounds, Camera, Target)) { bOccluding = true; break; } }
+        const bool bOccluding = Hides(Primitive->Bounds.GetBox());
         const float Next = LDPropFade::Step(Prop.Fade, bOccluding, Delta);
         if (Next == Prop.Fade && Prop.bResolved && (Next == 0.f || Next == 1.f) && Prop.bParameter) { continue; }
         Prop.Fade = Next;

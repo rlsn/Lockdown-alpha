@@ -220,11 +220,18 @@ void ALDPlayerController::UpdateCameraManager(float DeltaSeconds)
 
 void ALDPlayerController::PlayerTick(float Delta)
 {
-    Super::PlayerTick(Delta);
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDPlayerTick_Engine);
+        Super::PlayerTick(Delta);
+    }
     InitializeLocalUI();
-    UpdateV05Inputs(Delta);
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDPlayerTick_Inputs);
+        UpdateV05Inputs(Delta);
+    }
     UpdateMusic();
     if (!GetLocalPlayer() || IsFrontend()) { return; }
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDPlayerTick_PlaytestTrace);
     Trace().Tick(*this);
 }
 

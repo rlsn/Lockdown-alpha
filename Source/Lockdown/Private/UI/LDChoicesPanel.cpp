@@ -361,7 +361,7 @@ void ULDChoicesPanel::SetServiceContext(ELDRestService Service)
 }
 void ULDChoicesPanel::PresentAttributes(const FLDCombatOwnerView* Combat)
 {
-    if(!AttributeSummary){return;}
+    if(!AttributeSummary||(!bOpen&&!bServicePanelOpen)){return;}
     TArray<FString> Lines;
     if(Combat){for(const FLDCombatAttributeRowView& Row:Combat->Attributes)
     {
@@ -391,6 +391,8 @@ void ULDChoicesPanel::OpenPanel()
     bServicePanelOpen=false;GrowthShown(ServicePanel,false);GrowthShown(MainPanel,true);
     bOpen=true;ResultNotice.Reset();SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
     if(!PendingRequest){SetFeedback(FString());}
+    // A closed panel skips its widget refresh (Present), so opening rebuilds it from the latest inputs.
+    if(MainPanel){RefreshAll();}
 }
 bool ULDChoicesPanel::OpenServicePanel()
 {
@@ -452,6 +454,8 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
     if(Content&&StatRows.IsEmpty()){BuildStatRows();}
     if(bStatsChanged){bCardsStale=true;bComponentTextStale=true;}
+    // The HUD presents every frame; a collapsed panel only keeps the inputs and refreshes when it opens.
+    if(!bOpen&&!bServicePanelOpen){return;}
     RefreshAll();
 }
 void ULDChoicesPanel::RefreshOffer()

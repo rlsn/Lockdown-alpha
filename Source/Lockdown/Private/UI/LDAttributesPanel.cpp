@@ -173,7 +173,8 @@ bool ULDAttributesPanel::ClosePanel()
 }
 void ULDAttributesPanel::Present(const FLDCombatOwnerView* Combat,const FLDProgressionView* Progression,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Definitions)
 {
-    if(!MainPanel){return;}
+    // A collapsed sheet draws nothing; the HUD presents every frame, so opening fills it before its first paint.
+    if(!MainPanel||!bOpen){return;}
     // Published rows are keyed by their Attribute id; the first row of an id wins and an absent id stays syncing.
     const FLDCombatAttributeRowView* ByAttribute[AttrPanelRowCount]={};
     if(Combat)

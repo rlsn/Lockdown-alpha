@@ -122,7 +122,8 @@ void ALDCharacter::Tick(float Delta)
     auto* PC=Cast<ALDPlayerController>(GetController());
     const bool OwnBody=PC && PC->GetLocalPlayer() && PC->GetPawn()==this
         && PC->OwnerState.LifePhase==ELDLifePhase::Alive && PC->OwnerState.BodyRef.IsValid();
-    Body->SetVisibility(OwnBody,true);
+    // Only on a change: a propagated SetVisibility rebuilds the render state of every part under the body, even unchanged.
+    if (Body->GetVisibleFlag()!=OwnBody) { Body->SetVisibility(OwnBody,true); }
     if (!OwnBody) { return; }
     ShownOwner=PC;
     ShownLife=PC->OwnerState.Life;

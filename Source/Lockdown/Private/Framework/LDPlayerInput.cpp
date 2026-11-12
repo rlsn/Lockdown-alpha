@@ -177,7 +177,11 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         InspectedEpoch=0;
         PostIntentNotice(TEXT("目标已不可见"));
     }
-    if (HUDUI) { HUDUI->RefreshReadModel(); }
+    if (HUDUI)
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDHUDRefreshReadModel);
+        HUDUI->RefreshReadModel();
+    }
 }
 
 void ALDPlayerController::ToggleControlsPanel()

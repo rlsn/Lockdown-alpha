@@ -213,6 +213,8 @@ void ULDHumanoidVisualComponent::WearParts(const FLinearColor& Identity, const F
         Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Part->SetGenerateOverlapEvents(false);
         Part->SetCanEverAffectNavigation(false);
+        // A part worn later follows the body's own visibility, which its owner sets once per change for the whole tree.
+        Part->SetVisibility(GetVisibleFlag());
         if (IsRegistered()) { Part->RegisterComponent(); }
         for (int32 Index = 0; Index < Part->GetNumMaterials(); ++Index)
         {
