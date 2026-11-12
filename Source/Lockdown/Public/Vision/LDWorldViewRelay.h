@@ -123,9 +123,9 @@ namespace LDPropFade
     inline const FName Tag = TEXT("LDFadeable");
     inline const FName Parameter = TEXT("LDFade");
     // Scalar the relay sets on each fading material: at LDFade 1 a pixel survives with probability 1 - FadedStrength,
-    // so a fully faded prop is gone instead of a visible dither column (the material's own default keeps one in ten).
+    // retaining 70% of the prop at full fade so nearby obstacles remain readable.
     inline const FName StrengthParameter = TEXT("LDFadeStrength");
-    constexpr float FadedStrength = 1.f;
+    constexpr float FadedStrength = .3f;
     // Room around the prop's bounds, and the stretch just before the target that the line test skips (a prop right behind
     // the body is not in front of it; one running through the body is caught by PierceRadiusCm).
     constexpr double BoundsSlackCm = 15.;
@@ -133,9 +133,6 @@ namespace LDPropFade
     // A target within this horizontal distance of the prop's bounds, inside its height, is pierced by it (a body about
     // 28 cm in capsule radius, plus its arms).
     constexpr double PierceRadiusCm = 45.;
-    // #97: an instanced prop with a per-instance custom float fades only the instances in the way, and only partly: at full
-    // fade a pixel survives with probability 1 - InstanceFadedStrength, so the body shows through a still readable block.
-    constexpr float InstanceFadedStrength = .6f;
     // Full fade in or out takes 1/FadePerSecond seconds.
     constexpr float FadePerSecond = 6.f;
     LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);

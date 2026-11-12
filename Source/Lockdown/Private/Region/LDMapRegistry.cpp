@@ -1,6 +1,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Core/LDLog.h"
 #include "Region/LDMapDefinition.h"
+#include "Art/LDStaticScene.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Character/LDCharacter.h"
@@ -244,6 +245,13 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     }
     if (!LDDemoEntry::LoadRuntimeContent(CandidateContent, Error)
         || !CandidateDefinition->Read(*CandidateContent, CandidateGeometry, Error)) { return false; }
+    if (!LDStaticScene::ValidateGeometry(*GetWorld(), *CandidateGeometry, Error)) { return false; }
+    const auto* SceneIndex = LoadObject<ULDArtCatalog>(nullptr, ULDArtCatalog::AssetPath);
+    if (!SceneIndex || !LDStaticScene::Validate(*GetWorld(), *SceneIndex, Error))
+    {
+        if (!SceneIndex) { Error = TEXT("The saved scene index is missing."); }
+        return false;
+    }
     LDDemoWorld::FTerrain CandidateTerrain;
     if (!CandidateTerrain.Build(*CandidateGeometry, Error)) { return false; }
     if (Floors.Num() != 1 + CandidateGeometry->Plateaus.Num() + CandidateGeometry->Ramps.Num())

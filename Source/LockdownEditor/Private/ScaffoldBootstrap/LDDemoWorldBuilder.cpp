@@ -1,5 +1,6 @@
 #include "LDDemoWorldBuilder.h"
 #include "LDEditorLog.h"
+#include "Art/LDStaticScene.h"
 
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -34,23 +35,6 @@
 #include "GameFramework/WorldSettings.h"
 #include "HAL/FileManager.h"
 #include "Materials/Material.h"
-#include "Materials/MaterialExpressionAbs.h"
-#include "Materials/MaterialExpressionAdd.h"
-#include "Materials/MaterialExpressionComponentMask.h"
-#include "Materials/MaterialExpressionConstant.h"
-#include "Materials/MaterialExpressionConstant3Vector.h"
-#include "Materials/MaterialExpressionFrac.h"
-#include "Materials/MaterialExpressionIf.h"
-#include "Materials/MaterialExpressionLinearInterpolate.h"
-#include "Materials/MaterialExpressionMin.h"
-#include "Materials/MaterialExpressionMultiply.h"
-#include "Materials/MaterialExpressionNoise.h"
-#include "Materials/MaterialExpressionOneMinus.h"
-#include "Materials/MaterialExpressionSmoothStep.h"
-#include "Materials/MaterialExpressionSubtract.h"
-#include "Materials/MaterialExpressionTextureCoordinate.h"
-#include "Materials/MaterialExpressionVertexNormalWS.h"
-#include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
 #include "Misc/FileHelper.h"
@@ -368,6 +352,19 @@ UStaticMesh* BuildPrism(const FString& Id, const TArray<FVector>& Points, const 
     {
         Mesh = LoadObject<UStaticMesh>(nullptr, *(PackagePath + TEXT(".") + Name));
         if (!Mesh) { Fail(Error, TEXT("Existing generated geometry cannot be loaded: ") + PackagePath); return nullptr; }
+        const UBodySetup* Body = Mesh->GetBodySetup();
+        const FMeshDescription* Saved = Mesh->GetMeshDescription(0);
+        if (Body && Saved && ConvexShapeMatches(*Body, ConvexHull) && FacesOutward(*Mesh))
+        {
+            const auto Positions = FStaticMeshConstAttributes(*Saved).GetVertexPositions();
+            bool Same = Saved->Vertices().Num() == Points.Num();
+            int32 Index = 0;
+            for (FVertexID Vertex : Saved->Vertices().GetElementIDs())
+            {
+                if (!Points.IsValidIndex(Index) || Positions[Vertex] != FVector3f(Points[Index++])) { Same = false; break; }
+            }
+            if (Same) { return Mesh; }
+        }
     }
     else { Mesh = NewObject<UStaticMesh>(CreatePackage(*PackagePath), *Name, RF_Public | RF_Standalone); }
     Mesh->GetOutermost()->FullyLoad();
@@ -484,363 +481,10 @@ AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMa
     return Actor;
 }
 
-// Presentation of the generated world: engine-only materials and lighting, rebuilt from this code on every generation.
-// None of it collides, affects navigation or sight, or is read by any rule.
-const TCHAR* FieldMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoField");
+// Lighting and materials are saved editor assets. Synchronization never rebuilds their graphs or appearance.
 const TCHAR* WallMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoWall");
-const TCHAR* ApronMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoApron");
-const TCHAR* TreeMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoTree");
-const TCHAR* HillMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoHill");
-const TCHAR* FenceMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoFence");
-// Paving reaches this far past the field on every side, so props and buildings outside the walls stand on ground.
-constexpr double ApronMarginCm = 4000.;
 const TCHAR* ApronTag = TEXT("LDDemoApron");
-
 FString ObjectPath(const TCHAR* PackagePath) { return FString(PackagePath) + TEXT(".") + FPackageName::GetShortName(PackagePath); }
-
-UMaterial* NewGeneratedMaterial(const TCHAR* PackagePath, FString& Error)
-{
-    UMaterial* Material = nullptr;
-    if (FPackageName::DoesPackageExist(PackagePath))
-    {
-        Material = LoadObject<UMaterial>(nullptr, *ObjectPath(PackagePath));
-        if (!Material) { Fail(Error, FString(TEXT("Existing generated material cannot be loaded: ")) + PackagePath); return nullptr; }
-        Material->GetOutermost()->FullyLoad();
-        Material->GetExpressionCollection().Empty();
-        UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
-        Inputs->BaseColor = FColorMaterialInput();
-        Inputs->Roughness = FScalarMaterialInput();
-        Inputs->Specular = FScalarMaterialInput();
-    }
-    else { Material = NewObject<UMaterial>(CreatePackage(PackagePath), *FPackageName::GetShortName(PackagePath), RF_Public | RF_Standalone); }
-    return Material;
-}
-
-template <typename T>
-T* AddNode(UMaterial& Material)
-{
-    T* Node = NewObject<T>(&Material);
-    Material.GetExpressionCollection().AddExpression(Node);
-    return Node;
-}
-
-UMaterialExpression* ColorNode(UMaterial& Material, const FLinearColor& Value)
-{
-    auto* Node = AddNode<UMaterialExpressionConstant3Vector>(Material);
-    Node->Constant = Value;
-    return Node;
-}
-
-UMaterialExpression* ScalarNode(UMaterial& Material, float Value)
-{
-    auto* Node = AddNode<UMaterialExpressionConstant>(Material);
-    Node->R = Value;
-    return Node;
-}
-
-UMaterialExpression* MaskNode(UMaterial& Material, UMaterialExpression* Input, bool R, bool G, bool B)
-{
-    auto* Node = AddNode<UMaterialExpressionComponentMask>(Material);
-    Node->Input.Connect(0, Input);
-    Node->R = R;
-    Node->G = G;
-    Node->B = B;
-    Node->A = false;
-    return Node;
-}
-
-// Below when Value < Threshold, otherwise Above.
-UMaterialExpression* ChooseNode(UMaterial& Material, UMaterialExpression* Value, float Threshold, UMaterialExpression* Below,
-    UMaterialExpression* Above)
-{
-    auto* Node = AddNode<UMaterialExpressionIf>(Material);
-    Node->A.Connect(0, Value);
-    Node->ConstB = Threshold;
-    Node->ALessThanB.Connect(0, Below);
-    Node->AEqualsB.Connect(0, Above);
-    Node->AGreaterThanB.Connect(0, Above);
-    return Node;
-}
-
-UMaterialExpression* MinNode(UMaterial& Material, UMaterialExpression* A, UMaterialExpression* B)
-{
-    auto* Node = AddNode<UMaterialExpressionMin>(Material);
-    Node->A.Connect(0, A);
-    Node->B.Connect(0, B);
-    return Node;
-}
-
-UMaterialExpression* OneMinusNode(UMaterial& Material, UMaterialExpression* Input)
-{
-    auto* Node = AddNode<UMaterialExpressionOneMinus>(Material);
-    Node->Input.Connect(0, Input);
-    return Node;
-}
-
-UMaterial* FinishMaterial(UMaterial& Material, UMaterialExpression* BaseColor, float Roughness, float Specular,
-    const TCHAR* PackagePath, FString& Error)
-{
-    UMaterialEditorOnlyData* Inputs = Material.GetEditorOnlyData();
-    Inputs->BaseColor.Connect(0, BaseColor);
-    Inputs->Roughness.Connect(0, ScalarNode(Material, Roughness));
-    Inputs->Specular.Connect(0, ScalarNode(Material, Specular));
-    Material.PreEditChange(nullptr);
-    Material.PostEditChange();
-    return LDDemoWorldBuilder::SaveAsset(Material, PackagePath, Error) ? &Material : nullptr;
-}
-
-// The school playground: two-tone mown turf with soft stripe edges and low-frequency patches, inside a red running
-// track with a white inner line, laid along the ground's outline by the top face's 0..1 texture coordinates.
-UMaterial* BuildFieldMaterial(FString& Error)
-{
-    UMaterial* Material = NewGeneratedMaterial(FieldMaterialPath, Error);
-    if (!Material) { return nullptr; }
-    auto* UV = AddNode<UMaterialExpressionTextureCoordinate>(*Material);
-    UMaterialExpression* U = MaskNode(*Material, UV, true, false, false);
-    UMaterialExpression* V = MaskNode(*Material, UV, false, true, false);
-    UMaterialExpression* Edge = MinNode(*Material, MinNode(*Material, U, OneMinusNode(*Material, U)),
-        MinNode(*Material, V, OneMinusNode(*Material, V)));
-    // Nine stripe pairs; each stripe eases into the next over about a metre.
-    auto* Bands = AddNode<UMaterialExpressionMultiply>(*Material);
-    Bands->A.Connect(0, U);
-    Bands->ConstB = 9.f;
-    auto* Phase = AddNode<UMaterialExpressionFrac>(*Material);
-    Phase->Input.Connect(0, Bands);
-    auto* Centred = AddNode<UMaterialExpressionSubtract>(*Material);
-    Centred->A.Connect(0, Phase);
-    Centred->ConstB = .5f;
-    auto* Offset = AddNode<UMaterialExpressionAbs>(*Material);
-    Offset->Input.Connect(0, Centred);
-    auto* Ease = AddNode<UMaterialExpressionSmoothStep>(*Material);
-    Ease->Value.Connect(0, Offset);
-    Ease->ConstMin = .21f;
-    Ease->ConstMax = .29f;
-    auto* Stripes = AddNode<UMaterialExpressionLinearInterpolate>(*Material);
-    Stripes->A.Connect(0, ColorNode(*Material, FLinearColor(.085f, .27f, .06f)));
-    Stripes->B.Connect(0, ColorNode(*Material, FLinearColor(.06f, .21f, .045f)));
-    Stripes->Alpha.Connect(0, Ease);
-    // Patches a few metres across keep the turf from reading as flat paint.
-    auto* Patches = AddNode<UMaterialExpressionNoise>(*Material);
-    Patches->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
-    Patches->Scale = .0015f;
-    Patches->NoiseFunction = NOISEFUNCTION_GradientALU;
-    Patches->Quality = 1;
-    Patches->Levels = 3;
-    Patches->bTurbulence = false;
-    Patches->OutputMin = .72f;
-    Patches->OutputMax = 1.18f;
-    auto* Turf = AddNode<UMaterialExpressionMultiply>(*Material);
-    Turf->A.Connect(0, Stripes);
-    Turf->B.Connect(0, Patches);
-    UMaterialExpression* Inside = ChooseNode(*Material, Edge, .066f, ColorNode(*Material, FLinearColor(.82f, .82f, .78f)), Turf);
-    UMaterialExpression* Ground = ChooseNode(*Material, Edge, .06f, ColorNode(*Material, FLinearColor(.47f, .13f, .08f)), Inside);
-    return FinishMaterial(*Material, Ground, .92f, .3f, FieldMaterialPath, Error);
-}
-
-// School walls: cream plaster above a red skirting band at the foot.
-UMaterial* BuildWallMaterial(FString& Error)
-{
-    UMaterial* Material = NewGeneratedMaterial(WallMaterialPath, Error);
-    if (!Material) { return nullptr; }
-    UMaterialExpression* Height = MaskNode(*Material, AddNode<UMaterialExpressionWorldPosition>(*Material), false, false, true);
-    UMaterialExpression* Wall = ChooseNode(*Material, Height, 45.f, ColorNode(*Material, FLinearColor(.42f, .1f, .07f)),
-        ColorNode(*Material, FLinearColor(.72f, .66f, .55f)));
-    return FinishMaterial(*Material, Wall, .85f, .35f, WallMaterialPath, Error);
-}
-
-// Trees: a dark bark foot under a mottled leafy green, so a trunk reads apart from the cream walls.
-UMaterial* BuildTreeMaterial(FString& Error)
-{
-    UMaterial* Material = NewGeneratedMaterial(TreeMaterialPath, Error);
-    if (!Material) { return nullptr; }
-    auto* Mottle = AddNode<UMaterialExpressionNoise>(*Material);
-    Mottle->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
-    Mottle->Scale = .02f;
-    Mottle->NoiseFunction = NOISEFUNCTION_GradientALU;
-    Mottle->Quality = 1;
-    Mottle->Levels = 2;
-    Mottle->bTurbulence = false;
-    Mottle->OutputMin = .7f;
-    Mottle->OutputMax = 1.15f;
-    auto* Leaves = AddNode<UMaterialExpressionMultiply>(*Material);
-    Leaves->A.Connect(0, ColorNode(*Material, FLinearColor(.07f, .2f, .05f)));
-    Leaves->B.Connect(0, Mottle);
-    UMaterialExpression* Height = MaskNode(*Material, AddNode<UMaterialExpressionWorldPosition>(*Material), false, false, true);
-    UMaterialExpression* Tree = ChooseNode(*Material, Height, 60.f, ColorNode(*Material, FLinearColor(.16f, .09f, .045f)), Leaves);
-    return FinishMaterial(*Material, Tree, .9f, .25f, TreeMaterialPath, Error);
-}
-
-// Fences: painted timber posts every metre and two rails, the gaps clipped away so the low fence reads as see-through,
-// which is what the rules make it: it stops bodies but not sight.
-UMaterial* BuildFenceMaterial(FString& Error)
-{
-    UMaterial* Material = NewGeneratedMaterial(FenceMaterialPath, Error);
-    if (!Material) { return nullptr; }
-    Material->BlendMode = BLEND_Masked;
-    Material->TwoSided = true;
-    UMaterialExpression* Position = AddNode<UMaterialExpressionWorldPosition>(*Material);
-    auto* Along = AddNode<UMaterialExpressionAdd>(*Material);
-    Along->A.Connect(0, MaskNode(*Material, Position, true, false, false));
-    Along->B.Connect(0, MaskNode(*Material, Position, false, true, false));
-    auto* Posts = AddNode<UMaterialExpressionMultiply>(*Material);
-    Posts->A.Connect(0, Along);
-    Posts->ConstB = 1.f / 100.f;
-    auto* PostPhase = AddNode<UMaterialExpressionFrac>(*Material);
-    PostPhase->Input.Connect(0, Posts);
-    auto* Rails = AddNode<UMaterialExpressionMultiply>(*Material);
-    Rails->A.Connect(0, MaskNode(*Material, Position, false, false, true));
-    Rails->ConstB = 1.f / 50.f;
-    auto* RailPhase = AddNode<UMaterialExpressionFrac>(*Material);
-    RailPhase->Input.Connect(0, Rails);
-    auto* Solid = AddNode<UMaterialExpressionAdd>(*Material);
-    Solid->A.Connect(0, ChooseNode(*Material, PostPhase, .1f, ScalarNode(*Material, 1.f), ScalarNode(*Material, 0.f)));
-    Solid->B.Connect(0, ChooseNode(*Material, RailPhase, .76f, ScalarNode(*Material, 0.f), ScalarNode(*Material, 1.f)));
-    Material->GetEditorOnlyData()->OpacityMask.Connect(0, Solid);
-    return FinishMaterial(*Material, ColorNode(*Material, FLinearColor(.36f, .22f, .11f)), .8f, .3f, FenceMaterialPath, Error);
-}
-
-// A blocker's generated surface: trunks are trees, sight blockers walls, and every non-sight polygon a fence.
-const TCHAR* BlockerMaterialPath(const FLDDemoWorldBlocker& Blocker)
-{
-    if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder) { return TreeMaterialPath; }
-    return Blocker.BlocksSight ? WallMaterialPath : FenceMaterialPath;
-}
-
-// Raised ground: mottled grass on plateau tops, ramps and cliff faces alike (#97: the darker rock faces now take the
-// surrounding grass; lighting alone sets a cliff apart from the top).
-UMaterial* BuildHillMaterial(FString& Error)
-{
-    UMaterial* Material = NewGeneratedMaterial(HillMaterialPath, Error);
-    if (!Material) { return nullptr; }
-    auto* Mottle = AddNode<UMaterialExpressionNoise>(*Material);
-    Mottle->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
-    Mottle->Scale = .006f;
-    Mottle->NoiseFunction = NOISEFUNCTION_GradientALU;
-    Mottle->Quality = 1;
-    Mottle->Levels = 3;
-    Mottle->bTurbulence = false;
-    Mottle->OutputMin = .78f;
-    Mottle->OutputMax = 1.15f;
-    auto* Grass = AddNode<UMaterialExpressionMultiply>(*Material);
-    Grass->A.Connect(0, ColorNode(*Material, FLinearColor(.11f, .29f, .07f)));
-    Grass->B.Connect(0, Mottle);
-    return FinishMaterial(*Material, Grass, .92f, .3f, HillMaterialPath, Error);
-}
-
-// Campus paving beyond the walls: warm grey two-metre slabs with darker joints and faint weathering, darker than the
-// turf so the field stays the focus.
-UMaterial* BuildApronMaterial(FString& Error)
-{
-    UMaterial* Material = NewGeneratedMaterial(ApronMaterialPath, Error);
-    if (!Material) { return nullptr; }
-    auto* Slabs = AddNode<UMaterialExpressionMultiply>(*Material);
-    Slabs->A.Connect(0, MaskNode(*Material, AddNode<UMaterialExpressionWorldPosition>(*Material), true, true, false));
-    Slabs->ConstB = 1.f / 200.f;
-    auto* Phase = AddNode<UMaterialExpressionFrac>(*Material);
-    Phase->Input.Connect(0, Slabs);
-    UMaterialExpression* Joint = MinNode(*Material, MaskNode(*Material, Phase, true, false, false),
-        MaskNode(*Material, Phase, false, true, false));
-    auto* Weather = AddNode<UMaterialExpressionNoise>(*Material);
-    Weather->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
-    Weather->Scale = .002f;
-    Weather->NoiseFunction = NOISEFUNCTION_GradientALU;
-    Weather->Quality = 1;
-    Weather->Levels = 3;
-    Weather->bTurbulence = false;
-    Weather->OutputMin = .85f;
-    Weather->OutputMax = 1.08f;
-    auto* Paving = AddNode<UMaterialExpressionMultiply>(*Material);
-    Paving->A.Connect(0, ColorNode(*Material, FLinearColor(.24f, .23f, .21f)));
-    Paving->B.Connect(0, Weather);
-    UMaterialExpression* Surface = ChooseNode(*Material, Joint, .025f, ColorNode(*Material, FLinearColor(.15f, .145f, .135f)), Paving);
-    return FinishMaterial(*Material, Surface, .95f, .3f, ApronMaterialPath, Error);
-}
-
-FVector ApronLocation(const FVector& Min, const FVector& Max, double Depth) { return (Min + Max) * .5 - FVector(0, 0, Depth * .5 + 1.); }
-
-FVector ApronScale(const FVector& Min, const FVector& Max, double Depth)
-{
-    return FVector(Max.X - Min.X + 2. * ApronMarginCm, Max.Y - Min.Y + 2. * ApronMarginCm, Depth) / 100.;
-}
-
-// Visual paving under and around the field, 1 cm below the turf: no collision, navigation, shadow or rule identity.
-bool PlaceApron(UWorld& World, UStaticMesh* Mesh, UMaterialInterface* Material, const FVector& Min, const FVector& Max,
-    double Depth, FString& Error)
-{
-    if (!Mesh || !Material) { return Fail(Error, TEXT("The paving apron needs the shared cube and its generated material.")); }
-    auto* Actor = World.SpawnActor<AStaticMeshActor>(ApronLocation(Min, Max, Depth), FRotator::ZeroRotator);
-    if (!Actor) { return Fail(Error, TEXT("Cannot create the paving apron.")); }
-    Actor->SetActorLabel(TEXT("DemoApron"));
-    Actor->Tags.Add(ApronTag);
-    Actor->SetActorScale3D(ApronScale(Min, Max, Depth));
-    Actor->SetActorEnableCollision(false);
-    auto* Component = Actor->GetStaticMeshComponent();
-    Component->SetStaticMesh(Mesh);
-    Component->SetMaterial(0, Material);
-    Component->SetMobility(EComponentMobility::Static);
-    Component->SetCollisionProfileName(TEXT("NoCollision"));
-    Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    Component->SetCanEverAffectNavigation(false);
-    Component->SetCastShadow(false);
-    return true;
-}
-
-// A clear afternoon: one warm, fairly low sun casts clear shadows and drives the physical sky; the sky light captures
-// that sky as softer ambient light, a light height fog adds depth at the far edges, and an unbound post-process grades.
-bool BuildEnvironment(UWorld& World, FString& Error)
-{
-    auto* Sun = World.SpawnActor<ADirectionalLight>(FVector(0, 0, 3000), FRotator(-45, -35, 0));
-    auto* Sky = World.SpawnActor<ASkyAtmosphere>();
-    auto* Ambient = World.SpawnActor<ASkyLight>();
-    auto* Fog = World.SpawnActor<AExponentialHeightFog>();
-    auto* Post = World.SpawnActor<APostProcessVolume>();
-    if (!Sun || !Sky || !Ambient || !Ambient->GetLightComponent() || !Fog || !Fog->GetComponent() || !Post)
-    {
-        return Fail(Error, TEXT("Cannot create the Demo world environment."));
-    }
-    auto* Light = CastChecked<UDirectionalLightComponent>(Sun->GetLightComponent());
-    Light->SetMobility(EComponentMobility::Movable);
-    Light->SetIntensity(10.f);
-    Light->SetUseTemperature(true);
-    Light->SetTemperature(5600.f);
-    Light->SetCastShadows(true);
-    Light->SetAtmosphereSunLight(true);
-    // Short screen-space contact shadows ground the bodies on the turf.
-    Light->ContactShadowLength = .03f;
-    Sun->SetActorLabel(TEXT("DemoSun"));
-    Sky->SetActorLabel(TEXT("DemoSkyAtmosphere"));
-    USkyLightComponent* SkyLight = Ambient->GetLightComponent();
-    SkyLight->SetMobility(EComponentMobility::Movable);
-    SkyLight->SourceType = SLS_CapturedScene;
-    SkyLight->SetRealTimeCapture(true);
-    SkyLight->SetIntensity(.6f);
-    Ambient->SetActorLabel(TEXT("DemoSkyLight"));
-    UExponentialHeightFogComponent* Haze = Fog->GetComponent();
-    Haze->SetFogDensity(.01f);
-    Haze->SetFogHeightFalloff(.2f);
-    Haze->SetStartDistance(3000.f);
-    Haze->SetFogMaxOpacity(.6f);
-    Fog->SetActorLabel(TEXT("DemoHeightFog"));
-    Post->bUnbound = true;
-    FPostProcessSettings& Grade = Post->Settings;
-    // The engine's default exposure bias (+1) and the project's flattened local exposure wash the bright field out.
-    Grade.bOverride_AutoExposureBias = true;
-    Grade.AutoExposureBias = -.8f;
-    Grade.bOverride_LocalExposureHighlightContrastScale = true;
-    Grade.LocalExposureHighlightContrastScale = 1.f;
-    Grade.bOverride_LocalExposureShadowContrastScale = true;
-    Grade.LocalExposureShadowContrastScale = 1.f;
-    Grade.bOverride_BloomIntensity = true;
-    Grade.BloomIntensity = .4f;
-    Grade.bOverride_ColorSaturation = true;
-    Grade.ColorSaturation = FVector4(1.15, 1.15, 1.15, 1.);
-    Grade.bOverride_ColorContrast = true;
-    Grade.ColorContrast = FVector4(1.1, 1.1, 1.1, 1.);
-    Grade.bOverride_VignetteIntensity = true;
-    Grade.VignetteIntensity = .3f;
-    Post->SetActorLabel(TEXT("DemoPostProcess"));
-    return true;
-}
 
 bool NavigationBounds(const FLDDemoWorldGeometry& Geometry, const FCollisionShape& Capsule, FBox& Out, FString& Error)
 {
@@ -963,106 +607,77 @@ bool LDDemoWorldBuilder::ValidateFrontend(const UWorld& World, FString& Error)
     return true;
 }
 
-bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content, UWorld*& Out, FString& Error)
+bool LDDemoWorldBuilder::Refresh(UWorld& World, ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content, FString& Error)
 {
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
     FCollisionShape Capsule;
     if (!Definition.Read(Content, Geometry, Error) || !ULDMapRegistry::ContentCapsule(Content, Capsule, Error)) { return false; }
-    UWorld* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
-    if (!World || !World->GetWorldSettings()) { return Fail(Error, TEXT("Cannot create the Demo editor world.")); }
-    World->GetWorldSettings()->DefaultGameMode = ALDGameMode::StaticClass();
-    auto* NavigationConfig = World->GetWorldSettings()->GetNavigationSystemConfig();
-    if (!NavigationConfig) { return Fail(Error, TEXT("The Demo world has no navigation configuration object.")); }
-    NavigationConfig->NavigationSystemClass = FSoftClassPath(ULDDemoNavigationSystem::StaticClass());
-    NavigationConfig->DefaultAgentName = TEXT("DemoBody");
-    NavigationConfig->SupportedAgentsMask.Empty();
-    NavigationConfig->SupportedAgentsMask.Set(0);
-    NavigationConfig->SupportedAgentsMask.MarkInitialized();
-    FNavigationSystem::AddNavigationSystemToWorld(*World, FNavigationSystemRunMode::EditorMode, NavigationConfig, true, true);
-    auto* Anchor = World->SpawnActor<ALDMapAnchor>();
-    if (!Anchor) { return Fail(Error, TEXT("Cannot create the sole Demo map anchor.")); }
-    Anchor->Definition = &Definition;
-    Anchor->SetActorLabel(TEXT("DemoWorldDefinition"));
-    auto* Cube = LoadObject<UStaticMesh>(nullptr, CubePath);
-    UMaterial* GroundMaterial = BuildFieldMaterial(Error);
-    if (!GroundMaterial) { return false; }
-    UMaterial* StoneMaterial = BuildWallMaterial(Error);
-    if (!StoneMaterial) { return false; }
-    UMaterial* PavingMaterial = BuildApronMaterial(Error);
-    if (!PavingMaterial) { return false; }
-    UMaterial* TreeMaterial = BuildTreeMaterial(Error);
-    if (!TreeMaterial) { return false; }
-    UMaterial* HillMaterial = BuildHillMaterial(Error);
-    if (!HillMaterial) { return false; }
-    UMaterial* FenceMaterial = BuildFenceMaterial(Error);
-    if (!FenceMaterial) { return false; }
+    TMap<FString, AStaticMeshActor*> Actors;
+    TArray<AActor*> Derived;
+    for (AActor* Actor : World.PersistentLevel->Actors)
+    {
+        if (!Actor) { continue; }
+        if (Actor->ActorHasTag(CliffGuardTag) || Cast<ANavMeshBoundsVolume>(Actor)) { Derived.Add(Actor); continue; }
+        if (auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->ActorHasTag(LDDemoWorld::StaticGeometryTag))
+        {
+            const FString Id = Mesh->Tags[0].ToString();
+            if (Actors.Contains(Id)) { return Fail(Error, TEXT("Duplicate saved geometry identity: ") + Id); }
+            Actors.Add(Id, Mesh);
+        }
+    }
+    for (AActor* Actor : Derived) { World.EditorDestroyActor(Actor, true); }
     FVector Min, Max;
     if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
+    auto* Floor = Actors.FindRef(Geometry->Surfaces[0].Id);
+    if (!Floor) { return Fail(Error, TEXT("Saved ground is missing; restore the map asset.")); }
     const double Depth = Capsule.GetCapsuleHalfHeight();
-    if (!Place(*World, Geometry->Surfaces[0].Id, Cube, GroundMaterial, (Min + Max) * .5 - FVector(0, 0, Depth * .5),
-        FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100., true, true, false, Error)) { return false; }
-    if (!PlaceApron(*World, Cube, PavingMaterial, Min, Max, Depth, Error)) { return false; }
+    Floor->SetActorTransform(FTransform(FQuat::Identity, (Min + Max) * .5 - FVector(0, 0, Depth * .5),
+        FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100.));
     TArray<FTerrainPiece> Terrain;
     if (!TerrainPieces(*Geometry, Terrain, Error)) { return false; }
     for (const auto& Piece : Terrain)
     {
-        UStaticMesh* Mesh = BuildPrism(Piece.Id, Piece.Prism, ConvexPoints(Piece.Prism), true, Definition.Checksum, Error);
-        AStaticMeshActor* Actor = Place(*World, Piece.Id, Mesh, HillMaterial, FVector::ZeroVector, FVector::OneVector,
-            true, true, false, Error);
-        if (!Actor) { return false; }
-        Actor->Tags.Add(LDDemoWorld::TerrainTag);
+        auto* Actor = Actors.FindRef(Piece.Id);
+        if (!Actor) { return Fail(Error, TEXT("Saved terrain is missing: ") + Piece.Id); }
+        auto* Mesh = BuildPrism(Piece.Id, Piece.Prism, ConvexPoints(Piece.Prism), true, Definition.Checksum, Error);
+        if (!Mesh) { return false; }
+        Actor->GetStaticMeshComponent()->SetStaticMesh(Mesh);
+        Actor->SetActorTransform(FTransform::Identity);
     }
     TMap<FString, UStaticMesh*> Trunks;
-    for (const auto& Blocker : Geometry->Blockers)
+    for (const auto& B : Geometry->Blockers)
     {
-        UStaticMesh* Mesh = BuildBlocker(Blocker, Definition.Checksum, Trunks, Error);
+        auto* Actor = Actors.FindRef(B.Id);
+        if (!Actor) { return Fail(Error, TEXT("Saved blocker is missing: ") + B.Id); }
+        auto* Mesh = BuildBlocker(B, Definition.Checksum, Trunks, Error);
         if (!Mesh) { return false; }
         FVector Position = FVector::ZeroVector;
-        if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder && !Blocker.CenterCm.ToVector(Position, Error)) { return false; }
-        const TCHAR* Path = BlockerMaterialPath(Blocker);
-        UMaterial* Surface = Path == TreeMaterialPath ? TreeMaterial : Path == FenceMaterialPath ? FenceMaterial : StoneMaterial;
-        if (!Place(*World, Blocker.Id, Mesh, Surface, Position, FVector::OneVector,
-            false, Blocker.BlocksMovement, Blocker.BlocksSight, Error)) { return false; }
+        if (B.Shape == ELDDemoWorldBlockerShape::Cylinder && !B.CenterCm.ToVector(Position, Error)) { return false; }
+        auto* Shape = LDStaticScene::Collision(*Actor);
+        Shape->SetStaticMesh(Mesh);
+        Shape->SetWorldTransform(FTransform(Position));
     }
     TArray<FCliffGuard> Guards;
     if (!CliffGuards(*Geometry, Guards, Error)) { return false; }
-    const double GuardTop = GuardHeight(*Geometry, Capsule);
+    const double Top = GuardHeight(*Geometry, Capsule);
+    auto* Cube = LoadObject<UStaticMesh>(nullptr, CubePath);
+    auto* Wall = LoadObject<UMaterialInterface>(nullptr, *ObjectPath(WallMaterialPath));
     for (const auto& Guard : Guards)
     {
-        AStaticMeshActor* Actor = Place(*World, Guard.Id, Cube, StoneMaterial, FVector::ZeroVector, FVector::OneVector,
-            false, true, false, Error);
+        auto* Actor = Place(World, Guard.Id, Cube, Wall, FVector::ZeroVector, FVector::OneVector, false, true, false, Error);
         if (!Actor) { return false; }
-        Actor->SetActorTransform(GuardTransform(Guard, GuardTop));
+        Actor->SetActorTransform(GuardTransform(Guard, Top));
         Actor->Tags.Add(CliffGuardTag);
-        auto* Component = Actor->GetStaticMeshComponent();
-        Component->SetCollisionResponseToAllChannels(ECR_Ignore);
-        Component->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-        Component->SetVisibility(false);
-        Component->SetHiddenInGame(true);
-        Component->SetCastShadow(false);
+        auto* Part = Actor->GetStaticMeshComponent();
+        Part->SetCollisionResponseToAllChannels(ECR_Ignore);
+        Part->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        Part->SetVisibility(false); Part->SetHiddenInGame(true); Part->SetCastShadow(false);
+        Actor->SetFolderPath(TEXT("Environment/DerivedCliffCollision"));
     }
-    for (const auto& Source : Geometry->Anchors)
-    {
-        FVector Foot;
-        if (!Source.PositionCm.ToVector(Foot, Error)) { return false; }
-        if (Source.Kind == ELDDemoWorldAnchorKind::Spawn)
-        {
-            auto* Start = World->SpawnActor<APlayerStart>(Foot + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FRotator::ZeroRotator);
-            if (!Start) { return Fail(Error, TEXT("Cannot create Demo player start: ") + Source.Id); }
-            Start->PlayerStartTag = FName(*Source.Id);
-            Start->SetActorLabel(Source.Id);
-            Start->SetActorEnableCollision(false);
-        }
-    }
-    if (!BuildEnvironment(*World, Error)) { return false; }
-    if (!BuildNavigation(*World, *Geometry, Capsule, Error)) { return false; }
-    World->GetOutermost()->GetMetaData().SetValue(World, GeometryStamp, *Definition.Checksum);
-    if (!UEditorLoadingAndSavingUtils::SaveMap(World, LDDemoEntry::WorldMap))
-    {
-        return Fail(Error, TEXT("The generated Demo map could not be saved."));
-    }
-    Out = World;
-    Error.Reset();
+    if (!BuildNavigation(World, *Geometry, Capsule, Error)) { return false; }
+    World.GetOutermost()->GetMetaData().SetValue(&World, GeometryStamp, *Definition.Checksum);
+    if (!UEditorLoadingAndSavingUtils::SaveMap(&World, LDDemoEntry::WorldMap))
+    { return Fail(Error, TEXT("Could not save the synchronized Demo map.")); }
     return true;
 }
 
@@ -1109,13 +724,13 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         if (const auto* Sun = Cast<ADirectionalLight>(Actor))
         {
             const auto* Light = Cast<UDirectionalLightComponent>(Sun->GetLightComponent());
-            Suns += Light && Light->IsUsedAsAtmosphereSunLight() && Light->CastShadows ? 1 : 100;
+            Suns += Light && Light->IsUsedAsAtmosphereSunLight() && Light->CastShadows ? 1 : 0;
         }
         if (Cast<ASkyAtmosphere>(Actor)) { ++Skies; }
         if (const auto* Ambient = Cast<ASkyLight>(Actor))
         {
             const auto* Light = Ambient->GetLightComponent();
-            SkyLights += Light && Light->bRealTimeCapture && Light->Mobility == EComponentMobility::Movable ? 1 : 100;
+            SkyLights += Light && Light->bRealTimeCapture && Light->Mobility == EComponentMobility::Movable ? 1 : 0;
         }
         if (Cast<AExponentialHeightFog>(Actor)) { ++Fogs; }
         if (const auto* Post = Cast<APostProcessVolume>(Actor)) { Grades += Post->bUnbound ? 1 : 100; }
@@ -1149,8 +764,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(LDDemoWorld::StaticGeometryTag))
         {
             ++StaticCount;
-            Steppable += Mesh->GetStaticMeshComponent()->CanCharacterStepUpOn == ECB_No ? 0 : 1;
-            const UStaticMesh* Shape = Mesh->GetStaticMeshComponent()->GetStaticMesh();
+            Steppable += LDStaticScene::Collision(*Mesh)->CanCharacterStepUpOn == ECB_No ? 0 : 1;
+            const UStaticMesh* Shape = LDStaticScene::Collision(*Mesh)->GetStaticMesh();
             if (Shape && Shape->GetPathName().StartsWith(GeometryRoot) && !Faced.Contains(Shape))
             {
                 Faced.Add(Shape);
@@ -1170,8 +785,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(Steppable == 0, TEXT("No generated geometry lets a body step up onto it"));
     Check(!Faced.IsEmpty() && InsideOut.IsEmpty(),
         TEXT("Every generated terrain, wall, fence and trunk face points out of its prism: ") + FString::Join(InsideOut, TEXT(", ")));
-    Check(Suns == 1 && Skies == 1 && SkyLights == 1 && Fogs == 1 && Grades == 1,
-        TEXT("The playground is lit by one shadowing atmosphere sun, one sky, one real-time sky light, one height fog and one unbound grade"));
+    Check(Suns >= 1 && SkyLights >= 1,
+        TEXT("The saved playground has a shadowing atmosphere sun and real-time sky lighting"));
     const auto* Navigation = Cast<ULDDemoNavigationSystem>(World.GetNavigationSystem());
     Check(Navigation && Navigation->HasApprovedAgent()
         && World.GetWorldSettings()->GetNavigationSystemConfig()->NavigationSystemClass == FSoftClassPath(ULDDemoNavigationSystem::StaticClass()),
@@ -1191,36 +806,31 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             && CollisionChannelsMatch(*Component, true, false),
             TEXT("Ground transform, native support and sight classification match the source"));
         const UMaterialInterface* Field = Component->GetMaterial(0);
-        Check(Field && Field->GetPathName() == ObjectPath(FieldMaterialPath), TEXT("The ground is the generated playground field"));
+        Check(Field != nullptr, TEXT("The ground has a saved material"));
     }
     if (Check(Aprons == 1 && Apron != nullptr, TEXT("Exactly one paving apron surrounds the field")))
     {
         const auto* Component = Apron->GetStaticMeshComponent();
-        const double Depth = Capsule.GetCapsuleHalfHeight();
         Check(Component->GetStaticMesh()
-            && Component->GetStaticMesh()->GetPathName() == CubePath
-            && Apron->GetActorLocation().Equals(ApronLocation(Min, Max, Depth), UE_KINDA_SMALL_NUMBER)
-            && Apron->GetActorScale3D().Equals(ApronScale(Min, Max, Depth), UE_KINDA_SMALL_NUMBER)
-            && Apron->GetActorRotation().IsNearlyZero()
             && !Apron->GetActorEnableCollision()
             && Component->GetCollisionEnabled() == ECollisionEnabled::NoCollision
             && !Component->CanEverAffectNavigation() && !Component->CastShadow,
-            TEXT("The paving apron sits 1 cm below the turf and 40 m past the field, without collision, navigation or shadow"));
+            TEXT("The saved paving apron has no collision, navigation or shadow"));
         const UMaterialInterface* Paving = Component->GetMaterial(0);
-        Check(Paving && Paving->GetPathName() == ObjectPath(ApronMaterialPath), TEXT("The apron is the generated campus paving"));
+        Check(Paving != nullptr, TEXT("The apron has a saved material"));
     }
     for (const auto& Piece : Terrain)
     {
         const auto* Actor = Meshes.FindRef(Piece.Id);
         if (!Check(Actor != nullptr, TEXT("Terrain piece exists: ") + Piece.Id)) { continue; }
-        const auto* Component = Actor->GetStaticMeshComponent();
+        const auto* Component = LDStaticScene::Collision(*Actor);
         const UStaticMesh* Mesh = Component->GetStaticMesh().Get();
         const auto* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
         Check(Actor->GetActorTransform().Equals(FTransform::Identity, UE_KINDA_SMALL_NUMBER) && Actor->Tags.Contains(LDDemoWorld::TerrainTag)
             && CollisionChannelsMatch(*Component, true, false),
             TEXT("Terrain piece is a registered floor that leaves sight to the level rule: ") + Piece.Id);
         const UMaterialInterface* Hill = Component->GetMaterial(0);
-        Check(Hill && Hill->GetPathName() == ObjectPath(HillMaterialPath), TEXT("Terrain piece uses the generated hill surface: ") + Piece.Id);
+        Check(Hill != nullptr, TEXT("Terrain piece has a saved material: ") + Piece.Id);
         if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Piece.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Piece.Id))
             && Body && Body->CollisionTraceFlag == CTF_UseSimpleAsComplex && Body->AggGeom.ConvexElems.Num() == 1,
             TEXT("Terrain piece uses its exact convex mesh: ") + Piece.Id)) { continue; }
@@ -1231,17 +841,17 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     {
         const auto* Actor = Meshes.FindRef(Blocker.Id);
         if (!Check(Actor != nullptr, TEXT("Blocker exists: ") + Blocker.Id)) { continue; }
-        const auto* Component = Actor->GetStaticMeshComponent();
+        const auto* Component = LDStaticScene::Collision(*Actor);
         const UStaticMesh* Mesh = Component->GetStaticMesh().Get();
         const auto* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
         const bool bTrunk = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder;
         FVector Position = FVector::ZeroVector;
         if (bTrunk && !Blocker.CenterCm.ToVector(Position, Error)) { return false; }
-        Check(Actor->GetActorTransform().Equals(FTransform(Position), UE_KINDA_SMALL_NUMBER)
+        Check(Component->GetComponentTransform().Equals(FTransform(Position), UE_KINDA_SMALL_NUMBER)
             && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
             TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
         const UMaterialInterface* Wall = Component->GetMaterial(0);
-        Check(Wall && Wall->GetPathName() == ObjectPath(BlockerMaterialPath(Blocker)), TEXT("Blocker uses its generated wall, fence or tree surface: ") + Blocker.Id);
+        Check(Wall != nullptr, TEXT("Blocker collision retains a saved surface: ") + Blocker.Id);
         TArray<FVector> Vertices;
         if (!(bTrunk ? TrunkVertices(Blocker, Vertices, Error) : BlockerVertices(Blocker, Vertices, Error))) { return false; }
         const FString Expected = MeshPath(bTrunk ? TrunkId(Blocker) : Blocker.Id);
@@ -1362,7 +972,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     {
         const auto* Actor = Meshes.FindRef(Guard.Id);
         if (!Check(Actor != nullptr, TEXT("Cliff guard exists: ") + Guard.Id)) { continue; }
-        UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
+        UStaticMeshComponent* Component = LDStaticScene::Collision(*Actor);
         Check(Component->GetStaticMesh() && Component->GetStaticMesh()->GetPathName() == CubePath
             && Actor->GetActorTransform().Equals(GuardTransform(Guard, GuardTop), 1e-3) && Actor->Tags.Contains(CliffGuardTag)
             && GuardChannelsMatch(*Component) && Component->bHiddenInGame && !Component->IsVisible() && !Component->CastShadow,
@@ -1417,7 +1027,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         };
         FVector From, To;
         FHitResult Hit;
-        UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
+        UStaticMeshComponent* Component = LDStaticScene::Collision(*Actor);
         Line(Capsule.GetCapsuleHalfHeight() + 1, From, To);
         Check(Component->SweepComponent(Hit, From, To, FQuat::Identity, Capsule), TEXT("A blocker stops native capsule movement: ") + Blocker.Id);
         Line(Eye, From, To);

@@ -1040,7 +1040,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
 {
     UWorld* World = GetWorld();
     const double Now = FPlatformTime::Seconds();
-    // Decorations are spawned locally once per world; a slow rescan picks up a rebuilt set without a per-frame search.
+    // A slow rescan picks up rebuilt tagged scene components without a per-frame search.
     if (FadeablesScannedAt < 0 || Now - FadeablesScannedAt > 2.0)
     {
         FadeablesScannedAt = Now;
@@ -1101,7 +1101,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                     for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
                     {
                         UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, Prop.bPerInstance ? LDPropFade::InstanceFadedStrength : LDPropFade::FadedStrength); }
+                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
                         Prop.Materials.Add(Dynamic);
                     }
                 }

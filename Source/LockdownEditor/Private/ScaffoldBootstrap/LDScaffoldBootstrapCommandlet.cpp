@@ -2,6 +2,7 @@
 #include "LDEditorLog.h"
 #include "LDDemoWorldBuilder.h"
 #include "Art/LDDemoArtImport.h"
+#include "Art/LDStaticSceneEditor.h"
 #include "Art/LDDemoUIImageImport.h"
 #include "Audio/LDDemoAudioImport.h"
 #include "Framework/LDDemoEntry.h"
@@ -133,7 +134,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     }
     for (const auto& Expected : {
         TPair<const TCHAR*, const TCHAR*>(TEXT("GameDefaultMap"), LDDemoEntry::FrontendMap),
-        TPair<const TCHAR*, const TCHAR*>(TEXT("EditorStartupMap"), LDDemoEntry::FrontendMap),
+        TPair<const TCHAR*, const TCHAR*>(TEXT("EditorStartupMap"), LDDemoEntry::WorldMap),
         TPair<const TCHAR*, const TCHAR*>(TEXT("GlobalDefaultGameMode"), TEXT("/Script/Lockdown.LDGameMode")),
         TPair<const TCHAR*, const TCHAR*>(TEXT("GameInstanceClass"), TEXT("/Script/Lockdown.LDGameInstance"))})
     {
@@ -156,19 +157,15 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     {
         UWorld* World = nullptr;
         const bool IsDemoWorld = FString(PackagePath) == LDDemoEntry::WorldMap;
-        if (IsDemoWorld && !ValidateOnly && (Regenerate || !FPackageName::DoesPackageExist(PackagePath)))
-        {
-            if (!LDDemoWorldBuilder::Generate(*WorldDefinition, *Catalog, World, Error))
-            {
-                UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World generation failed: %s"), *Error);
-                return 6;
-            }
-        }
-        else if (IsDemoWorld)
+        if (IsDemoWorld)
         {
             World = UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(PackagePath, FPackageName::GetMapPackageExtension()));
+            if (!World) { UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Saved Demo map missing; restore its LFS asset.")); return 6; }
+            if (!ValidateOnly && Regenerate && (!LDDemoWorldBuilder::Refresh(*World, *WorldDefinition, *Catalog, Error)
+                || !LDStaticSceneEditor::RefreshIndex(*World, Error)))
+            { UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Saved scene synchronization failed: %s"), *Error); return 6; }
         }
-        else if (!ValidateOnly && (Regenerate || RegenerateFrontend || !FPackageName::DoesPackageExist(PackagePath)))
+        else if (!ValidateOnly && (RegenerateFrontend || !FPackageName::DoesPackageExist(PackagePath)))
         {
             if (!LDDemoWorldBuilder::GenerateFrontend(World, Error))
             {

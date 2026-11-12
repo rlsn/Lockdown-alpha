@@ -31,6 +31,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",
         "Lockdown.Rules.ArtCatalogAsset",
         "Lockdown.Rules.ArtDecorations",
+        "Lockdown.Rules.StaticScene.PersistenceAndBinding",
+        "Lockdown.Rules.StaticScene.CopyIdentityAndSafety",
         "Lockdown.Rules.AudioCatalog",
         "Lockdown.Rules.AudioCatalogAsset",
         "Lockdown.Rules.AudioCueOwn",
