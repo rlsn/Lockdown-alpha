@@ -160,7 +160,7 @@ TSharedRef<const LDModelPicking::FSkinnedModel> LDModelPicking::BuildSkinnedMode
     {
         const uint32* Corners = &Indices[Triangle * 3];
         if (Corners[0] >= uint32(NumVertices) || Corners[1] >= uint32(NumVertices) || Corners[2] >= uint32(NumVertices)
-            || !Moved[Corners[0]] || !Moved[Corners[1]] || !Moved[Corners[2]])
+            || (!Moved[Corners[0]] && !Moved[Corners[1]] && !Moved[Corners[2]]))
         {
             ++Model->DroppedTriangles;
             continue;
@@ -263,7 +263,7 @@ TSharedPtr<const LDModelPicking::FSkinnedModel> LDModelPicking::SharedSkinnedMod
         (FPlatformTime::Seconds() - Began) * 1000.);
     if (Model->DroppedTriangles > 0)
     {
-        UE_LOG(LogLDContent, Warning, TEXT("LD_PICK_MODEL_DROPPED mesh=%s lod=%d triangles=%d reason=unweighted_vertex"),
+        UE_LOG(LogLDContent, Warning, TEXT("LD_PICK_MODEL_DROPPED mesh=%s lod=%d triangles=%d reason=invalid_indices_or_no_influenced_vertices"),
             *LDLog::Quote(Mesh.GetName()), LODIndex, Model->DroppedTriangles);
     }
     Cache.RemoveAll([&Key, LODIndex](const FEntry& Entry)

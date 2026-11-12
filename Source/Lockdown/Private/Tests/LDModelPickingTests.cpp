@@ -77,7 +77,7 @@ bool FLDModelPickingTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The volume closer to the pointer scores the smaller angle"),Near<Far);
 
     // Culled skinned picking: a 10 x 10 quad sheet bent by two bones, one of them scaled and sheared, with a
-    // material per half, a top row whose weights do not sum to 1 and one triangle no bone moves.
+    // material per half, a top row whose weights do not sum to 1, a mixed-weight triangle and one no bone moves.
     using namespace LDModelPicking;
     TArray<FVector3f> Rest;
     TArray<uint32> InfluenceStart, Sheet;
@@ -108,8 +108,10 @@ bool FLDModelPickingTest::RunTest(const FString& Parameters)
     }
     Sheet.Append({0,1,121});
     Materials.Add(0);
+    Sheet.Append({121,121,121});
+    Materials.Add(0);
     const TSharedRef<const FSkinnedModel> Model=BuildSkinnedModel(Rest,InfluenceStart,Influences,Sheet,Materials);
-    TestTrue(TEXT("The sheet splits into several leaves and drops only the unweighted triangle"),
+    TestTrue(TEXT("The sheet splits into several leaves and drops only the fully unweighted triangle"),
         Model->Leaves.Num()>=4 && Model->DroppedTriangles==1 && Model->RequiredBones==2);
     FMatrix Twist=FScaleMatrix(FVector(2.,.5,1.))*FRotationTranslationMatrix(FRotator(30,45,10),FVector(5,-20,40));
     Twist.M[1][0]+=.7;
@@ -140,6 +142,17 @@ bool FLDModelPickingTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Each leaf skins exactly like the whole mesh"),bSkinned);
     TestTrue(TEXT("Posed leaf bounds contain their skinned surface under scale, shear and missing weight"),bInside);
+    const FVector MixedCentre((Posed[0]+Posed[1]+Posed[121])/3.f);
+    const FVector MixedStart=MixedCentre+FVector(0,0,50), MixedEnd=MixedCentre-FVector(0,0,50);
+    double MixedExpected=1., MixedCulled=1.;
+    const TArray<uint32> MixedTriangle={0,1,121};
+    const TArray<int32> MixedMaterials={0};
+    const TSharedRef<const FSkinnedModel> MixedModel=BuildSkinnedModel(Rest,InfluenceStart,Influences,MixedTriangle,MixedMaterials);
+    PoseBounds(*MixedModel,Pose);
+    TestTrue(TEXT("A triangle with an unweighted vertex retains its selectable surface"),
+        LDModelPicking::Trace(Posed,MixedTriangle,MixedStart,MixedEnd,MixedExpected)
+        && TraceSkinned(*MixedModel,Pose,MixedStart,MixedEnd,[](int32) { return true; },MixedCulled)
+        && MixedExpected==MixedCulled);
     FBox3f PosedBox(Posed.GetData(),Posed.Num()-1);
     const FVector Camera(-150,-400,250);
     int32 Hits=0;
@@ -147,7 +160,7 @@ bool FLDModelPickingTest::RunTest(const FString& Parameters)
     for (const bool bHideHalf:{false,true})
     {
         TArray<uint32> ShownSheet;
-        for (int32 Triangle=0; Triangle<Materials.Num()-1; ++Triangle)
+        for (int32 Triangle=0; Triangle<Materials.Num(); ++Triangle)
         {
             if (!bHideHalf || Materials[Triangle]==0) { ShownSheet.Append(&Sheet[Triangle*3],3); }
         }

@@ -56,7 +56,7 @@ namespace LDModelPicking
         TArray<uint32> Indices;
         TArray<FAnchor> Anchors;
         int32 RequiredBones = 0;       // the pose's RefToLocal must cover every bone below this
-        int32 DroppedTriangles = 0;    // triangles with a vertex no bone moves; never selectable
+        int32 DroppedTriangles = 0;    // invalid indices or no influenced vertices (all skin to zero)
     };
     // One body's pose of a model: its bone matrices, each leaf's posed bounds and the leaves skinned so far.
     struct FSkinnedPose

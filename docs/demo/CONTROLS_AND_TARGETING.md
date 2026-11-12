@@ -574,7 +574,7 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 | `Lockdown.Rules.DemoControlFeel.HeldMove` | 按住右键的重复频率与位移门槛。 |
 | `Lockdown.Rules.DemoControlFeel.PreInput` | 预输入入口与前摇判定。 |
 | `Lockdown.Rules.DemoControlFeel.SourceBuffer` | 普通投影更新保留预输入，来源或局变化取消旧目标。 |
-| `Lockdown.Rules.DemoControlFeel.ModelPicking` / `PresentedModelPicking` | 三角面边界、空隙、正反面与深度；宽松拾取体的穿过、容差内外、身后与遮挡截断；分块拾取在缩放/剪切骨骼与权重不足下包围盒保守、结果与整网格追踪一致、射线外的块不蒙皮；真实导入骨骼模型的分块蒙皮与渲染器 CPU 蒙皮一致、站立/攻击/施法头脚与侧缘拾取与整网格追踪同距、包围盒外的近距离射线不蒙皮、拾取体与模型身高一致、隐藏和倒地拒绝。 |
+| `Lockdown.Rules.DemoControlFeel.ModelPicking` / `PresentedModelPicking` | 三角面边界、空隙、正反面与深度；宽松拾取体的穿过、容差内外、身后与遮挡截断；分块拾取在缩放/剪切骨骼与权重不足下包围盒保守、含无权重顶点的混合三角面保留可选表面、结果与整网格追踪一致、射线外的块不蒙皮；真实导入骨骼模型的分块蒙皮与渲染器 CPU 蒙皮一致、站立/攻击/施法头脚与侧缘拾取与整网格追踪同距、包围盒外的近距离射线不蒙皮、拾取体与模型身高一致、隐藏和倒地拒绝。 |
 | `Lockdown.Rules.DemoOrders.AttackMoveCandidate` | A 搜敌的最近者、半径与平局排序。 |
 | `Lockdown.Rules.DemoOrders.BookIsolation` | 订单簿按局/生命隔离与重置。 |
 | `Lockdown.Rules.DemoOrders.ChasePress` | 普攻追击不发呆：到点出手的普攻不再占住订单，射程内等节拍时目标走开即贴近。 |
