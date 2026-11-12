@@ -4,7 +4,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Tests/LDSlateProbeInput.h"
 #include "Blueprint/WidgetTree.h"
-#include "Components/ScrollBox.h"
+
+#include "Components/SizeBox.h"
 #include "Components/PanelSlot.h"
 #include "Components/RichTextBlock.h"
 #include "UObject/StrongObjectPtr.h"
@@ -43,8 +44,10 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "World/LDCaptureMarker.h"
 #include "UI/LDHUD.h"
+#include "UI/LDMinimap.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDComponentStorage.h"
+#include "UI/LDStatBar.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -151,8 +154,8 @@ public:
     bool bUISeeded = false, bUISignupSent = false, bUIRelationsChecked = false;
     int32 UIShot = 0;
     int32 UIBuildStage = 0;
-    int32 UIPointWheelSteps=0,UIComponentRewardGrants=0;
-    int32 UIOpeningIndex=INDEX_NONE,UIOpeningWheels=0,UIChoiceStep=0,UIChoiceWheels=0;
+    int32 UIComponentRewardGrants=0;
+    int32 UIOpeningIndex=INDEX_NONE,UIOpeningWheels=0,UIChoiceStep=0;
     bool bUIOpeningShot=false;
     bool bUIStorageShot=false;
     FName UIOpeningComponent;
@@ -169,7 +172,7 @@ public:
     FName UIReplacement;
     bool bUIOtherServicesDone=false,bUIPKShotsDone=false,bUIPayoutChecked=false,bUIPointsShot=false;
     int32 UIReadyOpenStep=0,UIPayoutStep=0,UIFieldStep=0;
-    int32 UIFieldActivesBefore=0,UIStagedBeforeFight=0;
+    int32 UIFieldActivesBefore=0;
     double UIFieldFightSince=0,UIFieldRetryAt=0;
     FGuid UIFieldTarget,UIFieldRejectedTarget;
     TSet<FName> UIFieldVisitedCamps;
@@ -777,23 +780,25 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     if (!Panel || !Owner.Controls) { return false; }
 
     // Tab -1 is the #227 component storage held open over the band with the panel closed.
+    // Tab: 0 the open 构筑 panel, -1 the pinned storage, 1 the HUD stat icons with the first stat's "+" and popup pinned.
     struct FReviewShot { const TCHAR* Name; int32 Tab, Width, Height; float Scale; };
     static constexpr FReviewShot ReviewShots[] = {
         {TEXT("HostRestSkills_1280x720_100.png"), 0, 1280, 720, 1.f},
         {TEXT("HostRestStorage_1280x720_100.png"), -1, 1280, 720, 1.f},
-        {TEXT("HostRestPoints_1280x720_100.png"), 1, 1280, 720, 1.f},
+        {TEXT("HostRestStats_1280x720_100.png"), 1, 1280, 720, 1.f},
         {TEXT("HostRestSkills_1280x720_125.png"), 0, 1280, 720, 1.25f},
         {TEXT("HostRestStorage_1280x720_125.png"), -1, 1280, 720, 1.25f},
-        {TEXT("HostRestPoints_1280x720_125.png"), 1, 1280, 720, 1.25f},
+        {TEXT("HostRestStats_1280x720_125.png"), 1, 1280, 720, 1.25f},
         {TEXT("HostRestSkills_1920x1080_100.png"), 0, 1920, 1080, 1.f},
         {TEXT("HostRestStorage_1920x1080_100.png"), -1, 1920, 1080, 1.f},
-        {TEXT("HostRestPoints_1920x1080_100.png"), 1, 1920, 1080, 1.f},
+        {TEXT("HostRestStats_1920x1080_100.png"), 1, 1920, 1080, 1.f},
         {TEXT("HostRestSkills_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
         {TEXT("HostRestStorage_1920x1080_125.png"), -1, 1920, 1080, 1.25f},
-        {TEXT("HostRestPoints_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
+        {TEXT("HostRestStats_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
     };
     ULDComponentStorage* Storage = Owner.HUDUI ? Owner.HUDUI->Storage.Get() : nullptr;
-    if (!Storage) { return false; }
+    ULDStatBar* Stats = Owner.HUDUI ? Owner.HUDUI->StatBar.Get() : nullptr;
+    if (!Storage || !Stats) { return false; }
     static constexpr FReviewShot ServiceShots[] = {
         {TEXT("HostRestService_1280x720_100.png"), 0, 1280, 720, 1.f},
         {TEXT("HostRestService_1280x720_125.png"), 0, 1280, 720, 1.25f},
@@ -805,8 +810,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         const FReviewShot& Shot = ReviewShots[Index];
         Owner.Controls->TextScale = Shot.Scale;
         Storage->PinOpen(Shot.Tab < 0);
-        if (Shot.Tab < 0) { Panel->ClosePanel(); }
-        else { Panel->OpenPanel(); Panel->ShowTab(Shot.Tab); }
+        Stats->PinHover(Shot.Tab == 1 ? 0 : INDEX_NONE);
+        if (Shot.Tab != 0) { Panel->ClosePanel(); }
+        else { Panel->OpenPanel(); }
         Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
         RestReviewDueAt = Now + .65;
     };
@@ -848,8 +854,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             }
             Owner.Controls->TextScale = RestReviewOriginalScale;
             Storage->PinOpen(false);
+            Stats->PinHover(INDEX_NONE);
             Panel->OpenPanel();
-            Panel->ShowTab(0);
             Owner.ConsoleCommand(TEXT("r.SetRes 1280x720w"), true);
             bRestReviewLayoutDone = true;
             RestServiceReviewStage = 0;
@@ -874,9 +880,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
                 UWidget* Offer=Panel->GetWidgetFromName(TEXT("GrowthOffer0"));
                 if(!LDSlateProbeInput::Path(Offer).IsValid())
                 {
-                    if(!Check(++UIServiceWheels<=80
-                        &&LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),3.f),
-                        TEXT("UI: actual scrolling reaches the outstanding level-up offer"))){return false;}
+                    if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                        TEXT("UI: the actual 构筑 button opens the tray with the outstanding level-up offer"))){return false;}
+                    if(!Check(++UIServiceWheels<=80,TEXT("UI: the open 构筑 tray shows the outstanding level-up offer"))){return false;}
                     RestReviewDueAt=Now+.1;return true;
                 }
                 UIServiceWheels=0;
@@ -939,9 +945,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             if (Now < RestReviewDueAt || Growth->BuildRevision <= UIServiceRevisionBefore) { return true; }
             const bool bAppliedOnce = Growth->UnspentPoints == UIServicePointsBefore - Content->Get().Parameters.NpcActivePoints;
             const bool bRefused = !Panel->NpcButton->GetIsEnabled()&&!Panel->NpcBlocked->GetText().IsEmpty();
-            if (!Check(bAppliedOnce && bRefused && Panel->Feedback && !Panel->Feedback->GetText().IsEmpty()
-                && Panel->Feedback->GetParent() == Panel->ServiceBody,
-                TEXT("UI: service purchase charges once and the unavailable next purchase explains why inside its service window"))) { return false; }
+            if (!Check(bAppliedOnce && bRefused && Owner.HUDUI->Toast && !Owner.HUDUI->Toast->GetText().IsEmpty(),
+                TEXT("UI: service purchase charges once, its result is toasted and the unavailable next purchase explains why inside its service window"))) { return false; }
             bUIServicePurchaseChecked = true;
             RestReviewDueAt = Now + .65;
             return true;
@@ -1279,6 +1284,9 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             if (UIBuildStage == 0)
             {
                 if (!Growth->bHasActiveOffer) { return true; }
+                if (!Panel->IsTrayOpen() && ++UIOpeningWheels <= 80) { return true; }
+                if (!Check(Panel->IsTrayOpen(), TEXT("UI: the opening offer automatically opens its tray before selection"))) { return Finish(); }
+                UIOpeningWheels = 0;
                 if (!Check(Panel->ChooseOffer(0), TEXT("UI: owner chooses an opening skill through the panel"))) { return Finish(); }
                 UIBuildStage = 1;
                 UIBuildDueAt = Now + .5;
@@ -1297,7 +1305,7 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                     {
                         UIOpeningIndex=Index;UIOpeningComponent=Growth->OpeningBaseOptions[Index];UIOpeningOptions=Growth->OpeningBaseOptions;
                         PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                        Panel->OpenPanel();Panel->ShowTab(0);
+                        Panel->OpenPanel();
                         UIBuildStage = 14;
                         UIBuildDueAt = Now + .5;
                         return true;
@@ -1308,13 +1316,12 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if(UIBuildStage==14)
             {
-                if(!Check(Panel->BaseCards.IsValidIndex(UIOpeningIndex),TEXT("UI: the non-first opening candidate has a rendered row"))){return Finish();}
-                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
+                if(!Check(Panel->BaseCards.IsValidIndex(UIOpeningIndex),TEXT("UI: the non-first opening candidate has a rendered card"))){return Finish();}
                 const auto& Card=Panel->BaseCards[UIOpeningIndex];
-                if(!LDSlateProbeInput::FullyVisible(Card.Frame,Scroll))
+                if(!LDSlateProbeInput::FullyVisible(Card.Frame,PC.HUDUI.Get()))
                 {
-                    if(!Check(++UIOpeningWheels<25&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
-                        TEXT("UI: vertical scrolling makes the non-first opening candidate fully reachable"))){return Finish();}
+                    // The tray never scrolls: the card is on screen once the tray has laid it out.
+                    if(!Check(++UIOpeningWheels<25,TEXT("UI: the non-first opening candidate is fully on screen without scrolling"))){return Finish();}
                     UIBuildDueAt=Now+.15;return true;
                 }
                 if(!bUIOpeningShot)
@@ -1356,55 +1363,39 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             }
             if (UIBuildStage == 4)
             {
+                // Points are spent on the HUD's stat icons: hovering a stat raises its "+", one click commits one point.
                 UIBuildRevisionBefore = Growth->BuildRevision;
                 UIPointsBefore = Growth->UnspentPoints;
                 PC.Controls->TextScale=1.25f;PC.ConsoleCommand(TEXT("r.SetRes 1280x720w"),true);
-                Panel->OpenPanel();
-                UIBuildStage=15;UIBuildDueAt=Now+.3;return true;
-            }
-            if(UIBuildStage==15)
-            {
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
-                    TEXT("UI: actual pointer selects the points task"))){return Finish();}
-                UIBuildStage = 5;
-                UIBuildDueAt = Now + .5;
-                return true;
-            }
-            if (UIBuildStage == 5)
-            {
-                auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
-                const auto& Last=Panel->StatRows.Last();
-                if(!LDSlateProbeInput::FullyVisible(Last.Row,Scroll)||!LDSlateProbeInput::FullyVisible(Panel->ConfirmButton,Scroll))
-                {
-                    if(!Check(++UIPointWheelSteps<30&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
-                        TEXT("UI: real mouse wheel scrolls the points viewport"))){return Finish();}
-                    UIBuildDueAt=Now+.15;return true;
-                }
-                if(!Check(LDSlateProbeInput::FullyVisible(Last.PerPoint,Scroll)&&!Last.PerPoint->GetText().IsEmpty()
-                    &&LDSlateProbeInput::SendClick(Last.Plus),
-                    TEXT("UI: 720p125 last attribute, its complete benefit and confirm are visible; plus is hit-tested"))){return Finish();}
-                UIBuildStage=6;UIBuildDueAt=Now+.2;return true;
+                Panel->ClosePanel();
+                ULDStatBar* Stats=PC.HUDUI->StatBar.Get();
+                if(!Check(Stats&&Stats->StatCount()>0&&UIPointsBefore>0,TEXT("UI: the HUD shows the stat icons while points are unspent"))){return Finish();}
+                Stats->PinHover(Stats->StatCount()-1);
+                UIBuildStage=6;UIBuildDueAt=Now+.4;return true;
             }
             if(UIBuildStage==6)
             {
+                ULDStatBar* Stats=PC.HUDUI->StatBar.Get();
+                ULDCommandButton* Plus=Stats->PlusButton(Stats->StatCount()-1);
                 if(!bUIPointsShot)
                 {
-                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostPointsScrolled_1280x720_125.png")),true,false);
-                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostPointsScrolled_1280x720_125.png")));
+                    if(!Check(Plus&&Plus->IsVisible()&&Plus->GetIsEnabled(),TEXT("UI: the hovered last stat raises its enabled +"))){return Finish();}
+                    FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStatPlus_1280x720_125.png")),true,false);
+                    Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStatPlus_1280x720_125.png")));
                     bUIPointsShot=true;return true;
                 }
                 if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-                if(!Check(Panel->StagedTotal()==1&&LDSlateProbeInput::SendClick(Panel->ConfirmButton),
-                    TEXT("UI: the visible confirm button receives an actual Slate click"))){return Finish();}
+                if(!Check(LDSlateProbeInput::SendClick(Plus),TEXT("UI: the stat's + receives an actual Slate click"))){return Finish();}
                 UIBuildStage=7;UIBuildDueAt=Now+.5;return true;
             }
             if (UIBuildStage == 7)
             {
-                if (Growth->BuildRevision <= UIBuildRevisionBefore || Panel->HasPendingRequest()) { return true; }
-                if (!Check(Growth->UnspentPoints == UIPointsBefore - 1 && Panel->StagedTotal() == 0,
-                    TEXT("UI: point confirmation applies once and clears only committed staging"))) { return Finish(); }
+                ULDStatBar* Stats=PC.HUDUI->StatBar.Get();
+                if (Growth->BuildRevision <= UIBuildRevisionBefore || Stats->HasPendingRequest() || Stats->Waiting() > 0) { return true; }
+                if (!Check(Growth->UnspentPoints == UIPointsBefore - 1,
+                    TEXT("UI: one click on + commits exactly one point, with no confirm"))) { return Finish(); }
+                Stats->PinHover(INDEX_NONE);
                 // #227: owned components live in the HUD storage right of the band, not in the panel.
-                Panel->ClosePanel();
                 UIBuildStage=8;UIBuildDueAt=Now+.5;return true;
             }
             if(UIBuildStage==8)
@@ -1524,19 +1515,18 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             if(UIReadyOpenStep==0)
             {
                 if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))).IsValid()){return true;}
+                // Nothing to build: the greyed-out button cannot open an empty tray, so there is no workspace to keep.
+                if(!Panel->HasCards())
+                {
+                    if(!Check(!PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))->GetIsEnabled(),
+                        TEXT("UI: the 构筑 button is greyed out while the tray has no card"))){return Finish();}
+                    UIReadyOpenStep=5;return true;
+                }
                 if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
                     TEXT("UI: entrant opens planning during the actual build window before PK"))){return Finish();}
                 UIReadyOpenStep=1;return true;
             }
-            if(UIReadyOpenStep==1)
-            {
-                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab1"))),
-                    TEXT("UI: entrant selects points during the build window"))){return Finish();}
-                LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),12.f);
-                UIReadyOpenStep=2;return true;
-            }
-            if(!Check(LDSlateProbeInput::SendClick(Panel->StatRows[0].Plus)&&Panel->StagedTotal()==1,
-                TEXT("UI: entrant leaves an actual staged point open before entering PK"))){return Finish();}
+            if(!Check(Panel->IsPanelOpen(),TEXT("UI: entrant leaves its own workspace open before entering PK"))){return Finish();}
             UIReadyOpenStep=3;
         }
         return true;
@@ -1544,16 +1534,16 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
     if (View.Timeline.Step != ELDRestStep::PKReady && View.Timeline.Step != ELDRestStep::PK) { return true; }
     if(View.Timeline.Step==ELDRestStep::PKReady&&FApp::CanEverRender()&&View.PK.FindEntrant(PC.OwnerState.ContenderId))
     {
-        if(!Check(UIReadyOpenStep==3&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
-            TEXT("UI: actual build-window staging survives the locked PK preparation"))){return Finish();}
+        if(!Check(UIReadyOpenStep==5||(UIReadyOpenStep==3&&(PC.HUDUI->ChoicesPanel->IsPanelOpen()||!PC.HUDUI->ChoicesPanel->HasCards())),
+            TEXT("UI: the player-opened workspace survives the locked PK preparation"))){return Finish();}
         return true;
     }
     if(View.Timeline.Step==ELDRestStep::PK&&FApp::CanEverRender()&&View.PK.FindEntrant(PC.OwnerState.ContenderId)&&UIReadyOpenStep==3)
     {
         if(UIReadyFoldDueAt==0){UIReadyFoldDueAt=Now+.2;return true;}
         if(Now<UIReadyFoldDueAt){return true;}
-        if(!Check(PC.HUDUI->ChoicesPanel->IsPanelOpen()&&PC.HUDUI->ChoicesPanel->StagedTotal()==1,
-            TEXT("UI: actual PK entry keeps the player-opened workspace and its staged point"))){return Finish();}
+        if(!Check(PC.HUDUI->ChoicesPanel->IsPanelOpen()||!PC.HUDUI->ChoicesPanel->HasCards(),
+            TEXT("UI: actual PK entry keeps the player-opened workspace"))){return Finish();}
         PC.HUDUI->ChoicesPanel->ClosePanel();
         UIReadyOpenStep=4;
     }
@@ -1666,9 +1656,21 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
         auto* Panel=UIChoiceFixture.Get();
         Panel->AddToPlayerScreen(100);
-        Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
-            Real->LatestContent,Real->LatestStats);
-        Panel->ApplyTextScale(1.25f);Panel->OpenPanel();Panel->ShowTab(0);
+        const auto PresentFixture=[&]()
+        {
+            Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
+                Real->LatestContent,Real->LatestStats,Real->SlotKeys);
+        };
+        PresentFixture();
+        Sample.ComponentChoices[0].Options.Swap(0,1);
+        PresentFixture();
+        if(!Check(!Panel->IsPanelOpen()&&Panel->ChoiceRows.IsEmpty()&&Panel->HasCards(),
+            TEXT("UI: a closed tray retains current choices without building their rows"))){return false;}
+        Panel->ApplyTextScale(1.25f);Panel->OpenPanel();
+        const auto LatestCard=LDHUD::ComponentCard(Sample.ComponentChoices[0].Options[1],Panel->LatestContent,Panel->LatestStats);
+        if(!Check(Panel->ChoiceRows.IsValidIndex(0)&&Panel->ChoiceRows[0].Options.IsValidIndex(1)
+            &&Panel->ChoiceRows[0].Options[1].Detail.Name==LatestCard.Name,
+            TEXT("UI: reopening the tray renders the latest choices received while closed"))){return false;}
         // This isolated presentation fixture records the real button's command without granting a gameplay reward.
         Panel->PeekRequestId=[](){return uint64(900001);};
         Panel->SubmitBuild=[this](const FLDBuildCommand& Command,ELDGrowthReason& Reason)
@@ -1676,62 +1678,39 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         UIChoiceStep=1;return true;
     }
     auto* Panel=UIChoiceFixture.Get();
-    auto* Scroll=Panel->WidgetTree->FindWidget<UScrollBox>(TEXT("GrowthTaskScroll"));
-    const auto& Candidate=Panel->ChoiceLines[0].Cards[1];
-    const auto Expected=LDHUD::ComponentCard(Candidate.ShownId,Panel->LatestContent,Panel->LatestStats);
-    auto RulesShown=[&]()
-    {
-        return !Expected.Sentence.IsEmpty()&&Panel->DetailName->GetText().ToString()==Expected.Name
-            &&Panel->DetailBody->GetText().ToString()==Expected.Sentence;
-    };
+    const auto& Candidate=Panel->ChoiceRows[0].Options[1];
+    const FName CandidateId=Panel->Latest.ComponentChoices[0].Options[1];
+    const auto Expected=LDHUD::ComponentCard(CandidateId,Panel->LatestContent,Panel->LatestStats);
     if(UIChoiceStep==1)
     {
-        if(!Check(LDSlateProbeInput::FullyVisible(Panel->ChoiceLines[0].Cards[0].Frame,Scroll)
-            &&LDSlateProbeInput::FullyVisible(Candidate.Frame,Scroll)
+        // The card shows the icon and the name only; its full rules are the popup of the card under the pointer.
+        if(!Check(LDSlateProbeInput::FullyVisible(Panel->ChoiceRows[0].Options[0].Frame,Panel)
+            &&LDSlateProbeInput::FullyVisible(Candidate.Frame,Panel)
             &&LDSlateProbeInput::Pointer(Candidate.Button,EKeys::LeftMouseButton,false,false),
-            TEXT("UI: both elite candidates fit horizontally and the second receives actual pointer hover at 720p125"))){return false;}
-        Panel->UpdateDetail();
-        if(!Check(Candidate.Button->IsHovered()&&RulesShown(),
-            TEXT("UI: elite candidate hover shows its exact rules"))){return false;}
+            TEXT("UI: both elite candidates fit without scrolling and the second receives actual pointer hover at 720p125"))){return false;}
         UIChoiceStep=2;return true;
     }
     if(UIChoiceStep==2)
     {
-        if(!Check(LDSlateProbeInput::SendKey(Candidate.Button,EKeys::LeftShift)
-            &&LDSlateProbeInput::Pointer(Panel->GetWidgetFromName(TEXT("GrowthClose")),EKeys::LeftMouseButton,false,false),
-            TEXT("UI: actual keyboard focus inspects a candidate after the pointer leaves it"))){return false;}
-        UIChoiceStep=3;return true;
-    }
-    if(UIChoiceStep==3)
-    {
-        if(!Check(Candidate.Button->HasKeyboardFocus()&&RulesShown(),
-            TEXT("UI: elite candidate keyboard focus keeps its rules"))){return false;}
-        if(!LDSlateProbeInput::FullyVisible(Panel->DetailBody,Scroll))
-        {
-            if(!Check(++UIChoiceWheels<30&&LDSlateProbeInput::SendWheel(Scroll,-1.f),
-                TEXT("UI: focused candidate rules are reachable with actual vertical scrolling"))){return false;}
-            return true;
-        }
-        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostEliteCandidateRules_720_125.png")),true,false);
-        Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostEliteCandidateRules_720_125.png")));
-        UIChoiceStep=4;UIChoiceWheels=0;return true;
+        LDHUD::FActionDetailView Shown;
+        const FVector2D Centre=Candidate.Frame->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5f,.5f));
+        if(!Check(Panel->Hovered(Centre,Shown)==Candidate.Frame&&!Expected.SentencePlain.IsEmpty()&&Shown.Name==Expected.Name
+            &&Shown.Body.StartsWith(Expected.SentencePlain)&&Candidate.Name->GetText().ToString()==Expected.Name,
+            TEXT("UI: the elite candidate card names it and its hover popup carries its exact rules"))){return false;}
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostEliteCandidateCards_720_125.png")),true,false);
+        Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostEliteCandidateCards_720_125.png")));
+        UIChoiceStep=4;return true;
     }
     if(UIChoiceStep==4)
     {
         if(FScreenshotRequest::IsScreenshotRequested()){return true;}
-        if(!LDSlateProbeInput::FullyVisible(Candidate.Frame,Scroll))
-        {
-            if(!Check(++UIChoiceWheels<30&&LDSlateProbeInput::SendWheel(Scroll,1.f),
-                TEXT("UI: vertical scrolling returns to the non-first elite candidate"))){return false;}
-            return true;
-        }
         if(!Check(LDSlateProbeInput::SendClick(Candidate.Button),TEXT("UI: actual pointer selects the second elite candidate"))){return false;}
         UIChoiceStep=5;return true;
     }
     FName Selected;
     if(!Check(UIChoiceSubmitted.Kind==ELDBuildCommandKind::ComponentChoice
         &&UIChoiceSubmitted.OfferId==Panel->Latest.ComponentChoices[0].ChoiceId
-        &&UIChoiceSubmitted.Component.Decode(Selected)&&Selected==Candidate.ShownId,
+        &&UIChoiceSubmitted.Component.Decode(Selected)&&Selected==CandidateId,
         TEXT("UI: isolated elite selection submits the exact second candidate"))){return false;}
     UIChoiceFixture->RemoveFromParent();UIChoiceFixture.Reset();UIChoiceStep=6;return true;
 }
@@ -1864,7 +1843,7 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 const FString Points = FString::Join(Parts, TEXT(" · "));
                 const auto* Text = HUD->PKAwardTexts.IsValidIndex(Index) ? HUD->PKAwardTexts[Index].Get() : nullptr;
                 Visible &= Text && Text->GetText().ToString() == Rows[Index].Name + TEXT("：") + Points
-                    && LDSlateProbeInput::FullyVisible(Text, HUD) && LDSlateProbeInput::FullyVisible(Text, HUD->PKScroll)
+                    && LDSlateProbeInput::FullyVisible(Text, HUD) && LDSlateProbeInput::FullyVisible(Text, HUD->GetWidgetFromName(TEXT("HUDPKSidePanel")))
                     && Rows[Index].Points == Points && Rows[Index].Total == Total && Rows[Index].bSelf == (E.Contender == Self);
             }
             if (!Check(Visible, TEXT("PK225: rendered settlement text visibly matches every public award row"))) { return false; }
@@ -1982,11 +1961,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 HUD->RefreshReadModel();
                 if(FApp::CanEverRender())
                 {
-                    const auto* Events=Cast<UTextBlock>(HUD->GetWidgetFromName(TEXT("HUDPublicEvents")));
-                    const FString Countdown=LDHUD::AirdropLine(View.Airdrop,true,LDMatchTimeline::FieldNowFromView(View.Timeline,AuthorityNow));
-                    if(!Check(Events&&Events->IsVisible()&&Events->GetText().ToString().Contains(Countdown)
-                        &&LDSlateProbeInput::FullyVisible(Events,HUD),
-                        TEXT("UI: actual field HUD visibly shows the public announced airdrop countdown"))){return Finish();}
+                    if(!Check(HUD->Minimap&&HUD->Minimap->IsVisible()&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD),
+                        TEXT("UI: the announced airdrop is shown by the visible minimap, with no text line above it"))){return Finish();}
                     const FString File=Role+TEXT("FieldAirdropAnnouncement.png");
                     FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,File),true,false);
                     Screenshots.Add(MakeShared<FJsonValueString>(File));
@@ -2006,44 +1982,14 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                     Error=TEXT("Field attack never reached combat: ")+PC.Navigation->Status;
                     Check(false,TEXT("UI: a fresh observed field attack reaches real combat within twenty seconds"));return Finish();
                 }
-                auto* Scroll=Panel->GetWidgetFromName(TEXT("GrowthTaskScroll"));
                 const auto Capture=[&](const TCHAR* Name)
                 {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
-                const auto PlanningDetails=[&]()
-                {
-                    TArray<FString> Details;
-                    Details.Add(LDHUD::CharmLine(View.Charms));
-                    Details.Add(LDHUD::LeaderLine(View.Leader,PC.OwnerState.ContenderId,
-                        LDHUD::RosterName(PC.GetWorld()->GetGameState<ALDGameState>()->DemoLobby,View.Leader.Leader)));
-                    Details.Add(LDHUD::MarkerLine(View.Markers,true,LDMatchTimeline::FieldNowFromView(View.Timeline,AuthorityNow)));
-                    return Details;
-                };
-                const auto CheckSummary=[&](bool bDetails,int32 Width,int32 Height)
+                // The minimap column shows the map and its timer only (no text lines above it), in combat and out of it.
+                const auto CheckSummary=[&](bool,int32 Width,int32 Height)
                 {
                     int32 ActualWidth=0,ActualHeight=0;PC.GetViewportSize(ActualWidth,ActualHeight);
-                    const auto* Events=Cast<UTextBlock>(HUD->GetWidgetFromName(TEXT("HUDPublicEvents")));
-                    if(!Check(ActualWidth==Width&&ActualHeight==Height&&Events,
-                        TEXT("UI: field summary is checked on the actual requested viewport"))){return false;}
-                    const FString Text=Events->GetText().ToString();
-                    const int64 FieldNow=LDMatchTimeline::FieldNowFromView(View.Timeline,AuthorityNow);
-                    const FString Airdrop=LDHUD::AirdropLine(View.Airdrop,true,FieldNow);
-                    if(!bDetails&&!Check(!Airdrop.IsEmpty(),
-                        TEXT("UI: real combat summary coverage overlaps an active public airdrop deadline"))){return false;}
-                    if(!Check(Airdrop.IsEmpty()||(Events->IsVisible()&&Text.Contains(Airdrop)),
-                        TEXT("UI: combat and safe HUD both retain every current public airdrop countdown"))){return false;}
-                    const FString Boss=LDHUD::BossLine(View.Boss,LDTerms::Boss,true,FieldNow);
-                    if(!Check(Boss.IsEmpty()||(Events->IsVisible()&&Text.Contains(Boss)),
-                        TEXT("UI: combat and safe HUD both retain the current public Boss deadline"))){return false;}
-                    bool bHasDetail=false;
-                    for(const FString& Detail:PlanningDetails())
-                    {
-                        bHasDetail|=!Detail.IsEmpty();
-                        if(!Detail.IsEmpty()&&!Check(Text.Contains(Detail)==bDetails,
-                            TEXT("UI: actual field HUD hides planning detail in combat and restores it when safe"))){return false;}
-                    }
-                    return Check(bHasDetail,TEXT("UI: field summary verification actually exercises public planning details"))
-                        &&Check(Text.IsEmpty()?!Events->IsVisible():LDSlateProbeInput::FullyVisible(Events,HUD),
-                        TEXT("UI: field summary has no empty standing box and its remaining text fits"));
+                    return Check(ActualWidth==Width&&ActualHeight==Height&&HUD->Minimap&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD),
+                        TEXT("UI: the field minimap is checked on the actual requested viewport and fits"));
                 };
                 if(UIFieldStep==0)
                 {
@@ -2056,10 +2002,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 }
                 if(UIFieldStep==1)
                 {
-                    if(!Check(Panel->IsPanelOpen(),TEXT("UI: safe field planning survives the next real HUD refresh"))){return Finish();}
-                    if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthTab0"))),
-                        TEXT("UI: remote owner selects skills in the safe field workspace"))){return Finish();}
-                    LDSlateProbeInput::SendWheel(Scroll,12.f);UIFieldStep=2;return true;
+                    if(!Check(Panel->IsTrayOpen(),TEXT("UI: safe field planning survives the next real HUD refresh"))){return Finish();}
+                    UIFieldStep=2;return true;
                 }
                 if(UIFieldStep==2)
                 {
@@ -2070,14 +2014,13 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 if(UIFieldStep==3)
                 {
                     if(Panel->HasPendingRequest()){return true;}
-                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsPanelOpen(),
-                        TEXT("UI: a real field-safe build commits and the actual workspace remains usable"))){return Finish();}
+                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsTrayOpen()==Panel->HasCards(),
+                        TEXT("UI: a real field-safe build commits and the tray stays open exactly while it has cards"))){return Finish();}
                     Capture(TEXT("Client1FieldSafeBuild.png"));
                     UIFieldStep=30;return true;
         }
         if(UIFieldStep==30)
         {
-                    if(!PlanningDetails().ContainsByPredicate([](const FString& Line){return !Line.IsEmpty();})){return true;}
                     if(UIFieldFightSince<=0)
                     {
                         if(View.Airdrop.Phase!=ELDAirdropPhase::Announced){return true;}
@@ -2118,7 +2061,6 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                         PC.Navigation->NavigateGround(NextCamp->Position,NextCamp->Surface);
                         return true;
                     }
-                    UIStagedBeforeFight=Panel->StagedTotal();
                     const FLDMoveIdentity Before=PC.Navigation->LocalIdentity();
                     PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
                     if(!Check(PC.Navigation->LocalIdentity()!=Before,
@@ -2136,8 +2078,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                         {UIFieldRejectedTarget=UIFieldTarget;UIFieldStep=30;}
                         return true;
                     }
-                    if(!Check(Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight,
-                        TEXT("UI: actual field combat keeps the player-opened planning and its staged points"))){return Finish();}
+                    if(!Check(Panel->IsTrayOpen()||!Panel->HasCards(),
+                        TEXT("UI: actual field combat keeps the player-opened planning"))){return Finish();}
                     Panel->ClosePanel();
                     if(!CheckSummary(false,1280,720)){return Finish();}
                     Capture(TEXT("Client1FieldCombatFold.png"));UIFieldStep=40;return true;
@@ -2195,12 +2137,15 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 if(UIFieldStep==53)
                 {
                     if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
-                    if(!Check(!Panel->IsPanelOpen()&&LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-                        TEXT("UI: expiry never auto-opens planning; the remote player manually reopens it"))){return Finish();}
+                    UWidget* Prompt=HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
+                    if(!Check(!Panel->IsPanelOpen()&&Prompt&&Prompt->GetIsEnabled()==Panel->HasCards(),
+                        TEXT("UI: expiry never auto-opens planning, and the 构筑 button is lit exactly while the tray has cards"))){return Finish();}
+                    if(Panel->HasCards()&&!Check(LDSlateProbeInput::SendClick(Prompt),
+                        TEXT("UI: the remote player manually reopens the tray"))){return Finish();}
                     UIFieldStep=6;return true;
                 }
-                if(!Check(Panel->IsPanelOpen()&&Panel->StagedTotal()==UIStagedBeforeFight&&!Panel->HasPendingRequest(),
-                    TEXT("UI: safe reopening survives refresh, preserves staging and does not resend a settled request"))){return Finish();}
+                if(!Check(Panel->IsTrayOpen()==Panel->HasCards()&&!Panel->HasPendingRequest(),
+                    TEXT("UI: safe reopening survives refresh and does not resend a settled request"))){return Finish();}
                 Capture(TEXT("Client1FieldSafeReopened.png"));bUIFieldChecked=true;UIActionDueAt=Now+.5;
             }
             if(bUIFieldChecked&&bUIAnnouncementChecked&&!FScreenshotRequest::IsScreenshotRequested())
@@ -2227,17 +2172,14 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     if(!Growth||Panel->HasPendingRequest()){return true;}
     const auto Click=[&](UWidget* Target)
     {
-        auto* Scroll=Panel->GetWidgetFromName(Panel->bServicePanelOpen?TEXT("GrowthServiceScroll"):TEXT("GrowthTaskScroll"));
+        // Nothing scrolls: a control that is not reachable yet only waits for its layout, a bounded number of times.
         if(!LDSlateProbeInput::Path(Target).IsValid())
         {
             if(!Target||!Target->IsVisible()||++UIServiceWheels>80)
             {
                 Error=FString::Printf(TEXT("Actual service control %s is unreachable at step %d."),Target?*Target->GetName():TEXT("missing"),UIServiceStep);
-                Check(false,TEXT("UI: requested service control is actually visible and reachable"));return false;
+                Check(false,TEXT("UI: requested service control is actually visible and reachable"));
             }
-            const double Y=Scroll->GetCachedGeometry().AbsoluteToLocal(Target->GetCachedGeometry().GetAbsolutePosition()).Y;
-            if(!LDSlateProbeInput::SendWheel(Scroll,Y<0?1.f:-1.f))
-            {Check(false,TEXT("UI: pointer wheel reaches the service action"));}
             return false;
         }
         UIServiceWheels=0;
@@ -2258,16 +2200,21 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
         ++UIServiceStep;return true;
     case 1:
+        if(!Panel->HasCards()){UIServiceStep=3;return true;}
         if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-            TEXT("UI: normal planning reopens after leaving merchant service"))){return false;}
-        ++UIServiceStep;return true;
-    case 2:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthTab0")))){return Passed;}
-        LDSlateProbeInput::SendWheel(Panel->GetWidgetFromName(TEXT("GrowthTaskScroll")),12.f);
-        ++UIServiceStep;return true;
+            TEXT("UI: the 构筑 tray reopens after leaving merchant service"))){return false;}
+        UIServiceStep=3;return true;
     case 3:
         if(Growth->bHasActiveOffer)
         {
+            if(!Panel->IsTrayOpen())
+            {
+                UWidget* Prompt=PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
+                if(!LDSlateProbeInput::Path(Prompt).IsValid()||!Prompt->GetIsEnabled()){return true;}
+                if(!Check(LDSlateProbeInput::SendClick(Prompt),
+                    TEXT("UI: a later offer reopens the tray after the previous choice"))){return false;}
+                return true;
+            }
             if(!Click(Panel->GetWidgetFromName(TEXT("GrowthOffer0")))){return Passed;}
             UIActionDueAt=Now+.4;return true;
         }
@@ -2275,7 +2222,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Growth->PendingBlueprints.IsEmpty())
         {
             UIReplacement=Growth->PendingBlueprints[0];
-            if(!Click(Panel->GetWidgetFromName(TEXT("GrowthClose")))){return Passed;}
+            if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt")))){return Passed;}
             UIServiceStep=31;return true;
         }
         if(!Check(Growth->Level<6,TEXT("UI: approved level 3/6 and NPC offers supply the replacement fixture"))){return false;}
@@ -2287,8 +2234,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Walk(3)){return false;}UIServiceStep=4;return true;
     case 4:
         if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-            TEXT("UI: proximity alone still opens the ordinary build page"))){return false;}
+        if(!Check(!Panel->bServicePanelOpen,TEXT("UI: trainer proximity alone opens no service window"))){return false;}
         ++UIServiceStep;return true;
     case 5:
         for(const auto& Row:Panel->BlueprintRows)
@@ -2316,8 +2262,8 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 11:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
-        if(!Check(LDHUD::ActiveInSlot(*Growth,0)==UIReplacement&&Panel->Feedback->GetParent()==Panel->ServiceBody
-            &&!Panel->Feedback->GetText().IsEmpty(),TEXT("UI: confirmed replacement commits and its receipt is visible in the trainer window"))){return false;}
+        if(!Check(LDHUD::ActiveInSlot(*Growth,0)==UIReplacement&&!PC.HUDUI->Toast->GetText().IsEmpty(),
+            TEXT("UI: confirmed replacement commits and its receipt is toasted"))){return false;}
         Capture(TEXT("HostTrainerReplacementApplied.png"));
         UIServiceGrowthBefore=Growth->BuildRevision;++UIServiceStep;return true;
     case 12:
@@ -2325,18 +2271,12 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 13:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
-        if(!Check(!Panel->Feedback->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
+        if(!Check(!PC.HUDUI->Toast->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
         if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
         UIServiceStep=131;return true;
     case 131:
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
-            TEXT("UI: actual HUD entry returns from trainer service to ordinary planning"))){return false;}
-        UIServiceStep=132;return true;
-    case 132:
-        if(!Check(Panel->IsPanelOpen()&&!Panel->bServicePanelOpen&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None
-            &&Panel->BlueprintSection->GetParent()==Panel->TaskContent,
-            TEXT("UI: trainer close restores the ordinary blueprint page without hidden confirmation"))){return false;}
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthClose")))){return Passed;}
+        if(!Check(!Panel->IsPanelOpen()&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None&&!Panel->BlueprintSection->IsVisible(),
+            TEXT("UI: trainer close leaves no hidden confirmation or blueprint rows behind"))){return false;}
         UIServiceStep=133;return true;
     case 133:
         if(!PC.CanWorldCommand()){return true;}
@@ -2365,7 +2305,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     case 18:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
         if(!Check(Growth->Components.Num()==UIServiceInventoryBefore-Panel->Materials.DismantleCount+1
-            &&Panel->Feedback->GetParent()==Panel->ServiceBody&&!Panel->Feedback->GetText().IsEmpty(),
+            &&!PC.HUDUI->Toast->GetText().IsEmpty(),
             TEXT("UI: artisan consumes the selected real components and displays its authoritative result"))){return false;}
         Capture(TEXT("HostArtisanDismantleApplied.png"));bUIOtherServicesDone=true;return true;
     default:Check(false,TEXT("UI: explicit service review has a valid step"));return false;

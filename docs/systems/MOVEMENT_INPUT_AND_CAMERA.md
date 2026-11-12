@@ -210,7 +210,7 @@ Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、�
 顶层为文本编辑或子确认时，`IsWorldInputCaptured()` 拦下全部新输入：Q/W/D 与 A 不进入准备态也不发送
 （HUD 图标同样经 `ActivateCombatEntry`），S、世界点击、镜头键与缩放都不生效；子确认在已有准备态之上打开时，
 控制器在下一帧前取消该准备态。它属于输入抑制一半，只拦新输入，已接受订单与其心跳继续。
-P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
+P 在死亡等待期间也能切换属性视图；Lobby 与前端不响应。
 
 动作入口只来自 `ULDControlSettings::Definitions()` 这一份 Demo 注册表，不按 profile 分派。
 修改按键要同步 `LDControlSettings`、控制器路由、帮助文本、HUD 标记与相应输入检查；

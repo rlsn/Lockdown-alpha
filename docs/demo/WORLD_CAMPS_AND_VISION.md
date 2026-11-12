@@ -749,7 +749,7 @@ HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性�
 但不能读取Camp运行表或把自己的策略限制写成玩家规则。
 
 序列化前绑定仍须属于同一Match/目标生命/观察epoch并合法可见；
-UI和AI均只消费同一record；Q/W/E与自身属性面板的所有者始终是本人。
+UI和AI均只消费同一record；Q/W/E与自身属性视图的所有者始终是本人。
 对操作域另提供同一观察路径内的有界 `FLDObservedUnitTermination`：
 `Handle + ObservationEpoch + Generation + TerminationSequence + OccurredAtServerMs + Kind=ObservedDeath`。
 只有该观察者在死亡发生时获准观察该目标，且绑定仍对应当时生命，才能产生此终止事实；

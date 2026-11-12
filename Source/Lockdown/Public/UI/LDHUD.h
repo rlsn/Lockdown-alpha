@@ -18,9 +18,11 @@ class USizeBox;
 class ULDCommandButton;
 class ULDMinimap;
 class ULDPanel;
-class ULDAttributesPanel;
+
 class ULDChoicesPanel;
 class ULDComponentStorage;
+class ULDStatBar;
+class UVerticalBox;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
@@ -74,12 +76,15 @@ public:
     void PaintWorldPreviews(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const;
     TArray<FSlateRect> WorldLabelReservedAreas(const FGeometry& PaintGeometry) const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The two normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time. ChoicesPanel is
-    // the #198 growth panel (active offer, blueprints and points) behind the 开盲盒 button.
-    UPROPERTY() TObjectPtr<ULDAttributesPanel> AttributesPanel;
+    // The normal main panels (UI 3.1) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
+    // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
     UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
+    // The own point-bought stats under the name in the band's identity block: hover a stat for its "+", one click commits
+    // one point (ULDStatBar). The 属性 entry and the Attributes key swap it for the attribute view and back.
+    UPROPERTY() TObjectPtr<ULDStatBar> StatBar;
+    void ToggleAttributeView();
     // Back: closes the storage's chooser or drops its drag (V05Back, after an armed preview).
     bool CancelStorage();
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
@@ -174,13 +179,13 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PKAwardsTitle;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> PKAwardTexts;
     UPROPERTY() TObjectPtr<UTextBlock> PKAnswerText;
-    UPROPERTY() TObjectPtr<class UScrollBox> PKScroll;
+
     // Local PK state, kept for one PK (match generation and serial) only: a bet or throw waiting for its answer, the armed
     // throw aim, the last throw answer's ReadyAtMs and the last answer line.
     bool bPKBetInFlight=false;
     bool bPKThrowArmed=false;
     bool bPKThrowInFlight=false;
-    bool bPKAwardsRevealed=false;
+
     int64 PKThrowReadyAtMs=0;
     uint32 PKStateMatch=0;
     uint32 PKStateSerial=0;
@@ -212,9 +217,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
-    // Secondary objective details and the own next step sit with the minimap, away from the screen centre.
-    UPROPERTY() TObjectPtr<UTextBlock> WorldSummaryText;
-    // Top-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
+    // Bottom-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
     UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
     LDHUD::FEventFeed EventFeed;
@@ -240,26 +243,31 @@ private:
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
     UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
-    UPROPERTY() TObjectPtr<UTextBlock> SightText;
     UPROPERTY() TObjectPtr<UBorder> Band;
-    // The band's identity block: the storage's 本体 column rises over it.
-    UPROPERTY() TObjectPtr<UWidget> SelfBlock;
     UPROPERTY() TObjectPtr<UBorder> Portrait;
     UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
+    // Unspent points on the portrait's bottom-left corner (the level rides on the bottom-right); hidden at 0.
+    UPROPERTY() TObjectPtr<UBorder> PointsBadge;
+    UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
-    // The own status grid (LDHUD::SelfIcons) under the 属性 button: SelfIconMax prebuilt squares in SelfIconRows rows,
-    // "…" under a full grid, a syncing line while an own projection is missing. Timed statuses get a remaining-time
-    // ring (SelfIconRing, -1 for none) that NativePaint draws around the square.
+    // The own status strip (LDHUD::SelfIcons) in the gap between the minimap column and the band, against the band's left
+    // edge, HudStatusPerRow squares a row: the first row sits on the band's bottom line and each further row stacks above it,
+    // with no cap (EnsureStatusCells builds squares as needed). A
+    // syncing line shows while an own projection is missing. Timed statuses get a remaining-time ring (SelfIconRing, -1
+    // for none) that NativePaint draws around the square.
+    UPROPERTY() TObjectPtr<UWidget> StatusStrip;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> StatusSlot;
+    UPROPERTY() TObjectPtr<UVerticalBox> StatusRows;
     UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> SelfIconRowBoxes;
     UPROPERTY() TArray<TObjectPtr<UBorder>> SelfIconCells;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconGlyphs;
     UPROPERTY() TArray<TObjectPtr<UImage>> SelfIconPictures;
     TArray<FString> SelfIconApplied;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconStacks;
-    UPROPERTY() TObjectPtr<UTextBlock> SelfIconMore;
     UPROPERTY() TObjectPtr<UTextBlock> SelfIconSyncing;
+    void EnsureStatusCells(int32 Count);
     // The squares' current views; the hovered one opens the slot popup (LDHUD::SelfIconDetail).
     TArray<LDHUD::FSelfIconView> SelfIconViews;
     // Each square's applied tone: -1 none yet, 0 negative, 1 positive.
@@ -283,15 +291,15 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // 构筑 button right above the band's left block (#97), with the growth panel it opens in the same row: it counts what is
-    // pending (LDHUD::GrowthPending) and pulses for a few seconds after the opportunities, points or component choices rise.
+    // The 构筑 button in the bottom-right corner, with the card tray it toggles right above it: lit while anything is pending
+    // (LDHUD::GrowthPending), greyed out otherwise, and pulsing for a few seconds after the opportunities or component choices
+    // rise.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptOffers=0;
-    int64 PromptPoints=0;
     int32 PromptComponents=0;
     double PromptPulseAt=-1;
     float AppliedPromptWave=-1;
@@ -329,7 +337,6 @@ private:
     float AppliedScale=0;
     // The last known owner level and stats for the growth panel's card numbers (#147).
     LDHUD::FCardStats ChoiceStats;
-    float MapAspect=0;
     // Approved public definitions used only for display labels; loaded once per widget.
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
     bool bDisplayContentTried=false;
