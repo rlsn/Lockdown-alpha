@@ -1284,6 +1284,9 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             if (UIBuildStage == 0)
             {
                 if (!Growth->bHasActiveOffer) { return true; }
+                if (!Panel->IsTrayOpen() && ++UIOpeningWheels <= 80) { return true; }
+                if (!Check(Panel->IsTrayOpen(), TEXT("UI: the opening offer automatically opens its tray before selection"))) { return Finish(); }
+                UIOpeningWheels = 0;
                 if (!Check(Panel->ChooseOffer(0), TEXT("UI: owner chooses an opening skill through the panel"))) { return Finish(); }
                 UIBuildStage = 1;
                 UIBuildDueAt = Now + .5;
@@ -1653,9 +1656,21 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
         auto* Panel=UIChoiceFixture.Get();
         Panel->AddToPlayerScreen(100);
-        Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
-            Real->LatestContent,Real->LatestStats,Real->SlotKeys);
+        const auto PresentFixture=[&]()
+        {
+            Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
+                Real->LatestContent,Real->LatestStats,Real->SlotKeys);
+        };
+        PresentFixture();
+        Sample.ComponentChoices[0].Options.Swap(0,1);
+        PresentFixture();
+        if(!Check(!Panel->IsPanelOpen()&&Panel->ChoiceRows.IsEmpty()&&Panel->HasCards(),
+            TEXT("UI: a closed tray retains current choices without building their rows"))){return false;}
         Panel->ApplyTextScale(1.25f);Panel->OpenPanel();
+        const auto LatestCard=LDHUD::ComponentCard(Sample.ComponentChoices[0].Options[1],Panel->LatestContent,Panel->LatestStats);
+        if(!Check(Panel->ChoiceRows.IsValidIndex(0)&&Panel->ChoiceRows[0].Options.IsValidIndex(1)
+            &&Panel->ChoiceRows[0].Options[1].Detail.Name==LatestCard.Name,
+            TEXT("UI: reopening the tray renders the latest choices received while closed"))){return false;}
         // This isolated presentation fixture records the real button's command without granting a gameplay reward.
         Panel->PeekRequestId=[](){return uint64(900001);};
         Panel->SubmitBuild=[this](const FLDBuildCommand& Command,ELDGrowthReason& Reason)
@@ -2192,6 +2207,14 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     case 3:
         if(Growth->bHasActiveOffer)
         {
+            if(!Panel->IsTrayOpen())
+            {
+                UWidget* Prompt=PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
+                if(!LDSlateProbeInput::Path(Prompt).IsValid()||!Prompt->GetIsEnabled()){return true;}
+                if(!Check(LDSlateProbeInput::SendClick(Prompt),
+                    TEXT("UI: a later offer reopens the tray after the previous choice"))){return false;}
+                return true;
+            }
             if(!Click(Panel->GetWidgetFromName(TEXT("GrowthOffer0")))){return Passed;}
             UIActionDueAt=Now+.4;return true;
         }

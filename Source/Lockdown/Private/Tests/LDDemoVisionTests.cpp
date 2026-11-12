@@ -1438,6 +1438,13 @@ bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A body clear of the pole on the camera's side is not"), LDPropFade::Occludes(Pole, Camera, FVector(-15 - LDPropFade::PierceRadiusCm - 5, 0, 90)));
     TestFalse(TEXT("A target above the prop is not run through by it"), LDPropFade::Occludes(Pole, Camera, FVector(-40, 0, 700)));
     TestFalse(TEXT("An unset prop never occludes"), LDPropFade::Occludes(FBox(ForceInit), Camera, FVector(300, 0, 90)));
+    // The reach only skips props that cannot occlude: every occluding case above lies in it, a far prop does not.
+    const TArray<FVector> Bodies{FVector(300, 0, 90), FVector(5, 0, 90), FVector(-15 - LDPropFade::PierceRadiusCm + 1, 0, 160)};
+    const FBox Reach = LDPropFade::Reach(Camera, Bodies);
+    TestTrue(TEXT("A prop occluding a target lies in the reach"), Reach.Intersect(Pole));
+    const FBox Far(FVector(5000, 5000, 0), FVector(5030, 5030, 600));
+    TestFalse(TEXT("A prop far from every sight line is outside the reach"), Reach.Intersect(Far));
+    TestFalse(TEXT("Without targets nothing is in reach"), LDPropFade::Reach(Camera, {}).IsValid != 0);
     float Fade = 0.f;
     Fade = LDPropFade::Step(Fade, true, .1f);
     TestTrue(TEXT("Fading in is gradual"), Fade > 0.f && Fade < 1.f);

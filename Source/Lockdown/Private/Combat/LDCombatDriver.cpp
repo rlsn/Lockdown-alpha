@@ -235,7 +235,11 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         RetryRewards.Reset();
     }
     // After Close the observation owner may already have ended with the match; owner views still settle.
-    if (Mode->IsGameplayWriteOpen(Match) && !Mode->Vision->PublishAuthority(Match,Error)) { return false; }
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionPublishAuthority);
+        if (Mode->IsGameplayWriteOpen(Match) && !Mode->Vision->PublishAuthority(Match,Error)) { return false; }
+    }
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDCombatPublishOwnerViews);
     return PublishOwnerViews(Error);
 }
 

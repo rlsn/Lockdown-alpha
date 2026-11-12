@@ -9,6 +9,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Combat/LDCombatTypes.h"
@@ -138,9 +139,9 @@ public:
 
     TWeakObjectPtr<ALDPlayerController> Controller;
     TWeakObjectPtr<UWorld> World;
-    FString Output, Role, Error, CatalogDigest, PendingImage, SpawnViolation;
+    FString Output, Role, Error, CatalogDigest, PendingImage, SpawnViolation, SpawnVisibilityViolation;
     double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0, BlockedSince = 0, SightDeadline = 0, ImageAt = 0, DisconnectAt = 0;
-    int32 Stage = 0, WalkWaypoint = 0, SpawnFramesChecked = 0, PreStallProxies = 0;
+    int32 Stage = 0, WalkWaypoint = 0, SpawnFramesChecked = 0, SpawnVisibilityFramesChecked = 0, PreStallProxies = 0;
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false, bStallAnnounced = false;
     bool bControlObserved = false, bControlViolated = false, bEmulating = false, DisconnectVerified = false;
     EStall Stall = EStall::Waiting;
@@ -262,6 +263,21 @@ public:
                 FString Part;
                 if (HasPresentation(*Pawn, Part)) { Probe->SpawnViolation += Part + TEXT(" "); }
                 ++Probe->SpawnFramesChecked;
+                if (const auto* Body = Cast<ALDCharacter>(Pawn); Body && Body->Body)
+                {
+                    TArray<USceneComponent*> Descendants;
+                    Body->Body->GetChildrenComponents(true, Descendants);
+                    Descendants.Add(Body->Body);
+                    for (const USceneComponent* Component : Descendants)
+                    {
+                        if (Component && Component->GetVisibleFlag())
+                        {
+                            Probe->SpawnVisibilityViolation += Pawn->GetName() + TEXT(".") + Component->GetName() + TEXT(" ");
+                            break;
+                        }
+                    }
+                    ++Probe->SpawnVisibilityFramesChecked;
+                }
             }
             Probe->SpawnedPawns.Reset();
         });
@@ -365,6 +381,9 @@ public:
         Check(SpawnFramesChecked >= 2 && SpawnViolation.IsEmpty(), TEXT("#15H"), FString::Printf(
             TEXT("No other body drew at the end of its spawn frame (%d checked)%s"), SpawnFramesChecked,
             *(SpawnViolation.IsEmpty() ? FString() : TEXT("; drawn: ") + SpawnViolation)));
+        Check(SpawnVisibilityFramesChecked >= 2 && SpawnVisibilityViolation.IsEmpty(), TEXT("#15H"), FString::Printf(
+            TEXT("Every other body's complete visual subtree starts hidden (%d checked)%s"), SpawnVisibilityFramesChecked,
+            *(SpawnVisibilityViolation.IsEmpty() ? FString() : TEXT("; visible: ") + SpawnVisibilityViolation)));
         int32 Drawn = 0;
         for (TActorIterator<ALDObservedEntityProxy> It(&InWorld); It; ++It)
         {

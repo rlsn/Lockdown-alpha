@@ -11,6 +11,7 @@
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Tests/LDDemoArtCaptureProbe.h"
+#include "Tests/LDDemoPerfBudgetProbe.h"
 
 bool ULDArtSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
@@ -125,5 +126,6 @@ void ULDArtWorldSubsystem::OnWorldBeginPlay(UWorld& World)
     else { UE_LOG(LogLDContent, Error, TEXT("LD_ART_DECORATIONS_UNAVAILABLE %s"), *Error); }
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartArtCaptureProbe(World);
+    LDDemoTests::StartPerfBudgetProbe(World);
 #endif
 }

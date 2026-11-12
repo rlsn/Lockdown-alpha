@@ -41,6 +41,11 @@ int32 ALDGameMode::PhaseOrder(ELDCommitPhase Phase)
 bool ALDGameMode::ExecuteAuthorityPhase(ALDCombatDirector& Driver, ELDCommitPhase Phase,
     TFunctionRef<bool(const FLDGameplayWritePermit&)> Execute, FString& Error)
 {
+    static const TCHAR* const PhaseScopes[] = { TEXT("LDPhase_Session"), TEXT("LDPhase_Motion"), TEXT("LDPhase_Actions"),
+        TEXT("LDPhase_Effects"), TEXT("LDPhase_DeathsAndRewards"), TEXT("LDPhase_RespawnsAndWorld"), TEXT("LDPhase_Transactions"),
+        TEXT("LDPhase_Capture"), TEXT("LDPhase_Close"), TEXT("LDPhase_Publish") };
+    static_assert(UE_ARRAY_COUNT(PhaseScopes) == uint8(ELDCommitPhase::Publish) + 1);
+    TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(PhaseScopes[uint8(Phase)]);
     const bool Initializing = MatchPhase == ELDMatchPhase::Starting && Phase == ELDCommitPhase::RespawnsAndWorld;
     if (Combat != &Driver || !HasAuthority() || ActiveWritePermit || (!bAuthorityStepOpen && !Initializing))
     {

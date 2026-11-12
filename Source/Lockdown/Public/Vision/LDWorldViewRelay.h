@@ -139,6 +139,9 @@ namespace LDPropFade
     // Full fade in or out takes 1/FadePerSecond seconds.
     constexpr float FadePerSecond = 6.f;
     LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);
+    // The only space an occluding prop can reach into: bounds that miss this box occlude none of the targets, so the
+    // per-target tests are skipped for them. Invalid without targets.
+    LOCKDOWN_API FBox Reach(const FVector& Camera, TConstArrayView<FVector> Targets);
     LOCKDOWN_API float Step(float Current, bool bOccluding, float DeltaSeconds);
 }
 
@@ -277,6 +280,9 @@ private:
         // Instanced props with a per-instance fade: each instance's world bounds and fade.
         TArray<FBox> InstanceBounds;
         TArray<float> InstanceFades;
+        FBox InstanceUnion = FBox(ForceInit);
+        // Instances not at full opacity; while none is and the union misses the reach, the prop is skipped whole.
+        int32 InstancesFaded = 0;
         bool bPerInstance = false;
         bool bResolved = false;
         bool bParameter = false;

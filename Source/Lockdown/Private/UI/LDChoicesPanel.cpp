@@ -360,6 +360,8 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     if(!Tray){return;}
     Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
     if(bStatsChanged){bCardsStale=true;}
+    // The HUD presents every frame; a collapsed panel only keeps the inputs and refreshes when it opens.
+    if(!bOpen&&!bServicePanelOpen){return;}
     RefreshAll();
 }
 void ULDChoicesPanel::RefreshAll()
