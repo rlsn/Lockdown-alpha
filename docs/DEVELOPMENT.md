@@ -251,7 +251,8 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 - 需要看清卡在哪一帧时，再按需开启 Unreal Insights：给可执行文件加 `-trace=default,net -statnamedevents -tracefile=<路径>.utrace`，
   用引擎的 `Engine\Binaries\Win64\UnrealInsights.exe` 打开。追踪文件很大且有开销，只在复现卡顿时开，常规试玩不开。
 - 帧率预算（[内容与数值 §8.1](demo/CONTENT_AND_BALANCE.md)）用 `.\Scripts\RunPerfBudget.ps1 -Match` 量：真实 Demo 对局（Listen Host + 3 AI，发育期）里，
-  依次在低/高画质下测空场与满员人群，写 `PerfBudget.json` 并按预算判定；加 `-PackageRoot <打包目录>` 测打包版（结论以它为准），
+  先在每档画质下带人群预热至少 4 秒，再依次测空场与满员人群；`PerfBudget.json` 记录预热和测量结果并按预算判定。
+  加 `-PackageRoot <打包目录>` 测打包版（结论以它为准），
   不加时是编辑器 `-game`（含编辑器开销、约 ±15% 波动，只用于定位）。不加 `-Match` 测 Lobby 场地。
   `-Trace` 额外录 Unreal Insights CPU 追踪 `PerfBudget.utrace`；`-ExtraArguments '-ExecCmds="<cvar> <值>"'` 做单项 A/B。
   无界面导出计时表：`Start-Process -Wait UnrealInsights.exe -ArgumentList '-OpenTraceFile="<utrace>" -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics <csv> -threads=GameThread" -AutoQuit -NoUI'`。

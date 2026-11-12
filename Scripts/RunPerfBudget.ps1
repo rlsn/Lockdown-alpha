@@ -30,6 +30,14 @@ try {
     if (-not (Test-Path -LiteralPath $reportPath)) { throw "Missing frame budget report: $output" }
     $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
     if ($process.ExitCode -ne 0 -or -not $report.passed -or @($report.checks | Where-Object { -not $_.passed }).Count) { throw "Frame budget measurement failed: $reportPath" }
+    $primers = @($report.primers)
+    if ($primers.Count -ne 2) { throw "Frame budget measurement did not prime both quality tiers: $reportPath" }
+    foreach ($tier in @('low','high')) {
+        $primer = @($primers | Where-Object { $_.tier -eq $tier })
+        if ($primer.Count -ne 1 -or $primer[0].elapsed_seconds -lt 4 -or $primer[0].frames -lt 1) {
+            throw "Frame budget measurement did not prime $tier with the crowd for four seconds: $reportPath"
+        }
+    }
     $report.windows | Format-Table tier, scene, frames, @{n='fps';e={[math]::Round($_.fps,1)}}, @{n='frame';e={[math]::Round($_.frame_ms,2)}},
         @{n='p95';e={[math]::Round($_.frame_p95_ms,2)}}, @{n='game';e={[math]::Round($_.game_ms,2)}}, @{n='render';e={[math]::Round($_.render_ms,2)}},
         @{n='rhi';e={[math]::Round($_.rhi_ms,2)}}, @{n='gpu';e={[math]::Round($_.gpu_ms,2)}}, budget_ms, within_budget -AutoSize | Out-String | Write-Host

@@ -98,6 +98,8 @@ bool ALDCharacter::ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, 
 void ALDCharacter::BeginPlay()
 {
     Super::BeginPlay();
+    // Constructor attachments may not yet be registered; hide the complete body before its first frame.
+    Body->SetVisibility(false,true);
     FString Error;
     if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap)
     {

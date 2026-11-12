@@ -39,7 +39,7 @@ namespace
     const FPerfTier PerfTiers[] = { {TEXT("low"), 0, 1000. / 120.}, {TEXT("high"), 2, 1000. / 60.} };
     // Open floor south of the flagpole that the art capture also frames.
     const FVector PerfFocus(0., -1100., 0.);
-    constexpr double WarmSeconds = 3., SampleSeconds = 6.;
+    constexpr double PrimerSeconds = 4., WarmSeconds = 3., SampleSeconds = 6.;
     // The most opponent AI a room takes (FLDSessionCommand::SetAICount).
     constexpr uint8 MatchAI = 3;
 
@@ -61,7 +61,7 @@ namespace
         TWeakObjectPtr<ACameraActor> Camera;
         FString Directory;
         TArray<FPerfBody> Bodies;
-        TArray<TSharedPtr<FJsonValue>> Windows, Checks;
+        TArray<TSharedPtr<FJsonValue>> Windows, Checks, Primers;
         TArray<FPerfSample> Samples;
         double StartedAt = FPlatformTime::Seconds(), PhaseAt = 0., Clock = 0., SentAt = 0.;
         FVector Focus = PerfFocus;
@@ -69,7 +69,7 @@ namespace
         // Match mode: the Host plays a real match against the AI under its own game camera; the crowd joins around it.
         bool bMatch = false;
         // Windows run per tier: the empty field, then the crowd.
-        int32 Stage = 0, Window = 0;
+        int32 Stage = 0, Window = 0, PrimerFrames = 0;
         bool Failed = false, BudgetFailed = false;
 
         bool Check(bool Passed, const FString& Name)
@@ -90,13 +90,16 @@ namespace
             auto Report = MakeShared<FJsonObject>();
             Report->SetBoolField(TEXT("passed"), !Failed);
             Report->SetBoolField(TEXT("budget_passed"), !Failed && !BudgetFailed);
-            Report->SetStringField(TEXT("scope"), TEXT("DEV frame budget fixture in the Demo map Lobby on the Listen Host: the game camera over open floor, uncapped, with the empty field and a crowd of real presented bodies at the low and high presets. Measures this machine only; not a gameplay, network or minimum-spec acceptance."));
+            Report->SetStringField(TEXT("scope"), bMatch
+                ? TEXT("DEV frame budget fixture in a real Demo match on the Listen Host against three AI: the game camera, uncapped, with the match alone and a crowd of real presented bodies at the low and high presets. Measures this machine only; not a gameplay, network or minimum-spec acceptance.")
+                : TEXT("DEV frame budget fixture in the Demo map Lobby on the Listen Host: the game camera over open floor, uncapped, with the empty field and a crowd of real presented bodies at the low and high presets. Measures this machine only; not a gameplay, network or minimum-spec acceptance."));
             Report->SetStringField(TEXT("rhi"), GDynamicRHI ? FString(GDynamicRHI->GetName()) : FString());
             Report->SetStringField(TEXT("adapter"), GRHIAdapterName);
             Report->SetNumberField(TEXT("width"), GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport ? GEngine->GameViewport->Viewport->GetSizeXY().X : 0);
             Report->SetNumberField(TEXT("height"), GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport ? GEngine->GameViewport->Viewport->GetSizeXY().Y : 0);
             Report->SetStringField(TEXT("mode"), bMatch ? TEXT("match") : TEXT("lobby"));
             Report->SetNumberField(TEXT("bodies"), Bodies.Num());
+            Report->SetArrayField(TEXT("primers"), Primers);
             Report->SetArrayField(TEXT("windows"), Windows);
             Report->SetArrayField(TEXT("checks"), Checks);
             FString Json;
@@ -286,6 +289,7 @@ namespace
                 if (bMatch && !JoinMatch(Target, Now)) { return !Failed; }
                 if (!Setup(Target)) { return Finish(); }
                 Stage = 1;
+                PhaseAt = -1.;
                 return true;
             }
             Animate(Delta);
@@ -295,15 +299,27 @@ namespace
             if (Stage == 1)
             {
                 // Every tier's shaders compile before any window: each preset and the crowd are drawn once first.
-                const int32 Primer = int32((Now - StartedAt) / 2.) % (UE_ARRAY_COUNT(PerfTiers) * 2);
-                const FPerfTier& Tier = PerfTiers[Primer / 2];
-                if (Scalability::GetQualityLevels().GetSingleQualityLevel() != Tier.Level) { ApplyTier(Tier); }
-                SetCrowd(true);
-                if (Now - StartedAt < 3. + 2. * UE_ARRAY_COUNT(PerfTiers) * 2 || (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()))
-                { return true; }
+                const FPerfTier& Tier = PerfTiers[Window];
+                if (PhaseAt < 0.)
+                {
+                    ApplyTier(Tier);
+                    SetCrowd(true);
+                    PrimerFrames = 0;
+                    PhaseAt = FPlatformTime::Seconds();
+                    return true;
+                }
+                ++PrimerFrames;
+                if (Now - PhaseAt < PrimerSeconds || (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())) { return true; }
+                auto Primer = MakeShared<FJsonObject>();
+                Primer->SetStringField(TEXT("tier"), Tier.Name);
+                Primer->SetNumberField(TEXT("elapsed_seconds"), Now - PhaseAt);
+                Primer->SetNumberField(TEXT("frames"), PrimerFrames);
+                Primers.Add(MakeShared<FJsonValueObject>(Primer));
+                ++Window;
+                PhaseAt = -1.;
+                if (Window < UE_ARRAY_COUNT(PerfTiers)) { return true; }
                 Stage = 2;
                 Window = 0;
-                PhaseAt = -1.;
             }
             const int32 WindowCount = UE_ARRAY_COUNT(PerfTiers) * 2;
             if (Window >= WindowCount) { return Finish(); }
