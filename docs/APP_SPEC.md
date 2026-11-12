@@ -116,8 +116,7 @@ Lockdown 是一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏�
 | 升级 | 涨粉了！Lv`<N>` |
 | 飘字 | +`<N>` 流量 · 淫了 Y！ · -`<N>` 护盾 |
 | 脱战回复 | 脱战回复中 |
-| 下一步提示 | 开盲盒 ×`<N>`（有待选的主动三选一时）；有未分配属性点时为“未分配点数 `<N>`”；旗杆开放了，冲！去中心喷漆（自己独自喷漆时为“稳住：你正在旗杆上喷漆”；旗杆上是自己的涂鸦时为“守住：站在旗杆圈里守护，离圈会暂停（寄了涂鸦就没了）”；旗杆上是别人的涂鸦时为“下一步：去围攻 X，或者去旗杆改漆”）；去打附近的野怪涨流量 |
-| 待选提示 | 开盲盒+`<N>`（底部带左块正上方的按钮，#97 用户决定，原话：“move the blind-box button to the left above the left panel and choice lists the same row with the button”；`<N>` 是待选的主动三选一次数，有未分配属性点或可学的图纸时同样可点；都没有时置灰不可点） |
+| 构筑按钮 | 构筑（屏幕右下角，只写这两个字；有可选内容时高亮，没有时变灰不可点；2026-11-12 用户决定，取代 #97 时“底部带左块正上方的开盲盒+`<N>`”） |
 | 结算列 | 名字 · 淫了几个 · 寄了几次 · 助攻 · 最终等级 · 淫人王 |
 
 ## 2. 对局流程与胜负
@@ -257,7 +256,7 @@ Lockdown 是一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏�
 | S | 停止移动、追击及可中断动作 |
 | Q / W | 使用对应角色主动技能 |
 | D | 通用冲刺：每名参赛者（含AI）都有，按下即朝鼠标指针方向冲刺，不需要左键确认，与快速施法开关无关；遇阻挡停在最远的合法位置，被定身时不能用。不消耗法力，有独立冷却、不受技能急速影响。D 是非进攻移动，不解除复活保护。数值见内容与数值§3.2 |
-| P | 打开或关闭自身属性面板 |
+| P | 头像旁的加点图标与属性视图之间切换（与“属性”按钮相同） |
 | 按住 Tab | 显示局内排行榜：每名参赛者的名字与击杀/死亡/助攻，击杀多的在前，相同时死亡少的在前；松开即收起（2026-11-05 用户决定：只列名字与 K/D/A） |
 | F9 | 试玩标记：在本人日志和房主日志里记下这一刻（序号、权威时间、本人状态），HUD 短暂提示“已标记 #N”；不影响对局，死亡等待中也可用（#134，试玩期排查用） |
 | 屏幕边缘、方向键 | 平移镜头 |
@@ -303,7 +302,7 @@ Lockdown 是一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏�
 具体成长路径与射程参数由内容和战斗设计提供，不因此强制采用投射物。
 当前运行目录（#198 第一部分）只有贴脸补一拳、左右开抽的强化普攻；距离、元素与反应范围来源随 #198 后续部分接入（§4.4）。
 
-技能明确标记伤害类型、属性加成、法力消耗、冷却和作用方式。属性面板应能解释基础值、成长与状态带来的加成，不能只显示没有实际效果的字段。
+技能明确标记伤害类型、属性加成、法力消耗、冷却和作用方式。属性视图的悬停弹层写明基础值、成长与状态带来的加成，不能只显示没有实际效果的字段。
 
 **五维属性**（#198，2026-11-10 用户批准，§4.2）：体格、脸皮、力道、脑力、身手，用属性点购买，每点可以加在任意一项，
 同一项可以反复加。每点收益写在[内容与数值](demo/CONTENT_AND_BALANCE.md)；同类固定值与加法比例相加后统一投影，不逐点相乘。
@@ -423,16 +422,16 @@ Lockdown 是一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏�
 - 野外不能替换或遗忘已学主动：满槽时新选的主动保留为图纸，学到已占用的槽被明确拒绝。满槽替换与遗忘只在休息的配装与派奖期间进行（§4.3）。
 - 死亡等待中可以加点、查看、选择并学到空槽，不需要复活。请求仍须属于当前 Match/Life；死亡前或复活前的迟到旧请求
   不能改动新生命。死亡中的成长不提前复活、不治疗尸体、不修改复活等待，也不产生身体战斗效果。
-- 不替玩家选择、学习或加点。真人参赛者的开局候选在本局首次显示时自动打开一次面板，可以关闭，
-  几秒内未操作或本人受击时自动收起为待选提示，机会继续保留。成长面板不暂停世界。
+- 不替玩家选择、学习或加点。真人参赛者的开局候选在本局首次显示时自动展开一次构筑选择卡，可以收起，
+  几秒内未操作或本人受击时自动收起回构筑按钮，机会继续保留。选择卡不暂停世界。
 
 **技能只有一级**，数值随角色等级成长：卡上的固定数值 = 基础值 × G(L) + Σ 系数 × 当前属性，L 是拥有者当前等级；
 1–10 级每级增长基础值的 15%，之后每级增长 7.5%，所以 G(10)=2.35、G(16)=2.80（参数见内容与数值 §4.1）。
 伤害（含强化普攻、地面区域与灼烧）、护盾与限时属性加成的点数随 G 成长；持续时间、比例、冷却、法力、射程、层数和属性系数不成长。
 主动在释放时按当时的等级和属性计算；护盾、灼烧在施加时固定。
 
-**卡面**：每张技能卡一句规则，数字是你当前等级与属性下的实际数值，并显示法力、冷却和目标形式；
-关键词加粗、悬停逐个解释（列表见内容与数值 §4.5），“控制”不含减速。卡面与解释不写喷漆、守护或“未知效果”。
+**卡面**：选择卡上只有图标和名称；悬停弹层写一句规则，数字是你当前等级与属性下的实际数值，并显示法力、冷却和目标形式，
+其后逐个解释用到的关键词（列表见内容与数值 §4.5），“控制”不含减速。卡面与解释不写喷漆、守护或“未知效果”。
 五维属性只写每点收益。
 
 ### 4.3 三个主动技能槽
@@ -623,17 +622,27 @@ Demo 只要求一种可完成核心循环的 AI，不要求机器学习、多档
 
 ## 7. 游戏界面与反馈
 
+界面原则（2026-11-12 用户决定，适用于游戏里的每一个界面，新界面和改动都要遵守）：
+
+1. 游戏里任何地方都不放滚动视图。放不下就删掉多余文字、重新布局、换成图标网格或按比例缩小（缩小内容或字号），
+   内容不能超出屏幕。主菜单、Lobby、局内菜单、设置菜单、构筑蓝图查看和 DEV 测试面板不算游戏界面，可以滚动。
+2. 能用图标或布局表达的，就不用文字解释玩法。卡片和格子只放图标与名称，完整说明放在悬停弹层里；
+   不写操作教学、不写“下一步”提示、不在常驻位置堆说明文字。结果与拒绝原因用一行提示（toast）告知。
+
+用户原话：“NEVER put a dumb fucking scroll view anywhere in the game. NEVER put dumb fucking texts explaining how the game works when the job can be done by an icon or layout.”
+同日补充原话：“ok, actually allow settings and dev test panel to have scroll they are not game interfaces. remove others, avoid contents overflowing the screen though, either remove excessive texts or shrink content/font sizes.”随后补充原话：“scroll ban doesn't apply to those”（指主菜单、Lobby 与局内菜单）；构筑蓝图查看页同样保留滚动（用户确认“Yes, restore them”）。
+
 | 界面 | 必须包含 |
 | --- | --- |
 | 主菜单 | 全屏标题背景图（项目方提供的雾港街头图），其上是对外标题“谁是雾港最强淫人王”与副标题、常驻小字“雾港黑话：淫 = 把人揍趴下，跟色情没关系”、开始、设置、退出、产品版本；背景后面不渲染任何 3D 场景（2026-11-06 用户决定） |
 | 建房/加入 | 玩家名称、Host/加入入口、IP 与端口输入、连接中和失败反馈 |
 | Lobby | 全屏房间背景图（项目方提供的雾港众人合影图），其上是真人与 AI 名单、Host 标识、准备状态、AI 数量、开始与离开 |
-| 战斗 HUD | 自身头像、名称、生命、法力（两条资源条中央保留当前值/上限，条内右侧显示当前有效回复率 `+X.X/s`；仅本人、存活且投影有效时显示，包含当前生效的脱战/被动回复，满资源仍显示回复能力）；流量（经验）、等级；Q/W/E；被动效果与当前状态（属性按钮下方的方格图标，每行 6 个、最多 2 行，超过 12 个时下方显示“…”、完整列表看属性面板（原定 3 行，用户试看后改为 2 行，原话：“it seems the space there can't fit 3 rows, let's make it 2 rows max then”）；临时状态带剩余时间圈；图标按正负面着色：对自身有利的状态、正在生效的回复与全部被动为绿色，控制与其他不利状态为红色（2026-11-07 用户决定，原话：“status/buff should be categorized into positive/negative. so that status grid HUD shows each item in green/red highlight, passives are all positive by default.”）；悬停图标弹出该状态/被动的完整说明；图标按内容 IconId 显示（#85）；2026-11-07 用户决定，原话：“show maximum of 6 items by 3 rows, show a "..." in the bottom if actual number is exceeds 18”“temporary status/buffs, eg. stunned, boosts, etc. should show a spinning wheel around the icon indicating the remaining time”“hovering on the icon should show full description of the status/buff/passive in a popup”）；一行“下一步”提示；武装技能或攻击移动时的射程圈与目标是否在射程内的提示 |
+| 战斗 HUD | 自身头像、名称、生命、法力（两条资源条中央保留当前值/上限，条内右侧显示当前有效回复率 `+X.X/s`；仅本人、存活且投影有效时显示，包含当前生效的脱战/被动回复，满资源仍显示回复能力）；流量（经验）、等级；Q/W/E；五维属性图标在头像与名称下方（角上写已分配点数，悬停时图标正上方出现“+”，点一下立即加一点，没有确认；未分配点数写在头像左下角的黄色圆圈里，等级仍在右下角；2026-11-12 用户决定，原话：“remove stat allocation tab and put stats into where we removed status icons. show them as stat icons, hovering on the icon draws a "+" button above for allocation, no confirm button, clicking on "+" immediately commits allocation. put available points as a number in a yellow circle on the bottom-left corner of the player avatar in that panel (bottom-right shows level as before)”）；被动效果与当前状态（小地图与底部带之间的方格图标，贴着底部带左缘，每行 6 个，第一行在最下、更多的行向上叠，没有上限；2026-11-12 用户再次调整，原话：“status icon too small, make them 1.5x bigger, and move to the empty space between HUD and minimap, 6 icons per row, bottom up”；此前一版原话：2026-11-12 用户决定，原话：“move status icons from left HUD panel to above central HUD, 12 icons a row, pushed from bottom up, no max limitations.”；二者取代原“属性按钮下方每行 6 个、最多 2 行、超出显示‘…’”）；悬停属性图标显示它影响的各项属性当前值与每点收益（原话：“hovering on stats icon should show the corresponding current stats (+stat gain per point)”）；头像旁的“属性”按钮（P）把这排加点图标换成属性视图，再按换回：每项只有图标和数值，三项一行，不重复屏幕上已有的生命/法力上限与回复，悬停弹出名称、带单位的最终值与各项来源；没有单独的属性面板（2026-11-12 用户决定，原话：“actually, remove the attributes panel at all, and put them at left HUD panel where stats points at. the button toggles between attributes/stats allocation view. each attribute entry is shown as icon + value, that's it. don't show what's already on screen else where e.g. max hp/mp, hp/mp regen”）；临时状态带剩余时间圈；图标按正负面着色：对自身有利的状态、正在生效的回复与全部被动为绿色，控制与其他不利状态为红色（2026-11-07 用户决定，原话：“status/buff should be categorized into positive/negative. so that status grid HUD shows each item in green/red highlight, passives are all positive by default.”）；悬停图标弹出该状态/被动的完整说明；图标按内容 IconId 显示（#85）；2026-11-07 用户决定，原话：“show maximum of 6 items by 3 rows, show a "..." in the bottom if actual number is exceeds 18”“temporary status/buffs, eg. stunned, boosts, etc. should show a spinning wheel around the icon indicating the remaining time”“hovering on the icon should show full description of the status/buff/passive in a popup”）；不显示“下一步”提示行（2026-11-12 起，见界面原则）；武装技能或攻击移动时的射程圈与目标是否在射程内的提示 |
 | 旗杆喷漆与守护提示 | 发育期/已开放/争夺中/喷漆中/守护中状态；喷漆者和喷漆进度、当前涂鸦主人和守护剩余时间（有人进圈时显示守护冻结，主人不在圈内时显示守护暂停） |
-| 小地图 | 固定地点、自身位置、战争迷雾及合法可见单位；朝向可在设置中选择跟随镜头（默认）、跟随角色朝向或固定正北；正上方显示对局用时 `m:ss`，从开局（R0 开始）起算、包含休息，分钟不补零（如 `0:12`；2026-11-07 用户决定，原话：“add a game timer mm:ss above minimap, don't pad zero: e.g. 0:12 not 00:12.”） |
-| 成长（开盲盒） | 两个页签“技能与奖励”“加点”：当前主动三选一（最多三张卡：效果按当前等级与属性的实际数值、法力、冷却与目标形式）与学习确认，结果显示学到 Q/W/E 或存为图纸及原因；待学图纸及学到空槽；开局基础构件自选（普通基础构件一次点击“拿这个 → 装到本体”，B18 为“拿这个 → 放进构件库（再拖到技能上绑定）”）与精英构件二选一；未分配属性点与五维加点（先暂存增减，一次确认）；排队的主动机会数；不能学习或加点时显示原因（如没有空槽、对局已结束）；收到回执前不改本地状态；交战与 PK 不自动收起（#222），只有自动打开的面板在本人受击或几秒未操作时收起；与开盲盒按钮同一行、停靠在按钮右侧（#97 用户决定），不遮挡画面中央的本人及周围。已持有的构件不在面板里，在构件库 |
-| 构件库（#227） | 用户原话：“gained upgrades goes to a storage on the right of the central HUD panel, shown as a stacked icon (like a stack of poker cards), upon hovering the stack opens up upwards into a list, the player can then browse through the list, with the focused one fully shown, others still in a stack (like how you browse your poker hands). hovering on an upgrade icon shows full description popup. in this view, the skills to the left also expands to a list of equipped upgrades, one column per skill. the player can then drag and drop upgrades across the storage and skills when compatible.” 底部 HUD 右侧一叠牌堆，显示件数，从未装过的件另标“新 n”；只放构件（图纸、候选与点数仍在成长面板）。悬停牌堆向上展开成列表（最新的离牌堆最近，聚焦的一张完整显示，其余为收拢的窄条），同时升起五列已装构件：本体（头像身份区上方、构筑按钮之上，放基础构件与自身改装件，装在构件上的改装件嵌在宿主下面）、Q/W/E（各在当前显示该服务器槽位的技能格上方）与冲刺(D)；悬停任一卡片或图标弹出完整说明。把库里的构件拖到合法列或宿主上即安装（合法位置绿边、其余变暗，并显示“放这里”占位），拖回牌堆或列表即拆下（提示一起退下的件），拖到别处即搬动；B18 放到技能列上先选火/水/电，C12 先选要重复的已安装基础构件，取消不发送。交战中、死亡等待与 PK 中都可用，对局已结束时拒绝并写明原因；Esc 先关闭选择或放弃拖动 |
-| 属性面板 | 完整自身属性、当前加成与相关说明 |
+| 小地图 | 小地图上方除对局用时外不显示任何文字行（营地标记、空投、Boss、符咒、上热搜与视野状态行都已删除，地图上的标记本身表达这些信息；2026-11-12 用户决定，原话：“remove whatever is shown above minimap, ugly as fuck.”）；一次只显示一个区域：人在休息室时只显示休息室，其余时候只显示野外（2026-11-12 用户决定，原话：“separate rest room and main map's minimap so it only shows one minimap at a time depending on where the player is”）；固定地点、自身位置、战争迷雾及合法可见单位；朝向可在设置中选择跟随镜头（默认）、跟随角色朝向或固定正北；正上方显示对局用时 `m:ss`，从开局（R0 开始）起算、包含休息，分钟不补零（如 `0:12`；2026-11-07 用户决定，原话：“add a game timer mm:ss above minimap, don't pad zero: e.g. 0:12 not 00:12.”） |
+| 构筑 | 屏幕右下角一个“构筑”按钮，只写“构筑”两个字：有可选内容时高亮，没有时变灰且不能点；点它在按钮正上方展开（再点收起）一叠选择卡，没有面板、标题、说明文字或滚动（2026-11-12 用户决定，原话：“move build button to bottom right corner.”“remove build panel and the excessive explanations, put the choices as cards above the build button toggled by the button. button shows "构筑" only, highlighted when choices available, greyed out unclickable when not. add hover popup full description for each choice card. remove description from card and leave only name.”）。每个待做的决定占一行，离按钮最近的是当前主动三选一，往上依次是开局基础构件自选、精英构件二选一（都已持有时多一张改领点数的卡）和有空槽时的待学图纸；卡上只有图标和名称，点一下即选：主动学进最低的空 Q/W/E 槽，没有空槽或现在不能学时存为图纸，普通基础构件装到本体，B18 放进构件库，图纸学进最低的空槽。悬停卡片弹出完整说明（当前等级与属性下的实际数值、目标形式、法力与冷却、关键词解释），现在拿不了或点了会有别的结果时弹层最后一行写明（如“学到 Q”“存为图纸：Q/W/E 已满”“已持有”）。构件卡总数超过 6 张时，构件各行改成只有图标的网格（原话：“component choices as cards as well, if there's too many, put them into an icon grid instead, full description popup on hovering as well.”）。结果与拒绝原因以提示行告知；收到回执前不改本地状态；交战与 PK 不自动收起（#222），只有本局开局自动展开的那一次在本人受击或几秒未操作时收起。已持有的构件不在这里，在构件库；Q/W/E 已满时的替换在休息室训练师处 |
+| 构件库（#227） | 用户原话：“gained upgrades goes to a storage on the right of the central HUD panel, shown as a stacked icon (like a stack of poker cards), upon hovering the stack opens up upwards into a list, the player can then browse through the list, with the focused one fully shown, others still in a stack (like how you browse your poker hands). hovering on an upgrade icon shows full description popup. in this view, the skills to the left also expands to a list of equipped upgrades, one column per skill. the player can then drag and drop upgrades across the storage and skills when compatible.” 底部 HUD 右侧一叠牌堆，显示件数，从未装过的件另标“新 n”；只放构件（图纸与候选在构筑选择卡里，点数在属性图标上）。悬停牌堆向上展开成只有图标的网格（最新的离牌堆最近，从未装过的角上标“新”，文字只在悬停弹层里，网格不写标题、件数或操作说明（原话：“remove the lengthy explaination in component storage, let layout do the work.”）；2026-11-12 用户决定，原话：“component storage only shows icons, no descriptions on card, there's popup after all”），同时升起一排五列已装构件：本体（第一个技能格左边一格，放基础构件与自身改装件，装在构件上的改装件嵌在宿主下面；原话：“move body component to the left of first skill so all component slots form a single table easier for drag and drop.”）、Q/W/E（各在当前显示该服务器槽位的技能格上方）与冲刺(D)；技能列与冲刺列下不写键位字母（原话：“remove the redundant button letter from skill component slot (and it mismatch user setting too.”）；悬停任一图标弹出完整说明。把库里的构件拖到合法列或宿主上即安装（合法位置绿边、其余变暗，并显示“放这里”占位），拖回牌堆或列表即拆下（提示一起退下的件），拖到别处即搬动；B18 放到技能列上先选火/水/电，C12 先选要重复的已安装基础构件，取消不发送。交战中、死亡等待与 PK 中都可用，对局已结束时拒绝并写明原因；Esc 先关闭选择或放弃拖动 |
+
 | 目标查看 | 当前可见对手的名称、角色等级、生命、法力、状态与 Q/W/E 技能图标；不显示冷却/属性点/构件/完整属性；失视后清除当前查看 |
 | 排行榜 | 按住 Tab 显示：名字与击杀/死亡/助攻，按击杀多、死亡少排序 |
 | 全场击杀通知 | 击杀者、被击杀参赛者、助攻者及可理解的死亡原因（“X 把 Y 淫了（助攻：A、B）”）；普通打野不刷全场击杀横幅 |
@@ -641,7 +650,7 @@ Demo 只要求一种可完成核心循环的 AI，不要求机器学习、多档
 | 设置菜单 | 画面、音频、操作、镜头、界面五个分类页签，每项一行并始终显示当前值：画面（垂直同步、画质，需“应用”，可撤销）、音频（主音量；音乐音量，默认 60%）、操作（快速施法开关，默认关闭；施法后自动攻击开关，默认开启；按键行内改绑）、镜头设置、界面（文字大小、小地图朝向；网络诊断和 FPS 分别切换、默认关闭，打开后 HUD 右上角显示真实连接延迟/波动与帧率）；各页可确认后恢复本页默认；对局中还包含继续与离开 |
 | 结算 | 全部参赛者名称、击杀数、死亡数、助攻数、最终等级及赢家标识；结束原因、本局用时、返回 Lobby 或主菜单；统计不判胜 |
 
-自身技能图标需要显示真实的冷却、资源不足、无效目标及受控制限制。被动与临时状态要区分；被动数量增长时可以展开或滚动，不能因 UI 格子用尽而增加隐含玩法上限。
+自身技能图标需要显示真实的冷却、资源不足、无效目标及受控制限制。被动与临时状态要区分；被动数量增长时向上加行展开（不滚动），不能因 UI 格子用尽而增加隐含玩法上限。
 
 背景音乐：主菜单、房间等待与休息共用一首循环曲，进出大厅不中断；前三段野外播放一首约 3 分钟、只播一次的发育曲（当前按开局时刻计算播放位置，尚未按 #198 的三段野外重新编排）；最终野外旗杆开放后换成循环的高潮曲直到本局结束；结算时音乐淡出，让胜负短曲单独响，回到大厅后主菜单曲重新开始。
 

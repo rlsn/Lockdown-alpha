@@ -45,11 +45,11 @@ namespace
     const FLinearColor SectionColor(.55f,.86f,.92f);
     const FLinearColor MutedColor(.66f,.74f,.78f);
     const FLinearColor WarningColor(1.f,.78f,.55f);
-    constexpr int32 MainPanelCount=3;
+    constexpr int32 MainPanelCount=2;
 
     int32 MainPanelIndex(ELDUIMainPanel Panel)
     {
-        const int32 Index=int32(Panel)-int32(ELDUIMainPanel::Attributes);
+        const int32 Index=int32(Panel)-int32(ELDUIMainPanel::Choices);
         return Index>=0&&Index<MainPanelCount?Index:INDEX_NONE;
     }
 
@@ -859,7 +859,7 @@ ELDUIMainPanel ULDUIRoot::ActiveMainPanel() const
     if(PanelOpen(PC->ControlsUI.Get())){return ELDUIMainPanel::Settings;}
     for(int32 Index=0;Index<MainPanelCount;++Index)
     {
-        if(PanelOpen(MainPanels[Index].Get())){return static_cast<ELDUIMainPanel>(int32(ELDUIMainPanel::Attributes)+Index);}
+        if(PanelOpen(MainPanels[Index].Get())){return static_cast<ELDUIMainPanel>(int32(ELDUIMainPanel::Choices)+Index);}
     }
     // The frontend main menu and the lobby are base pages; the Start page and the in-match menu are closable panels.
     if(PC->IsFrontend()){return bStartPage&&!bFrontendHidden?ELDUIMainPanel::Menu:ELDUIMainPanel::None;}
@@ -987,7 +987,7 @@ void ULDUIRoot::RegisterMainPanel(ELDUIMainPanel Panel,ULDPanel* Widget)
     const int32 Index=MainPanelIndex(Panel);
     if(Index==INDEX_NONE)
     {
-        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices and DevTest are registered panels."),int32(Panel));
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Choices and DevTest are registered panels."),int32(Panel));
         return;
     }
     MainPanels[Index]=Widget;

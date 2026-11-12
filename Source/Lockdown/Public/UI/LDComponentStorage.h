@@ -15,13 +15,13 @@ class URichTextBlock;
 class USizeBox;
 class UTextBlock;
 class UVerticalBox;
+class UWrapBox;
 class ULDCommandButton;
 struct FLDDemoContentDefinitions;
 
 // #227 component storage (APP_SPEC §7): the owned components not installed sit in a card stack right of the HUD band. Hovering
-// the stack fans it upward into a list (the focused card in full, the others as strips, like a poker hand) and raises one
-// column of equipped components over the 本体 portrait block, each Q/W/E slot and D. Hovering any component shows its full
-// description. Dragging a component onto a column or a host component installs it there (B18 asks for an element, C12 for the
+// the stack opens a grid of their icons above it and raises one row of equipped columns: 本体 left of the first Q/W/E slot,
+// then each Q/W/E slot and D. Hovering any component shows its full description; the icons carry no words. Dragging a component onto a column or a host component installs it there (B18 asks for an element, C12 for the
 // base it repeats); dragging an installed one back onto the storage uninstalls it, onto another place moves it (an uninstall,
 // then an install once the view shows it). Local presentation over the own progression view; the server decides every
 // command. #222: open in combat, while dead and in a PK; a closed match stage refuses with its reason.
@@ -31,8 +31,8 @@ class LOCKDOWN_API ULDComponentStorage : public UUserWidget
     GENERATED_BODY()
 public:
     // What the storage lines up with, in absolute (desktop) units from the HUD's last layout: the band (the stack sits right of
-    // it) and each column's anchor in LDHUD::EStorageColumn order (the portrait block, the Q/W/E slot showing that server slot,
-    // D). A column without an anchor (zero size) is not shown.
+    // it) and each column's anchor in LDHUD::EStorageColumn order (a slot-sized place left of the first Q/W/E slot, the Q/W/E
+    // slot showing that server slot, D). A column without an anchor (zero size) is not shown.
     struct FAnchors
     {
         FSlateRect Band;
@@ -70,8 +70,7 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
 private:
-    // One stored component's card in the open list: the head row (small icon, name, 新) shows as a strip; the full card adds
-    // the large icon and the sentence.
+    // One stored component's icon in the open grid (新 on its corner while never installed).
     struct FCard
     {
         FName Component;
@@ -95,6 +94,8 @@ private:
         UVerticalBox* List=nullptr;
         UWidget* Placeholder=nullptr;
         UTextBlock* Title=nullptr;
+        // A held slot's active: its name is the place a notice names.
+        FName Active;
         UCanvasPanelSlot* Slot=nullptr;
         int32 AppliedLook=-1;
     };
@@ -142,9 +143,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> StackFresh;
     UPROPERTY() TObjectPtr<UWidget> ListFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ListSlot;
-    UPROPERTY() TObjectPtr<UTextBlock> ListTitle;
-    UPROPERTY() TObjectPtr<UTextBlock> ListEmpty;
-    UPROPERTY() TObjectPtr<UVerticalBox> CardList;
+    UPROPERTY() TObjectPtr<UWrapBox> CardList;
     UPROPERTY() TObjectPtr<UWidget> PopupFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PopupSlot;
     UPROPERTY() TObjectPtr<UTextBlock> PopupName;
@@ -177,7 +176,6 @@ private:
     bool bExpanded=false;
     bool bPinned=false;
     double LastInsideAt=0;
-    int32 FocusCard=INDEX_NONE;
     FPress Press;
     FDrag Drag;
     FChooser Chooser;

@@ -5,7 +5,6 @@
 #include "UI/LDUIIcons.h"
 #include "UI/LDHUD.h"
 #include "UI/LDChoicesPanel.h"
-#include "UI/LDAttributesPanel.h"
 #include "Core/LDLog.h"
 #include "Development/LDBuildBlueprintStore.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -240,7 +239,6 @@ void ULDBlueprintPanel::OpenPanel()
     if(const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&PC->HUDUI)
     {
         if(PC->HUDUI->ChoicesPanel){PC->HUDUI->ChoicesPanel->ClosePanel();}
-        if(PC->HUDUI->AttributesPanel){PC->HUDUI->AttributesPanel->ClosePanel();}
     }
     bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
     SetAction(FString());

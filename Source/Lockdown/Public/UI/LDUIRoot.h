@@ -21,7 +21,7 @@ class ALDGameState;
 
 // Local navigation only (UI_AND_SETTINGS 3.1/4): one main panel at a time, each with at most one child confirmation.
 UENUM()
-enum class ELDUIMainPanel : uint8 { None, Menu, Settings, Attributes, Choices, DevTest };
+enum class ELDUIMainPanel : uint8 { None, Menu, Settings, Choices, DevTest };
 enum class ELDUIInputLayer : uint8 { None, TextEditing, ChildConfirmation, MainPanel };
 enum class ELDFrontendAttempt : uint8 { None, Host, Join };
 enum class ELDRootConfirm : uint8 { None, Exit, LeaveRoom };
@@ -115,7 +115,7 @@ private:
     UPROPERTY() TArray<TObjectPtr<UWidget>> ConfirmRows;
     UPROPERTY() TArray<TObjectPtr<UWidget>> ConfirmCancels;
     UPROPERTY() TArray<TObjectPtr<USizeBox>> Pages;
-    TWeakObjectPtr<ULDPanel> MainPanels[3];
+    TWeakObjectPtr<ULDPanel> MainPanels[2];
     ELDRootConfirm Confirm = ELDRootConfirm::None;
     ELDFrontendAttempt AppliedAttempt = ELDFrontendAttempt::None;
     bool bMenuOpen = false;

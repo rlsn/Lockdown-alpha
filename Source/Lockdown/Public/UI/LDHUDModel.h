@@ -264,31 +264,11 @@ namespace LDHUD
     // holder names no sprayer.
     LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
         int64 SprayMs=0,int64 GuardMs=0);
-    // The one most useful next step for the own player, shown under the public spray line: pending growth (an active offer,
-    // then unspent points, then a blueprint with an empty Q/W/E slot), then the open flagpole (spray, guard your own graffiti,
-    // or besiege its owner), then early farming. In a rest only growth is hinted, and only in its build and payout steps.
-    // Own projections and the public match only; never a hidden unit. Empty when nothing applies or the match is not running.
-    LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName=FString());
-    // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop with the
-    // countdown to its expiry (#198 outer §5). LandAtMs/ExpireAtMs are field progress T (#198), so FieldNowMs is
-    // LDMatchTimeline::FieldNowFromView of the public timeline at the synced server now. Empty when there is no drop to
-    // show; the claim and the expiry are events of the event feed (FEventFeed), not standing lines.
-    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 FieldNowMs);
-    // #198: the player-facing charm name and its map colour (heal green, mana blue, move speed gold).
-    LOCKDOWN_API FString CharmName(ELDCharmKind Kind);
+    // #198: a charm's map colour (heal green, mana blue, move speed gold).
     LOCKDOWN_API FLinearColor CharmColor(ELDCharmKind Kind);
-    // #198: the public line of the charms lying now, in serial order; empty when none lies.
-    LOCKDOWN_API FString CharmLine(const TArray<FLDCharmView>& Charms);
-    // D26 (#79): the public Boss line: a countdown shortly before it appears and, while it patrols, the countdown to its
-    // departure (#198 outer §5). AppearAtMs/LeaveAtMs are field progress T compared with FieldNowMs like AirdropLine. Empty
-    // otherwise; who landed the last hit and its departure are events of the event feed (FEventFeed).
-    LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 FieldNowMs);
     // The event feed's line for a downed Boss: the own last hit is told it got a build reward, others see the public roster name.
     LOCKDOWN_API FString BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName);
-    // #198 outer §5: the public line of the revealed (still open) camp markers, High first, each with the countdown to its
-    // segment end; empty when none is open. Times are field progress T like AirdropLine.
-    LOCKDOWN_API FString MarkerLine(const TArray<FLDFieldMarkerView>& Markers,bool bClock,int64 FieldNowMs);
-    // #198: the camp marker colour shared by the HUD line, the minimap ring and the world label.
+    // #198: the camp marker colour shared by the minimap ring and the world label.
     LOCKDOWN_API FLinearColor MarkerColor();
     // D27 (#79): the public 上热搜 line: who is named; the own player is told directly.
     // Empty when nobody is named.
@@ -465,10 +445,28 @@ namespace LDHUD
     LOCKDOWN_API FStatRowView StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content);
     // The points the own progression allocated to StatId; 0 when it lists none.
     LOCKDOWN_API int32 StatPointsOf(const FLDProgressionView& Progression,FName StatId);
+    // One attribute a point of a stat raises: its name, its current final value from the own projection ("?" while the
+    // projection lacks it) and the gain of one point ("+2.5", "+2%", "+0.08/s").
+    struct FStatEffectView
+    {
+        FString Attribute;
+        FString Current;
+        FString PerPoint;
+    };
+    // Every attribute in Stat's per-point list, in that order (the stat icon's hover popup).
+    LOCKDOWN_API TArray<FStatEffectView> StatEffects(const FLDDemoStatDefinition& Stat,const TArray<FLDCombatAttributeRowView>& Attributes);
     // The active in Q/W/E slot Slot, or None.
     LOCKDOWN_API FName ActiveInSlot(const FLDProgressionView& Progression,uint8 Slot);
-    // "Q", "W" or "E".
+    // "Q", "W" or "E": the server's slot name (widget names, observed contenders).
     LOCKDOWN_API FString SlotKey(uint8 Slot);
+    // The key the own player presses for each server slot, as the HUD shows it: the player's bindings and local slot order
+    // decide it, so text that names an own slot reads the same key as the HUD slot. Unset entries read as SlotKey.
+    struct FSlotKeys
+    {
+        FString Keys[3];
+        LOCKDOWN_API FString Of(uint8 Slot) const;
+        bool operator==(const FSlotKeys& Other) const{return Keys[0]==Other.Keys[0]&&Keys[1]==Other.Keys[1]&&Keys[2]==Other.Keys[2];}
+    };
     // What the own contender may do with its build right now, judged like the server judges a commit (LDProgression's
     // CommandGate over the build stage of the public match, LDProgression::StageForPublic, and the own life phase). A hint
     // only: the server decides each command. Each Blocked line names the reason ("阵亡中", "休息时才能用"); empty when
@@ -512,7 +510,8 @@ namespace LDHUD
     // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or the component taken,
     // enabled (已启用构件：名称), stored with the reason or removed; #198 G the component choice taken (or its points), the gap
     // filled with its price, and the dismantle's removed, received and uninstalled components.
-    LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content);
+    // Keys names a learned or replaced slot.
+    LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,const FSlotKeys& Keys=FSlotKeys());
     // 火 / 水 / 电.
     LOCKDOWN_API FString ElementName(ELDDemoElement Element);
     // The learned actives an ActiveElement component may bind (its BindActives), in Q/W/E order.
@@ -553,6 +552,12 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FComponentCardView ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    // The 构筑 tray's hover popup of a card (the HUD's slot popup; the card face shows only the icon and the name): the name,
+    // the kind ("技能 · <target> · <cost>", "图纸 · …" or "构件"), then the full rule with this level's numbers and its
+    // keyword explanations, and Outcome (what a click does besides the plain take, or why it cannot be taken now) when not
+    // empty.
+    LOCKDOWN_API FActionDetailView ActiveChoiceDetail(const FActiveCardView& Card,bool bBlueprint,const FString& Outcome);
+    LOCKDOWN_API FActionDetailView ComponentChoiceDetail(const FComponentCardView& Card,const FString& Outcome);
 
     // #227 component storage (APP_SPEC §7): the owned components not installed, and the equipped columns 本体 (base components
     // and the holder's own mods), Q, W and E by server slot, and 冲刺(D). Each installed component sits in the column of what it
@@ -574,7 +579,8 @@ namespace LDHUD
     struct FStorageColumnView
     {
         EStorageColumn Column=EStorageColumn::Body;
-        // 本体, Q/W/E or 冲刺(D).
+        // 本体, 冲刺, or 空技能槽 for an empty slot; empty for a held slot, whose place is its Active's name. Names the place
+        // in notices; only 本体 shows it as a caption, the other columns stand on their own slot.
         FString Title;
         // A slot column: its learned active; None for an empty slot (which takes nothing), the body and the dash.
         FName Active;
@@ -614,24 +620,26 @@ namespace LDHUD
     // order; empty when it is not installed.
     LOCKDOWN_API TArray<FName> DetachedWith(FName Component,const FLDProgressionView& Progression);
 
-    // What waits in the growth panel for the own view of Match: queued active opportunities, unspent points, blueprints
-    // while a Q/W/E slot is empty, the opening base pick and pending elite camp component choices (#198 G). The 构筑 button is
-    // lit and counts them while any is pending; empty otherwise. #227: owned components wait in the storage stack instead.
+    // What the 构筑 tray has cards for in the own view of Match: the shown active offer, blueprints while a Q/W/E slot is
+    // empty, the opening base pick and pending elite camp component choices (#198 G). The 构筑 button is lit while any is
+    // pending and greyed out (unclickable) otherwise. Offers counts the queued active opportunities, so a new one pulses the
+    // button. #227: owned components wait in the storage stack instead; unspent points wait on the HUD's stat icons and the
+    // portrait's badge.
     struct FGrowthPending
     {
+        bool bOffer=false;
         int32 Offers=0;
-        int64 Points=0;
         int32 Blueprints=0;
         bool bOpeningBase=false;
         // #198 G: pending elite camp component choices.
         int32 ComponentChoices=0;
-        bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||ComponentChoices>0;}
-        // Detailed pending summary for inspections, not the combat HUD's fixed-size entry.
-        FString Prompt() const;
+        bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0;}
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
-    // A bounded workspace entry caption, independent of inventory/queue size.
-    LOCKDOWN_API FString GrowthPrompt(const FGrowthPending& Pending);
+    // The 构筑 tray shows its component rows (the opening base pick and the elite choices) as icon-only tiles instead of
+    // named cards once they hold more than ChoiceTrayCardLimit cards together (an all-owned choice counts its points card).
+    constexpr int32 ChoiceTrayCardLimit=6;
+    LOCKDOWN_API bool ChoiceTrayTiles(const FLDProgressionView& Progression);
     // #198 G: the own view already owns a component of this definition.
     LOCKDOWN_API bool OwnsComponent(const FLDProgressionView& Progression,FName Component);
     // #198 G: every option of a pending component choice is already owned, so only the empty-pool points remain to take.
@@ -685,17 +693,25 @@ namespace LDHUD
     struct FAttributeRowView
     {
         FString Name;
+        // The icon face's character while the attribute has no icon texture.
+        FString Glyph;
+        // The final value alone (no unit, no clamp note), for the HUD's attribute view.
+        FString Value;
         FString Final;
         FString Breakdown;
         bool bClamped=false;
     };
     // One combat-projected attribute with its sources; the HUD never recomputes the projection.
     LOCKDOWN_API FAttributeRowView AttributeRow(const FLDCombatAttributeRowView& Row);
+    // The attributes of the HUD's attribute view (ELDProjectedAttribute ids, in this order): every projected attribute the
+    // HUD shows nowhere else. The health and mana bars already carry both maxima and both regenerations.
+    LOCKDOWN_API TArray<uint8> AttributeViewOrder();
     LOCKDOWN_API FString GrowthReasonText(ELDGrowthReason Reason);
     LOCKDOWN_API FString CombatRejectText(ELDCombatReject Reject);
     // Owner combat entry -> action input; Unavailable stays a display-only server reason.
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
-    // One square of the own status grid under the 属性 button: a temporary status or an active recovery (脱战回复中, 躺平角回血中).
+    // One square of the own status strip above the centre of the band: a temporary status or an active recovery (脱战回复中,
+    // 躺平角回血中).
     // IconId is its icon (LDUIIcons) and Glyph the name's first character, shown only without that texture; Tip is the
     // name with its stacks, shield and remainder. The hover popup is built from it by SelfIconDetail.
     // bPositive is the square's tone: green when it helps its bearer, red when it hurts (StatusIsPositive); recoveries
@@ -718,16 +734,11 @@ namespace LDHUD
         int64 ExpiresAtMs=0;
         uint8 Stacks=1;
     };
-    inline constexpr int32 SelfIconColumns=6;
-    inline constexpr int32 SelfIconRows=2;
-    inline constexpr int32 SelfIconMax=SelfIconColumns*SelfIconRows;
     struct FSelfIconsView
     {
-        // At most SelfIconMax: control statuses, then other temporary statuses and active recoveries.
+        // Every one, unbounded: control statuses, then other temporary statuses and active recoveries.
         TArray<FSelfIconView> Items;
-        // Items beyond SelfIconMax; the grid shows "…" and the attribute panel lists them all.
-        int32 Overflow=0;
-        // A missing own projection: the grid says syncing instead of showing none.
+        // A missing own projection: the strip says syncing instead of showing none.
         bool bSyncing=false;
     };
     // Own temporary statuses (passive auras and respawn protection, which the life line shows, are left out; shield
@@ -787,10 +798,6 @@ namespace LDHUD
         bool bAutomatic=false;
         double OpenedAt=0;
     };
-    // Whether the own contender is in combat now (the field: an own hit or Combat's combat window of this life; a rest: a
-    // living PK entrant in the PK step), for the HUD's fold of the field summary (#219). #222: it never folds the 构筑 panel.
-    LOCKDOWN_API bool ChoicesCombatActive(const FLDPublicMatchView& Public,const FLDOwnerState& Own,
-        const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,bool bOwnHit);
     // D10/APP_SPEC §4.2: the growth panel opens by itself once per match, when the opening active offer (opportunity 1) is
     // first seen in a valid view of the current match, and (#198 B) once when the opening base pick first opens. Later
     // offers, new points and new components never open it (they only light the 开盲盒 button's count), so it does not

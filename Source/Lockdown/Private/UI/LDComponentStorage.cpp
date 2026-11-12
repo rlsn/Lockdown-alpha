@@ -20,6 +20,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/WrapBox.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/World.h"
 
@@ -29,12 +30,12 @@ namespace
 constexpr float StorageStackSize=64.f;
 constexpr float StorageGapFromBand=12.f;
 constexpr float StorageListWidth=270.f;
-constexpr float StorageStrip=30.f;
-constexpr float StorageStripMin=12.f;
-constexpr float StorageFull=124.f;
-constexpr float StorageListChrome=48.f;
+// The open list is a grid of icons, StorageListColumns a row; the popup carries the words.
+constexpr int32 StorageListColumns=4;
+constexpr float StorageCardGap=6.f;
 constexpr float StorageColumnWidth=78.f;
 constexpr float StorageTile=54.f;
+static_assert(StorageListColumns*StorageTile+(StorageListColumns-1)*StorageCardGap<=StorageListWidth-20.f,"The icon grid fits the list.");
 constexpr float StorageNestedTile=42.f;
 constexpr float StorageNestIndent=8.f;
 constexpr float StoragePopupWidth=320.f;
@@ -45,7 +46,6 @@ constexpr double StorageCloseGrace=.45;
 // A move whose uninstall is applied but never shows in the own view gives up and says where the component is.
 constexpr double StorageMoveTimeout=5.;
 const FLinearColor StorageCardFill(.035f,.06f,.09f,.97f);
-const FLinearColor StorageCardFocus(.08f,.12f,.17f,.99f);
 const FLinearColor StorageColumnFill(.02f,.03f,.05f,.84f);
 const FLinearColor StorageLegal(.45f,.95f,.50f);
 const FLinearColor StorageIconFill(.16f,.26f,.36f);
@@ -120,21 +120,18 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             StackFrame=Hit;StackSlot=Add(Hit,1);StackFrame->SetVisibility(ESlateVisibility::Collapsed);
         }
         {
-            // The open list rises from the stack: the title and hint, then one card per stored component, the newest last,
-            // right over the stack.
+            // The open list rises from the stack: only the icons of the stored components in rows, the newest last, nearest
+            // the stack; no title or instructions (the layout and the popups say it). An empty storage opens no list.
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
-            ListTitle=Line(TEXT(""),15,LDHUDStyle::TextPrimary);StorageBold(ListTitle,0);Box->AddChildToVerticalBox(ListTitle);
-            UTextBlock* Hint=Line(LDTerms::StorageHint,12,LDHUDStyle::TextSecondary);Hint->SetWrapTextAt(StorageListWidth-20.f);
-            Box->AddChildToVerticalBox(Hint)->SetPadding(FMargin(0,2,0,6));
-            ListEmpty=Line(LDTerms::StorageEmpty,13,LDHUDStyle::TextSecondary);ListEmpty->SetWrapTextAt(StorageListWidth-20.f);
-            Box->AddChildToVerticalBox(ListEmpty);
-            CardList=WidgetTree->ConstructWidget<UVerticalBox>();Box->AddChildToVerticalBox(CardList);
+            CardList=WidgetTree->ConstructWidget<UWrapBox>();CardList->SetExplicitWrapSize(true);CardList->SetWrapSize(StorageListWidth-20.f);
+            CardList->SetInnerSlotPadding(FVector2D(StorageCardGap,StorageCardGap));Box->AddChildToVerticalBox(CardList);
             auto* Panel=LDWidgets::Panel(WidgetTree,Box,FMargin(10,8));Panel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(.9f));
             auto* Width=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDComponentStorageList"));
             Width->SetWidthOverride(StorageListWidth);Width->SetContent(Panel);
             ListFrame=Width;ListSlot=Add(Width,3);ListFrame->SetVisibility(ESlateVisibility::Collapsed);
         }
-        // The equipped columns, in LDHUD::EStorageColumn order: the list of tiles, the drop placeholder and the title.
+        // The equipped columns, in LDHUD::EStorageColumn order: the list of tiles, the drop placeholder and, for 本体 only, the
+        // title (a slot column stands on its own Q/W/E or D slot, whose key the player's bindings decide).
         for(int32 Index=0;Index<LDHUD::StorageColumnCount;++Index)
         {
             FColumn& Column=Columns.AddDefaulted_GetRef();
@@ -251,8 +248,6 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     StorageShown(StackFreshChip,Model.Fresh>0,ESlateVisibility::HitTestInvisible);
     for(int32 Back=0;Back<StackBacks.Num();++Back){StorageShown(StackBacks[Back],Model.Stored.Num()>Back+1,ESlateVisibility::HitTestInvisible);}
     StackTop->SetRenderOpacity(Model.Stored.IsEmpty()?.45f:1.f);
-    StorageText(ListTitle,LDTerms::StorageCount(Model.Stored.Num()));
-    StorageShown(ListEmpty,Model.Stored.IsEmpty(),ESlateVisibility::HitTestInvisible);
     // A move's install half follows once the own view shows its uninstall; a view that never does gives up.
     if(Follow.State==EFollow::AwaitView&&!PendingRequest)
     {
@@ -282,58 +277,28 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
     {
         FColumn& Column=Columns[Index];Column.List->ClearChildren();Column.AppliedLook=-1;
         const LDHUD::FStorageColumnView& Shown=Model.Columns[Index];
-        // A column is titled with its key alone (the slot under it shows the active); the tooltip names the active, and an
-        // empty slot, which takes nothing, is greyed.
-        const bool bSlot=Index>=1&&Index<=3;
-        StorageText(Column.Title,Shown.Title);
-        const FString Tip=!bSlot?Shown.Title:Shown.Active.IsNone()?FString(LDTerms::ColumnEmptySlot):ComponentName(Shown.Active);
-        Column.Title->SetToolTipText(FText::FromString(Tip));
-        Column.Title->SetColorAndOpacity(bSlot&&Shown.Active.IsNone()?LDHUDStyle::TextSecondary.CopyWithNewOpacity(.5f):LDHUDStyle::TextSecondary);
+        // Only 本体 shows its title; the others keep theirs (the active's name or 冲刺) for the notices that name a place.
+        StorageText(Column.Title,Shown.Title);Column.Active=Shown.Active;
+        StorageShown(Column.Title,Index==int32(LDHUD::EStorageColumn::Body),ESlateVisibility::HitTestInvisible);
         for(const LDHUD::FEquippedView& Entry:Shown.Entries){BuildTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index));}
     }
-    FocusCard=INDEX_NONE;
 }
 void ULDComponentStorage::BuildCard(FName Component,bool bFresh)
 {
-    const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Component,LatestContent,LatestStats);
-    auto Line=[this](const FString& Value,int32 Size,const FLinearColor& Ink)
-    {UTextBlock* Label=LDWidgets::Text(WidgetTree,Value,Size);Label->SetAutoWrapText(false);Label->SetColorAndOpacity(Ink);Built.Add(Label);return Label;};
-    auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();Built.Add(Box);
+    // A stored component is its icon alone, with 新 on the corner while it was never installed; hovering it shows the popup.
+    UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* Box=nullptr;
+    UBorder* Icon=IconFace(StorageTile,Picture,Glyph,Face,Box);Built.Add(Box);ShowIcon(Picture,Glyph,Component);
+    Icon->SetVisibility(ESlateVisibility::Visible);
+    if(bFresh)
     {
-        // The head row is what a strip shows: a small icon, the name and 新 for a component never installed.
-        auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Head);
-        UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* IconBox=nullptr;
-        IconFace(20.f,Picture,Glyph,Face,IconBox);Built.Add(IconBox);ShowIcon(Picture,Glyph,Component);
-        Head->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);
-        UTextBlock* Name=Line(View.Name,15,LDHUDStyle::TextPrimary);StorageBold(Name,0);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
-        auto* NameSlot=Head->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameSlot->SetVerticalAlignment(VAlign_Center);
-        NameSlot->SetPadding(FMargin(8,0,4,0));
-        if(bFresh)
-        {
-            UTextBlock* Fresh=Line(TEXT("新"),12,LDHUDStyle::Rim);StorageBold(Fresh,0);
-            auto* Chip=WidgetTree->ConstructWidget<UBorder>();Built.Add(Chip);Chip->SetBrush(StorageRound(4.f,LDHUDStyle::Rim,1.f));
-            Chip->SetBrushColor(LDHUDStyle::TextAccent);Chip->SetPadding(FMargin(4,0));Chip->SetContent(Fresh);
-            Head->AddChildToHorizontalBox(Chip)->SetVerticalAlignment(VAlign_Center);
-        }
-        Box->AddChildToVerticalBox(Head);
+        UTextBlock* Fresh=LDWidgets::Text(WidgetTree,TEXT("新"),11);Fresh->SetAutoWrapText(false);Fresh->SetColorAndOpacity(LDHUDStyle::Rim);
+        StorageBold(Fresh,0);Built.Add(Fresh);
+        auto* Chip=WidgetTree->ConstructWidget<UBorder>();Built.Add(Chip);Chip->SetBrush(StorageRound(4.f,LDHUDStyle::Rim,1.f));
+        Chip->SetBrushColor(LDHUDStyle::TextAccent);Chip->SetPadding(FMargin(3,0));Chip->SetContent(Fresh);Chip->SetVisibility(ESlateVisibility::HitTestInvisible);
+        auto* ChipSlot=Face->AddChildToOverlay(Chip);ChipSlot->SetHorizontalAlignment(HAlign_Right);ChipSlot->SetVerticalAlignment(VAlign_Top);
     }
-    {
-        // The rest of the full card: the large icon and the sentence with this level's numbers.
-        auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Body);
-        UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* IconBox=nullptr;
-        IconFace(StorageTile,Picture,Glyph,Face,IconBox);Built.Add(IconBox);ShowIcon(Picture,Glyph,Component);
-        Body->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Top);
-        UTextBlock* Sentence=Line(View.SentencePlain,13,LDHUDStyle::TextSecondary);Sentence->SetWrapTextAt(StorageListWidth-StorageTile-48.f);
-        auto* SentenceSlot=Body->AddChildToHorizontalBox(Sentence);SentenceSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));SentenceSlot->SetPadding(FMargin(8,0,0,0));
-        Box->AddChildToVerticalBox(Body)->SetPadding(FMargin(0,6,0,0));
-    }
-    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;
-    Card.Face=WidgetTree->ConstructWidget<UBorder>();Built.Add(Card.Face);
-    Card.Face->SetBrush(StorageRound(6.f,LDHUDStyle::PanelRim,1.f));Card.Face->SetBrushColor(StorageCardFill);Card.Face->SetPadding(FMargin(7,5));
-    Card.Face->SetVerticalAlignment(VAlign_Top);Card.Face->SetContent(Box);
-    Card.Size=WidgetTree->ConstructWidget<USizeBox>();Built.Add(Card.Size);
-    Card.Size->SetHeightOverride(StorageStrip);Card.Size->SetClipping(EWidgetClipping::ClipToBounds);Card.Size->SetContent(Card.Face);
-    CardList->AddChildToVerticalBox(Card.Size)->SetPadding(FMargin(0,2,0,0));
+    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;
+    CardList->AddChildToWrapBox(Box);
 }
 void ULDComponentStorage::BuildTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId)
 {
@@ -455,7 +420,9 @@ FString ULDComponentStorage::PlaceName(LDHUD::EStorageColumn Column,FName Host) 
 {
     if(!Host.IsNone()){return ComponentName(Host);}
     const int32 Index=int32(Column);
-    return Columns.IsValidIndex(Index)?Columns[Index].Title->GetText().ToString():FString();
+    if(!Columns.IsValidIndex(Index)){return FString();}
+    const FString Title=Columns[Index].Title->GetText().ToString();
+    return Title.IsEmpty()&&!Columns[Index].Active.IsNone()?ComponentName(Columns[Index].Active):Title;
 }
 
 bool ULDComponentStorage::DropInStorage(FName Component)
@@ -682,34 +649,25 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
     const auto Local=[&Geometry](FVector2D Absolute){return Geometry.AbsoluteToLocal(Absolute);};
     // The stack sits right of the band, on its bottom edge.
     StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));
-    StorageShown(ListFrame,bExpanded,ESlateVisibility::Visible);
+    StorageShown(ListFrame,bExpanded&&!Cards.IsEmpty(),ESlateVisibility::Visible);
     const FSlateRect Stack=StorageRect(StackFrame);
     const FVector2D StackTopLeft=Local(FVector2D(Stack.Left,Stack.Top));
     if(bExpanded)
     {
-        // The list rises from the stack; the focused card (the hovered one, else the newest, nearest the stack) shows in
-        // full and the others as strips, which shrink when the screen is too short for them all.
+        // The list rises from the stack; the hovered icon is edged and a dragged one fades.
         StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));
-        int32 Hovered=INDEX_NONE;
-        if(!Drag.bActive){for(int32 Index=0;Index<Cards.Num();++Index){if(StorageUnder(Cards[Index].Face,Pointer)){Hovered=Index;break;}}}
-        if(Hovered!=INDEX_NONE||!StorageUnder(ListFrame,Pointer)){FocusCard=Hovered;}
-        const int32 Focused=FocusCard!=INDEX_NONE?FocusCard:Cards.Num()-1;
-        const float Room=float(StackTopLeft.Y)-6.f-StorageScreenMargin-StorageListChrome-StorageFull;
-        const float Strip=Cards.Num()>1?FMath::Clamp(Room/float(Cards.Num()-1)-2.f,StorageStripMin,StorageStrip):StorageStrip;
-        for(int32 Index=0;Index<Cards.Num();++Index)
+        for(FCard& Card:Cards)
         {
-            FCard& Card=Cards[Index];
-            const bool bFull=Index==Focused;
+            const bool bHovered=!Drag.bActive&&StorageUnder(Card.Face,Pointer);
             const bool bDragged=Drag.bActive&&Drag.Component==Card.Component;
-            const int32 Look=(bFull?1:0)|(bDragged?2:0)|(int32(Strip)<<2);
+            const int32 Look=(bHovered?1:0)|(bDragged?2:0);
             if(Card.AppliedLook==Look){continue;}
             Card.AppliedLook=Look;
-            Card.Size->SetHeightOverride(bFull?StorageFull:Strip);
-            Card.Face->SetBrushColor(bFull?StorageCardFocus:StorageCardFill);
+            Card.Face->SetBrush(StorageRound(6.f,bHovered?LDHUDStyle::TextAccent:FLinearColor(1,1,1,.18f),bHovered?2.f:1.f));Card.Face->SetBrushColor(StorageIconFill);
             Card.Size->SetRenderOpacity(bDragged?.35f:1.f);
         }
     }
-    // The columns rise over their anchors: 本体 from the portrait block's left edge, Q/W/E and D centred on their slots.
+    // The columns rise over their anchors in one row: 本体 (left of the first Q/W/E slot), Q/W/E and D, each centred.
     // While a drag runs, a column or host that takes the component is edged green and one that does not is dimmed.
     for(int32 Index=0;Index<Columns.Num();++Index)
     {
@@ -718,9 +676,8 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
         const bool bShown=bExpanded&&StorageHasArea(Anchor);
         StorageShown(Column.Frame,bShown,ESlateVisibility::Visible);
         if(!bShown){continue;}
-        const bool bBody=Index==int32(LDHUD::EStorageColumn::Body);
-        const FVector2D Top=Local(FVector2D(bBody?Anchor.Left:(Anchor.Left+Anchor.Right)*.5f,Anchor.Top));
-        StoragePlace(Column.Slot,Top-FVector2D(0,6),FVector2D(bBody?0.f:.5f,1));
+        const FVector2D Top=Local(FVector2D((Anchor.Left+Anchor.Right)*.5f,Anchor.Top));
+        StoragePlace(Column.Slot,Top-FVector2D(0,6),FVector2D(.5f,1));
         const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
         const bool bOwnDrop=Drag.bActive&&Drag.Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id&&Drop.Host.IsNone();});
         const bool bAnyDrop=Drag.bActive&&Drag.Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id;});
@@ -761,7 +718,7 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
         StorageText(PopupWhere,bInstalled?(Target.IsEmpty()?FString(TEXT("已安装")):FString(TEXT("已安装"))+Target):FString(TEXT("在构件库")));
         const FString Body=View.Keywords.IsEmpty()?View.Sentence:View.Sentence+TEXT("\n\n")+FString::Join(View.Keywords,TEXT("\n"));
         if(!PopupBody->GetText().ToString().Equals(Body,ESearchCase::CaseSensitive)){PopupBody->SetText(FText::FromString(Body));}
-        StorageText(PopupHint,bInstalled?FString(TEXT("拖回构件库拆下，拖到别处移动")):FString(LDTerms::StorageHint));
+        StorageText(PopupHint,bInstalled?FString(TEXT("拖回构件库拆下，拖到别处移动")):FString(TEXT("拖到技能列上安装")));
         const FSlateRect Rect=StorageRect(Over);
         const FVector2D TopLeft=Local(FVector2D(Rect.Left,Rect.Top));const FVector2D BottomRight=Local(FVector2D(Rect.Right,Rect.Bottom));
         const FVector2D Size=PopupFrame->GetDesiredSize();
