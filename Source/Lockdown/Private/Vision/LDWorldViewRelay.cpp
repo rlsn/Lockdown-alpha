@@ -31,7 +31,13 @@ constexpr uint8 LDFogHidden = 190;
 
 bool IsObservedFlight(ELDObservedProjectileLook Look)
 {
-    return Look==ELDObservedProjectileLook::Chalk || Look==ELDObservedProjectileLook::Sock;
+    return Look==ELDObservedProjectileLook::Chalk || Look==ELDObservedProjectileLook::Sock
+        || Look==ELDObservedProjectileLook::ChalkReturn || Look==ELDObservedProjectileLook::SockReturn;
+}
+
+bool IsObservedReturn(ELDObservedProjectileLook Look)
+{
+    return Look==ELDObservedProjectileLook::ChalkReturn || Look==ELDObservedProjectileLook::SockReturn;
 }
 
 bool IsObservedArea(ELDObservedProjectileLook Look)
@@ -45,8 +51,10 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
 {
     switch (Look)
     {
-    case ELDObservedProjectileLook::Chalk: return FLinearColor(.95f,.95f,.9f);
-    case ELDObservedProjectileLook::Sock: return FLinearColor(.55f,.85f,.25f);
+    case ELDObservedProjectileLook::Chalk:
+    case ELDObservedProjectileLook::ChalkReturn: return FLinearColor(.95f,.95f,.9f);
+    case ELDObservedProjectileLook::Sock:
+    case ELDObservedProjectileLook::SockReturn: return FLinearColor(.55f,.85f,.25f);
     case ELDObservedProjectileLook::FlyerArming: return FLinearColor(.9f,.65f,.2f);
     case ELDObservedProjectileLook::AreaMagic: return FLinearColor(.65f,.2f,1.f);
     case ELDObservedProjectileLook::AreaFire: return FLinearColor(1.f,.18f,.015f);
@@ -555,6 +563,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     ShownColor=Color;
     if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),Color); }
+    Trail->SetReturning(IsObservedReturn(Effect.Look));
     Chalk->SetStaticMesh(bFlight ? CylinderMesh : BoxMesh);
     Chalk->SetRelativeLocation(FVector::ZeroVector);
     Chalk->SetRelativeRotation(bFlight ? FRotator(90,0,0) : FRotator::ZeroRotator);
@@ -672,12 +681,12 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
 void ALDObservedProjectileProxy::End(double LocalSeconds)
 {
     if (EndedAt < 0) { EndedAt = LocalSeconds; }
-    if (ShownLook!=ELDObservedProjectileLook::Chalk && ShownLook!=ELDObservedProjectileLook::Sock) { SetActorHiddenInGame(true); }
+    if (!IsObservedFlight(ShownLook)) { SetActorHiddenInGame(true); }
 }
 
 bool ALDObservedProjectileProxy::IsFinished(double AtServerSec, double LocalSeconds) const
 {
-    return EndedAt >= 0 && ((ShownLook!=ELDObservedProjectileLook::Chalk && ShownLook!=ELDObservedProjectileLook::Sock)
+    return EndedAt >= 0 && (!IsObservedFlight(ShownLook)
         || Points.IsEmpty() || AtServerSec >= Points.Last().At || LocalSeconds - EndedAt >= EndSeconds);
 }
 

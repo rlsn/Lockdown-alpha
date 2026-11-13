@@ -127,8 +127,10 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.SourceEntity=Projectile.SourceEntity;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
-        Fact.Look=Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot)
-            ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk;
+        const bool bSock=Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot);
+        Fact.Look=Projectile.bReturn
+            ? (bSock ? ELDObservedProjectileLook::SockReturn : ELDObservedProjectileLook::ChalkReturn)
+            : (bSock ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk);
     }
     const auto* Mode=Core();
     if (!Mode) { Error=TEXT("Observed skill effects require the current match."); return false; }

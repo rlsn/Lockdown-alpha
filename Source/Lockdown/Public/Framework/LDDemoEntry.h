@@ -10,7 +10,7 @@ namespace LDDemoEntry
     inline constexpr TCHAR FrontendMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Frontend");
     inline constexpr TCHAR WorldMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Demo");
     inline constexpr TCHAR WorldDefinition[] = TEXT("/Game/Lockdown/Generated/Data/DA_DemoWorld");
-    inline constexpr uint32 WireProtocol = 24;
+    inline constexpr uint32 WireProtocol = 25;
 
     LOCKDOWN_API bool ValidateSelection(const FString& PackageName, const FString& Options, FString& Error);
     LOCKDOWN_API bool VerifyRuntimeFiles(FString& Error, FString* CatalogDigest = nullptr);

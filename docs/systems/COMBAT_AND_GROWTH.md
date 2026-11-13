@@ -125,7 +125,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 护盾为旋转的亮青色栅栏罩加光环，复活保护为白金光柱加环绕光球；护盾与复活保护的每个标记背后沿本机视线放一个稍大的
 近黑副本作为描边，在同色系座位（青色、黄色）身上也能分开；
 带复活保护首次出现时由小变大并有光柱；死亡由不复制、无碰撞的 `ALDBodyPuppet` 在原地播放死亡片段倒地，再下沉、缩没
-（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；甩你一鞋（`active_snark_bolt`，唯一的弹道技能）的飞行由 `ULDFlightTrailComponent` 拖出粉尘。
+（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；甩你一鞋（`active_snark_bolt`）和馊水糊脸（`active_sock_shot`）的飞行由 `ULDFlightTrailComponent` 拖出粉尘，M13 回程时尾迹变为紫色。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 **助攻贡献**只有一个记录入口 `ALDCombatDirector::RecordAssistContribution(Victim, CreditOwner, NowMs)`：
 受害者是参赛者、CreditOwner 是另一名有 Combat 记录的参赛者时，按纯规则 `LDAssist::RecordContribution` 在受害者这条生命的

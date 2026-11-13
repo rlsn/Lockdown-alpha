@@ -302,6 +302,8 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     {
     case ELDObservedProjectileLook::Chalk:
     case ELDObservedProjectileLook::Sock:
+    case ELDObservedProjectileLook::ChalkReturn:
+    case ELDObservedProjectileLook::SockReturn:
         if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0
             || Projectile.WarningRemainingMs != 0)
         { return FailObservation(Error, TEXT("A flight cannot carry a ground-effect shape.")); }

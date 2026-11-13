@@ -8,6 +8,7 @@
 #include "Combat/LDCombatSourceRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
+#include "Character/LDFlightTrailComponent.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -16,7 +17,10 @@
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/RootMotionSource.h"
 #include "Misc/PackageName.h"
 #include "UObject/Package.h"
@@ -3474,13 +3478,49 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
     if (!Released(*this, F, Holder, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
     Payload.CastLedger->PaidManaP2 = 4000;
     if (!TestTrue(TEXT("M13 compiles onto S06"), Terms.ProjectileReturn.IsSet() && Payload.SlowBp > 0)
-        || !Throw(*this, F, Holder, Terms, Payload) || !Fly(*this, F, 1400)) { return false; }
+        || !Throw(*this, F, Holder, Terms, Payload)) { return false; }
+    TArray<FLDObservedProjectileFact> Observed;
+    FString ObservationError;
+    TestTrue(TEXT("Outbound chalk is observed as an outbound flight"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::Chalk);
+    if (!Fly(*this, F, 1400)) { return false; }
     const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
     const TArray<FLDCombatProjectile>& Flights = FAccess::Projectiles(*F.Driver);
     if (!TestTrue(TEXT("The outbound hit lands whole and a return flight starts where it ended"), Pending.Num() == 1
         && Pending[0].Target == Target && Pending[0].DeliveryScaleBp == 10000 && Flights.Num() == 1 && Flights[0].bReturn
         && Flights[0].EffectId == Payload.EffectId && Flights[0].ReturnScaleBp == 0 && Flights[0].PierceRemaining == 0))
     { return false; }
+    if (!TestTrue(TEXT("M13's return chalk has a distinct authorized flight look"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::ChalkReturn)) { return false; }
+    auto* Proxy=F.World->SpawnActor<ALDObservedProjectileProxy>();
+    if (!TestNotNull(TEXT("Return presentation proxy is created"),Proxy)) { return false; }
+    FLDObservedProjectileView ReturnView;
+    ReturnView.Handle=FGuid::NewGuid();
+    ReturnView.PositionCm=Observed[0].PositionCm;
+    Proxy->Apply(ReturnView,1.0);
+    TArray<USceneComponent*> TrailParts;
+    Proxy->GetTrail()->GetChildrenComponents(false,TrailParts);
+    UStaticMeshComponent* TrailHead=TrailParts.IsEmpty() ? nullptr : Cast<UStaticMeshComponent>(TrailParts[0]);
+    UMaterialInstanceDynamic* TrailMaterial=TrailHead ? Cast<UMaterialInstanceDynamic>(TrailHead->GetMaterial(0)) : nullptr;
+    FLinearColor OutboundTint, ReturnTint, ResetTint;
+    const bool bOutboundTint=TrailMaterial && TrailMaterial->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Tint")),OutboundTint);
+    ReturnView.Look=ELDObservedProjectileLook::ChalkReturn;
+    Proxy->Apply(ReturnView,1.1);
+    TestTrue(TEXT("Return presentation changes the live trail material tint"),
+        bOutboundTint && TrailMaterial->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Tint")),ReturnTint)
+        && !OutboundTint.Equals(ReturnTint,.05f));
+    ReturnView.Look=ELDObservedProjectileLook::Sock;
+    Proxy->Apply(ReturnView,1.2);
+    TestTrue(TEXT("An outbound flight restores the trail tint after a return"),
+        bOutboundTint && TrailMaterial->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Tint")),ResetTint)
+        && OutboundTint.Equals(ResetTint,.001f));
+    ReturnView.Look=ELDObservedProjectileLook::SockReturn;
+    Proxy->Apply(ReturnView,1.3);
+    Proxy->End(2.0);
+    TestTrue(TEXT("A return is still a flight and survives its final presentation sample"),
+        !Proxy->IsHidden() && !Proxy->IsFinished(.9,2.1));
     const int64 Before = F.Body(Target).Resources.HpP2;
     if (!Drain(*this, F)) { return false; }
     const int64 Outbound = Before - F.Body(Target).Resources.HpP2;
@@ -3505,8 +3545,15 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
     SockPayload.BurnStacks = 1;
     SockPayload.bApplyWet = true;
     F.Now(3000);
-    if (!Throw(*this, F, Holder, Sock, SockPayload) || !Fly(*this, F, 3400)) { return false; }
+    if (!Throw(*this, F, Holder, Sock, SockPayload)) { return false; }
+    TestTrue(TEXT("Outbound sock keeps its own look"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::Sock);
+    if (!Fly(*this, F, 3400)) { return false; }
     if (!TestTrue(TEXT("S21 launches a return"), Flights.Num() == 1 && Flights[0].bReturn)) { return false; }
+    TestTrue(TEXT("M13's return sock has a distinct authorized flight look"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::SockReturn);
     const FLDCombatHit& Home = Flights[0].Payload;
     TestTrue(TEXT("The return keeps burn, wet and grievous but drops the attack slow"), SockPayload.GrievousBp > 0
         && SockPayload.AttackSlowBp > 0 && Home.BurnStacks == 1 && Home.bApplyWet && Home.GrievousBp == SockPayload.GrievousBp

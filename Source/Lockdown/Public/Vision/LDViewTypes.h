@@ -10,12 +10,13 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
+    // 13 distinguishes visible return flights without carrying their caster or build.
     // 12 adds the authorized hit's critical and shield outcome.
     // 11 adds the age of an authorized hit, independent of the current action cue.
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 12;
+    constexpr uint32 Schema = 13;
     constexpr uint16 RecentHitWindowMs = 300;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
@@ -51,7 +52,8 @@ UENUM() enum class ELDObservedHitLook : uint8 { None = 0, Magic = 1, Fire = 2, W
 UENUM() enum class ELDObservedProjectileLook : uint8
 {
     Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6,
-    AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11
+    AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11,
+    ChalkReturn = 12, SockReturn = 13
 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };

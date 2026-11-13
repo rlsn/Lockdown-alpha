@@ -1275,7 +1275,8 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
             && Got.WarningRemainingMs == Sent.WarningRemainingMs && Got.PositionCm.Equals(Sent.PositionCm, PositionToleranceCm);
     }
     TestTrue(TEXT("Every flight keeps its handle, heading, look and quantized position"), bSame);
-    for (const auto Look : {ELDObservedProjectileLook::Sock, ELDObservedProjectileLook::BookShadow,
+    for (const auto Look : {ELDObservedProjectileLook::Sock, ELDObservedProjectileLook::ChalkReturn,
+        ELDObservedProjectileLook::SockReturn, ELDObservedProjectileLook::BookShadow,
         ELDObservedProjectileLook::FlyerArming, ELDObservedProjectileLook::FlyerArmed, ELDObservedProjectileLook::SpeechCone,
         ELDObservedProjectileLook::AreaPlain, ELDObservedProjectileLook::AreaMagic, ELDObservedProjectileLook::AreaFire,
         ELDObservedProjectileLook::AreaWater, ELDObservedProjectileLook::AreaElectric})
@@ -1291,7 +1292,8 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
             Effect.RadiusCm=240.f;
             Effect.WarningRemainingMs=Look==ELDObservedProjectileLook::AreaFire ? 900 : 0;
         }
-        else if (Look!=ELDObservedProjectileLook::Sock)
+        else if (Look!=ELDObservedProjectileLook::Sock && Look!=ELDObservedProjectileLook::ChalkReturn
+            && Look!=ELDObservedProjectileLook::SockReturn)
         {
             Effect.RadiusCm=Look==ELDObservedProjectileLook::SpeechCone ? 450.f : 180.f;
             Effect.InnerRadiusCm=Look==ELDObservedProjectileLook::SpeechCone ? 0.f : 80.f;
@@ -1315,6 +1317,8 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A flight cannot carry a landing warning"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].WarningRemainingMs=1; })));
     TestFalse(TEXT("A flight cannot smuggle another effect's geometry"),
         Encodes(With([](FLDWorldView& V) { V.Projectiles[0].RadiusCm=180; })));
+    TestFalse(TEXT("A return flight cannot carry a ground-effect shape"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::ChalkReturn; V.Projectiles[0].RadiusCm=180; })));
     TestFalse(TEXT("A trap must declare its visible radii"),
         Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::FlyerArmed; })));
     TestFalse(TEXT("Flights beyond the finite range refused"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].PositionCm = FVector(1000001, 0, 2); })));
@@ -1351,7 +1355,9 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     FLDObserverLedger Ledger;
     bool bReset = false;
     TestTrue(TEXT("Ledger begins alive"), Ledger.Begin(7, Error) && Ledger.Bind(ELDLifePhase::Alive, 1, bReset, Error));
-    const FLDObservedProjectileFact A = Fact(FVector(-700, 0, 2)), B = Fact(FVector(-800, 0, 2), FVector2D(0, 1));
+    const FLDObservedProjectileFact A = Fact(FVector(-700, 0, 2));
+    FLDObservedProjectileFact B = Fact(FVector(-800, 0, 2), FVector2D(0, 1));
+    B.Look=ELDObservedProjectileLook::SockReturn;
     auto HandleAt = [](const TArray<FLDObservedProjectileView>& Views, const FVector& Position)
     {
         const FLDObservedProjectileView* Found = Views.FindByPredicate([&Position](const FLDObservedProjectileView& View)
@@ -1365,6 +1371,8 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     const FLDObservedProjectileView* Northward = Out.FindByPredicate([&FirstB](const FLDObservedProjectileView& View) { return View.Handle == FirstB; });
     TestTrue(TEXT("Handles are fresh opaque GUIDs, never the flight key"), FirstA.IsValid() && FirstB.IsValid() && FirstA != A.Key && FirstB != B.Key);
     TestTrue(TEXT("Heading is the quantized planar yaw"), Northward && Northward->Heading == 16384);
+    TestTrue(TEXT("A visible return retains its public look through the observer ledger"),
+        Northward && Northward->Look==ELDObservedProjectileLook::SockReturn);
     TestTrue(TEXT("A flight keeps its handle while in sight; one that left is removed"), Ledger.SampleProjectiles({&A}, Removed, Out, Error)
         && Out.Num() == 1 && Out[0].Handle == FirstA && Removed.Num() == 1 && Removed[0] == FirstB);
     TestTrue(TEXT("An ended flight is removed"), Ledger.SampleProjectiles({}, Removed, Out, Error) && Out.IsEmpty() && Removed.Num() == 1 && Removed[0] == FirstA);
