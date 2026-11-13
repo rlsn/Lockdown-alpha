@@ -12,7 +12,7 @@ namespace LDCombatCues
     // A released attack or cast stays visible this long; a landed hit shows for HitHoldMs. Both exceed the 150 ms
     // that a 100 ms observation cadence needs to sample every window.
     constexpr int64 ReleaseHoldMs=200;
-    constexpr int64 HitHoldMs=300;
+    constexpr int64 HitHoldMs=LDObservation::RecentHitWindowMs;
 
     struct FCue
     {

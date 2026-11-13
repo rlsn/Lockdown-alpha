@@ -120,7 +120,8 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Ar << Unit.Handle << Unit.ObservationEpoch << Unit.StateRevision << Unit.AuthorizedFieldMask << Kind << Unit.Presentation;
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
-    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook << Unit.ActionAbility;
+    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
+        << Unit.RecentHitAgePlusOneMs << Unit.ActionAbility;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -237,8 +238,12 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (!IsFiniteObservedPoint(Unit.FeetCm)) { return FailObservation(Error, TEXT("An observed unit position is outside the finite world range.")); }
     if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
         || uint8(Unit.HitLook) > uint8(ELDObservedHitLook::Electric)
+        || Unit.RecentHitAgePlusOneMs > RecentHitWindowMs
+        || (Unit.RecentHitAgePlusOneMs == 0 && Unit.HitLook != ELDObservedHitLook::None)
+        || (Unit.ActionCue == ELDObservedActionCue::Hit
+            && (Unit.RecentHitAgePlusOneMs == 0 || Unit.ActionCueAgeMs + 1 != Unit.RecentHitAgePlusOneMs))
         || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0))
-        || (Unit.ActionCue == ELDObservedActionCue::None && Unit.HitLook != ELDObservedHitLook::None)
+        || (Unit.ActionCue == ELDObservedActionCue::None && Unit.RecentHitAgePlusOneMs != 0)
         || (Unit.ActionCue == ELDObservedActionCue::Hit && Unit.ActionCueImpactDelayMs != 0))
     { return FailObservation(Error, TEXT("Unknown observed action cue, or cue timing without a compatible cue.")); }
     if (Unit.ActionAbility != 0 && Unit.ActionCue != ELDObservedActionCue::Cast)

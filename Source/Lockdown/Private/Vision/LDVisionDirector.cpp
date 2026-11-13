@@ -112,6 +112,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
         && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook
+        && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
         && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
@@ -1028,9 +1029,17 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a Combat cast source needs a Cast cue and an ability.");
             return false;
         }
+        if (Facts.LastHitAtMs != 0 && (Facts.LastHitAtMs < 0 || Facts.LastHitAtMs > NowMs
+            || NowMs - Facts.LastHitAtMs >= LDObservation::RecentHitWindowMs))
+        {
+            Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a visible hit is outside its presentation window.");
+            return false;
+        }
         Unit.ActionCue = Facts.ActionCue;
         Unit.ActionAbility = Facts.ActionAbility;
         Unit.HitLook = Facts.HitLook;
+        Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
+            ? uint16(NowMs - Facts.LastHitAtMs + 1) : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         if (Facts.ActionCue != ELDObservedActionCue::None && Facts.ActionCue != ELDObservedActionCue::Hit)
         {

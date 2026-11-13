@@ -526,7 +526,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
@@ -1139,16 +1139,20 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units[0].ActionCueAgeMs = 180;
     View.Units[0].ActionCueImpactDelayMs = 300;
     View.Units[0].HitLook = ELDObservedHitLook::Water;
+    View.Units[0].RecentHitAgePlusOneMs = 21;
     View.Units[1].ActionCue = ELDObservedActionCue::Hit;
     View.Units[1].ActionCueAgeMs = 40;
     View.Units[1].HitLook = ELDObservedHitLook::Electric;
+    View.Units[1].RecentHitAgePlusOneMs = 41;
     View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
     TestTrue(TEXT("Cues, their ages and release timing round-trip"), Wire(View, Read) && Read.Units.Num() == 2
         && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
         && Read.Units[0].ActionCueImpactDelayMs == 300 && Read.Units[0].HitLook == ELDObservedHitLook::Water
+        && Read.Units[0].RecentHitAgePlusOneMs == 21
         && Read.Units[0].ActionAbility == 7 && Read.Units[1].ActionCue == ELDObservedActionCue::Hit
-        && Read.Units[1].ActionCueAgeMs == 40 && Read.Units[1].HitLook == ELDObservedHitLook::Electric);
+        && Read.Units[1].ActionCueAgeMs == 40 && Read.Units[1].HitLook == ELDObservedHitLook::Electric
+        && Read.Units[1].RecentHitAgePlusOneMs == 41);
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
     {
@@ -1156,6 +1160,7 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
         Unit.ActionCue = Cue;
         Unit.ActionCueAgeMs = Cue == ELDObservedActionCue::None ? 0 : 250;
         Unit.ActionCueImpactDelayMs = Cue == ELDObservedActionCue::Attack || Cue == ELDObservedActionCue::Cast ? 300 : 0;
+        Unit.RecentHitAgePlusOneMs = Cue == ELDObservedActionCue::Hit ? 251 : 0;
         TestTrue(*FString::Printf(TEXT("Cue %d is a public cue"), int32(Cue)), LDObservation::ValidateUnit(Unit, Error));
     }
     FLDObservedUnitView Unknown = ContenderUnit();
@@ -1170,6 +1175,7 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView DelayedHit = ContenderUnit();
     DelayedHit.ActionCue = ELDObservedActionCue::Hit;
     DelayedHit.ActionCueAgeMs = 1;
+    DelayedHit.RecentHitAgePlusOneMs = 2;
     DelayedHit.ActionCueImpactDelayMs = 1;
     TestFalse(TEXT("A hit reaction has no future action-release time"), LDObservation::ValidateUnit(DelayedHit, Error));
     FLDObservedUnitView UncuedHitLook=ContenderUnit();
@@ -1178,8 +1184,23 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView UnknownHitLook=ContenderUnit();
     UnknownHitLook.ActionCue=ELDObservedActionCue::Hit;
     UnknownHitLook.ActionCueAgeMs=1;
+    UnknownHitLook.RecentHitAgePlusOneMs=2;
     UnknownHitLook.HitLook=static_cast<ELDObservedHitLook>(255);
     TestFalse(TEXT("An unknown hit look is refused"), LDObservation::ValidateUnit(UnknownHitLook,Error));
+    FLDObservedUnitView CastHit = ContenderUnit();
+    CastHit.ActionCue = ELDObservedActionCue::Cast;
+    CastHit.RecentHitAgePlusOneMs = 1;
+    TestTrue(TEXT("A generic hit at the current instant is visible while casting"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.RecentHitAgePlusOneMs = LDObservation::RecentHitWindowMs;
+    TestTrue(TEXT("The last millisecond of the visible hit window is allowed"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.RecentHitAgePlusOneMs = LDObservation::RecentHitWindowMs + 1;
+    TestFalse(TEXT("A stale hit is rejected"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.ActionCue = ELDObservedActionCue::None;
+    CastHit.RecentHitAgePlusOneMs = 1;
+    TestFalse(TEXT("An uncued unit cannot carry a recent hit"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.ActionCue = ELDObservedActionCue::Hit;
+    CastHit.ActionCueAgeMs = 10;
+    TestFalse(TEXT("A hit cue and its independently carried age must agree"), LDObservation::ValidateUnit(CastHit,Error));
     // A cast may name its public ability at that moment (user-approved CB-P10 amendment); nothing else may.
     FLDObservedUnitView Named = ContenderUnit();
     Named.ActionCue = ELDObservedActionCue::Cast;
@@ -1455,6 +1476,11 @@ bool FLDDemoVisionPresentationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Growth never passes the arrival itself"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, 100.0, 105.11, 100.1), 5.01));
     TestTrue(TEXT("A jump beyond the reseed bound adopts the new clock"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 200.0, 10.0), 190.0));
     TestTrue(TEXT("The clock trails the newest sample by more than one publication"), P::DelaySeconds > .1);
+    TestEqual(TEXT("No public hit has no reaction"), P::HitAgeSeconds(0, .1), -1.f);
+    TestTrue(TEXT("A cast and a shield-absorbed or control hit use the actual hit age, not health changes"),
+        FMath::IsNearlyEqual(P::HitAgeSeconds(21, .03), .05f));
+    TestTrue(TEXT("Repeated samples retain the same hit onset"),
+        FMath::IsNearlyEqual(P::HitAgeSeconds(21, .03), P::HitAgeSeconds(41, .01)));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPropFadeTest, "Lockdown.Rules.DemoVision.PropFade",

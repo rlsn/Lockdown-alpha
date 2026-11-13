@@ -286,6 +286,11 @@ LDObservedPresentation::FPose LDObservedPresentation::Sample(TConstArrayView<FPo
     return Pose;
 }
 
+float LDObservedPresentation::HitAgeSeconds(uint16 AgePlusOneMs, double ElapsedSinceSample)
+{
+    return AgePlusOneMs ? float(double(AgePlusOneMs - 1) / 1000.0 + FMath::Max(0.0, ElapsedSinceSample)) : -1.f;
+}
+
 double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds)
 {
     const double Candidate = ArrivalLocalSeconds - SampledAtServerSeconds;
@@ -361,7 +366,6 @@ bool ALDObservedEntityProxy::IsBodyBlocking() const
 
 void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec)
 {
-    const bool bSameInterval=bPlaced && ObservedHandle==Unit.Handle && ObservedEpoch==Unit.ObservationEpoch;
     LDObservedPresentation::FPoint Point;
     Point.At = SampledAtServerSec;
     Point.Location = FVector(Unit.FeetCm) + FVector(0, 0, VisualHalfHeightCm);
@@ -383,11 +387,8 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.HitLook = Unit.HitLook;
+    Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
     Shown.Statuses = Unit.Statuses;
-    Shown.bDamage=bSameInterval && (Unit.AuthorizedFieldMask&LDObservation::Health)!=0
-        && Unit.Health.MaxP2==LastMaxHealthP2 && Unit.Health.CurrentP2<LastHealthP2;
-    LastHealthP2=Unit.Health.CurrentP2;
-    LastMaxHealthP2=Unit.Health.MaxP2;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
     while (Points.Num() > 8) { Points.RemoveAt(0); Facts.RemoveAt(0); }
     ObservedHandle = Unit.Handle;
@@ -419,8 +420,9 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
             Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f, Reached.HitLook);
-        if (Reached.bDamage)
-        { Body->SetHitReaction(float(FMath::Max(0.,AtServerSec-Points[Pose.Reached].At)), Reached.HitLook); }
+        if (Reached.RecentHitAgePlusOneMs)
+        { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
+            AtServerSec-Points[Pose.Reached].At), Reached.HitLook); }
         ShownAt = Points[Pose.Reached].At;
     }
     if (Pose.Reached > 0)

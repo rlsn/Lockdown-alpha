@@ -104,12 +104,13 @@ namespace LDObservedPresentation
         uint16 CueAgeMs = 0;
         uint16 CueImpactDelayMs = 0;
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
+        uint16 RecentHitAgePlusOneMs = 0;
         TArray<FLDObservedStatus> Statuses;
-        bool bDamage = false;
     };
     // Points ascend by At. Before the first point: the first; between two: linear, yaw along the shorter arc; at or after
     // the newest: the newest with zero velocity. A snap point is reached without sweeping toward it.
     LOCKDOWN_API FPose Sample(TConstArrayView<FPoint> Points, double At);
+    LOCKDOWN_API float HitAgeSeconds(uint16 AgePlusOneMs, double ElapsedSinceSample);
     // Local-minus-authority clock offset from one arrival: an earlier arrival lowers it at once, later ones raise it by at
     // most OffsetGrowthPerSecond, and a jump beyond ReseedSeconds (another authority clock) re-seeds it.
     LOCKDOWN_API double TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds);
@@ -174,7 +175,6 @@ private:
     double ShownAt = -1;
     uint16 Look = MAX_uint16;
     bool bPlaced = false;
-    int64 LastHealthP2 = 0, LastMaxHealthP2 = 0;
 };
 
 // Client-only marker under this machine's own living body, so the player finds themself at a glance (APP_SPEC 8).
