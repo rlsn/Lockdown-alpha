@@ -70,12 +70,15 @@ $engineArguments = @{}
 if ($EngineRoot) { $engineArguments.EngineRoot = $EngineRoot }
 if ($source.Count) { & (Join-Path $PSScriptRoot 'BuildEditor.ps1') @engineArguments }
 if ($Filter) {
-    # A new worktree holds only Git LFS pointers; the editor then fails on every asset with an unrelated error.
-    $asset = Get-ChildItem -LiteralPath (Join-Path $root 'Content') -Recurse -File -Filter '*.uasset' | Select-Object -First 1
-    if ($asset) {
-        $head = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($asset.FullName), 0, [Math]::Min(7, [int]$asset.Length))
-        if ($head -eq 'version') { throw 'Content holds Git LFS pointers, not assets. Run "git lfs pull" before the rule tests.' }
+    # A new or partly pulled worktree holds Git LFS pointers; the editor then fails on those assets with an unrelated error.
+    $pointers = @()
+    $buffer = [byte[]]::new(7)
+    foreach ($asset in Get-ChildItem -LiteralPath (Join-Path $root 'Content') -Recurse -File -Include '*.uasset', '*.umap') {
+        $stream = [IO.File]::OpenRead($asset.FullName)
+        try { $read = $stream.Read($buffer, 0, 7) } finally { $stream.Dispose() }
+        if ($read -eq 7 -and [Text.Encoding]::ASCII.GetString($buffer) -eq 'version') { $pointers += $asset.FullName }
     }
-    & (Join-Path $PSScriptRoot 'RunTests.ps1') @engineArguments -Filter $Filter
+    if ($pointers.Count) { throw "$($pointers.Count) assets under Content are Git LFS pointers (first: $($pointers[0])). Run ""git lfs pull"" before the rule tests." }
+    & (Join-Path $PSScriptRoot 'RunTests.ps1') @engineArguments -Filter $Filter -Base $Base
 }
 Write-Host 'Verify passed.'
