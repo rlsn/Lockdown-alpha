@@ -328,11 +328,11 @@ bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
 
 FString LDDemoEntry::FormatTitleVersion(const FString& Version, bool bReleaseBuild, const FString& Commit, bool bDirty)
 {
-    if (bReleaseBuild) { return TEXT("版本 ") + Version; }
     const FRegexPattern CommitPattern(TEXT("^[0-9a-f]{40}$"));
     FRegexMatcher Matcher(CommitPattern, Commit);
-    if (!Matcher.FindNext()) { return TEXT("build unknown"); }
-    return TEXT("build ") + Commit.Left(7) + (bDirty ? TEXT("（含未提交改动）") : TEXT(""));
+    const FString Hash = Matcher.FindNext() ? Commit.Left(7) : FString(TEXT("unknown"));
+    return FString::Printf(TEXT("版本 %s%s (%s)%s"), *Version, bReleaseBuild ? TEXT("") : TEXT("-dev"), *Hash,
+        bDirty ? TEXT("（含未提交改动）") : TEXT(""));
 }
 
 FString LDDemoEntry::TitleVersion(const FString& Version)
