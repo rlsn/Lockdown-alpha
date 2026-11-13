@@ -5,6 +5,7 @@
 #include "Character/LDCharacter.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -90,7 +91,7 @@ public:
         Report->SetBoolField(TEXT("passed"), bPassed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
-        Report->SetStringField(TEXT("scope"), TEXT("Normal three-field timeline, three owning connections plus three production AI, final-rest active selection and build lock for each owner, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography."));
+        Report->SetStringField(TEXT("scope"), TEXT("Normal three-field timeline, three owning connections plus three production AI, final-rest active selection and build lock for all six, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography."));
         Report->SetArrayField(TEXT("checks"), Checks);
         Report->SetObjectField(TEXT("summary"), Summary);
         bWritten = Save(Report, Role + TEXT(".json"));
@@ -267,6 +268,7 @@ public:
             {
                 TArray<FVector> Feet;
                 bool bSix = Mode->GetRosterOrder().Num() == 6;
+                bool bSixChoices = bSix && Mode->Development;
                 for (const FGuid& Id : Mode->GetRosterOrder())
                 {
                     FLDCombatBodyRef Ref;
@@ -275,8 +277,17 @@ public:
                         && FVector::DistSquared2D(Foot, View.Showdown.CentreCm) <= FMath::Square(View.Showdown.InitialRadiusCm);
                     bSix &= !Feet.ContainsByPredicate([&Foot](const FVector& Other) { return FVector::DistSquared2D(Foot, Other) < 1.; });
                     Feet.Add(Foot);
+                    if (Mode->Development)
+                    {
+                        const FLDProgressionView Build = Mode->Development->ReadProgression(Id);
+                        bSixChoices &= Build.bValid && Build.bBuildLocked && !Build.bFinalModPending
+                            && !Build.FinalModChosen.IsNone() && Build.Actives.ContainsByPredicate(
+                                [&Build](const FLDActiveSlotView& Active)
+                                { return Active.DefinitionId == Build.FinalModChosen && Active.Slot == Build.FinalModSlot; });
+                    }
                 }
                 Check(bSix, TEXT("A01"), TEXT("All six real authority bodies enter distinct legal positions inside the final ring"));
+                Check(bSixChoices, TEXT("A03"), TEXT("All six contenders chose a final-rest active and locked their build"));
             }
             bFinalSeen = true;
             if (!bPassed) { return Finish(); }

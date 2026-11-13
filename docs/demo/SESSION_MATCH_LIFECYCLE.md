@@ -1050,7 +1050,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame` | 喷漆区求交、公共 DTO（喷漆、涂鸦主人、守护字段组合）校验、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 | 真实连接 |
 | `Lockdown.Rules.DemoSessionReceipts`、`Lockdown.Rules.DemoCore.*`、`Lockdown.Rules.ViewPrivacySchema` | 会话窗口重放/拒旧、核心时间与许可、公开字段白名单 | 真实连接 |
 | `Lockdown.Rules.DemoRest.Timeline`、`.PhasePolicy`、`.EntryHold`、`.SpawnIdentity`；`Lockdown.Rules.DemoPK.RingOutsideTime`；`Lockdown.Rules.DemoVision.EffectAccess` | 纯时间线：批准时长、报名窗口（截止含在内）、锁定保持、PK 跳过、T 在休息冻结与野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按 T 的复活等待、客户端 T 推导；隔离组、冻结身体、阶段清理与补满；入场未就绪时 PKReady→PK 与 Return→野外停在边界、就绪后按实际时刻进入（`.EntryHold`）；被撤回的出生请求以新序号重试而不触发 `RequestConflict`、未定的请求仍挡住新序号（`.SpawnIdentity`）；圈伤按步内分段脚点路径的真实圈外时长切分（`.RingOutsideTime`）；观众/同队共享视野下飞行物的可见权限（`.EffectAccess`） | 真实驱动下的阶段生命放置、返场就近搜索与世界冻结；`RunDemoOpponentCheck.ps1` 另检查假人槽位并尝试触发 `Lives` 扩容（R01，未发生扩容记为未覆盖），以夹具制造 PK 出生点全被占（R02，等满 `REST.EntryReadyTimeoutSec` 后 NoContest）与返场时部分人放不下（R14） |
-| `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个真实拥有客户端 + 三个生产 AI；正常 R0、三段发育、R3 与独立场地入场；公开终局时钟、六个真实身体与本地目标标记；用正常导航/攻击争夺直至守护或期限结果；R3 三个真人经成长面板选择普通主动并锁定构筑；终局 XP/构筑不变、六行贡献、写闸关闭；回新 Lobby 并正常开第二局检查清理 | AI 的改装选择、独立 FIN 效果、全部技能视觉质量、所有复活/截止细节、网络异常；通过结论只认当次 Artifacts |
+| `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个真实拥有客户端 + 三个生产 AI；正常 R0、三段发育、R3 与独立场地入场；公开终局时钟、六个真实身体与本地目标标记；用正常导航/攻击争夺直至守护或期限结果；R3 三个真人经成长面板选择普通主动，服务器核对全部六人的选择与构筑锁定；终局 XP/构筑不变、六行贡献、写闸关闭；回新 Lobby 并正常开第二局检查清理 | 独立 FIN 效果、全部技能视觉质量、所有复活/截止细节、网络异常；通过结论只认当次 Artifacts |
 | `Scripts\RunDemoSessionFaultCheck.ps1` | 客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态、Host 经菜单离开 | 跨机器局域网与公网 |
 | `Scripts\RunDemoOpponentCheck.ps1` | AI 绑定、自主循环、喷漆/守护/围攻行为、AI 以 `GuardSucceeded` 获胜且是公开涂鸦主人、回 Lobby 后退役 | 真人离开、网络异常 |
 
