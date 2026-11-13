@@ -3033,9 +3033,9 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     }
     if (!HostCommit(TEXT("Request 24: the Host's early capture during development"), Command(Gen, 1, 24, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::None)) { return false; }
-    TestTrue(TEXT("The circle opens at the commit boundary and the driver stops there"),
-        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen()
-        && Mode->Timeline.GetStage() == ELDMatchStage::FinalField);
+    TestTrue(TEXT("The transaction queues final entry without mutating the world or opening the old circle"),
+        Mode->bDevShowdownEntryPending && Mode->CaptureReducer.GetOpenAtMs() == 1000000 && !Mode->CaptureReducer.IsOpen()
+        && Mode->Timeline.GetStage() == ELDMatchStage::Field);
     FLDCaptureReducer Circle;
     FString CircleError;
     TestFalse(TEXT("An inactive reducer schedules no opening"), Circle.ScheduleOpen(10, CircleError));
@@ -3380,8 +3380,9 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
         && Mode->Timeline.Begin(TimelineParameters, 0, Error)
         && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
         && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
-        && Mode->Timeline.DevSkipToFinalField(Mode->Timeline.MakeView(Mode->MatchContext.Generation, 1).FieldStartedAtMs,
-            TimelineEvents, Error)))
+        && Mode->Timeline.DevSkipToFinalRest(Mode->Timeline.MakeView(Mode->MatchContext.Generation, 1).FieldStartedAtMs,
+            TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)))
     { AddError(Error); return false; }
 
     const int64 BeforeFinalDeath = TotalXP();

@@ -125,7 +125,7 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         Line.GetStep() == ELDRestStep::Return && Line.MakeView(1,1).LockedEntrants == 0);
     Events.Reset();
     const int64 Final = Line.NextDueMs();
-    bGood &= TestTrue(TEXT("R3 returns to the final field, which never ends on its own"),
+    bGood &= TestTrue(TEXT("R3 returns to final field; the showdown owner, not the growth timeline, schedules its end"),
         Line.Advance(Final, 0, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->FieldSegment == 3 && Line.NextDueMs() == MAX_int64
         && Line.FieldMsAt(Final + 60000) == 600000);
