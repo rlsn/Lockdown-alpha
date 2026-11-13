@@ -77,6 +77,8 @@ public:
     uint32 ObservedRestLife=1;
     uint64 ObservedRestRevision=1;
     bool bSharedTrainingDone=false;
+    bool bAuthoredTrainingDone=false;
+    int32 AuthoredTrainingStage=0;
     int32 RestServiceStage=0;
     FLDCombatBodyRef OriginalBody;
     FLDMoveIdentity OldOrder, AcceptedOrder, RestServiceOrder;
@@ -191,9 +193,12 @@ public:
             const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
             if(!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
             const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
-            const auto* Target=Read.Frame->Units.FindByPredicate([Public](const FLDObservedUnitView& Unit)
+            auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+            const auto* Slot=Registry?Registry->Resolve(TEXT("training_dummy_0"),Registry->Generation):nullptr;
+            const auto* Target=Read.Frame->Units.FindByPredicate([Public,Slot](const FLDObservedUnitView& Unit)
             {
-                return Unit.Kind==ELDObservedUnitKind::Contender&&Unit.Presentation==0
+                return Slot&&FVector::DistSquared2D(Unit.FeetCm,Slot->Position)<FMath::Square(300.)
+                    &&Unit.Kind==ELDObservedUnitKind::Contender&&Unit.Presentation==0
                     &&!Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& Member)
                     {return Member.ContenderId==Unit.ContenderId;});
             });
@@ -210,7 +215,6 @@ public:
                 if(!Check(Body&&Body->PresentationKey!=Target->Presentation,TEXT("The remote attacker does not own the shared target"))){return Finish();}
                 if(PC.HUDUI&&PC.HUDUI->ChoicesPanel){PC.HUDUI->ChoicesPanel->ClosePanel();}
                 if(!PC.CanWorldCommand()){return true;}
-                auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
                 const auto* Anchor=Registry?Registry->Resolve(TEXT("training_dummy_0"),Registry->Generation):nullptr;
                 if(!Check(Anchor!=nullptr,TEXT("The remote trainee approaches the shared target on registered rest ground"))){return Finish();}
                 PC.Navigation->NavigateGround(FVector(Target->FeetCm)+FVector(0,-120,0),Anchor->Surface);
@@ -264,6 +268,60 @@ public:
             bSharedTrainingDone=AllMarkers(TEXT("SharedResetSeen.json"));
             return true;
         }
+    bool ReviewAuthoredTraining(ALDPlayerController& PC)
+    {
+        auto* Registry=PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
+        const auto* Placement=Geometry?Geometry->Anchors.FindByPredicate([](const FLDDemoWorldAnchor& A)
+            {return A.Kind==ELDDemoWorldAnchorKind::TrainingDummy&&A.Id.StartsWith(TEXT("training_shared_"));}):nullptr;
+        if(!Placement){bAuthoredTrainingDone=true;return true;}
+        const auto* Anchor=Registry->Resolve(FName(*Placement->Id),Registry->Generation);
+        const auto* Relay=PC.LocalView();
+        const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+        if(!Anchor||!Read.Frame||Read.Status!=ELDObservedViewStatus::Current){return true;}
+        const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
+        const auto* Target=Read.Frame->Units.FindByPredicate([Public,Anchor](const FLDObservedUnitView& Unit)
+        {
+            return Unit.Kind==ELDObservedUnitKind::Contender
+                &&FVector::DistSquared2D(Unit.FeetCm,Anchor->Position)<FMath::Square(300.)
+                &&!Public->DemoLobby.Members.ContainsByPredicate([&Unit](const FLDLobbyMember& M){return M.ContenderId==Unit.ContenderId;});
+        });
+        if(!Target){return true;}
+        if(AuthoredTrainingStage==0)
+        {
+            if(!Mark(Role+TEXT("AuthoredTargetSeen.json"))){return Finish();}
+            AuthoredTrainingStage=1;
+        }
+        if(!AllMarkers(TEXT("AuthoredTargetSeen.json"))){return true;}
+        if(Role==TEXT("Client1")&&AuthoredTrainingStage==1&&PC.CanWorldCommand())
+        {
+            PC.Navigation->NavigateGround(FVector(Target->FeetCm)+FVector(0,120,0),Anchor->Surface);
+            AuthoredTrainingStage=2;
+        }
+        if(Role==TEXT("Client1")&&AuthoredTrainingStage==2)
+        {
+            const auto* Body=Cast<ALDCharacter>(PC.GetPawn());
+            if(!Body||FVector::DistSquared2D(ALDCombatDirector::FootOf(*Body),Target->FeetCm)>FMath::Square(300.)){return true;}
+            PC.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);
+            AuthoredTrainingStage=3;
+        }
+        const FString HitFile=Role+TEXT("AuthoredHit.json");
+        if(Target->Health.CurrentP2<Target->Health.MaxP2&&!FPaths::FileExists(FPaths::Combine(Output,HitFile)))
+        {
+            Check(Target->Health.CurrentP2>0,TEXT("An added general target publishes real damage to this owning connection"));
+            auto Hit=MakeShared<FJsonObject>();Hit->SetStringField(TEXT("anchor"),Placement->Id);
+            Hit->SetStringField(TEXT("target"),Target->ContenderId.ToString());
+            Hit->SetNumberField(TEXT("hp_p2"),Target->Health.CurrentP2);Hit->SetNumberField(TEXT("max_hp_p2"),Target->Health.MaxP2);
+            if(!Save(Hit,HitFile)){Check(false,TEXT("Authored training hit evidence persists"));return Finish();}
+        }
+        if(AllMarkers(TEXT("AuthoredHit.json")))
+        {
+            if(Role==TEXT("Client1")){PC.StopCombatAndOrders();}
+            bAuthoredTrainingDone=true;
+        }
+        return true;
+    }
+
     bool Initialize(ALDGameMode& Mode, ULDMapRegistry& Registry)
     {
         bStartGateOpenBefore=Mode.CheckDemoStartInputs(StartGateBefore);
@@ -451,7 +509,11 @@ public:
                     && !Conflict.IsValid() && !ConflictError.IsEmpty() && Mode.SpawnRandom.GetCurrentSeed()==Seed,
                     TEXT("Same spawn request with changed terms cannot redraw a safer anchor"))) { return false; }
             }
-            bool DummiesPerOwner=Mode.TrainingDummies.Num()==RestContenders && Mode.TrainingDummyIds.Num()==RestContenders;
+            bool DummiesPerOwner=Mode.TrainingDummies.Num()==RestContenders
+                && Mode.TrainingDummyIds.Num()==RestContenders+Mode.SharedTrainingDummies.Num();
+            const int32 AuthoredCount=Registry.GetGeometry()->Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& A)
+                {return A.Kind==ELDDemoWorldAnchorKind::TrainingDummy&&A.Id.StartsWith(TEXT("training_shared_"));}).Num();
+            if(!Check(Mode.SharedTrainingDummies.Num()==AuthoredCount,TEXT("Every additional authored training point spawns a real registered body"))){return false;}
             for (const auto& Pair : Mode.TrainingDummies) { DummiesPerOwner&=Mode.IsInRestSpace(Pair.Key); }
             if (!Check(RestContenders==3 && DummiesPerOwner,
                 TEXT("Each of the three roster bodies stands in its rest space with exactly one training dummy"))) { return false; }
@@ -510,6 +572,7 @@ public:
         Report->SetBoolField(TEXT("full_ct06"),false);
         Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body rest placement/retry, optional EarlyRestReady shared training observation/hit/reset, core/ground/CMC and native-prefix audit fixture. Not a full playable match, death/respawn, final motion Fence, general vision/combat or 3+3 AI acceptance."));
         Report->SetBoolField(TEXT("shared_training_exercised"),bSharedTrainingDone);
+        Report->SetBoolField(TEXT("authored_training_exercised"),bAuthoredTrainingDone && AllMarkers(TEXT("AuthoredHit.json")));
         Report->SetStringField(TEXT("role"),Role);
         Report->SetStringField(TEXT("catalog_sha256"),CatalogDigest);
         Report->SetStringField(TEXT("detail"),Error);
@@ -697,7 +760,11 @@ public:
                         if (!RestObservationStartedAt) { RestObservationStartedAt=FPlatformTime::Seconds(); }
                         if (FPlatformTime::Seconds()-RestObservationStartedAt>3. && !bRestPresentationSeen)
                         {
-                            if (!Check(Others.Num()==2 && Dummies.Num()==Public->DemoLobby.Members.Num(),
+                            const int32 Added=Registry->GetGeometry()->Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& A)
+                                {return A.Kind==ELDDemoWorldAnchorKind::TrainingDummy&&A.Id.StartsWith(TEXT("training_shared_"));}).Num();
+                            if(Others.Num()!=2 || Dummies.Num()!=Public->DemoLobby.Members.Num()+Added)
+                            {Error=FString::Printf(TEXT("Rest view: others=%d dummies=%d expected=%d"),Others.Num(),Dummies.Num(),Public->DemoLobby.Members.Num()+Added);}
+                            if (!Check(Others.Num()==2 && Dummies.Num()==Public->DemoLobby.Members.Num()+Added,
                                 TEXT("Every owning connection observes all live shared training dummies and the other players")))
                             { return Finish(); }
                             bRestPresentationSeen=true;
@@ -705,6 +772,7 @@ public:
                     }
                 }
                 if(bRestPresentationSeen&&!bSharedTrainingDone){return ReviewSharedTraining(*PC);}
+                if(bRestPresentationSeen&&!bAuthoredTrainingDone){return ReviewAuthoredTraining(*PC);}
                 if (Role==TEXT("Client1") && bRestPresentationSeen)
                 {
                     if (RestServiceStage==0 && PC->CanWorldCommand() && Movement->IsMovingOnGround()

@@ -826,7 +826,7 @@ public:
     void RetireBodyForPhase(const FLDCombatBodyRef& Body);
     // Shared dummy: a fixed slot-level chassis without a build, full resources, in the rest group.
     // RespawnsAndWorld permit; Victim is the dummy's own first life, never the attacker's identity.
-    bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
+    bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, uint8 Level,
         const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const;
     // The owner's training reset: owner and dummy refilled, statuses and in-flight effects of both cleared, every
     // owner cooldown ready. RespawnsAndWorld permit.

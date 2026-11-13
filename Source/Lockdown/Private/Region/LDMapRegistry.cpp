@@ -287,6 +287,12 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         }
     }
     SceneRows.Sort();
+    for (const auto& Anchor : Current->Anchors)
+    {
+        FVector Position;
+        if (!Anchor.PositionCm.ToVector(Position, Error)) { return false; }
+        SceneRows.Add(Anchor.Id.ToLower() + TEXT("|") + Position.ToString());
+    }
     Current->GeometryRevision = int32(FCrc::StrCrc32(*FString::Join(SceneRows, TEXT("\n"))) & MAX_int32);
     if (!Current->GeometryRevision) { Current->GeometryRevision = 1; }
     const FLDWorldRevision CandidateRevision{FName(*CandidateGeometry->MapId),

@@ -164,6 +164,16 @@ void ULDHumanoidVisualComponent::OnRegister()
 {
     Super::OnRegister();
     if (!GetWorld()) { return; }
+    // Non-body layout points also own this hidden tree. Mark every child before validation/registration,
+    // even when no character look has ever been applied.
+    if (IsEditorOnly())
+    {
+        Pivot->bIsEditorOnly = true;
+        Mesh->bIsEditorOnly = true;
+        for (UStaticMeshComponent* Part : Parts) { Part->bIsEditorOnly = true; }
+        for (UStaticMeshComponent* Edge : Edges) { Edge->bIsEditorOnly = true; }
+        for (UMeshComponent* Part : Worn) { if (Part) { Part->bIsEditorOnly = true; } }
+    }
     if (!Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
     if (!Mesh->IsRegistered()) { Mesh->RegisterComponent(); }
     for (UStaticMeshComponent* Part : Parts)
@@ -213,6 +223,7 @@ void ULDHumanoidVisualComponent::WearParts(const FLinearColor& Identity, const F
         Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Part->SetGenerateOverlapEvents(false);
         Part->SetCanEverAffectNavigation(false);
+        Part->bIsEditorOnly = IsEditorOnly();
         // A part worn later follows the body's own visibility, which its owner sets once per change for the whole tree.
         Part->SetVisibility(GetVisibleFlag());
         if (IsRegistered()) { Part->RegisterComponent(); }

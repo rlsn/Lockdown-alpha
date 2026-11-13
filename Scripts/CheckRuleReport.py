@@ -34,6 +34,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.StaticScene.PersistenceAndBinding",
         "Lockdown.Rules.StaticScene.CopyIdentityAndSafety",
         "Lockdown.Rules.StaticScene.ReplacementFloorAndOverlay",
+        "Lockdown.Rules.StaticScene.SharedTrainingCopies",
         "Lockdown.Rules.AudioCatalog",
         "Lockdown.Rules.AudioCatalogAsset",
         "Lockdown.Rules.AudioCueOwn",

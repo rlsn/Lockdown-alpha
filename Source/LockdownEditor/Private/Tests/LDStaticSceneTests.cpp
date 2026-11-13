@@ -20,6 +20,8 @@
 #include "Region/LDMapRegistry.h"
 #include "Character/LDCharacter.h"
 #include "World/LDNativeGround.h"
+#include "World/LDLayoutPoint.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Vision/LDVisionDirector.h"
 #include "Subsystems/EditorActorSubsystem.h"
 
@@ -259,5 +261,52 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
     TestTrue(TEXT("A surface that does not block characters does not prevent Play: ") + F.Error, Registry->Rebuild(F.Error));
     Overlay->Destroy(); Left->Destroy(); Right->Destroy(); VisualOnly->Destroy();
     TestFalse(TEXT("Removing actual support still refuses unsafe spawn"), Registry->Rebuild(F.Error));
+    return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDTrainingPointCopies, "Lockdown.Rules.StaticScene.SharedTrainingCopies",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDTrainingPointCopies::RunTest(const FString& Parameters)
+{
+    auto* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
+    ON_SCOPE_EXIT { UEditorLoadingAndSavingUtils::NewBlankMap(false); };
+    auto* Floor = World->SpawnActor<AStaticMeshActor>();
+    Floor->GetStaticMeshComponent()->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
+    Floor->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+    Floor->SetActorScale3D(FVector(100,100,1));
+    Floor->SetActorLocation(FVector(0,0,-50));
+    auto* Original = World->SpawnActor<ALDLayoutPoint>();
+    Original->Tags.Add(TEXT("LDSceneAnchor:training_dummy_0"));
+    auto* Editor = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
+    auto* Copy = Cast<ALDLayoutPoint>(Editor->DuplicateActor(Original, World, FVector(400,0,0)));
+    if (!TestNotNull(TEXT("A normal editor duplicate retains the layout actor"), Copy)) { return false; }
+    TestTrue(TEXT("Copy becomes an additional attackable shared target"), Copy->bSharedTrainingDummy);
+    TestFalse(TEXT("The original roster target keeps its role"), Original->bSharedTrainingDummy);
+    auto* Second = Cast<ALDLayoutPoint>(Editor->DuplicateActor(Copy, World, FVector(400,0,0)));
+    if (!TestNotNull(TEXT("Shared targets can themselves be duplicated"), Second)) { return false; }
+    FLDDemoWorldGeometry Base, Projected, Again;
+    auto& Surface = Base.Surfaces.AddDefaulted_GetRef();
+    Surface.Id = TEXT("demo_ground");
+    auto& Slot = Base.Anchors.AddDefaulted_GetRef();
+    Slot.Id = TEXT("training_dummy_0"); Slot.Kind = ELDDemoWorldAnchorKind::TrainingDummy; Slot.SurfaceId = Surface.Id;
+    FString Error;
+    if (!TestTrue(TEXT("Copies project without a duplicate-slot rejection: ") + Error,
+        LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error))) { return false; }
+    TestEqual(TEXT("Original and both additional targets are retained"), Projected.Anchors.Num(), 3);
+    TestTrue(TEXT("The saved actor name gives each additional target a distinct identity"), Copy->SharedTrainingId() != Second->SharedTrainingId());
+    TestTrue(TEXT("Projection is stable without modifying the editor"), LDStaticScene::ProjectRuntimeGeometry(*World, Base, Again, Error)
+        && FLDDemoWorldGeometry::StaticStruct()->CompareScriptStruct(&Projected, &Again, PPF_None));
+    TArray<USceneComponent*> Children;
+    Original->BodyPreview->GetChildrenComponents(true, Children);
+    for (const auto* Child : Children)
+    { TestTrue(TEXT("Even an empty body preview has only editor-only children: ") + Child->GetName(), Child->IsEditorOnly()); }
+    Copy->Destroy();
+    TestTrue(TEXT("Deleting a shared target leaves the original and the other target"),
+        LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error) && Projected.Anchors.Num() == 2);
+    auto* Conflict = World->SpawnActor<ALDLayoutPoint>();
+    Conflict->Tags.Add(TEXT("LDSceneAnchor:training_dummy_0"));
+    TestFalse(TEXT("A real conflicting reserved slot still reports an error"), LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
+    TestTrue(TEXT("The diagnostic names the conflicting slot"), Error.Contains(TEXT("training_dummy_0")));
     return !HasAnyErrors();
 }

@@ -19,6 +19,8 @@ ALDLayoutPoint::ALDLayoutPoint()
     BodyPreview = CreateEditorOnlyDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("BodyPreview"));
     PropPreview = CreateEditorOnlyDefaultSubobject<UStaticMeshComponent>(TEXT("PropPreview"));
     RangePreview = CreateEditorOnlyDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("RangePreview"));
+    // The editor binary also runs -game clients, where editor-only subobjects are deliberately absent.
+    if (!BodyPreview || !PropPreview || !RangePreview) { return; }
     BodyPreview->SetupAttachment(GetRootComponent());
     PropPreview->SetupAttachment(GetRootComponent());
     RangePreview->SetupAttachment(GetRootComponent());
@@ -79,3 +81,27 @@ void ALDLayoutPoint::OnConstruction(const FTransform& Transform)
     RangePreview->SetRelativeLocation(FVector(0,0,GroundOffset));
 #endif
 }
+
+#if WITH_EDITOR
+void ALDLayoutPoint::ConfigureTrainingCopy()
+{
+    if (!GetWorld() || GetWorld()->IsGameWorld()) { return; }
+    for (FName Tag : Tags)
+    {
+        if (Tag.ToString().StartsWith(TEXT("LDSceneAnchor:training_dummy_")))
+        { bSharedTrainingDummy = true; break; }
+    }
+}
+
+void ALDLayoutPoint::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+    Super::PostDuplicate(DuplicateMode);
+    if (DuplicateMode == EDuplicateMode::Normal) { ConfigureTrainingCopy(); }
+}
+
+void ALDLayoutPoint::PostEditImport()
+{
+    Super::PostEditImport();
+    ConfigureTrainingCopy();
+}
+#endif

@@ -1,5 +1,6 @@
 #include "Art/LDStaticScene.h"
 #include "World/LDNativeGround.h"
+#include "World/LDLayoutPoint.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Level.h"
 #include "Engine/Brush.h"
@@ -114,11 +115,18 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     TMap<FString, const AStaticMeshActor*> Shapes;
     TMap<FString, FString> Prototypes;
     TMap<FString, const AActor*> Points;
+    TMap<FString, const ALDLayoutPoint*> SharedTraining;
     auto Fail = [&](const FString& Why) { Error = Why; return false; };
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
         if (!Actor) { continue; }
         if (Actor == World.GetDefaultBrush()) { continue; }
+        if (const auto* Layout = Cast<ALDLayoutPoint>(Actor); Layout && Layout->bSharedTrainingDummy)
+        {
+            if (!bForPlay) { return Fail(TEXT("Shared training points are authored in the saved level; the source snapshot exporter does not support them.")); }
+            SharedTraining.Add(Layout->SharedTrainingId(), Layout);
+            continue;
+        }
         if (!bForPlay && !Actor->ActorHasTag(LDDemoWorld::StaticGeometryTag))
         {
             TInlineComponentArray<UPrimitiveComponent*> Parts(Actor);
@@ -322,6 +330,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             if (!Home) { return Fail(TEXT("Missing camp member home point: ") + Member.Id); }
             Member.PositionCm = Point(Home->GetActorLocation());
         }
+    }
+    TArray<FString> SharedIds;
+    SharedTraining.GetKeys(SharedIds);
+    SharedIds.Sort();
+    for (const FString& Id : SharedIds)
+    {
+        auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
+        Anchor.Id = Id;
+        Anchor.Kind = ELDDemoWorldAnchorKind::TrainingDummy;
+        Anchor.SurfaceId = Base.Surfaces[0].Id;
+        Anchor.PositionCm = Point(SharedTraining[Id]->GetActorLocation());
     }
     Error.Reset(); return true;
 }

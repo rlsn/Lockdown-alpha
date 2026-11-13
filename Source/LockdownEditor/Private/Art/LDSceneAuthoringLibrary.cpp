@@ -38,3 +38,10 @@ bool ULDSceneAuthoringLibrary::ValidateGround(UWorld* World, FString& Error)
     if (!Registry) { Error = TEXT("The Demo editor world has no map registry."); return false; }
     return Registry->Rebuild(Error);
 }
+
+FString ULDSceneAuthoringLibrary::GroundValidationError(UWorld* World)
+{
+    FString Error;
+    if (!ValidateGround(World, Error) && Error.IsEmpty()) { return TEXT("Ground validation failed without a diagnostic."); }
+    return Error;
+}
