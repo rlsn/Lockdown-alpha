@@ -243,24 +243,24 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
     CompareDynamic();
     Passed &= TestTrue(TEXT("Body despawn leaves authored revision unchanged"), Registry->Revision() == Revision);
 
-    // A foreign native support reports WrongSurface, rather than being promoted to registered terrain.
+    // Static support added after binding reports WrongSurface until Rebuild; dynamic bodies were ignored above.
     AActor* Foreign = World->SpawnActor<AActor>();
     UBoxComponent* Box = NewObject<UBoxComponent>(Foreign);
     Foreign->SetRootComponent(Box);
     Foreign->AddInstanceComponent(Box);
     Box->SetBoxExtent(FVector(100, 100, 10));
-    Box->SetCollisionObjectType(ECC_WorldDynamic);
+    Box->SetCollisionObjectType(ECC_WorldStatic);
     Box->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     Box->SetCollisionResponseToAllChannels(ECR_Ignore);
-    Box->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+    Box->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
     Box->RegisterComponent();
     Foreign->SetActorLocation(Foot - FVector(0, 0, 10));
     auto* Floor = Registry->Sites()[0].Floor.Get();
-    const auto Response = Floor->GetCollisionResponseToChannel(ECC_GameTraceChannel1);
-    Floor->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+    const auto Response = Floor->GetCollisionResponseToChannel(ECC_Pawn);
+    Floor->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
     ON_SCOPE_EXIT
     {
-        Floor->SetCollisionResponseToChannel(ECC_GameTraceChannel1, Response);
+        Floor->SetCollisionResponseToChannel(ECC_Pawn, Response);
         Foreign->Destroy();
     };
     Compare(Foot, Surface, Capsule, false);

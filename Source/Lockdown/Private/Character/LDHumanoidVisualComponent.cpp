@@ -283,6 +283,32 @@ void ULDHumanoidVisualComponent::CopyLook(const ULDHumanoidVisualComponent& Sour
     else if (Source.LookSlot != MAX_uint8) { ApplyPalette(Source.LookSlot); }
 }
 
+#if WITH_EDITOR
+void ULDHumanoidVisualComponent::ApplyEditorPreview(const FLDArtCharacter& Look, const FLinearColor& Identity)
+{
+    ApplyLook(&Look, Identity, TEXT("Layout preview"));
+    for (UStaticMeshComponent* Part : Parts) { Part->SetVisibility(false); Part->bIsEditorOnly = true; }
+    for (UStaticMeshComponent* Part : Edges) { Part->SetVisibility(false); Part->bIsEditorOnly = true; }
+    Pivot->bIsEditorOnly = true;
+    Mesh->bIsEditorOnly = true;
+    Mesh->SetVisibility(true);
+    Mesh->SetHiddenInGame(true);
+    if (const auto* Idle = Look.Find(ELDArtAnim::Idle))
+    {
+        Mesh->PlayAnimation(Idle->Sequence, true);
+        Mesh->SetPosition(0.f);
+        Mesh->TickAnimation(0.f, false);
+        Mesh->RefreshBoneTransforms();
+    }
+    for (UMeshComponent* Part : Worn)
+    {
+        Part->bIsEditorOnly = true;
+        Part->SetVisibility(true);
+        Part->SetHiddenInGame(true);
+    }
+}
+#endif
+
 void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What)
 {
     using namespace LDHumanoidVisualDetail;

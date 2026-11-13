@@ -1,4 +1,5 @@
 #include "Art/LDStaticScene.h"
+#include "World/LDNativeGround.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Level.h"
 #include "Engine/Brush.h"
@@ -201,9 +202,7 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             TInlineComponentArray<UPrimitiveComponent*> Parts(Actor);
             for (const auto* Part : Parts)
             {
-                if (Part->GetCollisionObjectType() == ECC_WorldStatic && Part->IsQueryCollisionEnabled()
-                    && Part->GetCollisionResponseToChannel(ECC_GameTraceChannel1) == ECR_Block)
-                { Bounds += Part->Bounds.GetBox(); }
+                if (LDNativeGround::IsSupport(*Part)) { Bounds += Part->GetBodyInstance()->GetBodyBounds(); }
             }
         }
         if (!Bounds.IsValid) { return Fail(TEXT("NotGrounded: the scene has no native ground collision.")); }

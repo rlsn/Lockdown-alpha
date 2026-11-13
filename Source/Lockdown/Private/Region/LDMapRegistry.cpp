@@ -1,4 +1,5 @@
 #include "Region/LDMapRegistry.h"
+#include "World/LDNativeGround.h"
 #include "Core/LDLog.h"
 #include "Region/LDMapDefinition.h"
 #include "Art/LDStaticScene.h"
@@ -75,9 +76,15 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     const double Lift = Radius * (1.0 / MinSupportNormalZ - 1.0);
     const double Gap = UCharacterMovementComponent::MAX_FLOOR_DIST + UE_KINDA_SMALL_NUMBER;
     FHitResult Hit;
-    const bool HitFloor = World.SweepSingleByChannel(Hit,
+    const bool HitFloor = Terrain.SweepScene(
         Foot + FVector(0, 0, Height + Lift + Gap), Foot + FVector(0, 0, Height - Gap),
-        FQuat::Identity, ECC_GameTraceChannel1, Capsule);
+        Capsule, Hit);
+    if (Hit.bStartPenetrating)
+    {
+        const FString Detail = FString::Printf(TEXT("Blocked: native capsule starts inside static collision; foot=%s actor=%s."),
+            *Foot.ToString(), *GetNameSafe(Hit.GetActor()));
+        return Reject(ELDWorldQueryFailure::Blocked, *Detail, Failure, Error);
+    }
     if (!HitFloor || Hit.bStartPenetrating || Hit.ImpactNormal.Z < MinSupportNormalZ - 1e-4)
     {
         const FString Detail = FString::Printf(TEXT("NotGrounded: no walkable local native support; foot=%s hit=%d penetrating=%d normalZ=%.6f hitActor=%s. No downward fallback."),
@@ -89,8 +96,7 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     {
         return Reject(ELDWorldQueryFailure::WrongSurface, TEXT("WrongSurface: the physical support differs from the supplied surface."), Failure, Error);
     }
-    if (World.OverlapAnyTestByObjectType(Foot + FVector(0, 0, Height), FQuat::Identity,
-        FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllStaticObjects), Capsule, Query))
+    if (LDNativeGround::Overlaps(World, Foot + FVector(0, 0, Height), Capsule, Query))
     {
         return Reject(ELDWorldQueryFailure::Blocked, TEXT("Blocked: native capsule intersects static geometry."), Failure, Error);
     }
@@ -221,8 +227,7 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
         for (auto* Part : Parts)
         {
-            if (Part->GetCollisionObjectType() == ECC_WorldStatic && Part->IsQueryCollisionEnabled()
-                && Part->GetCollisionResponseToChannel(ECC_GameTraceChannel1) == ECR_Block)
+            if (LDNativeGround::IsSupport(*Part))
             {
                 Floors.Add(Part);
                 if (!Floor) { Floor = Part; }
@@ -475,6 +480,11 @@ bool ULDMapRegistry::QueryGroundReference(const FVector& FootCm, const FCollisio
 bool ULDMapRegistry::IsTerrainFloor(const UPrimitiveComponent* Floor) const
 {
     return Floor && TerrainFloors.ContainsByPredicate([Floor](const auto& Piece) { return Piece.Get() == Floor; });
+}
+
+bool ULDMapRegistry::TraceGround(const FVector& Start, const FVector& End, FHitResult& Hit) const
+{
+    return Enabled() && Terrain.TraceScene(Start, End, Hit);
 }
 
 bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,

@@ -1,4 +1,5 @@
 #include "Region/LDMapGeometry.h"
+#include "World/LDNativeGround.h"
 
 #include "LDMapGeometryJson.h"
 #include "Engine/World.h"
@@ -139,6 +140,19 @@ void FTerrain::BindScene(UWorld& World, const FBox& Bounds)
 {
     Scene = &World;
     SceneBounds = Bounds;
+    SceneQuery = LDNativeGround::Query(World);
+}
+
+bool FTerrain::TraceScene(const FVector& Start, const FVector& End, FHitResult& Hit) const
+{
+    const UWorld* World = Scene.Get();
+    return World && LDNativeGround::Trace(*World, Hit, Start, End, SceneQuery);
+}
+
+bool FTerrain::SweepScene(const FVector& Start, const FVector& End, const FCollisionShape& Shape, FHitResult& Hit) const
+{
+    const UWorld* World = Scene.Get();
+    return World && LDNativeGround::Sweep(*World, Hit, Start, End, Shape, SceneQuery);
 }
 
 int32 FTerrain::Tier(const FVector2D& Point) const
@@ -146,8 +160,8 @@ int32 FTerrain::Tier(const FVector2D& Point) const
     if (Scene.IsValid())
     {
         FHitResult Hit;
-        if (!Scene->LineTraceSingleByChannel(Hit, FVector(Point, SceneBounds.Max.Z + 1),
-            FVector(Point, SceneBounds.Min.Z - 1), ECC_GameTraceChannel1)) { return MAX_int32; }
+        if (!TraceScene(FVector(Point, SceneBounds.Max.Z + 1),
+            FVector(Point, SceneBounds.Min.Z - 1), Hit)) { return MAX_int32; }
         // Preserve the gameplay tier of standard terrain (a ramp is its lower level plus one half tier).
         // Its support and location still come from the current native body, even after a move or copy.
         if (const AActor* Actor = Hit.GetActor())
@@ -173,8 +187,8 @@ void FTerrain::Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) 
     if (const UWorld* Native = Scene.Get())
     {
         FHitResult Hit;
-        if (Native->LineTraceSingleByChannel(Hit, FVector(Point, SceneBounds.Max.Z + 1),
-            FVector(Point, SceneBounds.Min.Z - 1), ECC_GameTraceChannel1))
+        if (TraceScene(FVector(Point, SceneBounds.Max.Z + 1),
+            FVector(Point, SceneBounds.Min.Z - 1), Hit))
         { OutZ = Hit.ImpactPoint.Z; OutNormal = Hit.ImpactNormal; }
         else { OutZ = std::numeric_limits<double>::quiet_NaN(); OutNormal = FVector::UpVector; }
         return;

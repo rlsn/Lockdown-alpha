@@ -18,6 +18,8 @@
 #include "Misc/ScopeExit.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
+#include "Character/LDCharacter.h"
+#include "World/LDNativeGround.h"
 #include "Vision/LDVisionDirector.h"
 #include "Subsystems/EditorActorSubsystem.h"
 
@@ -160,6 +162,8 @@ bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
 {
     FSceneFixture F;
     if (!TestTrue(TEXT("Saved formal tree loads: ") + F.Error, F.Load())) { return false; }
+    FLDDemoWorldGeometry Baseline;
+    if (!TestTrue(TEXT("Current editable scene projects"), LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Baseline, F.Error))) { return false; }
     auto* System = GEditor->GetEditorSubsystem<UEditorActorSubsystem>();
     auto* Copy = Cast<AStaticMeshActor>(System->DuplicateActor(F.Tree, F.World, FVector(600, 200, 0)));
     if (!TestNotNull(TEXT("Standard editor duplication creates a tree"), Copy)) { return false; }
@@ -167,10 +171,10 @@ bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
     FLDDemoWorldGeometry Projected;
     TestFalse(TEXT("Explicit source export requires unique identities"), LDStaticScene::ProjectGeometry(*F.World, *F.Geometry, Projected, F.Error));
     TestTrue(TEXT("Play derives stable identities for an ordinary duplicate"), LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Projected, F.Error));
-    TestEqual(TEXT("Play retains the copied blocker"), Projected.Blockers.Num(), F.Geometry->Blockers.Num() + 1);
+    TestEqual(TEXT("Play retains the copied blocker"), Projected.Blockers.Num(), Baseline.Blockers.Num() + 1);
     TestTrue(TEXT("Synchronization assigns a fresh copy identity: ") + F.Error, LDStaticSceneEditor::NormalizeCopies(*F.World, *F.Geometry, F.Error));
     TestTrue(TEXT("Both copied collision bodies enter the scene projection: ") + F.Error, LDStaticScene::ProjectGeometry(*F.World, *F.Geometry, Projected, F.Error));
-    TestEqual(TEXT("The extra tree is retained, not ignored"), Projected.Blockers.Num(), F.Geometry->Blockers.Num() + 1);
+    TestEqual(TEXT("The extra tree is retained, not ignored"), Projected.Blockers.Num(), Baseline.Blockers.Num() + 1);
     TSet<FString> Ids;
     for (const auto& B : Projected.Blockers) { Ids.Add(B.Id); }
     TestEqual(TEXT("Every blocker identity is unique"), Ids.Num(), Projected.Blockers.Num());
@@ -201,5 +205,59 @@ bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
     Floor->Destroy();
     TestFalse(TEXT("Missing ground under required points still fails clearly"), Registry->Rebuild(F.Error));
     TestTrue(TEXT("Failure identifies the ground problem"), F.Error.Contains(TEXT("NotGrounded")));
+    return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDStaticSceneReplacementFloor, "Lockdown.Rules.StaticScene.ReplacementFloorAndOverlay",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
+{
+    FSceneFixture F;
+    if (!TestTrue(TEXT("Saved editable scene loads: ") + F.Error, F.Load())) { return false; }
+    auto* Registry = F.World->GetSubsystem<ULDMapRegistry>();
+    AStaticMeshActor* Original = nullptr;
+    for (TActorIterator<AStaticMeshActor> It(F.World); It; ++It)
+    { if (It->ActorHasTag(TEXT("demo_ground"))) { Original = *It; break; } }
+    if (!TestNotNull(TEXT("Original floor exists"), Original)) { return false; }
+    const FBox Bounds = Original->GetComponentsBoundingBox(true);
+    auto* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+    const auto Floor = [&](const FVector& Centre, const FVector& Size)
+    {
+        auto* Actor = F.World->SpawnActor<AStaticMeshActor>(Centre, FRotator::ZeroRotator);
+        auto* Part = Actor->GetStaticMeshComponent();
+        Part->SetStaticMesh(Cube);
+        Actor->SetActorScale3D(Size / 100.);
+        Part->SetCollisionProfileName(TEXT("BlockAll"));
+        Part->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
+        return Actor;
+    };
+    // New meshes have no project tags and deliberately do not respond to the old custom ground channel.
+    const FVector Size = Bounds.GetSize(), Centre = Bounds.GetCenter();
+    auto* Left = Floor(Centre - FVector(Size.X * .25,0,0), FVector(Size.X * .5,Size.Y,Size.Z));
+    auto* Right = Floor(Centre + FVector(Size.X * .25,0,0), FVector(Size.X * .5,Size.Y,Size.Z));
+    Original->Destroy();
+    TestTrue(TEXT("Deleting the named floor and replacing it with two ordinary collision meshes plays: ") + F.Error, Registry->Rebuild(F.Error));
+    FHitResult Hit;
+    TestTrue(TEXT("Pointer/terrain ray finds ordinary replacement collision"), Registry->TraceGround(
+        FVector(Centre.X,Centre.Y,1000),FVector(Centre.X,Centre.Y,-1000),Hit));
+    const double Top = Bounds.Max.Z;
+    auto* Overlay = Floor(FVector(Centre.X,Centre.Y,Top+2.5),FVector(Size.X,Size.Y,5));
+    TestTrue(TEXT("A thin collision overlay updates standing heights: ") + F.Error, Registry->Rebuild(F.Error));
+    TestTrue(TEXT("Overlay is the native support on flat terrain"), Registry->TraceGround(
+        FVector(Centre.X,Centre.Y,1000),FVector(Centre.X,Centre.Y,-1000),Hit) && Hit.GetActor()==Overlay);
+    const auto* Spawn = Registry->Resolve(TEXT("rest_spawn_0"),Registry->Generation);
+    if (TestNotNull(TEXT("Spawn remains bound"), Spawn))
+    { TestEqual(TEXT("Spawn height follows overlay"), Spawn->Position.Z, Top+5); }
+    auto* Body = F.World->SpawnActor<ALDCharacter>(FVector(Centre.X,Centre.Y,Top+95),FRotator::ZeroRotator);
+    TestTrue(TEXT("Pawn bodies do not become ground"), Registry->TraceGround(FVector(Centre.X,Centre.Y,1000),FVector(Centre.X,Centre.Y,-1000),Hit)
+        && Hit.GetActor()==Overlay);
+    Body->Destroy();
+    auto* VisualOnly = Floor(FVector(Centre.X,Centre.Y,Top+25),FVector(Size.X,Size.Y,5));
+    VisualOnly->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Ignore);
+    VisualOnly->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1,ECR_Block);
+    TestTrue(TEXT("A surface that does not block characters does not prevent Play: ") + F.Error, Registry->Rebuild(F.Error));
+    Overlay->Destroy(); Left->Destroy(); Right->Destroy(); VisualOnly->Destroy();
+    TestFalse(TEXT("Removing actual support still refuses unsafe spawn"), Registry->Rebuild(F.Error));
     return !HasAnyErrors();
 }

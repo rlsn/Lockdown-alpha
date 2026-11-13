@@ -35,6 +35,9 @@ public:
     void ApplyPalette(uint8 Slot);
     // Camp NPC look (APP_SPEC 1.1): the catalog's body of the camp tier (discipline monitor, PE teacher) in its tint.
     void ApplyMonsterLook(uint8 CreatureId);
+#if WITH_EDITOR
+    void ApplyEditorPreview(const FLDArtCharacter& Look, const FLinearColor& Identity);
+#endif
     // Source's look, for a puppet that replaces it.
     void CopyLook(const ULDHumanoidVisualComponent& Source);
     void Animate(const FVector& Velocity, float Delta);

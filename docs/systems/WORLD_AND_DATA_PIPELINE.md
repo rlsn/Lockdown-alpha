@@ -453,10 +453,20 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 
 显式源导出仍受作者数据格式约束：树干直立、正缩放且 X/Y 相等；地面矩形且轴对齐，坡道、高台满足层高规则。
 这些导出约束不阻止普通关卡 Play。复制出生/服务等布局点造成身份或数量冲突仍会明确拒绝。
-原生移动使用 Pawn 响应，地面使用 DemoGround 响应，遮挡使用 DemoSight 响应；没有碰撞的花草不会变成阻挡。
+原生移动、地面高度、落地胶囊和鼠标落点统一查询阻挡 Pawn 的 WorldStatic 原生碰撞，不要求模型响应专用地面通道或保留 `demo_ground` Actor。
+地面可以由多个普通模型拼接；没有真实碰撞、忽略 Pawn 的视觉面片不会作为支撑，也不会仅因其地面通道设置而阻止开局。
+派生的隐形悬崖护栏只挡横向移动，不作为站立面；动态角色不参与地面射线。遮挡继续使用 DemoSight 响应。
 世界修订包含当前静态网格体的模型、变换和碰撞响应，编辑后不会复用旧地面或观察缓存。
 
-专项测试：`Lockdown.Rules.StaticScene.PersistenceAndBinding` 与 `StaticScene.CopyIdentityAndSafety`，
+`LDLayoutPoint` 在原布局点上提供只在编辑器显示的身体、道具和范围预览。移动整个定位点会改变对应的局内生成位置；
+角色、怪物和假人的实际生命与 AI 仍由服务器生成，预览没有碰撞、不参加导航、不在局内显示。
+预览外观参数不修改内容目录中的正式外观、数量、技能范围或刷新规则。
+
+导航使用编辑器自动更新、运行时静态数据。完成碰撞编辑后构建路径并保存关卡；
+`LDSceneAuthoringLibrary::BakeNavigation` 等待原生 Recast 构建结束并确认可用，同时启用编辑器的自动导航更新。
+不在游戏中重新烘焙静态地形；若以后增加局内拆墙或建造，需要另行接入动态导航。
+
+专项测试：`Lockdown.Rules.StaticScene.PersistenceAndBinding`、`StaticScene.CopyIdentityAndSafety` 与 `StaticScene.ReplacementFloorAndOverlay`，
 以及 `Scripts/TestApplyDemoMapEdits.py` 的字节保持、坐标更新、旧摘要/重复 id/越界字段拒绝检查。
 
 ## 检查入口
