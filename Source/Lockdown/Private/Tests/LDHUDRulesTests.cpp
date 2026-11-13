@@ -2014,8 +2014,18 @@ bool FLDHUDAttributeViewTest::RunTest(const FString& Parameters)
     // The entry shows the final value alone; the popup keeps the unit, the clamp note and the sources.
     FLDCombatAttributeRowView Speed;Speed.Attribute=uint8(A::AttackSpeed);Speed.Final.Numerator=5;Speed.Final.Denominator=4;Speed.bClamped=true;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Speed);
-    TestEqualSensitive(TEXT("The entry value has no unit"),Row.Value,FString(TEXT("1.25")));
-    TestTrue(TEXT("The popup line keeps the unit and the clamp"),Row.Final.StartsWith(TEXT("1.25 次/秒"))&&Row.Final.Contains(TEXT("上下限")));
+    TestEqualSensitive(TEXT("Attack speed reads as whole attacks per minute, without a unit in the entry"),Row.Value,FString(TEXT("75")));
+    TestTrue(TEXT("The popup line keeps the unit and the clamp"),Row.Final.StartsWith(TEXT("75 次/分钟"))&&Row.Final.Contains(TEXT("上下限")));
+    FLDCombatAttributeRowView SlowSpeed;SlowSpeed.Attribute=uint8(A::AttackSpeed);SlowSpeed.Final.Numerator=9;SlowSpeed.Final.Denominator=10;
+    TestEqualSensitive(TEXT("0.9 attacks per second reads as 54"),LDHUD::AttributeRow(SlowSpeed).Value,FString(TEXT("54")));
+    FLDCombatAttributeRowView Move;Move.Attribute=uint8(A::MoveSpeed);Move.Final.Numerator=300;Move.Final.Denominator=1;
+    TestEqualSensitive(TEXT("Move speed has no unit anywhere"),LDHUD::AttributeRow(Move).Final,FString(TEXT("300")));
+    FLDCombatAttributeRowView Haste;Haste.Attribute=uint8(A::CooldownHaste);Haste.Final.Numerator=30;Haste.Final.Denominator=1;
+    const LDHUD::FAttributeRowView HasteRow=LDHUD::AttributeRow(Haste);
+    TestEqualSensitive(TEXT("Haste 30 reads as a 23% cooldown reduction"),HasteRow.Value,FString(TEXT("23%")));
+    TestTrue(TEXT("The haste popup keeps the haste points"),HasteRow.Final.Contains(TEXT("23%"))&&HasteRow.Final.Contains(TEXT("30")));
+    FLDCombatAttributeRowView NoHaste;NoHaste.Attribute=uint8(A::CooldownHaste);NoHaste.Final.Denominator=1;
+    TestEqualSensitive(TEXT("No haste reads as 0%"),LDHUD::AttributeRow(NoHaste).Value,FString(TEXT("0%")));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(A::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=4;
     TestEqualSensitive(TEXT("A ratio reads as a percentage"),LDHUD::AttributeRow(Crit).Value,FString(TEXT("25%")));
     return true;
