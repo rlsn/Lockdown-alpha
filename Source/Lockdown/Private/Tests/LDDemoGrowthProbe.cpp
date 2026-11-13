@@ -2964,7 +2964,8 @@ public:
                 bDevOpenedInDevelopment ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected,
                 bDevOpenedInDevelopment ? ELDGrowthReason::None : ELDGrowthReason::StaleContext,
                 [Public,this] { return !bDevOpenedInDevelopment || Public->PublicMatch.Showdown.bStarted
-                    || (Public->PublicMatch.Timeline.RestIndex==3 && Public->PublicMatch.Timeline.Stage==ELDMatchStage::Return); }));
+                    || (Public->PublicMatch.Timeline.RestIndex==3 && Public->PublicMatch.Timeline.Stage==ELDMatchStage::Rest
+                        && Public->PublicMatch.Timeline.Step==ELDRestStep::Return); }));
         }
         return Finish();
     }

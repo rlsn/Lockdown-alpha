@@ -12,6 +12,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDControlSettings.h"
 #include "Framework/LDDemoEntry.h"
 #include "Combat/LDCombatCues.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -148,7 +149,7 @@ void ALDCharacter::Tick(float Delta)
     }
     const bool bCue=Selected.Cue!=ELDObservedActionCue::None;
     const int64 ImpactAtMs=Selected.Cue==ELDObservedActionCue::Hit ? 0
-        : View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActionReleaseAtMs
+        : View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActingReleaseAtMs
         : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
     Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
         bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,
