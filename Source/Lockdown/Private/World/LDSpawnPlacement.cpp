@@ -331,9 +331,11 @@ bool ULDMapRegistry::ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelect
         || Capsule.GetCapsuleHalfHeight()!=Required.GetCapsuleHalfHeight())
     { Error=TEXT("Spawn reservation requires the exact approved native capsule."); return false; }
     const auto* Anchor=Resolve(Selection->Anchor,Generation);
-    // The enclosed rest room cannot route to the field capture point; it must route to a room service instead.
+    // Each isolated area routes to its own reachable reference, not the field capture point.
     const FName ReferenceId=IsRestSpawn(Geometry.Get(),Selection->Anchor)
-        ? FName(*LDDemoWorld::RestServiceId(1)) : FName(*Content->Get().World.CaptureId);
+        ? FName(*LDDemoWorld::RestServiceId(1))
+        : IsFinalSpawn(Geometry.Get(),Selection->Anchor)
+            ? FName(*LDDemoWorld::FinalCaptureId()) : FName(*Content->Get().World.CaptureId);
     const auto* Reference=Resolve(ReferenceId,Generation);
     if (!Anchor || !Reference || Geometry->SpawnOffsetsCm.Num()!=7)
     { Error=TEXT("Compiled spawn anchor, local offsets or reference path endpoint is missing."); return false; }

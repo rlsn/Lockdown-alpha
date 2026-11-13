@@ -36,7 +36,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
 训练锚点不进入野外 POI 或小地图地点。六个 `PKSignup` 锚点是公共报名圈里的不同站位，报名范围复用 `AIRDROP.PickupRadiusCm`。
 Python/native importer 都识别新增锚点，服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
-的完整室内原生路径；野外和 PK 出生仍以旗杆为路径参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
+的完整室内原生路径；野外和 PK 出生以野外旗杆为路径参考，终局出生以终局旗杆为参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
 改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
 `BootstrapAssets.ps1 -Mode Regenerate`；必须重生成原生地图与定义，不能只刷新旧定义或复制旧地图作为新几何。
 
