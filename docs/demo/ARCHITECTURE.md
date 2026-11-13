@@ -142,7 +142,7 @@ D34 的文档同步规则持续有效。后续任何删除仍须先做 C3/C4，�
 | --- | --- | --- |
 | D27 | 旧 probe 的 RPC/flags/friends 与核心接线：`ServerProbeHello/ClientProbePhase`、GameInstance Evidence 指针、`LDRemoteAuthority` 不参赛 Host 特免 | DEV probe 只在 `WITH_DEV_AUTOMATION_TESTS` 下由命令行开关启用，经公开读接口观察，不给 Host 特免。 |
 | D29 | 旧 Input/Economy/View/HUD/Combat/Tactical/Inventory/CharacterBuild/V08Loadout/Loadout/Preparation 专测与旧数量/职业/schema 断言 | 必需用例由 [CheckRuleReport.py](../../Scripts/CheckRuleReport.py) 的明确集合约束；不以旧测试数或旧结果充数。 |
-| D30 | `Scripts\Run{Movement,Navigation,Input,HUD,Combat,CombatNetwork,Reset,Soak,Tactical,Geometry,Content,ContentNetwork}Check.ps1` 与对应 probe | 场景改为 `Scripts\RunDemo*Check.ps1`，见 §7.1 与[开发指南](../DEVELOPMENT.md#最小验证选择)。 |
+| D30 | `Scripts\Run{Movement,Navigation,Input,HUD,Combat,CombatNetwork,Reset,Soak,Tactical,Geometry,Content,ContentNetwork}Check.ps1` 与对应 probe | 场景改为 `Scripts\RunDemo*Check.ps1`，见 §7.1 与[开发指南](../systems/VERIFICATION.md#最小验证选择)。 |
 | D31 | B81–B86、B90–B92 的旧 Open/Run/Check/Capture 截图链 | [CaptureInputUI.ps1](../../Scripts/CaptureInputUI.ps1) 只保留当前 `L_Frontend` 的窗口截图能力。 |
 | D32 | `Scripts\{SyncV07*,SyncB84Data}.py`、`Scripts\TestB84Import.py` 与 V09/B91/B92 生成链 | 同 D21；世界几何由 `Scripts\SyncDemoWorldData.py` 产生。 |
 | D34 | systems 手册、README、DEVELOPMENT 与本报告中已删机制的章节、入口与引用 | 持续规则：每个代码/数据批次同改手册和链接；APP_SPEC/AGENTS 的有效规则保留。完成的删除项及失效源码引用不作为长期档案留在当前报告，历史仅在 Git。 |
@@ -471,7 +471,7 @@ T1/T8 的入口和检查分类应同步准备；收敛最终验收在 T3–T7/M1
 
 ### 7.1 旧检查的迁移结果
 
-旧检查已按下表迁移或退役；当前检查入口与覆盖范围以[开发指南](../DEVELOPMENT.md#最小验证选择)的验证表为准，
+旧检查已按下表迁移或退役；当前检查入口与覆盖范围以[开发指南](../systems/VERIFICATION.md#最小验证选择)的验证表为准，
 不能把旧 profile 仍能启动作为 Demo 的验收前提。
 
 | 旧入口 | 保留的不变量 | 当前替代 |
@@ -487,7 +487,7 @@ T1/T8 的入口和检查分类应同步准备；收敛最终验收在 T3–T7/M1
 不能靠恢复旧 profile、维护两套玩法或删除仍有效的失败断言取得“通过”。
 纯旧玩法专测退役要标明理由与是否有 Demo 替代用例，不把旧测试计数当永久指标。
 
-实施时结合本表处置和 [开发指南](../DEVELOPMENT.md#最小验证选择) 选择最小检查：
+实施时结合本表处置和 [开发指南](../systems/VERIFICATION.md#最小验证选择) 选择最小检查：
 数据先 Sync/输入拒绝；原生接口/资产再 Editor/Game 构建与 Bootstrap Validate；
 网络、成长、胜负必须到真实拥有连接。迁移前各 runner 的参数/profile 不通用，
 不能直接假定已有 Demo 参数；迁移后的运行验收只针对唯一 Demo 流程，

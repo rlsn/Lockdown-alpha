@@ -468,7 +468,7 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 观察的有界编码、隐私、句柄和遮挡使用 `Lockdown.Rules.DemoVision.*`。
 真实拥有连接使用 `RunDemoWorldRoomCheck.ps1`（Lobby）、`RunDemoCoreCheck.ps1`（身体与地面）、
 `RunDemoCampCheck.ps1`（营地 N03）和 `RunDemoCaptureCheck.ps1`（喷漆、守护与终局 N02）；
-全部场景及打包版运行方式见[开发指南](../DEVELOPMENT.md#最小验证选择)。
+全部场景及打包版运行方式见[开发指南](VERIFICATION.md#最小验证选择)。
 旧 B90/B91、World/Objective/Region probe 已删除，不作为验收入口。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
 

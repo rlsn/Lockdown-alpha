@@ -120,7 +120,7 @@ AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景�
 | E09 | [LDOpponentController.h](../../Source/Lockdown/Public/AI/LDOpponentController.h)，[LDOpponentPolicy.h](../../Source/Lockdown/Public/AI/LDOpponentPolicy.h) | 每个 AI 槽由独立 `ALDOpponentController` 驱动，经与真人相同的领域入口发育、选择并喷漆、守护与围攻 | 纯策略测试通过就等于满员对局可玩（真实连接见 `RunDemoOpponentCheck.ps1`） |
 | E10 | [SourceData/Demo](../../SourceData/Demo)，[SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)，[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 唯一作者域、schema、稳定 ID 与载荷契约；首版内容与数值已于 2026-11-02 获批 | 首次试玩输入获批就是平衡测试结论 |
 | E11 | [LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)，[LDCombatSourceRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDCombatSourceRulesTests.cpp) | `Lockdown.Rules.DemoGrowth*` 与战斗来源用例覆盖等级/点数/主动机会、学习与加点准入与来源冷却（按 #198 第一部分改写，未运行） | 规则套件全绿就满足拥有连接下的 Demo 行为 |
-| E12 | [RunTests.ps1](../../Scripts/RunTests.ps1)，[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)，[开发指南](../DEVELOPMENT.md#最小验证选择) | 已有构建、生成、规则和场景入口；总入口核对明确的当前用例集合，拒绝缺项、重复、失败与未完成 | 当前组件套件通过就等于 Demo 专属规则与真实场景均已实现 |
+| E12 | [RunTests.ps1](../../Scripts/RunTests.ps1)，[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)，[开发指南](../systems/VERIFICATION.md#最小验证选择) | 已有构建、生成、规则和场景入口；总入口核对明确的当前用例集合，拒绝缺项、重复、失败与未完成 | 当前组件套件通过就等于 Demo 专属规则与真实场景均已实现 |
 | E13 | [架构审计](ARCHITECTURE.md)，§3、§4、§8 | R01–R15 复用、D01–D34 删除闭包（已完成）、N01–N09 新增清单及 C1–C4 门槛 | 资产可不经 C3 盲删，或删除闭包完成就等于 Demo 行为已验收 |
 | E14 | [操作与目标](CONTROLS_AND_TARGETING.md)，§5、§7.3、§10、§11 | 单一订单、只收件入口、写许可激活/原子交接、CMC 子段/事件序、授权终止已按该合同实现，拥有连接见 `RunDemoCombatCheck.ps1` | CT06 的全部提供者封桶（正式 Motion Fence/Sealing）已完成；核心类型仍由生命周期域单点定义 |
 | E15 | [会话与生命周期](SESSION_MATCH_LIFECYCLE.md)，§4–6、§8、§12 | 唯一核心 Match/Victim/Body/DeathKey、实际时间/许可/写闸、RewardBasis、settlement-only、结果和故障退出已实现；3+3、同房间新局与网络异常见 Opponent、Capture、SessionFault 场景 | 跨机器联机已经验证；不能另造第二驱动 |
@@ -134,7 +134,7 @@ AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景�
 ## App Spec 完成标准的覆盖
 
 “场景”指 DEV 拥有连接场景（`RunDemo*Check.ps1`，发布验收在打包版上运行），“规则”指 `RunTests.ps1` 的必需规则。
-每个场景覆盖与不覆盖的内容见[开发指南](../DEVELOPMENT.md#最小验证选择)。
+每个场景覆盖与不覆盖的内容见[开发指南](../systems/VERIFICATION.md#最小验证选择)。
 下表也列出旧版的覆盖入口；#198 当前状态的实际验收以各行限制和本页结论为准，旧版通过不能代替当前验证。
 
 | 完成标准 | 覆盖来源 | 未运行或只有部分覆盖 |
