@@ -43,6 +43,16 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     { return FailCaptureView(Error, TEXT("Invalid public match header.")); }
     if (View.ServerNowMs < 0 || View.StartedAtMs < 0 || View.OpenAtMs < View.StartedAtMs)
     { return FailCaptureView(Error, TEXT("Invalid public match times.")); }
+    const FLDShowdownView& Final = View.Showdown;
+    if (Final.bStarted && (Final.StartedAtMs < View.StartedAtMs || Final.EndsAtMs <= Final.StartedAtMs
+        || Final.RespawnsCloseAtMs <= Final.StartedAtMs || Final.RespawnsCloseAtMs >= Final.EndsAtMs
+        || Final.ClosureAtMs < Final.StartedAtMs || Final.ClosureAtMs >= Final.EndsAtMs || Final.SprayMs <= 0 || Final.GuardMs <= 0
+        || Final.CentreCm.ContainsNaN() || !FMath::IsFinite(Final.InitialRadiusCm) || !FMath::IsFinite(Final.FinalRadiusCm)
+        || Final.FinalRadiusCm <= 0 || Final.InitialRadiusCm <= Final.FinalRadiusCm
+        || View.Timeline.Stage != ELDMatchStage::FinalField || View.OpenAtMs >= Final.EndsAtMs))
+    { return FailCaptureView(Error, TEXT("Invalid final-showdown public clock or arena.")); }
+    if (View.OwnerBankedGuardMs < 0 || (!View.GraffitiOwner.IsValid() && View.OwnerBankedGuardMs != 0))
+    { return FailCaptureView(Error, TEXT("Invalid public guard contribution.")); }
     const bool Solo = View.CircleState == ELDCircleState::Solo;
     const bool Paused = View.CircleState == ELDCircleState::Contested && View.Occupier.IsValid();
     if ((Solo || Paused) != View.Occupier.IsValid()
@@ -153,8 +163,9 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
 bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
 {
     if (!View.Generation || !View.ResultId.IsValid() || !View.ResultSerial
-        || (View.Reason != ELDMatchEndReason::GuardSucceeded && View.Reason != ELDMatchEndReason::HostEnded)
-        || (View.Reason == ELDMatchEndReason::GuardSucceeded) != View.Winner.IsValid())
+        || View.Reason == ELDMatchEndReason::None || uint8(View.Reason) > uint8(ELDMatchEndReason::NoChampion)
+        || (View.Reason == ELDMatchEndReason::GuardSucceeded && !View.Winner.IsValid())
+        || ((View.Reason == ELDMatchEndReason::HostEnded || View.Reason == ELDMatchEndReason::NoChampion) && View.Winner.IsValid()))
     { return FailCaptureView(Error, TEXT("Invalid result identity, reason or winner.")); }
     if (View.StartedAtMs < 0 || View.EndedAtMs < View.StartedAtMs || View.DurationMs != View.EndedAtMs - View.StartedAtMs)
     { return FailCaptureView(Error, TEXT("Invalid result duration.")); }
@@ -170,6 +181,8 @@ bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
             || (Row.Kind != ELDContenderKind::Human && Row.Kind != ELDContenderKind::OpponentAI)
             || Row.FinalLevel < 1 || Row.FinalLevel > CaptureLevelMax)
         { return FailCaptureView(Error, TEXT("Invalid or duplicate result row.")); }
+        if (Row.BankedGuardMs < 0 || Row.BankedGuardMs > View.DurationMs)
+        { return FailCaptureView(Error, TEXT("Invalid result objective contribution.")); }
         Ids.Add(Row.ContenderId);
         Humans += Row.Kind == ELDContenderKind::Human ? 1 : 0;
         if (Row.ContenderId == View.Winner)

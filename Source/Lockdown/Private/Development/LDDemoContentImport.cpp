@@ -2,6 +2,7 @@
 #include "LDDemoContentMath.h"
 #include "Development/LDDemoCardText.h"
 #include "Region/LDMapGeometry.h"
+#include "Framework/LDShowdownSettings.h"
 
 namespace LDDemoContent
 {
@@ -388,6 +389,12 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
+        {TEXT("SHOWDOWN.UnlockDelaySec"), TEXT("ms"), TEXT("ms"), &P.ShowdownUnlockDelayMs, 0, MAX_int32},
+        {TEXT("SHOWDOWN.DurationSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownDurationMs, 1, MAX_int32},
+        {TEXT("SHOWDOWN.FirstRespawnSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownFirstRespawnMs, 1, MAX_int32},
+        {TEXT("SHOWDOWN.SecondRespawnSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownSecondRespawnMs, 1, MAX_int32},
+        {TEXT("SHOWDOWN.RespawnCutoffSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownRespawnCutoffMs, 1, MAX_int32},
+        {TEXT("SHOWDOWN.ClosureStartsSec"), TEXT("ms"), TEXT("ms"), &P.ShowdownClosureStartsMs, 0, MAX_int32},
         {TEXT("MATCH.FieldSegmentSec"), TEXT("ms"), TEXT("ms"), &P.FieldSegmentMs, 1, MAX_int64},
         {TEXT("REST.OpeningBuildSec"), TEXT("ms"), TEXT("ms"), &P.RestOpeningBuildMs, 1, MAX_int64},
         {TEXT("REST.BuildSec"), TEXT("ms"), TEXT("ms"), &P.RestBuildMs, 1, MAX_int64},
@@ -418,7 +425,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("LIFE.RespawnSec.Field1"), TEXT("ms"), TEXT("ms"), &P.RespawnField1Ms, 1, MAX_int64},
         {TEXT("LIFE.RespawnSec.Field2"), TEXT("ms"), TEXT("ms"), &P.RespawnField2Ms, 1, MAX_int64},
         {TEXT("LIFE.RespawnSec.Field3"), TEXT("ms"), TEXT("ms"), &P.RespawnField3Ms, 1, MAX_int64},
-        {TEXT("LIFE.RespawnSec.Final"), TEXT("ms"), TEXT("ms"), &P.RespawnFinalMs, 1, MAX_int64},
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
         {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
@@ -524,6 +530,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
     for (const auto& Field : {
         FCountField{TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
+        {TEXT("SHOWDOWN.RespawnLimit"), &P.ShowdownRespawnLimit, 0},
         {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0},
         {TEXT("AI.RetryPolicy.MaxAttempts"), &P.AI.RetryMaxAttempts, 1},
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
@@ -546,6 +553,10 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
             return false;
         }
     }
+    FLDShowdownParameters Showdown;
+    FString ShowdownError;
+    if (!FLDShowdownParameters::FromContent(P, Showdown, ShowdownError))
+    { return Check.Require(false, F.Path, *ShowdownError); }
     if (!Check.Require(P.BreachMaxStacks <= 10 && P.BurnMaxStacks <= 10 && P.BurnTickMs <= P.BurnMs, F.Path,
         TEXT("keyword stacks are capped at ten and a burn ticks inside its duration"))
         || !Check.Require(P.OverloadBreachStacks <= P.BreachMaxStacks && P.FogIntervalMs <= P.FogMs

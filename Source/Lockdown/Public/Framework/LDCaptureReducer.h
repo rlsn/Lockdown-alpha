@@ -60,19 +60,9 @@ struct FLDCaptureProposal
     int64 DueAtMs = 0;
 };
 
-// The unique spray and guard reducer (APP_SPEC 2.2). Facts are enqueued in commit order and reduced only when their
-// integer boundary closes, in real time order, so intermediate enters, exits, deaths, interruptions and protection
-// changes inside one boundary are never collapsed. A sole effective contender who is not the graffiti owner sprays;
-// a contest pauses his spray progress, he resumes it as the sole sprayer again and loses it when he stops being an
-// effective contender in the zone (exit, death, departure) or is interrupted (root, stun, taunt, knockback). Nobody
-// inherits it. A completed spray paints over any graffiti and starts its owner's guard from zero. The guard runs
-// only while the owner is the only effective contender in the zone (Guarded, 2026-11-07 user decision). It pauses
-// at its value while the zone is empty (the owner is away), freezes while any effective contender other than the
-// owner is in the zone (sole sprayer or contest, with or without the owner) and continues from the kept value once
-// the owner is alone in the zone again. An owner who was in the zone at an instant where the guard was frozen and
-// is out of it when that instant ends, with a challenger still in the zone, resets it to zero (his graffiti stays).
-// The owner's death or departure clears the graffiti. A guard that reaches its full duration is the only
-// completion that ends the match.
+// Real-time facts settle before completions at the same instant. Only an uncontested living owner guards.
+// Leaving, control and death pause that guard; only a completed repaint resets its current progress.
+// Historical guard contribution survives repaints and lives, but never confers eligibility on a dead contender.
 class LOCKDOWN_API FLDCaptureReducer
 {
 public:
@@ -117,6 +107,10 @@ public:
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
     // A contender that joined the capture roster and has not left it.
     bool IsCommittedMember(const FGuid& ContenderId) const;
+    int64 GetBankedGuardMs(const FGuid& ContenderId) const { return BankedGuard.FindRef(ContenderId); }
+    uint32 GetCompletedSprays(const FGuid& ContenderId) const { return CompletedSprays.FindRef(ContenderId); }
+    // A strict objective-contribution leader among living, unprotected members; a complete tie has no winner.
+    FGuid TimeoutWinner() const;
     // #198: the zone opens when the final field begins, an instant only the timeline knows. Begin with OpenAtMs =
     // MAX_int64 ("not scheduled") and move the opening forward to AtMs, a boundary that is not closed yet, so the next
     // CloseBoundary opens it. Refused when inactive, already open, or not earlier than the current schedule.
@@ -135,16 +129,13 @@ private:
         bool bInside = false;
     };
     static bool Transition(TMap<FGuid, FMember>& Members, const FLDCaptureEvent& Event, bool bTimeOrdered, FString& Error);
-    // ResetOwner names the owner who was in the zone under a frozen guard when this instant began; it is passed with
-    // the last fact of the instant only, so an owner and a challenger leaving at the same instant reset nothing (the
-    // empty zone only pauses the guard).
-    bool Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, const FGuid& ResetOwner, FString& Error);
-    bool IsOwnerInFrozenGuard() const;
+    bool Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, FString& Error);
     // Applies the sprays due before Limit (at it too when bInclusive). A running guard due strictly before Limit
     // completes there when bCompleteInside and is a driver contract failure otherwise.
     bool Advance(int64 Limit, bool bInclusive, bool bCompleteInside, bool& bCompleted, FString& Error);
     bool CompleteSpray(FString& Error);
     bool Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCaptureProposal>& Proposal, FString& Error);
+    bool AccountGuard(int64 ThroughMs, FString& Error);
 
     TMap<FGuid, FMember> Committed;
     TMap<FGuid, FMember> Reduced;
@@ -166,6 +157,9 @@ private:
     ELDCircleState State = ELDCircleState::NotOpen;
     FGuid Occupier;
     FGuid Owner;
+    TMap<FGuid, int64> BankedGuard;
+    TMap<FGuid, uint32> CompletedSprays;
+    int64 GuardAccountedThroughMs = 0;
 #if WITH_DEV_AUTOMATION_TESTS
     FLDCaptureDevTally DevCounts;
 #endif

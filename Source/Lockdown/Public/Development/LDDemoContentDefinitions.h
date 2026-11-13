@@ -107,6 +107,13 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
+    UPROPERTY() int64 ShowdownUnlockDelayMs = 0;
+    UPROPERTY() int64 ShowdownDurationMs = 0;
+    UPROPERTY() int64 ShowdownRespawnLimit = 0;
+    UPROPERTY() int64 ShowdownFirstRespawnMs = 0;
+    UPROPERTY() int64 ShowdownSecondRespawnMs = 0;
+    UPROPERTY() int64 ShowdownRespawnCutoffMs = 0;
+    UPROPERTY() int64 ShowdownClosureStartsMs = 0;
     // #198: each of the three field segments; the field progress T only advances in the field.
     UPROPERTY() int64 FieldSegmentMs = 0;
     // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
@@ -163,7 +170,6 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 RespawnField1Ms = 0;
     UPROPERTY() int64 RespawnField2Ms = 0;
     UPROPERTY() int64 RespawnField3Ms = 0;
-    UPROPERTY() int64 RespawnFinalMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
     // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;

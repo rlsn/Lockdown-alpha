@@ -153,6 +153,8 @@ bool FLDHUDLifeStatusTest::RunTest(const FString& Parameters)
     const LDHUD::FDeathView Death=LDHUD::Death(Own,true,2350);
     TestTrue(TEXT("The death banner names the state and the countdown and keeps the build"),Death.bVisible&&Death.Title==LDTerms::DeathTitle&&Death.Countdown==FString(LDTerms::RespawnWait)+TEXT(" 9.7s")&&Death.Note==LDTerms::DeathNote());
     TestEqualSensitive(TEXT("The banner never invents a respawn time"),LDHUD::Death(Own,false,0).Countdown,FString(LDTerms::RespawnWait)+TEXT(" · 时间同步中"));
+    Own.RespawnAtMs=0;
+    TestEqualSensitive(TEXT("An eliminated finalist is never promised another respawn"),LDHUD::Death(Own,true,0,true).Countdown,FString(TEXT("终局已出局")));
     Own.bActive=true;
     TestTrue(TEXT("The Lives phase, not the legacy active flag, decides the line"),LDHUD::LifeStatus(Own,true,0).StartsWith(LDTerms::Dead,ESearchCase::CaseSensitive));
     Own.LifePhase=ELDLifePhase::Unspawned;TestEqualSensitive(TEXT("An unspawned contender is not shown alive"),LDHUD::LifeStatus(Own,true,0),FString(TEXT("等待出生")));

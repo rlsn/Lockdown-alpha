@@ -206,11 +206,17 @@ FString LDHUD::LifeStatus(const FLDOwnerState& Own,bool bClock,int64 NowMs)
     default: return TEXT("生命状态未知");
     }
 }
-LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs)
+LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated)
 {
     FDeathView View;
     if(Own.LifePhase!=ELDLifePhase::Dead){return View;}
     View.bVisible=true;View.Title=LDTerms::DeathTitle;
+    if(bFinalEliminated)
+    {
+        View.Countdown=TEXT("终局已出局");
+        View.Note=TEXT("本局不再复活");
+        return View;
+    }
     const FString Wait(LDTerms::RespawnWait);
     View.Countdown=Own.RespawnAtMs<=0?Wait+TEXT(" · 等待复活时间"):!bClock?Wait+TEXT(" · 时间同步中"):Wait+TEXT(" ")+TenthsUp(Own.RespawnAtMs-NowMs);
     View.Note=LDTerms::DeathNote();
@@ -289,7 +295,15 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
         return View;
     }
     case ELDMatchStage::FinalField:
-        View.Headline=LDTerms::FinalField;
+        if(!Public.Showdown.bStarted){View.Headline=LDTerms::FinalField;return View;}
+        View.Headline=FString(TEXT("终局争旗 · "))+(bClock?Clock(Public.Showdown.EndsAtMs-NowMs):FString(TEXT("时间同步中")));
+        if(Public.Showdown.bStarted&&bClock)
+        {
+            if(NowMs>=Public.Showdown.EndsAtMs-10000){View.Detail=TEXT("最后十秒");}
+            else if(NowMs>=Public.Showdown.ClosureAtMs){View.Detail=TEXT("封街收缩中 · 圈外持续受伤");}
+            else{View.Detail=FString::Printf(TEXT("封街倒计时 %lld 秒"),Seconds(Public.Showdown.ClosureAtMs-NowMs));}
+            if(NowMs>=Public.Showdown.RespawnsCloseAtMs){View.Detail+=TEXT(" · 不再接受新复活");}
+        }
         return View;
     case ELDMatchStage::Rest:
         break;
@@ -299,6 +313,12 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     View.Headline=LDTerms::RestLabel(Timeline.RestIndex)+TEXT(" · ")+RestStepText(Timeline.Step)+TEXT(" · ")
         +(!bClock?FString(TEXT("时间同步中"))
         :FString::Printf(TEXT("%s %lld 秒"),Timeline.Step==ELDRestStep::PK?TEXT("最长剩"):TEXT("剩"),Seconds(Timeline.StepEndsAtMs-NowMs)));
+    if(Timeline.RestIndex==FLDTimelineParameters::TimedSegments)
+    {
+        View.Headline=FString(TEXT("最终休息 · "))+RestStepText(Timeline.Step)+TEXT(" · ")
+            +(bClock?Clock(Timeline.StepEndsAtMs-NowMs):FString(TEXT("时间同步中")));
+        return View;
+    }
     TArray<FString> Detail;
     if(Timeline.Step==ELDRestStep::Build)
     {
@@ -566,7 +586,8 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
     {
     case ELDMatchPhase::Development:
         // #198: the opening is scheduled only when the final field begins (OpenAtMs is unscheduled until then).
-        View.Line=FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
+        View.Line=Public.Showdown.bStarted?FString(TEXT("旗杆解锁 · "))+(!bClock?FString(TEXT("同步中")):TenthsUp(Public.OpenAtMs-NowMs))
+            :FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
         return View;
     case ELDMatchPhase::CaptureOpen:
     {
@@ -733,10 +754,6 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 const FString Owner=bOwn?FString(TEXT("你")):Name(Public.GraffitiOwner);
                 Add(LDTerms::GraffitiSprayed(Owner.IsEmpty()?FString(TEXT("未列名参赛者")):Owner),bOwn);
             }
-            // A kept guard only drops to zero when its owner leaves the zone under a challenger; a guard that was
-            // running cannot pause or freeze at zero for the same owner, since the spray that started it needs the zone alone.
-            else if(Public.GraffitiOwner.IsValid()&&!Public.GuardDueAtMs&&!Public.GuardKeptMs&&(GuardKeptMs>0||GuardDueAtMs))
-            {Add(LDTerms::GuardReset,In.Self.IsValid()&&Public.GraffitiOwner==In.Self);}
         }
         bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
         MarkerSegment=Public.Markers.IsEmpty()?0:Public.Markers[0].Segment;MarkerPhases[0]=MarkerPhases[1]=ELDFieldMarkerPhase::None;
@@ -832,6 +849,9 @@ FString LDHUD::ResultHeadline(const FLDResultView& Result,const FString& WinnerN
     case ELDMatchEndReason::GuardSucceeded:
         return Result.Winner.IsValid()?FString(TEXT("守护成功 · "))+LDTerms::Crowned(WinnerName.IsEmpty()?FString(TEXT("未列名参赛者")):WinnerName):FString(LDTerms::NoWinner);
     case ELDMatchEndReason::HostEnded: return FString(TEXT("房主结束了本局 · "))+LDTerms::NoCapture;
+    case ELDMatchEndReason::ObjectiveTimeout:
+        return Result.Winner.IsValid()?FString(TEXT("终局时间到 · 目标贡献获胜 · "))+WinnerName:TEXT("终局时间到 · 无合格的唯一胜者");
+    case ELDMatchEndReason::NoChampion: return TEXT("终局结束 · 没有存活的合格冠军");
     default: return TEXT("对局结束 · 原因未知");
     }
 }

@@ -1028,6 +1028,13 @@ def validate_numbers(data):
     require(0 < params["UNIT.BasicAttackWindupSec"]["ms"] < interval,
             "InvalidTiming", "basic_attack", "windup must be shorter than attack interval")
     data["character"]["basic_attack"]["interval_ms"] = interval
+    unlock, duration = p("SHOWDOWN.UnlockDelaySec"), p("SHOWDOWN.DurationSec")
+    require(unlock + p("CAPTURE.SpraySec") + p("CAPTURE.GuardSec") <= duration
+            and duration * 1000 <= 2147483647
+            and 0 < p("SHOWDOWN.RespawnCutoffSec") < duration
+            and unlock <= p("SHOWDOWN.ClosureStartsSec") < duration
+            and params["SHOWDOWN.RespawnLimit"] <= 2,
+            "InvalidTiming", "SHOWDOWN", "objective, respawn cutoff, closure and terminal clocks are inconsistent")
     for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
                 "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec"):
         # A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate.

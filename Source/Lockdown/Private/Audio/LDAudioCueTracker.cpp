@@ -56,6 +56,25 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
         if (bCaptureCue) { LastCaptureCueAt = Frame.LocalSeconds; }
     }
 
+    if (ShowdownGeneration != Public->Generation || !Public->Showdown.bStarted || !Frame.bClock)
+    {
+        ShowdownGeneration = Public->Generation;
+        ShowdownSeenAtMs = Public->Showdown.bStarted && Frame.bClock ? Frame.NowMs : -1;
+    }
+    else if (ShowdownSeenAtMs < 0) { ShowdownSeenAtMs = Frame.NowMs; }
+    else if (Frame.NowMs >= ShowdownSeenAtMs)
+    {
+        if (Public->Phase == ELDMatchPhase::Development || Public->Phase == ELDMatchPhase::CaptureOpen)
+        {
+            for (const int64 At : {Public->Showdown.ClosureAtMs, Public->Showdown.RespawnsCloseAtMs, Public->Showdown.EndsAtMs - 10000})
+            {
+                if (ShowdownSeenAtMs < At && Frame.NowMs >= At)
+                { LDAudio::AddUnique(Out, ELDAudioCue::CaptureContested); }
+            }
+        }
+        ShowdownSeenAtMs = Frame.NowMs;
+    }
+
     const FLDKillFeedView* Feed = Frame.KillFeed;
     if (Feed && Feed->Generation != 0 && Feed->Generation == Public->Generation)
     {

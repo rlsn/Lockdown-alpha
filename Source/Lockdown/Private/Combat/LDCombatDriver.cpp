@@ -79,6 +79,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Mode->NextLifeDueMs());
         // #198: every rest step and field segment ends on an exact boundary.
         Consider(Mode->NextTimelineDueMs());
+        Consider(Mode->NextShowdownDueMs());
         // #198 session D: PK ring ticks and throw landings.
         if (Mode->PKDirector) { Consider(Mode->PKDirector->NextDueMs()); }
         // Opening time and the Solo completion must each be an exact step boundary; a resume inside a paused
@@ -181,7 +182,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Effects,[&](const FLDGameplayWritePermit& Permit)
             {
                 // #198 session D: throws land and the PK ring burns after this boundary's ordinary effects.
-                return RunEffects(Permit,Error) && (!Mode->PKDirector || Mode->PKDirector->AdvanceEffects(Permit,Error));
+                return RunEffects(Permit,Error) && (!Mode->PKDirector || Mode->PKDirector->AdvanceEffects(Permit,Error))
+                    && Mode->AdvanceShowdownEffects(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
             {
@@ -194,7 +196,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 // #198: the timeline first (rest entry/exit moves every contender), then field respawns; the world only
                 // advances while a field segment runs.
                 if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)) { return false; }
-                if (!Mode->IsFieldRunning()) { return true; }
+                if (!Mode->IsFieldRunning() || Mode->IsShowdown()) { return true; }
                 return Mode->Camps->AdvanceCamps(Permit,Error)
                     && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceFieldMarkers(Permit,Error)
                     && Mode->AdvanceLeaderNotice(Permit,Error);
@@ -203,7 +205,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 // #198: commands committed at a build deadline settle before the lock of the same boundary.
-                return Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error) && Mode->RetryFieldRewards(Permit,Error)
+                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error)
+                        && Mode->RetryFieldRewards(Permit,Error)))
                     && Mode->Growth->ProcessTransactions(Permit,Error)
                     && Mode->LockTimelineBuild(Permit,Error)
                     // #198 session D: a settled PK pays its frozen awards once.

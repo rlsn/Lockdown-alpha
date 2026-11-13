@@ -5460,7 +5460,7 @@
       "unit": "ms"
     },
     "CAPTURE.GuardSec": {
-      "ms": 30000,
+      "ms": 20000,
       "unit": "ms"
     },
     "CAPTURE.RadiusCm": {
@@ -5664,10 +5664,6 @@
       "ms": 12000,
       "unit": "ms"
     },
-    "LIFE.RespawnSec.Final": {
-      "ms": 15000,
-      "unit": "ms"
-    },
     "MATCH.FieldSegmentSec": {
       "ms": 180000,
       "unit": "ms"
@@ -5797,6 +5793,31 @@
     },
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
+    "SHOWDOWN.ClosureStartsSec": {
+      "ms": 120000,
+      "unit": "ms"
+    },
+    "SHOWDOWN.DurationSec": {
+      "ms": 240000,
+      "unit": "ms"
+    },
+    "SHOWDOWN.FirstRespawnSec": {
+      "ms": 18000,
+      "unit": "ms"
+    },
+    "SHOWDOWN.RespawnCutoffSec": {
+      "ms": 150000,
+      "unit": "ms"
+    },
+    "SHOWDOWN.RespawnLimit": 2,
+    "SHOWDOWN.SecondRespawnSec": {
+      "ms": 24000,
+      "unit": "ms"
+    },
+    "SHOWDOWN.UnlockDelaySec": {
+      "ms": 10000,
+      "unit": "ms"
+    },
     "SKILL.GrowthPerLevel": {
       "bp": 1500,
       "unit": "ratio"

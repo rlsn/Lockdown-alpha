@@ -43,8 +43,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         P.FieldSegmentMs == 180000 && P.OpeningBuildMs == 180000 && P.BuildMs == 120000 && P.SignupMs == 10000
         && P.DrawMs == 5000 && P.BettingMs == 8000 && P.PKReadyMs == 3000 && P.PKMaxMs == 60000 && P.SettlementMs == 3000
         && P.PayoutMs == 12000 && P.ReturnMs == 5000);
-    bGood &= TestTrue(TEXT("Field respawn waits by death T: 8/10/12/15 s"),
-        P.RespawnMs[0] == 8000 && P.RespawnMs[1] == 10000 && P.RespawnMs[2] == 12000 && P.RespawnMs[3] == 15000);
+    bGood &= TestTrue(TEXT("Growth-field respawn waits by death T: 8/10/12 s"),
+        P.RespawnMs[0] == 8000 && P.RespawnMs[1] == 10000 && P.RespawnMs[2] == 12000);
     FString Error;
     {
         FLDTimelineParameters Bad = P;
@@ -119,7 +119,10 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Field 3 runs from T=360 s"), Line.GetFieldSegment() == 2 && Line.FieldMsAt(Field3) == 360000);
     Line.Advance(Line.NextDueMs(), 0, false, true, Events, Error);
     bGood &= TestTrue(TEXT("R3 at T=540 s"), Line.GetRestIndex() == 3 && Line.FieldMsAt(Line.NextDueMs()) == 540000);
-    Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error);
+    bGood &= TestFalse(TEXT("The final rest has no PK signup"), Line.IsSignupOpen(Line.NextDueMs()));
+    Line.Advance(Line.NextDueMs(), 6, true, true, Events, Error);
+    bGood &= TestTrue(TEXT("The final build deadline returns all six directly to showdown without another PK"),
+        Line.GetStep() == ELDRestStep::Return && Line.MakeView(1,1).LockedEntrants == 0);
     Events.Reset();
     const int64 Final = Line.NextDueMs();
     bGood &= TestTrue(TEXT("R3 returns to the final field, which never ends on its own"),
@@ -128,7 +131,7 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         && Line.FieldMsAt(Final + 60000) == 600000);
     bGood &= TestTrue(TEXT("Respawn waits by death T, boundaries included"),
         Line.RespawnWaitMs(0) == 8000 && Line.RespawnWaitMs(179999) == 8000 && Line.RespawnWaitMs(180000) == 10000
-        && Line.RespawnWaitMs(360000) == 12000 && Line.RespawnWaitMs(540000) == 15000 && Line.RespawnWaitMs(9999999) == 15000);
+        && Line.RespawnWaitMs(360000) == 12000 && Line.RespawnWaitMs(540000) == 0 && Line.RespawnWaitMs(9999999) == 0);
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 600000 && View.FieldEndT == -1);

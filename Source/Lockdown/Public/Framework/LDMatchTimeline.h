@@ -77,7 +77,7 @@ struct LOCKDOWN_API FLDTimelineParameters
     int64 PayoutMs = 0;
     int64 ReturnMs = 0;
     // Field respawn wait fixed by the T of the death: [0,1,2] for the timed segments, [3] for the final field.
-    int64 RespawnMs[TimedSegments + 1] = {};
+    int64 RespawnMs[TimedSegments] = {};
 
     static bool FromContent(const FLDDemoContentParameters& Content, FLDTimelineParameters& Out, FString& Error);
     bool Validate(FString& Error) const;
@@ -147,8 +147,8 @@ public:
     // All humans are ready: shorten once, preserving the remaining signup window and never extending the deadline.
     bool FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Error);
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV only: from a running timed segment, jump straight to the final field (T = last segment end) at AtMs.
-    bool DevSkipToFinalField(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
+    // DEV only: queue the real final rest return from a timed field, with T at the last segment end.
+    bool DevSkipToFinalRest(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
 #endif
 
     FLDTimelineView MakeView(uint32 Generation, uint64 Revision) const;

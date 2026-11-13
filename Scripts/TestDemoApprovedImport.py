@@ -243,6 +243,20 @@ class ApprovedDemoData(unittest.TestCase):
         cls.geometry = world.Geometry(cls.world.world)
         cls.anchors = {row["id"]: row for row in cls.world.world["anchors"]}
 
+    def test_showdown_rejects_impossible_objective_and_life_clocks(self):
+        for key, value in (("SHOWDOWN.RespawnCutoffSec", 240000),
+                           ("SHOWDOWN.ClosureStartsSec", 240000),
+                           ("CAPTURE.GuardSec", 240000),
+                           ("SHOWDOWN.RespawnLimit", 3)):
+            with self.subTest(key=key):
+                data = json.loads(self.root_bundle.outputs[content.CONTENT_OUTPUT])
+                if key == "SHOWDOWN.RespawnLimit":
+                    data["parameters"][key] = value
+                else:
+                    data["parameters"][key]["ms"] = value
+                with self.assertRaisesRegex(content.ContentError, "InvalidTiming.*SHOWDOWN"):
+                    content.validate_numbers(data)
+
     def test_approval_and_complete_selected_directory(self):
         approval = self.data["identity"]["approval"]
         self.assertEqual(approval["status"], "approved")
@@ -291,7 +305,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1050"),
             ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
+            ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "240"),
+            ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
+            ("SHOWDOWN.RespawnCutoffSec", "ms", "150"), ("SHOWDOWN.ClosureStartsSec", "ms", "120"),
             # #198 match timeline: three 180 s field segments, rest phases and field respawn waits by T at death
             # (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
             ("MATCH.FieldSegmentSec", "ms", "180"),
@@ -312,7 +329,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
             ("THROW.ExposeSec", "ms", "2"),
             ("LIFE.RespawnSec.Field1", "ms", "8"), ("LIFE.RespawnSec.Field2", "ms", "10"),
-            ("LIFE.RespawnSec.Field3", "ms", "12"), ("LIFE.RespawnSec.Final", "ms", "15"),
+            ("LIFE.RespawnSec.Field3", "ms", "12"),
             ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
@@ -353,6 +370,7 @@ class ApprovedDemoData(unittest.TestCase):
             expected[key] = (unit, value)
         for key, value in (
             ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("CHARM.WaveCount", 7), ("CHARM.PerWave", 2),

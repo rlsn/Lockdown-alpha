@@ -19,7 +19,6 @@ bool FLDTimelineParameters::FromContent(const FLDDemoContentParameters& Content,
     Out.RespawnMs[0] = Content.RespawnField1Ms;
     Out.RespawnMs[1] = Content.RespawnField2Ms;
     Out.RespawnMs[2] = Content.RespawnField3Ms;
-    Out.RespawnMs[3] = Content.RespawnFinalMs;
     return Out.Validate(Error);
 }
 
@@ -28,7 +27,7 @@ bool FLDTimelineParameters::Validate(FString& Error) const
     // Each value is bounded by an int32 of seconds so every sum of a whole match stays far inside int64.
     constexpr int64 Bound = int64(MAX_int32) * 1000;
     const int64 Durations[] = {FieldSegmentMs, OpeningBuildMs, BuildMs, SignupMs, DrawMs, BettingMs, PKReadyMs, PKMaxMs,
-        SettlementMs, PayoutMs, ReturnMs, RespawnMs[0], RespawnMs[1], RespawnMs[2], RespawnMs[3]};
+        SettlementMs, PayoutMs, ReturnMs, RespawnMs[0], RespawnMs[1], RespawnMs[2]};
     for (const int64 Duration : Durations)
     {
         if (Duration <= 0 || Duration > Bound)
@@ -67,7 +66,8 @@ bool FLDMatchTimeline::Begin(const FLDTimelineParameters& InParameters, int64 St
 
 bool FLDMatchTimeline::IsSignupOpen(int64 AtMs) const
 {
-    return Stage == ELDMatchStage::Rest && Step == ELDRestStep::Build && AtMs >= StepEndsAtMs - Parameters.SignupMs
+    return Stage == ELDMatchStage::Rest && RestIndex < FLDTimelineParameters::TimedSegments
+        && Step == ELDRestStep::Build && AtMs >= StepEndsAtMs - Parameters.SignupMs
         && AtMs <= StepEndsAtMs;
 }
 
@@ -105,7 +105,7 @@ int64 FLDMatchTimeline::NextDueMs() const
 int64 FLDMatchTimeline::RespawnWaitMs(int64 FieldT) const
 {
     const int64 Index = Parameters.FieldSegmentMs > 0 ? FMath::Clamp<int64>(FieldT / Parameters.FieldSegmentMs, 0, FLDTimelineParameters::TimedSegments) : 0;
-    return Parameters.RespawnMs[Index];
+    return Index < FLDTimelineParameters::TimedSegments ? Parameters.RespawnMs[Index] : 0;
 }
 
 int64 FLDMatchTimeline::StepDuration(ELDRestStep InStep) const
@@ -214,16 +214,17 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
         case ELDRestStep::Build:
         {
             if (!bAllowLock) { Error.Reset(); return true; }
-            LockedEntrants = uint8(FMath::Min(SignedUp, 255));
+            const int32 Entrants = RestIndex == FLDTimelineParameters::TimedSegments ? 0 : SignedUp;
+            LockedEntrants = uint8(FMath::Min(Entrants, 255));
             FLDTimelineEvent& Lock = Out.AddDefaulted_GetRef();
             Lock.Kind = ELDTimelineEventKind::LockBuild;
             Lock.RestIndex = RestIndex;
             Lock.FieldSegment = FieldSegment;
             Lock.Step = ELDRestStep::Build;
             Lock.AtMs = Due;
-            Lock.Value = SignedUp;
+            Lock.Value = Entrants;
             // Fewer than two entrants: no draw, betting, PK or payout; straight to the return countdown.
-            bPKSkipped = SignedUp < 2;
+            bPKSkipped = Entrants < 2;
             bStepped = EnterStep(bPKSkipped ? ELDRestStep::Return : ELDRestStep::Draw, Due, Out, Error);
             break;
         }
@@ -285,7 +286,7 @@ bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Err
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
-bool FLDMatchTimeline::DevSkipToFinalField(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
+bool FLDMatchTimeline::DevSkipToFinalRest(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
 {
     if (Stage != ELDMatchStage::Field || AtMs < FieldStartedAtMs)
     {
@@ -293,8 +294,9 @@ bool FLDMatchTimeline::DevSkipToFinalField(int64 AtMs, TArray<FLDTimelineEvent>&
         return false;
     }
     FieldBaseMs = int64(FLDTimelineParameters::TimedSegments) * Parameters.FieldSegmentMs;
-    RestIndex = FLDTimelineParameters::TimedSegments;
-    return EnterField(AtMs, Out, Error);
+    if (!EnterRest(FLDTimelineParameters::TimedSegments, AtMs, Out, Error)) { return false; }
+    bPKSkipped = true;
+    return EnterStep(ELDRestStep::Return, AtMs, Out, Error);
 }
 #endif
 

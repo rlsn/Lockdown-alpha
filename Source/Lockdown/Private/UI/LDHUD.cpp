@@ -1018,7 +1018,8 @@ void ULDHUD::RefreshReadModel()
 
     const FString OwnerName=LDHUD::RosterName(Lobby,Public.GraffitiOwner);
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
-        Content?Content->Parameters.CaptureSprayMs:0,Content?Content->Parameters.CaptureGuardMs:0);
+        Public.Showdown.bStarted?Public.Showdown.SprayMs:Content?Content->Parameters.CaptureSprayMs:0,
+        Public.Showdown.bStarted?Public.Showdown.GuardMs:Content?Content->Parameters.CaptureGuardMs:0);
     // The NPC service window replaces the rest's top lines; the 构筑 tray in the corner does not.
     const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen()&&!ChoicesPanel->IsTrayOpen();
     const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
@@ -1029,7 +1030,7 @@ void ULDHUD::RefreshReadModel()
     {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
     HudSetText(PhaseText,Circle.Line);
-    HudSetShown(PhaseText,!bChoicesRestOpen&&Public.Phase!=ELDMatchPhase::Development
+    HudSetShown(PhaseText,!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)
         &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning),ESlateVisibility::HitTestInvisible);
     CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
@@ -1070,7 +1071,7 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(ReturnCountdownText,!ReturnCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
     HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs);
+    const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs,Public.Showdown.bStarted&&O.RespawnAtMs<=0);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
     if(Death.bVisible)
     {
@@ -1756,11 +1757,15 @@ void ULDHUD::SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bCl
     UWorld* World=GetWorld();
     const FLDPKView& PK=Public.PK;
     const ELDRestStep Step=Public.Timeline.Step;
+    const bool bFinal=Public.Showdown.bStarted&&(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
+    const FVector Centre=bFinal?Public.Showdown.CentreCm:PK.ArenaCentreCm;
+    const uint32 Serial=bFinal?MAX_uint32:PK.Serial;
     // Demo world presentation of the own match's arena during the PKReady and PK steps; fixture worlds draw none.
-    const bool bShow=bOwnMatch&&World&&!World->bIsTearingDown&&LDHUD::HasPK(Public)&&(Step==ELDRestStep::PKReady||Step==ELDRestStep::PK)
-        &&PK.Outcome!=ELDPKOutcome::NoContest&&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
+    const bool bShow=bOwnMatch&&World&&!World->bIsTearingDown
+        &&(bFinal||(LDHUD::HasPK(Public)&&(Step==ELDRestStep::PKReady||Step==ELDRestStep::PK)&&PK.Outcome!=ELDPKOutcome::NoContest))
+        &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
     ALDPKRingMarker* Ring=PKRing.Get();
-    if(Ring&&(!bShow||Ring->GetGeneration()!=Public.Generation||Ring->GetSerial()!=PK.Serial||!Ring->GetCentre().Equals(PK.ArenaCentreCm,1.)))
+    if(Ring&&(!bShow||Ring->GetGeneration()!=Public.Generation||Ring->GetSerial()!=Serial||!Ring->GetCentre().Equals(Centre,1.)))
     {
         Ring->Destroy();
         PKRing.Reset();
@@ -1770,20 +1775,27 @@ void ULDHUD::SyncPKRing(const FLDPublicMatchView& Public,bool bOwnMatch,bool bCl
     if(!Params){return;}
     if(!Ring)
     {
-        if(PKRingFailedMatch==Public.Generation&&PKRingFailedSerial==PK.Serial){return;}
+        if(PKRingFailedMatch==Public.Generation&&PKRingFailedSerial==Serial){return;}
         FString Error;
         FActorSpawnParameters Spawn;
         Spawn.ObjectFlags|=RF_Transient;
         Ring=World->SpawnActor<ALDPKRingMarker>(Spawn);
-        if(!Ring||!Ring->Build(PK.ArenaCentreCm,Public.Generation,PK.Serial,Error))
+        if(!Ring||!Ring->Build(Centre,Public.Generation,Serial,Error))
         {
             if(Ring){Ring->Destroy();}
             if(Error.IsEmpty()){Error=TEXT("The PK ring marker actor could not be spawned.");}
-            PKRingFailedMatch=Public.Generation;PKRingFailedSerial=PK.Serial;
-            UE_LOG(LogLDUI,Error,TEXT("LD_PK_RING_MARKER_UNAVAILABLE generation=%u serial=%u %s"),Public.Generation,PK.Serial,*Error);
+            PKRingFailedMatch=Public.Generation;PKRingFailedSerial=Serial;
+            UE_LOG(LogLDUI,Error,TEXT("LD_PK_RING_MARKER_UNAVAILABLE generation=%u serial=%u %s"),Public.Generation,Serial,*Error);
             return;
         }
         PKRing=Ring;
+    }
+    if(bFinal)
+    {
+        const int64 At=bClock?NowMs:Public.ServerNowMs;
+        const bool bPreview=At>=Public.Showdown.ClosureAtMs-Params->PreviewMs;
+        Ring->Show(LDShowdown::StreetRadiusCm(Public.Showdown,At),bPreview,Public.Showdown.FinalRadiusCm,{},0.);
+        return;
     }
     const int64 ElapsedMs=LDHUD::PKRingElapsedMs(PK,bClock,NowMs);
     double PreviewCm=0;int64 PreviewAtMs=0;
@@ -1897,7 +1909,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     const FLDResultRow* WinnerRow=Result.Winner.IsValid()?Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row){return Row.ContenderId==Result.Winner;}):nullptr;
     HudSetText(ResultTitle,LDHUD::ResultHeadline(Result,WinnerRow?WinnerRow->Name:FString()));
     const int64 Seconds=FMath::Max<int64>(0,Result.DurationMs)/1000;
-    HudSetText(ResultSubtitle,FString::Printf(TEXT("本局用时 %lld:%02lld · 统计只作展示，不决定胜负"),Seconds/60,Seconds%60));
+    HudSetText(ResultSubtitle,FString::Printf(TEXT("本局用时 %lld:%02lld · 击杀不决定胜负"),Seconds/60,Seconds%60));
     ResultRows->ClearChildren();
     const int32 Size=FMath::RoundToInt(16*(AppliedScale>0?AppliedScale:1.f));
     auto Cell=[this,Size](const FString& Value,float Width)
@@ -1905,18 +1917,20 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         UTextBlock* Label=LDWidgets::Text(WidgetTree,Value,Size);Label->SetAutoWrapText(false);
         auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetContent(Label);return Box;
     };
-    auto Row=[&](const FString& Name,const FString& Kills,const FString& Deaths,const FString& Assists,const FString& Level,const FString& Mark)
+    auto Row=[&](const FString& Name,const FString& Kills,const FString& Deaths,const FString& Assists,const FString& Level,const FString& Guard,const FString& Sprays,const FString& Mark)
     {
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Line->AddChildToHorizontalBox(Cell(Name,280));Line->AddChildToHorizontalBox(Cell(Kills,90));Line->AddChildToHorizontalBox(Cell(Deaths,90));
-        Line->AddChildToHorizontalBox(Cell(Assists,70));Line->AddChildToHorizontalBox(Cell(Level,100));Line->AddChildToHorizontalBox(Cell(Mark,80));
+        Line->AddChildToHorizontalBox(Cell(Name,230));Line->AddChildToHorizontalBox(Cell(Kills,60));Line->AddChildToHorizontalBox(Cell(Deaths,60));
+        Line->AddChildToHorizontalBox(Cell(Assists,60));Line->AddChildToHorizontalBox(Cell(Level,80));Line->AddChildToHorizontalBox(Cell(Guard,110));
+        Line->AddChildToHorizontalBox(Cell(Sprays,70));Line->AddChildToHorizontalBox(Cell(Mark,80));
         ResultRows->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,4));
     };
-    Row(TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,LDTerms::ResultAssists,TEXT("最终等级"),FString());
+    Row(TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,LDTerms::ResultAssists,TEXT("最终等级"),TEXT("守护贡献"),TEXT("喷漆"),FString());
     for(const FLDResultRow& Entry:Result.Rows)
     {
         const LDHUD::FResultRowView View=LDHUD::ResultRow(Entry,Result.Winner,PC.OwnerState.ContenderId);
-        Row(View.Name,View.Kills,View.Deaths,View.Assists,View.Level,View.bWinner?FString(LDTerms::Winner):FString());
+        Row(View.Name,View.Kills,View.Deaths,View.Assists,View.Level,FString::Printf(TEXT("%.1f s"),double(Entry.BankedGuardMs)/1000.),
+            FString::Printf(TEXT("%u"),Entry.CompletedSprays),View.bWinner?FString(LDTerms::Winner):FString());
     }
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const

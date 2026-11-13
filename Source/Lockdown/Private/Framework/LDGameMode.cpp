@@ -242,7 +242,8 @@ void ALDGameState::SyncCaptureMarker()
         &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
     ALDCaptureMarker* Marker=CaptureMarker.Get();
     // A new match generation, a return to the Lobby or a stopped room never keeps the previous ring.
-    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation))
+    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation
+        ||(PublicMatch.Showdown.bStarted&&!Marker->GetCenter().Equals(PublicMatch.Showdown.CentreCm,1.))))
     {
         Marker->Destroy();
         Marker=nullptr;
@@ -262,7 +263,7 @@ void ALDGameState::SyncCaptureMarker()
         {
             const FLDDemoRational& Radius=Content->Get().Parameters.CaptureRadiusCm;
             RadiusCm=Radius.Denominator>0?double(Radius.Numerator)/double(Radius.Denominator):0.;
-            Capture=Registry->Resolve(FName(*Content->Get().World.CaptureId),Registry->Generation);
+            Capture=Registry->Resolve(PublicMatch.Showdown.bStarted?FName(TEXT("final_capture")):FName(*Content->Get().World.CaptureId),Registry->Generation);
             if (!Capture) { Error=TEXT("The registered world has no capture anchor."); }
         }
         FActorSpawnParameters Spawn;

@@ -127,7 +127,7 @@ namespace LDHUD
         FString Note;
     };
     // Death banner (APP_SPEC 7.1): waiting time only; build and property are kept, and the display never revives.
-    LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs);
+    LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated=false);
     LOCKDOWN_API FString PhaseLine(ELDMatchPhase Phase);
     // #198: the centre-screen return countdown of a rest: whole seconds rounded up ("5" .. "1") during the Return step until
     // its end (StepEndsAtMs; held at "1" until the authority enters the field), then LDTerms::CountdownGo for GoShowMs from

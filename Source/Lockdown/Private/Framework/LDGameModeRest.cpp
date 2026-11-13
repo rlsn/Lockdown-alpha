@@ -273,6 +273,16 @@ bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString&
     }
     // Prepared field bodies live only inside this boundary: whatever the entry did not commit is released.
     ON_SCOPE_EXIT { ReleasePhasePrepared(PreparedFieldReturn); };
+#if WITH_DEV_AUTOMATION_TESTS
+    if (bDevShowdownEntryPending)
+    {
+        bDevShowdownEntryPending = false;
+        TArray<FLDTimelineEvent> FinalEntry;
+        if (!Timeline.DevSkipToFinalRest(Permit.GetBoundary().AtMs, FinalEntry, Error)
+            || !ApplyTimelineEvents(FinalEntry, Permit, Error)) { return false; }
+        PublishTimeline();
+    }
+#endif
     bool bBodiesReady = true;
     TArray<FLDTimelineEvent> Events;
     if (IsRestPhase(MatchContext) && Timeline.GetStep() == ELDRestStep::Build && AuthorityNowMs < Timeline.GetStepEndsAtMs())
@@ -414,9 +424,13 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             const bool bFinal = Event.FieldSegment >= FLDTimelineParameters::TimedSegments;
             // Every field body was prepared jointly before the timeline entered the field; they stand together now, while
             // the phase is still Rest (the R0 return is every contender's spray-roster join).
-            if (!ExitRestWorld(Permit, Error) || !CommitFieldReturn(bFinal, Permit, Error)) { return false; }
+            if (bFinal)
+            {
+                if (!BeginShowdown(Permit, Error)) { return false; }
+            }
+            else if (!ExitRestWorld(Permit, Error)) { return false; }
+            if (!CommitFieldReturn(bFinal, Permit, Error)) { return false; }
             MatchPhase = ELDMatchPhase::Development;
-            if (bFinal && !CaptureReducer.ScheduleOpen(Event.AtMs, Error)) { return false; }
             LockedEntrants.Reset();
             UE_LOG(LogLDMatch, Display, TEXT("LD_FIELD_ENTER generation=%u segment=%u at_ms=%lld field_t_ms=%lld final=%d"),
                 MatchContext.Generation, Event.FieldSegment, Event.AtMs, Event.Value, bFinal ? 1 : 0);
@@ -844,6 +858,12 @@ bool ALDGameMode::PrepareFieldReturn(const FLDGameplayWritePermit& Permit, bool&
     {
         FLDPhaseTarget& Target = Targets.AddDefaulted_GetRef();
         Target.Contender = Id;
+        if (Timeline.GetRestIndex() == FLDTimelineParameters::TimedSegments)
+        {
+            Target.Where.Kind = FLDPlacementTarget::EKind::Anchor;
+            Target.Where.Anchor = FName(*FString::Printf(TEXT("final_spawn_%d"), RosterOrder.IndexOfByKey(Id)));
+            continue;
+        }
         // Alive at the rest entry: the old foot or a free spot within the approved radius, else a normal spawn; dead at
         // the rest entry: a normal spawn.
         if (const FLDRestReturn* Return = RestReturns.Find(Id); Return && Return->bAliveAtRest)

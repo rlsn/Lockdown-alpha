@@ -52,6 +52,8 @@ private:
     uint32 KillGeneration = 0;
     uint64 KillSerial = 0;
     FGuid ResultId;
+    uint32 ShowdownGeneration = 0;
+    int64 ShowdownSeenAtMs = -1;
 
     uint32 LifeMatch = 0;
     uint32 LifeNumber = 0;

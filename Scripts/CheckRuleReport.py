@@ -82,6 +82,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCapture.GuardNeedsOwner",
         "Lockdown.Rules.DemoCapture.SprayInterrupt",
         "Lockdown.Rules.DemoCapture.GraffitiCleared",
+        "Lockdown.Rules.DemoCapture.ShowdownContribution",
+        "Lockdown.Rules.DemoCapture.ShowdownRespawnCutoff",
         "Lockdown.Rules.DemoCapture.CombatHitInterrupt",
         "Lockdown.Rules.DemoCapture.ProtectionAndContracts",
         "Lockdown.Rules.DemoCapture.Geometry",

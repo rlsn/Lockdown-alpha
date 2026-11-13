@@ -90,6 +90,21 @@ bool FLDAudioCuePublicTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A result first seen long after it froze stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     FLDResultView Mismatch=Result;Mismatch.ResultId=FGuid::NewGuid();Frame.Result=&Mismatch;
     TestTrue(TEXT("A result that is not the public match result never sounds"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.KillFeed=nullptr;Frame.Result=nullptr;
+    Public.Generation=11;Public.Phase=ELDMatchPhase::CaptureOpen;Public.CircleState=ELDCircleState::Empty;
+    Public.Showdown.bStarted=true;Public.Showdown.ClosureAtMs=120000;
+    Public.Showdown.RespawnsCloseAtMs=150000;Public.Showdown.EndsAtMs=240000;
+    Frame.NowMs=119999;
+    TestTrue(TEXT("A first final sample never replays old warnings"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.NowMs=120000;
+    TestTrue(TEXT("Street closure warns at its actual authority boundary"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureContested}));
+    TestTrue(TEXT("A closure warning sounds only once"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.NowMs=150000;
+    TestTrue(TEXT("The new-respawn cutoff warns once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureContested}));
+    Frame.NowMs=230000;
+    TestTrue(TEXT("The final ten seconds warn independently of replication changes"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureContested}));
+    Public.Phase=ELDMatchPhase::Results;Frame.NowMs=240000;
+    TestTrue(TEXT("An ended match never replays objective warnings"),AudioSample(Tracker,Frame).IsEmpty());
     return true;
 }
 

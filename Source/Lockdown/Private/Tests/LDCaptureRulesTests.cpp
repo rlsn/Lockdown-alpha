@@ -144,7 +144,7 @@ bool FLDCaptureSprayGuardTest::RunTest(const FString& Parameters)
     Probe.Add(CapturePresence(BodyA, CaptureMs(2000), false), TEXT("The owner leaves the challenger alone"));
     Probe.Close(2000, false, TEXT("Challenger alone"));
     Probe.ExpectSolo(B, 2000, 2350, TEXT("The challenger sprays as soon as he is alone"));
-    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 0, TEXT("The owner leaving under a challenger resets his frozen guard; the graffiti stays"));
+    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 250, TEXT("Leaving under a challenger preserves the paused guard"));
 
     Probe.Close(2350, false, TEXT("The repaint lands"));
     Probe.ExpectGuard(B, ELDCircleState::Guarded, 4350, 0, TEXT("A repaint covers the old graffiti and starts the new owner's guard from zero"));
@@ -155,8 +155,8 @@ bool FLDCaptureSprayGuardTest::RunTest(const FString& Parameters)
     Dies.Add(CaptureFact(ELDCaptureEventKind::Died, BodyB, CaptureMs(4350), ELDCommitPhase::DeathsAndRewards),
         TEXT("The owner dies at the win instant"));
     Dies.Close(4350, false, TEXT("A death at the same instant is settled before the guard"));
-    Dies.ExpectGuard(FGuid(), ELDCircleState::Empty, 0, 0, TEXT("The dead owner's graffiti is cleared and nobody wins"));
-    TestEqual(TEXT("The tally names the clearing cause"), Dies.Reducer.DevTally().ClearedByDeath, uint32(1));
+    Dies.ExpectGuard(B, ELDCircleState::Empty, 0, 2000, TEXT("Death at completion pauses ownership without a win"));
+    TestEqual(TEXT("Historical guard survives death"), Dies.Reducer.GetBankedGuardMs(B), int64(2000));
     FCaptureReducerProbe Skipped = Probe;
     TOptional<FLDCaptureProposal> Proposal;
     TestFalse(TEXT("A driver that skips the guard win fails loudly"),
@@ -175,9 +175,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureGuardFreezeTest, "Lockdown.Rules.Demo
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCaptureGuardFreezeTest::RunTest(const FString& Parameters)
 {
-    // 2026-11-07 user decision: anyone but the owner in the zone freezes the guard; it continues once the owner is alone
-    // in the zone again, and the owner leaving the zone while a challenger stays in it resets it to zero without
-    // clearing the graffiti. An empty zone only pauses it.
+    // Both an empty zone and a challenger pause progress; neither leaving nor death resets ownership.
     const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid(), C = FGuid::NewGuid();
     const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1), BodyC = CaptureTestBody(C, 1);
     FCaptureReducerProbe Probe{*this};
@@ -205,12 +203,12 @@ bool FLDCaptureGuardFreezeTest::RunTest(const FString& Parameters)
     Reset.ExpectGuard(A, ELDCircleState::Contested, 0, 200, TEXT("The guard freezes again"));
     Reset.Add(CapturePresence(BodyA, CaptureMs(1200), false), TEXT("The owner leaves while B is inside"));
     Reset.Close(1200, false, TEXT("Owner leaves under a challenger"));
-    Reset.ExpectGuard(A, ELDCircleState::Solo, 0, 0, TEXT("The owner leaving under a challenger resets the guard and keeps his graffiti"));
+    Reset.ExpectGuard(A, ELDCircleState::Solo, 0, 200, TEXT("The owner leaving under a challenger keeps his guard"));
     Reset.ExpectSolo(B, 1200, 1700, TEXT("The challenger left alone sprays from zero"));
-    TestEqual(TEXT("The tally counts the guard reset"), Reset.Reducer.DevTally().GuardResets, uint32(1));
+    TestEqual(TEXT("Leaving never resets the guard"), Reset.Reducer.DevTally().GuardResets, uint32(0));
     Reset.Add(CapturePresence(BodyB, CaptureMs(1300), false), TEXT("B gives up"));
     Reset.Close(1300, false, TEXT("Zone empty"));
-    Reset.ExpectGuard(A, ELDCircleState::Empty, 0, 0, TEXT("The reset guard stays at zero while the empty zone pauses it"));
+    Reset.ExpectGuard(A, ELDCircleState::Empty, 0, 200, TEXT("The empty zone preserves the current guard"));
 
     FCaptureReducerProbe Away = Probe;
     Away.Add(CapturePresence(BodyA, CaptureMs(1100), false), TEXT("The owner walks away"));
@@ -233,7 +231,7 @@ bool FLDCaptureGuardFreezeTest::RunTest(const FString& Parameters)
     Away.ExpectGuard(A, ELDCircleState::Contested, 0, 200, TEXT("The returning owner leaves the guard frozen"));
     Away.Add(CapturePresence(BodyA, CaptureMs(1800), false), TEXT("The owner leaves again"));
     Away.Close(1800, false, TEXT("Owner leaves under a challenger"));
-    Away.ExpectGuard(A, ELDCircleState::Solo, 0, 0, TEXT("An owner who came back and left again resets the frozen guard"));
+    Away.ExpectGuard(A, ELDCircleState::Solo, 0, 200, TEXT("Repeated exits preserve the frozen guard"));
     Away.ExpectSolo(C, 1700, 2200, TEXT("The challenger resumes his paused spray"));
 
     FCaptureReducerProbe Together = Probe;
@@ -545,14 +543,14 @@ bool FLDCaptureGraffitiClearedTest::RunTest(const FString& Parameters)
     FCaptureReducerProbe Death = Probe;
     Death.Add(CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(200), ELDCommitPhase::DeathsAndRewards), TEXT("The owner dies"));
     Death.Close(200, false, TEXT("Owner death"));
-    Death.ExpectGuard(FGuid(), ELDCircleState::Empty, 0, 0, TEXT("The owner's death clears the graffiti at once"));
-    TestTrue(TEXT("The bare flagpole adds no stop and the tally names the death"), Death.Reducer.NextDueMs() == MAX_int64
-        && Death.Reducer.DevTally().ClearedByDeath == 1 && Death.Reducer.DevTally().GraffitiSinceMs == -1);
+    Death.ExpectGuard(A, ELDCircleState::Empty, 0, 100, TEXT("Death pauses the guard and retains graffiti"));
+    TestTrue(TEXT("A dead owner adds no completion boundary"), Death.Reducer.NextDueMs() == MAX_int64
+        && Death.Reducer.GetBankedGuardMs(A) == 100);
     FCaptureReducerProbe Leave = Probe;
     Leave.Add(CaptureFact(ELDCaptureEventKind::Left, BodyA, CaptureMs(200), ELDCommitPhase::Session), TEXT("The owner leaves the match"));
     Leave.Close(200, false, TEXT("Owner departure"));
-    Leave.ExpectGuard(FGuid(), ELDCircleState::Empty, 0, 0, TEXT("The owner's departure clears the graffiti at once"));
-    TestEqual(TEXT("The tally names the departure"), Leave.Reducer.DevTally().ClearedByLeave, uint32(1));
+    Leave.ExpectGuard(A, ELDCircleState::Empty, 0, 100, TEXT("Departure cannot erase prior objective contribution"));
+    TestFalse(TEXT("A departed owner cannot win a timeout"), Leave.Reducer.TimeoutWinner().IsValid());
 
     Probe.Add(CapturePresence(BodyA, CaptureMs(150), false), TEXT("The owner walks away"));
     Probe.Add(CapturePresence(BodyB, CaptureMs(160), true), TEXT("B sprays alone"));
@@ -560,11 +558,86 @@ bool FLDCaptureGraffitiClearedTest::RunTest(const FString& Parameters)
     Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 50, TEXT("The owner walking away pauses the guard and the repaint keeps it frozen"));
     Probe.Add(CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(170), ELDCommitPhase::DeathsAndRewards), TEXT("The owner dies"));
     Probe.Close(170, false, TEXT("Owner death during a repaint"));
-    Probe.ExpectSolo(B, 160, 260, TEXT("The sprayer keeps his progress when the graffiti is cleared"));
-    TestFalse(TEXT("No graffiti"), Probe.Reducer.GetGraffitiOwner().IsValid());
+    Probe.ExpectSolo(B, 160, 260, TEXT("Death does not interrupt the challenger's repaint"));
+    TestEqual(TEXT("Dead owner keeps the graffiti until a successful repaint"), Probe.Reducer.GetGraffitiOwner(), A);
     Probe.Close(260, false, TEXT("B sprays"));
     Probe.ExpectGuard(B, ELDCircleState::Guarded, 5260, 0, TEXT("A spray on the bare flagpole"));
-    TestTrue(TEXT("It is no repaint"), Probe.Reducer.DevTally().Sprays == 2 && Probe.Reducer.DevTally().Repaints == 0);
+    TestTrue(TEXT("A completed repaint is the only reset"), Probe.Reducer.DevTally().Sprays == 2 && Probe.Reducer.DevTally().Repaints == 1);
+    TestEqual(TEXT("The prior owner's historical contribution remains"), Probe.Reducer.GetBankedGuardMs(A), int64(50));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureBankedGuardTest, "Lockdown.Rules.DemoCapture.ShowdownContribution",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureBankedGuardTest::RunTest(const FString& Parameters)
+{
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
+    FCaptureReducerProbe Probe{*this};
+    Probe.Reducer.Begin(0, 100, 2000, Probe.Error);
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A enters"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B waits"));
+    Probe.Close(0, false, TEXT("Unlock"));
+    TestFalse(TEXT("Standing alone without a completed objective is no timeout win"), Probe.Reducer.TimeoutWinner().IsValid());
+    Probe.Close(100, false, TEXT("A sprays"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(600), true), TEXT("B contests"));
+    Probe.Add(CapturePresence(BodyA, CaptureMs(600), false), TEXT("A is displaced"));
+    Probe.Close(600, false, TEXT("Simultaneous contest and displacement"));
+    TestEqual(TEXT("Only actual exclusive guarding is banked"), Probe.Reducer.GetBankedGuardMs(A), int64(500));
+    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 500, TEXT("Displacement pauses current guard"));
+    Probe.Close(700, false, TEXT("B completes repaint"));
+    TestEqual(TEXT("Repaint does not erase historical guard"), Probe.Reducer.GetBankedGuardMs(A), int64(500));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(900), false), TEXT("B leaves"));
+    Probe.Close(900, false, TEXT("B banks exclusive guard"));
+    TestEqual(TEXT("Banked leader beats the current graffiti owner"), Probe.Reducer.TimeoutWinner(), A);
+    Probe.Add(CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(1000), ELDCommitPhase::DeathsAndRewards), TEXT("A dies"));
+    Probe.Close(1000, false, TEXT("Death settles before timeout eligibility"));
+    TestEqual(TEXT("A dead contribution leader cannot be crowned"), Probe.Reducer.TimeoutWinner(), B);
+    const FLDCombatBodyRef NextA = CaptureTestBody(A, 2);
+    Probe.Add(CaptureFact(ELDCaptureEventKind::Respawned, NextA, CaptureMs(1100), ELDCommitPhase::RespawnsAndWorld, false, 1200),
+        TEXT("A returns protected"));
+    Probe.Close(1100, false, TEXT("Respawn"));
+    TestEqual(TEXT("Protection grants no objective eligibility"), Probe.Reducer.TimeoutWinner(), B);
+    Probe.Add(CaptureFact(ELDCaptureEventKind::ProtectionEnded, NextA, CaptureMs(1200), ELDCommitPhase::Session), TEXT("Protection ends"));
+    Probe.Close(1200, false, TEXT("Eligible again"));
+    TestEqual(TEXT("Historical contribution survives a new life"), Probe.Reducer.TimeoutWinner(), A);
+    Probe.Close(1500, false, TEXT("An empty zone never accrues more guard"));
+    TestEqual(TEXT("No phantom guard across death, repaint or respawn"), Probe.Reducer.GetBankedGuardMs(A), int64(500));
+
+    FCaptureReducerProbe Tie{*this};
+    Tie.Reducer.Begin(0, 100, 2000, Tie.Error);
+    Tie.Add(CaptureJoined(BodyA, true), TEXT("A enters tie fixture"));
+    Tie.Add(CaptureJoined(BodyB, false), TEXT("B waits in tie fixture"));
+    Tie.Close(0, false, TEXT("Unlock tie fixture"));
+    Tie.Close(100, false, TEXT("A sprays tie fixture"));
+    Tie.Add(CapturePresence(BodyA, CaptureMs(200), false), TEXT("A leaves after 100 ms"));
+    Tie.Add(CapturePresence(BodyB, CaptureMs(300), true), TEXT("B enters"));
+    Tie.Close(300, false, TEXT("Repaint starts"));
+    Tie.Close(400, false, TEXT("B sprays"));
+    Tie.Add(CapturePresence(BodyB, CaptureMs(500), false), TEXT("B leaves after 100 ms"));
+    Tie.Close(500, false, TEXT("Equal legal contribution"));
+    TestFalse(TEXT("No GUID, kills or map iteration order breaks an objective tie"), Tie.Reducer.TimeoutWinner().IsValid());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDShowdownRespawnTest, "Lockdown.Rules.DemoCapture.ShowdownRespawnCutoff",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDShowdownRespawnTest::RunTest(const FString& Parameters)
+{
+    FLDDemoContentParameters Content;
+    Content.CaptureSprayMs=3500;Content.CaptureGuardMs=20000;
+    Content.ShowdownUnlockDelayMs=10000;Content.ShowdownDurationMs=240000;
+    Content.ShowdownRespawnLimit=2;Content.ShowdownFirstRespawnMs=18000;Content.ShowdownSecondRespawnMs=24000;
+    Content.ShowdownRespawnCutoffMs=150000;Content.ShowdownClosureStartsMs=120000;
+    FLDShowdownParameters Value;
+    const auto* Settings=&Value;
+    FString Error;
+    TestTrue(TEXT("Showdown is derived from the validated content"), FLDShowdownParameters::FromContent(Content,Value,Error));
+    TestEqual(TEXT("A first legal death queues the first wait"), Settings->RespawnWaitMs(0, Settings->RespawnCutoffMs - 1), int64(Settings->FirstRespawnMs));
+    TestEqual(TEXT("An already used return queues the second wait"), Settings->RespawnWaitMs(1, Settings->RespawnCutoffMs - 1), int64(Settings->SecondRespawnMs));
+    TestEqual(TEXT("The cutoff itself rejects a new queue"), Settings->RespawnWaitMs(0, Settings->RespawnCutoffMs), int64(0));
+    TestEqual(TEXT("Spent returns never create another life"), Settings->RespawnWaitMs(int32(Settings->RespawnLimit), 0), int64(0));
+    TestEqual(TEXT("A regressing clock is not a respawn admission"), Settings->RespawnWaitMs(0, -1), int64(0));
     return true;
 }
 
@@ -783,6 +856,16 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Malformed([](FLDPublicMatchView& View) { View.CircleState = ELDCircleState::Contested; },
         TEXT("A contest exposes no running segment"));
     Malformed([](FLDPublicMatchView& View) { View.PausedProgressMs = 1000; }, TEXT("A running segment has no paused progress"));
+    Malformed([](FLDPublicMatchView& View) { View.OwnerBankedGuardMs = -1; }, TEXT("Public guard contribution cannot be negative"));
+    FLDPublicMatchView Final = Open;
+    Final.Timeline.Generation=Final.Generation;Final.Timeline.Stage=ELDMatchStage::FinalField;
+    Final.Showdown.bStarted=true;Final.Showdown.StartedAtMs=110000;Final.Showdown.EndsAtMs=350000;
+    Final.Showdown.RespawnsCloseAtMs=260000;Final.Showdown.ClosureAtMs=230000;
+    Final.Showdown.SprayMs=3500;Final.Showdown.GuardMs=20000;
+    Final.Showdown.CentreCm=FVector(13000,0,0);Final.Showdown.InitialRadiusCm=1800;Final.Showdown.FinalRadiusCm=600;
+    TestTrue(TEXT("A coherent public final arena and its clocks are accepted"),LDCapture::ValidatePublicMatchView(Final,Error));
+    Final.Showdown.RespawnsCloseAtMs=Final.Showdown.EndsAtMs;
+    TestFalse(TEXT("Respawn admission must close before the terminal clock"),LDCapture::ValidatePublicMatchView(Final,Error));
     FLDPublicMatchView Paused = Open;
     ++Paused.PublicRevision;
     Paused.CircleState = ELDCircleState::Contested;
@@ -886,6 +969,13 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
         TestEqual(What, LDCapture::AcceptResultView(Candidate, Scratch, Error), ELDLobbyProjectionResult::Malformed);
     };
     BadResult([](FLDResultView& View) { View.Reason = ELDMatchEndReason::HostEnded; }, TEXT("Host end has no winner"));
+    BadResult([](FLDResultView& View) { View.Reason = ELDMatchEndReason::NoChampion; }, TEXT("No-champion results never name a winner"));
+    BadResult([](FLDResultView& View) { View.Rows[0].BankedGuardMs = -1; }, TEXT("Historical objective contribution is nonnegative"));
+    FLDResultView Timeout=Result;
+    Timeout.Reason=ELDMatchEndReason::ObjectiveTimeout;Timeout.Rows[0].BankedGuardMs=5000;
+    TestTrue(TEXT("Objective timeout may crown a listed contribution winner"),LDCapture::ValidateResultView(Timeout,Error));
+    Timeout.Winner.Invalidate();
+    TestTrue(TEXT("Objective timeout may end without a champion"),LDCapture::ValidateResultView(Timeout,Error));
     BadResult([](FLDResultView& View) { View.Winner = FGuid::NewGuid(); }, TEXT("The winner must be a listed contender"));
     BadResult([](FLDResultView& View) { View.Rows[0].bLeft = true; }, TEXT("A contender who left cannot win"));
     BadResult([](FLDResultView& View) { View.DurationMs = 1; }, TEXT("Duration comes from the real boundaries"));

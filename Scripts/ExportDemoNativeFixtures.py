@@ -266,6 +266,10 @@ def parameter_projection(parameters):
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
         ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
+        ("SHOWDOWN.UnlockDelaySec", "ShowdownUnlockDelayMs"), ("SHOWDOWN.DurationSec", "ShowdownDurationMs"),
+        ("SHOWDOWN.FirstRespawnSec", "ShowdownFirstRespawnMs"),
+        ("SHOWDOWN.SecondRespawnSec", "ShowdownSecondRespawnMs"), ("SHOWDOWN.RespawnCutoffSec", "ShowdownRespawnCutoffMs"),
+        ("SHOWDOWN.ClosureStartsSec", "ShowdownClosureStartsMs"),
         ("MATCH.FieldSegmentSec", "FieldSegmentMs"),
         ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.SignupSec", "RestSignupMs"),
         ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
@@ -279,7 +283,7 @@ def parameter_projection(parameters):
         ("THROW.CooldownSec", "ThrowCooldownMs"), ("THROW.TelegraphSec", "ThrowTelegraphMs"),
         ("THROW.SlowRatio", "ThrowSlowBp"), ("THROW.SlowSec", "ThrowSlowMs"), ("THROW.ExposeSec", "ThrowExposeMs"),
         ("LIFE.RespawnSec.Field1", "RespawnField1Ms"), ("LIFE.RespawnSec.Field2", "RespawnField2Ms"),
-        ("LIFE.RespawnSec.Field3", "RespawnField3Ms"), ("LIFE.RespawnSec.Final", "RespawnFinalMs"),
+        ("LIFE.RespawnSec.Field3", "RespawnField3Ms"),
         ("LIFE.ProtectionSec", "ProtectionMs"),
         ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
@@ -332,6 +336,7 @@ def parameter_projection(parameters):
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
         ("COMBAT.OverloadBreachStacks", "OverloadBreachStacks"),
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
+        ("SHOWDOWN.RespawnLimit", "ShowdownRespawnLimit"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
         ("GROWTH.NpcActivePoints", "NpcActivePoints"),
         ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.NpcActiveSkipPoints", "NpcActiveSkipPoints"),
@@ -707,7 +712,7 @@ def _export_runtime_refusal(output, index, base, written):
 
 def _export_cases(output, index, base, value_mutations, valid, written):
     exact = fixtures.content_fixture()
-    exact["parameters"]["LIFE.RespawnSec.Final"]["value"] = "__exact_literal__"
+    exact["parameters"]["LIFE.RespawnSec.Field3"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
     valid("above_double_integer", exact, literal=b"9007199254740.993")
     _export_exact_integer_case(valid)

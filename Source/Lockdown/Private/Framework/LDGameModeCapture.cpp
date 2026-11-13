@@ -36,12 +36,11 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
         return false;
     }
     if (!LDCaptureCircle::Resolve(*Registry, *DemoContent, CaptureCircle, Error)) { return false; }
-    const auto& Parameters = DemoContent->Get().Parameters;
     // #198: the match starts with the opening rest R0; the flagpole opens only when the final field begins, an instant
     // the timeline schedules (FLDCaptureReducer::ScheduleOpen), so the reducer starts unscheduled.
     MatchStartedAtMs = AuthorityNowMs;
-    if (!InitializeTimeline(Error)
-        || !CaptureReducer.Begin(MAX_int64, Parameters.CaptureSprayMs, Parameters.CaptureGuardMs, Error))
+    if (!FLDShowdownParameters::FromContent(DemoContent->Get().Parameters, ShowdownRules, Error) || !InitializeTimeline(Error)
+        || !CaptureReducer.Begin(MAX_int64, ShowdownRules.SprayMs, ShowdownRules.GuardMs, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("The approved timeline, spray or guard duration is invalid."); }
         MatchStartedAtMs = 0;
@@ -50,6 +49,10 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
         return false;
     }
     CaptureTracks.Reset();
+    Showdown = {};
+    ShowdownRespawns.Reset();
+    ShowdownBurn.Reset();
+    bShowdownClosePending = false;
     PendingCapture.Reset();
     CountedDeaths.Reset();
     KillNotices.Reset();
@@ -292,7 +295,6 @@ void ALDGameMode::QueueLeaveFact(const FGuid& ContenderId)
 #if WITH_DEV_AUTOMATION_TESTS
 bool ALDGameMode::DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail)
 {
-    // #198: the flagpole only exists in the final field, so the DEV shortcut skips the remaining timed segments and rests.
     bOutsideDevelopment = MatchPhase != ELDMatchPhase::Development || Timeline.GetStage() != ELDMatchStage::Field;
     if (bOutsideDevelopment)
     {
@@ -304,17 +306,8 @@ bool ALDGameMode::DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& 
         Detail = TEXT("An early capture opening needs the current Transactions permit.");
         return false;
     }
-    const int64 AtMs = Permit.GetBoundary().AtMs;
-    if (!CaptureReducer.ScheduleOpen(AtMs, Detail)) { return false; }
-    TArray<FLDTimelineEvent> Events;
-    if (!Timeline.DevSkipToFinalField(AtMs, Events, Detail))
-    {
-        FaultAuthority(TEXT("The DEV final-field skip failed after the flagpole was scheduled: ") + Detail);
-        return false;
-    }
-    ++TimelineRevision;
-    bPublicMatchDirty = true;
-    Detail = FString::Printf(TEXT("the timeline skips to the final field and the capture circle opens at %lld ms"), AtMs);
+    bDevShowdownEntryPending = true;
+    Detail = TEXT("Final rest return queued; all contenders enter the registered arena before the normal unlock delay.");
     return true;
 }
 #endif
@@ -363,7 +356,7 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
         Error = TEXT("Close requires the current Close permit.");
         return false;
     }
-    if (!PendingCapture) { return true; }
+    if (!PendingCapture) { return CloseShowdownIfDue(Permit, Error); }
     const FLDCaptureProposal Proposal = PendingCapture.GetValue();
     // A guard win planned inside this step happened before its boundary; any other one is due exactly at it.
     const int64 AtMs = Permit.GetBoundary().AtMs;
@@ -447,6 +440,8 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
         Row.Kills = Record->Kills;
         Row.Deaths = Record->Deaths;
         Row.Assists = Record->Assists;
+        Row.BankedGuardMs = CaptureReducer.GetBankedGuardMs(Id);
+        Row.CompletedSprays = CaptureReducer.GetCompletedSprays(Id);
         if (!Progression->ReadFinalLevel(*this, Id, Row.FinalLevel, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("Progression refused a committed final level."); }
@@ -599,12 +594,17 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     }
     View.GuardDueAtMs = CaptureReducer.GetGuardDueAtMs();
     View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
+    View.OwnerBankedGuardMs = CaptureReducer.GetBankedGuardMs(View.GraffitiOwner);
+    View.Showdown = Showdown;
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
-    View.Airdrop = Airdrop.View();
-    Charms.View(View.Charms);
-    View.Leader = LeaderNotice.View();
-    View.Boss = Camps ? Camps->BossView() : FLDBossView();
-    FieldMarkers.View(View.Markers);
+    if (!Showdown.bStarted)
+    {
+        View.Airdrop = Airdrop.View();
+        Charms.View(View.Charms);
+        View.Leader = LeaderNotice.View();
+        View.Boss = Camps ? Camps->BossView() : FLDBossView();
+        FieldMarkers.View(View.Markers);
+    }
     return View;
 }
 
