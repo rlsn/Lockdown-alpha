@@ -3656,6 +3656,15 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A blueprint ranked below the lowest learned active is kept"),
         LDOpponentPolicy::SelectReplacement(Kept.Self, C, Blueprint, Slot, Error))
         && Test.TestFalse(TEXT("And nothing else is to be built"), LDOpponentPolicy::DecideFollowUpBuild(Kept, C, State, Intent));
+    auto Final = Kept;
+    Final.Self.FinalModOfferId = FGuid(0xF1, 0, 0, 1);
+    Final.Self.FinalModOptions = {TEXT("active_apology_slide"), TEXT("active_elbow"), TEXT("active_pants_down")};
+    bGood &= Test.TestTrue(TEXT("Final selection skips a held blueprint and a learned active"),
+        LDOpponentPolicy::DecideFollowUpBuild(Final, C, State, Intent) && Intent.Kind == EKind::FinalMod
+        && Intent.Option == TEXT("active_pants_down") && Intent.Slot == 0);
+    Final.Self.FinalModOptions.Remove(TEXT("active_pants_down"));
+    bGood &= Test.TestFalse(TEXT("No final selection is sent when every offered active is already held"),
+        LDOpponentPolicy::DecideFollowUpBuild(Final, C, State, Intent));
 
     // Respec: the replacement takes the last AP active away, so the brains points come back once and go to the AD stats.
     const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),

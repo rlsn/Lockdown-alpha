@@ -1560,7 +1560,8 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         Key.Target = Self.FinalModOfferId;
         const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
         {
-            return !Self.Actives.ContainsByPredicate([&Id](const FLDOpponentActive& Active) { return Active.DefinitionId == Id; });
+            return !Self.Blueprints.Contains(Id)
+                && !Self.Actives.ContainsByPredicate([&Id](const FLDOpponentActive& Active) { return Active.DefinitionId == Id; });
         });
         if (Option && State.Failures.CanAttempt(Key, Print, Now))
         {
