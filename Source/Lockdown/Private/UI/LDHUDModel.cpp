@@ -1457,7 +1457,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
     case ELDBuildCommandKind::FinalMod:
         return Receipt.ChoiceResult==ELDBuildChoiceResult::Learned
-            ?FString::Printf(TEXT("终局改装：%s 装入 %s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString()),*Keys.Of(Receipt.LearnedSlot)):Missing;
+            ?FString::Printf(TEXT("终局技能：%s 装入 %s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString()),*Keys.Of(Receipt.LearnedSlot)):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -2204,7 +2204,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
     case ELDGrowthReason::FinalLocked: return TEXT("终局构筑已锁定");
-    case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
+    case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局技能");
     case ELDGrowthReason::FinalModUnavailable: return TEXT("这项改装已在构筑里，请换一项");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
     }

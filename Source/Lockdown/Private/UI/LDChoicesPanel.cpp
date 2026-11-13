@@ -442,7 +442,7 @@ void ULDChoicesPanel::RefreshFinalMod()
     ShownOffer=FGuid();ShownOfferRevision=0;
     GrowthShown(OfferGroup,true);
     GrowthShown(OfferRow,true);
-    GrowthText(OfferNumber,TEXT("终局改装"));
+    GrowthText(OfferNumber,TEXT("终局技能"));
     const FName Occupant=LDHUD::ActiveInSlot(Latest,FinalModTarget);
     const FString SlotKey=SlotKeys.Of(FinalModTarget);
     const FString Outcome=!Gate.bCanFinalMod?Gate.FinalModBlocked
@@ -468,7 +468,7 @@ void ULDChoicesPanel::RefreshFinalMod()
     {
         LDHUD::FActionDetailView Detail;
         Detail.Name=TargetName;
-        Detail.Body=FString(TEXT("点击切换改装装入的技能槽。\n\n"))+Outcome;
+        Detail.Body=FString(TEXT("点击切换技能装入的槽位。\n\n"))+Outcome;
         ShowFace(SkipCard,TargetKey,TargetName,FString(),SlotKey,Detail);
     }
     ShowLook(SkipCard,false,!PendingRequest);
