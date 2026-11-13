@@ -102,6 +102,7 @@ namespace LDObservedPresentation
     {
         ELDObservedActionCue Cue = ELDObservedActionCue::None;
         uint16 CueAgeMs = 0;
+        uint16 CueImpactDelayMs = 0;
         TArray<FLDObservedStatus> Statuses;
         bool bDamage = false;
     };

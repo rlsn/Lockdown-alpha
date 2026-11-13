@@ -57,9 +57,9 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(expected["Parameters.AD.BaseP2"], "7000")
         self.assertEqual(expected["Parameters.AP.BaseP2"], "0")
         self.assertEqual(expected["Parameters.CritMultiplierBp"], "20000")
-        self.assertEqual(expected["Parameters.AttackSpeed.Base.Numerator"], "9")
-        self.assertEqual(expected["Parameters.AttackSpeed.Base.Denominator"], "10")
-        self.assertEqual(expected["Parameters.BasicAttackWindupMs"], "250")
+        self.assertEqual(expected["Parameters.AttackSpeed.Base.Numerator"], "3")
+        self.assertEqual(expected["Parameters.AttackSpeed.Base.Denominator"], "4")
+        self.assertEqual(expected["Parameters.BasicAttackWindupMs"], "300")
         self.assertNotEqual(expected["Parameters.AD.BaseP2"], synthetic["Parameters.AD.BaseP2"])
 
     def test_every_active_value_quantity_has_a_distinct_native_change_assertion(self):

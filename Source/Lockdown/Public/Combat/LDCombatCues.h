@@ -16,6 +16,7 @@ namespace LDCombatCues
     {
         ELDObservedActionCue Cue=ELDObservedActionCue::None;
         int64 AtMs=0;
+        int64 ImpactAtMs=0;
     };
 
     // Cast > Hit > Attack: a body hit in the middle of its own swing still shows the hit. Attack and Cast run from the

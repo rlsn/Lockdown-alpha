@@ -126,7 +126,7 @@
 | `STAT.AP.Base/PerLevel` | 法强点/P2 | 0；0 | 0..300 | 通过脑力属性点与技能构筑；不让 AP 隐式强化普攻 |
 | `STAT.Armor.Base/PerLevel` | 护甲点/P2 | 18；2 | 0..200 | 首版无负抗/穿透；L10=36，不是 36% 减伤 |
 | `STAT.MagicResist.Base/PerLevel` | 魔抗点/P2 | 18；2 | 0..200 | 与护甲用相同点制公式；不能直接填入旧 MR 比例字段 |
-| `STAT.BaseAttackSpeed` | 次/秒/Rate | 0.90 | 正数 | 约 1.112s 一个基础攻击节拍；一级只用普攻同级对打约 11.4s |
+| `STAT.BaseAttackSpeed` | 次/秒/Rate | 0.75 | 正数 | 约 1.334s 一个基础攻击节拍；一级只用普攻同级对打约 13.6s |
 | `STAT.AttackSpeedPerLevelRatio` | 每级加成/R4 | 0.02 | 0..1 | 与身手属性点等同类来源相加；L10 无其他来源 AS=1.062 |
 | `STAT.HPRegen.Base/PerLevel` | HP 点/秒/Rate | 1.60；0.12 | 0..12 | 基础回复始终有效，体格属性点另外增加；L10=2.68/s |
 | `STAT.MPRegen.Base/PerLevel` | MP 点/秒/Rate | 1.20；0.08 | 0..4 | 无自动战斗回蓝；L10=1.92/s |
@@ -138,7 +138,7 @@
 | `UNIT.CollisionRadiusCm` | cm/Cm | 40 | 固定 | 最小双身体中心分离 80cm，小于建议普攻距离；世界负责净空/防重叠 |
 | `UNIT.BasicAttackRangeCm` | cm/Cm | 220 | 基础值 | 给80cm碰撞分离之外的接近余量；真实射程必须读下行派生值 |
 | `STAT.AttackRangeCm` | cm/Cm | 按来源派生 | 80..1000 | `FORMULA.AttackRange`；初始220；当前运行目录没有射程来源 |
-| `UNIT.BasicAttackWindupSec` | s/Sec | 0.250 | 正数 | 按 AS 反比缩放；基础 250ms，不能把前摇与整段攻击周期混用 |
+| `UNIT.BasicAttackWindupSec` | s/Sec | 0.300 | 正数 | 按 AS 反比缩放；基础 300ms，不能把前摇与整段攻击周期混用 |
 | `UNIT.BasicAttackTargetMode` | enum | Unit | 仅 Unit | 可攻击、可见、敌对参赛者或野怪；自己非法 |
 | `UNIT.BasicAttackDamageType` | enum | Physical | 固定 | 每次普攻原始量为 AD，无 MP 费用，无隐含顺劈 |
 | `UNIT.BasicAttackADRatio` | 倍率/R4 | 1.00 | 固定 | 与物攻相乘，不读AP；暴击另按AttackId处理 |
@@ -159,11 +159,11 @@ Root 是动作禁止，不把移动速度属性改成 0 后再夹回 173。
 | `FORMULA.Resistance` | 原始物理/魔法伤害 $D$ 与对应抗性点 $R$ → $D\times100/(100+R)$ | $R\in[0,200]$；R=0 不减伤，R=100 减半；不实现未被目录使用的负抗/穿透分支 |
 | `FORMULA.Crit` | 合法普攻主击在唯一 AttackId 取一次随机值 $u\in[0,1)$；$u<p$ 时主击原始 AD 乘 2；与主击合并结算的普攻强化包（S11、S17、B12、C09 等 `empower_basic`）随主击一起乘 2 | 服务器独立确定性随机流；重发同 AttackId 不重抽；副击、吸血治疗不可暴击。技能不暴击（§4.5） |
 | `FORMULA.Damage` | source 快照原始量 → 普攻暴击 → ×(1+Σ伤害加成，§4.5) → 目标实时抗性（含破防） → 向下取 0.01 → 现有屏障吸收 → 实际 HP 损失 | HP 损失不超过目标剩余 HP；70 对 18 抗=59.32，140 对 18 抗=118.64；0.009 对零抗=0，不设最低 1 点伤害 |
-| `FORMULA.AttackSpeed` | $0.90\times(1+0.02k+\Sigma ASBonus)$ → AS | 最后夹取到 [0.30,2.30] 次/秒；本目录的极端攻速构筑会被夹到 2.30 |
+| `FORMULA.AttackSpeed` | $0.75\times(1+0.02k+\Sigma ASBonus)$ → AS | 最后夹取到 [0.30,2.30] 次/秒；本目录的极端攻速构筑会被夹到 2.30 |
 | `FORMULA.MoveSpeed` | $UNIT.MoveSpeedCmPerSec\times(1+\Sigma MoveSpeedBonusRatio)$ | 最后夹取[173,675]cm/s；不把Root动作禁止当减速属性 |
 | `FORMULA.AttackRange` | 基础 `UNIT.BasicAttackRangeCm` + 永久 `AttackRangeCmFlat` → `STAT.AttackRangeCm` | 无乘区；目标/导航接近/预览/AttackMove全用派生值 |
-| `FORMULA.AttackIntervalMs` | $\lceil1000/AS\rceil$ → 相邻合法 AttackStart 的最短间隔 | AS=.90 得 1112ms；发出新 order、S 取消、构筑变化、死亡均不清已提交攻击端点 |
-| `FORMULA.AttackWindupMs` | $\lceil1000\times UNIT.BasicAttackWindupSec\times STAT.BaseAttackSpeed/AS\rceil$ | 基础 250ms；必须小于本次攻击间隔。前摇可以取消/因失去权限失败，但不退款已提交节拍 |
+| `FORMULA.AttackIntervalMs` | $\lceil1000/AS\rceil$ → 相邻合法 AttackStart 的最短间隔 | AS=.75 得 1334ms；发出新 order、S 取消、构筑变化、死亡均不清已提交攻击端点 |
+| `FORMULA.AttackWindupMs` | $\lceil1000\times UNIT.BasicAttackWindupSec\times STAT.BaseAttackSpeed/AS\rceil$ | 基础 300ms；必须小于本次攻击间隔。前摇可以取消/因失去权限失败，但不退款已提交节拍 |
 | `FORMULA.CooldownMs` | $\lceil1000\times BaseCDSec\times100/(100+H)\rceil$ → 本次释放持续时间 | H 非负；6s、H=30 得 4616ms。10s 释放得到 ReadyAt=14.616s，随后升级不改这个端点 |
 | `FORMULA.Regen` | rate × 同一权威时间的实际 elapsed + 亚P2积分余数 → 可提交的0.01点及新余数 | 见 `POLICY.RegenIntegration`；活体才恢复，满资源丢弃溢出。1.6/s 分1000次1ms仍回复1.60 |
 | `FORMULA.ResourceMaxChange` | 以P2整数计算 $\lfloor oldCurrent\times finalNewMax/oldMax\rfloor$ | 用户要求保持比例，最终一次向下量化；40/100→150为60→30为12→150为60→100回40；零上限/活HP下溢见§10.3 |

@@ -19,8 +19,8 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
         && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.Armor.MaxP2 == 20000 && P.MagicResist.MaxP2 == 20000
         && P.CritMultiplierBp == 20000 && Out->Get().Formulas.ResistanceScaleP2 == 10000
-        && P.AttackSpeed.Base.Numerator == 9 && P.AttackSpeed.Base.Denominator == 10
-        && P.BasicAttackWindupMs == 250);
+        && P.AttackSpeed.Base.Numerator == 3 && P.AttackSpeed.Base.Denominator == 4
+        && P.BasicAttackWindupMs == 300);
 }
 
 FLDDamageEvaluationInput PrimaryInput(const FLDDemoContentSnapshot& Catalog)
@@ -338,7 +338,7 @@ bool FLDDemoBasicTimingTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(*this, Catalog)) { return false; }
     auto Input = TimingInput(*Catalog);
-    if (!CheckTiming(*this, TEXT("Compiled character base"), Input, *Catalog, 1112, 250)) { return false; }
+    if (!CheckTiming(*this, TEXT("Compiled character base"), Input, *Catalog, 1334, 300)) { return false; }
     Input.CurrentAttackSpeed = Rate(27, 25);
     if (!CheckTiming(*this, TEXT("Changed AS changes both durations"), Input, *Catalog, 926, 209)) { return false; }
     Input.CurrentAttackSpeed = Rate(531, 500);

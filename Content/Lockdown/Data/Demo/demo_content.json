@@ -1940,7 +1940,7 @@
         "unit": "ratio"
       },
       "damage_type": "Physical",
-      "interval_ms": 1112,
+      "interval_ms": 1334,
       "target_mode": "Unit"
     },
     "dash": {
@@ -5899,8 +5899,8 @@
       "unit": "ratio"
     },
     "STAT.BaseAttackSpeed": {
-      "denominator": 10,
-      "numerator": 9,
+      "denominator": 4,
+      "numerator": 3,
       "unit": "attacks/s"
     },
     "STAT.CooldownHaste.Base": {
@@ -6053,7 +6053,7 @@
       "unit": "cm"
     },
     "UNIT.BasicAttackWindupSec": {
-      "ms": 250,
+      "ms": 300,
       "unit": "ms"
     },
     "UNIT.CollisionRadiusCm": {

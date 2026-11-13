@@ -45,7 +45,7 @@ public:
     // The cue byte and the seconds its action has already run on the presentation clock; a negative age is unknown and
     // counts the action from now. The same action kind reported with a later start restarts it (a repeated hit).
     // The first cue showing respawn protection also plays the appear effect.
-    void SetCue(uint8 Value, float ActionAgeSeconds = -1.f);
+    void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f);
     void SetHitReaction(float AgeSeconds);
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
@@ -82,10 +82,12 @@ private:
     LDBodyMotion::EAction Action = LDBodyMotion::EAction::None;
     ELDArtAnim Clip = ELDArtAnim::Count;
     double Clock = 0, ActionOnset = 0, AppearAt = -1, FallAt = -1, HitOnset = -1;
-    float HalfHeight = 0, HeightCm = 0;
+    float HalfHeight = 0, HeightCm = 0, ActionImpactSeconds = LDBodyMotion::StrikeAt;
+    float VisualYaw = 0, LeanPitch = 0, LeanRoll = 0;
+    FVector PreviousVelocity = FVector::ZeroVector;
     uint8 Cue = 0;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
-    bool bCueSeen = false, bFlashing = false, bHitSeen = false;
+    bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
     mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;
     mutable LDModelPicking::FSkinnedPose PickingPose;

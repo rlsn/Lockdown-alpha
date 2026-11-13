@@ -299,6 +299,8 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->bAutoAttackAfterCast = Loaded.RecoverablePreferences->bAutoAttackAfterCast;
             LocalControlSettings->bShowNetworkDiagnostics = Loaded.RecoverablePreferences->bShowNetworkDiagnostics;
             LocalControlSettings->bShowFPS = Loaded.RecoverablePreferences->bShowFPS;
+            LocalControlSettings->bReduceCombatEffects = Loaded.RecoverablePreferences->bReduceCombatEffects;
+            LocalControlSettings->bCameraShake = Loaded.RecoverablePreferences->bCameraShake;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");

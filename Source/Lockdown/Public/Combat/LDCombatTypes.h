@@ -419,6 +419,7 @@ struct FLDCombatCueFacts
     UPROPERTY() bool bActing=false;
     UPROPERTY() bool bActingBasic=false;
     UPROPERTY() int64 ActingStartedAtMs=0;
+    UPROPERTY() int64 ActingReleaseAtMs=0;
     UPROPERTY() bool bReleasedBasic=false;
     UPROPERTY() int64 ReleasedStartedAtMs=0;
     UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life

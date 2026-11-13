@@ -48,6 +48,8 @@ namespace
     // Schema 19 has the current key list but predates the music volume (#94).
     constexpr uint32 MusiclessSchema = 19;
     constexpr uint32 DetailslessSchema = 20;
+    constexpr uint32 CombatFeelLessSchema = 21;
+    constexpr uint32 CombatFeelSchema = 22;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -358,6 +360,8 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     bAutoAttackAfterCast = Other.bAutoAttackAfterCast;
     bShowNetworkDiagnostics = Other.bShowNetworkDiagnostics;
     bShowFPS = Other.bShowFPS;
+    bReduceCombatEffects = Other.bReduceCombatEffects;
+    bCameraShake = Other.bCameraShake;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -534,6 +538,8 @@ void ULDControlSettings::ResetPreferenceGroup(ELDPreferenceGroup Group)
         MinimapOrientation = CurrentDefaults->MinimapOrientation;
         bShowNetworkDiagnostics = CurrentDefaults->bShowNetworkDiagnostics;
         bShowFPS = CurrentDefaults->bShowFPS;
+        bReduceCombatEffects = CurrentDefaults->bReduceCombatEffects;
+        bCameraShake = CurrentDefaults->bCameraShake;
         break;
     }
 }
@@ -577,7 +583,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
             || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
-            || SavedSchema == DetailslessSchema);
+            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -587,6 +593,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     Settings->Storage = InStorage;
     uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
     uint8 Network = 0, FPS = 0, AutoAttack = Settings->bAutoAttackAfterCast ? 1 : 0;
+    uint8 ReduceEffects = Settings->bReduceCombatEffects ? 1 : 0, CameraShake = Settings->bCameraShake ? 1 : 0;
     int32 Count = 0;
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
@@ -602,8 +609,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema > DiagnosticslessSchema) { Reader << Network << FPS; }
     if (SavedSchema > AutoAttacklessSchema) { Reader << AutoAttack; }
     if (SavedSchema > MusiclessSchema) { Reader << Settings->MusicVolume; }
+    if (SavedSchema >= CombatFeelSchema) { Reader << ReduceEffects << CameraShake; }
     Reader << Count;
-    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1 || Count < 0 || Count > MaxBindingCount)
+    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1
+        || ReduceEffects > 1 || CameraShake > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
     if (SavedName.Len() != FCString::Strlen(*SavedName))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
@@ -613,6 +622,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     Settings->bAutoAttackAfterCast = AutoAttack != 0;
     Settings->bShowNetworkDiagnostics = Network != 0;
     Settings->bShowFPS = FPS != 0;
+    Settings->bReduceCombatEffects = ReduceEffects != 0;
+    Settings->bCameraShake = CameraShake != 0;
     Settings->PlayerName = SavedName;
     // Kept as stored: an unsupported value is rejected by the preference validation below, like an out-of-range zoom.
     Settings->MinimapOrientation = static_cast<ELDMinimapOrientation>(Orientation);
@@ -700,14 +711,15 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–20 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–21 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         if (SavedSchema <= AutoAttacklessSchema) { MigrationNotes += TEXT("施法后自动攻击默认开启。"); }
         if (SavedSchema <= MusiclessSchema)
         { MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume)); }
+        MigrationNotes += TEXT("降低战斗特效关闭、镜头震动开启。");
         if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
-            || SavedSchema == DetailslessSchema)
+            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema)
         {
             const FString Preserved = SavedSchema != AutoAttacklessSchema
                 ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法、诊断与施法后自动攻击偏好已保留，下次保存时写入新格式。")
@@ -755,15 +767,17 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     { return { ELDLocalSettingsSaveStatus::RecoveryRequired, TEXT("已在本次运行中应用；原设置文件保持不变。请先在设置中确认替换，再保存。") }; }
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
-    // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
-    // minimap orientation, quick cast, network diagnostics, FPS, auto attack after cast, music volume, binding count, bindings.
+    // Current schema order: edge, follow, text scale, zoom, player name, master volume, camera pan speed, minimap orientation,
+    // quick cast, diagnostics, auto attack after cast, music volume, combat effects reduction, camera shake, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
     uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0, AutoAttack = bAutoAttackAfterCast ? 1 : 0;
+    uint8 ReduceEffects = bReduceCombatEffects ? 1 : 0, CameraShake = bCameraShake ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec, SavedMusic = MusicVolume;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Network << FPS << AutoAttack << SavedMusic << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation
+        << SavedQuick << Network << FPS << AutoAttack << SavedMusic << ReduceEffects << CameraShake << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

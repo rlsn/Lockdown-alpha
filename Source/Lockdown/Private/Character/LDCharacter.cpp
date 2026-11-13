@@ -149,7 +149,11 @@ void ALDCharacter::Tick(float Delta)
         { Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,PC->OwnerState.ProtectedUntilMs}); }
     }
     const bool bCue=Selected.Cue!=ELDObservedActionCue::None;
-    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f);
+    const int64 ImpactAtMs=Selected.Cue==ELDObservedActionCue::Hit ? 0
+        : View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActionReleaseAtMs
+        : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
+    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
+        bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f);
     Body->Animate(GetVelocity(),Delta);
     // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
     if (View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life
@@ -161,7 +165,8 @@ void ALDCharacter::Tick(float Delta)
     }
     ShakeAge+=Delta;
     constexpr float ShakeSeconds=.16f, ShakeCm=4.f;
-    const float Amplitude=ShakeAge<ShakeSeconds ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
+    const float Amplitude=PC->Controls && PC->Controls->bCameraShake && ShakeAge<ShakeSeconds
+        ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
     Camera->SetRelativeLocation(FVector(0,Amplitude*FMath::Sin(190.f*ShakeAge),.7f*Amplitude*FMath::Sin(150.f*ShakeAge+1.f)));
 }
 

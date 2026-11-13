@@ -21,8 +21,10 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     FLDCombatCueFacts Winding;
     Winding.bActing=Winding.bActingBasic=true;
     Winding.ActingStartedAtMs=1000;
+    Winding.ActingReleaseAtMs=1250;
     TestTrue(TEXT("A winding-up basic shows Attack from its start until it releases"),
         Is(Select(Winding,999),None,0) && Is(Select(Winding,1000),Attack,1000) && Is(Select(Winding,9000),Attack,1000));
+    TestEqual(TEXT("A winding attack carries its authoritative release time"), Select(Winding,1100).ImpactAtMs, int64(1250));
 
     FLDCombatCueFacts Released;
     Released.bReleasedBasic=true;
@@ -30,6 +32,7 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     Released.ReleasedAtMs=1250;
     TestTrue(TEXT("A released basic stays Attack through its release plus the hold"),
         Is(Select(Released,1449),Attack,1000) && Is(Select(Released,1450),None,0));
+    TestEqual(TEXT("A released attack carries its actual release time"), Select(Released,1300).ImpactAtMs, int64(1250));
 
     FLDCombatCueFacts Instant;
     Instant.ReleasedStartedAtMs=Instant.ReleasedAtMs=2000;

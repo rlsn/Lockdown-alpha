@@ -350,6 +350,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     LDObservedPresentation::FFacts& Shown = Facts.AddDefaulted_GetRef();
     Shown.Cue = Unit.ActionCue;
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
+    Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.Statuses = Unit.Statuses;
     Shown.bDamage=bSameInterval && (Unit.AuthorizedFieldMask&LDObservation::Health)!=0
         && Unit.Health.MaxP2==LastMaxHealthP2 && Unit.Health.CurrentP2<LastHealthP2;
@@ -384,7 +385,8 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         const LDObservedPresentation::FFacts& Reached = Facts[Pose.Reached];
         const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
-        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age);
+        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
+            Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f);
         if (Reached.bDamage)
         { Body->SetHitReaction(float(FMath::Max(0.,AtServerSec-Points[Pose.Reached].At))); }
         ShownAt = Points[Pose.Reached].At;

@@ -16,12 +16,14 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
         Facts.bActing=true;
         Facts.bActingBasic=Body.Action->Kind==ELDCombatActionKind::Basic;
         Facts.ActingStartedAtMs=Body.Action->StartedAtMs;
+        Facts.ActingReleaseAtMs=Body.Action->ReleaseAtMs;
     }
     else if (Body.ChannelEffectId.IsValid())
     {
         Facts.bActing=true;
         Facts.bActingBasic=false;
         Facts.ActingStartedAtMs=Body.ChannelStartedAtMs;
+        Facts.ActingReleaseAtMs=Body.ChannelStartedAtMs;
     }
     Facts.DashUntilMs=Body.DashUntilMs;
     return Facts;
@@ -31,6 +33,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
 {
     InOut.ActionCue=ELDObservedActionCue::None;
     InOut.ActionCueAtMs=0;
+    InOut.ActionCueImpactAtMs=0;
     InOut.ActionAbility=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
@@ -43,6 +46,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     }
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
+    InOut.ActionCueImpactAtMs=Cue.ImpactAtMs;
     InOut.ActionAbility=Ability;
     return true;
 }

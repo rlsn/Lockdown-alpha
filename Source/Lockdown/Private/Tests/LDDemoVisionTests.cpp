@@ -526,7 +526,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
@@ -1137,12 +1137,14 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units = {ContenderUnit(1), CampUnit(2)};
     View.Units[0].ActionCue = ELDObservedActionCue::Cast;
     View.Units[0].ActionCueAgeMs = 180;
+    View.Units[0].ActionCueImpactDelayMs = 300;
     View.Units[1].ActionCue = ELDObservedActionCue::Hit;
     View.Units[1].ActionCueAgeMs = 40;
     View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
-    TestTrue(TEXT("Cues and their ages round-trip"), Wire(View, Read) && Read.Units.Num() == 2
-        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180 && Read.Units[0].ActionAbility == 7
+    TestTrue(TEXT("Cues, their ages and release timing round-trip"), Wire(View, Read) && Read.Units.Num() == 2
+        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
+        && Read.Units[0].ActionCueImpactDelayMs == 300 && Read.Units[0].ActionAbility == 7
         && Read.Units[1].ActionCue == ELDObservedActionCue::Hit && Read.Units[1].ActionCueAgeMs == 40);
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
@@ -1150,6 +1152,7 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
         FLDObservedUnitView Unit = ContenderUnit();
         Unit.ActionCue = Cue;
         Unit.ActionCueAgeMs = Cue == ELDObservedActionCue::None ? 0 : 250;
+        Unit.ActionCueImpactDelayMs = Cue == ELDObservedActionCue::Attack || Cue == ELDObservedActionCue::Cast ? 300 : 0;
         TestTrue(*FString::Printf(TEXT("Cue %d is a public cue"), int32(Cue)), LDObservation::ValidateUnit(Unit, Error));
     }
     FLDObservedUnitView Unknown = ContenderUnit();
@@ -1158,6 +1161,14 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Aged = ContenderUnit();
     Aged.ActionCueAgeMs = 1;
     TestFalse(TEXT("No cue carries no age"), LDObservation::ValidateUnit(Aged, Error));
+    FLDObservedUnitView DelayedWithoutCue = ContenderUnit();
+    DelayedWithoutCue.ActionCueImpactDelayMs = 1;
+    TestFalse(TEXT("No cue carries no impact delay"), LDObservation::ValidateUnit(DelayedWithoutCue, Error));
+    FLDObservedUnitView DelayedHit = ContenderUnit();
+    DelayedHit.ActionCue = ELDObservedActionCue::Hit;
+    DelayedHit.ActionCueAgeMs = 1;
+    DelayedHit.ActionCueImpactDelayMs = 1;
+    TestFalse(TEXT("A hit reaction has no future action-release time"), LDObservation::ValidateUnit(DelayedHit, Error));
     // A cast may name its public ability at that moment (user-approved CB-P10 amendment); nothing else may.
     FLDObservedUnitView Named = ContenderUnit();
     Named.ActionCue = ELDObservedActionCue::Cast;

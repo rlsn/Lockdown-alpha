@@ -1029,6 +1029,16 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         Unit.ActionCue = Facts.ActionCue;
         Unit.ActionAbility = Facts.ActionAbility;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
+        if (Facts.ActionCue != ELDObservedActionCue::None && Facts.ActionCue != ELDObservedActionCue::Hit)
+        {
+            if (Facts.ActionCueImpactAtMs < Facts.ActionCueAtMs || Facts.ActionCueImpactAtMs - Facts.ActionCueAtMs > MAX_uint16)
+            {
+                Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: action release timing is outside the visible action window.");
+                return false;
+            }
+            Unit.ActionCueImpactDelayMs = uint16(Facts.ActionCueImpactAtMs - Facts.ActionCueAtMs);
+        }
+        else { Unit.ActionCueImpactDelayMs = 0; }
         Unit.Health.CurrentP2 = State->Resources.HpP2;
         Unit.Health.MaxP2 = State->Resources.MaxHpP2;
         Unit.Statuses = Facts.Statuses;

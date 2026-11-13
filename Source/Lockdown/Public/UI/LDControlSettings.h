@@ -117,14 +117,14 @@ enum class ELDPreferenceGroup : uint8
     Audio,      // MasterVolume, MusicVolume
     Controls,   // Bindings, bQuickCast, bAutoAttackAfterCast
     Camera,     // Zoom, bEdgePan, bStartFollowing, CameraPanCmPerSec
-    Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS
+    Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS, combat effects and camera feedback
 };
 UCLASS()
 class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 21;
+    static constexpr int32 CurrentSchema = 22;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -155,6 +155,9 @@ public:
     UPROPERTY(SaveGame) bool bAutoAttackAfterCast=true;
     UPROPERTY(SaveGame) bool bShowNetworkDiagnostics=false;
     UPROPERTY(SaveGame) bool bShowFPS=false;
+    // Local presentation-only accessibility options; they never affect authority or replicated state.
+    UPROPERTY(SaveGame) bool bReduceCombatEffects=false;
+    UPROPERTY(SaveGame) bool bCameraShake=true;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);

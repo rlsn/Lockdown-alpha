@@ -13,10 +13,12 @@
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Framework/LDPlayerController.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
+#include "UI/LDControlSettings.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace LDHumanoidVisualDetail
@@ -411,7 +413,7 @@ void ULDHumanoidVisualComponent::Layout()
     Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
-void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds)
+void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds)
 {
     using LDBodyMotion::EAction;
     const uint8 Code = Value & ActionMask;
@@ -419,6 +421,8 @@ void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds)
     const bool bAgeKnown = ActionAgeSeconds >= 0.f && FMath::IsFinite(ActionAgeSeconds);
     const double Onset = bAgeKnown ? Clock - ActionAgeSeconds : Clock;
     if (LDBodyMotion::IsNewInstance(Action, ActionOnset, Next, Onset, bAgeKnown)) { ActionOnset = Onset; }
+    ActionImpactSeconds = FMath::IsFinite(ImpactDelaySeconds) && ImpactDelaySeconds >= 0.f
+        ? ImpactDelaySeconds : LDBodyMotion::StrikeAt;
     Action = Next;
     if (!bCueSeen)
     {
@@ -504,7 +508,7 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
     const FLDArtAnimation* Waving = Art->Find(ELDArtAnim::Spawn);
     const bool bPosed = bFalling
         ? Dying && Pose(ELDArtAnim::Death, float(Clock - FallAt) * Dying->PlayRate, true)
-        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, Acting->PlayRate), false))
+        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, ActionImpactSeconds, Acting->PlayRate), false))
             || (Waving && AppearAt >= 0 && Speed < RunFromCmPerSec && Pose(ELDArtAnim::Spawn, float(Clock - AppearAt) * Waving->PlayRate, false));
     const FLDArtAnimation* Entry = Art->Find(State);
     if (!Entry || !Entry->Sequence) { return; }
@@ -536,13 +540,37 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     else if (AppearAt >= 0) { Life = LDBodyMotion::Appear(float(Clock - AppearAt)); }
     // The current action's effects: the lunge and the orb ease toward the timeline, the spark and the flash follow it.
     const LDBodyMotion::FChannels Target = bFalling ? LDBodyMotion::FChannels()
-        : LDBodyMotion::WithHit(Action, float(Clock - ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f);
+        : LDBodyMotion::WithHit(Action, float(Clock - ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f,ActionImpactSeconds);
     const float Ease = 1.f - FMath::Exp(-40.f * FMath::Max(Delta, 0.f));
     Shown.Lunge = FMath::Lerp(Shown.Lunge, Target.Lunge, Ease);
     Shown.Charge = FMath::Lerp(Shown.Charge, Target.Charge, Ease);
-    Shown.Burst = Target.Burst;
-    Shown.Flash = Target.Flash;
-    Shown.HitBurst = Target.HitBurst;
+    const APlayerController* Viewer = GEngine ? GEngine->GetFirstLocalPlayerController(GetWorld()) : nullptr;
+    const ALDPlayerController* LocalController = Cast<ALDPlayerController>(Viewer);
+    const float EffectScale = LocalController && LocalController->Controls && LocalController->Controls->bReduceCombatEffects ? .45f : 1.f;
+    Shown.Burst = Target.Burst * EffectScale;
+    Shown.Flash = Target.Flash * EffectScale;
+    Shown.HitBurst = Target.HitBurst * EffectScale;
+
+    // Ease visual facing independently from the capsule so authority turns stay immediate without snapping the art.
+    const AActor* Owner = GetOwner();
+    const FRotator ActorRotation = Owner ? Owner->GetActorRotation() : FRotator::ZeroRotator;
+    const float TargetYaw = ActorRotation.Yaw;
+    if (!bVisualPoseInitialized)
+    {
+        VisualYaw = TargetYaw;
+        PreviousVelocity = Velocity;
+        bVisualPoseInitialized = true;
+    }
+    else if (Delta > SMALL_NUMBER)
+    {
+        VisualYaw = FMath::FixedTurn(VisualYaw, TargetYaw, 540.f * Delta);
+        const FVector LocalAcceleration = ActorRotation.UnrotateVector((Velocity - PreviousVelocity) / Delta);
+        LeanPitch = FMath::FInterpTo(LeanPitch, FMath::Clamp(LocalAcceleration.X / 8000.f, -1.f, 1.f) * 8.f, Delta, 7.f);
+        LeanRoll = FMath::FInterpTo(LeanRoll, FMath::Clamp(LocalAcceleration.Y / 8000.f, -1.f, 1.f) * 8.f, Delta, 7.f);
+        PreviousVelocity = Velocity;
+    }
+    const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw), LeanRoll);
+    Mesh->SetRelativeRotation(Art->MeshTransform.GetRotation() * FQuat(VisualLean));
 
     // The whole body: a lunge or knock-back, the appear scale and the final sink, all about the feet.
     const FVector Feet(0, 0, -HalfHeight);
@@ -575,7 +603,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     if (bCharge)
     {
         Parts[Charge]->SetRelativeLocation(Hand);
-        Parts[Charge]->SetRelativeScale3D(FVector(.1f + .25f * Shown.Charge));
+        Parts[Charge]->SetRelativeScale3D(FVector(.1f + .25f * Shown.Charge * EffectScale));
     }
     const bool bColumn = Life.Column > .02f;
     Parts[SpawnColumn]->SetHiddenInGame(!bColumn);

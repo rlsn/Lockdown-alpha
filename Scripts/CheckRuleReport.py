@@ -398,6 +398,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalSettingsPersistence",
         "Lockdown.Rules.LocalSettingsAtomicReplaceFailure",
         "Lockdown.Rules.LocalSettingsCameraPanSpeed",
+        "Lockdown.Rules.LocalSettingsCombatFeedback",
         "Lockdown.Rules.LocalSettingsMasterVolume",
         "Lockdown.Rules.LocalSettingsMusicVolume",
         "Lockdown.Rules.LocalSettingsMetadataReadFailure",
