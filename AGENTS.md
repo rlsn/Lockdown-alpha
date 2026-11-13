@@ -10,7 +10,7 @@
 | 改玩法规则或界面 | [App Spec](docs/APP_SPEC.md) 的相关章节 |
 | 改某个系统的实现 | [开发指南](docs/DEVELOPMENT.md#按任务读取系统手册)索引里对应的那一份系统手册 |
 | 改内容或数值 | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md)的相关章节，[开发指南](docs/DEVELOPMENT.md#数据修改)的数据修改 |
-| 跨模块改动 | [共享契约](docs/demo/SHARED_CONTRACTS.md)、[实施计划](docs/demo/IMPLEMENTATION_PLAN.md) |
+| 跨模块改动 | [共享契约](docs/demo/SHARED_CONTRACTS.md) |
 | 判断某项是否已验收 | [就绪评估](docs/demo/READINESS.md) |
 | 环境、命令、打包、CI | [README](README.md) 与[开发指南](docs/DEVELOPMENT.md) |
 

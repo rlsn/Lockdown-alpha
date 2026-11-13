@@ -3,9 +3,7 @@
 **目标：v0.11.0 · 架构职责：M6 / M7 · Unreal Engine 5.8.4**
 
 本报告将 [App Spec](../APP_SPEC.md) §4、§6–10 接到
-[架构 R09、N03/N04](ARCHITECTURE.md) 和
-[共享契约 SC-01–09](SHARED_CONTRACTS.md)。实施依赖见
-[实施计划 I4](IMPLEMENTATION_PLAN.md)，当前组件知识见
+[共享契约 SC-01–09](SHARED_CONTRACTS.md)。当前组件知识见
 [战斗与成长](../systems/COMBAT_AND_GROWTH.md)、
 [成长事务](../systems/GROWTH_TRANSACTIONS.md)。
 
@@ -19,10 +17,9 @@
 ## 1. 结论与确认规则
 
 **一份参赛者成长、一条 Combat 来源链。**
-XP、等级、属性点、主动机会与待学图纸由 Development 持有；装备、金币与商店已按 [#144](https://github.com/rlsn/Lockdown-alpha/issues/144) 删除。
-成长规则按 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198)改为五维属性点与单级主动，产品规则见 App Spec §4.2–§4.4；
-本域已接入其第一部分、第二部分（B：材料实例、开局与升级的基础构件 B01–B18 及其安装）与休息服务（NPC、洗点、替换、遗忘，见[成长事务](../systems/GROWTH_TRANSACTIONS.md)）；
-休息时刻见[会话与生命周期 §3.4](SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界198)，改装件/连接件与 PK 由 #198 后续部分接入。
+XP、等级、五维属性点、主动机会、待学图纸、材料实例与构件由 Development 持有，产品规则见 App Spec §4.2–§4.4；
+休息服务（NPC、洗点、替换、遗忘）见[成长事务](../systems/GROWTH_TRANSACTIONS.md)，
+休息时刻见[会话与生命周期 §3.4](SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界)。
 死亡奖励和成长命令各自在同一权威批次内复合提交：
 先准备成长与 Combat 投影，全部成功才一起应用，不先改 OwnerState 再补写。
 
@@ -31,21 +28,21 @@ XP、等级、属性点、主动机会与待学图纸由 Development 持有；�
 | 所有人初始近战、单体普攻；普攻可成长（距离、元素、强化、反应范围等），不要求群攻 | 初始构筑不授主动；获准的攻击距离、元素与强化进入同一 Combat 投影，不是只有面板数值。当前运行目录只有强化普攻主动。 |
 | 1 至 16 级；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一；16 级后按 XP 继续给点 | 开局点数与机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、点数与主动机会同一提交；连升排队，满级后继续累计 XP 并按阈值给点。 |
 | 开局主动选定后自选一个当前可用基础构件；每次正常升级（2–16 级）给一件普通构件，先按等级档位抽类别再在未持有定义中等概率取，空类别按剩余权重归一化，普通池耗尽改给 3 点（App Spec、AI 规范 §4.1–§4.3） | 开局基础构件整局一次，候选为常驻起手加开局主动解锁的，排除已持有；升级材料与 XP 同一提交、按本局私有种子抽取，满级后的 XP 不给材料；死亡与重连不重发、不洗首次安装历史。 |
-| 构件的首次安装、搬动、卸下与重装旧件随时可做（#222 用户决定：“all the time 可以学新技能和加点 all the time”，取代 AI 规范 §5 的脱战安装窗与“旧件只在休息”） | `LDProgression::InstallGate` 与学习同一闸门：对局进行中（野外含交战、休息每个步骤含 PK）、存活或死亡都受理，只有阶段关闭为 `PhaseClosed`；`RestOnly`（63）已退役。 |
+| 构件的首次安装、搬动、卸下与重装旧件随时可做 | `LDProgression::InstallGate` 与学习同一闸门：对局进行中（野外含交战、休息每个步骤含 PK）、存活或死亡都受理，只有阶段关闭为 `PhaseClosed`；`RestOnly`（63）已退役。 |
 | 主动候选互不重复，排除已学与待学图纸；技能只有一级 | 开局取开局池，3/6 级取全部主动；只有 1–2 个合格时如实显示，为零时机会排队；没有重抽。 |
-| Q/W/E 三角色主动；选中即成待学图纸，可学习且有空槽时同次学到 | 学习与加点没有构筑安全窗（#222）：有空槽就学到，Q/W/E 已满才存为图纸；满槽在野外不能替换（替换与遗忘只在休息的配装与派奖期间），新主动保留为图纸；遗忘不退款、不保留备用库。 |
+| Q/W/E 三角色主动；选中即成待学图纸，可学习且有空槽时同次学到 | 学习与加点没有构筑安全窗：有空槽就学到，Q/W/E 已满才存为图纸；满槽在野外不能替换（替换与遗忘只在休息的配装与派奖期间），新主动保留为图纸；遗忘不退款、不保留备用库。 |
 | 失去来源期间继续计时，重持有沿用原结束时间 | 遗忘、换槽、死亡不缩短已开始的 `ReadyAtMs`；重学承接原记录的截止时刻。 |
 | 已释放独立效果不因普通死亡或遗忘而取消 | 继续原定期限；依赖持续持有/施法的光环、被动、引导按维持条件失效。正式离局取消未结束独立效果，但不追溯改写既成死亡事实。 |
-| 野怪的 XP 归最后一击实际所有者；参赛者击杀另有助攻（#112） | 合法击杀一次结清：参赛者受害者的 XP 由击杀者与助攻者平分（App Spec §4.1）；阵亡但仍在本局的来源可以收奖或得助攻。无主、自杀、回位、离开不产生额外收益。 |
+| 野怪的 XP 归最后一击实际所有者；参赛者击杀另有助攻 | 合法击杀一次结清：参赛者受害者的 XP 由击杀者与助攻者平分（App Spec §4.1）；阵亡但仍在本局的来源可以收奖或得助攻。无主、自杀、回位、离开不产生额外收益。 |
 | 死亡不丢等级、XP、属性点、构筑、图纸或待选；新局清局内状态 | 持久状态不放在 Pawn / Widget；死亡取消身体期请求，不重发初始资源。 |
-| 死亡等待可以选择、学到空槽、加点与安装构件，只更新保留构筑（#222） | 不提前复活、不治疗尸体；复活后学到的技能仍在；当前 Life 和生/死确认阶段重新校验。 |
+| 死亡等待可以选择、学到空槽、加点与安装构件，只更新保留构筑 | 不提前复活、不治疗尸体；复活后学到的技能仍在；当前 Life 和生/死确认阶段重新校验。 |
 | 最大 HP/MP 改变时保持原生命/法力百分比 | 活体只按一次最终属性投影同比换算；不采用保持原绝对当前值的规则，精度由内容/Combat 单点定义。 |
 
 以上失源继续计时已获用户确认，不保留共享冷却或冻结计时备选。
-内容与数值以 已批准的首轮方案与 已批准的 #198 目录（[内容与数值](CONTENT_AND_BALANCE.md)）为准；
+内容与数值以已批准的[内容与数值](CONTENT_AND_BALANCE.md)为准；
 资源同比换算的精度与边界只由内容/Combat 的唯一公式定义。批准输入与规则测试都不代表真实联机或平衡已通过。
 
-## 2. 现有实现与已退出的旧链
+## 2. 现有实现
 
 本域实现于 `Development\LDDevelopmentDirector`、`LDProgressionRules`、`LDGrowthProtocol`、`LDGrowthRequests`，
 `Development\LDGrowthDirector`（死亡奖励提交）、`LDGrowthProviders`
@@ -53,14 +50,6 @@ XP、等级、属性点、主动机会与待学图纸由 Development 持有；�
 [成长事务](../systems/GROWTH_TRANSACTIONS.md)，构筑安装与来源冷却见
 [战斗、效果与成长](../systems/COMBAT_AND_GROWTH.md)。
 
-旧实现已整体删除，不作为现状、兼容入口或数值来源：旧 R09 构筑 `LDCharacterBuild`
-（构造器授技能、`AwardXP` 发点数、整份草稿 `Prepare`）与 `ULDCharacterCatalog`；V08 `LDV08Loadout`/`LDV08Modifiers`、
-`LDGearRules`、`LDInventoryTypes`、`LDLoadoutRequest`（背包/Quick/多绑定/六动作/family 共享锁）；
-V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 OwnerState 金币再补账的旧背包链与书店 Vendor；
-#144 删除的金币账本、两装备槽、装备目录与进阶、商店会话与买卖（§11）；旧营地 Actor 的分步奖励（N03 在核心 DeathKey 上统一提交）。
-对应旧专测已退役，由 `Lockdown.Rules.DemoGrowth*`、Combat 来源/属性规则与 `RunDemoGrowthCheck.ps1` 拥有连接场景承接。
-#198 第一部分同样真实删除了混合三选一（学习、升级、被动、属性卡与开局方向卡选项）、两档技能、属性卡与品质、重抽、
-全部被动目录与抱头装怂，不保留兼容壳或备用模式。
 
 **提交后半段不分配。** 成长与 Combat 的 Prepare 在副本上构造完整后态，Apply 只移动；
 请求与奖励回执窗口均为 64 条有界拒旧（§4）。
@@ -314,9 +303,9 @@ HP、MP 或冷却自然流逝不换组。
 
 ### 6.2 学习、满槽与时机
 
-- **时机**（#222 用户决定：“all the time 可以学新技能和加点 all the time”）：选择、学习、加点与构件安装/拆下/搬动在对局进行中随时受理——
+- **时机**：选择、学习、加点与构件安装/拆下/搬动在对局进行中随时受理——
   野外（含交战中）、休息的每个步骤（含抽签、押注、PK 与返回倒计时）、存活或死亡等待中；只有阶段关闭（结算后等）以 `PhaseClosed` 拒绝。
-  PK 中不锁定报名者的构筑快照，每次权威构筑变更直接投影到当前 PK 生命。没有构筑安全窗，`NotSafe`（52）已退役。
+  PK 中不锁定报名者的构筑快照，每次权威构筑变更直接投影到当前 PK 生命。没有构筑安全窗。
 - **能学就学**：选择时有空槽就学到首选空槽（未指定时按 Q、W、E 顺序第一个空槽）；Q/W/E 已满时存为图纸，回执写明原因（`NoEmptySlot`）。
   决定与选择同一提交，不会只成一半。死亡等待中也同样学到空槽，复活后仍在。
 - **学习图纸**：把一份待学图纸学到指定的空槽，时机同上；没有该图纸或槽已占用时明确拒绝，图纸保留。
@@ -325,7 +314,7 @@ HP、MP 或冷却自然流逝不换组。
   遗忘不退款、不保留备用技能库，再用需要新的真实来源。
 - 学习时 Combat 回绑该定义原有的冷却记录（§7.1）。
 - **交战窗口**由 Combat 维护：每名参赛者跨生命保留最近一次交战时刻，触发条件见 App Spec §4.2；本人 Combat 视图发布
-  `BuildSafeAtMs`，只供 HUD 在交战中收起野外摘要。成长命令与 AI 都不读它（`FLDProgressionView::BuildSafeAtMs` 已删除）。
+  `BuildSafeAtMs`，只供 HUD 在交战中收起野外摘要。成长命令与 AI 都不读它。
 
 ### 6.3 加点
 
@@ -355,7 +344,7 @@ HP、MP 或冷却自然流逝不换组。
 ### 7.2 属性点与攻击形态投影
 
 五维点数按每点收益作为永久来源进入同一最终属性投影（同类 flat 与加法比例相加，不逐点相乘）。
-普攻不要求群攻；#198 构件的持续属性与射程来源按同一 Combat 来源合同投影，
+普攻不要求群攻；构件的持续属性与射程来源按同一 Combat 来源合同投影，
 来源移除才移除持续贡献，未结束的触发期限按同一来源合同保留必要债务。
 已成功释放的独立效果使用 Combat 释放快照并继续原定期限，普通死亡或遗忘技能
 均不取消，不再要求当前仍持有原技能；目标 Life、终局和正式离局取消仍检查。
@@ -442,7 +431,7 @@ View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FL
 重放的旧生命成功回执只能作为历史结果查询，不改当前生命资源/来源。
 等待期间关闭面板不撤销已受理事实，重开查询真实结果；请求失败不保留假成功图标。
 
-自身构件列表（#198 接入后）可展开（不滚动），不新增玩法槽上限。Q/W/E 和 D 从真实输入映射显示按键，
+自身构件列表可展开（不滚动），不新增玩法槽上限。Q/W/E 和 D 从真实输入映射显示按键，
 选中别人不改变按钮所有者。
 UI 手势由输入域捕获，不穿透发世界命令；打开、选择都不暂停/授无敌。
 GameState、全场击杀通知不获取本域私有成长/候选/来源 ID。
@@ -513,7 +502,7 @@ XP、构筑、来源与显示格式化不能相互代算。
 
 | 项目 | 用户已确认的行为 | 不可越过的边界 |
 | --- | --- | --- |
-| 死亡等待中的成长 | `POLICY.DeadChoiceCommit=Allowed`：允许查看、选择并学到空槽、加点与安装构件（#222），利用等待整理构筑。 | 只改变持久成长，不伪造活 Pawn，不立即治疗/施法/复活。当前 Life+ExpectedLifePhase 重新确认，旧生命/旧阶段拒绝。 |
+| 死亡等待中的成长 | `POLICY.DeadChoiceCommit=Allowed`：允许查看、选择并学到空槽、加点与安装构件，利用等待整理构筑。 | 只改变持久成长，不伪造活 Pawn，不立即治疗/施法/复活。当前 Life+ExpectedLifePhase 重新确认，旧生命/旧阶段拒绝。 |
 | 最大 HP/MP 改变当前值 | 用户原文“保持原来的生命／法力百分比”；引用 `POLICY.ResourceMaxChange` 与 `FORMULA.ResourceMaxChange`。 | 升级、加点与学习均按旧当前值/旧上限和最终新上限一次换算，不逐来源反复移除/添加；不是保持旧绝对当前值。 |
 
 同比换算由 Combat 的 PrepareBuildChange 准备、ApplyBuildChange 一次应用；
@@ -539,52 +528,6 @@ XP、构筑、来源与显示格式化不能相互代算。
 
 上述行为不再作为待选方案；具体技能/阈值/公式及射程/横扫内容只由内容报告
 单点维护。工程类型、版本保护、Permit 和有限故障收口不转成用户逐字段选择。
-
-## 11. 新增、复用、改造与删除结果
-
-本域的替代与删除已完成；迁移过程只在 Git 历史中，本文不保留旧方案档案。
-
-| 架构映射 | 现有落点 | 已真实删除 |
-| --- | --- | --- |
-| D03、D35（#144） | — | 金币账本 `LDEconomyLedger` 及其证据导出与账户退休，BankTransaction、预算/endowment、quality/transient/parents 与事后 `Record/GoldChanged/Snapshot` 写链；`LDVendorDirector`（商店会话/报价/买卖）、`LDInventoryDirector`（两槽装备与观测投影）、装备目录与进阶 |
-| N03 新增 | `ALDGrowthDirector::CommitDeathReward`，Combat 在 DeathsAndRewards 按 DeathKey 调用 | `AwardExperience/RecordEconomyGold`、营地 Contact/Reward/PvPKill、LastOwner 兜底与任意授予入口 |
-| N04 新增 | `Development\LDDevelopmentDirector.*`、`LDProgressionRules.*`：属性点、持久主动机会与候选、窄成长命令（选择、学习、加点） | R09 `LDCharacterBuild` 与 `ULDCharacterCatalog`、职业六维/点数/开局技能、整份草稿与站点 hold |
-| D15/D16 | — | 书店 Vendor 与 `LDVendorTypes`、背包/重量/Quick/十一绑定/掉落整理、`LDInventoryTypes`/`ALDItem`、`LDGearRules`、`LDLoadoutRequest`、V07/V08 获取/装备/战术目录 |
-| R07/R09 来源 | Combat 唯一持有来源冷却轨道与回绑（`PrepareBuildChange/ApplyBuildChange`） | `LDV08Loadout`/`LDV08Modifiers`、ItemFamilies 共享主动 CD、施法伪库存修订 |
-| D16/N07 RPC 与投影 | `Framework\LDPlayerGrowth.cpp`、`FLDOwnerState.Growth`；HUD 的构筑选择卡 | 旧背包请求 RPC、`LDPlayerBank/Commerce/Production/Development/Vendor.cpp`、OwnerState 的 Build/Inventory/Gold/Xp |
-### 11.1 数据、adapter、生成与资产退出
-
-旧链已按原子闭包退出：R09 构筑与 `ULDCharacterCatalog`、V08 Loadout/修正器、V07/V08 装备/获取/战术目录
-与 B81–B84 合同连同最后使用者同批删除；同一集成批次删除 `DA_{Character,Acquisition,Combat,Equipment}Catalog`、
-`Content\Lockdown\Data\V07`/`V08` 载荷、`SourceData\Catalogs\V07`/`V08` 输入、SyncB84/TestB84/SyncV07* 脚本
-与 `Lockdown.Build.cs` 的旧 RuntimeDependencies，删除前完成 AssetRegistry 引用审计。
-本域内容只经 `SourceData\Demo` → Demo 载荷/root manifest/contract → `ULDDemoContentCatalog` 一条链读取；
-缺新输入明确失败，不回读旧目录，不保留 fallback、第二作者源或备用旧产物。
-反射类、WBP/CDO/DataAsset/map、动态加载和 `.uasset/.umap` 删除须 C3：
-以当前入口/角色/技能/root widget 为根检查 AssetRegistry 硬/软/管理引用，
-另核对 C++/配置拼接加载；旧类可加载时先迁移、编译、重存存活资产。
-随后 UHT、Editor/Game 构建、Bootstrap Validate、Cook 和新包 staged/AssetRegistry 核验。
-**文本零引用不证明二进制可安全删除。**
-
-### 11.2 测试与文档迁移
-
-| 当前入口 | 保留/改造与删除 |
-| --- | --- |
-| `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、请求窗口、等级/点数/主动候选/学习与加点准入与本人视图白名单（当前结果见就绪评估）；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。过期回执、满容量、越界和生死竞争仍须 §12 A24/A25 的场景。 |
-| 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局主动选择、开局加点、交战窗口内选到的等级候选当场学到 W 并加点、死亡中选择学到 E 并加点（不复活，复活后 E 仍在）、击杀奖励经各自连接完成（当前结果见就绪评估）；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
-| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败。 |
-| D29–D34 本域专测/手册 | 必要来源不变量已迁入上列规则与 Combat 来源/属性规则，旧生产者与专测已删除；系统手册只描述真实接口，不保存废弃方案。 |
-
-本域规则测试落在现有 Tests 体系，不新建测试框架，也不保留旧领域只是为了旧测试可编译。
-
-Growth 场景的准备行走保留随机出生与正常身体碰撞：对练地点取作者地形高度并校验原生导航起点，
-双方站在同层平地、喷漆区外，避开公开 Boss 巡逻点。准备路线使用作者营地家位置选择有界绕行点，
-每段仍须通过已注册地面与完整原生路径检查，再由各自拥有连接发送普通移动；不读取隐藏单位实时位置、
-不传送、不清除野怪、不改变正式游戏的动态避障规则。绕行失败明确结束场景，不重复同一路线掩盖阻挡。
-Host 的野怪奖励样本从当前批准的两成员低档营地及作者家位置选择，沿同一原生绕行入口前往；
-不使用已删除营地的旧坐标，也不为验收恢复旧地图内容。
-Listen Host 的奖励验收读取实际 HUD 的头像等级和经验条（比例与提示），
-同时核对本人投影与飘字；不再读取已删除的旧金额/等级文本控件。
 
 ## 12. 验收要求
 

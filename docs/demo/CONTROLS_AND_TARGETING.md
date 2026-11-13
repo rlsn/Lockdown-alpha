@@ -4,7 +4,7 @@
 
 本文说明 [App Spec](../APP_SPEC.md) §3.1 操作在当前代码中的实现：输入映射、右键分派、
 当前订单、目标准备与确认、取消、镜头、本地设置和指针反馈。它对接
-[架构](ARCHITECTURE.md)、[共享契约](SHARED_CONTRACTS.md) SC-01–09，不是第二份产品规格。
+[共享契约](SHARED_CONTRACTS.md) SC-01–09，不是第二份产品规格。
 §4.2 的攻击移动自动选敌、平局排序与续行规则，以及所引用的首版内容数值，已获用户批准；
 玩法数值只在 [内容与数值](CONTENT_AND_BALANCE.md) 维护，本文只引用键名。
 
@@ -101,7 +101,7 @@
 Unit 技能在指针下已有可见单位时、方向技能在指针下有地面时，按键当下即经 `ConfirmArmedCombat` 发送；
 否则仍保持准备，等待普通左键确认。
 
-**施法后自动攻击**（本地设置 `bAutoAttackAfterCast`，`ULDControlSettings::GetAutoAttackAfterCast`，默认开启，#167）：
+**施法后自动攻击**（本地设置 `bAutoAttackAfterCast`，`ULDControlSettings::GetAutoAttackAfterCast`，默认开启）：
 不带 Shift 的 `CastUnit/CastPoint` 订单发出时，`ULDNavigationComponent` 按 `LDOrderRules::CastFollowUpTarget`
 记下后续目标：对单位技能取其目标；对地面/方向技能取施法前服务器已激活的 `AttackUnit` 目标，没有则不跟进。
 客户端按订单身份保留已发送攻击的观察句柄，以 `ClientActive` 选取正在执行的目标；排队或被拒的请求不覆盖它，
@@ -178,7 +178,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 - 边缘平移带为视口四边各 8 px（`TickCamera` 中的固定值），在失焦、指针在 UI 上、
   小地图拖动和 Q/W/E/D/A 准备态时关闭。
 - Space 按住临时跟随自己，松开恢复；Home 切换跟随并保存 `bStartFollowing` 偏好。
-- 默认臂长 2250 cm，固定 pitch −60°、yaw −90°（正北朝上，#97）、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
+- 默认臂长 2250 cm，固定 pitch −60°、yaw −90°（正北朝上）、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
   身体、死亡等待相机、本地设置与美术镜头检查共用，不改变授权视野。
 - 滚轮每格改变 80 cm 臂长并夹在 1300–2400 cm（`ALDCharacter::ZoomedArmLength`），
   结果保存为本地设置 `Zoom`；这是固定的原生常量，没有可调的缩放步长或范围设置。
@@ -450,7 +450,7 @@ Direct 与 Nav 两种序号域互不比较。
 D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion source，不逐帧传送，遇阻挡由原生 CMC 停在最远合法位置
 （`Lockdown.Rules.DemoMotionProbe.DashStopsAtWall`）；起步方向立即被静态几何挡住时 `CanStartDash` 拒绝；
 定身只停自愿转向，不停重力与已提交的 root motion。
-**身体互相阻挡（#97）：**
+**身体互相阻挡：**
 参赛者、营地野怪与 Boss 的胶囊都阻挡彼此（`ECC_Pawn` 不再忽略），服务器运动停在别的身体前或沿其滑开；
 D 冲刺仍穿过身体（冲刺路径减速要命中路径上的敌人），只在冲刺自己的扫掠期间忽略身体（`ULDCharacterMovementComponent::IsDashing`）。
 远程客户端上，当前呈现的可见单位代理带同尺寸的仅查询胶囊，只阻挡本人预测的身体，让预测停在服务器会停的地方；
@@ -555,13 +555,6 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 `Source\Lockdown\Private\Character\LDCharacter.cpp`、`LDCharacterMovementComponent.cpp`；
 `Source\Lockdown\Public\Region\LDMapRegistry.h`；`Source\Lockdown\Public\Vision\LDVisionDirector.h`；
 `Source\Lockdown\Private\Combat\LDCombatDriver.cpp`（阶段调度）；`Source\Lockdown\Public\AI\LDOpponentController.h`。
-
-### 9.4 不存在的旧部分
-
-当前代码没有：静态 IA/IMC 输入资产与 Bootstrap 输入生成、控制设置 profile 或 Tactical/Hybrid 默认集、
-按住加速的旧 Sprint、Skill3+/Item3+ 槽、左键开店或拾取、方向普攻式的 A、“接近但不追击”的旧订单、
-单独的订单视图类型或动作结果回调。退役范围以
-[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束) 为准，不得恢复。
 
 ## 10. 验证
 

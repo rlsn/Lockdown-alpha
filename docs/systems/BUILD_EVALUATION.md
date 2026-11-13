@@ -2,7 +2,7 @@
 
 DEV 工具，不是产品模式。它回答“在本次覆盖的构筑、策略、场景与预算内，某个选择或组合是否改变了原生对局结果”，
 给出可重放的证据，不输出趣味性总分，也不在没有批准阈值时判定“平衡”。
-票与验收见 [#194](https://github.com/rlsn/Lockdown-alpha/issues/194)；产品规则仍只以 [App Spec](../APP_SPEC.md) 为准。
+产品规则只以 [App Spec](../APP_SPEC.md) 为准。
 
 ## 分层与依赖方向
 
@@ -69,7 +69,7 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 
 ## 预算与停止条件
 
-上限来自 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198) §11 的批准方案（核心 `BUDGET_CLASSES`、`BUDGET_CEILINGS`）。
+上限来自已批准的预算方案（核心 `BUDGET_CLASSES`、`BUDGET_CEILINGS`）。
 它是获准后手动触发的一次实验上限，不授权每日调度或不限次数批跑。清单可以填更小的值，超过所选类别上限的值在计划时拒绝，
 不启动任何进程。
 
@@ -153,7 +153,7 @@ B18 式绑定（可绑主动与元素）和改装/连接的合法对象（主动
    不撤退；第一名对决者死亡或到 `duel_timeout_ms` 结束，Host 结束本局并回到大厅。
    时限从第一野外段入口起算，必须严格早于第一野外段结束和 Boss 出现。
 
-### 工坊构筑步骤（#198 review §4、spec §19）
+### 工坊构筑步骤
 
 一方计划的 `build` 是有序步骤列表，每步写 `step` 与窗口 `at`：`opening_rest`（开局休息 R0 的配装窗口，开局选择之后、野外供给之前）
 或 `field`（野外，供给到达的等级与全部计划选择都已完成之后）。开局休息的步骤必须排在野外步骤之前，至多 32 步（原生上限）。
@@ -192,7 +192,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 
 准入时拒绝 `duel_site` 证明做不到的计划（`IllegalDecision`）：构件只来自开局基础构件（开局主动须由 `definition` 规则指定才可证明资格）
 与升级普通池抽取（稀缺构件、供给不跨等级或所跨等级类别权重为 0 的种类不可得）；绑定或安装对象的主动须由 `definition` 规则选中；
-宿主与 C12 基础构件须由更早的步骤装上；开局休息只拥有开局基础构件，评估准入仍把野外重装旧件、卸下、洗点与替换当作休息专属（spec §5；#222 后服务器已随时受理重装与卸下，洗点与替换仍只在休息），
+宿主与 C12 基础构件须由更早的步骤装上；开局休息只拥有开局基础构件，评估准入仍把野外重装旧件、卸下、洗点与替换当作休息专属（服务器随时受理重装与卸下，洗点与替换只在休息），
 而 `duel_site` 唯一的休息在供给之前；每个计划选择都在选择时学会，所以学习图纸与替换在 `duel_site` 中不可达；
 开局休息的加点不超过开局点数，全部加点（洗点后重计）必须恰好花完供给赚到的点数（spec §4.1）。种子抽取能否给出计划要用的构件
 只能运行时知道：同一块的各分支共用种子，抽到时“同材料不同用法”的各分支只在安装对象、绑定或加点上不同；没抽到时整块判
@@ -240,7 +240,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 
 | 种子流（`Evaluation\LDEvaluationSeeds`，派生版本 1） | 挂点 |
 | --- | --- |
-| `growth.match_secret` | `ALDDevelopmentDirector::BeginMatch` 的 `MatchSecret`（所有 Offer 与重抽） |
+| `growth.match_secret` | `ALDDevelopmentDirector::BeginMatch` 的 `MatchSecret`（所有 Offer） |
 | `world.spawn` | `ALDGameMode::StartDemoMatch` 的 `SpawnRandom`（出生点与 AI 开局计划） |
 | `combat.crit` | `InitializeAuthorityCore` 创建 Combat 后的 `CritRandom` |
 | `world.airdrop` | `LDAirdrop::Resolve` 的投放点序列；符咒与营地标记（`LDFieldMarkers::Resolve`）的种子由它派生 |
@@ -298,4 +298,4 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 示例清单在 `Scripts\BuildEvaluationManifests`。尚未覆盖：v0.11 机制（需批准并原生实现后由 Adapter 声明）、
 六类策略画像与按画像调参（E5，接入点是评估画像这一处 Decide 替换）、拥有连接/渲染证据的反制与可读性、
 多人或旗杆整局胜率、增量与定期评估（E6，调度另需批准）。
-平衡目标与实质差异阈值由用户决定，未批准时不填默认值；每批计算预算按 #198 §11 的批准上限执行。
+平衡目标与实质差异阈值由用户决定，未批准时不填默认值；每批计算预算按已批准的上限执行。

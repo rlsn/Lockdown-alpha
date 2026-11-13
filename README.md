@@ -12,15 +12,15 @@
 Demo 的完整流程已经实现：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）→ 开局休息 R0（开局主动三选一与开局属性点）→
 三段野外各接一次休息（从零打野、对抗、升级加点并在 3、6 级再选主动；休息时调整构筑）→ 最终野外旗杆开放后喷漆、守护与围攻 →
 唯一结果 → Host 带房间回 Lobby 开新局。
-运行入口只有前端和唯一 Demo 地图，旧模式代码已经删除。
+运行入口只有前端和唯一 Demo 地图。
 
-- [#198](https://github.com/rlsn/Lockdown-alpha/issues/198) 的规则工坊、元素、构件、公共休息室、PK、
+- 规则工坊、元素、构件、公共休息室、PK、
   野外奖励、蓝图与评估入口已接入；局部规则和同机拥有连接已验证，完整对局与整体验收仍未完成，
   限制见[实施就绪评估](docs/demo/READINESS.md)。
 - 首版内容与数值是用户批准的首次试玩输入，**没有做过平衡测试**。
 - 所有联机验证都在同一台机器的回环连接上运行；跨机器局域网与公网直连没有验证。
 - 下一阶段以好玩为先：先补齐玩法逻辑和内容，再反复试玩调整，最后做正式美术和声音。
-  缺少的内容见[实施就绪评估](docs/demo/READINESS.md#剩余工作)的“剩余工作”。
+  待办与排期见 [Issue](https://github.com/rlsn/Lockdown-alpha/issues) 与[看板](https://github.com/users/sinmentis/projects/4)。
 - 验收结果、未运行与未实现项见[实施就绪评估](docs/demo/READINESS.md)。产品规则只以 [App Spec](docs/APP_SPEC.md) 为准。
 
 ## 环境
@@ -87,7 +87,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 打包、PR 检查、每日试玩包 | [CI 与发布](docs/systems/CI_AND_RELEASE.md) |
 | 协作与实现规则（人和 AI 共用） | [AGENTS](AGENTS.md) |
 | 验收结果、未运行与未实现项 | [实施就绪评估](docs/demo/READINESS.md) |
-| 模块边界与跨模块契约 | [实施计划](docs/demo/IMPLEMENTATION_PLAN.md) · [共享契约](docs/demo/SHARED_CONTRACTS.md) · [架构审计](docs/demo/ARCHITECTURE.md) |
+| 跨模块契约 | [共享契约](docs/demo/SHARED_CONTRACTS.md) |
 | 各玩法域的设计与实现说明 | `docs\demo` 下的领域报告（会话、操作、战斗、成长与奖励、世界与营地、AI、界面） |
 | 首版内容与数值（唯一来源） | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md) |
 | 现有组件的实现与接口 | `docs\systems` 下的系统手册，索引见[开发指南](docs/DEVELOPMENT.md#按任务读取系统手册) |

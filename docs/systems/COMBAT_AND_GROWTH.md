@@ -14,7 +14,7 @@
 | `Combat\LDControlRules`、`Combat\LDCombatControl.cpp` | 嘲讽（`taunt` 效果）的纯规则与在 Combat 身体记录上的应用；见下文“嘲讽” |
 | `Combat\LDAttributeProjection` | 已批准构筑输入的属性与贡献投影、一次最大值变化的精确资源比例 |
 | `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀与只读发布 |
-| `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
+| `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十二点复活/保护、出生落地与营地整组生命提交 |
 | `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励 |
 | `World\LDCampLifecycle`、`World\LDCampDirector` | 营地名册与每局记账；服务器营地 Director 经 Combat 驱动阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实并做回营重置与整组刷新，奖励只由成长 sink 支付 |
 | `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、派生点数、持久主动候选组、待学图纸与 Q/W/E 的权威成长记录；构筑变更经 Combat 准备与安装 |
@@ -41,9 +41,9 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 冷却、蓝量与定身对位移的禁止由纯函数 `LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。
 D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
 `ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`。普通D不是进攻意图，不解除保护；
-构筑带 `dash_contact_damage` 触发项时（#198 第一部分的目录没有来源，留给后续基础构件），D会沿真实移动轨迹产生撞伤，准入前按进攻意图解除保护。
+构筑带 `dash_contact_damage` 触发项时，D会沿真实移动轨迹产生撞伤，准入前按进攻意图解除保护。
 每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
-释放时 `LDCombatSourceRules::InnateDashTerms` 只读目录的 `Character.Dash` 距离与冷却（#198 删除了 `dash_boost`），
+释放时 `LDCombatSourceRules::InnateDashTerms` 只读目录的 `Character.Dash` 距离与冷却，
 冷却不吃技能急速；结束时刻写成绝对 ReadyAt，之后换装或学习不改写。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
 Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
@@ -115,7 +115,7 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作，不飘名称）；
 来源没有批准定义时 `ReadObservedPublicFacts` 失败，不发布 0。观察者据此只显示施法名，不显示等级、冷却或技能列表。
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
-身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地两档各用自己的模型；
+身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地按档位使用各自的模型或配色；
 动画在 C++ 中单节点播放（无 AnimBP）：站立/跑动（速率 = 速度 / 目录参考跑速，低于 15 cm/s 站立），普攻与施法片段的出手帧（`ImpactSec`）
 对齐到 0.2 s 的出手时刻，受击按目录速率，一次性片段每帧按呈现时钟定位；目录缺少身体时记录 `LD_BODY_ART_UNAVAILABLE` 且不画替身。
 受击闪白转红与出现辉光走材质 `Flash` 自发光；
@@ -126,7 +126,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 带复活保护首次出现时由小变大并有光柱；死亡由不复制、无碰撞的 `ALDBodyPuppet` 在原地播放死亡片段倒地，再下沉、缩没
 （本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；甩你一鞋（`active_snark_bolt`，唯一的弹道技能）的飞行由 `ULDFlightTrailComponent` 拖出粉尘。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
-**助攻贡献**（#112 §8）只有一个记录入口 `ALDCombatDirector::RecordAssistContribution(Victim, CreditOwner, NowMs)`：
+**助攻贡献**只有一个记录入口 `ALDCombatDirector::RecordAssistContribution(Victim, CreditOwner, NowMs)`：
 受害者是参赛者、CreditOwner 是另一名有 Combat 记录的参赛者时，按纯规则 `LDAssist::RecordContribution` 在受害者这条生命的
 `FLDBodyCombatState::AssistContributions` 里刷新其最近贡献时刻（锁定死亡后不再记录，换命随身体消失）。
 `ApplyHit` 在提交后、与受击提示同一条件（正伤害含被护盾吸收的部分、定身/缴械/眩晕、减速）调用一次，
@@ -166,7 +166,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   （`LDCombatControl::ThornsBaseP2`，被暴击时乘 `CriticalMultiplierBp`；基础值按拥有者等级成长），
   走同一伤害、归属、死亡锁定与奖励路径；反伤不是普攻，不再触发反伤，也不暴击、不吸血。
 
-### 共用战斗原语（#112）
+### 共用战斗原语
 
 - **唯一控制路径** `ALDCombatDirector::CommitControl(Victim, FLDControlApplication, NowMs, bApplied, Error)`：
   `ELDControlKind { Root, Stun, Disarm, Taunt, Knockback, Slow, Silence }`。硬控（定身、眩晕、缴械、嘲讽、沉默）先经
@@ -178,9 +178,9 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 - **命中特效**：`FLDCombatHit::OnHitScaleBp` 是该命中的特效系数（普攻主击 10000，技能、附加伤害与反伤为 0）；
   `SnapshotOnHit(Body, ScaleBp, Hit, Error)` 在出手时快照吸血（B04），`ApplyHit` 按系数提交。
   `bAddedDamage` 的命中（B05 冲撞追加）不暴击、不触发命中特效；`AddedHit` 是附加伤害命中的构造。
-- **伤害求值顺序**（`ApplyHit`）：加成池 `FLDDamageEvaluationInput::DamageBonusBp`（#147 D21：B07 `ControlAmpBp`——目标在命中前被移动减速、
+- **伤害求值顺序**（`ApplyHit`）：加成池 `FLDDamageEvaluationInput::DamageBonusBp`（B07 `ControlAmpBp`——目标在命中前被移动减速、
   硬控或击退，单独的攻速降低不算；B17 `IdleReadyAmpBp`）相加后乘一次，普攻暴击 ×`STAT.CritMultiplier` 在池前；技能不暴击
-  （#198 删除了技能暴击、斩杀、暴击减伤与灼烧增幅）→ 破防后的抗性（`LDCombatKeywords::BreachedResistanceP2`：共享破防层的固定值）→
+  → 破防后的抗性（`LDCombatKeywords::BreachedResistanceP2`：共享破防层的固定值）→
   B16 主普攻减伤 → 护盾 → 生命；吸血经 `LDCombatKeywords::CapLifestealBp` 夹到 `COMBAT.LifestealCap`，按 `HPLostP2` 经 `HealBody` 回复；
   灼烧与反伤不吸血。`LD_HIT` 的 `amp_bp` 是 10000 加池，末尾 `pool_bp` 是加成池。
 - **剩余冷却缩减**：`ALDCombatDirector::ReduceCooldown(Entity, ELDCombatEntry, AmountMs)` 与按定义查找槽位的
@@ -192,12 +192,10 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   `InstalledComponents`，从目录取每个构件的 Op 效果，固定量按持有者等级以 `LDSkillGrowth::GrowEffect` 成长后按值返回
   （`FLDPassiveEffectRef`：Key=构件 id、`Source.Kind=Component`、`BoundActive`/`Element`）；目录缺构件或成长溢出是明确失败。
   `FindTrigger` 返回第一项并传出失败。
-  #198 删除的效果（`cleave`、`dash_boost`、`ability_crit`、`crit_damage_reduction`、`path_slow`、`zone_root`、`cast_frenzy`、`affliction_amp`、
-  `hit_haste`、`execute`、`pierce`、`echo`、`taunt_shield`、`dispel_disarm`、`cower`、`argument_chain`、`spell_sustain`、
-  `dash_contact_guard`）连同处理器与状态一起删除，编号不复用。`dash_contact_refund` 由 C03 携带；`mana_on_hit`、`cooldown_refund`、
+  已退役的效果操作编号不复用（`native_ids.json` 的 `retired_ranges`）。`dash_contact_refund` 由 C03 携带；`mana_on_hit`、`cooldown_refund`、
   `shield_break_retort` 的处理器当前没有构件携带。
 
-### #198 F 改装件与连接件（`LDCombatWorkshop.cpp`、`LDWorkshopRules`）
+### 改装件与连接件（`LDCombatWorkshop.cpp`、`LDWorkshopRules`）
 
 - 安装目标（`FLDComponentTarget`：主动、宿主构件、D、自身，C12 另带 `BoundComponent`）由 `LDWorkshop::TargetShape` 校验，投影把目标
   写进 `FLDPassiveEffectRef`；`Targets(Exit)` 判断一次出手（已学主动、构件来源或 D）是否是该改装的目标。
@@ -219,7 +217,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   `LD_COMBAT_DEBT_REPAID`、`LD_COMBAT_CONTROL_MARK_CONSUMED`、`LD_COMBAT_REACTION_EMPOWER`），没有新增状态编号。
 
 
-### #112 新机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）
+### 战斗机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）
 
 纯规则在 `Combat\LDCombatMechanics`（护盾打破判定、击退方向、区域脉冲时刻），
 Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它们的条目与数值见[内容与数值 §4–§5](../demo/CONTENT_AND_BALANCE.md#4-技能状态和属性目录)。
@@ -252,17 +250,17 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它�
 不得出现已扣资源但静默没有效果，或多个来源对同一额度重复返还。
 表现层不得成为第二个伤害、碰撞或效果计时权威。
 
-### 构筑 v7 战斗原语（#147，`LDCombatKeywords`、`LDCombatKeywordsDirector.cpp`）
+### 构筑 v7 战斗原语（`LDCombatKeywords`、`LDCombatKeywordsDirector.cpp`）
 
 纯规则在 `Combat\LDCombatKeywords`（共享破防与灼烧、吸血上限与 B02 账目批次），
 Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参数是内容参数 `COMBAT.Breach*`、`COMBAT.Burn*`、`COMBAT.LifestealCap`
-与 `SKILL.GrowthPerLevel`、`SKILL.GrowthPerLevelAfter10`（`FLDKeywordTerms::From`）。#198 目录有 22 个单级主动、没有被动，字段用法见
+与 `SKILL.GrowthPerLevel`、`SKILL.GrowthPerLevelAfter10`（`FLDKeywordTerms::From`）。目录有 22 个单级主动，字段用法见
 `FLDDemoEffectDefinition` 的注释。效果触发 `ELDDemoEffectTrigger` 有 `None`、`BasicHit`、`AbilityHit`、`Damaged` 与
-`DashComplete`（#198 B12）五种（反伤的 `trigger` 是它自己的字段，只接受 `Basic`）。
+`DashComplete` 五种（反伤的 `trigger` 是它自己的字段，只接受 `Basic`）。
 
 - **沉默**（`silence`，`ELDControlKind::Silence`，状态 `silence`）：实例形同缴械/眩晕，存于 `Silences`；矩阵动作 `ELDCombatControlAction::Skill`
   只被沉默与眩晕禁止。Q/W/E 的准入、释放与 `EntryView` 都经 `IsCastBlocked(Body, SourceKind)`（Cast 对所有入口，Skill 只对 Learned），
-  D 冲刺不受影响。`CommitControl` 中它是硬控（递减），落地时放弃前摇中的 Learned 技能（不付费），并清零喷漆（D10）。
+  D 冲刺不受影响。`CommitControl` 中它是硬控（递减），落地时放弃前摇中的 Learned 技能（不付费），并清零喷漆。
   本人视图状态带 `SilenceBlockBits()`（Cast），观察者看到公开状态；对手 AI 在沉默期间把 Learned 来源视为未就绪，并把带沉默的技能当作可打断喷漆的控制。
 - **共享破防**（`breach`）：`FLDBodyCombatState::SharedBreach`，所有来源同一组，每层固定 `COMBAT.BreachPerStack`，最多
   `COMBAT.BreachMaxStacks`，新层刷新整组（满层只刷新）；作为额外固定值进入 `BreachedResistanceP2`；来源离局层保留；营地回位清空。
@@ -280,12 +278,12 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   随最后一层或窗口结束）。
 - **受伤触发护盾**：`triggered_shield` 的 `Damaged` 触发（`OnDamaged`，B09）：承受敌对正伤害且仍存活后给护盾（按等级成长的 base + 生命上限比例），
   只有真正替换成功才开始 `interval` 冷却；弱盾不授予、不刷新。
-- **定身**：`root` 对减速中的目标仍是定身（#198 删除了 `slowed_stun`，`DemoBuildPrimitives.RootOnSlowed`）。
+- **定身**：`root` 对减速中的目标仍是定身（`DemoBuildPrimitives.RootOnSlowed`）。
 - **解除**：解除定身与解除减速在释放前经 `ApplyCleanses` 结算，缴械不被解除。
 - **普攻命中缩短三个主动冷却**：触发项 `cooldown_refund` 的 `BasicHit` 触发（无窗口）在每次普攻主击时缩短 Q/W/E 三个技能的剩余冷却。
 - 属性 `MPRegenFlat`（法力回复固定值）与 `HPRegenFlat` 同形。
 
-### 水火电与反应（#198，`LDCombatElements`、`LDCombatElementsDirector.cpp`）
+### 水火电与反应（`LDCombatElements`、`LDCombatElementsDirector.cpp`）
 
 纯规则在 `Combat\LDCombatElements`（反应表、R、S16 记录与反震量、S21 削减、命中类别），身体记录上的应用在 `LDCombatElementsDirector.cpp`；
 参数是 `COMBAT.Wet*`、`COMBAT.Electrified*`、`COMBAT.Discharge*`、`COMBAT.Reaction*`、`COMBAT.Fog*`、`COMBAT.Conduct*`、`COMBAT.Overload*`
@@ -322,7 +320,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   （护盾削减后再做替换判断），已有护盾不变；状态 `soured`。
 - 观察：`wet`、`electrified`、`braced`、`soured` 是公开状态（30–33）；观察唯一性检查是 64 位掩码，`LDObservation::MaxStatuses` 为 16。
 
-### 基础构件（#198 B，`LDCombatComponents.cpp`）
+### 基础构件（`LDCombatComponents.cpp`）
 
 已安装的基础构件（`FLDBuildProjectionInput::Components`，每个定义至多一次）先经 `LDAttributeProjection::Project`：未知、重复、非基础构件
 或安装参数与绑定不符都明确拒绝；`stat_bonus` 成为属性视图的 `Components` 行（B13 急速/回蓝、B14 普攻距离；`GrowEffect` 不成长这些量），
@@ -351,7 +349,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 ## 构筑与来源
 
 成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、按五维设计顺序（体格、脸皮、力道、脑力、身手，即 native id 升序，`FLDDemoContentDefinitions::StatsInDesignOrder`）每个五维一格的已分配点数、至多三个 `{Id, Slot}`
-主动、按 id 排序的待学图纸与 Revision）。#198 第一部分删除了三选一、被动、属性卡与品质、开局方向卡与重抽，以及技能 rank；
+主动、按 id 排序的待学图纸与 Revision）；
 点数、主动机会与命令合法性见 [成长事务](GROWTH_TRANSACTIONS.md)。
 `MakeProjectionInput` 把构筑交给 `FLDBuildProjectionInput`（等级、持有点数的五维 `StatPoints`、Q/W/E 主动、构筑修订）；
 `LDAttributeProjection` 按每个五维的 `PerPoint`（`stat_physique` 生命上限与生命回复、`stat_thick_skin` 护甲与魔抗、`stat_strength`
@@ -367,7 +365,7 @@ AI 的开局时刻/候选位由 `ALDGameMode::DrawOpponentOpeningPlan` 在绑定
 DEV 测试会话的测试属性层（`FLDBuildProjectionInput::DevBonuses`）也只由 Combat 持有：成长域输入不带它，
 Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 `Dev` 来源行；见[成长事务](GROWTH_TRANSACTIONS.md)。
 来源冷却轨道与回绑只由 Combat 持有：遗忘（目前只有 DEV `LearnActive` 指定槽）不清洗冷却，重学回绑原结束时间。
-满槽时普通命令不替换已学主动（`SlotOccupied`/存为图纸），休息替换属于 #198 后续部分。
+满槽时普通命令不替换已学主动（`SlotOccupied`/存为图纸）；满槽替换与遗忘只在休息时经休息服务进行。
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
 
 交战窗口（`GROWTH.BuildSafeWindowSec`）由 Combat 记在实体记录的 `LastBuildUnsafeAtMs` 上（跨生命保留，只前进）：它不限制任何成长命令，只供 HUD 在交战中收起野外摘要。
@@ -377,7 +375,7 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 `LastBuildUnsafeAtMs + 窗口`（没有记录为 0），本人 `CombatView.BuildSafeAtMs` 发布这一值（`ReadBuildSafeAtMs` 保留为读取入口，成长提交与 AI 不再读）；
 DEV 重置把它清零。
 
-### 局末构筑蓝图（#198 §10）
+### 局末构筑蓝图
 
 `ALDCombatDirector` 持有本局唯一的 `FLDBuildLedger`（`Development/LDBuildBlueprint.h`，挂点在 `LDCombatBlueprintLedger.cpp`），
 它只读 Combat 已安装的 `FLDBuildProjectionInput`，不是第二份构筑真相。版本按**结构**划分：持有点数的五维、Q/W/E 主动与已安装构件
@@ -392,8 +390,7 @@ DEV 重置把它清零。
 命中的造成伤害（`DamageP2`，含被目标护盾吸收部分，每次命中一次）记给记功参赛者**释放该效果时**的版本；
 没有登记释放的反应命中（反伤、盾破反击、爆盾）记给提交时安装的版本；承受伤害、自身护盾吸收与生命损失、
 本人削减实际减掉的量（S16 姿态 `BraceCutP2` 加主击护甲 `GuardCutP2`，记为减免）、一次性回复、还款、自然恢复和获得护盾
-记给受影响者提交时安装的版本。自伤与受保护的零结果不记。触发为已安装构件一次产生真实结果的触发（`LedgerComponentTriggered`，
-被动数值项不计）；拒绝为本人战斗请求因玩法门槛被拒（忙碌、冷却、普攻间隔、法力、控制、目标、方向、射程、视线；协议、过期与阶段拒绝不计），
+记给受影响者提交时安装的版本。自伤与受保护的零结果不记。触发为已安装构件一次产生真实结果的触发（`LedgerComponentTriggered`）；拒绝为本人战斗请求因玩法门槛被拒（忙碌、冷却、普攻间隔、法力、控制、目标、方向、射程、视线；协议、过期与阶段拒绝不计），
 直接请求在回执首次转为拒绝时（`StoreReceipt`）计一次，寻路普攻在出手被拒时计。公共休息室中的训练（休息生命与共享真实训练目标，§16.3）
 一律不记，不论攻击者是否属于目标对应槽位。早期版本写下的 `collected:false` 与 `null` 照原样读出，不当作 0。
 
@@ -416,14 +413,14 @@ DEV 重置把它清零。
 修订）组成每名在场真人的记录，经 `ULDBuildBlueprintComponent` 只发给其拥有连接；AI 不生成，任何人都收不到别人的构筑。
 文件格式、保存、保留与分享见[视野与 UI](VISION_AND_UI.md#构筑蓝图文件与查看)。
 
-### 技能等级成长（#147）
+### 技能等级成长
 
 技能的固定数值随拥有者**当前等级** L 分段成长：1–10 级每级使用 `SKILL.GrowthPerLevel`（15%），
 11–16 级每级使用 `SKILL.GrowthPerLevelAfter10`（7.5%），所以 G(10)=2.35、G(16)=2.8。
 每个主动只有一组作者数值（`FLDDemoAbilityValues`：法力、冷却、效果），代码不再有 rank 或高级倍率。
 
 - **成长范围**（`LDSkillGrowth::GrowEffect`）：效果的基础量（伤害、护盾、反伤、强化普攻与周期伤害；法力授予除外）、S16 的记录上限与限时属性
-  的点数（攻击力、法强、护甲、魔抗）。法力、比例、持续时间、冷却、射程与层数不成长；属性系数在两档间不变。
+  的点数（攻击力、法强、护甲、魔抗）。法力、比例、持续时间、冷却、射程与层数不成长；属性系数不成长。
 - **预计算**：`FLDDemoContentSnapshot` 构造时对每个主动、每个等级 1..`MaxLevel` 用 `LDSkillGrowth::GrowValues` 生成一行；
   `FindValues(Ability, Level)` 返回该行，等级越界或某行算术溢出（内容验证已证明不会发生）时返回空并由调用方明确失败。
 - **读取**：主动经 `ActiveOf` 在准入与释放时取成长后的数值，命中载荷在释放时快照；升级重新投影构筑；
@@ -440,11 +437,11 @@ DEV 重置把它清零。
 击退方向与区域脉冲时刻；`DemoControl.ActionMatrix/EmpowerOnce/ThornsRules/ExpansionContent` 覆盖动作禁止矩阵、强化普攻消费、反伤触发/去重/数值与条目的类型化导入与显示；
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的单级数值；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
-`DemoBuildPrimitives.*`（#147、#198）覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
-`DemoElements.Rules/FogAndSlot/BraceAndGrievous`（#198）覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
-`Combat.Components.*`（#198 B）覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04/B06/B14）、B12 冲刺完成武装、B02 账目批次与兑现、
+`DemoBuildPrimitives.*`覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
+`DemoElements.Rules/FogAndSlot/BraceAndGrievous`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
+`Combat.Components.*`覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04/B06/B14）、B12 冲刺完成武装、B02 账目批次与兑现、
 元素入口（火加层，水/电记为构件自己的施加）与 B18 绑定，
-`Combat.Events.*`（#198 H）在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻、灼烧与工坊入口驱动：命中转控制带出口（C05/C07）、
+`Combat.Events.*`在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻、灼烧与工坊入口驱动：命中转控制带出口（C05/C07）、
 B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后电及雾的即时潮湿、B02 不记结算、S19 触发后引信与到期不爆、
 欠款不吃 S16、C10 共享 C11 预算、M01 只扩散伤害、S20 队友加速、C01 固定窗口与边界收齐，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
@@ -459,10 +456,10 @@ B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后�
 Host 站点附近按固定方位确定的收缩边外合法脚点作为点选地面仍被拒、作为被追击身体的终点可完整规划，
 已接受行走上打开设置并超过订单租约（订单与心跳继续、设置下的新订单与 S 被本地拒绝、关闭后不重放）、
 远程攻击移动接敌与 S、右键击杀的击杀播报与复活延迟、死亡期间小地图平移驱动的静态镜头、
-十点随机复活的精确保护和公共状态，以及空 Q 经同一 Direct 入口被拒但解除保护且不恢复；
+十二点随机复活的精确保护和公共状态，以及空 Q 经同一 Direct 入口被拒但解除保护且不恢复；
 随后 Host 的 DEV 成长夹具（只有 Host 带 `-LDDevGrowthFixture`；候选在 Lobby 按 Start 前暂存，第一组即开局候选）为双方预置候选，
 并给 Client1 发放经验到首个主动机会等级；双方经普通 `SubmitBuild` 主动选择学会：Host 从开局候选学扒裤子，Client1 从开局候选学锅盖挡脸、
-从 3 级候选学甩你一鞋（有空槽即同次学到，#222），
+从 3 级候选学甩你一鞋（有空槽即同次学到），
 再经快捷入口的准备与确认施放：扒裤子定身 Client1 且 Host 的观察帧看到 Root、锅盖挡脸在定身到期前加护盾并解除定身、
 Client1 的甩你一鞋作为 Chalk 投射物事实飞向 Host、命中并减速，Host 的右键追击从基础射程之外接近并在投影的基础射程内落下普攻。
 双方还检查施法后攻击：Listen Host 的单位技能跟进及同步拒绝后的目标保留，真实拥有客户端在排队失效目标、

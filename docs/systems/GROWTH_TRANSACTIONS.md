@@ -1,8 +1,7 @@
 # 成长事务与回执
 
-可复用的是身份、版本校验、原子提交和反馈机制。Demo 没有装备、金钱与商店（#144 删除）；
-#198 第一部分起成长只有经验、等级、派生的五维点数、单级主动、主动机会与待学图纸，第二部分（B）加入材料实例与基础构件
-B01–B18 的获取和安装，休息窗口另有 NPC 主动候选、洗点、替换与遗忘主动四项服务，范围见 [App Spec](../APP_SPEC.md)，
+可复用的是身份、版本校验、原子提交和反馈机制。Demo 没有装备、金钱与商店；
+成长由经验、等级、派生的五维点数、单级主动、主动机会、待学图纸、材料实例与构件组成，休息窗口另有 NPC 主动候选、洗点、替换与遗忘主动四项服务，范围见 [App Spec](../APP_SPEC.md)，
 目标合同见 [成长与奖励](../demo/PROGRESSION_AND_REWARDS.md)，数值见 [内容与数值](../demo/CONTENT_AND_BALANCE.md)。
 
 ## 状态与入口
@@ -26,7 +25,7 @@ B01–B18 的获取和安装，休息窗口另有 NPC 主动候选、洗点、�
 休息 NPC 每次付费再加一次；`ActiveEarned` 恒等于 `ActiveOpportunitiesAt(等级) + NpcPurchased`，`PlanExperience` 只接收等级部分，
 `PrepareExperience` 把 NPC 部分原样带过升级。
 
-材料实例 `FLDComponentInstance`（#198 B）是本局真实获得的一件材料：`{Id, Source, SourceLevel, bInstalled, bEverInstalled, Target}`，
+材料实例 `FLDComponentInstance`是本局真实获得的一件材料：`{Id, Source, SourceLevel, bInstalled, bEverInstalled, Target}`，
 每个定义至多一件，库存与已安装合并去重。`ValidateBuild` 要求 id 已知且严格升序、来源合法（`OpeningPick` 为 1 级且整局至多一件，
 `LevelUp` 为 2..当前等级且每级至多一件）、已安装必有首次历史、库存实例没有目标；已安装的按定义形状安装，
 带 `active_element` 绑定的（B18）绑定其列表内的主动与元素；安装所在的主动、宿主构件与 C12 复用的基础构件都必须仍然有效
@@ -57,7 +56,7 @@ B01–B18 的获取和安装，休息窗口另有 NPC 主动候选、洗点、�
 服务器入口 `ServerGrowthBuild` 只调用 `QueueBuild`，受理结果经 `ClientGrowthSubmit` 立即返回（`OnGrowthSubmit`），
 终态回执在 `PublishGrowth` 之后经 `ClientBuildReceipt` 推送（`OnBuildReceipt`）；`QueryGrowthReceipt` 按
 Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidContext`。线族只有 `ELDGrowthFamily::Build = 3`
-（1 为退役的三选一，2 为 #144 退役的商店）。本人视图 `FLDProgressionView` 随 `SyncOwner` 一起复制在
+（1、2 已退役，不复用）。本人视图 `FLDProgressionView` 随 `SyncOwner` 一起复制在
 `FLDOwnerState.Growth`（Listen Host 的本地控制器由 `SyncOwner` 直接写入并调用 `OnRep_OwnerState`），
 `ReadOwnProgression` 只返回当前对局的视图。
 
@@ -82,7 +81,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未安装过、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 要求这些入口原生施加至少两种不同元素——主动的灼烧/潮湿/感电、B01/B10/B11 与 B18 已绑定的元素，两个火源不算），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`；C09 只列能补上一种缺少元素的，未绑定的 B18 按可绑元素计），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
 | `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
 
-#198 G 野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
+野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
 XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分（`LDProgression::DrawFieldReward`，按比赛私密种子与事件身份固定）：
 `BuildDraw`（空投与 Boss）先公平抽类别，50% 一张未学且非待学的主动图纸、50% 一件未持有的稀缺构件，各自均匀；一类为空用另一类，
 两类都空按当前等级的普通升级抽一件普通构件（普通池也空则 `GROWTH.EmptyComponentPoolPoints`，计入 `AwardedPoints`）。
@@ -100,8 +99,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 （`PlanTrackBindings` 按定义找回原轨道与就绪时刻），重学沿用原冷却债。
 
 合法性矩阵（`LDProgression::CommandGate`/`LearnGate`/`InstallGate`/`IsRestWindow`，提交时 `ALDDevelopmentDirector` 经
-`ALDGameMode::ReadBuildStage` 读阶段与本人生命阶段）。#222 用户决定
-打开了自己的构筑命令：`ActiveChoice`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
+`ALDGameMode::ReadBuildStage` 读阶段与本人生命阶段）。自己的构筑命令在对局进行中随时受理：`ActiveChoice`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
 `UninstallComponent`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
 
 | 阶段（`EMatchStage`） | 自己的构筑 | BuyNpcOffer / Respec / FillGap / Dismantle | ReplaceActive / ForgetActive |
@@ -131,7 +129,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 交战窗口（不再是构筑门）：Combat 在实体记录上保存 `LastBuildUnsafeAtMs`（跨生命，不回退），普攻起手、进攻性主动释放、
 造成或受到敌方正伤害（含灼烧与区域跳伤）、被施加硬控（定身、眩晕、缴械、嘲讽、沉默）或击退时刷新；
 单独减速、菜单、视野与回复不刷新。`BuildSafeAtMs = LastBuildUnsafeAtMs + GROWTH.BuildSafeWindowSec`（没有记录为 0），
-只由本人 `FLDCombatOwnerView::BuildSafeAtMs` 发布，供 HUD 在交战中收起野外摘要（#219）；成长提交与 AI 都不读它，
+只由本人 `FLDCombatOwnerView::BuildSafeAtMs` 发布，供 HUD 在交战中收起野外摘要；成长提交与 AI 都不读它，
 `FLDProgressionView::BuildSafeAtMs` 已删除。
 
 ## 复合事务
@@ -155,11 +153,11 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 业务去重分层完成：请求序号屏障（64 份回执窗口与终结水位，同号同条款重放原回执、异条款 `RequestConflict`）、
 DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放，同键不同事实为 `DeathConflict`，窗口外的旧生命为 `StaleDeath`），
 以及地图事件的 (Event, Serial) 集合。窗口外的旧请求返回 `ReceiptExpired`，不重新执行；写闸关闭后的新序号为 `MatchClosed`，
-已受理的重放仍回原回执。拒绝原因编号：40、46、47、49–51 与 65（#198 B 元素接入前的 `ElementUnsupported`）已退役，
+已受理的重放仍回原回执。拒绝原因编号：40、46、47、49–51 与 65 已退役，
 新增 `ReplacementNotAllowed=48`（野外替换/遗忘）、`NoEmptySlot=53`、`SlotOccupied=54`、`NoBlueprint=55`、
-`NotEnoughPoints=56`、`NoActiveOffer=57`、`PhaseClosed=58`；#198 B 新增 `NotOwned=60`、`AlreadyInstalled=61`、`NotInstalled=62`、
+`NotEnoughPoints=56`、`NoActiveOffer=57`、`PhaseClosed=58`；`NotOwned=60`、`AlreadyInstalled=61`、`NotInstalled=62`、
 `InvalidTarget=64`、`OpeningBaseUnavailable=66`、`OpeningBaseTaken=67`、`OpeningActiveFirst=68`；`NotSafe=52`（构筑安全窗）与
-`RestOnly=63`（搬动/卸下只在休息）随 #222 退役、编号保留不复用；休息服务 `BuildLocked=70`（只用于 NPC 服务）、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
+`RestOnly=63` 已退役、编号保留不复用；休息服务 `BuildLocked=70`（只用于 NPC 服务）、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
 （76、77 未分配）。构筑命令种类 1–3 之外，组件命令为 10–12，休息服务为 20–23，其余编号未用。
 
 ## 对外信息
@@ -209,7 +207,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 服务器 `ALDGrowthDirector::QueueDevTest` 复用 `TLDGrowthRequestStream`（单调序号、64 份回执窗口、冲突/乱序/过期拒绝），
 已接受的命令在 Transactions 阶段与构筑命令按服务器到达顺序提交（`CommitPendingDevTest`）。
 提交时重查本局与生命：离局为 `LeftMatch`，Life 不等于当前生命为 `OldLife`（旧命令不作用于下一条命）。
-操作号 2、6、7（原加金币、买、卖）随 #144 退役，5（原学习候选选项）随 #198 退役，都不再复用。
+操作号 2、5、6、7 已退役，不再复用。
 DEV 构筑操作要求 Alive 或 Dead。
 
 | 命令 | 提交 |
@@ -246,7 +244,7 @@ DEV 构筑操作要求 Alive 或 Dead。
 
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景（`LDDemoGrowthProbe.cpp`）：渲染的参赛 Listen Host 带 `-LDDevGrowthFixture`，
 在 Lobby 预置拥有客户端的三组候选。拥有客户端在开局倒计时内把开局主动学到 Q 并分配开局点数；经自身连接击杀得奖励，
-到首个机会等级后在交战窗口仍未结束时选择即学到 W 并加点（#222）；
+到首个机会等级后在交战窗口仍未结束时选择即学到 W 并加点；
 被 Host 击杀后在死亡中选择即学到 E、加点生效且不复活不治疗，复活后 E 仍在；回执查询返回同一份终态回执；
 运行 DEV 测试命令（含 DEV 学习、超额加点拒绝与重置），然后正常开第二局并核对新局隔离
 （等级/经验/点数回到开局值、只有本局新抽的开局机会、旧局请求被 `OldMatch` 拒绝）。
