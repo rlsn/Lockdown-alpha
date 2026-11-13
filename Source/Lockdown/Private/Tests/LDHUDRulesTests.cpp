@@ -1876,7 +1876,8 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
     // Every #198 G reason names itself; none falls through to the unknown line or repeats another.
     TSet<FString> Seen;
     for(const ELDGrowthReason Reason:{ELDGrowthReason::NoComponentChoice,ELDGrowthReason::ComponentOwned,ELDGrowthReason::NotAGap,ELDGrowthReason::NoGapFiller,
-        ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate})
+        ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate,
+        ELDGrowthReason::FinalLocked,ELDGrowthReason::NoFinalMod,ELDGrowthReason::FinalModUnavailable})
     {
         const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
         TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);

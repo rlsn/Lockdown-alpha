@@ -156,6 +156,10 @@ struct FLDOpponentSelf
     TArray<FLDOpponentGapFill> GapFills;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
+    // Phase 9: the untaken final mod three-choice (an invalid id when none is open) and whether the build is locked.
+    FGuid FinalModOfferId;
+    TArray<FString> FinalModOptions;
+    bool bBuildLocked = false;
     // #153: this adapter's own server-random opening timing (drawn once per match, never a hidden fact): the authority
     // ms from which it makes its countdown build decisions.
     int64 OpeningPickAtMs = 0;
@@ -321,7 +325,7 @@ struct FLDOpponentBodyIntent
 enum class ELDOpponentBuildKind : uint8
 {
     None, ChooseActive, LearnBlueprint, AllocatePoints, OpeningBase, InstallComponent, ComponentChoice, FillGap,
-    UninstallComponent, BuyNpcOffer, Respec, ReplaceActive, Dismantle
+    UninstallComponent, BuyNpcOffer, Respec, ReplaceActive, Dismantle, FinalMod
 };
 
 struct FLDOpponentBuildIntent
@@ -331,6 +335,7 @@ struct FLDOpponentBuildIntent
     FGuid OfferId;
     uint64 OfferRevision = 0;
     FString Option;
+    // FinalMod: OfferId is the final mod three-choice, Option the taken active and Slot its slot 0..2.
     // LearnBlueprint: the blueprint and the empty slot 0..2; ReplaceActive: the blueprint and the learned slot 0..2.
     FString Blueprint;
     uint8 Slot = 0;

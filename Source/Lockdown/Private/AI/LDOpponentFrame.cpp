@@ -215,6 +215,12 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
     }
+    Out.bBuildLocked = Progression.bBuildLocked;
+    if (Progression.bFinalModPending)
+    {
+        Out.FinalModOfferId = Progression.FinalModOfferId;
+        for (const FName& Option : Progression.FinalModOptions) { Out.FinalModOptions.Add(CanonicalId(Option)); }
+    }
     // #198 B: owned components; the installed ones (with their binding, and #198 F their target) also feed the own
     // attribute projection.
     TArray<FLDInstalledComponentValue> Installed;

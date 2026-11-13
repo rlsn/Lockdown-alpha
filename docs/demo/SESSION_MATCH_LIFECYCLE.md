@@ -43,7 +43,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | 房间规模 | 最多三名真人，包含 Host；Host 选择零至三个独立参赛 AI。没有队伍，不补满空位；Host 独自练习仍走同一流程。 |
 | 开始条件 | 仅 Host 可开始；全部已连接真人含 Host 都准备；AI 不伪造玩家 Ready RPC；开始时锁定真实参赛名单。 |
 | 联机边界 | IP 直连；局域网和正确配置防火墙/手动端口转发的公网可达地址；无自动 NAT 穿透、中继、中途加入、重连或 Host 迁移。 |
-| 唯一目标 | 前三段定时野外可以战斗/成长而不能喷漆或获胜；R3 不举行 PK，返场至独立六入口终局场地，十秒后解锁唯一旗杆。终局不发 XP、属性点或普通构件，普通构筑命令关闭。 |
+| 唯一目标 | 前三段定时野外可以战斗/成长而不能喷漆或获胜；R3 不举行 PK，返场至独立六入口终局场地，十秒后解锁唯一旗杆。R3 开始时每名参赛者收到一次终局改装（`FinalMod`）三选一；选中即在同一提交里装入指定槽、遗忘原技能并锁定构筑（`FLDFinalModState::bLocked`），返场边界锁定所有未选者。终局不发 XP、属性点或普通构件，普通构筑命令关闭。 |
 | 外层流程 | R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外 → Results；一条单调权威时钟，野外进度 T 只在野外推进、休息与 PK 中冻结。休息时每名参赛者在公共休息室的名单槽位有一条休息生命，野外世界冻结；阶段边界（野外↔休息）结束生命而不是死亡，清除全部进行中效果并补满资源与冷却。休息在公共休息室进行（[App Spec §2.1](../APP_SPEC.md#21-从菜单到结算)），详见 §3.4。 |
 | 喷漆与暂停 | 只有仍在本局、存活、非复活保护的参赛真人/AI 计数；野怪、尸体、技能表现不计数。喷漆区内只有一名有效参赛者且他不是涂鸦主人时，他的喷漆进度累积，满 `CAPTURE.SpraySec` 喷上涂鸦；两名以上时所有人的喷漆进度暂停并保留，争夺结束仍由他独自在区内时从暂停值续计，其他人既不累积也不继承。涂鸦主人在区内不喷漆。 |
 | 清零条件 | 喷漆者离区/死亡/离局（含争夺进行中），或在施加瞬间受到定身、眩晕、嘲讽、击退，即清零其进度；之后若仍独自在区内，从 0 重新累积。中间进出即使发生在同一帧也不能遗漏。 |
@@ -1050,7 +1050,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame` | 喷漆区求交、公共 DTO（喷漆、涂鸦主人、守护字段组合）校验、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 | 真实连接 |
 | `Lockdown.Rules.DemoSessionReceipts`、`Lockdown.Rules.DemoCore.*`、`Lockdown.Rules.ViewPrivacySchema` | 会话窗口重放/拒旧、核心时间与许可、公开字段白名单 | 真实连接 |
 | `Lockdown.Rules.DemoRest.Timeline`、`.PhasePolicy`、`.EntryHold`、`.SpawnIdentity`；`Lockdown.Rules.DemoPK.RingOutsideTime`；`Lockdown.Rules.DemoVision.EffectAccess` | 纯时间线：批准时长、报名窗口（截止含在内）、锁定保持、PK 跳过、T 在休息冻结与野外推进、完整中场休息 126 s、PK 提前结束、最终野外、按 T 的复活等待、客户端 T 推导；隔离组、冻结身体、阶段清理与补满；入场未就绪时 PKReady→PK 与 Return→野外停在边界、就绪后按实际时刻进入（`.EntryHold`）；被撤回的出生请求以新序号重试而不触发 `RequestConflict`、未定的请求仍挡住新序号（`.SpawnIdentity`）；圈伤按步内分段脚点路径的真实圈外时长切分（`.RingOutsideTime`）；观众/同队共享视野下飞行物的可见权限（`.EffectAccess`） | 真实驱动下的阶段生命放置、返场就近搜索与世界冻结；`RunDemoOpponentCheck.ps1` 另检查假人槽位并尝试触发 `Lives` 扩容（R01，未发生扩容记为未覆盖），以夹具制造 PK 出生点全被占（R02，等满 `REST.EntryReadyTimeoutSec` 后 NoContest）与返场时部分人放不下（R14） |
-| `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个真实拥有客户端 + 三个生产 AI；正常 R0、三段发育、R3 与独立场地入场；公开终局时钟、六个真实身体与本地目标标记；用正常导航/攻击争夺直至守护或期限结果；终局 XP/构筑不变、六行贡献、写闸关闭；回新 Lobby 并正常开第二局检查清理 | FIN 三选一、全部技能视觉质量、所有复活/截止细节、网络异常；通过结论只认当次 Artifacts |
+| `Scripts\RunDemoCaptureCheck.ps1` | Listen Host + 两个真实拥有客户端 + 三个生产 AI；正常 R0、三段发育、R3 与独立场地入场；公开终局时钟、六个真实身体与本地目标标记；用正常导航/攻击争夺直至守护或期限结果；R3 三个真人经成长面板选取终局改装、三个 AI 自选，入场时全部构筑锁定；终局 XP/构筑不变、六行贡献、写闸关闭；回新 Lobby 并正常开第二局检查清理 | 原 24 张 FIN 卡目录、全部技能视觉质量、所有复活/截止细节、网络异常；通过结论只认当次 Artifacts |
 | `Scripts\RunDemoSessionFaultCheck.ps1` | 客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态、Host 经菜单离开 | 跨机器局域网与公网 |
 | `Scripts\RunDemoOpponentCheck.ps1` | AI 绑定、自主循环、喷漆/守护/围攻行为、AI 以 `GuardSucceeded` 获胜且是公开涂鸦主人、回 Lobby 后退役 | 真人离开、网络异常 |
 

@@ -403,6 +403,12 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             // The phase changes first: the retiring field lives leave the spray roster as a rest boundary.
             MatchPhase = ELDMatchPhase::Rest;
             if (!MoveContendersToRest(Permit, Error) || !EnterRestWorld(Permit, Error)) { return false; }
+            // Phase 9: the final rest opens every contender's final mod three-choice.
+            if (Event.RestIndex == FLDTimelineParameters::TimedSegments)
+            {
+                if (!Development) { Error = TEXT("final rest without a development domain"); return false; }
+                if (!Development->OpenFinalMods(Permit, Error)) { return false; }
+            }
             break;
         case ELDTimelineEventKind::EnterStep:
             UE_LOG(LogLDMatch, Display, TEXT("LD_REST_STEP generation=%u rest=%u step=%s at_ms=%lld"),
@@ -426,7 +432,9 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             // the phase is still Rest (the R0 return is every contender's spray-roster join).
             if (bFinal)
             {
-                if (!BeginShowdown(Permit, Error)) { return false; }
+                // Builds enter the showdown locked, whether or not their final mod was taken.
+                if (!Development) { Error = TEXT("final field without a development domain"); return false; }
+                if (!Development->LockFinalMods(Permit, Error) || !BeginShowdown(Permit, Error)) { return false; }
             }
             else if (!ExitRestWorld(Permit, Error)) { return false; }
             if (!CommitFieldReturn(bFinal, Permit, Error)) { return false; }

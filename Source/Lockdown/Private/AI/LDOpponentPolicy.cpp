@@ -1337,6 +1337,8 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Build, Self);
     const LDProgression::FBuildContext Context = BuildContext(Frame);
     FString Error;
+    // Phase 9: a locked build takes no build command for the rest of the match.
+    if (Self.bBuildLocked) { return false; }
     if (bChooseOffer && Self.Offer.IsSet()
         && LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice, Context) == ELDGrowthReason::None)
     {
@@ -1545,6 +1547,33 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::AllocatePoints;
             Out.PointCounts = MoveTemp(Counts);
+            Out.Key = Key;
+            return true;
+        }
+    }
+    // Phase 9: last, since it locks the build: the final mod once no active offer is pending: the first option the build does not hold, into the lowest
+    // empty slot (else Q, whose active it replaces).
+    if (Self.FinalModOfferId.IsValid() && !Self.Offer.IsSet() && !Self.FinalModOptions.IsEmpty()
+        && LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Context) == ELDGrowthReason::None)
+    {
+        FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FinalMod);
+        Key.Target = Self.FinalModOfferId;
+        const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
+        {
+            return !Self.Actives.ContainsByPredicate([&Id](const FLDOpponentActive& Active) { return Active.DefinitionId == Id; });
+        });
+        if (Option && State.Failures.CanAttempt(Key, Print, Now))
+        {
+            uint8 Slot = 0;
+            while (Slot < 3 && Self.Actives.ContainsByPredicate([Slot](const FLDOpponentActive& Active) { return Active.Slot == Slot; }))
+            {
+                ++Slot;
+            }
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::FinalMod;
+            Out.OfferId = Self.FinalModOfferId;
+            Out.Option = *Option;
+            Out.Slot = Slot < 3 ? Slot : 0;
             Out.Key = Key;
             return true;
         }

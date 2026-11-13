@@ -646,6 +646,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::ComponentChoice:
     case ELDBuildCommandKind::FillGap:
     case ELDBuildCommandKind::Dismantle:
+    case ELDBuildCommandKind::FinalMod:
         break;
     default:
         return ELDGrowthReason::InvalidRequest;
@@ -680,6 +681,10 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     case ELDBuildCommandKind::ForgetActive:
         return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
             : !bRest ? ELDGrowthReason::ReplacementNotAllowed : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
+    // Phase 9: the final mod is taken in the final rest's build window (or its payout), with a living body.
+    case ELDBuildCommandKind::FinalMod:
+        return Context.Stage == EMatchStage::RestLocked ? ELDGrowthReason::BuildLocked
+            : !bRest ? ELDGrowthReason::NotRestWindow : bDead ? ELDGrowthReason::Dead : ELDGrowthReason::None;
     default:
         return ELDGrowthReason::InvalidRequest;
     }
@@ -996,6 +1001,108 @@ ELDGrowthReason LDProgression::ApplyReplaceActive(const FLDDemoContentDefinition
     Out.Actives.Add({Blueprint, Slot});
     ReclaimAttachments(Out, OutForgotten, OutReclaimed);
     ProgressionSortBuild(Out);
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    uint64 Seed, TArray<FName>& Out)
+{
+    Out.Reset();
+    TArray<FName> Remaining;
+    // Any ordinal after the opening one draws from every active.
+    if (const ELDGrowthReason Reason = EligibleActives(Content, Build, 2, Remaining); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    TArray<FName> Shuffled;
+    uint64 State = Seed;
+    while (!Remaining.IsEmpty())
+    {
+        const int32 Pick = int32(ProgressionSplitMix64(State) % uint64(Remaining.Num()));
+        Shuffled.Add(Remaining[Pick]);
+        Remaining.RemoveAt(Pick);
+    }
+    const auto ModeOf = [&Content](FName Id)
+    {
+        const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Id);
+        return Ability ? Ability->Target.Mode : ELDDemoTargetMode::Self;
+    };
+    TArray<ELDDemoTargetMode> Modes;
+    for (const FName Id : Shuffled)
+    {
+        if (Out.Num() < 3 && !Modes.Contains(ModeOf(Id)))
+        {
+            Modes.Add(ModeOf(Id));
+            Out.Add(Id);
+        }
+    }
+    for (const FName Id : Shuffled)
+    {
+        if (Out.Num() < 3 && !Out.Contains(Id))
+        {
+            Out.Add(Id);
+        }
+    }
+    return ELDGrowthReason::None;
+}
+
+uint64 LDProgression::FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender)
+{
+    // A tag no opportunity ordinal reaches keeps this draw apart from the offer seeds.
+    uint32 Words[10] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
+        Contender.A, Contender.B, Contender.C, Contender.D, 0x46494eu, 1u};
+    return CityHash64(reinterpret_cast<const char*>(Words), sizeof(Words));
+}
+
+ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, uint8 Slot, const FBuildContext& Context,
+    FLDGrowthBuild& Out, FLDProgressionState& OutProgression, FName& OutForgotten, TArray<FName>& OutReclaimed)
+{
+    Out = Current;
+    OutProgression = Progression;
+    OutForgotten = NAME_None;
+    OutReclaimed.Reset();
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    if (Slot >= 3)
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::FinalMod, Context); Reason != ELDGrowthReason::None)
+    {
+        return Reason;
+    }
+    const FLDFinalModState& FinalMod = Progression.FinalMod;
+    if (!FinalMod.IsPending() || FinalMod.OfferId != OfferId)
+    {
+        return FinalMod.bLocked ? ELDGrowthReason::FinalLocked : ELDGrowthReason::NoFinalMod;
+    }
+    if (!FinalMod.Options.Contains(Option))
+    {
+        return ELDGrowthReason::InvalidOption;
+    }
+    if (Current.FindActive(Option) || Current.HasBlueprint(Option))
+    {
+        return ELDGrowthReason::FinalModUnavailable;
+    }
+    if (Progression.Offer.IsSet())
+    {
+        return ELDGrowthReason::OfferOutstanding;
+    }
+    // The cost of the mod: whatever sat in the slot is forgotten and its attachments return to the inventory.
+    if (const int32 Index = Current.ActiveInSlot(Slot); Index != INDEX_NONE)
+    {
+        OutForgotten = Current.Actives[Index].Id;
+        Out.Actives.RemoveAt(Index);
+        ReclaimAttachments(Out, OutForgotten, OutReclaimed);
+    }
+    Out.Actives.Add({Option, Slot});
+    ProgressionSortBuild(Out);
+    OutProgression.FinalMod.Chosen = Option;
+    OutProgression.FinalMod.Slot = Slot;
+    OutProgression.FinalMod.bLocked = true;
     return ELDGrowthReason::None;
 }
 

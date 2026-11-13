@@ -1436,6 +1436,7 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer,Context),View.bCanBuyNpc,View.NpcBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::Respec,Context),View.bCanRespec,View.RespecBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive,Context),View.bCanReplace,View.ReplaceBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::FinalMod,Context),View.bCanFinalMod,View.FinalModBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ForgetActive,Context),View.bCanForget,View.ForgetBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ComponentChoice,Context),View.bCanComponentChoice,View.ComponentChoiceBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::FillGap,Context),View.bCanFillGap,View.FillGapBlocked);
@@ -1454,6 +1455,9 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     {
     case ELDBuildCommandKind::SkipActiveOffer:
         return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
+    case ELDBuildCommandKind::FinalMod:
+        return Receipt.ChoiceResult==ELDBuildChoiceResult::Learned
+            ?FString::Printf(TEXT("终局改装：%s 装入 %s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString()),*Keys.Of(Receipt.LearnedSlot)):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -1950,6 +1954,7 @@ LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression
     Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
     Pending.bOpeningBase=Progression->bOpeningBasePending&&!Progression->OpeningBaseOptions.IsEmpty();
     Pending.ComponentChoices=Progression->ComponentChoices.Num();
+    Pending.bFinalMod=Progression->bFinalModPending&&!Progression->FinalModOptions.IsEmpty();
     return Pending;
 }
 bool LDHUD::ChoiceTrayTiles(const FLDProgressionView& Progression)
@@ -2198,6 +2203,9 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantleInvalid: return FString(TEXT("要交出规定数量的不同普通"))+LDTerms::Component+TEXT("（稀缺件不收）");
     case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
+    case ELDGrowthReason::FinalLocked: return TEXT("终局构筑已锁定");
+    case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
+    case ELDGrowthReason::FinalModUnavailable: return TEXT("这项改装已在构筑里，请换一项");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
     }
 }

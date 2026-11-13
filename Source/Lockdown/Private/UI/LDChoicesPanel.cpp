@@ -95,10 +95,10 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             OfferLine->AddChildToHorizontalBox(OfferFrame)->SetPadding(FMargin(8,0,0,0));AddRow(OfferLine);
             for(int32 Index=0;Index<3;++Index)
             {
-                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)),[this,Index](){ChooseOffer(Index);});
+                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)),[this,Index](){if(ShownFinalMod.IsValid()){ChooseFinalMod(Index);}else{ChooseOffer(Index);}});
                 OfferRow->AddChildToWrapBox(Card.Frame);OfferCards.Add(Card);
             }
-            SkipCard=MakeCard(TEXT("GrowthOfferSkip"),[this](){SkipOffer();});
+            SkipCard=MakeCard(TEXT("GrowthOfferSkip"),[this](){if(ShownFinalMod.IsValid()){CycleFinalModSlot();}else{SkipOffer();}});
             OfferRow->AddChildToWrapBox(SkipCard.Frame);
             TrayFrame=WidgetTree->ConstructWidget<UBorder>();TrayFrame->SetBrushColor(FLinearColor::Transparent);TrayFrame->SetPadding(FMargin(0,0,16,72));
             TrayFrame->SetHorizontalAlignment(HAlign_Right);TrayFrame->SetVerticalAlignment(VAlign_Bottom);
@@ -390,6 +390,15 @@ void ULDChoicesPanel::RefreshAll()
 void ULDChoicesPanel::RefreshOffer()
 {
     const bool bOffer=Usable()&&Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty();
+    // Phase 9: the final mod three-choice uses the offer row once no active offer is pending (the server refuses it until then).
+    const bool bFinal=!bOffer&&Usable()&&Latest.bFinalModPending&&!Latest.FinalModOptions.IsEmpty();
+    if(!bFinal||Latest.FinalModOfferId!=ShownFinalMod)
+    {
+        ShownFinalMod=bFinal?Latest.FinalModOfferId:FGuid();
+        const uint8 Empty=FirstEmptySlot();
+        FinalModTarget=Empty<3?Empty:0;
+    }
+    if(bFinal){RefreshFinalMod();return;}
     // A new offer drops the pinned popup; ids and revisions travel with the click, never a card index.
     if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;}
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
@@ -427,6 +436,42 @@ void ULDChoicesPanel::RefreshOffer()
         ShowFace(SkipCard,SkipKey,SkipName,FString(),TEXT("+"),Detail);
     }
     ShowLook(SkipCard,false,Points>0&&Gate.bCanChoose&&!PendingRequest);
+}
+void ULDChoicesPanel::RefreshFinalMod()
+{
+    ShownOffer=FGuid();ShownOfferRevision=0;
+    GrowthShown(OfferGroup,true);
+    GrowthShown(OfferRow,true);
+    GrowthText(OfferNumber,TEXT("终局改装"));
+    const FName Occupant=LDHUD::ActiveInSlot(Latest,FinalModTarget);
+    const FString SlotKey=SlotKeys.Of(FinalModTarget);
+    const FString Outcome=!Gate.bCanFinalMod?Gate.FinalModBlocked
+        :Occupant.IsNone()?FString::Printf(TEXT("装入 %s，构筑随即锁定"),*SlotKey)
+        :FString::Printf(TEXT("替换 %s 的%s（遗忘，挂件退回库存），构筑随即锁定"),*SlotKey,
+            *LDHUD::ActiveCard(Occupant,LatestContent,LatestStats).Name);
+    for(int32 Index=0;Index<OfferCards.Num();++Index)
+    {
+        FTrayCard& Card=OfferCards[Index];
+        if(!Latest.FinalModOptions.IsValidIndex(Index)){GrowthShown(Card.Frame,false);continue;}
+        const FName Id=Latest.FinalModOptions[Index];
+        const FString Key=TEXT("FIN|")+Id.ToString()+TEXT("|")+Outcome;
+        if(CardStale(Card,Key))
+        {
+            const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Id,LatestContent,LatestStats);
+            ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,false,Outcome));
+        }
+        ShowLook(Card,false,Gate.bCanFinalMod&&!PendingRequest);
+    }
+    const FString TargetName=FString::Printf(TEXT("目标 %s"),*SlotKey);
+    const FString TargetKey=TEXT("FIN|")+TargetName+TEXT("|")+Outcome;
+    if(CardStale(SkipCard,TargetKey))
+    {
+        LDHUD::FActionDetailView Detail;
+        Detail.Name=TargetName;
+        Detail.Body=FString(TEXT("点击切换改装装入的技能槽。\n\n"))+Outcome;
+        ShowFace(SkipCard,TargetKey,TargetName,FString(),SlotKey,Detail);
+    }
+    ShowLook(SkipCard,false,!PendingRequest);
 }
 ULDChoicesPanel::FTrayCard& ULDChoicesPanel::BaseCardAt(int32 Index)
 {
@@ -710,6 +755,26 @@ bool ULDChoicesPanel::SkipOffer()
     Command.OfferId=Latest.ActiveOffer.OfferId;Command.OfferRevision=Latest.ActiveOffer.OfferRevision;
     PinnedPreview=INDEX_NONE;
     return Send(Command);
+}
+bool ULDChoicesPanel::ChooseFinalMod(int32 Index)
+{
+    if(!Usable()||!Latest.bFinalModPending||!Latest.FinalModOptions.IsValidIndex(Index)||Latest.FinalModOfferId!=ShownFinalMod){return false;}
+    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanFinalMod){Tell(TEXT("没有提交：")+Gate.FinalModBlocked);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::FinalMod;
+    Command.OfferId=Latest.FinalModOfferId;
+    if(!FLDDefinitionWire::Encode(Latest.FinalModOptions[Index],Command.Option)){Tell(TEXT("没有提交：这个技能的标识无效。"));return false;}
+    Command.Slot=FinalModTarget;
+    PinnedPreview=INDEX_NONE;
+    return Send(Command);
+}
+bool ULDChoicesPanel::CycleFinalModSlot()
+{
+    if(!ShownFinalMod.IsValid()||PendingRequest){return false;}
+    FinalModTarget=uint8((FinalModTarget+1)%3);
+    RefreshAll();
+    return true;
 }
 bool ULDChoicesPanel::PreviewOffer(int32 Index)
 {

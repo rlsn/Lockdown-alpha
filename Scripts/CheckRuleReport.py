@@ -255,6 +255,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoRest.Services.Respec",
         "Lockdown.Rules.DemoRest.Services.ReplaceForget",
         "Lockdown.Rules.DemoRest.Services.ForgetReclaim",
+        "Lockdown.Rules.DemoFinalMod.ChoiceAndLock",
         "Lockdown.Rules.DemoFieldReward.Draw",
         "Lockdown.Rules.DemoFieldReward.Services",
         "Lockdown.Rules.DemoFieldReward.Choice",

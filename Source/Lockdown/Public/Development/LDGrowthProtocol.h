@@ -36,7 +36,10 @@ enum class ELDBuildCommandKind : uint8
     None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
     OpeningBase = 10, InstallComponent = 11, UninstallComponent = 12, ComponentChoice = 13,
     BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25,
-    SkipActiveOffer = 26
+    SkipActiveOffer = 26,
+    // Phase 9: take one option of the once-per-match final mod three-choice into Slot (learned or replacing); the build
+    // locks in the same commit.
+    FinalMod = 27
 };
 
 // #198 B: where an installed component sits. Base components take None (enabled on the build); mods/connectors
@@ -121,7 +124,10 @@ enum class ELDGrowthReason : uint16
     // count), DismantlePoolEmpty (no common component left to receive; nothing is removed), FieldRewardDuplicate (a map event
     // paid twice).
     NoComponentChoice = 160, ComponentOwned = 161, NotAGap = 162, NoGapFiller = 163, GapAlreadyFilled = 164,
-    DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167
+    DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167,
+    // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
+    // entry), NoFinalMod (no open final mod of that id), FinalModUnavailable (the option is learned or held since the draw).
+    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -335,6 +341,15 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint8 HeldBlueprints = 0;
     // #198 G: every field reward received, oldest first.
     UPROPERTY() TArray<FLDFieldRewardView> FieldRewards;
+    // Phase 9 final mod: opened on entering the final rest (FinalModOfferId, three actives of distinct target modes where
+    // possible), taken once (FinalModChosen into FinalModSlot) or abandoned at the final field entry; bBuildLocked then
+    // refuses every build command for the rest of the match.
+    UPROPERTY() bool bFinalModPending = false;
+    UPROPERTY() FGuid FinalModOfferId;
+    UPROPERTY() TArray<FName> FinalModOptions;
+    UPROPERTY() FName FinalModChosen;
+    UPROPERTY() uint8 FinalModSlot = 0;
+    UPROPERTY() bool bBuildLocked = false;
 };
 
 USTRUCT()

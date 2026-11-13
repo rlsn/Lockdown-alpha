@@ -104,6 +104,20 @@ struct FLDActiveOpportunityRecord
     uint64 RequestId = 0;
 };
 
+// Phase 9 final mod (终局改装): one three-choice per contender, opened on entering the final rest. Taking an option learns
+// it into a slot (replacing and forgetting what sat there) and locks the build in the same commit; the final field entry
+// locks every build that has not chosen.
+struct FLDFinalModState
+{
+    FGuid OfferId;
+    TArray<FName> Options;
+    FName Chosen;
+    uint8 Slot = 0;
+    bool bLocked = false;
+
+    bool IsPending() const { return OfferId.IsValid() && !bLocked; }
+};
+
 struct FLDProgressionState
 {
     int64 CumulativeXP = 0;
@@ -130,6 +144,8 @@ struct FLDProgressionState
     uint32 HeldBlueprintsEver = 0;
     // #198 G: every field reward received, oldest first.
     TArray<FLDFieldRewardView> FieldRewards;
+    // Phase 9: the final mod three-choice and the build lock it ends in.
+    FLDFinalModState FinalMod;
 
     uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
@@ -297,6 +313,19 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
         TArray<FName>& OutReclaimed);
+    // Phase 9 final mod options for Build: up to three eligible actives (learned and pending ones never), drawn
+    // deterministically from Seed and preferring distinct target modes so the three point in different directions.
+    LOCKDOWN_API ELDGrowthReason DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        uint64 Seed, TArray<FName>& Out);
+    LOCKDOWN_API uint64 FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender);
+    // Takes the final mod option Option into Slot 0..2: learned into an empty slot, otherwise replacing the active there
+    // (forgotten, its attachments reclaimed exactly like ApplyReplaceActive); OutProgression records the choice and locks
+    // the build. Refused with nothing changed: CommandGate(FinalMod) reasons, NoFinalMod without an open final mod of
+    // OfferId, InvalidOption for an option outside it, FinalModUnavailable when the option became learned or pending,
+    // OfferOutstanding while an active offer is undecided.
+    LOCKDOWN_API ELDGrowthReason ApplyFinalMod(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, uint8 Slot, const FBuildContext& Context,
+        FLDGrowthBuild& Out, FLDProgressionState& OutProgression, FName& OutForgotten, TArray<FName>& OutReclaimed);
     // Spec §5 (换下即遗忘，挂件退库存): every installed component on the Forgotten active (a mod/connector targeting it, a B18
     // bound to it) and, transitively, what sits on those (a host component, C12's repeated base) returns to the inventory
     // with its install history; never duplicated, dropped or rebound. OutReclaimed lists them sorted by id.

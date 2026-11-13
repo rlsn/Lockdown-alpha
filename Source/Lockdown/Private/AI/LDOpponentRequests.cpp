@@ -422,6 +422,20 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.Slot = Intent.Slot;
         break;
     }
+    case ELDOpponentBuildKind::FinalMod:
+    {
+        const FName Option(*Intent.Option);
+        if (!Progression.bFinalModPending || Progression.FinalModOfferId != Intent.OfferId || Intent.Slot > 2
+            || !Progression.FinalModOptions.Contains(Option) || !FLDDefinitionWire::Encode(Option, Out.Option))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The final mod is no longer open or the option is not one of it."));
+        }
+        Out.Kind = ELDBuildCommandKind::FinalMod;
+        Out.OfferId = Intent.OfferId;
+        Out.Slot = Intent.Slot;
+        break;
+    }
     case ELDOpponentBuildKind::Dismantle:
     {
         // #198 G: exactly GROWTH.DismantleInputCount distinct, still-owned common components (scarce ones are never taken).

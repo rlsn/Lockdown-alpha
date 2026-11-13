@@ -486,6 +486,9 @@ namespace LDHUD
         FString RespecBlocked;
         bool bCanReplace=false;
         FString ReplaceBlocked;
+        // Phase 9: the final mod three-choice.
+        bool bCanFinalMod=false;
+        FString FinalModBlocked;
         bool bCanForget=false;
         FString ForgetBlocked;
         // #198 G: an elite camp's pending component choice (like the active choice: field or rest, alive or dead) and the
@@ -667,7 +670,9 @@ namespace LDHUD
         bool bOpeningBase=false;
         // #198 G: pending elite camp component choices.
         int32 ComponentChoices=0;
-        bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0;}
+        // Phase 9: an untaken final mod three-choice.
+        bool bFinalMod=false;
+        bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0||bFinalMod;}
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // The 构筑 tray shows its component rows (the opening base pick and the elite choices) as icon-only tiles instead of

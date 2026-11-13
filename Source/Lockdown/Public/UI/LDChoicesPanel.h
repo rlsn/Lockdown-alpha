@@ -47,6 +47,12 @@ public:
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
+    // Phase 9: while the final mod three-choice shows (no active offer pending), the offer row holds its options and the
+    // last card names the target slot: ChooseFinalMod takes the option at Index into it (replacing what sits there, and
+    // locking the build), CycleFinalModSlot moves the target Q -> W -> E.
+    bool ChooseFinalMod(int32 Index);
+    bool CycleFinalModSlot();
+    bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
     bool PreviewOffer(int32 Index);
     // A blueprint card click: learns the blueprint at Index of the shown list into the lowest empty Q/W/E slot.
@@ -214,6 +220,8 @@ private:
     LDHUD::FBuildGateView Gate;
     FGuid ShownOffer;
     uint64 ShownOfferRevision=0;
+    FGuid ShownFinalMod;
+    uint8 FinalModTarget=0;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;
     // #198 B: the opening base options the cards show, in the view's order.
@@ -254,6 +262,7 @@ private:
     FTrayCard& BlueprintCardAt(int32 Index);
     FBlueprintRow& BlueprintRowAt(int32 Index);
     void RefreshOffer();
+    void RefreshFinalMod();
     void RefreshOpeningBase(bool bTiles);
     void RefreshComponentChoices(bool bTiles);
     void RefreshBlueprintCards();

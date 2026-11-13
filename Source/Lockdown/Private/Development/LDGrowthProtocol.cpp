@@ -111,6 +111,7 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::FillGap:
     case ELDBuildCommandKind::Dismantle:
     case ELDBuildCommandKind::SkipActiveOffer:
+    case ELDBuildCommandKind::FinalMod:
         return true;
     case ELDBuildCommandKind::None:
         break;
@@ -227,6 +228,9 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantleInvalid: return TEXT("DismantleInvalid");
     case ELDGrowthReason::DismantlePoolEmpty: return TEXT("DismantlePoolEmpty");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("FieldRewardDuplicate");
+    case ELDGrowthReason::FinalLocked: return TEXT("FinalLocked");
+    case ELDGrowthReason::NoFinalMod: return TEXT("NoFinalMod");
+    case ELDGrowthReason::FinalModUnavailable: return TEXT("FinalModUnavailable");
     }
     return TEXT("Unknown");
 }

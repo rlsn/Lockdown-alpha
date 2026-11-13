@@ -331,7 +331,8 @@ bool FieldTestRunChoice(FAutomationTestBase& Test)
     const TPair<ELDGrowthReason, uint16> Numbers[] = {{ELDGrowthReason::NoComponentChoice, 160}, {ELDGrowthReason::ComponentOwned, 161},
         {ELDGrowthReason::NotAGap, 162}, {ELDGrowthReason::NoGapFiller, 163}, {ELDGrowthReason::GapAlreadyFilled, 164},
         {ELDGrowthReason::DismantleInvalid, 165}, {ELDGrowthReason::DismantlePoolEmpty, 166},
-        {ELDGrowthReason::FieldRewardDuplicate, 167}};
+        {ELDGrowthReason::FieldRewardDuplicate, 167}, {ELDGrowthReason::FinalLocked, 170}, {ELDGrowthReason::NoFinalMod, 171},
+        {ELDGrowthReason::FinalModUnavailable, 172}};
     for (const TPair<ELDGrowthReason, uint16>& Row : Numbers)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s travels as %u"), LDGrowthWire::ReasonName(Row.Key), uint32(Row.Value)),

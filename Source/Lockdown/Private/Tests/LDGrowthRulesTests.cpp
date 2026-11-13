@@ -205,11 +205,11 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::OpeningBase, ELDBuildCommandKind::InstallComponent,
         ELDBuildCommandKind::UninstallComponent, ELDBuildCommandKind::ComponentChoice, ELDBuildCommandKind::FillGap,
-        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer})
+        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer, ELDBuildCommandKind::FinalMod})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(27), uint8(255)})
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(28), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -892,7 +892,9 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Components"),
          TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("CatalogDigest"),
-         TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards")});
+         TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
+         TEXT("bFinalModPending"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModChosen"), TEXT("FinalModSlot"),
+         TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot")});
