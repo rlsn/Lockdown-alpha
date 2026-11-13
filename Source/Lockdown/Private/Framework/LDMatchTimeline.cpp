@@ -311,7 +311,8 @@ FLDTimelineView FLDMatchTimeline::MakeView(uint32 Generation, uint64 Revision) c
     View.Step = Step;
     View.StepStartedAtMs = StepStartedAtMs;
     View.StepEndsAtMs = StepEndsAtMs;
-    View.SignupOpensAtMs = Step == ELDRestStep::Build ? StepEndsAtMs - Parameters.SignupMs : 0;
+    View.SignupOpensAtMs = Stage == ELDMatchStage::Rest && RestIndex < FLDTimelineParameters::TimedSegments
+        && Step == ELDRestStep::Build ? StepEndsAtMs - Parameters.SignupMs : 0;
     View.FieldBaseMs = FieldBaseMs;
     View.FieldStartedAtMs = FieldStartedAtMs;
     View.FieldEndT = Stage == ELDMatchStage::FinalField ? -1 : int64(FieldSegment + 1) * Parameters.FieldSegmentMs;
