@@ -79,7 +79,7 @@ class CombineTest(unittest.TestCase):
         self.assertEqual(metric["contrasts"][0]["n"], 1)
         self.assertEqual(metric["contrasts"][0]["mean"], 1)
         self.assertEqual(metric["contrasts"][0]["excluded_blocks"], ["c001"])
-        self.assertEqual(result["run_statuses"][str(self.second)]["Invalid"], 1)
+        self.assertEqual(result["run_statuses"][str(self.second.resolve())]["Invalid"], 1)
 
     def test_different_binary_or_same_seed_cannot_be_combined(self):
         path = self.second / "runner.json"
