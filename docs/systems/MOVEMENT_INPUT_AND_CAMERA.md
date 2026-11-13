@@ -72,7 +72,7 @@ driver 在下一步开始时释放已被消费的前缀，营地成员批次没�
 `RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
 都不是最终 Motion Fence、Sealing 或喷漆/守护完成证明。骨骼动画没有根运动（都原地播放）。
-没有按住加速或地表减速的独立运动分派；D 冲刺与技能冲刺只在 Combat 成功释放后、击退（#112）只在
+没有按住加速或地表减速的独立运动分派；D 冲刺与技能冲刺只在 Combat 成功释放后、击退只在
 `CommitControl` 提交成功后经 `StartDemoDash` 写入原生 CMC 的服务器位移，沿地面积分、遇阻挡停在最远合法位置，不瞬移；
 击退同时递增 `KnockbackSerial`，导航据此以 `ELDOrderFailure::KnockedBack` 放弃当前订单。冲刺
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
@@ -90,7 +90,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
    在 Actions 前被更新请求取代的进攻意图仍补做一次保护解除。
    带 `bQueue`（Shift）的订单和经 `ServerQueueCombatAction` 的 Q/W/D 不进待处理槽，而是排进最多 8 步的
-   Shift 队列，轮到时才作为普通待处理请求或 Combat Direct 请求执行（[操作 §4.5](../demo/CONTROLS_AND_TARGETING.md#45-shift-指令队列)）。
+   Shift 队列，轮到时才作为普通待处理请求或 Combat Direct 请求执行（[操作 §4.4](../demo/CONTROLS_AND_TARGETING.md#44-shift-指令队列)）。
 3. `ClientOrderReceipt` 只接受当前身份的结果，避免迟到确认重启已取消路线。
 4. `Stop` 提升 order 和取消 epoch，清本地预测跟随；服务器在获准 Actions 阶段停止，
    不让菜单回调直接修改权威速度。较旧 order/epoch 不能重启。
@@ -131,7 +131,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000，
      300 cm/s 基础移速约 38 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
-AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
+AttackUnit 接近并持续普攻；AttackMove 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，
 到点且无目标即结束。失去视野终止订单并解除锁定，不恢复原目的地。
 真人订单需要拥有连接心跳续租；没有 LocalPlayer 的服务器 AI 控制器以注册绑定为租约。
@@ -177,8 +177,7 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 终点按目标类型区分（`LDPathSteering::PlanRoute` 的 `EGoal`）：玩家点选的地面（MoveGround、AttackMove，
 含按住右键连续移动）先按点击处严格规划；点击处不是合法可达站位（墙、箱体、贴障碍过近或不连通区域）时，
 在身体所在地面高度投影到最近 navmesh 点，并用允许 partial path 的查询把候选限制在起点连通区域；
-按离点击点的距离尝试候选，经 `QueryGround` 与完整路径查询重新验证后作为终点（#80，
-已批准“everywhere targetable despite non-traversable”）。落点标记仍显示在实际点击处；接受后的续行/重算沿用投影终点；
+按离点击点的距离尝试候选，经 `QueryGround` 与完整路径查询重新验证后作为终点（已批准“everywhere targetable despite non-traversable”）。落点标记仍显示在实际点击处；接受后的续行/重算沿用投影终点；
 世界/修订过期、缺少支持面或胶囊不符不投影，仅在没有合法可达候选时明确拒绝。被追击身体的脚点（AttackUnit 的准入与追击
 重算、AttackMove 锁定目标后的追击，以及拥有者对攻击订单的预测）与起点同样经 `PlanStart` 落到一个胶囊半径内的
 navmesh 点。注册表的拒绝原因写明被调整的是路线起点还是目的地。
@@ -284,7 +283,7 @@ schema 16 的按键表仍有已退役的装备主动键 `Item1`/`Item2`：schema
 不影响视野、世界距离或角色速度）；越界或非有限值使文件按 `Corrupt` 处理。设置页“镜头”分类以 300 cm/s 步进，
 经草稿与 `ULDGameInstance::ApplyLocalSettings` 应用并保存（`SetAppliedCameraPanSpeed` 供直接改写已应用对象的调用方），
 导航经 `GetCameraPanCmPerSec()` 读取已应用值，恢复默认还原为 1800。
-`MinimapOrientation` 是小地图朝向（0 跟随镜头、1 跟随角色朝向、2 固定正北），默认跟随镜头（用户决定）；
+`MinimapOrientation` 是小地图朝向（0 跟随镜头、1 跟随角色朝向、2 固定正北），默认跟随镜头；
 越界值使文件按 `Corrupt` 处理。设置页“界面”分类的三选一同样经草稿应用，恢复默认还原为跟随镜头。
 设置页按分类“恢复本页默认”（UI_AND_SETTINGS §8）：确认卡先列出本页将恢复的默认值（其他页、名称与本局进度不变），确认后
 音频/操作/镜头/界面经 `ResetPreferenceGroup` 只还原对应偏好组并立即应用、保存，四组合起来正好是 `ResetLocalDefaults`；
@@ -333,7 +332,7 @@ schema 4 是已退役的多注册表格式：读取时只校验完整性并列�
 测试必须使用 `Automation(FGuid)`，文件位于忽略的 `Artifacts/Automation/LocalSettings`，
 无效夹具不会回落到真实用户文件。无人值守/commandlet 的 GameInstance 未显式指定夹具时禁止用户文件写入。
 
-显示值仍只由引擎 `UGameUserSettings` 管理。游戏只有一种窗口：无边框全屏、桌面分辨率（#98，用户决定）。
+显示值仍只由引擎 `UGameUserSettings` 管理。游戏只有一种窗口：无边框全屏、桌面分辨率。
 `ULDGameInstance::Init` 在 `UGameEngine::Init` 创建窗口之前经 `LDLocalSettings::HoldBorderlessDesktop`
 把旧存档中的窗口模式与分辨率改为无边框桌面分辨率并确认，再以 `ApplyResolutionSettings(true)` 请求窗口，
 所以第一帧就是无边框；编辑器 PIE 窗口归编辑器管理，不受影响。引擎的启动覆盖（`-windowed`、`-ResX/-ResY`）

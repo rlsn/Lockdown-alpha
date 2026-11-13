@@ -2,12 +2,17 @@
 
 ## 阅读顺序
 
-先读 [README](README.md)，再读 [Demo App Spec](docs/APP_SPEC.md)。
-涉及实现时，读 [开发指南](docs/DEVELOPMENT.md) 及其列出的相关系统手册，
-然后核对实际代码、SourceData 和检查入口。无需阅读 Git 中的历史版本才能开始工作。
-跨模块改动同时读 [就绪评估](docs/demo/READINESS.md)、
-[实施计划](docs/demo/IMPLEMENTATION_PLAN.md) 与 [共享契约](docs/demo/SHARED_CONTRACTS.md)；
-它们记录验收状态、模块边界与跨模块契约。
+只读任务需要的部分，不通读文档；文档给出入口后直接核对代码、SourceData 和检查入口。不需要读 Git 历史。
+
+| 任务 | 读什么 |
+| --- | --- |
+| 任何任务 | 本页 |
+| 改玩法规则或界面 | [App Spec](docs/APP_SPEC.md) 的相关章节 |
+| 改某个系统的实现 | [开发指南](docs/DEVELOPMENT.md#按任务读取系统手册)索引里对应的那一份系统手册 |
+| 改内容或数值 | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md)的相关章节，[开发指南](docs/DEVELOPMENT.md#数据修改)的数据修改 |
+| 跨模块改动 | [共享契约](docs/demo/SHARED_CONTRACTS.md) |
+| 判断某项是否已验收 | [就绪评估](docs/demo/READINESS.md) |
+| 环境、命令、打包、CI | [README](README.md) 与[开发指南](docs/DEVELOPMENT.md) |
 
 - App Spec 定义 v0.11.0 Demo 的产品规则；实现与验收状态以就绪评估和实际检查结果为准。
 - `docs/systems` 描述当前组件的真实接口与约束；`docs/demo` 的领域报告说明各玩法域的设计依据与实现位置。
@@ -17,7 +22,7 @@
 ## 协作规则
 
 - 每个任务使用独立分支与工作区，主分支通过 PR 集成。
-- 每个 PR 至少通过 `BuildEditor.ps1` 和受影响的规则测试，并写明新增的测试名；
+- 每个 PR 本地通过 `Scripts\Verify.ps1`，规则测试由 PR 的 CI 把关，并写明新增的测试名（见“验证与交付”）；
   里程碑交付时在打包版上跑全套场景，失败按归属建票修复。
 - 禁止 force push，包括 `--force-with-lease`；不改写已经共享的提交。
   同步共享改动使用 merge，修正已推送内容使用新提交。
@@ -92,17 +97,21 @@
 - 保留并维护准确的组件技术知识；混合章节拆分校准，失效产品设计和重复档案才删除。
 - 四份核心入口不是文档数量上限；新的技术说明按系统归位，不创建影子规格、版本文档树、
   CHANGELOG 式产品说明或会话接力日志。
+- 文档只写当前事实，改动时直接改成最新状态。不写日期、“由 X 改为 Y”、“#N 起”、“已删除/已取代某某”、
+  用户原话或批准经过；决定的原话与经过记在 Issue，历史看 Git。
 - 任务进度与讨论放 Issue/PR，不写入产品规格。没有批准的数值方案就不创建空 BALANCE。
 
 ## 验证与交付
 
-- 运行覆盖改动的最小检查；数据修改先做生成一致性和输入拒绝测试，
-  原生接口/资产修改再做构建、Bootstrap 与相应场景。
-- 本地开发先完成一批连贯改动，再跑一次增量 `BuildEditor.ps1` 和受影响的规则前缀；
-  不因每次小改动重复构建、完整 `RunTests.ps1`、`-FullUnity` 或场景。
-- PR 转 Ready 前本地只补齐 `BuildEditor.ps1` 与受影响规则；非草稿 PR 的 CI 负责更宽的规则门禁。
-  `-FullUnity`、`RunTests.ps1 -ImportTests Run` 与全套场景只用于里程碑、发布、全新检出或明确要求的专项验证。
-- 网络、交易、成长和胜负变更要覆盖真实拥有连接，不用仅有 Host 的调试场景代替。
+- 完成一批连贯改动后跑一次 `.\Scripts\Verify.ps1`，它按改动决定跑什么：
+  文档不跑，Python 与数据跑对应的 Python 检查，改了 `Source` 才做一次增量构建。不在每次小改动后构建或测试。
+- 规则测试的门禁是非草稿 PR 的 CI，本地不重复跑整套。只有新增或改了规则测试、或在排查失败用例时，
+  才用 `Verify.ps1 -Filter <前缀>` 跑相关用例。
+- fork PR 不跑 CI 的原生任务：改了 `Source` 的 fork PR 在本地用 `Verify.ps1 -Filter` 跑受影响的规则前缀并在 PR 里写明结果；
+  合并前由维护者在本仓库分支上补跑原生门禁。
+- 资产、`Config` 与 PowerShell 改动没有自动的本地检查，按[验证手册](docs/systems/VERIFICATION.md)选对应的一项。
+- 网络、交易、成长和胜负变更要覆盖真实拥有连接（对应的 `RunDemo*Check.ps1`），不用仅有 Host 的调试场景代替。
+- `-FullUnity`、`RunTests.ps1 -ImportTests Run` 与全套场景只用于里程碑、发布、全新检出或明确要求的专项验证。
 - 明确区分通过、失败、未运行、未实现；不要把旧报告当作当前验证。
 - 输出写入忽略的 `Artifacts`。只保留一个已确认可用的发布构建；
   新交付成功前保留它，成功后替换，失败候选不作为可用版本保留。

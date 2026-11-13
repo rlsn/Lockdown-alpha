@@ -29,8 +29,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 ## Demo 内容编译合同
 
-#198 公共休息室使用当前世界布局11/几何9，保持唯一地面与同一连接：地面东边界扩展，原东墙保留为野外隔墙，
-新增四面封闭休息室墙，原野外出生点、营地、旗杆与 PK 出生/投掷锚点不移动。
+公共休息室与野外共用唯一地面与同一连接：地面向东延伸，野外东墙是隔墙，休息室四面封闭。
 `RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
 `RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师，位于玩家聚集排上、y=-500 cm；
 服务交互仍复用 `AIRDROP.PickupRadiusCm` 的150 cm范围。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
@@ -44,7 +43,7 @@ Python/native importer 都识别新增锚点，服务范围、假人偏移与出
 `Scripts\DemoContent.py` 与 `Scripts\SyncDemoContentData.py` 提供独立于旧目录的严格作者校验、
 定点投影和根身份生成。`SourceData\Demo\content.schema.json`、`native_ids.json` 以及
 `Public\Development\LDDemoContentIds.h` 只定义格式与编号保留，不批准候选技能或任何数值。
-`native_ids.json` 的 `retired_ranges` 列出不得复用的旧编号（技能 0–91 与 #198 退役的被动 104–113、120–125 和 119，属性卡 0–26，状态 28–29，以及退役的效果操作）；新编号必须同时匹配作者映射与原生声明。
+`native_ids.json` 的 `retired_ranges` 列出不得复用的旧编号（技能 0–91、104–113、119–125，属性卡 0–26，状态 28–29，以及退役的效果操作）；新编号必须同时匹配作者映射与原生声明。
 
 生产输入必须是经审查的 `SourceData\Demo\content.json`，其中
 `identity.approval.status` 为 `approved`，`decision` 引用实际审批决定。
@@ -57,7 +56,7 @@ Python/native importer 都识别新增锚点，服务范围、假人偏移与出
 | --- | --- |
 | 读取与 schema | UTF-8；小数从原文直接读为 Decimal，拒绝重复键、未知字段/操作/ID、错误单位/等级/引用、bool 整数、非有限值和不可表示精度 |
 | 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/XP 为 int64 |
-| 完整定义 | 角色参数、单级主动的完整数值/effects 与开局池标记、五维属性每点加成、成长点数参数、XP 阈值与主动机会等级、两档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
+| 完整定义 | 角色参数、单级主动的完整数值/effects 与开局池标记、五维属性每点加成、成长点数参数、XP 阈值与主动机会等级、三档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
 | 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、XP 或其他玩法状态 |
 | 世界前置 | 必须读取真实 `Content\Lockdown\Data\Demo\world.json` 及 `Private\World\LDDemoWorldContract.h`，核对实际字节，不接受调用方单独给出的 digest 或空世界占位 |
 | 输出 | 同时生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 与 `Private\Development\LDDemoContentContract.h`；不生成世界文件或世界契约 |
@@ -76,7 +75,7 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点�
 丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
 不能仅手写 world 和匹配摘要让正式链通过。
 
-#198 新增两类锚点（批准见 issue #198 评论 6752601175 §2）：`PKSpawn` 固定为 `pk_spawn_0..5`，
+PK 有两类锚点：`PKSpawn` 固定为 `pk_spawn_0..5`，
 `PKThrow` 固定为 `pk_throw`，内容 `world.pk_spawn_ids`/`world.pk_throw_id` 按序引用，
 原生为 `FLDDemoWorldReferences::PKSpawnIds`（索引序）与 `PKThrowId`，用 `ULDMapRegistry::Resolve` 取位置/支持面。
 `DemoWorld.py` 与 `LDMapGeometry.cpp` 同样检查：六个 PK 出生点与 capture 同层、距其1000–1400cm、两两≥1000cm、
@@ -85,7 +84,7 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点�
 `DrawSpawnAnchor` 只抽 `Spawn`；AI 公开地点与小地图不把 PK 锚点当野外地点，美术摆放只为其留出一具身体的净空。
 场地内的可走路径不由 Python 证明。
 
-#198 站圈报名（用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）”）新增 `PKSignup` 锚点
+站圈报名使用 `PKSignup` 锚点
 `pk_signup_0..5`：第 n 个是名单槽位 n 的报名圈，属于公共休息室的 `rest_spawn_n`。
 `DemoWorld.py` 与 `LDMapGeometry.cpp`（`PKSignupDistanceCm`）检查：恰好六个、规范 id、与配对休息锚点同层且水平距离恰为 300 cm、
 `AIRDROP.PickupRadiusCm` 圆盘是合法站立地面、休息锚点的出生偏移都不落在圆盘内、从休息锚点到圆心的直线走在合法地面上、不与营地清空圈重叠。
@@ -146,7 +145,7 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 它不把资产存在当作导航、战斗或真实联机验收。
 
 `LDDemoWorldBuilder` 复用原生 mesh/nav/保存能力，从关卡派生数据刷新唯一平地、高台与坡道、全部真实阻挡的碰撞载荷、
-每个出生锚点一个出生标记与一个原生导航区域。#97 起锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
+每个出生锚点一个出生标记与一个原生导航区域。锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
 （`MaxAnchors`、`MinSpawns`/`MaxSpawns`、`MaxCamps`、`MaxDorms`、`MaxAirdrops`，Boss 巡逻点固定 4 个），
 阻挡上限 `MaxBlockers` = 2048（与身体同粗的树成片时需要一千多个圆柱）；`DemoWorld.py` 的 `ANCHOR_COUNTS`/`MAX_BLOCKERS`
 与两份 schema 保持同一范围。同尺寸的树共用一个树干 mesh（`SM_Demo_trunk_r<半径>_h<高度>`，放在各自圆心），
@@ -162,7 +161,7 @@ Demo 的查询相关静态碰撞来自保存的世界，局中不生成、移除
 空投、标记、尸体表现和装饰无碰撞，因此它们的变化不影响该缓存。未来若增加动态地面支持或可变 WorldStatic 几何，
 必须先接入失效边界或恢复实时查询，不能仅凭作者 world revision 复用结果。
 
-#97 悬崖不靠高度挡人：生成器沿每条朝向更低平地的高台边与每条坡道的两侧放置隐形的薄挡块（`cliff_*`，
+悬崖不靠高度挡人：生成器沿每条朝向更低平地的高台边与每条坡道的两侧放置隐形的薄挡块（`cliff_*`，
 引擎立方体，2 cm 厚，高过最高层上整个胶囊），只阻挡 Pawn 与导航，对地面、视线、可见性和镜头通道都放行，
 所以高处仍能隔着悬崖看见低处。Validate 按同一规则重算挡块并逐个核对位置与通道，
 再在每段悬崖上方把胶囊抬过高侧横扫，确认被挡块拦下。所有生成几何 `CanCharacterStepUpOn = No`：
@@ -268,7 +267,6 @@ Bootstrap 另与 freshly prepared 作者输入逐字段比较；缺少真实资�
 `ULDMapDefinition`、`LDMapRegistry` 与编辑器 Builder 提供唯一 Demo 世界的
 typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 `ALDRegionNavBounds` 仍由 `LDDemoWorldBuilder` 生成和校验，不能随旧 Region 名称误删。
-旧区域导演、哨兵、WatchControl、全图预览、`LDMapApproaches` 与旧 RegionDefinition/Anchor 已删除。
 
 `FLDWorldRevision` 只含 MapId/LayoutRevision/GeometryRevision，不另分配 Match 身份。
 `ULDMapRegistry::QueryGround` 要求显式注册 SurfaceHint、当前世界修订和正确 capsule；
@@ -294,7 +292,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 场地道具与野怪身体用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、Stylized Nature MegaKit、Toon Shooter Game Kit、
 若干 Kenney 套件），只提交实际选用的 `.gltf`/`.bin`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
 Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者页面所写的 CC0 与核对日期。
-项目所有者 2026-11-11 批准使用项目自有或已授权的非 CC0 来源：参赛者身体（Tripo 生成，`tripo-basketball-hero`）、
+项目所有者批准使用项目自有或已授权的非 CC0 来源：参赛者身体（Tripo 生成，`tripo-basketball-hero`）、
 Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 这类包的许可文件须原样写出清单声明的许可（如 `Project-owned`）；CC0 包仍须在许可原文中写明 CC0。
 `SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
@@ -352,7 +350,7 @@ Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 `dressing.airdrop_prop` 只为动态空投保留箱子引用。可见外观和碰撞分别检查，淡化不会关闭碰撞。
 阻挡外观须整块站在同一平层上（地图四周是高台），世界在墙内侧留出无树走道；
 `capture` 是覆盖其锚点的细小地标（旗杆）。
-除 #97 绘制世界阻挡的美术（树、废车、集装箱）外，只有旗杆会遮挡身体：
+除绘制世界阻挡的美术（树、废车、集装箱）外，只有旗杆会遮挡身体：
 清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·max(LDFade, 每实例自定义浮点 0)` 逐像素抖动，
 材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 0.3、遮挡时设置 `LDFade`（0 不透明、1 保留约 70% 像素可见度），见[视野与 UI](VISION_AND_UI.md)。
 没有找到 CC0 的篮球架，未加入。
@@ -389,7 +387,7 @@ Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 
 营地运行由两层组成，都不另存身体、生命、战斗或奖励真值：
 
-- `World\LDCampLifecycle`：纯记账。由批准内容的营地放置/怪物定义和世界营地锚点/成员 home 生成五营两档名册；
+- `World\LDCampLifecycle`：纯记账。由批准内容的营地放置/怪物定义和世界营地锚点/成员 home 生成全部营地的名册；
   每局为固定 (营地, 槽位) 分配一次 EntityId，`Life` 只镜像核心生命，并只在整组生成提交时递增。
   最后一名成员死亡时按死亡事实的权威整数毫秒固定清营时刻、按该档 `RespawnMs` 定刷新期限，不再从秒换算；死亡按生命幂等。
   反击只接受参赛者来源，全营共享来源身份而非坐标；Returning 成员忽略受击；
@@ -468,8 +466,7 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 观察的有界编码、隐私、句柄和遮挡使用 `Lockdown.Rules.DemoVision.*`。
 真实拥有连接使用 `RunDemoWorldRoomCheck.ps1`（Lobby）、`RunDemoCoreCheck.ps1`（身体与地面）、
 `RunDemoCampCheck.ps1`（营地 N03）和 `RunDemoCaptureCheck.ps1`（喷漆、守护与终局 N02）；
-全部场景及打包版运行方式见[开发指南](../DEVELOPMENT.md#最小验证选择)。
-旧 B90/B91、World/Objective/Region probe 已删除，不作为验收入口。
+全部场景及打包版运行方式见[开发指南](VERIFICATION.md#最小验证选择)。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
 
 工作树可能共享 LFS 缓存，不能把当前工作树的 Git 元数据目录拼成固定 `lfs\objects` 路径。

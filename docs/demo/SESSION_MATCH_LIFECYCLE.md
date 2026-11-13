@@ -3,7 +3,7 @@
 **目标：v0.11.0 · 架构职责：M1 / M2 / M5 · Unreal Engine 5.8.4**
 
 产品规则以 [App Spec](../APP_SPEC.md) 为准；跨模块接口以
-[架构审计](ARCHITECTURE.md) 和 [共享契约](SHARED_CONTRACTS.md) 为准。
+[共享契约](SHARED_CONTRACTS.md) 为准。
 本文规定会话、阶段、生命边界、批次/写闸、喷漆与守护归约与唯一结果必须保持的契约，
 并在 §9 列出实现这些契约的源码与检查入口。§3–§6 中的类型与签名描述契约形状；
 与源码命名不同时以 §9 所列源码为准，但契约本身不能因此放宽。
@@ -32,7 +32,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | `ALDGameMode` | 房间身份/准入/准备/名单；Match 映射；参赛资格/生命；批次和写闸；唯一喷漆区的喷漆与守护归约（独自喷漆、争夺暂停、失效/硬控清零、涂鸦覆盖与清除、守护计时、冻结与清零）、守护完成提案与唯一结果（N02 归核心 GameMode，由 `FLDCaptureReducer` 实现）；生命侧（`EndContenderLife`、复活、保护解除）在 `LDGameModeLife.cpp`，由 Combat 维护 | 不自行实现命中、发奖励、生成三选一或积分移动；归约器不读客户端位置或借迷雾判断，不另交第二个结果 |
 | `ALDCombatDirector` | 既有权威推进入口；身体、动作、伤害/控制；首次致死事实；已提交的定身/眩晕/嘲讽（及击退）经 `InterruptSpray` 通知喷漆区 | 死亡只生产一次；生命域消费同一事实，不再认定另一死亡 |
 | 操作域 / CharacterMovement | 实际执行的移动、碰撞、位移分段与运动完成水位 | 不由圈 Tick 推导轨迹；不把当前姿态回填过去 |
-| 世界域 | 十点抽样与同点合法落地；喷漆区几何/交点；营地实体生命映射 | 不再维护一份喷漆/涂鸦状态或参赛者生命计数 |
+| 世界域 | 十二点抽样与同点合法落地；喷漆区几何/交点；营地实体生命映射 | 不再维护一份喷漆/涂鸦状态或参赛者生命计数 |
 | 成长域 | 致死事实的经验+等级+机会复合提交、Offer、构筑和回执 | 只接受本域当前批次许可；不另外生成 Match、DeathKey 或结束时钟 |
 | 视野 / UI / AI | 获准的自身、观测和公共投影；同一权威命令 | 不回写真相；Host 普通主画面和 AI 不因在服务器进程而获得全知权限 |
 
@@ -44,22 +44,22 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | 开始条件 | 仅 Host 可开始；全部已连接真人含 Host 都准备；AI 不伪造玩家 Ready RPC；开始时锁定真实参赛名单。 |
 | 联机边界 | IP 直连；局域网和正确配置防火墙/手动端口转发的公网可达地址；无自动 NAT 穿透、中继、中途加入、重连或 Host 迁移。 |
 | 唯一目标 | 前三段定时野外可以战斗/成长而不能喷漆或获胜；R3 返场、最终野外开始时同一根旗杆开放并一直开放，不重新关闭、轮换或因无人守护成功而超时结算。 |
-| 外层流程（#198） | R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外 → Results；一条单调权威时钟，野外进度 T 只在野外推进、休息与 PK 中冻结。休息时每名参赛者在公共休息室的名单槽位有一条休息生命，野外世界冻结；阶段边界（野外↔休息）结束生命而不是死亡，清除全部进行中效果并补满资源与冷却。用户 2026-11-10 批准（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)，原话：“批准整套方案，按票内参数实施”）；后续试玩反馈将私人休息空间改为公共休息室（[App Spec §2.1](../APP_SPEC.md#21-从菜单到结算)）。详见 §3.4。 |
+| 外层流程 | R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外 → Results；一条单调权威时钟，野外进度 T 只在野外推进、休息与 PK 中冻结。休息时每名参赛者在公共休息室的名单槽位有一条休息生命，野外世界冻结；阶段边界（野外↔休息）结束生命而不是死亡，清除全部进行中效果并补满资源与冷却。休息在公共休息室进行（[App Spec §2.1](../APP_SPEC.md#21-从菜单到结算)），详见 §3.4。 |
 | 喷漆与暂停 | 只有仍在本局、存活、非复活保护的参赛真人/AI 计数；野怪、尸体、技能表现不计数。喷漆区内只有一名有效参赛者且他不是涂鸦主人时，他的喷漆进度累积，满 `CAPTURE.SpraySec` 喷上涂鸦；两名以上时所有人的喷漆进度暂停并保留，争夺结束仍由他独自在区内时从暂停值续计，其他人既不累积也不继承。涂鸦主人在区内不喷漆。 |
 | 清零条件 | 喷漆者离区/死亡/离局（含争夺进行中），或在施加瞬间受到定身、眩晕、嘲讽、击退，即清零其进度；之后若仍独自在区内，从 0 重新累积。中间进出即使发生在同一帧也不能遗漏。 |
 | 不清零条件 | 区内移动、攻击、施法、普通伤害、减速、缴械不影响喷漆；由此实际离区或死亡才按相应事件处理。保护者既不喷漆，也不暂停别人的喷漆或冻结守护。 |
-| 涂鸦与守护 | 喷上涂鸦即覆盖原涂鸦，守护计时从 0 开始（喷上时区内只有主人，守护随即计时）。守护只在涂鸦主人独自在区内时计时，受伤、受控不影响守护；主人离区、区内无人时守护暂停在当前值、不清零，主人重新独自回区后从该值继续（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”）。主人以外任一有效参赛者在区内（不论人数、是否在喷漆、主人在不在区内）守护即冻结，区内非主人全部离开（含死亡、离局）后，主人独自在区内时从冻结值继续、不在区内时保持暂停；冻结期间主人从区内走出、区内仍有非主人，守护清零、涂鸦保留，之后主人独自在区内时从 0 重新累积（2026-11-07 用户决定；对方进圈时主人已在区外只冻结，主人走出与最后一名非主人离开或与非主人进圈同一时刻时不清零）。涂鸦主人死亡或离局，涂鸦立即清除、旗杆回到无主。 |
+| 涂鸦与守护 | 喷上涂鸦即覆盖原涂鸦，守护计时从 0 开始（喷上时区内只有主人，守护随即计时）。守护只在涂鸦主人独自在区内时计时，受伤、受控不影响守护；主人离区、区内无人时守护暂停在当前值、不清零，主人重新独自回区后从该值继续。主人以外任一有效参赛者在区内（不论人数、是否在喷漆、主人在不在区内）守护即冻结，区内非主人全部离开（含死亡、离局）后，主人独自在区内时从冻结值继续、不在区内时保持暂停；冻结期间主人从区内走出、区内仍有非主人，守护清零、涂鸦保留，之后主人独自在区内时从 0 重新累积（对方进圈时主人已在区外只冻结，主人走出与最后一名非主人离开或与非主人进圈同一时刻时不清零）。涂鸦主人死亡或离局，涂鸦立即清除、旗杆回到无主。 |
 | 唯一结果 | 守护计时累积满 `CAPTURE.GuardSec`（暂停、冻结期间不计）时涂鸦主人获胜，结束原因 `GuardSucceeded`（“守护成功”）。到期时先处理相关真实事件并证明提供者水位闭合，再重查；成功只锁一个胜者。Host 主动结束无胜者；没有击杀/财富/等级/时间积分胜利。 |
 | 出生与复活 | 休息生命站在按开局名单槽位固定的休息锚点；返场时进入休息前存活者回到原脚点或其附近（§3.4）。首次进入野外、野外复活与返场找不到位置时，每次从同一组全部出生锚点独立等概率、有放回抽取；可抽回同点。碰撞只在选中点作必要合法落地/防重叠，不改按危险、视野或敌人距离挑点。 |
-| 死亡代价 | 只失去等待时间与场上位置。等级、XP、技能、永久属性加成、未用机会和已生成候选全部保留；可确认三选一、学到空槽与加点（#222），但只更新保留构筑，不提前复活或治疗尸体。 |
+| 死亡代价 | 只失去等待时间与场上位置。等级、XP、技能、永久属性加成、未用机会和已生成候选全部保留；可确认三选一、学到空槽与加点，但只更新保留构筑，不提前复活或治疗尸体。 |
 | 已释放效果 | 释放者死亡不取消已经成功释放的独立效果，继续到原定结束，后续合法击杀归仍在本局的实际所有者；未完成释放的动作因死亡取消。 |
 | 成功复活 | 满 HP/MP，清除死亡前临时控制，获得短暂免伤免控保护；原有冷却按服务器时间继续，不因新 Pawn/新 Life 刷新。 |
 | 主动解除保护 | 本人当前 Match/Body/Life、请求新鲜性、包形状及写闸验证后，可识别的进攻意图就先解除保护；即使目标/距离/蓝量等使动作失败也解除。移动不解除。 |
 | 离开与新局 | 正式离局立即移除身体，不留可攻击/阻路对象，并取消其未结束独立效果；不回滚此前事实、不发离开奖励、不补AI/自动胜利。Host离开终止会话；新局清全部局内域。 |
 
-已确认补充规则与最终 App Spec 同步：同款两件的基础属性相加、同名被动一次；
+已确认补充规则与 App Spec 一致：
 遗忘期间原冷却继续，重学沿用原结束时间，不能洗冷却。
-初始为近战单体物理普攻，属性/技能/被动路径可提供群攻或增加攻击距离，不是永久近战单体限制。
+初始为近战单体物理普攻，五维、主动与构件可增加攻击距离，不是永久近战单体限制。
 死亡可确认选择、进攻意图解除保护、上限变化保持 HP/MP 原百分比也已确认；
 生命域不因此治疗尸体、提前复活或改动复活满最终上限的规则。
 公式和数值仍由内容与战斗单点维护，不在这里复制来源/叠加公式。
@@ -71,7 +71,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 
 目标枚举 `ELDMatchPhase` 归 GameMode：
 `Lobby / Starting / Rest / Development / CaptureOpen / Results / Resetting / Closing / Faulted`。
-数值 2 已退役（原 #153 开局倒计时 `Countdown`），`Rest` 为 9 并覆盖每次休息的全部步骤；前三段野外与最终野外开放前为 `Development`，最终野外旗杆开放后为 `CaptureOpen`。
+数值 2 空缺不复用，`Rest` 为 9 并覆盖每次休息的全部步骤；前三段野外与最终野外开放前为 `Development`，最终野外旗杆开放后为 `CaptureOpen`。
 `Faulted` 是明确停止玩法提交的工程故障状态，不是第二种胜负规则。
 本地的“连接中”“加入失败”属于 GameInstance/UI，不复制成第二套比赛状态。
 
@@ -84,7 +84,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | `Lobby` / 真人进出 | 原子预留/释放真人容量；变更结构名单版本并使旧 Ready 失效 | PreLogin 检查之外，在最终入房提交点重查容量和阶段，覆盖同时到达的两个连接。 |
 | `Lobby` / Host Start | 重查 Host、名单版本和所有真人 Ready，关闭准入，进入 `Starting`，冻结参赛快照 | 重复 Start 重放原结果；同 ID 改条款拒绝。连接离开若先提交则改变名单并拒绝旧 Start。 |
 | `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；初次身体全部站到各自的休息锚点（休息生命、隔离组、世界冻结）后统一进入 `Rest`（R0 的配装步骤；`PublicMatch.StartedAtMs` 为此刻） | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
-| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。自己的构筑命令在每个休息步骤都受理（#222，PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；未选的开局机会保留、不代选 |
+| `Rest` / 休息步骤 | 时间线按精确边界推进：配装（R0 `REST.OpeningBuildSec`，R1–R3 `REST.BuildSec`，最后 `REST.SignupSec` 兼作 PK 报名，截止时刻含在内）→ 锁定 → 锁定报名者 ≥2 时抽签/押注/PK 准备/PK/结算/派奖，否则直接返回倒计时 `REST.ReturnSec`。自己的构筑命令在每个休息步骤都受理（PK 与返回倒计时中也不锁）；NPC 服务只在配装与派奖受理，其他步骤以 `BuildLocked` 拒绝；返回倒计时内订单、攻击、施法与冲刺以 `NotStarted` 拒绝。营地意图、营地运动与世界推进跳过 | 锁定在该边界成长命令之后的 Transactions 阶段执行（截止时刻提交的命令有效），其余转换在 RespawnsAndWorld 开始时执行。被拒请求记入回执窗口，进入野外后不重新生效；未选的开局机会保留、不代选 |
 | `Rest` / 返场 | 返回倒计时结束：清除休息效果、退休全部休息生命、按 §3.4 放置下一条野外生命并给 `LIFE.ProtectionSec`；进入 `Development`。R0 返场是每名参赛者在喷漆名单上的 `Joined` | 放置作为全员共同提交（§3.4“共同入场”）：有人放不下时谁都不返场，T 与旗杆停在边界、每拍重试，超过 `REST.EntryReadyTimeoutSec` 为 `LD_REST_RETURN_UNREADY` 权威故障；不跳过、不默认成功 |
 | `Development` / 野外段到期 | 定时野外段的 T 到达 `MATCH.FieldSegmentSec` 的整数倍时进入下一次休息（`Rest`），见 §3.4 | 进入休息不是死亡：无 K/D、击杀播报、奖励或复活等待 |
 | `Development` / 最终野外开放 | R3 返场即最终野外开始，`FLDCaptureReducer::ScheduleOpen` 把开放时刻定为该边界，同一边界的 Capture 阶段进入 `CaptureOpen`，只在开放后开始计喷漆进度 | 仍可升级、战斗；不能把前三段野外的区内停留时间算入喷漆。 |
@@ -122,11 +122,9 @@ checkpoint/restore、席位交接或第二套跨旅行的战力保存对象。
 不能从旧 OwnerState 或 Pawn 拷贝成长、候选、冷却或期限作为新局初值。
 AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新初始化。
 
-### 3.4 休息、野外进度与阶段边界（#198）
+### 3.4 休息、野外进度与阶段边界
 
-用户 2026-11-10 批准外层参数（[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，
-[审批](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806)，原话：“批准整套方案，按票内参数实施”），
-取代 #153 的开局倒计时（`MATCH.CountdownSec`、`MATCH.DevelopmentSec` 与全程单值 `LIFE.RespawnSec` 已删除）。
+外层参数见[方案](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)。
 数值只在[内容与数值 §3.4](CONTENT_AND_BALANCE.md#34-空间与对局节奏参数)维护。
 
 - **时钟**：只有一条单调权威时钟。`FLDMatchTimeline`（`LDMatchTimeline.h/.cpp`）是 GameMode 拥有的纯归约器，从不读世界时钟，
@@ -135,7 +133,7 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   公开读模型为 `FLDPublicMatchView.Timeline`（`FLDTimelineView`：阶段、休息序号、野外段、步骤与起止、报名开放时刻、T 基准、
   本段 T 终点、锁定人数、PK 是否跳过、报名名单），客户端与 AI 用 `LDMatchTimeline::FieldNowFromView` 按同一规则推导 T。
   `PublicMatch.StartedAtMs` 是开局（R0 开始）时刻；`OpenAtMs` 在最终野外开始前为 `MAX_int64`，由 `FLDCaptureReducer::ScheduleOpen` 定为最终野外开始的边界。
-- **公共休息室**：按用户试玩后批准，`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`，同世界、连接、身份与成长记录；
+- **公共休息室**：`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`，同世界、连接、身份与成长记录；
   所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 仍按群组隔离野外/PK；
   Vision 向休息室连接的获准观察帧发布全部活体真实训练目标的白名单状态，不发布玩家背包或私有成长；
   `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许任一休息室参赛者攻击共享训练目标。世界布局10/几何8在东侧增加全封闭房间，既有野外与 PK 锚点不移动。
@@ -146,11 +144,11 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 - **休息步骤**：Build（R0 `REST.OpeningBuildSec`、R1–R3 `REST.BuildSec`；最后 `REST.SignupSec` 为 PK 站圈报名，截止时刻含在内）→
   锁定报名者 ≥2 时 Draw `REST.DrawSec` / Betting `REST.BettingSec` / PKReady `REST.PKReadySec` / PK（至多 `REST.PKMaxSec`）/
   Settlement `REST.SettlementSec` / Payout `REST.PayoutSec`，否则直接 → Return `REST.ReturnSec`。
-  报名锁定在该边界成长命令之后的 Transactions 阶段执行（`LockTimelineBuild`，截止时刻提交的命令有效；#222 起只锁报名名单，不锁构筑），其余转换在 RespawnsAndWorld 开始时执行（`AdvanceTimeline`）。
+  报名锁定在该边界成长命令之后的 Transactions 阶段执行（`LockTimelineBuild`，截止时刻提交的命令有效；只锁报名名单，不锁构筑），其余转换在 RespawnsAndWorld 开始时执行（`AdvanceTimeline`）。
   `ReadBuildStage` 在 Build/Payout 为 Rest、其他休息步骤为 RestLocked：自己的构筑命令在两者都受理（不锁定报名者构筑快照，每次权威构筑变更直接投影到当前 PK 生命），NPC 服务在 RestLocked 以 `BuildLocked` 拒绝；
   Return 步骤 `IsInputLocked` 为真，订单、攻击、施法与冲刺都以 `NotStarted` 拒绝。休息服务（NPC、洗点、替换、遗忘）见[成长事务](../systems/GROWTH_TRANSACTIONS.md)。
-- **PK 接口**：PK 是 #198 会话 D 的可选提供者 `ELDMatchProvider::PK`，`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定（`FLDRestStepNotice`）；
-  报名是站圈报名（用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）”）：没有报名请求，
+- **PK 接口**：PK 是可选提供者 `ELDMatchProvider::PK`，`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定（`FLDRestStepNotice`）；
+  报名是站圈报名（半径复用 `AIRDROP.PickupRadiusCm`）：没有报名请求，
   `ALDGameMode::RefreshRestSignups` 在报名窗口内每拍（`AdvanceTimeline` 中）按休息生命已提交脚点是否在本人 `SignupDiskFor` 圆盘
   （`pk_signup_<名单槽位>`，半径 `AIRDROP.PickupRadiusCm`，XY、边界算在内）里重算 `Timeline.Signups`，锁定时再算一次，截止时刻圈内的人即锁定名单；
   缺少本人报名圈是明确错误。没有该提供者时无人计入报名，每次休息跳过 PK。PK 提前分出结果时提供者调用 `ALDGameMode::FinishRestPK`。
@@ -330,7 +328,7 @@ int64 DurationMs; TArray<FLDResultRow> Rows; }`，
 `SoloSinceMs / DueAtMs` 只在 `Solo` 时有值，续计时 `SoloSinceMs` 为恢复时刻减暂停值，`DueAtMs` 即真实喷上涂鸦的时刻；
 争夺中两者为 0，被暂停的喷漆者由 `Occupier` 与 `PausedProgressMs` 表示。
 `GraffitiOwner` 是旗杆上涂鸦的主人，`GraffitiPresentation` 是他的开局名单槽位（即身体染色键），无主时分别为空 Guid 与 0；
-有主时 `GuardDueAtMs` 只在 `Guarded`（主人独自在区内）下表示运行中守护的真实获胜时刻；`GuardKeptMs` 在 `Empty`（主人在区外、区内无人，守护暂停）与 `Solo / Contested`（区内有主人以外的有效参赛者，守护冻结）时表示保留的守护进度（2026-11-07 用户决定），无主时两者为 0。
+有主时 `GuardDueAtMs` 只在 `Guarded`（主人独自在区内）下表示运行中守护的真实获胜时刻；`GuardKeptMs` 在 `Empty`（主人在区外、区内无人，守护暂停）与 `Solo / Contested`（区内有主人以外的有效参赛者，守护冻结）时表示保留的守护进度，无主时两者为 0。
 没有进度持有者或涂鸦主人的时刻使用明确空值，
 不是让零 Guid/默认时间冒充一名参赛者。各字段组合由 `LDCaptureTypes.cpp` 的校验拒绝畸形。名单条目身份、真人/AI、Host、Ready 的字段
 由 `FLDLobbyView` 发布；Owner 的时间字段为 `RespawnAtMs / ProtectedUntilMs`。
@@ -396,7 +394,7 @@ Combat 首次 0 HP 锁存 PendingDeath
   -> GameMode.EndContenderLife（生命和资格只消费一次）
   -> 成长域复合奖励（也记录零奖励处理）
   -> DeadWaiting
-  -> World 固定十点抽取 + 同点 Reserve
+  -> World 固定十二点抽取 + 同点 Reserve
   -> 核心/Combat 成功提交新 Life 和 BodyIdentity
   -> World Finalize + Owner/Vision 新生命投影
   -> AliveProtected
@@ -447,7 +445,7 @@ XP、跨级升级和新增机会先全量预检/预留再一起提交，不能�
 职责，具体参数容器以 `WORLD_CAMPS_AND_VISION.md` 为准；共同身份只使用 §4。
 请求包含当前 Match、参赛者和拟议新 Life 及稳定 SpawnRequest 身份。
 
-抽样只在新的出生/复活请求上发生一次，输入是固定的完整十点集合；没有敌人距离、视野、
+抽样只在新的出生/复活请求上发生一次，输入是固定的完整十二点集合；没有敌人距离、视野、
 危险权重或排除上次落点。重复请求和同点暂时被占用都复用已经选定的 SpawnId。
 世界在该点局部预留合法落地；失败返回 `SpawnBlocked` 或明确几何错误，
 不偷偷抽另一个点，不将失败位置当成成功。
@@ -466,7 +464,7 @@ AuthorityFault，禁止发布复活成功或靠回退 Life/再抽点掩盖；它
 
 初次出生走同一抽点/落地机制，但只进行开局初始化，不借用死亡扣费、返还奖励或刷新旧来源
 的路径。Spec 只规定复活保护，不能因为调用了共用 Spawn helper 就无意附加开局无敌政策。
-对手 AI 同样抽样并走同一生命规则；野怪使用其营地出生机制，不参加玩家十点抽样。
+对手 AI 同样抽样并走同一生命规则；野怪使用其营地出生机制，不参加玩家十二点抽样。
 
 ### 5.3 进攻意图、保护解除和动作边界
 
@@ -839,9 +837,9 @@ uint64 GateRevision; }` 只由核心为当前调用栈发放，不发给网络�
 喷漆到期严格早于某条事实时先应用喷漆；与到期同一时刻的死亡、离局、控制和离区先于喷漆处理。
 喷上涂鸦即覆盖原涂鸦，主人改为喷漆者，守护从该时刻由 0 开始；这一步不结束对局，
 步内完成的喷漆由 `CloseBoundary` 在其真实时刻归约。守护只在 `Guarded`（主人独自在区内，是否受伤受控都不影响）时运行；
-`Empty` 时主人在区外、区内无人，守护暂停于 `GuardKept`（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”）；
+`Empty` 时主人在区外、区内无人，守护暂停于 `GuardKept`；
 `Solo / Contested` 时区内有主人以外的有效参赛者，守护冻结于 `GuardKept`；
-回到 `Guarded` 时守护从保留值继续，`GuardDue` 为恢复时刻加剩余时长（2026-11-07 用户决定）。
+回到 `Guarded` 时守护从保留值继续，`GuardDue` 为恢复时刻加剩余时长。
 冻结期间主人从区内走出、且同一时刻的事实全部归约后区内仍有非主人时，`GuardKept` 清零，涂鸦与主人不变；
 清零按同一原始秒的事实整体判定：该时刻开始时主人在区内且守护已冻结、结束时主人在区外且区内仍有非主人（`Solo / Contested`），
 因此主人与最后一名非主人同时离开（区内无人，只暂停）、或主人离开与非主人进圈同时发生都不清零。涂鸦主人死亡或离局，涂鸦立即清除、旗杆无主。
@@ -916,13 +914,13 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 | 正式参数 / 政策键 | 类型、单位和消费者 | 接入与正反验收 |
 | --- | --- | --- |
-| `MATCH.FieldSegmentSec` | 正时长，作者秒；`FLDMatchTimeline` | 三段定时野外各一段，只按野外进度 T 计；R3 返场后的最终野外开放旗杆，开放后不再关闭。已删除的 `MATCH.CountdownSec`、`MATCH.DevelopmentSec` 不能作缺值 fallback（导入以 UnknownField 拒绝）。 |
+| `MATCH.FieldSegmentSec` | 正时长，作者秒；`FLDMatchTimeline` | 三段定时野外各一段，只按野外进度 T 计；R3 返场后的最终野外开放旗杆，开放后不再关闭。`MATCH.CountdownSec`、`MATCH.DevelopmentSec` 不是合法字段（导入以 UnknownField 拒绝）。 |
 | `REST.OpeningBuildSec`、`REST.BuildSec`、`REST.SignupSec`、`REST.DrawSec`、`REST.BettingSec`、`REST.PKReadySec`、`REST.PKMaxSec`、`REST.SettlementSec`、`REST.PayoutSec`、`REST.ReturnSec` | 正时长，作者秒；`FLDMatchTimeline` | 休息各步骤时长（§3.4）；报名窗不得长于配装窗，`FLDTimelineParameters::Validate` 与导入校验拒绝。 |
 | `REST.ReturnSearchRadiusCm` | 厘米；生命域/World | 返场原脚点被占用时的就近搜索半径（`ReserveSpawnNear`），仍失败则正常抽点。 |
 | `REST.EntryReadyTimeoutSec` | 正时长，作者秒；`RestEntryReadyTimeoutMs` | 共同入场（PK 入场、返回野外）未就绪时的最长等待（§3.4）；PK 超时 NoContest，返场超时为权威故障。 |
 | `CAPTURE.SpraySec` | 有界时长，作者秒；GameMode 喷漆归约/UI/AI | 从独自喷漆开始（续计时回拨暂停值）建立喷上涂鸦的截止；争夺暂停所有人进度，离区/死亡/离局/硬控施加清零，普通伤害、减速、缴械不影响。 |
 | `CAPTURE.GuardSec` | 有界时长，作者秒；GameMode 守护归约/UI/AI | 喷上涂鸦起守护从 0 计；只有他人独自喷漆时暂停，改漆失败从暂停处续计；主人死亡/离局清除涂鸦；连续满时长即守护成功。 |
-| `LIFE.RespawnSec.Field1/Field2/Field3/Final` | 有界时长，作者秒；生命域 | 按死亡时的野外进度 T 所在野外段选一个（#198 批准为试玩输入），不按等级/人数/死亡次数变化，不自行加入缩放公式。死亡事实建立期限一次，重复死亡不再延长或缩短；进入休息时剩余等待结束。 |
+| `LIFE.RespawnSec.Field1/Field2/Field3/Final` | 有界时长，作者秒；生命域 | 按死亡时的野外进度 T 所在野外段选一个，不按等级/人数/死亡次数变化，不自行加入缩放公式。死亡事实建立期限一次，重复死亡不再延长或缩短；进入休息时剩余等待结束。 |
 | `LIFE.ProtectionSec` | 有界时长，作者秒；生命/Combat/喷漆归约/UI | 成功复活建立保护期限；到期等号、合法主动解除、保护期间不计入喷漆区人数均按 §5/6。 |
 | `CAPTURE.RadiusCm` | 厘米，脚点 XY 中心的喷漆区半径（边界算在内）；World 查询 | 使用世界统一边界包含规则，不在喷漆归约/Combat/UI 分别加减碰撞半径或容差。 |
 | `UNIT.CollisionRadiusCm` | 厘米，参与者碰撞尺度；World/原生身体 | 只服务必要合法落地/防重叠及碰撞，不据此扩大喷漆区、加危险评分或重抽锚点。 |
@@ -942,8 +940,8 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 死亡静态自由镜头、不新增活体视野、无LastSeen标记、可见对手字段及终局统计
 已确认，按§4白名单接线，不能继续列为未定。
-基础普攻近战单体及经属性/技能/被动获得群攻、射程成长已确认；具体数值由 D01 批准为试玩输入，
-批准不等于已平衡。喷漆 + 守护规则（#112）的 `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`
+基础普攻近战单体及经五维、主动与构件获得射程等成长已确认；具体数值已批准为试玩输入，
+批准不等于已平衡。喷漆 + 守护规则的 `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`
 已批准为试玩输入，与 `LIFE.RespawnSec.*` 的配合待试玩复核（见内容报告）。本模块没有另需用户选择的生命周期分支；
 同世界阶段选择、毫秒转换、HostEnd 的工程先后、类型命名、请求窗口及水位证明属于工程设计。
 
@@ -979,10 +977,10 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 | ID | 前置和动作 | 精确正反断言 |
 | --- | --- | --- |
-| LF-01 | C1 经正常成长获得技能/被动/永久属性及当前待选候选后死亡 | 全部持久状态保留；无死亡税/掉落/初始奖励重发；复活派生不重复加一次永久属性。 |
+| LF-01 | C1 经正常成长获得主动、五维点数、构件及当前待选候选后死亡 | 全部持久状态保留；无死亡税/掉落/初始奖励重发；复活派生不重复加一次永久属性。 |
 | LF-02 | 同 VictimLife 重复致死；之后复活再次死亡 | 前者一个 DeathKey、一份等待和复合奖励；后者新 Life 产生另一合法死亡，不能被只按参赛者去重吞掉。 |
 | LF-03 | H/C1/AI 带未结束来源冷却死亡和复活；raw Now=1000.2ms、ReadyAt=1001ms | 剩余时间继续且只在真实到期可用；不能用ceil Now提前，也不能因新Pawn/槽位/BodyIdentity清零；失源后重学同样不洗。 |
-| LF-04 | 固定无偏 RNG 夹具覆盖十个输出及拒绝区间；相同随机流下改变敌人距离/视野；强制连续相同索引 | 仍使用完整十点均匀采样；改变威胁状态不改变抽点；允许同人连续同点和多人同点。不能以小样本次数恰好相等作为均匀性证明。 |
+| LF-04 | 固定无偏 RNG 夹具覆盖十二个输出及拒绝区间；相同随机流下改变敌人距离/视野；强制连续相同索引 | 仍使用完整十二点均匀采样；改变威胁状态不改变抽点；允许同人连续同点和多人同点。不能以小样本次数恰好相等作为均匀性证明。 |
 | LF-05 | 同点多 H/C/AI，注入 Reserve 失败/重试、重复 Finalize | 在选中锚点局部合法落地；重试不增加抽样次数、不多增 Life；Finalize 无第二次初始化。准备失败明确报错，内部提交不变式错误走 AuthorityFault。 |
 | LF-06 | 复活后立即读取身体、Owner/UI 和喷漆区状态 | 同一新 Body/Life，满最终上限 HP/MP、无旧临时控制；保护期限来自成功提交，保护者不喷不争。 |
 | LF-07 | 保护中移动/受击/控制；确认AttackUnit/AttackMove/QW/12且目标缺失/超距/缺蓝/过期binding；对照旧包/畸形包；到期同刻受击 | 移动/预览不解；可识别新意图在语义验证前解并使其计入喷漆区，Rejected仍带LifeRevision而无资源/CD；旧/畸形包不解；自然到期等号不免疫。 |
@@ -1030,8 +1028,6 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 ## 9. 实现位置
 
-旧 Objective/Claim/路线/站桩、旧 profile、死亡税、安全最远出生、checkpoint/restore 与旧时钟分派已删除；
-现行退役范围与不得恢复的内容以[架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束)为准。
 下列源码均在 `Source\Lockdown` 下，是本文契约的唯一实现；不另设管理器或第二套状态。
 
 | 职责 | 源码 | 要点 |
@@ -1040,7 +1036,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | 开局、Starting、Prepare、出生 | `Private\Framework\LDGameModeMatch.cpp`、`LDMatchProviders.cpp` | `LDMatchProviders` 门禁：Combat、Progression、Camps 及（有 AI 名额时）OpponentAI 都注册才可开始；Prepare 失败走同一 `RetireMatch`，发布新一代 Lobby 与明确失败。 |
 | 写闸、阶段、回 Lobby、关房、本人视图发布 | `Private\Framework\LDGameMode.cpp`、`LDGameModeLifecycle.cpp` | `RetireMatch` 先关闸，再按注册逆序调 MatchReset，`RetireAuthorityCore`/`RetireMatchDomains` 拆除，丢弃 AI 与离局记录后换代。`SyncOwner` 在世界拆除、`Closing`、`Resetting` 时不发布、不判投影故障；Host 换图前在 `PreLoadMapWithContext` 关闭房间并通知成员。 |
 | 生命、复活、保护解除 | `Private\Framework\LDGameModeLife.cpp` | 由 Combat 维护；向本模块发布 Joined/Respawned/ProtectionEnded/Died/Left 资格事件；野外死亡的复活等待按死亡时 T 取值。 |
-| 外层时间线、休息与阶段边界（#198） | `Public/Private\Framework\LDMatchTimeline.*`、`Private\Framework\LDGameModeRest.cpp`、`LDPlayerRest.cpp`、`Private\Combat\LDCombatRest.cpp`、`Private\World\LDCampDirector.cpp`（`FreezeForRest/ThawAfterRest`）、`Private\World\LDSpawnPlacement.cpp`（`ReserveSpawnNear`） | 见 §3.4：纯时间线归约与公开视图、休息锚点与隔离组、阶段生命退休与共同放置（`PhaseRetired`、`PrepareJointPhase`、休息位重试 `PendingPhasePlacement`）、`CancelAllForPhase`/`ReadyAllForPhase`、世界冻结与解冻、PK 站圈报名（`RefreshRestSignups`）与可选 PK 提供者钩子。 |
+| 外层时间线、休息与阶段边界 | `Public/Private\Framework\LDMatchTimeline.*`、`Private\Framework\LDGameModeRest.cpp`、`LDPlayerRest.cpp`、`Private\Combat\LDCombatRest.cpp`、`Private\World\LDCampDirector.cpp`（`FreezeForRest/ThawAfterRest`）、`Private\World\LDSpawnPlacement.cpp`（`ReserveSpawnNear`） | 见 §3.4：纯时间线归约与公开视图、休息锚点与隔离组、阶段生命退休与共同放置（`PhaseRetired`、`PrepareJointPhase`、休息位重试 `PendingPhasePlacement`）、`CancelAllForPhase`/`ReadyAllForPhase`、世界冻结与解冻、PK 站圈报名（`RefreshRestSignups`）与可选 PK 提供者钩子。 |
 | 权威推进与阶段调用点 | `Private\Combat\LDCombatDriver.cpp`、`Private\World\LDWorldClock.cpp` | 由 Combat 维护；RespawnsAndWorld 先 `AdvanceTimeline`，Transactions 末尾 `LockTimelineBuild`，之后依次调用 `ExecuteCapturePhase` → `ExecuteClosePhase` → `ExecuteCapturePublish`，以 `NextTimelineDueMs`、`NextCaptureDueMs` 等切步。 |
 | 喷漆与守护归约、结果、公共投影 | `Public/Private\Framework\LDCaptureReducer.*`、`LDCaptureTypes.*`、`Private\Framework\LDGameModeCapture.cpp` | 见 §6.5；`PublishCaptureInterrupt` 接收 Combat 的硬控事实；`FLDPublicMatchView`/`FLDResultView`/`FLDKillFeedView` 经各自 Validate/Accept 拒旧与拒畸形。 |
 | 喷漆区几何与世界表现 | `Public/Private\World\LDCaptureCircle.*`、`LDCaptureMarker.*` | `LDCaptureCircle::Extract` 求真实进出；`ALDCaptureMarker` 是各端本地、无碰撞的边界环（颜色随公开状态，`Guarded` 为蓝色），并在旗杆约 210 cm 高处挂一块按涂鸦主人身份色染色的涂鸦板，无主时隐藏；不参与判定、不进导航或视线。 |
@@ -1071,7 +1067,7 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 | 时间 / 序号 / 水位 | §6 的 Step、事件时间、提供者前缀、Boundary、运动与资格发布 | 原始秒跨流排序、毫秒只 ceil 桶；只封闭已完成整数边界。 |
 | 终局与非重入提交 | §6 的借用 GameplayWritePermit、ValidateWritePermit、TryCloseMatch、ResultView、故障关闭 | 先锁闸再清理/发布；闸后不首次提交；必需失败明确故障关闭，不造胜者。 |
 | 取消/死亡/离开/新局 | §5.4 矩阵；§3.3 同世界 Reset；§4.3 生命周期通知 | 保留候选/财产/持续冷却，清短寿命动作；退休后的新请求拒绝；Host 故障不转移。 |
-| 参数/单位/政策 | §7 的 MATCH/REST/CAPTURE/LIFE/UNIT/POLICY 键，数值单点在内容报告 | D01 批准为试玩输入，不等于已平衡；无默认值。 |
+| 参数/单位/政策 | §7 的 MATCH/REST/CAPTURE/LIFE/UNIT/POLICY 键，数值单点在内容报告 | 已批准为试玩输入，不等于已平衡；无默认值。 |
 | 公共/私有读权限 | §4.2/4.3：Lobby/PublicMatch/ResultView/Owner/AI self；LifeNotice/MatchClosed/MatchReset | 全场只公开喷漆区状态、喷漆进度持有者与进度、涂鸦主人与守护进度，无隐藏坐标/构筑；ResultView 不发 LedgerMatch；Host 同样受限。 |
 
 ## 12. 证据限制
@@ -1079,6 +1075,6 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 - 上表规则测试与场景只在同一台机器的回环连接上运行；跨机器局域网与公网直连没有证据。
 - 3+3 满员、打包版与网络异常场景在里程碑检查和发布验收时运行；某次运行的结论以当次 `Artifacts` 报告为准，本文不引用旧报告作为当前通过的依据。
 - 争夺中喷漆者死亡后清零、硬控打断喷漆、主人死亡/离局清除涂鸦只有规则测试证据；喷漆 + 守护数值与 `LIFE.RespawnSec.*` 的配合未经试玩复核。
-- #198 外层流程只有规则测试（`DemoRest.*`）证据；改写到休息流程的拥有连接场景探针尚未运行。
-- PK/竞猜/观众投掷（#198 会话 D）已接入，只有纯规则测试（`Lockdown.Rules.DemoPK.*`）；PK 锚点原生几何、拥有连接场景尚未运行。AI 在休息构筑窗口按 [对手 AI §6.4](OPPONENT_AI.md#64-持久选择与构筑) 使用 NPC、洗点、替换、补缺、拆解与训练假人（不遗忘），只有规则测试（`DemoOpponentPolicy.RestRebuild`/`Training`）。训练假人只有规则测试（`DemoRest.PhasePolicy`），没有拥有连接场景。
+- 外层流程只有规则测试（`DemoRest.*`）证据；改写到休息流程的拥有连接场景探针尚未运行。
+- PK/竞猜/观众投掷已接入，只有纯规则测试（`Lockdown.Rules.DemoPK.*`）；PK 锚点原生几何、拥有连接场景尚未运行。AI 在休息构筑窗口按 [对手 AI §6.4](OPPONENT_AI.md#64-持久选择与构筑) 使用 NPC、洗点、替换、补缺、拆解与训练假人（不遗忘），只有规则测试（`DemoOpponentPolicy.RestRebuild`/`Training`）。训练假人只有规则测试（`DemoRest.PhasePolicy`），没有拥有连接场景。
 - 视野过滤不能防范恶意 Host；Host 断线时客户端按引擎默认约 60 秒连接超时后才回到菜单。

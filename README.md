@@ -12,15 +12,15 @@
 Demo 的完整流程已经实现：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）→ 开局休息 R0（开局主动三选一与开局属性点）→
 三段野外各接一次休息（从零打野、对抗、升级加点并在 3、6 级再选主动；休息时调整构筑）→ 最终野外旗杆开放后喷漆、守护与围攻 →
 唯一结果 → Host 带房间回 Lobby 开新局。
-运行入口只有前端和唯一 Demo 地图，旧模式代码已经删除。
+运行入口只有前端和唯一 Demo 地图。
 
-- [#198](https://github.com/rlsn/Lockdown-alpha/issues/198) 的规则工坊、元素、构件、公共休息室、PK、
+- 规则工坊、元素、构件、公共休息室、PK、
   野外奖励、蓝图与评估入口已接入；局部规则和同机拥有连接已验证，完整对局与整体验收仍未完成，
   限制见[实施就绪评估](docs/demo/READINESS.md)。
 - 首版内容与数值是用户批准的首次试玩输入，**没有做过平衡测试**。
 - 所有联机验证都在同一台机器的回环连接上运行；跨机器局域网与公网直连没有验证。
 - 下一阶段以好玩为先：先补齐玩法逻辑和内容，再反复试玩调整，最后做正式美术和声音。
-  缺少的内容见[实施就绪评估](docs/demo/READINESS.md#剩余工作)的“剩余工作”。
+  待办与排期见 [Issue](https://github.com/rlsn/Lockdown-alpha/issues) 与[看板](https://github.com/users/sinmentis/projects/4)。
 - 验收结果、未运行与未实现项见[实施就绪评估](docs/demo/READINESS.md)。产品规则只以 [App Spec](docs/APP_SPEC.md) 为准。
 
 ## 环境
@@ -43,8 +43,7 @@ git lfs install
 git lfs pull
 $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 .\Scripts\Preflight.ps1          # 核对引擎版本与工具链
-.\Scripts\BuildEditor.ps1        # 编辑器目标
-.\Scripts\BuildGame.ps1          # 游戏目标
+.\Scripts\BuildEditor.ps1        # 编辑器目标；日常开发只需要它
 .\Scripts\OpenStandalone.ps1     # 以无边框全屏打开前端；加 -HostRoom 直接以 Host 进入 Demo 地图
 .\Scripts\OpenEditor.ps1         # 打开编辑器
 ```
@@ -56,11 +55,11 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 目的 | 命令 |
 | --- | --- |
-| 原生规则测试（默认按改动决定是否跳过 5 个重导入测试） | `.\Scripts\RunTests.ps1`；完整导入门禁显式用 `-ImportTests Run` |
-| 开发中只跑相关规则测试（部分运行，不算门禁；节奏见[开发指南](docs/DEVELOPMENT.md#开发循环与验证节奏)） | `.\Scripts\RunTests.ps1 -Filter <测试路径前缀>…` |
+| 日常验证：按改动决定跑什么（规则见[开发指南](docs/DEVELOPMENT.md#验证)） | `.\Scripts\Verify.ps1`；另跑相关规则测试加 `-Filter <测试路径前缀>…` |
+| 完整原生规则测试（PR 的 CI 会跑；本地用于里程碑） | `.\Scripts\RunTests.ps1`；完整导入门禁显式用 `-ImportTests Run` |
 | 保存的正式地图布局同步（先保存并关闭编辑器） | `.\Scripts\SyncDemoMap.ps1` |
 | 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
-| Python 测试 | `python -B -m unittest discover -s .\Scripts -p "Test*.py"` |
+| 全部 Python 测试 | `python -B .\Scripts\RunPythonTests.py` |
 | 试玩日志整理（房主与客户端日志合并成每局时间线） | `python -B .\Scripts\SummarizePlaytestLog.py <日志或目录>…`，见[开发指南](docs/DEVELOPMENT.md#试玩问题排查) |
 | 生成资产、音效与美术校验 | `.\Scripts\BootstrapAssets.ps1`（默认 Validate，同时校验音效与美术目录） |
 | 拥有连接场景 | `.\Scripts\RunDemo<Core/Combat/Camp/Growth/Capture/Vision/Opponent/SessionFault>Check.ps1`，加 `-PackageRoot <包的 Archive 目录>` 在打包版上运行 |
@@ -68,36 +67,27 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 打包 Development 版 | `.\Scripts\PackageWin64.ps1`，输出到 `Artifacts\<时间戳>-PackageWin64\Archive` |
 | 打开打包版 | `.\Scripts\OpenPackaged.ps1 -PackageRoot <Archive 目录>` |
 
-每个场景覆盖和不覆盖的内容、数据修改流程见[开发指南](docs/DEVELOPMENT.md)。
+每个场景覆盖和不覆盖的内容见[验证手册](docs/systems/VERIFICATION.md)，数据修改流程见[开发指南](docs/DEVELOPMENT.md#数据修改)。
 所有运行输出写入 Git 忽略的 `Artifacts`。
 
 ## 协作流程
 
-1. 所有工作都以 [GitHub Issue](https://github.com/rlsn/Lockdown-alpha/issues) 为单位，并按 Milestone 和
-   [看板](https://github.com/users/sinmentis/projects/4) 排期，详见 [AGENTS](AGENTS.md) 的“任务管理”一节。
-   共享接口、核心配置和地图改动，先与负责人协调。
-2. **每张票**：
-   1. 指派给自己；
-   2. 从最新的 `main` 建分支；
-   3. PR 至少通过 `BuildEditor.ps1` 和受影响的规则测试，描述写 `Fixes #N`；
-   4. 验证通过后合入 `main`，合并后删除分支。
-3. **里程碑与发布**：
-   1. 冻结后跑完整门禁、`VerifyCleanCheckout.ps1` 和 `PackageWin64.ps1`；
-   2. 在打包版上跑全部场景；
-   3. 全部通过后，才替换唯一一份已知可用的包。
-4. 禁止 force push，包括 `--force-with-lease`；同步共享改动用 merge。
-
-完整约束见 [AGENTS](AGENTS.md)。
+工作以 [GitHub Issue](https://github.com/rlsn/Lockdown-alpha/issues) 为单位，按 Milestone 和
+[看板](https://github.com/users/sinmentis/projects/4) 排期；每张票一个分支，经 PR 以 merge commit 合入 `main`，禁止 force push。
+里程碑与发布在冻结后跑[完整检查](docs/systems/VERIFICATION.md#合并前与里程碑检查)并在打包版上跑全部场景，
+全部通过后才替换唯一一份已知可用的包。规则全文见 [AGENTS](AGENTS.md)。
 
 ## 文档地图
 
 | 需要 | 入口 |
 | --- | --- |
 | 游戏规则与完成标准 | [App Spec](docs/APP_SPEC.md) |
-| 环境、命令、场景与数据修改 | [开发指南](docs/DEVELOPMENT.md) |
+| 环境、日常验证、数据修改、运行与试玩排查 | [开发指南](docs/DEVELOPMENT.md) |
+| 各检查与场景的覆盖范围、里程碑清单 | [验证手册](docs/systems/VERIFICATION.md) |
+| 打包、PR 检查、每日试玩包 | [CI 与发布](docs/systems/CI_AND_RELEASE.md) |
 | 协作与实现规则（人和 AI 共用） | [AGENTS](AGENTS.md) |
 | 验收结果、未运行与未实现项 | [实施就绪评估](docs/demo/READINESS.md) |
-| 模块边界与跨模块契约 | [实施计划](docs/demo/IMPLEMENTATION_PLAN.md) · [共享契约](docs/demo/SHARED_CONTRACTS.md) · [架构审计](docs/demo/ARCHITECTURE.md) |
+| 跨模块契约 | [共享契约](docs/demo/SHARED_CONTRACTS.md) |
 | 各玩法域的设计与实现说明 | `docs\demo` 下的领域报告（会话、操作、战斗、成长与奖励、世界与营地、AI、界面） |
 | 首版内容与数值（唯一来源） | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md) |
 | 现有组件的实现与接口 | `docs\systems` 下的系统手册，索引见[开发指南](docs/DEVELOPMENT.md#按任务读取系统手册) |
