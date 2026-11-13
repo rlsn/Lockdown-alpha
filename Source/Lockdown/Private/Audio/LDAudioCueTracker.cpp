@@ -220,5 +220,5 @@ void FLDAudioCueTracker::ObserveCombatReceipt(const FLDCombatActionReceipt& Rece
     if ((Key & ~(uint64(1) << 63)) == 0 || CastKeys.Contains(Key)) { return; }
     if (CastKeys.Num() >= 16) { CastKeys.RemoveAt(0); }
     CastKeys.Add(Key);
-    LDAudio::AddUnique(Out, ELDAudioCue::SelfCast);
+    LDAudio::AddUnique(Out, Receipt.Entry == ELDCombatEntry::Dash ? ELDAudioCue::SelfDash : ELDAudioCue::SelfCast);
 }

@@ -252,7 +252,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中生命下降且上限未降；致死一击交给本人死亡音效 | 0.2 秒内最多一次 |
 | 本人护盾吸收 / 破裂（`SelfShieldHit` / `SelfShieldBreak`） | 同 Match/Life 的 `CombatView` 新命中含服务器结算的护盾吸收或破裂标记；同时损失生命时优先播放护盾音，护盾自然到期不响 | 每次命中至多一次；破裂与普通受击分别限频 0.2 秒，不被紧邻的普通受击吞掉 |
 | 本人普攻出手（`SelfAttack`，不是命中确认） | 同 Match/Life 的 `CombatView` 新 Revision 中 `Cues.ReleasedAtMs` 晚于上次所见且 `bReleasedBasic`（近战出手或飞行物发射的时刻，Nav 与 Direct 来源相同）；技能的释放交给下一行的回执 | 每次出手一次；新 Life 的首个投影只建立基线，死亡、旧生命与重放不响 |
-| 本人技能或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/E/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
+| 本人技能或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/E/D，Finished/Released 且无拒绝；冲刺使用独立的 `SelfDash` 音效 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧相同音效合成一次）；别局或别条命的回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
 | 界面点击 | 设置页主音量滑条松手或键盘调节时试听 | 每次调节一次 |

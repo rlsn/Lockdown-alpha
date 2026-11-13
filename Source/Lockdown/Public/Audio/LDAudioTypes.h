@@ -29,6 +29,8 @@ enum class ELDAudioCue : uint8
     SelfAttack,
     // 18 and 19 (the shop queue cues) are retired (#144).
     SelfShieldBreak = 20,
+    // The own innate dash released, from its successful owner receipt.
+    SelfDash,
     Count UMETA(Hidden)
 };
 

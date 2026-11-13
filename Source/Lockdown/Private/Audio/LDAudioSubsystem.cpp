@@ -152,7 +152,7 @@ bool ULDAudioSubsystem::Play(ELDAudioCue Cue)
     if (!LDAudio::IsPlayableCue(Cue)) { return false; }
     UWorld* World = ReadyWorld(LDAudio::CueId(Cue));
     if (!World) { return false; }
-    const float Pitch = Cue == ELDAudioCue::SelfShieldBreak ? 1.35f : 1.f;
+    const float Pitch = Cue == ELDAudioCue::SelfShieldBreak ? 1.35f : Cue == ELDAudioCue::SelfDash ? 1.55f : 1.f;
     UGameplayStatics::PlaySound2D(World, CueSounds[int32(Cue)], 1.f, Pitch, 0.f, nullptr, nullptr, true);
     return true;
 }

@@ -229,6 +229,18 @@
       "loudness_lufs": -16.67,
       "level_db": -6.0,
       "volume": 0.541
+    },
+    {
+      "cue": "SelfDash",
+      "pack": "kenney-digital-audio",
+      "source": "Kenney/DigitalAudio/phaserUp3.ogg",
+      "pack_path": "Audio/phaserUp3.ogg",
+      "sha256": "d6edcbde2c7190e275ef3eba08a8886129153a361cd0e16dc0fb58206deb5e53",
+      "duration_sec": 0.522,
+      "purpose": "本人冲刺释放：复用上升音源并提高播放音调",
+      "loudness_lufs": -14.0,
+      "level_db": -6.0,
+      "volume": 0.539
     }
   ],
   "music": [

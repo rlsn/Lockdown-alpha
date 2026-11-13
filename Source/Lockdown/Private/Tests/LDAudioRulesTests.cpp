@@ -223,8 +223,18 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     FLDCombatActionReceipt OldLife=Cast;OldLife.DirectSequence=14;OldLife.Generation=3;Tracker.ObserveCombatReceipt(OldLife,4,1,Out);
     OldLife.Generation=4;OldLife.Life=2;Tracker.ObserveCombatReceipt(OldLife,4,1,Out);
     TestTrue(TEXT("Basic attacks, refusals, cancels and receipts of another match or life stay silent"),Out.IsEmpty());
-    FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
-    TestTrue(TEXT("The innate dash sounds as a cast"),AudioIs(Out,{ELDAudioCue::SelfCast}));
+    FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;
+    Dash.Phase=ELDCombatPhase::Accepted;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("A dash windup does not sound as a release"),Out.IsEmpty());
+    Dash.Phase=ELDCombatPhase::Released;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("The innate dash uses its own release cue"),AudioIs(Out,{ELDAudioCue::SelfDash}));
+    Out.Reset();Dash.Phase=ELDCombatPhase::Finished;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("The same dash's finished receipt does not replay the cue"),Out.IsEmpty());
+    Dash.DirectSequence=16;Dash.Reject=ELDCombatReject::Cooldown;Dash.Phase=ELDCombatPhase::Rejected;
+    Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    Dash.DirectSequence=17;Dash.Reject=ELDCombatReject::None;Dash.Phase=ELDCombatPhase::Finished;Dash.Life=2;
+    Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("A refused dash and a dash from another life stay silent"),Out.IsEmpty());
     return true;
 }
 
