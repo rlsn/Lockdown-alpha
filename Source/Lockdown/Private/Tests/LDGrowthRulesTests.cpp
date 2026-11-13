@@ -3372,6 +3372,47 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     Unowned.RewardBasis.NoRewardReason = ELDNoRewardReason::NoOwner;
     if (!Settle(Unowned, Plain)) { return false; }
     TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && TotalXP() == XPBeforeUnowned);
+
+    FLDTimelineParameters TimelineParameters;
+    TArray<FLDTimelineEvent> TimelineEvents;
+    if (!TestTrue(TEXT("Create a timeline for the final field"),
+        FLDTimelineParameters::FromContent(Tuning, TimelineParameters, Error)
+        && Mode->Timeline.Begin(TimelineParameters, 0, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
+        && Mode->Timeline.DevSkipToFinalField(Mode->Timeline.MakeView(Mode->MatchContext.Generation, 1).FieldStartedAtMs,
+            TimelineEvents, Error)))
+    { AddError(Error); return false; }
+
+    const int64 BeforeFinalDeath = TotalXP();
+    const FLDCommittedDeath FinalDeath = ContenderDeath(8, {A1, A2});
+    FLDRewardReceipt FinalReceipt;
+    if (!Settle(FinalDeath, FinalReceipt)) { return false; }
+    TestTrue(TEXT("A final-field kill and its assists grant no growth"),
+        FinalReceipt.Outcome == ELDRewardOutcome::NoReward && FinalReceipt.Reason == ELDGrowthReason::PhaseClosed
+        && FinalReceipt.Recipient == Killer && TotalXP() == BeforeFinalDeath);
+    if (!Settle(FinalDeath, Replay)) { return false; }
+    TestTrue(TEXT("A final-field death replay preserves its no-reward receipt"),
+        Replay.Outcome == ELDRewardOutcome::NoReward && Replay.Reason == ELDGrowthReason::PhaseClosed
+        && TotalXP() == BeforeFinalDeath);
+    ELDRewardOutcome FieldOutcome = ELDRewardOutcome::Granted;
+    ELDGrowthReason FieldReason = ELDGrowthReason::None;
+    FLDRewardReceipt FieldReceipt;
+    ++StepAtMs;
+    if (Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) != ELDCommitReject::None
+        || !Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+        || !Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards,
+            [&](const FLDGameplayWritePermit& Permit)
+            {
+                FieldOutcome = Growth->CommitFieldReward(Killer, TEXT("airdrop"), 1, 1, ELDFieldRewardKind::BuildDraw,
+                    Permit, FieldReceipt, FieldReason);
+                return true;
+            }, Error)
+        || !Mode->FinishAuthorityStep(*Driver, Error))
+    { AddError(Error); return false; }
+    TestTrue(TEXT("A late final-field map reward cannot grant XP or components"),
+        FieldOutcome == ELDRewardOutcome::PermanentlyRejected && FieldReason == ELDGrowthReason::PhaseClosed
+        && TotalXP() == BeforeFinalDeath);
     return true;
 }
 

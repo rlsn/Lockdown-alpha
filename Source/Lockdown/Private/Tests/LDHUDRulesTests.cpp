@@ -1301,6 +1301,11 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         Timeline.Step=ELDRestStep::Return;
         TestTrue(TEXT("The return countdown locks the build"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::RestLocked);
         TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);
+        FLDTimelineView FinalField;
+        FinalField.Stage=ELDMatchStage::FinalField;
+        TestTrue(TEXT("The final field closes ordinary growth commands"),
+            LDProgression::StageForPublic(ELDMatchPhase::Development,FinalField)==EStage::Closed
+            && LDProgression::StageForPublic(ELDMatchPhase::CaptureOpen,FinalField)==EStage::Closed);
         TestTrue(TEXT("Results are closed"),LDProgression::StageForPublic(ELDMatchPhase::Results,FLDTimelineView())==EStage::Closed);
     }
     TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied),FString(LDTerms::ReplaceAtRest));

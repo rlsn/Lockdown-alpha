@@ -309,6 +309,14 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
         return Finish(ELDRewardOutcome::PermanentlyRejected, AmountReason);
     }
 
+    if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
+    {
+        Receipt.Recipient = Recipient;
+        Finish(ELDRewardOutcome::NoReward, ELDGrowthReason::PhaseClosed);
+        RecordReward(Receipt);
+        return Receipt;
+    }
+
     // The killer and the assisters split the kill XP evenly.
     FLDAssistRewardShares Split;
     if (!LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
@@ -393,6 +401,11 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
     if (!M || !M->Development || !M->Combat)
     {
         Reason = ELDGrowthReason::AuthorityFault;
+        return ELDRewardOutcome::PermanentlyRejected;
+    }
+    if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
+    {
+        Reason = ELDGrowthReason::PhaseClosed;
         return ELDRewardOutcome::PermanentlyRejected;
     }
     TSet<FGuid> Seen;

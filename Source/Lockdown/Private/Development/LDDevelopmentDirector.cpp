@@ -604,7 +604,8 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     }
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
-    Out.Stage = GameMode->ReadBuildStage(Match);
+    Out.Stage = GameMode->GetTimeline().GetStage() == ELDMatchStage::FinalField
+        ? LDProgression::EMatchStage::Closed : GameMode->ReadBuildStage(Match);
     return true;
 }
 

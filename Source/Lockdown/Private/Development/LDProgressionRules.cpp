@@ -594,7 +594,7 @@ LDProgression::EMatchStage LDProgression::StageForPublic(ELDMatchPhase Phase, co
     {
     case ELDMatchPhase::Rest: return LDMatchTimeline::IsRestBuildOpen(Timeline) ? EMatchStage::Rest : EMatchStage::RestLocked;
     case ELDMatchPhase::Development:
-    case ELDMatchPhase::CaptureOpen: return EMatchStage::Live;
+    case ELDMatchPhase::CaptureOpen: return Timeline.Stage == ELDMatchStage::FinalField ? EMatchStage::Closed : EMatchStage::Live;
     default: return EMatchStage::Closed;
     }
 }
