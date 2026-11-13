@@ -2,7 +2,7 @@
   "abilities": [
     {
       "cooldown": {
-        "ms": 13000,
+        "ms": 11000,
         "unit": "ms"
       },
       "cooldown_family": "cd_account_banned",
@@ -275,7 +275,7 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 9000,
+            "bp": 10000,
             "unit": "ratio"
           },
           "base": {
@@ -293,7 +293,7 @@
       ],
       "id": "active_calculus_drop",
       "mana_cost": {
-        "p2": 6500,
+        "p2": 5500,
         "unit": "mp"
       },
       "native_id": 115,
@@ -489,11 +489,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 1500,
+            "bp": 2000,
             "unit": "ratio"
           },
           "base": {
-            "p2": 1800,
+            "p2": 2200,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -515,7 +515,7 @@
       ],
       "id": "active_dirty_puddle",
       "mana_cost": {
-        "p2": 6000,
+        "p2": 5500,
         "unit": "mp"
       },
       "native_id": 130,
@@ -740,12 +740,12 @@
         "mode": "DirectionLine",
         "range": {
           "denominator": 1,
-          "numerator": 550,
+          "numerator": 600,
           "unit": "cm"
         }
       },
       "windup": {
-        "ms": 300,
+        "ms": 200,
         "unit": "ms"
       }
     },
@@ -830,7 +830,7 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 3000,
+            "bp": 3500,
             "unit": "ratio"
           },
           "base": {
@@ -963,7 +963,7 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 2000,
+            "bp": 2500,
             "unit": "ratio"
           },
           "base": {
@@ -1002,7 +1002,7 @@
       ],
       "id": "active_quick_meeting",
       "mana_cost": {
-        "p2": 6000,
+        "p2": 5500,
         "unit": "mp"
       },
       "native_id": 100,
@@ -1042,7 +1042,7 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 5500,
+            "bp": 6500,
             "unit": "ratio"
           },
           "base": {
@@ -1091,7 +1091,7 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 8000,
+            "bp": 9000,
             "unit": "ratio"
           },
           "base": {
@@ -1130,7 +1130,7 @@
         "mode": "DirectionProjectile",
         "projectile_radius": {
           "denominator": 1,
-          "numerator": 45,
+          "numerator": 55,
           "unit": "cm"
         },
         "projectile_speed": {
@@ -1140,7 +1140,7 @@
         },
         "range": {
           "denominator": 1,
-          "numerator": 750,
+          "numerator": 850,
           "unit": "cm"
         }
       },
@@ -1162,11 +1162,11 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 6500,
+            "bp": 7500,
             "unit": "ratio"
           },
           "base": {
-            "p2": 7000,
+            "p2": 8000,
             "unit": "points"
           },
           "damage_type": "Magical",
@@ -1213,17 +1213,17 @@
         "mode": "DirectionProjectile",
         "projectile_radius": {
           "denominator": 1,
-          "numerator": 40,
+          "numerator": 55,
           "unit": "cm"
         },
         "projectile_speed": {
           "denominator": 1,
-          "numerator": 1300,
+          "numerator": 1500,
           "unit": "cm/s"
         },
         "range": {
           "denominator": 1,
-          "numerator": 650,
+          "numerator": 750,
           "unit": "cm"
         }
       },
@@ -1407,7 +1407,7 @@
             "unit": "ratio"
           },
           "ap_ratio": {
-            "bp": 5500,
+            "bp": 6500,
             "unit": "ratio"
           },
           "base": {
@@ -1447,7 +1447,7 @@
       ],
       "id": "active_zap",
       "mana_cost": {
-        "p2": 5500,
+        "p2": 5000,
         "unit": "mp"
       },
       "native_id": 127,
@@ -1978,7 +1978,11 @@
       "kind": "base",
       "native_id": 1,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic",
+        "element"
+      ]
     },
     {
       "effects": [
@@ -2009,7 +2013,12 @@
       "kind": "base",
       "native_id": 2,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "ledger",
+        "basic",
+        "spell"
+      ]
     },
     {
       "effects": [
@@ -2045,7 +2054,10 @@
       "kind": "base",
       "native_id": 3,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "defense"
+      ]
     },
     {
       "effects": [
@@ -2062,7 +2074,11 @@
       "kind": "base",
       "native_id": 4,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic",
+        "defense"
+      ]
     },
     {
       "effects": [
@@ -2088,7 +2104,10 @@
       "kind": "base",
       "native_id": 5,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "collision"
+      ]
     },
     {
       "effects": [
@@ -2111,7 +2130,11 @@
       "kind": "base",
       "native_id": 6,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic",
+        "collision"
+      ]
     },
     {
       "effects": [
@@ -2142,7 +2165,10 @@
           "active_dirty_puddle"
         ]
       },
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "control"
+      ]
     },
     {
       "effects": [
@@ -2155,7 +2181,10 @@
       "id": "component_breach_fist",
       "kind": "base",
       "native_id": 8,
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic"
+      ]
     },
     {
       "effects": [
@@ -2185,7 +2214,10 @@
       "kind": "base",
       "native_id": 9,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "defense"
+      ]
     },
     {
       "effects": [
@@ -2199,7 +2231,11 @@
       "kind": "base",
       "native_id": 10,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic",
+        "element"
+      ]
     },
     {
       "effects": [
@@ -2220,7 +2256,11 @@
           "active_dirty_puddle"
         ]
       },
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic",
+        "element"
+      ]
     },
     {
       "effects": [
@@ -2252,49 +2292,44 @@
       "kind": "base",
       "native_id": 12,
       "opening": "always",
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "basic",
+        "collision"
+      ]
     },
     {
       "effects": [
         {
-          "op": "stat_bonus",
-          "opcode": 5,
-          "stats": {
-            "CooldownHasteFlat": {
-              "p2": 1500,
-              "unit": "points"
-            },
-            "MPRegenFlat": {
-              "denominator": 1,
-              "numerator": 1,
-              "unit": "mp/s"
-            }
+          "op": "cast_hit_refund",
+          "opcode": 149,
+          "ratio": {
+            "bp": 3000,
+            "unit": "ratio"
           }
         }
       ],
       "id": "component_catch_breath",
       "kind": "base",
       "native_id": 13,
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "spell",
+        "tempo"
+      ]
     },
     {
       "effects": [
         {
-          "op": "stat_bonus",
-          "opcode": 5,
-          "stats": {
-            "AttackRangeCmFlat": {
-              "denominator": 1,
-              "numerator": 120,
-              "unit": "cm"
-            }
-          }
-        },
-        {
-          "op": "basic_damage_scale",
-          "opcode": 102,
+          "distance": {
+            "denominator": 1,
+            "numerator": 550,
+            "unit": "cm"
+          },
+          "op": "distance_amp",
+          "opcode": 150,
           "ratio": {
-            "bp": 9000,
+            "bp": 2000,
             "unit": "ratio"
           }
         }
@@ -2302,25 +2337,23 @@
       "id": "component_long_arm",
       "kind": "base",
       "native_id": 14,
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "projectile",
+        "spell"
+      ]
     },
     {
       "effects": [
         {
-          "op": "low_hp_stat_bonus",
-          "opcode": 15,
-          "stats": {
-            "AttackSpeedBonusRatio": {
-              "bp": 2500,
-              "unit": "ratio"
-            },
-            "MoveSpeedBonusRatio": {
-              "bp": 1000,
-              "unit": "ratio"
-            }
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
           },
-          "threshold": {
-            "bp": 4000,
+          "op": "alternate_amp",
+          "opcode": 151,
+          "ratio": {
+            "bp": 2000,
             "unit": "ratio"
           }
         }
@@ -2328,27 +2361,44 @@
       "id": "component_seeing_red",
       "kind": "base",
       "native_id": 15,
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "spell",
+        "tempo"
+      ]
     },
     {
       "effects": [
         {
           "base": {
-            "p2": 800,
-            "unit": "points"
+            "p2": 4000,
+            "unit": "hp"
           },
-          "op": "primary_guard",
-          "opcode": 86,
-          "ratio": {
-            "bp": 1500,
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "interval": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "max_hp_ratio": {
+            "bp": 300,
             "unit": "ratio"
-          }
+          },
+          "op": "triggered_shield",
+          "opcode": 31,
+          "trigger": "AbilityHit"
         }
       ],
       "id": "component_thick_hide",
       "kind": "base",
       "native_id": 16,
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "spell",
+        "defense"
+      ]
     },
     {
       "effects": [
@@ -2388,7 +2438,11 @@
           "active_sock_shot"
         ]
       },
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "spell",
+        "projectile"
+      ]
     },
     {
       "binding": {
@@ -2448,7 +2502,11 @@
           "active_sock_shot"
         ]
       },
-      "pool": "common"
+      "pool": "common",
+      "tags": [
+        "spell",
+        "element"
+      ]
     },
     {
       "effects": [
@@ -2509,6 +2567,10 @@
       "kind": "mod",
       "native_id": 19,
       "pool": "common",
+      "tags": [
+        "spell",
+        "area"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
@@ -2567,6 +2629,10 @@
       "kind": "mod",
       "native_id": 20,
       "pool": "common",
+      "tags": [
+        "ledger",
+        "defense"
+      ],
       "targets": {
         "components": [
           "component_tab_ledger",
@@ -2594,10 +2660,15 @@
       "kind": "mod",
       "native_id": 21,
       "pool": "common",
+      "tags": [
+        "collision"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
-          "active_hose_down"
+          "active_hose_down",
+          "active_triple_combo",
+          "active_stare_down"
         ],
         "components": [
           "component_third_punch"
@@ -2623,6 +2694,9 @@
       "kind": "mod",
       "native_id": 22,
       "pool": "common",
+      "tags": [
+        "control"
+      ],
       "targets": {
         "actives": [
           "active_pants_down",
@@ -2671,6 +2745,10 @@
       "kind": "mod",
       "native_id": 23,
       "pool": "common",
+      "tags": [
+        "projectile",
+        "spell"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
@@ -2713,6 +2791,9 @@
       "kind": "mod",
       "native_id": 24,
       "pool": "common",
+      "tags": [
+        "tempo"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
@@ -2784,10 +2865,15 @@
           "opcode": 148
         }
       ],
+      "form": "zone_shape",
       "id": "component_one_slam",
       "kind": "mod",
       "native_id": 25,
       "pool": "common",
+      "tags": [
+        "area",
+        "spell"
+      ],
       "targets": {
         "actives": [
           "active_quick_meeting",
@@ -2816,10 +2902,14 @@
           }
         }
       ],
+      "form": "dash_shape",
       "id": "component_ram_through",
       "kind": "mod",
       "native_id": 26,
       "pool": "common",
+      "tags": [
+        "collision"
+      ],
       "targets": {
         "actives": [
           "active_bail_out",
@@ -2848,10 +2938,15 @@
           }
         }
       ],
+      "form": "dash_shape",
       "id": "component_quick_hop",
       "kind": "mod",
       "native_id": 27,
       "pool": "common",
+      "tags": [
+        "collision",
+        "tempo"
+      ],
       "targets": {
         "actives": [
           "active_bail_out",
@@ -2881,6 +2976,9 @@
       "kind": "mod",
       "native_id": 28,
       "pool": "common",
+      "tags": [
+        "ledger"
+      ],
       "targets": {
         "components": [
           "component_tab_ledger"
@@ -2906,6 +3004,9 @@
       "kind": "mod",
       "native_id": 29,
       "pool": "scarce",
+      "tags": [
+        "defense"
+      ],
       "targets": {
         "actives": [
           "active_zap",
@@ -2938,6 +3039,9 @@
       "kind": "mod",
       "native_id": 30,
       "pool": "scarce",
+      "tags": [
+        "defense"
+      ],
       "targets": {
         "self": true
       }
@@ -2973,6 +3077,10 @@
       "kind": "connector",
       "native_id": 31,
       "pool": "common",
+      "tags": [
+        "element",
+        "defense"
+      ],
       "targets": {
         "actives": [
           "active_seethe",
@@ -3013,10 +3121,18 @@
       "kind": "connector",
       "native_id": 32,
       "pool": "common",
+      "tags": [
+        "collision"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
-          "active_hose_down"
+          "active_hose_down",
+          "active_charged_ram",
+          "active_not_mad",
+          "active_brace",
+          "active_triple_combo",
+          "active_open_mic"
         ],
         "components": [
           "component_third_punch",
@@ -3043,6 +3159,10 @@
       "kind": "connector",
       "native_id": 33,
       "pool": "common",
+      "tags": [
+        "collision",
+        "tempo"
+      ],
       "targets": {
         "actives": [
           "active_bail_out",
@@ -3072,6 +3192,9 @@
       "kind": "connector",
       "native_id": 34,
       "pool": "common",
+      "tags": [
+        "collision"
+      ],
       "targets": {
         "actives": [
           "active_bail_out",
@@ -3109,6 +3232,9 @@
       "kind": "connector",
       "native_id": 35,
       "pool": "common",
+      "tags": [
+        "control"
+      ],
       "targets": {
         "actives": [
           "active_pants_down",
@@ -3155,6 +3281,10 @@
       "kind": "connector",
       "native_id": 36,
       "pool": "common",
+      "tags": [
+        "area",
+        "control"
+      ],
       "targets": {
         "actives": [
           "active_quick_meeting",
@@ -3183,6 +3313,10 @@
       "kind": "connector",
       "native_id": 37,
       "pool": "common",
+      "tags": [
+        "control",
+        "tempo"
+      ],
       "targets": {
         "actives": [
           "active_pants_down",
@@ -3230,6 +3364,9 @@
       "kind": "connector",
       "native_id": 38,
       "pool": "common",
+      "tags": [
+        "defense"
+      ],
       "targets": {
         "components": [
           "component_punch_heal",
@@ -3265,6 +3402,10 @@
       "kind": "connector",
       "native_id": 39,
       "pool": "common",
+      "tags": [
+        "element",
+        "basic"
+      ],
       "targets": {
         "actives": [
           "active_seethe",
@@ -3303,6 +3444,10 @@
       "kind": "connector",
       "native_id": 40,
       "pool": "common",
+      "tags": [
+        "defense",
+        "area"
+      ],
       "targets": {
         "actives": [
           "active_not_mad",
@@ -3333,6 +3478,10 @@
       "kind": "connector",
       "native_id": 41,
       "pool": "common",
+      "tags": [
+        "spell",
+        "defense"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
@@ -3376,6 +3525,10 @@
       "kind": "connector",
       "native_id": 42,
       "pool": "scarce",
+      "tags": [
+        "basic",
+        "spell"
+      ],
       "targets": {
         "actives": [
           "active_elbow",
@@ -3412,6 +3565,713 @@
           "component_after_pin",
           "component_breath_strike",
           "component_shell_burst"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "damage_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "op": "projectile_return",
+          "opcode": 152
+        }
+      ],
+      "id": "component_boomerang",
+      "kind": "mod",
+      "native_id": 43,
+      "pool": "common",
+      "tags": [
+        "projectile"
+      ],
+      "targets": {
+        "actives": [
+          "active_snark_bolt",
+          "active_sock_shot"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "count": 1,
+          "damage_ratio": {
+            "bp": 7000,
+            "unit": "ratio"
+          },
+          "op": "projectile_pierce",
+          "opcode": 153
+        },
+        {
+          "count": 1,
+          "op": "chain_extra",
+          "opcode": 154
+        }
+      ],
+      "id": "component_skewer",
+      "kind": "mod",
+      "native_id": 44,
+      "pool": "common",
+      "tags": [
+        "projectile"
+      ],
+      "targets": {
+        "actives": [
+          "active_snark_bolt",
+          "active_zap",
+          "active_sock_shot"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "cooldown_ratio": {
+            "bp": 11500,
+            "unit": "ratio"
+          },
+          "damage_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "op": "echo_impact",
+          "opcode": 155
+        }
+      ],
+      "id": "component_encore",
+      "kind": "mod",
+      "native_id": 45,
+      "pool": "common",
+      "tags": [
+        "area",
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_seethe",
+          "active_calculus_drop",
+          "active_flyer_trap"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "cooldown": {
+            "ms": 1500,
+            "unit": "ms"
+          },
+          "op": "hit_haste_other",
+          "opcode": 156
+        }
+      ],
+      "id": "component_next_up",
+      "kind": "connector",
+      "native_id": 46,
+      "pool": "common",
+      "tags": [
+        "tempo",
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_flyer_trap",
+          "active_open_mic",
+          "active_hose_down",
+          "active_zap",
+          "active_charged_ram",
+          "active_brace",
+          "active_dirty_puddle",
+          "active_sock_shot"
+        ],
+        "dash": true
+      }
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "op": "setup_mark",
+          "opcode": 157,
+          "ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_setup_line",
+      "kind": "connector",
+      "native_id": 47,
+      "pool": "common",
+      "tags": [
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_flyer_trap",
+          "active_open_mic",
+          "active_hose_down",
+          "active_zap",
+          "active_charged_ram",
+          "active_brace",
+          "active_dirty_puddle",
+          "active_sock_shot"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "cooldown": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "reaction_haste",
+          "opcode": 158
+        }
+      ],
+      "id": "component_blast_reload",
+      "kind": "connector",
+      "native_id": 48,
+      "pool": "common",
+      "tags": [
+        "element",
+        "tempo"
+      ],
+      "targets": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_flyer_trap",
+          "active_open_mic",
+          "active_hose_down",
+          "active_zap",
+          "active_charged_ram",
+          "active_brace",
+          "active_dirty_puddle",
+          "active_sock_shot"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "mana": {
+            "p2": 800,
+            "unit": "mp"
+          },
+          "mana_cap": {
+            "p2": 2400,
+            "unit": "mp"
+          },
+          "op": "multi_hit_mana",
+          "opcode": 159
+        }
+      ],
+      "id": "component_group_refund",
+      "kind": "connector",
+      "native_id": 49,
+      "pool": "common",
+      "tags": [
+        "area",
+        "tempo"
+      ],
+      "targets": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_flyer_trap",
+          "active_open_mic",
+          "active_hose_down",
+          "active_zap",
+          "active_charged_ram",
+          "active_brace",
+          "active_dirty_puddle",
+          "active_sock_shot"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "op": "stat_bonus",
+          "opcode": 5,
+          "stats": {
+            "CooldownHasteFlat": {
+              "p2": 1500,
+              "unit": "points"
+            },
+            "MPRegenFlat": {
+              "denominator": 1,
+              "numerator": 1,
+              "unit": "mp/s"
+            }
+          }
+        },
+        {
+          "op": "basic_damage_scale",
+          "opcode": 102,
+          "ratio": {
+            "bp": 8500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_clear_head",
+      "kind": "base",
+      "native_id": 50,
+      "pool": "common",
+      "tags": [
+        "spell",
+        "tempo"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "low_hp_stat_bonus",
+          "opcode": 15,
+          "stats": {
+            "CooldownHasteFlat": {
+              "p2": 2000,
+              "unit": "points"
+            },
+            "MoveSpeedBonusRatio": {
+              "bp": 2000,
+              "unit": "ratio"
+            }
+          },
+          "threshold": {
+            "bp": 4000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_run_away",
+      "kind": "base",
+      "native_id": 51,
+      "pool": "common",
+      "tags": [
+        "defense"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "base": {
+            "p2": 1200,
+            "unit": "points"
+          },
+          "op": "primary_guard",
+          "opcode": 86,
+          "ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_guard_up",
+      "kind": "base",
+      "native_id": 52,
+      "pool": "common",
+      "tags": [
+        "defense"
+      ]
+    },
+    {
+      "effects": [
+        {
+          "op": "zone_tether",
+          "opcode": 160,
+          "radius_ratio": {
+            "bp": 8000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "form": "zone_shape",
+      "id": "component_zone_tether",
+      "kind": "mod",
+      "native_id": 53,
+      "pool": "common",
+      "tags": [
+        "area"
+      ],
+      "targets": {
+        "actives": [
+          "active_quick_meeting",
+          "active_dirty_puddle"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 220,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 200,
+            "unit": "ms"
+          },
+          "op": "defense_shove",
+          "opcode": 161,
+          "radius": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "shield_ratio": {
+            "bp": 8500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_shove_off",
+      "kind": "mod",
+      "native_id": 54,
+      "pool": "common",
+      "tags": [
+        "defense",
+        "collision"
+      ],
+      "targets": {
+        "actives": [
+          "active_charged_ram",
+          "active_not_mad",
+          "active_brace"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "cost_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "distance": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 200,
+            "unit": "ms"
+          },
+          "op": "final_knockback",
+          "opcode": 162
+        }
+      ],
+      "id": "component_finisher",
+      "kind": "mod",
+      "native_id": 55,
+      "pool": "common",
+      "tags": [
+        "basic",
+        "collision"
+      ],
+      "targets": {
+        "actives": [
+          "active_triple_combo",
+          "active_open_mic"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "damage_ratio": {
+            "bp": 7000,
+            "unit": "ratio"
+          },
+          "op": "empower_reach",
+          "opcode": 163,
+          "range": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          }
+        }
+      ],
+      "id": "component_long_handle",
+      "kind": "mod",
+      "native_id": 56,
+      "pool": "common",
+      "tags": [
+        "basic"
+      ],
+      "targets": {
+        "actives": [
+          "active_bail_out",
+          "active_triple_combo"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 150,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 150,
+            "unit": "ms"
+          },
+          "min_distance": {
+            "denominator": 1,
+            "numerator": 120,
+            "unit": "cm"
+          },
+          "op": "pull",
+          "opcode": 164
+        }
+      ],
+      "id": "component_come_here",
+      "kind": "mod",
+      "native_id": 57,
+      "pool": "common",
+      "tags": [
+        "collision",
+        "control"
+      ],
+      "targets": {
+        "actives": [
+          "active_elbow",
+          "active_hose_down",
+          "active_stare_down"
+        ]
+      }
+    },
+    {
+      "draw_requires_actives": [
+        "active_quick_meeting",
+        "active_dirty_puddle",
+        "active_flyer_trap"
+      ],
+      "effects": [
+        {
+          "op": "zone_relocate",
+          "opcode": 165
+        }
+      ],
+      "id": "component_move_meeting",
+      "kind": "connector",
+      "native_id": 58,
+      "pool": "common",
+      "tags": [
+        "area"
+      ],
+      "targets": {
+        "actives": [
+          "active_bail_out",
+          "active_apology_slide",
+          "active_charged_ram"
+        ],
+        "dash": true
+      }
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 5000,
+            "unit": "ms"
+          },
+          "op": "stored_force",
+          "opcode": 166,
+          "ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_bottled_up",
+      "kind": "connector",
+      "native_id": 59,
+      "pool": "common",
+      "tags": [
+        "defense",
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_charged_ram",
+          "active_not_mad",
+          "active_brace"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "op": "empower_spend",
+          "opcode": 167
+        }
+      ],
+      "id": "component_spend_fist",
+      "kind": "connector",
+      "native_id": 60,
+      "pool": "common",
+      "tags": [
+        "basic",
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_bail_out",
+          "active_triple_combo"
+        ],
+        "components": [
+          "component_dash_punch"
+        ]
+      }
+    },
+    {
+      "effects": [
+        {
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "control_widen",
+          "opcode": 168,
+          "ratio": {
+            "bp": 3500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_wide_open",
+      "kind": "connector",
+      "native_id": 61,
+      "pool": "common",
+      "tags": [
+        "control",
+        "area"
+      ],
+      "targets": {
+        "actives": [
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_stare_down"
+        ]
+      }
+    },
+    {
+      "draw_requires_actives": [
+        "active_quick_meeting",
+        "active_dirty_puddle"
+      ],
+      "effects": [
+        {
+          "op": "zone_detonate",
+          "opcode": 169,
+          "ratio": {
+            "bp": 8000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_set_it_off",
+      "kind": "connector",
+      "native_id": 62,
+      "pool": "common",
+      "tags": [
+        "area",
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_seethe",
+          "active_zap",
+          "active_calculus_drop"
+        ]
+      }
+    },
+    {
+      "draw_requires_actives": [
+        "active_quick_meeting",
+        "active_dirty_puddle",
+        "active_flyer_trap"
+      ],
+      "effects": [
+        {
+          "op": "zone_relocate",
+          "opcode": 165
+        }
+      ],
+      "id": "component_meet_here",
+      "kind": "connector",
+      "native_id": 63,
+      "pool": "common",
+      "tags": [
+        "area",
+        "spell"
+      ],
+      "targets": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_open_mic",
+          "active_hose_down",
+          "active_zap",
+          "active_sock_shot"
         ]
       }
     }
@@ -3681,7 +4541,7 @@
     },
     {
       "description_key": "component_ball_kick.description",
-      "description_text": "接一个击退：被推的人首次撞上固定障碍，追加 [knockback_impact.amount] 物理伤害并眩晕 [knockback_impact.secondary_duration] 秒；首次撞上另一个敌人，两人各受同额物理伤害。",
+      "description_text": "接一个击退：被推的人首次撞上固定障碍，追加 [knockback_impact.amount] 物理伤害并眩晕 [knockback_impact.secondary_duration] 秒；首次撞上另一个敌人，两人各受同额物理伤害。需要本技能会击退。",
       "icon_id": "icon_component_ball_kick",
       "id": "component_ball_kick",
       "name_key": "component_ball_kick.name",
@@ -3704,6 +4564,33 @@
       "id": "component_blast_chase",
       "name_key": "component_blast_chase.name",
       "name_text": "炸完追着揍",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_blast_reload.description",
+      "description_text": "宿主触发元素反应时，宿主的剩余冷却减少 [reaction_haste.refund] 秒；每次释放一次。",
+      "icon_id": "icon_component_blast_reload",
+      "id": "component_blast_reload",
+      "name_key": "component_blast_reload.name",
+      "name_text": "炸了接着放",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_boomerang.description",
+      "description_text": "装在甩你一鞋或馊水糊脸上：弹道结束后飞回你身边，途中命中的第一个敌人受 [projectile_return.multiplier]% 伤害与元素，不带减速和控制；回程不再折返或穿透。",
+      "icon_id": "icon_component_boomerang",
+      "id": "component_boomerang",
+      "name_key": "component_boomerang.name",
+      "name_text": "鞋还得捡回来",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_bottled_up.description",
+      "description_text": "本技能的护盾结束或顶住自然结束时，把实际挡下伤害的 [stored_force.ratio]% 存起来 [stored_force.duration] 秒；你另一个主动下一次命中敌人时，按同类伤害一次打出去。",
+      "icon_id": "icon_component_bottled_up",
+      "id": "component_bottled_up",
+      "name_key": "component_bottled_up.name",
+      "name_text": "憋着的气",
       "namespace": "DemoContent"
     },
     {
@@ -3735,11 +4622,29 @@
     },
     {
       "description_key": "component_catch_breath.description",
-      "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒。",
+      "description_text": "主动的原生命中第一次命中敌人时，返还本次释放实际花费法力的 [cast_hit_refund.ratio]%；每次释放一次。",
       "icon_id": "icon_component_catch_breath",
       "id": "component_catch_breath",
       "name_key": "component_catch_breath.name",
       "name_text": "喘口气接着干",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_clear_head.description",
+      "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒；本体普攻伤害 ×[basic_damage_scale.ratio]%。",
+      "icon_id": "icon_component_clear_head",
+      "id": "component_clear_head",
+      "name_key": "component_clear_head.name",
+      "name_text": "脑子转得快",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_come_here.description",
+      "description_text": "本技能的击退改为把目标拉向你；嘲讽命中的敌人被拉近 [pull.distance] 厘米。拉到离你 [pull.radius] 厘米为止。",
+      "icon_id": "icon_component_come_here",
+      "id": "component_come_here",
+      "name_key": "component_come_here.name",
+      "name_text": "过来吧你",
       "namespace": "DemoContent"
     },
     {
@@ -3797,6 +4702,24 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "component_encore.description",
+      "description_text": "宿主冷却变为 [echo_impact.secondary_ratio]%。板砖糊脸落地、踩一脚试试爆开或烫你屁股放出后 [echo_impact.delay] 秒，原处再来一次 [echo_impact.multiplier]% 伤害：板砖同样范围与外圈衰减，陷阱不减速，烫屁股在释放处炸开并加一层灼烧；回响不再回响。",
+      "icon_id": "icon_component_encore",
+      "id": "component_encore",
+      "name_key": "component_encore.name",
+      "name_text": "再来一遍",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_finisher.description",
+      "description_text": "左右开抽：最后一次强化普攻把目标抡开 [final_knockback.distance] 厘米，攻速加成 ×[final_knockback.cost_ratio]%。扯嗓子喷你：末波把命中的敌人推开同样距离，不再减速。",
+      "icon_id": "icon_component_finisher",
+      "id": "component_finisher",
+      "name_key": "component_finisher.name",
+      "name_text": "最后一下抡出去",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "component_fire_skin.description",
       "description_text": "接一个火源：每 [fire_shield.interval] 秒汇总它造成的生命伤害，给你 [fire_shield.amount] 加该伤害 [fire_shield.ratio]% 的护盾，持续 [fire_shield.duration] 秒，最多为生命上限的 [fire_shield.multiplier]%；没伤害就不给盾。",
       "icon_id": "icon_component_fire_skin",
@@ -3830,6 +4753,24 @@
       "id": "component_fist_water",
       "name_key": "component_fist_water.name",
       "name_text": "拳头甩脏水",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_group_refund.description",
+      "description_text": "宿主一次释放每多命中一个不同的敌人，回 [multi_hit_mana.amount] 法力；每次释放最多回 [multi_hit_mana.limit] 法力。",
+      "icon_id": "icon_component_group_refund",
+      "id": "component_group_refund",
+      "name_key": "component_group_refund.name",
+      "name_text": "一锅端回本",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_guard_up.description",
+      "description_text": "受到的本体普攻主击伤害减少 [primary_guard.amount] 点，最多减少该次伤害的 [primary_guard.ratio]%。",
+      "icon_id": "icon_component_guard_up",
+      "id": "component_guard_up",
+      "name_key": "component_guard_up.name",
+      "name_text": "护住要害",
       "namespace": "DemoContent"
     },
     {
@@ -3879,11 +4820,20 @@
     },
     {
       "description_key": "component_long_arm.description",
-      "description_text": "普攻距离 +[stat_bonus.AttackRangeCmFlat] 厘米，但本体普攻主击伤害只剩 [basic_damage_scale.ratio]%。",
+      "description_text": "主动伤害命中时，若你与目标相距至少 [distance_amp.distance] 厘米，伤害 +[distance_amp.ratio]%。",
       "icon_id": "icon_component_long_arm",
       "id": "component_long_arm",
       "name_key": "component_long_arm.name",
-      "name_text": "伸长胳膊抽你",
+      "name_text": "离远点才好抽",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_long_handle.description",
+      "description_text": "有本技能的强化普攻未用完时，普攻距离 +[empower_reach.distance] 厘米；每次强化 ×[empower_reach.multiplier]%。",
+      "icon_id": "icon_component_long_handle",
+      "id": "component_long_handle",
+      "name_key": "component_long_handle.name",
+      "name_text": "隔空三连",
       "namespace": "DemoContent"
     },
     {
@@ -3893,6 +4843,33 @@
       "id": "component_long_kick",
       "name_key": "component_long_kick.name",
       "name_text": "一脚踹出老远",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_meet_here.description",
+      "description_text": "宿主每次释放第一次直接命中敌人时，把你最近放下、还没挪过的一个区域或未触发的传单陷阱挪到那个敌人脚下；跟着你走的区域不挪，每个区域一生只能挪一次（和换个地方开会共用）。",
+      "icon_id": "icon_component_meet_here",
+      "id": "component_meet_here",
+      "name_key": "component_meet_here.name",
+      "name_text": "就在这儿开会",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_move_meeting.description",
+      "description_text": "本冲刺结束时，把你最近放下的一个区域或未触发的传单陷阱挪到你脚下；跟着你走的区域不挪，每个区域一生只能挪一次。",
+      "icon_id": "icon_component_move_meeting",
+      "id": "component_move_meeting",
+      "name_key": "component_move_meeting.name",
+      "name_text": "换个地方开会",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_next_up.description",
+      "description_text": "宿主第一次命中敌人后（接冲刺时为第一次撞到敌人），你其他主动的剩余冷却各减少 [hit_haste_other.refund] 秒；每次释放一次。",
+      "icon_id": "icon_component_next_up",
+      "id": "component_next_up",
+      "name_key": "component_next_up.name",
+      "name_text": "打完换下一招",
       "namespace": "DemoContent"
     },
     {
@@ -3933,7 +4910,7 @@
     },
     {
       "description_key": "component_punch_heal.description",
-      "description_text": "本体普攻造成的生命伤害，其中 [lifesteal.ratio]% 用来治疗自己。",
+      "description_text": "本体普攻主击自身伤害份额造成的实际生命伤害的 [lifesteal.ratio]% 治疗自己；并入的强化包与护盾吸收不算。",
       "icon_id": "icon_component_punch_heal",
       "id": "component_punch_heal",
       "name_key": "component_punch_heal.name",
@@ -3977,12 +4954,30 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "component_run_away.description",
+      "description_text": "生命低于 [low_hp_stat_bonus.ratio]% 时，移速 +[low_hp_stat_bonus.MoveSpeedBonusRatio]%，技能急速 +[low_hp_stat_bonus.CooldownHasteFlat]。",
+      "icon_id": "icon_component_run_away",
+      "id": "component_run_away",
+      "name_key": "component_run_away.name",
+      "name_text": "撒腿就跑",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "component_seeing_red.description",
-      "description_text": "生命低于 [low_hp_stat_bonus.ratio]% 时，攻速 +[low_hp_stat_bonus.AttackSpeedBonusRatio]%、移速 +[low_hp_stat_bonus.MoveSpeedBonusRatio]%。",
+      "description_text": "放完一个主动后 [alternate_amp.duration] 秒内放出另一个不同的主动，它的伤害 +[alternate_amp.ratio]%。",
       "icon_id": "icon_component_seeing_red",
       "id": "component_seeing_red",
       "name_key": "component_seeing_red.name",
-      "name_text": "打急眼了",
+      "name_text": "一招接一招",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_set_it_off.description",
+      "description_text": "本技能命中站在你区域里的敌人时，引爆那个区域：剩余每跳伤害的 [zone_detonate.ratio]% 一次结算给区域内的敌人，区域消失；每次释放一次。",
+      "icon_id": "icon_component_set_it_off",
+      "id": "component_set_it_off",
+      "name_key": "component_set_it_off.name",
+      "name_text": "一点就炸",
       "namespace": "DemoContent"
     },
     {
@@ -3995,12 +4990,48 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "component_setup_line.description",
+      "description_text": "宿主命中敌人时给它挂一个 [setup_mark.duration] 秒的记号；你别的主动下一次命中它多造成 [setup_mark.ratio]% 伤害并消耗记号。",
+      "icon_id": "icon_component_setup_line",
+      "id": "component_setup_line",
+      "name_key": "component_setup_line.name",
+      "name_text": "先垫一句",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "component_shell_burst.description",
       "description_text": "接一个护盾来源：它给的护盾被打破时，对自身 [shield_burst.radius] 厘米内的敌人造成该护盾原量 [shield_burst.ratio]% 的魔法伤害。",
       "icon_id": "icon_component_shell_burst",
       "id": "component_shell_burst",
       "name_key": "component_shell_burst.name",
       "name_text": "壳碎了也崩你",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_shove_off.description",
+      "description_text": "护盾 ×[defense_shove.ratio]%；护盾被敌人打破时，把 [defense_shove.radius] 厘米内的敌人推开 [defense_shove.distance] 厘米。装在顶着揍上：反震时把反震范围内的敌人推开同样距离。",
+      "icon_id": "icon_component_shove_off",
+      "id": "component_shove_off",
+      "name_key": "component_shove_off.name",
+      "name_text": "别挨着我",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_skewer.description",
+      "description_text": "甩你一鞋或馊水糊脸命中第一个敌人后继续飞，再多打穿 [projectile_pierce.count] 个不同的敌人，受 [projectile_pierce.multiplier]% 伤害，同样减速；电你个哆嗦多弹 [chain_extra.count] 次。",
+      "icon_id": "icon_component_skewer",
+      "id": "component_skewer",
+      "name_key": "component_skewer.name",
+      "name_text": "一鞋串俩",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_spend_fist.description",
+      "description_text": "本技能的强化普攻未用完时，你其他主动命中敌人，花掉一次强化，直接打在那个敌人身上（物理，不算普攻）；每次释放一次。",
+      "icon_id": "icon_component_spend_fist",
+      "id": "component_spend_fist",
+      "name_key": "component_spend_fist.name",
+      "name_text": "拳头借给技能",
       "namespace": "DemoContent"
     },
     {
@@ -4023,11 +5054,11 @@
     },
     {
       "description_key": "component_thick_hide.description",
-      "description_text": "受到的普攻主击伤害减少 [primary_guard.amount]，每次最多减掉这一击的 [primary_guard.ratio]%。",
+      "description_text": "你的主动命中敌人后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；[triggered_shield.interval] 秒最多一次。",
       "icon_id": "icon_component_thick_hide",
       "id": "component_thick_hide",
       "name_key": "component_thick_hide.name",
-      "name_text": "脸皮磨厚点",
+      "name_text": "打完就缩脖",
       "namespace": "DemoContent"
     },
     {
@@ -4037,6 +5068,24 @@
       "id": "component_third_punch",
       "name_key": "component_third_punch.name",
       "name_text": "第三拳滚蛋",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_wide_open.description",
+      "description_text": "本技能硬控命中后 [control_widen.duration] 秒内，你下一个其他主动的范围 +[control_widen.ratio]%（区域、落点、陷阱、扇形、弹道宽度、弹跳）；单体技能也会用掉它。",
+      "icon_id": "icon_component_wide_open",
+      "id": "component_wide_open",
+      "name_key": "component_wide_open.name",
+      "name_text": "按住了就放大",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_zone_tether.description",
+      "description_text": "区域不再留在原地，而是以你为中心跟着你走；半径 ×[zone_tether.ratio]%。",
+      "icon_id": "icon_component_zone_tether",
+      "id": "component_zone_tether",
+      "name_key": "component_zone_tether.name",
+      "name_text": "拖着会开",
       "namespace": "DemoContent"
     },
     {
@@ -4282,10 +5331,10 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended",
       "status": "approved"
     },
-    "handler_revision": 4,
+    "handler_revision": 6,
     "projection_revision": 6,
     "schema_version": 2
   },
@@ -4570,16 +5619,18 @@
       "numerator": 400,
       "unit": "cm"
     },
+    "GROWTH.ActiveSkipPoints": 5,
     "GROWTH.BuildSafeWindowSec": {
       "ms": 4000,
       "unit": "ms"
     },
-    "GROWTH.DismantleInputCount": 3,
+    "GROWTH.DismantleInputCount": 2,
     "GROWTH.EmptyComponentPoolPoints": 3,
     "GROWTH.FillGapPoints": 4,
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.MaxLevelPointsXP": 400,
-    "GROWTH.NpcActivePoints": 3,
+    "GROWTH.NpcActivePoints": 5,
+    "GROWTH.NpcActiveSkipPoints": 3,
     "GROWTH.OpeningPoints": 3,
     "GROWTH.PointsPerLevel": 3,
     "LEADER.CircleMaxOffsetCm": {
@@ -4775,7 +5826,7 @@
       "unit": "points"
     },
     "STAT.AP.Max": {
-      "p2": 25000,
+      "p2": 30000,
       "unit": "points"
     },
     "STAT.AP.Min": {
@@ -5033,24 +6084,34 @@
       6
     ],
     "active_slots": 3,
+    "bonus_component_levels": [
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16
+    ],
     "component_category_weights": [
       {
-        "base": 55,
-        "connector": 20,
+        "base": 45,
+        "connector": 25,
         "levels": [
           2,
           6
         ],
-        "mod": 25
+        "mod": 30
       },
       {
-        "base": 40,
+        "base": 35,
         "connector": 30,
         "levels": [
           7,
           11
         ],
-        "mod": 30
+        "mod": 35
       },
       {
         "base": 25,
@@ -5063,6 +6124,10 @@
       }
     ],
     "max_level": 16,
+    "workshop_capacity": {
+      "base": 5,
+      "levels_per_slot": 2
+    },
     "xp_start": 0,
     "xp_thresholds": [
       0,
@@ -5120,7 +6185,7 @@
       "native_id": 30,
       "per_point": {
         "APFlat": {
-          "p2": 500,
+          "p2": 600,
           "unit": "points"
         },
         "CooldownHasteFlat": {

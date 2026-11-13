@@ -135,7 +135,7 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    // #198 S06: the one authored (level-1) value set: 90 + 0.8 AP, Magical, against 18 magic resistance.
+    // #198 S06: the one authored (level-1) value set: 90 + 0.9 AP, Magical, against 18 magic resistance; (90 + 18) / 1.18.
     const auto* Effect = Snark->Values.Effects.FindByPredicate(
         [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
     if (!TestNotNull(TEXT("The snark bolt has an actual compiled damage effect"), Effect)) { return false; }
@@ -146,7 +146,7 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     // A Physical hit meets armor, a Magical one magic resistance (the same base points).
     Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
         ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
-    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD and 20 AP"), Input, *Catalog, {8983, 0, 8983, 0, 53017, 0})) { return false; }
+    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD and 20 AP"), Input, *Catalog, {9152, 0, 9152, 0, 52848, 0})) { return false; }
     Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
     if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
         {7627, 0, 7627, 0, 54373, 0})) { return false; }

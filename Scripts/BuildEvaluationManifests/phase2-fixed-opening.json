@@ -1,0 +1,90 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "phase2-fixed-opening",
+    "hypothesis": "固定开局与后续主动后，等等级、等属性点的脑力技能构筑与力道普攻构筑在中心对决中的结果是否不同。"
+  },
+  "adapter": {"module": "BuildEvaluationLockdown", "id": "lockdown-demo"},
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {"site": "capture", "duel_timeout_ms": 45000, "supply_xp": {"subject": 1440, "opponent": 1440}}
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方由 DEV 奖励事务在第一野外入口获得 1440 XP，达到 L10 与 30 点；不是自然成长速率。",
+    "开局及其后两个主动候选被显式固定，不代表自然抽取概率；不安装构件。",
+    "双方使用生产 AI 的中心点交战，不包含风筝、主动闪避或区域争夺。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "basic",
+    "arms": [
+      {
+        "id": "basic",
+        "plan": {
+          "subject": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"},
+              {"rule": "definition", "definition": "active_crotch_grab"}
+            ],
+            "presets": [["active_triple_combo"], ["active_crotch_grab"]],
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 26, "stat_agility": 4}}]
+          },
+          "opponent": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"},
+              {"rule": "definition", "definition": "active_crotch_grab"}
+            ],
+            "presets": [["active_triple_combo"], ["active_crotch_grab"]],
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 26, "stat_agility": 4}}]
+          }
+        }
+      },
+      {
+        "id": "mage",
+        "plan": {
+          "subject": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_calculus_drop"},
+              {"rule": "definition", "definition": "active_snark_bolt"}
+            ],
+            "presets": [["active_calculus_drop"], ["active_snark_bolt"]],
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_brains": 30}}]
+          },
+          "opponent": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"},
+              {"rule": "definition", "definition": "active_crotch_grab"}
+            ],
+            "presets": [["active_triple_combo"], ["active_crotch_grab"]],
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 26, "stat_agility": 4}}]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {"root_seed": "20261112", "splits": {"search": 0, "confirm": 1}, "sides": 2},
+  "metrics": {
+    "primary": "duel_score",
+    "secondary": ["damage_dealt_hp", "damage_taken_hp", "subject_hp_end_bp", "decision_time_ms"],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "max_cases": 4,
+    "case_wall_timeout_s": 180,
+    "run_wall_timeout_s": 600,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944
+  }
+}

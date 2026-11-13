@@ -42,6 +42,19 @@ namespace LDDevGrowthFixture
     // match's first heads (the opening offer first). The contender must be a member of World's Lobby; the actives are
     // checked against the empty starting build and each draw re-resolves them. Process-wide store on the Host authority.
     LOCKDOWN_API bool StageOffer(const UWorld* World, const FGuid& Contender, const TArray<FName>& DefinitionIds, FString& Error);
+    // Evaluation opening overrides must also belong to the normal opening pool.
+    LOCKDOWN_API bool ResolveEvaluationOpening(const FLDDemoContentDefinitions& Content, const TArray<FName>& DefinitionIds,
+        FString& Error);
+    // Replace exactly the earned normal level-up draws with distinct, eligible common components. No result is committed
+    // here; the evaluation-only reward entry applies the prepared build through the ordinary composite.
+    LOCKDOWN_API bool PrepareEvaluationLevelGrants(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        uint8 LevelBefore, uint8 LevelAfter, const TArray<FName>& DefinitionIds, FLDGrowthBuild& Out,
+        TArray<FLDComponentGrant>& OutGrants, FString& Error);
+    // Evaluation-only: the armed seed's future AI identities replace Lobby slots at match start.
+    LOCKDOWN_API bool StageEvaluationOpening(const UWorld* World, const FGuid& Contender, const TArray<FName>& DefinitionIds,
+        FString& Error);
+    // Remove only this armed evaluation's staged AI offer on an aborted run.
+    LOCKDOWN_API void DiscardEvaluationOpening(const FGuid& Contender);
     // BeginMatch: moves the staged offers of Roster into Out and drops every other staged offer (logged as refused).
     LOCKDOWN_API void TakeStaged(const TArray<FGuid>& Roster, TMap<FGuid, TArray<TArray<FName>>>& Out);
 }

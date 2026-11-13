@@ -38,6 +38,7 @@ public:
     bool Allocate(int32 Index);
     // Stat icons <-> attribute view; each match starts on the stat icons.
     void ToggleView();
+    void SetDetailsHeld(bool bHeld);
     bool ShowsAttributes() const {return bAttributes;}
     // The hovered stat's cell (its "+" and icon) with its popup lines, or null.
     const UWidget* Hovered(LDHUD::FActionDetailView& Out) const;
@@ -84,6 +85,7 @@ private:
     TArray<FCell> Cells;
     TArray<FAttrCell> AttrCells;
     bool bAttributes=false;
+    bool bDetailsHeld=false;
     int32 AttrHovered=INDEX_NONE;
     FLDProgressionView Latest;
     uint32 LatestMatch=0,LatestLife=0;

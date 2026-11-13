@@ -1048,7 +1048,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("SkillE"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("SkillE"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Details"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -1071,6 +1071,7 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
         && Settings->Key(TEXT("SkillE")) == EKeys::E
         && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
+        && Settings->Key(TEXT("Details")) == EKeys::C
         && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape
         && Settings->Key(TEXT("Scoreboard")) == EKeys::Tab);
     FString Error;
@@ -1827,6 +1828,38 @@ bool FLDLocalSettingsSkillEMigrationTest::RunTest(const FString& Parameters)
     const auto Current = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The current schema never repairs a missing third-active binding"),
         Current.Status == ELDLocalSettingsLoadStatus::Corrupt && !Current.Settings && Current.RecoverablePreferences);
+
+    Values->ResetBindings();
+    Values->Bindings.Remove(TEXT("Details"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values, 20, 0));
+    const auto DetailsDefault = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 20 adds hold-details on C without changing existing bindings"),
+        DetailsDefault.Status == ELDLocalSettingsLoadStatus::Migrated && DetailsDefault.Settings
+        && DetailsDefault.Settings->Key(TEXT("Details")) == EKeys::C && DetailsDefault.Settings->Key(TEXT("Skill1")) == EKeys::F6);
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::C);
+    const TArray<uint8> OccupiedBefore = FixtureBytes(*Values, 20, 0);
+    Write(OccupiedBefore);
+    const auto DetailsFallback = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 20 preserves an existing C binding and assigns an unused details key"),
+        DetailsFallback.Status == ELDLocalSettingsLoadStatus::Migrated && DetailsFallback.Settings
+        && DetailsFallback.Settings->Key(TEXT("Skill1")) == EKeys::C && DetailsFallback.Settings->Key(TEXT("Details")) == EKeys::F10);
+    After.Reset();
+    TestTrue(TEXT("The original occupied-C settings remain intact until explicitly saved"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && After == OccupiedBefore);
+    Values->Bindings.Add(TEXT("Skill2"), EKeys::F10);
+    Values->Bindings.Add(TEXT("SkillE"), EKeys::F11);
+    Values->Bindings.Add(TEXT("Dash"), EKeys::F12);
+    Values->Bindings.Add(TEXT("Stop"), EKeys::F8);
+    Values->Bindings.Add(TEXT("Attributes"), EKeys::F7);
+    Values->Bindings.Add(TEXT("Scoreboard"), EKeys::F6);
+    Write(FixtureBytes(*Values, 20, 0));
+    const auto DetailsManyOccupied = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Migration finds another unused details key when the first six fallbacks are occupied"),
+        DetailsManyOccupied.Status == ELDLocalSettingsLoadStatus::Migrated && DetailsManyOccupied.Settings
+        && DetailsManyOccupied.Settings->Key(TEXT("Details")) == EKeys::F5
+        && DetailsManyOccupied.Settings->Key(TEXT("Skill1")) == EKeys::C
+        && DetailsManyOccupied.Settings->Key(TEXT("Scoreboard")) == EKeys::F6);
     return true;
 }
 
@@ -1837,7 +1870,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 20);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 21);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);

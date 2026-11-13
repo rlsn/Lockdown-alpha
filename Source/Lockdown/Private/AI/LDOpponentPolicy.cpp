@@ -1087,7 +1087,26 @@ struct FComponentPick
     FString BoundActive;
     ELDDemoElement Element = ELDDemoElement::None;
     FLDOpponentComponentTarget Target;
+    // A form swap (FormSwaps): the installed same-form component the install replaces.
+    FString Replacing;
 };
+
+// The installed base sharing Definition's form (LDWorkshop::Conflicts), which growth refuses beside it (TargetConflict).
+const FLDOpponentComponent* InstalledFormMate(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
+    const FLDDemoComponentDefinition& Definition)
+{
+    for (const FLDOpponentComponent& Other : Self.Components)
+    {
+        const FLDDemoComponentDefinition* OtherDefinition = nullptr;
+        FString Ignored;
+        if (Other.bInstalled && Catalog.FindComponent(Other.DefinitionId, OtherDefinition, Ignored) && OtherDefinition
+            && OtherDefinition->Kind == ELDDemoComponentKind::Base && LDWorkshop::Conflicts(Definition, *OtherDefinition))
+        {
+            return &Other;
+        }
+    }
+    return nullptr;
+}
 
 // Which components ComponentPicks lists: the open opening base options, the owned never-installed inventory (first installs)
 // or the owned once-installed inventory (a rest move back onto the build).
@@ -1120,6 +1139,9 @@ bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
             return false;
         }
     }
+    // Growth refuses an install past the level's workshop capacity (WorkshopFull); the AI keeps what it has installed.
+    const int32 Installed = Self.Components.FilterByPredicate([](const FLDOpponentComponent& Owned) { return Owned.bInstalled; }).Num();
+    if (!bOpening && Installed >= LDProgression::WorkshopCapacity(Catalog.Get().Progression, Self.Level)) { return true; }
     for (const FLDDemoComponentDefinition& Definition : Definitions)
     {
         const auto Same = [&Definition](const FString& Id) { return Id.Equals(Definition.Id, ESearchCase::CaseSensitive); };
@@ -1136,7 +1158,7 @@ bool ComponentPicks(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         FComponentPick Pick;
         Pick.Component = Definition.Id;
         const bool bUsable = Definition.Kind == ELDDemoComponentKind::Base
-            ? LDOpponentPolicy::ComponentUsable(Self, Definition, Pick.BoundActive, Pick.Element)
+            ? LDOpponentPolicy::ComponentUsable(Self, Definition, Pick.BoundActive, Pick.Element) && !InstalledFormMate(Self, Catalog, Definition)
             : !bOpening && LDOpponentPolicy::WorkshopTarget(Self, Catalog, Definition, Pick.Target);
         if (bUsable) { Out.Add(MoveTemp(Pick)); }
     }
@@ -1160,6 +1182,7 @@ bool FirstAttemptable(const TArray<FComponentPick>& Picks, ELDOpponentBuildKind 
         Out.TargetKind = Pick.Target.Kind;
         Out.TargetId = Pick.Target.TargetId;
         Out.BoundComponent = Pick.Target.BoundComponent;
+        Out.Replacing = Pick.Replacing;
         Out.Key = Key;
         return true;
     }
@@ -1242,6 +1265,45 @@ bool ComponentMoves(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         if (Owned && Misplaced(Self, Catalog, *Owned, Definition)) { Out.Add(Definition.Id); }
     }
     return true;
+}
+
+// Form swaps: each owned never-installed form member that only an installed same-form component keeps off its target
+// (TargetConflict), placed as it would be on the build the replaced one's uninstall leaves, with that one as Replacing.
+// Only a swap onto the replaced one's own target counts. The replaced one is then once-installed, so it never swaps back.
+// In catalog order; the first conflicting installed one per member.
+void FormSwaps(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<FComponentPick>& Out)
+{
+    Out.Reset();
+    for (const FLDDemoComponentDefinition& Definition : Catalog.Get().Components)
+    {
+        if (Definition.Form.IsEmpty()) { continue; }
+        const FLDOpponentComponent* Owned = Self.Components.FindByPredicate(
+            [&Definition](const FLDOpponentComponent& Component) { return SameId(Component.DefinitionId, Definition.Id); });
+        if (!Owned || Owned->bInstalled || Owned->bEverInstalled) { continue; }
+        for (const FLDOpponentComponent& Other : Self.Components)
+        {
+            const FLDDemoComponentDefinition* OtherDefinition = nullptr;
+            FString Ignored;
+            if (!Other.bInstalled || !Catalog.FindComponent(Other.DefinitionId, OtherDefinition, Ignored) || !OtherDefinition
+                || !LDWorkshop::Conflicts(Definition, *OtherDefinition))
+            {
+                continue;
+            }
+            const FLDOpponentSelf Without = WithoutAttached(Self, Other.DefinitionId);
+            FComponentPick Pick;
+            Pick.Component = Definition.Id;
+            Pick.Replacing = Other.DefinitionId;
+            const bool bSwap = Definition.Kind == ELDDemoComponentKind::Base
+                ? LDOpponentPolicy::ComponentUsable(Without, Definition, Pick.BoundActive, Pick.Element)
+                : LDOpponentPolicy::WorkshopTarget(Without, Catalog, Definition, Pick.Target)
+                    && Pick.Target.Kind == Other.TargetKind && SameId(Pick.Target.TargetId, Other.TargetId);
+            if (bSwap)
+            {
+                Out.Add(MoveTemp(Pick));
+                break;
+            }
+        }
+    }
 }
 
 // The first subject whose failure memory admits another attempt of Kind now, with its key.
@@ -1403,6 +1465,14 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         {
             return true;
         }
+    }
+    // Form swaps (rest build window, like the moves): a new form member takes the place of the installed one it conflicts with.
+    if (bMoveWindow && LDProgression::InstallGate(Context) == ELDGrowthReason::None
+        && LDProgression::CommandGate(ELDBuildCommandKind::UninstallComponent, Context) == ELDGrowthReason::None)
+    {
+        TArray<FComponentPick> Picks;
+        FormSwaps(Self, Catalog, Picks);
+        if (FirstAttemptable(Picks, ELDOpponentBuildKind::InstallComponent, State, Print, Now, Out)) { return true; }
     }
     // #198 G: in a rest window, the first gap the unspent points can pay to fill (it makes an owned mod or connector usable)
     // before the points go to the stats.
@@ -2445,7 +2515,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         // Everyone else stays in the shared rest room; spectating sends no order while the arena runs.
         ForgetBody(State);
         // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
-        // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot,
+        // throw answer. Standing in the shared disk is the sign-up the authority judges from the committed foot,
         // so while the window is open the body walks into it and then stays there (no training) until the lock; an accepted
         // action or a channel finishes first.
         EReason PKReason = EReason::None;

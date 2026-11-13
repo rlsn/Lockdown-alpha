@@ -183,6 +183,34 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // slow alone is not IsImpaired) and the idle amplification its release locked (B17).
     int64 PoolBp=FMath::Max<int64>(Hit.IdleReadyAmpBp,0);
     if (Hit.ControlAmpBp>0 && bImpaired) { PoolBp+=Hit.ControlAmpBp; }
+    // B14/B15 on a hostile native direct hit: the distance amplification (caster foot to target foot in 2D, at
+    // resolution, from a standing source) and the alternate amplification its release locked.
+    const bool bNativeDirect=IsNativeDirectHit(Hit) && Hit.SourceEntity!=Body->Victim.EntityId;
+    TArray<FLDPassiveEffectRef> DistanceAmps;
+    if (bNativeDirect && Hit.CastLedger) { PoolBp+=FMath::Max<int64>(Hit.CastLedger->AlternateAmpBp,0); }
+    if (bNativeDirect && Source && SourceActor)
+    {
+        TArray<FLDPassiveEffectRef> Candidates;
+        if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::DistanceAmp,Candidates,Error)) { return false; }
+        const double DistanceCm=FVector::Dist2D(FootOf(*SourceActor),FootOf(*Actor));
+        for (const FLDPassiveEffectRef& Ref : Candidates)
+        {
+            const FLDDemoRational& Need=Ref.Effect.DistanceCm;
+            if (Need.Denominator>0 && DistanceCm*double(Need.Denominator)>=double(Need.Numerator))
+            {
+                PoolBp+=Ref.Effect.RatioBp;
+                DistanceAmps.Add(Ref);
+            }
+        }
+    }
+    // C14: a different active's native direct hit takes the holder's setup marks on this life.
+    TArray<FLDCombatSetupMark> SetupTaken;
+    if (bNativeDirect && Source && !Hit.bDebtPayment)
+    {
+        int64 SetupBp=0;
+        if (!SetupMarkBonus(*Source,Hit,NowMs,SetupBp,SetupTaken,Error)) { return false; }
+        PoolBp+=SetupBp;
+    }
     Evaluation.DamageBonusBp=PoolBp;
     Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
@@ -271,8 +299,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability)
         && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Ledger,Ledgers,Error))
     { return false; }
-    // Vamp of this hit: on-hit lifesteal (B04, already at its on-hit coefficient) on the HP actually lost, merged
-    // empowered packages included, never the shield's share.
+    // Vamp of this hit: on-hit lifesteal (B04, already at its on-hit coefficient) on the HP actually lost, only the hit's
+    // own share of it (merged empowered packages never feed it), never the shield's share.
     int64 VampBp=0;
     if (Source && !Hit.bReflect && !Hit.bBurnTick && !Hit.bStatusSettle && Damage.HPLostP2>0 && Hit.OnHitScaleBp>0 && Hit.bLifesteal)
     {
@@ -282,12 +310,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     int64 HealP2=0;
     if (VampBp>0)
     {
-        if (VampBp<0 || Damage.HPLostP2>MAX_int64/VampBp)
+        if (VampBp<0 || Damage.HPLostP2>MAX_int64/VampBp || Hit.LifestealShareBp<0 || Hit.LifestealShareBp>10000)
         {
             Error=TEXT("Vamp scaling is outside the checked numeric domain.");
             return false;
         }
         HealP2=Damage.HPLostP2*VampBp/10000;
+        HealP2=HealP2/10000*Hit.LifestealShareBp+HealP2%10000*Hit.LifestealShareBp/10000;
     }
 
     const int64 HPBefore=Body->Resources.HpP2;
@@ -301,9 +330,14 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     const bool bShieldBroken=LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
     const int64 ShieldGrantedP2=Body->ShieldGrantedP2;
+    // C18: what the watched host shield really absorbed.
+    if (Body->StoredForceWatch.IsSet() && Body->Shield.IsSet() && Body->Shield->EffectId==Body->StoredForceWatch->ShieldId
+        && Damage.ShieldAbsorbedP2>0)
+    { Body->StoredForceWatch->AbsorbedP2+=Damage.ShieldAbsorbedP2; }
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
     const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
+    if (Ended.bShieldChanged && !SettleStoredForce(*Body,NowMs,Error)) { return false; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
     // #198 build safe window: hostile positive damage marks its victim and the contender credited with it (burn ticks
@@ -426,6 +460,28 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 LedgerComponentTriggered(*Source,IdleAmp->Source.DefinitionId);
             }
         }
+        // B14: every amplified hit; B15: once per release, at its first positive hit.
+        for (const FLDPassiveEffectRef& Ref : DistanceAmps) { LedgerComponentTriggered(*Source,Ref.Source.DefinitionId); }
+        // C14: a mark that amplified a positive hit is consumed (one trigger each).
+        for (const FLDCombatSetupMark& Taken : SetupTaken)
+        {
+            Source->SetupMarks.RemoveAll([&Taken](const FLDCombatSetupMark& Mark)
+            { return Mark.Target==Taken.Target && Mark.Component==Taken.Component && Mark.Host==Taken.Host; });
+            LedgerComponentTriggered(*Source,Taken.Component);
+            UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_SETUP_MARK_CONSUMED t=%lld holder=%s host=%s by=%s target=%s"),NowMs,
+                *LDLog::Id(Source->Victim.EntityId),*Taken.Host.ToString(),*LDLog::Source(Hit.Source),
+                *LDLog::Id(Body->Victim.EntityId));
+        }
+        if (bNativeDirect && Hit.CastLedger && Hit.CastLedger->AlternateAmpBp>0 && !Hit.CastLedger->bAlternateAmpTriggered)
+        {
+            TOptional<FLDPassiveEffectRef> Alternate;
+            if (!FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::AlternateAmp,Alternate,Error)) { return false; }
+            if (Alternate.IsSet())
+            {
+                Hit.CastLedger->bAlternateAmpTriggered=true;
+                LedgerComponentTriggered(*Source,Alternate->Source.DefinitionId);
+            }
+        }
     }
     const int64 HPAfterP2=Body->Resources.HpP2;
     // A one-time heal; the record below logs what the source actually regained.
@@ -474,6 +530,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
                 GrantMana(*Source,Effect.BaseP2);
             }
         }
+        // B13 and B16 on a hostile native direct hit that dealt positive damage (a shield's share counts).
+        if (bNativeDirect && Damage.DamageP2>0 && !Hit.bDebtPayment && !OnNativeDirectHit(*Source,Hit,NowMs,Error)) { return false; }
         // A lethal hit ends the target life and with it every ledger on it.
         if (!Ledgers.IsEmpty() && Body->Resources.HpP2>0 && !RecordLedgerEntries(*Body,Hit,*Source,Ledgers,NowMs,Error)) { return false; }
     }
@@ -558,26 +616,6 @@ bool ALDCombatDirector::StampSourceTerms(const FLDBodyCombatState& Source, FLDCo
     InOut.ControlAmpBp=Amp.IsSet() ? Amp->RatioBp : 0;
     Error.Reset();
     return true;
-}
-
-FLDCombatHit ALDCombatDirector::AddedHit(const FLDCombatHit& Primary)
-{
-    FLDCombatHit Hit;
-    Hit.HitId=FGuid::NewGuid();
-    Hit.EffectId=Primary.EffectId;
-    Hit.Token=Primary.Token;
-    Hit.Target=Primary.Target;
-    Hit.SourceBody=Primary.SourceBody;
-    Hit.SourceEntity=Primary.SourceEntity;
-    Hit.CreditOwner=Primary.CreditOwner;
-    Hit.Source=Primary.Source;
-    Hit.HitClass=ELDCombatHitClass::Ability;
-    Hit.SourceADP2=Primary.SourceADP2;
-    Hit.SourceAPP2=Primary.SourceAPP2;
-    // The source-side pool terms stay; the primary's own payload does not ride along.
-    Hit.ControlAmpBp=Primary.ControlAmpBp;
-    Hit.bAddedDamage=true;
-    return Hit;
 }
 
 FLDCombatHit ALDCombatDirector::SpreadCopy(const FLDCombatHit& Primary, const FLDCombatBodyRef& Other)
@@ -689,7 +727,8 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
         const double ReachCm=Source.Effect.RadiusCm.Denominator>0
             ? double(Source.Effect.RadiusCm.Numerator)/double(Source.Effect.RadiusCm.Denominator) : 0.;
         bool bDelivered=false;
-        if (!DeliverCounter(Body,Source.Source,Hit.SourceBody,BaseP2,Source.Effect.DamageType,ReachCm,NowMs,bDelivered,Error)) { return false; }
+        if (!DeliverCounter(Body,Source.Source,Hit.SourceBody,BaseP2,Source.Effect.DamageType,ReachCm,FGuid(),NowMs,bDelivered,Error))
+        { return false; }
     }
     Error.Reset();
     return true;
@@ -744,37 +783,52 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         double ClearFraction=1;
         if (Step>0 && !LDCombatEffectsDetail::ClearPrefix(*Mode->Vision,WorldRevision,From,To,ClearFraction,Error)) { return false; }
         const FVector Stop=FMath::Lerp(From,To,ClearFraction);
-        int32 Struck=INDEX_NONE;
-        double StruckAt=0;
-        for (int32 TargetIndex=0; TargetIndex<Targets.Num(); ++TargetIndex)
+        // M14: a pierced body does not end the flight; the search goes on past it in the same step.
+        FVector SegmentFrom=From;
+        bool bEnded=false;
+        while (true)
         {
-            const LDCombatEffectsDetail::FProjectileTarget& Candidate=Targets[TargetIndex];
-            double Entry=0;
-            const FLDBodyCombatState* CandidateState=FindBody(Candidate.Body);
-            if (Candidate.Body.Victim.EntityId==Projectile.SourceEntity
-                || !CandidateState || IsIsolated(Projectile.SourceEntity,*CandidateState)
-                || !LDCombatEffectsDetail::PlanarEntry(From,Stop,Candidate.FootCm,Projectile.RadiusCm+Candidate.RadiusCm,Entry))
-            { continue; }
-            if (Struck==INDEX_NONE || Entry<StruckAt)
+            int32 Struck=INDEX_NONE;
+            double StruckAt=0;
+            for (int32 TargetIndex=0; TargetIndex<Targets.Num(); ++TargetIndex)
             {
-                Struck=TargetIndex;
-                StruckAt=Entry;
+                const LDCombatEffectsDetail::FProjectileTarget& Candidate=Targets[TargetIndex];
+                double Entry=0;
+                const FLDBodyCombatState* CandidateState=FindBody(Candidate.Body);
+                const FGuid& CandidateId=Candidate.Body.Victim.EntityId;
+                if (CandidateId==Projectile.SourceEntity || Projectile.Struck.Contains(CandidateId)
+                    || !CandidateState || IsIsolated(Projectile.SourceEntity,*CandidateState)) { continue; }
+                // M13: a return starting on the body its outbound flight ended on touches it at once.
+                if (Projectile.bReturn && Projectile.TravelledCm<=0 && SegmentFrom==From && CandidateId==Projectile.StartContact)
+                { Entry=0; }
+                else if (!LDCombatEffectsDetail::PlanarEntry(SegmentFrom,Stop,Candidate.FootCm,Projectile.RadiusCm+Candidate.RadiusCm,Entry))
+                { continue; }
+                if (Struck==INDEX_NONE || Entry<StruckAt)
+                {
+                    Struck=TargetIndex;
+                    StruckAt=Entry;
+                }
             }
-        }
-        if (Struck!=INDEX_NONE)
-        {
-            // The first body ends the projectile; a protected body still stops it and evaluates to zero. The contact is
-            // the payload snapshotted at release.
+            if (Struck==INDEX_NONE) { break; }
+            // The first body ends the projectile unless M14 lets it go on; a protected body still stops it (or uses a
+            // pierce) and evaluates to zero. The contact is the payload snapshotted at release; a pierced extra body takes
+            // M14's share with the same slow and controls.
+            const bool bFirstContact=Projectile.Struck.IsEmpty();
             FLDCombatHit Contact=Projectile.Payload;
             Contact.HitId=FGuid::NewGuid();
             Contact.Target=Targets[Struck].Body;
+            if (!bFirstContact)
+            {
+                const int64 Scale=Contact.DeliveryScaleBp, Bp=Projectile.PierceScaleBp;
+                Contact.DeliveryScaleBp=Scale/10000*Bp+Scale%10000*Bp/10000;
+            }
             PendingHits.Add(Contact);
+            const FLDBodyCombatState* Thrower=FindBody(Projectile.SourceBody);
             // #198 F M01: the first contact's damage also lands around the struck body (SpreadCopy: damage only; the slow,
-            // the S21 cut and every other control stay on the struck body).
-            if (Projectile.SpreadRadiusCm>0)
+            // the S21 cut and every other control stay on the struck body). A pierced extra body never spreads.
+            if (bFirstContact && Projectile.SpreadRadiusCm>0)
             {
                 TArray<FLDCombatBodyRef> Around;
-                const FLDBodyCombatState* Thrower=FindBody(Projectile.SourceBody);
                 if (!CollectAreaTargets(Targets[Struck].FootCm,Projectile.SpreadRadiusCm,Thrower,Projectile.SourceEntity,Around,Error))
                 { return false; }
                 bool bSpread=false;
@@ -791,11 +845,31 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 { return false; }
                 if (!Spreads.IsEmpty()) { LedgerComponentTriggered(*Thrower,Spreads[0].Source.DefinitionId); }
             }
+            if (!bFirstContact && Thrower) { LedgerComponentTriggered(*Thrower,Projectile.PierceComponent); }
+            Projectile.Struck.Add(Targets[Struck].Body.Victim.EntityId);
+            const FVector At=FMath::Lerp(SegmentFrom,Stop,StruckAt);
+            if (Projectile.PierceRemaining>0 && !Projectile.bReturn)
+            {
+                --Projectile.PierceRemaining;
+                UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_PROJECTILE_PIERCE t=%lld owner=%s exit=%s left=%d"),NowMs,
+                    *LDLog::Id(Projectile.SourceEntity),*LDLog::Source(Projectile.Source),Projectile.PierceRemaining);
+                SegmentFrom=At;
+                continue;
+            }
+            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn
+                && !LaunchReturn(Projectile,At,Targets[Struck].Body.Victim.EntityId,Error)) { return false; }
+            bEnded=true;
+            break;
+        }
+        if (bEnded)
+        {
             Finished.Add(Index);
             continue;
         }
         if (ClearFraction<1 || bReachesRange)
         {
+            // M13: terrain or the end of the reach still sends the return home.
+            if (Projectile.ReturnScaleBp>0 && !Projectile.bReturn && !LaunchReturn(Projectile,Stop,FGuid(),Error)) { return false; }
             Finished.Add(Index);
             continue;
         }
@@ -946,6 +1020,18 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
         for (FLDCombatLedger& Ledger : Body.Ledgers) { LDCombatKeywords::ExpireLedger(Ledger,NowMs); }
         Body.Ledgers.RemoveAll([](const FLDCombatLedger& Ledger) { return Ledger.EntriesP2.IsEmpty(); });
         const bool bMechanics=ExpireMechanics(Body,NowMs);
+        // C18: a watched host shield that timed out settles into the stored force.
+        if (Body.StoredForceWatch.IsSet())
+        {
+            FString SettleError;
+            if (!SettleStoredForce(Body,NowMs,SettleError))
+            {
+                UE_LOG(LogLDCombat, Error, TEXT("LD_COMBAT_WORKSHOP_UNRESOLVED body=%s op=stored_force error=%s"),
+                    *LDLog::Id(Body.Victim.EntityId), *SettleError);
+            }
+        }
+        if (Body.StoredForce.IsSet() && Body.StoredForce->ExpiresAtMs<=NowMs) { Body.StoredForce.Reset(); }
+        if (Body.WideToken.IsSet() && Body.WideToken->ExpiresAtMs<=NowMs) { Body.WideToken.Reset(); }
         if (!Expired.bRootsChanged && !Expired.bShieldChanged && !Control.bTauntChanged
             && !bControls && !bEmpower && !bMechanics) { continue; }
         ++Body.StateRevision;

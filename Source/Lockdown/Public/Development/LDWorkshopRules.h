@@ -18,6 +18,6 @@ namespace LDWorkshop
     // repeated base exactly when the definition takes one (one of its ExtraBases). False for a base component.
     LOCKDOWN_API bool TargetShape(const FLDDemoComponentDefinition& Definition, ELDComponentTargetKind Kind, FName TargetId,
         FName BoundActive, ELDDemoElement Element, FName BoundComponent);
-    // Whether two installed workshop components conflict on the same target (spec §12.3): M08 and M09 (both dash_scale).
+    // Whether two components conflict on the same target (spec §4.4): distinct components of one form.
     LOCKDOWN_API bool Conflicts(const FLDDemoComponentDefinition& A, const FLDDemoComponentDefinition& B);
 }

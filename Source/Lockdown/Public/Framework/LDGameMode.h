@@ -164,8 +164,7 @@ public:
     // world owners (charms, ...) add their own rest entry/exit here.
     bool EnterRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ExitRestWorld(const FLDGameplayWritePermit& Permit, FString& Error);
-    // #198 站圈报名: the contender's PK sign-up disk in the shared rest room (its roster
-    // slot's pk_signup anchor, radius AIRDROP.PickupRadiusCm); false when the world or the slot has none.
+    // The shared PK sign-up disk in the rest room; false when the world or the contender's slot is unavailable.
     bool SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, double& OutRadiusCm) const;
     // The locked PK entrants of the current rest (sorted); empty before the lock or when PK was skipped.
     const TArray<FGuid>& GetLockedEntrants() const { return LockedEntrants; }
@@ -399,6 +398,9 @@ private:
         TArray<TSharedPtr<const FLDNativeMotionBatch>> NativeMotion;
     };
     TMap<FGuid, FLDLifeRecord> Lives;
+#if WITH_DEV_AUTOMATION_TESTS
+    TFunction<void(ALDGameMode&)> DevFieldReturnCommitted;
+#endif
     TSharedPtr<const FLDDemoContentSnapshot> DemoContent;
     FLDAuthorityStep AuthorityStep;
     FLDAuthorityBoundary AuthorityBoundary;

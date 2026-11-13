@@ -190,6 +190,12 @@ void ULDStatBar::ToggleView()
     bAttributes=!bAttributes;HoveredIndex=INDEX_NONE;AttrHovered=INDEX_NONE;
     Refresh();
 }
+void ULDStatBar::SetDetailsHeld(bool bHeld)
+{
+    if(bDetailsHeld==bHeld){return;}
+    bDetailsHeld=bHeld;HoveredIndex=INDEX_NONE;AttrHovered=INDEX_NONE;
+    Refresh();
+}
 const FLDCombatAttributeRowView* ULDStatBar::AttributeOf(uint8 Attribute) const
 {
     return LatestAttributes.FindByPredicate([Attribute](const FLDCombatAttributeRowView& Row){return Row.Attribute==Attribute;});
@@ -205,8 +211,8 @@ void ULDStatBar::RefreshAttributes()
 }
 void ULDStatBar::Refresh()
 {
-    const bool bStats=!bAttributes&&Usable();
-    const bool bAttrs=bAttributes&&!LatestAttributes.IsEmpty();
+    const bool bStats=(!bAttributes||bDetailsHeld)&&Usable();
+    const bool bAttrs=bAttributes&&!bDetailsHeld&&!LatestAttributes.IsEmpty();
     StatShown(Syncing,!bStats&&!bAttrs,ESlateVisibility::HitTestInvisible);
     StatShown(Row,bStats,ESlateVisibility::SelfHitTestInvisible);
     StatShown(AttrFrame,bAttrs,ESlateVisibility::SelfHitTestInvisible);

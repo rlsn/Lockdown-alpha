@@ -6,6 +6,7 @@ class ALDPlayerController;
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Evaluation/LDEvaluationPolicy.h"
+#include "Framework/LDCaptureTypes.h"
 
 // DEV build evaluation driver (docs/systems/BUILD_EVALUATION.md). Scripts/BuildEvaluationLockdown.py writes this input;
 // the Host probe runs every Case as one ordinary match of the Demo room and writes one result and one trace per Case.
@@ -19,13 +20,27 @@ struct FLDEvalContenderPlan
     int32 Slot = 0;
     // XP granted once at T=0 through the reward composite (a supply assumption of the plan, logged cause=dev_fixture).
     int64 SupplyXP = 0;
+    // Diagnostic-only: exactly one common component for each level crossed by the XP supply.
+    TArray<FName> LevelComponents;
     // One rule per active opportunity ordinal from 1 (the opening offer).
     TArray<FLDEvaluationChoice> Choices;
+    // Diagnostic-only opening offer, staged for the armed AI slot before match start; empty means ordinary draw.
+    TArray<FName> OpeningPreset;
     // Conditional preparation: one-to-three-active offers queued (DevQueueOffer) for the next opportunities from ordinal 2,
     // oldest first.
     TArray<TArray<FName>> Presets;
     // #198 workshop plan (empty: the production follow-up rule builds), in order.
     TArray<FLDEvaluationBuildStep> Build;
+    // Optional "stance" object (absent: pursue): {"kind": "kite"|"burst"|"hold"|"guard", "standoff_cm": N,
+    // "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, with the optional operation knobs "reaction_ms",
+    // "aim_error_cm" and "skip_bp" on any stance; {"kind": "pursue"} is written only to carry knobs.
+    ELDEvaluationStance Stance = ELDEvaluationStance::Pursue;
+    int32 StandoffCm = 0;
+    int32 ThresholdBp = 0;
+    int32 LeashCm = 0;
+    int32 ReactionMs = 0;
+    int32 AimErrorCm = 0;
+    int32 SkipBp = 0;
 };
 
 struct FLDEvalCase
@@ -49,13 +64,21 @@ struct FLDEvalRunInput
     TArray<FLDEvalCase> Cases;
 };
 
+struct FLDEvalOutcome
+{
+    int32 VictimSide = INDEX_NONE;
+    FGuid Killer;
+    int64 OccurredAtMs = -1;
+    bool bTrade = false;
+};
+
 namespace LDBuildEvaluation
 {
     inline constexpr TCHAR InputSchema[] = TEXT("lockdown.build_evaluation.native_input");
-    inline constexpr int32 InputSchemaVersion = 3;
+    inline constexpr int32 InputSchemaVersion = 5;
     inline constexpr TCHAR ResultSchema[] = TEXT("lockdown.build_evaluation.native_result");
     inline constexpr TCHAR RunSchema[] = TEXT("lockdown.build_evaluation.native_run");
-    inline constexpr int32 ResultSchemaVersion = 4;
+    inline constexpr int32 ResultSchemaVersion = 6;
     inline constexpr int32 MaxCases = 500;
     inline constexpr int32 MaxChoices = 16;
     inline constexpr int32 MaxBuildSteps = 32;
@@ -65,6 +88,9 @@ namespace LDBuildEvaluation
     {
         return OccurredAtMs >= StartedAtMs && OccurredAtMs <= StartedAtMs + DuelTimeoutMs;
     }
+    // Collect all duel deaths at the earliest authority time before deciding whether it was a single kill or a trade.
+    bool SelectDuelOutcome(const TArray<FLDKillNotice>& Notices, uint64& LastSerial, const FGuid& Subject, const FGuid& Opponent,
+        int64 StartedAtMs, int64 DuelTimeoutMs, FLDEvalOutcome& Out);
     // Strict: unknown or missing fields, out-of-range numbers and malformed rules are refused with the field named.
     bool ParseInput(const FString& Json, FLDEvalRunInput& Out, FString& Error);
 }

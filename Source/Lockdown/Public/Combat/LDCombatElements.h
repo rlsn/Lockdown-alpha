@@ -55,6 +55,8 @@ struct FLDElementApplier
     FLDCombatSourceRef Source;
     int32 Level = 1;
     int64 SourceAPP2 = 0;
+    // The release whose hit applied this element (C15 keys its once-per-release cut on it); unset otherwise.
+    FGuid EffectId;
 };
 
 // The water or electric mark of a target life. Wet also holds a slow instance (SlowEffectId) that ends with the mark.
@@ -74,6 +76,7 @@ struct FLDCombatReactionFact
     FLDCombatBodyRef TriggerBody;
     FGuid TriggerEntity;
     FLDCombatSourceRef TriggerSource;
+    FGuid TriggerEffectId;
     FLDCombatBodyRef Primary;
     FGuid HitId;
     int64 AtMs = 0;
@@ -105,6 +108,8 @@ struct FLDCombatBrace
     int64 RecordRatioBp = 0;
     double RadiusCm = 0;
     int64 RecordedP2 = 0;
+    // The release's shared ledger: the answer is that release's native direct damage (B13-B16).
+    TSharedPtr<struct FLDCombatCastLedger> CastLedger;
 };
 
 // S21 馊水糊脸: new heals and new shields of the holder are cut by RatioBp until ExpiresAtMs; existing shields stay.

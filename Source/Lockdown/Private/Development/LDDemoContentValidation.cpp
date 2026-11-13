@@ -239,6 +239,11 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
+    if (!Check.Require(P.NpcActiveSkipPoints > 0 && P.NpcActiveSkipPoints < P.NpcActivePoints && P.ActiveSkipPoints > 0,
+            TEXT("GROWTH.NpcActiveSkipPoints"), TEXT("declining a purchased offer must cost points overall")))
+    {
+        return false;
+    }
     // #198 points: the opening grant and one grant per level-up to the cap stay inside int64.
     int64 LevelPoints = 0, TotalPoints = 0;
     if (!N.Mul64(D.Progression.MaxLevel - 1, P.PointsPerLevel, LevelPoints, TEXT("GROWTH.PointsPerLevel"))

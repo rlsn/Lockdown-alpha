@@ -52,13 +52,13 @@ ACTIVE_FRAMES = {
     "active_elbow": ("Unit", 220, r(".15"), 50, 10, True),
     "active_pants_down": ("Unit", 400, r(".2"), 55, 12, True),
     "active_crotch_grab": ("Unit", 200, r(".2"), 55, 14, True),
-    "active_account_banned": ("Unit", 600, r(".25"), 60, 13, True),
+    "active_account_banned": ("Unit", 600, r(".25"), 60, 11, True),
     "active_unplug": ("Unit", 300, r(".2"), 45, 12, True),
-    "active_snark_bolt": ("DirectionProjectile", 750, r(".2"), 45, 8, True),
+    "active_snark_bolt": ("DirectionProjectile", 850, r(".2"), 45, 8, True),
     "active_seethe": ("Self", None, r(".25"), 55, 10, True),
-    "active_quick_meeting": ("GroundPoint", 650, r(".25"), 60, 12, True),
-    "active_hose_down": ("DirectionLine", 550, r(".3"), 50, 11, True),
-    "active_zap": ("Unit", 650, r(".25"), 55, 11, True),
+    "active_quick_meeting": ("GroundPoint", 650, r(".25"), 55, 12, True),
+    "active_hose_down": ("DirectionLine", 600, r(".2"), 50, 11, True),
+    "active_zap": ("Unit", 650, r(".25"), 50, 11, True),
     "active_bail_out": ("DirectionDash", None, 0, 40, 9, True),
     "active_apology_slide": ("DirectionDash", None, r(".15"), 50, 11, True),
     "active_charged_ram": ("DirectionDash", None, r(".1"), 55, 13, True),
@@ -66,10 +66,10 @@ ACTIVE_FRAMES = {
     "active_stare_down": ("Self", None, r(".2"), 60, 15, False),
     "active_brace": ("Self", None, r(".1"), 55, 16, False),
     "active_triple_combo": ("Self", None, 0, 40, 12, True),
-    "active_calculus_drop": ("GroundPoint", 650, r(".25"), 65, 12, True),
+    "active_calculus_drop": ("GroundPoint", 650, r(".25"), 55, 12, True),
     "active_flyer_trap": ("GroundPoint", 550, r(".15"), 55, 12, False),
-    "active_dirty_puddle": ("GroundPoint", 600, r(".25"), 60, 14, True),
-    "active_sock_shot": ("DirectionProjectile", 650, r(".15"), 50, 12, True),
+    "active_dirty_puddle": ("GroundPoint", 600, r(".25"), 55, 14, True),
+    "active_sock_shot": ("DirectionProjectile", 750, r(".15"), 50, 12, True),
     "active_open_mic": ("DirectionCone", 450, r(".2"), 50, 10, True),
 }
 
@@ -89,15 +89,15 @@ ACTIVE_EFFECTS = {
     "active_crotch_grab": [physical(85, ".6"), ("stun", {"duration": 1})],
     "active_account_banned": [magical(65, ".65"), ("silence", {"duration": r("1.6")})],
     "active_unplug": [physical(50, ".45"), ("disarm", {"duration": r("1.8")})],
-    "active_snark_bolt": [magical(90, ".8"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
-    "active_seethe": [("self_area", {"radius": 300}), magical(65, ".55", ".02"), ("burn", {"stacks": 2})],
+    "active_snark_bolt": [magical(90, ".9"), ("slow", {"duration": r("1.5"), "ratio": r(".25")})],
+    "active_seethe": [("self_area", {"radius": 300}), magical(65, ".65", ".02"), ("burn", {"stacks": 2})],
     "active_quick_meeting": [
         ("zone", {"count": 3, "delay": 0, "duration": 3, "interval": 1, "radius": 240}),
-        ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".2"), "base": 28, "damage_type": "Magical"}),
+        ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".25"), "base": 28, "damage_type": "Magical"}),
         ("zone_slow", {"duration": r(".5"), "interval": 1, "ratio": r(".2")}),
         ("zone_burn", {"interval": 1, "stacks": 1})],
     "active_hose_down": [magical(55, ".55"), ("knockback", {"distance": 180, "duration": r(".15")}), ("wet", {})],
-    "active_zap": [magical(60, ".55"), ("electrify", {}),
+    "active_zap": [magical(60, ".65"), ("electrify", {}),
                    ("chain_bounce", {"count": 2, "interval": r(".15"), "radius": 350, "ratio": r(".7")})],
     "active_bail_out": [
         ("dash", {"distance": 350, "duration": r(".2")}),
@@ -120,25 +120,25 @@ ACTIVE_EFFECTS = {
         ("empower_basic", {"ad_ratio": r(".1"), "ap_ratio": 0, "base": 16, "charges": 3, "damage_type": "Physical", "duration": 5,
                            "stats": {"AttackSpeedBonusRatio": r(".25")}})],
     "active_calculus_drop": [
-        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), magical(100, ".9")],
+        ("ground_impact", {"delay": r(".55"), "inner_radius": 80, "outer_ratio": r(".6"), "radius": 200}), magical(100, "1")],
     "active_flyer_trap": [
         ("contact_trap", {"delay": r(".45"), "duration": 6, "radius": 180, "trigger_radius": 100}), magical(100, ".75"),
         ("slow", {"duration": r("1.5"), "ratio": r(".3")})],
     "active_dirty_puddle": [
         ("zone", {"count": 4, "delay": 0, "duration": 4, "interval": 1, "radius": 220}),
-        ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".15"), "base": 18, "damage_type": "Magical"}),
+        ("zone_damage", {"ad_ratio": 0, "ap_ratio": r(".2"), "base": 22, "damage_type": "Magical"}),
         ("zone_wet", {}), ("zone_haste", {"ratio": r(".15")})],
     "active_sock_shot": [
-        magical(70, ".65"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("grievous", {"duration": 3, "ratio": r(".35")})],
+        magical(80, ".75"), ("attack_slow", {"duration": 3, "ratio": r(".2")}), ("grievous", {"duration": 3, "ratio": r(".35")})],
     "active_open_mic": [
-        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(40, ".3")],
+        ("channel_cone", {"count": 3, "interval": r(".3"), "slow": r(".3"), "slow_duration": r("1.2")}), magical(40, ".35")],
 }
 # #198 five point-bought stats: native id and the bonuses of one point.
 STAT_POINTS = {
     "stat_physique": (27, {"MaxHPFlat": 30, "HPRegenFlat": r(".08")}),
     "stat_thick_skin": (28, {"ArmorFlat": r("2.5"), "MagicResistFlat": r("2.5")}),
     "stat_strength": (29, {"ADFlat": r("2.5"), "CritChanceBonusRatio": r(".004")}),
-    "stat_brains": (30, {"APFlat": 5, "CooldownHasteFlat": 1, "MPRegenFlat": r(".03")}),
+    "stat_brains": (30, {"APFlat": 6, "CooldownHasteFlat": 1, "MPRegenFlat": r(".03")}),
     "stat_agility": (31, {"AttackSpeedBonusRatio": r(".02"), "MoveSpeedBonusRatio": r(".005")}),
 }
 
@@ -171,16 +171,15 @@ COMPONENT_FRAMES = {
     "component_dash_punch": ("蹿过去抡一拳", "always", [
         ("empower_basic", {"ad_ratio": r(".25"), "ap_ratio": 0, "base": 25, "charges": 1, "damage_type": "Physical", "duration": 3,
                            "trigger": "DashComplete"})]),
-    "component_catch_breath": ("喘口气接着干", None, [("stat_bonus", {"stats": {"CooldownHasteFlat": 15, "MPRegenFlat": 1}})]),
-    "component_long_arm": ("伸长胳膊抽你", None, [
-        ("stat_bonus", {"stats": {"AttackRangeCmFlat": 120}}), ("basic_damage_scale", {"ratio": r(".9")})]),
-    "component_seeing_red": ("打急眼了", None, [
-        ("low_hp_stat_bonus", {"stats": {"AttackSpeedBonusRatio": r(".25"), "MoveSpeedBonusRatio": r(".1")}, "threshold": r(".4")})]),
-    "component_thick_hide": ("脸皮磨厚点", None, [("primary_guard", {"base": 8, "ratio": r(".15")})]),
+    "component_catch_breath": ("喘口气接着干", None, [("cast_hit_refund", {"ratio": r(".3")})]),
+    "component_long_arm": ("离远点才好抽", None, [("distance_amp", {"distance": 550, "ratio": r(".2")})]),
+    "component_seeing_red": ("一招接一招", None, [("alternate_amp", {"duration": 4, "ratio": r(".2")})]),
+    "component_thick_hide": ("打完就缩脖", None, [
+        ("triggered_shield", {"base": 40, "duration": 3, "interval": 8, "max_hp_ratio": r(".03"), "trigger": "AbilityHit"})]),
     "component_held_shot": ("憋着一发狠的", DIRECT_DAMAGE_OPENING, [("idle_ready_amp", {"delay": 2, "ratio": r(".2")})]),
     "component_dirty_trick": ("招里掺点脏的", DIRECT_DAMAGE_OPENING, [("active_element", {})]),
 }
-# #198 F mods M01-M12 and connectors C01-C12 in native ID order (catalog sections 8-10): name, kind, pool.
+# #198 F mods M01-M12, connectors C01-C12 and mods M13-M15 in native ID order (catalog sections 8-10): name, kind, pool.
 WORKSHOP_FRAMES = {
     "component_crowd_hit": ("一群人一起挨", "mod", "common"),
     "component_settle_later": ("等会儿一起算", "mod", "common"),
@@ -206,6 +205,30 @@ WORKSHOP_FRAMES = {
     "component_shell_burst": ("壳碎了也崩你", "connector", "common"),
     "component_hurt_heal": ("打疼了我回血", "connector", "common"),
     "component_dirty_fist": ("拳上的脏活也算", "connector", "scarce"),
+    # Mods M13-M15 (native 43-45).
+    "component_boomerang": ("鞋还得捡回来", "mod", "common"),
+    "component_skewer": ("一鞋串俩", "mod", "common"),
+    "component_encore": ("再来一遍", "mod", "common"),
+    "component_next_up": ("打完换下一招", "connector", "common"),
+    "component_setup_line": ("先垫一句", "connector", "common"),
+    "component_blast_reload": ("炸了接着放", "connector", "common"),
+    "component_group_refund": ("一锅端回本", "connector", "common"),
+    # Bases B19-B21 and mods M16-M20 (native 50-57).
+    "component_clear_head": ("脑子转得快", "base", "common"),
+    "component_run_away": ("撒腿就跑", "base", "common"),
+    "component_guard_up": ("护住要害", "base", "common"),
+    "component_zone_tether": ("拖着会开", "mod", "common"),
+    "component_shove_off": ("别挨着我", "mod", "common"),
+    "component_finisher": ("最后一下抡出去", "mod", "common"),
+    "component_long_handle": ("隔空三连", "mod", "common"),
+    "component_come_here": ("过来吧你", "mod", "common"),
+    # Connectors C17-C21 (native 58-62).
+    "component_move_meeting": ("换个地方开会", "connector", "common"),
+    "component_bottled_up": ("憋着的气", "connector", "common"),
+    "component_spend_fist": ("拳头借给技能", "connector", "common"),
+    "component_wide_open": ("按住了就放大", "connector", "common"),
+    "component_set_it_off": ("一点就炸", "connector", "common"),
+    "component_meet_here": ("就在这儿开会", "connector", "common"),
 }
 
 
@@ -238,7 +261,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 4, 6))
+                          self.data["identity"]["projection_revision"]), (2, 6, 6))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -249,7 +272,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("MaxHP", "hp", ("620", "58", "1", "3000")),
             ("MaxMP", "mp", ("280", "22", "0", "800")),
             ("AD", "points", ("70", "3.2", "0", "250")),
-            ("AP", "points", ("0", "0", "0", "250")),
+            ("AP", "points", ("0", "0", "0", "300")),
             ("Armor", "points", ("18", "2", "0", "200")),
             ("MagicResist", "points", ("18", "2", "0", "200")),
             ("HPRegen", "hp/s", ("1.60", "0.12", "0", "12")),
@@ -337,14 +360,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
-            # #198: a rest NPC charges 3 points for one active-only three-choice.
-            ("GROWTH.NpcActivePoints", 3),
+            ("GROWTH.NpcActivePoints", 5), ("GROWTH.ActiveSkipPoints", 5), ("GROWTH.NpcActiveSkipPoints", 3),
             # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # #198 B: a level-up whose component roll finds the common pool empty gives 3 points instead.
             ("GROWTH.EmptyComponentPoolPoints", 3),
             # #198 G (spec §4.5): FillGap costs 4 points; dismantle takes 3 distinct common components for 1.
-            ("GROWTH.FillGapPoints", 4), ("GROWTH.DismantleInputCount", 3),
+            ("GROWTH.FillGapPoints", 4), ("GROWTH.DismantleInputCount", 2),
         ):
             expected[key] = (None, value)
         expected["AIRDROP.LandSec"] = ("ms", ("45", "125", "225", "305", "405", "485"))
@@ -400,7 +422,12 @@ class ApprovedDemoData(unittest.TestCase):
             "cooldown_cost": 130, "compress_cone": 131, "compress_zone": 132, "dash_scale": 133, "ledger_variant": 134,
             "marked_counter": 135, "damage_defer": 136, "fire_shield": 137, "knockback_impact": 138, "contact_knockback": 139,
             "control_mark": 140, "aftershock": 141, "control_mana": 142, "heal_counter": 143, "reaction_empower": 144,
-            "shield_burst": 145, "skill_lifesteal": 146, "extra_base": 147, "compress_chain": 148})
+            "shield_burst": 145, "skill_lifesteal": 146, "extra_base": 147, "compress_chain": 148,
+            "cast_hit_refund": 149, "distance_amp": 150, "alternate_amp": 151,
+            "projectile_return": 152, "projectile_pierce": 153, "chain_extra": 154, "echo_impact": 155,
+            "hit_haste_other": 156, "setup_mark": 157, "reaction_haste": 158, "multi_hit_mana": 159,
+            "zone_tether": 160, "defense_shove": 161, "final_knockback": 162, "empower_reach": 163, "pull": 164,
+            "zone_relocate": 165, "stored_force": 166, "empower_spend": 167, "control_widen": 168, "zone_detonate": 169})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -502,9 +529,9 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertEqual((amount(row["mana_cost"]), amount(row["cooldown"])), (mana, cooldown))
                 self.assertEqual([(effect["op"], author_units(effect)) for effect in row["effects"]], ACTIVE_EFFECTS[identity])
         bolt = self.catalog.definition("active_snark_bolt")["target"]
-        self.assertEqual((amount(bolt["projectile_radius"]), amount(bolt["projectile_speed"])), (45, 1600))
+        self.assertEqual((amount(bolt["projectile_radius"]), amount(bolt["projectile_speed"])), (55, 1600))
         sock = self.catalog.definition("active_sock_shot")["target"]
-        self.assertEqual((amount(sock["projectile_radius"]), amount(sock["projectile_speed"])), (40, 1300))
+        self.assertEqual((amount(sock["projectile_radius"]), amount(sock["projectile_speed"])), (55, 1500))
         self.assertEqual(amount(self.catalog.definition("active_hose_down")["target"]["half_width"]), 80)
         self.assertEqual(amount(self.catalog.definition("active_open_mic")["target"]["angle"]), 70)
 
@@ -518,7 +545,9 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["active_offer_levels"], (3, 6))
         self.assertEqual(set(self.data["progression"]),
                          {"max_level", "active_slots", "xp_start", "xp_thresholds", "xp_to_next", "active_offer_levels",
-                          "component_category_weights"})
+                          "bonus_component_levels", "workshop_capacity", "component_category_weights"})
+        self.assertEqual(self.data["progression"]["bonus_component_levels"], (2, 4, 6, 8, 10, 12, 14, 16))
+        self.assertEqual(dict(self.data["progression"]["workshop_capacity"]), {"base": 5, "levels_per_slot": 2})
 
     def test_all_base_component_values_openings_and_category_bands(self):
         # #198 B: B01-B18 at G=1 in native ID order (issue #198 catalog section 7, AI spec section 4.3).
@@ -543,7 +572,7 @@ class ApprovedDemoData(unittest.TestCase):
                                                                         "active_triple_combo"})
         self.assertEqual([(band["levels"], band["base"], band["mod"], band["connector"])
                           for band in self.data["progression"]["component_category_weights"]],
-                         [((2, 6), 55, 25, 20), ((7, 11), 40, 30, 30), ((12, 16), 25, 35, 40)])
+                         [((2, 6), 45, 30, 25), ((7, 11), 35, 35, 30), ((12, 16), 25, 35, 40)])
 
     def test_retired_content_ids_stay_reserved_and_absent(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
@@ -708,6 +737,72 @@ class ApprovedDemoData(unittest.TestCase):
             next(item for item in row["effects"] if item["op"] == op)[field] = value
             with self.subTest(identity=identity, field=field), self.assertRaisesRegex(content.ContentError, "SchemaVariant"):
                 schema.validate(candidate)
+
+    def test_phase5_mod_ops_refuse_ineffective_or_misshapen_values(self):
+        author, schema, ids = self.approved_projection_inputs()
+        for identity, op, field in (
+            ("component_zone_tether", "zone_tether", "radius_ratio"),
+            ("component_shove_off", "defense_shove", "distance"), ("component_shove_off", "defense_shove", "radius"),
+            ("component_shove_off", "defense_shove", "shield_ratio"),
+            ("component_finisher", "final_knockback", "distance"), ("component_finisher", "final_knockback", "cost_ratio"),
+            ("component_long_handle", "empower_reach", "range"), ("component_long_handle", "empower_reach", "damage_ratio"),
+            ("component_come_here", "pull", "distance"),
+        ):
+            candidate = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+            effect = next(item for item in next(row for row in candidate["components"] if row["id"] == identity)["effects"]
+                          if item["op"] == op)
+            effect[field] = dict(effect[field], value=0)
+            with self.subTest(op=op, field=field), self.assertRaises(content.ContentError):
+                content.validate_definitions(schema.project(candidate), ids)
+        for identity, op, field in (("component_come_here", "pull", "min_distance"),
+                                    ("component_finisher", "final_knockback", "duration")):
+            candidate = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+            effect = next(item for item in next(row for row in candidate["components"] if row["id"] == identity)["effects"]
+                          if item["op"] == op)
+            del effect[field]
+            with self.subTest(op=op, missing=field), self.assertRaises(content.ContentError):
+                schema.validate(candidate)
+
+    def test_phase5_connector_ops_refuse_ineffective_or_misshapen_values(self):
+        author, schema, ids = self.approved_projection_inputs()
+
+        def component_effect(candidate, identity, op):
+            return next(item for item in next(row for row in candidate["components"] if row["id"] == identity)["effects"]
+                        if item["op"] == op)
+
+        def fresh():
+            return content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+
+        def check(candidate):
+            schema.validate(candidate)
+            content.validate_definitions(schema.project(candidate), ids)
+
+        check(fresh())
+        for identity, op, field in (
+            ("component_bottled_up", "stored_force", "ratio"), ("component_bottled_up", "stored_force", "duration"),
+            ("component_wide_open", "control_widen", "ratio"), ("component_wide_open", "control_widen", "duration"),
+            ("component_set_it_off", "zone_detonate", "ratio"),
+        ):
+            for change in ("zero", "missing"):
+                candidate = fresh()
+                effect = component_effect(candidate, identity, op)
+                if change == "zero":
+                    effect[field] = dict(effect[field], value=0)
+                else:
+                    del effect[field]
+                with self.subTest(op=op, field=field, change=change), self.assertRaises(content.ContentError):
+                    check(candidate)
+        # The two field-less connectors take no numbers at all.
+        for identity, op in (("component_move_meeting", "zone_relocate"), ("component_spend_fist", "empower_spend")):
+            candidate = fresh()
+            component_effect(candidate, identity, op)["ratio"] = {"unit": "ratio", "value": 0.5}
+            with self.subTest(op=op), self.assertRaises(content.ContentError):
+                check(candidate)
+        # A connector op is component-only: no active may carry it.
+        projected = schema.project(author)
+        next(row for row in projected["abilities"] if row["id"] == "active_seethe")["effects"].append({"op": "zone_relocate"})
+        with self.assertRaises(content.ContentError):
+            content.validate_definitions(projected, ids)
 
     def test_only_seethe_damage_scales_with_the_casters_max_hp(self):
         scaled = {row["id"] for row in self.data["abilities"] for effect in row["effects"]

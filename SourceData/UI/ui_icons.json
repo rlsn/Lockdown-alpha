@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "folder": "Icons",
-  "provenance": "Wugang icon set delivered 2026-11-09 (Artifacts/Art/WugangIcons/2026-11-09, Lockdown_Wugang_Icons_64px.zip): generated for this project with the built-in imagegen in the approved hand-painted style, 64x64 area-sampled exports of the originals; no third-party art.",
+  "provenance": "Wugang icon set delivered 2026-11-09 (Artifacts/Art/WugangIcons/2026-11-09, Lockdown_Wugang_Icons_64px.zip): generated for this project with the built-in imagegen in the approved hand-painted style, 64x64 area-sampled exports of the originals; no third-party art. Entries with their own provenance field are script-derived variants of listed icons.",
   "icons": [
     {
       "id": "icon_active_account_banned",
@@ -190,6 +190,27 @@
       "height": 64
     },
     {
+      "id": "icon_component_blast_reload",
+      "sha256": "004b3fc0be03d7a147a5647425e7bb30511f72551fb2e74ffba78b9e1b018f4c",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_blast_chase.png in this set (hue +210 deg, white circular reload-arrow glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_boomerang",
+      "sha256": "e6a5fa815e96c8b0b0e3aa8bd74c1db9d39a5c9bb5eaccf45d613e2bf1706d46",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_active_snark_bolt.png in this set (hue +180 deg, white curved return-arrow glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_bottled_up",
+      "sha256": "64b2fb4f8f4b75409da55f58319fbcf2f0b6a387b0a5fb5551c054c42d7c75e4",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_shell_burst.png in this set (hue +150 deg, white sealed-bottle glyph bottom-right); no image generation, no third-party art."
+    },
+    {
       "id": "icon_component_breach_fist",
       "sha256": "789479f2936f2d7a99f096ed31c0f5b91272d8b2b48763b1a76d5965238f76d5",
       "width": 64,
@@ -212,6 +233,20 @@
       "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f",
       "width": 64,
       "height": 64
+    },
+    {
+      "id": "icon_component_clear_head",
+      "sha256": "012664e865aaa8e216fbdc9b1773307f052566abf47bc4a5337a35b54534dd09",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_catch_breath.png in this set (hue +45 deg, white four-point sparkle glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_come_here",
+      "sha256": "d711530a44bf2e25b2089650f6d81e7bcbe3e9226014cdcf19675a40a54d24c2",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_reach_out.png in this set (hue +330 deg, white inward-arrow-to-bar glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_component_control_mana",
@@ -250,6 +285,20 @@
       "height": 64
     },
     {
+      "id": "icon_component_encore",
+      "sha256": "8fe4cd3eb88db3e5b46a9324b806c49b6dc58ab1a8e3959b62e1fd82a0014af1",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_active_calculus_drop.png in this set (hue +270 deg, white double echo-ring glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_finisher",
+      "sha256": "d3803e0cc04bb0406c02ab35906c186087595d258701b2e50ef0eb8b96d56821",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_third_punch.png in this set (hue +30 deg, white exclamation glyph bottom-right); no image generation, no third-party art."
+    },
+    {
       "id": "icon_component_fire_skin",
       "sha256": "72250aef64026afdd796d6dc1de1e4cebb7505266b3aa57e7face1d02b2cb179",
       "width": 64,
@@ -272,6 +321,20 @@
       "sha256": "62b84ebb6dca90aa3acdaa289a7f12d375b32a69e0b6f3aaed62acfa51757d5f",
       "width": 64,
       "height": 64
+    },
+    {
+      "id": "icon_component_group_refund",
+      "sha256": "c6b8441e7640397ebcd7fde62900132271690c2d1382b8f491d5d903baa05a7a",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_control_mana.png in this set (hue +300 deg, white three-ring group glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_guard_up",
+      "sha256": "9eb9c16a51844f1c16c885a66e905605145c7200edd97377e300dce17722595c",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_hard_skin.png in this set (hue +150 deg, white shield-outline glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_component_hard_skin",
@@ -310,10 +373,38 @@
       "height": 64
     },
     {
+      "id": "icon_component_long_handle",
+      "sha256": "e94e62744f29c231bb1d30e85938816d66889484f90cad06c7d50577c8883147",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_long_arm.png in this set (hue +270 deg, white long-arrow glyph bottom-right); no image generation, no third-party art."
+    },
+    {
       "id": "icon_component_long_kick",
       "sha256": "a0dad9bac87e5735e1739baeaf7197f20f78839b95af680aada2666bec553872",
       "width": 64,
       "height": 64
+    },
+    {
+      "id": "icon_component_meet_here",
+      "sha256": "ec055ee3f18a03cfea20ff06647e98bbd045138603a5d08f9f510ec1bf1e1542",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_move_meeting.png in this set (hue +150 deg, white down-arrow-into-ring glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_move_meeting",
+      "sha256": "1ade59dd36658c1e20e6048636c81c7d5ebd6b9aec02555a8394b55d7d629e46",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_zone_tether.png in this set (hue +90 deg, white dot-to-arrow relocation glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_next_up",
+      "sha256": "b1133802d64100844b90ac6fa2b3b819e3662be49fb29e9d98285bd3b36e15dc",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_bump_again.png in this set (hue +60 deg, white double-chevron next glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_component_one_slam",
@@ -370,10 +461,24 @@
       "height": 64
     },
     {
+      "id": "icon_component_run_away",
+      "sha256": "88ae31866bb37ae1ee0f0ac0728f312d99a247cd6f549f84a99ce7dcf5b0baf6",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_quick_hop.png in this set (hue +90 deg, white double-chevron run glyph bottom-right); no image generation, no third-party art."
+    },
+    {
       "id": "icon_component_seeing_red",
       "sha256": "58f3142be46e99ce556302777ad06ab5da118350f33c13b8ca81a8ff0875eb5d",
       "width": 64,
       "height": 64
+    },
+    {
+      "id": "icon_component_set_it_off",
+      "sha256": "a99191bf373a1eb73decbf203ea210efc2f47f443f5e76d3d0cc1047a735055a",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_zone_tether.png in this set (hue +240 deg, white eight-ray burst glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_component_settle_later",
@@ -382,10 +487,38 @@
       "height": 64
     },
     {
+      "id": "icon_component_setup_line",
+      "sha256": "81f692c6d902c7c94e560420b5fb8c25eaf99765a97a87c6b5ca5b2e5a775298",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_pin_punch.png in this set (hue +120 deg, white crosshair mark glyph bottom-right); no image generation, no third-party art."
+    },
+    {
       "id": "icon_component_shell_burst",
       "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf",
       "width": 64,
       "height": 64
+    },
+    {
+      "id": "icon_component_shove_off",
+      "sha256": "b599de2a0c609f22d961d532ae290073ec4471fdef8841f422b71c64e831bc42",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_roll_bump.png in this set (hue +250 deg, white outward-burst glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_skewer",
+      "sha256": "4bf69472c75b2306862d5d844aeb254b177a5ad43cd21a1d857a20e0eb5ea0b4",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_crowd_hit.png in this set (hue +119 deg, white diagonal skewer through two dots); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_spend_fist",
+      "sha256": "2d63b36ce2e4fe3a59de609a1b40e1c56e58a14875bb4d835e1d717411f417f2",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_dash_punch.png in this set (hue +200 deg, white arrow-into-bar handoff glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_component_spiky_hide",
@@ -410,6 +543,20 @@
       "sha256": "2cb26ff2d2066c28ab275d13d9483fa55bac955fad30abb0eb62448973315606",
       "width": 64,
       "height": 64
+    },
+    {
+      "id": "icon_component_wide_open",
+      "sha256": "5d1f82335bd382c96ee2de2d20ae3e92465b05aa1b50d2540d0de951fdf8f835",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_crowd_hit.png in this set (hue +60 deg, white outward double-arrow widen glyph bottom-right); no image generation, no third-party art."
+    },
+    {
+      "id": "icon_component_zone_tether",
+      "sha256": "001fd6892197e16caf05d7582083c6c829359ce24ada73cf07cb741ee5c6d670",
+      "width": 64,
+      "height": 64,
+      "provenance": "Derived 2026-11-13 by a Python/Pillow script from icon_component_hold_down.png in this set (hue +200 deg, white ring-and-tether glyph bottom-right); no image generation, no third-party art."
     },
     {
       "id": "icon_dash",

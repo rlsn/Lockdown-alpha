@@ -33,11 +33,15 @@ struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
 // What one release shares across all of its hits: a mana grant pays once per release, and its B17 amplification is one
-// §10 trigger (at its first positive hit).
+// §10 trigger (at its first positive hit). PaidManaP2 is the mana this release really paid (after M06), B13's refund
+// basis; AlternateAmpBp is B15's amplification locked at release for its native direct damage, one §10 trigger.
 struct FLDCombatCastLedger
 {
     bool bManaGrantPaid=false;
     bool bIdleAmpTriggered=false;
+    int64 PaidManaP2=0;
+    int64 AlternateAmpBp=0;
+    bool bAlternateAmpTriggered=false;
 };
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
@@ -87,6 +91,11 @@ struct FLDCombatActiveTerms
     int64 DashScaleBp=10000;
     int64 CooldownScaleBp=10000;
     TOptional<FLDDemoEffectDefinition> SpreadUnit, SpreadProjectile, CompressCone, CompressZone, CompressChain;
+    // M13-M15: the installed mod that asks for a derived host hit (its component names the ledger trigger).
+    TOptional<FLDPassiveEffectRef> ProjectileReturn, ProjectilePierce, ChainExtra, EchoImpact;
+    // M16-M20 on this active (their effects already scaled by M03 where they move a body).
+    TOptional<FLDPassiveEffectRef> ZoneTether, DefenseShove, FinalKnockback, EmpowerReach, Pull;
+    TOptional<FLDDemoEffectDefinition> FinalKnockbackTerms, PullTerms;
 };
 
 // #198 F C02: a knockback whose source holds C02 on it watches for its first real blocking fact.
@@ -109,13 +118,50 @@ struct FLDCombatControlMark
     int64 ExpiresAtMs=0;
 };
 
-// #198 F: what one original action (its EffectId) already received from a capped connector (C07 mana, C11 heal).
+// #198 F: what one original action (its EffectId) already received from a capped connector (C07 mana, C11 heal;
+// C13/C15 once-per-release cuts, C16 mana with the distinct enemies its native direct hits already struck).
 struct FLDCombatEffectBudget
 {
     FGuid EffectId;
     FName Component;
     int64 SpentP2=0;
     int64 AtMs=0;
+    TArray<FLDCombatBodyRef> Struck;
+};
+
+// C14: a mark one holder's host active left on one target life; a different active's next native direct hit on it
+// takes the bonus and consumes it.
+struct FLDCombatSetupMark
+{
+    FLDCombatBodyRef Target;
+    FName Component;
+    FName Host;
+    int64 ExpiresAtMs=0;
+};
+
+// C18: the host shield being watched (what it really absorbed so far) and the force stored when it ended.
+struct FLDCombatStoredForceWatch
+{
+    FGuid ShieldId;
+    FName Component;
+    FName Host;
+    int64 AbsorbedP2=0;
+};
+struct FLDCombatStoredForce
+{
+    FName Component;
+    FName Host;
+    int64 AmountP2=0;
+    int64 ExpiresAtMs=0;
+};
+
+// C20: the "wide" token a host's hard control gave; a different active's next release consumes it.
+struct FLDCombatWideToken
+{
+    FName Component;
+    FName Host;
+    int64 RatioBp=0;
+    int64 ExpiresAtMs=0;
 };
 
 // #198 F: one body seen at a time (M11: hit by the holder's active directly; C08: hurt the holder).
@@ -245,6 +291,11 @@ struct FLDBodyCombatState
     FLDCombatSharedBreach SharedBreach;
     FLDCombatBurn Burn;
     int64 DamagedShieldReadyAtMs=0;
+    // B16 (triggered_shield AbilityHit): its rest, started only by a granted shield.
+    int64 AbilityHitShieldReadyAtMs=0;
+    // B15 (alternate_amp): the last Q/W/E release of this life (the innate dash is none).
+    FName LastActiveRelease;
+    int64 LastActiveReleaseAtMs=0;
     TArray<FLDCombatSlow> AttackSlows;
     FGuid ChannelEffectId;
     uint64 ChannelDirectSequence=0;
@@ -267,13 +318,21 @@ struct FLDBodyCombatState
     // window, C08's store and the source of the current shield (C10).
     TOptional<FLDCombatKnockbackImpact> PendingImpact;
     TArray<FLDCombatControlMark> ControlMarks;
+    // C14: the setup marks this holder set (one per target life, connector and host).
+    TArray<FLDCombatSetupMark> SetupMarks;
     TArray<FLDCombatEffectBudget> EffectBudgets;
     TArray<FLDCombatBodyMark> DirectHitMarks;
     TArray<FLDCombatBodyMark> RecentAttackers;
     TArray<FLDCombatDebt> Debts;
     int64 FireWindowSumP2=0, FireWindowEndMs=0;
     int64 CounterStoreP2=0, CounterLastAddMs=0, CounterNextFireMs=0;
+    // C08: the latest budgeted root action (a C11 heal's effect) still in the store; unset for unbudgeted heals only.
+    FGuid CounterRootEffectId;
     FLDCombatSourceRef ShieldGrantSource;
+    // C18 (the watched host shield and the stored force) and C20 (the wide token).
+    TOptional<FLDCombatStoredForceWatch> StoredForceWatch;
+    TOptional<FLDCombatStoredForce> StoredForce;
+    TOptional<FLDCombatWideToken> WideToken;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -358,6 +417,8 @@ struct FLDCombatHit
     int64 OnHitScaleBp=0;
     bool bLifesteal=false;
     int64 LifestealRatioBp=0;
+    // B04: the share of this hit's raw package that is its own (not merged empowered packages); lifesteal heals only it.
+    int64 LifestealShareBp=10000;
     // Added damage (dash contact damage): never an on-hit trigger.
     bool bAddedDamage=false;
     // #112 C2 (LDCombatMechanicsDirector.cpp).
@@ -368,6 +429,9 @@ struct FLDCombatHit
     int64 KnockbackMs=0;
     bool bKnockbackFromAnchor=false; // pushed away from KnockbackAnchorCm instead of the source body's foot
     FVector KnockbackAnchorCm=FVector::ZeroVector;
+    // M20: the knockback pulls toward its origin instead and stops KnockbackStopCm (centre to centre) short of it.
+    bool bKnockbackPull=false;
+    double KnockbackStopCm=0;
     // #147 build v7 keyword payload (docs/systems/COMBAT_AND_GROWTH.md).
     int64 SilenceDurationMs=0;
     int32 BreachStacks=0;            // shared breach stacks this hit applies
@@ -393,7 +457,8 @@ struct FLDCombatHit
     FLDCombatSourceRef KnockbackSource;
     bool bDebtPayment=false;
     // Native direct damage of an active (spec §8 主动直接伤害): its damage segment, its zone pulses and the hits copied
-    // from its payload (projectile, cone wave, impact, dash contact). B17 and B18 read it; derived hits never set it.
+    // from its payload (projectile, cone wave, impact, dash contact). B17 and B18 read it; component-added hits never set it.
+    // A derived host hit (a later return, pierce or echo of the same release EffectId) sets it and counts as native.
     bool bDirectAbilityDamage=false;
     bool bDashContactHit=false;
     bool bChannelHit=false;
@@ -408,6 +473,16 @@ struct FLDCombatHit
     FLDCombatSourceRef ComponentElectricSource;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
+
+// "native direct hit" (B13-B16): an ability hit of the host active's own release (its damage, zone pulses, impacts,
+// traps, chain hops, S16's answer and derived host hits sharing the release EffectId). Basics, the innate dash, reactions,
+// burn ticks, settles, debts, reflections and component-added hits are none. The caller checks hostility and damage.
+inline bool IsNativeDirectHit(const FLDCombatHit& Hit)
+{
+    return Hit.HitClass==ELDCombatHitClass::Ability && Hit.bDirectAbilityDamage && Hit.Source.Kind==ELDCombatSourceKind::Learned
+        && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bBurnTick && !Hit.bStatusSettle && !Hit.bLedgerCashOut
+        && !Hit.bDebtPayment && !Hit.bFromShieldTrigger;
+}
 
 struct FLDCombatDashContact
 {
@@ -440,11 +515,15 @@ struct FLDCombatChannel
     int64 NextPulseMs=0, IntervalMs=0;
     int32 Remaining=0;
     int64 FinalSlowBp=0, FinalSlowMs=0;
+    // M18: the final wave knocks every struck enemy away from the channel origin (source: the host).
+    double FinalKnockbackCm=0;
+    int64 FinalKnockbackMs=0;
 };
 
 // #198 F: what a delayed ground blast is. An S18 landing, an S19 detonation and an M07 compressed zone are natural
 // completions C06 answers; C06's own aftershock and an M02 settle never are.
-enum class ELDCombatGroundOrigin : uint8 { Impact, Trap, CompressedZone, Aftershock, Settle };
+// M15's echo is a derived host hit: it never echoes again and C06 never answers it.
+enum class ELDCombatGroundOrigin : uint8 { Impact, Trap, CompressedZone, Aftershock, Settle, Echo };
 
 // An S19 trap is armed from its placement until ExpiresAtMs (placement + its life); a legal enemy inside InnerRadiusCm
 // triggers it (bTriggered) and it blows over RadiusCm at its own point FuseMs later (ReadyAtMs then); an untriggered trap
@@ -459,9 +538,16 @@ struct FLDCombatGroundEffect
     bool bTriggered=false;
     int64 FuseMs=0;
     ELDCombatGroundOrigin Origin=ELDCombatGroundOrigin::Impact;
+    // M15 on the host release (S18 impact, S19 trap): its echo follows this blast.
+    TOptional<FLDPassiveEffectRef> Echo;
+    // Observers key a blast on its release EffectId; an echo, which shares it, carries its own key.
+    FGuid ObservedKey;
+    // C17 (traps only): moved once already; CreatedSerial orders the owner's zones and traps by creation.
+    bool bRelocated=false;
+    uint64 CreatedSerial=0;
 };
 
-// Released straight, non-homing projectile: first legal hostile body or blocking terrain ends it.
+// Released straight, non-homing projectile: first legal hostile body (after M14's extra bodies) or blocking terrain ends it.
 struct FLDCombatProjectile
 {
     // The combat effect this flight delivers.
@@ -485,6 +571,16 @@ struct FLDCombatProjectile
     int64 SlowBp=0, SlowDurationMs=0;
     // #198 F M01: the first contact's damage also lands on the other bodies within this radius of the struck foot.
     double SpreadRadiusCm=0;
+    // M14: after a body the flight goes on for PierceRemaining more distinct bodies, each at PierceScaleBp of the
+    // package with the same slow and controls. M13: where it ends, a return flight starts toward the thrower at
+    // ReturnScaleBp; a return (bReturn) never pierces or returns. Struck holds the bodies this flight already hit.
+    int32 PierceRemaining=0;
+    int64 PierceScaleBp=0, ReturnScaleBp=0;
+    FName PierceComponent, ReturnComponent;
+    bool bReturn=false;
+    TArray<FGuid> Struck;
+    // A return that starts on the body its outbound flight ended on touches that body at its start (it may strike it again).
+    FGuid StartContact;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
 };
@@ -509,6 +605,8 @@ struct FLDCombatZone
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
     int64 SourceADP2=0, SourceAPP2=0;
+    // B07, snapshotted at release and evaluated against each target's state before the pulse.
+    int64 ControlAmpBp=0;
     // #198 B17: the release's locked idle amplification, carried by every damage pulse.
     int64 IdleReadyAmpBp=0;
     // #198 F: the release's workshop package multiplier (M05), carried by every damage pulse.
@@ -529,6 +627,11 @@ struct FLDCombatZone
     FGuid OwnerGroup;
     uint8 OwnerPKSide=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
+    // M16: the centre follows the living source body's foot at every mechanics advance.
+    bool bTether=false;
+    // C17: moved once already (never again); CreatedSerial orders the owner's zones and traps by creation.
+    bool bRelocated=false;
+    uint64 CreatedSerial=0;
 };
 
 // #198 S10: after the first hit, every IntervalMs the nearest not yet struck legal enemy within RadiusCm of the last
@@ -698,9 +801,6 @@ public:
     bool SnapshotOnHit(const FLDBodyCombatState& Source, int64 ScaleBp, FLDCombatHit& InOut, FString& Error) const;
     // Source-side terms every hit of this body carries: the control amplification (B07).
     bool StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
-    // A separate damage instance riding on Primary (added damage) with no damage terms yet: never a crit, control,
-    // keyword stack or on-hit trigger.
-    static FLDCombatHit AddedHit(const FLDCombatHit& Primary);
     // #198 build safe window: Entity's latest combat action happened at NowMs (an accepted basic windup, a released
     // offensive skill, hostile positive damage dealt or taken, a hard control or knockback received). Contenders only.
     void MarkBuildUnsafe(const FGuid& Entity, int64 NowMs);
@@ -861,8 +961,9 @@ private:
     // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
     bool RefreshTaunts(FString& Error);
     // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body.
+    // Landed (optional) receives every body the taunt actually landed on (M20 pulls them).
     bool ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-        const FGuid& EffectId, const FLDCombatSourceRef& Source, FString& Error);
+        const FGuid& EffectId, const FLDCombatSourceRef& Source, FString& Error, TArray<FLDCombatBodyRef>* Landed=nullptr);
     // Spray interruption (APP_SPEC 2.2): called once for every root, stun, taunt or knockback committed on a body,
     // inside the current Actions/Effects permit. A contender body's spray progress clears through the capture domain;
     // camp bodies and a world without an active spray reducer are untouched. Disarm, slow and damage never call it.
@@ -908,6 +1009,11 @@ private:
     // #198 B17: the idle amplification a release of the learned active on Track takes now (0 when none is held or the active
     // has not stood ready for the effect's DelayMs).
     bool IdleReadyAmpBp(const FLDBodyCombatState& Body, const FLDCombatTrack& Track, int64 NowMs, int64& OutBp, FString& Error) const;
+    // B15: the amplification a release of Source takes now (a learned active other than the body's previous Q/W/E
+    // release, within the effect's DurationMs of it; 0 otherwise).
+    bool AlternateAmpBp(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs, int64& OutBp, FString& Error) const;
+    // Records a paid release of Source as the body's previous Q/W/E release (the innate dash is none).
+    static void NoteActiveRelease(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs);
     // #198 B12: voluntary dashes that ended by NowMs; one that completed with a real displacement arms every held
     // DashComplete empower_basic (values snapshotted now).
     bool ResolveDashCompletions(int64 NowMs, FString& Error);
@@ -925,13 +1031,30 @@ private:
     // ---- #112 C2 mechanics (LDCombatMechanicsDirector.cpp).
     // A one-time heal of Body (lifesteal, C11, charms); regeneration never passes here. A live S21 grievous cuts it first. #198 F:
     // M12 debts are repaid first, the rest heals; HealSource (when set) feeds the C08 installed on it with the real heal plus
-    // repayment. True when HP or a debt changed; OutApplied (optional) is healed plus repaid.
+    // repayment. True when HP or a debt changed; OutApplied (optional) is healed plus repaid. RootEffectId (when set) is the
+    // action whose budgeted heal (C11) fed that store: the C08 counter it fires keeps it, so C11 cannot reopen that budget.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
-        int64* OutApplied=nullptr);
+        int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid());
     // The single shield entry: a live S21 grievous cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
     // records its amount (ShieldGrantedP2) and its granting source (#198 F C10).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error, const FLDCombatSourceRef& GrantSource=FLDCombatSourceRef());
+    // M17: every legal enemy within the shove's radius of HolderFoot is pushed away from it (a knockback of Host).
+    bool ShoveAround(const FLDBodyCombatState& Holder, const FVector& HolderFoot, const FLDCombatSourceRef& Host,
+        const FLDPassiveEffectRef& Shove, FString& Error);
+    // C17: a completed dash of a host moves the body's most recent live untethered zone or armed trap to Foot (once).
+    bool RelocateArea(FLDBodyCombatState& Body, const FLDCombatSourceRef& Host, const FVector& Foot, int64 NowMs, FString& Error);
+    // C18: settle the watched host shield once it is gone or replaced (StoreForce: a share of what it absorbed, or of
+    // an S16 record, replacing the old store).
+    bool SettleStoredForce(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    bool StoreForce(FLDBodyCombatState& Body, const FLDPassiveEffectRef& Ref, int64 RecordedP2, int64 NowMs, FString& Error);
+    // C18/C19/C21 on a native direct hit of Hit.Source: the store or another host's package spent on the target, and
+    // the host's detonation of the zone the target stands in.
+    bool SpendOnNativeHit(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    bool DetonateZone(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // C20: the live wide token of another host scales this release's area terms (consumed by the release).
+    bool WidenTerms(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, FLDCombatActiveTerms& Terms, int64 NowMs,
+        bool& bWidened, FString& Error) const;
     // A shield emptied by Hit: item_privacy_screen's retort to the breaker.
     bool OnShieldBroken(FLDBodyCombatState& Owner, const FLDCombatHit& Hit, int64 GrantedP2, int64 NowMs, FString& Error);
     // The forced displacement of one committed knockback (control kind Knockback): server root motion along the ground
@@ -965,6 +1088,9 @@ private:
     bool AdvanceBurns(int64 NowMs, FString& Error);
     // The damage-triggered shield of Body after it took hostile positive damage (B09: the rest starts only on a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    // B13 and B16 on a hostile native direct hit of Source that dealt positive damage (IsNativeDirectHit): the release's
+    // mana refund (once per release EffectId) and the ability-hit shield (its rest starts only on a granted shield).
+    bool OnNativeDirectHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // ---- #198 elements, reactions and the element actives (LDCombatElementsDirector.cpp).
@@ -991,7 +1117,7 @@ private:
     void OnReactionCompleted(const FLDCombatReactionFact& Fact);
     // S16: Body's new stance (a newer one replaces the old record without its answer).
     bool ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
-        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error);
+        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger=nullptr);
     // S10: the bounces after the first struck body.
     bool StartChain(const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& FirstFoot,
         const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error);
@@ -1028,8 +1154,25 @@ private:
     // C06: a natural completion of Exit (zone end, trap detonation, impact landing, compressed blast) at Centre/Radius.
     bool TriggerAftershock(const FLDCombatBodyRef& Owner, const FLDCombatSourceRef& Exit, const FGuid& EffectId,
         const FVector& Centre, double RadiusCm, int64 NowMs, FString& Error);
+    // M15: the release's echo blast (a derived host hit) at Centre after the mod's delay, at its share of Blast's payload;
+    // Blast gives the outline. No echo when the holder is gone or about to die.
+    bool ScheduleEcho(const FLDCombatBodyRef& Owner, const FLDPassiveEffectRef& Echo, const FLDCombatGroundEffect& Blast,
+        int64 NowMs, FString& Error);
+    // M13: a return flight from where Outbound ended toward its living thrower's foot now.
+    bool LaunchReturn(const FLDCombatProjectile& Outbound, const FVector& EndCm, const FGuid& EndBody, FString& Error);
     // C09: a completed reaction whose trigger source carries the connector arms one empowered-basic package of it.
     bool ArmReactionEmpower(const FLDCombatReactionFact& Fact, int64 NowMs, FString& Error);
+    // C15: a completed reaction triggered by a host active cuts that active's remaining cooldown, once per release.
+    bool ReactionHaste(const FLDCombatReactionFact& Fact, int64 NowMs, FString& Error);
+    // C13: the host release's first native direct hit or the hosted dash's first contact cuts every other learned
+    // active's remaining cooldown, once per release EffectId.
+    bool HasteOtherActives(FLDBodyCombatState& Holder, const FLDCombatSourceRef& Host, const FGuid& EffectId, int64 NowMs,
+        FString& Error);
+    // C14/C16 on a host's native direct hit: set the setup mark; count a distinct enemy for the release's mana.
+    bool OnHostDirectHit(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // C14: the bonus of the holder's setup marks on Target that a different active's native direct hit takes now.
+    bool SetupMarkBonus(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 NowMs, int64& OutBp,
+        TArray<FLDCombatSetupMark>& OutTaken, FString& Error) const;
     // C05/C07 after a hard control actually landed on Victim (CommitControl).
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // C02: arms the knockback watch of a committed push when its source holds C02 on the push's exit.
@@ -1044,8 +1187,10 @@ private:
         const FLDDamageEvaluation& Damage, bool bShieldBroken, int64 ShieldGrantedP2, int64 NowMs, FString& Error);
     // An automatic single counter (B03 thorns, C08) of Holder through its exit's mods (M01 area, M02 delayed blast,
     // M05 reach, M11 marked target): Default is the original target (may be unset for C08, which chooses its own).
+    // RootEffectId (may be unset: a new effect) is the effect the counter continues (C08 fed by a C11 heal, spec §13.3).
     bool DeliverCounter(FLDBodyCombatState& Holder, const FLDCombatSourceRef& Exit, const FLDCombatBodyRef& Default,
-        int64 BaseP2, ELDDemoDamageType DamageType, double ReachCm, int64 NowMs, bool& bDelivered, FString& Error);
+        int64 BaseP2, ELDDemoDamageType DamageType, double ReachCm, const FGuid& RootEffectId, int64 NowMs, bool& bDelivered,
+        FString& Error);
     // A full B02 batch of Owner on Target: M01 spreads it, M02 locks it; otherwise one hit now.
     bool CashOutLedger(const FLDBodyCombatState& Owner, const FLDCombatBodyRef& Target, const FLDCombatSourceRef& Source,
         int64 AmountP2, ELDDemoDamageType DamageType, int64 NowMs, FString& Error);
@@ -1116,6 +1261,8 @@ private:
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
     TArray<FLDCombatGroundEffect> GroundEffects;
+    // C17: creation order of zones and traps (most recent first when one is relocated).
+    uint64 NextAreaSerial=0;
     // #198 F M02: locked ledger batches waiting for their delayed cash-out.
     TArray<FLDCombatLockedLedger> LockedLedgers;
     // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.
