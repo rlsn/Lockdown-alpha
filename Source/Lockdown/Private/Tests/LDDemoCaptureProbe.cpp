@@ -90,7 +90,7 @@ public:
         Report->SetBoolField(TEXT("passed"), bPassed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
-        Report->SetStringField(TEXT("scope"), TEXT("Normal three-field timeline, three owning connections plus three production AI, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not FIN selection, graphical quality or exhaustive respawn/cutoff choreography."));
+        Report->SetStringField(TEXT("scope"), TEXT("Normal three-field timeline, three owning connections plus three production AI, final-rest active selection and build lock for each owner, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography."));
         Report->SetArrayField(TEXT("checks"), Checks);
         Report->SetObjectField(TEXT("summary"), Summary);
         bWritten = Save(Report, Role + TEXT(".json"));
@@ -205,22 +205,35 @@ public:
         if (View.Timeline.Stage == ELDMatchStage::Field && View.Timeline.FieldSegment < 3)
         { FieldMask |= uint8(1u << View.Timeline.FieldSegment); }
         if (View.Phase == ELDMatchPhase::Rest && View.Timeline.RestIndex == 3) { bFinalRestSeen = true; }
-        if (View.Phase == ELDMatchPhase::Rest && PC->OwnerState.bCanRestReady && !PC->OwnerState.bRestReady && bInput)
-        { PC->SubmitRestReady(true); NextInputAt = Local + 2.; }
-
         const auto* Growth = PC->ReadOwnProgression();
-        // Phase 9: the final rest opens the final mod three-choice; each owner takes it through the growth panel like a click.
+        ULDChoicesPanel* Panel = PC->HUDUI ? PC->HUDUI->ChoicesPanel.Get() : nullptr;
+        if (View.Phase == ELDMatchPhase::Rest && Growth && Growth->Generation == Generation && Growth->bHasActiveOffer
+            && bInput && Panel)
+        {
+            if (Panel->ChooseOffer(0)) { NextInputAt = Local + 1.; }
+        }
         if (View.Phase == ELDMatchPhase::Rest && View.Timeline.RestIndex == 3 && Growth && Growth->Generation == Generation
             && Growth->bFinalModPending && Growth->FinalModOptions.Num() == 3)
         {
             bFinalModOffered = true;
-            ULDChoicesPanel* Panel = PC->HUDUI ? PC->HUDUI->ChoicesPanel.Get() : nullptr;
             if (!bFinalModSent && bInput && Panel && !Growth->bHasActiveOffer)
             {
-                bFinalModSent = Panel->ChooseFinalMod(Role == TEXT("Host") ? 0 : 1);
+                for (int32 Index = 0; Index < Growth->FinalModOptions.Num(); ++Index)
+                {
+                    const FName Option = Growth->FinalModOptions[Index];
+                    if (!Growth->PendingBlueprints.Contains(Option) && !Growth->Actives.ContainsByPredicate(
+                        [Option](const FLDActiveSlotView& Active) { return Active.DefinitionId == Option; }))
+                    {
+                        bFinalModSent = Panel->ChooseFinalMod(Index);
+                        break;
+                    }
+                }
                 NextInputAt = Local + 1.;
             }
         }
+        if (View.Phase == ELDMatchPhase::Rest && PC->OwnerState.bCanRestReady && !PC->OwnerState.bRestReady && bInput
+            && (View.Timeline.RestIndex != 3 || (Growth && Growth->bBuildLocked && !Growth->FinalModChosen.IsNone())))
+        { PC->SubmitRestReady(true); NextInputAt = Local + 2.; }
         if (View.Showdown.bStarted && !bFinalSeen && PC->OwnerState.Match == Generation
             && PC->OwnerState.LifePhase == ELDLifePhase::Alive && Growth && Growth->Generation == Generation)
         {
@@ -229,10 +242,10 @@ public:
                 > FMath::Square(View.Showdown.InitialRadiusCm)) { return true; }
             Check(bOpeningSeen && FieldMask == 7 && bFinalRestSeen && View.Timeline.Stage == ELDMatchStage::FinalField,
                 TEXT("C04"), TEXT("Three normal growth fields and final rest precede final-field entry"));
-            Check(bFinalModOffered && Growth->bBuildLocked && !Growth->bFinalModPending
-                && (!bFinalModSent || (!Growth->FinalModChosen.IsNone() && Growth->Actives.ContainsByPredicate(
-                    [Growth](const FLDActiveSlotView& Active) { return Active.DefinitionId == Growth->FinalModChosen && Active.Slot == Growth->FinalModSlot; }))),
-                TEXT("C04F"), TEXT("The final rest offered three final mods; the taken one sits in its slot and the build is locked"));
+            Check(bFinalModOffered && bFinalModSent && Growth->bBuildLocked && !Growth->bFinalModPending
+                && !Growth->FinalModChosen.IsNone() && Growth->Actives.ContainsByPredicate(
+                    [Growth](const FLDActiveSlotView& Active) { return Active.DefinitionId == Growth->FinalModChosen && Active.Slot == Growth->FinalModSlot; }),
+                TEXT("C04F"), TEXT("The owner chose a final-rest active into its slot and the build is locked"));
             TSharedPtr<const FLDDemoContentSnapshot> Content;
             FLDShowdownParameters Settings;
             const bool bConfigured=LDDemoEntry::LoadRuntimeContent(Content,Error)

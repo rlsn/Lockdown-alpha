@@ -20,8 +20,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
-    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','A01','A02')
-    Client1 = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13')
+    Host = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13','A01','A02')
+    Client1 = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
 # The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the
@@ -108,7 +108,7 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
-    Write-Host ("Normal-start six-contender showdown passed: three real owners plus three production AI, three growth fields and final rest, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {0} ({1}/{2}/{3} required checks). Not FIN selection, graphical quality or exhaustive respawn choreography. Evidence: {4}" -f
+    Write-Host ("Normal-start six-contender showdown passed: three real owners plus three production AI, three growth fields and final rest, owner final-rest active choice and lock, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {0} ({1}/{2}/{3} required checks). Not distinct FIN effects, graphical quality or exhaustive respawn choreography. Evidence: {4}" -f
         $reports[0].summary.second_generation,$requiredChecks.Host.Count,$requiredChecks.Client1.Count,$requiredChecks.Client2.Count,$output)
 }
 finally {
