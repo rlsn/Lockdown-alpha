@@ -1179,18 +1179,20 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Each line leaves after its five seconds"),Feed.Lines().Num()==2&&Feed.Lines()[0].Text==LDTerms::AirdropOwnClaim());
     In.LocalSeconds=110;Feed.Observe(In);
     TestTrue(TEXT("All lines are gone once their time is up"),Feed.Lines().IsEmpty());
-    // The owner's guard frozen by a challenger drops to zero when he leaves the zone; only that drop is told.
+    // Contest and leaving pause the current owner's guard; only a new owner resets it.
     Public.CircleState=ELDCircleState::Contested;Public.GuardKeptMs=4000;In.LocalSeconds=111;Feed.Observe(In);
     TestTrue(TEXT("A guard freezing is no event line"),Feed.Lines().IsEmpty());
-    Public.CircleState=ELDCircleState::Solo;Public.GuardKeptMs=0;In.LocalSeconds=112;Feed.Observe(In);
-    TestTrue(TEXT("A frozen guard dropping to zero tells that its owner left the zone"),
-        Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::GuardReset&&!Feed.Lines()[0].bSelf);
+    Public.CircleState=ELDCircleState::Solo;In.LocalSeconds=112;Feed.Observe(In);
+    TestTrue(TEXT("Leaving a frozen guard does not announce a reset"),Feed.Lines().IsEmpty());
     In.LocalSeconds=113;Feed.Observe(In);
-    TestEqual(TEXT("A guard reset is told once"),Feed.Lines().Num(),1);
+    TestEqual(TEXT("An unchanged paused guard tells nothing"),Feed.Lines().Num(),0);
     Public.CircleState=ELDCircleState::Guarded;Public.GuardDueAtMs=50000;In.LocalSeconds=114;Feed.Observe(In);
-    TestEqual(TEXT("A guard that runs again tells nothing"),Feed.Lines().Num(),1);
-    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=0;Public.GuardKeptMs=1500;In.LocalSeconds=114.5;Feed.Observe(In);
-    TestEqual(TEXT("A guard paused by its owner leaving the empty zone is no reset line"),Feed.Lines().Num(),1);
+    TestEqual(TEXT("A guard that runs again tells nothing"),Feed.Lines().Num(),0);
+    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=0;Public.GuardKeptMs=4500;In.LocalSeconds=114.5;Feed.Observe(In);
+    TestEqual(TEXT("A guard paused by its owner leaving the empty zone is no reset line"),Feed.Lines().Num(),0);
+    Public.GraffitiOwner=Self;Public.GuardKeptMs=0;In.LocalSeconds=115;Feed.Observe(In);
+    TestTrue(TEXT("A successful repaint announces the new owner once"),
+        Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::GraffitiSprayed(TEXT("你"))&&Feed.Lines()[0].bSelf);
     // A new match starts empty and does not tell the state it opens with.
     Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();Public.GuardDueAtMs=0;Public.GuardKeptMs=0;In.LocalSeconds=120;Feed.Observe(In);
     TestTrue(TEXT("A new match starts with an empty feed"),Feed.Lines().IsEmpty());

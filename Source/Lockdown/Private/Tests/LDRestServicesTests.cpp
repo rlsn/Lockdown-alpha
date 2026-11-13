@@ -664,11 +664,13 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
         return LDProgression::ApplyFinalMod(Content, Build, Progression, Id, Option, Slot, Context, Out, OutProgression, Forgotten,
             Reclaimed);
     };
-    const auto Refused = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected)
+    const auto Refused = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected, const FLDProgressionState& Before)
     {
         bool bOk = RestTestReason(*this, What, Actual, Expected);
         bOk &= TestTrue(FString::Printf(TEXT("%s changes nothing"), What), Out.Actives.Num() == Build.Actives.Num()
-            && Forgotten.IsNone() && Reclaimed.IsEmpty() && !OutProgression.FinalMod.bLocked && OutProgression.FinalMod.Chosen.IsNone());
+            && Forgotten.IsNone() && Reclaimed.IsEmpty() && OutProgression.FinalMod.OfferId == Before.FinalMod.OfferId
+            && OutProgression.FinalMod.Options == Before.FinalMod.Options && OutProgression.FinalMod.bLocked == Before.FinalMod.bLocked
+            && OutProgression.FinalMod.Chosen == Before.FinalMod.Chosen && OutProgression.FinalMod.Slot == Before.FinalMod.Slot);
         return bOk;
     };
 
@@ -691,26 +693,27 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
         && Out.Actives.Num() == 2 && OutProgression.FinalMod.bLocked);
 
     // ---- Every other attempt is refused with nothing changed ----
-    bGood &= Refused(TEXT("Taking it again once locked"), Take(Taken, Open.FinalMod.OfferId, Options[2], 0, Rest), ELDGrowthReason::FinalLocked);
+    bGood &= Refused(TEXT("Taking it again once locked"), Take(Taken, Open.FinalMod.OfferId, Options[2], 0, Rest), ELDGrowthReason::FinalLocked, Taken);
     bGood &= Refused(TEXT("Taking it while builds are locked"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Locked),
-        ELDGrowthReason::BuildLocked);
-    bGood &= Refused(TEXT("Taking it on the field"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Field), ELDGrowthReason::NotRestWindow);
-    bGood &= Refused(TEXT("Taking it while dead"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Dead), ELDGrowthReason::Dead);
-    bGood &= Refused(TEXT("Taking another final mod id"), Take(Open, FGuid(0xF1, 0, 0, 2), Options[0], 0, Rest), ELDGrowthReason::NoFinalMod);
-    bGood &= Refused(TEXT("Taking it before it opened"), Take(RestTestSettled(600), Open.FinalMod.OfferId, Options[0], 0, Rest),
-        ELDGrowthReason::NoFinalMod);
-    bGood &= Refused(TEXT("Taking an active outside the options"), Take(Open, Open.FinalMod.OfferId, D, 0, Rest), ELDGrowthReason::InvalidOption);
+        ELDGrowthReason::BuildLocked, Open);
+    bGood &= Refused(TEXT("Taking it on the field"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Field), ELDGrowthReason::NotRestWindow, Open);
+    bGood &= Refused(TEXT("Taking it while dead"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Dead), ELDGrowthReason::Dead, Open);
+    bGood &= Refused(TEXT("Taking another final mod id"), Take(Open, FGuid(0xF1, 0, 0, 2), Options[0], 0, Rest), ELDGrowthReason::NoFinalMod, Open);
+    const FLDProgressionState BeforeOpen = RestTestSettled(600);
+    bGood &= Refused(TEXT("Taking it before it opened"), Take(BeforeOpen, Open.FinalMod.OfferId, Options[0], 0, Rest),
+        ELDGrowthReason::NoFinalMod, BeforeOpen);
+    bGood &= Refused(TEXT("Taking an active outside the options"), Take(Open, Open.FinalMod.OfferId, D, 0, Rest), ELDGrowthReason::InvalidOption, Open);
     bGood &= Refused(TEXT("Taking it into a slot past E"), Take(Open, Open.FinalMod.OfferId, Options[0], 3, Rest),
-        ELDGrowthReason::InvalidRequest);
+        ELDGrowthReason::InvalidRequest, Open);
     FLDProgressionState Held = Open;
     Held.FinalMod.Options[0] = D;
     bGood &= Refused(TEXT("Taking an option the build already holds"), Take(Held, Open.FinalMod.OfferId, D, 0, Rest),
-        ELDGrowthReason::FinalModUnavailable);
+        ELDGrowthReason::FinalModUnavailable, Held);
     FLDProgressionState Offered = Open;
     Offered.ActiveEarned = 2;
     Offered.Offer.Emplace(RestTestOffer(2, {Later[0], Later[1], Later[2]}));
     bGood &= Refused(TEXT("Taking it while an active offer is outstanding"), Take(Offered, Open.FinalMod.OfferId, Options[0], 0, Rest),
-        ELDGrowthReason::OfferOutstanding);
+        ELDGrowthReason::OfferOutstanding, Offered);
     bGood &= TestEqual(TEXT("The final mod gate refuses a locked rest"),
         LDGrowthWire::ReasonName(LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Locked)),
         LDGrowthWire::ReasonName(ELDGrowthReason::BuildLocked));
