@@ -33,6 +33,15 @@ class SavedSceneExportTests(unittest.TestCase):
         from ApplyDemoMapEdits import _json
         return _json(value).encode()
 
+    def legacy_world(self):
+        source = copy.deepcopy(self.source)
+        source['schema_version'] = 3
+        source['projection_revision'] = 3
+        source['anchors'] = [row for row in source['anchors'] if row['id'] not in {
+            *(f'final_spawn_{slot}' for slot in range(6)), 'final_capture'
+        }]
+        return b'\r\n' + self.raw(source) + b'\r\n'
+
     def test_unchanged_export_preserves_every_byte(self):
         self.assertEqual(build_candidate(self.original, self.raw(self.export())), self.original)
 
@@ -78,7 +87,8 @@ class SavedSceneExportTests(unittest.TestCase):
             build_candidate(self.original, self.raw(export))
 
     def test_final_arena_anchors_are_added_from_saved_layout(self):
-        export = self.export()
+        original = self.legacy_world()
+        export = self.export(original)
         centre = (13000, 0)
         ring = ((1550, 0), (775, 1342), (-775, 1342), (-1550, 0), (-775, -1342), (775, -1342))
         for slot, (dx, dy) in enumerate(ring):
@@ -91,25 +101,26 @@ class SavedSceneExportTests(unittest.TestCase):
             'position_cm': {'x': centre[0], 'y': centre[1], 'z': 0}, 'members': [],
         })
 
-        raw = build_candidate(self.original, self.raw(export))
+        raw = build_candidate(original, self.raw(export))
         updated = content.parse_json(raw, 'result')
 
         self.assertEqual(updated['schema_version'], 4)
         self.assertEqual(updated['projection_revision'], 4)
-        self.assertEqual(raw.count(b'\r\n'), self.original.count(b'\r\n') + 7)
+        self.assertEqual(raw.count(b'\r\n'), original.count(b'\r\n') + 7)
         final_anchors = [row for row in updated['anchors'] if row['id'].startswith('final_')]
         self.assertEqual([row['id'] for row in final_anchors],
                          [*(f'final_spawn_{slot}' for slot in range(6)), 'final_capture'])
         self.assertEqual(final_anchors[-1]['position_cm'], {'x': 13000, 'y': 0, 'z': 0})
 
     def test_partial_final_anchor_set_is_rejected(self):
-        export = self.export()
+        original = self.legacy_world()
+        export = self.export(original)
         export['anchors'].append({
             'id': 'final_spawn_0', 'kind': 'FinalSpawn', 'surface_id': 'demo_ground',
             'position_cm': {'x': 14550, 'y': 0, 'z': 0}, 'members': [],
         })
         with self.assertRaisesRegex(ValueError, 'complete final-arena anchor set'):
-            build_candidate(self.original, self.raw(export))
+            build_candidate(original, self.raw(export))
 
     def test_copied_tree_can_have_a_fresh_identity(self):
         export = self.export()
