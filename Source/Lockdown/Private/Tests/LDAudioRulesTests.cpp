@@ -139,8 +139,8 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=7;Combat.ShieldP2=500;Combat.Statuses[0].AmountP2=500;Combat.AsOfMs=5550;Combat.Cues.LastHitAtMs=5550;Frame.LocalSeconds=5.1;
     TestTrue(TEXT("Shield hits share the hit repeat limit"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Revision=8;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.HPP2=36000;Combat.AsOfMs=6000;
-    Combat.Cues.LastHitAtMs=6000;Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Frame.LocalSeconds=6;
-    TestTrue(TEXT("A hit that breaks the shield and costs points sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
+    Combat.Cues.LastHitAtMs=6000;Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Frame.LocalSeconds=5.15;
+    TestTrue(TEXT("A shield break sounds distinctly even immediately after a shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldBreak}));
     ++Combat.Revision;Frame.LocalSeconds=6.5;
     TestTrue(TEXT("A republished shield hit does not sound again"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Revision=10;Combat.ShieldP2=2000;Shield.AmountP2=2000;Shield.ExpiresAtMs=7000;Combat.Statuses={Shield};Combat.AsOfMs=6500;Frame.LocalSeconds=7;
@@ -154,7 +154,22 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=14;Combat.ShieldP2=2000;Combat.Statuses={Shield};Combat.AsOfMs=7700;AudioSample(Tracker,Frame);
     Combat.Revision=15;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7800;Combat.Cues.LastHitAtMs=7800;
     Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Frame.LocalSeconds=10;
-    TestTrue(TEXT("A shield broken before its end by a hit sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
+    TestTrue(TEXT("A shield broken before its end by a hit sounds the break"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldBreak}));
+
+    {
+        FLDAudioCueTracker Rapid;
+        FLDCombatOwnerView Hit;Hit.Generation=5;Hit.Life=1;Hit.bHasBody=true;Hit.Revision=1;Hit.HPP2=Hit.MaxHPP2=50000;
+        FLDAudioFrame Sample;Sample.OwnMatch=5;Sample.OwnLife=1;Sample.OwnLifePhase=ELDLifePhase::Alive;
+        Sample.OwnCombat=&Hit;Sample.LocalSeconds=1;
+        AudioSample(Rapid,Sample);
+        Hit.Revision=2;Hit.AsOfMs=1100;Hit.Cues.LastHitAtMs=1100;
+        Hit.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Sample.LocalSeconds=1.1;
+        TestTrue(TEXT("The first break sounds"),AudioIs(AudioSample(Rapid,Sample),{ELDAudioCue::SelfShieldBreak}));
+        Hit.Revision=3;Hit.AsOfMs=1150;Hit.Cues.LastHitAtMs=1150;Sample.LocalSeconds=1.15;
+        TestTrue(TEXT("Repeated breaks within the break limit stay silent"),AudioSample(Rapid,Sample).IsEmpty());
+        Hit.Revision=4;Hit.AsOfMs=1400;Hit.Cues.LastHitAtMs=1400;Sample.LocalSeconds=1.4;
+        TestTrue(TEXT("A later break sounds again"),AudioIs(AudioSample(Rapid,Sample),{ELDAudioCue::SelfShieldBreak}));
+    }
 
     // The own basic attack: each newer basic release in the owner projection's cue facts sounds once.
     Combat.Revision=16;Combat.Cues.ReleasedStartedAtMs=7700;Combat.Cues.ReleasedAtMs=8000;Combat.AsOfMs=8000;Frame.LocalSeconds=10.5;
@@ -302,7 +317,8 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
     TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::SelfAttack),uint8(17));
     TestEqual(TEXT("The level-up cue keeps its number past the retired shop trade cues"),uint8(ELDAudioCue::LevelUp),uint8(12));
-    TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11)));
+    TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11))
+        &&!LDAudio::IsPlayableCue(ELDAudioCue(18))&&!LDAudio::IsPlayableCue(ELDAudioCue(19)));
     for(int32 Index=0;Index<LDAudio::CueCount;++Index)
     {
         const ELDAudioCue Cue=LDAudio::PlayableCue(Index);

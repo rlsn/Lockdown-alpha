@@ -160,11 +160,20 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
             const bool bNewHit = Facts.LastHitAtMs > HitSeenAtMs && Facts.LastHitAtMs <= Combat->AsOfMs;
             const bool bAbsorbed = bNewHit && (Facts.LastHitFlags & LDObservation::ShieldAbsorbed);
-            if ((bLost || bAbsorbed) && Combat->HPP2 > 0 && Frame.OwnLifePhase == ELDLifePhase::Alive
-                && Frame.LocalSeconds - LastHitAt >= HitRepeatSeconds)
+            const bool bBroken = bAbsorbed && (Facts.LastHitFlags & LDObservation::ShieldBroken);
+            if ((bLost || bAbsorbed) && Combat->HPP2 > 0 && Frame.OwnLifePhase == ELDLifePhase::Alive)
             {
-                LDAudio::AddUnique(Out, bAbsorbed ? ELDAudioCue::SelfShieldHit : ELDAudioCue::SelfHit);
-                LastHitAt = Frame.LocalSeconds;
+                if (bBroken && Frame.LocalSeconds - LastShieldBreakAt >= HitRepeatSeconds)
+                {
+                    LDAudio::AddUnique(Out, ELDAudioCue::SelfShieldBreak);
+                    LastShieldBreakAt = Frame.LocalSeconds;
+                    LastHitAt = Frame.LocalSeconds;
+                }
+                else if (!bBroken && Frame.LocalSeconds - LastHitAt >= HitRepeatSeconds)
+                {
+                    LDAudio::AddUnique(Out, bAbsorbed ? ELDAudioCue::SelfShieldHit : ELDAudioCue::SelfHit);
+                    LastHitAt = Frame.LocalSeconds;
+                }
             }
             if (bNewHit) { HitSeenAtMs = Facts.LastHitAtMs; }
             HitRevision = Combat->Revision;

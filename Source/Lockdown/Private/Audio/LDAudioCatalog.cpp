@@ -12,7 +12,7 @@ namespace
         TEXT("None"), TEXT("KillNotice"), TEXT("CaptureOpened"), TEXT("CaptureStarted"), TEXT("CaptureContested"),
         TEXT("MatchVictory"), TEXT("MatchDefeat"), TEXT("MatchEndedNoWinner"), TEXT("SelfHit"), TEXT("SelfCast"),
         nullptr, nullptr, TEXT("LevelUp"), TEXT("SelfDeath"), TEXT("SelfRespawn"),
-        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack")
+        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack"), nullptr, nullptr, TEXT("SelfShieldBreak")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
 
