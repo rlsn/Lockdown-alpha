@@ -250,7 +250,7 @@ Combat 的 `ProjectBuild` 对主动、被动等级与属性卡合计做同一上
 | Armor/MR | `STAT.Armor/MagicResist.Base/PerLevel`；`FORMULA.Resistance` | 抗性点；每次 Hit 取目标当前值，不能混用旧比率和新抗性点。 |
 | AS/攻击间隔/前摇 | `STAT.BaseAttackSpeed/AttackSpeedPerLevelRatio`；`FORMULA.AttackSpeed/AttackIntervalMs/AttackWindupMs` | AS 为次/秒；时长输出毫秒；在合法 AttackStart 快照，不默认缩短所有能力前摇。 |
 | MS | `UNIT.MoveSpeedCmPerSec` 与合法属性贡献；`FORMULA.MoveSpeed → STAT.MoveSpeedCmPerSec` | 厘米/秒；最终值接现有 CharacterMovement，导航不再计算一份速度。 |
-| 攻击距离 | `UNIT.BasicAttackRangeCm`、`CHOICE.attr_hand_out.AttackRangeCmFlat` 等属性卡/开局卡贡献；`FORMULA.AttackRange → STAT.AttackRangeCm` | 厘米；脚点 XY 中心距，不增减胶囊。FindApproach、AttackStart、预览同源；只限制普攻开始，出手（Release）时不再检查距离（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”），目标那条生命仍在（未死、未离局、未换命）、仍可观察且视线无遮挡即命中（2026-11-07 后续用户决定 "let's add back the visibility and line of sight check"，恢复 2026-11-06 的可见/视线要求）；不等于能力 Range 或群攻 Radius。 |
+| 攻击距离 | `UNIT.BasicAttackRangeCm`、`CHOICE.attr_hand_out.AttackRangeCmFlat` 等属性卡/开局卡贡献；`FORMULA.AttackRange → STAT.AttackRangeCm` | 厘米；脚点 XY 中心距，不增减胶囊。FindApproach、AttackStart、预览同源；只限制普攻开始，出手（Release）时不再检查距离，目标那条生命仍在（未死、未离局、未换命）、仍可观察且视线无遮挡即命中；不等于能力 Range 或群攻 Radius。 |
 | 最大 HP/MP | `STAT.MaxHP/MaxMP.Base/PerLevel`；`FORMULA.StatProjection` | P2 点；构筑属性，不是当前资源；一次最终变更调用 `FORMULA.ResourceMaxChange`。 |
 | 当前 HP/MP | `FORMULA.Damage/Regen/ResourceMaxChange` 及已批准效果/成本 | Combat 唯一 P2 真值；伤害、回复、花费、比例变更、正常复活分别有明确提交原因。 |
 | HP/MP 回复 | `STAT.HPRegen/MPRegen.Base/PerLevel`；`FORMULA.Regen` | 点/秒；按有效速率区间累计，不能每帧舍掉小恢复或使用新速率回算过去。 |
@@ -417,11 +417,11 @@ AS 仅影响下一次新 AttackStart。伤害源属性到成功 Release 再快�
 一个身体同时只有一个未释放动作。普攻前摇中新的 Q/W/E 被接受时打断该普攻
 （`AbandonAction`，已承诺节拍不退回）；能力前摇中再提交能力返回 `Busy`（`LDCombatActions.cpp`）。
 
-普攻 Release（`ReleaseBasic`）只经纯函数 `LDCombatSourceRules::BasicReleaseGate` 判定（2026-11-07 用户决定：
-“只要起手就判定一定会打中，即使跑远了”）：攻击者自身在前摇中被缴械/眩晕/击退或被嘲讽转向他人时放弃
+普攻 Release（`ReleaseBasic`）只经纯函数 `LDCombatSourceRules::BasicReleaseGate` 判定（起手即锁定命中，出手时不查距离）：
+攻击者自身在前摇中被缴械/眩晕/击退或被嘲讽转向他人时放弃
 （`ControlBlocked`）；目标那条生命已死亡或濒死、离开对局、换成新的生命或身体时放弃（`TargetUnavailable`）；
 参赛者攻击者在出手时重新观察不到该生命时放弃（`TargetUnavailable`，营地攻击者的感知由营地模块负责，此处不查）；
-脚点间视线被挡时放弃（`Blocked`）（2026-11-07 后续用户决定 "let's add back the visibility and line of sight check"）。其余情况命中已提交的目标生命，不再查距离。
+脚点间视线被挡时放弃（`Blocked`）。其余情况命中已提交的目标生命，不再查距离。
 攻击者死亡时 `ReleaseDue` 不再释放其动作。导航层配合：失去视野的订单立即结束锁定并取消尚未出手的普攻；
 对同一目标重新下达的 AttackUnit 经 `AdoptNavAttack` 接管尚未出手的普攻，不作废已承诺的节拍。
 
@@ -772,7 +772,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | A14 失保语义 | 有保护时空 Q/旧绑定/无蓝/CD/目标失效、远距 AttackUnit/AttackMove | 规范新鲜意图先解除，Rejected带ProtectionRemoved/LifeRevision；MP/CD/节拍不因失败写，不等追到范围。 |
 | A15 失保前闸 | 旧 match/life、重放/异条款、NaN/坏 enum、Armed未确认、Move/Stop | 不改变当前保护；本地预测不能吞已确认有效形状的进攻尝试；旧回执不再发资格事件。 |
 | A16 Root/盾 | Root下原地普攻/自解/位移，独立Root重发/到期/净化后新施加；入盾量低于/等于/高于旧剩余，弱盾组合净化 | Root限制准确、重发不续期；净化只清当时全部Root，新Root可再生效。盾按剩余比较，相等更新源/期限、弱盾保留旧记录但其它合法子效果/费用/CD照常，无旧上限/隐含免疫。 |
-| A17 观察/Range | 接收/起手/释放间失视野或换 Life；射程边界、胶囊变化、隔墙近距 | 每阶段新样本；失视野停追击无LastSeen/自动恢复；起手时脚点Range与LOS同验，不因长射程自动生成追踪弹。已起手的普攻在释放时不查射程（2026-11-07）：起手后走出射程仍命中；释放时失视野或被墙挡、死亡、离局、换 Life 则放弃（`DemoCombatSources.CommittedBasicRelease`）。 |
+| A17 观察/Range | 接收/起手/释放间失视野或换 Life；射程边界、胶囊变化、隔墙近距 | 每阶段新样本；失视野停追击无LastSeen/自动恢复；起手时脚点Range与LOS同验，不因长射程自动生成追踪弹。已起手的普攻在释放时不查射程：起手后走出射程仍命中；释放时失视野或被墙挡、死亡、离局、换 Life 则放弃（`DemoCombatSources.CommittedBasicRelease`）。 |
 | A18 释放原子 | 角色主动非零 MP、容量/分配失败、取消、来源改变 | 成功Release才一次支付/注册；准备不毁旧状态；失败无空效果成功，已释放Miss不退款。 |
 | A19 源/目标时态 | Release 后源升级/遗忘/死亡重生，目标加抗性/加盾 | 源快照不变、目标当次防御生效；独立效果继续，旧目标 Hit 不改绑新 Life。 |
 | A20 接触/吸血/暴击 | 仅盾吸收、实际损失、过量、保护、重复 AttackId；非暴击技能 | contact≠HP损失；一次采样，主击实际损失一次吸血，不治死者/新身体、不递归。 |
@@ -809,7 +809,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 | `DemoCombatEvaluation.Damage/DamageDomains/ExactDamage/BasicTiming/TimingDomains` | 纯值伤害与普攻时长、精确算术、数值域拒绝（A01/A07 纯值部分） |
 | `DemoAttributeProjection.ApprovedLevels/StatPoints/Envelope/Refusals/LowHPTerm` | 批准等级投影、五维点数按每点数值投影与夹取、资源比例与拒绝、低血条件项 |
 | `DemoCombatSources.CooldownTracks` | 持久冷却轨道与回绑 |
-| `DemoCombatSources.CommittedBasicRelease` | 已起手普攻不查射程：目标走出射程仍命中；目标失视野、被墙挡、死亡、离局、换命或攻击者受控则放弃（2026-11-07） |
+| `DemoCombatSources.CommittedBasicRelease` | 已起手普攻不查射程：目标走出射程仍命中；目标失视野、被墙挡、死亡、离局、换命或攻击者受控则放弃 |
 | `DemoCombatStatus.Roots/Shield/Regen/Cooldown` | Root 实例与净化、盾替换政策、回复积分、冷却期限 |
 | `DemoOrders.AttackMoveCandidate/BookIsolation/ChasePress` | 攻击移动候选、订单簿隔离、普攻追击不发呆（到点出手即转追、射程内目标走开即贴近） |
 | `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、阴阳怪气弹体、观察白名单 |
@@ -864,4 +864,4 @@ Bootstrap Validate 和相关场景；网络、成长、胜负变更必须到真�
 失源计时、比例资源、死亡选择、意图失保、观察粒度、独立效果存续/离局均为已确认规则，
 不是待选玩法。首版内容（公式、精度、角色/技能/营地参数及逐定义语义）已批准为试玩输入（D01），
 唯一维护于 [CONTENT_AND_BALANCE.md](CONTENT_AND_BALANCE.md)，未经平衡测试；
-#147 v7 构筑目录（其 §4）2026-11-07 批准并进入运行输入，同样未经平衡测试。当前验证覆盖与缺口见 §13。
+当前构筑目录未经平衡测试。当前验证覆盖与缺口见 §13。

@@ -60,8 +60,7 @@ Q/W/E 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`b
 普攻释放（`ReleaseBasic`）不重查距离，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
 被缴械/眩晕/击退或被嘲讽转向他人时放弃（`ControlBlocked`），目标那条生命已死亡或濒死、离局、换命或换身体时放弃
 （`TargetUnavailable`），参赛者攻击者重新观察不到该生命时放弃（`TargetUnavailable`），视线被挡时放弃（`Blocked`），
-否则命中起手时提交的目标生命（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”；可见与视线检查按
-2026-11-07 后续用户决定 "let's add back the visibility and line of sight check" 恢复）。
+否则命中起手时提交的目标生命（起手后不查距离，仍查可见与视线）。
 导航对同一观察目标重新下达的 AttackUnit 经 `ALDCombatDirector::AdoptNavAttack` 把未出手的普攻改挂到新订单，
 不因替换订单作废已提交的节拍；其他替换、S 与订单结束仍经 `CancelNavAttack` 放弃它。
 `FLDCombatBodyRead::ActionReleaseAtMs` 给出前摇中动作的释放时刻，供导航判断本 Actions 阶段即将出手的普攻已不再占住身体。
@@ -268,7 +267,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **共享破防**（`breach`）：`FLDBodyCombatState::SharedBreach`，所有来源同一组，每层固定 `COMBAT.BreachPerStack`，最多
   `COMBAT.BreachMaxStacks`，新层刷新整组（满层只刷新）；作为额外固定值进入 `BreachedResistanceP2`；来源离局层保留；营地回位清空。
   显示为 `exposed`（破防）带层数。
-- **灼烧**（`burn`，#198 起为火元素）：`FLDBodyCombatState::Burn`，**每层独立计时**：施加时起 `COMBAT.BurnSec`、每 `COMBAT.BurnTickSec`
+- **灼烧**（`burn`，为火元素）：`FLDBodyCombatState::Burn`，**每层独立计时**：施加时起 `COMBAT.BurnSec`、每 `COMBAT.BurnTickSec`
   一跳（最后一跳落在本层截止时刻），每层记住施加者并快照其**等级与法强**（`FLDCombatBurnLayer::Level/SourceAPP2`）；
   `AdvanceBurns` 用 `LDCombatKeywords::PopBurnTick` 取最早到期的一跳，同一时刻、同一施加者与来源的层合并为一个魔法 tick 命中（`bBurnTick`、`bPeriodic`：
   不暴击、不触发命中特效、不吸血，带施加者存活时的受控增伤）；满层时新层替换最早结束的一层；施加者离局移除其层，营地回位清空。每层每秒
@@ -371,7 +370,7 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 满槽时普通命令不替换已学主动（`SlotOccupied`/存为图纸），休息替换属于 #198 后续部分。
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
 
-交战窗口（`GROWTH.BuildSafeWindowSec`）由 Combat 记在实体记录的 `LastBuildUnsafeAtMs` 上（跨生命保留，只前进）：#222 起它不限制任何成长命令，只供 HUD 在交战中收起野外摘要。
+交战窗口（`GROWTH.BuildSafeWindowSec`）由 Combat 记在实体记录的 `LastBuildUnsafeAtMs` 上（跨生命保留，只前进）：它不限制任何成长命令，只供 HUD 在交战中收起野外摘要。
 `StartNavAttack` 受理的普攻起手、`LDCombatSourceRules::IsOffensive` 的主动释放、`ApplyHit` 中来源不是自己的正伤害（标记受害者并记入
 拥有者，灼烧 tick 同样经此路径）、`CommitControl` 实际落地的硬控（定身、眩晕、缴械、嘲讽、沉默）或击退都刷新它；
 减速、护盾、回复与非进攻主动（贴脸补一拳、锅盖挡脸、左右开抽与天生冲刺）不刷新。`LDCombatSourceRules::BuildSafeAtMs` 给出
@@ -421,7 +420,7 @@ DEV 重置把它清零。
 
 技能的固定数值随拥有者**当前等级** L 分段成长：1–10 级每级使用 `SKILL.GrowthPerLevel`（15%），
 11–16 级每级使用 `SKILL.GrowthPerLevelAfter10`（7.5%），所以 G(10)=2.35、G(16)=2.8。
-#198 起每个主动只有一组作者数值（`FLDDemoAbilityValues`：法力、冷却、效果），代码不再有 rank 或高级倍率。
+每个主动只有一组作者数值（`FLDDemoAbilityValues`：法力、冷却、效果），代码不再有 rank 或高级倍率。
 
 - **成长范围**（`LDSkillGrowth::GrowEffect`）：效果的基础量（伤害、护盾、反伤、强化普攻与周期伤害；法力授予除外）、S16 的记录上限与限时属性
   的点数（攻击力、法强、护甲、魔抗）。法力、比例、持续时间、冷却、射程与层数不成长；属性系数在两档间不变。

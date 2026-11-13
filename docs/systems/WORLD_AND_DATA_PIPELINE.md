@@ -146,7 +146,7 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 它不把资产存在当作导航、战斗或真实联机验收。
 
 `LDDemoWorldBuilder` 复用原生 mesh/nav/保存能力，从关卡派生数据刷新唯一平地、高台与坡道、全部真实阻挡的碰撞载荷、
-每个出生锚点一个出生标记与一个原生导航区域。#97 起锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
+每个出生锚点一个出生标记与一个原生导航区域。锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
 （`MaxAnchors`、`MinSpawns`/`MaxSpawns`、`MaxCamps`、`MaxDorms`、`MaxAirdrops`，Boss 巡逻点固定 4 个），
 阻挡上限 `MaxBlockers` = 2048（与身体同粗的树成片时需要一千多个圆柱）；`DemoWorld.py` 的 `ANCHOR_COUNTS`/`MAX_BLOCKERS`
 与两份 schema 保持同一范围。同尺寸的树共用一个树干 mesh（`SM_Demo_trunk_r<半径>_h<高度>`，放在各自圆心），
@@ -294,7 +294,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 场地道具与野怪身体用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、Stylized Nature MegaKit、Toon Shooter Game Kit、
 若干 Kenney 套件），只提交实际选用的 `.gltf`/`.bin`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
 Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者页面所写的 CC0 与核对日期。
-项目所有者 2026-11-11 批准使用项目自有或已授权的非 CC0 来源：参赛者身体（Tripo 生成，`tripo-basketball-hero`）、
+项目所有者批准使用项目自有或已授权的非 CC0 来源：参赛者身体（Tripo 生成，`tripo-basketball-hero`）、
 Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 这类包的许可文件须原样写出清单声明的许可（如 `Project-owned`）；CC0 包仍须在许可原文中写明 CC0。
 `SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，

@@ -73,7 +73,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `AllocatePoints` | `PointCounts`（每个五维一格、五维设计顺序、合计 ≥ 1） | 整次分配；超过未分配点数为 `NotEnoughPoints`，不部分生效 |
 | `OpeningBase` = 10 | `Component`；`bInstallIfPossible` 时目标与绑定（`TargetKind`/`TargetDefinition`/`TargetSegment`/`BoundActive`/`Element`） | 授予开局实例（`OpeningPick`，1 级）；目标合法就同次安装（`bComponentInstalled`），否则留在库存，`InstallStoredReason` 为 `InvalidTarget`；开局主动未选为 `OpeningActiveFirst`，已选过为 `OpeningBaseTaken`，不在候选内为 `OpeningBaseUnavailable` |
 | `InstallComponent` = 11 | `Component` 与目标、绑定 | 安装一件已持有的库存实例：未持有 `NotOwned`，已安装 `AlreadyInstalled`；目标或绑定不合法 `InvalidTarget`（改装件/连接件：不在该定义的 `targets` 内、主动未学、宿主构件未安装、C12 所选基础构件未安装、C01 装在未绑火的 B18 上）；M08 与 M09 同装一处为 `TargetConflict` = 150。卸下宿主构件时，装在它上面的改装件/连接件一起卸回库存 |
-| `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；装在它上面（或以它为 C12 基础）的改装件/连接件传递地一起卸回；时机同 `InstallComponent`（#222 起野外、死亡与 PK 中都可以） |
+| `UninstallComponent` = 12 | `Component` | 卸回库存，首次历史保留：未持有 `NotOwned`，未安装 `NotInstalled`；装在它上面（或以它为 C12 基础）的改装件/连接件传递地一起卸回；时机同 `InstallComponent`（野外、死亡与 PK 中都可以） |
 | `BuyNpcOffer` = 20 | 无（`Slot` 为 `AnySlot`） | 休息 NPC：`GROWTH.NpcActivePoints` 计入 `PermanentSpentPoints`，同一提交新增一次主动机会并抽好恰好三个互异主动（全部主动池、按新序号的 Offer 种子）；回执 `NpcPointsPaid`、`OpportunityOrdinal` 与 `NextOfferId`。之后经 `ActiveChoice` 选择（不能学就存为图纸）；关闭界面不退款，重发按请求窗口重放原回执。有候选组或任何排队机会为 `OfferOutstanding`，合格主动不足三个为 `NpcPoolTooSmall`，点数不足为 `NotEnoughPoints`，都不收费 |
 | `Respec` = 21 | 无（`Slot` 为 `AnySlot`） | 全部已分配点数退回未分配，永久消费不退；回执 `PointsRefunded`；没有已分配点数为 `NothingToRespec`。Combat 按资源比例重投影，不补满 |
 | `ReplaceActive` = 22 | `Blueprint`、已占槽 `Slot` 0..2 | 槽中旧主动被遗忘（不退、不变图纸），图纸被消费并学进该槽；旧主动上的挂件同次回收（见 `ForgetActive`），不会自动绑到新主动；回执 `DefinitionId`、`LearnedSlot` 与 `ForgottenId`。空槽为 `SlotEmpty`（空槽用 `LearnBlueprint`），没有该图纸为 `NoBlueprint`，有未完成候选组为 `OfferOutstanding` |
@@ -100,7 +100,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 （`PlanTrackBindings` 按定义找回原轨道与就绪时刻），重学沿用原冷却债。
 
 合法性矩阵（`LDProgression::CommandGate`/`LearnGate`/`InstallGate`/`IsRestWindow`，提交时 `ALDDevelopmentDirector` 经
-`ALDGameMode::ReadBuildStage` 读阶段与本人生命阶段）。#222 用户决定（原话：“all the time 可以学新技能和加点 all the time”）
+`ALDGameMode::ReadBuildStage` 读阶段与本人生命阶段）。#222 用户决定
 打开了自己的构筑命令：`ActiveChoice`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
 `UninstallComponent`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
 
@@ -159,7 +159,7 @@ DeathKey 生命水位与事实指纹（最近 64 份奖励回执可原样重放�
 新增 `ReplacementNotAllowed=48`（野外替换/遗忘）、`NoEmptySlot=53`、`SlotOccupied=54`、`NoBlueprint=55`、
 `NotEnoughPoints=56`、`NoActiveOffer=57`、`PhaseClosed=58`；#198 B 新增 `NotOwned=60`、`AlreadyInstalled=61`、`NotInstalled=62`、
 `InvalidTarget=64`、`OpeningBaseUnavailable=66`、`OpeningBaseTaken=67`、`OpeningActiveFirst=68`；`NotSafe=52`（构筑安全窗）与
-`RestOnly=63`（搬动/卸下只在休息）随 #222 退役、编号保留不复用；休息服务 `BuildLocked=70`（#222 起只用于 NPC 服务）、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
+`RestOnly=63`（搬动/卸下只在休息）随 #222 退役、编号保留不复用；休息服务 `BuildLocked=70`（只用于 NPC 服务）、`NpcPoolTooSmall=71`、`OfferOutstanding=72`、`NothingToRespec=73`、`SlotEmpty=74`、`NotRestWindow=75`
 （76、77 未分配）。构筑命令种类 1–3 之外，组件命令为 10–12，休息服务为 20–23，其余编号未用。
 
 ## 对外信息

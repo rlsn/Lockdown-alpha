@@ -20,7 +20,7 @@
 
 **一份参赛者成长、一条 Combat 来源链。**
 XP、等级、属性点、主动机会与待学图纸由 Development 持有；装备、金币与商店已按 [#144](https://github.com/rlsn/Lockdown-alpha/issues/144) 删除。
-成长规则按 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198)（2026-11-10 批准）改为五维属性点与单级主动，产品规则见 App Spec §4.2–§4.4；
+成长规则按 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198)改为五维属性点与单级主动，产品规则见 App Spec §4.2–§4.4；
 本域已接入其第一部分、第二部分（B：材料实例、开局与升级的基础构件 B01–B18 及其安装）与休息服务（NPC、洗点、替换、遗忘，见[成长事务](../systems/GROWTH_TRANSACTIONS.md)）；
 休息时刻见[会话与生命周期 §3.4](SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界198)，改装件/连接件与 PK 由 #198 后续部分接入。
 死亡奖励和成长命令各自在同一权威批次内复合提交：
@@ -28,7 +28,7 @@ XP、等级、属性点、主动机会与待学图纸由 Development 持有；�
 
 | 已确认的产品约束 | 本域必须落实的结果 |
 | --- | --- |
-| 所有人初始近战、单体普攻；普攻可成长（距离、元素、强化、反应范围等），不要求群攻（2026-11-10 用户决定） | 初始构筑不授主动；获准的攻击距离、元素与强化进入同一 Combat 投影，不是只有面板数值。当前运行目录只有强化普攻主动。 |
+| 所有人初始近战、单体普攻；普攻可成长（距离、元素、强化、反应范围等），不要求群攻 | 初始构筑不授主动；获准的攻击距离、元素与强化进入同一 Combat 投影，不是只有面板数值。当前运行目录只有强化普攻主动。 |
 | 1 至 16 级；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一；16 级后按 XP 继续给点 | 开局点数与机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、点数与主动机会同一提交；连升排队，满级后继续累计 XP 并按阈值给点。 |
 | 开局主动选定后自选一个当前可用基础构件；每次正常升级（2–16 级）给一件普通构件，先按等级档位抽类别再在未持有定义中等概率取，空类别按剩余权重归一化，普通池耗尽改给 3 点（App Spec、AI 规范 §4.1–§4.3） | 开局基础构件整局一次，候选为常驻起手加开局主动解锁的，排除已持有；升级材料与 XP 同一提交、按本局私有种子抽取，满级后的 XP 不给材料；死亡与重连不重发、不洗首次安装历史。 |
 | 构件的首次安装、搬动、卸下与重装旧件随时可做（#222 用户决定：“all the time 可以学新技能和加点 all the time”，取代 AI 规范 §5 的脱战安装窗与“旧件只在休息”） | `LDProgression::InstallGate` 与学习同一闸门：对局进行中（野外含交战、休息每个步骤含 PK）、存活或死亡都受理，只有阶段关闭为 `PhaseClosed`；`RestOnly`（63）已退役。 |
@@ -42,7 +42,7 @@ XP、等级、属性点、主动机会与待学图纸由 Development 持有；�
 | 最大 HP/MP 改变时保持原生命/法力百分比 | 活体只按一次最终属性投影同比换算；不采用保持原绝对当前值的规则，精度由内容/Combat 单点定义。 |
 
 以上失源继续计时已获用户确认，不保留共享冷却或冻结计时备选。
-内容与数值以 2026-11-02 批准的首轮方案与 2026-11-10 批准的 #198 目录（[内容与数值](CONTENT_AND_BALANCE.md)）为准；
+内容与数值以 已批准的首轮方案与 已批准的 #198 目录（[内容与数值](CONTENT_AND_BALANCE.md)）为准；
 资源同比换算的精度与边界只由内容/Combat 的唯一公式定义。批准输入与规则测试都不代表真实联机或平衡已通过。
 
 ## 2. 现有实现与已退出的旧链
@@ -432,7 +432,7 @@ ID/枚举由当前批准 catalog 支持集解码，不是接受到历史最大�
 
 `FLDProgressionView` 提供当前生命与成长资格、Level/MaxLevel/CumulativeXP、当前级与下一级阈值、
 ProgressionRevision/BuildRevision、未分配点数与五维点数、Q/W/E 已学主动、待学图纸、排队的主动机会数、
-当前一组候选及 CatalogDigest（#222 起不再带构筑安全时刻）。
+当前一组候选及 CatalogDigest（不再带构筑安全时刻）。
 技能冷却只由 Combat 的本人 `FLDCombatOwnerView` 发布，它还带交战窗口 `BuildSafeAtMs`，只供 HUD 交战折叠。
 
 View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FLDGrowthOwnerView`），
@@ -485,7 +485,7 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `REWARD.PlayerXP` | 受害者致死等级为自变量的整数奖励；只用不可变快照。 | CommitDeathReward；重复/互杀/阵亡来源、整奖越界。 |
 | `CAMP.Low/High.RewardXP` | 每成员每 Life 的整数；不兼有一笔清营奖。 | 同一 DeathFact；世界只提供映射/定义，不另发资源。 |
 | `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints`、`progression.active_offer_levels`、`abilities[].opening` | 点数为非负整数；满级给点的 XP 段为正整数；额外机会等级严格递增且在 2..16 内；开局池为主动子集。 | 点数派生与未分配点数非负、开局与 3/6 级机会、满级后按 XP 给点、无放回抽样与排除。 |
-| `GROWTH.BuildSafeWindowSec` | 正秒数，按生命周期的唯一转换得整毫秒。 | Combat 维护交战窗口，只供 HUD 交战折叠；#222 起不限制任何成长命令。 |
+| `GROWTH.BuildSafeWindowSec` | 正秒数，按生命周期的唯一转换得整毫秒。 | Combat 维护交战窗口，只供 HUD 交战折叠；不限制任何成长命令。 |
 | `stats[].per_point` | 每点收益按属性量纲；与其他来源同类相加后统一投影。 | Combat 最终投影；加点后真实属性变化。 |
 | `ABILITY.<id>`、`SKILL.GrowthPerLevel / GrowthPerLevelAfter10` | 单级技能的正式效果、目标、法力/时间/距离、伤害与触发规则；固定数值按拥有者当前等级乘 G(L)。 | Build/Combat；学习、重新学习、等级成长、未选 handler 删除依据。 |
 | `POLICY.MissingSourceCooldown=ContinueServerTime` | 已确认语义；ReadyAtMs 是本局绝对毫秒，不是可被 UI 重置的剩余时长。 | 失源/重学/死亡。 |
@@ -521,7 +521,7 @@ XP、构筑、来源与显示格式化不能相互代算。
 不 Apply 活体 Current；生命域复活以最新构筑满血蓝。
 内容采用 `POLICY.ResourceMaxChange=PreserveRatio`（`FORMULA.ResourceMaxChange=FloorFinalRatioRejectAliveUnderflow`）：
 权威资源为 int64 百分之一单位 P2，计算旧 Current 与最终新 Max 的 checked 乘除，
-仅最终向下取整到 P2。此精度是 2026-11-02 批准的内容公式，不是用户要求精确到某一量化格。
+仅最终向下取整到 P2。此精度是 已批准的内容公式，不是用户要求精确到某一量化格。
 正活 HP 缩小上限若量化为零，Combat Prepare 返回 `NumericUnderflow`，整次变更不发生；
 不以 `min 1` 免费抬升或投影杀死；MP 向下量化到零合法，不形成死亡。
 旧 Max、新 Max、Current 全为零时保持零；旧 Max 为零而新 Max 为正的普通转换返回
@@ -570,8 +570,8 @@ XP、构筑、来源与显示格式化不能相互代算。
 
 | 当前入口 | 保留/改造与删除 |
 | --- | --- |
-| `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、请求窗口、等级/点数/主动候选/学习与加点准入与本人视图白名单（按 #198 第一部分改写，当前结果见就绪评估）；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。过期回执、满容量、越界和生死竞争仍须 §12 A24/A25 的场景。 |
-| 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局主动选择、开局加点、交战窗口内选到的等级候选当场学到 W 并加点、死亡中选择学到 E 并加点（不复活，复活后 E 仍在）、击杀奖励经各自连接完成（按 #198 第一部分改写，当前结果见就绪评估）；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
+| `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、请求窗口、等级/点数/主动候选/学习与加点准入与本人视图白名单（当前结果见就绪评估）；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。过期回执、满容量、越界和生死竞争仍须 §12 A24/A25 的场景。 |
+| 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局主动选择、开局加点、交战窗口内选到的等级候选当场学到 W 并加点、死亡中选择学到 E 并加点（不复活，复活后 E 仍在）、击杀奖励经各自连接完成（当前结果见就绪评估）；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
 | [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败。 |
 | D29–D34 本域专测/手册 | 必要来源不变量已迁入上列规则与 Combat 来源/属性规则，旧生产者与专测已删除；系统手册只描述真实接口，不保存废弃方案。 |
 

@@ -104,8 +104,8 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 `ProcessAuthorityO
 
 | 获准输入 | 正式来源 | 限制与撤销 |
 | --- | --- | --- |
-| 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView | 可以读本人血蓝/资源/等级/技能、图纸、属性点、控制、真实 readiness、候选和回执（#222 起 AI 不再读 `BuildSafeAtMs`）；不能取得可写 StateFor 或全账本。 |
-| 公共对局 | `FLDPublicMatchView` → `FLDOpponentPublicMatch`；休息中另读公开房间名单 `ReadLobby`（成员 ID，`Roster`） | 名单只用于按 HUD 规则认出获准观察帧里的共享真实训练目标（§6.4），不借此读取所属玩家私有成长。Phase、OpenAtMs、CircleState（`Empty / Solo / Contested / Guarded`）、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、GraffitiOwner（策略帧中为 `Owner`）、GuardDueAtMs、Result；Occupier 在 Solo（独自喷漆）和争夺暂停（Contested 且有人持有喷漆进度）时有效，DueAtMs 只在 Solo 时有效；Owner 是当前涂鸦主人，GuardDueAtMs 是运行中守护的获胜时刻，只在 Guarded（主人独自在区内）时非 0；Empty（主人在区外、区内无人，守护暂停（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”））与 Solo/Contested（区内有主人以外的有效参赛者，守护冻结）时为 0。喷漆者和涂鸦主人的身份与进度不附送其隐藏精确坐标。 |
+| 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView | 可以读本人血蓝/资源/等级/技能、图纸、属性点、控制、真实 readiness、候选和回执（ AI 不再读 `BuildSafeAtMs`）；不能取得可写 StateFor 或全账本。 |
+| 公共对局 | `FLDPublicMatchView` → `FLDOpponentPublicMatch`；休息中另读公开房间名单 `ReadLobby`（成员 ID，`Roster`） | 名单只用于按 HUD 规则认出获准观察帧里的共享真实训练目标（§6.4），不借此读取所属玩家私有成长。Phase、OpenAtMs、CircleState（`Empty / Solo / Contested / Guarded`）、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、GraffitiOwner（策略帧中为 `Owner`）、GuardDueAtMs、Result；Occupier 在 Solo（独自喷漆）和争夺暂停（Contested 且有人持有喷漆进度）时有效，DueAtMs 只在 Solo 时有效；Owner 是当前涂鸦主人，GuardDueAtMs 是运行中守护的获胜时刻，只在 Guarded（主人独自在区内）时非 0；Empty（主人在区外、区内无人，守护暂停）与 Solo/Contested（区内有主人以外的有效参赛者，守护冻结）时为 0。喷漆者和涂鸦主人的身份与进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
 | 可见营地回位提示 | 同一观察帧单位 `Statuses` 中只读 `StatusId=CampReturning`（`ELDDemoStatusId`，内容 id `camp_returning`） | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回位”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
 | 可见资源 | 上述观察帧的展示字段 | 不含 IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP/MP 按世界 Resources 的 P2 Current/Max 读取；NPC 不适用的 MP/Level 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
@@ -133,7 +133,7 @@ NotGrounded 是明确否定结果，原域仍完成已处理边界，不是缺�
 | --- | --- | --- |
 | `ULDNavigationComponent::SubmitOrder(FLDOrderCaller, FLDSpatialOrderRequest)`；`CancelOrder`；`QueryOrder` | 绑定本人的 MatchContext/BodyRef；`FLDMoveIdentity{Match,Life,Order,Epoch}`；按 kind 为单一 Ground/ObservedUnit 目标。Ground 带脚点 cm、必要 MapRevision 和必填 SurfaceHint；POI 从注册记录给支持面，目标可显式 Missing，不补默认值。 | Submit 只收件。Actions 阶段的 `ProcessAuthorityOrders` 才可激活；Queued 不取消旧单，完整准入后才替换现役订单。OrderRevision/ReceiptSerial 单调，Query 只读且不延寿。 |
 | `ALDCombatDirector::SubmitAction`、`QueryActionReceipt`、`QueryAvailability`、`CancelAction` | `FLDCombatActionRequest{Generation,Life,DirectSequence,Entry(Q/W/E/Dash),Target(Missing/Self/Unit/Direction),ExpectedSourceRevision}`；DirectSequence 由 adapter 单调分配，Q/W/E/D 共用一个序列；Unit 目标是观察句柄。`FLDCombatRequestKey` 的 Direct 键由此生成，Nav 键只由服务器 Navigation 的攻击订单内部生成。 | 两种 RequestKey 不撞号；准入成功后由 Combat 统一分配 authority CombatToken:uint64，ActionId/AttackId 是该 Token 在 Match/Caller 下的身份，不另发序列。Queued 无已接受 Token；查询/取消用原 RequestKey。导航独占 AttackCycle，Combat 独占 NextAttackAt，AI 不另开普攻循环或伪造 Nav 键。 |
-| `ALDDevelopmentDirector::ReadProgression`、`QueueBuild`、`QueryBuildReceipt` | `FLDBuildCommand`：Generation、当前 Life、ExpectedLifePhase、独立 RequestId、ExpectedBuildRevision、CatalogDigest 与 Kind。ActiveChoice 带当前 OfferId/Revision、Option 和 `bLearnIfPossible=true`（Slot 为 AnySlot，由服务器取最低空槽）；LearnBlueprint 带图纸与最低空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数；UninstallComponent 带已安装的构件，ReplaceActive 带图纸与已学槽位，Dismantle 带恰好 `GROWTH.DismantleInputCount` 件互异、仍持有的普通构件（读目录判断池与数量），BuyNpcOffer 与 Respec 只带守卫字段。由 `LDOpponentRequests::BuildCommand` 从本人最新成长投影构造，候选、图纸、槽位或构件已不是当前状态时拒绝构造。 | 原候选不重抽；选择（学到空槽或存为图纸）与机会消费原子提交后才生成下一组。服务器提交时按阶段与生死重判（#222 起没有构筑安全窗）；死亡阶段合法的选择、学习与加点可成功，死前 Alive 请求不能冒充当前 Dead 请求。 |
+| `ALDDevelopmentDirector::ReadProgression`、`QueueBuild`、`QueryBuildReceipt` | `FLDBuildCommand`：Generation、当前 Life、ExpectedLifePhase、独立 RequestId、ExpectedBuildRevision、CatalogDigest 与 Kind。ActiveChoice 带当前 OfferId/Revision、Option 和 `bLearnIfPossible=true`（Slot 为 AnySlot，由服务器取最低空槽）；LearnBlueprint 带图纸与最低空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数；UninstallComponent 带已安装的构件，ReplaceActive 带图纸与已学槽位，Dismantle 带恰好 `GROWTH.DismantleInputCount` 件互异、仍持有的普通构件（读目录判断池与数量），BuyNpcOffer 与 Respec 只带守卫字段。由 `LDOpponentRequests::BuildCommand` 从本人最新成长投影构造，候选、图纸、槽位或构件已不是当前状态时拒绝构造。 | 原候选不重抽；选择（学到空槽或存为图纸）与机会消费原子提交后才生成下一组。服务器提交时按阶段与生死重判（没有构筑安全窗）；死亡阶段合法的选择、学习与加点可成功，死前 Alive 请求不能冒充当前 Dead 请求。 |
 | `LDTactical::EvaluateDamage(const FLDDamageEvaluationInput&, const FLDDemoContentSnapshot&) -> FLDDamageEvaluationResult`；`EvaluateBasicTiming(const FLDBasicTimingInput&, const FLDDemoContentSnapshot&) -> FLDBasicTimingResult` | 仅数值假设：公开编译定义、本人所需属性、显式非暴击假设、匿名模板抗性/HP/盾/保护；Timing 用对应单位普攻定义及已解析 AS。目录快照是批准编译的不可变内容。 | 位于 LDTacticalRules，成功给数值/时长，定义域失败显式返回错误；无 Actor/World/Bodies/Camp 查询、时钟、RNG、状态或 Token。真实 ApplyHit/AttackStart 也必须调用这两个同源纯函数，再经 Permit 提交；估计结果不是 Hit/Death/奖励事实。 |
 
 每域独立请求空间和有界回执窗口：同 ID 同条款只重放原结果；同 ID 异条款
@@ -247,8 +247,8 @@ AI 参数接入内容域唯一的生成输入/载荷/contract，不新增 AI 私
 | --- | --- | --- |
 | P0 Stopped | Results/Closing/Faulted、非运行阶段、离局或绑定失效；停止新提交 | 只有核心发布合法新局才重新绑定；不是不断尝试旧局命令。 |
 | P1 DeadWaiting | 本人 Dead/RespawnAt、当前候选与未分配点数；等待身体，并在当前 Dead 阶段选择主动（有空槽即学到）、学图纸、首次安装构件与加点 | 新 BodyRef 到来才恢复身体动作；不移动、攻击，不恢复旧路线。 |
-| P2 Disengage | 本人危险阈值、可见接触压力、自保 readiness、静态可达地面；停止继续投入，合法自保/撤离 | “正在脱险”才保持最高空间优先级：低于 RetreatHPRatio 且没有就绪自保屏障时，脱险压过回防，也不向公开喷漆者或涂鸦主人冲锋；回到这条线以上后的回血等待让位于紧急回防。已在喷漆区内参与争夺时留在区内对付区内对手，不因独自喷漆被打断、回防不再紧急就跑出区：一碰就走只会让持有者接着暂停的喷漆进度继续；只有跌破止损线又无就绪自保时才撤离。涂鸦主人恢复中（`bRecovering`）且未跌破止损线时仍回到并留在喷漆区内，因为守护只在他独自在区内时计时、离区即暂停，冻结期间走出区还会让守护清零（2026-11-07 用户决定）；跌破止损线又无就绪自保时才脱离，因为他死亡会清除涂鸦。撤离选一个远离可见威胁、终点在其视野半径外的公共地面点，并走完这一程，只有到达或不再远离时才重选；威胁失去视野后也不原地停下，追兵忽隐忽现也不改道，到达后看不到威胁、又没有可走的躺平角时原地等待回复（`DemoOpponentPolicy.RecoveryEscapeKept`）。区内有合法余地时先在区内移动，不机械跑出区。 |
-| P3 DefendOrHold | 自己正持有喷漆进度（独自喷漆，或争夺暂停中的持有者，原因 `HoldCapture`）；自己是涂鸦主人且未跌破止损线（含恢复中；守护只在主人独自在区内时计时，2026-11-07 用户决定）（`GuardGraffiti`）；或公开的对手喷漆到期/对手守护获胜时刻即将达到自身回防预算（`PublicCaptureUrgent`，有对手涂鸦时为 `BesiegeOwner`）；走公开喷漆区入口、处理当前可见威胁 | 压过新的打野；阶段、CaptureEpoch、有效资格、路线或风险改变时重评；公开喷漆者或涂鸦主人的 ID 不能直接变成单位目标，只能匹配可见单位的授权 ContenderId。 |
+| P2 Disengage | 本人危险阈值、可见接触压力、自保 readiness、静态可达地面；停止继续投入，合法自保/撤离 | “正在脱险”才保持最高空间优先级：低于 RetreatHPRatio 且没有就绪自保屏障时，脱险压过回防，也不向公开喷漆者或涂鸦主人冲锋；回到这条线以上后的回血等待让位于紧急回防。已在喷漆区内参与争夺时留在区内对付区内对手，不因独自喷漆被打断、回防不再紧急就跑出区：一碰就走只会让持有者接着暂停的喷漆进度继续；只有跌破止损线又无就绪自保时才撤离。涂鸦主人恢复中（`bRecovering`）且未跌破止损线时仍回到并留在喷漆区内，因为守护只在他独自在区内时计时、离区即暂停，冻结期间走出区还会让守护清零；跌破止损线又无就绪自保时才脱离，因为他死亡会清除涂鸦。撤离选一个远离可见威胁、终点在其视野半径外的公共地面点，并走完这一程，只有到达或不再远离时才重选；威胁失去视野后也不原地停下，追兵忽隐忽现也不改道，到达后看不到威胁、又没有可走的躺平角时原地等待回复（`DemoOpponentPolicy.RecoveryEscapeKept`）。区内有合法余地时先在区内移动，不机械跑出区。 |
+| P3 DefendOrHold | 自己正持有喷漆进度（独自喷漆，或争夺暂停中的持有者，原因 `HoldCapture`）；自己是涂鸦主人且未跌破止损线（含恢复中；守护只在主人独自在区内时计时）（`GuardGraffiti`）；或公开的对手喷漆到期/对手守护获胜时刻即将达到自身回防预算（`PublicCaptureUrgent`，有对手涂鸦时为 `BesiegeOwner`）；走公开喷漆区入口、处理当前可见威胁 | 压过新的打野；阶段、CaptureEpoch、有效资格、路线或风险改变时重评；公开喷漆者或涂鸦主人的 ID 不能直接变成单位目标，只能匹配可见单位的授权 ContenderId。 |
 | P4 Choose（构筑） | 没有在途构筑请求时，每次决策按 §6.4 的顺序至多提出一个构筑请求（原因 `ChooseOffer`），与同节拍的身体意图并行：选择、开局基础构件、构件选择、学图纸，休息中的替换与构件装回/移动，首次安装，休息中的补缺、拆解、洗点与 NPC，最后加点。休息中只在构筑开放步骤（构筑/兑现）做构筑决定；需要 NPC 的服务先走向对应商人（`RestService`），无事可做时训练（§6.4）；开局休息 R0 内另要等到本 AI 的 `OpeningPickAtMs`（adapter 每局从服务器随机流抽一次，R0 开始后第 1–4 秒间）之后 | 不冻结、不替换发育期正在进行的合法运动或紧急反应；成功后才读下一组，冲突不重抽。 |
 | P5 Engage | 当前合法可见目标、本人可用资源/动作、未超投入预算；Nav 攻击订单与 §6.3 主动 | 失视野、无效目标、危险、回防、超预算或生命变化时退出；不读对手内部战力来保证击杀。 |
 | P6 Contest | 旗杆已开放，无更高可执行目标；自身风险门允许进入公开喷漆区（`ContestCapture`）；旗杆上是对手涂鸦时为不紧急的围攻/改漆（`BesiegeOwner`） | 到位后独自喷漆或争夺；不能有效入场时换静态合法入口或继续成长/探索，不用保护者骗争夺人数。 |
@@ -328,7 +328,7 @@ Conceal/stale/FullSetRemoved/TargetUnavailable、离局或隐藏死亡绝不冒�
 AI 可以根据新的公开喷漆/涂鸦状态或静态 POI 决策发**新明确订单**，但不能把旧目标坐标改装成地面追踪。
 
 **回防。** 对手独自喷漆时用公开 DueAtMs，旗杆上是对手涂鸦且守护在运行（主人独自在区内）时用公开 GuardDueAtMs；
-守护暂停（主人不在区内）或冻结时没有获胜时刻，不产生回防紧急度（2026-11-07 用户决定）。有到期时刻时
+守护暂停（主人不在区内）或冻结时没有获胜时刻，不产生回防紧急度。有到期时刻时
 与服务器当前时间得到剩余量，再与本人到静态合法喷漆区入口的完整路径/当前移速所需时间、当前控制/保护剩余限制、
 AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不能除零或假定立刻到位；
 预算是保守估计，不是另一个喷漆/守护截止或额外等待时长。
@@ -344,8 +344,8 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 只有跌破止损线又无就绪自保时才撤离，并接受真实清零。争夺消耗次数用尽也不让暂停中的持有者放弃进度。
 
 AI 自己是涂鸦主人时，只要未跌破止损线（含恢复中），就回到并留在喷漆区内与区内对手交战：守护只在主人独自在区内时计时，
-主人离区、区内无人时守护暂停（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”）；主人站在区内也会让任何人都无法独自喷漆；
-主人以外有人进区时守护冻结，冻结期间主人从区内走出会让守护清零（2026-11-07 用户决定）。只有跌破止损线又无就绪自保时才脱离战斗，
+主人离区、区内无人时守护暂停；主人站在区内也会让任何人都无法独自喷漆；
+主人以外有人进区时守护冻结，冻结期间主人从区内走出会让守护清零。只有跌破止损线又无就绪自保时才脱离战斗，
 因为他死亡会立即清除涂鸦（暂停或清零好过丢涂鸦），回到止损线以上后再回区续计。其他每个 AI 都回应对手的涂鸦（`BesiegeOwner`）：
 在喷漆区外时，若可见的涂鸦主人在本人搜敌半径内，不论他站在哪里都去打他；否则走进喷漆区改漆，进区本身就冻结对手守护。
 在喷漆区内先打公开的喷漆进度持有者，再打对手涂鸦主人，最后打区内其他对手。
@@ -404,7 +404,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 对真正绑定的 Q/W/E 与 D 枚举自身 QueryAvailability，固定考虑：
 有意义的合法自保/恢复 → 必要合法机动 → 可见威胁控制 → 合法伤害 → 保持普攻/移动。
 优先级只决定策略先选哪个动作，不给效果追加类型或数值；SourceRef 和真实目录决定动作。
-每个 Q/W/E 来源读该主动唯一的一组效果值（`ResolveSource`；#198 起技能只有一级，数值随拥有者等级成长由 Combat 结算）。
+每个 Q/W/E 来源读该主动唯一的一组效果值（`ResolveSource`；技能只有一级，数值随拥有者等级成长由 Combat 结算）。
 施法用途全部由 typed 效果推出（`ReadEffects`），不按技能名称或构筑配方分支。
 同一时刻只送当前动作系统可接收的一项；前摇、控制、资源、来源和占用均不得绕过。
 成功 handoff 后旧运动不由 AI 私下恢复，按新合法观察重新决策；失败则消费真实回执。
@@ -443,7 +443,7 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
 ### 6.4 持久选择与构筑
 
 构筑意图与真人使用同一 `FLDBuildCommand`，同一时间只有一个在途（`bBuildChangeInFlight`）；每次决策按下列顺序至多提出一个，
-每一步都先用成长域的同一闸门（`LDProgression::CommandGate`/`InstallGate`，按阶段与本人生死；#222 起没有构筑安全窗）判断现在是否允许：
+每一步都先用成长域的同一闸门（`LDProgression::CommandGate`/`InstallGate`，按阶段与本人生死；没有构筑安全窗）判断现在是否允许：
 
 1. **选择**：有当前候选且允许选择（休息的构筑开放步骤、野外各段含交战中，存活或死亡）时，从候选中按下面的主动偏好选一个，
    总是带 `bLearnIfPossible`：服务器在有空槽时学到最低空槽，Q/W/E 已满时存为图纸。
@@ -455,7 +455,7 @@ Direction 使用当时获准方向，GroundPoint 使用当时可见目标的公�
    按主动偏好排名，取排名最低的一个；图纸以同样那两个主动覆盖的用途排名，最好的一份严格排在它前面才用同一 `ReplaceActive`
    命令替换它（`SelectReplacement`）。被替换的主动被遗忘、不回到图纸，所以每次替换都用掉一份图纸，替换必然结束；
    装在被遗忘主动上的构件由成长域同次退回构件库，由下一步装回。
-6. **装回与移动**（只在休息构筑窗口，`LDProgression::IsRestWindow`；服务器自 #222 起随时受理搬动，这里是 AI 的节奏取舍，避免交战中拆掉自己的构筑）：先把曾经安装过、现在在构件库里的构件按目录顺序装回规则选定的位置
+6. **装回与移动**（只在休息构筑窗口，`LDProgression::IsRestWindow`；服务器随时受理搬动，这里是 AI 的节奏取舍，避免交战中拆掉自己的构筑）：先把曾经安装过、现在在构件库里的构件按目录顺序装回规则选定的位置
    （基础构件按 `ComponentUsable`，改装件/连接件按 `WorkshopTarget`）；都装回后，若某个已安装构件不在规则的首选位置
    （B18 的绑定，或改装件/连接件的目标），先 `UninstallComponent` 卸下（装在它上面的构件一并退回），下一次决策再装回首选位置
    （`SelectComponentMove`）。首选位置在“卸下它和装在它上面的构件之后的构筑”上判断，正是装回时读到的构筑，所以装回后不会再移动；
@@ -586,7 +586,7 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 | `AI.RetryPolicy.InitialBackoffSec`、`AI.RetryPolicy.MaxBackoffSec` | 正有限秒数 | 最大值不小于初值；重试只在原操作确定终结/拒旧及当前合法条件下发生。 |
 | `AI.ExploreRevisitIntervalSec` | 正有限秒数 | 只描述本 AI 公共 POI 再探节奏；不随隐藏营地刷新事件调整。 |
 | `AI.EngagementBudgetSec` | 正有限秒数 | 覆盖批准基础低档战斗的合理投入；同一次目标/营地过程累计，不随普通攻击、Order 或帧重置。 |
-| `STAT.AttackRangeCm`、本人移速/血蓝/readiness | 原领域权威派生；厘米、厘米/秒、资源 P2、绝对服务器毫秒 | AI 不用初始射程覆盖成长，不另存技能 CD，也不读或另算交战窗口（#222 起构筑没有安全窗）；字段单位由提供者定义并集中转换。 |
+| `STAT.AttackRangeCm`、本人移速/血蓝/readiness | 原领域权威派生；厘米、厘米/秒、资源 P2、绝对服务器毫秒 | AI 不用初始射程覆盖成长，不另存技能 CD，也不读或另算交战窗口（构筑没有安全窗）；字段单位由提供者定义并集中转换。 |
 | `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/ManaCost/CooldownSec`、`stats` | 公共定义；按字段单位/类型读取 | 技能只有一级，每个主动一组效果值；按实际目标模式（Self/Unit/DirectionProjectile/DirectionCone/DirectionDash/GroundPoint）覆盖全部非空来源；加点只读五维目录与效果的 AD/AP 系数；未知 enum/缺作用条件拒绝而非默认为普攻。 |
 | `CAMP.Low/High`、公开地点；`FORMULA.Damage/Resistance/AttackIntervalMs/AttackWindupMs/ResourceMaxChange` | 只读公共定义/统一数值原语 | 成本估计复用原语但不执行战斗，不读隐藏当前营地成员/HP/刷新期限；资源比例变化只消费 Combat 最终投影。 |
 
@@ -646,7 +646,7 @@ AI 持有被暂停的喷漆进度时留在区内迎战，只在止损线离开�
 | AI-A02 真实闭环 | 从仅普攻开局，逐个 AI 观察成长、主动选择与加点、主动、撤退恢复、回防、死亡复活、喷漆、守护与围攻 | 每段能由该 Contender 的正式订单/死亡奖励/Build/Action/结果回执连起来；不是 Script 代发策略。分场景证明三个 AI 都能成为唯一胜者，不要求同一局三胜者。 |
 | AI-A03 隐藏状态非干扰 | 固定同一授权输入/自身状态/静态图/平局种子，改变隐藏敌人坐标、CD、技能/属性和隐藏营地刷新；另只增加另一 AI 的合法观察 | 本 AI 的决策及请求条款不变；没有跨 AI 感知共享。再用真实遮挡/帧载荷证明生产者确实过滤，不只给模型手写空帧。 |
 | AI-A04 字段白名单/死亡视野 | 当前可见时检查姓名/等级/HP/MP/状态；遮挡、死亡、拖静态镜头、公开喷漆/涂鸦状态与击杀通知 | 动态字段撤销，无技能/CD/属性或 LastSeen；死亡无新身体视野；公共信息不附精确隐藏坐标。 |
-| AI-A05 目标撤销/可见死亡 | 在提交前、追击、前摇中 Conceal/stale；晚到旧视图/ACK；另给予匹配原订单/handle epoch 的 FLDObservedUnitTermination 授权死亡 | 失视野终结 AttackUnit/追敌 A，无旧 A 目的地/LastSeen 续走；前摇中失视野的普攻仍按 2026-11-07 规则出手命中，订单在出手后才结束；再次可见须新 Order。只有未取消原单的授权死亡能走操作域原 A 继续；隐藏死亡/移除/离局不行。 |
+| AI-A05 目标撤销/可见死亡 | 在提交前、追击、前摇中 Conceal/stale；晚到旧视图/ACK；另给予匹配原订单/handle epoch 的 FLDObservedUnitTermination 授权死亡 | 失视野终结 AttackUnit/追敌 A，无旧 A 目的地/LastSeen 续走；前摇中失视野的普攻仍按规则出手命中，订单在出手后才结束；再次可见须新 Order。只有未取消原单的授权死亡能走操作域原 A 继续；隐藏死亡/移除/离局不行。 |
 | AI-A06 支持面/不可达/卡路 | None/未知/错误 SurfaceHint、无真实 CurrentFloor 但 XY 在喷漆区内；无完整路径、阻挡更新、受控停走、目标换生命、异观察者 handle | 四参 QueryGround 明确拒绝 InvalidSurface/WrongSurface/NotGrounded，无空 hint/默认面/向下投影兜底；无 floor 不计入喷漆区但不冻结已处理边界。无 partial/穿墙/传送/隐藏实体泄露；控制不误计卡路，有限重试后换合法 POI。 |
 | AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，过窗，Query 已取消单；Build 查询覆盖所有 LookupStatus 与旧局同号 | Queued 不替旧单；handoff 原子；旧包不续走/续打/延寿；冲突/过窗明确，零重复提交。查询 Pending 只有 PendingInfo，Final 只有匹配业务 Receipt，缺失/过窗/错上下文无伪终态或默认生命载荷。 |
 | AI-A08 持久 Offer 竞争 | 两次重复/不同选择请求、Build 冲突、连升、Q/W/E 已满时选择、交战中选择与学图纸、死前 Alive 请求延到 Dead、Dead 选择、学习与加点和复活竞争 | 同一机会只消费一次，原卡保留不重抽；开局一次与 3、6 级各一次机会；交战中与死亡中有空槽即学到，满槽时存为图纸并写明原因，学到已占用槽被拒，野外没有替换或遗忘（替换只在休息构筑窗口内，§6.4）；加点整次生效。当前 Dead 选择不治疗/提前复活；旧 LifePhase 请求拒绝而候选不变。 |

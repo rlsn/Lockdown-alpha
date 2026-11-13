@@ -141,7 +141,7 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 成长、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。
 
-外层流程（#198，用户 2026-11-10 批准[外层参数](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)，原话：“批准整套方案，按票内参数实施”）：
+外层流程：
 #153 的开局倒计时已删除（`ELDMatchPhase` 数值 2 退役）。`StartDemoMatch` 把每名参赛者的第一条生命放在公共休息室按名单槽位固定的 `rest_spawn_<槽位>` 后进入 `Rest`（开局休息 R0），
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs`）设为此刻，以 `MAX_int64` 开始喷漆归约器，
 并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息与 PK 中冻结，
@@ -152,7 +152,7 @@ T+15 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/
 `ALDGameMode::PayFieldReward` 进入 `ALDGrowthDirector::CommitFieldReward`，可重试的拒绝在之后每个 Transactions 由 `RetryFieldRewards` 重付；
 最终野外开始的边界由 `FLDCaptureReducer::ScheduleOpen` 定为开放时刻，同一边界的 Capture 阶段从 Development 切到 CaptureOpen。
 `NextTimelineDueMs` 让每个休息步骤与野外段终点成为精确步边界；driver 在 RespawnsAndWorld 开头调用 `AdvanceTimeline`，
-在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算，再锁定报名名单；#222 起不锁构筑）。休息中 driver 跳过营地运动、营地意图与世界推进，
+在 Transactions 末尾调用 `LockTimelineBuild`（截止时刻提交的构筑命令先结算，再锁定报名名单；不锁构筑）。休息中 driver 跳过营地运动、营地意图与世界推进，
 Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果取消与资源补满见[会话、对局与生命周期 §3.4](../demo/SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界198)。
 写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务（#222）。
 返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
@@ -209,8 +209,8 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 争夺冻结喷漆者的进度（其他人不累积），他再次独自在区内时 `SoloSinceMs` 回拨暂停值续计；他离区、死亡、离局或被打断即清零，
 别人不继承。喷漆到期严格早于某条事实时先喷上；与到期同刻的死亡、离局、控制、离区先处理。
 喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护只在 Guarded（主人独自在区内）运行，Empty（主人在区外、区内无人）
-时暂停、Solo/Contested（区内有主人以外的有效参赛者）时冻结于 `GuardKept`，回到 Guarded 时从保留值续计（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”）；
-冻结期间主人从区内走出、且该原始秒的事实全部归约后区内仍有非主人，`GuardKept` 清零而涂鸦保留（2026-11-07 用户决定，同刻离开不清零、只暂停）；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
+时暂停、Solo/Contested（区内有主人以外的有效参赛者）时冻结于 `GuardKept`，回到 Guarded 时从保留值续计；
+冻结期间主人从区内走出、且该原始秒的事实全部归约后区内仍有非主人，`GuardKept` 清零而涂鸦保留；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
 `FLDCaptureProposal{Epoch, Winner, GuardSinceMs, DueAtMs}`。`NextDueMs` 给驱动的停靠边界：未开放时为开放时刻、
 独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停与守护暂停、冻结不给驱动额外停靠边界：步内能让保留的守护恢复的
 只有 Motion 的进出区事实（离局在步前入队，死亡、控制、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
