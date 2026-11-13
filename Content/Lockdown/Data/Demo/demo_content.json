@@ -5619,6 +5619,7 @@
       "numerator": 400,
       "unit": "cm"
     },
+    "GROWTH.ActiveSkipPoints": 5,
     "GROWTH.BuildSafeWindowSec": {
       "ms": 4000,
       "unit": "ms"
@@ -5628,7 +5629,8 @@
     "GROWTH.FillGapPoints": 4,
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.MaxLevelPointsXP": 400,
-    "GROWTH.NpcActivePoints": 3,
+    "GROWTH.NpcActivePoints": 5,
+    "GROWTH.NpcActiveSkipPoints": 3,
     "GROWTH.OpeningPoints": 3,
     "GROWTH.PointsPerLevel": 3,
     "LEADER.CircleMaxOffsetCm": {

@@ -2515,7 +2515,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         // Everyone else stays in the shared rest room; spectating sends no order while the arena runs.
         ForgetBody(State);
         // #198 D: at most one PK request per decision (a bet once per PK); throws wait for the own cooldown from the latest
-        // throw answer. #198 站圈报名: standing in the own disk is the sign-up the authority judges from the committed foot,
+        // throw answer. Standing in the shared disk is the sign-up the authority judges from the committed foot,
         // so while the window is open the body walks into it and then stays there (no training) until the lock; an accepted
         // action or a channel finishes first.
         EReason PKReason = EReason::None;

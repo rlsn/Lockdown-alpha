@@ -600,7 +600,8 @@ namespace LDHUD
         // StorageColumnCount columns in EStorageColumn order.
         TArray<FStorageColumnView> Columns;
     };
-    LOCKDOWN_API FStorageView ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    LOCKDOWN_API FStorageView ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+        const TSet<FName>* Seen=nullptr);
     // One place a component may be dropped now: a column, or an installed host component in it, with the install target the
     // command carries. B18 still asks for one of Elements (bound to BindActive); C12 for one of Bases.
     struct FComponentDrop

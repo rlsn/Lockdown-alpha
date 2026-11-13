@@ -35,7 +35,8 @@ enum class ELDBuildCommandKind : uint8
 {
     None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
     OpeningBase = 10, InstallComponent = 11, UninstallComponent = 12, ComponentChoice = 13,
-    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25
+    BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25,
+    SkipActiveOffer = 26
 };
 
 // #198 B: where an installed component sits. Base components take None (enabled on the build); mods/connectors
@@ -219,6 +220,7 @@ struct LOCKDOWN_API FLDActiveOfferView
     UPROPERTY() uint64 OfferRevision = 0;
     // One to three distinct active ids, immutable for the offer's lifetime.
     UPROPERTY() TArray<FName> Options;
+    UPROPERTY() int64 SkipPoints = 0;
 };
 
 // #198 B: an install target on the wire and in views (ELDComponentTargetKind; unused fields zero/None).
@@ -422,6 +424,8 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() FName ForgottenId;
     // Respec: the allocated points returned to the unspent ones.
     UPROPERTY() int64 PointsRefunded = 0;
+    // SkipActiveOffer: points awarded for permanently giving up this opportunity.
+    UPROPERTY() int64 PointsAwarded = 0;
     // BuyNpcOffer: the points permanently paid.
     UPROPERTY() int64 NpcPointsPaid = 0;
     // #198 G: ComponentChoice / FillGap / Dismantle put ComponentId (the received component; None when a ComponentChoice

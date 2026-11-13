@@ -1323,6 +1323,10 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A receipt without a result never claims one"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Kind=ELDBuildCommandKind::AllocatePoints;Receipt.PointsSpent={2,0,1,0,0};Receipt.UnspentPointsAfter=3;
     TestEqualSensitive(TEXT("An allocation names the points added and left"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已加 3 点，还剩 3 点")));
+    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsAwarded=5;
+    TestEqualSensitive(TEXT("A skipped offer names the awarded points"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已放弃本组技能，获得 5 属性点。")));
+    Receipt.PointsAwarded=0;
+    TestEqualSensitive(TEXT("A skip receipt without its award claims nothing"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::NotEnoughPoints);
     TestEqualSensitive(TEXT("A refused command names its reason"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("没有生效：未分配点数不够")));
     {
@@ -1455,6 +1459,9 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
         const LDHUD::FStorageView Storage=LDHUD::ComponentStorage(Built,&Content);
         TestTrue(TEXT("Stored components in order; one was installed before, one never"),
             Storage.Stored==TArray<FName>({FName(TEXT("hud_fixture_wet")),FName(TEXT("hud_fixture_mod"))})&&Storage.Fresh==1);
+        const TSet<FName> Seen{FName(TEXT("hud_fixture_wet"))};
+        TestEqual(TEXT("A previewed component no longer contributes to the fresh count"),
+            LDHUD::ComponentStorage(Built,&Content,&Seen).Fresh,0);
         TestTrue(TEXT("Five columns: 本体, Q, W, E and D, each slot with its learned active"),Storage.Columns.Num()==LDHUD::StorageColumnCount
             &&Storage.Columns[0].Title==LDTerms::ColumnBody&&Storage.Columns[4].Title==LDTerms::Dash
             &&Storage.Columns[2].Title.IsEmpty()&&Storage.Columns[3].Title==LDTerms::ColumnEmptySlot

@@ -334,6 +334,7 @@ def parameter_projection(parameters):
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
         ("GROWTH.NpcActivePoints", "NpcActivePoints"),
+        ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.NpcActiveSkipPoints", "NpcActiveSkipPoints"),
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("GROWTH.EmptyComponentPoolPoints", "EmptyComponentPoolPoints"),

@@ -145,7 +145,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The approved AI decision interval is not positive.");
         return false;
     }
-    // #198 站圈报名: the sign-up disk of this contender's rest space, as public as the world (its roster slot's anchor).
+    // Each contender approaches a separate standing position inside the shared sign-up disk.
     FVector SignupCentre;
     double SignupRadius = 0;
     const FLDMapBinding* SignupAnchor = nullptr;
@@ -156,7 +156,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     }
     if (!SignupAnchor)
     {
-        Error = TEXT("The opponent's roster slot has no registered PK sign-up disk.");
+        Error = TEXT("The opponent's roster slot has no registered PK sign-up position.");
         return false;
     }
     TArray<FLDOpponentPOI> Services;
@@ -184,7 +184,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     SignupPOI.Id = SignupAnchor->Id;
     SignupPOI.Kind = ELDOpponentPOIKind::PKSignup;
     SignupPOI.SurfaceId = SignupAnchor->Surface;
-    SignupPOI.FootCm = SignupCentre;
+    SignupPOI.FootCm = SignupAnchor->Position;
     RestServicePOIs = MoveTemp(Services);
 #if WITH_DEV_AUTOMATION_TESTS
     Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());

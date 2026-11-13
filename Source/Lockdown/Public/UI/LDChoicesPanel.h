@@ -46,6 +46,7 @@ public:
     void SetTrayInset(float Right,float Bottom);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
+    bool SkipOffer();
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
     bool PreviewOffer(int32 Index);
     // A blueprint card click: learns the blueprint at Index of the shown list into the lowest empty Q/W/E slot.
@@ -90,7 +91,7 @@ public:
     // The tray has at least one card (LDHUD::GrowthPending over the same view).
     bool HasCards() const;
     // The card of the open tray under Pointer (absolute), else the pinned offer card, with its popup lines; or null.
-    const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out) const;
+    const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent=nullptr) const;
     // The HUD opened the tray for the opening offer (D10): it folds back to the 构筑 button after a few seconds unless the
     // player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
@@ -110,6 +111,7 @@ private:
     // tile. Detail is its popup.
     struct FTrayCard
     {
+        FName Component;
         TObjectPtr<USizeBox> Frame;
         TObjectPtr<ULDCommandButton> Button;
         TObjectPtr<USizeBox> IconFrame;
@@ -156,11 +158,14 @@ private:
     // The tray: its frame (placed over the whole canvas) and the stack of rows.
     UPROPERTY() TObjectPtr<UBorder> TrayFrame;
     UPROPERTY() TObjectPtr<UVerticalBox> Tray;
+    UPROPERTY() TObjectPtr<UWidget> OfferGroup;
+    UPROPERTY() TObjectPtr<UTextBlock> OfferNumber;
     UPROPERTY() TObjectPtr<UWrapBox> OfferRow;
     UPROPERTY() TObjectPtr<UWrapBox> BaseRow;
     UPROPERTY() TObjectPtr<UVerticalBox> ChoiceRowList;
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
+    FTrayCard SkipCard;
     TArray<FTrayCard> BaseCards;
     TArray<FChoiceRow> ChoiceRows;
     TArray<FTrayCard> BlueprintCards;

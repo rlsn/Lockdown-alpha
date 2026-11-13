@@ -633,6 +633,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     switch (Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::SkipActiveOffer:
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::AllocatePoints:
     case ELDBuildCommandKind::BuyNpcOffer:
@@ -660,6 +661,7 @@ ELDGrowthReason LDProgression::CommandGate(ELDBuildCommandKind Kind, const FBuil
     // #222: the own build commands are open in every stage of a running match, alive or dead, in combat and in a PK; the
     // server still checks the resources, slots and structure of each one.
     case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::SkipActiveOffer:
     case ELDBuildCommandKind::ComponentChoice:
     case ELDBuildCommandKind::OpeningBase:
     case ELDBuildCommandKind::LearnBlueprint:
@@ -745,6 +747,26 @@ ELDGrowthReason LDProgression::ApplyActiveChoice(const FLDDemoContentDefinitions
     Out.PendingBlueprints.Add(Option);
     ProgressionSortBuild(Out);
     Outcome.Result = ELDBuildChoiceResult::StoredAsBlueprint;
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::ApplySkipActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+    const FLDActiveOfferState& Offer, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints)
+{
+    Out = Current;
+    OutPoints = 0;
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None) { return Reason; }
+    if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::SkipActiveOffer, Context); Reason != ELDGrowthReason::None)
+    { return Reason; }
+    const int64 Points = Offer.bNpcPurchased ? Content.Parameters.NpcActiveSkipPoints : Content.Parameters.ActiveSkipPoints;
+    if (Points <= 0 || (Offer.bNpcPurchased && Points >= Content.Parameters.NpcActivePoints))
+    { return ELDGrowthReason::DataInvalid; }
+    if (!ProgressionCheckedAdd(Current.AwardedPoints, Points, Out.AwardedPoints))
+    {
+        Out = Current;
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    OutPoints = Points;
     return ELDGrowthReason::None;
 }
 
@@ -888,6 +910,7 @@ ELDGrowthReason LDProgression::ApplyBuyNpcOffer(const FLDDemoContentDefinitions&
     Offer.OfferId = FGuid::NewGuid();
     Offer.Ordinal = Ordinal;
     Offer.Options = MoveTemp(Options);
+    Offer.bNpcPurchased = true;
     Offer.GeneratedBuildRevision = Current.Revision;
     Offer.Revision = ++OutProgression.LastOfferRevision;
     OutProgression.Offer.Emplace(MoveTemp(Offer));
@@ -1282,7 +1305,7 @@ ELDGrowthReason LDProgression::ApplyOpeningBase(const FLDDemoContentDefinitions&
         return Reason;
     }
     const FName Opening = OpeningActive(Progression);
-    if (Opening.IsNone())
+    if (!Progression.Records.ContainsByPredicate([](const FLDActiveOpportunityRecord& Row) { return Row.Ordinal == 1; }))
     {
         return ELDGrowthReason::OpeningActiveFirst;
     }

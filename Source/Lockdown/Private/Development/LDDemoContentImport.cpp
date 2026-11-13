@@ -536,6 +536,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("COMBAT.OverloadBreachStacks"), &P.OverloadBreachStacks, 1},
         {TEXT("GROWTH.EmptyComponentPoolPoints"), &P.EmptyComponentPoolPoints, 1},
         {TEXT("GROWTH.NpcActivePoints"), &P.NpcActivePoints, 1},
+        {TEXT("GROWTH.ActiveSkipPoints"), &P.ActiveSkipPoints, 1}, {TEXT("GROWTH.NpcActiveSkipPoints"), &P.NpcActiveSkipPoints, 1},
         {TEXT("GROWTH.FillGapPoints"), &P.FillGapPoints, 1}, {TEXT("GROWTH.DismantleInputCount"), &P.DismantleInputCount, 1},
         {TEXT("PK.ParticipationPoints"), &P.PKParticipationPoints, 1}, {TEXT("PK.WinnerPointsMax"), &P.PKWinnerPointsMax, 1},
         {TEXT("PK.BettingPoolMaxPoints"), &P.PKBettingPoolMaxPoints, 1}})

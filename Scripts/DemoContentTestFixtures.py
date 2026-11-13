@@ -95,6 +95,7 @@ def content_fixture():
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3, "COMBAT.OverloadBreachStacks": 3,
         "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
         "GROWTH.NpcActivePoints": 5,
+        "GROWTH.ActiveSkipPoints": 5, "GROWTH.NpcActiveSkipPoints": 3,
         "PK.ParticipationPoints": 2, "PK.WinnerPointsMax": 4, "PK.BettingPoolMaxPoints": 3,
         "GROWTH.EmptyComponentPoolPoints": 2,
         "GROWTH.FillGapPoints": 6, "GROWTH.DismantleInputCount": 2,

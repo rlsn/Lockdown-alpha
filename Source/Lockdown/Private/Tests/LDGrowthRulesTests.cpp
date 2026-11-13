@@ -205,11 +205,11 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::OpeningBase, ELDBuildCommandKind::InstallComponent,
         ELDBuildCommandKind::UninstallComponent, ELDBuildCommandKind::ComponentChoice, ELDBuildCommandKind::FillGap,
-        ELDBuildCommandKind::Dismantle})
+        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(26), uint8(255)})
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(27), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -894,7 +894,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("CatalogDigest"),
          TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
-        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options")});
+        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot")});
     bGood &= GrowthTestExactFields(Test, FLDStatPointsView::StaticStruct(), {TEXT("StatId"), TEXT("Points")});
     bGood &= GrowthTestExactFields(Test, FLDComponentInstanceView::StaticStruct(),
@@ -2220,6 +2220,14 @@ bool GrowthTestRunOpeningBase(FAutomationTestBase& Test)
     };
     bGood &= Refused(TEXT("A base pick before the opening active"), Pick(Start, Fresh, Spiky, true, FLDComponentTarget(), OpeningRest),
         ELDGrowthReason::OpeningActiveFirst, Start);
+    FLDProgressionState Skipped = Opened;
+    Skipped.Records[0].Chosen = NAME_None;
+    bGood &= Test.TestTrue(TEXT("Skipping the opening active still allows an always-offered opening base"),
+        Pick(Start, Skipped, Spiky, true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && Outcome.bInstalled
+        && Out.FindComponent(Spiky));
+    bGood &= Refused(TEXT("A skipped opening does not unlock an active-specific base"),
+        Pick(Start, Skipped, FName(TEXT("component_fist_shock")), true, FLDComponentTarget(), OpeningRest),
+        ELDGrowthReason::OpeningBaseUnavailable, Start);
     bGood &= Test.TestTrue(TEXT("The opening rest pick is granted as the opening instance and installed in the same commit"),
         Pick(Start, Opened, Spiky, true, FLDComponentTarget(), OpeningRest) == ELDGrowthReason::None && Outcome.bInstalled
         && Outcome.StoredReason == ELDGrowthReason::None && Out.Components.Num() == 1 && Out.Components[0].Id == Spiky
@@ -3376,7 +3384,8 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
     const FGuid Tester(0x198, 6, 0, 1);
     const FGuid Hoarder(0x198, 6, 0, 2);
-    const TArray<FGuid> Roster = {Tester, Hoarder};
+    const FGuid Skipper(0x198, 6, 0, 3);
+    const TArray<FGuid> Roster = {Tester, Hoarder, Skipper};
     for (const FGuid& Id : Roster)
     {
         auto& Life = Mode->Lives.Add(Id);
@@ -3436,7 +3445,8 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
                     return true;
                 }, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
-        return TestTrue(FString::Printf(TEXT("An event reward of %lld XP is granted (%s)"), Amount, *Error),
+        return TestTrue(FString::Printf(TEXT("An event reward of %lld XP is granted (%s; outcome=%u, reason=%s)"),
+            Amount, *Error, uint32(Outcome), LDGrowthWire::ReasonName(Reason)),
             bRan && Outcome == ELDRewardOutcome::Granted);
     };
     const uint32 Gen = Mode->MatchContext.Generation;
@@ -3464,6 +3474,14 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
         FLDDefinitionWire::Encode(Option, Out.Option);
         Out.bLearnIfPossible = bLearn;
         Out.Slot = Slot;
+        return Out;
+    };
+    const auto Skip = [&](const FGuid& Id)
+    {
+        const FLDProgressionView View = Development->ReadProgression(Id);
+        FLDBuildCommand Out = Base(Id, ELDBuildCommandKind::SkipActiveOffer);
+        Out.OfferId = View.ActiveOffer.OfferId;
+        Out.OfferRevision = View.ActiveOffer.OfferRevision;
         return Out;
     };
     const auto LearnBlueprint = [&](const FGuid& Id, FName Blueprint, uint8 Slot)
@@ -3514,6 +3532,35 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     const auto ProgressionOf = [&](const FGuid& Id) -> const FLDProgressionState& { return *Development->FindProgression(Id); };
     const auto Unspent = [&](const FGuid& Id) { return Development->ReadProgression(Id).UnspentPoints; };
     const auto FightOf = [&](const FGuid& Id) -> FLDCombatEntityRecord& { return Driver->Records.FindChecked(Id); };
+
+    const FLDProgressionView SkipOpening = Development->ReadProgression(Skipper);
+    if (!TestTrue(TEXT("The opening offer advertises five points for declining"),
+        SkipOpening.bHasActiveOffer && SkipOpening.ActiveOffer.SkipPoints == 5)) { return false; }
+    FLDBuildCommand SkipStale = Skip(Skipper);
+    ++SkipStale.OfferRevision;
+    Rejected(Commit(Skipper, SkipStale, 100, TEXT("Skipping against a stale offer revision")),
+        ELDGrowthReason::OfferGuardStale, TEXT("Skipping against a stale offer revision"));
+    const FLDBuildCommand SkipOpeningCommand = Skip(Skipper);
+    const FLDBuildReceipt SkipOpeningReceipt = Commit(Skipper, SkipOpeningCommand, 101, TEXT("Skipping the opening offer"));
+    const FLDProgressionView AfterSkipOpening = Development->ReadProgression(Skipper);
+    TestTrue(TEXT("Skipping consumes the offer once, awards points and opens the unconditional base choice"),
+        SkipOpeningReceipt.Header.Outcome == ELDReceiptOutcome::Applied && SkipOpeningReceipt.PointsAwarded == 5
+        && SkipOpeningReceipt.OpportunityOrdinal == 1 && SkipOpeningReceipt.UnspentPointsAfter == 8
+        && BuildOf(Skipper).Actives.IsEmpty() && ProgressionOf(Skipper).ActiveConsumed == 1
+        && ProgressionOf(Skipper).Records.Num() == 1 && ProgressionOf(Skipper).Records[0].Chosen.IsNone()
+        && AfterSkipOpening.bOpeningBasePending && !AfterSkipOpening.OpeningBaseOptions.IsEmpty());
+    const uint64 RevisionAfterSkip = BuildOf(Skipper).Revision;
+    const FLDSubmitResult SkipReplay = Development->QueueBuild(Skipper, SkipOpeningCommand);
+    TestTrue(TEXT("Replaying a skip returns the original award without awarding again"),
+        SkipReplay.Status == ELDAdmissionStatus::Final && SkipReplay.bHasBuildReceipt
+        && SkipReplay.BuildReceipt.PointsAwarded == 5 && BuildOf(Skipper).Revision == RevisionAfterSkip
+        && Unspent(Skipper) == 8);
+    FLDBuildCommand SkipConsumed = Skip(Skipper);
+    SkipConsumed.OfferId = SkipOpening.ActiveOffer.OfferId;
+    SkipConsumed.OfferRevision = SkipOpening.ActiveOffer.OfferRevision;
+    Rejected(Commit(Skipper, SkipConsumed, 102, TEXT("Skipping an already consumed offer")),
+        ELDGrowthReason::OfferAlreadyCommitted, TEXT("Skipping an already consumed offer"));
+    TestEqual(TEXT("An already consumed offer awards no points"), Unspent(Skipper), int64(8));
 
     // ---- Admission: the shape of each kind, the match and the membership ----
     const FLDProgressionView Opening = Development->ReadProgression(Tester);
@@ -3706,6 +3753,21 @@ bool FLDDemoGrowthBuildCommandsTest::RunTest(const FString& Parameters)
     // ---- Development: level 3 queues an offer of every active but the learned one ----
     Mode->MatchPhase = ELDMatchPhase::Development;
     FightOf(Tester).LastBuildUnsafeAtMs = 0;
+    if (!Reward(Skipper, 4, 600)) { return false; }
+    const FLDProgressionView QueuedSkips = Development->ReadProgression(Skipper);
+    if (!TestTrue(TEXT("Level 6 has two queued opportunities behind a single generated offer"),
+        QueuedSkips.Level == 6 && QueuedSkips.QueuedActiveOpportunities == 2 && QueuedSkips.bHasActiveOffer
+        && QueuedSkips.ActiveOffer.OpportunityOrdinal == 2)) { return false; }
+    const FLDBuildReceipt FirstQueuedSkip = Commit(Skipper, Skip(Skipper), StepAtMs + 1, TEXT("Skipping the first queued offer"));
+    const FLDProgressionView NextSkip = Development->ReadProgression(Skipper);
+    TestTrue(TEXT("Skipping one queued offer generates the next distinct group"),
+        FirstQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && FirstQueuedSkip.PointsAwarded == 5
+        && NextSkip.QueuedActiveOpportunities == 1 && NextSkip.bHasActiveOffer && NextSkip.ActiveOffer.OpportunityOrdinal == 3
+        && NextSkip.ActiveOffer.OfferId != QueuedSkips.ActiveOffer.OfferId);
+    const FLDBuildReceipt LastQueuedSkip = Commit(Skipper, Skip(Skipper), StepAtMs + 1, TEXT("Skipping the next queued offer"));
+    TestTrue(TEXT("The next group is consumed independently"),
+        LastQueuedSkip.Header.Outcome == ELDReceiptOutcome::Applied && LastQueuedSkip.PointsAwarded == 5
+        && Development->ReadProgression(Skipper).QueuedActiveOpportunities == 0 && ProgressionOf(Skipper).ActiveConsumed == 3);
     if (!Reward(Tester, 1, 180)) { return false; }
     const FLDProgressionView Three = Development->ReadProgression(Tester);
     TestTrue(TEXT("Level 3 queues opportunity 2 with an offer and adds 6 points"), Three.Level == 3 && Three.ActiveOpportunitiesEarned == 2

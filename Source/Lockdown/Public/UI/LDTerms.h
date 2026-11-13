@@ -245,10 +245,10 @@ inline constexpr TCHAR RestReturn[]=TEXT("返回野外");
 inline FString SignupOpensIn(int64 Seconds){return FString::Printf(TEXT("PK 报名 %lld 秒后开放"),Seconds);}
 inline FString SignupOpenFor(int64 Seconds){return FString::Printf(TEXT("PK 报名中 · 剩 %lld 秒"),Seconds);}
 inline FString SignedUpCount(int32 Count){return FString::Printf(TEXT("已报名 %d 人"),Count);}
-// 站圈报名（#198 用户选择 A）：报名窗内本人站在自己休息位旁的报名圈里就是报名，截止时站在圈里的人锁定参赛。
+// 报名窗内站在公共报名圈里的玩家在截止时锁定参赛。
 inline constexpr TCHAR SignedUpSelf[]=TEXT("你在报名圈里，已报名");
 inline constexpr TCHAR NotSignedUpSelf[]=TEXT("站进报名圈即报名");
-inline constexpr TCHAR SignupCircleHint[]=TEXT("报名圈在你休息位旁，截止时站在圈里才参赛");
+inline constexpr TCHAR SignupCircleHint[]=TEXT("站进公共报名圈，截止时在圈里才参赛");
 inline FString PKEntrants(int32 Count){return FString::Printf(TEXT("PK %d 人参赛"),Count);}
 inline constexpr TCHAR PKSkipped[]=TEXT("PK 跳过（报名不足 2 人）");
 // PK 与观众（#198 D，APP_SPEC §5）：抽签公布赛制与分队；没参赛的观众押一方会赢（免费、一人一票、押注结束前可改）；

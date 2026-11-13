@@ -266,8 +266,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PointsPerLevel = 0;
     UPROPERTY() int64 MaxLevelPointsXP = 0;
     UPROPERTY() int64 MaxLevelPoints = 0;
-    // #198: points a rest NPC charges for one active-only three-choice.
+    // Points charged by the skill merchant and awarded for declining an active opportunity.
     UPROPERTY() int64 NpcActivePoints = 0;
+    UPROPERTY() int64 ActiveSkipPoints = 0;
+    UPROPERTY() int64 NpcActiveSkipPoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
     // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
     // (GROWTH.EmptyComponentPoolPoints).

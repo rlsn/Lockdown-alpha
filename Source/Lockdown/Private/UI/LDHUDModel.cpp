@@ -1432,6 +1432,8 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     const FString Missing(TEXT("回执缺少结果，请以当前状态为准。"));
     switch(Receipt.Kind)
     {
+    case ELDBuildCommandKind::SkipActiveOffer:
+        return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -1672,7 +1674,8 @@ LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
     return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
 }
-LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+    const TSet<FName>* Seen)
 {
     FStorageView View;
     View.Columns.SetNum(StorageColumnCount);
@@ -1692,7 +1695,7 @@ LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progressio
     {
         if(Owned.bInstalled){++View.Installed;continue;}
         View.Stored.Add(Owned.DefinitionId);
-        if(!Owned.bEverInstalled){++View.Fresh;}
+        if(!Owned.bEverInstalled&&(!Seen||!Seen->Contains(Owned.DefinitionId))){++View.Fresh;}
     }
     // Each column lists its own installs in the view's order, each followed by what is installed on it (depth first).
     TMap<FName,EStorageColumn> Columns;

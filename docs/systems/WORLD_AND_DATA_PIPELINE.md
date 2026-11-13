@@ -31,10 +31,10 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 公共休息室与野外共用唯一地面与同一连接：地面向东延伸，野外东墙是隔墙，休息室四面封闭。
 `RestSpawn` 的 `rest_spawn_0..5` 只供阶段放置，不加入野外随机出生池；
-`RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师，位于玩家聚集排上、y=-500 cm；
+`RestService` 的 `rest_service_1..3` 分别为技能商人、构件工匠、训练师，位于 y=-500 cm、x=7100/7500/7900 cm；
 服务交互仍复用 `AIRDROP.PickupRadiusCm` 的150 cm范围。`TrainingDummy` 的六个 `training_dummy_0..5` 位于北侧
 y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
-训练锚点不进入野外 POI 或小地图地点。`PKSignup` 移到公共休息室对应槽位旁，距离仍为300 cm，报名范围仍复用 `AIRDROP.PickupRadiusCm`。
+训练锚点不进入野外 POI 或小地图地点。六个 `PKSignup` 锚点是公共报名圈里的不同站位，报名范围复用 `AIRDROP.PickupRadiusCm`。
 Python/native importer 都识别新增锚点，服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
 的完整室内原生路径；野外和 PK 出生仍以旗杆为路径参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
 改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
@@ -84,12 +84,10 @@ PK 有两类锚点：`PKSpawn` 固定为 `pk_spawn_0..5`，
 `DrawSpawnAnchor` 只抽 `Spawn`；AI 公开地点与小地图不把 PK 锚点当野外地点，美术摆放只为其留出一具身体的净空。
 场地内的可走路径不由 Python 证明。
 
-站圈报名使用 `PKSignup` 锚点
-`pk_signup_0..5`：第 n 个是名单槽位 n 的报名圈，属于公共休息室的 `rest_spawn_n`。
-`DemoWorld.py` 与 `LDMapGeometry.cpp`（`PKSignupDistanceCm`）检查：恰好六个、规范 id、与配对休息锚点同层且水平距离恰为 300 cm、
-`AIRDROP.PickupRadiusCm` 圆盘是合法站立地面、休息锚点的出生偏移都不落在圆盘内、从休息锚点到圆心的直线走在合法地面上、不与营地清空圈重叠。
-原生以 `LDDemoWorld::PKSignupId(槽位)` 经 `ULDMapRegistry::Resolve` 取位置（不进内容引用）；AI 公开地点、小地图与美术摆放跳过这些锚点，
-只有 `ALDGameMode::SignupDiskFor`、AI 的 `Frame.SignupPOI` 与本人可见的 `ALDSignupMarker` 使用它们。
+站圈报名使用 `PKSignup` 的六个站位 `pk_signup_0..5`，共同圆心为六站位的平均位置；所有玩家使用相同的 `AIRDROP.PickupRadiusCm` 圆盘。
+`DemoWorld.py` 与 `LDMapGeometry.cpp` 校验站位身份、同层、站位互相及对圆边的胶囊净空、圆盘合法地面、出生偏移与营地净空；Python 另检查休息位到站位的直线路径。
+`ULDMapRegistry::SharedSignupCentre` 给服务器报名和客户端标记提供同一个圆心；AI 走向本人槽位的站位，避免全部挤在圆心。
+AI 野外公开地点、小地图与美术摆放跳过这些锚点。
 
 世界生成头依次包含 `#pragma once`、`LD_DEMO_WORLD_SCHEMA_VERSION`、
 `LD_DEMO_WORLD_PROJECTION_REVISION` 和

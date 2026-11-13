@@ -92,6 +92,7 @@ struct FLDActiveOfferState
     TArray<FName> Options;
     uint64 Revision = 0;
     uint64 GeneratedBuildRevision = 0;
+    bool bNpcPurchased = false;
 };
 
 // One consumed active opportunity, kept for the whole match (dedupe of a consumed offer and telemetry).
@@ -252,6 +253,8 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyActiveChoice(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Option, bool bLearnIfPossible, uint8 PreferredSlot, const FBuildContext& Context, FLDGrowthBuild& Out,
         FChoiceOutcome& Outcome);
+    LOCKDOWN_API ELDGrowthReason ApplySkipActiveOffer(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
+        const FLDActiveOfferState& Offer, const FBuildContext& Context, FLDGrowthBuild& Out, int64& OutPoints);
     // A pending blueprint learned into an empty slot: NoBlueprint, SlotOccupied (a full slot is replaced only by
     // ApplyReplaceActive in a rest window) or a LearnGate reason when refused.
     LOCKDOWN_API ELDGrowthReason ApplyLearnBlueprint(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,

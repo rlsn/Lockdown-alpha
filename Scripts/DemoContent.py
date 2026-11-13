@@ -1102,6 +1102,8 @@ def validate_numbers(data):
                               params["GROWTH.EmptyComponentPoolPoints"], "GROWTH.EmptyComponentPoolPoints")
     checked_add(params["GROWTH.OpeningPoints"], checked_add(level_points, pool_points, "GROWTH.EmptyComponentPoolPoints"),
                 "GROWTH.EmptyComponentPoolPoints")
+    require(params["GROWTH.NpcActiveSkipPoints"] < params["GROWTH.NpcActivePoints"], "InvalidPolicy",
+            "GROWTH.NpcActiveSkipPoints", "declining a purchased offer must cost points overall")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),

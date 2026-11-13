@@ -22,7 +22,7 @@
 | 一种基础角色，开局只有物理普攻 | 设计基值与普攻形态，不新增开局技能或不同职业 |
 | 1 根旗杆（喷漆区）、34 个营地（低档、高档、精英三档）、12 个野外出生点 | 设计营地分配与强度；坐标、合法路径及遮挡由世界模块维护 |
 | 十二点等概率、允许重复的开局与复活抽样 | 不按危险、视野或距离筛点；只处理合法落地与防重叠 |
-| 等级 1 至 16；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一 | 设计 XP 曲线与成长参数（§4.1、§4.3）；不额外赠送点数或机会，没有重抽 |
+| 等级 1 至 16；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一 | XP 曲线与成长参数见 §4.1、§4.3；候选可按来源放弃换点，没有重抽 |
 | Q/W/E 最多 3 个角色主动；技能只有一级 | 只能学到空槽；满槽替换只在休息（§4.4），野外满槽时新主动保留为待学图纸；遗忘后再用需重新获得 |
 | 野怪最后一击独得经验；参赛者击杀另有助攻；每条生命的击杀与助攻奖励一起只发一次 | 不加附近分摊、按伤害比例分成或回位奖励 |
 | 死亡保留等级、XP、技能、属性点、待学图纸及待选机会 | 冷却继续经过服务器时间；死亡只损失等待与位置 |
@@ -193,7 +193,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `MATCH.FieldSegmentSec` | s/Sec | 180 | 三段野外各180s；野外进度T只在野外推进，休息与PK暂停T；R3返场后最终野外立即开放旗杆 |
 | `REST.OpeningBuildSec` | s/Sec | 180 | 开局R0构筑/试招窗；所有真人准备后可提前结束 |
 | `REST.BuildSec` | s/Sec | 120 | R1–R3构筑/试招窗；所有真人准备后可提前结束 |
-| `REST.SignupSec` | s/Sec | 10 | 构筑窗最后10s兼作PK站圈报名；用户再批准“保留最后10秒报名，之后结束休息”。所有真人准备后只缩短到最后10s，不延长或重置已开放窗口；AI不阻塞。每个槽位一个 `pk_signup_<槽位>`，离公共休息室 `rest_spawn_<槽位>` 300 cm（布局修订10），半径仍复用 `AIRDROP.PickupRadiusCm`半径 150 cm（空投拾取同值，不新增数值）” |
+| `REST.SignupSec` | s/Sec | 10 | 构筑窗最后 10s 兼作 PK 站圈报名；所有真人准备后只缩短到最后 10s，不延长或重置已开放窗口；AI 不阻塞。六个 `pk_signup_<槽位>` 站位共用一个公共圆盘，半径复用 `AIRDROP.PickupRadiusCm` 的 150 cm |
 | `REST.DrawSec` | s/Sec | 5 | 抽签与公布；报名名单已锁，自己的构筑不锁，NPC 服务关闭 |
 | `REST.BettingSec` | s/Sec | 8 | 非选手竞猜，到截止封盘 |
 | `REST.PKReadySec` | s/Sec | 3 | PK就位倒计时，双方禁止移动和进攻 |
@@ -260,7 +260,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 批准范围是[玩法与完整目录](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6739619912)
 （下称“目录”）与 [AI 实现规范](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6739620418)（下称“AI 规范”）中的
 22 个主动、21 个基础构件、20 个改装件、21 个连接件的效果与数值，五维每点收益、G 曲线、材料类别概率、
-以及补缺（4 点）、拆解（3 换 1）、满级每 400XP 给 3 点。外层参数
+当前补缺为 4 点、拆解为 2 换 1，满级每 400XP 给 3 点。外层参数
 见[外层参数](https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752601175)。
 
 条目状态中的**运行中**表示已写入 `SourceData\Demo\content.json` 并经 Sync 生成；这不代表完整对局验收或平衡测试通过。
@@ -290,13 +290,16 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 | `GROWTH.PointsPerLevel` | 3 | 每次升到 2–16 级各给的点数；已确认决定 |
 | `GROWTH.MaxLevelPointsXP` | 400 XP | 满 16 级后，超出 `XP.Threshold[16]` 的累计 XP 每满这么多 |
 | `GROWTH.MaxLevelPoints` | 3 | 每满一段给的点数；满级后不发构件 |
-| `GROWTH.NpcActivePoints` | 3 | 休息NPC一次支付这么多点数换一次只含主动的三选一|
+| `GROWTH.NpcActivePoints` | 5 | 休息 NPC 一次支付这么多点数换一次只含主动的三选一 |
+| `GROWTH.ActiveSkipPoints` | 5 | 放弃一组开局或升级主动候选时获得的属性点 |
+| `GROWTH.NpcActiveSkipPoints` | 3 | 放弃一组已付费 NPC 主动候选时获得的属性点 |
 | `GROWTH.BuildSafeWindowSec` | 4 s | 交战窗口（§4.3）：只供 HUD 在交战中收起野外文字摘要；不限制任何成长命令 |
 | `progression.active_offer_levels` | [3, 6] | 额外主动机会的等级 |
 
-点数不单独存储：已得点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
-⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）；未分配点数 = 已得 − 五维点数之和，不能为负。
-开局与正常成长到 16 级共 48 点；之后每满 400 XP 再得 3 点。
+基础点数 = `OpeningPoints` + `PointsPerLevel` ×（L − 1）+ `MaxLevelPoints` ×
+⌊max(0, XP − `XP.Threshold[16]`) / `MaxLevelPointsXP`⌋（最后一项只在 16 级计算）及池空奖励；
+另加主动机会、PK 和野外的奖励点数。未分配点数 = 已得 − 五维点数之和 − 永久消费，不能为负。
+不计额外奖励时开局与正常成长到 16 级共 48 点；之后每满 400 XP 再得 3 点。
 
 **技能等级成长**：技能只有一级，固定项随拥有者等级 L 乘 G(L)，`SKILL.GrowthPerLevel=0.15`、`SKILL.GrowthPerLevelAfter10=0.075`：
 
@@ -531,7 +534,7 @@ S20 `active_dirty_puddle` 或 S19 `active_flyer_trap`；C21 `component_set_it_of
 | 普通升级的材料类别概率（2–6、7–11、12–16 级三段）；同名只持有一件；池空时的替代奖励 | 运行中（本节） | 目录 §10；AI 规范 §4.2 |
 | 普通池 59 件、稀缺池 M11/M12/C12 | 运行中（稀缺池发放见上文“野外构筑奖励”） | 目录 §10；AI 规范 §4.2 |
 | 开局自选基础构件的资格 | 运行中（本节基础构件表） | AI 规范 §4.3 |
-| 休息 NPC：3 点换一次主动三选一 | 运行中 | AI 规范 §4.4 |
+| 休息 NPC：5 点换一次主动三选一 | 运行中 | AI 规范 §4.4 |
 | 补缺 4 点、拆解 3 换 1 | 运行中 | AI 规范 §4.5 |
 | 满级每 400XP 给 3 点 | 运行中（§4.1） | AI 规范 §4.5 |
 | 外层流程：休息时刻、PK 赛制与缩圈、PK 与竞猜奖励、观众投掷、符咒、返场资源、野外复活、蓝图、评估预算 | 参数与入口已接入；整体验收及评估工具限制见[实施就绪评估](READINESS.md) | 外层参数 |

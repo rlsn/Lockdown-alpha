@@ -227,7 +227,7 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
 {
     if(!Canvas){return;}
     // Another match's answers never reach this one: its request, move and interaction end with it.
-    if(Match!=LatestMatch){PendingRequest=0;Follow=FFollowUp();CancelInteraction();}
+    if(Match!=LatestMatch){PendingRequest=0;Follow=FFollowUp();CancelInteraction();SeenComponents.Reset();}
     LatestMatch=Match;
     Latest=View?*View:FLDProgressionView();
     Gate=LDHUD::BuildGate(Stage,LifePhase);
@@ -235,7 +235,7 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     bShownNow=bShown&&Latest.bValid&&Anchors.bValid;
     if(!bShownNow){CancelInteraction();Press=FPress();bExpanded=false;}
     StorageShown(StackFrame,bShownNow,ESlateVisibility::Visible);
-    const LDHUD::FStorageView Model=LDHUD::ComponentStorage(Latest,Content);
+    const LDHUD::FStorageView Model=LDHUD::ComponentStorage(Latest,Content,&SeenComponents);
     // The cards and tiles are rebuilt only for another build, catalog or numbers.
     FString Key=FString::Printf(TEXT("%u|%llu|%p|%u|%lld|%lld|%lld|%lld"),Match,Latest.BuildRevision,Content,uint32(Stats.Level),
         int64(Stats.ADP2),int64(Stats.APP2),int64(Stats.MaxHPP2),int64(Stats.ArmorP2));
@@ -280,7 +280,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
     for(const FName& Id:Model.Stored)
     {
         const FLDComponentInstanceView* Owned=StorageOwned(Latest,Id);
-        BuildCard(Id,Owned&&!Owned->bEverInstalled);
+        BuildCard(Id,Owned&&!Owned->bEverInstalled&&!SeenComponents.Contains(Id));
     }
     for(int32 Index=0;Index<Columns.Num()&&Model.Columns.IsValidIndex(Index);++Index)
     {
@@ -298,16 +298,33 @@ void ULDComponentStorage::BuildCard(FName Component,bool bFresh)
     UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* Box=nullptr;
     UBorder* Icon=IconFace(StorageTile,Picture,Glyph,Face,Box);Built.Add(Box);ShowIcon(Picture,Glyph,Component);
     Icon->SetVisibility(ESlateVisibility::Visible);
+    UWidget* FreshChip=nullptr;
     if(bFresh)
     {
         UTextBlock* Fresh=LDWidgets::Text(WidgetTree,TEXT("新"),11);Fresh->SetAutoWrapText(false);Fresh->SetColorAndOpacity(LDHUDStyle::Rim);
         StorageBold(Fresh,0);Built.Add(Fresh);
         auto* Chip=WidgetTree->ConstructWidget<UBorder>();Built.Add(Chip);Chip->SetBrush(StorageRound(4.f,LDHUDStyle::Rim,1.f));
         Chip->SetBrushColor(LDHUDStyle::TextAccent);Chip->SetPadding(FMargin(3,0));Chip->SetContent(Fresh);Chip->SetVisibility(ESlateVisibility::HitTestInvisible);
+        FreshChip=Chip;
         auto* ChipSlot=Face->AddChildToOverlay(Chip);ChipSlot->SetHorizontalAlignment(HAlign_Right);ChipSlot->SetVerticalAlignment(VAlign_Top);
     }
-    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;
+    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.FreshChip=FreshChip;
     CardList->AddChildToWrapBox(Box);
+}
+void ULDComponentStorage::MarkSeen(FName Component)
+{
+    if(Component.IsNone()||!LatestMatch||SeenComponents.Contains(Component)){return;}
+    SeenComponents.Add(Component);
+    for(const FCard& Card:Cards){if(Card.Component==Component){StorageShown(Card.FreshChip,false);}}
+    const int32 Fresh=LDHUD::ComponentStorage(Latest,LatestContent,&SeenComponents).Fresh;
+    StorageText(StackFresh,LDTerms::StorageFresh(Fresh));
+    StorageShown(StackFreshChip,Fresh>0,ESlateVisibility::HitTestInvisible);
+}
+void ULDComponentStorage::SetDetailsHeld(bool bHeld)
+{
+    if(bDetailsHeld==bHeld){return;}
+    bDetailsHeld=bHeld;
+    if(!bHeld&&!bPinned&&!Drag.bActive&&!Press.bArmed&&!Chooser.bOpen){bExpanded=false;}
 }
 void ULDComponentStorage::BuildTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId)
 {
@@ -666,8 +683,8 @@ void ULDComponentStorage::NativeTick(const FGeometry& Geometry,float DeltaSecond
     // Hovering the stack opens the view; it stays while the pointer is over any part of it (or a slot under a column), a
     // drag or the chooser runs, and closes a moment after the pointer left.
     const bool bOverStack=StorageUnder(StackFrame,Pointer);
-    const bool bInside=bPinned||bOverStack||(bExpanded&&OverExpanded(Pointer))||Drag.bActive||Press.bArmed||Chooser.bOpen;
-    if(bInside){LastInsideAt=Now;if(bOverStack||bPinned){bExpanded=true;}}
+    const bool bInside=bPinned||bDetailsHeld||bOverStack||(bExpanded&&OverExpanded(Pointer))||Drag.bActive||Press.bArmed||Chooser.bOpen;
+    if(bInside){LastInsideAt=Now;if(bOverStack||bPinned||bDetailsHeld){bExpanded=true;}}
     else if(bExpanded&&Now-LastInsideAt>StorageCloseGrace){bExpanded=false;}
     Layout(Geometry,Pointer);
 }
@@ -742,6 +759,7 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
     StorageShown(PopupFrame,Over!=nullptr,ESlateVisibility::HitTestInvisible);
     if(Over)
     {
+        MarkSeen(Shown);
         const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Shown,LatestContent,LatestStats);
         StorageText(PopupName,View.Name);
         const FLDComponentInstanceView* Owned=StorageOwned(Latest,Shown);

@@ -199,23 +199,18 @@ bool ALDGameMode::SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, do
 {
     OutCentreCm = FVector::ZeroVector;
     OutRadiusCm = 0;
-    // The disk beside the contender's shared-room slot (RestAnchorFor).
     const int32 Slot = RosterOrder.IndexOfByKey(Contender);
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     if (!DemoContent || !Registry || Slot == INDEX_NONE || Slot >= LDDemoWorld::PKSignups) { return false; }
-    const FLDMapBinding* Disk = Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Slot)), Registry->Generation);
-    // User decision A on issue #198: the existing "stand in the disk" radius, AIRDROP.PickupRadiusCm.
     const FLDDemoRational& Radius = DemoContent->Get().Parameters.AirdropPickupRadiusCm;
-    if (!Disk || Radius.Denominator <= 0 || Radius.Numerator <= 0) { return false; }
-    OutCentreCm = Disk->Position;
+    if (Radius.Denominator <= 0 || Radius.Numerator <= 0 || !Registry->SharedSignupCentre(OutCentreCm)) { return false; }
     OutRadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
     return true;
 }
 
 bool ALDGameMode::RefreshRestSignups(FString& Error)
 {
-    // Approved 站圈报名: during the sign-up window a contender is signed up exactly while its rest life's committed foot
-    // stands in its own sign-up disk (XY, boundary inside); the lock takes whoever stands inside at the deadline.
+    // During the sign-up window every contender uses the same disk (XY, boundary inside).
     TSet<FGuid> Inside;
     const FLDMatchProviderHooks* PK = LDMatchProviders::Find(ELDMatchProvider::PK);
     if (IsRestPhase(MatchContext) && Timeline.IsSignupOpen(AuthorityNowMs) && PK && PK->RestStep)

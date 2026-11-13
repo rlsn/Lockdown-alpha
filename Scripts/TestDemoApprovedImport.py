@@ -360,8 +360,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5), ("COMBAT.OverloadBreachStacks", 2),
             # #198 points: 3 at the opening, 3 per level-up, then 3 per full 400 XP past level 16.
             ("GROWTH.OpeningPoints", 3), ("GROWTH.PointsPerLevel", 3), ("GROWTH.MaxLevelPointsXP", 400), ("GROWTH.MaxLevelPoints", 3),
-            # #198: a rest NPC charges 3 points for one active-only three-choice.
-            ("GROWTH.NpcActivePoints", 3),
+            ("GROWTH.NpcActivePoints", 5), ("GROWTH.ActiveSkipPoints", 5), ("GROWTH.NpcActiveSkipPoints", 3),
             # #198 PK points: 1 for every entrant, winners share at most 3, betting pool at most 2.
             ("PK.ParticipationPoints", 1), ("PK.WinnerPointsMax", 3), ("PK.BettingPoolMaxPoints", 2),
             # #198 B: a level-up whose component roll finds the common pool empty gives 3 points instead.

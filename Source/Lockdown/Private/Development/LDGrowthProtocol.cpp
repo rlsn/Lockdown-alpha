@@ -110,6 +110,7 @@ bool LDGrowthWire::IsKnownBuildKind(ELDBuildCommandKind Kind)
     case ELDBuildCommandKind::ComponentChoice:
     case ELDBuildCommandKind::FillGap:
     case ELDBuildCommandKind::Dismantle:
+    case ELDBuildCommandKind::SkipActiveOffer:
         return true;
     case ELDBuildCommandKind::None:
         break;
