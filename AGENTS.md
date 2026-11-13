@@ -107,6 +107,8 @@
   文档不跑，Python 与数据跑对应的 Python 检查，改了 `Source` 才做一次增量构建。不在每次小改动后构建或测试。
 - 规则测试的门禁是非草稿 PR 的 CI，本地不重复跑整套。只有新增或改了规则测试、或在排查失败用例时，
   才用 `Verify.ps1 -Filter <前缀>` 跑相关用例。
+- fork PR 不跑 CI 的原生任务：改了 `Source` 的 fork PR 在本地用 `Verify.ps1 -Filter` 跑受影响的规则前缀并在 PR 里写明结果；
+  合并前由维护者在本仓库分支上补跑原生门禁。
 - 资产、`Config` 与 PowerShell 改动没有自动的本地检查，按[验证手册](docs/systems/VERIFICATION.md)选对应的一项。
 - 网络、交易、成长和胜负变更要覆盖真实拥有连接（对应的 `RunDemo*Check.ps1`），不用仅有 Host 的调试场景代替。
 - `-FullUnity`、`RunTests.ps1 -ImportTests Run` 与全套场景只用于里程碑、发布、全新检出或明确要求的专项验证。

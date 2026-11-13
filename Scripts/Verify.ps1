@@ -18,7 +18,8 @@ function Invoke-LDGit {
 
 $mergeBase = @(Invoke-LDGit merge-base $Base HEAD)[0]
 # core.quotepath=false keeps non-ASCII paths readable; the lists cover committed, uncommitted and untracked files.
-$paths = @(Invoke-LDGit -c core.quotepath=false diff --name-only $mergeBase) + @(Invoke-LDGit -c core.quotepath=false ls-files --others --exclude-standard)
+# --no-renames lists both sides of a rename, so a file moved out of Source or Scripts still selects its check.
+$paths = @(Invoke-LDGit -c core.quotepath=false diff --no-renames --name-only $mergeBase) + @(Invoke-LDGit -c core.quotepath=false ls-files --others --exclude-standard)
 $paths = @($paths | Where-Object { $_ } | Sort-Object -Unique)
 
 $source = @($paths | Where-Object { $_ -match '^Source/' -or $_ -match '^[^/]+\.uproject$' })
