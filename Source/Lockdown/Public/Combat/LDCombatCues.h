@@ -17,10 +17,12 @@ namespace LDCombatCues
         ELDObservedActionCue Cue=ELDObservedActionCue::None;
         int64 AtMs=0;
         int64 ImpactAtMs=0;
+        ELDObservedHitLook HitLook=ELDObservedHitLook::None;
     };
 
     // Cast > Hit > Attack: a body hit in the middle of its own swing still shows the hit. Attack and Cast run from the
     // action's start through its release plus ReleaseHoldMs (a dash to its end); a winding-up action shows until it
     // releases. Within a kind the latest start wins.
     LOCKDOWN_API FCue Select(const FLDCombatCueFacts& Facts, int64 NowMs);
+    LOCKDOWN_API ELDObservedHitLook ClassifyHit(const FLDCombatHit& Hit);
 }

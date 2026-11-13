@@ -116,14 +116,16 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     if (Ar.IsLoading()) { Unit = FLDObservedUnitView(); }
     uint8 Kind = uint8(Unit.Kind);
     uint8 Cue = uint8(Unit.ActionCue);
+    uint8 HitLook = uint8(Unit.HitLook);
     Ar << Unit.Handle << Unit.ObservationEpoch << Unit.StateRevision << Unit.AuthorizedFieldMask << Kind << Unit.Presentation;
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
-    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << Unit.ActionAbility;
+    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook << Unit.ActionAbility;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
         Unit.ActionCue = static_cast<ELDObservedActionCue>(Cue);
+        Unit.HitLook = static_cast<ELDObservedHitLook>(HitLook);
     }
     if (!bFeet || Ar.IsError()
         || (Kind != uint8(ELDObservedUnitKind::Contender) && Kind != uint8(ELDObservedUnitKind::CampMember))) { return false; }
@@ -167,7 +169,8 @@ bool SerializeObservedProjectile(FArchive& Ar, UPackageMap* Map, FLDObservedProj
     Ar << Projectile.Handle;
     bool bPosition = true;
     Projectile.PositionCm.NetSerialize(Ar, Map, bPosition);
-    Ar << Projectile.Heading << Look << Projectile.RadiusCm << Projectile.InnerRadiusCm << Projectile.AngleDegrees;
+    Ar << Projectile.Heading << Look << Projectile.RadiusCm << Projectile.InnerRadiusCm << Projectile.AngleDegrees
+        << Projectile.WarningRemainingMs;
     if (Ar.IsLoading()) { Projectile.Look = static_cast<ELDObservedProjectileLook>(Look); }
     return bPosition && !Ar.IsError();
 }
@@ -233,7 +236,9 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     { return FailObservation(Error, TEXT("An observed unit requires an opaque handle, observation epoch and state revision.")); }
     if (!IsFiniteObservedPoint(Unit.FeetCm)) { return FailObservation(Error, TEXT("An observed unit position is outside the finite world range.")); }
     if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
+        || uint8(Unit.HitLook) > uint8(ELDObservedHitLook::Electric)
         || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0))
+        || (Unit.ActionCue == ELDObservedActionCue::None && Unit.HitLook != ELDObservedHitLook::None)
         || (Unit.ActionCue == ELDObservedActionCue::Hit && Unit.ActionCueImpactDelayMs != 0))
     { return FailObservation(Error, TEXT("Unknown observed action cue, or cue timing without a compatible cue.")); }
     if (Unit.ActionAbility != 0 && Unit.ActionCue != ELDObservedActionCue::Cast)
@@ -290,7 +295,8 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     {
     case ELDObservedProjectileLook::Chalk:
     case ELDObservedProjectileLook::Sock:
-        if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0)
+        if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0
+            || Projectile.WarningRemainingMs != 0)
         { return FailObservation(Error, TEXT("A flight cannot carry a ground-effect shape.")); }
         break;
     case ELDObservedProjectileLook::BookShadow:
@@ -299,8 +305,17 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
         if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm <= 0 || Projectile.AngleDegrees != 0)
         { return FailObservation(Error, TEXT("A ground effect needs its two public radii.")); }
         break;
+    case ELDObservedProjectileLook::AreaPlain:
+    case ELDObservedProjectileLook::AreaMagic:
+    case ELDObservedProjectileLook::AreaFire:
+    case ELDObservedProjectileLook::AreaWater:
+    case ELDObservedProjectileLook::AreaElectric:
+        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm < 0 || Projectile.AngleDegrees != 0)
+        { return FailObservation(Error, TEXT("An observed area needs its public radius and no cone angle.")); }
+        break;
     case ELDObservedProjectileLook::SpeechCone:
-        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees <= 0)
+        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees <= 0
+            || Projectile.WarningRemainingMs != 0)
         { return FailObservation(Error, TEXT("A cone needs public reach and angle.")); }
         break;
     default: return FailObservation(Error, TEXT("Unknown observed skill effect look."));

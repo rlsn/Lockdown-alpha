@@ -111,7 +111,8 @@ bool SameObservedStatuses(const TArray<FLDObservedStatus>& A, const TArray<FLDOb
 bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUnitView& B)
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
-        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
+        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook
+        && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
         && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
@@ -568,7 +569,7 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         if (!Fact || !Fact->Key.IsValid() || !FMath::IsFinite(Fact->Heading.X) || !FMath::IsFinite(Fact->Heading.Y) || Fact->Heading.IsNearlyZero()
             || Visible.IndexOfByPredicate([Fact](const FLDObservedProjectileFact* Other) { return Other && Other->Key == Fact->Key; }) != Index)
         {
-            Error = TEXT("Visible projectiles require unique flight keys and a planar heading.");
+            Error = TEXT("Observed skill effects require unique keys and a planar heading.");
             return false;
         }
         FLDObservedProjectileView& View = Presented.AddDefaulted_GetRef();
@@ -579,6 +580,7 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         View.RadiusCm = Fact->RadiusCm;
         View.InnerRadiusCm = Fact->InnerRadiusCm;
         View.AngleDegrees = Fact->AngleDegrees;
+        View.WarningRemainingMs = Fact->WarningRemainingMs;
         if (!LDObservation::ValidateProjectile(View, Error)) { return false; }
     }
     for (int32 Index = 0; Index < ProjectileBindings.Num();)
@@ -1028,6 +1030,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         }
         Unit.ActionCue = Facts.ActionCue;
         Unit.ActionAbility = Facts.ActionAbility;
+        Unit.HitLook = Facts.HitLook;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
         if (Facts.ActionCue != ELDObservedActionCue::None && Facts.ActionCue != ELDObservedActionCue::Hit)
         {

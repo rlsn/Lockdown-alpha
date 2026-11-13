@@ -3,10 +3,12 @@
 LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 NowMs)
 {
     FCue Cast, Attack, Hit;
-    const auto Offer=[NowMs](FCue& Slot, ELDObservedActionCue Cue, int64 StartedAtMs, int64 ImpactAtMs, int64 EndAtMs)
+    const auto Offer=[NowMs](FCue& Slot, ELDObservedActionCue Cue, int64 StartedAtMs, int64 ImpactAtMs, int64 EndAtMs,
+        ELDObservedHitLook HitLook=ELDObservedHitLook::None)
     {
         if (StartedAtMs<=0 || NowMs<StartedAtMs || NowMs>=EndAtMs) { return; }
-        if (Slot.Cue==ELDObservedActionCue::None || StartedAtMs>Slot.AtMs) { Slot={Cue,StartedAtMs,ImpactAtMs}; }
+        if (Slot.Cue==ELDObservedActionCue::None || StartedAtMs>Slot.AtMs)
+        { Slot={Cue,StartedAtMs,ImpactAtMs,HitLook}; }
     };
     const auto Kind=[&Cast,&Attack](bool bBasic) -> FCue& { return bBasic?Attack:Cast; };
     if (Facts.bActing)
@@ -23,7 +25,16 @@ LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 No
     }
     if (Facts.LastHitAtMs>0 && Facts.LastHitAtMs<=MAX_int64-HitHoldMs)
     {
-        Offer(Hit,ELDObservedActionCue::Hit,Facts.LastHitAtMs,0,Facts.LastHitAtMs+HitHoldMs);
+        Offer(Hit,ELDObservedActionCue::Hit,Facts.LastHitAtMs,0,Facts.LastHitAtMs+HitHoldMs,
+            static_cast<ELDObservedHitLook>(Facts.LastHitLook));
     }
     return Cast.Cue!=ELDObservedActionCue::None ? Cast : Hit.Cue!=ELDObservedActionCue::None ? Hit : Attack;
+}
+
+ELDObservedHitLook LDCombatCues::ClassifyHit(const FLDCombatHit& Hit)
+{
+    if (Hit.BurnStacks>0 || Hit.ComponentBurnStacks>0) { return ELDObservedHitLook::Fire; }
+    if (Hit.bApplyElectric || Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Electric; }
+    if (Hit.bApplyWet || Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Water; }
+    return Hit.DamageType==ELDDemoDamageType::Magical ? ELDObservedHitLook::Magic : ELDObservedHitLook::None;
 }

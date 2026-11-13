@@ -74,8 +74,19 @@ namespace LDHumanoidVisualDetail
     const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
     const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
     const FLinearColor BurstColour(1.f,.95f,.7f), ChargeColour(.8f,.92f,1.f), ColumnColour(1.f,.9f,.55f);
-    // Emissive over the whole body through the art materials' Flash: a hit flashes white, then red; an appear glows.
-    const FLinearColor FlashWhite(1.f,1.f,1.f), FlashRed(1.f,.1f,.06f), AppearGlow(1.f,.92f,.6f);
+    // Emissive over the whole body through the art materials' Flash: a typed hit flashes, then white; an appear glows.
+    const FLinearColor FlashWhite(1.f,1.f,1.f), AppearGlow(1.f,.92f,.6f);
+    FLinearColor HitColour(ELDObservedHitLook Look)
+    {
+        switch (Look)
+        {
+        case ELDObservedHitLook::Magic: return FLinearColor(.62f,.22f,1.f);
+        case ELDObservedHitLook::Fire: return FLinearColor(1.f,.22f,.025f);
+        case ELDObservedHitLook::Water: return FLinearColor(.05f,.62f,1.f);
+        case ELDObservedHitLook::Electric: return FLinearColor(1.f,.78f,.05f);
+        default: return BurstColour;
+        }
+    }
     // Below this ground speed a body stands instead of running in slow motion.
     constexpr float RunFromCmPerSec = 15.f;
     // The status markers' reference body height; wider and taller bodies spread their markers in proportion.
@@ -338,6 +349,7 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
         UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
         Instance->SetVectorParameterValue(TEXT("Tint"), ColourOf(Index));
         Parts[Index]->SetMaterial(0, Instance);
+        if (Index == HitSpark) { HitSparkTint = Instance; }
     }
     UMaterialInstanceDynamic* Dark = UMaterialInstanceDynamic::Create(Material, this);
     Dark->SetVectorParameterValue(TEXT("Tint"), EdgeColour);
@@ -413,7 +425,7 @@ void ULDHumanoidVisualComponent::Layout()
     Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
-void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds)
+void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, ELDObservedHitLook InHitLook)
 {
     using LDBodyMotion::EAction;
     const uint8 Code = Value & ActionMask;
@@ -424,6 +436,7 @@ void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, flo
     ActionImpactSeconds = FMath::IsFinite(ImpactDelaySeconds) && ImpactDelaySeconds >= 0.f
         ? ImpactDelaySeconds : LDBodyMotion::StrikeAt;
     Action = Next;
+    HitLook = InHitLook;
     if (!bCueSeen)
     {
         bCueSeen = true;
@@ -437,9 +450,10 @@ void ULDHumanoidVisualComponent::PlayAppear()
     AppearAt = Clock;
 }
 
-void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds)
+void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHitLook InHitLook)
 {
     if (!FMath::IsFinite(AgeSeconds) || AgeSeconds<0.f || AgeSeconds>=.3f || FallAt>=0) { return; }
+    HitLook = InHitLook;
     const double Onset=Clock-AgeSeconds;
     if (!bHitSeen || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds) { HitOnset=Onset; bHitSeen=true; }
 }
@@ -595,6 +609,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     Parts[HitSpark]->SetHiddenInGame(Shown.HitBurst<=.02f);
     if (Shown.HitBurst>.02f)
     {
+        if (HitSparkTint) { HitSparkTint->SetVectorParameterValue(TEXT("Tint"),HitColour(HitLook)); }
         Parts[HitSpark]->SetRelativeLocation(FVector(18.f,0,-HalfHeight+.72f*HeightCm));
         Parts[HitSpark]->SetRelativeScale3D(FVector(.55f*Shown.HitBurst));
     }
@@ -653,7 +668,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         const bool bHitFlash = Shown.Flash >= Glow;
         const float Amount = FMath::Min(1.f, bHitFlash ? 1.15f * Shown.Flash : Glow);
         const FLinearColor Over = bHitFlash
-            ? FMath::Lerp(FlashRed, FlashWhite, FMath::Clamp((Shown.Flash - .6f) / .4f, 0.f, 1.f)) : AppearGlow;
+            ? FMath::Lerp(HitColour(HitLook), FlashWhite, FMath::Clamp((Shown.Flash - .6f) / .4f, 0.f, 1.f)) : AppearGlow;
         SetFlash(Over * Amount);
         bFlashing = true;
     }

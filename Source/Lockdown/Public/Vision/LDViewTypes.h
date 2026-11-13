@@ -10,9 +10,10 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
+    // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 9;
+    constexpr uint32 Schema = 10;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -26,7 +27,7 @@ namespace LDObservation
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
     constexpr int32 MaxStatuses = 16;
     constexpr int32 MaxTerminations = 16;
-    // Visible flights per frame; the nearest are kept when more are in sight.
+    // Visible flights and skill areas per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 32;
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
@@ -40,9 +41,13 @@ namespace LDObservation
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
 // Combat owns visible action cues; adding one is a schema change.
 UENUM() enum class ELDObservedActionCue : uint8 { None = 0, Attack = 1, Cast = 2, Hit = 3 };
+UENUM() enum class ELDObservedHitLook : uint8 { None = 0, Magic = 1, Fire = 2, Water = 3, Electric = 4 };
 // Declared before the wire projectile record that carries it; Combat maps each projectile source to one look.
 UENUM() enum class ELDObservedProjectileLook : uint8
-{ Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6 };
+{
+    Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6,
+    AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11
+};
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
 
@@ -86,6 +91,7 @@ struct FLDObservedUnitView
     UPROPERTY() ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
     UPROPERTY() uint16 ActionCueAgeMs = 0; // time since the current cue began on the authority clock; 0 without a cue
     UPROPERTY() uint16 ActionCueImpactDelayMs = 0; // action start to authoritative release; 0 for an immediate action or no impact
+    UPROPERTY() ELDObservedHitLook HitLook = ELDObservedHitLook::None; // current visible hit cue, never its source or target
     // The source of a Cast cue, so a visible cast can show its display name at that moment (user-approved amendment of
     // CB-P10): an ELDDemoAbilityId for Q/W, 0 otherwise. No rank, cooldown or learned list is ever carried.
     UPROPERTY() uint8 ActionAbility = 0;
@@ -122,6 +128,7 @@ struct FLDObservedProjectileView
     UPROPERTY() float RadiusCm = 0;
     UPROPERTY() float InnerRadiusCm = 0;
     UPROPERTY() float AngleDegrees = 0;
+    UPROPERTY() uint32 WarningRemainingMs = 0; // time to the authoritative landing/first pulse; 0 when no warning is pending
 };
 
 USTRUCT()
@@ -192,6 +199,8 @@ struct FLDObservedPublicFacts
     ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
     int64 ActionCueAtMs = 0;
     int64 ActionCueImpactAtMs = 0;
+    int64 LastHitAtMs = 0;
+    ELDObservedHitLook HitLook = ELDObservedHitLook::None;
     // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.
     uint8 ActionAbility = 0;
 };
@@ -207,6 +216,7 @@ struct FLDObservedProjectileFact
     float RadiusCm = 0;
     float InnerRadiusCm = 0;
     float AngleDegrees = 0;
+    uint32 WarningRemainingMs = 0;
 };
 
 USTRUCT()

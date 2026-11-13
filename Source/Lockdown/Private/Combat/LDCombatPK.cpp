@@ -47,6 +47,7 @@ bool ALDCombatDirector::ApplyEnvironmentDamage(const FLDCombatBodyRef& Ref, int6
     Body->Resources.HpP2=AmountP2>=Before ? 0 : Before-AmountP2;
     ++Body->Resources.Revision;
     Body->Cues.LastHitAtMs=Mode->GetAuthorityNowMs();
+    Body->Cues.LastHitLook=0;
     MarkViewChanged(Ref.Victim.EntityId);
     UE_LOG(LogLDCombat,Log,TEXT("LD_PK_RING_DAMAGE t=%lld victim=%s life=%u dmg=%s hp=%s->%s"),Mode->GetAuthorityNowMs(),
         *LDLog::Id(Ref.Victim.EntityId),Ref.Victim.Life,*LDLog::P2(AmountP2),*LDLog::P2(Before),*LDLog::P2(Body->Resources.HpP2));
@@ -84,6 +85,7 @@ bool ALDCombatDirector::ApplyThrowHit(const FLDCombatBodyRef& Ref, const FGuid& 
     if (!LDMatchLifecycle::AddDurationMs(NowMs,ExposeMs,ExposedUntil,Error)) { return false; }
     Body->ExposedUntilMs=ExposedUntil;
     Body->Cues.LastHitAtMs=NowMs;
+    Body->Cues.LastHitLook=0;
     ++Body->StateRevision;
     MarkViewChanged(Ref.Victim.EntityId);
     UE_LOG(LogLDCombat,Display,TEXT("LD_PK_THROW_HIT t=%lld victim=%s slowed=%d exposed_until_ms=%lld"),NowMs,

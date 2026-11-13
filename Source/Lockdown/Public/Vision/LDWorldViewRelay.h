@@ -103,6 +103,7 @@ namespace LDObservedPresentation
         ELDObservedActionCue Cue = ELDObservedActionCue::None;
         uint16 CueAgeMs = 0;
         uint16 CueImpactDelayMs = 0;
+        ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         TArray<FLDObservedStatus> Statuses;
         bool bDamage = false;
     };
@@ -193,9 +194,9 @@ private:
     uint8 TintSlot = MAX_uint8;
 };
 
-// Client-only presentation of one visible flight (a thrown chalk stub). It never collides and is never a target. Once
-// the current frame stops listing it, it only finishes its last authorized samples on the presentation clock (bounded
-// by EndSeconds) and is then removed; a stale, reset or foreign view removes it at once.
+// Client-only presentation of one visible skill effect. It never collides and is never a target. Flights finish their
+// last authorized samples on the presentation clock (bounded by EndSeconds); areas disappear with their authorized
+// frame. A stale, reset or foreign view removes it at once.
 UCLASS()
 class LOCKDOWN_API ALDObservedProjectileProxy : public AActor
 {
@@ -215,11 +216,14 @@ private:
     UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> AccentTint;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ShapeLines;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
     void ApplyLook(const FLDObservedProjectileView& Effect);
     ELDObservedProjectileLook ShownLook=ELDObservedProjectileLook::Chalk;
     float ShownRadius=-1, ShownInnerRadius=-1, ShownAngle=-1;
+    FLinearColor ShownColor=FLinearColor::White;
+    double WarningAtServerSec=-1;
     TArray<LDObservedPresentation::FPoint, TInlineAllocator<8>> Points;
     double EndedAt = -1;
     bool bPlaced = false;

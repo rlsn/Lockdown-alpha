@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatCues.h"
 #include "Core/LDLog.h"
 #include "Combat/LDTacticalRules.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -426,7 +427,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Damage.DamageP2>0 || bControlled)
     {
         // A zone's periodic slow refresh is not a visible hit.
-        if (!Hit.bSilent || Damage.DamageP2>0) { Body->Cues.LastHitAtMs=NowMs; }
+        if (!Hit.bSilent || Damage.DamageP2>0)
+        {
+            Body->Cues.LastHitAtMs=NowMs;
+            Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
+        }
         MarkViewChanged(Body->Victim.EntityId);
         // Committed positive damage (absorbed included) is the owner's assist contribution; controls record in CommitControl.
         if (Damage.DamageP2>0) { RecordAssistContribution(*Body,Hit.CreditOwner,NowMs); }

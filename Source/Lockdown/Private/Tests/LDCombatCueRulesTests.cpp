@@ -48,8 +48,10 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
 
     FLDCombatCueFacts Struck;
     Struck.LastHitAtMs=4000;
+    Struck.LastHitLook=uint8(ELDObservedHitLook::Fire);
     TestTrue(TEXT("A landed hit shows Hit for its hold"),
-        Is(Select(Struck,4000),Hit,4000) && Is(Select(Struck,4299),Hit,4000) && Is(Select(Struck,4300),None,0));
+        Is(Select(Struck,4000),Hit,4000) && Is(Select(Struck,4299),Hit,4000) && Is(Select(Struck,4300),None,0)
+        && Select(Struck,4100).HitLook==ELDObservedHitLook::Fire);
 
     FLDCombatCueFacts Busy=Struck;
     Busy.bActing=Busy.bActingBasic=true;
@@ -75,6 +77,21 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Attack pose"), ALDCharacter::PresentationCue(Attack,{}), uint8(1));
     TestEqual(TEXT("Hit pose with protection and returning markers"),
         ALDCharacter::PresentationCue(Hit,{{Protected,1,9000},{Returning,1,0}}), uint8(4|128|32));
+
+    FLDCombatHit Elemental;
+    Elemental.DamageType=ELDDemoDamageType::Magical;
+    TestEqual(TEXT("An unmarked magical hit has a magic look"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Magic);
+    Elemental.BurnStacks=1;
+    TestEqual(TEXT("Burn payload marks a fire hit"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Fire);
+    Elemental.BurnStacks=0;
+    Elemental.bApplyWet=true;
+    TestEqual(TEXT("Wet payload marks a water hit"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Water);
+    Elemental.bApplyElectric=true;
+    TestEqual(TEXT("Electric payload remains identifiable when paired with wet"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::Electric);
+    Elemental.bApplyWet=false;
+    Elemental.bApplyElectric=false;
+    Elemental.DamageType=ELDDemoDamageType::Physical;
+    TestEqual(TEXT("An unmarked physical hit remains generic"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::None);
     return true;
 }
 

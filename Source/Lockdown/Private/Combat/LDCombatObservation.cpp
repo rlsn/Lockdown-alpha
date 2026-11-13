@@ -8,6 +8,19 @@
 #include "Framework/LDGameMode.h"
 
 // Read-only projections of Combat state for the observation owner: action cues and projectiles in flight.
+namespace
+{
+    ELDObservedProjectileLook AreaLookOf(const FLDCombatHit& Hit)
+    {
+        if (Hit.BurnStacks>0 || Hit.ComponentBurnStacks>0) { return ELDObservedProjectileLook::AreaFire; }
+        if (Hit.bApplyElectric || Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None)
+        { return ELDObservedProjectileLook::AreaElectric; }
+        if (Hit.bApplyWet || Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedProjectileLook::AreaWater; }
+        return Hit.DamageType==ELDDemoDamageType::Magical
+            ? ELDObservedProjectileLook::AreaMagic : ELDObservedProjectileLook::AreaPlain;
+    }
+}
+
 FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
 {
     FLDCombatCueFacts Facts=Body.Cues;
@@ -34,6 +47,8 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCue=ELDObservedActionCue::None;
     InOut.ActionCueAtMs=0;
     InOut.ActionCueImpactAtMs=0;
+    InOut.LastHitAtMs=0;
+    InOut.HitLook=ELDObservedHitLook::None;
     InOut.ActionAbility=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
@@ -47,6 +62,12 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
     InOut.ActionCueImpactAtMs=Cue.ImpactAtMs;
+    if (State->Cues.LastHitAtMs>0 && NowMs>=State->Cues.LastHitAtMs
+        && NowMs-State->Cues.LastHitAtMs<LDCombatCues::HitHoldMs)
+    {
+        InOut.LastHitAtMs=State->Cues.LastHitAtMs;
+        InOut.HitLook=static_cast<ELDObservedHitLook>(State->Cues.LastHitLook);
+    }
     InOut.ActionAbility=Ability;
     return true;
 }
@@ -117,10 +138,36 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.SourceEntity=Ground.Payload.SourceEntity;
         Fact.PositionCm=Ground.CentreCm;
         Fact.Heading=FVector2D(1,0);
-        Fact.Look=!Ground.bTrap ? ELDObservedProjectileLook::BookShadow
-            : NowMs<Ground.ReadyAtMs ? ELDObservedProjectileLook::FlyerArming : ELDObservedProjectileLook::FlyerArmed;
+        Fact.Look=Ground.bTrap
+            ? (Ground.bTriggered && NowMs<Ground.ReadyAtMs ? ELDObservedProjectileLook::FlyerArming : ELDObservedProjectileLook::FlyerArmed)
+            : AreaLookOf(Ground.Payload);
         Fact.RadiusCm=float(Ground.RadiusCm);
         Fact.InnerRadiusCm=float(Ground.InnerRadiusCm);
+        Fact.WarningRemainingMs=Ground.ReadyAtMs>NowMs
+            ? uint32(FMath::Min<int64>(Ground.ReadyAtMs-NowMs,MAX_uint32)) : 0;
+    }
+    for (const FLDCombatZone& Zone : Zones)
+    {
+        if (Zone.EndMs<=NowMs) { continue; }
+        int64 FirstPulseAtMs=0;
+        if (Zone.DelayMs>0 && !LDMatchLifecycle::AddDurationMs(Zone.StartMs,Zone.DelayMs,FirstPulseAtMs,Error))
+        {
+            Out.Reset();
+            Error=TEXT("Observed zone warning time is outside the checked authority clock.");
+            return false;
+        }
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Zone.EffectId;
+        Fact.SourceEntity=Zone.SourceEntity;
+        Fact.PositionCm=Zone.CentreCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=Zone.PulseBurnStacks>0 || Zone.BurnStacks>0 ? ELDObservedProjectileLook::AreaFire
+            : Zone.bWet ? ELDObservedProjectileLook::AreaWater
+            : Zone.bDamage && Zone.DamageType==ELDDemoDamageType::Magical ? ELDObservedProjectileLook::AreaMagic
+            : ELDObservedProjectileLook::AreaPlain;
+        Fact.RadiusCm=float(Zone.RadiusCm);
+        Fact.WarningRemainingMs=FirstPulseAtMs>NowMs
+            ? uint32(FMath::Min<int64>(FirstPulseAtMs-NowMs,MAX_uint32)) : 0;
     }
     for (const auto& Channel : Channels)
     {

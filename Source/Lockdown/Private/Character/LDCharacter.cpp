@@ -138,8 +138,6 @@ void ALDCharacter::Tick(float Delta)
         && View.Life==PC->OwnerState.Life)
     {
         Selected=LDCombatCues::Select(View.Cues,NowMs);
-        if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
-        { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f); }
         for (const FLDCombatStatusView& Status : View.Statuses)
         {
             if (!Status.bIsPassive && (Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs))
@@ -153,7 +151,11 @@ void ALDCharacter::Tick(float Delta)
         : View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActionReleaseAtMs
         : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
     Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
-        bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f);
+        bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,
+        Selected.HitLook);
+    if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
+    { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
+        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook)); }
     Body->Animate(GetVelocity(),Delta);
     // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
     if (View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life
