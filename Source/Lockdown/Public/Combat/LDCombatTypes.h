@@ -426,6 +426,7 @@ struct FLDCombatCueFacts
     UPROPERTY() int64 DashUntilMs=0;
     UPROPERTY() int64 LastHitAtMs=0;                 // 0 = not hit in this life
     UPROPERTY() uint8 LastHitLook=0;                  // ELDObservedHitLook; recent server-resolved hit presentation only
+    UPROPERTY() uint8 LastHitFlags=0;                 // LDObservation::EHitFlags for this hit
 };
 
 // Single owner publication of the Combat self projection; consumers reject an older Revision.

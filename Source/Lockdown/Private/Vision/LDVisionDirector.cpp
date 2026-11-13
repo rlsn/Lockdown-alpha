@@ -111,7 +111,7 @@ bool SameObservedStatuses(const TArray<FLDObservedStatus>& A, const TArray<FLDOb
 bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUnitView& B)
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
-        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook
+        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook && A.HitFlags == B.HitFlags
         && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
         && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
@@ -1038,6 +1038,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         Unit.ActionCue = Facts.ActionCue;
         Unit.ActionAbility = Facts.ActionAbility;
         Unit.HitLook = Facts.HitLook;
+        Unit.HitFlags = Facts.HitFlags;
         Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
             ? uint16(NowMs - Facts.LastHitAtMs + 1) : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));

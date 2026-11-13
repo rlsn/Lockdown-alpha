@@ -93,6 +93,25 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
     Elemental.bApplyElectric=false;
     Elemental.DamageType=ELDDemoDamageType::Physical;
     TestEqual(TEXT("An unmarked physical hit remains generic"), LDCombatCues::ClassifyHit(Elemental), ELDObservedHitLook::None);
+
+    FLDDamageEvaluation Damage;
+    Damage.DamageP2=100;
+    Damage.HPLostP2=100;
+    TestEqual(TEXT("A real critical hit is distinguished"), LDCombatCues::ClassifyImpact(true,0,Damage),
+        uint8(LDObservation::Critical));
+    TestEqual(TEXT("A normal hit has no impact flags"), LDCombatCues::ClassifyImpact(false,0,Damage), uint8(0));
+    Damage.ShieldAbsorbedP2=100;
+    Damage.HPLostP2=0;
+    Damage.RemainingShieldP2=50;
+    TestEqual(TEXT("Shield absorption remains distinct from a break"),
+        LDCombatCues::ClassifyImpact(false,150,Damage), uint8(LDObservation::ShieldAbsorbed));
+    Damage.RemainingShieldP2=0;
+    TestEqual(TEXT("A critical breaking the shield carries both results"),
+        LDCombatCues::ClassifyImpact(true,100,Damage),
+        uint8(LDObservation::Critical|LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken));
+    Damage=FLDDamageEvaluation();
+    TestEqual(TEXT("A protected critical roll without damage does not display as a critical hit"),
+        LDCombatCues::ClassifyImpact(true,0,Damage), uint8(0));
     return true;
 }
 

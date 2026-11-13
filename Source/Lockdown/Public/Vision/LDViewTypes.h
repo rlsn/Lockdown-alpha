@@ -10,12 +10,15 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
+    // 12 adds the authorized hit's critical and shield outcome.
     // 11 adds the age of an authorized hit, independent of the current action cue.
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 11;
+    constexpr uint32 Schema = 12;
     constexpr uint16 RecentHitWindowMs = 300;
+    enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
+    constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -95,6 +98,7 @@ struct FLDObservedUnitView
     UPROPERTY() uint16 ActionCueImpactDelayMs = 0; // action start to authoritative release; 0 for an immediate action or no impact
     UPROPERTY() ELDObservedHitLook HitLook = ELDObservedHitLook::None; // current visible hit cue, never its source or target
     UPROPERTY() uint16 RecentHitAgePlusOneMs = 0; // 0 = no recent hit; otherwise 1 + age on the authority clock
+    UPROPERTY() uint8 HitFlags = 0; // LDObservation::EHitFlags for the recent hit
     // The source of a Cast cue, so a visible cast can show its display name at that moment (user-approved amendment of
     // CB-P10): an ELDDemoAbilityId for Q/W, 0 otherwise. No rank, cooldown or learned list is ever carried.
     UPROPERTY() uint8 ActionAbility = 0;
@@ -204,6 +208,7 @@ struct FLDObservedPublicFacts
     int64 ActionCueImpactAtMs = 0;
     int64 LastHitAtMs = 0;
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
+    uint8 HitFlags = 0;
     // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.
     uint8 ActionAbility = 0;
 };

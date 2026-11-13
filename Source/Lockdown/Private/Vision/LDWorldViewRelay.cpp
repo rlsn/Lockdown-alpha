@@ -388,6 +388,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
     Shown.HitLook = Unit.HitLook;
     Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
+    Shown.HitFlags = Unit.HitFlags;
     Shown.Statuses = Unit.Statuses;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
     while (Points.Num() > 8) { Points.RemoveAt(0); Facts.RemoveAt(0); }
@@ -422,7 +423,7 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
             Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f, Reached.HitLook);
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
-            AtServerSec-Points[Pose.Reached].At), Reached.HitLook); }
+            AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags); }
         ShownAt = Points[Pose.Reached].At;
     }
     if (Pose.Reached > 0)

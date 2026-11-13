@@ -1,5 +1,6 @@
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatMechanics.h"
 
 LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 NowMs)
 {
@@ -38,4 +39,14 @@ ELDObservedHitLook LDCombatCues::ClassifyHit(const FLDCombatHit& Hit)
     if (Hit.bApplyElectric || Hit.ComponentElectricSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Electric; }
     if (Hit.bApplyWet || Hit.ComponentWetSource.Kind!=ELDCombatSourceKind::None) { return ELDObservedHitLook::Water; }
     return Hit.DamageType==ELDDemoDamageType::Magical ? ELDObservedHitLook::Magic : ELDObservedHitLook::None;
+}
+
+uint8 LDCombatCues::ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage)
+{
+    uint8 Flags=0;
+    if (bCritical && Damage.DamageP2>0) { Flags|=LDObservation::Critical; }
+    if (Damage.ShieldAbsorbedP2>0) { Flags|=LDObservation::ShieldAbsorbed; }
+    if (LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2))
+    { Flags|=LDObservation::ShieldBroken; }
+    return Flags;
 }

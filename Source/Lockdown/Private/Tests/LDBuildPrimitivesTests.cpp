@@ -2169,6 +2169,11 @@ bool FLDCombatEventEmpoweredCritLifestealTest::RunTest(const FString& Parameters
             if (!Drain(*this, F)) { return false; }
             Damage[Crit][Mask] = HP - Victim.Resources.HpP2;
             Healing[Crit][Mask] = Body.Resources.HpP2 - HP / 2;
+            FLDObservedPublicFacts Seen;
+            TestTrue(TEXT("The real basic publishes its resolved critical outcome to visible observers"),
+                F.Driver->AppendObservedAction(F.Actor(Target), F.Mode->GetAuthorityNowMs(), Seen, Error)
+                && Seen.LastHitAtMs == F.Mode->GetAuthorityNowMs()
+                && Seen.HitFlags == (Crit ? uint8(LDObservation::Critical) : uint8(0)));
             AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE empowered_basic crit=%d s11=%d s17=%d hp_loss_p2=%lld heal_p2=%lld"),
                 Crit, (Mask & 1) != 0, (Mask & 2) != 0, Damage[Crit][Mask], Healing[Crit][Mask]));
             const int64 FullHeal = Damage[Crit][Mask] * 1200 / 10000;
@@ -2822,6 +2827,11 @@ bool FLDCombatEventShieldBurstTest::RunTest(const FString& Parameters)
     FAccess::PendingHits(*F.Driver).Reset();
     if (!TestTrue(FString::Printf(TEXT("A big hit breaks it: %s"), *Error), F.Apply(FFixture::Hit(First, Holder, 2000000), Error)
         && Body.Resources.ShieldP2 == 0)) { return false; }
+    FLDObservedPublicFacts Seen;
+    TestTrue(TEXT("The real shield-breaking hit publishes absorption and break to visible observers"),
+        F.Driver->AppendObservedAction(F.Actor(Holder), F.Mode->GetAuthorityNowMs(), Seen, Error)
+        && Seen.LastHitAtMs == F.Mode->GetAuthorityNowMs()
+        && Seen.HitFlags == uint8(LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken));
     const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
     TestTrue(TEXT("C10 answers both bodies around the holder as one effect"), Pending.Num() == 2 && Pending[0].EffectId == Pending[1].EffectId
         && Pending[0].Source.DefinitionId == FName(TEXT("component_shell_burst")) && Pending[0].Target != Pending[1].Target);

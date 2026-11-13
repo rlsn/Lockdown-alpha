@@ -1,5 +1,5 @@
 #include "Audio/LDAudioCueTracker.h"
-#include "Development/LDDemoContentIds.h"
+#include "Vision/LDViewTypes.h"
 
 void LDAudio::AddUnique(TArray<ELDAudioCue>& Out, ELDAudioCue Cue)
 {
@@ -131,8 +131,6 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
     const FLDCombatOwnerView* Combat = Frame.OwnCombat;
     if (Combat && Combat->bHasBody && Combat->Generation == Frame.OwnMatch && Combat->Life == Frame.OwnLife)
     {
-        const FLDCombatStatusView* Shield = Combat->Statuses.FindByPredicate([](const FLDCombatStatusView& Status)
-            { return Status.StatusId == uint8(ELDDemoStatusId::Shield); });
         if (Combat->Generation != HitMatch || Combat->Life != HitLife)
         {
             HitMatch = Combat->Generation;
@@ -140,8 +138,7 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             HitRevision = Combat->Revision;
             HitHPP2 = Combat->HPP2;
             HitMaxHPP2 = Combat->MaxHPP2;
-            HitShieldP2 = Combat->ShieldP2;
-            HitShieldEndsAtMs = Shield ? Shield->ExpiresAtMs : 0;
+            HitSeenAtMs = Combat->Cues.LastHitAtMs;
             AttackReleasedAtMs = Combat->Cues.ReleasedAtMs;
         }
         else if (Combat->Revision > HitRevision)
@@ -161,20 +158,18 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             // Lost points with an unchanged or larger maximum: a smaller maximum only clamps.
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
-            // A hit the own shield took whole: shield points lost while the shield is still listed or before its listed end
-            // (the same rule as the shield-absorbed number); a shield that merely ran out stays silent.
-            const bool bAbsorbed = !bLost && Combat->ShieldP2 < HitShieldP2 && Combat->HPP2 >= HitHPP2
-                && (Shield || HitShieldEndsAtMs > Combat->AsOfMs);
-            if ((bLost || bAbsorbed) && Frame.OwnLifePhase == ELDLifePhase::Alive && Frame.LocalSeconds - LastHitAt >= HitRepeatSeconds)
+            const bool bNewHit = Facts.LastHitAtMs > HitSeenAtMs && Facts.LastHitAtMs <= Combat->AsOfMs;
+            const bool bAbsorbed = bNewHit && (Facts.LastHitFlags & LDObservation::ShieldAbsorbed);
+            if ((bLost || bAbsorbed) && Combat->HPP2 > 0 && Frame.OwnLifePhase == ELDLifePhase::Alive
+                && Frame.LocalSeconds - LastHitAt >= HitRepeatSeconds)
             {
-                LDAudio::AddUnique(Out, bLost ? ELDAudioCue::SelfHit : ELDAudioCue::SelfShieldHit);
+                LDAudio::AddUnique(Out, bAbsorbed ? ELDAudioCue::SelfShieldHit : ELDAudioCue::SelfHit);
                 LastHitAt = Frame.LocalSeconds;
             }
+            if (bNewHit) { HitSeenAtMs = Facts.LastHitAtMs; }
             HitRevision = Combat->Revision;
             HitHPP2 = Combat->HPP2;
             HitMaxHPP2 = Combat->MaxHPP2;
-            HitShieldP2 = Combat->ShieldP2;
-            HitShieldEndsAtMs = Shield ? Shield->ExpiresAtMs : 0;
         }
     }
 

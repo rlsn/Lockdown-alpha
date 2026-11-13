@@ -156,7 +156,7 @@ void ALDCharacter::Tick(float Delta)
         Selected.HitLook);
     if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
-        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook)); }
+        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags); }
     Body->Animate(GetVelocity(),Delta);
     // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
     if (View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life

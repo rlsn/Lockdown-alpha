@@ -49,6 +49,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     InOut.ActionCueImpactAtMs=0;
     InOut.LastHitAtMs=0;
     InOut.HitLook=ELDObservedHitLook::None;
+    InOut.HitFlags=0;
     InOut.ActionAbility=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
@@ -67,6 +68,7 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
     {
         InOut.LastHitAtMs=State->Cues.LastHitAtMs;
         InOut.HitLook=static_cast<ELDObservedHitLook>(State->Cues.LastHitLook);
+        InOut.HitFlags=State->Cues.LastHitFlags;
     }
     InOut.ActionAbility=Ability;
     return true;

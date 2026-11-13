@@ -526,7 +526,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
@@ -1140,19 +1140,22 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units[0].ActionCueImpactDelayMs = 300;
     View.Units[0].HitLook = ELDObservedHitLook::Water;
     View.Units[0].RecentHitAgePlusOneMs = 21;
+    View.Units[0].HitFlags = LDObservation::ShieldAbsorbed;
     View.Units[1].ActionCue = ELDObservedActionCue::Hit;
     View.Units[1].ActionCueAgeMs = 40;
     View.Units[1].HitLook = ELDObservedHitLook::Electric;
     View.Units[1].RecentHitAgePlusOneMs = 41;
+    View.Units[1].HitFlags = LDObservation::Critical | LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken;
     View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
     TestTrue(TEXT("Cues, their ages and release timing round-trip"), Wire(View, Read) && Read.Units.Num() == 2
         && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
         && Read.Units[0].ActionCueImpactDelayMs == 300 && Read.Units[0].HitLook == ELDObservedHitLook::Water
-        && Read.Units[0].RecentHitAgePlusOneMs == 21
+        && Read.Units[0].RecentHitAgePlusOneMs == 21 && Read.Units[0].HitFlags == LDObservation::ShieldAbsorbed
         && Read.Units[0].ActionAbility == 7 && Read.Units[1].ActionCue == ELDObservedActionCue::Hit
         && Read.Units[1].ActionCueAgeMs == 40 && Read.Units[1].HitLook == ELDObservedHitLook::Electric
-        && Read.Units[1].RecentHitAgePlusOneMs == 41);
+        && Read.Units[1].RecentHitAgePlusOneMs == 41
+        && Read.Units[1].HitFlags == (LDObservation::Critical | LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken));
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
     {
@@ -1187,6 +1190,15 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     UnknownHitLook.RecentHitAgePlusOneMs=2;
     UnknownHitLook.HitLook=static_cast<ELDObservedHitLook>(255);
     TestFalse(TEXT("An unknown hit look is refused"), LDObservation::ValidateUnit(UnknownHitLook,Error));
+    FLDObservedUnitView UnknownHitFlags = UnknownHitLook;
+    UnknownHitFlags.HitLook = ELDObservedHitLook::None;
+    UnknownHitFlags.HitFlags = 0x80;
+    TestFalse(TEXT("Unknown impact flags are refused"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
+    UnknownHitFlags.HitFlags = LDObservation::ShieldBroken;
+    TestFalse(TEXT("A shield cannot break without absorbing this hit"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
+    UnknownHitFlags.HitFlags = LDObservation::Critical;
+    UnknownHitFlags.RecentHitAgePlusOneMs = 0;
+    TestFalse(TEXT("Impact flags require a recent hit"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
     FLDObservedUnitView CastHit = ContenderUnit();
     CastHit.ActionCue = ELDObservedActionCue::Cast;
     CastHit.RecentHitAgePlusOneMs = 1;

@@ -48,7 +48,7 @@ public:
     // The first cue showing respawn protection also plays the appear effect.
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f,
         ELDObservedHitLook HitLook = ELDObservedHitLook::None);
-    void SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None);
+    void SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None, uint8 HitFlags = 0);
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
     void PlayFall();
@@ -90,6 +90,7 @@ private:
     FVector PreviousVelocity = FVector::ZeroVector;
     uint8 Cue = 0;
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
+    uint8 HitFlags = 0;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
     bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.

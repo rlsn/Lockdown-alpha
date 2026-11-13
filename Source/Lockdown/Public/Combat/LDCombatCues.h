@@ -5,6 +5,7 @@
 #include "Vision/LDViewTypes.h"
 
 struct FLDCombatHit;
+struct FLDDamageEvaluation;
 
 // The one visible action-cue rule of a body life, used for the observed facts (server) and the own body (owner).
 namespace LDCombatCues
@@ -27,4 +28,5 @@ namespace LDCombatCues
     // releases. Within a kind the latest start wins.
     LOCKDOWN_API FCue Select(const FLDCombatCueFacts& Facts, int64 NowMs);
     LOCKDOWN_API ELDObservedHitLook ClassifyHit(const FLDCombatHit& Hit);
+    LOCKDOWN_API uint8 ClassifyImpact(bool bCritical, int64 ShieldBeforeP2, const FLDDamageEvaluation& Damage);
 }

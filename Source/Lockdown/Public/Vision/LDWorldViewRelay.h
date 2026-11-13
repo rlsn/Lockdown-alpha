@@ -105,6 +105,7 @@ namespace LDObservedPresentation
         uint16 CueImpactDelayMs = 0;
         ELDObservedHitLook HitLook = ELDObservedHitLook::None;
         uint16 RecentHitAgePlusOneMs = 0;
+        uint8 HitFlags = 0;
         TArray<FLDObservedStatus> Statuses;
     };
     // Points ascend by At. Before the first point: the first; between two: linear, yaw along the shorter arc; at or after

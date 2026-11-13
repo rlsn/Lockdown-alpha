@@ -431,6 +431,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         {
             Body->Cues.LastHitAtMs=NowMs;
             Body->Cues.LastHitLook=uint8(LDCombatCues::ClassifyHit(Hit));
+            Body->Cues.LastHitFlags=LDCombatCues::ClassifyImpact(bCritical,ShieldBeforeP2,Damage);
         }
         MarkViewChanged(Body->Victim.EntityId);
         // Committed positive damage (absorbed included) is the owner's assist contribution; controls record in CommitControl.

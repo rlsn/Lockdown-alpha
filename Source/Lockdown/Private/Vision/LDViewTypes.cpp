@@ -121,7 +121,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
     Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionCueImpactDelayMs << HitLook
-        << Unit.RecentHitAgePlusOneMs << Unit.ActionAbility;
+        << Unit.RecentHitAgePlusOneMs << Unit.HitFlags << Unit.ActionAbility;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -238,8 +238,10 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (!IsFiniteObservedPoint(Unit.FeetCm)) { return FailObservation(Error, TEXT("An observed unit position is outside the finite world range.")); }
     if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
         || uint8(Unit.HitLook) > uint8(ELDObservedHitLook::Electric)
+        || (Unit.HitFlags & ~HitFlagsMask) != 0
+        || ((Unit.HitFlags & ShieldBroken) != 0 && (Unit.HitFlags & ShieldAbsorbed) == 0)
         || Unit.RecentHitAgePlusOneMs > RecentHitWindowMs
-        || (Unit.RecentHitAgePlusOneMs == 0 && Unit.HitLook != ELDObservedHitLook::None)
+        || (Unit.RecentHitAgePlusOneMs == 0 && (Unit.HitLook != ELDObservedHitLook::None || Unit.HitFlags != 0))
         || (Unit.ActionCue == ELDObservedActionCue::Hit
             && (Unit.RecentHitAgePlusOneMs == 0 || Unit.ActionCueAgeMs + 1 != Unit.RecentHitAgePlusOneMs))
         || (Unit.ActionCue == ELDObservedActionCue::None && (Unit.ActionCueAgeMs != 0 || Unit.ActionCueImpactDelayMs != 0))

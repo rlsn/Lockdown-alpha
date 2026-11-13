@@ -450,12 +450,13 @@ void ULDHumanoidVisualComponent::PlayAppear()
     AppearAt = Clock;
 }
 
-void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHitLook InHitLook)
+void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHitLook InHitLook, uint8 InHitFlags)
 {
     if (!FMath::IsFinite(AgeSeconds) || AgeSeconds<0.f || AgeSeconds>=.3f || FallAt>=0) { return; }
     HitLook = InHitLook;
     const double Onset=Clock-AgeSeconds;
-    if (!bHitSeen || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds) { HitOnset=Onset; bHitSeen=true; }
+    if (!bHitSeen || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds)
+    { HitOnset=Onset; HitFlags=InHitFlags; bHitSeen=true; }
 }
 
 void ULDHumanoidVisualComponent::PlayFall()
@@ -609,9 +610,11 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     Parts[HitSpark]->SetHiddenInGame(Shown.HitBurst<=.02f);
     if (Shown.HitBurst>.02f)
     {
-        if (HitSparkTint) { HitSparkTint->SetVectorParameterValue(TEXT("Tint"),HitColour(HitLook)); }
+        const FLinearColor ImpactColour = (HitFlags & LDObservation::ShieldAbsorbed) ? ShieldColour
+            : (HitFlags & LDObservation::Critical) ? FLinearColor(1.f,.55f,.08f) : HitColour(HitLook);
+        if (HitSparkTint) { HitSparkTint->SetVectorParameterValue(TEXT("Tint"),ImpactColour); }
         Parts[HitSpark]->SetRelativeLocation(FVector(18.f,0,-HalfHeight+.72f*HeightCm));
-        Parts[HitSpark]->SetRelativeScale3D(FVector(.55f*Shown.HitBurst));
+        Parts[HitSpark]->SetRelativeScale3D(FVector(((HitFlags & LDObservation::Critical) ? .85f : .55f)*Shown.HitBurst));
     }
     const bool bCharge = Shown.Charge > .02f;
     Parts[Charge]->SetHiddenInGame(!bCharge);
@@ -638,7 +641,10 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         Parts[RootRing]->SetRelativeScale3D(FVector(Pulse, Pulse, .03f));
         Parts[RootRim]->SetRelativeScale3D(FVector(Pulse + .2f, Pulse + .2f, .02f));
     }
-    const bool bShield = !bFalling && (Cue & Shielded);
+    const bool bShieldBreak = !bFalling && bHitSeen && (HitFlags & LDObservation::ShieldBroken)
+        && Clock-HitOnset>=0.0 && Clock-HitOnset<.3;
+    const float ShieldSpread = bShieldBreak ? 1.f + .8f*float((Clock-HitOnset)/.3) : 1.f;
+    const bool bShield = !bFalling && ((Cue & Shielded) || bShieldBreak);
     Parts[ShieldHalo]->SetHiddenInGame(!bShield);
     for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
     {
@@ -646,7 +652,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         if (!bShield) { continue; }
         const float Angle = FMath::DegreesToRadians(45.f * Bar + 40.f * Time);
         Parts[ShieldBar0 + Bar]->SetRelativeLocation(
-            FVector(56.f * Girth * FMath::Cos(Angle), 56.f * Girth * FMath::Sin(Angle), Foot + .5f * (HeightCm + 14.f)));
+            FVector(56.f * Girth * ShieldSpread * FMath::Cos(Angle), 56.f * Girth * ShieldSpread * FMath::Sin(Angle),
+                Foot + .5f * (HeightCm + 14.f)));
     }
     const bool bProtected = !bFalling && (Cue & Protected);
     Parts[ProtectionBeam]->SetHiddenInGame(!bProtected);
