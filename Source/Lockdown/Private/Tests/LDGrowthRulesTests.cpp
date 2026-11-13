@@ -1880,6 +1880,50 @@ bool GrowthTestRunComponentGrants(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("A preset cannot choose a category with zero weight at its level"),
         !LDDevGrowthFixture::PrepareEvaluationLevelGrants(NoConnector, AtFour, 1, 4, Fixed, Granted, Grants, PresetError)
         && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
+
+    const FName BigTab(TEXT("component_big_tab")), Ledger(TEXT("component_tab_ledger"));
+    const FName Dirty(TEXT("component_dirty_trick")), Encore(TEXT("component_encore")), Move(TEXT("component_move_meeting"));
+    for (const FName Id : {BigTab, Dirty, Encore, Move})
+    {
+        TArray<FName> Ineligible = Fixed;
+        Ineligible[0] = Id;
+        bGood &= Test.TestTrue(FString::Printf(TEXT("Preset refuses %s without its host or required active"), *Id.ToString()),
+            !LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, AtFour, 1, 4, Ineligible, Granted, Grants, PresetError)
+            && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
+    }
+    TArray<FName> HostThenMod = Fixed;
+    HostThenMod[0] = Ledger;
+    HostThenMod[1] = BigTab;
+    bGood &= Test.TestTrue(TEXT("A prior preset draw makes its host-dependent mod eligible"),
+        LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, AtFour, 1, 4, HostThenMod, Granted, Grants, PresetError)
+        && Grants.Num() == 5 && Granted.FindComponent(Ledger) && Granted.FindComponent(BigTab));
+
+    const FLDGrowthBuild WithActives = GrowthTestBuild(Content, 4,
+        {{FName(TEXT("active_seethe")), 0}, {FName(TEXT("active_quick_meeting")), 1}});
+    for (const FName Id : {Dirty, Encore, Move})
+    {
+        TArray<FName> Eligible = Fixed;
+        Eligible[0] = Id;
+        Eligible[1] = Fixed[0];
+        const bool bPrepared = LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content, WithActives, 1, 4, Eligible, Granted, Grants, PresetError);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("Preset accepts %s with its learned active (%s)"), *Id.ToString(), *PresetError),
+            bPrepared && Grants.Num() == 5 && Granted.FindComponent(Id));
+    }
+    FLDDemoContentDefinitions ExtraBaseContent = Content;
+    FLDDemoComponentDefinition* ExtraBaseMod = ExtraBaseContent.Components.FindByPredicate(
+        [BigTab](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == BigTab; });
+    if (!Test.TestNotNull(TEXT("Extra-base fixture has its mod"), ExtraBaseMod)) { return false; }
+    ExtraBaseMod->ExtraBases = {TEXT("component_fist_water")};
+    bGood &= Test.TestTrue(TEXT("Preset refuses a hosted mod before its required extra base"),
+        !LDDevGrowthFixture::PrepareEvaluationLevelGrants(ExtraBaseContent, AtFour, 1, 4, HostThenMod, Granted, Grants, PresetError)
+        && !PresetError.IsEmpty() && Grants.IsEmpty() && GrowthTestSameComponents(Granted.Components, AtFour.Components));
+    TArray<FName> BaseThenMod = Fixed;
+    BaseThenMod[0] = Ledger;
+    BaseThenMod[1] = FName(TEXT("component_fist_water"));
+    BaseThenMod[2] = BigTab;
+    bGood &= Test.TestTrue(TEXT("A prior preset draw supplies the required extra base"),
+        LDDevGrowthFixture::PrepareEvaluationLevelGrants(ExtraBaseContent, AtFour, 1, 4, BaseThenMod, Granted, Grants, PresetError)
+        && Grants.Num() == 5 && Granted.FindComponent(BigTab));
     return bGood;
 }
 

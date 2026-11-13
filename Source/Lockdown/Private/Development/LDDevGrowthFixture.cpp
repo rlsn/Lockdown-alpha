@@ -197,23 +197,12 @@ bool LDDevGrowthFixture::PrepareEvaluationLevelGrants(const FLDDemoContentDefini
     {
         const uint8 Level = DrawLevels[Index];
         const FName Id = DefinitionIds[Index];
-        const FLDDemoComponentDefinition* Component = Content.Components.FindByPredicate(
-            [Id](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Id; });
-        const FLDDemoComponentCategoryWeights* Band = Content.Progression.ComponentCategoryWeights.FindByPredicate(
-            [Level](const FLDDemoComponentCategoryWeights& Row) { return Row.MinLevel <= Level && Level <= Row.MaxLevel; });
-        FName OrdinaryDraw;
-        if (!Component || Component->Pool != ELDDemoComponentPool::Common || Prepared.FindComponent(Id) || !Band
-            || LDProgression::DrawLevelComponent(Content, Prepared, Level, 0, OrdinaryDraw) != ELDGrowthReason::None
-            || OrdinaryDraw.IsNone())
+        bool bEligible = false;
+        const ELDGrowthReason Reason = LDProgression::LevelComponentEligible(Content, Prepared, Level, Id, bEligible);
+        if (Reason != ELDGrowthReason::None || !bEligible)
         {
-            Error = FString::Printf(TEXT("'%s' is not an unowned common level-up component at level %u."), *Id.ToString(), uint32(Level));
-            return false;
-        }
-        const int32 Weights[] = {Band->BasePercent, Band->ModPercent, Band->ConnectorPercent};
-        const int32 Kind = int32(Component->Kind);
-        if (Kind < 0 || Kind >= UE_ARRAY_COUNT(Weights) || Weights[Kind] <= 0)
-        {
-            Error = FString::Printf(TEXT("'%s' is outside the level-%u component category weights."), *Id.ToString(), uint32(Level));
+            Error = FString::Printf(TEXT("'%s' is not eligible for the level-%u component draw (%s)."),
+                *Id.ToString(), uint32(Level), LDGrowthWire::ReasonName(Reason));
             return false;
         }
         FLDComponentInstance& Instance = Prepared.Components.AddDefaulted_GetRef();

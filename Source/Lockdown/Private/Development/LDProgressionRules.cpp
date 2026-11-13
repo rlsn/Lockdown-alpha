@@ -1057,10 +1057,11 @@ void LDProgression::ReclaimAttachments(FLDGrowthBuild& Build, FName Forgotten, T
 
 // ---- #198 B components ----
 
-ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
-    uint64 Seed, FName& OutComponent)
+namespace
 {
-    OutComponent = NAME_None;
+ELDGrowthReason ProgressionLevelComponentPools(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
+    TArray<FName> (&Pools)[3], int64 (&Weights)[3])
+{
     const FLDDemoProgressionDefinition& Progression = Content.Progression;
     if (Level < 2 || int32(Level) > Progression.MaxLevel)
     {
@@ -1083,7 +1084,7 @@ ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinition
     {
         return ELDGrowthReason::DataInvalid;
     }
-    if (const ELDGrowthReason Reason = ValidateBuild(Content, Build); Reason != ELDGrowthReason::None)
+    if (const ELDGrowthReason Reason = LDProgression::ValidateBuild(Content, Build); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
@@ -1109,8 +1110,9 @@ ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinition
             && (Definition.ExtraBases.IsEmpty() || Owned(Definition.ExtraBases));
     };
     // Indexed by ELDDemoComponentKind: Base, Mod, Connector.
-    const int64 Weights[3] = {Band->BasePercent, Band->ModPercent, Band->ConnectorPercent};
-    TArray<FName> Pools[3];
+    Weights[0] = Band->BasePercent;
+    Weights[1] = Band->ModPercent;
+    Weights[2] = Band->ConnectorPercent;
     bool bUnownedRollable = false;
     bool bAnyUnowned = false;
     for (const FLDDemoComponentDefinition& Definition : Content.Components)
@@ -1136,6 +1138,33 @@ ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinition
     {
         return ELDGrowthReason::DataInvalid;
     }
+    return ELDGrowthReason::None;
+}
+}
+
+ELDGrowthReason LDProgression::LevelComponentEligible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    uint8 Level, FName Component, bool& OutEligible)
+{
+    OutEligible = false;
+    TArray<FName> Pools[3];
+    int64 Weights[3] = {};
+    const ELDGrowthReason Reason = ProgressionLevelComponentPools(Content, Build, Level, Pools, Weights);
+    if (Reason != ELDGrowthReason::None) { return Reason; }
+    for (int32 Kind = 0; Kind < 3; ++Kind)
+    {
+        OutEligible |= Weights[Kind] > 0 && Pools[Kind].Contains(Component);
+    }
+    return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
+    uint64 Seed, FName& OutComponent)
+{
+    OutComponent = NAME_None;
+    TArray<FName> Pools[3];
+    int64 Weights[3] = {};
+    const ELDGrowthReason Reason = ProgressionLevelComponentPools(Content, Build, Level, Pools, Weights);
+    if (Reason != ELDGrowthReason::None) { return Reason; }
     // An empty category (nothing unowned and hostable) is dropped; the others keep their relative weights. Nothing hostable
     // in any rolled category is an empty pool.
     int64 Total = 0;

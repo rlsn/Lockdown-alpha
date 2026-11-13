@@ -315,6 +315,9 @@ namespace LDProgression
     // only in categories the band never rolls), never an "empty" pool.
     LOCKDOWN_API ELDGrowthReason DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
         uint64 Seed, FName& OutComponent);
+    // Whether one definition belongs to a nonzero-weight pool for this exact build and level; uses the same rules as the draw.
+    LOCKDOWN_API ELDGrowthReason LevelComponentEligible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        uint8 Level, FName Component, bool& OutEligible);
     // Private per-level random material of the component roll, distinct from OfferSeed of the same number. Draw 0 keeps the
     // original first roll; draw 1 is a bonus level's second roll.
     LOCKDOWN_API uint64 ComponentSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Level, uint8 Draw = 0);
