@@ -346,6 +346,14 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     View.Detail=FString::Join(Detail,TEXT(" · "));
     return View;
 }
+bool LDHUD::TimelineDetailVisible(const FLDPublicMatchView& Public,const FTimelineView& Timeline,bool bChoicesRestOpen)
+{
+    const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
+    const bool bShowdown=bFieldPhase&&Public.Showdown.bStarted&&Public.Timeline.Stage==ELDMatchStage::FinalField;
+    const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
+    return (!bFieldPhase||bShowdown)&&!bChoicesRestOpen&&!Timeline.Detail.IsEmpty()
+        &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning);
+}
 FString LDHUD::RestReadyText(ELDRestReadyResult Result)
 {
     switch(Result)

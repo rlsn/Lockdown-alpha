@@ -1040,8 +1040,7 @@ void ULDHUD::RefreshReadModel()
         const LDHUD::FTimelineView Timeline=LDHUD::TimelineBanner(Public,O.ContenderId,bClock,NowMs);
         HudSetText(TimelineText,Timeline.Headline);HudSetShown(TimelineText,!Timeline.Headline.IsEmpty(),ESlateVisibility::HitTestInvisible);
         HudSetText(TimelineDetailText,Timeline.Detail);
-        HudSetShown(TimelineDetailText,!bFieldPhase&&!bChoicesRestOpen&&!Timeline.Detail.IsEmpty()
-            &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning),ESlateVisibility::HitTestInvisible);
+        HudSetShown(TimelineDetailText,LDHUD::TimelineDetailVisible(Public,Timeline,bChoicesRestOpen),ESlateVisibility::HitTestInvisible);
         // The reset exists only in a rest; leaving it drops a wait the server will still answer.
         const bool bRestActions=bRestPlanning||(Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Payout);
         if(!bRestActions){bTrainingResetInFlight=false;bRestReadyInFlight=false;}

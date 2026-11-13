@@ -155,6 +155,7 @@ namespace LDHUD
         bool bSignedUp=false;
     };
     LOCKDOWN_API FTimelineView TimelineBanner(const FLDPublicMatchView& Public,const FGuid& Self,bool bClock,int64 NowMs);
+    LOCKDOWN_API bool TimelineDetailVisible(const FLDPublicMatchView& Public,const FTimelineView& Timeline,bool bChoicesRestOpen);
     LOCKDOWN_API FString RestReadyText(ELDRestReadyResult Result);
     // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
     LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);

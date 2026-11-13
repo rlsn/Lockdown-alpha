@@ -318,6 +318,26 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The go line leaves after its moment"),LDHUD::RestReturnCountdown(Public,true,200000+LDHUD::CountdownGoShowMs).IsEmpty());
     Public.Phase=ELDMatchPhase::CaptureOpen;Timeline.Stage=ELDMatchStage::FinalField;Timeline.FieldSegment=3;Timeline.FieldBaseMs=540000;Timeline.FieldEndT=-1;
     TestEqualSensitive(TEXT("The final field names the open flagpole"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline,FString(LDTerms::FinalField));
+    Public.Showdown.bStarted=true;Public.Showdown.EndsAtMs=440000;Public.Showdown.ClosureAtMs=320000;Public.Showdown.RespawnsCloseAtMs=350000;
+    View=LDHUD::TimelineBanner(Public,Self,true,310000);
+    TestTrue(TEXT("The final field visibly warns before closure"),View.Detail==TEXT("封街倒计时 10 秒")
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,320000);
+    TestTrue(TEXT("The final field visibly reports active closure"),View.Detail.Contains(TEXT("封街收缩中"))
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,350000);
+    TestTrue(TEXT("The final field visibly reports the respawn cutoff"),View.Detail.Contains(TEXT("不再接受新复活"))
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,430000);
+    TestTrue(TEXT("The final field visibly warns of the last ten seconds"),View.Detail.Contains(TEXT("最后十秒"))
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,false,0);
+    TestFalse(TEXT("Without an authority clock no countdown detail is shown"),LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,310000);
+    TestFalse(TEXT("A covering rest service suppresses the detail"),LDHUD::TimelineDetailVisible(Public,View,true));
+    Timeline.Stage=ELDMatchStage::Field;
+    TestFalse(TEXT("Ordinary field phases keep timeline detail hidden"),LDHUD::TimelineDetailVisible(Public,View,false));
+    Timeline.Stage=ELDMatchStage::FinalField;
     Timeline.Generation=3;
     TestTrue(TEXT("Another generation's timeline shows nothing"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline.IsEmpty()
         &&LDHUD::RestReturnCountdown(Public,true,200500).IsEmpty());
