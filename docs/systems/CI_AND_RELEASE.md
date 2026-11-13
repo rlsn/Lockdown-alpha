@@ -30,13 +30,14 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
 ## PR 检查与每日试玩包
 
 `.github/workflows/pr-check.yml` 在指向 `main` 的非草稿 PR 每次推送（以及转为 Ready for review）时运行，
-同一 PR 的新推送会取消未完成的旧运行；只改 `docs/**` 或 `*.md` 的推送不触发。它分三个任务：
-- `scope`（GitHub 托管）：`Scripts/CIChangeScope.py` 按 PR 合并提交相对 base 的改动选择门槛。
+同一 PR 的新推送会取消未完成的旧运行。按整个 PR 相对 base 的差异分流：只改 `docs/**` 或 `*.md` 时，
+仅运行轻量 `scope`，`python` 与 `native` 都跳过；混有代码、数据或工作流改动时仍运行相应检查。它分三个任务：
+- `scope`（GitHub 托管）：`Scripts/CIChangeScope.py` 按 PR 合并提交相对 base 的改动选择 `docs|python|native` 门槛。
   改到 `Source`、`Config`、`SourceData`、`Content`、PowerShell 脚本或 `RunTests.ps1` 加载的 Python 脚本
   （及其在 `Scripts` 内的全部 import）时需要原生门槛；只改其他 `Scripts/*.py` 或工作流时不需要。
   它同时输出 `import_tests=run|skip`：数据导入测试的输入（见[开发循环与验证节奏](VERIFICATION.md#数据导入测试组)）没有改动时，
   原生任务以 `RunTests.ps1 -ImportTests Skip` 运行其余全部必需测试。
-- `python`（GitHub 托管 Windows，每个 PR 都跑）：`Scripts/RunPythonTests.py` 以最多 4 个进程并行执行
+- `python`（GitHub 托管 Windows，非纯文档 PR 才跑）：`Scripts/RunPythonTests.py` 以最多 4 个进程并行执行
   `Scripts` 下的 Python 测试（与 `unittest discover` 同一组测试和通过规则，带类级夹具的测试类整体留在一个进程里）。
   工作进程不是守护进程，测试可以再开进程：`ExportDemoNativeFixtures.py` 默认按 CPU 数并行编译夹具用例
   （`--jobs` 可调，输出字节与串行一致），`RunTests.ps1` 经 `--cache` 走同一导出。
