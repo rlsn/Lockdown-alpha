@@ -786,7 +786,10 @@ public:
                         }
                         if (Growth->bHasActiveOffer)
                         {
-                            if (!Panel->ChooseOffer(0)) { return true; }
+                            const int64 Price=Content->Get().Parameters.NpcActivePoints;
+                            const bool bNeedSkip=Growth->UnspentPoints<Price
+                                && Growth->ActiveOffer.SkipPoints>=Price-Growth->UnspentPoints;
+                            if (bNeedSkip ? !Panel->SkipOffer() : !Panel->ChooseOffer(0)) { return true; }
                             return true;
                         }
                         if (Growth->QueuedActiveOpportunities>0) { return true; }
