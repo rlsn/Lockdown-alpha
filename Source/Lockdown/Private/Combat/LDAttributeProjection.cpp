@@ -105,6 +105,20 @@ bool IsComponentEffectOp(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Aftershock: case ELDDemoEffectOp::ControlMana: case ELDDemoEffectOp::HealCounter:
     case ELDDemoEffectOp::ReactionEmpower: case ELDDemoEffectOp::ShieldBurst: case ELDDemoEffectOp::SkillLifesteal:
     case ELDDemoEffectOp::ExtraBase: case ELDDemoEffectOp::CompressChain:
+    // Skill rules (B13-B15).
+    case ELDDemoEffectOp::CastHitRefund: case ELDDemoEffectOp::DistanceAmp: case ELDDemoEffectOp::AlternateAmp:
+    // Mods (M13-M15).
+    case ELDDemoEffectOp::ProjectileReturn: case ELDDemoEffectOp::ProjectilePierce: case ELDDemoEffectOp::ChainExtra:
+    case ELDDemoEffectOp::EchoImpact:
+    // Connectors (C13-C16).
+    case ELDDemoEffectOp::HitHasteOther: case ELDDemoEffectOp::SetupMark: case ELDDemoEffectOp::ReactionHaste:
+    case ELDDemoEffectOp::MultiHitMana:
+    // Mods (M16-M20).
+    case ELDDemoEffectOp::ZoneTether: case ELDDemoEffectOp::DefenseShove: case ELDDemoEffectOp::FinalKnockback:
+    case ELDDemoEffectOp::EmpowerReach: case ELDDemoEffectOp::Pull:
+    // Connectors (C17-C21).
+    case ELDDemoEffectOp::ZoneRelocate: case ELDDemoEffectOp::StoredForce: case ELDDemoEffectOp::EmpowerSpend:
+    case ELDDemoEffectOp::ControlWiden: case ELDDemoEffectOp::ZoneDetonate:
         return true;
     case ELDDemoEffectOp::EmpowerBasic:
         // B12: a component's empowered basic arms on a completed voluntary dash only.

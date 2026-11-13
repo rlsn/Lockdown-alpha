@@ -63,6 +63,9 @@ public:
     // The open chooser's option at Index (an element of B18 or a base of C12), which sends the command.
     bool ChooseOption(int32 Index);
     bool IsChoosing() const {return Chooser.bOpen;}
+    // A component preview or storage hover marks this definition read for the current match.
+    void MarkSeen(FName Component);
+    void SetDetailsHeld(bool bHeld);
     // Probes: keeps the view open without a hover, for the open storage's screenshots and checks.
     void PinOpen(bool bPin){bPinned=bPin;}
 protected:
@@ -70,12 +73,13 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
 private:
-    // One stored component's icon in the open grid (新 on its corner while never installed).
+    // One stored component's icon in the open grid.
     struct FCard
     {
         FName Component;
         UBorder* Face=nullptr;
         USizeBox* Size=nullptr;
+        UWidget* FreshChip=nullptr;
         int32 AppliedLook=-1;
     };
     // One installed component in a column; nested ones are smaller and indented under their host.
@@ -139,6 +143,8 @@ private:
     UPROPERTY() TObjectPtr<UBorder> StackTop;
     UPROPERTY() TArray<TObjectPtr<UBorder>> StackBacks;
     UPROPERTY() TObjectPtr<UTextBlock> StackCount;
+    // Under the caption: installed / workshop capacity.
+    UPROPERTY() TObjectPtr<UTextBlock> StackCapacity;
     UPROPERTY() TObjectPtr<UWidget> StackFreshChip;
     UPROPERTY() TObjectPtr<UTextBlock> StackFresh;
     UPROPERTY() TObjectPtr<UWidget> ListFrame;
@@ -159,6 +165,10 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostSlot;
     UPROPERTY() TObjectPtr<UImage> GhostPicture;
     UPROPERTY() TObjectPtr<UTextBlock> GhostGlyph;
+    // One line beside the ghost: what letting go here does (装到 Q / 替换 X · 连带拆下 Y / 不能装在这里).
+    UPROPERTY() TObjectPtr<UWidget> GhostCaptionFrame;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostCaptionSlot;
+    UPROPERTY() TObjectPtr<UTextBlock> GhostCaption;
     // Every widget built for the current cards and tiles; replaced on each rebuild.
     UPROPERTY() TArray<TObjectPtr<UWidget>> Built;
     TArray<FCard> Cards;
@@ -167,6 +177,7 @@ private:
 
     FLDProgressionView Latest;
     uint32 LatestMatch=0;
+    TSet<FName> SeenComponents;
     LDHUD::FBuildGateView Gate;
     const FLDDemoContentDefinitions* LatestContent=nullptr;
     LDHUD::FCardStats LatestStats;
@@ -175,6 +186,7 @@ private:
     bool bShownNow=false;
     bool bExpanded=false;
     bool bPinned=false;
+    bool bDetailsHeld=false;
     double LastInsideAt=0;
     FPress Press;
     FDrag Drag;

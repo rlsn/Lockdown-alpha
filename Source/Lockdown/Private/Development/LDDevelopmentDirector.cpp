@@ -44,9 +44,10 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     const bool bNoComponent = Command.Component == FLDDefinitionWire() && !Command.bInstallIfPossible && bTarget && Target.IsEmpty();
     const bool bOnlyComponent = bNoOffer && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
         && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot && Command.Component.Decode(Decoded) && bTarget;
-    // #198 G: Filler belongs to FillGap and Surrendered to Dismantle only.
+    // #198 G: Filler belongs to FillGap and Surrendered to Dismantle only; Replacing to InstallComponent only.
     if ((Command.Kind != ELDBuildCommandKind::FillGap && Command.Filler != FLDDefinitionWire())
-        || (Command.Kind != ELDBuildCommandKind::Dismantle && !Command.Surrendered.IsEmpty()))
+        || (Command.Kind != ELDBuildCommandKind::Dismantle && !Command.Surrendered.IsEmpty())
+        || (Command.Kind != ELDBuildCommandKind::InstallComponent && Command.Replacing != FLDDefinitionWire()))
     {
         return false;
     }
@@ -73,6 +74,10 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option.Decode(Decoded)
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
             && (Command.Slot == FLDBuildCommand::AnySlot || (Command.bLearnIfPossible && Command.Slot < 3));
+    case ELDBuildCommandKind::SkipActiveOffer:
+        return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire()
+            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
+            && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot;
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
@@ -97,7 +102,7 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
     case ELDBuildCommandKind::OpeningBase:
         return bOnlyComponent && (Command.bInstallIfPossible || Target.IsEmpty());
     case ELDBuildCommandKind::InstallComponent:
-        return bOnlyComponent && !Command.bInstallIfPossible;
+        return bOnlyComponent && !Command.bInstallIfPossible && LDGrowthWire::DecodeOptional(Command.Replacing, Decoded);
     case ELDBuildCommandKind::UninstallComponent:
         return bOnlyComponent && !Command.bInstallIfPossible && Target.IsEmpty();
     default:
@@ -411,7 +416,8 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     // #198 B: the opening base pick opens once the opening active is chosen and closes with the pick.
     const FName OpeningActive = LDProgression::OpeningActive(Progression);
     TArray<FName> OpeningOptions;
-    if (!OpeningActive.IsNone() && !LDProgression::OpeningBaseTaken(Build))
+    if (Progression.Records.ContainsByPredicate([](const FLDActiveOpportunityRecord& Row) { return Row.Ordinal == 1; })
+        && !LDProgression::OpeningBaseTaken(Build))
     {
         const ELDGrowthReason OptionsReason = LDProgression::OpeningBaseOptions(Definitions, Build, OpeningActive, OpeningOptions);
         if (OptionsReason != ELDGrowthReason::None)
@@ -470,6 +476,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         View.ActiveOffer.OpportunityOrdinal = Offer.Ordinal;
         View.ActiveOffer.OfferRevision = Offer.Revision;
         View.ActiveOffer.Options = Offer.Options;
+        View.ActiveOffer.SkipPoints = Offer.bNpcPurchased ? Definitions.Parameters.NpcActiveSkipPoints : Definitions.Parameters.ActiveSkipPoints;
     }
     View.Components.Reserve(Build.Components.Num());
     for (const FLDComponentInstance& Instance : Build.Components)
@@ -681,6 +688,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     TArray<FName> Reclaimed;
     int64 Refunded = 0;
     int64 NpcPaid = 0;
+    int64 PointsAwarded = 0;
     uint8 Ordinal = 0;
     // #198 G: FillGap's payment, Dismantle's draw and surrendered components.
     int64 ServicePaid = 0;
@@ -696,6 +704,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     switch (Command.Kind)
     {
     case ELDBuildCommandKind::ActiveChoice:
+    case ELDBuildCommandKind::SkipActiveOffer:
     {
         const bool bOfferConsumed = Progression.Records.ContainsByPredicate(
             [&Command](const FLDActiveOpportunityRecord& Row) { return Row.OfferId == Command.OfferId; });
@@ -712,7 +721,8 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         {
             return Reject(ELDGrowthReason::OfferGuardStale);
         }
-        if (!Command.Option.Decode(Definition) || !Offer.Options.Contains(Definition))
+        if (Command.Kind == ELDBuildCommandKind::ActiveChoice
+            && (!Command.Option.Decode(Definition) || !Offer.Options.Contains(Definition)))
         {
             return Reject(ELDGrowthReason::InvalidOption);
         }
@@ -721,8 +731,9 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         {
             return Reject(ELDGrowthReason::DataInvalid);
         }
-        const ELDGrowthReason ChoiceReason = LDProgression::ApplyActiveChoice(Definitions, Build, Definition,
-            Command.bLearnIfPossible, Command.Slot, Context, NewBuild, Choice);
+        const ELDGrowthReason ChoiceReason = Command.Kind == ELDBuildCommandKind::ActiveChoice
+            ? LDProgression::ApplyActiveChoice(Definitions, Build, Definition, Command.bLearnIfPossible, Command.Slot, Context, NewBuild, Choice)
+            : LDProgression::ApplySkipActiveOffer(Definitions, Build, Offer, Context, NewBuild, PointsAwarded);
         if (ChoiceReason != ELDGrowthReason::None)
         {
             return Reject(ChoiceReason);
@@ -840,7 +851,10 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
         }
         else if (Command.Kind == ELDBuildCommandKind::InstallComponent)
         {
-            ComponentReason = LDProgression::ApplyInstallComponent(Definitions, Build, Definition, Target, Context, NewBuild);
+            FName Replacing;
+            LDGrowthWire::DecodeOptional(Command.Replacing, Replacing);
+            ComponentReason = LDProgression::ApplyInstallComponent(Definitions, Build, Definition, Target, Context, NewBuild,
+                Replacing, &Reclaimed);
         }
         else
         {
@@ -949,10 +963,11 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     }
     Receipt.ForgottenId = Forgotten;
     Receipt.PointsRefunded = Refunded;
+    Receipt.PointsAwarded = PointsAwarded;
     Receipt.NpcPointsPaid = NpcPaid;
     Receipt.ServicePointsPaid = ServicePaid;
     Receipt.RemovedComponents = Removed;
-    Receipt.UninstalledComponents = Dismantled.Uninstalled;
+    Receipt.UninstalledComponents = Command.Kind == ELDBuildCommandKind::InstallComponent ? Reclaimed : Dismantled.Uninstalled;
     if (Command.Kind == ELDBuildCommandKind::Dismantle)
     {
         Receipt.ComponentId = Dismantled.Received;
@@ -1220,6 +1235,35 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
     Result.Value.Emplace(MoveTemp(Prepared));
     return Result;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareEvaluationExperience(const FGuid& ContenderId, int64 GrantXP,
+    const TArray<FName>& LevelComponents) const
+{
+    FLDPrepareGrowthResult Result = PrepareExperience(ContenderId, GrantXP);
+    if (!Result.IsSuccess()) { return Result; }
+    FLDPreparedGrowthChange& Prepared = Result.Value.GetValue();
+    const FRecord* Record = Records.Find(ContenderId);
+    if (!Record || Prepared.NewProgression.EmptyPoolGrants != Record->Progression.EmptyPoolGrants)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, TEXT("An evaluation preset cannot replace an exhausted-pool grant."));
+    }
+    FLDGrowthBuild WithoutNewGrants = Prepared.NewBuild;
+    WithoutNewGrants.Components.RemoveAll([&Prepared](const FLDComponentInstance& Instance)
+        { return Instance.Source == ELDComponentSource::LevelUp && Instance.SourceLevel > Prepared.OldLevel; });
+    FLDGrowthBuild Granted;
+    TArray<FLDComponentGrant> Grants;
+    FString Error;
+    if (!LDDevGrowthFixture::PrepareEvaluationLevelGrants(Content->Get(), WithoutNewGrants, Prepared.OldLevel,
+            Prepared.NewBuild.Level, LevelComponents, Granted, Grants, Error))
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::DataInvalid, *Error);
+    }
+    Prepared.NewBuild = MoveTemp(Granted);
+    Prepared.Grants = MoveTemp(Grants);
+    return Result;
+}
+#endif
 
 FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareFieldReward(const FGuid& ContenderId, int64 GrantXP, ELDFieldRewardKind Kind,
     FName Event, uint64 Serial) const

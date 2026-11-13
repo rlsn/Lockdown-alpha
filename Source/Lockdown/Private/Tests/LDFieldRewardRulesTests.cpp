@@ -160,8 +160,8 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
-    bool bGood = Test.TestTrue(TEXT("Approved FillGap price 4 and dismantle input 3"),
-        Content.Parameters.FillGapPoints == 4 && Content.Parameters.DismantleInputCount == 3);
+    bool bGood = Test.TestTrue(TEXT("Approved FillGap price 4 and dismantle input 2"),
+        Content.Parameters.FillGapPoints == 4 && Content.Parameters.DismantleInputCount == 2);
     const LDProgression::FBuildContext Rest = FieldTestContext(LDProgression::EMatchStage::Rest);
     const LDProgression::FBuildContext Field = FieldTestContext(LDProgression::EMatchStage::Live);
     const FName FireSkin(TEXT("component_fire_skin")), HoldDown(TEXT("component_hold_down")), FistFire(TEXT("component_fist_fire"));
@@ -203,7 +203,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     bGood &= FieldTestReason(Test, TEXT("A filled target never fills again, even without its entry"), LDProgression::ApplyFillGap(
         Content, Again, 600, 0, FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::GapAlreadyFilled);
 
-    // Dismantle: three distinct owned commons for one unowned common; installs on a surrendered host come off.
+    // Dismantle: two distinct owned commons for one unowned common; installs on a surrendered host come off.
     FLDGrowthBuild Shop = LDProgression::StartBuild(Content);
     Shop.Level = 6;
     for (const FName& Id : {TabLedger, BigTab, SpikyHide, FistFire, DirtyFist}) { FieldTestOwn(Shop, Id); }
@@ -216,27 +216,27 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     bGood &= FieldTestReason(Test, TEXT("The fixture build is valid"), LDProgression::ValidateBuild(Content, Shop), ELDGrowthReason::None);
     LDProgression::FDismantleOutcome Outcome;
     bGood &= FieldTestReason(Test, TEXT("Dismantle outside the rest window"), LDProgression::ApplyDismantle(Content, Shop,
-        {TabLedger, SpikyHide, FistFire}, 3, Field, Out, Outcome), ELDGrowthReason::NotRestWindow);
+        {TabLedger, SpikyHide}, 3, Field, Out, Outcome), ELDGrowthReason::NotRestWindow);
     bGood &= FieldTestReason(Test, TEXT("A scarce component is not accepted"), LDProgression::ApplyDismantle(Content, Shop,
-        {TabLedger, SpikyHide, DirtyFist}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
-    bGood &= FieldTestReason(Test, TEXT("The same component twice is not three"), LDProgression::ApplyDismantle(Content, Shop,
-        {TabLedger, TabLedger, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
-    bGood &= FieldTestReason(Test, TEXT("Two components are not the approved three"), LDProgression::ApplyDismantle(Content, Shop,
-        {TabLedger, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
-    bGood &= FieldTestReason(Test, TEXT("Dismantle three commons"), LDProgression::ApplyDismantle(Content, Shop,
-        {TabLedger, SpikyHide, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::None);
+        {TabLedger, DirtyFist}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
+    bGood &= FieldTestReason(Test, TEXT("The same component twice is not two"), LDProgression::ApplyDismantle(Content, Shop,
+        {TabLedger, TabLedger}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
+    bGood &= FieldTestReason(Test, TEXT("Three components are not the approved two"), LDProgression::ApplyDismantle(Content, Shop,
+        {TabLedger, SpikyHide, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
+    bGood &= FieldTestReason(Test, TEXT("Dismantle two commons"), LDProgression::ApplyDismantle(Content, Shop,
+        {TabLedger, SpikyHide}, 3, Rest, Out, Outcome), ELDGrowthReason::None);
     const FLDDemoComponentDefinition* Received = Content.Components.FindByPredicate(
         [&](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Outcome.Received; });
     bGood &= Test.TestTrue(TEXT("One unowned common component received, outside the surrendered ones"), Received
         && Received->Pool == ELDDemoComponentPool::Common && !Shop.FindComponent(Outcome.Received)
         && Out.FindComponent(Outcome.Received)->Source == ELDComponentSource::Dismantle);
     bGood &= Test.TestTrue(TEXT("The surrendered ones are gone and the mod on the host returned to the inventory"),
-        !Out.FindComponent(TabLedger) && !Out.FindComponent(SpikyHide) && !Out.FindComponent(FistFire)
+        !Out.FindComponent(TabLedger) && !Out.FindComponent(SpikyHide) && Out.FindComponent(FistFire)
         && Out.FindComponent(BigTab) && !Out.FindComponent(BigTab)->bInstalled && Outcome.Uninstalled == TArray<FName>{BigTab});
     bGood &= FieldTestReason(Test, TEXT("The result is a valid build"), LDProgression::ValidateBuild(Content, Out), ELDGrowthReason::None);
     LDProgression::FDismantleOutcome Same;
     FLDGrowthBuild SameOut;
-    LDProgression::ApplyDismantle(Content, Shop, {TabLedger, SpikyHide, FistFire}, 3, Rest, SameOut, Same);
+    LDProgression::ApplyDismantle(Content, Shop, {TabLedger, SpikyHide}, 3, Rest, SameOut, Same);
     bGood &= Test.TestTrue(TEXT("The random result is fixed by its seed"), Same.Received == Outcome.Received);
 
     FLDGrowthBuild Full = LDProgression::StartBuild(Content);
@@ -246,7 +246,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
         if (Row.Pool == ELDDemoComponentPool::Common) { FieldTestOwn(Full, FName(*Row.Id)); }
     }
     bGood &= FieldTestReason(Test, TEXT("An exhausted common pool refuses without removing anything"), LDProgression::ApplyDismantle(
-        Content, Full, {TabLedger, SpikyHide, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantlePoolEmpty);
+        Content, Full, {TabLedger, SpikyHide}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantlePoolEmpty);
     bGood &= Test.TestTrue(TEXT("Nothing changed"), Out.Components.Num() == Full.Components.Num());
     return bGood;
 }

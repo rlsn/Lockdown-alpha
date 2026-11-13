@@ -47,6 +47,7 @@ namespace
     constexpr uint32 SkillElessSchema = 18;
     // Schema 19 has the current key list but predates the music volume (#94).
     constexpr uint32 MusiclessSchema = 19;
+    constexpr uint32 DetailslessSchema = 20;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -54,6 +55,7 @@ namespace
     const FName ScoreboardAction(TEXT("Scoreboard"));
     const FName MarkAction(TEXT("Mark"));
     const FName SkillEAction(TEXT("SkillE"));
+    const FName DetailsAction(TEXT("Details"));
     const FName RetiredItemActions[] = {FName(TEXT("Item1")), FName(TEXT("Item2"))};
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
@@ -208,6 +210,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Dash"),FString(LDTerms::Dash)+TEXT("（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性/加点切换"),EKeys::P},
+        {TEXT("Details"),TEXT("按住显示构筑与加点"),EKeys::C},
         {TEXT("Scoreboard"),FString(TEXT("按住显示"))+LDTerms::Scoreboard,EKeys::Tab},
         {TEXT("Mark"),TEXT("标记此刻（写入试玩日志）"),EKeys::F9},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
@@ -573,7 +576,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
-            || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema);
+            || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
+            || SavedSchema == DetailslessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -657,20 +661,32 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         for (const FName& Retired : RetiredItemActions) { Dropped += Settings->Bindings.Remove(Retired); }
         if (Dropped > 0) { MigrationNotes += TEXT("装备不再有主动，已移除装备主动 1/2 的按键。"); }
     }
-    // Missing actions take their default keys only when no remaining action holds them; otherwise the incomplete
-    // key list is refused below without changing the player's existing bindings.
+    // Missing actions use an unclaimed default; hold-details can also use an unclaimed fallback.
     struct FAddedAction { FName Action; uint32 LastWithout; const TCHAR* Name; };
     for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash},
         FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard},
         FAddedAction{MarkAction, MarklessSchema, TEXT("标记")},
-        FAddedAction{SkillEAction, SkillElessSchema, TEXT("角色主动 E")} })
+        FAddedAction{SkillEAction, SkillElessSchema, TEXT("角色主动 E")},
+        FAddedAction{DetailsAction, DetailslessSchema, TEXT("构筑详情")} })
     {
         if (!Migrating || SavedSchema > Added.LastWithout || Settings->Bindings.Contains(Added.Action)) { continue; }
         const FLDControlBinding* Default = Definitions().FindByPredicate([&Added](const FLDControlBinding& B) { return B.Action == Added.Action; });
-        if (Default && !Settings->Bindings.FindKey(Default->Key))
+        FKey NewKey = Default ? Default->Key : FKey();
+        if (Added.Action == DetailsAction && Settings->Bindings.FindKey(NewKey))
         {
-            Settings->Bindings.Add(Added.Action, Default->Key);
-            MigrationNotes += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + LocalizedKeyName(Default->Key) + TEXT("。");
+            for (const FKey& Candidate : {EKeys::F10, EKeys::F11, EKeys::F12, EKeys::F8, EKeys::F7, EKeys::F6,
+                EKeys::F5, EKeys::F4, EKeys::F3, EKeys::F2, EKeys::F1, EKeys::B, EKeys::F, EKeys::G, EKeys::H,
+                EKeys::I, EKeys::J, EKeys::K, EKeys::L, EKeys::M, EKeys::N, EKeys::O, EKeys::R, EKeys::T,
+                EKeys::U, EKeys::V, EKeys::X, EKeys::Y, EKeys::Z})
+            {
+                if (!Settings->Bindings.FindKey(Candidate)) { NewKey = Candidate; break; }
+            }
+        }
+        if (Default && !Settings->Bindings.FindKey(NewKey))
+        {
+            Settings->Bindings.Add(Added.Action, NewKey);
+            MigrationNotes += FString(TEXT("新增的“")) + Added.Name
+                + (NewKey == Default->Key ? TEXT("”键使用默认值 ") : TEXT("”键使用 ")) + LocalizedKeyName(NewKey) + TEXT("。");
         }
     }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
@@ -684,13 +700,14 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–19 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–20 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         if (SavedSchema <= AutoAttacklessSchema) { MigrationNotes += TEXT("施法后自动攻击默认开启。"); }
-        // Every migrated schema predates the music volume.
-        MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume));
-        if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema)
+        if (SavedSchema <= MusiclessSchema)
+        { MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume)); }
+        if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
+            || SavedSchema == DetailslessSchema)
         {
             const FString Preserved = SavedSchema != AutoAttacklessSchema
                 ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法、诊断与施法后自动攻击偏好已保留，下次保存时写入新格式。")

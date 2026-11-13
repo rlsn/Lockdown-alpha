@@ -145,7 +145,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The approved AI decision interval is not positive.");
         return false;
     }
-    // #198 站圈报名: the sign-up disk of this contender's rest space, as public as the world (its roster slot's anchor).
+    // Each contender approaches a separate standing position inside the shared sign-up disk.
     FVector SignupCentre;
     double SignupRadius = 0;
     const FLDMapBinding* SignupAnchor = nullptr;
@@ -156,7 +156,7 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     }
     if (!SignupAnchor)
     {
-        Error = TEXT("The opponent's roster slot has no registered PK sign-up disk.");
+        Error = TEXT("The opponent's roster slot has no registered PK sign-up position.");
         return false;
     }
     TArray<FLDOpponentPOI> Services;
@@ -184,15 +184,16 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     SignupPOI.Id = SignupAnchor->Id;
     SignupPOI.Kind = ELDOpponentPOIKind::PKSignup;
     SignupPOI.SurfaceId = SignupAnchor->Surface;
-    SignupPOI.FootCm = SignupCentre;
+    SignupPOI.FootCm = SignupAnchor->Position;
     RestServicePOIs = MoveTemp(Services);
 #if WITH_DEV_AUTOMATION_TESTS
     Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());
     if (Evaluation)
     {
         Evaluation->bBound = true;
-        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d"), *Binding.GetContender().ToString(),
-            *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(), Evaluation->Profile.Choices.Num());
+        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d"),
+            *Binding.GetContender().ToString(), *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(),
+            Evaluation->Profile.Choices.Num(), Evaluation->Profile.ReactionMs, Evaluation->Profile.AimErrorCm, Evaluation->Profile.SkipBp);
     }
 #endif
     UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld seed=%d"), *Binding.GetContender().ToString(),

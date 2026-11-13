@@ -83,12 +83,23 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             BlueprintCardRow=TrayRow(WidgetTree);AddRow(BlueprintCardRow);
             ChoiceRowList=WidgetTree->ConstructWidget<UVerticalBox>();ChoiceRowList->SetVisibility(ESlateVisibility::SelfHitTestInvisible);AddRow(ChoiceRowList);
             BaseRow=TrayRow(WidgetTree);AddRow(BaseRow);
-            OfferRow=TrayRow(WidgetTree);AddRow(OfferRow);
+            auto* OfferLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+            OfferLine->SetVisibility(ESlateVisibility::Collapsed);OfferGroup=OfferLine;
+            OfferNumber=Text(TEXT(""),15);OfferNumber->SetAutoWrapText(false);OfferNumber->SetColorAndOpacity(LDHUDStyle::TextAccent);
+            ScaleNewText(OfferNumber);RowWidgets.Add(OfferNumber);
+            OfferLine->AddChildToHorizontalBox(OfferNumber)->SetVerticalAlignment(VAlign_Center);
+            OfferRow=TrayRow(WidgetTree);
+            auto* OfferFrame=WidgetTree->ConstructWidget<UBorder>();
+            OfferFrame->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,LDHUDStyle::PanelRim,1.f));
+            OfferFrame->SetBrushColor(LDHUDStyle::PanelFill);OfferFrame->SetPadding(FMargin(4));OfferFrame->SetContent(OfferRow);
+            OfferLine->AddChildToHorizontalBox(OfferFrame)->SetPadding(FMargin(8,0,0,0));AddRow(OfferLine);
             for(int32 Index=0;Index<3;++Index)
             {
                 FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthOffer%d"),Index)),[this,Index](){ChooseOffer(Index);});
                 OfferRow->AddChildToWrapBox(Card.Frame);OfferCards.Add(Card);
             }
+            SkipCard=MakeCard(TEXT("GrowthOfferSkip"),[this](){SkipOffer();});
+            OfferRow->AddChildToWrapBox(SkipCard.Frame);
             TrayFrame=WidgetTree->ConstructWidget<UBorder>();TrayFrame->SetBrushColor(FLinearColor::Transparent);TrayFrame->SetPadding(FMargin(0,0,16,72));
             TrayFrame->SetHorizontalAlignment(HAlign_Right);TrayFrame->SetVerticalAlignment(VAlign_Bottom);
             TrayFrame->SetVisibility(ESlateVisibility::Collapsed);TrayFrame->SetContent(Tray);
@@ -257,8 +268,9 @@ void ULDChoicesPanel::SetTrayInset(float Right,float Bottom)
     const FMargin Inset(0,0,Right,Bottom);
     if(TrayFrame&&!(TrayFrame->GetPadding()==Inset)){TrayFrame->SetPadding(Inset);}
 }
-const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out) const
+const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent) const
 {
+    if(OutComponent){*OutComponent=NAME_None;}
     if(!bOpen||!Tray){return nullptr;}
     const FTrayCard* Found=nullptr;
     const auto Over=[&Found,Pointer](const FTrayCard& Card)
@@ -266,11 +278,12 @@ const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailVi
         if(!Found&&Card.Frame&&Card.Frame->IsVisible()&&Card.Frame->GetCachedGeometry().IsUnderLocation(Pointer)){Found=&Card;}
     };
     const auto Row=[&Over](const UWidget* Box,const TArray<FTrayCard>& Cards){if(Box&&Box->IsVisible()){for(const FTrayCard& Card:Cards){Over(Card);}}};
-    Row(OfferRow,OfferCards);Row(BaseRow,BaseCards);Row(BlueprintCardRow,BlueprintCards);
+    Row(OfferRow,OfferCards);if(OfferRow&&OfferRow->IsVisible()){Over(SkipCard);}Row(BaseRow,BaseCards);Row(BlueprintCardRow,BlueprintCards);
     for(const FChoiceRow& Choice:ChoiceRows){Row(Choice.Row,Choice.Options);if(Choice.Row->IsVisible()){Over(Choice.Points);}}
     if(!Found&&OfferRow->IsVisible()&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
     if(!Found){return nullptr;}
     Out=Found->Detail;
+    if(OutComponent){*OutComponent=Found->Component;}
     return Found->Frame;
 }
 bool ULDChoicesPanel::IsEngaged() const
@@ -380,7 +393,9 @@ void ULDChoicesPanel::RefreshOffer()
     // A new offer drops the pinned popup; ids and revisions travel with the click, never a card index.
     if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;}
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
+    GrowthShown(OfferGroup,bOffer);
     GrowthShown(OfferRow,bOffer);
+    if(bOffer){GrowthText(OfferNumber,FString::Printf(TEXT("%u/%u"),uint32(Latest.ActiveOffer.OpportunityOrdinal),uint32(Latest.ActiveOpportunitiesEarned)));}
     // What a click does now: learn into the lowest empty slot, or keep it as a blueprint and say why (the server decides).
     const uint8 FirstEmpty=FirstEmptySlot();
     const FString Outcome=!Gate.bCanChoose?Gate.ChooseBlocked
@@ -399,6 +414,19 @@ void ULDChoicesPanel::RefreshOffer()
         }
         ShowLook(Card,false,Gate.bCanChoose&&!PendingRequest);
     }
+    if(!bOffer){GrowthShown(SkipCard.Frame,false);return;}
+    const int64 Points=Latest.ActiveOffer.SkipPoints;
+    const FString SkipName=Points>0?FString::Printf(TEXT("不选 +%lld 点"),Points):FString(TEXT("不选"));
+    const FString SkipKey=SkipName+TEXT("|")+Gate.ChooseBlocked;
+    if(CardStale(SkipCard,SkipKey))
+    {
+        LDHUD::FActionDetailView Detail;
+        Detail.Name=SkipName;
+        Detail.Body=Points>0?FString(TEXT("放弃本组技能，本次机会不再保留。")):FString(TEXT("奖励数据缺失。"));
+        if(!Gate.bCanChoose){Detail.Body+=TEXT("\n\n")+Gate.ChooseBlocked;}
+        ShowFace(SkipCard,SkipKey,SkipName,FString(),TEXT("+"),Detail);
+    }
+    ShowLook(SkipCard,false,Points>0&&Gate.bCanChoose&&!PendingRequest);
 }
 ULDChoicesPanel::FTrayCard& ULDChoicesPanel::BaseCardAt(int32 Index)
 {
@@ -420,6 +448,7 @@ void ULDChoicesPanel::RefreshOpeningBase(bool bTiles)
         if(!ShownBaseOptions.IsValidIndex(Index)){GrowthShown(BaseCards[Index].Frame,false);continue;}
         FTrayCard& Card=BaseCardAt(Index);
         const FName Id=ShownBaseOptions[Index];
+        Card.Component=Id;
         const FString Key=Id.ToString()+TEXT("|")+Gate.ChooseBlocked;
         if(CardStale(Card,Key))
         {
@@ -468,6 +497,7 @@ void ULDChoicesPanel::RefreshComponentChoices(bool bTiles)
             FTrayCard& Card=Row.Options[Option];
             if(!Choice.Options.IsValidIndex(Option)){GrowthShown(Card.Frame,false);continue;}
             const FName Id=Choice.Options[Option];
+            Card.Component=Id;
             const bool bOwned=LDHUD::OwnsComponent(Latest,Id);
             const FString Outcome=!Gate.bCanComponentChoice?Gate.ComponentChoiceBlocked:bOwned?FString(LDTerms::ComponentChoiceOwned):FString();
             const FString Key=Id.ToString()+TEXT("|")+Outcome;
@@ -667,6 +697,17 @@ bool ULDChoicesPanel::ChooseOffer(int32 Index)
     if(!FLDDefinitionWire::Encode(Latest.ActiveOffer.Options[Index],Command.Option)){Tell(TEXT("没有提交：这个技能的标识无效。"));return false;}
     // Always ask to learn now: the server learns it into the lowest empty slot when it may, otherwise keeps it as a blueprint.
     Command.bLearnIfPossible=true;Command.Slot=FLDBuildCommand::AnySlot;
+    PinnedPreview=INDEX_NONE;
+    return Send(Command);
+}
+bool ULDChoicesPanel::SkipOffer()
+{
+    if(!Usable()||!Latest.bHasActiveOffer||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipPoints<=0){return false;}
+    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanChoose){Tell(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
+    FLDBuildCommand Command;
+    Command.Kind=ELDBuildCommandKind::SkipActiveOffer;
+    Command.OfferId=Latest.ActiveOffer.OfferId;Command.OfferRevision=Latest.ActiveOffer.OfferRevision;
     PinnedPreview=INDEX_NONE;
     return Send(Command);
 }

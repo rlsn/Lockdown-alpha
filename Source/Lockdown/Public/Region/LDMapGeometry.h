@@ -64,10 +64,9 @@ namespace LDDemoWorld
     // with the whole arena within the 4000 cm throw range.
     constexpr int32 PKSpawns = 6, PKSpawnRingMinCm = 1000, PKSpawnRingMaxCm = 1400, PKSpawnSpacingCm = 1000,
         PKArenaRadiusCm = 1800, PKThrowRangeCm = 4000;
-    // #198 PK sign-up (user decision A on issue #198): one disk pk_signup_0..5 per roster slot, PKSignupDistanceCm from
-    // that slot's rest anchor on its level; its radius is AIRDROP.PickupRadiusCm (no new number).
-    constexpr int32 PKSignups = 6, PKSignupDistanceCm = 300;
-    // The sign-up disk anchor id of a roster slot (0..PKSignups-1).
+    // Six standing positions define the centre of one shared AIRDROP.PickupRadiusCm sign-up disk.
+    constexpr int32 PKSignups = 6;
+    // A distinct standing position for each roster slot (0..PKSignups-1).
     inline FString PKSignupId(int32 Slot) { return FString::Printf(TEXT("pk_signup_%d"), Slot); }
     constexpr int32 RestServices = 3;
     inline FString RestServiceId(int32 Index) { return FString::Printf(TEXT("rest_service_%d"), Index); }
@@ -148,8 +147,7 @@ UENUM()
 // pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 // D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
 // #198: PKSpawn is one of the six PK ring spawns pk_spawn_0..5 around the capture anchor; PKThrow is the fixed
-// off-arena spectator throw origin pk_throw. Points only, read through the content World references. PKSignup is the
-// PK sign-up disk of one roster slot's private rest space (pk_signup_0..5), read by its canonical id.
+// off-arena spectator throw origin pk_throw. PKSignup anchors are standing positions inside the shared sign-up disk.
 enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, PKSpawn, PKThrow, PKSignup, RestSpawn, RestService, TrainingDummy };
 
 USTRUCT()

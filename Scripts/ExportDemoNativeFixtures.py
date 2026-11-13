@@ -137,6 +137,7 @@ TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged", "DashComplete")
 ELEMENTS = ("none", "fire", "water", "electric")
 COMPONENT_KINDS = ("base", "mod", "connector")
 COMPONENT_POOLS = ("common", "scarce")
+COMPONENT_TAGS = ("projectile", "spell", "control", "element", "area", "collision", "basic", "defense", "tempo", "ledger")
 COMPONENT_BINDINGS = (None, "active_element")
 COOLDOWN_ENTRIES = ("None", "Actives")
 
@@ -180,6 +181,15 @@ def effect(value):
                          ("angle", "AngleDegrees")):
         if source in value:
             result[dest] = rational(value[source])
+    # Mods: their fields land in the shared slots the native importer reads them into.
+    if value.get("op") == "zone_tether":
+        result["RatioBp"] = scalar(value["radius_ratio"])
+    elif value.get("op") == "defense_shove":
+        result["RatioBp"] = scalar(value["shield_ratio"])
+    elif value.get("op") == "empower_reach":
+        result["DistanceCm"] = rational(value["range"])
+    elif value.get("op") == "pull":
+        result["RadiusCm"] = rational(value["min_distance"])
     if "damage_type" in value:
         result["DamageType"] = ("Physical", "Magical").index(value["damage_type"])
     if "stats" in value:
@@ -213,7 +223,8 @@ def component(row):
     binding = row.get("binding")
     return {
         "Id": row["id"], "NativeId": row["native_id"], "Kind": COMPONENT_KINDS.index(row["kind"]),
-        "Pool": COMPONENT_POOLS.index(row["pool"]), "bOpeningAlways": opening == "always",
+        "Pool": COMPONENT_POOLS.index(row["pool"]), "Tags": [COMPONENT_TAGS.index(tag) for tag in row["tags"]],
+        "bOpeningAlways": opening == "always",
         "OpeningActives": list(opening["actives"]) if type(opening) is dict else [],
         "Binding": COMPONENT_BINDINGS.index(None if binding is None else binding["kind"]),
         "BindActives": [] if binding is None else list(binding["actives"]),
@@ -222,6 +233,8 @@ def component(row):
         "TargetComponents": list(row.get("targets", {}).get("components", [])),
         "bTargetDash": bool(row.get("targets", {}).get("dash", False)), "bTargetSelf": bool(row.get("targets", {}).get("self", False)),
         "ExtraBases": list(row.get("targets", {}).get("bases", [])),
+        "DrawRequiresActives": list(row.get("draw_requires_actives", [])),
+        "Form": row.get("form", ""),
         "Effects": [effect(value) for value in row["effects"]],
     }
 
@@ -321,6 +334,7 @@ def parameter_projection(parameters):
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
         ("GROWTH.NpcActivePoints", "NpcActivePoints"),
+        ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.NpcActiveSkipPoints", "NpcActiveSkipPoints"),
         ("PK.ParticipationPoints", "PKParticipationPoints"), ("PK.WinnerPointsMax", "PKWinnerPointsMax"),
         ("PK.BettingPoolMaxPoints", "PKBettingPoolMaxPoints"),
         ("GROWTH.EmptyComponentPoolPoints", "EmptyComponentPoolPoints"),
@@ -384,7 +398,10 @@ def expected_projection(compilation):
         "Progression": {dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"), ("active_offer_levels", "ActiveOfferLevels"),
-        )} | {"ComponentCategoryWeights": [{
+            ("bonus_component_levels", "BonusComponentLevels"),
+        )} | {"WorkshopCapacityBase": data["progression"]["workshop_capacity"]["base"],
+              "WorkshopCapacityLevelsPerSlot": data["progression"]["workshop_capacity"]["levels_per_slot"],
+              "ComponentCategoryWeights": [{
             "MinLevel": band["levels"][0], "MaxLevel": band["levels"][1], "BasePercent": band["base"],
             "ModPercent": band["mod"], "ConnectorPercent": band["connector"],
         } for band in data["progression"]["component_category_weights"]]},
@@ -701,7 +718,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     unicode_author = fixtures.content_fixture()
     unicode_author["identity"]["approval"]["decision"] = "TEST ONLY \u6d4b\u8bd5 \U0001f9ea"
     valid("unicode_metadata", unicode_author)
-    unicode_author["identity"]["approval"]["decision"] = "TEST " + "a" * 1018 + "\U0001f9ea"
+    unicode_author["identity"]["approval"]["decision"] = "TEST " + "a" * 4090 + "\U0001f9ea"
     valid("unicode_scalar_boundary", unicode_author)
 
     if value_mutations:

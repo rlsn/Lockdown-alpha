@@ -1,0 +1,96 @@
+{
+  "schema": "build_evaluation.manifest",
+  "schema_version": 2,
+  "experiment": {
+    "id": "phase2-b04-c08-smoke",
+    "hypothesis": "固定的 B04 与 C08 升级奖励是否可以通过真实成长和安装事务进入原生对决。"
+  },
+  "adapter": {"module": "BuildEvaluationLockdown", "id": "lockdown-demo"},
+  "scenario": {
+    "kind": "duel_site",
+    "parameters": {"site": "capture", "duel_timeout_ms": 45000, "supply_xp": {"subject": 180, "opponent": 180}}
+  },
+  "sample_class": "diagnostic",
+  "assumptions": [
+    "双方固定同一开局主动及 L3 主动；两组主角在 L2 的两次抽取固定获得 B04 和 C08、L3 固定获得 B09（不安装），对手仍按种子抽取构件；不代表自然抽取概率。",
+    "两组主角均安装 B04、分配九点力道；只有实验组将 C08 安装到 B04。",
+    "仅用于检查事务、证据与跨进程重放；单个种子不支持强度结论。"
+  ],
+  "design": {
+    "kind": "paired_arms",
+    "reference": "b04",
+    "arms": [
+      {
+        "id": "b04",
+        "plan": {
+          "subject": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"}
+            ],
+            "presets": [["active_triple_combo"]],
+            "level_components": ["component_punch_heal", "component_breath_strike", "component_hard_skin"],
+            "build": [
+              {"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}},
+              {"step": "install", "at": "field", "component": "component_punch_heal"}
+            ]
+          },
+          "opponent": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"}
+            ],
+            "presets": [["active_triple_combo"]],
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}}]
+          }
+        }
+      },
+      {
+        "id": "b04_c08",
+        "plan": {
+          "subject": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"}
+            ],
+            "presets": [["active_triple_combo"]],
+            "level_components": ["component_punch_heal", "component_breath_strike", "component_hard_skin"],
+            "build": [
+              {"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}},
+              {"step": "install", "at": "field", "component": "component_punch_heal"},
+              {"step": "install", "at": "field", "component": "component_breath_strike",
+               "target": {"kind": "component", "id": "component_punch_heal"}}
+            ]
+          },
+          "opponent": {
+            "opening_preset": ["active_elbow"],
+            "choices": [
+              {"rule": "definition", "definition": "active_elbow"},
+              {"rule": "definition", "definition": "active_triple_combo"}
+            ],
+            "presets": [["active_triple_combo"]],
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}}]
+          }
+        }
+      }
+    ]
+  },
+  "blocks": {"root_seed": "20261114", "splits": {"search": 0, "confirm": 1}, "sides": 2},
+  "metrics": {
+    "primary": "duel_score",
+    "secondary": ["damage_dealt_hp", "damage_taken_hp", "subject_hp_end_bp", "decision_time_ms"],
+    "material_difference": null
+  },
+  "budget": {
+    "class": "standard",
+    "max_cases": 4,
+    "case_wall_timeout_s": 180,
+    "run_wall_timeout_s": 600,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944
+  }
+}

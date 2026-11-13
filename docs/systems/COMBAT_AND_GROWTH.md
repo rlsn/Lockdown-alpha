@@ -136,7 +136,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个被动在末尾再加一层未经约束的减伤。
 
 临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
-`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、低血条件增益（投影的 `LowHPBonus`，来自已安装的 B15 `low_hp_stat_bonus`）与最强一个减速
+`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、低血条件增益（投影的 `LowHPBonus`，来自已安装构件的 `low_hp_stat_bonus`，B20）与最强一个减速
 （负比例），点数类向下取整并夹紧到目录上下限；生命上限/法力上限不接受临时项。`RefreshAllTemporary` 在 Actions
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
 减速与限时增益的纯规则在 `LDTacticalRules`（`ApplySlow`、`StrongestSlowBp`、`DispelSlows`、`ApplyTimedBonus`、`TemporaryTerms`）；
@@ -176,12 +176,15 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   每次实际提交的定身、眩晕、沉默、嘲讽、击退在此调用喷漆打断，每次实际提交的控制与减速在此记录助攻贡献。
   `IsImpaired(Body, Now)` 判断任何控制（含击退、沉默）或减速（`control_damage_amp` 的“被减速或被控制”）。
 - **命中特效**：`FLDCombatHit::OnHitScaleBp` 是该命中的特效系数（普攻主击 10000，技能、附加伤害与反伤为 0）；
-  `SnapshotOnHit(Body, ScaleBp, Hit, Error)` 在出手时快照吸血（B04），`ApplyHit` 按系数提交。
+  `SnapshotOnHit(Body, ScaleBp, Hit, Error)` 在出手时快照吸血（B04），`ApplyHit` 按系数提交；`FLDCombatHit::LifestealShareBp`
+  是主击自身伤害包在原始伤害中的份额（`LandBasic` 按 自身 /（自身 + 并入强化包）计算，默认 10000），吸血只按该份额的 HP 损失回复。
+- **原生直接命中**：`IsNativeDirectHit(Hit)`——技能类命中、`bDirectAbilityDamage`、来源为已学主动，且不是反伤、附加伤害、灼烧、
+  状态与账目结算、还款或护盾触发的命中；普攻不是。之后的派生命中只要是宿主主动来源的技能直接伤害、沿用释放 EffectId 与 `CastLedger`，就自动算作原生直接命中。
   `bAddedDamage` 的命中（B05 冲撞追加）不暴击、不触发命中特效；`AddedHit` 是附加伤害命中的构造。
 - **伤害求值顺序**（`ApplyHit`）：加成池 `FLDDamageEvaluationInput::DamageBonusBp`（B07 `ControlAmpBp`——目标在命中前被移动减速、
-  硬控或击退，单独的攻速降低不算；B17 `IdleReadyAmpBp`）相加后乘一次，普攻暴击 ×`STAT.CritMultiplier` 在池前；技能不暴击
+  硬控或击退，单独的攻速降低不算；B17 `IdleReadyAmpBp`；原生直接命中另加 B14 `distance_amp` 与释放锁定的 B15 `AlternateAmpBp`）相加后乘一次，普攻暴击 ×`STAT.CritMultiplier` 在池前；技能不暴击
   → 破防后的抗性（`LDCombatKeywords::BreachedResistanceP2`：共享破防层的固定值）→
-  B16 主普攻减伤 → 护盾 → 生命；吸血经 `LDCombatKeywords::CapLifestealBp` 夹到 `COMBAT.LifestealCap`，按 `HPLostP2` 经 `HealBody` 回复；
+  B21 `primary_guard` 主普攻减伤 → 护盾 → 生命；吸血经 `LDCombatKeywords::CapLifestealBp` 夹到 `COMBAT.LifestealCap`，按 `HPLostP2 × LifestealShareBp` 经 `HealBody` 回复；
   灼烧与反伤不吸血。`LD_HIT` 的 `amp_bp` 是 10000 加池，末尾 `pool_bp` 是加成池。
 - **剩余冷却缩减**：`ALDCombatDirector::ReduceCooldown(Entity, ELDCombatEntry, AmountMs)` 与按定义查找槽位的
   `ReduceLearnedCooldown`，都经纯函数 `LDCombatSourceRules::ReduceReadyAt`（不早于当前时刻；`MAX_int64` 表示立即就绪；
@@ -209,12 +212,66 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 - M01 的扩散（单体主动的扇形、飞弹首击点的圆）一律经 `SpreadCopy`：旁人只受伤害，控制、减速、攻速降低、击退、破防/灼烧层、原生元素与
   S21 削减只给主目标。C10 一次破盾反击给所有被波及者同一个效果 id，C11 在其上的 30G 治疗预算因此是一份。
 - M12 到期欠款按原量支付：不再过抗性、加成、延后，也不享受 S16 减伤、不进入其记录。
+- M13–M15 的派生命中（回程、穿透的额外身体、S10 额外一跳、回响）都是宿主本次释放的伤害包副本：同一 `EffectId`、同一
+  `FLDCombatCastLedger`、仍是原生直接命中（`IsNativeDirectHit`），只按 `damage_ratio` 缩放 `DeliveryScaleBp`，所以 B13/B15/B16/B17
+  这类按释放计的预算不会翻倍；派生命中不再产生派生命中。
+  - M13 `projectile_return`：`AdvanceProjectiles` 在飞弹命中身体、撞地形或到最远射程时调用 `LaunchReturn`，从终点沿当时指向施法者脚点的
+    固定方向飞回，长度为当时距离、速度与半径不变；先检查结束时接触的那具身体（可再次命中），去掉减速、定身、缴械、眩晕、沉默、攻速降低与
+    击退，保留元素、灼烧、破防与重伤；施法者缺失或待死不回；回程 `bReturn` 不扩散、不穿透、不再回。
+  - M14 `projectile_pierce`：第一个身体得到完整伤害包与 M01 扩散，之后每个不同身体（`Struck` 去重）得到 `PierceScaleBp` 份额并保留减速与控制、
+    不扩散，用完次数即停；`chain_extra` 在 `CompileActive` 里把次数加到 S10 弹射上（在 M07 压缩之前，所以压缩合计包含这一跳）。
+  - M15 `echo_impact`：`ScheduleEcho` 加一个 `ELDCombatGroundOrigin::Echo` 的地面效果，带自己的 `ObservedKey`，0.8s 后按份额结算一次；
+    S18 在第一次落地时排程（同点、同内外圈与衰减），S07 在释放时排程（释放脚点、同半径、加 1 层灼烧），S19 在陷阱爆炸时排程（同半径、无减速）。
+    回响不再回响，C06 余震不回应回响；宿主冷却经 `ScaleCooldown` ×1.15。回响走现有地面事实，非陷阱地面事实沿用书影外观，
+    所以 S07/S19 的回响预警也显示为书影（没有新增表现系统）。
+- C13–C16（连接件，宿主为 `component_hurt_heal` 同一组 18 个伤害主动，C13 另可装 D）都挂在已有入口上，按释放 `EffectId` 记预算
+  （`FLDCombatEffectBudget`），所以 M13–M15 的派生命中不会让它们翻倍：
+  - C13 `hit_haste_other`：`OnNativeDirectHit` 与 D 的 `ResolveDashContacts`（实际接触敌人时、在 `OnDashContact` 之前）调用
+    `HasteOtherActives`，对除宿主外每个仍在冷却的已学主动用 `LDCombatSourceRules::ReduceReadyAt` 减 1.5s，不低于当前时刻；每个释放一次。
+  - C14 `setup_mark`：`OnHostDirectHit` 在被打的目标上登记 `FLDCombatSetupMark`（持有者 `SetupMarks`，按目标、构件、宿主去重，再命中刷新 4s）；
+    `SetupMarkBonus` 在伤害结算里给同一持有者另一个已学主动的原生直接命中 +25% 进统一加成池，造成伤害后消耗；宿主自己的命中不消耗，
+    换命/重开随 `ControlMarks` 一起清空。
+  - C15 `reaction_haste`：反应事实带上施加者的 `TriggerEffectId`；`ArmReactionEmpower` 之后 `ReactionHaste` 在触发来源是宿主主动时
+    把宿主剩余冷却减 3s，每个宿主释放 `EffectId` 一次。
+  - C16 `multi_hit_mana`：`OnHostDirectHit` 在释放预算的 `Struck` 里对不同目标去重，第二个起每个经 `GrantMana` 回 8 法力，每次释放最多 24。
+- M16–M20（改装件）在 `CompileActive` 里编进 `FLDCombatActiveTerms`；推开与拉近都是真实的强制位移，经同一条击退路径
+  （`ApplyKnockback` → 角色移动的根运动），所以 C02 照常读阻挡，`LD_COMBAT_KNOCKBACK` 带 `pull=` 区分拉近：
+  - M16 `zone_tether`：S08/S20 区域半径 ×0.8 并标记 `bTether`，释放时中心在施法者脚点；`AdvanceMechanics` 每次推进区域先把中心移到施法者当前脚点，
+    施法者缺失、死亡或待死时停在原处。
+  - M17 `defense_shove`：S13/S14 的护盾 ×0.85；该护盾被敌人打破时（`ShoveAround`）把持有者脚点 250cm 内的敌人从该点推开 220cm / 0.2s，
+    写 `LD_COMBAT_DEFENSE_SHOVE`；S16 自然结束的反震命中改带同样距离的推开，范围为反震半径。
+  - M18 `final_knockback`：S17 的攻速加成 ×0.5，最后一次强化普攻（`LandBasic`）把主目标沿攻击方向击退 250cm / 0.2s，覆盖同次 B06 的推开，
+    写 `LD_COMBAT_FINAL_KNOCKBACK`；S22 最后一波从施法者脚点推开同样距离且不再减速。M03 装在 S17 上时同时缩放该距离并降低强化伤害。
+  - M19 `empower_reach`：S11/S17 武装的强化包伤害 ×0.7，同一计时加成带普攻距离 +250cm（`AttackRangeCmFlat`），强化用完或到期一起移除。
+  - M20 `pull`：S01/S09 的击退命中改为 `bKnockbackPull`，朝施法者当前脚点拉近原击退距离；S15 嘲讽命中的敌人被拉近 150cm / 0.15s。
+    拉近在离施法者 120cm 处截止并按比例缩短用时，已在 120cm 内不拉。M03 缩放拉近距离。
+- C17–C21（连接件）读取真实的冲刺完成、护盾结束、强化包、硬控与区域；附加伤害都是 `bAddedDamage` 的构件来源命中
+  （`MakeHit(Holder,构件,…)`，无释放 EffectId、无 `CastLedger`），所以不是普攻也不是原生直接命中、不暴击、不触发命中效果与吸血，
+  也不会再触发 C18/C19/C21 自己：
+  - C17 `zone_relocate`：`ResolveDashCompletions` 在 B12 武装之后调用 `RelocateArea`，宿主（D、S11、S12、S13）冲刺完成时取本身体
+    最近创建（`CreatedSerial`，来自 `NextAreaSerial`）、仍存活、未挪过的区域或已布置未触发的陷阱，把中心移到当前脚点并置 `bRelocated`；
+    M16 跟随区域（`bTether`）不参与。`EndMs`、`Pulsed` 与已排程计时不变，`LD_COMBAT_ZONE_RELOCATE`。
+  - C18 `stored_force`（`RatioBp`、`DurationMs`）：S13/S14 授盾时登记 `StoredForceWatch`（护盾 EffectId、宿主），`ApplyHit` 累计该盾实际吸收；
+    盾被打破、到期或被替换后 `SettleStoredForce` 存下 吸收 × `RatioBp`；S16 自然结束的反震以记录量同样存入。存量 `StoredForce` 一份、
+    新存替换旧存、`DurationMs` 后失效；`SpendOnNativeHit` 在另一个已学主动的原生直接命中敌人时整份打出（同该命中的伤害类型），随即清空，
+    `LD_COMBAT_STORED_FORCE`/`LD_COMBAT_STORED_FORCE_SPENT`。
+  - C19 `empower_spend`：同一入口里，持有者的 S11/S17/B12 强化包（`FLDCombatEmpower`）未用完时，另一个已学主动的原生直接命中敌人
+    减一次 `Charges` 并按该包的 `AmountP2` 打出物理附加命中；用完即移除强化包与它带的计时加成（攻速、M19 距离），之后的普攻不再并入；
+    按释放 EffectId 与构件记 `EffectBudgets` 每次释放一次（`LD_COMBAT_EMPOWER_SPENT`）。
+  - C20 `control_widen`（`RatioBp`、`DurationMs`）：宿主硬控（定身、眩晕、沉默、缴械、嘲讽）经 `OnHardControl` 落到敌人时武装（刷新）
+    `WideToken`；`ReleaseAbility` 支付成本后用 `WidenTerms` 把另一个已学主动本次释放的范围项 ×(1+ratio)：区域、自身范围与弹跳半径，
+    落点与陷阱半径/内圈，弹道半径，直线半宽，扇形距离（只对 `ChannelCone`，其他主动的施放距离不变），M01 扩散半径；然后消耗令牌
+    （无范围的单体主动照样消耗），`LD_COMBAT_WIDE_TOKEN`/`LD_COMBAT_WIDE_SPENT`。
+  - C21 `zone_detonate`（`RatioBp`）：宿主（S07、S10、S18）的原生直接命中打到站在持有者存活 S08/S20 区域里的敌人时，`DetonateZone`
+    移除第一个这样的区域与它的加速，对区域内每个敌人打出 剩余跳数 × 每跳包 × `RatioBp`（快照的基础、系数、`PackageScaleBp`、伤害类型、
+    每跳灼烧层数，潮湿一次）；不是自然结束，所以不触发 C06；每次宿主释放一次，`LD_COMBAT_ZONE_DETONATE`。
 - C01 首次安装时在实体记录上登记 `FireWindowAnchorMs`（`NoteWorkshopInstall`，跨生命、卸下与重装保留），窗口为固定的
   (锚点+(k−1)秒, 锚点+k秒]（`LDCombatMechanics::FixedWindowEndMs`）；同生产火源的实际 HP 伤害计入所在窗口，
   `ApplyPendingHits` 在本边界全部命中提交后才由 `SettleFireWindows` 结算到点的窗口；零输入不给盾，死亡/阶段退役随身体清窗口，
   卸下或改绑丢弃未结窗口。
-- 新反馈只写日志行（`LD_COMBAT_AFTERSHOCK`、`LD_COMBAT_KNOCKBACK_IMPACT`、`LD_COMBAT_LEDGER_*`、`LD_COMBAT_FIRE_SHIELD`、
-  `LD_COMBAT_DEBT_REPAID`、`LD_COMBAT_CONTROL_MARK_CONSUMED`、`LD_COMBAT_REACTION_EMPOWER`），没有新增状态编号。
+- 新反馈只写日志行（`LD_COMBAT_AFTERSHOCK`、`LD_COMBAT_PROJECTILE_RETURN`、`LD_COMBAT_ECHO`、`LD_COMBAT_KNOCKBACK_IMPACT`、`LD_COMBAT_LEDGER_*`、`LD_COMBAT_FIRE_SHIELD`、
+  `LD_COMBAT_DEBT_REPAID`、`LD_COMBAT_CONTROL_MARK_CONSUMED`、`LD_COMBAT_REACTION_EMPOWER`、`LD_COMBAT_DEFENSE_SHOVE`、`LD_COMBAT_FINAL_KNOCKBACK`、`LD_COMBAT_ZONE_RELOCATE`、`LD_COMBAT_STORED_FORCE*`、`LD_COMBAT_EMPOWER_SPENT`、
+  `LD_COMBAT_WIDE_TOKEN`/`LD_COMBAT_WIDE_SPENT`、`LD_COMBAT_ZONE_DETONATE`），没有新增状态编号。
 
 
 ### 战斗机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）
@@ -233,6 +290,7 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它�
 - **治疗入口**：一次性治疗（吸血）经 `HealBody`；自然与脱战回复不经过它。没有治疗削减。
 - **区域**（`zone`，脚底开锅）：目标 `GroundPoint` 的请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），释放时夹到目标射程，
   `ReleaseMechanics` 在该点登记 `FLDCombatZone`（载荷在释放时快照）。`zone_damage` 按 `NextPulseAtMs` 的定次脉冲结算伤害；
+  B07 的来源增伤项随区域在释放时快照，是否加成按每跳命中前目标的移动减速、硬控或击退状态判定；
   `zone_slow` 每 `IntervalMs` 判定一次，给区内敌人施加持续 `DurationMs` 的减速（不再有 linger）；有伤害的区域的 `zone_burn` 必须与脉冲同拍
   （同间隔、无延迟、脉冲覆盖整个时长，否则释放时明确失败），每一跳的伤害命中就带 `PulseBurnStacks` 层火，与该命中的 B18 水电同一元素批次；
   没有伤害的区域的 `zone_burn` 才按自己的 `interval` 单独加层。
@@ -277,7 +335,8 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **多次强化普攻**：`empower_basic` 的 `charges`（`FLDCombatEmpower::Charges`，`ConsumeEmpowers` 每次取一层）与 `stats`（期间的限时属性，
   随最后一层或窗口结束）。
 - **受伤触发护盾**：`triggered_shield` 的 `Damaged` 触发（`OnDamaged`，B09）：承受敌对正伤害且仍存活后给护盾（按等级成长的 base + 生命上限比例），
-  只有真正替换成功才开始 `interval` 冷却；弱盾不授予、不刷新。
+  只有真正替换成功才开始 `interval` 冷却；弱盾不授予、不刷新。`AbilityHit` 触发（B16，`OnNativeDirectHit`）在持有者的原生直接命中
+  对敌人造成正伤害后按同样规则授盾，冷却记在 `AbilityHitShieldReadyAtMs`；普攻与受击不触发。
 - **定身**：`root` 对减速中的目标仍是定身（`DemoBuildPrimitives.RootOnSlowed`）。
 - **解除**：解除定身与解除减速在释放前经 `ApplyCleanses` 结算，缴械不被解除。
 - **普攻命中缩短三个主动冷却**：触发项 `cooldown_refund` 的 `BasicHit` 触发（无窗口）在每次普攻主击时缩短 Q/W/E 三个技能的剩余冷却。
@@ -323,21 +382,27 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 ### 基础构件（`LDCombatComponents.cpp`）
 
 已安装的基础构件（`FLDBuildProjectionInput::Components`，每个定义至多一次）先经 `LDAttributeProjection::Project`：未知、重复、非基础构件
-或安装参数与绑定不符都明确拒绝；`stat_bonus` 成为属性视图的 `Components` 行（B13 急速/回蓝、B14 普攻距离；`GrowEffect` 不成长这些量），
-`low_hp_stat_bonus` 成为 `LowHPBonus`（B15），`control_damage_amp` 成为 `ControlAmp`（B07），每个构件按 id 排序列入
+或安装参数与绑定不符都明确拒绝；`stat_bonus` 成为属性视图的 `Components` 行（`GrowEffect` 不成长这些量），
+`low_hp_stat_bonus` 成为 `LowHPBonus`（B20），`control_damage_amp` 成为 `ControlAmp`（B07），每个构件按 id 排序列入
 `InstalledComponents`（含绑定的主动与元素、投影等级）。其余效果由 Combat 经 `CollectPassiveEffects` 读取：
 
-- **B01/B08**：普攻主击加 1 层灼烧/破防（`basic_stacks`）。**B04**：主击实际 HP 损失（含并入的强化包）的 12% 治疗。
+- **B01/B08**：普攻主击加 1 层灼烧/破防（`basic_stacks`）。**B04**：主击实际 HP 损失乘自身伤害包份额（`LifestealShareBp`，并入的强化包不算）的 12% 治疗。
 - **B02 账目**（`ledger`，`FLDCombatLedger` 存在目标这条生命上，每拥有者每构件一份）：存活拥有者的每个有效普攻或技能伤害命中
   （HP 损失或盾吸收 >0；灼烧 tick、反应与放电结算、兑现本身不算）按当时 `10G+0.08AP` 记一笔；批次首笔固定门槛 `Count` 与窗口 `DurationMs`，
   满批立即兑现为一次魔法技能类命中（`bLedgerCashOut`，状态/结算类，不再记账、不触发 B18），窗口内无新增则清空未锁定笔数；
   目标换命或拥有者离局清空。
-- **B03 反伤**、**B09 受伤护盾**、**B16 主普攻减伤**见上文；**B05** 每次 D 或主动冲刺对每个真实接触的敌人追加一份物理包。
+- **B03 反伤**、**B09 受伤护盾**、**B16 主动命中护盾**见上文；**B05** 每次 D 或主动冲刺对每个真实接触的敌人追加一份物理包。
 - **B06**（`nth_basic_bonus`）：本条生命每第 `Count` 次普攻主击给主目标附加从持有者推开 `DistanceCm`/`DurationMs` 的击退，无伤害；
   计数换目标不清，死亡随身体清空。
 - **B12**：D 或主动冲刺释放时记录 `VoluntaryDash`（起点脚点、结束时刻）；`ResolveDashCompletions` 在 Effects 开头对到点且实际位移
   >0 的冲刺武装 `DashComplete` 的 `empower_basic`（按完成时属性快照，同来源替换）；被击退（`ApplyKnockback` 清除）、死亡或原地不动不算。
-- **B14** `basic_damage_scale`：只乘普攻主击自身的 AD 包，强化包不受影响。
+- **B13** `cast_hit_refund`（`RatioBp`）：`ReleaseAbility` 把本次实际支付的法力（M06 之后）记为 `CastLedger.PaidManaP2`；
+  `OnNativeDirectHit` 在该释放第一次正伤害原生直接命中时返还 `PaidManaP2 × RatioBp`，按释放 EffectId 与构件记入 `EffectBudgets` 只返一次，
+  未付法力不返还（`LD_COMBAT_CAST_REFUND`）。
+- **B14** `distance_amp`（`DistanceCm`、`RatioBp`）：原生直接命中结算时施法者与目标脚点平面距离 ≥`DistanceCm`，`RatioBp` 进入加成池。
+- **B15** `alternate_amp`（`DurationMs`、`RatioBp`）：每次已学主动释放更新身体的 `LastActiveRelease`/`LastActiveReleaseAtMs`（D 不计）；
+  与上次不同且相隔 ≤`DurationMs` 的释放把 `RatioBp` 锁进 `CastLedger.AlternateAmpBp`（`LD_COMBAT_ALTERNATE_AMP`），
+  只随本次释放的原生直接命中进入加成池。
 - **B17** `idle_ready_amp`：释放时从该主动轨道的真实 `ReadyAtMs` 起已等 `DelayMs` 则锁定 `RatioBp`，只随本次释放的原生直接伤害
   （`bDirectAbilityDamage` 的载荷与其区域每一跳）进入加成池；派生、状态伤害不继承；释放后重新等待。
 - **B10/B11/B18 元素**：唯一入口 `ApplyComponentElement(Hit, Element, Component)`：火给命中加一层构件来源的灼烧
@@ -397,16 +462,17 @@ DEV 重置把它清零。
 触发的计数点（每次触发给持有者记 1，不按受击人数；读取活着持有者的触发在其生命已结束时不记）：
 
 - 改变一次命中，在 `ApplyHit` 提交时：B04 吸血实际回复或还款；B07 增伤进入一次正伤害命中（每次命中）；B10/B11/B18 元素随可控命中施加；
-  B16 实际削减（`GuardCutP2>0`）；B17 每次释放的首个正伤害命中（`FLDCombatCastLedger`）；B06/C04 的击退实际生效；
+  B14 增伤进入一次原生直接命中（每次命中）；B15、B17 每次释放的首个正伤害命中（`FLDCombatCastLedger`）；
+  B13 法力实际返还；B16 护盾实际授予；B06/C04 的击退实际生效；
   B01/B08 在主击的火层与破防实际施加时（`ApplyElements`、`ApplyKeywordStacks`）。
 - 产出自己的投递，在为已解析的目标发出时：B02 兑现（M02 锁定的批次在 `AdvanceWorkshop` 结算成立时计，失效不计）；
-  B03/C08 反击（`DeliverCounter`）；B05 每个接触体；C02 撞墙或撞到合法身体；C05 标记被消耗的追击；C06 余震释放；C10 爆盾波及到身体。
+  B03/C08 反击（`DeliverCounter`）；B05 每个接触体；C02 撞墙或撞到合法身体；C05 标记被消耗的追击；C06 余震释放；C10 爆盾波及到身体；M13 回程发出；M14 穿透到额外身体（每具一次）或 S10 带额外一跳的弹射发出（每次释放一次）；M15 回响排程；M16 跟随区域释放；M17 推开至少一个敌人；M18 最后一击带出击退；M19 强化包带距离武装；M20 拉近至少一个敌人；C13 实际减少了冷却；C14 记号被消耗；C15 宿主冷却实际减少；C16 法力实际增加；C17 区域或陷阱实际挪动；C18 存量被打出（存入不计）；C19 每次花掉强化；C20 释放消耗令牌；C21 区域被引爆。
 - 授予与消耗：B09/C01 护盾实际授予；C03 退还生效；C07 法力实际增加；C11 治疗实际生效；C12 重放已安装的基础构件；
   B12/C09 强化包被落地普攻消耗；M12 一次命中的份额转为欠款。
 - 改装件：M01 扩散实际波及另一具身体（每次投递一次；M02 爆点下只塑形，不计）；M02 锁定反击爆点或账目批次；M11 反击或放电转向标记目标。
-- 不计：常驻与编译期改写（B13–B15、M03–M10）、预览与候选（B02 记账条目、C01 火伤累计、C05 设标、C08 储存、
+- 不计：常驻与编译期改写（M03–M10）、预览与候选（B02 记账条目、C01 火伤累计、C05 设标、C08 储存、
   B12/C09 武装）以及被拒、为零或没有目标的触发。`Combat.Components.Ledger` 与 `EmpowerMerge` 检查 B02 兑现与 B12 消耗各计一次、
-  记账条目与 B14 常驻项不计。
+  记账条目不计。
 
 结果发布时 `ALDGameMode::PublishBuildBlueprints`（`LDGameModeBlueprint.cpp`）用 `LDBuildBlueprint::Compose` 把台账与冻结结果
 （公开 ResultId 作为 Match ID、原因、胜负、开始/结束时刻、本人等级与 K/D/A、产品版本、协议版本、目录根摘要与 schema/handler/projection
@@ -439,7 +505,8 @@ DEV 重置把它清零。
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/BraceAndGrievous`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
-`Combat.Components.*`覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04/B06/B14）、B12 冲刺完成武装、B02 账目批次与兑现、
+`Combat.Components.*`覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04 份额与 B06）、B04 自身份额吸血（`PunchHealOwnShare`）、B13 释放返蓝（`CastHitRefund`）、
+B14 距离增伤（`DistanceAmp`）、B15 换招增伤（`AlternateAmp`）、B16 主动命中护盾（`AbilityHitShield`）、C13 换招减冷却（`HitHasteOther`，含 D 接触入口）、C14 记号增伤（`SetupMark`）、C15 反应减宿主冷却（`ReactionHaste`）、C16 多目标回蓝（`MultiHitMana`）、M16 区域跟随（`ZoneTether`）、M17 破盾/反震推开（`DefenseShove`）、M18 最后一击击退（`FinalKnockback`）、M19 强化普攻距离（`EmpowerReach`）、M20 拉近（`Pull`）、C17 冲刺挪区域（`ZoneRelocate`）、C18 吸收存量打出（`StoredForce`）、C19 花掉强化包（`EmpowerSpend`）、C20 硬控放大范围（`ControlWiden`）、C21 引爆区域（`ZoneDetonate`）、B12 冲刺完成武装、B02 账目批次与兑现、
 元素入口（火加层，水/电记为构件自己的施加）与 B18 绑定，
 `Combat.Events.*`在带已批准世界视线的隔离世界里从真实释放、投送、区域、飞弹、普攻、灼烧与工坊入口驱动：命中转控制带出口（C05/C07）、
 B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后电及雾的即时潮湿、B02 不记结算、S19 触发后引信与到期不爆、

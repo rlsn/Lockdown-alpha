@@ -56,6 +56,8 @@ public:
     // reward composite without a death fact. Returns a ticket for DevGrantStatus, or 0 with Error when the fixture,
     // match, contender or amount refuse it.
     uint64 DevGrantReward(const FGuid& ContenderId, int64 XP, FString& Error);
+    // Only the armed evaluation's AI slots may replace their earned level-up draws; installation still uses build commands.
+    uint64 DevGrantEvaluationReward(const FGuid& ContenderId, int64 XP, const TArray<FName>& LevelComponents, FString& Error);
     ELDDevGrantStatus DevGrantStatus(uint64 Ticket, FString& Detail) const;
     // DEV test command (LDDevTestProtocol.h) of ContenderId's own owning connection: refused unless the fixture admits
     // this authority, then admitted into that contender's DEV request stream. The pending command commits in the
@@ -88,6 +90,9 @@ private:
         ELDFieldRewardKind FieldKind = ELDFieldRewardKind::None;
         FName Event;
         uint64 Serial = 0;
+#if WITH_DEV_AUTOMATION_TESTS
+        TArray<FName> DevLevelComponents;
+#endif
     };
     // The reward composite (PROGRESSION_AND_REWARDS): the XP of every share with its levels, opportunities and Combat
     // projection, all prepared before any is installed, so the whole reward commits once or not at all (a contender kill
@@ -110,6 +115,7 @@ private:
         uint64 Ticket = 0;
         FGuid Contender;
         int64 XP = 0;
+        TArray<FName> LevelComponents;
         ELDDevGrantStatus Status = ELDDevGrantStatus::Pending;
         FString Detail;
     };

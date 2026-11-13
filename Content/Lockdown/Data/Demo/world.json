@@ -1813,11 +1813,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6500
+          "numerator": 7590
         },
         "y": {
           "denominator": 1,
-          "numerator": -200
+          "numerator": 100
         },
         "z": {
           "denominator": 1,
@@ -1832,11 +1832,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6900
+          "numerator": 7545
         },
         "y": {
           "denominator": 1,
-          "numerator": -200
+          "numerator": 178
         },
         "z": {
           "denominator": 1,
@@ -1851,11 +1851,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7300
+          "numerator": 7455
         },
         "y": {
           "denominator": 1,
-          "numerator": -200
+          "numerator": 178
         },
         "z": {
           "denominator": 1,
@@ -1870,11 +1870,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 7700
+          "numerator": 7410
         },
         "y": {
           "denominator": 1,
-          "numerator": -200
+          "numerator": 100
         },
         "z": {
           "denominator": 1,
@@ -1889,11 +1889,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8100
+          "numerator": 7455
         },
         "y": {
           "denominator": 1,
-          "numerator": -200
+          "numerator": 22
         },
         "z": {
           "denominator": 1,
@@ -1908,11 +1908,11 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8500
+          "numerator": 7545
         },
         "y": {
           "denominator": 1,
-          "numerator": -200
+          "numerator": 22
         },
         "z": {
           "denominator": 1,
@@ -2060,7 +2060,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 6700
+          "numerator": 7100
         },
         "y": {
           "denominator": 1,
@@ -2098,7 +2098,7 @@
       "position_cm": {
         "x": {
           "denominator": 1,
-          "numerator": 8300
+          "numerator": 7900
         },
         "y": {
           "denominator": 1,
@@ -2569,7 +2569,7 @@
     }
   ],
   "approval": {
-    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 (2026-11-11) approved rest services x=6700/7500/8300 y=-500 cm and six training anchors x=6500..8500 step 400 y=700 cm. A playtest baseline, not a balance check.",
+    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.",
     "status": "approved"
   },
   "author_schema_sha256": "19b475cf8db4689b50cad9e14dfe5c364e72f1977727a6803116d7ce299dd3da",
@@ -35646,8 +35646,8 @@
       }
     ]
   },
-  "geometry_revision": 9,
-  "layout_revision": 11,
+  "geometry_revision": 10,
+  "layout_revision": 12,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -35766,5 +35766,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "22e3a1b90f7cef752381a5efcfaec41adf7fe7fffbe2887361e016f50bdec09c"
+  "source_sha256": "6b799b70d68646d574fc1a29b64d7d9d497e00b55ee06d472c649555d10ca6e5"
 }

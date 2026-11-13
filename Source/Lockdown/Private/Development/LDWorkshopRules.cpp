@@ -33,5 +33,5 @@ bool LDWorkshop::TargetShape(const FLDDemoComponentDefinition& Definition, ELDCo
 
 bool LDWorkshop::Conflicts(const FLDDemoComponentDefinition& A, const FLDDemoComponentDefinition& B)
 {
-    return A.Id != B.Id && FindOp(A, ELDDemoEffectOp::DashScale) && FindOp(B, ELDDemoEffectOp::DashScale);
+    return A.Id != B.Id && !A.Form.IsEmpty() && A.Form == B.Form;
 }

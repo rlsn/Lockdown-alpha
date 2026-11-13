@@ -7,6 +7,8 @@
 #include "Combat/LDDashContactRules.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCharacterMovementComponent.h"
+#include "Character/LDNativeMotionTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -15,6 +17,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/RootMotionSource.h"
 #include "Misc/PackageName.h"
 #include "UObject/Package.h"
 #include "Engine/Engine.h"
@@ -115,9 +118,30 @@ struct FLDBuildPrimitivesAccess
     { return Driver.DeliverReleasePayload(Actor, Body, Terms, Action, Template, Unit, UnitFoot, Foot, {}, NowMs, Error); }
     static bool ApplyPendingHits(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.ApplyPendingHits(NowMs, Error); }
     static bool AdvanceMechanics(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceMechanics(NowMs, Error); }
+    static int64 NextWorkshopDue(const ALDCombatDirector& Driver, int64 NowMs) { return Driver.NextWorkshopDueMs(NowMs); }
+    static bool MakeEmpower(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
+        const FLDDemoEffectDefinition& Effect, int64 NowMs, FLDCombatEmpower& Out, FString& Error)
+    { return Driver.MakeEmpower(Body, Source, Effect, FGuid::NewGuid(), NowMs, Out, Error); }
     static bool AdvanceSkillContent(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceSkillContent(NowMs, Error); }
+    // B15: the amplification a release takes and the previous-release record ReleaseAbility keeps.
+    static bool AlternateAmp(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
+        int64 NowMs, int64& OutBp, FString& Error)
+    { return Driver.AlternateAmpBp(Body, Source, NowMs, OutBp, Error); }
+    static void NoteRelease(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs)
+    { ALDCombatDirector::NoteActiveRelease(Body, Source, NowMs); }
     static bool AdvanceProjectiles(ALDCombatDirector& Driver, FString& Error) { return Driver.AdvanceProjectiles(Error); }
     static TArray<FLDCombatProjectile>& Projectiles(ALDCombatDirector& Driver) { return Driver.Projectiles; }
+    // C13: the cut ResolveDashContacts applies at a hosted dash's contact (and OnNativeDirectHit at a host hit).
+    static bool HasteOther(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Host, const FGuid& EffectId,
+        int64 NowMs, FString& Error)
+    { return Driver.HasteOtherActives(Body, Host, EffectId, NowMs, Error); }
+    static bool ReleaseAbility(ALDCombatDirector& Driver, ALDCharacter& Actor, FLDBodyCombatState& Body,
+        const FLDCombatAction& Action, ELDCombatReject& Reject, FString& Error)
+    { return Driver.ReleaseAbility(Actor, Body, Action, Reject, Error); }
+    static void CaptureSkillMotion(ALDCombatDirector& Driver, TSharedPtr<const FLDNativeMotionBatch> Batch)
+    { Driver.CaptureSkillMotion(MoveTemp(Batch)); }
+    static bool ResolveDashContacts(ALDCombatDirector& Driver, int64 NowMs, FString& Error)
+    { return Driver.ResolveDashContacts(NowMs, Error); }
     static bool NoteInstall(ALDCombatDirector& Driver, FLDCombatEntityRecord& Record, const FLDAttributeProjection& Previous,
         FLDBodyCombatState* Body, int64 NowMs, FString& Error)
     { return Driver.NoteWorkshopInstall(Record, Previous, Body, NowMs, Error); }
@@ -1400,21 +1424,26 @@ bool FLDComponentProjectionTest::RunTest(const FString& Parameters)
     FFixture F;
     if (!F.Init(*this)) { return false; }
     const FLDDemoContentParameters& P = F.Catalog->Get().Parameters;
-    // B13/B14 stats, B15's low-HP term and B07's control amplification, listed out of order.
+    // B13-B15 (skill rules, no stat terms) and B07's control amplification, listed out of order.
     const FLDAttributeProjectionResult Result = ProjectComponents(*F.Catalog, 10, {{TEXT("component_seeing_red")},
         {TEXT("component_catch_breath")}, {TEXT("component_kick_down")}, {TEXT("component_long_arm")}});
     if (!TestTrue(FString::Printf(TEXT("Installed components project: %s"), *Result.Error.Message), Result.IsSuccess())) { return false; }
     const FLDAttributeProjection& Projected = Result.Value.GetValue();
     const auto Row = [&Projected](EAttribute Attribute) -> const FLDAttributeContributions& { return Projected.Contributions[int32(Attribute)]; };
-    TestTrue(TEXT("B13: haste +15 is the Components term, not grown with the level"),
-        SameRational(Row(EAttribute::CooldownHaste).Components.Flat, 15) && Projected.Final.CooldownHasteP2 == P.CooldownHasteBaseP2 + 1500);
-    TestTrue(TEXT("B13: mana regeneration +1/s"), SameRational(Row(EAttribute::MPRegen).Components.Flat, 1));
-    TestTrue(TEXT("B14: basic range +120 cm"), SameRational(Row(EAttribute::AttackRange).Components.Flat, 120)
-        && SameRational(Projected.Final.AttackRangeCm, P.AttackRangeCm.Base.Numerator + 120 * P.AttackRangeCm.Base.Denominator,
-            P.AttackRangeCm.Base.Denominator));
-    TestTrue(TEXT("B15 is a conditional term below 40% HP, never a build term"), Projected.LowHPBonus.IsSet()
-        && Projected.LowHPBonus->ThresholdBp == 4000 && Projected.LowHPBonus->Stats.Num() == 2
-        && SameRational(Row(EAttribute::AttackSpeed).Components.AdditiveRatio, 0));
+    TestTrue(TEXT("B13-B15 add no stat or low-HP term"), SameRational(Row(EAttribute::CooldownHaste).Components.Flat, 0)
+        && Projected.Final.CooldownHasteP2 == P.CooldownHasteBaseP2 && SameRational(Row(EAttribute::MPRegen).Components.Flat, 0)
+        && SameRational(Row(EAttribute::AttackRange).Components.Flat, 0) && !Projected.LowHPBonus.IsSet());
+    {
+        TArray<FLDPassiveEffectRef> Refund, Distance, Alternate;
+        FString RuleError;
+        TestTrue(TEXT("B13-B15 are trigger effects read by Combat, ratios and times never grown"),
+            FAccess::Collect(*F.Driver, Projected, ELDDemoEffectOp::CastHitRefund, Refund, RuleError)
+            && FAccess::Collect(*F.Driver, Projected, ELDDemoEffectOp::DistanceAmp, Distance, RuleError)
+            && FAccess::Collect(*F.Driver, Projected, ELDDemoEffectOp::AlternateAmp, Alternate, RuleError)
+            && Refund.Num() == 1 && Refund[0].Effect.RatioBp == 3000
+            && Distance.Num() == 1 && Distance[0].Effect.RatioBp == 2000 && SameRational(Distance[0].Effect.DistanceCm, 550)
+            && Alternate.Num() == 1 && Alternate[0].Effect.RatioBp == 2000 && Alternate[0].Effect.DurationMs == 4000);
+    }
     TestTrue(TEXT("B07 is the control amplification term (+12%)"), Projected.ControlAmp.IsSet()
         && Projected.ControlAmp->RatioBp == 1200 && Projected.ControlAmp->ComponentId == FName(TEXT("component_kick_down")));
     TestTrue(TEXT("Every installed component is listed once, sorted by id, at the build level"),
@@ -1455,11 +1484,12 @@ bool FLDComponentProjectionTest::RunTest(const FString& Parameters)
     FString Error;
     if (!TestTrue(TEXT("B16 projects"), Guard.IsSuccess())
         || !TestTrue(FString::Printf(TEXT("B16 resolves: %s"), *Error),
-            FAccess::Collect(*F.Driver, Guard.Value.GetValue(), ELDDemoEffectOp::PrimaryGuard, Held, Error)))
+            FAccess::Collect(*F.Driver, Guard.Value.GetValue(), ELDDemoEffectOp::TriggeredShield, Held, Error)))
     { return false; }
-    TestTrue(TEXT("B16 holds 8G = 18.8 at level 10 and its 15% cap"), Held.Num() == 1 && Held[0].Effect.BaseP2 == 1880
-        && Held[0].Effect.RatioBp == 1500 && Held[0].Source.Kind == ELDCombatSourceKind::Component
-        && Held[0].Source.DefinitionId == FName(TEXT("component_thick_hide")));
+    TestTrue(TEXT("B16 holds its ability-hit shield 40G = 94 at level 10, 3% max HP, 3 s, 8 s rest"), Held.Num() == 1
+        && Held[0].Effect.Trigger == ELDDemoEffectTrigger::AbilityHit && Held[0].Effect.BaseP2 == 9400
+        && Held[0].Effect.MaxHPRatioBp == 300 && Held[0].Effect.DurationMs == 3000 && Held[0].Effect.IntervalMs == 8000
+        && Held[0].Source.Kind == ELDCombatSourceKind::Component && Held[0].Source.DefinitionId == FName(TEXT("component_thick_hide")));
     return true;
 }
 
@@ -1472,8 +1502,7 @@ bool FLDComponentEmpowerMergeTest::RunTest(const FString& Parameters)
     FFixture F;
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Attacker = F.AddBody(), Camp = F.AddBody(ELDVictimKind::CampMember);
-    if (!InstallComponents(*this, F, Attacker, 1, {{TEXT("component_long_arm")}, {TEXT("component_punch_heal")},
-        {TEXT("component_third_punch")}}))
+    if (!InstallComponents(*this, F, Attacker, 1, {{TEXT("component_punch_heal")}, {TEXT("component_third_punch")}}))
     { return false; }
     FLDBodyCombatState& Body = F.Body(Attacker);
     // Spec §10.2: one pending package per source; the same source re-arming replaces its unused value, others coexist.
@@ -1502,8 +1531,7 @@ bool FLDComponentEmpowerMergeTest::RunTest(const FString& Parameters)
         const TArray<FLDCombatHit>& Hits = FAccess::PendingHits(*F.Driver);
         if (!TestEqual(FString::Printf(TEXT("Swing %d is one primary hit"), Swing), Hits.Num(), 1)) { return false; }
         const FLDCombatHit& Primary = Hits[0];
-        TestTrue(FString::Printf(TEXT("Swing %d: B14 scales only the basic's own AD package"), Swing),
-            Primary.ADRatioBp == BasicRatioBp * 9000 / 10000);
+        TestEqual(FString::Printf(TEXT("Swing %d: the basic keeps its own AD package"), Swing), Primary.ADRatioBp, BasicRatioBp);
         TestTrue(FString::Printf(TEXT("Swing %d: B04 lifesteal rides on the one primary hit"), Swing),
             Primary.bLifesteal && Primary.LifestealRatioBp == 1200 && Primary.OnHitScaleBp == 10000);
         TestEqual(FString::Printf(TEXT("Swing %d: B06 counts one primary hit per swing"), Swing), Body.LandedBasics, Swing);
@@ -1511,16 +1539,21 @@ bool FLDComponentEmpowerMergeTest::RunTest(const FString& Parameters)
         {
             TestTrue(TEXT("Both packages merge into the first primary hit, unscaled, and are consumed once"),
                 Primary.BaseP2 == 7500 && Body.Empowers.IsEmpty());
+            const auto Part = [](int64 ValueP2, int64 Bp) { return ValueP2 / 10000 * Bp + ValueP2 % 10000 * Bp / 10000; };
+            const int64 OwnP2 = Part(Primary.SourceADP2, Primary.ADRatioBp) + Part(Primary.SourceAPP2, Primary.APRatioBp);
+            TestEqual(TEXT("B04 heals only the basic's own share of the merged package"), Primary.LifestealShareBp,
+                OwnP2 * 10000 / (OwnP2 + 7500));
         }
         else
         {
-            TestEqual(FString::Printf(TEXT("Swing %d is plain"), Swing), Primary.BaseP2, int64(0));
+            TestTrue(FString::Printf(TEXT("Swing %d is plain and wholly its own"), Swing),
+                Primary.BaseP2 == 0 && Primary.LifestealShareBp == 10000);
         }
         TestTrue(FString::Printf(TEXT("Swing %d: B06 pushes 120 cm over 0.12 s on the third basic only"), Swing),
             Swing == 3 ? Primary.KnockbackCm == 120. && Primary.KnockbackMs == 120 && !Primary.bKnockbackFromAnchor
                 : Primary.KnockbackCm == 0. && Primary.KnockbackMs == 0);
     }
-    TestEqual(TEXT("Only the consumed B12 package is a trigger; B14's scale on every swing (a passive term) is none"),
+    TestEqual(TEXT("Only the consumed B12 package is a trigger"),
         Triggers(F, Attacker), int64(1));
     return true;
 }
@@ -1735,7 +1768,6 @@ bool FLDComponentElementsTest::RunTest(const FString& Parameters)
     return true;
 }
 #endif
-
 // ---- #198 F mods and connectors (LDCombatWorkshop.cpp).
 namespace LDBuildPrimitivesTests
 {
@@ -2086,6 +2118,414 @@ bool ApplyFirst(FAutomationTestBase& Test, FFixture& F)
 }
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventEmpoweredCritLifestealTest, "Lockdown.Rules.Combat.Events.EmpoweredCritLifesteal",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventEmpoweredCritLifestealTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Attacker = F.AddBody(ELDVictimKind::Contender, HP), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    if (!InstallComponents(*this, F, Attacker, 1, {{TEXT("component_punch_heal")}})
+        || !InstallComponents(*this, F, Target, 1, {})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Attacker);
+    FLDBodyCombatState& Victim = F.Body(Target);
+    FLDCombatActiveTerms S11, S17;
+    if (!ActiveTerms(*this, F, TEXT("active_bail_out"), S11) || !ActiveTerms(*this, F, TEXT("active_triple_combo"), S17))
+    { return false; }
+    const FLDDemoEffectDefinition* Effects[] = {FindEffect(S11.Values, ELDDemoEffectOp::EmpowerBasic),
+        FindEffect(S17.Values, ELDDemoEffectOp::EmpowerBasic)};
+    if (!TestTrue(TEXT("S11 and S17 provide their real empowered-basic terms"), Effects[0] && Effects[1])) { return false; }
+    const TCHAR* Actives[] = {TEXT("active_bail_out"), TEXT("active_triple_combo")};
+    int64 Damage[2][4] = {}, Healing[2][4] = {};
+    for (int32 Crit = 0; Crit < 2; ++Crit)
+    {
+        for (int32 Mask = 0; Mask < 4; ++Mask)
+        {
+            Body.Resources.HpP2 = HP / 2;
+            Victim.Resources.HpP2 = HP;
+            Body.Empowers.Reset();
+            Body.AttributeProjection.Final.CritChanceBp = Crit ? 10000 : 0;
+            FString Error;
+            for (int32 Skill = 0; Skill < 2; ++Skill)
+            {
+                if (!(Mask & (1 << Skill))) { continue; }
+                FLDCombatEmpower Package;
+                if (!TestTrue(FString::Printf(TEXT("The real %s package is prepared: %s"), Actives[Skill], *Error),
+                    FAccess::MakeEmpower(*F.Driver, Body, SourceOf(ELDCombatSourceKind::Learned, Actives[Skill]),
+                        *Effects[Skill], 1000, Package, Error))) { return false; }
+                LDCombatControl::ArmEmpower(Body.Empowers, Package);
+            }
+            if (!Basic(*this, F, Attacker, Target)) { return false; }
+            const TArray<FLDCombatHit>& Hits = FAccess::PendingHits(*F.Driver);
+            if (!TestTrue(TEXT("One primary basic carries B04 and the forced crit outcome"), Hits.Num() == 1
+                && Hits[0].HitClass == ELDCombatHitClass::BasicPrimary && Hits[0].bCritical == bool(Crit)
+                && Hits[0].bLifesteal && Hits[0].LifestealRatioBp == 1200)) { return false; }
+            const int64 ShareBp = Hits[0].LifestealShareBp;
+            if (!TestTrue(TEXT("B04 heals the whole of a plain basic and only the own share of an empowered one"),
+                Mask == 0 ? ShareBp == 10000 : ShareBp > 0 && ShareBp < 10000)) { return false; }
+            if (!Drain(*this, F)) { return false; }
+            Damage[Crit][Mask] = HP - Victim.Resources.HpP2;
+            Healing[Crit][Mask] = Body.Resources.HpP2 - HP / 2;
+            AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE empowered_basic crit=%d s11=%d s17=%d hp_loss_p2=%lld heal_p2=%lld"),
+                Crit, (Mask & 1) != 0, (Mask & 2) != 0, Damage[Crit][Mask], Healing[Crit][Mask]));
+            const int64 FullHeal = Damage[Crit][Mask] * 1200 / 10000;
+            TestEqual(TEXT("B04 heals 12% of the actual HP lost, scaled to the basic's own package share"), Healing[Crit][Mask],
+                FullHeal / 10000 * ShareBp + FullHeal % 10000 * ShareBp / 10000);
+            TestTrue(TEXT("An S11/S17 empowered hit heals less than 12% of its whole HP loss"),
+                Mask == 0 ? Healing[Crit][Mask] == FullHeal : Healing[Crit][Mask] < FullHeal);
+        }
+    }
+    for (int32 Mask = 0; Mask < 4; ++Mask)
+    {
+        TestTrue(TEXT("The primary crit doubles its merged package, within one hundredth of rounding"),
+            FMath::Abs(Damage[1][Mask] - 2 * Damage[0][Mask]) <= 1);
+    }
+    TestTrue(TEXT("Either S11 or S17 raises the hit; together they raise it further"),
+        Damage[0][1] > Damage[0][0] && Damage[0][2] > Damage[0][0]
+        && Damage[0][3] > Damage[0][1] && Damage[0][3] > Damage[0][2]);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventAttributeMarginalTest, "Lockdown.Rules.Combat.Events.AttributeMarginal",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventAttributeMarginalTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    for (const uint8 Level : {uint8(3), uint8(6), uint8(10), uint8(16)})
+    {
+        FFixture F;
+        if (!F.Init(*this)) { return false; }
+        constexpr int64 HP = 10000000;
+        const FLDCombatBodyRef Caster = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+        const FLDAttributeProjectionResult TargetStats = LDAttributeProjection::Project(FLDAttributeBuildValues(Level, {}), *F.Catalog);
+        if (!TestTrue(TEXT("The same-level unallocated target projects"), TargetStats.IsSuccess())) { return false; }
+        F.Body(Target).BuildProjection = F.Body(Target).AttributeProjection = TargetStats.Value.GetValue();
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        FString Error;
+        if (!F.Catalog->FindAbility(TEXT("active_snark_bolt"), Ability, Error) || !Ability)
+        { AddError(TEXT("S06 lookup: ") + Error); return false; }
+        const FLDDemoAbilityValues* Values = F.Catalog->FindValues(*Ability, Level);
+        if (!TestNotNull(TEXT("S06 has level-grown values"), Values)) { return false; }
+        int64 SkillLoss[2] = {}, BasicLoss[2] = {};
+        for (int32 Variant = 0; Variant < 2; ++Variant)
+        {
+            const int32 Budget = 3 * Level;
+            TArray<FLDStatPointsValue> Points = {FLDStatPointsValue(TEXT("stat_brains"), Budget - Variant)};
+            if (Variant) { Points.Emplace(TEXT("stat_strength"), 1); }
+            const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(
+                FLDAttributeBuildValues(Level, MoveTemp(Points)), *F.Catalog);
+            if (!TestTrue(TEXT("Equal-budget source attributes project"), Projected.IsSuccess())) { return false; }
+            FLDBodyCombatState& Body = F.Body(Caster);
+            Body.BuildProjection = Body.AttributeProjection = Projected.Value.GetValue();
+            FAccess::Records(*F.Driver).FindChecked(Caster.Victim.EntityId).Build.Level = Level;
+            const FLDProjectedAttributes Stats = Body.AttributeProjection.Final;
+            FLDCombatActiveTerms Terms;
+            Terms.Target = Ability->Target;
+            Terms.Values = *Values;
+            Terms.WindupMs = Ability->WindupMs;
+            const FLDCombatSourceRef Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
+            FLDCombatHit Payload;
+            if (!FAccess::Compile(*F.Driver, Body.AttributeProjection, Source, Terms, Error)
+                || !FAccess::BuildPayload(*F.Driver, Body, Source, Terms, F.Foot(Caster), Payload, Error))
+            { AddError(TEXT("S06 release: ") + Error); return false; }
+            Payload.Target = Target;
+            F.Body(Target).Resources.HpP2 = HP;
+            if (!F.Apply(Payload, Error)) { AddError(TEXT("S06 hit: ") + Error); return false; }
+            SkillLoss[Variant] = HP - F.Body(Target).Resources.HpP2;
+            F.Body(Target).Resources.HpP2 = HP;
+            Body.AttributeProjection.Final.CritChanceBp = 0;
+            if (!Basic(*this, F, Caster, Target) || !Drain(*this, F)) { return false; }
+            BasicLoss[Variant] = HP - F.Body(Target).Resources.HpP2;
+            AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE attribute_marginal level=%u strength_points=%d ap_p2=%lld ad_p2=%lld crit_bp=%lld haste_p2=%lld s06_hp_loss_p2=%lld noncrit_basic_hp_loss_p2=%lld"),
+                uint32(Level), Variant, Stats.APP2, Stats.ADP2, Stats.CritChanceBp, Stats.CooldownHasteP2,
+                SkillLoss[Variant], BasicLoss[Variant]));
+        }
+        TestTrue(TEXT("One brain point increases this S06 hit; one strength point increases a noncritical basic"),
+            SkillLoss[0] > SkillLoss[1] && BasicLoss[1] > BasicLoss[0]);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventDefenseBudgetTest, "Lockdown.Rules.Combat.Events.DefenseBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventDefenseBudgetTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    for (const uint8 Level : {uint8(3), uint8(6), uint8(10), uint8(16)})
+    {
+        for (const TCHAR* Stat : {TEXT("stat_physique"), TEXT("stat_thick_skin")})
+        {
+            for (const ELDDemoDamageType Type : {ELDDemoDamageType::Physical, ELDDemoDamageType::Magical})
+            {
+                for (const bool bShield : {false, true})
+                {
+                    FFixture F;
+                    if (!F.Init(*this)) { return false; }
+                    const FLDCombatBodyRef Attacker = F.AddBody(), Target = F.AddBody();
+                    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(
+                        FLDAttributeBuildValues(Level, {FLDStatPointsValue(Stat, 3 * Level)}), *F.Catalog);
+                    if (!TestTrue(TEXT("An equal-budget defensive build projects"), Projected.IsSuccess())) { return false; }
+                    FLDBodyCombatState& Body = F.Body(Target);
+                    Body.BuildProjection = Body.AttributeProjection = Projected.Value.GetValue();
+                    Body.Resources.MaxHpP2 = Body.Resources.HpP2 = Projected.Value->Final.MaxHPP2;
+                    FString Error;
+                    if (bShield && !FAccess::GrantShield(*F.Driver, Body, 10000, 1000, Error))
+                    { AddError(TEXT("Shield: ") + Error); return false; }
+                    int64 TotalLost = 0, TotalAbsorbed = 0, Healed = 0;
+                    for (int32 HitIndex = 0; HitIndex < 3; ++HitIndex)
+                    {
+                        F.Now(1000 + HitIndex * 100);
+                        if (HitIndex == 1)
+                        {
+                            const int64 Before = Body.Resources.HpP2;
+                            if (!FAccess::Heal(*F.Driver, Body, 10000)) { AddError(TEXT("The planned heal failed")); return false; }
+                            Healed = Body.Resources.HpP2 - Before;
+                        }
+                        FLDCombatHit Hit = FFixture::Hit(Attacker, Target, 30000);
+                        Hit.DamageType = Type;
+                        const int64 BeforeHP = Body.Resources.HpP2, BeforeShield = Body.Resources.ShieldP2;
+                        if (!F.Apply(Hit, Error)) { AddError(TEXT("Defensive hit: ") + Error); return false; }
+                        TotalLost += BeforeHP - Body.Resources.HpP2;
+                        TotalAbsorbed += BeforeShield - Body.Resources.ShieldP2;
+                    }
+                    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE defense_budget level=%u stat=%s type=%s shield=%d max_hp_p2=%lld resistance_p2=%lld hp_lost_p2=%lld shield_absorbed_p2=%lld healed_p2=%lld hp_end_p2=%lld"),
+                        uint32(Level), Stat, Type == ELDDemoDamageType::Physical ? TEXT("physical") : TEXT("magical"), bShield,
+                        Body.Resources.MaxHpP2, Type == ELDDemoDamageType::Physical ? Body.AttributeProjection.Final.ArmorP2
+                            : Body.AttributeProjection.Final.MagicResistP2, TotalLost, TotalAbsorbed, Healed, Body.Resources.HpP2));
+                    TestTrue(TEXT("The controlled sequence preserves health, uses the shield only when granted, and heals actual HP"),
+                        Body.Resources.HpP2 > 0 && TotalLost > 0 && Healed > 0 && (bShield ? TotalAbsorbed == 10000 : TotalAbsorbed == 0));
+                }
+            }
+        }
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventCounterHealStoreTest, "Lockdown.Rules.Combat.Events.CounterHealStore",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventCounterHealStoreTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Foe = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Foe, 150, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_punch_heal")},
+        On(TEXT("component_breath_strike"), ELDComponentTargetKind::Component, TEXT("component_punch_heal"))})
+        || !InstallComponents(*this, F, Foe, 1, {})) { return false; }
+    FString Error;
+    if (!TestTrue(TEXT("The foe damages the holder and becomes a recent attacker"), F.Apply(FFixture::Hit(Foe, Holder, 100000), Error)))
+    { return false; }
+    const int64 HolderBefore = F.Body(Holder).Resources.HpP2;
+    const int64 FoeBefore = F.Body(Foe).Resources.HpP2;
+    if (!Basic(*this, F, Holder, Foe) || !Drain(*this, F)) { return false; }
+    const int64 Lost = FoeBefore - F.Body(Foe).Resources.HpP2;
+    const int64 Healed = F.Body(Holder).Resources.HpP2 - HolderBefore;
+    const int64 Stored = F.Body(Holder).CounterStoreP2;
+    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE b04_c08 hp_loss_p2=%lld heal_p2=%lld counter_store_p2=%lld"),
+        Lost, Healed, Stored));
+    TestTrue(TEXT("B04 heals from real HP loss and C08 stores half the applied heal"),
+        Lost > 0 && Healed == Lost * 1200 / 10000 && Stored == Healed / 2 && Stored > 0);
+    F.Now(2000);
+    if (!TestTrue(FString::Printf(TEXT("The C08 interval is processed: %s"), *Error),
+        FAccess::AdvanceWorkshop(*F.Driver, 2000, Error))) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("One counter carries the stored amount, not the storage cap"), Pending.Num() == 1
+        && Pending[0].Target == Foe && Pending[0].BaseP2 == Stored && !Pending[0].bCritical
+        && F.Body(Holder).CounterStoreP2 == 0);
+    return Drain(*this, F);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventCounterExtraBaseTest, "Lockdown.Rules.Combat.Events.CounterExtraBase",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventCounterExtraBaseTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef With = F.AddBody(ELDVictimKind::Contender, HP), WithFoe = F.AddBody(ELDVictimKind::Contender, HP),
+        Without = F.AddBody(ELDVictimKind::Contender, HP), WithoutFoe = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(With, 0, 0); F.Place(WithFoe, 150, 0);
+    F.Place(Without, 1000, 0); F.Place(WithoutFoe, 1150, 0);
+    FInstall Repeat = On(TEXT("component_dirty_fist"), ELDComponentTargetKind::Component, TEXT("component_spiky_hide"));
+    Repeat.BoundComponent = TEXT("component_tab_ledger");
+    if (!InstallComponents(*this, F, With, 1, {{TEXT("component_spiky_hide")}, {TEXT("component_tab_ledger")}, Repeat})
+        || !InstallComponents(*this, F, Without, 1, {{TEXT("component_spiky_hide")}, {TEXT("component_tab_ledger")}})
+        || !InstallComponents(*this, F, WithFoe, 1, {}) || !InstallComponents(*this, F, WithoutFoe, 1, {}))
+    { return false; }
+    for (int32 Swing = 1; Swing <= 3; ++Swing)
+    {
+        F.Now(1000 + (Swing - 1) * 500);
+        if (!Basic(*this, F, WithFoe, With) || !Drain(*this, F)
+            || !Basic(*this, F, WithoutFoe, Without) || !Drain(*this, F)) { return false; }
+        const auto Entries = [&F](const FLDCombatBodyRef& Target)
+        {
+            const auto& Ledgers = F.Body(Target).Ledgers;
+            return Ledgers.IsEmpty() ? 0 : Ledgers[0].EntriesP2.Num();
+        };
+        const int32 ExpectedWith[] = {0, 2, 4, 1};
+        TestEqual(FString::Printf(TEXT("C12 produces two B02 entries per B03 answer, swing %d"), Swing),
+            Entries(WithFoe), ExpectedWith[Swing]);
+        TestEqual(FString::Printf(TEXT("B03 alone produces one B02 entry per answer, swing %d"), Swing),
+            Entries(WithoutFoe), Swing);
+    }
+    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE b03_b02_c12 three_attacks_hp_loss_with_p2=%lld hp_loss_without_p2=%lld"),
+        HP - F.Body(WithFoe).Resources.HpP2, HP - F.Body(WithoutFoe).Resources.HpP2));
+    TestTrue(TEXT("The C12 group has cashed out by the third answer"), F.Body(WithFoe).Resources.HpP2 < F.Body(WithoutFoe).Resources.HpP2);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventElementChainFrequencyTest, "Lockdown.Rules.Combat.Events.ElementChainFrequency",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventElementChainFrequencyTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 150, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_fist_water")}, {TEXT("component_fist_shock")},
+        On(TEXT("component_blast_chase"), ELDComponentTargetKind::Component, TEXT("component_fist_shock"))})
+        || !InstallComponents(*this, F, Target, 1, {})) { return false; }
+    int64 Damage[3] = {};
+    for (int32 Swing = 0; Swing < 3; ++Swing)
+    {
+        F.Now(1000 + Swing * 1000);
+        FAccess::Reactions(*F.Driver).Reset();
+        const int64 Before = F.Body(Target).Resources.HpP2;
+        if (!Basic(*this, F, Holder, Target)) { return false; }
+        const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+        if (!TestTrue(TEXT("The first basic is plain; later basics consume C09's preceding charge"),
+            Pending.Num() == 1 && (Swing == 0 ? Pending[0].BaseP2 == 0 : Pending[0].BaseP2 > 0)))
+        { return false; }
+        if (!Drain(*this, F)) { return false; }
+        Damage[Swing] = Before - F.Body(Target).Resources.HpP2;
+        const auto& Reactions = FAccess::Reactions(*F.Driver);
+        AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE b10_b11_c09 swing=%d hp_loss_p2=%lld reaction_count=%d"),
+            Swing + 1, Damage[Swing], Reactions.Num()));
+        TestTrue(TEXT("The same basic applies water then electric, producing one B11 conduct and one new C09 charge"),
+            Reactions.Num() == 1 && Reactions[0].Kind == ELDCombatReaction::Conduct
+            && Reactions[0].TriggerSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_shock"))
+            && F.Body(Holder).Empowers.ContainsByPredicate([](const FLDCombatEmpower& Row)
+                { return Row.Source.DefinitionId == FName(TEXT("component_blast_chase")); }));
+    }
+    TestTrue(TEXT("C09 raises the second and third committed hits in this controlled fixture"),
+        Damage[1] > Damage[0] && Damage[2] == Damage[1]);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventProjectileCounterplayTest, "Lockdown.Rules.Combat.Events.ProjectileCounterplay",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventProjectileCounterplayTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    for (const TCHAR* Active : {TEXT("active_snark_bolt"), TEXT("active_sock_shot")})
+    {
+        for (int32 Case = 0; Case < 3; ++Case)
+        {
+            FFixture F;
+            if (!F.Init(*this, true)) { return false; }
+            const FLDCombatBodyRef Caster = F.AddBody(), Target = F.AddBody(), Blocker = F.AddBody();
+            F.Place(Caster, 0, 0);
+            F.Place(Target, 300, 0);
+            F.Place(Blocker, Case == 2 ? 150 : 600, Case == 2 ? 0 : 600);
+            if (!InstallComponents(*this, F, Caster, 1, {})) { return false; }
+            FLDCombatActiveTerms Terms;
+            FLDCombatHit Payload;
+            if (!Released(*this, F, Caster, Active, Terms, Payload)) { return false; }
+            FLDCombatAction Action;
+            Action.Direction = FVector(1, 0, 0);
+            FString Error;
+            if (!TestTrue(FString::Printf(TEXT("%s projectile is released: %s"), Active, *Error),
+                FAccess::DeliverPayload(*F.Driver, F.Actor(Caster), F.Body(Caster), Terms, Action, Payload,
+                    FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Caster), 1000, Error))) { return false; }
+            if (Case == 1) { F.Place(Target, 300, 200); }
+            F.Now(1400);
+            if (!TestTrue(FString::Printf(TEXT("%s projectile advances: %s"), Active, *Error),
+                FAccess::AdvanceProjectiles(*F.Driver, Error))) { return false; }
+            const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+            if (Case == 1)
+            {
+                TestTrue(TEXT("A lateral move outside the projectile and body radii avoids contact"), Pending.IsEmpty());
+            }
+            else
+            {
+                const FLDCombatBodyRef Expected = Case == 2 ? Blocker : Target;
+                if (!TestTrue(TEXT("The first body on the line receives the only projectile hit"),
+                    Pending.Num() == 1 && Pending[0].Target == Expected)) { return false; }
+                if (!Drain(*this, F)) { return false; }
+                if (Case == 0 && FString(Active) == TEXT("active_snark_bolt"))
+                { TestTrue(TEXT("S06 applies its movement slow"), !F.Body(Target).Slows.IsEmpty()); }
+                if (Case == 0 && FString(Active) == TEXT("active_sock_shot"))
+                { TestTrue(TEXT("S21 applies attack slow and grievous"), !F.Body(Target).AttackSlows.IsEmpty()
+                    && F.Body(Target).Grievous.RatioBp == 3500); }
+            }
+        }
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventRangeModTradeoffTest, "Lockdown.Rules.Combat.Events.RangeModTradeoff",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventRangeModTradeoffTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    const auto Fire = [this](bool bMod, double Distance, int64& OutDamage)
+    {
+        FFixture F;
+        if (!F.Init(*this, true)) { return false; }
+        const FLDCombatBodyRef Caster = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+        F.Place(Caster, -425, 0);
+        F.Place(Target, -425 + Distance, 0);
+        const TArray<FInstall> Mods = bMod
+            ? TArray<FInstall>{On(TEXT("component_reach_out"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))}
+            : TArray<FInstall>{};
+        if (!InstallComponents(*this, F, Caster, 1, Mods) || !InstallComponents(*this, F, Target, 1, {})) { return false; }
+        FLDCombatActiveTerms Terms;
+        FLDCombatHit Payload;
+        if (!Released(*this, F, Caster, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
+        if (!TestTrue(TEXT("S06 gains 200 cm up to the 1000 cm cap and pays the native 20% package cost"),
+            SameRational(Terms.Target.RangeCm, bMod ? 1000 : 850) && Terms.PackageScaleBp == (bMod ? 8000 : 10000)
+            && Payload.PackageScaleBp == Terms.PackageScaleBp)) { return false; }
+        FLDCombatAction Action;
+        Action.Direction = FVector(1, 0, 0);
+        FString Error;
+        if (!TestTrue(FString::Printf(TEXT("S06 is released: %s"), *Error), FAccess::DeliverPayload(*F.Driver, F.Actor(Caster),
+                F.Body(Caster), Terms, Action, Payload, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Caster), 1000, Error)))
+        { return false; }
+        F.Now(1700);
+        if (!TestTrue(FString::Printf(TEXT("S06 finishes its flight: %s"), *Error),
+            FAccess::AdvanceProjectiles(*F.Driver, Error)) || !Drain(*this, F)) { return false; }
+        OutDamage = HP - F.Body(Target).Resources.HpP2;
+        return true;
+    };
+    int64 Near = 0, NearMod = 0, Far = 0, FarMod = 0;
+    if (!Fire(false, 300, Near) || !Fire(true, 300, NearMod) || !Fire(false, 950, Far) || !Fire(true, 950, FarMod))
+    { return false; }
+    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE m05 near_without_p2=%lld near_with_p2=%lld far_without_p2=%lld far_with_p2=%lld"),
+        Near, NearMod, Far, FarMod));
+    TestTrue(TEXT("At equal near distance M05 pays its 20% damage cost, within rounding"),
+        Near > 0 && FMath::Abs(NearMod * 5 - Near * 4) <= 5);
+    TestTrue(TEXT("At 950 cm only the extended projectile reaches the target"), Far == 0 && FarMod > 0);
+    return true;
+}
+
 // R03: a real S02 root and S03 stun carry their active as the control's exit, so C05 marks and consumes and C07 grants.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventControlSourceTest, "Lockdown.Rules.Combat.Events.ControlSource",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -2244,16 +2684,19 @@ bool FLDCombatEventLedgerSettleTest::RunTest(const FString& Parameters)
     F.Place(Holder, 0, 0);
     F.Place(Target, 150, 0);
     if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_fist_fire")}, {TEXT("component_fist_water")},
-        {TEXT("component_tab_ledger")}})) { return false; }
+        {TEXT("component_fist_shock")}, {TEXT("component_tab_ledger")}})) { return false; }
     FAccess::Reactions(*F.Driver).Reset();
     if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
     const TArray<FLDCombatReactionFact>& Reactions = FAccess::Reactions(*F.Driver);
-    TestTrue(TEXT("The basic's own fire then water fog as B10"), Reactions.Num() == 1 && Reactions[0].Kind == ELDCombatReaction::Fog
-        && Reactions[0].TriggerSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_water")));
+    TestTrue(TEXT("The basic applies fire, water and electric in order: one fog then one conduct"), Reactions.Num() == 2
+        && Reactions[0].Kind == ELDCombatReaction::Fog
+        && Reactions[0].TriggerSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_water"))
+        && Reactions[1].Kind == ELDCombatReaction::Conduct
+        && Reactions[1].TriggerSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_fist_shock")));
     const FLDBodyCombatState& Victim = F.Body(Target);
     TestTrue(TEXT("One B02 entry: the basic; the reaction and the fire settle add none"), Victim.Ledgers.Num() == 1
         && Victim.Ledgers[0].EntriesP2.Num() == 1);
-    TestTrue(TEXT("The fog's 0 s pulse leaves the target wet"), Victim.ElementMark.Kind == ELDCombatElement::Water);
+    TestTrue(TEXT("The conduct consumes the fog's immediate wet"), Victim.ElementMark.Kind == ELDCombatElement::None);
     return true;
 }
 
@@ -2388,6 +2831,148 @@ bool FLDCombatEventShieldBurstTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// Spec §13.3: a C08 counter fed by a C11 heal continues that root action, so C11 cannot reopen a new 30G budget for it.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventCounterRootTest, "Lockdown.Rules.Combat.Events.CounterKeepsRootBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventCounterRootTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EKind = ELDComponentTargetKind;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, Big), Foe = F.AddBody(ELDVictimKind::Contender, Big);
+    F.Place(Holder, 0, 0);
+    F.Place(Foe, 200, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_hurt_heal"), EKind::Active, TEXT("active_snark_bolt")),
+        On(TEXT("component_breath_strike"), EKind::Component, TEXT("component_hurt_heal"))}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FString Error;
+    F.Now(1000);
+    if (!TestTrue(TEXT("The foe hurts the holder first"), F.Apply(FFixture::Hit(Foe, Holder, 1000000), Error))) { return false; }
+    FLDCombatHit Bolt = FFixture::Hit(Holder, Foe, 1000000);
+    Bolt.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
+    if (!TestTrue(FString::Printf(TEXT("The holder's S06 lands: %s"), *Error), F.Apply(Bolt, Error))) { return false; }
+    if (!TestTrue(TEXT("C11's heal fills C08's store under the bolt's effect"), Body.CounterStoreP2 > 0
+        && Body.CounterRootEffectId == Bolt.EffectId)) { return false; }
+    FAccess::PendingHits(*F.Driver).Reset();
+    F.Now(2000);
+    if (!TestTrue(FString::Printf(TEXT("The store fires: %s"), *Error), FAccess::AdvanceWorkshop(*F.Driver, 2000, Error))) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("C08 strikes the foe as the bolt's own effect"), Pending.Num() == 1 && Pending[0].Target == Foe
+        && Pending[0].EffectId == Bolt.EffectId && Pending[0].Source.DefinitionId == FName(TEXT("component_breath_strike")));
+    TestTrue(TEXT("The fired store and its root are spent"), Body.CounterStoreP2 == 0 && !Body.CounterRootEffectId.IsValid());
+    return true;
+}
+
+namespace LDBuildPrimitivesTests
+{
+const FLDCombatEffectBudget* BudgetOf(const FLDBodyCombatState& Body, const FGuid& EffectId, const TCHAR* Component)
+{
+    return Body.EffectBudgets.FindByPredicate([&](const FLDCombatEffectBudget& Row)
+    { return Row.EffectId == EffectId && Row.Component == FName(Component); });
+}
+}
+
+// Two C11 roots that feed one C08 store before it fires merge into one counter, spent once under the latest root;
+// no second counter and no fresh root identity appear.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventCounterMergedRootsTest, "Lockdown.Rules.Combat.Events.CounterMergedRootsFireOnce",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventCounterMergedRootsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EKind = ELDComponentTargetKind;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, Big), Foe = F.AddBody(ELDVictimKind::Contender, Big);
+    F.Place(Holder, 0, 0);
+    F.Place(Foe, 200, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_hurt_heal"), EKind::Active, TEXT("active_snark_bolt")),
+        On(TEXT("component_breath_strike"), EKind::Component, TEXT("component_hurt_heal"))}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FString Error;
+    F.Now(1000);
+    if (!TestTrue(TEXT("The foe hurts the holder first"), F.Apply(FFixture::Hit(Foe, Holder, 1000000), Error))) { return false; }
+    FLDCombatHit First = FFixture::Hit(Holder, Foe, 1000000);
+    First.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
+    if (!TestTrue(FString::Printf(TEXT("The first S06 lands: %s"), *Error), F.Apply(First, Error))) { return false; }
+    const int64 AfterFirst = Body.CounterStoreP2;
+    F.Now(1100);
+    FLDCombatHit Second = FFixture::Hit(Holder, Foe, 1000000);
+    Second.Source = First.Source;
+    Second.EffectId = FGuid::NewGuid();
+    if (!TestTrue(FString::Printf(TEXT("A second, separate S06 lands before the store fires: %s"), *Error), F.Apply(Second, Error)))
+    { return false; }
+    const FLDCombatEffectBudget* BudgetA = BudgetOf(Body, First.EffectId, TEXT("component_hurt_heal"));
+    const FLDCombatEffectBudget* BudgetB = BudgetOf(Body, Second.EffectId, TEXT("component_hurt_heal"));
+    TestTrue(TEXT("Each root keeps its own full C11 30G budget"), BudgetA && BudgetB && BudgetA->SpentP2 == 3000 && BudgetB->SpentP2 == 3000);
+    TestTrue(TEXT("Half of each real heal joins one store under the latest root"), AfterFirst == 1500 && Body.CounterStoreP2 == 3000
+        && Body.CounterRootEffectId == Second.EffectId);
+    FAccess::PendingHits(*F.Driver).Reset();
+    F.Now(2000);
+    if (!TestTrue(FString::Printf(TEXT("The store fires: %s"), *Error), FAccess::AdvanceWorkshop(*F.Driver, 2000, Error))) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("One counter carries the merged store as the latest root's effect"), Pending.Num() == 1 && Pending[0].Target == Foe
+        && Pending[0].EffectId == Second.EffectId && Pending[0].BaseP2 == 3000);
+    TestTrue(TEXT("The merged store is spent once"), Body.CounterStoreP2 == 0 && !Body.CounterRootEffectId.IsValid());
+    return true;
+}
+
+// C11's 30G per root is consumed by the root and its derived same-effect hits; the C08 counter it feeds spends no
+// C11 budget and refills nothing, so the loop cannot reopen healing.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventSkillLifestealBudgetTest, "Lockdown.Rules.Combat.Events.SkillLifestealBudgetConsumed",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventSkillLifestealBudgetTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    using EKind = ELDComponentTargetKind;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 Big = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, Big), Foe = F.AddBody(ELDVictimKind::Contender, Big);
+    F.Place(Holder, 0, 0);
+    F.Place(Foe, 200, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_hurt_heal"), EKind::Active, TEXT("active_snark_bolt")),
+        On(TEXT("component_breath_strike"), EKind::Component, TEXT("component_hurt_heal"))}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FString Error;
+    F.Now(1000);
+    if (!TestTrue(TEXT("The foe hurts the holder first"), F.Apply(FFixture::Hit(Foe, Holder, 2000000), Error))) { return false; }
+    FLDCombatHit Bolt = FFixture::Hit(Holder, Foe, 1000000);
+    Bolt.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"));
+    const int64 BeforeBolt = Body.Resources.HpP2;
+    if (!TestTrue(FString::Printf(TEXT("The S06 lands: %s"), *Error), F.Apply(Bolt, Error))) { return false; }
+    const FLDCombatEffectBudget* Budget = BudgetOf(Body, Bolt.EffectId, TEXT("component_hurt_heal"));
+    TestTrue(TEXT("8% of 10000 real HP is capped at 30G for the root"), Budget && Budget->SpentP2 == 3000
+        && Body.Resources.HpP2 - BeforeBolt == 3000);
+    const int64 Stored = Body.CounterStoreP2;
+    F.Now(1050);
+    FLDCombatHit Derived = FFixture::Hit(Holder, Foe, 1000000);
+    Derived.Source = Bolt.Source;
+    Derived.EffectId = Bolt.EffectId;
+    const int64 BeforeDerived = Body.Resources.HpP2;
+    if (!TestTrue(FString::Printf(TEXT("A derived hit of the same action lands: %s"), *Error), F.Apply(Derived, Error))) { return false; }
+    TestTrue(TEXT("The spent root budget heals nothing more and feeds no store"), Body.Resources.HpP2 == BeforeDerived
+        && Budget->SpentP2 == 3000 && Body.CounterStoreP2 == Stored);
+    FAccess::PendingHits(*F.Driver).Reset();
+    F.Now(2000);
+    if (!TestTrue(FString::Printf(TEXT("The store fires: %s"), *Error), FAccess::AdvanceWorkshop(*F.Driver, 2000, Error))) { return false; }
+    const int64 FoeBefore = F.Body(Foe).Resources.HpP2, HolderBefore = Body.Resources.HpP2;
+    if (!TestEqual(TEXT("One counter is pending"), FAccess::PendingHits(*F.Driver).Num(), 1) || !Drain(*this, F)) { return false; }
+    TestTrue(TEXT("The counter really damages the foe"), F.Body(Foe).Resources.HpP2 < FoeBefore);
+    Budget = BudgetOf(Body, Bolt.EffectId, TEXT("component_hurt_heal"));
+    TestTrue(TEXT("It spends no C11 budget, heals nothing and refills no store"), Body.EffectBudgets.Num() == 1 && Budget
+        && Budget->SpentP2 == 3000 && Body.Resources.HpP2 == HolderBefore && Body.CounterStoreP2 == 0);
+    return true;
+}
+
 // R11 (spec §12.1): M01 spreads S21's damage around the struck body; the cut of heals and shields and the attack slow stay on it.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventSpreadTest, "Lockdown.Rules.Combat.Events.SpreadDamageOnly",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -2477,6 +3062,54 @@ bool FLDCombatEventZoneHasteTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventZoneControlAmpTest, "Lockdown.Rules.Combat.Events.ZoneControlAmp",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatEventZoneControlAmpTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Caster = F.AddBody(), Slowed = F.AddBody(ELDVictimKind::Contender, HP),
+        Clear = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Caster, 0, 0);
+    F.Place(Slowed, 300, 50);
+    F.Place(Clear, 300, -50);
+    if (!InstallComponents(*this, F, Caster, 1, {{TEXT("component_kick_down")}})) { return false; }
+    if (!TestTrue(TEXT("B07 projects its 12% term before release"), F.Body(Caster).AttributeProjection.ControlAmp.IsSet()
+        && F.Body(Caster).AttributeProjection.ControlAmp->RatioBp == 1200)) { return false; }
+    F.Body(Slowed).Slows.Add({FGuid::NewGuid(), Caster.Victim.EntityId, 3000, 9000});
+    FLDCombatActiveTerms Zone;
+    if (!ActiveTerms(*this, F, TEXT("active_dirty_puddle"), Zone)) { return false; }
+    const FLDCombatSourceRef S20 = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_dirty_puddle"));
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("S20 is released: %s"), *Error), FAccess::ReleaseTerms(*F.Driver, F.Body(Caster),
+            S20, Zone, F.Foot(Caster), F.Origin + FVector(300, 0, 0), Error))
+        || !TestTrue(FString::Printf(TEXT("The real zone emits its first pulse: %s"), *Error),
+            FAccess::AdvanceMechanics(*F.Driver, 1000, Error)))
+    { return false; }
+    const TArray<FLDCombatHit>& Hits = FAccess::PendingHits(*F.Driver);
+    const FLDCombatHit* ControlledHit = Hits.FindByPredicate([&Slowed](const FLDCombatHit& Hit)
+        { return Hit.Target == Slowed && Hit.bDirectAbilityDamage; });
+    const FLDCombatHit* ClearHit = Hits.FindByPredicate([&Clear](const FLDCombatHit& Hit)
+        { return Hit.Target == Clear && Hit.bDirectAbilityDamage; });
+    if (!TestNotNull(TEXT("Zone emits a damage pulse for the slowed target"), ControlledHit)
+        || !TestNotNull(TEXT("Zone emits a damage pulse for the clear target"), ClearHit))
+    { return false; }
+    const bool bControlledStamped = TestEqual(TEXT("Slowed target pulse carries B07"), ControlledHit->ControlAmpBp, int64(1200));
+    const bool bClearStamped = TestEqual(TEXT("Clear target pulse carries B07"), ClearHit->ControlAmpBp, int64(1200));
+    if (!bControlledStamped || !bClearStamped) { return false; }
+    if (!Drain(*this, F)) { return false; }
+    const int64 ClearDamage = HP - F.Body(Clear).Resources.HpP2;
+    const int64 SlowedDamage = HP - F.Body(Slowed).Resources.HpP2;
+    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE b07_zone clear_hp_loss_p2=%lld slowed_hp_loss_p2=%lld"),
+        ClearDamage, SlowedDamage));
+    TestTrue(TEXT("Only the already-slowed target receives the 12% bonus"),
+        ClearDamage > 0 && SlowedDamage == ClearDamage * 11200 / 10000);
+    return true;
+}
+
 // C01 (spec §13.3): fixed 1 s windows from its first install; a window settles after every fire fact up to its boundary;
 // an uninstall drops the open window and a reinstall keeps the original boundaries.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventFireWindowTest, "Lockdown.Rules.Combat.Events.FireShieldWindows",
@@ -2514,6 +3147,7 @@ bool FLDCombatEventFireWindowTest::RunTest(const FString& Parameters)
         Body.Resources.ShieldP2 == 1290 && Body.FireWindowEndMs == 0);
     if (!Boundary(2500)) { return false; }
     TestTrue(TEXT("(2000, 3000] stays open"), Body.FireWindowEndMs == 3000 && Body.FireWindowSumP2 == 150 && Body.Resources.ShieldP2 == 1290);
+    TestEqual(TEXT("An open fire window schedules its own closing boundary"), FAccess::NextWorkshopDue(*F.Driver, 2500), int64(3000));
     if (!Boundary(3000)) { return false; }
     TestTrue(TEXT("Its boundary tick joins it before it settles: 12G + 60% of 3.00 replaces the weaker shield"),
         Body.Resources.ShieldP2 == 1380 && Body.FireWindowEndMs == 0);
@@ -2526,6 +3160,1715 @@ bool FLDCombatEventFireWindowTest::RunTest(const FString& Parameters)
         && Record.FireWindowAnchorMs.GetValue() == 1000);
     if (!Boundary(4000)) { return false; }
     TestEqual(TEXT("The tick on 4000 closes (3000, 4000] at once"), Body.FireWindowEndMs, int64(0));
+    return true;
+}
+// ---- Skill-rule base components (B04, B13-B16) on the real basic and release payloads. A "native direct hit" is a
+// hostile ability hit of the host active's own release (IsNativeDirectHit); basics never are.
+namespace LDBuildPrimitivesTests
+{
+// One S06 release of Caster as Combat builds it, aimed at Target (its payload applied alone, as a landed hit).
+bool SnarkBolt(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Caster, const FLDCombatBodyRef& Target,
+    FLDCombatHit& Payload)
+{
+    FLDCombatActiveTerms Terms;
+    if (!Released(Test, F, Caster, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
+    Payload.Target = Target;
+    return Test.TestTrue(TEXT("S06's payload is a native direct hit with its release ledger"),
+        IsNativeDirectHit(Payload) && Payload.CastLedger.IsValid());
+}
+
+bool Land(FAutomationTestBase& Test, FFixture& F, const FLDCombatHit& Hit)
+{
+    FString Error;
+    if (!F.Apply(Hit, Error)) { Test.AddError(TEXT("Hit: ") + Error); return false; }
+    return true;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentPunchHealShareTest, "Lockdown.Rules.Combat.Components.PunchHealOwnShare",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentPunchHealShareTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_punch_heal")}}) || !InstallComponents(*this, F, Target, 1, {}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FLDBodyCombatState& Victim = F.Body(Target);
+    Body.AttributeProjection.Final.CritChanceBp = 0;
+    const auto Swing = [&](int64& Lost, int64& Healed)
+    {
+        Body.Resources.HpP2 = HP / 2;
+        const int64 VictimBefore = Victim.Resources.HpP2;
+        if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
+        Lost = VictimBefore - Victim.Resources.HpP2;
+        Healed = Body.Resources.HpP2 - HP / 2;
+        return true;
+    };
+    int64 Lost = 0, Healed = 0;
+    if (!Swing(Lost, Healed)) { return false; }
+    TestTrue(TEXT("A plain basic heals 12% of the HP it took"), Lost > 0 && Healed == Lost * 1200 / 10000);
+
+    // S17's empowered package merges into the next basic; only the basic's own share of its HP loss heals.
+    FLDCombatActiveTerms S17;
+    if (!ActiveTerms(*this, F, TEXT("active_triple_combo"), S17)) { return false; }
+    const FLDDemoEffectDefinition* Empower = FindEffect(S17.Values, ELDDemoEffectOp::EmpowerBasic);
+    FLDCombatEmpower Package;
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("S17's package is armed: %s"), *Error), Empower
+        && FAccess::MakeEmpower(*F.Driver, Body, SourceOf(ELDCombatSourceKind::Learned, TEXT("active_triple_combo")), *Empower,
+            F.Mode->GetAuthorityNowMs(), Package, Error)))
+    { return false; }
+    LDCombatControl::ArmEmpower(Body.Empowers, Package);
+    int64 EmpoweredLost = 0, EmpoweredHealed = 0;
+    if (!Swing(EmpoweredLost, EmpoweredHealed)) { return false; }
+    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE b04_share plain_loss_p2=%lld plain_heal_p2=%lld empowered_loss_p2=%lld empowered_heal_p2=%lld"),
+        Lost, Healed, EmpoweredLost, EmpoweredHealed));
+    TestTrue(TEXT("The S17 empowered hit takes more HP but heals less than 12% of it, never less than the plain share"),
+        EmpoweredLost > Lost && EmpoweredHealed < EmpoweredLost * 1200 / 10000 && EmpoweredHealed + 1 >= Healed);
+
+    // A shield that absorbs the whole basic leaves no HP loss to heal from.
+    if (!TestTrue(FString::Printf(TEXT("The target is shielded: %s"), *Error),
+        FAccess::GrantShield(*F.Driver, Victim, HP, F.Mode->GetAuthorityNowMs(), Error))) { return false; }
+    if (!Swing(Lost, Healed)) { return false; }
+    TestTrue(TEXT("A wholly absorbed basic heals nothing"), Lost == 0 && Healed == 0 && Victim.Resources.ShieldP2 < HP);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentCastHitRefundTest, "Lockdown.Rules.Combat.Components.CastHitRefund",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentCastHitRefundTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000),
+        Second = F.AddBody(ELDVictimKind::Contender, 10000000);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_catch_breath")}})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.Resources.MaxMpP2 = 100000;
+    Body.Resources.MpP2 = 0;
+    FLDCombatHit Payload;
+    if (!SnarkBolt(*this, F, Holder, Target, Payload)) { return false; }
+    // ReleaseAbility records the mana the release really paid (after M06) on its ledger.
+    Payload.CastLedger->PaidManaP2 = 4000;
+    if (!Land(*this, F, Payload)) { return false; }
+    TestEqual(TEXT("The first native hit refunds 30% of the 40 MP paid"), Body.Resources.MpP2, int64(1200));
+    FLDCombatHit Again = Payload;
+    Again.HitId = FGuid::NewGuid();
+    Again.Target = Second;
+    if (!Land(*this, F, Again)) { return false; }
+    TestEqual(TEXT("Another hit of the same release refunds nothing more"), Body.Resources.MpP2, int64(1200));
+    FLDCombatHit Free;
+    if (!SnarkBolt(*this, F, Holder, Target, Free)) { return false; }
+    Free.CastLedger->PaidManaP2 = 0;
+    if (!Land(*this, F, Free)) { return false; }
+    TestEqual(TEXT("A release that paid nothing refunds nothing"), Body.Resources.MpP2, int64(1200));
+    if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
+    TestEqual(TEXT("A basic is no native hit"), Body.Resources.MpP2, int64(1200));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentDistanceAmpTest, "Lockdown.Rules.Combat.Components.DistanceAmp",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentDistanceAmpTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(), Plain = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_long_arm")}}) || !InstallComponents(*this, F, Plain, 1, {})
+        || !InstallComponents(*this, F, Target, 1, {}))
+    { return false; }
+    const auto LossAt = [&](const FLDCombatBodyRef& Caster, double DistanceCm, int64& Out)
+    {
+        F.Place(Caster, 0, 0);
+        F.Place(Target, DistanceCm, 0);
+        FLDCombatHit Payload;
+        F.Body(Target).Resources.HpP2 = HP;
+        if (!SnarkBolt(*this, F, Caster, Target, Payload) || !Land(*this, F, Payload)) { return false; }
+        Out = HP - F.Body(Target).Resources.HpP2;
+        return true;
+    };
+    int64 Base = 0, Near = 0, Far = 0, Farther = 0;
+    if (!LossAt(Plain, 600, Base) || !LossAt(Holder, 549, Near) || !LossAt(Holder, 550, Far) || !LossAt(Holder, 900, Farther))
+    { return false; }
+    TestTrue(TEXT("Below 550 cm B14 adds nothing"), Base > 0 && Near == Base);
+    TestTrue(TEXT("At 550 cm and beyond B14 adds 20% to the native direct hit"),
+        FMath::Abs(Far * 10000 - Base * 12000) <= 20000 && Farther == Far);
+    // A basic is no native hit, however far it lands.
+    int64 PlainBasic = 0, FarBasic = 0;
+    for (const FLDCombatBodyRef& Caster : {Plain, Holder})
+    {
+        F.Place(Caster, 0, 0);
+        F.Place(Target, 600, 0);
+        F.Body(Target).Resources.HpP2 = HP;
+        F.Body(Caster).AttributeProjection.Final.CritChanceBp = 0;
+        if (!Basic(*this, F, Caster, Target) || !Drain(*this, F)) { return false; }
+        (Caster == Plain ? PlainBasic : FarBasic) = HP - F.Body(Target).Resources.HpP2;
+    }
+    TestTrue(TEXT("B14 never amplifies a basic"), PlainBasic > 0 && FarBasic == PlainBasic);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentAlternateAmpTest, "Lockdown.Rules.Combat.Components.AlternateAmp",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentAlternateAmpTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    constexpr int64 HP = 10000000;
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_seeing_red")}}) || !InstallComponents(*this, F, Target, 1, {}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    const FLDCombatSourceRef Elbow = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow")),
+        Bolt = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_snark_bolt")),
+        Dash = SourceOf(ELDCombatSourceKind::Innate, TEXT("innate_dash"));
+    FString Error;
+    const auto AmpAt = [&](const FLDCombatSourceRef& Source, int64 NowMs)
+    {
+        int64 Bp = -1;
+        return FAccess::AlternateAmp(*F.Driver, Body, Source, NowMs, Bp, Error) ? Bp : int64(-1);
+    };
+    TestEqual(TEXT("A first release takes nothing"), AmpAt(Bolt, 1000), int64(0));
+    FAccess::NoteRelease(Body, Elbow, 1000);
+    TestEqual(TEXT("A different active within 4 s takes +20%"), AmpAt(Bolt, 5000), int64(2000));
+    TestEqual(TEXT("The same active again takes nothing"), AmpAt(Elbow, 2000), int64(0));
+    TestEqual(TEXT("After 4 s the window is gone"), AmpAt(Bolt, 5001), int64(0));
+    TestEqual(TEXT("The innate dash takes nothing"), AmpAt(Dash, 2000), int64(0));
+    FAccess::NoteRelease(Body, Dash, 2000);
+    TestTrue(TEXT("The innate dash is no previous release"), Body.LastActiveRelease == Elbow.DefinitionId
+        && Body.LastActiveReleaseAtMs == 1000);
+
+    // The release locks the amplification on its ledger; only its native direct hits take it.
+    const auto Loss = [&](int64 AmpBp, int64& Out)
+    {
+        FLDCombatHit Payload;
+        F.Body(Target).Resources.HpP2 = HP;
+        if (!SnarkBolt(*this, F, Holder, Target, Payload)) { return false; }
+        Payload.CastLedger->AlternateAmpBp = AmpBp;
+        if (!Land(*this, F, Payload)) { return false; }
+        Out = HP - F.Body(Target).Resources.HpP2;
+        return true;
+    };
+    int64 Plain = 0, Amplified = 0;
+    if (!Loss(0, Plain) || !Loss(2000, Amplified)) { return false; }
+    TestTrue(TEXT("The locked +20% joins the hit's amplification pool"), Plain > 0
+        && FMath::Abs(Amplified * 10000 - Plain * 12000) <= 20000);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentAbilityHitShieldTest, "Lockdown.Rules.Combat.Components.AbilityHitShield",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentAbilityHitShieldTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    if (!InstallComponents(*this, F, Holder, 1, {{TEXT("component_thick_hide")}}) || !InstallComponents(*this, F, Target, 1, {}))
+    { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    const auto Clear = [&Body]()
+    {
+        Body.Shield.Reset();
+        Body.Resources.ShieldP2 = 0;
+        Body.ShieldGrantedP2 = 0;
+    };
+    FString Error;
+    if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
+    TestTrue(TEXT("A basic grants no shield"), Body.Resources.ShieldP2 == 0 && !Body.Shield.IsSet());
+    if (!TestTrue(TEXT("The foe's ability hit lands"), F.Apply(FFixture::Hit(Target, Holder, 1000), Error))) { return false; }
+    TestTrue(TEXT("Being hit grants no shield"), Body.Resources.ShieldP2 == 0);
+    const auto Bolt = [&](int64 NowMs)
+    {
+        F.Now(NowMs);
+        FLDCombatHit Payload;
+        return SnarkBolt(*this, F, Holder, Target, Payload) && Land(*this, F, Payload);
+    };
+    if (!Bolt(2000)) { return false; }
+    const int64 Expected = 4000 + Body.Resources.MaxHpP2 * 300 / 10000;
+    TestTrue(TEXT("A native ability hit grants 40G + 3% max HP for 3 s from B16"), Body.Resources.ShieldP2 == Expected
+        && Body.Shield.IsSet() && Body.Shield->ExpiresAtMs == 5000
+        && Body.ShieldGrantSource == SourceOf(ELDCombatSourceKind::Component, TEXT("component_thick_hide"))
+        && Body.AbilityHitShieldReadyAtMs == 10000);
+    Clear();
+    if (!Bolt(9999)) { return false; }
+    TestEqual(TEXT("Within its 8 s rest no shield is granted"), Body.Resources.ShieldP2, int64(0));
+    if (!Bolt(10000)) { return false; }
+    TestTrue(TEXT("After the rest the next native hit grants it again"), Body.Resources.ShieldP2 == Expected
+        && Body.AbilityHitShieldReadyAtMs == 18000);
+    return true;
+}
+// ---- M13-M15: derived host hits of the same release (spec §4 "Hit identity vocabulary").
+namespace LDBuildPrimitivesTests
+{
+// One release of Active by Caster, sent along +X through the real projectile delivery.
+bool Throw(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Caster, const FLDCombatActiveTerms& Terms,
+    const FLDCombatHit& Payload)
+{
+    FLDCombatAction Action;
+    Action.Direction = FVector(1, 0, 0);
+    FString Error;
+    if (!FAccess::DeliverPayload(*F.Driver, F.Actor(Caster), F.Body(Caster), Terms, Action, Payload, FLDCombatBodyRef(),
+        FVector::ZeroVector, F.Foot(Caster), F.Mode->GetAuthorityNowMs(), Error))
+    {
+        Test.AddError(TEXT("Projectile delivery: ") + Error);
+        return false;
+    }
+    return true;
+}
+
+bool Fly(FAutomationTestBase& Test, FFixture& F, int64 NowMs)
+{
+    F.Now(NowMs);
+    FString Error;
+    if (!FAccess::AdvanceProjectiles(*F.Driver, Error)) { Test.AddError(TEXT("Projectiles: ") + Error); return false; }
+    return true;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentProjectileReturnTest, "Lockdown.Rules.Combat.Components.ProjectileReturn",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 300, 0);
+    if (!InstallComponents(*this, F, Holder, 10, {{TEXT("component_catch_breath")},
+        On(TEXT("component_boomerang"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))})
+        || !InstallComponents(*this, F, Target, 1, {})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.AttributeProjection.Final.CritChanceBp = 0;
+    Body.Resources.MaxMpP2 = 100000;
+    Body.Resources.MpP2 = 0;
+    F.Now(1000);
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Holder, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
+    Payload.CastLedger->PaidManaP2 = 4000;
+    if (!TestTrue(TEXT("M13 compiles onto S06"), Terms.ProjectileReturn.IsSet() && Payload.SlowBp > 0)
+        || !Throw(*this, F, Holder, Terms, Payload) || !Fly(*this, F, 1400)) { return false; }
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const TArray<FLDCombatProjectile>& Flights = FAccess::Projectiles(*F.Driver);
+    if (!TestTrue(TEXT("The outbound hit lands whole and a return flight starts where it ended"), Pending.Num() == 1
+        && Pending[0].Target == Target && Pending[0].DeliveryScaleBp == 10000 && Flights.Num() == 1 && Flights[0].bReturn
+        && Flights[0].EffectId == Payload.EffectId && Flights[0].ReturnScaleBp == 0 && Flights[0].PierceRemaining == 0))
+    { return false; }
+    const int64 Before = F.Body(Target).Resources.HpP2;
+    if (!Drain(*this, F)) { return false; }
+    const int64 Outbound = Before - F.Body(Target).Resources.HpP2;
+    TestEqual(TEXT("B13 refunds 30% of the paid 40 MP on the first native hit"), Body.Resources.MpP2, int64(1200));
+    if (!Fly(*this, F, 2400)) { return false; }
+    if (!TestTrue(TEXT("The return strikes the body it started on at 50% without slow and does not return again"),
+        Pending.Num() == 1 && Pending[0].Target == Target && Pending[0].DeliveryScaleBp == 5000 && Pending[0].SlowBp == 0
+        && Pending[0].SlowDurationMs == 0 && IsNativeDirectHit(Pending[0]) && Pending[0].CastLedger == Payload.CastLedger
+        && Flights.IsEmpty())) { return false; }
+    const int64 Mid = F.Body(Target).Resources.HpP2;
+    if (!Drain(*this, F)) { return false; }
+    const int64 Back = Mid - F.Body(Target).Resources.HpP2;
+    AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE m13 outbound_p2=%lld return_p2=%lld"), Outbound, Back));
+    TestTrue(TEXT("The return deals half the outbound damage, within rounding"), Outbound > 0 && FMath::Abs(Back * 2 - Outbound) <= 2);
+    TestEqual(TEXT("B13 is budgeted per release: the return refunds nothing more"), Body.Resources.MpP2, int64(1200));
+
+    // Elements, burn and grievous ride home; slow and controls do not. A return never starts for a dead thrower.
+    FLDCombatActiveTerms Sock;
+    FLDCombatHit SockPayload;
+    if (!InstallComponents(*this, F, Holder, 10, {On(TEXT("component_boomerang"), ELDComponentTargetKind::Active, TEXT("active_sock_shot"))})
+        || !Released(*this, F, Holder, TEXT("active_sock_shot"), Sock, SockPayload)) { return false; }
+    SockPayload.BurnStacks = 1;
+    SockPayload.bApplyWet = true;
+    F.Now(3000);
+    if (!Throw(*this, F, Holder, Sock, SockPayload) || !Fly(*this, F, 3400)) { return false; }
+    if (!TestTrue(TEXT("S21 launches a return"), Flights.Num() == 1 && Flights[0].bReturn)) { return false; }
+    const FLDCombatHit& Home = Flights[0].Payload;
+    TestTrue(TEXT("The return keeps burn, wet and grievous but drops the attack slow"), SockPayload.GrievousBp > 0
+        && SockPayload.AttackSlowBp > 0 && Home.BurnStacks == 1 && Home.bApplyWet && Home.GrievousBp == SockPayload.GrievousBp
+        && Home.AttackSlowBp == 0 && Home.SlowBp == 0 && Home.RootDurationMs == 0 && Home.StunDurationMs == 0);
+    FAccess::PendingHits(*F.Driver).Reset();
+    FAccess::Projectiles(*F.Driver).Reset();
+    F.Now(4000);
+    if (!Throw(*this, F, Holder, Sock, SockPayload)) { return false; }
+    Body.bPendingDeath = true;
+    if (!Fly(*this, F, 4400)) { return false; }
+    TestTrue(TEXT("A thrower pending death gets no return"), Pending.Num() == 1 && Flights.IsEmpty());
+    Body.bPendingDeath = false;
+    {
+        FFixture Combo;
+        if (!Combo.Init(*this, true)) { return false; }
+        const FLDCombatBodyRef Caster = Combo.AddBody(), First = Combo.AddBody(ELDVictimKind::Contender, HP),
+            Second = Combo.AddBody(ELDVictimKind::Contender, HP);
+        Combo.Place(Caster, 0, 0);
+        Combo.Place(First, 200, 0);
+        Combo.Place(Second, 450, 0);
+        if (!InstallComponents(*this, Combo, Caster, 10, {{TEXT("component_catch_breath")},
+            On(TEXT("component_boomerang"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt")),
+            On(TEXT("component_skewer"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))})
+            || !InstallComponents(*this, Combo, First, 1, {}) || !InstallComponents(*this, Combo, Second, 1, {}))
+        { return false; }
+        FLDBodyCombatState& ComboBody = Combo.Body(Caster);
+        ComboBody.Resources.MaxMpP2 = 100000;
+        ComboBody.Resources.MpP2 = 0;
+        Combo.Now(1000);
+        FLDCombatActiveTerms CombinedTerms;
+        FLDCombatHit CombinedPayload;
+        if (!Released(*this, Combo, Caster, TEXT("active_snark_bolt"), CombinedTerms, CombinedPayload)) { return false; }
+        CombinedPayload.CastLedger->PaidManaP2 = 4000;
+        if (!TestTrue(TEXT("Pierce and return both compile on the same release"),
+            CombinedTerms.ProjectileReturn.IsSet() && CombinedTerms.ProjectilePierce.IsSet())
+            || !Throw(*this, Combo, Caster, CombinedTerms, CombinedPayload) || !Fly(*this, Combo, 2000)) { return false; }
+        const auto& Hits = FAccess::PendingHits(*Combo.Driver);
+        const auto& CombinedFlights = FAccess::Projectiles(*Combo.Driver);
+        if (!TestTrue(TEXT("The outbound flight hits two distinct bodies and launches one return"), Hits.Num() == 2
+            && Hits[0].Target == First && Hits[0].DeliveryScaleBp == 10000
+            && Hits[1].Target == Second && Hits[1].DeliveryScaleBp == 7000
+            && Hits[0].HitId != Hits[1].HitId && Hits[0].EffectId == CombinedPayload.EffectId
+            && Hits[1].EffectId == CombinedPayload.EffectId && IsNativeDirectHit(Hits[0]) && IsNativeDirectHit(Hits[1])
+            && !Hits[0].bCritical && !Hits[1].bCritical && Hits[0].CastLedger == CombinedPayload.CastLedger
+            && Hits[1].CastLedger == CombinedPayload.CastLedger && CombinedFlights.Num() == 1 && CombinedFlights[0].bReturn))
+        { return false; }
+        if (!Drain(*this, Combo)) { return false; }
+        TestEqual(TEXT("The pierced hits share one mana-refund budget"), ComboBody.Resources.MpP2, int64(1200));
+        if (!Fly(*this, Combo, 2100)) { return false; }
+        if (!TestTrue(TEXT("The return hits the last body once at 50%, without control, and ends"),
+            Hits.Num() == 1 && Hits[0].Target == Second && Hits[0].DeliveryScaleBp == 5000 && Hits[0].SlowBp == 0
+            && Hits[0].EffectId == CombinedPayload.EffectId && Hits[0].CastLedger == CombinedPayload.CastLedger
+            && IsNativeDirectHit(Hits[0]) && !Hits[0].bCritical && CombinedFlights.IsEmpty())) { return false; }
+        if (!Drain(*this, Combo) || !Fly(*this, Combo, 3000)) { return false; }
+        TestTrue(TEXT("The return neither repeats nor refunds mana again"),
+            Hits.IsEmpty() && CombinedFlights.IsEmpty() && ComboBody.Resources.MpP2 == 1200);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentPierceChainTest, "Lockdown.Rules.Combat.Components.PierceAndChainExtra",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentPierceChainTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    {
+        FFixture F;
+        if (!F.Init(*this, true)) { return false; }
+        const FLDCombatBodyRef Holder = F.AddBody(), First = F.AddBody(ELDVictimKind::Contender, HP),
+            Second = F.AddBody(ELDVictimKind::Contender, HP), Third = F.AddBody(ELDVictimKind::Contender, HP);
+        F.Place(Holder, 0, 0);
+        F.Place(First, 200, 0);
+        F.Place(Second, 450, 0);
+        F.Place(Third, 700, 0);
+        if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_skewer"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))}))
+        { return false; }
+        F.Now(1000);
+        FLDCombatActiveTerms Terms;
+        FLDCombatHit Payload;
+        if (!Released(*this, F, Holder, TEXT("active_snark_bolt"), Terms, Payload) || !Throw(*this, F, Holder, Terms, Payload)
+            || !Fly(*this, F, 2000)) { return false; }
+        const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+        TestTrue(TEXT("M14 carries S06 through the first body to one more distinct body at 70% with its slow, then stops"),
+            Pending.Num() == 2 && Pending[0].Target == First && Pending[0].DeliveryScaleBp == 10000 && Pending[1].Target == Second
+            && Pending[1].DeliveryScaleBp == 7000 && Pending[1].SlowBp == Payload.SlowBp && Pending[1].SlowBp > 0
+            && IsNativeDirectHit(Pending[1]) && Pending[1].CastLedger == Payload.CastLedger
+            && FAccess::Projectiles(*F.Driver).IsEmpty());
+    }
+    // On S10 the same mod adds exactly one bounce.
+    const auto Hops = [this](bool bMod, int32& Out)
+    {
+        FFixture F;
+        if (!F.Init(*this, true)) { return false; }
+        const FLDCombatBodyRef Holder = F.AddBody();
+        TArray<FLDCombatBodyRef> Line;
+        for (int32 Index = 0; Index < 5; ++Index)
+        {
+            Line.Add(F.AddBody(ELDVictimKind::Contender, HP));
+            F.Place(Line.Last(), 300 + Index * 200, 0);
+        }
+        F.Place(Holder, 0, 0);
+        const TArray<FInstall> Mods = bMod
+            ? TArray<FInstall>{On(TEXT("component_skewer"), ELDComponentTargetKind::Active, TEXT("active_zap"))} : TArray<FInstall>{};
+        if (!InstallComponents(*this, F, Holder, 1, Mods)) { return false; }
+        F.Now(1000);
+        FLDCombatActiveTerms Terms;
+        FLDCombatHit Payload;
+        if (!Released(*this, F, Holder, TEXT("active_zap"), Terms, Payload)) { return false; }
+        const FLDDemoEffectDefinition* Bounce = FindEffect(Terms.Values, ELDDemoEffectOp::ChainBounce);
+        if (!TestTrue(TEXT("S10 compiles its chain"), Bounce && Bounce->Count == (bMod ? 3 : 2))
+            || !DeliverOnUnit(*this, F, Holder, Terms, Payload, Line[0])) { return false; }
+        FString Error;
+        F.Now(3000);
+        if (!TestTrue(FString::Printf(TEXT("Chains advance: %s"), *Error), FAccess::AdvanceElements(*F.Driver, 3000, Error)))
+        { return false; }
+        Out = FAccess::PendingHits(*F.Driver).Num();
+        return true;
+    };
+    int32 Plain = 0, Extra = 0;
+    if (!Hops(false, Plain) || !Hops(true, Extra)) { return false; }
+    TestTrue(TEXT("M14 adds exactly one S10 hop"), Plain == 3 && Extra == 4);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentEchoImpactTest, "Lockdown.Rules.Combat.Components.EchoImpact",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentEchoImpactTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Inner = F.AddBody(ELDVictimKind::Contender, HP),
+        Outer = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Inner, 300, 0);
+    F.Place(Outer, 300, 150);
+    if (!InstallComponents(*this, F, Holder, 10, {On(TEXT("component_encore"), ELDComponentTargetKind::Active, TEXT("active_calculus_drop"))}))
+    { return false; }
+    FLDCombatActiveTerms Plain, Drop;
+    FLDCombatHit Payload;
+    if (!ActiveTerms(*this, F, TEXT("active_calculus_drop"), Plain)
+        || !Released(*this, F, Holder, TEXT("active_calculus_drop"), Drop, Payload)) { return false; }
+    TestTrue(TEXT("M15 multiplies S18's cooldown by 1.15"), Drop.EchoImpact.IsSet() && Plain.Values.CooldownMs == 12000
+        && Drop.Values.CooldownMs == 13800);
+    TArray<FLDCombatGroundEffect>& Ground = FAccess::Ground(*F.Driver);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    FString Error;
+    const auto Advance = [&](int64 AtMs)
+    {
+        F.Now(AtMs);
+        return TestTrue(FString::Printf(TEXT("Skill content at %lld: %s"), AtMs, *Error), FAccess::AdvanceSkillContent(*F.Driver, AtMs, Error));
+    };
+    F.Now(1000);
+    FLDCombatAction Action;
+    Action.TargetPoint = F.Origin + FVector(300, 0, 0);
+    bool bHandled = false;
+    if (!TestTrue(FString::Printf(TEXT("S18 is placed: %s"), *Error), FAccess::DeliverTerms(*F.Driver, F.Body(Holder), Drop, Action,
+        Payload, 1000, bHandled, Error) && bHandled && Ground.Num() == 1 && Ground[0].Echo.IsSet())) { return false; }
+    if (!Advance(1550)) { return false; }
+    const auto Scale = [&Pending](const FLDCombatBodyRef& Ref)
+    {
+        const FLDCombatHit* Hit = Pending.FindByPredicate([&Ref](const FLDCombatHit& Row) { return Row.Target == Ref; });
+        return Hit ? Hit->DeliveryScaleBp : int64(-1);
+    };
+    if (!TestTrue(TEXT("The impact lands whole inside and 60% outside, and one echo is due 0.8 s later"), Pending.Num() == 2
+        && Scale(Inner) == 10000 && Scale(Outer) == 6000 && Ground.Num() == 1 && Ground[0].Origin == ELDCombatGroundOrigin::Echo
+        && Ground[0].ReadyAtMs == 2350 && !Ground[0].Echo.IsSet() && Ground[0].ObservedKey.IsValid())) { return false; }
+    Pending.Reset();
+    if (!Advance(2349)) { return false; }
+    TestTrue(TEXT("Nothing before 0.8 s"), Pending.IsEmpty() && Ground.Num() == 1);
+    if (!Advance(2350)) { return false; }
+    TestTrue(TEXT("The echo lands at 50% with the same outline and falloff, as a native hit of the same release"), Pending.Num() == 2
+        && Scale(Inner) == 5000 && Scale(Outer) == 3000 && Pending[0].EffectId == Payload.EffectId && IsNativeDirectHit(Pending[0])
+        && Ground.IsEmpty());
+    Pending.Reset();
+    if (!Advance(6000)) { return false; }
+    TestTrue(TEXT("The echo does not echo"), Pending.IsEmpty() && Ground.IsEmpty());
+
+    // S07: a blast of its radius at the release foot after 0.8 s at 50% with one burn stack.
+    FLDCombatActiveTerms Seethe;
+    FLDCombatHit Rage;
+    if (!InstallComponents(*this, F, Holder, 10, {On(TEXT("component_encore"), ELDComponentTargetKind::Active, TEXT("active_seethe"))})
+        || !Released(*this, F, Holder, TEXT("active_seethe"), Seethe, Rage)) { return false; }
+    TestEqual(TEXT("M15 multiplies S07's cooldown by 1.15"), Seethe.Values.CooldownMs, int64(11500));
+    F.Now(7000);
+    FLDCombatAction Self;
+    if (!TestTrue(FString::Printf(TEXT("S07 is released: %s"), *Error), FAccess::DeliverPayload(*F.Driver, F.Actor(Holder),
+        F.Body(Holder), Seethe, Self, Rage, FLDCombatBodyRef(), FVector::ZeroVector, F.Foot(Holder), 7000, Error))) { return false; }
+    TestTrue(TEXT("S07's echo is scheduled at its foot"), Ground.Num() == 1 && Ground[0].Origin == ELDCombatGroundOrigin::Echo
+        && Ground[0].ReadyAtMs == 7800 && Ground[0].RadiusCm == 300 && Ground[0].Payload.BurnStacks == 1
+        && Ground[0].Payload.DeliveryScaleBp == 5000 && FVector::Dist2D(Ground[0].CentreCm, F.Foot(Holder)) < 1);
+
+    // Install legality: each mod only on its listed actives.
+    TestFalse(TEXT("M13 does not install on S07"), ProjectComponents(*F.Catalog, 10,
+        {On(TEXT("component_boomerang"), ELDComponentTargetKind::Active, TEXT("active_seethe"))}).IsSuccess());
+    TestFalse(TEXT("M14 does not install on S18"), ProjectComponents(*F.Catalog, 10,
+        {On(TEXT("component_skewer"), ELDComponentTargetKind::Active, TEXT("active_calculus_drop"))}).IsSuccess());
+    TestFalse(TEXT("M15 does not install on S06"), ProjectComponents(*F.Catalog, 10,
+        {On(TEXT("component_encore"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))}).IsSuccess());
+    TestTrue(TEXT("M14 installs on S10 and M15 on S19"), ProjectComponents(*F.Catalog, 10,
+        {On(TEXT("component_skewer"), ELDComponentTargetKind::Active, TEXT("active_zap")),
+         On(TEXT("component_encore"), ELDComponentTargetKind::Active, TEXT("active_flyer_trap"))}).IsSuccess());
+    return true;
+}
+
+// Connectors C13-C16 (docs/systems/COMBAT_AND_GROWTH.md): learned-active cooldown tracks of a fixture contender.
+namespace LDBuildPrimitivesTests
+{
+FLDCombatTrack& TrackOf(FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* Active, int64 ReadyAtMs)
+{
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Ref.Victim.EntityId);
+    FLDCombatTrack* Track = Record.Tracks.FindByPredicate([Active](const FLDCombatTrack& Row) { return Row.DefinitionId == FName(Active); });
+    if (!Track)
+    {
+        Track = &Record.Tracks.AddDefaulted_GetRef();
+        Track->IssuedCooldownId = FGuid::NewGuid();
+        Track->Kind = ELDCombatSourceKind::Learned;
+        Track->DefinitionId = FName(Active);
+    }
+    Track->ReadyAtMs = ReadyAtMs;
+    return *Track;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentHitHasteOtherTest, "Lockdown.Rules.Combat.Components.HitHasteOther",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentHitHasteOtherTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000),
+        Second = F.AddBody(ELDVictimKind::Contender, 10000000);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_next_up"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))})) { return false; }
+    F.Now(1000);
+    TrackOf(F, Holder, TEXT("active_snark_bolt"), 10000);
+    TrackOf(F, Holder, TEXT("active_elbow"), 10000);
+    TrackOf(F, Holder, TEXT("active_zap"), 1500);
+    const auto ReadyAt = [&F, &Holder](const TCHAR* Active)
+    {
+        const FLDCombatTrack* Track = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId).Tracks.FindByPredicate(
+            [Active](const FLDCombatTrack& Row) { return Row.DefinitionId == FName(Active); });
+        return Track ? Track->ReadyAtMs : int64(-1);
+    };
+    FLDCombatHit Payload;
+    if (!SnarkBolt(*this, F, Holder, Target, Payload) || !Land(*this, F, Payload)) { return false; }
+    TestTrue(TEXT("The host's first native hit cuts every other active by 1.5 s, never below now, never the host"),
+        ReadyAt(TEXT("active_elbow")) == 8500 && ReadyAt(TEXT("active_zap")) == 1000 && ReadyAt(TEXT("active_snark_bolt")) == 10000);
+    FLDCombatHit Derived = Payload;
+    Derived.HitId = FGuid::NewGuid();
+    Derived.Target = Second;
+    if (!Land(*this, F, Derived)) { return false; }
+    TestEqual(TEXT("Another hit of the same release cuts nothing more"), ReadyAt(TEXT("active_elbow")), int64(8500));
+    FLDCombatHit Other;
+    FLDCombatActiveTerms Terms;
+    if (!Released(*this, F, Holder, TEXT("active_unplug"), Terms, Other)) { return false; }
+    Other.Target = Target;
+    if (!Land(*this, F, Other)) { return false; }
+    TestTrue(TEXT("A different active's hit is no host hit"), ReadyAt(TEXT("active_elbow")) == 8500
+        && ReadyAt(TEXT("active_snark_bolt")) == 10000);
+    FLDCombatHit Next;
+    if (!SnarkBolt(*this, F, Holder, Target, Next) || !Land(*this, F, Next)) { return false; }
+    TestEqual(TEXT("The next release cuts again"), ReadyAt(TEXT("active_elbow")), int64(7000));
+
+    // On the innate dash: its first real contact cuts every learned active, once per dash action.
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_next_up"), ELDComponentTargetKind::Dash)})) { return false; }
+    FString Error;
+    const FLDCombatSourceRef Dash = SourceOf(ELDCombatSourceKind::Innate, TEXT("innate_dash"));
+    const FGuid DashId = FGuid::NewGuid();
+    if (!TestTrue(FString::Printf(TEXT("Dash contact: %s"), *Error), FAccess::HasteOther(*F.Driver, F.Body(Holder), Dash, DashId, 1000, Error)
+        && FAccess::HasteOther(*F.Driver, F.Body(Holder), Dash, DashId, 1000, Error))) { return false; }
+    TestTrue(TEXT("A hosted dash contact cuts every learned active by 1.5 s, once per dash"), ReadyAt(TEXT("active_elbow")) == 5500
+        && ReadyAt(TEXT("active_snark_bolt")) == 8500);
+    if (!SnarkBolt(*this, F, Holder, Target, Payload) || !Land(*this, F, Payload)) { return false; }
+    TestTrue(TEXT("Installed on the dash it no longer hosts S06"), ReadyAt(TEXT("active_elbow")) == 5500
+        && ReadyAt(TEXT("active_snark_bolt")) == 8500);
+    TestFalse(TEXT("C13 does not install on the non-damaging bail-out"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_next_up"), ELDComponentTargetKind::Active, TEXT("active_bail_out"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentHitHasteOtherDashContactTest, "Lockdown.Rules.Combat.Components.HitHasteOtherDashContact",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentHitHasteOtherDashContactTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder=F.AddBody(), Target=F.AddBody();
+    if (!InstallComponents(*this,F,Holder,1,{On(TEXT("component_next_up"),ELDComponentTargetKind::Dash)})) { return false; }
+    F.Place(Holder,0,0);
+    F.Place(Target,120,0);
+    FLDBodyCombatState& Body=F.Body(Holder);
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId);
+    Record.Projection=Body.AttributeProjection;
+    FLDCombatTrack& DashTrack=Record.Tracks.AddDefaulted_GetRef();
+    DashTrack.IssuedCooldownId=FGuid::NewGuid();
+    DashTrack.Kind=ELDCombatSourceKind::Innate;
+    DashTrack.DefinitionId=LDCombatSourceRules::InnateDashId();
+    FLDCombatTrack& ActiveTrack=TrackOf(F,Holder,TEXT("active_elbow"),10000);
+
+    FLDCombatAction Action;
+    Action.Kind=ELDCombatActionKind::Ability;
+    Action.Entry=ELDCombatEntry::Dash;
+    Action.Source.Kind=ELDCombatSourceKind::Innate;
+    Action.Source.DefinitionId=LDCombatSourceRules::InnateDashId();
+    Action.Direction=FVector(1,0,0);
+    ELDCombatReject Reject=ELDCombatReject::None;
+    FString Error;
+    if (!FAccess::ReleaseAbility(*F.Driver,F.Actor(Holder),Body,Action,Reject,Error) || Reject!=ELDCombatReject::None)
+    {
+        AddError(TEXT("The real innate dash release failed: ")+Error);
+        return false;
+    }
+    TestTrue(TEXT("C13 alone registers the innate dash's real contact window"),Body.DashContact.IsValid()
+        && !Body.DashContact->bCanDamage && !Body.DashContact->bCanRefund && !Body.DashContact->bCanKnock);
+    if (!Body.DashContact.IsValid()) { return false; }
+
+    const double StartSec=double(Body.DashContact->StartMs)/1000.;
+    const double EndSec=double(Body.DashContact->EndMs)/1000.;
+    const FVector StartFoot=F.Foot(Holder), EndFoot=StartFoot+FVector(350,0,0), TargetFoot=F.Foot(Target);
+    auto SourceBatch=MakeShared<FLDNativeMotionBatch>();
+    SourceBatch->Body=Holder;
+    SourceBatch->Step.StartServerSeconds=StartSec;
+    SourceBatch->Step.EndServerSeconds=EndSec;
+    SourceBatch->StartFootCm=StartFoot;
+    SourceBatch->EndFootCm=EndFoot;
+    FLDNativeMotionRecord& Movement=SourceBatch->Records.AddDefaulted_GetRef();
+    Movement.Kind=ELDNativeMotionRecordKind::Movement;
+    Movement.FromFootCm=StartFoot;
+    Movement.ToFootCm=EndFoot;
+    Movement.StartServerSeconds=StartSec;
+    Movement.EndServerSeconds=EndSec;
+
+    auto TargetBatch=MakeShared<FLDNativeMotionBatch>();
+    TargetBatch->Body=Target;
+    TargetBatch->Step=SourceBatch->Step;
+    TargetBatch->StartFootCm=TargetFoot;
+    TargetBatch->EndFootCm=TargetFoot;
+    FAccess::CaptureSkillMotion(*F.Driver,SourceBatch);
+    FAccess::CaptureSkillMotion(*F.Driver,TargetBatch);
+    F.Now(Body.DashContact->EndMs);
+    if (!FAccess::ResolveDashContacts(*F.Driver,F.Mode->GetAuthorityNowMs(),Error))
+    {
+        AddError(TEXT("Resolving the real dash-contact path failed: ")+Error);
+        return false;
+    }
+    TestTrue(TEXT("The actual enemy contact cuts another learned active by 1.5 s"),ActiveTrack.ReadyAtMs==8500
+        && Body.DashContact->Struck.Contains(Target));
+    {
+        FFixture Combo;
+        if (!Combo.Init(*this, true)) { return false; }
+        const FLDCombatBodyRef Runner = Combo.AddBody(), Victim = Combo.AddBody();
+        Combo.Place(Runner, 0, 0);
+        Combo.Place(Victim, 120, 0);
+        if (!InstallComponents(*this, Combo, Runner, 10, {{TEXT("component_dash_bump")}, {TEXT("component_dash_punch")},
+            On(TEXT("component_bump_again"), ELDComponentTargetKind::Dash),
+            On(TEXT("component_roll_bump"), ELDComponentTargetKind::Dash)})) { return false; }
+        FLDBodyCombatState& DashBody = Combo.Body(Runner);
+        FLDCombatEntityRecord& DashRecord = FAccess::Records(*Combo.Driver).FindChecked(Runner.Victim.EntityId);
+        DashRecord.Projection = DashBody.AttributeProjection;
+        FLDCombatTrack& Track = DashRecord.Tracks.AddDefaulted_GetRef();
+        Track.IssuedCooldownId = FGuid::NewGuid();
+        Track.Kind = ELDCombatSourceKind::Innate;
+        Track.DefinitionId = LDCombatSourceRules::InnateDashId();
+        FLDCombatAction DashAction;
+        DashAction.Kind = ELDCombatActionKind::Ability;
+        DashAction.Entry = ELDCombatEntry::Dash;
+        DashAction.Source.Kind = ELDCombatSourceKind::Innate;
+        DashAction.Source.DefinitionId = LDCombatSourceRules::InnateDashId();
+        DashAction.Direction = FVector(1, 0, 0);
+        ELDCombatReject DashReject = ELDCombatReject::None;
+        FString DashError;
+        if (!FAccess::ReleaseAbility(*Combo.Driver, Combo.Actor(Runner), DashBody, DashAction, DashReject, DashError)
+            || DashReject != ELDCombatReject::None || !DashBody.DashContact.IsValid())
+        {
+            AddError(TEXT("The combined dash release failed: ") + DashError);
+            return false;
+        }
+        TestTrue(TEXT("A single dash enables contact damage, refund and knockback together"),
+            DashBody.DashContact->bCanDamage && DashBody.DashContact->bCanRefund && DashBody.DashContact->bCanKnock);
+        const int64 ReadyBefore = Track.ReadyAtMs;
+        const double Start = double(DashBody.DashContact->StartMs) / 1000.;
+        const double End = double(DashBody.DashContact->EndMs) / 1000.;
+        const FVector From = Combo.Foot(Runner), To = From + FVector(350, 0, 0), At = Combo.Foot(Victim);
+        auto Motion = MakeShared<FLDNativeMotionBatch>();
+        Motion->Body = Runner;
+        Motion->Step.StartServerSeconds = Start;
+        Motion->Step.EndServerSeconds = End;
+        Motion->StartFootCm = From;
+        Motion->EndFootCm = To;
+        FLDNativeMotionRecord& Move = Motion->Records.AddDefaulted_GetRef();
+        Move.Kind = ELDNativeMotionRecordKind::Movement;
+        Move.FromFootCm = From;
+        Move.ToFootCm = To;
+        Move.StartServerSeconds = Start;
+        Move.EndServerSeconds = End;
+        auto Still = MakeShared<FLDNativeMotionBatch>();
+        Still->Body = Victim;
+        Still->Step = Motion->Step;
+        Still->StartFootCm = Still->EndFootCm = At;
+        FAccess::CaptureSkillMotion(*Combo.Driver, Motion);
+        FAccess::CaptureSkillMotion(*Combo.Driver, Still);
+        Combo.Now(DashBody.DashContact->EndMs);
+        if (!TestTrue(TEXT("The combined dash contact resolves: ") + DashError,
+            FAccess::ResolveDashContacts(*Combo.Driver, Combo.Mode->GetAuthorityNowMs(), DashError))) { return false; }
+        const auto& Hits = FAccess::PendingHits(*Combo.Driver);
+        if (!TestTrue(TEXT("One contact produces one added damage and one knockback, not native skill hits"), Hits.Num() == 2
+            && Hits[0].Source.DefinitionId == FName(TEXT("component_dash_bump")) && Hits[0].bAddedDamage
+            && !IsNativeDirectHit(Hits[0]) && Hits[1].Source.DefinitionId == FName(TEXT("component_roll_bump"))
+            && Hits[1].KnockbackCm > 0 && !IsNativeDirectHit(Hits[1]))) { return false; }
+        const int64 Refunded = Track.ReadyAtMs;
+        TestTrue(TEXT("The contact refunds the dash cooldown once"),
+            Refunded == FMath::Max<int64>(Combo.Mode->GetAuthorityNowMs(), ReadyBefore - 1500));
+        FAccess::CaptureSkillMotion(*Combo.Driver, Motion);
+        FAccess::CaptureSkillMotion(*Combo.Driver, Still);
+        TestTrue(TEXT("Replaying the same contact adds no hits or refund"),
+            FAccess::ResolveDashContacts(*Combo.Driver, Combo.Mode->GetAuthorityNowMs(), DashError)
+            && Hits.Num() == 2 && Track.ReadyAtMs == Refunded);
+        Combo.Actor(Runner).SetActorLocation(Combo.Actor(Runner).GetActorLocation() + FVector(350, 0, 0));
+        TestTrue(TEXT("The same completed dash arms exactly one empowered basic"),
+            FAccess::ResolveDashCompletions(*Combo.Driver, Combo.Mode->GetAuthorityNowMs(), DashError)
+            && DashBody.Empowers.Num() == 1
+            && DashBody.Empowers[0].Source.DefinitionId == FName(TEXT("component_dash_punch"))
+            && DashBody.Empowers[0].Charges == 1);
+        TestTrue(TEXT("The completed dash cannot arm the basic twice"),
+            FAccess::ResolveDashCompletions(*Combo.Driver, Combo.Mode->GetAuthorityNowMs(), DashError)
+            && DashBody.Empowers.Num() == 1);
+        if (!Drain(*this, Combo)) { return false; }
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentSetupMarkTest, "Lockdown.Rules.Combat.Components.SetupMark",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentSetupMarkTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_setup_line"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))})
+        || !InstallComponents(*this, F, Target, 1, {})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    F.Now(1000);
+    const auto Loss = [&](const TCHAR* Active, int64& Out)
+    {
+        FLDCombatActiveTerms Terms;
+        FLDCombatHit Payload;
+        F.Body(Target).Resources.HpP2 = HP;
+        if (!Released(*this, F, Holder, Active, Terms, Payload)) { return false; }
+        Payload.Target = Target;
+        if (!Land(*this, F, Payload)) { return false; }
+        Out = HP - F.Body(Target).Resources.HpP2;
+        return true;
+    };
+    int64 ZapBase = 0, BoltFirst = 0, BoltMarked = 0, ZapMarked = 0, ZapAfter = 0;
+    if (!Loss(TEXT("active_unplug"), ZapBase)) { return false; }
+    TestTrue(TEXT("Another active's hit sets no mark"), Body.SetupMarks.IsEmpty());
+    if (!Loss(TEXT("active_snark_bolt"), BoltFirst)) { return false; }
+    TestTrue(TEXT("The host's hit marks the struck life for 4 s"), Body.SetupMarks.Num() == 1 && Body.SetupMarks[0].Target == Target
+        && Body.SetupMarks[0].ExpiresAtMs == 5000);
+    F.Now(2000);
+    if (!Loss(TEXT("active_snark_bolt"), BoltMarked)) { return false; }
+    TestTrue(TEXT("The host's own hit neither takes nor consumes the mark; it refreshes the one mark"), BoltMarked == BoltFirst
+        && Body.SetupMarks.Num() == 1 && Body.SetupMarks[0].ExpiresAtMs == 6000);
+    if (!Loss(TEXT("active_unplug"), ZapMarked) || !Loss(TEXT("active_unplug"), ZapAfter)) { return false; }
+    TestTrue(TEXT("A different active's next native hit takes +25% once and consumes the mark"), ZapBase > 0
+        && FMath::Abs(ZapMarked * 10000 - ZapBase * 12500) <= 20000 && ZapAfter == ZapBase && Body.SetupMarks.IsEmpty());
+    int64 Ignored = 0, ZapLate = 0;
+    if (!Loss(TEXT("active_snark_bolt"), Ignored)) { return false; }
+    F.Now(6000);
+    if (!Loss(TEXT("active_unplug"), ZapLate)) { return false; }
+    TestEqual(TEXT("An expired mark gives nothing"), ZapLate, ZapBase);
+    if (!Loss(TEXT("active_snark_bolt"), Ignored)) { return false; }
+    if (!Basic(*this, F, Holder, Target) || !Drain(*this, F)) { return false; }
+    TestEqual(TEXT("A basic neither takes nor consumes the mark"), Body.SetupMarks.Num(), 1);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentReactionHasteTest, "Lockdown.Rules.Combat.Components.ReactionHaste",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentReactionHasteTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Other = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Holder, -600, -600);
+    F.Place(Other, 600, -600);
+    F.Place(Target, 0, 600);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_blast_reload"), ELDComponentTargetKind::Active, TEXT("active_zap"))})) { return false; }
+    F.Now(1000);
+    TrackOf(F, Holder, TEXT("active_zap"), 11000);
+    TrackOf(F, Holder, TEXT("active_elbow"), 11000);
+    const auto ReadyAt = [&F, &Holder](const TCHAR* Active)
+    {
+        const FLDCombatTrack* Track = FAccess::Records(*F.Driver).FindChecked(Holder.Victim.EntityId).Tracks.FindByPredicate(
+            [Active](const FLDCombatTrack& Row) { return Row.DefinitionId == FName(Active); });
+        return Track ? Track->ReadyAtMs : int64(-1);
+    };
+    FString Error;
+    const auto Wet = [&]()
+    {
+        FLDCombatHit Water = FFixture::Hit(Other, Target, 0);
+        Water.bApplyWet = true;
+        return TestTrue(FString::Printf(TEXT("Wet: %s"), *Error), F.Apply(Water, Error));
+    };
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Holder, TEXT("active_zap"), Terms, Payload)) { return false; }
+    Payload.Target = Target;
+    TestTrue(TEXT("S10's payload electrifies"), Payload.bApplyElectric);
+    if (!Wet() || !Land(*this, F, Payload)) { return false; }
+    TestTrue(TEXT("S10 triggers the reaction"), FAccess::Reactions(*F.Driver).Num() == 1
+        && FAccess::Reactions(*F.Driver)[0].TriggerEntity == Holder.Victim.EntityId);
+    TestTrue(TEXT("The host-triggered reaction cuts the host by 3 s and nothing else"), ReadyAt(TEXT("active_zap")) == 8000
+        && ReadyAt(TEXT("active_elbow")) == 11000);
+    if (!F.Flush(Error)) { return false; }
+    FLDCombatHit Again = Payload;
+    Again.HitId = FGuid::NewGuid();
+    if (!Wet() || !Land(*this, F, Again)) { return false; }
+    TestEqual(TEXT("A second reaction of the same release cuts nothing more"), ReadyAt(TEXT("active_zap")), int64(8000));
+    if (!F.Flush(Error)) { return false; }
+    FLDCombatHit Foreign = FFixture::Hit(Holder, Target, 0);
+    Foreign.Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_elbow"));
+    Foreign.bApplyElectric = true;
+    const int32 Before = FAccess::Reactions(*F.Driver).Num();
+    if (!Wet() || !TestTrue(FString::Printf(TEXT("Another trigger: %s"), *Error), F.Apply(Foreign, Error))) { return false; }
+    TestTrue(TEXT("A reaction another source triggered never cuts the host"), FAccess::Reactions(*F.Driver).Num() > Before
+        && ReadyAt(TEXT("active_zap")) == 8000 && ReadyAt(TEXT("active_elbow")) == 11000);
+    if (!F.Flush(Error)) { return false; }
+    FLDCombatHit Lone;
+    if (!Released(*this, F, Holder, TEXT("active_zap"), Terms, Lone)) { return false; }
+    Lone.Target = Target;
+    const int32 Prior = FAccess::Reactions(*F.Driver).Num();
+    if (!Land(*this, F, Lone)) { return false; }
+    TestTrue(TEXT("A new release without a reaction cuts nothing"), FAccess::Reactions(*F.Driver).Num() == Prior
+        && ReadyAt(TEXT("active_zap")) == 8000);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentMultiHitManaTest, "Lockdown.Rules.Combat.Components.MultiHitMana",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentMultiHitManaTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    TArray<FLDCombatBodyRef> Targets;
+    for (int32 Index = 0; Index < 5; ++Index) { Targets.Add(F.AddBody(ELDVictimKind::Contender, 10000000)); }
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_group_refund"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    Body.Resources.MaxMpP2 = 100000;
+    Body.Resources.MpP2 = 0;
+    FLDCombatHit Payload;
+    if (!SnarkBolt(*this, F, Holder, Targets[0], Payload)) { return false; }
+    const auto Strike = [&](const FLDCombatHit& Release, int32 Index)
+    {
+        FLDCombatHit Hit = Release;
+        Hit.HitId = FGuid::NewGuid();
+        Hit.Target = Targets[Index];
+        return Land(*this, F, Hit);
+    };
+    if (!Strike(Payload, 0) || !Strike(Payload, 0)) { return false; }
+    TestEqual(TEXT("One enemy, struck twice by the release, gives nothing"), Body.Resources.MpP2, int64(0));
+    if (!Strike(Payload, 1) || !Strike(Payload, 1)) { return false; }
+    TestEqual(TEXT("A second distinct enemy gives 8 MP once, however often a derived hit strikes it"), Body.Resources.MpP2, int64(800));
+    if (!Strike(Payload, 2) || !Strike(Payload, 3) || !Strike(Payload, 4)) { return false; }
+    TestEqual(TEXT("At most 24 MP per release"), Body.Resources.MpP2, int64(2400));
+    FLDCombatHit Next;
+    if (!SnarkBolt(*this, F, Holder, Targets[0], Next) || !Strike(Next, 0)) { return false; }
+    TestEqual(TEXT("A single-target release gives nothing"), Body.Resources.MpP2, int64(2400));
+    if (!Strike(Next, 1)) { return false; }
+    TestEqual(TEXT("Each release counts its own enemies"), Body.Resources.MpP2, int64(3200));
+    return true;
+}
+
+// ---- Mods M16-M20 (docs/systems/COMBAT_AND_GROWTH.md): real releases of a fixture contender's learned active.
+namespace LDBuildPrimitivesTests
+{
+// One real ReleaseAbility of Active on Q, with the body's installed projection as its record's build.
+bool ReleaseOnQ(FAutomationTestBase& Test, FFixture& F, const FLDCombatBodyRef& Ref, const TCHAR* Active)
+{
+    FLDBodyCombatState& Body = F.Body(Ref);
+    FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Ref.Victim.EntityId);
+    Record.Projection = Body.AttributeProjection;
+    Record.Build.Actives.Reset();
+    Record.Build.Actives.Add({FName(Active), ELDCombatEntry::Q});
+    TrackOf(F, Ref, Active, 0);
+    Body.Resources.MaxMpP2 = Body.Resources.MpP2 = 100000;
+    FLDCombatAction Action;
+    Action.Kind = ELDCombatActionKind::Ability;
+    Action.Entry = ELDCombatEntry::Q;
+    Action.Source = SourceOf(ELDCombatSourceKind::Learned, Active);
+    Action.Direction = FVector(1, 0, 0);
+    ELDCombatReject Reject = ELDCombatReject::None;
+    FString Error;
+    if (!FAccess::ReleaseAbility(*F.Driver, F.Actor(Ref), Body, Action, Reject, Error) || Reject != ELDCombatReject::None)
+    {
+        Test.AddError(FString::Printf(TEXT("Release of %s: reject %d: %s"), Active, int32(Reject), *Error));
+        return false;
+    }
+    return true;
+}
+
+// The planar displacement of the body's running forced move (its dash root motion), if any.
+bool PushOf(FFixture& F, const FLDCombatBodyRef& Ref, FVector& Out)
+{
+    auto* Movement = Cast<ULDCharacterMovementComponent>(F.Actor(Ref).GetCharacterMovement());
+    const TSharedPtr<FRootMotionSource> Source = Movement ? Movement->GetRootMotionSource(FName(TEXT("LDDemoDash"))) : nullptr;
+    if (!Source.IsValid()) { return false; }
+    const FRootMotionSource_ConstantForce& Force = static_cast<const FRootMotionSource_ConstantForce&>(*Source);
+    Out = Force.Force * double(Force.Duration);
+    return true;
+}
+
+double CmOf(const FLDDemoRational& Value) { return Value.Denominator > 0 ? double(Value.Numerator) / double(Value.Denominator) : -1.; }
+
+const FLDCombatHit* PendingOn(FFixture& F, const FLDCombatBodyRef& Target)
+{
+    return FAccess::PendingHits(*F.Driver).FindByPredicate([&Target](const FLDCombatHit& Row) { return Row.Target == Target; });
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentZoneTetherTest, "Lockdown.Rules.Combat.Components.ZoneTether",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentZoneTetherTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody();
+    F.Place(Holder, 0, 0);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_zone_tether"), ELDComponentTargetKind::Active, TEXT("active_quick_meeting"))})) { return false; }
+    FLDCombatActiveTerms Plain, Tethered;
+    FLDCombatHit Payload;
+    if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), Plain)
+        || !Released(*this, F, Holder, TEXT("active_quick_meeting"), Tethered, Payload)) { return false; }
+    const FLDDemoEffectDefinition* PlainZone = FindEffect(Plain.Values, ELDDemoEffectOp::Zone);
+    const FLDDemoEffectDefinition* Zone = FindEffect(Tethered.Values, ELDDemoEffectOp::Zone);
+    if (!TestTrue(TEXT("M16 scales S08's zone radius by 0.8"), PlainZone && Zone && SameRational(PlainZone->RadiusCm, 240)
+        && SameRational(Zone->RadiusCm, 192) && Tethered.ZoneTether.IsSet())) { return false; }
+    TArray<FLDCombatZone>& Zones = FAccess::Zones(*F.Driver);
+    const FLDCombatSourceRef Source = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_quick_meeting"));
+    const FVector Start = F.Foot(Holder), Point = Start + FVector(300, 0, 0);
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("Tethered zone: %s"), *Error),
+        FAccess::ReleaseTerms(*F.Driver, F.Body(Holder), Source, Tethered, Start, Point, Error))
+        || !TestTrue(FString::Printf(TEXT("Plain zone: %s"), *Error),
+        FAccess::ReleaseTerms(*F.Driver, F.Body(Holder), Source, Plain, Start, Point, Error))) { return false; }
+    if (!TestEqual(TEXT("Both zones are placed"), Zones.Num(), 2)) { return false; }
+    TestTrue(TEXT("The tethered zone starts on the caster's foot; a plain zone sits at its point"), Zones[0].bTether
+        && FVector::Dist2D(Zones[0].CentreCm, Start) < 1 && FMath::IsNearlyEqual(Zones[0].RadiusCm, 192.)
+        && !Zones[1].bTether && FVector::Dist2D(Zones[1].CentreCm, Point) < 1);
+    F.Place(Holder, 300, 200);
+    F.Now(1500);
+    if (!TestTrue(FString::Printf(TEXT("Advance: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1500, Error))) { return false; }
+    const FVector Moved = F.Foot(Holder);
+    TestTrue(TEXT("The tethered centre follows the living caster across advances; the plain one stays"), Zones.Num() == 2
+        && FVector::Dist2D(Zones[0].CentreCm, Moved) < 1 && FVector::Dist2D(Zones[1].CentreCm, Point) < 1);
+    F.Body(Holder).bPendingDeath = true;
+    F.Place(Holder, -300, -200);
+    F.Now(1600);
+    if (!TestTrue(FString::Printf(TEXT("Advance: %s"), *Error), FAccess::AdvanceMechanics(*F.Driver, 1600, Error))) { return false; }
+    TestTrue(TEXT("A dead caster's tethered zone stays where it was"), !Zones.IsEmpty() && Zones[0].bTether
+        && FVector::Dist2D(Zones[0].CentreCm, Moved) < 1);
+    F.Body(Holder).bPendingDeath = false;
+    TestFalse(TEXT("M16 does not install on S01"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_zone_tether"), ELDComponentTargetKind::Active, TEXT("active_elbow"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentDefenseShoveTest, "Lockdown.Rules.Combat.Components.DefenseShove",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentDefenseShoveTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Plain = F.AddBody(ELDVictimKind::Contender, HP),
+        Attacker = F.AddBody(ELDVictimKind::Contender, HP), Far = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Attacker, 150, 0);
+    F.Place(Far, 400, 0);
+    F.Place(Plain, -500, 500);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_shove_off"), ELDComponentTargetKind::Active, TEXT("active_not_mad"))})
+        || !InstallComponents(*this, F, Plain, 1, {})
+        || !ReleaseOnQ(*this, F, Holder, TEXT("active_not_mad")) || !ReleaseOnQ(*this, F, Plain, TEXT("active_not_mad"))) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    const int64 Shield = Body.Resources.ShieldP2, PlainShield = F.Body(Plain).Resources.ShieldP2;
+    TestTrue(TEXT("M17 makes S14's shield 0.85 times as strong"), PlainShield > 0
+        && FMath::Abs(Shield * 10000 - PlainShield * 8500) <= 30000);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    Pending.Reset();
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("Break: %s"), *Error), F.Apply(FFixture::Hit(Attacker, Holder, Shield * 4), Error))) { return false; }
+    const FLDCombatHit* Shove = PendingOn(F, Attacker);
+    TestTrue(TEXT("An enemy breaking the host shield shoves the enemies within 250 cm away from the holder"), Body.Resources.ShieldP2 == 0
+        && Shove && Shove->KnockbackCm == 220 && Shove->KnockbackMs == 200 && Shove->bKnockbackFromAnchor && !Shove->bKnockbackPull
+        && FVector::Dist2D(Shove->KnockbackAnchorCm, F.Foot(Holder)) < 1
+        && Shove->KnockbackSource == SourceOf(ELDCombatSourceKind::Learned, TEXT("active_not_mad")) && !PendingOn(F, Far));
+    if (!F.Flush(Error)) { AddError(TEXT("Shove: ") + Error); return false; }
+    FVector Push;
+    TestTrue(TEXT("The shove is a real knockback away from the holder"), F.Body(Attacker).Knockbacks.Num() == 1 && PushOf(F, Attacker, Push)
+        && Push.X > 200 && FMath::Abs(Push.Y) < 1);
+
+    // An expired shield shoves nothing.
+    F.Now(2000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_not_mad"))) { return false; }
+    TestTrue(TEXT("The recast grants a shield"), Body.Resources.ShieldP2 > 0);
+    F.Now(6000);
+    FAccess::ExpireStatuses(*F.Driver, 6000);
+    Pending.Reset();
+    if (!TestTrue(FString::Printf(TEXT("Late hit: %s"), *Error), F.Apply(FFixture::Hit(Far, Holder, 10000), Error))) { return false; }
+    TestTrue(TEXT("After the shield expired no hit shoves"), Body.Resources.ShieldP2 == 0
+        && !Pending.ContainsByPredicate([](const FLDCombatHit& Row) { return Row.KnockbackCm > 0; }));
+
+    // S16: the answer of a recorded amount shoves what it reaches.
+    const FLDCombatBodyRef Bracer = F.AddBody(ELDVictimKind::Contender, HP), Near = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Bracer, -500, -500);
+    F.Place(Near, -350, -500);
+    F.Now(7000);
+    if (!InstallComponents(*this, F, Bracer, 1,
+        {On(TEXT("component_shove_off"), ELDComponentTargetKind::Active, TEXT("active_brace"))})
+        || !ReleaseOnQ(*this, F, Bracer, TEXT("active_brace"))) { return false; }
+    Pending.Reset();
+    if (!TestTrue(FString::Printf(TEXT("Braced hit: %s"), *Error), F.Apply(FFixture::Hit(Near, Bracer, 100000), Error))) { return false; }
+    const int64 EndsAt = F.Body(Bracer).Brace.EndsAtMs;
+    TestTrue(TEXT("S16 records the hostile hit"), F.Body(Bracer).Brace.RecordedP2 > 0 && EndsAt > 7000);
+    Pending.Reset();
+    F.Now(EndsAt);
+    if (!TestTrue(FString::Printf(TEXT("Answer: %s"), *Error), FAccess::AdvanceElements(*F.Driver, EndsAt, Error))) { return false; }
+    const FLDCombatHit* Answer = PendingOn(F, Near);
+    TestTrue(TEXT("S16's answer with M17 also pushes away from the holder"), Answer && Answer->BaseP2 > 0 && Answer->KnockbackCm == 220
+        && Answer->KnockbackMs == 200 && Answer->bKnockbackFromAnchor && FVector::Dist2D(Answer->KnockbackAnchorCm, F.Foot(Bracer)) < 1
+        && Answer->KnockbackSource == SourceOf(ELDCombatSourceKind::Learned, TEXT("active_brace")));
+    Pending.Reset();
+    TestFalse(TEXT("M17 does not install on S01"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_shove_off"), ELDComponentTargetKind::Active, TEXT("active_elbow"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentFinalKnockbackTest, "Lockdown.Rules.Combat.Components.FinalKnockback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentFinalKnockbackTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 200, 0);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_finisher"), ELDComponentTargetKind::Active, TEXT("active_triple_combo"))})) { return false; }
+    FLDCombatActiveTerms Plain;
+    if (!ActiveTerms(*this, F, TEXT("active_triple_combo"), Plain)) { return false; }
+    const FLDDemoEffectDefinition* Package = FindEffect(Plain.Values, ELDDemoEffectOp::EmpowerBasic);
+    const FLDDemoStatBonus* PlainSpeed = Package ? Package->Stats.FindByPredicate([](const FLDDemoStatBonus& Row)
+    { return Row.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio; }) : nullptr;
+    if (!TestTrue(TEXT("S17 grants attack speed"), PlainSpeed && PlainSpeed->Amount > 0)
+        || !ReleaseOnQ(*this, F, Holder, TEXT("active_triple_combo"))) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    const FLDCombatTimedBonus* Bonus = Body.TimedBonuses.FindByPredicate([](const FLDCombatTimedBonus& Row)
+    { return Row.SourceDefinition == FName(TEXT("active_triple_combo")); });
+    const FLDDemoStatBonus* Speed = Bonus ? Bonus->Stats.FindByPredicate([](const FLDDemoStatBonus& Row)
+    { return Row.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio; }) : nullptr;
+    TestTrue(TEXT("M18 halves S17's attack-speed bonus"), Speed && Speed->Amount * 2 == PlainSpeed->Amount);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const FLDCombatSourceRef Host = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_triple_combo"));
+    for (int32 Index = 1; Index <= 3; ++Index)
+    {
+        Pending.Reset();
+        if (!Basic(*this, F, Holder, Target)) { return false; }
+        const FLDCombatHit* Hit = PendingOn(F, Target);
+        if (Index < 3)
+        {
+            TestTrue(FString::Printf(TEXT("Empowered basic %d does not knock"), Index), Hit && Hit->KnockbackCm == 0);
+            continue;
+        }
+        TestTrue(TEXT("The last package pushes the target 250 cm away from the holder"), Hit && Hit->KnockbackCm == 250
+            && Hit->KnockbackMs == 200 && !Hit->bKnockbackFromAnchor && !Hit->bKnockbackPull && Hit->KnockbackSource == Host
+            && Body.Empowers.IsEmpty());
+    }
+    Pending.Reset();
+    if (!Basic(*this, F, Holder, Target)) { return false; }
+    TestTrue(TEXT("A plain basic after the packages does not knock"), PendingOn(F, Target) && PendingOn(F, Target)->KnockbackCm == 0);
+    Pending.Reset();
+
+    // S22: only the final wave knocks, away from the caster, without the final slow.
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_finisher"), ELDComponentTargetKind::Active, TEXT("active_open_mic"))})) { return false; }
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Holder, TEXT("active_open_mic"), Terms, Payload)) { return false; }
+    F.Now(2000);
+    FLDCombatAction Action;
+    Action.Kind = ELDCombatActionKind::Ability;
+    Action.Direction = FVector(1, 0, 0);
+    bool bHandled = false;
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("S22 channels: %s"), *Error), FAccess::DeliverTerms(*F.Driver, Body, Terms, Action, Payload, 2000,
+        bHandled, Error) && bHandled && FAccess::Channels(*F.Driver).Num() == 1)) { return false; }
+    for (int64 At : {int64(2000), int64(2300), int64(2600)})
+    {
+        Pending.Reset();
+        F.Now(At);
+        if (!TestTrue(FString::Printf(TEXT("Wave at %lld: %s"), At, *Error), FAccess::AdvanceSkillContent(*F.Driver, At, Error))) { return false; }
+        const FLDCombatHit* Wave = PendingOn(F, Target);
+        if (At < 2600)
+        {
+            TestTrue(FString::Printf(TEXT("Wave at %lld hits without a knockback"), At), Wave && Wave->KnockbackCm == 0);
+            continue;
+        }
+        TestTrue(TEXT("The final wave pushes 250 cm away from the caster and does not slow"), Wave && Wave->KnockbackCm == 250
+            && Wave->KnockbackMs == 200 && Wave->bKnockbackFromAnchor && FVector::Dist2D(Wave->KnockbackAnchorCm, F.Foot(Holder)) < 1
+            && Wave->SlowBp == 0 && Wave->KnockbackSource == SourceOf(ELDCombatSourceKind::Learned, TEXT("active_open_mic"))
+            && FAccess::Channels(*F.Driver).IsEmpty());
+    }
+    Pending.Reset();
+    TestFalse(TEXT("M18 does not install on S01"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_finisher"), ELDComponentTargetKind::Active, TEXT("active_elbow"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentEmpowerReachTest, "Lockdown.Rules.Combat.Components.EmpowerReach",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentEmpowerReachTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 150, 0);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_long_handle"), ELDComponentTargetKind::Active, TEXT("active_triple_combo"))})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    FLDCombatActiveTerms Plain;
+    if (!ActiveTerms(*this, F, TEXT("active_triple_combo"), Plain)) { return false; }
+    const FLDDemoEffectDefinition* Effect = FindEffect(Plain.Values, ELDDemoEffectOp::EmpowerBasic);
+    const FLDCombatSourceRef Host = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_triple_combo"));
+    FLDCombatEmpower PlainPackage;
+    FString Error;
+    if (!TestTrue(FString::Printf(TEXT("Plain package: %s"), *Error), Effect
+        && FAccess::MakeEmpower(*F.Driver, Body, Host, *Effect, 1000, PlainPackage, Error) && PlainPackage.AmountP2 > 0)) { return false; }
+    const double RangeBefore = CmOf(Body.AttributeProjection.Final.AttackRangeCm);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_triple_combo"))) { return false; }
+    const FLDCombatEmpower* Armed = Body.Empowers.FindByPredicate([&Host](const FLDCombatEmpower& Row) { return Row.Source == Host; });
+    const int64 Weaker = PlainPackage.AmountP2 / 10000 * 7000 + PlainPackage.AmountP2 % 10000 * 7000 / 10000;
+    if (!TestTrue(TEXT("M19's package is 0.7 times the plain one"), Armed && Armed->AmountP2 == Weaker && Armed->Charges == 3)) { return false; }
+    const FGuid PackageId = Armed->EffectId;
+    TestTrue(TEXT("The basic range is 250 cm longer while the package is pending"),
+        FMath::IsNearlyEqual(CmOf(Body.AttributeProjection.Final.AttackRangeCm), RangeBefore + 250., 0.01));
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    for (int32 Index = 1; Index <= 3; ++Index)
+    {
+        Pending.Reset();
+        if (!Basic(*this, F, Holder, Target)) { return false; }
+        if (Index < 3)
+        {
+            TestTrue(FString::Printf(TEXT("The reach holds after basic %d"), Index),
+                FMath::IsNearlyEqual(CmOf(Body.AttributeProjection.Final.AttackRangeCm), RangeBefore + 250., 0.01));
+        }
+    }
+    Pending.Reset();
+    TestTrue(TEXT("The last package ends the reach with its charge bonus"), Body.Empowers.IsEmpty()
+        && FMath::IsNearlyEqual(CmOf(Body.AttributeProjection.Final.AttackRangeCm), RangeBefore, 0.01)
+        && !Body.TimedBonuses.ContainsByPredicate([&PackageId](const FLDCombatTimedBonus& Row) { return Row.EffectId == PackageId; }));
+    TestFalse(TEXT("M19 does not install on S01"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_long_handle"), ELDComponentTargetKind::Active, TEXT("active_elbow"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentPullTest, "Lockdown.Rules.Combat.Components.Pull",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentPullTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Target, 200, 0);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_come_here"), ELDComponentTargetKind::Active, TEXT("active_elbow"))})) { return false; }
+    FLDCombatActiveTerms Terms;
+    FLDCombatHit Payload;
+    if (!Released(*this, F, Holder, TEXT("active_elbow"), Terms, Payload)) { return false; }
+    TestTrue(TEXT("M20 turns S01's push into a pull that stops 120 cm short"), Payload.bKnockbackPull && !Payload.bKnockbackFromAnchor
+        && Payload.KnockbackCm == 300 && Payload.KnockbackMs == 250 && Payload.KnockbackStopCm == 120);
+    Payload.Target = Target;
+    if (!Land(*this, F, Payload)) { return false; }
+    FVector Push;
+    TestTrue(TEXT("The pull moves the target toward the caster and only to 120 cm of it"), F.Body(Target).Knockbacks.Num() == 1
+        && PushOf(F, Target, Push) && FMath::IsNearlyEqual(Push.X, -80., 1.) && FMath::Abs(Push.Y) < 1);
+
+    // S15: every body the taunt lands on is pulled toward the caster.
+    const FLDCombatBodyRef Taunter = F.AddBody(), Taunted = F.AddBody(ELDVictimKind::Contender, HP),
+        Close = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Taunter, -500, 400);
+    F.Place(Taunted, -250, 400);
+    F.Place(Close, -500, 300);
+    if (!InstallComponents(*this, F, Taunter, 1,
+        {On(TEXT("component_come_here"), ELDComponentTargetKind::Active, TEXT("active_stare_down"))})) { return false; }
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    Pending.Reset();
+    if (!ReleaseOnQ(*this, F, Taunter, TEXT("active_stare_down"))) { return false; }
+    const FLDCombatHit* Pull = PendingOn(F, Taunted);
+    TestTrue(TEXT("S15's landed taunt queues a pull of the taunt"), Pull && Pull->bKnockbackPull && Pull->KnockbackCm == 150
+        && Pull->KnockbackMs == 150 && Pull->KnockbackStopCm == 120
+        && Pull->KnockbackSource == SourceOf(ELDCombatSourceKind::Learned, TEXT("active_stare_down")) && PendingOn(F, Close));
+    FString Error;
+    if (!F.Flush(Error)) { AddError(TEXT("Pull: ") + Error); return false; }
+    TestTrue(TEXT("The taunted body is pulled 130 cm, to 120 cm of the caster"), PushOf(F, Taunted, Push)
+        && FMath::IsNearlyEqual(Push.X, -130., 1.) && FMath::Abs(Push.Y) < 1);
+    TestTrue(TEXT("A body already within 120 cm is not moved"), F.Body(Close).Knockbacks.IsEmpty() && !PushOf(F, Close, Push));
+    TestFalse(TEXT("M20 does not install on S14"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_come_here"), ELDComponentTargetKind::Active, TEXT("active_not_mad"))}).IsSuccess());
+    return true;
+}
+
+// ---- Connectors C17-C21 (docs/systems/COMBAT_AND_GROWTH.md): the production dash completion, shield, release and
+// native-hit entries of a fixture contender's installed build.
+namespace LDBuildPrimitivesTests
+{
+const FLDCombatHit* ComponentHitOn(FFixture& F, const FLDCombatBodyRef& Target, const TCHAR* Component)
+{
+    return FAccess::PendingHits(*F.Driver).FindByPredicate([&](const FLDCombatHit& Row)
+    {
+        return Row.Target == Target && Row.Source.Kind == ELDCombatSourceKind::Component && Row.Source.DefinitionId == FName(Component);
+    });
+}
+
+void StartDash(FFixture& F, const FLDCombatBodyRef& Ref, int64 EndMs)
+{
+    FLDCombatVoluntaryDash& Dash = F.Body(Ref).VoluntaryDash.Emplace();
+    Dash.EffectId = FGuid::NewGuid();
+    Dash.Source = SourceOf(ELDCombatSourceKind::Innate, TEXT("innate_dash"));
+    Dash.StartFootCm = F.Foot(Ref);
+    Dash.EndMs = EndMs;
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentZoneRelocateTest, "Lockdown.Rules.Combat.Components.ZoneRelocate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentZoneRelocateTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(), Plain = F.AddBody();
+    F.Place(Holder, 0, 0);
+    F.Place(Plain, -800, 0);
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_move_meeting"), ELDComponentTargetKind::Dash)})
+        || !InstallComponents(*this, F, Plain, 1, {})) { return false; }
+    FLDCombatActiveTerms Zone, Trap;
+    FLDCombatHit Payload;
+    if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), Zone)) { return false; }
+    TArray<FLDCombatZone>& Zones = FAccess::Zones(*F.Driver);
+    TArray<FLDCombatGroundEffect>& Ground = FAccess::Ground(*F.Driver);
+    const FLDCombatSourceRef ZoneSource = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_quick_meeting"));
+    FString Error;
+    const auto PlaceZone = [&](const FLDCombatBodyRef& Caster, const FVector& Point)
+    {
+        return TestTrue(FString::Printf(TEXT("Zone: %s"), *Error),
+            FAccess::ReleaseTerms(*F.Driver, F.Body(Caster), ZoneSource, Zone, F.Foot(Caster), Point, Error));
+    };
+    const auto Dash = [&](const FLDCombatBodyRef& Ref, double X, double Y, int64 AtMs)
+    {
+        StartDash(F, Ref, AtMs);
+        F.Place(Ref, X, Y);
+        F.Now(AtMs);
+        return TestTrue(FString::Printf(TEXT("Dash completion: %s"), *Error), FAccess::ResolveDashCompletions(*F.Driver, AtMs, Error));
+    };
+    F.Now(1000);
+    const FVector Point = F.Origin + FVector(400, 0, 0);
+    if (!PlaceZone(Holder, Point) || !TestEqual(TEXT("The zone is placed"), Zones.Num(), 1)) { return false; }
+    const int64 EndMs = Zones[0].EndMs;
+    const int32 Pulsed = Zones[0].Pulsed;
+    if (!Dash(Holder, 0, 300, 1200)) { return false; }
+    const FVector Landing = F.Foot(Holder);
+    TestTrue(TEXT("A completed dash of the host moves the holder's live zone to its foot, keeping its timing"), Zones.Num() == 1
+        && Zones[0].bRelocated && FVector::Dist2D(Zones[0].CentreCm, Landing) < 1 && Zones[0].EndMs == EndMs && Zones[0].Pulsed == Pulsed);
+    if (!Dash(Holder, 300, 300, 1400)) { return false; }
+    TestTrue(TEXT("A zone moves only once in its life"), FVector::Dist2D(Zones[0].CentreCm, Landing) < 1);
+
+    // The newest of a zone and an armed trap moves; the older zone stays.
+    if (!PlaceZone(Holder, Point) || !Released(*this, F, Holder, TEXT("active_flyer_trap"), Trap, Payload)) { return false; }
+    FLDCombatAction Action;
+    Action.TargetPoint = F.Origin + FVector(300, -300, 0);
+    bool bHandled = false;
+    if (!TestTrue(FString::Printf(TEXT("Trap: %s"), *Error), FAccess::DeliverTerms(*F.Driver, F.Body(Holder), Trap, Action, Payload,
+        1500, bHandled, Error) && bHandled && Ground.Num() == 1)) { return false; }
+    if (!Dash(Holder, 0, -300, 1600)) { return false; }
+    TestTrue(TEXT("The armed, untriggered trap placed last moves; the zone placed before it stays"), Ground.Num() == 1
+        && Ground[0].bRelocated && FVector::Dist2D(Ground[0].CentreCm, F.Foot(Holder)) < 1 && Zones.Num() == 2 && !Zones[1].bRelocated
+        && FVector::Dist2D(Zones[1].CentreCm, Point) < 1);
+    if (!Dash(Holder, -300, -300, 1800)) { return false; }
+    TestTrue(TEXT("The next dash moves the remaining zone"), Zones[1].bRelocated && FVector::Dist2D(Zones[1].CentreCm, F.Foot(Holder)) < 1);
+
+    // A tethered (M16) zone ignores relocation.
+    Zones.Reset();
+    Ground.Reset();
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_move_meeting"), ELDComponentTargetKind::Dash),
+        On(TEXT("component_zone_tether"), ELDComponentTargetKind::Active, TEXT("active_quick_meeting"))})) { return false; }
+    FLDCombatActiveTerms Tethered;
+    if (!Released(*this, F, Holder, TEXT("active_quick_meeting"), Tethered, Payload)
+        || !TestTrue(FString::Printf(TEXT("Tethered zone: %s"), *Error), FAccess::ReleaseTerms(*F.Driver, F.Body(Holder), ZoneSource,
+            Tethered, F.Foot(Holder), Point, Error)) || !TestTrue(TEXT("Tethered"), Zones.Num() == 1 && Zones[0].bTether)) { return false; }
+    if (!Dash(Holder, 500, 500, 2000)) { return false; }
+    TestFalse(TEXT("A tethered zone is never relocated"), Zones[0].bRelocated);
+
+    // Without C17 a completed dash moves nothing.
+    Zones.Reset();
+    if (!PlaceZone(Plain, F.Origin + FVector(-500, 0, 0)) || !TestEqual(TEXT("The plain zone is placed"), Zones.Num(), 1)) { return false; }
+    const FVector PlainCentre = Zones[0].CentreCm;
+    if (!Dash(Plain, -800, 300, 2200)) { return false; }
+    TestTrue(TEXT("Without C17 the zone stays"), Zones.Num() == 1 && !Zones[0].bRelocated
+        && FVector::Dist2D(Zones[0].CentreCm, PlainCentre) < 1);
+    TestFalse(TEXT("C17 does not install on S01"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_move_meeting"), ELDComponentTargetKind::Active, TEXT("active_elbow"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentStoredForceTest, "Lockdown.Rules.Combat.Components.StoredForce",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentStoredForceTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Plain = F.AddBody(ELDVictimKind::Contender, HP),
+        Enemy = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Enemy, 300, 0);
+    F.Place(Plain, -500, 500);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_bottled_up"), ELDComponentTargetKind::Active, TEXT("active_not_mad"))})
+        || !InstallComponents(*this, F, Plain, 1, {})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    FString Error;
+    F.Now(1000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_not_mad"))) { return false; }
+    const int64 Granted = Body.Resources.ShieldP2;
+    if (!TestTrue(TEXT("S14 grants its shield and C18 watches it"), Granted > 0 && Body.StoredForceWatch.IsSet()
+        && !Body.StoredForce.IsSet())) { return false; }
+    if (!TestTrue(FString::Printf(TEXT("Chip: %s"), *Error), F.Apply(FFixture::Hit(Enemy, Holder, 2000), Error))) { return false; }
+    const int64 Chipped = Granted - Body.Resources.ShieldP2;
+    TestTrue(TEXT("A partial absorb stores nothing while the shield lives"), Chipped > 0 && Body.StoredForceWatch.IsSet()
+        && Body.StoredForceWatch->AbsorbedP2 == Chipped && !Body.StoredForce.IsSet());
+    Pending.Reset();
+    if (!TestTrue(FString::Printf(TEXT("Break: %s"), *Error), F.Apply(FFixture::Hit(Enemy, Holder, Granted * 4), Error))) { return false; }
+    TestTrue(TEXT("A broken shield stores half of everything it actually absorbed for 5 s"), Body.Resources.ShieldP2 == 0
+        && !Body.StoredForceWatch.IsSet() && Body.StoredForce.IsSet() && FMath::Abs(Body.StoredForce->AmountP2 * 2 - Granted) <= 1
+        && Body.StoredForce->ExpiresAtMs == 6000 && Body.StoredForce->Host == FName(TEXT("active_not_mad")));
+    const int64 Stored = Body.StoredForce.IsSet() ? Body.StoredForce->AmountP2 : 0;
+
+    // A different learned active's native direct hit spends the whole store once, as an added hit of its damage type.
+    Pending.Reset();
+    F.Now(2000);
+    FLDCombatHit Bolt;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Bolt) || !Land(*this, F, Bolt)) { return false; }
+    const FLDCombatHit* Added = ComponentHitOn(F, Enemy, TEXT("component_bottled_up"));
+    TestTrue(TEXT("S06's native hit spends the store on its target: an added magical hit of the stored amount, never a crit"),
+        Added && Added->BaseP2 == Stored && Added->DamageType == ELDDemoDamageType::Magical && Added->bAddedDamage
+        && Added->HitClass != ELDCombatHitClass::BasicPrimary && !IsNativeDirectHit(*Added) && Added->ADRatioBp == 0 && Added->APRatioBp == 0
+        && !Body.StoredForce.IsSet());
+    if (!F.Flush(Error)) { AddError(TEXT("Spend: ") + Error); return false; }
+    FLDCombatHit Again;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Again) || !Land(*this, F, Again)) { return false; }
+    TestNull(TEXT("One store, one consumption"), ComponentHitOn(F, Enemy, TEXT("component_bottled_up")));
+    Pending.Reset();
+
+    // An expired shield stores its partial absorb; the store lapses after 5 s.
+    F.Now(3000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_not_mad"))) { return false; }
+    const int64 Second = Body.Resources.ShieldP2;
+    if (!TestTrue(FString::Printf(TEXT("Chip: %s"), *Error), F.Apply(FFixture::Hit(Enemy, Holder, 2000), Error))) { return false; }
+    const int64 Partial = Second - Body.Resources.ShieldP2;
+    F.Now(7000);
+    FAccess::ExpireStatuses(*F.Driver, 7000);
+    TestTrue(TEXT("An expired shield stores half of what it absorbed"), Partial > 0 && Body.StoredForce.IsSet()
+        && FMath::Abs(Body.StoredForce->AmountP2 * 2 - Partial) <= 1 && Body.StoredForce->ExpiresAtMs == 12000);
+    F.Now(12000);
+    Pending.Reset();
+    FLDCombatHit Late;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Late) || !Land(*this, F, Late)) { return false; }
+    TestTrue(TEXT("A store past its 5 s spends nothing"), !ComponentHitOn(F, Enemy, TEXT("component_bottled_up"))
+        && !Body.StoredForce.IsSet());
+
+    // Without C18 a broken shield stores nothing.
+    if (!ReleaseOnQ(*this, F, Plain, TEXT("active_not_mad"))
+        || !TestTrue(FString::Printf(TEXT("Break: %s"), *Error), F.Apply(FFixture::Hit(Enemy, Plain, Granted * 4), Error))) { return false; }
+    TestTrue(TEXT("Without C18 nothing is watched or stored"), !F.Body(Plain).StoredForceWatch.IsSet() && !F.Body(Plain).StoredForce.IsSet());
+    TestFalse(TEXT("C18 does not install on S06"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_bottled_up"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentEmpowerSpendTest, "Lockdown.Rules.Combat.Components.EmpowerSpend",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentEmpowerSpendTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Plain = F.AddBody(ELDVictimKind::Contender, HP),
+        Enemy = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Enemy, 300, 0);
+    F.Place(Plain, 0, 300);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_spend_fist"), ELDComponentTargetKind::Active, TEXT("active_triple_combo"))})
+        || !InstallComponents(*this, F, Plain, 1, {})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    FString Error;
+    F.Now(1000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_triple_combo"))) { return false; }
+    if (!TestTrue(TEXT("S17 arms its three-charge package"), Body.Empowers.Num() == 1 && Body.Empowers[0].Charges == 3)) { return false; }
+    const int64 Amount = Body.Empowers[0].AmountP2;
+    const FGuid Package = Body.Empowers[0].EffectId;
+    const auto HasBonus = [&Body, &Package]()
+    { return Body.TimedBonuses.ContainsByPredicate([&Package](const FLDCombatTimedBonus& Row) { return Row.EffectId == Package; }); };
+    Pending.Reset();
+    FLDCombatHit Bolt;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Bolt) || !Land(*this, F, Bolt)) { return false; }
+    const FLDCombatHit* Added = ComponentHitOn(F, Enemy, TEXT("component_spend_fist"));
+    TestTrue(TEXT("Another active's native hit spends one charge on its target as an added physical hit of the package"), Added
+        && Added->BaseP2 == Amount && Added->DamageType == ELDDemoDamageType::Physical && Added->bAddedDamage
+        && Added->HitClass != ELDCombatHitClass::BasicPrimary && !IsNativeDirectHit(*Added) && Body.Empowers.Num() == 1
+        && Body.Empowers[0].Charges == 2);
+    Pending.Reset();
+    if (!Land(*this, F, Bolt)) { return false; }
+    TestTrue(TEXT("At most once per release"), !ComponentHitOn(F, Enemy, TEXT("component_spend_fist")) && Body.Empowers[0].Charges == 2);
+    if (!F.Flush(Error)) { AddError(TEXT("Hits: ") + Error); return false; }
+    for (int32 Index = 0; Index < 2; ++Index)
+    {
+        FLDCombatHit Next;
+        if (!SnarkBolt(*this, F, Holder, Enemy, Next) || !Land(*this, F, Next)) { return false; }
+        if (!F.Flush(Error)) { AddError(TEXT("Hits: ") + Error); return false; }
+    }
+    TestTrue(TEXT("The last spent charge removes the package and its attack-speed bonus"), Body.Empowers.IsEmpty() && !HasBonus());
+    FLDCombatHit Empty;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Empty) || !Land(*this, F, Empty)) { return false; }
+    TestNull(TEXT("No package, no spend"), ComponentHitOn(F, Enemy, TEXT("component_spend_fist")));
+    Pending.Reset();
+
+    // Without C19 the package waits for a basic.
+    if (!ReleaseOnQ(*this, F, Plain, TEXT("active_triple_combo"))) { return false; }
+    FLDCombatHit PlainBolt;
+    if (!SnarkBolt(*this, F, Plain, Enemy, PlainBolt) || !Land(*this, F, PlainBolt)) { return false; }
+    TestTrue(TEXT("Without C19 nothing is spent"), !ComponentHitOn(F, Enemy, TEXT("component_spend_fist"))
+        && F.Body(Plain).Empowers.Num() == 1 && F.Body(Plain).Empowers[0].Charges == 3);
+    TestFalse(TEXT("C19 does not install on S06"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_spend_fist"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentControlWidenTest, "Lockdown.Rules.Combat.Components.ControlWiden",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentControlWidenTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Enemy = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Enemy, 200, 0);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_wide_open"), ELDComponentTargetKind::Active, TEXT("active_stare_down"))})) { return false; }
+    FLDBodyCombatState& Body = F.Body(Holder);
+    TArray<FLDCombatZone>& Zones = FAccess::Zones(*F.Driver);
+    FString Error;
+    F.Now(1000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_quick_meeting"))
+        || !TestTrue(TEXT("Without a token the zone keeps its radius"), Zones.Num() == 1 && FMath::IsNearlyEqual(Zones[0].RadiusCm, 240.)))
+    { return false; }
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_stare_down"))) { return false; }
+    TestTrue(TEXT("The host's landed taunt arms one wide token for 3 s"), Body.WideToken.IsSet() && Body.WideToken->ExpiresAtMs == 4000
+        && Body.WideToken->Host == FName(TEXT("active_stare_down")) && Body.WideToken->RatioBp == 3500);
+    if (!F.Flush(Error)) { AddError(TEXT("Taunt: ") + Error); return false; }
+    // The host's own release (taunting nobody) neither spends nor refreshes it.
+    F.Place(Enemy, 1500, 0);
+    F.Now(1500);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_stare_down"))) { return false; }
+    TestTrue(TEXT("The host's own release keeps the token"), Body.WideToken.IsSet() && Body.WideToken->ExpiresAtMs == 4000);
+    F.Now(2000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_quick_meeting"))) { return false; }
+    TestTrue(TEXT("The next other release spends it: its zone radius x1.35"), Zones.Num() == 2
+        && FMath::IsNearlyEqual(Zones[1].RadiusCm, 324., 0.01) && !Body.WideToken.IsSet());
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_quick_meeting"))) { return false; }
+    TestTrue(TEXT("Only one release is widened"), Zones.Num() == 3 && FMath::IsNearlyEqual(Zones[2].RadiusCm, 240.));
+    F.Place(Enemy, 200, 0);
+    F.Now(5000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_stare_down")) || !F.Flush(Error)) { return false; }
+    F.Now(8000);
+    if (!ReleaseOnQ(*this, F, Holder, TEXT("active_quick_meeting"))) { return false; }
+    TestTrue(TEXT("A token past its 3 s widens nothing"), Zones.Num() == 4 && FMath::IsNearlyEqual(Zones[3].RadiusCm, 240.));
+    TestFalse(TEXT("C20 does not install on S08"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_wide_open"), ELDComponentTargetKind::Active, TEXT("active_quick_meeting"))}).IsSuccess());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentZoneDetonateTest, "Lockdown.Rules.Combat.Components.ZoneDetonate",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentZoneDetonateTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Enemy = F.AddBody(ELDVictimKind::Contender, HP),
+        Other = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Enemy, 400, 0);
+    F.Place(Other, 450, 100);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_set_it_off"), ELDComponentTargetKind::Active, TEXT("active_zap"))})) { return false; }
+    FLDCombatActiveTerms Zone;
+    if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), Zone)) { return false; }
+    TArray<FLDCombatZone>& Zones = FAccess::Zones(*F.Driver);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const FLDCombatSourceRef ZoneSource = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_quick_meeting"));
+    FString Error;
+    const auto PlaceZone = [&](const FVector& Point)
+    {
+        return TestTrue(FString::Printf(TEXT("Zone: %s"), *Error),
+            FAccess::ReleaseTerms(*F.Driver, F.Body(Holder), ZoneSource, Zone, F.Foot(Holder), Point, Error));
+    };
+    const auto Zap = [&](const FLDCombatBodyRef& Target, FLDCombatHit& Payload)
+    {
+        FLDCombatActiveTerms Terms;
+        if (!Released(*this, F, Holder, TEXT("active_zap"), Terms, Payload)) { return false; }
+        Payload.Target = Target;
+        return Land(*this, F, Payload);
+    };
+    F.Now(1000);
+    if (!PlaceZone(F.Origin + FVector(0, -600, 0))) { return false; }
+    Pending.Reset();
+    FLDCombatHit Outside;
+    if (!Zap(Enemy, Outside)) { return false; }
+    TestTrue(TEXT("A host hit on an enemy outside every zone detonates nothing"), Zones.Num() == 1
+        && !ComponentHitOn(F, Enemy, TEXT("component_set_it_off")));
+    Zones.Reset();
+    Pending.Reset();
+    if (!PlaceZone(F.Origin + FVector(400, 0, 0)) || !TestEqual(TEXT("The zone is placed"), Zones.Num(), 1)) { return false; }
+    const FLDCombatZone Snapshot = Zones[0];
+    const int32 Remaining = Snapshot.Count - Snapshot.Pulsed;
+    FLDCombatHit Payload;
+    if (!Zap(Enemy, Payload)) { return false; }
+    const FLDCombatHit* Blast = ComponentHitOn(F, Enemy, TEXT("component_set_it_off"));
+    const FLDCombatHit* OtherBlast = ComponentHitOn(F, Other, TEXT("component_set_it_off"));
+    const int64 ScaleBp = Snapshot.PackageScaleBp * 8000 / 10000 * Remaining;
+    TestTrue(TEXT("A host hit on an enemy inside the holder's zone ends it at once"), Zones.IsEmpty() && Remaining > 0);
+    TestTrue(TEXT("Every enemy inside takes one added hit of 0.8 x the remaining pulses of the zone's package"), Blast && OtherBlast
+        && Blast->BaseP2 == Snapshot.BaseP2 && Blast->APRatioBp == Snapshot.APRatioBp && Blast->DamageType == Snapshot.DamageType
+        && FMath::Abs(Blast->PackageScaleBp - ScaleBp) <= Remaining && Blast->BurnStacks == Snapshot.PulseBurnStacks
+        && Blast->bAddedDamage && !IsNativeDirectHit(*Blast) && OtherBlast->PackageScaleBp == Blast->PackageScaleBp);
+    if (!F.Flush(Error)) { AddError(TEXT("Blast: ") + Error); return false; }
+    // The same release cannot detonate a second zone.
+    if (!PlaceZone(F.Origin + FVector(400, 0, 0))) { return false; }
+    Pending.Reset();
+    if (!Land(*this, F, Payload)) { return false; }
+    TestTrue(TEXT("Once per host release"), Zones.Num() == 1 && !ComponentHitOn(F, Enemy, TEXT("component_set_it_off")));
+    // An S06 hit (not a host) never detonates.
+    FLDCombatHit Bolt;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Bolt) || !Land(*this, F, Bolt)) { return false; }
+    TestTrue(TEXT("A non-host native hit leaves the zone"), Zones.Num() == 1 && !ComponentHitOn(F, Enemy, TEXT("component_set_it_off")));
+    TestFalse(TEXT("C21 does not install on S06"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_set_it_off"), ELDComponentTargetKind::Active, TEXT("active_snark_bolt"))}).IsSuccess());
+    return true;
+}
+
+// C22: a host release's first native direct hit calls the holder's newest unmoved zone to the struck enemy (once per
+// release, once per zone life, shared with C17); with C21 on the same host the called zone detonates on that same hit.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDComponentMeetHereTest, "Lockdown.Rules.Combat.Components.MeetHere",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDComponentMeetHereTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    constexpr int64 HP = 10000000;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Holder = F.AddBody(ELDVictimKind::Contender, HP), Enemy = F.AddBody(ELDVictimKind::Contender, HP);
+    F.Place(Holder, 0, 0);
+    F.Place(Enemy, 400, 0);
+    if (!InstallComponents(*this, F, Holder, 1,
+        {On(TEXT("component_meet_here"), ELDComponentTargetKind::Active, TEXT("active_zap"))})) { return false; }
+    FLDCombatActiveTerms Zone;
+    if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), Zone)) { return false; }
+    TArray<FLDCombatZone>& Zones = FAccess::Zones(*F.Driver);
+    TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    const FLDCombatSourceRef ZoneSource = SourceOf(ELDCombatSourceKind::Learned, TEXT("active_quick_meeting"));
+    FString Error;
+    const auto PlaceZone = [&](const FVector& Point)
+    {
+        return TestTrue(FString::Printf(TEXT("Zone: %s"), *Error),
+            FAccess::ReleaseTerms(*F.Driver, F.Body(Holder), ZoneSource, Zone, F.Foot(Holder), Point, Error));
+    };
+    const auto Zap = [&](FLDCombatHit& Payload)
+    {
+        FLDCombatActiveTerms Terms;
+        if (!Released(*this, F, Holder, TEXT("active_zap"), Terms, Payload)) { return false; }
+        Payload.Target = Enemy;
+        return Land(*this, F, Payload);
+    };
+    F.Now(1000);
+    const FVector Far = F.Origin + FVector(0, -600, 0);
+    if (!PlaceZone(Far) || !TestEqual(TEXT("The zone is placed"), Zones.Num(), 1)) { return false; }
+    const int64 EndMs = Zones[0].EndMs;
+    FLDCombatHit Payload;
+    if (!Zap(Payload)) { return false; }
+    TestTrue(TEXT("The host hit calls the zone to the struck enemy, keeping its timing"), Zones.Num() == 1 && Zones[0].bRelocated
+        && FVector::Dist2D(Zones[0].CentreCm, F.Foot(Enemy)) < 1 && Zones[0].EndMs == EndMs);
+    if (!PlaceZone(Far)) { return false; }
+    if (!Land(*this, F, Payload)) { return false; }
+    TestTrue(TEXT("Once per host release"), Zones.Num() == 2 && !Zones[1].bRelocated && FVector::Dist2D(Zones[1].CentreCm, Far) < 1);
+    FLDCombatHit Bolt;
+    if (!SnarkBolt(*this, F, Holder, Enemy, Bolt) || !Land(*this, F, Bolt)) { return false; }
+    TestFalse(TEXT("A non-host native hit calls nothing"), Zones[1].bRelocated);
+    FLDCombatHit Again;
+    if (!Zap(Again)) { return false; }
+    TestTrue(TEXT("The next release calls the newest unmoved zone; a moved zone never moves again"), Zones[1].bRelocated
+        && FVector::Dist2D(Zones[1].CentreCm, F.Foot(Enemy)) < 1 && FVector::Dist2D(Zones[0].CentreCm, F.Foot(Enemy)) < 1);
+
+    // With C21 on the same host: the zone called under the enemy detonates on the same hit.
+    Zones.Reset();
+    Pending.Reset();
+    if (!InstallComponents(*this, F, Holder, 1, {On(TEXT("component_meet_here"), ELDComponentTargetKind::Active, TEXT("active_zap")),
+        On(TEXT("component_set_it_off"), ELDComponentTargetKind::Active, TEXT("active_zap"))})) { return false; }
+    if (!PlaceZone(Far)) { return false; }
+    FLDCombatHit Combo;
+    if (!Zap(Combo)) { return false; }
+    TestTrue(TEXT("Called, then detonated on the enemy by the same hit"), Zones.IsEmpty() && ComponentHitOn(F, Enemy, TEXT("component_set_it_off")));
+    TestFalse(TEXT("C22 does not install on its zone active"), ProjectComponents(*F.Catalog, 1,
+        {On(TEXT("component_meet_here"), ELDComponentTargetKind::Active, TEXT("active_quick_meeting"))}).IsSuccess());
     return true;
 }
 #endif

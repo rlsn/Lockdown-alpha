@@ -266,8 +266,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PointsPerLevel = 0;
     UPROPERTY() int64 MaxLevelPointsXP = 0;
     UPROPERTY() int64 MaxLevelPoints = 0;
-    // #198: points a rest NPC charges for one active-only three-choice.
+    // Points charged by the skill merchant and awarded for declining an active opportunity.
     UPROPERTY() int64 NpcActivePoints = 0;
+    UPROPERTY() int64 ActiveSkipPoints = 0;
+    UPROPERTY() int64 NpcActiveSkipPoints = 0;
     UPROPERTY() int64 BuildSafeWindowMs = 0;
     // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
     // (GROWTH.EmptyComponentPoolPoints).
@@ -374,6 +376,14 @@ enum class ELDDemoComponentKind : uint8 { Base = 0, Mod = 1, Connector = 2 };
 // Which supply may hand a component out: Common (normal level-ups) or Scarce (boss/airdrop sources only).
 UENUM()
 enum class ELDDemoComponentPool : uint8 { Common = 0, Scarce = 1 };
+
+// The player-facing use tags of a component (横向标签), in display order; authored as their lowercase names.
+UENUM()
+enum class ELDDemoComponentTag : uint8
+{
+    Projectile = 0, Spell = 1, Control = 2, Element = 3, Area = 4, Collision = 5, Basic = 6, Defense = 7, Tempo = 8, Ledger = 9,
+    Count UMETA(Hidden)
+};
 
 // The install parameters a component takes besides its target: none, or one learned damaging active plus one element (B18).
 UENUM()
@@ -510,6 +520,32 @@ struct FLDDemoEffectDefinition
     // basic_element Element; basic_damage_scale RatioBp (0 < ratio < 1, the primary basic's own package only);
     // idle_ready_amp DelayMs (ready and idle) + RatioBp (next native direct damage bonus); active_element no fields (the
     // install binds the active and element, FLDDemoComponentDefinition::Binding).
+    // Skill rules on native direct hits (IsNativeDirectHit): cast_hit_refund RatioBp (share of the mana the release
+    // paid, once per release); distance_amp DistanceCm (minimum 2D foot distance) + RatioBp (damage bonus); alternate_amp
+    // DurationMs (window after the previous Q/W/E release) + RatioBp (bonus of a different active); triggered_shield
+    // AbilityHit uses the Damaged fields (BaseP2, MaxHPRatioBp, DurationMs, IntervalMs).
+    // Mods M13-M15 (derived hits of the host release, never deriving further): projectile_return MultiplierBp
+    // (share of the return flight); projectile_pierce Count (extra bodies) + MultiplierBp (share per extra body);
+    // chain_extra Count (extra chain hops); echo_impact DelayMs + MultiplierBp (share of the echo) + SecondaryRatioBp
+    // (host cooldown multiplier).
+    // Connectors C13-C16 (host native direct hits; derived hits qualify, per-release budgets bound them):
+    // hit_haste_other AmountMs (cut of every other learned active's remaining cooldown, once per release; also a hosted
+    // dash's first enemy contact); setup_mark DurationMs (mark on the struck enemy) + RatioBp (bonus of a different
+    // active's next native direct hit on it); reaction_haste AmountMs (cut of the host's remaining cooldown when it
+    // triggers an element reaction, once per release); multi_hit_mana BaseP2 (MP per distinct enemy beyond the first) +
+    // LimitP2 (MP cap per release).
+    // Mods M16-M20 (forced moves are real knockbacks of the host's source): zone_tether RatioBp (zone radius
+    // share; the zone follows the caster); defense_shove DistanceCm + DurationMs (shove) + RadiusCm (shove reach) +
+    // RatioBp (host shield share); final_knockback DistanceCm + DurationMs (last empowered package / final wave knockback)
+    // + CostRatioBp (S17 attack-speed share; S22 loses its final slow); empower_reach DistanceCm (basic range while a host
+    // package is pending) + MultiplierBp (package share); pull DistanceCm + DurationMs (S15 taunt pull) + RadiusCm
+    // (closest centre distance a pull leaves).
+    // Connectors C17-C21: zone_relocate no fields (a hosted dash completion moves the holder's newest live zone or
+    // armed trap to its foot, once per zone life); stored_force RatioBp (share of the absorbed / braced amount stored) +
+    // DurationMs (store window; a different learned active's next native direct hit cashes it); empower_spend no fields
+    // (another active's native direct hit spends one pending host package as an added hit); control_widen RatioBp (area
+    // bonus of the next different active release) + DurationMs (token window after the host's hard control);
+    // zone_detonate RatioBp (share of the zone's remaining damage pulses paid at once).
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };
@@ -568,6 +604,8 @@ struct FLDDemoComponentDefinition
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() ELDDemoComponentKind Kind = ELDDemoComponentKind::Base;
     UPROPERTY() ELDDemoComponentPool Pool = ELDDemoComponentPool::Common;
+    // One to three distinct use tags in display order (UI only; no rule reads them).
+    UPROPERTY() TArray<ELDDemoComponentTag> Tags;
     // Opening base pick (spec §4.3): bOpeningAlways bases are always offered; otherwise the base is offered only when the
     // opening active is one of OpeningActives (empty and not always = never an opening option).
     UPROPERTY() bool bOpeningAlways = false;
@@ -584,6 +622,12 @@ struct FLDDemoComponentDefinition
     UPROPERTY() bool bTargetDash = false;
     UPROPERTY() bool bTargetSelf = false;
     UPROPERTY() TArray<FString> ExtraBases;
+    // A common component with a non-empty DrawRequiresActives is a level-up draw candidate only while the holder has one of
+    // these actives learned.
+    UPROPERTY() TArray<FString> DrawRequiresActives;
+    // Workshop form (spec §4.4): two components of one form never sit on the same target at once (a base's target is the
+    // holder itself). None = no form. Every form names at least two components of one kind.
+    UPROPERTY() FString Form;
     // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 
@@ -704,6 +748,10 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() TArray<int64> XPToNext;
     // #198: reaching each of these levels enqueues one more active opportunity (after the opening one), distinct and ascending.
     UPROPERTY() TArray<int32> ActiveOfferLevels;
+    // One additional ordinary component draw on each listed level.
+    UPROPERTY() TArray<int32> BonusComponentLevels;
+    UPROPERTY() int32 WorkshopCapacityBase = 0;
+    UPROPERTY() int32 WorkshopCapacityLevelsPerSlot = 0;
     // #198 B: one band per level range covering every level 2..MaxLevel exactly once, ascending.
     UPROPERTY() TArray<FLDDemoComponentCategoryWeights> ComponentCategoryWeights;
 };

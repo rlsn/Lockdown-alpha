@@ -109,6 +109,14 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Channel.Remaining=Cone->Count;
         Channel.FinalSlowBp=Cone->SecondaryRatioBp;
         Channel.FinalSlowMs=Cone->SecondaryDurationMs;
+        if (Terms.FinalKnockbackTerms.IsSet())
+        {
+            // M18: the final wave pushes everything it hits away from the caster instead of slowing it.
+            Channel.FinalKnockbackCm=Cm(Terms.FinalKnockbackTerms->DistanceCm);
+            Channel.FinalKnockbackMs=Terms.FinalKnockbackTerms->DurationMs;
+            Channel.FinalSlowBp=0;
+            Channel.FinalSlowMs=0;
+        }
         // #198 F M07: the waves become one narrower cone after the delay carrying their summed package times its multiplier;
         // the same channel rules cancel it, and its one wave is the last (it carries the final slow once).
         if (Terms.CompressCone.IsSet())
@@ -146,6 +154,8 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
         Ground.OuterRatioBp=Impact ? Shape.RatioBp : 10000;
         Ground.bTrap=Trap != nullptr;
         Ground.Origin=Trap ? ELDCombatGroundOrigin::Trap : ELDCombatGroundOrigin::Impact;
+        // M15: the landing or detonation echoes once (AdvanceSkillContent).
+        Ground.Echo=Terms.EchoImpact;
         if (Trap)
         {
             // S19 (spec §9): armed from its placement for its life; a trigger starts its own fuse (AdvanceSkillContent).
@@ -160,6 +170,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDCo
             // One trap per owner (content §4): a newer one ends the old one, armed or fusing, without its blast.
             GroundEffects.RemoveAll([&Body](const auto& Existing)
             { return Existing.bTrap && Existing.Payload.SourceEntity == Body.Victim.EntityId; });
+            Ground.CreatedSerial=++NextAreaSerial;
         }
         GroundEffects.Add(MoveTemp(Ground));
         bHandled=true;
@@ -193,6 +204,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             continue;
         }
         Actor->SetFacing(Channel.Direction.Rotation().Yaw);
+        bool bFinalPushed=false;
         while (Channel.Remaining > 0 && Channel.NextPulseMs <= NowMs)
         {
             const FVector Origin=FootOf(*Actor);
@@ -209,11 +221,26 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 Hit.HitId=FGuid::NewGuid();
                 Hit.Target=Ref;
                 if (Channel.Remaining == 1) { Hit.SlowBp=Channel.FinalSlowBp; Hit.SlowDurationMs=Channel.FinalSlowMs; }
+                if (Channel.Remaining == 1 && Channel.FinalKnockbackCm > 0)
+                {
+                    Hit.KnockbackCm=Channel.FinalKnockbackCm;
+                    Hit.KnockbackMs=Channel.FinalKnockbackMs;
+                    Hit.bKnockbackFromAnchor=true;
+                    Hit.KnockbackAnchorCm=Origin;
+                    Hit.KnockbackSource=Channel.Payload.Source;
+                    bFinalPushed=true;
+                }
                 PendingHits.Add(MoveTemp(Hit));
             }
             --Channel.Remaining;
             if (Channel.Remaining > 0
                 && !LDMatchLifecycle::AddDurationMs(Channel.NextPulseMs, Channel.IntervalMs, Channel.NextPulseMs, Error)) { return false; }
+        }
+        if (bFinalPushed)
+        {
+            TArray<FLDPassiveEffectRef> Finals;
+            if (!WorkshopOn(Body->AttributeProjection, ELDDemoEffectOp::FinalKnockback, Channel.Payload.Source, Finals, Error)) { return false; }
+            if (!Finals.IsEmpty()) { LedgerComponentTriggered(*Body, Finals[0].Source.DefinitionId); }
         }
         if (Channel.Remaining == 0)
         {
@@ -255,7 +282,7 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
             Hit.Target=Ref;
             if (!Ground.bTrap && FVector::Dist2D(Ground.CentreCm, FootOf(*Target)) > Ground.InnerRadiusCm)
             {
-                Hit.DeliveryScaleBp=Ground.OuterRatioBp;
+                Hit.DeliveryScaleBp=Hit.DeliveryScaleBp/10000*Ground.OuterRatioBp+Hit.DeliveryScaleBp%10000*Ground.OuterRatioBp/10000;
                 Hit.RootDurationMs=0;
             }
             PendingHits.Add(MoveTemp(Hit));
@@ -265,6 +292,19 @@ bool ALDCombatDirector::AdvanceSkillContent(int64 NowMs, FString& Error)
                 || Completed.Origin==ELDCombatGroundOrigin::CompressedZone)
             && !TriggerAftershock(Completed.Payload.SourceBody, Completed.Payload.Source, Completed.Payload.EffectId,
                 Completed.CentreCm, Completed.RadiusCm, NowMs, Error)) { return false; }
+        // M15: S18's echo keeps the impact's outline and falloff; S19's is a plain blast of the trap's radius
+        // without its slow. Only a host's own completion carries Echo, so an echo never echoes.
+        if (Completed.Echo.IsSet() && (Completed.Origin==ELDCombatGroundOrigin::Impact || Completed.Origin==ELDCombatGroundOrigin::Trap))
+        {
+            FLDCombatGroundEffect Blast=Completed;
+            if (Blast.bTrap)
+            {
+                Blast.InnerRadiusCm=Blast.RadiusCm;
+                Blast.OuterRatioBp=10000;
+                Blast.Payload.SlowBp=Blast.Payload.SlowDurationMs=0;
+            }
+            if (!ScheduleEcho(Completed.Payload.SourceBody, Completed.Echo.GetValue(), Blast, NowMs, Error)) { return false; }
+        }
     }
     return ResolveDashContacts(NowMs, Error);
 }
@@ -400,6 +440,8 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
                 PendingHits.Add(MoveTemp(Hit));
             }
         }
+        // C13: the hosted dash's first real contact cuts the holder's other actives (once per action).
+        if (!HasteOtherActives(*Body, Dash.Source, Dash.EffectId, NowMs, Error)) { return false; }
         if (!OnDashContact(*Body, Dash, NowMs, Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_DASH_CONTACT t=%lld src=%s target=%s effect=%s native=%d added=%d"),
             NowMs,*LDLog::Id(Body->Victim.EntityId),*LDLog::Id(Contact.Target.Victim.EntityId),

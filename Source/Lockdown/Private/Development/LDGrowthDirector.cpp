@@ -8,6 +8,7 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDProgressionRules.h"
 #include "Engine/World.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
@@ -21,6 +22,18 @@ THIRD_PARTY_INCLUDES_END
 namespace
 {
 constexpr int32 GrowthRewardWindow = 64;
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool GrowthEvaluationAI(const FLDEvaluationSeeds* Seeds, const FGuid& Contender)
+{
+    if (!Seeds || !Contender.IsValid()) { return false; }
+    for (const FGuid& Id : Seeds->AIContenders)
+    {
+        if (Id == Contender) { return true; }
+    }
+    return false;
+}
+#endif
 
 void GrowthWriteVictim(FMemoryWriter& Writer, const FLDVictimKey& Victim)
 {
@@ -403,8 +416,13 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
     TArray<TOptional<FLDPreparedCombatProjection>> CombatPlans;
     for (const FRewardShare& Share : Shares)
     {
-        FLDPrepareGrowthResult Growth = M->Development->PrepareFieldReward(Share.Recipient, Share.Amounts.XP, Share.FieldKind,
-            Share.Event, Share.Serial);
+        FLDPrepareGrowthResult Growth =
+#if WITH_DEV_AUTOMATION_TESTS
+            !Share.DevLevelComponents.IsEmpty()
+                ? M->Development->DevPrepareEvaluationExperience(Share.Recipient, Share.Amounts.XP, Share.DevLevelComponents)
+                :
+#endif
+            M->Development->PrepareFieldReward(Share.Recipient, Share.Amounts.XP, Share.FieldKind, Share.Event, Share.Serial);
         if (!Growth.IsSuccess())
         {
             Reason = Growth.Reason;
@@ -735,6 +753,26 @@ uint64 ALDGrowthDirector::DevGrantReward(const FGuid& ContenderId, int64 XP, FSt
     return Grant.Ticket;
 }
 
+uint64 ALDGrowthDirector::DevGrantEvaluationReward(const FGuid& ContenderId, int64 XP, const TArray<FName>& LevelComponents,
+    FString& Error)
+{
+    if (!LDDevGrowthFixture::Admit(GetWorld(), Error)) { return 0; }
+    const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed();
+    if (LevelComponents.IsEmpty() || !GrowthEvaluationAI(Seeds, ContenderId))
+    {
+        Error = TEXT("A component preset needs a nonempty grant list and an armed evaluation AI slot.");
+        return 0;
+    }
+    const uint64 Ticket = DevGrantReward(ContenderId, XP, Error);
+    if (!Ticket) { return 0; }
+    DevGrants[int32(Ticket - 1)].LevelComponents = LevelComponents;
+    const ALDGameMode* M = Mode();
+    UE_LOG(LogLDGrowth, Display, TEXT("LD_EVAL_COMPONENT_PRESET t=%lld contender=%s ticket=%llu components=%s"),
+        M ? M->GetAuthorityNowMs() : -1, *LDLog::Id(ContenderId), Ticket,
+        *FString::JoinBy(LevelComponents, TEXT(","), [](FName Id) { return Id.ToString(); }));
+    return Ticket;
+}
+
 ELDDevGrantStatus ALDGrowthDirector::DevGrantStatus(uint64 Ticket, FString& Detail) const
 {
     Detail.Reset();
@@ -758,7 +796,27 @@ bool ALDGrowthDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, FS
         }
         FLDRewardReceipt Receipt;
         ELDGrowthReason Reason = ELDGrowthReason::None;
-        const ELDRewardOutcome Outcome = CommitRewardParts(Grant.Contender, Grant.XP, TEXT("dev_fixture"), Permit, Receipt, Reason);
+        ELDRewardOutcome Outcome;
+        if (Grant.LevelComponents.IsEmpty())
+        {
+            Outcome = CommitRewardParts(Grant.Contender, Grant.XP, TEXT("dev_fixture"), Permit, Receipt, Reason);
+        }
+        else
+        {
+            const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed();
+            if (!GrowthEvaluationAI(Seeds, Grant.Contender))
+            {
+                Grant.Status = ELDDevGrantStatus::Rejected;
+                Grant.Detail = TEXT("The armed evaluation AI slot no longer matches the component preset.");
+                continue;
+            }
+            TArray<FRewardShare> Shares;
+            FRewardShare& Share = Shares.AddDefaulted_GetRef();
+            Share.Recipient = Grant.Contender;
+            Share.Amounts.XP = Grant.XP;
+            Share.DevLevelComponents = Grant.LevelComponents;
+            Outcome = CommitRewardShares(Shares, TEXT("dev_fixture"), Permit, Receipt, Reason);
+        }
         if (Reason == ELDGrowthReason::AuthorityFault)
         {
             Error = TEXT("A DEV growth grant lost the growth domain inside the Transactions phase.");

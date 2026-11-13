@@ -37,6 +37,7 @@ public:
     bool Rebuild(FString& Error);
     bool Ensure(FString& Error);
     const FLDMapBinding* Resolve(FName Id,uint32 ExpectedGeneration) const;
+    bool SharedSignupCentre(FVector& OutCentre) const;
     const TArray<FLDMapBinding>& Sites() const { return Bindings; }
     const TArray<FLDMapBinding>& ServiceSeats() const { return ServiceBindings; }
     FString CanonicalBindings() const;

@@ -16,6 +16,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "Factories/TextureFactory.h"
+#include "FileHelpers.h"
 #include "Framework/LDDemoEntry.h"
 #include "HAL/FileManager.h"
 #include "InterchangeGenericAnimationPipeline.h"
@@ -1135,8 +1136,8 @@ namespace
 {
     bool ArtReadSavedScene(const ULDArtCatalog& Catalog, TArray<FLDArtDecoration>& Placements, TArray<FString>& Hidden, FString& Error)
     {
-        UPackage* Package = LoadPackage(nullptr, LDDemoEntry::WorldMap, LOAD_None);
-        UWorld* Map = Package ? UWorld::FindWorldInPackage(Package) : nullptr;
+        UWorld* Map = UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(
+            LDDemoEntry::WorldMap, FPackageName::GetMapPackageExtension()));
         if (!Map) { return ArtFail(Error, TEXT("The saved editable Demo map is missing.")); }
         return LDStaticScene::Read(*Map, Catalog, Placements, Hidden, Error);
     }
@@ -1562,7 +1563,12 @@ bool LDDemoArtImport::Validate(FString& Error)
         const auto& Have = Catalog->Decorations[Index];
         if (Have.Prop != Expected.Prop || Have.Zone != Expected.Zone || Have.Blocker != Expected.Blocker
             || !Expected.Transform.Equals(Have.Transform, 1e-2))
-        { return ArtFail(Error, TEXT("Saved scene differs from its derived art index; run SyncDemoMap.ps1.")); }
+        {
+            return ArtFail(Error, FString::Printf(
+                TEXT("Saved scene row %d differs from its derived art index: scene=%s/%s/%s [%s], index=%s/%s/%s [%s]."),
+                Index, *Expected.Prop, *LDArt::ZoneId(Expected.Zone), *Expected.Blocker, *Expected.Transform.ToString(),
+                *Have.Prop, *LDArt::ZoneId(Have.Zone), *Have.Blocker, *Have.Transform.ToString()));
+        }
     }
     if (!LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error)) { return ArtFail(Error, TEXT("Decoration placement: ") + Error); }
     Error.Reset();

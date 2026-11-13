@@ -302,8 +302,11 @@ struct FLDOpponentBodyIntent
     ELDOpponentSourceSlot Source = ELDOpponentSourceSlot::Q;
     ELDDemoTargetMode TargetMode = ELDDemoTargetMode::Self;
     FVector Direction = FVector::ZeroVector;
-    // GroundPoint activations: the requested zone centre (#147 active_quick_meeting).
+    // GroundPoint activations: the requested zone centre (#147 active_quick_meeting). A MoveGround without a POI: the
+    // ground point clicked, on Surface.
     FVector Point = FVector::ZeroVector;
+    // A MoveGround to Point: the walkable surface it is on (the surface of a registered public place); None otherwise.
+    FName Surface;
     // Failure memory of MoveGround, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
 };
@@ -342,6 +345,8 @@ struct FLDOpponentBuildIntent
     ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
     FString TargetId;
     FString BoundComponent;
+    // InstallComponent as a form swap: the installed same-form component it replaces (FLDBuildCommand::Replacing), else empty.
+    FString Replacing;
     // #198 G ComponentChoice: the pending choice; Component is the chosen option, empty for the empty-pool points.
     // FillGap: Component is the gap target and Filler the unowned common base it receives.
     FGuid ChoiceId;

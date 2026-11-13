@@ -136,8 +136,8 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
 - **公共休息室**：`RestAnchorFor` 返回 `rest_spawn_<名单槽位>`，同世界、连接、身份与成长记录；
   所有休息身体属于 `ALDGameMode::RestIsolationGroup()`。`IsHiddenFrom` 仍按群组隔离野外/PK；
   Vision 向休息室连接的获准观察帧发布全部活体真实训练目标的白名单状态，不发布玩家背包或私有成长；
-  `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许任一休息室参赛者攻击共享训练目标。世界布局10/几何8在东侧增加全封闭房间，既有野外与 PK 锚点不移动。
-  `PKSignup` 的 `pk_signup_<槽位>` 移到同槽位新休息锚点旁300 cm。
+  `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许任一休息室参赛者攻击共享训练目标。世界布局 12/几何 10 使用东侧全封闭房间。
+  `PKSignup` 的六个 `pk_signup_<槽位>` 是公共报名圈内供各槽位使用的站位。
 - **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，真人只可准备不可撤销；
   OwnerState 发布 `bRestReady`/`bCanRestReady`，公共时间线 `ReadyContenders` 只含真人id。`AdvanceTimeline` 忽略AI，全部仍在局真人准备后，
   `FinishBuildEarly` 仅缩短配装截止到当前时刻加 `REST.SignupSec`；已在最后报名窗口则不改，重复请求不延长。新休息/新局清空准备。
@@ -149,9 +149,9 @@ AI 数量可以作为房间配置重新展示，AI 的局内记录必须重新�
   Return 步骤 `IsInputLocked` 为真，订单、攻击、施法与冲刺都以 `NotStarted` 拒绝。休息服务（NPC、洗点、替换、遗忘）见[成长事务](../systems/GROWTH_TRANSACTIONS.md)。
 - **PK 接口**：PK 是可选提供者 `ELDMatchProvider::PK`，`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定（`FLDRestStepNotice`）；
   报名是站圈报名（半径复用 `AIRDROP.PickupRadiusCm`）：没有报名请求，
-  `ALDGameMode::RefreshRestSignups` 在报名窗口内每拍（`AdvanceTimeline` 中）按休息生命已提交脚点是否在本人 `SignupDiskFor` 圆盘
-  （`pk_signup_<名单槽位>`，半径 `AIRDROP.PickupRadiusCm`，XY、边界算在内）里重算 `Timeline.Signups`，锁定时再算一次，截止时刻圈内的人即锁定名单；
-  缺少本人报名圈是明确错误。没有该提供者时无人计入报名，每次休息跳过 PK。PK 提前分出结果时提供者调用 `ALDGameMode::FinishRestPK`。
+  `ALDGameMode::RefreshRestSignups` 在报名窗口内每拍（`AdvanceTimeline` 中）按休息生命已提交脚点是否在 `SignupDiskFor` 的公共圆盘
+  （六站位的平均位置为圆心，半径 `AIRDROP.PickupRadiusCm`，XY、边界算在内）里重算 `Timeline.Signups`，锁定时再算一次，截止时刻圈内的人即锁定名单；
+  缺少报名站位是明确错误。没有该提供者时无人计入报名，每次休息跳过 PK。PK 提前分出结果时提供者调用 `ALDGameMode::FinishRestPK`。
 - **共同入场**（外层参数 §1：“阶段资源/加载未就绪时冻结入场，30秒仍无法建立合法场景则本场NoContest并明确报错”）：
   PK 入场（PKReady）与返回野外（Return → 野外）都由 `ALDGameMode::PrepareJointPhase` 先为全部目标准备位置与战斗状态，全部成功才一起提交
   （`CommitPhaseBody`，提交中任何失败都是故障）；有一人放不下就全部释放并撤回每个目标的出生请求（`ULDMapRegistry::WithdrawSpawnRequest`），

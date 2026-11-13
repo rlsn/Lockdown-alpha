@@ -246,7 +246,7 @@ bool AssertFields(FAutomationTestBase& Test, const UStruct* Type, const void* Da
     {
         const FString Path(Pair.Key.ToView());
         FString ExpectedText;
-        if (!String(Pair.Value, ExpectedText, Check, Path, 0, 1024))
+        if (!String(Pair.Value, ExpectedText, Check, Path, 0, 4096))
         {
             Test.AddError(Error);
             return false;
@@ -1208,7 +1208,7 @@ bool FLDDemoContentGrowthCatalogTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The token reads one stat of a single point"),
         PerPoint.bValue && PerPoint.bPerPoint && PerPoint.Field == LDDemoCardText::EField::Stat && PerPoint.Stat == S::APFlat);
     const FLDDemoStatBonus* Bonus = LDDemoCardText::FindPerPoint(*Brains, PerPoint);
-    TestTrue(TEXT("stat_brains answers its own per-point AP"), Bonus && Bonus->Stat == S::APFlat && Bonus->Amount == 500);
+    TestTrue(TEXT("stat_brains answers its own per-point AP"), Bonus && Bonus->Stat == S::APFlat && Bonus->Amount == 600);
     TestNull(TEXT("Another stat does not answer it"), LDDemoCardText::FindPerPoint(*Strength, PerPoint));
     TestNull(TEXT("An active's value set does not answer a per-point token"), LDDemoCardText::FindEffect(*First, PerPoint));
     for (const TCHAR* Bad : {TEXT("[per_point.amount]"), TEXT("[dash_boost.ratio]"), TEXT("[damage.cooldown_cut]"), TEXT("[cower.ratio]")})
@@ -1247,14 +1247,16 @@ bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentDefinitions& Definitions = Snapshot->Get();
-    // #198 B bases B01-B18 (1-18), #198 F mods M01-M12 (19-30) and connectors C01-C12 (31-42); M11, M12 and C12 are scarce.
-    if (!TestEqual(TEXT("Eighteen bases, twelve mods and twelve connectors"), Definitions.Components.Num(), 42)) { return false; }
+    // #198 B bases B01-B18 (1-18), #198 F mods M01-M12 (19-30), connectors C01-C12 (31-42)
+    // Mods M13-M15 (43-45) and connectors C13-C16 (46-49), and bases B19-B21 (50-52) and mods M16-M20
+    // (53-57), and connectors C17-C22 (58-63); M11, M12 and C12 are scarce.
+    if (!TestEqual(TEXT("Twenty-one bases, twenty mods and twenty-two connectors"), Definitions.Components.Num(), 63)) { return false; }
     TSet<FString> AlwaysOpening;
     for (int32 Index = 0; Index < Definitions.Components.Num(); ++Index)
     {
         const FLDDemoComponentDefinition& Row = Definitions.Components[Index];
-        const ELDDemoComponentKind Kind = Index < 18 ? ELDDemoComponentKind::Base
-            : Index < 30 ? ELDDemoComponentKind::Mod : ELDDemoComponentKind::Connector;
+        const ELDDemoComponentKind Kind = Index < 18 || (Index >= 49 && Index < 52) ? ELDDemoComponentKind::Base
+            : Index < 30 || (Index >= 42 && Index < 45) || (Index >= 52 && Index < 57) ? ELDDemoComponentKind::Mod : ELDDemoComponentKind::Connector;
         const bool bScarce = Row.Id == TEXT("component_pick_you") || Row.Id == TEXT("component_owe_it") || Row.Id == TEXT("component_dirty_fist");
         TestTrue(FString::Printf(TEXT("%s is numbered %d with its kind and pool"), *Row.Id, Index + 1),
             int32(Row.GetNativeId()) == Index + 1 && Row.Kind == Kind
@@ -1342,9 +1344,9 @@ bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
     const FLDDemoEffectDefinition* ShockFist = Only(*Shock, EOp::BasicElement);
     TestTrue(TEXT("B10 and B11 name water and electric"), WaterFist && ShockFist
         && WaterFist->Element == ELDDemoElement::Water && ShockFist->Element == ELDDemoElement::Electric);
-    const FLDDemoEffectDefinition* Scale = Only(*LongArm, EOp::BasicDamageScale);
-    TestTrue(TEXT("B14 adds range and keeps 90% of the primary basic package"),
-        Scale && Scale->RatioBp == 9000 && Only(*LongArm, EOp::StatBonus) != nullptr && LongArm->Effects.Num() == 2);
+    const FLDDemoEffectDefinition* Far = Only(*LongArm, EOp::DistanceAmp);
+    TestTrue(TEXT("B14 amplifies native direct hits by 20% at 550 cm or farther"), Far && Far->RatioBp == 2000
+        && Far->DistanceCm.Numerator == 550 && Far->DistanceCm.Denominator == 1 && LongArm->Effects.Num() == 1);
     const FLDDemoEffectDefinition* Idle = Only(*HeldShot, EOp::IdleReadyAmp);
     TestTrue(TEXT("B17 waits 2 s for +20%"), Idle && Idle->DelayMs == 2000 && Idle->RatioBp == 2000);
     for (const FLDDemoComponentDefinition& Row : Definitions.Components)
@@ -1378,8 +1380,8 @@ bool FLDDemoContentComponentCatalogTest::RunTest(const FString& Parameters)
         return Bands.IsValidIndex(Index) && Bands[Index].MinLevel == Min && Bands[Index].MaxLevel == Max && Bands[Index].BasePercent == Base
             && Bands[Index].ModPercent == Mod && Bands[Index].ConnectorPercent == Connector;
     };
-    TestTrue(TEXT("Level-up category bands are 2-6 55/25/20, 7-11 40/30/30 and 12-16 25/35/40"),
-        Bands.Num() == 3 && Band(0, 2, 6, 55, 25, 20) && Band(1, 7, 11, 40, 30, 30) && Band(2, 12, 16, 25, 35, 40));
+    TestTrue(TEXT("Level-up category bands are 2-6 45/30/25, 7-11 35/35/30 and 12-16 25/35/40"),
+        Bands.Num() == 3 && Band(0, 2, 6, 45, 30, 25) && Band(1, 7, 11, 35, 35, 30) && Band(2, 12, 16, 25, 35, 40));
     TestEqual(TEXT("An empty common pool grants 3 points"), Definitions.Parameters.EmptyComponentPoolPoints, int64(3));
 
     TArray<LDDemoCardText::FToken> Tokens;

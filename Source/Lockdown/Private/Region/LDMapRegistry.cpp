@@ -330,6 +330,21 @@ const FLDMapBinding* ULDMapRegistry::Resolve(FName Id,uint32 ExpectedGeneration)
     if(!Enabled()||ExpectedGeneration!=Generation) { return nullptr; }
     return Bindings.FindByPredicate([&](const auto& B){return B.Id==Id&&B.Floor.IsValid();});
 }
+bool ULDMapRegistry::SharedSignupCentre(FVector& OutCentre) const
+{
+    FVector Sum=FVector::ZeroVector;
+    FName Surface;
+    for(int32 Slot=0;Slot<LDDemoWorld::PKSignups;++Slot)
+    {
+        const FLDMapBinding* Seat=Resolve(FName(*LDDemoWorld::PKSignupId(Slot)),Generation);
+        if(!Seat||Seat->Surface.IsNone()||Seat->Position.ContainsNaN()
+            ||(Slot>0&&Seat->Surface!=Surface)){return false;}
+        Surface=Seat->Surface;
+        Sum+=Seat->Position;
+    }
+    OutCentre=Sum/double(LDDemoWorld::PKSignups);
+    return !OutCentre.ContainsNaN();
+}
 FString ULDMapRegistry::CanonicalBindings() const
 {
     TArray<FString> Lines;

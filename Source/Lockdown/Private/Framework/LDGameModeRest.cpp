@@ -16,6 +16,9 @@
 #include "Misc/ScopeExit.h"
 #include "World/LDRestServiceNPC.h"
 #include "World/LDTrainingRoomDisplay.h"
+#if WITH_DEV_AUTOMATION_TESTS
+#include "Evaluation/LDEvaluationSeeds.h"
+#endif
 
 // #198 rest phases (approved outer parameters and the playtest's shared-room decision).
 // The pure FLDMatchTimeline schedules the rests and
@@ -196,23 +199,18 @@ bool ALDGameMode::SignupDiskFor(const FGuid& Contender, FVector& OutCentreCm, do
 {
     OutCentreCm = FVector::ZeroVector;
     OutRadiusCm = 0;
-    // The disk beside the contender's shared-room slot (RestAnchorFor).
     const int32 Slot = RosterOrder.IndexOfByKey(Contender);
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     if (!DemoContent || !Registry || Slot == INDEX_NONE || Slot >= LDDemoWorld::PKSignups) { return false; }
-    const FLDMapBinding* Disk = Registry->Resolve(FName(*LDDemoWorld::PKSignupId(Slot)), Registry->Generation);
-    // User decision A on issue #198: the existing "stand in the disk" radius, AIRDROP.PickupRadiusCm.
     const FLDDemoRational& Radius = DemoContent->Get().Parameters.AirdropPickupRadiusCm;
-    if (!Disk || Radius.Denominator <= 0 || Radius.Numerator <= 0) { return false; }
-    OutCentreCm = Disk->Position;
+    if (Radius.Denominator <= 0 || Radius.Numerator <= 0 || !Registry->SharedSignupCentre(OutCentreCm)) { return false; }
     OutRadiusCm = double(Radius.Numerator) / double(Radius.Denominator);
     return true;
 }
 
 bool ALDGameMode::RefreshRestSignups(FString& Error)
 {
-    // Approved 站圈报名: during the sign-up window a contender is signed up exactly while its rest life's committed foot
-    // stands in its own sign-up disk (XY, boundary inside); the lock takes whoever stands inside at the deadline.
+    // During the sign-up window every contender uses the same disk (XY, boundary inside).
     TSet<FGuid> Inside;
     const FLDMatchProviderHooks* PK = LDMatchProviders::Find(ELDMatchProvider::PK);
     if (IsRestPhase(MatchContext) && Timeline.IsSignupOpen(AuthorityNowMs) && PK && PK->RestStep)
@@ -422,6 +420,21 @@ bool ALDGameMode::ApplyTimelineEvents(const TArray<FLDTimelineEvent>& Events, co
             LockedEntrants.Reset();
             UE_LOG(LogLDMatch, Display, TEXT("LD_FIELD_ENTER generation=%u segment=%u at_ms=%lld field_t_ms=%lld final=%d"),
                 MatchContext.Generation, Event.FieldSegment, Event.AtMs, Event.Value, bFinal ? 1 : 0);
+#if WITH_DEV_AUTOMATION_TESTS
+            if (Event.FieldSegment == 0 && LDEvaluationSeeds::Armed())
+            {
+                for (const FGuid& Contender : LockedAISlots)
+                {
+                    FLDCombatBodyRef Body;
+                    FVector Foot;
+                    if (ReadLivingBody(Contender, Body, Foot))
+                    {
+                        UE_LOG(LogLDTest, Display, TEXT("LD_EVAL_FIELD_SPAWN t=%lld generation=%u contender=%s life=%u pos=%s"),
+                            Event.AtMs, MatchContext.Generation, *LDLog::Id(Contender), Body.Victim.Life, *LDLog::Cm(Foot));
+                    }
+                }
+            }
+#endif
             break;
         }
         }
@@ -891,6 +904,9 @@ bool ALDGameMode::CommitFieldReturn(bool bFinalField, const FLDGameplayWritePerm
             *LDLog::Id(Contender), Committed.Life, *Committed.SpawnAnchor.ToString(), ProtectedUntil);
         if (!Combat->ReadyAllForPhase(Contender, Permit, Error)) { return false; }
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    if (DevFieldReturnCommitted) { DevFieldReturnCommitted(*this); }
+#endif
     const int32 Placed = PreparedFieldReturn.Num();
     PreparedFieldReturn.Reset();
     RestReturns.Reset();

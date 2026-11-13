@@ -1432,6 +1432,8 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     const FString Missing(TEXT("回执缺少结果，请以当前状态为准。"));
     switch(Receipt.Kind)
     {
+    case ELDBuildCommandKind::SkipActiveOffer:
+        return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -1585,7 +1587,7 @@ LDHUD::FActionDetailView LDHUD::ComponentChoiceDetail(const FComponentCardView& 
 {
     FActionDetailView Detail;
     Detail.Name=Card.Name;
-    Detail.Summary=LDTerms::Component;
+    Detail.Summary=Card.KindLine.IsEmpty()?FString(LDTerms::Component):Card.KindLine;
     Detail.Body=HudChoiceBody(Card.SentencePlain,Card.Keywords,Outcome);
     return Detail;
 }
@@ -1605,6 +1607,9 @@ LDHUD::FComponentCardView LDHUD::ComponentCard(FName DefinitionId,const FLDDemoC
         return Card;
     }
     Card.bBinding=Component->Binding==ELDDemoComponentBinding::ActiveElement;
+    TArray<FString> Kind{LDTerms::ComponentKindName(uint8(Component->Kind))};
+    for(const ELDDemoComponentTag Tag:Component->Tags){Kind.Add(LDTerms::ComponentTagName(uint8(Tag)));}
+    Card.KindLine=FString::Join(Kind,TEXT(" · "));
     // A component's fixed amounts grow with the holder's level like an active's (LDSkillGrowth), so its card renders the
     // same way against a value set that holds only its effects.
     FLDDemoAbilityValues Values;Values.Effects=Component->Effects;
@@ -1669,7 +1674,8 @@ LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
     return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
 }
-LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+    const TSet<FName>* Seen)
 {
     FStorageView View;
     View.Columns.SetNum(StorageColumnCount);
@@ -1684,11 +1690,12 @@ LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progressio
             :Column.Active.IsNone()?FString(LDTerms::ColumnEmptySlot):FString();
     }
     if(!Progression.bValid){return View;}
+    View.Capacity=Content?LDProgression::WorkshopCapacity(Content->Progression,Progression.Level):0;
     for(const FLDComponentInstanceView& Owned:Progression.Components)
     {
-        if(Owned.bInstalled){continue;}
+        if(Owned.bInstalled){++View.Installed;continue;}
         View.Stored.Add(Owned.DefinitionId);
-        if(!Owned.bEverInstalled){++View.Fresh;}
+        if(!Owned.bEverInstalled&&(!Seen||!Seen->Contains(Owned.DefinitionId))){++View.Fresh;}
     }
     // Each column lists its own installs in the view's order, each followed by what is installed on it (depth first).
     TMap<FName,EStorageColumn> Columns;
@@ -1747,11 +1754,14 @@ TArray<LDHUD::FComponentDrop> LDHUD::ComponentDrops(FName Component,const FLDPro
 {
     TArray<FComponentDrop> Out;
     const FLDDemoComponentDefinition* Definition=HudComponentDefinition(Content,Component);
-    if(!Definition||!HudOwned(Progression,Component)){return Out;}
+    const FLDComponentInstanceView* Owned=HudOwned(Progression,Component);
+    // The server refuses a new install past the workshop capacity (WorkshopFull); a move frees its own slot first.
+    if(!Definition||!Owned||(!Owned->bInstalled&&WorkshopFull(Progression,Content))){return Out;}
     if(Definition->Kind==ELDDemoComponentKind::Base)
     {
         if(Definition->Binding!=ELDDemoComponentBinding::ActiveElement)
         {
+            if(!FormMateAt(Component,ELDComponentTargetKind::None,NAME_None,Progression,Content).IsNone()){return Out;}
             FComponentDrop Drop;Drop.Column=EStorageColumn::Body;Out.Add(Drop);
             return Out;
         }
@@ -1772,6 +1782,7 @@ TArray<LDHUD::FComponentDrop> LDHUD::ComponentDrops(FName Component,const FLDPro
     const TArray<FName> Off=DetachedWith(Component,Progression);
     for(const FWorkshopTargetView& Target:WorkshopTargets(*Definition,Progression,Content))
     {
+        if(!FormMateAt(Component,Target.Kind,Target.TargetId,Progression,Content).IsNone()){continue;}
         FComponentDrop Drop;Drop.Kind=Target.Kind;Drop.TargetId=Target.TargetId;Drop.Bases=Bases;
         switch(Target.Kind)
         {
@@ -1802,6 +1813,113 @@ const LDHUD::FComponentDrop* LDHUD::FindDrop(const TArray<FComponentDrop>& Drops
         if(const FComponentDrop* OnHost=Drops.FindByPredicate([Column,Host](const FComponentDrop& D){return D.Column==Column&&D.Host==Host;})){return OnHost;}
     }
     return Drops.FindByPredicate([Column](const FComponentDrop& D){return D.Column==Column&&D.Host.IsNone();});
+}
+FName LDHUD::FormMateAt(FName Component,ELDComponentTargetKind Kind,FName TargetId,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    const FLDDemoComponentDefinition* Definition=HudComponentDefinition(Content,Component);
+    if(!Definition||Definition->Form.IsEmpty()){return NAME_None;}
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        if(!Owned.bInstalled||Owned.DefinitionId==Component||Owned.Target.Kind!=Kind||Owned.Target.Definition!=TargetId){continue;}
+        const FLDDemoComponentDefinition* Other=HudComponentDefinition(Content,Owned.DefinitionId);
+        if(Other&&LDWorkshop::Conflicts(*Definition,*Other)){return Owned.DefinitionId;}
+    }
+    return NAME_None;
+}
+TArray<LDHUD::FComponentDrop> LDHUD::ReplaceDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FComponentDrop> Out;
+    const FLDComponentInstanceView* Self=HudOwned(Progression,Component);
+    if(!Self||Self->bInstalled||!HudComponentDefinition(Content,Component)){return Out;}
+    const TArray<FComponentDrop> Plain=ComponentDrops(Component,Progression,Content);
+    for(const FLDComponentInstanceView& Replaced:Progression.Components)
+    {
+        if(!Replaced.bInstalled){continue;}
+        EStorageColumn Column=EStorageColumn::Body;FName Ignored;
+        HudPlacement(Progression,Replaced,Column,Ignored);
+        if(FindDrop(Plain,Column,Replaced.DefinitionId)){continue;}
+        TArray<FName> Lost{Replaced.DefinitionId};
+        Lost.Append(DetachedWith(Replaced.DefinitionId,Progression));
+        FLDProgressionView Reduced=Progression;
+        for(FLDComponentInstanceView& Owned:Reduced.Components)
+        {
+            if(Lost.Contains(Owned.DefinitionId)){Owned.bInstalled=false;Owned.Target=FLDComponentTargetView();}
+        }
+        const TArray<FComponentDrop> After=ComponentDrops(Component,Reduced,Content);
+        const FComponentDrop* Landing=After.FindByPredicate([Column](const FComponentDrop& D){return D.Column==Column&&D.Host.IsNone();});
+        if(!Landing){Landing=After.FindByPredicate([Column](const FComponentDrop& D){return D.Column==Column;});}
+        if(!Landing){continue;}
+        FComponentDrop Drop=*Landing;Drop.Host=Replaced.DefinitionId;Drop.Replacing=Replaced.DefinitionId;Drop.Lost=MoveTemp(Lost);
+        Out.Add(MoveTemp(Drop));
+    }
+    return Out;
+}
+FString LDHUD::DropPreviewText(FName Component,const FComponentDrop& Drop,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
+{
+    static const TCHAR* const Labels[StorageColumnCount]={LDTerms::ColumnBody,TEXT("Q"),TEXT("W"),TEXT("E"),TEXT("D")};
+    const auto Name=[Content](FName Id){return ContentName(Content,Id.ToString());};
+    FString Place=Labels[FMath::Clamp(int32(Drop.Column),0,StorageColumnCount-1)];
+    if(Drop.Kind==ELDComponentTargetKind::Component&&!Drop.TargetId.IsNone()){Place=Name(Drop.TargetId);}
+    if(Drop.Replacing.IsNone()){return LDTerms::DropInstallsOn(Place);}
+    TArray<FString> With;
+    for(const FName& Id:Drop.Lost){if(Id!=Drop.Replacing){With.Add(Name(Id));}}
+    return LDTerms::DropReplaces(Name(Drop.Replacing),FString::Join(With,TEXT("、")),Place);
+}
+FString LDHUD::ConnectionsText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    const FLDDemoComponentDefinition* Definition=HudComponentDefinition(Content,Component);
+    if(!Definition||!Content){return FString();}
+    const FString Self=Component.ToString();
+    TArray<FString> Links;TArray<FString> Mates;
+    const auto Add=[Content](TArray<FString>& List,const FString& Id){List.AddUnique(ContentName(Content,Id));};
+    for(const FString& Id:Definition->TargetActives)
+    {
+        if(Progression.Actives.ContainsByPredicate([&Id](const FLDActiveSlotView& A){return A.DefinitionId==FName(*Id);})){Add(Links,Id);}
+    }
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        const FString Id=Owned.DefinitionId.ToString();
+        if(Id==Self){continue;}
+        const FLDDemoComponentDefinition* Other=HudComponentDefinition(Content,Owned.DefinitionId);
+        if(!Other){continue;}
+        if(Definition->TargetComponents.Contains(Id)||Definition->ExtraBases.Contains(Id)
+            ||Other->TargetComponents.Contains(Self)||Other->ExtraBases.Contains(Self)){Add(Links,Id);}
+        if(LDWorkshop::Conflicts(*Definition,*Other)){Add(Mates,Id);}
+    }
+    TArray<FString> Lines;
+    if(!Links.IsEmpty()){Lines.Add(LDTerms::WorksWith(FString::Join(Links,TEXT("、"))));}
+    if(!Mates.IsEmpty()){Lines.Add(LDTerms::SameForm(FString::Join(Mates,TEXT("、"))));}
+    return FString::Join(Lines,TEXT("\n"));
+}
+FString LDHUD::DropColumnsText(const TArray<FComponentDrop>& Drops)
+{
+    static const TCHAR* const Labels[StorageColumnCount]={LDTerms::ColumnBody,TEXT("Q"),TEXT("W"),TEXT("E"),TEXT("D")};
+    TArray<FString> Columns;
+    for(int32 Index=0;Index<StorageColumnCount;++Index)
+    {
+        if(Drops.ContainsByPredicate([Index](const FComponentDrop& D){return int32(D.Column)==Index;})){Columns.Add(Labels[Index]);}
+    }
+    return Columns.IsEmpty()?FString(LDTerms::NoPlaceNow):LDTerms::CanGoOn(FString::Join(Columns,TEXT("、")));
+}
+bool LDHUD::WorkshopFull(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    if(!Content||!Progression.bValid){return false;}
+    int32 Installed=0;
+    for(const FLDComponentInstanceView& Owned:Progression.Components){Installed+=Owned.bInstalled?1:0;}
+    return Installed>=LDProgression::WorkshopCapacity(Content->Progression,Progression.Level);
+}
+FString LDHUD::StoredPlaceText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    if(WorkshopFull(Progression,Content))
+    {
+        const int32 Capacity=LDProgression::WorkshopCapacity(Content->Progression,Progression.Level);
+        return ReplaceDrops(Component,Progression,Content).IsEmpty()?LDTerms::WorkshopFullNoPlace(Capacity):LDTerms::WorkshopFullHint(Capacity);
+    }
+    const TArray<FComponentDrop> Drops=ComponentDrops(Component,Progression,Content);
+    if(Drops.IsEmpty()&&!ReplaceDrops(Component,Progression,Content).IsEmpty()){return LDTerms::ReplaceAvailable;}
+    return DropColumnsText(Drops);
 }
 LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content)
 {
@@ -2042,6 +2160,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::OpeningBaseTaken: return FString(TEXT("开局基础"))+LDTerms::Component+TEXT("已经选过了");
     case ELDGrowthReason::OpeningActiveFirst: return FString(TEXT("先选开局技能，再选开局基础"))+LDTerms::Component;
     case ELDGrowthReason::TargetConflict: return LDTerms::TargetConflict;
+    case ELDGrowthReason::WorkshopFull: return LDTerms::WorkshopFullReason;
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");

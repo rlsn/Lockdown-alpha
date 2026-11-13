@@ -2,11 +2,11 @@
   "schema_version": 3,
   "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 11,
-  "geometry_revision": 9,
+  "layout_revision": 12,
+  "geometry_revision": 10,
   "approval": {
     "status": "approved",
-    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 (2026-11-11) approved rest services x=6700/7500/8300 y=-500 cm and six training anchors x=6500..8500 step 400 y=700 cm. A playtest baseline, not a balance check."
+    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check."
   },
   "coordinate_unit": "cm",
   "geometry": {
@@ -5001,9 +5001,9 @@
     {"id": "rest_spawn_3", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 7700, "y": -500, "z": 0}},
     {"id": "rest_spawn_4", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8100, "y": -500, "z": 0}},
     {"id": "rest_spawn_5", "kind": "RestSpawn", "surface_id": "demo_ground", "position_cm": {"x": 8500, "y": -500, "z": 0}},
-    {"id": "rest_service_1", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 6700, "y": -500, "z": 0}},
+    {"id": "rest_service_1", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7100, "y": -500, "z": 0}},
     {"id": "rest_service_2", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7500, "y": -500, "z": 0}},
-    {"id": "rest_service_3", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 8300, "y": -500, "z": 0}},
+    {"id": "rest_service_3", "kind": "RestService", "surface_id": "demo_ground", "position_cm": {"x": 7900, "y": -500, "z": 0}},
     {"id": "training_dummy_0", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6500, "y": 700, "z": 0}},
     {"id": "training_dummy_1", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 6900, "y": 700, "z": 0}},
     {"id": "training_dummy_2", "kind": "TrainingDummy", "surface_id": "demo_ground", "position_cm": {"x": 7300, "y": 700, "z": 0}},
@@ -5180,22 +5180,22 @@
       "members": [{"id": "l22_0", "position_cm": {"x": -3196, "y": -2320, "z": 0}}, {"id": "l22_1", "position_cm": {"x": -3310, "y": -2206, "z": 0}}]
     },
     {
-      "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 6500, "y": -200, "z": 0}
+      "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7590, "y": 100, "z": 0}
     },
     {
-      "id": "pk_signup_1", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 6900, "y": -200, "z": 0}
+      "id": "pk_signup_1", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7545, "y": 178, "z": 0}
     },
     {
-      "id": "pk_signup_2", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7300, "y": -200, "z": 0}
+      "id": "pk_signup_2", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7455, "y": 178, "z": 0}
     },
     {
-      "id": "pk_signup_3", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7700, "y": -200, "z": 0}
+      "id": "pk_signup_3", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7410, "y": 100, "z": 0}
     },
     {
-      "id": "pk_signup_4", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 8100, "y": -200, "z": 0}
+      "id": "pk_signup_4", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7455, "y": 22, "z": 0}
     },
     {
-      "id": "pk_signup_5", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 8500, "y": -200, "z": 0}
+      "id": "pk_signup_5", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7545, "y": 22, "z": 0}
     },
     {
       "id": "pk_spawn_0", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 959, "y": 427, "z": 0}

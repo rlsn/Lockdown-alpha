@@ -997,6 +997,8 @@ void ULDHUD::RefreshReadModel()
     {
         // A covered HUD keeps no armed throw: the next world click must not throw blind.
         bPKThrowArmed=false;
+        if(StatBar){StatBar->SetDetailsHeld(false);}
+        if(Storage){Storage->SetDetailsHeld(false);}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
@@ -1163,6 +1165,10 @@ void ULDHUD::RefreshReadModel()
     // New world commands follow Combat's input half (menu/Settings, child confirmation or text edit, held keys);
     // Combat itself refuses and cancels any armed preview while input is captured.
     const bool bInputSuppressed=PC->IsWorldInputSuppressed();
+    const FKey DetailsKey=PC->BindingKey(TEXT("Details"));
+    const bool bDetailsHeld=bOwnMatch&&Playing&&DetailsKey.IsValid()&&PC->IsInputKeyDown(DetailsKey)&&!PC->IsWorldInputCaptured();
+    if(StatBar){StatBar->SetDetailsHeld(bDetailsHeld);}
+    if(Storage){Storage->SetDetailsHeld(bDetailsHeld);}
 
     if(ChoicesPanel)
     {
@@ -1399,7 +1405,12 @@ void ULDHUD::RefreshReadModel()
     if(!DetailOver&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
     // A card of the open 构筑 tray: its full rules (the card shows only the icon and the name).
     const bool bTrayOpen=ChoicesPanel&&ChoicesPanel->IsTrayOpen();
-    if(!DetailOver&&bTrayOpen){DetailOver=ChoicesPanel->Hovered(Pointer,DetailView);}
+    if(!DetailOver&&bTrayOpen)
+    {
+        FName SeenComponent;
+        DetailOver=ChoicesPanel->Hovered(Pointer,DetailView,&SeenComponent);
+        if(Storage&&!SeenComponent.IsNone()){Storage->MarkSeen(SeenComponent);}
+    }
     if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None&&!(bTrayOpen&&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::Choices))
         ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;}
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
@@ -1505,20 +1516,21 @@ void ULDHUD::SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,b
         // A failed build is reported once per match, never retried every frame or replaced by a guessed disk.
         if(SignupMarkerFailedMatch==Public.Generation){return;}
         const ULDMapRegistry* Registry=World->GetSubsystem<ULDMapRegistry>();
-        const FLDMapBinding* Disk=Registry&&OwnSlot<LDDemoWorld::PKSignups?Registry->Resolve(FName(*LDDemoWorld::PKSignupId(OwnSlot)),Registry->Generation):nullptr;
+        FVector Centre=FVector::ZeroVector;
+        const bool bDisk=Registry&&OwnSlot>=0&&OwnSlot<LDDemoWorld::PKSignups&&Registry->SharedSignupCentre(Centre);
         TSharedPtr<const FLDDemoContentSnapshot> Content;
         FString Error;
         const bool bContent=LDDemoEntry::LoadRuntimeContent(Content,Error)&&Content;
         const FLDDemoRational Radius=bContent?Content->Get().Parameters.AirdropPickupRadiusCm:FLDDemoRational();
         FActorSpawnParameters Spawn;
         Spawn.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        Marker=Disk&&bContent&&Radius.Denominator>0?World->SpawnActor<ALDSignupMarker>(Spawn):nullptr;
-        if(!Marker||!Marker->Build(Disk->Position,double(Radius.Numerator)/double(Radius.Denominator),Public.Generation,OwnSlot,Error))
+        Marker=bDisk&&bContent&&Radius.Denominator>0&&Radius.Numerator>0?World->SpawnActor<ALDSignupMarker>(Spawn):nullptr;
+        if(!Marker||!Marker->Build(Centre,double(Radius.Numerator)/double(Radius.Denominator),Public.Generation,OwnSlot,Error))
         {
             if(Marker){Marker->Destroy();}
             SignupMarkerFailedMatch=Public.Generation;
             UE_LOG(LogLDUI,Error,TEXT("LD_HUD_SIGNUP_DISK_UNAVAILABLE slot=%d %s"),OwnSlot,
-                Error.IsEmpty()?TEXT("the own sign-up disk is not in the registered world or content"):*Error);
+                Error.IsEmpty()?TEXT("the shared sign-up disk is not in the registered world or content"):*Error);
             return;
         }
         SignupMarker=Marker;

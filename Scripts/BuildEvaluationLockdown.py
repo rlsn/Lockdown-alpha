@@ -27,7 +27,7 @@ import re
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 8
+ADAPTER_VERSION = 13
 # LDBuildEvaluation::MaxCases and MaxBuildSteps of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused
 # before any run.
 NATIVE_MAX_CASES = 500
@@ -35,13 +35,18 @@ NATIVE_MAX_BUILD_STEPS = 32
 NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
 NATIVE_RESULT_SCHEMA = "lockdown.build_evaluation.native_result"
 NATIVE_RUN_SCHEMA = "lockdown.build_evaluation.native_run"
-NATIVE_INPUT_SCHEMA_VERSION = 3
-NATIVE_RESULT_SCHEMA_VERSION = 4
+NATIVE_INPUT_SCHEMA_VERSION = 5
+NATIVE_RESULT_SCHEMA_VERSION = 6
 SEED_DERIVATION = 1
 ROLES = ("subject", "opponent")
 PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
 CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
-CANONICAL_TAGS = ("LD_OFFER", "LD_CHOICE", "LD_BUILD", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT")
+CANONICAL_TAGS = ("LD_EVAL_OPENING_PRESET", "LD_EVAL_COMPONENT_PRESET", "LD_EVAL_FIELD_SPAWN", "LD_OFFER", "LD_CHOICE",
+                  "LD_BUILD", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT")
+# Growth commands that mutate only their own contender's record, with any draw seeded by (match, contender, request)
+# (LDDevelopmentDirector.cpp ApplyBuild, DrawHead's OfferSeed(match, contender, ordinal)); two AI controllers'
+# commands in one tick follow engine actor-tick order.
+INDEPENDENT_PREPARATION_TAGS = ("LD_OFFER", "LD_CHOICE", "LD_BUILD")
 FIELD = re.compile(r'(\w+)=("(?:[^"\\]|\\.)*"|\S*)')
 GUID = re.compile(r"\b[0-9A-F]{32}\b")
 DEFINITION = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -88,7 +93,7 @@ UNPLANNABLE_STEPS = ("buy_npc_offer", "forget", "fill_gap", "dismantle", "compon
 
 METRICS = {
     "duel_score": {"unit": "score", "kind": "score", "direction": "higher_better",
-                   "description": "+1 the subject killed the opponent, -1 the subject died first, 0 undecided at the duel timeout"},
+                   "description": "+1 the subject killed the opponent, -1 the subject died first, 0 simultaneous trade or timeout"},
     "damage_dealt_hp": {"unit": "hp", "kind": "continuous", "direction": "higher_better",
                         "description": "HP the opponent lost to the subject's committed hits up to the outcome (shield absorption excluded)"},
     "damage_taken_hp": {"unit": "hp", "kind": "continuous", "direction": "lower_better",
@@ -166,8 +171,10 @@ def describe(project_root):
             "ai_select": {"description": "the production active preference (LDOpponentPolicy::SelectActive)"},
             "option_index": {"description": "the option at index 0..2 of the actual active offer; refused when it has fewer"},
             "definition": {"description": "the actual active offer's option of one active; refused when not offered"},
-            "preset_offer": {"description": "a one-to-three-active offer prepared by DevQueueOffer from ordinal 2",
+            "preset_offer": {"description": "a diagnostic opening offer or a later one-to-three-active offer prepared by DevQueueOffer",
                              "sample_classes": ["diagnostic"]},
+            "preset_level_components": {"description": "a diagnostic, per-level replacement for earned common component draws",
+                                        "sample_classes": ["diagnostic"]},
             "choose_opening_base": {"description": "build step opening_base, in the opening rest: a named option of the actual "
                                                    "opening base pick, enabled at once, with B18's learned active and element; "
                                                    "refused when not offered"},
@@ -199,6 +206,7 @@ def describe(project_root):
                                "xp_to_next": progression["xp_to_next"],
                                "active_offer_levels": progression["active_offer_levels"],
                                "component_category_weights": progression["component_category_weights"],
+                               "bonus_component_levels": progression["bonus_component_levels"],
                                "opening_points": int(content["parameters"]["GROWTH.OpeningPoints"]),
                                "points_per_level": int(content["parameters"]["GROWTH.PointsPerLevel"]),
                                "stat_design_order": [stat["id"] for stat in
@@ -244,17 +252,94 @@ def _rule(rule, where):
 
 def _side_plan(plan, role):
     side = plan.get(role)
-    if not isinstance(side, dict) or set(side) - {"choices", "presets", "build"} or "choices" not in side:
-        raise ValueError(f"plan.{role}: an object with choices (and optional presets and build)")
+    if not isinstance(side, dict) or set(side) - {"choices", "opening_preset", "presets", "level_components", "build", "stance"} or "choices" not in side:
+        raise ValueError(f"plan.{role}: an object with choices (and optional opening_preset, presets, level_components, build and stance)")
     if not isinstance(side["choices"], list):
         raise ValueError(f"plan.{role}.choices: a list")
     choices = [_rule(rule, f"plan.{role}.choices[{index}]") for index, rule in enumerate(side["choices"])]
+    _opening_preset(plan, role)
+    _level_components(plan, role)
+    _stance(plan, role)
     presets = side.get("presets", [])
     if not isinstance(presets, list) or any(not isinstance(row, list) or not 1 <= len(row) <= 3
                                             or any(not isinstance(card, str) for card in row) or len(set(row)) != len(row)
                                             for row in presets):
         raise ValueError(f"plan.{role}.presets: lists of one to three distinct active ids")
     return choices, presets
+
+
+def _opening_preset(plan, role):
+    cards = plan[role].get("opening_preset", [])
+    if (not isinstance(cards, list) or len(cards) > 3 or any(not isinstance(card, str) for card in cards)
+            or len(set(cards)) != len(cards)):
+        raise ValueError(f"plan.{role}.opening_preset: zero to three distinct active ids")
+    return cards
+
+
+def _level_components(plan, role):
+    cards = plan[role].get("level_components", [])
+    if (not isinstance(cards, list) or len(cards) > MAX_LEVEL_DRAWS or any(not isinstance(card, str) or not DEFINITION.fullmatch(card)
+                                                             for card in cards)
+            or len(set(cards)) != len(cards)):
+        raise ValueError(f"plan.{role}.level_components: at most {MAX_LEVEL_DRAWS} distinct component ids")
+    return cards
+
+
+MAX_LEVEL_DRAWS = 23
+
+
+def draw_levels(params, level):
+    """The source level of every normal level-up draw 2..level: two on a bonus component level, one otherwise."""
+    bonus = set(params["bonus_component_levels"])
+    return [reached for reached in range(2, level + 1) for _ in range(2 if reached in bonus else 1)]
+
+
+STANCE_KINDS = ("kite", "burst", "hold", "guard")
+STANCE_STANDOFF_CM = (200, 2000)
+STANCE_THRESHOLD_BP = (1000, 9000)
+STANCE_LEASH_CM = (500, 5000)
+# Operation knobs (any stance, each optional, 0: exact play) and their native limits.
+OPERATION_KNOBS = {"reaction_ms": (0, 1500), "aim_error_cm": (0, 400), "skip_bp": (0, 9000)}
+
+
+def _stance(plan, role):
+    """The optional engagement stance (absent: the production pursue): {"kind": "kite"|"burst"|"hold"|"guard",
+    "standoff_cm": N, "threshold_bp": N (guard only, required), "leash_cm": N (optional)}, each with the optional operation
+    knobs reaction_ms, aim_error_cm and skip_bp. {"kind": "pursue"} is written only to carry knobs."""
+    stance = plan[role].get("stance")
+    if stance is None:
+        return None
+
+    def bounded(key, bounds):
+        value = stance[key]
+        return isinstance(value, int) and not isinstance(value, bool) and bounds[0] <= value <= bounds[1]
+
+    knobs = set(OPERATION_KNOBS) & set(stance) if isinstance(stance, dict) else set()
+    if (not isinstance(stance, dict) or any(not bounded(key, OPERATION_KNOBS[key]) for key in knobs)):
+        raise ValueError(f"plan.{role}.stance: optional integer knobs " + ", ".join(
+            f"{key} {low}..{high}" for key, (low, high) in OPERATION_KNOBS.items()))
+    if stance.get("kind") == "pursue":
+        if not knobs or set(stance) - knobs - {"kind"}:
+            raise ValueError(f"plan.{role}.stance: a pursue stance carries only operation knobs, at least one "
+                             f"(omit the stance to pursue exactly)")
+        return {key: stance[key] for key in ("kind", *OPERATION_KNOBS) if key in stance}
+    guard = stance.get("kind") == "guard"
+    keys = {"kind", "standoff_cm"} | ({"threshold_bp"} if guard else set())
+    if (stance.get("kind") not in STANCE_KINDS or not keys <= set(stance)
+            or set(stance) - keys - {"leash_cm"} - knobs or not bounded("standoff_cm", STANCE_STANDOFF_CM)
+            or (guard and not bounded("threshold_bp", STANCE_THRESHOLD_BP))
+            or ("leash_cm" in stance and not bounded("leash_cm", STANCE_LEASH_CM))):
+        raise ValueError(f"plan.{role}.stance: {{\"kind\": kite|burst|hold|guard, \"standoff_cm\": "
+                         f"{STANCE_STANDOFF_CM[0]}..{STANCE_STANDOFF_CM[1]}, \"threshold_bp\": "
+                         f"{STANCE_THRESHOLD_BP[0]}..{STANCE_THRESHOLD_BP[1]} (guard only), optional \"leash_cm\": "
+                         f"{STANCE_LEASH_CM[0]}..{STANCE_LEASH_CM[1]}}} (omit it to pursue)")
+    return {key: stance[key] for key in ("kind", "standoff_cm", "threshold_bp", "leash_cm", *OPERATION_KNOBS) if key in stance}
+
+
+def operation_knobs(plan, role):
+    """The role's planned operation knobs, each 0 when not written."""
+    stance = _stance(plan, role) or {}
+    return {key: stance.get(key, 0) for key in OPERATION_KNOBS}
 
 
 def _definition(value, where):
@@ -326,7 +411,7 @@ def _supply_problem(component, row, level, params):
     return None
 
 
-def _build_needs(role, steps, choices, caps, supply_xp):
+def _build_needs(role, steps, choices, caps, supply_xp, level_components):
     """What a planned build needs, and what duel_site provably cannot give it. Components come only from the opening base
     pick and the seeded level-up draws of the common pool; a named active is learned only through a definition choice."""
     params = caps["scenarios"]["duel_site"]["parameters"]
@@ -397,6 +482,8 @@ def _build_needs(role, steps, choices, caps, supply_xp):
                 problem(f"{component} is an opening option only after one of {options}; choose that opening active by definition")
             elif options != "always" and opening not in options:
                 problem(f"{component} is not an opening option after {opening}")
+            elif component in level_components:
+                problem(f"{component} is already owned before the fixed level-component preset")
             else:
                 check_binding()
             picked = True
@@ -410,6 +497,8 @@ def _build_needs(role, steps, choices, caps, supply_xp):
                         "rest window after the supply")
             elif not held and at == "opening_rest":
                 problem(f"{component} is not owned in the opening rest: only the opening base pick gives a component there")
+            elif not held and level_components and component not in level_components:
+                problem(f"{component} is not in the fixed level-component preset")
             elif not held and _supply_problem(component, row, level, params):
                 problem(_supply_problem(component, row, level, params))
             host = None
@@ -481,6 +570,8 @@ def requirements(scenario, plan, caps):
     mechanics, decisions, problems = set(), set(), []
     for role in ROLES:
         choices, presets = _side_plan(plan, role)
+        opening = _opening_preset(plan, role)
+        level_components = _level_components(plan, role)
         steps = _side_build(plan, role)
         for index, rule in enumerate(choices):
             if "replace" in rule:
@@ -491,10 +582,29 @@ def requirements(scenario, plan, caps):
             decision, reason = UNPLANNABLE[kind]
             problems.append(f"UnsupportedDecision: {decision} (plan.{role}.build[{index}]): {reason}")
         if not unplannable:
-            needs = _build_needs(role, steps, choices, caps, supply[role])
+            needs = _build_needs(role, steps, choices, caps, supply[role], level_components)
             mechanics |= needs[0]
             decisions |= needs[1]
             problems += needs[2]
+        if level_components:
+            decisions.add("preset_level_components")
+            mechanics.update(level_components)
+            params = caps["scenarios"]["duel_site"]["parameters"]
+            level = level_for({"xp_to_next": params["xp_to_next"]}, supply[role])
+            sources = draw_levels(params, level)
+            if len(level_components) != len(sources):
+                problems.append(f"IllegalDecision: plan.{role}.level_components needs {len(sources)} grants for levels 2..{level}")
+            for reached, component in zip(sources, level_components):
+                row = caps["mechanics"].get(component)
+                if not row:
+                    continue
+                if row["kind"] not in COMPONENT_KINDS:
+                    problems.append(f"IllegalDecision: {component} is not a level-up component")
+                elif row["pool"] != "common":
+                    problems.append(f"IllegalDecision: {component} is {row['pool']}, not a common level-up component")
+                elif not any(band["levels"][0] <= reached <= band["levels"][1] and band[row["kind"]] > 0
+                             for band in params["component_category_weights"]):
+                    problems.append(f"IllegalDecision: {component} cannot be drawn at level {reached}")
         opportunities = _opportunities(caps, supply[role])
         if len(choices) != opportunities:
             problems.append(f"IllegalDecision: plan.{role} has {len(choices)} rules but its supply of {supply[role]} XP "
@@ -510,16 +620,43 @@ def requirements(scenario, plan, caps):
             elif row and ordinal == 1 and not row.get("opening"):
                 problems.append(f"IllegalDecision: plan.{role} ordinal 1 can never offer {rule['definition']}"
                                 " (the opening offer draws from the opening pool only)")
-        if presets:
+        if opening or presets:
             decisions.add("preset_offer")
+        if presets:
             if len(presets) > max(0, opportunities - 1):
                 problems.append(f"IllegalDecision: plan.{role} prepares {len(presets)} offers for {max(0, opportunities - 1)} later opportunities")
+        for card in opening:
+            mechanics.add(card)
+            row = caps["mechanics"].get(card, {})
+            if row and (row.get("kind") != "active" or not row.get("opening")):
+                problems.append(f"IllegalDecision: plan.{role}.opening_preset contains {card}, which is not an opening active")
         for row in presets:
             for card in row:
                 mechanics.add(card)
                 kind = caps["mechanics"].get(card, {}).get("kind")
                 if kind and kind != "active":
                     problems.append(f"IllegalDecision: plan.{role} presets name {kind} {card}; only actives are offered")
+        known_chosen = set()
+        for ordinal, rule in enumerate(choices, 1):
+            offered = opening if ordinal == 1 else presets[ordinal - 2] if ordinal - 2 < len(presets) else []
+            for card in known_chosen.intersection(offered):
+                problems.append(f"IllegalDecision: plan.{role} ordinal {ordinal} offers {card}, already chosen earlier")
+            selected = None
+            if rule["rule"] == "definition":
+                selected = rule["definition"]
+                if offered and selected not in offered:
+                    problems.append(f"IllegalDecision: plan.{role} ordinal {ordinal} preset does not offer {selected}")
+            elif rule["rule"] == "option_index" and offered:
+                if rule["index"] >= len(offered):
+                    problems.append(f"IllegalDecision: plan.{role} ordinal {ordinal} preset has no option {rule['index']}")
+                else:
+                    selected = offered[rule["index"]]
+            elif rule["rule"] == "ai_select" and len(offered) == 1:
+                selected = offered[0]
+            if selected:
+                if selected in known_chosen:
+                    problems.append(f"IllegalDecision: plan.{role} ordinal {ordinal} selects {selected}, already chosen earlier")
+                known_chosen.add(selected)
     return {"mechanics": sorted(mechanics), "decisions": sorted(decisions), "problems": problems}
 
 
@@ -563,8 +700,13 @@ def native_input(run_id, manifest, caps, cases):
         contenders = []
         for role, slot in (("subject", subject_slot), ("opponent", 1 - subject_slot)):
             choices, presets = _side_plan(plan, role)
-            contenders.append({"role": role, "slot": slot, "supply_xp": params["supply_xp"][role], "choices": choices,
-                               "presets": presets, "build": _side_build(plan, role)})
+            row = {"role": role, "slot": slot, "supply_xp": params["supply_xp"][role], "choices": choices,
+                   "opening_preset": _opening_preset(plan, role), "presets": presets,
+                   "level_components": _level_components(plan, role), "build": _side_build(plan, role)}
+            stance = _stance(plan, role)
+            if stance is not None:
+                row["stance"] = stance
+            contenders.append(row)
         out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
                     "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
                     "contenders": contenders})
@@ -784,6 +926,46 @@ def build_problems(events, ids, plan, contenders, t_out, caps):
     return problems
 
 
+def level_component_problems(events, ids, plan, contenders, t_out, caps, supply):
+    """Prove each conditional preset was queued, committed as the earned grant and retained with its source level."""
+    problems = []
+    params = caps["scenarios"]["duel_site"]["parameters"]
+    for role in ROLES:
+        expected = _level_components(plan, role)
+        own = [(index, tag, fields) for index, (tag, fields, _) in enumerate(events) if fields.get("contender") == ids[role]]
+        staged = [(index, fields) for index, tag, fields in own if tag == "LD_EVAL_COMPONENT_PRESET"]
+        if not expected:
+            if staged:
+                problems.append(f"PresetNotApplied: the {role} has an unplanned level-component preset")
+            continue
+        level = level_for({"xp_to_next": params["xp_to_next"]}, supply[role])
+        interval = f"1->{level}"
+        rewards = [(index, fields) for index, tag, fields in own
+                   if tag == "LD_REWARD" and fields.get("cause") == "dev_fixture"]
+        grants = [(index, fields) for index, tag, fields in own
+                  if tag == "LD_LEVEL_UP" and fields.get("level") == interval]
+        if len(staged) != 1 or len(rewards) != 1 or len(grants) != 1:
+            problems.append(f"PresetNotApplied: the {role} needs one staged preset, one supply reward and one level-up grant")
+        else:
+            stage_index, stage = staged[0]
+            reward_index, reward = rewards[0]
+            grant_index, grant = grants[0]
+            times = [entry.get("t", "") for entry in (stage, reward, grant)]
+            if (not all(t.isdigit() for t in times) or not stage_index < reward_index < grant_index
+                    or not int(times[0]) <= int(times[1]) == int(times[2]) <= t_out
+                    or not stage.get("ticket", "").isdigit() or int(stage["ticket"]) <= 0
+                    or reward.get("level") != interval
+                    or stage.get("components", "").split(",") != expected
+                    or grant.get("components", "").split(",") != expected or grant.get("empty_pool_grants") != "0"):
+                problems.append(f"PresetNotApplied: the {role} staged, supplied or granted level components differ from the plan")
+        held = contenders[role]["components"]
+        for source_level, component in zip(draw_levels(params, level), expected):
+            matches = [item for item in held if item["id"] == component]
+            if len(matches) != 1 or matches[0]["source"] != "LevelUp" or matches[0]["source_level"] != source_level:
+                problems.append(f"PresetNotApplied: the {role} terminal {component} does not retain level-{source_level} provenance")
+    return problems
+
+
 def case_evidence(case, manifest, caps, result, trace_text):
     out = {"status": "Invalid", "reason": "", "metrics": {}, "facts": {}, "violations": []}
     if result.get("schema") != NATIVE_RESULT_SCHEMA or result.get("schema_version") != NATIVE_RESULT_SCHEMA_VERSION:
@@ -883,6 +1065,12 @@ def case_evidence(case, manifest, caps, result, trace_text):
             or fields[0].get("segment") != "0" or fields[0].get("at_ms") != str(t0)
             or fields[0].get("field_t_ms") != "0" or fields[0].get("final") != "0"):
         reasons.append("TraceIncomplete: the first field entry is missing or disagrees with the duel start")
+    for role, contender in ids.items():
+        spawns = [fields for tag, fields, _ in events if tag == "LD_EVAL_FIELD_SPAWN" and fields.get("contender") == contender]
+        if (len(spawns) != 1 or spawns[0].get("t") != str(t0) or spawns[0].get("generation") != str(result["generation"])
+                or not spawns[0].get("life", "").isdigit() or int(spawns[0]["life"]) < 1
+                or not re.fullmatch(r"-?\d+,-?\d+,-?\d+", spawns[0].get("pos", ""))):
+            reasons.append(f"TraceIncomplete: the {role} field spawn is missing, duplicated or inconsistent")
     if result["ended_at_ms"] >= t0 + caps["scenarios"]["duel_site"]["parameters"]["first_field_ms"]:
         reasons.append("TraceIncomplete: the Case crossed the first field boundary")
     if outcome["kind"] == "kill":
@@ -898,6 +1086,23 @@ def case_evidence(case, manifest, caps, result, trace_text):
                 reasons.append("TraceIncomplete: kill time disagrees with the receipt or is after the duel horizon")
         if outcome["killer"] not in ROLES or outcome["killer"] == outcome["victim"]:
             reasons.append(f"ExternalKill: the {outcome['victim']} was killed by {outcome['killer'] or 'no contender'}")
+        if any(tag == "LD_DEATH_RECEIPT" and row.get("contender") in duelists - {victim} and row.get("t") == str(t_out)
+               for tag, row, _ in events):
+            reasons.append("TraceIncomplete: simultaneous deaths were reported as a single kill, not a trade")
+    elif outcome["kind"] == "trade":
+        t_out = t0 + outcome["t_ms"]
+        if (outcome["victim"] or outcome["killer"] or not t0 <= t_out <= min(result["ended_at_ms"],
+                                                                             t0 + int(params["duel_timeout_ms"]))):
+            reasons.append("TraceIncomplete: trade time or outcome identity is inconsistent")
+        for victim_role, killer_role in (("subject", "opponent"), ("opponent", "subject")):
+            victim, killer = ids[victim_role], ids[killer_role]
+            deaths = [row for tag, row, _ in events if tag == "LD_DEATH_RECEIPT" and row.get("contender") == victim
+                      and row.get("t") == str(t_out)]
+            lethal = [row for tag, row, _ in events if tag == "LD_HIT" and row.get("victim") == victim
+                      and row.get("t") == str(t_out) and row.get("lethal") == "1" and row.get("credit") == killer]
+            if (len(deaths) != 1 or len(lethal) != 1 or deaths[0].get("killer") != killer
+                    or deaths[0].get("life") != lethal[0].get("victim_life")):
+                reasons.append(f"TraceIncomplete: the {victim_role} trade death lacks a matching reciprocal lethal hit and receipt")
     elif outcome["kind"] == "timeout":
         t_out = t0 + int(params["duel_timeout_ms"])
         if result["ended_at_ms"] < t_out:
@@ -943,9 +1148,20 @@ def case_evidence(case, manifest, caps, result, trace_text):
     plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
     reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out)
     reasons += build_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, t_out, caps)
+    reasons += level_component_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows},
+                                        t_out, caps, params["supply_xp"])
+    reasons += operation_problems(events, ids, plans[case["arm"]])
     for role in ROLES:
         _, presets = _side_plan(plans[case["arm"]], role)
+        opening = _opening_preset(plans[case["arm"]], role)
         offered = out["facts"]["offers"][role]
+        prepared = [fields for tag, fields, _ in events
+                    if tag == "LD_EVAL_OPENING_PRESET" and fields.get("contender") == ids[role]]
+        if opening and (offered.get("1") != opening or len(prepared) != 1
+                        or prepared[0].get("cards", "").split(",") != opening):
+            reasons.append(f"PresetNotApplied: the {role} opening offer or staged evidence differs from {opening}")
+        if not opening and prepared:
+            reasons.append(f"PresetNotApplied: the {role} has an unplanned opening preset")
         for position, preset in enumerate(presets):
             if offered.get(str(position + 2)) != preset:
                 reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
@@ -964,7 +1180,7 @@ def case_evidence(case, manifest, caps, result, trace_text):
         elif fields["src"] == opponent and fields["victim"] == subject:
             taken += _hundredths(fields["hp_lost"])
     me = next(row for row in result["contenders"] if row["role"] == "subject")
-    score = 0 if outcome["kind"] == "timeout" else (1 if outcome["victim"] == "opponent" else -1)
+    score = 0 if outcome["kind"] in ("timeout", "trade") else (1 if outcome["victim"] == "opponent" else -1)
     out.update(status="Completed", reason="", metrics={
         "duel_score": {"value": score, "censored": outcome["kind"] == "timeout"},
         "damage_dealt_hp": {"value": dealt / 100, "censored": False},
@@ -978,9 +1194,12 @@ def case_evidence(case, manifest, caps, result, trace_text):
 
 def _is_outcome_kill_reward(fields, outcome, ids, t_out):
     """The killer's own reward for the deciding kill, committed at the outcome boundary."""
-    return (outcome["kind"] == "kill" and outcome["killer"] in ids and outcome["victim"] in ids
-            and fields.get("t") == str(t_out) and fields.get("cause") == "death" and fields.get("role") == "killer"
-            and fields.get("contender") == ids[outcome["killer"]] and fields.get("victim") == ids[outcome["victim"]])
+    pairs = ([(ids[outcome["killer"]], ids[outcome["victim"]])]
+             if outcome["kind"] == "kill" and outcome["killer"] in ids and outcome["victim"] in ids
+             else [(ids["subject"], ids["opponent"]), (ids["opponent"], ids["subject"])]
+             if outcome["kind"] == "trade" else [])
+    return (fields.get("t") == str(t_out) and fields.get("cause") == "death" and fields.get("role") == "killer"
+            and (fields.get("contender"), fields.get("victim")) in pairs)
 
 
 def hit_violations(fields):
@@ -1045,6 +1264,19 @@ def _build_label(record):
     return " ".join(part for part in parts if part)
 
 
+def operation_problems(events, ids, plan):
+    """A role with any operation knob must show exactly one native profile line carrying the same knobs."""
+    reasons = []
+    for role in ROLES:
+        knobs = operation_knobs(plan, role)
+        if not any(knobs.values()):
+            continue
+        lines = [fields for tag, fields, _ in events if tag == "LD_EVAL_PROFILE" and fields.get("contender") == ids[role]]
+        if len(lines) != 1 or any(lines[0].get(key) != str(value) for key, value in knobs.items()):
+            reasons.append(f"Setup: the {role} operation knobs did not reach the native profile")
+    return reasons
+
+
 def facts(case, manifest, result, events, ids):
     offers = {role: {} for role in ROLES}
     chosen = {role: {} for role in ROLES}
@@ -1052,12 +1284,13 @@ def facts(case, manifest, result, events, ids):
     choice_details = {role: {} for role in ROLES}
     build_steps = {role: [] for role in ROLES}
     grants = {role: [] for role in ROLES}
+    component_presets = {role: [] for role in ROLES}
     services = {role: [] for role in ROLES}
     roles = {contender: role for role, contender in ids.items()}
     spawn = {}
     for tag, fields, _ in events:
         role = roles.get(fields.get("contender"))
-        if tag == "LD_HEARTBEAT" and role and role not in spawn:
+        if tag == "LD_EVAL_FIELD_SPAWN" and role and role not in spawn:
             spawn[role] = fields.get("pos")
         if not role:
             continue
@@ -1075,6 +1308,8 @@ def facts(case, manifest, result, events, ids):
             build_steps[role].append({key: fields.get(key) for key in BUILD_FIELDS})
         elif tag == "LD_LEVEL_UP":
             grants[role].append({key: fields.get(key) for key in ("t", "level", "components", "empty_pool_grants")})
+        elif tag == "LD_EVAL_COMPONENT_PRESET":
+            component_presets[role].append({key: fields.get(key) for key in ("t", "ticket", "components")})
         elif tag == "LD_MATERIAL_SERVICE":
             services[role].append({key: fields.get(key) for key in ("t", "kind", "received", "gap", "paid", "removed", "uninstalled")})
     label, prefix = _branch_facts(case, manifest, offer_details, choice_details, chosen, build_steps, grants)
@@ -1092,8 +1327,12 @@ def facts(case, manifest, result, events, ids):
                             "stat_points": {stat["id"]: stat["points"] for stat in row["stat_points"]},
                             "components": [dict(component) for component in row.get("components", [])]}
               for row in result["contenders"]}
-    return {"offers": offers, "choices": chosen, "build_steps": build_steps, "grants": grants, "material_services": services,
-            "builds": builds, "label": label, "prefix": prefix, "random_fingerprint": fingerprint, "first_hit": first_hit,
+    plan = next((arm["plan"] for arm in manifest["design"]["arms"] if arm["id"] == case.get("arm")), None)
+    operation = {role: operation_knobs(plan, role) for role in ROLES} if plan else None
+    return {"offers": offers, "choices": chosen, "build_steps": build_steps, "grants": grants,
+            "component_presets": component_presets, "material_services": services, "builds": builds, "label": label,
+            "operation": operation,
+            "prefix": prefix, "random_fingerprint": fingerprint, "first_hit": first_hit,
             "spawn": spawn, "outcome": result.get("outcome")}
 
 
@@ -1153,16 +1392,34 @@ def canonical_events(trace_text, result):
         return others[value]
 
     end = int(result.get("ended_at_ms", -1))
-    events, spatial = [], {}
+    # The match generation counts matches in one editor process; only the Case's own generation becomes relative.
+    own_generation = re.compile(rf"\bgeneration={int(result.get('generation', -1))}\b")
+    events, spatial, run = [], {}, []
+
+    def flush():
+        # Within one tick's run of independent preparation commands, order by contender role; each contender's own
+        # commands keep their order. Any other event ends the run, so combat order is never rearranged.
+        for role in sorted({who for _, who, _ in run}):
+            events.extend(line for _, who, line in run if who == role)
+        run.clear()
+
     for tag, fields, line in parse_trace(trace_text):
         t = int(fields["t"]) if fields.get("t", "").lstrip("-").isdigit() else None
         if t is not None and end >= 0 and t > end:
             continue
         if tag in CANONICAL_TAGS:
-            events.append(GUID.sub(role_of, line))
+            line = own_generation.sub("generation=case", GUID.sub(role_of, line))
+            if tag in INDEPENDENT_PREPARATION_TAGS and t is not None and "contender" in fields:
+                if run and run[0][0] != t:
+                    flush()
+                run.append((t, GUID.sub(role_of, fields["contender"]), line))
+                continue
+            flush()
+            events.append(line)
         elif tag == "LD_HEARTBEAT" and fields.get("pos", "-") != "-":
             key = f"{GUID.sub(role_of, fields['contender'])}@{t}"
             spatial[key] = tuple(float(part) for part in fields["pos"].split(","))
+    flush()
     return events, spatial
 
 
@@ -1298,7 +1555,8 @@ def limitations(manifest, caps):
         "成长由 T=0 的经验供给推动（cause=dev_fixture，经正常奖励复合事务），是计划假设，不证明真实对局中能在同样时间拿到这些经验。",
         "两名 AI 在真实 L_Demo 中移动、寻路与交战（NativeSpatial）；房主是唯一真人，只编排、不参战、不计分；没有拥有连接、网络或渲染证据。",
         "营地、Boss、空投与房主的介入被判为 Invalid 并单列，不计入结果；对决时限须早于第一野外段结束和 Boss 出现。",
-        "duel_score 为 0 表示到时未分胜负（删失），不是输；\"谁先被击倒\" 不是旗杆整局胜利。",
+        "duel_score 为 0 有两种来源：到时未分胜负（outcome.kind=timeout，删失）或同一权威时刻双方互杀（outcome.kind=trade，"
+        "已观测、不删失）；两者都不是输；\"谁先被击倒\" 不是旗杆整局胜利。",
     ]
     if manifest["sample_class"] == "diagnostic":
         out.append("本实验用 DevQueueOffer 预置候选：样本是条件实验（diagnostic），不能估计自然抽到率或全局主动健康。")

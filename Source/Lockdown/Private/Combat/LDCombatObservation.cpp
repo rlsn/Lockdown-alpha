@@ -109,7 +109,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
     for (const auto& Ground : GroundEffects)
     {
         FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-        Fact.Key=Ground.Payload.EffectId;
+        Fact.Key=Ground.ObservedKey.IsValid() ? Ground.ObservedKey : Ground.Payload.EffectId;
         Fact.SourceEntity=Ground.Payload.SourceEntity;
         Fact.PositionCm=Ground.CentreCm;
         Fact.Heading=FVector2D(1,0);

@@ -185,13 +185,18 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     // #198 F workshop state of the old phase: watches, marks, budgets, memories, debts, windows and stores.
     Body.PendingImpact.Reset();
     Body.ControlMarks.Reset();
+    Body.SetupMarks.Reset();
     Body.EffectBudgets.Reset();
     Body.DirectHitMarks.Reset();
     Body.RecentAttackers.Reset();
     Body.Debts.Reset();
     Body.FireWindowSumP2=Body.FireWindowEndMs=0;
     Body.CounterStoreP2=Body.CounterLastAddMs=Body.CounterNextFireMs=0;
+    Body.CounterRootEffectId.Invalidate();
     Body.ShieldGrantSource=FLDCombatSourceRef();
+    Body.StoredForceWatch.Reset();
+    Body.StoredForce.Reset();
+    Body.WideToken.Reset();
     Body.LandedBasics=0;
     Body.ThornsMarks.Reset();
     Body.AssistContributions.Reset();
@@ -206,6 +211,9 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     // Component rests are cooldowns too: every one is ready in the new phase.
     Body.RetortReadyAtMs=0;
     Body.DamagedShieldReadyAtMs=0;
+    Body.AbilityHitShieldReadyAtMs=0;
+    Body.LastActiveRelease=NAME_None;
+    Body.LastActiveReleaseAtMs=0;
     Body.ContactRefundReadyAtMs=0;
     Body.ChannelEffectId={};
     Body.ChannelDirectSequence=0;

@@ -77,6 +77,24 @@ bool ReturnLifeRetired(ELDLifePhase Phase, bool bHasBody, bool bHasActor)
     return Phase == ELDLifePhase::Dead && !bHasBody && !bHasActor;
 }
 
+struct FReturnCommitLife
+{
+    bool bStanding = false;
+    int64 ProtectedUntilMs = 0;
+};
+
+bool SharedReturnProtection(TConstArrayView<FReturnCommitLife> Lives, int32 ExpectedCount, int64 AtMs, int64 DurationMs)
+{
+    if (Lives.Num() != ExpectedCount || ExpectedCount <= 0 || AtMs < 0 || DurationMs <= 0 || AtMs > MAX_int64 - DurationMs)
+    { return false; }
+    const int64 Until = AtMs + DurationMs;
+    for (const FReturnCommitLife& Life : Lives)
+    {
+        if (!Life.bStanding || Life.ProtectedUntilMs != Until) { return false; }
+    }
+    return true;
+}
+
 int32 CountKind(const FLDLobbyView& Lobby, ELDContenderKind Kind)
 {
     int32 Count = 0;
@@ -349,10 +367,12 @@ public:
     bool bPKBlocked = false, bPKWaitSeen = false, bPKStartedEarly = false, bPKChecked = false;
     int64 PKBlockDueMs = 0;
     bool bReturnBlocked = false, bReturnHeldSeen = false, bNobodyStood = true, bReturnChecked = false;
-    int64 ReturnDueMs = 0, ReturnFrozenFieldMs = 0;
+    bool bReturnCommitSeen = false, bReturnCommitTogether = false;
+    int64 ReturnDueMs = 0, ReturnFrozenFieldMs = 0, ReturnCommitAtMs = 0;
     FGuid ReturnTarget;
     bool PlaceOccupant(UWorld& World, const FCollisionShape& Capsule, const FVector& FootCm);
     void ClearOccupants();
+    void CaptureReturnCommit(ALDGameMode& Mode);
     void PhaseFixtures(UWorld& World, ALDGameMode& Mode);
     void FinishPhaseFixtures();
     static void CountRequests(FLDOpponentProbeTrack& Track, int64 Now);
@@ -449,6 +469,24 @@ void FLDDemoOpponentProbe::ClearOccupants()
         }
     }
     Occupants.Reset();
+}
+
+void FLDDemoOpponentProbe::CaptureReturnCommit(ALDGameMode& Mode)
+{
+    using namespace LDDemoOpponentProbeDetail;
+    if (!bReturnBlocked || bReturnCommitSeen) { return; }
+    TArray<FReturnCommitLife> Snapshot;
+    for (const FGuid& Id : Mode.GetRosterOrder())
+    {
+        if (!Mode.IsContenderPresent(Id)) { continue; }
+        const auto* Life = Mode.Lives.Find(Id);
+        Snapshot.Add({Life && Life->Phase == ELDLifePhase::Alive && Life->Body.IsValid() && Life->Actor.IsValid(),
+            Life ? Life->ProtectedUntilMs : 0});
+    }
+    bReturnCommitSeen = true;
+    ReturnCommitAtMs = Mode.GetAuthorityNowMs();
+    bReturnCommitTogether = Mode.DemoContent.IsValid()
+        && SharedReturnProtection(Snapshot, HumanCount + OpponentCount, ReturnCommitAtMs, Mode.DemoContent->Get().Parameters.ProtectionMs);
 }
 
 void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
@@ -575,6 +613,11 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
                 ReturnDueMs = Line.GetStepEndsAtMs();
                 ReturnFrozenFieldMs = Line.FieldMsAt(Now);
                 bReturnBlocked = true;
+                const TWeakPtr<FLDDemoOpponentProbe> WeakProbe = AsShared();
+                Mode.DevFieldReturnCommitted = [WeakProbe](ALDGameMode& Source)
+                {
+                    if (const TSharedPtr<FLDDemoOpponentProbe> Probe = WeakProbe.Pin()) { Probe->CaptureReturnCommit(Source); }
+                };
             }
         }
         if (bReturnBlocked && Line.IsEntryHeld())
@@ -595,19 +638,13 @@ void FLDDemoOpponentProbe::PhaseFixtures(UWorld& World, ALDGameMode& Mode)
     if (bReturnBlocked && !bReturnChecked && Mode.IsFieldRunning())
     {
         ClearOccupants();
-        bool bTogether = true;
-        int64 Protection = INDEX_NONE;
+        Mode.DevFieldReturnCommitted = nullptr;
         const int64 FieldStartedAtMs = Mode.ReadPublicMatch().Timeline.FieldStartedAtMs;
-        for (const FGuid& Id : Mode.GetRosterOrder())
-        {
-            const auto* Life = Mode.Lives.Find(Id);
-            if (!Mode.IsContenderPresent(Id)) { continue; }
-            bTogether &= Life && Life->Phase == ELDLifePhase::Alive && Life->ProtectedUntilMs > FieldStartedAtMs
-                && (Protection == INDEX_NONE || Life->ProtectedUntilMs == Protection);
-            if (Life) { Protection = Life->ProtectedUntilMs; }
-        }
+        const bool bTogether = bReturnCommitSeen && bReturnCommitTogether && ReturnCommitAtMs == FieldStartedAtMs;
         Summary->SetNumberField(TEXT("r14_return_due_ms"), double(ReturnDueMs));
         Summary->SetNumberField(TEXT("r14_field_started_at_ms"), double(FieldStartedAtMs));
+        Summary->SetNumberField(TEXT("r14_commit_at_ms"), double(ReturnCommitAtMs));
+        Summary->SetBoolField(TEXT("r14_commit_seen"), bReturnCommitSeen);
         Summary->SetBoolField(TEXT("r14_held_seen"), bReturnHeldSeen);
         Summary->SetBoolField(TEXT("r14_nobody_stood_while_held"), bNobodyStood);
         Summary->SetBoolField(TEXT("r14_shared_protection"), bTogether);
@@ -2612,12 +2649,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentProbeReturnHoldTest, "Lockdown.R
 bool FLDDemoOpponentProbeReturnHoldTest::RunTest(const FString& Parameters)
 {
     using LDDemoOpponentProbeDetail::ReturnLifeRetired;
+    using LDDemoOpponentProbeDetail::FReturnCommitLife;
+    using LDDemoOpponentProbeDetail::SharedReturnProtection;
     TestTrue(TEXT("A retired rest life has no standing field body"), ReturnLifeRetired(ELDLifePhase::Dead, false, false));
     TestFalse(TEXT("A live life is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Alive, false, false));
     TestFalse(TEXT("A retained body identity is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Dead, true, false));
     TestFalse(TEXT("A retained actor is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Dead, false, true));
     TestFalse(TEXT("An unspawned life is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Unspawned, false, false));
     TestFalse(TEXT("A departed life is not a retired rest life"), ReturnLifeRetired(ELDLifePhase::Left, false, false));
+    const TArray<FReturnCommitLife> Committed = {{true, 4000}, {true, 4000}};
+    TestTrue(TEXT("All standing lives have the exact shared protection at the commit"),
+        SharedReturnProtection(Committed, 2, 1000, 3000));
+    TArray<FReturnCommitLife> Later = Committed;
+    Later[0].ProtectedUntilMs = 0;
+    TestFalse(TEXT("A later attack ends protection and cannot stand in for the commit snapshot"),
+        SharedReturnProtection(Later, 2, 1000, 3000));
+    TestTrue(TEXT("The original commit evidence remains valid after that later attack"),
+        SharedReturnProtection(Committed, 2, 1000, 3000));
+    TestFalse(TEXT("A missing contender cannot pass"), SharedReturnProtection(Committed, 3, 1000, 3000));
+    TestFalse(TEXT("Equal but incorrect protection deadlines cannot pass"), SharedReturnProtection(Committed, 2, 1000, 2500));
+    Later = Committed;
+    Later[0].bStanding = false;
+    TestFalse(TEXT("A contender without a standing body cannot pass"), SharedReturnProtection(Later, 2, 1000, 3000));
     return true;
 }
 

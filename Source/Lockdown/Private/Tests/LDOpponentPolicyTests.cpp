@@ -8,6 +8,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Development/LDProgressionRules.h"
 #include "Algo/Accumulate.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
@@ -1580,28 +1581,27 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A blueprint no longer pending replaces nothing"),
         LDOpponentRequests::BuildCommand(Replace, Progression, C, 10, Command, Error));
     // #198 G Dismantle: exactly GROWTH.DismantleInputCount distinct, still-owned common components.
-    if (!Test.TestEqual(TEXT("The approved dismantle takes three components"), C.Get().Parameters.DismantleInputCount, int64(3)))
+    if (!Test.TestEqual(TEXT("The approved dismantle takes two components"), C.Get().Parameters.DismantleInputCount, int64(2)))
     {
         return false;
     }
     FLDOpponentBuildIntent Dismantle;
     Dismantle.Kind = ELDOpponentBuildKind::Dismantle;
-    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_ram_through"), TEXT("component_spiky_hide")};
-    FName Second, Third;
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_ram_through")};
+    FName Second;
     bGood &= Test.TestTrue(TEXT("A dismantle names the surrendered components in order: ") + Error,
         LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error) && Command.Kind == ELDBuildCommandKind::Dismantle
-        && Command.Surrendered.Num() == 3 && Command.Surrendered[0].Decode(Decoded) && Decoded == FName(TEXT("component_crowd_hit"))
-        && Command.Surrendered[1].Decode(Second) && Second == FName(TEXT("component_ram_through"))
-        && Command.Surrendered[2].Decode(Third) && Third == FName(TEXT("component_spiky_hide")) && Command.ExpectedBuildRevision == 9);
-    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_ram_through")};
+        && Command.Surrendered.Num() == 2 && Command.Surrendered[0].Decode(Decoded) && Decoded == FName(TEXT("component_crowd_hit"))
+        && Command.Surrendered[1].Decode(Second) && Second == FName(TEXT("component_ram_through")) && Command.ExpectedBuildRevision == 9);
+    Dismantle.Surrendered = {TEXT("component_crowd_hit")};
     bGood &= Test.TestFalse(TEXT("Fewer than the approved count is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
-    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_crowd_hit"), TEXT("component_spiky_hide")};
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_crowd_hit")};
     bGood &= Test.TestFalse(TEXT("A repeated component is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
-    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_owe_it"), TEXT("component_spiky_hide")};
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_owe_it")};
     bGood &= Test.TestFalse(TEXT("A scarce component is never surrendered"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
-    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_hard_skin"), TEXT("component_spiky_hide")};
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_hard_skin")};
     bGood &= Test.TestFalse(TEXT("A component no longer owned is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
-    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_unknown"), TEXT("component_spiky_hide")};
+    Dismantle.Surrendered = {TEXT("component_crowd_hit"), TEXT("component_unknown")};
     bGood &= Test.TestFalse(TEXT("A component outside the catalog is refused"), LDOpponentRequests::BuildCommand(Dismantle, Progression, C, 11, Command, Error));
 
     const auto OrderAt = [](ELDOrderStatus Status, ELDOrderFailure Failure)
@@ -3118,6 +3118,8 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     Frame.Self.Phase = ELDLifePhase::Alive;
     Frame.Self.Life = 1;
     Frame.Self.Components.Add(Owned(TEXT("component_dirty_fist"), false, false));
+    // Level 16: the workshop capacity holds every install above and the fresh C12 (WorkshopFull is covered separately).
+    Frame.Self.Level = 16;
     FLDOpponentPolicyState State;
     FLDOpponentBuildIntent Intent;
     FString Error;
@@ -3146,6 +3148,55 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
         && Command.BoundComponent.Decode(DecodedBase) && DecodedBase == FName(TEXT("component_tab_ledger")) && Command.TargetSegment == 0);
     Intent.BoundComponent = TEXT("component_fist_fire");
     bGood &= Test.TestFalse(TEXT("A base not installed is not named"), LDOpponentRequests::BuildCommand(Intent, View, C, 13, Command, Error));
+    // A full workshop: the AI sends no install growth would refuse (WorkshopFull) until a level adds a slot.
+    FLDOpponentSelf Full;
+    Full.Level = 1;
+    Full.Components = {Hosted(TEXT("component_kick_down")), Hosted(TEXT("component_tab_ledger")), Hosted(TEXT("component_spiky_hide")),
+        Hosted(TEXT("component_punch_heal")), Hosted(TEXT("component_dash_bump")), Owned(TEXT("component_third_punch"), false, false)};
+    FString Picked, Bound;
+    ELDDemoElement Element = ELDDemoElement::None;
+    bGood &= Test.TestTrue(TEXT("The fixture fills the level-1 workshop"),
+        LDProgression::WorkshopCapacity(C.Get().Progression, 1) == 5 && LDProgression::WorkshopCapacity(C.Get().Progression, 3) == 6);
+    bGood &= Test.TestFalse(TEXT("No first install into a full workshop"),
+        LDOpponentPolicy::SelectComponentInstall(Full, C, Picked, Bound, Element, Error));
+    Full.Level = 3;
+    bGood &= Test.TestTrue(TEXT("A level that adds a slot installs the waiting base"),
+        LDOpponentPolicy::SelectComponentInstall(Full, C, Picked, Bound, Element, Error) && Picked == TEXT("component_third_punch"));
+    // The two dash shapes cannot share D: in a rest window the AI swaps the new shape in once.
+    Full.Components = {Hosted(TEXT("component_quick_hop"), ELDComponentTargetKind::Dash),
+        Owned(TEXT("component_ram_through"), false, false)};
+    bGood &= Test.TestFalse(TEXT("No first install of a conflicting dash shape"),
+        LDOpponentPolicy::SelectComponentInstall(Full, C, Picked, Bound, Element, Error));
+    FLDOpponentDecisionFrame Rest = Frame;
+    Rest.Public.Phase = ELDMatchPhase::Rest;
+    Rest.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Rest.Public.Timeline.Step = ELDRestStep::Build;
+    Rest.Public.Timeline.RestIndex = 1;
+    Rest.Self.Level = 3;
+    Rest.Self.Components = Full.Components;
+    FLDOpponentPolicyState SwapState;
+    FLDOpponentBuildIntent Swap;
+    bGood &= Test.TestTrue(TEXT("A rest window swaps the new dash shape in for the installed one"),
+        LDOpponentPolicy::DecideFollowUpBuild(Rest, C, SwapState, Swap) && Swap.Kind == ELDOpponentBuildKind::InstallComponent
+        && Swap.Component == TEXT("component_ram_through") && Swap.Replacing == TEXT("component_quick_hop")
+        && Swap.TargetKind == ELDComponentTargetKind::Dash);
+    FLDProgressionView SwapView = View;
+    SwapView.Components.Reset();
+    FLDComponentInstanceView& OldShape = SwapView.Components.AddDefaulted_GetRef();
+    OldShape.DefinitionId = TEXT("component_quick_hop");
+    OldShape.bInstalled = OldShape.bEverInstalled = true;
+    SwapView.Components.AddDefaulted_GetRef().DefinitionId = TEXT("component_ram_through");
+    bGood &= Test.TestTrue(TEXT("The swap command names the replaced dash shape: ") + Error,
+        LDOpponentRequests::BuildCommand(Swap, SwapView, C, 14, Command, Error) && Command.Replacing.Decode(Decoded)
+        && Decoded == FName(TEXT("component_quick_hop")));
+    SwapView.Components[0].bInstalled = false;
+    bGood &= Test.TestFalse(TEXT("A replaced component no longer installed is not named"),
+        LDOpponentRequests::BuildCommand(Swap, SwapView, C, 15, Command, Error));
+    Rest.Self.Components[0].bInstalled = false;
+    Rest.Self.Components[1] = Hosted(TEXT("component_ram_through"), ELDComponentTargetKind::Dash);
+    FLDOpponentBuildIntent Back;
+    bGood &= Test.TestFalse(TEXT("The replaced dash shape never swaps back"),
+        LDOpponentPolicy::DecideFollowUpBuild(Rest, C, SwapState, Back) && !Back.Replacing.IsEmpty());
     return bGood;
 }
 
@@ -3678,15 +3729,15 @@ bool RunRestRebuild(FAutomationTestBase& Test)
         && Steps[1].TargetId == TEXT("active_apology_slide") && Is(Steps[2], EKind::InstallComponent, TEXT("component_quick_hop"))
         && Steps[2].TargetKind == ELDComponentTargetKind::Dash && !LDOpponentPolicy::SelectComponentMove(After, C, Moved, Error));
 
-    // Dismantle: three never-installed common components the build cannot place, in catalog order; a scarce one, a
+    // Dismantle: two never-installed common components the build cannot place, in catalog order; a scarce one, a
     // once-installed one and a gap the build may still fill are never given up.
-    if (!Test.TestEqual(TEXT("The approved dismantle takes three components"), C.Get().Parameters.DismantleInputCount, int64(3))) { return false; }
+    if (!Test.TestEqual(TEXT("The approved dismantle takes two components"), C.Get().Parameters.DismantleInputCount, int64(2))) { return false; }
     auto Junk = Rest;
     Junk.Self.Actives = {{TEXT("active_elbow"), 0}};
     Junk.Self.Components = {Owned(TEXT("component_after_pin"), false, false), Owned(TEXT("component_hold_down"), false, false),
         Owned(TEXT("component_one_slam"), false, false), Owned(TEXT("component_pick_you"), false, false)};
     TArray<FString> Surrendered;
-    const TArray<FString> Expected = {TEXT("component_hold_down"), TEXT("component_one_slam"), TEXT("component_after_pin")};
+    const TArray<FString> Expected = {TEXT("component_hold_down"), TEXT("component_one_slam")};
     bGood &= Test.TestTrue(TEXT("The unusable common components in catalog order, never the scarce one: ") + Error,
         LDOpponentPolicy::SelectDismantle(Junk.Self, C, Surrendered, Error) && Surrendered == Expected);
     bGood &= Test.TestTrue(TEXT("A rest build window dismantles them"),
@@ -3695,14 +3746,14 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("On the field nothing is dismantled"), LDOpponentPolicy::DecideFollowUpBuild(OnField(Junk), C, State, Intent));
     auto Once = Junk;
     Once.Self.Components[0].bEverInstalled = true;
-    bGood &= Test.TestFalse(TEXT("A once-installed component is never given up, and two are not enough"),
+    Once.Self.Components[1].bEverInstalled = true;
+    bGood &= Test.TestFalse(TEXT("A once-installed component is never given up, and one is not enough"),
         LDOpponentPolicy::SelectDismantle(Once.Self, C, Surrendered, Error));
     auto Gap = Rest;
     Gap.Self.Actives = {{TEXT("active_elbow"), 0}};
-    Gap.Self.Components = {Owned(TEXT("component_big_tab"), false, false), Owned(TEXT("component_hold_down"), false, false),
-        Owned(TEXT("component_one_slam"), false, false)};
+    Gap.Self.Components = {Owned(TEXT("component_big_tab"), false, false), Owned(TEXT("component_hold_down"), false, false)};
     bGood &= Test.TestTrue(TEXT("Without a fill the build allows, the unhosted mod counts"),
-        LDOpponentPolicy::SelectDismantle(Gap.Self, C, Surrendered, Error) && Surrendered.Num() == 3
+        LDOpponentPolicy::SelectDismantle(Gap.Self, C, Surrendered, Error) && Surrendered.Num() == 2
         && Surrendered.Last() == TEXT("component_big_tab"));
     Gap.Self.GapFills = {{TEXT("component_big_tab"), TEXT("component_tab_ledger")}};
     bGood &= Test.TestFalse(TEXT("A gap the build may still fill is kept for the fill"),
