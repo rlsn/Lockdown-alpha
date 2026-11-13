@@ -3,6 +3,7 @@
 #include "Development/LDDemoCardText.h"
 #include "Region/LDMapGeometry.h"
 #include "Framework/LDShowdownSettings.h"
+#include "../World/LDDemoWorldContract.h"
 
 namespace LDDemoContent
 {
@@ -2491,8 +2492,9 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
     const FUTF8ToTCHAR Decoded(reinterpret_cast<const ANSICHAR*>(Bundle.WorldContract.GetData()), Bundle.WorldContract.Num());
     const FString WorldText(Decoded.Length(), Decoded.Get());
     const FString ExpectedWorld = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_WORLD_SCHEMA_VERSION 3\n#define LD_DEMO_WORLD_PROJECTION_REVISION 3\n")
-        TEXT("#define LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT(\"%s\")\n"), *Identity.World.ToHex());
+        TEXT("#pragma once\n#define LD_DEMO_WORLD_SCHEMA_VERSION %d\n#define LD_DEMO_WORLD_PROJECTION_REVISION %d\n")
+        TEXT("#define LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT(\"%s\")\n"),
+        LD_DEMO_WORLD_SCHEMA_VERSION, LD_DEMO_WORLD_PROJECTION_REVISION, *Identity.World.ToHex());
     return Check.Require(WorldText.Replace(TEXT("\r\n"), TEXT("\n")).Equals(ExpectedWorld, ESearchCase::CaseSensitive),
         TEXT("world contract"), TEXT("world schema, projection, byte digest or contract shape differs"));
 }
@@ -2531,8 +2533,9 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
         return false;
     }
     FFields Contract(Check, WorldRef.Take(TEXT("contract")), TEXT("manifest.world.contract"));
-    if (!Contract.SmallInt(TEXT("schema_version"), Out.WorldSchemaVersion, 3, 3)
-        || !Contract.SmallInt(TEXT("projection_revision"), Out.WorldProjectionRevision, 3, 3)
+    if (!Contract.SmallInt(TEXT("schema_version"), Out.WorldSchemaVersion, LD_DEMO_WORLD_SCHEMA_VERSION, LD_DEMO_WORLD_SCHEMA_VERSION)
+        || !Contract.SmallInt(TEXT("projection_revision"), Out.WorldProjectionRevision,
+            LD_DEMO_WORLD_PROJECTION_REVISION, LD_DEMO_WORLD_PROJECTION_REVISION)
         || !Contract.Digest(TEXT("sha256"), Out.WorldContract) || !Contract.Done() || !WorldRef.Done() || !Root.Done())
     {
         return false;

@@ -94,7 +94,8 @@ def expected_world_projection(compilation):
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn",
-                                      "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy").index(row["kind"]),
+                                      "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn",
+                                      "FinalCapture").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],

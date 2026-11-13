@@ -52,6 +52,19 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Saved formal scene and existing tree load: ") + F.Error, F.Load())) { return false; }
     TestTrue(TEXT("Saved scene matches its derived index: ") + F.Error, LDStaticScene::Validate(*F.World, *F.Catalog, F.Error));
     TestTrue(TEXT("Saved layout matches the approved geometry: ") + F.Error, LDStaticScene::ValidateGeometry(*F.World, *F.Geometry, F.Error));
+    FLDDemoWorldGeometry SeedWithoutFinalAnchors = *F.Geometry;
+    SeedWithoutFinalAnchors.Anchors.RemoveAll([](const FLDDemoWorldAnchor& Anchor)
+    {
+        return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
+    });
+    FLDDemoWorldGeometry Projected;
+    TestTrue(TEXT("Saved final anchor tags extend a legacy world projection: ") + F.Error,
+        LDStaticScene::ProjectGeometry(*F.World, SeedWithoutFinalAnchors, Projected, F.Error));
+    TestEqual(TEXT("All six final spawn anchors and capture are exported"),
+        Projected.Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& Anchor)
+        {
+            return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
+        }).Num(), LDDemoWorld::FinalSpawns + 1);
     const auto Parts = LDStaticScene::Visuals(*F.World);
     TestEqual(TEXT("Every indexed placement is a saved standard mesh"), Parts.Num(), F.Catalog->Decorations.Num());
     for (const auto* Part : Parts)

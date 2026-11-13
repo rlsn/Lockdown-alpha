@@ -117,7 +117,27 @@ bool LDStaticSceneEditor::Export(const FString& Filename, FString& Error)
     }
     for (const auto& A : Geometry.Anchors)
     {
-        auto J = MakeShared<FJsonObject>(); J->SetStringField(TEXT("id"), A.Id); J->SetField(TEXT("position_cm"), Point(A.PositionCm));
+        const TCHAR* Kind = nullptr;
+        switch (A.Kind)
+        {
+        case ELDDemoWorldAnchorKind::Spawn: Kind = TEXT("Spawn"); break;
+        case ELDDemoWorldAnchorKind::Camp: Kind = TEXT("Camp"); break;
+        case ELDDemoWorldAnchorKind::Capture: Kind = TEXT("Capture"); break;
+        case ELDDemoWorldAnchorKind::Dorm: Kind = TEXT("Dorm"); break;
+        case ELDDemoWorldAnchorKind::Airdrop: Kind = TEXT("Airdrop"); break;
+        case ELDDemoWorldAnchorKind::BossWaypoint: Kind = TEXT("BossWaypoint"); break;
+        case ELDDemoWorldAnchorKind::PKSpawn: Kind = TEXT("PKSpawn"); break;
+        case ELDDemoWorldAnchorKind::PKThrow: Kind = TEXT("PKThrow"); break;
+        case ELDDemoWorldAnchorKind::PKSignup: Kind = TEXT("PKSignup"); break;
+        case ELDDemoWorldAnchorKind::RestSpawn: Kind = TEXT("RestSpawn"); break;
+        case ELDDemoWorldAnchorKind::RestService: Kind = TEXT("RestService"); break;
+        case ELDDemoWorldAnchorKind::TrainingDummy: Kind = TEXT("TrainingDummy"); break;
+        case ELDDemoWorldAnchorKind::FinalSpawn: Kind = TEXT("FinalSpawn"); break;
+        case ELDDemoWorldAnchorKind::FinalCapture: Kind = TEXT("FinalCapture"); break;
+        }
+        if (!Kind) { Error = TEXT("Cannot export an unknown saved layout anchor kind: ") + A.Id; return false; }
+        auto J = MakeShared<FJsonObject>(); J->SetStringField(TEXT("id"), A.Id); J->SetStringField(TEXT("kind"), Kind);
+        J->SetStringField(TEXT("surface_id"), A.SurfaceId); J->SetField(TEXT("position_cm"), Point(A.PositionCm));
         TArray<TSharedPtr<FJsonValue>> Members;
         for (const auto& M : A.Members)
         { auto V = MakeShared<FJsonObject>(); V->SetStringField(TEXT("id"), M.Id); V->SetField(TEXT("position_cm"), Point(M.PositionCm)); Members.Add(MakeShared<FJsonValueObject>(V)); }

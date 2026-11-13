@@ -238,6 +238,41 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             Member.PositionCm = Point(Home->GetActorLocation());
         }
     }
+    bool HasFinalPoint = false;
+    for (int32 Slot = 0; Slot < LDDemoWorld::FinalSpawns; ++Slot)
+    {
+        HasFinalPoint |= Points.Contains(LDDemoWorld::FinalSpawnId(Slot));
+    }
+    HasFinalPoint |= Points.Contains(LDDemoWorld::FinalCaptureId());
+    const bool HasFinalAnchor = Out.Anchors.ContainsByPredicate([](const FLDDemoWorldAnchor& Anchor)
+    {
+        return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
+    });
+    if (HasFinalPoint || HasFinalAnchor)
+    {
+        const auto AddFinalAnchor = [&](const FString& Id, ELDDemoWorldAnchorKind Kind)
+        {
+            const AActor* Actor = Points.FindRef(Id);
+            if (!Actor) { return Fail(TEXT("Missing saved final-arena anchor: ") + Id); }
+            auto* Existing = Out.Anchors.FindByPredicate([&](const FLDDemoWorldAnchor& Anchor) { return Anchor.Id == Id; });
+            if (Existing)
+            {
+                if (Existing->Kind != Kind) { return Fail(TEXT("Final-arena anchor kind changed: ") + Id); }
+                return true;
+            }
+            auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
+            Anchor.Id = Id;
+            Anchor.Kind = Kind;
+            Anchor.SurfaceId = Out.Surfaces[0].Id;
+            Anchor.PositionCm = Point(Actor->GetActorLocation());
+            return true;
+        };
+        for (int32 Slot = 0; Slot < LDDemoWorld::FinalSpawns; ++Slot)
+        {
+            if (!AddFinalAnchor(LDDemoWorld::FinalSpawnId(Slot), ELDDemoWorldAnchorKind::FinalSpawn)) { return false; }
+        }
+        if (!AddFinalAnchor(LDDemoWorld::FinalCaptureId(), ELDDemoWorldAnchorKind::FinalCapture)) { return false; }
+    }
     Error.Reset(); return true;
 }
 

@@ -25,7 +25,8 @@ class SavedSceneExportTests(unittest.TestCase):
             'plateaus': [{'id': p['id'], 'polygon_cm': p['polygon_cm']} for p in geometry['elevation']['plateaus']],
             'ramps': [{'id': p['id'], 'polygon_cm': p['polygon_cm']} for p in geometry['elevation']['ramps']],
             'blockers': copy.deepcopy(geometry['blockers']),
-            'anchors': [{'id': a['id'], 'position_cm': a['position_cm'], 'members': a.get('members', [])} for a in src['anchors']],
+            'anchors': [{'id': a['id'], 'kind': a['kind'], 'surface_id': a['surface_id'],
+                         'position_cm': a['position_cm'], 'members': a.get('members', [])} for a in src['anchors']],
         }
 
     def raw(self, value):
@@ -73,7 +74,41 @@ class SavedSceneExportTests(unittest.TestCase):
     def test_layout_points_cannot_be_silently_lost(self):
         export = self.export()
         export['anchors'].pop()
-        with self.assertRaisesRegex(ValueError, 'identities cannot change'):
+        with self.assertRaisesRegex(ValueError, 'identities cannot be removed'):
+            build_candidate(self.original, self.raw(export))
+
+    def test_final_arena_anchors_are_added_from_saved_layout(self):
+        export = self.export()
+        centre = (13000, 0)
+        ring = ((1550, 0), (775, 1342), (-775, 1342), (-1550, 0), (-775, -1342), (775, -1342))
+        for slot, (dx, dy) in enumerate(ring):
+            export['anchors'].append({
+                'id': f'final_spawn_{slot}', 'kind': 'FinalSpawn', 'surface_id': 'demo_ground',
+                'position_cm': {'x': centre[0] + dx, 'y': centre[1] + dy, 'z': 0}, 'members': [],
+            })
+        export['anchors'].append({
+            'id': 'final_capture', 'kind': 'FinalCapture', 'surface_id': 'demo_ground',
+            'position_cm': {'x': centre[0], 'y': centre[1], 'z': 0}, 'members': [],
+        })
+
+        raw = build_candidate(self.original, self.raw(export))
+        updated = content.parse_json(raw, 'result')
+
+        self.assertEqual(updated['schema_version'], 4)
+        self.assertEqual(updated['projection_revision'], 4)
+        self.assertEqual(raw.count(b'\r\n'), self.original.count(b'\r\n') + 7)
+        final_anchors = [row for row in updated['anchors'] if row['id'].startswith('final_')]
+        self.assertEqual([row['id'] for row in final_anchors],
+                         [*(f'final_spawn_{slot}' for slot in range(6)), 'final_capture'])
+        self.assertEqual(final_anchors[-1]['position_cm'], {'x': 13000, 'y': 0, 'z': 0})
+
+    def test_partial_final_anchor_set_is_rejected(self):
+        export = self.export()
+        export['anchors'].append({
+            'id': 'final_spawn_0', 'kind': 'FinalSpawn', 'surface_id': 'demo_ground',
+            'position_cm': {'x': 14550, 'y': 0, 'z': 0}, 'members': [],
+        })
+        with self.assertRaisesRegex(ValueError, 'complete final-arena anchor set'):
             build_candidate(self.original, self.raw(export))
 
     def test_copied_tree_can_have_a_fresh_identity(self):

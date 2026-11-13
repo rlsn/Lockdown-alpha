@@ -2,6 +2,7 @@
 
 #include "LDMapGeometryJson.h"
 #include "../Development/LDDemoContentMath.h"
+#include "../World/LDDemoWorldContract.h"
 
 bool FLDDemoWorldPoint::ToVector(FVector& Out, FString& Error) const
 {
@@ -734,6 +735,8 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("RestSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestSpawn; }
         else if (Kind.Equals(TEXT("RestService"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::RestService; }
         else if (Kind.Equals(TEXT("TrainingDummy"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::TrainingDummy; }
+        else if (Kind.Equals(TEXT("FinalSpawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::FinalSpawn; }
+        else if (Kind.Equals(TEXT("FinalCapture"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::FinalCapture; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
         // The Boss patrol order and the #198 PK ring order are canonical; every other anchor is named by the world and
@@ -754,6 +757,14 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy)
         {
             for (int32 I = 0; I < LDDemoWorld::TrainingDummies; ++I) { KnownId |= Anchor.Id.Equals(LDDemoWorld::TrainingDummyId(I), ESearchCase::CaseSensitive); }
+        }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
+        {
+            for (int32 I = 0; I < LDDemoWorld::FinalSpawns; ++I) { KnownId |= Anchor.Id.Equals(LDDemoWorld::FinalSpawnId(I), ESearchCase::CaseSensitive); }
+        }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture)
+        {
+            KnownId = Anchor.Id.Equals(LDDemoWorld::FinalCaptureId(), ESearchCase::CaseSensitive);
         }
         else { KnownId = true; }
         if (!Check.Require(KnownId, Anchor.Id, TEXT("unknown canonical Demo anchor"))) { return false; }
@@ -785,13 +796,15 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         if (!Row.Done()) { return false; }
         {
             const FExact Clearance = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? N.Value(Out.CampClearanceCm)
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture
+                    ? N.Value(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
                     ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
             const double Body = Approx(Content.Parameters.CollisionRadiusCm);
             const double Reach = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? Approx(Out.CampClearanceCm)
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? Approx(Content.Parameters.CaptureRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture
+                    ? Approx(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? Body + Approx(Content.Parameters.DormRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop || Anchor.Kind == ELDDemoWorldAnchorKind::RestService
                     ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm) : Body;
@@ -838,6 +851,65 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     {
         return false;
     }
+#if LD_DEMO_WORLD_SCHEMA_VERSION >= 4
+    int32 FinalSpawnCount = 0, FinalCaptureCount = 0;
+    for (const auto& Anchor : Out.Anchors)
+    {
+        FinalSpawnCount += Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn ? 1 : 0;
+        FinalCaptureCount += Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture ? 1 : 0;
+    }
+    const auto Find = [&Out](const FString& Id) { return Out.Anchors.FindByPredicate([&Id](const auto& A) { return A.Id == Id; }); };
+    const FLDDemoWorldAnchor* FinalCapture = Find(LDDemoWorld::FinalCaptureId());
+    if (!Check.Require(FinalSpawnCount == LDDemoWorld::FinalSpawns && FinalCaptureCount == 1
+        && FinalCapture && FinalCapture->Kind == ELDDemoWorldAnchorKind::FinalCapture,
+        Root.Path, TEXT("the final field needs six final spawns and one final_capture anchor")))
+    {
+        return false;
+    }
+    FVector FinalCentre3D;
+    if (!FinalCapture->PositionCm.ToVector(FinalCentre3D, Error)) { return false; }
+    const FVector2D FinalCentre(FinalCentre3D.X, FinalCentre3D.Y);
+    TArray<FVector2D> FinalRing;
+    for (int32 Slot = 0; Slot < LDDemoWorld::FinalSpawns; ++Slot)
+    {
+        const FString Id = LDDemoWorld::FinalSpawnId(Slot);
+        const FLDDemoWorldAnchor* Spawn = Find(Id);
+        FVector Position;
+        if (!Check.Require(Spawn && Spawn->Kind == ELDDemoWorldAnchorKind::FinalSpawn, Id,
+            TEXT("missing canonical final spawn anchor")) || !Spawn->PositionCm.ToVector(Position, Error))
+        {
+            return false;
+        }
+        if (!Check.Require(N.EQ(N.Value(Spawn->PositionCm.Z), N.Value(FinalCapture->PositionCm.Z)), Id,
+            TEXT("final spawn is not on final_capture's level")))
+        {
+            return false;
+        }
+        FinalRing.Add(FVector2D(Position.X, Position.Y));
+    }
+    const auto Radius = [&FinalCentre](const FVector2D& Position) { return FVector2D::Distance(FinalCentre, Position); };
+    const double ReferenceRadius = Radius(FinalRing[0]);
+    TArray<double> FinalAngles;
+    for (int32 Slot = 0; Slot < FinalRing.Num(); ++Slot)
+    {
+        if (!Check.Require(FMath::Abs(Radius(FinalRing[Slot]) - ReferenceRadius) <= 5.,
+            LDDemoWorld::FinalSpawnId(Slot), TEXT("final spawns are not equally distant from final_capture")))
+        {
+            return false;
+        }
+        const FVector2D Delta = FinalRing[Slot] - FinalCentre;
+        FinalAngles.Add(FMath::Atan2(Delta.Y, Delta.X) * 180. / UE_PI);
+    }
+    for (int32 Slot = 0; Slot < FinalAngles.Num(); ++Slot)
+    {
+        const double Step = FMath::Fmod(FinalAngles[(Slot + 1) % FinalAngles.Num()] - FinalAngles[Slot] + 360., 360.);
+        if (!Check.Require(Step >= 59. && Step <= 61., LDDemoWorld::FinalSpawnId(Slot),
+            TEXT("final spawns must step 60 degrees counterclockwise in id order")))
+        {
+            return false;
+        }
+    }
+#endif
     // #198 approved PK geometry around the capture anchor, at its level: the ring of six spawns in id order and the
     // off-arena throw anchor. Each already passed the one-capsule static clearance above; walkable paths between the
     // spawns, the shrinking rings and the final circle are the runtime navigation's proof.
@@ -1086,7 +1158,8 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
             {
                 return false;
             }
-            if ((Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn)
+            if ((Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
+                || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
                 && !Check.Require(ClearCircle(Add(XY(Anchor.PositionCm, N), Delta, N), N.Value(Anchor.PositionCm.Z), Radius,
                     Approx(Content.Parameters.CollisionRadiusCm), Out, N),
                     Anchor.Id, TEXT("local spawn placement is not statically clear")))
@@ -1107,7 +1180,8 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
     FNumbers N(Check);
     FLDDemoWorldGeometry Candidate;
     int64 Revision;
-    if (!Root.Int(TEXT("schema_version"), Revision, 3, 3) || !Root.Int(TEXT("projection_revision"), Revision, 3, 3)
+    if (!Root.Int(TEXT("schema_version"), Revision, LD_DEMO_WORLD_SCHEMA_VERSION, LD_DEMO_WORLD_SCHEMA_VERSION)
+        || !Root.Int(TEXT("projection_revision"), Revision, LD_DEMO_WORLD_PROJECTION_REVISION, LD_DEMO_WORLD_PROJECTION_REVISION)
         || !Root.Identifier(TEXT("map_id"), Candidate.MapId)
         || !Check.Require(Candidate.MapId == Content.World.MapId && Candidate.MapId.Equals(TEXT("demo_world"), ESearchCase::CaseSensitive),
             Root.Path, TEXT("content references another map"))

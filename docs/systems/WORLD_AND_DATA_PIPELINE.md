@@ -66,7 +66,7 @@ Python/native importer 都识别新增锚点，服务范围、假人偏移与出
 最多 63 字节小写 ASCII、NUL 终止、余字节为零；目录 digest 为 32 原始字节，显示才用 64 位小写 hex。
 纯 wire 编解码与格式拒绝在 `DemoContent.py` 中提供，不替代业务域对未知/退役 ID 的拒绝。
 
-世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
+世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 4，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
 Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点、营地成员 home 与七个局部落地偏移；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
@@ -74,6 +74,12 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点�
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
 丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
 不能仅手写 world 和匹配摘要让正式链通过。
+
+终局场地使用独立锚点：`FinalSpawn` 固定为 `final_spawn_0..5`，`FinalCapture` 固定为
+`final_capture`。保存地图的 `LDSceneAnchor:<id>` 点由 `SyncDemoMap.ps1` 投影进世界输入；
+原生目录校验六个出生点同层、等距并按60°顺序分布，Bootstrap 再验证出生偏移的胶囊地面与到旗点的完整导航路径。
+它们不进入普通野外 POI/小地图；显式出生选择通过 `LDDemoWorld::FinalSpawnId` 和
+`LDDemoWorld::FinalCaptureId` 解析，不替代普通 PK 的 `capture` 锚点。
 
 PK 有两类锚点：`PKSpawn` 固定为 `pk_spawn_0..5`，
 `PKThrow` 固定为 `pk_throw`，内容 `world.pk_spawn_ids`/`world.pk_throw_id` 按序引用，

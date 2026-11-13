@@ -2,6 +2,7 @@
 
 Not a native or play-balance test, and nothing here pins the current map layout.
 """
+from copy import deepcopy
 from decimal import Decimal
 from fractions import Fraction
 import json
@@ -885,9 +886,30 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_world_identity_and_shared_values(self):
         self.assertEqual(self.world.world["map_id"], "demo_world")
-        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (3, 3))
+        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (4, 4))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 300)
+
+    def test_final_arena_anchor_ring_and_capture(self):
+        anchors = content.rows_by_id(self.world.world["anchors"], "world anchors")
+        self.assertEqual(sorted(identity for identity, row in anchors.items() if row["kind"] == "FinalSpawn"),
+                         [f"final_spawn_{slot}" for slot in range(6)])
+        self.assertEqual([identity for identity, row in anchors.items() if row["kind"] == "FinalCapture"],
+                         ["final_capture"])
+        centre = world.point(anchors["final_capture"]["position_cm"], "final_capture")
+        ring = [world.point(anchors[f"final_spawn_{slot}"]["position_cm"], f"final_spawn_{slot}")
+                for slot in range(6)]
+        radii = [math.hypot(float(point[0] - centre[0]), float(point[1] - centre[1])) for point in ring]
+        self.assertLessEqual(max(radii) - min(radii), 5)
+        angles = [math.degrees(math.atan2(float(point[1] - centre[1]), float(point[0] - centre[0])) % (2 * math.pi))
+                  for point in ring]
+        for index, angle in enumerate(angles):
+            self.assertAlmostEqual((angles[(index + 1) % len(angles)] - angle) % 360, 60, delta=1)
+
+        moved = deepcopy(self.world.world)
+        next(row for row in moved["anchors"] if row["id"] == "final_spawn_0")["position_cm"]["x"]["numerator"] += 100
+        with self.assertRaises(content.ContentError):
+            world.validate_bindings(moved, self.data)
 
     def test_exact_placement_and_parameter_references(self):
         placement = self.world.world["placement"]

@@ -70,7 +70,8 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         // Rest-only places are supplied separately and never considered by field decisions.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
             || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
-            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy) { continue; }
+            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy
+            || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture) { continue; }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);
