@@ -1,5 +1,7 @@
 #include "Character/LDBodyMotion.h"
+#include "Character/LDCharacter.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Development/LDDemoContentIds.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
@@ -41,6 +43,8 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     const FChannels PlainCast=WithHit(EAction::Cast,.15f,-1.f);
     TestTrue(TEXT("No observed hit adds no feedback"),PlainCast.Flash==0.f && PlainCast.HitBurst==0.f);
     TestTrue(TEXT("A hit cue is never doubled"),WithHit(EAction::Hit,.05f,.05f).Lunge==Knocked.Lunge);
+    TestTrue(TEXT("A direct hit cue uses the same typed impact spark as a hit during another action"),
+        WithHit(EAction::Hit,.05f,.05f).Burst==0.f && WithHit(EAction::Hit,.05f,.05f).HitBurst==Knocked.Burst);
     TestTrue(TEXT("An interrupted cast's impact holds only its presentation pose"),
         FMath::IsNearlyEqual(ImpactPoseAge(EAction::Cast,.15f,.02f),.13f,1e-5f)
         && FMath::IsNearlyEqual(ImpactPoseAge(EAction::Cast,.17f,.04f),.13f,1e-5f));
@@ -77,6 +81,39 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     Visual->Clock=1.06;
     Visual->SetHitReaction(.02f,ELDObservedHitLook::None,LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken);
     TestTrue(TEXT("A repeated report of the break does not restart its reaction"),FMath::IsNearlyEqual(Visual->HitOnset,1.04));
+
+    const FRotator ForwardPush=KnockbackLean(FVector(300,0,0));
+    const FRotator SidePush=KnockbackLean(FVector(0,-300,0));
+    TestTrue(TEXT("The push leans opposite its direction in the body's local space"),
+        ForwardPush.Quaternion().RotateVector(FVector::UpVector).X<0
+        && SidePush.Quaternion().RotateVector(FVector::UpVector).Y>0);
+    const FQuat MeshFacing=FRotator(0,90,0).Quaternion();
+    const FVector Velocity(300,0,0);
+    const FRotator MeshLean=KnockbackLean(MeshFacing.Inverse().RotateVector(Velocity));
+    const FVector WorldLean=MeshFacing.RotateVector(MeshLean.Quaternion().RotateVector(FVector::UpVector));
+    TestTrue(TEXT("An asset's corrective facing does not rotate the push response away from its direction"),
+        FVector::DotProduct(WorldLean,Velocity)<0);
+    const FQuat TurningFacing=MeshFacing*FRotator(0,45,0).Quaternion();
+    const FRotator TurningLean=KnockbackLean(TurningFacing.Inverse().RotateVector(Velocity));
+    const FVector TurningUp=(MeshFacing*FRotator(TurningLean.Pitch,45,TurningLean.Roll).Quaternion()).RotateVector(FVector::UpVector);
+    TestTrue(TEXT("A body still turning leans against the push in world space"),
+        FVector::DotProduct(TurningUp,Velocity)<0);
+    TestTrue(TEXT("Push lean is bounded and ignores a stationary or non-finite velocity"),
+        KnockbackLean(FVector(3000,0,0)).Pitch==ForwardPush.Pitch
+        && KnockbackLean(FVector::ZeroVector).IsZero()
+        && KnockbackLean(FVector(NaN,0,0)).IsZero());
+    TArray<FLDObservedStatus> Statuses;
+    TestFalse(TEXT("No public knockback status produces no pushed pose"),ALDCharacter::PresentationKnockback(Statuses));
+    Statuses.Add({uint8(ELDDemoStatusId::Knockback),1,2000});
+    TestTrue(TEXT("The authorized knockback status selects the pushed pose"),ALDCharacter::PresentationKnockback(Statuses));
+    Visual->Clock=2.0;
+    Visual->SetCue(0,-1.f,-1.f,ELDObservedHitLook::None,true);
+    Visual->Clock=2.2;
+    Visual->SetCue(0,-1.f,-1.f,ELDObservedHitLook::None,true);
+    TestTrue(TEXT("Repeated knockback samples keep the same hit animation onset"),
+        Visual->bKnockback && Visual->KnockbackAt==2.0);
+    Visual->SetCue(0);
+    TestFalse(TEXT("Losing the status ends the pushed pose"),Visual->bKnockback);
 
     const FLife Born = Appear(0.f), Grown = Appear(AppearSeconds);
     TestTrue(TEXT("A respawned body grows in from small inside a bright column"), Born.Scale < .3f && Born.Column == 1.f && Born.Glow == 1.f);

@@ -420,7 +420,8 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
-            Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f, Reached.HitLook);
+            Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f, Reached.HitLook,
+            ALDCharacter::PresentationKnockback(Reached.Statuses));
         if (Reached.RecentHitAgePlusOneMs)
         { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
             AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags); }

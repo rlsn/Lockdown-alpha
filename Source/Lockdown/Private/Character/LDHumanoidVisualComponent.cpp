@@ -425,7 +425,8 @@ void ULDHumanoidVisualComponent::Layout()
     Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
-void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds, ELDObservedHitLook InHitLook)
+void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds,
+    ELDObservedHitLook InHitLook, bool bInKnockback)
 {
     using LDBodyMotion::EAction;
     const uint8 Code = Value & ActionMask;
@@ -437,6 +438,8 @@ void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, flo
         ? ImpactDelaySeconds : LDBodyMotion::StrikeAt;
     Action = Next;
     HitLook = InHitLook;
+    if (bInKnockback && !bKnockback) { KnockbackAt = Clock; }
+    bKnockback = bInKnockback;
     if (!bCueSeen)
     {
         bCueSeen = true;
@@ -520,11 +523,13 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
     };
     const FLDArtAnimation* Dying = Art->Find(ELDArtAnim::Death);
     const FLDArtAnimation* Acting = Action == EAction::None ? nullptr : Art->Find(ClipOf(Action));
+    const FLDArtAnimation* Knocked = bKnockback ? Art->Find(ELDArtAnim::Hit) : nullptr;
     const float ActionAge=LDBodyMotion::ImpactPoseAge(Action,float(Clock-ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f);
     const FLDArtAnimation* Waving = Art->Find(ELDArtAnim::Spawn);
     const bool bPosed = bFalling
         ? Dying && Pose(ELDArtAnim::Death, float(Clock - FallAt) * Dying->PlayRate, true)
-        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, ActionImpactSeconds, Acting->PlayRate), false))
+        : (Knocked && Pose(ELDArtAnim::Hit, float(Clock - KnockbackAt) * Knocked->PlayRate, true))
+            || (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, ActionImpactSeconds, Acting->PlayRate), false))
             || (Waving && AppearAt >= 0 && Speed < RunFromCmPerSec && Pose(ELDArtAnim::Spawn, float(Clock - AppearAt) * Waving->PlayRate, false));
     const FLDArtAnimation* Entry = Art->Find(State);
     if (!Entry || !Entry->Sequence) { return; }
@@ -581,8 +586,12 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     {
         VisualYaw = FMath::FixedTurn(VisualYaw, TargetYaw, 540.f * Delta);
         const FVector LocalAcceleration = ActorRotation.UnrotateVector((Velocity - PreviousVelocity) / Delta);
-        LeanPitch = FMath::FInterpTo(LeanPitch, FMath::Clamp(LocalAcceleration.X / 8000.f, -1.f, 1.f) * 8.f, Delta, 7.f);
-        LeanRoll = FMath::FInterpTo(LeanRoll, FMath::Clamp(LocalAcceleration.Y / 8000.f, -1.f, 1.f) * 8.f, Delta, 7.f);
+        const FQuat VisualFacing = ActorRotation.Quaternion() * Art->MeshTransform.GetRotation()
+            * FRotator(0, FRotator::NormalizeAxis(VisualYaw - TargetYaw), 0).Quaternion();
+        const FRotator PushLean = bKnockback && !bFalling
+            ? LDBodyMotion::KnockbackLean(VisualFacing.Inverse().RotateVector(Velocity)) : FRotator::ZeroRotator;
+        LeanPitch = FMath::FInterpTo(LeanPitch, FMath::Clamp(LocalAcceleration.X / 8000.f, -1.f, 1.f) * 8.f + PushLean.Pitch, Delta, 7.f);
+        LeanRoll = FMath::FInterpTo(LeanRoll, FMath::Clamp(LocalAcceleration.Y / 8000.f, -1.f, 1.f) * 8.f + PushLean.Roll, Delta, 7.f);
         PreviousVelocity = Velocity;
     }
     const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw), LeanRoll);

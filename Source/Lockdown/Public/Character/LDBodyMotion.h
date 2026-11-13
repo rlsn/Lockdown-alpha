@@ -27,6 +27,8 @@ namespace LDBodyMotion
     // Hold only a victim's current attack/cast pose at impact; never pause input, movement or authority time.
     constexpr float HitPoseHoldSeconds = .045f;
     LOCKDOWN_API float ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds);
+    // Presentation-only tilt opposite the actual horizontal push, in the body's local space.
+    LOCKDOWN_API FRotator KnockbackLean(const FVector& LocalVelocity);
 
     // The clip time that shows an action AgeSeconds after it began: an attack or cast reaches its authored impact
     // frame at the authoritative release age; any other clip plays at its authored rate. Never negative.

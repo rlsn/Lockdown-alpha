@@ -38,6 +38,7 @@ public:
     // The humanoid presentation code of an action cue and public statuses, shared by the own body and observed
     // proxies: pose Attack 1, Cast 2, Hit 4; markers root 16, camp_returning 32, shield 64, respawn_protection 128.
     static uint8 PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses);
+    static bool PresentationKnockback(const TArray<FLDObservedStatus>& Statuses);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 protected:
     UFUNCTION() void OnRep_Presentation();

@@ -47,7 +47,7 @@ public:
     // counts the action from now. The same action kind reported with a later start restarts it (a repeated hit).
     // The first cue showing respawn protection also plays the appear effect.
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f, float ImpactDelaySeconds = -1.f,
-        ELDObservedHitLook HitLook = ELDObservedHitLook::None);
+        ELDObservedHitLook HitLook = ELDObservedHitLook::None, bool bKnockback = false);
     void SetHitReaction(float AgeSeconds, ELDObservedHitLook HitLook = ELDObservedHitLook::None, uint8 HitFlags = 0);
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
@@ -85,7 +85,7 @@ private:
     LDBodyMotion::FChannels Shown;
     LDBodyMotion::EAction Action = LDBodyMotion::EAction::None;
     ELDArtAnim Clip = ELDArtAnim::Count;
-    double Clock = 0, ActionOnset = 0, AppearAt = -1, FallAt = -1, HitOnset = -1;
+    double Clock = 0, ActionOnset = 0, AppearAt = -1, FallAt = -1, HitOnset = -1, KnockbackAt = -1;
     float HalfHeight = 0, HeightCm = 0, ActionImpactSeconds = LDBodyMotion::StrikeAt;
     float VisualYaw = 0, LeanPitch = 0, LeanRoll = 0;
     FVector PreviousVelocity = FVector::ZeroVector;
@@ -93,7 +93,7 @@ private:
     ELDObservedHitLook HitLook = ELDObservedHitLook::None;
     uint8 HitFlags = 0;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
-    bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false;
+    bool bCueSeen = false, bFlashing = false, bHitSeen = false, bVisualPoseInitialized = false, bKnockback = false;
     // The shown mesh's shared picking model and this body's pose of it, posed at most once per frame.
     mutable TSharedPtr<const LDModelPicking::FSkinnedModel> PickingModel;
     mutable LDModelPicking::FSkinnedPose PickingPose;

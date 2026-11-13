@@ -1,5 +1,12 @@
 #include "Character/LDBodyMotion.h"
 
+FRotator LDBodyMotion::KnockbackLean(const FVector& LocalVelocity)
+{
+    if (LocalVelocity.ContainsNaN()) { return FRotator::ZeroRotator; }
+    return FRotator(FMath::Clamp(LocalVelocity.X / 300.0, -1.0, 1.0) * 14.0, 0,
+        -FMath::Clamp(LocalVelocity.Y / 300.0, -1.0, 1.0) * 14.0);
+}
+
 float LDBodyMotion::ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds)
 {
     return (Action==EAction::Attack || Action==EAction::Cast) && HitAgeSeconds>=0.f && HitAgeSeconds<HitPoseHoldSeconds
@@ -9,7 +16,12 @@ float LDBodyMotion::ImpactPoseAge(EAction Action, float AgeSeconds, float HitAge
 LDBodyMotion::FChannels LDBodyMotion::WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds, float ImpactSeconds)
 {
     FChannels Result=Evaluate(Action,AgeSeconds,ImpactSeconds);
-    if (Action!=EAction::Hit)
+    if (Action==EAction::Hit)
+    {
+        Result.HitBurst=Result.Burst;
+        Result.Burst=0.f;
+    }
+    else
     {
         const FChannels Hit=Evaluate(EAction::Hit,HitAgeSeconds);
         Result.Flash=FMath::Max(Result.Flash,Hit.Flash);

@@ -153,7 +153,7 @@ void ALDCharacter::Tick(float Delta)
         : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
     Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
         bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,
-        Selected.HitLook);
+        Selected.HitLook,PresentationKnockback(Statuses));
     if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
         static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags); }
@@ -200,6 +200,12 @@ uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDOb
         }
     }
     return Code;
+}
+
+bool ALDCharacter::PresentationKnockback(const TArray<FLDObservedStatus>& Statuses)
+{
+    return Statuses.ContainsByPredicate([](const FLDObservedStatus& Status)
+        { return Status.StatusId == uint8(ELDDemoStatusId::Knockback); });
 }
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }
