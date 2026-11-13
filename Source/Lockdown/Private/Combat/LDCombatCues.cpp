@@ -1,4 +1,5 @@
 #include "Combat/LDCombatCues.h"
+#include "Combat/LDCombatDirector.h"
 
 LDCombatCues::FCue LDCombatCues::Select(const FLDCombatCueFacts& Facts, int64 NowMs)
 {

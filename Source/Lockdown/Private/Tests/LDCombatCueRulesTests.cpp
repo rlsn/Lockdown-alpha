@@ -1,4 +1,5 @@
 #include "Combat/LDCombatCues.h"
+#include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentIds.h"
 

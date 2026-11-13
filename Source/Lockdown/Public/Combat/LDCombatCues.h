@@ -4,6 +4,8 @@
 #include "Combat/LDCombatTypes.h"
 #include "Vision/LDViewTypes.h"
 
+struct FLDCombatHit;
+
 // The one visible action-cue rule of a body life, used for the observed facts (server) and the own body (owner).
 namespace LDCombatCues
 {
