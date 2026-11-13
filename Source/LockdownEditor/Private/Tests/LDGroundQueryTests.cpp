@@ -82,6 +82,9 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
         double Z;
         FVector Normal;
         Registry->GetTerrain().Ground(XY, Z, Normal);
+        // A hole has no native height. Probe finite candidate feet there to exercise NotGrounded and its cache;
+        // NaN is deliberately not a stable position key (NaN != NaN).
+        if (!FMath::IsFinite(Z)) { Z = 0; }
         for (double Offset : {0., 2.15, -20., 400.})
         { Compare(FVector(XY.X, XY.Y, Z + Offset), Surface, Capsule, true); }
     };

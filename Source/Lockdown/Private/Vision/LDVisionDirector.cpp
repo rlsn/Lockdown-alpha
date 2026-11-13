@@ -121,7 +121,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 }
 
 bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld,
-    const FLDDemoRational& InRadius, FString& Error)
+    const FLDDemoRational& InRadius, FString& Error, UWorld* NativeScene)
 {
     *this = FLDSightGeometry();
     double RadiusValue = 0, SampleHeight = 0;
@@ -149,6 +149,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     TArray<FCircle> PreparedCircles;
     for (const FLDDemoWorldBlocker& Blocker : Geometry.Blockers)
     {
+        if (NativeScene) { break; } // Saved native collision supplies sight, including newly placed meshes.
         double Height = 0;
         if (!SightRationalValue(Blocker.HeightCm, Height))
         {
@@ -218,6 +219,9 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     BlockerLevels = MoveTemp(PreparedLevels);
     Circles = MoveTemp(PreparedCircles);
     Terrain = MoveTemp(PreparedTerrain);
+    Scene = NativeScene;
+    SampleHeightCm = SampleHeight;
+    if (NativeScene) { Terrain = NativeScene->GetSubsystem<ULDMapRegistry>()->GetTerrain(); }
     BuildGrid();
     Error.Reset();
     return true;
@@ -272,6 +276,17 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
 bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier) const
 {
     if (TargetTier > Observer) { return true; }
+    if (const UWorld* Native = Scene.Get())
+    {
+        double Z; FVector Normal;
+        Terrain.Ground(From, Z, Normal);
+        if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
+        // Retain high-ground visibility rules. Cast at the observer's sight height so low walls do not hide
+        // units on lower ground, while moved/rotated/scaled native walls use their actual collision.
+        const FVector Start(From, Z + SampleHeightCm), End(To, Z + SampleHeightCm);
+        return Native->LineTraceTestByChannel(Start, End, ECC_GameTraceChannel2)
+            || Native->LineTraceTestByChannel(Start, End, ECC_GameTraceChannel1);
+    }
     const int32 Level = Observer / 2;
     const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
     int32 X0, Y0, X1, Y1;
@@ -851,7 +866,7 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
         return false;
     }
     FLDSightGeometry Prepared;
-    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), Loaded->Get().Parameters.VisionRadiusCm, Error)) { return false; }
+    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), Loaded->Get().Parameters.VisionRadiusCm, Error, GetWorld())) { return false; }
     int64 CampMembers = 0;
     for (const FLDDemoCampPlacement& Camp : Loaded->Get().Camps)
     {

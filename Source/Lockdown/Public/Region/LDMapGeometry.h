@@ -85,6 +85,8 @@ namespace LDDemoWorld
     {
     public:
         bool Build(const FLDDemoWorldGeometry& Geometry, FString& Error);
+        // Saved scene collision supplies runtime heights; pure data/import tests keep the authored terrain model.
+        void BindScene(UWorld& World, const FBox& Bounds);
         bool IsValid() const { return StepCm > 0; }
         int32 Tier(const FVector2D& Point) const;
         // Supporting height and upward unit normal at Point.
@@ -103,6 +105,9 @@ namespace LDDemoWorld
         static constexpr double GridCellCm = 400.;
         FBox2D RegionBounds = FBox2D(ForceInit);
         TMap<FIntPoint, TArray<int32>> RegionCells;
+        TWeakObjectPtr<UWorld> Scene;
+        FBox SceneBounds = FBox(ForceInit);
+        TMap<FName, int32> SceneTiers;
     };
     LOCKDOWN_API bool InsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point);
 }

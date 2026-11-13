@@ -104,7 +104,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 ## 数据修改
 
-正式地图的布局在 UE 关卡里编辑，保存并关闭编辑器后执行 `Scripts/SyncDemoMap.ps1`；不要手动维护第二份世界坐标。
+正式地图在 UE 关卡里编辑。静态网格体、装饰、材质和灯光保存后即可 Play；碰撞、地面高度和视线读取当前关卡的原生碰撞。`Scripts/SyncDemoMap.ps1` 用于显式刷新布局的派生源快照，不是普通场景编辑的 Play 前置条件。
 细节与约束见[标准关卡编辑与同步](systems/WORLD_AND_DATA_PIPELINE.md#标准关卡编辑与同步)。以下 SourceData 创作规则继续适用于玩法内容和数值。
 
 根据系统手册找到源文件及对应 Sync 入口，修改 SourceData，而不是直接改生成载荷或 contract 宏。

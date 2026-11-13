@@ -1,6 +1,9 @@
 #include "Region/LDMapGeometry.h"
 
 #include "LDMapGeometryJson.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include <limits>
 #include "../Development/LDDemoContentMath.h"
 
 bool FLDDemoWorldPoint::ToVector(FVector& Out, FString& Error) const
@@ -87,8 +90,10 @@ bool FTerrain::Build(const FLDDemoWorldGeometry& Geometry, FString& Error)
     }
     const double Step = double(Geometry.LevelStepCm.Numerator) / double(Geometry.LevelStepCm.Denominator);
     TArray<FRegion> Candidate;
+    for (const auto& Surface : Geometry.Surfaces) { SceneTiers.Add(FName(*Surface.Id), 0); }
     for (const auto& Plateau : Geometry.Plateaus)
     {
+        SceneTiers.Add(FName(*Plateau.Id), 2 * Plateau.Level);
         FRegion& Region = Candidate.AddDefaulted_GetRef();
         Region.Tier = 2 * Plateau.Level;
         Region.Base = Step * Plateau.Level;
@@ -96,6 +101,7 @@ bool FTerrain::Build(const FLDDemoWorldGeometry& Geometry, FString& Error)
     }
     for (const auto& Ramp : Geometry.Ramps)
     {
+        SceneTiers.Add(FName(*Ramp.Id), 2 * Ramp.LowerLevel + 1);
         FRegion& Region = Candidate.AddDefaulted_GetRef();
         Region.Tier = 2 * Ramp.LowerLevel + 1;
         Region.Base = Step * Ramp.LowerLevel;
@@ -129,8 +135,28 @@ bool FTerrain::Build(const FLDDemoWorldGeometry& Geometry, FString& Error)
     return true;
 }
 
+void FTerrain::BindScene(UWorld& World, const FBox& Bounds)
+{
+    Scene = &World;
+    SceneBounds = Bounds;
+}
+
 int32 FTerrain::Tier(const FVector2D& Point) const
 {
+    if (Scene.IsValid())
+    {
+        FHitResult Hit;
+        if (!Scene->LineTraceSingleByChannel(Hit, FVector(Point, SceneBounds.Max.Z + 1),
+            FVector(Point, SceneBounds.Min.Z - 1), ECC_GameTraceChannel1)) { return MAX_int32; }
+        // Preserve the gameplay tier of standard terrain (a ramp is its lower level plus one half tier).
+        // Its support and location still come from the current native body, even after a move or copy.
+        if (const AActor* Actor = Hit.GetActor())
+        {
+            for (FName Tag : Actor->Tags)
+            { if (const int32* Tier = SceneTiers.Find(Tag)) { return *Tier; } }
+        }
+        return FMath::Max(0, FMath::FloorToInt32((Hit.ImpactPoint.Z + .01) * 2 / StepCm));
+    }
     if (!RegionBounds.bIsValid || !RegionBounds.IsInsideOrOn(Point)) { return 0; }
     const auto* Candidates = RegionCells.Find(FIntPoint(FMath::FloorToInt32(Point.X / GridCellCm), FMath::FloorToInt32(Point.Y / GridCellCm)));
     if (!Candidates) { return 0; }
@@ -144,6 +170,15 @@ int32 FTerrain::Tier(const FVector2D& Point) const
 
 void FTerrain::Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) const
 {
+    if (const UWorld* Native = Scene.Get())
+    {
+        FHitResult Hit;
+        if (Native->LineTraceSingleByChannel(Hit, FVector(Point, SceneBounds.Max.Z + 1),
+            FVector(Point, SceneBounds.Min.Z - 1), ECC_GameTraceChannel1))
+        { OutZ = Hit.ImpactPoint.Z; OutNormal = Hit.ImpactNormal; }
+        else { OutZ = std::numeric_limits<double>::quiet_NaN(); OutNormal = FVector::UpVector; }
+        return;
+    }
     const FRegion* Best = nullptr;
     for (const FRegion& Region : Regions)
     {
