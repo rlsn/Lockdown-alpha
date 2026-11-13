@@ -76,7 +76,7 @@ class LOCKDOWN_API FLDSightGeometry
 {
 public:
     bool Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld, const FLDDemoRational& InRadius,
-        FString& Error, UWorld* NativeScene = nullptr);
+        FString& Error, UWorld* NativeScene = nullptr, const LDDemoWorld::FTerrain* NativeTerrain = nullptr);
     bool IsValid() const { return World.IsValid() && RadiusCm > 0; }
     const FLDWorldRevision& Revision() const { return World; }
     double Radius() const { return RadiusCm; }

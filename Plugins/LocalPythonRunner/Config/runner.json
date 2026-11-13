@@ -1,0 +1,8 @@
+{
+  "expected_project": "D:\\Lockdown-alpha\\Lockdown.uproject",
+  "allowed_roots": [
+    "D:\\Lockdown-alpha\\Scripts"
+  ],
+  "max_script_bytes": 2097152,
+  "max_output_chars": 32000
+}

@@ -121,7 +121,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 }
 
 bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld,
-    const FLDDemoRational& InRadius, FString& Error, UWorld* NativeScene)
+    const FLDDemoRational& InRadius, FString& Error, UWorld* NativeScene, const LDDemoWorld::FTerrain* NativeTerrain)
 {
     *this = FLDSightGeometry();
     double RadiusValue = 0, SampleHeight = 0;
@@ -221,7 +221,13 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Terrain = MoveTemp(PreparedTerrain);
     Scene = NativeScene;
     SampleHeightCm = SampleHeight;
-    if (NativeScene) { Terrain = NativeScene->GetSubsystem<ULDMapRegistry>()->GetTerrain(); }
+    if (NativeScene)
+    {
+        const auto* Registry = NativeScene->GetSubsystem<ULDMapRegistry>();
+        if (NativeTerrain && NativeTerrain->IsValid()) { Terrain = *NativeTerrain; }
+        else if (Registry && Registry->Enabled()) { Terrain = Registry->GetTerrain(); }
+        else { Error = TEXT("Native sight requires bound terrain or an enabled map registry."); return false; }
+    }
     BuildGrid();
     Error.Reset();
     return true;

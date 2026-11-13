@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Vision/LDFogDistanceField.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Core/LDLog.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -22,13 +23,6 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Camera/PlayerCameraManager.h"
-
-namespace
-{
-// Fog mask outside current coverage (255 is fully lit). #97: raised from 64 to 140, then to 190, so the fogged ground
-// reads lighter (user: "war fog color is too dark, make it lighter", then "further lighten fog of war color").
-constexpr uint8 LDFogHidden = 190;
-}
 
 bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
 {
@@ -918,8 +912,8 @@ void ALDWorldViewRelay::AttachFog()
     const int32 Side = LDObservation::CoverageSide;
     if (!FogMaterial)
     {
-        UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Fog.M_Fog"));
-        if (!ensureMsgf(Base, TEXT("Missing native fog material; regenerate content"))) { return; }
+        UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Art/Fog/MI_FogMist.MI_FogMist"));
+        if (!ensureMsgf(Base, TEXT("Missing fog material instance /Game/Lockdown/Art/Fog/MI_FogMist"))) { return; }
         FogTexture = UTexture2D::CreateTransient(Side, Side, PF_B8G8R8A8);
         FogTexture->SRGB = false;
         // Bilinear sampling softens the coverage cell edges; with the blend the lit area glides instead of stepping.
@@ -932,7 +926,9 @@ void ALDWorldViewRelay::AttachFog()
         FogTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
         FogTexture->UpdateResource();
         FogMaterial = UMaterialInstanceDynamic::Create(Base, this);
-        FogMaterial->SetTextureParameterValue(TEXT("FogMask"), FogTexture);
+        FogMaterial->SetTextureParameterValue(TEXT("OcclusionDistance"), FogTexture);
+        FogMaterial->SetScalarParameterValue(TEXT("CoverageOnly"), 1);
+        FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), 0);
     }
     Camera->PostProcessSettings.AddBlendable(FogMaterial, 1);
     CameraOwner = Target;
@@ -947,28 +943,38 @@ void ALDWorldViewRelay::UploadFog()
     if (Snapshot.LocalSerial == FogSerial) { return; }
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     const FLDDemoWorldGeometry* Geometry = Registry && Registry->Enabled() ? Registry->GetGeometry() : nullptr;
-    FVector GroundMin, GroundMax;
+    FVector GroundMin = FVector::ZeroVector, GroundMax = FVector::ZeroVector;
     FString Error;
-    if (!Geometry || Geometry->Surfaces.Num() != 1 || !Geometry->Surfaces[0].MinCm.ToVector(GroundMin, Error)
-        || !Geometry->Surfaces[0].MaxCm.ToVector(GroundMax, Error) || GroundMax.X <= GroundMin.X || GroundMax.Y <= GroundMin.Y) { return; }
-    const double SpanX = GroundMax.X - GroundMin.X, SpanY = GroundMax.Y - GroundMin.Y;
-    FogMaterial->SetVectorParameterValue(TEXT("WorldScale"), FLinearColor(float(1.0 / SpanX), float(1.0 / SpanY), 0, 0));
-    FogMaterial->SetVectorParameterValue(TEXT("WorldOffset"), FLinearColor(float(-GroundMin.X / SpanX), float(-GroundMin.Y / SpanY), 0, 0));
-    // Static terrain stays readable; only current authorized coverage is bright. No explored layer exists.
-    const bool bCurrent = Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
+    const bool bGeometry = Geometry && Geometry->Surfaces.Num() == 1
+        && Geometry->Surfaces[0].MinCm.ToVector(GroundMin, Error)
+        && Geometry->Surfaces[0].MaxCm.ToVector(GroundMax, Error)
+        && GroundMax.X > GroundMin.X && GroundMax.Y > GroundMin.Y;
+    const bool bCurrent = bGeometry && Snapshot.Frame && Snapshot.Status == ELDObservedViewStatus::Current
         && Snapshot.Frame->Footprint.SourceStatus == ELDObservationSource::ActiveBody;
-    FogTarget.SetNumUninitialized(LDObservation::CoverageCells);
-    for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
+    // A stale/dead/bodiless viewer loses the old appearance immediately. Unit authorization stays in Receiver.
+    FogMaterial->SetScalarParameterValue(TEXT("CoverageActive"), bCurrent ? 1.f : 0.f);
+    if (!bCurrent)
     {
-        FogTarget[Index] = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : LDFogHidden;
+        FogTarget.Init(0.f, LDObservation::CoverageCells);
+        FogShown = FogTarget;
+        FogBits.Reset();
+        bFogBlending = true;
+        FogSerial = Snapshot.LocalSerial;
+        return;
     }
-    // The first coverage shows at once; later ones blend from what is on screen.
-    if (FogShown.Num() != LDObservation::CoverageCells)
+    const FVector2D Span(GroundMax.X - GroundMin.X, GroundMax.Y - GroundMin.Y);
+    FogMaterial->SetVectorParameterValue(TEXT("FieldWorldMin"), FLinearColor(GroundMin.X, GroundMin.Y, 0, 0));
+    FogMaterial->SetVectorParameterValue(TEXT("FieldWorldSpan"), FLinearColor(Span.X, Span.Y, 0, 0));
+    const TArray<uint8>& Bits = Snapshot.Frame->Footprint.CurrentBits;
+    // Unit-only publications reuse the field; there are no local raycasts or extra network payloads.
+    if (FogBits != Bits || FogSpan != Span)
     {
-        FogShown.SetNumUninitialized(LDObservation::CoverageCells);
-        for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index) { FogShown[Index] = FogTarget[Index]; }
+        LDFogDistanceField::Build(Bits, Span.X / LDObservation::CoverageSide, Span.Y / LDObservation::CoverageSide, FogTarget);
+        if (FogBits.IsEmpty() || FogShown.Num() != FogTarget.Num()) { FogShown = FogTarget; }
+        FogBits = Bits;
+        FogSpan = Span;
+        bFogBlending = true;
     }
-    bFogBlending = true;
     FogSerial = Snapshot.LocalSerial;
 }
 
@@ -976,8 +982,7 @@ void ALDWorldViewRelay::BlendFog(float Delta)
 {
     if (!bFogBlending || !FogTexture || !FogTexture->GetResource() || FogShown.Num() != LDObservation::CoverageCells
         || FogTarget.Num() != LDObservation::CoverageCells) { return; }
-    // One publication interval per full fade: a cell entering or leaving coverage eases over about 0.1 s.
-    const float Step = (255.f - LDFogHidden) * FMath::Max(Delta, 0.f) / .1f;
+    const float Alpha = 1.f - FMath::Exp(-FMath::Max(Delta, 0.f) / .06f);
     bool bMoving = false;
     const int32 Side = LDObservation::CoverageSide;
     uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];
@@ -985,9 +990,10 @@ void ALDWorldViewRelay::BlendFog(float Delta)
     {
         const float Target = FogTarget[Index];
         float& Shown = FogShown[Index];
-        Shown = Shown < Target ? FMath::Min(Target, Shown + Step) : FMath::Max(Target, Shown - Step);
+        Shown = FMath::Lerp(Shown, Target, Alpha);
+        if (FMath::Abs(Shown - Target) < 1.f / 1024.f) { Shown = Target; }
         bMoving |= Shown != Target;
-        const uint8 Value = uint8(FMath::RoundToInt(Shown));
+        const uint8 Value = uint8(FMath::Clamp(FMath::RoundToInt(Shown * 255.f), 0, 255));
         Pixels[Index * 4] = Pixels[Index * 4 + 1] = Pixels[Index * 4 + 2] = Value;
         Pixels[Index * 4 + 3] = 255;
     }

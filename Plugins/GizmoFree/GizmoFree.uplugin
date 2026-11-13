@@ -1,0 +1,15 @@
+{
+  "FileVersion": 3,
+  "Version": 300,
+  "VersionName": "3.0.0-UE5.8",
+  "FriendlyName": "GizmoFree (UE 5.8)",
+  "Description": "Maya-style Alt-drag actor transforms. Source reimplementation of the supplied GizmoFree README; original binaries are not used.",
+  "Category": "Editor",
+  "CreatedBy": "Project-local reimplementation; original concept by liwenhao12",
+  "EngineVersion": "5.8.0",
+  "CanContainContent": false,
+  "EnabledByDefault": true,
+  "Installed": false,
+  "SupportedTargetPlatforms": ["Win64"],
+  "Modules": [{"Name": "GizmoFree", "Type": "Editor", "LoadingPhase": "PostEngineInit", "PlatformAllowList": ["Win64"]}]
+}

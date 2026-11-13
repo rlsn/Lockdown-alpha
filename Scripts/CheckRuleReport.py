@@ -17,6 +17,7 @@ SUITE = "Lockdown.Rules"
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.Vision.FogDistanceField",
         "Lockdown.Rules.DemoVision.GeometryParity",
         "Lockdown.Rules.DemoVision.CoveragePublication",
         "Lockdown.Rules.DemoVision.ArrivalRoutes",
