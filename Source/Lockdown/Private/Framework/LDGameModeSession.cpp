@@ -17,7 +17,7 @@ namespace
         case ELDSessionReject::NotOwner: return TEXT("这个连接不是房间成员。");
         case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始本局或带房间返回 Lobby。");
         case ELDSessionReject::WrongPhase: return TEXT("当前阶段不能执行这个房间命令。");
-        case ELDSessionReject::RoomFull: return TEXT("房间已有 3 名真人（含房主）。");
+        case ELDSessionReject::RoomFull: return TEXT("房间的 6 个参赛名额已满。");
         case ELDSessionReject::NotAllReady: return TEXT("所有在线真人（含房主）都准备后才能开始对局。");
         case ELDSessionReject::StaleRoster: return TEXT("房间名单已变化，请确认后重新准备。");
         case ELDSessionReject::StaleMatch: return TEXT("这个请求已不属于当前对局。");
@@ -74,7 +74,7 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
         return false;
     }
     if (Contenders.Contains(Controller)) { return true; }
-    if (Contenders.Num() >= 3)
+    if (Contenders.Num() + LobbyAISlots.Num() >= LDMatchLifecycle::MaxContenders)
     {
         Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::RoomFull, *RejectionText(ELDSessionReject::RoomFull));
         return false;
@@ -237,8 +237,11 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         }
         else if (Request.Command == ELDSessionCommand::SetAICount)
         {
-            Changed = Request.AICount != LobbyAISlots.Num();
-            if (!Changed || AdvanceRoster(Receipt.Detail))
+            if (Contenders.Num() + Request.AICount > LDMatchLifecycle::MaxContenders)
+            {
+                Receipt.Reason = ELDSessionReject::RoomFull;
+            }
+            else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail))
             {
                 while (LobbyAISlots.Num() > Request.AICount) { LobbyAISlots.Pop(); }
                 while (LobbyAISlots.Num() < Request.AICount) { LobbyAISlots.Add(FGuid::NewGuid()); }
@@ -250,7 +253,8 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         }
         else if (Request.Command == ELDSessionCommand::StartMatch)
         {
-            bool AllReady = !Contenders.IsEmpty() && Contenders.Num() <= 3;
+            bool AllReady = !Contenders.IsEmpty()
+                && Contenders.Num() + LobbyAISlots.Num() <= LDMatchLifecycle::MaxContenders;
             for (const auto& Pair : Contenders)
             {
                 AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;

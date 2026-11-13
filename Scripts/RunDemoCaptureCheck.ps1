@@ -1,9 +1,11 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,1800)][int]$TimeoutSeconds=1800)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,1800)][int]$TimeoutSeconds=1800,
+    [switch]$AllHuman)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$output = New-LDArtifactDirectory $(if ($PackageRoot) { 'DemoCapture-OwnedMatch-Packaged' } else { 'DemoCapture-OwnedMatch' })
+$output = New-LDArtifactDirectory (($(if ($PackageRoot) { 'DemoCapture-OwnedMatch-Packaged' } else { 'DemoCapture-OwnedMatch' })) +
+    $(if ($AllHuman) { '-SixOwners' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
 # Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
 $evidence = $launch.ProbeOutput
@@ -24,11 +26,16 @@ $requiredChecks = @{
     Client1 = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
+$clientCount = if ($AllHuman) { 5 } else { 2 }
+$roles = @('Host') + @(1..$clientCount | ForEach-Object { "Client$_" })
+foreach ($role in $roles | Where-Object { $_ -ne 'Host' }) { $requiredChecks[$role] = $requiredChecks.Client1 }
 # The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the
 # Host's has one inner space). They are built from code points so this script stays ASCII.
 function Get-CaptureName {
     param([Parameter(Mandatory)][string]$Role)
-    $points = @{ Host = 0x62A2,0x5708,0x20,0x623F,0x4E3B; Client1 = 0x62A2,0x5708,0x7532; Client2 = 0x62A2,0x5708,0x4E59 }[$Role]
+    $points = @{ Host = 0x62A2,0x5708,0x20,0x623F,0x4E3B; Client1 = 0x62A2,0x5708,0x7532;
+        Client2 = 0x62A2,0x5708,0x4E59; Client3 = 0x62A2,0x5708,0x4E19;
+        Client4 = 0x62A2,0x5708,0x4E01; Client5 = 0x62A2,0x5708,0x620A }[$Role]
     -join ($points | ForEach-Object { [char]$_ })
 }
 
@@ -38,11 +45,17 @@ function Start-CaptureRole {
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
     $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCaptureProbe -LDDemoCaptureRole={2} -LDDemoCaptureTimeout={3} -LDDemoCaptureOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    if ($AllHuman) { $arguments += ' -LDCaptureAllHuman' }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 
 function Get-CaptureFailure {
-    foreach ($role in 'Host','Client1','Client2') {
+    foreach ($role in $roles) {
+        $log = Join-Path $output "$role.log"
+        if (Test-Path -LiteralPath $log) {
+            $networkFailure = Select-String -LiteralPath $log -SimpleMatch 'LogNet: Error: UEngine::BroadcastNetworkFailure' | Select-Object -First 1
+            if ($networkFailure) { return "Network failure for $role`: $($networkFailure.Line). Evidence: $output" }
+        }
         $file = Join-Path $evidence "$role.json"
         if (Test-Path -LiteralPath $file) {
             $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
@@ -72,12 +85,12 @@ function Wait-CaptureReports {
 try {
     Start-CaptureRole 'Host' ('/Game/Lockdown/Generated/Maps/L_Demo?listen?LDName={0}' -f (Get-CaptureName 'Host'))
     Wait-CaptureReports @('HostJoined.json')
-    foreach ($index in 1..2) {
+    foreach ($index in 1..$clientCount) {
         $url = '127.0.0.1:{0}?LDName={1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,(Get-CaptureName "Client$index"),$wire,$version,$digest
         Start-CaptureRole "Client$index" $url
     }
-    Wait-CaptureReports @('Host.json','Client1.json','Client2.json')
-    $reports = foreach ($role in 'Host','Client1','Client2') {
+    Wait-CaptureReports @($roles | ForEach-Object { "$_.json" })
+    $reports = foreach ($role in $roles) {
         $r = Get-Content -LiteralPath (Join-Path $evidence "$role.json") -Raw | ConvertFrom-Json
         if (-not $r.passed -or $r.role -ne $role -or @($r.checks | Where-Object { $_.passed -ne $true }).Count -ne 0) {
             throw "Owned capture evidence failed for $role`: $($r.detail). Evidence: $output"
@@ -100,7 +113,7 @@ try {
         }
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
-    foreach ($process in @($processes)[1..2]) {
+    foreach ($process in @($processes)[1..$clientCount]) {
         if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw "Capture client did not exit cleanly: $output" }
     }
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
@@ -108,8 +121,9 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
-    Write-Host ("Normal-start six-contender showdown passed: three real owners plus three production AI, three growth fields and final rest, six final-rest active choices and locks, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {0} ({1}/{2}/{3} required checks). Not distinct FIN effects, graphical quality or exhaustive respawn choreography. Evidence: {4}" -f
-        $reports[0].summary.second_generation,$requiredChecks.Host.Count,$requiredChecks.Client1.Count,$requiredChecks.Client2.Count,$output)
+    $roster = if ($AllHuman) { 'six real owners, no AI' } else { 'three real owners plus three production AI' }
+    Write-Host ("Normal-start six-contender showdown passed: {0}, three growth fields and final rest, six final-rest active choices and locks, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {1}. Not distinct FIN effects, graphical quality or exhaustive respawn choreography. Evidence: {2}" -f
+        $roster,$reports[0].summary.second_generation,$output)
 }
 finally {
     foreach ($process in $processes) {

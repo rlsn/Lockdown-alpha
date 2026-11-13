@@ -360,9 +360,9 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     RosterRevision=1;
     bEntryAccepted=true;
     HostTravelHandle=FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this,&ALDGameMode::HostWorldUnloading);
-    // Three humans plus three AI never reallocate record storage that callers briefly hold.
-    Contenders.Reserve(6);
-    if (GameSession) { GameSession->MaxPlayers=3; }
+    // The full roster never reallocates record storage that callers briefly hold.
+    Contenders.Reserve(LDMatchLifecycle::MaxContenders);
+    if (GameSession) { GameSession->MaxPlayers=LDMatchLifecycle::MaxContenders; }
     UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_LOBBY generation=%u"),MatchContext.Generation);
 }
 
@@ -409,8 +409,8 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
 #endif
     if (MatchPhase!=ELDMatchPhase::Lobby)
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match joining and reconnecting are not supported.")); return; }
-    if (Contenders.Num()>=3)
-    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("the room already has three human players, including the Host.")); return; }
+    if (Contenders.Num()+LobbyAISlots.Num()>=LDMatchLifecycle::MaxContenders)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("all six contender slots are occupied.")); return; }
     if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(WireProtocol))
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProtocolMismatch,TEXT("use the same Demo network build as the Host.")); return; }
     FString Version;

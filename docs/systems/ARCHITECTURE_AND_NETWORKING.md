@@ -39,7 +39,7 @@ Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
 
 `ALDGameMode::InitGame` 为有效 Demo 房间一次创建 `FLDMatchContext`；
 网络 Generation 通过 GameInstance 的有界单调分配器取得，LedgerMatch 单独生成并显式绑定。
-`PreLogin` 检查阶段、人数、wire/product/content 兼容性，最终 `PostLogin` 再检查阶段与三真人容量；
+`PreLogin` 检查阶段、人数、wire/product/content 兼容性，最终 `PostLogin` 再检查阶段与真人和 AI 共用的六人容量；
 不会先创建可用 Pawn、旧职业构筑或奖励再发现房间已满。两处拒绝都以 `<原因码>: <英文说明>` 送出稳定原因码
 （`LDDemoEntry::JoinRefusal`：MissingDemoDefinition、MatchAlreadyStarted、RoomFull、ProtocolMismatch、
 ProductMismatch、ContentMismatch、InvalidName）；`PreLogin` 的这些检查先于引擎会话的人数检查，否则满员只得到不带原因码的
@@ -78,7 +78,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 - `ALDPlayerState` 只对拥有者相关，并按引擎默认每秒更新一次。Listen Host 默认每秒只 tick
   `NetClientTicksPerSecond` 个客户端连接，帧率高于 100 fps 时每帧只轮到一个；这与 1 Hz 更新锁相后，
   会把本人 PlayerState 的首次复制推迟数秒到近 20 秒。因此 `Config\DefaultEngine.ini` 的 `[ConsoleVariables]`
-  设 `net.MaxConnectionsToTickPerServerFrame=8`，每个复制帧都 tick 全部客户端连接（最多两名远端真人）。
+  设 `net.MaxConnectionsToTickPerServerFrame=8`，每个复制帧都 tick 全部客户端连接（最多五名远端真人）。
 - 其他身体的可见表现主要通过观测中继，而不是把所有权威 Actor 广播出去后在 UI 上隐藏。
 - GameState 只放明确公开的事实，不应成为全部玩家位置、背包和构筑的总表。
 - `ALDGameState::DemoLobby` 是名单、Host/Ready/AI 名额及公开阻塞原因的只读投影，
@@ -94,7 +94,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 23），双方须使用同一构建；改动任何复制结构、RPC 或观察编码时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 24），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
 - 局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`

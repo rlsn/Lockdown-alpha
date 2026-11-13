@@ -24,7 +24,7 @@
 
 | 边界 | UI 必须表达的唯一行为 |
 | --- | --- |
-| 单一流程 | Start / Settings / Exit → Host 或 IP Join → Lobby / Ready / Host Start → 对局 → 唯一结果 → 同房间 Lobby / 新局或离开。最多三真人含 Host、零至三独立 AI，不自动补位。 |
+| 单一流程 | Start / Settings / Exit → Host 或 IP Join → Lobby / Ready / Host Start → 对局 → 唯一结果 → 同房间 Lobby / 新局或离开。真人含 Host，最多六人；零至三独立 AI 与真人共用六席，不自动补位。 |
 | 战斗入口 | 开局近战单体普攻；属性、技能与构件可以改变普攻范围。Q/W/E 仅角色主动；没有装备系统，已持有构件显示在构件背包。 |
 | 冷却 | 遗忘期间技能冷却继续计时，重新持有继承原结束时刻，UI 换图标/槽位不刷新冷却。 |
 | 死亡选择 | 死亡等待可从当前主动候选选择并学到空槽、学图纸、加点与在构件库安装构件；校验当前 Life 和 `ExpectedLifePhase`。只更新持久构筑，不复活、不治疗尸体，阶段竞争拒绝也不丢 Offer。 |
@@ -567,7 +567,7 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、XP/Offer/
 
 | 用例组 | 正例 | 反例与精确断言 |
 | --- | --- | --- |
-| 菜单/连接/准入 | Start/Settings/Exit 可用；正常 Host+两个 owning client、零/三 AI；单人同规则 | 双击/取消后新 attempt、旧成功/失败、错端口/地址/版本/内容、第四真人、late join 分别反馈；没有幽灵连接/旧失败退出新世界。 |
+| 菜单/连接/准入 | Start/Settings/Exit 可用；正常 Host 与 owning clients、零/三 AI；单人同规则 | 双击/取消后新 attempt、旧成功/失败、错端口/地址/版本/内容、满房加入、late join 分别反馈；没有幽灵连接/旧失败退出新世界。 |
 | Lobby | 全真人包括 Host 准备，Host Start；AI 数不补位 | Ready 更新不清他人 Ready；成员/AI 结构变化清准备；非 Host 伪造开始服务器拒绝，不只按钮不可见。 |
 | 手势与捕获 | 文本/重绑/面板/模态/拖拽/Armed/小地图逐层响应；在面板外 Armed 后进入子确认再按 Esc | 在 UI 按下世界释放及反向、关闭时仍按键、Enter+OnClicked 同帧，只一个消费者/提交；进入子确认撤 Armed，Esc 只关子层不再关主层/发 RPC/Stop/消费 Offer；hover 普通面板不吞 S，滚轮不同时 scroll+zoom。 |
 | 面板与失焦 | 已接受导航中打开属性/Choices/Settings，世界继续 | 开普通面板不 Stop/停心跳，不暂停/免疫；失焦一次 Stop，回焦不重播；映射重建无累积 action/旧键命令。 |

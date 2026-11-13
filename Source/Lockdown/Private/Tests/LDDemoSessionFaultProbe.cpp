@@ -84,7 +84,7 @@ int32 RemoteControllers(UWorld& World)
     for (auto It = World.GetPlayerControllerIterator(); It; ++It)
     {
         const APlayerController* Remote = It->Get();
-        if (Remote && !Remote->IsLocalController()) { ++Count; }
+        if (Remote && !Remote->IsLocalController() && Remote->GetNetConnection()) { ++Count; }
     }
     return Count;
 }
@@ -323,7 +323,14 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         return true;
     case ELDSessionFaultStage::Lobby:
     {
-        if (!AllMarkers(TEXT("Joined.json")) || Lobby.Members.Num() != ExpectedHumans()) { return true; }
+        if (!AllMarkers(TEXT("Joined.json"))
+            || Lobby.Members.FilterByPredicate([](const FLDLobbyMember& Row) { return Row.Kind == ELDContenderKind::Human; }).Num() != ExpectedHumans()) { return true; }
+        if (Mode == ELDSessionFaultMode::Refuse && Lobby.AICount != 3)
+        {
+            if (Role == TEXT("Host") && FPlatformTime::Seconds() - StageAt >= 3.)
+            { PC.SetDemoAICount(3); StageAt = FPlatformTime::Seconds(); }
+            return true;
+        }
         // Refuse: the full Lobby is announced once, and the Host holds it until the joiner was refused as full.
         if (Mode == ELDSessionFaultMode::Refuse && Role == TEXT("Host") && !Announced)
         {
@@ -379,8 +386,9 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
         return true;
     }
     case ELDSessionFaultStage::Starting:
-        if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !PC.GetPawn()
-            || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !PC.CanWorldCommand()) { return true; }
+        if (View.Generation != Lobby.Generation || !PC.GetPawn() || PC.OwnerState.LifePhase != ELDLifePhase::Alive
+            || (!(Mode == ELDSessionFaultMode::Refuse && View.Phase == ELDMatchPhase::Rest)
+                && (View.Phase != ELDMatchPhase::Development || !PC.CanWorldCommand()))) { return true; }
         if (Mode == ELDSessionFaultMode::Leave && !LoadIdentity(TEXT("Client2"), LeaverId))
         {
             Check(false, TEXT("The leaving contender identity is known"));

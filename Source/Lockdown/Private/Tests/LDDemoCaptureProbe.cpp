@@ -26,8 +26,8 @@
 
 enum class ELDShowdownProbeStage : uint8 { Join, Lobby, Running, Results, Returned, SecondStart };
 
-// Three real owners and three production opponents run the normal timeline. Only normal ready, navigation, attack
-// and session intents are sent; no teleport, clock skip, damage injection or result override is used.
+// Either three real owners and three production opponents or six real owners run the normal timeline. Only normal
+// ready, navigation, attack and session intents are sent; no teleport, clock skip, damage injection or result override is used.
 class FLDDemoCaptureProbe : public TSharedFromThis<FLDDemoCaptureProbe>
 {
 public:
@@ -39,6 +39,7 @@ public:
     bool bOpeningSeen = false, bFinalRestSeen = false, bFinalSeen = false, bMarkerSeen = false;
     bool bFinalModOffered = false, bFinalModSent = false;
     uint8 FieldMask = 0;
+    int32 HumanCount = 3;
     uint32 Generation = 0, NextGeneration = 0;
     int64 FinalXP = 0, FinalEndsAtMs = 0;
     uint64 FinalBuildRevision = 0;
@@ -47,7 +48,12 @@ public:
 
     static const TCHAR* Name(const FString& Which)
     {
-        return Which == TEXT("Host") ? TEXT("抢圈 房主") : Which == TEXT("Client1") ? TEXT("抢圈甲") : TEXT("抢圈乙");
+        if (Which == TEXT("Host")) { return TEXT("抢圈 房主"); }
+        if (Which == TEXT("Client1")) { return TEXT("抢圈甲"); }
+        if (Which == TEXT("Client2")) { return TEXT("抢圈乙"); }
+        if (Which == TEXT("Client3")) { return TEXT("抢圈丙"); }
+        if (Which == TEXT("Client4")) { return TEXT("抢圈丁"); }
+        return TEXT("抢圈戊");
     }
 
     bool Save(const TSharedRef<FJsonObject>& Object, const FString& File) const
@@ -67,9 +73,10 @@ public:
 
     bool AllMarked(const TCHAR* Suffix) const
     {
-        for (const TCHAR* Which : {TEXT("Host"), TEXT("Client1"), TEXT("Client2")})
+        for (int32 Index = 0; Index < HumanCount; ++Index)
         {
-            if (!FPaths::FileExists(FPaths::Combine(Output, FString(Which) + Suffix))) { return false; }
+            const FString Which = Index == 0 ? TEXT("Host") : FString::Printf(TEXT("Client%d"), Index);
+            if (!FPaths::FileExists(FPaths::Combine(Output, Which + Suffix))) { return false; }
         }
         return true;
     }
@@ -91,7 +98,9 @@ public:
         Report->SetBoolField(TEXT("passed"), bPassed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
-        Report->SetStringField(TEXT("scope"), TEXT("Normal three-field timeline, three owning connections plus three production AI, final-rest active selection and build lock for all six, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography."));
+        Report->SetStringField(TEXT("scope"), HumanCount == 6
+            ? TEXT("Normal three-field timeline, six real owning connections, final-rest active selection and build lock for all six, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography.")
+            : TEXT("Normal three-field timeline, three owning connections plus three production AI, final-rest active selection and build lock for all six, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography."));
         Report->SetArrayField(TEXT("checks"), Checks);
         Report->SetObjectField(TEXT("summary"), Summary);
         bWritten = Save(Report, Role + TEXT(".json"));
@@ -141,10 +150,10 @@ public:
         if (Stage == ELDShowdownProbeStage::Lobby || Stage == ELDShowdownProbeStage::Returned)
         {
             const bool bSecond = Stage == ELDShowdownProbeStage::Returned;
-            if (!AllMarked(bSecond ? TEXT("Lobby2.json") : TEXT("Joined.json")) || CountKind(ELDContenderKind::Human) != 3) { return true; }
-            if (Lobby.AICount != 3)
+            if (!AllMarked(bSecond ? TEXT("Lobby2.json") : TEXT("Joined.json")) || CountKind(ELDContenderKind::Human) != HumanCount) { return true; }
+            if (Lobby.AICount != 6 - HumanCount)
             {
-                if (bHost && bInput) { PC->SetDemoAICount(3); NextInputAt = Local + 2.; }
+                if (bHost && bInput) { PC->SetDemoAICount(6 - HumanCount); NextInputAt = Local + 2.; }
                 return true;
             }
             const auto* Self = Lobby.Members.FindByPredicate([PC](const FLDLobbyMember& Row)
@@ -164,9 +173,10 @@ public:
             }
             if (!bSecond)
             {
-                Check(Lobby.Members.Num() == 6 && CountKind(ELDContenderKind::OpponentAI) == 3
+                Check(Lobby.Members.Num() == 6 && CountKind(ELDContenderKind::OpponentAI) == 6 - HumanCount
                     && Lobby.Members.ContainsByPredicate([this](const FLDLobbyMember& Row) { return Row.Name == Name(Role); }),
-                    TEXT("C02"), TEXT("The locked room has three named humans and three distinct production AI"));
+                    TEXT("C02"), HumanCount == 6 ? TEXT("The locked room has six named humans and no AI")
+                        : TEXT("The locked room has three named humans and three distinct production AI"));
             }
             Stage = bSecond ? ELDShowdownProbeStage::SecondStart : ELDShowdownProbeStage::Running;
         }
@@ -343,16 +353,25 @@ void LDDemoTests::StartCaptureProbe(ALDPlayerController& Controller)
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoCaptureProbe")) || !Controller.IsLocalController()
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoCaptureProbe>();
+    Probe->HumanCount = FParse::Param(FCommandLine::Get(), TEXT("LDCaptureAllHuman")) ? 6 : 3;
     int32 Timeout = 1800;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureRole="), Probe->Role)
-        || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2"))
         || Timeout < 120 || Timeout > 1800
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
         UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_CAPTURE_PROBE Invalid isolated test arguments."));
+        FPlatformMisc::RequestExitWithStatus(false, 2);
+        return;
+    }
+    bool bValidRole = Probe->Role == TEXT("Host");
+    for (int32 Index = 1; Index < Probe->HumanCount; ++Index)
+    { bValidRole |= Probe->Role == FString::Printf(TEXT("Client%d"), Index); }
+    if (!bValidRole)
+    {
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_CAPTURE_PROBE Invalid role for the selected roster."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

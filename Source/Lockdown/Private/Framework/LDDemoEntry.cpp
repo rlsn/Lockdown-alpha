@@ -360,7 +360,7 @@ bool LDDemoEntry::DescribeJoinRefusal(const FString& ServerMessage, FString& Out
     const TCHAR* Reason = nullptr;
     const TCHAR* Hint = TEXT("");
     if (Is(JoinRefusal::MatchAlreadyStarted)) { Reason = TEXT("对局已开始，不能中途加入"); Hint = TEXT("请等房主回到房间后再加入。"); }
-    else if (Is(JoinRefusal::RoomFull)) { Reason = TEXT("房间已满，最多 3 名真人，含房主"); }
+    else if (Is(JoinRefusal::RoomFull)) { Reason = TEXT("房间已满，最多 6 名参赛者"); }
     else if (Is(JoinRefusal::ProtocolMismatch)) { Reason = TEXT("版本与房主不兼容，网络协议不同"); Hint = SameBuild; }
     else if (Is(JoinRefusal::ProductMismatch)) { Reason = TEXT("版本与房主不兼容，产品版本不同"); Hint = SameBuild; }
     else if (Is(JoinRefusal::ContentMismatch)) { Reason = TEXT("版本与房主不兼容，内容数据不同"); Hint = SameBuild; }

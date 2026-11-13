@@ -976,6 +976,11 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Objective timeout may crown a listed contribution winner"),LDCapture::ValidateResultView(Timeout,Error));
     Timeout.Winner.Invalidate();
     TestTrue(TEXT("Objective timeout may end without a champion"),LDCapture::ValidateResultView(Timeout,Error));
+    FLDResultView SixHumans=Result;
+    SixHumans.Rows[2].Kind=ELDContenderKind::Human;
+    for (int32 Index=3; Index<6; ++Index)
+    { SixHumans.Rows.Add({FGuid::NewGuid(),TEXT("Guest"),ELDContenderKind::Human,false,0,0,1}); }
+    TestTrue(TEXT("A result for six human contenders is accepted"),LDCapture::ValidateResultView(SixHumans,Error));
     BadResult([](FLDResultView& View) { View.Winner = FGuid::NewGuid(); }, TEXT("The winner must be a listed contender"));
     BadResult([](FLDResultView& View) { View.Rows[0].bLeft = true; }, TEXT("A contender who left cannot win"));
     BadResult([](FLDResultView& View) { View.DurationMs = 1; }, TEXT("Duration comes from the real boundaries"));

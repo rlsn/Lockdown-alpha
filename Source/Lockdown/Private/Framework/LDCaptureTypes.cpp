@@ -191,7 +191,8 @@ bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
             WinnerListed = true;
         }
     }
-    if (!WinnerListed || Humans < 1 || Humans > 3 || View.Rows.Num() - Humans > 3)
+    if (!WinnerListed || Humans < 1 || Humans > LDMatchLifecycle::MaxContenders
+        || View.Rows.Num() - Humans > LDMatchLifecycle::MaxOpponents)
     { return FailCaptureView(Error, TEXT("Result winner or roster composition is inconsistent.")); }
     Error.Reset();
     return true;
