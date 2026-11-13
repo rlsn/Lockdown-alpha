@@ -30,7 +30,7 @@ WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
 SCHEMA_VERSION = 2
-HANDLER_REVISION = 4
+HANDLER_REVISION = 6
 PROJECTION_REVISION = 6
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
@@ -69,20 +69,31 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                          "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
                          "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
                          "fire_shield", "knockback_impact", "contact_knockback", "control_mark", "aftershock", "control_mana",
-                         "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base", "compress_chain")))
-# #198 F: the operations of mods (M01-M12) and connectors (C01-C12); they act on the install target the component names.
+                         "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal", "extra_base", "compress_chain",
+                         "projectile_return", "projectile_pierce", "chain_extra", "echo_impact"),
+                       # Skill rules on native direct hits (B13-B15).
+                       "cast_hit_refund", "distance_amp", "alternate_amp",
+                       # Connectors C13-C16.
+                       "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_mana",
+                       # Mods M16-M20 and connectors C17-C21.
+                       "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
+                       "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
+# #198 F: the operations of mods (M01-M20) and connectors (C01-C21); they act on the install target the component names.
 WORKSHOP_OPS = frozenset(("spread_unit", "spread_projectile", "spread_ledger", "spread_counter", "delay_ledger", "delay_counter",
                           "knockback_scale", "control_scale", "range_bonus", "counter_range_bonus", "cooldown_cost",
                           "compress_cone", "compress_zone", "dash_scale", "ledger_variant", "marked_counter", "damage_defer",
                           "fire_shield", "knockback_impact", "dash_contact_refund", "contact_knockback", "control_mark",
                           "aftershock", "control_mana", "heal_counter", "reaction_empower", "shield_burst", "skill_lifesteal",
-                          "extra_base", "compress_chain"))
+                          "extra_base", "compress_chain", "projectile_return", "projectile_pierce", "chain_extra", "echo_impact",
+                          "hit_haste_other", "setup_mark", "reaction_haste", "multi_hit_mana",
+                          "zone_tether", "defense_shove", "final_knockback", "empower_reach", "pull",
+                          "zone_relocate", "stored_force", "empower_spend", "control_widen", "zone_detonate"))
 # #198 B: the operations Combat reads from an installed component (ALDCombatDirector::CollectPassiveEffects). burn, breach
 # and empower_basic also have an active form; the rest are component-only and no active may carry them.
 COMPONENT_OPS = frozenset(("burn", "breach", "empower_basic", "ledger", "thorns", "lifesteal", "dash_contact_damage",
                            "nth_basic_bonus", "control_damage_amp", "triggered_shield", "basic_element", "stat_bonus",
                            "basic_damage_scale", "low_hp_stat_bonus", "primary_guard", "idle_ready_amp", "active_element",
-                           *WORKSHOP_OPS))
+                           "cast_hit_refund", "distance_amp", "alternate_amp", *WORKSHOP_OPS))
 COMPONENT_ONLY_OPS = COMPONENT_OPS - {"burn", "breach", "empower_basic"}
 ELEMENTS = ("fire", "water", "electric")
 CATEGORY_KEYS = ("base", "mod", "connector")
@@ -681,8 +692,23 @@ def _validate_component_effects(row, abilities, path):
             require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "lifesteal ratio must be positive")
         if op == "nth_basic_bonus":
             require(quantity(effect["distance"]) > 0, "NumericDomain", path, "the knockback distance must be positive")
-        if op in ("control_damage_amp", "idle_ready_amp"):
+        if op in ("control_damage_amp", "idle_ready_amp", "cast_hit_refund", "distance_amp", "alternate_amp", "setup_mark",
+                  "stored_force", "control_widen", "zone_detonate"):
             require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "damage bonus must be positive")
+        if op == "multi_hit_mana":
+            require(0 < quantity(effect["mana"]) <= quantity(effect["mana_cap"]), "NumericDomain", path,
+                    "a per-enemy refund must be positive and fit its per-release cap")
+        if op in ("defense_shove", "final_knockback", "empower_reach", "pull"):
+            require(quantity(effect["distance" if op != "empower_reach" else "range"]) > 0, "NumericDomain", path,
+                    "a forced move or reach bonus needs a positive distance")
+        if op in ("zone_tether", "defense_shove", "final_knockback", "empower_reach"):
+            ratio = {"zone_tether": "radius_ratio", "defense_shove": "shield_ratio", "final_knockback": "cost_ratio",
+                     "empower_reach": "damage_ratio"}[op]
+            require(quantity(effect[ratio]) > 0, "IneffectiveEffect", path, "the cost ratio must be positive")
+        if op == "defense_shove":
+            require(quantity(effect["radius"]) > 0, "NumericDomain", path, "a shove needs a positive radius")
+        if op == "distance_amp":
+            require(quantity(effect["distance"]) > 0, "NumericDomain", path, "the distance bonus needs a positive distance")
         if op == "triggered_shield":
             require(quantity(effect["base"]) > 0 or quantity(effect["max_hp_ratio"]) > 0, "IneffectiveEffect", path,
                     "a shield needs magnitude or scaling")
@@ -739,7 +765,21 @@ def _validate_components(data, abilities):
                     "opening actives are distinct known actives")
             require(all(abilities[active]["opening"] for active in actives), "OpeningPool", identity,
                     "an opening condition names actives of the opening pool")
+        require(len(set(row["tags"])) == len(row["tags"]), "InvalidReference", identity, "component tags are distinct")
+        required = row.get("draw_requires_actives")
+        if required is not None:
+            require(len(set(required)) == len(required) and set(required) <= set(abilities), "InvalidReference", identity,
+                    "a draw requirement names distinct known actives")
+            require(row["pool"] == "common", "DrawRequirement", identity,
+                    "only common components are level-up draws, so only they take a draw requirement")
         _validate_component_effects(row, abilities, identity)
+    forms = {}
+    for row in data["components"]:
+        if "form" in row:
+            forms.setdefault(row["form"], []).append(row)
+    for form, members in forms.items():
+        require(len(members) >= 2 and len({row["kind"] for row in members}) == 1, "ComponentForm", form,
+                "a form groups at least two components of one kind")
     _validate_component_targets(data, abilities)
 
 
@@ -865,6 +905,10 @@ def validate_definitions(data, ids):
     require(levels == sorted(set(levels)) and all(2 <= level <= progression["max_level"] for level in levels),
             "ActiveOfferLevels", "progression.active_offer_levels",
             "active offer levels must be distinct, ascending and reachable by levelling up")
+    bonus_levels = progression["bonus_component_levels"]
+    require(bonus_levels == sorted(set(bonus_levels)) and all(2 <= level <= progression["max_level"] for level in bonus_levels),
+            "BonusComponentLevels", "progression.bonus_component_levels",
+            "bonus component levels must be distinct, ascending and reachable by levelling up")
     _validate_category_weights(progression)
     _validate_components(data, rows_by_id(data["abilities"], "abilities"))
 
@@ -1053,9 +1097,11 @@ def validate_numbers(data):
     checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel"),
                 "GROWTH.OpeningPoints")
     # #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
-    checked_add(params["GROWTH.OpeningPoints"], checked_mul(level_steps, checked_add(
-        params["GROWTH.PointsPerLevel"], params["GROWTH.EmptyComponentPoolPoints"], "GROWTH.EmptyComponentPoolPoints"),
-        "GROWTH.EmptyComponentPoolPoints"), "GROWTH.EmptyComponentPoolPoints")
+    level_points = checked_mul(level_steps, params["GROWTH.PointsPerLevel"], "GROWTH.PointsPerLevel")
+    pool_points = checked_mul(level_steps + len(data["progression"]["bonus_component_levels"]),
+                              params["GROWTH.EmptyComponentPoolPoints"], "GROWTH.EmptyComponentPoolPoints")
+    checked_add(params["GROWTH.OpeningPoints"], checked_add(level_points, pool_points, "GROWTH.EmptyComponentPoolPoints"),
+                "GROWTH.EmptyComponentPoolPoints")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),

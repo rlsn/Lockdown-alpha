@@ -23,6 +23,7 @@ namespace LDCombatElementsDirectorDetail
         Applier.Source=Hit.Source;
         Applier.Level=FMath::Max(Hit.ElementLevel,1);
         Applier.SourceAPP2=FMath::Max<int64>(Hit.ElementAPP2,0);
+        Applier.EffectId=Hit.EffectId;
         return Applier;
     }
 
@@ -277,12 +278,13 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     Fact.TriggerBody=Applier.SourceBody;
     Fact.TriggerEntity=Applier.SourceEntity;
     Fact.TriggerSource=Applier.Source;
+    Fact.TriggerEffectId=Applier.EffectId;
     Fact.Primary=Primary;
     Fact.HitId=HitId;
     Fact.AtMs=NowMs;
     OnReactionCompleted(Fact);
     // #198 F C09: the trigger's connector on this applier arms its next primary basic.
-    if (!ArmReactionEmpower(Fact,NowMs,Error)) { return false; }
+    if (!ArmReactionEmpower(Fact,NowMs,Error) || !ReactionHaste(Fact,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Log,TEXT("LD_REACTION t=%lld kind=%s trigger=%s via=%s primary=%s struck=%d r=%s fire_settles=%d"),
         NowMs,LDCombatElements::ReactionName(Reaction),*LDLog::Id(Applier.SourceEntity),*LDLog::Source(Applier.Source),
         *LDLog::Id(Target.Victim.EntityId),Struck.Num(),*LDLog::P2(R),FireShares.Num());
@@ -365,10 +367,11 @@ bool ALDCombatDirector::TryDischarge(FLDBodyCombatState& Target, const FVector& 
 }
 
 bool ALDCombatDirector::ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
-    const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error)
+    const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger)
 {
     FLDCombatBrace Brace;
     Brace.EffectId=EffectId;
+    Brace.CastLedger=MoveTemp(CastLedger);
     Brace.Source=Source;
     Brace.Token=Token;
     Brace.RatioBp=Effect.RatioBp;
@@ -526,6 +529,11 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
         if (!CollectAreaTargets(FootOf(*Actor),Brace.RadiusCm,&Body,Body.Victim.EntityId,Around,Error))
         { Error=TEXT("Brace answer: ")+Error; return false; }
         const int64 Amount=LDCombatElements::BraceAnswerP2(Brace);
+        // M17: an answer of a recorded amount also shoves every body it reaches away from the holder.
+        TArray<FLDPassiveEffectRef> Shoves;
+        if (Brace.RecordedP2>0
+            && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::DefenseShove,Brace.Source,Shoves,Error)) { return false; }
+        const FVector HolderFoot=FootOf(*Actor);
         for (const FLDCombatBodyRef& Ref : Around)
         {
             FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
@@ -541,8 +549,23 @@ bool ALDCombatDirector::AdvanceElements(int64 NowMs, FString& Error)
             Hit.BaseP2=Amount;
             Hit.DamageType=ELDDemoDamageType::Magical;
             Hit.bDirectAbilityDamage=true;
+            Hit.CastLedger=Brace.CastLedger;
+            if (!Shoves.IsEmpty())
+            {
+                Hit.KnockbackCm=LDCombatElementsDirectorDetail::Cm(Shoves[0].Effect.DistanceCm);
+                Hit.KnockbackMs=Shoves[0].Effect.DurationMs;
+                Hit.bKnockbackFromAnchor=true;
+                Hit.KnockbackAnchorCm=HolderFoot;
+                Hit.KnockbackSource=Brace.Source;
+            }
             if (!StampSourceTerms(Body,Hit,Error) || !StampElementSnapshot(Body,Hit,Error)) { return false; }
         }
+        if (!Shoves.IsEmpty() && !Around.IsEmpty()) { LedgerComponentTriggered(Body,Shoves[0].Source.DefinitionId); }
+        // C18: a share of the recorded amount is also stored for a different active's next native hit.
+        TArray<FLDPassiveEffectRef> Stores;
+        if (Brace.RecordedP2>0
+            && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::StoredForce,Brace.Source,Stores,Error)) { return false; }
+        if (!Stores.IsEmpty() && !StoreForce(Body,Stores[0],Brace.RecordedP2,NowMs,Error)) { return false; }
         UE_LOG(LogLDCombat,Log,TEXT("LD_BRACE_ANSWER t=%lld src=%s recorded=%s amount=%s targets=%d"),NowMs,
             *LDLog::Id(Body.Victim.EntityId),*LDLog::P2(Brace.RecordedP2),*LDLog::P2(Amount),Around.Num());
     }

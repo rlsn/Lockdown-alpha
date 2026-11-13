@@ -130,6 +130,9 @@ public:
     void TakeFinalReceipts(const FGuid& ContenderId, TArray<FLDBuildReceipt>& Out);
 
 #if WITH_DEV_AUTOMATION_TESTS
+    // Prepared only; ALDGrowthDirector's evaluation-only entry and reward composite guard the actual commit.
+    FLDPrepareGrowthResult DevPrepareEvaluationExperience(const FGuid& ContenderId, int64 GrantXP,
+        const TArray<FName>& LevelComponents) const;
     // DEV growth fixture (LDDevGrowthFixture.h): queues one active offer (one to three distinct actives) for this
     // contender's next drawn head offers, oldest first. Every id must be an active the build neither holds nor keeps as a
     // blueprint and an offer must still be left to draw; each head draw re-resolves its preset against that build. The

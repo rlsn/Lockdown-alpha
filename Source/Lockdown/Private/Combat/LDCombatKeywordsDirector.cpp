@@ -137,6 +137,48 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error);
 }
 
+bool ALDCombatDirector::OnNativeDirectHit(FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error)
+{
+    if (Source.bPendingDeath) { return true; }
+    // B13: a share of the mana this release really paid (after M06), once per release EffectId, at its first native hit.
+    TArray<FLDPassiveEffectRef> Refunds;
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::CastHitRefund,Refunds,Error)) { return false; }
+    const int64 PaidP2=Hit.CastLedger ? Hit.CastLedger->PaidManaP2 : 0;
+    for (const FLDPassiveEffectRef& Refund : Refunds)
+    {
+        if (PaidP2<=0 || !Hit.EffectId.IsValid()) { break; }
+        if (Source.EffectBudgets.ContainsByPredicate([&](const FLDCombatEffectBudget& Row)
+            { return Row.EffectId==Hit.EffectId && Row.Component==Refund.Source.DefinitionId; }))
+        { continue; }
+        const int64 AmountP2=LDCombatKeywordsDetail::Share(PaidP2,Refund.Effect.RatioBp);
+        Source.EffectBudgets.Add({Hit.EffectId,Refund.Source.DefinitionId,AmountP2,NowMs});
+        const int64 MpBeforeP2=Source.Resources.MpP2;
+        GrantMana(Source,AmountP2);
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_CAST_REFUND t=%lld src=%s active=%s paid=%s refund=%s mp=%s->%s"),NowMs,
+            *LDLog::Id(Source.Victim.EntityId),*Hit.Source.DefinitionId.ToString(),*LDLog::P2(PaidP2),*LDLog::P2(AmountP2),
+            *LDLog::P2(MpBeforeP2),*LDLog::P2(Source.Resources.MpP2));
+        LedgerComponentTriggered(Source,Refund.Source.DefinitionId);
+    }
+    // C13 (cut the other actives), C14 (set the mark) and C16 (distinct-enemy mana) on the host's hit.
+    if (!HasteOtherActives(Source,Hit.Source,Hit.EffectId,NowMs,Error) || !OnHostDirectHit(Source,Hit,NowMs,Error)) { return false; }
+    // C18 (the stored force), C19 (another host's package) and C21 (the zone detonation) on this hit.
+    if (!SpendOnNativeHit(Source,Hit,NowMs,Error)) { return false; }
+    // B16: the ability-hit shield, by B09's rules (no weaker grant; the rest starts only on a granted shield).
+    if (NowMs<Source.AbilityHitShieldReadyAtMs) { return true; }
+    TArray<FLDPassiveEffectRef> Shields;
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::TriggeredShield,Shields,Error)) { return false; }
+    const FLDPassiveEffectRef* Ref=Shields.FindByPredicate([](const FLDPassiveEffectRef& Row)
+    { return Row.Effect.Trigger==ELDDemoEffectTrigger::AbilityHit; });
+    if (!Ref) { return true; }
+    const FLDDemoEffectDefinition& Effect=Ref->Effect;
+    const int64 Amount=Effect.BaseP2+LDCombatKeywordsDetail::Share(Source.Resources.MaxHpP2,Effect.MaxHPRatioBp);
+    const FGuid ShieldId=FGuid::NewGuid();
+    if (!GrantShieldTo(Source,Amount,Effect.DurationMs,ShieldId,Source.Victim.EntityId,NowMs,Error,Ref->Source)) { return false; }
+    if (!Source.Shield.IsSet() || Source.Shield->EffectId!=ShieldId) { return true; }
+    LedgerComponentTriggered(Source,Ref->Source.DefinitionId);
+    return LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Source.AbilityHitShieldReadyAtMs,Error);
+}
+
 void ALDCombatDirector::AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const
 {
     if (const int64 SilencedUntil=LDTactical::ActiveRootUntilMs(Body.Silences,NowMs); SilencedUntil>0)

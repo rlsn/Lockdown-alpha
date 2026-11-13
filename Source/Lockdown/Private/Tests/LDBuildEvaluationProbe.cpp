@@ -3,6 +3,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "AI/LDOpponentController.h"
+#include "Algo/Find.h"
 #include "Containers/Ticker.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -27,6 +28,38 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+
+bool LDBuildEvaluation::SelectDuelOutcome(const TArray<FLDKillNotice>& Notices, uint64& LastSerial, const FGuid& Subject,
+    const FGuid& Opponent, int64 StartedAtMs, int64 DuelTimeoutMs, FLDEvalOutcome& Out)
+{
+    Out = {};
+    const uint64 PreviousSerial = LastSerial;
+    const FLDKillNotice* Deaths[DuelAISlots] = {nullptr, nullptr};
+    int64 Earliest = MAX_int64;
+    for (const FLDKillNotice& Notice : Notices)
+    {
+        if (Notice.Serial <= PreviousSerial) { continue; }
+        LastSerial = FMath::Max(LastSerial, Notice.Serial);
+        if (!KillAtOrBeforeHorizon(StartedAtMs, DuelTimeoutMs, Notice.OccurredAtMs)) { continue; }
+        const int32 Side = Notice.Victim == Subject ? 0 : Notice.Victim == Opponent ? 1 : INDEX_NONE;
+        if (Side == INDEX_NONE || Notice.OccurredAtMs > Earliest) { continue; }
+        if (Notice.OccurredAtMs < Earliest)
+        {
+            Deaths[0] = Deaths[1] = nullptr;
+            Earliest = Notice.OccurredAtMs;
+        }
+        Deaths[Side] = &Notice;
+    }
+    if (!Deaths[0] && !Deaths[1]) { return false; }
+    Out.OccurredAtMs = Earliest;
+    Out.bTrade = Deaths[0] && Deaths[1];
+    if (!Out.bTrade)
+    {
+        Out.VictimSide = Deaths[0] ? 0 : 1;
+        Out.Killer = Deaths[Out.VictimSide]->Killer;
+    }
+    return true;
+}
 
 namespace LDBuildEvaluationDetail
 {
@@ -329,13 +362,18 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     using namespace LDBuildEvaluation;
     int64 Slot = 0, Supply = 0;
     const TArray<TSharedPtr<FJsonValue>>* Choices = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* OpeningPreset = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* LevelComponents = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* Presets = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* Build = nullptr;
-    if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("presets"), TEXT("build")}, Where, Error)
+    if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("opening_preset"),
+            TEXT("presets"), TEXT("level_components"), TEXT("build"), TEXT("stance")}, Where, Error)
         || !ReadString(Object, TEXT("role"), Where, Out.Role, Error)
         || !ReadInteger(Object, TEXT("slot"), Where, 0, DuelAISlots - 1, Slot, Error)
         || !ReadInteger(Object, TEXT("supply_xp"), Where, 0, 1000000, Supply, Error)
         || !ReadArray(Object, TEXT("choices"), Where, Choices, Error)
+        || !ReadArray(Object, TEXT("opening_preset"), Where, OpeningPreset, Error)
+        || !ReadArray(Object, TEXT("level_components"), Where, LevelComponents, Error)
         || !ReadArray(Object, TEXT("presets"), Where, Presets, Error)
         || !ReadArray(Object, TEXT("build"), Where, Build, Error))
     {
@@ -348,6 +386,96 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     }
     Out.Slot = int32(Slot);
     Out.SupplyXP = Supply;
+    if (Object.HasField(TEXT("stance")))
+    {
+        const FString At = Where + TEXT(".stance");
+        TSharedPtr<FJsonObject> Stance;
+        FString Kind;
+        int64 Standoff = 0, Threshold = 0, Leash = 0, Reaction = 0, Aim = 0, Skip = 0;
+        if (!ReadObject(Object, TEXT("stance"), Where, Stance, Error)
+            || !OnlyKeys(*Stance, {TEXT("kind"), TEXT("standoff_cm"), TEXT("threshold_bp"), TEXT("leash_cm"), TEXT("reaction_ms"),
+                TEXT("aim_error_cm"), TEXT("skip_bp")}, At, Error)
+            || !ReadString(*Stance, TEXT("kind"), At, Kind, Error))
+        {
+            return false;
+        }
+        if ((Stance->HasField(TEXT("reaction_ms")) && !ReadInteger(*Stance, TEXT("reaction_ms"), At, 0, LDEvaluationPolicy::MaxReactionMs,
+                Reaction, Error))
+            || (Stance->HasField(TEXT("aim_error_cm")) && !ReadInteger(*Stance, TEXT("aim_error_cm"), At, 0,
+                LDEvaluationPolicy::MaxAimErrorCm, Aim, Error))
+            || (Stance->HasField(TEXT("skip_bp")) && !ReadInteger(*Stance, TEXT("skip_bp"), At, 0, LDEvaluationPolicy::MaxSkipBp,
+                Skip, Error)))
+        {
+            return false;
+        }
+        Out.ReactionMs = int32(Reaction);
+        Out.AimErrorCm = int32(Aim);
+        Out.SkipBp = int32(Skip);
+        const bool bOperation = Stance->HasField(TEXT("reaction_ms")) || Stance->HasField(TEXT("aim_error_cm"))
+            || Stance->HasField(TEXT("skip_bp"));
+        if (Kind == TEXT("pursue") && bOperation)
+        {
+            // An explicit pursue only carries operation knobs; a plain pursue is the absent stance.
+            if (Stance->HasField(TEXT("standoff_cm")) || Stance->HasField(TEXT("threshold_bp")) || Stance->HasField(TEXT("leash_cm")))
+            {
+                Error = At + TEXT(": a pursue stance keeps no standoff_cm, threshold_bp or leash_cm");
+                return false;
+            }
+            Out.Stance = ELDEvaluationStance::Pursue;
+            Out.StandoffCm = Out.ThresholdBp = Out.LeashCm = 0;
+        }
+        else
+        {
+            static const TPair<const TCHAR*, ELDEvaluationStance> Kinds[] = {{TEXT("kite"), ELDEvaluationStance::Kite},
+                {TEXT("burst"), ELDEvaluationStance::Burst}, {TEXT("hold"), ELDEvaluationStance::Hold}, {TEXT("guard"), ELDEvaluationStance::Guard}};
+            const TPair<const TCHAR*, ELDEvaluationStance>* Known = Algo::FindByPredicate(Kinds,
+                [&Kind](const TPair<const TCHAR*, ELDEvaluationStance>& Row) { return Kind == Row.Key; });
+            if (!Known)
+            {
+                // The pursue stance is the absent field: one spelling per behaviour.
+                Error = At + TEXT(".kind: kite, burst, hold or guard (omit the stance to pursue)");
+                return false;
+            }
+            const bool bGuard = Known->Value == ELDEvaluationStance::Guard;
+            if (!ReadInteger(*Stance, TEXT("standoff_cm"), At, LDEvaluationPolicy::MinStandoffCm, LDEvaluationPolicy::MaxStandoffCm,
+                Standoff, Error)
+                || (Stance->HasField(TEXT("leash_cm")) && !ReadInteger(*Stance, TEXT("leash_cm"), At, LDEvaluationPolicy::MinLeashCm,
+                    LDEvaluationPolicy::MaxLeashCm, Leash, Error)))
+            {
+                return false;
+            }
+            if (bGuard != Stance->HasField(TEXT("threshold_bp")))
+            {
+                Error = At + TEXT(".threshold_bp: required by guard and only by guard");
+                return false;
+            }
+            if (bGuard && !ReadInteger(*Stance, TEXT("threshold_bp"), At, LDEvaluationPolicy::MinThresholdBp,
+                LDEvaluationPolicy::MaxThresholdBp, Threshold, Error))
+            {
+                return false;
+            }
+            Out.Stance = Known->Value;
+            Out.StandoffCm = int32(Standoff);
+            Out.ThresholdBp = int32(Threshold);
+            Out.LeashCm = int32(Leash);
+        }
+    }
+    if (LevelComponents->Num() > 23)
+    {
+        Error = Where + TEXT(".level_components: at most 23 distinct component ids");
+        return false;
+    }
+    for (const TSharedPtr<FJsonValue>& Component : *LevelComponents)
+    {
+        FString Id;
+        if (!Component.IsValid() || !Component->TryGetString(Id) || !IsDefinitionId(Id)
+            || Out.LevelComponents.Contains(FName(*Id)))
+        {
+            Error = Where + TEXT(".level_components: distinct component ids are required");
+            return false;
+        }
+        Out.LevelComponents.Add(FName(*Id));
+    }
     if (Choices->IsEmpty() || Choices->Num() > MaxChoices)
     {
         Error = FString::Printf(TEXT("%s.choices: 1..%d rules"), *Where, MaxChoices);
@@ -363,6 +491,21 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
             return false;
         }
         if (!ParseChoice(**Row, At, Out.Choices.AddDefaulted_GetRef(), Error)) { return false; }
+    }
+    if (OpeningPreset->Num() > 3)
+    {
+        Error = Where + TEXT(".opening_preset: at most three active ids");
+        return false;
+    }
+    for (const TSharedPtr<FJsonValue>& Card : *OpeningPreset)
+    {
+        FString Id;
+        if (!Card.IsValid() || !Card->TryGetString(Id) || !IsDefinitionId(Id) || Out.OpeningPreset.Contains(FName(*Id)))
+        {
+            Error = Where + TEXT(".opening_preset: distinct active ids are required");
+            return false;
+        }
+        Out.OpeningPreset.Add(FName(*Id));
     }
     if (Presets->Num() >= MaxChoices)
     {
@@ -660,6 +803,7 @@ public:
             GLog->RemoveOutputDevice(Capture.Get());
             Capture.Reset();
         }
+        for (const FSide& Side : Sides) { LDDevGrowthFixture::DiscardEvaluationOpening(Side.Contender); }
         LDEvaluationSeeds::Disarm();
         LDEvaluationProfiles::Clear();
         const bool bPassed = RunError.IsEmpty() && CasesWritten == Input.Cases.Num();
@@ -732,6 +876,14 @@ public:
             Profile.Site = Row.Site;
             Profile.Choices = Row.Contenders[Index].Choices;
             Profile.Build = Row.Contenders[Index].Build;
+            Profile.Stance = Row.Contenders[Index].Stance;
+            Profile.StandoffCm = Row.Contenders[Index].StandoffCm;
+            Profile.ThresholdBp = Row.Contenders[Index].ThresholdBp;
+            Profile.LeashCm = Row.Contenders[Index].LeashCm;
+            Profile.ReactionMs = Row.Contenders[Index].ReactionMs;
+            Profile.AimErrorCm = Row.Contenders[Index].AimErrorCm;
+            Profile.SkipBp = Row.Contenders[Index].SkipBp;
+            Profile.OperationSeed = Row.Seed;
             if (LDProgression::LevelForXP(Content->Get().Progression, Row.Contenders[Index].SupplyXP, Profile.SupplyLevel)
                 != ELDGrowthReason::None)
             {
@@ -745,6 +897,18 @@ public:
         Capture->Begin();
         UE_LOG(LogLDTest, Display, TEXT("LD_EVAL_CASE_BEGIN case=%s index=%d seed=%llu subject=%s opponent=%s"), *Row.CaseId,
             CaseIndex, Row.Seed, *LDBuildEvaluationDetail::Id(Sides[0].Contender), *LDBuildEvaluationDetail::Id(Sides[1].Contender));
+        for (int32 Index = 0; Index < DuelAISlots; ++Index)
+        {
+            const TArray<FName>& Opening = Row.Contenders[Index].OpeningPreset;
+            if (Opening.IsEmpty()) { continue; }
+            if (!LDDevGrowthFixture::StageEvaluationOpening(PC.GetWorld(), Sides[Index].Contender, Opening, Error))
+            {
+                return FailRun(FString::Printf(TEXT("The %s opening preset was refused: %s"), *Row.Contenders[Index].Role, *Error));
+            }
+            UE_LOG(LogLDTest, Display, TEXT("LD_EVAL_OPENING_PRESET contender=%s cards=%s"),
+                *LDBuildEvaluationDetail::Id(Sides[Index].Contender),
+                *FString::JoinBy(Opening, TEXT(","), [](const FName& Id) { return Id.ToString(); }));
+        }
         PC.StartDemoMatch();
         Stage = ELDEvalStage::Starting;
         return true;
@@ -983,7 +1147,10 @@ public:
             {
                 if (Row.Contenders[Index].SupplyXP <= 0) { continue; }
                 FString Error;
-                Sides[Index].Ticket = Mode.Growth ? Mode.Growth->DevGrantReward(Sides[Index].Contender, Row.Contenders[Index].SupplyXP, Error) : 0;
+                const FLDEvalContenderPlan& Plan = Row.Contenders[Index];
+                Sides[Index].Ticket = !Mode.Growth ? 0 : Plan.LevelComponents.IsEmpty()
+                    ? Mode.Growth->DevGrantReward(Sides[Index].Contender, Plan.SupplyXP, Error)
+                    : Mode.Growth->DevGrantEvaluationReward(Sides[Index].Contender, Plan.SupplyXP, Plan.LevelComponents, Error);
                 if (!Sides[Index].Ticket)
                 {
                     EndCase(Mode, World, TEXT("Invalid"), TEXT("supply refused: ") + Error);
@@ -1000,21 +1167,16 @@ public:
                 return true;
             }
         }
-        for (const FLDKillNotice& Notice : Public.KillFeed.Notices)
+        FLDEvalOutcome Observed;
+        if (LDBuildEvaluation::SelectDuelOutcome(Public.KillFeed.Notices, LastKillSerial, Sides[0].Contender, Sides[1].Contender,
+                StartedAtMs, Row.DuelTimeoutMs, Observed))
         {
-            if (Notice.Serial <= LastKillSerial) { continue; }
-            LastKillSerial = Notice.Serial;
-            if (!LDBuildEvaluation::KillAtOrBeforeHorizon(StartedAtMs, Row.DuelTimeoutMs, Notice.OccurredAtMs)) { continue; }
-            for (int32 Index = 0; Index < LDBuildEvaluation::DuelAISlots; ++Index)
-            {
-                if (Notice.Victim != Sides[Index].Contender) { continue; }
-                OutcomeKind = TEXT("kill");
-                VictimSide = Index;
-                Killer = Notice.Killer;
-                OutcomeAtMs = Notice.OccurredAtMs;
-                EndCase(Mode, World, TEXT("Completed"), FString());
-                return true;
-            }
+            OutcomeKind = Observed.bTrade ? TEXT("trade") : TEXT("kill");
+            VictimSide = Observed.VictimSide;
+            Killer = Observed.Killer;
+            OutcomeAtMs = Observed.OccurredAtMs;
+            EndCase(Mode, World, TEXT("Completed"), FString());
+            return true;
         }
         if (Mode.GetAuthorityNowMs() - StartedAtMs >= Row.DuelTimeoutMs)
         {

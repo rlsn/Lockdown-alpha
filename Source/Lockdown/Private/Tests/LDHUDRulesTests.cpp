@@ -1398,6 +1398,8 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     // #198 B growth panel: the 启用 button of each owned component and its disabled reason, as growth would judge it (a hint
     // only; the server decides each command). A private fixture catalog keeps the rule apart from the approved content.
     FLDDemoContentDefinitions Content;
+    // A workshop of five slots at level 1, one more every two levels (every install takes one).
+    Content.Progression.WorkshopCapacityBase=5;Content.Progression.WorkshopCapacityLevelsPerSlot=2;
     const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
     {
         FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
@@ -1415,7 +1417,7 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     AddComponent(TEXT("hud_fixture_mod"),ELDDemoComponentKind::Mod,ELDDemoElement::None);
     const auto Owned=[](const TCHAR* Id,bool bInstalled=false,bool bEver=false)
     {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=bInstalled;View.bEverInstalled=bEver||bInstalled;return View;};
-    FLDProgressionView View;View.bValid=true;View.Generation=9;
+    FLDProgressionView View;View.bValid=true;View.Generation=9;View.Level=1;
     using EColumn=LDHUD::EStorageColumn;
     {
         // #222: installs, moves and uninstalls follow the learn gate: open on the field, in combat, in a PK and while dead.
@@ -1467,6 +1469,53 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
             &&LDHUD::DetachedWith(TEXT("hud_fixture_wet"),Built).IsEmpty());
         TestTrue(TEXT("An invalid view shows the columns and nothing in them"),LDHUD::ComponentStorage(FLDProgressionView(),&Content).Stored.IsEmpty()
             &&LDHUD::ComponentStorage(FLDProgressionView(),&Content).Columns.Num()==LDHUD::StorageColumnCount);
+        TestTrue(TEXT("The storage counts the installs against the level's workshop capacity"),Storage.Installed==2&&Storage.Capacity==5);
+        // Every slot taken: a stored component has no drop and its hover says why; an installed one still moves.
+        FLDProgressionView Full=Built;
+        for(const TCHAR* Id:{TEXT("hud_fixture_full_a"),TEXT("hud_fixture_full_b"),TEXT("hud_fixture_full_c")}){Full.Components.Add(Owned(Id,true));}
+        TestTrue(TEXT("A full workshop leaves a stored base nowhere to go"),LDHUD::WorkshopFull(Full,&Content)
+            &&LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Full,&Content).IsEmpty()
+            &&LDHUD::StoredPlaceText(TEXT("hud_fixture_wet"),Full,&Content)==LDTerms::WorkshopFullHint(5));
+        TestTrue(TEXT("A full workshop does not promise a replacement when the card has no valid host"),
+            LDHUD::ReplaceDrops(TEXT("hud_fixture_mod"),Full,&Content).IsEmpty()
+            &&LDHUD::StoredPlaceText(TEXT("hud_fixture_mod"),Full,&Content)==LDTerms::WorkshopFullNoPlace(5));
+        TestTrue(TEXT("An installed component still moves in a full workshop"),LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Full,&Content).Num()==1);
+        Full.Level=3;
+        TestTrue(TEXT("Level 3 adds a slot"),!LDHUD::WorkshopFull(Full,&Content)&&LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Full,&Content).Num()==1);
+        Full.Level=1;
+        // A full workshop offers a replace on each installed tile whose removal makes room in that column; never on the move of
+        // an installed component, and never where the plain drop already lands.
+        const TArray<LDHUD::FComponentDrop> Replaces=LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Full,&Content);
+        const LDHUD::FComponentDrop* OverFist=Replaces.FindByPredicate([](const LDHUD::FComponentDrop& D){return D.Host==FName(TEXT("hud_fixture_fist"));});
+        TestTrue(TEXT("Over the installed base a full workshop replaces it on 本体"),OverFist&&OverFist->Column==EColumn::Body
+            &&OverFist->Replacing==FName(TEXT("hud_fixture_fist"))&&OverFist->Lost==TArray<FName>{FName(TEXT("hud_fixture_fist"))}
+            &&OverFist->Kind==ELDComponentTargetKind::None);
+        TestFalse(TEXT("No replace lands a base on B18's W column"),Replaces.ContainsByPredicate([](const LDHUD::FComponentDrop& D){return D.Column==EColumn::SlotW;}));
+        TestTrue(TEXT("An installed component has no replace drops; a free slot needs none on its column"),
+            LDHUD::ReplaceDrops(TEXT("hud_fixture_trick"),Full,&Content).IsEmpty()&&LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Built,&Content).IsEmpty());
+        TestEqualSensitive(TEXT("A plain drop previews its column"),LDHUD::DropPreviewText(TEXT("hud_fixture_wet"),LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Built,&Content)[0],Built,&Content),
+            LDTerms::DropInstallsOn(LDTerms::ColumnBody));
+        // A form: two bases of one form never share 本体, so the stored one has no plain drop and replaces the installed one.
+        AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_fixture_fist"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
+        FLDDemoContentDefinitions Formed=Content;Formed.Components[0].Form=TEXT("fist");Formed.Components[1].Form=TEXT("fist");
+        TestTrue(TEXT("An installed form-mate takes the base's only place"),LDHUD::ComponentDrops(TEXT("hud_fixture_wet"),Built,&Formed).IsEmpty()
+            &&LDHUD::FormMateAt(TEXT("hud_fixture_wet"),ELDComponentTargetKind::None,NAME_None,Built,&Formed)==FName(TEXT("hud_fixture_fist")));
+        const TArray<LDHUD::FComponentDrop> Swaps=LDHUD::ReplaceDrops(TEXT("hud_fixture_wet"),Built,&Formed);
+        TestTrue(TEXT("It replaces its form-mate without a full workshop"),Swaps.Num()==1&&Swaps[0].Replacing==FName(TEXT("hud_fixture_fist"))&&Swaps[0].Column==EColumn::Body);
+        TestTrue(TEXT("The stored card explains the available form replacement"),
+            LDHUD::StoredPlaceText(TEXT("hud_fixture_wet"),Built,&Formed)==FString(LDTerms::ReplaceAvailable));
+        TestTrue(TEXT("The popup names the owned form-mate"),LDHUD::ConnectionsText(TEXT("hud_fixture_wet"),Built,&Formed).Contains(TEXT("同形态")));
+        TestTrue(TEXT("Without a form, nothing is named"),LDHUD::ConnectionsText(TEXT("hud_fixture_wet"),Built,&Content).IsEmpty());
+    }
+    {
+        // The popup's category line: the kind, then the use tags in their authored order.
+        AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_fixture_mod"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
+        FLDDemoContentDefinitions Tagged=Content;
+        Tagged.Components[4].Tags={ELDDemoComponentTag::Projectile,ELDDemoComponentTag::Spell};
+        FLDDemoDisplayDefinition& Shown=Tagged.Display.AddDefaulted_GetRef();Shown.Id=TEXT("hud_fixture_mod");Shown.DescriptionText=TEXT("改一下");
+        const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(TEXT("hud_fixture_mod"),&Tagged,LDHUD::FCardStats());
+        TestEqualSensitive(TEXT("A mod's kind and tags"),Card.KindLine,FString(TEXT("技能改装 · 弹道 · 法术")));
+        TestEqualSensitive(TEXT("The choice popup summary is that line"),LDHUD::ComponentChoiceDetail(Card,FString()).Summary,Card.KindLine);
     }
     TestTrue(TEXT("Element names"),LDHUD::ElementName(ELDDemoElement::Fire)==LDTerms::ElementFire&&LDHUD::ElementName(ELDDemoElement::Water)==LDTerms::ElementWater
         &&LDHUD::ElementName(ELDDemoElement::Electric)==LDTerms::ElementElectric);
@@ -1528,6 +1577,8 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     // The private fixture ids have no registered display text; their labels fall back to the stable ids (logged).
     AddExpectedError(TEXT("LD_HUD_DISPLAY_TEXT_MISSING"),EAutomationExpectedErrorFlags::Contains,0);
     FLDDemoContentDefinitions Content;
+    // A workshop of five slots at level 1, one more every two levels (every install takes one).
+    Content.Progression.WorkshopCapacityBase=5;Content.Progression.WorkshopCapacityLevelsPerSlot=2;
     const auto AddComponent=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoElement Element)->FLDDemoComponentDefinition&
     {
         FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();
@@ -1555,7 +1606,7 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     }
     const auto Owned=[](const TCHAR* Id,bool bInstalled)
     {FLDComponentInstanceView View;View.DefinitionId=Id;View.Source=ELDComponentSource::LevelUp;View.SourceLevel=2;View.bInstalled=View.bEverInstalled=bInstalled;return View;};
-    FLDProgressionView View;View.bValid=true;View.Generation=9;
+    FLDProgressionView View;View.bValid=true;View.Generation=9;View.Level=1;
     const FLDDemoComponentDefinition& Reach=Content.Components[3];
     const FLDDemoComponentDefinition& Repeat=Content.Components[5];
     const auto Places=[&](const FLDDemoComponentDefinition& Component)
@@ -1586,6 +1637,9 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Over its host the host's drop; over 本体 alone nothing (the mod is not a self mod)"),
             LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,TEXT("hud_fixture_fist"))==&Drops[1]
             &&LDHUD::FindDrop(Drops,LDHUD::EStorageColumn::Body,NAME_None)==nullptr);
+        TestEqualSensitive(TEXT("The hover line names each reachable column once, in column order"),LDHUD::DropColumnsText(Drops),
+            LDTerms::CanGoOn(FString(LDTerms::ColumnBody)+TEXT("、E、D")));
+        TestEqualSensitive(TEXT("No drop says there is no place now"),LDHUD::DropColumnsText({}),FString(LDTerms::NoPlaceNow));
     }
 
     // C12: a repeatable base must be installed (water and electric included since #198 A).

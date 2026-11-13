@@ -27,8 +27,9 @@ bool LDSkillGrowth::GrowP2(int64 AmountP2, int64 Factor, int64& Out)
 bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Factor, FLDDemoEffectDefinition& Out)
 {
     Out = Authored;
-    // Mana grants never grow (mana_on_hit, #198 F control_mana).
-    const bool bMana = Authored.GetOp() == ELDDemoEffectOp::ManaOnHit || Authored.GetOp() == ELDDemoEffectOp::ControlMana;
+    // Mana grants never grow (mana_on_hit, #198 F control_mana, C16 multi_hit_mana).
+    const bool bMana = Authored.GetOp() == ELDDemoEffectOp::ManaOnHit || Authored.GetOp() == ELDDemoEffectOp::ControlMana
+        || Authored.GetOp() == ELDDemoEffectOp::MultiHitMana;
     if (!bMana && !GrowP2(Authored.BaseP2, Factor, Out.BaseP2))
     {
         return false;

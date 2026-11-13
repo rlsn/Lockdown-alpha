@@ -4,6 +4,7 @@ DEV 工具，不是产品模式。它回答“在本次覆盖的构筑、策略�
 给出可重放的证据，不输出趣味性总分，也不在没有批准阈值时判定“平衡”。
 产品规则只以 [App Spec](../APP_SPEC.md) 为准。
 
+
 ## 分层与依赖方向
 
 | 层 | 位置 | 责任 |
@@ -28,6 +29,7 @@ mechanic / decision / scenario / metric 标识。清单写明 Adapter 模块名�
 .\Scripts\RunBuildEvaluation.ps1 -Manifest <清单> -PlanOnly           # 只校验、准入、展开 Case，不启动原生
 .\Scripts\RunBuildEvaluation.ps1 -ReplayRun <运行目录> -Case <case id> # 新进程重放一个 Case 并与原记录比对
 python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudge  # 用当前 Adapter 重新判读已录证据
+python -B .\Scripts\CombineBuildEvaluation.py --run <批次1> --run <批次2> --output <新文件.json>
 ```
 
 运行要求编辑器构建（`BuildEditor.ps1`）；一次运行只启动一个无画面 Listen Host（`-nullrhi`、固定步长 `-UseFixedTimeStep -FPS=60`，
@@ -127,7 +129,15 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 `RuleViolation` 来自：运行身份与计划不符（内容摘要、固定步长、种子派生版本、运行前后程序摘要）、证据合同被违反（如 `LD_HIT` 的
 `hp_lost` 与扣血前后不符）、同一决策块分支的前缀不一致、换种子随机结果不变、运行日志出现错误或权威故障、重放分歧。
 
-## Lockdown Adapter v8（v0.10 Demo）
+### 跨批配对
+
+`CombineBuildEvaluation.py` 只合并相同冻结设计、预算、Adapter、能力表、内容、源码身份、引擎、固定步长以及编辑器和模块摘要的
+`duel_site paired_arms` 运行；批次的实验 id 与根种子可以不同。它按冻结的根种子重新核对每个 Case 的身份，拒绝跨批重复种子、
+缺失单元、记录的 `RuleViolation`、未清洁退出或不一致的实际出生位置；已完成的同侧各 arm 必须同位，双侧必须真实交换。
+每批本地块号重新编号后复用核心统计，未完成的配对仍不进相应指标的分母。工具检查已判读的记录，不重新执行或重新判读原生轨迹；
+输出文件必须不存在。`seed_mapping` 保留每个种子对应的来源批次与 Case。
+
+## Lockdown Adapter v13（v0.11 Demo）
 
 能力表来自运行目录 `Content\Lockdown\Data\Demo`：内容摘要是 `manifest.json` 的 SHA-256（即原生目录根），
 每个主动技能、属性与构件都是 `Supported`（原生导入器拒绝没有处理器的定义）；主动另记是否属于开局池，
@@ -143,15 +153,43 @@ B18 式绑定（可绑主动与元素）和改装/连接的合法对象（主动
 3. 开局休息 R0 的配装步骤内各自按计划完成开局选择与开局休息的构筑步骤；两名 AI 的开局计划完成且没有在途构筑后，
    唯一真人 Host 通过正常准备命令提前结束配装，仍保留报名窗口。没有计划的一方先完成生产规则的开局基础构件与加点；
    计划留给野外的步骤和点数不提前消耗。探针首次看到野外 1（`Development`）时
-   `DevGrantReward` 发放计划的经验供给（`LD_REWARD cause=dev_fixture`，经正常奖励复合事务），升级构件由种子决定的普通池抽取发放。
-   条件实验用 `DevQueueOffer` 预置序号 2 起的候选。
+   `DevGrantReward` 发放计划的经验供给（`LD_REWARD cause=dev_fixture`，经正常奖励复合事务），默认由种子决定升级普通池抽取。
+   `diagnostic` 条件实验可在每方计划中显式写 `opening_preset: [主动 id, ...]` 固定序号 1 的候选，
+   并用 `presets` / `DevQueueOffer` 预置序号 2 起的候选。开局预置只能包含正常开局池中的 1–3 个不同主动；
+   不写时仍是正常随机开局。预置不是自然抽取样本，后续预置仍须在实际抽取时对当时已拥有的主动重新验证。
+   同样仅限 `diagnostic` 的 `level_components: [构件 id, ...]` 可以依次固定每个跨过等级的一次普通升级构件：
+   数量必须等于跨过的等级数，每项须不同、未拥有、属于普通池，且对应等级的类别权重大于零。
+   它通过正常奖励提交成长与构件，不自动安装；安装仍走后续的权威构筑命令。
 4. 每次主动机会按计划规则选择：`ai_select`（生产 `SelectActive`）、`option_index`（实际 Offer 的第 0–2 项）、
    `definition`（实际 Offer 中的指定主动）。规定的主动不在实际 Offer 中时 Case 判 `Invalid`，不替换成别的主动。
 5. 构筑：没有 `build` 的一方由生产规则（`LDOpponentPolicy::DecideFollowUpBuild`）学习、加点、选开局基础构件与安装构件；
    有 `build` 的一方由计划拥有除主动选择外的全部构筑命令，生产规则不再为它构筑（见下节）。
 6. 计划选择与构筑步骤全部完成后双方走向公开地点 `site`，看见指定对手即用生产 AI 的交战（`LDOpponentPolicy::EngageUnit`）攻击，
-   不撤退；第一名对决者死亡或到 `duel_timeout_ms` 结束，Host 结束本局并回到大厅。
+   不撤退；第一名对决者死亡或到 `duel_timeout_ms` 结束，Host 结束本局并回到大厅。同一权威时刻双方互杀记为已观察到的
+   `trade`，须有双方对应的致死命中与死亡回执，不能按通知顺序算作一方获胜。
    时限从第一野外段入口起算，必须严格早于第一野外段结束和 Boss 出现。
+   计划可为一方写可选的 `stance: {"kind": "kite", "standoff_cm": 200..2000}`（不写即生产的走近追击）。
+   风筝姿态仍只用生产交战选出的技能与冲刺（目标在射程内才释放），但不为普攻走近：间距小于 `standoff_cm`
+   时沿远离对手的方向（0、±45°、±90°、±135° 依次尝试）点击 350 cm 外的合法地面，走远后走回到 `standoff_cm`，
+   在间距内停下已有的普攻行走；被逼到角落时才回到普攻。它只读授权观察（对手位置），不读取弹道，**不躲避弹道**。
+   其余姿态都写 `standoff_cm`，可选 `leash_cm`（0 或 500..5000）：有绳长时，终点超出据点绳长且不比当前更靠近据点的撤退步不采用。
+   `burst` 有 Q/W/E 任一来源就绪（冲刺不算）时按生产交战追击，全部冷却中时按风筝撤退；
+   `guard` 必须写 `threshold_bp`（1000..9000，只有 guard 可写）：生命比例低于阈值后撤退，回升到阈值 +1500 bp 才重新追击；
+   `hold` 只追击 `standoff_cm` 半径内靠近据点的对手，否则只释放非冲刺技能、走回据点并在据点停下追击。
+   所有姿态都只读授权观察，评估器不向策略暴露对手构筑或隐藏状态。
+   任一姿态可再写可选的操作参数（整数，不写为 0，0 即精确操作）：`reaction_ms`（0..1500）、`aim_error_cm`（0..400）、
+   `skip_bp`（0..9000）；只带操作参数的走近追击写 `{"kind": "pursue", ...}`，不能再带 `standoff_cm`/`threshold_bp`/`leash_cm`。
+   它们是不完美操作的测试策略，不代表玩家水平，只过滤姿态已选出的意图：
+   - `reaction_ms`：某来源槽位在授权帧中连续就绪满 `reaction_ms` 才释放该槽位的技能（含冲刺），看到未就绪即重新计时；
+     `kite`/`burst`/`guard` 的第一步撤退要等对手连续处于 `standoff_cm` 之内满 `reaction_ms`，此前对普攻则继续普攻，否则保持。
+   - `aim_error_cm`：放行的落点技能偏离目标点至多 `aim_error_cm`（不超出该技能当前射程与原距离中的较大者，高度不变）；
+     弹道、锥形与直线技能的方向转动 `atan2(aim_error_cm × s, max(200, 间距))`，s ∈ [−1, 1]；单体、自身与冲刺技能不偏。
+   - `skip_bp`：某槽位在一次就绪中首次放行时掷骰，低于 `skip_bp`/10000 即再等 `max(reaction_ms, 500)` ms 后重掷。
+   被拦下的技能由姿态按“本帧无可释放技能”重新决定（风筝仍会撤退，追击保持当前行动）。偏离的落点可能被服务器拒绝或钳制，
+   拒绝只进入适配器的失败记忆（按槽位退避重试），不会使 Case 判无效。
+   掷骰是 Case 种子的 `eval.operation` 流、自身参赛者身份与画像内计数的 CityHash64，同一 Case 重放得到同样结果。
+   AI 采用评估画像时记一条 `LD_EVAL_PROFILE`（对手、地点、选择数、`reaction_ms`、`aim_error_cm`、`skip_bp`）；
+   有非零操作参数的一方缺这条记录、记录重复或数值不符时判 `Setup` 无效。
 
 ### 工坊构筑步骤
 
@@ -196,7 +234,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 而 `duel_site` 唯一的休息在供给之前；每个计划选择都在选择时学会，所以学习图纸与替换在 `duel_site` 中不可达；
 开局休息的加点不超过开局点数，全部加点（洗点后重计）必须恰好花完供给赚到的点数（spec §4.1）。种子抽取能否给出计划要用的构件
 只能运行时知道：同一块的各分支共用种子，抽到时“同材料不同用法”的各分支只在安装对象、绑定或加点上不同；没抽到时整块判
-`Invalid`（`PlanNotReached`），不强塞非法奖励。
+`Invalid`（`PlanNotReached`）。显式固定的升级奖励则在准入时核对数量、类别和库存，只用于条件诊断。
 
 不可规划、明确判 `UnsupportedDecision` 并附原因的决策：`buy_npc_offer`（NPC 购买会新增计划须命名序号的主动机会）、
 `forget_active`（AI 没有单独遗忘命令；替换会遗忘被替换的主动）、`fill_gap` 与 `dismantle_components`（休息服务，而 `duel_site`
@@ -206,7 +244,8 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 ### 准入与判读
 
 计划时就能确定的错误在准入时拒绝：规则数与供给给出的机会数不符、非开局池主动出现在序号 1、预置非主动或预置数超过机会数、
-预置只允许 `diagnostic` 样本，以及上节的构筑步骤错误。
+已确定选过的主动又出现在后续预置中、选择不在已固定的候选中、预置只允许 `diagnostic` 样本，以及上节的构筑步骤错误。
+开局选择仍依赖随机候选的旧清单可能遇到后来预置已选主动而无效；需要固定构筑的实验应显式固定开局，而非把失败样本当作有效对局。
 
 判读时以下情况为 `Invalid` 并说明原因：营地/Boss/Host 等非对决者与对决者之间在结果前有命中（`ExternalInteraction`）、
 结果时刻及之前获得供给以外的经验（`UncontrolledXP`；只豁免击杀者因这次决定性击杀在结果时刻获得的奖励）、供给数额不符（`SupplyMismatch`/`SupplyMissing`）、
@@ -217,6 +256,8 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 `installed`、`bind`/`on`/`base`（`DevelopmentBindingText`）与计划一致，开局休息的步骤早于唯一的 `LD_FIELD_ENTER segment=0`，
 野外步骤晚于供给和全部计划选择；没有其他 `LD_BUILD`；原生结果的 `steps_committed` 等于步数；终局构件按计划安装在计划的对象上，
 计划卸下的在库存，没有计划之外的已安装构件。缺失、空白、行数不符、格式损坏或不一致的轨迹判为 `TraceIncomplete`，不能进入统计。
+固定升级构件还要求 `LD_EVAL_COMPONENT_PRESET`、供给的 `LD_REWARD`、`LD_LEVEL_UP` 的顺序与内容一致，
+终局库存的来源及来源等级必须与计划对应；缺项或冲突判无效。
 
 多 arm 的分支点是主体决策序列（序号 1 的选择、开局休息步骤、其余选择、野外步骤）首次不同的位置。可比较的前缀保留此前每次
 初始 Offer 与提交选择的时间、等级、完整有序候选与所选结果，此前提交的 `LD_BUILD` 和升级构件发放（`LD_LEVEL_UP components`）；
@@ -225,13 +266,15 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 
 | 指标 | 含义 |
 | --- | --- |
-| `duel_score` | +1 主体击杀对手，−1 主体先死，0 到时未分胜负（删失） |
+| `duel_score` | +1 主体击杀对手，−1 主体先死，0 同时互杀（不删失）或到时未分胜负（删失） |
 | `damage_dealt_hp` / `damage_taken_hp` | 第一野外段入口至结果时主体对对手、对手对主体已提交命中的实际掉血（不含护盾吸收） |
 | `subject_hp_end_bp` | Case 结束时主体生命比例（死亡为 0）；时限可能落在两帧之间，终态是探针结束时的帧状态，不是精确时限快照 |
 | `decision_time_ms` | 第一野外段入口到第一名对决者死亡，到时删失 |
 
 事实（`cases.jsonl`）：双方每个序号的实际 Offer 与选择、每条 `LD_BUILD`（含绑定、对象、遗忘与 `reclaimed`）、升级构件发放、
-`LD_MATERIAL_SERVICE`、终局构筑与构件、分支标签、分支前缀、出生位置、首个有效命中的一方与时间、随机指纹。
+`LD_MATERIAL_SERVICE`、双方计划的操作参数（`operation`）、终局构筑与构件、分支标签、分支前缀、第一野外段身体提交时的出生位置、首个有效命中的一方与时间、随机指纹。
+出生位置取自 `LD_EVAL_FIELD_SPAWN`，不是开局休息室的首条 `LD_HEARTBEAT`；每侧必须恰有一条与野外入口时间、代次一致的记录。
+换边是角色到 AI 槽位的交换，具体出生点是否交换仍需核对同一种子的两侧记录。
 
 ## 原生实现
 
@@ -244,6 +287,7 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 | `world.spawn` | `ALDGameMode::StartDemoMatch` 的 `SpawnRandom`（出生点与 AI 开局计划） |
 | `combat.crit` | `InitializeAuthorityCore` 创建 Combat 后的 `CritRandom` |
 | `world.airdrop` | `LDAirdrop::Resolve` 的投放点序列；符咒与营地标记（`LDFieldMarkers::Resolve`）的种子由它派生 |
+| `eval.operation` | 评估画像操作参数的掷骰（`FLDEvaluationProfile::OperationSeed`，与自身身份和掷骰计数一同散列） |
 | `identity.ai.<slot>` / `identity.session.<n>` | AI 参赛者身份；Host 会话身份按加入顺序固定（身份决定同一边界内的处理顺序） |
 
 热搜圈（按 ledger 身份）、营地成员与效果 GUID 不种子化：前者不影响对决，后者不参与排序。
@@ -251,19 +295,23 @@ growth 拒绝按生产重试策略退避，重试用尽、对象不在（构件�
 评估画像（`Evaluation\LDEvaluationPolicy`）只替换 `ALDOpponentController` 里 `LDOpponentPolicy::Decide` 这一次调用；
 Frame、命令、回执与失败记忆仍是该适配器的，生产决策不变。`LDOpponentPolicy::EngageUnit`/`WalkTo` 是 DEV 构建公开的
 生产交战与行走原语。`FLDEvaluationProfile::Build` 是计划的构筑步骤（空时调用生产 `DecideFollowUpBuild`，非空时从不调用），
-`SupplyLevel` 是供给到达的等级；`FLDEvaluationProfileState` 记已提交的步数、当前步是否已发送及加点步的基线。
+`SupplyLevel` 是供给到达的等级；`FLDEvaluationProfileState` 记已提交的步数、当前步是否已发送及加点步的基线，
+以及操作门（各槽位连续就绪起点、跳过截止与本次就绪是否已掷过、对手进入间距的起点、掷骰计数；换命即重置）。
 
 `LDBuildEvaluationProbe` 每帧推进：Join（核对 Listen Host、`-LDDevGrowthFixture`、内容根与计划一致）→ Lobby（2 个 AI、准备、
-武装种子、登记画像、开始捕获日志、开局）→ Starting（核对种子身份进入名单、画像被采用、预置入队）→ Running（野外 1 供给、
-画像失败、击杀通知、时限、墙钟预算）→ 写结果与轨迹 → 结束本局 → 回大厅并等 AI 退休。输入（schema v3，每名对决者必有 `build`）经
+武装种子、登记画像、开始捕获日志、为种子派生的未来 AI 槽位登记开局预置、开局）→ Starting（核对种子身份进入名单、画像被采用、预置入队）→ Running（野外 1 供给、
+画像失败、击杀通知、时限、墙钟预算）→ 写结果与轨迹 → 结束本局 → 回大厅并等 AI 退休。输入（schema v5，每名对决者必有 `opening_preset`、`level_components` 与 `build`）经
 `LDBuildEvaluation::ParseInput` 严格解析（`Lockdown.Rules.BuildEvaluation.Input`：未知字段、未知步骤或窗口、野外的休息专属命令、
-开局休息步骤排在野外之后、越界点数、非 Q/W/E 槽位与对象形状错误都拒绝），输入与输出都必须在 `Artifacts` 下。
-结果（schema v4）每名对决者另记 `planned_steps`、`steps_committed` 与终局 `components`（定义、是否安装、是否装过、来源与等级、
-对象种类与定义、元素、绑定主动、C12 基础构件）；运行身份也使用 schema v4。
+开局休息步骤排在野外之后、越界点数、非 Q/W/E 槽位与对象形状错误、越界或非整数的操作参数都拒绝），输入与输出都必须在 `Artifacts` 下。
+结果（schema v6）每名对决者另记 `planned_steps`、`steps_committed` 与终局 `components`（定义、是否安装、是否装过、来源与等级、
+对象种类与定义、元素、绑定主动、C12 基础构件）；运行身份也使用 schema v6。
 轨迹是该局期间 `LogLDCombat/Growth/Match/AI/Trace/Test` 的 `LD_*` 行，沿用[运行日志合同](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)，
 Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 原生结果的 `started_at_ms` 是第一野外段的 `FieldStartedAtMs`，不是 `PublicMatch.StartedAtMs`（R0 开始）。
-判读要求唯一的 `LD_FIELD_ENTER segment=0` 与结果的代次、起点及 `field_t_ms=0` 一致，并核对对局开局记录；
+开局预置走只接受同时具备 `-LDDevGrowthFixture`、`-LDBuildEvaluation`、已武装种子和当前大厅有效 AI 槽的 DEV 入口；
+它在中止时清理本 Case 的未消费预置，不改变普通大厅入口或正式抽取。轨迹记录 `LD_EVAL_OPENING_PRESET`，判读同时核对该行与实际 `LD_OFFER`。
+固定升级构件同样只接受两个开关、已武装的评估 AI 与显式计划；错误的计划拒绝，正常游戏仍随机抽取。
+判读要求唯一的 `LD_FIELD_ENTER segment=0` 与结果的代次、起点及 `field_t_ms=0` 一致，并核对对局开局和双方 `LD_EVAL_FIELD_SPAWN` 记录；
 缺失、重复、不一致或跨越第一野外段的证据均判无效。只有第一野外段入口至 `started_at_ms + duel_timeout_ms`（含边界）
 的击杀计入；更晚的通知忽略，按精确时限判为删失。命中指标和首击事实同样从野外入口起统计，
 但终态 HP/MP 与重放终态仍记录探针实际结束帧。
@@ -273,10 +321,14 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 `-ReplayRun` 以原 Case 的身份、种子与方案新开进程重跑。只有两次都成功完成，计划、Case、能力表、原生运行身份、
 编辑器可执行文件和游戏模块的运行前后摘要均可核对且一致，双方选择证据与心跳资源/位置完整，才进行成功判定。
 比较终态的构筑（含构件与已提交的计划步数）、HP/MP 等字段和双方心跳资源，以及到 Case 结束为止的
-`LD_OFFER/CHOICE/BUILD/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`（身份换成角色名）；位置按 `-SpatialToleranceCm`（默认 0）比较。
+`LD_EVAL_OPENING_PRESET/COMPONENT_PRESET/FIELD_SPAWN`、`LD_OFFER/CHOICE/BUILD/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`（身份换成角色名）；
+心跳位置按 `-SpatialToleranceCm`（默认 0）比较。
+比较前事件先规范化：进程级的绝对 match `generation` 换成本 Case 的序号；同一权威时刻内双方彼此独立的准备事件
+（`LD_OFFER`、`LD_CHOICE`、`LD_BUILD`，即 `INDEPENDENT_PREPARATION_TAGS`）按角色排序。
+`LD_HIT`、`LD_DEATH_RECEIPT` 等战斗事件保持原顺序，同刻战斗事件顺序不同仍判分歧（正反用例见 `TestBuildEvaluationLockdown.py`）。
 报告保留首个分歧。空轨迹、缺失必要证据、运行失败或身份不符都不能标为 `Replayed`。
-旧运行可用 `--rejudge` 重新判读，但旧版能力表与当前版本不同，不能当作当前版本原生重放的同版本证据；原生 schema v4 之前的
-结果与运行身份不具备当前计时语义，拒绝判读。
+旧运行可用 `--rejudge` 尝试重新判读，但旧版能力表与当前版本不同，不能当作当前版本原生重放的同版本证据；原生 schema v6 之前的
+结果没有当前的真实野外出生点和同帧双杀合同，拒绝按新合同判读。
 程序摘要只覆盖编辑器可执行文件和项目模块，不证明其他引擎 DLL 或插件的逐字节一致；`source_dirty=unknown`
 也不证明工作区无修改。跨平台、换构建或未记录摘要的旧运行不承诺一致。
 
@@ -285,16 +337,18 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 | 测试 | 覆盖 |
 | --- | --- |
 | `Lockdown.Rules.BuildEvaluation.Seeds` | 派生确定性与金值、流相互独立、无开关时拒绝武装且身份仍为新 GUID |
-| `Lockdown.Rules.BuildEvaluation.Policy` | 三种选择规则、缺主动的拒绝、休息配装步骤内选择、开局准备状态、计划完成前不动、未规划构筑的一方由生产规则加点、只攻击指定对手、不撤退、走向与到达、失败后停止 |
+| `Lockdown.Rules.BuildEvaluation.Policy` | 三种选择规则、缺主动的拒绝、休息配装步骤内选择、开局准备状态、计划完成前不动、未规划构筑的一方由生产规则加点、只攻击指定对手、不撤退、走向与到达、失败后停止；风筝姿态的远离点击、保持行走、停下普攻与走回间距 |
 | `Lockdown.Rules.BuildEvaluation.WorkshopPlan` | 计划构筑按序经同一构筑命令发送：B18 绑定的开局基础构件、按设计顺序的加点、开局休息内卸下并换元素重装、野外步骤等到供给等级、抽到的改装件装到计划主动上；计划的一方从不调用生产规则；构件没抽到、开局休息已结束、开局选项不含、野外搬动旧件、开局基础构件留在库存、growth 拒绝直到重试用尽时失败并写明原因；学习、替换与洗点按计划发送 |
 | `Lockdown.Rules.BuildEvaluation.Input` | 原生输入的严格解析与各类拒绝，含构筑步骤（窗口、字段、元素、对象、点数、槽位、休息专属命令、步骤顺序与上限） |
+| `Lockdown.Rules.BuildEvaluation.OperationGates` | 操作参数全为 0 时意图不变且不掷骰；反应时间拦到连续就绪满时长、未就绪与换命重新计时；落点偏离不超过误差与射程且同种子一致、换种子不同；方向转角不超过上限且长度不变；跳过时保持 500 ms 期间不掷骰、最终放行；风筝第一步撤退等待反应时间、对手离开间距即重置 |
 | `Lockdown.Rules.BuildEvaluation.Horizon` | 野外入口前、非帧对齐时限之前、恰在时限和之后的击杀边界 |
 | `TestBuildEvaluation.py` | 核心清单拒绝、准入与设计不完整、预算（必填字段、两类上限、场景未声明的类别、证据根已满时拒绝计划且不删旧证据、`gate` 的本批/证据根上限、门禁中止后未完成 Case 为 `BudgetExceeded`、超出事件预算的轨迹不进统计、v1 运行被拒绝）、种子分割、配对/决策/交互统计、删失、分母、阈值判定、身份失配、重放比对、依赖方向 |
 | `TestBuildEvaluationLockdown.py` | 能力表即运行目录（主动、属性与构件及其种类、来源、开局资格、绑定与对象）、计划期非法方案、未入目录的候选不支持、预置只限 diagnostic、构筑步骤的形状、准入与 `duel_site` 不可达的步骤、不可规划决策附原因的 `UnsupportedDecision`、原生输入与换边、合成轨迹的指标与各 `Invalid` 原因、构筑步骤逐条核对（缺失、多出、绑定/对象/点数不符、窗口、时间、终局构件、原生画像失败）、构筑分支的前缀与升级构件、证据合同、重放事件、运行身份 |
+| `TestCombineBuildEvaluation.py` | 跨批独立种子重编号、不完整配对排除、程序身份和重复种子拒绝、实际换边核对、缺失计划单元与规则违规拒绝、输出不覆盖 |
 
 ## 首版范围与后续
 
-首版覆盖本地方案 E0–E3：内容/能力准入与证据合同、可重放的原生 Case、合法成长路径与受控交战、等预算分支与 2×2 交互及最小复现。
+首版覆盖本地方案 E0–E3：内容/能力准入与证据合同、原生 Case 的重放检查入口、合法成长路径与受控交战、等预算分支与 2×2 交互及最小复现；当前重放限制见上文。
 示例清单在 `Scripts\BuildEvaluationManifests`。尚未覆盖：v0.11 机制（需批准并原生实现后由 Adapter 声明）、
 六类策略画像与按画像调参（E5，接入点是评估画像这一处 Decide 替换）、拥有连接/渲染证据的反制与可读性、
 多人或旗杆整局胜率、增量与定期评估（E6，调度另需批准）。

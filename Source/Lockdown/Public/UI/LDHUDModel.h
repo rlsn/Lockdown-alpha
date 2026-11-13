@@ -546,6 +546,8 @@ namespace LDHUD
         FString Sentence;
         FString SentencePlain;
         TArray<FString> Keywords;
+        // Its kind and use tags for the popup's category line: "技能改装 · 弹道 · 法术".
+        FString KindLine;
         // Enabling it asks for a learned active and an element first (B18).
         bool bBinding=false;
         // False when the catalog has no such component or display row.
@@ -592,6 +594,9 @@ namespace LDHUD
         TArray<FName> Stored;
         // Of those, the ones never enabled yet (the stack's badge).
         int32 Fresh=0;
+        // Installed components and the level's workshop capacity (LDProgression::WorkshopCapacity); every install takes one.
+        int32 Installed=0;
+        int32 Capacity=0;
         // StorageColumnCount columns in EStorageColumn order.
         TArray<FStorageColumnView> Columns;
     };
@@ -607,15 +612,43 @@ namespace LDHUD
         FName BindActive;
         TArray<ELDDemoElement> Elements;
         TArray<FName> Bases;
+        // A replace drop (ReplaceDrops): the installed component the install takes off first, on whose tile Host it lands, and
+        // everything that comes off with it (Replacing first, then DetachedWith(Replacing)).
+        FName Replacing;
+        TArray<FName> Lost;
     };
     // Every place Component may be dropped now, from the same lists the server's install rules read (BindableActives,
     // WorkshopTargets, RepeatableBases): a base on 本体; B18 on each bindable learned active's column; a mod or connector on
     // each learned active, installed host, D or 本体 it takes. A component dragged out of a column never lands on itself or on
-    // anything installed on it (those come off with it). Empty for an unknown component. A hint only.
+    // anything installed on it (those come off with it), nor where an installed component of its form sits (TargetConflict).
+    // Empty for an unknown component. A hint only.
     LOCKDOWN_API TArray<FComponentDrop> ComponentDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // The installed component of Component's form on the place a drop names (any installed base of its form for a base), the
+    // one the server's TargetConflict names; None when there is none.
+    LOCKDOWN_API FName FormMateAt(FName Component,ELDComponentTargetKind Kind,FName TargetId,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
+    // The atomic replace drops of a stored Component (the server's InstallComponent with Replacing): one on the tile of each
+    // installed component R where the plain drops take nothing, landing in R's column on the build with R and what sits on it
+    // taken off. A full workshop or a form-mate on the place is the usual reason. Empty for an installed component.
+    LOCKDOWN_API TArray<FComponentDrop> ReplaceDrops(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // What letting go of Component on Drop does, for the drag caption: "装到 Q", "替换 X · 连带拆下 Y、Z".
+    LOCKDOWN_API FString DropPreviewText(FName Component,const FComponentDrop& Drop,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
+    // The owned components and learned actives Component works with, for the popup's 联动 line: what it installs on or
+    // repeats (learned actives, owned host components, C12's bases), the owned mods and connectors that install on it, and its
+    // owned form-mates (one per place). Empty when it names none.
+    LOCKDOWN_API FString ConnectionsText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The drop of Drops a pointer over Column (and over the installed Host there, or None) selects: the host's own drop when
     // it takes one, else the column's own; null when neither does.
     LOCKDOWN_API const FComponentDrop* FindDrop(const TArray<FComponentDrop>& Drops,EStorageColumn Column,FName Host);
+    // The hover line of a stored component: the columns its Drops reach, once each in column order ("可装：本体、Q、D"), or
+    // that it has no place now.
+    LOCKDOWN_API FString DropColumnsText(const TArray<FComponentDrop>& Drops);
+    // Whether a stored component cannot be installed anywhere now because every workshop slot is taken (moving an installed
+    // one is still open: it frees its own slot first).
+    LOCKDOWN_API bool WorkshopFull(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // The where line of a stored component's popup: the columns it reaches, or that the workshop is full.
+    LOCKDOWN_API FString StoredPlaceText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The installed components that come off with Component (installed on it, transitively, or repeating it), in the view's
     // order; empty when it is not installed.
     LOCKDOWN_API TArray<FName> DetachedWith(FName Component,const FLDProgressionView& Progression);

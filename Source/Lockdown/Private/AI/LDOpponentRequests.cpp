@@ -92,6 +92,14 @@ bool BuildOrder(const FLDOpponentBodyIntent& Intent, const TArray<FLDOpponentPOI
     {
     case ELDOpponentBodyKind::MoveGround:
     {
+        // A ground point clicked on a known surface, as a player's click sends it; Navigation validates and paths it.
+        if (Intent.POI.IsNone() && !Intent.Surface.IsNone())
+        {
+            Out.Kind = ELDSpatialOrderKind::MoveGround;
+            Out.GroundCm = Intent.Point;
+            Out.SurfaceHint = Intent.Surface;
+            break;
+        }
         const FLDOpponentPOI* Place = FindPlace(POIs, Intent.POI);
         if (!Place || Place->SurfaceId.IsNone())
         {
@@ -317,6 +325,16 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         {
             Out = FLDBuildCommand();
             return Fail(Error, TEXT("An element without a bound active is no binding."));
+        }
+        if (!Intent.Replacing.IsEmpty())
+        {
+            const FName Replaced(*Intent.Replacing);
+            if (Intent.Kind != ELDOpponentBuildKind::InstallComponent || Replaced == Component || !InstalledHere(Replaced)
+                || !FLDDefinitionWire::Encode(Replaced, Out.Replacing))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("The replaced component is no longer installed."));
+            }
         }
         break;
     }

@@ -49,6 +49,50 @@ enum class ELDEvaluationStepKind : uint8
     OpeningBase, AllocatePoints, InstallComponent, UninstallComponent, LearnBlueprint, ReplaceActive, Respec
 };
 
+// Engagement stance. Every stance reads only the authorized frame (own state and sources, the visible rival's foot,
+// public places); none sees projectiles, so none dodges them. Pursue is the production engagement
+// (LDOpponentPolicy::EngageUnit).
+// - Kite keeps StandoffCm from the rival: it takes only the non-dash activations the production picker offers, never walks
+//   in for a basic attack, and while the rival is closer it clicks legal ground away from it (wider turns when refused).
+// - Burst pursues while any own Q/W/E source is ready and kites at StandoffCm while all of them recover.
+// - Hold defends the meeting place with radius StandoffCm: it pursues the rival only while the rival stands inside the
+//   radius; otherwise it walks back to the place and takes only the non-dash activations the picker offers from there.
+// - Guard pursues until its health falls below ThresholdBp of its maximum, then kites at StandoffCm until it recovers
+//   GuardRecoverBp above the threshold.
+// A positive LeashCm refuses every retreat step that would leave that distance from the meeting place and lead farther.
+// Operation knobs (any stance; all 0: exact play). They are test policies of imperfect play, not claims about human
+// skill, and gate only what the stance already chose, from the same authorized frame:
+// - ReactionMs: an activation from a source slot goes only once that slot has been seen ready continuously for ReactionMs;
+//   a retreat (Kite, Burst, Guard) starts only once the rival has stayed inside the standoff for ReactionMs.
+// - AimErrorCm: an admitted ground-point activation lands up to AimErrorCm off its point (within its reach); a projectile,
+//   line or cone turns by atan2(AimErrorCm * s, max(200, gap)), s in [-1, 1]. Unit, self and dash activations are exact.
+// - SkipBp: when a slot's gate first opens in a readiness window, a roll below SkipBp of 10000 holds it another
+//   max(ReactionMs, 500) ms, then rolls again.
+// Rolls are CityHash64 of the Case seed's "eval.operation" stream, the own contender identity and a per-profile counter.
+enum class ELDEvaluationStance : uint8 { Pursue, Kite, Burst, Hold, Guard };
+
+namespace LDEvaluationPolicy
+{
+    inline constexpr int32 MinStandoffCm = 200;
+    inline constexpr int32 MaxStandoffCm = 2000;
+    inline constexpr int32 MinThresholdBp = 1000;
+    inline constexpr int32 MaxThresholdBp = 9000;
+    inline constexpr int32 GuardRecoverBp = 1500;
+    inline constexpr int32 MinLeashCm = 500;
+    inline constexpr int32 MaxLeashCm = 5000;
+    inline constexpr int32 MaxReactionMs = 1500;
+    inline constexpr int32 MaxAimErrorCm = 400;
+    inline constexpr int32 MaxSkipBp = 9000;
+    // A skipped slot is held at least this long before it rolls again.
+    inline constexpr int32 MinSkipHoldMs = 500;
+    // The shortest lever an aim error turns a direction by.
+    inline constexpr double MinAimLeverCm = 200.;
+    // One kite step: the length of the ground click away from the rival.
+    inline constexpr double KiteStepCm = 350.;
+    // The source slots an operation gate tracks (Q, W, E, Dash).
+    inline constexpr int32 OperationSlots = 4;
+}
+
 struct FLDEvaluationBuildStep
 {
     ELDEvaluationStepKind Kind = ELDEvaluationStepKind::OpeningBase;
@@ -72,6 +116,20 @@ struct FLDEvaluationBuildStep
 
 struct FLDEvaluationProfile
 {
+    // How the strategy fights once its rival is visible (empty manifest field: Pursue).
+    ELDEvaluationStance Stance = ELDEvaluationStance::Pursue;
+    // Kite/Burst/Guard: the distance kept from the rival while retreating (cm); Hold: the defended radius. 0 for Pursue.
+    int32 StandoffCm = 0;
+    // Guard: the health share (basis points) below which it retreats. 0 otherwise.
+    int32 ThresholdBp = 0;
+    // Any stance but Pursue: the optional retreat leash around the meeting place (cm, 0: none).
+    int32 LeashCm = 0;
+    // Operation knobs (see ELDEvaluationStance): 0..MaxReactionMs, 0..MaxAimErrorCm, 0..MaxSkipBp; 0 is exact play.
+    int32 ReactionMs = 0;
+    int32 AimErrorCm = 0;
+    int32 SkipBp = 0;
+    // The Case root seed the operation rolls derive from.
+    uint64 OperationSeed = 0;
     // The designated rival: the only contender this strategy engages.
     FGuid Opponent;
     // The public place both duelists walk to.
@@ -103,6 +161,19 @@ struct FLDEvaluationProfileState
     TArray<FLDOpponentStatPoints> StepBaseline;
     // The opening choice and all R0 build work have settled; planned field work may remain.
     bool bOpeningReady = false;
+    // Guard: retreating until health recovers above the threshold plus GuardRecoverBp.
+    bool bGuardRetreat = false;
+    // Operation gates, per source slot (Q, W, E, Dash): since when the slot is seen ready continuously (-1: not ready), until
+    // when a skip roll holds it, and whether this readiness window already passed its roll.
+    int64 ReadySinceMs[LDEvaluationPolicy::OperationSlots] = {-1, -1, -1, -1};
+    int64 SkipUntilMs[LDEvaluationPolicy::OperationSlots] = {0, 0, 0, 0};
+    bool bSkipPassed[LDEvaluationPolicy::OperationSlots] = {false, false, false, false};
+    // Since when the rival stands inside the standoff continuously (-1: not inside or not visible).
+    int64 CloseSinceMs = -1;
+    // The life the gates were observed in; another life starts them afresh.
+    uint32 OperationLife = 0;
+    // Rolls drawn so far (the roll counter).
+    uint64 Rolls = 0;
 };
 
 // One profile and its evaluation state, shared by the Host probe (reads the state) and the adapter (runs the strategy).
@@ -125,6 +196,21 @@ namespace LDEvaluationPolicy
     LOCKDOWN_API const TCHAR* StepName(ELDEvaluationStepKind Kind);
     LOCKDOWN_API FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         const FLDEvaluationProfile& Profile, FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State);
+    // The Kite stance's body given the production engagement's choice Engaged: Engaged when it is a non-dash activation,
+    // otherwise a ground click away from Rival on the Site's surface while closer than the standoff (within the leash),
+    // else no advance. Site is the meeting place (nullptr: no ground click). With State, a positive ReactionMs holds the
+    // first step away until the rival has stood inside the standoff that long (State.CloseSinceMs).
+    LOCKDOWN_API FLDOpponentBodyIntent Kite(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,
+        const FLDOpponentPolicyState& Policy, const FLDOpponentUnit& Rival, const FLDOpponentPOI* Site, const FLDOpponentBodyIntent& Engaged,
+        const FLDEvaluationProfileState* State = nullptr);
+    // Updates the operation gates from the authorized frame: per slot since when it is ready, since when the rival stands
+    // inside the standoff; another life starts them afresh. Decide calls it on every fighting frame.
+    LOCKDOWN_API void ObserveOperation(const FLDOpponentDecisionFrame& Frame, const FLDEvaluationProfile& Profile,
+        FLDEvaluationProfileState& State);
+    // The stance's body for the visible Rival given the production engagement's choice Engaged (Pursue: Engaged).
+    LOCKDOWN_API FLDOpponentBodyIntent Stance(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+        const FLDEvaluationProfile& Profile, FLDOpponentPolicyState& Policy, FLDEvaluationProfileState& State,
+        const FLDOpponentUnit& Rival, const FLDOpponentBodyIntent& Engaged);
 }
 
 // Profiles the Host probe staged for the next match, keyed by contender identity (the evaluation seeds fix the AI

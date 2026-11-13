@@ -61,7 +61,8 @@ bool ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, EL
     return true;
 }
 
-bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource, int64* OutApplied)
+bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource, int64* OutApplied,
+    const FGuid& RootEffectId)
 {
     if (OutApplied) { *OutApplied=0; }
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
@@ -111,6 +112,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
             if (Stored>0)
             {
                 Body.CounterStoreP2=FMath::Min(Body.CounterStoreP2+Stored,Counter.BaseP2);
+                if (RootEffectId.IsValid()) { Body.CounterRootEffectId=RootEffectId; }
                 Body.CounterLastAddMs=Now;
                 if (Body.CounterNextFireMs<=Now) { Body.CounterNextFireMs=Now+Counter.IntervalMs; }
             }
@@ -136,6 +138,18 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     { return true; }
     Body.ShieldGrantedP2=AmountP2;
     Body.ShieldGrantSource=GrantSource;
+    // C18: the replaced shield settles; a host shield of an installed connector is watched from now.
+    if (!SettleStoredForce(Body,NowMs,Error)) { return false; }
+    TArray<FLDPassiveEffectRef> Stores;
+    if (GrantSource.Kind==ELDCombatSourceKind::Learned
+        && !WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::StoredForce,GrantSource,Stores,Error)) { return false; }
+    if (!Stores.IsEmpty() && !(Body.StoredForceWatch.IsSet() && Body.StoredForceWatch->ShieldId==EffectId))
+    {
+        FLDCombatStoredForceWatch& Watch=Body.StoredForceWatch.Emplace();
+        Watch.ShieldId=EffectId;
+        Watch.Component=Stores[0].Source.DefinitionId;
+        Watch.Host=GrantSource.DefinitionId;
+    }
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
@@ -161,17 +175,30 @@ bool ALDCombatDirector::OnShieldBroken(FLDBodyCombatState& Holder, const FLDComb
     return true;
 }
 
-bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs,
+bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& InHit, int64 NowMs,
     bool& bApplied, FString& Error)
 {
     bApplied=false;
     ALDCharacter* SourceActor=nullptr;
-    FindBody(Hit.SourceBody,&SourceActor);
-    const FVector From=Hit.bKnockbackFromAnchor || !SourceActor ? Hit.KnockbackAnchorCm : FootOf(*SourceActor);
+    FindBody(InHit.SourceBody,&SourceActor);
+    const FVector From=InHit.bKnockbackFromAnchor || !SourceActor ? InHit.KnockbackAnchorCm : FootOf(*SourceActor);
     const double Yaw=SourceActor ? SourceActor->GetActorRotation().Yaw : Target.GetActorRotation().Yaw+180.;
     FVector Direction;
     if (!LDCombatMechanics::KnockbackDirection(From,FootOf(Target),Yaw,Direction))
     { Error=TEXT("A knockback has no finite direction."); return false; }
+    FLDCombatHit Hit=InHit;
+    if (Hit.bKnockbackPull)
+    {
+        // M20: toward the origin, stopping KnockbackStopCm short of it; the time shrinks with a clamped distance.
+        Direction=-Direction;
+        const double Room=FVector::Dist2D(From,FootOf(Target))-Hit.KnockbackStopCm;
+        if (Room<=1.) { return true; }
+        if (Room<Hit.KnockbackCm)
+        {
+            Hit.KnockbackMs=FMath::Max<int64>(1,int64(double(Hit.KnockbackMs)*Room/Hit.KnockbackCm));
+            Hit.KnockbackCm=Room;
+        }
+    }
     auto* Movement=Cast<ULDCharacterMovementComponent>(Target.GetCharacterMovement());
     if (!Movement) { Error=TEXT("Knockback requires the Demo character movement."); return false; }
     // The control itself (window, interruptions, order drop, spray, assists) commits through the single control path.
@@ -193,8 +220,8 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error,true))
     { Error=TEXT("Knockback: ")+Error; return false; }
     if (!WatchKnockbackImpact(Target,Body,Hit,NowMs,Error)) { return false; }
-    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld"),*Body.Victim.EntityId.ToString(),
-        *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Hit.KnockbackMs);
+    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld pull=%d"),*Body.Victim.EntityId.ToString(),
+        *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Hit.KnockbackMs,Hit.bKnockbackPull ? 1 : 0);
     return true;
 }
 
@@ -237,7 +264,10 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
     for (int32 Index=Zones.Num()-1; Index>=0; --Index)
     {
         FLDCombatZone& Zone=Zones[Index];
-        FLDBodyCombatState* Holder=FindBody(Zone.SourceBody);
+        ALDCharacter* HolderActor=nullptr;
+        FLDBodyCombatState* Holder=FindBody(Zone.SourceBody,&HolderActor);
+        // M16: a tethered zone follows its living caster before any check; a dead one leaves it where it was.
+        if (Zone.bTether && Holder && HolderActor && !Holder->bPendingDeath) { Zone.CentreCm=FootOf(*HolderActor); }
         const auto Inside=[this,&Zone,Holder](TArray<FLDCombatBodyRef>& Out, FString& InError)
         { return CollectAreaTargets(Zone.CentreCm,Zone.RadiusCm,Holder,Zone.SourceEntity,Out,InError); };
         const auto Emit=[this,&Zone](const FLDCombatBodyRef& Target)->FLDCombatHit&
@@ -273,6 +303,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Hit.bPeriodic=true;
                     // A native pulse is the active's direct damage (spec §8): B17's lock rides on it and B18 reads it.
                     Hit.bDirectAbilityDamage=Zone.bDamage;
+                    Hit.ControlAmpBp=Zone.ControlAmpBp;
                     Hit.IdleReadyAmpBp=Zone.IdleReadyAmpBp;
                     Hit.PackageScaleBp=Zone.PackageScaleBp;
                     // #198 zone_wet: every pulse also applies wet with the owner's snapshot at release.
@@ -446,6 +477,13 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         // its zone at the start foot.
         Zone.CentreCm=FindOp(Values,ELDDemoEffectOp::Dash) ? OriginFoot : FVector(TargetPoint.X,TargetPoint.Y,OriginFoot.Z);
         Zone.RadiusCm=Cm(ZoneDef->RadiusCm);
+        // M16: the zone rides on the caster's foot (its radius already scaled by CompileActive).
+        if (Terms.ZoneTether.IsSet())
+        {
+            Zone.bTether=true;
+            Zone.CentreCm=OriginFoot;
+            LedgerComponentTriggered(Body,Terms.ZoneTether->Source.DefinitionId);
+        }
         Zone.StartMs=Now;
         Zone.DelayMs=ZoneDef->DelayMs;
         Zone.IntervalMs=ZoneDef->IntervalMs;
@@ -453,6 +491,9 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
         if (!LDMatchLifecycle::AddDurationMs(Now,ZoneDef->DurationMs,Zone.EndMs,Error)) { return false; }
         Zone.SourceADP2=Body.AttributeProjection.Final.ADP2;
         Zone.SourceAPP2=Body.AttributeProjection.Final.APP2;
+        FLDCombatHit SourceTerms;
+        if (!StampSourceTerms(Body,SourceTerms,Error)) { return false; }
+        Zone.ControlAmpBp=SourceTerms.ControlAmpBp;
         // #198: every interval from the zone's start, each enemy inside is slowed for DurationMs.
         if (const FLDDemoEffectDefinition* Slow=FindOp(Values,ELDDemoEffectOp::ZoneSlow))
         {
@@ -507,6 +548,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
             Zone.APRatioBp=Damage->APRatioBp;
             Zone.DamageType=Damage->DamageType;
         }
+        Zone.CreatedSerial=++NextAreaSerial;
         Zones.Add(MoveTemp(Zone));
     }
     return true;

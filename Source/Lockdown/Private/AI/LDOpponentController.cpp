@@ -191,8 +191,9 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     if (Evaluation)
     {
         Evaluation->bBound = true;
-        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d"), *Binding.GetContender().ToString(),
-            *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(), Evaluation->Profile.Choices.Num());
+        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d reaction_ms=%d aim_error_cm=%d skip_bp=%d"),
+            *Binding.GetContender().ToString(), *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(),
+            Evaluation->Profile.Choices.Num(), Evaluation->Profile.ReactionMs, Evaluation->Profile.AimErrorCm, Evaluation->Profile.SkipBp);
     }
 #endif
     UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld seed=%d"), *Binding.GetContender().ToString(),

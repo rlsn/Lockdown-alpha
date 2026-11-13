@@ -107,7 +107,7 @@ inline constexpr TCHAR CancelBinding[]=TEXT("取消");
 inline constexpr TCHAR PickRepeatedBase[]=TEXT("重复哪个基础构件：");
 inline constexpr TCHAR TargetDash[]=TEXT("冲刺(D)");
 inline constexpr TCHAR TargetSelf[]=TEXT("自身");
-inline constexpr TCHAR TargetConflict[]=TEXT("闷头撞到底和蹿两步就回头不能装在同一处");
+inline constexpr TCHAR TargetConflict[]=TEXT("同形态的构件不能装在同一处，拖到它上面替换");
 inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（装在：%s）"),*Target);}
 inline FString InstalledRepeating(const FString& Target,const FString& Base){return FString::Printf(TEXT("（%s · 重复 %s）"),*Target,*Base);}
 inline constexpr TCHAR ElementFire[]=TEXT("火");
@@ -145,6 +145,29 @@ inline FString StorageFresh(int32 Count){return FString::Printf(TEXT("新 %d"),C
 inline FString RepeatingNote(const FString& Base){return FString::Printf(TEXT("重复 %s"),*Base);}
 inline FString CannotGoThere(const FString& Name,const FString& Where){return FString::Printf(TEXT("%s不能装在%s"),*Name,*Where);}
 inline FString MovingDetaches(const FString& Names){return FString::Printf(TEXT("装在它上面的%s一起回到构件库"),*Names);}
+// 构件悬停弹层：库中构件现在能装到哪些列（本体、Q/W/E、D），没有就直说。
+inline FString CanGoOn(const FString& Columns){return FString::Printf(TEXT("可装：%s"),*Columns);}
+inline constexpr TCHAR NoPlaceNow[]=TEXT("现在没有可装的位置");
+// Every installed base, mod and connector takes one workshop slot; the level sets how many there are.
+inline constexpr TCHAR WorkshopFullReason[]=TEXT("工坊已满");
+inline FString WorkshopFullHint(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，拖到一件已装构件上替换它"),Capacity,Capacity);}
+inline FString WorkshopFullNoPlace(int32 Capacity){return FString::Printf(TEXT("工坊已满 %d/%d，现在没有可替换的位置"),Capacity,Capacity);}
+inline constexpr TCHAR ReplaceAvailable[]=TEXT("拖到可替换的已装构件上");
+// 拖动构件时跟随的一行预览：放下会装到哪里，替换谁、连带拆下谁；联动行列出已拥有的相关技能和构件，同形态行列出互斥的构件。
+inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT("装到 %s"),*Place);}
+inline FString DropReplaces(const FString& Replaced,const FString& With,const FString& Place)
+{return With.IsEmpty()?FString::Printf(TEXT("替换 %s · 装到 %s"),*Replaced,*Place):FString::Printf(TEXT("替换 %s · 连带拆下 %s · 装到 %s"),*Replaced,*With,*Place);}
+inline constexpr TCHAR DropNowhere[]=TEXT("不能装在这里");
+inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
+inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}
+inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
+inline const TCHAR* ComponentKindName(uint8 Kind){return Kind==0?TEXT("基础规则"):Kind==1?TEXT("技能改装"):TEXT("联动规则");}
+inline const TCHAR* ComponentTagName(uint8 Tag)
+{
+    static const TCHAR* const Names[]={TEXT("弹道"),TEXT("法术"),TEXT("控制"),TEXT("元素"),TEXT("区域"),TEXT("冲撞"),TEXT("普攻"),TEXT("防御"),
+        TEXT("节奏"),TEXT("记账")};
+    return Tag<UE_ARRAY_COUNT(Names)?Names[Tag]:TEXT("");
+}
 inline FString PointsAdded(int64 Spent,int64 Left){return FString::Printf(TEXT("已加 %lld 点，还剩 %lld 点"),Spent,Left);}
 
 // 休息服务（#198，APP_SPEC §4.4/§5）：只在休息的配装窗口（配装与派奖）可用，服务器裁决每一条命令。

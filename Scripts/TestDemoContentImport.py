@@ -810,6 +810,14 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(trick["effects"], ({"op": "active_element", "opcode": 104},))
         self.assertEqual(trick["binding"]["actives"], ("active_snark_bolt", "active_pants_down"))
         self.assertEqual(trick["binding"]["elements"], ("fire", "water"))
+        self.assertNotIn("draw_requires_actives", trick)
+        self.edit(lambda value: next(row for row in value["components"] if row["id"] == "component_dash_punch").update(
+            draw_requires_actives=["active_snark_bolt", "active_pants_down"]))
+        required = demo.compile_content(self.root).catalog.definition("component_dash_punch")["draw_requires_actives"]
+        self.assertEqual(required, ("active_snark_bolt", "active_pants_down"))
+        self.edit(lambda value: [row.update(form="dash_shape") for row in value["components"]
+                                 if row["id"] in ("component_fist_fire", "component_kick_down")])
+        self.assertEqual(demo.compile_content(self.root).catalog.definition("component_kick_down")["form"], "dash_shape")
         self.assertEqual([(band["levels"], band["base"], band["mod"], band["connector"])
                           for band in data["progression"]["component_category_weights"]],
                          [((2, 8), 60, 20, 20), ((9, 16), 30, 30, 40)])
@@ -849,6 +857,17 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: piece(data, "component_fist_fire").update(pool="scarce"), "OpeningPool"),
             (lambda data: piece(data, "component_fist_fire").update(opening="never"), "SchemaVariant"),
             (lambda data: piece(data, "component_fist_fire").update(kind="charm"), "UnknownEnum"),
+            # A draw requirement names distinct known actives on a common (level-up drawable) component.
+            (lambda data: piece(data, "component_dash_punch").update(draw_requires_actives=["active_missing"]), "InvalidReference"),
+            (lambda data: piece(data, "component_dash_punch").update(
+                draw_requires_actives=["active_snark_bolt", "active_snark_bolt"]), "InvalidReference"),
+            (lambda data: piece(data, "component_dash_punch").update(draw_requires_actives="active_snark_bolt"), "SchemaType"),
+            (lambda data: piece(data, "component_dash_punch").update(draw_requires_actives=[]), "ArrayLength"),
+            (lambda data: piece(data, "component_dash_punch").update(pool="scarce", draw_requires_actives=["active_snark_bolt"]),
+             "DrawRequirement"),
+            # A form groups at least two components of one kind.
+            (lambda data: piece(data, "component_kick_down").update(form="solo_form"), "UnknownEnum"),
+            (lambda data: piece(data, "component_kick_down").update(form="dash_shape"), "ComponentForm"),
             # Component and active operation forms never cross.
             (lambda data: bolt(data)["effects"].append({"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.1}}),
              "ComponentOnlyEffect"),

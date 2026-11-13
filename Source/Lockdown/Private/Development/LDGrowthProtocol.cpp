@@ -85,7 +85,7 @@ bool FLDBuildCommand::SameTerms(const FLDBuildCommand& Other) const
         && Component == Other.Component && bInstallIfPossible == Other.bInstallIfPossible && TargetKind == Other.TargetKind
         && TargetDefinition == Other.TargetDefinition && TargetSegment == Other.TargetSegment && BoundActive == Other.BoundActive
         && Element == Other.Element && BoundComponent == Other.BoundComponent && Filler == Other.Filler
-        && Surrendered == Other.Surrendered;
+        && Surrendered == Other.Surrendered && Replacing == Other.Replacing;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
@@ -193,6 +193,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::OpeningBaseTaken: return TEXT("OpeningBaseTaken");
     case ELDGrowthReason::OpeningActiveFirst: return TEXT("OpeningActiveFirst");
     case ELDGrowthReason::TargetConflict: return TEXT("TargetConflict");
+    case ELDGrowthReason::WorkshopFull: return TEXT("WorkshopFull");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
     case ELDGrowthReason::BuildLocked: return TEXT("BuildLocked");
     case ELDGrowthReason::NpcPoolTooSmall: return TEXT("NpcPoolTooSmall");

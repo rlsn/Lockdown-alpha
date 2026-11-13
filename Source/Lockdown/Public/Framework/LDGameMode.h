@@ -399,6 +399,9 @@ private:
         TArray<TSharedPtr<const FLDNativeMotionBatch>> NativeMotion;
     };
     TMap<FGuid, FLDLifeRecord> Lives;
+#if WITH_DEV_AUTOMATION_TESTS
+    TFunction<void(ALDGameMode&)> DevFieldReturnCommitted;
+#endif
     TSharedPtr<const FLDDemoContentSnapshot> DemoContent;
     FLDAuthorityStep AuthorityStep;
     FLDAuthorityBoundary AuthorityBoundary;

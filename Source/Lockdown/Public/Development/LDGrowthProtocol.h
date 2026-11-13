@@ -91,8 +91,9 @@ enum class ELDGrowthReason : uint16
     // OpeningActiveFirst (opening active not chosen yet).
     NotOwned = 60, AlreadyInstalled = 61, NotInstalled = 62, InvalidTarget = 64,
     OpeningBaseUnavailable = 66, OpeningBaseTaken = 67, OpeningActiveFirst = 68,
-    // #198 F: TargetConflict (M08 and M09 on the same dash target).
-    TargetConflict = 150,
+    // #198 F: TargetConflict (M08 and M09 on the same dash target). WorkshopFull: every workshop capacity slot of the
+    // level is taken by an installed component.
+    TargetConflict = 150, WorkshopFull = 151,
     // #198 rest: an NPC service in a rest step outside the build and payout windows (draw, betting, PK, settlement, return
     // countdown); #222 keeps the own build commands open there.
     BuildLocked = 70,
@@ -381,6 +382,9 @@ struct LOCKDOWN_API FLDBuildCommand
     // given up (distinct, GROWTH.DismantleInputCount of them).
     UPROPERTY() FLDDefinitionWire Filler;
     UPROPERTY() TArray<FLDDefinitionWire> Surrendered;
+    // InstallComponent only: an installed component taken off in the same commit (with what sits on it) to make room or
+    // clear a form conflict; all-zero = a plain install.
+    UPROPERTY() FLDDefinitionWire Replacing;
 
     bool SameTerms(const FLDBuildCommand& Other) const;
 };
@@ -422,7 +426,8 @@ struct LOCKDOWN_API FLDBuildReceipt
     UPROPERTY() int64 NpcPointsPaid = 0;
     // #198 G: ComponentChoice / FillGap / Dismantle put ComponentId (the received component; None when a ComponentChoice
     // took the empty-pool points) into the inventory. FillGap: the points permanently paid. Dismantle: the surrendered
-    // components and every installed mod/connector left without its host that went back to the inventory.
+    // components and every installed mod/connector left without its host that went back to the inventory. InstallComponent
+    // with Replacing: the replaced component and what sat on it, back in the inventory.
     UPROPERTY() int64 ServicePointsPaid = 0;
     UPROPERTY() TArray<FName> RemovedComponents;
     UPROPERTY() TArray<FName> UninstalledComponents;

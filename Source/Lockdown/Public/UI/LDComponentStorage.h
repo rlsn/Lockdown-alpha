@@ -139,6 +139,8 @@ private:
     UPROPERTY() TObjectPtr<UBorder> StackTop;
     UPROPERTY() TArray<TObjectPtr<UBorder>> StackBacks;
     UPROPERTY() TObjectPtr<UTextBlock> StackCount;
+    // Under the caption: installed / workshop capacity.
+    UPROPERTY() TObjectPtr<UTextBlock> StackCapacity;
     UPROPERTY() TObjectPtr<UWidget> StackFreshChip;
     UPROPERTY() TObjectPtr<UTextBlock> StackFresh;
     UPROPERTY() TObjectPtr<UWidget> ListFrame;
@@ -159,6 +161,10 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostSlot;
     UPROPERTY() TObjectPtr<UImage> GhostPicture;
     UPROPERTY() TObjectPtr<UTextBlock> GhostGlyph;
+    // One line beside the ghost: what letting go here does (装到 Q / 替换 X · 连带拆下 Y / 不能装在这里).
+    UPROPERTY() TObjectPtr<UWidget> GhostCaptionFrame;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> GhostCaptionSlot;
+    UPROPERTY() TObjectPtr<UTextBlock> GhostCaption;
     // Every widget built for the current cards and tiles; replaced on each rebuild.
     UPROPERTY() TArray<TObjectPtr<UWidget>> Built;
     TArray<FCard> Cards;

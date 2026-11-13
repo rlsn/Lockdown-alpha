@@ -1,4 +1,6 @@
 #include "Evaluation/LDEvaluationPolicy.h"
+#include "AI/LDOpponentRequests.h"
+#include "Navigation/LDOrderTypes.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Combat/LDAttributeProjection.h"
@@ -293,6 +295,134 @@ bool RunPolicy(FAutomationTestBase& Test)
     Decision = Decide(Offered, Missing, State);
     bGood &= Test.TestTrue(TEXT("An unoffered planned active fails the plan at its ordinal"), State.Phase == ELDEvaluationPhase::Failed
         && State.Failure.Contains(TEXT("ordinal 2")) && Decision.Build.Kind == ELDOpponentBuildKind::None);
+
+    // ---- Kite stance: never walks in for a basic, steps away on legal ground inside the standoff ----
+    FLDEvaluationProfile Kiter = Profile;
+    Kiter.Stance = ELDEvaluationStance::Kite;
+    Kiter.StandoffCm = 600;
+    auto Close = Base;
+    Close.Self.OffersConsumed = 1;
+    Close.Units = {Rival(8, Profile.Opponent, 200, 0)};
+    State = {};
+    Decision = Decide(Close, Kiter, State);
+    bGood &= Test.TestTrue(TEXT("Kite: inside the standoff it clicks ground straight away from the rival on the site surface"),
+        Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.POI.IsNone()
+        && Decision.Body.Surface == FName(TEXT("ground")) && Decision.Body.Point.Equals(FVector(-LDEvaluationPolicy::KiteStepCm, 0, 0), 1.)
+        && Decision.Mode == ELDOpponentMode::Engage);
+    {
+        FLDSpatialOrderRequest Request;
+        FString Why;
+        FLDMoveIdentity Identity;
+        Identity.Match = 7;
+        Identity.Life = 1;
+        Identity.Order = 4;
+        bGood &= Test.TestTrue(TEXT("Kite: the ground click becomes a MoveGround order at that point on that surface"),
+            LDOpponentRequests::BuildOrder(Decision.Body, Close.POIs, Identity, Request, Why)
+            && Request.Kind == ELDSpatialOrderKind::MoveGround && FVector(Request.GroundCm).Equals(Decision.Body.Point, 1.)
+            && Request.SurfaceHint == FName(TEXT("ground")));
+    }
+    auto Walking = Close;
+    Walking.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Walking.Order.Status = ELDOpponentOrderStatus::Active;
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Kite: a live step is kept, not re-sent"), Decide(Walking, Kiter, State).Body.Kind == ELDOpponentBodyKind::Keep);
+    auto Held = Close;
+    Held.Units = {Rival(8, Profile.Opponent, 650, 0)};
+    Held.Order.Kind = ELDOpponentOrderKind::AttackUnit;
+    Held.Order.Status = ELDOpponentOrderStatus::Active;
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Kite: at the standoff a basic-attack walk is stopped"),
+        Decide(Held, Kiter, State).Body.Kind == ELDOpponentBodyKind::Stop);
+    auto Far = Close;
+    Far.Units = {Rival(8, Profile.Opponent, 2000, 0)};
+    State = {};
+    Decision = Decide(Far, Kiter, State);
+    bGood &= Test.TestTrue(TEXT("Kite: far away it walks back up to the standoff, not into basic range"),
+        Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.Point.Equals(FVector(1400, 0, 0), 1.));
+    // The leash: straight away and the shallow turns lead beyond it and farther from the site, so a turn back toward it is taken.
+    FLDEvaluationProfile Leashed = Kiter;
+    Leashed.LeashCm = 1000;
+    State = {};
+    Decision = Decide(Close, Leashed, State);
+    bGood &= Test.TestTrue(TEXT("Kite: a leashed retreat never steps farther from the site beyond the leash"),
+        Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && FVector::Dist2D(Decision.Body.Point, FVector(3000, 0, 0)) < 3000.);
+    const auto Pursued = [&](const FLDOpponentDecisionFrame& At)
+    {
+        FLDEvaluationProfileState Fresh;
+        return Decide(At, Profile, Fresh).Body;
+    };
+    const auto Same = [](const FLDOpponentBodyIntent& A, const FLDOpponentBodyIntent& B)
+    {
+        return A.Kind == B.Kind && A.Handle == B.Handle && A.POI == B.POI && A.Point.Equals(B.Point, 1.);
+    };
+    const auto KiteStep = [](const FLDOpponentBodyIntent& Body)
+    {
+        return Body.Kind == ELDOpponentBodyKind::MoveGround && Body.POI.IsNone() && Body.Point.Equals(FVector(-LDEvaluationPolicy::KiteStepCm, 0, 0), 1.);
+    };
+
+    // ---- Burst: pursues while any Q/W/E source is ready, kites while all of them recover ----
+    FLDEvaluationProfile Burster = Kiter;
+    Burster.Stance = ELDEvaluationStance::Burst;
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Burst: with every active recovering it kites"), KiteStep(Decide(Close, Burster, State).Body));
+    auto DashOnly = Close;
+    FLDOpponentSource Dash;
+    Dash.Slot = ELDOpponentSourceSlot::Dash;
+    Dash.bReady = true;
+    DashOnly.Self.Sources = {Dash};
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Burst: a ready dash alone is not a burst window"), KiteStep(Decide(DashOnly, Burster, State).Body));
+    auto Ready = DashOnly;
+    FLDOpponentSource Q;
+    Q.Slot = ELDOpponentSourceSlot::Q;
+    Q.DefinitionId = TEXT("active_seethe");
+    Q.bReady = true;
+    Ready.Self.Sources.Add(Q);
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Burst: a ready Q/W/E source takes the production engagement"),
+        Same(Decide(Ready, Burster, State).Body, Pursued(Ready)));
+
+    // ---- Guard: pursues until health falls below the threshold, then kites until it recovers past the hysteresis ----
+    FLDEvaluationProfile Guard = Kiter;
+    Guard.Stance = ELDEvaluationStance::Guard;
+    Guard.ThresholdBp = 3000;
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Guard: healthy it takes the production engagement"),
+        Same(Decide(Close, Guard, State).Body, Pursued(Close)) && !State.bGuardRetreat);
+    auto Hurt = Close;
+    Hurt.Self.HpP2 = Hurt.Self.MaxHpP2 / 5;
+    bGood &= Test.TestTrue(TEXT("Guard: below the threshold it retreats"), KiteStep(Decide(Hurt, Guard, State).Body) && State.bGuardRetreat);
+    auto Mending = Close;
+    Mending.Self.HpP2 = Mending.Self.MaxHpP2 * 2 / 5;
+    bGood &= Test.TestTrue(TEXT("Guard: above the threshold but inside the hysteresis it keeps retreating"),
+        KiteStep(Decide(Mending, Guard, State).Body) && State.bGuardRetreat);
+    auto Mended = Close;
+    Mended.Self.HpP2 = Mended.Self.MaxHpP2 / 2;
+    bGood &= Test.TestTrue(TEXT("Guard: recovered past the hysteresis it engages again"),
+        Same(Decide(Mended, Guard, State).Body, Pursued(Mended)) && !State.bGuardRetreat);
+
+    // ---- Hold: pursues only inside the defended radius of the site; otherwise returns to it and holds ----
+    FLDEvaluationProfile Holder = Kiter;
+    Holder.Stance = ELDEvaluationStance::Hold;
+    auto Inside = Close;
+    Inside.Self.FootCm = FVector(2900, 0, 0);
+    Inside.Units = {Rival(8, Profile.Opponent, 3300, 0)};
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Hold: a rival inside the radius is pursued"), Same(Decide(Inside, Holder, State).Body, Pursued(Inside)));
+    auto Outside = Close;
+    Outside.Units = {Rival(8, Profile.Opponent, 400, 0)};
+    State = {};
+    Decision = Decide(Outside, Holder, State);
+    bGood &= Test.TestTrue(TEXT("Hold: away from the site with the rival outside the radius it walks back to the site"),
+        Decision.Body.Kind == ELDOpponentBodyKind::MoveGround && Decision.Body.POI == FName(TEXT("capture")));
+    auto Posted = Inside;
+    Posted.Self.FootCm = FVector(2950, 0, 0);
+    Posted.Units = {Rival(8, Profile.Opponent, 2000, 0)};
+    Posted.Order.Kind = ELDOpponentOrderKind::AttackUnit;
+    Posted.Order.Status = ELDOpponentOrderStatus::Active;
+    State = {};
+    bGood &= Test.TestTrue(TEXT("Hold: at the site a chase of a rival outside the radius is stopped"),
+        Decide(Posted, Holder, State).Body.Kind == ELDOpponentBodyKind::Stop);
     return bGood;
 }
 
@@ -590,7 +720,7 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
 
 FString Input(const FString& Cases, const FString& Top = FString())
 {
-    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":3,\"run_id\":\"run-1\",")
+    return FString::Printf(TEXT("{\"schema\":\"lockdown.build_evaluation.native_input\",\"schema_version\":5,\"run_id\":\"run-1\",")
         TEXT("\"content_root\":\"%s\"%s,\"cases\":[%s]}"), *FString::ChrN(64, TEXT('a')), *Top, *Cases);
 }
 
@@ -602,10 +732,11 @@ FString CaseJson(const FString& Subject, const FString& Opponent, const FString&
 }
 
 FString Side(const TCHAR* Role, int32 Slot, const FString& Choices = TEXT("[{\"rule\":\"ai_select\"}]"),
-    const FString& Presets = TEXT("[]"), const FString& Build = TEXT("[]"))
+    const FString& Presets = TEXT("[]"), const FString& Build = TEXT("[]"), const FString& Opening = TEXT("[]"),
+    const FString& Components = TEXT("[]"))
 {
-    return FString::Printf(TEXT("{\"role\":\"%s\",\"slot\":%d,\"supply_xp\":440,\"choices\":%s,\"presets\":%s,\"build\":%s}"), Role, Slot,
-        *Choices, *Presets, *Build);
+    return FString::Printf(TEXT("{\"role\":\"%s\",\"slot\":%d,\"supply_xp\":440,\"choices\":%s,\"opening_preset\":%s,")
+        TEXT("\"presets\":%s,\"level_components\":%s,\"build\":%s}"), Role, Slot, *Choices, *Opening, *Presets, *Components, *Build);
 }
 
 bool RunInput(FAutomationTestBase& Test)
@@ -613,7 +744,8 @@ bool RunInput(FAutomationTestBase& Test)
     using namespace LDBuildEvaluation;
     const FString Subject = Side(TEXT("subject"), 0, TEXT("[{\"rule\":\"ai_select\"},{\"rule\":\"option_index\",\"index\":2},")
         TEXT("{\"rule\":\"definition\",\"definition\":\"active_elbow\"}]"),
-        TEXT("[[\"active_elbow\",\"active_seethe\",\"active_not_mad\"]]"));
+        TEXT("[[\"active_elbow\",\"active_seethe\",\"active_not_mad\"]]"), TEXT("[]"), TEXT("[\"active_snark_bolt\"]"),
+        TEXT("[\"component_punch_heal\",\"component_breath_strike\"]"));
     const FString Opponent = Side(TEXT("opponent"), 1);
     FLDEvalRunInput Parsed;
     FString Error;
@@ -628,7 +760,54 @@ bool RunInput(FAutomationTestBase& Test)
             && Case.Contenders[0].Choices[1].Rule == ELDEvaluationChoiceRule::OptionIndex && Case.Contenders[0].Choices[1].Index == 2
             && Case.Contenders[0].Choices[2].Rule == ELDEvaluationChoiceRule::Definition
             && Case.Contenders[0].Choices[2].DefinitionId == TEXT("active_elbow")
-            && Case.Contenders[0].Presets.Num() == 1 && Case.Contenders[0].Presets[0][2] == FName(TEXT("active_not_mad")));
+            && Case.Contenders[0].OpeningPreset == TArray<FName>({FName(TEXT("active_snark_bolt"))})
+            && Case.Contenders[0].LevelComponents == TArray<FName>({FName(TEXT("component_punch_heal")), FName(TEXT("component_breath_strike"))})
+            && Case.Contenders[0].Presets.Num() == 1 && Case.Contenders[0].Presets[0][2] == FName(TEXT("active_not_mad"))
+            && Case.Contenders[0].Stance == ELDEvaluationStance::Pursue && Case.Contenders[0].StandoffCm == 0);
+    }
+    {
+        // The optional kite stance and its standoff reach the contender plan; its absence is pursue.
+        const FString Kiter = Side(TEXT("opponent"), 1).LeftChop(1) + TEXT(",\"stance\":{\"kind\":\"kite\",\"standoff_cm\":650}}");
+        FLDEvalRunInput Kited;
+        FString Why;
+        bGood &= Test.TestTrue(TEXT("A kite stance parses: ") + Why, ParseInput(Input(CaseJson(Subject, Kiter)), Kited, Why)
+            && Kited.Cases.Num() == 1 && Kited.Cases[0].Contenders[1].Stance == ELDEvaluationStance::Kite
+            && Kited.Cases[0].Contenders[1].StandoffCm == 650);
+        const FString Guarded = Side(TEXT("opponent"), 1).LeftChop(1)
+            + TEXT(",\"stance\":{\"kind\":\"guard\",\"standoff_cm\":600,\"threshold_bp\":3500,\"leash_cm\":1200}}");
+        FLDEvalRunInput Guard;
+        bGood &= Test.TestTrue(TEXT("A guard stance with its threshold and leash parses: ") + Why,
+            ParseInput(Input(CaseJson(Subject, Guarded)), Guard, Why) && Guard.Cases.Num() == 1
+            && Guard.Cases[0].Contenders[1].Stance == ELDEvaluationStance::Guard && Guard.Cases[0].Contenders[1].StandoffCm == 600
+            && Guard.Cases[0].Contenders[1].ThresholdBp == 3500 && Guard.Cases[0].Contenders[1].LeashCm == 1200);
+        const FString Operated = Side(TEXT("opponent"), 1).LeftChop(1)
+            + TEXT(",\"stance\":{\"kind\":\"kite\",\"standoff_cm\":450,\"reaction_ms\":800,\"aim_error_cm\":200,\"skip_bp\":3500}}");
+        FLDEvalRunInput Operation;
+        bGood &= Test.TestTrue(TEXT("Operation knobs on a stance parse: ") + Why, ParseInput(Input(CaseJson(Subject, Operated)), Operation, Why)
+            && Operation.Cases.Num() == 1 && Operation.Cases[0].Contenders[1].ReactionMs == 800
+            && Operation.Cases[0].Contenders[1].AimErrorCm == 200 && Operation.Cases[0].Contenders[1].SkipBp == 3500
+            && Operation.Cases[0].Contenders[0].ReactionMs == 0);
+        const FString Hasty = Side(TEXT("opponent"), 1).LeftChop(1) + TEXT(",\"stance\":{\"kind\":\"pursue\",\"reaction_ms\":150}}");
+        FLDEvalRunInput Pursuer;
+        bGood &= Test.TestTrue(TEXT("An explicit pursue carrying a knob parses: ") + Why, ParseInput(Input(CaseJson(Subject, Hasty)), Pursuer, Why)
+            && Pursuer.Cases.Num() == 1 && Pursuer.Cases[0].Contenders[1].Stance == ELDEvaluationStance::Pursue
+            && Pursuer.Cases[0].Contenders[1].ReactionMs == 150 && Pursuer.Cases[0].Contenders[1].StandoffCm == 0);
+        const auto RefuseStance = [&](const FString& Label, const TCHAR* Stance, const TCHAR* Field)
+        {
+            FLDEvalRunInput Ignored;
+            FString Reason;
+            const FString Json = Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1) + TEXT(",\"stance\":") + Stance + TEXT("}")));
+            return Test.TestTrue(Label + TEXT(": ") + Reason, !ParseInput(Json, Ignored, Reason) && Reason.Contains(Field));
+        };
+        bGood &= RefuseStance(TEXT("A reaction past its limit"), TEXT("{\"kind\":\"kite\",\"standoff_cm\":450,\"reaction_ms\":1501}"),
+            TEXT("reaction_ms"));
+        bGood &= RefuseStance(TEXT("A negative aim error"), TEXT("{\"kind\":\"kite\",\"standoff_cm\":450,\"aim_error_cm\":-1}"),
+            TEXT("aim_error_cm"));
+        bGood &= RefuseStance(TEXT("A skip past its limit"), TEXT("{\"kind\":\"kite\",\"standoff_cm\":450,\"skip_bp\":9001}"), TEXT("skip_bp"));
+        bGood &= RefuseStance(TEXT("A plain pursue (the absent stance)"), TEXT("{\"kind\":\"pursue\"}"), TEXT("kind"));
+        bGood &= RefuseStance(TEXT("A pursue with a standoff"), TEXT("{\"kind\":\"pursue\",\"standoff_cm\":450,\"skip_bp\":10}"),
+            TEXT("standoff_cm"));
+        bGood &= RefuseStance(TEXT("An unknown stance field"), TEXT("{\"kind\":\"kite\",\"standoff_cm\":450,\"dodge\":1}"), TEXT("dodge"));
     }
     const auto Refuse = [&Test](const FString& Label, const FString& Json, const TCHAR* Field)
     {
@@ -637,8 +816,8 @@ bool RunInput(FAutomationTestBase& Test)
         return Test.TestTrue(Label + TEXT(": ") + Why, !ParseInput(Json, Ignored, Why) && Why.Contains(Field));
     };
     bGood &= Refuse(TEXT("Not JSON"), TEXT("{"), TEXT("input"));
-    bGood &= Refuse(TEXT("The retired schema version 2 (no workshop plan)"), Input(CaseJson(Subject, Opponent)).Replace(
-        TEXT("\"schema_version\":3"), TEXT("\"schema_version\":2")), TEXT("schema"));
+    bGood &= Refuse(TEXT("The retired schema version 4 (no level components)"), Input(CaseJson(Subject, Opponent)).Replace(
+        TEXT("\"schema_version\":5"), TEXT("\"schema_version\":4")), TEXT("schema"));
     bGood &= Refuse(TEXT("An unknown top-level field"), Input(CaseJson(Subject, Opponent), TEXT(",\"budget\":1")), TEXT("budget"));
     bGood &= Refuse(TEXT("An unknown Case field"), Input(CaseJson(Subject, Opponent, TEXT("\"1\""), TEXT(",\"strategy\":\"x\""))),
         TEXT("strategy"));
@@ -661,6 +840,25 @@ bool RunInput(FAutomationTestBase& Test)
         TEXT("[[\"active_elbow\",\"active_seethe\",\"active_not_mad\",\"active_unplug\"]]")))), TEXT("presets"));
     bGood &= Refuse(TEXT("A preset naming one active twice"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
         TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[[\"active_elbow\",\"active_elbow\"]]")))), TEXT("presets"));
+    bGood &= Refuse(TEXT("An opening preset naming one active twice"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
+        TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[]"), TEXT("[]"), TEXT("[\"active_elbow\",\"active_elbow\"]")))),
+        TEXT("opening_preset"));
+    bGood &= Refuse(TEXT("An opening preset with four actives"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
+        TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[]"), TEXT("[]"),
+        TEXT("[\"active_elbow\",\"active_seethe\",\"active_not_mad\",\"active_unplug\"]")))), TEXT("opening_preset"));
+    bGood &= Refuse(TEXT("A level preset naming one component twice"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1,
+        TEXT("[{\"rule\":\"ai_select\"}]"), TEXT("[]"), TEXT("[]"), TEXT("[]"),
+        TEXT("[\"component_punch_heal\",\"component_punch_heal\"]")))), TEXT("level_components"));
+    bGood &= Refuse(TEXT("A pursue stance is spelled by omission"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
+        + TEXT(",\"stance\":{\"kind\":\"pursue\",\"standoff_cm\":650}}"))), TEXT("stance.kind"));
+    bGood &= Refuse(TEXT("A kite standoff below the floor"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
+        + TEXT(",\"stance\":{\"kind\":\"kite\",\"standoff_cm\":100}}"))), TEXT("standoff_cm"));
+    bGood &= Refuse(TEXT("A guard stance without its threshold"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
+        + TEXT(",\"stance\":{\"kind\":\"guard\",\"standoff_cm\":600}}"))), TEXT("threshold_bp"));
+    bGood &= Refuse(TEXT("A threshold on a stance other than guard"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
+        + TEXT(",\"stance\":{\"kind\":\"hold\",\"standoff_cm\":600,\"threshold_bp\":3500}}"))), TEXT("threshold_bp"));
+    bGood &= Refuse(TEXT("A leash below the floor"), Input(CaseJson(Subject, Side(TEXT("opponent"), 1).LeftChop(1)
+        + TEXT(",\"stance\":{\"kind\":\"burst\",\"standoff_cm\":600,\"leash_cm\":100}}"))), TEXT("leash_cm"));
     bGood &= Refuse(TEXT("A duel timeout below one second"),
         Input(CaseJson(Subject, Opponent).Replace(TEXT("\"duel_timeout_ms\":40000"), TEXT("\"duel_timeout_ms\":999"))), TEXT("duel_timeout_ms"));
     bGood &= Refuse(TEXT("A content root that is not a SHA-256 digest"),
@@ -761,9 +959,198 @@ bool RunHorizon(FAutomationTestBase& Test)
         KillAtOrBeforeHorizon(5000, 45001, 50002));
     bGood &= Test.TestFalse(TEXT("A kill after a frame-aligned horizon is censored"),
         KillAtOrBeforeHorizon(5000, 45000, 50001));
+    const FGuid Subject(1, 0, 0, 1), Opponent(2, 0, 0, 1), Other(3, 0, 0, 1);
+    const auto Notice = [](uint64 Serial, const FGuid& Victim, const FGuid& Killer, int64 At)
+    {
+        FLDKillNotice Row;
+        Row.Serial = Serial;
+        Row.Victim = Victim;
+        Row.Killer = Killer;
+        Row.OccurredAtMs = At;
+        return Row;
+    };
+    const FLDKillNotice First = Notice(1, Subject, Opponent, 10000);
+    const FLDKillNotice Reciprocal = Notice(2, Opponent, Subject, 10000);
+    uint64 Last = 0;
+    FLDEvalOutcome Outcome;
+    bGood &= Test.TestTrue(TEXT("Reciprocal same-time deaths are an observed trade, not whichever notice came first"),
+        LDBuildEvaluation::SelectDuelOutcome({First, Reciprocal}, Last, Subject, Opponent, 5000, 45000, Outcome)
+        && Outcome.bTrade && Outcome.OccurredAtMs == 10000 && Outcome.VictimSide == INDEX_NONE && !Outcome.Killer.IsValid()
+        && Last == 2);
+    Last = 0;
+    bGood &= Test.TestTrue(TEXT("A trade is independent of notice order"),
+        LDBuildEvaluation::SelectDuelOutcome({Reciprocal, First}, Last, Subject, Opponent, 5000, 45000, Outcome)
+        && Outcome.bTrade && Outcome.OccurredAtMs == 10000);
+    Last = 0;
+    bGood &= Test.TestTrue(TEXT("A later second death does not turn the first into a trade"),
+        LDBuildEvaluation::SelectDuelOutcome({Notice(1, Other, Subject, 9000), First, Notice(3, Opponent, Subject, 10001)},
+            Last, Subject, Opponent, 5000, 45000, Outcome)
+        && !Outcome.bTrade && Outcome.VictimSide == 0 && Outcome.Killer == Opponent && Outcome.OccurredAtMs == 10000);
+    bGood &= Test.TestFalse(TEXT("Already observed notices are not returned again"),
+        LDBuildEvaluation::SelectDuelOutcome({First, Reciprocal}, Last, Subject, Opponent, 5000, 45000, Outcome));
+    return bGood;
+}
+
+// The operation knobs filter what the stance chose, from the authorized frame only, with deterministic rolls.
+bool RunOperationGates(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!Frame(Test, C, Base)) { return false; }
+    Base.Self.OffersConsumed = 1;
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    FLDEvaluationProfile Exact;
+    Exact.Opponent = FGuid(0xED, 0, 0, 2);
+    Exact.Site = TEXT("capture");
+    Exact.Choices = {FLDEvaluationChoice()};
+    Exact.OperationSeed = 20261113;
+    const auto With = [&](const TCHAR* Id, double X, double Y, int64 NowMs, bool bReady = true)
+    {
+        auto Out = Base;
+        Out.Public.NowMs = NowMs;
+        Out.Self.Actives = {Active(Id, 0)};
+        FLDOpponentSource Source;
+        Source.Slot = ELDOpponentSourceSlot::Q;
+        Source.DefinitionId = Id;
+        Source.bReady = bReady;
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        FString Error;
+        if (C.FindAbility(Id, Ability, Error) && Ability)
+        {
+            Source.RangeCm = int32(Ability->Target.RangeCm.Numerator / FMath::Max<int64>(1, Ability->Target.RangeCm.Denominator));
+        }
+        Out.Self.Sources = {Source};
+        Out.Units = {Rival(8, Exact.Opponent, X, Y)};
+        return Out;
+    };
+    const auto Decide = [&C](const FLDOpponentDecisionFrame& At, const FLDEvaluationProfile& Plan, FLDEvaluationProfileState& State)
+    {
+        FLDOpponentPolicyState Policy;
+        return LDEvaluationPolicy::Decide(At, C, Plan, Policy, State).Body;
+    };
+    const auto IsCast = [](const FLDOpponentBodyIntent& Body) { return Body.Kind == EBody::Activate && Body.Source == ELDOpponentSourceSlot::Q; };
+    const FVector Target(Attack - 10, 120, 0);
+    const TCHAR* Zone = TEXT("active_quick_meeting");
+    bool bGood = true;
+
+    // ---- All knobs at zero: the stance's activation exactly, no roll drawn ----
+    FLDEvaluationProfileState State;
+    const FLDOpponentBodyIntent Plain = Decide(With(Zone, Target.X, Target.Y, 20000), Exact, State);
+    bGood &= Test.TestTrue(TEXT("Zero knobs: the zone lands on the rival's foot at once and nothing is rolled"),
+        IsCast(Plain) && Plain.TargetMode == ELDDemoTargetMode::GroundPoint && Plain.Point.Equals(Target, 1.e-3) && State.Rolls == 0);
+
+    // ---- Reaction: a ready source is held until it has been seen ready that long; not ready starts it afresh ----
+    FLDEvaluationProfile Slow = Exact;
+    Slow.ReactionMs = 400;
+    State = {};
+    bGood &= Test.TestFalse(TEXT("Reaction: the first frame the slot is seen ready it does not cast"),
+        IsCast(Decide(With(Zone, Target.X, Target.Y, 20000), Slow, State)));
+    bGood &= Test.TestTrue(TEXT("Reaction: the slot's readiness is observed from the frame"), State.ReadySinceMs[0] == 20000);
+    bGood &= Test.TestFalse(TEXT("Reaction: 399 ms later it still waits"), IsCast(Decide(With(Zone, Target.X, Target.Y, 20399), Slow, State)));
+    const FLDOpponentBodyIntent Reacted = Decide(With(Zone, Target.X, Target.Y, 20400), Slow, State);
+    bGood &= Test.TestTrue(TEXT("Reaction: after the reaction it casts the same zone exactly"),
+        IsCast(Reacted) && Reacted.Point.Equals(Target, 1.e-3) && State.Rolls == 0);
+    Decide(With(Zone, Target.X, Target.Y, 20500, false), Slow, State);
+    bGood &= Test.TestTrue(TEXT("Reaction: a slot seen not ready forgets its readiness"), State.ReadySinceMs[0] == -1);
+    bGood &= Test.TestFalse(TEXT("Reaction: ready again, the reaction starts afresh"),
+        IsCast(Decide(With(Zone, Target.X, Target.Y, 20600), Slow, State)));
+    auto Reborn = With(Zone, Target.X, Target.Y, 21100);
+    Reborn.Self.Life = 2;
+    bGood &= Test.TestFalse(TEXT("Reaction: another life starts the gate afresh"), IsCast(Decide(Reborn, Slow, State))
+        && State.ReadySinceMs[0] == 21100);
+
+    // ---- Aim: a ground point lands within the error and the source's reach; deterministic per seed ----
+    FLDEvaluationProfile Shaky = Exact;
+    Shaky.AimErrorCm = 200;
+    State = {};
+    const FLDOpponentBodyIntent Aimed = Decide(With(Zone, Target.X, Target.Y, 20000), Shaky, State);
+    FLDEvaluationProfileState Again;
+    const FLDOpponentBodyIntent Replayed = Decide(With(Zone, Target.X, Target.Y, 20000), Shaky, Again);
+    const double Reach = FMath::Max(double(With(Zone, 0, 0, 0).Self.Sources[0].RangeCm), Target.Size2D());
+    bGood &= Test.TestTrue(FString::Printf(TEXT("Aim: the zone lands off the foot by at most the error (%.1f cm), within reach, at its height"),
+            FVector::Dist2D(Aimed.Point, Target)),
+        IsCast(Aimed) && FVector::Dist2D(Aimed.Point, Target) <= 200. + 1.e-3 && !Aimed.Point.Equals(Target, 1.e-3)
+        && Aimed.Point.Size2D() <= Reach + 1.e-3 && Aimed.Point.Z == Target.Z && State.Rolls == 1);
+    bGood &= Test.TestTrue(TEXT("Aim: the same seed and frame aim the same way"), Replayed.Point.Equals(Aimed.Point, 1.e-6));
+    FLDEvaluationProfile Reseeded = Shaky;
+    Reseeded.OperationSeed = Shaky.OperationSeed + 1;
+    State = {};
+    bGood &= Test.TestFalse(TEXT("Aim: another Case seed rolls another way"),
+        Decide(With(Zone, Target.X, Target.Y, 20000), Reseeded, State).Point.Equals(Aimed.Point, 1.e-6));
+    {
+        // A direction turns by at most atan2(error, max(200, gap)), keeping its length.
+        const FVector Near(150, 0, 0);
+        State = {};
+        const FLDOpponentBodyIntent Bolt = Decide(With(TEXT("active_snark_bolt"), Near.X, Near.Y, 20000), Exact, State);
+        FLDEvaluationProfileState Turned;
+        const FLDOpponentBodyIntent Off = Decide(With(TEXT("active_snark_bolt"), Near.X, Near.Y, 20000), Shaky, Turned);
+        const bool bDirection = IsCast(Bolt) && (Bolt.TargetMode == ELDDemoTargetMode::DirectionProjectile
+            || Bolt.TargetMode == ELDDemoTargetMode::DirectionCone || Bolt.TargetMode == ELDDemoTargetMode::DirectionLine);
+        const double Turn = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Bolt.Direction.GetSafeNormal(),
+            Off.Direction.GetSafeNormal()), -1., 1.)));
+        bGood &= Test.TestTrue(FString::Printf(TEXT("Aim: a direction cast turns by at most the error over the lever (%.2f deg)"), Turn),
+            bDirection && IsCast(Off) && Off.TargetMode == Bolt.TargetMode && Turn > 0.
+            && Turn <= FMath::RadiansToDegrees(FMath::Atan2(200., LDEvaluationPolicy::MinAimLeverCm)) + 1.e-6
+            && FMath::IsNearlyEqual(Off.Direction.Size(), Bolt.Direction.Size(), 1.e-6) && Turned.Rolls == 1);
+    }
+
+    // ---- Skip: a failed roll holds the slot max(reaction, 500) ms, then rolls again; nothing rolls in between ----
+    FLDEvaluationProfile Hesitant = Exact;
+    Hesitant.SkipBp = LDEvaluationPolicy::MaxSkipBp;
+    int32 Skipped = 0;
+    bool bHeldRight = true, bAllCast = true;
+    for (uint64 Seed = 1; Seed <= 20; ++Seed)
+    {
+        Hesitant.OperationSeed = Seed;
+        State = {};
+        bool bCast = false;
+        for (int64 Now = 20000; Now <= 80000 && !bCast; Now += 100)
+        {
+            const uint64 Before = State.Rolls;
+            const int64 Until = State.SkipUntilMs[0];
+            bCast = IsCast(Decide(With(Zone, Target.X, Target.Y, Now), Hesitant, State));
+            if (Now < Until) { bHeldRight &= !bCast && State.Rolls == Before; }
+            if (!bCast && State.SkipUntilMs[0] > Until)
+            {
+                ++Skipped;
+                bHeldRight &= State.SkipUntilMs[0] == Now + LDEvaluationPolicy::MinSkipHoldMs && State.Rolls == Before + 1;
+            }
+        }
+        bAllCast &= bCast && State.bSkipPassed[0];
+    }
+    bGood &= Test.TestTrue(TEXT("Skip: a 90% skip holds some casts"), Skipped > 0);
+    bGood &= Test.TestTrue(TEXT("Skip: a skipped slot is held exactly the hold and rolls only when it reopens"), bHeldRight);
+    bGood &= Test.TestTrue(TEXT("Skip: every seed casts once a roll passes"), bAllCast);
+
+    // ---- Kite reaction: the first step away waits until the rival has stood inside the standoff that long ----
+    FLDEvaluationProfile Kiter = Exact;
+    Kiter.Stance = ELDEvaluationStance::Kite;
+    Kiter.StandoffCm = 600;
+    Kiter.ReactionMs = 300;
+    auto Close = Base;
+    Close.Units = {Rival(8, Exact.Opponent, 200, 0)};
+    State = {};
+    const FLDOpponentBodyIntent Startled = Decide(Close, Kiter, State);
+    bGood &= Test.TestTrue(TEXT("Kite reaction: the rival just came inside the standoff, no step away yet"),
+        Startled.Kind != EBody::MoveGround && State.CloseSinceMs == Close.Public.NowMs);
+    Close.Public.NowMs += 300;
+    const FLDOpponentBodyIntent Stepped = Decide(Close, Kiter, State);
+    bGood &= Test.TestTrue(TEXT("Kite reaction: after the reaction it steps away"),
+        Stepped.Kind == EBody::MoveGround && Stepped.Point.Equals(FVector(-LDEvaluationPolicy::KiteStepCm, 0, 0), 1.));
+    auto Away = Close;
+    Away.Units = {Rival(8, Exact.Opponent, 700, 0)};
+    Decide(Away, Kiter, State);
+    bGood &= Test.TestTrue(TEXT("Kite reaction: a rival back outside the standoff resets it"), State.CloseSinceMs == -1);
     return bGood;
 }
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationOperationGatesTest, "Lockdown.Rules.BuildEvaluation.OperationGates",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDBuildEvaluationOperationGatesTest::RunTest(const FString& Parameters) { return LDBuildEvaluationTests::RunOperationGates(*this); }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationSeedsTest, "Lockdown.Rules.BuildEvaluation.Seeds",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

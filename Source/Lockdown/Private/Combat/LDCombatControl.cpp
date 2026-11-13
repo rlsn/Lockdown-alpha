@@ -73,7 +73,7 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
 }
 
 bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-    const FGuid& EffectId, const FLDCombatSourceRef& Source, FString& Error)
+    const FGuid& EffectId, const FLDCombatSourceRef& Source, FString& Error, TArray<FLDCombatBodyRef>* Landed)
 {
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A taunt requires the current core."); return false; }
@@ -112,6 +112,7 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         bool bApplied=false;
         if (!CommitControl(Victim,App,Now,bApplied,Error)) { return false; }
         if (!bApplied) { continue; }
+        if (Landed) { Landed->Add({Victim.Victim,Victim.Identity}); }
         UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
             *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt.IsSet() ? Victim.Taunt->ExpiresAtMs : 0);
     }

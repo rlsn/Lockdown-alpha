@@ -87,6 +87,27 @@ const FNativeId NativeIds[] =
     DEMO_ID("components", "component_shell_burst", ELDDemoComponentId, ComponentShellBurst),
     DEMO_ID("components", "component_hurt_heal", ELDDemoComponentId, ComponentHurtHeal),
     DEMO_ID("components", "component_dirty_fist", ELDDemoComponentId, ComponentDirtyFist),
+    DEMO_ID("components", "component_boomerang", ELDDemoComponentId, ComponentBoomerang),
+    DEMO_ID("components", "component_skewer", ELDDemoComponentId, ComponentSkewer),
+    DEMO_ID("components", "component_encore", ELDDemoComponentId, ComponentEncore),
+    DEMO_ID("components", "component_next_up", ELDDemoComponentId, ComponentNextUp),
+    DEMO_ID("components", "component_setup_line", ELDDemoComponentId, ComponentSetupLine),
+    DEMO_ID("components", "component_blast_reload", ELDDemoComponentId, ComponentBlastReload),
+    DEMO_ID("components", "component_group_refund", ELDDemoComponentId, ComponentGroupRefund),
+    DEMO_ID("components", "component_clear_head", ELDDemoComponentId, ComponentClearHead),
+    DEMO_ID("components", "component_run_away", ELDDemoComponentId, ComponentRunAway),
+    DEMO_ID("components", "component_guard_up", ELDDemoComponentId, ComponentGuardUp),
+    DEMO_ID("components", "component_zone_tether", ELDDemoComponentId, ComponentZoneTether),
+    DEMO_ID("components", "component_shove_off", ELDDemoComponentId, ComponentShoveOff),
+    DEMO_ID("components", "component_finisher", ELDDemoComponentId, ComponentFinisher),
+    DEMO_ID("components", "component_long_handle", ELDDemoComponentId, ComponentLongHandle),
+    DEMO_ID("components", "component_come_here", ELDDemoComponentId, ComponentComeHere),
+    DEMO_ID("components", "component_move_meeting", ELDDemoComponentId, ComponentMoveMeeting),
+    DEMO_ID("components", "component_bottled_up", ELDDemoComponentId, ComponentBottledUp),
+    DEMO_ID("components", "component_spend_fist", ELDDemoComponentId, ComponentSpendFist),
+    DEMO_ID("components", "component_wide_open", ELDDemoComponentId, ComponentWideOpen),
+    DEMO_ID("components", "component_set_it_off", ELDDemoComponentId, ComponentSetItOff),
+    DEMO_ID("components", "component_meet_here", ELDDemoComponentId, ComponentMeetHere),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
@@ -190,6 +211,27 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "skill_lifesteal", ELDDemoEffectOp, SkillLifesteal),
     DEMO_ID("effect_ops", "extra_base", ELDDemoEffectOp, ExtraBase),
     DEMO_ID("effect_ops", "compress_chain", ELDDemoEffectOp, CompressChain),
+DEMO_ID("effect_ops", "cast_hit_refund", ELDDemoEffectOp, CastHitRefund),
+DEMO_ID("effect_ops", "distance_amp", ELDDemoEffectOp, DistanceAmp),
+DEMO_ID("effect_ops", "alternate_amp", ELDDemoEffectOp, AlternateAmp),
+    DEMO_ID("effect_ops", "projectile_return", ELDDemoEffectOp, ProjectileReturn),
+    DEMO_ID("effect_ops", "projectile_pierce", ELDDemoEffectOp, ProjectilePierce),
+    DEMO_ID("effect_ops", "chain_extra", ELDDemoEffectOp, ChainExtra),
+    DEMO_ID("effect_ops", "echo_impact", ELDDemoEffectOp, EchoImpact),
+    DEMO_ID("effect_ops", "hit_haste_other", ELDDemoEffectOp, HitHasteOther),
+    DEMO_ID("effect_ops", "setup_mark", ELDDemoEffectOp, SetupMark),
+    DEMO_ID("effect_ops", "reaction_haste", ELDDemoEffectOp, ReactionHaste),
+    DEMO_ID("effect_ops", "multi_hit_mana", ELDDemoEffectOp, MultiHitMana),
+    DEMO_ID("effect_ops", "zone_tether", ELDDemoEffectOp, ZoneTether),
+    DEMO_ID("effect_ops", "defense_shove", ELDDemoEffectOp, DefenseShove),
+    DEMO_ID("effect_ops", "final_knockback", ELDDemoEffectOp, FinalKnockback),
+    DEMO_ID("effect_ops", "empower_reach", ELDDemoEffectOp, EmpowerReach),
+    DEMO_ID("effect_ops", "pull", ELDDemoEffectOp, Pull),
+    DEMO_ID("effect_ops", "zone_relocate", ELDDemoEffectOp, ZoneRelocate),
+    DEMO_ID("effect_ops", "stored_force", ELDDemoEffectOp, StoredForce),
+    DEMO_ID("effect_ops", "empower_spend", ELDDemoEffectOp, EmpowerSpend),
+    DEMO_ID("effect_ops", "control_widen", ELDDemoEffectOp, ControlWiden),
+    DEMO_ID("effect_ops", "zone_detonate", ELDDemoEffectOp, ZoneDetonate),
 };
 #undef DEMO_ID
 
@@ -833,12 +875,19 @@ constexpr FOpMask WorkshopOps = OpBit(ELDDemoEffectOp::SpreadUnit) | OpBit(ELDDe
     | OpBit(ELDDemoEffectOp::ContactKnockback) | OpBit(ELDDemoEffectOp::ControlMark) | OpBit(ELDDemoEffectOp::Aftershock)
     | OpBit(ELDDemoEffectOp::ControlMana) | OpBit(ELDDemoEffectOp::HealCounter) | OpBit(ELDDemoEffectOp::ReactionEmpower)
     | OpBit(ELDDemoEffectOp::ShieldBurst) | OpBit(ELDDemoEffectOp::SkillLifesteal) | OpBit(ELDDemoEffectOp::ExtraBase)
-    | OpBit(ELDDemoEffectOp::CompressChain);
+    | OpBit(ELDDemoEffectOp::CompressChain) | OpBit(ELDDemoEffectOp::ProjectileReturn) | OpBit(ELDDemoEffectOp::ProjectilePierce)
+    | OpBit(ELDDemoEffectOp::ChainExtra) | OpBit(ELDDemoEffectOp::EchoImpact)
+    | OpBit(ELDDemoEffectOp::HitHasteOther) | OpBit(ELDDemoEffectOp::SetupMark) | OpBit(ELDDemoEffectOp::ReactionHaste)
+    | OpBit(ELDDemoEffectOp::MultiHitMana) | OpBit(ELDDemoEffectOp::ZoneTether) | OpBit(ELDDemoEffectOp::DefenseShove)
+    | OpBit(ELDDemoEffectOp::FinalKnockback) | OpBit(ELDDemoEffectOp::EmpowerReach) | OpBit(ELDDemoEffectOp::Pull)
+    | OpBit(ELDDemoEffectOp::ZoneRelocate) | OpBit(ELDDemoEffectOp::StoredForce) | OpBit(ELDDemoEffectOp::EmpowerSpend)
+    | OpBit(ELDDemoEffectOp::ControlWiden) | OpBit(ELDDemoEffectOp::ZoneDetonate);
 constexpr FOpMask ComponentOnlyOps = OpBit(ELDDemoEffectOp::Ledger) | OpBit(ELDDemoEffectOp::Thorns) | OpBit(ELDDemoEffectOp::Lifesteal)
     | OpBit(ELDDemoEffectOp::DashContactDamage) | OpBit(ELDDemoEffectOp::NthBasicBonus) | OpBit(ELDDemoEffectOp::ControlDamageAmp)
     | OpBit(ELDDemoEffectOp::TriggeredShield) | OpBit(ELDDemoEffectOp::BasicElement) | OpBit(ELDDemoEffectOp::StatBonus)
     | OpBit(ELDDemoEffectOp::BasicDamageScale) | OpBit(ELDDemoEffectOp::LowHpStatBonus) | OpBit(ELDDemoEffectOp::PrimaryGuard)
-    | OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::ActiveElement) | WorkshopOps;
+    | OpBit(ELDDemoEffectOp::IdleReadyAmp) | OpBit(ELDDemoEffectOp::ActiveElement) | OpBit(ELDDemoEffectOp::CastHitRefund)
+    | OpBit(ELDDemoEffectOp::DistanceAmp) | OpBit(ELDDemoEffectOp::AlternateAmp) | WorkshopOps;
 constexpr FOpMask ComponentOps = SharedComponentOps | ComponentOnlyOps;
 
 bool ElementField(const FString& Name, ELDDemoElement& Out)
@@ -1104,8 +1153,9 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
     }
     case ELDDemoEffectOp::TriggeredShield:
         // #147 Damaged: a shield whenever the holder takes damage, then interval of rest (only after a granted shield);
+        // AbilityHit: the same shield whenever a native direct hit of the holder damages an enemy.
         // burst_ratio + burst_radius: that shield broken answers the bodies around with a share of its amount.
-        if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::Damaged})
+        if (!TriggerField(F, Out.Trigger, {ELDDemoEffectTrigger::Damaged, ELDDemoEffectTrigger::AbilityHit})
             || !F.Fixed(TEXT("base"), TEXT("hp"), TEXT("p2"), Out.BaseP2)
             || !F.Fixed(TEXT("max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp, 0, 10000)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
@@ -1405,6 +1455,93 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, bool bComponent, 
     case ELDDemoEffectOp::CompressChain:
         if (!F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
         break;
+    // Skill rules on native direct hits (B13-B15).
+    case ELDDemoEffectOp::CastHitRefund:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::DistanceAmp:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a distance bonus needs a positive distance"))) { return false; }
+        break;
+    case ELDDemoEffectOp::AlternateAmp:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
+        break;
+    // Mods M13-M15: derived host hits.
+    case ELDDemoEffectOp::ProjectileReturn:
+        if (!F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::ProjectilePierce:
+        if (!IntInto(F, TEXT("count"), Out.Count, 1, 5)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::ChainExtra:
+        if (!IntInto(F, TEXT("count"), Out.Count, 1, 5)) { return false; }
+        break;
+    case ELDDemoEffectOp::EchoImpact:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+            || !F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1)) { return false; }
+        break;
+    // Connectors C13-C16.
+    case ELDDemoEffectOp::HitHasteOther:
+    case ELDDemoEffectOp::ReactionHaste:
+        if (!F.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), Out.AmountMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::SetupMark:
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::MultiHitMana:
+        if (!F.Fixed(TEXT("mana"), TEXT("mp"), TEXT("p2"), Out.BaseP2, 1)
+            || !F.Fixed(TEXT("mana_cap"), TEXT("mp"), TEXT("p2"), Out.LimitP2, 1)
+            || !Check.Require(Out.BaseP2 <= Out.LimitP2, Path, TEXT("the per-release mana cap holds one grant"))) { return false; }
+        break;
+    // Mods M16-M20.
+    case ELDDemoEffectOp::ZoneTether:
+        if (!F.Fixed(TEXT("radius_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
+    case ELDDemoEffectOp::DefenseShove:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("shield_ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !Check.Require(Out.DistanceCm.Numerator > 0 && Out.RadiusCm.Numerator > 0, Path, TEXT("a shove needs a positive distance and radius")))
+        { return false; }
+        break;
+    case ELDDemoEffectOp::FinalKnockback:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fixed(TEXT("cost_ratio"), TEXT("ratio"), TEXT("bp"), Out.CostRatioBp, 1, 10000)
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a finisher needs a positive distance"))) { return false; }
+        break;
+    case ELDDemoEffectOp::EmpowerReach:
+        if (!F.Fraction(TEXT("range"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("damage_ratio"), TEXT("ratio"), TEXT("bp"), Out.MultiplierBp, 1, 10000)
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a reach bonus needs a positive range"))) { return false; }
+        break;
+    case ELDDemoEffectOp::Pull:
+        if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fraction(TEXT("min_distance"), TEXT("cm"), Out.RadiusCm, true)
+            || !Check.Require(Out.DistanceCm.Numerator > 0, Path, TEXT("a pull needs a positive distance"))) { return false; }
+        break;
+    // Connectors C17-C21.
+    case ELDDemoEffectOp::ZoneRelocate:
+    case ELDDemoEffectOp::EmpowerSpend:
+        break;
+    case ELDDemoEffectOp::StoredForce:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ControlWiden:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)) { return false; }
+        break;
+    case ELDDemoEffectOp::ZoneDetonate:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)) { return false; }
+        break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
@@ -1601,6 +1738,35 @@ bool Component(const FValue& Value, FLDDemoComponentDefinition& Out, const TArra
     if (Pool.Equals(TEXT("common"), ESearchCase::CaseSensitive)) { Out.Pool = ELDDemoComponentPool::Common; }
     else if (Pool.Equals(TEXT("scarce"), ESearchCase::CaseSensitive)) { Out.Pool = ELDDemoComponentPool::Scarce; }
     else { return Check.Require(false, Path + TEXT(".pool"), TEXT("unknown component pool")); }
+    {
+        static const TCHAR* const TagNames[] = {TEXT("projectile"), TEXT("spell"), TEXT("control"), TEXT("element"), TEXT("area"),
+            TEXT("collision"), TEXT("basic"), TEXT("defense"), TEXT("tempo"), TEXT("ledger")};
+        static_assert(UE_ARRAY_COUNT(TagNames) == int32(ELDDemoComponentTag::Count));
+        const TArray<FValue>* Tags = nullptr;
+        if (!Array(F.Take(TEXT("tags")), Tags, Check, Path + TEXT(".tags"), 1, 3))
+        {
+            return false;
+        }
+        for (const auto& Row : *Tags)
+        {
+            FString Name;
+            if (!String(Row, Name, Check, Path + TEXT(".tags"), 1, 16))
+            {
+                return false;
+            }
+            int32 Found = INDEX_NONE;
+            for (int32 Index = 0; Index < UE_ARRAY_COUNT(TagNames); ++Index)
+            {
+                Found = Name.Equals(TagNames[Index], ESearchCase::CaseSensitive) ? Index : Found;
+            }
+            if (!Check.Require(Found != INDEX_NONE && !Out.Tags.Contains(ELDDemoComponentTag(Found)), Path + TEXT(".tags"),
+                TEXT("unknown or repeated component tag")))
+            {
+                return false;
+            }
+            Out.Tags.Add(ELDDemoComponentTag(Found));
+        }
+    }
     if (F.Has(TEXT("opening")))
     {
         const FValue Opening = F.Take(TEXT("opening"));
@@ -1631,6 +1797,23 @@ bool Component(const FValue& Value, FLDDemoComponentDefinition& Out, const TArra
         }
     }
     FOpMask Mask;
+    if (F.Has(TEXT("draw_requires_actives"))
+        && (!ActiveIds(F.Take(TEXT("draw_requires_actives")), Out.DrawRequiresActives, Abilities, false, Check,
+                Path + TEXT(".draw_requires_actives"))
+            || !Check.Require(Out.Pool == ELDDemoComponentPool::Common, Path,
+                TEXT("only common components are level-up draws, so only they take a draw requirement"))))
+    {
+        return false;
+    }
+    if (F.Has(TEXT("form")))
+    {
+        FString Form;
+        if (!F.Text(TEXT("form"), Form) || !Check.Require(!Form.IsEmpty(), Path + TEXT(".form"), TEXT("a form is a non-empty name")))
+        {
+            return false;
+        }
+        Out.Form = Form;
+    }
     if (!Effects(F.Take(TEXT("effects")), Out.Effects, true, Mask, Check, Path + TEXT(".effects")))
     {
         return false;
@@ -1762,6 +1945,23 @@ bool Components(const FValue& Value, TArray<FLDDemoComponentDefinition>& Out, co
             ELDDemoComponentKind Kind;
             if (!Check.Require(KindOf(Base, Kind) && Kind == ELDDemoComponentKind::Base, Path, TEXT("extra_base names distinct base components")))
             { return false; }
+        }
+        if (!Row.Form.IsEmpty())
+        {
+            int32 Members = 0;
+            bool bOneKind = true;
+            for (const FLDDemoComponentDefinition& Other : Out)
+            {
+                if (Other.Form == Row.Form)
+                {
+                    ++Members;
+                    bOneKind &= Other.Kind == Row.Kind;
+                }
+            }
+            if (!Check.Require(Members >= 2 && bOneKind, Path + TEXT(".form"), TEXT("a form names at least two components of one kind")))
+            {
+                return false;
+            }
         }
         const bool bExtra = Row.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::ExtraBase; });
         if (!Check.Require(bExtra == !Row.ExtraBases.IsEmpty(), Path, TEXT("extra_base and its base list come together"))
@@ -1936,6 +2136,28 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         }
         Out.ActiveOfferLevels.Add(int32(Level));
     }
+    if (!Array(F.Take(TEXT("bonus_component_levels")), Levels, Check, F.Path + TEXT(".bonus_component_levels"), 0, 15))
+    {
+        return false;
+    }
+    for (const auto& Row : *Levels)
+    {
+        int64 Level;
+        if (!Integer(Row, Level, Check, F.Path + TEXT(".bonus_component_levels"), 2, Out.MaxLevel)
+            || !Check.Require(Out.BonusComponentLevels.IsEmpty() || Out.BonusComponentLevels.Last() < Level, F.Path,
+                TEXT("bonus component levels must be distinct and ascending")))
+        {
+            return false;
+        }
+        Out.BonusComponentLevels.Add(int32(Level));
+    }
+    FFields Capacity(Check, F.Take(TEXT("workshop_capacity")), F.Path + TEXT(".workshop_capacity"));
+    if (!Capacity.SmallInt(TEXT("base"), Out.WorkshopCapacityBase, 1, 64)
+        || !Capacity.SmallInt(TEXT("levels_per_slot"), Out.WorkshopCapacityLevelsPerSlot, 1, Out.MaxLevel)
+        || !Capacity.Done())
+    {
+        return false;
+    }
     // #198 B: level-up component category bands cover every level 2..MaxLevel once, ascending; each splits 100 percent.
     const TArray<FValue>* Bands;
     if (!Array(F.Take(TEXT("component_category_weights")), Bands, Check, F.Path + TEXT(".component_category_weights"), 1, 15))
@@ -1978,7 +2200,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
     if (!Identity.Int(TEXT("schema_version"), Revision, 2, 2)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 4, 4)
+        || !Identity.Int(TEXT("handler_revision"), Revision, 6, 6)
         || !Identity.Int(TEXT("projection_revision"), Revision, 6, 6))
     {
         return false;
@@ -1986,7 +2208,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Approval(Check, Identity.Take(TEXT("approval")), TEXT("content.identity.approval"));
     if (!Approval.Text(TEXT("status"), Out.Identity.ApprovalStatus)
         || !Check.Require(Out.Identity.ApprovalStatus.Equals(TEXT("approved"), ESearchCase::CaseSensitive), Approval.Path, TEXT("approval metadata required"))
-        || !Approval.Text(TEXT("decision"), Out.Identity.ApprovalDecision, 1, 1024)
+        || !Approval.Text(TEXT("decision"), Out.Identity.ApprovalDecision, 1, 4096)
         || !Check.Require(!Out.Identity.ApprovalDecision.TrimStartAndEnd().IsEmpty(), Approval.Path, TEXT("empty decision reference"))
         || !Approval.Done() || !Identity.Done()
         || !Parameters(F.Take(TEXT("parameters")), Out.Parameters, Check)
@@ -2236,7 +2458,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 4\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 6\n")
         TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 6\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
@@ -2279,7 +2501,7 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
         || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 2, 2)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 4, 4)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 6, 6)
         || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 6, 6)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)

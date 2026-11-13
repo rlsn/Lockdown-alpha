@@ -404,8 +404,8 @@ bool RunStatPoints(FAutomationTestBase& Test)
             EAttribute::Armor, MakeRational(25), Zero},
         {TEXT("stat_strength"), [](FExpectedAttributes& E) { E.ADP2 = 12380; E.CritChanceBp = 400; },
             EAttribute::AD, MakeRational(25), Zero},
-        {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 5000; E.CooldownHasteP2 = 1000; E.MPRegenPerSec = MakeRational(111, 50); },
-            EAttribute::AP, MakeRational(50), Zero},
+        {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MPRegenPerSec = MakeRational(111, 50); },
+            EAttribute::AP, MakeRational(60), Zero},
         {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(621, 500); E.MoveSpeedCmPerSec = MakeRational(315); },
             EAttribute::AttackSpeed, Zero, MakeRational(1, 5)},
     };
@@ -495,7 +495,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("AD envelope is 118 + 48 x 2.5 with 48 x 0.4% crit"),
         Projection.Final.ADP2 == 23800 && Projection.Final.CritChanceBp == 1920);
     if (!Envelope(TEXT("Brains envelope"), TEXT("stat_brains"), 48)) { return false; }
-    bGood &= Test.TestTrue(TEXT("AP envelope is 48 x 5 with 48 haste"), Projection.Final.APP2 == 24000 && Projection.Final.CooldownHasteP2 == 4800);
+    bGood &= Test.TestTrue(TEXT("AP envelope is 48 x 6 with 48 haste"), Projection.Final.APP2 == 28800 && Projection.Final.CooldownHasteP2 == 4800);
     bGood &= ExpectRational(Test, TEXT("MP regeneration envelope is 2.4 + 48 x 0.03"), Projection.Final.MPRegenPerSec, MakeRational(96, 25));
     if (!Envelope(TEXT("Agility envelope"), TEXT("stat_agility"), 48)) { return false; }
     bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 0.9 x 2.26"), Projection.Final.AttackSpeed, MakeRational(1017, 500));
@@ -504,7 +504,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
 
     // Past level 16 every full 400 XP adds 3 points; the attributes then clamp to their catalog bounds and say so.
     if (!Envelope(TEXT("Brains past the cap"), TEXT("stat_brains"), 78)) { return false; }
-    bGood &= Test.TestTrue(TEXT("AP, haste and MP regeneration clamp to 250, 60 and 4"), Projection.Final.APP2 == 25000
+    bGood &= Test.TestTrue(TEXT("AP, haste and MP regeneration clamp to 300, 60 and 4"), Projection.Final.APP2 == 30000
         && Projection.Final.CooldownHasteP2 == 6000 && Projection.Final.MPRegenPerSec.Numerator == 4 * Projection.Final.MPRegenPerSec.Denominator);
     bGood &= Test.TestTrue(TEXT("The clamped rows say so"), Projection.Contributions[int32(EAttribute::AP)].bClamped
         && Projection.Contributions[int32(EAttribute::CooldownHaste)].bClamped && Projection.Contributions[int32(EAttribute::MPRegen)].bClamped);

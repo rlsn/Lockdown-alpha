@@ -160,14 +160,14 @@ def content_fixture():
     # Synthetic #198 B components in native ID order: an always-opening burn, a conditional opening, a dash-armed empowered
     # basic and the active/element binding.
     components = [
-        {"id": "component_fist_fire", "kind": "base", "pool": "common", "opening": "always",
+        {"id": "component_fist_fire", "kind": "base", "pool": "common", "tags": ["basic", "element"], "opening": "always",
          "effects": [{"op": "burn", "basic_stacks": 2}]},
-        {"id": "component_kick_down", "kind": "base", "pool": "common", "opening": {"actives": ["active_pants_down"]},
+        {"id": "component_kick_down", "kind": "base", "pool": "common", "tags": ["control"], "opening": {"actives": ["active_pants_down"]},
          "effects": [{"op": "control_damage_amp", "ratio": q("ratio", 0.1)}]},
-        {"id": "component_dash_punch", "kind": "base", "pool": "common",
+        {"id": "component_dash_punch", "kind": "base", "pool": "common", "tags": ["basic", "collision"],
          "effects": [{"op": "empower_basic", "trigger": "DashComplete", "base": q("points", 6), "ad_ratio": q("ratio", 0.125),
                       "ap_ratio": q("ratio", 0), "damage_type": "Physical", "duration": q("s", 1.5), "charges": 1}]},
-        {"id": "component_dirty_trick", "kind": "base", "pool": "common", "opening": {"actives": ["active_snark_bolt"]},
+        {"id": "component_dirty_trick", "kind": "base", "pool": "common", "tags": ["spell", "element"], "opening": {"actives": ["active_snark_bolt"]},
          "binding": {"kind": "active_element", "actives": ["active_snark_bolt", "active_pants_down"], "elements": ["fire", "water"]},
          "effects": [{"op": "active_element"}]},
     ]
@@ -214,7 +214,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
     next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 2, "handler_revision": 4, "projection_revision": 6,
+        "identity": {"schema_version": 2, "handler_revision": 6, "projection_revision": 6,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
@@ -223,6 +223,8 @@ def content_fixture():
         "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
                         "active_offer_levels": [4, 9],
+                        "bonus_component_levels": [2, 4, 6, 8, 10, 12, 14, 16],
+                        "workshop_capacity": {"base": 5, "levels_per_slot": 2},
                         "component_category_weights": [{"levels": [2, 8], "base": 60, "mod": 20, "connector": 20},
                                                        {"levels": [9, 16], "base": 30, "mod": 30, "connector": 40}]},
         "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture",

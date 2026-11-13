@@ -26,6 +26,11 @@ SUPPLY = 600
 STATS = ("stat_physique", "stat_thick_skin", "stat_strength", "stat_brains", "stat_agility")
 
 
+# Supply to level 6: two draws on bonus levels 2, 4 and 6, one on 3 and 5 (progression.bonus_component_levels).
+LEVEL6_DRAW_LEVELS = (2, 2, 3, 4, 4, 5, 6, 6)
+LEVEL6_GRANTS = ("component_punch_heal", "component_breath_strike", "component_fist_water", "component_fist_shock",
+                 "component_blast_chase", "component_hard_skin", "component_catch_breath", "component_kick_down")
+
 def stat_points(*points):
     return [{"id": stat, "points": value} for stat, value in zip(STATS, points)]
 
@@ -106,6 +111,8 @@ def trace(*extra, drop=()):
         ("s_choice1", choice(33, S, 1, "active_elbow", "learned", "Q", "-", 1, 0)),
         ("o_choice1", choice(33, O, 1, "active_open_mic", "learned", "Q", "-", 1, 0)),
         ("field", "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"),
+        ("s_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={S} life=2 pos=100,0,0"),
+        ("o_spawn", f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={O} life=2 pos=-100,5,0"),
         ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "),
         ("s_level", f"LD_LEVEL_UP t=5016 contender={S} level=1->6 choices_earned=2 unspent_points=5"),
         ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "),
@@ -238,13 +245,15 @@ class CapabilitiesTest(AdapterCase):
                          "B18 binds an active and an element")
         self.assertEqual(self.caps["content"]["components"], len(components))
         self.assertEqual(set(self.caps["decisions"]),
-                         {"ai_select", "option_index", "definition", "preset_offer", "choose_opening_base", "allocate_points",
-                          "install_component", "uninstall_component", "respec_points", "learn_blueprint", "replace_active"})
+                         {"ai_select", "option_index", "definition", "preset_offer", "preset_level_components",
+                          "choose_opening_base", "allocate_points", "install_component", "uninstall_component",
+                          "respec_points", "learn_blueprint", "replace_active"})
         self.assertTrue(all(row["description"] for row in self.caps["decisions"].values()))
         for decision, reason in lockdown.UNPLANNABLE.values():
             self.assertNotIn(decision, self.caps["decisions"], "NPC, forget, FillGap, Dismantle and elite choices are never plannable")
             self.assertTrue(reason)
         self.assertEqual(self.caps["decisions"]["preset_offer"]["sample_classes"], ["diagnostic"])
+        self.assertEqual(self.caps["decisions"]["preset_level_components"]["sample_classes"], ["diagnostic"])
         duel = self.caps["scenarios"]["duel_site"]
         self.assertIn("capture", duel["parameters"]["site"])
         self.assertEqual(duel["parameters"]["duel_timeout_ms"][1],
@@ -372,6 +381,49 @@ class PlanTest(AdapterCase):
         self.assertIn("UnsupportedMechanic: component_unknown is not in the adapter's runtime catalog",
                       {case["arm"]: case["reason"] for case in cases}["t"])
 
+    def test_level_component_presets_are_conditional_and_use_only_earned_distinct_common_grants(self):
+        grants = list(LEVEL6_GRANTS)
+        subject = {"choices": ["ai_select"] * 3, "level_components": grants}
+        needs = self.requirements(subject)
+        self.assertEqual(needs["problems"], [])
+        self.assertIn("preset_level_components", needs["decisions"])
+        cases, native_written = self.plan_cases(subject, sample="diagnostic")
+        self.assertEqual({case["status"] for case in cases}, {"NotRun"})
+        self.assertTrue(native_written)
+        cases, _ = self.plan_cases(subject, sample="legal_search")
+        self.assertTrue(all(case["status"] == "Unsupported" for case in cases))
+        self.assertIn("diagnostic", {case["arm"]: case["reason"] for case in cases}["t"])
+        for invalid, reason in ((grants[:-1], "8"),
+                                (grants[:-1] + ["component_dirty_fist"], "scarce")):
+            with self.subTest(grants=invalid):
+                problems = self.requirements({**subject, "level_components": invalid})["problems"]
+                self.assertTrue(any(reason in item.lower() for item in problems), problems)
+        with self.assertRaisesRegex(ValueError, "distinct"):
+            self.requirements({**subject, "level_components": [grants[0]] * len(grants)})
+
+    def test_level_component_preset_refuses_an_install_not_in_the_fixed_inventory(self):
+        subject = {"choices": ["ai_select"] * 3,
+                   "level_components": ["component_fist_fire", *LEVEL6_GRANTS[1:]],
+                   "build": [{"step": "install", "at": "field", "component": "component_punch_heal"},
+                             {"step": "allocate_points", "at": "field", "points": {"stat_strength": 18}}]}
+        problems = self.requirements(subject)["problems"]
+        self.assertTrue(any("component_punch_heal" in item and "preset" in item for item in problems), problems)
+
+    def test_level_component_preset_rejects_an_opening_duplicate_and_a_zero_weight_category(self):
+        grants = list(LEVEL6_GRANTS)
+        subject = {"choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
+                   "level_components": grants,
+                   "build": [{"step": "opening_base", "at": "opening_rest", "component": "component_punch_heal"},
+                             {"step": "allocate_points", "at": "field", "points": {"stat_strength": 18}}]}
+        self.assertTrue(any("already owned" in item for item in self.requirements(subject)["problems"]))
+        caps = copy.deepcopy(self.caps)
+        band = next(row for row in caps["scenarios"]["duel_site"]["parameters"]["component_category_weights"]
+                    if row["levels"][0] <= 2 <= row["levels"][1])
+        band["base"] = 0
+        value = manifest(subject={"choices": ["ai_select"] * 3, "level_components": grants}, sample="diagnostic")
+        needs = lockdown.requirements(value["scenario"], value["design"]["arms"][1]["plan"], caps)
+        self.assertTrue(any("component_punch_heal" in item and "level 2" in item for item in needs["problems"]))
+
     def test_workshop_plans_duel_site_cannot_carry_out_are_illegal(self):
         content = self.content
         opening = [row["id"] for row in content["abilities"] if row.get("opening")]
@@ -484,6 +536,24 @@ class PlanTest(AdapterCase):
             cases, _ = self.plan_cases(subject, sample)
             self.assertEqual({case["status"] for case in cases if case["arm"] == "t"}, {expected})
 
+    def test_fixed_opening_prevents_later_presets_from_reoffering_an_owned_active(self):
+        subject = {"choices": [{"rule": "definition", "definition": "active_elbow"},
+                               {"rule": "definition", "definition": "active_flyer_trap"},
+                               {"rule": "definition", "definition": "active_not_mad"}],
+                   "opening_preset": ["active_elbow"],
+                   "presets": [["active_flyer_trap"], ["active_not_mad"]]}
+        cases, written = self.plan_cases(subject, "diagnostic")
+        self.assertTrue(written)
+        self.assertEqual({case["status"] for case in cases}, {"NotRun"})
+        cases, _ = self.plan_cases(subject, "legal_search")
+        self.assertEqual({case["status"] for case in cases if case["arm"] == "t"}, {"Unsupported"})
+        native = lockdown.native_input("run-1", manifest(subject=subject, sample="diagnostic"), self.caps,
+                                       [{"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}])
+        self.assertEqual(native["cases"][0]["contenders"][0]["opening_preset"], ["active_elbow"])
+        subject["presets"][1].append("active_elbow")
+        problems = self.requirements(subject)["problems"]
+        self.assertTrue(any("active_elbow" in problem and "already" in problem for problem in problems), problems)
+
     def test_native_input_swaps_sides_and_keeps_exact_seeds(self):
         value = manifest(subject={"choices": ["ai_select", {"rule": "option_index", "index": 2},
                                               {"rule": "definition", "definition": "active_not_mad"}],
@@ -493,18 +563,22 @@ class PlanTest(AdapterCase):
                  {"case_id": "c000b-t", "seed": "18446744073709551615", "arm": "t", "side": 1}]
         native = lockdown.native_input("run-1", value, self.caps, cases)
         self.assertEqual((native["schema"], native["schema_version"], native["content_root"]),
-                         (lockdown.NATIVE_INPUT_SCHEMA, 3, self.caps["content"]["digest"]))
+                         (lockdown.NATIVE_INPUT_SCHEMA, 5, self.caps["content"]["digest"]))
         first, second = native["cases"]
         self.assertEqual(set(first), {"case_id", "seed", "site", "duel_timeout_ms", "wall_timeout_s", "contenders"})
         self.assertEqual(first["seed"], "18446744073709551615")
         self.assertEqual([(row["role"], row["slot"]) for row in first["contenders"]], [("subject", 0), ("opponent", 1)])
         self.assertEqual([(row["role"], row["slot"]) for row in second["contenders"]], [("subject", 1), ("opponent", 0)])
         subject, opponent = first["contenders"]
-        self.assertEqual(set(subject), {"role", "slot", "supply_xp", "choices", "presets", "build"}, "the native contender keys")
+        self.assertEqual(set(subject), {"role", "slot", "supply_xp", "choices", "opening_preset", "presets",
+                                        "level_components", "build"},
+                         "the native contender keys")
         self.assertEqual(subject["supply_xp"], SUPPLY)
         self.assertEqual(subject["choices"], [{"rule": "ai_select"}, {"rule": "option_index", "index": 2},
                                               {"rule": "definition", "definition": "active_not_mad"}])
         self.assertEqual(subject["presets"], [["active_not_mad", "active_seethe"]])
+        self.assertEqual(subject["opening_preset"], [])
+        self.assertEqual(subject["level_components"], [])
         self.assertEqual((opponent["choices"], opponent["presets"], opponent["build"]), ([{"rule": "ai_select"}] * 3, [], []))
         self.assertEqual(subject["build"], [], "without a build list the production rule builds")
         self.assertEqual(first["wall_timeout_s"], 120)
@@ -513,8 +587,132 @@ class PlanTest(AdapterCase):
         self.assertEqual(native["cases"][0]["contenders"][0]["build"], WORKSHOP["build"],
                          "the planned steps reach the native driver unchanged and in order")
 
+    def test_kite_stance_reaches_native_only_when_planned(self):
+        kite = {"choices": ["ai_select"] * 3, "stance": {"kind": "kite", "standoff_cm": 600}}
+        case = [{"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}]
+        native = lockdown.native_input("run-1", manifest(subject=kite, sample="diagnostic"), self.caps, case)
+        subject, opponent = native["cases"][0]["contenders"]
+        self.assertEqual(subject["stance"], {"kind": "kite", "standoff_cm": 600})
+        self.assertNotIn("stance", opponent, "pursue is spelled by omission so old inputs stay byte-identical")
+        for invalid in ({"kind": "pursue", "standoff_cm": 600}, {"kind": "kite", "standoff_cm": 100},
+                        {"kind": "kite", "standoff_cm": 2001}, {"kind": "kite"}, {"kind": "kite", "standoff_cm": True},
+                        {"kind": "kite", "standoff_cm": 600, "extra": 1},
+                        {"kind": "guard", "standoff_cm": 600}, {"kind": "kite", "standoff_cm": 600, "threshold_bp": 3000},
+                        {"kind": "guard", "standoff_cm": 600, "threshold_bp": 9001},
+                        {"kind": "hold", "standoff_cm": 600, "leash_cm": 499}):
+            with self.subTest(stance=invalid), self.assertRaises(ValueError):
+                lockdown.native_input("run-1", manifest(subject={**kite, "stance": invalid}, sample="diagnostic"),
+                                      self.caps, case)
+        for valid in ({"kind": "burst", "standoff_cm": 700, "leash_cm": 1200}, {"kind": "hold", "standoff_cm": 600},
+                      {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500}):
+            with self.subTest(stance=valid):
+                native = lockdown.native_input("run-1", manifest(subject={**kite, "stance": valid}, sample="diagnostic"),
+                                               self.caps, case)
+                self.assertEqual(native["cases"][0]["contenders"][0]["stance"], valid)
+
+    def test_operation_knobs_reach_native_with_any_stance(self):
+        case = [{"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}]
+        for valid in ({"kind": "kite", "standoff_cm": 450, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500},
+                      {"kind": "pursue", "reaction_ms": 150}, {"kind": "pursue", "aim_error_cm": 0},
+                      {"kind": "guard", "standoff_cm": 600, "threshold_bp": 3500, "skip_bp": 9000, "reaction_ms": 1500,
+                       "aim_error_cm": 400}):
+            with self.subTest(stance=valid):
+                plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": valid}, sample="diagnostic")
+                native = lockdown.native_input("run-1", plan, self.caps, case)
+                self.assertEqual(native["cases"][0]["contenders"][0]["stance"], valid)
+        for invalid in ({"kind": "kite", "standoff_cm": 450, "reaction_ms": 1501},
+                        {"kind": "kite", "standoff_cm": 450, "aim_error_cm": -1},
+                        {"kind": "kite", "standoff_cm": 450, "skip_bp": 9001},
+                        {"kind": "kite", "standoff_cm": 450, "skip_bp": True},
+                        {"kind": "kite", "standoff_cm": 450, "reaction_ms": 800.0},
+                        {"kind": "pursue"}, {"kind": "pursue", "reaction_ms": 150, "standoff_cm": 600},
+                        {"kind": "pursue", "reaction_ms": 150, "leash_cm": 600}):
+            with self.subTest(stance=invalid), self.assertRaises(ValueError):
+                plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": invalid}, sample="diagnostic")
+                lockdown.native_input("run-1", plan, self.caps, case)
+
 
 class EvidenceTest(AdapterCase):
+    def test_operation_knobs_are_facts_and_must_reach_the_native_profile(self):
+        stance = {"kind": "kite", "standoff_cm": 450, "reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500}
+        plan = manifest(subject={"choices": ["ai_select"] * 3, "stance": stance}, sample="diagnostic")
+        begin = f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"
+        line = (f"LD_EVAL_PROFILE contender={S} rival={O} site=capture choices=3 "
+                f"reaction_ms=800 aim_error_cm=200 skip_bp=3500")
+        text = trace().replace(begin, begin + "\n" + line)
+        out = self.evidence(text=text, plan_manifest=plan)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["facts"]["operation"], {
+            "subject": {"reaction_ms": 800, "aim_error_cm": 200, "skip_bp": 3500},
+            "opponent": {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0}})
+        for invalid in (trace(), text.replace("skip_bp=3500", "skip_bp=0"), text.replace(line, line + "\n" + line)):
+            with self.subTest(text=invalid[:0]):
+                out = self.evidence(text=invalid, plan_manifest=plan)
+                self.assertEqual(out["status"], "Invalid")
+                self.assertIn("Setup: the subject operation knobs did not reach the native profile", out["reason"])
+        self.assertEqual(self.evidence()["facts"]["operation"]["subject"],
+                         {"reaction_ms": 0, "aim_error_cm": 0, "skip_bp": 0}, "no knobs is exact play")
+
+    def test_actual_field_spawn_is_not_the_first_opening_rest_heartbeat(self):
+        rest = heartbeat(100, S, "6900,-500,2") + "\n" + heartbeat(100, O, "7300,-500,2")
+        field = "LD_FIELD_ENTER generation=2 segment=0 at_ms=5000 field_t_ms=0 final=0"
+        spawn = (f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={S} life=2 pos=-4400,2400,102\n"
+                 f"LD_EVAL_FIELD_SPAWN t=5000 generation=2 contender={O} life=2 pos=-2400,4400,102")
+        text = trace(drop=("s_spawn", "o_spawn")).replace(field, rest + "\n" + field + "\n" + spawn)
+        out = self.evidence(text=text)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["facts"]["spawn"], {"subject": "-4400,2400,102", "opponent": "-2400,4400,102"})
+        for invalid in (text.replace(spawn.splitlines()[0] + "\n", ""),
+                        text.replace("life=2 pos=-4400", "life=0 pos=-4400"),
+                        text.replace("t=5000 generation=2 contender=" + S, "t=4999 generation=2 contender=" + S)):
+            self.assertIn("field spawn", self.evidence(text=invalid)["reason"].lower())
+
+    def test_opening_preset_requires_both_staging_and_the_matching_offer(self):
+        subject = {"choices": [{"rule": "definition", "definition": "active_elbow"}, "ai_select", "ai_select"],
+                   "opening_preset": ["active_elbow"]}
+        plan = manifest(subject=subject, sample="diagnostic")
+        original = f"LD_OFFER t=0 contender={S} ordinal=1 level=1 cards=active_elbow,active_open_mic,active_unplug"
+        fixed = f"LD_OFFER t=0 contender={S} ordinal=1 level=1 cards=active_elbow"
+        staged = f"LD_EVAL_OPENING_PRESET contender={S} cards=active_elbow"
+        text = trace().replace(original, staged + "\n" + fixed)
+        out = self.evidence(text=text, plan_manifest=plan)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertIn("PresetNotApplied", self.evidence(text=text.replace(staged + "\n", ""), plan_manifest=plan)["reason"])
+        self.assertIn("PresetNotApplied", self.evidence(text=text.replace(fixed, original), plan_manifest=plan)["reason"])
+
+    def test_level_component_preset_requires_ordered_staging_grants_and_terminal_provenance(self):
+        grants = list(LEVEL6_GRANTS)
+        subject = {"choices": ["ai_select"] * 3, "level_components": grants}
+        plan = manifest(subject=subject, sample="diagnostic")
+        value = result()
+        value["contenders"][0]["components"] = [
+            {**component(name), "source_level": level} for level, name in zip(LEVEL6_DRAW_LEVELS, grants)]
+        joined = ",".join(grants)
+        stage = f"LD_EVAL_COMPONENT_PRESET t=5005 contender={S} ticket=1 components={joined}"
+        reward = f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=600 xp_after=600 level=1->6 "
+        old_grant = f"LD_LEVEL_UP t=5016 contender={S} level=1->6 choices_earned=2 unspent_points=5"
+        grant = old_grant + f" components={joined} empty_pool_grants=0"
+        text = trace().replace(reward, stage + "\n" + reward).replace(old_grant, grant)
+        out = self.evidence(value, text, plan)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["facts"]["component_presets"]["subject"][0]["components"], joined)
+        variants = [
+            text.replace(stage + "\n", ""),
+            text.replace(stage, stage + "\n" + stage),
+            text.replace(stage + "\n", "").replace(grant, grant + "\n" + stage),
+            text.replace("t=5005 contender=" + S, "t=6000 contender=" + S),
+            text.replace(grant, old_grant + f" components={','.join(reversed(grants))} empty_pool_grants=0"),
+        ]
+        for invalid in variants:
+            with self.subTest(trace=invalid):
+                self.assertIn("PresetNotApplied", self.evidence(value, invalid, plan)["reason"])
+        altered = copy.deepcopy(value)
+        altered["contenders"][0]["components"][2]["source_level"] = 2
+        self.assertIn("provenance", self.evidence(altered, text, plan)["reason"])
+        altered["contenders"][0]["components"].pop()
+        self.assertIn("provenance", self.evidence(altered, text, plan)["reason"])
+        self.assertIn("unplanned level-component", self.evidence(text=trace(stage))["reason"])
+
     def test_first_field_is_duel_clock_origin_after_opening_rest(self):
         out = self.evidence(text=trace())
         self.assertEqual(out["status"], "Completed", out["reason"])
@@ -585,6 +783,27 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(out["status"], "Completed", out["reason"])
         self.assertEqual(out["metrics"]["duel_score"], {"value": 0, "censored": True})
         self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 45000, "censored": True})
+
+    def test_simultaneous_reciprocal_kills_are_an_observed_trade_not_a_win_or_timeout(self):
+        value = result(kind="trade")
+        value["outcome"]["t_ms"] = 15000
+        value["contenders"][0] = contender("subject", 0, S, hp=0, body=False)
+        reciprocal_hit = hit(20000, O, S, "580.00", "0.00", "580.00", "580.00", "0.00")
+        reciprocal_death = (f"LD_DEATH_RECEIPT contender={S} life=1 respawn_at_ms=35000 t=20000 "
+                            f"killer={O} cause=Contender fatal=basic fatal_body={O} assisters=- no_reward=None victim_level=6")
+        reciprocal_reward = (f"LD_REWARD t=20000 contender={O} cause=death role=killer xp=140 xp_after=740 level=6->6 "
+                             f"victim={S} victim_life=1 victim_kind=contender")
+        text = trace(reciprocal_hit, reciprocal_death, reciprocal_reward)
+        out = self.evidence(value, text)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["metrics"]["duel_score"], {"value": 0, "censored": False})
+        self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 15000, "censored": False})
+        for invalid in (text.replace(reciprocal_death + "\n", ""),
+                        text.replace(reciprocal_hit, reciprocal_hit.replace("t=20000", "t=20001"))):
+            self.assertEqual(self.evidence(value, invalid)["status"], "Invalid")
+        note = next(line for line in lockdown.limitations(manifest(), self.caps) if "duel_score 为 0" in line)
+        self.assertIn("outcome.kind=trade", note)
+        self.assertIn("不删失", note, "the report must not call a simultaneous trade timeout censoring")
 
     def test_non_supply_rewards_at_the_outcome_boundary_are_uncontrolled(self):
         timeout = result(kind="timeout", ended_at_ms=50000)
@@ -1039,6 +1258,55 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertFalse(any("t=25000" in line for line in events), "events after the Case's end are not compared")
         self.assertEqual(spatial["opponent@6000"], (-100.0, 5.0, 0.0))
         self.assertNotIn("subject@21000", spatial)
+
+    @staticmethod
+    def swapped(text, first, second):
+        lines = text.splitlines()
+        a = next(i for i, line in enumerate(lines) if line.startswith(first))
+        b = next(i for i, line in enumerate(lines) if line.startswith(second))
+        lines[a], lines[b] = lines[b], lines[a]
+        return "\n".join(lines) + "\n"
+
+    def test_canonical_events_accept_engine_order_of_independent_same_tick_preparation(self):
+        base, _ = lockdown.canonical_events(trace(), result())
+        for first, second in ((f"LD_OFFER t=5016 contender={S}", f"LD_OFFER t=5016 contender={O}"),
+                              (f"LD_CHOICE t=33 contender={S}", f"LD_CHOICE t=33 contender={O}"),
+                              (f"LD_BUILD t=5300 contender={S}", f"LD_BUILD t=5300 contender={O}")):
+            events, _ = lockdown.canonical_events(self.swapped(trace(), first, second), result())
+            self.assertEqual(events, base, first)
+        relative, _ = lockdown.canonical_events(trace().replace("generation=2", "generation=7"), result(generation=7))
+        self.assertEqual(relative, base, "the process-wide match generation is relative to the Case")
+        self.assertTrue(any("generation=case" in line for line in base))
+
+    def test_canonical_events_keep_every_causal_or_cross_tick_order(self):
+        base, _ = lockdown.canonical_events(trace(), result())
+        same_tick_hits = trace(hit(12000, S, O, "1.00", "0.00", "1.00", "520.00", "519.00"),
+                               hit(12000, O, S, "2.00", "0.00", "2.00", "580.00", "578.00"))
+        hits, _ = lockdown.canonical_events(same_tick_hits, result())
+        swapped_hits, _ = lockdown.canonical_events(
+            self.swapped(same_tick_hits, f"LD_HIT t=12000 src={S}", f"LD_HIT t=12000 src={O}"), result())
+        self.assertNotEqual(hits, swapped_hits, "combat events at one tick keep their authority order")
+        own = trace().replace(f"LD_BUILD t=5300 contender={O}",
+                              build_line(5300, "InstallComponent", "component_long_kick", installed="1", level=6)
+                              + f"\nLD_BUILD t=5300 contender={O}")
+        own_events, _ = lockdown.canonical_events(own, result())
+        own_swapped, _ = lockdown.canonical_events(
+            self.swapped(own, f"LD_BUILD t=5300 contender={S} kind=AllocatePoints", f"LD_BUILD t=5300 contender={S} kind=InstallComponent"),
+            result())
+        self.assertNotEqual(own_events, own_swapped, "one contender's own commands keep their order")
+        across, _ = lockdown.canonical_events(
+            self.swapped(trace(), f"LD_CHOICE t=5283 contender={O}", f"LD_BUILD t=5300 contender={S}"), result())
+        self.assertNotEqual(across, base, "commands at different ticks are never reordered")
+        foreign, _ = lockdown.canonical_events(trace().replace("LD_EVAL_FIELD_SPAWN t=5000 generation=2",
+                                                               "LD_EVAL_FIELD_SPAWN t=5000 generation=3"), result())
+        self.assertNotEqual(foreign, base, "another match's generation is still a difference")
+        interleaved = trace().replace(
+            f"LD_BUILD t=5300 contender={O}",
+            hit(5300, S, O, "1.00", "0.00", "1.00", "620.00", "619.00") + f"\nLD_BUILD t=5300 contender={O}")
+        split, _ = lockdown.canonical_events(interleaved, result())
+        split_swapped, _ = lockdown.canonical_events(
+            self.swapped(interleaved, f"LD_BUILD t=5300 contender={S}", f"LD_BUILD t=5300 contender={O}"), result())
+        self.assertNotEqual(split, split_swapped, "a combat event between commands ends the reorderable run")
 
     def test_replay_evidence_contains_terminal_build_and_heartbeat_resources(self):
         run = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": lockdown.NATIVE_RESULT_SCHEMA_VERSION,

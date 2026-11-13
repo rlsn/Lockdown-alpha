@@ -131,6 +131,32 @@ bool ALDCombatDirector::IdleReadyAmpBp(const FLDBodyCombatState& Body, const FLD
     return true;
 }
 
+bool ALDCombatDirector::AlternateAmpBp(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs, int64& OutBp,
+    FString& Error) const
+{
+    OutBp=0;
+    Error.Reset();
+    if (Source.Kind!=ELDCombatSourceKind::Learned || Body.LastActiveRelease.IsNone() || Body.LastActiveRelease==Source.DefinitionId
+        || NowMs<Body.LastActiveReleaseAtMs)
+    { return true; }
+    TArray<FLDPassiveEffectRef> Amps;
+    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::AlternateAmp,Amps,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Amps)
+    {
+        if (Ref.Effect.DurationMs<=0 || Ref.Effect.RatioBp<0)
+        { Error=FString::Printf(TEXT("alternate_amp of %s needs a positive window and a nonnegative ratio."),*Ref.Key); return false; }
+        if (NowMs-Body.LastActiveReleaseAtMs<=Ref.Effect.DurationMs) { OutBp+=Ref.Effect.RatioBp; }
+    }
+    return true;
+}
+
+void ALDCombatDirector::NoteActiveRelease(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, int64 NowMs)
+{
+    if (Source.Kind!=ELDCombatSourceKind::Learned) { return; }
+    Body.LastActiveRelease=Source.DefinitionId;
+    Body.LastActiveReleaseAtMs=NowMs;
+}
+
 bool ALDCombatDirector::MakeEmpower(const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
     const FLDDemoEffectDefinition& Effect, const FGuid& EffectId, int64 NowMs, FLDCombatEmpower& Out, FString& Error) const
 {
@@ -180,6 +206,54 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             ++Body.StateRevision;
             MarkViewChanged(Body.Victim.EntityId);
         }
+        if (!RelocateArea(Body,Dash.Source,FootOf(*Actor),NowMs,Error)) { return false; }
     }
+    return true;
+}
+
+bool ALDCombatDirector::RelocateArea(FLDBodyCombatState& Body, const FLDCombatSourceRef& Host, const FVector& Foot, int64 NowMs,
+    FString& Error)
+{
+    TArray<FLDPassiveEffectRef> Moves;
+    if (!WorkshopOn(Body.AttributeProjection,ELDDemoEffectOp::ZoneRelocate,Host,Moves,Error)) { return false; }
+    if (Moves.IsEmpty()) { return true; }
+    // C17 (dash end) and C22 (host hit): the most recent live zone (never a tethered one) or armed, untriggered trap of this body, once in its life.
+    FLDCombatZone* Zone=nullptr;
+    FLDCombatGroundEffect* Trap=nullptr;
+    uint64 Newest=0;
+    for (FLDCombatZone& Row : Zones)
+    {
+        if (Row.SourceEntity!=Body.Victim.EntityId || Row.bTether || Row.bRelocated || Row.EndMs<=NowMs || Row.CreatedSerial<=Newest) { continue; }
+        Newest=Row.CreatedSerial;
+        Zone=&Row;
+    }
+    for (FLDCombatGroundEffect& Row : GroundEffects)
+    {
+        if (!Row.bTrap || Row.bTriggered || Row.bRelocated || Row.ExpiresAtMs<=NowMs || Row.Payload.SourceEntity!=Body.Victim.EntityId
+            || Row.CreatedSerial<=Newest)
+        { continue; }
+        Newest=Row.CreatedSerial;
+        Trap=&Row;
+        Zone=nullptr;
+    }
+    FVector From=FVector::ZeroVector;
+    if (Trap)
+    {
+        From=Trap->CentreCm;
+        Trap->CentreCm=Foot;
+        Trap->bRelocated=true;
+    }
+    else if (Zone)
+    {
+        From=Zone->CentreCm;
+        Zone->CentreCm=Foot;
+        Zone->bRelocated=true;
+    }
+    else { return true; }
+    MarkViewChanged(Body.Victim.EntityId);
+    LedgerComponentTriggered(Body,Moves[0].Source.DefinitionId);
+    UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_ZONE_RELOCATE t=%lld holder=%s via=%s what=%s from=%s to=%s"),NowMs,
+        *LDLog::Id(Body.Victim.EntityId),*LDLog::Source(Host),Trap ? TEXT("trap") : TEXT("zone"),*From.ToCompactString(),
+        *Foot.ToCompactString());
     return true;
 }

@@ -208,8 +208,17 @@ namespace LDProgression
     // known actives in distinct slots 0..2, distinct known blueprints sorted by id that are not learned, and distinct known
     // components sorted by id whose source, history and install target are legal (installed implies ever installed; an
     // inventory instance has no target; an install has the shape its definition takes and sits only on a learned active, an
-    // installed host and an installed repeated base).
+    // installed host and an installed repeated base), at most LevelComponentDraws level-up instances per level, and no more
+    // installs than WorkshopCapacity of its level.
     LOCKDOWN_API ELDGrowthReason ValidateBuild(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // Workshop capacity at Level: progression.workshop_capacity base + floor((Level - 1) / levels_per_slot). Every installed
+    // base, mod and connector takes one slot; 0 for a broken table.
+    LOCKDOWN_API int32 WorkshopCapacity(const FLDDemoProgressionDefinition& Progression, uint8 Level);
+    LOCKDOWN_API int32 InstalledComponents(const FLDGrowthBuild& Build);
+    // Ordinary component draws of the normal level-up to Level: one, two on a progression.bonus_component_levels level.
+    LOCKDOWN_API uint8 LevelComponentDraws(const FLDDemoProgressionDefinition& Progression, uint8 Level);
+    // Level-up draws of every level 2..Level, the bound on exhausted-pool grants.
+    LOCKDOWN_API int32 LevelComponentDrawsThrough(const FLDDemoProgressionDefinition& Progression, uint8 Level);
 
     // The actives opportunity Ordinal may draw for Build, in catalog order: the opening pool (abilities flagged opening)
     // for ordinal 1, every active afterwards (level and NPC opportunities alike); learned actives and pending blueprints
@@ -293,16 +302,22 @@ namespace LDProgression
     // ---- #198 B components ----
 
     // The component of one normal level-up to Level (2..MaxLevel): a category rolled by the progression
-    // component_category_weights band of Level, then a uniform pick among the unowned Common definitions of that kind in
-    // catalog order. A category without such a definition is dropped and the others keep their relative weights.
+    // component_category_weights band of Level, then a uniform pick in catalog order among the unowned Common definitions of
+    // that kind the build can host now: a base (a B18 binding base only with one of its binding actives learned), or a mod or
+    // connector listing self, the innate D, a learned active or an owned component as a target (and owning one of its
+    // ExtraBases when it takes one), and with one of its DrawRequiresActives learned when it lists any. A category without such
+    // a definition is dropped and the others keep their relative weights.
     // OutComponent is None when every category is empty (the caller grants GROWTH.EmptyComponentPoolPoints instead).
-    // Deterministic in Seed; DataInvalid for a level outside 2..MaxLevel or a broken band table, never an "empty" pool.
+    // Deterministic in Seed; DataInvalid for a level outside 2..MaxLevel or a broken band table (unowned definitions left
+    // only in categories the band never rolls), never an "empty" pool.
     LOCKDOWN_API ELDGrowthReason DrawLevelComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, uint8 Level,
         uint64 Seed, FName& OutComponent);
-    // Private per-level random material of the component roll, distinct from OfferSeed of the same number.
-    LOCKDOWN_API uint64 ComponentSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Level);
-    // Every normal level-up LevelBefore+1..LevelAfter in order draws its component into Out (Source LevelUp, inventory);
-    // an exhausted pool adds one to OutEmptyPoolGrants instead. OutGrants lists each level's result (None = points).
+    // Private per-level random material of the component roll, distinct from OfferSeed of the same number. Draw 0 keeps the
+    // original first roll; draw 1 is a bonus level's second roll.
+    LOCKDOWN_API uint64 ComponentSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Level, uint8 Draw = 0);
+    // Every normal level-up LevelBefore+1..LevelAfter in order draws its LevelComponentDraws components into Out (Source
+    // LevelUp, inventory), each from the pool left by the previous draw; an exhausted pool adds one to OutEmptyPoolGrants
+    // instead. OutGrants lists each draw's result (None = points).
     LOCKDOWN_API ELDGrowthReason GrantLevelComponents(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         uint8 LevelBefore, uint8 LevelAfter, const FGuid& MatchSecret, const FGuid& Contender, FLDGrowthBuild& Out,
         uint8& OutEmptyPoolGrants, TArray<FLDComponentGrant>& OutGrants);
@@ -339,9 +354,12 @@ namespace LDProgression
         const FLDProgressionState& Progression, FName Component, bool bInstallIfPossible, const FLDComponentTarget& Target,
         const FBuildContext& Context, FLDGrowthBuild& Out, FInstallOutcome& Outcome);
     // An owned, uninstalled component installed on Target: NotOwned, AlreadyInstalled, an InstallGate or an
-    // InstallTargetReason reason when refused.
+    // InstallTargetReason reason when refused. A non-None Replacing (an installed component other than Component) and
+    // everything sitting on it go back to the inventory in the same commit, listed in OutUninstalled; target, form and
+    // capacity are judged on the build without them. Replacing also passes the uninstall CommandGate.
     LOCKDOWN_API ELDGrowthReason ApplyInstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-        FName Component, const FLDComponentTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out);
+        FName Component, const FLDComponentTarget& Target, const FBuildContext& Context, FLDGrowthBuild& Out,
+        FName Replacing = NAME_None, TArray<FName>* OutUninstalled = nullptr);
     // An installed component back to the inventory (its history stays): NotOwned, NotInstalled or a CommandGate reason.
     LOCKDOWN_API ELDGrowthReason ApplyUninstallComponent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         FName Component, const FBuildContext& Context, FLDGrowthBuild& Out);
