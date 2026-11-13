@@ -40,6 +40,21 @@ class NativeModulesTest(unittest.TestCase):
 class ClassifyTest(unittest.TestCase):
     native = {'DemoContent', 'ExportDemoNativeFixtures'}
 
+    def test_documentation_only(self):
+        for paths in (['README.md'], ['AGENTS.md', 'docs/DEVELOPMENT.md'],
+                      ['docs/diagram.svg', 'docs/nested/data.json'], ['Source/Notes.md'],
+                      ['docs\\systems\\guide.md']):
+            with self.subTest(paths=paths):
+                self.assertEqual(CIChangeScope.classify(paths, self.native), ('docs', []))
+
+    def test_workflow_only_still_runs_python(self):
+        self.assertEqual(CIChangeScope.classify(
+            ['README.md', '.github/workflows/pr-check.yml'], self.native), ('python', []))
+
+    def test_documentation_rename_to_code_needs_native(self):
+        self.assertEqual(CIChangeScope.classify(
+            ['docs/example.cpp', 'Source/Example.cpp'], self.native), ('native', ['Source/Example.cpp']))
+
     def test_python_only(self):
         scope, forced = CIChangeScope.classify(
             ['Scripts/SummarizePlaytestLog.py', 'Scripts/TestSummarizePlaytestLog.py', 'docs/DEVELOPMENT.md',

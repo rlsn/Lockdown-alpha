@@ -1,5 +1,6 @@
 """Decide how much of the PR check a change needs.
 
+scope=docs: skip both Python tests and the native gate.
 scope=native: build the editor and run the native rule tests, then the Python tests.
 scope=python: only the Python tests under Scripts.
 
@@ -65,15 +66,19 @@ def python_closure(scripts_dir: Path, roots: list[str], owner: str) -> set[str]:
 def classify(paths: list[str], native_modules: set[str]) -> tuple[str, list[str]]:
     """Return the scope and the paths that forced the native gate."""
     native = []
+    docs_only = True
     for raw in paths:
         path = raw.replace('\\', '/')
-        if path.startswith('docs/') or path.endswith('.md') or path.startswith('.github/'):
+        if path.startswith('docs/') or path.endswith('.md'):
+            continue
+        docs_only = False
+        if path.startswith('.github/'):
             continue
         parts = path.split('/')
         if len(parts) == 2 and parts[0] == 'Scripts' and parts[1].endswith('.py') and parts[1][:-3] not in native_modules:
             continue
         native.append(path)
-    return ('native' if native else 'python'), native
+    return ('native' if native else 'docs' if docs_only else 'python'), native
 
 
 def importer_sources(root: Path) -> set[str]:
@@ -167,6 +172,8 @@ def main() -> int:
     if native:
         shown = ', '.join(native[:10]) + (f' and {len(native) - 10} more' if len(native) > 10 else '')
         print(f'Native gate needed for: {shown}', file=sys.stderr)
+    elif scope == 'docs':
+        print(f'Documentation-only change ({len(paths)} files); skipping Python tests and the native gate.', file=sys.stderr)
     else:
         print(f'Python-only change ({len(paths)} files); skipping the editor build and native rule tests.', file=sys.stderr)
     if imports:

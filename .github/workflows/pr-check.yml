@@ -3,7 +3,8 @@
 #   Config, SourceData, Content, PowerShell, or a Python script RunTests.ps1 loads) needs the native gate. It also
 #   decides whether the data-import rule tests (CheckRuleReport.IMPORT_TESTS) can be left out: only when nothing they
 #   read changed (SourceData, generated data, fixture exporter, importer source, runner or build configuration).
-# - python (GitHub-hosted Windows): the Scripts Python tests, for every PR. Needs no Unreal and no LFS content. They
+#   Documentation-only PRs skip both test jobs.
+# - python (GitHub-hosted Windows): the Scripts Python tests, for every non-documentation PR. Needs no Unreal and no LFS content. They
 #   also check that the native registrations equal CheckRuleReport.REQUIRED_TESTS, which a narrowed native run relies on.
 # - native (the maintainer's self-hosted runner, only when scope says native and the branch is in this repository):
 #   incremental BuildEditor.ps1 and RunTests.ps1 (AGENTS: every PR passes BuildEditor.ps1 plus rule tests). It runs
@@ -15,9 +16,6 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
 
 permissions:
   contents: read
@@ -50,7 +48,7 @@ jobs:
         id: scope
         run: |
           result=$(python -B ./Scripts/CIChangeScope.py --base HEAD^1 --head HEAD)
-          line=$(printf '%s\n' "$result" | grep -xE 'scope=(native|python)' || true)
+          line=$(printf '%s\n' "$result" | grep -xE 'scope=(docs|native|python)' || true)
           imports=$(printf '%s\n' "$result" | grep -xE 'import_tests=(run|skip)' || true)
           if [ -z "$line" ] || [ "$(printf '%s\n' "$line" | wc -l)" -ne 1 ] \
             || [ -z "$imports" ] || [ "$(printf '%s\n' "$imports" | wc -l)" -ne 1 ]; then
@@ -59,14 +57,17 @@ jobs:
           fi
           echo "$line" >> "$GITHUB_OUTPUT"
           echo "$imports" >> "$GITHUB_OUTPUT"
-          if [ "$line" = scope=python ]; then
+          if [ "$line" = scope=docs ]; then
+            echo 'Documentation-only change: Python tests, the native build and rule tests are skipped.' >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$line" = scope=python ]; then
             echo 'Python-only change: the native build and rule tests are skipped.' >> "$GITHUB_STEP_SUMMARY"
           elif [ "$imports" = import_tests=skip ]; then
             echo 'No data-import input changed: the native rule tests leave out the data-import group.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
   python:
-    if: ${{ !github.event.pull_request.draft }}
+    needs: scope
+    if: needs.scope.outputs.scope == 'python' || needs.scope.outputs.scope == 'native'
     # SyncDemoContentData and its tests use Windows file locking (msvcrt).
     runs-on: windows-latest
     timeout-minutes: 30
