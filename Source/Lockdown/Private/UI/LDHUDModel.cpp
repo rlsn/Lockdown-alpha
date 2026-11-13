@@ -1948,17 +1948,34 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
 {
     static const FString Names[]={LDTerms::MaxHealth(),LDTerms::MaxMana(),LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
         LDTerms::AttackSpeed,LDTerms::MoveSpeed,TEXT("攻击距离"),LDTerms::HealthRegen(),LDTerms::ManaRegen(),LDTerms::CritChance(),LDTerms::Haste};
-    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/秒"),TEXT(" cm/s"),TEXT(" cm"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
+    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/分钟"),TEXT(""),TEXT(" cm"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
     static const TCHAR* Glyphs[]={TEXT("血"),TEXT("蓝"),TEXT("攻"),TEXT("法"),TEXT("甲"),TEXT("抗"),TEXT("速"),TEXT("移"),TEXT("距"),TEXT("回"),TEXT("复"),TEXT("暴"),TEXT("急")};
     static_assert(UE_ARRAY_COUNT(Names)==int32(ELDProjectedAttribute::Count)&&UE_ARRAY_COUNT(Units)==int32(ELDProjectedAttribute::Count)
         &&UE_ARRAY_COUNT(Glyphs)==int32(ELDProjectedAttribute::Count),"One name, unit and glyph per projected attribute.");
     FAttributeRowView View;
     if(Row.Attribute>=UE_ARRAY_COUNT(Names)){View.Name=FString::Printf(TEXT("未知属性 #%d"),Row.Attribute);View.Glyph=TEXT("?");View.Value=View.Final=TEXT("—");return View;}
     View.Name=Names[Row.Attribute];View.Glyph=Glyphs[Row.Attribute];View.bClamped=Row.bClamped;
-    const bool bRatio=static_cast<ELDProjectedAttribute>(Row.Attribute)==ELDProjectedAttribute::CritChance;
-    auto Value=[bRatio](const FLDDemoRational& V){if(V.Denominator<=0){return FString(TEXT("?"));}const double D=double(V.Numerator)/double(V.Denominator);return bRatio?HudDecimal(D*100.)+TEXT("%"):HudDecimal(D);};
+    const ELDProjectedAttribute Attribute=static_cast<ELDProjectedAttribute>(Row.Attribute);
+    const bool bRatio=Attribute==ELDProjectedAttribute::CritChance;
+    // Attack speed reads as whole basic attacks per minute (2026-11-13 user feedback, #85); the rule value stays attacks per second.
+    const bool bPerMinute=Attribute==ELDProjectedAttribute::AttackSpeed;
+    auto Value=[bRatio,bPerMinute](const FLDDemoRational& V)
+    {
+        if(V.Denominator<=0){return FString(TEXT("?"));}
+        const double D=double(V.Numerator)/double(V.Denominator);
+        if(bPerMinute){return FString::FromInt(FMath::RoundToInt(D*60.));}
+        return bRatio?HudDecimal(D*100.)+TEXT("%"):HudDecimal(D);
+    };
     View.Value=Value(Row.Final);
-    View.Final=View.Value+Units[Row.Attribute]+(Row.bClamped?TEXT("（已达上下限）"):TEXT(""));
+    View.Final=View.Value+Units[Row.Attribute];
+    if(Attribute==ELDProjectedAttribute::CooldownHaste&&Row.Final.Denominator>0)
+    {
+        // Haste reads as the cooldown reduction it gives, FORMULA.CooldownMs: 1-100/(100+H); the popup keeps the haste points.
+        const double H=FMath::Max(0.,double(Row.Final.Numerator)/double(Row.Final.Denominator));
+        View.Value=FString::FromInt(FMath::RoundToInt(100.*H/(100.+H)))+TEXT("%");
+        View.Final=TEXT("冷却缩减 ")+View.Value+TEXT("（")+LDTerms::Haste+TEXT(" ")+HudDecimal(H)+TEXT("）");
+    }
+    if(Row.bClamped){View.Final+=TEXT("（已达上下限）");}
     View.Breakdown=TEXT("基础 ")+Value(Row.Base)+TEXT(" · 等级 ")+Value(Row.Level)+TEXT(" · 属性点 ")+Value(Row.Choices);
     if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
     {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
