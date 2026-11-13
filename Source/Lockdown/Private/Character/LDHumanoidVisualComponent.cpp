@@ -455,7 +455,8 @@ void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHit
     if (!FMath::IsFinite(AgeSeconds) || AgeSeconds<0.f || AgeSeconds>=.3f || FallAt>=0) { return; }
     HitLook = InHitLook;
     const double Onset=Clock-AgeSeconds;
-    if (!bHitSeen || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds)
+    // Different resolved outcomes are distinct hits even inside the clock-jitter tolerance.
+    if (!bHitSeen || InHitFlags!=HitFlags || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds)
     { HitOnset=Onset; HitFlags=InHitFlags; bHitSeen=true; }
 }
 

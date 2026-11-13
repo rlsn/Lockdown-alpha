@@ -56,6 +56,7 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDPresentedModelPickingTest;
+    friend class FLDBodyMotionTimelinesTest;
 #endif
     // Resolves the catalog body and paints its tint slots; without a body nothing is drawn and the error is logged.
     void ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What);

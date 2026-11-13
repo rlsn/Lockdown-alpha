@@ -1,4 +1,5 @@
 #include "Character/LDBodyMotion.h"
+#include "Character/LDHumanoidVisualComponent.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
@@ -64,6 +65,18 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Report jitter of one instance does not restart it"), IsNewInstance(EAction::Hit, 1.0, EAction::Hit, 1.05, true));
     TestFalse(TEXT("Without a known age a continuing kind is never restarted"), IsNewInstance(EAction::Attack, 1.0, EAction::Attack, 9.0, false));
     TestFalse(TEXT("An ended action starts nothing"), IsNewInstance(EAction::Attack, 1.0, EAction::None, 2.0, true));
+
+    ULDHumanoidVisualComponent* Visual=NewObject<ULDHumanoidVisualComponent>();
+    Visual->Clock=1.0;
+    Visual->SetHitReaction(0.f,ELDObservedHitLook::None,LDObservation::ShieldAbsorbed);
+    Visual->Clock=1.04;
+    Visual->SetHitReaction(0.f,ELDObservedHitLook::None,LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken);
+    TestTrue(TEXT("A shield break following an absorbed hit within the jitter window starts its own reaction"),
+        Visual->HitFlags==(LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken)
+        && FMath::IsNearlyEqual(Visual->HitOnset,1.04));
+    Visual->Clock=1.06;
+    Visual->SetHitReaction(.02f,ELDObservedHitLook::None,LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken);
+    TestTrue(TEXT("A repeated report of the break does not restart its reaction"),FMath::IsNearlyEqual(Visual->HitOnset,1.04));
 
     const FLife Born = Appear(0.f), Grown = Appear(AppearSeconds);
     TestTrue(TEXT("A respawned body grows in from small inside a bright column"), Born.Scale < .3f && Born.Column == 1.f && Born.Glow == 1.f);
