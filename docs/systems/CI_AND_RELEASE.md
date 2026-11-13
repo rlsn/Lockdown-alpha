@@ -22,8 +22,8 @@ DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放�
 
 产品版本是 `Config\DefaultGame.ini` 的 `ProjectVersion`：加入房间按它校验，`PackageWin64.ps1` 也从这里读取。
 `main` 上它只是版本线（有人经 PR 改 minor/major 时才变），已发布的版本以 tag 为准：每日打包在本地版本提交里写入
-发布版本和 `[Lockdown.Build] bReleaseBuild=True`，只随 tag 推送。标题页只在该标志为 True 时显示“版本 X.Y.Z”，
-其他构建（编辑器、本地打包）显示 `build <短提交>`（打包自有未提交改动的工作区时注明），不显示版本号，以免被当成某个发布版。
+发布版本和 `[Lockdown.Build] bReleaseBuild=True`，只随 tag 推送。标题页显示“版本 X.Y.Z (<短提交>)”（提交读不到时为 `unknown`），
+只有该标志为 True 的构建显示裸版本号；其他构建（编辑器、本地打包）写成“版本 X.Y.Z-dev (<短提交>)”（打包自有未提交改动的工作区时注明），以免被当成某个发布版。
 `main` 上的标志必须保持 False，每日打包的 `plan` 遇到 True 会拒绝。
 它不同于 `Lockdown.uproject` 的 `FileVersion`/`EngineAssociation`，也不同于协议、目录与枚举版本。
 
