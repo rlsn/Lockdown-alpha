@@ -6,6 +6,7 @@ from copy import deepcopy
 from decimal import Decimal
 from fractions import Fraction
 import json
+import math
 from pathlib import Path
 import shutil
 import tempfile
@@ -906,7 +907,7 @@ class ApprovedDemoData(unittest.TestCase):
         for index, angle in enumerate(angles):
             self.assertAlmostEqual((angles[(index + 1) % len(angles)] - angle) % 360, 60, delta=1)
 
-        moved = deepcopy(self.world.world)
+        moved = json.loads(self.world.outputs[content.WORLD_OUTPUT])
         next(row for row in moved["anchors"] if row["id"] == "final_spawn_0")["position_cm"]["x"]["numerator"] += 100
         with self.assertRaises(content.ContentError):
             world.validate_bindings(moved, self.data)

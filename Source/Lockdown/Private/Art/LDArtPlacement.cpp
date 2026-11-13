@@ -201,7 +201,8 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             const FPlaceKeepOut* Anchor = nullptr;
             for (const FPlaceKeepOut& KeepOut : KeepOuts)
             {
-                if (KeepOut.Kind == ELDDemoWorldAnchorKind::Capture && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
+                if ((KeepOut.Kind == ELDDemoWorldAnchorKind::Capture || KeepOut.Kind == ELDDemoWorldAnchorKind::FinalCapture)
+                    && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
                 {
                     Anchor = &KeepOut;
                 }

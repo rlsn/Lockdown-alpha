@@ -858,8 +858,8 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         FinalSpawnCount += Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn ? 1 : 0;
         FinalCaptureCount += Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture ? 1 : 0;
     }
-    const auto Find = [&Out](const FString& Id) { return Out.Anchors.FindByPredicate([&Id](const auto& A) { return A.Id == Id; }); };
-    const FLDDemoWorldAnchor* FinalCapture = Find(LDDemoWorld::FinalCaptureId());
+    const auto FindFinalAnchor = [&Out](const FString& Id) { return Out.Anchors.FindByPredicate([&Id](const auto& A) { return A.Id == Id; }); };
+    const FLDDemoWorldAnchor* FinalCapture = FindFinalAnchor(LDDemoWorld::FinalCaptureId());
     if (!Check.Require(FinalSpawnCount == LDDemoWorld::FinalSpawns && FinalCaptureCount == 1
         && FinalCapture && FinalCapture->Kind == ELDDemoWorldAnchorKind::FinalCapture,
         Root.Path, TEXT("the final field needs six final spawns and one final_capture anchor")))
@@ -867,16 +867,16 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         return false;
     }
     FVector FinalCentre3D;
-    if (!FinalCapture->PositionCm.ToVector(FinalCentre3D, Error)) { return false; }
+    if (!FinalCapture->PositionCm.ToVector(FinalCentre3D, Check.Error)) { return false; }
     const FVector2D FinalCentre(FinalCentre3D.X, FinalCentre3D.Y);
     TArray<FVector2D> FinalRing;
     for (int32 Slot = 0; Slot < LDDemoWorld::FinalSpawns; ++Slot)
     {
         const FString Id = LDDemoWorld::FinalSpawnId(Slot);
-        const FLDDemoWorldAnchor* Spawn = Find(Id);
+        const FLDDemoWorldAnchor* Spawn = FindFinalAnchor(Id);
         FVector Position;
         if (!Check.Require(Spawn && Spawn->Kind == ELDDemoWorldAnchorKind::FinalSpawn, Id,
-            TEXT("missing canonical final spawn anchor")) || !Spawn->PositionCm.ToVector(Position, Error))
+            TEXT("missing canonical final spawn anchor")) || !Spawn->PositionCm.ToVector(Position, Check.Error))
         {
             return false;
         }
@@ -887,12 +887,12 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         }
         FinalRing.Add(FVector2D(Position.X, Position.Y));
     }
-    const auto Radius = [&FinalCentre](const FVector2D& Position) { return FVector2D::Distance(FinalCentre, Position); };
-    const double ReferenceRadius = Radius(FinalRing[0]);
+    const auto FinalRadius = [&FinalCentre](const FVector2D& Position) { return FVector2D::Distance(FinalCentre, Position); };
+    const double ReferenceRadius = FinalRadius(FinalRing[0]);
     TArray<double> FinalAngles;
     for (int32 Slot = 0; Slot < FinalRing.Num(); ++Slot)
     {
-        if (!Check.Require(FMath::Abs(Radius(FinalRing[Slot]) - ReferenceRadius) <= 5.,
+        if (!Check.Require(FMath::Abs(FinalRadius(FinalRing[Slot]) - ReferenceRadius) <= 5.,
             LDDemoWorld::FinalSpawnId(Slot), TEXT("final spawns are not equally distant from final_capture")))
         {
             return false;

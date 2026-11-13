@@ -37,6 +37,9 @@ public:
         TUniquePtr<FLDDemoPreparedWorld>& Out, FString& Error);
     bool ValidatePrepared(const FLDDemoPreparedWorld& Expected, FString& Error) const;
     bool Read(const FLDDemoContentSnapshot& Content, TSharedPtr<const FLDDemoWorldGeometry>& Out, FString& Error) const;
+#if WITH_EDITOR
+    bool ReadSavedForEditing(FLDDemoWorldGeometry& Out, FString& Error) const;
+#endif
 private:
     UPROPERTY() FLDDemoContentDigest ContentRoot;
     UPROPERTY() FLDDemoWorldGeometry DemoGeometry;

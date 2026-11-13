@@ -13,11 +13,11 @@
   "schema_version": 2,
   "world": {
     "contract": {
-      "projection_revision": 3,
-      "schema_version": 3,
-      "sha256": "179279e270f55bde55a6d26202ad6efdfaf47db4e2e22f49416753030d80f6a9"
+      "projection_revision": 4,
+      "schema_version": 4,
+      "sha256": "43ded58e62920476e8beb8e297bf90d1bebc6b2a64ab615cbc38632dc5a1e73a"
     },
     "file": "world.json",
-    "sha256": "572f80c763701a9d84c42c3aa032ad4e8a0e680c95fab97bdf6899b96b2a9f09"
+    "sha256": "b796fc80bab2bc3c3e3596922b55d5cad3e88cecaf7489f27f79ab3c9490bdd9"
   }
 }
