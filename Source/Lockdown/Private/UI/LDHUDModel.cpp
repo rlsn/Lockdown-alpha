@@ -346,6 +346,18 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     View.Detail=FString::Join(Detail,TEXT(" · "));
     return View;
 }
+FString LDHUD::RestReadyText(ELDRestReadyResult Result)
+{
+    switch(Result)
+    {
+    case ELDRestReadyResult::Accepted: return TEXT("已准备。");
+    case ELDRestReadyResult::NotContender: return TEXT("准备失败：你不是本局参赛者。");
+    case ELDRestReadyResult::StaleMatch: return TEXT("准备失败：对局已变化，请等待同步。");
+    case ELDRestReadyResult::StaleWindow: return TEXT("准备失败：本次配装窗口已结束。");
+    case ELDRestReadyResult::NotOpen: return TEXT("准备失败：当前不能提交准备。");
+    default: return TEXT("准备失败：服务器没有返回有效结果。");
+    }
+}
 FString LDHUD::TrainingResetText(ELDTrainingResetResult Result)
 {
     switch(Result)

@@ -322,6 +322,14 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another generation's timeline shows nothing"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline.IsEmpty()
         &&LDHUD::RestReturnCountdown(Public,true,200500).IsEmpty());
     // The PK sign-up has no answer to show: standing in the own disk is the sign-up, read from the public timeline above.
+    TestEqualSensitive(TEXT("Ready confirmation does not promise a sign-up window in the final rest"),
+        LDHUD::RestReadyText(ELDRestReadyResult::Accepted),FString(TEXT("已准备。")));
+    for(const ELDRestReadyResult Refused:{ELDRestReadyResult::NotContender,ELDRestReadyResult::StaleMatch,
+        ELDRestReadyResult::StaleWindow,ELDRestReadyResult::NotOpen,ELDRestReadyResult::None})
+    {
+        TestTrue(FString::Printf(TEXT("Ready refusal %d is explicit"),int32(Refused)),
+            LDHUD::RestReadyText(Refused).StartsWith(TEXT("准备失败")));
+    }
     // The personal training reset: a queued reset says what it does; every refusal is explicit, never a success.
     TestEqualSensitive(TEXT("A queued reset refills both and readies the cooldowns"),LDHUD::TrainingResetText(ELDTrainingResetResult::Queued),
         FString(TEXT("训练已重置：你和假人回满，冷却就绪")));

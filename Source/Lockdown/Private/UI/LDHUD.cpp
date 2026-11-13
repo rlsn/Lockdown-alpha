@@ -349,7 +349,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             TrainingResetButton=LDWidgets::Button(WidgetTree,LDTerms::TrainingReset,[this](){SubmitTrainingReset();},true,TEXT("HUDTrainingReset"));
             RestLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
             RestReadyButton=LDWidgets::Button(WidgetTree,TEXT("准备完毕"),[this](){SubmitRestReady();},true,TEXT("HUDRestReady"));
-            RestReadyButton->SetToolTipText(FText::FromString(TEXT("不可撤回。所有真人准备后提前进入最后 10 秒站圈报名，报名结束后锁定构筑。")));
             RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(8,0,0,0));
             RestServiceButton=LDWidgets::Button(WidgetTree,TEXT("与 NPC 交互"),[this](){OpenRestService();},true,TEXT("HUDRestService"));
             RestLine->AddChildToHorizontalBox(RestServiceButton)->SetPadding(FMargin(8,0,0,0));
@@ -1558,17 +1557,7 @@ void ULDHUD::SubmitRestReady()
 void ULDHUD::HandleRestReady(ELDRestReadyResult Result)
 {
     bRestReadyInFlight=false;
-    FString Message;
-    switch(Result)
-    {
-    case ELDRestReadyResult::Accepted: Message=TEXT("已准备。所有真人准备后进入最后 10 秒站圈报名。");break;
-    case ELDRestReadyResult::NotContender: Message=TEXT("准备失败：你不是本局参赛者。");break;
-    case ELDRestReadyResult::StaleMatch: Message=TEXT("准备失败：对局已变化，请等待同步。");break;
-    case ELDRestReadyResult::StaleWindow: Message=TEXT("准备失败：本次配装窗口已结束。");break;
-    case ELDRestReadyResult::NotOpen: Message=TEXT("准备失败：当前不能提交准备。");break;
-    default: Message=TEXT("准备失败：服务器没有返回有效结果。");break;
-    }
-    ShowRestAnswer(Message);
+    ShowRestAnswer(LDHUD::RestReadyText(Result));
 }
 void ULDHUD::OpenRestService()
 {
