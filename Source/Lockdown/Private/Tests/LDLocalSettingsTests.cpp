@@ -51,8 +51,8 @@ namespace
 
     // Schema 5 is the migratable layout without PlayerName, MasterVolume, CameraPanCmPerSec and MinimapOrientation, schema 6
     // the one without MasterVolume and the later fields, schema 7 the one without CameraPanCmPerSec and MinimapOrientation,
-    // schema 8 the one without MinimapOrientation, schema 9 the one without QuickCast; every other schema writes the current
-    // whitelist order.
+    // schema 8 the one without MinimapOrientation, schema 9 the one without QuickCast. Later schemas retain that order and
+    // append only fields introduced by their version.
     constexpr uint32 NamelessFixtureSchema = 5;
     constexpr uint32 VolumelessFixtureSchema = 6;
     constexpr uint32 PanlessFixtureSchema = 7;
@@ -73,8 +73,10 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 AutoAttacklessFixtureSchema = 17;
     // Schema 18 stores auto attack after a cast but predates the third active binding.
     constexpr uint32 SkillElessFixtureSchema = 18;
-    // Schema 19 writes every current preference except the music volume (#94).
+    // Schema 19 predates the music volume (#94).
     constexpr uint32 MusiclessFixtureSchema = 19;
+    constexpr uint32 CombatFeelLessFixtureSchema = 21;
+    constexpr uint32 CombatFeelFixtureSchema = 22;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -97,6 +99,11 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         { uint8 Network=Values.bShowNetworkDiagnostics?1:0, FPS=Values.bShowFPS?1:0; Payload << Network << FPS; }
         if (Schema > AutoAttacklessFixtureSchema) { uint8 AutoAttack = Values.bAutoAttackAfterCast ? 1 : 0; Payload << AutoAttack; }
         if (Schema > MusiclessFixtureSchema) { float Music = Values.MusicVolume; Payload << Music; }
+        if (Schema >= CombatFeelFixtureSchema)
+        {
+            uint8 ReduceEffects=Values.bReduceCombatEffects?1:0, CameraShake=Values.bCameraShake?1:0;
+            Payload << ReduceEffects << CameraShake;
+        }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -569,6 +576,48 @@ bool FLDLocalSettingsMusicVolumeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The rewritten file loads as current with the music default"),
         Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->MusicVolume == .6f
         && Upgraded.Settings->MasterVolume == .4f);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCombatFeedbackTest, "Lockdown.Rules.LocalSettingsCombatFeedback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsCombatFeedbackTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit combat feedback fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto OnDisk = [&](const TArray<uint8>& Expected) { TArray<uint8> Actual; return FFileHelper::LoadFileToArray(Actual, *Fixture.Storage.Filename()) && Actual == Expected; };
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestFalse(TEXT("Combat effects are full strength by default"), Applied->bReduceCombatEffects);
+    TestTrue(TEXT("Camera shake is enabled by default"), Applied->bCameraShake);
+    Applied->bReduceCombatEffects = true;
+    Applied->bCameraShake = false;
+    TestTrue(TEXT("The combat feedback preferences save and round-trip"),
+        Applied->SaveLocalSettings().IsSaved());
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The saved combat feedback preferences load exactly"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings
+        && Loaded.Settings->bReduceCombatEffects && !Loaded.Settings->bCameraShake);
+    if (!Loaded.Settings) { return false; }
+    Loaded.Settings->ResetPreferenceGroup(ELDPreferenceGroup::Interface);
+    TestTrue(TEXT("Restoring the interface page resets both combat feedback preferences"),
+        !Loaded.Settings->bReduceCombatEffects && Loaded.Settings->bCameraShake);
+
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->MusicVolume = .35f;
+    Values->Bindings.Add(TEXT("Details"),EKeys::F11);
+    Values->bReduceCombatEffects = true;
+    Values->bCameraShake = false;
+    const auto PreviousFile = FixtureBytes(*Values, CombatFeelLessFixtureSchema, 0);
+    Write(PreviousFile);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 21 keeps music and the details binding, defaulting combat preferences"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings
+        && Migrated.Settings->MusicVolume == .35f
+        && !Migrated.Settings->bReduceCombatEffects && Migrated.Settings->bCameraShake
+        && Migrated.Settings->Key(TEXT("Details"))==EKeys::F11);
+    TestTrue(TEXT("Schema 21 migration explains defaults without rewriting the file"),
+        Migrated.Message.Contains(TEXT("降低战斗特效关闭")) && OnDisk(PreviousFile));
     return true;
 }
 
@@ -1870,7 +1919,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 21);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 22);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);

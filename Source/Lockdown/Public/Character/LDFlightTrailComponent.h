@@ -35,6 +35,7 @@ public:
     ULDFlightTrailComponent();
     virtual void OnRegister() override;
     virtual void TickComponent(float Delta, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+    void SetReturning(bool bReturn);
     // Puffs drawn on the last tick and the trail's length from its origin to the far edge of the last one.
     int32 ShownPuffs() const { return Shown; }
     float LengthCm() const { return ShownLengthCm; }
@@ -44,5 +45,5 @@ private:
     float SpeedCmPerSec = 0;
     int32 Shown = 0;
     float ShownLengthCm = 0;
-    bool bHasLast = false, bTinted = false;
+    bool bHasLast = false, bTinted = false, bReturning = false;
 };

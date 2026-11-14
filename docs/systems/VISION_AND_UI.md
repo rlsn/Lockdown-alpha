@@ -12,7 +12,7 @@
 | `Vision\LDViewTypes` | 冻结的 `FLDWorldView` 观测帧、隐藏通知与终结通知的线缆格式和校验；保存与加载都会校验 |
 | `Vision\LDWorldViewRelay` | 每个拥有连接一个 relay：接收游标、超时清除、代理与迷雾表现 |
 | `ALDObservedEntityProxy` | 客户端非复制的人形表现，无碰撞，不参与权威战斗或资源所有权；参赛者按名册座位着色，营地 NPC 用独立外观；动作与状态经共用的 cue 字节呈现，动作年龄取样本自带年龄加上呈现时钟越过该样本的时间；授权的观察死亡（`ObservedDeath`）先留下 Combat 的客户端倒地副本 `ALDBodyPuppet::SpawnFall` 再移除代理，离开视野、超时与复位只移除 |
-| `ALDObservedProjectileProxy` | 客户端非复制的公开技能表现：粉笔、臭袜飞行物，以及高数书影、小广告武装/已武装圈、开麦扇形。只传不含施法者/等级/冷却的公开位置、朝向、look与半径/角度；无碰撞、不可选为目标。飞行物带 `ULDFlightTrailComponent` 并按呈现时钟走完最后样本（最多0.4s）；地面/扇形效果从授权帧消失时立即隐藏销毁；stale、复位或他局视图立即销毁 |
+| `ALDObservedProjectileProxy` | 客户端非复制的公开技能表现：粉笔、臭袜飞行物，以及高数书影、小广告武装/已武装圈、开麦扇形和火/水/魔法/电/普通持续区域。只传不含施法者/等级/冷却的公开位置、朝向、look、半径/角度和权威预警剩余时间；区域复用既有代理网格、材质与边界线，不增加碰撞或可选目标。飞行物带 `ULDFlightTrailComponent` 并按呈现时钟走完最后样本（最多0.4s）；地面/扇形/区域效果从授权帧消失时立即隐藏销毁；stale、复位或他局视图立即销毁 |
 | `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`：旗杆、两种树、集装箱与废车）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间，或穿过站在其中或紧贴它的身体（水平距包围盒 ≤ `PierceRadiusCm` 45 cm 且在其高度内）；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1，不挡回到 0。relay 给淡化材质设 `LDFadeStrength` = `FadedStrength`（0.3），完全淡化时仍保留约 70% 像素可见度，接近障碍时不会消失；普通组件淡化期间关闭投影，恢复不透明后恢复投影。正式地图中的每棵树和每个静态道具都是独立保存的 Actor，只淡化实际挡住身体的组件。只影响显示，不改碰撞、视线或导航；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化。 |
 | `ALDOwnBodyMarker` | 只在本机生成、挂在本机存活身体脚下的光圈，用于一眼认出自己；死亡或无身体时隐藏 |
 
@@ -55,20 +55,25 @@
 - 参赛者的 `Presentation` 是锁定名册座位 0..5（由 Combat 写入身体，跨命不变），codec 拒绝 6 及以上；
   六个座位色由 `ULDHumanoidVisualComponent::ContenderTint` 唯一定义，身体、头像和小地图共用。
   营地 NPC 不用座位色：低档已读不回的 HR 带袖章和夹板，高档追着办卡的私教带帽子和哨子（`ApplyMonsterLook`）。
-- 动作提示 `ActionCue` 为 `Attack/Cast/Hit`：Combat 在核心 `ReadObservedPublicFacts` 里给出当前提示及其开始的权威时刻，
-  线缆只带提示与 `ActionCueAgeMs`（无提示时为 0），开始时刻晚于当前时刻时发布失败关闭（`LD_OBSERVATION_ACTION_CUE_INVALID`）。
+- 动作提示 `ActionCue` 为 `Attack/Cast/Hit`：Combat 在核心 `ReadObservedPublicFacts` 里给出当前提示、开始及释放的权威时刻；
+  线缆只带提示、`ActionCueAgeMs` 与 `ActionCueImpactDelayMs`。后者对 Attack/Cast 是从提示开始到服务器释放的毫秒数，
+  对 Hit/None 为 0；超出 `uint16` 或提示开始晚于当前时刻时发布失败关闭（`LD_OBSERVATION_ACTION_CUE_INVALID`）。
   代理与本人身体经 `ALDCharacter::PresentationCue` 得到同一个 cue 字节：低 4 位是动作姿势，
   定身、回位、护盾、复活保护各有独立形状（脚下圆环并锁腿、背后标牌、头顶光环、竖直光柱），不只靠颜色区分。
+- 受击提示可带 `HitLook`（魔法、火、水、电或普通）及最近命中的年龄：只由服务器已提交的命中 payload 分类，不公开命中来源/目标；本人及当前可见代理在授权提示期间使用相应闪光和胸前火花颜色。
 - `Cast` 提示可带该次施法的技能原生 id（`ActionAbility`；其他提示与 D 冲刺的 `Cast` 提示为 0），
   由 Combat 在同一公开事实里给出；接收端只接受批准内容中的 id。这是已批准的 CB-P10/SC-07 例外：
   只用于在施法那一刻于可见施法者旁显示技能名（`ULDWorldFeedback`），不进目标卡，不保留技能列表，不含等级或冷却。
 - 飞行物（`Projectiles`）使用与单位相同的视线规则：观察者存活时，从 Combat 的 `ReadObservedProjectiles`
-  选出在视线内的飞行，近的优先，每帧最多 16 个；超出注册地面的飞行只是不可见，非有限位置是故障。
+  选出在视线内的飞行与持续区域，近的优先，每帧最多 32 个；超出注册地面的效果只是不可见，非有限位置是故障。
   每次可见区间分配新的 opaque 句柄（与单位、终结共用句柄空间），只带地面点、朝向与外观，
   不带施放者、效果、来源或目标，不能被选中或下令；离开视线或飞行结束时随隐藏通知立即移除。
   飞行的可见权限与其施放者身体一致（`LDObservation::ClassifyFlight` 按 `FLDObservedProjectileFact.SourceEntity` 的
   `ALDCombatDirector::ActingGroup` 判定）：冻结的野外身体与其他隔离组的飞行隐藏；PK 观众与被淘汰者看见竞技场组的全部飞行（不需视线）；
   PK 生命对本场飞行取自己与存活队友视线的并集（`SelectVisibleProjectiles` 的 `SharedFeet`），其余仍只看自己的视线。
+- 持续区域只从 Combat 已有的地面效果/区域事实生成观察形状，并复用与飞行物相同的来源组、视线授权和每帧上限；
+  `WarningRemainingMs` 只表示服务器已有的地面效果就绪时刻或持续区域首次脉冲时刻。没有权威落点/时间的效果不显示倒计时；
+  持续区域目前没有独立电元素事实，间接反应命中也仅在命中 payload 明确留下元素字段时着色。
 - 帧中的单位和隐藏通知中的句柄都按观察者本地句柄排序；同一次采样中新开的区间也按句柄顺序分配 epoch。
   帧内位置和 epoch 大小都不反映规范身体顺序，客户端无法借此跨区间追踪单位。
 - `ResolveObservedUnit` 和 `BindObservedOrder` 在命令处理的那个权威时刻重新判断视线，并核对注册世界的修订；`Purpose` 不扩大授权。
@@ -101,8 +106,9 @@
   静态 Sight 或本人模型遮挡之前的最近表面才可选，模型包围盒仅作宽相拒绝，不能当作模型命中；本人模型是第一遮挡面时不做宽容回退。没有表面命中时，
   才按 `LDModelPicking::NearVolume` 取射线在 12 px 角容差内最接近的竖直拾取体（脚底到头顶、根环足迹半径），
   同样不越过静态 Sight 或本人模型遮挡；遮挡距离在角容差判断前生效。隐藏或倒地的模型没有拾取体。
-- 受击闪白、胸口火花与轻微后仰独立于攻击/施法动作。本人用合法 owner cue 的 `LastHitAtMs`；
-  可见代理仅用同一授权区间、相同血量上限的相邻样本下降，在呈现时钟到达样本时触发，不推断施害者、暴击或被治疗抵消的隐藏伤害。
+- 受击闪光、按公开 `HitLook` 着色的胸口火花与轻微后仰独立于攻击/施法动作。本人用合法 owner cue 的 `LastHitAtMs`；
+  可见代理使用授权快照里的命中年龄，在呈现时钟到达样本时触发，不依赖血量下降，也不推断施害者。
+  权威命中结果标记暴击、护盾吸收和破盾：暴击放大火花，护盾吸收显示青色火花，破盾的护盾条向外散开。
   受击时仍在攻击/施法的模型有 45 ms 局部姿势停顿，随后追上原动作时间；不暂停输入、位移或服务器判定。
 - 代理与飞行物由 relay 用同一个呈现时钟摆姿（`LDObservedPresentation`）：呈现时刻是权威时间轴上的
   “本机时间 − 跟踪的时钟偏移 − 0.13 s”（一个发布间隔加抖动余量），偏移由每帧的到达时间与 `SampledAtServerSec` 得出：
@@ -111,7 +117,7 @@
   因此出手、飞行物到达与受击在同一时间轴上。单位的隐藏、死亡和超时仍立即销毁代理，不按延迟时钟保留。
 - 迷雾是覆盖在注册地面边界上的 128² 纹理（双线性采样）：当前覆盖亮（255），其余调暗到 `LDFogHidden`（190）以便看清静态地形；没有探索层。
   每收到新的覆盖，各格在约 0.1 s 内从屏幕上的当前值过渡到新覆盖，只在两次已授权覆盖之间过渡。
-- 观察 schema 7（联机 wire 13）新增上述公开技能几何；覆盖位图仍做有界字节游程编码，解码后仍是精确的2048字节，
+- 观察 schema 14 带有权威命中年龄与结果、外观、持续区域 look、可见回程投射物外观与已有延迟时刻的预警剩余时间；交通带只发布当前可见的实际铺设分段、宽度/长度及是否本人，不暴露施法者或构筑字段。回程飞行保留原投射物颜色并使用紫色尾迹。覆盖位图仍做有界字节游程编码，解码后仍是精确的2048字节，
   不缩小覆盖、不增加探索层、不依赖上一帧。不可压缩时发送原始位图；错误长度、越界、未填满或截断直接拒绝。
   这减少普通覆盖快照的拆包与带宽开销，不把不可靠快照改成会积压的可靠队列，也不延长 0.25 s 的权限清除窗口。
 - 采样节奏和帧格式在代码中维护，不在这里设定 Demo 平衡值。
@@ -141,6 +147,7 @@
 | 射程与目标预览 | `ULDHUD::NativePaint`：本人同局同命存活且未武装时，在脚下画一圈淡白的普攻射程（`CombatView.AttackRangeCm`，射程成长立即反映）；武装单位技能或攻击移动时，射程圈改为强调色，并对指针下的单位（`ObservedUnderPointer` + `ReadUnit`，与点击同一选取、只取当前授权帧）按脚点 2D 距离给射程圈着色：不超过射程为绿、否则为红，单位身上不画框；方向技能另画指示线：方向与确认时提交的一致（`GroundUnderPointer` 地面命中点减胶囊脚点），从本人显示位置画出，长度为射程（落点技能取到落点为止）；指针下没有地面时不画。射程圈画在显示位置，它的距离颜色以胶囊脚点判定。只是预览，是否命中由服务器裁决 |
 | 时间线横幅与休息返回倒计时 | 只读同代 `PublicMatch.Timeline` 与 `ReadDemoAuthorityTimeMs`。`TimelineBanner` 显示休息编号、步骤、剩余时间、站圈报名窗口与人数（锁定步骤不再写“配装已锁定”，构筑照常可做）；野外显示段数与下次休息，最终野外显示旗杆开放。`SyncSignupMarker` 为各玩家画相同公共圆心的报名圈（`AIRDROP.PickupRadiusCm`），站圈而非按钮报名。“准备完毕”只在 Build 显示，只读 `OwnerState.bCanRestReady/bRestReady` 并发 `SubmitRestReady(true)`；只有 Accepted 显示已准备，拒绝逐项明确，不在 UI 提前缩短计时。所有真人准备后由权威进入最后报名窗口，不能撤回准备；公共名单在 `Timeline.ReadyContenders`。Build/Payout 的“重置训练”及附近 NPC 按钮固定在横幅下方，锁定/PK/返回时隐藏；训练重置沿用 `SubmitTrainingReset/OnTrainingReset`。NPC 仅在 `NearbyRestService` 非空时给出交互入口，选择后打开独立服务框，离开现有150 cm范围关闭；替换及确认只在显式训练师服务框显示，回执与在途状态不因隐藏 UI 重发。野外顶部保留时间线和必要旗杆状态；空投、Boss、标记营地、符咒与上热搜的公开信息由小地图上的标记本身表达（小地图上方只留对局用时），外卖、Boss 与标记营地的出现与结束走事件提示条（符咒不提示），场景中另有外卖与符咒的地面圈。野外文字摘要的交战折叠取本人实际受击与 Combat 交战窗口（`CombatView.BuildSafeAtMs`），不以野外阶段代替交战；构筑面板不因交战或 PK 收起，只有自动打开的面板在本人受击或几秒未操作时收起，脱战不自动重开。休息室角色与全部共享真实训练目标只经获准观察帧呈现，不直接读取隐藏身体或所属玩家私有成长；`ObservedContenderName` 将名单外真实假人标作“训练假人”。三个公开 NPC 与训练区中文名走 CJK Slate 投影、描边和统一避让，不用默认字体斜放 TextRender，也不创建静态假人替身。观战者看到的场内目标只标队伍，“观战中”只属于本人状态。`RestReturnCountdown` 在返回步骤居中显示向上取整倒数，本地先到保持 1 直到权威返回野外；每段野外开始显示“开淫！”。 |
 | PK 面板、竞技场圈与观战镜头 | 只读 `PublicMatch.PK`（`FLDPKView`，`LDHUD::HasPK`：比赛、时间线与 PK 同代、休息阶段、`Serial != 0`）、时间线、房间名单与 `ReadDemoAuthorityTimeMs`。`LDHUD::PKPanel` 给出休息按钮下方独立命中面板的全部内容，从 Draw 到 Payout 显示：`LDHUD::PKFormatText`（单挑/混战/按 `Format` 与 `SideCount` 等分的 2v2、3v3）与人数组成的标题；每方一行（`LDHUD::PKSideNames`，名单外为“未列名参赛者”；`FightStartedAtMs` 之后 `!bAlive` 记“（出局）”，`bForfeited` 记“（离场）”；公开押注人数、“你在这方”“你押了这方”）；PKReady 到 `StepEndsAtMs` 的整秒倒数（本地时钟先到保持 1）与 PK 步骤的“最长还剩”；PK 运行中的安全圈行（`FLDPKParameters::FromContent` 读本机已批准内容快照，`LDPKRules::RingRadiusCm`/`RingPreview` 在 `LDHUD::PKRingElapsedMs`＝权威时刻减 `FightStartedAtMs` 上求值）。押注只在 Betting 步骤给 `PK.Bettors` 里的非选手：每方一个“押 X、Y”按钮，本人 `PK.Bets` 里的那方接“ · 你押了这方”并高亮金色，按钮只发 `ALDPlayerController::SubmitPKBet(Side)`，等待回答期间禁用；投掷只在 PK 步骤且 `Outcome == Running` 时给同样的观众：“投掷”按钮武装瞄准（`ULDHUD::IsPKThrowArmed`），之后左键由 `LDPlayerInput` 交给 `ULDHUD::ThrowPKAtPointer`，用移动命令同一条 `ULDNavigationComponent::GroundUnderPointer` 地面射线发 `SubmitPKThrow(ImpactPoint)`，右键、Back 或再按按钮只取消（这次点击不产生查看、移动或攻击）；冷却按最近一次 `OnPKThrow` 的 `ReadyAtMs` 对权威时刻显示 `LDHUD::PKThrowCooldown`（同 `CooldownText` 取整，无时钟为同步中）。`OnPKBet`/`OnPKThrow` 的结果经 `LDHUD::PKBetText`/`PKThrowText` 显示在面板底部并进提示条：只有 Placed/Thrown 读作完成，其余各写原因。Settlement 与 Payout 显示 `LDHUD::PKResultText`（胜方名单、平局或本场无效，本人获胜另加一句）与 `LDHUD::PKAwardRows`（参与/胜者/竞猜/合计，跳过零分，本人一行高亮）。所有本地状态（在途、瞄准、冷却、回答）只属于一场 PK（代次＋`Serial`），换场即清空；HUD 被菜单遮住时取消瞄准。世界表现由 HUD 持有的 `ALDPKRingMarker`（不复制、无碰撞/导航/视野影响，`LDGroundRing` 画法）在 Demo 世界的 PKReady 与 PK 步骤画出：紫色当前安全圈、浅色预告圈（`RingPreview` 为真时）与每个 `PK.Throws` 落点的粉色 `ThrowRadiusCm` 预警圈（到 `LandsAtMs` 为止）；离开这两步、换代或换场、`NoContest` 时销毁，HUD 析构时也销毁。观战镜头：`LDHUD::IsSpectatingPK`（同上 `HasPK`、PKReady 或 PK 步骤、不是 `NoContest`、本人不是 `bAlive` 的选手）成立且公开视图是本人对局时，本地控制的 `ALDCharacter::CalcCamera` 用同一固定臂角把中心换成 `PK.ArenaCentreCm`、臂长取 `LDCamera::MaxArmLength`；场内单位与视野仍由服务器授权 |
+| 终局时间线提示 | 终局横幅显示封街倒计时、封街进行中、复活截止及最后十秒；只根据同局 `PublicMatch.Showdown` 与权威时刻显示，时刻未同步时不猜测提示 |
 | 对局计时 | `LDHUD::MatchTimer` 在小地图正上方居中显示自 `PublicMatch.StartedAtMs`（开局休息 R0 开始）起已过的整秒（向下取整），格式 `m:ss`，分钟不补零（如 `0:12`、`12:05`）；读不到权威时刻或开局时刻未发布时不显示；只随小地图在对局进行中显示 |
 | 构筑按钮 | 右下角常驻按钮，只写“构筑”，切换它正上方的选择卡。`LDHUD::GrowthPending(...).Any()`（显示中的主动候选、有空槽可学的图纸、开局构件自选或精英二选一）为真时高亮，否则禁用变灰；`Offers`（排队的主动机会数）或待选构件增加时脉动几秒。没有卡时已展开的选择卡在没有在途请求时自动收起。小地图上方除对局用时外不显示文字行，HUD 也没有“下一步”提示（见 App Spec §7 界面原则）。 |
 | 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedCard/ObservedUnit` 只显示白名单 |
@@ -198,13 +205,13 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
   先发 `ClientBlueprintOffer`（总字节或明确的失败原因），客户端按顺序用 `ServerBlueprintChunk` 拉取 16 KiB 分块，服务器只回应当前结果
   的下一个偏移，重放、跳块或旧结果都被拒绝；Listen Host 本人直接交付字节。传输中断或校验失败的部分记录不保存、不显示为蓝图。
   AI 不生成记录；房主断线或故障结束的对局没有锁定结果，因此也没有蓝图。
-- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=1`，扩展名 `.ldbuild.json`。
+- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=2`，扩展名 `.ldbuild.json`。
   顶层为 `origin`（`auto`/`export`）、`complete`、`product_version`、`recorded_at_utc`（本机收到时的 UTC，保留按它排序）、
   `rules`（协议版本、目录根摘要与 schema/handler/projection 修订）、`match`（公开 ResultId、模式、结束原因、胜负、毫秒时刻）、
   `player`（最终等级与 K/D/A）、`final_build`（最后版本的结构与修订）和 `versions`（每个版本的修订、时间段、等级、`dev_layer`、
   结构与 `facts`）。结构的 `components` 与每个事实都带 `collected`；当前写入者全部采集（构件为已安装构件及其 `host` 与按键排序的
   安装参数 `target_kind`/`element`/`bound_component`，没有安装时为空列表），早期写入者未采集的项值为 `null`，读取时照原样保留。不含参赛者 ID、账号、地址、原始 trace、
-  未来种子或别人的构筑。
+  未来种子或别人的构筑。每版结构额外记录独立 `final_mod` 的定义和来源绑定，无选择时为 `null`；它不属于 Q/W/E 或普通构件。
 - **保存与保留**（`LDBuildBlueprintStore`）：拥有者在本机 `FPaths::ProjectSavedDir()/Blueprints/match-<ResultId>.ldbuild.json` 写入，
   先写同目录临时文件并回读，再移动到位并回读；成功后才清理：只处理该目录内、文件名就是自身 Match ID、通过严格校验且 `origin=auto`
   的记录，按 `recorded_at_utc` 删最旧的，直到最多 50 份、总计不超过 100 MiB（常量在 `LDBuildBlueprint`）。导出、导入目录、
@@ -253,9 +260,9 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 旗杆开放 / 新喷上涂鸦 / 开始喷漆或换人 / 争夺 | `PublicMatch` 的开放状态、`CaptureEpoch` 与 `GraffitiOwner`（只在 CaptureOpen 阶段）；出现新的有效涂鸦主人时播放开放同款旗杆号角（`CaptureOpened`），优先于本次喷漆区变化的提示音；否则 Solo 为 `CaptureStarted`、Contested 为 `CaptureContested` | 每个 epoch 一次；喷漆区类提示 1 秒内最多一次，新喷上的涂鸦不受这一限频 |
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中生命下降且上限未降；致死一击交给本人死亡音效 | 0.2 秒内最多一次 |
-| 本人护盾吸收（`SelfShieldHit`） | 同一投影中生命未降而护盾减少，且护盾状态仍在或在其列出的到期前消失（与护盾吸收飘字同一规则）；护盾自然到期不响 | 与本人受击共用 0.2 秒限频 |
+| 本人护盾吸收 / 破裂（`SelfShieldHit` / `SelfShieldBreak`） | 同 Match/Life 的 `CombatView` 新命中含服务器结算的护盾吸收或破裂标记；同时损失生命时优先播放护盾音，护盾自然到期不响 | 每次命中至多一次；破裂与普通受击分别限频 0.2 秒，不被紧邻的普通受击吞掉 |
 | 本人普攻出手（`SelfAttack`，不是命中确认） | 同 Match/Life 的 `CombatView` 新 Revision 中 `Cues.ReleasedAtMs` 晚于上次所见且 `bReleasedBasic`（近战出手或飞行物发射的时刻，Nav 与 Direct 来源相同）；技能的释放交给下一行的回执 | 每次出手一次；新 Life 的首个投影只建立基线，死亡、旧生命与重放不响 |
-| 本人技能或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/E/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
+| 本人技能或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/E/D，Finished/Released 且无拒绝；冲刺使用独立的 `SelfDash` 音效 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧相同音效合成一次）；别局或别条命的回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
 | 界面点击 | 设置页主音量滑条松手或键盘调节时试听 | 每次调节一次 |
@@ -297,7 +304,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 本人普攻出手使用独立的 `SW_SelfAttack`，只表示释放，不作为命中确认。
 释放事实只保留最后一次动作；同一采样间隔内被后续技能释放覆盖的普攻不能补放，不从其他单位血量推断。
 `ELDAudioCue` 的编号是稳定的技术身份：删除的音效只留下编号空位，不复用、不重排其他音效；
-编号 10、11、18、19 空缺；清单与目录按其余音效的枚举顺序排列，下一条新音效取 20。
+编号 10、11、18、19 空缺；清单与目录按其余音效的枚举顺序排列。护盾破裂复用普攻音源并以 1.35 倍音调播放，与护盾吸收音区分。
 kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
@@ -313,14 +320,14 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 ## 检查入口
 
 - `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何。
-- `Lockdown.Rules.DemoVision.ActionCues` 覆盖动作提示与提示龄的线缆规则、六个名册座位与身体色（座位互不相同、营地 NPC 不用座位色）；
-  `Lockdown.Rules.DemoVision.Projectiles` 覆盖飞行物线缆上限与句柄冲突、同一视线规则的近者优先选择、逐观察者句柄寿命，以及接收端隐藏与超时清除。
+- `Lockdown.Rules.DemoVision.ActionCues` 覆盖动作提示、提示龄、释放延迟与命中外观的线缆规则、六个名册座位与身体色（座位互不相同、营地 NPC 不用座位色）；
+  `Lockdown.Rules.DemoVision.Projectiles` 覆盖飞行物/区域 look 与权威预警时间、线缆上限与句柄冲突、同一视线规则的近者优先选择、逐观察者句柄寿命，以及接收端隐藏与超时清除。
 - `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“普攻”文案与头像/身体共用的六色；
   `HUDTermsGlossary` 核对术语表里重复的状态名与批准目录一致、系统术语不为空不重复且不与条目名相同。
   HUD 与头顶标签测试的条目名从 `LDDemoContentFixtures` 的 approved_base 读取（`LDTestApprovedDisplay`），世界观术语引用 `LDTerms`，不逐字重复。
 - `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars}`（`LDWorldLabelsTests`）
   覆盖头顶名字、状态行、只显示白名单（法力、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与护盾收比。
-- `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前、身体站在旗杆里或紧贴旗杆、高于道具）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值。
+- `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前、身体站在旗杆里或紧贴旗杆、高于道具）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值；`LocalSettingsCombatFeedback` 覆盖特效降低/镜头震动的默认值、保存回读与 schema 21 迁移。
 - `Lockdown.Rules.DemoVision.Presentation` 覆盖呈现时钟：样本间线性插值、最新样本之后保持不外推、跳变样本不扫过、朝向走短弧，以及时钟偏移的下调、限速上调与重设。
 - `Lockdown.Rules.WorldFeedback.{Priming,OwnDamageAndHeal,Shield,VisibleUnits,RewardsAndLevel,Kill,Text}`（`LDWorldFeedbackTests`）
   覆盖画面回馈事件：首样本与换代只重设基线、回血容差与最大值变化不飘字、护盾增减与自然到期、可见单位相邻帧差与重现不补发、

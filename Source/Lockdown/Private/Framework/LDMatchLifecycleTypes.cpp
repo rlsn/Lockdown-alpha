@@ -87,8 +87,8 @@ ELDLobbyProjectionResult LDMatchLifecycle::AcceptLobbyView(const FLDLobbyView& C
 {
     Error.Reset();
     if (!Candidate.Generation || !Candidate.PublicRevision || !Candidate.RosterRevision
-        || !LDMatchLifecycle::IsKnownPhase(Candidate.Phase) || Candidate.Members.Num() > 6
-        || Candidate.AICount > 3 || Candidate.StartBlocker.Len() > 512)
+        || !LDMatchLifecycle::IsKnownPhase(Candidate.Phase) || Candidate.Members.Num() > MaxContenders
+        || Candidate.AICount > MaxOpponents || Candidate.StartBlocker.Len() > 512)
     {
         Error = TEXT("Invalid Lobby publication header.");
         return ELDLobbyProjectionResult::Malformed;
@@ -112,7 +112,7 @@ ELDLobbyProjectionResult LDMatchLifecycle::AcceptLobbyView(const FLDLobbyView& C
         Hosts += Member.Host ? 1 : 0;
     }
     const bool Closing = Candidate.Phase == ELDMatchPhase::Closing || Candidate.Phase == ELDMatchPhase::Faulted;
-    if (Humans > 3 || AI != Candidate.AICount || Hosts > 1 || (!Closing && Humans > 0 && Hosts != 1)
+    if (Humans > MaxContenders || AI != Candidate.AICount || Hosts > 1 || (!Closing && Humans > 0 && Hosts != 1)
         || (Candidate.CanStart && (Candidate.Phase != ELDMatchPhase::Lobby || !Humans || !AllHumansReady
             || Hosts != 1 || !Candidate.StartBlocker.IsEmpty())))
     {

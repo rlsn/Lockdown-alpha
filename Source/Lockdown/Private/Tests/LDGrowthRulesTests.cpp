@@ -205,11 +205,11 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     for (const ELDBuildCommandKind Kind : {ELDBuildCommandKind::ActiveChoice, ELDBuildCommandKind::LearnBlueprint,
         ELDBuildCommandKind::AllocatePoints, ELDBuildCommandKind::OpeningBase, ELDBuildCommandKind::InstallComponent,
         ELDBuildCommandKind::UninstallComponent, ELDBuildCommandKind::ComponentChoice, ELDBuildCommandKind::FillGap,
-        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer})
+        ELDBuildCommandKind::Dismantle, ELDBuildCommandKind::SkipActiveOffer, ELDBuildCommandKind::FinalMod})
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("Build kind %u is known"), uint32(Kind)), LDGrowthWire::IsKnownBuildKind(Kind));
     }
-    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(27), uint8(255)})
+    for (const uint8 Unknown : {uint8(0), uint8(4), uint8(9), uint8(14), uint8(28), uint8(255)})
     {
         bGood &= Test.TestFalse(FString::Printf(TEXT("Build kind %u is refused"), uint32(Unknown)),
             LDGrowthWire::IsKnownBuildKind(static_cast<ELDBuildCommandKind>(Unknown)));
@@ -892,7 +892,9 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("PendingBlueprints"), TEXT("ActiveOpportunitiesEarned"), TEXT("ActiveOpportunitiesConsumed"),
          TEXT("QueuedActiveOpportunities"), TEXT("bHasActiveOffer"), TEXT("ActiveOffer"), TEXT("Components"),
          TEXT("bOpeningBasePending"), TEXT("OpeningBaseOptions"), TEXT("CatalogDigest"),
-         TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards")});
+         TEXT("PermanentSpentPoints"), TEXT("ComponentChoices"), TEXT("HeldBlueprints"), TEXT("FieldRewards"),
+         TEXT("bFinalModPending"), TEXT("FinalModOfferId"), TEXT("FinalModOptions"), TEXT("FinalModSources"), TEXT("FinalModChosen"), TEXT("FinalMod"),
+         TEXT("bBuildLocked")});
     bGood &= GrowthTestExactFields(Test, FLDActiveOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("Options"), TEXT("SkipPoints")});
     bGood &= GrowthTestExactFields(Test, FLDActiveSlotView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Slot")});
@@ -906,13 +908,17 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
         {TEXT("ChoiceId"), TEXT("Event"), TEXT("Serial"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDFieldRewardView::StaticStruct(),
         {TEXT("Event"), TEXT("Serial"), TEXT("XP"), TEXT("Result"), TEXT("Definition")});
+    bGood &= GrowthTestExactFields(Test, FLDFinalModSourceView::StaticStruct(),
+        {TEXT("Option"), TEXT("TargetKind"), TEXT("TargetId")});
+    bGood &= GrowthTestExactFields(Test, FLDFinalModSelection::StaticStruct(),
+        {TEXT("DefinitionId"), TEXT("TargetKind"), TEXT("TargetId")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
         FLDComponentInstanceView::StaticStruct(), FLDComponentTargetView::StaticStruct(), FLDComponentChoiceView::StaticStruct(),
-        FLDFieldRewardView::StaticStruct()};
+        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
     {
@@ -3033,9 +3039,9 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     }
     if (!HostCommit(TEXT("Request 24: the Host's early capture during development"), Command(Gen, 1, 24, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::None)) { return false; }
-    TestTrue(TEXT("The circle opens at the commit boundary and the driver stops there"),
-        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen()
-        && Mode->Timeline.GetStage() == ELDMatchStage::FinalField);
+    TestTrue(TEXT("The transaction queues final entry without mutating the world or opening the old circle"),
+        Mode->bDevShowdownEntryPending && Mode->CaptureReducer.GetOpenAtMs() == 1000000 && !Mode->CaptureReducer.IsOpen()
+        && Mode->Timeline.GetStage() == ELDMatchStage::Field);
     FLDCaptureReducer Circle;
     FString CircleError;
     TestFalse(TEXT("An inactive reducer schedules no opening"), Circle.ScheduleOpen(10, CircleError));
@@ -3372,6 +3378,48 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     Unowned.RewardBasis.NoRewardReason = ELDNoRewardReason::NoOwner;
     if (!Settle(Unowned, Plain)) { return false; }
     TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && TotalXP() == XPBeforeUnowned);
+
+    FLDTimelineParameters TimelineParameters;
+    TArray<FLDTimelineEvent> TimelineEvents;
+    if (!TestTrue(TEXT("Create a timeline for the final field"),
+        FLDTimelineParameters::FromContent(Tuning, TimelineParameters, Error)
+        && Mode->Timeline.Begin(TimelineParameters, 0, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)
+        && Mode->Timeline.DevSkipToFinalRest(Mode->Timeline.MakeView(Mode->MatchContext.Generation, 1).FieldStartedAtMs,
+            TimelineEvents, Error)
+        && Mode->Timeline.Advance(Mode->Timeline.NextDueMs(), 0, true, true, TimelineEvents, Error)))
+    { AddError(Error); return false; }
+
+    const int64 BeforeFinalDeath = TotalXP();
+    const FLDCommittedDeath FinalDeath = ContenderDeath(8, {A1, A2});
+    FLDRewardReceipt FinalReceipt;
+    if (!Settle(FinalDeath, FinalReceipt)) { return false; }
+    TestTrue(TEXT("A final-field kill and its assists grant no growth"),
+        FinalReceipt.Outcome == ELDRewardOutcome::NoReward && FinalReceipt.Reason == ELDGrowthReason::PhaseClosed
+        && FinalReceipt.Recipient == Killer && TotalXP() == BeforeFinalDeath);
+    if (!Settle(FinalDeath, Replay)) { return false; }
+    TestTrue(TEXT("A final-field death replay preserves its no-reward receipt"),
+        Replay.Outcome == ELDRewardOutcome::NoReward && Replay.Reason == ELDGrowthReason::PhaseClosed
+        && TotalXP() == BeforeFinalDeath);
+    ELDRewardOutcome FieldOutcome = ELDRewardOutcome::Granted;
+    ELDGrowthReason FieldReason = ELDGrowthReason::None;
+    FLDRewardReceipt FieldReceipt;
+    ++StepAtMs;
+    if (Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) != ELDCommitReject::None
+        || !Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+        || !Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards,
+            [&](const FLDGameplayWritePermit& Permit)
+            {
+                FieldOutcome = Growth->CommitFieldReward(Killer, TEXT("airdrop"), 1, 1, ELDFieldRewardKind::BuildDraw,
+                    Permit, FieldReceipt, FieldReason);
+                return true;
+            }, Error)
+        || !Mode->FinishAuthorityStep(*Driver, Error))
+    { AddError(Error); return false; }
+    TestTrue(TEXT("A late final-field map reward cannot grant XP or components"),
+        FieldOutcome == ELDRewardOutcome::PermanentlyRejected && FieldReason == ELDGrowthReason::PhaseClosed
+        && TotalXP() == BeforeFinalDeath);
     return true;
 }
 

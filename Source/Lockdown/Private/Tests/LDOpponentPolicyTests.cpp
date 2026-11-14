@@ -78,16 +78,16 @@ bool RunCampCost(FAutomationTestBase& Test)
     bool bGood = Test.TestEqual(TEXT("Level 1 bare MaxHP is the approved 620"), L1.MaxHPP2, int64(62000));
     // CONTENT_AND_BALANCE §7.2 timings; damage is the regen-free conservative sum of its listed retaliations.
     bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 4 x 8.47"),
-        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 58612);
-    bGood &= CheckCamp(Test, TEXT("L1 high camp: 11 hits, 7 x 61.01"),
-        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 11370, 11, 7, 42707, 19293);
+        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 4302, 4, 4, 3388, 58612);
+    bGood &= CheckCamp(Test, TEXT("L1 high camp: 11 hits, 9 x 61.01"),
+        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 13640, 11, 9, 54909, 7091);
     FLDCampCostInput Ten = Input;
     Ten.CurrentHpP2 = Ten.MaxHpP2 = L10.MaxHPP2;
     Ten.Attributes = L10;
     bGood &= CheckCamp(Test, TEXT("L10 low camp uses projected attack speed and windup"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 1154, 2, 1, 735, L10.MaxHPP2 - 735);
+        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 1385, 2, 1, 735, L10.MaxHPP2 - 735);
     bGood &= CheckCamp(Test, TEXT("L10 high camp"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 6806, 8, 4, 21176, L10.MaxHPP2 - 21176);
+        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 8165, 8, 5, 26470, L10.MaxHPP2 - 26470);
 
     bGood &= Test.TestEqual(TEXT("A retaliation landing exactly at the death time counts"),
         LDOpponentPolicy::RetaliationHits(0, 350, 1250, 350), int64(1));
@@ -99,10 +99,10 @@ bool RunCampCost(FAutomationTestBase& Test)
     FLDCampCostInput Exhausted = Input;
     Exhausted.CurrentHpP2 = 3388;
     bGood &= CheckCamp(Test, TEXT("Predicted HP exhaustion is NotFeasible, never a win"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 3586, 4, 4, 3388, 0);
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 4302, 4, 4, 3388, 0);
     Exhausted.CurrentHpP2 = 3389;
     bGood &= CheckCamp(Test, TEXT("One P2 more survives with one P2"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 1);
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 4302, 4, 4, 3388, 1);
     FLDCampCostInput Zero = Input;
     Zero.Attributes.ADP2 = 0;
     bGood &= Test.TestTrue(TEXT("No effective damage is NotFeasible; no minimum damage is invented"),
@@ -114,7 +114,7 @@ bool RunCampCost(FAutomationTestBase& Test)
     FLDCampCostInput Waiting = Input;
     Waiting.BasicReadyInMs = 1000;
     bGood &= Test.TestEqual(TEXT("A pending basic readiness delays the whole schedule"),
-        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(4586));
+        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(5302));
     FLDCampCostInput Domain = Input;
     Domain.Attributes.AttackSpeed.Numerator = 1;
     Domain.Attributes.AttackSpeed.Denominator = 10;
@@ -3656,6 +3656,18 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A blueprint ranked below the lowest learned active is kept"),
         LDOpponentPolicy::SelectReplacement(Kept.Self, C, Blueprint, Slot, Error))
         && Test.TestFalse(TEXT("And nothing else is to be built"), LDOpponentPolicy::DecideFollowUpBuild(Kept, C, State, Intent));
+    auto Final = Kept;
+    Final.Self.FinalModOfferId = FGuid(0xF1, 0, 0, 1);
+    Final.Self.FinalModOptions = {TEXT("final_forced_exit"), TEXT("final_traffic"), TEXT("final_landlord")};
+    Final.Self.FinalModSources = {
+        {FName(TEXT("final_traffic")), ELDComponentTargetKind::Dash, NAME_None},
+        {FName(TEXT("final_landlord")), ELDComponentTargetKind::None, NAME_None}};
+    bGood &= Test.TestTrue(TEXT("Final selection uses the first currently legal rule and its explicit source"),
+        LDOpponentPolicy::DecideFollowUpBuild(Final, C, State, Intent) && Intent.Kind == EKind::FinalMod
+        && Intent.Option == TEXT("final_traffic") && Intent.TargetKind == ELDComponentTargetKind::Dash && Intent.TargetId.IsEmpty());
+    Final.Self.FinalModSources.Reset();
+    bGood &= Test.TestFalse(TEXT("No final selection is sent without a current legal source"),
+        LDOpponentPolicy::DecideFollowUpBuild(Final, C, State, Intent));
 
     // Respec: the replacement takes the last AP active away, so the brains points come back once and go to the AD stats.
     const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),

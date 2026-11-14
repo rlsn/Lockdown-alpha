@@ -70,6 +70,9 @@ namespace LDDemoWorld
     constexpr int32 PKSignups = 6;
     // A distinct standing position for each roster slot (0..PKSignups-1).
     inline FString PKSignupId(int32 Slot) { return FString::Printf(TEXT("pk_signup_%d"), Slot); }
+    constexpr int32 FinalSpawns = 6;
+    inline FString FinalSpawnId(int32 Slot) { return FString::Printf(TEXT("final_spawn_%d"), Slot); }
+    inline FString FinalCaptureId() { return TEXT("final_capture"); }
     constexpr int32 RestServices = 3;
     inline FString RestServiceId(int32 Index) { return FString::Printf(TEXT("rest_service_%d"), Index); }
     constexpr int32 TrainingDummies = 6;
@@ -157,8 +160,10 @@ UENUM()
 // pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 // D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
 // #198: PKSpawn is one of the six PK ring spawns pk_spawn_0..5 around the capture anchor; PKThrow is the fixed
-// off-arena spectator throw origin pk_throw. PKSignup anchors are standing positions inside the shared sign-up disk.
-enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, PKSpawn, PKThrow, PKSignup, RestSpawn, RestService, TrainingDummy };
+// off-arena spectator throw origin pk_throw. Points only, read through the content World references. PKSignup is the
+// PK sign-up disk of one roster slot's private rest space (pk_signup_0..5), read by its canonical id.
+// FinalSpawn and FinalCapture identify the isolated endgame field's entry ring and capture point.
+enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop, BossWaypoint, PKSpawn, PKThrow, PKSignup, RestSpawn, RestService, TrainingDummy, FinalSpawn, FinalCapture };
 
 USTRUCT()
 struct FLDDemoWorldAnchor

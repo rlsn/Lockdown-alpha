@@ -24,6 +24,49 @@
 #include "EngineUtils.h"
 #include "Camera/PlayerCameraManager.h"
 
+namespace
+{
+bool IsObservedFlight(ELDObservedProjectileLook Look)
+{
+    return Look==ELDObservedProjectileLook::Chalk || Look==ELDObservedProjectileLook::Sock
+        || Look==ELDObservedProjectileLook::ChalkReturn || Look==ELDObservedProjectileLook::SockReturn;
+}
+
+bool IsObservedReturn(ELDObservedProjectileLook Look)
+{
+    return Look==ELDObservedProjectileLook::ChalkReturn || Look==ELDObservedProjectileLook::SockReturn;
+}
+
+bool IsObservedArea(ELDObservedProjectileLook Look)
+{
+    return Look==ELDObservedProjectileLook::AreaPlain || Look==ELDObservedProjectileLook::AreaMagic
+        || Look==ELDObservedProjectileLook::AreaFire || Look==ELDObservedProjectileLook::AreaWater
+        || Look==ELDObservedProjectileLook::AreaElectric;
+}
+
+FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
+{
+    switch (Look)
+    {
+    case ELDObservedProjectileLook::Chalk:
+    case ELDObservedProjectileLook::ChalkReturn: return FLinearColor(.95f,.95f,.9f);
+    case ELDObservedProjectileLook::Sock:
+    case ELDObservedProjectileLook::SockReturn: return FLinearColor(.55f,.85f,.25f);
+    case ELDObservedProjectileLook::FlyerArming: return FLinearColor(.9f,.65f,.2f);
+    case ELDObservedProjectileLook::AreaMagic: return FLinearColor(.65f,.2f,1.f);
+    case ELDObservedProjectileLook::AreaFire: return FLinearColor(1.f,.18f,.015f);
+    case ELDObservedProjectileLook::AreaWater: return FLinearColor(.02f,.62f,1.f);
+    case ELDObservedProjectileLook::AreaElectric: return FLinearColor(1.f,.78f,.02f);
+    case ELDObservedProjectileLook::AreaPlain: return FLinearColor(.95f,.48f,.12f);
+    case ELDObservedProjectileLook::Road: return FLinearColor(1.f,.68f,.08f);
+    case ELDObservedProjectileLook::BookShadow:
+    case ELDObservedProjectileLook::FlyerArmed:
+    case ELDObservedProjectileLook::SpeechCone: return FLinearColor(1.f,.38f,.16f);
+    default: return FLinearColor(.92f,.9f,.98f);
+    }
+}
+}
+
 bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
 {
     *this = FLDObservedCatalog();
@@ -249,6 +292,11 @@ LDObservedPresentation::FPose LDObservedPresentation::Sample(TConstArrayView<FPo
     return Pose;
 }
 
+float LDObservedPresentation::HitAgeSeconds(uint16 AgePlusOneMs, double ElapsedSinceSample)
+{
+    return AgePlusOneMs ? float(double(AgePlusOneMs - 1) / 1000.0 + FMath::Max(0.0, ElapsedSinceSample)) : -1.f;
+}
+
 double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds)
 {
     const double Candidate = ArrivalLocalSeconds - SampledAtServerSeconds;
@@ -324,7 +372,6 @@ bool ALDObservedEntityProxy::IsBodyBlocking() const
 
 void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec)
 {
-    const bool bSameInterval=bPlaced && ObservedHandle==Unit.Handle && ObservedEpoch==Unit.ObservationEpoch;
     LDObservedPresentation::FPoint Point;
     Point.At = SampledAtServerSec;
     Point.Location = FVector(Unit.FeetCm) + FVector(0, 0, VisualHalfHeightCm);
@@ -344,11 +391,11 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     LDObservedPresentation::FFacts& Shown = Facts.AddDefaulted_GetRef();
     Shown.Cue = Unit.ActionCue;
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
+    Shown.CueImpactDelayMs = Unit.ActionCueImpactDelayMs;
+    Shown.HitLook = Unit.HitLook;
+    Shown.RecentHitAgePlusOneMs = Unit.RecentHitAgePlusOneMs;
+    Shown.HitFlags = Unit.HitFlags;
     Shown.Statuses = Unit.Statuses;
-    Shown.bDamage=bSameInterval && (Unit.AuthorizedFieldMask&LDObservation::Health)!=0
-        && Unit.Health.MaxP2==LastMaxHealthP2 && Unit.Health.CurrentP2<LastHealthP2;
-    LastHealthP2=Unit.Health.CurrentP2;
-    LastMaxHealthP2=Unit.Health.MaxP2;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
     while (Points.Num() > 8) { Points.RemoveAt(0); Facts.RemoveAt(0); }
     ObservedHandle = Unit.Handle;
@@ -378,9 +425,12 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         const LDObservedPresentation::FFacts& Reached = Facts[Pose.Reached];
         const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
-        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age);
-        if (Reached.bDamage)
-        { Body->SetHitReaction(float(FMath::Max(0.,AtServerSec-Points[Pose.Reached].At))); }
+        Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age,
+            Reached.Cue == ELDObservedActionCue::Hit ? -1.f : float(Reached.CueImpactDelayMs) / 1000.f, Reached.HitLook,
+            ALDCharacter::PresentationKnockback(Reached.Statuses));
+        if (Reached.RecentHitAgePlusOneMs)
+        { Body->SetHitReaction(LDObservedPresentation::HitAgeSeconds(Reached.RecentHitAgePlusOneMs,
+            AtServerSec-Points[Pose.Reached].At), Reached.HitLook, Reached.HitFlags); }
         ShownAt = Points[Pose.Reached].At;
     }
     if (Pose.Reached > 0)
@@ -501,30 +551,41 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
 
 void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effect)
 {
-    const bool bFlight=Effect.Look==ELDObservedProjectileLook::Chalk || Effect.Look==ELDObservedProjectileLook::Sock;
+    const bool bFlight=IsObservedFlight(Effect.Look);
     const bool bCone=Effect.Look==ELDObservedProjectileLook::SpeechCone;
     const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
-    const FLinearColor Color=Effect.Look==ELDObservedProjectileLook::Chalk ? FLinearColor(.95f,.95f,.9f)
-        : Effect.Look==ELDObservedProjectileLook::Sock ? FLinearColor(.55f,.85f,.25f)
-        : Effect.Look==ELDObservedProjectileLook::FlyerArming ? FLinearColor(.9f,.65f,.2f)
-        : FLinearColor(1.f,.38f,.16f);
+    const bool bArea=IsObservedArea(Effect.Look);
+    const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road;
+    const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
+        : ObservedEffectColor(Effect.Look);
     ShownLook=Effect.Look;
     ShownRadius=Effect.RadiusCm; ShownInnerRadius=Effect.InnerRadiusCm; ShownAngle=Effect.AngleDegrees;
+    ShownLength=Effect.LengthCm;bShownOwn=Effect.bOwn;
+    ShownColor=Color;
     if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
+    if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),Color); }
+    Trail->SetReturning(IsObservedReturn(Effect.Look));
     Chalk->SetStaticMesh(bFlight ? CylinderMesh : BoxMesh);
     Chalk->SetRelativeLocation(FVector::ZeroVector);
     Chalk->SetRelativeRotation(bFlight ? FRotator(90,0,0) : FRotator::ZeroRotator);
     Chalk->SetRelativeScale3D(bFlight ? FVector(.22,.22,.5)
-        : bCone ? FVector(.4,.75,.04) : bBook ? FVector(1.7,1.3,.16) : FVector(1.1,.85,.025));
+        : bCone ? FVector(.4,.75,.04) : bArea ? FVector(.38,.38,.04) : bBook ? FVector(1.7,1.3,.16) : FVector(1.1,.85,.025));
     if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,95)); }
     if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
+    if (bArea) { Chalk->SetRelativeLocation(FVector(0,0,7)); }
+    if(bRoad)
+    {
+        Chalk->SetRelativeLocation(FVector(0,0,1));
+        Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,.012));
+    }
     Accent->SetVisibility(Effect.Look!=ELDObservedProjectileLook::Chalk);
     Accent->SetRelativeRotation(FRotator::ZeroRotator);
-    Accent->SetRelativeLocation(bFlight ? FVector(20,0,-12) : bCone ? FVector(Effect.RadiusCm*.65,0,110)
+    Accent->SetRelativeLocation(bFlight ? FVector(20,0,-12) : bArea ? FVector(0,0,14) : bCone ? FVector(Effect.RadiusCm*.65,0,110)
         : bBook ? FVector(0,0,105) : FVector(0,0,3));
-    Accent->SetRelativeScale3D(bFlight ? FVector(.3,.2,.16) : bCone ? FVector(.5,.95,.04)
+    Accent->SetRelativeScale3D(bFlight ? FVector(.3,.2,.16) : bArea ? FVector(.34,.34,.06) : bCone ? FVector(.5,.95,.04)
         : bBook ? FVector(1.5,1.15,.06) : FVector(.8,.12,.02));
     Trail->SetVisibility(bFlight,true);
+    if(bRoad){Accent->SetVisibility(false);}
     for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
     if (bFlight) { return; }
     int32 Used=0;
@@ -562,7 +623,15 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
             Previous=Next;
         }
     };
-    if (bCone)
+    if(bRoad)
+    {
+        const double Half=Effect.LengthCm*.5,Width=Effect.RadiusCm;
+        Line(FVector(-Half,-Width,2),FVector(Half,-Width,2));
+        Line(FVector(-Half,Width,2),FVector(Half,Width,2));
+        Line(FVector(-Half,-Width,2),FVector(-Half,Width,2));
+        Line(FVector(Half,-Width,2),FVector(Half,Width,2));
+    }
+    else if (bCone)
     {
         const double Half=FMath::DegreesToRadians(double(Effect.AngleDegrees)*.5);
         Arc(Effect.RadiusCm,-Half,Half*2);
@@ -572,13 +641,13 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     else
     {
         Arc(Effect.RadiusCm,0,2.*PI);
-        Arc(Effect.InnerRadiusCm,0,2.*PI);
+        if (Effect.InnerRadiusCm>0) { Arc(Effect.InnerRadiusCm,0,2.*PI); }
     }
 }
 
 void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec)
 {
-    const bool bFlight=Projectile.Look==ELDObservedProjectileLook::Chalk || Projectile.Look==ELDObservedProjectileLook::Sock;
+    const bool bFlight=IsObservedFlight(Projectile.Look);
     LDObservedPresentation::FPoint Point;
     Point.At = SampledAtServerSec;
     Point.Location = FVector(Projectile.PositionCm) + FVector(0, 0, bFlight ? 100 : 4);
@@ -592,15 +661,18 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         {
             EffectTint = UMaterialInstanceDynamic::Create(Material, this);
             Chalk->SetMaterial(0, EffectTint);
-            UMaterialInstanceDynamic* Paper = UMaterialInstanceDynamic::Create(Material, this);
-            Paper->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.95f,.95f,.9f));
-            Accent->SetMaterial(0,Paper);
+            AccentTint = UMaterialInstanceDynamic::Create(Material, this);
+            AccentTint->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.95f,.95f,.9f));
+            Accent->SetMaterial(0,AccentTint);
         }
         else { ensureMsgf(false, TEXT("Character material missing; rerun asset bootstrap")); }
     }
     else if (!Points.IsEmpty() && SampledAtServerSec <= Points.Last().At) { return; }
+    WarningAtServerSec=Projectile.WarningRemainingMs>0
+        ? SampledAtServerSec+double(Projectile.WarningRemainingMs)/1000. : -1.;
     if (ShownRadius<0 || ShownLook!=Projectile.Look || ShownRadius!=Projectile.RadiusCm
-        || ShownInnerRadius!=Projectile.InnerRadiusCm || ShownAngle!=Projectile.AngleDegrees) { ApplyLook(Projectile); }
+        || ShownInnerRadius!=Projectile.InnerRadiusCm || ShownAngle!=Projectile.AngleDegrees
+        || ShownLength!=Projectile.LengthCm || bShownOwn!=Projectile.bOwn) { ApplyLook(Projectile); }
     ObservedHandle = Projectile.Handle;
     EndedAt = -1;
     Point.bSnap = Points.IsEmpty();
@@ -613,18 +685,24 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
     if (Points.IsEmpty()) { return; }
     const LDObservedPresentation::FPose Pose = LDObservedPresentation::Sample(Points, AtServerSec);
     SetActorLocationAndRotation(Pose.Location, FRotator(0, Pose.Yaw, 0));
+    if (AccentTint)
+    {
+        const double Remaining=WarningAtServerSec>AtServerSec ? WarningAtServerSec-AtServerSec : 0.;
+        const float Pulse=Remaining>0. ? .3f+.55f*(.5f+.5f*FMath::Sin(float(AtServerSec)*(Remaining<1. ? 14.f : 7.f))) : 0.f;
+        AccentTint->SetVectorParameterValue(TEXT("Tint"),FMath::Lerp(ShownColor,FLinearColor::White,Pulse));
+    }
     if (Pose.Reached > 0) { Points.RemoveAt(0, Pose.Reached); }
 }
 
 void ALDObservedProjectileProxy::End(double LocalSeconds)
 {
     if (EndedAt < 0) { EndedAt = LocalSeconds; }
-    if (ShownLook!=ELDObservedProjectileLook::Chalk && ShownLook!=ELDObservedProjectileLook::Sock) { SetActorHiddenInGame(true); }
+    if (!IsObservedFlight(ShownLook)) { SetActorHiddenInGame(true); }
 }
 
 bool ALDObservedProjectileProxy::IsFinished(double AtServerSec, double LocalSeconds) const
 {
-    return EndedAt >= 0 && ((ShownLook!=ELDObservedProjectileLook::Chalk && ShownLook!=ELDObservedProjectileLook::Sock)
+    return EndedAt >= 0 && (!IsObservedFlight(ShownLook)
         || Points.IsEmpty() || AtServerSec >= Points.Last().At || LocalSeconds - EndedAt >= EndSeconds);
 }
 

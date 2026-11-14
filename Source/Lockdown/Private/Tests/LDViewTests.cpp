@@ -23,7 +23,11 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
-        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Charms"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK")},TEXT("The public flagpole names only the spray holder, the graffiti owner and their progress"));
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Charms"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK"),
+        TEXT("Showdown"),TEXT("OwnerBankedGuardMs")},TEXT("The public flagpole carries only public objective and timeline state"));
+    ExpectStruct(FLDShowdownView::StaticStruct(),{TEXT("bStarted"),TEXT("StartedAtMs"),TEXT("EndsAtMs"),
+        TEXT("RespawnsCloseAtMs"),TEXT("ClosureAtMs"),TEXT("SprayMs"),TEXT("GuardMs"),TEXT("CentreCm"),
+        TEXT("InitialRadiusCm"),TEXT("FinalRadiusCm")},TEXT("The public showdown exposes clocks and arena geometry, never hidden contenders or builds"));
     // #198 session D: the public PK names entrants, sides, bets, the arena, pending throws and the settled awards only.
     ExpectStruct(FLDPKView::StaticStruct(),{TEXT("Generation"),TEXT("Serial"),TEXT("RestIndex"),TEXT("Format"),TEXT("SideCount"),
         TEXT("Entrants"),TEXT("Bettors"),TEXT("Bets"),TEXT("ArenaCentreCm"),TEXT("ThrowAnchorCm"),TEXT("FightStartedAtMs"),TEXT("Outcome"),
@@ -46,7 +50,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
     ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),
-        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
+        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
     ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices"),TEXT("Scores")},TEXT("Kill feed is a bounded public ring with the public K/D/A"));
     ExpectStruct(FLDScoreRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Kills"),TEXT("Deaths"),TEXT("Assists")},
         TEXT("Scoreboard rows carry only the public kills, deaths and assists"));

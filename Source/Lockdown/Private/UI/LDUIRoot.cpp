@@ -139,6 +139,14 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     Add(MainMenu,Tagline,4);
     StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},22);
     Add(MainMenu,StartButton,8);
+    if(const auto* Instance=GetGameInstance<ULDGameInstance>();Instance&&Instance->CanReconnect())
+    {
+        Add(MainMenu,MakeButton(TEXT("重新连接本局"),TEXT("Reconnect"),[this]()
+        {
+            if(auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer()))
+            {if(auto* State=GetGameInstance<ULDGameInstance>()){State->ReconnectRoom(*Owner);}}
+        },22),8);
+    }
     Add(MainMenu,MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},22),8);
     Add(MainMenu,MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);},22),8);
 
@@ -277,7 +285,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Add(Lobby,LobbyBlocker,4);
     LobbyFeedback=Label(FString(),16);
     Add(Lobby,LobbyFeedback,4);
-    Add(Lobby,Label(TEXT("最多 3 名真人（含房主）与 0–3 个 AI，空位不会自动补满；成员或 AI 数量变化会清除真人准备。"),15,MutedColor),6);
+    Add(Lobby,Label(TEXT("最多 6 名参赛者（含房主），其中 AI 最多 3 个；空位不会自动补满。成员或 AI 数量变化会清除真人准备。"),15,MutedColor),6);
     // #198 §10: the own last build blueprint and the read-only import view, outside any match.
     Add(Lobby,MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
     {
@@ -590,6 +598,7 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
         {
             SetLine(CastChecked<UTextBlock>(AIButtons[Count]->GetContent()),
                 Count==Lobby.AICount?FString::Printf(TEXT("● %d"),Count):FString::FromInt(Count));
+            AIButtons[Count]->SetIsEnabled(Lobby.Members.Num()-Lobby.AICount+Count<=LDMatchLifecycle::MaxContenders);
         }
     }
     AIButtonRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
@@ -1116,7 +1125,9 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Eve
 void ULDUIRoot::LeaveRoom()
 {
     CloseConfirm();
-    UGameplayStatics::OpenLevel(this,LDDemoEntry::FrontendMap);
+    if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&!PC->IsFrontend()&&PC->OwnerState.Match)
+    {PC->LeaveDemoRoom();}
+    else{UGameplayStatics::OpenLevel(this,LDDemoEntry::FrontendMap);}
 }
 
 void ULDUIRoot::Leave(){LeaveRoom();}

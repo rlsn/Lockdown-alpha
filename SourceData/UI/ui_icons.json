@@ -3,6 +3,14 @@
   "folder": "Icons",
   "provenance": "Wugang icon set delivered 2026-11-09 (Artifacts/Art/WugangIcons/2026-11-09, Lockdown_Wugang_Icons_64px.zip): generated for this project with the built-in imagegen in the approved hand-painted style, 64x64 area-sampled exports of the originals; no third-party art. Entries with their own provenance field are script-derived variants of listed icons.",
   "icons": [
+    {"id": "icon_final_bowling", "sha256": "240e8d80d86aabcf7beee2e4249057ea8e2fe433974ffed6f560e1e1c74e3f86", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_charged_ram art for the independent final card."},
+    {"id": "icon_final_forced_exit", "sha256": "2cb26ff2d2066c28ab275d13d9483fa55bac955fad30abb0eb62448973315606", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_elbow art for the independent final card."},
+    {"id": "icon_final_traffic", "sha256": "fce3cacd6935d82c2d7f63425d9000d37bc8d48e76081b3dcf8be57053a8ce75", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_apology_slide art for the independent final card."},
+    {"id": "icon_final_split", "sha256": "9260dbcaf3eaffa81142e9c806ad6de6715c4fb95aa8426bfc0ff869624bb36f", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_hose_down art for the independent final card."},
+    {"id": "icon_final_landlord", "sha256": "fd20569f68a149bc254e68987df2e6cde0929c19098630466a8e4043ed418008", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_calculus_drop art for the independent final card."},
+    {"id": "icon_final_breach", "sha256": "e0c3fb75ae25b96af666cbf3985156c38d0a965675fe4b9a0a44c5e144eed899", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_bail_out art for the independent final card."},
+    {"id": "icon_final_comeback", "sha256": "f318486fee779e96a48201769adc1a1072d273e54c7ba464e7e118def7898690", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_dirty_puddle art for the independent final card."},
+    {"id": "icon_final_open_mic", "sha256": "d3c64fcc5b03e302f588d61eb521e216e0d9b7736f89c9f89b092a9a890d4ea9", "width": 64, "height": 64, "provenance": "Reuses the approved icon_active_open_mic art for the independent final card."},
     {
       "id": "icon_active_account_banned",
       "sha256": "4c9b6d4fbe819f7e2c3257b10bb0543cbd670df67a6a34a3b72ec4c755a5f3eb",

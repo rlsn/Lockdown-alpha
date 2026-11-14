@@ -526,11 +526,11 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionCueImpactDelayMs"), TEXT("HitLook"), TEXT("RecentHitAgePlusOneMs"), TEXT("HitFlags"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
-        TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees")});
+        TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees"), TEXT("LengthCm"), TEXT("bOwn"), TEXT("WarningRemainingMs")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
     // #112 §10, #198: the Q/W/E active ids only; no rank, cooldown or mana field.
@@ -1137,19 +1137,33 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units = {ContenderUnit(1), CampUnit(2)};
     View.Units[0].ActionCue = ELDObservedActionCue::Cast;
     View.Units[0].ActionCueAgeMs = 180;
+    View.Units[0].ActionCueImpactDelayMs = 300;
+    View.Units[0].HitLook = ELDObservedHitLook::Water;
+    View.Units[0].RecentHitAgePlusOneMs = 21;
+    View.Units[0].HitFlags = LDObservation::ShieldAbsorbed;
     View.Units[1].ActionCue = ELDObservedActionCue::Hit;
     View.Units[1].ActionCueAgeMs = 40;
+    View.Units[1].HitLook = ELDObservedHitLook::Electric;
+    View.Units[1].RecentHitAgePlusOneMs = 41;
+    View.Units[1].HitFlags = LDObservation::Critical | LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken;
     View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
-    TestTrue(TEXT("Cues and their ages round-trip"), Wire(View, Read) && Read.Units.Num() == 2
-        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180 && Read.Units[0].ActionAbility == 7
-        && Read.Units[1].ActionCue == ELDObservedActionCue::Hit && Read.Units[1].ActionCueAgeMs == 40);
+    TestTrue(TEXT("Cues, their ages and release timing round-trip"), Wire(View, Read) && Read.Units.Num() == 2
+        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180
+        && Read.Units[0].ActionCueImpactDelayMs == 300 && Read.Units[0].HitLook == ELDObservedHitLook::Water
+        && Read.Units[0].RecentHitAgePlusOneMs == 21 && Read.Units[0].HitFlags == LDObservation::ShieldAbsorbed
+        && Read.Units[0].ActionAbility == 7 && Read.Units[1].ActionCue == ELDObservedActionCue::Hit
+        && Read.Units[1].ActionCueAgeMs == 40 && Read.Units[1].HitLook == ELDObservedHitLook::Electric
+        && Read.Units[1].RecentHitAgePlusOneMs == 41
+        && Read.Units[1].HitFlags == (LDObservation::Critical | LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken));
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
     {
         FLDObservedUnitView Unit = ContenderUnit();
         Unit.ActionCue = Cue;
         Unit.ActionCueAgeMs = Cue == ELDObservedActionCue::None ? 0 : 250;
+        Unit.ActionCueImpactDelayMs = Cue == ELDObservedActionCue::Attack || Cue == ELDObservedActionCue::Cast ? 300 : 0;
+        Unit.RecentHitAgePlusOneMs = Cue == ELDObservedActionCue::Hit ? 251 : 0;
         TestTrue(*FString::Printf(TEXT("Cue %d is a public cue"), int32(Cue)), LDObservation::ValidateUnit(Unit, Error));
     }
     FLDObservedUnitView Unknown = ContenderUnit();
@@ -1158,6 +1172,47 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Aged = ContenderUnit();
     Aged.ActionCueAgeMs = 1;
     TestFalse(TEXT("No cue carries no age"), LDObservation::ValidateUnit(Aged, Error));
+    FLDObservedUnitView DelayedWithoutCue = ContenderUnit();
+    DelayedWithoutCue.ActionCueImpactDelayMs = 1;
+    TestFalse(TEXT("No cue carries no impact delay"), LDObservation::ValidateUnit(DelayedWithoutCue, Error));
+    FLDObservedUnitView DelayedHit = ContenderUnit();
+    DelayedHit.ActionCue = ELDObservedActionCue::Hit;
+    DelayedHit.ActionCueAgeMs = 1;
+    DelayedHit.RecentHitAgePlusOneMs = 2;
+    DelayedHit.ActionCueImpactDelayMs = 1;
+    TestFalse(TEXT("A hit reaction has no future action-release time"), LDObservation::ValidateUnit(DelayedHit, Error));
+    FLDObservedUnitView UncuedHitLook=ContenderUnit();
+    UncuedHitLook.HitLook=ELDObservedHitLook::Fire;
+    TestFalse(TEXT("An uncued unit cannot carry a hit look"), LDObservation::ValidateUnit(UncuedHitLook,Error));
+    FLDObservedUnitView UnknownHitLook=ContenderUnit();
+    UnknownHitLook.ActionCue=ELDObservedActionCue::Hit;
+    UnknownHitLook.ActionCueAgeMs=1;
+    UnknownHitLook.RecentHitAgePlusOneMs=2;
+    UnknownHitLook.HitLook=static_cast<ELDObservedHitLook>(255);
+    TestFalse(TEXT("An unknown hit look is refused"), LDObservation::ValidateUnit(UnknownHitLook,Error));
+    FLDObservedUnitView UnknownHitFlags = UnknownHitLook;
+    UnknownHitFlags.HitLook = ELDObservedHitLook::None;
+    UnknownHitFlags.HitFlags = 0x80;
+    TestFalse(TEXT("Unknown impact flags are refused"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
+    UnknownHitFlags.HitFlags = LDObservation::ShieldBroken;
+    TestFalse(TEXT("A shield cannot break without absorbing this hit"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
+    UnknownHitFlags.HitFlags = LDObservation::Critical;
+    UnknownHitFlags.RecentHitAgePlusOneMs = 0;
+    TestFalse(TEXT("Impact flags require a recent hit"), LDObservation::ValidateUnit(UnknownHitFlags,Error));
+    FLDObservedUnitView CastHit = ContenderUnit();
+    CastHit.ActionCue = ELDObservedActionCue::Cast;
+    CastHit.RecentHitAgePlusOneMs = 1;
+    TestTrue(TEXT("A generic hit at the current instant is visible while casting"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.RecentHitAgePlusOneMs = LDObservation::RecentHitWindowMs;
+    TestTrue(TEXT("The last millisecond of the visible hit window is allowed"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.RecentHitAgePlusOneMs = LDObservation::RecentHitWindowMs + 1;
+    TestFalse(TEXT("A stale hit is rejected"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.ActionCue = ELDObservedActionCue::None;
+    CastHit.RecentHitAgePlusOneMs = 1;
+    TestFalse(TEXT("An uncued unit cannot carry a recent hit"), LDObservation::ValidateUnit(CastHit,Error));
+    CastHit.ActionCue = ELDObservedActionCue::Hit;
+    CastHit.ActionCueAgeMs = 10;
+    TestFalse(TEXT("A hit cue and its independently carried age must agree"), LDObservation::ValidateUnit(CastHit,Error));
     // A cast may name its public ability at that moment (user-approved CB-P10 amendment); nothing else may.
     FLDObservedUnitView Named = ContenderUnit();
     Named.ActionCue = ELDObservedActionCue::Cast;
@@ -1216,16 +1271,32 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     {
         const FLDObservedProjectileView& Sent = Full.Projectiles[Index];
         const FLDObservedProjectileView& Got = Read.Projectiles[Index];
-        bSame = Got.Handle == Sent.Handle && Got.Heading == Sent.Heading && Got.Look == Sent.Look && Got.PositionCm.Equals(Sent.PositionCm, PositionToleranceCm);
+        bSame = Got.Handle == Sent.Handle && Got.Heading == Sent.Heading && Got.Look == Sent.Look
+            && Got.WarningRemainingMs == Sent.WarningRemainingMs && Got.PositionCm.Equals(Sent.PositionCm, PositionToleranceCm);
     }
     TestTrue(TEXT("Every flight keeps its handle, heading, look and quantized position"), bSame);
-    for (const auto Look : {ELDObservedProjectileLook::Sock, ELDObservedProjectileLook::BookShadow,
-        ELDObservedProjectileLook::FlyerArming, ELDObservedProjectileLook::FlyerArmed, ELDObservedProjectileLook::SpeechCone})
+    for (const auto Look : {ELDObservedProjectileLook::Sock, ELDObservedProjectileLook::ChalkReturn,
+        ELDObservedProjectileLook::SockReturn, ELDObservedProjectileLook::BookShadow,
+        ELDObservedProjectileLook::FlyerArming, ELDObservedProjectileLook::FlyerArmed, ELDObservedProjectileLook::SpeechCone,
+        ELDObservedProjectileLook::AreaPlain, ELDObservedProjectileLook::AreaMagic, ELDObservedProjectileLook::AreaFire,
+        ELDObservedProjectileLook::AreaWater, ELDObservedProjectileLook::AreaElectric,ELDObservedProjectileLook::Road})
     {
         FLDWorldView Effects=ActiveFrame(7,3,42);
         auto Effect=Flight(FVector(20,30,2));
         Effect.Look=Look;
-        if (Look!=ELDObservedProjectileLook::Sock)
+        const bool bArea=Look==ELDObservedProjectileLook::AreaPlain || Look==ELDObservedProjectileLook::AreaMagic
+            || Look==ELDObservedProjectileLook::AreaFire || Look==ELDObservedProjectileLook::AreaWater
+            || Look==ELDObservedProjectileLook::AreaElectric;
+        Effect.bOwn=true;
+        if(Look==ELDObservedProjectileLook::Road)
+        {Effect.RadiusCm=45.f;Effect.LengthCm=600.f;}
+        else if (bArea)
+        {
+            Effect.RadiusCm=240.f;
+            Effect.WarningRemainingMs=Look==ELDObservedProjectileLook::AreaFire ? 900 : 0;
+        }
+        else if (Look!=ELDObservedProjectileLook::Sock && Look!=ELDObservedProjectileLook::ChalkReturn
+            && Look!=ELDObservedProjectileLook::SockReturn)
         {
             Effect.RadiusCm=Look==ELDObservedProjectileLook::SpeechCone ? 450.f : 180.f;
             Effect.InnerRadiusCm=Look==ELDObservedProjectileLook::SpeechCone ? 0.f : 80.f;
@@ -1233,11 +1304,13 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         }
         Effects.Projectiles.Add(Effect);
         FLDWorldView RoundTrip;
-        TestTrue(TEXT("Approved skill geometry round-trips without private caster or build fields"),
+        TestTrue(TEXT("Approved flight/area geometry round-trips without private caster or build fields"),
             Wire(Effects,RoundTrip) && RoundTrip.Projectiles.Num()==1
             && RoundTrip.Projectiles[0].Look==Look && RoundTrip.Projectiles[0].RadiusCm==Effect.RadiusCm
             && RoundTrip.Projectiles[0].InnerRadiusCm==Effect.InnerRadiusCm
-            && RoundTrip.Projectiles[0].AngleDegrees==Effect.AngleDegrees);
+            && RoundTrip.Projectiles[0].AngleDegrees==Effect.AngleDegrees
+            && RoundTrip.Projectiles[0].LengthCm==Effect.LengthCm && RoundTrip.Projectiles[0].bOwn
+            && RoundTrip.Projectiles[0].WarningRemainingMs==Effect.WarningRemainingMs);
     }
     auto With = [&Full](TFunction<void(FLDWorldView&)> Change) { FLDWorldView View = Full; Change(View); return View; };
     TestFalse(TEXT("Flights beyond the bound refused"), Encodes(With([&Flight](FLDWorldView& V) { V.Projectiles.Add(Flight(FVector(0, 0, 2))); })));
@@ -1245,8 +1318,15 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Flights have unique handles"), Encodes(With([](FLDWorldView& V) { V.Projectiles[1].Handle = V.Projectiles[0].Handle; })));
     TestFalse(TEXT("A flight requires a handle"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Handle.Invalidate(); })));
     TestFalse(TEXT("Unknown flight look refused"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look = static_cast<ELDObservedProjectileLook>(255); })));
+    TestFalse(TEXT("A flight cannot carry a landing warning"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].WarningRemainingMs=1; })));
     TestFalse(TEXT("A flight cannot smuggle another effect's geometry"),
         Encodes(With([](FLDWorldView& V) { V.Projectiles[0].RadiusCm=180; })));
+    TestFalse(TEXT("A road without actual walked length is refused"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::Road;V.Projectiles[0].RadiusCm=45; })));
+    TestFalse(TEXT("A non-road cannot carry an invented path"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].LengthCm=600; })));
+    TestFalse(TEXT("A return flight cannot carry a ground-effect shape"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::ChalkReturn; V.Projectiles[0].RadiusCm=180; })));
     TestFalse(TEXT("A trap must declare its visible radii"),
         Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::FlyerArmed; })));
     TestFalse(TEXT("Flights beyond the finite range refused"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].PositionCm = FVector(1000001, 0, 2); })));
@@ -1283,7 +1363,9 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     FLDObserverLedger Ledger;
     bool bReset = false;
     TestTrue(TEXT("Ledger begins alive"), Ledger.Begin(7, Error) && Ledger.Bind(ELDLifePhase::Alive, 1, bReset, Error));
-    const FLDObservedProjectileFact A = Fact(FVector(-700, 0, 2)), B = Fact(FVector(-800, 0, 2), FVector2D(0, 1));
+    const FLDObservedProjectileFact A = Fact(FVector(-700, 0, 2));
+    FLDObservedProjectileFact B = Fact(FVector(-800, 0, 2), FVector2D(0, 1));
+    B.Look=ELDObservedProjectileLook::SockReturn;
     auto HandleAt = [](const TArray<FLDObservedProjectileView>& Views, const FVector& Position)
     {
         const FLDObservedProjectileView* Found = Views.FindByPredicate([&Position](const FLDObservedProjectileView& View)
@@ -1297,6 +1379,8 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     const FLDObservedProjectileView* Northward = Out.FindByPredicate([&FirstB](const FLDObservedProjectileView& View) { return View.Handle == FirstB; });
     TestTrue(TEXT("Handles are fresh opaque GUIDs, never the flight key"), FirstA.IsValid() && FirstB.IsValid() && FirstA != A.Key && FirstB != B.Key);
     TestTrue(TEXT("Heading is the quantized planar yaw"), Northward && Northward->Heading == 16384);
+    TestTrue(TEXT("A visible return retains its public look through the observer ledger"),
+        Northward && Northward->Look==ELDObservedProjectileLook::SockReturn);
     TestTrue(TEXT("A flight keeps its handle while in sight; one that left is removed"), Ledger.SampleProjectiles({&A}, Removed, Out, Error)
         && Out.Num() == 1 && Out[0].Handle == FirstA && Removed.Num() == 1 && Removed[0] == FirstB);
     TestTrue(TEXT("An ended flight is removed"), Ledger.SampleProjectiles({}, Removed, Out, Error) && Out.IsEmpty() && Removed.Num() == 1 && Removed[0] == FirstA);
@@ -1420,6 +1504,11 @@ bool FLDDemoVisionPresentationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Growth never passes the arrival itself"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, 100.0, 105.11, 100.1), 5.01));
     TestTrue(TEXT("A jump beyond the reseed bound adopts the new clock"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 200.0, 10.0), 190.0));
     TestTrue(TEXT("The clock trails the newest sample by more than one publication"), P::DelaySeconds > .1);
+    TestEqual(TEXT("No public hit has no reaction"), P::HitAgeSeconds(0, .1), -1.f);
+    TestTrue(TEXT("A cast and a shield-absorbed or control hit use the actual hit age, not health changes"),
+        FMath::IsNearlyEqual(P::HitAgeSeconds(21, .03), .05f));
+    TestTrue(TEXT("Repeated samples retain the same hit onset"),
+        FMath::IsNearlyEqual(P::HitAgeSeconds(21, .03), P::HitAgeSeconds(41, .01)));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPropFadeTest, "Lockdown.Rules.DemoVision.PropFade",

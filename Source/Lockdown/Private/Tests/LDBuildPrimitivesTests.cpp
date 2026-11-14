@@ -8,6 +8,7 @@
 #include "Combat/LDCombatSourceRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
+#include "Character/LDFlightTrailComponent.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -16,10 +17,14 @@
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/RootMotionSource.h"
 #include "Misc/PackageName.h"
 #include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
@@ -36,6 +41,28 @@ struct FLDBuildPrimitivesAccess
     static TMap<FGuid, FLDCombatEntityRecord>& Records(ALDCombatDirector& Driver) { return Driver.Records; }
     static TArray<FLDCombatHit>& PendingHits(ALDCombatDirector& Driver) { return Driver.PendingHits; }
     static TArray<FLDCombatZone>& Zones(ALDCombatDirector& Driver) { return Driver.Zones; }
+    static bool FinalStep(ALDCombatDirector& Driver,int64 NowMs,FString& Error){return Driver.AdvanceFinalMods(NowMs,Error);}
+    static const auto& FinalTraffic(const ALDCombatDirector& Driver){return Driver.FinalTraffic;}
+    static bool FinalCost(const ALDCombatDirector& Driver,const FLDCombatEntityRecord& Record,const FLDCombatSourceRef& Source,
+        int64& Cooldown,FString& Error){return Driver.FinalCooldownCost(Record,Source,Cooldown,Error);}
+    static bool FinalSplit(ALDCombatDirector& Driver,FLDCombatZone& Zone,const FLDCombatAction& Action,int64 NowMs,
+        bool& Handled,FString& Error){return Driver.SplitFinalZone(Zone,Action.Direction,NowMs,Handled,Error);}
+    static bool FinalNotice(ALDCombatDirector& Driver,const FLDCombatHit& Hit,FLDBodyCombatState& Target,FLDBodyCombatState& Source,
+        int64 NowMs,FString& Error){return Driver.OnFinalHit(Hit,Target,&Source,true,false,NowMs,Error);}
+    static FLDCaptureReducer& Capture(ALDGameMode& Mode){return Mode.CaptureReducer;}
+    static void FinalCentre(ALDGameMode& Mode,const FVector& Centre){Mode.CaptureCircle.CenterCm=FVector2D(Centre.X,Centre.Y);}
+    static bool Showdown(ALDGameMode& Mode,const FLDDemoContentDefinitions& Content,FString& Error)
+    {
+        FLDTimelineParameters Parameters;
+        if(!FLDTimelineParameters::FromContent(Content.Parameters,Parameters,Error)||!Mode.Timeline.Begin(Parameters,0,Error)){return false;}
+        for(int32 Index=0;Index<32&&!Mode.IsShowdown();++Index)
+        {
+            TArray<FLDTimelineEvent> Events;
+            if(!Mode.Timeline.Advance(Mode.Timeline.NextDueMs(),0,true,true,Events,Error)){return false;}
+        }
+        if(!Mode.IsShowdown()){Error=TEXT("Fixture did not reach the real final field stage.");return false;}
+        return true;
+    }
     static bool ApplyHit(ALDCombatDirector& Driver, const FLDCombatHit& Hit, FString& Error) { return Driver.ApplyHit(Hit, Error); }
     static bool AdvanceBurns(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBurns(NowMs, Error); }
     static bool LandBasic(ALDCombatDirector& Driver, ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
@@ -54,7 +81,7 @@ struct FLDBuildPrimitivesAccess
     {
         FLDCombatActiveTerms Terms;
         Terms.Values = Values;
-        return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, FGuid::NewGuid(), 0, 0, MakeShared<FLDCombatCastLedger>(), Error);
+        return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, (Point-Origin).GetSafeNormal2D(), FGuid::NewGuid(), 0, 0, MakeShared<FLDCombatCastLedger>(), Error);
     }
     static void Bind(ALDGameMode& Mode, ALDCombatDirector& Driver, const TSharedPtr<const FLDDemoContentSnapshot>& Catalog)
     {
@@ -95,7 +122,7 @@ struct FLDBuildPrimitivesAccess
     { return Driver.CompileActive(Projection, Source, Terms, Error); }
     static bool ReleaseTerms(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDCombatActiveTerms& Terms, const FVector& Origin, const FVector& Point, FString& Error)
-    { return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, FGuid::NewGuid(), 0, 0, MakeShared<FLDCombatCastLedger>(), Error); }
+    { return Driver.ReleaseMechanics(Body, Source, Terms, Origin, Point, (Point-Origin).GetSafeNormal2D(), FGuid::NewGuid(), 0, 0, MakeShared<FLDCombatCastLedger>(), Error); }
     static bool DeliverTerms(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms,
         const FLDCombatAction& Action, FLDCombatHit& Hit, int64 Now, bool& Handled, FString& Error)
     { return Driver.StartSkillDelivery(Body, Terms, Action, Hit, Now, Handled, Error); }
@@ -104,10 +131,13 @@ struct FLDBuildPrimitivesAccess
     static bool AdvanceWorkshop(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceWorkshop(NowMs, Error); }
     static bool Watch(ALDCombatDirector& Driver, ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs,
         FString& Error)
-    { return Driver.WatchKnockbackImpact(Target, Body, Hit, NowMs, Error); }
+    { return Driver.WatchKnockbackImpact(Target, Body, Hit, FVector::ForwardVector, NowMs, Error); }
     static bool Impact(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDCombatKnockbackImpact& Impact, bool bBody,
         const ALDCharacter* Blocker, int64 NowMs, FString& Error)
     { return Driver.ResolveKnockbackImpact(Body, Impact, bBody, Blocker, NowMs, Error); }
+    static bool FinalImpact(ALDCombatDirector& Driver, const FLDCombatKnockbackImpact& Impact,
+        const ALDCharacter& Blocker, const FVector& Direction, int64 NowMs, FString& Error)
+    { return Driver.ResolveFinalBowlingImpact(Impact, &Blocker, Direction, NowMs, Error); }
     // #198 H combat event correctness: the real release, delivery and Effects entries.
     static bool BuildPayload(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDCombatActiveTerms& Terms, const FVector& Foot, FLDCombatHit& Out, FString& Error)
@@ -197,9 +227,17 @@ struct FFixture
         if (bSight)
         {
             // A PIE-prefixed name of the Demo world package selects its map registry without touching the saved map.
-            const FString Short = FString::Printf(TEXT("UEDPIE_%u_%s"), (FGuid::NewGuid().A & 0xFFFF) + 100u,
-                *FPackageName::GetShortName(LDDemoEntry::WorldMap));
-            Package = CreatePackage(*(FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap) / Short));
+            // DestroyWorld leaves its package until GC; never create another world inside that retained package.
+            uint32 Instance = 100;
+            FString Short, PackageName;
+            do
+            {
+                Short = FString::Printf(TEXT("UEDPIE_%u_%s"), Instance++,
+                    *FPackageName::GetShortName(LDDemoEntry::WorldMap));
+                PackageName = FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap) / Short;
+            }
+            while (FindPackage(nullptr, *PackageName));
+            Package = CreatePackage(*PackageName);
             WorldName = FName(*Short);
         }
         World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, Package, true, ERHIFeatureLevel::Num, &Values);
@@ -1082,8 +1120,8 @@ bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
     Hit.DeliveryScaleBp=-1;
     TestFalse(TEXT("A negative delivery share is refused"),LDTactical::EvaluateDamage(Hit,*Catalog).IsSuccess());
 
-    // Seventy agility points past level 16 push attack speed past its 2.3 cap.
-    FLDAttributeBuildValues Values(16,{FLDStatPointsValue(TEXT("stat_agility"),70)});
+    // Eighty agility points past level 16 stay below the cap until the temporary bonus is applied.
+    FLDAttributeBuildValues Values(16,{FLDStatPointsValue(TEXT("stat_agility"),80)});
     const auto Build=LDAttributeProjection::Project(Values,*Catalog);
     if (!TestTrue(TEXT("The capped build projects"),Build.IsSuccess())) { return false; }
     FLDTemporaryAttributeTerms Terms;
@@ -1095,6 +1133,289 @@ bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
     const auto Slowed=LDAttributeProjection::ApplyTemporary(Build.Value.GetValue(),Terms,*Catalog);
     TestTrue(TEXT("An attack slow slows the capped attack speed, not the pre-cap sum"),
         Slowed.IsSuccess() && Slowed.Value->Final.AttackSpeed.Numerator==69 && Slowed.Value->Final.AttackSpeed.Denominator==40);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFinalGroundBandTest,"Lockdown.Rules.DemoFinalMod.GroundBandTime",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDFinalGroundBandTest::RunTest(const FString& Parameters)
+{
+    using namespace LDDashContactRules;
+    const FGroundBand Band{FVector(0,0,0),FVector(300,0,0),1.,2.,2.5};
+    TOptional<FGroundBandShape> Shape;
+    TArray<FContactInterval> Contacts;
+    FString Error;
+    TestTrue(TEXT("Only the part already walked exists"),SampleGroundBand(Band,1.5,Shape,Error)&&Shape.IsSet()
+        &&Shape->FromCm.Equals(FVector(0,0,0))&&Shape->ToCm.Equals(FVector(150,0,0)));
+    TestTrue(TEXT("Each old part expires without extending the entire trail"),SampleGroundBand(Band,3.75,Shape,Error)
+        &&Shape.IsSet()&&Shape->FromCm.Equals(FVector(75,0,0))&&Shape->ToCm.Equals(FVector(300,0,0)));
+    TestTrue(TEXT("The final expiry is half-open"),SampleGroundBand(Band,4.5,Shape,Error)&&!Shape.IsSet());
+    TestTrue(TEXT("Crossing a future segment does not count"),GroundBandContacts(FVector(200,-100,0),FVector(200,100,0),
+        1.,1.4,Band,45,Contacts,Error)&&Contacts.IsEmpty());
+    TestTrue(TEXT("A full crossing between endpoints is retained"),GroundBandContacts(FVector(200,-100,0),FVector(200,100,0),
+        2.1,2.3,Band,45,Contacts,Error)&&!Contacts.IsEmpty()
+        &&FMath::IsNearlyEqual(Contacts[0].FromSeconds,2.155,.000001));
+    TestTrue(TEXT("A stationary enemy can be reached by new ground"),GroundBandContacts(FVector(200,0,0),FVector(200,0,0),
+        1.,2.,Band,45,Contacts,Error)&&!Contacts.IsEmpty()
+        &&FMath::IsNearlyEqual(Contacts[0].FromSeconds,1.+155./300.,.000001));
+    TestTrue(TEXT("Walking across an expired tail does not count"),GroundBandContacts(FVector(0,-100,0),FVector(0,100,0),
+        3.9,4.3,Band,45,Contacts,Error)&&Contacts.IsEmpty());
+    TestTrue(TEXT("Touching only at the final expiry cannot enter"),GroundBandContacts(FVector(400,0,0),FVector(345,0,0),
+        4.4,4.5,Band,45,Contacts,Error)&&Contacts.IsEmpty());
+    TestFalse(TEXT("Reversed native time is an explicit error"),GroundBandContacts(FVector::ZeroVector,FVector::ZeroVector,
+        2.,1.,Band,45,Contacts,Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFinalUniversalCombatTest,"Lockdown.Rules.DemoFinalMod.UniversalCombat",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDFinalUniversalCombatTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if(!F.Init(*this,true)){return false;}
+    FString Error;
+    if(!FAccess::Showdown(*F.Mode,F.Catalog->Get(),Error)){AddError(Error);return false;}
+    const auto A=F.AddBody(),B=F.AddBody(ELDVictimKind::Contender,1000000);
+    F.Actor(A).SetActorLocation(F.Origin+FVector(0,0,88));
+    F.Actor(B).SetActorLocation(F.Origin+FVector(100,0,88));
+    FLDCombatEntityRecord& Record=FAccess::Records(*F.Driver).FindChecked(A.Victim.EntityId);
+    Record.Build.FinalMod.DefinitionId=TEXT("final_open_mic");
+    const auto Basic=[&]()
+    {
+        auto Hit=FFixture::Hit(A,B,10000);
+        Hit.Source.Kind=ELDCombatSourceKind::Basic;Hit.HitClass=ELDCombatHitClass::BasicPrimary;
+        Hit.DamageType=ELDDemoDamageType::Physical;
+        return Hit;
+    };
+    const auto First=Basic();
+    F.Now(1000);
+    TestTrue(TEXT("First independent hit lands"),F.Apply(First,Error)&&FAccess::Zones(*F.Driver).IsEmpty());
+    TestTrue(TEXT("Repeated notification cannot manufacture a second hit"),FAccess::FinalNotice(*F.Driver,First,F.Body(B),F.Body(A),1100,Error)
+        &&FAccess::Zones(*F.Driver).IsEmpty());
+    F.Now(1200);
+    TestTrue(TEXT("Two real hits create the moving voice wave"),F.Apply(Basic(),Error)&&FAccess::Zones(*F.Driver).Num()==1);
+    if(FAccess::Zones(*F.Driver).Num()!=1){AddError(Error);return false;}
+    TestTrue(TEXT("The first wave has one immediate pulse and an owner movement cost"),
+        FAccess::Zones(*F.Driver)[0].Pulsed==1&&!F.Body(A).TimedBonuses.IsEmpty());
+    TestTrue(TEXT("Derived wave hits do not recursively create more waves"),F.Flush(Error)&&FAccess::Zones(*F.Driver).Num()==1);
+    const FGuid Old=FAccess::Zones(*F.Driver)[0].EffectId;
+    F.Now(1300);
+    TestTrue(TEXT("An already consumed hit is not paired with the third"),F.Apply(Basic(),Error)
+        &&FAccess::Zones(*F.Driver)[0].EffectId==Old);
+    F.Now(1400);
+    TestTrue(TEXT("The next pair replaces rather than stacks or adds an immediate pulse"),F.Apply(Basic(),Error)
+        &&FAccess::Zones(*F.Driver).Num()==1&&FAccess::Zones(*F.Driver)[0].EffectId!=Old
+        &&FAccess::Zones(*F.Driver)[0].Pulsed==0&&FAccess::Zones(*F.Driver)[0].DelayMs==800);
+    FAccess::Zones(*F.Driver).Reset();
+    Record.Build.FinalMod.DefinitionId=TEXT("final_landlord");
+    F.Body(A).AttributeProjection.Final.ADP2=10000;
+    FAccess::FinalCentre(*F.Mode,F.Origin);
+    auto& Capture=FAccess::Capture(*F.Mode);
+    TestTrue(TEXT("Capture begins"),Capture.Begin(0,3500,20000,Error));
+    for(const auto Ref:{A,B})
+    {
+        FLDCaptureEvent Join;Join.Kind=ELDCaptureEventKind::Joined;Join.Body=Ref;Join.bInside=Ref==A;
+        Join.Time.Seconds=0.;
+        TestTrue(TEXT("Current lives join capture"),Capture.Enqueue(Join,Error));
+    }
+    TOptional<FLDCaptureProposal> Proposal;
+    TestTrue(TEXT("The real spray reducer establishes the landlord"),Capture.CloseBoundary(3500,Proposal,Error)
+        &&Capture.GetGraffitiOwner()==A.Victim.EntityId);
+    F.Now(4000);
+    const int64 Before=F.Body(B).Resources.HpP2;
+    TestTrue(TEXT("Holding the flag reduces the actual main strike"),F.Apply(Basic(),Error)
+        &&F.Body(B).Resources.HpP2==Before-8000);
+    TestTrue(TEXT("Successful strike starts the delayed flag-centred shock"),FAccess::Zones(*F.Driver).Num()==1
+        &&FAccess::Zones(*F.Driver)[0].DelayMs==700&&FAccess::Zones(*F.Driver)[0].Pulsed==0);
+    F.Now(4700);
+    TestTrue(TEXT("The shock damages at its real delayed instant"),FAccess::AdvanceMechanics(*F.Driver,4700,Error)&&F.Flush(Error)
+        &&F.Body(B).Resources.HpP2==Before-8000-9000);
+    F.Now(4800);
+    TestTrue(TEXT("Another basic cannot bypass the six-second trigger interval"),F.Apply(Basic(),Error)
+        &&!FAccess::Zones(*F.Driver).ContainsByPredicate([](const FLDCombatZone& Zone){return Zone.StartMs==4800;}));
+    auto& Challenger=FAccess::Records(*F.Driver).FindChecked(B.Victim.EntityId);
+    Challenger.Build.FinalMod.DefinitionId=TEXT("final_comeback");
+    FLDCaptureEvent Enter;Enter.Body=B;Enter.Kind=ELDCaptureEventKind::Joined;Enter.Time.Seconds=4.8;
+    TestTrue(TEXT("The challenger begins outside"),F.Driver->NotifyFinalPresence(Enter,Error));
+    Enter.Kind=ELDCaptureEventKind::Presence;Enter.bInside=true;Enter.Time.Seconds=5.;
+    TestTrue(TEXT("Entering another live owner's core arms comeback"),F.Driver->NotifyFinalPresence(Enter,Error)
+        &&F.Body(B).FinalMod.ArmedUntilMs==9000);
+    F.Now(5000);
+    auto ReturnHit=FFixture::Hit(B,A,10000);
+    ReturnHit.Source.Kind=ELDCombatSourceKind::Basic;ReturnHit.HitClass=ELDCombatHitClass::BasicPrimary;
+    ReturnHit.DamageType=ELDDemoDamageType::Physical;
+    const int64 OwnerHp=F.Body(A).Resources.HpP2;
+    TestTrue(TEXT("Comeback charges the triggering strike and creates its warning zone"),F.Apply(ReturnHit,Error)
+        &&F.Body(A).Resources.HpP2==OwnerHp-8000&&Challenger.FinalModReadyAtMs==15000);
+    TestTrue(TEXT("Comeback's first true pulse lands at the hit point"),F.Flush(Error)
+        &&F.Body(A).Resources.HpP2==OwnerHp-8000-3000);
+    F.Now(6000);
+    TestTrue(TEXT("Comeback's second pulse lands one second later"),FAccess::AdvanceMechanics(*F.Driver,6000,Error)
+        &&F.Flush(Error)&&F.Body(A).Resources.HpP2==OwnerHp-8000-6000
+        &&Capture.GetGraffitiOwner()==A.Victim.EntityId);
+    AddInfo(Error);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFinalMechanicContractTest,"Lockdown.Rules.DemoFinalMod.MechanicContracts",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDFinalMechanicContractTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if(!F.Init(*this)){return false;}
+    FString Error;
+    if(!FAccess::Showdown(*F.Mode,F.Catalog->Get(),Error)){AddError(Error);return false;}
+    const auto A=F.AddBody(),B=F.AddBody();
+    auto& Record=FAccess::Records(*F.Driver).FindChecked(A.Victim.EntityId);
+    Record.Build.FinalMod={TEXT("final_traffic"),ELDComponentTargetKind::Dash,NAME_None};
+    FLDCombatSourceRef Dash;Dash.Kind=ELDCombatSourceKind::Innate;Dash.DefinitionId=LDCombatSourceRules::InnateDashId();
+    int64 Cooldown=7000;
+    TestTrue(TEXT("Traffic adds its cost to the bound base cooldown"),FAccess::FinalCost(*F.Driver,Record,Dash,Cooldown,Error)&&Cooldown==11000);
+    auto& Travel=F.Body(A).VoluntaryDash.Emplace();
+    Travel.Source=Dash;Travel.EffectId=FGuid::NewGuid();Travel.EndMs=2000;
+    auto Motion=MakeShared<FLDNativeMotionBatch>();
+    Motion->Body=A;
+    Motion->Step.StartServerSeconds=1.;Motion->Step.EndServerSeconds=1.1;
+    Motion->StartFootCm=F.Foot(A);Motion->EndFootCm=Motion->StartFootCm+FVector(100,0,0);
+    Motion->InitialSupport.Grounded=Motion->FinalSupport.Grounded=true;
+    auto& Move=Motion->Records.AddDefaulted_GetRef();
+    Move.Kind=ELDNativeMotionRecordKind::Movement;Move.RootMotion=true;
+    Move.FromFootCm=Motion->StartFootCm;Move.ToFootCm=Motion->EndFootCm;
+    Move.StartServerSeconds=1.;Move.EndServerSeconds=1.1;
+    FAccess::CaptureSkillMotion(*F.Driver,Motion);
+    F.Now(1100);
+    TestTrue(TEXT("Native movement inherits grounded support without a redundant support payload"),
+        FAccess::FinalStep(*F.Driver,1100,Error)&&FAccess::FinalTraffic(*F.Driver).Num()==1);
+    auto Crossing=MakeShared<FLDNativeMotionBatch>();
+    Crossing->Body=B;
+    Crossing->Step.StartServerSeconds=1.1;Crossing->Step.EndServerSeconds=1.2;
+    Crossing->StartFootCm=Motion->StartFootCm+FVector(50,-100,0);
+    Crossing->EndFootCm=Motion->StartFootCm+FVector(50,100,0);
+    Crossing->InitialSupport.Grounded=Crossing->FinalSupport.Grounded=true;
+    auto& CrossMove=Crossing->Records.AddDefaulted_GetRef();
+    CrossMove.Kind=ELDNativeMotionRecordKind::Movement;
+    CrossMove.FromFootCm=Crossing->StartFootCm;CrossMove.ToFootCm=Crossing->EndFootCm;
+    CrossMove.StartServerSeconds=1.1;CrossMove.EndServerSeconds=1.2;
+    FAccess::CaptureSkillMotion(*F.Driver,Crossing);
+    F.Now(1200);
+    TestTrue(TEXT("A grounded enemy crossing the whole band receives its slow even when both endpoints are outside"),
+        FAccess::FinalStep(*F.Driver,1200,Error)&&!F.Body(B).Slows.IsEmpty());
+    auto Airborne=MakeShared<FLDNativeMotionBatch>(*Motion);
+    Airborne->Step.StartServerSeconds=1.2;Airborne->Step.EndServerSeconds=1.3;
+    Airborne->Records.Reset();
+    auto& Takeoff=Airborne->Records.AddDefaulted_GetRef();
+    Takeoff.Kind=ELDNativeMotionRecordKind::Support;
+    Takeoff.FromFootCm=Takeoff.ToFootCm=Airborne->StartFootCm;
+    Takeoff.StartServerSeconds=Takeoff.EndServerSeconds=1.2;
+    auto& AirMove=Airborne->Records.AddDefaulted_GetRef();
+    AirMove=Move;AirMove.StartServerSeconds=1.2;AirMove.EndServerSeconds=1.3;
+    Airborne->FinalSupport.Grounded=false;
+    FAccess::CaptureSkillMotion(*F.Driver,Airborne);
+    F.Now(1300);
+    TestTrue(TEXT("A support transition to airborne does not lay another traffic segment"),
+        FAccess::FinalStep(*F.Driver,1300,Error)&&FAccess::FinalTraffic(*F.Driver).Num()==1
+        &&FAccess::FinalTraffic(*F.Driver)[0].Segments.Num()==1);
+    Record.Build.FinalMod={TEXT("final_breach"),ELDComponentTargetKind::None,NAME_None};
+    Cooldown=7000;
+    TestTrue(TEXT("Breach adds the separate D cost"),FAccess::FinalCost(*F.Driver,Record,Dash,Cooldown,Error)&&Cooldown==10000);
+    FLDCaptureEvent Presence;Presence.Kind=ELDCaptureEventKind::Joined;Presence.Body=A;Presence.Time.Seconds=1.;
+    TestTrue(TEXT("Breach starts with actual outside presence"),F.Driver->NotifyFinalPresence(Presence,Error));
+    Presence.Kind=ELDCaptureEventKind::Presence;Presence.bInside=true;Presence.Time.Seconds=4.;
+    TestTrue(TEXT("Three continuous outside seconds arm the next basic window"),F.Driver->NotifyFinalPresence(Presence,Error)
+        &&F.Body(A).FinalMod.ArmedUntilMs==7000);
+    Record.Build.FinalMod={TEXT("final_split"),ELDComponentTargetKind::Active,TEXT("active_hose_down")};
+    FLDCombatZone Zone;Zone.SourceBody=A;Zone.SourceEntity=Zone.CreditOwner=A.Victim.EntityId;
+    Zone.Source.Kind=ELDCombatSourceKind::Learned;Zone.Source.DefinitionId=TEXT("active_hose_down");
+    Zone.StartMs=1000;Zone.EndMs=5000;Zone.IntervalMs=1000;Zone.Count=4;Zone.RadiusCm=200;
+    Zone.BaseP2=10000;Zone.APRatioBp=2500;Zone.SourceAPP2=20000;Zone.EffectId=FGuid::NewGuid();
+    FLDCombatAction Action;Action.Direction=FVector(1,0,0);
+    bool Handled=false;
+    TestTrue(TEXT("A placed zone becomes two independently observed zones"),FAccess::FinalSplit(*F.Driver,Zone,Action,1000,Handled,Error)
+        &&Handled&&FAccess::Zones(*F.Driver).Num()==2);
+    if(FAccess::Zones(*F.Driver).Num()!=2){AddError(Error);return false;}
+    const auto& Left=FAccess::Zones(*F.Driver)[0];
+    const auto& Right=FAccess::Zones(*F.Driver)[1];
+    TestEqual(TEXT("Split reduces only fixed damage"),Left.BaseP2,int64(6000));
+    TestEqual(TEXT("Split preserves the AP coefficient"),Left.APRatioBp,int64(2500));
+    TestEqual(TEXT("Split preserves release-time AP"),Left.SourceAPP2,int64(20000));
+    TestTrue(TEXT("Split scales the radius to 110 cm"),FMath::IsNearlyEqual(Left.RadiusCm,110.,1.e-9));
+    TestEqual(TEXT("Split removes one second of lifetime"),Left.EndMs,int64(4000));
+    TestEqual(TEXT("Split retains only pulses inside the shortened lifetime"),Left.Count,3);
+    TestTrue(TEXT("The two zones have independent observation keys"),Left.ObservedKey!=Right.ObservedKey);
+    TestTrue(TEXT("The two zones lie on opposite sides of the release direction"),
+        Left.CentreCm.Equals(FVector(0,-140,0),1.e-9)&&Right.CentreCm.Equals(FVector(0,140,0),1.e-9));
+    TestTrue(TEXT("A new release replaces the previous pair"),FAccess::FinalSplit(*F.Driver,Zone,Action,1000,Handled,Error)
+        &&FAccess::Zones(*F.Driver).Num()==2);
+    AddInfo(Error);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFinalControlAndImpactTest,"Lockdown.Rules.DemoFinalMod.ControlAndImpact",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDFinalControlAndImpactTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if(!F.Init(*this,true)){return false;}
+    FString Error;
+    if(!FAccess::Showdown(*F.Mode,F.Catalog->Get(),Error)){AddError(Error);return false;}
+    const auto A=F.AddBody(),B=F.AddBody(),C=F.AddBody();
+    auto& Record=FAccess::Records(*F.Driver).FindChecked(A.Victim.EntityId);
+    Record.Build.FinalMod={TEXT("final_forced_exit"),ELDComponentTargetKind::Active,TEXT("active_pants_down")};
+    FAccess::FinalCentre(*F.Mode,F.Origin);
+    auto& Capture=FAccess::Capture(*F.Mode);
+    if(!Capture.Begin(0,3500,20000,Error)){AddError(Error);return false;}
+    for(const auto Ref:{A,B,C})
+    {
+        FLDCaptureEvent Join;Join.Kind=ELDCaptureEventKind::Joined;Join.Body=Ref;Join.bInside=Ref==B;
+        if(!Capture.Enqueue(Join,Error)){AddError(Error);return false;}
+    }
+    TOptional<FLDCaptureProposal> Proposal;
+    if(!Capture.CloseBoundary(1000,Proposal,Error)){AddError(Error);return false;}
+    F.Now(1000);
+    FLDControlApplication Root;
+    Root.Kind=ELDControlKind::Root;Root.DurationMs=2000;Root.EffectId=FGuid::NewGuid();
+    Root.SourceBody=A;Root.SourceEntity=Root.CreditOwner=A.Victim.EntityId;
+    Root.Source.Kind=ELDCombatSourceKind::Learned;Root.Source.DefinitionId=TEXT("active_pants_down");
+    bool Applied=false;
+    TestTrue(TEXT("The bound native control pays its 30% duration cost before DR"),
+        F.Driver->CommitControl(F.Body(B),Root,1000,Applied,Error)&&Applied
+        &&F.Body(B).Roots.Num()==1&&F.Body(B).Roots[0].ExpiresAtMs==2400);
+    TestTrue(TEXT("Hard control never removes the target's valid core presence"),Capture.IsCommittedInside(B));
+    TestTrue(TEXT("The exit cannot trigger before actual control expiry plus 250 ms"),
+        FAccess::FinalStep(*F.Driver,2649,Error)&&FAccess::PendingHits(*F.Driver).IsEmpty());
+    TestTrue(TEXT("A still-present target gets the delayed authoritative exit"),
+        FAccess::FinalStep(*F.Driver,2650,Error)&&FAccess::PendingHits(*F.Driver).Num()==1);
+    if(FAccess::PendingHits(*F.Driver).Num()!=1){AddError(Error);return false;}
+    const auto Exit=FAccess::PendingHits(*F.Driver)[0];
+    TestTrue(TEXT("The exit is a zero-damage outward push on the original life"),
+        Exit.Target==B&&Exit.KnockbackCm==180.&&Exit.bFinalModDerived&&Exit.BaseP2==0
+        &&Exit.Source.DefinitionId==TEXT("final_forced_exit"));
+    TestTrue(TEXT("The target's eight-second cooldown is committed once"),
+        Record.FinalModTargetCooldowns.Num()==1&&Record.FinalModTargetCooldowns[0].ReadyAtMs==10650);
+    FAccess::PendingHits(*F.Driver).Reset();
+    Record.Build.FinalMod={TEXT("final_bowling"),ELDComponentTargetKind::Active,TEXT("active_elbow")};
+    F.Body(A).AttributeProjection.Final.APP2=20000;
+    auto Push=FFixture::Hit(A,B,0);
+    Push.KnockbackCm=300;Push.KnockbackMs=250;
+    Push.KnockbackSource.Kind=ELDCombatSourceKind::Learned;Push.KnockbackSource.DefinitionId=TEXT("active_elbow");
+    TestTrue(TEXT("The real bound displacement arms its native body-impact watch"),
+        FAccess::Watch(*F.Driver,F.Actor(B),F.Body(B),Push,3000,Error)&&F.Body(B).PendingImpact.IsSet());
+    if(!F.Body(B).PendingImpact.IsSet()){AddError(Error);return false;}
+    const auto Impact=F.Body(B).PendingImpact.GetValue();
+    TestTrue(TEXT("A real impact direction emits bowling's damage and second push"),
+        FAccess::FinalImpact(*F.Driver,Impact,F.Actor(C),FVector(0,1,0),3100,Error)
+        &&FAccess::PendingHits(*F.Driver).Num()==1);
+    if(FAccess::PendingHits(*F.Driver).Num()!=1){AddError(Error);return false;}
+    const auto Bowled=FAccess::PendingHits(*F.Driver)[0];
+    TestTrue(TEXT("Bowling preserves its AP term and the ordinary push source without recursive FIN"),
+        Bowled.Target==C&&Bowled.BaseP2==4500&&Bowled.APRatioBp==3500&&Bowled.SourceAPP2==20000
+        &&Bowled.DamageType==ELDDemoDamageType::Magical&&Bowled.KnockbackCm==140.
+        &&Bowled.bFinalModDerived&&Bowled.KnockbackSource==Push.KnockbackSource
+        &&Bowled.KnockbackAnchorCm.Equals(F.Foot(C)-FVector(0,1,0),1.e-9));
+    AddInfo(Error);
     return true;
 }
 
@@ -1129,6 +1450,16 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The brick telegraph exposes its outer and full-damage radii"),
         Facts.ContainsByPredicate([](const auto& Fact) { return Fact.Look==ELDObservedProjectileLook::BookShadow
             && Fact.RadiusCm==200 && Fact.InnerRadiusCm==80 && Fact.PositionCm.X==650; }));
+    auto* Brick=FAccess::Ground(*F.Driver).FindByPredicate([](const auto& Ground)
+        { return Ground.Origin==ELDCombatGroundOrigin::Impact; });
+    if (!TestNotNull(TEXT("The brick ground effect exists"),Brick)) { return false; }
+    Brick->Origin=ELDCombatGroundOrigin::Echo;
+    Facts.Reset();
+    TestTrue(TEXT("The brick echo retains its own recognizable outline"),
+        F.Driver->ReadObservedProjectiles(Facts,Error)
+        && Facts.ContainsByPredicate([](const auto& Fact) { return Fact.Look==ELDObservedProjectileLook::BookShadow
+            && Fact.RadiusCm==200 && Fact.InnerRadiusCm==80 && Fact.PositionCm.X==650; }));
+    Brick->Origin=ELDCombatGroundOrigin::Impact;
     FAccess::CancelChannel(*F.Driver,Body);
     TestFalse(TEXT("Cancelling the channel ends it"),Body.ChannelEffectId.IsValid());
     Body.bPendingDeath=true;
@@ -2169,6 +2500,11 @@ bool FLDCombatEventEmpoweredCritLifestealTest::RunTest(const FString& Parameters
             if (!Drain(*this, F)) { return false; }
             Damage[Crit][Mask] = HP - Victim.Resources.HpP2;
             Healing[Crit][Mask] = Body.Resources.HpP2 - HP / 2;
+            FLDObservedPublicFacts Seen;
+            TestTrue(TEXT("The real basic publishes its resolved critical outcome to visible observers"),
+                F.Driver->AppendObservedAction(F.Actor(Target), F.Mode->GetAuthorityNowMs(), Seen, Error)
+                && Seen.LastHitAtMs == F.Mode->GetAuthorityNowMs()
+                && Seen.HitFlags == (Crit ? uint8(LDObservation::Critical) : uint8(0)));
             AddInfo(FString::Printf(TEXT("LD_EVAL_MEASURE empowered_basic crit=%d s11=%d s17=%d hp_loss_p2=%lld heal_p2=%lld"),
                 Crit, (Mask & 1) != 0, (Mask & 2) != 0, Damage[Crit][Mask], Healing[Crit][Mask]));
             const int64 FullHeal = Damage[Crit][Mask] * 1200 / 10000;
@@ -2433,12 +2769,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventProjectileCounterplayTest, "Lockd
 bool FLDCombatEventProjectileCounterplayTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
+    TArray<TStrongObjectPtr<UPackage>> RetainedPackages;
     for (const TCHAR* Active : {TEXT("active_snark_bolt"), TEXT("active_sock_shot")})
     {
         for (int32 Case = 0; Case < 3; ++Case)
         {
             FFixture F;
             if (!F.Init(*this, true)) { return false; }
+            UPackage* Package = F.World->GetOutermost();
+            if (!TestFalse(TEXT("Successive sight worlds never reuse a retained fixture package"),
+                RetainedPackages.ContainsByPredicate([Package](const TStrongObjectPtr<UPackage>& Previous)
+                    { return Previous.Get() == Package; })))
+            { return false; }
+            RetainedPackages.Emplace(Package);
             const FLDCombatBodyRef Caster = F.AddBody(), Target = F.AddBody(), Blocker = F.AddBody();
             F.Place(Caster, 0, 0);
             F.Place(Target, 300, 0);
@@ -2822,6 +3165,11 @@ bool FLDCombatEventShieldBurstTest::RunTest(const FString& Parameters)
     FAccess::PendingHits(*F.Driver).Reset();
     if (!TestTrue(FString::Printf(TEXT("A big hit breaks it: %s"), *Error), F.Apply(FFixture::Hit(First, Holder, 2000000), Error)
         && Body.Resources.ShieldP2 == 0)) { return false; }
+    FLDObservedPublicFacts Seen;
+    TestTrue(TEXT("The real shield-breaking hit publishes absorption and break to visible observers"),
+        F.Driver->AppendObservedAction(F.Actor(Holder), F.Mode->GetAuthorityNowMs(), Seen, Error)
+        && Seen.LastHitAtMs == F.Mode->GetAuthorityNowMs()
+        && Seen.HitFlags == uint8(LDObservation::ShieldAbsorbed | LDObservation::ShieldBroken));
     const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
     TestTrue(TEXT("C10 answers both bodies around the holder as one effect"), Pending.Num() == 2 && Pending[0].EffectId == Pending[1].EffectId
         && Pending[0].Source.DefinitionId == FName(TEXT("component_shell_burst")) && Pending[0].Target != Pending[1].Target);
@@ -3464,13 +3812,49 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
     if (!Released(*this, F, Holder, TEXT("active_snark_bolt"), Terms, Payload)) { return false; }
     Payload.CastLedger->PaidManaP2 = 4000;
     if (!TestTrue(TEXT("M13 compiles onto S06"), Terms.ProjectileReturn.IsSet() && Payload.SlowBp > 0)
-        || !Throw(*this, F, Holder, Terms, Payload) || !Fly(*this, F, 1400)) { return false; }
+        || !Throw(*this, F, Holder, Terms, Payload)) { return false; }
+    TArray<FLDObservedProjectileFact> Observed;
+    FString ObservationError;
+    TestTrue(TEXT("Outbound chalk is observed as an outbound flight"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::Chalk);
+    if (!Fly(*this, F, 1400)) { return false; }
     const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
     const TArray<FLDCombatProjectile>& Flights = FAccess::Projectiles(*F.Driver);
     if (!TestTrue(TEXT("The outbound hit lands whole and a return flight starts where it ended"), Pending.Num() == 1
         && Pending[0].Target == Target && Pending[0].DeliveryScaleBp == 10000 && Flights.Num() == 1 && Flights[0].bReturn
         && Flights[0].EffectId == Payload.EffectId && Flights[0].ReturnScaleBp == 0 && Flights[0].PierceRemaining == 0))
     { return false; }
+    if (!TestTrue(TEXT("M13's return chalk has a distinct authorized flight look"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::ChalkReturn)) { return false; }
+    auto* Proxy=F.World->SpawnActor<ALDObservedProjectileProxy>();
+    if (!TestNotNull(TEXT("Return presentation proxy is created"),Proxy)) { return false; }
+    FLDObservedProjectileView ReturnView;
+    ReturnView.Handle=FGuid::NewGuid();
+    ReturnView.PositionCm=Observed[0].PositionCm;
+    Proxy->Apply(ReturnView,1.0);
+    TArray<USceneComponent*> TrailParts;
+    Proxy->GetTrail()->GetChildrenComponents(false,TrailParts);
+    UStaticMeshComponent* TrailHead=TrailParts.IsEmpty() ? nullptr : Cast<UStaticMeshComponent>(TrailParts[0]);
+    UMaterialInstanceDynamic* TrailMaterial=TrailHead ? Cast<UMaterialInstanceDynamic>(TrailHead->GetMaterial(0)) : nullptr;
+    FLinearColor OutboundTint, ReturnTint, ResetTint;
+    const bool bOutboundTint=TrailMaterial && TrailMaterial->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Tint")),OutboundTint);
+    ReturnView.Look=ELDObservedProjectileLook::ChalkReturn;
+    Proxy->Apply(ReturnView,1.1);
+    TestTrue(TEXT("Return presentation changes the live trail material tint"),
+        bOutboundTint && TrailMaterial->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Tint")),ReturnTint)
+        && !OutboundTint.Equals(ReturnTint,.05f));
+    ReturnView.Look=ELDObservedProjectileLook::Sock;
+    Proxy->Apply(ReturnView,1.2);
+    TestTrue(TEXT("An outbound flight restores the trail tint after a return"),
+        bOutboundTint && TrailMaterial->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Tint")),ResetTint)
+        && OutboundTint.Equals(ResetTint,.001f));
+    ReturnView.Look=ELDObservedProjectileLook::SockReturn;
+    Proxy->Apply(ReturnView,1.3);
+    Proxy->End(2.0);
+    TestTrue(TEXT("A return is still a flight and survives its final presentation sample"),
+        !Proxy->IsHidden() && !Proxy->IsFinished(.9,2.1));
     const int64 Before = F.Body(Target).Resources.HpP2;
     if (!Drain(*this, F)) { return false; }
     const int64 Outbound = Before - F.Body(Target).Resources.HpP2;
@@ -3495,8 +3879,15 @@ bool FLDComponentProjectileReturnTest::RunTest(const FString& Parameters)
     SockPayload.BurnStacks = 1;
     SockPayload.bApplyWet = true;
     F.Now(3000);
-    if (!Throw(*this, F, Holder, Sock, SockPayload) || !Fly(*this, F, 3400)) { return false; }
+    if (!Throw(*this, F, Holder, Sock, SockPayload)) { return false; }
+    TestTrue(TEXT("Outbound sock keeps its own look"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::Sock);
+    if (!Fly(*this, F, 3400)) { return false; }
     if (!TestTrue(TEXT("S21 launches a return"), Flights.Num() == 1 && Flights[0].bReturn)) { return false; }
+    TestTrue(TEXT("M13's return sock has a distinct authorized flight look"),
+        F.Driver->ReadObservedProjectiles(Observed,ObservationError) && Observed.Num()==1
+        && Observed[0].Look==ELDObservedProjectileLook::SockReturn);
     const FLDCombatHit& Home = Flights[0].Payload;
     TestTrue(TEXT("The return keeps burn, wet and grievous but drops the attack slow"), SockPayload.GrievousBp > 0
         && SockPayload.AttackSlowBp > 0 && Home.BurnStacks == 1 && Home.bApplyWet && Home.GrievousBp == SockPayload.GrievousBp

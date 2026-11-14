@@ -404,6 +404,15 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     }
     Frame.Generation = Generation;
     Frame.POIs = POIs;
+    if (Public.Showdown.bStarted)
+    {
+        Frame.POIs.RemoveAll([](const FLDOpponentPOI& Place) { return Place.Kind != ELDOpponentPOIKind::Capture; });
+        for (auto& Place : Frame.POIs)
+        {
+            Place.Id = TEXT("final_capture");
+            Place.FootCm = Public.Showdown.CentreCm;
+        }
+    }
     if (Public.Phase == ELDMatchPhase::Rest)
     {
         Frame.SignupPOI = SignupPOI;
@@ -479,7 +488,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
     Frame.ViewRevision = View.Revision;
     Me.FootCm = View.Footprint.SourceFeetCm;
-    if (Public.Phase == ELDMatchPhase::CaptureOpen && ((Public.CircleState == ELDCircleState::Solo
+    if (!Public.Showdown.bStarted && Public.Phase == ELDMatchPhase::CaptureOpen && ((Public.CircleState == ELDCircleState::Solo
         && Public.Occupier != Own.ContenderId) || (Public.GraffitiOwner.IsValid() && Public.GraffitiOwner != Own.ContenderId)))
     {
         double PathCm = 0;
@@ -750,7 +759,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
     const bool bServiceWalk = Intent.Kind == ELDOpponentBodyKind::MoveGround
         && Frame.RestServicePOIs.ContainsByPredicate([&Intent](const FLDOpponentPOI& Place) { return Place.Id == Intent.POI; });
     const TArray<FLDOpponentPOI> SignupPlaces = bSignupWalk ? TArray<FLDOpponentPOI>{SignupPOI} : TArray<FLDOpponentPOI>();
-    const TArray<FLDOpponentPOI>& Places = bSignupWalk ? SignupPlaces : bServiceWalk ? Frame.RestServicePOIs : POIs;
+    const TArray<FLDOpponentPOI>& Places = bSignupWalk ? SignupPlaces : bServiceWalk ? Frame.RestServicePOIs : Frame.POIs;
     if (!LDOpponentRequests::NextMoveIdentity(LastIdentity, Generation, Life, false, Identity)
         || !LDOpponentRequests::BuildOrder(Intent, Places, Identity, Request, Error))
     {

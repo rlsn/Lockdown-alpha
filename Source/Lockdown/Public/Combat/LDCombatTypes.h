@@ -15,7 +15,7 @@ class AController;
 // 3 was the retired equipment (Gear) source (#144); Innate keeps its number. Component (#198 B): an installed workshop
 // component (DefinitionId = component id); it is never an entry or a cooldown track.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5 };
+enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5, FinalMod = 6 };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
@@ -237,6 +237,7 @@ struct FLDBuildProjectionInput
     TArray<FLDLearnedActiveValue> Actives;
     // #198 B: installed components (FLDAttributeBuildValues::Components), sorted by id.
     TArray<FLDInstalledComponentValue> Components;
+    FLDFinalModSelection FinalMod;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;
@@ -419,11 +420,14 @@ struct FLDCombatCueFacts
     UPROPERTY() bool bActing=false;
     UPROPERTY() bool bActingBasic=false;
     UPROPERTY() int64 ActingStartedAtMs=0;
+    UPROPERTY() int64 ActingReleaseAtMs=0;
     UPROPERTY() bool bReleasedBasic=false;
     UPROPERTY() int64 ReleasedStartedAtMs=0;
     UPROPERTY() int64 ReleasedAtMs=0;                // 0 = nothing released in this life
     UPROPERTY() int64 DashUntilMs=0;
     UPROPERTY() int64 LastHitAtMs=0;                 // 0 = not hit in this life
+    UPROPERTY() uint8 LastHitLook=0;                  // ELDObservedHitLook; recent server-resolved hit presentation only
+    UPROPERTY() uint8 LastHitFlags=0;                 // LDObservation::EHitFlags for this hit
 };
 
 // Single owner publication of the Combat self projection; consumers reject an older Revision.

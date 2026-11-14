@@ -12,6 +12,12 @@ class LOCKDOWN_API ULDGameInstance : public UGameInstance
     GENERATED_BODY()
 public:
     FString ConnectionMessage;
+    void RememberRoomURL(const FString& URL);
+    void SetReconnectTicket(const FGuid& Ticket) { ReconnectTicket=Ticket; }
+    void ClearReconnect();
+    bool CanReconnect() const { return ReconnectTicket.IsValid()&&!ReconnectURL.IsEmpty(); }
+    FGuid GetReconnectTicket() const { return ReconnectTicket; }
+    bool ReconnectRoom(class ALDPlayerController& Controller);
     uint32 AuthorityGeneration = 0;
     bool AllocateMatchGeneration(uint32& Generation, FString& Error);
     virtual AGameModeBase* CreateGameModeForURL(FURL URL, UWorld* World) override;
@@ -50,6 +56,8 @@ public:
     bool AreDisplaySettingsDirty() const { return bDisplaySettingsDirty; }
     const FLDDisplaySettingsResult& GetDisplaySettingsResult() const { return DisplayResult; }
 private:
+    FString ReconnectURL;
+    FGuid ReconnectTicket;
     uint64 EntryAttemptSerial = 0;
     FString LastRejectedEntryURL;
     FTSTicker::FDelegateHandle EntryReturnTicker;

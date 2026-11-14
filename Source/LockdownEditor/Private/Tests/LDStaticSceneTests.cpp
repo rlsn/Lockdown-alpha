@@ -4,6 +4,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "AssetCompilingManager.h"
 #include "Components/StaticMeshComponent.h"
+#include "PhysicsEngine/BodyInstance.h"
 #include "Editor.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/StaticMesh.h"
@@ -23,7 +24,9 @@
 #include "World/LDLayoutPoint.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Vision/LDVisionDirector.h"
+#include "Region/LDMapDefinition.h"
 #include "Subsystems/EditorActorSubsystem.h"
+#include "UObject/StrongObjectPtr.h"
 
 namespace
 {
@@ -61,6 +64,32 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     auto* Registry = F.World->GetSubsystem<ULDMapRegistry>();
     if (!TestTrue(TEXT("Current saved scene binds without a synchronized decoration index: ") + F.Error,
         Registry->Rebuild(F.Error))) { return false; }
+    const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, LDDemoEntry::WorldDefinition);
+    if (!TestNotNull(TEXT("Saved world definition is present"), Definition)) { return false; }
+    FLDDemoWorldGeometry AuthoringBase;
+    TestTrue(TEXT("Authoring reads the saved world without current content inputs: ") + F.Error,
+        Definition->ReadSavedForEditing(AuthoringBase, F.Error));
+    TestTrue(TEXT("Authoring base is the same complete typed geometry"),
+        FLDDemoWorldGeometry::StaticStruct()->CompareScriptStruct(&AuthoringBase, F.Geometry.Get(), PPF_None));
+    TStrongObjectPtr<ULDMapDefinition> Damaged(DuplicateObject<ULDMapDefinition>(Definition, GetTransientPackage()));
+    Damaged->Checksum = TEXT("invalid");
+    TestFalse(TEXT("Authoring rejects an altered world checksum"), Damaged->ReadSavedForEditing(AuthoringBase, F.Error));
+    Damaged->Checksum = Definition->Checksum;
+    Damaged->SourceJson += TEXT(" ");
+    TestFalse(TEXT("Authoring rejects altered saved world bytes"), Damaged->ReadSavedForEditing(AuthoringBase, F.Error));
+    FLDDemoWorldGeometry SeedWithoutFinalAnchors = *F.Geometry;
+    SeedWithoutFinalAnchors.Anchors.RemoveAll([](const FLDDemoWorldAnchor& Anchor)
+    {
+        return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
+    });
+    FLDDemoWorldGeometry Projected;
+    TestTrue(TEXT("Saved final anchor tags extend a legacy world projection: ") + F.Error,
+        LDStaticScene::ProjectRuntimeGeometry(*F.World, SeedWithoutFinalAnchors, Projected, F.Error));
+    TestEqual(TEXT("All six final spawn anchors and capture are exported"),
+        Projected.Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& Anchor)
+        {
+            return Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture;
+        }).Num(), LDDemoWorld::FinalSpawns + 1);
     const auto Parts = LDStaticScene::Visuals(*F.World);
     TestTrue(TEXT("Saved standard meshes supply visuals directly"), Parts.Num() > 0);
     for (const auto* Part : Parts)
@@ -76,6 +105,27 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     if (!TestNotNull(TEXT("An editable decoration exists"), Decoration)) { return false; }
     Decoration->Destroy();
     TestTrue(TEXT("Deleting a decoration plays with the untouched catalog"), Registry->Rebuild(F.Error));
+    int32 FinalWalls = 0;
+    for (TActorIterator<AStaticMeshActor> It(F.World); It; ++It)
+    {
+        if (!It->ActorHasTag(LDDemoWorld::StaticGeometryTag) || It->Tags.IsEmpty()
+            || !It->Tags[0].ToString().StartsWith(TEXT("final_arena_"))) { continue; }
+        ++FinalWalls;
+        const auto* Collision = LDStaticScene::Collision(**It);
+        FCollisionQueryParams OnlyWall;
+        for (TActorIterator<AActor> Other(F.World); Other; ++Other)
+        { if (*Other != *It) { OnlyWall.AddIgnoredActor(*Other); } }
+        const FVector Centre = Collision->Bounds.Origin;
+        const FVector HalfRay(Collision->Bounds.BoxExtent.X + 100, 0, 0);
+        for (const auto Channel : { ECC_Pawn, ECC_GameTraceChannel2 })
+        {
+            FHitResult Result;
+            TestTrue(TEXT("Saved final wall physically blocks movement and sight: ") + It->GetActorLabel(),
+                F.World->LineTraceSingleByChannel(Result, Centre - HalfRay, Centre + HalfRay, Channel, OnlyWall)
+                && Result.GetComponent() == Collision);
+        }
+    }
+    TestTrue(TEXT("Final arena contains saved hard collision walls"), FinalWalls > 0);
     auto* Shape = LDStaticScene::Collision(*F.Tree);
     if (!TestTrue(TEXT("Tree carries its actual hidden collision instance"), Shape != F.Tree->GetStaticMeshComponent()
         && Shape->CreationMethod == EComponentCreationMethod::Instance && !Shape->IsVisible())) { return false; }
@@ -175,7 +225,7 @@ bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
     TestTrue(TEXT("Play derives stable identities for an ordinary duplicate"), LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Projected, F.Error));
     TestEqual(TEXT("Play retains the copied blocker"), Projected.Blockers.Num(), Baseline.Blockers.Num() + 1);
     TestTrue(TEXT("Synchronization assigns a fresh copy identity: ") + F.Error, LDStaticSceneEditor::NormalizeCopies(*F.World, *F.Geometry, F.Error));
-    TestTrue(TEXT("Both copied collision bodies enter the scene projection: ") + F.Error, LDStaticScene::ProjectGeometry(*F.World, *F.Geometry, Projected, F.Error));
+    TestTrue(TEXT("Both copied collision bodies enter the scene projection: ") + F.Error, LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Projected, F.Error));
     TestEqual(TEXT("The extra tree is retained, not ignored"), Projected.Blockers.Num(), Baseline.Blockers.Num() + 1);
     TSet<FString> Ids;
     for (const auto& B : Projected.Blockers) { Ids.Add(B.Id); }
@@ -198,9 +248,12 @@ bool FLDStaticSceneCopy::RunTest(const FString& Parameters)
         Centre /= Ramp.PolygonCm.Num();
         TestEqual(TEXT("Native ramps retain the approved half-level sight tier"), Registry->GetTerrain().Tier(FVector2D(Centre)), 2 * Ramp.LowerLevel + 1);
     }
-    AStaticMeshActor* Floor = nullptr;
-    for (TActorIterator<AStaticMeshActor> It(F.World); It; ++It)
-    { if (It->ActorHasTag(TEXT("demo_ground"))) { Floor = *It; break; } }
+    const auto* Rest = Registry->Resolve(TEXT("rest_spawn_0"), Registry->Generation);
+    FHitResult Support;
+    if (!TestNotNull(TEXT("Required rest spawn is bound"), Rest)
+        || !TestTrue(TEXT("Required spawn has actual support"), Registry->TraceGround(
+            Rest->Position + FVector(0,0,100), Rest->Position - FVector(0,0,100), Support))) { return false; }
+    auto* Floor = Cast<AStaticMeshActor>(Support.GetActor());
     if (!TestNotNull(TEXT("Editable native ground"), Floor)) { return false; }
     Floor->SetActorLocation(Floor->GetActorLocation() + FVector(0, 0, 10));
     TestTrue(TEXT("Ground height edits bind from actual collision"), Registry->Rebuild(F.Error));
@@ -218,11 +271,15 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
     FSceneFixture F;
     if (!TestTrue(TEXT("Saved editable scene loads: ") + F.Error, F.Load())) { return false; }
     auto* Registry = F.World->GetSubsystem<ULDMapRegistry>();
-    AStaticMeshActor* Original = nullptr;
-    for (TActorIterator<AStaticMeshActor> It(F.World); It; ++It)
-    { if (It->ActorHasTag(TEXT("demo_ground"))) { Original = *It; break; } }
-    if (!TestNotNull(TEXT("Original floor exists"), Original)) { return false; }
-    const FBox Bounds = Original->GetComponentsBoundingBox(true);
+    if (!TestTrue(TEXT("Authored scene binds: ") + F.Error, Registry->Rebuild(F.Error))) { return false; }
+    const auto* Rest = Registry->Resolve(TEXT("rest_spawn_0"), Registry->Generation);
+    FHitResult Support;
+    if (!TestNotNull(TEXT("Required rest spawn is bound"), Rest)
+        || !TestTrue(TEXT("Required spawn has actual support"), Registry->TraceGround(
+            Rest->Position + FVector(0,0,100), Rest->Position - FVector(0,0,100), Support))) { return false; }
+    auto* Original = Cast<AStaticMeshActor>(Support.GetActor());
+    if (!TestNotNull(TEXT("Editable supporting mesh exists"), Original)) { return false; }
+    const FBox Bounds = Support.GetComponent()->GetBodyInstance()->GetBodyBounds();
     auto* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
     const auto Floor = [&](const FVector& Centre, const FVector& Size)
     {
@@ -235,11 +292,12 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
         return Actor;
     };
     // New meshes have no project tags and deliberately do not respond to the old custom ground channel.
-    const FVector Size = Bounds.GetSize(), Centre = Bounds.GetCenter();
+    const FVector Size(Bounds.GetSize().X, Bounds.GetSize().Y, FMath::Max(10., Bounds.GetSize().Z));
+    const FVector Centre(Bounds.GetCenter().X, Bounds.GetCenter().Y, Bounds.Max.Z - Size.Z * .5);
     auto* Left = Floor(Centre - FVector(Size.X * .25,0,0), FVector(Size.X * .5,Size.Y,Size.Z));
     auto* Right = Floor(Centre + FVector(Size.X * .25,0,0), FVector(Size.X * .5,Size.Y,Size.Z));
     Original->Destroy();
-    TestTrue(TEXT("Deleting the named floor and replacing it with two ordinary collision meshes plays: ") + F.Error, Registry->Rebuild(F.Error));
+    TestTrue(TEXT("Deleting the supporting floor and replacing it with two ordinary collision meshes plays: ") + F.Error, Registry->Rebuild(F.Error));
     FHitResult Hit;
     TestTrue(TEXT("Pointer/terrain ray finds ordinary replacement collision"), Registry->TraceGround(
         FVector(Centre.X,Centre.Y,1000),FVector(Centre.X,Centre.Y,-1000),Hit));

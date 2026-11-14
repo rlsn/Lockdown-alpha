@@ -145,9 +145,9 @@ namespace LDObservation
     // running arena's group (invalid without one) and the observer's PK role.
     LOCKDOWN_API ELDObservedFlightAccess ClassifyFlight(bool bSourceActs, const FGuid& SourceGroup, bool bObserverGroup,
         const FGuid& ObserverGroup, const FGuid& ArenaGroup, bool bSpectating, bool bPKObserver);
-    // Flights the observer may see under Access, nearest to SourceFootCm first, at most MaxProjectiles. SharedFeetCm are the
-    // living PK teammates' feet. A flight beyond the registered ground is simply out of sight; a non-finite flight or a
-    // changed world is a fault.
+    // Effects the observer may see under Access, nearest to SourceFootCm first, at most MaxProjectiles. SharedFeetCm are
+    // the living PK teammates' feet. An effect beyond the registered ground is simply out of sight; non-finite geometry
+    // or a changed world is a fault.
     LOCKDOWN_API bool SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
         const TArray<FVector>& SharedFeetCm, const TArray<FLDObservedProjectileFact>& Facts,
         TFunctionRef<ELDObservedFlightAccess(const FLDObservedProjectileFact&)> Access,
@@ -165,10 +165,10 @@ public:
     bool AllocateRevision(uint32& Out, FString& Error);
     bool Sample(const TArray<const FLDObservedTarget*>& Visible, TArray<FGuid>& Removed,
         TArray<FLDObservedUnitView>& Units, FString& Error);
-    // Visible flights: a fresh opaque handle per visibility interval, keyed by the server-only flight key.
-    // Removed lists handles of flights that left sight or ended; output order is observer-local.
+    // Visible effects: a fresh opaque handle per visibility interval, keyed by the server-only effect key.
+    // Removed lists handles of effects that left sight or ended; output order is observer-local.
     bool SampleProjectiles(const TArray<const FLDObservedProjectileFact*>& Visible, TArray<FGuid>& Removed,
-        TArray<FLDObservedProjectileView>& Out, FString& Error);
+        TArray<FLDObservedProjectileView>& Out, FString& Error, const FGuid& ObserverEntity = FGuid());
     ETerminate Terminate(const FLDCombatBodyRef& Victim, const FLDMatchContext& InMatch, double OccurredAtSeconds,
         int64 OccurredAtServerMs, FLDObservedTerminationFact& Out, FString& Error);
     bool BindOrder(const FLDMoveIdentity& Order, const FGuid& Handle, uint32 ObservationEpoch, FString& Error);

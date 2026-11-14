@@ -12,6 +12,7 @@ import argparse
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from decimal import Decimal
+from fractions import Fraction
 import hashlib
 import json
 import math
@@ -94,7 +95,8 @@ def expected_world_projection(compilation):
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn",
-                                      "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy").index(row["kind"]),
+                                      "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn",
+                                      "FinalCapture").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -266,6 +268,10 @@ def parameter_projection(parameters):
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
         ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
+        ("SHOWDOWN.UnlockDelaySec", "ShowdownUnlockDelayMs"), ("SHOWDOWN.DurationSec", "ShowdownDurationMs"),
+        ("SHOWDOWN.FirstRespawnSec", "ShowdownFirstRespawnMs"),
+        ("SHOWDOWN.SecondRespawnSec", "ShowdownSecondRespawnMs"), ("SHOWDOWN.RespawnCutoffSec", "ShowdownRespawnCutoffMs"),
+        ("SHOWDOWN.ClosureStartsSec", "ShowdownClosureStartsMs"),
         ("MATCH.FieldSegmentSec", "FieldSegmentMs"),
         ("REST.OpeningBuildSec", "RestOpeningBuildMs"), ("REST.BuildSec", "RestBuildMs"), ("REST.SignupSec", "RestSignupMs"),
         ("REST.DrawSec", "RestDrawMs"), ("REST.BettingSec", "RestBettingMs"), ("REST.PKReadySec", "RestPKReadyMs"),
@@ -279,7 +285,7 @@ def parameter_projection(parameters):
         ("THROW.CooldownSec", "ThrowCooldownMs"), ("THROW.TelegraphSec", "ThrowTelegraphMs"),
         ("THROW.SlowRatio", "ThrowSlowBp"), ("THROW.SlowSec", "ThrowSlowMs"), ("THROW.ExposeSec", "ThrowExposeMs"),
         ("LIFE.RespawnSec.Field1", "RespawnField1Ms"), ("LIFE.RespawnSec.Field2", "RespawnField2Ms"),
-        ("LIFE.RespawnSec.Field3", "RespawnField3Ms"), ("LIFE.RespawnSec.Final", "RespawnFinalMs"),
+        ("LIFE.RespawnSec.Field3", "RespawnField3Ms"),
         ("LIFE.ProtectionSec", "ProtectionMs"),
         ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
         ("GROWTH.BuildSafeWindowSec", "BuildSafeWindowMs"),
@@ -332,6 +338,7 @@ def parameter_projection(parameters):
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
         ("COMBAT.OverloadBreachStacks", "OverloadBreachStacks"),
         ("GROWTH.OpeningPoints", "OpeningPoints"), ("GROWTH.PointsPerLevel", "PointsPerLevel"),
+        ("SHOWDOWN.RespawnLimit", "ShowdownRespawnLimit"),
         ("GROWTH.MaxLevelPointsXP", "MaxLevelPointsXP"), ("GROWTH.MaxLevelPoints", "MaxLevelPoints"),
         ("GROWTH.NpcActivePoints", "NpcActivePoints"),
         ("GROWTH.ActiveSkipPoints", "ActiveSkipPoints"), ("GROWTH.NpcActiveSkipPoints", "NpcActiveSkipPoints"),
@@ -394,6 +401,22 @@ def expected_projection(compilation):
         } for row in data["abilities"]],
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
         "Components": [component(row) for row in data["components"]],
+        "FinalMods": [{
+            "Id": row["id"], "NativeId": row["native_id"],
+            "Requirement": ("Basic", "ForcedMove", "HardControl", "Dash", "PlacedZone").index(row["requirement"]),
+            **{dest: scalar(row[source]) if source in row else 0 for source, dest in (
+                ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
+                ("delay", "DelayMs"), ("duration", "DurationMs"), ("interval", "IntervalMs"),
+                ("pulse_interval", "PulseIntervalMs"), ("window", "WindowMs"), ("outside", "OutsideMs"),
+                ("rearm_outside", "RearmOutsideMs"), ("cooldown_cost", "CooldownCostMs"),
+                ("duration_cost", "DurationCostMs"), ("damage_ratio", "DamageScaleBp"),
+                ("control_ratio", "ControlScaleBp"), ("distance_ratio", "DistanceScaleBp"),
+                ("radius_ratio", "RadiusScaleBp"), ("move_speed_cost", "MoveSpeedCostBp"),
+                ("slow", "SlowBp"), ("slow_duration", "SlowMs"),
+            )},
+            **{dest: rational(row[source]) if source in row else {"Numerator": 0, "Denominator": 1}
+               for source, dest in (("radius", "RadiusCm"), ("distance", "DistanceCm"), ("offset", "OffsetCm"))},
+        } for row in data["final_mods"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
         "Progression": {dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
@@ -707,7 +730,7 @@ def _export_runtime_refusal(output, index, base, written):
 
 def _export_cases(output, index, base, value_mutations, valid, written):
     exact = fixtures.content_fixture()
-    exact["parameters"]["LIFE.RespawnSec.Final"]["value"] = "__exact_literal__"
+    exact["parameters"]["LIFE.RespawnSec.Field3"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
     valid("above_double_integer", exact, literal=b"9007199254740.993")
     _export_exact_integer_case(valid)
@@ -927,6 +950,16 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     def cm(value):
         return value["numerator"] / value["denominator"]
 
+    def inner_wall_outside(world):
+        surface = world["geometry"]["surfaces"][0]
+        polygon = world["geometry"]["blockers"][0]["polygon_cm"]
+        edge = surface["max_cm"]["x"]
+        edge_x = Fraction(edge["numerator"], edge["denominator"])
+        min_x = min(Fraction(v["x"]["numerator"], v["x"]["denominator"]) for v in polygon)
+        delta = math.ceil(edge_x - min_x) + 1000
+        for vertex in polygon:
+            shift(vertex, "x", delta * vertex["x"]["denominator"])
+
     def detach(world, level):
         # Slide the first ramp of this level 1 m down its own slope, so its high edge leaves the plateau above
         # without reaching any other ground.
@@ -972,7 +1005,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
         ("world_upper_ramp_detached", lambda w: detach(w, 1), "one level up"),
         ("world_tree_on_cliff", lambda w: tree(w)["center_cm"].update({"x": {"numerator": 2900, "denominator": 1},
                                                                       "y": {"numerator": 3700, "denominator": 1}}), "one flat level"),
-        ("world_inner_wall_outside", lambda w: [v["x"].update({"numerator": v["x"]["numerator"] + 10000}) for v in w["geometry"]["blockers"][0]["polygon_cm"]], "closing a ground edge"),
+        ("world_inner_wall_outside", inner_wall_outside, "closing a ground edge"),
         ("world_duplicate_parameter", lambda w: w["parameter_refs"].__setitem__(1, w["parameter_refs"][0]), "parameter reference"),
         ("world_source_identity", lambda w: w.update({"source_sha256": "0" * 64}), "file bytes"),
         ("world_schema_identity", lambda w: w.update({"author_schema_sha256": "0" * 64}), "file bytes"),

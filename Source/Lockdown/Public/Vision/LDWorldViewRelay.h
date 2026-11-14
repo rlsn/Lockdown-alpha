@@ -102,12 +102,16 @@ namespace LDObservedPresentation
     {
         ELDObservedActionCue Cue = ELDObservedActionCue::None;
         uint16 CueAgeMs = 0;
+        uint16 CueImpactDelayMs = 0;
+        ELDObservedHitLook HitLook = ELDObservedHitLook::None;
+        uint16 RecentHitAgePlusOneMs = 0;
+        uint8 HitFlags = 0;
         TArray<FLDObservedStatus> Statuses;
-        bool bDamage = false;
     };
     // Points ascend by At. Before the first point: the first; between two: linear, yaw along the shorter arc; at or after
     // the newest: the newest with zero velocity. A snap point is reached without sweeping toward it.
     LOCKDOWN_API FPose Sample(TConstArrayView<FPoint> Points, double At);
+    LOCKDOWN_API float HitAgeSeconds(uint16 AgePlusOneMs, double ElapsedSinceSample);
     // Local-minus-authority clock offset from one arrival: an earlier arrival lowers it at once, later ones raise it by at
     // most OffsetGrowthPerSecond, and a jump beyond ReseedSeconds (another authority clock) re-seeds it.
     LOCKDOWN_API double TrackOffset(bool bHasOffset, double Offset, double SecondsSinceUpdate, double ArrivalLocalSeconds, double SampledAtServerSeconds);
@@ -172,7 +176,6 @@ private:
     double ShownAt = -1;
     uint16 Look = MAX_uint16;
     bool bPlaced = false;
-    int64 LastHealthP2 = 0, LastMaxHealthP2 = 0;
 };
 
 // Client-only marker under this machine's own living body, so the player finds themself at a glance (APP_SPEC 8).
@@ -192,9 +195,9 @@ private:
     uint8 TintSlot = MAX_uint8;
 };
 
-// Client-only presentation of one visible flight (a thrown chalk stub). It never collides and is never a target. Once
-// the current frame stops listing it, it only finishes its last authorized samples on the presentation clock (bounded
-// by EndSeconds) and is then removed; a stale, reset or foreign view removes it at once.
+// Client-only presentation of one visible skill effect. It never collides and is never a target. Flights finish their
+// last authorized samples on the presentation clock (bounded by EndSeconds); areas disappear with their authorized
+// frame. A stale, reset or foreign view removes it at once.
 UCLASS()
 class LOCKDOWN_API ALDObservedProjectileProxy : public AActor
 {
@@ -214,11 +217,16 @@ private:
     UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
     UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> AccentTint;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ShapeLines;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
     void ApplyLook(const FLDObservedProjectileView& Effect);
     ELDObservedProjectileLook ShownLook=ELDObservedProjectileLook::Chalk;
     float ShownRadius=-1, ShownInnerRadius=-1, ShownAngle=-1;
+    float ShownLength=-1;
+    bool bShownOwn=false;
+    FLinearColor ShownColor=FLinearColor::White;
+    double WarningAtServerSec=-1;
     TArray<LDObservedPresentation::FPoint, TInlineAllocator<8>> Points;
     double EndedAt = -1;
     bool bPlaced = false;

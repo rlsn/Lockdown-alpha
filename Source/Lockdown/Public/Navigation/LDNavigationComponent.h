@@ -114,6 +114,9 @@ public:
     void AwaitDirectVerdict(uint64 DirectSequence);
     // Death, leave or match close: ends pending and active orders without any new movement.
     void EndLifeOrders(ELDOrderCancelReason Reason=ELDOrderCancelReason::LifeEnded);
+    void TransferReconnectLedgerTo(ULDNavigationComponent& Next);
+    FLDMoveIdentity ReconnectOrderWatermark() const { return Book.Received; }
+    void RestoreLocalOrderCursor(uint32 Order, uint32 CancelEpoch);
     // Combat's MatchReset: the controller outlives the match, its orders and order book do not. Ends the retired
     // match's orders and drops the whole book (idempotency window, request watermark, activation throttle) and the
     // content cache. The receipt serial stays: it is the owning connection's monotonic order, not match state.
@@ -365,6 +368,7 @@ private:
     void StepCastFollowUp(const FLDOrderReceipt& Receipt);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDControlFeelAutoAttackAfterCastTest;
+    friend class FLDReconnectProtectionTest;
     friend class FLDDemoCombatProbe;
 #endif
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;

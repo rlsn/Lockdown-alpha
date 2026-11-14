@@ -362,6 +362,139 @@
       "surface_id": "demo_ground"
     },
     {
+      "id": "final_capture",
+      "kind": "FinalCapture",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 13000
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 0
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_0",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 14550
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 0
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_1",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 13775
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1342
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_2",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 12225
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1342
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_3",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 11450
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 0
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_4",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 12225
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1342
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "final_spawn_5",
+      "kind": "FinalSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 13775
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1342
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
       "id": "h01",
       "kind": "Camp",
       "members": [
@@ -2572,7 +2705,7 @@
     "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.",
     "status": "approved"
   },
-  "author_schema_sha256": "19b475cf8db4689b50cad9e14dfe5c364e72f1977727a6803116d7ce299dd3da",
+  "author_schema_sha256": "b0f61374707034c30f88666dca10f0240baf166b8873c00d4fcc7af52b83f823",
   "geometry": {
     "blockers": [
       {
@@ -2858,6 +2991,2145 @@
           "denominator": 1,
           "numerator": 600
         },
+        "id": "final_arena_boundary_e",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 16000
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -5000
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 16300
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -5000
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 16300
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 5000
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 16000
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 5000
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 300
+        },
+        "id": "final_arena_cover_00",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 14050
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 14050
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13850
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13850
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 300
+        },
+        "id": "final_arena_cover_01",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13735
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 753
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13335
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1053
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13215
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 893
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13615
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 593
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 300
+        },
+        "id": "final_arena_cover_02",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12665
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1053
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12265
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 753
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12385
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 593
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12785
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 893
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 300
+        },
+        "id": "final_arena_cover_03",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 11950
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 11950
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12150
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12150
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 300
+        },
+        "id": "final_arena_cover_04",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12265
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -753
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12665
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1053
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12785
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -893
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12385
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -593
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 300
+        },
+        "id": "final_arena_cover_05",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13335
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1053
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13735
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -753
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13615
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -593
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13215
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -893
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_00",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4985
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4145
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4145
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4985
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_01",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4155
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -3315
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -3315
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4155
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_02",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -3325
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2485
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2485
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -3325
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_03",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2495
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1655
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1655
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2495
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_04",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_05",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -835
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 5
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 5
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -835
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_06",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -5
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 835
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 835
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -5
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_07",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_08",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1655
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2495
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2495
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1655
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_09",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2485
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3325
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3325
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2485
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_10",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3315
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4155
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4155
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3315
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_divider_11",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4145
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9750
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4985
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4985
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 9550
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4145
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_0_0",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15195
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1285
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 14475
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 14355
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15075
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1125
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_0_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13810
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2085
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13090
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2625
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12970
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2465
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13690
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1925
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_1_0",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12910
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2625
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12190
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2085
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12310
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1925
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13030
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2465
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_1_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 11525
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10805
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1285
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10925
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1125
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 11645
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_2_0",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10735
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10735
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10935
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10935
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_2_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10735
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10735
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10935
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10935
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_3_0",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10805
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1285
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 11525
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 11645
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 10925
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1125
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_3_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12190
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2085
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12910
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2625
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13030
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2465
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12310
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1925
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_4_0",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13090
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2625
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13810
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2085
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 13690
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1925
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 12970
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2465
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_4_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 14475
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1825
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15195
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1285
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15075
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1125
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 14355
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1665
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_5_0",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15265
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15265
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15065
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15065
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 400
+        },
+        "id": "final_arena_ring_5_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15265
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15265
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15065
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1250
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": 15065
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 350
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 600
+        },
         "id": "rest_boundary_e",
         "polygon_cm": [
           {
@@ -2867,7 +5139,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": -5300
+              "numerator": -5000
             },
             "z": {
               "denominator": 1,
@@ -2881,7 +5153,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": -5300
+              "numerator": -5000
             },
             "z": {
               "denominator": 1,
@@ -2895,7 +5167,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 5000
             },
             "z": {
               "denominator": 1,
@@ -2909,7 +5181,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": 5300
+              "numerator": 5000
             },
             "z": {
               "denominator": 1,
@@ -31454,7 +33726,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 9300
+              "numerator": 16300
             },
             "y": {
               "denominator": 1,
@@ -31468,7 +33740,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 9300
+              "numerator": 16300
             },
             "y": {
               "denominator": 1,
@@ -31523,7 +33795,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 9300
+              "numerator": 16300
             },
             "y": {
               "denominator": 1,
@@ -31537,7 +33809,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 9300
+              "numerator": 16300
             },
             "y": {
               "denominator": 1,
@@ -35618,7 +37890,7 @@
         "max_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 9000
+            "numerator": 16000
           },
           "y": {
             "denominator": 1,
@@ -35646,8 +37918,8 @@
       }
     ]
   },
-  "geometry_revision": 10,
-  "layout_revision": 12,
+  "geometry_revision": 11,
+  "layout_revision": 13,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -35764,7 +38036,7 @@
       "numerator": 200
     }
   },
-  "projection_revision": 3,
-  "schema_version": 3,
-  "source_sha256": "6b799b70d68646d574fc1a29b64d7d9d497e00b55ee06d472c649555d10ca6e5"
+  "projection_revision": 4,
+  "schema_version": 4,
+  "source_sha256": "bb9569d2ede7655094859ec8b9c408b7cba531b709c52f9cfd7ee023bee10a91"
 }

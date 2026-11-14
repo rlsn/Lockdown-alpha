@@ -167,7 +167,7 @@ Host 仅请求 `/Game/Lockdown/Generated/Maps/L_Demo?listen`；
 Join 还携带独立 wire 版本、产品版本和根 manifest 摘要；连接中不表示准入已成功。
 原生 GameMode 不再通过旧 profile 创建战斗、经济、人口、旧目标或 probe 服务。
 
-GameMode 提供三真人容量、Host 权限、0–3 AI 名额配置、结构名单版本与有界会话回执。
+GameMode 提供真人和最多 3 个 AI 共用的六人容量、Host 权限、结构名单版本与有界会话回执。
 Ready 变化不增加结构版本，成员/AI 名额变化清除真人 Ready；开局时每个 AI 名额由对手提供者生成一个服务器
 `ALDOpponentController`。只有全部正常开局提供者都已注册时才能开局，缺任一提供者时明确拒绝。
 玩家名称经 `?LDName=` 传入并由服务器按设置中的名称规则复核；加入被拒时客户端显示中文原因与稳定原因码。

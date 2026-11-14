@@ -76,6 +76,7 @@ bool ALDCombatDirector::IsAggressiveEntry(const FLDCombatBodyRef& Ref, ELDCombat
 void ALDCombatDirector::CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch)
 {
     const auto* Body=FindBody(Batch->Body);
+    if (Core() && Core()->IsShowdown()) { FinalMotion.Add({Batch,Body ? Body->VoluntaryDash : TOptional<FLDCombatVoluntaryDash>()}); }
     ContactMotion.Add({MoveTemp(Batch), Body ? Body->DashContact : nullptr});
 }
 

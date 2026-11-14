@@ -153,6 +153,8 @@ bool FLDHUDLifeStatusTest::RunTest(const FString& Parameters)
     const LDHUD::FDeathView Death=LDHUD::Death(Own,true,2350);
     TestTrue(TEXT("The death banner names the state and the countdown and keeps the build"),Death.bVisible&&Death.Title==LDTerms::DeathTitle&&Death.Countdown==FString(LDTerms::RespawnWait)+TEXT(" 9.7s")&&Death.Note==LDTerms::DeathNote());
     TestEqualSensitive(TEXT("The banner never invents a respawn time"),LDHUD::Death(Own,false,0).Countdown,FString(LDTerms::RespawnWait)+TEXT(" · 时间同步中"));
+    Own.RespawnAtMs=0;
+    TestEqualSensitive(TEXT("An eliminated finalist is never promised another respawn"),LDHUD::Death(Own,true,0,true).Countdown,FString(TEXT("终局已出局")));
     Own.bActive=true;
     TestTrue(TEXT("The Lives phase, not the legacy active flag, decides the line"),LDHUD::LifeStatus(Own,true,0).StartsWith(LDTerms::Dead,ESearchCase::CaseSensitive));
     Own.LifePhase=ELDLifePhase::Unspawned;TestEqualSensitive(TEXT("An unspawned contender is not shown alive"),LDHUD::LifeStatus(Own,true,0),FString(TEXT("等待出生")));
@@ -316,10 +318,38 @@ bool FLDHUDRestTimelineTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The go line leaves after its moment"),LDHUD::RestReturnCountdown(Public,true,200000+LDHUD::CountdownGoShowMs).IsEmpty());
     Public.Phase=ELDMatchPhase::CaptureOpen;Timeline.Stage=ELDMatchStage::FinalField;Timeline.FieldSegment=3;Timeline.FieldBaseMs=540000;Timeline.FieldEndT=-1;
     TestEqualSensitive(TEXT("The final field names the open flagpole"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline,FString(LDTerms::FinalField));
+    Public.Showdown.bStarted=true;Public.Showdown.EndsAtMs=440000;Public.Showdown.ClosureAtMs=320000;Public.Showdown.RespawnsCloseAtMs=350000;
+    View=LDHUD::TimelineBanner(Public,Self,true,310000);
+    TestTrue(TEXT("The final field visibly warns before closure"),View.Detail==TEXT("封街倒计时 10 秒")
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,320000);
+    TestTrue(TEXT("The final field visibly reports active closure"),View.Detail.Contains(TEXT("封街收缩中"))
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,350000);
+    TestTrue(TEXT("The final field visibly reports the respawn cutoff"),View.Detail.Contains(TEXT("不再接受新复活"))
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,430000);
+    TestTrue(TEXT("The final field visibly warns of the last ten seconds"),View.Detail.Contains(TEXT("最后十秒"))
+        &&LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,false,0);
+    TestFalse(TEXT("Without an authority clock no countdown detail is shown"),LDHUD::TimelineDetailVisible(Public,View,false));
+    View=LDHUD::TimelineBanner(Public,Self,true,310000);
+    TestFalse(TEXT("A covering rest service suppresses the detail"),LDHUD::TimelineDetailVisible(Public,View,true));
+    Timeline.Stage=ELDMatchStage::Field;
+    TestFalse(TEXT("Ordinary field phases keep timeline detail hidden"),LDHUD::TimelineDetailVisible(Public,View,false));
+    Timeline.Stage=ELDMatchStage::FinalField;
     Timeline.Generation=3;
     TestTrue(TEXT("Another generation's timeline shows nothing"),LDHUD::TimelineBanner(Public,Self,true,250000).Headline.IsEmpty()
         &&LDHUD::RestReturnCountdown(Public,true,200500).IsEmpty());
     // The PK sign-up has no answer to show: standing in the own disk is the sign-up, read from the public timeline above.
+    TestEqualSensitive(TEXT("Ready confirmation does not promise a sign-up window in the final rest"),
+        LDHUD::RestReadyText(ELDRestReadyResult::Accepted),FString(TEXT("已准备。")));
+    for(const ELDRestReadyResult Refused:{ELDRestReadyResult::NotContender,ELDRestReadyResult::StaleMatch,
+        ELDRestReadyResult::StaleWindow,ELDRestReadyResult::NotOpen,ELDRestReadyResult::None})
+    {
+        TestTrue(FString::Printf(TEXT("Ready refusal %d is explicit"),int32(Refused)),
+            LDHUD::RestReadyText(Refused).StartsWith(TEXT("准备失败")));
+    }
     // The personal training reset: a queued reset says what it does; every refusal is explicit, never a success.
     TestEqualSensitive(TEXT("A queued reset refills both and readies the cooldowns"),LDHUD::TrainingResetText(ELDTrainingResetResult::Queued),
         FString(TEXT("训练已重置：你和假人回满，冷却就绪")));
@@ -1177,18 +1207,20 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Each line leaves after its five seconds"),Feed.Lines().Num()==2&&Feed.Lines()[0].Text==LDTerms::AirdropOwnClaim());
     In.LocalSeconds=110;Feed.Observe(In);
     TestTrue(TEXT("All lines are gone once their time is up"),Feed.Lines().IsEmpty());
-    // The owner's guard frozen by a challenger drops to zero when he leaves the zone; only that drop is told.
+    // Contest and leaving pause the current owner's guard; only a new owner resets it.
     Public.CircleState=ELDCircleState::Contested;Public.GuardKeptMs=4000;In.LocalSeconds=111;Feed.Observe(In);
     TestTrue(TEXT("A guard freezing is no event line"),Feed.Lines().IsEmpty());
-    Public.CircleState=ELDCircleState::Solo;Public.GuardKeptMs=0;In.LocalSeconds=112;Feed.Observe(In);
-    TestTrue(TEXT("A frozen guard dropping to zero tells that its owner left the zone"),
-        Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::GuardReset&&!Feed.Lines()[0].bSelf);
+    Public.CircleState=ELDCircleState::Solo;In.LocalSeconds=112;Feed.Observe(In);
+    TestTrue(TEXT("Leaving a frozen guard does not announce a reset"),Feed.Lines().IsEmpty());
     In.LocalSeconds=113;Feed.Observe(In);
-    TestEqual(TEXT("A guard reset is told once"),Feed.Lines().Num(),1);
+    TestEqual(TEXT("An unchanged paused guard tells nothing"),Feed.Lines().Num(),0);
     Public.CircleState=ELDCircleState::Guarded;Public.GuardDueAtMs=50000;In.LocalSeconds=114;Feed.Observe(In);
-    TestEqual(TEXT("A guard that runs again tells nothing"),Feed.Lines().Num(),1);
-    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=0;Public.GuardKeptMs=1500;In.LocalSeconds=114.5;Feed.Observe(In);
-    TestEqual(TEXT("A guard paused by its owner leaving the empty zone is no reset line"),Feed.Lines().Num(),1);
+    TestEqual(TEXT("A guard that runs again tells nothing"),Feed.Lines().Num(),0);
+    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=0;Public.GuardKeptMs=4500;In.LocalSeconds=114.5;Feed.Observe(In);
+    TestEqual(TEXT("A guard paused by its owner leaving the empty zone is no reset line"),Feed.Lines().Num(),0);
+    Public.GraffitiOwner=Self;Public.GuardKeptMs=0;In.LocalSeconds=115;Feed.Observe(In);
+    TestTrue(TEXT("A successful repaint announces the new owner once"),
+        Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::GraffitiSprayed(TEXT("你"))&&Feed.Lines()[0].bSelf);
     // A new match starts empty and does not tell the state it opens with.
     Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();Public.GuardDueAtMs=0;Public.GuardKeptMs=0;In.LocalSeconds=120;Feed.Observe(In);
     TestTrue(TEXT("A new match starts with an empty feed"),Feed.Lines().IsEmpty());
@@ -1301,6 +1333,11 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         Timeline.Step=ELDRestStep::Return;
         TestTrue(TEXT("The return countdown locks the build"),LDProgression::StageForPublic(ELDMatchPhase::Rest,Timeline)==EStage::RestLocked);
         TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);
+        FLDTimelineView FinalField;
+        FinalField.Stage=ELDMatchStage::FinalField;
+        TestTrue(TEXT("The final field closes ordinary growth commands"),
+            LDProgression::StageForPublic(ELDMatchPhase::Development,FinalField)==EStage::Closed
+            && LDProgression::StageForPublic(ELDMatchPhase::CaptureOpen,FinalField)==EStage::Closed);
         TestTrue(TEXT("Results are closed"),LDProgression::StageForPublic(ELDMatchPhase::Results,FLDTimelineView())==EStage::Closed);
     }
     TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied),FString(LDTerms::ReplaceAtRest));
@@ -1869,7 +1906,8 @@ bool FLDHUDMaterialServicesTest::RunTest(const FString& Parameters)
     // Every #198 G reason names itself; none falls through to the unknown line or repeats another.
     TSet<FString> Seen;
     for(const ELDGrowthReason Reason:{ELDGrowthReason::NoComponentChoice,ELDGrowthReason::ComponentOwned,ELDGrowthReason::NotAGap,ELDGrowthReason::NoGapFiller,
-        ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate})
+        ELDGrowthReason::GapAlreadyFilled,ELDGrowthReason::DismantleInvalid,ELDGrowthReason::DismantlePoolEmpty,ELDGrowthReason::FieldRewardDuplicate,
+        ELDGrowthReason::FinalLocked,ELDGrowthReason::NoFinalMod,ELDGrowthReason::FinalModUnavailable})
     {
         const FString Text=LDHUD::GrowthReasonText(Reason);bool bDuplicate=false;Seen.Add(Text,&bDuplicate);
         TestTrue(FString::Printf(TEXT("Reason %d has its own text"),int32(Reason)),!Text.IsEmpty()&&!Text.StartsWith(TEXT("未知原因"))&&!bDuplicate);

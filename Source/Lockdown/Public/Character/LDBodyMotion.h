@@ -20,18 +20,19 @@ namespace LDBodyMotion
         float HitBurst = 0;  // independent chest impact while another action keeps playing
     };
 
-    // A basic swing lands, and a cast releases, here: near the 250 ms base windup of a basic release and the 200 ms
-    // windup of the Demo actives.
+    // Fallback impact age for cues that predate a known authoritative release time.
     constexpr float StrikeAt = .2f;
-    LOCKDOWN_API FChannels Evaluate(EAction Action, float AgeSeconds);
-    LOCKDOWN_API FChannels WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds);
+    LOCKDOWN_API FChannels Evaluate(EAction Action, float AgeSeconds, float ImpactSeconds = StrikeAt);
+    LOCKDOWN_API FChannels WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds, float ImpactSeconds = StrikeAt);
     // Hold only a victim's current attack/cast pose at impact; never pause input, movement or authority time.
     constexpr float HitPoseHoldSeconds = .045f;
     LOCKDOWN_API float ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds);
+    // Presentation-only tilt opposite the actual horizontal push, in the body's local space.
+    LOCKDOWN_API FRotator KnockbackLean(const FVector& LocalVelocity);
 
-    // The clip time that shows an action AgeSeconds after it began: an attack or cast clip with an impact frame
-    // (ImpactSeconds at rate 1) reaches it at StrikeAt; any other clip plays at its authored rate. Never negative.
-    LOCKDOWN_API float ClipTime(EAction Action, float AgeSeconds, float ImpactSeconds, float AuthoredRate);
+    // The clip time that shows an action AgeSeconds after it began: an attack or cast reaches its authored impact
+    // frame at the authoritative release age; any other clip plays at its authored rate. Never negative.
+    LOCKDOWN_API float ClipTime(EAction Action, float AgeSeconds, float ClipImpactSeconds, float ActionImpactSeconds, float AuthoredRate);
 
     // Two reports of one action kind are one instance unless the later one began this much later (a repeated hit or a
     // new swing). Without a known age a continuing kind is never restarted.

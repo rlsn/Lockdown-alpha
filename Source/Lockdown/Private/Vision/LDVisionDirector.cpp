@@ -111,7 +111,9 @@ bool SameObservedStatuses(const TArray<FLDObservedStatus>& A, const TArray<FLDOb
 bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUnitView& B)
 {
     return A.AuthorizedFieldMask == B.AuthorizedFieldMask && A.Kind == B.Kind && A.Presentation == B.Presentation
-        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
+        && A.ActionCue == B.ActionCue && A.ActionAbility == B.ActionAbility && A.HitLook == B.HitLook && A.HitFlags == B.HitFlags
+        && (A.RecentHitAgePlusOneMs != 0) == (B.RecentHitAgePlusOneMs != 0)
+        && A.ContenderId == B.ContenderId && A.CreatureId == B.CreatureId && A.Level == B.Level
         && A.Health.CurrentP2 == B.Health.CurrentP2 && A.Health.MaxP2 == B.Health.MaxP2
         && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
@@ -562,7 +564,7 @@ bool FLDObserverLedger::Sample(const TArray<const FLDObservedTarget*>& Visible, 
 }
 
 bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjectileFact*>& Visible, TArray<FGuid>& Removed,
-    TArray<FLDObservedProjectileView>& Out, FString& Error)
+    TArray<FLDObservedProjectileView>& Out, FString& Error, const FGuid& ObserverEntity)
 {
     Removed.Reset();
     Out.Reset();
@@ -589,7 +591,7 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         if (!Fact || !Fact->Key.IsValid() || !FMath::IsFinite(Fact->Heading.X) || !FMath::IsFinite(Fact->Heading.Y) || Fact->Heading.IsNearlyZero()
             || Visible.IndexOfByPredicate([Fact](const FLDObservedProjectileFact* Other) { return Other && Other->Key == Fact->Key; }) != Index)
         {
-            Error = TEXT("Visible projectiles require unique flight keys and a planar heading.");
+            Error = TEXT("Observed skill effects require unique keys and a planar heading.");
             return false;
         }
         FLDObservedProjectileView& View = Presented.AddDefaulted_GetRef();
@@ -600,6 +602,9 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         View.RadiusCm = Fact->RadiusCm;
         View.InnerRadiusCm = Fact->InnerRadiusCm;
         View.AngleDegrees = Fact->AngleDegrees;
+        View.LengthCm=Fact->LengthCm;
+        View.bOwn=ObserverEntity.IsValid()&&Fact->SourceEntity==ObserverEntity;
+        View.WarningRemainingMs = Fact->WarningRemainingMs;
         if (!LDObservation::ValidateProjectile(View, Error)) { return false; }
     }
     for (int32 Index = 0; Index < ProjectileBindings.Num();)
@@ -1047,9 +1052,29 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
             Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a Combat cast source needs a Cast cue and an ability.");
             return false;
         }
+        if (Facts.LastHitAtMs != 0 && (Facts.LastHitAtMs < 0 || Facts.LastHitAtMs > NowMs
+            || NowMs - Facts.LastHitAtMs >= LDObservation::RecentHitWindowMs))
+        {
+            Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: a visible hit is outside its presentation window.");
+            return false;
+        }
         Unit.ActionCue = Facts.ActionCue;
         Unit.ActionAbility = Facts.ActionAbility;
+        Unit.HitLook = Facts.HitLook;
+        Unit.HitFlags = Facts.HitFlags;
+        Unit.RecentHitAgePlusOneMs = Facts.LastHitAtMs > 0
+            ? uint16(NowMs - Facts.LastHitAtMs + 1) : 0;
         Unit.ActionCueAgeMs = Facts.ActionCue == ELDObservedActionCue::None ? 0 : uint16(FMath::Min<int64>(NowMs - Facts.ActionCueAtMs, MAX_uint16));
+        if (Facts.ActionCue != ELDObservedActionCue::None && Facts.ActionCue != ELDObservedActionCue::Hit)
+        {
+            if (Facts.ActionCueImpactAtMs < Facts.ActionCueAtMs || Facts.ActionCueImpactAtMs - Facts.ActionCueAtMs > MAX_uint16)
+            {
+                Error = TEXT("LD_OBSERVATION_ACTION_CUE_INVALID: action release timing is outside the visible action window.");
+                return false;
+            }
+            Unit.ActionCueImpactDelayMs = uint16(Facts.ActionCueImpactAtMs - Facts.ActionCueAtMs);
+        }
+        else { Unit.ActionCueImpactDelayMs = 0; }
         Unit.Health.CurrentP2 = State->Resources.HpP2;
         Unit.Health.MaxP2 = State->Resources.MaxHpP2;
         Unit.Statuses = Facts.Statuses;
@@ -1214,7 +1239,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     }
     TArray<FGuid> RemovedFlights;
     TArray<FLDObservedProjectileView> Projectiles;
-    if (!Observer.Ledger.SampleProjectiles(VisibleFlights, RemovedFlights, Projectiles, Error)) { return false; }
+    if (!Observer.Ledger.SampleProjectiles(VisibleFlights, RemovedFlights, Projectiles, Error,Observer.ContenderId)) { return false; }
     if (RemovedFlights.Num() > 0)
     {
         Removed.Append(RemovedFlights);

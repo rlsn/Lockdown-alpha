@@ -91,6 +91,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `ComponentChoice` = 13 | `OfferId` = 待选的精英营地二选一 `ChoiceId`；`Component` = 所选项，全零 = 改领点数 | 与 `ActiveChoice` 同表（对局进行中随时，存活或死亡）。所选项成为库存实例（`EliteChoice`），该二选一结束；没有该 `ChoiceId` 为 `NoComponentChoice` = 160，不是候选项为 `InvalidOption`，所选项已持有为 `ComponentOwned` = 161。只有全部候选都已持有时才能带全零 `Component` 改领 `GROWTH.EmptyComponentPoolPoints`（计入 `AwardedPoints`），否则也是 `ComponentOwned` |
 | `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未安装过、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 要求这些入口原生施加至少两种不同元素——主动的灼烧/潮湿/感电、B01/B10/B11 与 B18 已绑定的元素，两个火源不算），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`；C09 只列能补上一种缺少元素的，未绑定的 B18 按可绑元素计），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
 | `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
+| `FinalMod` = 27 | `OfferId` = 本人 `FinalModOfferId`、`Option`、`TargetKind`/`TargetDefinition`；`Slot` 为 `AnySlot` | R3 进入时 `ALDDevelopmentDirector::OpenFinalMods` 按比赛私密种子与参赛者抽取三个互异的独立 FIN（`DrawFinalModOptions`）；候选与合法绑定由本人 `FinalModOptions`/`FinalModSources` 投影。选择在 `Rest` 构筑窗口、活着时受理，不需要 NPC；提交时重验来源，写入唯一的 `FLDGrowthBuild::FinalMod`（定义及绑定），同时置 `FLDFinalModState::bLocked`。不修改主动、图纸或构件，不占工坊容量；有普通主动候选也可选择并锁定。之后构筑命令为 `FinalLocked` = 170；没有该选择为 `NoFinalMod` = 171，不是候选为 `InvalidOption`，来源不合法为 `FinalModUnavailable` = 172。揭示后不重抽；最终野外入场边界 `LockFinalMods` 锁定全部未选者 |
 
 野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
 XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分（`LDProgression::DrawFieldReward`，按比赛私密种子与事件身份固定）：
@@ -105,12 +106,12 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 主动与加点命令带组件字段同样拒绝。B18 的绑定须为已学且列在 `binding.actives` 的主动加 `binding.elements` 的一种元素，
 否则 `InvalidTarget`；水与电（B18 的绑定、B10/B11 的普攻元素）与火一样可以安装，由 Combat 的元素状态施加（`ApplyComponentElement` → `ApplyElements`）。
 
-客户端发送的 `Kind` 按白名单解码，未知编号（含 4–9、14–19、27 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
+客户端发送的 `Kind` 按白名单解码，未知编号（含 4–9、14–19、28 以上）在受理时为 `InvalidRequest`，不映射到相邻含义；
 每种 Kind 只接受上表的字段，其余字段必须为空。替换与遗忘之后 Combat 保留被遗忘主动的冷却轨道
 （`PlanTrackBindings` 按定义找回原轨道与就绪时刻），重学沿用原冷却债。
 
 合法性矩阵（`LDProgression::CommandGate`/`LearnGate`/`InstallGate`/`IsRestWindow`，提交时 `ALDDevelopmentDirector` 经
-`ALDGameMode::ReadBuildStage` 读阶段与本人生命阶段）。自己的构筑命令在对局进行中随时受理：`ActiveChoice`、`SkipActiveOffer`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
+`ALDGameMode::ReadBuildStage` 与时间线读阶段及本人生命阶段）。最终野外之外自己的构筑命令在对局进行中受理：`ActiveChoice`、`SkipActiveOffer`、`ComponentChoice`、`OpeningBase`、`LearnBlueprint`、`AllocatePoints`、`InstallComponent`、
 `UninstallComponent`（下表“自己的构筑”）；休息服务保持原有阶段、位置与费用约束：
 
 | 阶段（`EMatchStage`） | 自己的构筑 | BuyNpcOffer / Respec / FillGap / Dismantle | ReplaceActive / ForgetActive |
@@ -120,7 +121,7 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 | `Live`（野外段），活着（交战中也一样） | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `Live`，死亡 | 允许，不复活、不治疗、不改复活时间 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `RestLocked`（抽签、下注、PK 准备、PK、结算、返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
-| `Closed`（结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
+| `Closed`（最终野外、结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
 
 生命阶段不是 Alive/Dead（Unspawned、Left）时每种命令都为 `LifePhaseChanged`。没有构筑安全窗：`NotSafe`（52）与 `RestOnly`（63）已退役，
 `LDProgression::FBuildContext` 只带阶段与生命阶段。PK 中不锁定报名者的构筑快照，每次权威构筑变更直接投影到当前 PK 生命。
@@ -151,7 +152,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 | 事务 | 同次提交 |
 | --- | --- |
-| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数、材料与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻 |
+| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份累计 XP + 逐级点数、材料与主动机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 平分），升级时各自 Combat 投影，全部准备后一起安装；每级材料记在回执的 `ComponentGrants`（池空为 None）；无主/自杀/离局为 NoReward 且没有助攻。最终野外的死亡记为 NoReward，仍去重但不发成长奖励；其他成长奖励也在最终野外拒绝 |
 | `CommitEventReward` | 地图事件（空投）以 (Event, Serial) 为业务身份，整局只付一次；同一事件的第二次领取以 `DataInvalid` 永久拒绝，不付任何经验 |
 | `CommitPendingBuild` | 许可 → 旧局/目录/上下文/离局/旧生命/生死阶段/`BuildStale` 重查 → 按 Kind 校验（`NoActiveOffer`、`OfferAlreadyCommitted`、`UnknownOffer`、`OfferGuardStale`、`InvalidOption`；休息服务的 `OfferOutstanding`、`NpcPoolTooSmall`、`NothingToRespec`、`SlotEmpty`、`NoBlueprint`；组件命令见上）→ 合法性矩阵 → 安装构筑（等级、点数、Q/W/E 或已安装组件变化时才重投影 Combat；只改图纸、库存实例、永久消费或机会时推进构筑修订而不重装 Combat；NPC 的付费与固定候选组同次安装）→ 抽下一组 |
 

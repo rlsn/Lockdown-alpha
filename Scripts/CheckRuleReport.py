@@ -85,6 +85,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCapture.GuardNeedsOwner",
         "Lockdown.Rules.DemoCapture.SprayInterrupt",
         "Lockdown.Rules.DemoCapture.GraffitiCleared",
+        "Lockdown.Rules.DemoCapture.ShowdownContribution",
+        "Lockdown.Rules.DemoCapture.ShowdownRespawnCutoff",
         "Lockdown.Rules.DemoCapture.CombatHitInterrupt",
         "Lockdown.Rules.DemoCapture.ProtectionAndContracts",
         "Lockdown.Rules.DemoCapture.Geometry",
@@ -177,6 +179,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCore.ClockProjection",
         "Lockdown.Rules.DemoCore.RewardSettlementBeforeClose",
         "Lockdown.Rules.DemoCore.ScopedAuthority",
+        "Lockdown.Rules.DemoCore.ReconnectProtection",
         "Lockdown.Rules.DemoCoreProbe.ArrivalTurn",
         "Lockdown.Rules.DemoCoreProbe.GrowthTiming",
         "Lockdown.Rules.DemoMotionProbe.Slide",
@@ -256,6 +259,11 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoRest.Services.Respec",
         "Lockdown.Rules.DemoRest.Services.ReplaceForget",
         "Lockdown.Rules.DemoRest.Services.ForgetReclaim",
+        "Lockdown.Rules.DemoFinalMod.ChoiceAndLock",
+        "Lockdown.Rules.DemoFinalMod.GroundBandTime",
+        "Lockdown.Rules.DemoFinalMod.UniversalCombat",
+        "Lockdown.Rules.DemoFinalMod.MechanicContracts",
+        "Lockdown.Rules.DemoFinalMod.ControlAndImpact",
         "Lockdown.Rules.DemoFieldReward.Draw",
         "Lockdown.Rules.DemoFieldReward.Services",
         "Lockdown.Rules.DemoFieldReward.Choice",
@@ -399,6 +407,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalSettingsPersistence",
         "Lockdown.Rules.LocalSettingsAtomicReplaceFailure",
         "Lockdown.Rules.LocalSettingsCameraPanSpeed",
+        "Lockdown.Rules.LocalSettingsCombatFeedback",
         "Lockdown.Rules.LocalSettingsMasterVolume",
         "Lockdown.Rules.LocalSettingsMusicVolume",
         "Lockdown.Rules.LocalSettingsMetadataReadFailure",
@@ -525,6 +534,28 @@ def automation_filter(selected):
     return result
 
 
+def failure_details(report, max_tests=20, max_errors=5):
+    """Name each unsuccessful test with its first errors so a gate log identifies the failure without the artifact."""
+    lines = []
+    tests = [test for test in report.get("tests") or [] if isinstance(test, dict) and test.get("state") != "Success"]
+    for test in tests[:max_tests]:
+        lines.append(f"  {test.get('fullTestPath', '<unnamed>')} [{test.get('state', 'unknown')}]")
+        errors = [entry for entry in test.get("entries") or []
+                  if isinstance(entry, dict) and (entry.get("event") or {}).get("type") == "Error"]
+        for entry in errors[:max_errors]:
+            where = entry.get("filename") or ""
+            if where and entry.get("lineNumber"):
+                where = f" ({Path(where).name}:{entry['lineNumber']})"
+            elif where:
+                where = f" ({Path(where).name})"
+            lines.append(f"    {entry['event'].get('message', '').strip()}{where}")
+        if len(errors) > max_errors:
+            lines.append(f"    ... {len(errors) - max_errors} more errors")
+    if len(tests) > max_tests:
+        lines.append(f"  ... {len(tests) - max_tests} more unsuccessful tests")
+    return "\n" + "\n".join(lines) if lines else ""
+
+
 def check_report(report, expected=REQUIRED_TESTS):
     if not isinstance(report, dict):
         raise ValueError("Automation report must be an object")
@@ -535,7 +566,7 @@ def check_report(report, expected=REQUIRED_TESTS):
         if type(value) is not int or value < 0:
             raise ValueError(f"Missing or invalid automation counter: {field}")
         if field != "succeeded" and value:
-            raise ValueError(f"Automation has {field} tests: {value}")
+            raise ValueError(f"Automation has {field} tests: {value}{failure_details(report)}")
     tests = report.get("tests")
     if not isinstance(tests, list):
         raise ValueError("Missing or invalid automation test results")
@@ -550,7 +581,7 @@ def check_report(report, expected=REQUIRED_TESTS):
             raise ValueError(f"Duplicate automation result: {name}")
         seen.add(name)
         if test.get("state") != "Success":
-            raise ValueError(f"Automation test did not succeed: {name}")
+            raise ValueError(f"Automation test did not succeed: {name}{failure_details(report)}")
     missing = expected - seen
     unexpected = seen - expected
     if missing or unexpected:

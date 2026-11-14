@@ -883,6 +883,10 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         FLDLegalGround RestServiceGround;
         const bool HasRestService = Check(RestService != nullptr, TEXT("The shared rest room has its reference service"))
             && GroundAt(RestService->Position, LDDemoWorld::RestServiceId(1), RestServiceGround);
+        const auto* FinalCapture = Registry->Resolve(FName(*LDDemoWorld::FinalCaptureId()), Registry->Generation);
+        FLDLegalGround FinalCaptureGround;
+        const bool HasFinalCapture = Check(FinalCapture != nullptr, TEXT("The final arena has its capture anchor"))
+            && GroundAt(FinalCapture->Position, LDDemoWorld::FinalCaptureId(), FinalCaptureGround);
         FVector Standing = FVector::ZeroVector;
         for (const auto& Anchor : Geometry->Anchors)
         {
@@ -890,7 +894,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             if (!Anchor.PositionCm.ToVector(Foot, Error)) { return false; }
             FLDLegalGround Legal;
             if (GroundAt(Foot, Anchor.Id, Legal)) { Standing = Foot; }
-            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn)
+            if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
+                || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
             {
                 for (const auto& Offset : Geometry->SpawnOffsetsCm)
                 {
@@ -903,6 +908,13 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                         FString Why;
                         const bool Reachable = Registry->QueryCompletePath(Revision, Legal, RestServiceGround, Capsule, Path, Failure, Why);
                         Check(Reachable, TEXT("A rest placement can reach the shared-room service: ") + Anchor.Id + TEXT(" ") + Why);
+                    }
+                    if (Grounded && HasFinalCapture && Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
+                    {
+                        FLDCompletePath Path;
+                        FString Why;
+                        const bool Reachable = Registry->QueryCompletePath(Revision, Legal, FinalCaptureGround, Capsule, Path, Failure, Why);
+                        Check(Reachable, TEXT("A final spawn placement can reach final_capture: ") + Anchor.Id + TEXT(" ") + Why);
                     }
                     ++PlacementChecks;
                 }

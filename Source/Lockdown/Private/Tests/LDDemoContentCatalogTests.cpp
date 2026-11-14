@@ -863,6 +863,36 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
+#if WITH_EDITOR
+    auto* Legacy = DuplicateObject<ULDMapDefinition>(Restored, GetTransientPackage());
+    if (!TestEqual(TEXT("The migration fixture changes the saved schema version"),
+        Legacy->SourceJson.ReplaceInline(TEXT("\"schema_version\": 4"), TEXT("\"schema_version\": 3")), 1)) { return false; }
+    const auto Rehash = [&](ULDMapDefinition& World)
+    {
+        FTCHARToUTF8 Utf8(*World.SourceJson);
+        TArray<uint8> Bytes;
+        Bytes.Append(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+        Error.Reset();
+        FCheck Check(Error);
+        FLDDemoContentDigest Digest;
+        if (!Hash(Bytes, Digest, Check, TEXT("migration fixture"))) { return false; }
+        World.Checksum = Digest.ToHex();
+        return true;
+    };
+    if (!TestTrue(TEXT("The old saved payload has its own checksum"), Rehash(*Legacy))) { return false; }
+    FLDDemoWorldGeometry Editable;
+    TestTrue(TEXT("An older self-consistent saved world can be read for editing"), Legacy->ReadSavedForEditing(Editable, Error));
+    TestEqual(TEXT("Editing retains the saved typed anchors"), Editable.Anchors.Num(), RestoredGeometry->Anchors.Num());
+    TestFalse(TEXT("The runtime still rejects an older world payload"), Legacy->Read(*Catalog, AfterFailure, Error));
+    Legacy->SourceJson += TEXT(" ");
+    TestFalse(TEXT("Editing rejects bytes that do not match the stored checksum"), Legacy->ReadSavedForEditing(Editable, Error));
+    Legacy->SourceJson.LeftChopInline(1);
+    if (!TestEqual(TEXT("The migration fixture changes the author identity"),
+        Legacy->SourceJson.ReplaceInline(*RestoredGeometry->SourceDigest.ToHex(),
+            TEXT("0000000000000000000000000000000000000000000000000000000000000000")), 1)
+        || !TestTrue(TEXT("The mismatched author payload has a valid checksum"), Rehash(*Legacy))) { return false; }
+    TestFalse(TEXT("Editing rejects a saved geometry with another author identity"), Legacy->ReadSavedForEditing(Editable, Error));
+#endif
     TMap<FString, FString> Assertions;
     if (!AssertFields(*this, FLDDemoWorldGeometry::StaticStruct(), RestoredGeometry.Get(),
         FPaths::Combine(Root, TEXT("native_world_expected.json")), Assertions)) { return false; }
@@ -933,13 +963,13 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
-    // One row per definition (character, actives, stats, components, monsters) and per native status: statuses 1..6, 9, 10
+    // One row per definition (character, actives, stats, components, final mods, monsters) and per native status: statuses 1..6, 9, 10
     // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
     // (silence, burn), attack_slowed (#198 retires cowering and contact_guard) and the #198 wet, electrified,
     // braced and soured.
     const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.Monsters.Num()
+        1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.FinalMods.Num() + Definitions.Monsters.Num()
         + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {

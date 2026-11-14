@@ -70,7 +70,8 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         // Rest-only places are supplied separately and never considered by field decisions.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
             || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
-            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy) { continue; }
+            || Anchor.Kind == ELDDemoWorldAnchorKind::RestService || Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy
+            || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::FinalCapture) { continue; }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);
@@ -213,6 +214,13 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         for (const FName& Option : Progression.ActiveOffer.Options) { Offer.Options.Add(CanonicalId(Option)); }
         if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
+    }
+    Out.bBuildLocked = Progression.bBuildLocked;
+    if (Progression.bFinalModPending)
+    {
+        Out.FinalModOfferId = Progression.FinalModOfferId;
+        for (const FName& Option : Progression.FinalModOptions) { Out.FinalModOptions.Add(CanonicalId(Option)); }
+        Out.FinalModSources=Progression.FinalModSources;
     }
     // #198 B: owned components; the installed ones (with their binding, and #198 F their target) also feed the own
     // attribute projection.

@@ -248,6 +248,23 @@ void ULDGameInstance::NetworkFailed(UWorld* World, UNetDriver* Driver, ENetworkF
     ReturnAfterFailure(World, DescribeNetworkFailure(Type, bInSession));
 }
 void ULDGameInstance::TravelFailed(UWorld* World, ETravelFailure::Type Type, const FString&) { ReturnAfterFailure(World, DescribeTravelFailure(Type)); }
+void ULDGameInstance::RememberRoomURL(const FString& URL)
+{
+    ReconnectURL=URL.Replace(TEXT("?LDReconnect=1"),TEXT(""));
+}
+
+void ULDGameInstance::ClearReconnect()
+{
+    ReconnectTicket.Invalidate();ReconnectURL.Reset();
+}
+
+bool ULDGameInstance::ReconnectRoom(ALDPlayerController& Controller)
+{
+    if(!CanReconnect())
+    {ConnectionMessage=TEXT("没有可恢复的本局连接。");return false;}
+    Controller.ClientTravel(ReconnectURL+TEXT("?LDReconnect=1"),TRAVEL_Absolute);
+    return true;
+}
 void ULDGameInstance::ReturnAfterRefusal(UWorld* World, const FString& ServerMessage)
 {
     FString Reason;
@@ -299,6 +316,8 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->bAutoAttackAfterCast = Loaded.RecoverablePreferences->bAutoAttackAfterCast;
             LocalControlSettings->bShowNetworkDiagnostics = Loaded.RecoverablePreferences->bShowNetworkDiagnostics;
             LocalControlSettings->bShowFPS = Loaded.RecoverablePreferences->bShowFPS;
+            LocalControlSettings->bReduceCombatEffects = Loaded.RecoverablePreferences->bReduceCombatEffects;
+            LocalControlSettings->bCameraShake = Loaded.RecoverablePreferences->bCameraShake;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");

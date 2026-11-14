@@ -151,6 +151,13 @@ void ALDGameMode::RetireMatchDomains()
     ALDGrowthDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
+    Showdown={};
+    ShowdownRespawns.Reset();
+    ShowdownBurn.Reset();
+    bShowdownClosePending=false;
+#if WITH_DEV_AUTOMATION_TESTS
+    bDevShowdownEntryPending=false;
+#endif
     DormZones={};
     Airdrop={};
     Charms={};

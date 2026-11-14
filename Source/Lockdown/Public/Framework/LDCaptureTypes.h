@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDMatchTimeline.h"
+#include "Framework/LDShowdownSettings.h"
 #include "PK/LDPKTypes.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "LDCaptureTypes.generated.h"
@@ -14,7 +15,7 @@ UENUM()
 enum class ELDCircleState : uint8 { NotOpen, Empty, Solo, Contested, Guarded };
 
 UENUM()
-enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded };
+enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded, ObjectiveTimeout, NoChampion };
 
 // Public cause class of a contender death. Never names the fatal skill, item or build.
 UENUM()
@@ -154,6 +155,8 @@ struct FLDPublicMatchView
     UPROPERTY() FLDTimelineView Timeline;
     // #198 session D: the current rest's PK (Serial 0: none); public like the sign-ups.
     UPROPERTY() FLDPKView PK;
+    UPROPERTY() FLDShowdownView Showdown;
+    UPROPERTY() int64 OwnerBankedGuardMs = 0;
 };
 
 USTRUCT()
@@ -168,6 +171,8 @@ struct FLDResultRow
     UPROPERTY() uint64 Deaths = 0;
     UPROPERTY() uint8 FinalLevel = 0;
     UPROPERTY() uint64 Assists = 0;
+    UPROPERTY() int64 BankedGuardMs = 0;
+    UPROPERTY() uint32 CompletedSprays = 0;
 };
 
 // Frozen public result. Rows follow the locked start roster; statistics never choose the winner.
