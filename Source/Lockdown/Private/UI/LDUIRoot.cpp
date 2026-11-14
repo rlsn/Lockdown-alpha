@@ -535,7 +535,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
         if(bInLobby&&bMenuOpen){bMenuOpen=false;MenuPage->SetVisibility(ESlateVisibility::Collapsed);}
         LobbyPage->SetVisibility(bInLobby?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
         if(LobbyBackground){LobbyBackground->SetVisibility(bInLobby?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);}
-        PC.SetMenuOpen(bInLobby||bSettings);
+        if(!bSettings){PC.SetMenuOpen(bInLobby);}
     }
     if(bResultsNow!=bInResults)
     {
