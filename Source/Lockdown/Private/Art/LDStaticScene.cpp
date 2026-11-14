@@ -1,13 +1,18 @@
 #include "Art/LDStaticScene.h"
+#include "World/LDNativeGround.h"
+#include "World/LDLayoutPoint.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Level.h"
 #include "Engine/Brush.h"
 #include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Region/LDMapGeometry.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/PlayerStart.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/BodyInstance.h"
 #include <numeric>
 
 FString LDStaticScene::Value(const AActor& Actor, const TCHAR* Prefix)
@@ -104,17 +109,25 @@ bool LDStaticScene::Validate(const UWorld& World, const ULDArtCatalog& Index, FS
 }
 
 bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
-    FLDDemoWorldGeometry& Out, FString& Error)
+    FLDDemoWorldGeometry& Out, FString& Error, bool bForPlay)
 {
     Out = Base;
     TMap<FString, const AStaticMeshActor*> Shapes;
+    TMap<FString, FString> Prototypes;
     TMap<FString, const AActor*> Points;
+    TMap<FString, const ALDLayoutPoint*> SharedTraining;
     auto Fail = [&](const FString& Why) { Error = Why; return false; };
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
         if (!Actor) { continue; }
         if (Actor == World.GetDefaultBrush()) { continue; }
-        if (!Actor->ActorHasTag(LDDemoWorld::StaticGeometryTag))
+        if (const auto* Layout = Cast<ALDLayoutPoint>(Actor); Layout && Layout->bSharedTrainingDummy)
+        {
+            if (!bForPlay) { return Fail(TEXT("Shared training points are authored in the saved level; the source snapshot exporter does not support them.")); }
+            SharedTraining.Add(Layout->SharedTrainingId(), Layout);
+            continue;
+        }
+        if (!bForPlay && !Actor->ActorHasTag(LDDemoWorld::StaticGeometryTag))
         {
             TInlineComponentArray<UPrimitiveComponent*> Parts(Actor);
             for (const auto* Part : Parts)
@@ -128,8 +141,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         }
         if (auto* Shape = Cast<AStaticMeshActor>(Actor); Shape && Shape->ActorHasTag(LDDemoWorld::StaticGeometryTag))
         {
-            const FString Id = Actor->Tags[0].ToString();
-            if (Shapes.Contains(Id)) { return Fail(TEXT("Duplicate geometry identity; synchronize the map: ") + Id); }
+            FString Id = Actor->Tags[0].ToString();
+            const FString OriginalId = Id;
+            if (Shapes.Contains(Id))
+            {
+                if (!bForPlay) { return Fail(TEXT("Duplicate geometry identity; synchronize the map: ") + Id); }
+                // Names are saved with the map and survive PIE duplication. Do not mutate editor objects or
+                // assign a new random identity on each client when a designer duplicates a blocker.
+                Id += TEXT("_copy_") + Actor->GetName();
+            }
+            Prototypes.Add(Id, Value(*Actor, TEXT("LDScenePrototype:")).IsEmpty()
+                ? OriginalId : Value(*Actor, TEXT("LDScenePrototype:")));
             Shapes.Add(Id, Shape);
         }
         const FString Anchor = Value(*Actor, TEXT("LDSceneAnchor:"));
@@ -169,27 +191,51 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         if (!Actor) { return Fail(TEXT("Missing saved geometry: ") + Id); }
         Transform = Collision(*Actor)->GetComponentTransform();
         const FVector Scale = Transform.GetScale3D();
-        if (!Transform.IsValid() || Scale.GetMin() <= 0 || !Transform.GetRotation().GetUpVector().Equals(FVector::UpVector, 1e-5))
+        if (!Transform.IsValid() || (!bForPlay && (Scale.GetMin() <= 0
+            || !Transform.GetRotation().GetUpVector().Equals(FVector::UpVector, 1e-5))))
         { return Fail(TEXT("Gameplay geometry requires positive scale and an upright transform: ") + Id); }
         return true;
     };
     FVector Min, Max;
     if (!Base.Surfaces[0].MinCm.ToVector(Min, Error) || !Base.Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
     FTransform Ground;
-    if (!TransformOf(Base.Surfaces[0].Id, Ground)) { return false; }
-    if (!Ground.GetRotation().IsIdentity()) { return Fail(TEXT("The registered rectangular ground must remain axis aligned.")); }
-    const FVector Size = Ground.GetScale3D() * 100.;
-    const FVector Centre = Ground.GetLocation() + FVector(0, 0, Size.Z * .5);
-    Out.Surfaces[0].MinCm = Point(Centre - FVector(Size.X, Size.Y, 0) * .5);
-    Out.Surfaces[0].MaxCm = Point(Centre + FVector(Size.X, Size.Y, 0) * .5);
+    if (!bForPlay && !TransformOf(Base.Surfaces[0].Id, Ground)) { return false; }
+    if (!bForPlay && !Ground.GetRotation().IsIdentity()) { return Fail(TEXT("The registered rectangular ground must remain axis aligned.")); }
+    if (bForPlay)
+    {
+        FBox Bounds(ForceInit);
+        for (const AActor* Actor : World.PersistentLevel->Actors)
+        {
+            if (!Actor || Actor == World.GetDefaultBrush()) { continue; }
+            TInlineComponentArray<UPrimitiveComponent*> Parts(Actor);
+            for (const auto* Part : Parts)
+            {
+                if (LDNativeGround::IsSupport(*Part)) { Bounds += Part->GetBodyInstance()->GetBodyBounds(); }
+            }
+        }
+        if (!Bounds.IsValid) { return Fail(TEXT("NotGrounded: the scene has no native ground collision.")); }
+        Out.Surfaces[0].MinCm = Point(FVector(Bounds.Min.X, Bounds.Min.Y, Bounds.Max.Z));
+        Out.Surfaces[0].MaxCm = Point(FVector(Bounds.Max.X, Bounds.Max.Y, Bounds.Max.Z));
+        Out.Plateaus.RemoveAll([&](const auto& P) { return !Shapes.Contains(P.Id); });
+        Out.Ramps.RemoveAll([&](const auto& P) { return !Shapes.Contains(P.Id); });
+    }
+    else
+    {
+        const FVector Size = Ground.GetScale3D() * 100.;
+        const FVector Centre = Ground.GetLocation() + FVector(0, 0, Size.Z * .5);
+        Out.Surfaces[0].MinCm = Point(Centre - FVector(Size.X, Size.Y, 0) * .5);
+        Out.Surfaces[0].MaxCm = Point(Centre + FVector(Size.X, Size.Y, 0) * .5);
+    }
+    // Runtime ground and sight use the native scene. The source polygons remain available to the explicit
+    // export tool; transformed pieces are not reinterpreted as another approved two-level terrain layout.
     for (auto& Plateau : Out.Plateaus)
-    { FTransform T; if (!TransformOf(Plateau.Id, T) || !TransformRing(Plateau.PolygonCm, T)) { return false; } }
+    { FTransform T; if (!bForPlay && (!TransformOf(Plateau.Id, T) || !TransformRing(Plateau.PolygonCm, T))) { return false; } }
     for (auto& Ramp : Out.Ramps)
-    { FTransform T; if (!TransformOf(Ramp.Id, T) || !TransformRing(Ramp.PolygonCm, T)) { return false; } }
+    { FTransform T; if (!bForPlay && (!TransformOf(Ramp.Id, T) || !TransformRing(Ramp.PolygonCm, T))) { return false; } }
     Out.Blockers.Reset();
     for (const auto& Pair : Shapes)
     {
-        const FString PrototypeId = Value(*Pair.Value, TEXT("LDScenePrototype:"));
+        const FString PrototypeId = Prototypes.FindRef(Pair.Key);
         const auto* Prototype = Base.Blockers.FindByPredicate([&](const FLDDemoWorldBlocker& B) { return B.Id == Pair.Key; });
         if (!Prototype && !PrototypeId.IsEmpty())
         { Prototype = Base.Blockers.FindByPredicate([&](const FLDDemoWorldBlocker& B) { return B.Id == PrototypeId; }); }
@@ -197,17 +243,64 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
         {
             if (Pair.Key == Base.Surfaces[0].Id || Pair.Value->ActorHasTag(LDDemoWorld::TerrainTag)
                 || Pair.Value->ActorHasTag(TEXT("LDDemoCliffGuard"))) { continue; }
+            if (bForPlay) { continue; } // Native collision also covers newly placed/relabelled meshes.
             return Fail(TEXT("Unknown saved geometry identity: ") + Pair.Key);
         }
+        const auto* Component = Collision(*Pair.Value);
+        if (bForPlay && Component->GetCollisionEnabled() == ECollisionEnabled::NoCollision) { continue; }
         auto& B = Out.Blockers.Add_GetRef(*Prototype);
         B.Id = Pair.Key;
         FTransform T;
         if (!TransformOf(B.Id, T)) { return false; }
         const double Height = double(B.HeightCm.Numerator) / B.HeightCm.Denominator;
         B.HeightCm = Number(Height * T.GetScale3D().Z);
-        B.BlocksMovement = Collision(*Pair.Value)->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
-        B.BlocksSight = Collision(*Pair.Value)->GetCollisionResponseToChannel(ECC_GameTraceChannel2) == ECR_Block;
-        if (B.Shape == ELDDemoWorldBlockerShape::Cylinder)
+        B.BlocksMovement = Component->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block;
+        B.BlocksSight = Component->GetCollisionResponseToChannel(ECC_GameTraceChannel2) == ECR_Block;
+        if (bForPlay && (T.GetScale3D().GetMin() <= 0
+            || !T.GetRotation().GetUpVector().Equals(FVector::UpVector, 1e-5)
+            || (B.Shape == ELDDemoWorldBlockerShape::Cylinder
+                && !FMath::IsNearlyEqual(FMath::Abs(T.GetScale3D().X), FMath::Abs(T.GetScale3D().Y), 1e-5))))
+        {
+            // Use the native convex vertices for rotated/mirrored/stretched blockers. The broad footprint is
+            // only map metadata; collision/ground admission below always queries the actual physics body.
+            TArray<FVector2D> VerticesXY;
+            const UBodySetup* Body = Component->GetStaticMesh() ? Component->GetStaticMesh()->GetBodySetup() : nullptr;
+            if (Body)
+            {
+                for (const auto& Convex : Body->AggGeom.ConvexElems)
+                {
+                    for (const auto& Vertex : Convex.VertexData)
+                    {
+                        const FVector Position = T.TransformPosition(Convex.GetTransform().TransformPosition(Vertex));
+                        VerticesXY.Add(FVector2D(Position.X, Position.Y));
+                    }
+                }
+            }
+            const auto* Physics = Component->GetBodyInstance();
+            const FBox Bounds = Physics && Physics->IsValidBodyInstance() ? Physics->GetBodyBounds() : Component->Bounds.GetBox();
+            if (VerticesXY.Num() < 3)
+            {
+                VerticesXY = {{Bounds.Min.X, Bounds.Min.Y}, {Bounds.Max.X, Bounds.Min.Y},
+                    {Bounds.Max.X, Bounds.Max.Y}, {Bounds.Min.X, Bounds.Max.Y}};
+            }
+            VerticesXY.Sort([](const FVector2D& A, const FVector2D& C) { return A.X != C.X ? A.X < C.X : A.Y < C.Y; });
+            TArray<FVector2D> Hull;
+            const auto Append = [&](const FVector2D& P, int32 Minimum)
+            {
+                while (Hull.Num() > Minimum && FVector2D::CrossProduct(Hull.Last() - Hull[Hull.Num()-2], P - Hull.Last()) <= 0)
+                { Hull.Pop(EAllowShrinking::No); }
+                Hull.Add(P);
+            };
+            for (const auto& P : VerticesXY) { Append(P, 1); }
+            const int32 Lower = Hull.Num();
+            for (int32 I = VerticesXY.Num()-2; I >= 0; --I) { Append(VerticesXY[I], Lower); }
+            Hull.Pop(EAllowShrinking::No);
+            B.Shape = ELDDemoWorldBlockerShape::Polygon;
+            B.CenterCm = {}; B.RadiusCm = {}; B.PolygonCm.Reset();
+            B.HeightCm = Number(Bounds.Max.Z - Bounds.Min.Z);
+            for (const auto& P : Hull) { B.PolygonCm.Add(Point(FVector(P.X, P.Y, Bounds.Min.Z))); }
+        }
+        else if (B.Shape == ELDDemoWorldBlockerShape::Cylinder)
         {
             if (!FMath::IsNearlyEqual(T.GetScale3D().X, T.GetScale3D().Y, 1e-5))
             { return Fail(TEXT("A tree trunk must keep a circular footprint; use equal X/Y scale: ") + B.Id); }
@@ -237,6 +330,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
             if (!Home) { return Fail(TEXT("Missing camp member home point: ") + Member.Id); }
             Member.PositionCm = Point(Home->GetActorLocation());
         }
+    }
+    TArray<FString> SharedIds;
+    SharedTraining.GetKeys(SharedIds);
+    SharedIds.Sort();
+    for (const FString& Id : SharedIds)
+    {
+        auto& Anchor = Out.Anchors.AddDefaulted_GetRef();
+        Anchor.Id = Id;
+        Anchor.Kind = ELDDemoWorldAnchorKind::TrainingDummy;
+        Anchor.SurfaceId = Base.Surfaces[0].Id;
+        Anchor.PositionCm = Point(SharedTraining[Id]->GetActorLocation());
     }
     bool HasFinalPoint = false;
     for (int32 Slot = 0; Slot < LDDemoWorld::FinalSpawns; ++Slot)
@@ -276,11 +380,17 @@ bool LDStaticScene::ProjectGeometry(const UWorld& World, const FLDDemoWorldGeome
     Error.Reset(); return true;
 }
 
+bool LDStaticScene::ProjectRuntimeGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
+    FLDDemoWorldGeometry& Out, FString& Error)
+{
+    return ProjectGeometry(World, Base, Out, Error, true);
+}
+
 bool LDStaticScene::ValidateGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base, FString& Error)
 {
     FLDDemoWorldGeometry Projected;
     if (!ProjectGeometry(World, Base, Projected, Error)) { return false; }
     if (!FLDDemoWorldGeometry::StaticStruct()->CompareScriptStruct(&Base, &Projected, PPF_None))
-    { Error = TEXT("Saved layout differs from its baked geometry. Save the map and run SyncDemoMap.ps1 before playing."); return false; }
+    { Error = TEXT("Saved layout differs from the export baseline. Run SyncDemoMap.ps1 to refresh the authored source snapshot."); return false; }
     return true;
 }

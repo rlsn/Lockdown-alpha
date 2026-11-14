@@ -17,6 +17,7 @@ SUITE = "Lockdown.Rules"
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.Vision.FogDistanceField",
         "Lockdown.Rules.DemoVision.GeometryParity",
         "Lockdown.Rules.DemoVision.CoveragePublication",
         "Lockdown.Rules.DemoVision.ArrivalRoutes",
@@ -33,6 +34,9 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.ArtDecorations",
         "Lockdown.Rules.StaticScene.PersistenceAndBinding",
         "Lockdown.Rules.StaticScene.CopyIdentityAndSafety",
+        "Lockdown.Rules.StaticScene.ReplacementFloorAndOverlay",
+        "Lockdown.Rules.StaticScene.SharedTrainingCopies",
+        "Lockdown.Rules.StaticScene.NativeSightEdits",
         "Lockdown.Rules.AudioCatalog",
         "Lockdown.Rules.AudioCatalogAsset",
         "Lockdown.Rules.AudioCueOwn",

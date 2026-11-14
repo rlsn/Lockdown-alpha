@@ -11,6 +11,7 @@ class ALDPlayerController;
 class ALDWorldViewRelay;
 class ALDCharacter;
 class ALDGameMode;
+class UPrimitiveComponent;
 class FLDDemoContentSnapshot;
 struct FLDDemoWorldGeometry;
 struct FLDDemoRational;
@@ -66,7 +67,8 @@ struct FLDObservedTarget
     FLDObservedUnitView Presented; // authorized fields; Handle/Epoch/StateRevision are observer-local
 };
 
-// Static line of sight over the approved world geometry. The importer guarantees every sight blocker is a
+// Runtime sight uses native scene collision; data/import fixtures can build the approved polygon model.
+// The importer guarantees every authored sight blocker is a
 // strictly convex polygon or an upright cylinder standing on one flat level, taller than the sight sample height.
 // #97 tiers (LDDemoWorld::FTerrain): nothing on a higher tier than the observer is seen, terrain of a higher tier
 // between them hides, and an obstacle hides only from observers at or below its level (a ramp counts as its lower
@@ -74,7 +76,8 @@ struct FLDObservedTarget
 class LOCKDOWN_API FLDSightGeometry
 {
 public:
-    bool Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld, const FLDDemoRational& InRadius, FString& Error);
+    bool Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld, const FLDDemoRational& InRadius,
+        FString& Error, UWorld* NativeScene = nullptr, const LDDemoWorld::FTerrain* NativeTerrain = nullptr);
     bool IsValid() const { return World.IsValid() && RadiusCm > 0; }
     const FLDWorldRevision& Revision() const { return World; }
     double Radius() const { return RadiusCm; }
@@ -98,6 +101,7 @@ private:
     TArray<TArray<int32>> CellPolygons;
     TArray<TArray<int32>> CellCircles;
     TArray<TArray<int32>> CellRegions;
+    TArray<TArray<int32>> CellNativeTerrain;
     TArray<int32> CoverageTiers;
     struct FCircle
     {
@@ -113,6 +117,16 @@ private:
     TArray<int32> BlockerLevels;
     TArray<FCircle> Circles;
     LDDemoWorld::FTerrain Terrain;
+    TWeakObjectPtr<UWorld> Scene;
+    double SampleHeightCm = 0;
+    mutable TMap<int32, FCollisionQueryParams> NativeSightQueries;
+    struct FNativeTerrainPart
+    {
+        TWeakObjectPtr<UPrimitiveComponent> Component;
+        FBox Bounds = FBox(ForceInit);
+        int32 Tier = 0;
+    };
+    TArray<FNativeTerrainPart> NativeTerrainParts;
 };
 
 // Per-observer display memoization only; never used to authorize a unit or flight.

@@ -177,6 +177,16 @@ void ULDHumanoidVisualComponent::OnRegister()
 {
     Super::OnRegister();
     if (!GetWorld()) { return; }
+    // Non-body layout points also own this hidden tree. Mark every child before validation/registration,
+    // even when no character look has ever been applied.
+    if (IsEditorOnly())
+    {
+        Pivot->bIsEditorOnly = true;
+        Mesh->bIsEditorOnly = true;
+        for (UStaticMeshComponent* Part : Parts) { Part->bIsEditorOnly = true; }
+        for (UStaticMeshComponent* Edge : Edges) { Edge->bIsEditorOnly = true; }
+        for (UMeshComponent* Part : Worn) { if (Part) { Part->bIsEditorOnly = true; } }
+    }
     if (!Pivot->IsRegistered()) { Pivot->RegisterComponent(); }
     if (!Mesh->IsRegistered()) { Mesh->RegisterComponent(); }
     for (UStaticMeshComponent* Part : Parts)
@@ -226,6 +236,7 @@ void ULDHumanoidVisualComponent::WearParts(const FLinearColor& Identity, const F
         Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         Part->SetGenerateOverlapEvents(false);
         Part->SetCanEverAffectNavigation(false);
+        Part->bIsEditorOnly = IsEditorOnly();
         // A part worn later follows the body's own visibility, which its owner sets once per change for the whole tree.
         Part->SetVisibility(GetVisibleFlag());
         if (IsRegistered()) { Part->RegisterComponent(); }
@@ -295,6 +306,32 @@ void ULDHumanoidVisualComponent::CopyLook(const ULDHumanoidVisualComponent& Sour
     if (Source.LookCreature != 0) { ApplyMonsterLook(Source.LookCreature); }
     else if (Source.LookSlot != MAX_uint8) { ApplyPalette(Source.LookSlot); }
 }
+
+#if WITH_EDITOR
+void ULDHumanoidVisualComponent::ApplyEditorPreview(const FLDArtCharacter& Look, const FLinearColor& Identity)
+{
+    ApplyLook(&Look, Identity, TEXT("Layout preview"));
+    for (UStaticMeshComponent* Part : Parts) { Part->SetVisibility(false); Part->bIsEditorOnly = true; }
+    for (UStaticMeshComponent* Part : Edges) { Part->SetVisibility(false); Part->bIsEditorOnly = true; }
+    Pivot->bIsEditorOnly = true;
+    Mesh->bIsEditorOnly = true;
+    Mesh->SetVisibility(true);
+    Mesh->SetHiddenInGame(true);
+    if (const auto* Idle = Look.Find(ELDArtAnim::Idle))
+    {
+        Mesh->PlayAnimation(Idle->Sequence, true);
+        Mesh->SetPosition(0.f);
+        Mesh->TickAnimation(0.f, false);
+        Mesh->RefreshBoneTransforms();
+    }
+    for (UMeshComponent* Part : Worn)
+    {
+        Part->bIsEditorOnly = true;
+        Part->SetVisibility(true);
+        Part->SetHiddenInGame(true);
+    }
+}
+#endif
 
 void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What)
 {

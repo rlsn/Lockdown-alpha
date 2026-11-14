@@ -240,6 +240,7 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     // Dummy bodies were destroyed with every life actor above; their life records go with the match.
     for (const FGuid& Dummy : TrainingDummyIds) { Lives.Remove(Dummy); }
     TrainingDummies.Reset();
+    SharedTrainingDummies.Reset();
     TrainingDummyIds.Reset();
     PendingTrainingResets.Reset();
     MatchContext = Next;

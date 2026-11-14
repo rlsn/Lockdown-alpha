@@ -1476,21 +1476,15 @@ bool LDDemoArtImport::Validate(FString& Error)
     if (!ArtLoadMasters(false, Masters, Error)) { return false; }
     FLDArtResolved Resolved;
     if (!Catalog->Resolve(Resolved, Error)) { return ArtFail(Error, TEXT("Art catalog is invalid: ") + Error); }
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
-    TSharedPtr<const FLDDemoWorldGeometry> World;
-    TArray<FLDArtDecoration> Decorations;
-    TArray<FString> Hidden;
     if (Catalog->Props.Num() != Manifest.Props.Num())
     {
         return ArtFail(Error, TEXT("Art catalog props differ from art_assets.json; run ImportDemoArt.ps1 -Mode Import."));
     }
-    if (!ArtReadSavedScene(*Catalog, Decorations, Hidden, Error)) { return false; }
     FTransform Crate;
-    if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->Decorations.Num() != Decorations.Num()
-        || Catalog->HiddenBlockers != Hidden || Catalog->AirdropProp != Manifest.AirdropProp
+    if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->AirdropProp != Manifest.AirdropProp
         || !ArtAirdropTransform(Manifest, *Catalog, Crate, Error) || !Crate.Equals(Catalog->AirdropTransform, 1e-2))
     {
-        return ArtFail(Error, TEXT("Art catalog entries differ from art_assets.json or the world's trees; run ImportDemoArt.ps1 -Mode Import."));
+        return ArtFail(Error, TEXT("Art catalog entries differ from art_assets.json; run ImportDemoArt.ps1 -Mode Import."));
     }
     for (int32 Index = 0; Index < Manifest.Characters.Num(); ++Index)
     {
@@ -1557,20 +1551,6 @@ bool LDDemoArtImport::Validate(FString& Error)
             return false;
         }
     }
-    for (int32 Index = 0; Index < Decorations.Num(); ++Index)
-    {
-        const auto& Expected = Decorations[Index];
-        const auto& Have = Catalog->Decorations[Index];
-        if (Have.Prop != Expected.Prop || Have.Zone != Expected.Zone || Have.Blocker != Expected.Blocker
-            || !Expected.Transform.Equals(Have.Transform, 1e-2))
-        {
-            return ArtFail(Error, FString::Printf(
-                TEXT("Saved scene row %d differs from its derived art index: scene=%s/%s/%s [%s], index=%s/%s/%s [%s]."),
-                Index, *Expected.Prop, *LDArt::ZoneId(Expected.Zone), *Expected.Blocker, *Expected.Transform.ToString(),
-                *Have.Prop, *LDArt::ZoneId(Have.Zone), *Have.Blocker, *Have.Transform.ToString()));
-        }
-    }
-    if (!LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error)) { return ArtFail(Error, TEXT("Decoration placement: ") + Error); }
     Error.Reset();
     return true;
 }

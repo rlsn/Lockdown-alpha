@@ -74,6 +74,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 工作 | 技术说明 |
 | --- | --- |
+| 关卡、地编、美术、TA 与场景相关功能（必读） | [关卡创作自由与开发约束](LEVEL_AUTHORING_CONTRACT.md)，再按下表读具体接口 |
 | 模块、Lobby、IP 联机、生命代次、回执 | [架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md) |
 | 点击移动、预测、取消、输入层、镜头 | [移动、输入与镜头](systems/MOVEMENT_INPUT_AND_CAMERA.md) |
 | 伤害/状态、时序、效果来源、构筑 | [战斗与成长](systems/COMBAT_AND_GROWTH.md) |
@@ -104,7 +105,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 ## 数据修改
 
-正式地图的布局在 UE 关卡里编辑，保存并关闭编辑器后执行 `Scripts/SyncDemoMap.ps1`；不要手动维护第二份世界坐标。
+正式地图在 UE 关卡里编辑。静态网格体、装饰、材质和灯光保存后即可 Play；碰撞、地面高度和视线读取当前关卡的原生碰撞。`Scripts/SyncDemoMap.ps1` 用于显式刷新布局的派生源快照，不是普通场景编辑的 Play 前置条件。
 细节与约束见[标准关卡编辑与同步](systems/WORLD_AND_DATA_PIPELINE.md#标准关卡编辑与同步)。以下 SourceData 创作规则继续适用于玩法内容和数值。
 
 根据系统手册找到源文件及对应 Sync 入口，修改 SourceData，而不是直接改生成载荷或 contract 宏。

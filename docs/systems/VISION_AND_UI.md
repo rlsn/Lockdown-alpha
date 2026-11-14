@@ -2,6 +2,7 @@
 
 战争迷雾首先是服务器的读取权限，不是给已经收到的敌人信息盖一层黑色材质。
 本文说明当前观测与表现组件；产品显示内容以 [App Spec](../APP_SPEC.md) 为准。
+涉及关卡、雾效和可调资产的开发同时遵守[关卡创作自由与开发约束](../LEVEL_AUTHORING_CONTRACT.md)。
 
 ## 权威观测链
 
@@ -21,6 +22,14 @@
 只有拥有真实 `ULocalPlayer` 或网络连接的 Controller 才生成 relay，客户端表现也只在拥有真实 `ULocalPlayer` 的机器上进行。
 `IsLocalController()` 在不同网络模式下不能可靠区分服务器侧对手，因此用 `GetLocalPlayer()`/`GetNetConnection()` 判断；
 对手只能通过 `EnumerateVisibleUnits` 读取，否则其视野会在 Host 上生成代理，造成泄露。
+
+## 地面迷雾与材质调节
+
+`ALDWorldViewRelay` 只把本人当前授权帧的 128×128 `CurrentBits` 转换为世界厘米单位的有符号距离场，不增加本地视线查询或网络字段。`LDFogDistanceField` 按两个方向的实际单元尺寸计算欧氏距离；覆盖和地图尺寸不变时复用结果，变化后在约 0.06 s 内平滑显示，失效、死亡或无身体时立即恢复不可视颜色。单位与技能显隐继续由接收端授权帧管理。
+
+正式游戏和测试关卡共用 `/Game/Lockdown/Art/Fog/MI_FogMist`，父材质 `M_FogMist` 在景深前合成。`BandWidthCm`、`FadePower` 控制向视野内侧消散的渐变，`NoiseAmount`、`NoiseScaleCm`、`DetailWeight`、`FlowSpeedCmPerSec`、`SwirlStrength`、`FlowDirection` 控制世界坐标中的双层流动噪声；`OutsideBrightness`、`HiddenDesaturation`、`FogColorStrength`、`FogColor` 控制外侧颜色，外侧与不可视区域一致。运行中的动态材质只覆盖距离场与坐标参数，继续继承此材质实例的效果设置。
+
+`/Game/FogMistPreview/L_FogMistLab` 保留独立的编辑器 Play 跑图：右键寻路、WASD 移动、滚轮缩放，加载营地怪物但不运行战斗。编辑器插件 `FogMistLab` 只在该关卡开始 PIE 前临时选择 Lab GameInstance，结束或取消后还原；正式地图仍使用原 GameInstance。Lab 的 `RadiusCm`、`ObserverPosition` 仅用于预览；正式游戏使用服务器覆盖，不从材质参数修改玩法视野。PIE 中可释放鼠标后编辑 `MI_FogMist` 实时预览，停止 Play 后保存材质。
 
 ## 谁可以看到什么
 

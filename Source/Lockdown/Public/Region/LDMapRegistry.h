@@ -48,6 +48,7 @@ public:
     const LDDemoWorld::FTerrain& GetTerrain() const { return Terrain; }
     // Whether a native floor is one of the registered terrain pieces (ground, plateau or ramp).
     bool IsTerrainFloor(const UPrimitiveComponent* Floor) const;
+    bool TraceGround(const FVector& Start, const FVector& End, FHitResult& Hit) const;
     static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
     bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
         FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;

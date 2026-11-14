@@ -38,6 +38,9 @@ __pycache__/
 .gemini/*
 !.gemini/settings.json
 
+# Local runner overrides keep machine-specific bindings out of source control.
+/Plugins/LocalPythonRunner/Config/runner.local.json
+
 # Machine-specific engine/toolchain settings and credentials
 /Config/Local/
 *.local.ini

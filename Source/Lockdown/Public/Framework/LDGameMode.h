@@ -657,10 +657,18 @@ private:
     };
     // By roster slot contender; the association fixes the chassis, not access or attack attribution.
     TMap<FGuid, FLDTrainingDummy> TrainingDummies;
+    TMap<FName, FLDTrainingDummy> SharedTrainingDummies;
+    TSet<FName> PendingSharedTrainingPlacements;
     TSet<FGuid> TrainingDummyIds;
     struct FLDTrainingResetWindow { uint32 Life = 0; uint8 RestIndex = 0; int64 StartedAtMs = 0; };
     TMap<FGuid, FLDTrainingResetWindow> PendingTrainingResets;
     bool PrepareTrainingGround(const FGuid& Owner, struct FLDLegalGround& Out, FString& Error) const;
+    bool PrepareTrainingGroundAt(FName AnchorId, struct FLDLegalGround& Out, FString& Error) const;
+    bool SpawnTrainingBody(FName AnchorId, uint8 Level, uint8 PresentationSlot,
+        const FLDGameplayWritePermit& Permit, FLDTrainingDummy& Out, FString& Error);
+    bool SpawnSharedTrainingDummies(const FLDGameplayWritePermit& Permit, FString& Error);
+    void RetireSharedTrainingDummies();
+    void RetireTrainingBody(const FLDTrainingDummy& Dummy);
     // RespawnsAndWorld: shared target at its approved slot, using the existing legal offsets when temporarily occupied.
     bool SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error);
     void RetireTrainingDummy(const FGuid& Owner);

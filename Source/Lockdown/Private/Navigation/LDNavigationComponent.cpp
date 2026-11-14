@@ -787,7 +787,10 @@ bool ULDNavigationComponent::GroundUnderPointer(FHitResult& Out) const
 {
     const auto* PC=Controller();
     FVector2D At;
-    return PC && PointerPosition(At) && PC->GetHitResultAtScreenPosition(At,ECC_GameTraceChannel1,false,Out);
+    FVector Origin, Direction;
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    return PC && Registry && PointerPosition(At) && PC->DeprojectScreenPositionToWorld(At.X, At.Y, Origin, Direction)
+        && Registry->TraceGround(Origin, Origin + Direction * 100000., Out);
 }
 
 bool ULDNavigationComponent::ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const
