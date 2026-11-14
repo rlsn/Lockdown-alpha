@@ -22,6 +22,7 @@ class ULDPanel;
 class ULDChoicesPanel;
 class ULDComponentStorage;
 class ULDStatBar;
+class ULDWorkshop;
 class UVerticalBox;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
@@ -80,6 +81,8 @@ public:
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
     UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
+    // The build workshop (APP_SPEC §7 构筑): the full view of the 构筑 tray, open while the tray is open (ULDWorkshop).
+    UPROPERTY() TObjectPtr<ULDWorkshop> Workshop;
     // The own point-bought stats under the name in the band's identity block: hover a stat for its "+", one click commits
     // one point (ULDStatBar). The 属性 entry and the Attributes key swap it for the attribute view and back.
     UPROPERTY() TObjectPtr<ULDStatBar> StatBar;
@@ -131,6 +134,15 @@ private:
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
+    // The top-centre stack (the banner and the rest actions); the full workshop moves it to the top-right corner.
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> TopCentreSlot;
+    // The workshop opens by itself when a rest's build or payout step begins and when the own death wait begins, and closes
+    // when that full-screen moment ends (the field or a PK step returns).
+    uint32 WorkshopSeenMatch=0;
+    uint8 WorkshopSeenRest=0;
+    ELDRestStep WorkshopSeenStep=ELDRestStep::None;
+    bool bWorkshopSeenDead=false;
+    bool bWorkshopWasFull=false;
     // #198: the outer timeline over the capture line (LDHUD::TimelineBanner): the rest and its step, or the field segment;
     // then the rest's PK sign-up and lock detail.
     UPROPERTY() TObjectPtr<UTextBlock> TimelineText;

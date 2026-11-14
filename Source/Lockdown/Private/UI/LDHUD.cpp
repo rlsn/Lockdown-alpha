@@ -7,6 +7,9 @@
 
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDComponentStorage.h"
+#include "UI/LDWorkshop.h"
+#include "UI/LDWorkshopModel.h"
+#include "Scalability.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDMinimap.h"
@@ -398,6 +401,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 Place(PKPanelBorder,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,58));
             }
             Place(TopCentre,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,16));
+            // Above the workshop (its rest actions stay usable in the full view), below the tray and the storage.
+            TopCentreSlot=Cast<UCanvasPanelSlot>(TopCentre->Slot);if(TopCentreSlot){TopCentreSlot->SetZOrder(9);}
             Place(DevMarkerText,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
         }
         auto* DeathBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -412,6 +417,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ReturnCountdownText->SetJustification(ETextJustify::Center);HudFace(ReturnCountdownText,true,4);
         ReturnCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);
         Place(ReturnCountdownText,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-120));ReturnCountdownText->SetVisibility(ESlateVisibility::Collapsed);
+        // The return countdown shows over the workshop.
+        if(auto* CountdownSlot=Cast<UCanvasPanelSlot>(ReturnCountdownText->Slot)){CountdownSlot->SetZOrder(11);}
 
         // Centre: the one frozen result; it replaces the gameplay HUD instead of overlaying it.
         auto* ResultBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -628,6 +635,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Toast=OneLine(TEXT(""),LDHUDStyle::TypeText,640);Toast->SetJustification(ETextJustify::Center);
         ToastPanel=Panel(Toast,false);ToastPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(.72f));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
         ToastSlot=Canvas->AddChildToCanvas(ToastPanel);ToastSlot->SetAnchors(FAnchors(.5f,1));ToastSlot->SetAlignment(FVector2D(.5f,1));ToastSlot->SetAutoSize(true);
+        ToastSlot->SetZOrder(14);
         ToastSlot->SetPosition(FVector2D(0,-12-8));
         {
             // The own status strip sits left of the band, its bottom on the band's bottom, drawn at the band's scale; rows are
@@ -689,6 +697,18 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DragGhostSlot=Canvas->AddChildToCanvas(GhostBox);DragGhostSlot->SetAutoSize(true);DragGhostSlot->SetAlignment(FVector2D(.5f,.5f));DragGhostSlot->SetZOrder(30);
         }
 
+        // The workshop lies under the tray and the storage, which it lays out (ULDWorkshop).
+        Workshop=CreateWidget<ULDWorkshop>(PC);
+        if(Workshop)
+        {
+            auto* WorkshopSlot=Canvas->AddChildToCanvas(Workshop);WorkshopSlot->SetAnchors(FAnchors(0,0,1,1));WorkshopSlot->SetOffsets(FMargin(0));WorkshopSlot->SetZOrder(8);
+            Workshop->RequestClose=[this]()
+            {
+                auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer());
+                if(Owner&&Owner->RootUI&&ChoicesPanel&&ChoicesPanel->IsTrayOpen()){Owner->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+            };
+        }
+        else{UE_LOG(LogLDUI,Error,TEXT("LD_HUD_WORKSHOP_CREATION_FAILED"));}
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
         ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);
         DevTestPanel=CreateWidget<ULDDevTestPanel>(PC);
@@ -732,6 +752,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
             StatBar->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
         }
+        if(Workshop){Workshop->Storage=Storage;Workshop->StatBar=StatBar;Workshop->Choices=ChoicesPanel;}
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
         PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
         PC->OnTrainingReset.AddUObject(this,&ULDHUD::HandleTrainingReset);
@@ -810,6 +831,7 @@ bool ULDHUD::IsUIAt(FVector2D P) const
 {
     if(Minimap&&Minimap->IsDragging()){return true;}
     if(Storage&&Storage->IsHit(P)){return true;}
+    if(Workshop&&Workshop->IsHit(P)){return true;}
     // The status squares above the band take the pointer for their popups; the strip's empty space does not.
     if(StatusStrip&&StatusStrip->IsVisible())
     {for(const UBorder* Cell:SelfIconCells){if(Cell&&Cell->IsVisible()&&Cell->GetCachedGeometry().IsUnderLocation(P)){return true;}}}
@@ -986,7 +1008,15 @@ void ULDHUD::RefreshReadModel()
         for(ULDPanel* Open:MainPanels()){if(Open->IsPanelOpen()){Open->ClosePanel();}}
     }
     if(bOwnMatch&&PC->SlotOrderMatch!=O.Match){PC->ResetSlotOrder(O.Match);}
-    HudSetShown(Band,bShow,ESlateVisibility::Visible);HudSetShown(StatusStrip,bShow,ESlateVisibility::SelfHitTestInvisible);HudSetShown(PromptFrame,bShow,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
+    // The workshop is the open 构筑 tray's full view; it hides the band (the skill keys still work) and, full screen, the
+    // corners it covers. Full screen in a rest's build, payout and return steps and in the own death wait.
+    const bool bDeathWait=bOwnMatch&&LDHUD::Death(O,bClock,NowMs,Public.Showdown.bStarted&&O.RespawnAtMs<=0).bVisible;
+    const bool bRestPhase=bOwnMatch&&Public.Phase==ELDMatchPhase::Rest;
+    const bool bWorkshopFull=LDWorkshop::FullScreen(bRestPhase,Public.Timeline.Step,bDeathWait);
+    const bool bWorkshopOpen=bShow&&ChoicesPanel&&ChoicesPanel->IsTrayOpen();
+    HudSetShown(Band,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(StatusStrip,bShow&&!bWorkshopOpen,ESlateVisibility::SelfHitTestInvisible);
+    HudSetShown(PromptFrame,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
+    HudSetShown(PhaseBanner,bShow&&!(bWorkshopOpen&&bWorkshopFull),ESlateVisibility::HitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
     // The arena rings are world presentation: they follow the PK even while a menu covers the HUD.
@@ -997,6 +1027,8 @@ void ULDHUD::RefreshReadModel()
         bPKThrowArmed=false;
         if(StatBar){StatBar->SetDetailsHeld(false);}
         if(Storage){Storage->SetDetailsHeld(false);}
+        if(Workshop){Workshop->Present(ULDWorkshop::FInput());}
+        if(Storage){Storage->SetWorkshop(ULDComponentStorage::FWorkshopLayout());}
         if(Storage){Storage->Present(nullptr,O.Match,LDProgression::EMatchStage::Closed,O.LifePhase,nullptr,ChoiceStats,ULDComponentStorage::FAnchors(),false);}
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
@@ -1209,7 +1241,38 @@ void ULDHUD::RefreshReadModel()
         }
         if(ActionSlots.Num()>3){Anchors.Columns[int32(LDHUD::EStorageColumn::Dash)]=RectOf(ActionSlots[3].Box);}
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
+        if(Workshop)
+        {
+            ULDWorkshop::FInput In;
+            In.Mode=!bWorkshopOpen?ULDWorkshop::EMode::Closed:bWorkshopFull?ULDWorkshop::EMode::Full:ULDWorkshop::EMode::Field;
+            In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
+            In.DashKey=PC->BindingLabel(TEXT("Dash"));
+            In.HolderName=Name;In.HolderColor=Portrait?Portrait->GetBrushColor():FLinearColor::Gray;In.Level=Level;
+            In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
+            In.bRest=bRestPhase;In.RestIndex=Public.Timeline.RestIndex;In.Step=Public.Timeline.Step;
+            In.StepStartedAtMs=Public.Timeline.StepStartedAtMs;In.StepEndsAtMs=Public.Timeline.StepEndsAtMs;In.bClock=bClock;In.NowMs=NowMs;
+            In.bDead=bDeathWait&&!bRestPhase;In.DeathTitle=Death.Title;In.DeathCountdown=Death.Countdown;
+            In.TrayDesired=ChoicesPanel?ChoicesPanel->TrayDesiredSize():FVector2D::ZeroVector;
+            const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
+            In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bOpeningBase?1:0)+Waiting.ComponentChoices+(Waiting.bFinalMod?1:0);
+            In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
+            Workshop->Present(In);
+            Storage->SetWorkshop(Workshop->StorageLayout());
+        }
         Storage->Present(Progression,O.Match,Stage,O.LifePhase,Content,ChoiceStats,Anchors,bOwnMatch&&Progression!=nullptr);
+    }
+    if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
+    {
+        // A rest's build or payout step, or the own death wait outside a rest, opens the workshop by itself (once per step);
+        // leaving that full-screen moment closes it again unless a request is still on its way.
+        const bool bRestWindow=bRestPhase&&(Public.Timeline.Step==ELDRestStep::Build||Public.Timeline.Step==ELDRestStep::Payout);
+        const bool bNewWindow=bRestWindow&&(WorkshopSeenMatch!=O.Match||WorkshopSeenRest!=Public.Timeline.RestIndex||WorkshopSeenStep!=Public.Timeline.Step);
+        const bool bNewDeath=bDeathWait&&!bRestPhase&&!bWorkshopSeenDead;
+        if(bNewWindow||bNewDeath){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
+        if(bWorkshopWasFull&&!bWorkshopFull&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
+        {PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+        WorkshopSeenMatch=O.Match;WorkshopSeenRest=bRestPhase?Public.Timeline.RestIndex:0;WorkshopSeenStep=bRestPhase?Public.Timeline.Step:ELDRestStep::None;
+        bWorkshopSeenDead=bDeathWait&&!bRestPhase;bWorkshopWasFull=bWorkshopFull;
     }
     // D10/APP_SPEC §4.2: the growth panel opens by itself only for the match's opening offer, and only when nothing else is
     // open; later offers and new points light the 构筑 entry instead. It never opens over the player's own UI
@@ -1232,13 +1295,17 @@ void ULDHUD::RefreshReadModel()
     }
     if(ChoicesPanel&&PC->RootUI&&AutoOpenSince>=0)
     {
-        if(bFieldPhase){AutoOpenSince=-1;}
+        if(bFieldPhase&&!bDeathWait){AutoOpenSince=-1;}
         else
         {
             const bool bPlayerUI=PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None||PC->IsWorldInputCaptured();
             const double UiTime=GetWorld()->GetRealTimeSeconds();
             if(ChoicesPanel->IsPanelOpen()||bPlayerUI){AutoOpenSince=-1;}
-            else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){AutoOpenSince=-1;ChoicesPanel->MarkOpenedAutomatically();}
+            else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
+            {
+                // Only a field opening folds by itself; the full workshop stays until its moment ends or the player closes it.
+                AutoOpenSince=-1;if(!bWorkshopFull){ChoicesPanel->MarkOpenedAutomatically();}
+            }
             else if(UiTime-AutoOpenSince>5.)
             {
                 AutoOpenSince=-1;
@@ -1254,8 +1321,25 @@ void ULDHUD::RefreshReadModel()
     // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
-    // The tray stands right above the 构筑 button in the corner.
-    if(ChoicesPanel&&PromptFrame){ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y))+8.f);}
+    // The tray stands right above the 构筑 button in the corner, or in the workshop's pending area.
+    if(ChoicesPanel&&Workshop&&Workshop->IsOpen()){const FVector2D Inset=Workshop->TrayInset();ChoicesPanel->SetTrayInset(Inset.X,Inset.Y);}
+    else if(ChoicesPanel&&PromptFrame){ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y))+8.f);}
+    if(TopCentreSlot)
+    {
+        // The full workshop keeps the rest actions in its top-right corner, beside its own close button.
+        const bool bCorner=bWorkshopOpen&&bWorkshopFull&&Workshop;
+        const FAnchors Anchor=bCorner?FAnchors(1,0):FAnchors(.5f,0);const FVector2D Align=bCorner?FVector2D(1,0):FVector2D(.5f,0);
+        const FVector2D Where=bCorner?FVector2D(float(Workshop->ActionsAnchor().X)-float(GetCachedGeometry().GetLocalSize().X),Workshop->ActionsAnchor().Y):FVector2D(0,16);
+        if(!(TopCentreSlot->GetAnchors()==Anchor)){TopCentreSlot->SetAnchors(Anchor);}
+        if(!TopCentreSlot->GetAlignment().Equals(Align)){TopCentreSlot->SetAlignment(Align);}
+        if(!TopCentreSlot->GetPosition().Equals(Where,.5f)){TopCentreSlot->SetPosition(Where);}
+    }
+    if(bWorkshopOpen)
+    {
+        // Covered by the workshop: the corner widgets it replaces.
+        HudSetShown(EventFeedPanel,false,ESlateVisibility::HitTestInvisible);HudSetShown(TargetCard,false,ESlateVisibility::Visible);
+        if(bWorkshopFull){HudSetShown(DeathBanner,false,ESlateVisibility::HitTestInvisible);}
+    }
     if(StatusSlot)
     {
         const FVector2D Place(FMath::RoundToFloat(BandLeft-HudStatusFromBand),-12.f);
@@ -1275,7 +1359,6 @@ void ULDHUD::RefreshReadModel()
     // Lit only while the tray has cards; with nothing to choose the button is greyed out and the tray folds away (a request
     // still in flight keeps it until its answer).
     const bool bPromptLit=bOwnMatch&&Pending.Any();
-    if(!bPromptLit&&ChoicesPanel&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()){ChoicesPanel->ClosePanel();}
     // The entry names the view it switches to.
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes")))
     {
@@ -1288,7 +1371,8 @@ void ULDHUD::RefreshReadModel()
     if(Pending.Offers>PromptOffers||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptComponents=PendingComponents;
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
-    if(PromptButton->GetIsEnabled()!=bPromptLit){PromptButton->SetIsEnabled(bPromptLit);}
+    // The button always opens the workshop; it is lit while something is pending.
+    if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}
     {
         const double PulseAge=UiNow-PromptPulseAt;
         const float Wave=Pending.Any()&&PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds?LDTween::PingPong(PulseAge,1.):0.f;
@@ -1407,6 +1491,8 @@ void ULDHUD::RefreshReadModel()
         FName SeenComponent;
         DetailOver=ChoicesPanel->Hovered(Pointer,DetailView,&SeenComponent);
         if(Storage&&!SeenComponent.IsNone()){Storage->MarkSeen(SeenComponent);}
+        // The workshop's dock shows the card instead of a popup.
+        if(Workshop&&Workshop->IsOpen()){DetailOver=nullptr;}
     }
     if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None&&!(bTrayOpen&&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::Choices))
         ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;}
@@ -1465,7 +1551,14 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {
-        const FVector2D Above(0,-FMath::RoundToFloat(BandTop+8.f));
+        // Above the band; over the full workshop at the top centre; above the bottom workshop's top edge.
+        const bool bTop=Workshop&&Workshop->GetMode()==ULDWorkshop::EMode::Full;
+        const bool bField=Workshop&&Workshop->GetMode()==ULDWorkshop::EMode::Field;
+        const FAnchors Anchor=bTop?FAnchors(.5f,0):FAnchors(.5f,1);const FVector2D Align=bTop?FVector2D(.5f,0):FVector2D(.5f,1);
+        const float Height=float(GetCachedGeometry().GetLocalSize().Y);
+        const FVector2D Above=bTop?FVector2D(0,36):FVector2D(0,-FMath::RoundToFloat(bField?Height*.46f+8.f:BandTop+8.f));
+        if(!(ToastSlot->GetAnchors()==Anchor)){ToastSlot->SetAnchors(Anchor);}
+        if(!ToastSlot->GetAlignment().Equals(Align)){ToastSlot->SetAlignment(Align);}
         if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
     }
 }

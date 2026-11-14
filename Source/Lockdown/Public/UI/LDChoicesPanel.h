@@ -95,7 +95,9 @@ public:
     // The tray has at least one card (LDHUD::GrowthPending over the same view).
     bool HasCards() const;
     // The card of the open tray under Pointer (absolute), else the pinned offer card, with its popup lines; or null.
-    const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent=nullptr) const;
+    const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent=nullptr,FString* OutIcon=nullptr) const;
+    // The tray's laid-out size, so the workshop can give its rows the room they take in the pending area.
+    FVector2D TrayDesiredSize() const;
     // The HUD opened the tray for the opening offer (D10): it folds back to the 构筑 button after a few seconds unless the
     // player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();

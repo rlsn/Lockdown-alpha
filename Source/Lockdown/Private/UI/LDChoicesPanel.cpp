@@ -280,7 +280,11 @@ void ULDChoicesPanel::SetTrayInset(float Right,float Bottom)
     const FMargin Inset(0,0,Right,Bottom);
     if(TrayFrame&&!(TrayFrame->GetPadding()==Inset)){TrayFrame->SetPadding(Inset);}
 }
-const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent) const
+FVector2D ULDChoicesPanel::TrayDesiredSize() const
+{
+    return bOpen&&Tray?Tray->GetDesiredSize():FVector2D::ZeroVector;
+}
+const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent,FString* OutIcon) const
 {
     if(OutComponent){*OutComponent=NAME_None;}
     if(!bOpen||!Tray){return nullptr;}
@@ -297,6 +301,7 @@ const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailVi
     if(!Found){return nullptr;}
     Out=Found->Detail;
     if(OutComponent){*OutComponent=Found->Component;}
+    if(OutIcon){*OutIcon=Found->AppliedIcon;}
     return Found->Frame;
 }
 bool ULDChoicesPanel::IsEngaged() const

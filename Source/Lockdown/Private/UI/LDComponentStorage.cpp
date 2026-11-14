@@ -4,6 +4,9 @@
 #include "UI/LDTerms.h"
 #include "UI/LDUIIcons.h"
 #include "UI/LDWidgets.h"
+#include "UI/LDUIShapes.h"
+#include "UI/LDWorkshopModel.h"
+#include "UI/LDTween.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -141,6 +144,7 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             Placeholder->SetVerticalAlignment(VAlign_Center);Placeholder->SetContent(Here);
             auto* PlaceholderBox=WidgetTree->ConstructWidget<USizeBox>();PlaceholderBox->SetWidthOverride(StorageTile);PlaceholderBox->SetHeightOverride(StorageTile*.7f);
             PlaceholderBox->SetContent(Placeholder);PlaceholderBox->SetVisibility(ESlateVisibility::Collapsed);Column.Placeholder=PlaceholderBox;
+            Column.PlaceholderBox=PlaceholderBox;Column.PlaceholderFace=Placeholder;Column.PlaceholderText=Here;
             Box->AddChildToVerticalBox(PlaceholderBox)->SetHorizontalAlignment(HAlign_Center);
             Column.Title=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);StorageBold(Column.Title,1);Column.Title->SetJustification(ETextJustify::Center);
             Column.Title->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
@@ -150,6 +154,31 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             Column.Frame=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),FName(*FString::Printf(TEXT("HUDStorageColumn%d"),Index)));
             Column.Frame->SetWidthOverride(StorageColumnWidth);Column.Frame->SetClipping(EWidgetClipping::ClipToBounds);Column.Frame->SetContent(Column.Panel);Column.Frame->SetVisibility(ESlateVisibility::Collapsed);
             Column.Slot=Add(Column.Frame,2);
+        }
+        {
+            // The workshop library: one group per kind, its title and count over a wrap of icon cells; it never scrolls (the
+            // cells shrink with the count, LDWorkshop::LibraryTier).
+            LibraryBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            for(uint8 Kind=0;Kind<3;++Kind)
+            {
+                auto* Group=WidgetTree->ConstructWidget<UVerticalBox>();
+                auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
+                auto* Swatch=WidgetTree->ConstructWidget<UBorder>();Swatch->SetBrush(StorageRound(2.f,FLinearColor::Transparent,0.f));
+                Swatch->SetBrushColor(LDUIShapes::KindColor(Kind));
+                auto* SwatchBox=WidgetTree->ConstructWidget<USizeBox>();SwatchBox->SetWidthOverride(9.f);SwatchBox->SetHeightOverride(9.f);SwatchBox->SetContent(Swatch);
+                Head->AddChildToHorizontalBox(SwatchBox)->SetVerticalAlignment(VAlign_Center);
+                UTextBlock* Name=Line(LDTerms::ComponentKindName(Kind),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);
+                Head->AddChildToHorizontalBox(Name)->SetPadding(FMargin(8,0,0,0));
+                UTextBlock* Count=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);
+                Head->AddChildToHorizontalBox(Count)->SetPadding(FMargin(10,0,0,0));
+                Group->AddChildToVerticalBox(Head);
+                auto* Wrap=WidgetTree->ConstructWidget<UWrapBox>();Wrap->SetInnerSlotPadding(FVector2D(StorageCardGap+2.f,StorageCardGap+2.f));
+                Group->AddChildToVerticalBox(Wrap)->SetPadding(FMargin(0,8,0,0));
+                LibraryBox->AddChildToVerticalBox(Group)->SetPadding(FMargin(0,Kind?14.f:0.f,0,0));
+                LibraryGroups.Add(Group);LibraryCounts.Add(Count);LibraryWraps.Add(Wrap);
+            }
+            auto* Width=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("WorkshopLibrary"));Width->SetContent(LibraryBox);
+            Width->SetVisibility(ESlateVisibility::Collapsed);LibraryFrame=Width;LibrarySlot=Add(Width,3);
         }
         {
             // The description of the hovered component, in the slot popup's look; it takes no pointer input.
@@ -203,13 +232,13 @@ UBorder* ULDComponentStorage::IconFace(float Size,UImage*& OutPicture,UTextBlock
     OutBox=WidgetTree->ConstructWidget<USizeBox>();OutBox->SetWidthOverride(Size);OutBox->SetHeightOverride(Size);OutBox->SetContent(Face);
     return Face;
 }
-void ULDComponentStorage::ShowIcon(UImage* Picture,UTextBlock* Glyph,FName Component) const
+void ULDComponentStorage::ShowIcon(UImage* Picture,UTextBlock* Glyph,FName Component,float Radius,bool bDim) const
 {
     // An empty stack shows a blank face: there is no component to name.
     if(Component.IsNone()){StorageText(Glyph,FString());StorageShown(Picture,false);return;}
     const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Component,LatestContent,LatestStats);
     StorageText(Glyph,View.Glyph);
-    const bool bPicture=LDUIIcons::Apply(Picture,View.IconId,6.f);
+    const bool bPicture=LDUIIcons::Apply(Picture,View.IconId,Radius,bDim?LDHUDStyle::IconBlocked:FLinearColor::White);
     StorageShown(Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
 }
 FString ULDComponentStorage::ComponentName(FName Component) const
@@ -227,14 +256,20 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     Latest=View?*View:FLDProgressionView();
     Gate=LDHUD::BuildGate(Stage,LifePhase,Latest.bBuildLocked);
     LatestContent=Content;LatestStats=Stats;Anchors=InAnchors;
-    bShownNow=bShown&&Latest.bValid&&Anchors.bValid;
+    bShownNow=bShown&&Latest.bValid&&(Workshop.bActive||Anchors.bValid);
     if(!bShownNow){CancelInteraction();Press=FPress();bExpanded=false;}
-    StorageShown(StackFrame,bShownNow,ESlateVisibility::Visible);
+    StorageShown(StackFrame,bShownNow&&!Workshop.bActive,ESlateVisibility::Visible);
     const LDHUD::FStorageView Model=LDHUD::ComponentStorage(Latest,Content,&SeenComponents);
+    LatestModel=Model;
     // The cards and tiles are rebuilt only for another build, catalog or numbers.
     FString Key=FString::Printf(TEXT("%u|%llu|%p|%u|%lld|%lld|%lld|%lld"),Match,Latest.BuildRevision,Content,uint32(Stats.Level),
         int64(Stats.ADP2),int64(Stats.APP2),int64(Stats.MaxHPP2),int64(Stats.ArmorP2));
     for(const FName& Id:Model.Stored){Key+=TEXT("|")+Id.ToString();}
+    if(Workshop.bActive)
+    {
+        Key+=FString::Printf(TEXT("|W%.0f|%.2f|%d"),Workshop.LibraryIcon>0.f?Workshop.LibraryIcon:LDWorkshop::LibraryTier(Model.Stored.Num()).Icon,Workshop.TileScale,int32(Workshop.bNames));
+        for(const LDHUD::FStorageColumnView& Column:Model.Columns){Key+=FString::Printf(TEXT("|%d"),Column.Entries.Num()>5?1:0);}
+    }
     for(const LDHUD::FStorageColumnView& Column:Model.Columns)
     {
         Key+=TEXT("#")+Column.Active.ToString();
@@ -258,7 +293,7 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
         const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
         if(Latest.BuildRevision>=Follow.AfterRevision)
         {
-            const FLDBuildCommand Install=Follow.Install;Follow=FFollowUp();
+            const FLDBuildCommand Install=Follow.Install;PendingComponent=Follow.Component;Follow=FFollowUp();
             Send(Install);
         }
         else if(Now-Follow.Since>StorageMoveTimeout)
@@ -270,12 +305,28 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
 }
 void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
 {
-    Built.Reset();Cards.Reset();Tiles.Reset();
+    Built.Reset();Cards.Reset();Tiles.Reset();HoverDropsOf=NAME_None;HoverDrops.Reset();
     CardList->ClearChildren();
+    for(UWrapBox* Wrap:LibraryWraps){Wrap->ClearChildren();}
+    const float LibraryIcon=Workshop.LibraryIcon>0.f?Workshop.LibraryIcon:LDWorkshop::LibraryTier(Model.Stored.Num()).Icon;
+    int32 KindCounts[3]={0,0,0};
     for(const FName& Id:Model.Stored)
     {
         const FLDComponentInstanceView* Owned=StorageOwned(Latest,Id);
-        BuildCard(Id,Owned&&!Owned->bEverInstalled&&!SeenComponents.Contains(Id));
+        const bool bFresh=Owned&&!Owned->bEverInstalled&&!SeenComponents.Contains(Id);
+        if(Workshop.bActive){BuildWorkshopCard(Id,bFresh,LibraryIcon);}else{BuildCard(Id,bFresh);}
+        FCard& Card=Cards.Last();
+        const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Id,LatestContent);
+        Card.Kind=uint8(Facts.Kind);Card.bScarce=Facts.bScarce;Card.bFresh=bFresh;
+        // A component with no place now dims and loses its colour; the dock says what it needs.
+        Card.bPlaceless=LDHUD::ComponentDrops(Id,Latest,LatestContent).IsEmpty()&&LDHUD::ReplaceDrops(Id,Latest,LatestContent).IsEmpty();
+        StyleFace(Card.Face,Id,Card.Kind,Workshop.bActive?LibraryIcon:StorageTile,Card.bPlaceless);
+        if(Card.Kind<3){++KindCounts[Card.Kind];}
+    }
+    for(int32 Kind=0;Kind<LibraryCounts.Num();++Kind)
+    {
+        StorageText(LibraryCounts[Kind],FString::FromInt(KindCounts[Kind]));
+        StorageShown(LibraryGroups[Kind],KindCounts[Kind]>0);
     }
     for(int32 Index=0;Index<Columns.Num()&&Model.Columns.IsValidIndex(Index);++Index)
     {
@@ -284,8 +335,87 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         // Only 本体 shows its title; the others keep theirs (the active's name or 冲刺) for the notices that name a place.
         StorageText(Column.Title,Shown.Title);Column.Active=Shown.Active;
         StorageShown(Column.Title,Index==int32(LDHUD::EStorageColumn::Body),ESlateVisibility::HitTestInvisible);
-        for(const LDHUD::FEquippedView& Entry:Shown.Entries){BuildTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index));}
+        // Workshop: more than five rows in a column shrink its icons, so the board never scrolls.
+        const float Base=(Shown.Entries.Num()>5?46.f:56.f)*Workshop.TileScale;
+        for(const LDHUD::FEquippedView& Entry:Shown.Entries)
+        {
+            if(Workshop.bActive){BuildWorkshopTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index),Entry.Depth>0?Base*46.f/56.f:Base);}
+            else{BuildTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index));}
+            FTile& Tile=Tiles.Last();
+            const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Entry.Component,LatestContent);
+            Tile.Kind=uint8(Facts.Kind);Tile.bScarce=Facts.bScarce;
+            const float TileSize=Workshop.bActive?(Entry.Depth>0?Base*46.f/56.f:Base):(Entry.Depth>0?StorageNestedTile:StorageTile);
+            StyleFace(Tile.Face,Entry.Component,Tile.Kind,TileSize,false);
+        }
+        // The empty place at the end of a column is the size of its icons.
+        const float Empty=Workshop.bActive?Base:StorageTile;
+        Column.PlaceholderBox->SetWidthOverride(Empty);Column.PlaceholderBox->SetHeightOverride(Workshop.bActive?Empty:StorageTile*.7f);
+        StorageShown(Column.PlaceholderText,!Workshop.bActive,ESlateVisibility::HitTestInvisible);
+        Column.PlaceholderFace->SetBrushColor(Workshop.bActive?FLinearColor::Transparent:LDHUDStyle::DropLegal.CopyWithNewOpacity(.10f));
+        Column.PlaceholderFace->SetBrush(StorageRound(6.f,Workshop.bActive?FLinearColor::Transparent:LDHUDStyle::DropLegal,Workshop.bActive?0.f:1.f));
     }
+}
+void ULDComponentStorage::StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const
+{
+    // The fill takes the kind's shape; NativePaint draws its rim (LDUIShapes), so state colours never need a new brush.
+    if(!Face){return;}
+    Face->SetBrush(StorageRound(FaceRadius(Kind,Size),FLinearColor::Transparent,0.f));Face->SetBrushColor(LDHUDStyle::IconFill);
+    if(UOverlay* Stack=Cast<UOverlay>(Face->GetContent()))
+    {ShowIcon(Cast<UImage>(Stack->GetChildAt(0)),Cast<UTextBlock>(Stack->GetChildAt(1)),Component,FaceRadius(Kind,Size),bDim);}
+}
+float ULDComponentStorage::FaceRadius(uint8 Kind,float Size) const
+{
+    return Kind==2?Size*.5f:Kind==1?Size*.2f:8.f;
+}
+double ULDComponentStorage::UiNow() const
+{
+    return GetWorld()?GetWorld()->GetRealTimeSeconds():0.;
+}
+void ULDComponentStorage::BuildWorkshopCard(FName Component,bool bFresh,float Size)
+{
+    // A library cell: the icon in its kind's shape over its name; hovering it lights the places it takes.
+    const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Component,LatestContent).Kind);
+    UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* Box=nullptr;
+    UBorder* Icon=IconFace(Size,Picture,Glyph,Face,Box);Built.Add(Box);ShowIcon(Picture,Glyph,Component,FaceRadius(Kind,Size));
+    Icon->SetBrush(StorageRound(FaceRadius(Kind,Size),FLinearColor::Transparent,0.f));Icon->SetBrushColor(LDHUDStyle::IconFill);
+    Icon->SetVisibility(ESlateVisibility::Visible);
+    auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Built.Add(Cell);
+    Cell->AddChildToVerticalBox(Box)->SetHorizontalAlignment(HAlign_Center);
+    UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Component),LDHUDStyle::TypeMicro);Name->SetAutoWrapText(false);Built.Add(Name);
+    Name->SetJustification(ETextJustify::Center);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+    StorageShown(Name,Workshop.bNames,ESlateVisibility::HitTestInvisible);
+    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+14.f);NameBox->SetContent(Name);Built.Add(NameBox);
+    Cell->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,4,0,0));
+    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.Cell=Cell;
+    if(LibraryWraps.IsValidIndex(Kind)){LibraryWraps[Kind]->AddChildToWrapBox(Cell);}
+}
+void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId,float Size)
+{
+    // A board row: the icon in its kind's shape and the name beside it; a nested component sits indented under its host.
+    const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Entry.Component,LatestContent).Kind);
+    UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* Box=nullptr;
+    UBorder* Icon=IconFace(Size,Picture,Glyph,Face,Box);Built.Add(Box);ShowIcon(Picture,Glyph,Entry.Component,FaceRadius(Kind,Size));
+    Icon->SetBrush(StorageRound(FaceRadius(Kind,Size),FLinearColor::Transparent,0.f));Icon->SetBrushColor(LDHUDStyle::IconFill);
+    Icon->SetVisibility(ESlateVisibility::Visible);
+    if(!Entry.Note.IsEmpty())
+    {
+        UTextBlock* Note=LDWidgets::Text(WidgetTree,Entry.Note,LDHUDStyle::TypeMicro);Note->SetAutoWrapText(false);StorageBold(Note,2);Built.Add(Note);
+        auto* NoteSlot=Face->AddChildToOverlay(Note);NoteSlot->SetHorizontalAlignment(HAlign_Right);NoteSlot->SetVerticalAlignment(VAlign_Bottom);
+        NoteSlot->SetPadding(FMargin(2,0,3,1));
+    }
+    auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Row);
+    Row->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);
+    if(Workshop.bNames)
+    {
+        UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Entry.Component),LDHUDStyle::TypeCaption);Name->SetAutoWrapText(false);Built.Add(Name);
+        Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Name->SetColorAndOpacity(LDHUDStyle::UIText);
+        auto* NameSlot=Row->AddChildToHorizontalBox(Name);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetPadding(FMargin(10,0,0,0));
+        NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+    }
+    auto* RowSlot=Column.List->AddChildToVerticalBox(Row);
+    RowSlot->SetPadding(FMargin(22.f*FMath::Min(Entry.Depth,2),Column.List->GetChildrenCount()>1?10.f*Workshop.TileScale:0.f,0,0));
+    RowSlot->SetHorizontalAlignment(HAlign_Fill);
+    FTile& Tile=Tiles.AddDefaulted_GetRef();Tile.Component=Entry.Component;Tile.Host=Entry.Host;Tile.Column=ColumnId;Tile.Face=Icon;
 }
 void ULDComponentStorage::BuildCard(FName Component,bool bFresh)
 {
@@ -310,7 +440,7 @@ void ULDComponentStorage::MarkSeen(FName Component)
 {
     if(Component.IsNone()||!LatestMatch||SeenComponents.Contains(Component)){return;}
     SeenComponents.Add(Component);
-    for(const FCard& Card:Cards){if(Card.Component==Component){StorageShown(Card.FreshChip,false);}}
+    for(FCard& Card:Cards){if(Card.Component==Component){StorageShown(Card.FreshChip,false);Card.bFresh=false;}}
     const int32 Fresh=LDHUD::ComponentStorage(Latest,LatestContent,&SeenComponents).Fresh;
     StorageText(StackFresh,LDTerms::StorageFresh(Fresh));
     StorageShown(StackFreshChip,Fresh>0,ESlateVisibility::HitTestInvisible);
@@ -342,9 +472,25 @@ void ULDComponentStorage::BuildTile(FColumn& Column,const LDHUD::FEquippedView& 
     FTile& Tile=Tiles.AddDefaulted_GetRef();Tile.Component=Entry.Component;Tile.Host=Entry.Host;Tile.Column=ColumnId;Tile.Face=Icon;
 }
 
+void ULDComponentStorage::SetWorkshop(const FWorkshopLayout& Layout)
+{
+    const bool bWas=Workshop.bActive;
+    Workshop=Layout;
+    if(bWas!=Layout.bActive)
+    {
+        // The layouts build different faces: the next Present rebuilds them; an interaction of the other layout ends.
+        CancelInteraction();Press=FPress();BuiltKey.Reset();
+        for(FColumn& Column:Columns)
+        {
+            Column.AppliedLook=-1;
+            if(Column.Frame){Column.Frame->SetWidthOverride(StorageColumnWidth);Column.Frame->ClearHeightOverride();Column.Frame->SetRenderOpacity(1.f);}
+            if(Column.Panel){Column.Panel->SetPadding(FMargin(4,6));}
+        }
+    }
+}
 bool ULDComponentStorage::OverExpanded(FVector2D At) const
 {
-    if(StorageUnder(ListFrame,At)||StorageUnder(ChooserFrame,At)){return true;}
+    if(StorageUnder(ListFrame,At)||StorageUnder(ChooserFrame,At)||StorageUnder(LibraryFrame,At)){return true;}
     for(int32 Index=0;Index<Columns.Num();++Index)
     {
         if(StorageUnder(Columns[Index].Frame,At)){return true;}
@@ -357,25 +503,82 @@ bool ULDComponentStorage::IsHit(FVector2D At) const
     if(!bShownNow){return false;}
     if(Drag.bActive||StorageUnder(StackFrame,At)){return true;}
     if(!bExpanded){return false;}
-    if(StorageUnder(ListFrame,At)||StorageUnder(ChooserFrame,At)){return true;}
+    if(StorageUnder(ListFrame,At)||StorageUnder(ChooserFrame,At)||StorageUnder(LibraryFrame,At)){return true;}
     for(const FColumn& Column:Columns){if(StorageUnder(Column.Frame,At)){return true;}}
     return false;
 }
 TArray<const UWidget*> ULDComponentStorage::ReservedWidgets() const
 {
     TArray<const UWidget*> Out;
-    for(const UWidget* Widget:{StackFrame.Get(),ListFrame.Get(),ChooserFrame.Get(),PopupFrame.Get()}){if(Widget&&Widget->IsVisible()){Out.Add(Widget);}}
+    for(const UWidget* Widget:{StackFrame.Get(),ListFrame.Get(),ChooserFrame.Get(),PopupFrame.Get(),LibraryFrame.Get()}){if(Widget&&Widget->IsVisible()){Out.Add(Widget);}}
     for(const FColumn& Column:Columns){if(Column.Frame&&Column.Frame->IsVisible()){Out.Add(Column.Frame);}}
     return Out;
 }
 FReply ULDComponentStorage::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
 {
     if(Event.GetEffectingButton()==EKeys::LeftMouseButton&&BeginPress(Event.GetScreenSpacePosition())){return FReply::Handled();}
+    if(Event.GetEffectingButton()==EKeys::RightMouseButton&&bShownNow&&bExpanded)
+    {
+        // D6 right click: the component under the pointer installs at its only place, or comes back to the storage.
+        const FVector2D At=Event.GetScreenSpacePosition();
+        for(const FCard& Card:Cards){if(StorageUnder(Card.Face,At)){PendingAt=At;QuickInstall(Card.Component);return FReply::Handled();}}
+        for(const FTile& Tile:Tiles){if(StorageUnder(Tile.Face,At)){QuickInstall(Tile.Component);return FReply::Handled();}}
+        if(IsHit(At)){return FReply::Handled();}
+    }
     return Super::NativeOnMouseButtonDown(Geometry,Event);
+}
+bool ULDComponentStorage::QuickInstall(FName Component)
+{
+    const FLDComponentInstanceView* Owned=StorageOwned(Latest,Component);
+    if(!Owned){return false;}
+    if(Drag.bActive){EndDrag();}
+    CloseChooser();
+    if(Owned->bInstalled){bPendingAt=false;return DropInStorage(Component);}
+    const TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(Component,Latest,LatestContent);
+    if(Drops.Num()!=1)
+    {
+        // Several places (or none) need the player's choice: the line says where it goes, nothing is sent.
+        if(Notify){Notify(FString(LDTerms::Storage)+TEXT("：")+(Drops.IsEmpty()?LDHUD::StoredPlaceText(Component,Latest,LatestContent):LDHUD::DropColumnsText(Drops)));}
+        return false;
+    }
+    bPendingAt=!PendingAt.IsZero();Chooser.At=PendingAt;
+    return DropOn(Component,Drops[0].Column,Drops[0].Host);
+}
+bool ULDComponentStorage::PickUp(FName Component,bool bFromColumn)
+{
+    if(Component.IsNone()){return false;}
+    Press=FPress();
+    Drag.Component=Component;Drag.bFromColumn=bFromColumn;Drag.bActive=true;Drag.bPicked=true;Drag.Since=UiNow();
+    Drag.Drops=LDHUD::ComponentDrops(Component,Latest,LatestContent);
+    Drag.Drops.Append(LDHUD::ReplaceDrops(Component,Latest,LatestContent));
+    ShowIcon(GhostPicture,GhostGlyph,Component);
+    StorageShown(GhostFrame,true,ESlateVisibility::HitTestInvisible);
+    return true;
+}
+bool ULDComponentStorage::DropHeld(FVector2D At)
+{
+    // The second click of a pick-up: a place takes it, the storage takes back an installed one, anywhere else puts it down.
+    const FName Component=Drag.Component;const bool bFromColumn=Drag.bFromColumn;
+    EndDrag();
+    LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
+    if(StorageAt(At)){if(bFromColumn){bPendingAt=false;return DropInStorage(Component);}return true;}
+    if(ColumnAt(At,Column,Host)){Chooser.At=At;PendingAt=At;bPendingAt=true;return DropOn(Component,Column,Host);}
+    return true;
 }
 bool ULDComponentStorage::BeginPress(FVector2D At)
 {
     if(!bShownNow){return false;}
+    if(Drag.bActive&&Drag.bPicked){DropHeld(At);return true;}
+    // C12: the installed bases it may repeat light up on the board; a click on one chooses it.
+    if(Chooser.bOpen&&!Chooser.Drop.Bases.IsEmpty())
+    {
+        for(const FTile& Tile:Tiles)
+        {
+            if(!StorageUnder(Tile.Face,At)){continue;}
+            const int32 Option=Chooser.Drop.Bases.IndexOfByKey(Tile.Component);
+            if(Option!=INDEX_NONE){ChooseOption(Option);return true;}
+        }
+    }
     FName Component;bool bFromColumn=false;
     if(bExpanded)
     {
@@ -395,23 +598,23 @@ void ULDComponentStorage::UpdateDrag(FVector2D Pointer,bool bHeld)
     if(!Press.bArmed){return;}
     if(!Drag.bActive)
     {
-        // A press that never moves is only a click: the card stays focused, nothing is sent.
-        if(!bHeld){Press=FPress();return;}
+        // A press that never moves is a click: it picks the component up (D6); the next click puts it down.
+        if(!bHeld){PickUp(Press.Component,Press.bFromColumn);return;}
         if(FVector2D::Distance(Pointer,Press.At)<StorageDragStartPx){return;}
-        Drag.Component=Press.Component;Drag.bFromColumn=Press.bFromColumn;Drag.bActive=true;
+        Drag.Component=Press.Component;Drag.bFromColumn=Press.bFromColumn;Drag.bActive=true;Drag.bPicked=false;Drag.Since=UiNow();
         Drag.Drops=LDHUD::ComponentDrops(Drag.Component,Latest,LatestContent);
         Drag.Drops.Append(LDHUD::ReplaceDrops(Drag.Component,Latest,LatestContent));
         ShowIcon(GhostPicture,GhostGlyph,Drag.Component);
         StorageShown(GhostFrame,true,ESlateVisibility::HitTestInvisible);
         return;
     }
-    if(bHeld){return;}
+    if(bHeld||Drag.bPicked){return;}
     // Let go: the storage takes back an installed component; a column or host installs or moves it.
     const FName Component=Drag.Component;const bool bFromColumn=Drag.bFromColumn;
     EndDrag();
     LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
-    if(StorageAt(Pointer)){if(bFromColumn){DropInStorage(Component);}}
-    else if(ColumnAt(Pointer,Column,Host)){Chooser.At=Pointer;DropOn(Component,Column,Host);}
+    if(StorageAt(Pointer)){if(bFromColumn){bPendingAt=false;DropInStorage(Component);}}
+    else if(ColumnAt(Pointer,Column,Host)){Chooser.At=Pointer;PendingAt=Pointer;bPendingAt=true;DropOn(Component,Column,Host);}
 }
 void ULDComponentStorage::EndDrag()
 {
@@ -426,7 +629,7 @@ bool ULDComponentStorage::CancelInteraction()
 }
 bool ULDComponentStorage::StorageAt(FVector2D At) const
 {
-    return StorageUnder(StackFrame,At)||StorageUnder(ListFrame,At);
+    return StorageUnder(StackFrame,At)||StorageUnder(ListFrame,At)||StorageUnder(LibraryFrame,At);
 }
 bool ULDComponentStorage::ColumnAt(FVector2D At,LDHUD::EStorageColumn& OutColumn,FName& OutHost) const
 {
@@ -460,6 +663,7 @@ bool ULDComponentStorage::DropInStorage(FName Component)
         TArray<FString> Names;for(const FName& Id:Off){Names.Add(ComponentName(Id));}
         Notify(FString(LDTerms::Storage)+TEXT("：")+LDTerms::MovingDetaches(FString::Join(Names,TEXT("、"))));
     }
+    PendingComponent=Component;
     return Send(Command);
 }
 bool ULDComponentStorage::DropOn(FName Component,LDHUD::EStorageColumn Column,FName Host)
@@ -537,6 +741,7 @@ bool ULDComponentStorage::Commit(FName Component,const LDHUD::FComponentDrop& Dr
 {
     const FLDComponentInstanceView* Owned=StorageOwned(Latest,Component);
     if(!Owned){return false;}
+    PendingComponent=Component;
     FLDBuildCommand Install;Install.Kind=ELDBuildCommandKind::InstallComponent;
     const auto Refuse=[this](const TCHAR* Why){if(Notify){Notify(FString(TEXT("没有提交："))+Why);}return false;};
     if(!FLDDefinitionWire::Encode(Component,Install.Component)){return Refuse(TEXT("这个构件的标识无效。"));}
@@ -588,7 +793,7 @@ bool ULDComponentStorage::Send(FLDBuildCommand Command)
     if(!Request)
     {
         if(PendingRequest==Expected){PendingRequest=0;}
-        Follow=FFollowUp();
+        Follow=FFollowUp();PendingComponent=NAME_None;bPendingAt=false;
         const FString Why=LDHUD::GrowthReasonText(Reason);
         if(Notify){Notify(FString(LDTerms::Storage)+TEXT("：没有提交：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));}
         return false;
@@ -596,9 +801,13 @@ bool ULDComponentStorage::Send(FLDBuildCommand Command)
     if(Answers==Before){PendingRequest=Request;}
     return true;
 }
-void ULDComponentStorage::FinishRequest(const FString& Text)
+void ULDComponentStorage::FinishRequest(const FString& Text,bool bRefused)
 {
     PendingRequest=0;
+    // A refusal shakes the component and edges it red for a moment; an applied install flashes where it lands.
+    if(bRefused){RejectedComponent=PendingComponent;RejectedAt=UiNow();}
+    else if(!Text.IsEmpty()){LandedComponent=PendingComponent;LandedAt=UiNow();}
+    if(Follow.State==EFollow::None){bPendingAt=false;PendingComponent=NAME_None;}
     if(!Text.IsEmpty()&&Notify){Notify(FString(LDTerms::Storage)+TEXT("：")+Text);}
 }
 void ULDComponentStorage::ShowFinal(const FLDBuildReceipt& Receipt)
@@ -617,7 +826,7 @@ void ULDComponentStorage::ShowFinal(const FLDBuildReceipt& Receipt)
         }
         Follow=FFollowUp();
     }
-    FinishRequest(LDHUD::BuildReceiptText(Receipt,LatestContent));
+    FinishRequest(LDHUD::BuildReceiptText(Receipt,LatestContent),!bApplied);
 }
 // The pending entry clears exactly when the controller releases its in-flight request (like the growth panel's).
 void ULDComponentStorage::HandleSubmit(const FLDSubmitResult& Result)
@@ -630,7 +839,7 @@ void ULDComponentStorage::HandleSubmit(const FLDSubmitResult& Result)
     case ELDAdmissionStatus::AdmissionRejected:
         if(Result.bSequenceReserved){return;}
         Follow=FFollowUp();
-        FinishRequest(TEXT("没有受理：")+LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason)));
+        FinishRequest(TEXT("没有受理：")+LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason)),true);
         return;
     case ELDAdmissionStatus::Final:
         if(Result.bHasBuildReceipt){ShowFinal(Result.BuildReceipt);return;}
@@ -667,142 +876,372 @@ void ULDComponentStorage::NativeTick(const FGeometry& Geometry,float DeltaSecond
     Super::NativeTick(Geometry,DeltaSeconds);
     if(!bShownNow||!FSlateApplication::IsInitialized())
     {
-        for(UWidget* Hidden:{ListFrame.Get(),PopupFrame.Get(),ChooserFrame.Get(),GhostFrame.Get(),GhostCaptionFrame.Get()}){StorageShown(Hidden,false);}
+        for(UWidget* Hidden:{ListFrame.Get(),PopupFrame.Get(),ChooserFrame.Get(),GhostFrame.Get(),GhostCaptionFrame.Get(),LibraryFrame.Get()}){StorageShown(Hidden,false);}
         for(const FColumn& Column:Columns){StorageShown(Column.Frame,false);}
+        CurrentFocus=FFocus();
         return;
     }
-    const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
+    const double Now=UiNow();
     const FVector2D Pointer=FSlateApplication::Get().GetCursorPos();
     const bool bHeld=FSlateApplication::Get().GetPressedMouseButtons().Contains(EKeys::LeftMouseButton);
+    // A click away from every place puts a picked-up component down without a command.
+    if(Drag.bActive&&Drag.bPicked&&bHeld&&!bWasPressed&&!StorageAt(Pointer)&&!OverExpanded(Pointer)){EndDrag();}
+    bWasPressed=bHeld;
     UpdateDrag(Pointer,bHeld);
-    // Hovering the stack opens the view; it stays while the pointer is over any part of it (or a slot under a column), a
-    // drag or the chooser runs, and closes a moment after the pointer left.
-    const bool bOverStack=StorageUnder(StackFrame,Pointer);
-    const bool bInside=bPinned||bDetailsHeld||bOverStack||(bExpanded&&OverExpanded(Pointer))||Drag.bActive||Press.bArmed||Chooser.bOpen;
-    if(bInside){LastInsideAt=Now;if(bOverStack||bPinned||bDetailsHeld){bExpanded=true;}}
-    else if(bExpanded&&Now-LastInsideAt>StorageCloseGrace){bExpanded=false;}
+    if(Workshop.bActive){bExpanded=true;LastInsideAt=Now;}
+    else
+    {
+        // Hovering the stack opens the view; it stays while the pointer is over any part of it (or a slot under a column), a
+        // drag or the chooser runs, and closes a moment after the pointer left.
+        const bool bOverStack=StorageUnder(StackFrame,Pointer);
+        const bool bInside=bPinned||bDetailsHeld||bOverStack||(bExpanded&&OverExpanded(Pointer))||Drag.bActive||Press.bArmed||Chooser.bOpen;
+        if(bInside){LastInsideAt=Now;if(bOverStack||bPinned||bDetailsHeld){bExpanded=true;}}
+        else if(bExpanded&&Now-LastInsideAt>StorageCloseGrace){bExpanded=false;}
+    }
     Layout(Geometry,Pointer);
+}
+void ULDComponentStorage::UpdateFocus(FVector2D Pointer)
+{
+    FFocus Next;
+    if(Drag.bActive)
+    {
+        Next.Component=Drag.Component;Next.bHeld=true;Next.bInstalled=Drag.bFromColumn;Next.Drops=Drag.Drops;
+        LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
+        if(!StorageAt(Pointer)&&ColumnAt(Pointer,Column,Host))
+        {
+            const LDHUD::FComponentDrop* Drop=Host.IsNone()?nullptr:Drag.Drops.FindByPredicate([Column,Host](const LDHUD::FComponentDrop& D){return D.Column==Column&&D.Host==Host;});
+            if(!Drop){Drop=Drag.Drops.FindByPredicate([Column](const LDHUD::FComponentDrop& D){return D.Column==Column&&D.Host.IsNone();});}
+            if(Drop){Next.bOverDrop=true;Next.Drop=*Drop;}
+        }
+    }
+    else if(Chooser.bOpen){Next.Component=Chooser.Component;Next.bHeld=true;Next.bOverDrop=true;Next.Drop=Chooser.Drop;}
+    else if(bExpanded)
+    {
+        for(const FCard& Card:Cards){if(StorageUnder(Card.Face,Pointer)){Next.Component=Card.Component;break;}}
+        if(!Next.Component.IsNone())
+        {
+            // Hovering a stored component already shows where it goes: its places light up before anything is picked up.
+            if(HoverDropsOf!=Next.Component)
+            {
+                HoverDropsOf=Next.Component;
+                HoverDrops=LDHUD::ComponentDrops(Next.Component,Latest,LatestContent);
+                HoverDrops.Append(LDHUD::ReplaceDrops(Next.Component,Latest,LatestContent));
+            }
+            Next.Drops=HoverDrops;
+            if(Workshop.bActive){MarkSeen(Next.Component);}
+        }
+        else{for(const FTile& Tile:Tiles){if(StorageUnder(Tile.Face,Pointer)){Next.Component=Tile.Component;Next.bInstalled=true;break;}}}
+    }
+    CurrentFocus=MoveTemp(Next);
+}
+void ULDComponentStorage::UpdateStates(FVector2D Pointer)
+{
+    const double Now=UiNow();
+    const double RejectAge=Now-RejectedAt;
+    const bool bRejectLive=RejectAge<LDHUDStyle::MotionRejectNotice;
+    // A refused component shakes three times, then keeps its red edge for the notice time.
+    const float Shake=RejectAge<LDHUDStyle::MotionReject?FMath::Sin(float(RejectAge/LDHUDStyle::MotionReject)*3.f*2.f*PI)*4.f:0.f;
+    TArray<FName> Detached;
+    if(Drag.bActive&&Drag.bFromColumn){Detached=LDHUD::DetachedWith(Drag.Component,Latest);}
+    if(CurrentFocus.bOverDrop){Detached.Append(CurrentFocus.Drop.Lost);}
+    const TArray<FName>* Bases=Chooser.bOpen&&!Chooser.Drop.Bases.IsEmpty()?&Chooser.Drop.Bases:nullptr;
+    for(FCard& Card:Cards)
+    {
+        const bool bRejected=bRejectLive&&Card.Component==RejectedComponent;
+        Card.State=bRejected?EFaceState::Rejected:Drag.bActive&&Drag.Component==Card.Component?EFaceState::Held
+            :CurrentFocus.Component==Card.Component&&!CurrentFocus.bInstalled?EFaceState::Hovered:EFaceState::Normal;
+        LDTween::SetTranslation(Card.Face,FVector2D(bRejected?Shake:0.f,0.f));
+    }
+    for(FTile& Tile:Tiles)
+    {
+        const LDHUD::FComponentDrop* OnTile=CurrentFocus.Drops.FindByPredicate([&Tile](const LDHUD::FComponentDrop& Drop){return Drop.Host==Tile.Component;});
+        const bool bRejected=bRejectLive&&Tile.Component==RejectedComponent;
+        const bool bReplaced=CurrentFocus.bOverDrop&&CurrentFocus.Drop.Replacing==Tile.Component;
+        Tile.State=bRejected?EFaceState::Rejected
+            :Drag.bActive&&Drag.Component==Tile.Component?EFaceState::Held
+            :Bases&&Bases->Contains(Tile.Component)?EFaceState::Pick
+            :bReplaced||(OnTile&&!OnTile->Replacing.IsNone())?EFaceState::Replace
+            :Detached.Contains(Tile.Component)?EFaceState::Detached
+            :OnTile?EFaceState::Legal
+            :CurrentFocus.Component==Tile.Component&&CurrentFocus.bInstalled?EFaceState::Hovered
+            :Bases?EFaceState::Dim:EFaceState::Normal;
+        LDTween::SetTranslation(Tile.Face,FVector2D(bRejected?Shake:0.f,0.f));
+        LDTween::SetOpacity(Tile.Face,Tile.State==EFaceState::Held?.35f:Tile.State==EFaceState::Dim?.4f:1.f);
+    }
 }
 void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
 {
     const FVector2D Area=Geometry.GetLocalSize();
     const auto Local=[&Geometry](FVector2D Absolute){return Geometry.AbsoluteToLocal(Absolute);};
-    // The stack sits right of the band, on its bottom edge.
-    StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));
-    StorageShown(ListFrame,bExpanded&&!Cards.IsEmpty(),ESlateVisibility::Visible);
-    const FSlateRect Stack=StorageRect(StackFrame);
-    const FVector2D StackTopLeft=Local(FVector2D(Stack.Left,Stack.Top));
-    if(bExpanded)
+    UpdateFocus(Pointer);
+    UpdateStates(Pointer);
+    if(Workshop.bActive){LayoutWorkshop(Geometry,Pointer);}
+    else
     {
-        // The list rises from the stack; the hovered icon is edged and a dragged one fades.
-        StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));
-        for(FCard& Card:Cards)
+        StorageShown(LibraryFrame,false);
+        // The stack sits right of the band, on its bottom edge.
+        StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));
+        StorageShown(ListFrame,bExpanded&&!Cards.IsEmpty(),ESlateVisibility::Visible);
+        const FSlateRect Stack=StorageRect(StackFrame);
+        const FVector2D StackTopLeft=Local(FVector2D(Stack.Left,Stack.Top));
+        if(bExpanded)
         {
-            const bool bHovered=!Drag.bActive&&StorageUnder(Card.Face,Pointer);
-            const bool bDragged=Drag.bActive&&Drag.Component==Card.Component;
-            const int32 Look=(bHovered?1:0)|(bDragged?2:0);
-            if(Card.AppliedLook==Look){continue;}
-            Card.AppliedLook=Look;
-            Card.Face->SetBrush(StorageRound(6.f,bHovered?LDHUDStyle::TextAccent:LDHUDStyle::IconRim,bHovered?2.f:1.f));Card.Face->SetBrushColor(LDHUDStyle::IconFill);
-            Card.Size->SetRenderOpacity(bDragged?.35f:1.f);
+            // The list rises from the stack; a dragged icon fades (its rim is painted, LDUIShapes).
+            StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));
+            for(FCard& Card:Cards){LDTween::SetOpacity(Card.Size,Card.State==EFaceState::Held?.35f:1.f);}
+        }
+        // The columns rise over their anchors in one row: 本体 (left of the first Q/W/E slot), Q/W/E and D, each centred.
+        // While a component is hovered or held, a column that takes it is edged green, one it only replaces in amber, and one
+        // that takes nothing dims.
+        for(int32 Index=0;Index<Columns.Num();++Index)
+        {
+            FColumn& Column=Columns[Index];
+            const FSlateRect& Anchor=Anchors.Columns[Index];
+            const bool bShown=bExpanded&&StorageHasArea(Anchor);
+            StorageShown(Column.Frame,bShown,ESlateVisibility::Visible);
+            if(!bShown){continue;}
+            const FVector2D Top=Local(FVector2D((Anchor.Left+Anchor.Right)*.5f,Anchor.Top));
+            StoragePlace(Column.Slot,Top-FVector2D(0,6),FVector2D(.5f,1));
+            const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
+            const TArray<LDHUD::FComponentDrop>& Drops=CurrentFocus.Drops;
+            const bool bOwnDrop=Drags(Drops,Id,true);
+            const bool bAnyDrop=Drags(Drops,Id,false);
+            const bool bReplaceDrop=Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id&&!Drop.Replacing.IsNone();});
+            StorageShown(Column.Placeholder,bOwnDrop&&CurrentFocus.bHeld,ESlateVisibility::HitTestInvisible);
+            const int32 Look=Drops.IsEmpty()?0:bAnyDrop?1:bReplaceDrop?3:2;
+            if(Column.AppliedLook!=Look)
+            {
+                Column.AppliedLook=Look;
+                const FLinearColor Rim=Look==1?LDHUDStyle::UILegal:Look==3?LDHUDStyle::UIReplace:LDHUDStyle::PanelRim;
+                Column.Panel->SetBrush(StorageRound(8.f,Rim,Look==1||Look==3?2.f:1.f));
+                Column.Panel->SetBrushColor(LDHUDStyle::ColumnFill);
+                Column.Frame->SetRenderOpacity(Look==2?.45f:1.f);
+            }
+        }
+        // The hovered component's description beside it: right of it, or left when there is no room.
+        FName Shown;const UWidget* Over=nullptr;bool bInstalled=false;
+        if(bExpanded&&!Drag.bActive&&!Chooser.bOpen)
+        {
+            for(const FCard& Card:Cards){if(StorageUnder(Card.Face,Pointer)){Shown=Card.Component;Over=Card.Face;break;}}
+            if(!Over){for(const FTile& Tile:Tiles){if(StorageUnder(Tile.Face,Pointer)){Shown=Tile.Component;Over=Tile.Face;bInstalled=true;break;}}}
+        }
+        StorageShown(PopupFrame,Over!=nullptr,ESlateVisibility::HitTestInvisible);
+        if(Over)
+        {
+            MarkSeen(Shown);
+            const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Shown,LatestContent,LatestStats);
+            StorageText(PopupName,View.Name);
+            const FLDComponentInstanceView* Owned=StorageOwned(Latest,Shown);
+            const FString Target=Owned?LDHUD::InstalledTargetText(*Owned,LatestContent):FString();
+            const FString Where=bInstalled?(Target.IsEmpty()?FString(TEXT("已安装")):FString(TEXT("已安装"))+Target)
+                :FString(TEXT("在构件库 · "))+LDHUD::StoredPlaceText(Shown,Latest,LatestContent);
+            StorageText(PopupWhere,View.KindLine.IsEmpty()?Where:View.KindLine+TEXT("\n")+Where);
+            const FString Body=View.Keywords.IsEmpty()?View.Sentence:View.Sentence+TEXT("\n\n")+FString::Join(View.Keywords,TEXT("\n"));
+            if(!PopupBody->GetText().ToString().Equals(Body,ESearchCase::CaseSensitive)){PopupBody->SetText(FText::FromString(Body));}
+            const FString Links=LDHUD::ConnectionsText(Shown,Latest,LatestContent);
+            const FString Missing=bInstalled?FString():LDWorkshop::MissingPlace(Shown,Latest,LatestContent);
+            StorageText(PopupHint,Links.IsEmpty()?Missing:Missing.IsEmpty()?Links:Links+TEXT("\n")+Missing);
+            const FSlateRect Rect=StorageRect(Over);
+            const FVector2D TopLeft=Local(FVector2D(Rect.Left,Rect.Top));const FVector2D BottomRight=Local(FVector2D(Rect.Right,Rect.Bottom));
+            const FVector2D Size=PopupFrame->GetDesiredSize();
+            const bool bRight=BottomRight.X+8.f+StoragePopupWidth<=Area.X-StorageScreenMargin;
+            // Over a card in the list the popup goes left of the list, so it never covers the cards being browsed.
+            const bool bCard=!bInstalled;
+            const FSlateRect List=StorageRect(ListFrame);
+            const float LeftEdge=bCard?float(Local(FVector2D(List.Left,List.Top)).X):float(TopLeft.X);
+            const float X=bRight&&!bCard?float(BottomRight.X)+8.f:LeftEdge-8.f;
+            const float Y=FMath::Max(float(BottomRight.Y),float(Size.Y)+StorageScreenMargin);
+            StoragePlace(PopupSlot,FVector2D(X,FMath::Min(Y,float(Area.Y)-StorageScreenMargin)),FVector2D(bRight&&!bCard?0.f:1.f,1));
         }
     }
-    // The columns rise over their anchors in one row: 本体 (left of the first Q/W/E slot), Q/W/E and D, each centred.
-    // While a drag runs, a column or host that takes the component is edged green and one that does not is dimmed.
-    for(int32 Index=0;Index<Columns.Num();++Index)
-    {
-        FColumn& Column=Columns[Index];
-        const FSlateRect& Anchor=Anchors.Columns[Index];
-        const bool bShown=bExpanded&&StorageHasArea(Anchor);
-        StorageShown(Column.Frame,bShown,ESlateVisibility::Visible);
-        if(!bShown){continue;}
-        const FVector2D Top=Local(FVector2D((Anchor.Left+Anchor.Right)*.5f,Anchor.Top));
-        StoragePlace(Column.Slot,Top-FVector2D(0,6),FVector2D(.5f,1));
-        const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
-        const bool bOwnDrop=Drag.bActive&&Drag.Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id&&Drop.Host.IsNone();});
-        const bool bAnyDrop=Drag.bActive&&Drag.Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id&&Drop.Replacing.IsNone();});
-        StorageShown(Column.Placeholder,bOwnDrop,ESlateVisibility::HitTestInvisible);
-        const int32 Look=!Drag.bActive?0:bAnyDrop?1:2;
-        if(Column.AppliedLook!=Look)
-        {
-            Column.AppliedLook=Look;
-            Column.Panel->SetBrush(StorageRound(8.f,Look==1?LDHUDStyle::DropLegal:LDHUDStyle::PanelRim,Look==1?2.f:1.f));
-            Column.Panel->SetBrushColor(LDHUDStyle::ColumnFill);
-            Column.Frame->SetRenderOpacity(Look==2?.45f:1.f);
-        }
-    }
-    // A tile the component installs on is edged green; one it would replace is edged amber.
-    for(FTile& Tile:Tiles)
-    {
-        const LDHUD::FComponentDrop* OnTile=Drag.bActive?Drag.Drops.FindByPredicate([&Tile](const LDHUD::FComponentDrop& Drop){return Drop.Host==Tile.Component;}):nullptr;
-        const bool bHost=OnTile&&OnTile->Replacing.IsNone();const bool bReplace=OnTile&&!OnTile->Replacing.IsNone();
-        const bool bDragged=Drag.bActive&&Drag.Component==Tile.Component;
-        const int32 Look=(bHost?1:0)|(bDragged?2:0)|(bReplace?4:0);
-        if(Tile.AppliedLook==Look){continue;}
-        Tile.AppliedLook=Look;
-        const FLinearColor Rim=bHost?LDHUDStyle::DropLegal:bReplace?LDHUDStyle::DropReplace:LDHUDStyle::IconRim;
-        Tile.Face->SetBrush(StorageRound(6.f,Rim,bHost||bReplace?2.f:1.f));Tile.Face->SetBrushColor(LDHUDStyle::IconFill);
-        Tile.Face->SetRenderOpacity(bDragged?.35f:1.f);
-    }
-    // The hovered component's description beside it: right of it, or left when there is no room.
-    FName Shown;const UWidget* Over=nullptr;bool bInstalled=false;
-    if(bExpanded&&!Drag.bActive&&!Chooser.bOpen)
-    {
-        for(const FCard& Card:Cards){if(StorageUnder(Card.Face,Pointer)){Shown=Card.Component;Over=Card.Face;break;}}
-        if(!Over){for(const FTile& Tile:Tiles){if(StorageUnder(Tile.Face,Pointer)){Shown=Tile.Component;Over=Tile.Face;bInstalled=true;break;}}}
-    }
-    StorageShown(PopupFrame,Over!=nullptr,ESlateVisibility::HitTestInvisible);
-    if(Over)
-    {
-        MarkSeen(Shown);
-        const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Shown,LatestContent,LatestStats);
-        StorageText(PopupName,View.Name);
-        const FLDComponentInstanceView* Owned=StorageOwned(Latest,Shown);
-        const FString Target=Owned?LDHUD::InstalledTargetText(*Owned,LatestContent):FString();
-        const FString Where=bInstalled?(Target.IsEmpty()?FString(TEXT("已安装")):FString(TEXT("已安装"))+Target)
-            :FString(TEXT("在构件库 · "))+LDHUD::StoredPlaceText(Shown,Latest,LatestContent);
-        StorageText(PopupWhere,View.KindLine.IsEmpty()?Where:View.KindLine+TEXT("\n")+Where);
-        const FString Body=View.Keywords.IsEmpty()?View.Sentence:View.Sentence+TEXT("\n\n")+FString::Join(View.Keywords,TEXT("\n"));
-        if(!PopupBody->GetText().ToString().Equals(Body,ESearchCase::CaseSensitive)){PopupBody->SetText(FText::FromString(Body));}
-        const bool bCanInstall=!bInstalled&&!LDHUD::ComponentDrops(Shown,Latest,LatestContent).IsEmpty();
-        const bool bCanReplace=!bInstalled&&!LDHUD::ReplaceDrops(Shown,Latest,LatestContent).IsEmpty();
-        const FString Hint=bInstalled?FString(TEXT("拖回构件库拆下，拖到别处移动"))
-            :bCanInstall?FString(TEXT("拖到对应位置安装")):bCanReplace?FString(LDTerms::ReplaceAvailable):FString();
-        const FString Links=LDHUD::ConnectionsText(Shown,Latest,LatestContent);
-        StorageText(PopupHint,Links.IsEmpty()?Hint:Hint.IsEmpty()?Links:Links+TEXT("\n")+Hint);
-        const FSlateRect Rect=StorageRect(Over);
-        const FVector2D TopLeft=Local(FVector2D(Rect.Left,Rect.Top));const FVector2D BottomRight=Local(FVector2D(Rect.Right,Rect.Bottom));
-        const FVector2D Size=PopupFrame->GetDesiredSize();
-        const bool bRight=BottomRight.X+8.f+StoragePopupWidth<=Area.X-StorageScreenMargin;
-        // Over a card in the list the popup goes left of the list, so it never covers the cards being browsed.
-        const bool bCard=!bInstalled;
-        const FSlateRect List=StorageRect(ListFrame);
-        const float LeftEdge=bCard?float(Local(FVector2D(List.Left,List.Top)).X):float(TopLeft.X);
-        const float X=bRight&&!bCard?float(BottomRight.X)+8.f:LeftEdge-8.f;
-        const float Y=FMath::Max(float(BottomRight.Y),float(Size.Y)+StorageScreenMargin);
-        StoragePlace(PopupSlot,FVector2D(X,FMath::Min(Y,float(Area.Y)-StorageScreenMargin)),FVector2D(bRight&&!bCard?0.f:1.f,1));
-    }
-    // The chooser sits over the drop point; the ghost follows the pointer.
+    // The chooser sits over the drop point; the held component follows the pointer, grown a little; a sent one waits,
+    // translucent, where it was let go until its answer arrives.
     if(Chooser.bOpen)
     {
         const FVector2D Size=ChooserFrame->GetDesiredSize();const FVector2D At=Local(Chooser.At);
         const float X=FMath::Clamp(float(At.X),float(Size.X)*.5f+StorageScreenMargin,FMath::Max(float(Size.X)*.5f+StorageScreenMargin,float(Area.X-Size.X*.5f)-StorageScreenMargin));
         StoragePlace(ChooserSlot,FVector2D(X,FMath::Max(float(At.Y)-12.f,float(Size.Y)+StorageScreenMargin)),FVector2D(.5f,1));
     }
+    const bool bWaiting=!Drag.bActive&&HasPendingRequest()&&bPendingAt&&!PendingComponent.IsNone();
+    const FName GhostOf=Drag.bActive?Drag.Component:bWaiting?PendingComponent:NAME_None;
+    if(GhostOf!=GhostShowing){GhostShowing=GhostOf;if(!GhostOf.IsNone()){ShowIcon(GhostPicture,GhostGlyph,GhostOf);}}
+    StorageShown(GhostFrame,!GhostOf.IsNone(),ESlateVisibility::HitTestInvisible);
     if(Drag.bActive)
     {
         StoragePlace(GhostSlot,Local(Pointer),FVector2D(.5f,.5f));
+        const float Grow=FMath::Lerp(1.f,LDHUDStyle::PickupScale,LDTween::Progress(UiNow()-Drag.Since,LDHUDStyle::MotionPickup,LDTween::ECurve::EaseOut));
+        LDTween::SetScale(GhostFrame,Grow);LDTween::SetOpacity(GhostFrame,.85f);
         // Over a column or tile the caption names what letting go there does; elsewhere it hides.
         LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;FName Host;
         const bool bOverPlace=!StorageAt(Pointer)&&ColumnAt(Pointer,Column,Host);
         if(bOverPlace)
         {
-            const LDHUD::FComponentDrop* Drop=Host.IsNone()?nullptr:Drag.Drops.FindByPredicate([Column,Host](const LDHUD::FComponentDrop& D){return D.Column==Column&&D.Host==Host;});
-            if(!Drop){Drop=Drag.Drops.FindByPredicate([Column](const LDHUD::FComponentDrop& D){return D.Column==Column&&D.Host.IsNone();});}
+            const LDHUD::FComponentDrop* Drop=CurrentFocus.bOverDrop?&CurrentFocus.Drop:nullptr;
             StorageText(GhostCaption,Drop?LDHUD::DropPreviewText(Drag.Component,*Drop,Latest,LatestContent):FString(LDTerms::DropNowhere));
-            GhostCaption->SetColorAndOpacity(FSlateColor(!Drop?LDHUDStyle::TextSecondary:Drop->Replacing.IsNone()?LDHUDStyle::DropLegal:LDHUDStyle::DropReplace));
-            StoragePlace(GhostCaptionSlot,Local(Pointer)+FVector2D(StorageTile*.5f+6.f,0),FVector2D(0,.5f));
+            GhostCaption->SetColorAndOpacity(FSlateColor(!Drop?LDHUDStyle::TextSecondary:Drop->Replacing.IsNone()?LDHUDStyle::UILegal:LDHUDStyle::UIReplace));
+            StoragePlace(GhostCaptionSlot,Local(Pointer)+FVector2D(StorageTile*.5f+10.f,0),FVector2D(0,.5f));
         }
         StorageShown(GhostCaptionFrame,bOverPlace,ESlateVisibility::HitTestInvisible);
     }
+    else
+    {
+        StorageShown(GhostCaptionFrame,false);
+        if(bWaiting){StoragePlace(GhostSlot,Local(PendingAt),FVector2D(.5f,.5f));LDTween::SetScale(GhostFrame,1.f);LDTween::SetOpacity(GhostFrame,.5f);}
+    }
+}
+bool ULDComponentStorage::Drags(const TArray<LDHUD::FComponentDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly)
+{
+    return Drops.ContainsByPredicate([Column,bOwnOnly](const LDHUD::FComponentDrop& Drop)
+    {return Drop.Column==Column&&Drop.Replacing.IsNone()&&(!bOwnOnly||Drop.Host.IsNone());});
+}
+void ULDComponentStorage::LayoutWorkshop(const FGeometry& Geometry,FVector2D Pointer)
+{
+    const auto Local=[&Geometry](FVector2D Absolute){return Geometry.AbsoluteToLocal(Absolute);};
+    for(UWidget* Hidden:{StackFrame.Get(),ListFrame.Get(),PopupFrame.Get()}){StorageShown(Hidden,false);}
+    // The library: the kind groups in its rectangle. The use-tag filter only dims (nothing moves); a component without a
+    // place dims too.
+    const bool bLibrary=StorageHasArea(Workshop.Library);
+    StorageShown(LibraryFrame,bLibrary,ESlateVisibility::Visible);
+    if(bLibrary)
+    {
+        const FVector2D TopLeft=Local(FVector2D(Workshop.Library.Left,Workshop.Library.Top));
+        const FVector2D BottomRight=Local(FVector2D(Workshop.Library.Right,Workshop.Library.Bottom));
+        StoragePlace(LibrarySlot,TopLeft,FVector2D(0,0));
+        if(USizeBox* Width=Cast<USizeBox>(LibraryFrame.Get());Width&&!FMath::IsNearlyEqual(Width->GetWidthOverride(),float(BottomRight.X-TopLeft.X),.5f))
+        {Width->SetWidthOverride(float(BottomRight.X-TopLeft.X));}
+        for(UWrapBox* Wrap:LibraryWraps){if(!FMath::IsNearlyEqual(Wrap->GetWrapSize(),float(BottomRight.X-TopLeft.X),.5f)){Wrap->SetExplicitWrapSize(true);Wrap->SetWrapSize(float(BottomRight.X-TopLeft.X));}}
+        for(FCard& Card:Cards)
+        {
+            const bool bFiltered=Workshop.TagFilter!=INDEX_NONE&&!LDWorkshop::ComponentFacts(Card.Component,LatestContent).Tags.Contains(static_cast<ELDDemoComponentTag>(Workshop.TagFilter));
+            LDTween::SetOpacity(Card.Cell,Card.State==EFaceState::Held?.35f:bFiltered?.3f:Card.bPlaceless?.55f:1.f);
+        }
+    }
+    // The columns: each in its board rectangle under the head the workshop draws. A column that takes nothing of the hovered
+    // or held component dims; the empty place at its end shows while the workshop has room (or the component goes there).
+    const bool bRoom=LatestModel.Installed<LatestModel.Capacity;
+    for(int32 Index=0;Index<Columns.Num();++Index)
+    {
+        FColumn& Column=Columns[Index];
+        const FSlateRect& Rect=Workshop.Columns[Index];
+        const bool bShown=StorageHasArea(Rect);
+        StorageShown(Column.Frame,bShown,ESlateVisibility::Visible);
+        if(!bShown){continue;}
+        const FVector2D TopLeft=Local(FVector2D(Rect.Left,Rect.Top+Workshop.HeadHeight));
+        const FVector2D BottomRight=Local(FVector2D(Rect.Right,Rect.Bottom));
+        StoragePlace(Column.Slot,TopLeft,FVector2D(0,0));
+        const FVector2D Size=BottomRight-TopLeft;
+        if(!FMath::IsNearlyEqual(Column.Frame->GetWidthOverride(),float(Size.X),.5f)){Column.Frame->SetWidthOverride(float(Size.X));}
+        if(!FMath::IsNearlyEqual(Column.Frame->GetHeightOverride(),float(Size.Y),.5f)){Column.Frame->SetHeightOverride(float(Size.Y));}
+        const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
+        const TArray<LDHUD::FComponentDrop>& Drops=CurrentFocus.Drops;
+        const bool bOwnDrop=Drags(Drops,Id,true);
+        const bool bTakes=Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id;});
+        const bool bEmptySlot=Index>=int32(LDHUD::EStorageColumn::SlotQ)&&Index<=int32(LDHUD::EStorageColumn::SlotE)&&Column.Active.IsNone();
+        StorageShown(Column.Placeholder,!bEmptySlot&&(bRoom||bOwnDrop),ESlateVisibility::HitTestInvisible);
+        const int32 Look=Drops.IsEmpty()?0:bTakes?1:2;
+        if(Column.AppliedLook!=Look)
+        {
+            Column.AppliedLook=Look;
+            Column.Panel->SetBrush(StorageRound(8.f,FLinearColor::Transparent,0.f));Column.Panel->SetBrushColor(FLinearColor::Transparent);
+            Column.Panel->SetPadding(FMargin(10,8));
+            StorageShown(Column.Title,false);
+            Column.Frame->SetRenderOpacity(Look==2?.3f:1.f);
+        }
+    }
+}
+int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const
+{
+    const int32 Base=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
+    if(!bShownNow){return Base;}
+    const double Now=UiNow();
+    const int32 Top=Base+1;
+    // The kind sets the shape and rim colour (white base rules, cyan skill mods, violet link rules); a state recolours the
+    // rim with a halo: yellow held or picked, green a legal place, orange a replacement or what comes off with it, red a
+    // refusal. A scarce component keeps the iridescent edge.
+    const auto StateColor=[](EFaceState State,uint8 Kind,bool& bGlow)->FLinearColor
+    {
+        bGlow=true;
+        switch(State)
+        {
+        case EFaceState::Held: case EFaceState::Pick: return LDHUDStyle::UIAction;
+        case EFaceState::Legal: return LDHUDStyle::UILegal;
+        case EFaceState::Replace: case EFaceState::Detached: return LDHUDStyle::UIReplace;
+        case EFaceState::Rejected: return LDHUDStyle::UIReject;
+        case EFaceState::Hovered: bGlow=false;return LDHUDStyle::UIAction;
+        default: bGlow=false;return LDUIShapes::KindColor(Kind).CopyWithNewOpacity(State==EFaceState::Dim?.35f:.9f);
+        }
+    };
+    const auto PaintFace=[&](const UWidget* Face,uint8 Kind,bool bScarce,EFaceState State,bool bFresh,float Opacity)
+    {
+        if(!Face){return;}
+        const FBox2D Box=LDUIShapes::RectIn(Geometry,Face->GetCachedGeometry());
+        if(Box.GetSize().X<4.f){return;}
+        const LDUIShapes::EShape Shape=LDUIShapes::KindShape(Kind);
+        const float Radius=FaceRadius(Kind,float(Box.GetSize().X));
+        bool bGlow=false;const FLinearColor Rim=StateColor(State,Kind,bGlow);
+        if(bScarce&&State==EFaceState::Normal){LDUIShapes::Iridescent(Elements,Top,Geometry,Shape,Box,Now,Radius);}
+        else
+        {
+            if(bGlow){LDUIShapes::Glow(Elements,Top,Geometry,Shape,Box,Rim.CopyWithNewOpacity(Opacity),7.f,Radius);}
+            LDUIShapes::Frame(Elements,Top,Geometry,Shape,Box,Rim.CopyWithNewOpacity(Rim.A*Opacity),State==EFaceState::Normal||State==EFaceState::Dim?1.5f:2.5f,Radius);
+        }
+        if(bFresh)
+        {
+            const FVector2D Dot(Box.Max.X-3.f,Box.Min.Y+3.f);
+            LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Dot-FVector2D(5,5),Dot+FVector2D(5,5)),LDHUDStyle::UIAction,5.f);
+        }
+    };
+    const bool bCardsShown=Workshop.bActive?(LibraryFrame&&LibraryFrame->IsVisible()):(ListFrame&&ListFrame->IsVisible());
+    if(bCardsShown)
+    {
+        for(const FCard& Card:Cards)
+        {
+            const float Opacity=Card.Cell?Card.Cell->GetRenderOpacity():Card.Size?Card.Size->GetRenderOpacity():1.f;
+            PaintFace(Card.Face,Card.Kind,Card.bScarce,Card.State,Workshop.bActive&&Card.bFresh,Opacity);
+        }
+    }
+    for(const FTile& Tile:Tiles)
+    {
+        const int32 Index=int32(Tile.Column);
+        if(!Columns.IsValidIndex(Index)||!Columns[Index].Frame||!Columns[Index].Frame->IsVisible()){continue;}
+        PaintFace(Tile.Face,Tile.Kind,Tile.bScarce,Tile.State,false,Columns[Index].Frame->GetRenderOpacity());
+        // An install that just landed flashes once: a ring spreading out from it.
+        const double Age=Now-LandedAt;
+        if(Tile.Component==LandedComponent&&Age>=0.&&Age<LDHUDStyle::MotionInstallLand+LDHUDStyle::MotionInstallSettle)
+        {
+            const float T=LDTween::Progress(Age,LDHUDStyle::MotionInstallLand+LDHUDStyle::MotionInstallSettle,LDTween::ECurve::EaseOut);
+            const FBox2D Box=LDUIShapes::RectIn(Geometry,Tile.Face->GetCachedGeometry());
+            const FVector2D Grow(10.f*T,10.f*T);
+            LDUIShapes::Frame(Elements,Top,Geometry,LDUIShapes::KindShape(Tile.Kind),FBox2D(Box.Min-Grow,Box.Max+Grow),LDHUDStyle::UILegal.CopyWithNewOpacity(1.f-T),2.f,
+                FaceRadius(Tile.Kind,float(Box.GetSize().X))+10.f*T);
+        }
+    }
+    if(Workshop.bActive)
+    {
+        // The empty place at the end of a column: dashed, solid green while the held component can go there.
+        for(int32 Index=0;Index<Columns.Num();++Index)
+        {
+            const FColumn& Column=Columns[Index];
+            if(!Column.Frame||!Column.Frame->IsVisible()||!Column.Placeholder||!Column.Placeholder->IsVisible()){continue;}
+            const FBox2D Box=LDUIShapes::RectIn(Geometry,Column.Placeholder->GetCachedGeometry());
+            const bool bLegal=Drags(CurrentFocus.Drops,static_cast<LDHUD::EStorageColumn>(Index),true);
+            if(bLegal)
+            {
+                const float Pulse=CurrentFocus.bHeld?.6f+.4f*LDTween::PingPong(Now,.9):1.f;
+                LDUIShapes::Frame(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Box,LDHUDStyle::UILegal.CopyWithNewOpacity(Pulse),2.f,8.f);
+            }
+            else{LDUIShapes::Dashed(Elements,Top,Geometry,Box,LDHUDStyle::TextSecondary.CopyWithNewOpacity(.45f));}
+            const FVector2D Center=Box.GetCenter();
+            const FLinearColor Plus=(bLegal?LDHUDStyle::UILegal:LDHUDStyle::TextSecondary).CopyWithNewOpacity(.6f);
+            LDUIShapes::Stroke(Elements,Top,Geometry,{Center-FVector2D(6,0),Center+FVector2D(6,0)},Plus,1.5f);
+            LDUIShapes::Stroke(Elements,Top,Geometry,{Center-FVector2D(0,6),Center+FVector2D(0,6)},Plus,1.5f);
+        }
+    }
+    // A sent component waits where it was let go with a thin turning ring until the answer arrives.
+    if(GhostFrame&&GhostFrame->IsVisible()&&!Drag.bActive)
+    {
+        const FBox2D Box=LDUIShapes::RectIn(Geometry,GhostFrame->GetCachedGeometry());
+        LDUIShapes::Arc(Elements,Top+1,Geometry,Box.GetCenter(),float(Box.GetSize().X)*.62f,.3f,LDHUDStyle::UIAction,2.f,float(FMath::Fmod(Now*1.4,1.)));
+    }
+    return Top+1;
 }

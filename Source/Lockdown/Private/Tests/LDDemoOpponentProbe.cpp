@@ -1472,9 +1472,12 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
                 if(!bUIStorageShot)
                 {
-                    if(!Check(Storage->IsExpanded()&&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
-                        &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid(),
-                        TEXT("UI: the open storage shows its stack and card list over the band at 720p125"))){return Finish();}
+                    // The rest's workshop lays the storage out as its library; over the band it is the stack and its card list.
+                    const bool bShown=Storage->InWorkshop()?LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("WorkshopLibrary"))).IsValid()
+                        :LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
+                            &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid();
+                    if(!Check(Storage->IsExpanded()&&bShown,
+                        TEXT("UI: the open storage shows its components (workshop library, or stack and card list) at 720p125"))){return Finish();}
                     FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStorageOpen_1280x720_125.png")),true,false);
                     Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStorageOpen_1280x720_125.png")));
                     bUIStorageShot=true;return true;
@@ -1555,11 +1558,11 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             if(UIReadyOpenStep==0)
             {
                 if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))).IsValid()){return true;}
-                // Nothing to build: the greyed-out button cannot open an empty tray, so there is no workspace to keep.
+                // Nothing to build: the workshop still opens from the 构筑 button, but there is no workspace to keep.
                 if(!Panel->HasCards())
                 {
-                    if(!Check(!PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))->GetIsEnabled(),
-                        TEXT("UI: the 构筑 button is greyed out while the tray has no card"))){return Finish();}
+                    if(!Check(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))->GetIsEnabled(),
+                        TEXT("UI: the 构筑 button opens the workshop even while the tray has no card"))){return Finish();}
                     UIReadyOpenStep=5;return true;
                 }
                 if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
@@ -2054,8 +2057,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 if(UIFieldStep==3)
                 {
                     if(Panel->HasPendingRequest()){return true;}
-                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsTrayOpen()==Panel->HasCards(),
-                        TEXT("UI: a real field-safe build commits and the tray stays open exactly while it has cards"))){return Finish();}
+                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsTrayOpen(),
+                        TEXT("UI: a real field-safe build commits and the player-opened workshop stays open"))){return Finish();}
                     Capture(TEXT("Client1FieldSafeBuild.png"));
                     UIFieldStep=30;return true;
         }
@@ -2178,8 +2181,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 {
                     if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
                     UWidget* Prompt=HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
-                    if(!Check(!Panel->IsPanelOpen()&&Prompt&&Prompt->GetIsEnabled()==Panel->HasCards(),
-                        TEXT("UI: expiry never auto-opens planning, and the 构筑 button is lit exactly while the tray has cards"))){return Finish();}
+                    if(!Check(!Panel->IsPanelOpen()&&Prompt&&Prompt->GetIsEnabled(),
+                        TEXT("UI: expiry never auto-opens planning, and the 构筑 button stays available"))){return Finish();}
                     if(Panel->HasCards()&&!Check(LDSlateProbeInput::SendClick(Prompt),
                         TEXT("UI: the remote player manually reopens the tray"))){return Finish();}
                     UIFieldStep=6;return true;

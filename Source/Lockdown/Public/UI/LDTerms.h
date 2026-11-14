@@ -158,6 +158,28 @@ inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT(
 inline FString DropReplaces(const FString& Replaced,const FString& With,const FString& Place)
 {return With.IsEmpty()?FString::Printf(TEXT("替换 %s · 装到 %s"),*Replaced,*Place):FString::Printf(TEXT("替换 %s · 连带拆下 %s · 装到 %s"),*Replaced,*With,*Place);}
 inline constexpr TCHAR DropNowhere[]=TEXT("不能装在这里");
+// 工坊台（构筑的全屏视图）：规则板、容量条、构件库分组、角色栏、待处理与信息坞。
+inline constexpr TCHAR WorkshopCapacityTitle[]=TEXT("工坊容量");
+inline FString WorkshopUnlockAt(int32 Level){return FString::Printf(TEXT("Lv %d 解锁下一格"),Level);}
+inline constexpr TCHAR WorkshopPending[]=TEXT("待处理");
+inline constexpr TCHAR WorkshopReactions[]=TEXT("元素反应");
+inline FString WorkshopPointsToSpend(int64 Count){return FString::Printf(TEXT("%lld 点可分配"),Count);}
+inline constexpr TCHAR WorkshopInstalledOn[]=TEXT("装在");
+inline constexpr TCHAR WorkshopGoesOn[]=TEXT("可装");
+inline constexpr TCHAR WorkshopLinks[]=TEXT("联动");
+inline constexpr TCHAR WorkshopNotes[]=TEXT("注意");
+inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑已锁定");
+inline constexpr TCHAR WorkshopClose[]=TEXT("Esc");
+inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("需要已学：%s"),*Names);}
+// 三种元素反应（APP_SPEC §4.4：起雾、导电、过载）。
+inline constexpr TCHAR ReactionFog[]=TEXT("起雾");
+inline constexpr TCHAR ReactionConduct[]=TEXT("导电");
+inline constexpr TCHAR ReactionOverload[]=TEXT("过载");
+// 基础规则的触发来源（内容效果的触发字段）。
+inline constexpr TCHAR TriggerBasicHit[]=TEXT("普攻命中");
+inline constexpr TCHAR TriggerAbilityHit[]=TEXT("主动命中");
+inline constexpr TCHAR TriggerDamaged[]=TEXT("受到伤害");
+inline constexpr TCHAR TriggerDashComplete[]=TEXT("冲刺完成");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
