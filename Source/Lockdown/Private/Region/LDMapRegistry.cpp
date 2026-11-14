@@ -175,6 +175,7 @@ void ULDMapRegistry::OnWorldBeginPlay(UWorld& W)
     Super::OnWorldBeginPlay(W);
     if (UWorld::RemovePIEPrefix(W.GetOutermost()->GetName()) == LDDemoEntry::WorldMap)
     {
+        LDNativeGround::RetireLegacyCliffGuards(W);
         FString Error;
         if (!Rebuild(Error)) { UE_LOG(LogLDWorld, Error, TEXT("LD_DEMO_WORLD_BINDING_REJECTED %s"), *Error); }
 #if WITH_DEV_AUTOMATION_TESTS

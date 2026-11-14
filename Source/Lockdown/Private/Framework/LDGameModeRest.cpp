@@ -307,6 +307,8 @@ bool ALDGameMode::AdvanceTimeline(const FLDGameplayWritePermit& Permit, FString&
         || !Timeline.Advance(Permit.GetBoundary().AtMs, RestSignups.Num(), false, bBodiesReady, Events, Error)
         || !ApplyTimelineEvents(Events, Permit, Error)
         || !RetryPhasePlacements(Permit, Error)
+        || (IsRestPhase(MatchContext) && !bFieldReturnStarted && !PendingSharedTrainingPlacements.IsEmpty()
+            && !SpawnSharedTrainingDummies(Permit, Error))
         || !RefreshRestSignups(Error)
         || (IsRestPhase(MatchContext) && !ProcessTrainingResets(Permit, Error)))
     {
@@ -1134,7 +1136,18 @@ bool ALDGameMode::SpawnSharedTrainingDummies(const FLDGameplayWritePermit& Permi
         const FName Id(*Anchor.Id);
         if (SharedTrainingDummies.Contains(Id)) { continue; }
         FLDTrainingDummy Dummy;
-        if (!SpawnTrainingBody(Id, Level, 0, Permit, Dummy, Error)) { Error = Anchor.Id + TEXT(": ") + Error; return false; }
+        if (!SpawnTrainingBody(Id, Level, 0, Permit, Dummy, Error))
+        {
+            if (!Error.StartsWith(TEXT("SpawnBlocked:"))) { Error = Anchor.Id + TEXT(": ") + Error; return false; }
+            if (!PendingSharedTrainingPlacements.Contains(Id))
+            {
+                UE_LOG(LogLDMatch, Display, TEXT("LD_SHARED_TRAINING_PENDING anchor=%s %s"), *Anchor.Id, *Error);
+                PendingSharedTrainingPlacements.Add(Id);
+            }
+            Error.Reset();
+            continue;
+        }
+        PendingSharedTrainingPlacements.Remove(Id);
         SharedTrainingDummies.Add(Id, Dummy);
         UE_LOG(LogLDMatch, Display, TEXT("LD_SHARED_TRAINING_SPAWN anchor=%s dummy=%s level=%u"),
             *Anchor.Id, *LDLog::Id(Dummy.Entity), uint32(Level));
@@ -1147,6 +1160,7 @@ void ALDGameMode::RetireSharedTrainingDummies()
 {
     for (const auto& Pair : SharedTrainingDummies) { RetireTrainingBody(Pair.Value); }
     SharedTrainingDummies.Reset();
+    PendingSharedTrainingPlacements.Reset();
 }
 
 bool ALDGameMode::AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error)

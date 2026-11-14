@@ -20,6 +20,22 @@ const FCollisionResponseParams& StaticResponse()
 }
 }
 
+int32 LDNativeGround::RetireLegacyCliffGuards(UWorld& World)
+{
+    TArray<AActor*> Guards;
+    for (TActorIterator<AActor> It(&World); It; ++It)
+    { if (It->ActorHasTag(TEXT("LDDemoCliffGuard"))) { Guards.Add(*It); } }
+    for (auto* Guard : Guards)
+    {
+        Guard->SetActorEnableCollision(false);
+#if WITH_EDITOR
+        if (!World.IsGameWorld()) { World.EditorDestroyActor(Guard, true); continue; }
+#endif
+        Guard->Destroy();
+    }
+    return Guards.Num();
+}
+
 bool LDNativeGround::IsSupport(const UPrimitiveComponent& Component)
 {
     const auto* Body = Component.GetBodyInstance();
@@ -33,7 +49,7 @@ FCollisionQueryParams LDNativeGround::Query(const UWorld& World)
 {
     FCollisionQueryParams Result(SCENE_QUERY_STAT(DemoNativeGround), false);
     Result.AddIgnoredActor(World.GetDefaultBrush());
-    // Invisible cliff guards stop lateral movement; their tops are not standing surfaces.
+    // Old saved maps may still contain template fences before their editor navigation bake.
     for (TActorIterator<AActor> It(&World); It; ++It)
     { if (It->ActorHasTag(TEXT("LDDemoCliffGuard"))) { Result.AddIgnoredActor(*It); } }
     return Result;

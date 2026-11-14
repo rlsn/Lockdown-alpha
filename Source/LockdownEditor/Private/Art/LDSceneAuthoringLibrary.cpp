@@ -5,12 +5,14 @@
 #include "NavigationSystem.h"
 #include "NavMesh/RecastNavMesh.h"
 #include "Region/LDMapRegistry.h"
+#include "World/LDNativeGround.h"
 #include "Settings/LevelEditorMiscSettings.h"
 #include "UObject/UnrealType.h"
 
 bool ULDSceneAuthoringLibrary::BakeNavigation(UWorld* World, FString& Error)
 {
     if (!World || World->IsGameWorld()) { Error = TEXT("Bake navigation in the editor world after stopping Play."); return false; }
+    LDNativeGround::RetireLegacyCliffGuards(*World);
     auto* Settings = GetMutableDefault<ULevelEditorMiscSettings>();
     Settings->bNavigationAutoUpdate = true;
     Settings->SaveConfig();

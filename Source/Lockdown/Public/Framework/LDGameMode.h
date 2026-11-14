@@ -658,6 +658,7 @@ private:
     // By roster slot contender; the association fixes the chassis, not access or attack attribution.
     TMap<FGuid, FLDTrainingDummy> TrainingDummies;
     TMap<FName, FLDTrainingDummy> SharedTrainingDummies;
+    TSet<FName> PendingSharedTrainingPlacements;
     TSet<FGuid> TrainingDummyIds;
     struct FLDTrainingResetWindow { uint32 Life = 0; uint8 RestIndex = 0; int64 StartedAtMs = 0; };
     TMap<FGuid, FLDTrainingResetWindow> PendingTrainingResets;

@@ -209,106 +209,6 @@ TArray<FVector> ConvexPoints(const TArray<FVector>& Prism)
     return Out;
 }
 
-// #97: a cliff is closed by an invisible guard, not by its height. A guard is a thin box on every stretch of a terrain
-// edge whose outer side is lower flat ground: plateau edges not met by a ramp or by ground as high, and both sides of
-// every ramp. Guards stop bodies and navigation only; sight, floor and pointer traces pass through, so high ground
-// still sees low ground across a cliff.
-const FName CliffGuardTag(TEXT("LDDemoCliffGuard"));
-constexpr double GuardSampleCm = 5, GuardThicknessCm = 2;
-
-struct FCliffGuard
-{
-    FString Id;
-    FVector2D From = FVector2D::ZeroVector, To = FVector2D::ZeroVector;
-};
-
-// At Point on an edge, Inner is the tier just inside (see LDDemoWorld::FTerrain), and the edge is open to a fall when
-// the tier just outside is flat ground below Ceiling, inside the field. Outward is the half-thickness edge normal.
-bool Exposed(const LDDemoWorld::FTerrain& Levels, const FVector& Min, const FVector& Max, const FVector2D& Point,
-    const FVector2D& Outward, int32 Inner, int32 Ceiling)
-{
-    const FVector2D Outside = Point + Outward;
-    if (Outside.X <= Min.X || Outside.X >= Max.X || Outside.Y <= Min.Y || Outside.Y >= Max.Y) { return false; }
-    const int32 Below = Levels.Tier(Outside);
-    return Levels.Tier(Point - Outward) == Inner && Below % 2 == 0 && Below < Ceiling;
-}
-
-FVector2D Outward(const FVector2D& A, const FVector2D& B) { return FVector2D(B.Y - A.Y, A.X - B.X).GetSafeNormal() * (GuardThicknessCm * .5); }
-
-// Each run of open GuardSampleCm samples along A->B becomes one guard spanning the run.
-void EdgeGuards(const LDDemoWorld::FTerrain& Levels, const FVector& Min, const FVector& Max, const FString& Owner, int32 Edge,
-    const FVector2D& A, const FVector2D& B, int32 Inner, int32 Ceiling, TArray<FCliffGuard>& Out)
-{
-    const FVector2D Normal = Outward(A, B);
-    const int32 Samples = FMath::Max(1, FMath::CeilToInt32(FVector2D::Distance(A, B) / GuardSampleCm));
-    int32 Start = INDEX_NONE, Run = 0;
-    for (int32 I = 0; I <= Samples; ++I)
-    {
-        const bool Open = I < Samples && Exposed(Levels, Min, Max, FMath::Lerp(A, B, (I + .5) / Samples), Normal, Inner, Ceiling);
-        if (Open && Start == INDEX_NONE) { Start = I; }
-        if (!Open && Start != INDEX_NONE)
-        {
-            Out.Add({FString::Printf(TEXT("cliff_%s_%d_%d"), *Owner, Edge, Run++),
-                FMath::Lerp(A, B, double(Start) / Samples), FMath::Lerp(A, B, double(I) / Samples)});
-            Start = INDEX_NONE;
-        }
-    }
-}
-
-bool Ring2D(const TArray<FLDDemoWorldPoint>& Polygon, TArray<FVector2D>& Out, FString& Error)
-{
-    for (const auto& Source : Polygon)
-    {
-        FVector Point;
-        if (!Source.ToVector(Point, Error)) { return false; }
-        Out.Add(FVector2D(Point));
-    }
-    return true;
-}
-
-// Calls Visit(Owner, Edge, A, B, Inner, Ceiling) for every plateau edge and ramp side that may face a fall.
-template <typename F>
-bool ForEachTerrainEdge(const FLDDemoWorldGeometry& Geometry, F&& Visit, FString& Error)
-{
-    for (const auto& Plateau : Geometry.Plateaus)
-    {
-        TArray<FVector2D> Points;
-        if (!Ring2D(Plateau.PolygonCm, Points, Error)) { return false; }
-        for (int32 I = 0; I < Points.Num(); ++I) { Visit(Plateau.Id, I, Points[I], Points[(I + 1) % Points.Num()], 2 * Plateau.Level, 2 * Plateau.Level); }
-    }
-    for (const auto& Ramp : Geometry.Ramps)
-    {
-        TArray<FVector2D> Points;
-        if (!Ring2D(Ramp.PolygonCm, Points, Error) || Points.Num() != 4) { return Fail(Error, TEXT("Invalid typed ramp quad: ") + Ramp.Id); }
-        for (const int32 I : {1, 3}) { Visit(Ramp.Id, I, Points[I], Points[(I + 1) % 4], 2 * Ramp.LowerLevel + 1, 2 * Ramp.LowerLevel + 2); }
-    }
-    return true;
-}
-
-bool CliffGuards(const FLDDemoWorldGeometry& Geometry, TArray<FCliffGuard>& Out, FString& Error)
-{
-    LDDemoWorld::FTerrain Levels;
-    FVector Min, Max;
-    if (!Levels.Build(Geometry, Error) || !Geometry.Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry.Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
-    return ForEachTerrainEdge(Geometry, [&](const FString& Owner, int32 Edge, const FVector2D& A, const FVector2D& B, int32 Inner, int32 Ceiling)
-    {
-        EdgeGuards(Levels, Min, Max, Owner, Edge, A, B, Inner, Ceiling, Out);
-    }, Error);
-}
-
-// Guards rise from the ground past a full capsule standing on the highest level.
-double GuardHeight(const FLDDemoWorldGeometry& Geometry, const FCollisionShape& Capsule)
-{
-    return (LDDemoWorld::MaxLevel + 1) * RationalCm(Geometry.LevelStepCm) + 2 * Capsule.GetCapsuleHalfHeight();
-}
-
-FTransform GuardTransform(const FCliffGuard& Guard, double Height)
-{
-    const FVector2D Mid = (Guard.From + Guard.To) * .5, Along = Guard.To - Guard.From;
-    return FTransform(FRotator(0, FMath::RadiansToDegrees(FMath::Atan2(Along.Y, Along.X)), 0), FVector(Mid, Height * .5),
-        FVector(Along.Size(), GuardThicknessCm, Height) / 100.);
-}
-
 // Every face of a generated convex prism faces away from its interior, as Unreal reads a triangle's front
 // (Cross(P2 - P0, P1 - P0)): tops face the sky, cliff and wall faces face out, so nothing renders inside out.
 bool FacesOutward(const UStaticMesh& Mesh)
@@ -325,18 +225,6 @@ bool FacesOutward(const UStaticMesh& Mesh)
         const TArrayView<const FVertexID> Corner = Description->GetTriangleVertices(Triangle);
         const FVector3f A = Positions[Corner[0]], B = Positions[Corner[1]], C = Positions[Corner[2]];
         if (FVector3f::DotProduct(FVector3f::CrossProduct(C - A, B - A), (A + B + C) / 3.f - Inside) <= 0) { return false; }
-    }
-    return true;
-}
-
-bool GuardChannelsMatch(const UStaticMeshComponent& Component)
-{
-    if (Component.GetCollisionEnabled() != ECollisionEnabled::QueryAndPhysics || Component.GetCollisionObjectType() != ECC_WorldStatic
-        || !Component.CanEverAffectNavigation()) { return false; }
-    for (const ECollisionChannel Channel : {ECC_WorldStatic, ECC_WorldDynamic, ECC_Pawn, ECC_Visibility, ECC_Camera, ECC_PhysicsBody,
-        ECC_Vehicle, ECC_Destructible, ECC_GameTraceChannel1, ECC_GameTraceChannel2})
-    {
-        if (Component.GetCollisionResponseToChannel(Channel) != (Channel == ECC_Pawn ? ECR_Block : ECR_Ignore)) { return false; }
     }
     return true;
 }
@@ -617,7 +505,7 @@ bool LDDemoWorldBuilder::Refresh(UWorld& World, ULDMapDefinition& Definition, co
     for (AActor* Actor : World.PersistentLevel->Actors)
     {
         if (!Actor) { continue; }
-        if (Actor->ActorHasTag(CliffGuardTag) || Cast<ANavMeshBoundsVolume>(Actor)) { Derived.Add(Actor); continue; }
+        if (Actor->ActorHasTag(TEXT("LDDemoCliffGuard")) || Cast<ANavMeshBoundsVolume>(Actor)) { Derived.Add(Actor); continue; }
         if (auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->ActorHasTag(LDDemoWorld::StaticGeometryTag))
         {
             const FString Id = Mesh->Tags[0].ToString();
@@ -656,23 +544,6 @@ bool LDDemoWorldBuilder::Refresh(UWorld& World, ULDMapDefinition& Definition, co
         auto* Shape = LDStaticScene::Collision(*Actor);
         Shape->SetStaticMesh(Mesh);
         Shape->SetWorldTransform(FTransform(Position));
-    }
-    TArray<FCliffGuard> Guards;
-    if (!CliffGuards(*Geometry, Guards, Error)) { return false; }
-    const double Top = GuardHeight(*Geometry, Capsule);
-    auto* Cube = LoadObject<UStaticMesh>(nullptr, CubePath);
-    auto* Wall = LoadObject<UMaterialInterface>(nullptr, *ObjectPath(WallMaterialPath));
-    for (const auto& Guard : Guards)
-    {
-        auto* Actor = Place(World, Guard.Id, Cube, Wall, FVector::ZeroVector, FVector::OneVector, false, true, false, Error);
-        if (!Actor) { return false; }
-        Actor->SetActorTransform(GuardTransform(Guard, Top));
-        Actor->Tags.Add(CliffGuardTag);
-        auto* Part = Actor->GetStaticMeshComponent();
-        Part->SetCollisionResponseToAllChannels(ECR_Ignore);
-        Part->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-        Part->SetVisibility(false); Part->SetHiddenInGame(true); Part->SetCastShadow(false);
-        Actor->SetFolderPath(TEXT("Environment/DerivedCliffCollision"));
     }
     if (!BuildNavigation(World, *Geometry, Capsule, Error)) { return false; }
     World.GetOutermost()->GetMetaData().SetValue(&World, GeometryStamp, *Definition.Checksum);
@@ -778,9 +649,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     }
     TArray<FTerrainPiece> Terrain;
     if (!TerrainPieces(*Geometry, Terrain, Error)) { return false; }
-    TArray<FCliffGuard> Guards;
-    if (!CliffGuards(*Geometry, Guards, Error)) { return false; }
-    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Terrain.Num() + Geometry->Blockers.Num() + Guards.Num(),
+    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Terrain.Num() + Geometry->Blockers.Num(),
         TEXT("Exact native anchor, navigation and static-geometry counts"));
     Check(Steppable == 0, TEXT("No generated geometry lets a body step up onto it"));
     Check(!Faced.IsEmpty() && InsideOut.IsEmpty(),
@@ -975,40 +844,11 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             ++RampChecks;
         }
     }
-    // #97: guards, not heights, close every cliff. Each derived guard is an invisible movement-only box on its edge, and
-    // across every plateau edge or ramp side that faces lower ground, a capsule lifted clear of the higher side is
-    // still stopped, so no cliff relies on its height or on step-up rules.
-    const double GuardTop = GuardHeight(*Geometry, Capsule);
-    TArray<UStaticMeshComponent*> GuardComponents;
-    for (const auto& Guard : Guards)
-    {
-        const auto* Actor = Meshes.FindRef(Guard.Id);
-        if (!Check(Actor != nullptr, TEXT("Cliff guard exists: ") + Guard.Id)) { continue; }
-        UStaticMeshComponent* Component = LDStaticScene::Collision(*Actor);
-        Check(Component->GetStaticMesh() && Component->GetStaticMesh()->GetPathName() == CubePath
-            && Actor->GetActorTransform().Equals(GuardTransform(Guard, GuardTop), 1e-3) && Actor->Tags.Contains(CliffGuardTag)
-            && GuardChannelsMatch(*Component) && Component->bHiddenInGame && !Component->IsVisible() && !Component->CastShadow,
-            TEXT("Cliff guard is an invisible box that stops only bodies and navigation: ") + Guard.Id);
-        GuardComponents.Add(Component);
-    }
-    LDDemoWorld::FTerrain Levels;
-    if (!Levels.Build(*Geometry, Error)) { return false; }
-    int32 CliffChecks = 0;
-    if (!ForEachTerrainEdge(*Geometry, [&](const FString& Owner, int32 Edge, const FVector2D& A, const FVector2D& B, int32 Inner, int32 Ceiling)
-    {
-        const FVector2D Mid = (A + B) * .5, Normal = Outward(A, B);
-        if (!Exposed(Levels, Min, Max, Mid, Normal, Inner, Ceiling)) { return; }
-        const FVector2D Out = Normal.GetSafeNormal() * (Capsule.GetCapsuleRadius() + 20);
-        const double Lift = Ceiling / 2 * Levels.StepCm + Capsule.GetCapsuleHalfHeight() + 1;
-        bool Stopped = false;
-        FHitResult Hit;
-        for (UStaticMeshComponent* Component : GuardComponents)
-        {
-            Stopped = Stopped || Component->SweepComponent(Hit, FVector(Mid + Out, Lift), FVector(Mid - Out, Lift), FQuat::Identity, Capsule);
-        }
-        Check(Stopped, FString::Printf(TEXT("A cliff guard stops the capsule lifted above the cliff: %s edge %d"), *Owner, Edge));
-        ++CliffChecks;
-    }, Error)) { return false; }
+    const auto* Movement = GetDefault<ALDCharacter>()->GetCharacterMovement();
+    Check(Movement && !Movement->bCanWalkOffLedges,
+        TEXT("Native CharacterMovement prevents walking off edited terrain ledges"));
+    for (TActorIterator<AActor> It(&World); It; ++It)
+    { Check(!It->ActorHasTag(TEXT("LDDemoCliffGuard")), TEXT("No detached template cliff fences remain")); }
     // Every blocker, on a line through it across its thinnest side: its own collision stops the capsule, and it
     // spans the eye-height sight line exactly when it is declared to block sight (walls and trees do; fences stay under
     // the sight sample). Channel responses are checked per blocker above.
@@ -1052,8 +892,6 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Report->SetStringField(TEXT("catalog_sha256"), Content.Get().Identity.Root.ToHex());
     Report->SetNumberField(TEXT("spawn_placement_checks"), PlacementChecks);
     Report->SetNumberField(TEXT("ramp_checks"), RampChecks);
-    Report->SetNumberField(TEXT("cliff_checks"), CliffChecks);
-    Report->SetNumberField(TEXT("cliff_guards"), Guards.Num());
     Report->SetArrayField(TEXT("checks"), Checks);
     if (!FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(ReportDirectory),
         FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))

@@ -11,6 +11,7 @@ class ALDPlayerController;
 class ALDWorldViewRelay;
 class ALDCharacter;
 class ALDGameMode;
+class UPrimitiveComponent;
 class FLDDemoContentSnapshot;
 struct FLDDemoWorldGeometry;
 struct FLDDemoRational;
@@ -100,6 +101,7 @@ private:
     TArray<TArray<int32>> CellPolygons;
     TArray<TArray<int32>> CellCircles;
     TArray<TArray<int32>> CellRegions;
+    TArray<TArray<int32>> CellNativeTerrain;
     TArray<int32> CoverageTiers;
     struct FCircle
     {
@@ -118,6 +120,13 @@ private:
     TWeakObjectPtr<UWorld> Scene;
     double SampleHeightCm = 0;
     mutable TMap<int32, FCollisionQueryParams> NativeSightQueries;
+    struct FNativeTerrainPart
+    {
+        TWeakObjectPtr<UPrimitiveComponent> Component;
+        FBox Bounds = FBox(ForceInit);
+        int32 Tier = 0;
+    };
+    TArray<FNativeTerrainPart> NativeTerrainParts;
 };
 
 // Per-observer display memoization only; never used to authorize a unit or flight.

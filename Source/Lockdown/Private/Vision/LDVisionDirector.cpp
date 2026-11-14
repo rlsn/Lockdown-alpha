@@ -1,5 +1,6 @@
 #include "Vision/LDVisionDirector.h"
 #include "Components/PrimitiveComponent.h"
+#include "World/LDNativeGround.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "PK/LDPKDirector.h"
 #include "Vision/LDWorldViewRelay.h"
@@ -232,6 +233,25 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         if (NativeTerrain && NativeTerrain->IsValid()) { Terrain = *NativeTerrain; }
         else if (Registry && Registry->Enabled()) { Terrain = Registry->GetTerrain(); }
         else { Error = TEXT("Native sight requires bound terrain or an enabled map registry."); return false; }
+        // Terrain keeps its semantic tier, but its footprint comes only from the edited native body.
+        // Ordinary obstacles use LDVision independently of Pawn/ground-aim collision.
+        for (TActorIterator<AActor> It(NativeScene); It; ++It)
+        {
+            if (!It->ActorHasTag(LDDemoWorld::TerrainTag)) { continue; }
+            TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+            for (auto* Part : Parts)
+            {
+                if (!LDNativeGround::IsSupport(*Part)) { continue; }
+                auto& Entry = NativeTerrainParts.AddDefaulted_GetRef();
+                Entry.Component = Part;
+                Entry.Bounds = Part->GetBodyInstance()->GetBodyBounds();
+                Entry.Tier = FMath::Max(0, FMath::FloorToInt32((Entry.Bounds.Max.Z + .01) * 2 / Terrain.StepCm));
+                for (const auto& Plateau : Geometry.Plateaus)
+                { if (It->ActorHasTag(FName(*Plateau.Id))) { Entry.Tier = 2 * Plateau.Level; break; } }
+                for (const auto& Ramp : Geometry.Ramps)
+                { if (It->ActorHasTag(FName(*Ramp.Id))) { Entry.Tier = 2 * Ramp.LowerLevel + 1; break; } }
+            }
+        }
     }
     BuildGrid();
     Error.Reset();
@@ -253,13 +273,20 @@ void FLDSightGeometry::BuildGrid()
     CellPolygons.SetNum(GridWidth * GridHeight);
     CellCircles.SetNum(GridWidth * GridHeight);
     CellRegions.SetNum(GridWidth * GridHeight);
+    CellNativeTerrain.SetNum(GridWidth * GridHeight);
     int32 X0, Y0, X1, Y1;
-    for (int32 Index = 0; Index < Terrain.Regions.Num(); ++Index)
+    for (int32 Index = 0; !Scene.IsValid() && Index < Terrain.Regions.Num(); ++Index)
     {
         FBox2D Box(ForceInit);
         for (const FVector2D& Point : Terrain.Regions[Index].Polygon) { Box += Point; }
         CellRange(Box.Min, Box.Max, X0, Y0, X1, Y1);
         for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellRegions[Y * GridWidth + X].Add(Index); } }
+    }
+    for (int32 Index = 0; Index < NativeTerrainParts.Num(); ++Index)
+    {
+        const auto& Box = NativeTerrainParts[Index].Bounds;
+        CellRange(FVector2D(Box.Min), FVector2D(Box.Max), X0, Y0, X1, Y1);
+        for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellNativeTerrain[Y * GridWidth + X].Add(Index); } }
     }
     for (int32 Index = 0; Index < Blockers.Num(); ++Index)
     {
@@ -308,6 +335,26 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
     }
     if (const UWorld* Native = Scene.Get())
     {
+        TBitArray<TInlineAllocator<4>> TestedParts(false, NativeTerrainParts.Num());
+        for (int32 Y = Y0; Y <= Y1; ++Y)
+        {
+            for (int32 X = X0; X <= X1; ++X)
+            {
+                for (const int32 Index : CellNativeTerrain[Y * GridWidth + X])
+                {
+                    if (TestedParts[Index]) { continue; }
+                    TestedParts[Index] = true;
+                    const auto& Entry = NativeTerrainParts[Index];
+                    auto* Part = Entry.Component.Get();
+                    if (!Part || Entry.Tier <= Observer) { continue; }
+                    // Project current collision vertically; a short plateau still hides lower ground even below eye height.
+                    const FVector Centre = Entry.Bounds.GetCenter();
+                    const auto Column = FCollisionShape::MakeBox(FVector(.01, .01, Entry.Bounds.GetExtent().Z + .01));
+                    FHitResult Hit;
+                    if (Part->SweepComponent(Hit, FVector(From, Centre.Z), FVector(To, Centre.Z), FQuat::Identity, Column)) { return true; }
+                }
+            }
+        }
         double Z; FVector Normal;
         Terrain.Ground(From, Z, Normal);
         if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
@@ -324,7 +371,7 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                     const auto* Body = Part->GetBodyInstance();
                     if (!Part->IsQueryCollisionEnabled() || !Body || !Body->IsValidBodyInstance()) { continue; }
                     const double Base = Body->GetBodyBounds().Min.Z;
-                    if (FMath::FloorToInt32((Base + .01) / Terrain.StepCm) < Level) { PreparedQuery.AddIgnoredComponent(Part); }
+                    if (FMath::Max(0, FMath::FloorToInt32((Base + .01) / Terrain.StepCm)) < Level) { PreparedQuery.AddIgnoredComponent(Part); }
                 }
             }
             Query = &NativeSightQueries.Add(Level, MoveTemp(PreparedQuery));

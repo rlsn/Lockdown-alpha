@@ -1,5 +1,6 @@
 #include "Art/LDStaticScene.h"
 #include "Art/LDStaticSceneEditor.h"
+#include "LDSceneAuthoringLibrary.h"
 #include "Art/LDArtPlacement.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "AssetCompilingManager.h"
@@ -152,13 +153,16 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     TestTrue(TEXT("The same moved tree is admitted by runtime projection"), LDStaticScene::ProjectRuntimeGeometry(*F.World, *F.Geometry, Current, F.Error));
     TestTrue(TEXT("A moved tree binds without export"), Registry->Rebuild(F.Error));
     const auto Revision = Registry->Revision();
+    double TestGroundZ = 0; FVector TestGroundNormal;
+    Registry->GetTerrain().Ground(FVector2D(Before), TestGroundZ, TestGroundNormal);
+    if (!TestTrue(TEXT("The sight fixture has finite actual support"), FMath::IsFinite(TestGroundZ))) { return false; }
     auto* Added = F.World->SpawnActor<AStaticMeshActor>();
     auto* AddedMesh = Added->GetStaticMeshComponent();
     AddedMesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
     AddedMesh->SetCollisionProfileName(TEXT("BlockAll"));
     AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
     AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
-    Added->SetActorLocation(FVector(Before.X, Before.Y, 200));
+    Added->SetActorLocation(FVector(Before.X, Before.Y, TestGroundZ + 200));
     Added->SetActorScale3D(FVector(1, 1, 4));
     TestTrue(TEXT("An untagged native collision mesh binds"), Registry->Rebuild(F.Error));
     TestTrue(TEXT("Native collision edits invalidate the world revision"), Registry->Revision() != Revision);
@@ -169,21 +173,21 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     Overhead->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
     Overhead->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
     Overhead->RegisterComponent();
-    Overhead->SetWorldLocation(FVector(Before.X, Before.Y, 450));
+    Overhead->SetWorldLocation(FVector(Before.X, Before.Y, TestGroundZ + 450));
     Overhead->SetWorldScale3D(FVector(.5, .5, 1));
     FLDLegalGround Standing;
     ELDWorldQueryFailure Failure;
     FCollisionShape ApprovedCapsule;
     if (!TestTrue(TEXT("Approved body shape"), ULDMapRegistry::ContentCapsule(*F.Content, ApprovedCapsule, F.Error))) { return false; }
     TestFalse(TEXT("A floor does not hide another collision component of the same actor"), Registry->QueryGround(
-        Registry->Revision(), FVector(Before.X, Before.Y, 400), ApprovedCapsule,
+        Registry->Revision(), FVector(Before.X, Before.Y, TestGroundZ + 400), ApprovedCapsule,
         FName(*Registry->GetGeometry()->Surfaces[0].Id), Standing, Failure, F.Error));
     TestEqual(TEXT("The sibling obstruction is reported as blocked"), Failure, ELDWorldQueryFailure::Blocked);
     Overhead->DestroyComponent();
     FLDSightGeometry Sight;
     TestTrue(TEXT("Native sight accepts the current scene"), Sight.Build(*Registry->GetGeometry(), Registry->Revision(),
         F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World));
-    const FVector Left(Before.X - 60, Before.Y, 0), Right(Before.X + 60, Before.Y, 0);
+    const FVector Left(Before.X - 60, Before.Y, TestGroundZ), Right(Before.X + 60, Before.Y, TestGroundZ);
     TestEqual(TEXT("New mesh blocks sight at its actual position"), Sight.Trace(Left, Right), ELDSightResult::Blocked);
     AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
     TestTrue(TEXT("Sight channel edit binds"), Registry->Rebuild(F.Error));
@@ -400,5 +404,74 @@ bool FLDTrainingPointCopies::RunTest(const FString& Parameters)
     Conflict->Tags.Add(TEXT("LDSceneAnchor:training_dummy_0"));
     TestFalse(TEXT("A real conflicting reserved slot still reports an error"), LDStaticScene::ProjectRuntimeGeometry(*World, Base, Projected, Error));
     TestTrue(TEXT("The diagnostic names the conflicting slot"), Error.Contains(TEXT("training_dummy_0")));
+    return !HasAnyErrors();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSightEdits, "Lockdown.Rules.StaticScene.NativeSightEdits",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDNativeSightEdits::RunTest(const FString& Parameters)
+{
+    auto* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
+    ON_SCOPE_EXIT { UEditorLoadingAndSavingUtils::NewBlankMap(false); };
+    auto* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+    const auto Place = [&](const FVector& Position, const FVector& Scale)
+    {
+        auto* Actor = World->SpawnActor<AStaticMeshActor>();
+        Actor->GetStaticMeshComponent()->SetStaticMesh(Cube);
+        Actor->GetStaticMeshComponent()->SetCollisionProfileName(TEXT("BlockAll"));
+        Actor->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
+        Actor->SetActorScale3D(Scale); Actor->SetActorLocation(Position);
+        return Actor;
+    };
+    auto* Floor = Place(FVector(0,0,-50), FVector(100,100,1));
+    auto* Plateau = Place(FVector(0,0,25), FVector(1,4,.5));
+    Plateau->Tags = { LDDemoWorld::TerrainTag, TEXT("test_plateau") };
+    FLDDemoWorldGeometry Geometry;
+    Geometry.LevelStepCm = {50,1}; Geometry.SightSampleHeightCm = {150,1};
+    auto& Surface = Geometry.Surfaces.AddDefaulted_GetRef(); Surface.Id = TEXT("test_floor");
+    Surface.MinCm.X = {-5000,1}; Surface.MinCm.Y = {-5000,1};
+    Surface.MaxCm.X = {5000,1}; Surface.MaxCm.Y = {5000,1};
+    auto& Region = Geometry.Plateaus.AddDefaulted_GetRef(); Region.Id = TEXT("test_plateau"); Region.Level = 1;
+    for (const FVector2D Corner : {FVector2D(-50,-200), FVector2D(50,-200), FVector2D(50,200), FVector2D(-50,200)})
+    {
+        auto& Point = Region.PolygonCm.AddDefaulted_GetRef();
+        Point.X = {int64(Corner.X),1}; Point.Y = {int64(Corner.Y),1}; Point.Z = {50,1};
+    }
+    FString Error;
+    FLDSightGeometry Sight;
+    const auto Bind = [&]()
+    {
+        LDDemoWorld::FTerrain Terrain;
+        if (!Terrain.Build(Geometry, Error)) { return false; }
+        Terrain.BindScene(*World, FBox(FVector(-5000,-5000,-100), FVector(5000,5000,1000)));
+        return Sight.Build(Geometry, {TEXT("native_sight"),1,1}, {3000,1}, Error, World, &Terrain);
+    };
+    if (!TestTrue(TEXT("Native terrain sight binds: ") + Error, Bind())) { return false; }
+    const FVector Left(-100,0,0), Right(100,0,0);
+    TestEqual(TEXT("Intermediate plateau blocks lower observers even below eye height"), Sight.Trace(Left, Right), ELDSightResult::Blocked);
+    Plateau->SetActorLocation(FVector(0,1000,25));
+    TestTrue(TEXT("Moved terrain rebinds"), Bind());
+    TestEqual(TEXT("The old template polygon no longer occludes"), Sight.Trace(Left, Right), ELDSightResult::Visible);
+    Plateau->SetActorLocation(FVector(-100,0,25));
+    auto* Wall = Place(FVector(150,0,200), FVector(.5,4,4));
+    Wall->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+    TestTrue(TEXT("Higher observer and lower wall bind"), Bind());
+    TestEqual(TEXT("High ground sees across a tall wall rooted on the lower level"),
+        Sight.Trace(FVector(-100,0,50), FVector(300,0,0)), ELDSightResult::Visible);
+    Wall->Destroy(); Plateau->Destroy();
+    auto* Obstacle = Place(FVector(0,0,200), FVector(.5,4,4));
+    Obstacle->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Block);
+    TestTrue(TEXT("Sight-ignore obstacle binds"), Bind());
+    TestEqual(TEXT("Pawn and ground-aim blocking alone do not hide units"), Sight.Trace(Left, Right), ELDSightResult::Visible);
+    Obstacle->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Block);
+    TestTrue(TEXT("Explicit sight blocker binds"), Bind());
+    TestEqual(TEXT("Same-level explicit sight blocker hides units"), Sight.Trace(Left, Right), ELDSightResult::Blocked);
+    auto* Guard = Place(FVector(0,1000,100), FVector(.02,4,2));
+    Guard->Tags.Add(TEXT("LDDemoCliffGuard"));
+    TWeakObjectPtr<AActor> RemovedGuard(Guard);
+    TestEqual(TEXT("Legacy derived collision is retired"), LDNativeGround::RetireLegacyCliffGuards(*World), 1);
+    TestFalse(TEXT("Derived actor is destroyed rather than kept as a stale hidden fence"), RemovedGuard.IsValid());
+    TestTrue(TEXT("Ordinary authored geometry remains"), IsValid(Floor) && IsValid(Obstacle));
     return !HasAnyErrors();
 }
