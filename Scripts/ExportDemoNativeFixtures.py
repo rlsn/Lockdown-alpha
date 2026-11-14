@@ -400,6 +400,22 @@ def expected_projection(compilation):
         } for row in data["abilities"]],
         "Stats": [{"Id": row["id"], "NativeId": row["native_id"], "PerPoint": stats(row["per_point"])} for row in data["stats"]],
         "Components": [component(row) for row in data["components"]],
+        "FinalMods": [{
+            "Id": row["id"], "NativeId": row["native_id"],
+            "Requirement": ("Basic", "ForcedMove", "HardControl", "Dash", "PlacedZone").index(row["requirement"]),
+            **{dest: scalar(row[source]) if source in row else 0 for source, dest in (
+                ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
+                ("delay", "DelayMs"), ("duration", "DurationMs"), ("interval", "IntervalMs"),
+                ("pulse_interval", "PulseIntervalMs"), ("window", "WindowMs"), ("outside", "OutsideMs"),
+                ("rearm_outside", "RearmOutsideMs"), ("cooldown_cost", "CooldownCostMs"),
+                ("duration_cost", "DurationCostMs"), ("damage_ratio", "DamageScaleBp"),
+                ("control_ratio", "ControlScaleBp"), ("distance_ratio", "DistanceScaleBp"),
+                ("radius_ratio", "RadiusScaleBp"), ("move_speed_cost", "MoveSpeedCostBp"),
+                ("slow", "SlowBp"), ("slow_duration", "SlowMs"),
+            )},
+            **{dest: rational(row[source]) if source in row else {"Numerator": 0, "Denominator": 1}
+               for source, dest in (("radius", "RadiusCm"), ("distance", "DistanceCm"), ("offset", "OffsetCm"))},
+        } for row in data["final_mods"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
         "Progression": {dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),

@@ -530,7 +530,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
-        TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees"), TEXT("WarningRemainingMs")});
+        TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees"), TEXT("LengthCm"), TEXT("bOwn"), TEXT("WarningRemainingMs")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
     // #112 §10, #198: the Q/W/E active ids only; no rank, cooldown or mana field.
@@ -1279,7 +1279,7 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         ELDObservedProjectileLook::SockReturn, ELDObservedProjectileLook::BookShadow,
         ELDObservedProjectileLook::FlyerArming, ELDObservedProjectileLook::FlyerArmed, ELDObservedProjectileLook::SpeechCone,
         ELDObservedProjectileLook::AreaPlain, ELDObservedProjectileLook::AreaMagic, ELDObservedProjectileLook::AreaFire,
-        ELDObservedProjectileLook::AreaWater, ELDObservedProjectileLook::AreaElectric})
+        ELDObservedProjectileLook::AreaWater, ELDObservedProjectileLook::AreaElectric,ELDObservedProjectileLook::Road})
     {
         FLDWorldView Effects=ActiveFrame(7,3,42);
         auto Effect=Flight(FVector(20,30,2));
@@ -1287,7 +1287,10 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         const bool bArea=Look==ELDObservedProjectileLook::AreaPlain || Look==ELDObservedProjectileLook::AreaMagic
             || Look==ELDObservedProjectileLook::AreaFire || Look==ELDObservedProjectileLook::AreaWater
             || Look==ELDObservedProjectileLook::AreaElectric;
-        if (bArea)
+        Effect.bOwn=true;
+        if(Look==ELDObservedProjectileLook::Road)
+        {Effect.RadiusCm=45.f;Effect.LengthCm=600.f;}
+        else if (bArea)
         {
             Effect.RadiusCm=240.f;
             Effect.WarningRemainingMs=Look==ELDObservedProjectileLook::AreaFire ? 900 : 0;
@@ -1306,6 +1309,7 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
             && RoundTrip.Projectiles[0].Look==Look && RoundTrip.Projectiles[0].RadiusCm==Effect.RadiusCm
             && RoundTrip.Projectiles[0].InnerRadiusCm==Effect.InnerRadiusCm
             && RoundTrip.Projectiles[0].AngleDegrees==Effect.AngleDegrees
+            && RoundTrip.Projectiles[0].LengthCm==Effect.LengthCm && RoundTrip.Projectiles[0].bOwn
             && RoundTrip.Projectiles[0].WarningRemainingMs==Effect.WarningRemainingMs);
     }
     auto With = [&Full](TFunction<void(FLDWorldView&)> Change) { FLDWorldView View = Full; Change(View); return View; };
@@ -1317,6 +1321,10 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A flight cannot carry a landing warning"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].WarningRemainingMs=1; })));
     TestFalse(TEXT("A flight cannot smuggle another effect's geometry"),
         Encodes(With([](FLDWorldView& V) { V.Projectiles[0].RadiusCm=180; })));
+    TestFalse(TEXT("A road without actual walked length is refused"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::Road;V.Projectiles[0].RadiusCm=45; })));
+    TestFalse(TEXT("A non-road cannot carry an invented path"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].LengthCm=600; })));
     TestFalse(TEXT("A return flight cannot carry a ground-effect shape"),
         Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::ChalkReturn; V.Projectiles[0].RadiusCm=180; })));
     TestFalse(TEXT("A trap must declare its visible radii"),

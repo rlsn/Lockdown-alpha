@@ -543,7 +543,7 @@ bool FLDObserverLedger::Sample(const TArray<const FLDObservedTarget*>& Visible, 
 }
 
 bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjectileFact*>& Visible, TArray<FGuid>& Removed,
-    TArray<FLDObservedProjectileView>& Out, FString& Error)
+    TArray<FLDObservedProjectileView>& Out, FString& Error, const FGuid& ObserverEntity)
 {
     Removed.Reset();
     Out.Reset();
@@ -581,6 +581,8 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         View.RadiusCm = Fact->RadiusCm;
         View.InnerRadiusCm = Fact->InnerRadiusCm;
         View.AngleDegrees = Fact->AngleDegrees;
+        View.LengthCm=Fact->LengthCm;
+        View.bOwn=ObserverEntity.IsValid()&&Fact->SourceEntity==ObserverEntity;
         View.WarningRemainingMs = Fact->WarningRemainingMs;
         if (!LDObservation::ValidateProjectile(View, Error)) { return false; }
     }
@@ -1216,7 +1218,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     }
     TArray<FGuid> RemovedFlights;
     TArray<FLDObservedProjectileView> Projectiles;
-    if (!Observer.Ledger.SampleProjectiles(VisibleFlights, RemovedFlights, Projectiles, Error)) { return false; }
+    if (!Observer.Ledger.SampleProjectiles(VisibleFlights, RemovedFlights, Projectiles, Error,Observer.ContenderId)) { return false; }
     if (RemovedFlights.Num() > 0)
     {
         Removed.Append(RemovedFlights);

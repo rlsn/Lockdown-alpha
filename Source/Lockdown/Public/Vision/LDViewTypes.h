@@ -16,7 +16,7 @@ namespace LDObservation
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 13;
+    constexpr uint32 Schema = 14;
     constexpr uint16 RecentHitWindowMs = 300;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
@@ -53,7 +53,7 @@ UENUM() enum class ELDObservedProjectileLook : uint8
 {
     Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6,
     AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11,
-    ChalkReturn = 12, SockReturn = 13
+    ChalkReturn = 12, SockReturn = 13, Road = 14
 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
@@ -137,6 +137,8 @@ struct FLDObservedProjectileView
     UPROPERTY() float RadiusCm = 0;
     UPROPERTY() float InnerRadiusCm = 0;
     UPROPERTY() float AngleDegrees = 0;
+    UPROPERTY() float LengthCm = 0;
+    UPROPERTY() bool bOwn = false;
     UPROPERTY() uint32 WarningRemainingMs = 0; // time to the authoritative landing/first pulse; 0 when no warning is pending
 };
 
@@ -226,6 +228,7 @@ struct FLDObservedProjectileFact
     float RadiusCm = 0;
     float InnerRadiusCm = 0;
     float AngleDegrees = 0;
+    float LengthCm = 0;
     uint32 WarningRemainingMs = 0;
 };
 

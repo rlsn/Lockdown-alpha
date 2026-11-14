@@ -7,16 +7,23 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDHUD.h"
+#include "UI/LDUIRoot.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "World/LDCaptureMarker.h"
 #include "Containers/Ticker.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
+#include "Engine/NetConnection.h"
+#include "Engine/GameViewportClient.h"
+#include "ImageUtils.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
@@ -25,9 +32,14 @@
 #include "Serialization/JsonSerializer.h"
 
 enum class ELDShowdownProbeStage : uint8 { Join, Lobby, Running, Results, Returned, SecondStart };
+class FLDDemoCaptureProbe;
+namespace LDCaptureProbeState
+{
+    TWeakPtr<FLDDemoCaptureProbe> Existing;
+}
 
 // Either three real owners and three production opponents or six real owners run the normal timeline. Only normal
-// ready, navigation, attack and session intents are sent; no teleport, clock skip, damage injection or result override is used.
+// ready, navigation, combat and session intents are sent; no teleport, clock skip, damage injection or result override is used.
 class FLDDemoCaptureProbe : public TSharedFromThis<FLDDemoCaptureProbe>
 {
 public:
@@ -38,6 +50,19 @@ public:
     bool bPassed = true, bWritten = false, bStartSent = false, bReturnSent = false;
     bool bOpeningSeen = false, bFinalRestSeen = false, bFinalSeen = false, bMarkerSeen = false;
     bool bFinalModOffered = false, bFinalModSent = false;
+    bool bFinalDashSent = false, bExpectsRoad = false, bRoadSeen = false;
+    int32 FinalSourceIndex = INDEX_NONE;
+    bool bDisconnected = false, bRejoinSent = false, bRejoined = false, bParkedSeen = false;
+    FGuid ReconnectContender;
+    FLDCombatBodyRef ReconnectBody;
+    FLDFinalModSelection ReconnectFinalMod;
+    uint64 ReconnectBuildRevision = 0;
+    uint64 ReconnectBuildNext = 0;
+    double ReconnectHp = 0, ReconnectMp = 0;
+    bool bRenderHost = false, bSourcePickerSeen = false;
+    FString PendingShot, ShotError;
+    TSet<FString> SavedShots;
+    FDelegateHandle ShotHandle;
     uint8 FieldMask = 0;
     int32 HumanCount = 3;
     uint32 Generation = 0, NextGeneration = 0;
@@ -92,15 +117,124 @@ public:
         return bValue;
     }
 
+    bool HoldForShot(const TCHAR* File, ULDChoicesPanel* Panel = nullptr)
+    {
+        if (!bRenderHost || SavedShots.Contains(File)) { return false; }
+        if (!ShotError.IsEmpty())
+        { Check(false, TEXT("R01"), *ShotError); return false; }
+        if (!FApp::CanEverRender() || !GEngine || !GEngine->GameViewport)
+        { Check(false, TEXT("R00"), TEXT("The participating Host has a rendered game viewport")); return false; }
+        if (Panel && !Panel->IsTrayOpen()) { Panel->OpenPanel(); }
+        if (PendingShot.IsEmpty())
+        {
+            if (!ShotHandle.IsValid())
+            { ShotHandle = UGameViewportClient::OnScreenshotCaptured().AddSP(AsShared(), &FLDDemoCaptureProbe::OnShot); }
+            PendingShot = File;
+            FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, File), true, false);
+        }
+        return true;
+    }
+
+    void OnShot(int32 Width, int32 Height, const TArray<FColor>& Colors)
+    {
+        if (PendingShot.IsEmpty()) { return; }
+        TArray64<uint8> Png;
+        FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(Colors.GetData(), Colors.Num()), Png);
+        if (Png.IsEmpty() || !FFileHelper::SaveArrayToFile(Png, *FPaths::Combine(Output, PendingShot)))
+        { ShotError = TEXT("The rendered FIN/flag frame could not be saved."); }
+        else
+        {
+            SavedShots.Add(PendingShot);
+            UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_CAPTURE_SCREENSHOT file=%s width=%d height=%d"), *PendingShot, Width, Height);
+        }
+        PendingShot.Reset();
+    }
+
+    bool HoldForReconnect(ALDPlayerController& PC, ALDGameState& Public, bool bInput)
+    {
+        if (HumanCount != 6) { return false; }
+        UWorld* World = PC.GetWorld();
+        if (Role == TEXT("Host") && !bParkedSeen
+            && FPaths::FileExists(FPaths::Combine(Output, TEXT("Client5ReconnectBefore.json"))))
+        {
+            ALDGameMode* Mode = World->GetAuthGameMode<ALDGameMode>();
+            const auto* Member = Public.DemoLobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
+                { return Row.Name == Name(TEXT("Client5")); });
+            for (auto It = World->GetPlayerControllerIterator(); Mode && Member && It; ++It)
+            {
+                auto* Parked = Cast<ALDPlayerController>(It->Get());
+                const auto* State = Parked ? Mode->StateFor(Parked) : nullptr;
+                if (!Parked || !Parked->bParkedForReconnect || !State || State->ContenderId != Member->ContenderId) { continue; }
+                FLDCombatBodyRef Body;
+                FVector Foot;
+                const auto Build = Mode->Development->ReadProgression(Member->ContenderId);
+                bParkedSeen = true;
+                Check(Mode->ReadLivingBody(Member->ContenderId, Body, Foot) && Body == State->BodyRef
+                    && Parked->GetPawn() && !Parked->HUDUI && !Build.FinalMod.IsEmpty() && Build.bBuildLocked
+                    && Public.DemoLobby.Members.Num() == 6,
+                    TEXT("A04"), TEXT("Disconnect retains the same authoritative body and locked FIN without a replacement participant or local UI"));
+                if (bPassed && !Mark(TEXT("ReconnectParked.json"))) { bPassed = false; }
+                break;
+            }
+        }
+        if (Role != TEXT("Client5")) { return false; }
+        if (bDisconnected && !bRejoined)
+        {
+            if (PC.IsFrontend())
+            {
+                auto* Instance = PC.GetGameInstance<ULDGameInstance>();
+                if (!Instance || !Instance->CanReconnect() || !bInput || bRejoinSent
+                    || !FPaths::FileExists(FPaths::Combine(Output, TEXT("HostReconnectParked.json")))) { return true; }
+                UButton* Button = PC.RootUI && PC.RootUI->WidgetTree
+                    ? PC.RootUI->WidgetTree->FindWidget<UButton>(TEXT("Reconnect")) : nullptr;
+                if (!Button || !Button->GetIsEnabled()) { return true; }
+                Button->OnClicked.Broadcast();
+                bRejoinSent = true;
+                return true;
+            }
+            const auto* Build = PC.ReadOwnProgression();
+            if (!bRejoinSent || PC.OwnerState.Match != Generation || !Build || !Build->bValid
+                || !PC.GetPawn() || !PC.OwnerState.ContenderId.IsValid()) { return true; }
+            bRejoined = true;
+            Check(World->GetNetMode() == NM_Client && PC.GetNetConnection()
+                && PC.OwnerState.ContenderId == ReconnectContender && PC.OwnerState.BodyRef == ReconnectBody
+                && Build->FinalMod == ReconnectFinalMod && Build->bBuildLocked && Build->BuildRevision == ReconnectBuildRevision
+                && PC.PeekGrowthRequestId(ELDGrowthFamily::Build) == ReconnectBuildNext
+                && PC.OwnerState.Hp == ReconnectHp && PC.OwnerState.Mp == ReconnectMp,
+                TEXT("C14"), TEXT("The real frontend reconnect restores the same life, resources, build request cursor and locked FIN on the owning connection"));
+            NextInputAt = FPlatformTime::Seconds() + 1.;
+            return true;
+        }
+        const auto* Build = PC.ReadOwnProgression();
+        if (!bDisconnected && Public.PublicMatch.Phase == ELDMatchPhase::Rest
+            && Public.PublicMatch.Timeline.RestIndex == 3 && Build && Build->bBuildLocked && !Build->FinalMod.IsEmpty())
+        {
+            ReconnectContender = PC.OwnerState.ContenderId;
+            ReconnectBody = PC.OwnerState.BodyRef;
+            ReconnectFinalMod = Build->FinalMod;
+            ReconnectBuildRevision = Build->BuildRevision;
+            ReconnectBuildNext = PC.PeekGrowthRequestId(ELDGrowthFamily::Build);
+            ReconnectHp = PC.OwnerState.Hp;
+            ReconnectMp = PC.OwnerState.Mp;
+            bDisconnected = true;
+            if (!PC.GetNetConnection() || !Mark(TEXT("ReconnectBefore.json"))) { bPassed = false; return true; }
+            PC.GetNetConnection()->Close();
+            return true;
+        }
+        return false;
+    }
+
     bool Finish()
     {
+        if (ShotHandle.IsValid())
+        { UGameViewportClient::OnScreenshotCaptured().Remove(ShotHandle); ShotHandle.Reset(); }
         auto Report = MakeShared<FJsonObject>();
         Report->SetBoolField(TEXT("passed"), bPassed);
         Report->SetStringField(TEXT("role"), Role);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetStringField(TEXT("scope"), HumanCount == 6
-            ? TEXT("Normal three-field timeline, six real owning connections, final-rest active selection and build lock for all six, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography.")
-            : TEXT("Normal three-field timeline, three owning connections plus three production AI, final-rest active selection and build lock for all six, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not distinct FIN effects, graphical quality or exhaustive respawn/cutoff choreography."));
+            ? TEXT("Normal three-field timeline, six real owning connections, independent FIN selection and build lock, frontend reconnect after selection, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not graphical quality or exhaustive respawn/cutoff choreography.")
+            : TEXT("Normal three-field timeline, three owning connections plus three production AI, independent FIN selection and build lock, registered six-entry final arena, objective termination, growth freeze, Lobby return and fresh second start. Not graphical quality or exhaustive respawn/cutoff choreography."));
         Report->SetArrayField(TEXT("checks"), Checks);
         Report->SetObjectField(TEXT("summary"), Summary);
         bWritten = Save(Report, Role + TEXT(".json"));
@@ -134,6 +268,9 @@ public:
         auto* Mode = World->GetAuthGameMode<ALDGameMode>();
         const bool bHost = Role == TEXT("Host");
         const bool bInput = Local >= NextInputAt;
+        const bool bReconnectHeld = HoldForReconnect(*PC, *Public, bInput);
+        if (!bPassed) { return Finish(); }
+        if (bReconnectHeld) { return true; }
         const auto CountKind = [&Lobby](ELDContenderKind Kind)
         { return Lobby.Members.FilterByPredicate([Kind](const FLDLobbyMember& Row) { return Row.Kind == Kind; }).Num(); };
 
@@ -227,21 +364,51 @@ public:
             && Growth->bFinalModPending && Growth->FinalModOptions.Num() == 3)
         {
             bFinalModOffered = true;
+            if (Panel && HoldForShot(TEXT("HostFinalOffer.png"), Panel)) { return true; }
+            if (!bPassed) { return Finish(); }
             if (!bFinalModSent && bInput && Panel && !Growth->bHasActiveOffer)
             {
-                for (int32 Index = 0; Index < Growth->FinalModOptions.Num(); ++Index)
+                if (FinalSourceIndex != INDEX_NONE)
                 {
-                    const FName Option = Growth->FinalModOptions[Index];
-                    if (!Growth->PendingBlueprints.Contains(Option) && !Growth->Actives.ContainsByPredicate(
-                        [Option](const FLDActiveSlotView& Active) { return Active.DefinitionId == Option; }))
+                    bSourcePickerSeen = true;
+                    if (HoldForShot(TEXT("HostFinalSource.png"), Panel)) { return true; }
+                    if (!bPassed) { return Finish(); }
+                    bFinalModSent = Panel->ChooseFinalModSource(FinalSourceIndex);
+                }
+                else
+                {
+                    const int32 TrafficIndex = Growth->FinalModOptions.IndexOfByKey(FName(TEXT("final_traffic")));
+                    for (int32 Order = 0; Order < Growth->FinalModOptions.Num(); ++Order)
                     {
-                        bFinalModSent = Panel->ChooseFinalMod(Index);
-                        break;
+                        int32 Index = Order;
+                        if (TrafficIndex != INDEX_NONE)
+                        {
+                            if (Order == 0) { Index = TrafficIndex; }
+                            else if (Order <= TrafficIndex) { Index = Order - 1; }
+                        }
+                        const FName Option = Growth->FinalModOptions[Index];
+                        const auto Sources=Growth->FinalModSources.FilterByPredicate(
+                            [Option](const FLDFinalModSourceView& Source){return Source.Option==Option;});
+                        if (Sources.Num()>0)
+                        {
+                            const bool bChosen = Panel->ChooseFinalMod(Index);
+                            if (bChosen && Sources.Num()>1)
+                            {
+                                const int32 DashIndex = Sources.IndexOfByPredicate(
+                                    [](const FLDFinalModSourceView& Source) { return Source.TargetKind == ELDComponentTargetKind::Dash; });
+                                FinalSourceIndex = DashIndex == INDEX_NONE ? 0 : DashIndex;
+                            }
+                            else { bFinalModSent = bChosen; }
+                            break;
+                        }
                     }
                 }
                 NextInputAt = Local + 1.;
             }
         }
+        if (View.Phase == ELDMatchPhase::Rest && View.Timeline.RestIndex == 3 && Growth && Growth->bBuildLocked
+            && Panel && HoldForShot(TEXT("HostFinalLocked.png"), Panel)) { return true; }
+        if (!bPassed) { return Finish(); }
         if (View.Phase == ELDMatchPhase::Rest && PC->OwnerState.bCanRestReady && !PC->OwnerState.bRestReady && bInput
             && (View.Timeline.RestIndex != 3 || (Growth && Growth->bBuildLocked && !Growth->FinalModChosen.IsNone())))
         { PC->SubmitRestReady(true); NextInputAt = Local + 2.; }
@@ -254,9 +421,10 @@ public:
             Check(bOpeningSeen && FieldMask == 7 && bFinalRestSeen && View.Timeline.Stage == ELDMatchStage::FinalField,
                 TEXT("C04"), TEXT("Three normal growth fields and final rest precede final-field entry"));
             Check(bFinalModOffered && bFinalModSent && Growth->bBuildLocked && !Growth->bFinalModPending
-                && !Growth->FinalModChosen.IsNone() && Growth->Actives.ContainsByPredicate(
-                    [Growth](const FLDActiveSlotView& Active) { return Active.DefinitionId == Growth->FinalModChosen && Active.Slot == Growth->FinalModSlot; }),
-                TEXT("C04F"), TEXT("The owner chose a final-rest active into its slot and the build is locked"));
+                && !Growth->FinalMod.IsEmpty() && Growth->FinalMod.DefinitionId==Growth->FinalModChosen
+                && !Growth->Actives.ContainsByPredicate(
+                    [Growth](const FLDActiveSlotView& Active) { return Active.DefinitionId==Growth->FinalModChosen; }),
+                TEXT("C04F"), TEXT("The owner chose an independent final rule with a source and locked the ordinary build"));
             TSharedPtr<const FLDDemoContentSnapshot> Content;
             FLDShowdownParameters Settings;
             const bool bConfigured=LDDemoEntry::LoadRuntimeContent(Content,Error)
@@ -273,6 +441,10 @@ public:
             FinalXP = Growth->CumulativeXP;
             FinalBuildRevision = Growth->BuildRevision;
             FinalEndsAtMs = View.Showdown.EndsAtMs;
+            bExpectsRoad = Growth->FinalMod.DefinitionId == FName(TEXT("final_traffic"))
+                && Growth->FinalMod.TargetKind == ELDComponentTargetKind::Dash;
+            Summary->SetStringField(TEXT("final_mod"), Growth->FinalMod.DefinitionId.ToString());
+            Summary->SetBoolField(TEXT("final_traffic_dash"), bExpectsRoad);
             Check(PC->OwnerState.BodyRef.IsValid(), TEXT("C07"), TEXT("The owner stands as a live authoritative body inside the separate final arena"));
             if (Mode)
             {
@@ -291,26 +463,33 @@ public:
                     {
                         const FLDProgressionView Build = Mode->Development->ReadProgression(Id);
                         bSixChoices &= Build.bValid && Build.bBuildLocked && !Build.bFinalModPending
-                            && !Build.FinalModChosen.IsNone() && Build.Actives.ContainsByPredicate(
-                                [&Build](const FLDActiveSlotView& Active)
-                                { return Active.DefinitionId == Build.FinalModChosen && Active.Slot == Build.FinalModSlot; });
+                            && !Build.FinalMod.IsEmpty() && Build.FinalMod.DefinitionId==Build.FinalModChosen
+                            && !Build.Actives.ContainsByPredicate(
+                                [&Build](const FLDActiveSlotView& Active){return Active.DefinitionId==Build.FinalModChosen;});
                     }
                 }
                 Check(bSix, TEXT("A01"), TEXT("All six real authority bodies enter distinct legal positions inside the final ring"));
-                Check(bSixChoices, TEXT("A03"), TEXT("All six contenders chose a final-rest active and locked their build"));
+                Check(bSixChoices, TEXT("A03"), TEXT("All six contenders chose an independent final rule and locked their build"));
             }
             bFinalSeen = true;
             if (!bPassed) { return Finish(); }
         }
         if (bFinalSeen)
         {
+            const auto* Relay = PC->LocalView();
+            const FLDObservedFrameRead Read = Relay ? Relay->ReadObservedFrame() : FLDObservedFrameRead();
+            if (Read.Frame && Read.Status == ELDObservedViewStatus::Current)
+            {
+                bRoadSeen |= Read.Frame->Projectiles.ContainsByPredicate([](const FLDObservedProjectileView& Effect)
+                { return Effect.Look == ELDObservedProjectileLook::Road && Effect.bOwn && Effect.LengthCm > 0; });
+            }
             const auto* Marker = Public->GetCaptureMarker();
             bMarkerSeen |= Marker && Marker->GetGeneration() == Generation
                 && Marker->GetCenter().Equals(View.Showdown.CentreCm, 1.) && Marker->IsPresentationOnly();
+            if (bMarkerSeen && HoldForShot(TEXT("HostFinalFlag.png"))) { return true; }
+            if (!bPassed) { return Finish(); }
             if (View.Phase != ELDMatchPhase::Results && bInput && PC->CanWorldCommand() && PC->Navigation)
             {
-                const auto* Relay = PC->LocalView();
-                const FLDObservedFrameRead Read = Relay ? Relay->ReadObservedFrame() : FLDObservedFrameRead();
                 const auto* Target = Read.Frame && Read.Status == ELDObservedViewStatus::Current
                     ? Read.Frame->Units.FindByPredicate([&View,PC,this](const FLDObservedUnitView& Unit)
                     { return Unit.Kind == ELDObservedUnitKind::Contender && Unit.ContenderId != PC->OwnerState.ContenderId
@@ -318,6 +497,26 @@ public:
                         && FVector::DistSquared2D(Unit.FeetCm, View.Showdown.CentreCm) <= FMath::Square(CoreRadiusCm); }) : nullptr;
                 const auto* Registry = World->GetSubsystem<ULDMapRegistry>();
                 const auto* Anchor = Registry ? Registry->Resolve(TEXT("final_capture"), Registry->Generation) : nullptr;
+                const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
+                if (!bFinalDashSent && Anchor && Body && PC->OwnerState.LifePhase == ELDLifePhase::Alive)
+                {
+                    FVector2D Screen;
+                    if (FVector::DistSquared2D(Anchor->Position, Body->GetActorLocation()) > 1.
+                        && PC->ProjectWorldLocationToScreen(Anchor->Position, Screen))
+                    {
+                        PC->Navigation->DevSetPointer(Screen);
+                        FHitResult Ground;
+                        const bool bGround = PC->Navigation->GroundUnderPointer(Ground);
+                        if (bGround) { PC->ActivateCombatEntry(ELDCombatEntry::Dash); }
+                        PC->Navigation->DevSetPointer(TOptional<FVector2D>());
+                        if (bGround)
+                        {
+                            bFinalDashSent = true;
+                            NextInputAt = Local + 2.;
+                            return true;
+                        }
+                    }
+                }
                 if (Target) { PC->Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch); }
                 else if (Anchor) { PC->Navigation->NavigateGround(Anchor->Position, Anchor->Surface); }
                 NextInputAt = Local + 2.;
@@ -328,6 +527,9 @@ public:
         Check(bFinalSeen && Growth && Growth->CumulativeXP == FinalXP && Growth->BuildRevision == FinalBuildRevision,
             TEXT("C06"), TEXT("Final combat grants no ordinary XP or build mutation"));
         Check(bMarkerSeen, TEXT("C08"), TEXT("The client draws the registered final flag boundary as presentation only"));
+        Check(!bExpectsRoad || (bFinalDashSent && bRoadSeen), TEXT("C16"),
+            TEXT("A selected D-bound traffic FIN creates a real travelled road on the owning connection's authorized frame"));
+        Summary->SetBoolField(TEXT("final_road_seen"), bRoadSeen);
         Check(Result.Reason == ELDMatchEndReason::GuardSucceeded || Result.Reason == ELDMatchEndReason::ObjectiveTimeout
             || Result.Reason == ELDMatchEndReason::NoChampion,
             TEXT("C09"), TEXT("The six-player FFA terminates through its objective or bounded no-champion rule, never Host end"));
@@ -339,6 +541,13 @@ public:
             TEXT("C11"), TEXT("A winner has legal objective contribution; kills alone cannot crown a survivor"));
         if (Mode)
         { Check(!Mode->IsGameplayWriteOpen(Mode->GetMatchContext()), TEXT("A02"), TEXT("The unique published result closes the authority write gate")); }
+        if (bRenderHost)
+        {
+            Check(SavedShots.Contains(TEXT("HostFinalOffer.png")) && SavedShots.Contains(TEXT("HostFinalLocked.png"))
+                && SavedShots.Contains(TEXT("HostFinalFlag.png"))
+                && (!bSourcePickerSeen || SavedShots.Contains(TEXT("HostFinalSource.png"))),
+                TEXT("C15"), TEXT("The owning Host rendered and saved its three FIN cards, source picker when needed, locked card and final flag"));
+        }
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));
         Summary->SetNumberField(TEXT("reason"), uint8(Result.Reason));
@@ -350,10 +559,16 @@ public:
 
 void LDDemoTests::StartCaptureProbe(ALDPlayerController& Controller)
 {
-    if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoCaptureProbe")) || !Controller.IsLocalController()
-        || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
+    if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoCaptureProbe")) || !Controller.IsLocalController()) { return; }
+    if (auto Existing = LDCaptureProbeState::Existing.Pin(); Existing && Existing->bDisconnected)
+    {
+        Existing->Controller = &Controller;
+        return;
+    }
+    if (UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     auto Probe = MakeShared<FLDDemoCaptureProbe>();
     Probe->HumanCount = FParse::Param(FCommandLine::Get(), TEXT("LDCaptureAllHuman")) ? 6 : 3;
+    Probe->bRenderHost = FParse::Param(FCommandLine::Get(), TEXT("LDCaptureRenderHost"));
     int32 Timeout = 1800;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoCaptureOutput="), Probe->Output)
@@ -376,6 +591,7 @@ void LDDemoTests::StartCaptureProbe(ALDPlayerController& Controller)
         return;
     }
     Probe->Controller = &Controller;
+    LDCaptureProbeState::Existing = Probe;
     Probe->Deadline = FPlatformTime::Seconds() + Timeout;
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float) { return Probe->Tick(); }), .1f);
 }

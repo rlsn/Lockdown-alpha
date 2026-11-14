@@ -5125,6 +5125,78 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "final_bowling.description",
+      "description_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。原来源位移距离降低；二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。",
+      "icon_id": "icon_final_bowling",
+      "id": "final_bowling",
+      "name_key": "final_bowling.name",
+      "name_text": "人肉保龄球",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_breach.description",
+      "description_text": "离开核心连续一段时间后再入圈，下次成功普攻将目标沿远离旗杆方向推移；触发后须在圈外重新准备。本人冲刺基础冷却增加；躲攻击或预判入圈方向可反制。",
+      "icon_id": "icon_final_breach",
+      "id": "final_breach",
+      "name_key": "final_breach.name",
+      "name_text": "破门而入",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_comeback.description",
+      "description_text": "入圈时涂鸦属于其他存活玩家，短时间内首次普攻或主动直接伤害命中会生成公开警戒区，按跳造成魔法伤害和减速。触发那次直伤降低；可闪避命中或离区，不改所有权。",
+      "icon_id": "icon_final_comeback",
+      "id": "final_comeback",
+      "name_key": "final_comeback.name",
+      "name_text": "现场翻盘",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_forced_exit.description",
+      "description_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。原硬控时间降低，仍吃递减；提前离圈或位移免疫可反制。受控者仍争夺旗杆。",
+      "icon_id": "icon_final_forced_exit",
+      "id": "final_forced_exit",
+      "name_key": "final_forced_exit.name",
+      "name_text": "强制退场",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_landlord.description",
+      "description_text": "持有涂鸦期间，在核心成功普攻可在旗杆中心生成延迟魔法冲击。持旗期间普攻主击伤害降低；可躲冲击或先夺旗。冲击不复制普攻、施法、回响或控制。",
+      "icon_id": "icon_final_landlord",
+      "id": "final_landlord",
+      "name_key": "final_landlord.name",
+      "name_text": "旗杆房东",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_open_mic.description",
+      "description_text": "短时间内两次真实独立命中后，身边生成移动声浪，按跳造成魔法伤害和减速。声浪期间本人移速降低；新声浪替换旧声浪，不补跳。可拉开距离或诱导在圈外触发。",
+      "icon_id": "icon_final_open_mic",
+      "id": "final_open_mic",
+      "name_key": "final_open_mic.name",
+      "name_text": "全城开麦",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_split.description",
+      "description_text": "绑定放置区域的中心两侧生成两个更小的子区域，降低每跳基础伤害并缩短持续时间；元素和跳时保留。下一次施法同时替换旧两块；重叠可命中两次，中心覆盖较弱。",
+      "icon_id": "icon_final_split",
+      "id": "final_split",
+      "name_key": "final_split.name",
+      "name_text": "一分为二",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "final_traffic.description",
+      "description_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。该冲刺基础冷却增加；新带替换旧带，不伤害、不挡路。",
+      "icon_id": "icon_final_traffic",
+      "id": "final_traffic",
+      "name_key": "final_traffic.name",
+      "name_text": "交通管制",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "knockback.description",
       "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、冲刺、普攻和放技能。",
       "icon_id": "icon_knockback",
@@ -5305,6 +5377,244 @@
       "namespace": "DemoContent"
     }
   ],
+  "final_mods": [
+    {
+      "ap_ratio": {
+        "bp": 3500,
+        "unit": "ratio"
+      },
+      "base": {
+        "p2": 4500,
+        "unit": "points"
+      },
+      "distance": {
+        "denominator": 1,
+        "numerator": 140,
+        "unit": "cm"
+      },
+      "distance_ratio": {
+        "bp": 8000,
+        "unit": "ratio"
+      },
+      "id": "final_bowling",
+      "native_id": 2,
+      "requirement": "ForcedMove"
+    },
+    {
+      "cooldown_cost": {
+        "ms": 3000,
+        "unit": "ms"
+      },
+      "distance": {
+        "denominator": 1,
+        "numerator": 160,
+        "unit": "cm"
+      },
+      "id": "final_breach",
+      "native_id": 22,
+      "outside": {
+        "ms": 3000,
+        "unit": "ms"
+      },
+      "rearm_outside": {
+        "ms": 8000,
+        "unit": "ms"
+      },
+      "requirement": "Basic",
+      "window": {
+        "ms": 3000,
+        "unit": "ms"
+      }
+    },
+    {
+      "ap_ratio": {
+        "bp": 2500,
+        "unit": "ratio"
+      },
+      "base": {
+        "p2": 3000,
+        "unit": "points"
+      },
+      "damage_ratio": {
+        "bp": 8000,
+        "unit": "ratio"
+      },
+      "duration": {
+        "ms": 2000,
+        "unit": "ms"
+      },
+      "id": "final_comeback",
+      "interval": {
+        "ms": 10000,
+        "unit": "ms"
+      },
+      "native_id": 23,
+      "pulse_interval": {
+        "ms": 1000,
+        "unit": "ms"
+      },
+      "radius": {
+        "denominator": 1,
+        "numerator": 220,
+        "unit": "cm"
+      },
+      "requirement": "Basic",
+      "slow": {
+        "bp": 3000,
+        "unit": "ratio"
+      },
+      "slow_duration": {
+        "ms": 1000,
+        "unit": "ms"
+      },
+      "window": {
+        "ms": 4000,
+        "unit": "ms"
+      }
+    },
+    {
+      "control_ratio": {
+        "bp": 7000,
+        "unit": "ratio"
+      },
+      "delay": {
+        "ms": 250,
+        "unit": "ms"
+      },
+      "distance": {
+        "denominator": 1,
+        "numerator": 180,
+        "unit": "cm"
+      },
+      "id": "final_forced_exit",
+      "interval": {
+        "ms": 8000,
+        "unit": "ms"
+      },
+      "native_id": 5,
+      "requirement": "HardControl"
+    },
+    {
+      "ad_ratio": {
+        "bp": 4000,
+        "unit": "ratio"
+      },
+      "base": {
+        "p2": 5000,
+        "unit": "points"
+      },
+      "damage_ratio": {
+        "bp": 8000,
+        "unit": "ratio"
+      },
+      "delay": {
+        "ms": 700,
+        "unit": "ms"
+      },
+      "id": "final_landlord",
+      "interval": {
+        "ms": 6000,
+        "unit": "ms"
+      },
+      "native_id": 21,
+      "radius": {
+        "denominator": 1,
+        "numerator": 220,
+        "unit": "cm"
+      },
+      "requirement": "Basic"
+    },
+    {
+      "ap_ratio": {
+        "bp": 1500,
+        "unit": "ratio"
+      },
+      "base": {
+        "p2": 2500,
+        "unit": "points"
+      },
+      "duration": {
+        "ms": 2500,
+        "unit": "ms"
+      },
+      "id": "final_open_mic",
+      "move_speed_cost": {
+        "bp": 1000,
+        "unit": "ratio"
+      },
+      "native_id": 24,
+      "pulse_interval": {
+        "ms": 1000,
+        "unit": "ms"
+      },
+      "radius": {
+        "denominator": 1,
+        "numerator": 220,
+        "unit": "cm"
+      },
+      "requirement": "Basic",
+      "slow": {
+        "bp": 2000,
+        "unit": "ratio"
+      },
+      "slow_duration": {
+        "ms": 1000,
+        "unit": "ms"
+      },
+      "window": {
+        "ms": 3000,
+        "unit": "ms"
+      }
+    },
+    {
+      "damage_ratio": {
+        "bp": 6000,
+        "unit": "ratio"
+      },
+      "duration_cost": {
+        "ms": 1000,
+        "unit": "ms"
+      },
+      "id": "final_split",
+      "native_id": 15,
+      "offset": {
+        "denominator": 1,
+        "numerator": 140,
+        "unit": "cm"
+      },
+      "radius_ratio": {
+        "bp": 5500,
+        "unit": "ratio"
+      },
+      "requirement": "PlacedZone"
+    },
+    {
+      "cooldown_cost": {
+        "ms": 4000,
+        "unit": "ms"
+      },
+      "duration": {
+        "ms": 2500,
+        "unit": "ms"
+      },
+      "id": "final_traffic",
+      "native_id": 11,
+      "radius": {
+        "denominator": 1,
+        "numerator": 45,
+        "unit": "cm"
+      },
+      "requirement": "Dash",
+      "slow": {
+        "bp": 3500,
+        "unit": "ratio"
+      },
+      "slow_duration": {
+        "ms": 1000,
+        "unit": "ms"
+      }
+    }
+  ],
   "formulas": {
     "AttackIntervalMs": "CeilReciprocalMs",
     "AttackMoveAcquireRadius": "MinVisionTwiceAttackRange",
@@ -5334,8 +5644,8 @@
       "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended",
       "status": "approved"
     },
-    "handler_revision": 6,
-    "projection_revision": 6,
+    "handler_revision": 7,
+    "projection_revision": 7,
     "schema_version": 2
   },
   "parameters": {

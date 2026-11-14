@@ -128,6 +128,21 @@ bool GrowthIsFault(uint16 Reason)
 }
 }
 
+bool ALDGrowthDirector::ReadDevRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const
+{
+    Next=1;Pending=0;
+#if WITH_DEV_AUTOMATION_TESTS
+    if(const FDevTestRecord* Record=DevTests.Find(ContenderId))
+    {
+        if(Record->Stream.GetFinalizedThrough()==MAX_uint64)
+        {Error=TEXT("Reconnect DEV cursor exhausted its sequence.");return false;}
+        Next=Record->Stream.GetFinalizedThrough()+1;
+        Pending=Record->Stream.PendingRequestId();
+    }
+#endif
+    Error.Reset();return true;
+}
+
 ALDGrowthDirector::ALDGrowthDirector()
 {
     bReplicates = false;

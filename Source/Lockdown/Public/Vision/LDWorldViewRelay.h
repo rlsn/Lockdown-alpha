@@ -223,6 +223,8 @@ private:
     void ApplyLook(const FLDObservedProjectileView& Effect);
     ELDObservedProjectileLook ShownLook=ELDObservedProjectileLook::Chalk;
     float ShownRadius=-1, ShownInnerRadius=-1, ShownAngle=-1;
+    float ShownLength=-1;
+    bool bShownOwn=false;
     FLinearColor ShownColor=FLinearColor::White;
     double WarningAtServerSec=-1;
     TArray<LDObservedPresentation::FPoint, TInlineAllocator<8>> Points;

@@ -113,6 +113,8 @@ struct FLDContenderRecord
     FLDSessionRequestWindow SessionRequests;
     // Result accounting: kept after an ordinary leave until the room returns to the Lobby.
     bool bLeft = false;
+    bool bDisconnected = false;
+    FGuid ReconnectTicket;
     uint64 Kills = 0;
     uint64 Deaths = 0;
     uint64 Assists = 0;
@@ -127,6 +129,7 @@ public:
     virtual void InitGame(const FString& MapName,const FString& Options,FString& ErrorMessage) override;
     virtual void StartPlay() override;
     virtual void RestartPlayer(AController* NewPlayer) override;
+    virtual int32 GetNumPlayers() override;
     virtual void PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage) override;
     virtual FString InitNewPlayer(APlayerController* NewPlayerController,const FUniqueNetIdRepl& UniqueId,const FString& Options,const FString& Portal=TEXT("")) override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
@@ -135,6 +138,10 @@ public:
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
+    bool CanParkDisconnectedMember(ALDPlayerController& Controller) const;
+    bool ParkDisconnectedMember(ALDPlayerController& Controller, FString& Error);
+    bool ResumeRoomMember(ALDPlayerController& Controller, const FGuid& Ticket, FString& Error);
+    void LeaveRoomMember(ALDPlayerController& Controller);
     // ---- #198 rest phases and field clock (Framework/LDGameModeRest.cpp) ----
     // A rest of the current match is running (any step); the world (camps, Boss, airdrop, leader) is frozen.
     bool IsRestPhase(const FLDMatchContext& Context) const;
@@ -453,6 +460,7 @@ private:
     TArray<FGuid> RosterOrder;
     TArray<FGuid> LobbyAISlots;
     bool AdmitRoomMember(ALDPlayerController* Controller, FString& Reason);
+    TMap<TWeakObjectPtr<ALDPlayerController>,FTimerHandle> PendingReconnects;
     bool AdvanceRoster(FString& Reason);
     void PublishLobby();
     bool CheckDemoStartInputs(FString& Reason) const;

@@ -95,6 +95,7 @@ public:
     // re-checked by CommitPendingBuild in the Transactions phase.
     FLDSubmitResult QueueBuild(const FGuid& ContenderId, const FLDBuildCommand& Command);
     FLDBuildReceiptQueryResult QueryBuildReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
+    bool ReadBuildRequestCursor(const FGuid& ContenderId, uint64& Next, uint64& Pending, FString& Error) const;
 
     // ---- Transactions phase (dispatched by ALDGrowthDirector::ProcessTransactions) ----
     void CollectPending(TArray<FLDPendingGrowthIntent>& Out) const;

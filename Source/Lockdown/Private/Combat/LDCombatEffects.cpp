@@ -214,6 +214,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     Evaluation.DamageBonusBp=PoolBp;
     Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
+    if (!RewriteFinalHit(Hit,bProtected,NowMs,Error)) { return false; }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
     // #198 F M12: a deferred share is paid at its original amount: no second resistance, bonus or deferral.
     if (Hit.bDebtPayment)
@@ -544,6 +545,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
     // #198 F connectors and mods on this committed hit (C01, C08 memory, M11, C11, C12, M12 debt, C10).
     if (!ApplyWorkshopHit(Hit,*Body,Source,Damage,bShieldBroken,ShieldGrantedP2,NowMs,Error)) { return false; }
+    if (!OnFinalHit(Hit,*Body,Source,bEffective,bControlled,NowMs,Error)) { return false; }
     // B09: hostile positive damage the holder survived may grant its shield (a paid debt is no new hit).
     if (Damage.DamageP2>0 && Body->Resources.HpP2>0 && Hit.SourceEntity!=Body->Victim.EntityId && !Hit.bDebtPayment
         && !OnDamaged(*Body,NowMs,Error))

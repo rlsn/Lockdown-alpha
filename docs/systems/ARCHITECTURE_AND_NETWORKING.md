@@ -94,7 +94,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 25），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 26），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
 - 局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
@@ -181,7 +181,11 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 
 每个对手 AI 槽由一个服务器 `ALDOpponentController` 驱动，经同一核心注册绑定、受限观察与权威命令接入，
 不沿用旧 B92 席位接管或控制器交接；策略、请求与回执见[对手 AI](../demo/OPPONENT_AI.md)。
-本局不重连，人数和 AI 行为按 App Spec。
+意外断线的非 Host 真人由 `ParkDisconnectedMember` 转给无 UI、无策略输入的同类被动控制器，保留同一参赛者、身体、构筑、资源与复活队列；服务器时钟不暂停，不补位或新增生命。
+被动控制器仍占核心参赛名额，但 `GetNumPlayers` 不把它算作第二条真人连接；原生 `GameSession` 保留六连接上限，恢复连接仍须通过私有认证。
+恢复连接先经 `LDReconnect` 标记的私有 challenge/proof 校验，不走新成员准入，不在认证前发布本人观察或构筑。
+票据只保存在 `GameInstance` 内存，不写入 URL、日志或文件；`ResumeRoomMember` 迁移原导航提供者和账本，恢复 Build/DEV/Direct/Session 请求水位及移动 order/epoch，再重建本人投影并轮换票据。
+Build 的待定请求只查询原回执，DEV 的待定请求等待原结算；不重发旧选择或旧生命动作。主动离开清票据，Host 离开结束房间，不支持 Host 迁移或进程退出后的恢复。
 
 喷漆、守护与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
 `FLDCaptureReducer` 是唯一喷漆与守护归约器（`Begin(OpenAtMs, SprayMs, GuardMs)`）：生命提供者在提交点调用 `PublishCaptureEligibility`
@@ -196,7 +200,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 别人不继承。喷漆到期严格早于某条事实时先喷上；与到期同刻的死亡、离局、控制、离区先处理。
 喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护只在 Guarded（主人独自在区内）运行，Empty（主人在区外、区内无人）
 时暂停、Solo/Contested（区内有主人以外的有效参赛者）时冻结于 `GuardKept`，回到 Guarded 时从保留值续计；
-冻结期间主人从区内走出、且该原始秒的事实全部归约后区内仍有非主人，`GuardKept` 清零而涂鸦保留；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
+主人离区、死亡或离局只暂停，保留涂鸦与当前守护；对手成功喷成才清原主人的当前守护，`BankedGuard` 历史贡献不清。只有守护满时长给出结束对局的
 `FLDCaptureProposal{Epoch, Winner, GuardSinceMs, DueAtMs}`。`NextDueMs` 给驱动的停靠边界：未开放时为开放时刻、
 独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停与守护暂停、冻结不给驱动额外停靠边界：步内能让保留的守护恢复的
 只有 Motion 的进出区事实（离局在步前入队，死亡、控制、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用

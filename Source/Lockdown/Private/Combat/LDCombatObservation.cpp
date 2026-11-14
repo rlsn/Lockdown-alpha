@@ -161,7 +161,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
             return false;
         }
         FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-        Fact.Key=Zone.EffectId;
+        Fact.Key=Zone.ObservedKey.IsValid() ? Zone.ObservedKey : Zone.EffectId;
         Fact.SourceEntity=Zone.SourceEntity;
         Fact.PositionCm=Zone.CentreCm;
         Fact.Heading=FVector2D(1,0);
@@ -186,6 +186,35 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.Look=ELDObservedProjectileLook::SpeechCone;
         Fact.RadiusCm=float(Channel.RangeCm);
         Fact.AngleDegrees=float(Channel.AngleDegrees);
+    }
+    for(const FLDFinalTrafficTrail& Trail:FinalTraffic)
+    {
+        const FLDDemoFinalModDefinition* Card=nullptr;
+        if(!Content->FindFinalMod(TEXT("final_traffic"),Card,Error)||!Card)
+        {Error=TEXT("Observed traffic requires its final modification definition.");return false;}
+        struct FRun{FGuid Key;FVector From,To;};
+        TArray<FRun> Runs;
+        for(const FLDFinalTrafficSegment& Segment:Trail.Segments)
+        {
+            TOptional<LDDashContactRules::FGroundBandShape> Shape;
+            if(!LDDashContactRules::SampleGroundBand(Segment.Ground,double(NowMs)/1000.,Shape,Error)){return false;}
+            if(!Shape.IsSet()||Shape->FromCm.Equals(Shape->ToCm,UE_SMALL_NUMBER)){continue;}
+            if(!Runs.IsEmpty()&&Runs.Last().To.Equals(Shape->FromCm,.01)
+                &&FVector::DotProduct((Runs.Last().To-Runs.Last().From).GetSafeNormal(),(Shape->ToCm-Shape->FromCm).GetSafeNormal())>.99999)
+            {Runs.Last().To=Shape->ToCm;}
+            else{Runs.Add({Runs.IsEmpty()?Trail.ObservedKey:Segment.Key,Shape->FromCm,Shape->ToCm});}
+        }
+        for(const FRun& Run:Runs)
+        {
+            FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+            Fact.Key=Run.Key;Fact.SourceEntity=Trail.SourceBody.Victim.EntityId;
+            Fact.PositionCm=(Run.From+Run.To)*.5;
+            const FVector Delta=Run.To-Run.From;
+            Fact.Heading=FVector2D(Delta.X,Delta.Y).GetSafeNormal();
+            Fact.Look=ELDObservedProjectileLook::Road;
+            Fact.LengthCm=float(FVector2D(Delta.X,Delta.Y).Size());
+            Fact.RadiusCm=float(double(Card->RadiusCm.Numerator)/double(Card->RadiusCm.Denominator));
+        }
     }
     Error.Reset();
     return true;

@@ -544,6 +544,22 @@ void ULDNavigationComponent::ResetMatch()
     KeptSwingTarget={};
 }
 
+void ULDNavigationComponent::TransferReconnectLedgerTo(ULDNavigationComponent& Next)
+{
+    EndLifeOrders(ELDOrderCancelReason::Left);
+    Next.Book=Book;
+    Next.Records=Records;
+    Next.NextReceiptSerial=NextReceiptSerial;
+    Next.QueueStepSerial=QueueStepSerial;
+    Next.ForcedSerial=ForcedSerial;
+}
+
+void ULDNavigationComponent::RestoreLocalOrderCursor(uint32 Order,uint32 CancelEpoch)
+{
+    Serial=FMath::Max(Serial,Order);
+    Epoch=FMath::Max(Epoch,CancelEpoch);
+}
+
 // ResetLife on the authority: orders of an older life, or of a body the owner no longer holds, end here.
 void ULDNavigationComponent::EndStaleServerOrders()
 {

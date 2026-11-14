@@ -61,6 +61,7 @@ FLinearColor ObservedEffectColor(ELDObservedProjectileLook Look)
     case ELDObservedProjectileLook::AreaWater: return FLinearColor(.02f,.62f,1.f);
     case ELDObservedProjectileLook::AreaElectric: return FLinearColor(1.f,.78f,.02f);
     case ELDObservedProjectileLook::AreaPlain: return FLinearColor(.95f,.48f,.12f);
+    case ELDObservedProjectileLook::Road: return FLinearColor(1.f,.68f,.08f);
     case ELDObservedProjectileLook::BookShadow:
     case ELDObservedProjectileLook::FlyerArmed:
     case ELDObservedProjectileLook::SpeechCone: return FLinearColor(1.f,.38f,.16f);
@@ -557,9 +558,12 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     const bool bCone=Effect.Look==ELDObservedProjectileLook::SpeechCone;
     const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
     const bool bArea=IsObservedArea(Effect.Look);
-    const FLinearColor Color=ObservedEffectColor(Effect.Look);
+    const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road;
+    const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
+        : ObservedEffectColor(Effect.Look);
     ShownLook=Effect.Look;
     ShownRadius=Effect.RadiusCm; ShownInnerRadius=Effect.InnerRadiusCm; ShownAngle=Effect.AngleDegrees;
+    ShownLength=Effect.LengthCm;bShownOwn=Effect.bOwn;
     ShownColor=Color;
     if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
     if (AccentTint) { AccentTint->SetVectorParameterValue(TEXT("Tint"),Color); }
@@ -572,6 +576,11 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,95)); }
     if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
     if (bArea) { Chalk->SetRelativeLocation(FVector(0,0,7)); }
+    if(bRoad)
+    {
+        Chalk->SetRelativeLocation(FVector(0,0,1));
+        Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,.012));
+    }
     Accent->SetVisibility(Effect.Look!=ELDObservedProjectileLook::Chalk);
     Accent->SetRelativeRotation(FRotator::ZeroRotator);
     Accent->SetRelativeLocation(bFlight ? FVector(20,0,-12) : bArea ? FVector(0,0,14) : bCone ? FVector(Effect.RadiusCm*.65,0,110)
@@ -579,6 +588,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     Accent->SetRelativeScale3D(bFlight ? FVector(.3,.2,.16) : bArea ? FVector(.34,.34,.06) : bCone ? FVector(.5,.95,.04)
         : bBook ? FVector(1.5,1.15,.06) : FVector(.8,.12,.02));
     Trail->SetVisibility(bFlight,true);
+    if(bRoad){Accent->SetVisibility(false);}
     for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
     if (bFlight) { return; }
     int32 Used=0;
@@ -616,7 +626,15 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
             Previous=Next;
         }
     };
-    if (bCone)
+    if(bRoad)
+    {
+        const double Half=Effect.LengthCm*.5,Width=Effect.RadiusCm;
+        Line(FVector(-Half,-Width,2),FVector(Half,-Width,2));
+        Line(FVector(-Half,Width,2),FVector(Half,Width,2));
+        Line(FVector(-Half,-Width,2),FVector(-Half,Width,2));
+        Line(FVector(Half,-Width,2),FVector(Half,Width,2));
+    }
+    else if (bCone)
     {
         const double Half=FMath::DegreesToRadians(double(Effect.AngleDegrees)*.5);
         Arc(Effect.RadiusCm,-Half,Half*2);
@@ -656,7 +674,8 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
     WarningAtServerSec=Projectile.WarningRemainingMs>0
         ? SampledAtServerSec+double(Projectile.WarningRemainingMs)/1000. : -1.;
     if (ShownRadius<0 || ShownLook!=Projectile.Look || ShownRadius!=Projectile.RadiusCm
-        || ShownInnerRadius!=Projectile.InnerRadiusCm || ShownAngle!=Projectile.AngleDegrees) { ApplyLook(Projectile); }
+        || ShownInnerRadius!=Projectile.InnerRadiusCm || ShownAngle!=Projectile.AngleDegrees
+        || ShownLength!=Projectile.LengthCm || bShownOwn!=Projectile.bOwn) { ApplyLook(Projectile); }
     ObservedHandle = Projectile.Handle;
     EndedAt = -1;
     Point.bSnap = Points.IsEmpty();

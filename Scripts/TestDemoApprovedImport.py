@@ -277,7 +277,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 6, 6))
+                          self.data["identity"]["projection_revision"]), (2, 7, 7))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -476,6 +476,9 @@ class ApprovedDemoData(unittest.TestCase):
             # #198 B base components B01-B18.
             **{identity: frame[0] for identity, frame in COMPONENT_FRAMES.items()},
             **{identity: frame[0] for identity, frame in WORKSHOP_FRAMES.items()},
+            "final_landlord": "旗杆房东", "final_breach": "破门而入", "final_comeback": "现场翻盘",
+            "final_open_mic": "全城开麦", "final_bowling": "人肉保龄球", "final_forced_exit": "强制退场",
+            "final_traffic": "交通管制", "final_split": "一分为二",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",

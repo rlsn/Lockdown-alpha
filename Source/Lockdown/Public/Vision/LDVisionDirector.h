@@ -164,7 +164,7 @@ public:
     // Visible effects: a fresh opaque handle per visibility interval, keyed by the server-only effect key.
     // Removed lists handles of effects that left sight or ended; output order is observer-local.
     bool SampleProjectiles(const TArray<const FLDObservedProjectileFact*>& Visible, TArray<FGuid>& Removed,
-        TArray<FLDObservedProjectileView>& Out, FString& Error);
+        TArray<FLDObservedProjectileView>& Out, FString& Error, const FGuid& ObserverEntity = FGuid());
     ETerminate Terminate(const FLDCombatBodyRef& Victim, const FLDMatchContext& InMatch, double OccurredAtSeconds,
         int64 OccurredAtServerMs, FLDObservedTerminationFact& Out, FString& Error);
     bool BindOrder(const FLDMoveIdentity& Order, const FGuid& Handle, uint32 ObservationEpoch, FString& Error);

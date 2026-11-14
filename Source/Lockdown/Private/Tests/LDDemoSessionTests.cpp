@@ -115,6 +115,34 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Frontend never opens gameplay writes"), Mode->IsPlaying());
         TestNull(TEXT("Frontend has no default combat Pawn"), Mode->DefaultPawnClass.Get());
         TestNull(TEXT("Frontend cannot create an unregistered spectator body"), Mode->SpectatorClass.Get());
+        const auto SpawnCapacityController = [World]()
+        {
+            auto* Player = World->SpawnActor<ALDPlayerController>();
+            if (Player)
+            {
+                Player->PlayerState = World->SpawnActor<ALDPlayerState>();
+                if (Player->PlayerState) { Player->PlayerState->SetOwner(Player); }
+                World->AddController(Player);
+            }
+            return Player;
+        };
+        TArray<ALDPlayerController*> Players;
+        for (int32 Index = 0; Index < LDMatchLifecycle::MaxContenders; ++Index)
+        {
+            auto* Player = SpawnCapacityController();
+            if (!TestNotNull(TEXT("Native capacity fixture controller"), Player)
+                || !TestNotNull(TEXT("Native capacity fixture player state"), Player->PlayerState.Get())) { return false; }
+            Players.Add(Player);
+        }
+        TestEqual(TEXT("Six active controllers fill the native player capacity"), Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
+        Players.Last()->bParkedForReconnect = true;
+        TestEqual(TEXT("A retained offline controller reserves its contender, not a second network seat"),
+            Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders - 1);
+        auto* Rejoining = SpawnCapacityController();
+        if (!TestNotNull(TEXT("Native replacement connection controller"), Rejoining)
+            || !TestNotNull(TEXT("Native replacement connection player state"), Rejoining->PlayerState.Get())) { return false; }
+        TestEqual(TEXT("The pending replacement fills the sixth seat while the retained controller still exists"),
+            Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
     }
     const FString LegacyName = TEXT("UEDPIE_") + LexToString(FGuid::NewGuid().A & MAX_int32) + TEXT("_L_V09Full");
     auto* LegacyPackage = CreatePackage(*(TEXT("/Game/Lockdown/Generated/V09/") + LegacyName));

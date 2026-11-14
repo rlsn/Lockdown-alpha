@@ -3,15 +3,15 @@
   "title": "Demo author contract; explicit reviewed inputs and no numeric defaults",
   "type": "object",
   "additionalProperties": false,
-  "required": ["identity", "parameters", "formulas", "policies", "character", "abilities", "stats", "components", "camps", "boss", "progression", "world", "display"],
+  "required": ["identity", "parameters", "formulas", "policies", "character", "abilities", "stats", "components", "final_mods", "camps", "boss", "progression", "world", "display"],
   "properties": {
     "identity": {
       "type": "object", "additionalProperties": false,
       "required": ["schema_version", "handler_revision", "projection_revision", "approval"],
       "properties": {
         "schema_version": {"type": "integer", "const": 2},
-        "handler_revision": {"type": "integer", "const": 6},
-        "projection_revision": {"type": "integer", "const": 6},
+        "handler_revision": {"type": "integer", "const": 7},
+        "projection_revision": {"type": "integer", "const": 7},
         "approval": {
           "type": "object", "additionalProperties": false, "required": ["status", "decision"],
           "properties": {
@@ -245,6 +245,27 @@
       }
     },
     "components": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/component"}},
+    "final_mods": {
+      "type": "array", "minItems": 8, "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "requirement"],
+        "properties": {
+          "id": {"$ref": "#/$defs/id"},
+          "requirement": {"enum": ["Basic", "ForcedMove", "HardControl", "Dash", "PlacedZone"]},
+          "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/probability"}, "ap_ratio": {"$ref": "#/$defs/probability"},
+          "radius": {"$ref": "#/$defs/cm"}, "distance": {"$ref": "#/$defs/cm"}, "offset": {"$ref": "#/$defs/cm"},
+          "delay": {"$ref": "#/$defs/positive_sec"}, "duration": {"$ref": "#/$defs/positive_sec"},
+          "interval": {"$ref": "#/$defs/positive_sec"}, "window": {"$ref": "#/$defs/positive_sec"},
+          "pulse_interval": {"$ref": "#/$defs/positive_sec"},
+          "outside": {"$ref": "#/$defs/positive_sec"}, "rearm_outside": {"$ref": "#/$defs/positive_sec"},
+          "cooldown_cost": {"$ref": "#/$defs/positive_sec"}, "duration_cost": {"$ref": "#/$defs/positive_sec"},
+          "damage_ratio": {"$ref": "#/$defs/probability"}, "control_ratio": {"$ref": "#/$defs/probability"},
+          "distance_ratio": {"$ref": "#/$defs/probability"}, "radius_ratio": {"$ref": "#/$defs/probability"},
+          "slow": {"$ref": "#/$defs/probability"}, "slow_duration": {"$ref": "#/$defs/positive_sec"},
+          "move_speed_cost": {"$ref": "#/$defs/probability"}
+        }
+      }
+    },
     "camps": {
       "type": "object", "additionalProperties": false, "required": ["monsters", "placements"],
       "properties": {

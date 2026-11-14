@@ -35,6 +35,7 @@ public:
     bool FindStat(const FString& Id, const FLDDemoStatDefinition*& Out, FString& Error) const;
     // #198 B: a workshop component definition by canonical id.
     bool FindComponent(const FString& Id, const FLDDemoComponentDefinition*& Out, FString& Error) const;
+    bool FindFinalMod(const FString& Id, const FLDDemoFinalModDefinition*& Out, FString& Error) const;
     bool FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
     bool FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const;
     // #198 skill growth: Ability's value set as its owner at Level uses it (LDSkillGrowth::GrowValues with SKILL.GrowthPerLevel).

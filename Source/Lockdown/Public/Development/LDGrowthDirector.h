@@ -51,6 +51,7 @@ public:
     FLDGrowthOwnerView ReadOwnerView(const FGuid& ContenderId) const;
     // Committed level for the frozen result rows; contenders that left keep their record until the match ends.
     bool ReadFinalLevel(const FGuid& ContenderId, uint8& Level, FString& Error) const;
+    bool ReadDevRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV growth fixture (LDDevGrowthFixture.h): queues an XP grant that the next Transactions phase commits through the
     // reward composite without a death fact. Returns a ticket for DevGrantStatus, or 0 with Error when the fixture,

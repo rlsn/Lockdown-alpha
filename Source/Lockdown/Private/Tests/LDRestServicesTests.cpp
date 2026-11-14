@@ -615,8 +615,7 @@ bool FLDDemoRestServicesForgetReclaimTest::RunTest(const FString& Parameters)
     return RestTestRunForgetReclaim(*this);
 }
 
-// Phase 9 final mod: a deterministic three-choice of unheld actives, taken once into a slot (learn or replace-and-forget)
-// and locking the build in the same commit; every other attempt is refused with nothing changed.
+// An independent, fixed three-choice; choosing one source locks without consuming ordinary build contents.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoFinalModChoiceAndLockTest, "Lockdown.Rules.DemoFinalMod.ChoiceAndLock",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -642,7 +641,7 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
         LDProgression::DrawFinalModOptions(Content, Build, Seed, Options), ELDGrowthReason::None);
     LDProgression::DrawFinalModOptions(Content, Build, Seed, Again);
     LDProgression::DrawFinalModOptions(Content, Build, LDProgression::FinalModSeed(FGuid(1, 2, 3, 4), FGuid(9, 9, 9, 9)), Other);
-    bGood &= TestTrue(TEXT("Three distinct options, none learned or pending, the same for the same seed"),
+    bGood &= TestTrue(TEXT("Three distinct final rules, the same for the same seed"),
         Options.Num() == 3 && Options[0] != Options[1] && Options[1] != Options[2] && Options[0] != Options[2]
         && !Options.Contains(A) && !Options.Contains(B) && !Options.Contains(D) && Options == Again);
     bGood &= TestTrue(TEXT("Another contender draws from the same pool independently"), Other.Num() == 3);
@@ -650,70 +649,75 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
     {
         return false;
     }
+    const auto* Universal=Content.FinalMods.FindByPredicate([&Options](const FLDDemoFinalModDefinition& Row){return FName(*Row.Id)==Options[1];});
+    bGood &= TestTrue(TEXT("The second option is always universal"),Universal&&Universal->IsUniversal());
+    TArray<FLDComponentTarget> MechanicTargets;
+    bGood &= RestTestReason(*this,TEXT("Resolving the mechanism source"),
+        LDProgression::FinalModTargets(Content,Build,Options[0],MechanicTargets),ELDGrowthReason::None);
+    if(MechanicTargets.IsEmpty()){return false;}
 
     FLDProgressionState Open = RestTestSettled(600);
     Open.FinalMod.OfferId = FGuid(0xF1, 0, 0, 1);
     Open.FinalMod.Options = Options;
     FLDGrowthBuild Out;
     FLDProgressionState OutProgression;
-    FName Forgotten;
-    TArray<FName> Reclaimed;
-    const auto Take = [&](const FLDProgressionState& Progression, const FGuid& Id, FName Option, uint8 Slot,
+    const FLDComponentTarget Plain;
+    const auto Take = [&](const FLDProgressionState& Progression, const FGuid& Id, FName Option, const FLDComponentTarget& Target,
         const LDProgression::FBuildContext& Context)
     {
-        return LDProgression::ApplyFinalMod(Content, Build, Progression, Id, Option, Slot, Context, Out, OutProgression, Forgotten,
-            Reclaimed);
+        return LDProgression::ApplyFinalMod(Content, Build, Progression, Id, Option, Target, Context, Out, OutProgression);
     };
     const auto Refused = [&](const TCHAR* What, ELDGrowthReason Actual, ELDGrowthReason Expected, const FLDProgressionState& Before)
     {
         bool bOk = RestTestReason(*this, What, Actual, Expected);
         bOk &= TestTrue(FString::Printf(TEXT("%s changes nothing"), What), Out.Actives.Num() == Build.Actives.Num()
-            && Forgotten.IsNone() && Reclaimed.IsEmpty() && OutProgression.FinalMod.OfferId == Before.FinalMod.OfferId
+            && Out.FinalMod==Build.FinalMod && Out.PendingBlueprints==Build.PendingBlueprints
+            && OutProgression.FinalMod.OfferId == Before.FinalMod.OfferId
             && OutProgression.FinalMod.Options == Before.FinalMod.Options && OutProgression.FinalMod.bLocked == Before.FinalMod.bLocked
-            && OutProgression.FinalMod.Chosen == Before.FinalMod.Chosen && OutProgression.FinalMod.Slot == Before.FinalMod.Slot);
+            && Out.Components.Num()==Build.Components.Num());
         return bOk;
     };
 
-    // ---- Taking it into the empty E slot learns it and locks the build ----
-    bGood &= RestTestReason(*this, TEXT("Taking the final mod into an empty slot"), Take(Open, Open.FinalMod.OfferId, Options[1], 2, Rest),
+    bGood &= RestTestReason(*this, TEXT("Taking an independent universal rule"), Take(Open, Open.FinalMod.OfferId, Options[1], Plain, Rest),
         ELDGrowthReason::None);
-    const int32 InE = Out.ActiveInSlot(2);
-    bGood &= TestTrue(TEXT("The option is learned in E, nothing forgotten, and the build is locked"),
-        InE != INDEX_NONE && Out.Actives[InE].Id == Options[1] && Out.Actives.Num() == 3 && Forgotten.IsNone()
-        && OutProgression.FinalMod.bLocked && OutProgression.FinalMod.Chosen == Options[1] && OutProgression.FinalMod.Slot == 2
+    bGood &= TestTrue(TEXT("Ordinary actives, blueprints, components and the empty E slot are preserved"),
+        Out.Actives.Num()==Build.Actives.Num() && Out.FindActive(A) && Out.FindActive(B) && Out.ActiveInSlot(2)==INDEX_NONE
+        && Out.PendingBlueprints==Build.PendingBlueprints && Out.Components.Num()==Build.Components.Num()
+        && Out.FinalMod.DefinitionId==Options[1] && Out.FinalMod.TargetKind==ELDComponentTargetKind::None
+        && OutProgression.FinalMod.bLocked
         && !OutProgression.FinalMod.IsPending() && LDProgression::ValidateBuild(Content, Out) == ELDGrowthReason::None);
     const FLDProgressionState Taken = OutProgression;
 
-    // ---- Taking it into an occupied slot replaces and forgets the active there ----
-    bGood &= RestTestReason(*this, TEXT("Taking the final mod into an occupied slot"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Rest),
+    bGood &= RestTestReason(*this, TEXT("Taking a mechanism with an explicit legal source"),
+        Take(Open, Open.FinalMod.OfferId, Options[0], MechanicTargets[0], Rest),
         ELDGrowthReason::None);
-    const int32 InQ = Out.ActiveInSlot(0);
-    bGood &= TestTrue(TEXT("Q holds the option, the old active is forgotten, and the build is locked"),
-        InQ != INDEX_NONE && Out.Actives[InQ].Id == Options[0] && Forgotten == A && !Out.FindActive(A) && !Out.HasBlueprint(A)
-        && Out.Actives.Num() == 2 && OutProgression.FinalMod.bLocked);
+    bGood &= TestTrue(TEXT("The source is saved without replacing Q"),
+        Out.FindActive(A) && Out.FindActive(B) && Out.Actives.Num()==Build.Actives.Num()
+        && Out.FinalMod.TargetKind==MechanicTargets[0].Kind && Out.FinalMod.TargetId==MechanicTargets[0].Definition
+        && OutProgression.FinalMod.bLocked);
 
     // ---- Every other attempt is refused with nothing changed ----
-    bGood &= Refused(TEXT("Taking it again once locked"), Take(Taken, Open.FinalMod.OfferId, Options[2], 0, Rest), ELDGrowthReason::FinalLocked, Taken);
-    bGood &= Refused(TEXT("Taking it while builds are locked"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Locked),
+    bGood &= Refused(TEXT("Taking it again once locked"), Take(Taken, Open.FinalMod.OfferId, Options[1], Plain, Rest), ELDGrowthReason::FinalLocked, Taken);
+    bGood &= Refused(TEXT("Taking it while builds are locked"), Take(Open, Open.FinalMod.OfferId, Options[1], Plain, Locked),
         ELDGrowthReason::BuildLocked, Open);
-    bGood &= Refused(TEXT("Taking it on the field"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Field), ELDGrowthReason::NotRestWindow, Open);
-    bGood &= Refused(TEXT("Taking it while dead"), Take(Open, Open.FinalMod.OfferId, Options[0], 0, Dead), ELDGrowthReason::Dead, Open);
-    bGood &= Refused(TEXT("Taking another final mod id"), Take(Open, FGuid(0xF1, 0, 0, 2), Options[0], 0, Rest), ELDGrowthReason::NoFinalMod, Open);
+    bGood &= Refused(TEXT("Taking it on the field"), Take(Open, Open.FinalMod.OfferId, Options[1], Plain, Field), ELDGrowthReason::NotRestWindow, Open);
+    bGood &= Refused(TEXT("Taking it while dead"), Take(Open, Open.FinalMod.OfferId, Options[1], Plain, Dead), ELDGrowthReason::Dead, Open);
+    bGood &= Refused(TEXT("Taking another final mod id"), Take(Open, FGuid(0xF1, 0, 0, 2), Options[1], Plain, Rest), ELDGrowthReason::NoFinalMod, Open);
     const FLDProgressionState BeforeOpen = RestTestSettled(600);
-    bGood &= Refused(TEXT("Taking it before it opened"), Take(BeforeOpen, Open.FinalMod.OfferId, Options[0], 0, Rest),
+    bGood &= Refused(TEXT("Taking it before it opened"), Take(BeforeOpen, Open.FinalMod.OfferId, Options[1], Plain, Rest),
         ELDGrowthReason::NoFinalMod, BeforeOpen);
-    bGood &= Refused(TEXT("Taking an active outside the options"), Take(Open, Open.FinalMod.OfferId, D, 0, Rest), ELDGrowthReason::InvalidOption, Open);
-    bGood &= Refused(TEXT("Taking it into a slot past E"), Take(Open, Open.FinalMod.OfferId, Options[0], 3, Rest),
-        ELDGrowthReason::InvalidRequest, Open);
-    FLDProgressionState Held = Open;
-    Held.FinalMod.Options[0] = D;
-    bGood &= Refused(TEXT("Taking an option the build already holds"), Take(Held, Open.FinalMod.OfferId, D, 0, Rest),
-        ELDGrowthReason::FinalModUnavailable, Held);
+    bGood &= Refused(TEXT("Taking an active outside the final options"), Take(Open, Open.FinalMod.OfferId, D, Plain, Rest), ELDGrowthReason::InvalidOption, Open);
+    FLDComponentTarget Wrong;
+    Wrong.Kind=ELDComponentTargetKind::Active;Wrong.Definition=A;
+    bGood &= Refused(TEXT("Binding a universal rule to an explicit active"),Take(Open,Open.FinalMod.OfferId,Options[1],Wrong,Rest),
+        ELDGrowthReason::FinalModUnavailable,Open);
     FLDProgressionState Offered = Open;
     Offered.ActiveEarned = 2;
     Offered.Offer.Emplace(RestTestOffer(2, {Later[0], Later[1], Later[2]}));
-    bGood &= Refused(TEXT("Taking it while an active offer is outstanding"), Take(Offered, Open.FinalMod.OfferId, Options[0], 0, Rest),
-        ELDGrowthReason::OfferOutstanding, Offered);
+    bGood &= RestTestReason(*this,TEXT("Independent choice may lock while an ordinary offer is outstanding"),
+        Take(Offered,Open.FinalMod.OfferId,Options[1],Plain,Rest),ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The ordinary offer is preserved, not consumed as a final card"),OutProgression.Offer.IsSet()
+        && OutProgression.Offer->OfferId==Offered.Offer->OfferId && Out.Actives.Num()==Build.Actives.Num());
     bGood &= TestEqual(TEXT("The final mod gate refuses a locked rest"),
         LDGrowthWire::ReasonName(LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Locked)),
         LDGrowthWire::ReasonName(ELDGrowthReason::BuildLocked));

@@ -108,7 +108,7 @@
   因此出手、飞行物到达与受击在同一时间轴上。单位的隐藏、死亡和超时仍立即销毁代理，不按延迟时钟保留。
 - 迷雾是覆盖在注册地面边界上的 128² 纹理（双线性采样）：当前覆盖亮（255），其余调暗到 `LDFogHidden`（190）以便看清静态地形；没有探索层。
   每收到新的覆盖，各格在约 0.1 s 内从屏幕上的当前值过渡到新覆盖，只在两次已授权覆盖之间过渡。
-- 观察 schema 13 带有权威命中年龄与结果、外观、持续区域 look、可见回程投射物外观与已有延迟时刻的预警剩余时间；回程飞行保留原投射物颜色并使用紫色尾迹，不暴露施法者或构筑字段。覆盖位图仍做有界字节游程编码，解码后仍是精确的2048字节，
+- 观察 schema 14 带有权威命中年龄与结果、外观、持续区域 look、可见回程投射物外观与已有延迟时刻的预警剩余时间；交通带只发布当前可见的实际铺设分段、宽度/长度及是否本人，不暴露施法者或构筑字段。回程飞行保留原投射物颜色并使用紫色尾迹。覆盖位图仍做有界字节游程编码，解码后仍是精确的2048字节，
   不缩小覆盖、不增加探索层、不依赖上一帧。不可压缩时发送原始位图；错误长度、越界、未填满或截断直接拒绝。
   这减少普通覆盖快照的拆包与带宽开销，不把不可靠快照改成会积压的可靠队列，也不延长 0.25 s 的权限清除窗口。
 - 采样节奏和帧格式在代码中维护，不在这里设定 Demo 平衡值。
@@ -196,13 +196,13 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
   先发 `ClientBlueprintOffer`（总字节或明确的失败原因），客户端按顺序用 `ServerBlueprintChunk` 拉取 16 KiB 分块，服务器只回应当前结果
   的下一个偏移，重放、跳块或旧结果都被拒绝；Listen Host 本人直接交付字节。传输中断或校验失败的部分记录不保存、不显示为蓝图。
   AI 不生成记录；房主断线或故障结束的对局没有锁定结果，因此也没有蓝图。
-- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=1`，扩展名 `.ldbuild.json`。
+- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=2`，扩展名 `.ldbuild.json`。
   顶层为 `origin`（`auto`/`export`）、`complete`、`product_version`、`recorded_at_utc`（本机收到时的 UTC，保留按它排序）、
   `rules`（协议版本、目录根摘要与 schema/handler/projection 修订）、`match`（公开 ResultId、模式、结束原因、胜负、毫秒时刻）、
   `player`（最终等级与 K/D/A）、`final_build`（最后版本的结构与修订）和 `versions`（每个版本的修订、时间段、等级、`dev_layer`、
   结构与 `facts`）。结构的 `components` 与每个事实都带 `collected`；当前写入者全部采集（构件为已安装构件及其 `host` 与按键排序的
   安装参数 `target_kind`/`element`/`bound_component`，没有安装时为空列表），早期写入者未采集的项值为 `null`，读取时照原样保留。不含参赛者 ID、账号、地址、原始 trace、
-  未来种子或别人的构筑。
+  未来种子或别人的构筑。每版结构额外记录独立 `final_mod` 的定义和来源绑定，无选择时为 `null`；它不属于 Q/W/E 或普通构件。
 - **保存与保留**（`LDBuildBlueprintStore`）：拥有者在本机 `FPaths::ProjectSavedDir()/Blueprints/match-<ResultId>.ldbuild.json` 写入，
   先写同目录临时文件并回读，再移动到位并回读；成功后才清理：只处理该目录内、文件名就是自身 Match ID、通过严格校验且 `origin=auto`
   的记录，按 `recorded_at_utc` 删最旧的，直到最多 50 份、总计不超过 100 MiB（常量在 `LDBuildBlueprint`）。导出、导入目录、

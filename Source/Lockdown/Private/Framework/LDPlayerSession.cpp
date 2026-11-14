@@ -1,8 +1,11 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDGameInstance.h"
+#include "Core/LDLog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Engine/World.h"
+#include "Engine/NetConnection.h"
+#include "Navigation/LDNavigationComponent.h"
 
 void ALDPlayerController::SetDemoReady(bool Ready)
 {
@@ -33,7 +36,70 @@ void ALDPlayerController::ReturnDemoToLobby()
         ++IntentFeedbackSerial;
         return;
     }
+
     SendDemoSessionCommand(ELDSessionCommand::ReturnToLobby, false, 0, Public->MatchResult.ResultId);
+}
+
+void ALDPlayerController::LeaveDemoRoom()
+{
+    if(auto* Instance=GetGameInstance<ULDGameInstance>()){Instance->ClearReconnect();}
+    ClearControls();
+    ServerLeaveDemoRoom();
+}
+
+void ALDPlayerController::ServerLeaveDemoRoom_Implementation()
+{
+    if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>()){Mode->LeaveRoomMember(*this);}
+}
+
+void ALDPlayerController::ClientReconnectTicket_Implementation(const FGuid& Ticket)
+{
+    if(auto* Instance=GetGameInstance<ULDGameInstance>())
+    {
+        if(GetWorld()->GetNetMode()==NM_Client)
+        {
+            if(const UNetConnection* Connection=GetNetConnection()){Instance->RememberRoomURL(Connection->URL.ToString());}
+        }
+        Instance->SetReconnectTicket(Ticket);
+    }
+}
+
+void ALDPlayerController::ClientReconnectChallenge_Implementation()
+{
+    const auto* Instance=GetGameInstance<ULDGameInstance>();
+    ServerReconnectRoom(Instance?Instance->GetReconnectTicket():FGuid());
+}
+
+void ALDPlayerController::ServerReconnectRoom_Implementation(const FGuid& Ticket)
+{
+    if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>())
+    {FString Error;Mode->ResumeRoomMember(*this,Ticket,Error);}
+}
+
+void ALDPlayerController::ClientRestoreRequestCursors_Implementation(uint32 Generation,uint64 BuildNext,uint64 BuildPending,
+    uint64 DevNext,uint64 DevPending,uint64 DirectThrough,uint64 SessionThrough,uint32 MoveOrder,uint32 MoveEpoch)
+{
+    if(!Generation||!BuildNext||BuildNext==MAX_uint64||!DevNext||DevNext==MAX_uint64
+        ||(BuildPending&&BuildPending!=BuildNext)||(DevPending&&DevPending!=DevNext)
+        ||DirectThrough==MAX_uint64||SessionThrough==MAX_uint64)
+    {
+        UE_LOG(LogLDMatch,Error,TEXT("LD_RECONNECT_CURSOR_INVALID"));
+        if(auto* Instance=GetGameInstance<ULDGameInstance>())
+        {Instance->ReturnAfterRoomClosed(GetWorld(),TEXT("恢复失败：服务器请求编号无效。"));}
+        return;
+    }
+    BuildCursor={Generation,BuildNext,BuildPending};
+    DevTestCursor={Generation,DevNext,DevPending};
+    NextDirectSequence=DirectThrough;
+    DemoRequestGeneration=Generation;DemoRequestSequence=SessionThrough;DemoPendingSequence=0;
+    Navigation->RestoreLocalOrderCursor(MoveOrder,MoveEpoch);
+    if(BuildPending)
+    {
+        FLDReceiptQuery Query;
+        Query.Generation=Generation;Query.Family=ELDGrowthFamily::Build;Query.RequestId=BuildPending;
+        ServerQueryGrowthReceipt(Query);
+    }
+    PostIntentNotice(TEXT("已恢复本局角色与构筑。"));
 }
 
 void ALDPlayerController::SendDemoSessionCommand(ELDSessionCommand Command, bool Ready, uint8 AICount, FGuid ExpectedResult)
@@ -108,7 +174,7 @@ void ALDPlayerController::ClientDemoRoomClosed_Implementation(uint32 Generation,
     DemoPendingSequence = 0;
     ClearControls();
     // The Host's closing connection follows this notice; the room's first reason is the one shown.
-    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ReturnAfterRoomClosed(GetWorld(), Reason); }
+    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ClearReconnect();Instance->ReturnAfterRoomClosed(GetWorld(), Reason); }
     else { ClientTravel(LDDemoEntry::FrontendMap, TRAVEL_Absolute); }
 }
 
@@ -117,5 +183,5 @@ void ALDPlayerController::ClientWasKicked_Implementation(const FText& KickReason
     // Its PreLogin passed, but the room changed while it loaded; the coded refusal is its reason, not a lost session.
     DemoPendingSequence = 0;
     ClearControls();
-    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ReturnAfterRefusal(GetWorld(), KickReason.ToString()); }
+    if (auto* Instance = GetGameInstance<ULDGameInstance>()) { Instance->ClearReconnect();Instance->ReturnAfterRefusal(GetWorld(), KickReason.ToString()); }
 }

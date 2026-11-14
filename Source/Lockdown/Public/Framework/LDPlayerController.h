@@ -22,6 +22,7 @@ class LOCKDOWN_API ALDPlayerController : public APlayerController
 public:
     ALDPlayerController();
     virtual void BeginPlay() override;
+    virtual void PawnLeavingGame() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;
     virtual void UpdateCameraManager(float DeltaSeconds) override;
@@ -37,6 +38,15 @@ public:
     // Host only: end the running match without a winner / take the room back to a new Lobby.
     void EndDemoMatch();
     void ReturnDemoToLobby();
+    void LeaveDemoRoom();
+    bool bParkedForReconnect=false;
+    bool bExplicitRoomLeave=false;
+    UFUNCTION(Client,Reliable) void ClientReconnectTicket(const FGuid& Ticket);
+    UFUNCTION(Client,Reliable) void ClientReconnectChallenge();
+    UFUNCTION(Server,Reliable) void ServerReconnectRoom(const FGuid& Ticket);
+    UFUNCTION(Server,Reliable) void ServerLeaveDemoRoom();
+    UFUNCTION(Client,Reliable) void ClientRestoreRequestCursors(uint32 Generation,uint64 BuildNext,uint64 BuildPending,
+        uint64 DevNext,uint64 DevPending,uint64 DirectThrough,uint64 SessionThrough,uint32 MoveOrder,uint32 MoveEpoch);
     UFUNCTION(Server,Reliable) void ServerDemoSessionCommand(const FLDSessionRequest& Request);
     UFUNCTION(Client,Reliable) void ClientDemoSessionReceipt(const FLDSessionReceipt& Receipt);
     UFUNCTION(Client,Reliable) void ClientDemoRoomClosed(uint32 Generation,const FString& Reason);

@@ -492,6 +492,16 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
     {
         return ELDGrowthReason::DataInvalid;
     }
+    if (!Build.FinalMod.IsEmpty())
+    {
+        FLDComponentTarget Binding;
+        Binding.Kind = Build.FinalMod.TargetKind;
+        Binding.Definition = Build.FinalMod.TargetId;
+        TArray<FLDComponentTarget> Legal;
+        if (FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) != ELDGrowthReason::None
+            || !Legal.Contains(Binding))
+        { return ELDGrowthReason::DataInvalid; }
+    }
     return ELDGrowthReason::None;
 }
 
@@ -1004,46 +1014,119 @@ ELDGrowthReason LDProgression::ApplyReplaceActive(const FLDDemoContentDefinition
     return ELDGrowthReason::None;
 }
 
+ELDGrowthReason LDProgression::FinalModTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    FName Option, TArray<FLDComponentTarget>& Out)
+{
+    Out.Reset();
+    const FLDDemoFinalModDefinition* Card = Content.FinalMods.FindByPredicate(
+        [Option](const FLDDemoFinalModDefinition& Row) { return FName(*Row.Id) == Option; });
+    if (!Card) { return ELDGrowthReason::InvalidOption; }
+    if (Card->IsUniversal())
+    {
+        Out.AddDefaulted();
+        return ELDGrowthReason::None;
+    }
+    const auto Add = [&Out](ELDComponentTargetKind Kind, FName Id)
+    {
+        FLDComponentTarget Target;
+        Target.Kind = Kind;
+        Target.Definition = Id;
+        Out.AddUnique(Target);
+    };
+    const auto Hard = [](ELDDemoEffectOp Op)
+    {
+        return Op == ELDDemoEffectOp::Root || Op == ELDDemoEffectOp::Stun || Op == ELDDemoEffectOp::Disarm
+            || Op == ELDDemoEffectOp::Taunt || Op == ELDDemoEffectOp::Silence;
+    };
+    if (Card->Requirement == ELDDemoFinalModRequirement::Dash) { Add(ELDComponentTargetKind::Dash, NAME_None); }
+    for (const FLDLearnedActive& Learned : Build.Actives)
+    {
+        const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Learned.Id);
+        if (!Ability) { return ELDGrowthReason::DataInvalid; }
+        const TArray<FLDDemoEffectDefinition>& Effects = Ability->Values.Effects;
+        const auto Has = [&Effects](ELDDemoEffectOp Op)
+        { return Effects.ContainsByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == Op; }); };
+        bool bLegal = false;
+        switch (Card->Requirement)
+        {
+        case ELDDemoFinalModRequirement::ForcedMove: bLegal = Has(ELDDemoEffectOp::Knockback); break;
+        case ELDDemoFinalModRequirement::HardControl:
+            bLegal = Effects.ContainsByPredicate([&Hard](const FLDDemoEffectDefinition& Effect) { return Hard(Effect.GetOp()); });
+            break;
+        case ELDDemoFinalModRequirement::Dash: bLegal = Has(ELDDemoEffectOp::Dash); break;
+        case ELDDemoFinalModRequirement::PlacedZone:
+            bLegal = Ability->Target.Mode == ELDDemoTargetMode::GroundPoint
+                && Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+                { return Effect.GetOp() == ELDDemoEffectOp::Zone && Effect.DurationMs >= 3000; });
+            for (const FLDComponentInstance& Instance : Build.Components)
+            {
+                if (!Instance.bInstalled || Instance.Target.Kind != ELDComponentTargetKind::Active
+                    || Instance.Target.Definition != Learned.Id) { continue; }
+                const FLDDemoComponentDefinition* Component = Content.Components.FindByPredicate(
+                    [&Instance](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Instance.Id; });
+                if (!Component) { return ELDGrowthReason::DataInvalid; }
+                if (Component->Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+                    { return Effect.GetOp() == ELDDemoEffectOp::ZoneTether || Effect.GetOp() == ELDDemoEffectOp::CompressZone; }))
+                { bLegal = false; }
+            }
+            break;
+        default: return ELDGrowthReason::DataInvalid;
+        }
+        if (bLegal) { Add(ELDComponentTargetKind::Active, Learned.Id); }
+    }
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        if (!Instance.bInstalled) { continue; }
+        const FLDDemoComponentDefinition* Component = Content.Components.FindByPredicate(
+            [&Instance](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Instance.Id; });
+        if (!Component) { return ELDGrowthReason::DataInvalid; }
+        for (const FLDDemoEffectDefinition& Effect : Component->Effects)
+        {
+            const ELDDemoEffectOp Op = Effect.GetOp();
+            if (Card->Requirement == ELDDemoFinalModRequirement::ForcedMove)
+            {
+                if (Op == ELDDemoEffectOp::Knockback || Op == ELDDemoEffectOp::ContactKnockback
+                    || (Op == ELDDemoEffectOp::NthBasicBonus && Effect.DistanceCm.Numerator > 0))
+                { Add(ELDComponentTargetKind::Component, Instance.Id); }
+                else if (Op == ELDDemoEffectOp::DefenseShove || Op == ELDDemoEffectOp::FinalKnockback || Op == ELDDemoEffectOp::Pull)
+                { Add(Instance.Target.Kind, Instance.Target.Definition); }
+            }
+            else if (Card->Requirement == ELDDemoFinalModRequirement::HardControl
+                && (Hard(Op) || Op == ELDDemoEffectOp::KnockbackImpact || Op == ELDDemoEffectOp::ControlMark
+                    || Op == ELDDemoEffectOp::Aftershock))
+            { Add(ELDComponentTargetKind::Component, Instance.Id); }
+        }
+    }
+    return ELDGrowthReason::None;
+}
+
 ELDGrowthReason LDProgression::DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
     uint64 Seed, TArray<FName>& Out)
 {
     Out.Reset();
-    TArray<FName> Remaining;
-    // Any ordinal after the opening one draws from every active.
-    if (const ELDGrowthReason Reason = EligibleActives(Content, Build, 2, Remaining); Reason != ELDGrowthReason::None)
+    if (const ELDGrowthReason Reason = ValidateBuild(Content, Build); Reason != ELDGrowthReason::None) { return Reason; }
+    TArray<FName> Universal, Mechanic, All;
+    for (const FLDDemoFinalModDefinition& Card : Content.FinalMods)
     {
-        return Reason;
+        const FName Id(*Card.Id);
+        TArray<FLDComponentTarget> Targets;
+        if (const ELDGrowthReason Reason = FinalModTargets(Content, Build, Id, Targets); Reason != ELDGrowthReason::None)
+        { return Reason; }
+        if (Targets.IsEmpty()) { continue; }
+        All.Add(Id);
+        (Card.IsUniversal() ? Universal : Mechanic).Add(Id);
     }
-    TArray<FName> Shuffled;
+    if (Universal.Num() != 4 || All.Num() < 3) { return ELDGrowthReason::DataInvalid; }
     uint64 State = Seed;
-    while (!Remaining.IsEmpty())
+    const auto Pick = [&Out, &State](TArray<FName> Pool)
     {
-        const int32 Pick = int32(ProgressionSplitMix64(State) % uint64(Remaining.Num()));
-        Shuffled.Add(Remaining[Pick]);
-        Remaining.RemoveAt(Pick);
-    }
-    const auto ModeOf = [&Content](FName Id)
-    {
-        const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Content, Id);
-        return Ability ? Ability->Target.Mode : ELDDemoTargetMode::Self;
+        Pool.RemoveAll([&Out](FName Id) { return Out.Contains(Id); });
+        if (!Pool.IsEmpty()) { Out.Add(Pool[int32(ProgressionSplitMix64(State) % uint64(Pool.Num()))]); }
     };
-    TArray<ELDDemoTargetMode> Modes;
-    for (const FName Id : Shuffled)
-    {
-        if (Out.Num() < 3 && !Modes.Contains(ModeOf(Id)))
-        {
-            Modes.Add(ModeOf(Id));
-            Out.Add(Id);
-        }
-    }
-    for (const FName Id : Shuffled)
-    {
-        if (Out.Num() < 3 && !Out.Contains(Id))
-        {
-            Out.Add(Id);
-        }
-    }
-    return ELDGrowthReason::None;
+    Pick(Mechanic.IsEmpty() ? Universal : Mechanic);
+    Pick(Universal);
+    Pick(All);
+    return Out.Num() == 3 ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
 }
 
 uint64 LDProgression::FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender)
@@ -1055,20 +1138,14 @@ uint64 LDProgression::FinalModSeed(const FGuid& MatchSecret, const FGuid& Conten
 }
 
 ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
-    const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, uint8 Slot, const FBuildContext& Context,
-    FLDGrowthBuild& Out, FLDProgressionState& OutProgression, FName& OutForgotten, TArray<FName>& OutReclaimed)
+    const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, const FLDComponentTarget& Target,
+    const FBuildContext& Context, FLDGrowthBuild& Out, FLDProgressionState& OutProgression)
 {
     Out = Current;
     OutProgression = Progression;
-    OutForgotten = NAME_None;
-    OutReclaimed.Reset();
     if (const ELDGrowthReason Reason = ValidateBuild(Content, Current); Reason != ELDGrowthReason::None)
     {
         return Reason;
-    }
-    if (Slot >= 3)
-    {
-        return ELDGrowthReason::InvalidRequest;
     }
     if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::FinalMod, Context); Reason != ELDGrowthReason::None)
     {
@@ -1083,25 +1160,13 @@ ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Co
     {
         return ELDGrowthReason::InvalidOption;
     }
-    if (Current.FindActive(Option) || Current.HasBlueprint(Option))
-    {
-        return ELDGrowthReason::FinalModUnavailable;
-    }
-    if (Progression.Offer.IsSet())
-    {
-        return ELDGrowthReason::OfferOutstanding;
-    }
-    // The cost of the mod: whatever sat in the slot is forgotten and its attachments return to the inventory.
-    if (const int32 Index = Current.ActiveInSlot(Slot); Index != INDEX_NONE)
-    {
-        OutForgotten = Current.Actives[Index].Id;
-        Out.Actives.RemoveAt(Index);
-        ReclaimAttachments(Out, OutForgotten, OutReclaimed);
-    }
-    Out.Actives.Add({Option, Slot});
-    ProgressionSortBuild(Out);
-    OutProgression.FinalMod.Chosen = Option;
-    OutProgression.FinalMod.Slot = Slot;
+    TArray<FLDComponentTarget> Legal;
+    if (const ELDGrowthReason Reason = FinalModTargets(Content, Current, Option, Legal); Reason != ELDGrowthReason::None)
+    { return Reason; }
+    if (!Legal.Contains(Target)) { return ELDGrowthReason::FinalModUnavailable; }
+    Out.FinalMod.DefinitionId = Option;
+    Out.FinalMod.TargetKind = Target.Kind;
+    Out.FinalMod.TargetId = Target.Definition;
     OutProgression.FinalMod.bLocked = true;
     return ELDGrowthReason::None;
 }

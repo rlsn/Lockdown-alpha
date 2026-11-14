@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,1800)][int]$TimeoutSeconds=1800,
-    [switch]$AllHuman)
+    [switch]$AllHuman, [switch]$RenderHost)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -22,13 +22,18 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
-    Host = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13','A01','A02','A03')
-    Client1 = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13')
+    Host = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13','C16','A01','A02','A03')
+    Client1 = @('C01','C02','C03','C04','C04F','C05','C06','C07','C08','C09','C10','C11','C12','C13','C16')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
 $clientCount = if ($AllHuman) { 5 } else { 2 }
 $roles = @('Host') + @(1..$clientCount | ForEach-Object { "Client$_" })
 foreach ($role in $roles | Where-Object { $_ -ne 'Host' }) { $requiredChecks[$role] = $requiredChecks.Client1 }
+if ($AllHuman) {
+    $requiredChecks.Host += 'A04'
+    $requiredChecks.Client5 = $requiredChecks.Client5 + 'C14'
+}
+if ($RenderHost) { $requiredChecks.Host += 'C15' }
 # The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the
 # Host's has one inner space). They are built from code points so this script stays ASCII.
 function Get-CaptureName {
@@ -44,7 +49,8 @@ function Start-CaptureRole {
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCaptureProbe -LDDemoCaptureRole={2} -LDDemoCaptureTimeout={3} -LDDemoCaptureOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    $render = if ($RenderHost -and $Role -eq 'Host') { '-RenderOffScreen -ResX=1280 -ResY=720 -LDCaptureRenderHost' } else { '-nullrhi' }
+    $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCaptureProbe -LDDemoCaptureRole={3} -LDDemoCaptureTimeout={4} -LDDemoCaptureOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($AllHuman) { $arguments += ' -LDCaptureAllHuman' }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
@@ -54,7 +60,7 @@ function Get-CaptureFailure {
         $log = Join-Path $output "$role.log"
         if (Test-Path -LiteralPath $log) {
             $networkFailure = Select-String -LiteralPath $log -SimpleMatch 'LogNet: Error: UEngine::BroadcastNetworkFailure' | Select-Object -First 1
-            if ($networkFailure) { return "Network failure for $role`: $($networkFailure.Line). Evidence: $output" }
+            if ($networkFailure -and -not ($AllHuman -and $role -eq 'Client5')) { return "Network failure for $role`: $($networkFailure.Line). Evidence: $output" }
         }
         $file = Join-Path $evidence "$role.json"
         if (Test-Path -LiteralPath $file) {
@@ -119,10 +125,14 @@ try {
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
     if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT' |
+        Where-Object { -not ($AllHuman -and (Split-Path -Leaf $_.Path) -eq 'Client5.log' -and
+            $_.Line -match 'LogNet: Error: UEngine::BroadcastNetworkFailure: FailureType = ConnectionLost,') })
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
     $roster = if ($AllHuman) { 'six real owners, no AI' } else { 'three real owners plus three production AI' }
-    Write-Host ("Normal-start six-contender showdown passed: {0}, three growth fields and final rest, six final-rest active choices and locks, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {1}. Not distinct FIN effects, graphical quality or exhaustive respawn choreography. Evidence: {2}" -f
+    $trafficOwners = @($reports | Where-Object { $_.summary.final_traffic_dash -eq $true -and $_.summary.final_road_seen -eq $true })
+    Write-Host ("Owning FIN effect evidence: {0} owners observed their real D-bound traffic road." -f $trafficOwners.Count)
+    Write-Host ("Normal-start six-contender showdown passed: {0}, three growth fields and final rest, six independent FIN choices and locks, distinct final entries, objective deadline/result, growth freeze, Lobby return and fresh second start in generation {1}. Six-owner mode also verifies frontend reconnect after selection. Not graphical quality or exhaustive respawn choreography. Evidence: {2}" -f
         $roster,$reports[0].summary.second_generation,$output)
 }
 finally {

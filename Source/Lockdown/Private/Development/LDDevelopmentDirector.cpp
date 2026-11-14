@@ -78,11 +78,13 @@ bool DevelopmentBuildShapeValid(const FLDBuildCommand& Command, int32 StatCount)
         return Command.OfferId.IsValid() && Command.OfferRevision != 0 && Command.Option == FLDDefinitionWire()
             && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
             && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot;
-    // Phase 9: the final mod names its open three-choice (revision 0), the option and the slot it goes into.
     case ELDBuildCommandKind::FinalMod:
         return Command.OfferId.IsValid() && Command.OfferRevision == 0 && Command.Option.Decode(Decoded)
-            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty() && bNoComponent
-            && !Command.bLearnIfPossible && Command.Slot < 3;
+            && Command.Blueprint == FLDDefinitionWire() && Command.PointCounts.IsEmpty()
+            && Command.Component == FLDDefinitionWire() && !Command.bInstallIfPossible && bTarget
+            && Target.Segment == 0 && Target.BoundActive.IsNone() && Target.BoundComponent.IsNone()
+            && Target.Element == ELDDemoElement::None && Target.Kind != ELDComponentTargetKind::EffectSegment
+            && !Command.bLearnIfPossible && Command.Slot == FLDBuildCommand::AnySlot;
     case ELDBuildCommandKind::LearnBlueprint:
     case ELDBuildCommandKind::ReplaceActive:
         return bNoOffer && Command.Blueprint.Decode(Decoded) && !Command.bLearnIfPossible && Command.Slot < 3
@@ -206,7 +208,8 @@ FLDPrepareGrowthResult DevelopmentPrepareFailure(ELDGrowthReason Reason, const T
 // components and opportunities are not.
 bool DevelopmentChangesCombat(const FLDGrowthBuild& Old, const FLDGrowthBuild& New)
 {
-    if (Old.Level != New.Level || Old.StatPoints != New.StatPoints || Old.Actives.Num() != New.Actives.Num())
+    if (Old.Level != New.Level || Old.StatPoints != New.StatPoints || Old.Actives.Num() != New.Actives.Num()
+        || Old.FinalMod != New.FinalMod)
     {
         return true;
     }
@@ -499,8 +502,25 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.bFinalModPending = Progression.FinalMod.IsPending();
     View.FinalModOfferId = Progression.FinalMod.OfferId;
     View.FinalModOptions = Progression.FinalMod.Options;
-    View.FinalModChosen = Progression.FinalMod.Chosen;
-    View.FinalModSlot = Progression.FinalMod.Slot;
+    View.FinalModChosen = Build.FinalMod.DefinitionId;
+    View.FinalMod = Build.FinalMod;
+    if (View.bFinalModPending)
+    {
+        for (FName Option : View.FinalModOptions)
+        {
+            TArray<FLDComponentTarget> Targets;
+            const ELDGrowthReason Reason = LDProgression::FinalModTargets(Definitions, Build, Option, Targets);
+            if (Reason != ELDGrowthReason::None)
+            {
+                UE_LOG(LogLDGrowth, Error, TEXT("LD_FINAL_MOD_VIEW_INVALID contender=%s reason=%s"),
+                    *LDLog::Id(ContenderId), LDGrowthWire::ReasonName(Reason));
+                View.bValid = false;
+                return View;
+            }
+            for (const FLDComponentTarget& Target : Targets)
+            { View.FinalModSources.Add({Option, Target.Kind, Target.Definition}); }
+        }
+    }
     View.bBuildLocked = Progression.FinalMod.bLocked;
     return View;
 }
@@ -854,14 +874,14 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     case ELDBuildCommandKind::FinalMod:
     {
         Command.Option.Decode(Definition);
+        FLDComponentTarget Target;
+        if (!DevelopmentDecodeTarget(Command, Target)) { return Reject(ELDGrowthReason::InvalidRequest); }
         const ELDGrowthReason FinalReason = LDProgression::ApplyFinalMod(Definitions, Build, Progression, Command.OfferId,
-            Definition, Command.Slot, Context, NewBuild, NewProgression, Forgotten, Reclaimed);
+            Definition, Target, Context, NewBuild, NewProgression);
         if (FinalReason != ELDGrowthReason::None)
         {
             return Reject(FinalReason);
         }
-        Choice.Result = ELDBuildChoiceResult::Learned;
-        Choice.Slot = Command.Slot;
         bProgressionChanged = true;
         break;
     }
@@ -1034,7 +1054,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
             || Command.Kind == ELDBuildCommandKind::FillGap || Command.Kind == ELDBuildCommandKind::Dismantle;
         const FName Card = bMaterial ? Receipt.ComponentId : Receipt.DefinitionId;
         const bool bNamesSlot = Command.Kind == ELDBuildCommandKind::LearnBlueprint || Command.Kind == ELDBuildCommandKind::ReplaceActive
-            || Command.Kind == ELDBuildCommandKind::ForgetActive || Command.Kind == ELDBuildCommandKind::FinalMod;
+            || Command.Kind == ELDBuildCommandKind::ForgetActive;
         UE_LOG(LogLDGrowth, Log, TEXT("LD_BUILD t=%lld contender=%s kind=%s card=%s slot=%s points=%s unspent=%lld level=%u forgot=%s refunded=%lld paid=%lld ordinal=%u installed=%s bind=%s install_stored=%s reclaimed=%s"),
             GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind),
             Card.IsNone() ? TEXT("-") : *Card.ToString(),
@@ -1069,8 +1089,7 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     if (Command.Kind == ELDBuildCommandKind::FinalMod)
     {
         UE_LOG(LogLDGrowth, Log, TEXT("LD_FINAL_MOD_LOCK t=%lld contender=%s chosen=%s slot=%s forgot=%s"), GameMode->GetAuthorityNowMs(),
-            *LDLog::Id(ContenderId), *Receipt.DefinitionId.ToString(), DevelopmentSlotName(Command.Slot),
-            Forgotten.IsNone() ? TEXT("-") : *Forgotten.ToString());
+            *LDLog::Id(ContenderId), *Receipt.DefinitionId.ToString(), TEXT("-"), TEXT("-"));
     }
     Record->Builds.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
@@ -1113,30 +1132,43 @@ bool ALDDevelopmentDirector::OpenFinalMods(const FLDGameplayWritePermit& Permit,
         Error = TEXT("final mods need a world permit and the growth domain");
         return false;
     }
-    for (TPair<FGuid, FRecord>& Pair : Records)
+    TArray<TPair<FGuid, TArray<FName>>> Prepared;
+    for (const TPair<FGuid, FRecord>& Pair : Records)
     {
-        FLDProgressionState& Progression = Pair.Value.Progression;
-        if (Progression.FinalMod.OfferId.IsValid() || Progression.Revision == MAX_uint64)
-        {
-            continue;
-        }
+        const FLDProgressionState& Progression = Pair.Value.Progression;
+        if (Progression.FinalMod.OfferId.IsValid() || !GameMode->IsContenderPresent(Pair.Key)) { continue; }
+        if (Progression.Revision == MAX_uint64) { Error = TEXT("final mod offer revision overflow"); return false; }
         TArray<FName> Options;
         const ELDGrowthReason Reason = LDProgression::DrawFinalModOptions(Content->Get(), Pair.Value.Build,
             LDProgression::FinalModSeed(MatchSecret, Pair.Key), Options);
-        if (Reason != ELDGrowthReason::None || Options.IsEmpty())
+        if (Reason != ELDGrowthReason::None || Options.Num() != 3)
         {
-            UE_LOG(LogLDGrowth, Warning, TEXT("LD_FINAL_MOD_OPEN contender=%s skipped=%s"), *LDLog::Id(Pair.Key),
-                Reason == ELDGrowthReason::None ? TEXT("NoEligible") : LDGrowthWire::ReasonName(Reason));
-            continue;
+            Error = FString::Printf(TEXT("final mod offer for %s: %s"), *LDLog::Id(Pair.Key), LDGrowthWire::ReasonName(Reason));
+            return false;
         }
+        Prepared.Emplace(Pair.Key, MoveTemp(Options));
+    }
+    for (TPair<FGuid, TArray<FName>>& Pair : Prepared)
+    {
+        FLDProgressionState& Progression = Records.FindChecked(Pair.Key).Progression;
         Progression.FinalMod.OfferId = FGuid::NewGuid();
-        Progression.FinalMod.Options = MoveTemp(Options);
+        Progression.FinalMod.Options = MoveTemp(Pair.Value);
         ++Progression.Revision;
         GameMode->Growth->MarkDirty(Pair.Key);
         UE_LOG(LogLDGrowth, Log, TEXT("LD_FINAL_MOD_OPEN t=%lld contender=%s cards=%s"), GameMode->GetAuthorityNowMs(),
             *LDLog::Id(Pair.Key), *FString::JoinBy(Progression.FinalMod.Options, TEXT(","), [](FName Id) { return Id.ToString(); }));
     }
     return true;
+}
+
+bool ALDDevelopmentDirector::ReadBuildRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const
+{
+    const FRecord* Record=Records.Find(ContenderId);
+    if(!Record||Record->Builds.GetFinalizedThrough()==MAX_uint64)
+    {Error=TEXT("Reconnect build cursor has no current stream or exhausted its sequence.");return false;}
+    Next=Record->Builds.GetFinalizedThrough()+1;
+    Pending=Record->Builds.PendingRequestId();
+    Error.Reset();return true;
 }
 
 bool ALDDevelopmentDirector::LockFinalMods(const FLDGameplayWritePermit& Permit, FString& Error)
@@ -1150,8 +1182,13 @@ bool ALDDevelopmentDirector::LockFinalMods(const FLDGameplayWritePermit& Permit,
     }
     for (TPair<FGuid, FRecord>& Pair : Records)
     {
+        if (!Pair.Value.Progression.FinalMod.bLocked && Pair.Value.Progression.Revision == MAX_uint64)
+        { Error = TEXT("final mod lock revision overflow"); return false; }
+    }
+    for (TPair<FGuid, FRecord>& Pair : Records)
+    {
         FLDProgressionState& Progression = Pair.Value.Progression;
-        if (Progression.FinalMod.bLocked || Progression.Revision == MAX_uint64)
+        if (Progression.FinalMod.bLocked)
         {
             continue;
         }
@@ -1547,6 +1584,7 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
         }
     }
     Input.ResultBuildRevision = Build.Revision;
+    Input.FinalMod = Build.FinalMod;
     return Input;
 }
 

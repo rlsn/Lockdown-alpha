@@ -425,15 +425,20 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
     case ELDOpponentBuildKind::FinalMod:
     {
         const FName Option(*Intent.Option);
-        if (!Progression.bFinalModPending || Progression.FinalModOfferId != Intent.OfferId || Intent.Slot > 2
-            || !Progression.FinalModOptions.Contains(Option) || !FLDDefinitionWire::Encode(Option, Out.Option))
+        if (!Progression.bFinalModPending || Progression.FinalModOfferId != Intent.OfferId
+            || !Progression.FinalModOptions.Contains(Option) || !FLDDefinitionWire::Encode(Option, Out.Option)
+            || !Progression.FinalModSources.ContainsByPredicate([&Intent,Option](const FLDFinalModSourceView& Source)
+                {return Source.Option==Option&&Source.TargetKind==Intent.TargetKind&&Source.TargetId==FName(*Intent.TargetId);}))
         {
             Out = FLDBuildCommand();
             return Fail(Error, TEXT("The final mod is no longer open or the option is not one of it."));
         }
         Out.Kind = ELDBuildCommandKind::FinalMod;
         Out.OfferId = Intent.OfferId;
-        Out.Slot = Intent.Slot;
+        Out.Slot = FLDBuildCommand::AnySlot;
+        Out.TargetKind=Intent.TargetKind;
+        if(!Intent.TargetId.IsEmpty()&&!FLDDefinitionWire::Encode(FName(*Intent.TargetId),Out.TargetDefinition))
+        {Out=FLDBuildCommand();return Fail(Error,TEXT("The final source has an invalid definition."));}
         break;
     }
     case ELDOpponentBuildKind::Dismantle:

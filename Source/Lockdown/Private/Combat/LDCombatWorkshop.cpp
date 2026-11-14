@@ -6,6 +6,7 @@
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDSkillGrowth.h"
 #include "Framework/LDGameMode.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
@@ -891,8 +892,8 @@ bool ALDCombatDirector::SetupMarkBonus(FLDBodyCombatState& Holder, const FLDComb
     return true;
 }
 
-bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs,
-    FString& Error)
+bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit,
+    const FVector& Direction, int64 NowMs, FString& Error)
 {
     Body.PendingImpact.Reset();
     auto* Movement=Cast<ULDCharacterMovementComponent>(Target.GetCharacterMovement());
@@ -900,12 +901,33 @@ bool ALDCombatDirector::WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombat
     if (!Movement || !Holder || Holder->bPendingDeath || Hit.KnockbackSource.Kind==ELDCombatSourceKind::None) { return true; }
     TArray<FLDPassiveEffectRef> Impacts;
     if (!WorkshopOn(Holder->AttributeProjection,ELDDemoEffectOp::KnockbackImpact,Hit.KnockbackSource,Impacts,Error)) { return false; }
-    if (Impacts.IsEmpty()) { return true; }
+    const FLDDemoFinalModDefinition* Card=nullptr;
+    if (!FinalModOf(Hit.SourceEntity,Card,Error)) { return false; }
+    const bool bBowling=Card && Card->GetNativeId()==ELDDemoFinalModId::FinalBowling && !Hit.bFinalModDerived
+        && FinalModTargetsSource(Hit.SourceEntity,Hit.KnockbackSource);
+    if (Impacts.IsEmpty() && !bBowling) { return true; }
     FLDCombatKnockbackImpact& Impact=Body.PendingImpact.Emplace();
     Impact.EffectId=Hit.EffectId;
     Impact.Holder=Hit.SourceBody;
     Impact.CreditOwner=Hit.CreditOwner;
-    Impact.Impact=Impacts[0];
+    Impact.bWorkshopImpact=!Impacts.IsEmpty();
+    if (Impact.bWorkshopImpact) { Impact.Impact=Impacts[0]; }
+    Impact.bFinalBowling=bBowling;
+    Impact.Direction=Direction;
+    Impact.PushSource=Hit.KnockbackSource;
+    if (bBowling)
+    {
+        const auto* Content=Catalog();
+        const auto* Record=FindRecord(Hit.SourceEntity);
+        if (!Content || !Record) { Error=TEXT("Bowling impact lost its checked source build."); return false; }
+        const auto& P=Content->Get().Parameters;
+        const int64 Growth=LDSkillGrowth::FactorBp(P.SkillGrowthPerLevelBp,P.SkillGrowthPerLevelAfter10Bp,Record->Build.Level);
+        if (!LDSkillGrowth::GrowP2(Card->BaseP2,Growth,Impact.FinalBaseP2))
+        { Error=TEXT("Bowling fixed damage growth overflow."); return false; }
+        Impact.FinalCardId=FName(*Card->Id);
+        Impact.FinalAPRatioBp=Card->APRatioBp;
+        Impact.FinalDistanceCm=LDCombatWorkshopDetail::Cm(Card->DistanceCm);
+    }
     Impact.HolderADP2=Holder->AttributeProjection.Final.ADP2;
     Impact.HolderAPP2=Holder->AttributeProjection.Final.APP2;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.KnockbackMs,Impact.EndMs,Error)) { return false; }
@@ -1354,8 +1376,12 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
                 Body.PendingImpact.Reset();
                 if (Movement) { Movement->StopKnockbackWatch(); }
             }
-            if (Block.IsSet() && !ResolveKnockbackImpact(Body,Impact,Block->bBody,Cast<ALDCharacter>(Block->Blocker.Get()),NowMs,Error))
-            { return false; }
+            if (Block.IsSet())
+            {
+                const ALDCharacter* Blocker=Cast<ALDCharacter>(Block->Blocker.Get());
+                if (Impact.bWorkshopImpact && !ResolveKnockbackImpact(Body,Impact,Block->bBody,Blocker,NowMs,Error)) { return false; }
+                if (Block->bBody && !ResolveFinalBowlingImpact(Impact,Blocker,Block->Direction,NowMs,Error)) { return false; }
+            }
         }
         // M12: debts due now are paid at their original amount.
         for (int32 Index=Body.Debts.Num()-1; Index>=0; --Index)

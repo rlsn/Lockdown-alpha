@@ -139,6 +139,14 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     Add(MainMenu,Tagline,4);
     StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},22);
     Add(MainMenu,StartButton,8);
+    if(const auto* Instance=GetGameInstance<ULDGameInstance>();Instance&&Instance->CanReconnect())
+    {
+        Add(MainMenu,MakeButton(TEXT("重新连接本局"),TEXT("Reconnect"),[this]()
+        {
+            if(auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer()))
+            {if(auto* State=GetGameInstance<ULDGameInstance>()){State->ReconnectRoom(*Owner);}}
+        },22),8);
+    }
     Add(MainMenu,MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},22),8);
     Add(MainMenu,MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);},22),8);
 
@@ -1117,7 +1125,9 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Eve
 void ULDUIRoot::LeaveRoom()
 {
     CloseConfirm();
-    UGameplayStatics::OpenLevel(this,LDDemoEntry::FrontendMap);
+    if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());PC&&!PC->IsFrontend()&&PC->OwnerState.Match)
+    {PC->LeaveDemoRoom();}
+    else{UGameplayStatics::OpenLevel(this,LDDemoEntry::FrontendMap);}
 }
 
 void ULDUIRoot::Leave(){LeaveRoom();}

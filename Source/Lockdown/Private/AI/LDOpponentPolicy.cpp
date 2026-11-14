@@ -1551,8 +1551,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
-    // Phase 9: last, since it locks the build: the final mod once no active offer is pending: the first option the build does not hold, into the lowest
-    // empty slot (else Q, whose active it replaces).
+    // Last: selecting the independent rule locks further ordinary build edits.
     if (Self.FinalModOfferId.IsValid() && !Self.Offer.IsSet() && !Self.FinalModOptions.IsEmpty()
         && LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Context) == ELDGrowthReason::None)
     {
@@ -1560,21 +1559,18 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
         Key.Target = Self.FinalModOfferId;
         const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
         {
-            return !Self.Blueprints.Contains(Id)
-                && !Self.Actives.ContainsByPredicate([&Id](const FLDOpponentActive& Active) { return Active.DefinitionId == Id; });
+            return Self.FinalModSources.ContainsByPredicate([&Id](const FLDFinalModSourceView& Source){return Source.Option==FName(*Id);});
         });
         if (Option && State.Failures.CanAttempt(Key, Print, Now))
         {
-            uint8 Slot = 0;
-            while (Slot < 3 && Self.Actives.ContainsByPredicate([Slot](const FLDOpponentActive& Active) { return Active.Slot == Slot; }))
-            {
-                ++Slot;
-            }
+            const auto* Source=Self.FinalModSources.FindByPredicate([Option](const FLDFinalModSourceView& Candidate){return Candidate.Option==FName(**Option);});
+            if(!Source){Error=TEXT("The final choice lost its legal source.");return false;}
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::FinalMod;
             Out.OfferId = Self.FinalModOfferId;
             Out.Option = *Option;
-            Out.Slot = Slot < 3 ? Slot : 0;
+            Out.TargetKind=Source->TargetKind;
+            Out.TargetId=Source->TargetId.IsNone()?FString():Source->TargetId.ToString();
             Out.Key = Key;
             return true;
         }

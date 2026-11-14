@@ -3658,12 +3658,15 @@ bool RunRestRebuild(FAutomationTestBase& Test)
         && Test.TestFalse(TEXT("And nothing else is to be built"), LDOpponentPolicy::DecideFollowUpBuild(Kept, C, State, Intent));
     auto Final = Kept;
     Final.Self.FinalModOfferId = FGuid(0xF1, 0, 0, 1);
-    Final.Self.FinalModOptions = {TEXT("active_apology_slide"), TEXT("active_elbow"), TEXT("active_pants_down")};
-    bGood &= Test.TestTrue(TEXT("Final selection skips a held blueprint and a learned active"),
+    Final.Self.FinalModOptions = {TEXT("final_forced_exit"), TEXT("final_traffic"), TEXT("final_landlord")};
+    Final.Self.FinalModSources = {
+        {FName(TEXT("final_traffic")), ELDComponentTargetKind::Dash, NAME_None},
+        {FName(TEXT("final_landlord")), ELDComponentTargetKind::None, NAME_None}};
+    bGood &= Test.TestTrue(TEXT("Final selection uses the first currently legal rule and its explicit source"),
         LDOpponentPolicy::DecideFollowUpBuild(Final, C, State, Intent) && Intent.Kind == EKind::FinalMod
-        && Intent.Option == TEXT("active_pants_down") && Intent.Slot == 0);
-    Final.Self.FinalModOptions.Remove(TEXT("active_pants_down"));
-    bGood &= Test.TestFalse(TEXT("No final selection is sent when every offered active is already held"),
+        && Intent.Option == TEXT("final_traffic") && Intent.TargetKind == ELDComponentTargetKind::Dash && Intent.TargetId.IsEmpty());
+    Final.Self.FinalModSources.Reset();
+    bGood &= Test.TestFalse(TEXT("No final selection is sent without a current legal source"),
         LDOpponentPolicy::DecideFollowUpBuild(Final, C, State, Intent));
 
     // Respec: the replacement takes the last AP active away, so the brains points come back once and go to the AD stats.

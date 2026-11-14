@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Development/LDGrowthProtocol.h"
 
 struct FLDBuildProjectionInput;
 struct FLDDemoContentDefinitions;
@@ -11,7 +12,7 @@ struct FLDDemoContentDefinitions;
 namespace LDBuildBlueprint
 {
     inline constexpr TCHAR Schema[] = TEXT("lockdown.build-blueprint");
-    inline constexpr int32 SchemaVersion = 1;
+    inline constexpr int32 SchemaVersion = 2;
     inline constexpr TCHAR Extension[] = TEXT(".ldbuild.json");
     inline constexpr TCHAR OriginAuto[] = TEXT("auto");
     inline constexpr TCHAR OriginExport[] = TEXT("export");
@@ -104,10 +105,11 @@ struct FLDBlueprintStructure
     // A record written before components were recorded states false and null items; this build always writes true.
     bool bComponentsCollected = false;
     TArray<FLDBlueprintComponent> Components;
+    FLDFinalModSelection FinalMod;
     bool operator==(const FLDBlueprintStructure& Other) const
     {
         return Stats == Other.Stats && Actives == Other.Actives && bComponentsCollected == Other.bComponentsCollected
-            && Components == Other.Components;
+            && Components == Other.Components && FinalMod == Other.FinalMod;
     }
     bool operator!=(const FLDBlueprintStructure& Other) const { return !(*this == Other); }
 };

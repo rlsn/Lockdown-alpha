@@ -70,6 +70,12 @@ bool FLDCaptureReducer::IsCommittedAliveBody(const FLDCombatBodyRef& Body) const
     return Member && Member->Phase == ELDLifePhase::Alive && Member->Body == Body;
 }
 
+bool FLDCaptureReducer::IsCommittedInside(const FLDCombatBodyRef& Body) const
+{
+    const FMember* Member = Committed.Find(Body.Victim.EntityId);
+    return Member && Member->Phase == ELDLifePhase::Alive && Member->Body == Body && Member->bInside;
+}
+
 bool FLDCaptureReducer::IsCommittedMember(const FGuid& ContenderId) const
 {
     const FMember* Member = Committed.Find(ContenderId);

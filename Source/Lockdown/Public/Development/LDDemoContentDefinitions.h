@@ -640,6 +640,44 @@ struct FLDDemoComponentDefinition
     ELDDemoComponentId GetNativeId() const { return static_cast<ELDDemoComponentId>(NativeId); }
 };
 
+UENUM()
+enum class ELDDemoFinalModRequirement : uint8 { Basic, ForcedMove, HardControl, Dash, PlacedZone };
+
+USTRUCT()
+struct FLDDemoFinalModDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FString Id;
+    UPROPERTY() uint8 NativeId = 0;
+    UPROPERTY() ELDDemoFinalModRequirement Requirement = ELDDemoFinalModRequirement::Basic;
+    UPROPERTY() int64 BaseP2 = 0;
+    UPROPERTY() int64 ADRatioBp = 0;
+    UPROPERTY() int64 APRatioBp = 0;
+    UPROPERTY() FLDDemoRational RadiusCm;
+    UPROPERTY() FLDDemoRational DistanceCm;
+    UPROPERTY() FLDDemoRational OffsetCm;
+    UPROPERTY() int64 DelayMs = 0;
+    UPROPERTY() int64 DurationMs = 0;
+    UPROPERTY() int64 IntervalMs = 0;
+    UPROPERTY() int64 WindowMs = 0;
+    UPROPERTY() int64 PulseIntervalMs = 0;
+    UPROPERTY() int64 OutsideMs = 0;
+    UPROPERTY() int64 RearmOutsideMs = 0;
+    UPROPERTY() int64 CooldownCostMs = 0;
+    UPROPERTY() int64 DurationCostMs = 0;
+    UPROPERTY() int64 DamageScaleBp = 0;
+    UPROPERTY() int64 ControlScaleBp = 0;
+    UPROPERTY() int64 DistanceScaleBp = 0;
+    UPROPERTY() int64 RadiusScaleBp = 0;
+    UPROPERTY() int64 MoveSpeedCostBp = 0;
+    UPROPERTY() int64 SlowBp = 0;
+    UPROPERTY() int64 SlowMs = 0;
+
+    ELDDemoFinalModId GetNativeId() const { return static_cast<ELDDemoFinalModId>(NativeId); }
+    bool IsUniversal() const { return Requirement == ELDDemoFinalModRequirement::Basic; }
+};
+
 // #198 B: the normal level-up component roll of one level band: category percentages (base + mod + connector = 100).
 USTRUCT()
 struct FLDDemoComponentCategoryWeights
@@ -829,6 +867,7 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() TArray<FLDDemoStatDefinition> Stats;
     // #198 B: the workshop material catalog (base B01–B18 now; mods/connectors by #198 F), in native id order.
     UPROPERTY() TArray<FLDDemoComponentDefinition> Components;
+    UPROPERTY() TArray<FLDDemoFinalModDefinition> FinalMods;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
     UPROPERTY() FLDDemoBossDefinition Boss;

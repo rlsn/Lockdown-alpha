@@ -47,11 +47,9 @@ public:
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
-    // Phase 9: while the final mod three-choice shows (no active offer pending), the offer row holds its options and the
-    // last card names the target slot: ChooseFinalMod takes the option at Index into it (replacing what sits there, and
-    // locking the build), CycleFinalModSlot moves the target Q -> W -> E.
+    // Independent final cards; several legal sources open a source picker before the choice commits.
     bool ChooseFinalMod(int32 Index);
-    bool CycleFinalModSlot();
+    bool ChooseFinalModSource(int32 Index);
     bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
     bool PreviewOffer(int32 Index);
@@ -167,10 +165,15 @@ private:
     UPROPERTY() TObjectPtr<UWidget> OfferGroup;
     UPROPERTY() TObjectPtr<UTextBlock> OfferNumber;
     UPROPERTY() TObjectPtr<UWrapBox> OfferRow;
+    UPROPERTY() TObjectPtr<UWidget> FinalModGroup;
+    UPROPERTY() TObjectPtr<UWrapBox> FinalModRow;
+    UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
     UPROPERTY() TObjectPtr<UWrapBox> BaseRow;
     UPROPERTY() TObjectPtr<UVerticalBox> ChoiceRowList;
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
+    TArray<FTrayCard> FinalCards;
+    TArray<FTrayCard> FinalSourceCards;
     FTrayCard SkipCard;
     TArray<FTrayCard> BaseCards;
     TArray<FChoiceRow> ChoiceRows;
@@ -221,7 +224,8 @@ private:
     FGuid ShownOffer;
     uint64 ShownOfferRevision=0;
     FGuid ShownFinalMod;
-    uint8 FinalModTarget=0;
+    FName PendingFinalOption;
+    TArray<FLDFinalModSourceView> ShownFinalSources;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;
     // #198 B: the opening base options the cards show, in the view's order.
@@ -263,6 +267,7 @@ private:
     FBlueprintRow& BlueprintRowAt(int32 Index);
     void RefreshOffer();
     void RefreshFinalMod();
+    bool SubmitFinalMod(FName Option,const FLDFinalModSourceView& Source);
     void RefreshOpeningBase(bool bTiles);
     void RefreshComponentChoices(bool bTiles);
     void RefreshBlueprintCards();

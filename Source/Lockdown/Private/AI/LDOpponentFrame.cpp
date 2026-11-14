@@ -220,6 +220,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     {
         Out.FinalModOfferId = Progression.FinalModOfferId;
         for (const FName& Option : Progression.FinalModOptions) { Out.FinalModOptions.Add(CanonicalId(Option)); }
+        Out.FinalModSources=Progression.FinalModSources;
     }
     // #198 B: owned components; the installed ones (with their binding, and #198 F their target) also feed the own
     // attribute projection.

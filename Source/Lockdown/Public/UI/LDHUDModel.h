@@ -432,6 +432,13 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    struct FFinalModCardView
+    {
+        FString Name,IconId,Glyph;
+        FActionDetailView Detail;
+        bool bKnown=false;
+    };
+    LOCKDOWN_API FFinalModCardView FinalModCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
     // One of the point-bought stats (#198) with the points the owner allocated to it and its per-point text.
     struct FStatRowView
     {
@@ -508,7 +515,7 @@ namespace LDHUD
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked=false);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a

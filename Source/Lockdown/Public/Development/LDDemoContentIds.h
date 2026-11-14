@@ -18,6 +18,11 @@ enum class ELDDemoStatId : uint8
 {
     StatPhysique=27, StatThickSkin=28, StatStrength=29, StatBrains=30, StatAgility=31
 };
+enum class ELDDemoFinalModId : uint8
+{
+    FinalBowling=2, FinalForcedExit=5, FinalTraffic=11, FinalSplit=15,
+    FinalLandlord=21, FinalBreach=22, FinalComeback=23, FinalOpenMic=24
+};
 // #198 B: workshop materials. Base components B01-B18 are 1-18; mods M01-M12 take 19-30 and connectors C01-C12 31-42 (#198 F);
 // Mods M13-M15 take 43-45 and connectors C13-C16 46-49; bases B19-B21 take 50-52, mods M16-M20 53-57 and
 // connectors C17-C21 58-62.

@@ -187,6 +187,11 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     if (!LDCombatMechanics::KnockbackDirection(From,FootOf(Target),Yaw,Direction))
     { Error=TEXT("A knockback has no finite direction."); return false; }
     FLDCombatHit Hit=InHit;
+    const FLDDemoFinalModDefinition* FinalCard=nullptr;
+    if (!FinalModOf(Hit.SourceEntity,FinalCard,Error)) { return false; }
+    if (FinalCard && FinalCard->GetNativeId()==ELDDemoFinalModId::FinalBowling && !Hit.bFinalModDerived
+        && FinalModTargetsSource(Hit.SourceEntity,Hit.KnockbackSource))
+    { Hit.KnockbackCm*=double(FinalCard->DistanceScaleBp)/10000.; }
     if (Hit.bKnockbackPull)
     {
         // M20: toward the origin, stopping KnockbackStopCm short of it; the time shrinks with a clamped distance.
@@ -207,6 +212,7 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     App.EffectId=Hit.EffectId;
     App.SourceEntity=Hit.SourceEntity;
     App.SourceBody=Hit.SourceBody;
+    App.Source=Hit.KnockbackSource;
     App.CreditOwner=Hit.CreditOwner;
     App.DurationMs=Hit.KnockbackMs;
     if (!CommitControl(Body,App,NowMs,bApplied,Error)) { return false; }
@@ -219,7 +225,7 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     // A push is blocked by bodies as well as static geometry (#198 F: C02 reads its first real block).
     if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error,true))
     { Error=TEXT("Knockback: ")+Error; return false; }
-    if (!WatchKnockbackImpact(Target,Body,Hit,NowMs,Error)) { return false; }
+    if (!WatchKnockbackImpact(Target,Body,Hit,Direction,NowMs,Error)) { return false; }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld pull=%d"),*Body.Victim.EntityId.ToString(),
         *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Hit.KnockbackMs,Hit.bKnockbackPull ? 1 : 0);
     return true;
@@ -291,28 +297,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
             ++Zone.Pulsed;
             if (Zone.bDamage || Zone.bWet)
             {
-                TArray<FLDCombatBodyRef> Targets;
-                if (!Inside(Targets,Error)) { Error=TEXT("Zone pulse: ")+Error; return false; }
-                for (const FLDCombatBodyRef& Target : Targets)
-                {
-                    FLDCombatHit& Hit=Emit(Target);
-                    Hit.BaseP2=Zone.BaseP2;
-                    Hit.ADRatioBp=Zone.ADRatioBp;
-                    Hit.APRatioBp=Zone.APRatioBp;
-                    Hit.DamageType=Zone.DamageType;
-                    Hit.bPeriodic=true;
-                    // A native pulse is the active's direct damage (spec §8): B17's lock rides on it and B18 reads it.
-                    Hit.bDirectAbilityDamage=Zone.bDamage;
-                    Hit.ControlAmpBp=Zone.ControlAmpBp;
-                    Hit.IdleReadyAmpBp=Zone.IdleReadyAmpBp;
-                    Hit.PackageScaleBp=Zone.PackageScaleBp;
-                    // #198 zone_wet: every pulse also applies wet with the owner's snapshot at release.
-                    Hit.bApplyWet=Zone.bWet;
-                    // #198 S08: the pulse's own fire, in the same batch before any water or electric of the hit.
-                    Hit.BurnStacks=Zone.PulseBurnStacks;
-                    Hit.ElementLevel=Zone.ElementLevel;
-                    Hit.ElementAPP2=Zone.ElementAPP2;
-                }
+                if (!EmitZonePulse(Zone,Error)) { Error=TEXT("Zone pulse: ")+Error; return false; }
             }
         }
         while (Zone.bSlow && Zone.NextSlowAtMs>0 && Zone.NextSlowAtMs<=NowMs && Zone.NextSlowAtMs<Zone.EndMs)
@@ -376,7 +361,11 @@ void ALDCombatDirector::UpdateZoneHaste(const FLDCombatZone& Zone, int64 NowMs)
         { return Row.EffectId==Zone.EffectId; });
         if (!bOwner && !bMate && !bHeld) { continue; }
         const bool bInside=(bOwner || bMate) && Actor && !Body.bPendingDeath && !Body.bSuspended && NowMs<Zone.EndMs
-            && FVector::DistSquared2D(Zone.CentreCm,FootOf(*Actor))<=Zone.RadiusCm*Zone.RadiusCm;
+            && (Zone.bFinalSplit ? Zones.ContainsByPredicate([&Zone,Actor,NowMs](const FLDCombatZone& Child)
+                {
+                    return Child.EffectId==Zone.EffectId && NowMs<Child.EndMs
+                        && FVector::DistSquared2D(Child.CentreCm,FootOf(*Actor))<=Child.RadiusCm*Child.RadiusCm;
+                }) : FVector::DistSquared2D(Zone.CentreCm,FootOf(*Actor))<=Zone.RadiusCm*Zone.RadiusCm);
         if (bInside && !bHeld)
         {
             FLDCombatTimedBonus Bonus;
@@ -414,7 +403,7 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoAbilityValues& Values
 }
 
 bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
-    const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+    const FVector& OriginFoot, const FVector& TargetPoint, const FVector& ReleaseDirection, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
     TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error)
 {
     using namespace LDCombatMechanicsDetail;
@@ -549,7 +538,9 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
             Zone.DamageType=Damage->DamageType;
         }
         Zone.CreatedSerial=++NextAreaSerial;
-        Zones.Add(MoveTemp(Zone));
+        bool bSplit=false;
+        if (!SplitFinalZone(Zone,ReleaseDirection,Now,bSplit,Error)) { return false; }
+        if (!bSplit) { Zones.Add(MoveTemp(Zone)); }
     }
     return true;
 }

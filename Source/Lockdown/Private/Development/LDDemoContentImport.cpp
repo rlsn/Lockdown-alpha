@@ -20,6 +20,14 @@ struct FNativeId
 const FNativeId NativeIds[] =
 {
     DEMO_ID("character", "character_demo", ELDDemoCharacterId, CharacterDemo),
+    DEMO_ID("final_mods", "final_bowling", ELDDemoFinalModId, FinalBowling),
+    DEMO_ID("final_mods", "final_forced_exit", ELDDemoFinalModId, FinalForcedExit),
+    DEMO_ID("final_mods", "final_traffic", ELDDemoFinalModId, FinalTraffic),
+    DEMO_ID("final_mods", "final_split", ELDDemoFinalModId, FinalSplit),
+    DEMO_ID("final_mods", "final_landlord", ELDDemoFinalModId, FinalLandlord),
+    DEMO_ID("final_mods", "final_breach", ELDDemoFinalModId, FinalBreach),
+    DEMO_ID("final_mods", "final_comeback", ELDDemoFinalModId, FinalComeback),
+    DEMO_ID("final_mods", "final_open_mic", ELDDemoFinalModId, FinalOpenMic),
     DEMO_ID("abilities", "active_pants_down", ELDDemoAbilityId, ActivePantsDown),
     DEMO_ID("abilities", "active_crotch_grab", ELDDemoAbilityId, ActiveCrotchGrab),
     DEMO_ID("abilities", "active_snark_bolt", ELDDemoAbilityId, ActiveSnarkBolt),
@@ -309,7 +317,7 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     {
         return false;
     }
-    for (const TCHAR* Category : {TEXT("character"), TEXT("abilities"), TEXT("stats"), TEXT("components"),
+    for (const TCHAR* Category : {TEXT("character"), TEXT("abilities"), TEXT("stats"), TEXT("components"), TEXT("final_mods"),
         TEXT("monsters"), TEXT("statuses"), TEXT("effect_ops")})
     {
         FFields Group(Check, Root.Take(Category), Root.Path + TEXT(".") + Category);
@@ -2205,6 +2213,72 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         && F.Done();
 }
 
+bool FinalMod(const FValue& Value, FLDDemoFinalModDefinition& Out, FCheck& Check, const FString& Path)
+{
+    FFields F(Check, Value, Path);
+    if (!NativeIdentity(F, TEXT("final_mods"), Out.Id, Out.NativeId)) { return false; }
+    const auto Time = [&F](const TCHAR* Key, int64& Amount) { return F.Fixed(Key, TEXT("ms"), TEXT("ms"), Amount, 1); };
+    const auto Ratio = [&F](const TCHAR* Key, int64& Amount) { return F.Fixed(Key, TEXT("ratio"), TEXT("bp"), Amount, 1, 9999); };
+    const auto Cm = [&F](const TCHAR* Key, FLDDemoRational& Amount) { return F.Fraction(Key, TEXT("cm"), Amount, true); };
+    const auto Base = [&F, &Out]() { return F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2, 1); };
+    bool Valid = false;
+    switch (Out.GetNativeId())
+    {
+    case ELDDemoFinalModId::FinalBowling:
+        Out.Requirement = ELDDemoFinalModRequirement::ForcedMove;
+        Valid = F.Literal(TEXT("requirement"), TEXT("ForcedMove")) && Base() && Ratio(TEXT("ap_ratio"), Out.APRatioBp)
+            && Cm(TEXT("distance"), Out.DistanceCm) && Ratio(TEXT("distance_ratio"), Out.DistanceScaleBp);
+        break;
+    case ELDDemoFinalModId::FinalForcedExit:
+        Out.Requirement = ELDDemoFinalModRequirement::HardControl;
+        Valid = F.Literal(TEXT("requirement"), TEXT("HardControl")) && Cm(TEXT("distance"), Out.DistanceCm)
+            && Time(TEXT("delay"), Out.DelayMs) && Time(TEXT("interval"), Out.IntervalMs)
+            && Ratio(TEXT("control_ratio"), Out.ControlScaleBp);
+        break;
+    case ELDDemoFinalModId::FinalTraffic:
+        Out.Requirement = ELDDemoFinalModRequirement::Dash;
+        Valid = F.Literal(TEXT("requirement"), TEXT("Dash")) && Cm(TEXT("radius"), Out.RadiusCm)
+            && Time(TEXT("duration"), Out.DurationMs) && Ratio(TEXT("slow"), Out.SlowBp)
+            && Time(TEXT("slow_duration"), Out.SlowMs) && Time(TEXT("cooldown_cost"), Out.CooldownCostMs);
+        break;
+    case ELDDemoFinalModId::FinalSplit:
+        Out.Requirement = ELDDemoFinalModRequirement::PlacedZone;
+        Valid = F.Literal(TEXT("requirement"), TEXT("PlacedZone")) && Cm(TEXT("offset"), Out.OffsetCm)
+            && Ratio(TEXT("radius_ratio"), Out.RadiusScaleBp) && Ratio(TEXT("damage_ratio"), Out.DamageScaleBp)
+            && Time(TEXT("duration_cost"), Out.DurationCostMs);
+        break;
+    case ELDDemoFinalModId::FinalLandlord:
+        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Base() && Ratio(TEXT("ad_ratio"), Out.ADRatioBp)
+            && Cm(TEXT("radius"), Out.RadiusCm) && Time(TEXT("delay"), Out.DelayMs)
+            && Time(TEXT("interval"), Out.IntervalMs) && Ratio(TEXT("damage_ratio"), Out.DamageScaleBp);
+        break;
+    case ELDDemoFinalModId::FinalBreach:
+        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Time(TEXT("outside"), Out.OutsideMs)
+            && Time(TEXT("rearm_outside"), Out.RearmOutsideMs) && Time(TEXT("window"), Out.WindowMs)
+            && Cm(TEXT("distance"), Out.DistanceCm) && Time(TEXT("cooldown_cost"), Out.CooldownCostMs)
+            && Check.Require(Out.RearmOutsideMs >= Out.OutsideMs, Path, TEXT("rearm outside must not be shorter than the first entry"));
+        break;
+    case ELDDemoFinalModId::FinalComeback:
+        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Base() && Ratio(TEXT("ap_ratio"), Out.APRatioBp)
+            && Cm(TEXT("radius"), Out.RadiusCm) && Time(TEXT("duration"), Out.DurationMs)
+            && Time(TEXT("interval"), Out.IntervalMs) && Time(TEXT("window"), Out.WindowMs)
+            && Time(TEXT("pulse_interval"), Out.PulseIntervalMs)
+            && Ratio(TEXT("slow"), Out.SlowBp) && Time(TEXT("slow_duration"), Out.SlowMs)
+            && Ratio(TEXT("damage_ratio"), Out.DamageScaleBp);
+        break;
+    case ELDDemoFinalModId::FinalOpenMic:
+        Valid = F.Literal(TEXT("requirement"), TEXT("Basic")) && Base() && Ratio(TEXT("ap_ratio"), Out.APRatioBp)
+            && Cm(TEXT("radius"), Out.RadiusCm) && Time(TEXT("duration"), Out.DurationMs) && Time(TEXT("window"), Out.WindowMs)
+            && Time(TEXT("pulse_interval"), Out.PulseIntervalMs)
+            && Ratio(TEXT("slow"), Out.SlowBp) && Time(TEXT("slow_duration"), Out.SlowMs)
+            && Ratio(TEXT("move_speed_cost"), Out.MoveSpeedCostBp);
+        break;
+    default:
+        return Check.Require(false, Path, TEXT("unimplemented final mod"));
+    }
+    return Valid && F.Done();
+}
+
 bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check);
 
 bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
@@ -2213,8 +2287,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
     if (!Identity.Int(TEXT("schema_version"), Revision, 2, 2)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 6, 6)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 6, 6))
+        || !Identity.Int(TEXT("handler_revision"), Revision, 7, 7)
+        || !Identity.Int(TEXT("projection_revision"), Revision, 7, 7))
     {
         return false;
     }
@@ -2257,6 +2331,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 22, Ability)
         || !Definitions(F.Take(TEXT("stats")), Out.Stats, Check, TEXT("content.stats"), 5, 5, StatDefinition)
         || !Components(F.Take(TEXT("components")), Out.Components, Out.Abilities, Check)
+        || !Definitions(F.Take(TEXT("final_mods")), Out.FinalMods, Check, TEXT("content.final_mods"), 8, 8, FinalMod)
         || !Progression(F.Take(TEXT("progression")), Out.Progression, Check))
     {
         return false;
@@ -2356,6 +2431,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     for (const auto& Row : Out.Abilities) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Stats) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Components) { DisplayIds.Add(Row.Id); }
+    for (const auto& Row : Out.FinalMods) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Monsters) { DisplayIds.Add(Row.Id); }
     for (const auto& Entry : NativeIds)
     {
@@ -2471,8 +2547,8 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 6\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 6\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 7\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 7\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -2515,8 +2591,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
         || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 2, 2)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 6, 6)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 6, 6)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 7, 7)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 7, 7)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)

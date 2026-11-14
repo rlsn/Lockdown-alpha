@@ -11,6 +11,7 @@
 #include "Vision/LDVisionDirector.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/NetDriver.h"
 #include "GameFramework/GameSession.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
@@ -407,9 +408,18 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
     if (IsDevContentReload())
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ContentMismatch,TEXT("a DEV content hot reload room plays only the Host and AI.")); return; }
 #endif
-    if (MatchPhase!=ELDMatchPhase::Lobby)
-    { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match joining and reconnecting are not supported.")); return; }
-    if (Contenders.Num()+LobbyAISlots.Num()>=LDMatchLifecycle::MaxContenders)
+    const bool bResume=UGameplayStatics::ParseOption(Options,TEXT("LDReconnect"))==TEXT("1");
+    bool bHasResume=false;
+    if(bResume)
+    {
+        for(const auto& Pair:Contenders)
+        {bHasResume|=Pair.Value.bDisconnected&&!Pair.Value.bLeft&&Pair.Value.ReconnectTicket.IsValid();}
+    }
+    if (MatchPhase!=ELDMatchPhase::Lobby&&!bHasResume)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match entry requires an existing disconnected participant.")); return; }
+    if(bResume&&!bHasResume)
+    {ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomNotReady,TEXT("no disconnected participant remains in this match."));return;}
+    if (!bResume&&Contenders.Num()+LobbyAISlots.Num()>=LDMatchLifecycle::MaxContenders)
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("all six contender slots are occupied.")); return; }
     if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(WireProtocol))
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProtocolMismatch,TEXT("use the same Demo network build as the Host.")); return; }
@@ -433,6 +443,8 @@ FString ALDGameMode::InitNewPlayer(APlayerController* NewPlayerController,const 
     FString Name;
     if (!LDMatchLifecycle::ResolveContenderName(Options,Name,Error)) { return Error; }
     ChangeName(NewPlayerController,Name,false);
+    if(UGameplayStatics::ParseOption(Options,TEXT("LDReconnect"))==TEXT("1"))
+    {PendingReconnects.Add(CastChecked<ALDPlayerController>(NewPlayerController));}
     return Error;
 }
 
@@ -440,6 +452,20 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 {
     if (bEntryAccepted && !bDemoWorld) { Super::PostLogin(NewPlayer); return; }
     FString Reason;
+    if(auto* Controller=Cast<ALDPlayerController>(NewPlayer);Controller&&PendingReconnects.Contains(Controller))
+    {
+        Super::PostLogin(NewPlayer);
+        if(auto* Driver=GetWorld()->GetNetDriver())
+        {
+            FTimerHandle& Handle=PendingReconnects.FindChecked(Controller);
+            GetWorldTimerManager().SetTimer(Handle,FTimerDelegate::CreateWeakLambda(this,[this,Weak=TWeakObjectPtr<ALDPlayerController>(Controller)]()
+            {
+                if(Weak.IsValid()&&PendingReconnects.Contains(Weak)){FString Failure;ResumeRoomMember(*Weak.Get(),FGuid(),Failure);}
+            }),Driver->InitialConnectTimeout,false);
+        }
+        Controller->ClientReconnectChallenge();
+        return;
+    }
     if (!AdmitRoomMember(Cast<ALDPlayerController>(NewPlayer),Reason))
     {
         UE_LOG(LogLDMatch,Warning,TEXT("LD_DEMO_ADMISSION_REJECTED %s"),*Reason);
@@ -454,6 +480,15 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     auto* Controller=Cast<ALDPlayerController>(Exiting);
     auto* Record=Contenders.Find(Controller);
+    if(Controller&&CanParkDisconnectedMember(*Controller))
+    {
+        FString Error;
+        if(ParkDisconnectedMember(*Controller,Error)){Super::Logout(Exiting);return;}
+        FaultAuthority(Error);
+        Record=Contenders.Find(Controller);
+    }
+    if(FTimerHandle* Handle=PendingReconnects.Find(Controller)){GetWorldTimerManager().ClearTimer(*Handle);}
+    PendingReconnects.Remove(Controller);
     if (Record && IsMemberPresent(Record->Session))
     {
         const FGuid Session=Record->Session;

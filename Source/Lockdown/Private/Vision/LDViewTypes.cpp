@@ -170,7 +170,10 @@ bool SerializeObservedProjectile(FArchive& Ar, UPackageMap* Map, FLDObservedProj
     Ar << Projectile.Handle;
     bool bPosition = true;
     Projectile.PositionCm.NetSerialize(Ar, Map, bPosition);
-    Ar << Projectile.Heading << Look << Projectile.RadiusCm << Projectile.InnerRadiusCm << Projectile.AngleDegrees
+    uint8 Own=Projectile.bOwn ? 1 : 0;
+    Ar.SerializeBits(&Own,1);
+    if(Ar.IsLoading()){Projectile.bOwn=Own!=0;}
+    Ar << Projectile.Heading << Look << Projectile.RadiusCm << Projectile.InnerRadiusCm << Projectile.AngleDegrees << Projectile.LengthCm
         << Projectile.WarningRemainingMs;
     if (Ar.IsLoading()) { Projectile.Look = static_cast<ELDObservedProjectileLook>(Look); }
     return bPosition && !Ar.IsError();
@@ -293,13 +296,20 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
 {
     if (!Projectile.Handle.IsValid()) { return FailObservation(Error, TEXT("An observed projectile requires an opaque handle.")); }
     if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
-    if (!FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
+    if (!FMath::IsFinite(Projectile.LengthCm) || Projectile.LengthCm<0
+        || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.LengthCm!=0)
+        || !FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
         || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
         || Projectile.InnerRadiusCm < 0 || Projectile.InnerRadiusCm > Projectile.RadiusCm
         || Projectile.AngleDegrees < 0 || Projectile.AngleDegrees > 180)
     { return FailObservation(Error, TEXT("Observed skill geometry is outside its finite public domain.")); }
     switch (Projectile.Look)
     {
+    case ELDObservedProjectileLook::Road:
+        if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0
+            || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)
+        {return FailObservation(Error,TEXT("A road needs its walked length and half-width, without a landing warning."));}
+        break;
     case ELDObservedProjectileLook::Chalk:
     case ELDObservedProjectileLook::Sock:
     case ELDObservedProjectileLook::ChalkReturn:

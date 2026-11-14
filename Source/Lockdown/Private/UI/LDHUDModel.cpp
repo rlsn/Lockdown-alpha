@@ -1356,6 +1356,64 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
     Card.bKnown=Sentence.bComplete;
     return Card;
 }
+LDHUD::FFinalModCardView LDHUD::FinalModCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
+{
+    FFinalModCardView View;
+    const FString Id=DefinitionId.ToString();
+    View.Name=ContentName(Content,Id);View.Glyph=IconGlyph(View.Name);View.Detail.Name=View.Name;
+    const auto* Card=Content?Content->FinalMods.FindByPredicate([&Id](const FLDDemoFinalModDefinition& Row){return Row.Id==Id;}):nullptr;
+    const auto* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;}):nullptr;
+    if(!Card||!Display){View.Detail.Body=TEXT("终局改装数据未就绪。");return View;}
+    View.IconId=Display->IconId;View.Detail.Summary=TEXT("终局改装 · 一局一次");
+    const auto Decimal=[](int64 Value,int64 Divisor){return FString::SanitizeFloat(double(Value)/double(Divisor));};
+    const auto Sec=[&Decimal](int64 Value){return Decimal(Value,1000)+TEXT("s");};
+    const auto Percent=[&Decimal](int64 Value){return Decimal(Value,100)+TEXT("%");};
+    const auto Cm=[](const FLDDemoRational& Value){return FString::SanitizeFloat(double(Value.Numerator)/double(Value.Denominator))+TEXT("cm");};
+    int64 Base=0;
+    if(!LDSkillGrowth::GrowP2(Card->BaseP2,LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,
+        Content->Parameters.SkillGrowthPerLevelAfter10Bp,Stats.Level),Base))
+    {
+        View.Detail.Body=TEXT("终局改装成长数值无效。");
+        HudReportMissingText(Id+TEXT(".growth"));return View;
+    }
+    FString Damage=Decimal(Base,100);
+    if(Card->ADRatioBp>0){Damage+=TEXT(" + ")+Decimal(Card->ADRatioBp,10000)+TEXT(" AD");}
+    if(Card->APRatioBp>0){Damage+=TEXT(" + ")+Decimal(Card->APRatioBp,10000)+TEXT(" AP");}
+    FString Numbers;
+    switch(Card->GetNativeId())
+    {
+    case ELDDemoFinalModId::FinalLandlord:
+        Numbers=FString::Printf(TEXT("每 %s 首次普攻触发；延迟 %s，半径 %s。\n魔法伤害 %s；持旗普攻主击伤害为 %s。"),
+            *Sec(Card->IntervalMs),*Sec(Card->DelayMs),*Cm(Card->RadiusCm),*Damage,*Percent(Card->DamageScaleBp));break;
+    case ELDDemoFinalModId::FinalBreach:
+        Numbers=FString::Printf(TEXT("首次圈外准备 %s，再次 %s；入圈窗口 %s，外推 %s。\n代价：D 基础冷却增加 %s。"),
+            *Sec(Card->OutsideMs),*Sec(Card->RearmOutsideMs),*Sec(Card->WindowMs),*Cm(Card->DistanceCm),*Sec(Card->CooldownCostMs));break;
+    case ELDDemoFinalModId::FinalComeback:
+        Numbers=FString::Printf(TEXT("入圈窗口 %s；半径 %s，持续 %s，每 %s 一跳。\n每跳魔法伤害 %s，减速 %s 持续 %s；间隔 %s。\n代价：触发那次直接伤害为 %s。"),
+            *Sec(Card->WindowMs),*Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Sec(Card->PulseIntervalMs),
+            *Damage,*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Sec(Card->IntervalMs),*Percent(Card->DamageScaleBp));break;
+    case ELDDemoFinalModId::FinalOpenMic:
+        Numbers=FString::Printf(TEXT("%s 内两次独立命中；半径 %s，持续 %s，每 %s 一跳。\n每跳魔法伤害 %s，减速 %s 持续 %s。\n代价：声浪期间本人移速降低 %s。"),
+            *Sec(Card->WindowMs),*Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Sec(Card->PulseIntervalMs),
+            *Damage,*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Percent(Card->MoveSpeedCostBp));break;
+    case ELDDemoFinalModId::FinalBowling:
+        Numbers=FString::Printf(TEXT("首次撞人：魔法伤害 %s，沿碰撞方向再推 %s。\n代价：绑定来源原推移距离为 %s。"),
+            *Damage,*Cm(Card->DistanceCm),*Percent(Card->DistanceScaleBp));break;
+    case ELDDemoFinalModId::FinalForcedExit:
+        Numbers=FString::Printf(TEXT("实际硬控结束 %s 后，仍在圈内则外推 %s；每目标间隔 %s。\n代价：绑定来源原硬控时长为 %s，再参与控制递减。"),
+            *Sec(Card->DelayMs),*Cm(Card->DistanceCm),*Sec(Card->IntervalMs),*Percent(Card->ControlScaleBp));break;
+    case ELDDemoFinalModId::FinalTraffic:
+        Numbers=FString::Printf(TEXT("真实冲刺路径宽 %s，持续 %s；减速 %s 持续 %s。\n代价：绑定来源基础冷却增加 %s。"),
+            *Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Sec(Card->CooldownCostMs));break;
+    case ELDDemoFinalModId::FinalSplit:
+        Numbers=FString::Printf(TEXT("中心两侧各 %s；子区半径为 %s，单跳固定基础项为 %s。\n代价：持续时间减少 %s；AD/AP 系数不变。"),
+            *Cm(Card->OffsetCm),*Percent(Card->RadiusScaleBp),*Percent(Card->DamageScaleBp),*Sec(Card->DurationCostMs));break;
+    default:
+        View.Detail.Body=TEXT("终局改装没有可用的表现定义。");HudReportMissingText(Id+TEXT(".final"));return View;
+    }
+    View.Detail.Body=Display->DescriptionText+TEXT("\n\n")+Numbers;
+    View.bKnown=true;return View;
+}
 LDHUD::FStatRowView LDHUD::StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content)
 {
     FStatRowView Row;
@@ -1437,13 +1495,14 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
+        if(bBuildLocked){Reason=ELDGrowthReason::FinalLocked;}
         bAllowed=Reason==ELDGrowthReason::None;
         Blocked=BuildBlockedText(Reason);
     };
@@ -1476,8 +1535,8 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     case ELDBuildCommandKind::SkipActiveOffer:
         return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
     case ELDBuildCommandKind::FinalMod:
-        return Receipt.ChoiceResult==ELDBuildChoiceResult::Learned
-            ?FString::Printf(TEXT("终局技能：%s 装入 %s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString()),*Keys.Of(Receipt.LearnedSlot)):Missing;
+        return !Receipt.DefinitionId.IsNone()
+            ?FString::Printf(TEXT("已选择终局改装：%s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -2224,8 +2283,8 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
     case ELDGrowthReason::FinalLocked: return TEXT("终局构筑已锁定");
-    case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局技能");
-    case ELDGrowthReason::FinalModUnavailable: return TEXT("这项改装已在构筑里，请换一项");
+    case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
+    case ELDGrowthReason::FinalModUnavailable: return TEXT("这项终局改装当前没有合法来源");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
     }
 }

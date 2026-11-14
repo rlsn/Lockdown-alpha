@@ -306,7 +306,7 @@ public:
         FString Facts, Problem;
     };
     TSharedPtr<FShot> Shot;
-    FDelegateHandle ShotHandle;
+    FDelegateHandle ShotHandle, ShotTickHandle;
     bool bShotTicking = false, bRenderWarm = false, bStruckSeen = false, bReachMeasured = false;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
 
@@ -1473,30 +1473,26 @@ public:
                 {
                     for (const double Offset : LDDemoCombatScenario::CombatProbeQueueDetourCm)
                     {
-                        // #97 terrain: the start and the skill site may stand at different heights, so a candidate is
-                        // tried at either surface height (the ground query never searches downward).
-                        for (const double Height : {Foot.Z, To.SurfaceCm.Z})
+                        QueueWaypoint = Foot + Span * LDDemoCombatScenario::CombatProbeQueueAlong[Index] + Across * Offset;
+                        FVector Normal;
+                        Registry->GetTerrain().Ground(FVector2D(QueueWaypoint), QueueWaypoint.Z, Normal);
+                        FLDCompletePath First, Second;
+                        FString Why;
+                        if (Registry->QueryGround(Registry->Revision(), QueueWaypoint, Capsule, Surface, Detour, Failure, Why)
+                            && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
+                            && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
                         {
-                            QueueWaypoint = Foot + Span * LDDemoCombatScenario::CombatProbeQueueAlong[Index] + Across * Offset;
-                            QueueWaypoint.Z = Height;
-                            FLDCompletePath First, Second;
-                            FString Why;
-                            if (Registry->QueryGround(Registry->Revision(), QueueWaypoint, Capsule, Surface, Detour, Failure, Why)
-                                && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
-                                && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
+                            // D26: both legs stay out of the camp homes and the Boss's patrol band as well.
+                            if (LDScenarioWalk::RouteKeepout(First.Points, WalkKeepouts) == INDEX_NONE
+                                && LDScenarioWalk::RouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE)
                             {
-                                // D26: both legs stay out of the camp homes and the Boss's patrol band as well.
-                                if (LDScenarioWalk::RouteKeepout(First.Points, WalkKeepouts) == INDEX_NONE
-                                    && LDScenarioWalk::RouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE)
-                                {
-                                    QueueWaypoint = Detour.SurfaceCm;
-                                    bLegal = true;
-                                    break;
-                                }
-                                Why = TEXT("crosses a camp home or the Boss's patrol band");
+                                QueueWaypoint = Detour.SurfaceCm;
+                                bLegal = true;
+                                break;
                             }
-                            Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
+                            Why = TEXT("crosses a camp home or the Boss's patrol band");
                         }
+                        Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
                         if (bLegal) { break; }
                     }
                 }
@@ -2697,7 +2693,7 @@ public:
         return Out;
     }
 
-    // Opens the one capture: every frame until Seconds pass, a read-back is requested while the moment shows.
+    // Evaluate after presentation and trail components tick, before that same frame is rendered.
     void BeginShot(const TCHAR* File, TFunction<bool(FString&)> Shows, double Seconds)
     {
         Shot = MakeShared<FShot>();
@@ -2711,7 +2707,12 @@ public:
         if (!bShotTicking)
         {
             bShotTicking = true;
-            FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSP(AsShared(), &FLDDemoCombatProbe::TickShot), 0.f);
+            TWeakPtr<FLDDemoCombatProbe> Weak = AsShared();
+            ShotTickHandle = FWorldDelegates::OnWorldPostActorTick.AddLambda([Weak](UWorld* Ticked, ELevelTick, float Delta)
+            {
+                const auto Probe = Weak.Pin();
+                if (Probe && Ticked == Probe->World.Get()) { Probe->TickShot(Delta); }
+            });
         }
     }
 
@@ -2735,6 +2736,8 @@ public:
         if (FScreenshotRequest::IsScreenshotRequested()) { FScreenshotRequest::Reset(); }
         UGameViewportClient::OnScreenshotCaptured().Remove(ShotHandle);
         ShotHandle.Reset();
+        FWorldDelegates::OnWorldPostActorTick.Remove(ShotTickHandle);
+        ShotTickHandle.Reset();
         bShotTicking = false;
         return false;
     }

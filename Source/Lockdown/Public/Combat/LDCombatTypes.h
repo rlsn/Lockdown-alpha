@@ -15,7 +15,7 @@ class AController;
 // 3 was the retired equipment (Gear) source (#144); Innate keeps its number. Component (#198 B): an installed workshop
 // component (DefinitionId = component id); it is never an entry or a cooldown track.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5 };
+enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4, Component = 5, FinalMod = 6 };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
@@ -237,6 +237,7 @@ struct FLDBuildProjectionInput
     TArray<FLDLearnedActiveValue> Actives;
     // #198 B: installed components (FLDAttributeBuildValues::Components), sorted by id.
     TArray<FLDInstalledComponentValue> Components;
+    FLDFinalModSelection FinalMod;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;

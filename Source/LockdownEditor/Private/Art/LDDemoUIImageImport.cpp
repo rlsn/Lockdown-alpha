@@ -217,6 +217,17 @@ bool LDDemoUIImageImport::Import(FString& Error)
     if (!UILoadManifest(Specs, Error)) { return false; }
     for (const FUIImageSpec& Spec : Specs)
     {
+        if(const UTexture2D* Existing=UILoad(Spec);Existing&&UISettingsMatch(*Existing,Spec)
+            &&Existing->Source.GetSizeX()==Spec.Width&&Existing->Source.GetSizeY()==Spec.Height)
+        {
+            const UAssetImportData* Data=Existing->AssetImportData;
+            const FMD5Hash Current=FMD5Hash::HashFile(*UIAbsolute(Spec.Path));
+            if(Data&&!Data->SourceData.SourceFiles.IsEmpty()&&Current.IsValid()
+                &&Data->SourceData.SourceFiles[0].FileHash==Current
+                &&FPaths::GetCleanFilename(Data->SourceData.SourceFiles[0].RelativeFilename)
+                    .Equals(FPaths::GetCleanFilename(Spec.Path),ESearchCase::CaseSensitive))
+            {continue;}
+        }
         UPackage* Package = CreatePackage(*Spec.Package);
         Package->FullyLoad();
         auto* Factory = NewObject<UTextureFactory>(GetTransientPackage());

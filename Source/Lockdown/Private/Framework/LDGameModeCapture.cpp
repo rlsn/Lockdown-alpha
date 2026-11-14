@@ -116,6 +116,11 @@ ELDCommitReject ALDGameMode::PublishCaptureMotion(const FLDGameplayWritePermit& 
             UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
             return ELDCommitReject::GeometryUnavailable;
         }
+        if (Combat && !Combat->NotifyFinalPresence(Fact, Error))
+        {
+            UE_LOG(LogLDMatch, Error, TEXT("LD_FINAL_PRESENCE_REJECTED %s"), *Error);
+            return ELDCommitReject::GeometryUnavailable;
+        }
     }
     Track->bInside = Inside;
     Track->LastStep = Batch.Step.StepSerial;
@@ -207,6 +212,11 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     if (!CaptureReducer.Enqueue(Fact, Error))
     {
         UE_LOG(LogLDMatch, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
+        return ELDCommitReject::InvalidRequest;
+    }
+    if (Combat && !Combat->NotifyFinalPresence(Fact, Error))
+    {
+        UE_LOG(LogLDMatch, Error, TEXT("LD_FINAL_PRESENCE_REJECTED %s"), *Error);
         return ELDCommitReject::InvalidRequest;
     }
     if (Kind == ELDCaptureEventKind::Joined || Kind == ELDCaptureEventKind::Respawned)
