@@ -2,10 +2,6 @@
 #include "LDMapGeometryJson.h"
 #include "../Development/LDDemoContentJson.h"
 #include "Framework/LDDemoEntry.h"
-#if WITH_EDITOR
-#include "../World/LDDemoWorldContract.h"
-#endif
-
 namespace
 {
 TArray<uint8> SourceBytes(const FString& Text)
@@ -101,8 +97,8 @@ bool ULDMapDefinition::ReadSavedForEditing(FLDDemoWorldGeometry& Out, FString& E
     LDDemoContent::FValue Root;
     FLDDemoContentDigest Source;
     if (!LDDemoContent::Hash(SourceBytes(SourceJson), Digest, Check, TEXT("saved authoring world"))
-        || !Check.Require(Digest.ToHex() == Checksum && Checksum == LD_DEMO_WORLD_PAYLOAD_SHA256,
-            TEXT("saved authoring world"), TEXT("saved world bytes differ from the compiled world contract"))
+        || !Check.Require(Digest.ToHex() == Checksum,
+            TEXT("saved authoring world"), TEXT("saved world bytes differ from their stored checksum"))
         || !LDDemoContent::Parse(SourceBytes(SourceJson), Root, Check, TEXT("saved authoring world"))) { return false; }
     LDDemoContent::FFields Fields(Check, Root, TEXT("saved authoring world"));
     if (!Fields.Digest(TEXT("source_sha256"), Source)

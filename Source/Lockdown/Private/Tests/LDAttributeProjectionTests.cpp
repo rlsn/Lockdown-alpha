@@ -27,7 +27,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
     return Test.TestTrue(TEXT("Fixture carries the approved first-play attribute parameters"),
         P.MaxHP.BaseP2 == 62000 && P.MaxHP.PerLevelP2 == 5800 && P.MaxMP.BaseP2 == 28000 && P.MaxMP.PerLevelP2 == 2200
         && P.AD.BaseP2 == 7000 && P.AD.PerLevelP2 == 320 && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
-        && P.AttackSpeed.Base.Numerator == 9 && P.AttackSpeed.Base.Denominator == 10 && P.AttackSpeedPerLevelBp == 200
+        && P.AttackSpeed.Base.Numerator == 3 && P.AttackSpeed.Base.Denominator == 4 && P.AttackSpeedPerLevelBp == 200
         && P.MoveSpeedCmPerSec.Base.Numerator == 300 && P.MoveSpeedCmPerSec.Base.Denominator == 1
         && P.AttackRangeCm.Base.Numerator == 220 && P.AttackRangeCm.Base.Denominator == 1
         && Progression.MaxLevel == 16 && Progression.ActiveSlots == 3);
@@ -73,32 +73,32 @@ FExpectedAttributes ApprovedLevel(int32 Level)
     {
     case 1:
         Expected.MaxHPP2 = 62000; Expected.MaxMPP2 = 28000; Expected.ADP2 = 7000;
-        Expected.ArmorP2 = 1800; Expected.MagicResistP2 = 1800; Expected.AttackSpeed = MakeRational(9, 10);
+        Expected.ArmorP2 = 1800; Expected.MagicResistP2 = 1800; Expected.AttackSpeed = MakeRational(3, 4);
         Expected.HPRegenPerSec = MakeRational(8, 5); Expected.MPRegenPerSec = MakeRational(6, 5);
         break;
     case 2:
         Expected.MaxHPP2 = 67800; Expected.MaxMPP2 = 30200; Expected.ADP2 = 7320;
-        Expected.ArmorP2 = 2000; Expected.MagicResistP2 = 2000; Expected.AttackSpeed = MakeRational(459, 500);
+        Expected.ArmorP2 = 2000; Expected.MagicResistP2 = 2000; Expected.AttackSpeed = MakeRational(153, 200);
         Expected.HPRegenPerSec = MakeRational(43, 25); Expected.MPRegenPerSec = MakeRational(32, 25);
         break;
     case 4:
         Expected.MaxHPP2 = 79400; Expected.MaxMPP2 = 34600; Expected.ADP2 = 7960;
-        Expected.ArmorP2 = 2400; Expected.MagicResistP2 = 2400; Expected.AttackSpeed = MakeRational(477, 500);
+        Expected.ArmorP2 = 2400; Expected.MagicResistP2 = 2400; Expected.AttackSpeed = MakeRational(159, 200);
         Expected.HPRegenPerSec = MakeRational(49, 25); Expected.MPRegenPerSec = MakeRational(36, 25);
         break;
     case 5:
         Expected.MaxHPP2 = 85200; Expected.MaxMPP2 = 36800; Expected.ADP2 = 8280;
-        Expected.ArmorP2 = 2600; Expected.MagicResistP2 = 2600; Expected.AttackSpeed = MakeRational(243, 250);
+        Expected.ArmorP2 = 2600; Expected.MagicResistP2 = 2600; Expected.AttackSpeed = MakeRational(81, 100);
         Expected.HPRegenPerSec = MakeRational(52, 25); Expected.MPRegenPerSec = MakeRational(38, 25);
         break;
     case 6:
         Expected.MaxHPP2 = 91000; Expected.MaxMPP2 = 39000; Expected.ADP2 = 8600;
-        Expected.ArmorP2 = 2800; Expected.MagicResistP2 = 2800; Expected.AttackSpeed = MakeRational(99, 100);
+        Expected.ArmorP2 = 2800; Expected.MagicResistP2 = 2800; Expected.AttackSpeed = MakeRational(33, 40);
         Expected.HPRegenPerSec = MakeRational(11, 5); Expected.MPRegenPerSec = MakeRational(8, 5);
         break;
     case 10:
         Expected.MaxHPP2 = 114200; Expected.MaxMPP2 = 47800; Expected.ADP2 = 9880;
-        Expected.ArmorP2 = 3600; Expected.MagicResistP2 = 3600; Expected.AttackSpeed = MakeRational(531, 500);
+        Expected.ArmorP2 = 3600; Expected.MagicResistP2 = 3600; Expected.AttackSpeed = MakeRational(177, 200);
         Expected.HPRegenPerSec = MakeRational(67, 25); Expected.MPRegenPerSec = MakeRational(48, 25);
         break;
     default:
@@ -334,7 +334,7 @@ bool RunApprovedLevels(FAutomationTestBase& Test)
     bool bGood = ExpectRational(Test, TEXT("Level 1 AD base"), Rows[int32(EAttribute::AD)].Base, MakeRational(70));
     bGood &= ExpectTerms(Test, TEXT("Level 1 has no AD growth"), Rows[int32(EAttribute::AD)].LevelGrowth,
         MakeRational(0), MakeRational(0));
-    bGood &= ExpectBasicTiming(Test, TEXT("Level 1 attack speed"), *Catalog, Projection.Final.AttackSpeed, 1112, 250);
+    bGood &= ExpectBasicTiming(Test, TEXT("Level 1 attack speed"), *Catalog, Projection.Final.AttackSpeed, 1334, 300);
 
     if (!ProjectBuild(Test, TEXT("Level 2 character"), MakeBuild(2), *Catalog, Projection))
     {
@@ -373,7 +373,7 @@ bool RunApprovedLevels(FAutomationTestBase& Test)
         bGood &= ExpectTerms(Test, TEXT("Attributes without a level key do not grow"), Rows[int32(Flat)].LevelGrowth,
             MakeRational(0), MakeRational(0));
     }
-    bGood &= ExpectBasicTiming(Test, TEXT("Level 10 attack speed"), *Catalog, Projection.Final.AttackSpeed, 942, 212);
+    bGood &= ExpectBasicTiming(Test, TEXT("Level 10 attack speed"), *Catalog, Projection.Final.AttackSpeed, 1130, 255);
     return bGood;
 }
 
@@ -387,7 +387,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
     FLDAttributeProjection Projection;
     bool bGood = true;
     // #198: ten points into each stat at level 10 (base AD 98.8, max HP 1142, MP regeneration 1.92, resistances 36,
-    // attack speed 0.9 x 1.18, HP regeneration 2.68); each point adds its stat's PerPoint bonuses once, never compounding.
+    // attack speed 0.75 x 1.18, HP regeneration 2.68); each point adds its stat's PerPoint bonuses once, never compounding.
     struct FStatCase
     {
         const TCHAR* Id;
@@ -406,7 +406,7 @@ bool RunStatPoints(FAutomationTestBase& Test)
             EAttribute::AD, MakeRational(25), Zero},
         {TEXT("stat_brains"), [](FExpectedAttributes& E) { E.APP2 = 6000; E.CooldownHasteP2 = 1000; E.MPRegenPerSec = MakeRational(111, 50); },
             EAttribute::AP, MakeRational(60), Zero},
-        {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(621, 500); E.MoveSpeedCmPerSec = MakeRational(315); },
+        {TEXT("stat_agility"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(207, 200); E.MoveSpeedCmPerSec = MakeRational(315); },
             EAttribute::AttackSpeed, Zero, MakeRational(1, 5)},
     };
     if (!Test.TestEqual(TEXT("The approved catalog holds the five point-bought stats"), Catalog->Get().Stats.Num(), Stats.Num()))
@@ -435,13 +435,13 @@ bool RunStatPoints(FAutomationTestBase& Test)
     bGood &= ExpectTerms(Test, TEXT("Ten agility points add one move-speed ratio"),
         Projection.Contributions[int32(EAttribute::MoveSpeed)].PermanentChoices, Zero, MakeRational(1, 20));
 
-    // Points of several stats at level 6 (max HP 910, AD 86, attack speed 0.9 x 1.1, HP regeneration 2.2).
+    // Points of several stats at level 6 (max HP 910, AD 86, attack speed 0.75 x 1.1, HP regeneration 2.2).
     FExpectedAttributes Mixed = ApprovedLevel(6);
     Mixed.MaxHPP2 = 100000;
     Mixed.HPRegenPerSec = MakeRational(61, 25);
     Mixed.ADP2 = 9100;
     Mixed.CritChanceBp = 80;
-    Mixed.AttackSpeed = MakeRational(126, 125);
+    Mixed.AttackSpeed = MakeRational(21, 25);
     Mixed.MoveSpeedCmPerSec = MakeRational(603, 2);
     FLDAttributeProjection Reversed;
     if (!ProjectBuild(Test, TEXT("Level 6 mixed points"), MakeBuild(6, {FLDStatPointsValue(TEXT("stat_physique"), 3),
@@ -485,7 +485,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
         return ProjectBuild(Test, Label, MakeBuild(16, {FLDStatPointsValue(Stat, Points)}), *Catalog, Projection);
     };
     // Level 16 holds 3 + 15 x 3 = 48 points; every stat stays inside its bound with all of them (base max HP 1490, AD 118,
-    // resistances 48, HP regeneration 3.4, MP regeneration 2.4, attack speed 0.9 x 1.3).
+    // resistances 48, HP regeneration 3.4, MP regeneration 2.4, attack speed 0.75 x 1.3).
     if (!Envelope(TEXT("Physique envelope"), TEXT("stat_physique"), 48)) { return false; }
     bool bGood = Test.TestEqual(TEXT("HP envelope is 1490 + 48 x 30"), Projection.Final.MaxHPP2, int64(293000));
     bGood &= ExpectRational(Test, TEXT("HP regeneration envelope is 3.4 + 48 x 0.08"), Projection.Final.HPRegenPerSec, MakeRational(181, 25));
@@ -498,9 +498,9 @@ bool RunEnvelope(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("AP envelope is 48 x 6 with 48 haste"), Projection.Final.APP2 == 28800 && Projection.Final.CooldownHasteP2 == 4800);
     bGood &= ExpectRational(Test, TEXT("MP regeneration envelope is 2.4 + 48 x 0.03"), Projection.Final.MPRegenPerSec, MakeRational(96, 25));
     if (!Envelope(TEXT("Agility envelope"), TEXT("stat_agility"), 48)) { return false; }
-    bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 0.9 x 2.26"), Projection.Final.AttackSpeed, MakeRational(1017, 500));
+    bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 0.75 x 2.26"), Projection.Final.AttackSpeed, MakeRational(339, 200));
     bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 300 x 1.24"), Projection.Final.MoveSpeedCmPerSec, MakeRational(372));
-    bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 492, 111);
+    bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 590, 133);
 
     // Past level 16 every full 400 XP adds 3 points; the attributes then clamp to their catalog bounds and say so.
     if (!Envelope(TEXT("Brains past the cap"), TEXT("stat_brains"), 78)) { return false; }

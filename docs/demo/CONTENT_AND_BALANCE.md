@@ -127,7 +127,7 @@
 | `STAT.Armor.Base/PerLevel` | 护甲点/P2 | 18；2 | 0..200 | 首版无负抗/穿透；L10=36，不是 36% 减伤 |
 | `STAT.MagicResist.Base/PerLevel` | 魔抗点/P2 | 18；2 | 0..200 | 与护甲用相同点制公式；不能直接填入旧 MR 比例字段 |
 | `STAT.BaseAttackSpeed` | 次/秒/Rate | 0.75 | 正数 | 约 1.334s 一个基础攻击节拍；一级只用普攻同级对打约 13.6s |
-| `STAT.AttackSpeedPerLevelRatio` | 每级加成/R4 | 0.02 | 0..1 | 与身手属性点等同类来源相加；L10 无其他来源 AS=1.062 |
+| `STAT.AttackSpeedPerLevelRatio` | 每级加成/R4 | 0.02 | 0..1 | 与身手属性点等同类来源相加；L10 无其他来源 AS=0.885 |
 | `STAT.HPRegen.Base/PerLevel` | HP 点/秒/Rate | 1.60；0.12 | 0..12 | 基础回复始终有效，体格属性点另外增加；L10=2.68/s |
 | `STAT.MPRegen.Base/PerLevel` | MP 点/秒/Rate | 1.20；0.08 | 0..4 | 无自动战斗回蓝；L10=1.92/s |
 | `STAT.CritChance.Base` | 概率/R4 | 0 | 0..1 | 普攻暴击按 `FORMULA.Crit`；暴击率由力道属性点获得；技能不暴击（§4.5） |

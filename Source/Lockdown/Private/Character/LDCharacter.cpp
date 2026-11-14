@@ -135,8 +135,8 @@ void ALDCharacter::Tick(float Delta)
     int64 NowMs=0;
     LDCombatCues::FCue Selected;
     TArray<FLDObservedStatus> Statuses;
-    if (PC->ReadDemoAuthorityTimeMs(NowMs) && View.bHasBody && View.Generation==PC->OwnerState.Match
-        && View.Life==PC->OwnerState.Life)
+    const bool bCurrentView=PresentationOwnerView(View,PC->OwnerState,PC->ReadDemoAuthorityTimeMs(NowMs));
+    if (bCurrentView)
     {
         Selected=LDCombatCues::Select(View.Cues,NowMs);
         for (const FLDCombatStatusView& Status : View.Statuses)
@@ -154,13 +154,12 @@ void ALDCharacter::Tick(float Delta)
     Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
         bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,
         Selected.HitLook,PresentationKnockback(Statuses));
-    if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
+    if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
     { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
         static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags); }
     Body->Animate(GetVelocity(),Delta);
     // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
-    if (View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life
-        && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs
+    if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs
         && NowMs-View.Cues.LastHitAtMs<160 && View.Cues.LastHitAtMs!=ShakeHitAtMs)
     {
         ShakeHitAtMs=View.Cues.LastHitAtMs;
@@ -171,6 +170,11 @@ void ALDCharacter::Tick(float Delta)
     const float Amplitude=PC->Controls && PC->Controls->bCameraShake && ShakeAge<ShakeSeconds
         ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
     Camera->SetRelativeLocation(FVector(0,Amplitude*FMath::Sin(190.f*ShakeAge),.7f*Amplitude*FMath::Sin(150.f*ShakeAge+1.f)));
+}
+
+bool ALDCharacter::PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock)
+{
+    return bHasClock && View.bHasBody && View.Generation==Owner.Match && View.Life==Owner.Life;
 }
 
 void ALDCharacter::EndPlay(const EEndPlayReason::Type Reason)

@@ -1,5 +1,6 @@
 """Test-only export consistency; these checks do not substitute for UE automation."""
 from concurrent.futures import ProcessPoolExecutor
+from fractions import Fraction
 import hashlib
 import json
 import os
@@ -146,6 +147,13 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(len(expected["Anchors"]), len(json.loads((demo.ROOT / demo.WORLD_SOURCE).read_bytes())["anchors"]))
         self.assertEqual(len(expected["SpawnOffsetsCm"]), 7)
         self.assertNotIn("Connections", expected)
+
+    def test_outside_inner_wall_is_beyond_ground_not_a_boundary_wall(self):
+        world = json.loads((self.root / "world_inner_wall_outside" / demo.WORLD_OUTPUT).read_bytes())
+        boundary = world["geometry"]["surfaces"][0]["max_cm"]["x"]
+        max_x = Fraction(boundary["numerator"], boundary["denominator"])
+        vertices = world["geometry"]["blockers"][0]["polygon_cm"]
+        self.assertTrue(all(Fraction(v["x"]["numerator"], v["x"]["denominator"]) > max_x for v in vertices))
 
     def test_valid_world_changes_use_the_single_producer(self):
         from DemoWorld import compile_world

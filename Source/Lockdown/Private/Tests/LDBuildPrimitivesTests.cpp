@@ -1111,8 +1111,8 @@ bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
     Hit.DeliveryScaleBp=-1;
     TestFalse(TEXT("A negative delivery share is refused"),LDTactical::EvaluateDamage(Hit,*Catalog).IsSuccess());
 
-    // Seventy agility points past level 16 push attack speed past its 2.3 cap.
-    FLDAttributeBuildValues Values(16,{FLDStatPointsValue(TEXT("stat_agility"),70)});
+    // Eighty agility points past level 16 stay below the cap until the temporary bonus is applied.
+    FLDAttributeBuildValues Values(16,{FLDStatPointsValue(TEXT("stat_agility"),80)});
     const auto Build=LDAttributeProjection::Project(Values,*Catalog);
     if (!TestTrue(TEXT("The capped build projects"),Build.IsSuccess())) { return false; }
     FLDTemporaryAttributeTerms Terms;
@@ -1441,6 +1441,16 @@ bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The brick telegraph exposes its outer and full-damage radii"),
         Facts.ContainsByPredicate([](const auto& Fact) { return Fact.Look==ELDObservedProjectileLook::BookShadow
             && Fact.RadiusCm==200 && Fact.InnerRadiusCm==80 && Fact.PositionCm.X==650; }));
+    auto* Brick=FAccess::Ground(*F.Driver).FindByPredicate([](const auto& Ground)
+        { return Ground.Origin==ELDCombatGroundOrigin::Impact; });
+    if (!TestNotNull(TEXT("The brick ground effect exists"),Brick)) { return false; }
+    Brick->Origin=ELDCombatGroundOrigin::Echo;
+    Facts.Reset();
+    TestTrue(TEXT("The brick echo retains its own recognizable outline"),
+        F.Driver->ReadObservedProjectiles(Facts,Error)
+        && Facts.ContainsByPredicate([](const auto& Fact) { return Fact.Look==ELDObservedProjectileLook::BookShadow
+            && Fact.RadiusCm==200 && Fact.InnerRadiusCm==80 && Fact.PositionCm.X==650; }));
+    Brick->Origin=ELDCombatGroundOrigin::Impact;
     FAccess::CancelChannel(*F.Driver,Body);
     TestFalse(TEXT("Cancelling the channel ends it"),Body.ChannelEffectId.IsValid());
     Body.bPendingDeath=true;

@@ -12,6 +12,7 @@ import argparse
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from decimal import Decimal
+from fractions import Fraction
 import hashlib
 import json
 import math
@@ -949,6 +950,16 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     def cm(value):
         return value["numerator"] / value["denominator"]
 
+    def inner_wall_outside(world):
+        surface = world["geometry"]["surfaces"][0]
+        polygon = world["geometry"]["blockers"][0]["polygon_cm"]
+        edge = surface["max_cm"]["x"]
+        edge_x = Fraction(edge["numerator"], edge["denominator"])
+        min_x = min(Fraction(v["x"]["numerator"], v["x"]["denominator"]) for v in polygon)
+        delta = math.ceil(edge_x - min_x) + 1000
+        for vertex in polygon:
+            shift(vertex, "x", delta * vertex["x"]["denominator"])
+
     def detach(world, level):
         # Slide the first ramp of this level 1 m down its own slope, so its high edge leaves the plateau above
         # without reaching any other ground.
@@ -994,7 +1005,7 @@ def _export_cases(output, index, base, value_mutations, valid, written):
         ("world_upper_ramp_detached", lambda w: detach(w, 1), "one level up"),
         ("world_tree_on_cliff", lambda w: tree(w)["center_cm"].update({"x": {"numerator": 2900, "denominator": 1},
                                                                       "y": {"numerator": 3700, "denominator": 1}}), "one flat level"),
-        ("world_inner_wall_outside", lambda w: [v["x"].update({"numerator": v["x"]["numerator"] + 10000}) for v in w["geometry"]["blockers"][0]["polygon_cm"]], "closing a ground edge"),
+        ("world_inner_wall_outside", inner_wall_outside, "closing a ground edge"),
         ("world_duplicate_parameter", lambda w: w["parameter_refs"].__setitem__(1, w["parameter_refs"][0]), "parameter reference"),
         ("world_source_identity", lambda w: w.update({"source_sha256": "0" * 64}), "file bytes"),
         ("world_schema_identity", lambda w: w.update({"author_schema_sha256": "0" * 64}), "file bytes"),

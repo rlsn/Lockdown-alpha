@@ -908,13 +908,17 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
         {TEXT("ChoiceId"), TEXT("Event"), TEXT("Serial"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDFieldRewardView::StaticStruct(),
         {TEXT("Event"), TEXT("Serial"), TEXT("XP"), TEXT("Result"), TEXT("Definition")});
+    bGood &= GrowthTestExactFields(Test, FLDFinalModSourceView::StaticStruct(),
+        {TEXT("Option"), TEXT("TargetKind"), TEXT("TargetId")});
+    bGood &= GrowthTestExactFields(Test, FLDFinalModSelection::StaticStruct(),
+        {TEXT("DefinitionId"), TEXT("TargetKind"), TEXT("TargetId")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDActiveOfferView::StaticStruct(), FLDActiveSlotView::StaticStruct(), FLDStatPointsView::StaticStruct(),
         FLDComponentInstanceView::StaticStruct(), FLDComponentTargetView::StaticStruct(), FLDComponentChoiceView::StaticStruct(),
-        FLDFieldRewardView::StaticStruct()};
+        FLDFieldRewardView::StaticStruct(), FLDFinalModSourceView::StaticStruct(), FLDFinalModSelection::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
     {

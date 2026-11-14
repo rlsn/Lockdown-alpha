@@ -144,7 +144,10 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.Heading=FVector2D(1,0);
         Fact.Look=Ground.bTrap
             ? (Ground.bTriggered && NowMs<Ground.ReadyAtMs ? ELDObservedProjectileLook::FlyerArming : ELDObservedProjectileLook::FlyerArmed)
-            : AreaLookOf(Ground.Payload);
+            : (Ground.Origin==ELDCombatGroundOrigin::Impact
+                || (Ground.Origin==ELDCombatGroundOrigin::Echo
+                    && Ground.Payload.Source.DefinitionId==FName(TEXT("active_calculus_drop"))))
+                ? ELDObservedProjectileLook::BookShadow : AreaLookOf(Ground.Payload);
         Fact.RadiusCm=float(Ground.RadiusCm);
         Fact.InnerRadiusCm=float(Ground.InnerRadiusCm);
         Fact.WarningRemainingMs=Ground.ReadyAtMs>NowMs

@@ -8,6 +8,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class ULDHumanoidVisualComponent;
 class FLDDemoContentSnapshot;
+struct FLDCombatOwnerView;
 
 UCLASS()
 class LOCKDOWN_API ALDCharacter : public ACharacter
@@ -39,6 +40,7 @@ public:
     // proxies: pose Attack 1, Cast 2, Hit 4; markers root 16, camp_returning 32, shield 64, respawn_protection 128.
     static uint8 PresentationCue(ELDObservedActionCue Cue, const TArray<FLDObservedStatus>& Statuses);
     static bool PresentationKnockback(const TArray<FLDObservedStatus>& Statuses);
+    static bool PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock);
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
 protected:
     UFUNCTION() void OnRep_Presentation();

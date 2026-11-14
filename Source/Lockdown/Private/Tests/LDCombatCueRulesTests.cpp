@@ -70,6 +70,19 @@ bool FLDCombatCueSelectionTest::RunTest(const FString& Parameters)
         [&]() { FLDCombatCueFacts Edge; Edge.ReleasedAtMs=Edge.ReleasedStartedAtMs=Edge.LastHitAtMs=MAX_int64-1;
             return Is(Select(Edge,MAX_int64-1),None,0); }());
 
+    FLDOwnerState Owner;
+    Owner.Match=4; Owner.Life=2;
+    FLDCombatOwnerView View;
+    View.Generation=4; View.Life=2; View.bHasBody=true;
+    TestTrue(TEXT("A current owner view with a clock can present hits"),ALDCharacter::PresentationOwnerView(View,Owner,true));
+    TestFalse(TEXT("A missing clock cannot present hits"),ALDCharacter::PresentationOwnerView(View,Owner,false));
+    View.bHasBody=false;
+    TestFalse(TEXT("A bodyless view cannot present hits"),ALDCharacter::PresentationOwnerView(View,Owner,true));
+    View.bHasBody=true; View.Generation=3;
+    TestFalse(TEXT("An old match cannot present hits"),ALDCharacter::PresentationOwnerView(View,Owner,true));
+    View.Generation=4; View.Life=1;
+    TestFalse(TEXT("An old life cannot present hits"),ALDCharacter::PresentationOwnerView(View,Owner,true));
+
     const uint8 Root=uint8(ELDDemoStatusId::Root), Shield=uint8(ELDDemoStatusId::Shield);
     const uint8 Returning=uint8(ELDDemoStatusId::CampReturning), Protected=uint8(ELDDemoStatusId::RespawnProtection);
     TestEqual(TEXT("No cue and no status is the plain pose"), ALDCharacter::PresentationCue(None,{}), uint8(0));
