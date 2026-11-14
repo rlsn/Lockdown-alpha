@@ -214,6 +214,10 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
     Box->SetBoxExtent(FVector(40,20,20));
     TestTrue(TEXT("A resized generic collision actor binds"), Registry->Rebuild(F.Error));
     TestTrue(TEXT("Generic collision shapes invalidate the world"), Registry->Revision() != MovedBoxRevision);
+    const auto ShapeRevision = Registry->Revision();
+    Generic->Tags.Add(LDDemoWorld::TerrainTag);
+    TestTrue(TEXT("A terrain role edit binds"), Registry->Rebuild(F.Error));
+    TestTrue(TEXT("Terrain roles invalidate observation caches"), Registry->Revision() != ShapeRevision);
     Generic->Destroy();
     const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts/StaticSceneTest/"));
     IFileManager::Get().MakeDirectory(*Directory, true);
