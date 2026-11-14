@@ -74,6 +74,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 工作 | 技术说明 |
 | --- | --- |
+| 关卡、地编、美术、TA 与场景相关功能（必读） | [关卡创作自由与开发约束](LEVEL_AUTHORING_CONTRACT.md)，再按下表读具体接口 |
 | 模块、Lobby、IP 联机、生命代次、回执 | [架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md) |
 | 点击移动、预测、取消、输入层、镜头 | [移动、输入与镜头](systems/MOVEMENT_INPUT_AND_CAMERA.md) |
 | 伤害/状态、时序、效果来源、构筑 | [战斗与成长](systems/COMBAT_AND_GROWTH.md) |
