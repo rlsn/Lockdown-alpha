@@ -145,6 +145,9 @@ private:
     bool bWorkshopWasFull=false;
     // The open workshop was opened by its moment, not by the player: it closes again when the moment ends.
     bool bWorkshopAutoOpened=false;
+    // The rest actions panel's own brush, restored when it leaves the full workshop's top bar.
+    FSlateBrush RestPanelBrush;
+    bool bRestPanelBrushKept=false;
     // #198: the outer timeline over the capture line (LDHUD::TimelineBanner): the rest and its step, or the field segment;
     // then the rest's PK sign-up and lock detail.
     UPROPERTY() TObjectPtr<UTextBlock> TimelineText;

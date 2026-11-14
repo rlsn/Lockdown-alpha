@@ -163,7 +163,7 @@ inline constexpr TCHAR WorkshopCapacityTitle[]=TEXT("工坊容量");
 inline FString WorkshopUnlockAt(int32 Level){return FString::Printf(TEXT("Lv %d 解锁下一格"),Level);}
 inline constexpr TCHAR WorkshopPending[]=TEXT("待处理");
 inline constexpr TCHAR WorkshopReactions[]=TEXT("元素反应");
-inline FString WorkshopPointsToSpend(int64 Count){return FString::Printf(TEXT("%lld 点可分配"),Count);}
+inline constexpr TCHAR WorkshopPointsLabel[]=TEXT("点可分配");
 inline constexpr TCHAR WorkshopInstalledOn[]=TEXT("装在");
 inline constexpr TCHAR WorkshopGoesOn[]=TEXT("可装");
 inline constexpr TCHAR WorkshopLinks[]=TEXT("联动");

@@ -1,4 +1,6 @@
 #include "UI/LDWidgets.h"
+#include "Widgets/SLeafWidget.h"
+#include "Widgets/SOverlay.h"
 #include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -44,15 +46,13 @@ namespace
 {
     void LDButtonFace(ULDCommandButton* W,UWidgetTree* Tree,const FString& Value)
     {
-        auto* Caption=LDWidgets::Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
-        // Flat rounded faces from one teal family replace the stock engine chrome; the hairline edge keeps the shape readable
-        // on any panel, and the same padding pressed or released keeps the caption still.
-        auto Face=[](const FLinearColor& Fill,const FLinearColor& Edge)
-        {FSlateRoundedBoxBrush Brush(Fill,LDHUDStyle::RadiusButton,Edge,1.f);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;};
+        auto* Caption=LDWidgets::Text(Tree,Value,LDHUDStyle::TypeBody,NAME_None,LDUIFonts::ERole::Strong);Caption->SetAutoWrapText(false);
+        Caption->SetColorAndOpacity(LDHUDStyle::UIText);W->SetContent(Caption);
+        // The face is painted under the caption (LDUIPaint::Button); the engine chrome stays empty, and the same padding
+        // pressed or released keeps the caption still.
         auto Style=W->GetStyle();
-        Style.Normal=Face(LDHUDStyle::ButtonNormalFill,LDHUDStyle::ButtonNormalEdge);Style.Hovered=Face(LDHUDStyle::ButtonHoveredFill,LDHUDStyle::ButtonHoveredEdge);
-        Style.Pressed=Face(LDHUDStyle::ButtonPressedFill,LDHUDStyle::ButtonPressedEdge);Style.Disabled=Face(LDHUDStyle::ButtonDisabledFill,LDHUDStyle::ButtonDisabledEdge);
-        Style.NormalPadding=FMargin(12,11);Style.PressedPadding=FMargin(12,11);W->SetStyle(Style);W->EnableFeel();
+        Style.Normal=FSlateNoResource();Style.Hovered=FSlateNoResource();Style.Pressed=FSlateNoResource();Style.Disabled=FSlateNoResource();
+        Style.NormalPadding=FMargin(18,11);Style.PressedPadding=FMargin(18,11);W->SetStyle(Style);W->EnableFeel();
     }
 }
 ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)
@@ -67,6 +67,76 @@ ULDHoldButton* LDWidgets::HoldButton(UWidgetTree* Tree,const FString& Value,TFun
     W->Callback=MoveTemp(Callback);LDButtonFace(W,Tree,Value);
     W->OnPressed.AddDynamic(W,&ULDHoldButton::HoldPressed);W->OnReleased.AddDynamic(W,&ULDHoldButton::HoldReleased);
     W->OnClicked.AddDynamic(W,&ULDHoldButton::InstantClicked);return W;
+}
+namespace
+{
+    // Runs a paint function in the button's own geometry, under the SButton and its caption.
+    class SLDButtonSkin : public SLeafWidget
+    {
+    public:
+        SLATE_BEGIN_ARGS(SLDButtonSkin){}
+        SLATE_END_ARGS()
+        void Construct(const FArguments&,TWeakObjectPtr<ULDCommandButton> InOwner){Owner=InOwner;SetVisibility(EVisibility::HitTestInvisible);}
+        virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D::ZeroVector;}
+        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle&,bool bParentEnabled) const override
+        {
+            const ULDCommandButton* Button=Owner.Get();
+            if(!Button){return Layer;}
+            if(Button->GetStyle().Normal.DrawAs!=ESlateBrushDrawType::NoDrawType){return Layer;}
+            LDUIPaint::FButtonState State;
+            State.bHovered=Button->IsHovered();State.bPressed=Button->IsPressed();State.bEnabled=bParentEnabled&&Button->GetIsEnabled();State.Tint=Button->Tint;
+            LDUIPaint::Button(Elements,Layer,Geometry,FBox2D(FVector2D::ZeroVector,Geometry.GetLocalSize()),Button->Look,State);
+            return Layer+2;
+        }
+    private:
+        TWeakObjectPtr<ULDCommandButton> Owner;
+    };
+}
+namespace
+{
+    class SLDPaintLayer : public SLeafWidget
+    {
+    public:
+        SLATE_BEGIN_ARGS(SLDPaintLayer){}
+        SLATE_END_ARGS()
+        void Construct(const FArguments&,TWeakObjectPtr<ULDPaintLayer> InOwner){Owner=InOwner;SetVisibility(EVisibility::HitTestInvisible);}
+        virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D::ZeroVector;}
+        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle&,bool) const override
+        {
+            const ULDPaintLayer* Paint=Owner.Get();
+            if(Paint&&Paint->Painter){Paint->Painter(Elements,Layer,Geometry);}
+            // The painter draws on a handful of layers above Layer.
+            return Layer+12;
+        }
+    private:
+        TWeakObjectPtr<ULDPaintLayer> Owner;
+    };
+}
+TSharedRef<SWidget> ULDPaintLayer::RebuildWidget()
+{
+    Layer=SNew(SLDPaintLayer,TWeakObjectPtr<ULDPaintLayer>(this));
+    return Layer.ToSharedRef();
+}
+void ULDPaintLayer::ReleaseSlateResources(bool bReleaseChildren){Super::ReleaseSlateResources(bReleaseChildren);Layer.Reset();}
+TSharedRef<SWidget> ULDCommandButton::RebuildWidget()
+{
+    TSharedRef<SWidget> Inner=Super::RebuildWidget();
+    return SNew(SOverlay)
+        +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[SNew(SLDButtonSkin,TWeakObjectPtr<ULDCommandButton>(this))]
+        +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[Inner];
+}
+void LDWidgets::SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look)
+{
+    if(!Button){return;}
+    Button->Look=Look;
+    // Yellow and pink faces carry dark or white captions; the dark faces carry the paper colour.
+    if(UTextBlock* Caption=Cast<UTextBlock>(Button->GetContent()))
+    {
+        const FLinearColor Ink=Look==LDUIPaint::EButton::Primary||Look==LDUIPaint::EButton::Plus||Look==LDUIPaint::EButton::TagOn?LDUIPaint::Hex(0x15130A)
+            :Look==LDUIPaint::EButton::Event?FLinearColor::White:Look==LDUIPaint::EButton::Tag||Look==LDUIPaint::EButton::Key?LDHUDStyle::TextSecondary:LDHUDStyle::UIText;
+        Caption->SetColorAndOpacity(Ink);
+    }
+    if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}
 }
 void ULDCommandButton::EnableFeel()
 {

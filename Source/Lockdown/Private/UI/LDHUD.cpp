@@ -351,7 +351,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             TrainingResetButton=LDWidgets::Button(WidgetTree,LDTerms::TrainingReset,[this](){SubmitTrainingReset();},true,TEXT("HUDTrainingReset"));
             RestLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
             RestReadyButton=LDWidgets::Button(WidgetTree,TEXT("准备完毕"),[this](){SubmitRestReady();},true,TEXT("HUDRestReady"));
-            RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(8,0,0,0));
+            // .btn / .btn.pri: the rest's main action is the yellow one.
+            LDWidgets::SetLook(RestReadyButton,LDUIPaint::EButton::Primary);
+            for(ULDCommandButton* Action:{TrainingResetButton.Get(),RestReadyButton.Get()})
+            {
+                if(UTextBlock* Caption=Cast<UTextBlock>(Action->GetContent()))
+                {FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,19);Font.LetterSpacing=80;Caption->SetFont(Font);}
+                auto Style=Action->GetStyle();Style.NormalPadding=FMargin(26,13);Style.PressedPadding=FMargin(26,13);Action->SetStyle(Style);
+            }
+            RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(20,0,0,0));
             RestAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
             auto* ResultSlot=RestLine->AddChildToHorizontalBox(RestAnswerText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
             RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
@@ -1352,6 +1360,17 @@ void ULDHUD::RefreshReadModel()
     {
         // The full workshop keeps the rest actions in its top-right corner, beside its own close button.
         const bool bCorner=bWorkshopOpen&&bWorkshopFull&&Workshop;
+        // In the full workshop the actions stand bare on the top bar, as buttons of their own; elsewhere they sit on a panel.
+        if(RestActionsPanel)
+        {
+            if(!bRestPanelBrushKept){RestPanelBrush=RestActionsPanel->Background;bRestPanelBrushKept=true;}
+            const bool bBare=RestActionsPanel->Background.DrawAs==ESlateBrushDrawType::NoDrawType;
+            if(bBare!=bCorner)
+            {
+                if(bCorner){RestActionsPanel->SetBrush(FSlateNoResource());}else{RestActionsPanel->SetBrush(RestPanelBrush);}
+                RestActionsPanel->SetPadding(bCorner?FMargin(0):FMargin(12,8));
+            }
+        }
         const FAnchors Anchor=bCorner?FAnchors(1,0):FAnchors(.5f,0);const FVector2D Align=bCorner?FVector2D(1,0):FVector2D(.5f,0);
         const FVector2D Where=bCorner?FVector2D(float(Workshop->ActionsAnchor().X)-float(GetCachedGeometry().GetLocalSize().X),Workshop->ActionsAnchor().Y):FVector2D(0,16);
         if(!(TopCentreSlot->GetAnchors()==Anchor)){TopCentreSlot->SetAnchors(Anchor);}

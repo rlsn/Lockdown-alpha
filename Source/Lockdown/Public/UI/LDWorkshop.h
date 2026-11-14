@@ -21,6 +21,8 @@ class UBackgroundBlur;
 class ULDCommandButton;
 class ULDStatBar;
 class ULDChoicesPanel;
+class ULDPaintLayer;
+class UTexture2D;
 struct FLDDemoContentDefinitions;
 
 // The build workshop (APP_SPEC §7 构筑): the 构筑 tray's full view, open while the tray is open. Full screen in a rest's build,
@@ -105,6 +107,7 @@ private:
         UImage* Picture=nullptr;
         UTextBlock* Glyph=nullptr;
         UTextBlock* Name=nullptr;
+        UWidget* Icon=nullptr;
         UWidget* Meter=nullptr;
         UTextBlock* Points=nullptr;
         ULDCommandButton* Plus=nullptr;
@@ -129,6 +132,8 @@ private:
         UImage* Final=nullptr;
         FName Active;
         FString AppliedIcon;
+        // The painted art's icon (none for the body and an empty slot).
+        TWeakObjectPtr<UTexture2D> Icon;
         TArray<ELDDemoElement> Elements;
         bool bEmpty=false;
     };
@@ -136,6 +141,8 @@ private:
     {
         UBorder* Row=nullptr;
         UTextBlock* Pair=nullptr;
+        UTextBlock* FirstText=nullptr;
+        UTextBlock* SecondText=nullptr;
         UTextBlock* Name=nullptr;
         ELDDemoElement First=ELDDemoElement::None;
         ELDDemoElement Second=ELDDemoElement::None;
@@ -147,11 +154,15 @@ private:
         FBox2D Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage;
         FBox2D Column[LDHUD::StorageColumnCount];
         float HeadHeight=0.f;
+        float HeadTop=0.f;
         float HeadIcon=100.f;
     };
     UPROPERTY() TObjectPtr<UCanvasPanel> Canvas;
     UPROPERTY() TObjectPtr<UBackgroundBlur> Blur;
     UPROPERTY() TObjectPtr<UBorder> Shade;
+    // Paints every surface, frame, meter and chip under the widgets (PaintBackdrop).
+    UPROPERTY() TObjectPtr<ULDPaintLayer> Backdrop;
+    UPROPERTY() TObjectPtr<USizeBox> PortraitFrame;
     UPROPERTY() TObjectPtr<UWidget> PhasePanel;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseClock;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseRest;
@@ -169,6 +180,7 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> AttributeList;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> AttributeNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> AttributeValues;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> AttributeHalves;
     UPROPERTY() TObjectPtr<UWidget> BoardPanel;
     UPROPERTY() TObjectPtr<UTextBlock> CapacityCount;
     UPROPERTY() TObjectPtr<UTextBlock> CapacityUnlock;
@@ -211,6 +223,8 @@ private:
     float TextScale=1.f;
     // The artisan band's height at the top of the library (0 without it), from the last layout.
     float LibraryBand=0.f;
+    // Where the capacity cells start (local x), from the last layout.
+    float CapacityCellsAt=0.f;
     void ScaleFresh(UTextBlock* Text) const;
     EMode Mode=EMode::Closed;
     FInput Latest;
@@ -224,8 +238,13 @@ private:
     // What the dock shows; kept when the pointer leaves, so the eye has a steady place to read.
     FString DockKey;
     uint8 DockKindValue=0;
+    bool DockScarce=false;
+    TWeakObjectPtr<UTexture2D> DockIcon;
     double UiNow() const;
     void Layout(FVector2D Size);
+    void PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const;
+    // Whether the dock's right column has anything to show (where it sits, what it links with, what to watch).
+    bool DockHasRight() const;
     void Place(UWidget* Widget,const FBox2D& Box);
     void RefreshCharacter();
     void RefreshHeads();

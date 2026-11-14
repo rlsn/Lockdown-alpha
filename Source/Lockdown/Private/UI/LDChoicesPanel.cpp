@@ -1,4 +1,5 @@
 #include "UI/LDChoicesPanel.h"
+#include "UI/LDUIPaint.h"
 #include "Components/ScaleBoxSlot.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
@@ -41,9 +42,19 @@ static_assert(8*TrayTileSize+7*TrayTileGap<=TrayWidth,"eight grid tiles fit on o
 static_assert(TrayTileIcon+2*TrayCardPadding<=TrayTileSize,"a grid tile holds its icon");
 constexpr float ServicePanelWidth=540.f;
 // #198 G dismantle selection buttons per line (their labels may carry the installed warning).
+// A card's painted face (LDUIPaint::EButton::Card): idle, or chosen in its state's colour at full strength.
 void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
-    auto Style=Button->GetStyle();Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
+    if(!Button){return;}
+    if(Button->Look!=LDUIPaint::EButton::Card)
+    {
+        Button->Look=LDUIPaint::EButton::Card;
+        auto Style=Button->GetStyle();Style.Normal=FSlateNoResource();Style.Hovered=FSlateNoResource();Style.Pressed=FSlateNoResource();Style.Disabled=FSlateNoResource();
+        Button->SetStyle(Style);
+    }
+    const float Peak=FMath::Max3(Color.R,Color.G,Color.B);
+    const FLinearColor Mark=Color.Equals(LDHUDStyle::CardIdle)||Peak<=0.f?FLinearColor::Transparent:FLinearColor(Color.R/Peak,Color.G/Peak,Color.B/Peak,1.f);
+    if(!Button->Tint.Equals(Mark)){Button->Tint=Mark;if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}}
 }
 void GrowthText(UTextBlock* Text,const FString& Value)
 {
@@ -94,8 +105,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             OfferLine->AddChildToHorizontalBox(OfferNumber)->SetVerticalAlignment(VAlign_Center);
             OfferRow=TrayRow(WidgetTree);
             auto* OfferFrame=WidgetTree->ConstructWidget<UBorder>();
-            OfferFrame->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,LDHUDStyle::PanelRim,1.f));
-            OfferFrame->SetBrushColor(LDHUDStyle::PanelFill);OfferFrame->SetPadding(FMargin(4));OfferFrame->SetContent(OfferRow);
+            OfferFrame->SetBrush(FSlateNoResource());OfferFrame->SetPadding(FMargin(0));OfferFrame->SetContent(OfferRow);
             OfferLine->AddChildToHorizontalBox(OfferFrame)->SetPadding(FMargin(8,0,0,0));AddRow(OfferLine);
             for(int32 Index=0;Index<3;++Index)
             {
@@ -1701,6 +1711,17 @@ int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const 
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
     if(!bStageShown){return Base;}
+    // .ocard .art img: a big card's picture sits in a bright rounded frame.
+    for(const TArray<FTrayCard>* Group:{&OfferCards,&FinalCards})
+    {
+        for(const FTrayCard& Card:*Group)
+        {
+            if(!Card.bBig||!Card.Frame||!Card.Frame->IsVisible()||!Card.IconFrame||!Card.IconFrame->IsVisible()){continue;}
+            const FGeometry& Icon=Card.IconFrame->GetCachedGeometry();
+            const FBox2D Box(FVector2D::ZeroVector,Icon.GetLocalSize());
+            LDUIPaint::Edge(E,Base+1,Icon,LDUIShapes::EShape::Rounded,LDUIPaint::Grow(Box,2.f),12.f,FLinearColor(1,1,1,.85f),3.f);
+        }
+    }
     // The focused offer card wears the action yellow; the selected final card and source the event pink.
     const auto Edge=[&](const FTrayCard& Card,const FLinearColor& Color)
     {

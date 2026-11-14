@@ -822,7 +822,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     if (!Panel || !Owner.Controls) { return false; }
 
     // Tab -1 is the #227 component storage held open over the band with the panel closed.
-    // Tab: 0 the open 构筑 panel, -1 the pinned storage, 1 the HUD stat icons with the first stat's "+" and popup pinned.
+    // Tab: 0 the open 构筑 panel, -1 the pinned storage, 1 the HUD stat icons with the first stat's "+" and popup pinned,
+    // 2 the open workshop's bench (its board, library and character column) with the offer stage left.
     struct FReviewShot { const TCHAR* Name; int32 Tab, Width, Height; float Scale; };
     static constexpr FReviewShot ReviewShots[] = {
         {TEXT("HostRestSkills_1280x720_100.png"), 0, 1280, 720, 1.f},
@@ -837,6 +838,10 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         {TEXT("HostRestSkills_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
         {TEXT("HostRestStorage_1920x1080_125.png"), -1, 1920, 1080, 1.25f},
         {TEXT("HostRestStats_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
+        {TEXT("HostWorkshop_1920x1080_100.png"), 2, 1920, 1080, 1.f},
+        {TEXT("HostWorkshop_1920x1080_125.png"), 2, 1920, 1080, 1.25f},
+        {TEXT("HostWorkshop_1280x720_100.png"), 2, 1280, 720, 1.f},
+        {TEXT("HostWorkshop_1280x720_125.png"), 2, 1280, 720, 1.25f},
     };
     ULDComponentStorage* Storage = Owner.HUDUI ? Owner.HUDUI->Storage.Get() : nullptr;
     ULDStatBar* Stats = Owner.HUDUI ? Owner.HUDUI->StatBar.Get() : nullptr;
@@ -853,8 +858,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         Owner.Controls->TextScale = Shot.Scale;
         Storage->PinOpen(Shot.Tab < 0);
         Stats->PinHover(Shot.Tab == 1 ? 0 : INDEX_NONE);
-        if (Shot.Tab != 0) { Panel->ClosePanel(); }
+        if (Shot.Tab != 0 && Shot.Tab != 2) { Panel->ClosePanel(); }
         else { Panel->OpenPanel(); }
+        if (Shot.Tab == 2) { Panel->LeaveStage(); }
         Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
         RestReviewDueAt = Now + .65;
     };
@@ -905,6 +911,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             return true;
         }
         if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        // The bench shots leave the offer stage once the workshop has laid it out.
+        if (ReviewShots[RestReviewIndex].Tab == 2 && Panel->IsStageShown()) { Panel->LeaveStage(); RestReviewDueAt = Now + .5; return true; }
         Capture(ReviewShots[RestReviewIndex].Name);
         bRestReviewCapturePending = true;
         return true;
@@ -2331,7 +2339,8 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 11:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        // The receipt's toast may follow the replicated revision by a few frames; the stall check bounds the wait.
+        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
         if(!Check(LDHUD::ActiveInSlot(*Growth,0)==UIReplacement&&!PC.HUDUI->Toast->GetText().IsEmpty(),
             TEXT("UI: confirmed replacement commits and its receipt is toasted"))){return false;}
         Capture(TEXT("HostTrainerReplacementApplied.png"));
@@ -2340,7 +2349,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 13:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
         if(!Check(!PC.HUDUI->Toast->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
         if(!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
         UIServiceStep=131;return true;
@@ -2372,7 +2381,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 18:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
         if(!Check(Growth->Components.Num()==UIServiceInventoryBefore-Panel->Materials.DismantleCount+1
             &&!PC.HUDUI->Toast->GetText().IsEmpty(),
             TEXT("UI: artisan consumes the selected real components and displays its authoritative result"))){return false;}

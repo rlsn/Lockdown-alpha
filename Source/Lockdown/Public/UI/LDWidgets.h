@@ -6,6 +6,7 @@
 #include "Audio/LDAudioTypes.h"
 #include "UI/LDTween.h"
 #include "UI/LDUIFonts.h"
+#include "UI/LDUIPaint.h"
 #include "LDWidgets.generated.h"
 class UWidgetTree;
 class UTextBlock;class UBorder;class URichTextBlock;
@@ -28,12 +29,31 @@ public:
     UFUNCTION() void FeelReleased();
     UFUNCTION() void FeelClicked(){PlayCue(ELDAudioCue::UIClick);}
     virtual void ReleaseSlateResources(bool bReleaseChildren) override;
+    // The painted face under the caption (LDUIPaint::Button). A button given its own style brushes keeps them instead.
+    LDUIPaint::EButton Look=LDUIPaint::EButton::Normal;
+    // A card's state colour (transparent while idle).
+    FLinearColor Tint=FLinearColor::Transparent;
 protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
     void PlayCue(ELDAudioCue Cue) const;
     void Animate(float Target,double Duration);
     void StopTicker(FTSTicker::FDelegateHandle& Handle);
     LDTween::FTrack Scale{1.f,1.f};
     FTSTicker::FDelegateHandle FeelTicker;
+};
+// A layer that paints through a callback in its own geometry (a canvas fills it); placed under a panel's widgets, it draws
+// their surfaces, frames and tiles with LDUIPaint. It takes no input.
+UCLASS()
+class LOCKDOWN_API ULDPaintLayer : public UWidget
+{
+    GENERATED_BODY()
+public:
+    TFunction<void(FSlateWindowElementList&,int32,const FGeometry&)> Painter;
+    virtual void ReleaseSlateResources(bool bReleaseChildren) override;
+protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+private:
+    TSharedPtr<SWidget> Layer;
 };
 // Irreversible confirmations (D5): pressing starts a fill across the face, releasing early cancels, and a full fill after
 // LDHUDStyle::MotionHoldConfirm runs Callback once. Enter and Space hold the focused button the same way.
@@ -100,6 +120,8 @@ namespace LDWidgets
 {
     // Withdraws every hold in progress in Tree, so a closed or left page needs a fresh full hold.
     LOCKDOWN_API void ReleaseHolds(UWidgetTree* Tree);
+    // The painted face a command button wears (the dark raised face by default) and the caption colour that goes with it.
+    LOCKDOWN_API void SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look);
     LOCKDOWN_API UBorder* Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding=FMargin(20));
     // Role picks the interface face (LDUIFonts); every runtime text takes its font through a role.
     LOCKDOWN_API UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size=16,FName Name=NAME_None,LDUIFonts::ERole Role=LDUIFonts::ERole::Body);

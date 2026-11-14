@@ -25,6 +25,8 @@ struct FLDDemoContentDefinitions;
 // base it repeats); dragging an installed one back onto the storage uninstalls it, onto another place moves it (an uninstall,
 // then an install once the view shows it). Local presentation over the own progression view; the server decides every
 // command. #222: open in combat, while dead and in a PK; a closed match stage refuses with its reason.
+class ULDPaintLayer;
+class UTexture2D;
 UCLASS()
 class LOCKDOWN_API ULDComponentStorage : public UUserWidget
 {
@@ -140,6 +142,7 @@ private:
         bool bPlaceless=false;
         EFaceState State=EFaceState::Normal;
         int32 AppliedLook=-1;
+        TWeakObjectPtr<UTexture2D> Icon;
     };
     // One installed component in a column; nested ones are smaller and indented under their host.
     struct FTile
@@ -152,6 +155,8 @@ private:
         bool bScarce=false;
         EFaceState State=EFaceState::Normal;
         int32 AppliedLook=-1;
+        int32 Depth=0;
+        TWeakObjectPtr<UTexture2D> Icon;
     };
     struct FColumn
     {
@@ -204,6 +209,10 @@ private:
     };
 
     UPROPERTY() TObjectPtr<UCanvasPanel> Canvas;
+    // Paints the component tiles (LDUIPaint::Tile) and the library's group marks under the widgets.
+    UPROPERTY() TObjectPtr<ULDPaintLayer> TilePaint;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> LibrarySwatches;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> LibraryHeads;
     UPROPERTY() TObjectPtr<UWidget> StackFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> StackSlot;
     UPROPERTY() TObjectPtr<UImage> StackPicture;
@@ -315,6 +324,7 @@ private:
     bool DropHeld(FVector2D At);
     double UiNow() const;
     float FaceRadius(uint8 Kind,float Size) const;
+    void PaintTiles(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const;
     // Whether Drops take something on Column (its own place only with bOwnOnly), replacements aside.
     static bool Drags(const TArray<LDHUD::FComponentDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly);
     void StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const;

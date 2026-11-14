@@ -1,4 +1,5 @@
 #include "UI/LDComponentStorage.h"
+#include "UI/LDUIPaint.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -86,6 +87,12 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
     if(!Canvas)
     {
         Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);WidgetTree->RootWidget=Canvas;
+        {
+            TilePaint=WidgetTree->ConstructWidget<ULDPaintLayer>();
+            TilePaint->Painter=[this](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry){PaintTiles(Elements,Layer,Geometry);};
+            UCanvasPanelSlot* PaintSlot=Canvas->AddChildToCanvas(TilePaint);PaintSlot->SetAnchors(::FAnchors(0.f,0.f,1.f,1.f));PaintSlot->SetOffsets(FMargin(0));
+            PaintSlot->SetZOrder(0);TilePaint->SetVisibility(ESlateVisibility::HitTestInvisible);
+        }
         auto Line=[this](const FString& Value,int32 Size,const FLinearColor& Ink)
         {UTextBlock* Label=LDWidgets::Text(WidgetTree,Value,Size);Label->SetAutoWrapText(false);Label->SetColorAndOpacity(Ink);return Label;};
         auto Add=[this](UWidget* Widget,int32 Z)
@@ -164,18 +171,18 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             {
                 auto* Group=WidgetTree->ConstructWidget<UVerticalBox>();
                 auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();
-                auto* Swatch=WidgetTree->ConstructWidget<UBorder>();Swatch->SetBrush(StorageRound(2.f,FLinearColor::Transparent,0.f));
-                Swatch->SetBrushColor(LDUIShapes::KindColor(Kind));
-                auto* SwatchBox=WidgetTree->ConstructWidget<USizeBox>();SwatchBox->SetWidthOverride(9.f);SwatchBox->SetHeightOverride(9.f);SwatchBox->SetContent(Swatch);
-                Head->AddChildToHorizontalBox(SwatchBox)->SetVerticalAlignment(VAlign_Center);
-                UTextBlock* Name=Line(LDTerms::ComponentKindName(Kind),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);
-                Head->AddChildToHorizontalBox(Name)->SetPadding(FMargin(8,0,0,0));
-                UTextBlock* Count=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);
-                Head->AddChildToHorizontalBox(Count)->SetPadding(FMargin(10,0,0,0));
-                Group->AddChildToVerticalBox(Head);
-                auto* Wrap=WidgetTree->ConstructWidget<UWrapBox>();Wrap->SetInnerSlotPadding(FVector2D(StorageCardGap+2.f,StorageCardGap+2.f));
-                Group->AddChildToVerticalBox(Wrap)->SetPadding(FMargin(0,8,0,0));
-                LibraryBox->AddChildToVerticalBox(Group)->SetPadding(FMargin(0,Kind?14.f:0.f,0,0));
+                // .grp: the kind's shape (painted), its name spaced out, the count, and a hairline to the edge (painted).
+                auto* SwatchBox=WidgetTree->ConstructWidget<USizeBox>();SwatchBox->SetWidthOverride(12.f);SwatchBox->SetHeightOverride(12.f);
+                Head->AddChildToHorizontalBox(SwatchBox)->SetVerticalAlignment(VAlign_Center);LibrarySwatches.Add(SwatchBox);
+                UTextBlock* Name=Line(LDTerms::ComponentKindName(Kind),13,LDHUDStyle::TextSecondary);
+                {FSlateFontInfo Font=Name->GetFont();Font.LetterSpacing=160;Name->SetFont(Font);}
+                Head->AddChildToHorizontalBox(Name)->SetPadding(FMargin(10,0,0,0));
+                UTextBlock* Count=Line(TEXT(""),13,LDHUDStyle::TextSecondary);Count->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Number,13));
+                Head->AddChildToHorizontalBox(Count)->SetPadding(FMargin(8,0,0,0));
+                Group->AddChildToVerticalBox(Head);LibraryHeads.Add(Head);
+                auto* Wrap=WidgetTree->ConstructWidget<UWrapBox>();Wrap->SetInnerSlotPadding(FVector2D(14.f,8.f));
+                Group->AddChildToVerticalBox(Wrap)->SetPadding(FMargin(0,10,0,0));
+                LibraryBox->AddChildToVerticalBox(Group)->SetPadding(FMargin(0,Kind?16.f:4.f,0,0));
                 LibraryGroups.Add(Group);LibraryCounts.Add(Count);LibraryWraps.Add(Wrap);
             }
             auto* Width=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("WorkshopLibrary"));Width->SetContent(LibraryBox);
@@ -335,6 +342,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         FCard& Card=Cards.Last();
         const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Id,LatestContent);
         Card.Kind=uint8(Facts.Kind);Card.bScarce=Facts.bScarce;Card.bFresh=bFresh;
+        Card.Icon=LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Id.ToString()));
         // A component with no place now dims and loses its colour; the dock says what it needs.
         Card.bPlaceless=LDHUD::ComponentDrops(Id,Latest,LatestContent).IsEmpty()&&LDHUD::ReplaceDrops(Id,Latest,LatestContent).IsEmpty();
         StyleFace(Card.Face,Id,Card.Kind,Workshop.bActive?LibraryIcon:StorageTile,Card.bPlaceless);
@@ -361,6 +369,7 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
             FTile& Tile=Tiles.Last();
             const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Entry.Component,LatestContent);
             Tile.Kind=uint8(Facts.Kind);Tile.bScarce=Facts.bScarce;
+            Tile.Icon=LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Entry.Component.ToString()));
             const float TileSize=Workshop.bActive?(Entry.Depth>0?Base*46.f/56.f:Base):(Entry.Depth>0?StorageNestedTile:StorageTile);
             StyleFace(Tile.Face,Entry.Component,Tile.Kind,TileSize,false);
         }
@@ -381,11 +390,16 @@ void ULDComponentStorage::ScaleBuiltText()
 }
 void ULDComponentStorage::StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const
 {
-    // The fill takes the kind's shape; NativePaint draws its rim (LDUIShapes), so state colours never need a new brush.
+    // The tile (frame, face, icon and state) is painted under the face by PaintTiles (LDUIPaint::Tile); the face keeps
+    // only the glyph that stands in for a missing picture.
     if(!Face){return;}
-    Face->SetBrush(StorageRound(FaceRadius(Kind,Size),FLinearColor::Transparent,0.f));Face->SetBrushColor(LDHUDStyle::IconFill);
+    Face->SetBrush(FSlateNoResource());
     if(UOverlay* Stack=Cast<UOverlay>(Face->GetContent()))
-    {ShowIcon(Cast<UImage>(Stack->GetChildAt(0)),Cast<UTextBlock>(Stack->GetChildAt(1)),Component,FaceRadius(Kind,Size),bDim);}
+    {
+        UImage* Picture=Cast<UImage>(Stack->GetChildAt(0));
+        ShowIcon(Picture,Cast<UTextBlock>(Stack->GetChildAt(1)),Component,FaceRadius(Kind,Size),bDim);
+        StorageShown(Picture,false);
+    }
 }
 float ULDComponentStorage::FaceRadius(uint8 Kind,float Size) const
 {
@@ -405,11 +419,13 @@ void ULDComponentStorage::BuildWorkshopCard(FName Component,bool bFresh,float Si
     Icon->SetVisibility(ESlateVisibility::Visible);
     auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Built.Add(Cell);
     Cell->AddChildToVerticalBox(Box)->SetHorizontalAlignment(HAlign_Center);
-    UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Component),LDHUDStyle::TypeMicro);Name->SetAutoWrapText(false);Built.Add(Name);
-    Name->SetJustification(ETextJustify::Center);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+    // .cell .t: the name under the icon, two lines at most.
+    UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Component),12);Name->SetAutoWrapText(true);Built.Add(Name);
+    Name->SetJustification(ETextJustify::Center);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);Name->SetLineHeightPercentage(1.05f);
     StorageShown(Name,Workshop.bNames,ESlateVisibility::HitTestInvisible);
-    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+14.f);NameBox->SetContent(Name);Built.Add(NameBox);
-    Cell->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,4,0,0));
+    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+10.f);NameBox->SetMaxDesiredHeight(42.f);NameBox->SetContent(Name);Built.Add(NameBox);
+    NameBox->SetClipping(EWidgetClipping::ClipToBounds);
+    Cell->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,6,0,0));
     FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.Cell=Cell;
     if(LibraryWraps.IsValidIndex(Kind)){LibraryWraps[Kind]->AddChildToWrapBox(Cell);}
 }
@@ -431,15 +447,16 @@ void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquipp
     Row->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);
     if(Workshop.bNames)
     {
-        UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Entry.Component),LDHUDStyle::TypeCaption);Name->SetAutoWrapText(false);Built.Add(Name);
-        Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Name->SetColorAndOpacity(LDHUDStyle::UIText);
+        // .sock .t: the name beside the tile, two lines at most; a nested one smaller and muted.
+        UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Entry.Component),Entry.Depth>0?13:14);Name->SetAutoWrapText(true);Built.Add(Name);
+        Name->SetColorAndOpacity(Entry.Depth>0?LDHUDStyle::TextSecondary:LDHUDStyle::UIText);Name->SetLineHeightPercentage(1.05f);
         auto* NameSlot=Row->AddChildToHorizontalBox(Name);NameSlot->SetVerticalAlignment(VAlign_Center);NameSlot->SetPadding(FMargin(10,0,0,0));
         NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     }
     auto* RowSlot=Column.List->AddChildToVerticalBox(Row);
-    RowSlot->SetPadding(FMargin(22.f*FMath::Min(Entry.Depth,2),Column.List->GetChildrenCount()>1?10.f*Workshop.TileScale:0.f,0,0));
+    RowSlot->SetPadding(FMargin(24.f*FMath::Min(Entry.Depth,2),Column.List->GetChildrenCount()>1?14.f*Workshop.TileScale:0.f,0,0));
     RowSlot->SetHorizontalAlignment(HAlign_Fill);
-    FTile& Tile=Tiles.AddDefaulted_GetRef();Tile.Component=Entry.Component;Tile.Host=Entry.Host;Tile.Column=ColumnId;Tile.Face=Icon;
+    FTile& Tile=Tiles.AddDefaulted_GetRef();Tile.Component=Entry.Component;Tile.Host=Entry.Host;Tile.Column=ColumnId;Tile.Face=Icon;Tile.Depth=Entry.Depth;
 }
 void ULDComponentStorage::BuildCard(FName Component,bool bFresh)
 {
@@ -1180,10 +1197,86 @@ void ULDComponentStorage::LayoutWorkshop(const FGeometry& Geometry,FVector2D Poi
         {
             Column.AppliedLook=Look;
             Column.Panel->SetBrush(StorageRound(8.f,FLinearColor::Transparent,0.f));Column.Panel->SetBrushColor(FLinearColor::Transparent);
-            Column.Panel->SetPadding(FMargin(10,8));
+            // .sock: rows hang from the left on the column's rail, 10 in from its edge.
+            Column.Panel->SetPadding(FMargin(10,0,6,0));
+            if(UVerticalBoxSlot* RowsSlot=Cast<UVerticalBoxSlot>(Column.List->Slot)){RowsSlot->SetHorizontalAlignment(HAlign_Fill);}
+            if(UVerticalBoxSlot* EmptySlot=Cast<UVerticalBoxSlot>(Column.PlaceholderBox->Slot)){EmptySlot->SetHorizontalAlignment(HAlign_Left);EmptySlot->SetPadding(FMargin(0,14,0,0));}
             StorageShown(Column.Title,false);
             Column.Frame->SetRenderOpacity(Look==2?.3f:1.f);
         }
+    }
+}
+void ULDComponentStorage::PaintTiles(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const
+{
+    if(!bShownNow){return;}
+    const double Now=UiNow();
+    const auto TileState=[](EFaceState State)
+    {
+        switch(State)
+        {
+        case EFaceState::Hovered: return LDUIPaint::ETileState::Hovered;
+        case EFaceState::Held: case EFaceState::Pick: return LDUIPaint::ETileState::Selected;
+        case EFaceState::Legal: return LDUIPaint::ETileState::Legal;
+        case EFaceState::Replace: case EFaceState::Detached: return LDUIPaint::ETileState::Replace;
+        case EFaceState::Rejected: return LDUIPaint::ETileState::Rejected;
+        case EFaceState::Dim: return LDUIPaint::ETileState::Dim;
+        default: return LDUIPaint::ETileState::Normal;
+        }
+    };
+    // A tile is painted in its face's own geometry, so the face's hover lift and refusal shake carry the painting with them.
+    const auto PaintFace=[&](const UWidget* Face,uint8 Kind,bool bScarce,EFaceState State,UTexture2D* Icon,float Opacity,bool bFresh)
+    {
+        if(!Face||!Face->IsVisible()){return;}
+        const FGeometry& FaceGeometry=Face->GetCachedGeometry();
+        const FVector2D Size=FaceGeometry.GetLocalSize();
+        if(Size.X<4.){return;}
+        const FBox2D Box(FVector2D::ZeroVector,Size);
+        LDUIPaint::Tile(Elements,Layer,FaceGeometry,Box,Kind,bScarce,TileState(State),Icon,Opacity,Now);
+        if(bFresh){LDUIPaint::NewDot(Elements,Layer+4,FaceGeometry,FVector2D(Size.X+3.,-3.));}
+    };
+    const bool bCardsShown=Workshop.bActive?(LibraryFrame&&LibraryFrame->IsVisible()):(ListFrame&&ListFrame->IsVisible());
+    if(bCardsShown)
+    {
+        for(const FCard& Card:Cards)
+        {
+            const float Opacity=Card.Cell?Card.Cell->GetRenderOpacity():Card.Size?Card.Size->GetRenderOpacity():1.f;
+            PaintFace(Card.Face,Card.Kind,Card.bScarce,Card.State,Card.Icon.Get(),Opacity,Workshop.bActive&&Card.bFresh);
+        }
+        if(Workshop.bActive)
+        {
+            // .grp: the kind's shape before each group name and the hairline after its count.
+            for(int32 Kind=0;Kind<LibrarySwatches.Num()&&Kind<LibraryHeads.Num();++Kind)
+            {
+                const UWidget* Swatch=LibrarySwatches[Kind];const UWidget* Head=LibraryHeads[Kind];
+                if(!Swatch||!Swatch->IsVisible()||!Head||!Head->IsVisible()||!LibraryGroups[Kind]->IsVisible()){continue;}
+                const FBox2D Mark=LDUIShapes::RectIn(Geometry,Swatch->GetCachedGeometry());
+                const LDUIShapes::EShape Shape=LDUIShapes::KindShape(uint8(Kind));
+                LDUIPaint::Shape(Elements,Layer,Geometry,Shape,Mark,Kind==0?2.f:6.f,LDUIPaint::FFill::Solid(LDUIShapes::KindColor(uint8(Kind))));
+                const FBox2D Row=LDUIShapes::RectIn(Geometry,Head->GetCachedGeometry());
+                const float From=float(Row.Min.X)+float(Head->GetDesiredSize().X)+10.f,Y=float(Mark.GetCenter().Y);
+                const float To=LibraryFrame?float(LDUIShapes::RectIn(Geometry,LibraryFrame->GetCachedGeometry()).Max.X)-4.f:From;
+                if(To>From){LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(From,Y),FVector2D(To,Y),FLinearColor(1,1,1,.075f),1.f);}
+            }
+        }
+    }
+    for(const FTile& Tile:Tiles)
+    {
+        const int32 Index=int32(Tile.Column);
+        if(!Columns.IsValidIndex(Index)||!Columns[Index].Frame||!Columns[Index].Frame->IsVisible()){continue;}
+        const float Opacity=Columns[Index].Frame->GetRenderOpacity();
+        if(Workshop.bActive&&Tile.Depth>0&&Tile.Face)
+        {
+            // .sock.nest:before: the elbow from the host's rail into the nested tile.
+            const FBox2D Box=LDUIShapes::RectIn(Geometry,Tile.Face->GetCachedGeometry());
+            const float X=float(Box.Min.X)-10.f,Y=float(Box.GetCenter().Y);
+            const FLinearColor Ink(1,1,1,.2f*Opacity);
+            LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(X,Y-50.f),FVector2D(X,Y-8.f),Ink,2.f);
+            TArray<FVector2D> Bend;
+            for(int32 Step=0;Step<=5;++Step){const float A=PI-PI*.5f*float(Step)/5.f;Bend.Add(FVector2D(X+8.f,Y-8.f)+FVector2D(FMath::Cos(A),FMath::Sin(A))*8.f);}
+            LDUIShapes::Stroke(Elements,Layer,Geometry,Bend,Ink,2.f);
+            LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(X+8.f,Y),FVector2D(float(Box.Min.X)-2.f,Y),Ink,2.f);
+        }
+        PaintFace(Tile.Face,Tile.Kind,Tile.bScarce,Tile.State,Tile.Icon.Get(),Opacity,false);
     }
 }
 int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const
@@ -1192,56 +1285,10 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
     if(!bShownNow){return Base;}
     const double Now=UiNow();
     const int32 Top=Base+1;
-    // The kind sets the shape and rim colour (white base rules, cyan skill mods, violet link rules); a state recolours the
-    // rim with a halo: yellow held or picked, green a legal place, orange a replacement or what comes off with it, red a
-    // refusal. A scarce component keeps the iridescent edge.
-    const auto StateColor=[](EFaceState State,uint8 Kind,bool& bGlow)->FLinearColor
-    {
-        bGlow=true;
-        switch(State)
-        {
-        case EFaceState::Held: case EFaceState::Pick: return LDHUDStyle::UIAction;
-        case EFaceState::Legal: return LDHUDStyle::UILegal;
-        case EFaceState::Replace: case EFaceState::Detached: return LDHUDStyle::UIReplace;
-        case EFaceState::Rejected: return LDHUDStyle::UIReject;
-        case EFaceState::Hovered: bGlow=false;return LDHUDStyle::UIAction;
-        default: bGlow=false;return LDUIShapes::KindColor(Kind).CopyWithNewOpacity(State==EFaceState::Dim?.35f:.9f);
-        }
-    };
-    const auto PaintFace=[&](const UWidget* Face,uint8 Kind,bool bScarce,EFaceState State,bool bFresh,float Opacity)
-    {
-        if(!Face){return;}
-        const FBox2D Box=LDUIShapes::RectIn(Geometry,Face->GetCachedGeometry());
-        if(Box.GetSize().X<4.f){return;}
-        const LDUIShapes::EShape Shape=LDUIShapes::KindShape(Kind);
-        const float Radius=FaceRadius(Kind,float(Box.GetSize().X));
-        bool bGlow=false;const FLinearColor Rim=StateColor(State,Kind,bGlow);
-        if(bScarce&&State==EFaceState::Normal){LDUIShapes::Iridescent(Elements,Top,Geometry,Shape,Box,Now,Radius);}
-        else
-        {
-            if(bGlow){LDUIShapes::Glow(Elements,Top,Geometry,Shape,Box,Rim.CopyWithNewOpacity(Opacity),7.f,Radius);}
-            LDUIShapes::Frame(Elements,Top,Geometry,Shape,Box,Rim.CopyWithNewOpacity(Rim.A*Opacity),State==EFaceState::Normal||State==EFaceState::Dim?1.5f:2.5f,Radius);
-        }
-        if(bFresh)
-        {
-            const FVector2D Dot(Box.Max.X-3.f,Box.Min.Y+3.f);
-            LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Dot-FVector2D(5,5),Dot+FVector2D(5,5)),LDHUDStyle::UIAction,5.f);
-        }
-    };
-    const bool bCardsShown=Workshop.bActive?(LibraryFrame&&LibraryFrame->IsVisible()):(ListFrame&&ListFrame->IsVisible());
-    if(bCardsShown)
-    {
-        for(const FCard& Card:Cards)
-        {
-            const float Opacity=Card.Cell?Card.Cell->GetRenderOpacity():Card.Size?Card.Size->GetRenderOpacity():1.f;
-            PaintFace(Card.Face,Card.Kind,Card.bScarce,Card.State,Workshop.bActive&&Card.bFresh,Opacity);
-        }
-    }
     for(const FTile& Tile:Tiles)
     {
         const int32 Index=int32(Tile.Column);
         if(!Columns.IsValidIndex(Index)||!Columns[Index].Frame||!Columns[Index].Frame->IsVisible()){continue;}
-        PaintFace(Tile.Face,Tile.Kind,Tile.bScarce,Tile.State,false,Columns[Index].Frame->GetRenderOpacity());
         // An install that just landed flashes once: a ring spreading out from it.
         const double Age=Now-LandedAt;
         if(Tile.Component==LandedComponent&&Age>=0.&&Age<LDHUDStyle::MotionInstallLand+LDHUDStyle::MotionInstallSettle)
@@ -1260,18 +1307,22 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
         {
             const FColumn& Column=Columns[Index];
             if(!Column.Frame||!Column.Frame->IsVisible()||!Column.Placeholder||!Column.Placeholder->IsVisible()){continue;}
+            // .sock.empty .slot: a dashed rounded place with a thin plus; solid green and glowing while the held component
+            // can go there.
             const FBox2D Box=LDUIShapes::RectIn(Geometry,Column.Placeholder->GetCachedGeometry());
             const bool bLegal=Drags(CurrentFocus.Drops,static_cast<LDHUD::EStorageColumn>(Index),true);
             if(bLegal)
             {
-                const float Pulse=CurrentFocus.bHeld?.6f+.4f*LDTween::PingPong(Now,.9):1.f;
-                LDUIShapes::Frame(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Box,LDHUDStyle::UILegal.CopyWithNewOpacity(Pulse),2.f,8.f);
+                const float Pulse=CurrentFocus.bHeld?.7f+.3f*LDTween::PingPong(Now,.9):1.f;
+                LDUIPaint::Halo(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UILegal.CopyWithNewOpacity(.55f*Pulse),18.f);
+                LDUIPaint::Shape(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDUIPaint::FFill::Solid(LDHUDStyle::UILegal.CopyWithNewOpacity(.12f)));
+                LDUIPaint::Edge(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UILegal,2.f);
             }
-            else{LDUIShapes::Dashed(Elements,Top,Geometry,Box,LDHUDStyle::TextSecondary.CopyWithNewOpacity(.45f));}
+            else{LDUIPaint::DashedEdge(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,FLinearColor(1,1,1,.18f),2.f);}
             const FVector2D Center=Box.GetCenter();
-            const FLinearColor Plus=(bLegal?LDHUDStyle::UILegal:LDHUDStyle::TextSecondary).CopyWithNewOpacity(.6f);
-            LDUIShapes::Stroke(Elements,Top,Geometry,{Center-FVector2D(6,0),Center+FVector2D(6,0)},Plus,1.5f);
-            LDUIShapes::Stroke(Elements,Top,Geometry,{Center-FVector2D(0,6),Center+FVector2D(0,6)},Plus,1.5f);
+            const FLinearColor Plus=bLegal?LDHUDStyle::UILegal:FLinearColor(1,1,1,.25f);
+            LDUIPaint::Line(Elements,Top+2,Geometry,Center-FVector2D(8,0),Center+FVector2D(8,0),Plus,1.5f);
+            LDUIPaint::Line(Elements,Top+2,Geometry,Center-FVector2D(0,8),Center+FVector2D(0,8),Plus,1.5f);
         }
     }
     if(!Workshop.bActive&&StackFrame&&StackFrame->IsVisible())
