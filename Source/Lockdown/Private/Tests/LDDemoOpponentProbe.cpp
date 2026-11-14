@@ -3,6 +3,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Tests/LDSlateProbeInput.h"
+#include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 
 #include "Components/SizeBox.h"
@@ -183,6 +184,8 @@ public:
     bool ReviewChoiceCards(ALDPlayerController& PC,double Now);
     FName UIInstalledComponent;
     int32 UIServiceStep=0,UIServicePick=0,UIServiceWheels=0;
+    // A held confirmation: the pointer path pressed at UIHoldPressedAt, released once the hold has had time to fill.
+    FWidgetPath UIHoldPath;FVector2D UIHoldAt=FVector2D::ZeroVector;double UIHoldPressedAt=-1.;
     int32 UIServiceObservedStep=INDEX_NONE;
     double UIServiceStepAt=0;
     uint64 UIServiceGrowthBefore=0;
@@ -2201,6 +2204,15 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
             UIServiceStep,uint8(PC.OwnerState.NearbyRestService),PC.CanWorldCommand(),PC.Navigation?*PC.Navigation->Status:TEXT("missing"));
         Check(false,TEXT("UI: each actual service interaction completes within twenty seconds"));return false;
     }
+    if(UIHoldPressedAt>=0.)
+    {
+        // The release goes to the pressed button's pointer capture even when the committed hold has hidden it.
+        if(Now-UIHoldPressedAt<LDHUDStyle::MotionHoldConfirm+.2){return true;}
+        auto& App=FSlateApplication::Get();
+        App.RoutePointerUpEvent(UIHoldPath,FPointerEvent(App.GetUserIndexForMouse(),FSlateApplicationBase::CursorPointerIndex,UIHoldAt,UIHoldAt,
+            TSet<FKey>(),EKeys::LeftMouseButton,0,FModifierKeysState()));
+        UIHoldPath=FWidgetPath();UIHoldPressedAt=-1.;
+    }
     if(Now<UIActionDueAt){return true;}
     UIActionDueAt=Now+.15;
     auto* Panel=PC.HUDUI->ChoicesPanel.Get();
@@ -2221,6 +2233,15 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         }
         UIServiceWheels=0;
         return Check(Target->GetIsEnabled()&&LDSlateProbeInput::SendClick(Target),TEXT("UI: visible service control accepts a real pointer click"));
+    };
+    // Irreversible confirmations commit only on a full hold: a real press now, its release once the fill completes.
+    const auto Hold=[&](UWidget* Target)
+    {
+        if(!LDSlateProbeInput::Path(Target).IsValid()){return Click(Target);}
+        UIHoldPath=LDSlateProbeInput::Path(Target);UIHoldAt=Target->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5));
+        if(!Check(Target->GetIsEnabled()&&LDSlateProbeInput::Pointer(Target,EKeys::LeftMouseButton,true,false),
+            TEXT("UI: visible irreversible confirmation accepts a real pointer hold"))){return false;}
+        UIHoldPressedAt=Now;return true;
     };
     const auto Capture=[&](const TCHAR* Name)
     {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
@@ -2295,7 +2316,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         ++UIServiceStep;return true;
     case 10:
         UIServiceGrowthBefore=Growth->BuildRevision;
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
+        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 11:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
@@ -2304,7 +2325,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         Capture(TEXT("HostTrainerReplacementApplied.png"));
         UIServiceGrowthBefore=Growth->BuildRevision;++UIServiceStep;return true;
     case 12:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
+        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 13:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
@@ -2337,7 +2358,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         Capture(TEXT("HostArtisanDismantleConfirm.png"));++UIServiceStep;return true;
     case 17:
         UIServiceGrowthBefore=Growth->BuildRevision;UIServiceInventoryBefore=Growth->Components.Num();
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
+        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 18:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}

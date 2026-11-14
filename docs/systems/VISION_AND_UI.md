@@ -229,6 +229,15 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 设置页的显示草稿与已应用偏好分离，终局强制关闭调用 `ForceClose`，
 不能把关闭或销毁当成应用显示草稿。
 
+界面样式只有一个来源：颜色、字号、圆角与动效时长在 `LDHUDStyle.h`；文字经 `LDWidgets::Text` 按字体角色
+（`LDUIFonts::ERole` 的标题、正文、强调、数字）取字体，字体是 `ImportDemoArt.ps1 -Mode ImportUI` 由
+`SourceData\UI\ui_fonts.json` 导入的思源黑体（SIL OFL）`FF_Regular/FF_Bold/FF_Heavy`，缺字体时记录 `LD_UI_FONT_MISSING`
+并退回引擎默认字体。界面动效经 `LDTween`（缓出、缓入、回弹三种曲线，回弹过冲不超过 8%），只是表现：
+不延迟输入、不等动画才提交；战斗特效强度设置不影响界面动效。`LDWidgets` 按钮悬停放大、按下缩小并播放界面音效；
+`LDWidgets::HoldButton` 是按住确认按钮：按下开始计时并在按钮面上画填充，松开、禁用或隐藏即取消，
+按满 `MotionHoldConfirm` 才执行一次；键盘焦点在它上面时 Enter/Space 交给按钮本身，按住与松开同指针。
+补缺以外的休息室不可逆确认（替换、遗忘、拆解）与洗点使用它。
+
 数据更新应围绕已有快照/回执和局部变化，不为每个 Widget 新增一次全世界扫描。
 增加 HUD 字段时同时检查服务器是否授权它、离开视野如何清理、life 改变如何失效，
 以及对应提示、特效和辅助显示是否绕过了同一限制。
@@ -256,7 +265,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 本人技能或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/E/D，Finished/Released 且无拒绝；冲刺使用独立的 `SelfDash` 音效 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧相同音效合成一次）；别局或别条命的回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
-| 界面点击 | 设置页主音量滑条松手或键盘调节时试听 | 每次调节一次 |
+| 界面点击 / 悬停（`UIClick` / `UIHover`） | 命令按钮（`LDWidgets::Button`）点击 / 指针进入；按住确认按钮在按满提交时响点击音；设置页主音量滑条松手或键盘调节时试听点击音 | 每次点击、进入或调节一次；禁用的按钮不响 |
 
 主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
 经 `SMix_DemoUser` 对 `SC_DemoMaster` 的类覆盖生效，每个新世界重新应用，不修改共享资产或 CDO。

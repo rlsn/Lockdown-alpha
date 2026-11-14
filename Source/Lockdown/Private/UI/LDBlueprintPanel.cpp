@@ -184,24 +184,24 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         };
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
-        UTextBlock* Title=MakeText(TEXT("构筑蓝图 · 对局记录"),20,BlueprintBright);Title->SetAutoWrapText(false);
+        UTextBlock* Title=MakeText(TEXT("构筑蓝图 · 对局记录"),LDHUDStyle::TypeHeading,BlueprintBright);Title->SetAutoWrapText(false);
         Top->AddChildToHorizontalBox(Title)->SetVerticalAlignment(VAlign_Center);
-        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只读 · 不授予物品或技能"),13,BlueprintDim));
+        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只读 · 不授予物品或技能"),LDHUDStyle::TypeCaption,BlueprintDim));
         NoteSlot->SetPadding(FMargin(12,0,12,0));NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Top->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("BlueprintClose")));
-        SourceText=MakeText(TEXT(""),15,BlueprintBright);Root->AddChildToVerticalBox(SourceText)->SetPadding(FMargin(0,10,0,0));
-        StatusText=MakeText(TEXT(""),14,LDHUDStyle::TextSecondary);Root->AddChildToVerticalBox(StatusText)->SetPadding(FMargin(0,4,0,0));
-        NoticeText=MakeText(TEXT(""),14,LDHUDStyle::TextWarning);Root->AddChildToVerticalBox(NoticeText)->SetPadding(FMargin(0,4,0,0));
+        SourceText=MakeText(TEXT(""),LDHUDStyle::TypeBody,BlueprintBright);Root->AddChildToVerticalBox(SourceText)->SetPadding(FMargin(0,10,0,0));
+        StatusText=MakeText(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary);Root->AddChildToVerticalBox(StatusText)->SetPadding(FMargin(0,4,0,0));
+        NoticeText=MakeText(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::TextWarning);Root->AddChildToVerticalBox(NoticeText)->SetPadding(FMargin(0,4,0,0));
         NoticeText->SetVisibility(ESlateVisibility::Collapsed);
         auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
         StructureList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(StructureList);
-        PreviewText=MakeText(TEXT("悬停图标查看 · 点击固定详情"),14,LDHUDStyle::TextSecondary);
+        PreviewText=MakeText(TEXT("悬停图标查看 · 点击固定详情"),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary);
         PreviewText->SetAutoWrapText(false);PreviewText->SetWrapTextAt(250);
         HistoryButton=LDWidgets::Button(WidgetTree,TEXT("展开对局数据与版本记录"),[this]()
         {bHistory=!bHistory;BlueprintShow(BodyText,bHistory,ESlateVisibility::HitTestInvisible);
         BlueprintText(Cast<UTextBlock>(HistoryButton->GetContent()),bHistory?TEXT("收起对局数据与版本记录"):TEXT("展开对局数据与版本记录"));},false,TEXT("BlueprintHistory"));
         Body->AddChildToVerticalBox(HistoryButton)->SetPadding(FMargin(0,8,0,8));
-        BodyText=MakeText(TEXT(""),14,BlueprintBright);BodyText->SetWrapTextAt(720);Body->AddChildToVerticalBox(BodyText);BlueprintShow(BodyText,false);
+        BodyText=MakeText(TEXT(""),LDHUDStyle::TypeSmall,BlueprintBright);BodyText->SetWrapTextAt(720);Body->AddChildToVerticalBox(BodyText);BlueprintShow(BodyText,false);
         FileList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(FileList);FileList->SetVisibility(ESlateVisibility::Collapsed);
         Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
         auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetWidthOverride(750);HeightBox->SetHeightOverride(490);HeightBox->SetContent(Scroll);
@@ -225,7 +225,7 @@ TSharedRef<SWidget> ULDBlueprintPanel::RebuildWidget()
         Actions->AddChildToHorizontalBox(ImportButton)->SetPadding(FMargin(0,0,10,0));
         BackButton=LDWidgets::Button(WidgetTree,LDTerms::BlueprintBack,[this](){ShowMatch();},false,TEXT("BlueprintBack"));
         Actions->AddChildToHorizontalBox(BackButton);BackButton->SetVisibility(ESlateVisibility::Collapsed);
-        ActionText=MakeText(TEXT(""),13,BlueprintDim);Root->AddChildToVerticalBox(ActionText)->SetPadding(FMargin(0,8,0,0));
+        ActionText=MakeText(TEXT(""),LDHUDStyle::TypeCaption,BlueprintDim);Root->AddChildToVerticalBox(ActionText)->SetPadding(FMargin(0,8,0,0));
         for(UTextBlock* Label:{SourceText.Get(),StatusText.Get(),NoticeText.Get(),ActionText.Get()})
         {Label->SetAutoWrapText(false);Label->SetWrapTextAt(1020);}
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));MainPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(1.f));
@@ -286,7 +286,7 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
     CardStats.Level=Record.FinalLevel;
     CardStats.bShowScalingFormula=true;
     auto* Note=LDWidgets::Text(WidgetTree,FString::Printf(TEXT("说明按本机目录与蓝图 Lv%u 显示；属性加成按实际属性计算。"),
-        uint32(Record.FinalLevel)),12);
+        uint32(Record.FinalLevel)),LDHUDStyle::TypeTiny);
     Note->SetColorAndOpacity(LDHUDStyle::TextSecondary);ScaleNewText(Note);
     StructureList->AddChildToVerticalBox(Note)->SetPadding(FMargin(0,0,0,8));
     auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();
@@ -297,9 +297,9 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
         auto* Picture=WidgetTree->ConstructWidget<UImage>();LDUIIcons::Apply(Picture,LDHUD::ContentIconId(Local,Id),0);
         auto* ImageSize=WidgetTree->ConstructWidget<USizeBox>();ImageSize->SetWidthOverride(44);ImageSize->SetHeightOverride(44);ImageSize->SetContent(Picture);
         Face->AddChildToVerticalBox(ImageSize)->SetHorizontalAlignment(HAlign_Center);
-        auto* Name=LDWidgets::Text(WidgetTree,Caption,14);Name->SetAutoWrapText(false);Name->SetWrapTextAt(Width-24);
+        auto* Name=LDWidgets::Text(WidgetTree,Caption,LDHUDStyle::TypeSmall);Name->SetAutoWrapText(false);Name->SetWrapTextAt(Width-24);
         Face->AddChildToVerticalBox(Name)->SetPadding(FMargin(0,6,0,4));ScaleNewText(Name);
-        auto* Held=LDWidgets::Text(WidgetTree,State,12);Held->SetAutoWrapText(false);Held->SetWrapTextAt(Width-24);Held->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        auto* Held=LDWidgets::Text(WidgetTree,State,LDHUDStyle::TypeTiny);Held->SetAutoWrapText(false);Held->SetWrapTextAt(Width-24);Held->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         Face->AddChildToVerticalBox(Held);ScaleNewText(Held);
         auto* Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Detail](){PinnedDetail=Detail;BlueprintText(PreviewText,Detail);});
         Button->SetContent(Face);TilePreviews.Add({Button,Detail});
@@ -325,12 +325,12 @@ void ULDBlueprintPanel::ShowRecord(const FLDBlueprintRecord& Record,const FLDDem
     }
     TArray<FString> Stats;
     for(const FLDBlueprintStat& Stat:Record.FinalBuild.Stats){Stats.Add(BlueprintName(Local,Stat.Stat)+FString::Printf(TEXT(" %d 点"),Stat.Points));}
-    auto* Points=LDWidgets::Text(WidgetTree,TEXT("属性分配：")+FString::Join(Stats,TEXT(" · ")),14);
+    auto* Points=LDWidgets::Text(WidgetTree,TEXT("属性分配：")+FString::Join(Stats,TEXT(" · ")),LDHUDStyle::TypeSmall);
     Points->SetAutoWrapText(false);Points->SetWrapTextAt(720);ScaleNewText(Points);StructureList->AddChildToVerticalBox(Points)->SetPadding(FMargin(0,0,0,12));
     auto* Components=WidgetTree->ConstructWidget<UWrapBox>();Components->SetExplicitWrapSize(true);Components->SetWrapSize(730);Components->SetInnerSlotPadding(FVector2D(8,8));
     StructureList->AddChildToVerticalBox(Components);
     if(!Record.FinalBuild.bComponentsCollected)
-    {auto* Missing=LDWidgets::Text(WidgetTree,TEXT("构件：未采集，不能视为没有构件。"),14);ScaleNewText(Missing);StructureList->AddChildToVerticalBox(Missing);}
+    {auto* Missing=LDWidgets::Text(WidgetTree,TEXT("构件：未采集，不能视为没有构件。"),LDHUDStyle::TypeSmall);ScaleNewText(Missing);StructureList->AddChildToVerticalBox(Missing);}
     for(const FLDBlueprintComponent& Component:Record.FinalBuild.Components)
     {
         const FString Name=BlueprintName(Local,Component.Component);

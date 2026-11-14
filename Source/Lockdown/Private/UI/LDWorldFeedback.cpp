@@ -22,6 +22,7 @@
 #include "Rendering/DrawElements.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "UI/LDUIFonts.h"
 
 namespace
 {
@@ -321,12 +322,12 @@ float WorldFeedbackPop(double Age,double Seconds,float From)
     if(Age<0.||Age>=Seconds){return 1.f;}
     return FMath::RoundToFloat(FMath::Lerp(From*10.f,10.f,float(Age/Seconds)))/10.f;
 }
-// The UI's default CJK-capable bold font at the local text scale. The outline fades with the line: Slate draws a text
+// The interface's bold figures at the local text scale. The outline fades with the line: Slate draws a text
 // outline in its own colour, not the tint's opacity.
 FSlateFontInfo WorldFeedbackFont(int32 Size,float TextScale,int32 OutlineSize,float Alpha)
 {
     FFontOutlineSettings Outline;Outline.OutlineSize=OutlineSize;Outline.OutlineColor=LDHUDStyle::Rim;Outline.OutlineColor.A*=Alpha;
-    return FCoreStyle::GetDefaultFontStyle(TEXT("Bold"),float(FMath::Max(1,FMath::RoundToInt(float(Size)*TextScale))),Outline);
+    return LDUIFonts::Font(LDUIFonts::ERole::Number,float(FMath::Max(1,FMath::RoundToInt(float(Size)*TextScale))),Outline);
 }
 }
 

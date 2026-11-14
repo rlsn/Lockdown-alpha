@@ -209,7 +209,7 @@ private:
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> DismantleButtons;
     UPROPERTY() TObjectPtr<UWidget> RestConfirmLine;
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
-    UPROPERTY() TObjectPtr<ULDCommandButton> RestConfirmButton;
+    UPROPERTY() TObjectPtr<ULDHoldButton> RestConfirmButton;
     FRestConfirm RestConfirm;
     // Every widget built after RebuildWidget, kept alive with the tree.
     UPROPERTY() TArray<TObjectPtr<UWidget>> RowWidgets;

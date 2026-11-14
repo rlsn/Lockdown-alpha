@@ -57,7 +57,6 @@ struct FLDHUDActionSlot
     FString AppliedIcon;
     int32 AppliedTint=-1;
     float AppliedOpacity=1.f;
-    float AppliedPop=1.f;
     bool bCooling=false;
     uint32 CoolingMatch=0;
     uint32 CoolingLife=0;
@@ -302,7 +301,6 @@ private:
     int32 PromptOffers=0;
     int32 PromptComponents=0;
     double PromptPulseAt=-1;
-    float AppliedPromptWave=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;

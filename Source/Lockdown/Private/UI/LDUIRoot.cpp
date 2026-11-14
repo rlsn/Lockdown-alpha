@@ -10,6 +10,7 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
+#include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIBackgrounds.h"
 #include "UI/LDWidgets.h"
@@ -41,10 +42,6 @@
 
 namespace
 {
-    const FLinearColor TitleColor(1.f,.82f,.28f);
-    const FLinearColor SectionColor(.55f,.86f,.92f);
-    const FLinearColor MutedColor(.66f,.74f,.78f);
-    const FLinearColor WarningColor(1.f,.78f,.55f);
     constexpr int32 MainPanelCount=2;
 
     int32 MainPanelIndex(ELDUIMainPanel Panel)
@@ -131,13 +128,14 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     auto Add=[](UVerticalBox* Box,UWidget* Child,float Gap){Box->AddChildToVerticalBox(Child)->SetPadding(FMargin(0,Gap));};
     MainMenu=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Content,MainMenu,0);
-    UTextBlock* Title=Label(LDTerms::Title,40,TitleColor);
+    UTextBlock* Title=Label(LDTerms::Title,LDHUDStyle::TypeMenuTitle,LDHUDStyle::MenuTitle);
+    Title->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Title->GetFont().Size));
     Title->SetJustification(ETextJustify::Center);
     Add(MainMenu,Title,10);
-    UTextBlock* Tagline=Label(FString(LDTerms::Tagline).Replace(TEXT(" · "),TEXT("\n")),18,MutedColor);
+    UTextBlock* Tagline=Label(FString(LDTerms::Tagline).Replace(TEXT(" · "),TEXT("\n")),LDHUDStyle::TypeLead,LDHUDStyle::MenuMuted);
     Tagline->SetJustification(ETextJustify::Center);
     Add(MainMenu,Tagline,4);
-    StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},22);
+    StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},LDHUDStyle::TypeSection);
     Add(MainMenu,StartButton,8);
     if(const auto* Instance=GetGameInstance<ULDGameInstance>();Instance&&Instance->CanReconnect())
     {
@@ -145,28 +143,28 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         {
             if(auto* Owner=Cast<ALDPlayerController>(GetOwningPlayer()))
             {if(auto* State=GetGameInstance<ULDGameInstance>()){State->ReconnectRoom(*Owner);}}
-        },22),8);
+        },LDHUDStyle::TypeSection),8);
     }
-    Add(MainMenu,MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},22),8);
-    Add(MainMenu,MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);},22),8);
+    Add(MainMenu,MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},LDHUDStyle::TypeSection),8);
+    Add(MainMenu,MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);},LDHUDStyle::TypeSection),8);
 
     StartPage=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Content,StartPage,0);
-    Add(StartPage,Label(TEXT("开始"),30,TitleColor),6);
-    Add(StartPage,Label(TEXT("名称"),16,MutedColor),2);
+    Add(StartPage,Label(TEXT("开始"),LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
+    Add(StartPage,Label(TEXT("名称"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
     NameBox=MakeTextBox(FString::Printf(TEXT("输入你的名称（必填，最多 %d 个字符）"),ULDControlSettings::MaxPlayerNameChars),TEXT("PlayerName"));
     if(PC.Controls){NameBox->SetText(FText::FromString(PC.Controls->PlayerName));}
     Add(StartPage,NameBox,4);
-    Add(StartPage,Label(TEXT("创建房间"),22,SectionColor),10);
+    Add(StartPage,Label(TEXT("创建房间"),LDHUDStyle::TypeSection,LDHUDStyle::MenuSection),10);
     int32 ListenPort=0;
     bListenPortValid=ConfiguredListenPort(ListenPort);
     Add(StartPage,Label(bListenPortValid?FString::Printf(TEXT("本机监听端口：%d"),ListenPort)
-        :FString(TEXT("本机监听端口未配置（[URL] Port 无效），无法创建房间。")),18),2);
-    Add(StartPage,Label(TEXT("其他玩家用你的 IP 地址和这个端口加入；跨网络需自行开放防火墙并设置端口映射。"),15,MutedColor),2);
+        :FString(TEXT("本机监听端口未配置（[URL] Port 无效），无法创建房间。")),LDHUDStyle::TypeLead),2);
+    Add(StartPage,Label(TEXT("其他玩家用你的 IP 地址和这个端口加入；跨网络需自行开放防火墙并设置端口映射。"),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted),2);
     HostButton=MakeButton(TEXT("创建房间"),TEXT("Host"),[this](){Host();});
     Add(StartPage,HostButton,6);
-    Add(StartPage,Label(TEXT("加入房间"),22,SectionColor),10);
-    Add(StartPage,Label(TEXT("房主 IP 与端口"),16,MutedColor),2);
+    Add(StartPage,Label(TEXT("加入房间"),LDHUDStyle::TypeSection,LDHUDStyle::MenuSection),10);
+    Add(StartPage,Label(TEXT("房主 IP 与端口"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
     auto* EndpointRow=WidgetTree->ConstructWidget<UHorizontalBox>();
     Add(StartPage,EndpointRow,4);
     AddressBox=MakeTextBox(TEXT("房主 IP 或主机名"),TEXT("JoinAddress"));
@@ -187,18 +185,18 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     CancelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     CancelSlot->SetPadding(FMargin(8,0,0,0));
 
-    Feedback=Label(FString(),17);
+    Feedback=Label(FString(),LDHUDStyle::TypeLabel);
     Add(Content,Feedback,6);
-    SettingsStatus=Label(FString(),15,WarningColor);
+    SettingsStatus=Label(FString(),LDHUDStyle::TypeBody,LDHUDStyle::MenuWarning);
     Add(Content,SettingsStatus,4);
     StartBackButton=MakeButton(TEXT("返回"),TEXT("StartBack"),[this](){ShowStartPage(false);});
     Add(Content,StartBackButton,6);
     FString Version,VersionError;
-    UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,15,MutedColor);
+    UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted);
     VersionLine->SetJustification(ETextJustify::Center);
     Add(Content,VersionLine,10);
     // The slang note stays under the front page (#111) so the title's slang is never read as anything else.
-    UTextBlock* SlangNote=Label(LDTerms::SlangNote,14,MutedColor);
+    UTextBlock* SlangNote=Label(LDTerms::SlangNote,LDHUDStyle::TypeSmall,LDHUDStyle::MenuMuted);
     SlangNote->SetJustification(ETextJustify::Center);
     Add(Content,SlangNote,2);
     bMenuOpen=true;
@@ -239,7 +237,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         WorldFeedback->SetVisibility(ESlateVisibility::Collapsed);
     }
     else{UE_LOG(LogLDUI,Error,TEXT("LD_WORLD_FEEDBACK_CREATION_FAILED Floating numbers, rewards and level-up and kill confirmations are unavailable in this world."));}
-    Status=Label(FString(),18);
+    Status=Label(FString(),LDHUDStyle::TypeLead);
     HeaderPanel=LDWidgets::Panel(WidgetTree,Status,FMargin(20,12));
     UCanvasPanelSlot* HeaderSlot=Canvas.AddChildToCanvas(HeaderPanel);
     HeaderSlot->SetAnchors(FAnchors(0,0,1,0));
@@ -251,13 +249,13 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     if(LobbyBackground){LobbyBackground->SetVisibility(ESlateVisibility::Collapsed);}
     LobbyPage=MakePage(Canvas,860,Lobby);
     LobbyPage->SetVisibility(ESlateVisibility::Collapsed);
-    Add(Lobby,Label(TEXT("房间"),30,TitleColor),6);
-    Add(Lobby,Label(TEXT("所有真人准备后，由房主开始对局。"),16,MutedColor),2);
+    Add(Lobby,Label(TEXT("房间"),LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
+    Add(Lobby,Label(TEXT("所有真人准备后，由房主开始对局。"),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted),2);
     RosterRows=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Lobby,RosterRows,8);
     AIButtonRow=WidgetTree->ConstructWidget<UHorizontalBox>();
     Add(Lobby,AIButtonRow,6);
-    AIButtonRow->AddChildToHorizontalBox(Label(TEXT("AI 对手"),18,SectionColor))->SetVerticalAlignment(VAlign_Center);
+    AIButtonRow->AddChildToHorizontalBox(Label(TEXT("AI 对手"),LDHUDStyle::TypeLead,LDHUDStyle::MenuSection))->SetVerticalAlignment(VAlign_Center);
     for(int32 Count=0;Count<=3;++Count)
     {
         ULDCommandButton* Choice=MakeButton(FString::FromInt(Count),FName(*FString::Printf(TEXT("AICount%d"),Count)),
@@ -268,9 +266,9 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         AIButtons.Add(Choice);
     }
     AIButtonRow->SetVisibility(ESlateVisibility::Collapsed);
-    AIReadOnly=Label(FString(),18);
+    AIReadOnly=Label(FString(),LDHUDStyle::TypeLead);
     Add(Lobby,AIReadOnly,6);
-    LobbyDevMarker=Label(FString(),16,WarningColor);
+    LobbyDevMarker=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::MenuWarning);
     Add(Lobby,LobbyDevMarker,4);
     auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();
     Add(Lobby,Actions,8);
@@ -281,11 +279,11 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     StartSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     StartSlot->SetPadding(FMargin(8,0,0,0));
     StartMatchButton->SetVisibility(ESlateVisibility::Collapsed);
-    LobbyBlocker=Label(FString(),16,WarningColor);
+    LobbyBlocker=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::MenuWarning);
     Add(Lobby,LobbyBlocker,4);
-    LobbyFeedback=Label(FString(),16);
+    LobbyFeedback=Label(FString(),LDHUDStyle::TypeText);
     Add(Lobby,LobbyFeedback,4);
-    Add(Lobby,Label(TEXT("最多 6 名参赛者（含房主），其中 AI 最多 3 个；空位不会自动补满。成员或 AI 数量变化会清除真人准备。"),15,MutedColor),6);
+    Add(Lobby,Label(TEXT("最多 6 名参赛者（含房主），其中 AI 最多 3 个；空位不会自动补满。成员或 AI 数量变化会清除真人准备。"),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted),6);
     // #198 §10: the own last build blueprint and the read-only import view, outside any match.
     Add(Lobby,MakeButton(LDTerms::BuildBlueprint,TEXT("LobbyBuildBlueprint"),[this]()
     {
@@ -296,22 +294,22 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     UVerticalBox* Menu=nullptr;
     MenuPage=MakePage(Canvas,520,Menu);
     MenuPage->SetVisibility(ESlateVisibility::Collapsed);
-    Add(Menu,Label(TEXT("菜单"),30,TitleColor),6);
-    MenuPause=Label(TEXT("对局不会暂停"),17);
+    Add(Menu,Label(TEXT("菜单"),LDHUDStyle::TypePage,LDHUDStyle::MenuTitle),6);
+    MenuPause=Label(TEXT("对局不会暂停"),LDHUDStyle::TypeLabel);
     Add(Menu,MenuPause,2);
-    MenuPhase=Label(FString(),16,MutedColor);
+    MenuPhase=Label(FString(),LDHUDStyle::TypeText,LDHUDStyle::MenuMuted);
     Add(Menu,MenuPhase,2);
     Add(Menu,MakeButton(TEXT("继续"),TEXT("Resume"),[this](){Resume();}),8);
     Add(Menu,MakeButton(TEXT("设置"),TEXT("MatchSettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}),8);
     Add(Menu,MakeButton(TEXT("离开房间并返回主菜单"),TEXT("LeaveMatch"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
-    MenuFeedback=Label(FString(),15,MutedColor);
+    MenuFeedback=Label(FString(),LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted);
     Add(Menu,MenuFeedback,4);
 }
 
 void ULDUIRoot::BuildConfirm(UCanvasPanel& Canvas,bool bFrontend)
 {
     auto* Dialog=WidgetTree->ConstructWidget<UVerticalBox>();
-    ConfirmText=Label(FString(),20);
+    ConfirmText=Label(FString(),LDHUDStyle::TypeHeading);
     Dialog->AddChildToVerticalBox(ConfirmText)->SetPadding(FMargin(0,0,0,16));
     auto AddChoice=[this,Dialog](ELDRootConfirm Kind,const TCHAR* Accept,FName AcceptName,TFunction<void()> Action,FName CancelName)
     {
@@ -335,7 +333,7 @@ void ULDUIRoot::BuildConfirm(UCanvasPanel& Canvas,bool bFrontend)
     DialogWidth->SetContent(LDWidgets::Panel(WidgetTree,Dialog,FMargin(28,24)));
     // Full-viewport modal: it disables the page beneath it and PointerOverUI reports every world click as UI.
     ConfirmLayer=WidgetTree->ConstructWidget<UBorder>();
-    ConfirmLayer->SetBrushColor(FLinearColor(0,0,0,.62f));
+    ConfirmLayer->SetBrushColor(LDHUDStyle::ModalScrim);
     ConfirmLayer->SetHorizontalAlignment(HAlign_Center);
     ConfirmLayer->SetVerticalAlignment(VAlign_Center);
     ConfirmLayer->SetContent(DialogWidth);
@@ -359,7 +357,7 @@ ULDCommandButton* ULDUIRoot::MakeButton(const FString& Text,FName Name,TFunction
 {
     ULDCommandButton* Button=LDWidgets::Button(WidgetTree,Text,MoveTemp(Action),false,Name);
     auto* Caption=CastChecked<UTextBlock>(Button->GetContent());
-    Caption->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Scaled(Size)));
+    Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Scaled(Size)));
     Caption->SetJustification(ETextJustify::Center);
     CastChecked<UButtonSlot>(Caption->Slot)->SetHorizontalAlignment(HAlign_Fill);
     // 12 px vertical padding keeps every root button at least 44 px tall (UI_AND_SETTINGS 3.3).
@@ -374,10 +372,10 @@ UEditableTextBox* ULDUIRoot::MakeTextBox(const FString& Hint,FName Name)
     auto* Box=WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass(),Name);
     Box->SetHintText(FText::FromString(Hint));
     FEditableTextBoxStyle Style=Box->GetWidgetStyle();
-    Style.TextStyle.SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Scaled(18)));
+    Style.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Scaled(LDHUDStyle::TypeLead)));
     Style.Padding=FMargin(12,11);
     Box->SetWidgetStyle(Style);
-    Box->SetForegroundColor(FLinearColor(.04f,.07f,.07f));
+    Box->SetForegroundColor(LDHUDStyle::InputText);
     // Enter ends editing but keeps keyboard focus inside the root, so Esc and Tab keep reaching it.
     Box->SetClearKeyboardFocusOnCommit(false);
     Box->OnTextCommitted.AddDynamic(this,&ULDUIRoot::TextCommitted);
@@ -581,7 +579,7 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
         {
             bRosterBuilt=false;
             RosterRows->ClearChildren();
-            RosterRows->AddChildToVerticalBox(Label(TEXT("正在同步房间名单…"),18,MutedColor));
+            RosterRows->AddChildToVerticalBox(Label(TEXT("正在同步房间名单…"),LDHUDStyle::TypeLead,LDHUDStyle::MenuMuted));
         }
     }
     else if(!bRosterBuilt||Lobby.Generation!=SeenLobbyGeneration||Lobby.RosterRevision!=SeenLobbyRoster
@@ -635,14 +633,14 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         Frame->SetBrushColor(Fill);
         RosterRows->AddChildToVerticalBox(Frame)->SetPadding(FMargin(0,2));
     };
-    AddRow({TEXT("名称"),TEXT("类型"),TEXT("房主"),TEXT("准备")},FLinearColor(.035f,.07f,.09f),16);
+    AddRow({TEXT("名称"),TEXT("类型"),TEXT("房主"),TEXT("准备")},LDHUDStyle::RosterHeader,LDHUDStyle::TypeText);
     for(const FLDLobbyMember& Member:Public.DemoLobby.Members)
     {
         const bool bMine=Self.IsValid()&&Member.ContenderId==Self;
         const bool bHuman=Member.Kind==ELDContenderKind::Human;
         AddRow({Member.Name+(bMine?TEXT("（你）"):TEXT("")),bHuman?TEXT("真人"):TEXT("AI"),Member.Host?TEXT("房主"):TEXT(""),
             bHuman?(Member.Ready?TEXT("已准备"):TEXT("未准备")):TEXT("—")},
-            bMine?FLinearColor(.07f,.17f,.21f):FLinearColor(.045f,.09f,.12f),18);
+            bMine?LDHUDStyle::RosterOwnRow:LDHUDStyle::RosterRow,LDHUDStyle::TypeLead);
     }
 }
 

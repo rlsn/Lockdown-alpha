@@ -1,10 +1,12 @@
 #include "LDDemoUIImageImport.h"
 #include "LDEditorLog.h"
 #include "UI/LDUIBackgrounds.h"
+#include "UI/LDUIFonts.h"
 #include "UI/LDUIIcons.h"
 #include "Framework/LDDemoEntry.h"
 #include "Dom/JsonObject.h"
 #include "EditorFramework/AssetImportData.h"
+#include "Engine/FontFace.h"
 #include "Engine/Texture2D.h"
 #include "Factories/TextureFactory.h"
 #include "HAL/FileManager.h"
@@ -31,6 +33,7 @@ namespace
     };
 
     constexpr TCHAR IconFolder[] = TEXT("Icons");
+    constexpr TCHAR FontFolder[] = TEXT("Fonts");
 
     bool UIFail(FString& Error, const FString& Message) { Error = Message; return false; }
 
@@ -96,7 +99,7 @@ namespace
         IFileManager::Get().FindFiles(Found, *(UISourceRoot() / TEXT("*")), true, false);
         for (const FString& File : Found)
         {
-            if (File != TEXT("ui_images.json") && File != TEXT("ui_icons.json") && !Listed.Contains(File))
+            if (File != TEXT("ui_images.json") && File != TEXT("ui_icons.json") && File != TEXT("ui_fonts.json") && !Listed.Contains(File))
             {
                 return UIFail(Error, TEXT("Unlisted file under SourceData/UI: ") + File);
             }
@@ -105,7 +108,7 @@ namespace
         IFileManager::Get().FindFiles(Folders, *(UISourceRoot() / TEXT("*")), false, true);
         for (const FString& Folder : Folders)
         {
-            if (Folder != IconFolder) { return UIFail(Error, TEXT("SourceData/UI holds only the Icons folder: ") + Folder); }
+            if (Folder != IconFolder && Folder != FontFolder) { return UIFail(Error, TEXT("SourceData/UI holds only the Icons and Fonts folders: ") + Folder); }
         }
         return UILoadIcons(Out, Error);
     }
@@ -209,6 +212,141 @@ namespace
         Out.Sort();
         return Out;
     }
+    struct FUIFontSpec
+    {
+        FString Typeface;
+        // Relative to SourceData/UI: Fonts/<file>.otf.
+        FString Path;
+        FString Package;
+    };
+
+    // SourceData/UI/ui_fonts.json lists exactly the typefaces LDUIFonts composes, each one .otf of SourceData/UI/Fonts with
+    // its SHA-256, plus the licence file the fonts ship with; the folder holds nothing else.
+    bool UILoadFonts(TArray<FUIFontSpec>& Out, FString& Error)
+    {
+        Out.Reset();
+        FString Text;
+        if (!FFileHelper::LoadFileToString(Text, *UIAbsolute(TEXT("ui_fonts.json")))) { return UIFail(Error, TEXT("SourceData/UI/ui_fonts.json is missing.")); }
+        TSharedPtr<FJsonObject> Json;
+        int32 Schema = 0;
+        FString Folder, Family, Provenance, License, LicenseFile, LicenseHash;
+        const TArray<TSharedPtr<FJsonValue>>* Fonts = nullptr;
+        if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json) || !Json.IsValid()
+            || !Json->TryGetNumberField(TEXT("schema"), Schema) || Schema != 1 || !Json->TryGetStringField(TEXT("folder"), Folder)
+            || Folder != FontFolder || !Json->TryGetStringField(TEXT("family"), Family) || Family.IsEmpty()
+            || !Json->TryGetStringField(TEXT("provenance"), Provenance) || Provenance.IsEmpty()
+            || !Json->TryGetStringField(TEXT("license"), License) || License.IsEmpty()
+            || !Json->TryGetStringField(TEXT("license_file"), LicenseFile) || LicenseFile.IsEmpty() || LicenseFile.Contains(TEXT("/"))
+            || LicenseFile.Contains(TEXT("\\")) || LicenseFile.Contains(TEXT("..")) || !Json->TryGetStringField(TEXT("license_sha256"), LicenseHash)
+            || !Json->TryGetArrayField(TEXT("fonts"), Fonts))
+        {
+            return UIFail(Error, TEXT("ui_fonts.json must be valid JSON with schema 1, folder Fonts, family, provenance, license, license_file, license_sha256 and a fonts list."));
+        }
+        FString HashError;
+        if (!LDDemoEntry::VerifyFileHash(UIAbsolute(FString(FontFolder) / LicenseFile), LicenseHash, HashError))
+        {
+            return UIFail(Error, FString::Printf(TEXT("SourceData/UI/Fonts/%s is missing or differs from its manifest SHA-256."), *LicenseFile));
+        }
+        TSet<FString> Typefaces, Listed;
+        Listed.Add(LicenseFile);
+        for (const TSharedPtr<FJsonValue>& Value : *Fonts)
+        {
+            const TSharedPtr<FJsonObject>* Object = nullptr;
+            FUIFontSpec Spec;
+            FString File, Hash;
+            if (!Value->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("typeface"), Spec.Typeface) || Typefaces.Contains(Spec.Typeface)
+                || !(*Object)->TryGetStringField(TEXT("file"), File) || File.Contains(TEXT("/")) || File.Contains(TEXT("\\")) || File.Contains(TEXT(".."))
+                || !File.EndsWith(TEXT(".otf"), ESearchCase::CaseSensitive) || Listed.Contains(File) || !(*Object)->TryGetStringField(TEXT("sha256"), Hash))
+            {
+                return UIFail(Error, TEXT("Every font needs a unique typeface, a unique .otf file name and sha256."));
+            }
+            Spec.Package = LDUIFonts::PackageFor(Spec.Typeface);
+            if (Spec.Package.IsEmpty()) { return UIFail(Error, TEXT("ui_fonts.json lists a typeface the interface font does not use: ") + Spec.Typeface); }
+            Spec.Path = FString(FontFolder) / File;
+            if (!LDDemoEntry::VerifyFileHash(UIAbsolute(Spec.Path), Hash, HashError))
+            {
+                return UIFail(Error, FString::Printf(TEXT("SourceData/UI/%s is missing or differs from its manifest SHA-256."), *Spec.Path));
+            }
+            Typefaces.Add(Spec.Typeface);
+            Listed.Add(File);
+            Out.Add(MoveTemp(Spec));
+        }
+        for (const TCHAR* Typeface : LDUIFonts::Typefaces)
+        {
+            if (!Typefaces.Contains(Typeface)) { return UIFail(Error, FString(TEXT("ui_fonts.json does not list the typeface ")) + Typeface); }
+        }
+        TArray<FString> Found;
+        IFileManager::Get().FindFiles(Found, *(UISourceRoot() / FontFolder / TEXT("*")), true, false);
+        for (const FString& File : Found)
+        {
+            if (!Listed.Contains(File)) { return UIFail(Error, TEXT("Unlisted file under SourceData/UI/Fonts: ") + File); }
+        }
+        TArray<FString> Folders;
+        IFileManager::Get().FindFiles(Folders, *(UISourceRoot() / FontFolder / TEXT("*")), false, true);
+        if (!Folders.IsEmpty()) { return UIFail(Error, TEXT("SourceData/UI/Fonts holds no folders: ") + Folders[0]); }
+        Error.Reset();
+        return true;
+    }
+
+    UFontFace* UILoadFace(const FUIFontSpec& Spec)
+    {
+        return FPackageName::DoesPackageExist(Spec.Package)
+            ? LoadObject<UFontFace>(nullptr, *(Spec.Package + TEXT(".") + FPackageName::GetShortName(Spec.Package))) : nullptr;
+    }
+
+    // The face holds exactly the bytes of its source file.
+    bool UIFaceMatches(const UFontFace& Face, const TArray<uint8>& Bytes)
+    {
+        return Face.GetFontFaceData()->GetData() == Bytes;
+    }
+
+    bool UIImportFonts(FString& Error)
+    {
+        TArray<FUIFontSpec> Specs;
+        if (!UILoadFonts(Specs, Error)) { return false; }
+        for (const FUIFontSpec& Spec : Specs)
+        {
+            TArray<uint8> Bytes;
+            if (!FFileHelper::LoadFileToArray(Bytes, *UIAbsolute(Spec.Path))) { return UIFail(Error, TEXT("Cannot read SourceData/UI/") + Spec.Path); }
+            if (const UFontFace* Existing = UILoadFace(Spec); Existing && UIFaceMatches(*Existing, Bytes)) { continue; }
+            UPackage* Package = CreatePackage(*Spec.Package);
+            Package->FullyLoad();
+            const FName Name(*FPackageName::GetShortName(Spec.Package));
+            UFontFace* Face = FindObject<UFontFace>(Package, *Name.ToString());
+            if (!Face) { Face = NewObject<UFontFace>(Package, Name, RF_Public | RF_Standalone); }
+            Face->InitializeFromBulkData(UIAbsolute(Spec.Path), EFontHinting::Default, Bytes.GetData(), Bytes.Num());
+            // No PostEditChange: it flushes the Slate font cache, which a commandlet does not have.
+            Face->SourceFilename = FPaths::GetCleanFilename(Spec.Path);
+            Face->MarkPackageDirty();
+            const FString File = FPackageName::LongPackageNameToFilename(Spec.Package, FPackageName::GetAssetPackageExtension());
+            if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(File), true)) { return UIFail(Error, TEXT("Cannot create the UI font folder: ") + File); }
+            FSavePackageArgs Args;
+            Args.TopLevelFlags = RF_Public | RF_Standalone;
+            if (!UPackage::SavePackage(Package, Face, *File, Args)) { return UIFail(Error, TEXT("UI font face could not be saved: ") + File); }
+            UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_UI_FONT_IMPORTED %s <- SourceData/UI/%s"), *Spec.Package, *Spec.Path);
+        }
+        Error.Reset();
+        return true;
+    }
+
+    bool UIValidateFonts(FString& Error)
+    {
+        TArray<FUIFontSpec> Specs;
+        if (!UILoadFonts(Specs, Error)) { return false; }
+        for (const FUIFontSpec& Spec : Specs)
+        {
+            const UFontFace* Face = UILoadFace(Spec);
+            if (!Face) { return UIFail(Error, Spec.Package + TEXT(" is missing; run ImportDemoArt.ps1 -Mode ImportUI.")); }
+            TArray<uint8> Bytes;
+            if (!FFileHelper::LoadFileToArray(Bytes, *UIAbsolute(Spec.Path)) || !UIFaceMatches(*Face, Bytes))
+            {
+                return UIFail(Error, Spec.Package + TEXT(" does not hold the current bytes of SourceData/UI/") + Spec.Path
+                    + TEXT("; run ImportDemoArt.ps1 -Mode ImportUI."));
+            }
+        }
+        Error.Reset();
+        return true;
+    }
 }
 
 bool LDDemoUIImageImport::Import(FString& Error)
@@ -257,8 +395,7 @@ bool LDDemoUIImageImport::Import(FString& Error)
         }
         UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_UI_IMAGE_DELETED %s (not listed in ui_icons.json)"), *Stale);
     }
-    Error.Reset();
-    return true;
+    return UIImportFonts(Error);
 }
 
 bool LDDemoUIImageImport::Validate(FString& Error)
@@ -290,6 +427,5 @@ bool LDDemoUIImageImport::Validate(FString& Error)
     {
         return UIFail(Error, Stale[0] + TEXT(" is a UI icon texture ui_icons.json no longer lists; run ImportDemoArt.ps1 -Mode ImportUI."));
     }
-    Error.Reset();
-    return true;
+    return UIValidateFonts(Error);
 }

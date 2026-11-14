@@ -31,6 +31,8 @@ enum class ELDAudioCue : uint8
     SelfShieldBreak = 20,
     // The own innate dash released, from its successful owner receipt.
     SelfDash,
+    // The pointer entering a command button (UIClick plays when it is pressed).
+    UIHover,
     Count UMETA(Hidden)
 };
 

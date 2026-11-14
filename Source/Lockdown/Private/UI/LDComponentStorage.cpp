@@ -45,11 +45,6 @@ constexpr float StorageScreenMargin=8.f;
 constexpr double StorageCloseGrace=.45;
 // A move whose uninstall is applied but never shows in the own view gives up and says where the component is.
 constexpr double StorageMoveTimeout=5.;
-const FLinearColor StorageCardFill(.035f,.06f,.09f,.97f);
-const FLinearColor StorageColumnFill(.02f,.03f,.05f,.84f);
-const FLinearColor StorageLegal(.45f,.95f,.50f);
-const FLinearColor StorageReplace(1.f,.72f,.25f);
-const FLinearColor StorageIconFill(.16f,.26f,.36f);
 
 FSlateRoundedBoxBrush StorageRound(float Radius,const FLinearColor& Edge,float Width)
 {FSlateRoundedBoxBrush Brush(FLinearColor::White,Radius,Edge,Width);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;}
@@ -98,25 +93,25 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             for(int32 Back=2;Back>=1;--Back)
             {
                 auto* Card=WidgetTree->ConstructWidget<UBorder>();Card->SetBrush(StorageRound(6.f,LDHUDStyle::PanelRim,1.f));
-                Card->SetBrushColor(StorageCardFill);Card->SetRenderTranslation(FVector2D(4.f*Back,-4.f*Back));
+                Card->SetBrushColor(LDHUDStyle::CardFill);Card->SetRenderTranslation(FVector2D(4.f*Back,-4.f*Back));
                 auto* BackSlot=Deck->AddChildToOverlay(Card);BackSlot->SetHorizontalAlignment(HAlign_Fill);BackSlot->SetVerticalAlignment(VAlign_Fill);
                 StackBacks.Add(Card);
             }
             UImage* Picture=nullptr;UTextBlock* Glyph=nullptr;UOverlay* Face=nullptr;USizeBox* Box=nullptr;
             StackTop=IconFace(StorageStackSize,Picture,Glyph,Face,Box);StackPicture=Picture;StackGlyph=Glyph;
-            StackCount=Line(TEXT(""),14,FLinearColor::White);StorageBold(StackCount,2);
+            StackCount=Line(TEXT(""),LDHUDStyle::TypeSmall,FLinearColor::White);StorageBold(StackCount,2);
             auto* CountSlot=Face->AddChildToOverlay(StackCount);CountSlot->SetHorizontalAlignment(HAlign_Right);CountSlot->SetVerticalAlignment(VAlign_Bottom);
             CountSlot->SetPadding(FMargin(0,0,5,2));
-            StackFresh=Line(TEXT(""),12,LDHUDStyle::Rim);StorageBold(StackFresh,0);
+            StackFresh=Line(TEXT(""),LDHUDStyle::TypeTiny,LDHUDStyle::Rim);StorageBold(StackFresh,0);
             auto* Chip=WidgetTree->ConstructWidget<UBorder>();Chip->SetBrush(StorageRound(4.f,LDHUDStyle::Rim,1.f));Chip->SetBrushColor(LDHUDStyle::TextAccent);
             Chip->SetPadding(FMargin(4,0));Chip->SetContent(StackFresh);Chip->SetRenderTranslation(FVector2D(8,-8));StackFreshChip=Chip;
             auto* ChipSlot=Face->AddChildToOverlay(Chip);ChipSlot->SetHorizontalAlignment(HAlign_Right);ChipSlot->SetVerticalAlignment(VAlign_Top);
             auto* TopSlot=Deck->AddChildToOverlay(Box);TopSlot->SetHorizontalAlignment(HAlign_Fill);TopSlot->SetVerticalAlignment(VAlign_Fill);
             auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();
             Column->AddChildToVerticalBox(Deck)->SetHorizontalAlignment(HAlign_Center);
-            UTextBlock* Caption=Line(LDTerms::Storage,13,LDHUDStyle::TextSecondary);StorageBold(Caption,1);
+            UTextBlock* Caption=Line(LDTerms::Storage,LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);StorageBold(Caption,1);
             auto* CaptionSlot=Column->AddChildToVerticalBox(Caption);CaptionSlot->SetHorizontalAlignment(HAlign_Center);CaptionSlot->SetPadding(FMargin(0,4,0,0));
-            StackCapacity=Line(TEXT(""),12,LDHUDStyle::TextSecondary);StorageBold(StackCapacity,1);
+            StackCapacity=Line(TEXT(""),LDHUDStyle::TypeTiny,LDHUDStyle::TextSecondary);StorageBold(StackCapacity,1);
             Column->AddChildToVerticalBox(StackCapacity)->SetHorizontalAlignment(HAlign_Center);
             auto* Hit=WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),TEXT("HUDComponentStorage"));
             Hit->SetBrushColor(FLinearColor::Transparent);Hit->SetPadding(FMargin(2,10,10,2));Hit->SetContent(Column);
@@ -140,18 +135,18 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             FColumn& Column=Columns.AddDefaulted_GetRef();
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
             Column.List=WidgetTree->ConstructWidget<UVerticalBox>();Box->AddChildToVerticalBox(Column.List)->SetHorizontalAlignment(HAlign_Center);
-            UTextBlock* Here=Line(LDTerms::DropHere,12,StorageLegal);Here->SetJustification(ETextJustify::Center);
-            auto* Placeholder=WidgetTree->ConstructWidget<UBorder>();Placeholder->SetBrush(StorageRound(6.f,StorageLegal,1.f));
-            Placeholder->SetBrushColor(StorageLegal.CopyWithNewOpacity(.10f));Placeholder->SetHorizontalAlignment(HAlign_Center);
+            UTextBlock* Here=Line(LDTerms::DropHere,LDHUDStyle::TypeTiny,LDHUDStyle::DropLegal);Here->SetJustification(ETextJustify::Center);
+            auto* Placeholder=WidgetTree->ConstructWidget<UBorder>();Placeholder->SetBrush(StorageRound(6.f,LDHUDStyle::DropLegal,1.f));
+            Placeholder->SetBrushColor(LDHUDStyle::DropLegal.CopyWithNewOpacity(.10f));Placeholder->SetHorizontalAlignment(HAlign_Center);
             Placeholder->SetVerticalAlignment(VAlign_Center);Placeholder->SetContent(Here);
             auto* PlaceholderBox=WidgetTree->ConstructWidget<USizeBox>();PlaceholderBox->SetWidthOverride(StorageTile);PlaceholderBox->SetHeightOverride(StorageTile*.7f);
             PlaceholderBox->SetContent(Placeholder);PlaceholderBox->SetVisibility(ESlateVisibility::Collapsed);Column.Placeholder=PlaceholderBox;
             Box->AddChildToVerticalBox(PlaceholderBox)->SetHorizontalAlignment(HAlign_Center);
-            Column.Title=Line(TEXT(""),13,LDHUDStyle::TextSecondary);StorageBold(Column.Title,1);Column.Title->SetJustification(ETextJustify::Center);
+            Column.Title=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);StorageBold(Column.Title,1);Column.Title->SetJustification(ETextJustify::Center);
             Column.Title->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
             auto* TitleSlot=Box->AddChildToVerticalBox(Column.Title);TitleSlot->SetHorizontalAlignment(HAlign_Fill);TitleSlot->SetPadding(FMargin(0,4,0,0));
             Column.Panel=WidgetTree->ConstructWidget<UBorder>();Column.Panel->SetBrush(StorageRound(8.f,LDHUDStyle::PanelRim,1.f));
-            Column.Panel->SetBrushColor(StorageColumnFill);Column.Panel->SetPadding(FMargin(4,6));Column.Panel->SetContent(Box);
+            Column.Panel->SetBrushColor(LDHUDStyle::ColumnFill);Column.Panel->SetPadding(FMargin(4,6));Column.Panel->SetContent(Box);
             Column.Frame=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),FName(*FString::Printf(TEXT("HUDStorageColumn%d"),Index)));
             Column.Frame->SetWidthOverride(StorageColumnWidth);Column.Frame->SetClipping(EWidgetClipping::ClipToBounds);Column.Frame->SetContent(Column.Panel);Column.Frame->SetVisibility(ESlateVisibility::Collapsed);
             Column.Slot=Add(Column.Frame,2);
@@ -159,22 +154,22 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
         {
             // The description of the hovered component, in the slot popup's look; it takes no pointer input.
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
-            PopupName=Line(TEXT(""),17,LDHUDStyle::TextPrimary);StorageBold(PopupName,0);PopupName->SetWrapTextAt(StoragePopupWidth-28.f);
+            PopupName=Line(TEXT(""),LDHUDStyle::TypeLabel,LDHUDStyle::TextPrimary);StorageBold(PopupName,0);PopupName->SetWrapTextAt(StoragePopupWidth-28.f);
             Box->AddChildToVerticalBox(PopupName);
-            PopupWhere=Line(TEXT(""),13,LDHUDStyle::TextAccent);PopupWhere->SetWrapTextAt(StoragePopupWidth-28.f);
+            PopupWhere=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextAccent);PopupWhere->SetWrapTextAt(StoragePopupWidth-28.f);
             Box->AddChildToVerticalBox(PopupWhere)->SetPadding(FMargin(0,2,0,0));
-            PopupBody=LDWidgets::RichText(WidgetTree,14,TEXT("HUDStoragePopupBody"));PopupBody->SetAutoWrapText(false);PopupBody->SetWrapTextAt(StoragePopupWidth-28.f);
+            PopupBody=LDWidgets::RichText(WidgetTree,LDHUDStyle::TypeSmall,TEXT("HUDStoragePopupBody"));PopupBody->SetAutoWrapText(false);PopupBody->SetWrapTextAt(StoragePopupWidth-28.f);
             Box->AddChildToVerticalBox(PopupBody)->SetPadding(FMargin(0,8,0,0));
-            PopupHint=Line(TEXT(""),12,LDHUDStyle::TextSecondary);PopupHint->SetWrapTextAt(StoragePopupWidth-28.f);
+            PopupHint=Line(TEXT(""),LDHUDStyle::TypeTiny,LDHUDStyle::TextSecondary);PopupHint->SetWrapTextAt(StoragePopupWidth-28.f);
             Box->AddChildToVerticalBox(PopupHint)->SetPadding(FMargin(0,8,0,0));
-            auto* Panel=LDWidgets::Panel(WidgetTree,Box,FMargin(14,12));Panel->SetBrushColor(FLinearColor(.02f,.035f,.055f,.94f));
+            auto* Panel=LDWidgets::Panel(WidgetTree,Box,FMargin(14,12));Panel->SetBrushColor(LDHUDStyle::OverlayFill);
             auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(StoragePopupWidth);Width->SetContent(Panel);
             Width->SetVisibility(ESlateVisibility::Collapsed);PopupFrame=Width;PopupSlot=Add(Width,6);
         }
         {
             // The chooser a B18 or C12 drop opens at the drop point: one button per element or base, then 取消.
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
-            ChooserTitle=Line(TEXT(""),15,LDHUDStyle::TextPrimary);StorageBold(ChooserTitle,0);ChooserTitle->SetWrapTextAt(300.f);
+            ChooserTitle=Line(TEXT(""),LDHUDStyle::TypeBody,LDHUDStyle::TextPrimary);StorageBold(ChooserTitle,0);ChooserTitle->SetWrapTextAt(300.f);
             Box->AddChildToVerticalBox(ChooserTitle);
             ChooserLine=WidgetTree->ConstructWidget<UHorizontalBox>();Box->AddChildToVerticalBox(ChooserLine)->SetPadding(FMargin(0,8,0,0));
             ULDCommandButton* Cancel=LDWidgets::Button(WidgetTree,LDTerms::CancelBinding,[this](){CloseChooser();},true,TEXT("HUDStorageChooserCancel"));
@@ -188,8 +183,8 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             UBorder* Ghost=IconFace(StorageTile,Picture,Glyph,Face,Box);Ghost->SetBrush(StorageRound(6.f,LDHUDStyle::TextAccent,2.f));
             GhostPicture=Picture;GhostGlyph=Glyph;Box->SetRenderOpacity(.85f);Box->SetVisibility(ESlateVisibility::Collapsed);
             GhostFrame=Box;GhostSlot=Add(Box,8);GhostSlot->SetAlignment(FVector2D(.5f,.5f));
-            GhostCaption=Line(TEXT(""),13,LDHUDStyle::TextPrimary);GhostCaption->SetAutoWrapText(false);
-            auto* Panel=LDWidgets::Panel(WidgetTree,GhostCaption,FMargin(8,4));Panel->SetBrushColor(FLinearColor(.02f,.035f,.055f,.94f));
+            GhostCaption=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextPrimary);GhostCaption->SetAutoWrapText(false);
+            auto* Panel=LDWidgets::Panel(WidgetTree,GhostCaption,FMargin(8,4));Panel->SetBrushColor(LDHUDStyle::OverlayFill);
             Panel->SetVisibility(ESlateVisibility::Collapsed);GhostCaptionFrame=Panel;GhostCaptionSlot=Add(Panel,8);
         }
     }
@@ -203,7 +198,7 @@ UBorder* ULDComponentStorage::IconFace(float Size,UImage*& OutPicture,UTextBlock
     OutStack=WidgetTree->ConstructWidget<UOverlay>();
     auto* PictureSlot=OutStack->AddChildToOverlay(OutPicture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
     auto* GlyphSlot=OutStack->AddChildToOverlay(OutGlyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
-    auto* Face=WidgetTree->ConstructWidget<UBorder>();Face->SetBrush(StorageRound(6.f,FLinearColor(1,1,1,.18f),1.f));Face->SetBrushColor(StorageIconFill);
+    auto* Face=WidgetTree->ConstructWidget<UBorder>();Face->SetBrush(StorageRound(6.f,LDHUDStyle::IconRim,1.f));Face->SetBrushColor(LDHUDStyle::IconFill);
     Face->SetPadding(FMargin(0));Face->SetHorizontalAlignment(HAlign_Fill);Face->SetVerticalAlignment(VAlign_Fill);Face->SetContent(OutStack);
     OutBox=WidgetTree->ConstructWidget<USizeBox>();OutBox->SetWidthOverride(Size);OutBox->SetHeightOverride(Size);OutBox->SetContent(Face);
     return Face;
@@ -301,7 +296,7 @@ void ULDComponentStorage::BuildCard(FName Component,bool bFresh)
     UWidget* FreshChip=nullptr;
     if(bFresh)
     {
-        UTextBlock* Fresh=LDWidgets::Text(WidgetTree,TEXT("新"),11);Fresh->SetAutoWrapText(false);Fresh->SetColorAndOpacity(LDHUDStyle::Rim);
+        UTextBlock* Fresh=LDWidgets::Text(WidgetTree,TEXT("新"),LDHUDStyle::TypeMicro);Fresh->SetAutoWrapText(false);Fresh->SetColorAndOpacity(LDHUDStyle::Rim);
         StorageBold(Fresh,0);Built.Add(Fresh);
         auto* Chip=WidgetTree->ConstructWidget<UBorder>();Built.Add(Chip);Chip->SetBrush(StorageRound(4.f,LDHUDStyle::Rim,1.f));
         Chip->SetBrushColor(LDHUDStyle::TextAccent);Chip->SetPadding(FMargin(3,0));Chip->SetContent(Fresh);Chip->SetVisibility(ESlateVisibility::HitTestInvisible);
@@ -335,7 +330,7 @@ void ULDComponentStorage::BuildTile(FColumn& Column,const LDHUD::FEquippedView& 
     if(!Entry.Note.IsEmpty())
     {
         // B18's element or C12's repeated base rides on the tile's corner.
-        UTextBlock* Note=LDWidgets::Text(WidgetTree,Entry.Note,11);Note->SetAutoWrapText(false);StorageBold(Note,2);Built.Add(Note);
+        UTextBlock* Note=LDWidgets::Text(WidgetTree,Entry.Note,LDHUDStyle::TypeMicro);Note->SetAutoWrapText(false);StorageBold(Note,2);Built.Add(Note);
         Note->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
         auto* NoteSlot=Face->AddChildToOverlay(Note);NoteSlot->SetHorizontalAlignment(HAlign_Right);NoteSlot->SetVerticalAlignment(VAlign_Bottom);
         NoteSlot->SetPadding(FMargin(2,0,3,1));
@@ -708,7 +703,7 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
             const int32 Look=(bHovered?1:0)|(bDragged?2:0);
             if(Card.AppliedLook==Look){continue;}
             Card.AppliedLook=Look;
-            Card.Face->SetBrush(StorageRound(6.f,bHovered?LDHUDStyle::TextAccent:FLinearColor(1,1,1,.18f),bHovered?2.f:1.f));Card.Face->SetBrushColor(StorageIconFill);
+            Card.Face->SetBrush(StorageRound(6.f,bHovered?LDHUDStyle::TextAccent:LDHUDStyle::IconRim,bHovered?2.f:1.f));Card.Face->SetBrushColor(LDHUDStyle::IconFill);
             Card.Size->SetRenderOpacity(bDragged?.35f:1.f);
         }
     }
@@ -731,8 +726,8 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
         if(Column.AppliedLook!=Look)
         {
             Column.AppliedLook=Look;
-            Column.Panel->SetBrush(StorageRound(8.f,Look==1?StorageLegal:LDHUDStyle::PanelRim,Look==1?2.f:1.f));
-            Column.Panel->SetBrushColor(StorageColumnFill);
+            Column.Panel->SetBrush(StorageRound(8.f,Look==1?LDHUDStyle::DropLegal:LDHUDStyle::PanelRim,Look==1?2.f:1.f));
+            Column.Panel->SetBrushColor(LDHUDStyle::ColumnFill);
             Column.Frame->SetRenderOpacity(Look==2?.45f:1.f);
         }
     }
@@ -745,8 +740,8 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
         const int32 Look=(bHost?1:0)|(bDragged?2:0)|(bReplace?4:0);
         if(Tile.AppliedLook==Look){continue;}
         Tile.AppliedLook=Look;
-        const FLinearColor Rim=bHost?StorageLegal:bReplace?StorageReplace:FLinearColor(1,1,1,.18f);
-        Tile.Face->SetBrush(StorageRound(6.f,Rim,bHost||bReplace?2.f:1.f));Tile.Face->SetBrushColor(StorageIconFill);
+        const FLinearColor Rim=bHost?LDHUDStyle::DropLegal:bReplace?LDHUDStyle::DropReplace:LDHUDStyle::IconRim;
+        Tile.Face->SetBrush(StorageRound(6.f,Rim,bHost||bReplace?2.f:1.f));Tile.Face->SetBrushColor(LDHUDStyle::IconFill);
         Tile.Face->SetRenderOpacity(bDragged?.35f:1.f);
     }
     // The hovered component's description beside it: right of it, or left when there is no room.
@@ -805,7 +800,7 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
             const LDHUD::FComponentDrop* Drop=Host.IsNone()?nullptr:Drag.Drops.FindByPredicate([Column,Host](const LDHUD::FComponentDrop& D){return D.Column==Column&&D.Host==Host;});
             if(!Drop){Drop=Drag.Drops.FindByPredicate([Column](const LDHUD::FComponentDrop& D){return D.Column==Column&&D.Host.IsNone();});}
             StorageText(GhostCaption,Drop?LDHUD::DropPreviewText(Drag.Component,*Drop,Latest,LatestContent):FString(LDTerms::DropNowhere));
-            GhostCaption->SetColorAndOpacity(FSlateColor(!Drop?LDHUDStyle::TextSecondary:Drop->Replacing.IsNone()?StorageLegal:StorageReplace));
+            GhostCaption->SetColorAndOpacity(FSlateColor(!Drop?LDHUDStyle::TextSecondary:Drop->Replacing.IsNone()?LDHUDStyle::DropLegal:LDHUDStyle::DropReplace));
             StoragePlace(GhostCaptionSlot,Local(Pointer)+FVector2D(StorageTile*.5f+6.f,0),FVector2D(0,.5f));
         }
         StorageShown(GhostCaptionFrame,bOverPlace,ESlateVisibility::HitTestInvisible);

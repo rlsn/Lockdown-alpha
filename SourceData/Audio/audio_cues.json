@@ -190,7 +190,7 @@
       "pack_path": "Audio/select_002.ogg",
       "sha256": "4cc6ac5341b9b2c86fef80c347de028e9ab9f2e037586ac7d9fa59a403a1c012",
       "duration_sec": 0.043,
-      "purpose": "界面点击（设置页主音量试听）",
+      "purpose": "界面点击（命令按钮按下与设置页主音量试听）",
       "loudness_lufs": -22.35,
       "volume": 1.062
     },
@@ -241,6 +241,18 @@
       "loudness_lufs": -14.0,
       "level_db": -6.0,
       "volume": 0.539
+    },
+    {
+      "cue": "UIHover",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/tick_001.ogg",
+      "pack_path": "Audio/tick_001.ogg",
+      "sha256": "9d057b918024c787bbe6c00beed13a7ef72a3fa0c259add3cef36582792f4230",
+      "duration_sec": 0.023,
+      "purpose": "界面悬停（按钮悬停提示）",
+      "level_db": -6.0,
+      "loudness_lufs": -27.95,
+      "volume": 0.522
     }
   ],
   "music": [
