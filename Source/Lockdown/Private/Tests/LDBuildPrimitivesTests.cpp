@@ -24,6 +24,7 @@
 #include "GameFramework/RootMotionSource.h"
 #include "Misc/PackageName.h"
 #include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
@@ -226,9 +227,17 @@ struct FFixture
         if (bSight)
         {
             // A PIE-prefixed name of the Demo world package selects its map registry without touching the saved map.
-            const FString Short = FString::Printf(TEXT("UEDPIE_%u_%s"), (FGuid::NewGuid().A & 0xFFFF) + 100u,
-                *FPackageName::GetShortName(LDDemoEntry::WorldMap));
-            Package = CreatePackage(*(FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap) / Short));
+            // DestroyWorld leaves its package until GC; never create another world inside that retained package.
+            uint32 Instance = 100;
+            FString Short, PackageName;
+            do
+            {
+                Short = FString::Printf(TEXT("UEDPIE_%u_%s"), Instance++,
+                    *FPackageName::GetShortName(LDDemoEntry::WorldMap));
+                PackageName = FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap) / Short;
+            }
+            while (FindPackage(nullptr, *PackageName));
+            Package = CreatePackage(*PackageName);
             WorldName = FName(*Short);
         }
         World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, Package, true, ERHIFeatureLevel::Num, &Values);
@@ -2760,12 +2769,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEventProjectileCounterplayTest, "Lockd
 bool FLDCombatEventProjectileCounterplayTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
+    TArray<TStrongObjectPtr<UPackage>> RetainedPackages;
     for (const TCHAR* Active : {TEXT("active_snark_bolt"), TEXT("active_sock_shot")})
     {
         for (int32 Case = 0; Case < 3; ++Case)
         {
             FFixture F;
             if (!F.Init(*this, true)) { return false; }
+            UPackage* Package = F.World->GetOutermost();
+            if (!TestFalse(TEXT("Successive sight worlds never reuse a retained fixture package"),
+                RetainedPackages.ContainsByPredicate([Package](const TStrongObjectPtr<UPackage>& Previous)
+                    { return Previous.Get() == Package; })))
+            { return false; }
+            RetainedPackages.Emplace(Package);
             const FLDCombatBodyRef Caster = F.AddBody(), Target = F.AddBody(), Blocker = F.AddBody();
             F.Place(Caster, 0, 0);
             F.Place(Target, 300, 0);
