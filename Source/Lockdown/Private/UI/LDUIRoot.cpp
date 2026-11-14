@@ -291,6 +291,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     {
         if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}}
     }),8);
+    Add(Lobby,MakeButton(TEXT("设置"),TEXT("LobbySettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}),8);
     Add(Lobby,MakeButton(TEXT("离开房间并返回主菜单"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
 
     UVerticalBox* Menu=nullptr;
@@ -543,6 +544,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     }
     // Closing Settings hands keyboard focus back to the root's own full page, as it was before Settings opened.
     const bool bSettings=PanelOpen(PC.ControlsUI.Get());
+    LobbyPage->SetVisibility(bInLobby&&!bSettings?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     if(bSettingsWasOpen&&!bSettings&&(bInLobby||bMenuOpen)){PC.SetMenuOpen(true);}
     bSettingsWasOpen=bSettings;
     if(WorldLabels||WorldFeedback)
@@ -1116,7 +1118,7 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Eve
         if(TextEditingOwner()==this){EndTextEditing();}
         else if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
         {
-            if(PC->Navigation->Enabled()||PC->IsFrontend()){PC->V05Back();}else{ToggleMenu();}
+            PC->V05Back();
         }
     }
     return FReply::Handled();

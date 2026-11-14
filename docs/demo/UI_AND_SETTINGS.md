@@ -82,6 +82,7 @@ flowchart LR
 ```
 
 Settings 是当前页面的主面板；属性、Choices 也各占同一主面板位置。
+Lobby 的“设置”打开同一个五分类设置面板，隐藏房间操作但保留房间背景；返回或 Esc 关闭后恢复房间页，不离开房间或修改准备状态。画面草稿仍按同一套确认与放弃规则处理。
 DEV 测试会话另有第三个登记主面板“测试”（`ELDUIMainPanel::DevTest`，`ULDDevTestPanel`），只在 `FLDLobbyView::DevTestSession`
 为真的房间由 HUD 底部本人身份块里的“测试”按钮打开，顶部横幅与房间页同时标出“测试模式”；它与其他主面板同样一次只开一个，
 文本输入期间世界输入照常被捕获。

@@ -6,6 +6,7 @@
 #include "UI/LDWidgets.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameInstance.h"
+#include "Framework/LDGameMode.h"
 #include "UI/LDUIRoot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateColorBrush.h"
@@ -28,6 +29,7 @@
 #include "CoreGlobals.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
 
 namespace
 {
@@ -877,7 +879,10 @@ void ULDControlsPanel::Open()
     SettingsInstance=GetGameInstance<ULDGameInstance>();
     SetVisibility(ESlateVisibility::Visible);
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);
-    Show(MatchNote,!PC->IsFrontend(),ESlateVisibility::HitTestInvisible);
+    const auto* Public=GetWorld()->GetGameState<ALDGameState>();
+    const bool bPlaying=Public&&(Public->PublicMatch.Phase==ELDMatchPhase::Rest
+        ||Public->PublicMatch.Phase==ELDMatchPhase::Development||Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
+    Show(MatchNote,bPlaying,ESlateVisibility::HitTestInvisible);
     ShowChild(EChildConfirmation::None);PendingFocus=NAME_None;
     auto* Instance=SettingsInstance.Get();
     // Only results that arrive while the panel is open are news; the last apply of an earlier visit is not shown again. A
