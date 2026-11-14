@@ -297,6 +297,8 @@ bool FLDMatchTimeline::DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>
     // Zero entrants means no PK. Field bodies are still prepared by the normal return path.
     if (!Advance(AtMs, 0, true, false, Out, Error)) { return false; }
     StepEndsAtMs = AtMs;
+    // Transactions follows this step's world phase: entry can first commit at the next actual world boundary.
+    bEntryHeld = true;
     return true;
 }
 

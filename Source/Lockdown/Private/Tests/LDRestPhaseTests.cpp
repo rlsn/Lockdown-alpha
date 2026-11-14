@@ -64,6 +64,11 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         SkipEvents.Reset();
         bGood &= TestFalse(TEXT("A repeated skip cannot advance a running field"), Skip.DevFinishPreparation(1051, SkipEvents, Error));
         bGood &= TestTrue(TEXT("Rejected skip leaves the stage and T unchanged"), Skip.IsFieldRunning() && Skip.FieldMsAt(1051) == 1);
+        FLDMatchTimeline ReadyImmediately;
+        SkipEvents.Reset();
+        bGood &= TestTrue(TEXT("Immediate body readiness still starts T at the actual world commit, not the earlier transaction"),
+            ReadyImmediately.Begin(P, 0, Error) && ReadyImmediately.DevFinishPreparation(1000, SkipEvents, Error)
+            && ReadyImmediately.Advance(1050, 0, false, true, SkipEvents, Error) && ReadyImmediately.FieldMsAt(1050) == 0);
     }
     {
         FLDTimelineParameters Bad = P;
