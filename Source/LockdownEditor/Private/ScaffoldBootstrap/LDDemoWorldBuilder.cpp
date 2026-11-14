@@ -581,16 +581,13 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     };
     Check(World.GetWorldSettings() && World.GetWorldSettings()->DefaultGameMode == ALDGameMode::StaticClass(),
         TEXT("Saved map uses the unique native Demo GameMode"));
-    Check(FString(World.GetOutermost()->GetMetaData().GetValue(&World, GeometryStamp)).Equals(Definition.Checksum, ESearchCase::CaseSensitive),
-        TEXT("Saved map stamp identifies the verified world payload"));
-    int32 Anchors = 0, BoundsCount = 0, NavCount = 0, StaticCount = 0, Steppable = 0;
+    int32 Anchors = 0, BoundsCount = 0, NavCount = 0, Steppable = 0;
     TSet<const UStaticMesh*> Faced;
     TArray<FString> InsideOut;
     int32 Suns = 0, Skies = 0, SkyLights = 0, Fogs = 0, Grades = 0, Aprons = 0;
     const AStaticMeshActor* Apron = nullptr;
     TMap<FString, const AStaticMeshActor*> Meshes;
-    FBox ExpectedBounds;
-    if (!NavigationBounds(*Geometry, Capsule, ExpectedBounds, Error)) { return false; }
+    TArray<FBox> NavBounds;
     for (const AActor* Actor : World.PersistentLevel->Actors)
     {
         if (const auto* Sun = Cast<ADirectionalLight>(Actor))
@@ -614,11 +611,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         if (const auto* Bounds = Cast<ANavMeshBoundsVolume>(Actor))
         {
             ++BoundsCount;
-            const FBox Actual = Bounds->GetComponentsBoundingBox(true);
-            Check(Bounds->IsA<ALDRegionNavBounds>() && Actual.Min.Equals(ExpectedBounds.Min, .1)
-                && Actual.Max.Equals(ExpectedBounds.Max, .1),
-                TEXT("Saved native/cooked navigation envelope matches geometry and capsule; actual=")
-                    + Actual.ToString() + TEXT(" expected=") + ExpectedBounds.ToString());
+            NavBounds.Add(Bounds->GetComponentsBoundingBox(true));
         }
         if (const auto* Nav = Cast<ARecastNavMesh>(Actor))
         {
@@ -635,7 +628,6 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         }
         if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(LDDemoWorld::StaticGeometryTag))
         {
-            ++StaticCount;
             Steppable += LDStaticScene::Collision(*Mesh)->CanCharacterStepUpOn == ECB_No ? 0 : 1;
             const UStaticMesh* Shape = LDStaticScene::Collision(*Mesh)->GetStaticMesh();
             if (Shape && Shape->GetPathName().StartsWith(GeometryRoot) && !Faced.Contains(Shape))
@@ -650,8 +642,10 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     }
     TArray<FTerrainPiece> Terrain;
     if (!TerrainPieces(*Geometry, Terrain, Error)) { return false; }
-    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Terrain.Num() + Geometry->Blockers.Num(),
-        TEXT("Exact native anchor, navigation and static-geometry counts"));
+    // The saved level is authored: its ground, blockers and navigation bounds may be replaced, moved, copied or
+    // removed, so they are checked below by what they do for the layout, not against the generated template.
+    Check(Anchors == 1 && BoundsCount >= 1 && NavCount == 1,
+        TEXT("One native map anchor, one Recast navigation mesh and at least one navigation bounds volume"));
     Check(Steppable == 0, TEXT("No generated geometry lets a body step up onto it"));
     Check(!Faced.IsEmpty() && InsideOut.IsEmpty(),
         TEXT("Every generated terrain, wall, fence and trunk face points out of its prism: ") + FString::Join(InsideOut, TEXT(", ")));
@@ -661,23 +655,6 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(Navigation && Navigation->HasApprovedAgent()
         && World.GetWorldSettings()->GetNavigationSystemConfig()->NavigationSystemClass == FSoftClassPath(ULDDemoNavigationSystem::StaticClass()),
         TEXT("Saved navigation configuration recreates the same approved agent on load"));
-    FVector Min, Max;
-    if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
-    const auto* FloorActor = Meshes.FindRef(Geometry->Surfaces[0].Id);
-    if (Check(FloorActor != nullptr, TEXT("The registered ground is present")))
-    {
-        const auto* Component = FloorActor->GetStaticMeshComponent();
-        const double Depth = Capsule.GetCapsuleHalfHeight();
-        Check(Component->GetStaticMesh()
-            && Component->GetStaticMesh()->GetPathName() == CubePath
-            && FloorActor->GetActorLocation().Equals((Min + Max) * .5 - FVector(0, 0, Depth * .5), UE_KINDA_SMALL_NUMBER)
-            && FloorActor->GetActorScale3D().Equals(FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100., UE_KINDA_SMALL_NUMBER)
-            && FloorActor->GetActorRotation().IsNearlyZero()
-            && CollisionChannelsMatch(*Component, true, false),
-            TEXT("Ground transform, native support and sight classification match the source"));
-        const UMaterialInterface* Field = Component->GetMaterial(0);
-        Check(Field != nullptr, TEXT("The ground has a saved material"));
-    }
     if (Check(Aprons == 1 && Apron != nullptr, TEXT("Exactly one paving apron surrounds the field")))
     {
         const auto* Component = Apron->GetStaticMeshComponent();
@@ -707,39 +684,17 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         Check(ConvexShapeMatches(*Body, ConvexPoints(Piece.Prism)),
             TEXT("Saved terrain collision vertices equal the authored prism: ") + Piece.Id);
     }
-    for (const auto& Blocker : Geometry->Blockers)
-    {
-        const auto* Actor = Meshes.FindRef(Blocker.Id);
-        if (!Check(Actor != nullptr, TEXT("Blocker exists: ") + Blocker.Id)) { continue; }
-        const auto* Component = LDStaticScene::Collision(*Actor);
-        const UStaticMesh* Mesh = Component->GetStaticMesh().Get();
-        const auto* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
-        const bool bTrunk = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder;
-        FVector Position = FVector::ZeroVector;
-        if (bTrunk && !Blocker.CenterCm.ToVector(Position, Error)) { return false; }
-        Check(Component->GetComponentTransform().Equals(FTransform(Position), UE_KINDA_SMALL_NUMBER)
-            && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
-            TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
-        const UMaterialInterface* Wall = Component->GetMaterial(0);
-        Check(Wall != nullptr, TEXT("Blocker collision retains a saved surface: ") + Blocker.Id);
-        TArray<FVector> Vertices;
-        if (!(bTrunk ? TrunkVertices(Blocker, Vertices, Error) : BlockerVertices(Blocker, Vertices, Error))) { return false; }
-        const FString Expected = MeshPath(bTrunk ? TrunkId(Blocker) : Blocker.Id);
-        if (!Check(Mesh && Mesh->GetPathName() == Expected + TEXT(".") + FPackageName::GetShortName(Expected)
-            && Body && Body->CollisionTraceFlag == CTF_UseSimpleAsComplex && Body->AggGeom.ConvexElems.Num() == 1,
-            TEXT("Blocker uses its exact convex mesh (trees: the shared trunk of their size), not an AABB substitute: ") + Blocker.Id)) { continue; }
-        Check(ConvexShapeMatches(*Body, Vertices),
-            TEXT("Saved collision vertices and local transform equal the authored body-space geometry: ") + Blocker.Id);
-    }
     auto* Registry = World.GetSubsystem<ULDMapRegistry>();
     FString BindingError;
     const bool Bound = Registry && Registry->Rebuild(BindingError);
     Check(Bound, TEXT("Native world registry binds every approved anchor and one exact start per spawn: ") + BindingError);
-    // Function, not layout: every authored anchor stands on legal ground, each kind of element does what its flags say
-    // (walls and fences against movement and sight, trees, ramps, cliffs), and the registry refuses bad queries.
-    // No check names a coordinate or a route of this particular map.
+    // Function, not layout: every layout point stands on legal ground inside the navigation bounds, each kind of
+    // element does what its flags say (walls and fences against movement and sight, trees, ramps, cliffs), and the
+    // registry refuses bad queries. Positions, ground and blockers are read from the saved level as the running game
+    // projects them, so no check names a coordinate, an actor or a route of this particular map.
     int32 PlacementChecks = 0, RampChecks = 0;
-    if (Bound)
+    const FLDDemoWorldGeometry* Live = Bound ? Registry->GetGeometry() : nullptr;
+    if (Live)
     {
         const FLDWorldRevision Revision = Registry->Revision();
         ELDWorldQueryFailure Failure;
@@ -758,16 +713,18 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         const bool HasFinalCapture = Check(FinalCapture != nullptr, TEXT("The final arena has its capture anchor"))
             && GroundAt(FinalCapture->Position, LDDemoWorld::FinalCaptureId(), FinalCaptureGround);
         FVector Standing = FVector::ZeroVector;
-        for (const auto& Anchor : Geometry->Anchors)
+        for (const auto& Anchor : Live->Anchors)
         {
             FVector Foot;
             if (!Anchor.PositionCm.ToVector(Foot, Error)) { return false; }
+            Check(NavBounds.ContainsByPredicate([&](const FBox& Box) { return Box.IsInsideOrOnXY(Foot); }),
+                TEXT("Saved navigation bounds cover the layout point: ") + Anchor.Id + TEXT(" at ") + Foot.ToString());
             FLDLegalGround Legal;
             if (GroundAt(Foot, Anchor.Id, Legal)) { Standing = Foot; }
             if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::RestSpawn
                 || Anchor.Kind == ELDDemoWorldAnchorKind::FinalSpawn)
             {
-                for (const auto& Offset : Geometry->SpawnOffsetsCm)
+                for (const auto& Offset : Live->SpawnOffsetsCm)
                 {
                     FVector Delta;
                     if (!Offset.ToVector(Delta, Error)) { return false; }
@@ -850,11 +807,12 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         TEXT("Native CharacterMovement prevents walking off edited terrain ledges"));
     for (TActorIterator<AActor> It(&World); It; ++It)
     { Check(!It->ActorHasTag(TEXT("LDDemoCliffGuard")), TEXT("No detached template cliff fences remain")); }
-    // Every blocker, on a line through it across its thinnest side: its own collision stops the capsule, and it
-    // spans the eye-height sight line exactly when it is declared to block sight (walls and trees do; fences stay under
-    // the sight sample). Channel responses are checked per blocker above.
+    // Every blocker the saved level still holds, where it stands now, on a line through it across its thinnest side:
+    // one that blocks bodies stops the capsule with its own collision, and one that blocks sight spans the eye-height
+    // sight line. Which of the two a blocker does is the level's own collision response.
     const double Eye = double(Geometry->SightSampleHeightCm.Numerator) / double(Geometry->SightSampleHeightCm.Denominator);
-    for (const auto& Blocker : Geometry->Blockers)
+    static const TArray<FLDDemoWorldBlocker> NoBlockers;
+    for (const auto& Blocker : Live ? Live->Blockers : NoBlockers)
     {
         const auto* Actor = Meshes.FindRef(Blocker.Id);
         if (!Actor) { continue; }
@@ -881,11 +839,18 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         FVector From, To;
         FHitResult Hit;
         UStaticMeshComponent* Component = LDStaticScene::Collision(*Actor);
-        Line(Capsule.GetCapsuleHalfHeight() + 1, From, To);
-        Check(Component->SweepComponent(Hit, From, To, FQuat::Identity, Capsule), TEXT("A blocker stops native capsule movement: ") + Blocker.Id);
-        Line(Eye, From, To);
-        Check(Component->LineTraceComponent(Hit, From, To, FCollisionQueryParams(SCENE_QUERY_STAT(DemoBlockerSight), false)) == Blocker.BlocksSight,
-            TEXT("A blocker spans the eye-height sight line exactly when it blocks sight: ") + Blocker.Id);
+        if (Blocker.BlocksMovement)
+        {
+            Line(Capsule.GetCapsuleHalfHeight() + 1, From, To);
+            Check(Component->SweepComponent(Hit, From, To, FQuat::Identity, Capsule),
+                TEXT("A movement blocker stops the native capsule: ") + Blocker.Id + TEXT(" ") + Actor->GetPathName());
+        }
+        if (Blocker.BlocksSight)
+        {
+            Line(Eye, From, To);
+            Check(Component->LineTraceComponent(Hit, From, To, FCollisionQueryParams(SCENE_QUERY_STAT(DemoBlockerSight), false)),
+                TEXT("A sight blocker spans the eye-height sight line: ") + Blocker.Id + TEXT(" ") + Actor->GetPathName());
+        }
     }
     Report->SetStringField(TEXT("scope"), TEXT("Approved static geometry, saved convex collision, navigation and ground bindings. Not gameplay, owned-network, camp/AI or balance acceptance."));
     Report->SetBoolField(TEXT("passed"), Good);
