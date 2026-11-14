@@ -2,6 +2,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Region/LDMapRegistry.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDNativeMotionTypes.h"
@@ -333,6 +334,8 @@ bool FLDReconnectProtectionTest::RunTest(const FString& Parameters)
         Life.Body=Ref;
         Life.Actor=Body;
         Life.ProtectedUntilMs=1000;
+        Life.MotionBody=Ref;
+        Life.MotionStreamId=FGuid::NewGuid();
         FLDBodyCombatState State;
         State.Identity=Ref.BodyIdentity;
         State.Victim=Ref.Victim;
@@ -353,6 +356,9 @@ bool FLDReconnectProtectionTest::RunTest(const FString& Parameters)
         if (!TestTrue(Context+TEXT("protected life joins capture"),
             Mode->CaptureReducer.Begin(10000,100,100,Error)
             && Mode->CaptureReducer.Enqueue(Joined,Error))) { AddError(Error); return false; }
+        Mode->CaptureTracks.Add(Ref.Victim.EntityId,{Ref,false,Mode->AuthorityStep.StepSerial,0});
+        const auto* Registry=World->GetSubsystem<ULDMapRegistry>();
+        if (!TestNotNull(Context+TEXT("native world revision"),Registry)) { return false; }
         auto& Navigation=*Source->Navigation;
         ULDNavigationComponent::FPendingOrder Pending;
         Pending.Match=Mode->MatchContext;
@@ -402,7 +408,16 @@ bool FLDReconnectProtectionTest::RunTest(const FString& Parameters)
         World->Tick(LEVELTICK_TimeOnly,.025f);
         if (!TestTrue(Context+TEXT("next authority Actions phase settles the transferred obligation"),
             Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,10)==ELDCommitReject::None
-            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Motion,[](const auto&) { return true; },Error)
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Motion,[&](const FLDGameplayWritePermit& Permit)
+            {
+                auto Batch=MakeShared<FLDNativeMotionBatch>();
+                Batch->Step=Mode->AuthorityStep;
+                Batch->Body=Ref;
+                Batch->StreamId=Life.MotionStreamId;
+                Batch->World=Registry->Revision();
+                return TestTrue(Context+TEXT("stationary native motion completes"),
+                    Mode->CompleteNativeMotion(Mode->AuthorityStep,Ref,Permit,Batch)==ELDCommitReject::None);
+            },Error)
             && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Actions,[&](const FLDGameplayWritePermit& Permit)
             {
                 Next.SettleQueuedAggression(*Mode,Permit);
