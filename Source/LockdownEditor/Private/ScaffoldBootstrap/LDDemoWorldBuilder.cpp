@@ -30,6 +30,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "FileHelpers.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/WorldSettings.h"
