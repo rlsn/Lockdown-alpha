@@ -1,6 +1,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Combat/LDCombatDirector.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDNativeMotionTypes.h"
@@ -291,6 +292,130 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
         && !Mode->IsGameplayWriteOpen(Mode->MatchContext));
     TestTrue(TEXT("Repeated fault report is idempotent"),
         Mode->ReportAuthorityFault(Mode->MatchContext,TEXT("Controlled provider failure")) && Mode->GateRevision==OpenGate+1);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDReconnectProtectionTest, "Lockdown.Rules.DemoCore.ReconnectProtection",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDReconnectProtectionTest::RunTest(const FString& Parameters)
+{
+    LDMatchProviders::FScopedTestTable Providers({});
+    // Queued, pending, superseded by Stop, both, move only, stale match, stale life.
+    for (int32 Case=0; Case<7; ++Case)
+    {
+        const FString Context=FString::Printf(TEXT("Reconnect debt case %d: "),Case);
+        const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+            .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+        UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+        if (!TestNotNull(Context+TEXT("world"),World)) { return false; }
+        GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+        ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+        auto* Mode=World->SpawnActor<ALDGameMode>();
+        auto* Public=World->SpawnActor<ALDGameState>();
+        auto* Driver=World->SpawnActor<ALDCombatDirector>();
+        auto* Source=World->SpawnActor<ALDPlayerController>();
+        auto* Parked=World->SpawnActor<ALDPlayerController>();
+        auto* Reconnected=World->SpawnActor<ALDPlayerController>();
+        auto* Body=World->SpawnActor<ALDCharacter>();
+        if (!Mode || !Public || !Driver || !Source || !Parked || !Reconnected || !Body)
+        { AddError(Context+TEXT("actors failed to spawn")); return false; }
+        Mode->bDemoWorld=Mode->bEntryAccepted=Mode->bAuthorityInitialized=true;
+        Mode->GameState=Public;
+        Mode->MatchContext={1,FGuid::NewGuid()};
+        Mode->MatchPhase=ELDMatchPhase::Development;
+        Mode->Combat=Driver;
+        Mode->AuthorityStep={Mode->MatchContext,1,0,0};
+        const FLDCombatBodyRef Ref{{ELDVictimKind::Contender,FGuid::NewGuid(),1},FGuid::NewGuid()};
+        auto& Life=Mode->Lives.Add(Ref.Victim.EntityId);
+        Life.Phase=ELDLifePhase::Alive;
+        Life.Life=1;
+        Life.Revision=1;
+        Life.Body=Ref;
+        Life.Actor=Body;
+        Life.ProtectedUntilMs=1000;
+        FLDBodyCombatState State;
+        State.Identity=Ref.BodyIdentity;
+        State.Victim=Ref.Victim;
+        State.Resources.Revision=1;
+        Driver->Bodies.Add(Body,MoveTemp(State));
+        FLDContenderRecord Member;
+        Member.Session=Ref.Victim.EntityId;
+        Mode->Contenders.Add(Source,Member);
+        Mode->CaptureCircle.CaptureId=TEXT("capture_fixture");
+        Mode->CaptureCircle.RadiusCm=100;
+        Mode->CaptureCircle.Ground=NewObject<UBoxComponent>(GetTransientPackage());
+        FString Error;
+        FLDCaptureEvent Joined;
+        Joined.Kind=ELDCaptureEventKind::Joined;
+        Joined.Body=Ref;
+        Joined.Phase=ELDCommitPhase::RespawnsAndWorld;
+        Joined.ProtectedUntilMs=Life.ProtectedUntilMs;
+        if (!TestTrue(Context+TEXT("protected life joins capture"),
+            Mode->CaptureReducer.Begin(10000,100,100,Error)
+            && Mode->CaptureReducer.Enqueue(Joined,Error))) { AddError(Error); return false; }
+        auto& Navigation=*Source->Navigation;
+        ULDNavigationComponent::FPendingOrder Pending;
+        Pending.Match=Mode->MatchContext;
+        Pending.Body=Ref;
+        Pending.Request.Identity={1,1,8,1};
+        Pending.Request.Kind=Case==2 || Case==4 ? ELDSpatialOrderKind::MoveGround : ELDSpatialOrderKind::AttackMove;
+        Pending.bStop=Case==2;
+        Navigation.EnsureBook(Pending.Request.Identity);
+        FLDAggressiveIntent Intent;
+        Intent.Kind=ELDAggressiveIntentKind::AttackMove;
+        Intent.Request.Origin=ELDAggressionOrigin::Navigation;
+        Intent.Request.Sequence=7;
+        Intent.Request.CancelEpoch=1;
+        if (Case==0 || Case==3 || Case==5 || Case==6)
+        {
+            ULDNavigationComponent::FOwedAggression Owed{Intent,Mode->MatchContext,Ref};
+            if (Case==5) { Owed.Match={1,FGuid::NewGuid()}; }
+            if (Case==6) { ++Owed.Body.Victim.Life; }
+            Navigation.QueueOwedAggression=Owed;
+        }
+        if (Case==2) { Pending.OwedAggression=Intent; }
+        if (Case>=1 && Case<=4)
+        {
+            Navigation.AddRecord(Pending.Request,Pending.bStop);
+            Navigation.PendingOrder=Pending;
+        }
+        Navigation.TransferReconnectLedgerTo(*Parked->Navigation);
+        Mode->Contenders.Remove(Source);
+        Mode->Contenders.Add(Parked,Member);
+        Parked->Navigation->TransferReconnectLedgerTo(*Reconnected->Navigation);
+        Mode->Contenders.Remove(Parked);
+        Mode->Contenders.Add(Reconnected,Member);
+        auto& Next=*Reconnected->Navigation;
+        TestTrue(Context+TEXT("old controllers retain neither debt nor pending orders"),
+            !Navigation.QueueOwedAggression && !Navigation.PendingOrder
+            && !Parked->Navigation->QueueOwedAggression && !Parked->Navigation->PendingOrder);
+        TestTrue(Context+TEXT("cancelled orders never resume"),!Next.PendingOrder && !Next.ActiveOrder && Next.Queue.IsEmpty());
+        TestTrue(Context+TEXT("watermark survives both transfers"),Next.ReconnectOrderWatermark()==Pending.Request.Identity);
+        TestEqual(Context+TEXT("transfer itself cannot remove protection"),Life.ProtectedUntilMs,int64(1000));
+        const bool bOwed=Case!=4;
+        TestEqual(Context+TEXT("obligation survives both transfers"),Next.QueueOwedAggression.IsSet(),bOwed);
+        if (Next.QueueOwedAggression)
+        {
+            TestEqual(Context+TEXT("original aggressive request is preserved"),
+                Next.QueueOwedAggression->Intent.Request.Sequence,uint64(Case==1?8:7));
+        }
+        World->Tick(LEVELTICK_TimeOnly,.025f);
+        if (!TestTrue(Context+TEXT("next authority Actions phase settles the transferred obligation"),
+            Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,10)==ELDCommitReject::None
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Motion,[](const auto&) { return true; },Error)
+            && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Actions,[&](const FLDGameplayWritePermit& Permit)
+            {
+                Next.SettleQueuedAggression(*Mode,Permit);
+                Next.SettleQueuedAggression(*Mode,Permit);
+                return true;
+            },Error)
+            && Mode->FinishAuthorityStep(*Driver,Error))) { AddError(Error); return false; }
+        const bool bRemoved=Case<4;
+        TestEqual(Context+TEXT("only a current aggressive obligation ends protection"),
+            Life.ProtectedUntilMs,bRemoved?int64(0):int64(1000));
+        TestEqual(Context+TEXT("settlement is exactly once"),Life.Revision,bRemoved?uint64(2):uint64(1));
+        TestFalse(Context+TEXT("settled or stale obligation is consumed"),Next.QueueOwedAggression.IsSet());
+    }
     return true;
 }
 

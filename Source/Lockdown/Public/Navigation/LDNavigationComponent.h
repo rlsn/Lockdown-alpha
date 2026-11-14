@@ -368,6 +368,7 @@ private:
     void StepCastFollowUp(const FLDOrderReceipt& Receipt);
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDControlFeelAutoAttackAfterCastTest;
+    friend class FLDReconnectProtectionTest;
     friend class FLDDemoCombatProbe;
 #endif
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;

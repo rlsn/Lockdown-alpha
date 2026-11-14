@@ -546,7 +546,19 @@ void ULDNavigationComponent::ResetMatch()
 
 void ULDNavigationComponent::TransferReconnectLedgerTo(ULDNavigationComponent& Next)
 {
+    TOptional<FOwedAggression> Owed=MoveTemp(QueueOwedAggression);
+    QueueOwedAggression.Reset();
+    if (!Owed && PendingOrder)
+    {
+        const auto& Pending=*PendingOrder;
+        if (Pending.OwedAggression)
+        { Owed=FOwedAggression{*Pending.OwedAggression,Pending.Match,Pending.Body}; }
+        else if (!Pending.bStop && Pending.Request.IsAggressive())
+        { Owed=FOwedAggression{LDNavOrdersDetail::IntentOf(Pending.Request),Pending.Match,Pending.Body}; }
+    }
+    // Cancel execution, not the same life's already accepted obligation to end protection.
     EndLifeOrders(ELDOrderCancelReason::Left);
+    Next.QueueOwedAggression=MoveTemp(Owed);
     Next.Book=Book;
     Next.Records=Records;
     Next.NextReceiptSerial=NextReceiptSerial;

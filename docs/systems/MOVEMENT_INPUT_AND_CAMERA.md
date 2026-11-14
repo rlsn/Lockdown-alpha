@@ -89,6 +89,8 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    先用核心当前 BodyRef/拥有 Controller 核对身份、顺序与形状，再进入单一待处理槽；
    进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
    在 Actions 前被更新请求取代的进攻意图仍补做一次保护解除。
+   断线交接会保留排队、待执行及被后续请求取代的进攻意图所欠的保护解除；旧订单仍取消，
+   新控制器在下一次获准 Actions 阶段按原 Match/Life/Body 结清，不能影响替换后的生命。
    带 `bQueue`（Shift）的订单和经 `ServerQueueCombatAction` 的 Q/W/D 不进待处理槽，而是排进最多 8 步的
    Shift 队列，轮到时才作为普通待处理请求或 Combat Direct 请求执行（[操作 §4.4](../demo/CONTROLS_AND_TARGETING.md#44-shift-指令队列)）。
 3. `ClientOrderReceipt` 只接受当前身份的结果，避免迟到确认重启已取消路线。

@@ -176,6 +176,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCore.ClockProjection",
         "Lockdown.Rules.DemoCore.RewardSettlementBeforeClose",
         "Lockdown.Rules.DemoCore.ScopedAuthority",
+        "Lockdown.Rules.DemoCore.ReconnectProtection",
         "Lockdown.Rules.DemoCoreProbe.ArrivalTurn",
         "Lockdown.Rules.DemoCoreProbe.GrowthTiming",
         "Lockdown.Rules.DemoMotionProbe.Slide",

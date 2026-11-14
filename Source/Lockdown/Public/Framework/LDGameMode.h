@@ -367,6 +367,7 @@ private:
     friend class FLDOwnerViewTeardownTest;
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
+    friend class FLDReconnectProtectionTest;
     friend class FLDDemoCoreProbe;
     friend class FLDRewardSettlementTest;
     friend class FLDCaptureInsideStepTest;

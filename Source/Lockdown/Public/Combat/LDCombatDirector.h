@@ -939,6 +939,7 @@ private:
     friend class FLDRestPhaseTest;
     friend class FLDGroundBossBodyTest;
     friend class FLDDemoCoreTest;
+    friend class FLDReconnectProtectionTest;
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDPlaytestLogHitVampTest;
     friend class FLDRewardSettlementTest;
