@@ -41,6 +41,7 @@ struct FLDBuildPrimitivesAccess
     static TArray<FLDCombatHit>& PendingHits(ALDCombatDirector& Driver) { return Driver.PendingHits; }
     static TArray<FLDCombatZone>& Zones(ALDCombatDirector& Driver) { return Driver.Zones; }
     static bool FinalStep(ALDCombatDirector& Driver,int64 NowMs,FString& Error){return Driver.AdvanceFinalMods(NowMs,Error);}
+    static const auto& FinalTraffic(const ALDCombatDirector& Driver){return Driver.FinalTraffic;}
     static bool FinalCost(const ALDCombatDirector& Driver,const FLDCombatEntityRecord& Record,const FLDCombatSourceRef& Source,
         int64& Cooldown,FString& Error){return Driver.FinalCooldownCost(Record,Source,Cooldown,Error);}
     static bool FinalSplit(ALDCombatDirector& Driver,FLDCombatZone& Zone,const FLDCombatAction& Action,int64 NowMs,
@@ -1257,12 +1258,56 @@ bool FLDFinalMechanicContractTest::RunTest(const FString& Parameters)
     if(!F.Init(*this)){return false;}
     FString Error;
     if(!FAccess::Showdown(*F.Mode,F.Catalog->Get(),Error)){AddError(Error);return false;}
-    const auto A=F.AddBody();
+    const auto A=F.AddBody(),B=F.AddBody();
     auto& Record=FAccess::Records(*F.Driver).FindChecked(A.Victim.EntityId);
     Record.Build.FinalMod={TEXT("final_traffic"),ELDComponentTargetKind::Dash,NAME_None};
     FLDCombatSourceRef Dash;Dash.Kind=ELDCombatSourceKind::Innate;Dash.DefinitionId=LDCombatSourceRules::InnateDashId();
     int64 Cooldown=7000;
     TestTrue(TEXT("Traffic adds its cost to the bound base cooldown"),FAccess::FinalCost(*F.Driver,Record,Dash,Cooldown,Error)&&Cooldown==11000);
+    auto& Travel=F.Body(A).VoluntaryDash.Emplace();
+    Travel.Source=Dash;Travel.EffectId=FGuid::NewGuid();Travel.EndMs=2000;
+    auto Motion=MakeShared<FLDNativeMotionBatch>();
+    Motion->Body=A;
+    Motion->Step.StartServerSeconds=1.;Motion->Step.EndServerSeconds=1.1;
+    Motion->StartFootCm=F.Foot(A);Motion->EndFootCm=Motion->StartFootCm+FVector(100,0,0);
+    Motion->InitialSupport.Grounded=Motion->FinalSupport.Grounded=true;
+    auto& Move=Motion->Records.AddDefaulted_GetRef();
+    Move.Kind=ELDNativeMotionRecordKind::Movement;Move.RootMotion=true;
+    Move.FromFootCm=Motion->StartFootCm;Move.ToFootCm=Motion->EndFootCm;
+    Move.StartServerSeconds=1.;Move.EndServerSeconds=1.1;
+    FAccess::CaptureSkillMotion(*F.Driver,Motion);
+    F.Now(1100);
+    TestTrue(TEXT("Native movement inherits grounded support without a redundant support payload"),
+        FAccess::FinalStep(*F.Driver,1100,Error)&&FAccess::FinalTraffic(*F.Driver).Num()==1);
+    auto Crossing=MakeShared<FLDNativeMotionBatch>();
+    Crossing->Body=B;
+    Crossing->Step.StartServerSeconds=1.1;Crossing->Step.EndServerSeconds=1.2;
+    Crossing->StartFootCm=Motion->StartFootCm+FVector(50,-100,0);
+    Crossing->EndFootCm=Motion->StartFootCm+FVector(50,100,0);
+    Crossing->InitialSupport.Grounded=Crossing->FinalSupport.Grounded=true;
+    auto& CrossMove=Crossing->Records.AddDefaulted_GetRef();
+    CrossMove.Kind=ELDNativeMotionRecordKind::Movement;
+    CrossMove.FromFootCm=Crossing->StartFootCm;CrossMove.ToFootCm=Crossing->EndFootCm;
+    CrossMove.StartServerSeconds=1.1;CrossMove.EndServerSeconds=1.2;
+    FAccess::CaptureSkillMotion(*F.Driver,Crossing);
+    F.Now(1200);
+    TestTrue(TEXT("A grounded enemy crossing the whole band receives its slow even when both endpoints are outside"),
+        FAccess::FinalStep(*F.Driver,1200,Error)&&!F.Body(B).Slows.IsEmpty());
+    auto Airborne=MakeShared<FLDNativeMotionBatch>(*Motion);
+    Airborne->Step.StartServerSeconds=1.2;Airborne->Step.EndServerSeconds=1.3;
+    Airborne->Records.Reset();
+    auto& Takeoff=Airborne->Records.AddDefaulted_GetRef();
+    Takeoff.Kind=ELDNativeMotionRecordKind::Support;
+    Takeoff.FromFootCm=Takeoff.ToFootCm=Airborne->StartFootCm;
+    Takeoff.StartServerSeconds=Takeoff.EndServerSeconds=1.2;
+    auto& AirMove=Airborne->Records.AddDefaulted_GetRef();
+    AirMove=Move;AirMove.StartServerSeconds=1.2;AirMove.EndServerSeconds=1.3;
+    Airborne->FinalSupport.Grounded=false;
+    FAccess::CaptureSkillMotion(*F.Driver,Airborne);
+    F.Now(1300);
+    TestTrue(TEXT("A support transition to airborne does not lay another traffic segment"),
+        FAccess::FinalStep(*F.Driver,1300,Error)&&FAccess::FinalTraffic(*F.Driver).Num()==1
+        &&FAccess::FinalTraffic(*F.Driver)[0].Segments.Num()==1);
     Record.Build.FinalMod={TEXT("final_breach"),ELDComponentTargetKind::None,NAME_None};
     Cooldown=7000;
     TestTrue(TEXT("Breach adds the separate D cost"),FAccess::FinalCost(*F.Driver,Record,Dash,Cooldown,Error)&&Cooldown==10000);

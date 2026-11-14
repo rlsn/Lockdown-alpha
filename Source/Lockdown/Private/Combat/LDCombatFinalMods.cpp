@@ -566,9 +566,8 @@ bool ALDCombatDirector::AdvanceFinalMods(int64 NowMs, FString& Error)
         bool bGrounded=Frame.Batch->InitialSupport.Grounded;
         for (const FLDNativeMotionRecord& Motion : Frame.Batch->Records)
         {
-            const bool bWalked=bGrounded&&Motion.Support.Grounded;
-            bGrounded=Motion.Support.Grounded;
-            if (Motion.Kind!=ELDNativeMotionRecordKind::Movement || !Motion.RootMotion || !bWalked
+            if (Motion.Kind==ELDNativeMotionRecordKind::Support) { bGrounded=Motion.Support.Grounded; }
+            if (Motion.Kind!=ELDNativeMotionRecordKind::Movement || !Motion.RootMotion || !bGrounded
                 || Motion.EndServerSeconds>double(Frame.Dash->EndMs)/1000. || Motion.FromFootCm==Motion.ToFootCm
                 || Motion.EndServerSeconds<=Motion.StartServerSeconds)
             { continue; }
@@ -615,9 +614,8 @@ bool ALDCombatDirector::AdvanceFinalMods(int64 NowMs, FString& Error)
                 if(Motion.StartServerSeconds>Cursor&&!StandUntil(Motion.StartServerSeconds)){return false;}
                 if(Motion.Kind!=ELDNativeMotionRecordKind::Movement&&Motion.EndServerSeconds>Cursor
                     &&!StandUntil(Motion.EndServerSeconds)){return false;}
-                const bool bWalked=bGrounded&&Motion.Support.Grounded;
-                bGrounded=Motion.Support.Grounded;
-                if(Motion.Kind==ELDNativeMotionRecordKind::Movement&&bWalked
+                if(Motion.Kind==ELDNativeMotionRecordKind::Support){bGrounded=Motion.Support.Grounded;}
+                if(Motion.Kind==ELDNativeMotionRecordKind::Movement&&bGrounded
                     &&!CrossesBand(Motion.FromFootCm,Motion.ToFootCm,Motion.StartServerSeconds,Motion.EndServerSeconds,
                     Trail,HalfWidth,bWasInside,bEntered,Error)){return false;}
                 const bool bBefore=bWasInside;

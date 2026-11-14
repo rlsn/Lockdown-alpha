@@ -502,23 +502,22 @@ public:
                 const auto* Registry = World->GetSubsystem<ULDMapRegistry>();
                 const auto* Anchor = Registry ? Registry->Resolve(TEXT("final_capture"), Registry->Generation) : nullptr;
                 const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
-                if (!bFinalDashSent && Anchor && Body && PC->OwnerState.LifePhase == ELDLifePhase::Alive)
+                int64 NowMs = 0;
+                const auto* Dash = PC->CombatView.Generation == Generation && PC->CombatView.Life == PC->OwnerState.Life
+                    ? PC->CombatView.Entries.FindByPredicate([](const FLDCombatEntryView& Entry)
+                        { return Entry.Entry == ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); }) : nullptr;
+                if (!bFinalDashSent && Anchor && Body && Dash && PC->ReadDemoAuthorityTimeMs(NowMs)
+                    && Dash->ReadyAtMs <= NowMs && PC->OwnerState.LifePhase == ELDLifePhase::Alive)
                 {
-                    FVector2D Screen;
-                    if (FVector::DistSquared2D(Anchor->Position, Body->GetActorLocation()) > 1.
-                        && PC->ProjectWorldLocationToScreen(Anchor->Position, Screen))
+                    FLDCombatTarget Aim;
+                    Aim.Kind = ELDCombatTargetKind::Direction;
+                    Aim.Direction = (Anchor->Position - Body->GetActorLocation()).GetSafeNormal2D();
+                    if (!Aim.Direction.IsNearlyZero())
                     {
-                        PC->Navigation->DevSetPointer(Screen);
-                        FHitResult Ground;
-                        const bool bGround = PC->Navigation->GroundUnderPointer(Ground);
-                        if (bGround) { PC->ActivateCombatEntry(ELDCombatEntry::Dash); }
-                        PC->Navigation->DevSetPointer(TOptional<FVector2D>());
-                        if (bGround)
-                        {
-                            bFinalDashSent = true;
-                            NextInputAt = Local + 2.;
-                            return true;
-                        }
+                        PC->ActivateCombatEntry(ELDCombatEntry::Dash, &Aim, &Anchor->Position);
+                        bFinalDashSent = true;
+                        NextInputAt = Local + 2.;
+                        return true;
                     }
                 }
                 if (Target) { PC->Navigation->AttackUnit(Target->Handle, Target->ObservationEpoch); }

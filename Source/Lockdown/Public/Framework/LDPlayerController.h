@@ -148,7 +148,8 @@ public:
     bool IsWorldInputSuppressed() const;
     // Hotkeys and HUD icons share this entry. Self sends now; Unit/Direction arm and wait for a
     // left-click confirmation; right click or Back cancels the armed entry without a world command.
-    void ActivateCombatEntry(ELDCombatEntry Entry);
+    // A resolved press aim uses the same confirmation path without requiring a mouse viewport (owning input probes).
+    void ActivateCombatEntry(ELDCombatEntry Entry, const FLDCombatTarget* PressAim=nullptr, const FVector* AimCm=nullptr);
     bool ReadArmedCombatEntry(ELDCombatEntry& Out) const;
     // #97 local slot order (dragging a HUD slot onto another swaps them): SkillAtKey[i] is the combat entry the i-th skill
     // key (Skill1, Skill2, SkillE) and HUD skill slot fire and show. Local presentation and key routing only, like a key
