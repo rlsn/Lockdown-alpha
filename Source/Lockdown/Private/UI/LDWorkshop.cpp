@@ -208,6 +208,9 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 ElementChip->SetPadding(FMargin(5,0));ElementChip->SetContent(Head.Element);ElementChip->SetRenderTranslation(FVector2D(6,6));
                 ElementChip->SetVisibility(ESlateVisibility::Collapsed);Built.Add(ElementChip);
                 auto* ElementSlot=IconStack->AddChildToOverlay(ElementChip);ElementSlot->SetHorizontalAlignment(HAlign_Right);ElementSlot->SetVerticalAlignment(VAlign_Bottom);
+                Head.Final=WidgetTree->ConstructWidget<UImage>();Head.Final->SetVisibility(ESlateVisibility::Collapsed);Head.Final->SetDesiredSizeOverride(FVector2D(34,34));
+                Head.Final->SetRenderTranslation(FVector2D(10,-10));
+                auto* FinalSlot=IconStack->AddChildToOverlay(Head.Final);FinalSlot->SetHorizontalAlignment(HAlign_Right);FinalSlot->SetVerticalAlignment(VAlign_Top);
                 Head.IconBox=WidgetTree->ConstructWidget<USizeBox>();Head.IconBox->SetWidthOverride(100.f);Head.IconBox->SetHeightOverride(100.f);Head.IconBox->SetContent(IconStack);
                 Box->AddChildToVerticalBox(Head.IconBox)->SetHorizontalAlignment(HAlign_Center);
                 Head.Name=Label(TEXT(""),LDHUDStyle::TypeLead,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Head.Name->SetJustification(ETextJustify::Center);
@@ -345,7 +348,7 @@ void ULDWorkshop::Layout(FVector2D Size)
         Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,Bottom);
         const float RightX=W-WorkshopMargin-WorkshopRightWidth;
         const float Tray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,H*.5f);
-        const float PendingHeight=Tray>0.f?Tray+52.f:72.f;
+        const float PendingHeight=(Tray>0.f?Tray+52.f:72.f)+(Latest.bServices?58.f:0.f);
         Next.Pending=WorkshopBox(RightX,Bottom-PendingHeight,W-WorkshopMargin,Bottom);
         Next.Library=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,Next.Pending.Min.Y-WorkshopGap);
         Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,RightX-WorkshopGap,Bottom-WorkshopDockHeight-WorkshopGap);
@@ -368,6 +371,15 @@ void ULDWorkshop::Layout(FVector2D Size)
         Next.HeadIcon=64.f;
         ActionsAt=FVector2D(W-WorkshopMargin-86.f,30.f);
     }
+    if(Mode==EMode::Full&&Latest.bStage)
+    {
+        // A build moment takes the centre: the board, the library, the pending area and the character column step aside; the
+        // offer keeps a centred dock, the final mod page puts its own description there.
+        const float Bottom=H-WorkshopMargin;
+        Next.Dock=WorkshopBox(W*.5f-548.f,Bottom-210.f,W*.5f+548.f,Bottom);
+        Next.Stage=WorkshopBox(W*.5f-820.f,96.f,W*.5f+820.f,float(Next.Dock.Min.Y)-16.f);
+        Next.Character=Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
+    }
     Next.Capacity=WorkshopBox(Next.Board.Min.X+24.f,Next.Board.Min.Y+14.f,Next.Board.Max.X-24.f,Next.Board.Min.Y+50.f);
     Next.Columns=WorkshopBox(Next.Board.Min.X+16.f,Next.Capacity.Max.Y+12.f,Next.Board.Max.X-16.f,Next.Board.Max.Y-14.f);
     Next.HeadHeight=Next.HeadIcon+(Mode==EMode::Full?78.f:64.f);
@@ -380,6 +392,12 @@ void ULDWorkshop::Layout(FVector2D Size)
     }
     // The library body sits under its title and filter rows.
     Next.LibraryBody=WorkshopBox(Next.Library.Min.X+24.f,Next.Library.Min.Y+124.f,Next.Library.Max.X-20.f,Next.Library.Max.Y-14.f);
+    if(!WorkshopHasArea(Next.Board))
+    {
+        Next.Capacity=Next.Columns=FBox2D(ForceInit);
+        for(FBox2D& Column:Next.Column){Column=FBox2D(ForceInit);}
+    }
+    if(!WorkshopHasArea(Next.Library)){Next.LibraryBody=FBox2D(ForceInit);}
     Rects=Next;
     TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:W-float(Rects.Library.Max.X);
     TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:H-float(Rects.Library.Max.Y);
@@ -404,7 +422,9 @@ void ULDWorkshop::Layout(FVector2D Size)
         if(!FMath::IsNearlyEqual(Heads[Index].IconBox->GetWidthOverride(),Rects.HeadIcon)){Heads[Index].IconBox->SetWidthOverride(Rects.HeadIcon);Heads[Index].IconBox->SetHeightOverride(Rects.HeadIcon);}
     }
     Place(LibraryTitle,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+16.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+56.f));
-    if(Mode==EMode::Full)
+    const bool bOwnDock=!(Mode==EMode::Full&&Latest.bFinalStage);
+    if(!bOwnDock){for(UWidget* Hidden:{DockLeft.Get(),DockCentre.Get(),DockRight.Get()}){Place(Hidden,FBox2D(ForceInit));}}
+    else if(Mode==EMode::Full)
     {
         Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+20.f,Rects.Dock.Min.Y+20.f,Rects.Dock.Min.X+176.f,Rects.Dock.Max.Y-12.f));
         Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+196.f,Rects.Dock.Min.Y+18.f,Rects.Dock.Max.X-300.f,Rects.Dock.Max.Y-12.f));
@@ -422,6 +442,35 @@ void ULDWorkshop::Layout(FVector2D Size)
     if(DockBody){DockBody->SetWrapTextAt(Mode==EMode::Full?float(Rects.Dock.GetSize().X)-520.f:WorkshopFieldDockWidth-40.f);}
     const float DockIcon=Mode==EMode::Full?112.f:80.f;
     if(DockIconBox&&!FMath::IsNearlyEqual(DockIconBox->GetWidthOverride(),DockIcon)){DockIconBox->SetWidthOverride(DockIcon);DockIconBox->SetHeightOverride(DockIcon);}
+}
+
+ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
+{
+    ULDChoicesPanel::FWorkshopPlaces Out;
+    if(Mode!=EMode::Full||!Canvas){return Out;}
+    const FGeometry& Geometry=GetCachedGeometry();
+    if(Geometry.GetLocalSize().X<=0.f){return Out;}
+    const auto Absolute=[&Geometry](const FBox2D& Box)
+    {
+        if(!WorkshopHasArea(Box)){return FSlateRect();}
+        const FVector2D A=Geometry.LocalToAbsolute(Box.Min),B=Geometry.LocalToAbsolute(Box.Max);
+        return FSlateRect(A.X,A.Y,B.X,B.Y);
+    };
+    Out.bActive=true;
+    Out.Stage=Absolute(Rects.Stage);
+    Out.Dock=Absolute(Rects.Dock);
+    for(int32 Index=0;Index<LDHUD::StorageColumnCount;++Index)
+    {
+        const FBox2D& Column=Rects.Column[Index];
+        Out.Heads[Index]=WorkshopHasArea(Column)?Absolute(WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight)):FSlateRect();
+    }
+    if(WorkshopHasArea(Rects.Character))
+    {Out.CharacterFoot=Absolute(WorkshopBox(Rects.Character.Min.X+22.f,Rects.Character.Max.Y-118.f,Rects.Character.Max.X-22.f,Rects.Character.Max.Y-14.f));}
+    if(WorkshopHasArea(Rects.Library))
+    {Out.LibraryTop=Absolute(WorkshopBox(Rects.Library.Min.X+150.f,Rects.Library.Min.Y+12.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+60.f));}
+    if(WorkshopHasArea(Rects.Pending))
+    {Out.PendingTop=Absolute(WorkshopBox(Rects.Pending.Min.X+24.f,Rects.Pending.Min.Y+44.f,Rects.Pending.Max.X-20.f,Rects.Pending.Min.Y+96.f));}
+    return Out;
 }
 
 ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
@@ -482,7 +531,9 @@ void ULDWorkshop::Present(const FInput& Input)
         const float Strength=Mode==EMode::Full&&!Input.bLowQuality?8.f*Open:0.f;
         if(!FMath::IsNearlyEqual(Blur->GetBlurStrength(),Strength,.01f)){Blur->SetBlurStrength(Strength);}
     }
-    if(Shade){Shade->SetBrushColor(LDHUDStyle::UIBase.CopyWithNewOpacity((Mode==EMode::Full?.62f:.88f)*Open));}
+    // The final mod page turns the dark blue to a deep magenta: this step is not like the others.
+    const FLinearColor Tint=Mode==EMode::Full&&Input.bFinalStage?FLinearColor(FColor(0x2A,0x06,0x1C)):LDHUDStyle::UIBase;
+    if(Shade){Shade->SetBrushColor(Tint.CopyWithNewOpacity((Mode==EMode::Full?(Input.bFinalStage?.82f:.62f):.88f)*Open));}
     RefreshPhase();
     RefreshCharacter();
     RefreshHeads();
@@ -512,7 +563,10 @@ void ULDWorkshop::RefreshPhase()
         return;
     }
     PhaseStep->SetColorAndOpacity(LDHUDStyle::UIText);
-    WorkshopText(PhaseRest,Latest.bRest?FString::Printf(TEXT("休息 R%u"),uint32(Latest.RestIndex)):FString());
+    // Beside an NPC its name joins the rest line: its services stand on the board.
+    const FString Rest=Latest.bRest?FString::Printf(TEXT("休息 R%u"),uint32(Latest.RestIndex)):FString();
+    WorkshopText(PhaseRest,Latest.NpcName.IsEmpty()?Rest:Rest+TEXT("  ·  ")+Latest.NpcName);
+    PhaseRest->SetColorAndOpacity(Latest.NpcName.IsEmpty()?LDHUDStyle::TextSecondary:LDHUDStyle::UIAction);
     WorkshopText(PhaseStep,Latest.bRest?LDHUD::RestStepText(Latest.Step):FString());
     const int64 Remaining=Latest.bClock&&Latest.StepEndsAtMs>0?FMath::Max<int64>(0,Latest.StepEndsAtMs-Latest.NowMs):-1;
     WorkshopText(PhaseClock,Remaining>=0?LDHUD::Clock(Remaining):FString());
@@ -662,6 +716,14 @@ void ULDWorkshop::RefreshHeads()
         WorkshopText(Head.Mana,Shown.Mana.IsEmpty()?FString():TEXT("● ")+Shown.Mana);
         Head.Mana->SetColorAndOpacity(FLinearColor(FColor(0x6F,0x9B,0xFF)));
         WorkshopText(Head.Cooldown,Shown.Cooldown.IsEmpty()?FString():TEXT("◆ ")+Shown.Cooldown);
+        {
+            // A locked final mod shows its icon over the head of what it binds (本体 when it binds the holder).
+            const FLDFinalModSelection& Final=View.FinalMod;
+            const bool bHere=!Final.IsEmpty()&&((Final.TargetKind==ELDComponentTargetKind::Active&&Final.TargetId==Active&&!Active.IsNone())
+                ||(Final.TargetKind==ELDComponentTargetKind::Dash&&Column==LDHUD::EStorageColumn::Dash)
+                ||(Final.TargetKind==ELDComponentTargetKind::None&&Column==LDHUD::EStorageColumn::Body));
+            if(!bHere||!LDUIIcons::Apply(Head.Final,LDHUD::ContentIconId(Latest.Content,Final.DefinitionId.ToString()),17.f)){WorkshopShown(Head.Final,false);}
+        }
         if(UBorder* Chip=Cast<UBorder>(Head.Element->GetParent()))
         {
             WorkshopShown(Chip,!Shown.Elements.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -906,6 +968,67 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             LDUIShapes::Frame(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Column,Edge,2.f,8.f);
         }
         else{LDUIShapes::Fill(Elements,Top,Geometry,WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight),LDHUDStyle::UIBase.CopyWithNewOpacity(.6f),8.f);}
+    }
+    // Link lines: from each installed link rule to what its 联动 list names (the learned actives it works with, in other
+    // columns, and the installed components it works with), drawn as a right-angled line with a dot at each end; a line
+    // between two actives whose elements react carries the reaction's name. Lines of the hovered or held component light up.
+    if(Storage.IsValid()&&Latest.Content&&WorkshopHasArea(Rects.Columns))
+    {
+        const FLDDemoContentDefinitions& Content=*Latest.Content;
+        const ULDComponentStorage::FFocus& Focus=Storage->Focus();
+        const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeTiny);
+        const LDHUD::FStorageView& Model=Storage->Model();
+        for(int32 ColumnIndex=0;ColumnIndex<Model.Columns.Num();++ColumnIndex)
+        {
+            for(const LDHUD::FEquippedView& Entry:Model.Columns[ColumnIndex].Entries)
+            {
+                const FString Self=Entry.Component.ToString();
+                const FLDDemoComponentDefinition* Definition=Content.Components.FindByPredicate([&Self](const FLDDemoComponentDefinition& D){return D.Id==Self;});
+                FSlateRect From;
+                if(!Definition||Definition->Kind!=ELDDemoComponentKind::Connector||!Storage->TileBox(Entry.Component,From)){continue;}
+                const FBox2D Start=LDUIShapes::AbsoluteIn(Geometry,From);
+                const FName HostActive=Model.Columns[ColumnIndex].Active;
+                TArray<TPair<FVector2D,FString>> Ends;
+                for(int32 Other=0;Other<Heads.Num()&&Other<Model.Columns.Num();++Other)
+                {
+                    const FName Active=Model.Columns[Other].Active;
+                    if(Other==ColumnIndex||Active.IsNone()||!Definition->TargetActives.Contains(Active.ToString())||!Heads[Other].IconFace){continue;}
+                    const FBox2D Icon=LDUIShapes::RectIn(Geometry,Heads[Other].IconFace->GetCachedGeometry());
+                    FString Reaction;
+                    for(const ELDDemoElement A:LDWorkshop::ActiveElements(HostActive,Latest.Content))
+                    {for(const ELDDemoElement B:LDWorkshop::ActiveElements(Active,Latest.Content)){if(Reaction.IsEmpty()){Reaction=LDWorkshop::ReactionName(A,B);}}}
+                    Ends.Add(TPair<FVector2D,FString>(FVector2D(Icon.GetCenter().X,Icon.Max.Y+4.f),Reaction));
+                }
+                for(const LDHUD::FStorageColumnView& Column:Model.Columns)
+                {
+                    for(const LDHUD::FEquippedView& OtherEntry:Column.Entries)
+                    {
+                        const FString OtherId=OtherEntry.Component.ToString();
+                        if(OtherId==Self||OtherEntry.Component==Entry.Host||OtherEntry.Host==Entry.Component){continue;}
+                        if(!Definition->TargetComponents.Contains(OtherId)&&!Definition->ExtraBases.Contains(OtherId)){continue;}
+                        FSlateRect To;if(!Storage->TileBox(OtherEntry.Component,To)){continue;}
+                        Ends.Add(TPair<FVector2D,FString>(LDUIShapes::AbsoluteIn(Geometry,To).GetCenter(),FString()));
+                    }
+                }
+                const bool bLit=Focus.Component==Entry.Component;
+                const FLinearColor Ink=LDHUDStyle::ComponentLink.CopyWithNewOpacity(bLit?1.f:.55f);
+                const FVector2D A(Start.Max.X+3.f,Start.GetCenter().Y);
+                for(const TPair<FVector2D,FString>& End:Ends)
+                {
+                    const FVector2D B=End.Key;
+                    const float Mid=float(A.X+B.X)*.5f;
+                    LDUIShapes::Stroke(Elements,Top,Geometry,{A,FVector2D(Mid,A.Y),FVector2D(Mid,B.Y),B},Ink,bLit?3.f:2.f);
+                    for(const FVector2D& Dot:{A,B}){LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Dot-FVector2D(4,4),Dot+FVector2D(4,4)),Ink,4.f);}
+                    if(!End.Value.IsEmpty())
+                    {
+                        const FVector2D Label(Mid-30.f,float(FMath::Min(A.Y,B.Y)+FMath::Abs(B.Y-A.Y)*.5f)-11.f);
+                        LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIBase.CopyWithNewOpacity(.92f),11.f);
+                        LDUIShapes::Frame(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIReplace,1.5f,11.f);
+                        FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(FVector2D(60.f,22.f),FSlateLayoutTransform(Label+FVector2D(14.f,2.f))),End.Value,Font,ESlateDrawEffect::None,LDHUDStyle::UIText);
+                    }
+                }
+            }
+        }
     }
     // The dock's icon frame in its kind's shape.
     if(DockIconFace&&DockIconFace->IsVisible()&&!DockKey.IsEmpty())

@@ -109,6 +109,12 @@ public:
     // A click without a drag (D6) picks the component up; the next click on a place drops it there (or anywhere else
     // drops it back).
     bool IsHolding() const {return Drag.bActive&&Drag.bPicked;}
+    // The absolute rectangle of an installed component's face on the board or over the band (false when it is not shown).
+    bool TileBox(FName Component,FSlateRect& Out) const;
+    // The components a pending service confirm would take off or leave idle: their faces light orange before the hold.
+    void SetWarnings(const TArray<FName>& Components){Warnings=Components;}
+    // In an engagement window a newly received component only flies to the stack, without its name strip.
+    void SetEngaged(bool bInEngaged){bEngaged=bInEngaged;}
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
@@ -260,6 +266,18 @@ private:
     double LandedAt=-100.;
     bool bWasPressed=false;
     FName GhostShowing;
+    TArray<FName> Warnings;
+    bool bEngaged=false;
+    // A component received since the last view flies from the screen centre into the stack, then its name stays above it.
+    struct FFly
+    {
+        FName Component;
+        double At=0.;
+        bool bStrip=true;
+    };
+    TArray<FFly> Flies;
+    TSet<FName> KnownOwned;
+    uint32 KnownMatch=0;
     uint32 LatestMatch=0;
     TSet<FName> SeenComponents;
     LDHUD::FBuildGateView Gate;

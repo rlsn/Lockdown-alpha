@@ -48,6 +48,8 @@
 #include "UI/LDMinimap.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDComponentStorage.h"
+#include "UI/LDWorkshop.h"
+#include "Components/WrapBox.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDHUDModel.h"
@@ -933,9 +935,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         }
         if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant)
         {
-            if(!LDSlateProbeInput::Path(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-            if(!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-                TEXT("UI: actual merchant interaction opens the service window"))){return false;}
+            // Beside the merchant the open workshop shows its service on the board; the 构筑 button opens the workshop.
+            if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                TEXT("UI: the workshop opens beside the merchant"))){return false;}
             RestServiceReviewStage = 2;
             ConfigureService();
             return true;
@@ -956,9 +958,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant && Owner.HUDUI)
         {
-            if(!LDSlateProbeInput::Path(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-            if(!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-                TEXT("UI: actual merchant interaction opens the service window after walking"))){return false;}
+            if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                TEXT("UI: the workshop opens beside the merchant after walking"))){return false;}
             RestServiceReviewStage = 2;
             ConfigureService();
             return true;
@@ -1975,12 +1976,12 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
             if(UIPayoutStep==1)
             {
                 if(PC.OwnerState.NearbyRestService!=ELDRestService::SkillMerchant){return true;}
-                if(!LDSlateProbeInput::Path(HUD->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-                if(!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDRestService"))),
-                    TEXT("UI: owning connection can actually interact with an NPC during payout"))){return Finish();}
+                if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                    TEXT("UI: owning connection opens the workshop beside an NPC during payout"))){return Finish();}
                 UIPayoutStep=2;return true;
             }
-            if(!Check(Panel->bServicePanelOpen&&Panel->RestSection->IsVisible()
+            if(!Panel->IsServiceShown()){return true;}
+            if(!Check(Panel->IsServiceShown()&&Panel->NpcBox->IsVisible()
                 &&!Cast<UTextBlock>(Panel->NpcButton->GetContent())->GetText().IsEmpty()
                 &&!HUD->GetWidgetFromName(TEXT("HUDPKSidePanel"))->GetParent()->IsVisible(),
                 TEXT("UI: payout interaction presents its real service actions and reasons"))){return Finish();}
@@ -2258,7 +2259,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     switch(UIServiceStep)
     {
     case 0:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
+        if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
         ++UIServiceStep;return true;
     case 1:
         if(!Panel->HasCards()){UIServiceStep=3;return true;}
@@ -2295,14 +2296,14 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Walk(3)){return false;}UIServiceStep=4;return true;
     case 4:
         if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
-        if(!Check(!Panel->bServicePanelOpen,TEXT("UI: trainer proximity alone opens no service window"))){return false;}
+        if(!Check(!Panel->IsServiceShown(),TEXT("UI: trainer proximity alone shows no service while the workshop is closed"))){return false;}
         ++UIServiceStep;return true;
     case 5:
         for(const auto& Row:Panel->BlueprintRows)
         {for(const auto& Replace:Row.Replace){if(!Check(!Replace->IsVisible(),TEXT("UI: trainer proximity does not expose a hidden-confirm replacement"))){return false;}}}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-            TEXT("UI: actual trainer interaction opens its separate service window"))){return false;}
-        ++UIServiceStep;return true;
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: the workshop opens beside the trainer with its services on the board"))){return false;}
+        ++UIServiceStep;UIActionDueAt=Now+.3;return true;
     case 6:
         if(!Click(Panel->GetWidgetFromName(TEXT("GrowthReplace0Q")))){return Passed;}
         ++UIServiceStep;return true;
@@ -2333,21 +2334,20 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     case 13:
         if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
         if(!Check(!PC.HUDUI->Toast->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
+        if(!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
         UIServiceStep=131;return true;
     case 131:
-        if(!Check(!Panel->IsPanelOpen()&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None&&!Panel->BlueprintSection->IsVisible(),
-            TEXT("UI: trainer close leaves no hidden confirmation or blueprint rows behind"))){return false;}
+        if(!Check(!Panel->IsPanelOpen()&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None&&!Panel->TrainerPicks->IsVisible(),
+            TEXT("UI: closing the workshop leaves no hidden confirmation or trainer buttons behind"))){return false;}
         UIServiceStep=133;return true;
     case 133:
         if(!PC.CanWorldCommand()){return true;}
         if(!Walk(2)){return false;}UIServiceStep=14;return true;
     case 14:
         if(PC.OwnerState.NearbyRestService!=ELDRestService::ComponentArtisan){return true;}
-        if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-            TEXT("UI: actual artisan interaction opens its service window"))){return false;}
-        ++UIServiceStep;return true;
+        if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: the workshop opens beside the artisan with its services on the board"))){return false;}
+        ++UIServiceStep;UIActionDueAt=Now+.3;return true;
     case 15:
         if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestDismantle")))){return Passed;}
         ++UIServiceStep;return true;

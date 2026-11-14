@@ -7,6 +7,7 @@
 #include "UI/LDUIShapes.h"
 #include "UI/LDWorkshopModel.h"
 #include "UI/LDTween.h"
+#include "UI/LDUIFonts.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -261,6 +262,21 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     StorageShown(StackFrame,bShownNow&&!Workshop.bActive,ESlateVisibility::Visible);
     const LDHUD::FStorageView Model=LDHUD::ComponentStorage(Latest,Content,&SeenComponents);
     LatestModel=Model;
+    {
+        // New owned components fly into the stack (the workshop shows them with their yellow dot instead); a new match only
+        // takes its first view as the baseline.
+        TSet<FName> Owned;for(const FLDComponentInstanceView& Each:Latest.Components){Owned.Add(Each.DefinitionId);}
+        if(KnownMatch==Match&&Latest.bValid)
+        {
+            for(const FLDComponentInstanceView& Each:Latest.Components)
+            {
+                if(KnownOwned.Contains(Each.DefinitionId)||Each.bInstalled||Workshop.bActive){continue;}
+                FFly& Fly=Flies.AddDefaulted_GetRef();Fly.Component=Each.DefinitionId;Fly.At=UiNow();Fly.bStrip=!bEngaged;
+            }
+        }
+        if(Latest.bValid){KnownOwned=MoveTemp(Owned);KnownMatch=Match;}
+        Flies.RemoveAll([this](const FFly& Fly){return UiNow()-Fly.At>LDHUDStyle::MotionGain+1.5;});
+    }
     // The cards and tiles are rebuilt only for another build, catalog or numbers.
     FString Key=FString::Printf(TEXT("%u|%llu|%p|%u|%lld|%lld|%lld|%lld"),Match,Latest.BuildRevision,Content,uint32(Stats.Level),
         int64(Stats.ADP2),int64(Stats.APP2),int64(Stats.MaxHPP2),int64(Stats.ArmorP2));
@@ -961,7 +977,7 @@ void ULDComponentStorage::UpdateStates(FVector2D Pointer)
             :Drag.bActive&&Drag.Component==Tile.Component?EFaceState::Held
             :Bases&&Bases->Contains(Tile.Component)?EFaceState::Pick
             :bReplaced||(OnTile&&!OnTile->Replacing.IsNone())?EFaceState::Replace
-            :Detached.Contains(Tile.Component)?EFaceState::Detached
+            :Detached.Contains(Tile.Component)||Warnings.Contains(Tile.Component)?EFaceState::Detached
             :OnTile?EFaceState::Legal
             :CurrentFocus.Component==Tile.Component&&CurrentFocus.bInstalled?EFaceState::Hovered
             :Bases?EFaceState::Dim:EFaceState::Normal;
@@ -1088,6 +1104,16 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
         StorageShown(GhostCaptionFrame,false);
         if(bWaiting){StoragePlace(GhostSlot,Local(PendingAt),FVector2D(.5f,.5f));LDTween::SetScale(GhostFrame,1.f);LDTween::SetOpacity(GhostFrame,.5f);}
     }
+}
+bool ULDComponentStorage::TileBox(FName Component,FSlateRect& Out) const
+{
+    for(const FTile& Tile:Tiles)
+    {
+        if(Tile.Component!=Component||!Tile.Face||!Columns.IsValidIndex(int32(Tile.Column))||!Columns[int32(Tile.Column)].Frame->IsVisible()){continue;}
+        Out=StorageRect(Tile.Face);
+        return StorageHasArea(Out);
+    }
+    return false;
 }
 bool ULDComponentStorage::Drags(const TArray<LDHUD::FComponentDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly)
 {
@@ -1235,6 +1261,66 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
             const FLinearColor Plus=(bLegal?LDHUDStyle::UILegal:LDHUDStyle::TextSecondary).CopyWithNewOpacity(.6f);
             LDUIShapes::Stroke(Elements,Top,Geometry,{Center-FVector2D(6,0),Center+FVector2D(6,0)},Plus,1.5f);
             LDUIShapes::Stroke(Elements,Top,Geometry,{Center-FVector2D(0,6),Center+FVector2D(0,6)},Plus,1.5f);
+        }
+    }
+    if(!Workshop.bActive&&StackFrame&&StackFrame->IsVisible())
+    {
+        // Over each skill slot, one small mark per installed component in its kind's colour and shape, so the build reads
+        // without opening anything; the mini capacity bar sits over the stack.
+        if(!bExpanded&&Anchors.bValid)
+        {
+            for(int32 Index=0;Index<LatestModel.Columns.Num()&&Index<LDHUD::StorageColumnCount;++Index)
+            {
+                const FSlateRect& Anchor=Anchors.Columns[Index];
+                const TArray<LDHUD::FEquippedView>& Entries=LatestModel.Columns[Index].Entries;
+                if(!StorageHasArea(Anchor)||Entries.IsEmpty()){continue;}
+                const FBox2D Over=LDUIShapes::AbsoluteIn(Geometry,Anchor);
+                const int32 Count=FMath::Min(Entries.Num(),7);
+                const float Mark=8.f,Gap=3.f;
+                const float X0=float(Over.GetCenter().X)-(Count*Mark+(Count-1)*Gap)*.5f,Y=float(Over.Min.Y)-Mark-4.f;
+                for(int32 Entry=0;Entry<Count;++Entry)
+                {
+                    const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Entries[Entry].Component,LatestContent).Kind);
+                    const FBox2D Box(FVector2D(X0+Entry*(Mark+Gap),Y),FVector2D(X0+Entry*(Mark+Gap)+Mark,Y+Mark));
+                    LDUIShapes::Fill(Elements,Top,Geometry,Box,LDUIShapes::KindColor(Kind),Kind==2?Mark*.5f:Kind==1?2.f:1.5f);
+                }
+            }
+        }
+        const FBox2D Stack=LDUIShapes::RectIn(Geometry,StackFrame->GetCachedGeometry());
+        const LDWorkshop::FCapacityView Capacity=LDWorkshop::Capacity(Latest,LatestModel,LatestContent);
+        for(int32 Cell=0;Cell<Capacity.Capacity&&Cell<16;++Cell)
+        {
+            const float X=float(Stack.Min.X)+Cell*19.f,Y=float(Stack.Min.Y)-14.f;
+            const FLinearColor Color=Capacity.Used.IsValidIndex(Cell)?LDUIShapes::KindColor(uint8(Capacity.Used[Cell])):LDHUDStyle::UIRaised;
+            LDUIShapes::Fill(Elements,Top,Geometry,FBox2D(FVector2D(X,Y),FVector2D(X+16.f,Y+9.f)),Color,1.5f);
+        }
+        // A received component's icon arcs from the screen centre into the stack; its name then stays over the stack.
+        const FVector2D Size=Geometry.GetLocalSize();
+        for(const FFly& Fly:Flies)
+        {
+            const double Age=Now-Fly.At;
+            const FVector2D From(Size.X*.5f,Size.Y*.42f),To=Stack.GetCenter();
+            const float T=LDTween::Progress(Age,LDHUDStyle::MotionGain,LDTween::ECurve::EaseOut);
+            if(T<1.f)
+            {
+                const FVector2D Control((From.X+To.X)*.5f,FMath::Min(From.Y,To.Y)-160.f);
+                const FVector2D At=FMath::Lerp(FMath::Lerp(From,Control,T),FMath::Lerp(Control,To,T),T);
+                const float Icon=FMath::Lerp(56.f,36.f,T);
+                FSlateBrush Brush;Brush.SetResourceObject(LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Fly.Component.ToString())));
+                Brush.ImageSize=FVector2D(Icon,Icon);Brush.DrawAs=ESlateBrushDrawType::Image;
+                if(Brush.GetResourceObject()){FSlateDrawElement::MakeBox(Elements,Top+1,Geometry.ToPaintGeometry(FVector2D(Icon,Icon),FSlateLayoutTransform(At-FVector2D(Icon,Icon)*.5f)),&Brush);}
+                LDUIShapes::Frame(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,FBox2D(At-FVector2D(Icon,Icon)*.5f,At+FVector2D(Icon,Icon)*.5f),LDHUDStyle::UIAction,2.f,6.f);
+            }
+            else if(Fly.bStrip&&Age<LDHUDStyle::MotionGain+1.5)
+            {
+                const FString Name=ComponentName(Fly.Component);
+                const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeSmall);
+                const FVector2D Strip(FMath::Max(80.f,Name.Len()*15.f+24.f),26.f);
+                const FVector2D Min(float(Stack.GetCenter().X)-Strip.X*.5f,float(Stack.Min.Y)-46.f);
+                LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Min,Min+Strip),LDHUDStyle::UIRaised.CopyWithNewOpacity(.95f),LDHUDStyle::RadiusButton);
+                LDUIShapes::Frame(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,FBox2D(Min,Min+Strip),LDHUDStyle::UIAction,1.5f,LDHUDStyle::RadiusButton);
+                FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(Strip,FSlateLayoutTransform(Min+FVector2D(12.f,3.f))),Name,Font,ESlateDrawEffect::None,LDHUDStyle::UIText);
+            }
         }
     }
     // A sent component waits where it was let go with a thin turning ring until the answer arrives.

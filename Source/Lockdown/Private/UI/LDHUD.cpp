@@ -123,8 +123,8 @@ LDHUD::FSlotKeys HudSlotKeys(const ALDPlayerController& PC)
 }
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
 // centre block, the 3+1 action entries over the resources, sits on the screen centre directly under the character.
-// #97: the whole band draws at HudBandScale of these sizes (user: "shrink them to about 75%").
-constexpr float HudBandScale=.75f;
+// The whole band draws at HudBandScale of these sizes, so a skill slot is 84 units at the 1080p reference.
+constexpr float HudBandScale=.875f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
 constexpr float HudDragStartPx=8.f;
 constexpr float HudSideWidth=300.f;
@@ -352,8 +352,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             RestLine->AddChildToHorizontalBox(TrainingResetButton)->SetVerticalAlignment(VAlign_Center);
             RestReadyButton=LDWidgets::Button(WidgetTree,TEXT("准备完毕"),[this](){SubmitRestReady();},true,TEXT("HUDRestReady"));
             RestLine->AddChildToHorizontalBox(RestReadyButton)->SetPadding(FMargin(8,0,0,0));
-            RestServiceButton=LDWidgets::Button(WidgetTree,TEXT("与 NPC 交互"),[this](){OpenRestService();},true,TEXT("HUDRestService"));
-            RestLine->AddChildToHorizontalBox(RestServiceButton)->SetPadding(FMargin(8,0,0,0));
             RestAnswerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,420);RestAnswerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);RestAnswerText->SetVisibility(ESlateVisibility::Collapsed);
             auto* ResultSlot=RestLine->AddChildToHorizontalBox(RestAnswerText);ResultSlot->SetVerticalAlignment(VAlign_Center);ResultSlot->SetPadding(FMargin(10,0,0,0));
             RestActionsPanel=Panel(RestLine,true);RestActionsPanel->SetVisibility(ESlateVisibility::Collapsed);
@@ -681,6 +679,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(1,1));PromptSlot->SetAlignment(FVector2D(1,1));PromptSlot->SetAutoSize(true);
         PromptSlot->SetPosition(FVector2D(-HudCornerInset,-HudCornerInset));
         {
+            // The pink count on the 构筑 button's corner: how many decisions wait.
+            PromptBadgeText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);PromptBadgeText->SetColorAndOpacity(FLinearColor::White);HudFace(PromptBadgeText,true,0);
+            PromptBadge=WidgetTree->ConstructWidget<UBorder>();PromptBadge->SetBrush(HudRound(9.f,LDHUDStyle::UIBase,1.f));PromptBadge->SetBrushColor(LDHUDStyle::UIEvent);
+            PromptBadge->SetPadding(FMargin(6,0));PromptBadge->SetContent(PromptBadgeText);PromptBadge->SetVisibility(ESlateVisibility::Collapsed);
+            PromptBadgeSlot=Canvas->AddChildToCanvas(PromptBadge);PromptBadgeSlot->SetAnchors(FAnchors(1,1));PromptBadgeSlot->SetAlignment(FVector2D(.5f,.5f));
+            PromptBadgeSlot->SetAutoSize(true);PromptBadgeSlot->SetZOrder(1);
+        }
+        {
             // The dragged slot's ghost follows the pointer; it takes no input.
             DragGhostGlyph=OneLine(TEXT(""),LDHUDStyle::TypeSubBanner,0);HudFace(DragGhostGlyph,true,2);DragGhostGlyph->SetJustification(ETextJustify::Center);
             DragGhost=WidgetTree->ConstructWidget<UBorder>();DragGhost->SetBrush(HudRound(6.f,LDHUDStyle::TextAccent,2.f));
@@ -832,6 +838,7 @@ bool ULDHUD::IsUIAt(FVector2D P) const
     if(Minimap&&Minimap->IsDragging()){return true;}
     if(Storage&&Storage->IsHit(P)){return true;}
     if(Workshop&&Workshop->IsHit(P)){return true;}
+    if(ChoicesPanel&&ChoicesPanel->IsQuickHit(P)){return true;}
     // The status squares above the band take the pointer for their popups; the strip's empty space does not.
     if(StatusStrip&&StatusStrip->IsVisible())
     {for(const UBorder* Cell:SelfIconCells){if(Cell&&Cell->IsVisible()&&Cell->GetCachedGeometry().IsUnderLocation(P)){return true;}}}
@@ -1083,10 +1090,6 @@ void ULDHUD::RefreshReadModel()
             HudSetText(Cast<UTextBlock>(RestReadyButton->GetContent()),ReadyLabel);
             RestReadyButton->SetIsEnabled(O.bCanRestReady&&!O.bRestReady&&!bRestReadyInFlight);
             HudSetShown(RestReadyButton,bRestPlanning,ESlateVisibility::Visible);
-            const ELDRestService Service=O.NearbyRestService;
-            const FString Npc=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
-            HudSetText(Cast<UTextBlock>(RestServiceButton->GetContent()),TEXT("与")+Npc+TEXT("交互"));
-            HudSetShown(RestServiceButton,Service!=ELDRestService::None,ESlateVisibility::Visible);
             const bool bThisRest=RestAnswerMatch==Public.Generation&&RestAnswerRest==Public.Timeline.RestIndex;
             HudSetText(RestAnswerText,bThisRest?RestAnswer:FString());
             HudSetShown(RestAnswerText,bThisRest&&!RestAnswer.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -1207,8 +1210,15 @@ void ULDHUD::RefreshReadModel()
         else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
         // #198: the build stage of the public match (the same rule the server and the AI read), never the phase alone.
         const LDProgression::EMatchStage Stage=bOwnMatch?LDProgression::StageForPublic(Public.Phase,Public.Timeline):LDProgression::EMatchStage::Closed;
+        // The workshop's places from its last layout; in the field with the workshop closed the pending cards stand as quick
+        // picks (icons only inside the engagement window, LDCombat's BuildSafeAtMs).
+        if(Workshop){ChoicesPanel->SetWorkshopPlaces(Workshop->Places());}
+        const bool bEngaged=OwnCombat&&bClock&&NowMs<OwnCombat->BuildSafeAtMs;
+        ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
+        if(Storage){Storage->SetEngaged(bEngaged);}
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
         ChoicesPanel->SetServiceContext(O.NearbyRestService);
+        if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
     }
     if(StatBar)
     {
@@ -1256,6 +1266,13 @@ void ULDHUD::RefreshReadModel()
             const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
             In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bOpeningBase?1:0)+Waiting.ComponentChoices+(Waiting.bFinalMod?1:0);
             In.bLowQuality=Scalability::GetQualityLevels().PostProcessQuality<=0;
+            In.bStage=ChoicesPanel&&ChoicesPanel->IsStageShown();In.bFinalStage=ChoicesPanel&&ChoicesPanel->IsFinalStage();
+            In.bServices=ChoicesPanel&&ChoicesPanel->IsServiceShown();
+            if(ChoicesPanel&&In.bServices)
+            {
+                const ELDRestService Service=ChoicesPanel->GetServiceContext();
+                In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
+            }
             Workshop->Present(In);
             Storage->SetWorkshop(Workshop->StorageLayout());
         }
@@ -1371,6 +1388,13 @@ void ULDHUD::RefreshReadModel()
     if(Pending.Offers>PromptOffers||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
     PromptOffers=Pending.Offers;PromptComponents=PendingComponents;
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
+    {
+        const int32 Waiting=(Pending.bOffer?1:0)+Pending.Blueprints+(Pending.bOpeningBase?1:0)+Pending.ComponentChoices+(Pending.bFinalMod?1:0);
+        HudSetText(PromptBadgeText,FString::FromInt(Waiting));
+        HudSetShown(PromptBadge,Waiting>0&&PromptFrame->IsVisible(),ESlateVisibility::HitTestInvisible);
+        const FVector2D Corner(-HudCornerInset-4.f,-HudCornerInset-float(PromptFrame->GetDesiredSize().Y)+4.f);
+        if(PromptBadgeSlot&&!PromptBadgeSlot->GetPosition().Equals(Corner,.5f)){PromptBadgeSlot->SetPosition(Corner);}
+    }
     // The button always opens the workshop; it is lit while something is pending.
     if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}
     {
@@ -1485,7 +1509,7 @@ void ULDHUD::RefreshReadModel()
     // A hovered stat icon: its name, points and per-point text, above its "+".
     if(!DetailOver&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
     // A card of the open 构筑 tray: its full rules (the card shows only the icon and the name).
-    const bool bTrayOpen=ChoicesPanel&&ChoicesPanel->IsTrayOpen();
+    const bool bTrayOpen=ChoicesPanel&&(ChoicesPanel->IsTrayOpen()||ChoicesPanel->IsQuickShown());
     if(!DetailOver&&bTrayOpen)
     {
         FName SeenComponent;
@@ -1648,19 +1672,6 @@ void ULDHUD::HandleRestReady(ELDRestReadyResult Result)
 {
     bRestReadyInFlight=false;
     ShowRestAnswer(LDHUD::RestReadyText(Result));
-}
-void ULDHUD::OpenRestService()
-{
-    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
-    if(!PC||!PC->RootUI||!ChoicesPanel){return;}
-    if(PC->OwnerState.NearbyRestService==ELDRestService::None)
-    {ShowRestAnswer(TEXT("请靠近对应的服务 NPC。"));return;}
-    ChoicesPanel->SetServiceContext(PC->OwnerState.NearbyRestService);
-    if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
-    {
-        if(!ChoicesPanel->OpenServicePanel()){ShowRestAnswer(TEXT("当前没有可用的 NPC 服务。"));}
-    }
-    else{ShowRestAnswer(TEXT("请先关闭当前确认或设置，再与 NPC 交互。"));}
 }
 void ULDHUD::HandleTrainingReset(ELDTrainingResetResult Result)
 {

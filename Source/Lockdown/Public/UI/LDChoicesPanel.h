@@ -12,12 +12,16 @@ class USizeBox;
 class UVerticalBox;
 class UHorizontalBox;
 class UWrapBox;
+class UCanvasPanel;
+class UCanvasPanelSlot;
 struct FLDDemoContentDefinitions;
 
-// The 构筑 tray behind the HUD's bottom-right 构筑 button, and the NPC service window of a rest.
-// The tray is a stack of card rows right above the button, one row per pending decision (the active offer nearest the
-// button, then the opening base pick, the elite component choices and the blueprints that have an empty Q/W/E slot). A card
-// shows the icon and the name only; hovering it shows its full rules in the HUD's slot popup (Hovered) and a click takes it.
+// The 构筑 tray behind the HUD's bottom-right 构筑 button: open, it is the build workshop (ULDWorkshop lays it out), with the
+// pending decisions stacked in the workshop's pending area, the active offer and the final mod on a centre stage of big
+// cards, and a rest's NPC services on the workshop objects they act on (APP_SPEC §7 构筑). In the field, closed, the same
+// cards show as quick picks above the button. One row per pending decision (the active offer nearest the bottom, then the
+// opening base pick, the elite component choices and the blueprints that have an empty Q/W/E slot). A card shows the icon and
+// the name only; hovering it shows its full rules in the workshop's dock or the HUD's slot popup (Hovered); a click takes it.
 // Component rows switch to icon-only tiles when there are too many component cards. Nothing scrolls and nothing explains:
 // results and refusals go to the HUD's toast (Notify). All mutations retain the existing build commands, revision checks,
 // confirmations and authority receipts.
@@ -39,17 +43,47 @@ public:
         const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
-    // Local view context only; the owning authority still admits every service command.
+    // Local view context only; the owning authority still admits every service command. Near an NPC in a rest's build window
+    // the open workshop shows its services on the objects they act on.
     void SetServiceContext(ELDRestService Service);
-    bool OpenServicePanel();
+    ELDRestService GetServiceContext() const {return ServiceContext;}
+    bool IsServiceShown() const;
+    // Where the workshop puts the build moments and the services (absolute rectangles from its last layout).
+    struct FWorkshopPlaces
+    {
+        bool bActive=false;
+        FSlateRect Stage;
+        FSlateRect Dock;
+        FSlateRect Heads[LDHUD::StorageColumnCount];
+        FSlateRect CharacterFoot;
+        FSlateRect LibraryTop;
+        FSlateRect PendingTop;
+    };
+    void SetWorkshopPlaces(const FWorkshopPlaces& InPlaces){Places=InPlaces;}
+    // The centre stage shows the active offer (and then the final mod) as big cards while the full workshop is open, until
+    // the player steps back to the board for that offer.
+    bool IsStageShown() const {return bStageShown;}
+    bool IsFinalStage() const {return bStageShown&&bStageFinal;}
+    bool LeaveStage();
+    // Field quick picks: with the tray closed, the pending cards stand above the 构筑 button; in an engagement window they
+    // shrink to icons and show no description.
+    void SetQuickPick(bool bQuick,bool bCompact);
+    bool IsQuickShown() const {return bQuickShown;}
+    bool IsQuickHit(FVector2D Absolute) const;
+    // The components a confirm line would take off or send back (lit orange on the board before the hold).
+    TArray<FName> ConfirmWarnings() const;
     // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button).
     void SetTrayInset(float Right,float Bottom);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
-    // Independent final cards; several legal sources open a source picker before the choice commits.
+    // Independent final cards; several legal sources open a source picker before the choice commits. On the stage a card and
+    // a source only select (SelectFinalMod, SelectFinalSource) and the hold of GrowthFinalLock commits (LockFinalMod).
     bool ChooseFinalMod(int32 Index);
     bool ChooseFinalModSource(int32 Index);
+    bool SelectFinalMod(int32 Index);
+    bool SelectFinalSource(int32 Index);
+    bool LockFinalMod();
     bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
     bool PreviewOffer(int32 Index);
@@ -86,8 +120,8 @@ public:
     // #198 B: an opening base card click: takes the option at Index of the shown list; a plain base asks to install it on
     // 本体 in the same commit, B18 goes to the storage, where its drop on a skill asks for the element (#227).
     bool PickOpeningBase(int32 Index);
-    virtual bool IsPanelOpen() const override {return bOpen||bServicePanelOpen;}
-    // The 构筑 tray (not the NPC service window) is open.
+    virtual bool IsPanelOpen() const override {return bOpen;}
+    // The 构筑 tray (the workshop) is open.
     bool IsTrayOpen() const {return bOpen;}
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
@@ -109,6 +143,8 @@ protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual UWidget* FocusScope() const override;
     virtual UWidget* HitArea() const override;
+    virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
+    virtual int32 NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const override;
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDDemoOpponentProbe;
@@ -131,6 +167,14 @@ private:
         int32 AppliedEnabled=-1;
         bool bTile=false;
         LDHUD::FActionDetailView Detail;
+        // The stage face: the facts line, the tag line, the element chip and the 可接 row (collapsed on tray cards).
+        TObjectPtr<UTextBlock> Facts;
+        TObjectPtr<UTextBlock> Tags;
+        TObjectPtr<UWidget> ElementChip;
+        TObjectPtr<UTextBlock> Element;
+        TObjectPtr<UHorizontalBox> Links;
+        TArray<TObjectPtr<UImage>> LinkIcons;
+        bool bBig=false;
     };
     // One pending elite component choice: its option cards and the empty-pool points card.
     struct FChoiceRow
@@ -139,13 +183,12 @@ private:
         TArray<FTrayCard> Options;
         FTrayCard Points;
     };
+    // The trainer's buttons of one pending blueprint, standing on the Q/W/E column heads: "学到" on an empty slot, "替换" on
+    // an occupied one (#198 rest only); only the selected blueprint's show.
     struct FBlueprintRow
     {
-        TObjectPtr<UWidget> Row;
-        TObjectPtr<UImage> Picture;
-        TObjectPtr<UTextBlock> Name,Summary,Blocked;
+        TObjectPtr<ULDCommandButton> Pick;
         TArray<TObjectPtr<ULDCommandButton>> Learn;
-        // #198 rest only: "替换 Q/W/E" for each occupied slot.
         TArray<TObjectPtr<ULDCommandButton>> Replace;
     };
     // A replace, forget (#198 G: fill gap or dismantle) waiting on the confirm line, with the terms it was asked under.
@@ -182,11 +225,30 @@ private:
     TArray<FTrayCard> BlueprintCards;
     TArray<FBlueprintRow> BlueprintRows;
     ELDRestService ServiceContext=ELDRestService::None;
-    UPROPERTY() TObjectPtr<UBorder> ServicePanel;
-    UPROPERTY() TObjectPtr<UVerticalBox> ServiceBody;
-    // The trainer's blueprint rows (learn or replace).
-    UPROPERTY() TObjectPtr<UWidget> BlueprintSection;
-    UPROPERTY() TObjectPtr<UVerticalBox> BlueprintList;
+    // The centre stage: its title, the chance line, the cards moved in from their tray rows, the final sources, the final
+    // description (effect, cost, notes) with the lock, and the way back to the board.
+    UPROPERTY() TObjectPtr<UCanvasPanel> Layer;
+    UPROPERTY() TObjectPtr<UWidget> StageBox;
+    UPROPERTY() TObjectPtr<UTextBlock> StageTitle;
+    UPROPERTY() TObjectPtr<UTextBlock> StageSub;
+    UPROPERTY() TObjectPtr<UHorizontalBox> StageCards;
+    UPROPERTY() TObjectPtr<UWidget> StageSourceLine;
+    UPROPERTY() TObjectPtr<UHorizontalBox> StageSources;
+    UPROPERTY() TObjectPtr<ULDCommandButton> StageBack;
+    UPROPERTY() TObjectPtr<UWidget> FinalDesc;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalEffectText;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalCostText;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalNotesText;
+    UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
+    // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, the artisan's
+    // buttons, and the dock box for the pickers and the confirm line.
+    UPROPERTY() TObjectPtr<UWidget> RespecBox;
+    UPROPERTY() TObjectPtr<UWidget> NpcBox;
+    UPROPERTY() TObjectPtr<UWidget> ArtisanBox;
+    UPROPERTY() TObjectPtr<UWrapBox> TrainerPicks;
+    UPROPERTY() TObjectPtr<UWidget> ServiceDock;
+    UPROPERTY() TObjectPtr<UVerticalBox> ServiceDockBody;
     // #198 rest services section.
     UPROPERTY() TObjectPtr<UWidget> RestSection;
     UPROPERTY() TObjectPtr<ULDCommandButton> NpcButton;
@@ -215,6 +277,17 @@ private:
     FRestConfirm RestConfirm;
     // Every widget built after RebuildWidget, kept alive with the tree.
     UPROPERTY() TArray<TObjectPtr<UWidget>> RowWidgets;
+    TMap<UWidget*,UCanvasPanelSlot*> LayerSlots;
+    FWorkshopPlaces Places;
+    bool bStageShown=false;
+    bool bStageFinal=false;
+    FGuid StageLeftFor;
+    double StageOpenedAt=-1.;
+    int32 FinalSourcePick=INDEX_NONE;
+    int32 TrainerBlueprint=0;
+    bool bQuick=false;
+    bool bQuickCompact=false;
+    bool bQuickShown=false;
     FLDProgressionView Latest;
     uint32 LatestMatch=0,LatestLife=0;
     ELDLifePhase LatestLifePhase=ELDLifePhase::Unspawned;
@@ -248,7 +321,6 @@ private:
     ELDBuildCommandKind PendingKind=ELDBuildCommandKind::None;
     uint32 Answers=0;
     bool bOpen=false;
-    bool bServicePanelOpen=false;
     LDHUD::FChoicesFold Fold;
     double UiNow() const;
     bool Usable() const;
@@ -275,6 +347,11 @@ private:
     void RefreshBlueprintCards();
     void RefreshBlueprints();
     void RefreshRest();
+    void UpdateStage();
+    void RefreshStage();
+    void LayoutLayer();
+    void PlaceOnLayer(UWidget* Widget,const FSlateRect& Absolute,FVector2D Alignment,bool bFill=false);
+    void ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon);
     // Why a rest service is refused now: the gate's reason, then the local checks (price, unspent points, an outstanding
     // offer, nothing allocated); empty when it may be sent.
     FString NpcRefusal() const;

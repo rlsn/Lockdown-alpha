@@ -153,7 +153,6 @@ private:
     UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> RestServiceButton;
     UPROPERTY() TObjectPtr<UTextBlock> RestAnswerText;
     // A reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bTrainingResetInFlight=false;
@@ -170,7 +169,6 @@ private:
     void HandleTrainingReset(ELDTrainingResetResult Result);
     void HandleRestReady(ELDRestReadyResult Result);
     void SubmitRestReady();
-    void OpenRestService();
     void SubmitTrainingReset();
     void ShowRestAnswer(const FString& Text);
     // #198 session D: the PK panel under the rest actions (LDHUD::PKPanel), from the draw to the payout step: format and
@@ -310,6 +308,9 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
+    UPROPERTY() TObjectPtr<UBorder> PromptBadge;
+    UPROPERTY() TObjectPtr<UTextBlock> PromptBadgeText;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptBadgeSlot;
     int32 PromptOffers=0;
     int32 PromptComponents=0;
     double PromptPulseAt=-1;

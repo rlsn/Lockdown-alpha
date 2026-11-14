@@ -207,6 +207,47 @@ TArray<FString> LDWorkshop::TriggerChips(FName Component,const FLDDemoContentDef
     }
     return Out;
 }
+TArray<FName> LDWorkshop::LinkableComponents(FName Active,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    TArray<FName> Out;
+    const FString ActiveId=Active.ToString();
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Owned.DefinitionId);
+        if(Definition&&(Definition->TargetActives.Contains(ActiveId)||Definition->BindActives.Contains(ActiveId))){Out.AddUnique(Owned.DefinitionId);}
+    }
+    return Out;
+}
+LDWorkshop::FFinalText LDWorkshop::SplitFinalText(const FString& Description)
+{
+    TArray<FString> Sentences;
+    FString Rest=Description.TrimStartAndEnd();
+    int32 End=INDEX_NONE;
+    while(Rest.FindChar(TEXT('。'),End))
+    {
+        Sentences.Add(Rest.Left(End+1).TrimStartAndEnd());
+        Rest=Rest.Mid(End+1).TrimStartAndEnd();
+    }
+    if(!Rest.IsEmpty()){Sentences.Add(Rest);}
+    FFinalText Out;
+    if(Sentences.IsValidIndex(0)){Out.Effect=Sentences[0];}
+    if(Sentences.IsValidIndex(1)){Out.Cost=Sentences[1];}
+    for(int32 Index=2;Index<Sentences.Num();++Index){Out.Notes+=Sentences[Index];}
+    return Out;
+}
+TArray<FString> LDWorkshop::KeywordNames(const TArray<FString>& KeywordLines)
+{
+    TArray<FString> Out;
+    for(const FString& Line:KeywordLines)
+    {
+        int32 Start=Line.Find(TEXT("<b>"));
+        if(Start==INDEX_NONE){continue;}
+        Start+=3;
+        const int32 Stop=Line.Find(TEXT("</>"),ESearchCase::CaseSensitive,ESearchDir::FromStart,Start);
+        if(Stop>Start){Out.AddUnique(Line.Mid(Start,Stop-Start));}
+    }
+    return Out;
+}
 int32 LDWorkshop::RestStepDot(ELDRestStep Step)
 {
     switch(Step)

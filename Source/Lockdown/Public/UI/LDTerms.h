@@ -180,6 +180,24 @@ inline constexpr TCHAR TriggerBasicHit[]=TEXT("普攻命中");
 inline constexpr TCHAR TriggerAbilityHit[]=TEXT("主动命中");
 inline constexpr TCHAR TriggerDamaged[]=TEXT("受到伤害");
 inline constexpr TCHAR TriggerDashComplete[]=TEXT("冲刺完成");
+// 构筑时刻：主动三选一页与终局改装页。
+inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
+inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
+inline constexpr TCHAR OfferLinks[]=TEXT("可接");
+inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
+inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
+inline constexpr TCHAR OfferSkip[]=TEXT("不选");
+inline FString ReactsWith(const FString& Key,const FString& Name,const FString& Pair,const FString& Reaction){return FString::Printf(TEXT("与 %s %s：%s %s"),*Key,*Name,*Pair,*Reaction);}
+inline constexpr TCHAR FinalStageTitle[]=TEXT("终局改装");
+inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");
+inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
+inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
+inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
+inline constexpr TCHAR FinalLock[]=TEXT("按住锁定构筑");
+inline constexpr TCHAR FinalEffect[]=TEXT("效果");
+inline constexpr TCHAR FinalCost[]=TEXT("代价");
+inline constexpr TCHAR FinalNotes[]=TEXT("须知");
+inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}

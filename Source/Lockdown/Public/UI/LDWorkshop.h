@@ -5,6 +5,7 @@
 #include "Framework/LDMatchTimeline.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDComponentStorage.h"
+#include "UI/LDChoicesPanel.h"
 #include "LDWorkshop.generated.h"
 class UBorder;
 class UCanvasPanel;
@@ -63,6 +64,12 @@ public:
         int32 Pending=0;
         // Low quality: the backdrop only darkens, without the blur.
         bool bLowQuality=false;
+        // The tray's centre stage (the active offer, or the pink final mod page) replaces the board; the NPC beside the
+        // player (its name rides on the phase bar) puts its services on the board.
+        bool bStage=false;
+        bool bFinalStage=false;
+        FString NpcName;
+        bool bServices=false;
     };
     void Present(const FInput& Input);
     bool IsOpen() const {return Mode!=EMode::Closed;}
@@ -74,6 +81,8 @@ public:
     FVector2D TrayInset() const {return FVector2D(TrayRight,TrayBottom);}
     // Where the rest actions (重置训练, 准备完毕) sit: right of the phase bar, left of the close button (local units).
     FVector2D ActionsAnchor() const {return ActionsAt;}
+    // The tray's stage, dock and service places (absolute), from the last layout.
+    ULDChoicesPanel::FWorkshopPlaces Places() const;
     TWeakObjectPtr<ULDComponentStorage> Storage;
     TWeakObjectPtr<ULDStatBar> StatBar;
     TWeakObjectPtr<ULDChoicesPanel> Choices;
@@ -110,6 +119,8 @@ private:
         UTextBlock* Mana=nullptr;
         UTextBlock* Cooldown=nullptr;
         UTextBlock* Element=nullptr;
+        // The locked final mod's icon over the head of what it binds.
+        UImage* Final=nullptr;
         FName Active;
         FString AppliedIcon;
         TArray<ELDDemoElement> Elements;
@@ -127,7 +138,7 @@ private:
     // Every rectangle of the current layout, in local units.
     struct FRects
     {
-        FBox2D Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region;
+        FBox2D Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage;
         FBox2D Column[LDHUD::StorageColumnCount];
         float HeadHeight=0.f;
         float HeadIcon=100.f;
