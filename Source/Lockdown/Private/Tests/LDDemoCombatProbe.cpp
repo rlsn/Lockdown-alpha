@@ -113,7 +113,8 @@ constexpr double CombatProbeSkillArrivalCm = 60.0;
 // far off it (either side; the first with legal ground and complete routes both ways wins), passed within the pass
 // radius before the queued site.
 constexpr double CombatProbeQueueAlong[] = {.5, .35, .65, .2, .8};
-constexpr double CombatProbeQueueDetourCm[] = {320.0, -320.0, 220.0, -220.0, 150.0, -150.0};
+constexpr double CombatProbeQueueDetourCm[] = {320.0, -320.0, 220.0, -220.0, 150.0, -150.0,
+    640.0, -640.0, 960.0, -960.0, 1280.0, -1280.0, 1920.0, -1920.0};
 constexpr double CombatProbeQueuePassCm = 90.0;
 // The queued walk starts where Client1's camp- and Boss-free approach from its random respawn point ends (at worst the
 // respawn point itself, up to the map's width from the skill site), with a detour.
@@ -676,6 +677,55 @@ public:
             && OwnId == PC.OwnerState.ContenderId, TEXT("Start"), TEXT("The public roster names this owner and exactly one other human"));
     }
 
+    bool FindQueuedWaypoint(const ULDMapRegistry& Registry, FName Surface, const FVector& Foot, const FVector& Site,
+        FVector& Waypoint, FString& OutError) const
+    {
+        const FVector Span(Site.X - Foot.X, Site.Y - Foot.Y, 0.0);
+        const FVector Across = FVector(Span.Y, -Span.X, 0.0).GetSafeNormal();
+        FCollisionShape Capsule;
+        FLDLegalGround From, Detour, To;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        if (Across.IsNearlyZero())
+        {
+            OutError = TEXT("The queued walk needs distinct start and end points.");
+            return false;
+        }
+        if (!ULDMapRegistry::ContentCapsule(*Catalog, Capsule, OutError)
+            || !Registry.QueryGround(Registry.Revision(), Foot, Capsule, Surface, From, Failure, OutError)
+            || !Registry.QueryGround(Registry.Revision(), Site, Capsule, Surface, To, Failure, OutError))
+        {
+            return false;
+        }
+        FString Tried;
+        for (const double Along : LDDemoCombatScenario::CombatProbeQueueAlong)
+        {
+            for (const double Offset : LDDemoCombatScenario::CombatProbeQueueDetourCm)
+            {
+                Waypoint = Foot + Span * Along + Across * Offset;
+                FVector Normal;
+                Registry.GetTerrain().Ground(FVector2D(Waypoint), Waypoint.Z, Normal);
+                FLDCompletePath First, Second;
+                FString Why;
+                if (Registry.QueryGround(Registry.Revision(), Waypoint, Capsule, Surface, Detour, Failure, Why)
+                    && Registry.QueryCompletePath(Registry.Revision(), From, Detour, Capsule, First, Failure, Why)
+                    && Registry.QueryCompletePath(Registry.Revision(), Detour, To, Capsule, Second, Failure, Why))
+                {
+                    if (LDScenarioWalk::RouteKeepout(First.Points, WalkKeepouts) == INDEX_NONE
+                        && LDScenarioWalk::RouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE)
+                    {
+                        Waypoint = Detour.SurfaceCm;
+                        OutError.Reset();
+                        return true;
+                    }
+                    Why = TEXT("crosses a camp home or the Boss's patrol band");
+                }
+                Tried += FString::Printf(TEXT("[%s %s] "), *Waypoint.ToCompactString(), *Why);
+            }
+        }
+        OutError = MoveTemp(Tried);
+        return false;
+    }
+
     // Both roles derive the same two sites from public anchors and approved radii, then prove them legal.
     bool PrepareSites(const ULDMapRegistry& Registry)
     {
@@ -772,6 +822,16 @@ public:
                         && Registry.QueryCompletePath(Registry.Revision(), HostGround, ClientGround, Capsule, Route, RouteFailure, SiteError)
                         && Route.LengthCm <= 1.2 * Gap && LDScenarioWalk::RouteKeepout(Route.Points, WalkKeepouts) == INDEX_NONE;
                 }
+            }
+        }
+        if (bFound)
+        {
+            FVector RegressionWaypoint;
+            if (!Check(FindQueuedWaypoint(Registry, CaptureAnchor->Surface, FVector(-4441.42, 1596.17, 102.15),
+                FVector(-1746.13, 486.01, 0), RegressionWaypoint, SiteError), TEXT("Queue"),
+                TEXT("The captured long platform-to-ground approach admits two camp-free native queued legs"), SiteError))
+            {
+                return false;
             }
         }
         bSitesReady = bFound;
@@ -1456,48 +1516,9 @@ public:
         {
             if (PC.Navigation->HasMoveOrder()) { return true; }
             const auto* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
-            FCollisionShape Capsule;
             FString QueueError;
-            FLDLegalGround From, Detour, To;
-            ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
-            const FName Surface = PC.Navigation->GroundSurfaceHint();
-            const FVector Span(SkillSite.X - Foot.X, SkillSite.Y - Foot.Y, 0.0);
-            const FVector Across = FVector(Span.Y, -Span.X, 0.0).GetSafeNormal();
-            bool bLegal = false;
-            if (Registry && !Across.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, QueueError)
-                && Registry->QueryGround(Registry->Revision(), Foot, Capsule, Surface, From, Failure, QueueError)
-                && Registry->QueryGround(Registry->Revision(), SkillSite, Capsule, Surface, To, Failure, QueueError))
-            {
-                FString Tried;
-                for (int32 Index = 0; !bLegal && Index < UE_ARRAY_COUNT(LDDemoCombatScenario::CombatProbeQueueAlong); ++Index)
-                {
-                    for (const double Offset : LDDemoCombatScenario::CombatProbeQueueDetourCm)
-                    {
-                        QueueWaypoint = Foot + Span * LDDemoCombatScenario::CombatProbeQueueAlong[Index] + Across * Offset;
-                        FVector Normal;
-                        Registry->GetTerrain().Ground(FVector2D(QueueWaypoint), QueueWaypoint.Z, Normal);
-                        FLDCompletePath First, Second;
-                        FString Why;
-                        if (Registry->QueryGround(Registry->Revision(), QueueWaypoint, Capsule, Surface, Detour, Failure, Why)
-                            && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
-                            && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
-                        {
-                            // D26: both legs stay out of the camp homes and the Boss's patrol band as well.
-                            if (LDScenarioWalk::RouteKeepout(First.Points, WalkKeepouts) == INDEX_NONE
-                                && LDScenarioWalk::RouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE)
-                            {
-                                QueueWaypoint = Detour.SurfaceCm;
-                                bLegal = true;
-                                break;
-                            }
-                            Why = TEXT("crosses a camp home or the Boss's patrol band");
-                        }
-                        Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
-                        if (bLegal) { break; }
-                    }
-                }
-                if (!bLegal) { QueueError = Tried; }
-            }
+            const bool bLegal = Registry && FindQueuedWaypoint(*Registry, PC.Navigation->GroundSurfaceHint(), Foot,
+                SkillSite, QueueWaypoint, QueueError);
             if (!Check(bLegal, TEXT("Queue"), TEXT("A legal detour waypoint off the straight walk to the skill site exists"),
                 FString::Printf(TEXT("from=%s site=%s %s"), *Foot.ToCompactString(), *SkillSite.ToCompactString(), *QueueError)))
             {

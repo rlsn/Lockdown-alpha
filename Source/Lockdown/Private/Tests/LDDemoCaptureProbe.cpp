@@ -486,7 +486,11 @@ public:
             const auto* Marker = Public->GetCaptureMarker();
             bMarkerSeen |= Marker && Marker->GetGeneration() == Generation
                 && Marker->GetCenter().Equals(View.Showdown.CentreCm, 1.) && Marker->IsPresentationOnly();
-            if (bMarkerSeen && HoldForShot(TEXT("HostFinalFlag.png"))) { return true; }
+            const auto* CaptureBody = Cast<ALDCharacter>(PC->GetPawn());
+            if (bMarkerSeen && CaptureBody
+                && FVector::DistSquared2D(CaptureBody->GetNavAgentLocation(), View.Showdown.CentreCm)
+                    <= FMath::Square(CoreRadiusCm)
+                && HoldForShot(TEXT("HostFinalFlag.png"))) { return true; }
             if (!bPassed) { return Finish(); }
             if (View.Phase != ELDMatchPhase::Results && bInput && PC->CanWorldCommand() && PC->Navigation)
             {
