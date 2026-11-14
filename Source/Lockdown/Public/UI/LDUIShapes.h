@@ -58,7 +58,9 @@ namespace LDUIShapes
                 Points.Add(Corners[Corner]+FVector2D(FMath::Cos(Angle),FMath::Sin(Angle))*R);
             }
         }
-        Points.Add(Points[0]);
+        // Copy the first point before adding it: Add may grow the array and invalidate a reference into it.
+        const FVector2D First=Points[0];
+        Points.Add(First);
         return Points;
     }
     inline void Stroke(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const TArray<FVector2D>& Points,const FLinearColor& Color,float Thickness)

@@ -1,4 +1,5 @@
 #include "UI/LDChoicesPanel.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
@@ -40,7 +41,6 @@ static_assert(8*TrayTileSize+7*TrayTileGap<=TrayWidth,"eight grid tiles fit on o
 static_assert(TrayTileIcon+2*TrayCardPadding<=TrayTileSize,"a grid tile holds its icon");
 constexpr float ServicePanelWidth=540.f;
 // #198 G dismantle selection buttons per line (their labels may carry the installed warning).
-constexpr int32 GrowthDismantlePerLine=1;
 void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
     auto Style=Button->GetStyle();Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
@@ -174,7 +174,8 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             {
                 auto* Picker=WidgetTree->ConstructWidget<UVerticalBox>();
                 DismantleHeading=OneLine(LDHUDStyle::TypeCaption);Picker->AddChildToVerticalBox(DismantleHeading);
-                DismantleList=WidgetTree->ConstructWidget<UVerticalBox>();Picker->AddChildToVerticalBox(DismantleList)->SetPadding(FMargin(0,2,0,0));
+                DismantleList=WidgetTree->ConstructWidget<UWrapBox>();DismantleList->SetExplicitWrapSize(true);DismantleList->SetWrapSize(ServicePanelWidth+200.f);
+                DismantleList->SetInnerSlotPadding(FVector2D(6,4));Picker->AddChildToVerticalBox(DismantleList)->SetPadding(FMargin(0,2,0,0));
                 Picker->SetVisibility(ESlateVisibility::Collapsed);
                 DismantleSection=Picker;
                 Body->AddChildToVerticalBox(Picker)->SetPadding(FMargin(0,4,0,0));
@@ -192,7 +193,10 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ConfirmRow->SetVisibility(ESlateVisibility::Collapsed);
             Body->AddChildToVerticalBox(ConfirmRow)->SetPadding(FMargin(0,8,0,0));
             RestConfirmLine=ConfirmRow;
-            UBorder* Dock=LDWidgets::Panel(WidgetTree,Body,FMargin(24,18));Dock->SetBrushColor(LDHUDStyle::UIRaised.CopyWithNewOpacity(.98f));
+            UScaleBox* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
+            Fit->SetContent(Body);
+            if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Body->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
+            UBorder* Dock=LDWidgets::Panel(WidgetTree,Fit,FMargin(24,18));Dock->SetBrushColor(LDHUDStyle::UIRaised.CopyWithNewOpacity(1.f));
             Dock->SetVisibility(ESlateVisibility::Collapsed);ServiceDock=Dock;RestSection=Dock;
         }
         {
@@ -279,7 +283,7 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
         auto* ChipSlot=IconBox->AddChildToOverlay(Chip);ChipSlot->SetHorizontalAlignment(HAlign_Right);ChipSlot->SetVerticalAlignment(VAlign_Bottom);
         Card.ElementChip=Chip;
         Card.Links=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Card.Links);Card.Links->SetVisibility(ESlateVisibility::Collapsed);
-        UTextBlock* Label=LDWidgets::Text(WidgetTree,LDTerms::OfferLinks,LDHUDStyle::TypeTiny);Label->SetColorAndOpacity(LDHUDStyle::TextSecondary);RowWidgets.Add(Label);
+        UTextBlock* Label=LDWidgets::Text(WidgetTree,LDTerms::OfferLinks,LDHUDStyle::TypeTiny);Label->SetAutoWrapText(false);Label->SetColorAndOpacity(LDHUDStyle::TextSecondary);RowWidgets.Add(Label);
         Card.Links->AddChildToHorizontalBox(Label)->SetVerticalAlignment(VAlign_Center);
         for(int32 Link=0;Link<4;++Link)
         {
@@ -570,7 +574,7 @@ void ULDChoicesPanel::RefreshOffer()
             if(!Lines.IsEmpty()){Detail.Body+=TEXT("\n\n")+FString::Join(Lines,TEXT("\n"));}
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,Detail);
             // The stage face: targeting, mana and cooldown, the keywords as tags, the element and the 可接 icons.
-            GrowthText(Card.Facts,View.Target+TEXT("    ")+View.Cost);
+            GrowthText(Card.Facts,View.Target+TEXT("\n")+View.Cost);
             GrowthText(Card.Tags,FString::Join(LDWorkshop::KeywordNames(View.Keywords),TEXT("  ·  ")));
             GrowthText(Card.Element,Own.IsEmpty()?FString():LDHUD::ElementName(Own[0]));
             if(UBorder* Chip=Cast<UBorder>(Card.ElementChip.Get())){Chip->SetBrushColor(Own.IsEmpty()?FLinearColor::Transparent:LDHUDStyle::UIAction);}
@@ -1220,16 +1224,11 @@ ULDCommandButton* ULDChoicesPanel::DismantleButtonAt(int32 Index)
     while(DismantleButtons.Num()<=Index)
     {
         const int32 ButtonIndex=DismantleButtons.Num();
-        if(ButtonIndex%GrowthDismantlePerLine==0)
-        {
-            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();RowWidgets.Add(Line);DismantleLines.Add(Line);
-            DismantleList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,ButtonIndex?4.f:0.f,0,0));
-        }
         ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickDismantle(ButtonIndex);},false,
             FName(*FString::Printf(TEXT("GrowthRestDismantlePick%d"),ButtonIndex)));
         ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
         auto* Caption=CastChecked<UTextBlock>(Pick->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(ServicePanelWidth-44.f);
-        DismantleLines.Last()->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(ButtonIndex%GrowthDismantlePerLine?6.f:0.f,0,0,0));
+        DismantleList->AddChildToWrapBox(Pick);
         DismantleButtons.Add(Pick);
     }
     return DismantleButtons[Index];
@@ -1553,6 +1552,7 @@ void ULDChoicesPanel::ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon)
     const float Face=bBig?Icon:TrayCardIcon;
     if(Face>0.f){Card.IconFrame->SetWidthOverride(Face);Card.IconFrame->SetHeightOverride(Face);}
     Card.Name->SetFont(LDUIFonts::Font(bBig?LDUIFonts::ERole::Title:LDUIFonts::ERole::Body,FMath::RoundToFloat((bBig?LDHUDStyle::TypeSection:LDHUDStyle::TypeBody)*Scale)));
+    Card.Facts->SetWrapTextAt(bBig?Width-2.f*18.f-8.f:0.f);
     GrowthShown(Card.Facts,bBig&&!Card.Facts->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     GrowthShown(Card.Tags,bBig&&!Card.Tags->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(!bBig){GrowthShown(Card.Links,false);GrowthShown(Card.ElementChip,false);GrowthShown(Card.IconFrame,true);}
@@ -1657,17 +1657,18 @@ void ULDChoicesPanel::LayoutLayer()
     if(bStageShown)
     {
         PlaceOnLayer(StageBox,Places.Stage,FVector2D(.5f,0.f));
-        PlaceOnLayer(StageBack,Places.Stage,FVector2D(1.f,0.f));
+        // Top-left: the rest actions own the top-right corner of the full workshop.
+        PlaceOnLayer(StageBack,Places.Stage,FVector2D(0.f,0.f));
         const FSlateRect& Dock=Places.Dock;
         PlaceOnLayer(FinalDesc,FSlateRect(Dock.Left+28.f,Dock.Top,Dock.Right-340.f,Dock.Bottom),FVector2D(0.f,.5f));
         PlaceOnLayer(FinalLockButton,FSlateRect(Dock.Right-320.f,Dock.Top,Dock.Right-28.f,Dock.Bottom),FVector2D(.5f,.4f));
         PlaceOnLayer(FinalLockNote,FSlateRect(Dock.Right-320.f,Dock.Top,Dock.Right-28.f,Dock.Bottom),FVector2D(.5f,.78f));
     }
     if(!IsServiceShown()){return;}
-    PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D(0.f,0.f));
+    PlaceOnLayer(RespecBox,FSlateRect(Places.CharacterFoot.Left,Places.CharacterFoot.Top,Places.CharacterFoot.Right-10.f,Places.CharacterFoot.Bottom),FVector2D(1.f,.5f));
     PlaceOnLayer(NpcBox,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
-    PlaceOnLayer(ArtisanBox,Places.LibraryTop,FVector2D(1.f,0.f));
+    PlaceOnLayer(ArtisanBox,Places.LibraryTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);
     for(uint8 Key=0;Key<3;++Key)
     {
@@ -1675,8 +1676,10 @@ void ULDChoicesPanel::LayoutLayer()
         if(ForgetButtons.IsValidIndex(Key)){PlaceOnLayer(ForgetButtons[Key],Head,FVector2D(1.f,0.f));}
         if(BlueprintRows.IsValidIndex(TrainerBlueprint))
         {
-            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Learn[Key],Head,FVector2D(.5f,1.f));
-            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Replace[Key],Head,FVector2D(.5f,1.f));
+            // On the skill icon the blueprint lands on.
+            const FSlateRect& Icon=Places.HeadIcons[int32(LDHUD::SlotColumn(Key))];
+            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Learn[Key],Icon,FVector2D(.5f,.5f));
+            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Replace[Key],Icon,FVector2D(.5f,.5f));
         }
     }
 }

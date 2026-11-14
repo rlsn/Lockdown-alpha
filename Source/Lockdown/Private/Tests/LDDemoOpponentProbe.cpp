@@ -1980,6 +1980,13 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                     TEXT("UI: owning connection opens the workshop beside an NPC during payout"))){return Finish();}
                 UIPayoutStep=2;return true;
             }
+            // A waiting offer takes the centre stage; its back button returns to the bench, where the services are.
+            if(Panel->IsStageShown())
+            {
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthStageBack"))),
+                    TEXT("UI: the payout owner leaves the offer stage for the NPC services"))){return Finish();}
+                return true;
+            }
             if(!Panel->IsServiceShown()){return true;}
             if(!Check(Panel->IsServiceShown()&&Panel->NpcBox->IsVisible()
                 &&!Cast<UTextBlock>(Panel->NpcButton->GetContent())->GetText().IsEmpty()
@@ -2284,7 +2291,8 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Growth->PendingBlueprints.IsEmpty())
         {
             UIReplacement=Growth->PendingBlueprints[0];
-            if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt")))){return Passed;}
+            // The open workshop hides the 构筑 button; its own close button puts it away.
+            if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
             UIServiceStep=31;return true;
         }
         if(!Check(Growth->Level<6,TEXT("UI: approved level 3/6 and NPC offers supply the replacement fixture"))){return false;}

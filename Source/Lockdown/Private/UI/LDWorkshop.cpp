@@ -1,4 +1,6 @@
 #include "UI/LDWorkshop.h"
+#include "Components/ScaleBox.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Core/LDLog.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDHUDStyle.h"
@@ -45,6 +47,7 @@ constexpr float WorkshopRightWidth=480.f;
 constexpr float WorkshopDockHeight=260.f;
 constexpr float WorkshopFieldShare=.46f;
 constexpr float WorkshopFieldDockWidth=340.f;
+constexpr float WorkshopArtisanBand=150.f;
 constexpr int32 WorkshopMeterCells=16;
 // Icons never draw under this many pixels; below it the board hides the names beside them.
 constexpr float WorkshopMinIconPixels=36.f;
@@ -58,6 +61,14 @@ void WorkshopShown(UWidget* Widget,bool bShown,ESlateVisibility Shown=ESlateVisi
     if(!Widget){return;}
     const ESlateVisibility Next=bShown?Shown:ESlateVisibility::Collapsed;
     if(Widget->GetVisibility()!=Next){Widget->SetVisibility(Next);}
+}
+// A dock column that scales down (never up) to fit its place instead of spilling out of the dock.
+UScaleBox* WorkshopFit(UWidgetTree* Tree,UWidget* Content)
+{
+    UScaleBox* Fit=Tree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
+    Fit->SetContent(Content);
+    if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Content->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
+    return Fit;
 }
 bool WorkshopHasArea(const FBox2D& Box){return Box.bIsValid&&Box.GetSize().X>1.f&&Box.GetSize().Y>1.f;}
 FBox2D WorkshopBox(float X0,float Y0,float X1,float Y1){return FBox2D(FVector2D(X0,Y0),FVector2D(X1,Y1));}
@@ -279,7 +290,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Centre->AddChildToVerticalBox(DockBody)->SetPadding(FMargin(0,8,0,0));
             DockChips=Label(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::ComponentLink,LDUIFonts::ERole::Strong);DockChips->SetAutoWrapText(true);
             Centre->AddChildToVerticalBox(DockChips)->SetPadding(FMargin(0,10,0,0));
-            DockCentre=Centre;Add(Centre,3);
+            DockCentre=WorkshopFit(WidgetTree,Centre);Add(DockCentre,3);
             auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();
             const auto Section=[&](TObjectPtr<UTextBlock>& Title,TObjectPtr<UTextBlock>& Body,const TCHAR* Caption,bool bFirst)
             {
@@ -290,7 +301,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Section(DockWhereTitle,DockWhere,LDTerms::WorkshopInstalledOn,true);
             Section(DockLinksTitle,DockLinks,LDTerms::WorkshopLinks,false);
             Section(DockNotesTitle,DockNotes,LDTerms::WorkshopNotes,false);
-            DockRight=Right;Add(Right,3);
+            DockRight=WorkshopFit(WidgetTree,Right);Add(DockRight,3);
         }
     }
     return Super::RebuildWidget();
@@ -344,7 +355,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     {
         const float Bottom=H-WorkshopMargin;
         Next.Region=WorkshopBox(0,0,W,H);
-        Next.Phase=WorkshopBox(WorkshopMargin,28,WorkshopMargin+464,92);
+        Next.Phase=WorkshopBox(WorkshopMargin,20,WorkshopMargin+540,106);
         Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,Bottom);
         const float RightX=W-WorkshopMargin-WorkshopRightWidth;
         const float Tray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,H*.5f);
@@ -376,7 +387,7 @@ void ULDWorkshop::Layout(FVector2D Size)
         // A build moment takes the centre: the board, the library, the pending area and the character column step aside; the
         // offer keeps a centred dock, the final mod page puts its own description there.
         const float Bottom=H-WorkshopMargin;
-        Next.Dock=WorkshopBox(W*.5f-548.f,Bottom-210.f,W*.5f+548.f,Bottom);
+        Next.Dock=WorkshopBox(W*.5f-548.f,Bottom-300.f,W*.5f+548.f,Bottom);
         Next.Stage=WorkshopBox(W*.5f-820.f,96.f,W*.5f+820.f,float(Next.Dock.Min.Y)-16.f);
         Next.Character=Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
     }
@@ -390,8 +401,11 @@ void ULDWorkshop::Layout(FVector2D Size)
         const float X=float(Next.Columns.Min.X)+Index*(ColumnWidth+ColumnGap);
         Next.Column[Index]=WorkshopBox(X,Next.Columns.Min.Y,X+ColumnWidth,Next.Columns.Max.Y);
     }
-    // The library body sits under its title and filter rows.
-    Next.LibraryBody=WorkshopBox(Next.Library.Min.X+24.f,Next.Library.Min.Y+124.f,Next.Library.Max.X-20.f,Next.Library.Max.Y-14.f);
+    // The library body sits under its title and filter rows (the filter wraps to as many lines as it needs), and those under
+    // the artisan's band when the artisan serves.
+    LibraryBand=Latest.bLibraryServices&&Mode==EMode::Full?WorkshopArtisanBand:0.f;
+    const float FilterHeight=FMath::Max(56.f,FilterRow?float(FilterRow->GetDesiredSize().Y):0.f);
+    Next.LibraryBody=WorkshopBox(Next.Library.Min.X+24.f,Next.Library.Min.Y+LibraryBand+70.f+FilterHeight,Next.Library.Max.X-20.f,Next.Library.Max.Y-14.f);
     if(!WorkshopHasArea(Next.Board))
     {
         Next.Capacity=Next.Columns=FBox2D(ForceInit);
@@ -421,7 +435,7 @@ void ULDWorkshop::Layout(FVector2D Size)
         Place(Heads[Index].Box,WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight));
         if(!FMath::IsNearlyEqual(Heads[Index].IconBox->GetWidthOverride(),Rects.HeadIcon)){Heads[Index].IconBox->SetWidthOverride(Rects.HeadIcon);Heads[Index].IconBox->SetHeightOverride(Rects.HeadIcon);}
     }
-    Place(LibraryTitle,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+16.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+56.f));
+    Place(LibraryTitle,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+LibraryBand+16.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+LibraryBand+56.f));
     const bool bOwnDock=!(Mode==EMode::Full&&Latest.bFinalStage);
     if(!bOwnDock){for(UWidget* Hidden:{DockLeft.Get(),DockCentre.Get(),DockRight.Get()}){Place(Hidden,FBox2D(ForceInit));}}
     else if(Mode==EMode::Full)
@@ -437,9 +451,16 @@ void ULDWorkshop::Layout(FVector2D Size)
         Place(DockRight,WorkshopBox(Rects.Dock.Min.X+150.f,Rects.Dock.Min.Y+16.f,Rects.Dock.Max.X-20.f,Rects.Dock.Min.Y+146.f));
         Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+20.f,Rects.Dock.Min.Y+150.f,Rects.Dock.Max.X-20.f,Rects.Dock.Max.Y-12.f));
     }
-    Place(FilterRow,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+62.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+118.f));
+    Place(FilterRow,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+LibraryBand+62.f,Rects.Library.Max.X-20.f,float(Rects.LibraryBody.Min.Y)-6.f));
     Place(PendingTitle,WorkshopHasArea(Rects.Pending)?WorkshopBox(Rects.Pending.Min.X+24.f,Rects.Pending.Min.Y+14.f,Rects.Pending.Max.X-20.f,Rects.Pending.Min.Y+40.f):FBox2D(ForceInit));
-    if(DockBody){DockBody->SetWrapTextAt(Mode==EMode::Full?float(Rects.Dock.GetSize().X)-520.f:WorkshopFieldDockWidth-40.f);}
+    {
+        // The dock columns scale to fit, so every wrapping line wraps at its column's width rather than at what it is given.
+        const float CentreWrap=Mode==EMode::Full?float(Rects.Dock.GetSize().X)-520.f:WorkshopFieldDockWidth-40.f;
+        const float RightWrap=Mode==EMode::Full?260.f:WorkshopFieldDockWidth-170.f;
+        if(DockBody){DockBody->SetWrapTextAt(CentreWrap);}
+        for(UTextBlock* Line:{DockSummary.Get(),DockChips.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(CentreWrap);}}
+        for(UTextBlock* Line:{DockWhere.Get(),DockLinks.Get(),DockNotes.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(RightWrap);}}
+    }
     const float DockIcon=Mode==EMode::Full?112.f:80.f;
     if(DockIconBox&&!FMath::IsNearlyEqual(DockIconBox->GetWidthOverride(),DockIcon)){DockIconBox->SetWidthOverride(DockIcon);DockIconBox->SetHeightOverride(DockIcon);}
 }
@@ -464,10 +485,22 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
         const FBox2D& Column=Rects.Column[Index];
         Out.Heads[Index]=WorkshopHasArea(Column)?Absolute(WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight)):FSlateRect();
     }
-    if(WorkshopHasArea(Rects.Character))
-    {Out.CharacterFoot=Absolute(WorkshopBox(Rects.Character.Min.X+22.f,Rects.Character.Max.Y-118.f,Rects.Character.Max.X-22.f,Rects.Character.Max.Y-14.f));}
-    if(WorkshopHasArea(Rects.Library))
-    {Out.LibraryTop=Absolute(WorkshopBox(Rects.Library.Min.X+150.f,Rects.Library.Min.Y+12.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+60.f));}
+    if(WorkshopHasArea(Rects.Character)&&PointsBox)
+    {
+        // The trainer's respec rides on the unspent points row it refunds into.
+        const FGeometry& Points=PointsBox->GetCachedGeometry();
+        const FVector2D A=Points.GetAbsolutePosition(),B=A+Points.GetAbsoluteSize();
+        Out.CharacterFoot=FSlateRect(A.X,A.Y,B.X,B.Y);
+    }
+    if(WorkshopHasArea(Rects.Library)&&LibraryBand>0.f)
+    {Out.LibraryTop=Absolute(WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+14.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+LibraryBand));}
+    for(int32 Index=0;Index<Heads.Num()&&Index<LDHUD::StorageColumnCount;++Index)
+    {
+        if(!WorkshopHasArea(Rects.Column[Index])||!Heads[Index].IconFace){continue;}
+        const FGeometry& Icon=Heads[Index].IconFace->GetCachedGeometry();
+        const FVector2D A=Icon.GetAbsolutePosition(),B=A+Icon.GetAbsoluteSize();
+        Out.HeadIcons[Index]=FSlateRect(A.X,A.Y,B.X,B.Y);
+    }
     if(WorkshopHasArea(Rects.Pending))
     {Out.PendingTop=Absolute(WorkshopBox(Rects.Pending.Min.X+24.f,Rects.Pending.Min.Y+44.f,Rects.Pending.Max.X-20.f,Rects.Pending.Min.Y+96.f));}
     return Out;
@@ -896,19 +929,19 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         if(Latest.bRest&&!Latest.bDead)
         {
             const int32 Current=LDWorkshop::RestStepDot(Latest.Step);
-            const float X0=float(Rects.Phase.Max.X)-LDWorkshop::RestStepDots*38.f-10.f,Y=float(Rects.Phase.GetCenter().Y);
+            const float X0=float(Rects.Phase.Max.X)-LDWorkshop::RestStepDots*30.f-14.f,Y=float(Rects.Phase.GetCenter().Y);
             for(int32 Dot=0;Dot<LDWorkshop::RestStepDots;++Dot)
             {
                 const FLinearColor Color=Dot==Current?LDHUDStyle::UIAction:Dot<Current?LDHUDStyle::UIText.CopyWithNewOpacity(.55f):LDHUDStyle::UIRaised;
-                const float X=X0+Dot*38.f;
-                LDUIShapes::Stroke(Elements,Top,Geometry,{FVector2D(X+4.f,Y),FVector2D(X+32.f,Y)},Color,Dot==Current?5.f:4.f);
+                const float X=X0+Dot*30.f;
+                LDUIShapes::Stroke(Elements,Top,Geometry,{FVector2D(X+3.f,Y),FVector2D(X+25.f,Y)},Color,Dot==Current?5.f:4.f);
             }
         }
     }
     // Stat meters: sixteen cells, the allocated ones lit.
     for(const FStatRow& Row:StatRows)
     {
-        if(Mode!=EMode::Full||!Row.Meter||!Row.Meter->IsVisible()){continue;}
+        if(Mode!=EMode::Full||!WorkshopHasArea(Rects.Character)||!Row.Meter||!Row.Meter->IsVisible()){continue;}
         const FBox2D Box=LDUIShapes::RectIn(Geometry,Row.Meter->GetCachedGeometry());
         const float Cell=float(Box.GetSize().X)/WorkshopMeterCells;
         for(int32 Index=0;Index<WorkshopMeterCells;++Index)

@@ -1276,6 +1276,7 @@ void ULDHUD::RefreshReadModel()
             {
                 const ELDRestService Service=ChoicesPanel->GetServiceContext();
                 In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
+                In.bLibraryServices=Service==ELDRestService::ComponentArtisan;
             }
             Workshop->Present(In);
             Storage->SetWorkshop(Workshop->StorageLayout());
@@ -1285,13 +1286,15 @@ void ULDHUD::RefreshReadModel()
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
     {
         // A rest's build or payout step, or the own death wait outside a rest, opens the workshop by itself (once per step);
-        // leaving that full-screen moment closes it again unless a request is still on its way.
+        // leaving that full-screen moment closes a workshop that opened by itself again unless a request is still on its way.
+        // One the player opened stays, at the field size.
         const bool bRestWindow=bRestPhase&&(Public.Timeline.Step==ELDRestStep::Build||Public.Timeline.Step==ELDRestStep::Payout);
         const bool bNewWindow=bRestWindow&&(WorkshopSeenMatch!=O.Match||WorkshopSeenRest!=Public.Timeline.RestIndex||WorkshopSeenStep!=Public.Timeline.Step);
         const bool bNewDeath=bDeathWait&&!bRestPhase&&!bWorkshopSeenDead;
         if(bNewWindow||bNewDeath){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
-        if(bWorkshopWasFull&&!bWorkshopFull&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
-        {PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+        if(!ChoicesPanel->IsTrayOpen()){bWorkshopAutoOpened=false;}
+        if(bWorkshopWasFull&&!bWorkshopFull&&bWorkshopAutoOpened&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
+        {PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);bWorkshopAutoOpened=false;}
         WorkshopSeenMatch=O.Match;WorkshopSeenRest=bRestPhase?Public.Timeline.RestIndex:0;WorkshopSeenStep=bRestPhase?Public.Timeline.Step:ELDRestStep::None;
         bWorkshopSeenDead=bDeathWait&&!bRestPhase;bWorkshopWasFull=bWorkshopFull;
     }
@@ -1325,7 +1328,7 @@ void ULDHUD::RefreshReadModel()
             else if(PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
             {
                 // Only a field opening folds by itself; the full workshop stays until its moment ends or the player closes it.
-                AutoOpenSince=-1;if(!bWorkshopFull){ChoicesPanel->MarkOpenedAutomatically();}
+                AutoOpenSince=-1;bWorkshopAutoOpened=true;if(!bWorkshopFull){ChoicesPanel->MarkOpenedAutomatically();}
             }
             else if(UiTime-AutoOpenSince>5.)
             {
@@ -1510,8 +1513,10 @@ void ULDHUD::RefreshReadModel()
             {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],Content);break;}
         }
     }
+    // The open workshop covers the band: neither its slots, its status squares nor its stat icons pop up.
+    if(Workshop&&Workshop->IsOpen()){DetailIndex=INDEX_NONE;DetailOver=nullptr;}
     // A hovered stat icon: its name, points and per-point text, above its "+".
-    if(!DetailOver&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
+    else if(!DetailOver&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
     // A card of the open 构筑 tray: its full rules (the card shows only the icon and the name).
     const bool bTrayOpen=ChoicesPanel&&(ChoicesPanel->IsTrayOpen()||ChoicesPanel->IsQuickShown());
     if(!DetailOver&&bTrayOpen)

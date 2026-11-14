@@ -55,6 +55,7 @@ public:
         FSlateRect Stage;
         FSlateRect Dock;
         FSlateRect Heads[LDHUD::StorageColumnCount];
+        FSlateRect HeadIcons[LDHUD::StorageColumnCount];
         FSlateRect CharacterFoot;
         FSlateRect LibraryTop;
         FSlateRect PendingTop;
@@ -267,8 +268,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DismantleBlocked;
     UPROPERTY() TObjectPtr<UWidget> DismantleSection;
     UPROPERTY() TObjectPtr<UTextBlock> DismantleHeading;
-    UPROPERTY() TObjectPtr<UVerticalBox> DismantleList;
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DismantleLines;
+    UPROPERTY() TObjectPtr<UWrapBox> DismantleList;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> DismantleButtons;
     UPROPERTY() TObjectPtr<UWidget> RestConfirmLine;
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;

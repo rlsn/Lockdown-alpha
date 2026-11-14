@@ -70,6 +70,8 @@ public:
         bool bFinalStage=false;
         FString NpcName;
         bool bServices=false;
+        // The artisan's services sit in a band at the top of the library, above its title and filter.
+        bool bLibraryServices=false;
     };
     void Present(const FInput& Input);
     bool IsOpen() const {return Mode!=EMode::Closed;}
@@ -207,6 +209,8 @@ private:
     TMap<UWidget*,UCanvasPanelSlot*> Slots;
     TMap<UWidget*,ESlateVisibility> ShownAs;
     float TextScale=1.f;
+    // The artisan band's height at the top of the library (0 without it), from the last layout.
+    float LibraryBand=0.f;
     void ScaleFresh(UTextBlock* Text) const;
     EMode Mode=EMode::Closed;
     FInput Latest;
