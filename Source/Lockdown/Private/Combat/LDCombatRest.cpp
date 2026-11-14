@@ -200,6 +200,7 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.LandedBasics=0;
     Body.ThornsMarks.Reset();
     Body.AssistContributions.Reset();
+    Body.DamageLog.Reset();
     Body.Taunt.Reset();
     Body.SharedBreach={};
     Body.Burn={};

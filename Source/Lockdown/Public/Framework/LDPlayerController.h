@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDDamageRecap.h"
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
 #include "PK/LDPKTypes.h"
@@ -66,6 +67,13 @@ public:
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
+    // Owner-only damage statistics (Combat/LDDamageRecap.h). DeathRecap is the newest accepted recap; it belongs to the
+    // current death only while its Match and Life equal OwnerState's. DamageSummary belongs to the result whose
+    // ResultId it names. A malformed or older view is dropped and the previous one stays.
+    UFUNCTION(Client,Reliable) void ClientDeathRecap(const FLDDeathRecapView& Recap);
+    UFUNCTION(Client,Reliable) void ClientDamageSummary(const FLDDamageSummaryView& Summary);
+    FLDDeathRecapView DeathRecap;
+    FLDDamageSummaryView DamageSummary;
     // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
     // #198 build commands (active choice, learn blueprint, allocate points). The caller fills Kind and its business
     // fields (ExpectedBuildRevision and CatalogDigest from ReadOwnProgression); Submit fills Generation, Life and

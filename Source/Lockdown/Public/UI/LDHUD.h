@@ -229,6 +229,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
     UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
+    // The own per-source damage of the shown result: a heading and a fixed grid of cells (never a scroll view).
+    UPROPERTY() TObjectPtr<UTextBlock> ResultDamageHeading;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ResultDamageCells;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> LeaveRoomButton;
     UPROPERTY() TObjectPtr<UBorder> DeathBanner;
@@ -236,6 +239,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathCauseText;
     UPROPERTY() TObjectPtr<UTextBlock> DeathCountdown;
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
+    // The recap of the death shown: a heading and one line per attacker.
+    UPROPERTY() TObjectPtr<UTextBlock> DeathRecapHeading;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DeathRecapRows;
     // #198: the centre-screen rest return countdown ("5" .. "1", then "开淫！" as the field starts; LDHUD::RestReturnCountdown);
     // click-through.
     UPROPERTY() TObjectPtr<UTextBlock> ReturnCountdownText;

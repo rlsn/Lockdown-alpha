@@ -36,6 +36,7 @@
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
 #include "Components/ScaleBox.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -407,6 +408,22 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DeathNote=OneLine(TEXT(""),14,520);DeathNote->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         for(UTextBlock* DeathLine:{DeathTitle.Get(),DeathCauseText.Get(),DeathCountdown.Get(),DeathNote.Get()})
         {DeathLine->SetJustification(ETextJustify::Center);DeathBox->AddChildToVerticalBox(DeathLine)->SetHorizontalAlignment(HAlign_Center);}
+        // The recap lines shrink together to the banner width instead of wrapping or scrolling.
+        {
+            auto* RecapBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            DeathRecapHeading=OneLine(TEXT(""),15,0);DeathRecapHeading->SetJustification(ETextJustify::Center);
+            RecapBox->AddChildToVerticalBox(DeathRecapHeading)->SetHorizontalAlignment(HAlign_Center);
+            DeathRecapRows.Reset();
+            for(int32 Row=0;Row<LDHUD::DeathRecapAttackersMax;++Row)
+            {
+                UTextBlock* Line=OneLine(TEXT(""),14,0);Line->SetColorAndOpacity(LDHUDStyle::TextSecondary);Line->SetJustification(ETextJustify::Center);
+                RecapBox->AddChildToVerticalBox(Line)->SetHorizontalAlignment(HAlign_Center);DeathRecapRows.Add(Line);
+            }
+            auto* RecapFit=WidgetTree->ConstructWidget<UScaleBox>();RecapFit->SetStretch(EStretch::ScaleToFit);RecapFit->SetStretchDirection(EStretchDirection::DownOnly);
+            RecapFit->SetContent(RecapBox);
+            auto* RecapWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDDeathRecap"));RecapWidth->SetMaxDesiredWidth(640);RecapWidth->SetContent(RecapFit);
+            auto* RecapSlot=DeathBox->AddChildToVerticalBox(RecapWidth);RecapSlot->SetHorizontalAlignment(HAlign_Center);RecapSlot->SetPadding(FMargin(0,8,0,0));
+        }
         DeathBanner=Panel(DeathBox,false);Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,200));DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
         // #198: the rest return countdown, large in the screen centre; it never takes pointer input.
         ReturnCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),96,TEXT("ReturnCountdownText"));ReturnCountdownText->SetAutoWrapText(false);
@@ -419,6 +436,23 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ResultTitle=Text(TEXT(""),28);ResultTitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultTitle)->SetHorizontalAlignment(HAlign_Center);
         ResultSubtitle=Text(TEXT(""),16);ResultSubtitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,12));
         ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();ResultBox->AddChildToVerticalBox(ResultRows);
+        // The own damage per source: four cells per line, DamageSummarySourcesMax cells in all.
+        ResultDamageHeading=Text(TEXT(""),16);ResultBox->AddChildToVerticalBox(ResultDamageHeading)->SetPadding(FMargin(0,14,0,4));
+        ResultDamageCells.Reset();
+        for(int32 Index=0;Index<LDHUD::DamageSummarySourcesMax;)
+        {
+            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
+            for(int32 Column=0;Column<4&&Index<LDHUD::DamageSummarySourcesMax;++Column,++Index)
+            {
+                UTextBlock* Cell=OneLine(TEXT(""),14,0);Cell->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                auto* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
+                Fit->SetContent(Cell);
+                if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);}
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(180);Box->SetContent(Fit);
+                Line->AddChildToHorizontalBox(Box);ResultDamageCells.Add(Cell);
+            }
+            ResultBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,2));
+        }
         auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,16,0,0));
         ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
         ResultActions->AddChildToHorizontalBox(ReturnButton)->SetPadding(FMargin(0,0,12,0));
@@ -1078,6 +1112,14 @@ void ULDHUD::RefreshReadModel()
         const int64 NotBeforeMs=LifeSeenMatch==O.Match&&LifeSeenLife==O.Life?LifeSeenAliveMs:0;
         const FString Cause=LDHUD::DeathCause(GS->KillFeed,Public.Generation,O.ContenderId,NotBeforeMs,Lobby,Low,High,Elite,Dean);
         HudSetText(DeathCauseText,Cause);HudSetShown(DeathCauseText,!Cause.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        // Until the recap of exactly this life arrives there is no recap section at all.
+        const LDHUD::FDamageListView Recap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);
+        HudSetText(DeathRecapHeading,Recap.Heading);HudSetShown(DeathRecapHeading,Recap.bAvailable,ESlateVisibility::HitTestInvisible);
+        for(int32 Row=0;Row<DeathRecapRows.Num();++Row)
+        {
+            const bool bRow=Recap.bAvailable&&Recap.Rows.IsValidIndex(Row);
+            HudSetText(DeathRecapRows[Row],bRow?Recap.Rows[Row]:FString());HudSetShown(DeathRecapRows[Row],bRow,ESlateVisibility::HitTestInvisible);
+        }
     }
 
     const FString Name=LDHUD::RosterName(Lobby,O.ContenderId);
@@ -1890,7 +1932,22 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         // Without the frozen result there is nothing to show yet: no zero-filled table.
         HudSetText(ResultTitle,TEXT("对局结束"));HudSetText(ResultSubtitle,TEXT("结算同步中…"));
         if(ShownResultId.IsValid()){ResultRows->ClearChildren();ShownResultId.Invalidate();ShownResultSerial=0;}
+        HudSetShown(ResultDamageHeading,false,ESlateVisibility::HitTestInvisible);
+        for(UTextBlock* Cell:ResultDamageCells){HudSetShown(Cell,false,ESlateVisibility::HitTestInvisible);}
         return;
+    }
+    // The own damage arrives on the owner channel apart from the public result, so it is read every refresh; without
+    // the summary of exactly this result the section says so instead of showing zeros.
+    {
+        const LDHUD::FDamageListView Damage=LDHUD::DamageSummary(PC.DamageSummary,Result,DisplayDefinitions());
+        HudSetText(ResultDamageHeading,Damage.bAvailable?Damage.Heading:FString(TEXT("你的伤害统计不可用")));
+        HudSetShown(ResultDamageHeading,true,ESlateVisibility::HitTestInvisible);
+        for(int32 Index=0;Index<ResultDamageCells.Num();++Index)
+        {
+            const bool bCell=Damage.bAvailable&&Damage.Rows.IsValidIndex(Index);
+            HudSetText(ResultDamageCells[Index],bCell?Damage.Rows[Index]:FString());
+            HudSetShown(ResultDamageCells[Index],bCell,ESlateVisibility::HitTestInvisible);
+        }
     }
     if(ShownResultId==Result.ResultId&&ShownResultSerial==Result.ResultSerial){return;}
     ShownResultId=Result.ResultId;ShownResultSerial=Result.ResultSerial;
