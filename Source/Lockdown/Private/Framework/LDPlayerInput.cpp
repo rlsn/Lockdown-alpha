@@ -217,6 +217,7 @@ void ALDPlayerController::V05Back()
 void ALDPlayerController::V05Pressed(FName Action)
 {
     if (Action==TEXT("Back")) { V05Back(); return; }
+    if (IsDevFreeCameraActive()) { return; }
     if (bControlsSuppressed || bFreshInputRequired) { return; }
     // The HUD's stat icons <-> attribute view, alive or dead (UI_AND_SETTINGS 3.2).
     if (Action==TEXT("Attributes")) { if (HUDUI) { HUDUI->ToggleAttributeView(); } return; }

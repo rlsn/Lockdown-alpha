@@ -13,6 +13,10 @@
 
 bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if (const auto* Mode = Core(); Mode && Mode->IsDevPeaceful(Target.Victim.EntityId)
+        && SourceEntity != Target.Victim.EntityId) { return true; }
+#endif
     if (IsOutOfGroup(SourceEntity,Target)) { return true; }
     // Sharing visibility is not permission to damage/control another trainee (or oneself through a released effect).
     if (Target.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Target.bTrainingDummy) { return true; }

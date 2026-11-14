@@ -1124,6 +1124,17 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Eve
     return FReply::Handled();
 }
 
+FReply ULDUIRoot::NativeOnPreviewKeyDown(const FGeometry& Geometry,const FKeyEvent& Event)
+{
+    if(Event.GetKey()==EKeys::Enter && Event.IsControlDown())
+    {
+        if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()); PC && !Event.IsRepeat() && PC->ToggleDevTestMenu())
+        {return FReply::Handled();}
+        if(Event.IsRepeat()) {return FReply::Handled();}
+    }
+    return Super::NativeOnPreviewKeyDown(Geometry,Event);
+}
+
 void ULDUIRoot::LeaveRoom()
 {
     CloseConfirm();

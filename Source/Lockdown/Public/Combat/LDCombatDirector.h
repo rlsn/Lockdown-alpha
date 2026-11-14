@@ -944,6 +944,7 @@ public:
 private:
     friend class ALDGameMode;
     friend class FLDRestPhaseTest;
+    friend class FLDDevSceneToolsTest;
     friend class FLDGroundBossBodyTest;
     friend class FLDDemoCoreTest;
     friend class FLDReconnectProtectionTest;

@@ -7,15 +7,21 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
 #include "HAL/IConsoleManager.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "UI/LDUIRoot.h"
 
 uint64 ALDPlayerController::SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition,
-    uint8 Slot, uint8 Stat)
+    uint8 Slot, uint8 Stat, FVector CameraPosition)
 {
     FLDDevTestCommand Command;
     Command.Op = Op;
     Command.Amount = Amount;
     Command.Slot = Slot;
     Command.Stat = Stat;
+    Command.CameraPosition = CameraPosition;
     if (!Definition.IsNone() && !FLDDefinitionWire::Encode(Definition, Command.Definition))
     {
         OutLocalReason = ELDGrowthReason::InvalidRequest;
@@ -86,6 +92,121 @@ void ALDPlayerController::ClientDevTestResult_Implementation(const FLDDevTestRes
         }
     }
     OnDevTestResult.Broadcast(Result);
+    if (Result.RequestId == DevTeleportRequest
+        && (Result.Status == ELDAdmissionStatus::Final || Result.Status == ELDAdmissionStatus::AdmissionRejected))
+    {
+        DevTeleportRequest = 0;
+        if (Result.bHasReceipt && Result.Receipt.Header.Outcome == ELDReceiptOutcome::Applied) { EndDevFreeCamera(); }
+    }
+}
+
+void ALDPlayerController::ServerEnableDevTest_Implementation(uint32 Generation)
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    auto* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>();
+    if (!Mode || Generation != OwnerState.Match || !Mode->IsGameplayWriteOpen(Mode->GetMatchContext())) { return; }
+    // Only the authority's local player can opt an ordinary room into testing. Remote players need an opted-in room.
+    if (IsLocalController()) { Mode->EnableRuntimeDevTest(); }
+#endif
+}
+
+void ALDPlayerController::EndDevFreeCamera()
+{
+    if (IsValid(DevFreeCamera)) { DevFreeCamera->Destroy(); }
+    DevFreeCamera = nullptr;
+    DevTeleportRequest = 0;
+    UpdateLocalViewTarget();
+    ReleaseLocalInput();
+}
+
+bool ALDPlayerController::IsDevFreeCameraActive() const { return IsValid(DevFreeCamera.Get()); }
+
+void ALDPlayerController::EndPlay(const EEndPlayReason::Type Reason)
+{
+    if (IsValid(DevFreeCamera)) { DevFreeCamera->Destroy(); }
+    DevFreeCamera = nullptr;
+    Super::EndPlay(Reason);
+}
+
+void ALDPlayerController::ToggleDevFreeCamera()
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    const auto* State = GetWorld()->GetGameState<ALDGameState>();
+    if (!State || !State->DemoLobby.DevTestSession || !IsWorldLifeValid() || DevTeleportRequest) { return; }
+    if (IsValid(DevFreeCamera))
+    {
+        ELDGrowthReason Reason;
+        // Submit may settle synchronously on a listen host, so latch before making the RPC.
+        DevTeleportRequest = DevTestCursor.Generation == OwnerState.Match ? DevTestCursor.Next : 1;
+        const uint64 Sent = SubmitDevTest(ELDDevTestOp::TeleportToCamera, 0, Reason, NAME_None, 0, 0,
+            DevFreeCamera->GetActorLocation());
+        if (!Sent) { DevTeleportRequest = 0; PostIntentNotice(TEXT("传送请求未发送，请稍后重试")); }
+        return;
+    }
+    StopCombatAndOrders();
+    DevFreeCamera = GetWorld()->SpawnActor<ACameraActor>();
+    if (!DevFreeCamera) { PostIntentNotice(TEXT("无法创建自由镜头")); return; }
+    DevFreeCamera->SetActorLocationAndRotation(PlayerCameraManager->GetCameraLocation(), PlayerCameraManager->GetCameraRotation());
+    DevFreeCamera->GetCameraComponent()->FieldOfView = PlayerCameraManager->GetFOVAngle();
+    DevCameraMatch = OwnerState.Match;
+    DevCameraLife = OwnerState.Life;
+    CancelArmedCombat();
+    QueuedCombat = {};
+    SetViewTarget(DevFreeCamera);
+#endif
+}
+
+void ALDPlayerController::TickDevTestInput(float Delta)
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    if (!GetLocalPlayer() || IsFrontend()) { return; }
+    const bool Chord = IsInputKeyDown(EKeys::Enter) && (IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl));
+    const bool Teleport = IsInputKeyDown(EKeys::T);
+    const auto* State = GetWorld()->GetGameState<ALDGameState>();
+    if (Chord && !bDevMenuChordDown) { ToggleDevTestMenu(); }
+    bDevMenuChordDown = Chord;
+    if (bDevMenuPending && State && State->DemoLobby.DevTestSession && RootUI)
+    {
+        bDevMenuPending = false;
+        RootUI->ToggleMainPanel(ELDUIMainPanel::DevTest);
+    }
+    if (Teleport && !bDevTeleportKeyDown && !IsWorldInputCaptured() && !bControlsSuppressed) { ToggleDevFreeCamera(); }
+    bDevTeleportKeyDown = Teleport;
+    if (!IsValid(DevFreeCamera)) { return; }
+    if (OwnerState.Match != DevCameraMatch || OwnerState.Life != DevCameraLife || !IsWorldLifeValid())
+    { EndDevFreeCamera(); return; }
+    if (IsWorldInputCaptured() || bControlsSuppressed || DevTeleportRequest) { return; }
+    const auto Axis = [this](FKey Positive, FKey Negative) { return float(IsInputKeyDown(Positive)) - float(IsInputKeyDown(Negative)); };
+    FRotator Rotation = DevFreeCamera->GetActorRotation();
+    if (IsInputKeyDown(EKeys::RightMouseButton))
+    {
+        float X = 0, Y = 0;
+        GetInputMouseDelta(X, Y);
+        Rotation.Yaw += X;
+        Rotation.Pitch = FMath::Clamp(Rotation.Pitch + Y, -89.f, 89.f);
+        DevFreeCamera->SetActorRotation(Rotation);
+    }
+    const FVector Move = Rotation.Vector() * Axis(EKeys::W, EKeys::S)
+        + FRotationMatrix(Rotation).GetUnitAxis(EAxis::Y) * Axis(EKeys::D, EKeys::A)
+        + FVector::UpVector * Axis(EKeys::E, EKeys::Q);
+    DevFreeCamera->AddActorWorldOffset(Move.GetClampedToMaxSize(1) * Delta
+        * (IsInputKeyDown(EKeys::LeftShift) ? 6000.f : 1500.f));
+#endif
+}
+
+bool ALDPlayerController::ToggleDevTestMenu()
+{
+#if WITH_DEV_AUTOMATION_TESTS
+    if (IsFrontend() || !RootUI || !OwnerState.Match) { return false; }
+    bDevMenuChordDown = true;
+    const auto* State = GetWorld()->GetGameState<ALDGameState>();
+    if (State && State->DemoLobby.DevTestSession) { RootUI->ToggleMainPanel(ELDUIMainPanel::DevTest); }
+    else if (HasAuthority()) { bDevMenuPending = true; ServerEnableDevTest(OwnerState.Match); }
+    else { PostIntentNotice(TEXT("请房主先按 Ctrl+回车开启测试模式")); }
+    return true;
+#else
+    return false;
+#endif
 }
 
 #if WITH_DEV_AUTOMATION_TESTS

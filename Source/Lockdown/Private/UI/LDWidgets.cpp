@@ -1,4 +1,5 @@
 #include "UI/LDWidgets.h"
+#include "Framework/LDPlayerController.h"
 #include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -102,6 +103,13 @@ bool ULDPanel::MovePanelFocus(bool Backward)
 }
 FReply ULDPanel::NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E)
 {
+    if(E.GetKey()==EKeys::Enter && E.IsControlDown())
+    {
+        if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()); PC && !E.IsRepeat() && PC->ToggleDevTestMenu())
+        {return FReply::Handled();}
+        // A repeated test-menu chord must never activate the focused action button.
+        return FReply::Handled();
+    }
     if(E.GetKey()==EKeys::Tab){MovePanelFocus(E.IsShiftDown());return FReply::Handled();}
     if(E.GetKey()==EKeys::Enter||E.GetKey()==EKeys::SpaceBar)
     {

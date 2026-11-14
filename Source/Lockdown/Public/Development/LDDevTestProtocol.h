@@ -6,7 +6,7 @@
 
 // DEV test commands (#78): one owner-only request family through which a DEV test session changes the caller's own
 // committed state. The wire types exist in every build so the RPCs keep one signature; only builds with automation
-// tests whose authority was started with -LDDevGrowthFixture admit a command (LDDevGrowthFixture::Admit), every other
+// tests whose authority was started with -LDDevGrowthFixture or opted in by its local Host admit a command, every other
 // authority answers AdmissionRejected / NotAuthority. A command never targets another contender.
 //
 // Admission reuses the growth request stream (TLDGrowthRequestStream: monotonic RequestId, one pending request,
@@ -47,6 +47,9 @@ enum class ELDDevTestOp : uint8
     LearnActive = 14,
     // #198, Definition = a stat id, Amount > 0: that many unspent points allocated to it, without the build safe window.
     AllocatePoints = 15,
+    SkipPreparation = 16,
+    SetPeaceful = 17,
+    TeleportToCamera = 18,
 };
 
 USTRUCT()
@@ -63,6 +66,8 @@ struct LOCKDOWN_API FLDDevTestCommand
     UPROPERTY() uint8 Slot = 0;
     // SetAttribute only: the ELDDemoBonusStat value; every other op 0.
     UPROPERTY() uint8 Stat = 0;
+    // TeleportToCamera only: requested camera position; authority resolves native support and capsule clearance.
+    UPROPERTY() FVector CameraPosition = FVector::ZeroVector;
 
     bool SameTerms(const FLDDevTestCommand& Other) const;
 };
@@ -119,7 +124,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnDevTestResult, const FLDDevTestResult&)
 namespace LDDevTest
 {
     LOCKDOWN_API bool IsKnownOp(ELDDevTestOp Op);
-    // RefreshCamps and OpenCapture change the match for everyone; only the Listen Host's own connection may send them.
+    // RefreshCamps, OpenCapture and SkipPreparation change the match; only the Listen Host may send them.
     LOCKDOWN_API bool IsMatchWide(ELDDevTestOp Op);
     LOCKDOWN_API const TCHAR* OpName(ELDDevTestOp Op);
     // The player-facing name of the op in the test-mode notices and panel.

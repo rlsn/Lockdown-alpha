@@ -123,6 +123,10 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     FString& Error)
 {
     bApplied=false;
+#if WITH_DEV_AUTOMATION_TESTS
+    if (const auto* Mode = Core(); Mode && Mode->IsDevPeaceful(Victim.Victim.EntityId)
+        && App.SourceEntity != Victim.Victim.EntityId) { return true; }
+#endif
     const bool bIsolated = App.bSpectatorThrow
         ? Victim.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Victim.bTrainingDummy
         : IsIsolated(App.SourceEntity,Victim);

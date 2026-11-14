@@ -613,6 +613,9 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
         State->Growth=Growth?Growth->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;
         PC->OwnerState=*State;
+#if WITH_DEV_AUTOMATION_TESTS
+        PC->bDevPeaceful=IsDevPeaceful(State->ContenderId);
+#endif
         if (PC->IsLocalController()) { PC->OnRep_OwnerState(); }
         PC->ForceNetUpdate();
     }

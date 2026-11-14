@@ -1099,6 +1099,15 @@ bool ALDGrowthDirector::CommitPendingDevTest(const FGuid& ContenderId, const FLD
             }
             break;
         }
+        case ELDDevTestOp::SkipPreparation:
+            if (!M->DevSkipPreparation(Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
+        case ELDDevTestOp::SetPeaceful:
+            if (!M->DevSetPeaceful(ContenderId, Command.Amount == 1, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
+        case ELDDevTestOp::TeleportToCamera:
+            if (!M->DevTeleport(ContenderId, Command.CameraPosition, Permit, Detail)) { Reason = ELDGrowthReason::StaleContext; }
+            break;
         case ELDDevTestOp::SetAttribute:
         case ELDDevTestOp::ClearAttributes:
             // A persistent build term: Combat installs it on the living body or keeps it for the next life.

@@ -286,6 +286,22 @@ bool FLDMatchTimeline::FinishBuildEarly(int64 AtMs, bool& bChanged, FString& Err
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+bool FLDMatchTimeline::DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
+{
+    if (!IsRest() || RestIndex != 0 || Step != ELDRestStep::Build || AtMs < StepStartedAtMs)
+    {
+        Error = TEXT("只能在开局准备阶段跳过准备");
+        return false;
+    }
+    StepEndsAtMs = AtMs;
+    // Zero entrants means no PK. Field bodies are still prepared by the normal return path.
+    if (!Advance(AtMs, 0, true, false, Out, Error)) { return false; }
+    StepEndsAtMs = AtMs;
+    // Transactions follows this step's world phase: entry can first commit at the next actual world boundary.
+    bEntryHeld = true;
+    return true;
+}
+
 bool FLDMatchTimeline::DevSkipToFinalRest(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error)
 {
     if (Stage != ELDMatchStage::Field || AtMs < FieldStartedAtMs)
