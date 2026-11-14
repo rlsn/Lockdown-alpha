@@ -435,6 +435,9 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 
 ## 标准关卡编辑与同步
 
+关卡相关开发必须遵守[关卡创作自由与开发约束](../LEVEL_AUTHORING_CONTRACT.md)；
+该文档定义编辑、替换、复制和删除的开发合同，并单独列明当前实现限制。
+
 编辑器默认打开 `/Game/Lockdown/Generated/Maps/L_Demo`；游戏默认仍从 `L_Frontend` 进入。
 常规修改直接在关卡里完成，不再另改 JSON 坐标。`Layout/Locations` 是标准 TargetPoint；营地成员的 home 点挂在营地点下，
 移动营地时一起移动；出生点继续使用标准 PlayerStart。它们只提供保存的布局，不承载另一套游戏状态。
