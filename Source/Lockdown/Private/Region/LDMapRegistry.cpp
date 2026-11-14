@@ -226,10 +226,6 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         if (const auto* Anchor = Cast<ALDMapAnchor>(*It)) { ++AnchorCount; CandidateDefinition = Anchor->Definition; }
         if (const auto* Start = Cast<APlayerStart>(*It)) { Starts.Add(Start); }
         if (*It == GetWorld()->GetDefaultBrush()) { continue; }
-        TArray<FString> Tags;
-        for (FName Tag : It->Tags) { Tags.Add(Tag.ToString()); }
-        Tags.Sort();
-        const FString SemanticTags = FString::Join(Tags, TEXT("|"));
         TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
         for (auto* Part : Parts)
         {
@@ -282,6 +278,10 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     for (TActorIterator<AActor> It(GetWorld()); It; ++It)
     {
         if (*It == GetWorld()->GetDefaultBrush()) { continue; }
+        TArray<FString> Tags;
+        for (FName Tag : It->Tags) { Tags.Add(Tag.ToString()); }
+        Tags.Sort();
+        const FString SemanticTags = FString::Join(Tags, TEXT("|"));
         TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
         for (auto* Part : Parts)
         {
