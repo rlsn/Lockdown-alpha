@@ -44,6 +44,22 @@ class RuleReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate"):
             check_report(self.report)
 
+    def test_failed_counter_names_failing_test_and_errors(self):
+        failing = self.report["tests"][3]
+        failing["state"] = "Fail"
+        failing["entries"] = [
+            {"event": {"type": "Info", "message": "noise"}},
+            {"event": {"type": "Error", "message": "Expected 'x' to be not null."},
+             "filename": "D:/ci/Source/Lockdown/Private/Tests/LDDemoCoreTests.cpp", "lineNumber": 371},
+        ]
+        self.report["failed"] = 1
+        with self.assertRaises(ValueError) as raised:
+            check_report(self.report)
+        message = str(raised.exception)
+        self.assertIn(failing["fullTestPath"] + " [Fail]", message)
+        self.assertIn("Expected 'x' to be not null. (LDDemoCoreTests.cpp:371)", message)
+        self.assertNotIn("noise", message)
+
     def test_every_test_must_succeed(self):
         for state in ("Fail", "NotRun", "InProcess", "Skipped", "", None):
             with self.subTest(state=state):

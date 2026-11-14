@@ -1,5 +1,6 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDDemoEntry.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
@@ -11,6 +12,7 @@
 #include "Components/BoxComponent.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/Package.h"
+#include "Misc/PackageName.h"
 #include "Misc/ScopeExit.h"
 #include <limits>
 #include <type_traits>
@@ -307,7 +309,17 @@ bool FLDReconnectProtectionTest::RunTest(const FString& Parameters)
         const FString Context=FString::Printf(TEXT("Reconnect debt case %d: "),Case);
         const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
             .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
-        UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+        // A fresh PIE-prefixed Demo package selects the map registry whose revision native motion is checked against.
+        uint32 Instance=200;
+        FString Short,PackageName;
+        do
+        {
+            Short=FString::Printf(TEXT("UEDPIE_%u_%s"),Instance++,*FPackageName::GetShortName(LDDemoEntry::WorldMap));
+            PackageName=FPackageName::GetLongPackagePath(LDDemoEntry::WorldMap)/Short;
+        }
+        while (FindPackage(nullptr,*PackageName));
+        UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,FName(*Short),CreatePackage(*PackageName),true,
+            ERHIFeatureLevel::Num,&Values);
         if (!TestNotNull(Context+TEXT("world"),World)) { return false; }
         GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
         ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
@@ -367,6 +379,8 @@ bool FLDReconnectProtectionTest::RunTest(const FString& Parameters)
         Pending.Request.Kind=Case==2 || Case==4 ? ELDSpatialOrderKind::MoveGround : ELDSpatialOrderKind::AttackMove;
         Pending.bStop=Case==2;
         Navigation.EnsureBook(Pending.Request.Identity);
+        // Every case follows an accepted request, which advances the received watermark.
+        Navigation.Book.Received=Pending.Request.Identity;
         FLDAggressiveIntent Intent;
         Intent.Kind=ELDAggressiveIntentKind::AttackMove;
         Intent.Request.Origin=ELDAggressionOrigin::Navigation;
