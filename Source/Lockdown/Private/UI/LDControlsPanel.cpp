@@ -259,7 +259,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto* Title=Text(Tree,TEXT("设置"),TitleSize,LDHUDStyle::TextPrimary);Title->SetAutoWrapText(false);
         Header->AddChildToHorizontalBox(Title)->SetVerticalAlignment(VAlign_Bottom);
         Header->AddChildToHorizontalBox(Tree->ConstructWidget<USpacer>())->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        MatchNote=Text(Tree,TEXT("对局不会暂停，角色仍在场上"),NoteSize,LDHUDStyle::TextWarning);MatchNote->SetAutoWrapText(false);
+        MatchNote=Text(Tree,TEXT("对局不会暂停，角色仍在场上"),NoteSize,LDHUDStyle::TextWarning,TEXT("MatchNote"));MatchNote->SetAutoWrapText(false);
         Header->AddChildToHorizontalBox(MatchNote)->SetVerticalAlignment(VAlign_Bottom);
 
         auto* Tabs=Tree->ConstructWidget<UHorizontalBox>();Main->AddChildToVerticalBox(Tabs)->SetPadding(FMargin(0,18,0,0));
@@ -879,10 +879,6 @@ void ULDControlsPanel::Open()
     SettingsInstance=GetGameInstance<ULDGameInstance>();
     SetVisibility(ESlateVisibility::Visible);
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());PC->SetMenuOpen(true);
-    const auto* Public=GetWorld()->GetGameState<ALDGameState>();
-    const bool bPlaying=Public&&(Public->PublicMatch.Phase==ELDMatchPhase::Rest
-        ||Public->PublicMatch.Phase==ELDMatchPhase::Development||Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
-    Show(MatchNote,bPlaying,ESlateVisibility::HitTestInvisible);
     ShowChild(EChildConfirmation::None);PendingFocus=NAME_None;
     auto* Instance=SettingsInstance.Get();
     // Only results that arrive while the panel is open are news; the last apply of an earlier visit is not shown again. A
@@ -955,6 +951,10 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     Super::NativeTick(Geometry,Delta);
     auto* Instance=SettingsInstance.Get();
     if(!bOpen||!Instance){return;}
+    const auto* Public=GetWorld()->GetGameState<ALDGameState>();
+    const bool bPlaying=Public&&(Public->PublicMatch.Phase==ELDMatchPhase::Rest
+        ||Public->PublicMatch.Phase==ELDMatchPhase::Development||Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
+    Show(MatchNote,bPlaying,ESlateVisibility::HitTestInvisible);
     if(!PendingFocus.IsNone()&&GFrameCounter>PendingFocusFrame)
     {
         UWidget* Target=WidgetTree->FindWidget(PendingFocus);
