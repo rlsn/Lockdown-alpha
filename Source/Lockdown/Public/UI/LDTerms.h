@@ -237,7 +237,7 @@ inline constexpr TCHAR NoGapFillerLeft[]=TEXT("缺口没有能补的未持有普
 inline FString PickDismantle(int64 Count){return FString::Printf(TEXT("选 %lld 件不同的普通构件交出（稀缺件不收）："),Count);}
 inline FString DismantleTooFew(int64 Count){return FString::Printf(TEXT("普通构件不足 %lld 件"),Count);}
 inline FString DismantlePicked(int32 Picked,int64 Count){return FString::Printf(TEXT("已选 %d/%lld"),Picked,Count);}
-inline constexpr TCHAR DismantleInstalledWarning[]=TEXT("（已启用：交出后装在它上面的构件退回背包）");
+inline constexpr TCHAR DismantleResult[]=TEXT("随机普通构件");
 inline FString FillGapConfirm(int64 Points,const FString& Target,const FString& Filler)
 {return FString::Printf(TEXT("花 %lld 点：为 %s 补 %s？点数不退还，同一构件只能补一次"),Points,*Target,*Filler);}
 inline FString DismantleConfirm(const FString& Removed,const FString& Detached)

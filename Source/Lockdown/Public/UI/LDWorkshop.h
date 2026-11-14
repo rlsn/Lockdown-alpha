@@ -74,6 +74,8 @@ public:
         bool bServices=false;
         // The artisan's services sit in a band at the top of the library, above its title and filter.
         bool bLibraryServices=false;
+        // The trainer's respec takes the foot of the character column.
+        bool bCharacterServices=false;
     };
     void Present(const FInput& Input);
     bool IsOpen() const {return Mode!=EMode::Closed;}
@@ -83,6 +85,8 @@ public:
     ULDComponentStorage::FWorkshopLayout StorageLayout() const;
     // The 构筑 tray's distance from the bottom-right corner, so its rows rise inside the pending area.
     FVector2D TrayInset() const {return FVector2D(TrayRight,TrayBottom);}
+    // The width the tray rows wrap at inside the pending area (0: no limit).
+    float TrayWrapWidth() const {return TrayWrap;}
     // Where the rest actions (重置训练, 准备完毕) sit: right of the phase bar, left of the close button (local units).
     FVector2D ActionsAnchor() const {return ActionsAt;}
     // The tray's stage, dock and service places (absolute), from the last layout.
@@ -98,6 +102,8 @@ public:
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
+    // The trainer's forget: a right click on a skill head (ULDChoicesPanel::ForgetAtColumn).
+    virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
     struct FStatRow
@@ -175,6 +181,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> HolderName;
     UPROPERTY() TObjectPtr<UTextBlock> LevelLine;
     UPROPERTY() TObjectPtr<UBorder> PointsBox;
+    // The foot of the character column the trainer's respec takes (no height without the trainer).
+    UPROPERTY() TObjectPtr<USizeBox> RespecSpace;
     UPROPERTY() TObjectPtr<UTextBlock> PointsText;
     UPROPERTY() TObjectPtr<UVerticalBox> StatList;
     UPROPERTY() TObjectPtr<UVerticalBox> AttributeList;
@@ -232,7 +240,7 @@ private:
     FRects Rects;
     FVector2D LastSize=FVector2D::ZeroVector;
     FVector2D ActionsAt=FVector2D::ZeroVector;
-    float TrayRight=0.f,TrayBottom=0.f;
+    float TrayRight=0.f,TrayBottom=0.f,TrayWrap=0.f;
     int32 TagFilter=INDEX_NONE;
     double OpenedAt=-1.;
     // What the dock shows; kept when the pointer leaves, so the eye has a steady place to read.

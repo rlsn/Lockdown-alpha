@@ -136,11 +136,8 @@ private:
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     // The top-centre stack (the banner and the rest actions); the full workshop moves it to the top-right corner.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> TopCentreSlot;
-    // The workshop opens by itself when a rest's build or payout step begins and when the own death wait begins, and closes
-    // when that full-screen moment ends (the field or a PK step returns).
-    uint32 WorkshopSeenMatch=0;
-    uint8 WorkshopSeenRest=0;
-    ELDRestStep WorkshopSeenStep=ELDRestStep::None;
+    // The workshop opens by itself when the own death wait begins (never for a rest), and closes when that full-screen
+    // moment ends.
     bool bWorkshopSeenDead=false;
     bool bWorkshopWasFull=false;
     // The open workshop was opened by its moment, not by the player: it closes again when the moment ends.

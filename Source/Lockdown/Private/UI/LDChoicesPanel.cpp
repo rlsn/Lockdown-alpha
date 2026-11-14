@@ -131,6 +131,8 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             TrayFrame=WidgetTree->ConstructWidget<UBorder>();TrayFrame->SetBrushColor(FLinearColor::Transparent);TrayFrame->SetPadding(FMargin(0,0,16,72));
             TrayFrame->SetHorizontalAlignment(HAlign_Right);TrayFrame->SetVerticalAlignment(VAlign_Bottom);
             TrayFrame->SetVisibility(ESlateVisibility::Collapsed);TrayFrame->SetContent(Tray);
+            // The offer and final mod rows move onto the stage in the workshop and keep their own width.
+            TrayRows={BlueprintCardRow,BaseRow,FinalSourceRow};
         }
         {
             // #198 rest services on the workshop (APP_SPEC §7 构筑): each stands on the object it acts on and shows why it is
@@ -150,14 +152,10 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             NpcBox=Boxed(NpcButton.Get(),NpcBlocked,420.f);
             RespecButton=LDWidgets::HoldButton(WidgetTree,LDTerms::Respec,[this](){Respec();},TEXT("GrowthRestRespec"));
             RespecBox=Boxed(RespecButton.Get(),RespecBlocked,300.f);
+            // Mockup 05: 洗点 spans the foot of the character column; 遗忘 is the right click on a skill head.
+            if(UVerticalBoxSlot* LeadSlot=Cast<UVerticalBoxSlot>(RespecButton->Slot)){LeadSlot->SetHorizontalAlignment(HAlign_Fill);}
             ForgetBlocked=Wrapped(LDHUDStyle::TypeCaption,300.f);ForgetBlocked->SetColorAndOpacity(LDHUDStyle::TextSecondary);
             Cast<UVerticalBox>(RespecBox.Get())->AddChildToVerticalBox(ForgetBlocked)->SetPadding(FMargin(0,2,0,0));
-            for(uint8 Key=0;Key<3;++Key)
-            {
-                ULDCommandButton* Forget=LDWidgets::Button(WidgetTree,LDTerms::ForgetShort,[this,Key](){AskForget(Key);},false,
-                    FName(*FString::Printf(TEXT("GrowthRestForget%s"),*LDHUD::SlotKey(Key))));
-                Forget->SetVisibility(ESlateVisibility::Collapsed);ForgetButtons.Add(Forget);
-            }
             FillGapButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleFillGap();},false,TEXT("GrowthRestFillGap"));
             DismantleButton=LDWidgets::Button(WidgetTree,TEXT(""),[this](){ToggleDismantle();},false,TEXT("GrowthRestDismantle"));
             {
@@ -182,13 +180,21 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             GapTargetLine=PickLine(LDTerms::PickGapTarget);
             GapFillerLine=PickLine(LDTerms::PickGapFiller);
             {
+                // 拆解: the rule line with the picked count, then the equation (inputs + … → result); the inputs are picked on
+                // the library and the board themselves.
                 auto* Picker=WidgetTree->ConstructWidget<UVerticalBox>();
-                DismantleHeading=OneLine(LDHUDStyle::TypeCaption);Picker->AddChildToVerticalBox(DismantleHeading);
-                DismantleList=WidgetTree->ConstructWidget<UWrapBox>();DismantleList->SetExplicitWrapSize(true);DismantleList->SetWrapSize(ServicePanelWidth+200.f);
-                DismantleList->SetInnerSlotPadding(FVector2D(6,4));Picker->AddChildToVerticalBox(DismantleList)->SetPadding(FMargin(0,2,0,0));
+                DismantleHeading=OneLine(LDHUDStyle::TypeSmall);DismantleHeading->SetColorAndOpacity(LDHUDStyle::UIText);
+                Picker->AddChildToVerticalBox(DismantleHeading);
+                auto* Stack=WidgetTree->ConstructWidget<UOverlay>();
+                DismantlePaint=WidgetTree->ConstructWidget<ULDPaintLayer>();
+                DismantlePaint->Painter=[this](FSlateWindowElementList& Elements,int32 PaintAt,const FGeometry& PaintGeometry){PaintDismantle(Elements,PaintAt,PaintGeometry);};
+                auto* PaintSlot=Stack->AddChildToOverlay(DismantlePaint);PaintSlot->SetHorizontalAlignment(HAlign_Fill);PaintSlot->SetVerticalAlignment(VAlign_Fill);
+                DismantleEquation=WidgetTree->ConstructWidget<UHorizontalBox>();
+                Stack->AddChildToOverlay(DismantleEquation);
+                Picker->AddChildToVerticalBox(Stack)->SetPadding(FMargin(0,12,0,0));
                 Picker->SetVisibility(ESlateVisibility::Collapsed);
                 DismantleSection=Picker;
-                Body->AddChildToVerticalBox(Picker)->SetPadding(FMargin(0,4,0,0));
+                Body->AddChildToVerticalBox(Picker)->SetPadding(FMargin(0,0,0,0));
             }
             // The confirm line names what is forgotten, replaced, filled or removed; the components it sends back light up on
             // the board first.
@@ -248,7 +254,6 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         for(UWidget* Item:{StageBox.Get(),static_cast<UWidget*>(StageBack.Get()),FinalDesc.Get(),static_cast<UWidget*>(FinalLockButton.Get()),
             static_cast<UWidget*>(FinalLockNote.Get()),RespecBox.Get(),NpcBox.Get(),ArtisanBox.Get(),static_cast<UWidget*>(TrainerPicks.Get()),ServiceDock.Get()})
         {UCanvasPanelSlot* ItemSlot=Layer->AddChildToCanvas(Item);ItemSlot->SetAutoSize(true);ItemSlot->SetZOrder(Item==ServiceDock.Get()?3:Item==StageBox.Get()?1:2);LayerSlots.Add(Item,ItemSlot);}
-        for(ULDCommandButton* Forget:ForgetButtons){UCanvasPanelSlot* ItemSlot=Layer->AddChildToCanvas(Forget);ItemSlot->SetAutoSize(true);ItemSlot->SetZOrder(2);LayerSlots.Add(Forget,ItemSlot);}
         auto* Layers=WidgetTree->ConstructWidget<UOverlay>();Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         for(UWidget* Each:{static_cast<UWidget*>(TrayFrame.Get()),static_cast<UWidget*>(Layer.Get())})
         {auto* LayerSlot=Layers->AddChildToOverlay(Each);LayerSlot->SetHorizontalAlignment(HAlign_Fill);LayerSlot->SetVerticalAlignment(VAlign_Fill);}
@@ -345,10 +350,12 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled)
         GrowthShown(Card.Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
     }
 }
-void ULDChoicesPanel::SetTrayInset(float Right,float Bottom)
+void ULDChoicesPanel::SetTrayInset(float Right,float Bottom,float Width)
 {
     const FMargin Inset(0,0,Right,Bottom);
     if(TrayFrame&&!(TrayFrame->GetPadding()==Inset)){TrayFrame->SetPadding(Inset);}
+    const float Wrap=(Width>0.f?FMath::Min(Width,TrayWidth):TrayWidth)+1.f;
+    for(UWrapBox* Row:TrayRows){if(Row&&!FMath::IsNearlyEqual(Row->GetWrapSize(),Wrap)){Row->SetWrapSize(Wrap);}}
 }
 FVector2D ULDChoicesPanel::TrayDesiredSize() const
 {
@@ -452,6 +459,11 @@ TArray<FName> ULDChoicesPanel::ConfirmWarnings() const
     else if(RestConfirm.Kind==ELDBuildCommandKind::Dismantle)
     {
         Out=RestConfirm.Surrendered;Out.Append(LDHUD::DismantleDetached(Latest,RestConfirm.Surrendered));
+    }
+    else if(bDismantleOpen)
+    {
+        // While picking, the installs a pick would send back light orange as soon as it is picked.
+        Out=LDHUD::DismantleDetached(Latest,DismantlePicked);
     }
     return Out;
 }
@@ -611,13 +623,12 @@ void ULDChoicesPanel::RefreshOffer()
         Detail.Name=SkipName;
         Detail.Body=Points>0?FString(TEXT("放弃本组技能，本次机会不再保留。")):FString(TEXT("奖励数据缺失。"));
         if(!Gate.bCanChoose){Detail.Body+=TEXT("\n\n")+Gate.ChooseBlocked;}
-        ShowFace(SkipCard,SkipKey,SkipName,FString(),TEXT("+"),Detail);
+        ShowFace(SkipCard,SkipKey,SkipName,FString(),Points>0?FString::Printf(TEXT("+%lld"),Points):FString(TEXT("+")),Detail);
         GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipPoints(Points):FString());
     }
     ShowLook(SkipCard,bQuickShown&&bQuickCompact,Points>0&&Gate.bCanChoose&&!PendingRequest);
-    // On the stage the skip card is narrow: 不选 over its points.
-    if(SkipCard.bBig){GrowthText(SkipCard.Name,LDTerms::OfferSkip);GrowthShown(SkipCard.IconFrame,false);}
-    else{GrowthText(SkipCard.Name,SkipName);GrowthShown(SkipCard.IconFrame,true);}
+    // The skip card's name is only 不选; its points are the glyph on a tile and the facts line on the stage.
+    GrowthText(SkipCard.Name,LDTerms::OfferSkip);GrowthShown(SkipCard.IconFrame,!SkipCard.bBig);
 }
 void ULDChoicesPanel::RefreshFinalMod()
 {
@@ -749,7 +760,7 @@ ULDChoicesPanel::FChoiceRow& ULDChoicesPanel::ChoiceRowAt(int32 Index)
     {
         const int32 RowIndex=ChoiceRows.Num();
         FChoiceRow& Row=ChoiceRows.AddDefaulted_GetRef();
-        Row.Row=TrayRow(WidgetTree);RowWidgets.Add(Row.Row);
+        Row.Row=TrayRow(WidgetTree);RowWidgets.Add(Row.Row);TrayRows.Add(Row.Row);
         for(int32 Option=0;Option<2;++Option)
         {
             FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthComponentChoice%d_%d"),RowIndex,Option)),[this,RowIndex,Option](){PickComponentChoice(RowIndex,Option);});
@@ -1130,7 +1141,7 @@ void ULDChoicesPanel::RefreshRest()
     GrowthShown(NpcBox,bServices&&ServiceContext==ELDRestService::SkillMerchant);
     GrowthShown(RespecBox,bServices&&ServiceContext==ELDRestService::Trainer);
     GrowthShown(ArtisanBox,bServices&&ServiceContext==ELDRestService::ComponentArtisan);
-    if(!bShown){CloseMaterialPickers();for(ULDCommandButton* Forget:ForgetButtons){GrowthShown(Forget,false);}return;}
+    if(!bShown){CloseMaterialPickers();return;}
     const int64 Price=LatestContent?LatestContent->Parameters.NpcActivePoints:0;
     GrowthText(Cast<UTextBlock>(NpcButton->GetContent()),Price>0?LDTerms::NpcOffer(Price):FString(TEXT("NPC：价格数据缺失")));
     const auto Service=[this](ULDCommandButton* Button,UTextBlock* Why,const FString& Refusal)
@@ -1148,17 +1159,7 @@ void ULDChoicesPanel::RefreshRest()
     }
     const FString Forget=ForgetRefusal();
     bool bAnyLearned=false;
-    for(uint8 Key=0;Key<3&&ForgetButtons.IsValidIndex(Key);++Key)
-    {
-        const FName Active=LDHUD::ActiveInSlot(Latest,Key);
-        GrowthShown(ForgetButtons[Key],bServices&&ServiceContext==ELDRestService::Trainer&&!Active.IsNone(),ESlateVisibility::Visible);
-        if(Active.IsNone()){continue;}
-        bAnyLearned=true;
-        const FText ForgetTip=FText::FromString(LDTerms::ForgetSlot(SlotKeys.Of(Key),LDHUD::ContentName(LatestContent,Active.ToString())));
-        if(!ForgetButtons[Key]->GetToolTipText().EqualTo(ForgetTip)){ForgetButtons[Key]->SetToolTipText(ForgetTip);}
-        GrowthTint(ForgetButtons[Key],LDHUDStyle::UIReject*.35f);
-        GrowthEnabled(ForgetButtons[Key],Forget.IsEmpty()&&!PendingRequest);
-    }
+    for(uint8 Key=0;Key<3;++Key){bAnyLearned|=!LDHUD::ActiveInSlot(Latest,Key).IsNone();}
     const FString ForgetWhy=bAnyLearned?Forget:FString(TEXT("还没有学会的技能可遗忘"));
     GrowthText(ForgetBlocked,ForgetWhy);
     GrowthShown(ForgetBlocked,!ForgetWhy.IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -1229,19 +1230,62 @@ ULDCommandButton* ULDChoicesPanel::GapFillerButtonAt(int32 Index)
     }
     return GapFillerButtons[Index];
 }
-ULDCommandButton* ULDChoicesPanel::DismantleButtonAt(int32 Index)
+void ULDChoicesPanel::BuildDismantleEquation(int32 Inputs)
 {
-    while(DismantleButtons.Num()<=Index)
+    // Inputs faces joined by "+", then "→" and the result's face; one name under each.
+    if(!DismantleEquation||DismantleFaces.Num()==Inputs+1){return;}
+    DismantleEquation->ClearChildren();DismantleFaces.Reset();DismantleNames.Reset();
+    const auto Sign=[this](const TCHAR* Glyph)
     {
-        const int32 ButtonIndex=DismantleButtons.Num();
-        ULDCommandButton* Pick=LDWidgets::Button(WidgetTree,TEXT(""),[this,ButtonIndex](){PickDismantle(ButtonIndex);},false,
-            FName(*FString::Printf(TEXT("GrowthRestDismantlePick%d"),ButtonIndex)));
-        ScaleNewText(Cast<UTextBlock>(Pick->GetContent()));RowWidgets.Add(Pick);
-        auto* Caption=CastChecked<UTextBlock>(Pick->GetContent());Caption->SetAutoWrapText(false);Caption->SetWrapTextAt(ServicePanelWidth-44.f);
-        DismantleList->AddChildToWrapBox(Pick);
-        DismantleButtons.Add(Pick);
+        UTextBlock* Mark=LDWidgets::Text(WidgetTree,Glyph,LDHUDStyle::TypeBanner,NAME_None,LDUIFonts::ERole::Title);
+        Mark->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        UHorizontalBoxSlot* MarkSlot=DismantleEquation->AddChildToHorizontalBox(Mark);
+        MarkSlot->SetPadding(FMargin(14,14,14,0));MarkSlot->SetVerticalAlignment(VAlign_Top);
+    };
+    for(int32 Index=0;Index<=Inputs;++Index)
+    {
+        if(Index>0){Sign(Index==Inputs?TEXT("→"):TEXT("+"));}
+        auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();
+        auto* Face=WidgetTree->ConstructWidget<USizeBox>();Face->SetWidthOverride(72.f);Face->SetHeightOverride(72.f);
+        Column->AddChildToVerticalBox(Face)->SetHorizontalAlignment(HAlign_Center);
+        UTextBlock* Name=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeCaption);
+        Name->SetJustification(ETextJustify::Center);Name->SetAutoWrapText(false);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+        auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(112.f);NameBox->SetContent(Name);
+        Column->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,6,0,0));
+        DismantleEquation->AddChildToHorizontalBox(Column)->SetVerticalAlignment(VAlign_Top);
+        DismantleFaces.Add(Face);DismantleNames.Add(Name);
     }
-    return DismantleButtons[Index];
+}
+void ULDChoicesPanel::PaintDismantle(FSlateWindowElementList& Elements,int32 PaintAt,const FGeometry& Geometry) const
+{
+    if(!bDismantleOpen||DismantleFaces.IsEmpty()){return;}
+    const int32 Inputs=DismantleFaces.Num()-1;
+    const double Now=UiNow();
+    for(int32 Index=0;Index<DismantleFaces.Num();++Index)
+    {
+        const USizeBox* Face=DismantleFaces[Index];
+        if(!Face){continue;}
+        const FBox2D Box=LDUIShapes::RectIn(Geometry,Face->GetCachedGeometry());
+        if(Index<Inputs&&DismantlePicked.IsValidIndex(Index))
+        {
+            const FName Id=DismantlePicked[Index];
+            const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Id,LatestContent);
+            LDUIPaint::Tile(Elements,PaintAt,Geometry,Box,uint8(Facts.Kind),Facts.bScarce,LDUIPaint::ETileState::Selected,
+                LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Id.ToString())),1.f,Now);
+        }
+        else if(Index<Inputs)
+        {
+            LDUIPaint::DashedEdge(Elements,PaintAt,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.55f));
+        }
+        else
+        {
+            // The result: a common component drawn at random, shown as a gold-edged unknown.
+            const bool bReady=int64(DismantlePicked.Num())==Materials.DismantleCount;
+            LDUIPaint::Shape(Elements,PaintAt,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDUIPaint::FFill::Solid(LDHUDStyle::UIRaised));
+            LDUIPaint::Edge(Elements,PaintAt+1,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(bReady?1.f:.4f),2.f);
+            if(bReady){LDUIPaint::Halo(Elements,PaintAt,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.35f),10.f);}
+        }
+    }
 }
 void ULDChoicesPanel::RefreshMaterials()
 {
@@ -1282,7 +1326,8 @@ void ULDChoicesPanel::RefreshMaterials()
         GrowthText(Cast<UTextBlock>(Pick->GetContent()),Marked(Name(Filler),RestConfirm.Kind==ELDBuildCommandKind::FillGap&&RestConfirm.GapFiller==Filler));
         GrowthEnabled(Pick,!PendingRequest);
     }
-    // Dismantle: the service, then (while open) every owned common component; installed ones warn about their installs.
+    // Dismantle: the service, then (while open) the equation of the picks; the candidates are picked on the library and the
+    // board (the HUD hands DismantleSelectable to the storage), where installed ones show their detached installs orange.
     const int64 Count=Materials.DismantleCount;
     GrowthText(Cast<UTextBlock>(DismantleButton->GetContent()),Count>0?LDTerms::DismantleService(Count):FString(TEXT("拆解：数量数据缺失")));
     Service(DismantleButton,DismantleBlocked,Materials.DismantleBlocked);
@@ -1290,19 +1335,16 @@ void ULDChoicesPanel::RefreshMaterials()
     if(!bDismantleOpen){DismantlePicked.Reset();}
     DismantlePicked.RemoveAll([this](const FName& Id){return !Materials.DismantleCandidates.Contains(Id);});
     GrowthShown(DismantleSection,bDismantleOpen,ESlateVisibility::SelfHitTestInvisible);
-    GrowthText(DismantleHeading,LDTerms::PickDismantle(Count)+TEXT(" ")+LDTerms::DismantlePicked(DismantlePicked.Num(),Count));
-    const int32 CandidateCount=bDismantleOpen?Materials.DismantleCandidates.Num():0;
-    for(int32 Index=0;Index<FMath::Max(CandidateCount,DismantleButtons.Num());++Index)
+    GrowthText(DismantleHeading,LDTerms::PickDismantle(Count)+TEXT("  ")+LDTerms::DismantlePicked(DismantlePicked.Num(),Count));
+    if(bDismantleOpen&&Count>0)
     {
-        const bool bButtonShown=Index<CandidateCount;
-        ULDCommandButton* Pick=bButtonShown?DismantleButtonAt(Index):DismantleButtons[Index].Get();
-        GrowthShown(Pick,bButtonShown,ESlateVisibility::Visible);
-        if(!bButtonShown){continue;}
-        const FName Id=Materials.DismantleCandidates[Index];
-        const bool bInstalled=Latest.Components.ContainsByPredicate([Id](const FLDComponentInstanceView& C){return C.DefinitionId==Id&&C.bInstalled;});
-        const bool bPicked=DismantlePicked.Contains(Id);
-        GrowthText(Cast<UTextBlock>(Pick->GetContent()),Marked(Name(Id)+(bInstalled?LDTerms::DismantleInstalledWarning:TEXT("")),bPicked));
-        GrowthEnabled(Pick,!PendingRequest&&(bPicked||int64(DismantlePicked.Num())<Count));
+        BuildDismantleEquation(int32(FMath::Min<int64>(Count,8)));
+        for(int32 Index=0;Index<DismantleNames.Num();++Index)
+        {
+            const bool bResult=Index==DismantleNames.Num()-1;
+            GrowthText(DismantleNames[Index],bResult?FString(LDTerms::DismantleResult):DismantlePicked.IsValidIndex(Index)?Name(DismantlePicked[Index]):FString());
+            DismantleNames[Index]->SetColorAndOpacity(bResult?LDHUDStyle::UIAction:LDHUDStyle::UIText);
+        }
     }
 }
 bool ULDChoicesPanel::ToggleFillGap()
@@ -1373,6 +1415,14 @@ bool ULDChoicesPanel::PickDismantle(int32 Index)
     RefreshRest();
     return true;
 }
+bool ULDChoicesPanel::PickDismantleComponent(FName Component)
+{
+    return PickDismantle(Materials.DismantleCandidates.IndexOfByKey(Component));
+}
+TArray<FName> ULDChoicesPanel::DismantleSelectable() const
+{
+    return bDismantleOpen&&!PendingRequest?Materials.DismantleCandidates:TArray<FName>();
+}
 bool ULDChoicesPanel::BuyNpcOffer()
 {
     if(!Usable()){return false;}
@@ -1415,6 +1465,12 @@ bool ULDChoicesPanel::AskForget(uint8 Key)
     RestConfirm.Kind=ELDBuildCommandKind::ForgetActive;RestConfirm.Slot=Key;RestConfirm.Active=Active;
     RefreshRest();
     return true;
+}
+bool ULDChoicesPanel::ForgetAtColumn(int32 Column)
+{
+    if(!IsServiceShown()||ServiceContext!=ELDRestService::Trainer){return false;}
+    for(uint8 Key=0;Key<3;++Key){if(int32(LDHUD::SlotColumn(Key))==Column){AskForget(Key);return true;}}
+    return false;
 }
 bool ULDChoicesPanel::ConfirmRestAction()
 {
@@ -1667,29 +1723,29 @@ void ULDChoicesPanel::LayoutLayer()
     if(bStageShown)
     {
         PlaceOnLayer(StageBox,Places.Stage,FVector2D(.5f,0.f));
-        // Top-left: the rest actions own the top-right corner of the full workshop.
-        PlaceOnLayer(StageBack,Places.Stage,FVector2D(0.f,0.f));
+        // Bottom-left of the stage, clear of the phase bar above and the rest actions in the top-right corner.
+        const FSlateRect& Stage=Places.Stage;
+        PlaceOnLayer(StageBack,FSlateRect(Stage.Left+16.f,Stage.Top,Stage.Right,Stage.Bottom-16.f),FVector2D(0.f,1.f));
         const FSlateRect& Dock=Places.Dock;
         PlaceOnLayer(FinalDesc,FSlateRect(Dock.Left+28.f,Dock.Top,Dock.Right-340.f,Dock.Bottom),FVector2D(0.f,.5f));
         PlaceOnLayer(FinalLockButton,FSlateRect(Dock.Right-320.f,Dock.Top,Dock.Right-28.f,Dock.Bottom),FVector2D(.5f,.4f));
         PlaceOnLayer(FinalLockNote,FSlateRect(Dock.Right-320.f,Dock.Top,Dock.Right-28.f,Dock.Bottom),FVector2D(.5f,.78f));
     }
     if(!IsServiceShown()){return;}
-    PlaceOnLayer(RespecBox,FSlateRect(Places.CharacterFoot.Left,Places.CharacterFoot.Top,Places.CharacterFoot.Right-10.f,Places.CharacterFoot.Bottom),FVector2D(1.f,.5f));
+    PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);
     PlaceOnLayer(NpcBox,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(TrainerPicks,Places.PendingTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ArtisanBox,Places.LibraryTop,FVector2D(0.f,0.f));
     PlaceOnLayer(ServiceDock,Places.Dock,FVector2D::ZeroVector,true);
     for(uint8 Key=0;Key<3;++Key)
     {
-        const FSlateRect& Head=Places.Heads[int32(LDHUD::SlotColumn(Key))];
-        if(ForgetButtons.IsValidIndex(Key)){PlaceOnLayer(ForgetButtons[Key],Head,FVector2D(1.f,0.f));}
         if(BlueprintRows.IsValidIndex(TrainerBlueprint))
         {
-            // On the skill icon the blueprint lands on.
+            // Mockup 05: the pill hangs on the bottom edge of the skill icon the blueprint lands on, clear of the key chip.
             const FSlateRect& Icon=Places.HeadIcons[int32(LDHUD::SlotColumn(Key))];
-            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Learn[Key],Icon,FVector2D(.5f,.5f));
-            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Replace[Key],Icon,FVector2D(.5f,.5f));
+            const FSlateRect Foot(Icon.Left,Icon.Bottom-2.f,Icon.Right,Icon.Bottom-2.f+1.f);
+            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Learn[Key],Foot,FVector2D(.5f,.5f));
+            PlaceOnLayer(BlueprintRows[TrainerBlueprint].Replace[Key],Foot,FVector2D(.5f,.5f));
         }
     }
 }

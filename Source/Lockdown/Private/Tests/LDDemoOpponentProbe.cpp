@@ -2371,9 +2371,14 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     case 16:
         if(UIServicePick<Panel->Materials.DismantleCount)
         {
-            if(!Check(Panel->DismantleButtons.IsValidIndex(UIServicePick),TEXT("UI: actual inventory supplies the approved dismantle inputs"))){return false;}
-            if(!Click(Panel->DismantleButtons[UIServicePick])){return Passed;}
-            ++UIServicePick;return true;
+            // The picks are made on the storage's service pick, as a click on a library or board face reports them.
+            ULDComponentStorage* PickStorage=PC.HUDUI?PC.HUDUI->Storage.Get():nullptr;
+            const TArray<FName> Selectable=Panel->DismantleSelectable();
+            if(PickStorage&&!PickStorage->IsServicePicking()){return true;}
+            if(!Check(PickStorage&&PickStorage->OnServicePick&&Selectable.IsValidIndex(int32(UIServicePick)),
+                TEXT("UI: actual inventory supplies the approved dismantle inputs on the storage"))){return false;}
+            PickStorage->OnServicePick(Selectable[int32(UIServicePick)]);
+            ++UIServicePick;UIActionDueAt=Now+.2;return true;
         }
         Capture(TEXT("HostArtisanDismantleConfirm.png"));++UIServiceStep;return true;
     case 17:

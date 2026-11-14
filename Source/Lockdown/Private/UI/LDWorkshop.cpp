@@ -185,7 +185,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             PointsRow->AddChildToHorizontalBox(PointsText)->SetVerticalAlignment(VAlign_Center);
             PointsRow->AddChildToHorizontalBox(PointsLabel)->SetVerticalAlignment(VAlign_Center);
             if(UHorizontalBoxSlot* LabelSlot=Cast<UHorizontalBoxSlot>(PointsLabel->Slot)){LabelSlot->SetPadding(FMargin(12,4,0,0));}
-            PointsBox=WidgetTree->ConstructWidget<UBorder>();PointsBox->SetBrush(FSlateNoResource());PointsBox->SetPadding(FMargin(16,2));PointsBox->SetContent(PointsRow);
+            PointsBox=WidgetTree->ConstructWidget<UBorder>();PointsBox->SetBrush(FSlateNoResource());PointsBox->SetPadding(FMargin(22,2,16,2));PointsBox->SetContent(PointsRow);
             auto* PointsHeight=WidgetTree->ConstructWidget<USizeBox>();PointsHeight->SetHeightOverride(54.f);PointsHeight->SetContent(PointsBox);
             PointsBox->SetVerticalAlignment(VAlign_Center);
             Column->AddChildToVerticalBox(PointsHeight)->SetPadding(FMargin(0,4,0,12));
@@ -220,6 +220,8 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 Column->AddChildToVerticalBox(RowHeight)->SetPadding(FMargin(0,Index?8.f:0.f,0,0));
                 Built.Add(Plus);Built.Add(Line);Built.Add(RowHeight);
             }
+            RespecSpace=WidgetTree->ConstructWidget<USizeBox>();RespecSpace->SetHeightOverride(0.f);
+            Column->AddChildToVerticalBox(RespecSpace)->SetHorizontalAlignment(HAlign_Fill);
             // The column scales down (never up) when larger text would push it past the panel.
             // The column keeps the panel's inner width and scales down (never up) when larger text would push it past the
             // panel's height.
@@ -467,6 +469,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     Rects=Next;
     TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:W-float(Rects.Library.Max.X);
     TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:H-float(Rects.Library.Max.Y);
+    TrayWrap=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().X)-24.f):0.f;
     const bool bFull=Mode==EMode::Full;
     Place(Blur,Rects.Region);
     Place(Backdrop,WorkshopBox(0.f,0.f,W,H));
@@ -501,6 +504,14 @@ void ULDWorkshop::Layout(FVector2D Size)
         Place(ColumnBacks[Index],Column);
         Place(Heads[Index].Box,WorkshopBox(Column.Min.X,Column.Min.Y+Rects.HeadTop,Column.Max.X,Column.Min.Y+Rects.HeadHeight));
         if(!FMath::IsNearlyEqual(Heads[Index].IconBox->GetWidthOverride(),Rects.HeadIcon)){Heads[Index].IconBox->SetWidthOverride(Rects.HeadIcon);Heads[Index].IconBox->SetHeightOverride(Rects.HeadIcon);}
+        // The smaller field-mode art keeps its key chip and the empty slot's "+" in proportion, so neither covers the art.
+        const float HeadScale=FMath::Clamp(Rects.HeadIcon/100.f,.6f,1.f);
+        if(UWidget* Chip=Heads[Index].Key?Heads[Index].Key->GetParent():nullptr)
+        {
+            Chip->SetRenderTransformPivot(FVector2D::ZeroVector);Chip->SetRenderScale(FVector2D(FMath::Max(HeadScale,.78f)));
+            Chip->SetRenderTranslation(FVector2D(-9.f,-9.f)*HeadScale);
+        }
+        if(Heads[Index].Glyph){Heads[Index].Glyph->SetRenderScale(FVector2D(HeadScale));}
     }
     Place(LibraryTitle,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+LibraryBand+18.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+LibraryBand+56.f));
     const bool bOwnDock=!(Mode==EMode::Full&&Latest.bFinalStage);
@@ -556,12 +567,12 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
         const FBox2D& Column=Rects.Column[Index];
         Out.Heads[Index]=WorkshopHasArea(Column)?Absolute(WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight)):FSlateRect();
     }
-    if(WorkshopHasArea(Rects.Character)&&PointsBox)
+    if(WorkshopHasArea(Rects.Character)&&RespecSpace&&Latest.bCharacterServices)
     {
-        // The trainer's respec rides on the unspent points row it refunds into.
-        const FGeometry& Points=PointsBox->GetCachedGeometry();
-        const FVector2D A=Points.GetAbsolutePosition(),B=A+Points.GetAbsoluteSize();
-        Out.CharacterFoot=FSlateRect(A.X,A.Y,B.X,B.Y);
+        // The trainer's respec spans the foot of the character column (below the reactions).
+        const FGeometry& Foot=RespecSpace->GetCachedGeometry();
+        const FVector2D A=Foot.GetAbsolutePosition(),B=A+Foot.GetAbsoluteSize();
+        Out.CharacterFoot=FSlateRect(A.X,A.Y+18.f*Foot.Scale,B.X,B.Y);
     }
     if(WorkshopHasArea(Rects.Library)&&LibraryBand>0.f)
     {Out.LibraryTop=Absolute(WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+14.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+LibraryBand));}
@@ -688,6 +699,7 @@ void ULDWorkshop::RefreshCharacter()
     WorkshopText(LevelLine,Latest.Level.Experience);
     const int64 Unspent=View.bValid?FMath::Max<int64>(0,View.UnspentPoints):0;
     WorkshopShown(PointsBox,Unspent>0);
+    if(RespecSpace){const float Foot=Latest.bCharacterServices?96.f:0.f;if(RespecSpace->GetHeightOverride()!=Foot){RespecSpace->SetHeightOverride(Foot);}}
     WorkshopText(PointsText,FString::FromInt(Unspent));
     // The stat rows follow the catalog's design order; each "+" spends one point through the band's stat bar.
     if(Content&&StatRows.IsEmpty())
@@ -768,11 +780,12 @@ void ULDWorkshop::RefreshCharacter()
         }
         auto* Line=Cast<UHorizontalBox>(AttributeList->GetChildAt(AttributeList->GetChildrenCount()-1));
         UTextBlock* Name=LDWidgets::Text(WidgetTree,TEXT(""),14);Name->SetAutoWrapText(false);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
         UTextBlock* Value=LDWidgets::Text(WidgetTree,TEXT(""),16,NAME_None,LDUIFonts::ERole::Number);Value->SetAutoWrapText(false);
         Value->SetColorAndOpacity(LDHUDStyle::UIText);Value->SetJustification(ETextJustify::Right);
         auto* Half=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Half);
-        auto* NameSlot=Half->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        Half->AddChildToHorizontalBox(Value)->SetPadding(FMargin(6,0,0,0));
+        auto* NameSlot=Half->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameSlot->SetVerticalAlignment(VAlign_Center);
+        Half->AddChildToHorizontalBox(Value)->SetPadding(FMargin(12,0,0,0));
         auto* HalfSlot=Line->AddChildToHorizontalBox(Half);HalfSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HalfSlot->SetPadding(FMargin(Index%2?18.f:0.f,0,0,5));
         AttributeHalves.Add(Half);
         AttributeNames.Add(Name);AttributeValues.Add(Value);ScaleFresh(Name);ScaleFresh(Value);
@@ -977,6 +990,21 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     Super::NativeTick(Geometry,DeltaSeconds);
     if(!IsOpen()||!FSlateApplication::IsInitialized()){return;}
     RefreshDock(FSlateApplication::Get().GetCursorPos());
+}
+FReply ULDWorkshop::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
+{
+    if(Event.GetEffectingButton()==EKeys::RightMouseButton&&IsOpen()&&Choices.IsValid())
+    {
+        const FVector2D At=Event.GetScreenSpacePosition();
+        for(int32 Index=0;Index<Heads.Num();++Index)
+        {
+            const UWidget* Head=Heads[Index].Box;
+            if(!Head||!Head->IsVisible()){continue;}
+            const FGeometry& HeadGeometry=Head->GetCachedGeometry();
+            if(HeadGeometry.IsUnderLocation(At)&&Choices->ForgetAtColumn(Index)){return FReply::Handled();}
+        }
+    }
+    return Super::NativeOnMouseButtonDown(Geometry,Event);
 }
 
 bool ULDWorkshop::DockHasRight() const

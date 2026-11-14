@@ -423,7 +423,7 @@ void ULDComponentStorage::BuildWorkshopCard(FName Component,bool bFresh,float Si
     UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Component),12);Name->SetAutoWrapText(true);Built.Add(Name);
     Name->SetJustification(ETextJustify::Center);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);Name->SetLineHeightPercentage(1.05f);
     StorageShown(Name,Workshop.bNames,ESlateVisibility::HitTestInvisible);
-    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+10.f);NameBox->SetMaxDesiredHeight(42.f);NameBox->SetContent(Name);Built.Add(NameBox);
+    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+10.f);NameBox->SetMaxDesiredHeight(46.f);NameBox->SetContent(Name);Built.Add(NameBox);
     NameBox->SetClipping(EWidgetClipping::ClipToBounds);
     Cell->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,6,0,0));
     FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.Cell=Cell;
@@ -558,7 +558,7 @@ TArray<const UWidget*> ULDComponentStorage::ReservedWidgets() const
 FReply ULDComponentStorage::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
 {
     if(Event.GetEffectingButton()==EKeys::LeftMouseButton&&BeginPress(Event.GetScreenSpacePosition())){return FReply::Handled();}
-    if(Event.GetEffectingButton()==EKeys::RightMouseButton&&bShownNow&&bExpanded)
+    if(Event.GetEffectingButton()==EKeys::RightMouseButton&&bShownNow&&bExpanded&&!IsServicePicking())
     {
         // D6 right click: the component under the pointer installs at its only place, or comes back to the storage.
         const FVector2D At=Event.GetScreenSpacePosition();
@@ -571,7 +571,7 @@ FReply ULDComponentStorage::NativeOnMouseButtonDown(const FGeometry& Geometry,co
 bool ULDComponentStorage::QuickInstall(FName Component)
 {
     const FLDComponentInstanceView* Owned=StorageOwned(Latest,Component);
-    if(!Owned){return false;}
+    if(!Owned||IsServicePicking()){return false;}
     if(Drag.bActive){EndDrag();}
     CloseChooser();
     if(Owned->bInstalled){bPendingAt=false;return DropInStorage(Component);}
@@ -584,6 +584,12 @@ bool ULDComponentStorage::QuickInstall(FName Component)
     }
     bPendingAt=!PendingAt.IsZero();Chooser.At=PendingAt;
     return DropOn(Component,Drops[0].Column,Drops[0].Host);
+}
+void ULDComponentStorage::SetServicePick(const TArray<FName>& Selectable,const TArray<FName>& Picked)
+{
+    // Entering a selection drops whatever the hand held; nothing is sent.
+    if(!Selectable.IsEmpty()&&PickSelectable.IsEmpty()&&(Drag.bActive||Press.bArmed||Chooser.bOpen)){CancelInteraction();}
+    PickSelectable=Selectable;PickPicked=Picked;
 }
 bool ULDComponentStorage::PickUp(FName Component,bool bFromColumn)
 {
@@ -628,6 +634,13 @@ bool ULDComponentStorage::BeginPress(FVector2D At)
         if(Component.IsNone()){for(const FTile& Tile:Tiles){if(StorageUnder(Tile.Face,At)){Component=Tile.Component;bFromColumn=true;break;}}}
     }
     if(Component.IsNone()){return IsHit(At);}
+    if(IsServicePicking())
+    {
+        // The service selection takes the click; nothing is picked up.
+        if(PickSelectable.Contains(Component)&&OnServicePick){LDWidgets::PlayCue(this,ELDAudioCue::UIClick);OnServicePick(Component);}
+        else{RejectedComponent=Component;RejectedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIReject);}
+        return true;
+    }
     // One request at a time: a press while one is on its way, or while a move waits for its second half, starts nothing.
     if(PendingRequest||Follow.State!=EFollow::None){if(Notify){Notify(FString(LDTerms::Storage)+TEXT("：上一个请求仍在处理中。"));}return true;}
     if(!Gate.bCanInstall){if(Notify){Notify(FString(LDTerms::Storage)+TEXT("：")+Gate.InstallBlocked);}return true;}
@@ -970,7 +983,7 @@ void ULDComponentStorage::UpdateFocus(FVector2D Pointer)
                 HoverDrops=LDHUD::ComponentDrops(Next.Component,Latest,LatestContent);
                 HoverDrops.Append(LDHUD::ReplaceDrops(Next.Component,Latest,LatestContent));
             }
-            Next.Drops=HoverDrops;
+            Next.Drops=IsServicePicking()?TArray<LDHUD::FComponentDrop>():HoverDrops;
             if(Workshop.bActive){MarkSeen(Next.Component);}
         }
         else{for(const FTile& Tile:Tiles){if(StorageUnder(Tile.Face,Pointer)){Next.Component=Tile.Component;Next.bInstalled=true;break;}}}
@@ -988,13 +1001,22 @@ void ULDComponentStorage::UpdateStates(FVector2D Pointer)
     if(Drag.bActive&&Drag.bFromColumn){Detached=LDHUD::DetachedWith(Drag.Component,Latest);}
     if(CurrentFocus.bOverDrop){Detached.Append(CurrentFocus.Drop.Lost);}
     const TArray<FName>* Bases=Chooser.bOpen&&!Chooser.Drop.Bases.IsEmpty()?&Chooser.Drop.Bases:nullptr;
+    const bool bPicking=IsServicePicking();
+    // A service selection: the picked shine, the selectable stay lit, the rest dim; what the pick sends back lights orange.
+    const auto PickState=[&](FName Component,bool bHovered)
+    {
+        return PickPicked.Contains(Component)?EFaceState::Pick:Warnings.Contains(Component)?EFaceState::Detached
+            :!PickSelectable.Contains(Component)?EFaceState::Dim:bHovered?EFaceState::Hovered:EFaceState::Normal;
+    };
     for(FCard& Card:Cards)
     {
         const bool bRejected=bRejectLive&&Card.Component==RejectedComponent;
-        Card.State=bRejected?EFaceState::Rejected:Drag.bActive&&Drag.Component==Card.Component?EFaceState::Held
-            :CurrentFocus.Component==Card.Component&&!CurrentFocus.bInstalled?EFaceState::Hovered:EFaceState::Normal;
+        const bool bHovered=CurrentFocus.Component==Card.Component&&!CurrentFocus.bInstalled;
+        Card.State=bRejected?EFaceState::Rejected:bPicking?PickState(Card.Component,bHovered)
+            :Drag.bActive&&Drag.Component==Card.Component?EFaceState::Held:bHovered?EFaceState::Hovered:EFaceState::Normal;
         LDTween::SetTranslation(Card.Face,FVector2D(bRejected?Shake:0.f,0.f));
-        LDTween::SetScale(Card.Face,Card.State==EFaceState::Hovered?LDHUDStyle::HoverScale:1.f);
+        LDTween::SetScale(Card.Face,Card.State==EFaceState::Hovered||Card.State==EFaceState::Pick?LDHUDStyle::HoverScale:1.f);
+        LDTween::SetOpacity(Card.Face,Card.State==EFaceState::Dim?.4f:1.f);
     }
     for(FTile& Tile:Tiles)
     {
@@ -1002,6 +1024,7 @@ void ULDComponentStorage::UpdateStates(FVector2D Pointer)
         const bool bRejected=bRejectLive&&Tile.Component==RejectedComponent;
         const bool bReplaced=CurrentFocus.bOverDrop&&CurrentFocus.Drop.Replacing==Tile.Component;
         Tile.State=bRejected?EFaceState::Rejected
+            :bPicking?PickState(Tile.Component,CurrentFocus.Component==Tile.Component&&CurrentFocus.bInstalled)
             :Drag.bActive&&Drag.Component==Tile.Component?EFaceState::Held
             :Bases&&Bases->Contains(Tile.Component)?EFaceState::Pick
             :bReplaced||(OnTile&&!OnTile->Replacing.IsNone())?EFaceState::Replace

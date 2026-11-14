@@ -115,6 +115,11 @@ public:
     bool TileBox(FName Component,FSlateRect& Out) const;
     // The components a pending service confirm would take off or leave idle: their faces light orange before the hold.
     void SetWarnings(const TArray<FName>& Components){Warnings=Components;}
+    // A service selection (the artisan's 拆解): while Selectable is not empty its components are chosen by clicking their
+    // faces in the library or on the board (OnServicePick) instead of being picked up or dragged; Picked shine, the rest dim.
+    void SetServicePick(const TArray<FName>& Selectable,const TArray<FName>& Picked);
+    bool IsServicePicking() const {return !PickSelectable.IsEmpty();}
+    TFunction<void(FName)> OnServicePick;
     // In an engagement window a newly received component only flies to the stack, without its name strip.
     void SetEngaged(bool bInEngaged){bEngaged=bInEngaged;}
     // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.
@@ -278,6 +283,8 @@ private:
     bool bWasPressed=false;
     FName GhostShowing;
     TArray<FName> Warnings;
+    TArray<FName> PickSelectable;
+    TArray<FName> PickPicked;
     bool bEngaged=false;
     // A component received since the last view flies from the screen centre into the stack, then its name stays above it.
     struct FFly

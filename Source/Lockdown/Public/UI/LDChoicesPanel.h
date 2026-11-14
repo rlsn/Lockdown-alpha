@@ -73,8 +73,9 @@ public:
     bool IsQuickHit(FVector2D Absolute) const;
     // The components a confirm line would take off or send back (lit orange on the board before the hold).
     TArray<FName> ConfirmWarnings() const;
-    // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button).
-    void SetTrayInset(float Right,float Bottom);
+    // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button), and the width
+    // its rows wrap at (0: four cards); in the workshop the rows wrap inside the pending area.
+    void SetTrayInset(float Right,float Bottom,float Width=0.f);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
@@ -99,15 +100,23 @@ public:
     bool Respec();
     bool AskReplace(int32 Index,uint8 Key);
     bool AskForget(uint8 Key);
+    // The trainer's right click on the board's skill head in Column (LDHUD::SlotColumn): asks to forget that slot's active.
+    // False (the click is not taken) without the trainer or on the body and dash columns.
+    bool ForgetAtColumn(int32 Column);
     // #198 G rest material services. ToggleFillGap opens (or closes) the gap target list; PickGapTarget shows that target's
-    // fillers and PickGapFiller the confirm line ("花 4 点：为 X 补 Y"). ToggleDismantle opens the list of owned common
-    // components; PickDismantle selects or deselects one, and the approved count selected shows the confirm line naming what
-    // is removed and which installs go back to the inventory. ConfirmRestAction sends either.
+    // fillers and PickGapFiller the confirm line ("花 4 点：为 X 补 Y"). ToggleDismantle turns the library and the board into
+    // the selection of owned common components (the storage's service pick); PickDismantle (an index of the candidates) or
+    // PickDismantleComponent selects or deselects one, the dock's equation shows the picks, and the approved count selected
+    // shows the confirm line naming what is removed and which installs go back to the inventory. ConfirmRestAction sends either.
     bool ToggleFillGap();
     bool PickGapTarget(int32 Index);
     bool PickGapFiller(int32 Index);
     bool ToggleDismantle();
     bool PickDismantle(int32 Index);
+    bool PickDismantleComponent(FName Component);
+    // The open dismantle selection for the storage's service pick: its candidates (empty when closed) and the picks.
+    TArray<FName> DismantleSelectable() const;
+    const TArray<FName>& DismantleSelection() const {return DismantlePicked;}
     // #198 G: a pending elite camp component choice (ChoiceIndex in the view's oldest-first order): take the option at
     // OptionIndex, or, once every option is owned, the empty-pool points.
     bool PickComponentChoice(int32 ChoiceIndex,int32 OptionIndex);
@@ -215,6 +224,8 @@ private:
     UPROPERTY() TObjectPtr<UWrapBox> FinalModRow;
     UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
     UPROPERTY() TObjectPtr<UWrapBox> BaseRow;
+    // Every tray row (they all wrap at one width).
+    UPROPERTY() TArray<TObjectPtr<UWrapBox>> TrayRows;
     UPROPERTY() TObjectPtr<UVerticalBox> ChoiceRowList;
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
@@ -255,7 +266,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> NpcBlocked;
     UPROPERTY() TObjectPtr<ULDCommandButton> RespecButton;
     UPROPERTY() TObjectPtr<UTextBlock> RespecBlocked;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ForgetButtons;
     UPROPERTY() TObjectPtr<UTextBlock> ForgetBlocked;
     // #198 G FillGap and Dismantle: their service buttons, the target / filler pickers and the dismantle selection.
     UPROPERTY() TObjectPtr<ULDCommandButton> FillGapButton;
@@ -268,8 +278,11 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DismantleBlocked;
     UPROPERTY() TObjectPtr<UWidget> DismantleSection;
     UPROPERTY() TObjectPtr<UTextBlock> DismantleHeading;
-    UPROPERTY() TObjectPtr<UWrapBox> DismantleList;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> DismantleButtons;
+    // The dock's equation: one painted face per input (empty ones dashed) and the result's, with their names below.
+    UPROPERTY() TObjectPtr<UHorizontalBox> DismantleEquation;
+    UPROPERTY() TArray<TObjectPtr<USizeBox>> DismantleFaces;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DismantleNames;
+    UPROPERTY() TObjectPtr<ULDPaintLayer> DismantlePaint;
     UPROPERTY() TObjectPtr<UWidget> RestConfirmLine;
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
     UPROPERTY() TObjectPtr<ULDHoldButton> RestConfirmButton;
@@ -364,7 +377,8 @@ private:
     FString RestConfirmRefusal() const;
     ULDCommandButton* GapTargetButtonAt(int32 Index);
     ULDCommandButton* GapFillerButtonAt(int32 Index);
-    ULDCommandButton* DismantleButtonAt(int32 Index);
+    void BuildDismantleEquation(int32 Inputs);
+    void PaintDismantle(FSlateWindowElementList& Elements,int32 PaintAt,const FGeometry& Geometry) const;
     // The FillGap / Dismantle pickers and their confirm line still match the latest material services.
     void RefreshMaterials();
     void CloseMaterialPickers();

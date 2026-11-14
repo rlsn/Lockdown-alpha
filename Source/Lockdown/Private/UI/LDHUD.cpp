@@ -760,6 +760,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Storage->SubmitBuild=[WeakPC](const FLDBuildCommand& Command,ELDGrowthReason& Reason)->uint64
             {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitBuild(Command,Reason);}Reason=ELDGrowthReason::DataNotReady;return 0;};
             Storage->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
+            Storage->OnServicePick=[this](FName Component){if(ChoicesPanel){ChoicesPanel->PickDismantleComponent(Component);}};
         }
         if(StatBar)
         {
@@ -1230,7 +1231,7 @@ void ULDHUD::RefreshReadModel()
         if(Storage){Storage->SetEngaged(bEngaged);}
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
         ChoicesPanel->SetServiceContext(O.NearbyRestService);
-        if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());}
+        if(Storage){Storage->SetWarnings(ChoicesPanel->ConfirmWarnings());Storage->SetServicePick(ChoicesPanel->DismantleSelectable(),ChoicesPanel->DismantleSelection());}
     }
     if(StatBar)
     {
@@ -1285,6 +1286,7 @@ void ULDHUD::RefreshReadModel()
                 const ELDRestService Service=ChoicesPanel->GetServiceContext();
                 In.NpcName=Service==ELDRestService::SkillMerchant?TEXT("技能商人"):Service==ELDRestService::ComponentArtisan?TEXT("构件工匠"):TEXT("训练师");
                 In.bLibraryServices=Service==ELDRestService::ComponentArtisan;
+                In.bCharacterServices=Service==ELDRestService::Trainer;
             }
             Workshop->Present(In);
             Storage->SetWorkshop(Workshop->StorageLayout());
@@ -1293,17 +1295,14 @@ void ULDHUD::RefreshReadModel()
     }
     if(ChoicesPanel&&PC->RootUI&&bOwnMatch)
     {
-        // A rest's build or payout step, or the own death wait outside a rest, opens the workshop by itself (once per step);
-        // leaving that full-screen moment closes a workshop that opened by itself again unless a request is still on its way.
-        // One the player opened stays, at the field size.
-        const bool bRestWindow=bRestPhase&&(Public.Timeline.Step==ELDRestStep::Build||Public.Timeline.Step==ELDRestStep::Payout);
-        const bool bNewWindow=bRestWindow&&(WorkshopSeenMatch!=O.Match||WorkshopSeenRest!=Public.Timeline.RestIndex||WorkshopSeenStep!=Public.Timeline.Step);
+        // The own death wait outside a rest opens the workshop by itself (once per death); a rest never does, the 构筑 entry
+        // lights instead. Leaving that full-screen moment closes a workshop that opened by itself again unless a request is
+        // still on its way. One the player opened stays, at the field size.
         const bool bNewDeath=bDeathWait&&!bRestPhase&&!bWorkshopSeenDead;
-        if(bNewWindow||bNewDeath){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
+        if(bNewDeath){AutoOpenSince=GetWorld()->GetRealTimeSeconds();}
         if(!ChoicesPanel->IsTrayOpen()){bWorkshopAutoOpened=false;}
         if(bWorkshopWasFull&&!bWorkshopFull&&bWorkshopAutoOpened&&ChoicesPanel->IsTrayOpen()&&!ChoicesPanel->HasPendingRequest()&&!(Storage&&Storage->HasPendingRequest()))
         {PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);bWorkshopAutoOpened=false;}
-        WorkshopSeenMatch=O.Match;WorkshopSeenRest=bRestPhase?Public.Timeline.RestIndex:0;WorkshopSeenStep=bRestPhase?Public.Timeline.Step:ELDRestStep::None;
         bWorkshopSeenDead=bDeathWait&&!bRestPhase;bWorkshopWasFull=bWorkshopFull;
     }
     // D10/APP_SPEC §4.2: the growth panel opens by itself only for the match's opening offer, and only when nothing else is
@@ -1354,7 +1353,7 @@ void ULDHUD::RefreshReadModel()
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
     // The tray stands right above the 构筑 button in the corner, or in the workshop's pending area.
-    if(ChoicesPanel&&Workshop&&Workshop->IsOpen()){const FVector2D Inset=Workshop->TrayInset();ChoicesPanel->SetTrayInset(Inset.X,Inset.Y);}
+    if(ChoicesPanel&&Workshop&&Workshop->IsOpen()){const FVector2D Inset=Workshop->TrayInset();ChoicesPanel->SetTrayInset(Inset.X,Inset.Y,Workshop->TrayWrapWidth());}
     else if(ChoicesPanel&&PromptFrame){ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y))+8.f);}
     if(TopCentreSlot)
     {
