@@ -236,9 +236,8 @@ private:
     UPROPERTY() TObjectPtr<UHorizontalBox> StageSources;
     UPROPERTY() TObjectPtr<ULDCommandButton> StageBack;
     UPROPERTY() TObjectPtr<UWidget> FinalDesc;
-    UPROPERTY() TObjectPtr<UTextBlock> FinalEffectText;
-    UPROPERTY() TObjectPtr<UTextBlock> FinalCostText;
-    UPROPERTY() TObjectPtr<UTextBlock> FinalNotesText;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalDescText;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalNumbersText;
     UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
     UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
     // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, the artisan's

@@ -53,6 +53,7 @@ public:
     virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 private:
     void Repaint() const;
+    bool IsShownAndEnabled() const;
     double HoldStartedAt=-1.;
     bool bHoldRequired=true;
     FTSTicker::FDelegateHandle HoldTicker;
@@ -97,6 +98,8 @@ protected:
 };
 namespace LDWidgets
 {
+    // Withdraws every hold in progress in Tree, so a closed or left page needs a fresh full hold.
+    LOCKDOWN_API void ReleaseHolds(UWidgetTree* Tree);
     LOCKDOWN_API UBorder* Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding=FMargin(20));
     // Role picks the interface face (LDUIFonts); every runtime text takes its font through a role.
     LOCKDOWN_API UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size=16,FName Name=NAME_None,LDUIFonts::ERole Role=LDUIFonts::ERole::Body);

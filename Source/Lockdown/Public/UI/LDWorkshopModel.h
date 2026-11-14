@@ -73,15 +73,6 @@ namespace LDWorkshop
     LOCKDOWN_API TArray<FString> TriggerChips(FName Component,const FLDDemoContentDefinitions* Content);
     // The owned components that install on (or bind) Active, in the view's order: its 可接 row on an offer card.
     LOCKDOWN_API TArray<FName> LinkableComponents(FName Active,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
-    // A final mod's description cut at its sentence ends into effect, cost and notes (the text is not rewritten): the first
-    // sentence, the second, and the rest.
-    struct FFinalText
-    {
-        FString Effect;
-        FString Cost;
-        FString Notes;
-    };
-    LOCKDOWN_API FFinalText SplitFinalText(const FString& Description);
     // The keyword names a card sentence uses ("<b>name</>：…" lines), for the offer card's tag row.
     LOCKDOWN_API TArray<FString> KeywordNames(const TArray<FString>& KeywordLines);
     // The six phase-bar dots of a rest: build, draw and betting, PK ready, PK, settlement and payout, return.

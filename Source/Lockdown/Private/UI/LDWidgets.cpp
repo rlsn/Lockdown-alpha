@@ -114,11 +114,33 @@ void ULDHoldButton::HoldPressed()
     HoldTicker=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,[this](float)
     {
         // Losing the press, the button or its enablement withdraws the hold; only a full hold commits, and only once.
-        if(!IsPressed()||!GetIsEnabled()||!IsVisible()){HoldStartedAt=-1.;HoldTicker.Reset();Repaint();return false;}
+        if(!IsPressed()||!IsShownAndEnabled()){HoldStartedAt=-1.;HoldTicker.Reset();Repaint();return false;}
         Repaint();
         if(HoldProgress()<1.f){return true;}
         HoldStartedAt=-1.;HoldTicker.Reset();PlayCue(ELDAudioCue::UIClick);Execute();return false;
     }));
+}
+bool ULDHoldButton::IsShownAndEnabled() const
+{
+    // The button and every ancestor, across nested user widgets, must still be visible and enabled: hiding or disabling a
+    // window, page or confirm line around a held button withdraws the hold.
+    for(const UWidget* Widget=this;Widget;)
+    {
+        if(!Widget->IsVisible()||!Widget->GetIsEnabled()){return false;}
+        const UWidget* Next=Widget->GetParent();
+        if(!Next)
+        {
+            const UUserWidget* Owner=Widget->GetTypedOuter<UUserWidget>();
+            Next=Owner!=Widget?Owner:nullptr;
+        }
+        Widget=Next;
+    }
+    return true;
+}
+void LDWidgets::ReleaseHolds(UWidgetTree* Tree)
+{
+    if(!Tree){return;}
+    Tree->ForEachWidget([](UWidget* Widget){if(auto* Hold=Cast<ULDHoldButton>(Widget)){Hold->HoldReleased();}});
 }
 void ULDHoldButton::InstantClicked(){if(!bHoldRequired){PlayCue(ELDAudioCue::UIClick);Execute();}}
 void ULDHoldButton::SetHoldRequired(bool bRequired)

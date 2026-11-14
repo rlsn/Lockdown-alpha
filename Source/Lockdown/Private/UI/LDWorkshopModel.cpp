@@ -218,23 +218,6 @@ TArray<FName> LDWorkshop::LinkableComponents(FName Active,const FLDProgressionVi
     }
     return Out;
 }
-LDWorkshop::FFinalText LDWorkshop::SplitFinalText(const FString& Description)
-{
-    TArray<FString> Sentences;
-    FString Rest=Description.TrimStartAndEnd();
-    int32 End=INDEX_NONE;
-    while(Rest.FindChar(TEXT('。'),End))
-    {
-        Sentences.Add(Rest.Left(End+1).TrimStartAndEnd());
-        Rest=Rest.Mid(End+1).TrimStartAndEnd();
-    }
-    if(!Rest.IsEmpty()){Sentences.Add(Rest);}
-    FFinalText Out;
-    if(Sentences.IsValidIndex(0)){Out.Effect=Sentences[0];}
-    if(Sentences.IsValidIndex(1)){Out.Cost=Sentences[1];}
-    for(int32 Index=2;Index<Sentences.Num();++Index){Out.Notes+=Sentences[Index];}
-    return Out;
-}
 TArray<FString> LDWorkshop::KeywordNames(const TArray<FString>& KeywordLines)
 {
     TArray<FString> Out;

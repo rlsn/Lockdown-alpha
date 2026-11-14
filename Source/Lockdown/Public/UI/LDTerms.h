@@ -196,9 +196,6 @@ inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
 inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
 inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
 inline constexpr TCHAR FinalLock[]=TEXT("按住锁定构筑");
-inline constexpr TCHAR FinalEffect[]=TEXT("效果");
-inline constexpr TCHAR FinalCost[]=TEXT("代价");
-inline constexpr TCHAR FinalNotes[]=TEXT("须知");
 inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}

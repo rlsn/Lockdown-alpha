@@ -216,22 +216,12 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Box->SetVisibility(ESlateVisibility::Collapsed);StageBox=Box;
             StageBack=LDWidgets::Button(WidgetTree,LDTerms::Choice,[this](){LeaveStage();},false,TEXT("GrowthStageBack"));
             StageBack->SetVisibility(ESlateVisibility::Collapsed);
-            // The final mod's description cut into effect, cost and notes, and the hold that locks it.
+            // The final mod's description whole (its sentences carry no reliable effect/cost/notes boundary), its numbers, and the hold that locks it.
             auto* Desc=WidgetTree->ConstructWidget<UVerticalBox>();
-            const auto DescLine=[&](const TCHAR* Tag,const FLinearColor& Ink,TObjectPtr<UTextBlock>& OutText)
-            {
-                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-                UTextBlock* Chip=LDWidgets::Text(WidgetTree,Tag,LDHUDStyle::TypeTiny,NAME_None,LDUIFonts::ERole::Strong);Chip->SetColorAndOpacity(Ink);
-                auto* ChipFrame=WidgetTree->ConstructWidget<UBorder>();ChipFrame->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,3.f,Ink,1.f));
-                ChipFrame->SetBrushColor(Ink.CopyWithNewOpacity(.12f));ChipFrame->SetPadding(FMargin(8,2));ChipFrame->SetContent(Chip);
-                Line->AddChildToHorizontalBox(ChipFrame)->SetVerticalAlignment(VAlign_Top);
-                OutText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth+220.f);OutText->SetColorAndOpacity(LDHUDStyle::UIText);
-                Line->AddChildToHorizontalBox(OutText)->SetPadding(FMargin(14,0,0,0));
-                Desc->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,8,0,0));
-            };
-            DescLine(LDTerms::FinalEffect,LDHUDStyle::UILegal,FinalEffectText);
-            DescLine(LDTerms::FinalCost,LDHUDStyle::UIReject,FinalCostText);
-            DescLine(LDTerms::FinalNotes,LDHUDStyle::TextSecondary,FinalNotesText);
+            FinalDescText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth+300.f);FinalDescText->SetColorAndOpacity(LDHUDStyle::UIText);
+            Desc->AddChildToVerticalBox(FinalDescText)->SetPadding(FMargin(0,8,0,0));
+            FinalNumbersText=Wrapped(LDHUDStyle::TypeCaption,ServicePanelWidth+300.f);FinalNumbersText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            Desc->AddChildToVerticalBox(FinalNumbersText)->SetPadding(FMargin(0,8,0,0));
             Desc->SetVisibility(ESlateVisibility::Collapsed);FinalDesc=Desc;
             FinalLockButton=LDWidgets::HoldButton(WidgetTree,LDTerms::FinalLock,[this](){LockFinalMod();},TEXT("GrowthFinalLock"));
             FinalLockButton->SetVisibility(ESlateVisibility::Collapsed);
@@ -407,6 +397,7 @@ bool ULDChoicesPanel::ClosePanel()
 {
     // Closing only hides the workshop: the offer, the blueprints and any submitted request keep their state; an unconfirmed
     // replace, forget, fill gap or dismantle is withdrawn with its pickers, an unlocked final selection with it.
+    LDWidgets::ReleaseHolds(WidgetTree);
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
     PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;bOpen=false;
     if(!bQuickShown){GrowthShown(TrayFrame,false);SetVisibility(ESlateVisibility::Collapsed);}
@@ -421,6 +412,7 @@ bool ULDChoicesPanel::LeaveStage()
 {
     if(!bStageShown){return false;}
     StageLeftFor=bStageFinal?Latest.FinalModOfferId:Latest.ActiveOffer.OfferId;
+    LDWidgets::ReleaseHolds(WidgetTree);
     RefreshAll();return true;
 }
 void ULDChoicesPanel::SetQuickPick(bool bInQuick,bool bCompact)
@@ -1627,16 +1619,15 @@ void ULDChoicesPanel::RefreshStage()
     }
     GrowthText(StageTitle,LDTerms::FinalStageTitle);StageTitle->SetColorAndOpacity(LDHUDStyle::UIEvent);
     GrowthText(StageSub,LDTerms::FinalOnce);StageSub->SetColorAndOpacity(LDHUDStyle::UIEvent);
-    // The description of the selected card (else the first) cut at its sentence ends; the numbers line goes with the notes.
+    // The description of the selected card (else the first) as written, then its numbers line.
     const FName Shown=!PendingFinalOption.IsNone()?PendingFinalOption:Latest.FinalModOptions.IsValidIndex(0)?Latest.FinalModOptions[0]:NAME_None;
     FString Description;
     LDHUD::ContentText(LatestContent,Shown.ToString(),true,Description);
-    const LDWorkshop::FFinalText Parts=LDWorkshop::SplitFinalText(Description);
     FString Numbers=LDHUD::FinalModCard(Shown,LatestContent,LatestStats).Detail.Body;
     Numbers.RemoveFromStart(Description);Numbers.TrimStartAndEndInline();
-    GrowthText(FinalEffectText,Parts.Effect);
-    GrowthText(FinalCostText,Parts.Cost);
-    GrowthText(FinalNotesText,Numbers.IsEmpty()?Parts.Notes:Parts.Notes.IsEmpty()?Numbers:Parts.Notes+TEXT("\n")+Numbers);
+    GrowthText(FinalDescText,Description);
+    GrowthText(FinalNumbersText,Numbers);
+    GrowthShown(FinalNumbersText,!Numbers.IsEmpty());
     GrowthText(FinalLockNote,TEXT("选定后锁定本局构筑；保留技能、构件和工坊容量。"));
     GrowthEnabled(FinalLockButton,!PendingFinalOption.IsNone()&&ShownFinalSources.IsValidIndex(FinalSourcePick)&&Gate.bCanFinalMod&&!PendingRequest);
 }
