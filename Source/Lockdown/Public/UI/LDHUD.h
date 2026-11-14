@@ -347,6 +347,12 @@ private:
     int64 LifeSeenAliveMs=0;
     FGuid ShownResultId;
     uint64 ShownResultSerial=0;
+    // The result enters winner first, then the rows one by one, then its buttons (real seconds; -1 when settled).
+    double ResultShownAt=-1.;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> ResultEntries;
+    UPROPERTY() TObjectPtr<UWidget> ResultActionsBox;
+    UPROPERTY() TObjectPtr<UWidget> ResultWinnerBand;
+    void AnimateResult();
     float AppliedScale=0;
     // The last known owner level and stats for the growth panel's card numbers (#147).
     LDHUD::FCardStats ChoiceStats;

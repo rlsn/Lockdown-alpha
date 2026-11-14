@@ -81,6 +81,8 @@ namespace LDUIPaint
         bool bPressed=false;
         bool bEnabled=true;
         FLinearColor Tint=FLinearColor::Transparent;
+        // The opacity inherited from the widget tree (render opacity and fading parents).
+        float Fade=1.f;
     };
     LOCKDOWN_API void Button(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,EButton Look,const FButtonState& State);
     // A dark round-ended chip (the mana and cooldown pills).

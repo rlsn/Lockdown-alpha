@@ -262,7 +262,7 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     if(Match!=LatestMatch){PendingRequest=0;Follow=FFollowUp();CancelInteraction();SeenComponents.Reset();}
     LatestMatch=Match;
     Latest=View?*View:FLDProgressionView();
-    Gate=LDHUD::BuildGate(Stage,LifePhase,Latest.bBuildLocked);
+    Gate=LDHUD::BuildGate(Stage,LifePhase);
     LatestContent=Content;LatestStats=Stats;Anchors=InAnchors;
     bShownNow=bShown&&Latest.bValid&&(Workshop.bActive||Anchors.bValid);
     if(!bShownNow){CancelInteraction();Press=FPress();bExpanded=false;}

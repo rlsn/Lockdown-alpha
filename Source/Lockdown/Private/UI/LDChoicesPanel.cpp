@@ -15,6 +15,7 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDBuildBlueprintComponent.h"
+#include "UI/LDUIRoot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
@@ -125,7 +126,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             FinalLine->AddChildToHorizontalBox(FinalModRow)->SetPadding(FMargin(8,0,0,0));AddRow(FinalLine);
             for(int32 Index=0;Index<3;++Index)
             {
-                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthFinal%d"),Index)),[this,Index](){if(IsFinalStage()){SelectFinalMod(Index);}else{ChooseFinalMod(Index);}});
+                FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthFinal%d"),Index)),[this,Index](){if(IsFinalStage()){SelectFinalMod(Index);}else if(Index==0&&FinalDormant()){RebindFinalMod();}else{ReopenFinalStage(Index);}});
                 FinalModRow->AddChildToWrapBox(Card.Frame);FinalCards.Add(Card);
             }
             TrayFrame=WidgetTree->ConstructWidget<UBorder>();TrayFrame->SetBrushColor(FLinearColor::Transparent);TrayFrame->SetPadding(FMargin(0,0,16,72));
@@ -209,9 +210,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ConfirmRow->SetVisibility(ESlateVisibility::Collapsed);
             Body->AddChildToVerticalBox(ConfirmRow)->SetPadding(FMargin(0,8,0,0));
             RestConfirmLine=ConfirmRow;
-            UScaleBox* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
-            Fit->SetContent(Body);
-            if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Body->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
+            UScaleBox* Fit=LDWidgets::Fit(WidgetTree,Body);ServiceFit=Fit;
             UBorder* Dock=LDWidgets::Panel(WidgetTree,Fit,FMargin(24,18));Dock->SetBrushColor(LDHUDStyle::UIRaised.CopyWithNewOpacity(1.f));
             Dock->SetVisibility(ESlateVisibility::Collapsed);ServiceDock=Dock;RestSection=Dock;
         }
@@ -501,7 +500,7 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     Latest=View;LatestMatch=Match;LatestLife=Life;LatestLifePhase=LifePhase;LatestStage=Stage;
     LatestContent=Content;LatestStats=Stats;
     if(!Tray){return;}
-    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,Latest.bBuildLocked):LDHUD::FBuildGateView();
+    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
     if(bStatsChanged){bCardsStale=true;}
     // The HUD presents every frame; a collapsed panel only keeps the inputs and refreshes when it opens.
     if(!bOpen&&!bQuick&&!bQuickShown){return;}
@@ -641,7 +640,8 @@ void ULDChoicesPanel::RefreshFinalMod()
             :Kind==ELDComponentTargetKind::Active?LDHUD::ActiveCard(Id,LatestContent,LatestStats).Name
             :LDHUD::ComponentCard(Id,LatestContent,LatestStats).Name;
     };
-    if(!bFinal||ShownFinalMod!=Latest.FinalModOfferId){PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;}
+    const bool bDormant=FinalDormant();
+    if((!bFinal&&!bDormant)||(bFinal&&ShownFinalMod!=Latest.FinalModOfferId)){PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;}
     ShownFinalMod=bFinal?Latest.FinalModOfferId:FGuid();
     GrowthShown(FinalModGroup,bFinal||bSelected);GrowthShown(FinalModRow,bFinal||bSelected);
     for(int32 Index=0;Index<FinalCards.Num();++Index)
@@ -651,15 +651,16 @@ void ULDChoicesPanel::RefreshFinalMod()
         {
             if(!bSelected||Index!=0){GrowthShown(Card.Frame,false);continue;}
             const FString Bound=SourceName(Latest.FinalMod.TargetKind,Latest.FinalMod.TargetId);
-            const FString Key=TEXT("FIN_SELECTED|")+Latest.FinalMod.DefinitionId.ToString()+TEXT("|")+Bound;
+            const FString Key=TEXT("FIN_SELECTED|")+Latest.FinalMod.DefinitionId.ToString()+TEXT("|")+Bound+(bDormant?TEXT("|D"):TEXT(""));
             if(CardStale(Card,Key))
             {
                 auto View=LDHUD::FinalModCard(Latest.FinalMod.DefinitionId,LatestContent,LatestStats);
-                View.Detail.Body+=TEXT("\n\n来源：")+Bound+TEXT("\n本局构筑已锁定。");
+                View.Detail.Body+=bDormant?FString(TEXT("\n\n"))+LDTerms::FinalDormant:TEXT("\n\n来源：")+Bound;
                 ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,View.Detail);
             }
-            ShowLook(Card,false,true);GrowthEnabled(Card.Button,false);
-            GrowthTint(Card.Button,LDHUDStyle::SlotArmed);
+            GrowthText(Card.Facts,bDormant?FString(LDTerms::FinalDormant):LDTerms::FinalBindsTo(Bound));
+            ShowLook(Card,false,true);GrowthEnabled(Card.Button,bDormant&&!PendingRequest);
+            GrowthTint(Card.Button,bDormant?LDHUDStyle::UIReplace*.35f:LDHUDStyle::SlotArmed);
             continue;
         }
         const FName Id=Latest.FinalModOptions[Index];
@@ -671,7 +672,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         }
         const FString Outcome=Names.IsEmpty()?FString(TEXT("当前构筑没有合法触发来源。"))
             :!Gate.bCanFinalMod?Gate.FinalModBlocked:FString(TEXT("来源："))+FString::Join(Names,TEXT("、"))
-                +TEXT("\n选定后锁定本局构筑；保留技能、构件和工坊容量。");
+                +TEXT("\n")+LDTerms::FinalTakenNote;
         const FString Key=TEXT("FIN|")+Id.ToString()+TEXT("|")+Outcome;
         LDHUD::FFinalModCardView View=LDHUD::FinalModCard(Id,LatestContent,LatestStats);
         if(CardStale(Card,Key))
@@ -690,7 +691,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         GrowthTint(Card.Button,PendingFinalOption==Id?(IsFinalStage()?LDHUDStyle::UIEvent*.35f:LDHUDStyle::SlotArmed):LDHUDStyle::CardIdle);
     }
     ShownFinalSources.Reset();
-    if(bFinal&&!PendingFinalOption.IsNone())
+    if((bFinal||(bDormant&&PendingFinalOption==Latest.FinalMod.DefinitionId))&&!PendingFinalOption.IsNone())
     {for(const FLDFinalModSourceView& Source:Latest.FinalModSources){if(Source.Option==PendingFinalOption){ShownFinalSources.Add(Source);}}}
     if(ShownFinalSources.Num()==1&&IsFinalStage()){FinalSourcePick=0;}
     if(!ShownFinalSources.IsValidIndex(FinalSourcePick)){FinalSourcePick=INDEX_NONE;}
@@ -714,7 +715,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         {const auto Card=LDHUD::ComponentCard(Source.TargetId,LatestContent,LatestStats);Name=Card.Name;Icon=Card.IconId;Glyph=Card.Glyph;}
         LDHUD::FActionDetailView Detail;
         Detail.Name=Name;
-        Detail.Body=LDHUD::FinalModCard(PendingFinalOption,LatestContent,LatestStats).Name+TEXT("\n绑定此来源，确认后锁定构筑。");
+        Detail.Body=LDHUD::FinalModCard(PendingFinalOption,LatestContent,LatestStats).Name+TEXT("\n绑定此来源。");
         ShowFace(FinalSourceCards[Index],PendingFinalOption.ToString()+TEXT("|")+Name,Name,Icon,Glyph,Detail);
         ShowLook(FinalSourceCards[Index],IsFinalStage(),Gate.bCanFinalMod&&!PendingRequest);
         GrowthTint(FinalSourceCards[Index].Button,IsFinalStage()&&Index==FinalSourcePick?LDHUDStyle::UIEvent*.45f:LDHUDStyle::CardIdle);
@@ -1005,15 +1006,36 @@ bool ULDChoicesPanel::ChooseFinalModSource(int32 Index)
     if(!ShownFinalSources.IsValidIndex(Index)||PendingFinalOption.IsNone()){return false;}
     return SubmitFinalMod(PendingFinalOption,ShownFinalSources[Index]);
 }
+bool ULDChoicesPanel::FinalDormant() const
+{
+    // A taken card whose bound source is no longer among its legal sources waits for a rebind (once the offer is closed the
+    // view lists the taken card's legal sources).
+    if(!Usable()||Latest.bFinalModPending||Latest.FinalMod.IsEmpty()){return false;}
+    return !Latest.FinalModSources.ContainsByPredicate([this](const FLDFinalModSourceView& Source)
+        {return Source.Option==Latest.FinalMod.DefinitionId&&Source.TargetKind==Latest.FinalMod.TargetKind&&Source.TargetId==Latest.FinalMod.TargetId;});
+}
+bool ULDChoicesPanel::RebindFinalMod()
+{
+    if(!FinalDormant()){return false;}
+    if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
+    if(!Gate.bCanInstall){Tell(TEXT("没有提交：")+Gate.InstallBlocked);return false;}
+    const FName Option=Latest.FinalMod.DefinitionId;
+    TArray<FLDFinalModSourceView> Sources;
+    for(const FLDFinalModSourceView& Source:Latest.FinalModSources){if(Source.Option==Option){Sources.Add(Source);}}
+    if(Sources.IsEmpty()){Tell(TEXT("没有提交：当前构筑没有合法触发来源。"));return false;}
+    if(Sources.Num()==1){return SubmitFinalMod(Option,Sources[0]);}
+    PendingFinalOption=Option;FinalSourcePick=INDEX_NONE;RefreshAll();return true;
+}
 bool ULDChoicesPanel::SubmitFinalMod(FName Option,const FLDFinalModSourceView& Source)
 {
-    if(PendingRequest||!Usable()||!Latest.bFinalModPending||Latest.FinalModOfferId!=ShownFinalMod){return false;}
-    if(!Gate.bCanFinalMod){Tell(TEXT("没有提交：")+Gate.FinalModBlocked);return false;}
+    const bool bRebind=FinalDormant()&&Option==Latest.FinalMod.DefinitionId;
+    if(PendingRequest||!Usable()||(!bRebind&&(!Latest.bFinalModPending||Latest.FinalModOfferId!=ShownFinalMod))){return false;}
+    if(bRebind?!Gate.bCanInstall:!Gate.bCanFinalMod){Tell(TEXT("没有提交：")+(bRebind?Gate.InstallBlocked:Gate.FinalModBlocked));return false;}
     if(!Latest.FinalModSources.ContainsByPredicate([&Source,Option](const FLDFinalModSourceView& Current)
         {return Current.Option==Option&&Current.TargetKind==Source.TargetKind&&Current.TargetId==Source.TargetId;}))
     {Tell(TEXT("没有提交：触发来源已变化。"));return false;}
     FLDBuildCommand Command;
-    Command.Kind=ELDBuildCommandKind::FinalMod;Command.OfferId=ShownFinalMod;Command.Slot=FLDBuildCommand::AnySlot;
+    Command.Kind=ELDBuildCommandKind::FinalMod;Command.OfferId=bRebind?Latest.FinalModOfferId:ShownFinalMod;Command.Slot=FLDBuildCommand::AnySlot;
     Command.TargetKind=Source.TargetKind;
     if(!FLDDefinitionWire::Encode(Option,Command.Option)
         ||(!Source.TargetId.IsNone()&&!FLDDefinitionWire::Encode(Source.TargetId,Command.TargetDefinition)))
@@ -1027,6 +1049,19 @@ bool ULDChoicesPanel::SelectFinalMod(int32 Index)
     if(!Usable()||!Latest.bFinalModPending||!Latest.FinalModOptions.IsValidIndex(Index)||Latest.FinalModOfferId!=ShownFinalMod){return false;}
     PendingFinalOption=Latest.FinalModOptions[Index];FinalSourcePick=INDEX_NONE;
     RefreshAll();return true;
+}
+bool ULDChoicesPanel::ReopenFinalStage(int32 Index)
+{
+    // A final card picked outside the page (after leaving it, or from the field quick picks) brings the page back with that
+    // card selected, so its description, sources and hold always read in the dock.
+    if(!Usable()||!Latest.bFinalModPending||!Latest.FinalModOptions.IsValidIndex(Index)||Latest.FinalModOfferId!=ShownFinalMod){return false;}
+    if(!bOpen)
+    {
+        const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+        if(!PC||!PC->RootUI||!PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices)){return false;}
+    }
+    StageLeftFor=FGuid();
+    return SelectFinalMod(Index);
 }
 bool ULDChoicesPanel::SelectFinalSource(int32 Index)
 {
@@ -1678,7 +1713,14 @@ void ULDChoicesPanel::RefreshStage()
     if(!bStageFinal)
     {
         GrowthText(StageTitle,LDTerms::OfferStageTitle);StageTitle->SetColorAndOpacity(LDHUDStyle::UIText);
-        GrowthText(StageSub,FString::Printf(TEXT("Lv %d    %s"),int32(Latest.Level),*LDTerms::OfferChanceOf(Latest.ActiveOffer.OpportunityOrdinal,Latest.ActiveOpportunitiesEarned)));
+        // Queued opportunities show as dots after the current one: the next group deals in when this one is chosen.
+        FString Dots;
+        if(Latest.QueuedActiveOpportunities>0)
+        {
+            Dots=TEXT("    ●");
+            for(int32 Dot=0;Dot<FMath::Min<int32>(Latest.QueuedActiveOpportunities,8);++Dot){Dots+=TEXT(" ○");}
+        }
+        GrowthText(StageSub,FString::Printf(TEXT("Lv %d    %s%s"),int32(Latest.Level),*LDTerms::OfferChanceOf(Latest.ActiveOffer.OpportunityOrdinal,Latest.ActiveOpportunitiesEarned),*Dots));
         StageSub->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         GrowthShown(StageSourceLine,false);
         return;
@@ -1694,7 +1736,7 @@ void ULDChoicesPanel::RefreshStage()
     GrowthText(FinalDescText,Description);
     GrowthText(FinalNumbersText,Numbers);
     GrowthShown(FinalNumbersText,!Numbers.IsEmpty());
-    GrowthText(FinalLockNote,TEXT("选定后锁定本局构筑；保留技能、构件和工坊容量。"));
+    GrowthText(FinalLockNote,LDTerms::FinalTakenNote);
     GrowthEnabled(FinalLockButton,!PendingFinalOption.IsNone()&&ShownFinalSources.IsValidIndex(FinalSourcePick)&&Gate.bCanFinalMod&&!PendingRequest);
 }
 void ULDChoicesPanel::PlaceOnLayer(UWidget* Widget,const FSlateRect& Absolute,FVector2D Alignment,bool bFill)
@@ -1752,6 +1794,7 @@ void ULDChoicesPanel::LayoutLayer()
 void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
+    LDWidgets::RefitScale(ServiceFit);
     // The stage cards turn in one after another (LDHUDStyle::MotionOfferStagger apart) and land with the back curve.
     if(!bStageShown||!StageCards){return;}
     const double Age=UiNow()-StageOpenedAt;

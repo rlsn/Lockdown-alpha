@@ -72,14 +72,6 @@ void WorkshopShown(UWidget* Widget,bool bShown,ESlateVisibility Shown=ESlateVisi
     const ESlateVisibility Next=bShown?Shown:ESlateVisibility::Collapsed;
     if(Widget->GetVisibility()!=Next){Widget->SetVisibility(Next);}
 }
-// A dock column that scales down (never up) to fit its place instead of spilling out of the dock.
-UScaleBox* WorkshopFit(UWidgetTree* Tree,UWidget* Content)
-{
-    UScaleBox* Fit=Tree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
-    Fit->SetContent(Content);
-    if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Content->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
-    return Fit;
-}
 bool WorkshopHasArea(const FBox2D& Box){return Box.bIsValid&&Box.GetSize().X>1.f&&Box.GetSize().Y>1.f;}
 FBox2D WorkshopBox(float X0,float Y0,float X1,float Y1){return FBox2D(FVector2D(X0,Y0),FVector2D(X1,Y1));}
 FLinearColor WorkshopElementColor(ELDDemoElement Element)
@@ -226,7 +218,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             // The column keeps the panel's inner width and scales down (never up) when larger text would push it past the
             // panel's height.
             auto* ColumnWidth=WidgetTree->ConstructWidget<USizeBox>();ColumnWidth->SetWidthOverride(WorkshopCharacterWidth-48.f);ColumnWidth->SetContent(Column);
-            CharacterPanel=Surface(WorkshopFit(WidgetTree,ColumnWidth),FMargin(24,22));Add(CharacterPanel,2);
+            CharacterFit=LDWidgets::Fit(WidgetTree,ColumnWidth);CharacterPanel=Surface(CharacterFit,FMargin(24,22));Add(CharacterPanel,2);
         }
         {
             // The board: its surface, the capacity row (cells painted) and one head per column; the storage lays the
@@ -341,7 +333,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Centre->AddChildToVerticalBox(DockBody)->SetPadding(FMargin(0,8,0,0));
             DockChips=Label(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::ComponentLink,LDUIFonts::ERole::Strong);DockChips->SetAutoWrapText(true);
             Centre->AddChildToVerticalBox(DockChips)->SetPadding(FMargin(0,10,0,0));
-            DockCentre=WorkshopFit(WidgetTree,Centre);Add(DockCentre,3);
+            DockCentre=LDWidgets::Fit(WidgetTree,Centre);Add(DockCentre,3);
             auto* Right=WidgetTree->ConstructWidget<UVerticalBox>();
             const auto Section=[&](TObjectPtr<UTextBlock>& Title,TObjectPtr<UTextBlock>& Body,const TCHAR* Caption,bool bFirst)
             {
@@ -352,7 +344,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Section(DockWhereTitle,DockWhere,LDTerms::WorkshopInstalledOn,true);
             Section(DockLinksTitle,DockLinks,LDTerms::WorkshopLinks,false);
             Section(DockNotesTitle,DockNotes,LDTerms::WorkshopNotes,false);
-            DockRight=WorkshopFit(WidgetTree,Right);Add(DockRight,3);
+            DockRight=LDWidgets::Fit(WidgetTree,Right);Add(DockRight,3);
         }
     }
     return Super::RebuildWidget();
@@ -630,11 +622,14 @@ void ULDWorkshop::Present(const FInput& Input)
     View=Input.Progression?*Input.Progression:FLDProgressionView();
     if(Mode==EMode::Closed)
     {
-        if(Previous!=EMode::Closed){LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);}
-        WorkshopShown(this,false);OpenedAt=-1.;
+        // The panels sink and fade out (LDHUDStyle::MotionWorkshopClose) without taking any more input.
+        if(Previous!=EMode::Closed){LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);ClosingAt=UiNow();SetVisibility(ESlateVisibility::HitTestInvisible);}
+        else if(ClosingAt<0.){WorkshopShown(this,false);}
+        OpenedAt=-1.;
         return;
     }
     if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
+    ClosingAt=-1.;
     WorkshopShown(this,true);
     FVector2D Size=GetCachedGeometry().GetLocalSize();
     if(Size.X<=1.f||Size.Y<=1.f){Size=FVector2D(1920.f,1080.f);}
@@ -847,7 +842,11 @@ void ULDWorkshop::RefreshHeads()
             const bool bHere=!Final.IsEmpty()&&((Final.TargetKind==ELDComponentTargetKind::Active&&Final.TargetId==Active&&!Active.IsNone())
                 ||(Final.TargetKind==ELDComponentTargetKind::Dash&&Column==LDHUD::EStorageColumn::Dash)
                 ||(Final.TargetKind==ELDComponentTargetKind::None&&Column==LDHUD::EStorageColumn::Body));
-            if(!bHere||!LDUIIcons::Apply(Head.Final,LDHUD::ContentIconId(Latest.Content,Final.DefinitionId.ToString()),17.f)){WorkshopShown(Head.Final,false);}
+            const bool bShowsFinal=bHere&&LDUIIcons::Apply(Head.Final,LDHUD::ContentIconId(Latest.Content,Final.DefinitionId.ToString()),17.f);
+            if(!bShowsFinal){WorkshopShown(Head.Final,false);}
+            const FString FinalKey=bShowsFinal?Final.DefinitionId.ToString():FString();
+            // Only a mod that newly binds here stamps; the board opening on an existing binding does not.
+            if(FinalKey!=Head.FinalShown){Head.FinalAt=bShowsFinal&&IsOpen()&&OpenedAt>=0.&&UiNow()-OpenedAt>LDHUDStyle::MotionWorkshopOpen?UiNow():-1.;Head.FinalShown=FinalKey;}
         }
         if(UBorder* Chip=Cast<UBorder>(Head.Element->GetParent()))
         {
@@ -988,8 +987,51 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
 void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
+    AnimateOpening();
     if(!IsOpen()||!FSlateApplication::IsInitialized()){return;}
     RefreshDock(FSlateApplication::Get().GetCursorPos());
+    for(UWidget* Fit:{CharacterFit.Get(),DockCentre.Get(),DockRight.Get()}){LDWidgets::RefitScale(Cast<UScaleBox>(Fit));}
+}
+void ULDWorkshop::AnimateOpening()
+{
+    if(!Canvas){return;}
+    // The panels rise from below and fade in when the workshop opens, and sink and fade out when it closes; the world's
+    // darkening (Blur, Shade) follows its own fade in Present.
+    float Shown=1.f;
+    if(ClosingAt>=0.)
+    {
+        const double Age=UiNow()-ClosingAt;
+        if(Age>=LDHUDStyle::MotionWorkshopClose){ClosingAt=-1.;WorkshopShown(this,false);Shown=1.f;}
+        else{Shown=1.f-LDTween::Progress(Age,LDHUDStyle::MotionWorkshopClose,LDTween::ECurve::EaseIn);}
+    }
+    else if(OpenedAt>=0.){Shown=LDTween::Progress(UiNow()-OpenedAt,LDHUDStyle::MotionWorkshopOpen,LDTween::ECurve::EaseOut);}
+    const float Rise=Mode==EMode::Field&&ClosingAt<0.?60.f:36.f;
+    for(int32 Index=0;Index<Canvas->GetChildrenCount();++Index)
+    {
+        UWidget* Child=Canvas->GetChildAt(Index);
+        if(Child==Blur){LDTween::SetOpacity(Child,ClosingAt>=0.?Shown:1.f);continue;}
+        LDTween::SetTranslation(Child,FVector2D(0.f,(1.f-Shown)*Rise));
+        LDTween::SetOpacity(Child,Shown);
+    }
+    for(FHead& Head:Heads)
+    {
+        if(!Head.Final){continue;}
+        float Stamp=1.f;
+        if(Head.FinalAt>=0.)
+        {
+            const double Age=UiNow()-Head.FinalAt;
+            if(Age>=LDHUDStyle::MotionFinalLock){Head.FinalAt=-1.;}
+            else{Stamp=FMath::Lerp(1.6f,1.f,LDTween::Progress(Age,LDHUDStyle::MotionFinalLock,LDTween::ECurve::Back));}
+        }
+        LDTween::SetScale(Head.Final,Stamp);
+    }
+    // The board, the library and the pending cards live in their own widgets placed over these panels: they rise with them.
+    const float Joined=ClosingAt>=0.?1.f:Shown;
+    for(UWidget* Over:{static_cast<UWidget*>(Storage.Get()),static_cast<UWidget*>(Choices.Get())})
+    {
+        LDTween::SetTranslation(Over,FVector2D(0.f,(1.f-Joined)*Rise));
+        LDTween::SetOpacity(Over,Joined);
+    }
 }
 FReply ULDWorkshop::NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
 {

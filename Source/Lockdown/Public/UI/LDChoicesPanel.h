@@ -25,6 +25,7 @@ struct FLDDemoContentDefinitions;
 // Component rows switch to icon-only tiles when there are too many component cards. Nothing scrolls and nothing explains:
 // results and refusals go to the HUD's toast (Notify). All mutations retain the existing build commands, revision checks,
 // confirmations and authority receipts.
+class UScaleBox;
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
 {
@@ -84,6 +85,10 @@ public:
     bool ChooseFinalMod(int32 Index);
     bool ChooseFinalModSource(int32 Index);
     bool SelectFinalMod(int32 Index);
+    bool ReopenFinalStage(int32 Index);
+    // A taken final card whose source was removed (dormant) binds again: one legal source at once, otherwise its sources show.
+    bool RebindFinalMod();
+    bool FinalDormant() const;
     bool SelectFinalSource(int32 Index);
     bool LockFinalMod();
     bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
@@ -259,6 +264,7 @@ private:
     UPROPERTY() TObjectPtr<UWidget> ArtisanBox;
     UPROPERTY() TObjectPtr<UWrapBox> TrainerPicks;
     UPROPERTY() TObjectPtr<UWidget> ServiceDock;
+    UPROPERTY() TObjectPtr<UScaleBox> ServiceFit;
     UPROPERTY() TObjectPtr<UVerticalBox> ServiceDockBody;
     // #198 rest services section.
     UPROPERTY() TObjectPtr<UWidget> RestSection;

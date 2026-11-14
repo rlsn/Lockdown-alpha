@@ -32,7 +32,7 @@
 | 资源上限 | 上限变化保持 HP/MP 原百分比，由 Combat 按 `FORMULA.ResourceMaxChange` 做一次最终投影；UI 不再次换算或额外回血，死亡不因此复活。 |
 | 可见检查 | 可见对手显示名称、等级、血量/蓝量、获准状态，以及 Q/W/E 三块技能小卡（键位与技能名，空槽写“空槽”）；不显示其属性点、图纸、冷却、最终属性；施法那一刻在施法者身旁飘出该次技能的显示名，不含等级与冷却。观察 DTO 不携带私有修订或能力来源。 |
 | 失视野与死亡镜头 | 失视野撤销目标并停止该追击订单，不转 LastSeen 移动、不保留单位标记。死亡可自由拖动镜头看静态地图与公共信息，无额外活体视野，不能跟随/观察隐藏玩家。 |
-| 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜。对局中按住 Tab 另有局内排行榜（§3.2）。Host 主动结束可无赢家。 |
+| 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜。标题压在斜置的事件粉色带上，每名参赛者一张行卡（左侧席位色条，本人行抬起并描操作黄边，赢家标记为操作黄），标题、行卡与按钮依次入场。对局中按住 Tab 另有局内排行榜（§3.2）。Host 主动结束可无赢家。 |
 | 死亡与离局效果 | 留在局内的死亡取消未释放动作，已释放独立效果继续；正式离局/断线立即移除身体及未结束独立效果。关 UI 无权回滚已释放效果。 |
 
 本模块需要产品选择的界面行为已收口。布局、错误映射和本地接口属于工程设计；
@@ -46,7 +46,7 @@
 | `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列（只有地图与对局用时）、底部带（本人身份、加点图标与属性视图切换、资源、Q/W/E 与 D）、右下角“构筑”按钮、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠构筑选择卡与工坊，处理死亡等待时工坊的自动打开与收起，工坊打开时收起底部带、小地图、事件播报与目标卡 |
 | `ULDWorkshop`（`UI/LDWorkshop.*`） | 工坊：Choices 打开时的全屏或屏幕下方 46% 视图；阶段条、角色栏（五维加号经 `ULDStatBar::Allocate`）、容量条、规则板列头、构件库标题与用途标签筛选、待处理区与信息坞；把规则板与构件库的矩形交给 `ULDComponentStorage::SetWorkshop`、把待处理区交给 `ULDChoicesPanel::SetTrayInset`；读模型 `LDWorkshop::*`（`UI/LDWorkshopModel.h`），程序化形状 `LDUIShapes` |
 | `LDHUD::*`（`UI/LDHUDModel.*`） | 纯格式化读模型：`ActionInput/Action -> FActionView`、`ObservedCard/ObservedUnit`、`Circle`、`TimelineBanner`、`RestReturnCountdown`、`TrainingResetText`、`ActiveCard`、`ActiveChoiceDetail`、`ComponentChoiceDetail`、`ChoiceTrayTiles`、`StatRow`、`BuildGate`、`GrowthPending`、`FChoicesFold`、`AbilityName`、`ContentText` 等；只读本人投影、公共状态与当前观察帧 |
-| `ULDChoicesPanel` | 构筑选择卡（“构筑”按钮正上方一行一个待做决定：主动三选一、开局基础构件、精英二选一、有空槽时的待学图纸；卡上只有图标和名称，`Hovered` 把完整说明交给工坊的信息坞）、中央的选一个技能页与终局改装页（`GrowthStageBack` 回到工坊台，`GrowthFinalLock` 按住锁定），野外收起时的速选卡，以及靠近 NPC 时放在工坊对象上的休息服务（`GrowthRestNpc`、`GrowthRestRespec`、`GrowthRestForget<Q/W/E>`、`GrowthTrainerBlueprint<n>` 与 `GrowthLearn/GrowthReplace<n><Q/W/E>`、`GrowthRestFillGap`、`GrowthRestDismantle`，选择与确认行在信息坞位置）；加点与属性视图在 HUD 的 `ULDStatBar` 上；命令经 `SubmitBuild` 带所见版本提交，结果与拒绝经 `Notify` 进 HUD 提示行 |
+| `ULDChoicesPanel` | 构筑选择卡（“构筑”按钮正上方一行一个待做决定：主动三选一、开局基础构件、精英二选一、有空槽时的待学图纸；卡上只有图标和名称，`Hovered` 把完整说明交给工坊的信息坞）、中央的选一个技能页与终局改装页（`GrowthStageBack` 回到工坊台，`GrowthFinalLock` 按住选定；来源被拆下的已选改装卡点一下重新绑定），野外收起时的速选卡，以及靠近 NPC 时放在工坊对象上的休息服务（`GrowthRestNpc`、`GrowthRestRespec`、`GrowthRestForget<Q/W/E>`、`GrowthTrainerBlueprint<n>` 与 `GrowthLearn/GrowthReplace<n><Q/W/E>`、`GrowthRestFillGap`、`GrowthRestDismantle`，选择与确认行在信息坞位置）；加点与属性视图在 HUD 的 `ULDStatBar` 上；命令经 `SubmitBuild` 带所见版本提交，结果与拒绝经 `Notify` 进 HUD 提示行 |
 | `ULDStatBar`（`UI/LDStatBar.*`） | HUD 底部带左块名称下方的五维属性图标与悬停时图标正上方的“+”：点一下立即发一点 `AllocatePoints`，在途时的连点在本地排队、等本人视图带上上一次的构筑版本后合并发送；读模型 `LDHUD::StatRow/StatPointsOf/BuildGate`；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDComponentStorage`（`UI/LDComponentStorage.*`） | 构件库：`ULDHUD` 放在底部横条右侧的牌堆与悬停展开的图标网格和一排五列已装构件（本体在第一个 Q/W/E 格左边一格、Q/W/E、冲刺(D)），拖放、单击拿起再放下与右键快装/拆下、搬动与 B18 元素、C12 基础构件选择；工坊打开时同一套状态排成工坊的构件库分组与规则板列，并向工坊报告悬停或拿着的构件（`Focus`）；读模型 `LDHUD::ComponentStorage/ComponentDrops/FindDrop/DetachedWith` 与 `EStorageColumn`（`UI/LDHUDModel.h`）；命令经同一 `SubmitBuild`，自持在途请求与回执 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
@@ -108,7 +108,7 @@ NPC 服务没有单独的窗口：仅在配装或派奖窗口、本人处于现�
 | 页面/区域 | 必须显示与可执行操作 | busy / 失效 / 返回 |
 | --- | --- | --- |
 | 主菜单 | 全屏标题背景图 `T_TitleBackground`（按比例铺满、居中裁切，不拉伸；前端地图本身是空关卡，不渲染 3D 场景）；主菜单没有面板，标题背景图缓慢推近再拉回：对外标题“谁是雾港最强淫人王”作为标志放在画面上方（“淫人王”三字放大，操作黄字加事件粉错位影）、副标题（在“ · ”处分两行）在其下，开始（唯一的主按钮）与其下并排的设置、退出压在画面底部，产品版本在左下角、常驻小字“雾港黑话：淫 = 把人揍趴下，跟色情没关系”在右下角（随前端页显示，打开设置时随页隐藏）；开始页仍是居中面板，不显示标志；发布构建（`[Lockdown.Build] bReleaseBuild=True`，只在每日打包的版本提交里）显示“版本 X.Y.Z (<短提交>)”（版本同 `DefaultGame.ini` 的 ProjectVersion），其他构建显示“版本 X.Y.Z-dev (<短提交>)”；一基础角色，不展示职业选择 | Exit 明确确认；Settings 返回原菜单。版本读失败报缺配置，不显示硬编码“正确版本”。 |
-| Start | 创建/加入同面板；本人名称；Host 监听端口、Join IP 与端口；返回 | 本地格式校验不代替准入。AI 数仅在 Lobby 修改，不保存第二份建房配置。地址不写跨局战力存档。 |
+| Start | 本人名称在上，下面并排“我开房”（Host 监听端口，标题旁“?”悬停说明）与“我加入”（Join IP 与端口）两张卡；连接中在发起的那张卡上转圈，结果与失败原因写在发起的那张卡里；返回 | 本地格式校验不代替准入。AI 数仅在 Lobby 修改，不保存第二份建房配置。地址不写跨局战力存档。 |
 | Connecting | 当前端点、连接状态、取消；输入框仍可回看 | 同 attempt 禁双击新建；取消使该 attempt 失效。迟到成功清理对应旧连接，迟到失败不能把新世界退出。 |
 | 失败 | 名称/端口/地址格式、不可达/超时、RoomFull、MatchAlreadyStarted、产品/协议/内容不兼容、旅行/加载失败分别解释 | 保留本人编辑内容，允许修改后显式重试；不自动重连、不回落旧 profile、不显示空成功 Lobby。 |
 | Lobby | 全屏房间背景图 `T_LobbyBackground`（同样铺满裁切，只在 Lobby 阶段显示，盖住身后的 Demo 世界）；名单是六个席位卡：所有已连接真人与实际 AI 的名称、真人/AI、房主、准备（已准备是一枚斜盖的章），空位是虚线占位，本人席位描操作黄边；Host 调整 AI 数、全部真人 Ready 后 Start；本人 Ready、离开 | 所有人包括 Host 使用 Ready；AI 无真人准备按钮。结构改变按 RosterRevision 清 Ready；Ready 本身只改 PublicRevision。Start 等权威结果，不能本地切地图。 |

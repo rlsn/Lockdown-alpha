@@ -1,6 +1,8 @@
 #include "UI/LDWidgets.h"
 #include "Widgets/SLeafWidget.h"
 #include "Widgets/SOverlay.h"
+#include "Widgets/Input/SButton.h"
+#include "Components/ButtonSlot.h"
 #include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -11,6 +13,8 @@
 #include "Audio/LDAudioSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Components/ScaleBox.h"
+#include "Components/ScaleBoxSlot.h"
 UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size,FName Name,LDUIFonts::ERole Role)
 {
     auto* W=Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),Name);W->SetText(FText::FromString(Value));W->SetFont(LDUIFonts::Font(Role,Size));
@@ -36,6 +40,26 @@ int32 LDWidgets::RichTextSize(const URichTextBlock* Rich)
     const UDataTable* Styles=Rich?Rich->GetTextStyleSet():nullptr;
     const FRichTextStyleRow* Plain=Styles?Styles->FindRow<FRichTextStyleRow>(TEXT("Default"),TEXT("RichTextSize"),false):nullptr;
     return Plain?Plain->TextStyle.Font.Size:0;
+}
+UScaleBox* LDWidgets::Fit(UWidgetTree* Tree,UWidget* Content)
+{
+    UScaleBox* Box=Tree->ConstructWidget<UScaleBox>();Box->SetStretch(EStretch::UserSpecified);Box->SetUserSpecifiedScale(1.f);
+    Box->SetClipping(EWidgetClipping::ClipToBounds);
+    Box->SetContent(Content);
+    if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Content->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
+    return Box;
+}
+void LDWidgets::RefitScale(UScaleBox* Box)
+{
+    // Shrinking text further than this stops it being readable; what still does not fit is clipped at the bottom.
+    constexpr float MinScale=.9f;
+    const UWidget* Content=Box?Box->GetContent():nullptr;
+    if(!Content||!Box->IsVisible()){return;}
+    const float Available=float(Box->GetCachedGeometry().GetLocalSize().Y);
+    const float Desired=float(Content->GetDesiredSize().Y);
+    if(Available<=1.f||Desired<=1.f){return;}
+    const float Scale=Desired>Available?FMath::Max(MinScale,Available/Desired):1.f;
+    if(!FMath::IsNearlyEqual(Box->GetUserSpecifiedScale(),Scale,.005f)){Box->SetUserSpecifiedScale(Scale);}
 }
 URichTextBlock* LDWidgets::RichText(UWidgetTree* Tree,int32 Size,FName Name)
 {
@@ -70,23 +94,27 @@ ULDHoldButton* LDWidgets::HoldButton(UWidgetTree* Tree,const FString& Value,TFun
 }
 namespace
 {
-    // Runs a paint function in the button's own geometry, under the SButton and its caption.
-    class SLDButtonSkin : public SLeafWidget
+    // The button's own SButton paints the face under its caption, so the button stays the focusable root and the face
+    // inherits the tree's opacity like the caption does.
+    class SLDSkinnedButton : public SButton
     {
     public:
-        SLATE_BEGIN_ARGS(SLDButtonSkin){}
+        SLATE_BEGIN_ARGS(SLDSkinnedButton){}
         SLATE_END_ARGS()
-        void Construct(const FArguments&,TWeakObjectPtr<ULDCommandButton> InOwner){Owner=InOwner;SetVisibility(EVisibility::HitTestInvisible);}
-        virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D::ZeroVector;}
-        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle&,bool bParentEnabled) const override
+        void Construct(const FArguments&,TWeakObjectPtr<ULDCommandButton> InOwner,const SButton::FArguments& ButtonArgs)
+        {Owner=InOwner;SButton::Construct(ButtonArgs);}
+        virtual int32 OnPaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& WidgetStyle,bool bParentEnabled) const override
         {
             const ULDCommandButton* Button=Owner.Get();
-            if(!Button){return Layer;}
-            if(Button->GetStyle().Normal.DrawAs!=ESlateBrushDrawType::NoDrawType){return Layer;}
-            LDUIPaint::FButtonState State;
-            State.bHovered=Button->IsHovered();State.bPressed=Button->IsPressed();State.bEnabled=bParentEnabled&&Button->GetIsEnabled();State.Tint=Button->Tint;
-            LDUIPaint::Button(Elements,Layer,Geometry,FBox2D(FVector2D::ZeroVector,Geometry.GetLocalSize()),Button->Look,State);
-            return Layer+2;
+            if(Button&&Button->GetStyle().Normal.DrawAs==ESlateBrushDrawType::NoDrawType)
+            {
+                LDUIPaint::FButtonState State;
+                State.bHovered=IsHovered();State.bPressed=IsPressed();State.bEnabled=bParentEnabled&&IsEnabled();State.Tint=Button->Tint;
+                State.Fade=WidgetStyle.GetColorAndOpacityTint().A;
+                LDUIPaint::Button(Elements,Layer,Geometry,FBox2D(FVector2D::ZeroVector,Geometry.GetLocalSize()),Button->Look,State);
+                Layer+=2;
+            }
+            return SButton::OnPaint(Args,Geometry,Culling,Elements,Layer,WidgetStyle,bParentEnabled);
         }
     private:
         TWeakObjectPtr<ULDCommandButton> Owner;
@@ -120,10 +148,31 @@ TSharedRef<SWidget> ULDPaintLayer::RebuildWidget()
 void ULDPaintLayer::ReleaseSlateResources(bool bReleaseChildren){Super::ReleaseSlateResources(bReleaseChildren);Layer.Reset();}
 TSharedRef<SWidget> ULDCommandButton::RebuildWidget()
 {
-    TSharedRef<SWidget> Inner=Super::RebuildWidget();
-    return SNew(SOverlay)
-        +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[SNew(SLDButtonSkin,TWeakObjectPtr<ULDCommandButton>(this))]
-        +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[Inner];
+    // UButton::RebuildWidget with the skinned SButton in place of the plain one.
+    SButton::FArguments Args;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+    Args.OnClicked(BIND_UOBJECT_DELEGATE(FOnClicked,SlateHandleClicked))
+        .OnPressed(BIND_UOBJECT_DELEGATE(FSimpleDelegate,SlateHandlePressed))
+        .OnReleased(BIND_UOBJECT_DELEGATE(FSimpleDelegate,SlateHandleReleased))
+        .OnHovered_UObject(this,&ThisClass::SlateHandleHovered)
+        .OnUnhovered_UObject(this,&ThisClass::SlateHandleUnhovered)
+        .OnReceivedFocus_UObject(this,&ThisClass::SlateHandleOnReceivedFocus)
+        .OnLostFocus_UObject(this,&ThisClass::SlateHandleOnLostFocus)
+        .OnSlateButtonDragDetected(BIND_UOBJECT_DELEGATE(FOnDragDetected,SlateHandleDragDetected))
+        .OnSlateButtonDragEnter(BIND_UOBJECT_DELEGATE(FOnDragEnter,SlateHandleDragEnter))
+        .OnSlateButtonDragLeave(BIND_UOBJECT_DELEGATE(FOnDragLeave,SlateHandleDragLeave))
+        .OnSlateButtonDragOver(BIND_UOBJECT_DELEGATE(FOnDragOver,SlateHandleDragOver))
+        .OnSlateButtonDrop(BIND_UOBJECT_DELEGATE(FOnDrop,SlateHandleDrop))
+        .ButtonStyle(&WidgetStyle)
+        .ClickMethod(ClickMethod)
+        .TouchMethod(TouchMethod)
+        .PressMethod(PressMethod)
+        .IsFocusable(IsFocusable)
+        .AllowDragDrop(bAllowDragDrop);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+    MyButton=SNew(SLDSkinnedButton,TWeakObjectPtr<ULDCommandButton>(this),Args);
+    if(GetChildrenCount()>0){Cast<UButtonSlot>(GetContentSlot())->BuildSlot(MyButton.ToSharedRef());}
+    return MyButton.ToSharedRef();
 }
 void LDWidgets::SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look)
 {

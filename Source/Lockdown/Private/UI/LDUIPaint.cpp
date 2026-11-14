@@ -371,7 +371,7 @@ void LDUIPaint::Panel(FSlateWindowElementList& Elements,int32 Layer,const FGeome
 
 void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,EButton Look,const FButtonState& State)
 {
-    const float Opacity=State.bEnabled?1.f:.42f;
+    const float Opacity=(State.bEnabled?1.f:.42f)*FMath::Clamp(State.Fade,0.f,1.f);
     const bool bHot=State.bEnabled&&State.bHovered;
     const bool bDown=State.bEnabled&&State.bPressed;
     const FLinearColor Accent=LDHUDStyle::UIAction;
@@ -434,7 +434,7 @@ void LDUIPaint::Button(FSlateWindowElementList& Elements,int32 Layer,const FGeom
     {
         // .btn: the dark raised face with its hairline and top highlight; hovering lifts the face and rims it yellow.
         Halo(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,FLinearColor(0,0,0,.45f*Opacity),18.f,FVector2D(0,8));
-        if(bHot){Halo(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,Accent.CopyWithNewOpacity(.16f),16.f);}
+        if(bHot){Halo(Elements,Layer,Geometry,EShape::Rounded,Box,5.f,Accent.CopyWithNewOpacity(.16f*Opacity),16.f);}
         const FFill Fill=bDown?FFill::Linear(180.f,{{0.f,Hex(0x161C2A)},{1.f,Hex(0x1E2638)}})
             :FFill::Linear(180.f,{{0.f,Hex(bHot?0x2C3750:0x232C40)},{1.f,Hex(bHot?0x1B2232:0x161C2A)}});
         Shape(Elements,Layer+1,Geometry,EShape::Rounded,Box,5.f,Fill,Opacity);

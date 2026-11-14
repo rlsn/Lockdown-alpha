@@ -136,6 +136,9 @@ private:
         UTextBlock* Element=nullptr;
         // The locked final mod's icon over the head of what it binds.
         UImage* Final=nullptr;
+        // When the bound final mod first showed here (it stamps in over LDHUDStyle::MotionFinalLock).
+        FString FinalShown;
+        double FinalAt=-1.;
         FName Active;
         FString AppliedIcon;
         // The painted art's icon (none for the body and an empty slot).
@@ -175,6 +178,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseStep;
     UPROPERTY() TObjectPtr<ULDCommandButton> CloseButton;
     UPROPERTY() TObjectPtr<UWidget> CharacterPanel;
+    UPROPERTY() TObjectPtr<UWidget> CharacterFit;
     UPROPERTY() TObjectPtr<UBorder> Portrait;
     UPROPERTY() TObjectPtr<UTextBlock> PortraitGlyph;
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadge;
@@ -243,6 +247,7 @@ private:
     float TrayRight=0.f,TrayBottom=0.f,TrayWrap=0.f;
     int32 TagFilter=INDEX_NONE;
     double OpenedAt=-1.;
+    double ClosingAt=-1.;
     // What the dock shows; kept when the pointer leaves, so the eye has a steady place to read.
     FString DockKey;
     uint8 DockKindValue=0;
@@ -250,6 +255,7 @@ private:
     TWeakObjectPtr<UTexture2D> DockIcon;
     double UiNow() const;
     void Layout(FVector2D Size);
+    void AnimateOpening();
     void PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const;
     // Whether the dock's right column has anything to show (where it sits, what it links with, what to watch).
     bool DockHasRight() const;

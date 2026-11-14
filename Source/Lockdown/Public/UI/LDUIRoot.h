@@ -35,6 +35,8 @@ class ULDStartPageDraft : public UGameInstanceSubsystem
 public:
     FString Address, Port, Endpoint, Notice, SeenConnection;
     ELDFrontendAttempt Attempt = ELDFrontendAttempt::None;
+    // The attempt Notice reports, so the start page shows it on that card; None shows it under the page.
+    ELDFrontendAttempt NoticeFor = ELDFrontendAttempt::None;
     bool bStartPage = false;
 };
 
@@ -89,6 +91,9 @@ private:
     UPROPERTY() TArray<TObjectPtr<UWidget>> FrontendCorners;
     UPROPERTY() TObjectPtr<UWidget> FrontendBackground;
     UPROPERTY() TObjectPtr<class UBorder> FrontendPanel;
+    // The title's low fog layer and the logo's neon glow copies, animated in TickFrontend (interface motion only).
+    UPROPERTY() TObjectPtr<UWidget> FrontendFog;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> FrontendNeon;
     double FrontendShownAt=-1.;
     UPROPERTY() TObjectPtr<UEditableTextBox> NameBox;
     UPROPERTY() TObjectPtr<UEditableTextBox> AddressBox;
@@ -99,6 +104,11 @@ private:
     UPROPERTY() TObjectPtr<ULDCommandButton> CancelJoinButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> StartBackButton;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
+    // The start page's two cards: each shows its own attempt's notice and, while that attempt runs, a turning ring.
+    UPROPERTY() TObjectPtr<UTextBlock> HostFeedback;
+    UPROPERTY() TObjectPtr<UTextBlock> JoinFeedback;
+    UPROPERTY() TObjectPtr<UWidget> HostRing;
+    UPROPERTY() TObjectPtr<UWidget> JoinRing;
     UPROPERTY() TObjectPtr<UTextBlock> SettingsStatus;
     UPROPERTY() TObjectPtr<USizeBox> LobbyPage;
     // Full-screen picture behind the lobby page (LDUIBackgrounds), shown exactly while the lobby is; null when missing.
@@ -110,6 +120,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LobbyDevMarker;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReadyButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> StartMatchButton;
+    // Breathing glow behind the host's start button while the room can start.
+    UPROPERTY() TObjectPtr<UWidget> StartMatchGlow;
     UPROPERTY() TObjectPtr<UTextBlock> LobbyBlocker;
     UPROPERTY() TObjectPtr<UTextBlock> LobbyFeedback;
     UPROPERTY() TObjectPtr<USizeBox> MenuPage;
