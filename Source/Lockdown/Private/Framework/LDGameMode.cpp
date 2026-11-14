@@ -391,6 +391,9 @@ void ALDGameMode::StartPlay()
         }
         PublishLobby();
         PublishPublicMatch();
+#if WITH_DEV_AUTOMATION_TESTS
+        LDDemoTests::StartFrontendSettingsProbe(*GetWorld());
+#endif
     }
 #if WITH_DEV_AUTOMATION_TESTS
     else { LDDemoTests::ProbeRejectedEntry(*GetWorld()); LDDemoTests::StartFrontendSettingsProbe(*GetWorld()); }
