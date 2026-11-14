@@ -699,6 +699,11 @@ private:
     // #198 §10 (Framework/LDGameModeBlueprint.cpp): once the result is published, each present human contender's own
     // build blueprint (or the explicit reason it has none) goes to that contender's owning connection only.
     void PublishBuildBlueprints();
+    // Owner-only damage statistics (Framework/LDGameModeDamageStats.cpp): the recap of a field death goes to the dead
+    // contender's owning connection, and once the result is published each present human contender gets its own
+    // per-source damage totals. Nobody receives another player's list.
+    void SendDeathRecap(const FLDCommittedDeath& Fact);
+    void PublishDamageSummaries();
     void PublishPublicMatch();
     void QueueLeaveFact(const FGuid& ContenderId);
     FLDContenderRecord* FindContender(const FGuid& ContenderId);

@@ -10,6 +10,7 @@
 #include "Development/LDSkillGrowth.h"
 #include "Development/LDWorkshopRules.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDDamageRecap.h"
 #include "PK/LDPKRules.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
@@ -904,6 +905,90 @@ LDHUD::FResultRowView LDHUD::ResultRow(const FLDResultRow& Row,const FGuid& Winn
     View.Deaths=FString::Printf(TEXT("%llu"),Row.Deaths);
     View.Assists=FString::Printf(TEXT("%llu"),Row.Assists);
     View.Level=FString::Printf(TEXT("%d"),Row.FinalLevel);
+    return View;
+}
+namespace
+{
+FString HudDamageEntry(const FString& Name,int64 DamageP2)
+{
+    return FString::Printf(TEXT("%s %lld"),*Name,HudWholePoints(DamageP2,true));
+}
+}
+FString LDHUD::DamageSourceName(const FLDDemoContentDefinitions* Content,const FLDCombatSourceRef& Source)
+{
+    switch(Source.Kind)
+    {
+    case ELDCombatSourceKind::Basic: return LDTerms::BasicAttack;
+    case ELDCombatSourceKind::Innate: return LDTerms::Dash;
+    case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Component: case ELDCombatSourceKind::FinalMod:
+        return Source.DefinitionId.IsNone()?FString(TEXT("其他来源")):ContentName(Content,Source.DefinitionId.ToString());
+    default: return TEXT("其他来源");
+    }
+}
+LDHUD::FDamageListView LDHUD::DeathRecap(const FLDDeathRecapView& Recap,const FLDOwnerState& Own,const FLDLobbyView& Lobby,const FLDDemoContentDefinitions* Content)
+{
+    FDamageListView View;
+    if(Own.LifePhase!=ELDLifePhase::Dead||Own.Match==0||Recap.Match!=Own.Match||Recap.Life!=Own.Life||Recap.WindowMs<=0){return View;}
+    View.bAvailable=true;
+    const FString Window=Recap.WindowMs%1000==0?FString::Printf(TEXT("%lld"),Recap.WindowMs/1000):FString::Printf(TEXT("%.1f"),double(Recap.WindowMs)/1000.);
+    if(Recap.Lines.IsEmpty())
+    {
+        View.Heading=FString::Printf(TEXT("近 %s 秒没有受到其他单位的伤害"),*Window);
+        return View;
+    }
+    // The lines arrive grouped by attacker; each run of one attacker is one row.
+    struct FAttacker{int32 First=0,Num=0;int64 TotalP2=0;};
+    TArray<FAttacker> Attackers;
+    int64 AllP2=0;
+    for(int32 Index=0;Index<Recap.Lines.Num();++Index)
+    {
+        const FLDDamageLine& Line=Recap.Lines[Index];
+        if(Attackers.IsEmpty()||!Recap.Lines[Attackers.Last().First].SameAttacker(Line)){Attackers.Add({Index,0,0});}
+        ++Attackers.Last().Num;Attackers.Last().TotalP2+=Line.DamageP2;AllP2+=Line.DamageP2;
+    }
+    View.Heading=FString::Printf(TEXT("近 %s 秒承受伤害 %lld"),*Window,HudWholePoints(AllP2,true));
+    const int32 Shown=Attackers.Num()>DeathRecapAttackersMax?DeathRecapAttackersMax-1:Attackers.Num();
+    for(int32 Index=0;Index<Shown;++Index)
+    {
+        const FAttacker& Attacker=Attackers[Index];
+        const FLDDamageLine& Head=Recap.Lines[Attacker.First];
+        FString Name=Head.Contender.IsValid()?RosterName(Lobby,Head.Contender):!Head.MonsterId.IsNone()?ContentName(Content,Head.MonsterId.ToString()):FString(TEXT("其他来源"));
+        if(Name.IsEmpty()){Name=TEXT("未列名参赛者");}
+        TArray<FString> Parts;Parts.Add(HudDamageEntry(Name,Attacker.TotalP2));
+        const int32 Sources=Attacker.Num>DeathRecapSourcesMax?DeathRecapSourcesMax-1:Attacker.Num;
+        int64 RestP2=0;
+        for(int32 Offset=0;Offset<Attacker.Num;++Offset)
+        {
+            const FLDDamageLine& Line=Recap.Lines[Attacker.First+Offset];
+            if(Offset<Sources){Parts.Add(HudDamageEntry(DamageSourceName(Content,Line.Source),Line.DamageP2));}else{RestP2+=Line.DamageP2;}
+        }
+        if(RestP2>0){Parts.Add(HudDamageEntry(TEXT("其他"),RestP2));}
+        View.Rows.Add(FString::Join(Parts,TEXT(" · ")));
+    }
+    if(Shown<Attackers.Num())
+    {
+        int64 RestP2=0;
+        for(int32 Index=Shown;Index<Attackers.Num();++Index){RestP2+=Attackers[Index].TotalP2;}
+        View.Rows.Add(HudDamageEntry(FString::Printf(TEXT("其他 %d 个攻击者"),Attackers.Num()-Shown),RestP2));
+    }
+    return View;
+}
+LDHUD::FDamageListView LDHUD::DamageSummary(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FLDDemoContentDefinitions* Content)
+{
+    FDamageListView View;
+    if(!Result.ResultId.IsValid()||Summary.ResultId!=Result.ResultId||Summary.Match!=Result.Generation){return View;}
+    View.bAvailable=true;
+    if(Summary.Lines.IsEmpty()){View.Heading=TEXT("你本局没有造成伤害");return View;}
+    int64 AllP2=0,RestP2=0;
+    const int32 Shown=Summary.Lines.Num()>DamageSummarySourcesMax?DamageSummarySourcesMax-1:Summary.Lines.Num();
+    for(int32 Index=0;Index<Summary.Lines.Num();++Index)
+    {
+        const FLDDamageLine& Line=Summary.Lines[Index];
+        AllP2+=Line.DamageP2;
+        if(Index<Shown){View.Rows.Add(HudDamageEntry(DamageSourceName(Content,Line.Source),Line.DamageP2));}else{RestP2+=Line.DamageP2;}
+    }
+    if(RestP2>0){View.Rows.Add(HudDamageEntry(TEXT("其他"),RestP2));}
+    View.Heading=FString::Printf(TEXT("你造成的伤害 %lld"),HudWholePoints(AllP2,true));
     return View;
 }
 

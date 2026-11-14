@@ -548,6 +548,7 @@ void ALDGameMode::PublishMatchOutcome()
         }
         bLobbyDirty = true;
         PublishBuildBlueprints();
+        PublishDamageSummaries();
     }
     if (bPublicMatchDirty)
     {

@@ -140,6 +140,32 @@ void ALDPlayerController::ClientLifeReceipt_Implementation(const FLDOwnerState& 
     OnRep_OwnerState();
 }
 
+void ALDPlayerController::ClientDeathRecap_Implementation(const FLDDeathRecapView& Recap)
+{
+    FString Error;
+    if (Recap.Match==0 || Recap.Life==0 || Recap.WindowMs<=0 || !LDDamageRecap::ValidateLines(Recap.Lines,Error))
+    {
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_DEATH_RECAP_REJECTED match=%u life=%u reason=%s"),Recap.Match,Recap.Life,
+            Error.IsEmpty() ? TEXT("missing match, life or window") : *Error);
+        return;
+    }
+    if (Recap.Match<DeathRecap.Match || (Recap.Match==DeathRecap.Match && Recap.Life<=DeathRecap.Life)) { return; }
+    DeathRecap=Recap;
+}
+
+void ALDPlayerController::ClientDamageSummary_Implementation(const FLDDamageSummaryView& Summary)
+{
+    FString Error;
+    if (Summary.Match==0 || !Summary.ResultId.IsValid() || !LDDamageRecap::ValidateLines(Summary.Lines,Error))
+    {
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_DAMAGE_SUMMARY_REJECTED match=%u reason=%s"),Summary.Match,
+            Error.IsEmpty() ? TEXT("missing match or result") : *Error);
+        return;
+    }
+    if (Summary.Match<DamageSummary.Match) { return; }
+    DamageSummary=Summary;
+}
+
 void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);

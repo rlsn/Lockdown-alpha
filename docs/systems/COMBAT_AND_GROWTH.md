@@ -135,6 +135,16 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 `ApplyTauntEffect` 对每个被嘲讽者调用一次；新增的控制与减益在其施加成功处调用同一入口，不另建记录。
 `LockDeath` 只在击杀者合格时以 `LDAssist::SelectAssisters`（`REWARD.AssistWindowSec` 窗口含边界，排除击杀者、受害者与已离局者）
 把排序后的助攻者冻结进 `FLDCommittedDeath::Assisters`，之后不随离局或升级改写。
+
+**伤害统计**只有一个记录入口 `ALDCombatDirector::RecapHitCommitted(Hit, Victim, Damage, NowMs)`，`ApplyHit` 紧跟
+`LedgerHitCommitted` 调用一次，口径与构筑蓝图的伤害事实相同：对另一个身体实际提交的正伤害（含被护盾吸收的部分），
+自伤与私人训练不计。纯规则在 `LDDamageRecap`（`Combat/LDDamageRecap.h`）：
+- 承伤：受害者是参赛者时，把这一击（攻击者为记功的参赛者，否则为来源身体的野怪定义，再否则无主；来源 `FLDCombatSourceRef`；
+  `DamageP2`）追加进这条生命的 `FLDBodyCombatState::DamageLog`，并丢弃早于 `REWARD.AssistWindowSec` 的样本。
+  `LockDeath` 以 `LDDamageRecap::Summarize`（窗口含边界，含致死一击）按攻击者与来源求和，冻结进
+  `FLDCommittedDeath::Recap` 与 `RecapWindowMs`：攻击者按总量降序，同一攻击者的来源按伤害降序，并列按固定顺序。
+- 造成：记功者是参赛者时，累加进 `DamageTotals[CreditOwner]` 的对应来源行；`DamageTotalsOf` 按伤害降序读出。
+灼烧、区域、反应与弹射沿用各自命中的 `Source` 与 `CreditOwner`，不另外归类。投送与界面见[视野与界面](VISION_AND_UI.md)。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个被动在末尾再加一层未经约束的减伤。
 
 临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
@@ -514,6 +524,7 @@ B14 距离增伤（`DistanceAmp`）、B15 换招增伤（`AlternateAmp`）、B16
 B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后电及雾的即时潮湿、B02 不记结算、S19 触发后引信与到期不爆、
 欠款不吃 S16、C10 共享 C11 预算、M01 只扩散伤害、S20 队友加速、C01 固定窗口与边界收齐，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
+`DamageRecap.Window` 覆盖承伤样本的记录与过期、窗口边界、按攻击者与来源求和及排序、各来源总量和列表的形状校验，
 `BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、
 时间段与收尾，以及全部事实自开局即采集并按版本分列，`BuildBlueprint.Components` 覆盖只改安装/目标/绑定即开新版本、
 构件行的宿主与参数、严格往返与失效安装提示，

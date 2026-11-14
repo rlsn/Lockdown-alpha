@@ -254,6 +254,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoAssist.RewardSplit",
         "Lockdown.Rules.DemoAssist.KillFeedAndResult",
         "Lockdown.Rules.DemoAssist.Settlement",
+        "Lockdown.Rules.DamageRecap.Window",
+        "Lockdown.Rules.DamageRecap.Display",
         "Lockdown.Rules.DemoGrowthSkillGrowth",
         "Lockdown.Rules.DemoRest.Services.Gates",
         "Lockdown.Rules.DemoRest.Services.Npc",

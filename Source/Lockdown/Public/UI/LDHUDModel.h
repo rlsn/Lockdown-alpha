@@ -11,6 +11,8 @@
 // roster/content labels, never a canonical actor or another player's owner state.
 // Player-visible Chinese follows APP_SPEC 1.2; identifiers, enums and content keys keep their technical names.
 struct FLDDemoContentDefinitions;
+struct FLDDeathRecapView;
+struct FLDDamageSummaryView;
 struct FLDDemoStatBonus;
 struct FLDDemoEffectDefinition;
 struct FLDDemoTargetDefinition;
@@ -301,6 +303,27 @@ namespace LDHUD
     };
     // One frozen row in locked roster order; statistics are display only and never decide the winner.
     LOCKDOWN_API FResultRowView ResultRow(const FLDResultRow& Row,const FGuid& Winner,const FGuid& Self);
+    // Owner damage statistics (Combat/LDDamageRecap.h) as display text. Amounts are whole points, a positive fraction
+    // rounded up. A basic reads 普攻 and the innate dash 冲刺; abilities, components and final mods read their approved
+    // display name.
+    LOCKDOWN_API FString DamageSourceName(const FLDDemoContentDefinitions* Content,const FLDCombatSourceRef& Source);
+    struct FDamageListView
+    {
+        // False: no statistic was delivered for this death or this result; the caller says so instead of showing zeros.
+        bool bAvailable=false;
+        FString Heading;
+        TArray<FString> Rows;
+    };
+    // Bounds that keep both lists on screen without scrolling; what does not fit is summed into one 其他 entry.
+    inline constexpr int32 DeathRecapAttackersMax=4;
+    inline constexpr int32 DeathRecapSourcesMax=3;
+    inline constexpr int32 DamageSummarySourcesMax=8;
+    // The own death banner's recap: available only for the recap of exactly the dead life shown. One row per attacker in
+    // the recap's order: name, total, then its sources. Contenders read their public roster name, camp members their
+    // approved display name.
+    LOCKDOWN_API FDamageListView DeathRecap(const FLDDeathRecapView& Recap,const FLDOwnerState& Own,const FLDLobbyView& Lobby,const FLDDemoContentDefinitions* Content);
+    // The result page's own damage: available only for the summary of exactly the result shown. One row per source.
+    LOCKDOWN_API FDamageListView DamageSummary(const FLDDamageSummaryView& Summary,const FLDResultView& Result,const FLDDemoContentDefinitions* Content);
     struct FScoreLine
     {
         FString Name;
