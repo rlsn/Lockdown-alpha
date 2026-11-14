@@ -91,7 +91,7 @@ Generation/Family/RequestId 重查同一份不可变回执，旧局为 `InvalidC
 | `ComponentChoice` = 13 | `OfferId` = 待选的精英营地二选一 `ChoiceId`；`Component` = 所选项，全零 = 改领点数 | 与 `ActiveChoice` 同表（对局进行中随时，存活或死亡）。所选项成为库存实例（`EliteChoice`），该二选一结束；没有该 `ChoiceId` 为 `NoComponentChoice` = 160，不是候选项为 `InvalidOption`，所选项已持有为 `ComponentOwned` = 161。只有全部候选都已持有时才能带全零 `Component` 改领 `GROWTH.EmptyComponentPoolPoints`（计入 `AwardedPoints`），否则也是 `ComponentOwned` |
 | `FillGap` = 24 | `Component` = 缺口目标（持有的改装件/连接件），`Filler` = 要拿的普通基础构件 | 休息服务（与 NPC 同门）：目标须从未安装过、未补过，且全部持有构件、已学主动与待学图纸里没有它的任何兼容入口（D 冲刺与自身目标恒在；反应连接件 C09 要求这些入口原生施加至少两种不同元素——主动的灼烧/潮湿/感电、B01/B10/B11 与 B18 已绑定的元素，两个火源不算），否则 `NotAGap` = 162，补过为 `GapAlreadyFilled` = 164；`Filler` 须为能给它入口的未持有普通基础构件（它的 `targets.components` 与 C12 的 `bases`；C09 只列能补上一种缺少元素的，未绑定的 B18 按可绑元素计），否则 `NoGapFiller` = 163；`GROWTH.FillGapPoints` 计入 `PermanentSpentPoints`、`Filler` 成为库存实例（`FillGap`）、目标记“已补”同一提交；回执 `ComponentId`、`ServicePointsPaid`。点数不足 `NotEnoughPoints` |
 | `Dismantle` = 25 | `Surrendered` = 交出的构件 | 休息服务：恰好 `GROWTH.DismantleInputCount` 种互异、已持有的普通构件（稀缺件、重复、未持有都为 `DismantleInvalid` = 165），换一件未持有普通构件（全部普通池均匀，结果由请求身份固定，重发重放原回执）；装在被交出构件上或以它为 C12 基础的改装件/连接件卸回库存（回执 `UninstalledComponents`），交出项删除（`RemovedComponents`），所得为库存实例（`Dismantle`）。普通池已无可得为 `DismantlePoolEmpty` = 166，不删除任何东西 |
-| `FinalMod` = 27 | `OfferId` = 本人 `FinalModOfferId`、`Option`、`TargetKind`/`TargetDefinition`；`Slot` 为 `AnySlot` | R3 进入时 `ALDDevelopmentDirector::OpenFinalMods` 按比赛私密种子与参赛者抽取三个互异的独立 FIN（`DrawFinalModOptions`）；候选与合法绑定由本人 `FinalModOptions`/`FinalModSources` 投影。选择在 `Rest` 构筑窗口、活着时受理，不需要 NPC；提交时重验来源，写入唯一的 `FLDGrowthBuild::FinalMod`（定义及绑定），同时置 `FLDFinalModState::bLocked`。不修改主动、图纸或构件，不占工坊容量；有普通主动候选也可选择并锁定。之后构筑命令为 `FinalLocked` = 170；没有该选择为 `NoFinalMod` = 171，不是候选为 `InvalidOption`，来源不合法为 `FinalModUnavailable` = 172。揭示后不重抽；最终野外入场边界 `LockFinalMods` 锁定全部未选者 |
+| `FinalMod` = 27 | `OfferId` = 本人 `FinalModOfferId`、`Option`、`TargetKind`/`TargetDefinition`；`Slot` 为 `AnySlot` | R3 进入时 `ALDDevelopmentDirector::OpenFinalMods` 按比赛私密种子与参赛者抽取三个互异的独立 FIN（`DrawFinalModOptions`）；候选与合法绑定由本人 `FinalModOptions`/`FinalModSources` 投影。选择在 `Rest` 构筑窗口、活着时受理，不需要 NPC；提交时重验来源，写入唯一的 `FLDGrowthBuild::FinalMod`（定义及绑定），同时置 `FLDFinalModState::bLocked`（这次选择已用掉）。不修改主动、图纸或构件，不占工坊容量；有普通主动候选也可选择。之后普通构筑命令照常受理；绑定的来源被拆下或遗忘时改装休眠（`LDProgression::FinalModBound` 为假，`ValidateBuild` 仍通过，战斗投影不带它），本人 `FinalModSources` 改为列出已选卡的合法来源；同一 `OfferId` 与 `Option` 的 `FinalMod` 在 `InstallGate` 开放时（任何阶段）只改绑定。再选或换卡为 `FinalLocked` = 170；没有该选择为 `NoFinalMod` = 171，不是候选为 `InvalidOption`，来源不合法为 `FinalModUnavailable` = 172。揭示后不重抽；最终野外入场边界 `LockFinalMods` 关闭全部未选者的这次选择 |
 
 野外奖励（`ALDGrowthDirector::CommitFieldReward`）：地图事件按 `Event + Serial` 只付一次（重复为 `FieldRewardDuplicate` = 167），
 XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分（`LDProgression::DrawFieldReward`，按比赛私密种子与事件身份固定）：
@@ -118,10 +118,10 @@ XP 与构筑部分在同一奖励组合里准备、一次安装。构筑部分�
 | --- | --- | --- | --- |
 | `Rest`（休息构筑窗口 Build/Payout：时长见内容与数值 `REST.*`），活着 | 允许 | 靠近对应NPC时允许 | 靠近训练师时允许 |
 | `Rest`，死亡（休息中参赛者都是 Alive，仅防御） | 允许 | `Dead` | `Dead` |
-| `Live`（野外段），活着（交战中也一样） | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
+| `Live`（野外段与最终野外），活着（交战中也一样） | 允许 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `Live`，死亡 | 允许，不复活、不治疗、不改复活时间 | `NotRestWindow` | `ReplacementNotAllowed` |
 | `RestLocked`（抽签、下注、PK 准备、PK、结算、返场倒计时），活着或死亡 | 允许 | `BuildLocked` | `BuildLocked` |
-| `Closed`（最终野外、结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
+| `Closed`（结果等其他阶段） | `PhaseClosed` | `PhaseClosed` | `PhaseClosed` |
 
 生命阶段不是 Alive/Dead（Unspawned、Left）时每种命令都为 `LifePhaseChanged`。没有构筑安全窗：`NotSafe`（52）与 `RestOnly`（63）已退役，
 `LDProgression::FBuildContext` 只带阶段与生命阶段。PK 中不锁定报名者的构筑快照，每次权威构筑变更直接投影到当前 PK 生命。

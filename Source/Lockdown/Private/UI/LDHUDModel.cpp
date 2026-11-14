@@ -1495,14 +1495,13 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
-        if(bBuildLocked){Reason=ELDGrowthReason::FinalLocked;}
         bAllowed=Reason==ELDGrowthReason::None;
         Blocked=BuildBlockedText(Reason);
     };
@@ -1536,7 +1535,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
     case ELDBuildCommandKind::FinalMod:
         return !Receipt.DefinitionId.IsNone()
-            ?FString::Printf(TEXT("已选择终局改装：%s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
+            ?FString::Printf(TEXT("终局改装：%s 已生效。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -2282,7 +2281,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantleInvalid: return FString(TEXT("要交出规定数量的不同普通"))+LDTerms::Component+TEXT("（稀缺件不收）");
     case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
-    case ELDGrowthReason::FinalLocked: return TEXT("终局构筑已锁定");
+    case ELDGrowthReason::FinalLocked: return TEXT("终局改装已选定");
     case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
     case ELDGrowthReason::FinalModUnavailable: return TEXT("这项终局改装当前没有合法来源");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));

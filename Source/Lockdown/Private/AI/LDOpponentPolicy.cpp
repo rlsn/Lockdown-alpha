@@ -1337,8 +1337,6 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Build, Self);
     const LDProgression::FBuildContext Context = BuildContext(Frame);
     FString Error;
-    // Phase 9: a locked build takes no build command for the rest of the match.
-    if (Self.bBuildLocked) { return false; }
     if (bChooseOffer && Self.Offer.IsSet()
         && LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice, Context) == ELDGrowthReason::None)
     {
@@ -1551,7 +1549,7 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             return true;
         }
     }
-    // Last: selecting the independent rule locks further ordinary build edits.
+    // Last: the independent final rule, taken once.
     if (Self.FinalModOfferId.IsValid() && !Self.Offer.IsSet() && !Self.FinalModOptions.IsEmpty()
         && LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Context) == ELDGrowthReason::None)
     {

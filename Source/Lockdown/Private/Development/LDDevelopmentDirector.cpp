@@ -504,9 +504,13 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.FinalModOptions = Progression.FinalMod.Options;
     View.FinalModChosen = Build.FinalMod.DefinitionId;
     View.FinalMod = Build.FinalMod;
-    if (View.bFinalModPending)
+    // The open offer lists each card's legal sources; once a card is taken it lists that card's, so a dormant card
+    // (its source removed) shows where it can be rebound.
+    TArray<FName> SourceOptions;
+    if (View.bFinalModPending) { SourceOptions = View.FinalModOptions; }
+    else if (!Build.FinalMod.IsEmpty()) { SourceOptions.Add(Build.FinalMod.DefinitionId); }
     {
-        for (FName Option : View.FinalModOptions)
+        for (FName Option : SourceOptions)
         {
             TArray<FLDComponentTarget> Targets;
             const ELDGrowthReason Reason = LDProgression::FinalModTargets(Definitions, Build, Option, Targets);
@@ -636,8 +640,7 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     }
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
-    Out.Stage = GameMode->GetTimeline().GetStage() == ELDMatchStage::FinalField
-        ? LDProgression::EMatchStage::Closed : GameMode->ReadBuildStage(Match);
+    Out.Stage = GameMode->ReadBuildStage(Match);
     return true;
 }
 
@@ -701,11 +704,6 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     if (Command.ExpectedBuildRevision != Record->Build.Revision)
     {
         return Reject(ELDGrowthReason::BuildStale);
-    }
-    // Phase 9: the final mod choice (or the final field entry) locked this build for the rest of the match.
-    if (Record->Progression.FinalMod.bLocked)
-    {
-        return Reject(ELDGrowthReason::FinalLocked);
     }
     if (!GameMode->CanUseRestService(ContenderId, Command.Kind))
     {
@@ -1584,7 +1582,8 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
         }
     }
     Input.ResultBuildRevision = Build.Revision;
-    Input.FinalMod = Build.FinalMod;
+    // A final card whose bound source was removed is dormant: it waits for a rebind and does not project into combat.
+    if (Content.IsValid() && LDProgression::FinalModBound(Content->Get(), Build)) { Input.FinalMod = Build.FinalMod; }
     return Input;
 }
 

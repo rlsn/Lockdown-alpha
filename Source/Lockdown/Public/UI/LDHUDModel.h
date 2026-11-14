@@ -515,7 +515,7 @@ namespace LDHUD
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked=false);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a

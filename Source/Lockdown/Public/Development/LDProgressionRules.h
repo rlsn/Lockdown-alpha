@@ -318,11 +318,15 @@ namespace LDProgression
     LOCKDOWN_API uint64 FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender);
     LOCKDOWN_API ELDGrowthReason FinalModTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FName Option, TArray<FLDComponentTarget>& Out);
-    // Takes the final mod option Option into Slot 0..2: learned into an empty slot, otherwise replacing the active there
-    // (forgotten, its attachments reclaimed exactly like ApplyReplaceActive); OutProgression records the choice and locks
-    // the build. Refused with nothing changed: CommandGate(FinalMod) reasons, NoFinalMod without an open final mod of
-    // OfferId, InvalidOption for an option outside it, FinalModUnavailable when the option became learned or pending,
-    // OfferOutstanding while an active offer is undecided.
+    // True when Build has no final mod or its binding is one of the chosen card's legal sources now. The build stays
+    // adjustable after the final pick, so removing the bound source leaves the card dormant (not projected into combat)
+    // until ApplyFinalMod rebinds it.
+    LOCKDOWN_API bool FinalModBound(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
+    // Takes the final mod option Option with its source Target; OutProgression records the choice and closes the final
+    // offer (the card is taken once; the rest of the build stays adjustable). Refused with nothing changed: CommandGate(FinalMod)
+    // reasons, NoFinalMod without an open final mod of OfferId, InvalidOption for an option outside it, FinalModUnavailable
+    // for a source that is not legal now. A dormant chosen card (FinalModBound false) is rebound with the same OfferId and
+    // Option under InstallGate, any stage; FinalLocked otherwise once the card is taken or the offer closed.
     LOCKDOWN_API ELDGrowthReason ApplyFinalMod(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, const FGuid& OfferId, FName Option, const FLDComponentTarget& Target,
         const FBuildContext& Context, FLDGrowthBuild& Out, FLDProgressionState& OutProgression);

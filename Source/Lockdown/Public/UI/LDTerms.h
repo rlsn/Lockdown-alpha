@@ -168,7 +168,7 @@ inline constexpr TCHAR WorkshopInstalledOn[]=TEXT("装在");
 inline constexpr TCHAR WorkshopGoesOn[]=TEXT("可装");
 inline constexpr TCHAR WorkshopLinks[]=TEXT("联动");
 inline constexpr TCHAR WorkshopNotes[]=TEXT("注意");
-inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑已锁定");
+inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑暂不可调整");
 inline constexpr TCHAR WorkshopClose[]=TEXT("Esc");
 inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("需要已学：%s"),*Names);}
 // 三种元素反应（APP_SPEC §4.4：起雾、导电、过载）。
@@ -195,7 +195,10 @@ inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");
 inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
 inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
 inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
-inline constexpr TCHAR FinalLock[]=TEXT("按住锁定构筑");
+inline constexpr TCHAR FinalLock[]=TEXT("按住选定改装");
+inline constexpr TCHAR FinalTakenNote[]=TEXT("改装只选一次；技能和构件仍可随时调整。");
+inline constexpr TCHAR FinalDormant[]=TEXT("未生效 · 来源已拆下");
+inline constexpr TCHAR FinalRebind[]=TEXT("重新绑定");
 inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}

@@ -494,15 +494,22 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
     }
     if (!Build.FinalMod.IsEmpty())
     {
-        FLDComponentTarget Binding;
-        Binding.Kind = Build.FinalMod.TargetKind;
-        Binding.Definition = Build.FinalMod.TargetId;
+        // The binding may name a source the player has since removed: the card is dormant then (FinalModBound), not invalid.
         TArray<FLDComponentTarget> Legal;
-        if (FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) != ELDGrowthReason::None
-            || !Legal.Contains(Binding))
+        if (FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) != ELDGrowthReason::None)
         { return ELDGrowthReason::DataInvalid; }
     }
     return ELDGrowthReason::None;
+}
+
+bool LDProgression::FinalModBound(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
+{
+    if (Build.FinalMod.IsEmpty()) { return true; }
+    FLDComponentTarget Binding;
+    Binding.Kind = Build.FinalMod.TargetKind;
+    Binding.Definition = Build.FinalMod.TargetId;
+    TArray<FLDComponentTarget> Legal;
+    return FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) == ELDGrowthReason::None && Legal.Contains(Binding);
 }
 
 int32 LDProgression::WorkshopCapacity(const FLDDemoProgressionDefinition& Progression, uint8 Level)
@@ -604,7 +611,7 @@ LDProgression::EMatchStage LDProgression::StageForPublic(ELDMatchPhase Phase, co
     {
     case ELDMatchPhase::Rest: return LDMatchTimeline::IsRestBuildOpen(Timeline) ? EMatchStage::Rest : EMatchStage::RestLocked;
     case ELDMatchPhase::Development:
-    case ELDMatchPhase::CaptureOpen: return Timeline.Stage == ELDMatchStage::FinalField ? EMatchStage::Closed : EMatchStage::Live;
+    case ELDMatchPhase::CaptureOpen: return EMatchStage::Live;
     default: return EMatchStage::Closed;
     }
 }
@@ -1147,11 +1154,24 @@ ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
+    const FLDFinalModState& FinalMod = Progression.FinalMod;
+    if (FinalMod.bLocked && !Current.FinalMod.IsEmpty() && Current.FinalMod.DefinitionId == Option && FinalMod.OfferId == OfferId
+        && !FinalModBound(Content, Current))
+    {
+        // Rebinding a dormant card is part of adjusting the build: open wherever an install is.
+        if (const ELDGrowthReason Reason = InstallGate(Context); Reason != ELDGrowthReason::None) { return Reason; }
+        TArray<FLDComponentTarget> Legal;
+        if (const ELDGrowthReason Reason = FinalModTargets(Content, Current, Option, Legal); Reason != ELDGrowthReason::None)
+        { return Reason; }
+        if (!Legal.Contains(Target)) { return ELDGrowthReason::FinalModUnavailable; }
+        Out.FinalMod.TargetKind = Target.Kind;
+        Out.FinalMod.TargetId = Target.Definition;
+        return ELDGrowthReason::None;
+    }
     if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::FinalMod, Context); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
-    const FLDFinalModState& FinalMod = Progression.FinalMod;
     if (!FinalMod.IsPending() || FinalMod.OfferId != OfferId)
     {
         return FinalMod.bLocked ? ELDGrowthReason::FinalLocked : ELDGrowthReason::NoFinalMod;

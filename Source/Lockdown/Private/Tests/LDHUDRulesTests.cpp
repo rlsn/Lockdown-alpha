@@ -1335,9 +1335,9 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);
         FLDTimelineView FinalField;
         FinalField.Stage=ELDMatchStage::FinalField;
-        TestTrue(TEXT("The final field closes ordinary growth commands"),
-            LDProgression::StageForPublic(ELDMatchPhase::Development,FinalField)==EStage::Closed
-            && LDProgression::StageForPublic(ELDMatchPhase::CaptureOpen,FinalField)==EStage::Closed);
+        TestTrue(TEXT("The final field keeps the build adjustable"),
+            LDProgression::StageForPublic(ELDMatchPhase::Development,FinalField)==EStage::Live
+            && LDProgression::StageForPublic(ELDMatchPhase::CaptureOpen,FinalField)==EStage::Live);
         TestTrue(TEXT("Results are closed"),LDProgression::StageForPublic(ELDMatchPhase::Results,FLDTimelineView())==EStage::Closed);
     }
     TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied),FString(LDTerms::ReplaceAtRest));

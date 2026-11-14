@@ -721,6 +721,24 @@ bool FLDDemoFinalModChoiceAndLockTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("The final mod gate refuses a locked rest"),
         LDGrowthWire::ReasonName(LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Locked)),
         LDGrowthWire::ReasonName(ELDGrowthReason::BuildLocked));
+
+    // ---- The build stays adjustable: a taken card whose source left is dormant and rebinds anywhere an install is ----
+    FLDGrowthBuild Dormant = Build;
+    Dormant.FinalMod.DefinitionId = Options[0];
+    Dormant.FinalMod.TargetKind = ELDComponentTargetKind::Active;
+    Dormant.FinalMod.TargetId = FName(TEXT("removed_source"));
+    bGood &= TestTrue(TEXT("A card whose source was removed is dormant, not invalid"),
+        !LDProgression::FinalModBound(Content, Dormant) && LDProgression::ValidateBuild(Content, Dormant) == ELDGrowthReason::None);
+    bGood &= RestTestReason(*this, TEXT("Rebinding a dormant card on the field"), LDProgression::ApplyFinalMod(Content, Dormant, Taken,
+        Open.FinalMod.OfferId, Options[0], MechanicTargets[0], Field, Out, OutProgression), ELDGrowthReason::None);
+    bGood &= TestTrue(TEXT("The rebind only moves the binding"), Out.FinalMod.DefinitionId == Options[0]
+        && Out.FinalMod.TargetKind == MechanicTargets[0].Kind && Out.FinalMod.TargetId == MechanicTargets[0].Definition
+        && LDProgression::FinalModBound(Content, Out) && OutProgression.FinalMod.bLocked && Out.Actives.Num() == Build.Actives.Num());
+    const FLDGrowthBuild Rebound = Out;
+    bGood &= RestTestReason(*this, TEXT("A bound card does not rebind"), LDProgression::ApplyFinalMod(Content, Rebound, Taken,
+        Open.FinalMod.OfferId, Options[0], MechanicTargets.Last(), Rest, Out, OutProgression), ELDGrowthReason::FinalLocked);
+    bGood &= RestTestReason(*this, TEXT("A dormant card does not swap for another option"), LDProgression::ApplyFinalMod(Content, Dormant,
+        Taken, Open.FinalMod.OfferId, Options[1], Plain, Field, Out, OutProgression), ELDGrowthReason::NotRestWindow);
     return bGood;
 }
 

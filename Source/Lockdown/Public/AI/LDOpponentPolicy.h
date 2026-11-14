@@ -160,7 +160,6 @@ struct FLDOpponentSelf
     FGuid FinalModOfferId;
     TArray<FString> FinalModOptions;
     TArray<FLDFinalModSourceView> FinalModSources;
-    bool bBuildLocked = false;
     // #153: this adapter's own server-random opening timing (drawn once per match, never a hidden fact): the authority
     // ms from which it makes its countdown build decisions.
     int64 OpeningPickAtMs = 0;

@@ -528,7 +528,7 @@ public:
         if (View.Phase != ELDMatchPhase::Results || Public->MatchResult.ResultId != View.ResultId) { return true; }
         const auto& Result = Public->MatchResult;
         Check(bFinalSeen && Growth && Growth->CumulativeXP == FinalXP && Growth->BuildRevision == FinalBuildRevision,
-            TEXT("C06"), TEXT("Final combat grants no ordinary XP or build mutation"));
+            TEXT("C06"), TEXT("Final combat grants no ordinary XP; the build changes only by its owner's commands (none sent here)"));
         Check(bMarkerSeen, TEXT("C08"), TEXT("The client draws the registered final flag boundary as presentation only"));
         Check(!bExpectsRoad || (bFinalDashSent && bRoadSeen), TEXT("C16"),
             TEXT("A selected D-bound traffic FIN creates a real travelled road on the owning connection's authorized frame"));
