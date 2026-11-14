@@ -23,6 +23,7 @@
 #include "Rendering/DrawElements.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "UI/LDUIFonts.h"
 
 namespace
 {
@@ -69,11 +70,11 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     default: return WorldLabelStatusInk;
     }
 }
-// The UI's default CJK-capable font at the local text scale, outlined so a label reads over any ground or body.
+// The interface font at the local text scale, outlined so a label reads over any ground or body.
 FSlateFontInfo WorldLabelFont(const FName Typeface,int32 Size,float TextScale,int32 OutlineSize=2)
 {
     FFontOutlineSettings Outline;Outline.OutlineSize=OutlineSize;Outline.OutlineColor=LDHUDStyle::Rim;
-    return FCoreStyle::GetDefaultFontStyle(Typeface,float(FMath::Max(1,FMath::RoundToInt(Size*TextScale))),Outline);
+    return LDUIFonts::Font(Typeface==FName(TEXT("Bold"))?LDUIFonts::ERole::Strong:LDUIFonts::ERole::Body,float(FMath::Max(1,FMath::RoundToInt(Size*TextScale))),Outline);
 }
 }
 
@@ -151,9 +152,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
     const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
-    const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),16,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),16,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),14,TextScale);
+    const FSlateFontInfo ContenderFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeText,TextScale),CampFont=WorldLabelFont(TEXT("Regular"),LDHUDStyle::TypeText,TextScale),StatusFont=WorldLabelFont(TEXT("Regular"),LDHUDStyle::TypeSmall,TextScale);
     // The level badge grows with the text preference, so its number always fits.
-    const FSlateFontInfo LevelFont=WorldLabelFont(TEXT("Bold"),13,TextScale,1);
+    const FSlateFontInfo LevelFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeCaption,TextScale,1);
     const float BadgeSide=FMath::RoundToFloat(WorldBadgeSide*TextScale),BadgeRim=BadgeSide+2.f;
     const TSharedRef<FSlateFontMeasure> FontMeasure=Renderer->GetFontMeasureService();
     const FSlateBrush* White=FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"));

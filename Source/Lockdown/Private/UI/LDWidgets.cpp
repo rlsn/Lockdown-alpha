@@ -1,14 +1,19 @@
 #include "UI/LDWidgets.h"
+#include "Widgets/SLeafWidget.h"
+#include "Widgets/SOverlay.h"
 #include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/TextBlock.h"
 #include "Components/RichTextBlock.h"
 #include "Engine/DataTable.h"
-#include "Styling/CoreStyle.h"
-UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size,FName Name)
+#include "UI/LDUIFonts.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size,FName Name,LDUIFonts::ERole Role)
 {
-    auto* W=Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),Name);W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
+    auto* W=Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),Name);W->SetText(FText::FromString(Value));W->SetFont(LDUIFonts::Font(Role,Size));
     W->SetColorAndOpacity(LDHUDStyle::TextPrimary);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
 void LDWidgets::SetRichTextSize(URichTextBlock* Rich,int32 Size)
@@ -17,10 +22,10 @@ void LDWidgets::SetRichTextSize(URichTextBlock* Rich,int32 Size)
     UDataTable* Styles=NewObject<UDataTable>(Rich);
     Styles->RowStruct=FRichTextStyleRow::StaticStruct();
     FRichTextStyleRow Plain;
-    Plain.TextStyle.SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
+    Plain.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Size));
     Plain.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextPrimary));
     FRichTextStyleRow Bold=Plain;
-    Bold.TextStyle.SetFont(FCoreStyle::GetDefaultFontStyle("Bold",Size));
+    Bold.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Size));
     Bold.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextAccent));
     Styles->AddRow(TEXT("Default"),Plain);
     Styles->AddRow(TEXT("b"),Bold);
@@ -37,17 +42,184 @@ URichTextBlock* LDWidgets::RichText(UWidgetTree* Tree,int32 Size,FName Name)
     auto* W=Tree->ConstructWidget<URichTextBlock>(URichTextBlock::StaticClass(),Name);
     SetRichTextSize(W,Size);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
+namespace
+{
+    void LDButtonFace(ULDCommandButton* W,UWidgetTree* Tree,const FString& Value)
+    {
+        auto* Caption=LDWidgets::Text(Tree,Value,LDHUDStyle::TypeBody,NAME_None,LDUIFonts::ERole::Strong);Caption->SetAutoWrapText(false);
+        Caption->SetColorAndOpacity(LDHUDStyle::UIText);W->SetContent(Caption);
+        // The face is painted under the caption (LDUIPaint::Button); the engine chrome stays empty, and the same padding
+        // pressed or released keeps the caption still.
+        auto Style=W->GetStyle();
+        Style.Normal=FSlateNoResource();Style.Hovered=FSlateNoResource();Style.Pressed=FSlateNoResource();Style.Disabled=FSlateNoResource();
+        Style.NormalPadding=FMargin(18,11);Style.PressedPadding=FMargin(18,11);W->SetStyle(Style);W->EnableFeel();
+    }
+}
 ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)
 {
-    ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>(ULDWorldButton::StaticClass(),Name):Tree->ConstructWidget<ULDCommandButton>(ULDCommandButton::StaticClass(),Name);W->Callback=MoveTemp(Callback);auto* Caption=Text(Tree,Value);Caption->SetAutoWrapText(false);W->SetContent(Caption);
-    // Flat rounded faces from one teal family replace the stock engine chrome; the hairline edge keeps the shape readable on
-    // any panel, and the same padding pressed or released keeps the caption still.
-    auto Face=[](const FLinearColor& Fill,const FLinearColor& Edge){FSlateRoundedBoxBrush Brush(Fill,6.f,Edge,1.f);Brush.OutlineSettings.bUseBrushTransparency=true;return Brush;};
-    auto Style=W->GetStyle();
-    Style.Normal=Face(FLinearColor(.045f,.12f,.15f),FLinearColor(.12f,.30f,.33f));Style.Hovered=Face(FLinearColor(.09f,.24f,.27f),FLinearColor(.30f,.62f,.62f));
-    Style.Pressed=Face(FLinearColor(.12f,.32f,.32f),FLinearColor(.40f,.75f,.72f));Style.Disabled=Face(FLinearColor(.035f,.05f,.065f),FLinearColor(.08f,.11f,.13f));
-    Style.NormalPadding=FMargin(12,11);Style.PressedPadding=FMargin(12,11);W->SetStyle(Style);W->OnClicked.AddDynamic(W,&ULDCommandButton::Execute);return W;
+    ULDCommandButton* W=World?Tree->ConstructWidget<ULDWorldButton>(ULDWorldButton::StaticClass(),Name):Tree->ConstructWidget<ULDCommandButton>(ULDCommandButton::StaticClass(),Name);
+    W->Callback=MoveTemp(Callback);LDButtonFace(W,Tree,Value);
+    W->OnClicked.AddDynamic(W,&ULDCommandButton::Execute);W->OnClicked.AddDynamic(W,&ULDCommandButton::FeelClicked);return W;
 }
+ULDHoldButton* LDWidgets::HoldButton(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,FName Name)
+{
+    ULDHoldButton* W=Tree->ConstructWidget<ULDHoldButton>(ULDHoldButton::StaticClass(),Name);
+    W->Callback=MoveTemp(Callback);LDButtonFace(W,Tree,Value);
+    W->OnPressed.AddDynamic(W,&ULDHoldButton::HoldPressed);W->OnReleased.AddDynamic(W,&ULDHoldButton::HoldReleased);
+    W->OnClicked.AddDynamic(W,&ULDHoldButton::InstantClicked);return W;
+}
+namespace
+{
+    // Runs a paint function in the button's own geometry, under the SButton and its caption.
+    class SLDButtonSkin : public SLeafWidget
+    {
+    public:
+        SLATE_BEGIN_ARGS(SLDButtonSkin){}
+        SLATE_END_ARGS()
+        void Construct(const FArguments&,TWeakObjectPtr<ULDCommandButton> InOwner){Owner=InOwner;SetVisibility(EVisibility::HitTestInvisible);}
+        virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D::ZeroVector;}
+        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle&,bool bParentEnabled) const override
+        {
+            const ULDCommandButton* Button=Owner.Get();
+            if(!Button){return Layer;}
+            if(Button->GetStyle().Normal.DrawAs!=ESlateBrushDrawType::NoDrawType){return Layer;}
+            LDUIPaint::FButtonState State;
+            State.bHovered=Button->IsHovered();State.bPressed=Button->IsPressed();State.bEnabled=bParentEnabled&&Button->GetIsEnabled();State.Tint=Button->Tint;
+            LDUIPaint::Button(Elements,Layer,Geometry,FBox2D(FVector2D::ZeroVector,Geometry.GetLocalSize()),Button->Look,State);
+            return Layer+2;
+        }
+    private:
+        TWeakObjectPtr<ULDCommandButton> Owner;
+    };
+}
+namespace
+{
+    class SLDPaintLayer : public SLeafWidget
+    {
+    public:
+        SLATE_BEGIN_ARGS(SLDPaintLayer){}
+        SLATE_END_ARGS()
+        void Construct(const FArguments&,TWeakObjectPtr<ULDPaintLayer> InOwner){Owner=InOwner;SetVisibility(EVisibility::HitTestInvisible);}
+        virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D::ZeroVector;}
+        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle&,bool) const override
+        {
+            const ULDPaintLayer* Paint=Owner.Get();
+            if(Paint&&Paint->Painter){Paint->Painter(Elements,Layer,Geometry);}
+            // The painter draws on a handful of layers above Layer.
+            return Layer+12;
+        }
+    private:
+        TWeakObjectPtr<ULDPaintLayer> Owner;
+    };
+}
+TSharedRef<SWidget> ULDPaintLayer::RebuildWidget()
+{
+    Layer=SNew(SLDPaintLayer,TWeakObjectPtr<ULDPaintLayer>(this));
+    return Layer.ToSharedRef();
+}
+void ULDPaintLayer::ReleaseSlateResources(bool bReleaseChildren){Super::ReleaseSlateResources(bReleaseChildren);Layer.Reset();}
+TSharedRef<SWidget> ULDCommandButton::RebuildWidget()
+{
+    TSharedRef<SWidget> Inner=Super::RebuildWidget();
+    return SNew(SOverlay)
+        +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[SNew(SLDButtonSkin,TWeakObjectPtr<ULDCommandButton>(this))]
+        +SOverlay::Slot().HAlign(HAlign_Fill).VAlign(VAlign_Fill)[Inner];
+}
+void LDWidgets::SetLook(ULDCommandButton* Button,LDUIPaint::EButton Look)
+{
+    if(!Button){return;}
+    Button->Look=Look;
+    // Yellow and pink faces carry dark or white captions; the dark faces carry the paper colour.
+    if(UTextBlock* Caption=Cast<UTextBlock>(Button->GetContent()))
+    {
+        const FLinearColor Ink=Look==LDUIPaint::EButton::Primary||Look==LDUIPaint::EButton::Plus||Look==LDUIPaint::EButton::TagOn?LDUIPaint::Hex(0x15130A)
+            :Look==LDUIPaint::EButton::Event?FLinearColor::White:Look==LDUIPaint::EButton::Tag||Look==LDUIPaint::EButton::Key?LDHUDStyle::TextSecondary:LDHUDStyle::UIText;
+        Caption->SetColorAndOpacity(Ink);
+    }
+    if(TSharedPtr<SWidget> Cached=Button->GetCachedWidget()){Cached->Invalidate(EInvalidateWidgetReason::Paint);}
+}
+void ULDCommandButton::EnableFeel()
+{
+    SetRenderTransformPivot(FVector2D(.5f,.5f));
+    OnHovered.AddUniqueDynamic(this,&ULDCommandButton::FeelHovered);OnUnhovered.AddUniqueDynamic(this,&ULDCommandButton::FeelUnhovered);
+    OnPressed.AddUniqueDynamic(this,&ULDCommandButton::FeelPressed);OnReleased.AddUniqueDynamic(this,&ULDCommandButton::FeelReleased);
+}
+void ULDCommandButton::FeelHovered(){PlayCue(ELDAudioCue::UIHover);Animate(IsPressed()?LDHUDStyle::PressScale:LDHUDStyle::HoverScale,LDHUDStyle::MotionHover);}
+void ULDCommandButton::FeelUnhovered(){Animate(1.f,LDHUDStyle::MotionHover);}
+void ULDCommandButton::FeelPressed(){Animate(LDHUDStyle::PressScale,LDHUDStyle::MotionSnap);}
+void ULDCommandButton::FeelReleased(){Animate(IsHovered()?LDHUDStyle::HoverScale:1.f,LDHUDStyle::MotionSnap);}
+void ULDCommandButton::PlayCue(ELDAudioCue Cue) const
+{
+    const UWorld* World=GetWorld();UGameInstance* Instance=World?World->GetGameInstance():nullptr;
+    if(auto* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr){Audio->Play(Cue);}
+}
+void LDWidgets::PlayCue(const UObject* Context,ELDAudioCue Cue)
+{
+    const UWorld* World=Context?Context->GetWorld():nullptr;UGameInstance* Instance=World?World->GetGameInstance():nullptr;
+    if(auto* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr){Audio->Play(Cue);}
+}
+void ULDCommandButton::Animate(float Target,double Duration)
+{
+    Scale.Retarget(Target,FPlatformTime::Seconds(),Duration,LDTween::ECurve::EaseOut);
+    if(FeelTicker.IsValid()){return;}
+    FeelTicker=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,[this,Duration](float)
+    {
+        const double Now=FPlatformTime::Seconds();
+        LDTween::SetScale(this,Scale.Value(Now,Duration,LDTween::ECurve::EaseOut));
+        if(Scale.IsMoving(Now,Duration)){return true;}
+        FeelTicker.Reset();return false;
+    }));
+}
+void ULDCommandButton::StopTicker(FTSTicker::FDelegateHandle& Handle)
+{if(Handle.IsValid()){FTSTicker::GetCoreTicker().RemoveTicker(Handle);Handle.Reset();}}
+void ULDCommandButton::ReleaseSlateResources(bool bReleaseChildren)
+{StopTicker(FeelTicker);Super::ReleaseSlateResources(bReleaseChildren);}
+float ULDHoldButton::HoldProgress() const
+{return HoldStartedAt<0.?0.f:FMath::Clamp(float((FPlatformTime::Seconds()-HoldStartedAt)/LDHUDStyle::MotionHoldConfirm),0.f,1.f);}
+void ULDHoldButton::HoldPressed()
+{
+    if(!bHoldRequired||HoldStartedAt>=0.||!GetIsEnabled()){return;}
+    HoldStartedAt=FPlatformTime::Seconds();
+    PlayCue(ELDAudioCue::UIHoldCharge);
+    HoldTicker=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,[this](float)
+    {
+        // Losing the press, the button or its enablement withdraws the hold; only a full hold commits, and only once.
+        if(!IsPressed()||!IsShownAndEnabled()){HoldStartedAt=-1.;HoldTicker.Reset();Repaint();return false;}
+        Repaint();
+        if(HoldProgress()<1.f){return true;}
+        HoldStartedAt=-1.;HoldTicker.Reset();PlayCue(ELDAudioCue::UIClick);Execute();return false;
+    }));
+}
+bool ULDHoldButton::IsShownAndEnabled() const
+{
+    // The button and every ancestor, across nested user widgets, must still be visible and enabled: hiding or disabling a
+    // window, page or confirm line around a held button withdraws the hold.
+    for(const UWidget* Widget=this;Widget;)
+    {
+        if(!Widget->IsVisible()||!Widget->GetIsEnabled()){return false;}
+        const UWidget* Next=Widget->GetParent();
+        if(!Next)
+        {
+            const UUserWidget* Owner=Widget->GetTypedOuter<UUserWidget>();
+            Next=Owner!=Widget?Owner:nullptr;
+        }
+        Widget=Next;
+    }
+    return true;
+}
+void LDWidgets::ReleaseHolds(UWidgetTree* Tree)
+{
+    if(!Tree){return;}
+    Tree->ForEachWidget([](UWidget* Widget){if(auto* Hold=Cast<ULDHoldButton>(Widget)){Hold->HoldReleased();}});
+}
+void ULDHoldButton::InstantClicked(){if(!bHoldRequired){PlayCue(ELDAudioCue::UIClick);Execute();}}
+void ULDHoldButton::SetHoldRequired(bool bRequired)
+{if(bHoldRequired!=bRequired){bHoldRequired=bRequired;HoldReleased();}}
+void ULDHoldButton::HoldReleased(){StopTicker(HoldTicker);HoldStartedAt=-1.;Repaint();}
+void ULDHoldButton::ReleaseSlateResources(bool bReleaseChildren)
+{StopTicker(HoldTicker);HoldStartedAt=-1.;Super::ReleaseSlateResources(bReleaseChildren);}
+void ULDHoldButton::Repaint() const
+{if(ULDPanel* Panel=GetTypedOuter<ULDPanel>()){Panel->InvalidateLayoutAndVolatility();}}
 
 #include "Components/PanelWidget.h"
 #include "Components/EditableTextBox.h"
@@ -105,13 +277,26 @@ FReply ULDPanel::NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E)
     if(E.GetKey()==EKeys::Tab){MovePanelFocus(E.IsShiftDown());return FReply::Handled();}
     if(E.GetKey()==EKeys::Enter||E.GetKey()==EKeys::SpaceBar)
     {
-        for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants()){if(auto* B=Cast<UButton>(W)){if(!E.IsRepeat()){B->OnClicked.Broadcast();}return FReply::Handled();}break;}}
+        for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants())
+        {
+            // A hold button takes the key itself: key down presses it and key up releases it, so the keys hold like the pointer.
+            if(Cast<ULDHoldButton>(W)){break;}
+            if(auto* B=Cast<UButton>(W)){if(!E.IsRepeat()){B->OnClicked.Broadcast();}return FReply::Handled();}break;
+        }}
     }
     return Super::NativeOnPreviewKeyDown(G,E);
 }
 int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
+    for(auto* W:PanelFocusTargets())
+    {
+        const auto* Hold=Cast<ULDHoldButton>(W);const float Progress=Hold?Hold->HoldProgress():0.f;
+        if(Progress<=0.f){continue;}
+        const auto& WG=W->GetCachedGeometry();const FVector2D P=G.AbsoluteToLocal(WG.LocalToAbsolute(FVector2D::ZeroVector)),Q=G.AbsoluteToLocal(WG.LocalToAbsolute(WG.GetLocalSize()));
+        const FSlateRoundedBoxBrush Fill(LDHUDStyle::HoldFill,LDHUDStyle::RadiusButton);
+        FSlateDrawElement::MakeBox(E,Base+1,G.ToPaintGeometry(FVector2D((Q.X-P.X)*Progress,Q.Y-P.Y),FSlateLayoutTransform(P)),&Fill);
+    }
     for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants())
     {
         const auto& WG=W->GetCachedGeometry();const FVector2D P=G.AbsoluteToLocal(WG.LocalToAbsolute(FVector2D::ZeroVector)),Q=G.AbsoluteToLocal(WG.LocalToAbsolute(WG.GetLocalSize()));
@@ -120,7 +305,7 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
         const UScrollBox* List=nullptr;
         for(const UWidget* Parent=W->GetParent();Parent&&!List;Parent=Parent->GetParent()){List=Cast<UScrollBox>(Parent);}
         if(List){E.PushClip(FSlateClippingZone(List->GetCachedGeometry()));}
-        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,FLinearColor(1,.82f,.28f),true,3);
+        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,LDHUDStyle::FocusOutline,true,3);
         if(List){E.PopClip();}
         break;
     }}return Base+1;
@@ -128,6 +313,6 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
 UBorder* LDWidgets::Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding)
 {
     // The white rounded face takes its fill from the brush colour, so a caller that recolours a panel keeps its shape and rim.
-    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,6.f,LDHUDStyle::PanelRim,1.f));
+    auto* W=Tree->ConstructWidget<UBorder>();W->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LDHUDStyle::RadiusPanel,LDHUDStyle::PanelRim,1.f));
     W->SetBrushColor(LDHUDStyle::PanelFill);W->SetPadding(Padding);if(Child){W->SetContent(Child);}return W;
 }

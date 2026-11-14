@@ -15,6 +15,8 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Styling/CoreStyle.h"
+#include "UI/LDHUDStyle.h"
+#include "UI/LDUIFonts.h"
 
 namespace
 {
@@ -124,24 +126,24 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         {
             auto* Box=WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass(),Name);
             Box->SetHintText(FText::FromString(Hint));
-            FEditableTextBoxStyle Style=Box->GetWidgetStyle();Style.TextStyle.SetFont(FCoreStyle::GetDefaultFontStyle("Regular",15));Style.Padding=FMargin(8,5);
+            FEditableTextBoxStyle Style=Box->GetWidgetStyle();Style.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,15));Style.Padding=FMargin(8,5);
             Box->SetWidgetStyle(Style);Box->SetForegroundColor(FLinearColor(.04f,.07f,.07f));Box->SetClearKeyboardFocusOnCommit(false);
             auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(110);Width->SetContent(Box);
             return TPair<UEditableTextBox*,UWidget*>(Box,Width);
         };
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
-        Top->AddChildToHorizontalBox(MakeText(TEXT("测试模式"),20,DevPanelWarning,false))->SetVerticalAlignment(VAlign_Center);
-        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只改自己；每项由服务器按真实规则提交"),13,DevPanelDim,false));
+        Top->AddChildToHorizontalBox(MakeText(TEXT("测试模式"),LDHUDStyle::TypeHeading,DevPanelWarning,false))->SetVerticalAlignment(VAlign_Center);
+        UHorizontalBoxSlot* NoteSlot=Top->AddChildToHorizontalBox(MakeText(TEXT("只改自己；每项由服务器按真实规则提交"),LDHUDStyle::TypeCaption,DevPanelDim,false));
         NoteSlot->SetPadding(FMargin(12,0,0,0));NoteSlot->SetVerticalAlignment(VAlign_Center);NoteSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Top->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("DevTestClose")));
-        StatusText=MakeText(DevPanelSyncing,15,DevPanelBright,true);
+        StatusText=MakeText(DevPanelSyncing,LDHUDStyle::TypeBody,DevPanelBright,true);
         Root->AddChildToVerticalBox(StatusText)->SetPadding(FMargin(0,8,0,0));
-        FeedbackLine=MakeText(TEXT(""),14,DevPanelSecondary,true);
+        FeedbackLine=MakeText(TEXT(""),LDHUDStyle::TypeSmall,DevPanelSecondary,true);
         Root->AddChildToVerticalBox(FeedbackLine)->SetPadding(FMargin(0,4,0,0));
 
         auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
-        auto Heading=[&](const FString& Title){Body->AddChildToVerticalBox(MakeText(Title,16,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));};
+        auto Heading=[&](const FString& Title){Body->AddChildToVerticalBox(MakeText(Title,LDHUDStyle::TypeText,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));};
         auto Row=[&](){auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();Body->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,4));return Line;};
         auto AddButton=[&](UHorizontalBox* Line,const FString& Label,TFunction<void()> Callback,FName Name)
         {Line->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,Label,MoveTemp(Callback),false,Name))->SetPadding(FMargin(6,0,0,0));};
@@ -167,12 +169,12 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             const LDDevTest::FStatField& Field=Fields[Index];
             auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
             auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();Lines->AddChildToVerticalBox(Head);
-            Head->AddChildToHorizontalBox(MakeText(LDDevPanel::StatLabel(Field),15,DevPanelBright,false))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            Head->AddChildToHorizontalBox(MakeText(LDDevPanel::StatLabel(Field),LDHUDStyle::TypeBody,DevPanelBright,false))->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
             const auto Box=MakeBox(Field.Decimals?TEXT("两位小数"):TEXT("整数"),FName(*FString::Printf(TEXT("DevTestAttrValue%s"),Field.ConsoleName)));
             Head->AddChildToHorizontalBox(Box.Value)->SetVerticalAlignment(VAlign_Center);
             Head->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("设置"),[this,Index](){SendStat(Index,StatBoxes[Index]->GetText().ToString());},
                 false,FName(*FString::Printf(TEXT("DevTestAttr%s"),Field.ConsoleName))))->SetPadding(FMargin(6,0,0,0));
-            UTextBlock* Current=MakeText(DevPanelSyncing,13,DevPanelSecondary,true);
+            UTextBlock* Current=MakeText(DevPanelSyncing,LDHUDStyle::TypeCaption,DevPanelSecondary,true);
             Lines->AddChildToVerticalBox(Current)->SetPadding(FMargin(0,2,0,0));
             UBorder* Card=LDWidgets::Panel(WidgetTree,Lines,FMargin(10,6));Card->SetBrushColor(DevPanelCard);
             Body->AddChildToVerticalBox(Card)->SetPadding(FMargin(0,0,0,4));
@@ -184,13 +186,13 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         }
 
         Heading(TEXT("主动技能（不需要机会、图纸或安全窗）"));
-        LearnHint=MakeText(TEXT(""),13,DevPanelDim,true);Body->AddChildToVerticalBox(LearnHint)->SetPadding(FMargin(0,0,0,4));
+        LearnHint=MakeText(TEXT(""),LDHUDStyle::TypeCaption,DevPanelDim,true);Body->AddChildToVerticalBox(LearnHint)->SetPadding(FMargin(0,0,0,4));
         LearnList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(LearnList);
         Heading(TEXT("五维加点（用自己的未分配点数，不需要安全窗）"));
         PointList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(PointList);
 
         auto* Host=WidgetTree->ConstructWidget<UVerticalBox>();
-        Host->AddChildToVerticalBox(MakeText(TEXT("整局（只限房主）"),16,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));
+        Host->AddChildToVerticalBox(MakeText(TEXT("整局（只限房主）"),LDHUDStyle::TypeText,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));
         auto* HostLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(HostLine);
         HostLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("刷新已清空营地"),[this](){Send(ELDDevTestOp::RefreshCamps);},false,TEXT("DevTestRefreshCamps")));
         HostLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("提前开圈"),[this](){Send(ELDDevTestOp::OpenCapture);},false,TEXT("DevTestOpenCapture")))->SetPadding(FMargin(6,0,0,0));
@@ -199,7 +201,7 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
         auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetMaxDesiredHeight(560);HeightBox->SetContent(Scroll);
         Root->AddChildToVerticalBox(HeightBox)->SetPadding(FMargin(0,8,0,0));
-        Root->AddChildToVerticalBox(MakeText(TEXT("测试结果不算无作弊对局；数值只用于试验，不是批准的平衡值。"),13,DevPanelDim,true))->SetPadding(FMargin(0,8,0,0));
+        Root->AddChildToVerticalBox(MakeText(TEXT("测试结果不算无作弊对局；数值只用于试验，不是批准的平衡值。"),LDHUDStyle::TypeCaption,DevPanelDim,true))->SetPadding(FMargin(0,8,0,0));
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(20));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(760);WidthBox->SetContent(MainPanel);
         auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Top);
@@ -243,8 +245,8 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
     for(int32 Index=0;Index<ShownActives.Num();++Index)
     {
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();LearnList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
-        UTextBlock* Name=MakeText(TEXT(""),15,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        UTextBlock* Held=MakeText(TEXT(""),13,DevPanelDim);
+        UTextBlock* Name=MakeText(TEXT(""),LDHUDStyle::TypeBody,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        UTextBlock* Held=MakeText(TEXT(""),LDHUDStyle::TypeCaption,DevPanelDim);
         UHorizontalBoxSlot* HeldSlot=Line->AddChildToHorizontalBox(Held);HeldSlot->SetPadding(FMargin(10,0,0,0));HeldSlot->SetVerticalAlignment(VAlign_Center);
         const FName Id=ShownActives[Index].Id;
         ULDCommandButton* Grant=MakeButton(LDDevTest::OpLabel(ELDDevTestOp::GrantBlueprint),[this,Id](){Send(ELDDevTestOp::GrantBlueprint,0,Id);},
@@ -271,8 +273,8 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
         const FName Id(*Stat.Id);
         ShownStats.Add(Id);
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();PointList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
-        UTextBlock* Name=MakeText(TEXT(""),15,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        UTextBlock* Held=MakeText(TEXT(""),13,DevPanelDim);
+        UTextBlock* Name=MakeText(TEXT(""),LDHUDStyle::TypeBody,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        UTextBlock* Held=MakeText(TEXT(""),LDHUDStyle::TypeCaption,DevPanelDim);
         UHorizontalBoxSlot* HeldSlot=Line->AddChildToHorizontalBox(Held);HeldSlot->SetPadding(FMargin(10,0,0,0));HeldSlot->SetVerticalAlignment(VAlign_Center);
         Line->AddChildToHorizontalBox(MakeButton(TEXT("+1"),[this,Id](){Send(ELDDevTestOp::AllocatePoints,1,Id);},TEXT("DevTestPoint_")+Stat.Id))
             ->SetPadding(FMargin(8,0,0,0));

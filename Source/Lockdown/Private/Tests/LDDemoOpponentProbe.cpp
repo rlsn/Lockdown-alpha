@@ -3,6 +3,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Tests/LDSlateProbeInput.h"
+#include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 
 #include "Components/SizeBox.h"
@@ -47,6 +48,8 @@
 #include "UI/LDMinimap.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDComponentStorage.h"
+#include "UI/LDWorkshop.h"
+#include "Components/WrapBox.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDHUDModel.h"
@@ -183,6 +186,8 @@ public:
     bool ReviewChoiceCards(ALDPlayerController& PC,double Now);
     FName UIInstalledComponent;
     int32 UIServiceStep=0,UIServicePick=0,UIServiceWheels=0;
+    // A held confirmation: the pointer path pressed at UIHoldPressedAt, released once the hold has had time to fill.
+    FWidgetPath UIHoldPath;FVector2D UIHoldAt=FVector2D::ZeroVector;double UIHoldPressedAt=-1.;
     int32 UIServiceObservedStep=INDEX_NONE;
     double UIServiceStepAt=0;
     uint64 UIServiceGrowthBefore=0;
@@ -817,7 +822,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     if (!Panel || !Owner.Controls) { return false; }
 
     // Tab -1 is the #227 component storage held open over the band with the panel closed.
-    // Tab: 0 the open 构筑 panel, -1 the pinned storage, 1 the HUD stat icons with the first stat's "+" and popup pinned.
+    // Tab: 0 the open 构筑 panel, -1 the pinned storage, 1 the HUD stat icons with the first stat's "+" and popup pinned,
+    // 2 the open workshop's bench (its board, library and character column) with the offer stage left.
     struct FReviewShot { const TCHAR* Name; int32 Tab, Width, Height; float Scale; };
     static constexpr FReviewShot ReviewShots[] = {
         {TEXT("HostRestSkills_1280x720_100.png"), 0, 1280, 720, 1.f},
@@ -832,6 +838,10 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         {TEXT("HostRestSkills_1920x1080_125.png"), 0, 1920, 1080, 1.25f},
         {TEXT("HostRestStorage_1920x1080_125.png"), -1, 1920, 1080, 1.25f},
         {TEXT("HostRestStats_1920x1080_125.png"), 1, 1920, 1080, 1.25f},
+        {TEXT("HostWorkshop_1920x1080_100.png"), 2, 1920, 1080, 1.f},
+        {TEXT("HostWorkshop_1920x1080_125.png"), 2, 1920, 1080, 1.25f},
+        {TEXT("HostWorkshop_1280x720_100.png"), 2, 1280, 720, 1.f},
+        {TEXT("HostWorkshop_1280x720_125.png"), 2, 1280, 720, 1.25f},
     };
     ULDComponentStorage* Storage = Owner.HUDUI ? Owner.HUDUI->Storage.Get() : nullptr;
     ULDStatBar* Stats = Owner.HUDUI ? Owner.HUDUI->StatBar.Get() : nullptr;
@@ -848,8 +858,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         Owner.Controls->TextScale = Shot.Scale;
         Storage->PinOpen(Shot.Tab < 0);
         Stats->PinHover(Shot.Tab == 1 ? 0 : INDEX_NONE);
-        if (Shot.Tab != 0) { Panel->ClosePanel(); }
+        if (Shot.Tab != 0 && Shot.Tab != 2) { Panel->ClosePanel(); }
         else { Panel->OpenPanel(); }
+        if (Shot.Tab == 2) { Panel->LeaveStage(); }
         Owner.ConsoleCommand(FString::Printf(TEXT("r.SetRes %dx%dw"), Shot.Width, Shot.Height), true);
         RestReviewDueAt = Now + .65;
     };
@@ -900,6 +911,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
             return true;
         }
         if (Now < RestReviewDueAt || FScreenshotRequest::IsScreenshotRequested()) { return true; }
+        // The bench shots leave the offer stage once the workshop has laid it out.
+        if (ReviewShots[RestReviewIndex].Tab == 2 && Panel->IsStageShown()) { Panel->LeaveStage(); RestReviewDueAt = Now + .5; return true; }
         Capture(ReviewShots[RestReviewIndex].Name);
         bRestReviewCapturePending = true;
         return true;
@@ -930,9 +943,9 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
         }
         if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant)
         {
-            if(!LDSlateProbeInput::Path(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-            if(!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-                TEXT("UI: actual merchant interaction opens the service window"))){return false;}
+            // Beside the merchant the open workshop shows its service on the board; the 构筑 button opens the workshop.
+            if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                TEXT("UI: the workshop opens beside the merchant"))){return false;}
             RestServiceReviewStage = 2;
             ConfigureService();
             return true;
@@ -953,9 +966,8 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     {
         if (Owner.OwnerState.NearbyRestService == ELDRestService::SkillMerchant && Owner.HUDUI)
         {
-            if(!LDSlateProbeInput::Path(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-            if(!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-                TEXT("UI: actual merchant interaction opens the service window after walking"))){return false;}
+            if(!Owner.HUDUI->ChoicesPanel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(Owner.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                TEXT("UI: the workshop opens beside the merchant after walking"))){return false;}
             RestServiceReviewStage = 2;
             ConfigureService();
             return true;
@@ -1469,9 +1481,12 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
                 ULDComponentStorage* Storage=PC.HUDUI->Storage.Get();
                 if(!bUIStorageShot)
                 {
-                    if(!Check(Storage->IsExpanded()&&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
-                        &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid(),
-                        TEXT("UI: the open storage shows its stack and card list over the band at 720p125"))){return Finish();}
+                    // The rest's workshop lays the storage out as its library; over the band it is the stack and its card list.
+                    const bool bShown=Storage->InWorkshop()?LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("WorkshopLibrary"))).IsValid()
+                        :LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorageList"))).IsValid()
+                            &&LDSlateProbeInput::Path(Storage->GetWidgetFromName(TEXT("HUDComponentStorage"))).IsValid();
+                    if(!Check(Storage->IsExpanded()&&bShown,
+                        TEXT("UI: the open storage shows its components (workshop library, or stack and card list) at 720p125"))){return Finish();}
                     FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,TEXT("HostStorageOpen_1280x720_125.png")),true,false);
                     Screenshots.Add(MakeShared<FJsonValueString>(TEXT("HostStorageOpen_1280x720_125.png")));
                     bUIStorageShot=true;return true;
@@ -1552,11 +1567,11 @@ bool FLDDemoOpponentProbe::TickUIReview(ALDPlayerController& PC, ALDGameState& P
             if(UIReadyOpenStep==0)
             {
                 if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))).IsValid()){return true;}
-                // Nothing to build: the greyed-out button cannot open an empty tray, so there is no workspace to keep.
+                // Nothing to build: the workshop still opens from the 构筑 button, but there is no workspace to keep.
                 if(!Panel->HasCards())
                 {
-                    if(!Check(!PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))->GetIsEnabled(),
-                        TEXT("UI: the 构筑 button is greyed out while the tray has no card"))){return Finish();}
+                    if(!Check(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))->GetIsEnabled(),
+                        TEXT("UI: the 构筑 button opens the workshop even while the tray has no card"))){return Finish();}
                     UIReadyOpenStep=5;return true;
                 }
                 if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
@@ -1969,12 +1984,19 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
             if(UIPayoutStep==1)
             {
                 if(PC.OwnerState.NearbyRestService!=ELDRestService::SkillMerchant){return true;}
-                if(!LDSlateProbeInput::Path(HUD->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-                if(!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDRestService"))),
-                    TEXT("UI: owning connection can actually interact with an NPC during payout"))){return Finish();}
+                if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+                    TEXT("UI: owning connection opens the workshop beside an NPC during payout"))){return Finish();}
                 UIPayoutStep=2;return true;
             }
-            if(!Check(Panel->bServicePanelOpen&&Panel->RestSection->IsVisible()
+            // A waiting offer takes the centre stage; its back button returns to the bench, where the services are.
+            if(Panel->IsStageShown())
+            {
+                if(!Check(LDSlateProbeInput::SendClick(Panel->GetWidgetFromName(TEXT("GrowthStageBack"))),
+                    TEXT("UI: the payout owner leaves the offer stage for the NPC services"))){return Finish();}
+                return true;
+            }
+            if(!Panel->IsServiceShown()){return true;}
+            if(!Check(Panel->IsServiceShown()&&Panel->NpcBox->IsVisible()
                 &&!Cast<UTextBlock>(Panel->NpcButton->GetContent())->GetText().IsEmpty()
                 &&!HUD->GetWidgetFromName(TEXT("HUDPKSidePanel"))->GetParent()->IsVisible(),
                 TEXT("UI: payout interaction presents its real service actions and reasons"))){return Finish();}
@@ -2051,8 +2073,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 if(UIFieldStep==3)
                 {
                     if(Panel->HasPendingRequest()){return true;}
-                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsTrayOpen()==Panel->HasCards(),
-                        TEXT("UI: a real field-safe build commits and the tray stays open exactly while it has cards"))){return Finish();}
+                    if(!Check(Growth->Actives.Num()==UIFieldActivesBefore+1&&Panel->IsTrayOpen(),
+                        TEXT("UI: a real field-safe build commits and the player-opened workshop stays open"))){return Finish();}
                     Capture(TEXT("Client1FieldSafeBuild.png"));
                     UIFieldStep=30;return true;
         }
@@ -2175,8 +2197,8 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 {
                     if(AuthorityNow<Combat.BuildSafeAtMs){return true;}
                     UWidget* Prompt=HUD->GetWidgetFromName(TEXT("HUDChoicesPrompt"));
-                    if(!Check(!Panel->IsPanelOpen()&&Prompt&&Prompt->GetIsEnabled()==Panel->HasCards(),
-                        TEXT("UI: expiry never auto-opens planning, and the 构筑 button is lit exactly while the tray has cards"))){return Finish();}
+                    if(!Check(!Panel->IsPanelOpen()&&Prompt&&Prompt->GetIsEnabled(),
+                        TEXT("UI: expiry never auto-opens planning, and the 构筑 button stays available"))){return Finish();}
                     if(Panel->HasCards()&&!Check(LDSlateProbeInput::SendClick(Prompt),
                         TEXT("UI: the remote player manually reopens the tray"))){return Finish();}
                     UIFieldStep=6;return true;
@@ -2201,6 +2223,15 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
             UIServiceStep,uint8(PC.OwnerState.NearbyRestService),PC.CanWorldCommand(),PC.Navigation?*PC.Navigation->Status:TEXT("missing"));
         Check(false,TEXT("UI: each actual service interaction completes within twenty seconds"));return false;
     }
+    if(UIHoldPressedAt>=0.)
+    {
+        // The release goes to the pressed button's pointer capture even when the committed hold has hidden it.
+        if(Now-UIHoldPressedAt<LDHUDStyle::MotionHoldConfirm+.2){return true;}
+        auto& App=FSlateApplication::Get();
+        App.RoutePointerUpEvent(UIHoldPath,FPointerEvent(App.GetUserIndexForMouse(),FSlateApplicationBase::CursorPointerIndex,UIHoldAt,UIHoldAt,
+            TSet<FKey>(),EKeys::LeftMouseButton,0,FModifierKeysState()));
+        UIHoldPath=FWidgetPath();UIHoldPressedAt=-1.;
+    }
     if(Now<UIActionDueAt){return true;}
     UIActionDueAt=Now+.15;
     auto* Panel=PC.HUDUI->ChoicesPanel.Get();
@@ -2222,6 +2253,15 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         UIServiceWheels=0;
         return Check(Target->GetIsEnabled()&&LDSlateProbeInput::SendClick(Target),TEXT("UI: visible service control accepts a real pointer click"));
     };
+    // Irreversible confirmations commit only on a full hold: a real press now, its release once the fill completes.
+    const auto Hold=[&](UWidget* Target)
+    {
+        if(!LDSlateProbeInput::Path(Target).IsValid()){return Click(Target);}
+        UIHoldPath=LDSlateProbeInput::Path(Target);UIHoldAt=Target->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5,.5));
+        if(!Check(Target->GetIsEnabled()&&LDSlateProbeInput::Pointer(Target,EKeys::LeftMouseButton,true,false),
+            TEXT("UI: visible irreversible confirmation accepts a real pointer hold"))){return false;}
+        UIHoldPressedAt=Now;return true;
+    };
     const auto Capture=[&](const TCHAR* Name)
     {FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output,Name),true,false);Screenshots.Add(MakeShared<FJsonValueString>(Name));};
     const auto Walk=[&](uint8 Service)
@@ -2234,7 +2274,7 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
     switch(UIServiceStep)
     {
     case 0:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
+        if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
         ++UIServiceStep;return true;
     case 1:
         if(!Panel->HasCards()){UIServiceStep=3;return true;}
@@ -2259,7 +2299,8 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Growth->PendingBlueprints.IsEmpty())
         {
             UIReplacement=Growth->PendingBlueprints[0];
-            if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt")))){return Passed;}
+            // The open workshop hides the 构筑 button; its own close button puts it away.
+            if(Panel->IsTrayOpen()&&!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
             UIServiceStep=31;return true;
         }
         if(!Check(Growth->Level<6,TEXT("UI: approved level 3/6 and NPC offers supply the replacement fixture"))){return false;}
@@ -2271,14 +2312,14 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         if(!Walk(3)){return false;}UIServiceStep=4;return true;
     case 4:
         if(PC.OwnerState.NearbyRestService!=ELDRestService::Trainer){return true;}
-        if(!Check(!Panel->bServicePanelOpen,TEXT("UI: trainer proximity alone opens no service window"))){return false;}
+        if(!Check(!Panel->IsServiceShown(),TEXT("UI: trainer proximity alone shows no service while the workshop is closed"))){return false;}
         ++UIServiceStep;return true;
     case 5:
         for(const auto& Row:Panel->BlueprintRows)
         {for(const auto& Replace:Row.Replace){if(!Check(!Replace->IsVisible(),TEXT("UI: trainer proximity does not expose a hidden-confirm replacement"))){return false;}}}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-            TEXT("UI: actual trainer interaction opens its separate service window"))){return false;}
-        ++UIServiceStep;return true;
+        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: the workshop opens beside the trainer with its services on the board"))){return false;}
+        ++UIServiceStep;UIActionDueAt=Now+.3;return true;
     case 6:
         if(!Click(Panel->GetWidgetFromName(TEXT("GrowthReplace0Q")))){return Passed;}
         ++UIServiceStep;return true;
@@ -2295,35 +2336,35 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         ++UIServiceStep;return true;
     case 10:
         UIServiceGrowthBefore=Growth->BuildRevision;
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
+        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 11:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        // The receipt's toast may follow the replicated revision by a few frames; the stall check bounds the wait.
+        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
         if(!Check(LDHUD::ActiveInSlot(*Growth,0)==UIReplacement&&!PC.HUDUI->Toast->GetText().IsEmpty(),
             TEXT("UI: confirmed replacement commits and its receipt is toasted"))){return false;}
         Capture(TEXT("HostTrainerReplacementApplied.png"));
         UIServiceGrowthBefore=Growth->BuildRevision;++UIServiceStep;return true;
     case 12:
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
+        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestRespec")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 13:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
         if(!Check(!PC.HUDUI->Toast->GetText().IsEmpty(),TEXT("UI: trainer respec receives visible authoritative feedback"))){return false;}
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthServiceClose")))){return Passed;}
+        if(!Click(PC.HUDUI->Workshop->GetWidgetFromName(TEXT("WorkshopClose")))){return Passed;}
         UIServiceStep=131;return true;
     case 131:
-        if(!Check(!Panel->IsPanelOpen()&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None&&!Panel->BlueprintSection->IsVisible(),
-            TEXT("UI: trainer close leaves no hidden confirmation or blueprint rows behind"))){return false;}
+        if(!Check(!Panel->IsPanelOpen()&&Panel->RestConfirm.Kind==ELDBuildCommandKind::None&&!Panel->TrainerPicks->IsVisible(),
+            TEXT("UI: closing the workshop leaves no hidden confirmation or trainer buttons behind"))){return false;}
         UIServiceStep=133;return true;
     case 133:
         if(!PC.CanWorldCommand()){return true;}
         if(!Walk(2)){return false;}UIServiceStep=14;return true;
     case 14:
         if(PC.OwnerState.NearbyRestService!=ELDRestService::ComponentArtisan){return true;}
-        if(!LDSlateProbeInput::Path(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))).IsValid()){return true;}
-        if(!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDRestService"))),
-            TEXT("UI: actual artisan interaction opens its service window"))){return false;}
-        ++UIServiceStep;return true;
+        if(!Panel->IsTrayOpen()&&!Check(LDSlateProbeInput::SendClick(PC.HUDUI->GetWidgetFromName(TEXT("HUDChoicesPrompt"))),
+            TEXT("UI: the workshop opens beside the artisan with its services on the board"))){return false;}
+        ++UIServiceStep;UIActionDueAt=Now+.3;return true;
     case 15:
         if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestDismantle")))){return Passed;}
         ++UIServiceStep;return true;
@@ -2337,10 +2378,10 @@ bool FLDDemoOpponentProbe::ReviewExplicitServices(ALDPlayerController& PC,double
         Capture(TEXT("HostArtisanDismantleConfirm.png"));++UIServiceStep;return true;
     case 17:
         UIServiceGrowthBefore=Growth->BuildRevision;UIServiceInventoryBefore=Growth->Components.Num();
-        if(!Click(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
+        if(!Hold(Panel->GetWidgetFromName(TEXT("GrowthRestConfirm")))){return Passed;}
         ++UIServiceStep;UIActionDueAt=Now+.4;return true;
     case 18:
-        if(Growth->BuildRevision<=UIServiceGrowthBefore){return true;}
+        if(Growth->BuildRevision<=UIServiceGrowthBefore||PC.HUDUI->Toast->GetText().IsEmpty()){return true;}
         if(!Check(Growth->Components.Num()==UIServiceInventoryBefore-Panel->Materials.DismantleCount+1
             &&!PC.HUDUI->Toast->GetText().IsEmpty(),
             TEXT("UI: artisan consumes the selected real components and displays its authoritative result"))){return false;}

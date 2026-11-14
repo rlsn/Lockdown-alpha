@@ -22,6 +22,7 @@ class ULDPanel;
 class ULDChoicesPanel;
 class ULDComponentStorage;
 class ULDStatBar;
+class ULDWorkshop;
 class UVerticalBox;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
@@ -57,7 +58,6 @@ struct FLDHUDActionSlot
     FString AppliedIcon;
     int32 AppliedTint=-1;
     float AppliedOpacity=1.f;
-    float AppliedPop=1.f;
     bool bCooling=false;
     uint32 CoolingMatch=0;
     uint32 CoolingLife=0;
@@ -81,6 +81,8 @@ public:
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
     UPROPERTY() TObjectPtr<ULDComponentStorage> Storage;
+    // The build workshop (APP_SPEC §7 构筑): the full view of the 构筑 tray, open while the tray is open (ULDWorkshop).
+    UPROPERTY() TObjectPtr<ULDWorkshop> Workshop;
     // The own point-bought stats under the name in the band's identity block: hover a stat for its "+", one click commits
     // one point (ULDStatBar). The 属性 entry and the Attributes key swap it for the attribute view and back.
     UPROPERTY() TObjectPtr<ULDStatBar> StatBar;
@@ -132,6 +134,20 @@ private:
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
+    // The top-centre stack (the banner and the rest actions); the full workshop moves it to the top-right corner.
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> TopCentreSlot;
+    // The workshop opens by itself when a rest's build or payout step begins and when the own death wait begins, and closes
+    // when that full-screen moment ends (the field or a PK step returns).
+    uint32 WorkshopSeenMatch=0;
+    uint8 WorkshopSeenRest=0;
+    ELDRestStep WorkshopSeenStep=ELDRestStep::None;
+    bool bWorkshopSeenDead=false;
+    bool bWorkshopWasFull=false;
+    // The open workshop was opened by its moment, not by the player: it closes again when the moment ends.
+    bool bWorkshopAutoOpened=false;
+    // The rest actions panel's own brush, restored when it leaves the full workshop's top bar.
+    FSlateBrush RestPanelBrush;
+    bool bRestPanelBrushKept=false;
     // #198: the outer timeline over the capture line (LDHUD::TimelineBanner): the rest and its step, or the field segment;
     // then the rest's PK sign-up and lock detail.
     UPROPERTY() TObjectPtr<UTextBlock> TimelineText;
@@ -142,7 +158,6 @@ private:
     UPROPERTY() TObjectPtr<UBorder> RestActionsPanel;
     UPROPERTY() TObjectPtr<ULDCommandButton> TrainingResetButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RestReadyButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> RestServiceButton;
     UPROPERTY() TObjectPtr<UTextBlock> RestAnswerText;
     // A reset is waiting for its answer (a Listen Host answers inside the call); its button stays disabled meanwhile.
     bool bTrainingResetInFlight=false;
@@ -159,7 +174,6 @@ private:
     void HandleTrainingReset(ELDTrainingResetResult Result);
     void HandleRestReady(ELDRestReadyResult Result);
     void SubmitRestReady();
-    void OpenRestService();
     void SubmitTrainingReset();
     void ShowRestAnswer(const FString& Text);
     // #198 session D: the PK panel under the rest actions (LDHUD::PKPanel), from the draw to the payout step: format and
@@ -299,10 +313,12 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
+    UPROPERTY() TObjectPtr<UBorder> PromptBadge;
+    UPROPERTY() TObjectPtr<UTextBlock> PromptBadgeText;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptBadgeSlot;
     int32 PromptOffers=0;
     int32 PromptComponents=0;
     double PromptPulseAt=-1;
-    float AppliedPromptWave=-1;
     UPROPERTY() TObjectPtr<UBorder> ToastPanel;
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;

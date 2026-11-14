@@ -795,12 +795,18 @@ public:
                         if (Growth->QueuedActiveOpportunities>0) { return true; }
                         if (!bServicePanelOpened)
                         {
+                            // The open workshop shows the nearby NPC's services on the board (the next HUD refresh lays them out).
                             Panel->SetServiceContext(PC->OwnerState.NearbyRestService);
-                            if (!Panel->OpenServicePanel() || !Panel->IsPanelOpen())
+                            if (!Panel->IsPanelOpen())
                             {
-                                Check(false,TEXT("The remote owner opens the contextual NPC service panel"));
-                                return Finish();
+                                if (!PC->RootUI || !PC->RootUI->ShowMainPanel(ELDUIMainPanel::Choices))
+                                {
+                                    Check(false,TEXT("The remote owner opens the workshop beside the NPC"));
+                                    return Finish();
+                                }
+                                return true;
                             }
+                            if (!Panel->IsServiceShown()) { return true; }
                             bServicePanelOpened=true;
                             return true;
                         }
@@ -829,13 +835,13 @@ public:
                         bLeftFirstService |= PC->OwnerState.NearbyRestService==ELDRestService::None;
                         if (bLeftFirstService && PC->HUDUI && PC->HUDUI->ChoicesPanel)
                         {
-                            bServicePanelClosed |= !PC->HUDUI->ChoicesPanel->IsPanelOpen();
+                            bServicePanelClosed |= !PC->HUDUI->ChoicesPanel->IsServiceShown();
                         }
                         if (bLeftFirstService && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan)
                         {
                             Check(bLeftFirstService && bServicePanelOpened && bServicePanelClosed
                                 && bNpcPurchaseApplied && PC->OwnerState.NearbyRestService==ELDRestService::ComponentArtisan,
-                                TEXT("The non-host owner completes an NPC purchase, then the service panel closes on leaving before the next service"));
+                                TEXT("The non-host owner completes an NPC purchase, then the services leave the workshop on leaving before the next service"));
                             if (!Mark(TEXT("RestServicesVisited.json"))) { return Finish(); }
                             RestServiceStage=3;
                         }

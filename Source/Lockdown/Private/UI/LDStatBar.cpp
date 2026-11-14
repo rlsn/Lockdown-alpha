@@ -70,7 +70,7 @@ TSharedRef<SWidget> ULDStatBar::RebuildWidget()
         Row=WidgetTree->ConstructWidget<UHorizontalBox>();Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         Root->AddChildToVerticalBox(Row);
         // Until the catalog and the own view arrive the block says so instead of showing empty stats.
-        Syncing=LDWidgets::Text(WidgetTree,TEXT("属性同步中"),14);Syncing->SetAutoWrapText(false);Syncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        Syncing=LDWidgets::Text(WidgetTree,TEXT("属性同步中"),LDHUDStyle::TypeSmall);Syncing->SetAutoWrapText(false);Syncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         Syncing->SetVisibility(ESlateVisibility::Collapsed);
         Root->AddChildToVerticalBox(Syncing)->SetPadding(FMargin(0,StatPlusHeight,0,0));
         AttrGrid=WidgetTree->ConstructWidget<UUniformGridPanel>();AttrGrid->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -81,11 +81,11 @@ TSharedRef<SWidget> ULDStatBar::RebuildWidget()
             FLDCombatAttributeRowView Probe;Probe.Attribute=Order[Index];
             const LDHUD::FAttributeRowView Face=LDHUD::AttributeRow(Probe);
             FAttrCell& Cell=AttrCells.AddDefaulted_GetRef();Cell.Attribute=Order[Index];
-            auto* Glyph=LDWidgets::Text(WidgetTree,Face.Glyph,12);Glyph->SetAutoWrapText(false);Glyph->SetJustification(ETextJustify::Center);StatBold(Glyph,1);
+            auto* Glyph=LDWidgets::Text(WidgetTree,Face.Glyph,LDHUDStyle::TypeTiny);Glyph->SetAutoWrapText(false);Glyph->SetJustification(ETextJustify::Center);StatBold(Glyph,1);
             auto* Icon=WidgetTree->ConstructWidget<UBorder>();Icon->SetBrush(StatRound(4.f,StatEdge,1.f));Icon->SetBrushColor(StatFill);
             Icon->SetPadding(FMargin(0));Icon->SetHorizontalAlignment(HAlign_Center);Icon->SetVerticalAlignment(VAlign_Center);Icon->SetContent(Glyph);
             auto* IconBox=WidgetTree->ConstructWidget<USizeBox>();IconBox->SetWidthOverride(AttrGlyphSize);IconBox->SetHeightOverride(AttrGlyphSize);IconBox->SetContent(Icon);
-            Cell.Value=LDWidgets::Text(WidgetTree,TEXT(""),15);Cell.Value->SetAutoWrapText(false);StatBold(Cell.Value,1);
+            Cell.Value=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBody);Cell.Value->SetAutoWrapText(false);StatBold(Cell.Value,1);
             Cell.Value->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
             auto* Entry=WidgetTree->ConstructWidget<UHorizontalBox>();Entry->SetVisibility(ESlateVisibility::Visible);
             Entry->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);
@@ -125,7 +125,7 @@ void ULDStatBar::BuildCells()
         if(UTextBlock* Caption=Cast<UTextBlock>(Cell.Plus->GetContent()))
         {
             Caption->SetColorAndOpacity(StatPlusInk);StatBold(Caption,0);Caption->SetJustification(ETextJustify::Center);
-            auto Font=Caption->GetFont();Font.Size=18;Caption->SetFont(Font);
+            auto Font=Caption->GetFont();Font.Size=LDHUDStyle::TypeLead;Caption->SetFont(Font);
             if(UButtonSlot* CaptionSlot=Cast<UButtonSlot>(Caption->Slot)){CaptionSlot->SetPadding(FMargin(0));CaptionSlot->SetHorizontalAlignment(HAlign_Center);CaptionSlot->SetVerticalAlignment(VAlign_Center);}
         }
         Cell.Plus->SetVisibility(ESlateVisibility::Hidden);Built.Add(Cell.Plus);
@@ -133,8 +133,8 @@ void ULDStatBar::BuildCells()
         PlusBox->SetContent(Cell.Plus);Built.Add(PlusBox);
         // The icon (the name's first character without its texture) and the allocated points on the corner.
         Cell.Picture=WidgetTree->ConstructWidget<UImage>();Cell.Picture->SetVisibility(ESlateVisibility::Collapsed);Built.Add(Cell.Picture);
-        Cell.Glyph=LDWidgets::Text(WidgetTree,TEXT(""),18);Cell.Glyph->SetAutoWrapText(false);Cell.Glyph->SetJustification(ETextJustify::Center);StatBold(Cell.Glyph,1);Built.Add(Cell.Glyph);
-        Cell.Points=LDWidgets::Text(WidgetTree,TEXT(""),13);Cell.Points->SetAutoWrapText(false);StatBold(Cell.Points,2);Built.Add(Cell.Points);
+        Cell.Glyph=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeLead);Cell.Glyph->SetAutoWrapText(false);Cell.Glyph->SetJustification(ETextJustify::Center);StatBold(Cell.Glyph,1);Built.Add(Cell.Glyph);
+        Cell.Points=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeCaption);Cell.Points->SetAutoWrapText(false);StatBold(Cell.Points,2);Built.Add(Cell.Points);
         auto* Face=WidgetTree->ConstructWidget<UOverlay>();Built.Add(Face);
         auto* PictureSlot=Face->AddChildToOverlay(Cell.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
         auto* GlyphSlot=Face->AddChildToOverlay(Cell.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);

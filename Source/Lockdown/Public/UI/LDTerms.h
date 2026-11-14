@@ -158,6 +158,45 @@ inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT(
 inline FString DropReplaces(const FString& Replaced,const FString& With,const FString& Place)
 {return With.IsEmpty()?FString::Printf(TEXT("替换 %s · 装到 %s"),*Replaced,*Place):FString::Printf(TEXT("替换 %s · 连带拆下 %s · 装到 %s"),*Replaced,*With,*Place);}
 inline constexpr TCHAR DropNowhere[]=TEXT("不能装在这里");
+// 工坊台（构筑的全屏视图）：规则板、容量条、构件库分组、角色栏、待处理与信息坞。
+inline constexpr TCHAR WorkshopCapacityTitle[]=TEXT("工坊容量");
+inline FString WorkshopUnlockAt(int32 Level){return FString::Printf(TEXT("Lv %d 解锁下一格"),Level);}
+inline constexpr TCHAR WorkshopPending[]=TEXT("待处理");
+inline constexpr TCHAR WorkshopReactions[]=TEXT("元素反应");
+inline constexpr TCHAR WorkshopPointsLabel[]=TEXT("点可分配");
+inline constexpr TCHAR WorkshopInstalledOn[]=TEXT("装在");
+inline constexpr TCHAR WorkshopGoesOn[]=TEXT("可装");
+inline constexpr TCHAR WorkshopLinks[]=TEXT("联动");
+inline constexpr TCHAR WorkshopNotes[]=TEXT("注意");
+inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑已锁定");
+inline constexpr TCHAR WorkshopClose[]=TEXT("Esc");
+inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("需要已学：%s"),*Names);}
+// 三种元素反应（APP_SPEC §4.4：起雾、导电、过载）。
+inline constexpr TCHAR ReactionFog[]=TEXT("起雾");
+inline constexpr TCHAR ReactionConduct[]=TEXT("导电");
+inline constexpr TCHAR ReactionOverload[]=TEXT("过载");
+// 基础规则的触发来源（内容效果的触发字段）。
+inline constexpr TCHAR TriggerBasicHit[]=TEXT("普攻命中");
+inline constexpr TCHAR TriggerAbilityHit[]=TEXT("主动命中");
+inline constexpr TCHAR TriggerDamaged[]=TEXT("受到伤害");
+inline constexpr TCHAR TriggerDashComplete[]=TEXT("冲刺完成");
+// 构筑时刻：主动三选一页与终局改装页。
+inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
+inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
+inline constexpr TCHAR OfferLinks[]=TEXT("可接");
+inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
+inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
+inline constexpr TCHAR OfferSkip[]=TEXT("不选");
+inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");
+inline constexpr TCHAR OfferWaiting[]=TEXT("现在没有合格的技能候选，这次机会保留，有合格候选时再出现。");
+inline FString ReactsWith(const FString& Key,const FString& Name,const FString& Pair,const FString& Reaction){return FString::Printf(TEXT("与 %s %s：%s %s"),*Key,*Name,*Pair,*Reaction);}
+inline constexpr TCHAR FinalStageTitle[]=TEXT("终局改装");
+inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");
+inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
+inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
+inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
+inline constexpr TCHAR FinalLock[]=TEXT("按住锁定构筑");
+inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
