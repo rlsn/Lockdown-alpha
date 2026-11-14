@@ -386,6 +386,14 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     Mode->MatchPhase = ELDMatchPhase::Starting;
     Mode->bAuthorityInitialized = true;
     Mode->LockedAISlots = Mode->LobbyAISlots;
+    Mode->PendingReconnects.Add(Fourth);
+    Mode->RestartPlayer(Fourth);
+    TestTrue(TEXT("Engine login waits for private reconnect proof without creating another body"),
+        Mode->PendingReconnects.Contains(Fourth) && !Fourth->GetPawn());
+    Mode->PendingReconnects.Remove(Fourth);
+    AddExpectedError(TEXT("LD_DEMO_SPAWN_REJECTED"), EAutomationExpectedErrorFlags::Contains, 1);
+    Mode->RestartPlayer(Fourth);
+    TestNull(TEXT("An unrelated engine restart still cannot bypass the committed lifecycle"), Fourth->GetPawn());
     auto* Opponent = World->SpawnActor<ALDPlayerController>();
     if (!TestNotNull(TEXT("An isolated server opponent controller"), Opponent)) { return false; }
     const auto AI = Mode->RegisterAIContender(*Opponent, 0, Mode->MatchContext);

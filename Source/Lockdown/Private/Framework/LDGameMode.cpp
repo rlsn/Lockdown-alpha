@@ -370,6 +370,8 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
 void ALDGameMode::RestartPlayer(AController* NewPlayer)
 {
     if (!bEntryAccepted || !bDemoWorld || MatchPhase==ELDMatchPhase::Lobby) { return; }
+    // PostLogin's engine restart precedes private proof; recovery rebinds the retained life instead of spawning.
+    if (PendingReconnects.Contains(Cast<ALDPlayerController>(NewPlayer))) { return; }
     UE_LOG(LogLDMatch,Error,TEXT("LD_DEMO_SPAWN_REJECTED Body creation requires the committed Demo lifecycle."));
 }
 

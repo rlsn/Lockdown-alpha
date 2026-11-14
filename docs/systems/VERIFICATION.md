@@ -41,6 +41,8 @@
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
 | 构筑评估 Harness | `Lockdown.Rules.BuildEvaluation`（种子与生产默认、评估画像、工坊构筑计划、原生输入、对决时限）与 `python -B -m unittest discover -s .\Scripts -p "TestBuildEvaluation*.py"`；改到原生驱动、种子挂点或 Adapter 判读时，用 `RunBuildEvaluation.ps1 -Manifest <示例清单>` 跑一次真实小规模运行，并用 `-ReplayRun <运行目录> -Case <id>` 核对重放一致。它是 DEV 实验工具，结果只描述所覆盖的构筑、固定策略、场景与预算，不是验收或平衡结论，见[构筑评估 Harness](BUILD_EVALUATION.md) |
 
+交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。
+
 `RunDemoSessionFaultCheck.ps1 -RefuseOnly` 只运行版本不兼容、六席满房和开局后的拒绝场景，不覆盖其他网络异常。
 
 ## 合并前与里程碑检查
