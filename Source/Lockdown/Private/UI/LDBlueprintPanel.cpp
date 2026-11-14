@@ -111,8 +111,14 @@ FString BlueprintStructure(const FLDBlueprintStructure& Structure,const FLDDemoC
         }
         Components=FString::Join(Rows,TEXT(" · "));
     }
-    return FString::Printf(TEXT("  主动：%s\n  %s：%s\n  构件：%s"),*FString::Join(Slots,TEXT(" · ")),LDTerms::StatPoints,
-        Stats.IsEmpty()?TEXT("无"):*FString::Join(Stats,TEXT(" · ")),*Components);
+    FString Final=Structure.FinalMod.IsEmpty()?TEXT("无"):BlueprintName(Definitions,Structure.FinalMod.DefinitionId.ToString());
+    if(!Structure.FinalMod.IsEmpty()&&Structure.FinalMod.TargetKind!=ELDComponentTargetKind::None)
+    {
+        Final+=TEXT(" → ")+(Structure.FinalMod.TargetKind==ELDComponentTargetKind::Dash
+            ?FString(TEXT("冲刺")):BlueprintName(Definitions,Structure.FinalMod.TargetId.ToString()));
+    }
+    return FString::Printf(TEXT("  主动：%s\n  %s：%s\n  构件：%s\n  终局改装：%s"),*FString::Join(Slots,TEXT(" · ")),LDTerms::StatPoints,
+        Stats.IsEmpty()?TEXT("无"):*FString::Join(Stats,TEXT(" · ")),*Components,*Final);
 }
 FString BlueprintFacts(const FLDBlueprintVersion& Version)
 {

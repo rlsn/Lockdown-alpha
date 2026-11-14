@@ -58,7 +58,9 @@ bool BlueprintSample(FAutomationTestBase& Test, const FGuid& Match, const FDateT
     FLDBuildLedger Ledger;
     const FGuid Contender=FGuid::NewGuid();
     Ledger.Observe(Contender,BlueprintBuild(1,0,{},{}),0);
-    const int32 Second=Ledger.Observe(Contender,BlueprintBuild(2,3,{{TEXT("might"),1}},{{TEXT("bolt"),ELDCombatEntry::Q}}),5000);
+    auto Final=BlueprintBuild(2,3,{{TEXT("might"),1}},{{TEXT("bolt"),ELDCombatEntry::Q}});
+    Final.FinalMod={TEXT("final_traffic"),ELDComponentTargetKind::Dash,NAME_None};
+    const int32 Second=Ledger.Observe(Contender,Final,5000);
     Ledger.Add(Contender,Second,ELDBlueprintFact::DamageDealt,1234);
     Ledger.Add(Contender,Second,ELDBlueprintFact::AbilityCasts,2);
     TArray<FLDBlueprintVersion> Versions;
@@ -105,7 +107,7 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A composed record serializes"),LDBuildBlueprint::Serialize(Record,Bytes,Error));
     const FString Text=BlueprintUtf8(Bytes);
     TestTrue(TEXT("The file names its schema and version"),Text.Contains(TEXT("\"schema\": \"lockdown.build-blueprint\""))
-        &&Text.Contains(TEXT("\"schema_version\": 1"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
+        &&Text.Contains(TEXT("\"schema_version\": 2"))&&Text.Contains(TEXT("\"origin\": \"auto\"")));
     const int32 Debt=Text.Find(TEXT("\"debt_repaid_p2\""),ESearchCase::CaseSensitive,ESearchDir::FromEnd);
     const FString DebtObject=Debt==INDEX_NONE?FString():Text.Mid(Debt,160);
     TestTrue(TEXT("A fact stated as not collected is written with a null value, never 0"),
@@ -117,11 +119,15 @@ bool FLDBuildBlueprintSerializeTest::RunTest(const FString& Parameters)
 
     FLDBlueprintRecord Parsed;
     FString Detail;
-    TestTrue(TEXT("The written bytes read back strictly"),LDBuildBlueprint::Parse(Bytes,LDBuildBlueprint::MaxFileBytes,Parsed,Detail)==ELDBlueprintParseError::None);
+    const auto ReadResult=LDBuildBlueprint::Parse(Bytes,LDBuildBlueprint::MaxFileBytes,Parsed,Detail);
+    TestTrue(FString::Printf(TEXT("The written bytes read back strictly (%s)"),*Detail),ReadResult==ELDBlueprintParseError::None);
     TestEqual(TEXT("Match id"),Parsed.MatchId,Match.ToString(EGuidFormats::Digits));
     TestEqual(TEXT("Recorded time keeps its millisecond"),Parsed.RecordedAtUtc.ToIso8601(),At.ToIso8601());
     TestTrue(TEXT("Final build and revision are the last version"),Parsed.FinalBuild==Record.FinalBuild&&Parsed.FinalRevision==3
         &&Parsed.FinalBuild.Actives.Num()==1&&Parsed.FinalBuild.Actives[0].Slot==TEXT("Q")&&Parsed.FinalBuild.Actives[0].Ability==TEXT("bolt"));
+    TestTrue(TEXT("The independent final rule and its binding survive the read-only record"),
+        Parsed.FinalBuild.FinalMod.DefinitionId==TEXT("final_traffic")&&Parsed.FinalBuild.FinalMod.TargetKind==ELDComponentTargetKind::Dash
+        &&Parsed.FinalBuild.FinalMod.TargetId.IsNone()&&Parsed.Versions[0].Structure.FinalMod.IsEmpty());
     TestTrue(TEXT("Both versions with their time segments"),Parsed.Versions.Num()==2&&Parsed.Versions[0].FromMs==0
         &&Parsed.Versions[0].ToMs==5000&&Parsed.Versions[1].FromMs==5000&&Parsed.Versions[1].ToMs==90000);
     if(Parsed.Versions.Num()==2)
@@ -164,7 +170,9 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Text that is no JSON is refused"),BlueprintParseText(TEXT("lockdown build"))==ELDBlueprintParseError::NotJson);
     TestTrue(TEXT("Another schema is refused"),BlueprintParseText(Text.Replace(TEXT("lockdown.build-blueprint"),TEXT("lockdown.other-record")))==ELDBlueprintParseError::WrongSchema);
     TestTrue(TEXT("An unknown schema version is refused, not guessed"),
-        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 1"),TEXT("\"schema_version\": 2")))==ELDBlueprintParseError::UnknownVersion);
+        BlueprintParseText(Text.Replace(TEXT("\"schema_version\": 2"),TEXT("\"schema_version\": 3")))==ELDBlueprintParseError::UnknownVersion);
+    TestTrue(TEXT("A dash FIN cannot smuggle a named active into its binding"),
+        BlueprintParseText(Text.Replace(TEXT("\"target_id\": \"\""),TEXT("\"target_id\": \"bolt\"")))==ELDBlueprintParseError::BadField);
     TestTrue(TEXT("A missing required field is refused"),BlueprintParseText(Text.Replace(TEXT("\"player\":"),TEXT("\"players\":")))==ELDBlueprintParseError::MissingField);
     TestTrue(TEXT("A slot outside Q/W/E is refused"),BlueprintParseText(Text.Replace(TEXT("\"slot\": \"Q\""),TEXT("\"slot\": \"X\"")))==ELDBlueprintParseError::BadField);
     FString ZeroFilled=Text;
@@ -186,6 +194,7 @@ bool FLDBuildBlueprintValidateTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another catalog root is an explicit notice"),Notices.ContainsByPredicate([](const FString& Line){return Line.Contains(TEXT("目录不一致"));}));
     TestTrue(TEXT("A removed active is an explicit stale-install notice"),Notices.ContainsByPredicate([](const FString& Line){return Line.Contains(TEXT("bolt"));}));
     FLDDemoAbilityDefinition& Bolt=Local.Abilities.AddDefaulted_GetRef();Bolt.Id=TEXT("bolt");
+    FLDDemoFinalModDefinition& Final=Local.FinalMods.AddDefaulted_GetRef();Final.Id=TEXT("final_traffic");
     FLDBlueprintRecord Same=Record;Same.CatalogRoot=Local.Identity.Root.ToHex();
     Notices.Reset();
     LDBuildBlueprint::Notices(Same,&Local,TEXT("0.10.0"),Notices);
@@ -224,7 +233,7 @@ bool FLDBuildBlueprintPruneTest::RunTest(const FString& Parameters)
         if(!BlueprintSample(*this,FGuid::NewGuid(),Base-FTimespan::FromDays(29),Future)){return false;}
         LDBuildBlueprint::Serialize(Future,Bytes,Error);
         const FString Unknown=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(Future.MatchId));
-        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 1"),TEXT("\"schema_version\": 2")),*Unknown,
+        FFileHelper::SaveStringToFile(BlueprintUtf8(Bytes).Replace(TEXT("\"schema_version\": 2"),TEXT("\"schema_version\": 3")),*Unknown,
             FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
         Foreign.Add(Unknown);
         const FString Broken=FPaths::Combine(Directory,LDBuildBlueprintStore::AutoFileName(FGuid::NewGuid().ToString(EGuidFormats::Digits)));

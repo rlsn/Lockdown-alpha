@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Combat/LDDashContactRules.h"
 #include "GameFramework/Actor.h"
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Combat/LDAttributeProjection.h"
@@ -105,6 +106,13 @@ struct FLDCombatKnockbackImpact
     FLDCombatBodyRef Holder;
     FGuid CreditOwner;
     FLDPassiveEffectRef Impact;
+    bool bWorkshopImpact=false;
+    bool bFinalBowling=false;
+    FName FinalCardId;
+    int64 FinalBaseP2=0, FinalAPRatioBp=0;
+    double FinalDistanceCm=0;
+    FVector Direction=FVector::ZeroVector;
+    FLDCombatSourceRef PushSource;
     int64 HolderADP2=0, HolderAPP2=0;
     int64 EndMs=0;
 };
@@ -171,6 +179,64 @@ struct FLDCombatBodyMark
     int64 AtMs=0;
 };
 
+struct FLDFinalModHitMark
+{
+    FGuid HitId;
+    int64 AtMs=0;
+    bool bConsumed=false;
+};
+
+struct FLDFinalModLifeState
+{
+    bool bPresenceInitialized=false;
+    bool bInside=false;
+    bool bBreachUsed=false;
+    double OutsideSinceSeconds=0;
+    int64 ArmedUntilMs=0;
+    int64 VoiceUntilMs=0;
+    TArray<FLDFinalModHitMark> Hits;
+};
+
+struct FLDFinalModTargetCooldown
+{
+    FGuid Target;
+    int64 ReadyAtMs=0;
+};
+
+struct FLDFinalControlExit
+{
+    FLDCombatBodyRef SourceBody;
+    FLDCombatBodyRef Target;
+    FGuid EffectId;
+    FLDCombatSourceRef Source;
+    ELDControlKind Kind=ELDControlKind::Root;
+    int64 ExpectedEndMs=0;
+    int64 DueAtMs=0;
+};
+
+struct FLDFinalTrafficSegment
+{
+    FGuid Key;
+    LDDashContactRules::FGroundBand Ground;
+};
+
+struct FLDFinalTrafficTrail
+{
+    FGuid EffectId;
+    FGuid ObservedKey;
+    FLDCombatBodyRef SourceBody;
+    FLDCombatSourceRef Source;
+    int64 EndMs=0;
+    TArray<FLDFinalTrafficSegment> Segments;
+    TArray<FLDCombatBodyRef> Inside;
+};
+
+struct FLDFinalMotionFrame
+{
+    TSharedPtr<const FLDNativeMotionBatch> Batch;
+    TOptional<FLDCombatVoluntaryDash> Dash;
+};
+
 // #198 F M12: a deferred share of one enemy hit, paid at its original amount at DueAtMs unless healing repays it first.
 struct FLDCombatDebt
 {
@@ -233,6 +299,7 @@ struct FLDBodyCombatState
         uint64 Revision=0;
     } Resources;
     FLDBasicTiming BasicTiming;
+    FLDFinalModLifeState FinalMod;
     // Effective attributes: BuildProjection plus the temporary terms below (LDAttributeProjection::ApplyTemporary).
     FLDAttributeProjection AttributeProjection;
     // The installed build (or monster) projection without temporary terms.
@@ -380,6 +447,8 @@ struct FLDCombatEntityRecord
     // #198 F C01 (spec §13.3): the authority ms of its first install, from which its fixed window boundaries run; kept across
     // lives, uninstalls and reinstalls (a reinstall keeps the original boundaries). Unset until C01 is first installed.
     TOptional<int64> FireWindowAnchorMs;
+    int64 FinalModReadyAtMs=0;
+    TArray<FLDFinalModTargetCooldown> FinalModTargetCooldowns;
 };
 
 // One committed hit waiting for the Effects phase.
@@ -387,6 +456,7 @@ struct FLDCombatHit
 {
     FGuid HitId;
     FGuid EffectId;
+    bool bFinalModDerived=false;
     uint64 Token=0;
     FLDCombatBodyRef Target;
     FLDCombatBodyRef SourceBody;
@@ -590,6 +660,8 @@ struct FLDCombatProjectile
 struct FLDCombatZone
 {
     FGuid EffectId;
+    // Two split footprints observe independently while retaining the original release ledger.
+    FGuid ObservedKey;
     FLDCombatBodyRef SourceBody;
     FGuid SourceEntity;
     FGuid CreditOwner;
@@ -602,6 +674,9 @@ struct FLDCombatZone
     bool bSlow=false;
     int64 SlowBp=0, SlowIntervalMs=0, SlowDurationMs=0, NextSlowAtMs=0;
     bool bDamage=false;
+    bool bFinalModDerived=false;
+    bool bFinalSplit=false;
+    int64 PulseSlowBp=0, PulseSlowMs=0;
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
     int64 SourceADP2=0, SourceAPP2=0;
@@ -663,10 +738,12 @@ public:
     bool AdvanceAuthority(const FLDMatchContext& Match,int64 ThroughMs,FString& Error);
     // Only the core's validated native-motion commit calls this; resolution remains in Effects.
     void CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch);
+    bool NotifyFinalPresence(const struct FLDCaptureEvent& Event, FString& Error);
     bool IsAggressiveEntry(const FLDCombatBodyRef& Body, ELDCombatEntry Entry) const;
 
     // ---- Commands shared by human RPCs, the opponent AI and registered camp members.
     bool ResolveControllerCaller(const AController& Controller, FLDCombatCaller& Out, FString& Error) const;
+    bool ReadDirectRequestCursor(const FGuid& Entity, uint64& Through, FString& Error) const;
     // Receipt only; Queued intents are admitted in the next Actions phase. bQueuedStep: a shift-queued step Navigation
     // checked as unseen when it was queued; a newer Direct sequence judged since then does not expire it
     // (LDCombatSourceRules::DirectSequenceVerdict).
@@ -862,6 +939,7 @@ private:
     friend class FLDRestPhaseTest;
     friend class FLDGroundBossBodyTest;
     friend class FLDDemoCoreTest;
+    friend class FLDReconnectProtectionTest;
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDPlaytestLogHitVampTest;
     friend class FLDRewardSettlementTest;
@@ -1129,7 +1207,7 @@ private:
     void AppendElementStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone); #198 F M07 compresses it into one delayed blast (Terms).
     bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDCombatActiveTerms& Terms,
-        const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
+        const FVector& OriginFoot, const FVector& TargetPoint, const FVector& ReleaseDirection, const FGuid& EffectId, uint64 Token, int64 IdleAmpBp,
         TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error);
     // Hit extras of a #112 value set (knockback, attack slow).
     void FillMechanicsTemplate(const FLDDemoAbilityValues& Values, const FVector& OriginFoot, FLDCombatHit& Template) const;
@@ -1176,7 +1254,8 @@ private:
     // C05/C07 after a hard control actually landed on Victim (CommitControl).
     bool OnHardControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, FString& Error);
     // C02: arms the knockback watch of a committed push when its source holds C02 on the push's exit.
-    bool WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    bool WatchKnockbackImpact(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit,
+        const FVector& Direction, int64 NowMs, FString& Error);
     // C02: one watched push's first block: a static blocker stuns and hurts the pushed body; another legal enemy body takes the
     // same package as the pushed one; anything else (the holder, a protected or other-group body) answers nothing.
     bool ResolveKnockbackImpact(FLDBodyCombatState& Body, const FLDCombatKnockbackImpact& Impact, bool bBody,
@@ -1196,6 +1275,29 @@ private:
         int64 AmountP2, ELDDemoDamageType DamageType, int64 NowMs, FString& Error);
     // Debts, C08 stores, locked ledgers and C02 watches due by NowMs (Effects).
     bool AdvanceWorkshop(int64 NowMs, FString& Error);
+    bool FinalModOf(const FGuid& Entity, const FLDDemoFinalModDefinition*& Out, FString& Error) const;
+    bool FinalModTargetsSource(const FGuid& Entity, const FLDCombatSourceRef& Source) const;
+    bool RewriteFinalHit(FLDCombatHit& Hit, bool bProtected, int64 NowMs, FString& Error);
+    bool OnFinalHit(const FLDCombatHit& Hit, FLDBodyCombatState& Target, FLDBodyCombatState* Source,
+        bool bEffective, bool bControlled, int64 NowMs, FString& Error);
+    bool FinalControlDuration(const FLDControlApplication& App, int64& DurationMs, FString& Error) const;
+    bool WatchFinalControlExit(const FLDBodyCombatState& Target, const FLDControlApplication& App,
+        int64 ExpiresAtMs, FString& Error);
+    bool FinalCooldownCost(const FLDCombatEntityRecord& Record, const FLDCombatSourceRef& Source,
+        int64& InOutCooldownMs, FString& Error) const;
+    bool EmitZonePulse(const FLDCombatZone& Zone, FString& Error);
+    bool SpawnFinalZone(FLDBodyCombatState& Holder, const FLDDemoFinalModDefinition& Card,
+        const FVector& Centre, bool bTether, int64 NowMs, FString& Error);
+    bool MakeFinalPush(const FLDCombatBodyRef& Holder, const FLDCombatBodyRef& Target,
+        FName CardId, const FVector& Anchor, double DistanceCm, FLDCombatHit& Out, FString& Error) const;
+    bool SplitFinalZone(FLDCombatZone& Zone, const FVector& ReleaseDirection, int64 NowMs, bool& bHandled, FString& Error);
+    bool ResolveFinalBowlingImpact(const FLDCombatKnockbackImpact& Impact, const ALDCharacter* Blocker,
+        const FVector& Direction, int64 NowMs, FString& Error);
+    bool AdvanceFinalMods(int64 NowMs, FString& Error);
+    int64 NextFinalModDueMs(int64 NowMs) const;
+    TArray<FLDFinalControlExit> FinalControlExits;
+    TArray<FLDFinalTrafficTrail> FinalTraffic;
+    TArray<FLDFinalMotionFrame> FinalMotion;
     // C01 windows whose fixed boundary is at or before NowMs grant their candidate shield (ApplyPendingHits, after the hits).
     bool SettleFireWindows(int64 NowMs, FString& Error);
     // C01 install bookkeeping of one build change from Previous to Record.Projection: its first install registers the fixed

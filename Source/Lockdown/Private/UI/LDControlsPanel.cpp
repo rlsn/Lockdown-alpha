@@ -397,6 +397,14 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         // Interface: text size and minimap, then the two diagnostic overlays.
         {
             UScrollBox* Scroll=nullptr;UVerticalBox* Content=NewPage(Scroll);
+            AddSection(Tree,Content,TEXT("战斗反馈"));
+            auto* EffectsScale=Tree->ConstructWidget<UHorizontalBox>();
+            AddSegment(Tree,EffectsScale,TEXT("CombatEffectsFull"),TEXT("标准"),[this](){ChangePreference([](auto& S){S.bReduceCombatEffects=false;});});
+            AddSegment(Tree,EffectsScale,TEXT("CombatEffectsReduced"),TEXT("降低"),[this](){ChangePreference([](auto& S){S.bReduceCombatEffects=true;});});
+            AddRow(Tree,Content,TEXT("战斗特效强度"),TEXT("降低临时冲击闪光、命中火花和施法光效；不影响角色动作、状态标记或战斗结果。"),EffectsScale);
+            AddRow(Tree,Content,TEXT("镜头震动"),TEXT("自身受击时短暂震动镜头，只影响本地画面。"),
+                Switch(Tree,TEXT("ToggleCameraShake"),[this](){ChangePreference([](auto& S){S.bCameraShake=!S.bCameraShake;});}));
+            AddSection(Tree,Content,TEXT("界面"));
             auto* Sizes=Tree->ConstructWidget<UHorizontalBox>();
             AddSegment(Tree,Sizes,TEXT("TextScale100"),TEXT("100%"),[this](){ChangePreference([](auto& S){S.TextScale=1;});});
             AddSegment(Tree,Sizes,TEXT("TextScale125"),TEXT("125%"),[this](){ChangePreference([](auto& S){S.TextScale=1.25f;});});
@@ -423,7 +431,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         ResetRows=ChildRows(Tree,TEXT(""),&ResetPrompt);CardRows->AddChildToVerticalBox(ResetRows);
         AddChoice(Tree,ResetRows,TEXT("恢复默认"),TEXT("ConfirmLocalReset"),[this](){ConfirmResetDefaults();});
         AddChoice(Tree,ResetRows,TEXT("取消"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
-        RecoveryRows=ChildRows(Tree,TEXT("用当前生效的名称、按键、镜头、文字、小地图、诊断与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));
+        RecoveryRows=ChildRows(Tree,TEXT("用当前生效的名称、按键、镜头、文字、小地图、诊断、战斗反馈与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));
         CardRows->AddChildToVerticalBox(RecoveryRows);
         AddChoice(Tree,RecoveryRows,TEXT("替换设置文件"),TEXT("ConfirmRecovery"),[this]()
         {
@@ -511,6 +519,7 @@ void ULDControlsPanel::PopulatePreferences()
     SetSwitch(WidgetTree,TEXT("ToggleStartFollow"),Applied.bStartFollowing);
     SetSwitch(WidgetTree,TEXT("ToggleNetworkDiagnostics"),Applied.bShowNetworkDiagnostics);
     SetSwitch(WidgetTree,TEXT("ToggleFPS"),Applied.bShowFPS);
+    SetSwitch(WidgetTree,TEXT("ToggleCameraShake"),Applied.bCameraShake);
     VolumeValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MasterVolume))));
     MusicValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MusicVolume))));
     ZoomValue->SetText(FText::FromString(FString::Printf(TEXT("%.0f 厘米"),Applied.Zoom)));
@@ -523,6 +532,8 @@ void ULDControlsPanel::PopulatePreferences()
     MarkChosen(Find(WidgetTree,TEXT("TextScale125")),Applied.TextScale>1,RestStyle);
     for(const ELDMinimapOrientation Option:Orientations)
     {MarkChosen(Find(WidgetTree,OrientationButton(Option)),Option==Applied.GetMinimapOrientation(),RestStyle);}
+    MarkChosen(Find(WidgetTree,TEXT("CombatEffectsFull")),!Applied.bReduceCombatEffects,RestStyle);
+    MarkChosen(Find(WidgetTree,TEXT("CombatEffectsReduced")),Applied.bReduceCombatEffects,RestStyle);
 }
 
 void ULDControlsPanel::PopulateBindings()
@@ -661,7 +672,8 @@ void ULDControlsPanel::AskReset()
         Scope=FString::Printf(TEXT("镜头距离 %.0f 厘米、边缘平移 %s、开局镜头跟随 %s、镜头平移速度 %.0f cm/s。"),
             Defaults->Zoom,OnOff(Defaults->bEdgePan),OnOff(Defaults->bStartFollowing),Defaults->CameraPanCmPerSec);break;
     case ECategory::Interface:
-        Scope=FString::Printf(TEXT("文字大小 %.0f%%、小地图朝向 %s、网络诊断 %s、FPS 显示 %s。"),100*Defaults->TextScale,
+        Scope=FString::Printf(TEXT("战斗特效降低 %s、镜头震动 %s、文字大小 %.0f%%、小地图朝向 %s、网络诊断 %s、FPS 显示 %s。"),
+            OnOff(Defaults->bReduceCombatEffects),OnOff(Defaults->bCameraShake),100*Defaults->TextScale,
             *ULDControlSettings::MinimapOrientationLabel(Defaults->MinimapOrientation),OnOff(Defaults->bShowNetworkDiagnostics),OnOff(Defaults->bShowFPS));break;
     }
     ResetPrompt->SetText(FText::FromString(FString::Printf(TEXT("恢复“%s”页的默认值？%s\n其他页、名称与本局进度不变。"),CategoryTitle(Category),*Scope)));

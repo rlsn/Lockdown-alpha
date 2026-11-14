@@ -245,7 +245,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         // #198: PK and rest-space anchors are not field sites.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
             ||Anchor.Kind==ELDDemoWorldAnchorKind::PKSignup||Anchor.Kind==ELDDemoWorldAnchorKind::RestSpawn
-            ||Anchor.Kind==ELDDemoWorldAnchorKind::RestService||Anchor.Kind==ELDDemoWorldAnchorKind::TrainingDummy){continue;}
+            ||Anchor.Kind==ELDDemoWorldAnchorKind::RestService||Anchor.Kind==ELDDemoWorldAnchorKind::TrainingDummy
+            ||Anchor.Kind==ELDDemoWorldAnchorKind::FinalSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::FinalCapture){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }

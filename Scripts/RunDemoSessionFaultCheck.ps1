@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(180,900)][int]$TimeoutSeconds=600)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(180,900)][int]$TimeoutSeconds=600, [switch]$RefuseOnly)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -139,6 +139,7 @@ function Assert-FaultLogs {
 
 $clientUrl = { param([int]$Port, [string]$Name) '127.0.0.1:{0}?Name={1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $Port,$Name,$wire,$version,$digest }
 try {
+    if (-not $RefuseOnly) {
     # Phase 1: a contender leaves mid-match through the real menu; the room continues and the leave is no kill.
     $directory = Join-Path $launch.ProbeOutput 'Leave'
     New-Item -ItemType Directory -Path $directory | Out-Null
@@ -189,9 +190,10 @@ try {
     Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Exit'
     Stop-Role $joiner 'Joining client'
     Assert-FaultLogs 'Join' @('Joiner')
+    }
 
     # Phase 4: a live Host refuses real Join presses, each with its own coded reason: another product version, a full
-    # room of three humans, then a started match. The joiner announces another version, so any attempt that passed the
+    # room of three humans and three AI, then a started match. The joiner announces another version, so any attempt that passed the
     # room checks would still be refused, never admitted.
     $directory = Join-Path $launch.ProbeOutput 'Refuse'
     New-Item -ItemType Directory -Path $directory | Out-Null
@@ -219,6 +221,7 @@ try {
     Stop-Role $refuseHost 'Refusing Host'
     Assert-FaultLogs 'Refuse' @('Joiner')
 
+    if (-not $RefuseOnly) {
     # Phase 5: a real Join passes PreLogin, then the Host starts while that client loads the room. The final admission
     # check refuses it, and the client shows the started-match reason rather than a lost session.
     $directory = Join-Path $launch.ProbeOutput 'Race'
@@ -287,8 +290,14 @@ try {
     Set-Content -LiteralPath (Join-Path $directory 'FinishClients') -Value 'Exit'
     Stop-Role $quitClient 'Client after the Host quit'
     Assert-FaultLogs 'HostQuit' @('Client1')
+    }
 
     $kind = if ($launch.Packaged) { "packaged build $($launch.Package)" } else { 'editor game target' }
+    if ($RefuseOnly) {
+        Write-Host ("DEV-only refusal scenario passed on the ${kind}: '$($refuseReport.summary.version_mismatch_notice)', " +
+            "'$($refuseReport.summary.room_full_notice)' and '$($refuseReport.summary.match_started_notice)'. " +
+            "Other session-fault scenarios were not run. Loopback only. Evidence: $output")
+    } else {
     Write-Host ("DEV-only session faults passed on the ${kind}: mid-match menu leave (match continued, no death notice, Host-ended result marks the leaver left with no kill credited); " +
         "Host killed mid-match -> client menu shows '$($orphanReport.summary.notice)'; failed joins -> '$($joinReport.summary.closed_port_notice)' and '$($joinReport.summary.unresolvable_host_notice)'; " +
         "refused joins -> '$($refuseReport.summary.version_mismatch_notice)', '$($refuseReport.summary.room_full_notice)' and '$($refuseReport.summary.match_started_notice)'; " +
@@ -296,6 +305,7 @@ try {
         "Host left through its menu -> client menu shows '$($hostLeftReport.summary.notice)'; " +
         "Host quit with its client connected -> no authority fault, client menu shows '$($hostQuitReport.summary.notice)'. " +
         "All on one machine's loopback: not LAN or public internet. Evidence: $output")
+    }
 }
 finally {
     foreach ($process in $processes) {

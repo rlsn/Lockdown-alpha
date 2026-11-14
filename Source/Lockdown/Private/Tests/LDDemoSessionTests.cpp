@@ -115,6 +115,34 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Frontend never opens gameplay writes"), Mode->IsPlaying());
         TestNull(TEXT("Frontend has no default combat Pawn"), Mode->DefaultPawnClass.Get());
         TestNull(TEXT("Frontend cannot create an unregistered spectator body"), Mode->SpectatorClass.Get());
+        const auto SpawnCapacityController = [World]()
+        {
+            auto* Player = World->SpawnActor<ALDPlayerController>();
+            if (Player)
+            {
+                Player->PlayerState = World->SpawnActor<ALDPlayerState>();
+                if (Player->PlayerState) { Player->PlayerState->SetOwner(Player); }
+                World->AddController(Player);
+            }
+            return Player;
+        };
+        TArray<ALDPlayerController*> Players;
+        for (int32 Index = 0; Index < LDMatchLifecycle::MaxContenders; ++Index)
+        {
+            auto* Player = SpawnCapacityController();
+            if (!TestNotNull(TEXT("Native capacity fixture controller"), Player)
+                || !TestNotNull(TEXT("Native capacity fixture player state"), Player->PlayerState.Get())) { return false; }
+            Players.Add(Player);
+        }
+        TestEqual(TEXT("Six active controllers fill the native player capacity"), Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
+        Players.Last()->bParkedForReconnect = true;
+        TestEqual(TEXT("A retained offline controller reserves its contender, not a second network seat"),
+            Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders - 1);
+        auto* Rejoining = SpawnCapacityController();
+        if (!TestNotNull(TEXT("Native replacement connection controller"), Rejoining)
+            || !TestNotNull(TEXT("Native replacement connection player state"), Rejoining->PlayerState.Get())) { return false; }
+        TestEqual(TEXT("The pending replacement fills the sixth seat while the retained controller still exists"),
+            Mode->GetNumPlayers(), LDMatchLifecycle::MaxContenders);
     }
     const FString LegacyName = TEXT("UEDPIE_") + LexToString(FGuid::NewGuid().A & MAX_int32) + TEXT("_L_V09Full");
     auto* LegacyPackage = CreatePackage(*(TEXT("/Game/Lockdown/Generated/V09/") + LegacyName));
@@ -298,11 +326,6 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
         return false;
     }
     const uint64 Roster = Mode->RosterRevision;
-    TestFalse(TEXT("Final admission point rejects fourth human"), Mode->AdmitRoomMember(Fourth, Error));
-    FString Shown;
-    TestTrue(TEXT("The final admission refusal of a full room carries its client-mapped code"),
-        LDDemoEntry::DescribeJoinRefusal(Error, Shown) && Shown.Contains(TEXT("（RoomFull）")));
-    TestEqual(TEXT("Failed admission does not advance roster"), Mode->RosterRevision, Roster);
     TestEqual(TEXT("No extra participants fill empty AI slots"), Mode->ReadLobby().Members.Num(), 3);
     TestNull(TEXT("Lobby never spawns a combat body"), Host->GetPawn());
     TestFalse(TEXT("Lobby keeps gameplay writes closed"), Mode->IsGameplayWriteOpen(Mode->MatchContext));
@@ -330,6 +353,12 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Guest cannot alter AI configuration"), Mode->ProcessSessionCommand(Guest, Request).Reason == ELDSessionReject::NotHost);
     TestTrue(TEXT("Host can choose exactly three AI slots"), Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed);
     TestEqual(TEXT("AI and humans remain independent slots"), Mode->ReadLobby().Members.Num(), 6);
+    const uint64 FullRoster = Mode->RosterRevision;
+    TestFalse(TEXT("Final admission rejects a human when all six human and AI slots are occupied"), Mode->AdmitRoomMember(Fourth, Error));
+    FString Shown;
+    TestTrue(TEXT("The final admission refusal of a full room carries its client-mapped code"),
+        LDDemoEntry::DescribeJoinRefusal(Error, Shown) && Shown.Contains(TEXT("（RoomFull）")));
+    TestEqual(TEXT("Failed admission does not advance roster"), Mode->RosterRevision, FullRoster);
     TestFalse(TEXT("Structural changes clear every human's readiness"), Mode->StateFor(Host)->bReady || Mode->StateFor(Guest)->bReady || Mode->StateFor(Third)->bReady);
     Request.Key.RequestSequence = 3;
     Request.Command = ELDSessionCommand::SetReady;
@@ -357,6 +386,14 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     Mode->MatchPhase = ELDMatchPhase::Starting;
     Mode->bAuthorityInitialized = true;
     Mode->LockedAISlots = Mode->LobbyAISlots;
+    Mode->PendingReconnects.Add(Fourth);
+    Mode->RestartPlayer(Fourth);
+    TestTrue(TEXT("Engine login waits for private reconnect proof without creating another body"),
+        Mode->PendingReconnects.Contains(Fourth) && !Fourth->GetPawn());
+    Mode->PendingReconnects.Remove(Fourth);
+    AddExpectedError(TEXT("LD_DEMO_SPAWN_REJECTED"), EAutomationExpectedErrorFlags::Contains, 1);
+    Mode->RestartPlayer(Fourth);
+    TestNull(TEXT("An unrelated engine restart still cannot bypass the committed lifecycle"), Fourth->GetPawn());
     auto* Opponent = World->SpawnActor<ALDPlayerController>();
     if (!TestNotNull(TEXT("An isolated server opponent controller"), Opponent)) { return false; }
     const auto AI = Mode->RegisterAIContender(*Opponent, 0, Mode->MatchContext);
@@ -385,6 +422,48 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
         Mode->IsGameplayWriteOpen(FLDMatchContext{1, FGuid::NewGuid()}));
     Mode->MatchPhase = ELDMatchPhase::Results;
     TestFalse(TEXT("Terminal phase closes fast write admission"), Mode->IsGameplayWriteOpen(Mode->MatchContext));
+
+    auto* SixRoom = World->SpawnActor<ALDGameMode>();
+    auto* SixPublic = World->SpawnActor<ALDGameState>();
+    TArray<ALDPlayerController*> SixPlayers;
+    for (int32 Index = 0; Index < 7; ++Index) { SixPlayers.Add(World->SpawnActor<ALDPlayerController>()); }
+    if (!SixRoom || !SixPublic || SixPlayers.Contains(nullptr)) { AddError(TEXT("Six-owner fixture failed to spawn")); return false; }
+    SixPlayers[0]->SetAsLocalPlayerController();
+    SixRoom->GameState = SixPublic;
+    SixRoom->MatchContext = {2, FGuid::NewGuid()};
+    SixRoom->MatchPhase = ELDMatchPhase::Lobby;
+    SixRoom->RosterRevision = 1;
+    SixRoom->LobbyPublicRevision = 1;
+    SixRoom->bDemoWorld = SixRoom->bEntryAccepted = true;
+    for (int32 Index = 0; Index < 6; ++Index)
+    { TestTrue(FString::Printf(TEXT("Human slot %d is admitted"),Index+1),SixRoom->AdmitRoomMember(SixPlayers[Index],Error)); }
+    FLDLobbyView SixLatest;
+    TestTrue(TEXT("The six-human lobby is accepted by the client projection"),
+        LDMatchLifecycle::AcceptLobbyView(SixRoom->ReadLobby(),SixLatest,Error)==ELDLobbyProjectionResult::Accepted);
+    TestFalse(TEXT("A seventh human is rejected"),SixRoom->AdmitRoomMember(SixPlayers[6],Error));
+    FLDSessionRequest ExcessAI;
+    ExcessAI.Key = {2, 1};
+    ExcessAI.ExpectedRosterRevision = SixRoom->RosterRevision;
+    ExcessAI.Command = ELDSessionCommand::SetAICount;
+    ExcessAI.AICount = 1;
+    TestTrue(TEXT("AI cannot overfill a six-human room"),
+        SixRoom->ProcessSessionCommand(SixPlayers[0],ExcessAI).Reason==ELDSessionReject::RoomFull
+        && SixRoom->ReadLobby().Members.Num()==6);
+    FLDSessionRequest SixReady;
+    SixReady.Key.Generation = 2;
+    SixReady.ExpectedRosterRevision = SixRoom->RosterRevision;
+    SixReady.Ready = true;
+    for (int32 Index = 0; Index < 6; ++Index)
+    {
+        SixReady.Key.RequestSequence = Index == 0 ? 2 : 1;
+        TestTrue(TEXT("Each of six humans can ready"),
+            SixRoom->ProcessSessionCommand(SixPlayers[Index],SixReady).Outcome==ELDSessionOutcome::Committed);
+    }
+    SixReady.Key.RequestSequence = 3;
+    SixReady.Command = ELDSessionCommand::StartMatch;
+    SixReady.Ready = false;
+    TestTrue(TEXT("Six ready humans pass the readiness gate"),
+        SixRoom->ProcessSessionCommand(SixPlayers[0],SixReady).Reason!=ELDSessionReject::NotAllReady);
     return true;
 }
 
@@ -516,7 +595,7 @@ bool FLDDemoLobbyReadModelTest::RunTest(const FString& Parameters)
     Candidate.Phase = static_cast<ELDMatchPhase>(255);
     Reject(Candidate, TEXT("Unknown phase does not enter the UI"));
     Candidate = Stable;
-    for (int32 Index = 0; Index < 3; ++Index)
+    for (int32 Index = 0; Index < 6; ++Index)
     {
         FLDLobbyMember Member;
         Member.ContenderId = FGuid::NewGuid();
@@ -524,7 +603,7 @@ bool FLDDemoLobbyReadModelTest::RunTest(const FString& Parameters)
         Member.Ready = true;
         Candidate.Members.Add(Member);
     }
-    Reject(Candidate, TEXT("Four human rows exceed the Demo structure"));
+    Reject(Candidate, TEXT("Seven human rows exceed the Demo structure"));
     Candidate = Stable;
     Candidate.Generation = 2;
     Candidate.RosterRevision = Candidate.PublicRevision = 1;

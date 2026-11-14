@@ -317,6 +317,32 @@ public:
                 }
                 Check(true,TEXT("Captured field return position prepares without an authority fault"));
             }
+            const FGuid FinalEntryId=Mode.RosterOrder[1];
+            for (int32 Slot=0; Slot<LDDemoWorld::FinalSpawns; ++Slot)
+            {
+                ALDGameMode::FLDPlacementTarget Target;
+                Target.Kind=ALDGameMode::FLDPlacementTarget::EKind::Anchor;
+                Target.Anchor=FName(*LDDemoWorld::FinalSpawnId(Slot));
+                ALDGameMode::FLDPlacedBody Placed;
+                if (!Mode.PlaceContenderBody(FinalEntryId,1,Permit,Placed,Error,Target))
+                {
+                    Error=FString::Printf(TEXT("Final entry %s: %s"),*Target.Anchor.ToString(),*Error);
+                    auto Evidence=MakeShared<FJsonObject>();
+                    Evidence->SetBoolField(TEXT("passed"),false);
+                    Evidence->SetStringField(TEXT("detail"),Error);
+                    if (!Save(Evidence,TEXT("FinalEntry.json"))) { Error=TEXT("Could not save final-entry failure evidence."); }
+                    Check(false,TEXT("Every final entry prepares through the authoritative spawn path"));
+                    return false;
+                }
+                Mode.ReleasePlacedBody(Placed);
+                if (!Mode.WithdrawPhaseRequest(FinalEntryId,Permit,Error)) { return false; }
+            }
+            Check(true,TEXT("Every final entry prepares through the authoritative spawn path"));
+            auto FinalEntryEvidence=MakeShared<FJsonObject>();
+            FinalEntryEvidence->SetBoolField(TEXT("passed"),true);
+            FinalEntryEvidence->SetNumberField(TEXT("entries"),LDDemoWorld::FinalSpawns);
+            if (!Save(FinalEntryEvidence,TEXT("FinalEntry.json")))
+            { Error=TEXT("Could not save final-entry evidence."); return false; }
             const FGuid FirstId=Mode.RosterOrder[0];
             auto& FirstLife=Mode.Lives.FindChecked(FirstId);
             FirstLife.SpawnSequence=1;
@@ -760,7 +786,10 @@ public:
                         }
                         if (Growth->bHasActiveOffer)
                         {
-                            if (!Panel->ChooseOffer(0)) { return true; }
+                            const int64 Price=Content->Get().Parameters.NpcActivePoints;
+                            const bool bNeedSkip=Growth->UnspentPoints<Price
+                                && Growth->ActiveOffer.SkipPoints>=Price-Growth->UnspentPoints;
+                            if (bNeedSkip ? !Panel->SkipOffer() : !Panel->ChooseOffer(0)) { return true; }
                             return true;
                         }
                         if (Growth->QueuedActiveOpportunities>0) { return true; }

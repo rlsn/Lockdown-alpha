@@ -37,6 +37,10 @@ def content_fixture():
         ("UNIT.BasicAttackWindupSec", "s", 0.125), ("VISION.RadiusCm", "cm", 1200),
         ("CAPTURE.RadiusCm", "cm", 300),
         ("CAPTURE.SpraySec", "s", 3), ("CAPTURE.GuardSec", "s", 20),
+        ("SHOWDOWN.UnlockDelaySec", "s", 10), ("SHOWDOWN.DurationSec", "s", 240),
+        ("SHOWDOWN.FirstRespawnSec", "s", 18),
+        ("SHOWDOWN.SecondRespawnSec", "s", 24), ("SHOWDOWN.RespawnCutoffSec", "s", 150),
+        ("SHOWDOWN.ClosureStartsSec", "s", 120),
         ("MATCH.FieldSegmentSec", "s", 90),
         ("REST.OpeningBuildSec", "s", 40), ("REST.BuildSec", "s", 25), ("REST.SignupSec", "s", 8),
         ("REST.DrawSec", "s", 4), ("REST.BettingSec", "s", 6), ("REST.PKReadySec", "s", 2), ("REST.PKMaxSec", "s", 45),
@@ -52,7 +56,7 @@ def content_fixture():
         ("THROW.RangeCm", "cm", 3000), ("THROW.SlowRatio", "ratio", 0.25), ("THROW.SlowSec", "s", 1.5),
         ("THROW.ExposeSec", "s", 3),
         ("LIFE.RespawnSec.Field1", "s", 6), ("LIFE.RespawnSec.Field2", "s", 9), ("LIFE.RespawnSec.Field3", "s", 11),
-        ("LIFE.RespawnSec.Final", "s", 22), ("LIFE.ProtectionSec", "s", 2),
+        ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
@@ -89,6 +93,7 @@ def content_fixture():
     parameters.update({
         "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2, "AI.RetryPolicy.MaxAttempts": 2,
+        "SHOWDOWN.RespawnLimit": 2,
         "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150,
         "CHARM.WaveCount": 5, "CHARM.PerWave": 2,
         "LEADER.MinLevel": 2,
@@ -201,10 +206,30 @@ def content_fixture():
             "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),
             "collision_radius": q("cm", 20), "aggro_radius": q("cm", 150), "attacker_memory": q("s", 2), "appear_at": q("s", 20),
             "leave_at": q("s", 200), "reward_xp": 30}
+    finals = [
+        {"id": "final_bowling", "requirement": "ForcedMove", "base": q("points", 45), "ap_ratio": q("ratio", 0.35),
+         "distance": q("cm", 140), "distance_ratio": q("ratio", 0.8)},
+        {"id": "final_forced_exit", "requirement": "HardControl", "distance": q("cm", 180), "delay": q("s", 0.25),
+         "interval": q("s", 8), "control_ratio": q("ratio", 0.7)},
+        {"id": "final_traffic", "requirement": "Dash", "radius": q("cm", 45), "duration": q("s", 2.5),
+         "slow": q("ratio", 0.35), "slow_duration": q("s", 1), "cooldown_cost": q("s", 4)},
+        {"id": "final_split", "requirement": "PlacedZone", "offset": q("cm", 140), "radius_ratio": q("ratio", 0.55),
+         "damage_ratio": q("ratio", 0.6), "duration_cost": q("s", 1)},
+        {"id": "final_landlord", "requirement": "Basic", "base": q("points", 50), "ad_ratio": q("ratio", 0.4),
+         "radius": q("cm", 220), "delay": q("s", 0.7), "interval": q("s", 6), "damage_ratio": q("ratio", 0.8)},
+        {"id": "final_breach", "requirement": "Basic", "outside": q("s", 3), "rearm_outside": q("s", 8),
+         "window": q("s", 3), "distance": q("cm", 160), "cooldown_cost": q("s", 3)},
+        {"id": "final_comeback", "requirement": "Basic", "base": q("points", 30), "ap_ratio": q("ratio", 0.25),
+         "radius": q("cm", 220), "duration": q("s", 2), "interval": q("s", 10), "window": q("s", 4),
+         "pulse_interval": q("s", 1), "slow": q("ratio", 0.3), "slow_duration": q("s", 1), "damage_ratio": q("ratio", 0.8)},
+        {"id": "final_open_mic", "requirement": "Basic", "base": q("points", 25), "ap_ratio": q("ratio", 0.15),
+         "radius": q("cm", 220), "duration": q("s", 2.5), "window": q("s", 3), "slow": q("ratio", 0.2),
+         "pulse_interval": q("s", 1), "slow_duration": q("s", 1), "move_speed_cost": q("ratio", 0.1)},
+    ]
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, stats, components, monsters, [boss]) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, stats, components, finals, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
@@ -215,12 +240,12 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
     next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 2, "handler_revision": 6, "projection_revision": 6,
+        "identity": {"schema_version": 2, "handler_revision": 7, "projection_revision": 7,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "stats": stats, "components": components, "camps": camps, "boss": boss,
+        "abilities": abilities, "stats": stats, "components": components, "final_mods": finals, "camps": camps, "boss": boss,
         "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
                         "active_offer_levels": [4, 9],

@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "AI/LDOpponentPolicy.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDTacticalRules.h"
@@ -43,8 +44,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         P.FieldSegmentMs == 180000 && P.OpeningBuildMs == 180000 && P.BuildMs == 120000 && P.SignupMs == 10000
         && P.DrawMs == 5000 && P.BettingMs == 8000 && P.PKReadyMs == 3000 && P.PKMaxMs == 60000 && P.SettlementMs == 3000
         && P.PayoutMs == 12000 && P.ReturnMs == 5000);
-    bGood &= TestTrue(TEXT("Field respawn waits by death T: 8/10/12/15 s"),
-        P.RespawnMs[0] == 8000 && P.RespawnMs[1] == 10000 && P.RespawnMs[2] == 12000 && P.RespawnMs[3] == 15000);
+    bGood &= TestTrue(TEXT("Growth-field respawn waits by death T: 8/10/12 s"),
+        P.RespawnMs[0] == 8000 && P.RespawnMs[1] == 10000 && P.RespawnMs[2] == 12000);
     FString Error;
     {
         FLDTimelineParameters Bad = P;
@@ -64,6 +65,14 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         && Line.IsRestBuildOpen() && !Line.IsFieldRunning() && Line.NextDueMs() == Start + P.OpeningBuildMs);
     bGood &= TestTrue(TEXT("Sign-up opens for the last 10 s of the build, its deadline included"),
         !Line.IsSignupOpen(Start + 169999) && Line.IsSignupOpen(Start + 170000) && Line.IsSignupOpen(Start + 180000));
+    bGood &= TestEqual(TEXT("R0 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
+        Start + P.OpeningBuildMs - P.SignupMs);
+    FLDOpponentPublicMatch Public;
+    Public.Phase = ELDMatchPhase::Rest;
+    Public.Timeline = Line.MakeView(1, 1);
+    Public.NowMs = Public.Timeline.SignupOpensAtMs;
+    const FGuid Opponent(1, 2, 3, 4);
+    bGood &= TestTrue(TEXT("The AI signs up using the R0 public timeline"), LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
     bGood &= TestTrue(TEXT("Without the lock permission the due build lock waits"),
         Line.Advance(Start + P.OpeningBuildMs, 0, false, true, Events, Error) && Events.IsEmpty() && Line.IsBuildLockDue(Start + P.OpeningBuildMs));
     // One entrant: the PK is skipped and the 5 s return follows the lock at once.
@@ -85,6 +94,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("T=180 s enters R1 with T frozen"), Line.Advance(Rest1, 0, false, true, Events, Error)
         && FindEvent(Events, ELDTimelineEventKind::EnterRest) && Line.GetRestIndex() == 1 && Line.FieldMsAt(Rest1 + 99999) == 180000
         && Line.NextDueMs() == Rest1 + P.BuildMs && Line.FieldDueAuthorityMs(Rest1, 200000) == MAX_int64);
+    bGood &= TestEqual(TEXT("R1 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
+        Rest1 + P.BuildMs - P.SignupMs);
     // Two entrants run every PK step; a PK that runs to its limit makes the approved 126 s rest.
     Events.Reset();
     bGood &= TestTrue(TEXT("Two entrants: draw follows the lock"), Line.Advance(Rest1 + P.BuildMs, 2, true, true, Events, Error)
@@ -106,6 +117,8 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     // R2 with a PK that ends early: the PK step ends at the reported instant.
     const int64 Rest2 = Field2 + 180000;
     bGood &= TestTrue(TEXT("R2 begins at T=360 s"), Line.Advance(Rest2, 0, false, true, Events, Error) && Line.GetRestIndex() == 2);
+    bGood &= TestEqual(TEXT("R2 publishes the sign-up opening"), Line.MakeView(1, 1).SignupOpensAtMs,
+        Rest2 + P.BuildMs - P.SignupMs);
     bGood &= TestTrue(TEXT("R2 locks with three entrants"), Line.Advance(Rest2 + P.BuildMs, 3, true, true, Events, Error));
     while (Line.GetStep() != ELDRestStep::PK) { Line.Advance(Line.NextDueMs(), 3, true, true, Events, Error); }
     const int64 PKStart = Line.GetStepEndsAtMs() - P.PKMaxMs;
@@ -119,16 +132,24 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Field 3 runs from T=360 s"), Line.GetFieldSegment() == 2 && Line.FieldMsAt(Field3) == 360000);
     Line.Advance(Line.NextDueMs(), 0, false, true, Events, Error);
     bGood &= TestTrue(TEXT("R3 at T=540 s"), Line.GetRestIndex() == 3 && Line.FieldMsAt(Line.NextDueMs()) == 540000);
-    Line.Advance(Line.NextDueMs(), 0, true, true, Events, Error);
+    bGood &= TestFalse(TEXT("The final rest has no PK signup"), Line.IsSignupOpen(Line.NextDueMs()));
+    bGood &= TestEqual(TEXT("The final rest publishes no PK signup window"), Line.MakeView(1, 1).SignupOpensAtMs, int64(0));
+    Public.Timeline = Line.MakeView(1, 1);
+    Public.NowMs = Line.NextDueMs() - 1;
+    bGood &= TestFalse(TEXT("The AI does not sign up using the final rest public timeline"),
+        LDOpponentPolicy::WantsPKSignUp(Public, Opponent));
+    Line.Advance(Line.NextDueMs(), 6, true, true, Events, Error);
+    bGood &= TestTrue(TEXT("The final build deadline returns all six directly to showdown without another PK"),
+        Line.GetStep() == ELDRestStep::Return && Line.MakeView(1,1).LockedEntrants == 0);
     Events.Reset();
     const int64 Final = Line.NextDueMs();
-    bGood &= TestTrue(TEXT("R3 returns to the final field, which never ends on its own"),
+    bGood &= TestTrue(TEXT("R3 returns to final field; the showdown owner, not the growth timeline, schedules its end"),
         Line.Advance(Final, 0, true, true, Events, Error) && Line.GetStage() == ELDMatchStage::FinalField
         && FindEvent(Events, ELDTimelineEventKind::EnterField)->FieldSegment == 3 && Line.NextDueMs() == MAX_int64
         && Line.FieldMsAt(Final + 60000) == 600000);
     bGood &= TestTrue(TEXT("Respawn waits by death T, boundaries included"),
         Line.RespawnWaitMs(0) == 8000 && Line.RespawnWaitMs(179999) == 8000 && Line.RespawnWaitMs(180000) == 10000
-        && Line.RespawnWaitMs(360000) == 12000 && Line.RespawnWaitMs(540000) == 15000 && Line.RespawnWaitMs(9999999) == 15000);
+        && Line.RespawnWaitMs(360000) == 12000 && Line.RespawnWaitMs(540000) == 0 && Line.RespawnWaitMs(9999999) == 0);
     const FLDTimelineView View = Line.MakeView(3, 7);
     bGood &= TestTrue(TEXT("Clients derive the same T from the public view"),
         LDMatchTimeline::FieldNowFromView(View, Final + 60000) == 600000 && View.FieldEndT == -1);

@@ -758,7 +758,7 @@ public:
 
     // ---- #198 field segments and mid rests ----
 
-    // The approved field respawn wait (LIFE.RespawnSec.Field1/Field2/Field3/Final) of a death in the field segment the
+    // The approved field respawn wait (LIFE.RespawnSec.Field1/Field2/Field3) of a death in the field segment the
     // public timeline shows now; a field death's wait is fixed by its T and a rest ends it, so it is always this segment's.
     int64 RespawnMsNow(const ALDPlayerController& PC) const
     {
@@ -769,7 +769,7 @@ public:
         case 0: return Parameters.RespawnField1Ms;
         case 1: return Parameters.RespawnField2Ms;
         case 2: return Parameters.RespawnField3Ms;
-        default: return Parameters.RespawnFinalMs;
+        default: return 0;
         }
     }
 
@@ -1758,7 +1758,7 @@ public:
         const double AttackReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.AttackRangeCm.Base);
         // Deaths happen in any field segment; each one's approved respawn wait (LIFE.RespawnSec.*) bounds the waits for it.
         const bool bRespawnWaits = Defs.Parameters.RespawnField1Ms > 0 && Defs.Parameters.RespawnField2Ms > 0
-            && Defs.Parameters.RespawnField3Ms > 0 && Defs.Parameters.RespawnFinalMs > 0;
+            && Defs.Parameters.RespawnField3Ms > 0;
         const auto* Geometry = Registry.GetGeometry();
         if (!CaptureAnchor || !Geometry || VisionReach <= 0 || CaptureReach <= 0 || AirdropReach <= 0 || DormReach <= 0
             || BodyRadius <= 0 || AttackReach <= 0 || !bRespawnWaits)
@@ -2952,18 +2952,20 @@ public:
             if (!Dev.bSent)
             {
                 // Field 1 lasts the approved MATCH.FieldSegmentSec after R0; the stage normally ends inside it, where the DEV
-                // command skips the timeline to the final field and opens the flagpole. Outside a timed segment it must be
+                // command enters the final rest return, then the real arena and unlock countdown. Outside a timed segment it must be
                 // refused instead.
                 bDevOpenedInDevelopment = Public->PublicMatch.Phase == ELDMatchPhase::Development
                     && Public->PublicMatch.Timeline.Stage == ELDMatchStage::Field;
                 return SendDev(Now, PC, bDevOpenedInDevelopment
-                    ? TEXT("The Listen Host's DEV early capture opens the circle during development")
+                    ? TEXT("The Listen Host's DEV early capture enters the final rest return")
                     : TEXT("The Listen Host's DEV early capture after development is refused as StaleContext"), ELDDevTestOp::OpenCapture, 0);
             }
             return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final,
                 bDevOpenedInDevelopment ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected,
                 bDevOpenedInDevelopment ? ELDGrowthReason::None : ELDGrowthReason::StaleContext,
-                [Public] { return Public->PublicMatch.Phase == ELDMatchPhase::CaptureOpen; }));
+                [Public,this] { return !bDevOpenedInDevelopment || Public->PublicMatch.Showdown.bStarted
+                    || (Public->PublicMatch.Timeline.RestIndex==3 && Public->PublicMatch.Timeline.Stage==ELDMatchStage::Rest
+                        && Public->PublicMatch.Timeline.Step==ELDRestStep::Return); }));
         }
         return Finish();
     }

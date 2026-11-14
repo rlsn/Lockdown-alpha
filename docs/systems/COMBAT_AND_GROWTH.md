@@ -117,14 +117,16 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
 身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地按档位使用各自的模型或配色；
 动画在 C++ 中单节点播放（无 AnimBP）：站立/跑动（速率 = 速度 / 目录参考跑速，低于 15 cm/s 站立），普攻与施法片段的出手帧（`ImpactSec`）
-对齐到 0.2 s 的出手时刻，受击按目录速率，一次性片段每帧按呈现时钟定位；目录缺少身体时记录 `LD_BODY_ART_UNAVAILABLE` 且不画替身。
-受击闪白转红与出现辉光走材质 `Flash` 自发光；
+对齐到当前权威动作的实际起手/释放时间，普攻周期与前摇由当前攻速共同缩放，重复输入与取消不重置已提交的下一次普攻时间。受击按目录速率，一次性片段每帧按呈现时钟定位；目录缺少身体时记录 `LD_BODY_ART_UNAVAILABLE` 且不画替身。
+视觉朝向以 540 度/秒独立追随身体朝向，启动、急停、转向与受击按真实速度/加速度平滑倾斜；不延迟点击意图，不修改权威碰撞、导航或移动速度。轻量受击停顿只影响本机姿势，不停止服务器推进。
+受击按公开命中外观使用魔法、火、水、电或普通色闪光并走材质 `Flash` 自发光，命中分类仅读取服务器已提交 payload；
 普攻整体前冲并在出手的手部闪光；施法时手部聚能球；受击整体后退、胸前闪光，本人镜头轻微震动；
+公开击退状态期间使用受击片段，按可见的实际移动方向倾斜身体，状态结束后恢复正常动画；这只改变本地表现，不改变移动或碰撞；
 状态标记对所有单位使用固定状态色，与六个座位色、草坪和红色跑道都拉开：定身为深色描边上的脉动品红圆盘加品红脚镣，
 护盾为旋转的亮青色栅栏罩加光环，复活保护为白金光柱加环绕光球；护盾与复活保护的每个标记背后沿本机视线放一个稍大的
 近黑副本作为描边，在同色系座位（青色、黄色）身上也能分开；
 带复活保护首次出现时由小变大并有光柱；死亡由不复制、无碰撞的 `ALDBodyPuppet` 在原地播放死亡片段倒地，再下沉、缩没
-（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；甩你一鞋（`active_snark_bolt`，唯一的弹道技能）的飞行由 `ULDFlightTrailComponent` 拖出粉尘。
+（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；甩你一鞋（`active_snark_bolt`）和馊水糊脸（`active_sock_shot`）的飞行由 `ULDFlightTrailComponent` 拖出粉尘，M13 回程时尾迹变为紫色。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 **助攻贡献**只有一个记录入口 `ALDCombatDirector::RecordAssistContribution(Victim, CreditOwner, NowMs)`：
 受害者是参赛者、CreditOwner 是另一名有 Combat 记录的参赛者时，按纯规则 `LDAssist::RecordContribution` 在受害者这条生命的
@@ -502,7 +504,7 @@ DEV 重置把它清零。
 `DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算，`DemoMechanics.ShieldEvents/Knockback/Periodic` 覆盖护盾打破判定、
 击退方向与区域脉冲时刻；`DemoControl.ActionMatrix/EmpowerOnce/ThornsRules/ExpansionContent` 覆盖动作禁止矩阵、强化普攻消费、反伤触发/去重/数值与条目的类型化导入与显示；
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的单级数值；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
-`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
+`DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、与权威释放时刻对齐的火花、随攻速变化的冲击帧、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`覆盖关键词纯规则、伤害加成池（技能暴击被拒）、沉默与解除、共享破防与灼烧、命中中的加成池、吸血上限、减速中目标仍被定身、交战窗口的触发与不触发、区域脉冲次数、多次强化普攻与完整减益观察，
 `DemoElements.Rules/FogAndSlot/BraceAndGrievous`覆盖反应表与 R、元素槽与潮湿刷新、起雾的火结算与雾区归属、S16 削减记录与死亡不反震、S21 削减新护盾与治疗，
 `Combat.Components.*`覆盖构件投影项与拒绝、多来源强化包并入一次主击（含 B04 份额与 B06）、B04 自身份额吸血（`PunchHealOwnShare`）、B13 释放返蓝（`CastHitRefund`）、

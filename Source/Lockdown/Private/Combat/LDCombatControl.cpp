@@ -130,7 +130,9 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     // Hard controls take the diminished duration; the chain advances only when the control actually lands.
     FLDHardControlChain Chain=Victim.HardControl;
     const bool bHard=LDCombatControl::IsHardControl(App.Kind);
-    const int64 DurationMs=bHard ? LDCombatControl::DiminishHardControl(Chain,NowMs,App.DurationMs) : App.DurationMs;
+    int64 BaseDurationMs=App.DurationMs;
+    if (bHard && !FinalControlDuration(App,BaseDurationMs,Error)) { return false; }
+    const int64 DurationMs=bHard ? LDCombatControl::DiminishHardControl(Chain,NowMs,BaseDurationMs) : BaseDurationMs;
     int64 ExpiresAtMs=0;
     if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,ExpiresAtMs,Error)) { return false; }
     FLDCombatRoot Instance;
@@ -218,7 +220,7 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     // Every committed control or slow is its owner's assist contribution on this life.
     RecordAssistContribution(Victim,App.CreditOwner,NowMs);
     // #198 F C05/C07 read every hard control that actually landed.
-    return !bHard || OnHardControl(Victim,App,NowMs,Error);
+    return !bHard || (OnHardControl(Victim,App,NowMs,Error) && WatchFinalControlExit(Victim,App,ExpiresAtMs,Error));
 }
 
 bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const

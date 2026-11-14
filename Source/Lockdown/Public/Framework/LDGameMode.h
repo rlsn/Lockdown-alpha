@@ -20,6 +20,7 @@
 #include "World/LDCharmMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "Core/LDLog.h"
+#include "PK/LDPKRules.h"
 #include "LDGameMode.generated.h"
 
 UCLASS()
@@ -112,6 +113,8 @@ struct FLDContenderRecord
     FLDSessionRequestWindow SessionRequests;
     // Result accounting: kept after an ordinary leave until the room returns to the Lobby.
     bool bLeft = false;
+    bool bDisconnected = false;
+    FGuid ReconnectTicket;
     uint64 Kills = 0;
     uint64 Deaths = 0;
     uint64 Assists = 0;
@@ -126,6 +129,7 @@ public:
     virtual void InitGame(const FString& MapName,const FString& Options,FString& ErrorMessage) override;
     virtual void StartPlay() override;
     virtual void RestartPlayer(AController* NewPlayer) override;
+    virtual int32 GetNumPlayers() override;
     virtual void PreLogin(const FString& Options,const FString& Address,const FUniqueNetIdRepl& UniqueId,FString& ErrorMessage) override;
     virtual FString InitNewPlayer(APlayerController* NewPlayerController,const FUniqueNetIdRepl& UniqueId,const FString& Options,const FString& Portal=TEXT("")) override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
@@ -134,6 +138,10 @@ public:
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
+    bool CanParkDisconnectedMember(ALDPlayerController& Controller) const;
+    bool ParkDisconnectedMember(ALDPlayerController& Controller, FString& Error);
+    bool ResumeRoomMember(ALDPlayerController& Controller, const FGuid& Ticket, FString& Error);
+    void LeaveRoomMember(ALDPlayerController& Controller);
     // ---- #198 rest phases and field clock (Framework/LDGameModeRest.cpp) ----
     // A rest of the current match is running (any step); the world (camps, Boss, airdrop, leader) is frozen.
     bool IsRestPhase(const FLDMatchContext& Context) const;
@@ -147,6 +155,9 @@ public:
     // Field progress T (ms) at the current authority instant; frozen outside the field, 0 before the first field.
     int64 GetFieldNowMs() const;
     bool IsFieldRunning() const;
+    bool IsShowdown() const { return Timeline.GetStage() == ELDMatchStage::FinalField; }
+    int64 NextShowdownDueMs() const;
+    bool AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, FString& Error);
     // The authority ms at which T reaches FieldAtMs inside the running segment; MAX_int64 when the field is not running,
     // it is already reached, or it lies after this segment's end. For driver step planning.
     int64 FieldDueAuthorityMs(int64 FieldAtMs) const;
@@ -341,19 +352,22 @@ public:
     // #198 session D: the optional PK provider's director of this match (PK/LDPKDirector.h); null without the provider.
     UPROPERTY() TObjectPtr<class ALDPKDirector> PKDirector;
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV test session (Transactions permit, Development only): the flagpole opens at this boundary's Capture phase
-    // instead of after the full development time (FLDCaptureReducer::DevOpenAt); spray, guard and every rule stay.
+    // DEV test session: queues the final rest/return under the next world permit; arena entry and unlock stay real.
     // bOutsideDevelopment when the match is in another phase; false with Detail when nothing changed.
     bool DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail);
     // DEV telemetry only: the current match's reduced spray and guard changes; empty outside a match.
     const FLDCaptureDevTally& DevCaptureTally() const { return CaptureReducer.DevTally(); }
 #endif
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    bool bDevShowdownEntryPending = false;
+#endif
     friend class FLDDemoSessionTest;
     friend class FLDGroundBossBodyTest;
     friend class FLDOwnerViewTeardownTest;
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
+    friend class FLDReconnectProtectionTest;
     friend class FLDDemoCoreProbe;
     friend class FLDRewardSettlementTest;
     friend class FLDCaptureInsideStepTest;
@@ -447,6 +461,7 @@ private:
     TArray<FGuid> RosterOrder;
     TArray<FGuid> LobbyAISlots;
     bool AdmitRoomMember(ALDPlayerController* Controller, FString& Reason);
+    TMap<TWeakObjectPtr<ALDPlayerController>,FTimerHandle> PendingReconnects;
     bool AdvanceRoster(FString& Reason);
     void PublishLobby();
     bool CheckDemoStartInputs(FString& Reason) const;
@@ -550,6 +565,21 @@ private:
     // The authority instant the match started (R0 begins); the result duration and the public clock count from here.
     // Field-progress timers (camp growth/refresh, Boss, airdrop, leader notice, field respawn waits) use T instead.
     int64 MatchStartedAtMs = 0;
+    FLDShowdownView Showdown;
+    FLDPKParameters ShowdownRing;
+    FLDShowdownParameters ShowdownRules;
+    TMap<FGuid, int32> ShowdownRespawns;
+    struct FLDShowdownBurn
+    {
+        uint32 Life = 0;
+        int64 AccumulatorE7 = 0;
+    };
+    TMap<FGuid, FLDShowdownBurn> ShowdownBurn;
+    int64 ShowdownRingSettledThroughMs = 0;
+    int64 ShowdownRingTickAtMs = 0;
+    bool bShowdownClosePending = false;
+    bool BeginShowdown(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool CloseShowdownIfDue(const FLDGameplayWritePermit& Permit, FString& Error);
     // ---- #198 rest phases (Framework/LDGameModeRest.cpp) ----
     FLDMatchTimeline Timeline;
     uint64 TimelineRevision = 0;
@@ -655,7 +685,7 @@ private:
     // A locked death whose reward was refused as retryable is still owed; no result may lock over it.
     bool HasPendingRewardRetries() const;
     // Between steps: a completed capture whose boundary still owed a reward waits for its settlement boundary.
-    bool IsCloseAwaitingSettlement() const { return PendingCapture.IsSet() && !bAuthorityStepOpen; }
+    bool IsCloseAwaitingSettlement() const { return (PendingCapture.IsSet() || bShowdownClosePending) && !bAuthorityStepOpen; }
     bool TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, int64 EndedAtMs, FString& Error);
     void PublishMatchOutcome();
     // #198 §10 (Framework/LDGameModeBlueprint.cpp): once the result is published, each present human contender's own

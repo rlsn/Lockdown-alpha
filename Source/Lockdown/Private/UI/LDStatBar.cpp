@@ -174,7 +174,7 @@ void ULDStatBar::Present(const FLDProgressionView* View,uint32 Match,uint32 Life
     LatestContent=Content;LatestAttributes=Attributes;
     BuildCells();
     Queued.SetNumZeroed(Cells.Num());InFlight.SetNumZeroed(Cells.Num());
-    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase):LDHUD::FBuildGateView();
+    Gate=Usable()?LDHUD::BuildGate(Stage,LifePhase,Latest.bBuildLocked):LDHUD::FBuildGateView();
     bShownNow=bShown;
     // The last applied allocation is in the view (or never arrived): its points stop counting as waiting.
     if(AwaitRevision!=0&&(Latest.BuildRevision>=AwaitRevision||UiNow()-AwaitSince>StatAwaitTimeout))

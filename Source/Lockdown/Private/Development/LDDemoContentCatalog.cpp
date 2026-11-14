@@ -207,6 +207,11 @@ bool FLDDemoContentSnapshot::FindComponent(const FString& Id, const FLDDemoCompo
     return Find(Definitions.Components, Id, Out, Error);
 }
 
+bool FLDDemoContentSnapshot::FindFinalMod(const FString& Id, const FLDDemoFinalModDefinition*& Out, FString& Error) const
+{
+    return Find(Definitions.FinalMods, Id, Out, Error);
+}
+
 bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const
 {
     return Find(Definitions.Monsters, Id, Out, Error);

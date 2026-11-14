@@ -11,6 +11,7 @@
 #include "Vision/LDVisionDirector.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/NetDriver.h"
 #include "GameFramework/GameSession.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
@@ -242,7 +243,8 @@ void ALDGameState::SyncCaptureMarker()
         &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
     ALDCaptureMarker* Marker=CaptureMarker.Get();
     // A new match generation, a return to the Lobby or a stopped room never keeps the previous ring.
-    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation))
+    if (Marker&&(!bShow||Marker->GetGeneration()!=PublicMatch.Generation
+        ||(PublicMatch.Showdown.bStarted&&!Marker->GetCenter().Equals(PublicMatch.Showdown.CentreCm,1.))))
     {
         Marker->Destroy();
         Marker=nullptr;
@@ -262,7 +264,7 @@ void ALDGameState::SyncCaptureMarker()
         {
             const FLDDemoRational& Radius=Content->Get().Parameters.CaptureRadiusCm;
             RadiusCm=Radius.Denominator>0?double(Radius.Numerator)/double(Radius.Denominator):0.;
-            Capture=Registry->Resolve(FName(*Content->Get().World.CaptureId),Registry->Generation);
+            Capture=Registry->Resolve(PublicMatch.Showdown.bStarted?FName(TEXT("final_capture")):FName(*Content->Get().World.CaptureId),Registry->Generation);
             if (!Capture) { Error=TEXT("The registered world has no capture anchor."); }
         }
         FActorSpawnParameters Spawn;
@@ -359,15 +361,17 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     RosterRevision=1;
     bEntryAccepted=true;
     HostTravelHandle=FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this,&ALDGameMode::HostWorldUnloading);
-    // Three humans plus three AI never reallocate record storage that callers briefly hold.
-    Contenders.Reserve(6);
-    if (GameSession) { GameSession->MaxPlayers=3; }
+    // The full roster never reallocates record storage that callers briefly hold.
+    Contenders.Reserve(LDMatchLifecycle::MaxContenders);
+    if (GameSession) { GameSession->MaxPlayers=LDMatchLifecycle::MaxContenders; }
     UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_LOBBY generation=%u"),MatchContext.Generation);
 }
 
 void ALDGameMode::RestartPlayer(AController* NewPlayer)
 {
     if (!bEntryAccepted || !bDemoWorld || MatchPhase==ELDMatchPhase::Lobby) { return; }
+    // PostLogin's engine restart precedes private proof; recovery rebinds the retained life instead of spawning.
+    if (PendingReconnects.Contains(Cast<ALDPlayerController>(NewPlayer))) { return; }
     UE_LOG(LogLDMatch,Error,TEXT("LD_DEMO_SPAWN_REJECTED Body creation requires the committed Demo lifecycle."));
 }
 
@@ -406,10 +410,19 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
     if (IsDevContentReload())
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ContentMismatch,TEXT("a DEV content hot reload room plays only the Host and AI.")); return; }
 #endif
-    if (MatchPhase!=ELDMatchPhase::Lobby)
-    { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match joining and reconnecting are not supported.")); return; }
-    if (Contenders.Num()>=3)
-    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("the room already has three human players, including the Host.")); return; }
+    const bool bResume=UGameplayStatics::ParseOption(Options,TEXT("LDReconnect"))==TEXT("1");
+    bool bHasResume=false;
+    if(bResume)
+    {
+        for(const auto& Pair:Contenders)
+        {bHasResume|=Pair.Value.bDisconnected&&!Pair.Value.bLeft&&Pair.Value.ReconnectTicket.IsValid();}
+    }
+    if (MatchPhase!=ELDMatchPhase::Lobby&&!bHasResume)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match entry requires an existing disconnected participant.")); return; }
+    if(bResume&&!bHasResume)
+    {ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomNotReady,TEXT("no disconnected participant remains in this match."));return;}
+    if (!bResume&&Contenders.Num()+LobbyAISlots.Num()>=LDMatchLifecycle::MaxContenders)
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomFull,TEXT("all six contender slots are occupied.")); return; }
     if (UGameplayStatics::ParseOption(Options,TEXT("LDWire"))!=LexToString(WireProtocol))
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::ProtocolMismatch,TEXT("use the same Demo network build as the Host.")); return; }
     FString Version;
@@ -432,6 +445,8 @@ FString ALDGameMode::InitNewPlayer(APlayerController* NewPlayerController,const 
     FString Name;
     if (!LDMatchLifecycle::ResolveContenderName(Options,Name,Error)) { return Error; }
     ChangeName(NewPlayerController,Name,false);
+    if(UGameplayStatics::ParseOption(Options,TEXT("LDReconnect"))==TEXT("1"))
+    {PendingReconnects.Add(CastChecked<ALDPlayerController>(NewPlayerController));}
     return Error;
 }
 
@@ -439,6 +454,20 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
 {
     if (bEntryAccepted && !bDemoWorld) { Super::PostLogin(NewPlayer); return; }
     FString Reason;
+    if(auto* Controller=Cast<ALDPlayerController>(NewPlayer);Controller&&PendingReconnects.Contains(Controller))
+    {
+        Super::PostLogin(NewPlayer);
+        if(auto* Driver=GetWorld()->GetNetDriver())
+        {
+            FTimerHandle& Handle=PendingReconnects.FindChecked(Controller);
+            GetWorldTimerManager().SetTimer(Handle,FTimerDelegate::CreateWeakLambda(this,[this,Weak=TWeakObjectPtr<ALDPlayerController>(Controller)]()
+            {
+                if(Weak.IsValid()&&PendingReconnects.Contains(Weak)){FString Failure;ResumeRoomMember(*Weak.Get(),FGuid(),Failure);}
+            }),Driver->InitialConnectTimeout,false);
+        }
+        Controller->ClientReconnectChallenge();
+        return;
+    }
     if (!AdmitRoomMember(Cast<ALDPlayerController>(NewPlayer),Reason))
     {
         UE_LOG(LogLDMatch,Warning,TEXT("LD_DEMO_ADMISSION_REJECTED %s"),*Reason);
@@ -453,6 +482,15 @@ void ALDGameMode::Logout(AController* Exiting)
 {
     auto* Controller=Cast<ALDPlayerController>(Exiting);
     auto* Record=Contenders.Find(Controller);
+    if(Controller&&CanParkDisconnectedMember(*Controller))
+    {
+        FString Error;
+        if(ParkDisconnectedMember(*Controller,Error)){Super::Logout(Exiting);return;}
+        FaultAuthority(Error);
+        Record=Contenders.Find(Controller);
+    }
+    if(FTimerHandle* Handle=PendingReconnects.Find(Controller)){GetWorldTimerManager().ClearTimer(*Handle);}
+    PendingReconnects.Remove(Controller);
     if (Record && IsMemberPresent(Record->Session))
     {
         const FGuid Session=Record->Session;

@@ -47,6 +47,10 @@ public:
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
+    // Independent final cards; several legal sources open a source picker before the choice commits.
+    bool ChooseFinalMod(int32 Index);
+    bool ChooseFinalModSource(int32 Index);
+    bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
     bool PreviewOffer(int32 Index);
     // A blueprint card click: learns the blueprint at Index of the shown list into the lowest empty Q/W/E slot.
@@ -161,10 +165,15 @@ private:
     UPROPERTY() TObjectPtr<UWidget> OfferGroup;
     UPROPERTY() TObjectPtr<UTextBlock> OfferNumber;
     UPROPERTY() TObjectPtr<UWrapBox> OfferRow;
+    UPROPERTY() TObjectPtr<UWidget> FinalModGroup;
+    UPROPERTY() TObjectPtr<UWrapBox> FinalModRow;
+    UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
     UPROPERTY() TObjectPtr<UWrapBox> BaseRow;
     UPROPERTY() TObjectPtr<UVerticalBox> ChoiceRowList;
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
+    TArray<FTrayCard> FinalCards;
+    TArray<FTrayCard> FinalSourceCards;
     FTrayCard SkipCard;
     TArray<FTrayCard> BaseCards;
     TArray<FChoiceRow> ChoiceRows;
@@ -214,6 +223,9 @@ private:
     LDHUD::FBuildGateView Gate;
     FGuid ShownOffer;
     uint64 ShownOfferRevision=0;
+    FGuid ShownFinalMod;
+    FName PendingFinalOption;
+    TArray<FLDFinalModSourceView> ShownFinalSources;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;
     // #198 B: the opening base options the cards show, in the view's order.
@@ -254,6 +266,8 @@ private:
     FTrayCard& BlueprintCardAt(int32 Index);
     FBlueprintRow& BlueprintRowAt(int32 Index);
     void RefreshOffer();
+    void RefreshFinalMod();
+    bool SubmitFinalMod(FName Option,const FLDFinalModSourceView& Source);
     void RefreshOpeningBase(bool bTiles);
     void RefreshComponentChoices(bool bTiles);
     void RefreshBlueprintCards();

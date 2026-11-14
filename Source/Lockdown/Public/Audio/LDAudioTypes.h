@@ -23,11 +23,14 @@ enum class ELDAudioCue : uint8
     SelfDeath,
     SelfRespawn,
     UIClick,
-    // A hit fully absorbed by the own shield: the hit sound's sample, quieter.
+    // A hit absorbed by the own shield.
     SelfShieldHit,
     // The own basic attack released (melee strike or projectile launch), from the owner projection's cue facts.
     SelfAttack,
-    // 18 and 19 (the shop queue cues) are retired (#144); the next cue is appended as 20.
+    // 18 and 19 (the shop queue cues) are retired (#144).
+    SelfShieldBreak = 20,
+    // The own innate dash released, from its successful owner receipt.
+    SelfDash,
     Count UMETA(Hidden)
 };
 
@@ -58,7 +61,7 @@ namespace LDAudio
     LOCKDOWN_API bool MusicTrackLoops(ELDMusicTrack Track);
 
     // Retired numbers below Count, which are not cues.
-    inline constexpr int32 RetiredCueCount = 2;
+    inline constexpr int32 RetiredCueCount = 4;
     // Playable cues: every number between None and Count except the retired ones.
     inline constexpr int32 CueCount = int32(ELDAudioCue::Count) - 1 - RetiredCueCount;
     LOCKDOWN_API bool IsPlayableCue(ELDAudioCue Cue);

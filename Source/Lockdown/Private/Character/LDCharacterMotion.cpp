@@ -183,6 +183,7 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
             KnockbackBlock.Emplace();
             KnockbackBlock->bBody=bBody;
             KnockbackBlock->Blocker=Blocker;
+            KnockbackBlock->Direction=Heading;
             bWatchKnockbackBlock=false;
         }
     }

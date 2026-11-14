@@ -6,10 +6,15 @@
 
 namespace LDFlightTrailDetail
 {
-    // Chalk white near the chalk, a pale cool grey at the tail: both stay far brighter than the lawn.
     const FLinearColor Dust(.98f, .98f, .95f), FadedDust(.86f, .88f, .9f);
+    const FLinearColor ReturnDust(.78f, .3f, 1.f), FadedReturnDust(.42f, .12f, .8f);
     // /Engine/BasicShapes/Sphere is 100 cm across.
     constexpr float SphereDiameterCm = 100.f;
+
+    FLinearColor Tint(bool bReturning, float Along)
+    {
+        return FMath::Lerp(bReturning ? ReturnDust : Dust, bReturning ? FadedReturnDust : FadedDust, Along);
+    }
 }
 
 float LDFlightTrail::SpacingCm(float SpeedCmPerSec)
@@ -63,10 +68,24 @@ void ULDFlightTrailComponent::OnRegister()
     for (int32 Index = 0; Index < Puffs.Num(); ++Index)
     {
         UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
-        Instance->SetVectorParameterValue(TEXT("Tint"), FMath::Lerp(Dust, FadedDust, float(Index) / float(Puffs.Num() - 1)));
+        Instance->SetVectorParameterValue(TEXT("Tint"), Tint(bReturning, float(Index) / float(Puffs.Num() - 1)));
         Puffs[Index]->SetMaterial(0, Instance);
     }
     bTinted = true;
+}
+
+void ULDFlightTrailComponent::SetReturning(bool bReturn)
+{
+    using namespace LDFlightTrailDetail;
+    if (bReturning == bReturn) { return; }
+    bReturning = bReturn;
+    if (!bTinted) { return; }
+    for (int32 Index = 0; Index < Puffs.Num(); ++Index)
+    {
+        auto* Material = Cast<UMaterialInstanceDynamic>(Puffs[Index]->GetMaterial(0));
+        if (!ensureMsgf(Material, TEXT("A flight trail lost its tint material"))) { return; }
+        Material->SetVectorParameterValue(TEXT("Tint"), Tint(bReturning, float(Index) / float(Puffs.Num() - 1)));
+    }
 }
 
 void ULDFlightTrailComponent::TickComponent(float Delta, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

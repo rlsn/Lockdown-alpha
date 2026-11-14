@@ -132,6 +132,17 @@ TSharedRef<FJsonObject> WriteStructure(const FLDBlueprintStructure& Structure, c
     Into->SetField(TEXT("stat_points"), JsonArr(Stats));
     Into->SetField(TEXT("actives"), JsonArr(Actives));
     Into->SetField(TEXT("components"), JsonObj(Components));
+    if(Structure.FinalMod.IsEmpty()){Into->SetField(TEXT("final_mod"),JsonNull());}
+    else
+    {
+        const auto& Selected=Structure.FinalMod;
+        const TSharedRef<FJsonObject> Final=MakeShared<FJsonObject>();
+        Final->SetField(TEXT("definition"),JsonStr(Selected.DefinitionId.ToString()));
+        const TCHAR* Kind=TargetKindKey(Selected.TargetKind);
+        Final->SetField(TEXT("target_kind"),JsonStr(Kind?Kind:TEXT("none")));
+        Final->SetField(TEXT("target_id"),JsonStr(Selected.TargetId.IsNone()?FString():Selected.TargetId.ToString()));
+        Into->SetField(TEXT("final_mod"),JsonObj(Final));
+    }
     return Into;
 }
 
@@ -180,6 +191,21 @@ bool ReadStructure(FFields& Fields, FLDBlueprintStructure& Out)
             return false;
         }
         Out.Actives.Add(MoveTemp(Active));
+    }
+    const FValue Final=Fields.Take(TEXT("final_mod"));
+    if(!Check.Good){return false;}
+    if(Final&&Final->Type!=EJson::Null)
+    {
+        FFields Row(Check,Final,Path+TEXT(".final_mod"));
+        FString Id,Kind,Target;
+        if(!Row.Identifier(TEXT("definition"),Id)||!Row.Text(TEXT("target_kind"),Kind,1,9)){return false;}
+        if(Kind==TEXT("active")){Out.FinalMod.TargetKind=ELDComponentTargetKind::Active;}
+        else if(Kind==TEXT("component")){Out.FinalMod.TargetKind=ELDComponentTargetKind::Component;}
+        else if(Kind==TEXT("dash")){Out.FinalMod.TargetKind=ELDComponentTargetKind::Dash;}
+        else if(!Check.Require(Kind==TEXT("none"),Row.Path,TEXT("unknown final source kind"))){return false;}
+        const bool bNamed=Out.FinalMod.TargetKind==ELDComponentTargetKind::Active||Out.FinalMod.TargetKind==ELDComponentTargetKind::Component;
+        if(!(bNamed?Row.Identifier(TEXT("target_id"),Target):Row.Text(TEXT("target_id"),Target,0,0))||!Row.Done()){return false;}
+        Out.FinalMod.DefinitionId=FName(*Id);Out.FinalMod.TargetId=FName(*Target);
     }
     FFields Components(Check, Fields.Take(TEXT("components")), Path + TEXT(".components"));
     if (!Components.Flag(TEXT("collected"), Out.bComponentsCollected))
@@ -342,6 +368,7 @@ FLDBlueprintStructure FLDBuildLedger::StructureOf(const FLDBuildProjectionInput&
     // #198 §16.4: the installed components and their install parameters are structure: changing only an install, its
     // target or its binding is a new version, so its contribution is never merged into the old one.
     Out.bComponentsCollected = true;
+    Out.FinalMod=Build.FinalMod;
     for (const FLDInstalledComponentValue& Installed : Build.Components)
     {
         FLDBlueprintComponent& Row = Out.Components.AddDefaulted_GetRef();
@@ -779,6 +806,9 @@ void LDBuildBlueprint::Notices(const FLDBlueprintRecord& Record, const FLDDemoCo
     TSet<FString> Missing;
     const auto CheckStructure = [Local, &Missing](const FLDBlueprintStructure& Structure)
     {
+        if(!Structure.FinalMod.IsEmpty()&&!Local->FinalMods.ContainsByPredicate([&Structure](const FLDDemoFinalModDefinition& Row)
+            {return FName(*Row.Id)==Structure.FinalMod.DefinitionId;}))
+        {Missing.Add(Structure.FinalMod.DefinitionId.ToString());}
         for (const FLDBlueprintStat& Stat : Structure.Stats)
         {
             if (!Local->Stats.ContainsByPredicate([&Stat](const FLDDemoStatDefinition& Row) { return Row.Id == Stat.Stat; }))

@@ -36,7 +36,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 y=700 cm，间距400 cm；各参赛者在对应锚点生成真实共享假人，由获准观察代理同步实际位置、生命与状态，地面边界另作公共展示；
 训练锚点不进入野外 POI 或小地图地点。六个 `PKSignup` 锚点是公共报名圈里的不同站位，报名范围复用 `AIRDROP.PickupRadiusCm`。
 Python/native importer 都识别新增锚点，服务范围、假人偏移与出生候选仍走实际胶囊净空检查。休息出生候选还须有到 `rest_service_1`
-的完整室内原生路径；野外和 PK 出生仍以旗杆为路径参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
+的完整室内原生路径；野外和 PK 出生以野外旗杆为路径参考，终局出生以终局旗杆为参考。Bootstrap 校验每个休息出生偏移到该服务的路径。
 改动后依序执行 `SyncDemoWorldData.py`、`SyncDemoContentData.py`、`BuildEditor.ps1`、
 `BootstrapAssets.ps1 -Mode Regenerate`；必须重生成原生地图与定义，不能只刷新旧定义或复制旧地图作为新几何。
 
@@ -66,7 +66,7 @@ Python/native importer 都识别新增锚点，服务范围、假人偏移与出
 最多 63 字节小写 ASCII、NUL 终止、余字节为零；目录 digest 为 32 原始字节，显示才用 64 位小写 hex。
 纯 wire 编解码与格式拒绝在 `DemoContent.py` 中提供，不替代业务域对未知/退役 ID 的拒绝。
 
-世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
+世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 4，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
 Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点、营地成员 home 与七个局部落地偏移；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
@@ -74,6 +74,12 @@ Spawn、Camp、Capture、Dorm、Airdrop、BossWaypoint、PK 和休息室锚点�
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
 丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
 不能仅手写 world 和匹配摘要让正式链通过。
+
+终局场地使用独立锚点：`FinalSpawn` 固定为 `final_spawn_0..5`，`FinalCapture` 固定为
+`final_capture`。保存地图的 `LDSceneAnchor:<id>` 点由 `SyncDemoMap.ps1` 投影进世界输入；
+原生目录校验六个出生点同层、等距并按60°顺序分布，Bootstrap 再验证出生偏移的胶囊地面与到旗点的完整导航路径。
+它们不进入普通野外 POI/小地图；显式出生选择通过 `LDDemoWorld::FinalSpawnId` 和
+`LDDemoWorld::FinalCaptureId` 解析，不替代普通 PK 的 `capture` 锚点。
 
 PK 有两类锚点：`PKSpawn` 固定为 `pk_spawn_0..5`，
 `PKThrow` 固定为 `pk_throw`，内容 `world.pk_spawn_ids`/`world.pk_throw_id` 按序引用，
@@ -447,6 +453,9 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 沿原有两条 Sync 生成载荷和 contract，构建 Editor，最后刷新派生碰撞、导航和美术索引并做 Bootstrap 验证。
 无变化的导出保持世界源文件逐字节不变；坐标以 0.001 cm 精度导出，已有整数不会因浮点误差产生无关修订。
 工具验证导出所基于的源摘要，拒绝旧导出和未知字段；写入前继续做世界结构与内容绑定检查，不篡改生成哈希。
+导出使用保存的世界定义作为作者基底，核对其世界载荷校验和、编译合同与源摘要绑定；
+不要求正在编辑的内容或 schema 已经重新生成，以免阻断正式迁移。Apply 校验当前输入，
+Bootstrap 与运行入口仍按完整内容根重新投影和校验，不把作者基底当作运行许可。
 
 树干保持直立、正缩放与等 X/Y 缩放；地面保持矩形且轴对齐，坡道、高台仍须满足现有层高和净空规则。
 复制树/墙可以增加阻挡；复制出生/服务等布局点造成身份或数量冲突会明确拒绝，不能暗中改变产品规定数量。

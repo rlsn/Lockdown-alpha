@@ -95,6 +95,7 @@ public:
     // re-checked by CommitPendingBuild in the Transactions phase.
     FLDSubmitResult QueueBuild(const FGuid& ContenderId, const FLDBuildCommand& Command);
     FLDBuildReceiptQueryResult QueryBuildReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
+    bool ReadBuildRequestCursor(const FGuid& ContenderId, uint64& Next, uint64& Pending, FString& Error) const;
 
     // ---- Transactions phase (dispatched by ALDGrowthDirector::ProcessTransactions) ----
     void CollectPending(TArray<FLDPendingGrowthIntent>& Out) const;
@@ -123,6 +124,11 @@ public:
     // AwardId (one per PK and recipient). Transactions permit; spends no regular choice, never touches XP or level.
     // PKAwardDuplicate when AwardId was already paid (nothing changes); AuthorityFault means the boundary must fault.
     ELDGrowthReason GrantPKPoints(const FGuid& ContenderId, int64 Points, const FGuid& AwardId, const FLDGameplayWritePermit& Permit);
+    // Phase 9 final mod: OpenFinalMods draws every contender's one three-choice on entering the final rest (once per
+    // match); LockFinalMods locks every build at the final field entry, abandoning untaken choices. Either world permit;
+    // false (with Error) only for a lost permit or domain.
+    bool OpenFinalMods(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool LockFinalMods(const FLDGameplayWritePermit& Permit, FString& Error);
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;
     const FLDProgressionState* FindProgression(const FGuid& ContenderId) const;
 

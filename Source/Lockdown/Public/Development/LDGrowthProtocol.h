@@ -36,13 +36,32 @@ enum class ELDBuildCommandKind : uint8
     None = 0, ActiveChoice = 1, LearnBlueprint = 2, AllocatePoints = 3,
     OpeningBase = 10, InstallComponent = 11, UninstallComponent = 12, ComponentChoice = 13,
     BuyNpcOffer = 20, Respec = 21, ReplaceActive = 22, ForgetActive = 23, FillGap = 24, Dismantle = 25,
-    SkipActiveOffer = 26
+    SkipActiveOffer = 26,
+    // One independent final rule rewrite; selection and the build lock commit together.
+    FinalMod = 27
 };
 
 // #198 B: where an installed component sits. Base components take None (enabled on the build); mods/connectors
 // (#198 F) take an active, an effect segment of an active, another component, or the innate D dash.
 UENUM()
 enum class ELDComponentTargetKind : uint8 { None = 0, Active = 1, EffectSegment = 2, Component = 3, Dash = 4 };
+
+USTRUCT()
+struct LOCKDOWN_API FLDFinalModSelection
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FName DefinitionId;
+    UPROPERTY() ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    UPROPERTY() FName TargetId;
+
+    bool operator==(const FLDFinalModSelection& Other) const
+    {
+        return DefinitionId == Other.DefinitionId && TargetKind == Other.TargetKind && TargetId == Other.TargetId;
+    }
+    bool operator!=(const FLDFinalModSelection& Other) const { return !(*this == Other); }
+    bool IsEmpty() const { return *this == FLDFinalModSelection(); }
+};
 
 // #198 B: how a component instance was obtained (one stable business identity each). #198 G: BuildReward (a Boss or airdrop
 // build reward: scarce, or the common fallback), EliteChoice (an elite camp marker's two-choice), FillGap, Dismantle.
@@ -121,7 +140,10 @@ enum class ELDGrowthReason : uint16
     // count), DismantlePoolEmpty (no common component left to receive; nothing is removed), FieldRewardDuplicate (a map event
     // paid twice).
     NoComponentChoice = 160, ComponentOwned = 161, NotAGap = 162, NoGapFiller = 163, GapAlreadyFilled = 164,
-    DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167
+    DismantleInvalid = 165, DismantlePoolEmpty = 166, FieldRewardDuplicate = 167,
+    // Phase 9 final mod (allocated 170-179): FinalLocked (the build was locked by the final mod choice or the final field
+    // entry), NoFinalMod (no open final mod of that id), FinalModUnavailable (its selected source is no longer legal).
+    FinalLocked = 170, NoFinalMod = 171, FinalModUnavailable = 172
 };
 
 // Fixed 64-byte UTF-8 definition identity shared with Combat: at most 63 content bytes, NUL terminated,
@@ -260,6 +282,16 @@ struct LOCKDOWN_API FLDComponentInstanceView
     UPROPERTY() bool bGapFilled = false;
 };
 
+USTRUCT()
+struct FLDFinalModSourceView
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FName Option;
+    UPROPERTY() ELDComponentTargetKind TargetKind = ELDComponentTargetKind::None;
+    UPROPERTY() FName TargetId;
+};
+
 // #198 G: one pending elite-camp two-choice: one or two distinct known common components fixed when it was granted.
 USTRUCT()
 struct LOCKDOWN_API FLDComponentChoiceView
@@ -335,6 +367,14 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint8 HeldBlueprints = 0;
     // #198 G: every field reward received, oldest first.
     UPROPERTY() TArray<FLDFieldRewardView> FieldRewards;
+    // Immutable once-revealed candidates; legal bindings reflect the current build without redrawing them.
+    UPROPERTY() bool bFinalModPending = false;
+    UPROPERTY() FGuid FinalModOfferId;
+    UPROPERTY() TArray<FName> FinalModOptions;
+    UPROPERTY() TArray<FLDFinalModSourceView> FinalModSources;
+    UPROPERTY() FName FinalModChosen;
+    UPROPERTY() FLDFinalModSelection FinalMod;
+    UPROPERTY() bool bBuildLocked = false;
 };
 
 USTRUCT()

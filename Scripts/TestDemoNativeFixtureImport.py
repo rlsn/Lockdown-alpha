@@ -1,5 +1,6 @@
 """Test-only export consistency; these checks do not substitute for UE automation."""
 from concurrent.futures import ProcessPoolExecutor
+from fractions import Fraction
 import hashlib
 import json
 import os
@@ -57,9 +58,9 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(expected["Parameters.AD.BaseP2"], "7000")
         self.assertEqual(expected["Parameters.AP.BaseP2"], "0")
         self.assertEqual(expected["Parameters.CritMultiplierBp"], "20000")
-        self.assertEqual(expected["Parameters.AttackSpeed.Base.Numerator"], "9")
-        self.assertEqual(expected["Parameters.AttackSpeed.Base.Denominator"], "10")
-        self.assertEqual(expected["Parameters.BasicAttackWindupMs"], "250")
+        self.assertEqual(expected["Parameters.AttackSpeed.Base.Numerator"], "3")
+        self.assertEqual(expected["Parameters.AttackSpeed.Base.Denominator"], "4")
+        self.assertEqual(expected["Parameters.BasicAttackWindupMs"], "300")
         self.assertNotEqual(expected["Parameters.AD.BaseP2"], synthetic["Parameters.AD.BaseP2"])
 
     def test_every_active_value_quantity_has_a_distinct_native_change_assertion(self):
@@ -147,6 +148,13 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertEqual(len(expected["SpawnOffsetsCm"]), 7)
         self.assertNotIn("Connections", expected)
 
+    def test_outside_inner_wall_is_beyond_ground_not_a_boundary_wall(self):
+        world = json.loads((self.root / "world_inner_wall_outside" / demo.WORLD_OUTPUT).read_bytes())
+        boundary = world["geometry"]["surfaces"][0]["max_cm"]["x"]
+        max_x = Fraction(boundary["numerator"], boundary["denominator"])
+        vertices = world["geometry"]["blockers"][0]["polygon_cm"]
+        self.assertTrue(all(Fraction(v["x"]["numerator"], v["x"]["denominator"]) > max_x for v in vertices))
+
     def test_valid_world_changes_use_the_single_producer(self):
         from DemoWorld import compile_world
 
@@ -193,8 +201,8 @@ class DemoNativeFixturesTest(unittest.TestCase):
 
     def test_exact_integer_and_rational_expectations(self):
         expected = lambda name: json.loads((self.root / name / "native_expected.json").read_bytes())
-        self.assertEqual(expected("int64_max_ms")["Parameters.RespawnFinalMs"], str(demo.INT64_MAX))
-        self.assertEqual(expected("above_double_integer")["Parameters.RespawnFinalMs"], "9007199254740993")
+        self.assertEqual(expected("int64_max_ms")["Parameters.RespawnField3Ms"], str(demo.INT64_MAX))
+        self.assertEqual(expected("above_double_integer")["Parameters.RespawnField3Ms"], "9007199254740993")
         self.assertEqual(expected("exact_integer")["Parameters.AirdropRewardXP"], "9007199254740993")
         self.assertEqual(expected("exact_rational")["Parameters.MPRegen.PerLevel.Numerator"], "1")
         self.assertEqual(expected("exact_rational")["Parameters.MPRegen.PerLevel.Denominator"], "1000000000000000000")

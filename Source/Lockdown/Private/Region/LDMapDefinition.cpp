@@ -2,7 +2,6 @@
 #include "LDMapGeometryJson.h"
 #include "../Development/LDDemoContentJson.h"
 #include "Framework/LDDemoEntry.h"
-
 namespace
 {
 TArray<uint8> SourceBytes(const FString& Text)
@@ -88,6 +87,27 @@ bool ULDMapDefinition::Read(const FLDDemoContentSnapshot& Content, TSharedPtr<co
     Out = MakeShared<const FLDDemoWorldGeometry>(MoveTemp(Expected->Geometry));
     return true;
 }
+
+#if WITH_EDITOR
+bool ULDMapDefinition::ReadSavedForEditing(FLDDemoWorldGeometry& Out, FString& Error) const
+{
+    Error.Reset();
+    LDDemoContent::FCheck Check(Error);
+    FLDDemoContentDigest Digest;
+    LDDemoContent::FValue Root;
+    FLDDemoContentDigest Source;
+    if (!LDDemoContent::Hash(SourceBytes(SourceJson), Digest, Check, TEXT("saved authoring world"))
+        || !Check.Require(Digest.ToHex() == Checksum,
+            TEXT("saved authoring world"), TEXT("saved world bytes differ from their stored checksum"))
+        || !LDDemoContent::Parse(SourceBytes(SourceJson), Root, Check, TEXT("saved authoring world"))) { return false; }
+    LDDemoContent::FFields Fields(Check, Root, TEXT("saved authoring world"));
+    if (!Fields.Digest(TEXT("source_sha256"), Source)
+        || !Check.Require(Source == DemoGeometry.SourceDigest, TEXT("saved authoring world"),
+            TEXT("saved geometry belongs to another author source"))) { return false; }
+    Out = DemoGeometry;
+    return true;
+}
+#endif
 
 ALDMapAnchor::ALDMapAnchor()
 { bReplicates = false; RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root")); }

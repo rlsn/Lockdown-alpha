@@ -13,10 +13,12 @@
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Framework/LDPlayerController.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
+#include "UI/LDControlSettings.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace LDHumanoidVisualDetail
@@ -72,8 +74,19 @@ namespace LDHumanoidVisualDetail
     const FLinearColor RootColour(1.f,.02f,.58f), EdgeColour(.012f,.01f,.016f), ShieldColour(0.f,.78f,1.f);
     const FLinearColor ProtectionColour(1.f,.92f,.62f), ReturnColour(.95f,.95f,.95f);
     const FLinearColor BurstColour(1.f,.95f,.7f), ChargeColour(.8f,.92f,1.f), ColumnColour(1.f,.9f,.55f);
-    // Emissive over the whole body through the art materials' Flash: a hit flashes white, then red; an appear glows.
-    const FLinearColor FlashWhite(1.f,1.f,1.f), FlashRed(1.f,.1f,.06f), AppearGlow(1.f,.92f,.6f);
+    // Emissive over the whole body through the art materials' Flash: a typed hit flashes, then white; an appear glows.
+    const FLinearColor FlashWhite(1.f,1.f,1.f), AppearGlow(1.f,.92f,.6f);
+    FLinearColor HitColour(ELDObservedHitLook Look)
+    {
+        switch (Look)
+        {
+        case ELDObservedHitLook::Magic: return FLinearColor(.62f,.22f,1.f);
+        case ELDObservedHitLook::Fire: return FLinearColor(1.f,.22f,.025f);
+        case ELDObservedHitLook::Water: return FLinearColor(.05f,.62f,1.f);
+        case ELDObservedHitLook::Electric: return FLinearColor(1.f,.78f,.05f);
+        default: return BurstColour;
+        }
+    }
     // Below this ground speed a body stands instead of running in slow motion.
     constexpr float RunFromCmPerSec = 15.f;
     // The status markers' reference body height; wider and taller bodies spread their markers in proportion.
@@ -336,6 +349,7 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
         UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
         Instance->SetVectorParameterValue(TEXT("Tint"), ColourOf(Index));
         Parts[Index]->SetMaterial(0, Instance);
+        if (Index == HitSpark) { HitSparkTint = Instance; }
     }
     UMaterialInstanceDynamic* Dark = UMaterialInstanceDynamic::Create(Material, this);
     Dark->SetVectorParameterValue(TEXT("Tint"), EdgeColour);
@@ -411,7 +425,8 @@ void ULDHumanoidVisualComponent::Layout()
     Parts[SpawnColumn]->SetRelativeLocation(FVector(0, 0, Foot + 160.f));
 }
 
-void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds)
+void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds, float ImpactDelaySeconds,
+    ELDObservedHitLook InHitLook, bool bInKnockback)
 {
     using LDBodyMotion::EAction;
     const uint8 Code = Value & ActionMask;
@@ -419,7 +434,12 @@ void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds)
     const bool bAgeKnown = ActionAgeSeconds >= 0.f && FMath::IsFinite(ActionAgeSeconds);
     const double Onset = bAgeKnown ? Clock - ActionAgeSeconds : Clock;
     if (LDBodyMotion::IsNewInstance(Action, ActionOnset, Next, Onset, bAgeKnown)) { ActionOnset = Onset; }
+    ActionImpactSeconds = FMath::IsFinite(ImpactDelaySeconds) && ImpactDelaySeconds >= 0.f
+        ? ImpactDelaySeconds : LDBodyMotion::StrikeAt;
     Action = Next;
+    HitLook = InHitLook;
+    if (bInKnockback && !bKnockback) { KnockbackAt = Clock; }
+    bKnockback = bInKnockback;
     if (!bCueSeen)
     {
         bCueSeen = true;
@@ -433,11 +453,14 @@ void ULDHumanoidVisualComponent::PlayAppear()
     AppearAt = Clock;
 }
 
-void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds)
+void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds, ELDObservedHitLook InHitLook, uint8 InHitFlags)
 {
     if (!FMath::IsFinite(AgeSeconds) || AgeSeconds<0.f || AgeSeconds>=.3f || FallAt>=0) { return; }
+    HitLook = InHitLook;
     const double Onset=Clock-AgeSeconds;
-    if (!bHitSeen || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds) { HitOnset=Onset; bHitSeen=true; }
+    // Different resolved outcomes are distinct hits even inside the clock-jitter tolerance.
+    if (!bHitSeen || InHitFlags!=HitFlags || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds)
+    { HitOnset=Onset; HitFlags=InHitFlags; bHitSeen=true; }
 }
 
 void ULDHumanoidVisualComponent::PlayFall()
@@ -500,11 +523,13 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
     };
     const FLDArtAnimation* Dying = Art->Find(ELDArtAnim::Death);
     const FLDArtAnimation* Acting = Action == EAction::None ? nullptr : Art->Find(ClipOf(Action));
+    const FLDArtAnimation* Knocked = bKnockback ? Art->Find(ELDArtAnim::Hit) : nullptr;
     const float ActionAge=LDBodyMotion::ImpactPoseAge(Action,float(Clock-ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f);
     const FLDArtAnimation* Waving = Art->Find(ELDArtAnim::Spawn);
     const bool bPosed = bFalling
         ? Dying && Pose(ELDArtAnim::Death, float(Clock - FallAt) * Dying->PlayRate, true)
-        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, Acting->PlayRate), false))
+        : (Knocked && Pose(ELDArtAnim::Hit, float(Clock - KnockbackAt) * Knocked->PlayRate, true))
+            || (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, ActionImpactSeconds, Acting->PlayRate), false))
             || (Waving && AppearAt >= 0 && Speed < RunFromCmPerSec && Pose(ELDArtAnim::Spawn, float(Clock - AppearAt) * Waving->PlayRate, false));
     const FLDArtAnimation* Entry = Art->Find(State);
     if (!Entry || !Entry->Sequence) { return; }
@@ -536,13 +561,41 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     else if (AppearAt >= 0) { Life = LDBodyMotion::Appear(float(Clock - AppearAt)); }
     // The current action's effects: the lunge and the orb ease toward the timeline, the spark and the flash follow it.
     const LDBodyMotion::FChannels Target = bFalling ? LDBodyMotion::FChannels()
-        : LDBodyMotion::WithHit(Action, float(Clock - ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f);
+        : LDBodyMotion::WithHit(Action, float(Clock - ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f,ActionImpactSeconds);
     const float Ease = 1.f - FMath::Exp(-40.f * FMath::Max(Delta, 0.f));
     Shown.Lunge = FMath::Lerp(Shown.Lunge, Target.Lunge, Ease);
     Shown.Charge = FMath::Lerp(Shown.Charge, Target.Charge, Ease);
-    Shown.Burst = Target.Burst;
-    Shown.Flash = Target.Flash;
-    Shown.HitBurst = Target.HitBurst;
+    const APlayerController* Viewer = GEngine ? GEngine->GetFirstLocalPlayerController(GetWorld()) : nullptr;
+    const ALDPlayerController* LocalController = Cast<ALDPlayerController>(Viewer);
+    const float EffectScale = LocalController && LocalController->Controls && LocalController->Controls->bReduceCombatEffects ? .45f : 1.f;
+    Shown.Burst = Target.Burst * EffectScale;
+    Shown.Flash = Target.Flash * EffectScale;
+    Shown.HitBurst = Target.HitBurst * EffectScale;
+
+    // Ease visual facing independently from the capsule so authority turns stay immediate without snapping the art.
+    const AActor* Owner = GetOwner();
+    const FRotator ActorRotation = Owner ? Owner->GetActorRotation() : FRotator::ZeroRotator;
+    const float TargetYaw = ActorRotation.Yaw;
+    if (!bVisualPoseInitialized)
+    {
+        VisualYaw = TargetYaw;
+        PreviousVelocity = Velocity;
+        bVisualPoseInitialized = true;
+    }
+    else if (Delta > SMALL_NUMBER)
+    {
+        VisualYaw = FMath::FixedTurn(VisualYaw, TargetYaw, 540.f * Delta);
+        const FVector LocalAcceleration = ActorRotation.UnrotateVector((Velocity - PreviousVelocity) / Delta);
+        const FQuat VisualFacing = ActorRotation.Quaternion() * Art->MeshTransform.GetRotation()
+            * FRotator(0, FRotator::NormalizeAxis(VisualYaw - TargetYaw), 0).Quaternion();
+        const FRotator PushLean = bKnockback && !bFalling
+            ? LDBodyMotion::KnockbackLean(VisualFacing.Inverse().RotateVector(Velocity)) : FRotator::ZeroRotator;
+        LeanPitch = FMath::FInterpTo(LeanPitch, FMath::Clamp(LocalAcceleration.X / 8000.f, -1.f, 1.f) * 8.f + PushLean.Pitch, Delta, 7.f);
+        LeanRoll = FMath::FInterpTo(LeanRoll, FMath::Clamp(LocalAcceleration.Y / 8000.f, -1.f, 1.f) * 8.f + PushLean.Roll, Delta, 7.f);
+        PreviousVelocity = Velocity;
+    }
+    const FRotator VisualLean(LeanPitch, FRotator::NormalizeAxis(VisualYaw - TargetYaw), LeanRoll);
+    Mesh->SetRelativeRotation(Art->MeshTransform.GetRotation() * FQuat(VisualLean));
 
     // The whole body: a lunge or knock-back, the appear scale and the final sink, all about the feet.
     const FVector Feet(0, 0, -HalfHeight);
@@ -567,15 +620,18 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     Parts[HitSpark]->SetHiddenInGame(Shown.HitBurst<=.02f);
     if (Shown.HitBurst>.02f)
     {
+        const FLinearColor ImpactColour = (HitFlags & LDObservation::ShieldAbsorbed) ? ShieldColour
+            : (HitFlags & LDObservation::Critical) ? FLinearColor(1.f,.55f,.08f) : HitColour(HitLook);
+        if (HitSparkTint) { HitSparkTint->SetVectorParameterValue(TEXT("Tint"),ImpactColour); }
         Parts[HitSpark]->SetRelativeLocation(FVector(18.f,0,-HalfHeight+.72f*HeightCm));
-        Parts[HitSpark]->SetRelativeScale3D(FVector(.55f*Shown.HitBurst));
+        Parts[HitSpark]->SetRelativeScale3D(FVector(((HitFlags & LDObservation::Critical) ? .85f : .55f)*Shown.HitBurst));
     }
     const bool bCharge = Shown.Charge > .02f;
     Parts[Charge]->SetHiddenInGame(!bCharge);
     if (bCharge)
     {
         Parts[Charge]->SetRelativeLocation(Hand);
-        Parts[Charge]->SetRelativeScale3D(FVector(.1f + .25f * Shown.Charge));
+        Parts[Charge]->SetRelativeScale3D(FVector(.1f + .25f * Shown.Charge * EffectScale));
     }
     const bool bColumn = Life.Column > .02f;
     Parts[SpawnColumn]->SetHiddenInGame(!bColumn);
@@ -595,7 +651,10 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         Parts[RootRing]->SetRelativeScale3D(FVector(Pulse, Pulse, .03f));
         Parts[RootRim]->SetRelativeScale3D(FVector(Pulse + .2f, Pulse + .2f, .02f));
     }
-    const bool bShield = !bFalling && (Cue & Shielded);
+    const bool bShieldBreak = !bFalling && bHitSeen && (HitFlags & LDObservation::ShieldBroken)
+        && Clock-HitOnset>=0.0 && Clock-HitOnset<.3;
+    const float ShieldSpread = bShieldBreak ? 1.f + .8f*float((Clock-HitOnset)/.3) : 1.f;
+    const bool bShield = !bFalling && ((Cue & Shielded) || bShieldBreak);
     Parts[ShieldHalo]->SetHiddenInGame(!bShield);
     for (int32 Bar = 0; Bar < ShieldBars; ++Bar)
     {
@@ -603,7 +662,8 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         if (!bShield) { continue; }
         const float Angle = FMath::DegreesToRadians(45.f * Bar + 40.f * Time);
         Parts[ShieldBar0 + Bar]->SetRelativeLocation(
-            FVector(56.f * Girth * FMath::Cos(Angle), 56.f * Girth * FMath::Sin(Angle), Foot + .5f * (HeightCm + 14.f)));
+            FVector(56.f * Girth * ShieldSpread * FMath::Cos(Angle), 56.f * Girth * ShieldSpread * FMath::Sin(Angle),
+                Foot + .5f * (HeightCm + 14.f)));
     }
     const bool bProtected = !bFalling && (Cue & Protected);
     Parts[ProtectionBeam]->SetHiddenInGame(!bProtected);
@@ -625,7 +685,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         const bool bHitFlash = Shown.Flash >= Glow;
         const float Amount = FMath::Min(1.f, bHitFlash ? 1.15f * Shown.Flash : Glow);
         const FLinearColor Over = bHitFlash
-            ? FMath::Lerp(FlashRed, FlashWhite, FMath::Clamp((Shown.Flash - .6f) / .4f, 0.f, 1.f)) : AppearGlow;
+            ? FMath::Lerp(HitColour(HitLook), FlashWhite, FMath::Clamp((Shown.Flash - .6f) / .4f, 0.f, 1.f)) : AppearGlow;
         SetFlash(Over * Amount);
         bFlashing = true;
     }

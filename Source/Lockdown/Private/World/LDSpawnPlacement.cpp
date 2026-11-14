@@ -86,6 +86,13 @@ namespace
         return Geometry && Geometry->Anchors.ContainsByPredicate([&Id](const FLDDemoWorldAnchor& Row)
         { return Row.Kind==ELDDemoWorldAnchorKind::RestSpawn && Row.Id.Equals(Id,ESearchCase::CaseSensitive); });
     }
+
+    bool IsFinalSpawn(const FLDDemoWorldGeometry* Geometry, FName Anchor)
+    {
+        const FString Id=Anchor.ToString();
+        return Geometry && Geometry->Anchors.ContainsByPredicate([&Id](const FLDDemoWorldAnchor& Row)
+        { return Row.Kind==ELDDemoWorldAnchorKind::FinalSpawn && Row.Id.Equals(Id,ESearchCase::CaseSensitive); });
+    }
 }
 
 bool ULDMapRegistry::BeginSpawnMatch(const FLDMatchContext& Match, FString& Error)
@@ -212,8 +219,9 @@ bool ULDMapRegistry::SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName 
     // Rest anchors are validated by the world geometry, not the field spawn list.
     const auto& Refs=Content->Get().World;
     const FString AnchorId=Anchor.ToString();
-    if (!Refs.SpawnIds.Contains(AnchorId) && !Refs.PKSpawnIds.Contains(AnchorId) && !IsRestSpawn(Geometry.Get(),Anchor))
-    { Error=FString::Printf(TEXT("%s is not an approved field, rest, or PK spawn anchor."),*AnchorId); return false; }
+    if (!Refs.SpawnIds.Contains(AnchorId) && !Refs.PKSpawnIds.Contains(AnchorId)
+        && !IsRestSpawn(Geometry.Get(),Anchor) && !IsFinalSpawn(Geometry.Get(),Anchor))
+    { Error=FString::Printf(TEXT("%s is not an approved field, rest, PK, or final spawn anchor."),*AnchorId); return false; }
     Out=RecordSpawnSelection(Request,Anchor);
     Error.Reset();
     return true;
@@ -323,9 +331,11 @@ bool ULDMapRegistry::ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelect
         || Capsule.GetCapsuleHalfHeight()!=Required.GetCapsuleHalfHeight())
     { Error=TEXT("Spawn reservation requires the exact approved native capsule."); return false; }
     const auto* Anchor=Resolve(Selection->Anchor,Generation);
-    // The enclosed rest room cannot route to the field capture point; it must route to a room service instead.
+    // Each isolated area routes to its own reachable reference, not the field capture point.
     const FName ReferenceId=IsRestSpawn(Geometry.Get(),Selection->Anchor)
-        ? FName(*LDDemoWorld::RestServiceId(1)) : FName(*Content->Get().World.CaptureId);
+        ? FName(*LDDemoWorld::RestServiceId(1))
+        : IsFinalSpawn(Geometry.Get(),Selection->Anchor)
+            ? FName(*LDDemoWorld::FinalCaptureId()) : FName(*Content->Get().World.CaptureId);
     const auto* Reference=Resolve(ReferenceId,Generation);
     if (!Anchor || !Reference || Geometry->SpawnOffsetsCm.Num()!=7)
     { Error=TEXT("Compiled spawn anchor, local offsets or reference path endpoint is missing."); return false; }

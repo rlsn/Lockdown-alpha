@@ -5,6 +5,7 @@
 #include "Development/LDDemoContentIds.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Misc/AutomationTest.h"
+#include "Vision/LDViewTypes.h"
 #include "Sound/SoundClass.h"
 #include "Sound/SoundMix.h"
 #include "Sound/SoundWave.h"
@@ -90,6 +91,21 @@ bool FLDAudioCuePublicTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A result first seen long after it froze stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     FLDResultView Mismatch=Result;Mismatch.ResultId=FGuid::NewGuid();Frame.Result=&Mismatch;
     TestTrue(TEXT("A result that is not the public match result never sounds"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.KillFeed=nullptr;Frame.Result=nullptr;
+    Public.Generation=11;Public.Phase=ELDMatchPhase::CaptureOpen;Public.CircleState=ELDCircleState::Empty;
+    Public.Showdown.bStarted=true;Public.Showdown.ClosureAtMs=120000;
+    Public.Showdown.RespawnsCloseAtMs=150000;Public.Showdown.EndsAtMs=240000;
+    Frame.NowMs=119999;
+    TestTrue(TEXT("A first final sample never replays old warnings"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.NowMs=120000;
+    TestTrue(TEXT("Street closure warns at its actual authority boundary"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureContested}));
+    TestTrue(TEXT("A closure warning sounds only once"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.NowMs=150000;
+    TestTrue(TEXT("The new-respawn cutoff warns once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureContested}));
+    Frame.NowMs=230000;
+    TestTrue(TEXT("The final ten seconds warn independently of replication changes"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureContested}));
+    Public.Phase=ELDMatchPhase::Results;Frame.NowMs=240000;
+    TestTrue(TEXT("An ended match never replays objective warnings"),AudioSample(Tracker,Frame).IsEmpty());
     return true;
 }
 
@@ -113,36 +129,59 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=3;Combat.HPP2=1000;Frame.LocalSeconds=4;
     TestTrue(TEXT("An older combat revision is ignored"),AudioSample(Tracker,Frame).IsEmpty());
 
-    // The shield: the own projection lists the shield status with its end; nothing else is read.
+    // Shield hit sounds come from the resolved own hit, not from a decrease in shield points.
     FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.ExpiresAtMs=9000;Shield.AmountP2=3000;
     Combat.Revision=5;Combat.HPP2=40000;Combat.ShieldP2=3000;Combat.Statuses={Shield};Combat.AsOfMs=5000;Frame.LocalSeconds=4.5;
     TestTrue(TEXT("Gaining a shield is silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=6;Combat.ShieldP2=1000;Combat.Statuses[0].AmountP2=1000;Combat.AsOfMs=5500;Frame.LocalSeconds=5;
+    Combat.Revision=6;Combat.ShieldP2=1000;Combat.Statuses[0].AmountP2=1000;Combat.AsOfMs=5500;Combat.Cues.LastHitAtMs=5500;
+    Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed;Frame.LocalSeconds=5;
     TestTrue(TEXT("A hit the shield absorbs whole sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
-    Combat.Revision=7;Combat.ShieldP2=500;Combat.Statuses[0].AmountP2=500;Combat.AsOfMs=5550;Frame.LocalSeconds=5.1;
+    Combat.Revision=7;Combat.ShieldP2=500;Combat.Statuses[0].AmountP2=500;Combat.AsOfMs=5550;Combat.Cues.LastHitAtMs=5550;Frame.LocalSeconds=5.1;
     TestTrue(TEXT("Shield hits share the hit repeat limit"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=8;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.HPP2=36000;Combat.AsOfMs=6000;Frame.LocalSeconds=6;
-    TestTrue(TEXT("A hit that breaks the shield and costs points is the ordinary hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfHit}));
-    Combat.Revision=9;Combat.ShieldP2=2000;Shield.AmountP2=2000;Shield.ExpiresAtMs=7000;Combat.Statuses={Shield};Combat.AsOfMs=6500;Frame.LocalSeconds=7;
+    Combat.Revision=8;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.HPP2=36000;Combat.AsOfMs=6000;
+    Combat.Cues.LastHitAtMs=6000;Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Frame.LocalSeconds=5.15;
+    TestTrue(TEXT("A shield break sounds distinctly even immediately after a shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldBreak}));
+    ++Combat.Revision;Frame.LocalSeconds=6.5;
+    TestTrue(TEXT("A republished shield hit does not sound again"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=10;Combat.ShieldP2=2000;Shield.AmountP2=2000;Shield.ExpiresAtMs=7000;Combat.Statuses={Shield};Combat.AsOfMs=6500;Frame.LocalSeconds=7;
     AudioSample(Tracker,Frame);
-    Combat.Revision=10;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7000;Frame.LocalSeconds=8;
+    Combat.Revision=11;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7000;Frame.LocalSeconds=8;
     TestTrue(TEXT("A shield that runs out at its end is silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=11;Combat.ShieldP2=2000;Shield.ExpiresAtMs=9000;Combat.Statuses={Shield};Combat.AsOfMs=7500;Frame.LocalSeconds=9;
+    Combat.Revision=12;Combat.ShieldP2=2000;Shield.ExpiresAtMs=9000;Combat.Statuses={Shield};Combat.AsOfMs=7500;Frame.LocalSeconds=9;
     AudioSample(Tracker,Frame);
-    Combat.Revision=12;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7600;Frame.LocalSeconds=10;
-    TestTrue(TEXT("A shield broken before its end by a hit sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
+    Combat.Revision=13;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7600;Frame.LocalSeconds=9.5;
+    TestTrue(TEXT("Shield removal without a new hit stays silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=14;Combat.ShieldP2=2000;Combat.Statuses={Shield};Combat.AsOfMs=7700;AudioSample(Tracker,Frame);
+    Combat.Revision=15;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7800;Combat.Cues.LastHitAtMs=7800;
+    Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Frame.LocalSeconds=10;
+    TestTrue(TEXT("A shield broken before its end by a hit sounds the break"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldBreak}));
+
+    {
+        FLDAudioCueTracker Rapid;
+        FLDCombatOwnerView Hit;Hit.Generation=5;Hit.Life=1;Hit.bHasBody=true;Hit.Revision=1;Hit.HPP2=Hit.MaxHPP2=50000;
+        FLDAudioFrame Sample;Sample.OwnMatch=5;Sample.OwnLife=1;Sample.OwnLifePhase=ELDLifePhase::Alive;
+        Sample.OwnCombat=&Hit;Sample.LocalSeconds=1;
+        AudioSample(Rapid,Sample);
+        Hit.Revision=2;Hit.AsOfMs=1100;Hit.Cues.LastHitAtMs=1100;
+        Hit.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Sample.LocalSeconds=1.1;
+        TestTrue(TEXT("The first break sounds"),AudioIs(AudioSample(Rapid,Sample),{ELDAudioCue::SelfShieldBreak}));
+        Hit.Revision=3;Hit.AsOfMs=1150;Hit.Cues.LastHitAtMs=1150;Sample.LocalSeconds=1.15;
+        TestTrue(TEXT("Repeated breaks within the break limit stay silent"),AudioSample(Rapid,Sample).IsEmpty());
+        Hit.Revision=4;Hit.AsOfMs=1400;Hit.Cues.LastHitAtMs=1400;Sample.LocalSeconds=1.4;
+        TestTrue(TEXT("A later break sounds again"),AudioIs(AudioSample(Rapid,Sample),{ELDAudioCue::SelfShieldBreak}));
+    }
 
     // The own basic attack: each newer basic release in the owner projection's cue facts sounds once.
-    Combat.Revision=13;Combat.Cues.ReleasedStartedAtMs=7700;Combat.Cues.ReleasedAtMs=8000;Combat.AsOfMs=8000;Frame.LocalSeconds=10.5;
+    Combat.Revision=16;Combat.Cues.ReleasedStartedAtMs=7700;Combat.Cues.ReleasedAtMs=8000;Combat.AsOfMs=8000;Frame.LocalSeconds=10.5;
     TestTrue(TEXT("A released own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
     TestTrue(TEXT("The same revision never repeats the attack"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=14;Combat.Cues.bActing=true;Combat.Cues.bActingBasic=true;Combat.Cues.ActingStartedAtMs=8300;Frame.LocalSeconds=10.6;
+    Combat.Revision=17;Combat.Cues.bActing=true;Combat.Cues.bActingBasic=true;Combat.Cues.ActingStartedAtMs=8300;Frame.LocalSeconds=10.6;
     TestTrue(TEXT("A republished release and a new windup stay silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=15;Combat.Cues.bActing=false;Combat.Cues.bActingBasic=false;Combat.Cues.ReleasedStartedAtMs=8300;Combat.Cues.ReleasedAtMs=8600;Combat.AsOfMs=8600;Frame.LocalSeconds=10.9;
+    Combat.Revision=18;Combat.Cues.bActing=false;Combat.Cues.bActingBasic=false;Combat.Cues.ReleasedStartedAtMs=8300;Combat.Cues.ReleasedAtMs=8600;Combat.AsOfMs=8600;Frame.LocalSeconds=10.9;
     TestTrue(TEXT("Consecutive basic attacks each sound"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    Combat.Revision=16;Combat.Cues.bReleasedBasic=false;Combat.Cues.ReleasedStartedAtMs=8700;Combat.Cues.ReleasedAtMs=9000;Combat.AsOfMs=9000;Frame.LocalSeconds=11.2;
+    Combat.Revision=19;Combat.Cues.bReleasedBasic=false;Combat.Cues.ReleasedStartedAtMs=8700;Combat.Cues.ReleasedAtMs=9000;Combat.AsOfMs=9000;Frame.LocalSeconds=11.2;
     TestTrue(TEXT("A released skill is left to its receipt"),AudioSample(Tracker,Frame).IsEmpty());
-    Combat.Revision=17;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
+    Combat.Revision=20;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
     TestTrue(TEXT("An older release time never sounds"),AudioSample(Tracker,Frame).IsEmpty());
 
     Growth.Level=2;Growth.ActiveOpportunitiesEarned=1;
@@ -153,7 +192,10 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Growth.ActiveOpportunitiesConsumed=1;Growth.QueuedActiveOpportunities=1;
     TestTrue(TEXT("Picking an active and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
 
-    Frame.OwnLifePhase=ELDLifePhase::Dead;Combat.Revision=5;Combat.HPP2=0;Frame.LocalSeconds=6;
+    Combat.Revision=21;Combat.HPP2=0;Combat.AsOfMs=9100;Combat.Cues.LastHitAtMs=9100;
+    Combat.Cues.LastHitFlags=LDObservation::ShieldAbsorbed|LDObservation::ShieldBroken;Frame.LocalSeconds=12;
+    TestTrue(TEXT("A lethal shield hit waits for the death cue even if the life phase is delayed"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.OwnLifePhase=ELDLifePhase::Dead;
     TestTrue(TEXT("Death sounds once without a hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfDeath}));
     TestTrue(TEXT("Waiting dead stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     Frame.OwnLife=2;Frame.OwnLifePhase=ELDLifePhase::Alive;
@@ -181,8 +223,18 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     FLDCombatActionReceipt OldLife=Cast;OldLife.DirectSequence=14;OldLife.Generation=3;Tracker.ObserveCombatReceipt(OldLife,4,1,Out);
     OldLife.Generation=4;OldLife.Life=2;Tracker.ObserveCombatReceipt(OldLife,4,1,Out);
     TestTrue(TEXT("Basic attacks, refusals, cancels and receipts of another match or life stay silent"),Out.IsEmpty());
-    FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
-    TestTrue(TEXT("The innate dash sounds as a cast"),AudioIs(Out,{ELDAudioCue::SelfCast}));
+    FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;
+    Dash.Phase=ELDCombatPhase::Accepted;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("A dash windup does not sound as a release"),Out.IsEmpty());
+    Dash.Phase=ELDCombatPhase::Released;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("The innate dash uses its own release cue"),AudioIs(Out,{ELDAudioCue::SelfDash}));
+    Out.Reset();Dash.Phase=ELDCombatPhase::Finished;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("The same dash's finished receipt does not replay the cue"),Out.IsEmpty());
+    Dash.DirectSequence=16;Dash.Reject=ELDCombatReject::Cooldown;Dash.Phase=ELDCombatPhase::Rejected;
+    Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    Dash.DirectSequence=17;Dash.Reject=ELDCombatReject::None;Dash.Phase=ELDCombatPhase::Finished;Dash.Life=2;
+    Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("A refused dash and a dash from another life stay silent"),Out.IsEmpty());
     return true;
 }
 
@@ -275,7 +327,8 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
     TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::SelfAttack),uint8(17));
     TestEqual(TEXT("The level-up cue keeps its number past the retired shop trade cues"),uint8(ELDAudioCue::LevelUp),uint8(12));
-    TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11)));
+    TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11))
+        &&!LDAudio::IsPlayableCue(ELDAudioCue(18))&&!LDAudio::IsPlayableCue(ELDAudioCue(19)));
     for(int32 Index=0;Index<LDAudio::CueCount;++Index)
     {
         const ELDAudioCue Cue=LDAudio::PlayableCue(Index);

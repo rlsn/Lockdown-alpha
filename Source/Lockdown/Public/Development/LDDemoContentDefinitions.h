@@ -107,6 +107,13 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
+    UPROPERTY() int64 ShowdownUnlockDelayMs = 0;
+    UPROPERTY() int64 ShowdownDurationMs = 0;
+    UPROPERTY() int64 ShowdownRespawnLimit = 0;
+    UPROPERTY() int64 ShowdownFirstRespawnMs = 0;
+    UPROPERTY() int64 ShowdownSecondRespawnMs = 0;
+    UPROPERTY() int64 ShowdownRespawnCutoffMs = 0;
+    UPROPERTY() int64 ShowdownClosureStartsMs = 0;
     // #198: each of the three field segments; the field progress T only advances in the field.
     UPROPERTY() int64 FieldSegmentMs = 0;
     // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
@@ -163,7 +170,6 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 RespawnField1Ms = 0;
     UPROPERTY() int64 RespawnField2Ms = 0;
     UPROPERTY() int64 RespawnField3Ms = 0;
-    UPROPERTY() int64 RespawnFinalMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
     // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
@@ -634,6 +640,44 @@ struct FLDDemoComponentDefinition
     ELDDemoComponentId GetNativeId() const { return static_cast<ELDDemoComponentId>(NativeId); }
 };
 
+UENUM()
+enum class ELDDemoFinalModRequirement : uint8 { Basic, ForcedMove, HardControl, Dash, PlacedZone };
+
+USTRUCT()
+struct FLDDemoFinalModDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FString Id;
+    UPROPERTY() uint8 NativeId = 0;
+    UPROPERTY() ELDDemoFinalModRequirement Requirement = ELDDemoFinalModRequirement::Basic;
+    UPROPERTY() int64 BaseP2 = 0;
+    UPROPERTY() int64 ADRatioBp = 0;
+    UPROPERTY() int64 APRatioBp = 0;
+    UPROPERTY() FLDDemoRational RadiusCm;
+    UPROPERTY() FLDDemoRational DistanceCm;
+    UPROPERTY() FLDDemoRational OffsetCm;
+    UPROPERTY() int64 DelayMs = 0;
+    UPROPERTY() int64 DurationMs = 0;
+    UPROPERTY() int64 IntervalMs = 0;
+    UPROPERTY() int64 WindowMs = 0;
+    UPROPERTY() int64 PulseIntervalMs = 0;
+    UPROPERTY() int64 OutsideMs = 0;
+    UPROPERTY() int64 RearmOutsideMs = 0;
+    UPROPERTY() int64 CooldownCostMs = 0;
+    UPROPERTY() int64 DurationCostMs = 0;
+    UPROPERTY() int64 DamageScaleBp = 0;
+    UPROPERTY() int64 ControlScaleBp = 0;
+    UPROPERTY() int64 DistanceScaleBp = 0;
+    UPROPERTY() int64 RadiusScaleBp = 0;
+    UPROPERTY() int64 MoveSpeedCostBp = 0;
+    UPROPERTY() int64 SlowBp = 0;
+    UPROPERTY() int64 SlowMs = 0;
+
+    ELDDemoFinalModId GetNativeId() const { return static_cast<ELDDemoFinalModId>(NativeId); }
+    bool IsUniversal() const { return Requirement == ELDDemoFinalModRequirement::Basic; }
+};
+
 // #198 B: the normal level-up component roll of one level band: category percentages (base + mod + connector = 100).
 USTRUCT()
 struct FLDDemoComponentCategoryWeights
@@ -823,6 +867,7 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() TArray<FLDDemoStatDefinition> Stats;
     // #198 B: the workshop material catalog (base B01–B18 now; mods/connectors by #198 F), in native id order.
     UPROPERTY() TArray<FLDDemoComponentDefinition> Components;
+    UPROPERTY() TArray<FLDDemoFinalModDefinition> FinalMods;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
     UPROPERTY() FLDDemoBossDefinition Boss;

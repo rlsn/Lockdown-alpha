@@ -30,8 +30,8 @@ WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
 SCHEMA_VERSION = 2
-HANDLER_REVISION = 6
-PROJECTION_REVISION = 6
+HANDLER_REVISION = 7
+PROJECTION_REVISION = 7
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -40,6 +40,7 @@ HEX_PATTERN = re.compile(r"[0-9a-f]{64}")
 NATIVE_ENUMS = {
     "character": "ELDDemoCharacterId", "abilities": "ELDDemoAbilityId",
     "stats": "ELDDemoStatId", "components": "ELDDemoComponentId",
+    "final_mods": "ELDDemoFinalModId",
     "monsters": "ELDDemoMonsterId", "statuses": "ELDDemoStatusId",
     "effect_ops": "ELDDemoEffectOp",
 }
@@ -865,11 +866,22 @@ STAT_CONTRACTS = {
 }
 # The opening opportunity draws this many distinct actives from the opening pool.
 OPENING_OFFER_SIZE = 3
+FINAL_MOD_CONTRACTS = {
+    "final_bowling": ("ForcedMove", {"base", "ap_ratio", "distance", "distance_ratio"}),
+    "final_forced_exit": ("HardControl", {"distance", "delay", "interval", "control_ratio"}),
+    "final_traffic": ("Dash", {"radius", "duration", "slow", "slow_duration", "cooldown_cost"}),
+    "final_split": ("PlacedZone", {"offset", "radius_ratio", "damage_ratio", "duration_cost"}),
+    "final_landlord": ("Basic", {"base", "ad_ratio", "radius", "delay", "interval", "damage_ratio"}),
+    "final_breach": ("Basic", {"outside", "rearm_outside", "window", "distance", "cooldown_cost"}),
+    "final_comeback": ("Basic", {"base", "ap_ratio", "radius", "duration", "interval", "pulse_interval", "window", "slow", "slow_duration", "damage_ratio"}),
+    "final_open_mic": ("Basic", {"base", "ap_ratio", "radius", "duration", "pulse_interval", "window", "slow", "slow_duration", "move_speed_cost"}),
+}
 
 
 def validate_definitions(data, ids):
     collections = {"character": [data["character"]], "abilities": data["abilities"], "stats": data["stats"],
-                   "components": data["components"], "monsters": data["camps"]["monsters"] + [data["boss"]]}
+                   "components": data["components"], "final_mods": data["final_mods"],
+                   "monsters": data["camps"]["monsters"] + [data["boss"]]}
     all_ids = set()
     for section, rows in collections.items():
         index = rows_by_id(rows, section)
@@ -911,6 +923,19 @@ def validate_definitions(data, ids):
             "bonus component levels must be distinct, ascending and reachable by levelling up")
     _validate_category_weights(progression)
     _validate_components(data, rows_by_id(data["abilities"], "abilities"))
+    finals = rows_by_id(data["final_mods"], "final_mods")
+    require(set(finals) == set(FINAL_MOD_CONTRACTS), "FinalModSet", "final_mods",
+            "exactly the eight implemented final mods are required")
+    for identity, (requirement, fields) in FINAL_MOD_CONTRACTS.items():
+        row = finals[identity]
+        keys(row, {"id", "native_id", "requirement", *fields}, identity)
+        require(row["requirement"] == requirement, "FinalModSource", identity, "wrong executable source requirement")
+        for field in fields:
+            require(quantity(row[field]) > 0, "FinalModDomain", identity + "." + field, "final mod terms must be positive")
+            if field.endswith("_ratio") or field in ("slow", "move_speed_cost"):
+                require(quantity(row[field]) < 1, "FinalModDomain", identity + "." + field, "a tradeoff must be less than one")
+    require(quantity(finals["final_breach"]["rearm_outside"]) >= quantity(finals["final_breach"]["outside"]),
+            "FinalModDomain", "final_breach", "rearming must not be faster than the first entry")
 
     for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
@@ -1028,6 +1053,13 @@ def validate_numbers(data):
     require(0 < params["UNIT.BasicAttackWindupSec"]["ms"] < interval,
             "InvalidTiming", "basic_attack", "windup must be shorter than attack interval")
     data["character"]["basic_attack"]["interval_ms"] = interval
+    unlock, duration = p("SHOWDOWN.UnlockDelaySec"), p("SHOWDOWN.DurationSec")
+    require(unlock + p("CAPTURE.SpraySec") + p("CAPTURE.GuardSec") <= duration
+            and duration * 1000 <= 2147483647
+            and 0 < p("SHOWDOWN.RespawnCutoffSec") < duration
+            and unlock <= p("SHOWDOWN.ClosureStartsSec") < duration
+            and params["SHOWDOWN.RespawnLimit"] <= 2,
+            "InvalidTiming", "SHOWDOWN", "objective, respawn cutoff, closure and terminal clocks are inconsistent")
     for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
                 "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec"):
         # A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate.
@@ -1186,6 +1218,12 @@ def _validate_build_envelope(data):
                            "COMBAT.ReactionBase")
     checked_add(reaction, checked_mul(max_ap, params["COMBAT.ReactionAPRatio"]["bp"], "COMBAT.ReactionAPRatio") // 10000,
                 "COMBAT.ReactionAPRatio")
+    for row in data["final_mods"]:
+        base = grow(row.get("base", {"p2": 0})["p2"], row["id"])
+        numerator = checked_mul(base, 10000, row["id"])
+        for field, maximum in (("ad_ratio", max_ad), ("ap_ratio", max_ap)):
+            if field in row:
+                numerator = checked_add(numerator, checked_mul(maximum, row[field]["bp"], row["id"]), row["id"])
     for row in (*data["abilities"], *data["components"]):
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
@@ -1352,7 +1390,7 @@ def content_contract_bytes(payload_digest, catalog_digest):
 
 def _sort_definitions(data, fields):
     prefixes = {}
-    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "stats", "display")]
+    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "stats", "final_mods", "display")]
     arrays.extend((("content.camps.monsters", data["camps"]["monsters"], "id"),
                    ("content.camps.placements", data["camps"]["placements"], "anchor_id"),
                    ("content.world.spawn_ids", data["world"]["spawn_ids"], None),

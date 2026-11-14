@@ -89,6 +89,8 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    先用核心当前 BodyRef/拥有 Controller 核对身份、顺序与形状，再进入单一待处理槽；
    进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
    在 Actions 前被更新请求取代的进攻意图仍补做一次保护解除。
+   断线交接会保留排队、待执行及被后续请求取代的进攻意图所欠的保护解除；旧订单仍取消，
+   新控制器在下一次获准 Actions 阶段按原 Match/Life/Body 结清，不能影响替换后的生命。
    带 `bQueue`（Shift）的订单和经 `ServerQueueCombatAction` 的 Q/W/D 不进待处理槽，而是排进最多 8 步的
    Shift 队列，轮到时才作为普通待处理请求或 Combat Direct 请求执行（[操作 §4.4](../demo/CONTROLS_AND_TARGETING.md#44-shift-指令队列)）。
 3. `ClientOrderReceipt` 只接受当前身份的结果，避免迟到确认重启已取消路线。
@@ -269,8 +271,8 @@ Pawn 复制暂时缺失（包括本地仍显示 Alive）时保留最后渲染的
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS`、`bAutoAttackAfterCast` 和绑定是完整正向清单。
-当前文件 schema 是 19，与产品/网络版本无关；schema 5–18 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS`、`bAutoAttackAfterCast`、`bReduceCombatEffects`、`bCameraShake` 和绑定是完整正向清单。
+当前文件 schema 是 21，与产品/网络版本无关；schema 5–20 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
 schema 14 迁移保留全部有效偏好及绑定，两个诊断开关默认关闭；加载本身不改写旧文件。
 schema 15 的按键表早于试玩标记：schema 5–15 迁移时若缺 `Mark` 且默认键 F9 未被其他动作占用，
 补上默认 F9 并在提示中说明；F9 已被占用时按 `Corrupt` 走恢复；当前 schema 缺它不补。
@@ -380,7 +382,7 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
 schema 5–11 显式迁移（`LocalSettingsDashMigration` 覆盖补 D 与 D 被占用时的拒绝；`LocalSettingsZoomMigration` 覆盖旧范围校验、旧值保留与核验升级），
-`LocalSettingsCameraZoom` 覆盖共享镜头默认、缩放夹限和推荐按钮的仅 Zoom 修改；主音量、镜头平移速度、小地图朝向、快速施法保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
+`LocalSettingsCameraZoom` 覆盖共享镜头默认、缩放夹限和推荐按钮的仅 Zoom 修改；主音量、镜头平移速度、小地图朝向、快速施法与战斗反馈选项保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`、`LocalSettingsCombatFeedback`）、
 小地图的换算（`Lockdown.Rules.Minimap.{CameraUp,FacingUp,NotMirrored,NorthFixed,RoundTrip,FitsFrame}`，`LDMinimapTests`）、
 产品显示默认（`LocalDisplayProductDefaults`）、只用无边框桌面分辨率（`LocalDisplayBorderlessOnly`）、
 损坏/越界拒绝与恢复、草稿隔离、旅行前 flush（`LocalSettingsTravelFlush`）和显示配置实际回读；

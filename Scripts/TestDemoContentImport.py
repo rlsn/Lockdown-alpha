@@ -402,7 +402,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=1.0001),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=0.00001),
             lambda data: data["parameters"]["LIFE.RespawnSec.Field1"].update(value=0.0001),
-            lambda data: data["parameters"]["LIFE.RespawnSec.Final"].update(value=0),
+            lambda data: data["parameters"]["LIFE.RespawnSec.Field3"].update(value=0),
             lambda data: data["parameters"]["MATCH.FieldSegmentSec"].update(value=0),
             lambda data: data["parameters"]["REST.ReturnSearchRadiusCm"].update(unit="s"),
             lambda data: data["parameters"]["AI.DecisionIntervalSec"].update(value=-1),

@@ -58,6 +58,7 @@ public:
     {
         bool bBody=false;
         TWeakObjectPtr<AActor> Blocker;
+        FVector Direction=FVector::ZeroVector;
     };
     void WatchKnockbackBlock() { bWatchKnockbackBlock=true; KnockbackBlock.Reset(); }
     TOptional<FKnockbackBlock> TakeKnockbackBlock()

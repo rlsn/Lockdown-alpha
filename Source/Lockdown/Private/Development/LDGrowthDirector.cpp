@@ -128,6 +128,21 @@ bool GrowthIsFault(uint16 Reason)
 }
 }
 
+bool ALDGrowthDirector::ReadDevRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const
+{
+    Next=1;Pending=0;
+#if WITH_DEV_AUTOMATION_TESTS
+    if(const FDevTestRecord* Record=DevTests.Find(ContenderId))
+    {
+        if(Record->Stream.GetFinalizedThrough()==MAX_uint64)
+        {Error=TEXT("Reconnect DEV cursor exhausted its sequence.");return false;}
+        Next=Record->Stream.GetFinalizedThrough()+1;
+        Pending=Record->Stream.PendingRequestId();
+    }
+#endif
+    Error.Reset();return true;
+}
+
 ALDGrowthDirector::ALDGrowthDirector()
 {
     bReplicates = false;
@@ -309,6 +324,14 @@ FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath& D
         return Finish(ELDRewardOutcome::PermanentlyRejected, AmountReason);
     }
 
+    if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
+    {
+        Receipt.Recipient = Recipient;
+        Finish(ELDRewardOutcome::NoReward, ELDGrowthReason::PhaseClosed);
+        RecordReward(Receipt);
+        return Receipt;
+    }
+
     // The killer and the assisters split the kill XP evenly.
     FLDAssistRewardShares Split;
     if (!LDAssist::SplitKillReward(Amounts.XP, Death.Assisters.Num(), Split))
@@ -393,6 +416,11 @@ ELDRewardOutcome ALDGrowthDirector::CommitRewardShares(const TArray<FRewardShare
     if (!M || !M->Development || !M->Combat)
     {
         Reason = ELDGrowthReason::AuthorityFault;
+        return ELDRewardOutcome::PermanentlyRejected;
+    }
+    if (M->GetTimeline().GetStage() == ELDMatchStage::FinalField)
+    {
+        Reason = ELDGrowthReason::PhaseClosed;
         return ELDRewardOutcome::PermanentlyRejected;
     }
     TSet<FGuid> Seen;

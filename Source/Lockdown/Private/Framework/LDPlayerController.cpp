@@ -57,6 +57,7 @@ bool ALDPlayerController::ReadDemoAuthorityTimeMs(int64& OutNowMs) const
 void ALDPlayerController::BeginPlay()
 {
     Super::BeginPlay();
+    if(bParkedForReconnect){return;}
     InitializeLocalUI();
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartWorldRoomProbe(*this);
@@ -70,6 +71,17 @@ void ALDPlayerController::BeginPlay()
     LDDemoTests::StartSessionFaultProbe(*this);
     LDDemoTests::StartBuildEvaluation(*this);
 #endif
+}
+
+void ALDPlayerController::PawnLeavingGame()
+{
+    if(auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();Mode&&Mode->CanParkDisconnectedMember(*this))
+    {
+        FString Error;
+        if(Mode->ParkDisconnectedMember(*this,Error)){return;}
+        Mode->ReportAuthorityFault(Mode->GetMatchContext(),Error);
+    }
+    Super::PawnLeavingGame();
 }
 
 void ALDPlayerController::InitializeLocalUI()

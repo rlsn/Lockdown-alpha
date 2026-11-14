@@ -25,7 +25,7 @@ namespace LDPlayerOrdersDetail
     }
 }
 
-void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
+void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCombatTarget* PressAim, const FVector* AimCm)
 {
     // The full world-command gate: under the menu, Settings, a child confirmation or a text edit no entry arms or
     // sends (UI 4); the root already cancelled any older preview.
@@ -42,7 +42,8 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
         // The D dash goes toward the pointer at once; without ground under the pointer the server refuses it explicitly.
         if (LDCombatPreInput::FiresOnPress(Entry))
         {
-            ConfirmArmedCombat();
+            if (PressAim) { ConfirmArmedEntry(*PressAim,AimCm); }
+            else { ConfirmArmedCombat(); }
             return;
         }
         // Quick cast (local setting): fires at the pointer at once when it already names the aim; a unit skill without

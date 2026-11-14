@@ -1,6 +1,6 @@
 # #198: the default covers the opening rest R0 (180 s build + 5 s return, no PK sign-ups) before the field-1 walk.
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$ReplayFieldReturn,
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,600)][int]$TimeoutSeconds=330, [switch]$EarlyRestReady, [switch]$ReplayFieldReturn, [switch]$FinalEntryOnly,
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
@@ -55,6 +55,13 @@ try {
     foreach ($index in 1..2) {
         $url = '127.0.0.1:{0}?Name=DemoCoreClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
         Start-CoreRole "Client$index" $url
+    }
+    if ($FinalEntryOnly) {
+        Wait-CoreReports @('FinalEntry.json')
+        $entry = Get-Content -LiteralPath (Join-Path $evidence 'FinalEntry.json') -Raw | ConvertFrom-Json
+        if (-not $entry.passed -or $entry.entries -ne 6) { throw "Final entry preparation failed: $($entry.detail). Evidence: $output" }
+        Write-Host "All six final entries prepared through the authoritative spawn path. Evidence: $output"
+        return
     }
     Wait-CoreReports @('Host.json','Client1.json','Client2.json')
     $reports = @('Host','Client1','Client2') | ForEach-Object {

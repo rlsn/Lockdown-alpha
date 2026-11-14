@@ -52,6 +52,8 @@ private:
     uint32 KillGeneration = 0;
     uint64 KillSerial = 0;
     FGuid ResultId;
+    uint32 ShowdownGeneration = 0;
+    int64 ShowdownSeenAtMs = -1;
 
     uint32 LifeMatch = 0;
     uint32 LifeNumber = 0;
@@ -61,9 +63,9 @@ private:
     uint64 HitRevision = 0;
     int64 HitHPP2 = 0;
     int64 HitMaxHPP2 = 0;
-    int64 HitShieldP2 = 0;
-    int64 HitShieldEndsAtMs = 0;    // end of the shield status listed with the baseline; 0 when none was listed
+    int64 HitSeenAtMs = 0;
     double LastHitAt = -1e9;
+    double LastShieldBreakAt = -1e9;
     int64 AttackReleasedAtMs = 0;   // the last own release (any kind) seen in this life; 0 when none was released
     uint32 GrowthMatch = 0;
     uint8 GrowthLevel = 0;

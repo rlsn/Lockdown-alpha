@@ -3,6 +3,12 @@
 #include "CoreMinimal.h"
 #include "LDMatchLifecycleTypes.generated.h"
 
+namespace LDMatchLifecycle
+{
+    inline constexpr int32 MaxContenders = 6;
+    inline constexpr int32 MaxOpponents = 3;
+}
+
 struct FLDMatchContext
 {
     uint32 Generation = 0;
@@ -192,7 +198,7 @@ struct FLDSessionRequest
         switch (Command)
         {
         case ELDSessionCommand::SetReady: return AICount == 0 && !ExpectedResult.IsValid();
-        case ELDSessionCommand::SetAICount: return !Ready && AICount <= 3 && !ExpectedResult.IsValid();
+        case ELDSessionCommand::SetAICount: return !Ready && AICount <= LDMatchLifecycle::MaxOpponents && !ExpectedResult.IsValid();
         case ELDSessionCommand::StartMatch:
         case ELDSessionCommand::EndMatch: return !Ready && AICount == 0 && !ExpectedResult.IsValid();
         case ELDSessionCommand::ReturnToLobby: return !Ready && AICount == 0 && ExpectedResult.IsValid();

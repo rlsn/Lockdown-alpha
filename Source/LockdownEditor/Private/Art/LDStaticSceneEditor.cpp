@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "Engine/Level.h"
 #include "Engine/TargetPoint.h"
 #include "EngineUtils.h"
 #include "FileHelpers.h"
@@ -21,6 +22,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "ScaffoldBootstrap/LDDemoWorldBuilder.h"
 #include "UObject/StrongObjectPtr.h"
+#include "UObject/Package.h"
 
 bool LDStaticSceneEditor::RefreshIndex(UWorld& World, FString& Error)
 {
@@ -67,14 +69,26 @@ bool LDStaticSceneEditor::NormalizeCopies(UWorld& World, const FLDDemoWorldGeome
 
 bool LDStaticSceneEditor::Export(const FString& Filename, FString& Error)
 {
-    UWorld* World = UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(
-        LDDemoEntry::WorldMap, FPackageName::GetMapPackageExtension()));
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
-    TSharedPtr<const FLDDemoWorldGeometry> Base;
-    if (!World || !LDArt::LoadDemoWorld(Content, Base, Error)) { return false; }
-    if (!NormalizeCopies(*World, *Base, Error)) { return false; }
+    UWorld* World = UWorld::FindWorldInPackage(LoadPackage(nullptr, LDDemoEntry::WorldMap, LOAD_None));
+    TStrongObjectPtr<UWorld> KeepWorld(World);
+    if (World)
+    {
+        for (AActor* Actor : World->PersistentLevel->Actors)
+        {
+            if (!Actor) { continue; }
+            if (Actor->GetRootComponent()) { Actor->GetRootComponent()->UpdateComponentToWorld(); }
+            TInlineComponentArray<UStaticMeshComponent*> Parts(Actor);
+            for (auto* Part : Parts) { Part->UpdateComponentToWorld(); }
+        }
+    }
+    FLDDemoWorldGeometry Base;
+    const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, LDDemoEntry::WorldDefinition);
+    if (!World || !Definition) { Error = TEXT("The saved map or world definition is missing."); return false; }
+    // Export precedes content/schema migration; Apply and Bootstrap validate the new approved projection.
+    if (!Definition->ReadSavedForEditing(Base, Error)) { return false; }
+    if (!NormalizeCopies(*World, Base, Error)) { return false; }
     FLDDemoWorldGeometry Geometry;
-    if (!LDStaticScene::ProjectGeometry(*World, *Base, Geometry, Error)) { return false; }
+    if (!LDStaticScene::ProjectGeometry(*World, Base, Geometry, Error)) { return false; }
     const auto Number = [](const FLDDemoRational& V) { return double(V.Numerator) / V.Denominator; };
     const auto Point = [&](const FLDDemoWorldPoint& P)
     {
@@ -86,7 +100,7 @@ bool LDStaticSceneEditor::Export(const FString& Filename, FString& Error)
     { TArray<TSharedPtr<FJsonValue>> Values; for (const auto& P : Ring) { Values.Add(Point(P)); } return Values; };
     auto Root = MakeShared<FJsonObject>();
     Root->SetNumberField(TEXT("schema_version"), 1);
-    Root->SetStringField(TEXT("source_sha256"), Base->SourceDigest.ToHex());
+    Root->SetStringField(TEXT("source_sha256"), Base.SourceDigest.ToHex());
     TArray<TSharedPtr<FJsonValue>> Surfaces, Plateaus, Ramps, Blockers, Anchors;
     for (const auto& S : Geometry.Surfaces)
     {
@@ -117,7 +131,27 @@ bool LDStaticSceneEditor::Export(const FString& Filename, FString& Error)
     }
     for (const auto& A : Geometry.Anchors)
     {
-        auto J = MakeShared<FJsonObject>(); J->SetStringField(TEXT("id"), A.Id); J->SetField(TEXT("position_cm"), Point(A.PositionCm));
+        const TCHAR* Kind = nullptr;
+        switch (A.Kind)
+        {
+        case ELDDemoWorldAnchorKind::Spawn: Kind = TEXT("Spawn"); break;
+        case ELDDemoWorldAnchorKind::Camp: Kind = TEXT("Camp"); break;
+        case ELDDemoWorldAnchorKind::Capture: Kind = TEXT("Capture"); break;
+        case ELDDemoWorldAnchorKind::Dorm: Kind = TEXT("Dorm"); break;
+        case ELDDemoWorldAnchorKind::Airdrop: Kind = TEXT("Airdrop"); break;
+        case ELDDemoWorldAnchorKind::BossWaypoint: Kind = TEXT("BossWaypoint"); break;
+        case ELDDemoWorldAnchorKind::PKSpawn: Kind = TEXT("PKSpawn"); break;
+        case ELDDemoWorldAnchorKind::PKThrow: Kind = TEXT("PKThrow"); break;
+        case ELDDemoWorldAnchorKind::PKSignup: Kind = TEXT("PKSignup"); break;
+        case ELDDemoWorldAnchorKind::RestSpawn: Kind = TEXT("RestSpawn"); break;
+        case ELDDemoWorldAnchorKind::RestService: Kind = TEXT("RestService"); break;
+        case ELDDemoWorldAnchorKind::TrainingDummy: Kind = TEXT("TrainingDummy"); break;
+        case ELDDemoWorldAnchorKind::FinalSpawn: Kind = TEXT("FinalSpawn"); break;
+        case ELDDemoWorldAnchorKind::FinalCapture: Kind = TEXT("FinalCapture"); break;
+        }
+        if (!Kind) { Error = TEXT("Cannot export an unknown saved layout anchor kind: ") + A.Id; return false; }
+        auto J = MakeShared<FJsonObject>(); J->SetStringField(TEXT("id"), A.Id); J->SetStringField(TEXT("kind"), Kind);
+        J->SetStringField(TEXT("surface_id"), A.SurfaceId); J->SetField(TEXT("position_cm"), Point(A.PositionCm));
         TArray<TSharedPtr<FJsonValue>> Members;
         for (const auto& M : A.Members)
         { auto V = MakeShared<FJsonObject>(); V->SetStringField(TEXT("id"), M.Id); V->SetField(TEXT("position_cm"), Point(M.PositionCm)); Members.Add(MakeShared<FJsonValueObject>(V)); }

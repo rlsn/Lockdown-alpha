@@ -72,6 +72,7 @@ def _spans(text):
 
 def patch_bytes(original, before, after):
     text = original.decode('utf-8')
+    newline = '\r\n' if '\r\n' in text else '\n'
     spans, edits = _spans(text), []
     def walk(a, b, path):
         if a == b:
@@ -82,6 +83,27 @@ def patch_bytes(original, before, after):
         elif type(a) is list and type(b) is list and len(a) == len(b):
             for index, (av, bv) in enumerate(zip(a, b)):
                 walk(av, bv, path + (index,))
+        elif type(a) is list and type(b) is list and len(b) > len(a) and all(
+            type(old) is dict and type(new) is dict and old.get('id') == new.get('id')
+            for old, new in zip(a, b)
+        ):
+            for index, (av, bv) in enumerate(zip(a, b)):
+                walk(av, bv, path + (index,))
+            start, end = spans[path]
+            close = end - 1
+            line_start = text.rfind(newline, start, close)
+            line_end = line_start + len(newline)
+            if line_start >= 0 and not text[line_end:close].strip():
+                insert_at = line_start
+                indent = text[line_end:close] + '    '
+            else:
+                insert_at = close
+                indent = ' '
+            additions = ''.join(
+                (',' + newline if index or a else newline) + indent + _json(row)
+                for index, row in enumerate(b[len(a):])
+            )
+            edits.append((insert_at, insert_at, additions))
         else:
             edits.append((*spans[path], _json(b)))
     walk(before, after, ())
@@ -128,16 +150,43 @@ def build_candidate(original, exported):
     old_ids = [row['id'] for row in geometry['blockers']]
     geometry['blockers'] = [blockers[key] for key in old_ids if key in blockers]
     geometry['blockers'] += [blockers[key] for key in sorted(set(blockers) - set(old_ids))]
-    anchors = _rows(export['anchors'], {'id', 'position_cm', 'members'}, 'anchors')
-    _require(set(anchors) == {row['id'] for row in after['anchors']}, 'layout point identities cannot change')
+    anchors = _rows(export['anchors'], {'id', 'kind', 'surface_id', 'position_cm', 'members'}, 'anchors')
+    source_anchors = {row['id'] for row in after['anchors']}
+    final_ids = [*(f'final_spawn_{slot}' for slot in range(6)), 'final_capture']
+    exported_ids = set(anchors)
+    new_ids = exported_ids - source_anchors
+    missing_ids = source_anchors - exported_ids
+    _require(not missing_ids, 'layout point identities cannot be removed')
+    _require(new_ids <= set(final_ids) and (not new_ids or new_ids == set(final_ids)),
+             'only the complete final-arena anchor set can be added')
     for row in after['anchors']:
         value = anchors[row['id']]
-        _require(set(value) == {'id', 'position_cm', 'members'}, 'anchor: missing fields')
+        _require(set(value) == {'id', 'kind', 'surface_id', 'position_cm', 'members'}, 'anchor: missing fields')
+        _require(value['kind'] == row['kind'] and value['surface_id'] == row['surface_id'],
+                 f"anchor: kind or surface changed for {row['id']}")
         row['position_cm'] = copy.deepcopy(value['position_cm'])
         if 'members' in row:
             update(row['members'], value['members'], ['position_cm'], 'camp homes')
         else:
             _require(value['members'] == [], 'only camps have home points')
+    if new_ids:
+        _require(after['schema_version'] == 3 and after['projection_revision'] == 3,
+                 'final-arena anchors can only be introduced by upgrading world schema 3')
+        _require([row['id'] for row in export['anchors'] if row['id'] in new_ids] == final_ids,
+                 'final-arena anchors must be exported in canonical order')
+        for identity in final_ids:
+            value = anchors[identity]
+            kind = 'FinalCapture' if identity == 'final_capture' else 'FinalSpawn'
+            _require(set(value) == {'id', 'kind', 'surface_id', 'position_cm', 'members'}
+                     and value['kind'] == kind and value['surface_id'] == after['geometry']['surfaces'][0]['id']
+                     and value['members'] == [],
+                     f'final-arena anchor has an invalid kind, surface, or member list: {identity}')
+            after['anchors'].append({
+                'id': identity, 'kind': kind, 'surface_id': value['surface_id'],
+                'position_cm': copy.deepcopy(value['position_cm']),
+            })
+        after['schema_version'] = DemoWorld.SCHEMA_VERSION
+        after['projection_revision'] = DemoWorld.PROJECTION_REVISION
     if after != before:
         after['layout_revision'] += 1
         after['geometry_revision'] += 1

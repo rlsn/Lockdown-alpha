@@ -2,9 +2,11 @@
 
 Not a native or play-balance test, and nothing here pins the current map layout.
 """
+from copy import deepcopy
 from decimal import Decimal
 from fractions import Fraction
 import json
+import math
 from pathlib import Path
 import shutil
 import tempfile
@@ -243,6 +245,20 @@ class ApprovedDemoData(unittest.TestCase):
         cls.geometry = world.Geometry(cls.world.world)
         cls.anchors = {row["id"]: row for row in cls.world.world["anchors"]}
 
+    def test_showdown_rejects_impossible_objective_and_life_clocks(self):
+        for key, value in (("SHOWDOWN.RespawnCutoffSec", 240000),
+                           ("SHOWDOWN.ClosureStartsSec", 240000),
+                           ("CAPTURE.GuardSec", 240000),
+                           ("SHOWDOWN.RespawnLimit", 3)):
+            with self.subTest(key=key):
+                data = json.loads(self.root_bundle.outputs[content.CONTENT_OUTPUT])
+                if key == "SHOWDOWN.RespawnLimit":
+                    data["parameters"][key] = value
+                else:
+                    data["parameters"][key]["ms"] = value
+                with self.assertRaisesRegex(content.ContentError, "InvalidTiming.*SHOWDOWN"):
+                    content.validate_numbers(data)
+
     def test_approval_and_complete_selected_directory(self):
         approval = self.data["identity"]["approval"]
         self.assertEqual(approval["status"], "approved")
@@ -261,8 +277,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 6, 6))
-        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
+                          self.data["identity"]["projection_revision"]), (2, 7, 7))
+        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
 
@@ -281,7 +297,7 @@ class ApprovedDemoData(unittest.TestCase):
             for suffix, value in zip(("Base", "PerLevel", "Min", "Max"), values):
                 expected[f"STAT.{stat}.{suffix}"] = (unit, value)
         for key, unit, value in (
-            ("STAT.BaseAttackSpeed", "attacks/s", ".90"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
+            ("STAT.BaseAttackSpeed", "attacks/s", ".75"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.30"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"),
             ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"),
@@ -289,9 +305,12 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
-            ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1050"),
+            ("UNIT.BasicAttackWindupSec", "ms", ".300"), ("VISION.RadiusCm", "cm", "1050"),
             ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
+            ("SHOWDOWN.UnlockDelaySec", "ms", "10"), ("SHOWDOWN.DurationSec", "ms", "240"),
+            ("SHOWDOWN.FirstRespawnSec", "ms", "18"), ("SHOWDOWN.SecondRespawnSec", "ms", "24"),
+            ("SHOWDOWN.RespawnCutoffSec", "ms", "150"), ("SHOWDOWN.ClosureStartsSec", "ms", "120"),
             # #198 match timeline: three 180 s field segments, rest phases and field respawn waits by T at death
             # (approved https://github.com/rlsn/Lockdown-alpha/issues/198#issuecomment-6752628806).
             ("MATCH.FieldSegmentSec", "ms", "180"),
@@ -312,7 +331,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("THROW.RangeCm", "cm", "4000"), ("THROW.SlowRatio", "ratio", ".2"), ("THROW.SlowSec", "ms", "1"),
             ("THROW.ExposeSec", "ms", "2"),
             ("LIFE.RespawnSec.Field1", "ms", "8"), ("LIFE.RespawnSec.Field2", "ms", "10"),
-            ("LIFE.RespawnSec.Field3", "ms", "12"), ("LIFE.RespawnSec.Final", "ms", "15"),
+            ("LIFE.RespawnSec.Field3", "ms", "12"),
             ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
@@ -353,6 +372,7 @@ class ApprovedDemoData(unittest.TestCase):
             expected[key] = (unit, value)
         for key, value in (
             ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("SHOWDOWN.RespawnLimit", 2),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
             ("CHARM.WaveCount", 7), ("CHARM.PerWave", 2),
@@ -456,6 +476,9 @@ class ApprovedDemoData(unittest.TestCase):
             # #198 B base components B01-B18.
             **{identity: frame[0] for identity, frame in COMPONENT_FRAMES.items()},
             **{identity: frame[0] for identity, frame in WORKSHOP_FRAMES.items()},
+            "final_landlord": "旗杆房东", "final_breach": "破门而入", "final_comeback": "现场翻盘",
+            "final_open_mic": "全城开麦", "final_bowling": "人肉保龄球", "final_forced_exit": "强制退场",
+            "final_traffic": "交通管制", "final_split": "一分为二",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
@@ -867,9 +890,30 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_world_identity_and_shared_values(self):
         self.assertEqual(self.world.world["map_id"], "demo_world")
-        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (3, 3))
+        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (4, 4))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 300)
+
+    def test_final_arena_anchor_ring_and_capture(self):
+        anchors = content.rows_by_id(self.world.world["anchors"], "world anchors")
+        self.assertEqual(sorted(identity for identity, row in anchors.items() if row["kind"] == "FinalSpawn"),
+                         [f"final_spawn_{slot}" for slot in range(6)])
+        self.assertEqual([identity for identity, row in anchors.items() if row["kind"] == "FinalCapture"],
+                         ["final_capture"])
+        centre = world.point(anchors["final_capture"]["position_cm"], "final_capture")
+        ring = [world.point(anchors[f"final_spawn_{slot}"]["position_cm"], f"final_spawn_{slot}")
+                for slot in range(6)]
+        radii = [math.hypot(float(point[0] - centre[0]), float(point[1] - centre[1])) for point in ring]
+        self.assertLessEqual(max(radii) - min(radii), 5)
+        angles = [math.degrees(math.atan2(float(point[1] - centre[1]), float(point[0] - centre[0])) % (2 * math.pi))
+                  for point in ring]
+        for index, angle in enumerate(angles):
+            self.assertAlmostEqual((angles[(index + 1) % len(angles)] - angle) % 360, 60, delta=1)
+
+        moved = json.loads(self.world.outputs[content.WORLD_OUTPUT])
+        next(row for row in moved["anchors"] if row["id"] == "final_spawn_0")["position_cm"]["x"]["numerator"] += 100
+        with self.assertRaises(content.ContentError):
+            world.validate_bindings(moved, self.data)
 
     def test_exact_placement_and_parameter_references(self):
         placement = self.world.world["placement"]

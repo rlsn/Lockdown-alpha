@@ -689,8 +689,7 @@ const FLDOpponentUnit* CircleTarget(const FContext& C)
     return RivalOwner ? RivalOwner : Current ? Current : Best;
 }
 
-// Siege (APP_SPEC 2.2): the visible rival graffiti owner within the acquire radius, wherever he stands; his death clears
-// the graffiti. Matched by the authorized ContenderId of a visible unit.
+// The visible rival graffiti owner within the acquire radius, matched only through authorized observations.
 const FLDOpponentUnit* OwnerTarget(const FContext& C)
 {
     const FGuid& Owner = C.Frame.Public.Owner;
@@ -1338,6 +1337,8 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
     const uint64 Print = LDOpponentPolicy::Fingerprint(ELDOpponentFailure::Build, Self);
     const LDProgression::FBuildContext Context = BuildContext(Frame);
     FString Error;
+    // Phase 9: a locked build takes no build command for the rest of the match.
+    if (Self.bBuildLocked) { return false; }
     if (bChooseOffer && Self.Offer.IsSet()
         && LDProgression::CommandGate(ELDBuildCommandKind::ActiveChoice, Context) == ELDGrowthReason::None)
     {
@@ -1546,6 +1547,30 @@ bool DecideBuild(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnap
             Out = FLDOpponentBuildIntent();
             Out.Kind = ELDOpponentBuildKind::AllocatePoints;
             Out.PointCounts = MoveTemp(Counts);
+            Out.Key = Key;
+            return true;
+        }
+    }
+    // Last: selecting the independent rule locks further ordinary build edits.
+    if (Self.FinalModOfferId.IsValid() && !Self.Offer.IsSet() && !Self.FinalModOptions.IsEmpty()
+        && LDProgression::CommandGate(ELDBuildCommandKind::FinalMod, Context) == ELDGrowthReason::None)
+    {
+        FLDOpponentRetryKey Key = BuildKey(ELDOpponentBuildKind::FinalMod);
+        Key.Target = Self.FinalModOfferId;
+        const FString* Option = Self.FinalModOptions.FindByPredicate([&Self](const FString& Id)
+        {
+            return Self.FinalModSources.ContainsByPredicate([&Id](const FLDFinalModSourceView& Source){return Source.Option==FName(*Id);});
+        });
+        if (Option && State.Failures.CanAttempt(Key, Print, Now))
+        {
+            const auto* Source=Self.FinalModSources.FindByPredicate([Option](const FLDFinalModSourceView& Candidate){return Candidate.Option==FName(**Option);});
+            if(!Source){Error=TEXT("The final choice lost its legal source.");return false;}
+            Out = FLDOpponentBuildIntent();
+            Out.Kind = ELDOpponentBuildKind::FinalMod;
+            Out.OfferId = Self.FinalModOfferId;
+            Out.Option = *Option;
+            Out.TargetKind=Source->TargetKind;
+            Out.TargetId=Source->TargetId.IsNone()?FString():Source->TargetId.ToString();
             Out.Key = Key;
             return true;
         }
@@ -2665,14 +2690,23 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         if (bActionLive) { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
     };
 
+    if (Frame.Public.Timeline.Stage == ELDMatchStage::FinalField)
+    {
+        FLDOpponentBodyIntent Intent;
+        EndVisit(State, false);
+        State.bRecovering = false;
+        if (CircleBody(C, true, Intent)) { Body(Intent); }
+        else { Body(Halt(C)); }
+        return Finish(EMode::Contest, EReason::ContestCapture);
+    }
+
     // A contest only pauses the spray holder's progress and leaving, dying or a hard control clears it, so a paused holder
     // keeps holding and fights inside the zone like a sole sprayer; only the stop-loss line below lets it go.
     const bool bHolder = C.bCaptureOpen && (Frame.Public.Circle == ELDOpponentCircle::Solo || Frame.Public.Circle == ELDOpponentCircle::Contested)
         && Frame.Public.Occupier == Self.ContenderId;
     const bool bHoldingSolo = bHolder && Frame.Public.Circle == ELDOpponentCircle::Solo;
     const bool bHoldingPaused = bHolder && Frame.Public.Circle == ELDOpponentCircle::Contested;
-    // The graffiti owner guards the zone (standing in it blocks every sprayer) but his death clears the graffiti, so he
-    // never fights below the stop-loss line. Every other body answers a rival graffiti: besiege its owner or repaint.
+    // The owner guards the zone; rivals can pause him or repaint.
     const bool bOwner = C.bCaptureOpen && Frame.Public.Owner.IsValid() && Frame.Public.Owner == Self.ContenderId;
     const bool bRivalGraffiti = C.bCaptureOpen && Frame.Public.Owner.IsValid() && !bOwner;
     bool bUrgent = false;
@@ -2705,9 +2739,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         State.Failures.RecordFailure(CaptureKey, C.Print(ELDOpponentFailure::Engagement), C.Now, C.AI);
     }
     const bool bMayContest = C.CanAttempt(CaptureKey);
-    // 2026-11-07: the guard runs only while its owner stands alone in the zone; an empty zone pauses it, a challenger
-    // beside him freezes it and his walking out under that challenger resets it to zero. So the owner goes back to the
-    // zone and stays in it, recovering too, until the stop-loss line, where his death would clear the graffiti.
+    // Only the owner alone in the zone advances the guard.
     const bool bOwnerStays = bOwner && !bStopLoss;
     FLDOpponentBodyIntent Intent;
     if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || bOwnerStays

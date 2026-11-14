@@ -80,6 +80,13 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             if (!CheckGrown(Effect, Component.Id)) { return false; }
         }
     }
+    for(const auto& Card:D.FinalMods)
+    {
+        FLDDemoEffectDefinition Damage;
+        Damage.Opcode=uint8(ELDDemoEffectOp::Damage);
+        Damage.BaseP2=Card.BaseP2;Damage.ADRatioBp=Card.ADRatioBp;Damage.APRatioBp=Card.APRatioBp;
+        if(!CheckGrown(Damage,Card.Id)){return false;}
+    }
     int64 BurnBase = 0, BurnAP = 0, BurnTotal = 0;
     if (!Grow(P.BurnPerSecP2, BurnBase, TEXT("COMBAT.BurnPerSec")) || !N.Mul64(P.AP.MaxP2, P.BurnAPRatioBp, BurnAP, TEXT("COMBAT.BurnAPRatioPerSec"))
         || !N.Add64(BurnBase, BurnAP / 10000, BurnTotal, TEXT("COMBAT.BurnPerSec")))
@@ -233,6 +240,24 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     for (const auto& Ability : D.Abilities)
     {
         OpeningActives += Ability.Opening ? 1 : 0;
+    }
+    for(const auto& Card:D.FinalMods)
+    {
+        int64 Sum=0;
+        if(!N.Add64(Card.DelayMs,Card.DurationMs,Sum,Card.Id)
+            ||!N.Add64(Card.WindowMs,Card.IntervalMs,Sum,Card.Id)){return false;}
+        if(Card.CooldownCostMs>0)
+        {
+            if(!N.Add64(D.Character.Dash.Values.CooldownMs,Card.CooldownCostMs,Sum,Card.Id)){return false;}
+            for(const auto& Ability:D.Abilities)
+            {
+                if(Card.GetNativeId()==ELDDemoFinalModId::FinalTraffic
+                    &&Ability.Values.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect){return Effect.GetOp()==ELDDemoEffectOp::Dash;})
+                    &&!N.Add64(Ability.Values.CooldownMs,Card.CooldownCostMs,Sum,Card.Id)){return false;}
+            }
+        }
+        if(Card.PulseIntervalMs>0&&!Check.Require(Card.DurationMs>0
+            &&(Card.DurationMs-1)/Card.PulseIntervalMs+1<=MAX_int32,Card.Id,TEXT("final pulse count exceeds its runtime domain"))){return false;}
     }
     if (!Check.Require(OpeningActives >= 3, TEXT("abilities"),
         TEXT("the opening opportunity needs three distinct actives in the opening pool")))

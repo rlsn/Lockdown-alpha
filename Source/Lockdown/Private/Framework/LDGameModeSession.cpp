@@ -7,6 +7,16 @@
 #include "UI/LDControlSettings.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/GameSession.h"
+#include "Engine/NetDriver.h"
+#include "Combat/LDCombatDirector.h"
+#include "Development/LDDevelopmentDirector.h"
+#include "Development/LDGrowthDirector.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "Character/LDCharacter.h"
+#include "Vision/LDVisionDirector.h"
+#include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
@@ -17,7 +27,7 @@ namespace
         case ELDSessionReject::NotOwner: return TEXT("这个连接不是房间成员。");
         case ELDSessionReject::NotHost: return TEXT("只有房主可以调整 AI 对手、开始本局或带房间返回 Lobby。");
         case ELDSessionReject::WrongPhase: return TEXT("当前阶段不能执行这个房间命令。");
-        case ELDSessionReject::RoomFull: return TEXT("房间已有 3 名真人（含房主）。");
+        case ELDSessionReject::RoomFull: return TEXT("房间的 6 个参赛名额已满。");
         case ELDSessionReject::NotAllReady: return TEXT("所有在线真人（含房主）都准备后才能开始对局。");
         case ELDSessionReject::StaleRoster: return TEXT("房间名单已变化，请确认后重新准备。");
         case ELDSessionReject::StaleMatch: return TEXT("这个请求已不属于当前对局。");
@@ -74,7 +84,7 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
         return false;
     }
     if (Contenders.Contains(Controller)) { return true; }
-    if (Contenders.Num() >= 3)
+    if (Contenders.Num() + LobbyAISlots.Num() >= LDMatchLifecycle::MaxContenders)
     {
         Reason = LDDemoEntry::MakeJoinRefusal(LDDemoEntry::JoinRefusal::RoomFull, *RejectionText(ELDSessionReject::RoomFull));
         return false;
@@ -113,7 +123,144 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     RosterOrder.Add(Record.Session);
     Lives.Add(Record.Session);
     Contenders.Add(Controller, MoveTemp(Record));
+    FLDContenderRecord& Added=Contenders.FindChecked(Controller);
+    Added.ReconnectTicket=FGuid::NewGuid();
+    Controller->ClientReconnectTicket(Added.ReconnectTicket);
     return true;
+}
+
+int32 ALDGameMode::GetNumPlayers()
+{
+    int32 Count = Super::GetNumPlayers();
+    // A retained body still occupies its contender slot, not another connection in the engine's login capacity.
+    for (auto It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        const auto* Player = Cast<ALDPlayerController>(It->Get());
+        if (Player && Player->bParkedForReconnect && Player->PlayerState && !MustSpectate(It->Get())) { --Count; }
+    }
+    return Count;
+}
+
+bool ALDGameMode::CanParkDisconnectedMember(ALDPlayerController& Controller) const
+{
+    const FLDContenderRecord* Record=Contenders.Find(&Controller);
+    return IsDemoRoom()&&!GetWorld()->bIsTearingDown&&Record&&Record->Kind==ELDContenderKind::Human
+        &&!Record->bLeft&&!Record->bDisconnected&&Record->ReconnectTicket.IsValid()
+        &&!Controller.bExplicitRoomLeave&&LobbyHost!=&Controller
+        &&(IsGameplayWriteOpen(MatchContext)||MatchPhase==ELDMatchPhase::Results);
+}
+
+bool ALDGameMode::ParkDisconnectedMember(ALDPlayerController& Controller,FString& Error)
+{
+    if(!CanParkDisconnectedMember(Controller))
+    {Error=TEXT("This connection has no retainable match participant.");return false;}
+    FLDContenderRecord& Existing=Contenders.FindChecked(&Controller);
+    const FGuid Id=Existing.Session;
+    const FLDLifeRecord* Life=Lives.Find(Id);
+    APawn* Pawn=Life?Life->Actor.Get():nullptr;
+    auto* Parked=GetWorld()->SpawnActorDeferred<ALDPlayerController>(ALDPlayerController::StaticClass(),FTransform::Identity,
+        nullptr,nullptr,ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if(!Parked){Error=TEXT("Could not retain the disconnected participant's controller.");return false;}
+    Parked->bParkedForReconnect=true;
+    Parked->OwnerState=Existing.State;
+    Controller.Navigation->TransferReconnectLedgerTo(*Parked->Navigation);
+    if(Combat&&Life&&Life->Phase==ELDLifePhase::Alive)
+    {
+        FLDCombatCaller Caller;
+        uint64 Through=0;
+        if(!Combat->ResolveControllerCaller(Controller,Caller,Error)||!Combat->ReadDirectRequestCursor(Id,Through,Error))
+        {Parked->Destroy();return false;}
+        if(Through)
+        {
+            FLDCombatCancelRequest Cancel;
+            Cancel.Generation=MatchContext.Generation;Cancel.Life=Life->Life;Cancel.ThroughDirectSequence=Through;
+            const auto Receipt=Combat->CancelAction(Caller,Cancel);
+            if(Receipt.Phase==ELDCombatPhase::Rejected)
+            {Error=TEXT("Disconnected participant's outstanding combat requests could not be cancelled.");Parked->Destroy();return false;}
+        }
+    }
+    FLDContenderRecord Saved=MoveTemp(Existing);
+    Saved.bDisconnected=true;
+    Controller.UnPossess();
+    Contenders.Remove(&Controller);
+    Contenders.Add(Parked,MoveTemp(Saved));
+    UGameplayStatics::FinishSpawningActor(Parked,FTransform::Identity);
+    if(Pawn){Parked->Possess(Pawn);}
+    if(Vision){Vision->UnregisterObserver(Id);}
+    SyncOwner(Parked);
+    PublishLobby();
+    UE_LOG(LogLDMatch,Display,TEXT("LD_MEMBER_DISCONNECTED contender=%s generation=%u life=%u"),*LDLog::Id(Id),MatchContext.Generation,Life?Life->Life:0);
+    Error.Reset();return true;
+}
+
+bool ALDGameMode::ResumeRoomMember(ALDPlayerController& Controller,const FGuid& Ticket,FString& Error)
+{
+    const auto Reject=[this,&Controller,&Error](const TCHAR* Reason)
+    {
+        Error=Reason;
+        if(FTimerHandle* Handle=PendingReconnects.Find(&Controller)){GetWorldTimerManager().ClearTimer(*Handle);}
+        PendingReconnects.Remove(&Controller);
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_RECONNECT_REJECTED %s"),*Error);
+        if(!GameSession||!GameSession->KickPlayer(&Controller,FText::FromString(Error))){Controller.Destroy();}
+        return false;
+    };
+    if(!PendingReconnects.Contains(&Controller)||!Ticket.IsValid())
+    {return Reject(TEXT("无法恢复：连接没有有效的本局恢复凭据。"));}
+    ALDPlayerController* Previous=nullptr;
+    for(auto& Pair:Contenders)
+    {
+        if(Pair.Value.bDisconnected&&!Pair.Value.bLeft&&Pair.Value.ReconnectTicket==Ticket)
+        {Previous=Pair.Key.Get();break;}
+    }
+    if(!Previous||!Previous->bParkedForReconnect||!IsMemberPresent(Contenders.FindChecked(Previous).Session))
+    {return Reject(TEXT("无法恢复：本局角色已离开，或恢复凭据已失效。"));}
+    if(!IsGameplayWriteOpen(MatchContext)&&MatchPhase!=ELDMatchPhase::Results)
+    {return Reject(TEXT("无法恢复：房间已结束当前对局。"));}
+    FLDContenderRecord& Before=Contenders.FindChecked(Previous);
+    const FGuid Id=Before.Session;
+    uint64 BuildNext=0,BuildPending=0,DevNext=0,DevPending=0,DirectThrough=0;
+    if(!Development||!Growth||!Combat||!Development->ReadBuildRequestCursor(Id,BuildNext,BuildPending,Error)
+        ||!Growth->ReadDevRequestCursor(Id,DevNext,DevPending,Error)||!Combat->ReadDirectRequestCursor(Id,DirectThrough,Error))
+    {
+        const FString Failure=Error.IsEmpty()?TEXT("Reconnect has no current authority domains."):Error;
+        FaultAuthority(Failure);return Reject(TEXT("无法恢复：权威请求流不可用。"));
+    }
+    const uint64 SessionThrough=Before.SessionRequests.ProcessedThrough();
+    if(SessionThrough==MAX_uint64){return Reject(TEXT("无法恢复：房间命令编号已用尽。"));}
+    Previous->Navigation->TransferReconnectLedgerTo(*Controller.Navigation);
+    const FLDMoveIdentity Move=Controller.Navigation->ReconnectOrderWatermark();
+    APawn* Pawn=Previous->GetPawn();
+    Previous->UnPossess();
+    FLDContenderRecord Saved=MoveTemp(Before);
+    Saved.bDisconnected=false;Saved.ReconnectTicket=FGuid::NewGuid();
+    Contenders.Remove(Previous);
+    Contenders.Add(&Controller,MoveTemp(Saved));
+    ChangeName(&Controller,Contenders.FindChecked(&Controller).Name,false);
+    if(Pawn){Controller.Possess(Pawn);}
+    if(FTimerHandle* Handle=PendingReconnects.Find(&Controller)){GetWorldTimerManager().ClearTimer(*Handle);}
+    PendingReconnects.Remove(&Controller);
+    if(Vision&&!Vision->RegisterObserver(Id,&Controller,Error))
+    {FaultAuthority(Error);Previous->Destroy();return Reject(TEXT("无法恢复：本局观察通道未能重建。"));}
+    Controller.ClientRestoreRequestCursors(MatchContext.Generation,BuildNext,BuildPending,DevNext,DevPending,
+        DirectThrough,SessionThrough,Move.Order,Move.Epoch);
+    Controller.ClientReconnectTicket(Contenders.FindChecked(&Controller).ReconnectTicket);
+    SyncOwner(&Controller);
+    Previous->Destroy();
+    PublishLobby();
+    if(MatchPhase==ELDMatchPhase::Results){PublishBuildBlueprints();}
+    UE_LOG(LogLDMatch,Display,TEXT("LD_MEMBER_RECONNECTED contender=%s generation=%u life=%u build_next=%llu direct_through=%llu"),
+        *LDLog::Id(Id),MatchContext.Generation,Contenders.FindChecked(&Controller).State.Life,BuildNext,DirectThrough);
+    Error.Reset();return true;
+}
+
+void ALDGameMode::LeaveRoomMember(ALDPlayerController& Controller)
+{
+    const FLDContenderRecord* Record=Contenders.Find(&Controller);
+    if(!Record||Record->Kind!=ELDContenderKind::Human)
+    {Controller.ClientWasKicked(FText::FromString(TEXT("这个连接不是房间成员。")));return;}
+    Controller.bExplicitRoomLeave=true;
+    if(LobbyHost==&Controller){CloseRoomForHostDeparture(&Controller);}
+    Controller.ClientDemoRoomClosed(MatchContext.Generation,TEXT("已离开房间。"));
 }
 
 bool ALDGameMode::CheckDemoStartInputs(FString& Reason) const
@@ -237,8 +384,11 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         }
         else if (Request.Command == ELDSessionCommand::SetAICount)
         {
-            Changed = Request.AICount != LobbyAISlots.Num();
-            if (!Changed || AdvanceRoster(Receipt.Detail))
+            if (Contenders.Num() + Request.AICount > LDMatchLifecycle::MaxContenders)
+            {
+                Receipt.Reason = ELDSessionReject::RoomFull;
+            }
+            else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail))
             {
                 while (LobbyAISlots.Num() > Request.AICount) { LobbyAISlots.Pop(); }
                 while (LobbyAISlots.Num() < Request.AICount) { LobbyAISlots.Add(FGuid::NewGuid()); }
@@ -250,7 +400,8 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         }
         else if (Request.Command == ELDSessionCommand::StartMatch)
         {
-            bool AllReady = !Contenders.IsEmpty() && Contenders.Num() <= 3;
+            bool AllReady = !Contenders.IsEmpty()
+                && Contenders.Num() + LobbyAISlots.Num() <= LDMatchLifecycle::MaxContenders;
             for (const auto& Pair : Contenders)
             {
                 AllReady &= Pair.Value.State.bReady && Pair.Value.ReadyRosterRevision == RosterRevision;

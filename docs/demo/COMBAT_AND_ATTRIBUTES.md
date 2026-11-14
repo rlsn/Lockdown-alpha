@@ -668,8 +668,9 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 **动作提示。** `ELDObservedActionCue` 为 None/Attack/Cast/Hit。`LDCombatCues::Select` 从身体生命的
 `FLDCombatCueFacts`（正在前摇的动作、最近释放的动作、位移结束、最近受击）选出一个，优先级 Cast > Hit > Attack，
 同类取最近开始者。Attack/Cast 从动作开始持续到释放后 `ReleaseHoldMs`（位移持续到结束），受击持续 `HitHoldMs`；
-这两个表现常量在 `LDCombatCues.h`，保证 100 ms 观察节拍能采到每个窗口。服务器经 `AppendObservedAction` 写入观察事实，
-致死后为 None；拥有者用同一规则从本人视图 `Cues` 选择自身提示。
+这两个表现常量在 `LDCombatCues.h`，保证 100 ms 观察节拍能采到每个窗口。观察事实同时携带提示龄与 Attack/Cast 的
+服务器释放相对延迟；`LDBodyMotion` 用该延迟对齐动作冲击帧与亮点，表现不会改动权威命中时刻。致死后提示为 None；
+拥有者用同一规则从本人视图 `Cues` 选择自身提示。
 
 **施法名称。** `FLDObservedPublicFacts`/`FLDObservedUnitView` 的 `ActionAbility` 只在
 `ActionCue==Cast` 时携带该次施法的技能原生 ID（Q/W/E 技能，含位移），其余时刻为零；
@@ -768,8 +769,8 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 | `DemoCombatSources.CommittedBasicRelease` | 已起手普攻不查射程：目标走出射程仍命中；目标失视野、被墙挡、死亡、离局、换命或攻击者受控则放弃 |
 | `DemoCombatStatus.Roots/Shield/Regen/Cooldown` | Root 实例与净化、盾替换政策、回复积分、冷却期限 |
 | `DemoOrders.AttackMoveCandidate/BookIsolation/ChasePress` | 攻击移动候选、订单簿隔离、普攻追击不发呆（到点出手即转追、射程内目标走开即贴近） |
-| `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、阴阳怪气弹体、观察白名单 |
-| `DemoControlFeel.PreInput`；`LocalSettingsQuickCast` | 预输入判定；快速施法本地设置 |
+| `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、释放延迟、阴阳怪气弹体、观察白名单 |
+| `DemoControlFeel.PreInput`；`LocalSettingsQuickCast`；`LocalSettingsCombatFeedback` | 预输入判定；快速施法、战斗特效与镜头震动本地设置 |
 | `DemoCore.BodyIdentity/CheckedTime/ClockProjection/ScopedAuthority` | 身体身份、受检时间、时钟投影、写许可作用域 |
 | `DemoCamp.Retaliation/ReturnReset/Lifecycle/Roster/ObservedFacts`；`CampDecision` | 营地反击、到家重置与生命周期账目 |
 | `DemoSpawn.UnbiasedSample` | 十二点随机复活取样 |

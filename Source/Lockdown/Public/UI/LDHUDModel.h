@@ -127,7 +127,7 @@ namespace LDHUD
         FString Note;
     };
     // Death banner (APP_SPEC 7.1): waiting time only; build and property are kept, and the display never revives.
-    LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs);
+    LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated=false);
     LOCKDOWN_API FString PhaseLine(ELDMatchPhase Phase);
     // #198: the centre-screen return countdown of a rest: whole seconds rounded up ("5" .. "1") during the Return step until
     // its end (StepEndsAtMs; held at "1" until the authority enters the field), then LDTerms::CountdownGo for GoShowMs from
@@ -155,6 +155,8 @@ namespace LDHUD
         bool bSignedUp=false;
     };
     LOCKDOWN_API FTimelineView TimelineBanner(const FLDPublicMatchView& Public,const FGuid& Self,bool bClock,int64 NowMs);
+    LOCKDOWN_API bool TimelineDetailVisible(const FLDPublicMatchView& Public,const FTimelineView& Timeline,bool bChoicesRestOpen);
+    LOCKDOWN_API FString RestReadyText(ELDRestReadyResult Result);
     // The player-facing result of an own training reset (ALDPlayerController::OnTrainingReset); every refusal says why.
     LOCKDOWN_API FString TrainingResetText(ELDTrainingResetResult Result);
     // ---- #198 session D: the PK of a rest and its spectators (public FLDPublicMatchView::PK, approved issue #198 comment
@@ -430,6 +432,13 @@ namespace LDHUD
         bool bKnown=false;
     };
     LOCKDOWN_API FActiveCardView ActiveCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    struct FFinalModCardView
+    {
+        FString Name,IconId,Glyph;
+        FActionDetailView Detail;
+        bool bKnown=false;
+    };
+    LOCKDOWN_API FFinalModCardView FinalModCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
     // One of the point-bought stats (#198) with the points the owner allocated to it and its per-point text.
     struct FStatRowView
     {
@@ -486,6 +495,9 @@ namespace LDHUD
         FString RespecBlocked;
         bool bCanReplace=false;
         FString ReplaceBlocked;
+        // Phase 9: the final mod three-choice.
+        bool bCanFinalMod=false;
+        FString FinalModBlocked;
         bool bCanForget=false;
         FString ForgetBlocked;
         // #198 G: an elite camp's pending component choice (like the active choice: field or rest, alive or dead) and the
@@ -503,7 +515,7 @@ namespace LDHUD
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked=false);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
@@ -667,7 +679,9 @@ namespace LDHUD
         bool bOpeningBase=false;
         // #198 G: pending elite camp component choices.
         int32 ComponentChoices=0;
-        bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0;}
+        // Phase 9: an untaken final mod three-choice.
+        bool bFinalMod=false;
+        bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0||bFinalMod;}
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // The 构筑 tray shows its component rows (the opening base pick and the elite choices) as icon-only tiles instead of

@@ -177,6 +177,9 @@ void ALDCombatDirector::EndMatchActions()
     Channels.Reset();
     GroundEffects.Reset();
     ContactMotion.Reset();
+    FinalMotion.Reset();
+    FinalTraffic.Reset();
+    FinalControlExits.Reset();
     for (auto& Pair : Records)
     {
         auto& Record=Pair.Value;
@@ -1060,6 +1063,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // #198 F M08/M09 on D: its distance and issued cooldown scale like a learned dash's (Terms).
     if (bInnate)
     {
+        if (!FinalCooldownCost(*Record,Source,Innate.CooldownMs,Error)) { return false; }
         Innate.DistanceCm.Numerator*=Terms.DashScaleBp;
         Innate.DistanceCm.Denominator*=10000;
         Innate.CooldownMs=Innate.CooldownMs/10000*Terms.CooldownScaleBp+Innate.CooldownMs%10000*Terms.CooldownScaleBp/10000;
@@ -1392,7 +1396,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const double Reach=LDCA::ToDouble(TargetDef.RangeCm);
         ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
     }
-    if (!ReleaseMechanics(Body,Source,Terms,ReleaseFoot,ZonePoint,EffectId,Action.Token,IdleAmpBp,CastLedger,Error)) { return false; }
+    if (!ReleaseMechanics(Body,Source,Terms,ReleaseFoot,ZonePoint,Action.Direction,EffectId,Action.Token,IdleAmpBp,CastLedger,Error)) { return false; }
     // B17: every damage pulse of this release's zone carries its locked amplification.
     for (FLDCombatZone& Zone : Zones)
     {

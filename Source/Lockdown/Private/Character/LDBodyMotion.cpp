@@ -1,15 +1,27 @@
 #include "Character/LDBodyMotion.h"
 
+FRotator LDBodyMotion::KnockbackLean(const FVector& LocalVelocity)
+{
+    if (LocalVelocity.ContainsNaN()) { return FRotator::ZeroRotator; }
+    return FRotator(FMath::Clamp(LocalVelocity.X / 300.0, -1.0, 1.0) * 14.0, 0,
+        -FMath::Clamp(LocalVelocity.Y / 300.0, -1.0, 1.0) * 14.0);
+}
+
 float LDBodyMotion::ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds)
 {
     return (Action==EAction::Attack || Action==EAction::Cast) && HitAgeSeconds>=0.f && HitAgeSeconds<HitPoseHoldSeconds
         ? FMath::Max(0.f,AgeSeconds-HitAgeSeconds) : AgeSeconds;
 }
 
-LDBodyMotion::FChannels LDBodyMotion::WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds)
+LDBodyMotion::FChannels LDBodyMotion::WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds, float ImpactSeconds)
 {
-    FChannels Result=Evaluate(Action,AgeSeconds);
-    if (Action!=EAction::Hit)
+    FChannels Result=Evaluate(Action,AgeSeconds,ImpactSeconds);
+    if (Action==EAction::Hit)
+    {
+        Result.HitBurst=Result.Burst;
+        Result.Burst=0.f;
+    }
+    else
     {
         const FChannels Hit=Evaluate(EAction::Hit,HitAgeSeconds);
         Result.Flash=FMath::Max(Result.Flash,Hit.Flash);
@@ -35,23 +47,26 @@ namespace LDBodyMotionDetail
     }
 }
 
-LDBodyMotion::FChannels LDBodyMotion::Evaluate(EAction Action, float T)
+LDBodyMotion::FChannels LDBodyMotion::Evaluate(EAction Action, float T, float ImpactSeconds)
 {
     using namespace LDBodyMotionDetail;
     FChannels C;
     if (!FMath::IsFinite(T) || T < 0.f) { return C; }
+    const float Impact = FMath::IsFinite(ImpactSeconds) ? FMath::Max(0.f, ImpactSeconds) : StrikeAt;
+    const float TimingScale = Impact > 0.f ? Impact / StrikeAt : 1.f;
     switch (Action)
     {
     case EAction::Attack:
         // The body steps into the blow and back while the clip swings; a spark flashes at the strike.
-        C.Lunge = 14.f * Pulse(T, .08f, StrikeAt + .02f, .45f);
-        C.Burst = Pulse(T, StrikeAt - .01f, StrikeAt + .03f, StrikeAt + .14f);
+        C.Lunge = 14.f * Pulse(T, .08f * TimingScale, Impact + .02f * TimingScale, .45f * TimingScale);
+        C.Burst = Pulse(T, Impact - .04f * TimingScale, Impact, Impact + .14f * TimingScale);
         break;
     case EAction::Cast:
         // An orb grows at the hand over the windup and bursts at the release.
-        C.Charge = Smooth(T / .15f) * (1.f - Smooth((T - .18f) / .05f));
-        C.Lunge = 6.f * Pulse(T, .15f, StrikeAt + .02f, .5f);
-        C.Burst = Pulse(T, .17f, .21f, .34f);
+        C.Charge = Smooth(T / FMath::Max(.01f, Impact * .75f))
+            * (1.f - Smooth((T - Impact * .9f) / FMath::Max(.01f, Impact * .25f)));
+        C.Lunge = 6.f * Pulse(T, Impact * .75f, Impact + .02f * TimingScale, Impact + .3f * TimingScale);
+        C.Burst = Pulse(T, Impact - .03f * TimingScale, Impact, Impact + .14f * TimingScale);
         break;
     case EAction::Hit:
         // A short white-to-red flash and an impact spark, knocked back and recovering within the 300 ms cue.
@@ -65,12 +80,16 @@ LDBodyMotion::FChannels LDBodyMotion::Evaluate(EAction Action, float T)
     return C;
 }
 
-float LDBodyMotion::ClipTime(EAction Action, float T, float ImpactSeconds, float AuthoredRate)
+float LDBodyMotion::ClipTime(EAction Action, float T, float ClipImpactSeconds, float ActionImpactSeconds, float AuthoredRate)
 {
     if (Action == EAction::None || !FMath::IsFinite(T) || T <= 0.f) { return 0.f; }
-    const bool bTimed = (Action == EAction::Attack || Action == EAction::Cast) && FMath::IsFinite(ImpactSeconds) && ImpactSeconds > 0.f;
-    const float Rate = bTimed ? ImpactSeconds / StrikeAt : FMath::IsFinite(AuthoredRate) ? FMath::Max(AuthoredRate, 0.f) : 0.f;
-    return T * Rate;
+    const bool bTimed = (Action == EAction::Attack || Action == EAction::Cast)
+        && FMath::IsFinite(ClipImpactSeconds) && ClipImpactSeconds > 0.f;
+    if (bTimed && FMath::IsFinite(ActionImpactSeconds))
+    {
+        return ActionImpactSeconds <= 0.f ? ClipImpactSeconds : T * ClipImpactSeconds / ActionImpactSeconds;
+    }
+    return T * (FMath::IsFinite(AuthoredRate) ? FMath::Max(AuthoredRate, 0.f) : 0.f);
 }
 
 bool LDBodyMotion::IsNewInstance(EAction Previous, double PreviousOnset, EAction Next, double NextOnset, bool bAgeKnown)

@@ -31,6 +31,10 @@
     "active_brace": 129,
     "active_dirty_puddle": 130
   },
+  "final_mods": {
+    "final_bowling": 2, "final_forced_exit": 5, "final_traffic": 11, "final_split": 15,
+    "final_landlord": 21, "final_breach": 22, "final_comeback": 23, "final_open_mic": 24
+  },
   "stats": {
     "stat_physique": 27,
     "stat_thick_skin": 28,

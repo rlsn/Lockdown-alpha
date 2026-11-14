@@ -12,6 +12,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDControlSettings.h"
 #include "Framework/LDDemoEntry.h"
 #include "Combat/LDCombatCues.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -134,12 +135,10 @@ void ALDCharacter::Tick(float Delta)
     int64 NowMs=0;
     LDCombatCues::FCue Selected;
     TArray<FLDObservedStatus> Statuses;
-    if (PC->ReadDemoAuthorityTimeMs(NowMs) && View.bHasBody && View.Generation==PC->OwnerState.Match
-        && View.Life==PC->OwnerState.Life)
+    const bool bCurrentView=PresentationOwnerView(View,PC->OwnerState,PC->ReadDemoAuthorityTimeMs(NowMs));
+    if (bCurrentView)
     {
         Selected=LDCombatCues::Select(View.Cues,NowMs);
-        if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
-        { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f); }
         for (const FLDCombatStatusView& Status : View.Statuses)
         {
             if (!Status.bIsPassive && (Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs))
@@ -149,11 +148,18 @@ void ALDCharacter::Tick(float Delta)
         { Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection),1,PC->OwnerState.ProtectedUntilMs}); }
     }
     const bool bCue=Selected.Cue!=ELDObservedActionCue::None;
-    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f);
+    const int64 ImpactAtMs=Selected.Cue==ELDObservedActionCue::Hit ? 0
+        : View.Cues.bActing && Selected.AtMs==View.Cues.ActingStartedAtMs ? View.Cues.ActingReleaseAtMs
+        : Selected.AtMs==View.Cues.ReleasedStartedAtMs ? View.Cues.ReleasedAtMs : 0;
+    Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f,
+        bCue && Selected.Cue!=ELDObservedActionCue::Hit ? float(FMath::Max<int64>(0,ImpactAtMs-Selected.AtMs))/1000.f : -1.f,
+        Selected.HitLook,PresentationKnockback(Statuses));
+    if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
+    { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f,
+        static_cast<ELDObservedHitLook>(View.Cues.LastHitLook),View.Cues.LastHitFlags); }
     Body->Animate(GetVelocity(),Delta);
     // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
-    if (View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life
-        && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs
+    if (bCurrentView && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs
         && NowMs-View.Cues.LastHitAtMs<160 && View.Cues.LastHitAtMs!=ShakeHitAtMs)
     {
         ShakeHitAtMs=View.Cues.LastHitAtMs;
@@ -161,8 +167,14 @@ void ALDCharacter::Tick(float Delta)
     }
     ShakeAge+=Delta;
     constexpr float ShakeSeconds=.16f, ShakeCm=4.f;
-    const float Amplitude=ShakeAge<ShakeSeconds ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
+    const float Amplitude=PC->Controls && PC->Controls->bCameraShake && ShakeAge<ShakeSeconds
+        ? ShakeCm*(1.f-ShakeAge/ShakeSeconds) : 0.f;
     Camera->SetRelativeLocation(FVector(0,Amplitude*FMath::Sin(190.f*ShakeAge),.7f*Amplitude*FMath::Sin(150.f*ShakeAge+1.f)));
+}
+
+bool ALDCharacter::PresentationOwnerView(const FLDCombatOwnerView& View, const FLDOwnerState& Owner, bool bHasClock)
+{
+    return bHasClock && View.bHasBody && View.Generation==Owner.Match && View.Life==Owner.Life;
 }
 
 void ALDCharacter::EndPlay(const EEndPlayReason::Type Reason)
@@ -192,6 +204,12 @@ uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDOb
         }
     }
     return Code;
+}
+
+bool ALDCharacter::PresentationKnockback(const TArray<FLDObservedStatus>& Statuses)
+{
+    return Statuses.ContainsByPredicate([](const FLDObservedStatus& Status)
+        { return Status.StatusId == uint8(ELDDemoStatusId::Knockback); });
 }
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }

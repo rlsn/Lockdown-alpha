@@ -206,11 +206,17 @@ FString LDHUD::LifeStatus(const FLDOwnerState& Own,bool bClock,int64 NowMs)
     default: return TEXT("生命状态未知");
     }
 }
-LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs)
+LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated)
 {
     FDeathView View;
     if(Own.LifePhase!=ELDLifePhase::Dead){return View;}
     View.bVisible=true;View.Title=LDTerms::DeathTitle;
+    if(bFinalEliminated)
+    {
+        View.Countdown=TEXT("终局已出局");
+        View.Note=TEXT("本局不再复活");
+        return View;
+    }
     const FString Wait(LDTerms::RespawnWait);
     View.Countdown=Own.RespawnAtMs<=0?Wait+TEXT(" · 等待复活时间"):!bClock?Wait+TEXT(" · 时间同步中"):Wait+TEXT(" ")+TenthsUp(Own.RespawnAtMs-NowMs);
     View.Note=LDTerms::DeathNote();
@@ -289,7 +295,15 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
         return View;
     }
     case ELDMatchStage::FinalField:
-        View.Headline=LDTerms::FinalField;
+        if(!Public.Showdown.bStarted){View.Headline=LDTerms::FinalField;return View;}
+        View.Headline=FString(TEXT("终局争旗 · "))+(bClock?Clock(Public.Showdown.EndsAtMs-NowMs):FString(TEXT("时间同步中")));
+        if(Public.Showdown.bStarted&&bClock)
+        {
+            if(NowMs>=Public.Showdown.EndsAtMs-10000){View.Detail=TEXT("最后十秒");}
+            else if(NowMs>=Public.Showdown.ClosureAtMs){View.Detail=TEXT("封街收缩中 · 圈外持续受伤");}
+            else{View.Detail=FString::Printf(TEXT("封街倒计时 %lld 秒"),Seconds(Public.Showdown.ClosureAtMs-NowMs));}
+            if(NowMs>=Public.Showdown.RespawnsCloseAtMs){View.Detail+=TEXT(" · 不再接受新复活");}
+        }
         return View;
     case ELDMatchStage::Rest:
         break;
@@ -299,6 +313,12 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     View.Headline=LDTerms::RestLabel(Timeline.RestIndex)+TEXT(" · ")+RestStepText(Timeline.Step)+TEXT(" · ")
         +(!bClock?FString(TEXT("时间同步中"))
         :FString::Printf(TEXT("%s %lld 秒"),Timeline.Step==ELDRestStep::PK?TEXT("最长剩"):TEXT("剩"),Seconds(Timeline.StepEndsAtMs-NowMs)));
+    if(Timeline.RestIndex==FLDTimelineParameters::TimedSegments)
+    {
+        View.Headline=FString(TEXT("最终休息 · "))+RestStepText(Timeline.Step)+TEXT(" · ")
+            +(bClock?Clock(Timeline.StepEndsAtMs-NowMs):FString(TEXT("时间同步中")));
+        return View;
+    }
     TArray<FString> Detail;
     if(Timeline.Step==ELDRestStep::Build)
     {
@@ -325,6 +345,26 @@ LDHUD::FTimelineView LDHUD::TimelineBanner(const FLDPublicMatchView& Public,cons
     }
     View.Detail=FString::Join(Detail,TEXT(" · "));
     return View;
+}
+bool LDHUD::TimelineDetailVisible(const FLDPublicMatchView& Public,const FTimelineView& Timeline,bool bChoicesRestOpen)
+{
+    const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
+    const bool bShowdown=bFieldPhase&&Public.Showdown.bStarted&&Public.Timeline.Stage==ELDMatchStage::FinalField;
+    const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
+    return (!bFieldPhase||bShowdown)&&!bChoicesRestOpen&&!Timeline.Detail.IsEmpty()
+        &&(Public.Phase!=ELDMatchPhase::Rest||bRestPlanning);
+}
+FString LDHUD::RestReadyText(ELDRestReadyResult Result)
+{
+    switch(Result)
+    {
+    case ELDRestReadyResult::Accepted: return TEXT("已准备。");
+    case ELDRestReadyResult::NotContender: return TEXT("准备失败：你不是本局参赛者。");
+    case ELDRestReadyResult::StaleMatch: return TEXT("准备失败：对局已变化，请等待同步。");
+    case ELDRestReadyResult::StaleWindow: return TEXT("准备失败：本次配装窗口已结束。");
+    case ELDRestReadyResult::NotOpen: return TEXT("准备失败：当前不能提交准备。");
+    default: return TEXT("准备失败：服务器没有返回有效结果。");
+    }
 }
 FString LDHUD::TrainingResetText(ELDTrainingResetResult Result)
 {
@@ -566,7 +606,8 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
     {
     case ELDMatchPhase::Development:
         // #198: the opening is scheduled only when the final field begins (OpenAtMs is unscheduled until then).
-        View.Line=FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
+        View.Line=Public.Showdown.bStarted?FString(TEXT("旗杆解锁 · "))+(!bClock?FString(TEXT("同步中")):TenthsUp(Public.OpenAtMs-NowMs))
+            :FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
         return View;
     case ELDMatchPhase::CaptureOpen:
     {
@@ -733,10 +774,6 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 const FString Owner=bOwn?FString(TEXT("你")):Name(Public.GraffitiOwner);
                 Add(LDTerms::GraffitiSprayed(Owner.IsEmpty()?FString(TEXT("未列名参赛者")):Owner),bOwn);
             }
-            // A kept guard only drops to zero when its owner leaves the zone under a challenger; a guard that was
-            // running cannot pause or freeze at zero for the same owner, since the spray that started it needs the zone alone.
-            else if(Public.GraffitiOwner.IsValid()&&!Public.GuardDueAtMs&&!Public.GuardKeptMs&&(GuardKeptMs>0||GuardDueAtMs))
-            {Add(LDTerms::GuardReset,In.Self.IsValid()&&Public.GraffitiOwner==In.Self);}
         }
         bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
         MarkerSegment=Public.Markers.IsEmpty()?0:Public.Markers[0].Segment;MarkerPhases[0]=MarkerPhases[1]=ELDFieldMarkerPhase::None;
@@ -832,6 +869,9 @@ FString LDHUD::ResultHeadline(const FLDResultView& Result,const FString& WinnerN
     case ELDMatchEndReason::GuardSucceeded:
         return Result.Winner.IsValid()?FString(TEXT("守护成功 · "))+LDTerms::Crowned(WinnerName.IsEmpty()?FString(TEXT("未列名参赛者")):WinnerName):FString(LDTerms::NoWinner);
     case ELDMatchEndReason::HostEnded: return FString(TEXT("房主结束了本局 · "))+LDTerms::NoCapture;
+    case ELDMatchEndReason::ObjectiveTimeout:
+        return Result.Winner.IsValid()?FString(TEXT("终局时间到 · 目标贡献获胜 · "))+WinnerName:TEXT("终局时间到 · 无合格的唯一胜者");
+    case ELDMatchEndReason::NoChampion: return TEXT("终局结束 · 没有存活的合格冠军");
     default: return TEXT("对局结束 · 原因未知");
     }
 }
@@ -1316,6 +1356,64 @@ LDHUD::FActiveCardView LDHUD::ActiveCard(FName DefinitionId,const FLDDemoContent
     Card.bKnown=Sentence.bComplete;
     return Card;
 }
+LDHUD::FFinalModCardView LDHUD::FinalModCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats)
+{
+    FFinalModCardView View;
+    const FString Id=DefinitionId.ToString();
+    View.Name=ContentName(Content,Id);View.Glyph=IconGlyph(View.Name);View.Detail.Name=View.Name;
+    const auto* Card=Content?Content->FinalMods.FindByPredicate([&Id](const FLDDemoFinalModDefinition& Row){return Row.Id==Id;}):nullptr;
+    const auto* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;}):nullptr;
+    if(!Card||!Display){View.Detail.Body=TEXT("终局改装数据未就绪。");return View;}
+    View.IconId=Display->IconId;View.Detail.Summary=TEXT("终局改装 · 一局一次");
+    const auto Decimal=[](int64 Value,int64 Divisor){return FString::SanitizeFloat(double(Value)/double(Divisor));};
+    const auto Sec=[&Decimal](int64 Value){return Decimal(Value,1000)+TEXT("s");};
+    const auto Percent=[&Decimal](int64 Value){return Decimal(Value,100)+TEXT("%");};
+    const auto Cm=[](const FLDDemoRational& Value){return FString::SanitizeFloat(double(Value.Numerator)/double(Value.Denominator))+TEXT("cm");};
+    int64 Base=0;
+    if(!LDSkillGrowth::GrowP2(Card->BaseP2,LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,
+        Content->Parameters.SkillGrowthPerLevelAfter10Bp,Stats.Level),Base))
+    {
+        View.Detail.Body=TEXT("终局改装成长数值无效。");
+        HudReportMissingText(Id+TEXT(".growth"));return View;
+    }
+    FString Damage=Decimal(Base,100);
+    if(Card->ADRatioBp>0){Damage+=TEXT(" + ")+Decimal(Card->ADRatioBp,10000)+TEXT(" AD");}
+    if(Card->APRatioBp>0){Damage+=TEXT(" + ")+Decimal(Card->APRatioBp,10000)+TEXT(" AP");}
+    FString Numbers;
+    switch(Card->GetNativeId())
+    {
+    case ELDDemoFinalModId::FinalLandlord:
+        Numbers=FString::Printf(TEXT("每 %s 首次普攻触发；延迟 %s，半径 %s。\n魔法伤害 %s；持旗普攻主击伤害为 %s。"),
+            *Sec(Card->IntervalMs),*Sec(Card->DelayMs),*Cm(Card->RadiusCm),*Damage,*Percent(Card->DamageScaleBp));break;
+    case ELDDemoFinalModId::FinalBreach:
+        Numbers=FString::Printf(TEXT("首次圈外准备 %s，再次 %s；入圈窗口 %s，外推 %s。\n代价：D 基础冷却增加 %s。"),
+            *Sec(Card->OutsideMs),*Sec(Card->RearmOutsideMs),*Sec(Card->WindowMs),*Cm(Card->DistanceCm),*Sec(Card->CooldownCostMs));break;
+    case ELDDemoFinalModId::FinalComeback:
+        Numbers=FString::Printf(TEXT("入圈窗口 %s；半径 %s，持续 %s，每 %s 一跳。\n每跳魔法伤害 %s，减速 %s 持续 %s；间隔 %s。\n代价：触发那次直接伤害为 %s。"),
+            *Sec(Card->WindowMs),*Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Sec(Card->PulseIntervalMs),
+            *Damage,*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Sec(Card->IntervalMs),*Percent(Card->DamageScaleBp));break;
+    case ELDDemoFinalModId::FinalOpenMic:
+        Numbers=FString::Printf(TEXT("%s 内两次独立命中；半径 %s，持续 %s，每 %s 一跳。\n每跳魔法伤害 %s，减速 %s 持续 %s。\n代价：声浪期间本人移速降低 %s。"),
+            *Sec(Card->WindowMs),*Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Sec(Card->PulseIntervalMs),
+            *Damage,*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Percent(Card->MoveSpeedCostBp));break;
+    case ELDDemoFinalModId::FinalBowling:
+        Numbers=FString::Printf(TEXT("首次撞人：魔法伤害 %s，沿碰撞方向再推 %s。\n代价：绑定来源原推移距离为 %s。"),
+            *Damage,*Cm(Card->DistanceCm),*Percent(Card->DistanceScaleBp));break;
+    case ELDDemoFinalModId::FinalForcedExit:
+        Numbers=FString::Printf(TEXT("实际硬控结束 %s 后，仍在圈内则外推 %s；每目标间隔 %s。\n代价：绑定来源原硬控时长为 %s，再参与控制递减。"),
+            *Sec(Card->DelayMs),*Cm(Card->DistanceCm),*Sec(Card->IntervalMs),*Percent(Card->ControlScaleBp));break;
+    case ELDDemoFinalModId::FinalTraffic:
+        Numbers=FString::Printf(TEXT("真实冲刺路径宽 %s，持续 %s；减速 %s 持续 %s。\n代价：绑定来源基础冷却增加 %s。"),
+            *Cm(Card->RadiusCm),*Sec(Card->DurationMs),*Percent(Card->SlowBp),*Sec(Card->SlowMs),*Sec(Card->CooldownCostMs));break;
+    case ELDDemoFinalModId::FinalSplit:
+        Numbers=FString::Printf(TEXT("中心两侧各 %s；子区半径为 %s，单跳固定基础项为 %s。\n代价：持续时间减少 %s；AD/AP 系数不变。"),
+            *Cm(Card->OffsetCm),*Percent(Card->RadiusScaleBp),*Percent(Card->DamageScaleBp),*Sec(Card->DurationCostMs));break;
+    default:
+        View.Detail.Body=TEXT("终局改装没有可用的表现定义。");HudReportMissingText(Id+TEXT(".final"));return View;
+    }
+    View.Detail.Body=Display->DescriptionText+TEXT("\n\n")+Numbers;
+    View.bKnown=true;return View;
+}
 LDHUD::FStatRowView LDHUD::StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content)
 {
     FStatRowView Row;
@@ -1397,13 +1495,14 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
+        if(bBuildLocked){Reason=ELDGrowthReason::FinalLocked;}
         bAllowed=Reason==ELDGrowthReason::None;
         Blocked=BuildBlockedText(Reason);
     };
@@ -1416,6 +1515,7 @@ LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifeP
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::BuyNpcOffer,Context),View.bCanBuyNpc,View.NpcBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::Respec,Context),View.bCanRespec,View.RespecBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ReplaceActive,Context),View.bCanReplace,View.ReplaceBlocked);
+    Gate(LDProgression::CommandGate(ELDBuildCommandKind::FinalMod,Context),View.bCanFinalMod,View.FinalModBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ForgetActive,Context),View.bCanForget,View.ForgetBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::ComponentChoice,Context),View.bCanComponentChoice,View.ComponentChoiceBlocked);
     Gate(LDProgression::CommandGate(ELDBuildCommandKind::FillGap,Context),View.bCanFillGap,View.FillGapBlocked);
@@ -1434,6 +1534,9 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
     {
     case ELDBuildCommandKind::SkipActiveOffer:
         return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
+    case ELDBuildCommandKind::FinalMod:
+        return !Receipt.DefinitionId.IsNone()
+            ?FString::Printf(TEXT("已选择终局改装：%s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -1930,6 +2033,7 @@ LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression
     Pending.Blueprints=Progression->Actives.Num()<3?Progression->PendingBlueprints.Num():0;
     Pending.bOpeningBase=Progression->bOpeningBasePending&&!Progression->OpeningBaseOptions.IsEmpty();
     Pending.ComponentChoices=Progression->ComponentChoices.Num();
+    Pending.bFinalMod=Progression->bFinalModPending&&!Progression->FinalModOptions.IsEmpty();
     return Pending;
 }
 bool LDHUD::ChoiceTrayTiles(const FLDProgressionView& Progression)
@@ -2178,6 +2282,9 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantleInvalid: return FString(TEXT("要交出规定数量的不同普通"))+LDTerms::Component+TEXT("（稀缺件不收）");
     case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
+    case ELDGrowthReason::FinalLocked: return TEXT("终局构筑已锁定");
+    case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
+    case ELDGrowthReason::FinalModUnavailable: return TEXT("这项终局改装当前没有合法来源");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));
     }
 }

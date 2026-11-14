@@ -393,18 +393,23 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     }
     int64 RespawnAt = 0;
     // #198: a rest life has no field eligibility; it stands up again at once at its shared-room seat.
-    // A field death's wait is fixed by the field progress T of the death (8/10/12/15 s by segment).
+    // A growth-field death's wait is fixed by its field progress T; final lives use the bounded showdown queue.
     // #198 session D: a PK death is an elimination, never a field death: the contender stands up again in its private
     // rest space at once and watches the rest of the PK (no capture eligibility, K/D or respawn wait).
     const bool bPKLife = PKLives.Contains(Fact.Key.Victim.EntityId);
     const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId) || bPKLife;
-    const int64 WaitMs = bRestLife ? 0 : RespawnWaitAtFieldMs(Timeline.FieldMsAt(Fact.OccurredAtMs));
-    if (Life->Revision == MAX_uint64 || (!bRestLife && WaitMs <= 0)
+    const FGuid Id = Fact.Key.Victim.EntityId;
+    const bool bFinal = !bRestLife && Showdown.bStarted;
+    const int64 WaitMs = bRestLife ? 0 : bFinal
+        ? ShowdownRules.RespawnWaitMs(ShowdownRespawns.FindRef(Id), Fact.OccurredAtMs - Showdown.StartedAtMs)
+        : RespawnWaitAtFieldMs(Timeline.FieldMsAt(Fact.OccurredAtMs));
+    if (Life->Revision == MAX_uint64 || (!bRestLife && !bFinal && WaitMs <= 0)
         || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, WaitMs, RespawnAt, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("Life revision exhausted or no approved respawn wait at death."); }
         return false;
     }
+    if (bFinal && WaitMs == 0) { RespawnAt = 0; }
     FLDCaptureEligibilityEvent Died;
     Died.Body = Fact.VictimBody;
     Died.Change = ELDCaptureEligibilityChange::Died;
@@ -428,6 +433,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     ++Life->Revision;
     Life->ProtectedUntilMs = 0;
     Life->RespawnAtMs = RespawnAt;
+    if (bFinal && RespawnAt > 0) { ++ShowdownRespawns.FindOrAdd(Id); }
     if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
     PKLives.Remove(Fact.Key.Victim.EntityId);
     Life->Body = {};
@@ -839,7 +845,7 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
     {
         const auto& Life = Pair.Value;
         if (Life.Kind == ELDVictimKind::Contender && Life.Phase == ELDLifePhase::Dead
-            && Life.RespawnAtMs <= AuthorityNowMs && IsMemberPresent(Pair.Key)
+            && Life.RespawnAtMs > 0 && Life.RespawnAtMs <= AuthorityNowMs && IsMemberPresent(Pair.Key)
             // #198: rest lives and lives waiting for a phase placement are placed by the rest module.
             && !RestLives.Contains(Pair.Key) && !PendingPhasePlacement.Contains(Pair.Key))
         {
@@ -879,7 +885,13 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
         const uint32 NewLife = Life.Life + 1;
         FLDPlacedBody Placed;
         FLDBodyCombatState CombatState;
-        if (!PlaceContenderBody(Id, NewLife, Permit, Placed, Error)
+        FLDPlacementTarget Target;
+        if (Showdown.bStarted)
+        {
+            Target.Kind = FLDPlacementTarget::EKind::Anchor;
+            Target.Anchor = FName(*FString::Printf(TEXT("final_spawn_%d"), RosterOrder.IndexOfByKey(Id)));
+        }
+        if (!PlaceContenderBody(Id, NewLife, Permit, Placed, Error, Target)
             || !Combat->PrepareContenderBody(*Placed.Body.Get(), {ELDVictimKind::Contender, Id, NewLife}, Permit, CombatState, Error)
             || !Registry->ValidateSpawnReservation(Placed.Reservation, Permit, Placed.Body.Get(), Error))
         {

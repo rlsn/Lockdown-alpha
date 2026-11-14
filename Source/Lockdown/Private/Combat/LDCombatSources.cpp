@@ -6,6 +6,7 @@
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Development/LDCampGrowth.h"
+#include "Development/LDProgressionRules.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
 
@@ -176,6 +177,31 @@ namespace LDCombatSourcesDetail
                     Index,*Learned.AbilityId.ToString());
                 return false;
             }
+        }
+        if (!Input.FinalMod.IsEmpty())
+        {
+            FLDGrowthBuild Build;
+            Build.Level=Input.Level;
+            for (const FLDLearnedActiveValue& Active : Input.Actives)
+            { Build.Actives.Add({Active.AbilityId,uint8(LearnedSlot(Active.Entry))}); }
+            for (const FLDInstalledComponentValue& InstalledComponent : Input.Components)
+            {
+                FLDComponentInstance& Component=Build.Components.AddDefaulted_GetRef();
+                Component.Id=InstalledComponent.ComponentId;
+                Component.bInstalled=true;
+                Component.Target.Kind=InstalledComponent.TargetKind;
+                Component.Target.Definition=InstalledComponent.TargetId;
+                Component.Target.BoundActive=InstalledComponent.BoundActive;
+                Component.Target.BoundComponent=InstalledComponent.BoundComponent;
+                Component.Target.Element=InstalledComponent.Element;
+            }
+            FLDComponentTarget Binding;
+            Binding.Kind=Input.FinalMod.TargetKind;
+            Binding.Definition=Input.FinalMod.TargetId;
+            TArray<FLDComponentTarget> Legal;
+            if (LDProgression::FinalModTargets(Content.Get(),Build,Input.FinalMod.DefinitionId,Legal)!=ELDGrowthReason::None
+                || !Legal.Contains(Binding))
+            { Error=TEXT("InvalidInput: final rule has an unknown or non-executable source binding."); return false; }
         }
         return true;
     }
@@ -407,6 +433,11 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatEntityRecord& Record, const FLDC
     Out.Values=*Values;
     // #198 F: the installed mods of this active rewrite its terms (an unresolvable build is no executable active).
     FString Error;
+    if (Source.Kind!=ELDCombatSourceKind::Innate && !FinalCooldownCost(Record,Source,Out.Values.CooldownMs,Error))
+    {
+        UE_LOG(LogLDCombat,Error,TEXT("LD_FINAL_COOLDOWN_INVALID entity=%s error=%s"),*LDLog::Id(Record.Entity),*Error);
+        return false;
+    }
     if (!CompileActive(Record.Projection,Source,Out,Error))
     {
         UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_WORKSHOP_COMPILE_FAILED entity=%s source=%s error=%s"),*LDLog::Id(Record.Entity),

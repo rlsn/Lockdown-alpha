@@ -11,8 +11,8 @@ from CatalogTools import encode
 import DemoContent as content
 
 
-SCHEMA_VERSION = 3
-PROJECTION_REVISION = 3
+SCHEMA_VERSION = 4
+PROJECTION_REVISION = 4
 SOURCE = content.WORLD_SOURCE
 SCHEMA_SOURCE = content.WORLD_SCHEMA_SOURCE
 OUTPUT_PATHS = (content.WORLD_OUTPUT, content.WORLD_CONTRACT)
@@ -25,9 +25,10 @@ PARAMETER_REFS = (
 # D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
 # #198 (approved PK rules, issue comment 6752601175 §2): PKSpawn anchors pk_spawn_0..5 are one ring around the capture
 # anchor for the PK on the original map; PKThrow pk_throw is the fixed off-arena spectator throw origin. Points only.
-# PKSignup pk_signup_0..5 are separate standing positions inside one shared sign-up disk. Its centre is their
-# average and its radius is AIRDROP.PickupRadiusCm.
-ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy")
+# #198 PK sign-up (user decision A on issue #198: stand in the circle, reusing the existing 150 cm stand-in-disk radius
+# AIRDROP.PickupRadiusCm, no new number): PKSignup pk_signup_0..5 is the sign-up disk of the private rest space of roster
+# slot 0..5, PK_SIGNUP_DISTANCE_CM from that slot's rest anchor on its level.
+ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn", "FinalCapture")
 # #97: anchor counts follow the authored world within these bounds. At least one spawn per match seat; one capture;
 # the Boss patrols exactly four waypoints.
 MAX_ANCHORS = 128
@@ -35,7 +36,8 @@ MAX_ANCHORS = 128
 MAX_BLOCKERS = 2048
 ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
                  "Airdrop": (1, 16), "BossWaypoint": (4, 4), "PKSpawn": (6, 6), "PKThrow": (1, 1),
-                 "PKSignup": (6, 6), "RestSpawn": (6, 6), "RestService": (3, 3), "TrainingDummy": (6, 6)}
+                 "PKSignup": (6, 6), "RestSpawn": (6, 6), "RestService": (3, 3), "TrainingDummy": (6, 6),
+                 "FinalSpawn": (6, 6), "FinalCapture": (1, 1)}
 # #198 approved PK geometry: spawns 1000..1400 cm from the ring centre, enemy spawns at least 1000 cm apart, six at
 # 60 degree steps counterclockwise in id order (+-1 degree after integer rounding); the throw anchor stands outside the
 # 1800 cm arena and its 4000 cm range covers the whole arena.
@@ -796,6 +798,31 @@ def validate_bindings(world, data):
     require(PK_ARENA_RADIUS_CM ** 2 < reach <= (PK_THROW_RANGE_CM - PK_ARENA_RADIUS_CM) ** 2, "InvalidGeometry", "pk_throw",
             "PK throw anchor must stand outside the arena with the whole arena within throw range")
     # Six separated standing positions share one disk; no rest spawn offset starts inside it.
+    final_spawn_ids = [f"final_spawn_{n}" for n in range(6)]
+    require(sorted(identity for identity, row in anchors.items() if row["kind"] == "FinalSpawn") == final_spawn_ids,
+            "WorldAnchors", "final_spawn", "the final arena spawns must be final_spawn_0 to final_spawn_5")
+    require([identity for identity, row in anchors.items() if row["kind"] == "FinalCapture"] == ["final_capture"],
+            "WorldAnchors", "final_capture", "the final arena needs one final_capture anchor")
+    final_centre = point(anchors["final_capture"]["position_cm"], "final_capture")
+    final_capture_radius = capture_radius
+    require(geometry.legal(final_centre, radius + final_capture_radius), "InvalidGeometry", "final_capture",
+            "final capture disk lacks legal capsule support")
+    final_ring = []
+    for identity in final_spawn_ids:
+        location = point(anchors[identity]["position_cm"], identity)
+        require(location[2] == final_centre[2] and geometry.legal(location, radius), "InvalidGeometry", identity,
+                "final spawn lacks legal capsule support on the capture level")
+        final_ring.append(location)
+    final_distances = [math.sqrt(float(squared_distance(location, final_centre))) for location in final_ring]
+    require(max(final_distances) - min(final_distances) <= 5, "InvalidGeometry", "final_spawn",
+            "final spawns must be equally distant from final_capture")
+    final_angles = [math.degrees(math.atan2(float(location[1] - final_centre[1]),
+                                             float(location[0] - final_centre[0])) % (2 * math.pi))
+                    for location in final_ring]
+    for index, angle in enumerate(final_angles):
+        step = (final_angles[(index + 1) % len(final_ring)] - angle) % 360
+        require(59 <= step <= 61, "InvalidGeometry", final_spawn_ids[index],
+                "final spawns must step 60 degrees counterclockwise in id order")
     signup_ids = [f"pk_signup_{n}" for n in range(PK_SIGNUPS)]
     require(sorted(identity for identity, row in anchors.items() if row["kind"] == "PKSignup") == signup_ids,
             "WorldAnchors", "pk_signup", "the PK sign-up positions must be pk_signup_0 to pk_signup_5")
@@ -879,7 +906,7 @@ def validate_bindings(world, data):
     for identity, row in anchors.items():
         location = point(row["position_cm"], identity)
         require(geometry.legal(location, radius), "InvalidGeometry", identity, "anchor has no legal static capsule position")
-        if row["kind"] in ("Spawn", "RestSpawn"):
+        if row["kind"] in ("Spawn", "RestSpawn", "FinalSpawn"):
             for index, offset in enumerate(offsets):
                 candidate = tuple(bounded(a + b) for a, b in zip(location, offset))
                 require(geometry.legal(candidate, radius), "WorldPlacement", identity, "local spawn candidate is blocked")

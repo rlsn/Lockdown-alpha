@@ -5,8 +5,8 @@
   "additionalProperties": false,
   "required": ["schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision", "approval", "coordinate_unit", "geometry", "placement", "parameter_refs", "anchors"],
   "properties": {
-    "schema_version": {"type": "integer", "const": 3},
-    "projection_revision": {"type": "integer", "const": 3},
+    "schema_version": {"type": "integer", "const": 4},
+    "projection_revision": {"type": "integer", "const": 4},
     "map_id": {"$ref": "#/$defs/id"},
     "layout_revision": {"type": "integer", "minimum": 1, "maximum": 4294967295},
     "geometry_revision": {"type": "integer", "minimum": 1, "maximum": 4294967295},
@@ -117,7 +117,7 @@
         {
           "type": "object", "additionalProperties": false, "required": ["id", "kind", "surface_id", "position_cm"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy"]},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Capture", "Dorm", "Airdrop", "BossWaypoint", "PKSpawn", "PKThrow", "PKSignup", "RestSpawn", "RestService", "TrainingDummy", "FinalSpawn", "FinalCapture"]},
             "surface_id": {"$ref": "#/$defs/id"}, "position_cm": {"$ref": "#/$defs/vector"}
           }
         },
