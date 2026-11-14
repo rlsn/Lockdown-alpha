@@ -279,10 +279,10 @@ class FParallelPointerUEModule final : public IModuleInterface
         int32 Count=0;
         for (const FString& File : Files)
         {
-            if (++Count > 16) break;
             const FString Id=FPaths::GetBaseFilename(File); if (!ValidId(Id)) continue;
             const FString Response=Root/TEXT("responses")/File;
             if (IFileManager::Get().FileExists(*Response)) continue;
+            if (++Count > 16) break;
             if (const FJson* Cached=Receipts.Find(Id)) { Write(Response,*Cached); continue; }
             if (Receipts.Num() >= 512) continue;
             const FJson R=Read(Root/TEXT("requests")/File);

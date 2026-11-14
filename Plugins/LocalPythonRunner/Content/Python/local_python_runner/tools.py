@@ -11,7 +11,9 @@ def _runner():
     plugin_root = Path(__file__).resolve().parents[3]
     project = unreal.Paths.convert_relative_path_to_full(unreal.Paths.get_project_file_path())
     saved = unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_saved_dir())
-    return Runner(plugin_root / "Config" / "runner.json", project, saved)
+    local_config = plugin_root / "Config" / "runner.local.json"
+    config = local_config if local_config.is_file() else plugin_root / "Config" / "runner.json"
+    return Runner(config, project, saved)
 
 
 def _json(value):

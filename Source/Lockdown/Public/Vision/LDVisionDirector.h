@@ -117,6 +117,7 @@ private:
     LDDemoWorld::FTerrain Terrain;
     TWeakObjectPtr<UWorld> Scene;
     double SampleHeightCm = 0;
+    mutable TMap<int32, FCollisionQueryParams> NativeSightQueries;
 };
 
 // Per-observer display memoization only; never used to authorize a unit or flight.

@@ -21,6 +21,8 @@
 #include "Region/LDMapRegistry.h"
 #include "Character/LDCharacter.h"
 #include "World/LDNativeGround.h"
+#include "World/LDSpawnPlacement.h"
+#include "Components/BoxComponent.h"
 #include "World/LDLayoutPoint.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Vision/LDVisionDirector.h"
@@ -183,10 +185,32 @@ bool FLDStaticScenePersistence::RunTest(const FString& Parameters)
         F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World));
     const FVector Left(Before.X - 60, Before.Y, 0), Right(Before.X + 60, Before.Y, 0);
     TestEqual(TEXT("New mesh blocks sight at its actual position"), Sight.Trace(Left, Right), ELDSightResult::Blocked);
+    AddedMesh->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
+    TestTrue(TEXT("Sight channel edit binds"), Registry->Rebuild(F.Error));
+    Sight.Build(*Registry->GetGeometry(), Registry->Revision(), F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World);
+    TestEqual(TEXT("Ground-aim collision alone does not hide units"), Sight.Trace(Left, Right), ELDSightResult::Visible);
     Added->Destroy();
     TestTrue(TEXT("Deleting the new mesh rebuilds successfully"), Registry->Rebuild(F.Error));
     Sight.Build(*Registry->GetGeometry(), Registry->Revision(), F.Content->Get().Parameters.VisionRadiusCm, F.Error, F.World);
     TestEqual(TEXT("Deleted collision leaves no stale sight blocker"), Sight.Trace(Left, Right), ELDSightResult::Visible);
+    auto* Generic = F.World->SpawnActor<AActor>();
+    auto* Box = NewObject<UBoxComponent>(Generic);
+    Generic->AddInstanceComponent(Box);
+    Generic->SetRootComponent(Box);
+    Box->SetBoxExtent(FVector(20,20,20));
+    Box->SetCollisionProfileName(TEXT("BlockAll"));
+    Box->RegisterComponent();
+    Generic->SetActorLocation(FVector(Before.X, Before.Y, 300));
+    TestTrue(TEXT("A generic collision actor binds"), Registry->Rebuild(F.Error));
+    const auto BoxRevision = Registry->Revision();
+    Generic->SetActorLocation(Generic->GetActorLocation() + FVector(100,0,0));
+    TestTrue(TEXT("A moved generic collision actor binds"), Registry->Rebuild(F.Error));
+    TestTrue(TEXT("Generic collision transforms invalidate the world"), Registry->Revision() != BoxRevision);
+    const auto MovedBoxRevision = Registry->Revision();
+    Box->SetBoxExtent(FVector(40,20,20));
+    TestTrue(TEXT("A resized generic collision actor binds"), Registry->Rebuild(F.Error));
+    TestTrue(TEXT("Generic collision shapes invalidate the world"), Registry->Revision() != MovedBoxRevision);
+    Generic->Destroy();
     const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts/StaticSceneTest/"));
     IFileManager::Get().MakeDirectory(*Directory, true);
     FPackageName::RegisterMountPoint(TEXT("/LDStaticSceneTest/"), Directory);
@@ -317,6 +341,16 @@ bool FLDStaticSceneReplacementFloor::RunTest(const FString& Parameters)
     VisualOnly->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_Pawn,ECR_Ignore);
     VisualOnly->GetStaticMeshComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1,ECR_Block);
     TestTrue(TEXT("A surface that does not block characters does not prevent Play: ") + F.Error, Registry->Rebuild(F.Error));
+    FCollisionShape Capsule;
+    FLDLegalGround Standing;
+    ELDWorldQueryFailure Failure;
+    const auto* RestSpawn = Registry->Resolve(TEXT("rest_spawn_0"), Registry->Generation);
+    if (!TestNotNull(TEXT("Rest spawn remains bound under a visual overlay"), RestSpawn)
+        || !TestTrue(TEXT("Approved body capsule"), ULDMapRegistry::ContentCapsule(*F.Content, Capsule, F.Error))
+        || !TestTrue(TEXT("Rest spawn ground remains legal"), Registry->QueryGround(Registry->Revision(), RestSpawn->Position,
+            Capsule, RestSpawn->Surface, Standing, Failure, F.Error))) { return false; }
+    TestFalse(TEXT("The same non-Pawn-blocking overlay also permits actual body placement"),
+        LDSpawnPlacement::OverlapsStatic(*F.World, LDSpawnPlacement::StandingOrigin(Standing), Capsule));
     Overlay->Destroy(); Left->Destroy(); Right->Destroy(); VisualOnly->Destroy();
     TestFalse(TEXT("Removing actual support still refuses unsafe spawn"), Registry->Rebuild(F.Error));
     return !HasAnyErrors();

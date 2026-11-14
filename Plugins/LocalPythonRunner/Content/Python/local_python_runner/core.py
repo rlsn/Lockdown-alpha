@@ -61,6 +61,12 @@ class Runner:
         config = json.loads(self.config_path.read_text(encoding="utf-8-sig"))
         if not config.get("expected_project") or not config.get("allowed_roots"):
             raise ValueError("执行器尚未配置；请使用 ue_runner.py install-plugin 绑定工程和脚本目录。")
+        # Repository defaults are portable; an installation may still supply absolute local bindings.
+        def resolve_binding(value):
+            path = Path(value)
+            return str(canonical(path if path.is_absolute() else self.config_path.parent / path))
+        config["expected_project"] = resolve_binding(config["expected_project"])
+        config["allowed_roots"] = [resolve_binding(root) for root in config["allowed_roots"]]
         if path_key(config["expected_project"]) != path_key(self.project_file):
             raise ValueError("当前工程与执行器配置不匹配；拒绝运行脚本。")
         return config

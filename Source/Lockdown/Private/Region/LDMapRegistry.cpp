@@ -23,6 +23,7 @@
 #include "GameFramework/PlayerStart.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "PhysicsEngine/BodyInstance.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Misc/Crc.h"
 
@@ -273,14 +274,26 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     CandidateTerrain.BindScene(*GetWorld(), NativeBounds);
     // World revisions must change with saved native collision, including ordinary untagged meshes.
     TArray<FString> SceneRows;
-    for (TActorIterator<AStaticMeshActor> It(GetWorld()); It; ++It)
+    for (TActorIterator<AActor> It(GetWorld()); It; ++It)
     {
-        TInlineComponentArray<UStaticMeshComponent*> Parts(*It);
-        for (const auto* Part : Parts)
+        if (*It == GetWorld()->GetDefaultBrush()) { continue; }
+        TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+        for (auto* Part : Parts)
         {
-            if (!Part->IsQueryCollisionEnabled()) { continue; }
-            SceneRows.Add((It->GetName() + Part->GetName() + GetPathNameSafe(Part->GetStaticMesh())
+            if (!Part->IsQueryCollisionEnabled() || Part->GetCollisionObjectType() != ECC_WorldStatic) { continue; }
+            FString Shape;
+            if (auto* Setup = Part->GetBodySetup())
+            {
+                FKAggregateGeom::StaticStruct()->ExportText(Shape, &Setup->AggGeom, nullptr, nullptr, PPF_None, nullptr);
+                Shape += Setup->BodySetupGuid.ToString() + FString::FromInt(int32(Setup->CollisionTraceFlag));
+            }
+            const auto* Mesh = Cast<UStaticMeshComponent>(Part);
+            const auto* Physics = Part->GetBodyInstance();
+            const FBox Bounds = Physics && Physics->IsValidBodyInstance() ? Physics->GetBodyBounds() : Part->Bounds.GetBox();
+            SceneRows.Add((Part->GetPathName(GetWorld()) + Part->GetClass()->GetPathName()
+                + (Mesh ? GetPathNameSafe(Mesh->GetStaticMesh()) : FString()) + Shape + Bounds.ToString()
                 + Part->GetComponentTransform().ToString() + FString::FromInt(int32(Part->GetCollisionEnabled()))
+                + FString::FromInt(int32(Part->GetCollisionObjectType()))
                 + FString::FromInt(Part->GetCollisionResponseToChannel(ECC_Pawn))
                 + FString::FromInt(Part->GetCollisionResponseToChannel(ECC_GameTraceChannel1))
                 + FString::FromInt(Part->GetCollisionResponseToChannel(ECC_GameTraceChannel2))).ToLower());

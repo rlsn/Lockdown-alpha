@@ -1,4 +1,6 @@
 #include "Vision/LDVisionDirector.h"
+#include "Components/PrimitiveComponent.h"
+#include "PhysicsEngine/BodyInstance.h"
 #include "PK/LDPKDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDGameMode.h"
@@ -222,6 +224,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Circles = MoveTemp(PreparedCircles);
     Terrain = MoveTemp(PreparedTerrain);
     Scene = NativeScene;
+    NativeSightQueries.Reset();
     SampleHeightCm = SampleHeight;
     if (NativeScene)
     {
@@ -284,17 +287,6 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
 bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier) const
 {
     if (TargetTier > Observer) { return true; }
-    if (const UWorld* Native = Scene.Get())
-    {
-        double Z; FVector Normal;
-        Terrain.Ground(From, Z, Normal);
-        if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
-        // Retain high-ground visibility rules. Cast at the observer's sight height so low walls do not hide
-        // units on lower ground, while moved/rotated/scaled native walls use their actual collision.
-        const FVector Start(From, Z + SampleHeightCm), End(To, Z + SampleHeightCm);
-        return Native->LineTraceTestByChannel(Start, End, ECC_GameTraceChannel2)
-            || Native->LineTraceTestByChannel(Start, End, ECC_GameTraceChannel1);
-    }
     const int32 Level = Observer / 2;
     const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
     int32 X0, Y0, X1, Y1;
@@ -313,6 +305,32 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                 if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
             }
         }
+    }
+    if (const UWorld* Native = Scene.Get())
+    {
+        double Z; FVector Normal;
+        Terrain.Ground(From, Z, Normal);
+        if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
+        auto* Query = NativeSightQueries.Find(Level);
+        if (!Query)
+        {
+            // Cache per observer level: coverage casts thousands of rays against this same world revision.
+            FCollisionQueryParams PreparedQuery(SCENE_QUERY_STAT(DemoNativeSight), false);
+            for (TActorIterator<AActor> It(Native); It; ++It)
+            {
+                TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+                for (const auto* Part : Parts)
+                {
+                    const auto* Body = Part->GetBodyInstance();
+                    if (!Part->IsQueryCollisionEnabled() || !Body || !Body->IsValidBodyInstance()) { continue; }
+                    const double Base = Body->GetBodyBounds().Min.Z;
+                    if (FMath::FloorToInt32((Base + .01) / Terrain.StepCm) < Level) { PreparedQuery.AddIgnoredComponent(Part); }
+                }
+            }
+            Query = &NativeSightQueries.Add(Level, MoveTemp(PreparedQuery));
+        }
+        return Native->LineTraceTestByChannel(FVector(From, Z + SampleHeightCm),
+            FVector(To, Z + SampleHeightCm), ECC_GameTraceChannel2, *Query);
     }
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
@@ -895,6 +913,17 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
     {
         Error = FString::Printf(TEXT("CapacityExceeded: %lld contenders, %lld camp members and the Boss exceed the %d-unit observation bound."),
             Contenders, CampMembers, LDObservation::MaxUnits);
+        return false;
+    }
+    const int64 SharedTargets = Registry->GetGeometry()->Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& Anchor)
+    {
+        return Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy && Anchor.Id.StartsWith(TEXT("training_shared_"));
+    }).Num();
+    const int64 RestUnits = 2 * Contenders - 1 + SharedTargets;
+    if (RestUnits > LDObservation::MaxUnits)
+    {
+        Error = FString::Printf(TEXT("CapacityExceeded: this roster supports at most %lld additional shared training targets; the level has %lld."),
+            LDObservation::MaxUnits - (2 * Contenders - 1), SharedTargets);
         return false;
     }
     ActiveMatch = InMatch;
