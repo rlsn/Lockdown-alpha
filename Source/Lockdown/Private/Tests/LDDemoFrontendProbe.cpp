@@ -4,6 +4,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Tests/LDSlateProbeInput.h"
 #include "Framework/LDGameInstance.h"
+#include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDUIRoot.h"
 #include "UI/LDControlsPanel.h"
@@ -11,6 +12,7 @@
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
 #include "Components/Slider.h"
+#include "Components/TextBlock.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -86,6 +88,8 @@ namespace
     struct FFrontendProbe
     {
         TWeakObjectPtr<UWorld> World;
+        FLDLobbyView LobbyBeforeSettings;
+        bool LobbyFPS = false, LobbyOnly = false;
         FString Directory, PendingImage, RHIName, PhysicalSettings, PhysicalQuality;
         FLDLocalSettingsStorage Storage;
         FLDDisplaySettings OriginalDisplay;
@@ -121,7 +125,9 @@ namespace
             if (!Error.IsEmpty()) { Check(false, Error); }
             auto Report = MakeShared<FJsonObject>();
             Report->SetBoolField(TEXT("passed"), !Failed);
-            Report->SetStringField(TEXT("scope"), TEXT("Windowed RHI frontend/UMG synthetic delegate clicks and Slate key events, isolated control save and UserDir, every settings page through its named tab at 100% and 125% text, diagnostics toggles, text-scale apply/readback, borderless-only display settings under a -windowed launch, VSync draft revert, Back on the un-applied draft prompt discards, a VSync apply saves and reads back, in-row key rebinding with a refused conflict and an Esc cancel, and per-page restore defaults. No OS input or display-mode change."));
+            Report->SetStringField(TEXT("scope"), LobbyOnly
+                ? TEXT("Windowed RHI single-host Lobby/UMG synthetic delegate clicks and Slate key events, isolated UserDir. The Lobby opens the shared five settings pages, saves and reopens a preference, discards a display draft through Esc and returns with unchanged roster and readiness. A normal match start while settings remain open preserves world input suppression, refreshes the match notice and restores input after close. Not frontend-to-room travel, remote clients or cross-machine networking.")
+                : TEXT("Windowed RHI frontend/UMG synthetic delegate clicks and Slate key events, isolated control save and UserDir, every settings page through its named tab at 100% and 125% text, diagnostics toggles, text-scale apply/readback, borderless-only display settings under a -windowed launch, VSync draft revert, Back on the un-applied draft prompt discards, a VSync apply saves and reads back, in-row key rebinding with a refused conflict and an Esc cancel, and per-page restore defaults. No OS input or display-mode change."));
             Report->SetStringField(TEXT("rhi"), RHIName);
             Report->SetStringField(TEXT("control_file"), Storage.Filename());
             Report->SetStringField(TEXT("game_user_settings"), PhysicalSettings);
@@ -192,7 +198,8 @@ namespace
                 if (!Check(PC->Controls && FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Storage.Filename()), Directory),
                     TEXT("Control settings use the new isolated process UserDir, never the real user save"))) { return Finish(); }
                 OriginalDisplay = FLDDisplaySettings::Read(*GEngine->GetGameUserSettings());
-                Capture(TEXT("Frontend-100"));
+                Capture(LobbyOnly ? TEXT("Lobby-Initial") : TEXT("Frontend-100"));
+                if (LobbyOnly) { Stage = 35; }
             }
             else if (Stage == 1) { if (!Click(PC->RootUI, TEXT("Settings"))) { return Finish(); } }
             else if (Stage == 2)
@@ -481,9 +488,107 @@ namespace
                     TEXT("Once the engine takes it again, applying the verified values resolves the failure"));
                 if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); }
             }
-            else
+            else if (Stage == 33)
             {
                 Check(!PC->ControlsUI->IsOpen(), TEXT("Back closes the panel at once once nothing is pending"));
+                return Finish();
+            }
+            else if (Stage == 36)
+            {
+                const auto* Public = World->GetGameState<ALDGameState>();
+                if (!Public || Public->PublicMatch.Phase != ELDMatchPhase::Lobby || !PC->OwnerState.bLobbyHost) { return true; }
+                if (!Click(PC->RootUI, TEXT("Ready"))) { return Finish(); }
+                Capture(TEXT("Lobby-SettingsEntry"));
+            }
+            else if (Stage == 37)
+            {
+                LobbyBeforeSettings = World->GetGameState<ALDGameState>()->DemoLobby;
+                Check(LobbyBeforeSettings.Members.Num() == 1 && LobbyBeforeSettings.Members[0].Ready,
+                    TEXT("The host is ready before opening Lobby settings"));
+                if (!Click(PC->RootUI, TEXT("LobbySettings"))) { return Finish(); }
+            }
+            else if (Stage == 38)
+            {
+                Check(PC->ControlsUI && PC->ControlsUI->IsOpen()
+                    && PC->RootUI->ActiveMainPanel() == ELDUIMainPanel::Settings
+                    && !OnScreen(PC->RootUI, FindButton(PC->RootUI, TEXT("Ready"))),
+                    TEXT("Lobby Settings opens the shared panel and hides room actions"));
+                if (!ShowPage(PC->ControlsUI, TEXT("TabDisplay"), ECategory::Display, TEXT("VSyncDraft"))
+                    || !ShowPage(PC->ControlsUI, TEXT("TabAudio"), ECategory::Audio, TEXT("MasterVolume"))
+                    || !ShowPage(PC->ControlsUI, TEXT("TabControls"), ECategory::Controls, TEXT("BindStop"))
+                    || !ShowPage(PC->ControlsUI, TEXT("TabCamera"), ECategory::Camera, TEXT("SlowerCameraPan"))
+                    || !ShowPage(PC->ControlsUI, TEXT("TabInterface"), ECategory::Interface, TEXT("ToggleFPS"))
+                    || !Click(PC->ControlsUI, TEXT("ToggleFPS"))) { return Finish(); }
+                LobbyFPS = PC->Controls->bShowFPS;
+                Capture(TEXT("Lobby-Settings"));
+            }
+            else if (Stage == 39)
+            {
+                const auto Loaded = ULDControlSettings::LoadLocalSettings(Storage);
+                Check(LobbyFPS && Loaded.Settings && Loaded.Settings->bShowFPS == LobbyFPS,
+                    TEXT("A preference changed in the Lobby is saved and read back"));
+                if (!ShowPage(PC->ControlsUI, TEXT("TabDisplay"), ECategory::Display, TEXT("VSyncDraft"))
+                    || !Click(PC->ControlsUI, TEXT("VSyncDraft"))
+                    || !Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); }
+            }
+            else if (Stage == 40)
+            {
+                Check(PC->ControlsUI->IsOpen() && PC->ControlsUI->HasChildConfirmation(),
+                    TEXT("Lobby settings keeps the unapplied display draft confirmation"));
+                SendKey(PC->ControlsUI, EKeys::Escape);
+            }
+            else if (Stage == 41)
+            {
+                const auto& Lobby = World->GetGameState<ALDGameState>()->DemoLobby;
+                Check(!PC->ControlsUI->IsOpen()
+                    && OnScreen(PC->RootUI, FindButton(PC->RootUI, TEXT("Ready")))
+                    && Lobby.Generation == LobbyBeforeSettings.Generation
+                    && Lobby.RosterRevision == LobbyBeforeSettings.RosterRevision
+                    && Lobby.PublicRevision == LobbyBeforeSettings.PublicRevision
+                    && Lobby.Members.Num() == 1 && Lobby.Members[0].Ready,
+                    TEXT("Esc returns to the same Lobby without changing its roster or readiness"));
+                Capture(TEXT("Lobby-Returned"));
+            }
+            else if (Stage == 42)
+            {
+                if (!Click(PC->RootUI, TEXT("LobbySettings"))) { return Finish(); }
+                Check(PC->Controls->bShowFPS == LobbyFPS,
+                    TEXT("Reopening Lobby settings retains the saved preference"));
+                if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); }
+            }
+            else if (Stage == 43)
+            {
+                Check(!PC->ControlsUI->IsOpen(), TEXT("Lobby settings closes directly when no display draft is pending"));
+                if (!Click(PC->RootUI, TEXT("LobbySettings"))) { return Finish(); }
+            }
+            else if (Stage == 44)
+            {
+                Check(!OnScreen(PC->ControlsUI, PC->ControlsUI->WidgetTree->FindWidget(TEXT("MatchNote"))),
+                    TEXT("Lobby settings hides the running-match notice before the match starts"));
+                // The normal server command can arrive while a different owner's settings are open.
+                PC->StartDemoMatch();
+            }
+            else if (Stage == 45)
+            {
+                const auto* Public = World->GetGameState<ALDGameState>();
+                if (!Public || Public->PublicMatch.Phase != ELDMatchPhase::Rest || !PC->GetPawn()) { return true; }
+            }
+            else if (Stage == 46)
+            {
+                Check(PC->ControlsUI->IsOpen() && !PC->ControlsUI->HasChildConfirmation()
+                    && PC->RootUI->TopInputLayer() == ELDUIInputLayer::MainPanel
+                    && PC->IsWorldInputSuppressed() && !PC->CanCameraCommand(),
+                    TEXT("Starting a match with settings open keeps ordinary world input suppressed after key release"));
+                const auto* Note = PC->ControlsUI->WidgetTree->FindWidget<UTextBlock>(TEXT("MatchNote"));
+                Check(Note && OnScreen(PC->ControlsUI, Note)
+                    && Note->GetText().ToString() == TEXT("对局不会暂停，角色仍在场上"),
+                    TEXT("Settings updates the running-match notice without reopening after Lobby start"));
+                if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); }
+            }
+            else
+            {
+                Check(!PC->ControlsUI->IsOpen() && !PC->IsWorldInputSuppressed() && PC->CanCameraCommand(),
+                    TEXT("Closing settings after Lobby start restores world input"));
                 return Finish();
             }
             ++Stage;
@@ -494,7 +599,8 @@ namespace
 
 void LDDemoTests::StartFrontendSettingsProbe(UWorld& World)
 {
-    if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoFrontendUIProbe"))) { return; }
+    const bool LobbyOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoLobbyUIProbe"));
+    if (!LobbyOnly && !FParse::Param(FCommandLine::Get(), TEXT("LDDemoFrontendUIProbe"))) { return; }
     FString Directory;
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoFrontendUIOutput="), Directory)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Directory),
@@ -506,6 +612,7 @@ void LDDemoTests::StartFrontendSettingsProbe(UWorld& World)
     }
     auto Probe = MakeShared<FFrontendProbe>();
     Probe->World = &World;
+    Probe->LobbyOnly = LobbyOnly;
     Probe->Directory = FPaths::ConvertRelativePathToFull(Directory);
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta) { return Probe->Tick(Delta); }));
 }
