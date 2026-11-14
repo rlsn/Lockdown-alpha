@@ -253,6 +253,11 @@ bool ALDGameMode::ResetCombatMatch(const FLDMatchReset& Reset, FString& Error)
         Error = TEXT("Combat reset names a match other than the one being retired.");
         return false;
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    DevPeaceful.Reset();
+    for (const auto& Pair : Contenders)
+    { if (auto* PC = Pair.Key.Get()) { PC->bDevPeaceful = false; } }
+#endif
     for (const auto& Pair : Contenders)
     {
         auto* Controller = Pair.Key.Get();

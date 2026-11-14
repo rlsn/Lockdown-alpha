@@ -352,6 +352,12 @@ public:
     // #198 session D: the optional PK provider's director of this match (PK/LDPKDirector.h); null without the provider.
     UPROPERTY() TObjectPtr<class ALDPKDirector> PKDirector;
 #if WITH_DEV_AUTOMATION_TESTS
+    void EnableRuntimeDevTest();
+    bool IsRuntimeDevTestEnabled() const { return bRuntimeDevTest; }
+    bool IsDevPeaceful(const FGuid& Contender) const { return DevPeaceful.Contains(Contender); }
+    bool DevSetPeaceful(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevTeleport(const FGuid& Contender, const FVector& CameraPosition, const FLDGameplayWritePermit& Permit, FString& Error);
     // DEV test session: queues the final rest/return under the next world permit; arena entry and unlock stay real.
     // bOutsideDevelopment when the match is in another phase; false with Detail when nothing changed.
     bool DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail);
@@ -361,6 +367,8 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     bool bDevShowdownEntryPending = false;
+    bool bRuntimeDevTest = false;
+    TSet<FGuid> DevPeaceful;
 #endif
     friend class FLDDemoSessionTest;
     friend class FLDGroundBossBodyTest;
@@ -380,6 +388,7 @@ private:
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
     friend class FLDRestPhaseTest;
+    friend class FLDDevSceneToolsTest;
     friend class FLDDemoOpponentProbe;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;

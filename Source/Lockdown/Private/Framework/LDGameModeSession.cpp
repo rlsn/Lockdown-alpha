@@ -311,7 +311,7 @@ FLDLobbyView ALDGameMode::ReadLobby() const
     else if (!AllReady) { View.StartBlocker = RejectionText(ELDSessionReject::NotAllReady); }
     View.CanStart = View.StartBlocker.IsEmpty() && LobbyHost.IsValid();
 #if WITH_DEV_AUTOMATION_TESTS
-    View.DevTestSession = LDDevGrowthFixture::IsSwitchPresent();
+    View.DevTestSession = LDDevGrowthFixture::IsSwitchPresent() || IsRuntimeDevTestEnabled();
     View.DevContentReload = LDDemoEntry::IsDevContentReload();
 #endif
     return View;

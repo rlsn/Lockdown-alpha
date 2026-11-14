@@ -288,6 +288,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoGrowthComponents.WorkshopTargets",
         "Lockdown.Rules.DemoGrowthComponents.WorkshopCapacity",
         "Lockdown.Rules.DemoDevTestCommands",
+        "Lockdown.Rules.DemoDevSceneTools",
         "Lockdown.Rules.DemoInputByteIntegrity",
         "Lockdown.Rules.DemoLobbyAuthority",
         "Lockdown.Rules.DemoLobbyReadModel",

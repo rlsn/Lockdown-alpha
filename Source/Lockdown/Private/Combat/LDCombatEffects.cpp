@@ -1085,7 +1085,11 @@ void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& O
         if (!Actor || Body.bPendingDeath || Body.Resources.HpP2<=0 || Body.Victim.Kind!=ELDVictimKind::Contender) { continue; }
         // D26: respawn protection is read here so the pure pickup rule can refuse it.
         const ALDGameMode* M=Core();
-        Out.Add({Body.Victim.EntityId,FootOf(*Actor),M && M->IsContenderProtected(Body.Victim.EntityId)});
+        bool Protected = M && M->IsContenderProtected(Body.Victim.EntityId);
+#if WITH_DEV_AUTOMATION_TESTS
+        Protected |= M && M->IsDevPeaceful(Body.Victim.EntityId);
+#endif
+        Out.Add({Body.Victim.EntityId,FootOf(*Actor),Protected});
     }
 }
 

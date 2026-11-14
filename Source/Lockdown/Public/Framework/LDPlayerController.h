@@ -22,6 +22,7 @@ class LOCKDOWN_API ALDPlayerController : public APlayerController
 public:
     ALDPlayerController();
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     virtual void PawnLeavingGame() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;
@@ -114,9 +115,15 @@ public:
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
-    // test session (automation-test build, Host started with -LDDevGrowthFixture); every result arrives as OnDevTestResult.
+    // test session (automation-test build, command-line or local Host opt-in); every result arrives as OnDevTestResult.
     uint64 SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition = NAME_None,
-        uint8 Slot = 0, uint8 Stat = 0);
+        uint8 Slot = 0, uint8 Stat = 0, FVector CameraPosition = FVector::ZeroVector);
+    void ToggleDevFreeCamera();
+    bool ToggleDevTestMenu();
+    UPROPERTY(Replicated) bool bDevPeaceful = false;
+    void TickDevTestInput(float Delta);
+    bool IsDevFreeCameraActive() const;
+    UFUNCTION(Server,Reliable) void ServerEnableDevTest(uint32 Generation);
     FLDOnDevTestResult OnDevTestResult;
     UFUNCTION(Server,Reliable) void ServerDevTestCommand(const FLDDevTestCommand& Command);
     UFUNCTION(Client,Reliable) void ClientDevTestResult(const FLDDevTestResult& Result);
@@ -240,6 +247,11 @@ private:
     float LastCameraFOV=0.f;
     bool bHasCameraPose=false;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
+    UPROPERTY() TObjectPtr<ACameraActor> DevFreeCamera;
+    uint32 DevCameraMatch = 0, DevCameraLife = 0;
+    bool bDevMenuChordDown = false, bDevTeleportKeyDown = false, bDevMenuPending = false;
+    uint64 DevTeleportRequest = 0;
+    void EndDevFreeCamera();
 #if WITH_DEV_AUTOMATION_TESTS
     TWeakObjectPtr<ACameraActor> DevArtCaptureCamera;
     friend class FLDFixedCameraTest;

@@ -1,4 +1,5 @@
 #include "UI/LDDevTestPanel.h"
+#include "Framework/LDPlayerController.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
@@ -146,6 +147,16 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         auto AddButton=[&](UHorizontalBox* Line,const FString& Label,TFunction<void()> Callback,FName Name)
         {Line->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,Label,MoveTemp(Callback),false,Name))->SetPadding(FMargin(6,0,0,0));};
 
+        Heading(TEXT("场景测试"));
+        {
+            UHorizontalBox* Line = Row();
+            AddButton(Line,TEXT("自由镜头 / 传送（T）"),[this]()
+            {if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())) {ClosePanel();PC->ToggleDevFreeCamera();}},TEXT("DevTestFreeCamera"));
+            AddButton(Line,TEXT("开启和平模式"),[this](){Send(ELDDevTestOp::SetPeaceful,1);},TEXT("DevTestPeaceOn"));
+            AddButton(Line,TEXT("关闭和平模式"),[this](){Send(ELDDevTestOp::SetPeaceful,0);},TEXT("DevTestPeaceOff"));
+        }
+        Body->AddChildToVerticalBox(MakeText(TEXT("T 切换镜头与传送 · WASD 移动 · Q/E 升降 · 右键转向 · Shift 加速 · Ctrl+回车 打开/关闭"),13,DevPanelDim,true));
+
         Heading(TEXT("资源与重复试验"));
         {
             UHorizontalBox* Line=Row();
@@ -192,6 +203,7 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         auto* Host=WidgetTree->ConstructWidget<UVerticalBox>();
         Host->AddChildToVerticalBox(MakeText(TEXT("整局（只限房主）"),16,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));
         auto* HostLine=WidgetTree->ConstructWidget<UHorizontalBox>();Host->AddChildToVerticalBox(HostLine);
+        Host->AddChildToVerticalBox(LDWidgets::Button(WidgetTree,TEXT("跳过准备，进入场景"),[this](){Send(ELDDevTestOp::SkipPreparation);},false,TEXT("DevTestSkipPreparation")));
         HostLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("刷新已清空营地"),[this](){Send(ELDDevTestOp::RefreshCamps);},false,TEXT("DevTestRefreshCamps")));
         HostLine->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("提前开圈"),[this](){Send(ELDDevTestOp::OpenCapture);},false,TEXT("DevTestOpenCapture")))->SetPadding(FMargin(6,0,0,0));
         HostSection=Host;Body->AddChildToVerticalBox(Host);Host->SetVisibility(ESlateVisibility::Collapsed);
@@ -286,7 +298,9 @@ void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDCom
 {
     if(!MainPanel){return;}
     if(Content){BuildCatalog(*Content);}
-    DevPanelSetText(StatusText,LDDevPanel::StatusLine(Progression));
+    const auto* PC = Cast<ALDPlayerController>(GetOwningPlayer());
+    DevPanelSetText(StatusText,LDDevPanel::StatusLine(Progression)
+        + (PC && PC->bDevPeaceful ? TEXT(" · 和平模式：开") : TEXT(" · 和平模式：关")));
     const TConstArrayView<LDDevTest::FStatField> Fields=LDDevTest::StatFields();
     for(int32 Index=0;Index<Fields.Num()&&Index<StatLines.Num();++Index)
     {

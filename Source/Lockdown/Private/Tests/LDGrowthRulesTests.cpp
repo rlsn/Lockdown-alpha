@@ -1,4 +1,5 @@
 #include "Development/LDProgressionRules.h"
+#include <limits>
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2482,6 +2483,27 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Out.Slot = Slot;
         return Out;
     };
+    for (int64 Enabled : {int64(0), int64(1)})
+    {
+        GrowthTestReason(*this, TEXT("Peaceful mode accepts an explicit on/off state"),
+            LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::SetPeaceful, Enabled)), ELDGrowthReason::None);
+    }
+    GrowthTestReason(*this, TEXT("Peaceful mode rejects values outside the boolean domain"),
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::SetPeaceful, 2)), ELDGrowthReason::NumericDomain);
+    TestTrue(TEXT("Skipping preparation is host-only; teleport and peaceful mode are owner-only"),
+        LDDevTest::IsMatchWide(ELDDevTestOp::SkipPreparation) && !LDDevTest::IsMatchWide(ELDDevTestOp::SetPeaceful)
+        && !LDDevTest::IsMatchWide(ELDDevTestOp::TeleportToCamera));
+    auto CameraCommand = Command(1, 1, 1, ELDDevTestOp::TeleportToCamera, 0);
+    CameraCommand.CameraPosition = FVector(100, 200, 300);
+    GrowthTestReason(*this, TEXT("A bounded camera position is accepted"), LDDevTest::ValidateShape(CameraCommand), ELDGrowthReason::None);
+    auto DifferentCamera = CameraCommand;
+    DifferentCamera.CameraPosition.X += 1;
+    TestFalse(TEXT("The request replay identity includes camera position"), CameraCommand.SameTerms(DifferentCamera));
+    CameraCommand.Op = ELDDevTestOp::SkipPreparation;
+    GrowthTestReason(*this, TEXT("Other commands cannot smuggle a camera position"), LDDevTest::ValidateShape(CameraCommand), ELDGrowthReason::InvalidRequest);
+    CameraCommand.Op = ELDDevTestOp::TeleportToCamera;
+    CameraCommand.CameraPosition.X = std::numeric_limits<double>::infinity();
+    GrowthTestReason(*this, TEXT("Nonfinite teleport destinations are refused"), LDDevTest::ValidateShape(CameraCommand), ELDGrowthReason::InvalidRequest);
     GrowthTestReason(*this, TEXT("A positive XP grant is a valid shape"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantExperience, 5)), ELDGrowthReason::None);
     GrowthTestReason(*this, TEXT("Request id 0 is refused"),

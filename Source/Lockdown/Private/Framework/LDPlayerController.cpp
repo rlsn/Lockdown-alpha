@@ -144,6 +144,7 @@ void ALDPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ALDPlayerController,OwnerState);
+    DOREPLIFETIME(ALDPlayerController,bDevPeaceful);
     DOREPLIFETIME_CONDITION(ALDPlayerController,CombatView,COND_OwnerOnly);
 }
 
@@ -219,7 +220,7 @@ void ALDPlayerController::UpdateCameraManager(float DeltaSeconds)
     {
         if (!IsFrontend()) { UpdateLocalViewTarget(); }
         if (auto* Active=Cast<ALDCharacter>(GetPawn())) { Active->UpdateOwnerPresentation(DeltaSeconds); }
-        if (!bDevArtCapture) { Navigation->UpdateLocalCamera(DeltaSeconds); }
+        if (!bDevArtCapture && !IsDevFreeCameraActive()) { Navigation->UpdateLocalCamera(DeltaSeconds); }
     }
     Super::UpdateCameraManager(DeltaSeconds);
     if (!bDevArtCapture && GetLocalPlayer() && !IsFrontend() && PlayerCameraManager)
@@ -237,6 +238,7 @@ void ALDPlayerController::PlayerTick(float Delta)
         Super::PlayerTick(Delta);
     }
     InitializeLocalUI();
+    TickDevTestInput(Delta);
     {
         TRACE_CPUPROFILER_EVENT_SCOPE(LDPlayerTick_Inputs);
         UpdateV05Inputs(Delta);
@@ -267,6 +269,11 @@ void ALDPlayerController::SetDevArtCaptureCamera(ACameraActor* Camera)
 
 void ALDPlayerController::UpdateLocalViewTarget()
 {
+    if (IsValid(DevFreeCamera))
+    {
+        if (GetViewTarget() != DevFreeCamera) { SetViewTarget(DevFreeCamera); }
+        return;
+    }
 #if WITH_DEV_AUTOMATION_TESTS
     if (auto* CaptureCamera=DevArtCaptureCamera.Get())
     {

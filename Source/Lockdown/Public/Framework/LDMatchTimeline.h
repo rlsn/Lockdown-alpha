@@ -149,6 +149,8 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV only: queue the real final rest return from a timed field, with T at the last segment end.
     bool DevSkipToFinalRest(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
+    // Opening preparation only: preserve a real build lock and return, with entry due at the next world boundary.
+    bool DevFinishPreparation(int64 AtMs, TArray<FLDTimelineEvent>& Out, FString& Error);
 #endif
 
     FLDTimelineView MakeView(uint32 Generation, uint64 Revision) const;
