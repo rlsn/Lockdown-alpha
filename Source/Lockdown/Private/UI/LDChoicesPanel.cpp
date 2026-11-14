@@ -414,7 +414,8 @@ bool ULDChoicesPanel::ClosePanel()
 }
 bool ULDChoicesPanel::IsServiceShown() const
 {
-    return bOpen&&Places.bActive&&!bStageShown&&ServiceContext!=ELDRestService::None&&Gate.bInRest;
+    // Only a rest's build windows (build and payout) offer services; the locked steps and the return take them away.
+    return bOpen&&Places.bActive&&!bStageShown&&ServiceContext!=ELDRestService::None&&LatestStage==LDProgression::EMatchStage::Rest;
 }
 bool ULDChoicesPanel::LeaveStage()
 {
@@ -437,7 +438,7 @@ TArray<FName> ULDChoicesPanel::ConfirmWarnings() const
     TArray<FName> Out;
     if(RestConfirm.Kind==ELDBuildCommandKind::ReplaceActive||RestConfirm.Kind==ELDBuildCommandKind::ForgetActive)
     {
-        // What sits on the forgotten active stays installed but stops working (APP_SPEC §4.5); it lights orange first.
+        // What sits on the forgotten active goes back to the storage (APP_SPEC §4.4); it lights orange first.
         const LDHUD::FStorageView Shown=LDHUD::ComponentStorage(Latest,LatestContent);
         const int32 Column=int32(LDHUD::SlotColumn(RestConfirm.Slot));
         if(Shown.Columns.IsValidIndex(Column)){for(const LDHUD::FEquippedView& Entry:Shown.Columns[Column].Entries){Out.Add(Entry.Component);}}
@@ -517,8 +518,25 @@ void ULDChoicesPanel::RefreshOffer()
     // A new offer drops the pinned popup; ids and revisions travel with the click, never a card index.
     if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;}
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
-    GrowthShown(OfferGroup,bOffer);
-    GrowthShown(OfferRow,bOffer);
+    // A queued opportunity without an eligible candidate waits as one grey card; its description says why.
+    const bool bWaiting=!bOffer&&Usable()&&Latest.QueuedActiveOpportunities>0;
+    GrowthShown(OfferGroup,bOffer||bWaiting);
+    GrowthShown(OfferRow,bOffer||bWaiting);
+    if(bWaiting)
+    {
+        GrowthText(OfferNumber,FString::Printf(TEXT("%u/%u"),uint32(Latest.ActiveOpportunitiesConsumed+1),uint32(Latest.ActiveOpportunitiesEarned)));
+        for(int32 Index=1;Index<OfferCards.Num();++Index){GrowthShown(OfferCards[Index].Frame,false);}
+        GrowthShown(SkipCard.Frame,false);
+        FTrayCard& Card=OfferCards[0];
+        const FString Key=TEXT("WAIT");
+        if(CardStale(Card,Key))
+        {
+            LDHUD::FActionDetailView Detail;Detail.Name=LDTerms::OfferWaitingName;Detail.Body=LDTerms::OfferWaiting;
+            ShowFace(Card,Key,LDTerms::OfferWaitingName,FString(),TEXT("?"),Detail);
+        }
+        ShowLook(Card,bQuickShown&&bQuickCompact,false);
+        return;
+    }
     if(bOffer){GrowthText(OfferNumber,FString::Printf(TEXT("%u/%u"),uint32(Latest.ActiveOffer.OpportunityOrdinal),uint32(Latest.ActiveOpportunitiesEarned)));}
     // What a click does now: learn into the lowest empty slot, or keep it as a blueprint and say why (the server decides).
     const uint8 FirstEmpty=FirstEmptySlot();
@@ -1485,6 +1503,13 @@ void ULDChoicesPanel::FinishRequest()
 void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
 {
     ResultLine=LDHUD::BuildReceiptText(Receipt,LatestContent,SlotKeys);
+    // The moments the receipt confirms get their cue: an active chosen, the final mod locked, a refusal.
+    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)
+    {
+        if(Receipt.Kind==ELDBuildCommandKind::ActiveChoice){LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);}
+        else if(Receipt.Kind==ELDBuildCommandKind::FinalMod){LDWidgets::PlayCue(this,ELDAudioCue::UIFinalLock);}
+    }
+    else{LDWidgets::PlayCue(this,ELDAudioCue::UIReject);}
     // #198 G: a done fill gap or dismantle closes its picker; the receipt line names what was received and removed.
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&(Receipt.Kind==ELDBuildCommandKind::FillGap||Receipt.Kind==ELDBuildCommandKind::Dismantle))
     {CloseMaterialPickers();}
@@ -1549,7 +1574,11 @@ void ULDChoicesPanel::UpdateStage()
     const bool bFinalNext=!bOffer&&bFinal;
     const FGuid Key=bOffer?Latest.ActiveOffer.OfferId:bFinal?Latest.FinalModOfferId:FGuid();
     const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
+    // The next queued offer deals its cards again a moment after the previous choice (LDHUDStyle::MotionChoose).
+    if(bShow&&bShow==bStageShown&&bFinalNext==bStageFinal&&Key!=StageShownFor)
+    {StageShownFor=Key;StageOpenedAt=UiNow()+LDHUDStyle::MotionChoose;LDWidgets::PlayCue(this,ELDAudioCue::UIOfferDeal);return;}
     if(bShow==bStageShown&&(!bShow||bFinalNext==bStageFinal)){return;}
+    StageShownFor=bShow?Key:FGuid();
     // Every card goes back to its tray row first, in order; the stage then takes the ones it shows.
     const auto Move=[](UWidget* Widget,UPanelWidget* To){if(Widget&&To&&Widget->GetParent()!=To){Widget->RemoveFromParent();To->AddChild(Widget);}};
     for(FTrayCard& Card:OfferCards){Move(Card.Frame,OfferRow);ShowBig(Card,false,0.f,0.f);}
@@ -1559,6 +1588,7 @@ void ULDChoicesPanel::UpdateStage()
     bStageShown=bShow;bStageFinal=bFinalNext;
     if(!bShow){return;}
     StageOpenedAt=UiNow();
+    LDWidgets::PlayCue(this,ELDAudioCue::UIOfferDeal);
     const auto OnStage=[this,&Move](FTrayCard& Card,UHorizontalBox* Row,float Gap,float Width,float Icon)
     {
         Move(Card.Frame,Row);

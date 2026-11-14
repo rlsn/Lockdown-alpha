@@ -87,6 +87,8 @@ public:
     TWeakObjectPtr<ULDStatBar> StatBar;
     TWeakObjectPtr<ULDChoicesPanel> Choices;
     TFunction<void()> RequestClose;
+    // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.
+    void ApplyTextScale(float Scale);
     // The workshop's own "+" of the stat at Index (design order); the same one-click allocation as the band (ULDStatBar).
     ULDCommandButton* StatPlus(int32 Index) const {return StatRows.IsValidIndex(Index)?StatRows[Index].Plus:nullptr;}
 protected:
@@ -105,6 +107,8 @@ private:
         UTextBlock* Points=nullptr;
         ULDCommandButton* Plus=nullptr;
         int32 Value=0;
+        // The local moment its "+" was clicked: the next meter cell flashes (LDHUDStyle::MotionAddPoint).
+        double AddedAt=-100.;
         FString AppliedIcon;
     };
     struct FHead
@@ -202,6 +206,8 @@ private:
     TArray<FReaction> Reactions;
     TMap<UWidget*,UCanvasPanelSlot*> Slots;
     TMap<UWidget*,ESlateVisibility> ShownAs;
+    float TextScale=1.f;
+    void ScaleFresh(UTextBlock* Text) const;
     EMode Mode=EMode::Closed;
     FInput Latest;
     FLDProgressionView View;

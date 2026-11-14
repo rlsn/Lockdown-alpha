@@ -31,6 +31,9 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/WrapBox.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+#include "UI/LDTween.h"
 #include "Engine/Engine.h"
 #include "Engine/PendingNetGame.h"
 #include "Engine/Texture2D.h"
@@ -122,20 +125,47 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
 {
     const ULDStartPageDraft* Draft=StartDraft();
     // The title screen is this root over its picture; the frontend map itself renders nothing.
-    AddBackground(Canvas,LDUIBackgrounds::TitleAsset);
+    FrontendBackground=AddBackground(Canvas,LDUIBackgrounds::TitleAsset);
+    if(FrontendBackground){FrontendBackground->SetRenderTransformPivot(FVector2D(.5f,.5f));}
     UVerticalBox* Content=nullptr;
     FrontendPage=MakePage(Canvas,660,Content);
+    FrontendPanel=Cast<UBorder>(FrontendPage->GetContent());
+    FrontendShownAt=FPlatformTime::Seconds();
     auto Add=[](UVerticalBox* Box,UWidget* Child,float Gap){Box->AddChildToVerticalBox(Child)->SetPadding(FMargin(0,Gap));};
     MainMenu=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Content,MainMenu,0);
-    UTextBlock* Title=Label(LDTerms::Title,LDHUDStyle::TypeMenuTitle,LDHUDStyle::MenuTitle);
-    Title->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Title->GetFont().Size));
-    Title->SetJustification(ETextJustify::Center);
-    Add(MainMenu,Title,10);
-    UTextBlock* Tagline=Label(FString(LDTerms::Tagline).Replace(TEXT(" · "),TEXT("\n")),LDHUDStyle::TypeLead,LDHUDStyle::MenuMuted);
-    Tagline->SetJustification(ETextJustify::Center);
-    Add(MainMenu,Tagline,4);
+    {
+        // The logo in the sky: the title's lead, then the winner title large in action yellow over an event-pink offset,
+        // then the tagline.
+        auto* Logo=WidgetTree->ConstructWidget<UVerticalBox>();
+        FString Lead=LDTerms::Title;Lead.RemoveFromEnd(LDTerms::Winner);
+        UTextBlock* LeadText=Label(Lead,LDHUDStyle::TypeHero+12,LDHUDStyle::UIText);
+        LeadText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,LeadText->GetFont().Size,FFontOutlineSettings(2,LDHUDStyle::Rim)));
+        Logo->AddChildToVerticalBox(LeadText)->SetHorizontalAlignment(HAlign_Center);
+        UTextBlock* Winner=Label(LDTerms::Winner,LDHUDStyle::TypeGiant+64,LDHUDStyle::UIAction);
+        Winner->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Winner->GetFont().Size));
+        Winner->SetShadowOffset(FVector2D(8.f,8.f));Winner->SetShadowColorAndOpacity(LDHUDStyle::UIEvent);
+        Logo->AddChildToVerticalBox(Winner)->SetHorizontalAlignment(HAlign_Center);
+        UTextBlock* Tagline=Label(FString(LDTerms::Tagline).Replace(TEXT(" · "),TEXT("\n")),LDHUDStyle::TypeLead,LDHUDStyle::UIText);
+        Tagline->SetJustification(ETextJustify::Center);Tagline->SetShadowOffset(FVector2D(1.f,1.f));Tagline->SetShadowColorAndOpacity(LDHUDStyle::Rim);
+        Logo->AddChildToVerticalBox(Tagline)->SetHorizontalAlignment(HAlign_Center);
+        Logo->SetVisibility(ESlateVisibility::HitTestInvisible);
+        UCanvasPanelSlot* LogoSlot=Canvas.AddChildToCanvas(Logo);LogoSlot->SetAnchors(FAnchors(.5f,0));LogoSlot->SetAlignment(FVector2D(.5f,0));
+        LogoSlot->SetPosition(FVector2D(0,40));LogoSlot->SetAutoSize(true);
+        FrontendLogo=Logo;
+    }
+    // 开始 is the one main button: wide, in action yellow; the others sit under it side by side.
     StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},LDHUDStyle::TypeSection);
+    {
+        FButtonStyle Style=StartButton->GetStyle();
+        for(FSlateBrush* Brush:{&Style.Normal,&Style.Hovered,&Style.Pressed})
+        {*Brush=FSlateRoundedBoxBrush(FLinearColor::White,LDHUDStyle::RadiusButton,LDHUDStyle::UIAction,1.f);}
+        Style.Normal.TintColor=FSlateColor(LDHUDStyle::UIAction);Style.Hovered.TintColor=FSlateColor(LDHUDStyle::UIAction*1.1f);
+        Style.Pressed.TintColor=FSlateColor(LDHUDStyle::UIAction*.9f);Style.NormalPadding=Style.PressedPadding=FMargin(16,18);
+        StartButton->SetStyle(Style);
+        UTextBlock* Caption=CastChecked<UTextBlock>(StartButton->GetContent());Caption->SetColorAndOpacity(LDHUDStyle::UIBase);
+        Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Scaled(LDHUDStyle::TypeBanner)));
+    }
     Add(MainMenu,StartButton,8);
     if(const auto* Instance=GetGameInstance<ULDGameInstance>();Instance&&Instance->CanReconnect())
     {
@@ -145,8 +175,14 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
             {if(auto* State=GetGameInstance<ULDGameInstance>()){State->ReconnectRoom(*Owner);}}
         },LDHUDStyle::TypeSection),8);
     }
-    Add(MainMenu,MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},LDHUDStyle::TypeSection),8);
-    Add(MainMenu,MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);},LDHUDStyle::TypeSection),8);
+    {
+        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+        auto* Settings=Row->AddChildToHorizontalBox(MakeButton(TEXT("设置"),TEXT("Settings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);},LDHUDStyle::TypeSection));
+        Settings->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* Exit=Row->AddChildToHorizontalBox(MakeButton(TEXT("退出"),TEXT("Exit"),[this](){OpenConfirm(ELDRootConfirm::Exit);},LDHUDStyle::TypeSection));
+        Exit->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Exit->SetPadding(FMargin(10,0,0,0));
+        Add(MainMenu,Row,6);
+    }
 
     StartPage=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Content,StartPage,0);
@@ -193,12 +229,16 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     Add(Content,StartBackButton,6);
     FString Version,VersionError;
     UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,LDHUDStyle::TypeBody,LDHUDStyle::MenuMuted);
-    VersionLine->SetJustification(ETextJustify::Center);
-    Add(Content,VersionLine,10);
-    // The slang note stays under the front page (#111) so the title's slang is never read as anything else.
+    // The slang note stays on the front page (#111) so the title's slang is never read as anything else; with the version it
+    // sits in a bottom corner, off the picture's people.
     UTextBlock* SlangNote=Label(LDTerms::SlangNote,LDHUDStyle::TypeSmall,LDHUDStyle::MenuMuted);
-    SlangNote->SetJustification(ETextJustify::Center);
-    Add(Content,SlangNote,2);
+    for(UTextBlock* Corner:{VersionLine,SlangNote})
+    {
+        Corner->SetShadowOffset(FVector2D(1.f,1.f));Corner->SetShadowColorAndOpacity(LDHUDStyle::Rim);
+        UCanvasPanelSlot* CornerSlot=Canvas.AddChildToCanvas(Corner);const float Side=Corner==VersionLine?0.f:1.f;
+        CornerSlot->SetAnchors(FAnchors(Side,1));CornerSlot->SetAlignment(FVector2D(Side,1));CornerSlot->SetPosition(FVector2D(Side>0.f?-28.f:28.f,-18.f));
+        CornerSlot->SetAutoSize(true);FrontendCorners.Add(Corner);
+    }
     bMenuOpen=true;
     SetFrontendPage(Draft&&Draft->bStartPage);
 }
@@ -480,6 +520,8 @@ void ULDUIRoot::NativeTick(const FGeometry& Geometry,float Delta)
 
 void ULDUIRoot::TickFrontend(ALDPlayerController& PC)
 {
+    // The title picture pushes in slowly and back (interface motion only; nothing renders behind it).
+    if(FrontendBackground){LDTween::SetScale(FrontendBackground,1.f+.05f*LDTween::PingPong(FPlatformTime::Seconds()-FrontendShownAt,60.));}
     // Settings is the frontend's main panel: the page yields to it and comes back unchanged when it closes.
     const bool bSettings=PanelOpen(PC.ControlsUI.Get());
     if(bSettings&&!bFrontendHidden){DismissMenu();}
@@ -615,38 +657,64 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
 
 void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
 {
+    // Six seat cards: name, 真人/AI, the host's 房主 mark and a 已准备 stamp; empty seats are dashed outlines. The own seat is
+    // edged in action yellow.
     RosterRows->ClearChildren();
-    auto AddRow=[this](const TArray<FString>& Cells,const FLinearColor& Fill,int32 Size)
+    auto* Seats=WidgetTree->ConstructWidget<UWrapBox>();Seats->SetInnerSlotPadding(FVector2D(10,10));
+    RosterRows->AddChildToVerticalBox(Seats);
+    constexpr int32 SeatCount=6;
+    const auto Seat=[this,Seats](UWidget* Content,const FLinearColor& Fill,const FLinearColor& Edge,float EdgeWidth)
     {
-        const float Widths[]={0.f,104.f,96.f,112.f};
-        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        for(int32 Index=0;Index<Cells.Num()&&Index<4;++Index)
-        {
-            UTextBlock* Cell=Label(Cells[Index],Size);
-            if(Index==0){Line->AddChildToHorizontalBox(Cell)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));continue;}
-            auto* Column=WidgetTree->ConstructWidget<USizeBox>();
-            Column->SetWidthOverride(Widths[Index]);
-            Column->SetContent(Cell);
-            Line->AddChildToHorizontalBox(Column)->SetPadding(FMargin(12,0,0,0));
-        }
-        UBorder* Frame=LDWidgets::Panel(WidgetTree,Line,FMargin(14,10));
-        Frame->SetBrushColor(Fill);
-        RosterRows->AddChildToVerticalBox(Frame)->SetPadding(FMargin(0,2));
+        auto* Card=WidgetTree->ConstructWidget<UBorder>();Card->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,LDHUDStyle::RadiusPanel,Edge,EdgeWidth));
+        Card->SetBrushColor(Fill);Card->SetPadding(FMargin(14,12));Card->SetContent(Content);
+        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(190.f);Size->SetHeightOverride(112.f);Size->SetContent(Card);
+        Seats->AddChildToWrapBox(Size);
     };
-    AddRow({TEXT("名称"),TEXT("类型"),TEXT("房主"),TEXT("准备")},LDHUDStyle::RosterHeader,LDHUDStyle::TypeText);
+    int32 Shown=0;
     for(const FLDLobbyMember& Member:Public.DemoLobby.Members)
     {
         const bool bMine=Self.IsValid()&&Member.ContenderId==Self;
         const bool bHuman=Member.Kind==ELDContenderKind::Human;
-        AddRow({Member.Name+(bMine?TEXT("（你）"):TEXT("")),bHuman?TEXT("真人"):TEXT("AI"),Member.Host?TEXT("房主"):TEXT(""),
-            bHuman?(Member.Ready?TEXT("已准备"):TEXT("未准备")):TEXT("—")},
-            bMine?LDHUDStyle::RosterOwnRow:LDHUDStyle::RosterRow,LDHUDStyle::TypeLead);
+        auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
+        UTextBlock* Name=Label(Member.Name+(bMine?TEXT("（你）"):TEXT("")),LDHUDStyle::TypeLead,LDHUDStyle::UIText);
+        Name->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Name->GetFont().Size));Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+        Box->AddChildToVerticalBox(Name);
+        auto* Tags=WidgetTree->ConstructWidget<UHorizontalBox>();
+        Tags->AddChildToHorizontalBox(Label(bHuman?TEXT("真人"):TEXT("AI"),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary));
+        if(Member.Host){Tags->AddChildToHorizontalBox(Label(TEXT("房主"),LDHUDStyle::TypeSmall,LDHUDStyle::UIAction))->SetPadding(FMargin(10,0,0,0));}
+        Box->AddChildToVerticalBox(Tags)->SetPadding(FMargin(0,6,0,0));
+        if(bHuman)
+        {
+            UTextBlock* Stamp=Label(Member.Ready?TEXT("已准备"):TEXT("未准备"),LDHUDStyle::TypeSmall,Member.Ready?LDHUDStyle::UILegal:LDHUDStyle::TextSecondary);
+            auto* StampFrame=WidgetTree->ConstructWidget<UBorder>();
+            StampFrame->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,3.f,Member.Ready?LDHUDStyle::UILegal:LDHUDStyle::PanelRim,1.f));
+            StampFrame->SetBrushColor(Member.Ready?LDHUDStyle::UILegal.CopyWithNewOpacity(.12f):FLinearColor::Transparent);
+            StampFrame->SetPadding(FMargin(8,1));StampFrame->SetContent(Stamp);
+            if(Member.Ready){StampFrame->SetRenderTransformAngle(-6.f);}
+            Box->AddChildToVerticalBox(StampFrame)->SetPadding(FMargin(0,8,0,0));
+        }
+        Seat(Box,bMine?LDHUDStyle::RosterOwnRow:LDHUDStyle::UIRaised,bMine?LDHUDStyle::UIAction:LDHUDStyle::PanelRim,bMine?2.f:1.f);
+        ++Shown;
+    }
+    for(;Shown<SeatCount;++Shown)
+    {
+        UTextBlock* Empty=Label(TEXT("空位"),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary);
+        Seat(Empty,FLinearColor::Transparent,LDHUDStyle::PanelRim.CopyWithNewOpacity(.5f),1.f);
     }
 }
 
 void ULDUIRoot::SetFrontendPage(bool bStart)
 {
     bStartPage=bStart;
+    // The main menu stands on the ground without a panel; the start page is a centred panel and hides the logo.
+    if(UCanvasPanelSlot* PageSlot=FrontendPage?Cast<UCanvasPanelSlot>(FrontendPage->Slot):nullptr)
+    {
+        PageSlot->SetAnchors(bStart?FAnchors(.5f,.5f):FAnchors(.5f,1.f));PageSlot->SetAlignment(bStart?FVector2D(.5f,.5f):FVector2D(.5f,1.f));
+        PageSlot->SetPosition(bStart?FVector2D::ZeroVector:FVector2D(0,-56));
+        FrontendPage->SetWidthOverride(bStart?660.f:440.f);
+    }
+    if(FrontendPanel){FrontendPanel->SetBrushColor(bStart?LDHUDStyle::PanelFill:FLinearColor::Transparent);}
+    if(FrontendLogo){FrontendLogo->SetVisibility(bStart?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
     MainMenu->SetVisibility(bStart?ESlateVisibility::Collapsed:ESlateVisibility::SelfHitTestInvisible);
     StartPage->SetVisibility(bStart?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     if(ULDStartPageDraft* Draft=StartDraft()){Draft->bStartPage=bStart;}
@@ -697,6 +765,8 @@ void ULDUIRoot::RestoreFrontendPage(ALDPlayerController& PC)
     bFrontendHidden=false;
     bMenuOpen=true;
     FrontendPage->SetVisibility(ESlateVisibility::Visible);
+    for(UWidget* Corner:FrontendCorners){Corner->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    if(FrontendLogo&&!bStartPage){FrontendLogo->SetVisibility(ESlateVisibility::HitTestInvisible);}
     PC.SetMenuOpen(true);
 }
 
@@ -1099,6 +1169,8 @@ void ULDUIRoot::DismissMenu()
             bFrontendHidden=true;
             bMenuOpen=false;
             FrontendPage->SetVisibility(ESlateVisibility::Collapsed);
+            for(UWidget* Corner:FrontendCorners){Corner->SetVisibility(ESlateVisibility::Collapsed);}
+            if(FrontendLogo){FrontendLogo->SetVisibility(ESlateVisibility::Collapsed);}
         }
         return;
     }

@@ -282,6 +282,7 @@ private:
     bool bStageShown=false;
     bool bStageFinal=false;
     FGuid StageLeftFor;
+    FGuid StageShownFor;
     double StageOpenedAt=-1.;
     int32 FinalSourcePick=INDEX_NONE;
     int32 TrainerBlueprint=0;

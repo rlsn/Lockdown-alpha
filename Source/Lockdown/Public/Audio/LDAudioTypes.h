@@ -33,6 +33,20 @@ enum class ELDAudioCue : uint8
     SelfDash,
     // The pointer entering a command button (UIClick plays when it is pressed).
     UIHover,
+    // Build workshop moments (APP_SPEC §7 构筑): a component picked up, installed (after its receipt) or refused, the
+    // workshop opening and closing, the offer cards dealt, an active chosen (after its receipt), a component received, a
+    // point added, a hold confirm charging and the final mod locked (after its receipt).
+    UIPickup,
+    UIInstall,
+    UIReject,
+    UIWorkshopOpen,
+    UIWorkshopClose,
+    UIOfferDeal,
+    UIChoose,
+    UIGain,
+    UIAddPoint,
+    UIHoldCharge,
+    UIFinalLock,
     Count UMETA(Hidden)
 };
 

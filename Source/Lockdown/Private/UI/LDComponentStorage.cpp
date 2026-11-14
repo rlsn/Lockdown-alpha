@@ -272,6 +272,7 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
             {
                 if(KnownOwned.Contains(Each.DefinitionId)||Each.bInstalled||Workshop.bActive){continue;}
                 FFly& Fly=Flies.AddDefaulted_GetRef();Fly.Component=Each.DefinitionId;Fly.At=UiNow();Fly.bStrip=!bEngaged;
+                LDWidgets::PlayCue(this,ELDAudioCue::UIGain);
             }
         }
         if(Latest.bValid){KnownOwned=MoveTemp(Owned);KnownMatch=Match;}
@@ -370,6 +371,13 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         Column.PlaceholderFace->SetBrushColor(Workshop.bActive?FLinearColor::Transparent:LDHUDStyle::DropLegal.CopyWithNewOpacity(.10f));
         Column.PlaceholderFace->SetBrush(StorageRound(6.f,Workshop.bActive?FLinearColor::Transparent:LDHUDStyle::DropLegal,Workshop.bActive?0.f:1.f));
     }
+    ScaleBuiltText();
+}
+void ULDComponentStorage::ScaleBuiltText()
+{
+    if(FMath::IsNearlyEqual(TextScale,1.f)){return;}
+    for(UWidget* Widget:Built)
+    {if(auto* Text=Cast<UTextBlock>(Widget)){FSlateFontInfo Font=Text->GetFont();Font.Size=FMath::Max(1.f,FMath::RoundToFloat(float(Font.Size)*TextScale));Text->SetFont(Font);}}
 }
 void ULDComponentStorage::StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const
 {
@@ -565,6 +573,7 @@ bool ULDComponentStorage::PickUp(FName Component,bool bFromColumn)
     if(Component.IsNone()){return false;}
     Press=FPress();
     Drag.Component=Component;Drag.bFromColumn=bFromColumn;Drag.bActive=true;Drag.bPicked=true;Drag.Since=UiNow();
+    LDWidgets::PlayCue(this,ELDAudioCue::UIPickup);
     Drag.Drops=LDHUD::ComponentDrops(Component,Latest,LatestContent);
     Drag.Drops.Append(LDHUD::ReplaceDrops(Component,Latest,LatestContent));
     ShowIcon(GhostPicture,GhostGlyph,Component);
@@ -618,6 +627,7 @@ void ULDComponentStorage::UpdateDrag(FVector2D Pointer,bool bHeld)
         if(!bHeld){PickUp(Press.Component,Press.bFromColumn);return;}
         if(FVector2D::Distance(Pointer,Press.At)<StorageDragStartPx){return;}
         Drag.Component=Press.Component;Drag.bFromColumn=Press.bFromColumn;Drag.bActive=true;Drag.bPicked=false;Drag.Since=UiNow();
+        LDWidgets::PlayCue(this,ELDAudioCue::UIPickup);
         Drag.Drops=LDHUD::ComponentDrops(Drag.Component,Latest,LatestContent);
         Drag.Drops.Append(LDHUD::ReplaceDrops(Drag.Component,Latest,LatestContent));
         ShowIcon(GhostPicture,GhostGlyph,Drag.Component);
@@ -821,8 +831,8 @@ void ULDComponentStorage::FinishRequest(const FString& Text,bool bRefused)
 {
     PendingRequest=0;
     // A refusal shakes the component and edges it red for a moment; an applied install flashes where it lands.
-    if(bRefused){RejectedComponent=PendingComponent;RejectedAt=UiNow();}
-    else if(!Text.IsEmpty()){LandedComponent=PendingComponent;LandedAt=UiNow();}
+    if(bRefused){RejectedComponent=PendingComponent;RejectedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIReject);}
+    else if(!Text.IsEmpty()){LandedComponent=PendingComponent;LandedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIInstall);}
     if(Follow.State==EFollow::None){bPendingAt=false;PendingComponent=NAME_None;}
     if(!Text.IsEmpty()&&Notify){Notify(FString(LDTerms::Storage)+TEXT("：")+Text);}
 }
@@ -967,6 +977,7 @@ void ULDComponentStorage::UpdateStates(FVector2D Pointer)
         Card.State=bRejected?EFaceState::Rejected:Drag.bActive&&Drag.Component==Card.Component?EFaceState::Held
             :CurrentFocus.Component==Card.Component&&!CurrentFocus.bInstalled?EFaceState::Hovered:EFaceState::Normal;
         LDTween::SetTranslation(Card.Face,FVector2D(bRejected?Shake:0.f,0.f));
+        LDTween::SetScale(Card.Face,Card.State==EFaceState::Hovered?LDHUDStyle::HoverScale:1.f);
     }
     for(FTile& Tile:Tiles)
     {
@@ -1330,4 +1341,15 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
         LDUIShapes::Arc(Elements,Top+1,Geometry,Box.GetCenter(),float(Box.GetSize().X)*.62f,.3f,LDHUDStyle::UIAction,2.f,float(FMath::Fmod(Now*1.4,1.)));
     }
     return Top+1;
+}
+
+void ULDComponentStorage::ApplyTextScale(float Scale)
+{
+    if(Scale<=0.f||!WidgetTree||FMath::IsNearlyEqual(Scale,TextScale)){return;}
+    const float Ratio=Scale/TextScale;TextScale=Scale;
+    WidgetTree->ForEachWidget([Ratio](UWidget* Widget)
+    {
+        if(auto* Text=Cast<UTextBlock>(Widget)){FSlateFontInfo Font=Text->GetFont();Font.Size=FMath::Max(1.f,FMath::RoundToFloat(float(Font.Size)*Ratio));Text->SetFont(Font);}
+        else if(auto* Rich=Cast<URichTextBlock>(Widget)){LDWidgets::SetRichTextSize(Rich,FMath::Max(1,FMath::RoundToInt(float(LDWidgets::RichTextSize(Rich))*Ratio)));}
+    });
 }

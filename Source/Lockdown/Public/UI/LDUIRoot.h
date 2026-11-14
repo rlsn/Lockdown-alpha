@@ -83,6 +83,13 @@ private:
     UPROPERTY() TObjectPtr<USizeBox> FrontendPage;
     UPROPERTY() TObjectPtr<UVerticalBox> MainMenu;
     UPROPERTY() TObjectPtr<UVerticalBox> StartPage;
+    // The title screen keeps the picture's people clear: the logo in the sky, the buttons on the ground, the version and the
+    // slang note in the bottom corners; the page panel only frames the start page.
+    UPROPERTY() TObjectPtr<UWidget> FrontendLogo;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> FrontendCorners;
+    UPROPERTY() TObjectPtr<UWidget> FrontendBackground;
+    UPROPERTY() TObjectPtr<class UBorder> FrontendPanel;
+    double FrontendShownAt=-1.;
     UPROPERTY() TObjectPtr<UEditableTextBox> NameBox;
     UPROPERTY() TObjectPtr<UEditableTextBox> AddressBox;
     UPROPERTY() TObjectPtr<UEditableTextBox> PortBox;

@@ -267,6 +267,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
 | 界面点击 / 悬停（`UIClick` / `UIHover`） | 命令按钮（`LDWidgets::Button`）点击 / 指针进入；按住确认按钮在按满提交时响点击音；设置页主音量滑条松手或键盘调节时试听点击音 | 每次点击、进入或调节一次；禁用的按钮不响 |
+| 工坊时刻（`UIPickup`、`UIInstall`、`UIReject`、`UIWorkshopOpen`/`UIWorkshopClose`、`UIOfferDeal`、`UIChoose`、`UIGain`、`UIAddPoint`、`UIHoldCharge`、`UIFinalLock`） | 构件拿起；安装、选定技能与锁定终局改装在各自的已应用回执后；构筑请求被拒绝；工坊打开与收起；三选一入场（下一组候选再入场）；新构件飞入；工坊加号；按住确认开始蓄力 | 每次一响；都只是本地表现，不早于回执表现成功 |
 
 主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
 经 `SMix_DemoUser` 对 `SC_DemoMaster` 的类覆盖生效，每个新世界重新应用，不修改共享资产或 CDO。

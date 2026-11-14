@@ -187,6 +187,8 @@ inline constexpr TCHAR OfferLinks[]=TEXT("可接");
 inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
 inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
 inline constexpr TCHAR OfferSkip[]=TEXT("不选");
+inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");
+inline constexpr TCHAR OfferWaiting[]=TEXT("现在没有合格的技能候选，这次机会保留，有合格候选时再出现。");
 inline FString ReactsWith(const FString& Key,const FString& Name,const FString& Pair,const FString& Reaction){return FString::Printf(TEXT("与 %s %s：%s %s"),*Key,*Name,*Pair,*Reaction);}
 inline constexpr TCHAR FinalStageTitle[]=TEXT("终局改装");
 inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");

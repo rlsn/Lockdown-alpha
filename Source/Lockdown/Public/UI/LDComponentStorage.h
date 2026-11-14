@@ -115,6 +115,8 @@ public:
     void SetWarnings(const TArray<FName>& Components){Warnings=Components;}
     // In an engagement window a newly received component only flies to the stack, without its name strip.
     void SetEngaged(bool bInEngaged){bEngaged=bInEngaged;}
+    // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.
+    void ApplyTextScale(float Scale);
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
@@ -277,6 +279,7 @@ private:
     };
     TArray<FFly> Flies;
     TSet<FName> KnownOwned;
+    float TextScale=1.f;
     uint32 KnownMatch=0;
     uint32 LatestMatch=0;
     TSet<FName> SeenComponents;
@@ -315,6 +318,7 @@ private:
     // Whether Drops take something on Column (its own place only with bOwnOnly), replacements aside.
     static bool Drags(const TArray<LDHUD::FComponentDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly);
     void StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const;
+    void ScaleBuiltText();
     void Layout(const FGeometry& Geometry,FVector2D Pointer);
     bool OverExpanded(FVector2D Absolute) const;
     bool BeginPress(FVector2D Absolute);

@@ -515,10 +515,11 @@ void ULDWorkshop::Present(const FInput& Input)
     View=Input.Progression?*Input.Progression:FLDProgressionView();
     if(Mode==EMode::Closed)
     {
+        if(Previous!=EMode::Closed){LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);}
         WorkshopShown(this,false);OpenedAt=-1.;
         return;
     }
-    if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();}
+    if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
     WorkshopShown(this,true);
     FVector2D Size=GetCachedGeometry().GetLocalSize();
     if(Size.X<=1.f||Size.Y<=1.f){Size=FVector2D(1920.f,1080.f);}
@@ -609,7 +610,7 @@ void ULDWorkshop::RefreshCharacter()
             Row.Points->SetColorAndOpacity(LDHUDStyle::UIText);
             Line->AddChildToHorizontalBox(Row.Points)->SetVerticalAlignment(VAlign_Center);
             const int32 StatIndex=Index;
-            Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,StatIndex](){if(StatBar.IsValid()){StatBar->Allocate(StatIndex);}},true,
+            Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,StatIndex](){if(StatBar.IsValid()&&StatBar->Allocate(StatIndex)){LDWidgets::PlayCue(this,ELDAudioCue::UIAddPoint);StatRows[StatIndex].AddedAt=UiNow();}},true,
                 FName(*FString::Printf(TEXT("WorkshopStatPlus%d"),StatIndex)));
             WorkshopTint(Row.Plus,true);
             auto* PlusBox=WidgetTree->ConstructWidget<USizeBox>();PlusBox->SetWidthOverride(36.f);PlusBox->SetHeightOverride(36.f);PlusBox->SetContent(Row.Plus);
@@ -617,6 +618,7 @@ void ULDWorkshop::RefreshCharacter()
             auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetPadding(FMargin(0,5));Frame->SetContent(Line);
             Frame->SetVisibility(ESlateVisibility::Visible);Row.Row=Frame;
             StatList->AddChildToVerticalBox(Frame);
+            for(UTextBlock* Fresh:{Row.Glyph,Row.Name,Row.Points,Cast<UTextBlock>(Row.Plus->GetContent())}){ScaleFresh(Fresh);}
             for(UWidget* Each:{static_cast<UWidget*>(Line),static_cast<UWidget*>(IconStack),static_cast<UWidget*>(IconBox),static_cast<UWidget*>(Meter),static_cast<UWidget*>(PlusBox)}){Built.Add(Each);}
             ++Index;
         }
@@ -659,7 +661,7 @@ void ULDWorkshop::RefreshCharacter()
         auto* NameSlot=Half->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Half->AddChildToHorizontalBox(Value)->SetPadding(FMargin(6,0,0,0));
         auto* HalfSlot=Line->AddChildToHorizontalBox(Half);HalfSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HalfSlot->SetPadding(FMargin(Index%2?16.f:0.f,0,0,0));
-        AttributeNames.Add(Name);AttributeValues.Add(Value);
+        AttributeNames.Add(Name);AttributeValues.Add(Value);ScaleFresh(Name);ScaleFresh(Value);
     }
     for(int32 Index=0;Index<AttributeNames.Num();++Index)
     {
@@ -914,6 +916,13 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             const FBox2D Piece(FVector2D(Box.Min.X+Index*Cell,Box.Min.Y),FVector2D(Box.Min.X+(Index+1)*Cell-1.5f,Box.Max.Y));
             LDUIShapes::Fill(Elements,Top,Geometry,Piece,Index<Row.Value?LDHUDStyle::UIAction:LDHUDStyle::UIRaised,1.f);
         }
+        // The cell a click just asked for flashes until the point arrives (or the flash ends).
+        const double Age=Now-Row.AddedAt;
+        if(Age>=0.&&Age<LDHUDStyle::MotionAddPoint*3.&&Row.Value<WorkshopMeterCells)
+        {
+            const FBox2D Next(FVector2D(Box.Min.X+Row.Value*Cell,Box.Min.Y-2.f),FVector2D(Box.Min.X+(Row.Value+1)*Cell-1.5f,Box.Max.Y+2.f));
+            LDUIShapes::Fill(Elements,Top+1,Geometry,Next,LDHUDStyle::UIText.CopyWithNewOpacity(1.f-float(Age/(LDHUDStyle::MotionAddPoint*3.))),1.f);
+        }
     }
     // The capacity bar: one cell per workshop slot in the kind colour of what fills it, empty cells dark, the next level's
     // cell dashed. Hovering or holding a stored component previews where it lands: the next free cell pulses green, cells
@@ -1039,4 +1048,20 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             bComponent?LDUIShapes::KindColor(DockKindValue):LDHUDStyle::UIAction,2.f,12.f);
     }
     return Top+1;
+}
+
+void ULDWorkshop::ApplyTextScale(float Scale)
+{
+    if(Scale<=0.f||!WidgetTree||FMath::IsNearlyEqual(Scale,TextScale)){return;}
+    const float Ratio=Scale/TextScale;TextScale=Scale;
+    WidgetTree->ForEachWidget([Ratio](UWidget* Widget)
+    {
+        if(auto* Text=Cast<UTextBlock>(Widget)){FSlateFontInfo Font=Text->GetFont();Font.Size=FMath::Max(1.f,FMath::RoundToFloat(float(Font.Size)*Ratio));Text->SetFont(Font);}
+        else if(auto* Rich=Cast<URichTextBlock>(Widget)){LDWidgets::SetRichTextSize(Rich,FMath::Max(1,FMath::RoundToInt(float(LDWidgets::RichTextSize(Rich))*Ratio)));}
+    });
+}
+void ULDWorkshop::ScaleFresh(UTextBlock* Text) const
+{
+    if(!Text||FMath::IsNearlyEqual(TextScale,1.f)){return;}
+    FSlateFontInfo Font=Text->GetFont();Font.Size=FMath::Max(1.f,FMath::RoundToFloat(float(Font.Size)*TextScale));Text->SetFont(Font);
 }

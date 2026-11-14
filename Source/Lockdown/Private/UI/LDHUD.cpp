@@ -420,7 +420,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
 
         // Centre: the one frozen result; it replaces the gameplay HUD instead of overlaying it.
         auto* ResultBox=WidgetTree->ConstructWidget<UVerticalBox>();
-        ResultTitle=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeVerdict,NAME_None,LDUIFonts::ERole::Title);ResultTitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultTitle)->SetHorizontalAlignment(HAlign_Center);
+        ResultTitle=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBanner,NAME_None,LDUIFonts::ERole::Title);
+        // The verdict is written like the logo: action yellow over an event-pink offset.
+        ResultTitle->SetColorAndOpacity(LDHUDStyle::UIAction);ResultTitle->SetShadowOffset(FVector2D(4.f,4.f));ResultTitle->SetShadowColorAndOpacity(LDHUDStyle::UIEvent);ResultTitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultTitle)->SetHorizontalAlignment(HAlign_Center);
         ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,12));
         ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();ResultBox->AddChildToVerticalBox(ResultRows);
         auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,16,0,0));
@@ -1051,6 +1053,8 @@ void ULDHUD::RefreshReadModel()
     }
     // The docked panels own separate widget trees and follow the same preference themselves.
     for(ULDPanel* Docked:MainPanels()){Docked->ApplyTextScale(TextScale);}
+    if(Workshop){Workshop->ApplyTextScale(TextScale);}
+    if(Storage){Storage->ApplyTextScale(TextScale);}
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
     const FString OwnerName=LDHUD::RosterName(Lobby,Public.GraffitiOwner);

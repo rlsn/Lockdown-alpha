@@ -109,4 +109,6 @@ namespace LDWidgets
     // Rebuilds Rich's two styles at Size (the text-size preference).
     LOCKDOWN_API void SetRichTextSize(URichTextBlock* Rich,int32 Size);
     LOCKDOWN_API int32 RichTextSize(const URichTextBlock* Rich);
+    // Plays an interface cue through the game instance's audio subsystem (quietly nothing before it is ready).
+    LOCKDOWN_API void PlayCue(const UObject* Context,ELDAudioCue Cue);
 }

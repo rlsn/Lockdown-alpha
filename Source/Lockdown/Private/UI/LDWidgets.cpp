@@ -83,6 +83,11 @@ void ULDCommandButton::PlayCue(ELDAudioCue Cue) const
     const UWorld* World=GetWorld();UGameInstance* Instance=World?World->GetGameInstance():nullptr;
     if(auto* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr){Audio->Play(Cue);}
 }
+void LDWidgets::PlayCue(const UObject* Context,ELDAudioCue Cue)
+{
+    const UWorld* World=Context?Context->GetWorld():nullptr;UGameInstance* Instance=World?World->GetGameInstance():nullptr;
+    if(auto* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr){Audio->Play(Cue);}
+}
 void ULDCommandButton::Animate(float Target,double Duration)
 {
     Scale.Retarget(Target,FPlatformTime::Seconds(),Duration,LDTween::ECurve::EaseOut);
@@ -105,6 +110,7 @@ void ULDHoldButton::HoldPressed()
 {
     if(!bHoldRequired||HoldStartedAt>=0.||!GetIsEnabled()){return;}
     HoldStartedAt=FPlatformTime::Seconds();
+    PlayCue(ELDAudioCue::UIHoldCharge);
     HoldTicker=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,[this](float)
     {
         // Losing the press, the button or its enablement withdraws the hold; only a full hold commits, and only once.
