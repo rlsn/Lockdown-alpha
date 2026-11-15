@@ -74,6 +74,8 @@ struct FLDMatchProviderHooks
     TFunction<void(ALDGameMode&, const FLDLifeNotice&)> LifeCommitted;
     // Progression only: committed final level for the frozen result rows.
     TFunction<bool(const ALDGameMode&, const FGuid& Contender, uint8& Level, FString&)> ReadFinalLevel;
+    // Progression only: a read-only rule-board projection after the result has closed the write gate.
+    TFunction<bool(const ALDGameMode&, const FGuid& Contender, FLDResultBuild& Build, FString&)> ReadResultBuild;
     // PK only (#198 session D): every rest step entry and the build lock, under the boundary's permit
     // (RespawnsAndWorld, or Transactions for the lock and the step it enters). False is an authority fault.
     TFunction<bool(ALDGameMode&, const FLDRestStepNotice&, const FLDGameplayWritePermit&, FString&)> RestStep;

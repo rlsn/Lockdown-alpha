@@ -239,6 +239,7 @@ private:
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
     UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
+    UPROPERTY() TObjectPtr<USizeBox> ResultWinnerBuild;
     UPROPERTY() TObjectPtr<class UVerticalBox> ResultRows;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReturnButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> LeaveRoomButton;

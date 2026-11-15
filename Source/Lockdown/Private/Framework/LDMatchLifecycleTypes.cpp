@@ -88,12 +88,13 @@ ELDLobbyProjectionResult LDMatchLifecycle::AcceptLobbyView(const FLDLobbyView& C
     Error.Reset();
     if (!Candidate.Generation || !Candidate.PublicRevision || !Candidate.RosterRevision
         || !LDMatchLifecycle::IsKnownPhase(Candidate.Phase) || Candidate.Members.Num() > MaxContenders
-        || Candidate.AICount > MaxOpponents || Candidate.StartBlocker.Len() > 512)
+        || Candidate.AICount > MaxOpponents || Candidate.StartBlocker.Len() > 512
+        || (Candidate.PreviousResultId.IsValid() && Candidate.Phase != ELDMatchPhase::Lobby))
     {
         Error = TEXT("Invalid Lobby publication header.");
         return ELDLobbyProjectionResult::Malformed;
     }
-    TSet<FGuid> Ids;
+    TSet<FGuid> Ids, PreviousAIIds;
     int32 Humans = 0, AI = 0, Hosts = 0;
     bool AllHumansReady = true;
     for (const FLDLobbyMember& Member : Candidate.Members)
@@ -101,12 +102,16 @@ ELDLobbyProjectionResult LDMatchLifecycle::AcceptLobbyView(const FLDLobbyView& C
         if (!Member.ContenderId.IsValid() || Ids.Contains(Member.ContenderId) || Member.Name.Len() > 64
             || Member.Name.Len() != FCString::Strlen(*Member.Name)
             || (Member.Kind != ELDContenderKind::Human && Member.Kind != ELDContenderKind::OpponentAI)
-            || (Member.Host && Member.Kind != ELDContenderKind::Human))
+            || (Member.Host && Member.Kind != ELDContenderKind::Human)
+            || (Member.PreviousAIContender.IsValid() && (Member.Kind != ELDContenderKind::OpponentAI
+                || !Candidate.PreviousResultId.IsValid() || Member.PreviousAIContender == Member.ContenderId
+                || PreviousAIIds.Contains(Member.PreviousAIContender))))
         {
             Error = TEXT("Invalid or duplicate Lobby member.");
             return ELDLobbyProjectionResult::Malformed;
         }
         Ids.Add(Member.ContenderId);
+        if (Member.PreviousAIContender.IsValid()) { PreviousAIIds.Add(Member.PreviousAIContender); }
         if (Member.Kind == ELDContenderKind::Human) { ++Humans; AllHumansReady &= Member.Ready; }
         else { ++AI; }
         Hosts += Member.Host ? 1 : 0;

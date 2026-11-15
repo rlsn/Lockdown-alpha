@@ -749,6 +749,62 @@ bool ALDGrowthDirector::ReadFinalLevel(const FGuid& ContenderId, uint8& Level, F
     return true;
 }
 
+bool ALDGrowthDirector::ReadResultBuild(const FGuid& ContenderId, FLDResultBuild& Out, FString& Error) const
+{
+    Out = {};
+    ALDGameMode* M = Mode();
+    if (!M || !M->HasAuthority() || M->GetMatchContext() != Match || M->ReadPublicMatch().Phase != ELDMatchPhase::Results
+        || !M->Development || !Content)
+    {
+        Error = TEXT("Result builds can only be read from a closed match's growth domain.");
+        return false;
+    }
+    const FLDGrowthBuild* Build = M->Development->FindBuild(ContenderId);
+    if (!Build)
+    {
+        Error = TEXT("The contender has no growth record for the result.");
+        return false;
+    }
+    auto Target = [](ELDComponentTargetKind Kind, ELDResultBuildTarget& Result)
+    {
+        switch (Kind)
+        {
+        case ELDComponentTargetKind::None: Result = ELDResultBuildTarget::Body; return true;
+        case ELDComponentTargetKind::Active: Result = ELDResultBuildTarget::Active; return true;
+        case ELDComponentTargetKind::EffectSegment: Result = ELDResultBuildTarget::EffectSegment; return true;
+        case ELDComponentTargetKind::Component: Result = ELDResultBuildTarget::Component; return true;
+        case ELDComponentTargetKind::Dash: Result = ELDResultBuildTarget::Dash; return true;
+        }
+        return false;
+    };
+    FLDResultBuild View;
+    View.bAvailable = true;
+    View.CatalogRoot = Content->Get().Identity.Root.ToHex();
+    for (const FLDLearnedActive& Active : Build->Actives)
+    {
+        FLDResultBuildActive& Row = View.Actives.AddDefaulted_GetRef();
+        Row.DefinitionId = Active.Id;
+        Row.Slot = Active.Slot;
+    }
+    for (const FLDComponentInstance& Component : Build->Components)
+    {
+        if (!Component.bInstalled) { continue; }
+        FLDResultBuildComponent& Row = View.Components.AddDefaulted_GetRef();
+        Row.DefinitionId = Component.Id;
+        Row.TargetId = Component.Target.Definition;
+        Row.BoundActive = Component.Target.BoundActive;
+        if (!Target(Component.Target.Kind, Row.Target))
+        { Error = TEXT("An installed component has an unknown target."); return false; }
+    }
+    View.FinalMod = Build->FinalMod.DefinitionId;
+    View.FinalTargetId = Build->FinalMod.TargetId;
+    if (!Target(Build->FinalMod.TargetKind, View.FinalTarget))
+    { Error = TEXT("The final mod has an unknown target."); return false; }
+    if (!LDCapture::ValidateResultBuild(View, Error)) { return false; }
+    Out = MoveTemp(View);
+    return true;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 uint64 ALDGrowthDirector::DevGrantReward(const FGuid& ContenderId, int64 XP, FString& Error)
 {

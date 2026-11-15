@@ -18,6 +18,8 @@ class ULDWorldLabels;
 class ULDWorldFeedback;
 class ALDPlayerController;
 class ALDGameState;
+class FLDDemoContentSnapshot;
+struct FLDDemoContentDefinitions;
 
 // Local navigation only (UI_AND_SETTINGS 3.1/4): one main panel at a time, each with at most one child confirmation.
 UENUM()
@@ -150,6 +152,10 @@ private:
     uint64 SeenLobbyRoster = 0;
     uint64 SeenLobbyPublic = 0;
     FGuid SeenSelf;
+    FGuid SeenLobbyResult;
+    uint64 SeenLobbyResultSerial = 0;
+    TSharedPtr<const FLDDemoContentSnapshot> ResultContent;
+    bool bResultContentTried = false;
     float AppliedTextScale = 1;
     float AppliedPageHeight = 0;
     UFUNCTION() void Ready();
@@ -168,6 +174,7 @@ private:
     void TickWorld(ALDPlayerController& PC);
     void RefreshLobby(const ALDPlayerController& PC, const ALDGameState& Public);
     void RebuildRoster(const ALDGameState& Public, const FGuid& Self);
+    const FLDDemoContentDefinitions* ResultDefinitions();
     void SetFrontendPage(bool bStart);
     void ShowStartPage(bool bShow);
     bool CloseStartPage();

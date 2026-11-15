@@ -524,6 +524,22 @@ void ALDGameMode::PublishMatchOutcome()
     if (bResultLocked && !bResultPublished)
     {
         bResultPublished = true;
+        const FLDMatchProviderHooks* Progression = LDMatchProviders::Find(ELDMatchProvider::Progression);
+        for (FLDResultRow& Row : ResultView.Rows)
+        {
+            FLDResultBuild Build;
+            FString BuildError;
+            if (!Progression || !Progression->ReadResultBuild
+                || !Progression->ReadResultBuild(*this, Row.ContenderId, Build, BuildError)
+                || !Build.bAvailable || !LDCapture::ValidateResultBuild(Build, BuildError))
+            {
+                if (BuildError.IsEmpty()) { BuildError = TEXT("The result build projection is unavailable."); }
+                UE_LOG(LogLDMatch, Warning, TEXT("LD_RESULT_BUILD_UNAVAILABLE contender=%s reason=%s"),
+                    *LDLog::Id(Row.ContenderId), *LDLog::Quote(BuildError));
+                continue;
+            }
+            Row.Build = MoveTemp(Build);
+        }
         // The gate is already closed: providers may only cancel and clean up.
         FLDMatchClosed Closed;
         Closed.Match = MatchContext;

@@ -595,6 +595,15 @@ bool FLDDemoLobbyReadModelTest::RunTest(const FString& Parameters)
     Candidate.Phase = static_cast<ELDMatchPhase>(255);
     Reject(Candidate, TEXT("Unknown phase does not enter the UI"));
     Candidate = Stable;
+    Candidate.PreviousResultId = FGuid::NewGuid();
+    Candidate.Members[0].PreviousAIContender = FGuid::NewGuid();
+    Reject(Candidate, TEXT("A human cannot claim an old AI result identity"));
+    Candidate = Stable;
+    Candidate.Phase = ELDMatchPhase::Development;
+    Candidate.CanStart = false;
+    Candidate.PreviousResultId = FGuid::NewGuid();
+    Reject(Candidate, TEXT("Previous result mapping is only published in the Lobby"));
+    Candidate = Stable;
     for (int32 Index = 0; Index < 6; ++Index)
     {
         FLDLobbyMember Member;

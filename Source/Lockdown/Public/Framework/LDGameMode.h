@@ -461,6 +461,8 @@ private:
     FString EntryCatalogDigest;
     TArray<FGuid> RosterOrder;
     TArray<FGuid> LobbyAISlots;
+    FGuid PreviousLobbyResultId;
+    TMap<FGuid, FGuid> PreviousLobbyAI;
     bool AdmitRoomMember(ALDPlayerController* Controller, FString& Reason);
     TMap<TWeakObjectPtr<ALDPlayerController>,FTimerHandle> PendingReconnects;
     bool AdvanceRoster(FString& Reason);

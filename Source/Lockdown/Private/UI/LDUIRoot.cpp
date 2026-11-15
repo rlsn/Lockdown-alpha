@@ -6,12 +6,14 @@
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDResultBuild.h"
 #include "UI/LDTerms.h"
 #include "UI/LDUIBackgrounds.h"
 #include "UI/LDWidgets.h"
@@ -791,12 +793,15 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
         }
     }
     else if(!bRosterBuilt||Lobby.Generation!=SeenLobbyGeneration||Lobby.RosterRevision!=SeenLobbyRoster
-        ||Lobby.PublicRevision!=SeenLobbyPublic||Mine.ContenderId!=SeenSelf||bHost!=bSeenHost)
+        ||Lobby.PublicRevision!=SeenLobbyPublic||Mine.ContenderId!=SeenSelf||bHost!=bSeenHost
+        ||Public.MatchResult.ResultId!=SeenLobbyResult||Public.MatchResult.ResultSerial!=SeenLobbyResultSerial)
     {
         bRosterBuilt=true;
         SeenLobbyGeneration=Lobby.Generation;
         SeenLobbyRoster=Lobby.RosterRevision;
         SeenLobbyPublic=Lobby.PublicRevision;
+        SeenLobbyResult=Public.MatchResult.ResultId;
+        SeenLobbyResultSerial=Public.MatchResult.ResultSerial;
         SeenSelf=Mine.ContenderId;
         bSeenHost=bHost;
         RebuildRoster(Public,Mine.ContenderId);
@@ -826,6 +831,21 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
     SetLine(LobbyFeedback,PC.IntentFeedback);
 }
 
+const FLDDemoContentDefinitions* ULDUIRoot::ResultDefinitions()
+{
+    if(!bResultContentTried)
+    {
+        bResultContentTried=true;
+        FString Error;
+        if(!LDDemoEntry::LoadRuntimeContent(ResultContent,Error)||!ResultContent)
+        {
+            ResultContent.Reset();
+            UE_LOG(LogLDUI,Warning,TEXT("LD_RESULT_BUILD_CONTENT_UNAVAILABLE %s"),*Error);
+        }
+    }
+    return ResultContent?&ResultContent->Get():nullptr;
+}
+
 void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
 {
     // Six seat cards on their seat colours: a crown on the host's, a robot on each AI's, the name, 真人/AI and 房主, and a
@@ -834,9 +854,12 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
     auto* Seats=WidgetTree->ConstructWidget<UWrapBox>();Seats->SetInnerSlotPadding(FVector2D(10,10));
     RosterRows->AddChildToVerticalBox(Seats);
     constexpr int32 SeatCount=6;
-    const auto Seat=[this,Seats](UWidget* Card)
+    const bool bHasPrevious=Public.DemoLobby.PreviousResultId.IsValid();
+    const bool bPreviousReady=bHasPrevious&&Public.MatchResult.ResultId==Public.DemoLobby.PreviousResultId
+        &&Public.MatchResult.Generation>0&&Public.MatchResult.Generation<Public.DemoLobby.Generation;
+    const auto Seat=[this,Seats,bHasPrevious](UWidget* Card)
     {
-        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetWidthOverride(258.f);Place->SetHeightOverride(116.f);Place->SetContent(Card);
+        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetWidthOverride(258.f);Place->SetHeightOverride(bHasPrevious?174.f:116.f);Place->SetContent(Card);
         Seats->AddChildToWrapBox(Place);
     };
     int32 Shown=0;
@@ -877,6 +900,13 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         if(Member.Host){Tags->AddChildToHorizontalBox(Label(TEXT("房主"),LDHUDStyle::TypeSmall,LDHUDStyle::UIAction))->SetPadding(FMargin(10,0,0,0));}
         if(bHuman&&!Member.Ready){Tags->AddChildToHorizontalBox(Label(TEXT("未准备"),LDHUDStyle::TypeSmall,LDHUDStyle::MenuMuted))->SetPadding(FMargin(10,0,0,0));}
         Box->AddChildToVerticalBox(Tags)->SetPadding(FMargin(0,8,0,0));
+        if(bHasPrevious)
+        {
+            const FLDResultRow* Previous=LDCapture::PreviousLobbyResult(Public.MatchResult,Public.DemoLobby,Member);
+            UWidget* Build=Previous?LDResultBuild::Make(WidgetTree,Previous->Build,ResultDefinitions(),218.f,66.f,AppliedTextScale)
+                :Label(bPreviousReady?TEXT("暂无上局构筑"):TEXT("上局构筑同步中…"),LDHUDStyle::TypeTiny,LDHUDStyle::TextSecondary);
+            Box->AddChildToVerticalBox(Build)->SetPadding(FMargin(0,6,0,0));
+        }
         UOverlay* Card=Painted(WidgetTree,Box,FMargin(20,12),[Identity,bMine](const LDUIPaint::FContext& Paint)
         {
             const FBox2D Whole(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));

@@ -14,6 +14,7 @@ class FLDDemoContentSnapshot;
 class FLDGameplayWritePermit;
 struct FActorSpawnParameters;
 struct FLDCommittedDeath;
+struct FLDResultBuild;
 
 // Growth domain hub (N03 rewards, N04): the death-reward and map-event-reward sinks, the Transactions dispatch and the
 // owner publication. Every XP grant is one composite commit with its levels, opportunities and Combat projection.
@@ -51,6 +52,7 @@ public:
     FLDGrowthOwnerView ReadOwnerView(const FGuid& ContenderId) const;
     // Committed level for the frozen result rows; contenders that left keep their record until the match ends.
     bool ReadFinalLevel(const FGuid& ContenderId, uint8& Level, FString& Error) const;
+    bool ReadResultBuild(const FGuid& ContenderId, FLDResultBuild& Build, FString& Error) const;
     bool ReadDevRequestCursor(const FGuid& ContenderId,uint64& Next,uint64& Pending,FString& Error) const;
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV growth fixture (LDDevGrowthFixture.h): queues an XP grant that the next Transactions phase commits through the

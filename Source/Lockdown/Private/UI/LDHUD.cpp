@@ -1,6 +1,7 @@
 #include "UI/LDHUD.h"
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDResultBuild.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTween.h"
 #include "UI/LDTerms.h"
@@ -439,6 +440,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ResultBox->AddChildToVerticalBox(Verdict)->SetHorizontalAlignment(HAlign_Center);
         }
         ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,12));
+        ResultWinnerBuild=WidgetTree->ConstructWidget<USizeBox>();
+        ResultBox->AddChildToVerticalBox(ResultWinnerBuild)->SetHorizontalAlignment(HAlign_Center);
+        ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
         ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();ResultBox->AddChildToVerticalBox(ResultRows);
         auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,16,0,0));ResultActionsBox=ResultActions;
         ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
@@ -2045,6 +2049,8 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     {
         // Without the frozen result there is nothing to show yet: no zero-filled table.
         HudSetText(ResultTitle,TEXT("对局结束"));HudSetText(ResultSubtitle,TEXT("结算同步中…"));
+        ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
+        ResultWinnerBuild->ClearChildren();
         if(ShownResultId.IsValid()){ResultRows->ClearChildren();ResultEntries.Reset();ShownResultId.Invalidate();ShownResultSerial=0;}
         ResultShownAt=-1.;
         for(UWidget* Widget:{ResultWinnerBand.Get(),ResultActionsBox.Get()}){LDTween::SetOpacity(Widget,1.f);LDTween::SetScale(Widget,1.f);LDTween::SetTranslation(Widget,FVector2D::ZeroVector);}
@@ -2055,6 +2061,13 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     ShownResultId=Result.ResultId;ShownResultSerial=Result.ResultSerial;
     const FLDResultRow* WinnerRow=Result.Winner.IsValid()?Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row){return Row.ContenderId==Result.Winner;}):nullptr;
     HudSetText(ResultTitle,LDHUD::ResultHeadline(Result,WinnerRow?WinnerRow->Name:FString()));
+    ResultWinnerBuild->ClearChildren();
+    ResultWinnerBuild->SetVisibility(WinnerRow?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    if(WinnerRow)
+    {
+        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),520.f,90.f,
+            AppliedScale>0?AppliedScale:1.f));
+    }
     const int64 Seconds=FMath::Max<int64>(0,Result.DurationMs)/1000;
     HudSetText(ResultSubtitle,FString::Printf(TEXT("本局用时 %lld:%02lld · 击杀不决定胜负"),Seconds/60,Seconds%60));
     ResultRows->ClearChildren();ResultEntries.Reset();
@@ -2063,13 +2076,15 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     auto Cell=[this,Size](const FString& Value,float Width,const FLinearColor& Ink,LDUIFonts::ERole Role,bool bLeft)
     {
         UTextBlock* Label=LDWidgets::Text(WidgetTree,Value,Size,NAME_None,Role);Label->SetAutoWrapText(false);Label->SetColorAndOpacity(Ink);
-        Label->SetJustification(bLeft?ETextJustify::Left:ETextJustify::Center);
-        auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetContent(Label);return Box;
+        Label->SetJustification(bLeft?ETextJustify::Left:ETextJustify::Center);Label->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+        auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetClipping(EWidgetClipping::ClipToBounds);
+        if(!Value.IsEmpty()){Box->SetToolTipText(FText::FromString(Value));}
+        Box->SetContent(Label);return Box;
     };
     // Every row is a seat-coloured strip and a card; the own row is raised with a yellow rim, the winner's mark in yellow.
     auto Row=[&](const TArray<FString>& Values,const FLinearColor* Seat,bool bSelf,bool bWinner)
     {
-        static constexpr float Widths[]={230,60,60,60,80,110,70,80};
+        static constexpr float Widths[]={190,90,90,60,90,100,60,70};
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
         auto* Strip=WidgetTree->ConstructWidget<UBorder>();Strip->SetBrush(HudRound(3.f,FLinearColor::Transparent,0.f));
         Strip->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);
