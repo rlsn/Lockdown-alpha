@@ -1551,6 +1551,64 @@ bool FLDDemoVisionPropFadeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Fading in stops at full"), Fade == 1.f);
     Fade = LDPropFade::Step(Fade, false, 1.f);
     TestTrue(TEXT("Clearing the line fades back to opaque"), Fade == 0.f);
+    // The sweep for tagged scene components: the first one visits every entry in a single call sequence.
+    LDPropFade::FSweep Sweep;
+    const int32 First[] = {3, 0, 2};
+    TestEqual(TEXT("The first sweep's budget covers every entry and the wrap"), Sweep.Budget(5, 1.f / 60), 6);
+    TArray<FIntPoint> Visited;
+    int32 SweepLevel = 0, SweepIndex = 0;
+    while (Sweep.Next(First, SweepLevel, SweepIndex)) { Visited.Add(FIntPoint(SweepLevel, SweepIndex)); }
+    TestTrue(TEXT("The first sweep visits each entry once, in order, and skips an empty level"),
+        Visited == TArray<FIntPoint>({FIntPoint(0, 0), FIntPoint(0, 1), FIntPoint(0, 2), FIntPoint(2, 0), FIntPoint(2, 1)}));
+    TestTrue(TEXT("Its end marks the sweep complete and returns to the start"), Sweep.bComplete && Sweep.Level == 0 && Sweep.Index == 0);
+    // Later sweeps are sliced: the budget finishes a sweep in about SweepSeconds and has a floor.
+    const int32 Share = Sweep.Budget(6000, 1.f / 60);
+    TestTrue(TEXT("A later frame visits its share of a large world (6000 entries in 2 s at 60 fps, rounded up)"), Share == 50 || Share == 51);
+    TestEqual(TEXT("A small world still advances by the floor"), Sweep.Budget(600, 1.f / 60), 32);
+    TestEqual(TEXT("A zero frame time still advances by the floor"), Sweep.Budget(6000, 0.f), 32);
+    {
+        LDPropFade::FSweep Timed;
+        Timed.bComplete = true;
+        const int32 Large[] = {4000, 2000};
+        int32 Frames = 0, Seen = 0;
+        bool bEnded = false;
+        while (!bEnded && Frames < 1000)
+        {
+            ++Frames;
+            for (int32 Budget = Timed.Budget(6000, 1.f / 60); Budget > 0 && !bEnded; --Budget)
+            {
+                if (Timed.Next(Large, SweepLevel, SweepIndex)) { ++Seen; } else { bEnded = true; }
+            }
+        }
+        TestEqual(TEXT("A sliced sweep still visits every entry"), Seen, 6000);
+        TestTrue(TEXT("A sliced sweep of a large world ends within SweepSeconds plus one frame at 60 fps"),
+            Frames / 60. <= LDPropFade::SweepSeconds + 1. / 60 + 1e-9);
+    }
+    // A sweep continues across frames without repeats, wraps, and the next one reaches an entry added meanwhile.
+    {
+        LDPropFade::FSweep Sliced;
+        Sliced.bComplete = true;
+        int32 Counts[] = {4, 3};
+        TArray<FIntPoint> Order;
+        for (int32 Frame = 0; Frame < 2; ++Frame)
+        {
+            for (int32 Budget = 3; Budget > 0 && Sliced.Next(Counts, SweepLevel, SweepIndex); --Budget) { Order.Add(FIntPoint(SweepLevel, SweepIndex)); }
+        }
+        TestTrue(TEXT("The second frame continues where the first stopped"),
+            Order == TArray<FIntPoint>({FIntPoint(0, 0), FIntPoint(0, 1), FIntPoint(0, 2), FIntPoint(0, 3), FIntPoint(1, 0), FIntPoint(1, 1)}));
+        TestTrue(TEXT("The last entry is still due"), Sliced.Next(Counts, SweepLevel, SweepIndex) && SweepLevel == 1 && SweepIndex == 2);
+        TestFalse(TEXT("Then the sweep ends"), Sliced.Next(Counts, SweepLevel, SweepIndex));
+        Counts[0] = 5;
+        bool bFoundNew = false;
+        while (Sliced.Next(Counts, SweepLevel, SweepIndex)) { bFoundNew |= SweepLevel == 0 && SweepIndex == 4; }
+        TestTrue(TEXT("An entry added to an already swept level is reached by the next sweep"), bFoundNew);
+        // A level that shrank under the cursor is left without reading past its end.
+        Sliced.Level = 0;
+        Sliced.Index = 4;
+        Counts[0] = 2;
+        TestTrue(TEXT("A cursor past a shrunken level moves on to the next level"),
+            Sliced.Next(Counts, SweepLevel, SweepIndex) && SweepLevel == 1 && SweepIndex == 0);
+    }
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionFlightTrailTest, "Lockdown.Rules.DemoVision.FlightTrail",

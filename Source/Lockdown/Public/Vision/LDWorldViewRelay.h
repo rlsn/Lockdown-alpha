@@ -139,6 +139,21 @@ namespace LDPropFade
     constexpr double PierceRadiusCm = 45.;
     // Full fade in or out takes 1/FadePerSecond seconds.
     constexpr float FadePerSecond = 6.f;
+    // One sweep of the level actors for tagged scene components takes about this long.
+    constexpr double SweepSeconds = 2.;
+    // The sliced sweep over the level actors: where it stands and whether one whole sweep has finished.
+    struct LOCKDOWN_API FSweep
+    {
+        int32 Level = 0;
+        int32 Index = 0;
+        bool bComplete = false;
+        // Entries to visit this frame: all of them (and the wrap) on the first sweep, afterwards the share of Total
+        // that finishes a sweep in SweepSeconds at this frame time, never fewer than a small floor.
+        int32 Budget(int32 Total, float DeltaSeconds) const;
+        // The next entry among the per-level entry counts. False once a sweep ends: the cursor is back at the start
+        // and bComplete is set. Counts may grow or shrink between calls.
+        bool Next(TConstArrayView<int32> Counts, int32& OutLevel, int32& OutIndex);
+    };
     LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);
     // The only space an occluding prop can reach into: bounds that miss this box occlude none of the targets, so the
     // per-target tests are skipped for them. Invalid without targets.
@@ -295,6 +310,7 @@ private:
     };
     TArray<FFadeableProp> FadeableProps;
     double FadeablesScannedAt = -1;
+    LDPropFade::FSweep FadeSweep;
     FLDObservedFrameReceiver Receiver;
     FLDObservedCatalog Catalog;
     bool bCatalogReady = false;

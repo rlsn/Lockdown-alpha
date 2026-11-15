@@ -22,6 +22,8 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Engine/Level.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Camera/PlayerCameraManager.h"
 
 namespace
@@ -331,6 +333,21 @@ FBox LDPropFade::Reach(const FVector& Camera, TConstArrayView<FVector> Targets)
     FBox Box(Camera, Camera);
     for (const FVector& Target : Targets) { Box += Target; }
     return Box.ExpandBy(FMath::Max(BoundsSlackCm, PierceRadiusCm));
+}
+
+int32 LDPropFade::FSweep::Budget(int32 Total, float DeltaSeconds) const
+{
+    if (!bComplete) { return Total + 1; }
+    return FMath::Max(32, FMath::CeilToInt32(Total * FMath::Max(DeltaSeconds, 0.f) / SweepSeconds));
+}
+
+bool LDPropFade::FSweep::Next(TConstArrayView<int32> Counts, int32& OutLevel, int32& OutIndex)
+{
+    while (Counts.IsValidIndex(Level) && Index >= Counts[Level]) { ++Level; Index = 0; }
+    if (!Counts.IsValidIndex(Level)) { Level = Index = 0; bComplete = true; return false; }
+    OutLevel = Level;
+    OutIndex = Index++;
+    return true;
 }
 
 float LDPropFade::Step(float Current, bool bOccluding, float DeltaSeconds)
@@ -1125,24 +1142,38 @@ void ALDWorldViewRelay::Tick(float Delta)
 
 void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, float Delta)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDPropFade);
     UWorld* World = GetWorld();
     const double Now = FPlatformTime::Seconds();
-    // A slow rescan picks up rebuilt tagged scene components without a per-frame search.
-    if (FadeablesScannedAt < 0 || Now - FadeablesScannedAt > 2.0)
+    // Known props that are gone, left this world or lost the tag are forgotten; this reads only the known list.
+    if (FadeablesScannedAt < 0 || Now - FadeablesScannedAt > LDPropFade::SweepSeconds)
     {
         FadeablesScannedAt = Now;
-        TArray<UPrimitiveComponent*> Found;
-        for (TActorIterator<AActor> It(World); It; ++It)
+        FadeableProps.RemoveAll([World](const FFadeableProp& Prop)
         {
-            TInlineComponentArray<UPrimitiveComponent*> Primitives(*It);
-            for (UPrimitiveComponent* Primitive : Primitives) { if (Primitive && Primitive->ComponentHasTag(LDPropFade::Tag)) { Found.Add(Primitive); } }
-        }
-        FadeableProps.RemoveAll([&Found](const FFadeableProp& Prop) { return !Prop.Primitive.IsValid() || !Found.Contains(Prop.Primitive.Get()); });
-        for (UPrimitiveComponent* Primitive : Found)
+            const UPrimitiveComponent* Primitive = Prop.Primitive.Get();
+            return !Primitive || Primitive->GetWorld() != World || !Primitive->ComponentHasTag(LDPropFade::Tag);
+        });
+    }
+    // Rebuilt tagged scene components are found by walking the level actors a slice per frame: a whole sweep takes
+    // about SweepSeconds and never lands in one frame. Only the first sweep runs at once, so the list is complete
+    // from the start.
+    const TArray<ULevel*>& Levels = World->GetLevels();
+    TArray<int32, TInlineAllocator<8>> Counts;
+    int32 Total = 0;
+    for (const ULevel* Level : Levels) { Counts.Add(Level ? Level->Actors.Num() : 0); Total += Counts.Last(); }
+    for (int32 Budget = FadeSweep.Budget(Total, Delta); Budget > 0; --Budget)
+    {
+        int32 LevelIndex = 0, ActorIndex = 0;
+        if (!FadeSweep.Next(Counts, LevelIndex, ActorIndex)) { break; }
+        const AActor* Actor = Levels[LevelIndex]->Actors[ActorIndex];
+        if (!IsValid(Actor)) { continue; }
+        Actor->ForEachComponent<UPrimitiveComponent>(false, [this](UPrimitiveComponent* Primitive)
         {
-            if (!FadeableProps.ContainsByPredicate([Primitive](const FFadeableProp& Prop) { return Prop.Primitive.Get() == Primitive; }))
+            if (Primitive->ComponentHasTag(LDPropFade::Tag)
+                && !FadeableProps.ContainsByPredicate([Primitive](const FFadeableProp& Prop) { return Prop.Primitive.Get() == Primitive; }))
             { FFadeableProp& Prop = FadeableProps.AddDefaulted_GetRef(); Prop.Primitive = Primitive; }
-        }
+        });
     }
     if (FadeableProps.IsEmpty()) { return; }
     // Targets: the own living body and every unit presented right now (head and chest), never a hidden or stale one.
