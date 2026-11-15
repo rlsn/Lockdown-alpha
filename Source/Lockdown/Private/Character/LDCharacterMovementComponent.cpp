@@ -297,6 +297,12 @@ bool ULDCharacterMovementComponent::IsDashing() const
     return const_cast<ULDCharacterMovementComponent*>(this)->GetRootMotionSource(LDCharacterMovementDetail::DashSourceName).IsValid();
 }
 
+void ULDCharacterMovementComponent::StopDemoDash()
+{
+    RemoveRootMotionSource(LDCharacterMovementDetail::DashSourceName);
+    StopMovementImmediately();
+}
+
 bool ULDCharacterMovementComponent::CanStartDash(const FVector& Direction, double ProbeCm) const
 {
     const FVector Planar(Direction.X,Direction.Y,0);

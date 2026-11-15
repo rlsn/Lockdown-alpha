@@ -22,6 +22,8 @@ struct FLDCampSpec
     FName SurfaceId;
     FName MonsterId;
     uint8 CreatureId = 0;
+    TArray<FName> Species;
+    TArray<uint8> SpeciesIds;
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;
     FVector AnchorCm = FVector::ZeroVector;
     int64 RespawnMs = 0;
@@ -62,6 +64,9 @@ struct FLDCampMemberState
 
 struct FLDCampGroupState
 {
+    FName PendingSpecies;
+    FName SelectedSpecies;
+    uint8 CreatureId = 0;
     uint32 Generation = 0;
     bool bRespawnPending = false;
     int64 ClearedAtMs = 0;
@@ -114,6 +119,7 @@ public:
     TArray<FLDCampPublicView> BuildPublicViews() const;
 
     bool CanSpawnInitial(int32 Camp, FString& Error) const;
+    bool SelectSpecies(int32 Camp, int32 Choice, FName& Out, FString& Error);
     bool IsRespawnDue(int32 Camp, int64 NowMs) const;
     // Earliest pending whole-group refresh deadline in authority ms, for the driver's exact step boundaries;
     // MAX_int64 when no camp is waiting. A deadline that already passed stays reported until its refresh commits.

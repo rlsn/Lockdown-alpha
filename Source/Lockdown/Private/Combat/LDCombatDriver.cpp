@@ -53,6 +53,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
+        Consider(Body.MonsterGuardUntilMs);
+        Consider(Body.MonsterRecoverUntilMs);
         // D21: a contender's out-of-combat recovery starts on its own exact boundary.
         if (Body.Victim.Kind==ELDVictimKind::Contender && RecoveryDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-RecoveryDelayMs)
         { Consider(Body.LastCombatAtMs+RecoveryDelayMs); }
@@ -66,6 +68,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
     }
     // #112 mechanics: zone pulses and their records' ends.
+    for(const auto& Strike:MonsterStrikes){Consider(Strike.AtMs);}
     Consider(NextMechanicsDueMs(NowMs));
     Consider(NextWorkshopDueMs(NowMs));
     Consider(NextFinalModDueMs(NowMs));
@@ -339,7 +342,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
         || !AdvanceProjectiles(Error))
     { return false; }
     // #198 F: C02 blocks seen by this boundary's motion, M12 debts, C08 stores and M02 locked batches.
-    if (!AdvanceWorkshop(Now,Error) || !AdvanceFinalMods(Now,Error)) { return false; }
+    if (!AdvanceMonsterStrikes(Now,Error) || !AdvanceWorkshop(Now,Error) || !AdvanceFinalMods(Now,Error)) { return false; }
     // Every hit of this boundary, then the C01 windows it closed.
     if (!ApplyPendingHits(Now,Error)) { return false; }
     // Slows and HP changes of this boundary reach the effective attributes before the next motion step.

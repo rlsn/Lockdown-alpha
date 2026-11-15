@@ -315,14 +315,28 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
-    // #97: one row per camp tier (Low, High, Elite) in any order, then the Boss row appended by the importer.
+    // Three species per camp tier in any order, then the Boss row appended by the importer.
     TSet<ELDDemoCampTier> CampTiers;
     for (int32 Index = 0; Index < D.Monsters.Num() - 1; ++Index) { CampTiers.Add(D.Monsters[Index].Tier); }
-    if (!Check.Require(D.Monsters.Num() == 4 && CampTiers.Num() == 3 && !CampTiers.Contains(ELDDemoCampTier::Boss)
-        && D.Monsters[3].Tier == ELDDemoCampTier::Boss && D.Monsters[3].Id == D.Boss.Id, TEXT("camps"),
-        TEXT("the three camp difficulty tiers and exactly one Boss row are required")))
+    if (!Check.Require(D.Monsters.Num() == 13 && CampTiers.Num() == 4 && !CampTiers.Contains(ELDDemoCampTier::Boss)
+        && D.Monsters.Last().Tier == ELDDemoCampTier::Boss && D.Monsters.Last().Id == D.Boss.Id, TEXT("camps"),
+        TEXT("four camp tiers with three species each and exactly one Boss are required")))
     {
         return false;
+    }
+    for (const ELDDemoCampTier Tier : {ELDDemoCampTier::Low,ELDDemoCampTier::High,ELDDemoCampTier::Elite,ELDDemoCampTier::Ancient})
+    {
+        const FLDDemoMonsterDefinition* First=nullptr;
+        int32 Count=0;
+        for (const auto& M:D.Monsters)
+        {
+            if(M.Tier!=Tier){continue;} ++Count;
+            if(!First){First=&M;}
+            if(!Check.Require(M.CountPerCamp==First->CountPerCamp && M.RewardXP==First->RewardXP
+                && M.RespawnMs==First->RespawnMs && M.Skill.Every>0 && M.Skill.RatioBp*M.Skill.Pulses<=22500,
+                M.Id,TEXT("inconsistent camp pool or invalid monster skill"))){return false;}
+        }
+        if(!Check.Require(Count==3,TEXT("camps"),TEXT("each camp tier requires three species"))){return false;}
     }
     // #97 camp growth: a positive stage length, 1..255 stages (the stage is one byte), and every scaled value fits.
     {
@@ -334,7 +348,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             bGrowth = bGrowth && Bp >= 0 && N.Mul64(Bp, P.CampGrowthMaxStage, Product, TEXT("CAMP.Growth"))
                 && N.Add64(10000, Product, Factor, TEXT("CAMP.Growth"));
         }
-        for (int32 Index = 0; bGrowth && Index < 3; ++Index)
+        for (int32 Index = 0; bGrowth && Index < D.Monsters.Num()-1; ++Index)
         {
             const FLDDemoMonsterDefinition& Monster = D.Monsters[Index];
             bGrowth = N.Mul64(Monster.HPP2, 10000 + P.CampGrowthHPPerStageBp * P.CampGrowthMaxStage, Product, Monster.Id)
@@ -351,7 +365,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     // D26 (#79): the Boss body is contender-sized, reaches past both radii, sees farther than it hits, winds up inside its
     // interval and stays inside the move speed clamp. It carries no kill buff (#198 outer §5 removed the approval buff).
     {
-        const FLDDemoMonsterDefinition& Body = D.Monsters[3];
+        const FLDDemoMonsterDefinition& Body = D.Monsters.Last();
         if (!Check.Require(N.EQ(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm))
                 && N.LE(N.Add(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm)), N.Value(Body.AttackRangeCm))
                 && N.LT(N.Value(Body.AttackRangeCm), N.Value(D.Boss.AggroRadiusCm)), TEXT("boss"), TEXT("invalid Boss collision/range/aggro geometry"))
@@ -375,6 +389,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             || !Check.Require(Monster.PerceptionRadiusCm.Numerator == Monster.LeashRadiusCm.Numerator
                 && Monster.PerceptionRadiusCm.Denominator == Monster.LeashRadiusCm.Denominator,
                 Monster.Id, TEXT("derived perception radius differs from leash"))
+            || !Check.Require(N.LE(N.Value(Monster.Skill.RangeCm),N.Value(Monster.LeashRadiusCm))
+                && Monster.Skill.EvolveStage<=255 && Monster.Skill.EchoStage<=255,
+                Monster.Id,TEXT("monster skill exceeds the leash or stage storage bound"))
             || !N.Mul64(Monster.CountPerCamp, Monster.RewardXP, RewardTotal, Monster.Id))
         {
             return false;

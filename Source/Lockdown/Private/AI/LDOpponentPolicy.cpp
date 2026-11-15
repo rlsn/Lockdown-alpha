@@ -270,7 +270,11 @@ struct FContext
         double BestDistance = 0;
         for (const auto& POI : Frame.POIs)
         {
-            if (POI.Kind != ELDOpponentPOIKind::Camp || !POI.MonsterId.Equals(Unit.MonsterId, ESearchCase::CaseSensitive)) { continue; }
+            if (POI.Kind != ELDOpponentPOIKind::Camp) { continue; }
+            const FLDDemoMonsterDefinition *Known=nullptr,*Seen=nullptr;
+            FString LookupError;
+            if(!Catalog.FindMonster(POI.MonsterId,Known,LookupError) || !Catalog.FindMonster(Unit.MonsterId,Seen,LookupError)
+                || Known->Tier!=Seen->Tier){continue;}
             const double Distance = FVector::Dist2D(POI.FootCm, Unit.FootCm);
             if (!Best || Distance < BestDistance || (Distance == BestDistance && POI.Id.Compare(Best->Id) < 0))
             {
@@ -915,9 +919,24 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
                 && LDCampGrowth::ScaleBody(C.Catalog.Get().Parameters, *Monster,
                     LDCampGrowth::Stage(C.Catalog.Get().Parameters, C.Frame.Public.FieldNowMs), Grown, Error))
             {
-                const auto Estimate = LDOpponentPolicy::EstimateCampCost(Input, Grown, C.Catalog);
-                const int64 Reserve = Monster->Tier == ELDDemoCampTier::Low ? C.AI.LowCampReserveHPBp : C.AI.HighCampReserveHPBp;
-                bOk = Estimate.Status == ELDCampCostStatus::Ok && RatioAtLeast(Estimate.RemainingHpP2, Self.MaxHpP2, Reserve);
+                bOk=true;
+                const uint8 Stage=LDCampGrowth::Stage(C.Catalog.Get().Parameters,C.Frame.Public.FieldNowMs);
+                for(const auto& Possible:C.Catalog.Get().Monsters)
+                {
+                    if(Possible.Tier!=Monster->Tier){continue;}
+                    if(!LDCampGrowth::ScaleBody(C.Catalog.Get().Parameters,Possible,Stage,Grown,Error)){bOk=false;break;}
+                    const auto& Skill=Possible.Skill;
+                    const int64 DamageBp=Skill.Pattern==ELDMonsterPattern::Enrage
+                        ?10000+(Stage>=Skill.EvolveStage?Skill.EvolvedPassiveBp:Skill.PassiveBp)
+                        :((Skill.Every-1)*10000+Skill.RatioBp*Skill.Pulses+(Stage>=Skill.EchoStage?Skill.EchoRatioBp:0))/Skill.Every;
+                    Grown.AttackP2=Grown.AttackP2/10000*DamageBp+Grown.AttackP2%10000*DamageBp/10000;
+                    if(Skill.LowHPHasteBp>0)
+                    {Grown.AttackP2=Grown.AttackP2/10000*(10000+Skill.LowHPHasteBp)+Grown.AttackP2%10000*(10000+Skill.LowHPHasteBp)/10000;}
+                    if(Skill.Pattern==ELDMonsterPattern::Guard){Grown.HPP2+=Grown.HPP2/4;}
+                    const auto Estimate=LDOpponentPolicy::EstimateCampCost(Input,Grown,C.Catalog);
+                    const int64 Reserve=Monster->Tier==ELDDemoCampTier::Low?C.AI.LowCampReserveHPBp:C.AI.HighCampReserveHPBp;
+                    bOk &= Estimate.Status==ELDCampCostStatus::Ok && RatioAtLeast(Estimate.RemainingHpP2,Self.MaxHpP2,Reserve);
+                }
             }
             Feasible.Add(POI.MonsterId, bOk);
         }

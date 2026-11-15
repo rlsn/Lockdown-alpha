@@ -165,7 +165,7 @@ void ALDCombatDirector::RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombat
     else if (Hit.SourceBody.Victim.Kind==ELDVictimKind::CampMember)
     {
         // The attacker's definition outlives its body through the persistent Combat record.
-        if (const FLDCombatEntityRecord* Monster=FindRecord(Hit.SourceBody.Victim.EntityId)) { Line.MonsterId=Monster->MonsterId; }
+        if (const FLDCombatEntityRecord* Monster=FindRecord(Hit.SourceBody.Victim.EntityId)) { Line.MonsterId=Monster->MonsterAtLife(Hit.SourceBody.Victim.Life); }
     }
     LDDamageRecap::Record(Victim.DamageLog,Line,NowMs,Content->Get().Parameters.AssistWindowMs);
 }

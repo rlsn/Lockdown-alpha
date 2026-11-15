@@ -162,7 +162,7 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     case ELDControlKind::Silence:
         // #147 D10: a silence forbids Q/W only; a learned skill still winding up ends unpaid, a basic or the dash goes on.
         bApplied=LDCombatControl::Apply(Victim.Silences,Instance,NowMs);
-        if (bApplied && Victim.Action.IsSet() && Victim.Action->Kind==ELDCombatActionKind::Ability
+        if (bApplied && Victim.Action.IsSet() && (Victim.Action->Kind==ELDCombatActionKind::Ability || Victim.Action->bMonsterSpecial)
             && Victim.Action->Source.Kind!=ELDCombatSourceKind::Innate)
         { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
         break;

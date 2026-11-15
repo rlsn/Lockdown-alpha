@@ -209,6 +209,7 @@ bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)
             || uint8(Notice.Cause) > uint8(LastKillCause)
             || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim
             || (Notice.Cause != ELDKillCause::Contender && !Notice.Assisters.IsEmpty())
+            || Notice.CreatureName.Len()>80
             || Notice.Assisters.Num() > CaptureResultRowsMax - 2)
         { return FailCaptureView(Error, TEXT("Invalid kill notice.")); }
         for (int32 Index = 0; Index < Notice.Assisters.Num(); ++Index)

@@ -115,6 +115,7 @@ private:
     bool TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePermit& Permit, FString& Error);
 
     FLDCampMatchState State;
+    FRandomStream SpeciesRandom;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TMap<FGuid, TWeakObjectPtr<ALDCampMemberCharacter>> Bodies;
     TMap<FGuid, FMotion> Motion;

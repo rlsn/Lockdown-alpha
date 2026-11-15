@@ -326,8 +326,9 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
         const auto& Dash=*Frame.Dash;
         ALDCharacter* SourceActor=nullptr;
         const auto* Source=FindBody(Dash.Body, &SourceActor);
-        if (!Source || !SourceActor || Source->bPendingDeath
-            || Mode->IsContenderProtected(Source->Victim.EntityId) || Mode->IsInputLocked(Mode->GetMatchContext(),Source->Victim.EntityId)) { continue; }
+        if (!Source || !SourceActor || Source->bPendingDeath || Source->bSuspended
+            || (Source->Victim.Kind==ELDVictimKind::Contender && (Mode->IsContenderProtected(Source->Victim.EntityId)
+                || Mode->IsInputLocked(Mode->GetMatchContext(),Source->Victim.EntityId)))) { continue; }
         const double SourceRadius=SourceActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
         const double SourceHeight=SourceActor->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
         for (const auto& TargetFrame : ContactMotion)
@@ -335,7 +336,8 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             if (TargetFrame.Batch->Body == Dash.Body || Dash.Struck.Contains(TargetFrame.Batch->Body)) { continue; }
             ALDCharacter* TargetActor=nullptr;
             const auto* Target=FindBody(TargetFrame.Batch->Body, &TargetActor);
-            if (!Target || !TargetActor || Target->bPendingDeath || IsIsolated(Source->Victim.EntityId,*Target)
+            if (!Target || !TargetActor || Target->bPendingDeath || Target->bSuspended || IsIsolated(Source->Victim.EntityId,*Target)
+                || (Source->Victim.Kind==ELDVictimKind::CampMember && Target->Victim.Kind!=ELDVictimKind::Contender)
                 || (Target->Victim.Kind == ELDVictimKind::Contender && Mode->IsContenderProtected(Target->Victim.EntityId))) { continue; }
             const double TargetRadius=TargetActor->GetCapsuleComponent()->GetScaledCapsuleRadius();
             const double TargetHeight=TargetActor->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
@@ -388,6 +390,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
             PendingHits.Add(MoveTemp(Hit));
             --Dash.NativeHitsRemaining;
         }
+        if (Body->Victim.Kind==ELDVictimKind::CampMember) { continue; }
         // B05: the holder's own added package for each real contact, once per dash per body.
         TOptional<FLDPassiveEffectRef> Held;
         if (Dash.bCanDamage && !FindTrigger(Body->AttributeProjection, ELDDemoEffectOp::DashContactDamage, Held, Error)) { return false; }

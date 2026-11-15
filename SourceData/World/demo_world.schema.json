@@ -127,7 +127,7 @@
             "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "const": "Camp"},
             "surface_id": {"$ref": "#/$defs/id"}, "position_cm": {"$ref": "#/$defs/vector"},
             "members": {
-              "type": "array", "minItems": 1, "maxItems": 2,
+              "type": "array", "minItems": 1, "maxItems": 3,
               "items": {
                 "type": "object", "additionalProperties": false, "required": ["id", "position_cm"],
                 "properties": {"id": {"$ref": "#/$defs/id"}, "position_cm": {"$ref": "#/$defs/vector"}}

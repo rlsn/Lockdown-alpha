@@ -27,7 +27,7 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
     if (Body.Action.IsSet())
     {
         Facts.bActing=true;
-        Facts.bActingBasic=Body.Action->Kind==ELDCombatActionKind::Basic;
+        Facts.bActingBasic=Body.Action->Kind==ELDCombatActionKind::Basic && !Body.Action->bMonsterSpecial;
         Facts.ActingStartedAtMs=Body.Action->StartedAtMs;
         Facts.ActingReleaseAtMs=Body.Action->ReleaseAtMs;
     }
@@ -60,6 +60,8 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
         Error=TEXT("The visible cast has no approved ability source.");
         return false;
     }
+    if(State->bMonsterEnraged){InOut.Statuses.Add({uint8(ELDDemoStatusId::CampEnraged),1,0});}
+    if(State->MonsterGuardUntilMs>NowMs){InOut.Statuses.Add({uint8(ELDDemoStatusId::CampGuarding),1,State->MonsterGuardUntilMs});}
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
     InOut.ActionCueImpactAtMs=Cue.ImpactAtMs;
@@ -86,7 +88,7 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
         && State->Action->StartedAtMs==Cue.AtMs;
     const FLDCombatSourceRef& Source=bActing ? State->Action->Source : State->ReleasedSource;
     // The innate dash is movement shared by every contender: its cast shows no ability name.
-    if (Source.Kind==ELDCombatSourceKind::Innate) { return true; }
+    if (Source.Kind==ELDCombatSourceKind::Innate || State->Victim.Kind==ELDVictimKind::CampMember) { return true; }
     const FLDDemoContentSnapshot* Content=Catalog();
     FString Error;
     if (Content && Source.Kind==ELDCombatSourceKind::Learned)
@@ -107,13 +109,32 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Error=TEXT("Observed projectiles require the approved Demo content.");
         return false;
     }
+    const int64 MonsterNow=Core()->GetAuthorityNowMs();
+    for(const auto& Strike:MonsterStrikes)
+    {
+        const auto* Source=FindBody(Strike.Payload.SourceBody);
+        if(Strike.AtMs<MonsterNow || (!Strike.bReleased && (!Source || !Source->Action.IsSet() || Source->Action->Token!=Strike.Token))){continue;}
+        auto& Fact=Out.AddDefaulted_GetRef();Fact.Key=Strike.Key;Fact.SourceEntity=Strike.Payload.SourceEntity;
+        Fact.PositionCm=Strike.Area.Origin;Fact.Heading=FVector2D(Strike.Area.Direction.X,Strike.Area.Direction.Y);
+        Fact.Look=Strike.Area.Shape==ELDMonsterShape::Circle?ELDObservedProjectileLook::AreaMagic:
+            Strike.Area.Shape==ELDMonsterShape::Cone?ELDObservedProjectileLook::ConeWarning:ELDObservedProjectileLook::LineWarning;
+        Fact.RadiusCm=float(Strike.Area.Shape==ELDMonsterShape::Cone?Strike.Area.Range:Strike.Area.Radius);
+        if(Strike.Area.Shape==ELDMonsterShape::Cone){Fact.AngleDegrees=float(Strike.Area.Angle);}
+        if(Strike.Area.Shape==ELDMonsterShape::Line){Fact.LengthCm=float(Strike.Area.Range);}
+        if(Strike.Area.Shape==ELDMonsterShape::Line){Fact.PositionCm+=Strike.Area.Direction*Strike.Area.Range*.5;}
+        Fact.WarningRemainingMs=uint32(FMath::Min<int64>(FMath::Max<int64>(Strike.AtMs-MonsterNow,0),MAX_uint32));
+    }
     for (const FLDCombatProjectile& Projectile : Projectiles)
     {
         const FVector2D Heading=FVector2D(Projectile.Direction.X,Projectile.Direction.Y).GetSafeNormal();
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
-        if (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
-            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSockShot))
+        const FLDDemoMonsterDefinition* Monster=nullptr;
+        const bool bMonster=Projectile.Source.Kind==ELDCombatSourceKind::Basic
+            && Content->FindMonster(Projectile.Source.DefinitionId.ToString(),Monster,LookupError)
+            && Monster->Skill.Pattern==ELDMonsterPattern::Projectile;
+        if ((!bMonster && (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
+            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSockShot))))
             || Heading.IsNearlyZero())
         {
             Out.Reset();
@@ -127,7 +148,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.SourceEntity=Projectile.SourceEntity;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
-        const bool bSock=Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot);
+        const bool bSock=Ability && Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot);
         Fact.Look=Projectile.bReturn
             ? (bSock ? ELDObservedProjectileLook::SockReturn : ELDObservedProjectileLook::ChalkReturn)
             : (bSock ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk);

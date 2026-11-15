@@ -1615,6 +1615,88 @@
           "unit": "ms"
         },
         "reward_xp": 180,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "限时交稿",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "Circle",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 180,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 800,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 1000,
+            "unit": "ms"
+          }
+        },
         "tier": "Elite"
       },
       {
@@ -1627,7 +1709,7 @@
           "unit": "points"
         },
         "attack": {
-          "p2": 7200,
+          "p2": 3600,
           "unit": "points"
         },
         "attack_interval_ms": 1539,
@@ -1650,13 +1732,1203 @@
           "numerator": 40,
           "unit": "cm"
         },
+        "count_per_camp": 2,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 31500,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_agent",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 7,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 65000,
+          "unit": "ms"
+        },
+        "reward_xp": 40,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "看房合同",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "Projectile",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        },
+        "tier": "High"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 9000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1667,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 5,
+          "numerator": 3,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
         "count_per_camp": 1,
         "crit_chance": {
           "bp": 0,
           "unit": "ratio"
         },
         "hp": {
-          "p2": 63000,
+          "p2": 135000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_auditor",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 9,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 90000,
+          "unit": "ms"
+        },
+        "reward_xp": 180,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "突击抽查",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "SweepLine",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 3,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 800,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 7500,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 1000,
+            "unit": "ms"
+          }
+        },
+        "tier": "Elite"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 9000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1667,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 5,
+          "numerator": 3,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 1,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 135000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_client",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 10,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 90000,
+          "unit": "ms"
+        },
+        "reward_xp": 180,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "再来一版",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "EchoCircle",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "pulses": 2,
+          "radius": {
+            "denominator": 1,
+            "numerator": 180,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 800,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 1000,
+            "unit": "ms"
+          }
+        },
+        "tier": "Elite"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 1000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1250,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 5,
+          "numerator": 4,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 3,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 9000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_courier",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 6,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 25000,
+          "unit": "ms"
+        },
+        "reward_xp": 14,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "催单冲刺",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "Charge",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 400,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        },
+        "tier": "Low"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 4000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 13000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1819,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 20,
+          "numerator": 11,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 1,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 210000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_director",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 4000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 11,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 120000,
+          "unit": "ms"
+        },
+        "reward_xp": 300,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "name": "末位淘汰",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "Fan",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 60,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 3,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 800,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 7500,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 1000,
+            "unit": "ms"
+          }
+        },
+        "tier": "Ancient"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 4000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 13000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1819,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 20,
+          "numerator": 11,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 1,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 210000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_final_client",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 4000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 12,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 120000,
+          "unit": "ms"
+        },
+        "reward_xp": 300,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "最终终审",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "DoubleCircle",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "pulses": 2,
+          "radius": {
+            "denominator": 1,
+            "numerator": 180,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 800,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 1000,
+            "unit": "ms"
+          }
+        },
+        "tier": "Ancient"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 3600,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1539,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 20,
+          "numerator": 13,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 2,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 31500,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_guard",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 8,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 65000,
+          "unit": "ms"
+        },
+        "reward_xp": 40,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "禁止通行",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "pattern": "Guard",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        },
+        "tier": "High"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 3600,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1539,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 20,
+          "numerator": 13,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 2,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 31500,
           "unit": "hp"
         },
         "hp_regen": {
@@ -1702,8 +2974,430 @@
           "ms": 65000,
           "unit": "ms"
         },
-        "reward_xp": 80,
+        "reward_xp": 40,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "强制加练",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "Cone",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        },
         "tier": "High"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 1000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1250,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 5,
+          "numerator": 4,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 3,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 9000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_promoter",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 5,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 25000,
+          "unit": "ms"
+        },
+        "reward_xp": 14,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "传单轰炸",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "Cone",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        },
+        "tier": "Low"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
+          "p2": 4000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 13000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1819,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 20,
+          "numerator": 11,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 1,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 210000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_property",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 4000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 13,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 120000,
+          "unit": "ms"
+        },
+        "reward_xp": 300,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "本区禁行",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "pattern": "RotatingCone",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 120,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 3,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 800,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 7500,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 1000,
+            "unit": "ms"
+          }
+        },
+        "tier": "Ancient"
       },
       {
         "ap": {
@@ -1738,7 +3432,7 @@
           "numerator": 40,
           "unit": "cm"
         },
-        "count_per_camp": 2,
+        "count_per_camp": 3,
         "crit_chance": {
           "bp": 0,
           "unit": "ratio"
@@ -1790,7 +3484,89 @@
           "ms": 25000,
           "unit": "ms"
         },
-        "reward_xp": 20,
+        "reward_xp": 14,
+        "skill": {
+          "angle": 60,
+          "echo_delay": {
+            "ms": 800,
+            "unit": "ms"
+          },
+          "echo_ratio": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "echo_stage": 6,
+          "every": 3,
+          "evolve_stage": 3,
+          "evolved_passive": {
+            "bp": 5000,
+            "unit": "ratio"
+          },
+          "evolved_slow": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "evolved_slow_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "guard_duration": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "low_hp_haste": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "low_hp_threshold": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "name": "同事离职",
+          "offset": {
+            "denominator": 1,
+            "numerator": 250,
+            "unit": "cm"
+          },
+          "passive": {
+            "bp": 2500,
+            "unit": "ratio"
+          },
+          "pattern": "Enrage",
+          "projectile_speed": {
+            "denominator": 1,
+            "numerator": 900,
+            "unit": "cm/s"
+          },
+          "pulse_angle": 30,
+          "pulse_interval": {
+            "ms": 500,
+            "unit": "ms"
+          },
+          "pulses": 1,
+          "radius": {
+            "denominator": 1,
+            "numerator": 80,
+            "unit": "cm"
+          },
+          "range": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 15000,
+            "unit": "ratio"
+          },
+          "recovery": {
+            "ms": 600,
+            "unit": "ms"
+          },
+          "windup": {
+            "ms": 800,
+            "unit": "ms"
+          }
+        },
         "tier": "Low"
       }
     ],
@@ -1845,7 +3621,7 @@
       },
       {
         "anchor_id": "h09",
-        "monster_id": "monster_guardian"
+        "monster_id": "monster_director"
       },
       {
         "anchor_id": "h10",
@@ -1853,7 +3629,7 @@
       },
       {
         "anchor_id": "h11",
-        "monster_id": "monster_guardian"
+        "monster_id": "monster_director"
       },
       {
         "anchor_id": "h12",
@@ -4503,6 +6279,24 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "camp_enraged.description",
+      "description_text": "野怪的当前战斗状态。",
+      "icon_id": "icon_camp_enraged",
+      "id": "camp_enraged",
+      "name_key": "camp_enraged.name",
+      "name_text": "同事离职",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "camp_guarding.description",
+      "description_text": "野怪的当前战斗状态。",
+      "icon_id": "icon_camp_guarding",
+      "id": "camp_guarding",
+      "name_key": "camp_guarding.name",
+      "name_text": "正面防守",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "camp_returning.description",
       "description_text": "野怪正在回位，途中不攻击也不换目标，但仍会挨打；回到原位后生命回满。",
       "icon_id": "icon_camp_returning",
@@ -5215,6 +7009,42 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "monster_agent.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_agent",
+      "id": "monster_agent",
+      "name_key": "monster_agent.name",
+      "name_text": "带你看房的中介",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_auditor.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_auditor",
+      "id": "monster_auditor",
+      "name_key": "monster_auditor.name",
+      "name_text": "突击检查的审计",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_client.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_client",
+      "id": "monster_client",
+      "name_key": "monster_client.name",
+      "name_text": "要你改稿的甲方",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_courier.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_courier",
+      "id": "monster_courier",
+      "name_key": "monster_courier.name",
+      "name_text": "催单的骑手",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "monster_dean.description",
       "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。",
       "icon_id": "icon_monster_dean",
@@ -5224,12 +7054,57 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "monster_director.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_director",
+      "id": "monster_director",
+      "name_key": "monster_director.name",
+      "name_text": "年终绩效总监",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_final_client.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_final_client",
+      "id": "monster_final_client",
+      "name_key": "monster_final_client.name",
+      "name_text": "终审大甲方",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_guard.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_guard",
+      "id": "monster_guard",
+      "name_key": "monster_guard.name",
+      "name_text": "轮班的保安",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "monster_guardian.description",
       "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回位。",
       "icon_id": "icon_monster_guardian",
       "id": "monster_guardian",
       "name_key": "monster_guardian.name",
       "name_text": "追着办卡的私教",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_promoter.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_promoter",
+      "id": "monster_promoter",
+      "name_key": "monster_promoter.name",
+      "name_text": "拉群的地推",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_property.description",
+      "description_text": "营地野怪，受击后反击。",
+      "icon_id": "icon_monster_property",
+      "id": "monster_property",
+      "name_key": "monster_property.name",
+      "name_text": "坐镇的物业主任",
       "namespace": "DemoContent"
     },
     {
@@ -5641,11 +7516,11 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval; #198 F mods M01-M12 and connectors C01-C12 from the same approval; #198 outer §5 field events (airdrop T=45..485 s, 40 s expiry, Boss T=240-540 s without approval buff, camp markers) approved: 批准整套方案，按票内参数实施. playtest input, not a balance test; #225: PK +50%, ceil and rotate.; 2026-11-13 Phase 4 workshop overhaul approved by user: brains AP 6/pt cap 300, mage/ranged active tuning, B04 own-share lifesteal, B13-B16 reworked as skill rules, new M13-M15 and C13-C16, host-legal level-up draws and category weights 45/30/25 35/35/30 25/35/40; 2026-11-15 Phase 5 skill-centric workshop approved by user: new bases B19-B21 (spell focus, low-HP escape, guard), mods M16-M20 (zone tether, shove, finisher, long empower, pull), connectors C17-C21 (zone relocate, stored force, empower spend, control widen, zone detonate); C02 hosts extended; #238 user approved four tiers, twelve species, HR x3 / trainer x2, fixed tier random species, 18/10/4/2 camps, and the proposed playtest combat/reward parameters: 采用这组试玩参数. Not balance acceptance.",
       "status": "approved"
     },
-    "handler_revision": 7,
-    "projection_revision": 7,
+    "handler_revision": 8,
+    "projection_revision": 8,
     "schema_version": 2
   },
   "parameters": {

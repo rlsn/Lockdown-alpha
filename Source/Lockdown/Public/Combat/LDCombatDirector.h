@@ -9,6 +9,7 @@
 #include "Combat/LDDamageRecap.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
+#include "Combat/LDMonsterRules.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatElements.h"
 #include "Development/LDBuildBlueprint.h"
@@ -278,6 +279,7 @@ struct FLDCombatAction
     int64 StartedAtMs=0;
     int64 ReleaseAtMs=0;
     uint64 SourceRevision=0;
+    bool bMonsterSpecial=false;
 };
 
 struct FLDBodyCombatState
@@ -341,6 +343,10 @@ struct FLDBodyCombatState
     // D21 (#79): this contender's foot stood inside a dorm at the last regeneration settle.
     bool bInDorm=false;
     int64 HpRegenMicroP2=0, MpRegenMicroP2=0; // sub-P2 remainders in 1e-6 P2
+    int32 MonsterAttackCount=0;
+    bool bMonsterEnraged=false;
+    int64 MonsterGuardUntilMs=0;
+    int64 MonsterRecoverUntilMs=0;
     int64 MonsterNextAttackAtMs=0;         // contenders keep their cadence on the persistent record
     int64 DashUntilMs=0;
     // Released action and last landed hit of this life for the visible action cue.
@@ -429,7 +435,10 @@ struct FLDCombatEntityRecord
 {
     ELDVictimKind Kind=ELDVictimKind::Contender;
     FGuid Entity;
-    FName MonsterId;          // CampMember only: resolves a camp killer's tier after its body is gone
+    FName MonsterId;          // Current camp species.
+    TMap<uint32,FName> MonsterLives; // Immutable definitions for released effects of each earlier life.
+    FName MonsterAtLife(uint32 Life) const
+    {const FName* Found=MonsterLives.Find(Life);return Found?*Found:NAME_None;}
     FLDBuildProjectionInput Build;
     FLDExpectedBuildVersions Installed;
     FLDAttributeProjection Projection;
@@ -622,6 +631,16 @@ struct FLDCombatGroundEffect
 };
 
 // Released straight, non-homing projectile: first legal hostile body (after M14's extra bodies) or blocking terrain ends it.
+struct FLDMonsterStrike
+{
+    FGuid Key;
+    FLDMonsterArea Area;
+    FLDCombatHit Payload;
+    int64 AtMs=0;
+    uint64 Token=0;
+    bool bReleased=false;
+};
+
 struct FLDCombatProjectile
 {
     // The combat effect this flight delivers.
@@ -858,6 +877,8 @@ public:
 #endif
 
     // ---- Camps.
+    bool CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGameplayWritePermit& Permit,FString& Error);
+    bool CancelCampWindup(const FLDCombatBodyRef& Body,const FLDGameplayWritePermit& Permit,FString& Error);
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
     // #198 field charm (Transactions): applies Kind's approved effect to the living body of Contender — heal a share of
     // max HP through HealBody, mana a share of max MP through GrantMana (both capped at the maximum), or refresh the
@@ -1003,6 +1024,8 @@ private:
         ELDCombatReject& Outcome, FString& Error);
     // The landing half of ReleaseBasic, once BasicReleaseGate passed: builds and queues the swing's hits on its committed
     // target and finishes the action.
+    bool ReleaseMonsterSkill(ALDCharacter& Actor,FLDBodyCombatState& Body,const FLDCombatAction& Action,ELDCombatReject& Reject,FString& Error);
+    bool AdvanceMonsterStrikes(int64 NowMs,FString& Error);
     bool LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error);
     bool ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         ELDCombatReject& Reject, FString& Error);
@@ -1374,6 +1397,7 @@ private:
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
     TArray<FLDCombatGroundEffect> GroundEffects;
+    TArray<FLDMonsterStrike> MonsterStrikes;
     // C17: creation order of zones and traps (most recent first when one is relocated).
     uint64 NextAreaSerial=0;
     // #198 F M02: locked ledger batches waiting for their delayed cash-out.

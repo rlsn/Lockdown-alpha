@@ -214,6 +214,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     Evaluation.DamageBonusBp=PoolBp;
     Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
+    if(Body->MonsterGuardUntilMs>NowMs && SourceActor
+        && FVector::DotProduct(Actor->GetActorForwardVector(),(FootOf(*SourceActor)-FootOf(*Actor)).GetSafeNormal2D())>0)
+    {
+        const FLDDemoMonsterDefinition* Monster=nullptr;
+        if(!Content->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
+        Evaluation.DeliveryScaleBp=Evaluation.DeliveryScaleBp*(10000-Monster->Skill.PassiveBp)/10000;
+    }
     if (!RewriteFinalHit(Hit,bProtected,NowMs,Error)) { return false; }
     Evaluation.PackageScaleBp=Hit.PackageScaleBp;
     // #198 F M12: a deferred share is paid at its original amount: no second resistance, bonus or deferral.
@@ -507,7 +514,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         using namespace LDCombatEffectsDetail;
         const FLDCombatEntityRecord* SourceRecord=FindRecord(Hit.SourceEntity);
-        const FName SourceMonster=Source ? Source->MonsterId : (SourceRecord ? SourceRecord->MonsterId : NAME_None);
+        const FName SourceMonster=Source ? Source->MonsterId : (SourceRecord ? SourceRecord->MonsterAtLife(Hit.SourceBody.Victim.Life) : NAME_None);
         UE_LOG(LogLDCombat,Log,TEXT("LD_HIT t=%lld src=%s src_kind=%s src_monster=%s credit=%s victim=%s victim_life=%u victim_kind=%s victim_monster=%s via=%s class=%s type=%s dmg=%s absorbed=%s hp_lost=%s hp=%s->%s max_hp=%s shield=%s->%s amp_bp=%lld resist=%s crit=%d protected=%d periodic=%d reflect=%d added=%d controls=%s vamp=%s lethal=%d pool_bp=%lld"),
             NowMs,*LDLog::Id(Hit.SourceEntity),VictimKindName(Hit.SourceBody.Victim.Kind),
             SourceMonster.IsNone() ? TEXT("-") : *SourceMonster.ToString(),*LDLog::Id(Hit.CreditOwner),
@@ -952,6 +959,15 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
     FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,
         Body.BuildProjection.LowHPBonus,Body.Resources.HpP2,Body.Resources.MaxHpP2,NowMs);
     Terms.AttackSlowBp=LDTactical::StrongestSlowBp(Body.AttackSlows,NowMs);
+    if(Body.Victim.Kind==ELDVictimKind::CampMember && !Body.MonsterId.IsNone())
+    {
+        const FLDDemoMonsterDefinition* Monster=nullptr;
+        if(!Content->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+        const auto& S=Monster->Skill;
+        if(S.LowHPThresholdBp>0 && Body.Resources.HpP2<=Body.Resources.MaxHpP2/10000*S.LowHPThresholdBp
+            +Body.Resources.MaxHpP2%10000*S.LowHPThresholdBp/10000)
+        {FLDDemoStatBonus Bonus;Bonus.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;Bonus.Amount=S.LowHPHasteBp;Terms.Bonuses.Add(Bonus);}
+    }
     if (Terms==Body.AppliedTemporary) { return true; }
     const FLDAttributeProjectionResult Applied=LDAttributeProjection::ApplyTemporary(Body.BuildProjection,Terms,*Content);
     if (!Applied.IsSuccess())
@@ -966,13 +982,18 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
     ++Body.AttributeRevision;
     const FLDDemoRational& NewAttackSpeed=Body.AttributeProjection.Final.AttackSpeed;
     // Contenders time each basic from the current attack speed; camp members keep their monster cadence.
-    if (Body.Victim.Kind==ELDVictimKind::Contender
-        && (OldAttackSpeed.Numerator!=NewAttackSpeed.Numerator || OldAttackSpeed.Denominator!=NewAttackSpeed.Denominator))
+    if ((OldAttackSpeed.Numerator!=NewAttackSpeed.Numerator || OldAttackSpeed.Denominator!=NewAttackSpeed.Denominator))
     {
         FLDBasicTimingInput TimingInput;
         TimingInput.BaseAttackSpeed=Content->Get().Parameters.AttackSpeed.Base;
         TimingInput.CurrentAttackSpeed=NewAttackSpeed;
         TimingInput.BaseWindupMs=Content->Get().Parameters.BasicAttackWindupMs;
+        if(Body.Victim.Kind==ELDVictimKind::CampMember)
+        {
+            const FLDDemoMonsterDefinition* Monster=nullptr;
+            if(!Content->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+            TimingInput.BaseAttackSpeed=Monster->AttackSpeed;TimingInput.BaseWindupMs=Monster->AttackWindupMs;
+        }
         const FLDBasicTimingResult Timing=LDTactical::EvaluateBasicTiming(TimingInput,*Content);
         if (!Timing.IsSuccess())
         {

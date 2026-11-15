@@ -16,7 +16,7 @@ namespace LDObservation
     // 10 adds the recent hit presentation and public area warning countdown.
     // 9 adds the authoritative release delay to public action cues.
     // 8 (#198): Q/W/E carry single-level ability ids without ranks; the cowering and contact-guard statuses are gone.
-    constexpr uint32 Schema = 14;
+    constexpr uint32 Schema = 15;
     constexpr uint16 RecentHitWindowMs = 300;
     enum EHitFlags : uint8 { Critical = 1, ShieldAbsorbed = 2, ShieldBroken = 4 };
     constexpr uint8 HitFlagsMask = Critical | ShieldAbsorbed | ShieldBroken;
@@ -25,17 +25,17 @@ namespace LDObservation
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
     constexpr int32 CoverageBytes = CoverageCells / 8;
     // BeginMatch rejects a locked roster plus approved camp members that could exceed this. #97: derived from the
-    // approved content: one observer sees at most the five other contenders (3 humans + 3 AI), the 52 camp members of
-    // the 34 camps (18 low x 2, 12 high x 1, 4 elite x 1) and the Boss, 58 units; the wire counts are uint8.
+    // approved content: five other contenders, 80 camp members (18 x 3, 10 x 2, 4 x 1, 2 x 1)
+    // and the Boss, 86 units; the wire counts are uint8.
     // BeginMatch also checks every other resting contender, one owned dummy per contender and all authored shared targets.
     // Lockdown.Rules.CampDecision fails when the approved camps outgrow this bound.
-    constexpr int32 MaxUnits = 58;
+    constexpr int32 MaxUnits = 86;
     // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
     // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 16;
+    constexpr int32 MaxStatuses = 18;
     constexpr int32 MaxTerminations = 16;
     // Visible flights and skill areas per frame; the nearest are kept when more are in sight.
-    constexpr int32 MaxProjectiles = 32;
+    constexpr int32 MaxProjectiles = 128;
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
@@ -54,7 +54,7 @@ UENUM() enum class ELDObservedProjectileLook : uint8
 {
     Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6,
     AreaPlain = 7, AreaMagic = 8, AreaFire = 9, AreaWater = 10, AreaElectric = 11,
-    ChalkReturn = 12, SockReturn = 13, Road = 14
+    ChalkReturn = 12, SockReturn = 13, Road = 14, ConeWarning = 15, LineWarning = 16
 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };

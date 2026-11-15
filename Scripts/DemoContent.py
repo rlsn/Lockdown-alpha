@@ -30,8 +30,8 @@ WORLD_SOURCE = Path("SourceData", "World", "demo_world.json")
 WORLD_SCHEMA_SOURCE = Path("SourceData", "World", "demo_world.schema.json")
 INPUT_PATHS = (*AUTHOR_INPUT_PATHS, WORLD_SOURCE, WORLD_SCHEMA_SOURCE, WORLD_OUTPUT, WORLD_CONTRACT)
 SCHEMA_VERSION = 2
-HANDLER_REVISION = 7
-PROJECTION_REVISION = 7
+HANDLER_REVISION = 8
+PROJECTION_REVISION = 8
 INT64_MAX = (1 << 63) - 1
 INT64_MIN = -(1 << 63)
 MAX_JSON_BYTES = 8 * 1024 * 1024
@@ -51,7 +51,7 @@ RETIRED_RANGES = {"abilities": [[0, 91], [104, 113], [119, 125]], "stats": [[0, 
                   "effect_ops": [[6, 6], [9, 11], [16, 16], [19, 19], [23, 23], [25, 25], [27, 30], [32, 34], [38, 39],
                                  [41, 49], [51, 51], [53, 53], [55, 66], [68, 68], [72, 76], [83, 85], [89, 89]]}
 # #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
-CAMP_TIERS = frozenset(("Low", "High", "Elite"))
+CAMP_TIERS = frozenset(("Low", "High", "Elite", "Ancient"))
 # #198 field charms: heal, mana and move speed (native ELDCharmKind).
 CHARM_KINDS = 3
 # Passive-form operations (thorns, lifesteal, stat bonuses, triggered effects, dash contact terms) stay importable for the
@@ -1138,8 +1138,8 @@ def validate_numbers(data):
             "GROWTH.NpcActiveSkipPoints", "declining a purchased offer must cost points overall")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
-    require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),
-            "CampTiers", "monsters", "exactly one monster per camp tier (Low, High, Elite) is required")
+    require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and all(sum(m["tier"] == tier for m in monsters.values()) == 3 for tier in CAMP_TIERS),
+            "CampTiers", "monsters", "exactly three species per camp tier (Low, High, Elite, Ancient) are required")
     # #97 camp growth: a camp life takes stage min(MaxStage, floor(spawn time / StageSec)) at spawn and keeps it; the
     # native stage is one byte. Scaled values stay integral in their stored units (P2, bp) at the cap.
     max_stage = params["CAMP.GrowthMaxStage"]
@@ -1168,6 +1168,19 @@ def validate_numbers(data):
         checked_mul(monster["count_per_camp"], monster["reward_xp"], path)
         monster["attack_interval_ms"] = interval
         monster["perception_radius"] = dict(monster["leash_radius"])
+    for tier in CAMP_TIERS:
+        pool = [m for m in monsters.values() if m["tier"] == tier]
+        for field in ("count_per_camp", "reward_xp", "respawn"):
+            require(all(m[field] == pool[0][field] for m in pool), "CampPool", tier,
+                    f"same-tier species must share {field}")
+        for m in pool:
+            s = m["skill"]
+            display_text(s["name"],m["id"]+".skill.name",False)
+            require(1 <= s["every"] <= 100 and 1 <= s["pulses"] <= 3 and s["angle"] <= 180
+                    and s["pulse_angle"] <= 120 and 0 < quantity(s["range"]) <= quantity(m["leash_radius"])
+                    and quantity(s["ratio"]) * s["pulses"] <= Fraction(9, 4)
+                    and s["evolve_stage"] <= 255 and s["echo_stage"] <= 255,
+                    "MonsterSkill", m["id"], "invalid skill cadence, shape or total damage budget")
     # D26 (#79): the 画饼老板 Boss is one roaming body: its own block, not a camp tier.
     boss = data["boss"]
     require(boss["id"] not in monsters, "DuplicateId", "boss", "the Boss is not a camp monster")

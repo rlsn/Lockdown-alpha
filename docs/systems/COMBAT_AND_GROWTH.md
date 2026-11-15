@@ -561,3 +561,17 @@ Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovem
 
 数据编辑先运行对应 Sync `--check` 与输入测试。测试用的授予、传送或改时钟要明确是夹具，
 不能当作正常升级、打野收益或完整对局已经成立。
+
+## 野怪攻击模式
+
+四档营地共十二种，数值与能力见[内容与数值§6.2](../demo/CONTENT_AND_BALANCE.md#62-四档营地与种类池)。
+`LDCombatMonsters.cpp`扩展营地的现有Basic动作入口：预警在接受时固定几何，成功释放推进循环，
+`LDMonsterRules::Areas/Contains`供预警与命中共用；命中继续进入Combat的PendingHits、伤害/控制和致死事实。
+延迟段由同一个权威driver按精确到期点调度；取消的未释放动作不留下伤害，休息清场清效果。
+HR同伴死亡通过DeathsAndRewards许可提交到Combat；回位重置清循环/被动/正面防守。
+正面防守仅修改同一命中的DeliveryScale，不伪造护盾资源。总监低血攻速通过现有临时属性投影处理。
+技能来源使用Basic入口及怪物定义，伤害类别为Ability；怪物普攻仍为无定义的Basic来源。
+地面预警和投射物继续走拥有者授权的观察通道，技能名由可见CreatureId查询内容；不公开当前隐藏营地选种。
+
+`FLDCombatEntityRecord::MonsterLives`按life保留已注册种类，当前种类可在整组刷新时变化。
+旧生命已释放效果的伤害记录与击杀来源按旧life查定义，不能套用刷新后的种类。

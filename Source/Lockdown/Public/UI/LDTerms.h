@@ -38,9 +38,9 @@ inline FString NotEnoughMana(){return FString(Mana)+TEXT("不足");}
 inline constexpr TCHAR BasicAttack[]=TEXT("普攻");
 inline constexpr TCHAR Dash[]=TEXT("冲刺");
 inline constexpr TCHAR CapturePoint[]=TEXT("旗杆");
-inline constexpr TCHAR CampLow[]=TEXT("小野怪");
-inline constexpr TCHAR CampHigh[]=TEXT("大野怪");
-inline constexpr TCHAR CampElite[]=TEXT("精英野怪");
+inline constexpr TCHAR CampLow[]=TEXT("小野");
+inline constexpr TCHAR CampHigh[]=TEXT("中野");
+inline constexpr TCHAR CampElite[]=TEXT("大野");
 
 // 地图事件（#79）
 inline constexpr TCHAR Dorm[]=TEXT("躺平角");

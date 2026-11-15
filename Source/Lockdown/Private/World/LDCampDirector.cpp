@@ -81,6 +81,7 @@ namespace
 
 ALDCampDirector::ALDCampDirector()
 {
+    SpeciesRandom.GenerateNewSeed();
     bReplicates = false;
     PrimaryActorTick.bCanEverTick = false;
 }
@@ -439,8 +440,9 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.CampAnchorFootCm = Spec.AnchorCm;
             Input.MemberHome = {Input.World, Spec.Members[Slot].HomeCm, Spec.SurfaceId};
             Input.Brain = Member.Brain;
+            Input.MonsterId = State.FindCamp(Camp)->SelectedSpecies;
             Input.bObservationComplete = true;
-            Input.MovementAllowed = Body.bMovementAllowed;
+            Input.MovementAllowed = Body.bMovementAllowed && !Body.bActionInProgress;
             Input.AttackAllowed = Body.bAttackAllowed;
             Input.BasicAttackReady = Body.bBasicAttackReady;
             Input.bStrandedInPlace = Stranded.Contains(Entity);
@@ -453,6 +455,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             }
             if (bBeganReturn)
             {
+                if(!Mode->Combat->CancelCampWindup(Ref,Permit,Error)){return false;}
                 UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_RETURN camp=%s slot=%d life=%u epoch=%llu"),
                     *Spec.CampId.ToString(), Slot, Ref.Victim.Life, State.FindLiving(Ref)->ReturnEpoch);
             }
@@ -718,6 +721,8 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
         Error.Reset();
         return true;
     }
+    for(const auto& Peer:State.FindCamp(Camp)->Members)
+    {if(Peer.bAlive && !AuthorityMode()->Combat->CampPeerDied(Peer.Body,Permit,Error)){return false;}}
     const FGuid Entity = Fact.Key.Victim.EntityId;
     Motion.Remove(Entity);
     Returns.Remove(Entity);
@@ -995,7 +1000,11 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
     const FLDDemoMonsterDefinition* Monster = nullptr;
     FCollisionShape Capsule;
-    if (!Mode || !Content->FindMonster(Spec.MonsterId.ToString(), Monster, Error)
+    FName Selected;
+    const auto* Group=State.FindCamp(Camp);
+    const int32 Draw=Group->PendingSpecies.IsNone()?SpeciesRandom.RandRange(0,Spec.Species.Num()-1):0;
+    if(!State.SelectSpecies(Camp,Draw,Selected,Error)){return false;}
+    if (!Mode || !Content->FindMonster(Selected.ToString(), Monster, Error)
         || !ULDMapRegistry::ContentCapsule(*Content, Capsule, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("Camp spawn needs the core and the approved monster."); }
@@ -1036,7 +1045,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
-        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Spec.MonsterId, Stage});
+        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Selected, Stage});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }
