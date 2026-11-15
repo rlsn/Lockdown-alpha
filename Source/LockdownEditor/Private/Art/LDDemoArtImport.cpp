@@ -36,6 +36,8 @@
 #include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionSubtract.h"
+#include "Materials/MaterialExpressionTextureBase.h"
+#include "Materials/MaterialExpressionTextureSample.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialInstanceConstant.h"
@@ -1287,6 +1289,8 @@ namespace
     }
 
     // Every material the body component paints exposes the identity tint and the hit flash, and lives in the body folder.
+    // A texture node without a texture fails to compile, and the cooked game then draws that slot with the engine's
+    // default material, so every texture node must name a texture or take one through its texture input.
     template<typename TSlot>
     bool ArtCheckAuthoredMaterials(const TArray<TSlot>& Slots, const FString& Folder, const FString& Owner, FString& Error)
     {
@@ -1301,6 +1305,16 @@ namespace
             {
                 return ArtFail(Error, FString::Printf(TEXT("%s slot %s needs a material of its body folder with the Tint and Flash parameters."),
                     *Owner, *Slot.MaterialSlotName.ToString()));
+            }
+            for (const UMaterialExpression* Expression : Base->GetExpressions())
+            {
+                const auto* Texture = Cast<UMaterialExpressionTextureBase>(Expression);
+                const auto* Sample = Cast<UMaterialExpressionTextureSample>(Expression);
+                if (Texture && !Texture->Texture && !(Sample && Sample->TextureObject.Expression))
+                {
+                    return ArtFail(Error, FString::Printf(TEXT("%s slot %s material %s has texture node %s without a texture; it cannot compile."),
+                        *Owner, *Slot.MaterialSlotName.ToString(), *Base->GetPathName(), *Expression->GetName()));
+                }
             }
         }
         return true;

@@ -329,10 +329,10 @@ Boss 厨师身体（`chef-ninja`，FBX 源文件尚未入库）。
 
 编写身体（清单 `kind: authored`）是在 `Art/Characters/hooper`、`Art/Characters/chef` 中直接维护的成品资产（网格、骨架、物理、材质、贴图与动画），`-Mode Import` 不重新导入它们。每个材质带 `Tint` 与 `Flash`：`hooper` 身体材质只把球衣的金色与紫色
 （`Scripts\MakeHooperJerseyMask.py` 由底色贴图生成的 `T_Hooper_JerseyMask`，`--check` 拒绝与重新生成结果不符的遮罩）换成座位色并按亮度保留明暗，数字、皮肤与鞋不变；
-`chef` 的披风整体换成 Boss 色，其余材质为 `BaseColor × Tint`（默认白色）。`hooper` 的全部状态与 `chef` 的 Cast/Hit/Death/Spawn
+`chef` 的披风整体换成 Boss 色并按顶点色亮度保留明暗，其余材质为 `BaseColor × Tint`（默认白色）。`hooper` 的全部状态与 `chef` 的 Cast/Hit/Death/Spawn
 由 Quaternius `Casual_2` 经 IK Retargeter 重定向得到（清单 `origin` 字段）：去掉重定向器的 Root Motion 步骤以保持原地；Tripo 骨架以米为单位、根骨缩放 182.3，
 重定向后恢复根骨缩放并把骨盆位移换回米。`chef` 的 Idle/Run/Attack 是它自带的动作。替换这些资产后重跑 `-Mode Import` 刷新目录。
-`-Mode Import` 与 `-Mode Validate` 读取这些资产核对目录：有 `source` 时网格须由该源文件的当前字节导入；每段动作的根骨水平漂移不超过 2 cm；出手时刻与 Run 参考速度按 `MeasureDemoArt.py`
+`-Mode Import` 与 `-Mode Validate` 读取这些资产核对目录：有 `source` 时网格须由该源文件的当前字节导入；身体与穿戴件材质中的每个贴图节点须带贴图或接入贴图对象（缺贴图的材质在打包版里编译失败、整槽显示为引擎默认材质）；每段动作的根骨水平漂移不超过 2 cm；出手时刻与 Run 参考速度按 `MeasureDemoArt.py`
 的同一规则（240 Hz、手相对骨盆最靠前的时刻、着地脚后滑速度的中位数）从动作测得，与清单不符即失败并给出测得值。
 编写身体可带穿戴件（`FLDArtAttachment`）：挂在身体插槽上的静态件（Boss 的铁勺挂 `Weapon_R`），或共享身体骨架、
 以 Leader Pose 跟随身体并自带布料模拟的蒙皮件（Boss 的披风）。穿戴件只显示、无碰撞、不参与点选，随身体一起受击闪光，
