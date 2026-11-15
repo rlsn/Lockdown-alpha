@@ -139,6 +139,8 @@ namespace LDPropFade
     constexpr double PierceRadiusCm = 45.;
     // Full fade in or out takes 1/FadePerSecond seconds.
     constexpr float FadePerSecond = 6.f;
+    // One sweep of the level actors for tagged scene components takes about this long.
+    constexpr double SweepSeconds = 2.;
     LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);
     // The only space an occluding prop can reach into: bounds that miss this box occlude none of the targets, so the
     // per-target tests are skipped for them. Invalid without targets.
@@ -295,6 +297,10 @@ private:
     };
     TArray<FFadeableProp> FadeableProps;
     double FadeablesScannedAt = -1;
+    // Where the sliced sweep for tagged scene components stands, and whether one whole sweep has finished.
+    int32 FadeSweepLevel = 0;
+    int32 FadeSweepActor = 0;
+    bool bFadeablesSwept = false;
     FLDObservedFrameReceiver Receiver;
     FLDObservedCatalog Catalog;
     bool bCatalogReady = false;
