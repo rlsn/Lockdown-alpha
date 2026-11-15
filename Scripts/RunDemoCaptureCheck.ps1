@@ -49,7 +49,10 @@ function Start-CaptureRole {
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
-    $render = if ($RenderHost -and $Role -eq 'Host') { '-RenderOffScreen -ResX=1280 -ResY=720 -LDCaptureRenderHost' } else { '-nullrhi' }
+    # UI commands need initialized rendered widgets on every owner; only the Host saves frames.
+    $render = if ($RenderHost) {
+        '-RenderOffScreen -ResX=1280 -ResY=720' + $(if ($Role -eq 'Host') { ' -LDCaptureRenderHost' } else { '' })
+    } else { '-nullrhi' }
     $arguments = '-unattended -nop4 -nosound {0} -multihome=127.0.0.1 {1} -UserDir="{2}" -LDDemoCaptureProbe -LDDemoCaptureRole={3} -LDDemoCaptureTimeout={4} -LDDemoCaptureOutput="{5}" -abslog="{6}"' -f $render,$portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($AllHuman) { $arguments += ' -LDCaptureAllHuman' }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
@@ -109,6 +112,14 @@ try {
             throw "Capture checks for $role differ from the required ids: missing [$($missing -join ' ')], unexpected [$($unexpected -join ' ')], repeated [$($repeated -join ' ')]. Evidence: $output"
         }
         $r
+    }
+    if ($RenderHost) {
+        foreach ($image in @('HostFinalOffer.png','HostFinalLocked.png','HostFinalFlag.png','HostResults.png','HostReturnedLobby.png')) {
+            $path = Join-Path $evidence $image
+            if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -eq 0) {
+                throw "Missing rendered walkthrough frame: $path"
+            }
+        }
     }
     $winner = $reports[0].summary.winner
     foreach ($r in $reports) {

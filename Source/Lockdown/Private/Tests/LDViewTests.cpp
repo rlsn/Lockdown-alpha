@@ -50,7 +50,15 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
     ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),
-        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
+        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel"),TEXT("BankedGuardMs"),TEXT("CompletedSprays"),TEXT("Build")},
+        TEXT("Result rows carry settled totals and frozen rule identities, never live resources, cooldowns, attributes or position"));
+    ExpectStruct(FLDResultBuild::StaticStruct(),{TEXT("bAvailable"),TEXT("CatalogRoot"),TEXT("Actives"),TEXT("Components"),
+        TEXT("FinalMod"),TEXT("FinalTarget"),TEXT("FinalTargetId")},
+        TEXT("Frozen build summaries contain only catalog and installed rule identities"));
+    ExpectStruct(FLDResultBuildActive::StaticStruct(),{TEXT("DefinitionId"),TEXT("Slot")},
+        TEXT("Frozen active summaries contain only their identity and slot"));
+    ExpectStruct(FLDResultBuildComponent::StaticStruct(),{TEXT("DefinitionId"),TEXT("Target"),TEXT("TargetId"),TEXT("BoundActive")},
+        TEXT("Frozen component summaries contain only their identity and placement"));
     ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices"),TEXT("Scores")},TEXT("Kill feed is a bounded public ring with the public K/D/A"));
     ExpectStruct(FLDScoreRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Kills"),TEXT("Deaths"),TEXT("Assists")},
         TEXT("Scoreboard rows carry only the public kills, deaths and assists"));
@@ -65,18 +73,18 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         {++ClockCount;TestTrue(TEXT("The authority clock carries only match generation, completed step and time"),ClockFields.Contains(It->GetFName()));TestNull(TEXT("The clock has no canonical object reference"),CastField<FObjectPropertyBase>(*It));}
         TestEqual(TEXT("Authority clock schema complete"),ClockCount,3);
     }
-    const TSet<FName> Lobby={TEXT("Generation"),TEXT("Phase"),TEXT("RosterRevision"),TEXT("PublicRevision"),TEXT("Members"),TEXT("AICount"),TEXT("CanStart"),TEXT("StartBlocker"),
+    const TSet<FName> Lobby={TEXT("Generation"),TEXT("Phase"),TEXT("RosterRevision"),TEXT("PublicRevision"),TEXT("PreviousResultId"),TEXT("Members"),TEXT("AICount"),TEXT("CanStart"),TEXT("StartBlocker"),
         // Room facts: the Host runs a DEV test session / DEV content hot reload (#78); every member's screen marks it.
         TEXT("DevTestSession"),TEXT("DevContentReload")};
     int32 LobbyCount=0;
     for(TFieldIterator<FProperty> It(FLDLobbyView::StaticStruct());It;++It)
     {++LobbyCount;TestTrue(TEXT("Demo Lobby contains only public room facts"),Lobby.Contains(It->GetFName()));TestNull(TEXT("Lobby cannot expose canonical objects"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Demo Lobby schema complete"),LobbyCount,10);
-    const TSet<FName> Member={TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("Host"),TEXT("Ready")};
+    TestEqual(TEXT("Demo Lobby schema complete"),LobbyCount,11);
+    const TSet<FName> Member={TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("Host"),TEXT("Ready"),TEXT("PreviousAIContender")};
     int32 MemberCount=0;
     for(TFieldIterator<FProperty> It(FLDLobbyMember::StaticStruct());It;++It)
-    {++MemberCount;TestTrue(TEXT("Roster never includes private build or body data"),Member.Contains(It->GetFName()));}
-    TestEqual(TEXT("Demo member schema complete"),MemberCount,5);
+    {++MemberCount;TestTrue(TEXT("Roster carries public room and previous-result identities, never private build or body data"),Member.Contains(It->GetFName()));}
+    TestEqual(TEXT("Demo member schema complete"),MemberCount,6);
     return true;
 }
 #endif
