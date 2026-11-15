@@ -54,7 +54,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices"),TEXT("Scores")},TEXT("Kill feed is a bounded public ring with the public K/D/A"));
     ExpectStruct(FLDScoreRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Kills"),TEXT("Deaths"),TEXT("Assists")},
         TEXT("Scoreboard rows carry only the public kills, deaths and assists"));
-    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Assisters"),TEXT("Cause"),TEXT("OccurredAtMs")},
+    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Assisters"),TEXT("Cause"),TEXT("OccurredAtMs"),TEXT("CreatureName")},
         TEXT("Kill notices carry no coordinates or build"));
     const FStructProperty* Clock=CastField<FStructProperty>(ALDGameState::StaticClass()->FindPropertyByName(TEXT("DemoClock")));
     if(TestNotNull(TEXT("The authority clock is one struct value"),Clock))

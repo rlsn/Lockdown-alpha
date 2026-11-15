@@ -261,7 +261,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
-    TestTrue(TEXT("Full view stays inside its derived capacity"), Bytes > 0 && Bytes < 8192);
+    TestTrue(TEXT("Full view stays inside the four-tier 32 KiB capacity"), Bytes > 0 && Bytes < 32768);
     AddInfo(FString::Printf(TEXT("Maximum observation frame: %lld bytes"), Bytes));
     TestEqual(TEXT("Units complete"), Read.Units.Num(), LDObservation::MaxUnits);
     TestEqual(TEXT("Terminations complete"), Read.RecentTerminations.Num(), LDObservation::MaxTerminations);
@@ -380,7 +380,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Resources are closed pairs"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Health.CurrentP2 = V.Units[0].Health.MaxP2 + 1; })));
     TestFalse(TEXT("Unauthorized camp mana refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Mana.MaxP2 = 10; })));
     TestFalse(TEXT("Camp level refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Level = 1; })));
-    TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 5; })));
+    TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 255; })));
     TestFalse(TEXT("Unknown action cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCue = static_cast<ELDObservedActionCue>(4); })));
     TestFalse(TEXT("A cue age without a cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCueAgeMs = 120; })));
     TestFalse(TEXT("Unknown unit kind refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Kind = static_cast<ELDObservedUnitKind>(3); })));

@@ -966,8 +966,8 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     // One row per definition (character, actives, stats, components, final mods, monsters) and per native status: statuses 1..6, 9, 10
     // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
     // (silence, burn), attack_slowed (#198 retires cowering and contact_guard) and the #198 wet, electrified,
-    // braced and soured.
-    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4;
+    // braced and soured, plus the two camp-only enrage and guarding states.
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4 + 2;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.FinalMods.Num() + Definitions.Monsters.Num()
         + Statuses);

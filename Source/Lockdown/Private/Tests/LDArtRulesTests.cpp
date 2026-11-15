@@ -224,8 +224,12 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
     const FLDArtCharacter* Teacher = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterGuardian));
     const FLDArtCharacter* Dean = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterDean));
     const FLDArtCharacter* Advisor = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterAdvisor));
-    TestTrue(TEXT("Every seat, the three camp tiers, the Boss and nothing else resolve"), Contender && Monitor && Teacher && Dean
-        && Advisor && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(5));
+    TestTrue(TEXT("Every seat, the four camp tiers and the Boss resolve"), Contender && Monitor && Teacher && Dean
+        && Advisor && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(255));
+    for(const auto Id:{ELDDemoMonsterId::MonsterPromoter,ELDDemoMonsterId::MonsterCourier,ELDDemoMonsterId::MonsterAgent,
+        ELDDemoMonsterId::MonsterGuard,ELDDemoMonsterId::MonsterAuditor,ELDDemoMonsterId::MonsterClient,
+        ELDDemoMonsterId::MonsterDirector,ELDDemoMonsterId::MonsterFinalClient,ELDDemoMonsterId::MonsterProperty})
+    {TestNotNull(TEXT("Every added species has an explicit reusable character look"),Art.ForMonster(uint8(Id)));}
     TestTrue(TEXT("The teacher stands taller than the Low tier and every contender"), Contender && Monitor && Teacher
         && Teacher->HeightCm > Contender->HeightCm && Teacher->HeightCm > Monitor->HeightCm);
     TestTrue(TEXT("#97: the Elite advisor is its own body and the tallest camp body"), Advisor && Teacher && Monitor
