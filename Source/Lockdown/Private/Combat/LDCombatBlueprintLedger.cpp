@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
 
 // #198 §10: the build blueprint ledger is fed only from the points where Combat commits a build install, a release, a hit,
@@ -144,4 +145,37 @@ void ALDCombatDirector::LedgerActionRefused(const FGuid& Entity, ELDCombatReject
     if (Body && LDCombatBlueprintLedgerDetail::IsTraining(*Body)) { return; }
     const int32 Version=LedgerVersion(Entity);
     if (Version!=INDEX_NONE) { BuildLedger.Add(Entity,Version,ELDBlueprintFact::Rejections,1); }
+}
+
+// The death recap and the per-source totals read the same committed hit as the ledger's damage facts: positive damage on
+// another body, shield-absorbed part included, never private training.
+void ALDCombatDirector::RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage, int64 NowMs)
+{
+    if (Damage.DamageP2<=0 || Hit.SourceEntity==Victim.Victim.EntityId || LDCombatBlueprintLedgerDetail::IsTraining(Victim)) { return; }
+    const FLDCombatEntityRecord* Credited=Hit.CreditOwner.IsValid() && Hit.CreditOwner!=Victim.Victim.EntityId ? FindRecord(Hit.CreditOwner) : nullptr;
+    const bool bContenderOwner=Credited && Credited->Kind==ELDVictimKind::Contender;
+    if (bContenderOwner) { LDDamageRecap::AddTotal(DamageTotals.FindOrAdd(Hit.CreditOwner),Hit.Source,Damage.DamageP2); }
+    if (Victim.Victim.Kind!=ELDVictimKind::Contender || Victim.bPendingDeath) { return; }
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content) { return; }
+    FLDDamageLine Line;
+    Line.Source=Hit.Source;
+    Line.DamageP2=Damage.DamageP2;
+    if (bContenderOwner) { Line.Contender=Hit.CreditOwner; }
+    else if (Hit.SourceBody.Victim.Kind==ELDVictimKind::CampMember)
+    {
+        // The attacker's definition outlives its body through the persistent Combat record.
+        if (const FLDCombatEntityRecord* Monster=FindRecord(Hit.SourceBody.Victim.EntityId)) { Line.MonsterId=Monster->MonsterId; }
+    }
+    LDDamageRecap::Record(Victim.DamageLog,Line,NowMs,Content->Get().Parameters.AssistWindowMs);
+}
+
+bool ALDCombatDirector::DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageLine>& Out) const
+{
+    Out.Reset();
+    const FLDCombatEntityRecord* Record=FindRecord(Contender);
+    if (!Record || Record->Kind!=ELDVictimKind::Contender) { return false; }
+    if (const TArray<FLDDamageLine>* Totals=DamageTotals.Find(Contender)) { Out=*Totals; }
+    LDDamageRecap::SortTotals(Out);
+    return true;
 }

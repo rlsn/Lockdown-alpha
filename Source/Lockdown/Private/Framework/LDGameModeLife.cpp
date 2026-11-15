@@ -253,6 +253,11 @@ bool ALDGameMode::ResetCombatMatch(const FLDMatchReset& Reset, FString& Error)
         Error = TEXT("Combat reset names a match other than the one being retired.");
         return false;
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    DevPeaceful.Reset();
+    for (const auto& Pair : Contenders)
+    { if (auto* PC = Pair.Key.Get()) { PC->bDevPeaceful = false; } }
+#endif
     for (const auto& Pair : Contenders)
     {
         auto* Controller = Pair.Key.Get();
@@ -445,6 +450,8 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     }
     Life->Actor.Reset();
     if (Controller) { SyncOwner(Controller); }
+    // A rest or PK life stands up again at once and has no death banner, so it gets no recap.
+    if (!bRestLife) { SendDeathRecap(Fact); }
     NotifyLife(Fact.VictimBody, ELDLifeChange::Died, Life->Revision, Fact.OccurredAtMs);
     // Killer (credit owner), fatal source and assisters are appended after the original fields (docs/DEVELOPMENT.md).
     FString Assisters;

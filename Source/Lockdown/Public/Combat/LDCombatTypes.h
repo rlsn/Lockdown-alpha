@@ -33,6 +33,21 @@ struct FLDCombatSourceRef
     bool operator!=(const FLDCombatSourceRef& Other) const { return !(*this==Other); }
 };
 
+// One attacker's committed positive damage through one source (shield-absorbed part included, as the build blueprint's
+// damage facts count it). Contender: the contender credited with the hits; MonsterId: the camp member definition when no
+// contender is credited; both empty: an unowned source. A match total of own damage leaves both empty.
+USTRUCT()
+struct FLDDamageLine
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Contender;
+    UPROPERTY() FName MonsterId;
+    UPROPERTY() FLDCombatSourceRef Source;
+    UPROPERTY() int64 DamageP2 = 0;
+    bool SameAttacker(const FLDDamageLine& Other) const { return Contender == Other.Contender && MonsterId == Other.MonsterId; }
+    bool SameKey(const FLDDamageLine& Other) const { return SameAttacker(Other) && Source == Other.Source; }
+};
+
 // Server-only, never serialized. Resolved from the owning connection, the registered AI or a registered camp member.
 struct FLDCombatCaller
 {
@@ -204,6 +219,9 @@ struct FLDCommittedDeath
     // Contender victims with an eligible killer only: the other contenders still in the match whose latest assist
     // contribution fell within REWARD.AssistWindowSec before the fatal hit, sorted. Frozen with the fact.
     TArray<FGuid> Assisters;
+    // Contender victims only: the damage this life took within RecapWindowMs before the fatal hit (LDDamageRecap::Summarize).
+    TArray<FLDDamageLine> Recap;
+    int64 RecapWindowMs=0;
     ELDDeathCause Cause=ELDDeathCause::Damage;
     double OccurredAtSeconds=0;           // raw authority time of the fatal hit
     int64 OccurredAtMs=0;                 // checked ceil bucket of OccurredAtSeconds

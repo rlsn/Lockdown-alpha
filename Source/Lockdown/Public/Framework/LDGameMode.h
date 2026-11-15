@@ -352,6 +352,12 @@ public:
     // #198 session D: the optional PK provider's director of this match (PK/LDPKDirector.h); null without the provider.
     UPROPERTY() TObjectPtr<class ALDPKDirector> PKDirector;
 #if WITH_DEV_AUTOMATION_TESTS
+    void EnableRuntimeDevTest();
+    bool IsRuntimeDevTestEnabled() const { return bRuntimeDevTest; }
+    bool IsDevPeaceful(const FGuid& Contender) const { return DevPeaceful.Contains(Contender); }
+    bool DevSetPeaceful(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool DevTeleport(const FGuid& Contender, const FVector& CameraPosition, const FLDGameplayWritePermit& Permit, FString& Error);
     // DEV test session: queues the final rest/return under the next world permit; arena entry and unlock stay real.
     // bOutsideDevelopment when the match is in another phase; false with Detail when nothing changed.
     bool DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail);
@@ -361,6 +367,8 @@ public:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     bool bDevShowdownEntryPending = false;
+    bool bRuntimeDevTest = false;
+    TSet<FGuid> DevPeaceful;
 #endif
     friend class FLDDemoSessionTest;
     friend class FLDGroundBossBodyTest;
@@ -380,6 +388,7 @@ private:
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
     friend class FLDRestPhaseTest;
+    friend class FLDDevSceneToolsTest;
     friend class FLDDemoOpponentProbe;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
@@ -660,10 +669,18 @@ private:
     };
     // By roster slot contender; the association fixes the chassis, not access or attack attribution.
     TMap<FGuid, FLDTrainingDummy> TrainingDummies;
+    TMap<FName, FLDTrainingDummy> SharedTrainingDummies;
+    TSet<FName> PendingSharedTrainingPlacements;
     TSet<FGuid> TrainingDummyIds;
     struct FLDTrainingResetWindow { uint32 Life = 0; uint8 RestIndex = 0; int64 StartedAtMs = 0; };
     TMap<FGuid, FLDTrainingResetWindow> PendingTrainingResets;
     bool PrepareTrainingGround(const FGuid& Owner, struct FLDLegalGround& Out, FString& Error) const;
+    bool PrepareTrainingGroundAt(FName AnchorId, struct FLDLegalGround& Out, FString& Error) const;
+    bool SpawnTrainingBody(FName AnchorId, uint8 Level, uint8 PresentationSlot,
+        const FLDGameplayWritePermit& Permit, FLDTrainingDummy& Out, FString& Error);
+    bool SpawnSharedTrainingDummies(const FLDGameplayWritePermit& Permit, FString& Error);
+    void RetireSharedTrainingDummies();
+    void RetireTrainingBody(const FLDTrainingDummy& Dummy);
     // RespawnsAndWorld: shared target at its approved slot, using the existing legal offsets when temporarily occupied.
     bool SpawnTrainingDummy(const FGuid& Owner, const FLDGameplayWritePermit& Permit, FString& Error);
     void RetireTrainingDummy(const FGuid& Owner);
@@ -694,6 +711,11 @@ private:
     // #198 §10 (Framework/LDGameModeBlueprint.cpp): once the result is published, each present human contender's own
     // build blueprint (or the explicit reason it has none) goes to that contender's owning connection only.
     void PublishBuildBlueprints();
+    // Owner-only damage statistics (Framework/LDGameModeDamageStats.cpp): the recap of a field death goes to the dead
+    // contender's owning connection, and once the result is published each present human contender gets its own
+    // per-source damage totals. Nobody receives another player's list.
+    void SendDeathRecap(const FLDCommittedDeath& Fact);
+    void PublishDamageSummaries();
     void PublishPublicMatch();
     void QueueLeaveFact(const FGuid& ContenderId);
     FLDContenderRecord* FindContender(const FGuid& ContenderId);

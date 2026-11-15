@@ -4,6 +4,7 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDDamageRecap.h"
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
 #include "PK/LDPKTypes.h"
@@ -22,6 +23,7 @@ class LOCKDOWN_API ALDPlayerController : public APlayerController
 public:
     ALDPlayerController();
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     virtual void PawnLeavingGame() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;
@@ -66,6 +68,13 @@ public:
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
+    // Owner-only damage statistics (Combat/LDDamageRecap.h). DeathRecap is the newest accepted recap; it belongs to the
+    // current death only while its Match and Life equal OwnerState's. DamageSummary belongs to the result whose
+    // ResultId it names. A malformed or older view is dropped and the previous one stays.
+    UFUNCTION(Client,Reliable) void ClientDeathRecap(const FLDDeathRecapView& Recap);
+    UFUNCTION(Client,Reliable) void ClientDamageSummary(const FLDDamageSummaryView& Summary);
+    FLDDeathRecapView DeathRecap;
+    FLDDamageSummaryView DamageSummary;
     // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
     // #198 build commands (active choice, learn blueprint, allocate points). The caller fills Kind and its business
     // fields (ExpectedBuildRevision and CatalogDigest from ReadOwnProgression); Submit fills Generation, Life and
@@ -114,9 +123,15 @@ public:
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
-    // test session (automation-test build, Host started with -LDDevGrowthFixture); every result arrives as OnDevTestResult.
+    // test session (automation-test build, command-line or local Host opt-in); every result arrives as OnDevTestResult.
     uint64 SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition = NAME_None,
-        uint8 Slot = 0, uint8 Stat = 0);
+        uint8 Slot = 0, uint8 Stat = 0, FVector CameraPosition = FVector::ZeroVector);
+    void ToggleDevFreeCamera();
+    bool ToggleDevTestMenu();
+    UPROPERTY(Replicated) bool bDevPeaceful = false;
+    void TickDevTestInput(float Delta);
+    bool IsDevFreeCameraActive() const;
+    UFUNCTION(Server,Reliable) void ServerEnableDevTest(uint32 Generation);
     FLDOnDevTestResult OnDevTestResult;
     UFUNCTION(Server,Reliable) void ServerDevTestCommand(const FLDDevTestCommand& Command);
     UFUNCTION(Client,Reliable) void ClientDevTestResult(const FLDDevTestResult& Result);
@@ -240,6 +255,11 @@ private:
     float LastCameraFOV=0.f;
     bool bHasCameraPose=false;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
+    UPROPERTY() TObjectPtr<ACameraActor> DevFreeCamera;
+    uint32 DevCameraMatch = 0, DevCameraLife = 0;
+    bool bDevMenuChordDown = false, bDevTeleportKeyDown = false, bDevMenuPending = false;
+    uint64 DevTeleportRequest = 0;
+    void EndDevFreeCamera();
 #if WITH_DEV_AUTOMATION_TESTS
     TWeakObjectPtr<ACameraActor> DevArtCaptureCamera;
     friend class FLDFixedCameraTest;

@@ -306,7 +306,9 @@ private:
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> FogMaterial;
     TWeakObjectPtr<AActor> CameraOwner;
     uint64 FogSerial = MAX_uint64;
-    TArray<uint8> FogTarget;
+    TArray<uint8> FogBits;
+    FVector2D FogSpan = FVector2D::ZeroVector;
+    TArray<float> FogTarget;
     TArray<float> FogShown;
     bool bFogBlending = false;
     bool bClock = false;

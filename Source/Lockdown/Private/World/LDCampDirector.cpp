@@ -276,6 +276,9 @@ bool ALDCampDirector::BuildCandidates(const FLDCampMemberState& Member, const FM
     }
     for (const FLDCombatBodyRef& Source : Member.HostileSources)
     {
+#if WITH_DEV_AUTOMATION_TESTS
+        if (Mode->IsDevPeaceful(Source.Victim.EntityId)) { continue; }
+#endif
         FLDContenderLifeRead Life;
         if (!Mode->ReadContenderLife(State.GetMatch(), Source.Victim.EntityId, Life, Error)) { return false; }
         // A dead, departed or later life is no longer the recorded attacker.

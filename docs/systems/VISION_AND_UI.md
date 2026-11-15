@@ -2,6 +2,7 @@
 
 战争迷雾首先是服务器的读取权限，不是给已经收到的敌人信息盖一层黑色材质。
 本文说明当前观测与表现组件；产品显示内容以 [App Spec](../APP_SPEC.md) 为准。
+涉及关卡、雾效和可调资产的开发同时遵守[关卡创作自由与开发约束](../LEVEL_AUTHORING_CONTRACT.md)。
 
 ## 权威观测链
 
@@ -21,6 +22,14 @@
 只有拥有真实 `ULocalPlayer` 或网络连接的 Controller 才生成 relay，客户端表现也只在拥有真实 `ULocalPlayer` 的机器上进行。
 `IsLocalController()` 在不同网络模式下不能可靠区分服务器侧对手，因此用 `GetLocalPlayer()`/`GetNetConnection()` 判断；
 对手只能通过 `EnumerateVisibleUnits` 读取，否则其视野会在 Host 上生成代理，造成泄露。
+
+## 地面迷雾与材质调节
+
+`ALDWorldViewRelay` 只把本人当前授权帧的 128×128 `CurrentBits` 转换为世界厘米单位的有符号距离场，不增加本地视线查询或网络字段。`LDFogDistanceField` 按两个方向的实际单元尺寸计算欧氏距离；覆盖和地图尺寸不变时复用结果，变化后在约 0.06 s 内平滑显示，失效、死亡或无身体时立即恢复不可视颜色。单位与技能显隐继续由接收端授权帧管理。
+
+正式游戏和测试关卡共用 `/Game/Lockdown/Art/Fog/MI_FogMist`，父材质 `M_FogMist` 在景深前合成。`BandWidthCm`、`FadePower` 控制向视野内侧消散的渐变，`NoiseAmount`、`NoiseScaleCm`、`DetailWeight`、`FlowSpeedCmPerSec`、`SwirlStrength`、`FlowDirection` 控制世界坐标中的双层流动噪声；`OutsideBrightness`、`HiddenDesaturation`、`FogColorStrength`、`FogColor` 控制外侧颜色，外侧与不可视区域一致。运行中的动态材质只覆盖距离场与坐标参数，继续继承此材质实例的效果设置。
+
+`/Game/FogMistPreview/L_FogMistLab` 保留独立的编辑器 Play 跑图：右键寻路、WASD 移动、滚轮缩放，加载营地怪物但不运行战斗。编辑器插件 `FogMistLab` 只在该关卡开始 PIE 前临时选择 Lab GameInstance，结束或取消后还原；正式地图仍使用原 GameInstance。Lab 的 `RadiusCm`、`ObserverPosition` 仅用于预览；正式游戏使用服务器覆盖，不从材质参数修改玩法视野。PIE 中可释放鼠标后编辑 `MI_FogMist` 实时预览，停止 Play 后保存材质。
 
 ## 谁可以看到什么
 
@@ -153,6 +162,7 @@
 | 工坊 | `ULDWorkshop`（HUD 画布第 8 层，在待处理卡与构件库之下）只读本人 `FLDProgressionView`、本人战斗投影的属性行、公开时间线与构件库的 `Focus()`/`Model()`。`FInput::Mode` 由 HUD 按 `LDWorkshop::FullScreen`（休息的配装、派奖、返回步骤与休息外的死亡等待）给出全屏或屏幕下方 46%：全屏时 `UBackgroundBlur` 压暗并模糊世界（后期处理画质最低档只压暗），布局阶段条、角色栏、容量条与规则板列头、构件库标题与筛选、待处理区、信息坞；底部模式只有信息坞、规则板、构件库与待处理区。角色栏的加号是 `WorkshopStatPlus<n>`，调用 `ULDStatBar::Allocate`（同一排队与回执）；元素反应用 `LDWorkshop::Reactions(BuildElements)`。信息坞依次跟随构件库的拿着或悬停构件、待处理卡（`Hovered` 的说明、构件与图标）、属性行与列头，指针离开时保留上一条。规则板上每个已装联动规则向它的“联动”对象（其他列已学的目标技能、目标构件）画直角连线与端点，两端技能的元素能反应时线上标反应名，悬停或拿着的那件加亮；舞台页时让出中央并隐藏规则板，终局改装页把背景换成深紫红；靠近 NPC 时阶段条写出 NPC 名称；已选终局改装的图标显示在它绑定的列头上。收起按钮 `WorkshopClose`；用途标签 `WorkshopTag<n>`；列头 `WorkshopHead<n>`。打开时 HUD 收起底部带、状态方格、构筑按钮、小地图、事件播报与目标卡，全屏时把休息动作移到右上角、提示条移到顶部中央、死亡横幅收起。只是本地呈现 |
 | 旗杆喷漆与守护、击杀通知与结果 | `ALDGameState::PublicMatch`（唯一阶段来源，校验代次）经 `LDHUD::Circle(Public, SprayerName, OwnerName, bClock, NowMs, SprayMs, GuardMs)` 显示喷漆行与涂鸦/守护行：发育期固定为“猥琐发育中，别浪 · 旗杆在最后一次休息（R3）后开放”（最终野外开始前 `OpenAtMs` 未排定，不打印开放倒计时）；独自喷漆“X 正在旗杆上喷漆 · 剩 <秒>s”；争夺“旗杆底下打成一锅粥 · X 的喷漆进度先存着 <已存>/<所需> s”（十分位，无持有者时“谁也没存下进度”）；守护运行（主人独自在区内）“旗杆上是 X 的涂鸦 · 再守 <秒>s”，主人以外有人在区内而冻结时“旗杆上是 X 的涂鸦 · 有人进圈，守护冻结（再守 <秒>s）”，主人不在区内、区内无人而暂停时“旗杆上是 X 的涂鸦 · 守擂者不在圈内，守护暂停（再守 <秒>s）”；无主且无人时“旗杆空着，没人敢上？”；两部分用“ · ”连接。进度条独自喷漆时为喷漆进度、争夺时为暂存喷漆进度，其余为守护进度。`KillFeed`（按序号去重，只含参赛者死亡）、`MatchResult`（与 `PublicMatch.ResultId` 一致才显示，缺失时“结算同步中”而非零表；守护胜利标题“守护成功 · X 的涂鸦守住了，恭喜成为今晚的淫人王！”，房主结束“房主结束了本局 · 没人守住涂鸦”）；倒计时到零只等待权威状态，不宣布开放、喷上涂鸦或胜利 |
 | 赛后规则板 | `MatchResult` 在终局关写闸后携带各参赛者的已学技能、已装构件、位置与终局改装摘要；结算展示赢家缩略图。Lobby 以 `PreviousResultId` 匹配已冻结结果，真人按参赛者身份匹配，AI 按服务器保留的旧身份映射；`LDResultBuild` 复用 `LDHUD::ComponentStorage` 整理五列。摘要不可用、目录缺失或不匹配时明确显示，不能当作空构筑。局中不公开当前构筑；完整蓝图仍只发本人。 |
+| 死亡承伤列表与本人伤害总量 | 仅本人的可靠 RPC：`ALDGameMode::SendDeathRecap` 在野外死亡提交时把死亡事实里冻结的列表发给死者的连接（`ClientDeathRecap`，`FLDDeathRecapView`：Match、Life、窗口、行）；`PublishDamageSummaries` 在结果发布及结算期重连时把各真人自己的各来源总量发给本人（`ClientDamageSummary`，`FLDDamageSummaryView`：Match、ResultId、行）。AI 与已离局者不发；超过 `LDDamageRecap::MaxLines` 的列表不发并记日志。客户端用 `LDDamageRecap::ValidateLines` 校验，拒绝畸形或更旧的视图，保存在 `ALDPlayerController::DeathRecap` / `DamageSummary`。`LDHUD::DeathRecap` 只在视图的 Match 与 Life 等于本人当前死亡的那条命时可用：死亡横幅显示标题“近 N 秒承受伤害 X”与每个攻击者一行（名字、总量、至多 `DeathRecapSourcesMax` 个来源，其余并入“其他”；攻击者多于 `DeathRecapAttackersMax` 时末行为“其他 K 个攻击者”），未送达时不显示这一段。`LDHUD::DamageSummary` 只在 ResultId 等于所示结果时可用：结算页显示“你造成的伤害 X”与至多 `DamageSummarySourcesMax` 格来源（每行 4 格，其余并入“其他”），不可用时显示“你的伤害统计不可用”。参赛者名取公开名单，野怪、技能、构件与终局改装取内容目录显示名，普攻与冲刺取 `LDTerms`；数值为整点，正的小数进一 |
 | 命中、失败与进度 | 经裁剪的自身反馈，而非完整服务器日志 |
 | 客户端试玩日志（`FLDPlaytestTrace`，只在远端客户端） | 与本表相同的来源：本人 `OwnerState`/`CombatView`/成长投影、房间公开的 `DemoLobby`/`KillFeed`/`MatchResult`、本人当前授权帧中的可见单位（所见施法与其位置），以及本人发出的订单与输入；伤害/护盾/状态事件取自同一 `LDWorldFeedback::FTracker`。不读其他身体 Actor、他人投影或权威记录；完整权威记录只在 Host 日志。行契约见[架构与网络](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录) |
 
@@ -350,6 +360,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDRegenDisplay`（`LDHUDRulesTests`）覆盖每秒回复格式、零回复、满资源、失效/死亡投影；`DemoCombat.RegenRates` 对照既有积分器验证条件回复率。Combat 拥有连接场景还检查满资源时脱战边界后的回复率在 Host 与真实客户端发布。
 - `HUDMatchTimer`（`LDHUDRulesTests`）覆盖小地图上方的对局计时：开局时刻起算、向下取整、分钟不补零、时钟落后为 0:00、无权威时刻不显示。
 - `HUDRestTimeline`（`LDHUDRulesTests`）覆盖时间线横幅（休息编号与步骤、剩余整秒、PK 报名窗口开放前/中/截止时刻、报名人数与本人报名、PK 跳过与参赛人数、锁定步骤、野外 n/3 与按 T 计的下次休息、最终野外、别代时间线不显示）、休息返回倒计时（向上取整、到点保持 1、野外开始的“开淫！”）与报名圈提示（只在报名窗口显示，没有报名按钮）、重置训练结果文案（排队成功与没有假人的原话、其余拒绝不读作成功）以及休息中名单外参赛者写作“训练假人”；`HUDBuildGate` 另覆盖休息/锁定/野外/关闭各构筑阶段的命令与休息服务门控、`StageForPublic` 的映射、四种休息服务回执与新增原因文案；`HUDPublicMatch` 覆盖发育期旗杆行不打印开放倒计时。
+- `DamageRecap.Display`（`LDDamageRecapTests`）覆盖来源名称、死亡承伤列表只对应当前死亡的那条命（存活、别命、别局与未送达都不显示）、攻击者行与“其他”合并、无伤害时的标题，以及结算页本人伤害只对应所示结果、未送达为不可用、空列表与超出格数的合并。
 - `HUDPKView`（`LDHUDRulesTests`）覆盖赛制文案（单挑、混战、2v2、3v3，不等分时为空）、押注步骤只给有资格的观众每方一个按钮且本人押注取自公开押注、选手与名单外参赛者不能押注、观战判定（押注步骤不观战，PKReady/PK 中观众与出局选手观战、存活选手与空 id 不观战、`NoContest` 不观战）、PKReady 整秒倒数与到点保持 1、无时钟不猜、PK 最长剩余与安全圈两种预告行、投掷按钮的就绪/瞄准/冷却/在途文案、投掷冷却取整与无时钟、全部押注与投掷结果文案（只有成功读作完成、每个拒绝各有原话）、结算的胜方与奖励行（跳过零分、本人高亮、获胜提示）、平局与本场无效文案，以及返回步骤、别代 PK 与没有 PK 时不显示。
 - `HUDFieldRewardNotices`（`LDHUDRulesTests`）覆盖野外奖励提示（四种事件名、流量、图纸/稀缺/普通构件、池空改得点数、二选一就绪、图纸保留，缺定义不冒名、未知事件不冒充、无内容不提示）、`NewFieldRewards` 的已知条数切分、`FFieldRewardWatch` 首份视图建基线、每条只报一次、别代不报与换局重建基线，以及待选二选一点亮构筑按钮与“全部已持有”判定。
 - `HUDMaterialServices`（`LDHUDRulesTests`）覆盖二选一、补缺、拆解在休息/野外/阵亡/锁定步骤的门控原因，私有夹具上的缺口与补缺基础件、普通构件拆解候选、点数不足与候选不足的原因、拆解输入合法性、`DismantleDetached` 的传递退回，三种回执与野外奖励原因文案。

@@ -486,6 +486,10 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         return false;
     }
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
+#if WITH_DEV_AUTOMATION_TESTS
+    // Only annotate already authorized visible units; the policy never queries hidden contenders.
+    for (auto& Unit : Frame.Units) { Unit.bProtected |= Mode.IsDevPeaceful(Unit.ContenderId); }
+#endif
     Frame.ViewRevision = View.Revision;
     Me.FootCm = View.Footprint.SourceFeetCm;
     if (!Public.Showdown.bStarted && Public.Phase == ELDMatchPhase::CaptureOpen && ((Public.CircleState == ELDCircleState::Solo

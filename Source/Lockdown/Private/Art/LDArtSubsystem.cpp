@@ -80,14 +80,10 @@ void ULDArtWorldSubsystem::OnWorldBeginPlay(UWorld& World)
     {
         return;
     }
-    const auto* Art = World.GetGameInstance() ? World.GetGameInstance()->GetSubsystem<ULDArtSubsystem>() : nullptr;
-    FString Error;
-    if (Art && Art->GetCatalog() && LDStaticScene::Validate(World, *Art->GetCatalog(), Error))
-    {
-        UE_LOG(LogLDContent, Display, TEXT("LD_ART_DECORATIONS_READY %d saved static actors; no runtime decoration generation."),
-            LDStaticScene::Visuals(World).Num());
-    }
-    else { UE_LOG(LogLDContent, Error, TEXT("LD_ART_DECORATIONS_UNAVAILABLE %s"), *Error); }
+    // Static meshes are authored and rendered by the level. The imported placement index is not a play contract:
+    // deleting, duplicating, moving or replacing a mesh must not require reimporting the character/prop catalog.
+    UE_LOG(LogLDContent, Display, TEXT("LD_ART_DECORATIONS_READY %d tagged saved visuals; level actors render directly."),
+        LDStaticScene::Visuals(World).Num());
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartArtCaptureProbe(World);
     LDDemoTests::StartPerfBudgetProbe(World);

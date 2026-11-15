@@ -7,7 +7,8 @@
 bool FLDDevTestCommand::SameTerms(const FLDDevTestCommand& Other) const
 {
     return Generation == Other.Generation && Life == Other.Life && RequestId == Other.RequestId && Op == Other.Op
-        && Amount == Other.Amount && Definition == Other.Definition && Slot == Other.Slot && Stat == Other.Stat;
+        && Amount == Other.Amount && Definition == Other.Definition && Slot == Other.Slot && Stat == Other.Stat
+        && CameraPosition == Other.CameraPosition;
 }
 
 bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
@@ -25,6 +26,9 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::GrantBlueprint:
     case ELDDevTestOp::LearnActive:
     case ELDDevTestOp::AllocatePoints:
+    case ELDDevTestOp::SkipPreparation:
+    case ELDDevTestOp::SetPeaceful:
+    case ELDDevTestOp::TeleportToCamera:
         return true;
     default:
         return false;
@@ -46,13 +50,16 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::GrantBlueprint: return TEXT("GrantBlueprint");
     case ELDDevTestOp::LearnActive: return TEXT("LearnActive");
     case ELDDevTestOp::AllocatePoints: return TEXT("AllocatePoints");
+    case ELDDevTestOp::SkipPreparation: return TEXT("SkipPreparation");
+    case ELDDevTestOp::SetPeaceful: return TEXT("SetPeaceful");
+    case ELDDevTestOp::TeleportToCamera: return TEXT("TeleportToCamera");
     default: return TEXT("Unknown");
     }
 }
 
 bool LDDevTest::IsMatchWide(ELDDevTestOp Op)
 {
-    return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture;
+    return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture || Op == ELDDevTestOp::SkipPreparation;
 }
 
 ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
@@ -63,7 +70,8 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     }
     const bool bPositive = Command.Op == ELDDevTestOp::GrantExperience || Command.Op == ELDDevTestOp::AllocatePoints;
     const bool bSetAttribute = Command.Op == ELDDevTestOp::SetAttribute;
-    if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0 : Command.Amount != 0))
+    if (bPositive ? Command.Amount <= 0 : (bSetAttribute ? Command.Amount < 0
+        : Command.Op == ELDDevTestOp::SetPeaceful ? (Command.Amount < 0 || Command.Amount > 1) : Command.Amount != 0))
     {
         return ELDGrowthReason::NumericDomain;
     }
@@ -81,6 +89,11 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     }
     const uint8 MaxSlot = Command.Op == ELDDevTestOp::LearnActive ? 3 : 0;
     if (Command.Slot > MaxSlot)
+    {
+        return ELDGrowthReason::InvalidRequest;
+    }
+    if (Command.CameraPosition.ContainsNaN() || Command.CameraPosition.GetAbsMax() > HALF_WORLD_MAX
+        || (Command.Op != ELDDevTestOp::TeleportToCamera && Command.CameraPosition != FVector::ZeroVector))
     {
         return ELDGrowthReason::InvalidRequest;
     }
@@ -183,6 +196,9 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::GrantBlueprint: return TEXT("授予技能图纸");
     case ELDDevTestOp::LearnActive: return TEXT("直接学会技能");
     case ELDDevTestOp::AllocatePoints: return TEXT("分配属性点");
+    case ELDDevTestOp::SkipPreparation: return TEXT("跳过准备，进入场景");
+    case ELDDevTestOp::SetPeaceful: return TEXT("和平模式");
+    case ELDDevTestOp::TeleportToCamera: return TEXT("传送到镜头位置");
     default: return TEXT("未知操作");
     }
 }

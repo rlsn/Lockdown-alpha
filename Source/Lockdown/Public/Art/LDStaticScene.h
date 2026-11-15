@@ -22,6 +22,10 @@ namespace LDStaticScene
     LOCKDOWN_API bool Validate(const UWorld& World, const ULDArtCatalog& Index, FString& Error);
     // Applies saved standard object transforms to the typed base. Does not approve or commit edited geometry.
     LOCKDOWN_API bool ProjectGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
+        FLDDemoWorldGeometry& Out, FString& Error, bool bForPlay = false);
+    // Build the current level's layout without requiring an imported visual index or an identical baked layout.
+    // Native collision remains authoritative for added meshes and transformed collision components.
+    LOCKDOWN_API bool ProjectRuntimeGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base,
         FLDDemoWorldGeometry& Out, FString& Error);
     LOCKDOWN_API bool ValidateGeometry(const UWorld& World, const FLDDemoWorldGeometry& Base, FString& Error);
 }

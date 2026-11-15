@@ -488,6 +488,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     {
         if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer())){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}}
     }),8);
+    Add(Lobby,MakeButton(TEXT("设置"),TEXT("LobbySettings"),[this](){ToggleMainPanel(ELDUIMainPanel::Settings);}),8);
     Add(Lobby,MakeButton(TEXT("离开房间并返回主菜单"),TEXT("LeaveRoom"),[this](){OpenConfirm(ELDRootConfirm::LeaveRoom);}),8);
 
     UVerticalBox* Menu=nullptr;
@@ -738,6 +739,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
     const bool bResultsNow=Match&&Match->Phase==ELDMatchPhase::Results;
     const bool bPlaying=Match&&(Match->Phase==ELDMatchPhase::Rest||Match->Phase==ELDMatchPhase::Development
         ||Match->Phase==ELDMatchPhase::CaptureOpen);
+    const bool bSettings=PanelOpen(PC.ControlsUI.Get());
     if(bLobbyNow!=bInLobby)
     {
         // A confirmation belongs to the screen that opened it; the lobby and the match never share one.
@@ -747,7 +749,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
         if(bInLobby&&bMenuOpen){bMenuOpen=false;MenuPage->SetVisibility(ESlateVisibility::Collapsed);}
         LobbyPage->SetVisibility(bInLobby?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
         if(LobbyBackground){LobbyBackground->SetVisibility(bInLobby?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);}
-        PC.SetMenuOpen(bInLobby);
+        if(!bSettings){PC.SetMenuOpen(bInLobby);}
     }
     if(bResultsNow!=bInResults)
     {
@@ -756,7 +758,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
         if(bInResults&&bMenuOpen){CloseMenu();}
     }
     // Closing Settings hands keyboard focus back to the root's own full page, as it was before Settings opened.
-    const bool bSettings=PanelOpen(PC.ControlsUI.Get());
+    LobbyPage->SetVisibility(bInLobby&&!bSettings?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     if(bSettingsWasOpen&&!bSettings&&(bInLobby||bMenuOpen)){PC.SetMenuOpen(true);}
     bSettingsWasOpen=bSettings;
     if(WorldLabels||WorldFeedback)
@@ -1442,10 +1444,21 @@ FReply ULDUIRoot::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Eve
         if(TextEditingOwner()==this){EndTextEditing();}
         else if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()))
         {
-            if(PC->Navigation->Enabled()||PC->IsFrontend()){PC->V05Back();}else{ToggleMenu();}
+            PC->V05Back();
         }
     }
     return FReply::Handled();
+}
+
+FReply ULDUIRoot::NativeOnPreviewKeyDown(const FGeometry& Geometry,const FKeyEvent& Event)
+{
+    if(Event.GetKey()==EKeys::Enter && Event.IsControlDown())
+    {
+        if(auto* PC=Cast<ALDPlayerController>(GetOwningPlayer()); PC && !Event.IsRepeat() && PC->ToggleDevTestMenu())
+        {return FReply::Handled();}
+        if(Event.IsRepeat()) {return FReply::Handled();}
+    }
+    return Super::NativeOnPreviewKeyDown(Geometry,Event);
 }
 
 void ULDUIRoot::LeaveRoom()

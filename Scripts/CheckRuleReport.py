@@ -17,6 +17,7 @@ SUITE = "Lockdown.Rules"
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.Vision.FogDistanceField",
         "Lockdown.Rules.DemoVision.GeometryParity",
         "Lockdown.Rules.DemoVision.CoveragePublication",
         "Lockdown.Rules.DemoVision.ArrivalRoutes",
@@ -33,6 +34,9 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.ArtDecorations",
         "Lockdown.Rules.StaticScene.PersistenceAndBinding",
         "Lockdown.Rules.StaticScene.CopyIdentityAndSafety",
+        "Lockdown.Rules.StaticScene.ReplacementFloorAndOverlay",
+        "Lockdown.Rules.StaticScene.SharedTrainingCopies",
+        "Lockdown.Rules.StaticScene.NativeSightEdits",
         "Lockdown.Rules.AudioCatalog",
         "Lockdown.Rules.AudioCatalogAsset",
         "Lockdown.Rules.AudioCueOwn",
@@ -250,6 +254,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoAssist.RewardSplit",
         "Lockdown.Rules.DemoAssist.KillFeedAndResult",
         "Lockdown.Rules.DemoAssist.Settlement",
+        "Lockdown.Rules.DamageRecap.Window",
+        "Lockdown.Rules.DamageRecap.Display",
         "Lockdown.Rules.DemoGrowthSkillGrowth",
         "Lockdown.Rules.DemoRest.Services.Gates",
         "Lockdown.Rules.DemoRest.Services.Npc",
@@ -284,6 +290,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoGrowthComponents.WorkshopTargets",
         "Lockdown.Rules.DemoGrowthComponents.WorkshopCapacity",
         "Lockdown.Rules.DemoDevTestCommands",
+        "Lockdown.Rules.DemoDevSceneTools",
         "Lockdown.Rules.DemoInputByteIntegrity",
         "Lockdown.Rules.DemoLobbyAuthority",
         "Lockdown.Rules.DemoLobbyReadModel",

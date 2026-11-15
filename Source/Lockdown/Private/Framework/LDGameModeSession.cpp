@@ -247,7 +247,7 @@ bool ALDGameMode::ResumeRoomMember(ALDPlayerController& Controller,const FGuid& 
     SyncOwner(&Controller);
     Previous->Destroy();
     PublishLobby();
-    if(MatchPhase==ELDMatchPhase::Results){PublishBuildBlueprints();}
+    if(MatchPhase==ELDMatchPhase::Results){PublishBuildBlueprints();PublishDamageSummaries();}
     UE_LOG(LogLDMatch,Display,TEXT("LD_MEMBER_RECONNECTED contender=%s generation=%u life=%u build_next=%llu direct_through=%llu"),
         *LDLog::Id(Id),MatchContext.Generation,Contenders.FindChecked(&Controller).State.Life,BuildNext,DirectThrough);
     Error.Reset();return true;
@@ -316,7 +316,7 @@ FLDLobbyView ALDGameMode::ReadLobby() const
     else if (!AllReady) { View.StartBlocker = RejectionText(ELDSessionReject::NotAllReady); }
     View.CanStart = View.StartBlocker.IsEmpty() && LobbyHost.IsValid();
 #if WITH_DEV_AUTOMATION_TESTS
-    View.DevTestSession = LDDevGrowthFixture::IsSwitchPresent();
+    View.DevTestSession = LDDevGrowthFixture::IsSwitchPresent() || IsRuntimeDevTestEnabled();
     View.DevContentReload = LDDemoEntry::IsDevContentReload();
 #endif
     return View;

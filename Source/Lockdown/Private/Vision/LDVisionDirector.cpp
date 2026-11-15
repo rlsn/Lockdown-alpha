@@ -1,4 +1,7 @@
 #include "Vision/LDVisionDirector.h"
+#include "Components/PrimitiveComponent.h"
+#include "World/LDNativeGround.h"
+#include "PhysicsEngine/BodyInstance.h"
 #include "PK/LDPKDirector.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Framework/LDGameMode.h"
@@ -123,7 +126,7 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
 }
 
 bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorldRevision& InWorld,
-    const FLDDemoRational& InRadius, FString& Error)
+    const FLDDemoRational& InRadius, FString& Error, UWorld* NativeScene, const LDDemoWorld::FTerrain* NativeTerrain)
 {
     *this = FLDSightGeometry();
     double RadiusValue = 0, SampleHeight = 0;
@@ -151,6 +154,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     TArray<FCircle> PreparedCircles;
     for (const FLDDemoWorldBlocker& Blocker : Geometry.Blockers)
     {
+        if (NativeScene) { break; } // Saved native collision supplies sight, including newly placed meshes.
         double Height = 0;
         if (!SightRationalValue(Blocker.HeightCm, Height))
         {
@@ -220,6 +224,35 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     BlockerLevels = MoveTemp(PreparedLevels);
     Circles = MoveTemp(PreparedCircles);
     Terrain = MoveTemp(PreparedTerrain);
+    Scene = NativeScene;
+    NativeSightQueries.Reset();
+    SampleHeightCm = SampleHeight;
+    if (NativeScene)
+    {
+        const auto* Registry = NativeScene->GetSubsystem<ULDMapRegistry>();
+        if (NativeTerrain && NativeTerrain->IsValid()) { Terrain = *NativeTerrain; }
+        else if (Registry && Registry->Enabled()) { Terrain = Registry->GetTerrain(); }
+        else { Error = TEXT("Native sight requires bound terrain or an enabled map registry."); return false; }
+        // Terrain keeps its semantic tier, but its footprint comes only from the edited native body.
+        // Ordinary obstacles use LDVision independently of Pawn/ground-aim collision.
+        for (TActorIterator<AActor> It(NativeScene); It; ++It)
+        {
+            if (!It->ActorHasTag(LDDemoWorld::TerrainTag)) { continue; }
+            TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+            for (auto* Part : Parts)
+            {
+                if (!LDNativeGround::IsSupport(*Part)) { continue; }
+                auto& Entry = NativeTerrainParts.AddDefaulted_GetRef();
+                Entry.Component = Part;
+                Entry.Bounds = Part->GetBodyInstance()->GetBodyBounds();
+                Entry.Tier = FMath::Max(0, FMath::FloorToInt32((Entry.Bounds.Max.Z + .01) * 2 / Terrain.StepCm));
+                for (const auto& Plateau : Geometry.Plateaus)
+                { if (It->ActorHasTag(FName(*Plateau.Id))) { Entry.Tier = 2 * Plateau.Level; break; } }
+                for (const auto& Ramp : Geometry.Ramps)
+                { if (It->ActorHasTag(FName(*Ramp.Id))) { Entry.Tier = 2 * Ramp.LowerLevel + 1; break; } }
+            }
+        }
+    }
     BuildGrid();
     Error.Reset();
     return true;
@@ -240,13 +273,20 @@ void FLDSightGeometry::BuildGrid()
     CellPolygons.SetNum(GridWidth * GridHeight);
     CellCircles.SetNum(GridWidth * GridHeight);
     CellRegions.SetNum(GridWidth * GridHeight);
+    CellNativeTerrain.SetNum(GridWidth * GridHeight);
     int32 X0, Y0, X1, Y1;
-    for (int32 Index = 0; Index < Terrain.Regions.Num(); ++Index)
+    for (int32 Index = 0; !Scene.IsValid() && Index < Terrain.Regions.Num(); ++Index)
     {
         FBox2D Box(ForceInit);
         for (const FVector2D& Point : Terrain.Regions[Index].Polygon) { Box += Point; }
         CellRange(Box.Min, Box.Max, X0, Y0, X1, Y1);
         for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellRegions[Y * GridWidth + X].Add(Index); } }
+    }
+    for (int32 Index = 0; Index < NativeTerrainParts.Num(); ++Index)
+    {
+        const auto& Box = NativeTerrainParts[Index].Bounds;
+        CellRange(FVector2D(Box.Min), FVector2D(Box.Max), X0, Y0, X1, Y1);
+        for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellNativeTerrain[Y * GridWidth + X].Add(Index); } }
     }
     for (int32 Index = 0; Index < Blockers.Num(); ++Index)
     {
@@ -292,6 +332,52 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
                 if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
             }
         }
+    }
+    if (const UWorld* Native = Scene.Get())
+    {
+        TBitArray<TInlineAllocator<4>> TestedParts(false, NativeTerrainParts.Num());
+        for (int32 Y = Y0; Y <= Y1; ++Y)
+        {
+            for (int32 X = X0; X <= X1; ++X)
+            {
+                for (const int32 Index : CellNativeTerrain[Y * GridWidth + X])
+                {
+                    if (TestedParts[Index]) { continue; }
+                    TestedParts[Index] = true;
+                    const auto& Entry = NativeTerrainParts[Index];
+                    auto* Part = Entry.Component.Get();
+                    if (!Part || Entry.Tier <= Observer) { continue; }
+                    // Project current collision vertically; a short plateau still hides lower ground even below eye height.
+                    const FVector Centre = Entry.Bounds.GetCenter();
+                    const auto Column = FCollisionShape::MakeBox(FVector(.01, .01, Entry.Bounds.GetExtent().Z + .01));
+                    FHitResult Hit;
+                    if (Part->SweepComponent(Hit, FVector(From, Centre.Z), FVector(To, Centre.Z), FQuat::Identity, Column)) { return true; }
+                }
+            }
+        }
+        double Z; FVector Normal;
+        Terrain.Ground(From, Z, Normal);
+        if (!FMath::IsFinite(Z) || TargetTier == MAX_int32) { return true; }
+        auto* Query = NativeSightQueries.Find(Level);
+        if (!Query)
+        {
+            // Cache per observer level: coverage casts thousands of rays against this same world revision.
+            FCollisionQueryParams PreparedQuery(SCENE_QUERY_STAT(DemoNativeSight), false);
+            for (TActorIterator<AActor> It(Native); It; ++It)
+            {
+                TInlineComponentArray<UPrimitiveComponent*> Parts(*It);
+                for (const auto* Part : Parts)
+                {
+                    const auto* Body = Part->GetBodyInstance();
+                    if (!Part->IsQueryCollisionEnabled() || !Body || !Body->IsValidBodyInstance()) { continue; }
+                    const double Base = Body->GetBodyBounds().Min.Z;
+                    if (FMath::Max(0, FMath::FloorToInt32((Base + .01) / Terrain.StepCm)) < Level) { PreparedQuery.AddIgnoredComponent(Part); }
+                }
+            }
+            Query = &NativeSightQueries.Add(Level, MoveTemp(PreparedQuery));
+        }
+        return Native->LineTraceTestByChannel(FVector(From, Z + SampleHeightCm),
+            FVector(To, Z + SampleHeightCm), ECC_GameTraceChannel2, *Query);
     }
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
@@ -856,7 +942,7 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
         return false;
     }
     FLDSightGeometry Prepared;
-    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), Loaded->Get().Parameters.VisionRadiusCm, Error)) { return false; }
+    if (!Prepared.Build(*Registry->GetGeometry(), Registry->Revision(), Loaded->Get().Parameters.VisionRadiusCm, Error, GetWorld())) { return false; }
     int64 CampMembers = 0;
     for (const FLDDemoCampPlacement& Camp : Loaded->Get().Camps)
     {
@@ -874,6 +960,17 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
     {
         Error = FString::Printf(TEXT("CapacityExceeded: %lld contenders, %lld camp members and the Boss exceed the %d-unit observation bound."),
             Contenders, CampMembers, LDObservation::MaxUnits);
+        return false;
+    }
+    const int64 SharedTargets = Registry->GetGeometry()->Anchors.FilterByPredicate([](const FLDDemoWorldAnchor& Anchor)
+    {
+        return Anchor.Kind == ELDDemoWorldAnchorKind::TrainingDummy && Anchor.Id.StartsWith(TEXT("training_shared_"));
+    }).Num();
+    const int64 RestUnits = 2 * Contenders - 1 + SharedTargets;
+    if (RestUnits > LDObservation::MaxUnits)
+    {
+        Error = FString::Printf(TEXT("CapacityExceeded: this roster supports at most %lld additional shared training targets; the level has %lld."),
+            LDObservation::MaxUnits - (2 * Contenders - 1), SharedTargets);
         return false;
     }
     ActiveMatch = InMatch;

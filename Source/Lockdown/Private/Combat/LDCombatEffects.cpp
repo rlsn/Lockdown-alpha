@@ -450,6 +450,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     LedgerHitCommitted(Hit,*Body,Damage);
+    RecapHitCommitted(Hit,*Body,Damage,NowMs);
     // §10 triggers that changed this committed hit: B16's cut, B07's amplification (every amplified hit) and B17's locked
     // amplification (once per release, at its first positive hit).
     if (PrimaryGuard.IsSet() && Damage.GuardCutP2>0) { LedgerComponentTriggered(*Body,PrimaryGuard->Source.DefinitionId); }
@@ -1096,7 +1097,11 @@ void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& O
         if (!Actor || Body.bPendingDeath || Body.Resources.HpP2<=0 || Body.Victim.Kind!=ELDVictimKind::Contender) { continue; }
         // D26: respawn protection is read here so the pure pickup rule can refuse it.
         const ALDGameMode* M=Core();
-        Out.Add({Body.Victim.EntityId,FootOf(*Actor),M && M->IsContenderProtected(Body.Victim.EntityId)});
+        bool Protected = M && M->IsContenderProtected(Body.Victim.EntityId);
+#if WITH_DEV_AUTOMATION_TESTS
+        Protected |= M && M->IsDevPeaceful(Body.Victim.EntityId);
+#endif
+        Out.Add({Body.Victim.EntityId,FootOf(*Actor),Protected});
     }
 }
 
@@ -1225,6 +1230,12 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
         LDAssist::SelectAssisters(Body.AssistContributions,Hit.CreditOwner,Body.Victim.EntityId,Mode->GetAuthorityNowMs(),
             Content->Get().Parameters.AssistWindowMs,[Mode](const FGuid& Contender) { return Mode->IsMemberPresent(Contender); },
             Death.Assisters);
+    }
+    // The owner's recap of this death: the same window as the assists, the fatal hit included.
+    if (Body.Victim.Kind==ELDVictimKind::Contender)
+    {
+        Death.RecapWindowMs=Content->Get().Parameters.AssistWindowMs;
+        LDDamageRecap::Summarize(Body.DamageLog,Mode->GetAuthorityNowMs(),Death.RecapWindowMs,Death.Recap);
     }
     // Effects run on an integral authority boundary, so the fatal instant is that exact millisecond.
     Death.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();

@@ -13,6 +13,10 @@
 
 bool ALDCombatDirector::IsIsolated(const FGuid& SourceEntity, const FLDBodyCombatState& Target) const
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if (const auto* Mode = Core(); Mode && Mode->IsDevPeaceful(Target.Victim.EntityId)
+        && SourceEntity != Target.Victim.EntityId) { return true; }
+#endif
     if (IsOutOfGroup(SourceEntity,Target)) { return true; }
     // Sharing visibility is not permission to damage/control another trainee (or oneself through a released effect).
     if (Target.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Target.bTrainingDummy) { return true; }
@@ -200,6 +204,7 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     Body.LandedBasics=0;
     Body.ThornsMarks.Reset();
     Body.AssistContributions.Reset();
+    Body.DamageLog.Reset();
     Body.Taunt.Reset();
     Body.SharedBreach={};
     Body.Burn={};
@@ -230,18 +235,18 @@ bool ALDCombatDirector::ClearBodyForPhase(FLDBodyCombatState& Body, ALDCharacter
     return RefreshTemporary(Body,Actor,NowMs,Error);
 }
 
-bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& OwnerId, uint8 OwnerLevel,
+bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, uint8 Level,
     const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();
-    if (!Content || !OwnerId.IsValid() || OwnerLevel==0 || Victim.Life!=1 || FindRecord(Victim.EntityId))
+    if (!Content || Level==0 || Victim.Life!=1 || FindRecord(Victim.EntityId))
     {
-        Error=TEXT("A training dummy is a fresh entity of a known owner and level.");
+        Error=TEXT("A training dummy is a fresh entity of a known chassis level.");
         return false;
     }
     if (!PrepareContenderBody(Body,Victim,Permit,Out,Error)) { return false; }
     // The existing contender chassis at the owner's current level, without any build (coordinator decision).
-    const auto Projected=LDAttributeProjection::Project(FLDAttributeBuildValues(OwnerLevel,{}),*Content);
+    const auto Projected=LDAttributeProjection::Project(FLDAttributeBuildValues(Level,{}),*Content);
     if (!Projected.IsSuccess())
     {
         Error=TEXT("The training dummy's chassis is invalid: ")+Projected.Error.Field+TEXT(": ")+Projected.Error.Message;
@@ -252,7 +257,7 @@ bool ALDCombatDirector::PrepareTrainingDummy(ALDCharacter& Body, const FLDVictim
     Out.AttributeProjection=Chassis;
     Out.Resources.HpP2=Out.Resources.MaxHpP2=Chassis.Final.MaxHPP2;
     Out.Resources.MpP2=Out.Resources.MaxMpP2=Chassis.Final.MaxMPP2;
-    if (Out.PublicFacts.IsSet()) { Out.PublicFacts->Level=OwnerLevel; }
+    if (Out.PublicFacts.IsSet()) { Out.PublicFacts->Level=Level; }
     Out.IsolationGroup=ALDGameMode::RestIsolationGroup();
     Out.bTrainingDummy=true;
     Error.Reset();

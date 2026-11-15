@@ -1,4 +1,5 @@
 #include "World/LDSpawnPlacement.h"
+#include "World/LDNativeGround.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -14,8 +15,7 @@ FVector LDSpawnPlacement::StandingOrigin(const FLDLegalGround& Ground)
 
 bool LDSpawnPlacement::OverlapsStatic(UWorld& World, const FVector& Origin, const FCollisionShape& Capsule)
 {
-    return World.OverlapAnyTestByObjectType(Origin,FQuat::Identity,
-        FCollisionObjectQueryParams(FCollisionObjectQueryParams::InitType::AllStaticObjects),Capsule,
+    return LDNativeGround::Overlaps(World, Origin, Capsule,
         FCollisionQueryParams(SCENE_QUERY_STAT(DemoSpawnStatic)));
 }
 

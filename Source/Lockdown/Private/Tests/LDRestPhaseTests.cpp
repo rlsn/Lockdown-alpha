@@ -48,6 +48,29 @@ bool FLDRestTimelineTest::RunTest(const FString& Parameters)
         P.RespawnMs[0] == 8000 && P.RespawnMs[1] == 10000 && P.RespawnMs[2] == 12000);
     FString Error;
     {
+        FLDMatchTimeline Skip;
+        TArray<FLDTimelineEvent> SkipEvents;
+        bGood &= TestTrue(TEXT("DEV preparation fixture begins"), Skip.Begin(P, 0, Error));
+        bGood &= TestTrue(TEXT("Skip locks the build and requests a real field return immediately"),
+            Skip.DevFinishPreparation(1000, SkipEvents, Error) && Skip.GetStep() == ELDRestStep::Return
+            && Skip.IsEntryDue(1000) && FindEvent(SkipEvents, ELDTimelineEventKind::LockBuild)
+            && !FindEvent(SkipEvents, ELDTimelineEventKind::EnterField));
+        SkipEvents.Reset();
+        bGood &= TestTrue(TEXT("Skip waits for real bodies instead of claiming successful entry"),
+            Skip.Advance(1000, 0, false, false, SkipEvents, Error) && SkipEvents.IsEmpty() && Skip.IsRest());
+        bGood &= TestTrue(TEXT("The first field starts once its bodies are ready, at T zero"),
+            Skip.Advance(1050, 0, false, true, SkipEvents, Error) && Skip.IsFieldRunning()
+            && Skip.FieldMsAt(1050) == 0 && FindEvent(SkipEvents, ELDTimelineEventKind::EnterField));
+        SkipEvents.Reset();
+        bGood &= TestFalse(TEXT("A repeated skip cannot advance a running field"), Skip.DevFinishPreparation(1051, SkipEvents, Error));
+        bGood &= TestTrue(TEXT("Rejected skip leaves the stage and T unchanged"), Skip.IsFieldRunning() && Skip.FieldMsAt(1051) == 1);
+        FLDMatchTimeline ReadyImmediately;
+        SkipEvents.Reset();
+        bGood &= TestTrue(TEXT("Immediate body readiness still starts T at the actual world commit, not the earlier transaction"),
+            ReadyImmediately.Begin(P, 0, Error) && ReadyImmediately.DevFinishPreparation(1000, SkipEvents, Error)
+            && ReadyImmediately.Advance(1050, 0, false, true, SkipEvents, Error) && ReadyImmediately.FieldMsAt(1050) == 0);
+    }
+    {
         FLDTimelineParameters Bad = P;
         Bad.SignupMs = Bad.BuildMs + 1;
         bGood &= TestFalse(TEXT("A sign-up longer than a build window is refused"), Bad.Validate(Error));
@@ -239,6 +262,40 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
     FLDBodyCombatState& SD = Driver->Bodies.FindChecked(DummyA);
     FLDBodyCombatState& SB = Driver->Bodies.FindChecked(OwnerB);
     FLDBodyCombatState& SM = Driver->Bodies.FindChecked(Monster);
+    {
+        SA.IsolationGroup = SB.IsolationGroup = FGuid();
+        TestFalse(TEXT("Field contenders can normally attack each other"), Driver->IsIsolated(B, SA));
+        Mode->DevPeaceful.Add(A);
+        TestTrue(TEXT("Peaceful mode blocks hostile contender and monster targeting"),
+            Driver->IsIsolated(B, SA) && Driver->IsIsolated(Camp, SA));
+        for (const FGuid& Source : {B, Camp})
+        {
+            FLDCombatHit Hit;
+            Hit.SourceEntity = Source;
+            Hit.Target = {SA.Victim, SA.Identity};
+            const int64 Hp = SA.Resources.HpP2;
+            FString HitError;
+            TestTrue(TEXT("An incoming hit is discarded without changing resources"),
+                Driver->ApplyHit(Hit, HitError) && SA.Resources.HpP2 == Hp);
+        }
+        TestFalse(TEXT("Peaceful mode preserves visibility"), Driver->IsHiddenFrom(B, {SA.Victim, SA.Identity}));
+        FLDControlApplication Stun;
+        Stun.Kind = ELDControlKind::Stun;
+        Stun.SourceEntity = B;
+        Stun.DurationMs = 1000;
+        Stun.EffectId = FGuid::NewGuid();
+        bool Applied = true;
+        FString Error;
+        TestTrue(TEXT("Peaceful mode blocks direct hostile control"),
+            Driver->CommitControl(SA, Stun, 0, Applied, Error) && !Applied && SA.Stuns.IsEmpty());
+        Stun.bSpectatorThrow = true;
+        TestTrue(TEXT("Peaceful mode also blocks spectator control paths"),
+            Driver->CommitControl(SA, Stun, 0, Applied, Error) && !Applied && SA.Stuns.IsEmpty());
+        TestFalse(TEXT("Peaceful mode leaves other contenders attackable"), Driver->IsIsolated(A, SB));
+        Mode->DevPeaceful.Reset();
+        TestFalse(TEXT("Turning peaceful mode off restores hostile targeting"), Driver->IsIsolated(B, SA));
+        SA.IsolationGroup = SB.IsolationGroup = ALDGameMode::RestIsolationGroup();
+    }
     bool bGood = TestTrue(TEXT("Rest isolation admits the training-dummy target, not other rest players"),
         !Driver->IsIsolated(A, SD) && !Driver->IsIsolated(B, SD));
     bGood &= TestTrue(TEXT("Rest players are visible, but cannot damage or control one another"),

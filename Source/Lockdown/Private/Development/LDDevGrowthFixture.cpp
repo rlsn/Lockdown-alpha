@@ -19,12 +19,12 @@ bool LDDevGrowthFixture::IsSwitchPresent()
 bool LDDevGrowthFixture::Admit(const UWorld* World, FString& Error)
 {
     Error.Reset();
-    if (!IsSwitchPresent())
+    const ALDGameMode* Mode = World ? World->GetAuthGameMode<ALDGameMode>() : nullptr;
+    if (!IsSwitchPresent() && !(Mode && Mode->IsRuntimeDevTestEnabled()))
     {
-        Error = TEXT("The DEV growth fixture is off: the authority was not started with -LDDevGrowthFixture.");
+        Error = TEXT("Testing is off: use -LDDevGrowthFixture or let the Host enable the in-game test menu.");
         return false;
     }
-    const ALDGameMode* Mode = World ? World->GetAuthGameMode<ALDGameMode>() : nullptr;
     if (!World || World->GetNetMode() == NM_Client || !Mode || !Mode->IsDemoRoom())
     {
         Error = TEXT("The DEV growth fixture acts only on the authority of a Demo room.");

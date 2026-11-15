@@ -6,6 +6,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDDamageRecap.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatKeywords.h"
@@ -329,6 +330,9 @@ struct FLDBodyCombatState
     TArray<FLDThornsMark> ThornsMarks;
     // Assist contributions other contenders made to this life (LDAssist); read once when the life locks its death.
     TArray<FLDAssistContribution> AssistContributions;
+    // Positive hits this contender life took from other bodies within the recap window (LDDamageRecap); summed into the
+    // death fact when the life locks its death.
+    TArray<FLDDamageSample> DamageLog;
     TOptional<FLDCombatShield> Shield;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatAction> Action;
@@ -816,6 +820,9 @@ public:
     // #198 §10 build blueprint ledger of this match (LDCombatBlueprintLedger.cpp): every installed build version of each
     // contender and the real facts credited to it. Read once by the core when the result is published.
     const FLDBuildLedger& GetBuildLedger() const { return BuildLedger; }
+    // This match's committed damage credited to Contender per source, largest first (LDCombatBlueprintLedger.cpp). False for
+    // an entity without a contender record; a contender that dealt none has an empty list.
+    bool DamageTotalsOf(const FGuid& Contender, TArray<FLDDamageLine>& Out) const;
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
@@ -903,7 +910,7 @@ public:
     void RetireBodyForPhase(const FLDCombatBodyRef& Body);
     // Shared dummy: a fixed slot-level chassis without a build, full resources, in the rest group.
     // RespawnsAndWorld permit; Victim is the dummy's own first life, never the attacker's identity.
-    bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, const FGuid& Owner, uint8 OwnerLevel,
+    bool PrepareTrainingDummy(ALDCharacter& Body, const FLDVictimKey& Victim, uint8 Level,
         const FLDGameplayWritePermit& Permit, FLDBodyCombatState& Out, FString& Error) const;
     // The owner's training reset: owner and dummy refilled, statuses and in-flight effects of both cleared, every
     // owner cooldown ready. RespawnsAndWorld permit.
@@ -937,6 +944,7 @@ public:
 private:
     friend class ALDGameMode;
     friend class FLDRestPhaseTest;
+    friend class FLDDevSceneToolsTest;
     friend class FLDGroundBossBodyTest;
     friend class FLDDemoCoreTest;
     friend class FLDReconnectProtectionTest;
@@ -1333,6 +1341,9 @@ private:
     // Private training (a rest life and its own dummy, §16.3) is no match fact and records nothing.
     // The ledger version of Contender's installed build now; INDEX_NONE for an entity without a contender record.
     int32 LedgerVersion(const FGuid& Contender);
+    // Death recap and per-source damage totals (LDCombatBlueprintLedger.cpp): one committed positive hit on another body.
+    // Private training records nothing, like the ledger.
+    void RecapHitCommitted(const FLDCombatHit& Hit, FLDBodyCombatState& Victim, const FLDDamageEvaluation& Damage, int64 NowMs);
     // Right after ApplyBuildChange installed the contender's new build; Previous is the build it replaced.
     void LedgerBuildInstalled(const FGuid& Contender, const FLDBuildProjectionInput& Previous);
     // A contender body released an effect (a landed basic swing or an ability release): its hits belong to this version.
@@ -1378,4 +1389,6 @@ private:
     FRandomStream CritRandom;
     bool bAdvancing=false;
     FLDBuildLedger BuildLedger;
+    // Per contender: the match total of committed damage credited to it, one row per source.
+    TMap<FGuid,TArray<FLDDamageLine>> DamageTotals;
 };

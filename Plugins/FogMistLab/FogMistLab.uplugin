@@ -1,0 +1,11 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "Fog Mist Lab",
+  "Description": "Local editor-only movement and monster scene for tuning fog presentation.",
+  "Category": "Editor",
+  "EnabledByDefault": true,
+  "CanContainContent": false,
+  "Modules": [{"Name": "FogMistLab", "Type": "Editor", "LoadingPhase": "Default"}]
+}
