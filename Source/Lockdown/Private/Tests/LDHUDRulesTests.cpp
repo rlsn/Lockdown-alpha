@@ -1629,6 +1629,38 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("The base sits on 本体 and B18 on W with its element"),Storage.Columns[0].Entries.Num()==1
             &&Storage.Columns[0].Entries[0].Component==FName(TEXT("hud_fixture_fist"))&&Storage.Columns[2].Entries.Num()==1
             &&Storage.Columns[2].Entries[0].Note==LDTerms::ElementWater&&Storage.Columns[1].Entries.IsEmpty());
+        {
+            FLDProgressionView Final=Built;
+            Final.FinalMod.DefinitionId=TEXT("final_test");Final.FinalMod.TargetKind=ELDComponentTargetKind::Component;
+            Final.FinalMod.TargetId=TEXT("hud_fixture_trick");
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            EColumn Column=EColumn::Body;
+            TestTrue(TEXT("A final mod bound to an installed component marks its skill column"),
+                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
+            Final.Components[3].bInstalled=true;
+            Final.Components[3].Target.Kind=ELDComponentTargetKind::Component;Final.Components[3].Target.Definition=Final.Components[2].DefinitionId;
+            Final.FinalMod.TargetId=Final.Components[3].DefinitionId;
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A nested component uses its host's column"),
+                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
+            Final.FinalMod.TargetId=Final.Components[2].DefinitionId;
+            Final.Components[2].bInstalled=false;
+            TestFalse(TEXT("A removed source has no final mod column"),LDHUD::FinalModColumn(Final,Column));
+            Final.Components[2].bInstalled=true;Final.FinalModSources.Reset();
+            TestFalse(TEXT("A dormant binding has no final mod column"),LDHUD::FinalModColumn(Final,Column));
+            Final.FinalMod.TargetKind=ELDComponentTargetKind::Active;Final.FinalMod.TargetId=TEXT("hud_fixture_bolt");
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A learned active source marks its skill column"),
+                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
+            Final.FinalMod.TargetKind=ELDComponentTargetKind::Dash;Final.FinalMod.TargetId=NAME_None;
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A dash source marks the dash column"),LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::Dash);
+            Final.FinalMod.TargetKind=ELDComponentTargetKind::None;
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A universal final mod marks the body column"),LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::Body);
+            Final.bValid=false;
+            TestFalse(TEXT("An invalid view cannot place a final mod"),LDHUD::FinalModColumn(Final,Column));
+        }
         const TArray<LDHUD::FComponentDrop> Moves=LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Built,&Content);
         TestTrue(TEXT("An installed B18 still drops (a move) on its bindable column"),Moves.Num()==1&&Moves[0].Column==EColumn::SlotW);
         TestTrue(TEXT("Nothing comes off with a component nothing sits on, or with a stored one"),LDHUD::DetachedWith(TEXT("hud_fixture_trick"),Built).IsEmpty()

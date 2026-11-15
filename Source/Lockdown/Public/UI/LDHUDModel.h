@@ -591,6 +591,8 @@ namespace LDHUD
     constexpr int32 StorageColumnCount=5;
     // The column of a learned active's server slot 0..2.
     LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);
+    // The column containing the final mod's currently legal source, including an installed component's host chain.
+    LOCKDOWN_API bool FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn);
     struct FEquippedView
     {
         FName Component;

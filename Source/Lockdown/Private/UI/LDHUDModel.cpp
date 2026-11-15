@@ -1810,6 +1810,28 @@ LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
     return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
 }
+bool LDHUD::FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn)
+{
+    const FLDFinalModSelection& Final=Progression.FinalMod;
+    if(!Progression.bValid||Final.IsEmpty()||!Progression.FinalModSources.ContainsByPredicate([&Final](const FLDFinalModSourceView& Source)
+        {return Source.Option==Final.DefinitionId&&Source.TargetKind==Final.TargetKind&&Source.TargetId==Final.TargetId;})){return false;}
+    switch(Final.TargetKind)
+    {
+    case ELDComponentTargetKind::None: OutColumn=EStorageColumn::Body;return true;
+    case ELDComponentTargetKind::Dash: OutColumn=EStorageColumn::Dash;return true;
+    case ELDComponentTargetKind::Active:
+        for(const FLDActiveSlotView& Active:Progression.Actives)
+        {if(Active.DefinitionId==Final.TargetId&&Active.Slot<3){OutColumn=SlotColumn(Active.Slot);return true;}}
+        return false;
+    case ELDComponentTargetKind::Component:
+        if(const FLDComponentInstanceView* Component=HudOwned(Progression,Final.TargetId))
+        {
+            if(Component->bInstalled){FName Host;HudPlacement(Progression,*Component,OutColumn,Host);return true;}
+        }
+        return false;
+    default: return false;
+    }
+}
 LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
     const TSet<FName>* Seen)
 {

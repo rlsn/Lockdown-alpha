@@ -968,6 +968,8 @@ void ULDWorkshop::RefreshCharacter()
 void ULDWorkshop::RefreshHeads()
 {
     bool bStampStarted=false;
+    LDHUD::EStorageColumn FinalColumn=LDHUD::EStorageColumn::Body;
+    const bool bHasFinalColumn=LDHUD::FinalModColumn(View,FinalColumn);
     for(int32 Index=0;Index<Heads.Num();++Index)
     {
         FHead& Head=Heads[Index];
@@ -997,9 +999,7 @@ void ULDWorkshop::RefreshHeads()
         {
             // A locked final mod shows its icon over the head of what it binds (本体 when it binds the holder).
             const FLDFinalModSelection& Final=View.FinalMod;
-            const bool bHere=!Final.IsEmpty()&&((Final.TargetKind==ELDComponentTargetKind::Active&&Final.TargetId==Active&&!Active.IsNone())
-                ||(Final.TargetKind==ELDComponentTargetKind::Dash&&Column==LDHUD::EStorageColumn::Dash)
-                ||(Final.TargetKind==ELDComponentTargetKind::None&&Column==LDHUD::EStorageColumn::Body));
+            const bool bHere=bHasFinalColumn&&Column==FinalColumn;
             const bool bShowsFinal=bHere&&LDUIIcons::Apply(Head.Final,LDHUD::ContentIconId(Latest.Content,Final.DefinitionId.ToString()),17.f);
             if(!bShowsFinal){WorkshopShown(Head.Final,false);}
             if(bShowsFinal&&LDHUD::FinalStampReady(View,PendingFinalRevision,PendingFinalFeedback,
@@ -1017,7 +1017,7 @@ void ULDWorkshop::RefreshHeads()
         }
     }
     if(bStampStarted||(PendingFinalRevision!=0&&View.bValid&&View.BuildRevision>=PendingFinalRevision
-        &&View.FinalMod!=PendingFinalFeedback))
+        &&(View.FinalMod!=PendingFinalFeedback||!bHasFinalColumn)))
     {PendingFinalFeedback=FLDFinalModSelection();PendingFinalRevision=0;}
 }
 
