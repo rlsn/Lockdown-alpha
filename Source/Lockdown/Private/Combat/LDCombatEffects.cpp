@@ -813,6 +813,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 const FLDBodyCombatState* CandidateState=FindBody(Candidate.Body);
                 const FGuid& CandidateId=Candidate.Body.Victim.EntityId;
                 if (CandidateId==Projectile.SourceEntity || Projectile.Struck.Contains(CandidateId)
+                    || (Projectile.SourceBody.Victim.Kind==ELDVictimKind::CampMember && Candidate.Body.Victim.Kind!=ELDVictimKind::Contender)
                     || !CandidateState || IsIsolated(Projectile.SourceEntity,*CandidateState)) { continue; }
                 // M13: a return starting on the body its outbound flight ended on touches it at once.
                 if (Projectile.bReturn && Projectile.TravelledCm<=0 && SegmentFrom==From && CandidateId==Projectile.StartContact)

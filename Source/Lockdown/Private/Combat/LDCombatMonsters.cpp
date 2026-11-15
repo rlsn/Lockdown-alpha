@@ -42,7 +42,8 @@ bool ALDCombatDirector::ReleaseMonsterSkill(ALDCharacter& Actor,FLDBodyCombatSta
         Hit.Source.Kind=ELDCombatSourceKind::Basic;
         Hit.Source.DefinitionId=Body.MonsterId;
         Hit.HitClass=ELDCombatHitClass::Ability;
-        Hit.DamageType=(Monster->Tier==ELDDemoCampTier::Elite || Skill.Pattern==ELDMonsterPattern::DoubleCircle)?ELDDemoDamageType::Magical:ELDDemoDamageType::Physical;
+        Hit.DamageType=(Skill.Pattern==ELDMonsterPattern::Circle || Skill.Pattern==ELDMonsterPattern::EchoCircle
+            || Skill.Pattern==ELDMonsterPattern::DoubleCircle)?ELDDemoDamageType::Magical:ELDDemoDamageType::Physical;
         Hit.ADRatioBp=Strike.Area.RatioBp;Hit.SourceADP2=Body.AttributeProjection.Final.ADP2;
         if(Body.CampStage>=Skill.EvolveStage && Monster->Tier==ELDDemoCampTier::High){Hit.SlowBp=Skill.EvolvedSlowBp;Hit.SlowDurationMs=Skill.EvolvedSlowMs;}
         if(Skill.Pattern==ELDMonsterPattern::Charge)
@@ -87,7 +88,8 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
         }
         const auto* Source=FindBody(S.Payload.SourceBody);
         TArray<FLDCombatBodyRef> Targets;
-        const double Radius=S.Area.Shape==ELDMonsterShape::Circle?S.Area.Radius:S.Area.Range;
+        const double Radius=S.Area.Shape==ELDMonsterShape::Circle?S.Area.Radius:
+            S.Area.Shape==ELDMonsterShape::Line?FMath::Sqrt(FMath::Square(S.Area.Range)+FMath::Square(S.Area.Radius)):S.Area.Range;
         if(!CollectAreaTargets(S.Area.Origin,Radius,Source,S.Payload.SourceEntity,Targets,Error)){return false;}
         for(const auto& Target:Targets)
         {

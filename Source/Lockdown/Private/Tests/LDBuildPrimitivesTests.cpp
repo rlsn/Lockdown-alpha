@@ -5392,6 +5392,47 @@ bool FLDMonsterDeliveryTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Repeated native contact is deduplicated per body life"),Motion(100,400,2200,2800));
         TestEqual(TEXT("No duplicate contact damage"),Charge.Body(Victim).Resources.HpP2,VictimHp-int64(1500));
     }
+    {
+        FFixture Shot;if(!Shot.Init(*this,true)){return false;}
+        const auto Agent=Shot.AddBody(ELDVictimKind::CampMember), Peer=Shot.AddBody(ELDVictimKind::CampMember), Victim=Shot.AddBody();
+        Shot.Place(Agent,0,0);Shot.Place(Peer,120,0);Shot.Place(Victim,300,0);
+        auto& AgentBody=Shot.Body(Agent);AgentBody.MonsterId=TEXT("monster_agent");AgentBody.AttributeProjection.Final.ADP2=3600;
+        if(!Shot.Catalog->FindMonster(TEXT("monster_agent"),Definition,Error)){AddError(Error);return false;}
+        AgentBody.Action=Action;
+        for(const auto& Area:LDMonsterRules::Areas(Definition->Skill,0,Shot.Foot(Agent),Shot.Foot(Victim)))
+        {
+            FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+            S.Payload.SourceBody=Agent;S.Payload.SourceEntity=Agent.Victim.EntityId;FAccess::MonsterStrikes(*Shot.Driver).Add(S);
+        }
+        Shot.Now(2000);
+        if(!FAccess::MonsterRelease(*Shot.Driver,Shot.Actor(Agent),AgentBody,Action,Reject,Error)
+            || Reject!=ELDCombatReject::None || !FAccess::MonsterStep(*Shot.Driver,2000,Error)){AddError(Error);return false;}
+        const int64 PeerHp=Shot.Body(Peer).Resources.HpP2, VictimHp=Shot.Body(Victim).Resources.HpP2;
+        Shot.Now(2500);
+        if(!FAccess::AdvanceProjectiles(*Shot.Driver,Error)||!Shot.Flush(Error)){AddError(Error);return false;}
+        TestEqual(TEXT("A camp projectile passes its peer without causing damage"),Shot.Body(Peer).Resources.HpP2,PeerHp);
+        TestEqual(TEXT("The existing projectile path delivers the approved 1.5 AD to a contender"),Shot.Body(Victim).Resources.HpP2,VictimHp-int64(5400));
+    }
+    {
+        FFixture Sweep;if(!Sweep.Init(*this,true)){return false;}
+        const auto Auditor=Sweep.AddBody(ELDVictimKind::CampMember), Victim=Sweep.AddBody();
+        Sweep.Place(Auditor,0,0);Sweep.Place(Victim,300,0);
+        auto& AuditorBody=Sweep.Body(Auditor);AuditorBody.MonsterId=TEXT("monster_auditor");AuditorBody.AttributeProjection.Final.ADP2=9000;
+        Sweep.Body(Victim).AttributeProjection.Final.ArmorP2=0;Sweep.Body(Victim).AttributeProjection.Final.MagicResistP2=10000;
+        if(!Sweep.Catalog->FindMonster(TEXT("monster_auditor"),Definition,Error)){AddError(Error);return false;}
+        AuditorBody.Action=Action;
+        for(const auto& Area:LDMonsterRules::Areas(Definition->Skill,0,Sweep.Foot(Auditor),Sweep.Foot(Victim)))
+        {
+            FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+            S.Payload.SourceBody=Auditor;S.Payload.SourceEntity=Auditor.Victim.EntityId;FAccess::MonsterStrikes(*Sweep.Driver).Add(S);
+        }
+        Sweep.Now(2000);
+        if(!FAccess::MonsterRelease(*Sweep.Driver,Sweep.Actor(Auditor),AuditorBody,Action,Reject,Error)
+            || Reject!=ELDCombatReject::None){AddError(Error);return false;}
+        const int64 Hp=Sweep.Body(Victim).Resources.HpP2;Sweep.Now(2500);
+        if(!FAccess::MonsterStep(*Sweep.Driver,2500,Error)||!Sweep.Flush(Error)){AddError(Error);return false;}
+        TestEqual(TEXT("The auditor's middle sweep deals its physical package despite the target's magic resistance"),Sweep.Body(Victim).Resources.HpP2,Hp-int64(6750));
+    }
     return true;
 }
 

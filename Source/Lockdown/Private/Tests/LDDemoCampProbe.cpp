@@ -120,6 +120,7 @@ public:
     int64 StartXP = -1;
     bool bArrived = false, bAtLowMarked = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
     bool bSawReturningCue = false, bCueShapeValid = true;
+    bool bFreshVerified = false;
     TSet<FGuid> SeenScavengers;
     // Fixture walking route to a camp approach (see Walk()).
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -503,16 +504,37 @@ public:
                     && !SeenScavengers.Contains(Unit.Handle) ? 1 : 0;
             }
         }
-        if (Fresh < 3 && Now - WatchSince < 5) { return true; }
-        Check(Fresh == 3, TEXT("#C7"), FString::Printf(
-            TEXT("The refreshed low camp presents three new member lives to this contender (%d new handles)"), Fresh));
+        if(!bFreshVerified)
+        {
+            if (Fresh < 3 && Now - WatchSince < 5) { return true; }
+            if(!Check(Fresh == 3, TEXT("#C7"), FString::Printf(
+                TEXT("The refreshed low camp presents three new member lives to this contender (%d new handles)"), Fresh))){return Finish();}
+            bFreshVerified=true;
+        }
+        // Let the rendered owner finish the intact three-member refresh screenshot before clearing it again.
+        if(!Exists(TEXT("Client2Done.json"))){return true;}
+        int64 WantXP=0;
+        if(!CampLowClearReward(WantXP)){return Fail(TEXT("#C10"),TEXT("The small-camp reward is unavailable"));}
+        const auto& Progress=Owner.OwnerState.Growth.Progression;
+        if(Progress.CumulativeXP-StartXP<2*WantXP || Progress.Level<2)
+        {
+            if(Frame && Now>=NextOrderAt && !Owner.Navigation->HasMoveOrder())
+            {
+                if(const auto* Target=NearestCreature(*Frame,ELDDemoMonsterId::MonsterScavenger,CampLowApproachCm))
+                {Owner.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);NextOrderAt=Now+.5;}
+            }
+            return true;
+        }
+        if(!Check(Progress.Level==2,TEXT("#C10"),FString::Printf(
+            TEXT("Two complete small-camp clears with basic attacks reach level two through the owning reward projection (XP +%lld, level %d)"),
+            Progress.CumulativeXP-StartXP,Progress.Level))){return Finish();}
         if (!Mark(TEXT("Client1Done.json"))) { return Finish(); }
         Stage = 4;
         return true;
     }
 
     // Client2 leashes h05's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
-    // checks): the returning guardian with its name and cue, then the refreshed low pair with their names. Adjacent low
+    // checks): the returning middle camp with its name and cue, then the refreshed small trio with their names. Adjacent low
     // and high camps stand about 3057 cm apart, wider than any frame of the fixed camera, so each tier has its own shot.
     bool TickHighCamp(double Now, ALDPlayerController& Owner)
     {
@@ -801,7 +823,7 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Not AI, capture, full-match or balance acceptance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Client1 clears a second full small camp using basic attacks and verifies level two through its reward projection (#C10). Not AI, capture, full-match or balance acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);

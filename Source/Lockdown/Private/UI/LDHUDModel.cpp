@@ -48,6 +48,8 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Root: return TEXT("root");
     case ELDDemoStatusId::Shield: return TEXT("shield");
     case ELDDemoStatusId::CampReturning: return TEXT("camp_returning");
+    case ELDDemoStatusId::CampEnraged: return TEXT("camp_enraged");
+    case ELDDemoStatusId::CampGuarding: return TEXT("camp_guarding");
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
     case ELDDemoStatusId::Slow: return TEXT("slow");
     case ELDDemoStatusId::StatBoost: return TEXT("stat_boost");

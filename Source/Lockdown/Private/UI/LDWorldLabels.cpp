@@ -66,6 +66,8 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::Electrified: return FLinearColor(.85f,.95f,.3f);
     case ELDDemoStatusId::Braced: return FLinearColor(.7f,.8f,.95f);
     case ELDDemoStatusId::Soured: return FLinearColor(.55f,.8f,.25f);
+    case ELDDemoStatusId::CampEnraged: return FLinearColor(1.f,.3f,.08f);
+    case ELDDemoStatusId::CampGuarding: return FLinearColor(.55f,.8f,1.f);
     default: return WorldLabelStatusInk;
     }
 }
