@@ -407,6 +407,7 @@ private:
     void UpdateStage();
     bool ConfirmedOfferStillShown() const;
     bool HasAvailableOffer() const;
+    bool HasAvailableFinal() const;
     bool OfferMotionActive() const;
     void CaptureOfferMotion(int32 Index);
     void PaintOfferMotion(const LDUIPaint::FContext& Paint) const;

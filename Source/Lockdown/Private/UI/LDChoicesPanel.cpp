@@ -569,6 +569,10 @@ bool ULDChoicesPanel::HasAvailableOffer() const
 {
     return Usable()&&Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty()&&!ConfirmedOfferStillShown();
 }
+bool ULDChoicesPanel::HasAvailableFinal() const
+{
+    return Usable()&&!ConfirmedOfferStillShown()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+}
 bool ULDChoicesPanel::OfferMotionActive() const
 {
     return bOpen&&OfferMotion.StartedAt>=0.&&UiNow()-OfferMotion.StartedAt<LDHUDStyle::MotionChoose;
@@ -711,7 +715,7 @@ void ULDChoicesPanel::PlanTrayPages(bool bTiles)
         const bool bOffer=HasAvailableOffer();
         if(bOffer){Add(ETrayGroup::Offer,0,Latest.ActiveOffer.Options.Num()+1,false,LabelWidth(OfferGroup));}
         else if(!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0){Add(ETrayGroup::Offer,0,1,false,LabelWidth(OfferGroup));}
-        const bool bFinal=Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+        const bool bFinal=HasAvailableFinal();
         if(bFinal||!Latest.FinalMod.IsEmpty()){Add(ETrayGroup::FinalMod,0,bFinal?3:1,false,LabelWidth(FinalModGroup));}
         int32 Sources=0;
         if(!PendingFinalOption.IsNone())
@@ -865,7 +869,7 @@ void ULDChoicesPanel::RefreshOffer()
 }
 void ULDChoicesPanel::RefreshFinalMod()
 {
-    const bool bFinal=Usable()&&!ConfirmedOfferStillShown()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+    const bool bFinal=HasAvailableFinal();
     const bool bSelected=Usable()&&!Latest.FinalMod.IsEmpty();
     const auto SourceName=[this](ELDComponentTargetKind Kind,FName Id)->FString
     {
@@ -1938,7 +1942,7 @@ void ULDChoicesPanel::ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon)
 void ULDChoicesPanel::UpdateStage()
 {
     const bool bOffer=HasAvailableOffer();
-    const bool bFinal=Usable()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+    const bool bFinal=HasAvailableFinal();
     const bool bFinalNext=!bOffer&&bFinal;
     const FGuid Key=bOffer?Latest.ActiveOffer.OfferId:bFinal?Latest.FinalModOfferId:FGuid();
     const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
