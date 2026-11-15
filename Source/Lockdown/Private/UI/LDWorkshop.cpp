@@ -635,6 +635,8 @@ ULDChoicesPanel::FWorkshopPlaces ULDWorkshop::Places() const
         const FVector2D A=Foot.GetAbsolutePosition(),B=A+Foot.GetAbsoluteSize();
         Out.CharacterFoot=FSlateRect(A.X,A.Y+18.f*Foot.Scale,B.X,B.Y);
     }
+    if(WorkshopHasArea(Rects.Character)&&PointsBox&&PointsBox->GetParent())
+    {Out.Points=PointsBox->GetParent()->GetCachedGeometry().GetLayoutBoundingRect();}
     if(WorkshopHasArea(Rects.Library)&&LibraryBand>0.f)
     {Out.LibraryTop=Absolute(WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+14.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+LibraryBand));}
     for(int32 Index=0;Index<Heads.Num()&&Index<LDHUD::StorageColumnCount;++Index)

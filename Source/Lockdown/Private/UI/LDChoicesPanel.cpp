@@ -576,10 +576,13 @@ bool ULDChoicesPanel::OfferMotionActive() const
 void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
 {
     OfferMotion=FOfferMotion();
-    if(!Latest.ActiveOffer.Options.IsValidIndex(Index)){return;}
+    const bool bSkip=Index==INDEX_NONE;
+    if(!bSkip&&!Latest.ActiveOffer.Options.IsValidIndex(Index)){return;}
     OfferMotion.Ticket.Match=LatestMatch;OfferMotion.Ticket.Life=LatestLife;
-    OfferMotion.Ticket.Offer=Latest.ActiveOffer.OfferId;OfferMotion.Ticket.Option=Latest.ActiveOffer.Options[Index];
-    if(!bStageShown||bStageFinal||!OfferCards.IsValidIndex(Index)){return;}
+    OfferMotion.Ticket.Offer=Latest.ActiveOffer.OfferId;
+    OfferMotion.Ticket.Kind=bSkip?ELDBuildCommandKind::SkipActiveOffer:ELDBuildCommandKind::ActiveChoice;
+    if(!bSkip){OfferMotion.Ticket.Option=Latest.ActiveOffer.Options[Index];}
+    if(!bStageShown||bStageFinal||(!bSkip&&!OfferCards.IsValidIndex(Index))){return;}
     const auto Capture=[this](const FTrayCard& Card)
     {
         FOfferGhost Ghost;
@@ -596,13 +599,18 @@ void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
         if(!Card.AppliedIcon.IsEmpty()){Ghost.Texture=LDUIIcons::Find(Card.AppliedIcon);}
         return Ghost;
     };
-    OfferMotion.Chosen=Capture(OfferCards[Index]);
+    OfferMotion.Chosen=Capture(bSkip?SkipCard:OfferCards[Index]);
+    if(bSkip)
+    {
+        const UWidget* Source=SkipCard.Facts&&SkipCard.Facts->IsVisible()?static_cast<const UWidget*>(SkipCard.Facts.Get()):SkipCard.Name.Get();
+        if(Source&&Source->IsVisible()){OfferMotion.Chosen.Icon=Source->GetCachedGeometry().GetLayoutBoundingRect();}
+    }
     if(!GrowthHasArea(OfferMotion.Chosen.Icon)){return;}
     for(int32 Other=0;Other<OfferCards.Num();++Other)
     {
-        if(Other!=Index&&OfferCards[Other].Frame&&OfferCards[Other].Frame->IsVisible()){OfferMotion.Others.Add(Capture(OfferCards[Other]));}
+        if((bSkip||Other!=Index)&&OfferCards[Other].Frame&&OfferCards[Other].Frame->IsVisible()){OfferMotion.Others.Add(Capture(OfferCards[Other]));}
     }
-    if(SkipCard.Frame&&SkipCard.Frame->IsVisible()){OfferMotion.Others.Add(Capture(SkipCard));}
+    if(!bSkip&&SkipCard.Frame&&SkipCard.Frame->IsVisible()){OfferMotion.Others.Add(Capture(SkipCard));}
 }
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
     const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys)
@@ -1225,9 +1233,7 @@ bool ULDChoicesPanel::SkipOffer()
     Command.Kind=ELDBuildCommandKind::SkipActiveOffer;
     Command.OfferId=Latest.ActiveOffer.OfferId;Command.OfferRevision=Latest.ActiveOffer.OfferRevision;
     PinnedPreview=INDEX_NONE;
-    OfferMotion=FOfferMotion();
-    OfferMotion.Ticket.Match=LatestMatch;OfferMotion.Ticket.Life=LatestLife;
-    OfferMotion.Ticket.Offer=Command.OfferId;OfferMotion.Ticket.Kind=Command.Kind;
+    CaptureOfferMotion(INDEX_NONE);
     if(Send(Command)){return true;}
     OfferMotion=FOfferMotion();return false;
 }
@@ -1856,8 +1862,12 @@ void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
             if(OfferMotion.Ticket.Matches(Receipt,LatestMatch,LatestLife))
             {
                 ConfirmedOffer=Receipt.OfferId;ConfirmedMatch=LatestMatch;ConfirmedLife=LatestLife;
-                if(bOpen&&Receipt.Kind==ELDBuildCommandKind::ActiveChoice&&GrowthHasArea(OfferMotion.Chosen.Icon))
-                {OfferMotion.Result=Receipt.ChoiceResult;OfferMotion.Slot=Receipt.LearnedSlot;OfferMotion.StartedAt=UiNow();}
+                if(bOpen&&GrowthHasArea(OfferMotion.Chosen.Icon))
+                {
+                    if(Receipt.Kind==ELDBuildCommandKind::SkipActiveOffer)
+                    {OfferMotion.Chosen.Glyph=FString::Printf(TEXT("+%lld"),Receipt.PointsAwarded);}
+                    OfferMotion.Result=Receipt.ChoiceResult;OfferMotion.Slot=Receipt.LearnedSlot;OfferMotion.StartedAt=UiNow();
+                }
             }
             else if(OfferMotion.Ticket.Offer.IsValid())
             {UE_LOG(LogLDUI,Warning,TEXT("LD_UI_CHOICE_RECEIPT_MISMATCH Receipt does not match the submitted offer and life."));}
@@ -1931,7 +1941,9 @@ void ULDChoicesPanel::UpdateStage()
     const bool bFinal=Usable()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
     const bool bFinalNext=!bOffer&&bFinal;
     const FGuid Key=bOffer?Latest.ActiveOffer.OfferId:bFinal?Latest.FinalModOfferId:FGuid();
-    const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!OfferMotionActive()&&!(Key.IsValid()&&Key==StageLeftFor);
+    const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
+    // A newly available choice takes priority over the previous choice's cosmetic flight.
+    if(bShow&&OfferMotionActive()){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
     // If the view advances while the stage remains visible, deal the new cards without an invisible hit area.
     if(bShow&&bShow==bStageShown&&bFinalNext==bStageFinal&&Key!=StageShownFor)
     {StageShownFor=Key;StageOpenedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIOfferDeal);return;}
@@ -2122,7 +2134,9 @@ void ULDChoicesPanel::PaintOfferMotion(const LDUIPaint::FContext& Paint) const
         }
     }
     FSlateRect Destination;
-    if(OfferMotion.Result==ELDBuildChoiceResult::Learned)
+    const bool bSkip=OfferMotion.Ticket.Kind==ELDBuildCommandKind::SkipActiveOffer;
+    if(bSkip){Destination=Places.Points;}
+    else if(OfferMotion.Result==ELDBuildChoiceResult::Learned)
     {Destination=Places.HeadIcons[int32(LDHUD::SlotColumn(OfferMotion.Slot))];}
     else if(OfferMotion.Result==ELDBuildChoiceResult::StoredAsBlueprint){Destination=Places.PendingTop;}
     const FBox2D Origin=LDUIShapes::AbsoluteIn(Paint.Geometry,OfferMotion.Chosen.Icon);
@@ -2141,7 +2155,19 @@ void ULDChoicesPanel::PaintOfferMotion(const LDUIPaint::FContext& Paint) const
         Size=FMath::Lerp(Size,EndSize,T);
     }
     const FVector2D Half(Size*.5f,Size*.5f);
-    Art(Paint,Paint.Layer+3,FBox2D(At-Half,At+Half),OfferMotion.Chosen);
+    const FBox2D Chosen(At-Half,At+Half);
+    if(bSkip&&GrowthHasArea(Destination)&&Renderer)
+    {
+        Paint.Shape(Paint.Layer+3,LDUIShapes::EShape::Circle,Chosen,Size*.5f,
+            LDUIPaint::FFill::Solid(LDHUDStyle::UIAction.CopyWithNewOpacity(.95f)));
+        const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Number,FMath::Max(12.f,Size*.4f));
+        const FVector2D Extent=Renderer->GetFontMeasureService()->Measure(OfferMotion.Chosen.Glyph,Font);
+        const float Scale=Extent.X>0.f?FMath::Min(1.f,Size*.85f/float(Extent.X)):1.f;
+        const FVector2D TextAt=At-Extent*Scale*.5f;
+        FSlateDrawElement::MakeText(Paint.Elements,Paint.Layer+4,Paint.Geometry.ToPaintGeometry(Extent,FSlateLayoutTransform(Scale,TextAt)),
+            OfferMotion.Chosen.Glyph,Font,ESlateDrawEffect::None,Paint.Fade(LDHUDStyle::UIBase));
+    }
+    else if(!bSkip){Art(Paint,Paint.Layer+3,Chosen,OfferMotion.Chosen);}
     const float Phase=FMath::Clamp(float(Age/LDHUDStyle::MotionChoose),0.f,1.f);
     if(GrowthHasArea(Destination)&&Phase>.65f)
     {

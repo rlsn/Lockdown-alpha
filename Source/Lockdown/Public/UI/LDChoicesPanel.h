@@ -59,6 +59,7 @@ public:
         FSlateRect Heads[LDHUD::StorageColumnCount];
         FSlateRect HeadIcons[LDHUD::StorageColumnCount];
         FSlateRect CharacterFoot;
+        FSlateRect Points;
         FSlateRect LibraryTop;
         FSlateRect PendingTop;
     };

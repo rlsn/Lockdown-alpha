@@ -2287,6 +2287,10 @@ bool FLDHUDChoiceTrayTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A skip receipt without its award does not confirm the opportunity"),Ticket.Matches(Receipt,3,2));
     Receipt.PointsAwarded=5;Receipt.Header.RequestId=18;
     TestFalse(TEXT("A different request cannot confirm the skipped offer"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.RequestId=17;Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
+    TestFalse(TEXT("A rejected skip cannot animate points"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    TestFalse(TEXT("A skip from a prior life cannot animate points"),Ticket.Matches(Receipt,3,3));
 
     // Component rows turn into icon tiles once they hold more than ChoiceTrayCardLimit cards together.
     FLDProgressionView View;View.bValid=true;View.Generation=3;
