@@ -6,6 +6,7 @@
 #include "UI/LDHUDStyle.h"
 #include "Blueprint/WidgetTree.h"
 
+#include "Components/Border.h"
 #include "Components/SizeBox.h"
 #include "Components/PanelSlot.h"
 #include "Components/RichTextBlock.h"
@@ -2047,8 +2048,23 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 const auto CheckSummary=[&](bool,int32 Width,int32 Height)
                 {
                     int32 ActualWidth=0,ActualHeight=0;PC.GetViewportSize(ActualWidth,ActualHeight);
-                    return Check(ActualWidth==Width&&ActualHeight==Height&&HUD->Minimap&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD),
-                        TEXT("UI: the field minimap is checked on the actual requested viewport and fits"));
+                    const UWidget* Body=HUD->GetWidgetFromName(TEXT("HUDActionBody"));
+                    const UWidget* Q=HUD->GetWidgetFromName(TEXT("HUDActionQ"));
+                    const auto Separate=[](const UWidget* A,const UWidget* B)
+                    {
+                        if(!A||!B||!A->IsVisible()||!B->IsVisible()){return true;}
+                        const FSlateRect Left=A->GetCachedGeometry().GetLayoutBoundingRect();
+                        const FSlateRect Right=B->GetCachedGeometry().GetLayoutBoundingRect();
+                        return Left.Right<=Right.Left+.5f||Right.Right<=Left.Left+.5f
+                            ||Left.Bottom<=Right.Top+.5f||Right.Bottom<=Left.Top+.5f;
+                    };
+                    bool bStatusClear=HUD->MapColumn&&HUD->Band;
+                    for(const UBorder* Cell:HUD->SelfIconCells)
+                    {bStatusClear&=Separate(Cell,HUD->MapColumn)&&Separate(Cell,HUD->Band);}
+                    return Check(ActualWidth==Width&&ActualHeight==Height&&HUD->Minimap&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD)
+                        &&LDSlateProbeInput::FullyVisible(Body,HUD)&&LDSlateProbeInput::FullyVisible(Q,HUD)
+                        &&Body->GetCachedGeometry().GetLayoutBoundingRect().Right<=Q->GetCachedGeometry().GetLayoutBoundingRect().Left&&bStatusClear,
+                        TEXT("UI: the field minimap, status squares and body slot fit without overlap, with the body left of Q"));
                 };
                 if(UIFieldStep==0)
                 {

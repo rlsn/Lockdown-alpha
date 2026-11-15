@@ -850,8 +850,10 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     // A body explains its installed projection; a dead contender explains the persistent build of the next life.
     const FLDAttributeProjection& Projection=Body ? Body->AttributeProjection : Record->Projection;
     Out.Generation=Caller.Match.Generation;
+    const auto* LifeRecord=Mode->Lives.Find(Caller.EntityId);
     if (Body) { Out.Life=Body->Victim.Life; }
-    else if (const auto* LifeRecord=Mode->Lives.Find(Caller.EntityId)) { Out.Life=LifeRecord->Life; }
+    else if (LifeRecord) { Out.Life=LifeRecord->Life; }
+    if (!Body && LifeRecord && LifeRecord->Phase==ELDLifePhase::Dead) { Out.RespawnDurationMs=LifeRecord->RespawnDurationMs; }
     Out.Revision=Record->ViewRevision;
     Out.AsOfMs=NowMs;
     Out.bHasBody=Body!=nullptr;

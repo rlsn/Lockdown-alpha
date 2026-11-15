@@ -295,6 +295,9 @@ private:
     FString LevelTip;
     // The toast's own canvas slot, kept right above the band.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
+    UPROPERTY() TObjectPtr<USizeBox> BodySlot;
+    UPROPERTY() TObjectPtr<UBorder> BodyPortrait;
+    UPROPERTY() TObjectPtr<UTextBlock> BodyPortraitGlyph;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
     // The hovered slot's full description, popped up above it like the blind-box descriptions; it takes no input.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;

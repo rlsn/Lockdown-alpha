@@ -438,7 +438,7 @@ bool ALDCombatDirector::PublishOwnerViews(FString& Error)
         // accept the publication instead of discarding it as an older view of the same life.
         if (View.HPRegenPerSec!=PC->CombatView.HPRegenPerSec || View.MPRegenPerSec!=PC->CombatView.MPRegenPerSec
             || View.bPreviewLiving!=PC->CombatView.bPreviewLiving || View.bPreviewFinalField!=PC->CombatView.bPreviewFinalField
-            || View.PreviewWideToken!=PC->CombatView.PreviewWideToken)
+            || View.PreviewWideToken!=PC->CombatView.PreviewWideToken || View.RespawnDurationMs!=PC->CombatView.RespawnDurationMs)
         {
             MarkViewChanged(Pair.Value.Session);
             View.Revision=Record->ViewRevision;

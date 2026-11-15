@@ -1229,6 +1229,12 @@ bool ULDComponentStorage::TileBox(FName Component,FSlateRect& Out) const
     }
     return false;
 }
+bool ULDComponentStorage::HeldBox(FSlateRect& Out) const
+{
+    if(!Drag.bActive||!GhostFrame||!GhostFrame->IsVisible()){return false;}
+    Out=StorageRect(GhostFrame);
+    return StorageHasArea(Out);
+}
 bool ULDComponentStorage::Drags(const TArray<LDHUD::FComponentDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly)
 {
     return Drops.ContainsByPredicate([Column,bOwnOnly](const LDHUD::FComponentDrop& Drop)

@@ -512,4 +512,6 @@ struct FLDCombatOwnerView
     // field summary (#219); <= now means out of combat, 0 means no combat action yet. Persists across lives. #222: no build
     // command reads it.
     UPROPERTY() int64 BuildSafeAtMs=0;
+    // The server-fixed duration of this life's respawn wait, for the owning player's countdown only.
+    UPROPERTY() int64 RespawnDurationMs=0;
 };

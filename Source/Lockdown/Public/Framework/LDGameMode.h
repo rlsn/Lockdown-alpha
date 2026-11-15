@@ -393,6 +393,7 @@ private:
         FLDCombatBodyRef Body;
         TWeakObjectPtr<ALDCharacter> Actor;
         int64 RespawnAtMs = 0;
+        int64 RespawnDurationMs = 0;
         int64 ProtectedUntilMs = 0;
         uint64 CompletedMotionStep = 0;
         uint64 SpawnSequence=0;

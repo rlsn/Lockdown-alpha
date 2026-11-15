@@ -125,6 +125,8 @@ public:
     bool IsHolding() const {return Drag.bActive&&Drag.bPicked;}
     // The absolute rectangle of an installed component's face on the board or over the band (false when it is not shown).
     bool TileBox(FName Component,FSlateRect& Out) const;
+    // The dragged component's currently visible face, in absolute coordinates.
+    bool HeldBox(FSlateRect& Out) const;
     // The components a pending service confirm would take off or leave idle: their faces light orange before the hold.
     void SetWarnings(const TArray<FName>& Components){Warnings=Components;}
     // A service selection (the artisan's 拆解): while Selectable is not empty its components are chosen by clicking their

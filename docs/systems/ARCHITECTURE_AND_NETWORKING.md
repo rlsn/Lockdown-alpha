@@ -94,7 +94,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 26），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 27），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
 - 局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
@@ -122,7 +122,7 @@ Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当�
 Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
 死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
 （撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
-复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
+复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。已确定的等待总时长经 `CombatView.RespawnDurationMs` 仅发布给本人供界面使用，复活、离局或休息终止等待时清除。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
 成长、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。

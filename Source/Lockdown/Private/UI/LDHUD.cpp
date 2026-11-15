@@ -122,7 +122,7 @@ LDHUD::FSlotKeys HudSlotKeys(const ALDPlayerController& PC)
     return Keys;
 }
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
-// centre block, the 3+1 action entries over the resources, sits on the screen centre directly under the character.
+// centre block, the body and 3+1 action entries over the resources, sits on the screen centre directly under the character.
 // The whole band draws at HudBandScale of these sizes, so a skill slot is 84 units at the 1080p reference.
 constexpr float HudBandScale=.875f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
@@ -140,9 +140,10 @@ constexpr float HudBlockGap=16.f;
 // Square slots: the icon fills the face inside a 3u state ring; the key and the cost ride on its corners.
 constexpr float HudSlotWidth=96.f;
 constexpr float HudSlotHeight=96.f;
+constexpr float HudBodySlotWidth=76.f;
 constexpr float HudSlotGap=8.f;
 constexpr float HudGroupGap=24.f;
-constexpr float HudCentreWidth=4*HudSlotWidth+2*HudSlotGap+HudGroupGap;
+constexpr float HudCentreWidth=HudBodySlotWidth+HudSlotGap+4*HudSlotWidth+2*HudSlotGap+HudGroupGap;
 constexpr float HudDetailWidth=300.f;
 // The 构筑 button's distance from the screen's bottom-right corner.
 constexpr float HudCornerInset=16.f;
@@ -287,13 +288,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             }
             return Box;
         };
-        auto Portraits=[&](float Size,int32 GlyphSize,UBorder*& OutFrame,UTextBlock*& OutGlyph)
+        auto Portraits=[&](float Size,int32 GlyphSize,UBorder*& OutFrame,UTextBlock*& OutGlyph,FName Name=NAME_None)
         {
             // The glyph sits on any of the six identity tints, bright ones included; an outline keeps it readable on each.
             OutGlyph=OneLine(TEXT(""),GlyphSize,0);OutGlyph->SetJustification(ETextJustify::Center);HudFace(OutGlyph,true,2);
             OutFrame=WidgetTree->ConstructWidget<UBorder>();OutFrame->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,LDHUDStyle::Rim,1.f));
             OutFrame->SetHorizontalAlignment(HAlign_Center);OutFrame->SetVerticalAlignment(VAlign_Center);OutFrame->SetContent(OutGlyph);
-            auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Size);Box->SetHeightOverride(Size);Box->SetContent(OutFrame);
+            auto* Box=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),Name);Box->SetWidthOverride(Size);Box->SetHeightOverride(Size);Box->SetContent(OutFrame);
             return Box;
         };
 
@@ -503,7 +504,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Place(BottomLeft,FAnchors(0,1),FVector2D(0,1),FVector2D(16,-16));
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
 
-        // Bottom band: own identity | resources over the 3+1 action entries. The band stack is shifted so the centre block
+        // Bottom band: own identity | body and 3+1 action entries over the resources. The band stack is shifted so the centre block
         // stays on the screen centre, directly under the character, where the eyes are during a fight.
         auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();
         auto* SelfBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -554,6 +555,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         }
         auto* Centre=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();
+        UBorder* BodyFrame=nullptr;UTextBlock* BodyGlyph=nullptr;
+        BodySlot=Portraits(HudBodySlotWidth,LDHUDStyle::TypePage,BodyFrame,BodyGlyph,TEXT("HUDActionBody"));
+        BodyPortrait=BodyFrame;BodyPortraitGlyph=BodyGlyph;
+        BodySlot->SetVisibility(ESlateVisibility::HitTestInvisible);
+        Actions->AddChildToHorizontalBox(BodySlot)->SetVerticalAlignment(VAlign_Top);
         for(int32 Index=0;Index<HudActionCount;++Index)
         {
             FLDHUDActionSlot& Entry=ActionSlots.AddDefaulted_GetRef();
@@ -614,11 +620,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             if(UButtonSlot* StackSlot=Cast<UButtonSlot>(Stack->Slot)){StackSlot->SetPadding(FMargin(0));StackSlot->SetHorizontalAlignment(HAlign_Fill);StackSlot->SetVerticalAlignment(VAlign_Fill);}
             Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);Entry.Box->SetContent(Entry.Button);
         }
-        // Character actives (Q/W/E) and the innate dash (D) are separate groups, never one merged bar.
+        // Character actives (Q/W/E) and the innate dash (D) are separate groups, after the body.
         for(int32 Index=0;Index<HudActionCount;++Index)
         {
             Actions->AddChildToHorizontalBox(ActionSlots[Index].Box)
-                ->SetPadding(FMargin(Index==0?0.f:Index==3?HudGroupGap:HudSlotGap,0,0,0));
+                ->SetPadding(FMargin(Index==3?HudGroupGap:HudSlotGap,0,0,0));
         }
         // #97: the action entries on top, right under the blind-box button and the growth panel; health, mana and the
         // experience strip below them.
@@ -652,13 +658,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ToastSlot->SetZOrder(14);
         ToastSlot->SetPosition(FVector2D(0,-12-8));
         {
-            // The own status strip sits left of the band, its bottom on the band's bottom, drawn at the band's scale; rows are
-            // built as needed and stack upward (EnsureStatusCells). Only the squares take the pointer.
+            // The status strip sits left of the band, its bottom on the band's bottom. Rows stack upward and fit the gap
+            // beside the minimap; only the squares take the pointer.
             StatusRows=WidgetTree->ConstructWidget<UVerticalBox>();StatusRows->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
             auto* StatusBox=WidgetTree->ConstructWidget<UVerticalBox>();StatusBox->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
             StatusBox->AddChildToVerticalBox(StatusRows);
             SelfIconSyncing=Text(TEXT("状态同步中"),LDHUDStyle::TypeSmall);SelfIconSyncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-            SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);StatusBox->AddChildToVerticalBox(SelfIconSyncing)->SetHorizontalAlignment(HAlign_Center);
+            SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);StatusBox->AddChildToVerticalBox(SelfIconSyncing)->SetHorizontalAlignment(HAlign_Right);
             auto* StatusWidth=WidgetTree->ConstructWidget<USizeBox>();StatusWidth->SetWidthOverride(HudStatusWidth);StatusWidth->SetContent(StatusBox);
             StatusWidth->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
             auto* StatusScale=WidgetTree->ConstructWidget<UScaleBox>();StatusScale->SetStretch(EStretch::UserSpecified);StatusScale->SetUserSpecifiedScale(HudBandScale);
@@ -802,7 +808,7 @@ void ULDHUD::EnsureStatusCells(int32 Count)
         {
             auto* RowBox=WidgetTree->ConstructWidget<UHorizontalBox>();RowBox->SetVisibility(ESlateVisibility::Collapsed);
             StatusRows->InsertChildAt(0,RowBox);
-            if(auto* RowSlot=Cast<UVerticalBoxSlot>(RowBox->Slot)){RowSlot->SetPadding(FMargin(0,HudStatusGap,0,0));RowSlot->SetHorizontalAlignment(HAlign_Left);}
+            if(auto* RowSlot=Cast<UVerticalBoxSlot>(RowBox->Slot)){RowSlot->SetPadding(FMargin(0,HudStatusGap,0,0));RowSlot->SetHorizontalAlignment(HAlign_Right);}
             SelfIconRowBoxes.Add(RowBox);
         }
         UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeHeading);Glyph->SetAutoWrapText(false);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
@@ -1034,7 +1040,8 @@ void ULDHUD::RefreshReadModel()
     if(bOwnMatch&&PC->SlotOrderMatch!=O.Match){PC->ResetSlotOrder(O.Match);}
     // The workshop is the open 构筑 tray's full view; it hides the band (the skill keys still work) and, full screen, the
     // corners it covers. Full screen in a rest's build, payout and return steps and in the own death wait.
-    const bool bDeathWait=bOwnMatch&&LDHUD::Death(O,bClock,NowMs,Public.Showdown.bStarted&&O.RespawnAtMs<=0).bVisible;
+    const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs,Public.Showdown.bStarted&&O.RespawnAtMs<=0,&PC->CombatView);
+    const bool bDeathWait=bOwnMatch&&Death.bWaiting;
     const bool bRestPhase=bOwnMatch&&Public.Phase==ELDMatchPhase::Rest;
     const bool bWorkshopFull=LDWorkshop::FullScreen(bRestPhase,Public.Timeline.Step,bDeathWait);
     const bool bWorkshopOpen=bShow&&ChoicesPanel&&ChoicesPanel->IsTrayOpen();
@@ -1080,6 +1087,7 @@ void ULDHUD::RefreshReadModel()
     const bool bChoicesRestOpen=Public.Phase==ELDMatchPhase::Rest&&ChoicesPanel&&ChoicesPanel->IsPanelOpen()&&!ChoicesPanel->IsTrayOpen();
     const bool bFieldPhase=Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen;
     const FLDCombatOwnerView* OwnCombat=bOwnMatch&&O.Life!=0&&PC->CombatView.Generation==O.Match&&PC->CombatView.Life==O.Life?&PC->CombatView:nullptr;
+    const bool bEngaged=OwnCombat&&bClock&&NowMs<OwnCombat->BuildSafeAtMs;
     LDWorldFeedback::FSample OwnSample;OwnSample.Match=O.Match;OwnSample.Life=O.Life;OwnSample.LifePhase=O.LifePhase;OwnSample.Self=O.ContenderId;OwnSample.OwnCombat=OwnCombat;
     TArray<LDWorldFeedback::FEvent> BodyEvents;OwnHitWatch.Observe(OwnSample,BodyEvents);
     const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
@@ -1122,7 +1130,6 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(ReturnCountdownText,!ReturnCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
     HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs,Public.Showdown.bStarted&&O.RespawnAtMs<=0);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
     if(Death.bVisible)
     {
@@ -1136,9 +1143,14 @@ void ULDHUD::RefreshReadModel()
     const FString Name=LDHUD::RosterName(Lobby,O.ContenderId);
     HudSetText(SelfName,Name.IsEmpty()?FString(TEXT("名单同步中")):Name);
     if(!SelfName->GetToolTipText().ToString().Equals(SelfName->GetText().ToString(),ESearchCase::CaseSensitive)){SelfName->SetToolTipText(SelfName->GetText());}
-    HudSetText(PortraitGlyph,Name.IsEmpty()?FString(TEXT("?")):Name.Left(1));
+    const FString IdentityGlyph=Name.IsEmpty()?FString(TEXT("?")):Name.Left(1);
+    HudSetText(PortraitGlyph,IdentityGlyph);HudSetText(BodyPortraitGlyph,IdentityGlyph);
     if(const auto* Body=Cast<ALDCharacter>(PC->GetPawn()))
-    {const FLinearColor Identity=LDHUD::PaletteColor(Body->PresentationKey);if(Portrait->GetBrushColor()!=Identity){Portrait->SetBrushColor(Identity);}}
+    {
+        const FLinearColor Identity=LDHUD::PaletteColor(Body->PresentationKey);
+        if(Portrait->GetBrushColor()!=Identity){Portrait->SetBrushColor(Identity);}
+        if(BodyPortrait->GetBrushColor()!=Identity){BodyPortrait->SetBrushColor(Identity);}
+    }
     // Plain alive needs no line; protection, death and the other phases keep theirs.
     const bool bPlainAlive=bAlive&&(O.ProtectedUntilMs<=0||(bClock&&O.ProtectedUntilMs<=NowMs));
     HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));HudSetShown(LifeText,!bPlainAlive,ESlateVisibility::HitTestInvisible);
@@ -1183,6 +1195,7 @@ void ULDHUD::RefreshReadModel()
         {
             const LDHUD::FSelfIconView* Icon=Icons.Items.IsValidIndex(Index)?&Icons.Items[Index]:nullptr;
             HudSetShown(SelfIconCells[Index],Icon!=nullptr,ESlateVisibility::Visible);
+            HudSetShown(SelfIconCells[Index]->GetParent(),Icon!=nullptr,ESlateVisibility::SelfHitTestInvisible);
             SelfIconRing[Index]=-1.f;
             if(!Icon){continue;}
             if(SelfIconApplied[Index]!=Icon->IconId)
@@ -1232,7 +1245,6 @@ void ULDHUD::RefreshReadModel()
         // The workshop's places from its last layout; in the field with the workshop closed the pending cards stand as quick
         // picks (icons only inside the engagement window, LDCombat's BuildSafeAtMs).
         if(Workshop){ChoicesPanel->SetWorkshopPlaces(Workshop->Places());}
-        const bool bEngaged=OwnCombat&&bClock&&NowMs<OwnCombat->BuildSafeAtMs;
         ChoicesPanel->SetQuickPick(bOwnMatch&&bFieldPhase&&!bDeathWait,bEngaged);
         if(Storage){Storage->SetEngaged(bEngaged);}
         ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Stage,Content,ChoiceStats,HudSlotKeys(*PC));
@@ -1247,22 +1259,12 @@ void ULDHUD::RefreshReadModel()
     }
     if(Storage)
     {
-        // #227: the storage lines up with last frame's band layout: the stack right of the band and one row of columns, 本体
-        // one slot step left of the first Q/W/E slot, each server slot's column over the Q/W/E position the local slot order
-        // shows it at, D over D.
+        // The storage columns follow the actual body and action slots, including the local Q/W/E slot order.
         ULDComponentStorage::FAnchors Anchors;
         const auto RectOf=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
         Anchors.Band=RectOf(Band);
         Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
-        if(ActionSlots.Num()>1)
-        {
-            const FSlateRect First=RectOf(ActionSlots[0].Box);const FSlateRect Second=RectOf(ActionSlots[1].Box);
-            if(First.Right>First.Left&&Second.Left>First.Left)
-            {
-                const float Step=Second.Left-First.Left;
-                Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=FSlateRect(First.Left-Step,First.Top,First.Right-Step,First.Bottom);
-            }
-        }
+        Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=RectOf(BodySlot);
         for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
         {
             const int32 ServerSlot=HudServerSlot(PC->SkillAtKey[Index]);
@@ -1283,6 +1285,7 @@ void ULDHUD::RefreshReadModel()
             In.bRest=bRestPhase;In.RestIndex=Public.Timeline.RestIndex;In.Step=Public.Timeline.Step;
             In.StepStartedAtMs=Public.Timeline.StepStartedAtMs;In.StepEndsAtMs=Public.Timeline.StepEndsAtMs;In.bClock=bClock;In.NowMs=NowMs;
             In.bDead=bDeathWait&&!bRestPhase;In.DeathTitle=Death.Title;In.DeathCountdown=Death.Countdown;
+            In.DeathClock=Death.Clock;In.DeathProgress=Death.Progress;
             In.TrayDesired=ChoicesPanel?ChoicesPanel->TrayDesiredSize():FVector2D::ZeroVector;
             const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
             In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bOpeningBase?1:0)+Waiting.ComponentChoices+(Waiting.bFinalMod?1:0);
@@ -1394,6 +1397,22 @@ void ULDHUD::RefreshReadModel()
     {
         const FVector2D Place(FMath::RoundToFloat(BandLeft-HudStatusFromBand),-12.f);
         if(!StatusSlot->GetPosition().Equals(Place,.5f)){StatusSlot->SetPosition(Place);}
+        if(auto* ScaleBox=Cast<UScaleBox>(StatusStrip.Get()))
+        {
+            float Scale=HudBandScale;
+            const FGeometry& HudGeometry=GetCachedGeometry();
+            const FGeometry& MapGeometry=MapColumn->GetCachedGeometry();
+            const int32 Count=FMath::Min(SelfIconViews.Num(),HudStatusPerRow);
+            const float RowWidth=Count>0?Count*HudStatusSize+(Count-1)*HudStatusGap
+                :SelfIconSyncing->IsVisible()?float(SelfIconSyncing->GetDesiredSize().X):0.f;
+            if(RowWidth>0.f&&MapColumn->IsVisible()&&MapGeometry.GetLocalSize().X>0.f&&HudGeometry.GetLocalSize().X>0.f)
+            {
+                const FVector2D MapRight=HudGeometry.AbsoluteToLocal(MapGeometry.LocalToAbsolute(MapGeometry.GetLocalSize()));
+                const float Available=float(HudGeometry.GetLocalSize().X*.5f)+BandLeft-HudStatusFromBand-float(MapRight.X)-HudStatusGap;
+                Scale=FMath::Clamp(Available/RowWidth,.01f,HudBandScale);
+            }
+            if(!FMath::IsNearlyEqual(ScaleBox->GetUserSpecifiedScale(),Scale,.001f)){ScaleBox->SetUserSpecifiedScale(Scale);}
+        }
     }
     if(DevTestPanel)
     {
@@ -1432,7 +1451,7 @@ void ULDHUD::RefreshReadModel()
     if(PromptButton->GetIsEnabled()!=bOwnMatch){PromptButton->SetIsEnabled(bOwnMatch);}
     {
         const double PulseAge=UiNow-PromptPulseAt;
-        const float Wave=Pending.Any()&&PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds?LDTween::PingPong(PulseAge,1.):0.f;
+        const float Wave=Pending.Any()&&!bEngaged&&PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds?LDTween::PingPong(PulseAge,1.):0.f;
         LDTween::SetScale(PendingPrompt,1.f+.05f*Wave);LDTween::SetOpacity(PendingPrompt,1.f-.25f*Wave);
     }
 

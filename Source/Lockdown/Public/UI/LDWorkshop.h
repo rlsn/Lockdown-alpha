@@ -68,6 +68,8 @@ public:
         bool bDead=false;
         FString DeathTitle;
         FString DeathCountdown;
+        FString DeathClock;
+        float DeathProgress=0.f;
         // The tray's size (its rows stack upward in the pending area) and how many decisions wait there.
         FVector2D TrayDesired=FVector2D::ZeroVector;
         int32 Pending=0;
@@ -262,6 +264,7 @@ private:
     EMode ClosingMode=EMode::Closed;
     FInput Latest;
     FLDProgressionView View;
+    TMap<FName,LDHUD::FComponentConnections> LinkConnections;
     FRects Rects;
     FVector2D LastSize=FVector2D::ZeroVector;
     FVector2D ActionsAt=FVector2D::ZeroVector;

@@ -5,6 +5,7 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
+#include "UI/LDUIFonts.h"
 #include "UI/LDUIIcons.h"
 #include "UI/LDUIShapes.h"
 #include "UI/LDWorkshopModel.h"
@@ -32,6 +33,9 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/World.h"
+#include "Fonts/FontMeasure.h"
+#include "Rendering/DrawElements.h"
+#include "Rendering/SlateRenderer.h"
 
 namespace
 {
@@ -43,6 +47,7 @@ constexpr float TrayPagerHeight=32.f,TrayMinIconPixels=36.f;
 static_assert(8*TrayTileSize+7*TrayTileGap<=TrayWidth,"eight grid tiles fit on one tray line");
 static_assert(TrayTileIcon+2*TrayCardPadding<=TrayTileSize,"a grid tile holds its icon");
 constexpr float ServicePanelWidth=540.f;
+bool GrowthHasArea(const FSlateRect& Rect){return Rect.Right>Rect.Left&&Rect.Bottom>Rect.Top;}
 float TrayIconSize(bool bTile,float Scale,bool bCompact)
 {
     const float Preferred=bTile?TrayTileIcon:bCompact?TrayMinIconPixels:TrayCardIcon;
@@ -444,7 +449,10 @@ bool ULDChoicesPanel::IsEngaged() const
 }
 bool ULDChoicesPanel::HasCards() const
 {
-    return Usable()&&(LDHUD::GrowthPending(&Latest,LatestMatch,LatestContent).Any()||!Latest.FinalMod.IsEmpty());
+    if(!Usable()){return false;}
+    LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(&Latest,LatestMatch,LatestContent);
+    if(ConfirmedOfferStillShown()){Pending.bOffer=false;}
+    return Pending.Any()||!Latest.FinalMod.IsEmpty();
 }
 void ULDChoicesPanel::Tell(const FString& Text)
 {
@@ -477,6 +485,9 @@ bool ULDChoicesPanel::ClosePanel()
     LDWidgets::ReleaseHolds(WidgetTree);
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
     PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;bOpen=false;
+    const LDHUD::FOfferMotionTicket PendingOffer=OfferMotion.Ticket;
+    OfferMotion=FOfferMotion();
+    if(PendingRequest){OfferMotion.Ticket=PendingOffer;}
     if(!bQuickShown){GrowthShown(TrayFrame,false);SetVisibility(ESlateVisibility::Collapsed);}
     Fold.Closed();RefreshAll();return true;
 }
@@ -532,6 +543,7 @@ void ULDChoicesPanel::MarkOpenedAutomatically()
 }
 void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
+    if(bOwnHit&&OfferMotion.StartedAt>=0.){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
     // #222: only an automatic opening folds by itself; a tray the player opened stays, in combat and in a PK too.
     if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
     {
@@ -548,9 +560,56 @@ uint8 ULDChoicesPanel::FirstEmptySlot() const
     for(uint8 Key=0;Key<3;++Key){if(LDHUD::ActiveInSlot(Latest,Key).IsNone()){return Key;}}
     return 3;
 }
+bool ULDChoicesPanel::ConfirmedOfferStillShown() const
+{
+    return ConfirmedOffer.IsValid()&&LatestMatch==ConfirmedMatch&&LatestLife==ConfirmedLife
+        &&Latest.bHasActiveOffer&&Latest.ActiveOffer.OfferId==ConfirmedOffer;
+}
+bool ULDChoicesPanel::HasAvailableOffer() const
+{
+    return Usable()&&Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty()&&!ConfirmedOfferStillShown();
+}
+bool ULDChoicesPanel::OfferMotionActive() const
+{
+    return bOpen&&OfferMotion.StartedAt>=0.&&UiNow()-OfferMotion.StartedAt<LDHUDStyle::MotionChoose;
+}
+void ULDChoicesPanel::CaptureOfferMotion(int32 Index)
+{
+    OfferMotion=FOfferMotion();
+    if(!Latest.ActiveOffer.Options.IsValidIndex(Index)){return;}
+    OfferMotion.Ticket.Match=LatestMatch;OfferMotion.Ticket.Life=LatestLife;
+    OfferMotion.Ticket.Offer=Latest.ActiveOffer.OfferId;OfferMotion.Ticket.Option=Latest.ActiveOffer.Options[Index];
+    if(!bStageShown||bStageFinal||!OfferCards.IsValidIndex(Index)){return;}
+    const auto Capture=[this](const FTrayCard& Card)
+    {
+        FOfferGhost Ghost;
+        if(!Card.Frame||!Card.Frame->IsVisible()){return Ghost;}
+        Ghost.Frame=Card.Frame->GetCachedGeometry().GetLayoutBoundingRect();
+        if(Card.IconFrame&&Card.IconFrame->IsVisible()){Ghost.Icon=Card.IconFrame->GetCachedGeometry().GetLayoutBoundingRect();}
+        if(Card.Name)
+        {
+            Ghost.Name=Card.Name->GetText().ToString();
+            Ghost.NameBounds=Card.Name->GetCachedGeometry().GetLayoutBoundingRect();
+            Ghost.NameSize=Card.Name->GetFont().Size*float(Card.Name->GetCachedGeometry().Scale/FMath::Max(.01f,GetCachedGeometry().Scale));
+        }
+        if(Card.Glyph){Ghost.Glyph=Card.Glyph->GetText().ToString();}
+        if(!Card.AppliedIcon.IsEmpty()){Ghost.Texture=LDUIIcons::Find(Card.AppliedIcon);}
+        return Ghost;
+    };
+    OfferMotion.Chosen=Capture(OfferCards[Index]);
+    if(!GrowthHasArea(OfferMotion.Chosen.Icon)){return;}
+    for(int32 Other=0;Other<OfferCards.Num();++Other)
+    {
+        if(Other!=Index&&OfferCards[Other].Frame&&OfferCards[Other].Frame->IsVisible()){OfferMotion.Others.Add(Capture(OfferCards[Other]));}
+    }
+    if(SkipCard.Frame&&SkipCard.Frame->IsVisible()){OfferMotion.Others.Add(Capture(SkipCard));}
+}
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase LifePhase,LDProgression::EMatchStage Stage,
     const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys)
 {
+    if(OfferMotion.Ticket.Match!=0&&(OfferMotion.Ticket.Match!=Match||OfferMotion.Ticket.Life!=Life)){OfferMotion=FOfferMotion();}
+    if(ConfirmedOffer.IsValid()&&(ConfirmedMatch!=Match||ConfirmedLife!=Life))
+    {ConfirmedOffer.Invalidate();ConfirmedMatch=ConfirmedLife=0;}
     const bool bStatsChanged=Stats.Level!=LatestStats.Level||Stats.ADP2!=LatestStats.ADP2||Stats.APP2!=LatestStats.APP2
         ||Stats.MaxHPP2!=LatestStats.MaxHPP2||Stats.ArmorP2!=LatestStats.ArmorP2||Content!=LatestContent||!(Keys==SlotKeys);
     SlotKeys=Keys;
@@ -641,9 +700,9 @@ void ULDChoicesPanel::PlanTrayPages(bool bTiles)
             Add(ETrayGroup::ComponentChoice,Index,Choice.Options.Num()+(LDHUD::ComponentChoiceAllOwned(Choice,Latest)?1:0),bTiles);
         }
         if(Latest.bOpeningBasePending){Add(ETrayGroup::OpeningBase,0,Latest.OpeningBaseOptions.Num(),bTiles);}
-        const bool bOffer=Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty();
+        const bool bOffer=HasAvailableOffer();
         if(bOffer){Add(ETrayGroup::Offer,0,Latest.ActiveOffer.Options.Num()+1,false,LabelWidth(OfferGroup));}
-        else if(Latest.QueuedActiveOpportunities>0){Add(ETrayGroup::Offer,0,1,false,LabelWidth(OfferGroup));}
+        else if(!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0){Add(ETrayGroup::Offer,0,1,false,LabelWidth(OfferGroup));}
         const bool bFinal=Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
         if(bFinal||!Latest.FinalMod.IsEmpty()){Add(ETrayGroup::FinalMod,0,bFinal?3:1,false,LabelWidth(FinalModGroup));}
         int32 Sources=0;
@@ -687,12 +746,12 @@ bool ULDChoicesPanel::TrayShows(ETrayGroup Group,int32 Index) const
 }
 void ULDChoicesPanel::RefreshOffer()
 {
-    const bool bOffer=Usable()&&Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty();
+    const bool bOffer=HasAvailableOffer();
     // A new offer drops the pinned popup; ids and revisions travel with the click, never a card index.
     if(!bOffer||Latest.ActiveOffer.OfferId!=ShownOffer){PinnedPreview=INDEX_NONE;}
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
     // A queued opportunity without an eligible candidate waits as one grey card; its description says why.
-    const bool bWaiting=!bOffer&&Usable()&&Latest.QueuedActiveOpportunities>0;
+    const bool bWaiting=!bOffer&&Usable()&&!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0;
     const bool bOnStage=bStageShown&&!bStageFinal;
     const bool bVisible=bOnStage||TrayShows(ETrayGroup::Offer);
     GrowthShown(OfferGroup,(bOffer||bWaiting)&&!bOnStage&&bVisible);
@@ -1142,7 +1201,7 @@ bool ULDChoicesPanel::PickOpeningBase(int32 Index)
 }
 bool ULDChoicesPanel::ChooseOffer(int32 Index)
 {
-    if(!Usable()||!Latest.bHasActiveOffer||!Latest.ActiveOffer.Options.IsValidIndex(Index)||Latest.ActiveOffer.OfferId!=ShownOffer){return false;}
+    if(!HasAvailableOffer()||!Latest.ActiveOffer.Options.IsValidIndex(Index)||Latest.ActiveOffer.OfferId!=ShownOffer){return false;}
     // One click is one choice: a click while a request is in flight never queues a second one.
     if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
     if(!Gate.bCanChoose){Tell(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
@@ -1153,18 +1212,24 @@ bool ULDChoicesPanel::ChooseOffer(int32 Index)
     // Always ask to learn now: the server learns it into the lowest empty slot when it may, otherwise keeps it as a blueprint.
     Command.bLearnIfPossible=true;Command.Slot=FLDBuildCommand::AnySlot;
     PinnedPreview=INDEX_NONE;
-    return Send(Command);
+    CaptureOfferMotion(Index);
+    if(Send(Command)){return true;}
+    OfferMotion=FOfferMotion();return false;
 }
 bool ULDChoicesPanel::SkipOffer()
 {
-    if(!Usable()||!Latest.bHasActiveOffer||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipPoints<=0){return false;}
+    if(!HasAvailableOffer()||Latest.ActiveOffer.OfferId!=ShownOffer||Latest.ActiveOffer.SkipPoints<=0){return false;}
     if(PendingRequest){Tell(TEXT("上一个请求仍在处理中。"));return false;}
     if(!Gate.bCanChoose){Tell(TEXT("没有提交：")+Gate.ChooseBlocked);return false;}
     FLDBuildCommand Command;
     Command.Kind=ELDBuildCommandKind::SkipActiveOffer;
     Command.OfferId=Latest.ActiveOffer.OfferId;Command.OfferRevision=Latest.ActiveOffer.OfferRevision;
     PinnedPreview=INDEX_NONE;
-    return Send(Command);
+    OfferMotion=FOfferMotion();
+    OfferMotion.Ticket.Match=LatestMatch;OfferMotion.Ticket.Life=LatestLife;
+    OfferMotion.Ticket.Offer=Command.OfferId;OfferMotion.Ticket.Kind=Command.Kind;
+    if(Send(Command)){return true;}
+    OfferMotion=FOfferMotion();return false;
 }
 bool ULDChoicesPanel::ChooseFinalMod(int32 Index)
 {
@@ -1749,6 +1814,8 @@ bool ULDChoicesPanel::Send(FLDBuildCommand Command)
     Command.ExpectedBuildRevision=Latest.BuildRevision;Command.CatalogDigest=Latest.CatalogDigest;
     // A Listen Host answers inside the submit call, so the pending entry is keyed to the id it will receive first.
     const uint64 Expected=PeekRequestId?PeekRequestId():0;
+    if((Command.Kind==ELDBuildCommandKind::ActiveChoice||Command.Kind==ELDBuildCommandKind::SkipActiveOffer)
+        &&OfferMotion.Ticket.Offer==Command.OfferId){OfferMotion.Ticket.Request=Expected;}
     const uint32 Before=Answers;PendingRequest=Expected;PendingKind=Command.Kind;ResultLine.Reset();
     ELDGrowthReason Reason=ELDGrowthReason::None;
     const uint64 Request=SubmitBuild(Command,Reason);
@@ -1760,13 +1827,19 @@ bool ULDChoicesPanel::Send(FLDBuildCommand Command)
         RefreshAll();
         return false;
     }
-    if(Answers==Before){PendingRequest=Request;}
+    if(Answers==Before)
+    {
+        PendingRequest=Request;
+        if((Command.Kind==ELDBuildCommandKind::ActiveChoice||Command.Kind==ELDBuildCommandKind::SkipActiveOffer)
+            &&OfferMotion.Ticket.Offer==Command.OfferId){OfferMotion.Ticket.Request=Request;}
+    }
     RefreshAll();
     return true;
 }
 void ULDChoicesPanel::FinishRequest()
 {
     PendingRequest=0;
+    if(OfferMotion.StartedAt<0.){OfferMotion=FOfferMotion();}
     RefreshAll();
     // Every result reaches the player as a toast, whether the tray is open or not.
     Tell(ResultLine);ResultLine.Reset();
@@ -1777,7 +1850,18 @@ void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
     // The moments the receipt confirms get their cue: an active chosen, the final mod locked, a refusal.
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)
     {
-        if(Receipt.Kind==ELDBuildCommandKind::ActiveChoice){LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);}
+        if(Receipt.Kind==ELDBuildCommandKind::ActiveChoice||Receipt.Kind==ELDBuildCommandKind::SkipActiveOffer)
+        {
+            if(Receipt.Kind==ELDBuildCommandKind::ActiveChoice){LDWidgets::PlayCue(this,ELDAudioCue::UIChoose);}
+            if(OfferMotion.Ticket.Matches(Receipt,LatestMatch,LatestLife))
+            {
+                ConfirmedOffer=Receipt.OfferId;ConfirmedMatch=LatestMatch;ConfirmedLife=LatestLife;
+                if(bOpen&&Receipt.Kind==ELDBuildCommandKind::ActiveChoice&&GrowthHasArea(OfferMotion.Chosen.Icon))
+                {OfferMotion.Result=Receipt.ChoiceResult;OfferMotion.Slot=Receipt.LearnedSlot;OfferMotion.StartedAt=UiNow();}
+            }
+            else if(OfferMotion.Ticket.Offer.IsValid())
+            {UE_LOG(LogLDUI,Warning,TEXT("LD_UI_CHOICE_RECEIPT_MISMATCH Receipt does not match the submitted offer and life."));}
+        }
         else if(Receipt.Kind==ELDBuildCommandKind::FinalMod){LDWidgets::PlayCue(this,ELDAudioCue::UIFinalLock);}
     }
     else{LDWidgets::PlayCue(this,ELDAudioCue::UIReject);}
@@ -1843,14 +1927,14 @@ void ULDChoicesPanel::ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon)
 }
 void ULDChoicesPanel::UpdateStage()
 {
-    const bool bOffer=Usable()&&Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty();
+    const bool bOffer=HasAvailableOffer();
     const bool bFinal=Usable()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
     const bool bFinalNext=!bOffer&&bFinal;
     const FGuid Key=bOffer?Latest.ActiveOffer.OfferId:bFinal?Latest.FinalModOfferId:FGuid();
-    const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!(Key.IsValid()&&Key==StageLeftFor);
-    // The next queued offer deals its cards again a moment after the previous choice (LDHUDStyle::MotionChoose).
+    const bool bShow=bOpen&&Places.bActive&&(bOffer||bFinal)&&!OfferMotionActive()&&!(Key.IsValid()&&Key==StageLeftFor);
+    // If the view advances while the stage remains visible, deal the new cards without an invisible hit area.
     if(bShow&&bShow==bStageShown&&bFinalNext==bStageFinal&&Key!=StageShownFor)
-    {StageShownFor=Key;StageOpenedAt=UiNow()+LDHUDStyle::MotionChoose;LDWidgets::PlayCue(this,ELDAudioCue::UIOfferDeal);return;}
+    {StageShownFor=Key;StageOpenedAt=UiNow();LDWidgets::PlayCue(this,ELDAudioCue::UIOfferDeal);return;}
     if(bShow==bStageShown&&(!bShow||bFinalNext==bStageFinal)){return;}
     StageShownFor=bShow?Key:FGuid();
     // Every card goes back to its tray row first, in order; the stage then takes the ones it shows.
@@ -1895,12 +1979,8 @@ void ULDChoicesPanel::RefreshStage()
     {
         GrowthText(StageTitle,LDTerms::OfferStageTitle);StageTitle->SetColorAndOpacity(LDHUDStyle::UIText);
         // Queued opportunities show as dots after the current one: the next group deals in when this one is chosen.
-        FString Dots;
-        if(Latest.QueuedActiveOpportunities>0)
-        {
-            Dots=TEXT("    ●");
-            for(int32 Dot=0;Dot<FMath::Min<int32>(Latest.QueuedActiveOpportunities,8);++Dot){Dots+=TEXT(" ○");}
-        }
+        const FString Queue=LDHUD::OfferQueueDots(Latest.QueuedActiveOpportunities);
+        const FString Dots=Queue.IsEmpty()?FString():TEXT("    ")+Queue;
         GrowthText(StageSub,FString::Printf(TEXT("Lv %d    %s%s"),int32(Latest.Level),*LDTerms::OfferChanceOf(Latest.ActiveOffer.OpportunityOrdinal,Latest.ActiveOpportunitiesEarned),*Dots));
         StageSub->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         GrowthShown(StageSourceLine,false);
@@ -1994,14 +2074,88 @@ void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
         UWidget* Card=StageCards->GetChildAt(Index);
         const float Progress=LDTween::Progress(Age-Index*LDHUDStyle::MotionOfferStagger,LDHUDStyle::MotionOfferCards,LDTween::ECurve::Back);
         LDTween::SetScale(Card,FMath::Lerp(.86f,1.f,Progress));
-        LDTween::SetOpacity(Card,FMath::Clamp(Progress,0.f,1.f));
+        LDTween::SetOpacity(Card,FMath::Lerp(.25f,1.f,FMath::Clamp(Progress,0.f,1.f)));
+    }
+}
+void ULDChoicesPanel::PaintOfferMotion(const LDUIPaint::FContext& Paint) const
+{
+    const double Age=UiNow()-OfferMotion.StartedAt;
+    const float Fade=1.f-LDTween::Progress(Age,LDHUDStyle::MotionChoose,LDTween::ECurve::EaseIn);
+    const float Slide=32.f*LDTween::Progress(Age,LDHUDStyle::MotionChoose,LDTween::ECurve::EaseIn);
+    FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
+    const auto Art=[&](const LDUIPaint::FContext& Ink,int32 Layer,const FBox2D& Box,const FOfferGhost& Ghost)
+    {
+        UTexture2D* Texture=Ghost.Texture.Get();
+        Ink.SkillArt(Layer,Box,false,false,Texture);
+        if(Texture||Ghost.Glyph.IsEmpty()||!Renderer){return;}
+        const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Title,FMath::Max(12.f,float(Box.GetSize().Y)*.45f));
+        const FVector2D Extent=Renderer->GetFontMeasureService()->Measure(Ghost.Glyph,Font);
+        const FVector2D At=Box.GetCenter()-Extent*.5f;
+        FSlateDrawElement::MakeText(Ink.Elements,Layer+4,Ink.Geometry.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),
+            Ghost.Glyph,Font,ESlateDrawEffect::None,Ink.Fade(LDHUDStyle::UIText));
+    };
+    for(const FOfferGhost& Ghost:OfferMotion.Others)
+    {
+        if(!GrowthHasArea(Ghost.Frame)){continue;}
+        const LDUIPaint::FContext Ink=Paint.WithOpacity(Fade);
+        FBox2D Frame=LDUIShapes::AbsoluteIn(Paint.Geometry,Ghost.Frame);
+        Frame.Min.Y+=Slide;Frame.Max.Y+=Slide;
+        Ink.Panel(Paint.Layer,Frame,false);
+        if(GrowthHasArea(Ghost.Icon))
+        {
+            FBox2D Icon=LDUIShapes::AbsoluteIn(Paint.Geometry,Ghost.Icon);
+            Icon.Min.Y+=Slide;Icon.Max.Y+=Slide;
+            Art(Ink,Paint.Layer+2,Icon,Ghost);
+        }
+        if(Renderer&&!Ghost.Name.IsEmpty()&&GrowthHasArea(Ghost.NameBounds))
+        {
+            FBox2D Name=LDUIShapes::AbsoluteIn(Paint.Geometry,Ghost.NameBounds);
+            Name.Min.Y+=Slide;Name.Max.Y+=Slide;
+            const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Title,FMath::Max(1.f,Ghost.NameSize));
+            const FVector2D Extent=Renderer->GetFontMeasureService()->Measure(Ghost.Name,Font);
+            if(Extent.X>0.f&&Extent.Y>0.f)
+            {
+                const float Scale=FMath::Min(1.f,float(Name.GetSize().X/Extent.X));
+                FSlateDrawElement::MakeText(Ink.Elements,Paint.Layer+6,Paint.Geometry.ToPaintGeometry(Extent,FSlateLayoutTransform(Scale,Name.Min)),
+                    Ghost.Name,Font,ESlateDrawEffect::None,Ink.Fade(LDHUDStyle::UIText));
+            }
+        }
+    }
+    FSlateRect Destination;
+    if(OfferMotion.Result==ELDBuildChoiceResult::Learned)
+    {Destination=Places.HeadIcons[int32(LDHUD::SlotColumn(OfferMotion.Slot))];}
+    else if(OfferMotion.Result==ELDBuildChoiceResult::StoredAsBlueprint){Destination=Places.PendingTop;}
+    const FBox2D Origin=LDUIShapes::AbsoluteIn(Paint.Geometry,OfferMotion.Chosen.Icon);
+    FVector2D At=Origin.GetCenter();
+    float Size=float(FMath::Min(Origin.GetSize().X,Origin.GetSize().Y));
+    FBox2D Target(ForceInit);
+    const float T=LDTween::Progress(Age,LDHUDStyle::MotionChoose*.85,LDTween::ECurve::EaseOut);
+    if(GrowthHasArea(Destination))
+    {
+        Target=LDUIShapes::AbsoluteIn(Paint.Geometry,Destination);
+        const FVector2D End=Target.GetCenter();
+        const FVector2D Control((At.X+End.X)*.5f,FMath::Min(At.Y,End.Y)-90.f);
+        At=FMath::Lerp(FMath::Lerp(At,Control,T),FMath::Lerp(Control,End,T),T);
+        const float EndSize=OfferMotion.Result==ELDBuildChoiceResult::Learned
+            ?float(FMath::Min(Target.GetSize().X,Target.GetSize().Y)):FMath::Min(56.f,float(Target.GetSize().Y));
+        Size=FMath::Lerp(Size,EndSize,T);
+    }
+    const FVector2D Half(Size*.5f,Size*.5f);
+    Art(Paint,Paint.Layer+3,FBox2D(At-Half,At+Half),OfferMotion.Chosen);
+    const float Phase=FMath::Clamp(float(Age/LDHUDStyle::MotionChoose),0.f,1.f);
+    if(GrowthHasArea(Destination)&&Phase>.65f)
+    {
+        const float Flash=FMath::Sin((Phase-.65f)/.35f*PI);
+        Paint.Glow(Paint.Layer+7,LDUIShapes::EShape::Rounded,Target,LDHUDStyle::UIAction.CopyWithNewOpacity(.8f*Flash),18.f,10.f);
+        Paint.Frame(Paint.Layer+7,LDUIShapes::EShape::Rounded,Target,LDHUDStyle::UIAction.CopyWithNewOpacity(Flash),2.f,10.f);
     }
 }
 int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
-    if(!bStageShown){return Base;}
     const LDUIPaint::FContext Paint(E,Base+1,G,S.GetColorAndOpacityTint().A);
+    if(OfferMotionActive()){PaintOfferMotion(Paint);}
+    if(!bStageShown){return OfferMotionActive()?Base+9:Base;}
     // .ocard .art img: a big card's picture sits in a bright rounded frame.
     for(const TArray<FTrayCard>* Group:{&OfferCards,&FinalCards})
     {
@@ -2037,5 +2191,5 @@ int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const 
         {if(Latest.FinalModOptions[Index]==PendingFinalOption){Edge(FinalCards[Index],LDHUDStyle::UIEvent);}}
         if(FinalSourceCards.IsValidIndex(FinalSourcePick)){Edge(FinalSourceCards[FinalSourcePick],LDHUDStyle::UIEvent);}
     }
-    return Base+2;
+    return OfferMotionActive()?Base+9:Base+2;
 }

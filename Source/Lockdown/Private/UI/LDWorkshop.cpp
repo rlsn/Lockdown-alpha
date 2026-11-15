@@ -350,7 +350,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Left->AddChildToVerticalBox(DockTags)->SetPadding(FMargin(0,4,0,0));
             DockLeft=Left;Add(Left,3);
             auto* Centre=WidgetTree->ConstructWidget<UVerticalBox>();
-            DockName=Label(TEXT(""),32,LDHUDStyle::UIText,LDUIFonts::ERole::Title);DockName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+            DockName=Label(TEXT(""),32,LDHUDStyle::UIText,LDUIFonts::ERole::Title);
             Centre->AddChildToVerticalBox(DockName);
             DockSummary=Label(TEXT(""),14,LDHUDStyle::TextSecondary);DockSummary->SetAutoWrapText(true);
             Centre->AddChildToVerticalBox(DockSummary)->SetPadding(FMargin(0,2,0,0));
@@ -597,7 +597,7 @@ void ULDWorkshop::Layout(FVector2D Size)
         if(CentreWrap>0.f)
         {
             if(DockBody){DockBody->SetWrapTextAt(CentreWrap);}
-            for(UTextBlock* Line:{DockSummary.Get(),DockChips.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(CentreWrap);}}
+            for(UTextBlock* Line:{DockName.Get(),DockSummary.Get(),DockChips.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(CentreWrap);}}
         }
         if(RightWrap>0.f)
         {
@@ -709,8 +709,23 @@ void ULDWorkshop::Present(const FInput& Input)
         OpenedAt=-1.;
         return;
     }
+    const FLDProgressionView* NextView=Input.Progression;
+    const bool bLinksChanged=Input.Content!=Latest.Content||Input.Match!=Latest.Match||!NextView||!NextView->bValid||!View.bValid
+        ||NextView->Generation!=View.Generation||NextView->Life!=View.Life||NextView->BuildRevision!=View.BuildRevision;
     Latest=Input;
-    View=Input.Progression?*Input.Progression:FLDProgressionView();
+    View=NextView?*NextView:FLDProgressionView();
+    if(bLinksChanged)
+    {
+        LinkConnections.Reset();
+        if(View.bValid&&Input.Content)
+        {
+            for(const FLDComponentInstanceView& Owned:View.Components)
+            {
+                if(LDWorkshop::ComponentFacts(Owned.DefinitionId,Input.Content).Kind==ELDDemoComponentKind::Connector)
+                {LinkConnections.Add(Owned.DefinitionId,LDHUD::ComponentConnections(Owned.DefinitionId,View,Input.Content));}
+            }
+        }
+    }
     if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
     ClosingAt=-1.;
     WorkshopShown(this,true);
@@ -770,9 +785,10 @@ void ULDWorkshop::RefreshPhase()
     if(Mode!=EMode::Full){return;}
     if(Latest.bDead)
     {
-        WorkshopText(PhaseRest,FString());
+        WorkshopText(PhaseRest,Latest.DeathClock.IsEmpty()?Latest.DeathCountdown:FString(LDTerms::RespawnWait));
+        PhaseRest->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         WorkshopText(PhaseStep,Latest.DeathTitle);PhaseStep->SetColorAndOpacity(LDHUDStyle::UIReject);
-        WorkshopText(PhaseClock,Latest.DeathCountdown);
+        WorkshopText(PhaseClock,Latest.DeathClock);
         return;
     }
     PhaseStep->SetColorAndOpacity(LDHUDStyle::UIText);
@@ -1299,7 +1315,8 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         const UWidget* Clock=PhaseClock->GetParent()?static_cast<const UWidget*>(PhaseClock->GetParent()):PhaseClock.Get();
         const FVector2D Centre=Box(Clock).GetCenter();
         float Fraction=0.f;
-        if(Latest.bRest&&Latest.bClock&&Latest.StepEndsAtMs>Latest.StepStartedAtMs)
+        if(Latest.bDead){Fraction=Latest.DeathProgress;}
+        else if(Latest.bRest&&Latest.bClock&&Latest.StepEndsAtMs>Latest.StepStartedAtMs)
         {Fraction=FMath::Clamp(float(double(Latest.StepEndsAtMs-Latest.NowMs)/double(Latest.StepEndsAtMs-Latest.StepStartedAtMs)),0.f,1.f);}
         Paint.Arc(Ink,Centre,18.f,1.f,FLinearColor(1,1,1,.14f),4.f);
         if(Fraction>0.f){Paint.Arc(Ink+1,Centre,18.f,Fraction,Latest.bDead?LDHUDStyle::UIReject:LDHUDStyle::UIAction,4.f);}
@@ -1518,69 +1535,87 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
                 LDUIPaint::FFill::Solid(LDUIPaint::Hex(0x0C1019,.7f)));
         }
     }
-    // Link lines: from each installed link rule to what its 联动 list names (the learned actives it works with, in other
-    // columns, and the installed components it works with), drawn as a right-angled line with a dot at each end; a line
-    // between two actives whose elements react carries the reaction's name. Lines of the hovered or held component light up.
+    // The lines and the dock read the same owned connections; a legal held drop previews them at its prospective position.
     if(Storage.IsValid()&&Latest.Content&&WorkshopHasArea(Rects.Columns))
     {
-        const FLDDemoContentDefinitions& Content=*Latest.Content;
         const ULDComponentStorage::FFocus& Focus=Storage->Focus();
         const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeTiny);
         const LDHUD::FStorageView& Model=Storage->Model();
+        const auto DrawConnections=[&](FName Self,int32 ColumnIndex,FName Host,const FSlateRect& From,const TArray<FName>* Excluded,bool bLit)
+        {
+            const LDHUD::FComponentConnections* Links=LinkConnections.Find(Self);
+            if(!Links||!Model.Columns.IsValidIndex(ColumnIndex)||From.Right<=From.Left||From.Bottom<=From.Top){return;}
+            const FBox2D Start=LDUIShapes::AbsoluteIn(Geometry,From);
+            const FName HostActive=Model.Columns[ColumnIndex].Active;
+            TArray<TPair<FVector2D,FString>> Ends;
+            for(int32 Other=0;Other<Heads.Num()&&Other<Model.Columns.Num();++Other)
+            {
+                const FName Active=Model.Columns[Other].Active;
+                if(Other==ColumnIndex||Active.IsNone()||!Links->Actives.Contains(Active)||!Heads[Other].IconFace){continue;}
+                const FBox2D Icon=LDUIShapes::RectIn(Geometry,Heads[Other].IconFace->GetCachedGeometry());
+                FString Reaction;
+                for(const ELDDemoElement A:LDWorkshop::ActiveElements(HostActive,Latest.Content))
+                {for(const ELDDemoElement B:LDWorkshop::ActiveElements(Active,Latest.Content)){if(Reaction.IsEmpty()){Reaction=LDWorkshop::ReactionName(A,B);}}}
+                Ends.Add(TPair<FVector2D,FString>(FVector2D(Icon.GetCenter().X,Icon.Max.Y+4.f),Reaction));
+            }
+            for(const LDHUD::FStorageColumnView& Column:Model.Columns)
+            {
+                for(const LDHUD::FEquippedView& OtherEntry:Column.Entries)
+                {
+                    if(OtherEntry.Component==Self||OtherEntry.Component==Host||OtherEntry.Host==Self
+                        ||!Links->Components.Contains(OtherEntry.Component)||(Excluded&&Excluded->Contains(OtherEntry.Component))){continue;}
+                    FSlateRect To;if(!Storage->TileBox(OtherEntry.Component,To)){continue;}
+                    Ends.Add(TPair<FVector2D,FString>(LDUIShapes::AbsoluteIn(Geometry,To).GetCenter(),FString()));
+                }
+            }
+            const FLinearColor Ink=LDHUDStyle::ComponentLink.CopyWithNewOpacity(bLit?1.f:.55f);
+            const FVector2D A(Start.Max.X+3.f,Start.GetCenter().Y);
+            for(const TPair<FVector2D,FString>& End:Ends)
+            {
+                const FVector2D B=End.Key;
+                const float Mid=float(A.X+B.X)*.5f;
+                Paint.Stroke(Top,{A,FVector2D(Mid,A.Y),FVector2D(Mid,B.Y),B},Ink,bLit?3.f:2.f);
+                for(const FVector2D& Dot:{A,B}){Paint.Fill(Top+1,FBox2D(Dot-FVector2D(4,4),Dot+FVector2D(4,4)),Ink,4.f);}
+                if(!End.Value.IsEmpty())
+                {
+                    const FVector2D Label(Mid-30.f,float(FMath::Min(A.Y,B.Y)+FMath::Abs(B.Y-A.Y)*.5f)-11.f);
+                    Paint.Fill(Top+1,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIBase.CopyWithNewOpacity(.92f),11.f);
+                    Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIReplace,1.5f,11.f);
+                    FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(FVector2D(60.f,22.f),FSlateLayoutTransform(Label+FVector2D(14.f,2.f))),
+                        End.Value,Font,ESlateDrawEffect::None,Paint.Fade(LDHUDStyle::UIText));
+                }
+            }
+        };
+        const bool bPreview=Focus.bHeld&&Focus.bOverDrop&&LinkConnections.Contains(Focus.Component);
         for(int32 ColumnIndex=0;ColumnIndex<Model.Columns.Num();++ColumnIndex)
         {
             for(const LDHUD::FEquippedView& Entry:Model.Columns[ColumnIndex].Entries)
             {
-                const FString Self=Entry.Component.ToString();
-                const FLDDemoComponentDefinition* Definition=Content.Components.FindByPredicate([&Self](const FLDDemoComponentDefinition& D){return D.Id==Self;});
+                if(bPreview&&Entry.Component==Focus.Component){continue;}
                 FSlateRect From;
-                if(!Definition||Definition->Kind!=ELDDemoComponentKind::Connector||!Storage->TileBox(Entry.Component,From)){continue;}
-                const FBox2D Start=LDUIShapes::AbsoluteIn(Geometry,From);
-                const FName HostActive=Model.Columns[ColumnIndex].Active;
-                TArray<TPair<FVector2D,FString>> Ends;
-                for(int32 Other=0;Other<Heads.Num()&&Other<Model.Columns.Num();++Other)
-                {
-                    const FName Active=Model.Columns[Other].Active;
-                    if(Other==ColumnIndex||Active.IsNone()||!Definition->TargetActives.Contains(Active.ToString())||!Heads[Other].IconFace){continue;}
-                    const FBox2D Icon=LDUIShapes::RectIn(Geometry,Heads[Other].IconFace->GetCachedGeometry());
-                    FString Reaction;
-                    for(const ELDDemoElement A:LDWorkshop::ActiveElements(HostActive,Latest.Content))
-                    {for(const ELDDemoElement B:LDWorkshop::ActiveElements(Active,Latest.Content)){if(Reaction.IsEmpty()){Reaction=LDWorkshop::ReactionName(A,B);}}}
-                    Ends.Add(TPair<FVector2D,FString>(FVector2D(Icon.GetCenter().X,Icon.Max.Y+4.f),Reaction));
-                }
-                for(const LDHUD::FStorageColumnView& Column:Model.Columns)
-                {
-                    for(const LDHUD::FEquippedView& OtherEntry:Column.Entries)
-                    {
-                        const FString OtherId=OtherEntry.Component.ToString();
-                        if(OtherId==Self||OtherEntry.Component==Entry.Host||OtherEntry.Host==Entry.Component){continue;}
-                        if(!Definition->TargetComponents.Contains(OtherId)&&!Definition->ExtraBases.Contains(OtherId)){continue;}
-                        FSlateRect To;if(!Storage->TileBox(OtherEntry.Component,To)){continue;}
-                        Ends.Add(TPair<FVector2D,FString>(LDUIShapes::AbsoluteIn(Geometry,To).GetCenter(),FString()));
-                    }
-                }
-                const bool bLit=Focus.Component==Entry.Component;
-                const FLinearColor Ink=LDHUDStyle::ComponentLink.CopyWithNewOpacity(bLit?1.f:.55f);
-                const FVector2D A(Start.Max.X+3.f,Start.GetCenter().Y);
-                for(const TPair<FVector2D,FString>& End:Ends)
-                {
-                    const FVector2D B=End.Key;
-                    const float Mid=float(A.X+B.X)*.5f;
-                    Paint.Stroke(Top,{A,FVector2D(Mid,A.Y),FVector2D(Mid,B.Y),B},Ink,bLit?3.f:2.f);
-                    for(const FVector2D& Dot:{A,B}){Paint.Fill(Top+1,FBox2D(Dot-FVector2D(4,4),Dot+FVector2D(4,4)),Ink,4.f);}
-                    if(!End.Value.IsEmpty())
-                    {
-                        const FVector2D Label(Mid-30.f,float(FMath::Min(A.Y,B.Y)+FMath::Abs(B.Y-A.Y)*.5f)-11.f);
-                        Paint.Fill(Top+1,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIBase.CopyWithNewOpacity(.92f),11.f);
-                        Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIReplace,1.5f,11.f);
-                        FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(FVector2D(60.f,22.f),FSlateLayoutTransform(Label+FVector2D(14.f,2.f))),
-                            End.Value,Font,ESlateDrawEffect::None,Paint.Fade(LDHUDStyle::UIText));
-                    }
-                }
+                if(Storage->TileBox(Entry.Component,From))
+                {DrawConnections(Entry.Component,ColumnIndex,Entry.Host,From,nullptr,Focus.Component==Entry.Component);}
+            }
+        }
+        if(bPreview)
+        {
+            const int32 Column=int32(Focus.Drop.Column);
+            FSlateRect From;
+            bool bHasFrom=Storage->HeldBox(From);
+            if(!bHasFrom&&Focus.Drop.Kind==ELDComponentTargetKind::Component&&!Focus.Drop.TargetId.IsNone())
+            {bHasFrom=Storage->TileBox(Focus.Drop.TargetId,From);}
+            if(!bHasFrom&&Heads.IsValidIndex(Column)&&Heads[Column].IconFace)
+            {From=Heads[Column].IconFace->GetCachedGeometry().GetLayoutBoundingRect();bHasFrom=From.Right>From.Left&&From.Bottom>From.Top;}
+            if(bHasFrom)
+            {
+                TArray<FName> Excluded=Focus.Drop.Lost;
+                Excluded.Append(LDHUD::DetachedWith(Focus.Component,View));
+                const FName Host=Focus.Drop.Kind==ELDComponentTargetKind::Component?Focus.Drop.TargetId:NAME_None;
+                DrawConnections(Focus.Component,Column,Host,From,&Excluded,true);
             }
         }
     }
-    return Top+1;
+    return Top+2;
 }
 
 void ULDWorkshop::ApplyTextScale(float Scale)

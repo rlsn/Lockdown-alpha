@@ -198,17 +198,38 @@ bool FLDHUDLifeStatusTest::RunTest(const FString& Parameters)
     Own.ProtectedUntilMs=0;
     TestEqualSensitive(TEXT("No protection deadline needs no clock"),LDHUD::LifeStatus(Own,false,0),FString(TEXT("存活")));
     TestFalse(TEXT("A living owner has no death banner"),LDHUD::Death(Own,true,0).bVisible);
-    Own.LifePhase=ELDLifePhase::Dead;Own.RespawnAtMs=12000;
+    Own.LifePhase=ELDLifePhase::Dead;Own.Match=2;Own.Life=3;Own.RespawnAtMs=12000;
     const FString Waiting=LDHUD::LifeStatus(Own,true,2350);
     TestEqualSensitive(TEXT("Respawn waits on the Lives deadline"),Waiting,FString(LDTerms::Dead)+TEXT(" · ")+LDTerms::RespawnWait+TEXT(" 9.7s"));
     TestFalse(TEXT("Death shows no growth loss"),Waiting.Contains(TEXT("损失")));
     TestEqualSensitive(TEXT("The respawn countdown reads zero only once the authority clock reaches it"),LDHUD::LifeStatus(Own,true,12000),FString(LDTerms::Dead)+TEXT(" · ")+LDTerms::RespawnWait+TEXT(" 0.0s"));
     TestEqualSensitive(TEXT("Respawn time without the matching clock is unavailable"),LDHUD::LifeStatus(Own,false,0),FString(LDTerms::Dead)+TEXT(" · ")+LDTerms::RespawnWait+TEXT("（时间同步中）"));
-    const LDHUD::FDeathView Death=LDHUD::Death(Own,true,2350);
+    FLDCombatOwnerView Combat;Combat.Generation=2;Combat.Life=3;Combat.RespawnDurationMs=10000;
+    const LDHUD::FDeathView Death=LDHUD::Death(Own,true,2350,false,&Combat);
     TestTrue(TEXT("The death banner names the state and the countdown and keeps the build"),Death.bVisible&&Death.Title==LDTerms::DeathTitle&&Death.Countdown==FString(LDTerms::RespawnWait)+TEXT(" 9.7s")&&Death.Note==LDTerms::DeathNote());
+    TestTrue(TEXT("The death ring uses the server's full wait and a compact clock"),
+        Death.bWaiting&&Death.bProgressKnown&&FMath::IsNearlyEqual(Death.Progress,.965f)&&Death.Clock==TEXT("0:10"));
+    TestEqual(TEXT("An early clock cannot make the ring exceed a full circle"),LDHUD::Death(Own,true,1000,false,&Combat).Progress,1.f);
+    TestEqual(TEXT("A due or blocked respawn leaves an empty ring"),LDHUD::Death(Own,true,13000,false,&Combat).Progress,0.f);
+    Combat.RespawnDurationMs=5000;
+    TestEqual(TEXT("A different server-fixed wait uses its own duration"),LDHUD::Death(Own,true,9500,false,&Combat).Progress,.5f);
+    Combat.RespawnDurationMs=10000;
     TestEqualSensitive(TEXT("The banner never invents a respawn time"),LDHUD::Death(Own,false,0).Countdown,FString(LDTerms::RespawnWait)+TEXT(" · 时间同步中"));
+    TestFalse(TEXT("Without the authority clock there is no ring or compact clock"),
+        LDHUD::Death(Own,false,0,false,&Combat).bProgressKnown||!LDHUD::Death(Own,false,0,false,&Combat).Clock.IsEmpty());
+    Combat.Generation=1;
+    TestFalse(TEXT("An old match cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.Generation=2;Combat.Life=2;
+    TestFalse(TEXT("An old life cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.Life=3;Combat.bHasBody=true;
+    TestFalse(TEXT("A living combat projection cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.bHasBody=false;Combat.RespawnDurationMs=0;
+    TestFalse(TEXT("An unpublished duration cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.RespawnDurationMs=12001;
+    TestFalse(TEXT("An impossible duration cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
     Own.RespawnAtMs=0;
     TestEqualSensitive(TEXT("An eliminated finalist is never promised another respawn"),LDHUD::Death(Own,true,0,true).Countdown,FString(TEXT("终局已出局")));
+    TestFalse(TEXT("An eliminated finalist does not automatically enter the death-wait workshop"),LDHUD::Death(Own,true,0,true).bWaiting);
     Own.bActive=true;
     TestTrue(TEXT("The Lives phase, not the legacy active flag, decides the line"),LDHUD::LifeStatus(Own,true,0).StartsWith(LDTerms::Dead,ESearchCase::CaseSensitive));
     Own.LifePhase=ELDLifePhase::Unspawned;TestEqualSensitive(TEXT("An unspawned contender is not shown alive"),LDHUD::LifeStatus(Own,true,0),FString(TEXT("等待出生")));
@@ -1541,6 +1562,20 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An unknown or unowned component has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_unknown"),View,&Content).IsEmpty()
         &&LDHUD::ComponentDrops(TEXT("hud_fixture_shock"),View,&Content).IsEmpty());
     {
+        FLDDemoContentDefinitions Linked=Content;
+        FLDDemoComponentDefinition& Mod=Linked.Components[4];
+        Mod.TargetActives={TEXT("hud_fixture_bolt"),TEXT("hud_fixture_unlearned")};
+        Mod.TargetComponents={TEXT("hud_fixture_fist")};Mod.ExtraBases={TEXT("hud_fixture_wet")};
+        const LDHUD::FComponentConnections Forward=LDHUD::ComponentConnections(TEXT("hud_fixture_mod"),View,&Linked);
+        const LDHUD::FComponentConnections Reverse=LDHUD::ComponentConnections(TEXT("hud_fixture_fist"),View,&Linked);
+        TestTrue(TEXT("Connection data includes only learned skills and owned targets"),
+            Forward.Actives==TArray<FName>{FName(TEXT("hud_fixture_bolt"))}
+            &&Forward.Components==TArray<FName>({FName(TEXT("hud_fixture_fist")),FName(TEXT("hud_fixture_wet"))}));
+        TestTrue(TEXT("Connection data includes owned components that target this one"),Reverse.Components.Contains(TEXT("hud_fixture_mod")));
+        TestTrue(TEXT("Unknown content has no inferred connections"),
+            LDHUD::ComponentConnections(TEXT("hud_fixture_unknown"),View,&Linked).Components.IsEmpty());
+    }
+    {
         // The storage view: the stored ones in the view's order with the never-installed count; each installed one in its column.
         FLDProgressionView Built=View;
         Built.Components[0].bInstalled=Built.Components[0].bEverInstalled=true;
@@ -2206,6 +2241,39 @@ bool FLDHUDChoiceTrayTest::RunTest(const FString& Parameters)
     const LDHUD::FActionDetailView Taken=LDHUD::ComponentChoiceDetail(Part,FString());
     TestTrue(TEXT("A plain take adds no outcome line"),Taken.Summary==LDTerms::Component&&Taken.Body==TEXT("普攻多打 5 点"));
     TestTrue(TEXT("A component that cannot be taken says why"),LDHUD::ComponentChoiceDetail(Part,LDTerms::ComponentChoiceOwned).Body.EndsWith(LDTerms::ComponentChoiceOwned));
+
+    TestEqualSensitive(TEXT("One queued opportunity shows only the current dot"),LDHUD::OfferQueueDots(1),FString(TEXT("●")));
+    TestEqualSensitive(TEXT("Queued opportunities include the current one"),LDHUD::OfferQueueDots(3),FString(TEXT("● ○ ○")));
+    TestTrue(TEXT("No queued opportunities show no dots"),LDHUD::OfferQueueDots(0).IsEmpty());
+    LDHUD::FOfferMotionTicket Ticket;
+    Ticket.Match=3;Ticket.Life=2;Ticket.Request=17;Ticket.Offer=FGuid(1,2,3,4);Ticket.Option=TEXT("active_a");
+    FLDBuildReceipt Receipt;
+    Receipt.Header.Generation=3;Receipt.Header.OriginalLife=2;Receipt.Header.RequestId=17;
+    Receipt.Header.Family=ELDGrowthFamily::Build;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    Receipt.Kind=ELDBuildCommandKind::ActiveChoice;Receipt.OfferId=Ticket.Offer;Receipt.DefinitionId=Ticket.Option;
+    Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=1;
+    TestTrue(TEXT("The chosen card animates for its applied learned receipt"),Ticket.Matches(Receipt,3,2));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;
+    TestTrue(TEXT("The chosen card may animate to the blueprint area"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
+    TestFalse(TEXT("A rejected receipt cannot animate success"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Header.RequestId=18;
+    TestFalse(TEXT("Another request cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.RequestId=17;Receipt.OfferId=FGuid(4,3,2,1);
+    TestFalse(TEXT("Another opportunity cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
+    Receipt.OfferId=Ticket.Offer;Receipt.DefinitionId=TEXT("active_b");
+    TestFalse(TEXT("Another skill cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
+    Receipt.DefinitionId=Ticket.Option;
+    TestFalse(TEXT("A prior life cannot animate after respawn"),Ticket.Matches(Receipt,3,3));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=3;
+    TestFalse(TEXT("A learned receipt without a valid skill slot cannot animate"),Ticket.Matches(Receipt,3,2));
+    Ticket.Kind=ELDBuildCommandKind::SkipActiveOffer;Ticket.Option=NAME_None;
+    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsAwarded=5;
+    TestTrue(TEXT("A skipped offer is consumed only by its matching applied receipt"),Ticket.Matches(Receipt,3,2));
+    Receipt.PointsAwarded=0;
+    TestFalse(TEXT("A skip receipt without its award does not confirm the opportunity"),Ticket.Matches(Receipt,3,2));
+    Receipt.PointsAwarded=5;Receipt.Header.RequestId=18;
+    TestFalse(TEXT("A different request cannot confirm the skipped offer"),Ticket.Matches(Receipt,3,2));
 
     // Component rows turn into icon tiles once they hold more than ChoiceTrayCardLimit cards together.
     FLDProgressionView View;View.bValid=true;View.Generation=3;

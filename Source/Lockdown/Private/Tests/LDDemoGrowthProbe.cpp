@@ -3309,6 +3309,10 @@ public:
             TEXT("The Host's attack killed the buyer: dead, no body, zero HP, a respawn time set and the next life's build projected"),
             FString::Printf(TEXT("life %u respawn at %lld hp %.0f, view hp=%lld max=%lld"), DeathLife, DeathRespawnAtMs, PC.OwnerState.Hp,
                 Own.HPP2, DeadMaxHPP2));
+        const int64 ExpectedWaitMs = RespawnMsNow(PC);
+        Check(Own.RespawnDurationMs > 0 && (ExpectedWaitMs <= 0 || Own.RespawnDurationMs == ExpectedWaitMs), TEXT("A14"),
+            TEXT("The real owner receives the server-fixed duration of its current respawn wait"),
+            FString::Printf(TEXT("duration=%lld expected=%lld"), Own.RespawnDurationMs, ExpectedWaitMs));
         // #198: the respawn wait and the respawn check fit in this segment, so no rest ends the wait or judges a dead step.
         const int64 SegmentEndsAtMs = FieldEndsAtMs(PC);
         Check(SegmentEndsAtMs >= 0 && (SegmentEndsAtMs == MAX_int64 || DeathRespawnAtMs
@@ -3443,6 +3447,7 @@ public:
             Check(Own.MaxHPP2 == GrownMaxHPP2 && Own.HPP2 == Own.MaxHPP2 && Own.MaxMPP2 > 0 && Own.MPP2 == Own.MaxMPP2, TEXT("A14"),
                 TEXT("The normal respawn restores full HP and MP at the maximum grown while dead"),
                 FString::Printf(TEXT("life %u hp %lld/%lld mp %lld/%lld"), PC.OwnerState.Life, Own.HPP2, Own.MaxHPP2, Own.MPP2, Own.MaxMPP2));
+            Check(Own.RespawnDurationMs == 0, TEXT("A14"), TEXT("The new life does not inherit the previous respawn wait"));
             const FLDCombatEntryView* E = CurrentEntry(PC, ELDCombatEntry::E);
             const FLDActiveSlotView* Learned = LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2);
             Check(Learned && Learned->DefinitionId == Option && View->Actives.Num() == 3 && View->PendingBlueprints.IsEmpty()

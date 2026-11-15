@@ -8,6 +8,7 @@
 class UTextBlock;
 class UBorder;
 class UImage;
+class UTexture2D;
 class USizeBox;
 class UVerticalBox;
 class UHorizontalBox;
@@ -191,6 +192,22 @@ private:
         TArray<TObjectPtr<UImage>> LinkIcons;
         bool bBig=false;
     };
+    struct FOfferGhost
+    {
+        FSlateRect Frame,Icon,NameBounds;
+        TWeakObjectPtr<UTexture2D> Texture;
+        FString Name,Glyph;
+        float NameSize=0.f;
+    };
+    struct FOfferMotion
+    {
+        LDHUD::FOfferMotionTicket Ticket;
+        FOfferGhost Chosen;
+        TArray<FOfferGhost> Others;
+        ELDBuildChoiceResult Result=ELDBuildChoiceResult::None;
+        uint8 Slot=0;
+        double StartedAt=-1.;
+    };
     // One pending elite component choice: its option cards and the empty-pool points card.
     struct FChoiceRow
     {
@@ -319,6 +336,9 @@ private:
     FGuid StageLeftFor;
     FGuid StageShownFor;
     double StageOpenedAt=-1.;
+    FOfferMotion OfferMotion;
+    FGuid ConfirmedOffer;
+    uint32 ConfirmedMatch=0,ConfirmedLife=0;
     int32 FinalSourcePick=INDEX_NONE;
     int32 TrainerBlueprint=0;
     bool bQuick=false;
@@ -384,6 +404,11 @@ private:
     void RefreshBlueprints();
     void RefreshRest();
     void UpdateStage();
+    bool ConfirmedOfferStillShown() const;
+    bool HasAvailableOffer() const;
+    bool OfferMotionActive() const;
+    void CaptureOfferMotion(int32 Index);
+    void PaintOfferMotion(const LDUIPaint::FContext& Paint) const;
     void PlanTrayPages(bool bTiles);
     bool TrayShows(ETrayGroup Group,int32 Index=0) const;
     void RefreshStage();
