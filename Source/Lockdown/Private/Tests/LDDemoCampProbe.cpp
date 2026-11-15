@@ -79,6 +79,16 @@ const FLDWorldView* CampCurrentFrame(const ALDPlayerController& Owner)
     return Read.Status == ELDObservedViewStatus::Current ? Read.Frame : nullptr;
 }
 
+bool CampSpeciesIs(uint8 Creature,ELDDemoMonsterId Reference)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Content;FString Error;
+    if(!LDDemoEntry::LoadRuntimeContent(Content,Error)||!Content){return false;}
+    const FLDDemoMonsterDefinition *A=nullptr,*B=nullptr;
+    for(const auto& M:Content->Get().Monsters)
+    {if(M.NativeId==Creature){A=&M;}if(M.NativeId==uint8(Reference)){B=&M;}}
+    return A && B && A->Tier==B->Tier;
+}
+
 const FLDObservedUnitView* NearestCreature(const FLDWorldView& Frame, ELDDemoMonsterId Creature, const FVector& Near)
 {
     const FLDObservedUnitView* Best = nullptr;
@@ -86,7 +96,7 @@ const FLDObservedUnitView* NearestCreature(const FLDWorldView& Frame, ELDDemoMon
     for (const FLDObservedUnitView& Unit : Frame.Units)
     {
         const double Distance = FVector::DistSquared2D(FVector(Unit.FeetCm), Near);
-        if (Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(Creature) && Distance <= BestDistance)
+        if (Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,Creature) && Distance <= BestDistance)
         {
             Best = &Unit;
             BestDistance = Distance;
@@ -110,6 +120,7 @@ public:
     int64 StartXP = -1;
     bool bArrived = false, bAtLowMarked = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
     bool bSawReturningCue = false, bCueShapeValid = true;
+    bool bFreshVerified = false;
     TSet<FGuid> SeenScavengers;
     // Fixture walking route to a camp approach (see Walk()).
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -406,7 +417,7 @@ public:
             {
                 if (Status.StatusId != uint8(ELDDemoStatusId::CampReturning)) { continue; }
                 bCueShapeValid &= Status.Stacks == 1 && Status.ExpiresAtServerMs == 0;
-                if (Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterGuardian))
+                if (CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterGuardian))
                 {
                     bSawReturningCue = true;
                     Guardian = &Unit;
@@ -445,7 +456,7 @@ public:
         {
             for (const FLDObservedUnitView& Unit : Frame->Units)
             {
-                if (Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
+                if (Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
                     && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && !bRewarded)
                 {
                     SeenScavengers.Add(Unit.Handle);
@@ -488,21 +499,42 @@ public:
         {
             for (const FLDObservedUnitView& Unit : Frame->Units)
             {
-                Fresh += Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
+                Fresh += Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
                     && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm
                     && !SeenScavengers.Contains(Unit.Handle) ? 1 : 0;
             }
         }
-        if (Fresh < 2 && Now - WatchSince < 5) { return true; }
-        Check(Fresh == 2, TEXT("#C7"), FString::Printf(
-            TEXT("The refreshed low camp presents two new member lives to this contender (%d new handles)"), Fresh));
+        if(!bFreshVerified)
+        {
+            if (Fresh < 3 && Now - WatchSince < 5) { return true; }
+            if(!Check(Fresh == 3, TEXT("#C7"), FString::Printf(
+                TEXT("The refreshed low camp presents three new member lives to this contender (%d new handles)"), Fresh))){return Finish();}
+            bFreshVerified=true;
+        }
+        // Let the rendered owner finish the intact three-member refresh screenshot before clearing it again.
+        if(!Exists(TEXT("Client2Done.json"))){return true;}
+        int64 WantXP=0;
+        if(!CampLowClearReward(WantXP)){return Fail(TEXT("#C10"),TEXT("The small-camp reward is unavailable"));}
+        const auto& Progress=Owner.OwnerState.Growth.Progression;
+        if(Progress.CumulativeXP-StartXP<2*WantXP || Progress.Level<2)
+        {
+            if(Frame && Now>=NextOrderAt && !Owner.Navigation->HasMoveOrder())
+            {
+                if(const auto* Target=NearestCreature(*Frame,ELDDemoMonsterId::MonsterScavenger,CampLowApproachCm))
+                {Owner.Navigation->AttackUnit(Target->Handle,Target->ObservationEpoch);NextOrderAt=Now+.5;}
+            }
+            return true;
+        }
+        if(!Check(Progress.Level==2,TEXT("#C10"),FString::Printf(
+            TEXT("Two complete small-camp clears with basic attacks reach level two through the owning reward projection (XP +%lld, level %d)"),
+            Progress.CumulativeXP-StartXP,Progress.Level))){return Finish();}
         if (!Mark(TEXT("Client1Done.json"))) { return Finish(); }
         Stage = 4;
         return true;
     }
 
     // Client2 leashes h05's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
-    // checks): the returning guardian with its name and cue, then the refreshed low pair with their names. Adjacent low
+    // checks): the returning middle camp with its name and cue, then the refreshed small trio with their names. Adjacent low
     // and high camps stand about 3057 cm apart, wider than any frame of the fixed camera, so each tier has its own shot.
     bool TickHighCamp(double Now, ALDPlayerController& Owner)
     {
@@ -578,15 +610,15 @@ public:
             {
                 for (const FLDObservedUnitView& Unit : Frame->Units)
                 {
-                    Shown += Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
+                    Shown += Unit.Kind == ELDObservedUnitKind::CampMember && CampSpeciesIs(Unit.CreatureId,ELDDemoMonsterId::MonsterScavenger)
                         && FVector::Dist2D(FVector(Unit.FeetCm), CampLowApproachCm) <= CampTargetSearchCm && CampOnScreen(Owner, Unit) ? 1 : 0;
                 }
             }
-            if (Shown < 2)
+            if (Shown < 3)
             {
                 if (Now - LowShotSince < 10) { return true; }
                 return Fail(TEXT("#C9"), FString::Printf(
-                    TEXT("The refreshed low pair never stood together in this owner's rendered view (%d shown)"), Shown));
+                    TEXT("The refreshed three-member small camp never stood together in this owner's rendered view (%d shown)"), Shown));
             }
             RequestShot(TEXT("CampLowPair.png"), Now);
             HighStep = EHighStep::Done;
@@ -730,7 +762,7 @@ public:
                 ++Living;
                 Engaged += Member.Brain.Phase == ELDCampBrainPhase::Engaged && bBody && Member.HostileSources.Contains(Body) ? 1 : 0;
             }
-            if (!Check(Living == 2 && Engaged == 2, TEXT("#C4"), FString::Printf(
+            if (!Check(Living == LowGroup.Members.Num() && Engaged == Living, TEXT("#C4"), FString::Printf(
                 TEXT("The first confirmed hit engaged every living low-camp member against the attacker (%d of %d)"), Engaged, Living)))
             { return Finish(); }
             bLowEngaged = true;
@@ -765,7 +797,7 @@ public:
                 Idle += Member.Brain.Phase == ELDCampBrainPhase::Idle && Member.HostileSources.IsEmpty() ? 1 : 0;
                 Placed += MemberFoot(Mode, Member, Foot) && FVector::Dist2D(Foot, Roster.Camps[Low].Members[Slot].HomeCm) <= CampHomePlacementCm ? 1 : 0;
             }
-            if (!Check(Alive == 2 && Placed == 2 && Idle == 2, TEXT("#C7"), FString::Printf(
+            if (!Check(Alive == LowGroup.Members.Num() && Placed == Alive && Idle == Alive, TEXT("#C7"), FString::Printf(
                 TEXT("The due refresh re-spawned the whole low camp as second lives at home (alive %d, placed %d, idle %d)"), Alive, Placed, Idle)))
             { return Finish(); }
             if (!Mark(TEXT("LowRefreshed.json"))) { return Finish(); }
@@ -791,7 +823,7 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Not AI, capture, full-match or balance acceptance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection camp scenario: a participating Listen Host and two owning clients started through the normal lobby. Covers no first strike, whole-camp retaliation, last-hit camp rewards, clear-then-refresh timing and a leashed return with an unrewarded home reset (#C1-#C7); the rendered Client2 keeps presentation screenshots without pixel comparison (#C9). Client1 clears a second full small camp using basic attacks and verifies level two through its reward projection (#C10). Not AI, capture, full-match or balance acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);

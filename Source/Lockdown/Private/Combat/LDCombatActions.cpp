@@ -12,6 +12,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
+#include "World/LDCampDirector.h"
 #include "Engine/World.h"
 
 namespace LDCA
@@ -176,6 +177,7 @@ void ALDCombatDirector::EndMatchActions()
 {
     Channels.Reset();
     GroundEffects.Reset();
+    MonsterStrikes.Reset();
     ContactMotion.Reset();
     FinalMotion.Reset();
     FinalTraffic.Reset();
@@ -643,8 +645,31 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
             if (bFault) { Error=TEXT("Camp attack sight failed on a registered body."); return false; }
             return Refuse(ELDCombatReject::Blocked);
         }
+        const FLDDemoMonsterDefinition* Monster=nullptr;
+        if(!Catalog()->FindMonster(Body->MonsterId.ToString(),Monster,Error)){return false;}
+        const auto& Skill=Monster->Skill;
+        bool Special=Skill.Pattern!=ELDMonsterPattern::Basic && Skill.Pattern!=ELDMonsterPattern::Enrage
+            && Skill.Every>0 && (Body->MonsterAttackCount+1)%Skill.Every==0;
+        double ChargeRange=LDCA::ToDouble(Skill.RangeCm);
+        if(Special && Skill.Pattern==ELDMonsterPattern::Charge && Mode->Camps)
+        {
+            int32 Camp=INDEX_NONE;const auto& State=Mode->Camps->GetState();
+            if(!State.FindLiving({Body->Victim,Body->Identity},&Camp)){Error=TEXT("Charge has no current camp member.");return false;}
+            const FVector Offset=Foot-State.GetRoster()->Camps[Camp].AnchorCm;
+            const double Leash=LDCA::ToDouble(Monster->LeashRadiusCm);
+            if(Offset.SizeSquared2D()>Leash*Leash)
+            {Special=false;} // A stranded member may strike, but cannot leave its hold-ground position.
+            else
+            {
+                const double Along=FVector::DotProduct(Offset,(TargetFoot-Foot).GetSafeNormal2D());
+                ChargeRange=FMath::Min(ChargeRange,FMath::Max(0.,-Along+FMath::Sqrt(FMath::Max(0.,Along*Along+Leash*Leash-Offset.SizeSquared2D()))));
+                Special=ChargeRange>UE_KINDA_SMALL_NUMBER; // No legal forward prefix means a normal strike, never a zero-length warning.
+            }
+        }
+        if(Special && (IsActionBlocked(*Body,ELDCombatControlAction::Cast)||IsActionBlocked(*Body,ELDCombatControlAction::Skill)))
+        {return Refuse(ELDCombatReject::ControlBlocked);}
         int64 ReleaseAt=0, NextAttack=0;
-        if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,Body->BasicTiming.WindupMs,ReleaseAt,Error)
+        if (Record.NextToken==MAX_uint64 || !LDMatchLifecycle::AddDurationMs(Now,Special?Skill.WindupMs:Body->BasicTiming.WindupMs,ReleaseAt,Error)
             || !LDMatchLifecycle::AddDurationMs(Now,Body->BasicTiming.IntervalMs,NextAttack,Error))
         { return false; }
         FLDCombatAction Action;
@@ -657,6 +682,31 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         Action.TargetBody=TargetRef;
         Action.StartedAtMs=Now;
         Action.ReleaseAtMs=ReleaseAt;
+        Action.bMonsterSpecial=Special;
+        if(Special){Action.Source.DefinitionId=Body->MonsterId;}
+        Action.Direction=(TargetFoot-Foot).GetSafeNormal2D();
+        Action.TargetPoint=TargetFoot;
+        if(Special)
+        {
+            auto Areas=LDMonsterRules::Areas(Skill,Body->CampStage,Foot,TargetFoot);
+            if(Skill.Pattern==ELDMonsterPattern::Charge){for(auto& Area:Areas){Area.Range=FMath::Min(Area.Range,ChargeRange);}}
+            if(Areas.IsEmpty()){Error=TEXT("A monster special has no executable shape.");return false;}
+            const int64 LastDelay=Areas.Last().DelayMs;
+            int64 LastAt=0,RecoverAt=0;
+            if(!LDMatchLifecycle::AddDurationMs(ReleaseAt,LastDelay,LastAt,Error)
+                || !LDMatchLifecycle::AddDurationMs(LastAt,Skill.RecoveryMs,RecoverAt,Error)){return false;}
+            NextAttack=FMath::Max(NextAttack,RecoverAt);
+            Body->MonsterRecoverUntilMs=RecoverAt;
+            for(const auto& Area:Areas)
+            {
+                FLDMonsterStrike Strike;
+                Strike.Key=FGuid::NewGuid();Strike.Area=Area;Strike.Token=Action.Token;
+                if(!LDMatchLifecycle::AddDurationMs(ReleaseAt,Area.DelayMs,Strike.AtMs,Error)){return false;}
+                Strike.Payload.SourceBody={Body->Victim,Body->Identity};
+                Strike.Payload.SourceEntity=Body->Victim.EntityId;
+                MonsterStrikes.Add(Strike);
+            }
+        }
         Body->Action=Action;
         Body->MonsterNextAttackAtMs=NextAttack;
         Body->LastCombatAtMs=Now;
@@ -791,7 +841,7 @@ bool ALDCombatDirector::ReleaseDue(const FLDGameplayWritePermit& Permit, FString
         {
             if (FLDBodyCombatState* After=Bodies.Find(Actor))
             {
-                After->Cues.bReleasedBasic=Action.Kind==ELDCombatActionKind::Basic;
+                After->Cues.bReleasedBasic=Action.Kind==ELDCombatActionKind::Basic && !Action.bMonsterSpecial;
                 After->Cues.ReleasedStartedAtMs=Action.StartedAtMs;
                 After->Cues.ReleasedAtMs=Now;
                 After->ReleasedSource=Action.Source;
@@ -848,6 +898,12 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     // LDCombatSourceRules::BasicReleaseGate): range gates only the start (StartNavAttack / camp admission). The release
     // re-checks the attacker's own control, that the exact target life still stands, and (a later 2026-11-07 decision)
     // that it is still observed and in clear sight; the windup already spent the cadence.
+    if(Action.bMonsterSpecial)
+    {
+        if(IsActionBlocked(Body,ELDCombatControlAction::Basic)||IsActionBlocked(Body,ELDCombatControlAction::Cast)||IsActionBlocked(Body,ELDCombatControlAction::Skill))
+        {Outcome=ELDCombatReject::ControlBlocked;FinishAction(Body,Outcome,false);return true;}
+        return ReleaseMonsterSkill(Actor,Body,Action,Outcome,Error);
+    }
     const FLDCombatBodyRef TargetRef=Action.TargetBody;
     ALDCharacter* TargetActor=nullptr;
     const FLDBodyCombatState* TargetBody=TargetRef.IsValid() ? FindBody(TargetRef,&TargetActor) : nullptr;
@@ -904,6 +960,13 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     Hit.DamageType=ELDDemoDamageType::Physical;
     Hit.ADRatioBp=Body.Victim.Kind==ELDVictimKind::Contender ? Content->Get().Character.BasicADRatioBp : LDCA::MonsterBasicADRatioBp;
     Hit.SourceADP2=Final.ADP2;
+    if(Body.Victim.Kind==ELDVictimKind::CampMember)
+    {
+        const FLDDemoMonsterDefinition* Monster=nullptr;
+        if(!Content->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
+        Body.MonsterAttackCount=Monster->Skill.Every>0?(Body.MonsterAttackCount+1)%Monster->Skill.Every:0;
+        if(Body.bMonsterEnraged){Hit.ADRatioBp+=Body.CampStage>=Monster->Skill.EvolveStage?Monster->Skill.EvolvedPassiveBp:Monster->Skill.PassiveBp;}
+    }
     Hit.SourceAPP2=Final.APP2;
     if (!StampSourceTerms(Body,Hit,Error) || !SnapshotOnHit(Body,10000,Hit,Error)) { return false; }
     // B14: only the primary basic's own AD package scales; the empowered packages added below never do.
@@ -1623,7 +1686,7 @@ bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBod
     Out.NextAttackAtMs=Ref.Victim.Kind==ELDVictimKind::Contender ? (Record ? Record->NextAttackAtMs : 0) : Body->MonsterNextAttackAtMs;
     Out.AttackRangeCm=LDCA::ToDouble(Body->AttributeProjection.Final.AttackRangeCm);
     Out.bAttackAllowed=!Body->bPendingDeath && !IsActionBlocked(*Body,ELDCombatControlAction::Basic);
-    Out.bMovementAllowed=!Body->bPendingDeath && !IsActionBlocked(*Body,ELDCombatControlAction::Move);
+    Out.bMovementAllowed=!Body->bPendingDeath && Now>=Body->MonsterRecoverUntilMs && !IsActionBlocked(*Body,ELDCombatControlAction::Move);
     Out.bBasicAttackReady=Out.bAttackAllowed && !Out.bActionInProgress && Now>=Out.NextAttackAtMs;
     return true;
 }

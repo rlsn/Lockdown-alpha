@@ -20,7 +20,7 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 # Each role must have reported every check it owns; a missing id is a failure, not a pass.
 $requiredChecks = @{
     Host = @('#C1','#C2','#C3','#C4','#C5','#C6','#C7')
-    Client1 = @('#C1','#C3','#C4','#C5','#C7')
+    Client1 = @('#C1','#C3','#C4','#C5','#C7','#C10')
     Client2 = @('#C1','#C6','#C9')
 }
 # Kept by the rendered Client2 for presentation review only: required as PNG files, never pixel-compared.

@@ -21,7 +21,7 @@ enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded, Objectiv
 UENUM()
 // Boss (#79 D26) is appended so earlier causes keep their wire values.
 // CampElite (#97) is appended so existing values keep their numbers.
-enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss, CampElite };
+enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss, CampElite, CampAncient };
 
 // D26 (#79): the public phase of the current airdrop. #198 outer §5: Expired (appended) = it lay unclaimed for
 // AIRDROP.ExpireSec of field progress after landing and is gone.
@@ -240,6 +240,7 @@ struct FLDKillNotice
     UPROPERTY() int64 OccurredAtMs = 0;
     // Contender cause with a rewarded killer only: the assisters of this death, sorted (public like the killer).
     UPROPERTY() TArray<FGuid> Assisters;
+    UPROPERTY() FString CreatureName;
 };
 
 // One contender's kills, deaths and assists so far, for the hold-Tab scoreboard. Public like the kill notices that move it.
@@ -297,13 +298,14 @@ struct FLDCaptureEligibilityEvent
     ELDKillCause KillCause = ELDKillCause::Unowned;
     // The locked fact's assisters (FLDCommittedDeath::Assisters); empty without a Contender cause.
     TArray<FGuid> Assisters;
+    FString CreatureName;
 };
 
 namespace LDCapture
 {
     inline constexpr int32 MaxKillNotices = 8;
     // Highest ELDKillCause wire value; causes are appended, so range checks compare against this.
-    inline constexpr ELDKillCause LastKillCause = ELDKillCause::CampElite;
+    inline constexpr ELDKillCause LastKillCause = ELDKillCause::CampAncient;
     // A match has at most this many contenders, so the scoreboard at most this many rows.
     inline constexpr int32 MaxScoreRows = 6;
     LOCKDOWN_API bool ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error);

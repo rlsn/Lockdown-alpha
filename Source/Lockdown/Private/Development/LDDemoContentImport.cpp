@@ -122,9 +122,20 @@ const FNativeId NativeIds[] =
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
     DEMO_ID("monsters", "monster_advisor", ELDDemoMonsterId, MonsterAdvisor),
+    DEMO_ID("monsters", "monster_promoter", ELDDemoMonsterId, MonsterPromoter),
+    DEMO_ID("monsters", "monster_courier", ELDDemoMonsterId, MonsterCourier),
+    DEMO_ID("monsters", "monster_agent", ELDDemoMonsterId, MonsterAgent),
+    DEMO_ID("monsters", "monster_guard", ELDDemoMonsterId, MonsterGuard),
+    DEMO_ID("monsters", "monster_auditor", ELDDemoMonsterId, MonsterAuditor),
+    DEMO_ID("monsters", "monster_client", ELDDemoMonsterId, MonsterClient),
+    DEMO_ID("monsters", "monster_director", ELDDemoMonsterId, MonsterDirector),
+    DEMO_ID("monsters", "monster_final_client", ELDDemoMonsterId, MonsterFinalClient),
+    DEMO_ID("monsters", "monster_property", ELDDemoMonsterId, MonsterProperty),
     DEMO_ID("statuses", "root", ELDDemoStatusId, Root),
     DEMO_ID("statuses", "shield", ELDDemoStatusId, Shield),
     DEMO_ID("statuses", "camp_returning", ELDDemoStatusId, CampReturning),
+    DEMO_ID("statuses", "camp_enraged", ELDDemoStatusId, CampEnraged),
+    DEMO_ID("statuses", "camp_guarding", ELDDemoStatusId, CampGuarding),
     DEMO_ID("statuses", "respawn_protection", ELDDemoStatusId, RespawnProtection),
     DEMO_ID("statuses", "slow", ELDDemoStatusId, Slow),
     DEMO_ID("statuses", "stat_boost", ELDDemoStatusId, StatBoost),
@@ -1997,20 +2008,63 @@ bool Components(const FValue& Value, TArray<FLDDemoComponentDefinition>& Out, co
     return true;
 }
 
+bool ValidateDisplayText(const FString& Text,bool bAllowDigits,FCheck& Check,const FString& Path);
+
+bool MonsterSkill(const FValue& Value, FLDDemoMonsterSkill& Out, FCheck& Check, const FString& Path)
+{
+    FFields F(Check, Value, Path);
+    FString Pattern;
+    const TCHAR* Names[] = {TEXT("Enrage"),TEXT("Cone"),TEXT("Charge"),TEXT("Projectile"),TEXT("Guard"),TEXT("Circle"),TEXT("SweepLine"),TEXT("EchoCircle"),TEXT("Fan"),TEXT("DoubleCircle"),TEXT("RotatingCone")};
+    if (!F.Text(TEXT("pattern"), Pattern)) { return false; }
+    int32 Index = INDEX_NONE;
+    for (int32 I=0; I<UE_ARRAY_COUNT(Names); ++I) { if (Pattern==Names[I]) { Index=I; break; } }
+    if (!Check.Require(Index!=INDEX_NONE,Path,TEXT("unknown monster attack pattern"))) { return false; }
+    Out.Pattern=static_cast<ELDMonsterPattern>(Index+1);
+    return F.Text(TEXT("name"),Out.Name)
+        && Check.Require(Out.Name.Len()<=64,Path,TEXT("monster skill name exceeds its display bound"))
+        && ValidateDisplayText(Out.Name,false,Check,Path)
+        && F.Int(TEXT("every"),Out.Every,1,100)
+        && F.Fixed(TEXT("windup"),TEXT("ms"),TEXT("ms"),Out.WindupMs,1)
+        && F.Fixed(TEXT("recovery"),TEXT("ms"),TEXT("ms"),Out.RecoveryMs,1)
+        && F.Fixed(TEXT("ratio"),TEXT("ratio"),TEXT("bp"),Out.RatioBp,1,22500)
+        && F.Fraction(TEXT("range"),TEXT("cm"),Out.RangeCm,true)
+        && F.Fraction(TEXT("radius"),TEXT("cm"),Out.RadiusCm,true)
+        && F.Int(TEXT("angle"),Out.AngleDegrees,1,180)
+        && F.Int(TEXT("pulses"),Out.Pulses,1,3)
+        && F.Fixed(TEXT("pulse_interval"),TEXT("ms"),TEXT("ms"),Out.PulseIntervalMs,1)
+        && F.Int(TEXT("pulse_angle"),Out.PulseAngleDegrees,0,120)
+        && F.Fraction(TEXT("offset"),TEXT("cm"),Out.OffsetCm)
+        && F.Fixed(TEXT("passive"),TEXT("ratio"),TEXT("bp"),Out.PassiveBp,0,10000)
+        && F.Fixed(TEXT("evolved_passive"),TEXT("ratio"),TEXT("bp"),Out.EvolvedPassiveBp,0,10000)
+        && F.Fixed(TEXT("low_hp_threshold"),TEXT("ratio"),TEXT("bp"),Out.LowHPThresholdBp,0,10000)
+        && F.Fixed(TEXT("low_hp_haste"),TEXT("ratio"),TEXT("bp"),Out.LowHPHasteBp,0,10000)
+        && F.Fixed(TEXT("guard_duration"),TEXT("ms"),TEXT("ms"),Out.GuardDurationMs,1)
+        && F.Int(TEXT("evolve_stage"),Out.EvolveStage,1,255)
+        && F.Int(TEXT("echo_stage"),Out.EchoStage,1,255)
+        && F.Fixed(TEXT("echo_delay"),TEXT("ms"),TEXT("ms"),Out.EchoDelayMs,1)
+        && F.Fixed(TEXT("echo_ratio"),TEXT("ratio"),TEXT("bp"),Out.EchoRatioBp,1,22500)
+        && F.Fixed(TEXT("evolved_slow"),TEXT("ratio"),TEXT("bp"),Out.EvolvedSlowBp,0,10000)
+        && F.Fixed(TEXT("evolved_slow_duration"),TEXT("ms"),TEXT("ms"),Out.EvolvedSlowMs,1)
+        && F.Fraction(TEXT("projectile_speed"),TEXT("cm/s"),Out.ProjectileSpeedCmPerSec,true)
+        && Check.Require(Out.RatioBp*Out.Pulses<=22500,Path,TEXT("monster skill exceeds its total damage budget"))
+        && F.Done();
+}
+
 bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, const FString& Path)
 {
     FFields F(Check, Value, Path);
     FString Tier;
     if (!NativeIdentity(F, TEXT("monsters"), Out.Id, Out.NativeId) || !F.Text(TEXT("tier"), Tier)
         || !Check.Require(Tier.Equals(TEXT("Low"), ESearchCase::CaseSensitive)
-            || Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive) || Tier.Equals(TEXT("Elite"), ESearchCase::CaseSensitive),
+            || Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive) || Tier.Equals(TEXT("Elite"), ESearchCase::CaseSensitive) || Tier==TEXT("Ancient"),
             Path, TEXT("unknown camp tier")))
     {
         return false;
     }
     Out.Tier = Tier.Equals(TEXT("Low"), ESearchCase::CaseSensitive) ? ELDDemoCampTier::Low
-        : Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive) ? ELDDemoCampTier::High : ELDDemoCampTier::Elite;
-    return F.Int(TEXT("count_per_camp"), Out.CountPerCamp, 1)
+        : Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive) ? ELDDemoCampTier::High : Tier==TEXT("Elite") ? ELDDemoCampTier::Elite : ELDDemoCampTier::Ancient;
+    return MonsterSkill(F.Take(TEXT("skill")), Out.Skill, Check, Path+TEXT(".skill"))
+        && F.Int(TEXT("count_per_camp"), Out.CountPerCamp, 1)
         && F.Fixed(TEXT("hp"), TEXT("hp"), TEXT("p2"), Out.HPP2, 1)
         && F.Fixed(TEXT("armor"), TEXT("points"), TEXT("p2"), Out.ArmorP2)
         && F.Fixed(TEXT("magic_resist"), TEXT("points"), TEXT("p2"), Out.MagicResistP2)
@@ -2287,8 +2341,8 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Identity(Check, F.Take(TEXT("identity")), TEXT("content.identity"));
     int64 Revision;
     if (!Identity.Int(TEXT("schema_version"), Revision, 2, 2)
-        || !Identity.Int(TEXT("handler_revision"), Revision, 7, 7)
-        || !Identity.Int(TEXT("projection_revision"), Revision, 7, 7))
+        || !Identity.Int(TEXT("handler_revision"), Revision, 8, 8)
+        || !Identity.Int(TEXT("projection_revision"), Revision, 8, 8))
     {
         return false;
     }
@@ -2337,7 +2391,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         return false;
     }
     FFields Camps(Check, F.Take(TEXT("camps")), TEXT("content.camps"));
-    if (!Definitions(Camps.Take(TEXT("monsters")), Out.Monsters, Check, TEXT("content.camps.monsters"), 3, 3, Monster))
+    if (!Definitions(Camps.Take(TEXT("monsters")), Out.Monsters, Check, TEXT("content.camps.monsters"), 12, 12, Monster))
     {
         return false;
     }
@@ -2566,8 +2620,8 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
         DigestBytes += FString::Printf(TEXT("0x%02x"), Identity.Root.Bytes[I]);
     }
     const FString ExpectedContent = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 7\n")
-        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 7\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
+        TEXT("#pragma once\n#define LD_DEMO_CONTENT_SCHEMA_VERSION 2\n#define LD_DEMO_CONTENT_HANDLER_REVISION 8\n")
+        TEXT("#define LD_DEMO_CONTENT_PROJECTION_REVISION 8\n#define LD_DEMO_CONTENT_PAYLOAD_SHA256 TEXT(\"%s\")\n")
         TEXT("#define LD_DEMO_CATALOG_SHA256 TEXT(\"%s\")\n#define LD_DEMO_CATALOG_DIGEST_BYTES {%s}\n"),
         *Identity.Content.ToHex(), *Identity.Root.ToHex(), *DigestBytes);
     const FTCHARToUTF8 UTF8(*ExpectedContent);
@@ -2610,8 +2664,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
     FFields Root(Check, ManifestValue, TEXT("manifest"));
     if (!Root.Literal(TEXT("format"), TEXT("lockdown-demo-content"))
         || !Root.SmallInt(TEXT("schema_version"), Out.SchemaVersion, 2, 2)
-        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 7, 7)
-        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 7, 7)
+        || !Root.SmallInt(TEXT("handler_revision"), Out.HandlerRevision, 8, 8)
+        || !Root.SmallInt(TEXT("projection_revision"), Out.ProjectionRevision, 8, 8)
         || !Root.Digest(TEXT("author_schema_sha256"), Out.AuthorSchema)
         || !Root.Digest(TEXT("native_ids_sha256"), Out.NativeIds)
         || !Root.Digest(TEXT("native_contract_sha256"), Out.NativeContract)

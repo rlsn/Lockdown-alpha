@@ -107,33 +107,8 @@
     "component_set_it_off": 62,
     "component_meet_here": 63
   },
-  "monsters": {
-    "monster_scavenger": 1,
-    "monster_guardian": 2,
-    "monster_dean": 3,
-    "monster_advisor": 4
-  },
-  "statuses": {
-    "root": 1,
-    "shield": 2,
-    "camp_returning": 3,
-    "respawn_protection": 4,
-    "slow": 5,
-    "stat_boost": 6,
-    "exposed": 9,
-    "taunt": 10,
-    "disarm": 12,
-    "stun": 13,
-    "empowered": 14,
-    "knockback": 20,
-    "silence": 25,
-    "burn": 26,
-    "attack_slowed": 27,
-    "wet": 30,
-    "electrified": 31,
-    "braced": 32,
-    "soured": 33
-  },
+  "monsters": {"monster_scavenger": 1, "monster_guardian": 2, "monster_dean": 3, "monster_advisor": 4, "monster_promoter": 5, "monster_courier": 6, "monster_agent": 7, "monster_guard": 8, "monster_auditor": 9, "monster_client": 10, "monster_director": 11, "monster_final_client": 12, "monster_property": 13},
+  "statuses": {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4, "slow": 5, "stat_boost": 6, "exposed": 9, "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14, "knockback": 20, "silence": 25, "burn": 26, "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32, "soured": 33, "camp_enraged": 34, "camp_guarding": 35},
   "effect_ops": {
     "damage": 1,
     "shield": 2,

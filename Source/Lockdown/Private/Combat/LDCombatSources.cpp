@@ -1165,6 +1165,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->MpRegenMicroP2=0;
     Body->LastCombatAtMs=0;
     Body->MonsterNextAttackAtMs=0;
+    Body->MonsterAttackCount=0;Body->bMonsterEnraged=false;Body->MonsterGuardUntilMs=0;Body->MonsterRecoverUntilMs=0;
     Body->ResetThroughEpoch=Prepared.Input.ReturnEpoch;
     FString Error;
     if (!RefreshTemporary(*Body,nullptr,Mode->GetAuthorityNowMs(),Error))

@@ -274,11 +274,11 @@ class ApprovedDemoData(unittest.TestCase):
                      "2026-11-09 #144 equipment, gold and shops removed", "#225: PK +50%",
                      "2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据"):
             self.assertIn(text, approval["decision"])
-        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (22, 5, 3))
+        self.assertEqual((len(self.data["abilities"]), len(self.data["stats"]), len(self.data["camps"]["monsters"])), (22, 5, 12))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(ACTIVE_IDS))
         self.assertFalse({"attributes", "opening_cards"} & set(self.data))
         self.assertEqual((self.data["identity"]["schema_version"], self.data["identity"]["handler_revision"],
-                          self.data["identity"]["projection_revision"]), (2, 7, 7))
+                          self.data["identity"]["projection_revision"]), (2, 8, 8))
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1334)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
@@ -424,7 +424,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14,
                                            "knockback": 20, "silence": 25, "burn": 26,
                                            "attack_slowed": 27, "wet": 30, "electrified": 31, "braced": 32,
-                                           "soured": 33})
+                                           "soured": 33, "camp_enraged": 34, "camp_guarding": 35})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5, "lifesteal": 7, "dash": 8,
             "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15,
@@ -482,6 +482,10 @@ class ApprovedDemoData(unittest.TestCase):
             "final_traffic": "交通管制", "final_split": "一分为二",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
+            "monster_promoter":"拉群的地推", "monster_courier":"催单的骑手", "monster_agent":"带你看房的中介", "monster_guard":"轮班的保安",
+            "monster_auditor":"突击检查的审计", "monster_client":"要你改稿的甲方", "monster_director":"年终绩效总监",
+            "monster_final_client":"终审大甲方", "monster_property":"坐镇的物业主任",
+            "camp_enraged":"同事离职", "camp_guarding":"正面防守",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
             "slow": "减速", "stat_boost": "增益", "exposed": "破防",
             "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
@@ -869,9 +873,10 @@ class ApprovedDemoData(unittest.TestCase):
                          (80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360))
         self.assertEqual((self.data["progression"]["max_level"], self.data["progression"]["active_slots"]), (16, 3))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 1250),
-            ("monster_guardian", "High", 1, 630, 20, 72, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 1539),
+            ("monster_scavenger", "Low", 3, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 14, 1250),
+            ("monster_guardian", "High", 2, 315, 20, 36, ".65", 500, 175, 260, 1050, 4000, 65000, 40, 1539),
             ("monster_advisor", "Elite", 1, 1350, 30, 90, ".60", 500, 175, 260, 1050, 4000, 90000, 180, 1667),
+            ("monster_director", "Ancient", 1, 2100, 40, 130, ".55", 500, 175, 260, 1050, 4000, 120000, 300, 1819),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"]), (tier, count, xp))

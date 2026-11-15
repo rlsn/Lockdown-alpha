@@ -177,7 +177,19 @@ const FLDArtAnimation* FLDArtCharacter::Find(ELDArtAnim State) const
 
 const FLDArtCharacter* FLDArtResolved::ForSeat(uint8 Seat) const { return Seat < LDArt::SeatCount ? Seats[Seat] : nullptr; }
 
-const FLDArtCharacter* FLDArtResolved::ForMonster(uint8 CreatureId) const { return Monsters.FindRef(CreatureId); }
+const FLDArtCharacter* FLDArtResolved::ForMonster(uint8 CreatureId) const
+{
+    switch(static_cast<ELDDemoMonsterId>(CreatureId))
+    {
+    case ELDDemoMonsterId::MonsterPromoter:case ELDDemoMonsterId::MonsterCourier: CreatureId=uint8(ELDDemoMonsterId::MonsterScavenger);break;
+    case ELDDemoMonsterId::MonsterAgent:case ELDDemoMonsterId::MonsterGuard: CreatureId=uint8(ELDDemoMonsterId::MonsterGuardian);break;
+    case ELDDemoMonsterId::MonsterAuditor:case ELDDemoMonsterId::MonsterClient:
+    case ELDDemoMonsterId::MonsterDirector:case ELDDemoMonsterId::MonsterFinalClient:case ELDDemoMonsterId::MonsterProperty:
+        CreatureId=uint8(ELDDemoMonsterId::MonsterAdvisor);break;
+    default:break;
+    }
+    return Monsters.FindRef(CreatureId);
+}
 
 bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
 {

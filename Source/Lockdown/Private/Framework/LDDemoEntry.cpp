@@ -16,6 +16,7 @@
 #if __has_include("../Development/LDDemoContentContract.h") && __has_include("../World/LDDemoWorldContract.h")
 #include "../Development/LDDemoContentContract.h"
 #include "../World/LDDemoWorldContract.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #define LD_HAS_DEMO_CONTRACT 1
 #else
 #define LD_HAS_DEMO_CONTRACT 0
@@ -98,15 +99,34 @@ bool LoadApprovedContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString&
     FString DigestHex;
     FLDDemoContentDigest Expected;
     TSharedPtr<const FLDDemoContentSnapshot> Loaded;
-    if (!LDDemoEntry::VerifyPayloadFiles(Error, &DigestHex) || !FLDDemoContentDigest::ParseHex(DigestHex, Expected, Error)
-        || !ULDDemoContentCatalog::Load(Expected, Loaded, Error) || !LDDemoContentText::Register(*Loaded, Error))
     {
-        return false;
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDContent_VerifyPayloadFiles);
+        if (!LDDemoEntry::VerifyPayloadFiles(Error, &DigestHex) || !FLDDemoContentDigest::ParseHex(DigestHex, Expected, Error))
+        {
+            return false;
+        }
+    }
+    if (LDDemoEntry::ReusesApprovedContent(GIsEditor, ApprovedContent().Get(), Expected)) { Loaded = ApprovedContent(); }
+    else
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDContent_CatalogLoad);
+        if (!ULDDemoContentCatalog::Load(Expected, Loaded, Error)) { return false; }
+    }
+    {
+        // Runs for a kept snapshot too: a foreign table under the DemoContent ID still refuses the entry.
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDContent_TextRegister);
+        if (!LDDemoContentText::Register(*Loaded, Error)) { return false; }
     }
     ApprovedContent() = Loaded;
     Out = MoveTemp(Loaded);
     return true;
 }
+}
+
+bool LDDemoEntry::ReusesApprovedContent(bool bEditorProcess, const FLDDemoContentSnapshot* Verified,
+    const FLDDemoContentDigest& ExpectedRoot)
+{
+    return !bEditorProcess && Verified && Verified->Get().Identity.Root == ExpectedRoot;
 }
 
 bool LDDemoEntry::ValidateSelection(const FString& PackageName, const FString& Options, FString& Error)
@@ -185,7 +205,7 @@ bool LDDemoEntry::LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& O
         return true;
     }
 #endif
-    // Spawn and respawn reuse the verified snapshot; entry checks explicitly reload and validate it.
+    // Spawn and respawn reuse the verified snapshot; entry checks rehash the payload files first (LoadApprovedContent).
     if (!IsInGameThread())
     {
         Error = TEXT("Approved Demo content is only read on the game thread.");
@@ -215,8 +235,8 @@ bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)
         }
     }
 #if LD_HAS_DEMO_CONTRACT
-    if (LD_DEMO_CONTENT_SCHEMA_VERSION != 2 || LD_DEMO_CONTENT_HANDLER_REVISION != 7
-        || LD_DEMO_CONTENT_PROJECTION_REVISION != 7 || LD_DEMO_WORLD_SCHEMA_VERSION < 3
+    if (LD_DEMO_CONTENT_SCHEMA_VERSION != 2 || LD_DEMO_CONTENT_HANDLER_REVISION != 8
+        || LD_DEMO_CONTENT_PROJECTION_REVISION != 8 || LD_DEMO_WORLD_SCHEMA_VERSION < 3
         || LD_DEMO_WORLD_SCHEMA_VERSION > 4 || LD_DEMO_WORLD_PROJECTION_REVISION != LD_DEMO_WORLD_SCHEMA_VERSION)
     {
         Error = TEXT("不支持的 Demo 内容/世界 schema。请重新生成已批准的输入，并与原生代码一起重新构建。");

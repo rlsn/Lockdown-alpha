@@ -27,7 +27,7 @@ struct FLDCombatSourceRef
 {
     GENERATED_BODY()
     UPROPERTY() ELDCombatSourceKind Kind=ELDCombatSourceKind::None;
-    UPROPERTY() FName DefinitionId;   // ability or equipment id; None for Basic; LDCombatSourceRules::InnateDashId for Innate
+    UPROPERTY() FName DefinitionId;   // ability or equipment id; None for contender Basic, creature definition for a monster skill; LDCombatSourceRules::InnateDashId for Innate
     bool operator==(const FLDCombatSourceRef& Other) const
     { return Kind==Other.Kind && DefinitionId==Other.DefinitionId; }
     bool operator!=(const FLDCombatSourceRef& Other) const { return !(*this==Other); }

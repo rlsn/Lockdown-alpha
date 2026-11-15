@@ -286,9 +286,7 @@ FLinearColor HudIconTint(EHudIconTint Tint)
 void HudCampNames(const FLDDemoContentDefinitions* Content,FString& Low,FString& High,FString& Elite,FString& Boss)
 {
     Low=LDTerms::CampLow;High=LDTerms::CampHigh;Elite=LDTerms::CampElite;Boss=LDTerms::Boss;
-    if(Content){for(const FLDDemoMonsterDefinition& Monster:Content->Monsters)
-    {(Monster.Tier==ELDDemoCampTier::Low?Low:Monster.Tier==ELDDemoCampTier::High?High:Monster.Tier==ELDDemoCampTier::Elite?Elite:Boss)
-        =LDHUD::ContentName(Content,Monster.Id);}}
+    if(Content){Boss=LDHUD::ContentName(Content,Content->Boss.Id);}
 }
 }
 

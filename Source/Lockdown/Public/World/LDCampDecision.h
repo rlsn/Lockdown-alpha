@@ -36,6 +36,7 @@ struct FLDCampDecisionInput
     FVector CampAnchorFootCm = FVector::ZeroVector;
     FLDCampHome MemberHome;
     FLDCampBrain Brain;
+    FName MonsterId;
     bool bObservationComplete = false;
     bool MovementAllowed = false;
     bool AttackAllowed = false;

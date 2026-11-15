@@ -362,6 +362,23 @@ def parameter_projection(parameters):
     return result
 
 
+def monster_skill(row=None):
+    patterns=("Basic","Enrage","Cone","Charge","Projectile","Guard","Circle","SweepLine","EchoCircle","Fan","DoubleCircle","RotatingCone")
+    result={"Name":"", "Pattern":0}
+    for source,dest in (("every","Every"),("angle","AngleDegrees"),("pulses","Pulses"),("pulse_angle","PulseAngleDegrees"),
+                        ("evolve_stage","EvolveStage"),("echo_stage","EchoStage")):
+        result[dest]=row[source] if row else 0
+    for source,dest in (("windup","WindupMs"),("recovery","RecoveryMs"),("ratio","RatioBp"),("pulse_interval","PulseIntervalMs"),
+                        ("passive","PassiveBp"),("evolved_passive","EvolvedPassiveBp"),("guard_duration","GuardDurationMs"),
+                        ("echo_delay","EchoDelayMs"),("echo_ratio","EchoRatioBp"),("evolved_slow","EvolvedSlowBp"),
+                        ("evolved_slow_duration","EvolvedSlowMs"),("low_hp_threshold","LowHPThresholdBp"),("low_hp_haste","LowHPHasteBp")):
+        result[dest]=scalar(row[source]) if row else 0
+    for source,dest in (("range","RangeCm"),("radius","RadiusCm"),("offset","OffsetCm"),("projectile_speed","ProjectileSpeedCmPerSec")):
+        result[dest]=rational(row[source]) if row else rational()
+    if row:result.update(Name=row["name"],Pattern=patterns.index(row["pattern"]))
+    return result
+
+
 def expected_projection(compilation):
     """Independent named-member assertions, not source JSON/hash-only assertions."""
     data = json.loads(compilation.outputs[demo.CONTENT_OUTPUT])
@@ -441,7 +458,7 @@ def expected_projection(compilation):
         } for row in data["display"]],
     }
     for row in data["camps"]["monsters"]:
-        monster = {"Id": row["id"], "NativeId": row["native_id"], "Tier": {"Low": 0, "High": 1, "Elite": 3}[row["tier"]]}
+        monster = {"Id": row["id"], "NativeId": row["native_id"], "Tier": {"Low": 0, "High": 1, "Elite": 3, "Ancient": 4}[row["tier"]]}
         for source, dest in (
             ("count_per_camp", "CountPerCamp"), ("attack_interval_ms", "AttackIntervalMs"), ("reward_xp", "RewardXP"),
         ):
@@ -458,6 +475,7 @@ def expected_projection(compilation):
             ("hp_regen", "HPRegenPerSec"), ("mp_regen", "MPRegenPerSec"),
         ):
             monster[dest] = rational(row[source])
+        monster["Skill"]=monster_skill(row["skill"])
         result["Monsters"].append(monster)
     # D26 (#79): the Boss block is its rules plus one Boss-tier monster row after the camp tiers.
     boss = data["boss"]
@@ -466,7 +484,7 @@ def expected_projection(compilation):
     result["Boss"] = {"Id": boss["id"], "AppearAtMs": scalar(boss["appear_at"]), "LeaveAtMs": scalar(boss["leave_at"]),
                       "AggroRadiusCm": rational(boss["aggro_radius"]), "AttackerMemoryMs": scalar(boss["attacker_memory"])}
     result["Monsters"].append({
-        "Id": boss["id"], "NativeId": boss["native_id"], "Tier": 2, "CountPerCamp": 1, "AttackIntervalMs": interval,
+        "Id": boss["id"], "NativeId": boss["native_id"], "Tier": 2, "CountPerCamp": 1, "Skill":monster_skill(), "AttackIntervalMs": interval,
         "RewardXP": boss["reward_xp"], "HPP2": scalar(boss["hp"]), "ArmorP2": scalar(boss["armor"]),
         "MagicResistP2": scalar(boss["magic_resist"]), "AttackP2": scalar(boss["attack"]), "AttackWindupMs": scalar(boss["attack_windup"]),
         "LoseTargetGraceMs": scalar(boss["attacker_memory"]), "RespawnMs": 0, "MaxMPP2": 0, "APP2": 0, "CritChanceBp": 0,
@@ -861,6 +879,9 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     bad_content("nonreduced_rational", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"numerator": 1000, "denominator": 2}), "not reduced")
     bad_content("zero_denominator", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"denominator": 0}), "integer outside")
     bad_content("wrong_monster", lambda d: d["camps"]["placements"][0].update({"monster_id": "monster_missing"}), "camp/monster")
+    bad_content("bad_monster_pattern", lambda d: d["camps"]["monsters"][0]["skill"].update(pattern="Unknown"), "unknown monster attack pattern")
+    bad_content("bad_monster_budget", lambda d: d["camps"]["monsters"][0]["skill"].update(pulses=2,ratio={"unit":"ratio","bp":22500}), "total damage budget")
+    bad_content("bad_monster_pool", lambda d: d["camps"]["monsters"][0].update(reward_xp=99), "inconsistent camp pool")
     bad_content("bad_perception", lambda d: d["camps"]["monsters"][0]["perception_radius"].update({"numerator": 301}), "perception")
     bad_content("bad_world_ref", lambda d: d["world"]["camp_ids"].__setitem__(-1, "z_missing"), "anchor reference")
     bad_content("duplicate_world_ref", lambda d: d["world"]["spawn_ids"].__setitem__(1, d["world"]["spawn_ids"][0]), "duplicate")

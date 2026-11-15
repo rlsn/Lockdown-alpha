@@ -6,7 +6,7 @@
   "geometry_revision": 11,
   "approval": {
     "status": "approved",
-    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check."
+    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.; #238 approved 18/10/4/2 tiers, HR x3, trainer x2 and h09/h11 ancient camps; original anchor transforms retained."
   },
   "coordinate_unit": "cm",
   "geometry": {
@@ -5092,35 +5092,43 @@
     },
     {
       "id": "h01", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 2605, "y": 1385, "z": 50},
-      "members": [{"id": "h01_0", "position_cm": {"x": 2605, "y": 1385, "z": 50}}]
+      "members": [{"id": "h01_0", "position_cm": {"x": 2605, "y": 1385, "z": 50}},
+ {"id": "h01_1", "position_cm": {"x": 2605, "y": 1505, "z": 50}}]
     },
     {
       "id": "h02", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -2628, "y": -1339, "z": 50},
-      "members": [{"id": "h02_0", "position_cm": {"x": -2628, "y": -1339, "z": 50}}]
+      "members": [{"id": "h02_0", "position_cm": {"x": -2628, "y": -1339, "z": 50}},
+ {"id": "h02_1", "position_cm": {"x": -2628, "y": -1219, "z": 50}}]
     },
     {
       "id": "h03", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -634, "y": 2983, "z": 0},
-      "members": [{"id": "h03_0", "position_cm": {"x": -634, "y": 2983, "z": 0}}]
+      "members": [{"id": "h03_0", "position_cm": {"x": -634, "y": 2983, "z": 0}},
+ {"id": "h03_1", "position_cm": {"x": -634, "y": 3103, "z": 0}}]
     },
     {
       "id": "h04", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 624, "y": -2934, "z": 0},
-      "members": [{"id": "h04_0", "position_cm": {"x": 624, "y": -2934, "z": 0}}]
+      "members": [{"id": "h04_0", "position_cm": {"x": 624, "y": -2934, "z": 0}},
+ {"id": "h04_1", "position_cm": {"x": 624, "y": -2814, "z": 0}}]
     },
     {
       "id": "h05", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1805, "y": 592, "z": 0},
-      "members": [{"id": "h05_0", "position_cm": {"x": 1805, "y": 592, "z": 0}}]
+      "members": [{"id": "h05_0", "position_cm": {"x": 1805, "y": 592, "z": 0}},
+ {"id": "h05_1", "position_cm": {"x": 1805, "y": 712, "z": 0}}]
     },
     {
       "id": "h06", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1478, "y": 1762, "z": 0},
-      "members": [{"id": "h06_0", "position_cm": {"x": 1478, "y": 1762, "z": 0}}]
+      "members": [{"id": "h06_0", "position_cm": {"x": 1478, "y": 1762, "z": 0}},
+ {"id": "h06_1", "position_cm": {"x": 1478, "y": 1882, "z": 0}}]
     },
     {
       "id": "h07", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1985, "y": -558, "z": 0},
-      "members": [{"id": "h07_0", "position_cm": {"x": -1985, "y": -558, "z": 0}}]
+      "members": [{"id": "h07_0", "position_cm": {"x": -1985, "y": -558, "z": 0}},
+ {"id": "h07_1", "position_cm": {"x": -1985, "y": -438, "z": 0}}]
     },
     {
       "id": "h08", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1192, "y": -1908, "z": 0},
-      "members": [{"id": "h08_0", "position_cm": {"x": -1192, "y": -1908, "z": 0}}]
+      "members": [{"id": "h08_0", "position_cm": {"x": -1192, "y": -1908, "z": 0}},
+ {"id": "h08_1", "position_cm": {"x": -1192, "y": -1788, "z": 0}}]
     },
     {
       "id": "h09", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4500, "y": 3320, "z": 100},
@@ -5128,7 +5136,8 @@
     },
     {
       "id": "h10", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -3320, "y": 4500, "z": 100},
-      "members": [{"id": "h10_0", "position_cm": {"x": -3320, "y": 4500, "z": 100}}]
+      "members": [{"id": "h10_0", "position_cm": {"x": -3320, "y": 4500, "z": 100}},
+ {"id": "h10_1", "position_cm": {"x": -3320, "y": 4620, "z": 100}}]
     },
     {
       "id": "h11", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -4500, "y": -3320, "z": 100},
@@ -5136,79 +5145,98 @@
     },
     {
       "id": "h12", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 3320, "y": -4500, "z": 100},
-      "members": [{"id": "h12_0", "position_cm": {"x": 3320, "y": -4500, "z": 100}}]
+      "members": [{"id": "h12_0", "position_cm": {"x": 3320, "y": -4500, "z": 100}},
+ {"id": "h12_1", "position_cm": {"x": 3320, "y": -4380, "z": 100}}]
     },
     {
       "id": "l03", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1675, "y": 2901, "z": 0},
-      "members": [{"id": "l03_0", "position_cm": {"x": 1606, "y": 2941, "z": 0}}, {"id": "l03_1", "position_cm": {"x": 1744, "y": 2861, "z": 0}}]
+      "members": [{"id": "l03_0", "position_cm": {"x": 1606, "y": 2941, "z": 0}}, {"id": "l03_1", "position_cm": {"x": 1744, "y": 2861, "z": 0}},
+ {"id": "l03_2", "position_cm": {"x": 1615, "y": 2797, "z": 0}}]
     },
     {
       "id": "l04", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1773, "y": 1139, "z": 0},
-      "members": [{"id": "l04_0", "position_cm": {"x": -1816, "y": 1072, "z": 0}}, {"id": "l04_1", "position_cm": {"x": -1730, "y": 1206, "z": 0}}]
+      "members": [{"id": "l04_0", "position_cm": {"x": -1816, "y": 1072, "z": 0}}, {"id": "l04_1", "position_cm": {"x": -1730, "y": 1206, "z": 0}},
+ {"id": "l04_2", "position_cm": {"x": -1672, "y": 1074, "z": 0}}]
     },
     {
       "id": "l05", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -3060, "y": 1363, "z": 0},
-      "members": [{"id": "l05_0", "position_cm": {"x": -3093, "y": 1290, "z": 0}}, {"id": "l05_1", "position_cm": {"x": -3027, "y": 1436, "z": 0}}]
+      "members": [{"id": "l05_0", "position_cm": {"x": -3093, "y": 1290, "z": 0}}, {"id": "l05_1", "position_cm": {"x": -3027, "y": 1436, "z": 0}},
+ {"id": "l05_2", "position_cm": {"x": -2951, "y": 1314, "z": 0}}]
     },
     {
       "id": "l08", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1490, "y": -3056, "z": 0},
-      "members": [{"id": "l08_0", "position_cm": {"x": -1418, "y": -3091, "z": 0}}, {"id": "l08_1", "position_cm": {"x": -1562, "y": -3021, "z": 0}}]
+      "members": [{"id": "l08_0", "position_cm": {"x": -1418, "y": -3091, "z": 0}}, {"id": "l08_1", "position_cm": {"x": -1562, "y": -3021, "z": 0}},
+ {"id": "l08_2", "position_cm": {"x": -1438, "y": -2948, "z": 0}}]
     },
     {
       "id": "l09", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1261, "y": -2276, "z": 0},
-      "members": [{"id": "l09_0", "position_cm": {"x": 1331, "y": -2237, "z": 0}}, {"id": "l09_1", "position_cm": {"x": 1191, "y": -2315, "z": 0}}]
+      "members": [{"id": "l09_0", "position_cm": {"x": 1331, "y": -2237, "z": 0}}, {"id": "l09_1", "position_cm": {"x": 1191, "y": -2315, "z": 0}},
+ {"id": "l09_2", "position_cm": {"x": 1203, "y": -2171, "z": 0}}]
     },
     {
       "id": "l10", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 2966, "y": -1438, "z": 0},
-      "members": [{"id": "l10_0", "position_cm": {"x": 3001, "y": -1366, "z": 0}}, {"id": "l10_1", "position_cm": {"x": 2931, "y": -1510, "z": 0}}]
+      "members": [{"id": "l10_0", "position_cm": {"x": 3001, "y": -1366, "z": 0}}, {"id": "l10_1", "position_cm": {"x": 2931, "y": -1510, "z": 0}},
+ {"id": "l10_2", "position_cm": {"x": 2858, "y": -1386, "z": 0}}]
     },
     {
       "id": "l11", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -4200, "y": 4200, "z": 100},
-      "members": [{"id": "l11_0", "position_cm": {"x": -4257, "y": 4143, "z": 100}}, {"id": "l11_1", "position_cm": {"x": -4143, "y": 4257, "z": 100}}]
+      "members": [{"id": "l11_0", "position_cm": {"x": -4257, "y": 4143, "z": 100}}, {"id": "l11_1", "position_cm": {"x": -4143, "y": 4257, "z": 100}},
+ {"id": "l11_2", "position_cm": {"x": -4115, "y": 4115, "z": 100}}]
     },
     {
       "id": "l12", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4200, "y": -4200, "z": 100},
-      "members": [{"id": "l12_0", "position_cm": {"x": 4257, "y": -4143, "z": 100}}, {"id": "l12_1", "position_cm": {"x": 4143, "y": -4257, "z": 100}}]
+      "members": [{"id": "l12_0", "position_cm": {"x": 4257, "y": -4143, "z": 100}}, {"id": "l12_1", "position_cm": {"x": 4143, "y": -4257, "z": 100}},
+ {"id": "l12_2", "position_cm": {"x": 4115, "y": -4115, "z": 100}}]
     },
     {
       "id": "l13", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -850, "y": 4302, "z": 100},
-      "members": [{"id": "l13_0", "position_cm": {"x": -928, "y": 4286, "z": 100}}, {"id": "l13_1", "position_cm": {"x": -772, "y": 4318, "z": 100}}]
+      "members": [{"id": "l13_0", "position_cm": {"x": -928, "y": 4286, "z": 100}}, {"id": "l13_1", "position_cm": {"x": -772, "y": 4318, "z": 100}},
+ {"id": "l13_2", "position_cm": {"x": -826, "y": 4184, "z": 100}}]
     },
     {
       "id": "l14", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 881, "y": 4227, "z": 100},
-      "members": [{"id": "l14_0", "position_cm": {"x": 803, "y": 4243, "z": 100}}, {"id": "l14_1", "position_cm": {"x": 959, "y": 4211, "z": 100}}]
+      "members": [{"id": "l14_0", "position_cm": {"x": 803, "y": 4243, "z": 100}}, {"id": "l14_1", "position_cm": {"x": 959, "y": 4211, "z": 100}},
+ {"id": "l14_2", "position_cm": {"x": 857, "y": 4109, "z": 100}}]
     },
     {
       "id": "l15", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -851, "y": -4314, "z": 100},
-      "members": [{"id": "l15_0", "position_cm": {"x": -773, "y": -4329, "z": 100}}, {"id": "l15_1", "position_cm": {"x": -929, "y": -4299, "z": 100}}]
+      "members": [{"id": "l15_0", "position_cm": {"x": -773, "y": -4329, "z": 100}}, {"id": "l15_1", "position_cm": {"x": -929, "y": -4299, "z": 100}},
+ {"id": "l15_2", "position_cm": {"x": -828, "y": -4196, "z": 100}}]
     },
     {
       "id": "l16", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1548, "y": -4150, "z": 100},
-      "members": [{"id": "l16_0", "position_cm": {"x": 1623, "y": -4122, "z": 100}}, {"id": "l16_1", "position_cm": {"x": 1473, "y": -4178, "z": 100}}]
+      "members": [{"id": "l16_0", "position_cm": {"x": 1623, "y": -4122, "z": 100}}, {"id": "l16_1", "position_cm": {"x": 1473, "y": -4178, "z": 100}},
+ {"id": "l16_2", "position_cm": {"x": 1506, "y": -4038, "z": 100}}]
     },
     {
       "id": "l17", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -4265, "y": -1513, "z": 100},
-      "members": [{"id": "l17_0", "position_cm": {"x": -4238, "y": -1588, "z": 100}}, {"id": "l17_1", "position_cm": {"x": -4292, "y": -1438, "z": 100}}]
+      "members": [{"id": "l17_0", "position_cm": {"x": -4238, "y": -1588, "z": 100}}, {"id": "l17_1", "position_cm": {"x": -4292, "y": -1438, "z": 100}},
+ {"id": "l17_2", "position_cm": {"x": -4152, "y": -1472, "z": 100}}]
     },
     {
       "id": "l18", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -4228, "y": 1552, "z": 100},
-      "members": [{"id": "l18_0", "position_cm": {"x": -4256, "y": 1477, "z": 100}}, {"id": "l18_1", "position_cm": {"x": -4200, "y": 1627, "z": 100}}]
+      "members": [{"id": "l18_0", "position_cm": {"x": -4256, "y": 1477, "z": 100}}, {"id": "l18_1", "position_cm": {"x": -4200, "y": 1627, "z": 100}},
+ {"id": "l18_2", "position_cm": {"x": -4116, "y": 1510, "z": 100}}]
     },
     {
       "id": "l19", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4250, "y": 1520, "z": 100},
-      "members": [{"id": "l19_0", "position_cm": {"x": 4223, "y": 1595, "z": 100}}, {"id": "l19_1", "position_cm": {"x": 4277, "y": 1445, "z": 100}}]
+      "members": [{"id": "l19_0", "position_cm": {"x": 4223, "y": 1595, "z": 100}}, {"id": "l19_1", "position_cm": {"x": 4277, "y": 1445, "z": 100}},
+ {"id": "l19_2", "position_cm": {"x": 4137, "y": 1479, "z": 100}}]
     },
     {
       "id": "l20", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4265, "y": -1548, "z": 100},
-      "members": [{"id": "l20_0", "position_cm": {"x": 4292, "y": -1473, "z": 100}}, {"id": "l20_1", "position_cm": {"x": 4238, "y": -1623, "z": 100}}]
+      "members": [{"id": "l20_0", "position_cm": {"x": 4292, "y": -1473, "z": 100}}, {"id": "l20_1", "position_cm": {"x": 4238, "y": -1623, "z": 100}},
+ {"id": "l20_2", "position_cm": {"x": 4152, "y": -1507, "z": 100}}]
     },
     {
       "id": "l21", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 3253, "y": 2263, "z": 0},
-      "members": [{"id": "l21_0", "position_cm": {"x": 3196, "y": 2320, "z": 0}}, {"id": "l21_1", "position_cm": {"x": 3310, "y": 2206, "z": 0}}]
+      "members": [{"id": "l21_0", "position_cm": {"x": 3196, "y": 2320, "z": 0}}, {"id": "l21_1", "position_cm": {"x": 3310, "y": 2206, "z": 0}},
+ {"id": "l21_2", "position_cm": {"x": 3168, "y": 2178, "z": 0}}]
     },
     {
       "id": "l22", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -3253, "y": -2263, "z": 0},
-      "members": [{"id": "l22_0", "position_cm": {"x": -3196, "y": -2320, "z": 0}}, {"id": "l22_1", "position_cm": {"x": -3310, "y": -2206, "z": 0}}]
+      "members": [{"id": "l22_0", "position_cm": {"x": -3196, "y": -2320, "z": 0}}, {"id": "l22_1", "position_cm": {"x": -3310, "y": -2206, "z": 0}},
+ {"id": "l22_2", "position_cm": {"x": -3168, "y": -2178, "z": 0}}]
     },
     {
       "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 7590, "y": 100, "z": 0}

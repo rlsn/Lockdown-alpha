@@ -33,7 +33,10 @@ GameInstance 的 GameMode factory 仍在允许的世界上核对完整包路径�
 （`LDMatchLifecycle::ResolveContenderName`），非法即明确拒绝（`InvalidName:`），缺省时取明确默认名“玩家”，
 并以 `ChangeName` 同步 PlayerState；入房时 PlayerState 名称再按同一规则核对，在线子系统昵称不会成为参赛名。
 Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
-读取的是原始字节，不规范化换行，也不回退旧目录。`LDDemoEntry::ValidateSelection` 只接受
+读取的是原始字节，不规范化换行，也不回退旧目录。
+入口检查（Host/Join、地图旅行、`InitGame`、开局前的 `CheckDemoStartInputs`）每次都重算三个载荷文件的 SHA-256 并重新核对文本表；
+游戏进程里已为同一目录根验证过的内容快照直接沿用，不再重新投影与校验整份目录（`LDDemoEntry::ReusesApprovedContent`）。
+编辑器进程仍每次完整加载，因为编辑器工具可能在内存中改写目录资产。`LDDemoEntry::ValidateSelection` 只接受
 完整的前端/Demo 包路径，剥离 PIE 前缀，但不接受同短名的其他包、旧 Profile 或 Humans 覆盖项。
 旧保存模式和地图的物理移除须与资产引用审计同批完成，不保留可启动的旧预览分支。
 
@@ -97,7 +100,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   投影失败记日志并标记不可用，不影响结果锁定；结果保留供返回同房间的 Lobby 按身份显示，不能作为新局状态。
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 30），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 31），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
 - 完整局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`

@@ -179,9 +179,10 @@ def content_fixture():
     ]
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
-        ("monster_scavenger", "Low", 2, 25, 3, 2, 1),
-        ("monster_guardian", "High", 1, 80, 9, 4, 0.75),
+        ("monster_scavenger", "Low", 3, 25, 3, 2, 1),
+        ("monster_guardian", "High", 2, 80, 9, 4, 0.75),
         ("monster_advisor", "Elite", 1, 160, 14, 6, 0.6),
+        ("monster_director", "Ancient", 1, 220, 18, 8, 0.5),
     ):
         monsters.append({
             "id": identity, "tier": tier, "count_per_camp": count, "hp": q("hp", hp),
@@ -189,18 +190,28 @@ def content_fixture():
             "attack_speed": q("attacks/s", speed), "attack_windup": q("s", 0.125),
             "attack_range": q("cm", 80), "move_speed": q("cm/s", 250), "collision_radius": q("cm", 20),
             "leash_radius": q("cm", 300), "lose_target_grace": q("s", 1), "respawn": q("s", 10),
-            "reward_xp": {"Low": 8, "High": 20, "Elite": 40}[tier],
+            "reward_xp": {"Low": 8, "High": 20, "Elite": 40, "Ancient": 60}[tier],
             "hp_regen": q("hp/s", 0), "max_mp": q("mp", 0), "mp_regen": q("mp/s", 0),
             "ap": q("points", 0), "crit_chance": q("ratio", 0),
         })
+    for m in monsters:
+        m["skill"]={"name":"测试技能","pattern":"Cone","every":3,"windup":q("s",.2),"recovery":q("s",.1),"ratio":q("ratio",1.5),
+                    "range":q("cm",100),"radius":q("cm",30),"angle":60,"pulses":1,"pulse_interval":q("s",.3),
+                    "pulse_angle":30,"offset":q("cm",40),"passive":q("ratio",0),"evolved_passive":q("ratio",0)}
+        m["skill"].update(guard_duration=q("s",.7),evolve_stage=3,echo_stage=6,echo_delay=q("s",.4),echo_ratio=q("ratio",.5),
+                          evolved_slow=q("ratio",.15),evolved_slow_duration=q("s",.6),projectile_speed=q("cm/s",400),low_hp_threshold=q("ratio",0),low_hp_haste=q("ratio",0))
+    roots={m["tier"]:m for m in monsters}
+    for id,tier in [("monster_promoter","Low"),("monster_courier","Low"),("monster_agent","High"),("monster_guard","High"),
+                    ("monster_auditor","Elite"),("monster_client","Elite"),("monster_final_client","Ancient"),("monster_property","Ancient")]:
+        m=deepcopy(roots[tier]);m["id"]=id;monsters.append(m)
     # The world references follow the approved world source, so a layout change needs no fixture edit.
     world_anchors = demo.parse_json((demo.ROOT / demo.WORLD_SOURCE).read_bytes(), "test world source")["anchors"]
     named = {kind: sorted(row["id"] for row in world_anchors if row["kind"] == kind) for kind in ("Spawn", "Camp")}
     camps = {
         "monsters": monsters,
         # Two member homes hold the Low pair; single-member camps are Elite when their id says so (e01..), else High.
-        "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if len(row_members(world_anchors, identity)) != 1
-                        else "monster_advisor" if identity.startswith("e") else "monster_guardian"} for identity in named["Camp"]],
+        "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if identity.startswith("l") else "monster_advisor" if identity.startswith("e")
+                        else "monster_director" if identity in ("h09","h11") else "monster_guardian"} for identity in named["Camp"]],
     }
     boss = {"id": "monster_dean", "hp": q("hp", 200), "armor": q("points", 5), "magic_resist": q("points", 5), "attack": q("points", 12),
             "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),
@@ -245,7 +256,7 @@ def content_fixture():
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
     next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 2, "handler_revision": 7, "projection_revision": 7,
+        "identity": {"schema_version": 2, "handler_revision": 8, "projection_revision": 8,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},

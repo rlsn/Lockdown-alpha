@@ -577,17 +577,18 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     }
     bGood &= GrowthTestReason(Test, TEXT("A monster_scavenger kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), 0, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(20));
+    bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(14));
     bGood &= GrowthTestReason(Test, TEXT("A monster_guardian kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), 0, Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(80));
+    bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(40));
     bGood &= GrowthTestReason(Test, TEXT("A monster_advisor kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_advisor")), 0, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("monster_advisor XP"), Reward.XP, int64(180));
     // #97 camp growth: +10% of the base XP per stage that life spawned with, floored.
     for (const auto& [Monster, Stage, XP] : TArray<TTuple<const TCHAR*, uint8, int64>>{
-        {TEXT("monster_scavenger"), 3, 26}, {TEXT("monster_guardian"), 5, 120},
-        {TEXT("monster_advisor"), 10, 360}, {TEXT("monster_scavenger"), 10, 40}})
+        {TEXT("monster_scavenger"), 3, 18}, {TEXT("monster_guardian"), 5, 60},
+        {TEXT("monster_advisor"), 10, 360}, {TEXT("monster_scavenger"), 10, 28},
+        {TEXT("monster_director"), 0, 300}, {TEXT("monster_director"), 6, 480}, {TEXT("monster_property"), 10, 600}})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A stage %u %s kill"), Stage, Monster),
             LDProgression::MonsterKillReward(*Catalog, FName(Monster), Stage, Reward), ELDGrowthReason::None);

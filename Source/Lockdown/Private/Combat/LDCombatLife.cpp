@@ -240,11 +240,18 @@ bool ALDCombatDirector::InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&
         }
         Records.Add(Record.Entity,MoveTemp(Record));
     }
-    else if (Records.FindChecked(Prepared.Victim.EntityId).Kind!=Prepared.Victim.Kind
-        || Records.FindChecked(Prepared.Victim.EntityId).MonsterId!=Prepared.MonsterId)
+    else if (Records.FindChecked(Prepared.Victim.EntityId).Kind!=Prepared.Victim.Kind)
     {
-        Error=TEXT("A Combat entity cannot change its victim kind or monster definition.");
+        Error=TEXT("A Combat entity cannot change its victim kind.");
         return false;
+    }
+    if(Prepared.Victim.Kind==ELDVictimKind::CampMember)
+    {
+        auto& Record=Records.FindChecked(Prepared.Victim.EntityId);
+        if(Record.MonsterLives.Contains(Prepared.Victim.Life))
+        {Error=TEXT("A camp life cannot register another species or physical body.");return false;}
+        Record.MonsterId=Prepared.MonsterId;
+        Record.MonsterLives.Add(Prepared.Victim.Life,Prepared.MonsterId);
     }
     Out={Prepared.Victim,Prepared.Identity};
     LDCombatLifeDetail::ApplyMoveSpeed(Body,Prepared.AttributeProjection.Final);

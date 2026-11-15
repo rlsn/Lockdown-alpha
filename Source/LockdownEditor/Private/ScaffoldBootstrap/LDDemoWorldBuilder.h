@@ -5,9 +5,12 @@
 class FLDDemoContentSnapshot;
 class ULDMapDefinition;
 class UWorld;
+struct FLDDemoWorldGeometry;
 
 namespace LDDemoWorldBuilder
 {
+// Adds approved new member homes only; preserves existing layout and never regenerates collision or navigation.
+bool RefreshCampHomes(UWorld& World,const FLDDemoWorldGeometry& Previous,ULDMapDefinition& Definition,const FLDDemoContentSnapshot& Content,FString& Error);
 bool Refresh(UWorld& World, ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content, FString& Error);
 bool Validate(UWorld& World, const ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content,
     const FString& ReportDirectory, FString& Error);

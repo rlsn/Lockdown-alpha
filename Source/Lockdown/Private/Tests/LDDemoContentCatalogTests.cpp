@@ -967,8 +967,8 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     // One row per definition (character, actives, stats, components, final mods, monsters) and per native status: statuses 1..6, 9, 10
     // and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed), the two #147 statuses
     // (silence, burn), attack_slowed (#198 retires cowering and contact_guard) and the #198 wet, electrified,
-    // braced and soured.
-    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4;
+    // braced and soured, plus the two camp-only enrage and guarding states.
+    const int32 Statuses = 6 + 5 + 1 + 2 + 1 + 4 + 2;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Stats.Num() + Definitions.Components.Num() + Definitions.FinalMods.Num() + Definitions.Monsters.Num()
         + Statuses);
@@ -1071,6 +1071,32 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The verified table is restored and accepted again: ") + Error, bRestored);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentApprovedSnapshotReuseTest, "Lockdown.Rules.DemoContent.ApprovedSnapshotReuse",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoContentApprovedSnapshotReuseTest::RunTest(const FString& Parameters)
+{
+    FString Error;
+    TSharedPtr<const FLDDemoContentSnapshot> Runtime;
+    if (!LDDemoEntry::LoadRuntimeContent(Runtime, Error) || !Runtime)
+    {
+        AddError(TEXT("The approved runtime content must load: ") + Error);
+        return false;
+    }
+    const FLDDemoContentDigest Root = Runtime->Get().Identity.Root;
+    FLDDemoContentDigest Other;
+    if (!FLDDemoContentDigest::ParseHex(FString::ChrN(64, TEXT('0')), Other, Error)) { AddError(Error); return false; }
+    TestTrue(TEXT("The all-zero digest differs from the approved catalog root"), !(Other == Root));
+    TestTrue(TEXT("A game process keeps the snapshot it verified for the same catalog root"),
+        LDDemoEntry::ReusesApprovedContent(false, Runtime.Get(), Root));
+    TestFalse(TEXT("The editor reloads: its tools can rewrite the catalog asset in memory"),
+        LDDemoEntry::ReusesApprovedContent(true, Runtime.Get(), Root));
+    TestFalse(TEXT("Nothing verified yet means a full load"), LDDemoEntry::ReusesApprovedContent(false, nullptr, Root));
+    TestFalse(TEXT("A snapshot of another catalog root is never kept"),
+        LDDemoEntry::ReusesApprovedContent(false, Runtime.Get(), Other));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentCaseFoldedLookupTest, "Lockdown.Rules.DemoContent.CaseFoldedLookup",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

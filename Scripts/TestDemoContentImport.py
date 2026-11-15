@@ -727,13 +727,27 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
+    def test_species_pools_refuse_different_member_reward_or_refresh_budgets(self):
+        for field,value in (("count_per_camp",4),("reward_xp",99),("respawn",{"unit":"s","value":12})):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(field=field):
+                self.assert_refused(lambda data: data["camps"]["monsters"][0].update({field:value}),"CampPool")
+
+    def test_monster_warning_damage_budget_and_names_refuse(self):
+        for field,value,code in (("pulses",4,"MonsterSkill"),("angle",181,"MonsterSkill"),
+                                 ("ratio",{"unit":"ratio","value":3},"MonsterSkill"),
+                                 ("name","技能\u202e","DisplayText")):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(field=field):
+                self.assert_refused(lambda data: data["camps"]["monsters"][0]["skill"].update({field:value}),code)
+
     def test_invalid_camp_references_counts_and_display_refuse(self):
         for mutation in (
             lambda data: data["camps"]["placements"][0].update(monster_id="unknown_monster"),
             lambda data: data["camps"]["placements"][0].update(anchor_id="unknown_camp"),
             lambda data: data["camps"]["placements"].pop(),
             lambda data: data["camps"]["monsters"][1].update(tier="Low"),
-            lambda data: data["camps"]["monsters"][0].update(count_per_camp=3),
+            lambda data: data["camps"]["monsters"][0].update(count_per_camp=4),
             lambda data: data["world"]["spawn_ids"].__setitem__(1, data["world"]["spawn_ids"][0]),
             lambda data: data["display"].pop(),
             lambda data: data["display"][0].pop("portrait_icon_id"),

@@ -243,6 +243,7 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         Notice.Killer = Event.CreditContender;
         Notice.Assisters = Event.Assisters;
         Notice.Cause = Event.KillCause;
+        Notice.CreatureName = Event.CreatureName;
         Notice.OccurredAtMs = Event.Time.BucketMs;
         while (KillNotices.Num() > LDCapture::MaxKillNotices) { KillNotices.RemoveAt(0); }
         bKillFeedDirty = true;

@@ -820,7 +820,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
         {
             const TArray<FValue>* Members;
-            if (!Array(Row.Take(TEXT("members")), Members, Check, Anchor.Id, 1, 2)) { return false; }
+            if (!Array(Row.Take(TEXT("members")), Members, Check, Anchor.Id, 1, 3)) { return false; }
             for (const FValue& MemberValue : *Members)
             {
                 FFields Member(Check, MemberValue, Anchor.Id + TEXT(".member"));
@@ -1149,7 +1149,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     {
         const auto* Monster = Content.Monsters.FindByPredicate([&](const auto& M) { return M.Id == Placement.MonsterId; });
         const auto* Anchor = Out.Anchors.FindByPredicate([&](const auto& A) { return A.Id == Placement.AnchorId; });
-        if (!Check.Require(Monster && Anchor && Anchor->Kind == ELDDemoWorldAnchorKind::Camp && !Placed.Contains(Placement.AnchorId),
+        if (!Check.Require(Monster && Monster->Tier!=ELDDemoCampTier::Boss && Anchor && Anchor->Kind == ELDDemoWorldAnchorKind::Camp && !Placed.Contains(Placement.AnchorId),
                 Placement.AnchorId, TEXT("invalid camp/monster reference"))
             || !Check.Require(Monster->CountPerCamp == Anchor->Members.Num(), Placement.AnchorId, TEXT("member-home count differs from content")))
         {

@@ -92,7 +92,7 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
     const auto* Camp=Content.Camps.FindByPredicate([&](const auto& Row){return FName(*Row.AnchorId)==CampId;});
     if(!Camp){return Fail(TEXT("camp is absent from the approved content"));}
     const FLDDemoMonsterDefinition* Monster=nullptr;
-    if(!Catalog.FindMonster(Camp->MonsterId,Monster,Error)){return false;}
+    if(!Catalog.FindMonster(Input.MonsterId.IsNone()?Camp->MonsterId:Input.MonsterId.ToString(),Monster,Error)){return false;}
     double AttackRange=0,Leash=0,Perception=0,SightRange=0,Arrival=0;
     if(!PositiveDistance(Monster->AttackRangeCm,AttackRange)||!PositiveDistance(Monster->LeashRadiusCm,Leash)
         ||!PositiveDistance(Monster->PerceptionRadiusCm,Perception)

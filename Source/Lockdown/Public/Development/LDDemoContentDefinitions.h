@@ -405,7 +405,41 @@ enum class ELDDemoDamageType : uint8 { Physical, Magical };
 UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp. Elite (#97) is the third camp tier,
 // appended after Boss so existing values keep their numbers.
-enum class ELDDemoCampTier : uint8 { Low, High, Boss, Elite };
+enum class ELDDemoCampTier : uint8 { Low, High, Boss, Elite, Ancient };
+
+UENUM()
+enum class ELDMonsterPattern : uint8 { Basic, Enrage, Cone, Charge, Projectile, Guard, Circle, SweepLine, EchoCircle, Fan, DoubleCircle, RotatingCone };
+
+USTRUCT()
+struct FLDDemoMonsterSkill
+{
+    GENERATED_BODY()
+    UPROPERTY() FString Name;
+    UPROPERTY() ELDMonsterPattern Pattern = ELDMonsterPattern::Basic;
+    UPROPERTY() int64 Every = 0;
+    UPROPERTY() int64 WindupMs = 0;
+    UPROPERTY() int64 RecoveryMs = 0;
+    UPROPERTY() int64 RatioBp = 0;
+    UPROPERTY() FLDDemoRational RangeCm;
+    UPROPERTY() FLDDemoRational RadiusCm;
+    UPROPERTY() int64 AngleDegrees = 0;
+    UPROPERTY() int64 Pulses = 0;
+    UPROPERTY() int64 PulseIntervalMs = 0;
+    UPROPERTY() int64 PulseAngleDegrees = 0;
+    UPROPERTY() FLDDemoRational OffsetCm;
+    UPROPERTY() int64 PassiveBp = 0;
+    UPROPERTY() int64 EvolvedPassiveBp = 0;
+    UPROPERTY() int64 LowHPThresholdBp = 0;
+    UPROPERTY() int64 LowHPHasteBp = 0;
+    UPROPERTY() int64 GuardDurationMs = 0;
+    UPROPERTY() int64 EvolveStage = 0;
+    UPROPERTY() int64 EchoStage = 0;
+    UPROPERTY() int64 EchoDelayMs = 0;
+    UPROPERTY() int64 EchoRatioBp = 0;
+    UPROPERTY() int64 EvolvedSlowBp = 0;
+    UPROPERTY() int64 EvolvedSlowMs = 0;
+    UPROPERTY() FLDDemoRational ProjectileSpeedCmPerSec;
+};
 
 UENUM()
 enum class ELDDemoBonusStat : uint8
@@ -741,6 +775,7 @@ struct FLDDemoMonsterDefinition
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() ELDDemoCampTier Tier = ELDDemoCampTier::Low;
+    UPROPERTY() FLDDemoMonsterSkill Skill;
     UPROPERTY() int64 CountPerCamp = 0;
     UPROPERTY() int64 HPP2 = 0;
     UPROPERTY() int64 ArmorP2 = 0;

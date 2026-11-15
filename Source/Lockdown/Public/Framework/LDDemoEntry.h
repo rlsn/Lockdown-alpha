@@ -10,12 +10,17 @@ namespace LDDemoEntry
     inline constexpr TCHAR FrontendMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Frontend");
     inline constexpr TCHAR WorldMap[] = TEXT("/Game/Lockdown/Generated/Maps/L_Demo");
     inline constexpr TCHAR WorldDefinition[] = TEXT("/Game/Lockdown/Generated/Data/DA_DemoWorld");
-    inline constexpr uint32 WireProtocol = 30;
+    inline constexpr uint32 WireProtocol = 31;
 
     LOCKDOWN_API bool ValidateSelection(const FString& PackageName, const FString& Options, FString& Error);
     LOCKDOWN_API bool VerifyRuntimeFiles(FString& Error, FString* CatalogDigest = nullptr);
     LOCKDOWN_API bool VerifyPayloadFiles(FString& Error, FString* CatalogDigest = nullptr);
     LOCKDOWN_API bool LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error);
+    // Whether an entry check whose payload files just matched the compiled hashes may keep the snapshot this process
+    // already verified for ExpectedRoot instead of projecting and validating the catalog again. A game process cannot
+    // change the native catalog asset once it is loaded; editor tools can rewrite it in memory, so the editor reloads.
+    LOCKDOWN_API bool ReusesApprovedContent(bool bEditorProcess, const FLDDemoContentSnapshot* Verified,
+        const FLDDemoContentDigest& ExpectedRoot);
     LOCKDOWN_API bool VerifyWorldPackages(FString& Error);
     LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
     LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
