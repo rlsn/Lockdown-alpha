@@ -650,12 +650,21 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         const auto& Skill=Monster->Skill;
         bool Special=Skill.Pattern!=ELDMonsterPattern::Basic && Skill.Pattern!=ELDMonsterPattern::Enrage
             && Skill.Every>0 && (Body->MonsterAttackCount+1)%Skill.Every==0;
+        double ChargeRange=LDCA::ToDouble(Skill.RangeCm);
         if(Special && Skill.Pattern==ELDMonsterPattern::Charge && Mode->Camps)
         {
             int32 Camp=INDEX_NONE;const auto& State=Mode->Camps->GetState();
             if(!State.FindLiving({Body->Victim,Body->Identity},&Camp)){Error=TEXT("Charge has no current camp member.");return false;}
-            if(FVector::DistSquared2D(Foot,State.GetRoster()->Camps[Camp].AnchorCm)>FMath::Square(LDCA::ToDouble(Monster->LeashRadiusCm)))
+            const FVector Offset=Foot-State.GetRoster()->Camps[Camp].AnchorCm;
+            const double Leash=LDCA::ToDouble(Monster->LeashRadiusCm);
+            if(Offset.SizeSquared2D()>Leash*Leash)
             {Special=false;} // A stranded member may strike, but cannot leave its hold-ground position.
+            else
+            {
+                const double Along=FVector::DotProduct(Offset,(TargetFoot-Foot).GetSafeNormal2D());
+                ChargeRange=FMath::Min(ChargeRange,FMath::Max(0.,-Along+FMath::Sqrt(FMath::Max(0.,Along*Along+Leash*Leash-Offset.SizeSquared2D()))));
+                Special=ChargeRange>UE_KINDA_SMALL_NUMBER; // No legal forward prefix means a normal strike, never a zero-length warning.
+            }
         }
         if(Special && (IsActionBlocked(*Body,ELDCombatControlAction::Cast)||IsActionBlocked(*Body,ELDCombatControlAction::Skill)))
         {return Refuse(ELDCombatReject::ControlBlocked);}
@@ -680,17 +689,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         if(Special)
         {
             auto Areas=LDMonsterRules::Areas(Skill,Body->CampStage,Foot,TargetFoot);
-            if(Skill.Pattern==ELDMonsterPattern::Charge && Mode->Camps)
-            {
-                int32 Camp=INDEX_NONE;
-                const auto& State=Mode->Camps->GetState();
-                if(!State.FindLiving({Body->Victim,Body->Identity},&Camp)){Error=TEXT("Charge has no current camp.");return false;}
-                const FVector Offset=Foot-State.GetRoster()->Camps[Camp].AnchorCm;
-                const double Leash=LDCA::ToDouble(Monster->LeashRadiusCm);
-                const double Along=FVector::DotProduct(Offset,Action.Direction);
-                const double Limit=FMath::Max(0.,-Along+FMath::Sqrt(FMath::Max(0.,Along*Along+Leash*Leash-Offset.SizeSquared2D())));
-                for(auto& Area:Areas){Area.Range=FMath::Min(Area.Range,Limit);}
-            }
+            if(Skill.Pattern==ELDMonsterPattern::Charge){for(auto& Area:Areas){Area.Range=FMath::Min(Area.Range,ChargeRange);}}
             if(Areas.IsEmpty()){Error=TEXT("A monster special has no executable shape.");return false;}
             const int64 LastDelay=Areas.Last().DelayMs;
             int64 LastAt=0,RecoverAt=0;

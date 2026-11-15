@@ -121,7 +121,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.RadiusCm=float(Strike.Area.Shape==ELDMonsterShape::Cone?Strike.Area.Range:Strike.Area.Radius);
         if(Strike.Area.Shape==ELDMonsterShape::Cone){Fact.AngleDegrees=float(Strike.Area.Angle);}
         if(Strike.Area.Shape==ELDMonsterShape::Line){Fact.LengthCm=float(Strike.Area.Range);}
-        if(Strike.Area.Shape==ELDMonsterShape::Line){Fact.PositionCm+=Strike.Area.Direction*Strike.Area.Range*.5;}
+        // Authorize a line at its locked origin: a hidden midpoint beyond a wall cannot hide a visible incoming warning.
         Fact.WarningRemainingMs=uint32(FMath::Min<int64>(FMath::Max<int64>(Strike.AtMs-MonsterNow,0),MAX_uint32));
     }
     for (const FLDCombatProjectile& Projectile : Projectiles)

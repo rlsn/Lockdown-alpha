@@ -5308,6 +5308,8 @@ bool FLDMonsterDeliveryTest::RunTest(const FString& Parameters)
             FLDObservedProjectileView V;V.Handle=FGuid::NewGuid();V.PositionCm=Fact.PositionCm;V.Look=Fact.Look;
             V.RadiusCm=Fact.RadiusCm;V.AngleDegrees=Fact.AngleDegrees;V.LengthCm=Fact.LengthCm;V.WarningRemainingMs=Fact.WarningRemainingMs;
             if(!TestTrue(*M.Id,LDObservation::ValidateProjectile(V,Error))){AddError(Error);return false;}
+            if(Fact.Look==ELDObservedProjectileLook::LineWarning)
+            {TestEqual(TEXT("A line authorizes at the caster origin, even when its midpoint is occluded"),Fact.PositionCm,F.Foot(Source));}
         }
     }
     Strikes=MoveTemp(OriginalStrikes);Warnings.Reset();

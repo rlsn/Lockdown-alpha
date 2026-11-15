@@ -1357,6 +1357,11 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     const auto BySight = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::Sight; };
     TestTrue(TEXT("Only flights in sight are selected, nearest first (wall, range and ground edge exclude the rest)"),
         LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, BySight, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
+    auto Incoming=Fact(West);Incoming.Look=ELDObservedProjectileLook::LineWarning;Incoming.RadiusCm=80;Incoming.LengthCm=1600;
+    TestTrue(TEXT("An incoming line remains visible when its locked origin is in sight but its midpoint is behind the wall"),
+        Sight.Trace(West,West+FVector(800,0,0))==ELDSightResult::Blocked
+        && LDObservation::SelectVisibleProjectiles(Sight,West,{},TArray<FLDObservedProjectileFact>{Incoming},BySight,Visible,Error)
+        && Visible.Num()==1);
     TArray<FLDObservedProjectileFact> Many;
     for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 2, 100, 2))); }
     TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Many, BySight, Visible, Error)

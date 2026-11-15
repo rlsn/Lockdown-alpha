@@ -557,6 +557,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     const bool bCone=Effect.Look==ELDObservedProjectileLook::SpeechCone || Effect.Look==ELDObservedProjectileLook::ConeWarning;
     const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
     const bool bArea=IsObservedArea(Effect.Look);
+    const bool bForwardLine=Effect.Look==ELDObservedProjectileLook::LineWarning;
     const bool bRoad=Effect.Look==ELDObservedProjectileLook::Road || Effect.Look==ELDObservedProjectileLook::LineWarning;
     const FLinearColor Color=Effect.bOwn ? FMath::Lerp(ObservedEffectColor(Effect.Look),FLinearColor(.08f,.85f,.6f),.5f)
         : ObservedEffectColor(Effect.Look);
@@ -577,7 +578,7 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     if (bArea) { Chalk->SetRelativeLocation(FVector(0,0,7)); }
     if(bRoad)
     {
-        Chalk->SetRelativeLocation(FVector(0,0,1));
+        Chalk->SetRelativeLocation(FVector(bForwardLine?Effect.LengthCm*.5:0,0,1));
         Chalk->SetRelativeScale3D(FVector(Effect.LengthCm/100.,Effect.RadiusCm*2./100.,.012));
     }
     Accent->SetVisibility(Effect.Look!=ELDObservedProjectileLook::Chalk);
@@ -627,11 +628,11 @@ void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effe
     };
     if(bRoad)
     {
-        const double Half=Effect.LengthCm*.5,Width=Effect.RadiusCm;
-        Line(FVector(-Half,-Width,2),FVector(Half,-Width,2));
-        Line(FVector(-Half,Width,2),FVector(Half,Width,2));
-        Line(FVector(-Half,-Width,2),FVector(-Half,Width,2));
-        Line(FVector(Half,-Width,2),FVector(Half,Width,2));
+        const double From=bForwardLine?0:-Effect.LengthCm*.5,To=From+Effect.LengthCm,Width=Effect.RadiusCm;
+        Line(FVector(From,-Width,2),FVector(To,-Width,2));
+        Line(FVector(From,Width,2),FVector(To,Width,2));
+        Line(FVector(From,-Width,2),FVector(From,Width,2));
+        Line(FVector(To,-Width,2),FVector(To,Width,2));
     }
     else if (bCone)
     {
