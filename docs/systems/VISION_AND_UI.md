@@ -252,7 +252,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 目录解析失败后，首次请求播放还会记录一次 Warning 级 `LD_AUDIO_CUE_UNAVAILABLE`。
 所有音效都以非空间化 2D UI 声音（`PlaySound2D`）播放，不带世界位置，不能借声音暴露隐藏坐标。
 
-`ULDHUD` 每帧把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
+`ULDHUD` 每次重建读模型时（拥有者的 PlayerController 每秒至多重建 `LDHUD::ReadModelHz` = 30 次，帧率更低时每帧一次）把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
 跟踪器没有观察单位、Actor 或他人私有状态输入；新代次的首个样本只建立基线，不补放之前的变化。
 
 | 音效 | 唯一来源 | 只响一次的规则 |
