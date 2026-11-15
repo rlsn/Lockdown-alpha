@@ -373,6 +373,31 @@ bool ULDCharacterMovementComponent::ServerCheckClientError(float ClientTimeStamp
     return bError;
 }
 
+bool LDOwnerPrediction::AcceptsWalkError(const FVector& ServerMinusClient, double MaxSpeedCmPerSec)
+{
+    if (ServerMinusClient.ContainsNaN() || !FMath::IsFinite(MaxSpeedCmPerSec) || MaxSpeedCmPerSec<0) { return false; }
+    return ServerMinusClient.SizeSquared()<=FMath::Square(MaxSpeedCmPerSec*WalkLeadSeconds+WalkSlackCm);
+}
+
+bool ULDCharacterMovementComponent::ServerExceedsAllowablePositionError(float ClientTimeStamp, float DeltaTime,
+    const FVector& Accel, const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
+    FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode)
+{
+    const bool bLargeBefore=bNetworkLargeClientCorrection;
+    if (!Super::ServerExceedsAllowablePositionError(ClientTimeStamp,DeltaTime,Accel,ClientWorldLocation,RelativeClientLocation,
+        ClientBase,ClientBaseBoneName,ClientMovementMode)) { return false; }
+    // Only a position error of a plain walk is judged again: the movement mode agrees, no root motion runs, and the
+    // server body or the client's own move is walking.
+    if (!LDCharacterMovementDetail::IsDemoMovement(GetWorld()) || !UpdatedComponent || ClientMovementMode!=PackNetworkMovementMode()
+        || MovementMode!=MOVE_Walking || HasRootMotionSources()
+        || (Velocity.SizeSquared2D()<=1. && Accel.SizeSquared2D()<=1.)
+        || !LDOwnerPrediction::AcceptsWalkError(UpdatedComponent->GetComponentLocation()-ClientWorldLocation,GetMaxSpeed()))
+    { return true; }
+    bNetworkLargeClientCorrection=bLargeBefore;
+    if (ServerAcceptedWalkLeads<MAX_uint64) { ++ServerAcceptedWalkLeads; }
+    return false;
+}
+
 bool ULDCharacterMovementComponent::AdvanceAuthorityMovement(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
     const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error)
 {

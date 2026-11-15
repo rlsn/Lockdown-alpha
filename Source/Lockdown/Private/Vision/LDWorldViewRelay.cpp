@@ -1194,6 +1194,19 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Bounds, Camera, Target)) { return true; } }
         return false;
     };
+    // A prop's own material instances are made the first time it fades, not when it is found: most props never hide
+    // anything, and the first sweep finds every one of them in the same frame.
+    auto EnsureMaterials = [](FFadeableProp& Prop, UPrimitiveComponent& Primitive)
+    {
+        UMeshComponent* Mesh = Cast<UMeshComponent>(&Primitive);
+        if (!Prop.Materials.IsEmpty() || !Mesh) { return; }
+        for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
+        {
+            UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
+            if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
+            Prop.Materials.Add(Dynamic);
+        }
+    };
     for (FFadeableProp& Prop : FadeableProps)
     {
         UPrimitiveComponent* Primitive = Prop.Primitive.Get();
@@ -1214,15 +1227,6 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                 }
                 const auto* Instanced = Cast<UInstancedStaticMeshComponent>(Mesh);
                 Prop.bPerInstance = bAll && Instanced && Instanced->NumCustomDataFloats >= 1 && Instanced->GetStaticMesh();
-                if (bAll)
-                {
-                    for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
-                    {
-                        UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
-                        Prop.Materials.Add(Dynamic);
-                    }
-                }
                 if (Prop.bPerInstance)
                 {
                     const FBox Local = Instanced->GetStaticMesh()->GetBoundingBox();
@@ -1253,6 +1257,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                 const float Was = Prop.InstanceFades[Index];
                 const float Next = LDPropFade::Step(Was, Hides(Prop.InstanceBounds[Index]), Delta);
                 if (Next == Was) { continue; }
+                EnsureMaterials(Prop, *Primitive);
                 Prop.InstancesFaded += (Was == 0.f) - (Next == 0.f);
                 Prop.InstanceFades[Index] = Next;
                 bChanged |= Instanced->SetCustomDataValue(Index, 0, Next, false);
@@ -1269,6 +1274,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
         if (Primitive->CastShadow != bShadow) { Primitive->SetCastShadow(bShadow); }
         if (Prop.bParameter)
         {
+            EnsureMaterials(Prop, *Primitive);
             for (const TWeakObjectPtr<UMaterialInstanceDynamic>& Material : Prop.Materials)
             { if (UMaterialInstanceDynamic* Dynamic = Material.Get()) { Dynamic->SetScalarParameterValue(LDPropFade::Parameter, Prop.Fade); } }
         }

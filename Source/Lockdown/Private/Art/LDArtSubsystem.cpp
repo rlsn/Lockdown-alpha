@@ -5,6 +5,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapGeometry.h"
@@ -60,6 +61,30 @@ const FLDArtResolved* ULDArtSubsystem::Get(const UObject* WorldContext)
     const UGameInstance* Instance = World ? World->GetGameInstance() : nullptr;
     const auto* Art = Instance ? Instance->GetSubsystem<ULDArtSubsystem>() : nullptr;
     return Art ? Art->GetResolved() : nullptr;
+}
+
+UMaterialInstanceDynamic* ULDArtSubsystem::SharedTint(UObject* Outer, UMaterialInterface* Material, const FLinearColor& Tint)
+{
+    const UWorld* World = Outer ? Outer->GetWorld() : nullptr;
+    const UGameInstance* Instance = World ? World->GetGameInstance() : nullptr;
+    auto* Art = Instance ? Instance->GetSubsystem<ULDArtSubsystem>() : nullptr;
+    if (!Art || !Material)
+    {
+        UMaterialInstanceDynamic* Own = UMaterialInstanceDynamic::Create(Material, Outer);
+        if (Own) { Own->SetVectorParameterValue(TEXT("Tint"), Tint); }
+        return Own;
+    }
+    for (int32 Index = 0; Index < Art->Tints.Num(); ++Index)
+    {
+        if (Art->Tints[Index] && Art->Tints[Index]->Parent == Material && Art->TintColours[Index].Equals(Tint, 0.f))
+        { return Art->Tints[Index]; }
+    }
+    UMaterialInstanceDynamic* Shared = UMaterialInstanceDynamic::Create(Material, Art);
+    if (!Shared) { return nullptr; }
+    Shared->SetVectorParameterValue(TEXT("Tint"), Tint);
+    Art->Tints.Add(Shared);
+    Art->TintColours.Add(Tint);
+    return Shared;
 }
 
 bool ULDArtWorldSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const

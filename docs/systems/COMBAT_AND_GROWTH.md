@@ -90,7 +90,10 @@ Transactions 每步调用一次 `ProcessTransactions`。
 营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
 本步野怪请求随即与 Direct 请求一同准入；Effects 把营地成员受到的已提交敌对命中（伤害或控制）作为 `OnCombatHostileContact` 交给营地；
 DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `CommitDeathReward`；RespawnsAndWorld
-在参赛者复活后调 `AdvanceCamps`。初始出生在同一开局许可内、参赛者 Joined 之后调用 `SpawnInitialCamps`。
+在参赛者复活后调 `AdvanceCamps`。初始出生在同一开局许可内、参赛者 Joined 之后调用 `SpawnInitialCamps`：
+它按名册顺序只生成前 `InitialGroupsPerFrame`（3）个营地，其余由 RespawnsAndWorld 的 `SpawnPendingInitialCamps`
+每帧至多一批、按同样数量接着生成（按帧而不是按权威步限额：长帧会跑多个步）；对局开在 R0 休息，期间出现的营地立即冻结，休息结束的 `ThawAfterRest` 先补齐尚未生成的营地再解冻，
+野外不会在缺营地时开始。营地顺序与种类抽取顺序不变。
 DEV 测试会话的 `DevRefreshCleared`（Transactions）只把等待中的刷新截止提前，实际重生仍由下一个 `AdvanceCamps` 完成。
 任一营地入口返回 false 即为权威故障。
 
@@ -122,6 +125,8 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 受击按公开命中外观使用魔法、火、水、电或普通色闪光并走材质 `Flash` 自发光，命中分类仅读取服务器已提交 payload；
 普攻整体前冲并在出手的手部闪光；施法时手部聚能球；受击整体后退、胸前闪光，本人镜头轻微震动；
 公开击退状态期间使用受击片段，按可见的实际移动方向倾斜身体，状态结束后恢复正常动画；这只改变本地表现，不改变移动或碰撞；
+状态标记与特效部件不进 Lumen 表面缓存和距离场场景（它们频繁显隐，每次显隐都会重建渲染代理），
+固定颜色的材质实例由 `ULDArtSubsystem::SharedTint` 在同一游戏实例内共享，只有随每次命中改色的命中火花各自持有；
 状态标记对所有单位使用固定状态色，与六个座位色、草坪和红色跑道都拉开：定身为深色描边上的脉动品红圆盘加品红脚镣，
 护盾为旋转的亮青色栅栏罩加光环，复活保护为白金光柱加环绕光球；护盾与复活保护的每个标记背后沿本机视线放一个稍大的
 近黑副本作为描边，在同色系座位（青色、黄色）身上也能分开；

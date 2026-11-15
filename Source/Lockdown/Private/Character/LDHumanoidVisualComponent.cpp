@@ -124,6 +124,14 @@ namespace LDHumanoidVisualDetail
         default: return ELDArtAnim::Count;
         }
     }
+    // Status markers and effects toggle hidden often, and every toggle recreates the part's render proxy: kept out of
+    // Lumen's surface cache and the distance-field scene, a toggle never asks for a card capture or a distance-field
+    // object update. They are small tinted cues that light nothing around them.
+    void KeepOutOfSceneLighting(UPrimitiveComponent& Part)
+    {
+        Part.bAffectDynamicIndirectLighting = false;
+        Part.bAffectDistanceFieldLighting = false;
+    }
     float LengthOf(const FLDArtAnimation* Entry)
     {
         return Entry && Entry->Sequence ? Entry->Sequence->GetPlayLength() : 0.f;
@@ -158,6 +166,7 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
         // Markers and effects use the hidden-in-game flag, so a visibility change of the whole body never reveals them.
         Part->SetHiddenInGame(true);
         Part->SetCastShadow(false);
+        KeepOutOfSceneLighting(*Part);
         Parts.Add(Part);
     }
     for (const FEdgeSpec& Edge : EdgeSpecs)
@@ -169,6 +178,7 @@ ULDHumanoidVisualComponent::ULDHumanoidVisualComponent()
         Part->SetCanEverAffectNavigation(false);
         Part->SetHiddenInGame(true);
         Part->SetCastShadow(false);
+        KeepOutOfSceneLighting(*Part);
         Edges.Add(Part);
     }
 }
@@ -390,15 +400,21 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     Mesh->SetHiddenInGame(false);
     UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character"));
     if (!ensureMsgf(Material, TEXT("Character material missing; rerun asset bootstrap"))) { return; }
+    // Marker colours are fixed and identical on every body, so their instances are shared; only the hit spark, whose
+    // tint follows each impact, keeps its own.
     for (int32 Index = 0; Index < Parts.Num(); ++Index)
     {
-        UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
-        Instance->SetVectorParameterValue(TEXT("Tint"), ColourOf(Index));
+        UMaterialInstanceDynamic* Instance = nullptr;
+        if (Index == HitSpark)
+        {
+            Instance = UMaterialInstanceDynamic::Create(Material, this);
+            Instance->SetVectorParameterValue(TEXT("Tint"), ColourOf(Index));
+            HitSparkTint = Instance;
+        }
+        else { Instance = ULDArtSubsystem::SharedTint(this, Material, ColourOf(Index)); }
         Parts[Index]->SetMaterial(0, Instance);
-        if (Index == HitSpark) { HitSparkTint = Instance; }
     }
-    UMaterialInstanceDynamic* Dark = UMaterialInstanceDynamic::Create(Material, this);
-    Dark->SetVectorParameterValue(TEXT("Tint"), EdgeColour);
+    UMaterialInstanceDynamic* Dark = ULDArtSubsystem::SharedTint(this, Material, EdgeColour);
     for (UStaticMeshComponent* Edge : Edges) { Edge->SetMaterial(0, Dark); }
     Layout();
 }

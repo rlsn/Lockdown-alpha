@@ -17,6 +17,18 @@ struct FLDNetworkMoveDataContainer : FCharacterNetworkMoveDataContainer
     FLDNetworkMoveDataContainer(){NewMoveData=&Moves[0];PendingMoveData=&Moves[1];OldMoveData=&Moves[2];}
 };
 
+// Owner prediction of a walk: the owning client starts walking in the click frame and the server starts the same order
+// when the request arrives, so both stand at the same point at the instant the server checks a client move sent at the
+// same moment; what is left is frame and arrival quantization. While either side walks, an error within
+// MaxSpeed*WalkLeadSeconds+WalkSlackCm is no correction. At rest, under root motion (dash, knockback) and in another
+// movement mode the native check stands.
+namespace LDOwnerPrediction
+{
+    inline constexpr double WalkLeadSeconds=.1;
+    inline constexpr double WalkSlackCm=10.;
+    LOCKDOWN_API bool AcceptsWalkError(const FVector& ServerMinusClient, double MaxSpeedCmPerSec);
+}
+
 // Owner corrections are still applied to the capsule immediately. Only the local model/camera ease back afterwards.
 struct LOCKDOWN_API FLDOwnerCorrectionSmoothing
 {
@@ -44,7 +56,14 @@ public:
     virtual bool ServerCheckClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel,
         const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
         FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
+    // Server: a walking owner's position error within LDOwnerPrediction::AcceptsWalkError is no error.
+    using UCharacterMovementComponent::ServerExceedsAllowablePositionError;
+    virtual bool ServerExceedsAllowablePositionError(float ClientTimeStamp, float DeltaTime, const FVector& Accel,
+        const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
+        FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
     uint32 ServerCorrectionCount=0;
+    // Server: client moves whose walking lead stayed inside the prediction bound (no correction sent).
+    uint64 ServerAcceptedWalkLeads=0;
     bool AdvanceAuthorityMovement(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error);
     // Demo dash on the server authority body: one planar override root-motion source (Distance/Duration,

@@ -5,6 +5,9 @@
 #include "Art/LDArtCatalog.h"
 #include "LDArtSubsystem.generated.h"
 
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
+
 
 
 // Resolves the Demo art catalog once when the game instance starts. Bodies read their look and clips from here; a
@@ -22,8 +25,14 @@ public:
     const FString& GetError() const { return Error; }
     // Convenience lookup from any object in a game world; null outside a game instance or without a valid catalog.
     static const FLDArtResolved* Get(const UObject* WorldContext);
+    // One dynamic instance of Material with its "Tint" vector set to Tint, shared by every body of this game instance
+    // that draws the same fixed marker colour (no body may change it afterwards). Outside a game instance each caller
+    // gets its own instance.
+    static UMaterialInstanceDynamic* SharedTint(UObject* Outer, UMaterialInterface* Material, const FLinearColor& Tint);
 private:
     UPROPERTY() TObjectPtr<const ULDArtCatalog> Catalog;
+    UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Tints;
+    TArray<FLinearColor> TintColours;
     FLDArtResolved Resolved;
     FString Error;
 };

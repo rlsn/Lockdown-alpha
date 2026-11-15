@@ -147,6 +147,28 @@ bool FLDOwnerSmoothingTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOwnerWalkLeadTest,"Lockdown.Rules.DemoControlFeel.OwnerWalkLead",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDOwnerWalkLeadTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOwnerPrediction;
+    const double Speed=350;
+    const double Bound=Speed*WalkLeadSeconds+WalkSlackCm;
+    TestTrue(TEXT("Two bodies at the same point agree"),AcceptsWalkError(FVector::ZeroVector,Speed));
+    TestTrue(TEXT("One 60 Hz frame of walking lead is no correction"),AcceptsWalkError(FVector(Speed/60,0,0),Speed));
+    TestTrue(TEXT("A lead exactly at the bound is still accepted, in any direction"),
+        AcceptsWalkError(FVector(0,-Bound,0),Speed) && AcceptsWalkError(FVector(Bound,0,0)*.999,Speed));
+    TestFalse(TEXT("A lead past the bound is corrected"),AcceptsWalkError(FVector(Bound+.01,0,0),Speed));
+    TestFalse(TEXT("A whole round trip of lead at 200 ms is corrected"),AcceptsWalkError(FVector(Speed*.2,0,0),Speed));
+    TestTrue(TEXT("A rooted body (no speed) keeps only the fixed slack"),
+        AcceptsWalkError(FVector(WalkSlackCm,0,0),0) && !AcceptsWalkError(FVector(WalkSlackCm+.01,0,0),0));
+    TestFalse(TEXT("Unknown errors and speeds are never accepted"),
+        AcceptsWalkError(FVector(std::numeric_limits<double>::quiet_NaN(),0,0),Speed)
+        || AcceptsWalkError(FVector::ZeroVector,std::numeric_limits<double>::infinity())
+        || AcceptsWalkError(FVector::ZeroVector,-1));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDFrameDiagnosticsTest,"Lockdown.Rules.HUDFrameDiagnostics",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDFrameDiagnosticsTest::RunTest(const FString& Parameters)

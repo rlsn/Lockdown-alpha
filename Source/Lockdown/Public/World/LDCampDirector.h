@@ -31,8 +31,16 @@ public:
 
     // Provider Prepare (Starting, no permit): approved roster, per-match member identities and the Boss schedule.
     bool BeginMatch(const FLDMatchContext& Match, int64 StartedAtMs, FString& Error);
-    // RespawnsAndWorld (Starting initialization), after the contenders spawned.
+    // RespawnsAndWorld (Starting initialization), after the contenders spawned: the first InitialGroupsPerFrame camps in
+    // roster order. The match opens in the R0 rest, where every camp stands frozen, so the rest follow at the same count
+    // per frame (SpawnPendingInitialCamps, each frozen as it appears) instead of stalling the start frame for every body
+    // at once; the rest's end spawns whatever is still missing before anything thaws. The bound is per frame, not per
+    // authority step: a long frame runs several steps, and spawning in each would make that frame longer still.
+    static constexpr int32 InitialGroupsPerFrame = 3;
     bool SpawnInitialCamps(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld, every step: the next initial camps in roster order, at most once per frame; nothing once all stand.
+    bool SpawnPendingInitialCamps(const FLDGameplayWritePermit& Permit, FString& Error);
+    bool HasPendingInitialCamps() const { return NextInitialCamp < State.NumCamps(); }
     // Motion: exactly one native integration for one registered living camp body.
     bool AdvanceMemberMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, FString& Error);
@@ -106,6 +114,8 @@ private:
     bool CreateBody(const FLDLegalGround& Ground, const FLDDemoMonsterDefinition& Monster, const FString& Label,
         ALDCampMemberCharacter*& Out, FString& Error);
     bool SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
+    // Spawns up to Count more initial camps (MAX_int32: all that are left); a camp that appears during a rest is frozen.
+    bool SpawnInitialBatch(int32 Count, const FLDGameplayWritePermit& Permit, FString& Error);
     // D26 Boss: appearance (RespawnsAndWorld), one decision (Actions), the build reward for the last hit
     // (DeathsAndRewards) and the departure at its leave instant (RespawnsAndWorld, #198 outer §5).
     bool SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error);
@@ -126,4 +136,10 @@ private:
     FLDBossState Boss;
     bool bBossBlockedLogged = false;
     uint64 BossSequence = 0;
+    // Roster index of the next initial camp to spawn; NumCamps once every camp stood up (MAX_int32 before the match).
+    int32 NextInitialCamp = MAX_int32;
+    // Between FreezeForRest and ThawAfterRest.
+    bool bRestFrozen = false;
+    // GFrameCounter of the last initial batch.
+    uint64 InitialBatchFrame = MAX_uint64;
 };

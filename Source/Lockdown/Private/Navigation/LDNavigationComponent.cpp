@@ -436,8 +436,43 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     Status=Request.bQueue?LDNavigationDetail::QueuedText():PendingStatus;
     LocalSentAt=FPlatformTime::Seconds();
     if (Cast) { ServerSubmitCast(Request,*Cast); }
-    else { ServerSubmitOrder(Request); }
+    else
+    {
+        ServerSubmitOrder(Request);
+        PredictSentGround(Request);
+    }
     return true;
+}
+
+// The server starts this order when the request arrives, half a round trip after the click; walking it from the click
+// keeps the two bodies together at the instant the server checks each client move (LDOwnerPrediction). A route the local
+// check refuses walks nothing and waits for the server's answer.
+void ULDNavigationComponent::PredictSentGround(const FLDSpatialOrderRequest& Request)
+{
+    auto* PC=Controller();
+    auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    if (!Body || PC->HasAuthority() || Request.bQueue || Request.Kind!=ELDSpatialOrderKind::MoveGround
+        || Request.Identity!=Local) { return; }
+    TArray<FVector> Route;
+    FVector Projected;
+    ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
+    FString Error;
+    if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Ground,Route,Projected,Failure,Error))
+    {
+        UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_EARLY_PREDICTION_UNAVAILABLE %s"),*Error);
+        return;
+    }
+    EarlyOrder=Local;
+    FollowKind=ELDSpatialOrderKind::MoveGround;
+    Points=MoveTemp(Route);
+    PointIndex=Points.Num()>1?1:0;
+    // The server plans the same request to the same projected goal with GoalAcceptanceCm, so its activation keeps this walk.
+    Destination=Projected;
+    AcceptanceRadius=float(GoalAcceptanceCm);
+    bFollowing=true;
+    bReplanned=false;
+    LastProgress=GetWorld()->GetTimeSeconds();
+    BestProgress=LDPathSteering::AlongPath(Points,Body->GetNavAgentLocation());
 }
 
 void ULDNavigationComponent::QueueCombatAction(const FLDCombatActionRequest& Request, const FVector* AimCm)
@@ -475,6 +510,7 @@ void ULDNavigationComponent::Stop()
     PC->CancelArmedCombat();
     if (!NextLocalIdentity(true,Local)) { return; }
     ClearCastFollowUp();
+    EarlyOrder={};
     bLocalStop=bLocalPending=true;
     bFollowing=false;
     Points.Reset();
@@ -516,6 +552,7 @@ void ULDNavigationComponent::ResetLife()
     bActiveHasGoal=bActiveEngaged=false;
     bHeldMove=false;
     ClientActive={};
+    EarlyOrder={};
     ClearCastFollowUp();
     SentAttackTargets.Reset();
     AutoAttackIdentity={};
@@ -573,12 +610,35 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
         if (bLocal) { bLocalPending=false; }
         if (bLocal && Receipt.Status==ELDOrderStatus::Activated && AcceptedOrder!=Identity.Order)
         { AcceptedOrder=Identity.Order; RouteAcceptanceMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000); }
-        ApplyPrediction();
+        // An older order activating under the newer ground order already walked does not turn the body back.
+        if (EarlyOrder.Order==0 || Identity==EarlyOrder)
+        {
+            EarlyOrder={};
+            ApplyPrediction();
+        }
         if (!QueuedMarks.IsEmpty()) { RefreshQueuedPath(); }
         break;
     default:
         if (bLocal) { bLocalPending=false; }
-        if (bActive)
+        if (EarlyOrder.Order!=0 && Identity==EarlyOrder)
+        {
+            // The walked order ended before it ran: the order still running on the server is predicted again, or the
+            // body stops and the next correction brings it back to the server's position. A newer order that replaced
+            // it (Superseded) takes over with its own receipt.
+            EarlyOrder={};
+            bFollowing=false;
+            Points.Reset();
+            if (ClientActive.Order!=0) { ApplyPrediction(); }
+            else if (!PC->HasAuthority() && Receipt.Failure!=ELDOrderFailure::Superseded)
+            { LDPathSteering::HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
+        }
+        else if (bActive && EarlyOrder.Order!=0)
+        {
+            // The order this walk replaces ends; the walk goes on.
+            ClientActive={};
+            bActiveHasGoal=bActiveEngaged=false;
+        }
+        else if (bActive)
         {
             ClientActive={};
             bActiveHasGoal=bActiveEngaged=false;
@@ -619,6 +679,7 @@ void ULDNavigationComponent::ApplyPrediction()
     if (bFollowing && FVector::DistSquared2D(ActiveGoal,Destination)<1. && AcceptanceRadius==ActiveAcceptance) { return; }
     Destination=ActiveGoal;
     AcceptanceRadius=ActiveAcceptance;
+    FollowKind=ActiveKind;
     if (PC->HasAuthority()) { return; }
     FVector Projected;
     ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
@@ -713,7 +774,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     const ALDGameState* Public=GetWorld()->GetGameState<ALDGameState>();
     const ALDWorldViewRelay* Relay=PC->LocalView();
     const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-    if (ActiveKind==ELDSpatialOrderKind::MoveGround && Public && Public->PublicMatch.Generation==PC->OwnerState.Match
+    if (FollowKind==ELDSpatialOrderKind::MoveGround && Public && Public->PublicMatch.Generation==PC->OwnerState.Match
         && LDMatchTimeline::IsRestBuildOpen(Public->PublicMatch.Timeline) && Points.IsValidIndex(PointIndex)
         && Read.Frame && Read.Status==ELDObservedViewStatus::Current
         && Read.Frame->MatchGeneration==PC->OwnerState.Match && Read.Frame->ObserverLife==PC->OwnerState.Life)
@@ -734,7 +795,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
             FVector Projected;
             ELDWorldQueryFailure Failure=ELDWorldQueryFailure::None;
             FString Error;
-            if (Plan(Destination,GroundSurfaceHint(),LDNavigationDetail::PredictedGoal(ActiveKind),Points,Projected,Failure,Error))
+            if (Plan(Destination,GroundSurfaceHint(),LDNavigationDetail::PredictedGoal(FollowKind),Points,Projected,Failure,Error))
             { PointIndex=Points.Num()>1?1:0; }
             else
             {
