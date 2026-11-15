@@ -10,9 +10,11 @@
 #include "UI/LDControlsPanel.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/EditableTextBox.h"
 #include "Components/ScrollBox.h"
 #include "Components/Slider.h"
 #include "Components/TextBlock.h"
+#include "Components/UniformGridPanel.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -89,7 +91,10 @@ namespace
     {
         TWeakObjectPtr<UWorld> World;
         FLDLobbyView LobbyBeforeSettings;
-        bool LobbyFPS = false, LobbyOnly = false;
+        bool LobbyFPS = false, LobbyOnly = false, MotionOnly = false;
+        int32 MotionSamples = 0;
+        double MotionMinY = TNumericLimits<double>::Max(), MotionMaxY = TNumericLimits<double>::Lowest();
+        TArray<TSharedPtr<FJsonValue>> MotionFrames;
         FString Directory, PendingImage, RHIName, PhysicalSettings, PhysicalQuality;
         FLDLocalSettingsStorage Storage;
         FLDDisplaySettings OriginalDisplay;
@@ -125,7 +130,9 @@ namespace
             if (!Error.IsEmpty()) { Check(false, Error); }
             auto Report = MakeShared<FJsonObject>();
             Report->SetBoolField(TEXT("passed"), !Failed);
-            Report->SetStringField(TEXT("scope"), LobbyOnly
+            Report->SetStringField(TEXT("scope"), MotionOnly
+                ? TEXT("Rendered frontend Start and Host buttons create a real listen room. Consecutive-frame Ready-button geometry measures persistent vertical layout oscillation at 100% and 125% text, in an isolated UserDir. No remote clients or gameplay scenario.")
+                : LobbyOnly
                 ? TEXT("Windowed RHI single-host Lobby/UMG synthetic delegate clicks and Slate key events, isolated UserDir. The Lobby opens the shared five settings pages, saves and reopens a preference, discards a display draft through Esc and returns with unchanged roster and readiness. A normal match start while settings remain open preserves world input suppression, refreshes the match notice and restores input after close. Not frontend-to-room travel, remote clients or cross-machine networking.")
                 : TEXT("Windowed RHI frontend/UMG synthetic delegate clicks and Slate key events, isolated control save and UserDir, every settings page through its named tab at 100% and 125% text, diagnostics toggles, text-scale apply/readback, borderless-only display settings under a -windowed launch, VSync draft revert, Back on the un-applied draft prompt discards, a VSync apply saves and reads back, in-row key rebinding with a refused conflict and an Esc cancel, and per-page restore defaults. No OS input or display-mode change."));
             Report->SetStringField(TEXT("rhi"), RHIName);
@@ -134,6 +141,7 @@ namespace
             Report->SetStringField(TEXT("quality_settings"), PhysicalQuality);
             Report->SetArrayField(TEXT("checks"), Checks);
             Report->SetArrayField(TEXT("screenshots"), Images);
+            if (MotionOnly) { Report->SetArrayField(TEXT("motion_frames"), MotionFrames); }
             FString Json;
             const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
                 && FFileHelper::SaveStringToFile(Json, *(Directory / TEXT("FrontendSettings.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
@@ -165,7 +173,7 @@ namespace
         {
             const double Now = FPlatformTime::Seconds();
             if (Now - StartedAt > 150) { return Finish(TEXT("Rendered UI fixture timed out")); }
-            if (!World.IsValid()) { return Finish(TEXT("Frontend world ended before UI checks completed")); }
+            if (!World.IsValid()) { return MotionOnly ? false : Finish(TEXT("Frontend world ended before UI checks completed")); }
             if (!PendingImage.IsEmpty())
             {
                 if (IFileManager::Get().FileSize(*PendingImage) <= 0) { return true; }
@@ -179,6 +187,7 @@ namespace
             auto* Instance = World->GetGameInstance<ULDGameInstance>();
             auto* Viewport = World->GetGameViewport();
             if (!PC || !PC->RootUI || !Instance || !Viewport || !Viewport->Viewport) { return true; }
+            if (MotionOnly) { return TickMotion(*PC, Now); }
             if (Failed) { return Finish(); }
             NextAt = Now + .5;
             if (Stage == 0)
@@ -594,13 +603,107 @@ namespace
             ++Stage;
             return true;
         }
+
+        bool TickMotion(ALDPlayerController& PC, double Now)
+        {
+            RHIName = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("None");
+            if (PC.IsFrontend())
+            {
+                if (Stage == 0)
+                {
+                    if (!Click(PC.RootUI, TEXT("Start"))) { return Finish(); }
+                    auto* Name = PC.RootUI->WidgetTree->FindWidget<UEditableTextBox>(TEXT("PlayerName"));
+                    if (!Check(Name != nullptr, TEXT("Host name input exists"))) { return Finish(); }
+                    Name->SetText(FText::FromString(TEXT("MotionProbe")));
+                    Stage = 1;
+                    NextAt = Now + .5;
+                }
+                else if (Stage == 1)
+                {
+                    if (!Click(PC.RootUI, TEXT("Host"))) { return Finish(); }
+                    Stage = 2;
+                }
+                return true;
+            }
+            const auto* Public = World->GetGameState<ALDGameState>();
+            auto* Ready = FindButton(PC.RootUI, TEXT("Ready"));
+            if (!Public || Public->PublicMatch.Phase != ELDMatchPhase::Lobby || !PC.OwnerState.bLobbyHost
+                || !Ready || !OnScreen(PC.RootUI, Ready)) { return true; }
+            if (Stage == 0)
+            {
+                if (!Check(RHIName != TEXT("None") && RHIName != TEXT("Null"), TEXT("Motion samples use a real rendered RHI"))) { return Finish(); }
+                Stage = 1;
+                NextAt = Now + 1.;
+                return true;
+            }
+            const FGeometry& Geometry = Ready->GetCachedGeometry();
+            if (MotionSamples == 0)
+            {
+                TArray<UWidget*> Widgets;
+                PC.RootUI->WidgetTree->GetAllWidgets(Widgets);
+                bool bSeatsFit = false;
+                for (UWidget* Widget : Widgets)
+                {
+                    const auto* Seats = Cast<UUniformGridPanel>(Widget);
+                    if (!Seats || Seats->GetChildrenCount() != 6) { continue; }
+                    double MinWidth = TNumericLimits<double>::Max(), MaxWidth = 0.;
+                    for (int32 Index = 0; Index < 6; ++Index)
+                    {
+                        const double Width = Seats->GetChildAt(Index)->GetCachedGeometry().GetAbsoluteSize().X;
+                        MinWidth = FMath::Min(MinWidth, Width); MaxWidth = FMath::Max(MaxWidth, Width);
+                    }
+                    bSeatsFit = MinWidth >= 100. && MaxWidth - MinWidth <= 1.;
+                }
+                if (!Check(bSeatsFit, TEXT("All six lobby seats fill equally sized grid cells"))) { return Finish(); }
+                Capture(Stage == 1 ? TEXT("LobbyMotion-100") : TEXT("LobbyMotion-125"));
+            }
+            const double Y = Geometry.GetAbsolutePosition().Y;
+            MotionMinY = FMath::Min(MotionMinY, Y);
+            MotionMaxY = FMath::Max(MotionMaxY, Y);
+            auto Frame = MakeShared<FJsonObject>();
+            Frame->SetNumberField(TEXT("text_scale"), PC.Controls->TextScale);
+            Frame->SetNumberField(TEXT("y"), Y);
+            Frame->SetNumberField(TEXT("height"), Geometry.GetAbsoluteSize().Y);
+            if (MotionSamples < 8)
+            {
+                TArray<TSharedPtr<FJsonValue>> Ancestors;
+                for (const UWidget* Widget = Ready; Widget; Widget = Widget->GetParent())
+                {
+                    auto Entry = MakeShared<FJsonObject>();
+                    Entry->SetStringField(TEXT("class"), Widget->GetClass()->GetName());
+                    Entry->SetNumberField(TEXT("visibility"), int32(Widget->GetVisibility()));
+                    Entry->SetNumberField(TEXT("y"), Widget->GetCachedGeometry().GetAbsolutePosition().Y);
+                    Entry->SetNumberField(TEXT("width"), Widget->GetCachedGeometry().GetLocalSize().X);
+                    Entry->SetNumberField(TEXT("height"), Widget->GetCachedGeometry().GetLocalSize().Y);
+                    Entry->SetNumberField(TEXT("desired_height"), Widget->GetDesiredSize().Y);
+                    Ancestors.Add(MakeShared<FJsonValueObject>(Entry));
+                }
+                Frame->SetArrayField(TEXT("ancestors"), Ancestors);
+            }
+            MotionFrames.Add(MakeShared<FJsonValueObject>(Frame));
+            if (++MotionSamples < 120) { return true; }
+            Check(MotionMaxY - MotionMinY <= 1.,
+                FString::Printf(TEXT("Ready stays vertically stable at %.0f%% text: range %.3f px"), PC.Controls->TextScale * 100.f, MotionMaxY - MotionMinY));
+            if (Stage == 1)
+            {
+                PC.Controls->TextScale = 1.25f;
+                Stage = 2;
+                MotionSamples = 0;
+                MotionMinY = TNumericLimits<double>::Max();
+                MotionMaxY = TNumericLimits<double>::Lowest();
+                NextAt = Now + 1.;
+                return true;
+            }
+            return Finish();
+        }
     };
 }
 
 void LDDemoTests::StartFrontendSettingsProbe(UWorld& World)
 {
     const bool LobbyOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoLobbyUIProbe"));
-    if (!LobbyOnly && !FParse::Param(FCommandLine::Get(), TEXT("LDDemoFrontendUIProbe"))) { return; }
+    const bool MotionOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoLobbyMotionProbe"));
+    if (!LobbyOnly && !MotionOnly && !FParse::Param(FCommandLine::Get(), TEXT("LDDemoFrontendUIProbe"))) { return; }
     FString Directory;
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoFrontendUIOutput="), Directory)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Directory),
@@ -613,6 +716,7 @@ void LDDemoTests::StartFrontendSettingsProbe(UWorld& World)
     auto Probe = MakeShared<FFrontendProbe>();
     Probe->World = &World;
     Probe->LobbyOnly = LobbyOnly;
+    Probe->MotionOnly = MotionOnly;
     Probe->Directory = FPaths::ConvertRelativePathToFull(Directory);
     FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Probe](float Delta) { return Probe->Tick(Delta); }));
 }

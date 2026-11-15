@@ -184,7 +184,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             PointsRow->AddChildToHorizontalBox(PointsLabel)->SetVerticalAlignment(VAlign_Center);
             if(UHorizontalBoxSlot* LabelSlot=Cast<UHorizontalBoxSlot>(PointsLabel->Slot)){LabelSlot->SetPadding(FMargin(12,4,0,0));}
             PointsBox=WidgetTree->ConstructWidget<UBorder>();PointsBox->SetBrush(FSlateNoResource());PointsBox->SetPadding(FMargin(22,2,16,2));PointsBox->SetContent(PointsRow);
-            auto* PointsHeight=WidgetTree->ConstructWidget<USizeBox>();PointsHeight->SetHeightOverride(54.f);PointsHeight->SetContent(PointsBox);
+            auto* PointsHeight=WidgetTree->ConstructWidget<USizeBox>();PointsHeight->SetMinDesiredHeight(54.f);PointsHeight->SetContent(PointsBox);
             PointsBox->SetVerticalAlignment(VAlign_Center);
             Column->AddChildToVerticalBox(PointsHeight)->SetPadding(FMargin(0,4,0,12));
             StatList=WidgetTree->ConstructWidget<UVerticalBox>();Column->AddChildToVerticalBox(StatList);
@@ -929,20 +929,23 @@ void ULDWorkshop::RefreshCharacter()
         if(Index%2==0)
         {
             auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Line);
-            AttributeList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,Index?6.f:0.f,0,0));
+            auto* Height=WidgetTree->ConstructWidget<USizeBox>();Height->SetContent(Line);Built.Add(Height);
+            AttributeList->AddChildToVerticalBox(Height)->SetPadding(FMargin(0,Index?6.f:0.f,0,0));
         }
-        auto* Line=Cast<UHorizontalBox>(AttributeList->GetChildAt(AttributeList->GetChildrenCount()-1));
-        UTextBlock* Name=LDWidgets::Text(WidgetTree,TEXT(""),14);Name->SetAutoWrapText(false);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-        Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
-        UTextBlock* Value=LDWidgets::Text(WidgetTree,TEXT(""),16,NAME_None,LDUIFonts::ERole::Number);Value->SetAutoWrapText(false);
+        auto* Line=Cast<UHorizontalBox>(Cast<USizeBox>(AttributeList->GetChildAt(AttributeList->GetChildrenCount()-1))->GetContent());
+        UTextBlock* Name=LDWidgets::Text(WidgetTree,TEXT(""),14,FName(*FString::Printf(TEXT("WorkshopAttributeName%d"),Index)));Name->SetAutoWrapText(false);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        UTextBlock* Value=LDWidgets::Text(WidgetTree,TEXT(""),16,FName(*FString::Printf(TEXT("WorkshopAttributeValue%d"),Index)),LDUIFonts::ERole::Number);Value->SetAutoWrapText(false);
         Value->SetColorAndOpacity(LDHUDStyle::UIText);Value->SetJustification(ETextJustify::Right);
         auto* Half=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Half);
-        auto* NameSlot=Half->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameSlot->SetVerticalAlignment(VAlign_Center);
-        Half->AddChildToHorizontalBox(Value)->SetPadding(FMargin(12,0,0,0));
-        auto* HalfSlot=Line->AddChildToHorizontalBox(Half);HalfSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HalfSlot->SetPadding(FMargin(Index%2?18.f:0.f,0,0,5));
-        AttributeHalves.Add(Half);
+        auto* NameSlot=Half->AddChildToHorizontalBox(Name);NameSlot->SetVerticalAlignment(VAlign_Center);
+        auto* ValueSlot=Half->AddChildToHorizontalBox(Value);ValueSlot->SetPadding(FMargin(12,0,0,0));ValueSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* Fit=LDWidgets::Fit(WidgetTree,Half);
+        auto* HalfSlot=Line->AddChildToHorizontalBox(Fit);HalfSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HalfSlot->SetPadding(FMargin(Index%2?18.f:0.f,0,0,5));
+        AttributeHalves.Add(Fit);
         AttributeNames.Add(Name);AttributeValues.Add(Value);ScaleFresh(Name);ScaleFresh(Value);
     }
+    // The fitting cells need a stable row height, not a height derived from their own scaled desired size.
+    for(UWidget* Row:AttributeList->GetAllChildren()){Cast<USizeBox>(Row)->SetHeightOverride(26.f*TextScale);}
     for(int32 Index=0;Index<AttributeNames.Num();++Index)
     {
         const bool bHas=Shown.IsValidIndex(Index);
@@ -1182,7 +1185,8 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
 {
     // The dock follows the held or hovered component first, then a hovered card of the tray, a stat row or a column head;
     // with nothing under the pointer it keeps what it showed last.
-    if(Storage.IsValid()&&!Storage->Focus().Component.IsNone())
+    const bool bChoiceStage=Choices.IsValid()&&Choices->IsStageShown();
+    if(!bChoiceStage&&Storage.IsValid()&&!Storage->Focus().Component.IsNone())
     {
         const ULDComponentStorage::FFocus& Focus=Storage->Focus();
         ShowComponentDock(Focus.Component,&Focus);
@@ -1198,6 +1202,7 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
             return;
         }
     }
+    if(bChoiceStage){return;}
     const FLDDemoContentDefinitions* Content=Latest.Content;
     if(Content&&Mode==EMode::Full)
     {
@@ -1230,6 +1235,7 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     if(!IsOpen()||!FSlateApplication::IsInitialized()){return;}
     RefreshDock(FSlateApplication::Get().GetCursorPos());
     for(UWidget* Fit:{CharacterFit.Get(),DockCentre.Get(),DockRight.Get()}){LDWidgets::RefitScale(Cast<UScaleBox>(Fit));}
+    for(UWidget* Fit:AttributeHalves){LDWidgets::RefitScale(Cast<UScaleBox>(Fit));}
 }
 void ULDWorkshop::AnimateOpening()
 {

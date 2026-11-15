@@ -796,6 +796,7 @@ void ULDChoicesPanel::RefreshOffer()
     // A queued opportunity without an eligible candidate waits as one grey card; its description says why.
     const bool bWaiting=!bOffer&&Usable()&&!ConfirmedOfferStillShown()&&Latest.QueuedActiveOpportunities>0;
     const bool bOnStage=bStageShown&&!bStageFinal;
+    if(bOnStage&&PinnedPreview==INDEX_NONE&&!Latest.ActiveOffer.Options.IsEmpty()){PinnedPreview=0;}
     const bool bVisible=bOnStage||TrayShows(ETrayGroup::Offer);
     GrowthShown(OfferGroup,(bOffer||bWaiting)&&!bOnStage&&bVisible);
     GrowthShown(OfferRow,(bOffer||bWaiting)&&bVisible);

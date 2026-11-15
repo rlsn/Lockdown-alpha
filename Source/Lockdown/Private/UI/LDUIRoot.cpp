@@ -37,7 +37,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
-#include "Components/WrapBox.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "UI/LDTween.h"
 #include "UI/LDUIPaint.h"
@@ -443,7 +444,8 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Add(Lobby,RosterRows,8);
     AIButtonRow=WidgetTree->ConstructWidget<UHorizontalBox>();
     Add(Lobby,AIButtonRow,6);
-    AIButtonRow->AddChildToHorizontalBox(Label(TEXT("AI 对手"),LDHUDStyle::TypeLead,LDHUDStyle::MenuSection))->SetVerticalAlignment(VAlign_Center);
+    auto* AICaption=Label(TEXT("AI 对手"),LDHUDStyle::TypeLead,LDHUDStyle::MenuSection);AICaption->SetAutoWrapText(false);
+    AIButtonRow->AddChildToHorizontalBox(AICaption)->SetVerticalAlignment(VAlign_Center);
     for(int32 Count=0;Count<=3;++Count)
     {
         ULDCommandButton* Choice=MakeButton(FString::FromInt(Count),FName(*FString::Printf(TEXT("AICount%d"),Count)),
@@ -859,16 +861,20 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
     // Six seat cards on their seat colours: a crown on the host's, a robot on each AI's, the name, 真人/AI and 房主, and a
     // 已准备 stamp across the corner; empty seats are dashed outlines. The own seat is edged in action yellow.
     RosterRows->ClearChildren();
-    auto* Seats=WidgetTree->ConstructWidget<UWrapBox>();Seats->SetInnerSlotPadding(FVector2D(10,10));
+    // Keep three columns when the scroll bar takes width; wrapping here creates a two-/three-row layout feedback loop.
+    auto* Seats=WidgetTree->ConstructWidget<UUniformGridPanel>();Seats->SetSlotPadding(FMargin(5));
     RosterRows->AddChildToVerticalBox(Seats);
     constexpr int32 SeatCount=6;
     const bool bHasPrevious=Public.DemoLobby.PreviousResultId.IsValid();
     const bool bPreviousReady=bHasPrevious&&Public.MatchResult.ResultId==Public.DemoLobby.PreviousResultId
         &&Public.MatchResult.Generation>0&&Public.MatchResult.Generation<Public.DemoLobby.Generation;
-    const auto Seat=[this,Seats,bHasPrevious](UWidget* Card)
+    int32 SeatIndex=0;
+    const auto Seat=[this,Seats,bHasPrevious,&SeatIndex](UWidget* Card)
     {
-        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetWidthOverride(258.f);Place->SetHeightOverride(bHasPrevious?174.f:116.f);Place->SetContent(Card);
-        Seats->AddChildToWrapBox(Place);
+        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetHeightOverride(bHasPrevious?174.f:116.f);Place->SetContent(Card);
+        auto* SeatSlot=Seats->AddChildToUniformGrid(Place,SeatIndex/3,SeatIndex%3);
+        SeatSlot->SetHorizontalAlignment(HAlign_Fill);SeatSlot->SetVerticalAlignment(VAlign_Fill);
+        ++SeatIndex;
     };
     int32 Shown=0;
     for(const FLDLobbyMember& Member:Public.DemoLobby.Members)
@@ -901,12 +907,14 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         UTextBlock* Name=Label(Member.Name+(bMine?TEXT("（你）"):TEXT("")),LDHUDStyle::TypeLead,LDHUDStyle::UIText);
         Name->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,Name->GetFont().Size));Name->SetAutoWrapText(false);
         Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+        Name->SetClipping(EWidgetClipping::ClipToBounds);
         UHorizontalBoxSlot* NameSlot=Head->AddChildToHorizontalBox(Name);NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameSlot->SetVerticalAlignment(VAlign_Center);
         Box->AddChildToVerticalBox(Head);
         auto* Tags=WidgetTree->ConstructWidget<UHorizontalBox>();
         Tags->AddChildToHorizontalBox(Label(bHuman?TEXT("真人"):TEXT("AI"),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary));
         if(Member.Host){Tags->AddChildToHorizontalBox(Label(TEXT("房主"),LDHUDStyle::TypeSmall,LDHUDStyle::UIAction))->SetPadding(FMargin(10,0,0,0));}
         if(bHuman&&!Member.Ready){Tags->AddChildToHorizontalBox(Label(TEXT("未准备"),LDHUDStyle::TypeSmall,LDHUDStyle::MenuMuted))->SetPadding(FMargin(10,0,0,0));}
+        for(UWidget* Tag:Tags->GetAllChildren()){Cast<UTextBlock>(Tag)->SetAutoWrapText(false);}
         Box->AddChildToVerticalBox(Tags)->SetPadding(FMargin(0,8,0,0));
         if(bHasPrevious)
         {

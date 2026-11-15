@@ -867,6 +867,33 @@ bool FLDDemoOpponentProbe::ReviewRestScreens(ALDPlayerController& Owner, const A
     };
     const auto Capture = [&](const TCHAR* Name)
     {
+        if(Panel->IsStageShown()&&!Panel->IsFinalStage())
+        {
+            LDHUD::FActionDetailView Detail;
+            const int32 Pick=Panel->PinnedPreview==INDEX_NONE?0:Panel->PinnedPreview;
+            if(!Check(Panel->OfferCards.IsValidIndex(Pick)
+                &&Panel->Hovered(FVector2D(-1000,-1000),Detail)
+                &&Detail.Name==Panel->OfferCards[Pick].Detail.Name,
+                TEXT("UI: the active offer has its own default dock detail without pointer hover"))){return;}
+        }
+        if(Owner.HUDUI->Workshop&&Owner.HUDUI->Workshop->IsOpen()&&!Panel->IsStageShown())
+        {
+            bool bAttributesFit=true;
+            int32 AttributeCount=0;
+            for(int32 Index=0;;++Index)
+            {
+                const auto* Label=Owner.HUDUI->Workshop->WidgetTree->FindWidget(
+                    FName(*FString::Printf(TEXT("WorkshopAttributeName%d"),Index)));
+                if(!Label){break;}
+                ++AttributeCount;
+                const auto* Value=Owner.HUDUI->Workshop->WidgetTree->FindWidget(
+                    FName(*FString::Printf(TEXT("WorkshopAttributeValue%d"),Index)));
+                bAttributesFit&=Value&&Label->GetCachedGeometry().GetLayoutBoundingRect().Right+1.f
+                    <=Value->GetCachedGeometry().GetLayoutBoundingRect().Left
+                    &&LDSlateProbeInput::FullyVisible(Label,Label->GetParent()->GetParent());
+            }
+            if(!Check(AttributeCount>0&&bAttributesFit,TEXT("UI: workshop attribute labels and values fit without overlap or truncation"))){return;}
+        }
         FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Name), true, false);
         Screenshots.Add(MakeShared<FJsonValueString>(Name));
     };
@@ -1709,6 +1736,9 @@ bool FLDDemoOpponentProbe::ReviewChoiceCards(ALDPlayerController& PC,double Now)
         if(!Check(UIChoiceFixture.IsValid(),TEXT("UI: isolated candidate widget is created in the actual rendered viewport"))){return false;}
         auto* Panel=UIChoiceFixture.Get();
         Panel->AddToPlayerScreen(100);
+        const auto* Workshop=PC.HUDUI->Workshop.Get();
+        const FVector2D Inset=Workshop->TrayInset();
+        Panel->SetTrayInset(Inset.X,Inset.Y,Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());
         const auto PresentFixture=[&]()
         {
             Panel->Present(Sample,Real->LatestMatch,Real->LatestLife,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,
