@@ -10,8 +10,8 @@
       "required": ["schema_version", "handler_revision", "projection_revision", "approval"],
       "properties": {
         "schema_version": {"type": "integer", "const": 2},
-        "handler_revision": {"type": "integer", "const": 7},
-        "projection_revision": {"type": "integer", "const": 7},
+        "handler_revision": {"type": "integer", "const": 8},
+        "projection_revision": {"type": "integer", "const": 8},
         "approval": {
           "type": "object", "additionalProperties": false, "required": ["status", "decision"],
           "properties": {
@@ -269,7 +269,7 @@
     "camps": {
       "type": "object", "additionalProperties": false, "required": ["monsters", "placements"],
       "properties": {
-        "monsters": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/monster"}},
+        "monsters": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/monster"}},
         "placements": {
           "type": "array", "minItems": 1, "maxItems": 48,
           "items": {
@@ -710,17 +710,18 @@
     },
     "monster": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"],
+      "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "hp_regen", "max_mp", "mp_regen", "ap", "crit_chance", "skill"],
       "properties": {
-        "id": {"$ref": "#/$defs/id"}, "tier": {"enum": ["Low", "High", "Elite"]}, "count_per_camp": {"$ref": "#/$defs/positive_count"},
+        "id": {"$ref": "#/$defs/id"}, "tier": {"enum": ["Low", "High", "Elite", "Ancient"]}, "count_per_camp": {"$ref": "#/$defs/positive_count"},
         "hp": {"$ref": "#/$defs/hp"}, "armor": {"$ref": "#/$defs/points"}, "magic_resist": {"$ref": "#/$defs/points"}, "attack": {"$ref": "#/$defs/points"},
         "attack_speed": {"$ref": "#/$defs/attack_rate"}, "attack_windup": {"$ref": "#/$defs/positive_sec"},
         "attack_range": {"$ref": "#/$defs/cm"}, "move_speed": {"$ref": "#/$defs/speed"}, "collision_radius": {"$ref": "#/$defs/cm"}, "leash_radius": {"$ref": "#/$defs/cm"},
         "lose_target_grace": {"$ref": "#/$defs/positive_sec"}, "respawn": {"$ref": "#/$defs/positive_sec"},
         "reward_xp": {"$ref": "#/$defs/count"},
         "hp_regen": {"$ref": "#/$defs/hp_rate"}, "max_mp": {"$ref": "#/$defs/mp"}, "mp_regen": {"$ref": "#/$defs/mp_rate"},
-        "ap": {"$ref": "#/$defs/points"}, "crit_chance": {"$ref": "#/$defs/probability"}
+        "ap": {"$ref": "#/$defs/points"}, "crit_chance": {"$ref": "#/$defs/probability"}, "skill": {"$ref": "#/$defs/monster_skill"}
       }
-    }
+    },
+    "monster_skill": {"type": "object", "additionalProperties": false, "required": ["pattern", "every", "windup", "recovery", "ratio", "range", "radius", "angle", "pulses", "pulse_interval", "pulse_angle", "offset", "passive", "evolved_passive", "guard_duration", "evolve_stage", "echo_stage", "echo_delay", "echo_ratio", "evolved_slow", "evolved_slow_duration", "projectile_speed", "low_hp_threshold", "low_hp_haste", "name"], "properties": {"pattern": {"enum": ["Enrage", "Cone", "Charge", "Projectile", "Guard", "Circle", "SweepLine", "EchoCircle", "Fan", "DoubleCircle", "RotatingCone"]}, "every": {"$ref": "#/$defs/positive_count"}, "windup": {"$ref": "#/$defs/positive_sec"}, "recovery": {"$ref": "#/$defs/positive_sec"}, "ratio": {"$ref": "#/$defs/multiplier"}, "range": {"$ref": "#/$defs/cm"}, "radius": {"$ref": "#/$defs/cm"}, "angle": {"$ref": "#/$defs/count"}, "pulses": {"$ref": "#/$defs/positive_count"}, "pulse_interval": {"$ref": "#/$defs/positive_sec"}, "pulse_angle": {"$ref": "#/$defs/count"}, "offset": {"$ref": "#/$defs/cm"}, "passive": {"$ref": "#/$defs/probability"}, "evolved_passive": {"$ref": "#/$defs/probability"}, "guard_duration": {"$ref": "#/$defs/positive_sec"}, "evolve_stage": {"$ref": "#/$defs/positive_count"}, "echo_stage": {"$ref": "#/$defs/positive_count"}, "echo_delay": {"$ref": "#/$defs/positive_sec"}, "echo_ratio": {"$ref": "#/$defs/multiplier"}, "evolved_slow": {"$ref": "#/$defs/probability"}, "evolved_slow_duration": {"$ref": "#/$defs/positive_sec"}, "projectile_speed": {"$ref": "#/$defs/speed"}, "low_hp_threshold": {"$ref": "#/$defs/probability"}, "low_hp_haste": {"$ref": "#/$defs/probability"}, "name": {"type": "string", "minLength": 1, "maxLength": 64}}}
   }
 }

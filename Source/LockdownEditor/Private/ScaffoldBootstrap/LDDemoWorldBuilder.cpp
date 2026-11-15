@@ -30,6 +30,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "Engine/TargetPoint.h"
 #include "EngineUtils.h"
 #include "FileHelpers.h"
 #include "GameFramework/PlayerStart.h"
@@ -493,6 +494,76 @@ bool LDDemoWorldBuilder::ValidateFrontend(const UWorld& World, FString& Error)
             TEXT("background image. Run BootstrapAssets.ps1 -Mode RegenerateFrontend."), *Actor->GetName(), *Actor->GetClass()->GetName()));
     }
     Error.Reset();
+    return true;
+}
+
+bool LDDemoWorldBuilder::RefreshCampHomes(UWorld& World,const FLDDemoWorldGeometry& Previous,
+    ULDMapDefinition& Definition,const FLDDemoContentSnapshot& Content,FString& Error)
+{
+    TSharedPtr<const FLDDemoWorldGeometry> Geometry;
+    if(!Definition.Read(Content,Geometry,Error)){return false;}
+    TSet<FName> CampAnchors,CampHomes;
+    for(const auto& Camp:Geometry->Anchors)
+    {
+        if(Camp.Kind!=ELDDemoWorldAnchorKind::Camp){continue;}
+        CampAnchors.Add(FName(*Camp.Id));
+        for(const auto& Home:Camp.Members){CampHomes.Add(FName(*Home.Id));}
+    }
+    for(const auto& Camp:Previous.Anchors)
+    {if(Camp.Kind==ELDDemoWorldAnchorKind::Camp){for(const auto& Home:Camp.Members){CampHomes.Add(FName(*Home.Id));}}}
+    TMap<FName,AActor*> Homes,Anchors;
+    for(AActor* Actor:World.PersistentLevel->Actors)
+    {
+        if(!Actor){continue;}
+        for(const FName Tag:Actor->Tags)
+        {
+            const FString Text=Tag.ToString();
+            if(Text.StartsWith(TEXT("LDSceneMember:")))
+            {const FName Id(*Text.Mid(14));if(CampHomes.Contains(Id)){if(Homes.Contains(Id)){return Fail(Error,TEXT("Duplicate camp member home: ")+Id.ToString());}Homes.Add(Id,Actor);}}
+            if(Text.StartsWith(TEXT("LDSceneAnchor:")))
+            {const FName Id(*Text.Mid(14));if(CampAnchors.Contains(Id)){if(Anchors.Contains(Id)){return Fail(Error,TEXT("Duplicate camp anchor: ")+Id.ToString());}Anchors.Add(Id,Actor);}}
+        }
+    }
+    // A deleted existing point is an authoring error, not permission to recreate it at a generator coordinate.
+    for(const auto& Camp:Previous.Anchors)
+    {
+        for(const auto& Home:Camp.Members)
+        {if(!Homes.Contains(FName(*Home.Id))){return Fail(Error,TEXT("Missing existing camp member home: ")+Home.Id);}}
+    }
+    struct FAddition{FName Id;FVector Position;};TArray<FAddition> Additions;
+    for(const auto& Camp:Geometry->Anchors)
+    {
+        if(Camp.Kind!=ELDDemoWorldAnchorKind::Camp){continue;}
+        const auto* Anchor=Anchors.FindRef(FName(*Camp.Id));
+        if(!Anchor){return Fail(Error,TEXT("Missing saved semantic camp anchor: ")+Camp.Id);}
+        FVector Baseline;if(!Camp.PositionCm.ToVector(Baseline,Error)){return false;}
+        TArray<FVector> Positions;
+        for(const auto& Home:Camp.Members)
+        {
+            FVector Position;
+            if(const auto* Existing=Homes.FindRef(FName(*Home.Id))){Position=Existing->GetActorLocation();}
+            else
+            {
+                if(!Home.PositionCm.ToVector(Position,Error)){return false;}
+                Position+=Anchor->GetActorLocation()-Baseline;
+                Additions.Add({FName(*Home.Id),Position});
+            }
+            const double Radius=double(Content.Get().Parameters.CollisionRadiusCm.Numerator)/Content.Get().Parameters.CollisionRadiusCm.Denominator;
+            if(Positions.ContainsByPredicate([&](const auto& P){return FVector::DistSquared2D(P,Position)<4*Radius*Radius;}))
+            {return Fail(Error,TEXT("Member home capsules overlap in camp: ")+Camp.Id);}
+            Positions.Add(Position);
+        }
+    }
+    for(const auto& Addition:Additions)
+    {
+        auto* Point=World.SpawnActor<ATargetPoint>();
+        if(!Point){return Fail(Error,TEXT("Could not add a semantic camp member home."));}
+        Point->Tags.Add(FName(*(FString(TEXT("LDSceneMember:"))+Addition.Id.ToString())));
+        Point->SetActorLocation(Addition.Position);Point->SetActorLabel(Addition.Id.ToString());
+    }
+    if(!Additions.IsEmpty() && !UEditorLoadingAndSavingUtils::SaveMap(&World,LDDemoEntry::WorldMap))
+    {return Fail(Error,TEXT("Could not save the camp home additions."));}
+    UE_LOG(LogLDEditor,Display,TEXT("LD_CAMP_HOMES_REFRESHED added=%d scope=semantic_member_homes_only"),Additions.Num());
     return true;
 }
 

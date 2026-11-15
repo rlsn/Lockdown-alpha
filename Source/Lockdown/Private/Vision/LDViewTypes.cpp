@@ -39,6 +39,8 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Electrified:
     case ELDDemoStatusId::Braced:
     case ELDDemoStatusId::Soured:
+    case ELDDemoStatusId::CampEnraged:
+    case ELDDemoStatusId::CampGuarding:
         return true;
     default:
         return false;
@@ -53,6 +55,15 @@ bool IsPublicCreatureId(uint8 Id)
     case ELDDemoMonsterId::MonsterGuardian:
     case ELDDemoMonsterId::MonsterDean:
     case ELDDemoMonsterId::MonsterAdvisor:
+    case ELDDemoMonsterId::MonsterPromoter:
+    case ELDDemoMonsterId::MonsterCourier:
+    case ELDDemoMonsterId::MonsterAgent:
+    case ELDDemoMonsterId::MonsterGuard:
+    case ELDDemoMonsterId::MonsterAuditor:
+    case ELDDemoMonsterId::MonsterClient:
+    case ELDDemoMonsterId::MonsterDirector:
+    case ELDDemoMonsterId::MonsterFinalClient:
+    case ELDDemoMonsterId::MonsterProperty:
         return true;
     default:
         return false;
@@ -274,6 +285,10 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
             // camp_returning is a camp-only marker with neither stacks nor expiry (SC-07).
             || (Status.StatusId == uint8(ELDDemoStatusId::CampReturning)
                 && (Contender || Status.Stacks != 1 || Status.ExpiresAtServerMs != 0))
+            || (Status.StatusId==uint8(ELDDemoStatusId::CampEnraged)
+                && (Contender || Status.Stacks!=1 || Status.ExpiresAtServerMs!=0))
+            || (Status.StatusId==uint8(ELDDemoStatusId::CampGuarding)
+                && (Contender || Status.Stacks!=1 || Status.ExpiresAtServerMs<=0))
             // The core derives respawn protection from its protected-until time: contender-only, non-stacking, timed.
             || (Status.StatusId == uint8(ELDDemoStatusId::RespawnProtection)
                 && (!Contender || Status.Stacks != 1 || Status.ExpiresAtServerMs <= 0)))
@@ -297,7 +312,7 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     if (!Projectile.Handle.IsValid()) { return FailObservation(Error, TEXT("An observed projectile requires an opaque handle.")); }
     if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
     if (!FMath::IsFinite(Projectile.LengthCm) || Projectile.LengthCm<0
-        || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.LengthCm!=0)
+        || (Projectile.Look!=ELDObservedProjectileLook::Road && Projectile.Look!=ELDObservedProjectileLook::LineWarning && Projectile.LengthCm!=0)
         || !FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
         || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
         || Projectile.InnerRadiusCm < 0 || Projectile.InnerRadiusCm > Projectile.RadiusCm
@@ -305,6 +320,14 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
     { return FailObservation(Error, TEXT("Observed skill geometry is outside its finite public domain.")); }
     switch (Projectile.Look)
     {
+    case ELDObservedProjectileLook::LineWarning:
+        if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0 || Projectile.AngleDegrees!=0)
+        {return FailObservation(Error,TEXT("A line warning needs its locked length and half-width."));}
+        break;
+    case ELDObservedProjectileLook::ConeWarning:
+        if(Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0 || Projectile.AngleDegrees<=0)
+        {return FailObservation(Error,TEXT("A cone warning needs its locked reach and angle."));}
+        break;
     case ELDObservedProjectileLook::Road:
         if(Projectile.LengthCm<=0 || Projectile.RadiusCm<=0 || Projectile.InnerRadiusCm!=0
             || Projectile.AngleDegrees!=0 || Projectile.WarningRemainingMs!=0)

@@ -460,4 +460,41 @@ bool FLDCampObservedFactsTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A dead member has no observed facts"), State.AppendObservedFacts(A, Dead, Error));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCampSpeciesTest,"Lockdown.Rules.DemoCamp.Species",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDCampSpeciesTest::RunTest(const FString& Parameters)
+{
+    using namespace LDCampLifecycleTests;
+    auto Fixture=MakeFixture();
+    for(int32 I=0;I<2;++I)
+    {auto M=Fixture.Content.Monsters[0];M.Id=FString::Printf(TEXT("monster_variant_%d"),I);M.NativeId=uint8(5+I);Fixture.Content.Monsters.Add(M);}
+    FLDCampRoster Roster;FString Error;
+    if(!TestTrue(TEXT("A common tier pool projects into each fixed camp"),LDCamp::BuildRoster(Fixture.Content,Fixture.World,Roster,Error))){AddError(Error);return false;}
+    FLDMatchContext Match;Match.Generation=31;Match.LedgerMatch=FGuid(31,32,33,34);
+    FLDCampMatchState State;
+    if(!TestTrue(TEXT("Begin private match"),State.Begin(Match,MakeShared<const FLDCampRoster>(MoveTemp(Roster)),Error))){return false;}
+    const auto Public=State.BuildPublicViews();
+    FName Choice;
+    TestFalse(TEXT("Outside-tier draw is rejected"),State.SelectSpecies(0,3,Choice,Error));
+    TestTrue(TEXT("Third species can be selected"),State.SelectSpecies(0,2,Choice,Error));
+    const FName Selected=Choice;
+    TestTrue(TEXT("A blocked placement retry can reuse its selection"),State.SelectSpecies(0,0,Choice,Error));
+    TestEqual(TEXT("A retry never rerolls"),Choice,Selected);
+    auto Bodies=Spawned(State,0);
+    TestTrue(TEXT("Commit the selected whole group"),State.CommitSpawn(0,Bodies,1.,Error));
+    TestEqual(TEXT("Selected creature id belongs to the third species"),State.FindCamp(0)->CreatureId,uint8(6));
+    TestEqual(TEXT("The public tier representative does not reveal the random species"),State.BuildPublicViews()[0].MonsterId,Public[0].MonsterId);
+    TestFalse(TEXT("A living or partly cleared camp cannot reroll"),State.SelectSpecies(0,1,Choice,Error));
+    TestEqual(TEXT("Only the first member dies"),State.RecordDeath({Match.LedgerMatch,Bodies[0].Victim},2000,Error),ELDCampDeathResult::MemberDead);
+    TestFalse(TEXT("A surviving member still pins the species"),State.SelectSpecies(0,1,Choice,Error));
+    TestEqual(TEXT("The last member clears the camp"),State.RecordDeath({Match.LedgerMatch,Bodies[1].Victim},2100,Error),ELDCampDeathResult::CampCleared);
+    TestTrue(TEXT("A new generation can choose another species"),State.SelectSpecies(0,1,Choice,Error));
+    auto Fresh=Spawned(State,0,9);
+    TestTrue(TEXT("New bodies commit under the next selected species"),State.CommitSpawn(0,Fresh,43.,Error));
+    TestEqual(TEXT("New generation uses the second species"),State.FindCamp(0)->CreatureId,uint8(5));
+    TestEqual(TEXT("A delayed death cannot clear a new generation"),State.RecordDeath({Match.LedgerMatch,Bodies[0].Victim},44000,Error),ELDCampDeathResult::Duplicate);
+    State.End();TestFalse(TEXT("Old match cannot select after end"),State.SelectSpecies(0,0,Choice,Error));
+    return true;
+}
+
 #endif

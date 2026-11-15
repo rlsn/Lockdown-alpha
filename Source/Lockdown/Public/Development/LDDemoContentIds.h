@@ -43,7 +43,7 @@ enum class ELDDemoComponentId : uint8
     ComponentMoveMeeting=58, ComponentBottledUp=59, ComponentSpendFist=60, ComponentWideOpen=61, ComponentSetItOff=62,
     ComponentMeetHere=63
 };
-enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4 };
+enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4, MonsterPromoter=5, MonsterCourier=6, MonsterAgent=7, MonsterGuard=8, MonsterAuditor=9, MonsterClient=10, MonsterDirector=11, MonsterFinalClient=12, MonsterProperty=13 };
 // Public status ids stay below 64 (the observation uniqueness check is a 64-bit mask; #112 C2 uses 20, #147 v7 25..26,
 // #198 elements 30..33).
 // Retired status identities must never be reused: 7..8, 11, 15..19, 21..24, 28..29 (native_ids.json retired_ranges).
@@ -51,7 +51,7 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
     Slow=5, StatBoost=6, Exposed=9, Taunt=10,
     Disarm=12, Stun=13, Empowered=14,
     Knockback=20, Silence=25, Burn=26, AttackSlowed=27,
-    Wet=30, Electrified=31, Braced=32, Soured=33 };
+    Wet=30, Electrified=31, Braced=32, Soured=33, CampEnraged=34, CampGuarding=35 };
 // #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md); #198 keeps the passive-form operations for base
 // components. Retired operation identities must never be reused: 6, 9..11, 16, 19, 23, 25, 27..30, 32..34, 38..39,
 // 41..49, 51, 53, 55..66, 68, 72..76, 83..85, 89 (native_ids.json). #198 B owns 100..119 for component-only operations;

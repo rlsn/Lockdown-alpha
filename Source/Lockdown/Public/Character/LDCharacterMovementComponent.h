@@ -68,6 +68,7 @@ public:
     bool CanStartDash(const FVector& Direction, double ProbeCm) const;
     // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
     bool IsDashing() const;
+    void StopDemoDash();
     virtual void PhysWalking(float DeltaSeconds, int32 Iterations) override;
     virtual void PhysFalling(float DeltaSeconds, int32 Iterations) override;
     virtual void MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult) override;

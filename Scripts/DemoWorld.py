@@ -269,7 +269,7 @@ def validate_author_contract(author):
         identifier(anchor["surface_id"], at + ".surface_id")
         _author_vector(anchor["position_cm"], at + ".position_cm")
         if kind == "Camp":
-            for member, value in _author_rows(anchor["members"], at + ".members", 1, 2):
+            for member, value in _author_rows(anchor["members"], at + ".members", 1, 3):
                 member_at = f"{at}.members[{member}]"
                 _author_fields(value, ("id", "position_cm"), member_at)
                 identifier(value["id"], member_at + ".id")
@@ -424,7 +424,7 @@ def validate_payload(raw):
                 and position[2] == terrain.height(level),
                 "InvalidGeometry", row["id"], "anchor outside the surface or off its level's height")
         if row["kind"] == "Camp":
-            require(type(row["members"]) is list and 1 <= len(row["members"]) <= 2,
+            require(type(row["members"]) is list and 1 <= len(row["members"]) <= 3,
                     "WorldAnchors", row["id"], "expected one or two member homes")
             for member in row["members"]:
                 keys(member, {"id", "position_cm"}, row["id"])

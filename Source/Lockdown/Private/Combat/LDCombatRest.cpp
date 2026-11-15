@@ -125,6 +125,7 @@ int32 ALDCombatDirector::CancelAllForPhase(const FLDGameplayWritePermit& Permit)
     Zones.Reset();
     Channels.Reset();
     GroundEffects.Reset();
+    MonsterStrikes.Reset();
     ContactMotion.Reset();
     PendingContacts.Reset();
     for (auto& Pair : Bodies)

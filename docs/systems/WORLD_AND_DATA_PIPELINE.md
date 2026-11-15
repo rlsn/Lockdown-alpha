@@ -56,7 +56,7 @@ Python/native importer 都识别新增锚点，服务范围、假人偏移与出
 | --- | --- |
 | 读取与 schema | UTF-8；小数从原文直接读为 Decimal，拒绝重复键、未知字段/操作/ID、错误单位/等级/引用、bool 整数、非有限值和不可表示精度 |
 | 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/XP 为 int64 |
-| 完整定义 | 角色参数、单级主动的完整数值/effects 与开局池标记、五维属性每点加成、成长点数参数、XP 阈值与主动机会等级、三档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
+| 完整定义 | 角色参数、单级主动的完整数值/effects 与开局池标记、五维属性每点加成、成长点数参数、XP 阈值与主动机会等级、四档营地与十二种的攻击模式、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
 | 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、XP 或其他玩法状态 |
 | 世界前置 | 必须读取真实 `Content\Lockdown\Data\Demo\world.json` 及 `Private\World\LDDemoWorldContract.h`，核对实际字节，不接受调用方单独给出的 digest 或空世界占位 |
 | 输出 | 同时生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 与 `Private\Development\LDDemoContentContract.h`；不生成世界文件或世界契约 |
@@ -477,7 +477,7 @@ Bootstrap 与运行入口仍按完整内容根重新投影和校验，不把作�
 
 复制训练假人定位点会自动启用 `Training / Shared Training Dummy`，新增可攻击的通用假人；
 原有六个槽位仍按对应参赛者生成。通用假人按保存的 Actor 名派生独立身份，移动、复制和删除不争用槽位编号。
-准备区观察上限为 58 个单位，按其他参赛者、每人一个专属假人和全部通用假人计算；六人名册最多容纳 47 个额外通用假人，开局前检查并报告超限。
+准备区观察上限为 86 个单位，按其他参赛者、每人一个专属假人和全部通用假人计算；六人名册最多容纳 75 个额外通用假人，开局前检查并报告超限。
 通用假人的合法偏移被临时占位时，记录待放置并在休息区后续世界写入阶段重试，不阻止其他生命入场；返回野外时一并清理待放置项。
 所有目标复用现有战斗、休息隔离与归零回满规则；通用目标使用既有开局等级的无构筑底盘，返回野外时清理。
 通用假人直接保存在关卡中，显式作者源快照导出尚不支持该类型并会报告原因。
@@ -503,3 +503,13 @@ Bootstrap 与运行入口仍按完整内容根重新投影和校验，不把作�
 `VerifyCleanCheckout.ps1` 通过 `git lfs env` 的 `LocalMediaDir` 定位实际缓存，
 复制到隔离检出后再验证；这与从远端下载验证是不同的边界。
 验证检出使用 `Artifacts` 下的短目录，避免长工作树路径触发 UBT 的 Windows action 路径长度限制。
+
+## 营地种类池与成员落点
+
+`camps.placements.monster_id`是固定档位代表，运行按该定义的tier聚合三种候选，不是本次生成结果。
+同档必须具有相同成员数量、奖励与刷新时间。`FLDCampGroupState`保存本次选种与准备中的选种，
+SpawnBlocked重试保留抽签；整组生命提交后才切换当前种类。公开POI保留档位代表，动态CreatureId只经合法观察发布。
+移动营地仍通过原有语义锚点/home点，模型替换不改档位。`BootstrapAssets.ps1 -Mode RefreshCampHomes`导入内容/世界定义，只为批准的新成员新增语义home点，
+保留现存点和人工布景；现存必需点缺失、重复身份或成员落点重叠会拒绝，不能用此入口重建被删除的点。
+该定向同步不刷新碰撞、导航或美术，也不代表完整Bootstrap通过；新增成员的实际胶囊落地及接线由拥有连接营地场景验证。
+普通布景不参与成员数量或档位判定；全场景源快照导出对未注册静态碰撞的限制仍存在。

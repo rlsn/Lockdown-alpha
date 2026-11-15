@@ -261,7 +261,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
-    TestTrue(TEXT("Full view stays inside its derived capacity"), Bytes > 0 && Bytes < 8192);
+    TestTrue(TEXT("Full view stays inside the four-tier 32 KiB capacity"), Bytes > 0 && Bytes < 32768);
     AddInfo(FString::Printf(TEXT("Maximum observation frame: %lld bytes"), Bytes));
     TestEqual(TEXT("Units complete"), Read.Units.Num(), LDObservation::MaxUnits);
     TestEqual(TEXT("Terminations complete"), Read.RecentTerminations.Num(), LDObservation::MaxTerminations);
@@ -380,7 +380,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Resources are closed pairs"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Health.CurrentP2 = V.Units[0].Health.MaxP2 + 1; })));
     TestFalse(TEXT("Unauthorized camp mana refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Mana.MaxP2 = 10; })));
     TestFalse(TEXT("Camp level refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].Level = 1; })));
-    TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 5; })));
+    TestFalse(TEXT("Unknown creature refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[1].CreatureId = 255; })));
     TestFalse(TEXT("Unknown action cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCue = static_cast<ELDObservedActionCue>(4); })));
     TestFalse(TEXT("A cue age without a cue refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].ActionCueAgeMs = 120; })));
     TestFalse(TEXT("Unknown unit kind refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Kind = static_cast<ELDObservedUnitKind>(3); })));
@@ -1279,7 +1279,8 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         ELDObservedProjectileLook::SockReturn, ELDObservedProjectileLook::BookShadow,
         ELDObservedProjectileLook::FlyerArming, ELDObservedProjectileLook::FlyerArmed, ELDObservedProjectileLook::SpeechCone,
         ELDObservedProjectileLook::AreaPlain, ELDObservedProjectileLook::AreaMagic, ELDObservedProjectileLook::AreaFire,
-        ELDObservedProjectileLook::AreaWater, ELDObservedProjectileLook::AreaElectric,ELDObservedProjectileLook::Road})
+        ELDObservedProjectileLook::AreaWater, ELDObservedProjectileLook::AreaElectric,ELDObservedProjectileLook::Road,
+        ELDObservedProjectileLook::ConeWarning,ELDObservedProjectileLook::LineWarning})
     {
         FLDWorldView Effects=ActiveFrame(7,3,42);
         auto Effect=Flight(FVector(20,30,2));
@@ -1288,7 +1289,11 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
             || Look==ELDObservedProjectileLook::AreaFire || Look==ELDObservedProjectileLook::AreaWater
             || Look==ELDObservedProjectileLook::AreaElectric;
         Effect.bOwn=true;
-        if(Look==ELDObservedProjectileLook::Road)
+        if(Look==ELDObservedProjectileLook::ConeWarning)
+        {Effect.RadiusCm=600.f;Effect.AngleDegrees=60.f;Effect.WarningRemainingMs=800;}
+        else if(Look==ELDObservedProjectileLook::LineWarning)
+        {Effect.RadiusCm=80.f;Effect.LengthCm=400.f;Effect.WarningRemainingMs=800;}
+        else if(Look==ELDObservedProjectileLook::Road)
         {Effect.RadiusCm=45.f;Effect.LengthCm=600.f;}
         else if (bArea)
         {
@@ -1352,8 +1357,13 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     const auto BySight = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::Sight; };
     TestTrue(TEXT("Only flights in sight are selected, nearest first (wall, range and ground edge exclude the rest)"),
         LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, BySight, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
+    auto Incoming=Fact(West);Incoming.Look=ELDObservedProjectileLook::LineWarning;Incoming.RadiusCm=80;Incoming.LengthCm=1600;
+    TestTrue(TEXT("An incoming line remains visible when its locked origin is in sight but its midpoint is behind the wall"),
+        Sight.Trace(West,West+FVector(800,0,0))==ELDSightResult::Blocked
+        && LDObservation::SelectVisibleProjectiles(Sight,West,{},TArray<FLDObservedProjectileFact>{Incoming},BySight,Visible,Error)
+        && Visible.Num()==1);
     TArray<FLDObservedProjectileFact> Many;
-    for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 10, 100, 2))); }
+    for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 2, 100, 2))); }
     TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Many, BySight, Visible, Error)
         && Visible.Num() == LDObservation::MaxProjectiles && Visible[0] == &Many[0] && Visible.Last() == &Many[LDObservation::MaxProjectiles - 1]);
     const TArray<FLDObservedProjectileFact> Broken = {Fact(FVector(std::numeric_limits<double>::quiet_NaN(), 0, 2))};
@@ -1673,9 +1683,13 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("A frame of fully debuffed units round-trips"), Wire(Frame, Read, &Bytes) && Read.Units.Num() == LDObservation::MaxUnits))
     { return false; }
     AddInfo(FString::Printf(TEXT("Fully debuffed observation frame: %lld bytes"), Bytes));
-    // #97: with 58 units every one fully debuffed the frame is about 13 KB; the unreliable full view still travels as
-    // partial bunches, so the bound is twice the old 8 KB rather than a cap the runtime enforces.
-    TestTrue(TEXT("and stays inside the frame capacity"), Bytes < 16384);
+    // The four-tier roster permits 86 observed units and two extra camp statuses. Keep an explicit 32 KiB full-frame
+    // budget, also with every allowed warning/flight present; transport uses partial unreliable bunches.
+    for(int32 Index=0;Index<LDObservation::MaxProjectiles;++Index)
+    {FLDObservedProjectileView P;P.Handle=FGuid::NewGuid();P.PositionCm=FVector(Index*5,0,2);P.Look=ELDObservedProjectileLook::Chalk;Frame.Projectiles.Add(P);}
+    TestTrue(TEXT("A full unit and warning frame round-trips"),Wire(Frame,Read,&Bytes));
+    AddInfo(FString::Printf(TEXT("Fully debuffed frame with maximum flights: %lld bytes"),Bytes));
+    TestTrue(TEXT("and stays inside the explicit 32 KiB frame capacity"), Bytes < 32768);
     TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()
         && Read.Units[1].Statuses.Num() == CampAll.Num()
         && Read.Units[0].Statuses.ContainsByPredicate([](const FLDObservedStatus& Row)

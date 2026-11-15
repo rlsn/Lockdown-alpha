@@ -48,6 +48,8 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Root: return TEXT("root");
     case ELDDemoStatusId::Shield: return TEXT("shield");
     case ELDDemoStatusId::CampReturning: return TEXT("camp_returning");
+    case ELDDemoStatusId::CampEnraged: return TEXT("camp_enraged");
+    case ELDDemoStatusId::CampGuarding: return TEXT("camp_guarding");
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
     case ELDDemoStatusId::Slow: return TEXT("slow");
     case ELDDemoStatusId::StatBoost: return TEXT("stat_boost");
@@ -812,6 +814,7 @@ FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FS
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;
+    if(!Notice.CreatureName.IsEmpty()){return LDTerms::KilledByLine(Victim,Notice.CreatureName);}
     switch(Notice.Cause)
     {
     case ELDKillCause::Contender:
@@ -823,6 +826,7 @@ FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,co
     case ELDKillCause::CampLow: return LDTerms::KilledByLine(Victim,LowCampName);
     case ELDKillCause::CampHigh: return LDTerms::KilledByLine(Victim,HighCampName);
     case ELDKillCause::CampElite: return LDTerms::KilledByLine(Victim,EliteCampName);
+    case ELDKillCause::CampAncient: return LDTerms::KilledByLine(Victim,TEXT("远古野怪"));
     case ELDKillCause::Boss: return LDTerms::KilledByLine(Victim,BossName);
     case ELDKillCause::Unowned: return Victim+TEXT(" ")+LDTerms::Dead+TEXT("（无参赛者击杀）");
     default: return Victim+TEXT(" ")+LDTerms::Dead+TEXT("（死因未知）");
@@ -848,6 +852,7 @@ FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FG
     for(const FLDKillNotice& Notice:Feed.Notices)
     {if(Notice.Victim==Self&&Notice.OccurredAtMs>=NotBeforeMs&&(!Latest||Notice.Serial>Latest->Serial)){Latest=&Notice;}}
     if(!Latest){return FString();}
+    if(!Latest->CreatureName.IsEmpty()){return LDTerms::KilledBy(Latest->CreatureName);}
     switch(Latest->Cause)
     {
     case ELDKillCause::Contender:
@@ -858,6 +863,7 @@ FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FG
     case ELDKillCause::CampLow: return LDTerms::KilledBy(LowCampName);
     case ELDKillCause::CampHigh: return LDTerms::KilledBy(HighCampName);
     case ELDKillCause::CampElite: return LDTerms::KilledBy(EliteCampName);
+    case ELDKillCause::CampAncient: return LDTerms::KilledBy(TEXT("远古野怪"));
     case ELDKillCause::Boss: return LDTerms::KilledBy(BossName);
     case ELDKillCause::Unowned: return TEXT("无参赛者击杀");
     default: return TEXT("死因未知");
@@ -918,7 +924,7 @@ FString LDHUD::DamageSourceName(const FLDDemoContentDefinitions* Content,const F
 {
     switch(Source.Kind)
     {
-    case ELDCombatSourceKind::Basic: return LDTerms::BasicAttack;
+    case ELDCombatSourceKind::Basic: return Source.DefinitionId.IsNone()?FString(LDTerms::BasicAttack):ContentName(Content,Source.DefinitionId.ToString())+TEXT("技能");
     case ELDCombatSourceKind::Innate: return LDTerms::Dash;
     case ELDCombatSourceKind::Learned: case ELDCombatSourceKind::Component: case ELDCombatSourceKind::FinalMod:
         return Source.DefinitionId.IsNone()?FString(TEXT("其他来源")):ContentName(Content,Source.DefinitionId.ToString());

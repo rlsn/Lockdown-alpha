@@ -280,6 +280,15 @@ FLinearColor ULDHumanoidVisualComponent::MonsterTint(uint8 CreatureId)
     case ELDDemoMonsterId::MonsterDean: return FLinearColor(.55f,.38f,.04f);
     // #97 Elite 催毕设的导师: a deep violet, apart from the navy Low suit and the red High hoodie.
     case ELDDemoMonsterId::MonsterAdvisor: return FLinearColor(.22f,.04f,.38f);
+    case ELDDemoMonsterId::MonsterPromoter:return FLinearColor(.04f,.30f,.14f);
+    case ELDDemoMonsterId::MonsterCourier:return FLinearColor(.55f,.40f,.02f);
+    case ELDDemoMonsterId::MonsterAgent:return FLinearColor(.10f,.30f,.45f);
+    case ELDDemoMonsterId::MonsterGuard:return FLinearColor(.12f,.14f,.18f);
+    case ELDDemoMonsterId::MonsterAuditor:return FLinearColor(.04f,.38f,.34f);
+    case ELDDemoMonsterId::MonsterClient:return FLinearColor(.45f,.10f,.28f);
+    case ELDDemoMonsterId::MonsterDirector:return FLinearColor(.60f,.27f,.02f);
+    case ELDDemoMonsterId::MonsterFinalClient:return FLinearColor(.50f,.04f,.08f);
+    case ELDDemoMonsterId::MonsterProperty:return FLinearColor(.30f,.34f,.04f);
     default: return FLinearColor(.3f,.3f,.3f);
     }
 }

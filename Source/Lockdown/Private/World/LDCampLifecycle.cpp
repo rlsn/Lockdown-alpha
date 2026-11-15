@@ -38,6 +38,14 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         Spec.SurfaceId = FName(*Anchor->SurfaceId);
         Spec.MonsterId = FName(*Monster->Id);
         Spec.CreatureId = Monster->NativeId;
+        for(const auto& Species:Content.Monsters)
+        {
+            if(Species.Tier!=Monster->Tier){continue;}
+            if(Species.CountPerCamp!=Monster->CountPerCamp || Species.RespawnMs!=Monster->RespawnMs
+                || Species.RewardXP!=Monster->RewardXP)
+            {Error=TEXT("Species of one camp tier disagree on member count, reward or refresh.");return false;}
+            Spec.Species.Add(FName(*Species.Id));Spec.SpeciesIds.Add(Species.NativeId);
+        }
         Spec.Tier = Monster->Tier;
         Spec.RespawnMs = Monster->RespawnMs;
         if (!Anchor->PositionCm.ToVector(Spec.AnchorCm, Error)) { return false; }
@@ -155,6 +163,18 @@ TArray<FLDCampPublicView> FLDCampMatchState::BuildPublicViews() const
     return Out;
 }
 
+bool FLDCampMatchState::SelectSpecies(int32 Camp,int32 Choice,FName& Out,FString& Error)
+{
+    auto* Group=IsActive() && Camps.IsValidIndex(Camp)?&Camps[Camp]:nullptr;
+    if(!Group || Group->Members.ContainsByPredicate([](const auto& M){return M.bAlive;})
+        || (Group->Generation!=0 && !Group->bRespawnPending))
+    {Error=TEXT("Species can only be selected for a whole-group new life.");return false;}
+    const auto& Spec=Roster->Camps[Camp];
+    if(!Spec.Species.IsValidIndex(Choice)){Error=TEXT("Species draw is outside the camp tier pool.");return false;}
+    if(Group->PendingSpecies.IsNone()){Group->PendingSpecies=Spec.Species[Choice];}
+    Out=Group->PendingSpecies;Error.Reset();return true;
+}
+
 bool FLDCampMatchState::CanSpawnInitial(int32 Camp, FString& Error) const
 {
     const FLDCampGroupState* Group = IsActive() ? FindCamp(Camp) : nullptr;
@@ -209,6 +229,8 @@ bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRe
         Error = TEXT("Camp spawn commit needs one current body per member at a valid authority time.");
         return false;
     }
+    if(Roster->Camps[Camp].Species.Num()>1 && Group->PendingSpecies.IsNone())
+    {Error=TEXT("A multi-species camp cannot spawn without a committed pending draw.");return false;}
     const bool bInitial = Group->Generation == 0 && !Group->bRespawnPending;
     const bool bAllDead = !Group->Members.ContainsByPredicate([](const FLDCampMemberState& M) { return M.bAlive; });
     if (!bAllDead || (!bInitial && !Group->bRespawnPending) || Group->Generation == MAX_uint32)
@@ -239,6 +261,13 @@ bool FLDCampMatchState::CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRe
         Member.AggroFloorSeconds = AtSeconds;
         Member.HostileSources.Reset();
     }
+    if(!Group->PendingSpecies.IsNone())
+    {
+        Group->SelectedSpecies=Group->PendingSpecies;
+        Group->CreatureId=Roster->Camps[Camp].SpeciesIds[Roster->Camps[Camp].Species.IndexOfByKey(Group->SelectedSpecies)];
+        Group->PendingSpecies=NAME_None;
+    }
+    else { Group->SelectedSpecies=Roster->Camps[Camp].MonsterId; Group->CreatureId=Roster->Camps[Camp].CreatureId; }
     ++Group->Generation;
     Group->bRespawnPending = false;
     Group->ClearedAtMs = Group->RespawnDueMs = 0;
@@ -450,7 +479,7 @@ bool FLDCampMatchState::AppendObservedFacts(const FLDCombatBodyRef& Body, FLDObs
         Error = TEXT("Observed camp facts require a current living camp member.");
         return false;
     }
-    const uint8 CreatureId = Roster->Camps[Camp].CreatureId;
+    const uint8 CreatureId = Camps[Camp].CreatureId;
     const uint8 Returning = uint8(ELDDemoStatusId::CampReturning);
     const bool bListed = InOut.Statuses.ContainsByPredicate([Returning](const FLDObservedStatus& S) { return S.StatusId == Returning; });
     const bool bReturning = Member->Brain.Phase == ELDCampBrainPhase::Returning;

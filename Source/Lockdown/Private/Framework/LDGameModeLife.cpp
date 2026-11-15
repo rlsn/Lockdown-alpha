@@ -208,12 +208,13 @@ bool ALDGameMode::KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCa
         // The killer's tier outlives its body through the persistent Combat record.
         const auto* Record = Combat ? Combat->FindRecord(Fact.SourceBodyAtRelease.Victim.EntityId) : nullptr;
         const FLDDemoMonsterDefinition* Monster = nullptr;
-        if (!Record || !DemoContent || !DemoContent->FindMonster(Record->MonsterId.ToString(), Monster, Error))
+        if (!Record || !DemoContent || !DemoContent->FindMonster(Record->MonsterAtLife(Fact.SourceBodyAtRelease.Victim.Life).ToString(), Monster, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("A camp kill has no recorded monster definition."); }
             return false;
         }
         OutCause = Monster->Tier == ELDDemoCampTier::Boss ? ELDKillCause::Boss
+            : Monster->Tier == ELDDemoCampTier::Ancient ? ELDKillCause::CampAncient
             : Monster->Tier == ELDDemoCampTier::Elite ? ELDKillCause::CampElite
             : Monster->Tier == ELDDemoCampTier::High ? ELDKillCause::CampHigh : ELDKillCause::CampLow;
     }
@@ -425,6 +426,13 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
         return false;
     }
     if (Died.KillCause == ELDKillCause::Contender) { Died.Assisters = Fact.Assisters; }
+    else if(Fact.SourceBodyAtRelease.Victim.Kind==ELDVictimKind::CampMember)
+    {
+        const auto* Source=Combat->FindRecord(Fact.SourceBodyAtRelease.Victim.EntityId);
+        const auto* Name=Source?DemoContent->Get().Display.FindByPredicate([&](const auto& Row){return FName(*Row.Id)==Source->MonsterAtLife(Fact.SourceBodyAtRelease.Victim.Life);}):nullptr;
+        if(!Name){Error=TEXT("Monster death notice has no approved creature name.");return false;}
+        Died.CreatureName=Name->NameText;
+    }
     if (!bRestLife && !PublishEligibility(Permit, Died, Error))
     {
         return false;

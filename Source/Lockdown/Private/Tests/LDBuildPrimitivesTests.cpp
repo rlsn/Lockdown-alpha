@@ -40,6 +40,10 @@ struct FLDBuildPrimitivesAccess
     static TMap<TWeakObjectPtr<ALDCharacter>, FLDBodyCombatState>& Bodies(ALDCombatDirector& Driver) { return Driver.Bodies; }
     static TMap<FGuid, FLDCombatEntityRecord>& Records(ALDCombatDirector& Driver) { return Driver.Records; }
     static TArray<FLDCombatHit>& PendingHits(ALDCombatDirector& Driver) { return Driver.PendingHits; }
+    static auto& MonsterStrikes(ALDCombatDirector& Driver){return Driver.MonsterStrikes;}
+    static bool MonsterRelease(ALDCombatDirector& D,ALDCharacter& A,FLDBodyCombatState& B,const FLDCombatAction& Action,ELDCombatReject& Reject,FString& Error)
+    {return D.ReleaseMonsterSkill(A,B,Action,Reject,Error);}
+    static bool MonsterStep(ALDCombatDirector& D,int64 Now,FString& Error){return D.AdvanceMonsterStrikes(Now,Error);}
     static TArray<FLDCombatZone>& Zones(ALDCombatDirector& Driver) { return Driver.Zones; }
     static bool FinalStep(ALDCombatDirector& Driver,int64 NowMs,FString& Error){return Driver.AdvanceFinalMods(NowMs,Error);}
     static const auto& FinalTraffic(const ALDCombatDirector& Driver){return Driver.FinalTraffic;}
@@ -5262,4 +5266,176 @@ bool FLDComponentMeetHereTest::RunTest(const FString& Parameters)
         {On(TEXT("component_meet_here"), ELDComponentTargetKind::Active, TEXT("active_quick_meeting"))}).IsSuccess());
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMonsterDeliveryTest,"Lockdown.Rules.DemoCamp.SkillDelivery",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDMonsterDeliveryTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;if(!F.Init(*this,true)){return false;}FString Error;
+    const auto Source=F.AddBody(ELDVictimKind::CampMember);
+    const auto Target=F.AddBody();
+    F.Place(Source,0,0);F.Place(Target,300,0);
+    auto& SourceBody=F.Body(Source);SourceBody.MonsterId=TEXT("monster_client");
+    SourceBody.AttributeProjection.Final.ADP2=9000;SourceBody.MonsterAttackCount=2;
+    auto& Record=FAccess::Records(*F.Driver).Add(Source.Victim.EntityId);
+    Record.Kind=ELDVictimKind::CampMember;Record.Entity=Source.Victim.EntityId;Record.MonsterId=SourceBody.MonsterId;
+    Record.MonsterLives.Add(1,SourceBody.MonsterId);
+    const FLDDemoMonsterDefinition* Definition=nullptr;
+    if(!F.Catalog->FindMonster(TEXT("monster_client"),Definition,Error)){AddError(Error);return false;}
+    FLDCombatAction Action;Action.Token=41;Action.bMonsterSpecial=true;Action.StartedAtMs=1000;Action.ReleaseAtMs=2000;
+    SourceBody.Action=Action;
+    const auto Areas=LDMonsterRules::Areas(Definition->Skill,0,F.Foot(Source),F.Foot(Target));
+    auto& Strikes=FAccess::MonsterStrikes(*F.Driver);
+    for(const auto& Area:Areas)
+    {
+        FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+        S.Payload.SourceBody=Source;S.Payload.SourceEntity=Source.Victim.EntityId;Strikes.Add(S);
+    }
+    TArray<FLDObservedProjectileFact> Warnings;
+    auto OriginalStrikes=MoveTemp(Strikes);
+    for(const auto& M:F.Catalog->Get().Monsters)
+    {
+        if(M.Tier==ELDDemoCampTier::Boss || M.Skill.Pattern==ELDMonsterPattern::Enrage){continue;}
+        Strikes.Reset();
+        for(const auto& Area:LDMonsterRules::Areas(M.Skill,6,F.Foot(Source),F.Foot(Target)))
+        {
+            FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+            S.Payload.SourceBody=Source;S.Payload.SourceEntity=Source.Victim.EntityId;Strikes.Add(S);
+        }
+        if(!F.Driver->ReadObservedProjectiles(Warnings,Error)){AddError(Error);return false;}
+        for(const auto& Fact:Warnings)
+        {
+            FLDObservedProjectileView V;V.Handle=FGuid::NewGuid();V.PositionCm=Fact.PositionCm;V.Look=Fact.Look;
+            V.RadiusCm=Fact.RadiusCm;V.AngleDegrees=Fact.AngleDegrees;V.LengthCm=Fact.LengthCm;V.WarningRemainingMs=Fact.WarningRemainingMs;
+            if(!TestTrue(*M.Id,LDObservation::ValidateProjectile(V,Error))){AddError(Error);return false;}
+            if(Fact.Look==ELDObservedProjectileLook::LineWarning)
+            {TestEqual(TEXT("A line authorizes at the caster origin, even when its midpoint is occluded"),Fact.PositionCm,F.Foot(Source));}
+        }
+    }
+    Strikes=MoveTemp(OriginalStrikes);Warnings.Reset();
+    TestTrue(TEXT("Pending monster warnings publish on the existing effect channel"),F.Driver->ReadObservedProjectiles(Warnings,Error));
+    TestEqual(TEXT("Both delayed warning areas are published"),Warnings.Num(),Areas.Num());
+    for(const auto& Fact:Warnings)
+    {
+        FLDObservedProjectileView View;View.Handle=FGuid::NewGuid();View.PositionCm=Fact.PositionCm;View.Look=Fact.Look;
+        View.RadiusCm=Fact.RadiusCm;View.InnerRadiusCm=Fact.InnerRadiusCm;View.AngleDegrees=Fact.AngleDegrees;View.LengthCm=Fact.LengthCm;
+        View.WarningRemainingMs=Fact.WarningRemainingMs;
+        TestTrue(TEXT("A monster telegraph satisfies the actual observation wire contract"),LDObservation::ValidateProjectile(View,Error));
+    }
+    const int64 Before=F.Body(Target).Resources.HpP2;
+    TestTrue(TEXT("An unexpired warning cannot hurt"),FAccess::MonsterStep(*F.Driver,1999,Error)&&F.Flush(Error));
+    TestEqual(TEXT("No damage before release"),F.Body(Target).Resources.HpP2,Before);
+    F.Now(2000);F.Place(Target,300,300);ELDCombatReject Reject;
+    if(!TestTrue(TEXT("Real monster release accepts its approved pattern"),FAccess::MonsterRelease(*F.Driver,F.Actor(Source),SourceBody,Action,Reject,Error))){AddError(Error);return false;}
+    TestEqual(TEXT("Successful special wraps its shared attack loop"),SourceBody.MonsterAttackCount,0);
+    TestTrue(TEXT("First pulse uses the locked warning location"),FAccess::MonsterStep(*F.Driver,2000,Error)&&F.Flush(Error));
+    TestEqual(TEXT("Moving out of the warned circle avoids damage"),F.Body(Target).Resources.HpP2,Before);
+    F.Place(Target,300,0);
+    // The caster dies, then its camp changes species. The released pulse retains the old life and definition.
+    FAccess::Bodies(*F.Driver).Remove(&F.Actor(Source));
+    Record.MonsterId=TEXT("monster_advisor");Record.MonsterLives.Add(2,Record.MonsterId);
+    F.Now(2800);
+    if(!TestTrue(TEXT("Released second pulse survives caster death"),FAccess::MonsterStep(*F.Driver,2800,Error)&&F.Flush(Error))){AddError(Error);return false;}
+    TestEqual(TEXT("Exactly one 1.0 AD pulse lands through Combat"),F.Body(Target).Resources.HpP2,Before-int64(9000));
+    TestTrue(TEXT("Damage attribution keeps the releasing species after a refresh"),
+        !F.Body(Target).DamageLog.IsEmpty()&&F.Body(Target).DamageLog.Last().Line.MonsterId==FName(TEXT("monster_client")));
+    const int64 After=F.Body(Target).Resources.HpP2;
+    TestTrue(TEXT("Revisiting the same authority deadline is idempotent"),FAccess::MonsterStep(*F.Driver,2800,Error)&&F.Flush(Error));
+    TestEqual(TEXT("No duplicate delayed damage"),F.Body(Target).Resources.HpP2,After);
+    FLDMonsterStrike Cancelled;Cancelled.Key=FGuid::NewGuid();Cancelled.Payload.SourceBody=Source;
+    Cancelled.Payload.SourceEntity=Source.Victim.EntityId;Cancelled.AtMs=3000;Cancelled.Token=99;Strikes.Add(Cancelled);
+    TestTrue(TEXT("An unreleased warning of a retired life is discarded"),FAccess::MonsterStep(*F.Driver,3000,Error)&&Strikes.IsEmpty());
+    {
+        FFixture Charge;if(!Charge.Init(*this,true)){return false;}
+        const auto Runner=Charge.AddBody(ELDVictimKind::CampMember), Victim=Charge.AddBody();
+        const auto Peer=Charge.AddBody(ELDVictimKind::CampMember);
+        Charge.Place(Runner,0,0);Charge.Place(Victim,300,0);Charge.Place(Peer,120,0);
+        auto& RunnerBody=Charge.Body(Runner);RunnerBody.MonsterId=TEXT("monster_courier");
+        RunnerBody.AttributeProjection.Final.ADP2=1000;
+        if(!Charge.Catalog->FindMonster(TEXT("monster_courier"),Definition,Error)){AddError(Error);return false;}
+        const FVector Origin=Charge.Foot(Runner);
+        Action.Direction=FVector(1,0,0);RunnerBody.Action=Action;
+        for(const auto& Area:LDMonsterRules::Areas(Definition->Skill,0,Origin,Charge.Foot(Victim)))
+        {
+            FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+            S.Payload.SourceBody=Runner;S.Payload.SourceEntity=Runner.Victim.EntityId;
+            FAccess::MonsterStrikes(*Charge.Driver).Add(S);
+        }
+        Charge.Now(2000);
+        if(!FAccess::MonsterRelease(*Charge.Driver,Charge.Actor(Runner),RunnerBody,Action,Reject,Error)
+            || Reject!=ELDCombatReject::None || !RunnerBody.DashContact){AddError(TEXT("Courier release: ")+Error);return false;}
+        const int64 VictimHp=Charge.Body(Victim).Resources.HpP2, PeerHp=Charge.Body(Peer).Resources.HpP2;
+        TestTrue(TEXT("Releasing a charge cannot instantly hit the full warned line"),
+            FAccess::MonsterStep(*Charge.Driver,2000,Error)&&Charge.Flush(Error));
+        TestEqual(TEXT("A distant target is untouched at release"),Charge.Body(Victim).Resources.HpP2,VictimHp);
+        const auto Motion=[&](double From,double To,int64 Start,int64 End)
+        {
+            auto Batch=MakeShared<FLDNativeMotionBatch>();Batch->Body=Runner;
+            Batch->Step.StartServerSeconds=double(Start)/1000.;Batch->Step.EndServerSeconds=double(End)/1000.;
+            Batch->StartFootCm=Origin+FVector(From,0,0);Batch->EndFootCm=Origin+FVector(To,0,0);
+            auto& Move=Batch->Records.AddDefaulted_GetRef();Move.Kind=ELDNativeMotionRecordKind::Movement;
+            Move.FromFootCm=Batch->StartFootCm;Move.ToFootCm=Batch->EndFootCm;
+            Move.StartServerSeconds=Batch->Step.StartServerSeconds;Move.EndServerSeconds=Batch->Step.EndServerSeconds;
+            FAccess::CaptureSkillMotion(*Charge.Driver,Batch);
+            for(const auto TargetRef:{Victim,Peer})
+            {
+                auto Still=MakeShared<FLDNativeMotionBatch>();Still->Body=TargetRef;Still->Step=Batch->Step;
+                Still->StartFootCm=Still->EndFootCm=Charge.Foot(TargetRef);
+                FAccess::CaptureSkillMotion(*Charge.Driver,Still);
+            }
+            Charge.Now(End);
+            return FAccess::ResolveDashContacts(*Charge.Driver,End,Error)&&Charge.Flush(Error);
+        };
+        TestTrue(TEXT("A terrain-clipped short prefix does not reach the distant target"),Motion(0,100,2000,2200));
+        TestEqual(TEXT("No damage beyond the traveled prefix"),Charge.Body(Victim).Resources.HpP2,VictimHp);
+        TestTrue(TEXT("A later real swept contact lands"),Motion(100,400,2200,2800));
+        TestEqual(TEXT("The courier's native contact delivers one 1.5 AD package"),Charge.Body(Victim).Resources.HpP2,VictimHp-int64(1500));
+        TestEqual(TEXT("The same charge cannot damage another camp member"),Charge.Body(Peer).Resources.HpP2,PeerHp);
+        TestTrue(TEXT("Repeated native contact is deduplicated per body life"),Motion(100,400,2200,2800));
+        TestEqual(TEXT("No duplicate contact damage"),Charge.Body(Victim).Resources.HpP2,VictimHp-int64(1500));
+    }
+    {
+        FFixture Shot;if(!Shot.Init(*this,true)){return false;}
+        const auto Agent=Shot.AddBody(ELDVictimKind::CampMember), Peer=Shot.AddBody(ELDVictimKind::CampMember), Victim=Shot.AddBody();
+        Shot.Place(Agent,0,0);Shot.Place(Peer,120,0);Shot.Place(Victim,300,0);
+        auto& AgentBody=Shot.Body(Agent);AgentBody.MonsterId=TEXT("monster_agent");AgentBody.AttributeProjection.Final.ADP2=3600;
+        if(!Shot.Catalog->FindMonster(TEXT("monster_agent"),Definition,Error)){AddError(Error);return false;}
+        AgentBody.Action=Action;
+        for(const auto& Area:LDMonsterRules::Areas(Definition->Skill,0,Shot.Foot(Agent),Shot.Foot(Victim)))
+        {
+            FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+            S.Payload.SourceBody=Agent;S.Payload.SourceEntity=Agent.Victim.EntityId;FAccess::MonsterStrikes(*Shot.Driver).Add(S);
+        }
+        Shot.Now(2000);
+        if(!FAccess::MonsterRelease(*Shot.Driver,Shot.Actor(Agent),AgentBody,Action,Reject,Error)
+            || Reject!=ELDCombatReject::None || !FAccess::MonsterStep(*Shot.Driver,2000,Error)){AddError(Error);return false;}
+        const int64 PeerHp=Shot.Body(Peer).Resources.HpP2, VictimHp=Shot.Body(Victim).Resources.HpP2;
+        Shot.Now(2500);
+        if(!FAccess::AdvanceProjectiles(*Shot.Driver,Error)||!Shot.Flush(Error)){AddError(Error);return false;}
+        TestEqual(TEXT("A camp projectile passes its peer without causing damage"),Shot.Body(Peer).Resources.HpP2,PeerHp);
+        TestEqual(TEXT("The existing projectile path delivers the approved 1.5 AD to a contender"),Shot.Body(Victim).Resources.HpP2,VictimHp-int64(5400));
+    }
+    {
+        FFixture Sweep;if(!Sweep.Init(*this,true)){return false;}
+        const auto Auditor=Sweep.AddBody(ELDVictimKind::CampMember), Victim=Sweep.AddBody();
+        Sweep.Place(Auditor,0,0);Sweep.Place(Victim,300,0);
+        auto& AuditorBody=Sweep.Body(Auditor);AuditorBody.MonsterId=TEXT("monster_auditor");AuditorBody.AttributeProjection.Final.ADP2=9000;
+        Sweep.Body(Victim).AttributeProjection.Final.ArmorP2=0;Sweep.Body(Victim).AttributeProjection.Final.MagicResistP2=10000;
+        if(!Sweep.Catalog->FindMonster(TEXT("monster_auditor"),Definition,Error)){AddError(Error);return false;}
+        AuditorBody.Action=Action;
+        for(const auto& Area:LDMonsterRules::Areas(Definition->Skill,0,Sweep.Foot(Auditor),Sweep.Foot(Victim)))
+        {
+            FLDMonsterStrike S;S.Key=FGuid::NewGuid();S.Area=Area;S.Token=Action.Token;S.AtMs=2000+Area.DelayMs;
+            S.Payload.SourceBody=Auditor;S.Payload.SourceEntity=Auditor.Victim.EntityId;FAccess::MonsterStrikes(*Sweep.Driver).Add(S);
+        }
+        Sweep.Now(2000);
+        if(!FAccess::MonsterRelease(*Sweep.Driver,Sweep.Actor(Auditor),AuditorBody,Action,Reject,Error)
+            || Reject!=ELDCombatReject::None){AddError(Error);return false;}
+        const int64 Hp=Sweep.Body(Victim).Resources.HpP2;Sweep.Now(2500);
+        if(!FAccess::MonsterStep(*Sweep.Driver,2500,Error)||!Sweep.Flush(Error)){AddError(Error);return false;}
+        TestEqual(TEXT("The auditor's middle sweep deals its physical package despite the target's magic resistance"),Sweep.Body(Victim).Resources.HpP2,Hp-int64(6750));
+    }
+    return true;
+}
+
 #endif

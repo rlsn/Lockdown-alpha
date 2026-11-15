@@ -514,6 +514,23 @@
               "numerator": 50
             }
           }
+        },
+        {
+          "id": "h01_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 2605
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1505
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 50
+            }
+          }
         }
       ],
       "position_cm": {
@@ -546,6 +563,23 @@
             "y": {
               "denominator": 1,
               "numerator": -1339
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 50
+            }
+          }
+        },
+        {
+          "id": "h02_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -2628
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1219
             },
             "z": {
               "denominator": 1,
@@ -590,6 +624,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "h03_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -634
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3103
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -622,6 +673,23 @@
             "y": {
               "denominator": 1,
               "numerator": -2934
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "h04_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 624
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2814
             },
             "z": {
               "denominator": 1,
@@ -666,6 +734,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "h05_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1805
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 712
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -698,6 +783,23 @@
             "y": {
               "denominator": 1,
               "numerator": 1762
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "h06_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1478
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1882
             },
             "z": {
               "denominator": 1,
@@ -742,6 +844,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "h07_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -1985
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -438
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -774,6 +893,23 @@
             "y": {
               "denominator": 1,
               "numerator": -1908
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "h08_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -1192
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1788
             },
             "z": {
               "denominator": 1,
@@ -856,6 +992,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "h10_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -3320
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4620
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -932,6 +1085,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "h12_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 3320
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4380
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -981,6 +1151,23 @@
             "y": {
               "denominator": 1,
               "numerator": 2861
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "l03_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1615
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2797
             },
             "z": {
               "denominator": 1,
@@ -1042,6 +1229,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "l04_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -1672
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1074
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1091,6 +1295,23 @@
             "y": {
               "denominator": 1,
               "numerator": 1436
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "l05_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -2951
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1314
             },
             "z": {
               "denominator": 1,
@@ -1152,6 +1373,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "l08_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -1438
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2948
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1201,6 +1439,23 @@
             "y": {
               "denominator": 1,
               "numerator": -2315
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "l09_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1203
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2171
             },
             "z": {
               "denominator": 1,
@@ -1262,6 +1517,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "l10_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 2858
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1386
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1311,6 +1583,23 @@
             "y": {
               "denominator": 1,
               "numerator": 4257
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l11_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4115
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4115
             },
             "z": {
               "denominator": 1,
@@ -1372,6 +1661,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "l12_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4115
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4115
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1421,6 +1727,23 @@
             "y": {
               "denominator": 1,
               "numerator": 4318
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l13_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -826
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4184
             },
             "z": {
               "denominator": 1,
@@ -1482,6 +1805,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "l14_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 857
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4109
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1531,6 +1871,23 @@
             "y": {
               "denominator": 1,
               "numerator": -4299
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l15_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -828
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4196
             },
             "z": {
               "denominator": 1,
@@ -1592,6 +1949,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "l16_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1506
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4038
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1641,6 +2015,23 @@
             "y": {
               "denominator": 1,
               "numerator": -1438
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l17_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4152
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1472
             },
             "z": {
               "denominator": 1,
@@ -1702,6 +2093,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "l18_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4116
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1510
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1751,6 +2159,23 @@
             "y": {
               "denominator": 1,
               "numerator": 1445
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l19_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4137
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1479
             },
             "z": {
               "denominator": 1,
@@ -1812,6 +2237,23 @@
               "numerator": 100
             }
           }
+        },
+        {
+          "id": "l20_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4152
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1507
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1867,6 +2309,23 @@
               "numerator": 0
             }
           }
+        },
+        {
+          "id": "l21_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 3168
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2178
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
         }
       ],
       "position_cm": {
@@ -1916,6 +2375,23 @@
             "y": {
               "denominator": 1,
               "numerator": -2206
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "l22_2",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -3168
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -2178
             },
             "z": {
               "denominator": 1,
@@ -2702,10 +3178,10 @@
     }
   ],
   "approval": {
-    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.",
+    "decision": "Approved world decisions: D01, D03, D17-D24, CB 15.4/15.7-15.9, #79, #97, #112 and #198. #219 approved public rest services and six training anchors. Rest-service locations and shared sign-up positions are defined by the anchors below. A playtest baseline, not a balance check.; #238 approved 18/10/4/2 tiers, HR x3, trainer x2 and h09/h11 ancient camps; original anchor transforms retained.",
     "status": "approved"
   },
-  "author_schema_sha256": "b0f61374707034c30f88666dca10f0240baf166b8873c00d4fcc7af52b83f823",
+  "author_schema_sha256": "e57ea7f2ec5c79695feec7a6318f459d5265c2eea23e21f4fc1fab4798055729",
   "geometry": {
     "blockers": [
       {
@@ -38038,5 +38514,5 @@
   },
   "projection_revision": 4,
   "schema_version": 4,
-  "source_sha256": "bb9569d2ede7655094859ec8b9c408b7cba531b709c52f9cfd7ee023bee10a91"
+  "source_sha256": "f1ce542cfc36df3fffcbedde511fe24dfaeb92ba7e158777fd7868f0a0eb43db"
 }

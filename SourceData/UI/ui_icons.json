@@ -703,6 +703,8 @@
       "sha256": "f0a1025cf9922229f8847eefb3f85630d6b2395c662b25b680c772f90eed9422",
       "width": 64,
       "height": 64
-    }
+    },
+      {"id": "icon_camp_enraged", "sha256": "1e0ccf203331355924ff77473251f2c80f0204ec1c4816817fea68dcff4f2553", "width": 64, "height": 64, "provenance": "Reuses the approved icon_stat_boost art for the camp combat status."},
+      {"id": "icon_camp_guarding", "sha256": "a352093971e97784dee95e70db394adb3a8e221d969cbf8141f0882fa0e871cf", "width": 64, "height": 64, "provenance": "Reuses the approved icon_braced art for the camp combat status."}
   ]
 }

@@ -51,6 +51,7 @@ namespace LDWorldFeedback
         TFunction<FString(const FGuid&)> RosterName;
         // Display name of a visible cast's ability native id; empty when unknown.
         TFunction<FString(uint8)> CastName;
+    TFunction<FString(uint8)> MonsterCastName;
         // Display name of an own component definition; its id when unset.
         TFunction<FString(FName)> ComponentName;
     };
