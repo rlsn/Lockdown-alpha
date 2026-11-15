@@ -60,6 +60,8 @@ public:
     UPROPERTY() TObjectPtr<class ULDControlSettings> Controls;
     UPROPERTY() TObjectPtr<class ULDControlsPanel> ControlsUI;
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
+    // When the HUD read model was last rebuilt (LDHUD::ReadModelHz).
+    double HUDRefreshedAt=-1;
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
     UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
     // #198 §10 owner-only end-of-match build blueprint channel and its read-only viewer (LDBuildBlueprintComponent.h).

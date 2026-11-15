@@ -22,6 +22,8 @@ struct FLDLobbyView;
 struct FLDPKParameters;
 namespace LDHUD
 {
+    // How often the owning controller rebuilds the HUD read model; a slower frame rate rebuilds once per frame.
+    inline constexpr double ReadModelHz=30.;
     // #147/#198 card text: the owner's level grows an active's fixed amounts (G(L)); its stats fill the coefficients.
     struct FCardStats
     {
