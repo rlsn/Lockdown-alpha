@@ -60,7 +60,8 @@ Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发�
 且服务器身体或客户端本次 move 在行走时，误差不超过 `LDOwnerPrediction::AcceptsWalkError`
 （最大速度 × 0.1 s + 10 cm）不发校正，计入 `ServerAcceptedWalkLeads`；静止、根运动和模式不一致仍按原生判断。
 服务器从不采用客户端位置。
-saved move 的身份取正在预测的订单：提前起步的地面订单是它自己；其他新单尚未激活时不提前换成新单，
+saved move 的身份取身体正在走的订单（`LDOrderRules::PredictedMoveIdentity`）：提前起步的地面订单在其后又发出 Shift 步骤时仍是它自己；
+提前起步的订单运行前就结束时，它的 move 不再参与重放（身份的 Order 置 0，保留 Match/Life/Epoch）；其他新单尚未激活时不提前换成新单，
 停止及没有活动订单时仍保留当前 Local 的 Match/Life/Order/Epoch，不能退回全零身份；
 Stop 之后、停止回执到达之前发出的新单不再沿用 Stop 前的订单（取消 epoch 不同），与 `ApplyPrediction` 的判断一致。
 

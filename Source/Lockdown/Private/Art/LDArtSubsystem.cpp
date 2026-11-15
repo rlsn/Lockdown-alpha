@@ -76,7 +76,7 @@ UMaterialInstanceDynamic* ULDArtSubsystem::SharedTint(UObject* Outer, UMaterialI
     }
     for (int32 Index = 0; Index < Art->Tints.Num(); ++Index)
     {
-        if (Art->Tints[Index] && Art->Tints[Index]->Parent == Material && Art->TintColours[Index].Equals(Tint, 0.f))
+        if (Art->Tints[Index] && Art->Tints[Index]->Parent == Material && Art->TintColours[Index] == Tint)
         { return Art->Tints[Index]; }
     }
     UMaterialInstanceDynamic* Shared = UMaterialInstanceDynamic::Create(Material, Art);

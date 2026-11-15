@@ -69,6 +69,15 @@ LDOrderRules::EForcedOrder LDOrderRules::ForcedOrderStep(bool bTaunted, bool bAc
 }
 
 
+FLDMoveIdentity LDOrderRules::PredictedMoveIdentity(const FLDMoveIdentity& Local, const FLDMoveIdentity& Active,
+    const FLDMoveIdentity& Early, bool bLocalStop, const FLDMoveIdentity& Revoked)
+{
+    if (!bLocalStop && Early.Order != 0 && Early.Epoch == Local.Epoch) { return Early; }
+    if (!bLocalStop && Active.Order != 0 && Active.Epoch == Local.Epoch) { return Active; }
+    if (Local.Order != 0 && Local == Revoked) { return {Local.Match, Local.Life, 0, Local.Epoch}; }
+    return Local;
+}
+
 bool LDOrderRules::ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
     const FVector& GroundCm)
 {

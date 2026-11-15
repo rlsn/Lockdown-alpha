@@ -10,6 +10,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
+#include "Navigation/LDOrderRules.h"
 #include "UI/LDHUDModel.h"
 #include <limits>
 
@@ -166,6 +167,30 @@ bool FLDOwnerWalkLeadTest::RunTest(const FString& Parameters)
         AcceptsWalkError(FVector(std::numeric_limits<double>::quiet_NaN(),0,0),Speed)
         || AcceptsWalkError(FVector::ZeroVector,std::numeric_limits<double>::infinity())
         || AcceptsWalkError(FVector::ZeroVector,-1));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPredictedMoveIdentityTest,"Lockdown.Rules.DemoControlFeel.PredictedMoveIdentity",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDPredictedMoveIdentityTest::RunTest(const FString& Parameters)
+{
+    using LDOrderRules::PredictedMoveIdentity;
+    const FLDMoveIdentity None;
+    const FLDMoveIdentity Old{3,2,4,1}, Early{3,2,5,1}, Queued{3,2,6,1}, Pending{3,2,7,1};
+    TestTrue(TEXT("A Shift step sent while an early ground walk runs keeps tagging moves with the walked order"),
+        PredictedMoveIdentity(Queued,None,Early,false,None)==Early && PredictedMoveIdentity(Queued,Old,Early,false,None)==Early);
+    TestTrue(TEXT("The walked early order wins over the older accepted order it replaces"),
+        PredictedMoveIdentity(Early,Old,Early,false,None)==Early);
+    TestTrue(TEXT("Without an early walk the accepted order is predicted under a pending replacement"),
+        PredictedMoveIdentity(Pending,Old,None,false,None)==Old);
+    const FLDMoveIdentity Stopped{3,2,8,2};
+    TestTrue(TEXT("A Stop and its newer epoch predict neither the accepted nor an early order"),
+        PredictedMoveIdentity(Stopped,Old,None,true,None)==Stopped && PredictedMoveIdentity(Stopped,Old,Early,false,None)==Stopped);
+    const FLDMoveIdentity Refused=PredictedMoveIdentity(Early,None,None,false,Early);
+    TestTrue(TEXT("An early walk refused before it ran no longer matches its own saved moves"),Refused!=Early && Refused.Order==0);
+    TestTrue(TEXT("The refused walk keeps the match, life and epoch the server checks"),
+        Refused.Match==Early.Match && Refused.Life==Early.Life && Refused.Epoch==Early.Epoch);
+    TestTrue(TEXT("A newer order after the refusal is predicted as itself"),PredictedMoveIdentity(Queued,None,None,false,Early)==Queued);
     return true;
 }
 

@@ -77,10 +77,9 @@ public:
     uint32 HeartbeatsSent() const {return HeartbeatSequence;}
     bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
-    // The accepted order keeps being predicted under a pending replacement, but never across a Stop's newer epoch; a
-    // ground order walked from its send frame (EarlyOrder) is predicted as itself.
+    // LDOrderRules::PredictedMoveIdentity of this owner's orders.
     FLDMoveIdentity PredictedIdentity() const
-    {return !bLocalStop && EarlyOrder!=Local && ClientActive.Order!=0 && ClientActive.Epoch==Local.Epoch ? ClientActive : Local;}
+    {return LDOrderRules::PredictedMoveIdentity(Local,ClientActive,EarlyOrder,bLocalStop,RevokedOrder);}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
@@ -378,6 +377,8 @@ private:
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
     // The sent ground order walked before the server answered it (0 when none), and the kind of the walk being steered.
     FLDMoveIdentity EarlyOrder;
+    // The last early walk that ended before it ran; its saved moves no longer replay.
+    FLDMoveIdentity RevokedOrder;
     ELDSpatialOrderKind FollowKind=ELDSpatialOrderKind::MoveGround;
     FLDOrderReceipt LastReceipt;
     uint64 LastReceiptSerial=0;

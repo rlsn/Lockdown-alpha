@@ -552,7 +552,7 @@ void ULDNavigationComponent::ResetLife()
     bActiveHasGoal=bActiveEngaged=false;
     bHeldMove=false;
     ClientActive={};
-    EarlyOrder={};
+    EarlyOrder=RevokedOrder={};
     ClearCastFollowUp();
     SentAttackTargets.Reset();
     AutoAttackIdentity={};
@@ -625,6 +625,7 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
             // The walked order ended before it ran: the order still running on the server is predicted again, or the
             // body stops and the next correction brings it back to the server's position. A newer order that replaced
             // it (Superseded) takes over with its own receipt.
+            RevokedOrder=EarlyOrder;
             EarlyOrder={};
             bFollowing=false;
             Points.Reset();
