@@ -786,6 +786,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             StatBar->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
         }
         if(Workshop){Workshop->Storage=Storage;Workshop->StatBar=StatBar;Workshop->Choices=ChoicesPanel;}
+        if(ChoicesPanel)
+        {
+            const TWeakObjectPtr<ULDWorkshop> WeakWorkshop(Workshop.Get());
+            ChoicesPanel->FinalModApplied=[WeakWorkshop](const FLDBuildReceipt& Receipt,const FLDFinalModSelection& Selection)
+            {if(ULDWorkshop* Current=WeakWorkshop.Get()){Current->FinalModApplied(Receipt,Selection);}};
+        }
         if(StatBar)
         {
             const TWeakObjectPtr<ULDWorkshop> WeakWorkshop(Workshop.Get());
@@ -1370,6 +1376,7 @@ void ULDHUD::RefreshReadModel()
         // #222: only an automatic opening folds on an own hit; a panel the player opened stays through combat.
         ChoicesPanel->UpdateFold(bOwnHit);
     }
+    if(bOwnHit&&Workshop){Workshop->InterruptFinalFeedback();}
     // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;

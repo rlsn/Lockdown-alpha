@@ -1455,6 +1455,19 @@ bool LDHUD::AppliedStatFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint
         &&Receipt.Header.Revisions.BuildRevision!=0&&StatCount>0&&Receipt.PointsSpent.Num()==StatCount
         &&Receipt.PointsSpent.ContainsByPredicate([](uint8 Count){return Count>0;});
 }
+bool LDHUD::AppliedFinalFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,FName Definition)
+{
+    return Match!=0&&Receipt.Header.Generation==Match&&Receipt.Header.OriginalLife==Life
+        &&Request!=0&&Receipt.Header.RequestId==Request&&!Definition.IsNone()&&Receipt.DefinitionId==Definition
+        &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
+        &&Receipt.Kind==ELDBuildCommandKind::FinalMod&&Receipt.Header.Revisions.bHasBuild
+        &&Receipt.Header.Revisions.BuildRevision!=0;
+}
+bool LDHUD::FinalStampReady(const FLDProgressionView& View,uint64 Revision,const FLDFinalModSelection& Selection,bool bBoardVisible)
+{
+    return bBoardVisible&&View.bValid&&Revision!=0&&View.BuildRevision>=Revision
+        &&!Selection.IsEmpty()&&View.FinalMod==Selection;
+}
 TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& Stat,const TArray<FLDCombatAttributeRowView>& Attributes)
 {
     // The projected attribute each per-point bonus adds to (ratios add to their attribute's percent term).

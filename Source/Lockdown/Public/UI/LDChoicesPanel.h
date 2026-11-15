@@ -36,6 +36,7 @@ public:
     TFunction<uint64(const FLDBuildCommand&,ELDGrowthReason&)> SubmitBuild;
     // The id the next build submit will receive (0 while one is in flight); a Listen Host answers inside the call.
     TFunction<uint64()> PeekRequestId;
+    TFunction<void(const FLDBuildReceipt&,const FLDFinalModSelection&)> FinalModApplied;
     // Every result and refusal line (the HUD shows it as a toast).
     TFunction<void(const FString&)> Notify;
     // Stats: the owner's level and stats, so every card shows its numbers for now (#147). Stage (the public match's build
@@ -357,6 +358,8 @@ private:
     uint64 ShownOfferRevision=0;
     FGuid ShownFinalMod;
     FName PendingFinalOption;
+    FLDFinalModSelection SubmittedFinal;
+    bool bFinalFeedbackAllowed=false;
     TArray<FLDFinalModSourceView> ShownFinalSources;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;

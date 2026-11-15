@@ -704,7 +704,10 @@ void ULDWorkshop::Present(const FInput& Input)
     const EMode Previous=Mode;
     Mode=Input.Mode;
     if(Previous==EMode::Full&&Mode!=EMode::Full)
-    {for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}}
+    {
+        for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}
+        InterruptFinalFeedback();
+    }
     if(Mode==EMode::Closed)
     {
         // The panels sink and fade out (LDHUDStyle::MotionWorkshopClose) without taking any more input.
@@ -717,7 +720,10 @@ void ULDWorkshop::Present(const FInput& Input)
     const bool bLinksChanged=Input.Content!=Latest.Content||Input.Match!=Latest.Match||!NextView||!NextView->bValid||!View.bValid
         ||NextView->Generation!=View.Generation||NextView->Life!=View.Life||NextView->BuildRevision!=View.BuildRevision;
     if(NextView&&NextView->bValid&&(NextView->Generation!=View.Generation||NextView->Life!=View.Life))
-    {for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}}
+    {
+        for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}
+        InterruptFinalFeedback();
+    }
     Latest=Input;
     View=NextView?*NextView:FLDProgressionView();
     if(bLinksChanged)
@@ -815,6 +821,19 @@ void ULDWorkshop::AllocationApplied(const FLDBuildReceipt& Receipt)
     {if(Receipt.PointsSpent[Index]>0){StatRows[Index].PendingFlashRevision=Receipt.Header.Revisions.BuildRevision;}}
     LDWidgets::PlayCue(this,ELDAudioCue::UIAddPoint);
     RefreshCharacter();
+}
+
+void ULDWorkshop::FinalModApplied(const FLDBuildReceipt& Receipt,const FLDFinalModSelection& Selection)
+{
+    if(Mode!=EMode::Full||!View.bValid||Receipt.Header.Generation!=View.Generation||Receipt.Header.OriginalLife!=View.Life){return;}
+    PendingFinalFeedback=Selection;
+    PendingFinalRevision=Receipt.Header.Revisions.BuildRevision;
+}
+
+void ULDWorkshop::InterruptFinalFeedback()
+{
+    PendingFinalFeedback=FLDFinalModSelection();PendingFinalRevision=0;
+    for(FHead& Head:Heads){Head.FinalAt=-1.;LDTween::SetScale(Head.Final,1.f);}
 }
 
 void ULDWorkshop::RefreshCharacter()
@@ -948,12 +967,12 @@ void ULDWorkshop::RefreshCharacter()
 
 void ULDWorkshop::RefreshHeads()
 {
-    const LDHUD::FStorageView* Model=Storage.IsValid()?&Storage->Model():nullptr;
+    bool bStampStarted=false;
     for(int32 Index=0;Index<Heads.Num();++Index)
     {
         FHead& Head=Heads[Index];
         const LDHUD::EStorageColumn Column=static_cast<LDHUD::EStorageColumn>(Index);
-        const FName Active=Model&&Model->Columns.IsValidIndex(Index)?Model->Columns[Index].Active:NAME_None;
+        const FName Active=View.bValid&&Index>=1&&Index<=3?LDHUD::ActiveInSlot(View,uint8(Index-1)):NAME_None;
         const LDWorkshop::FColumnHead Shown=LDWorkshop::ColumnHead(Column,Active,Latest.HolderName,Latest.Content);
         Head.Active=Active;Head.bEmpty=Shown.bEmpty;Head.Elements=Shown.Elements;
         FString Key;
@@ -983,9 +1002,9 @@ void ULDWorkshop::RefreshHeads()
                 ||(Final.TargetKind==ELDComponentTargetKind::None&&Column==LDHUD::EStorageColumn::Body));
             const bool bShowsFinal=bHere&&LDUIIcons::Apply(Head.Final,LDHUD::ContentIconId(Latest.Content,Final.DefinitionId.ToString()),17.f);
             if(!bShowsFinal){WorkshopShown(Head.Final,false);}
-            const FString FinalKey=bShowsFinal?Final.DefinitionId.ToString():FString();
-            // Only a mod that newly binds here stamps; the board opening on an existing binding does not.
-            if(FinalKey!=Head.FinalShown){Head.FinalAt=bShowsFinal&&IsOpen()&&OpenedAt>=0.&&UiNow()-OpenedAt>LDHUDStyle::MotionWorkshopOpen?UiNow():-1.;Head.FinalShown=FinalKey;}
+            if(bShowsFinal&&LDHUD::FinalStampReady(View,PendingFinalRevision,PendingFinalFeedback,
+                !Latest.bStage&&WorkshopHasArea(Rects.Column[Index])))
+            {Head.FinalAt=UiNow();bStampStarted=true;}
         }
         if(UBorder* Chip=Cast<UBorder>(Head.Element->GetParent()))
         {
@@ -997,6 +1016,9 @@ void ULDWorkshop::RefreshHeads()
             }
         }
     }
+    if(bStampStarted||(PendingFinalRevision!=0&&View.bValid&&View.BuildRevision>=PendingFinalRevision
+        &&View.FinalMod!=PendingFinalFeedback))
+    {PendingFinalFeedback=FLDFinalModSelection();PendingFinalRevision=0;}
 }
 
 void ULDWorkshop::ShowTextDock(const FString& Key,const FString& Name,const FString& Summary,const FString& Body,const FString& IconId,const FString& Glyph)

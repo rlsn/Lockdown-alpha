@@ -485,6 +485,7 @@ bool ULDChoicesPanel::ClosePanel()
     LDWidgets::ReleaseHolds(WidgetTree);
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
     PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;bOpen=false;
+    bFinalFeedbackAllowed=false;
     const LDHUD::FOfferMotionTicket PendingOffer=OfferMotion.Ticket;
     OfferMotion=FOfferMotion();
     if(PendingRequest){OfferMotion.Ticket=PendingOffer;}
@@ -544,6 +545,7 @@ void ULDChoicesPanel::MarkOpenedAutomatically()
 void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 {
     if(bOwnHit&&OfferMotion.StartedAt>=0.){OfferMotion.StartedAt=-1.;OfferMotion.Others.Reset();}
+    if(bOwnHit){bFinalFeedbackAllowed=false;}
     // #222: only an automatic opening folds by itself; a tray the player opened stays, in combat and in a PK too.
     if(bOpen&&Fold.ShouldFold(UiNow(),IsEngaged(),bOwnHit))
     {
@@ -1293,7 +1295,10 @@ bool ULDChoicesPanel::SubmitFinalMod(FName Option,const FLDFinalModSourceView& S
         ||(!Source.TargetId.IsNone()&&!FLDDefinitionWire::Encode(Source.TargetId,Command.TargetDefinition)))
     {Tell(TEXT("没有提交：终局改装标识无效。"));return false;}
     PendingFinalOption=NAME_None;
-    return Send(Command);
+    SubmittedFinal.DefinitionId=Option;SubmittedFinal.TargetKind=Source.TargetKind;SubmittedFinal.TargetId=Source.TargetId;
+    bFinalFeedbackAllowed=bOpen;
+    if(Send(Command)){return true;}
+    SubmittedFinal=FLDFinalModSelection();bFinalFeedbackAllowed=false;return false;
 }
 bool ULDChoicesPanel::SelectFinalMod(int32 Index)
 {
@@ -1849,6 +1854,7 @@ bool ULDChoicesPanel::Send(FLDBuildCommand Command)
 void ULDChoicesPanel::FinishRequest()
 {
     PendingRequest=0;
+    SubmittedFinal=FLDFinalModSelection();bFinalFeedbackAllowed=false;
     if(OfferMotion.StartedAt<0.){OfferMotion=FOfferMotion();}
     RefreshAll();
     // Every result reaches the player as a toast, whether the tray is open or not.
@@ -1876,7 +1882,15 @@ void ULDChoicesPanel::ShowFinal(const FLDBuildReceipt& Receipt)
             else if(OfferMotion.Ticket.Offer.IsValid())
             {UE_LOG(LogLDUI,Warning,TEXT("LD_UI_CHOICE_RECEIPT_MISMATCH Receipt does not match the submitted offer and life."));}
         }
-        else if(Receipt.Kind==ELDBuildCommandKind::FinalMod){LDWidgets::PlayCue(this,ELDAudioCue::UIFinalLock);}
+        else if(Receipt.Kind==ELDBuildCommandKind::FinalMod)
+        {
+            if(LDHUD::AppliedFinalFeedback(Receipt,LatestMatch,LatestLife,PendingRequest,SubmittedFinal.DefinitionId))
+            {
+                LDWidgets::PlayCue(this,ELDAudioCue::UIFinalLock);
+                if(bFinalFeedbackAllowed&&FinalModApplied){FinalModApplied(Receipt,SubmittedFinal);}
+            }
+            else{UE_LOG(LogLDUI,Warning,TEXT("LD_UI_FINAL_RECEIPT_MISMATCH Receipt does not match the submitted final mod and life."));}
+        }
     }
     else{LDWidgets::PlayCue(this,ELDAudioCue::UIReject);}
     // #198 G: a done fill gap or dismantle closes its picker; the receipt line names what was received and removed.

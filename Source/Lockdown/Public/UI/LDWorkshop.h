@@ -111,6 +111,8 @@ public:
     // The workshop's own "+" of the stat at Index (design order); the same one-click allocation as the band (ULDStatBar).
     ULDCommandButton* StatPlus(int32 Index) const {return StatRows.IsValidIndex(Index)?StatRows[Index].Plus:nullptr;}
     void AllocationApplied(const FLDBuildReceipt& Receipt);
+    void FinalModApplied(const FLDBuildReceipt& Receipt,const FLDFinalModSelection& Selection);
+    void InterruptFinalFeedback();
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
@@ -150,8 +152,7 @@ private:
         UTextBlock* Element=nullptr;
         // The locked final mod's icon over the head of what it binds.
         UImage* Final=nullptr;
-        // When the bound final mod first showed here (it stamps in over LDHUDStyle::MotionFinalLock).
-        FString FinalShown;
+        // The confirmed final mod stamps in over LDHUDStyle::MotionFinalLock.
         double FinalAt=-1.;
         FName Active;
         FString AppliedIcon;
@@ -267,6 +268,8 @@ private:
     EMode ClosingMode=EMode::Closed;
     FInput Latest;
     FLDProgressionView View;
+    FLDFinalModSelection PendingFinalFeedback;
+    uint64 PendingFinalRevision=0;
     TMap<FName,LDHUD::FComponentConnections> LinkConnections;
     FRects Rects;
     FVector2D LastSize=FVector2D::ZeroVector;

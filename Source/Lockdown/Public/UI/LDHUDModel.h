@@ -461,6 +461,9 @@ namespace LDHUD
     LOCKDOWN_API int32 StatPointsOf(const FLDProgressionView& Progression,FName StatId);
     // Success feedback needs a complete, applied allocation for this match and life.
     LOCKDOWN_API bool AppliedStatFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,int32 StatCount);
+    // A final-mod stamp needs the matching applied receipt and a committed build revision.
+    LOCKDOWN_API bool AppliedFinalFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,FName Definition);
+    LOCKDOWN_API bool FinalStampReady(const FLDProgressionView& View,uint64 Revision,const FLDFinalModSelection& Selection,bool bBoardVisible);
     // One attribute a point of a stat raises: its name, its current final value from the own projection ("?" while the
     // projection lacks it) and the gain of one point ("+2.5", "+2%", "+0.08/s").
     struct FStatEffectView
