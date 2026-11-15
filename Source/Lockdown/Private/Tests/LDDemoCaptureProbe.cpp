@@ -372,6 +372,12 @@ public:
             && Growth->bFinalModPending && Growth->FinalModOptions.Num() == 3)
         {
             bFinalModOffered = true;
+            if (!Panel)
+            {
+                Check(false, TEXT("P02"), TEXT("Final selection has its owning choice panel"));
+                return Finish();
+            }
+            if (!Panel->IsTrayOpen()) { Panel->OpenPanel(); return true; }
             if (Panel && HoldForShot(TEXT("HostFinalOffer.png"), Panel)) { return true; }
             if (!bPassed) { return Finish(); }
             if (!bFinalModSent && bInput && Panel && !Growth->bHasActiveOffer)
