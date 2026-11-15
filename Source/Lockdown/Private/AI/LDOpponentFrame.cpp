@@ -215,7 +215,6 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         if (Offer.Options.IsEmpty()) { return Fail(Error, TEXT("The own active offer has no option.")); }
         Out.Offer = MoveTemp(Offer);
     }
-    Out.bBuildLocked = Progression.bBuildLocked;
     if (Progression.bFinalModPending)
     {
         Out.FinalModOfferId = Progression.FinalModOfferId;

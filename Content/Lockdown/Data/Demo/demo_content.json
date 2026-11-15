@@ -6919,76 +6919,124 @@
       "namespace": "DemoContent"
     },
     {
+      "cost_key": "final_bowling.cost",
+      "cost_text": "原来源位移距离降低。",
       "description_key": "final_bowling.description",
       "description_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。原来源位移距离降低；二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。",
+      "effect_key": "final_bowling.effect",
+      "effect_text": "绑定强迫位移首次撞人时，另一名敌人受到魔法伤害并沿碰撞方向再次推移。",
       "icon_id": "icon_final_bowling",
       "id": "final_bowling",
       "name_key": "final_bowling.name",
       "name_text": "人肉保龄球",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_bowling.notes",
+      "notes_text": "二次推移不能再次触发本卡。分散站位或开阔路线可避免连撞。"
     },
     {
+      "cost_key": "final_breach.cost",
+      "cost_text": "本人冲刺基础冷却增加。",
       "description_key": "final_breach.description",
       "description_text": "离开核心连续一段时间后再入圈，下次成功普攻将目标沿远离旗杆方向推移；触发后须在圈外重新准备。本人冲刺基础冷却增加；躲攻击或预判入圈方向可反制。",
+      "effect_key": "final_breach.effect",
+      "effect_text": "离开核心连续一段时间后再入圈，下次成功普攻将目标沿远离旗杆方向推移。",
       "icon_id": "icon_final_breach",
       "id": "final_breach",
       "name_key": "final_breach.name",
       "name_text": "破门而入",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_breach.notes",
+      "notes_text": "触发后须在圈外重新准备。躲攻击或预判入圈方向可反制。"
     },
     {
+      "cost_key": "final_comeback.cost",
+      "cost_text": "触发那次直伤降低。",
       "description_key": "final_comeback.description",
       "description_text": "入圈时涂鸦属于其他存活玩家，短时间内首次普攻或主动直接伤害命中会生成公开警戒区，按跳造成魔法伤害和减速。触发那次直伤降低；可闪避命中或离区，不改所有权。",
+      "effect_key": "final_comeback.effect",
+      "effect_text": "入圈时涂鸦属于其他存活玩家，短时间内首次普攻或主动直接伤害命中会生成公开警戒区，按跳造成魔法伤害和减速。",
       "icon_id": "icon_final_comeback",
       "id": "final_comeback",
       "name_key": "final_comeback.name",
       "name_text": "现场翻盘",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_comeback.notes",
+      "notes_text": "可闪避命中或离区，不改所有权。"
     },
     {
+      "cost_key": "final_forced_exit.cost",
+      "cost_text": "原硬控时间降低，仍吃递减。",
       "description_key": "final_forced_exit.description",
       "description_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。原硬控时间降低，仍吃递减；提前离圈或位移免疫可反制。受控者仍争夺旗杆。",
+      "effect_key": "final_forced_exit.effect",
+      "effect_text": "绑定来源在核心内成功硬控的敌人，实际控制结束后仍在核心则向外推移。",
       "icon_id": "icon_final_forced_exit",
       "id": "final_forced_exit",
       "name_key": "final_forced_exit.name",
       "name_text": "强制退场",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_forced_exit.notes",
+      "notes_text": "提前离圈或位移免疫可反制。受控者仍争夺旗杆。"
     },
     {
+      "cost_key": "final_landlord.cost",
+      "cost_text": "持旗期间普攻主击伤害降低。",
       "description_key": "final_landlord.description",
       "description_text": "持有涂鸦期间，在核心成功普攻可在旗杆中心生成延迟魔法冲击。持旗期间普攻主击伤害降低；可躲冲击或先夺旗。冲击不复制普攻、施法、回响或控制。",
+      "effect_key": "final_landlord.effect",
+      "effect_text": "持有涂鸦期间，在核心成功普攻可在旗杆中心生成延迟魔法冲击。",
       "icon_id": "icon_final_landlord",
       "id": "final_landlord",
       "name_key": "final_landlord.name",
       "name_text": "旗杆房东",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_landlord.notes",
+      "notes_text": "可躲冲击或先夺旗。冲击不复制普攻、施法、回响或控制。"
     },
     {
+      "cost_key": "final_open_mic.cost",
+      "cost_text": "声浪期间本人移速降低。",
       "description_key": "final_open_mic.description",
       "description_text": "短时间内两次真实独立命中后，身边生成移动声浪，按跳造成魔法伤害和减速。声浪期间本人移速降低；新声浪替换旧声浪，不补跳。可拉开距离或诱导在圈外触发。",
+      "effect_key": "final_open_mic.effect",
+      "effect_text": "短时间内两次真实独立命中后，身边生成移动声浪，按跳造成魔法伤害和减速。",
       "icon_id": "icon_final_open_mic",
       "id": "final_open_mic",
       "name_key": "final_open_mic.name",
       "name_text": "全城开麦",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_open_mic.notes",
+      "notes_text": "新声浪替换旧声浪，不补跳。可拉开距离或诱导在圈外触发。"
     },
     {
+      "cost_key": "final_split.cost",
+      "cost_text": "降低每跳基础伤害并缩短持续时间。",
       "description_key": "final_split.description",
       "description_text": "绑定放置区域的中心两侧生成两个更小的子区域，降低每跳基础伤害并缩短持续时间；元素和跳时保留。下一次施法同时替换旧两块；重叠可命中两次，中心覆盖较弱。",
+      "effect_key": "final_split.effect",
+      "effect_text": "绑定放置区域的中心两侧生成两个更小的子区域。",
       "icon_id": "icon_final_split",
       "id": "final_split",
       "name_key": "final_split.name",
       "name_text": "一分为二",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_split.notes",
+      "notes_text": "元素和跳时保留。下一次施法同时替换旧两块；重叠可命中两次，中心覆盖较弱。"
     },
     {
+      "cost_key": "final_traffic.cost",
+      "cost_text": "该冲刺基础冷却增加。",
       "description_key": "final_traffic.description",
       "description_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。该冲刺基础冷却增加；新带替换旧带，不伤害、不挡路。",
+      "effect_key": "final_traffic.effect",
+      "effect_text": "绑定冲刺的实际路径留下禁行带，敌人进入或跨越时减速。",
       "icon_id": "icon_final_traffic",
       "id": "final_traffic",
       "name_key": "final_traffic.name",
       "name_text": "交通管制",
-      "namespace": "DemoContent"
+      "namespace": "DemoContent",
+      "notes_key": "final_traffic.notes",
+      "notes_text": "新带替换旧带，不伤害、不挡路。"
     },
     {
       "description_key": "knockback.description",

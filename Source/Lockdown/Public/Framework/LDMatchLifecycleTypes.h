@@ -228,6 +228,8 @@ struct FLDLobbyMember
     UPROPERTY() ELDContenderKind Kind = ELDContenderKind::Human;
     UPROPERTY() bool Host = false;
     UPROPERTY() bool Ready = false;
+    // AI slots receive new identities on reset; this is their preceding result's identity, when retained.
+    UPROPERTY() FGuid PreviousAIContender;
 };
 
 USTRUCT()
@@ -238,6 +240,8 @@ struct FLDLobbyView
     UPROPERTY() ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     UPROPERTY() uint64 RosterRevision = 0;
     UPROPERTY() uint64 PublicRevision = 0;
+    // Only in Lobby: identity of the completed result whose already-public summaries can be displayed.
+    UPROPERTY() FGuid PreviousResultId;
     UPROPERTY() TArray<FLDLobbyMember> Members;
     UPROPERTY() uint8 AICount = 0;
     UPROPERTY() bool CanStart = false;

@@ -223,6 +223,8 @@ void ALDPlayerController::V05Pressed(FName Action)
     if (Action==TEXT("Attributes")) { if (HUDUI) { HUDUI->ToggleAttributeView(); } return; }
     // A child confirmation or a text edit owns every other key and click until it closes (UI 4).
     if (IsWorldInputCaptured()) { return; }
+    // The 构筑 workshop opens and closes like its button, alive or dead.
+    if (Action==TEXT("Workshop")) { if (HUDUI) { HUDUI->ToggleWorkshop(); } return; }
     // The playtest mark works alive or dead: it only writes the logs and never commands the world.
     if (Action==TEXT("Mark")) { PlaytestMark(); return; }
     if (Action==TEXT("Stop")) { StopCombatAndOrders(); return; }

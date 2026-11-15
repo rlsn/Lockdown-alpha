@@ -74,6 +74,8 @@ namespace LDHUD
     // definition, its display entry, the table or the key is missing: Out then holds the stable content id,
     // so the content error stays visible instead of a guessed name.
     LOCKDOWN_API bool ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out);
+    // A final mod's effect, cost and notes lines from its display row; false (all empty) when the catalog has no split for it.
+    LOCKDOWN_API bool FinalModParts(const FLDDemoContentDefinitions* Content,FName FinalMod,FString& OutEffect,FString& OutCost,FString& OutNotes);
     LOCKDOWN_API FString ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     // The display row's IconId of a content entry (#85); empty without a display row.
     LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
@@ -124,12 +126,17 @@ namespace LDHUD
     struct FDeathView
     {
         bool bVisible=false;
+        bool bWaiting=false;
+        bool bProgressKnown=false;
+        float Progress=0.f;
         FString Title;
         FString Countdown;
+        FString Clock;
         FString Note;
     };
     // Death banner (APP_SPEC 7.1): waiting time only; build and property are kept, and the display never revives.
-    LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated=false);
+    LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated=false,
+        const FLDCombatOwnerView* Combat=nullptr);
     LOCKDOWN_API FString PhaseLine(ELDMatchPhase Phase);
     // #198: the centre-screen return countdown of a rest: whole seconds rounded up ("5" .. "1") during the Return step until
     // its end (StepEndsAtMs; held at "1" until the authority enters the field), then LDTerms::CountdownGo for GoShowMs from
@@ -477,6 +484,11 @@ namespace LDHUD
     LOCKDOWN_API FStatRowView StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content);
     // The points the own progression allocated to StatId; 0 when it lists none.
     LOCKDOWN_API int32 StatPointsOf(const FLDProgressionView& Progression,FName StatId);
+    // Success feedback needs a complete, applied allocation for this match and life.
+    LOCKDOWN_API bool AppliedStatFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,int32 StatCount);
+    // A final-mod stamp needs the matching applied receipt and a committed build revision.
+    LOCKDOWN_API bool AppliedFinalFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,FName Definition);
+    LOCKDOWN_API bool FinalStampReady(const FLDProgressionView& View,uint64 Revision,const FLDFinalModSelection& Selection,bool bBoardVisible);
     // One attribute a point of a stat raises: its name, its current final value from the own projection ("?" while the
     // projection lacks it) and the gain of one point ("+2.5", "+2%", "+0.08/s").
     struct FStatEffectView
@@ -538,7 +550,7 @@ namespace LDHUD
         bool bCanInstall=false;
         FString InstallBlocked;
     };
-    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked=false);
+    LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
     // The player-facing why of a refused or stored build step.
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
@@ -604,6 +616,11 @@ namespace LDHUD
     constexpr int32 StorageColumnCount=5;
     // The column of a learned active's server slot 0..2.
     LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);
+    // The column containing the final mod's currently legal source, including an installed component's host chain.
+    LOCKDOWN_API bool FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn);
+    // The board column a final-mod source sits in: 本体 for none, the slot of a learned active, D, or an installed
+    // component's column; false when the source is not on the board.
+    LOCKDOWN_API bool FinalSourceColumn(const FLDProgressionView& Progression,ELDComponentTargetKind Kind,FName TargetId,EStorageColumn& OutColumn);
     struct FEquippedView
     {
         FName Component;
@@ -670,6 +687,13 @@ namespace LDHUD
     // What letting go of Component on Drop does, for the drag caption: "装到 Q", "替换 X · 连带拆下 Y、Z".
     LOCKDOWN_API FString DropPreviewText(FName Component,const FComponentDrop& Drop,const FLDProgressionView& Progression,
         const FLDDemoContentDefinitions* Content);
+    struct FComponentConnections
+    {
+        TArray<FName> Actives,Components,SameForm;
+    };
+    // The same owned connections used by the popup and the workshop's link-line preview.
+    LOCKDOWN_API FComponentConnections ComponentConnections(FName Component,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
     // The owned components and learned actives Component works with, for the popup's 联动 line: what it installs on or
     // repeats (learned actives, owned host components, C12's bases), the owned mods and connectors that install on it, and its
     // owned form-mates (one per place). Empty when it names none.
@@ -707,6 +731,18 @@ namespace LDHUD
         bool Any() const {return bOffer||Blueprints>0||bOpeningBase||ComponentChoices>0||bFinalMod;}
     };
     LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
+    // The current opportunity is included in Queued; the first dot represents it.
+    LOCKDOWN_API FString OfferQueueDots(uint8 Queued);
+    // Match a consumed opportunity to the applied receipt of the exact request and life that submitted it.
+    struct FOfferMotionTicket
+    {
+        uint32 Match=0,Life=0;
+        uint64 Request=0;
+        FGuid Offer;
+        FName Option;
+        ELDBuildCommandKind Kind=ELDBuildCommandKind::ActiveChoice;
+        LOCKDOWN_API bool Matches(const FLDBuildReceipt& Receipt,uint32 CurrentMatch,uint32 CurrentLife) const;
+    };
     // The 构筑 tray shows its component rows (the opening base pick and the elite choices) as icon-only tiles instead of
     // named cards once they hold more than ChoiceTrayCardLimit cards together (an all-owned choice counts its points card).
     constexpr int32 ChoiceTrayCardLimit=6;

@@ -83,6 +83,12 @@ bool ALDCombatDirector::WorkshopOn(const FLDAttributeProjection& Projection, ELD
 bool ALDCombatDirector::CompileActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
     FLDCombatActiveTerms& Terms, FString& Error) const
 {
+    return LDCombatSourceRules::CompileWorkshopActive(Projection,Source,Catalog(),Terms,Error);
+}
+
+bool LDCombatSourceRules::CompileWorkshopActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
+    const FLDDemoContentSnapshot* Content, FLDCombatActiveTerms& Terms, FString& Error)
+{
     using namespace LDCombatWorkshopDetail;
     if (Source.Kind!=ELDCombatSourceKind::Learned && Source.Kind!=ELDCombatSourceKind::Innate) { return true; }
     FLDDemoAbilityValues& Values=Terms.Values;
@@ -97,7 +103,8 @@ bool ALDCombatDirector::CompileActive(const FLDAttributeProjection& Projection, 
     for (const ELDDemoEffectOp Op : ActiveMods)
     {
         TArray<FLDPassiveEffectRef> Mods;
-        if (!WorkshopOn(Projection,Op,Source,Mods,Error)) { return false; }
+        if (!CollectWorkshopEffects(Projection,Op,Content,Mods,Error)) { return false; }
+        Mods.RemoveAll([&Source](const FLDPassiveEffectRef& Ref) { return !Ref.Targets(Source); });
         for (const FLDPassiveEffectRef& Mod : Mods)
         {
             const FLDDemoEffectDefinition& Effect=Mod.Effect;
@@ -286,6 +293,14 @@ bool ALDCombatDirector::CompileActive(const FLDAttributeProjection& Projection, 
         return false;
     }
     return true;
+}
+
+void LDCombatSourceRules::ScaleInnateDash(FLDInnateDashTerms& Dash, const FLDCombatActiveTerms& Terms)
+{
+    Dash.DistanceCm.Numerator*=Terms.DashScaleBp;
+    Dash.DistanceCm.Denominator*=10000;
+    Dash.CooldownMs=Dash.CooldownMs/10000*Terms.CooldownScaleBp
+        +Dash.CooldownMs%10000*Terms.CooldownScaleBp/10000;
 }
 
 bool ALDCombatDirector::SpreadUnitHits(const FLDBodyCombatState& Body, const FLDCombatActiveTerms& Terms, const FVector& Origin,
@@ -825,13 +840,27 @@ bool ALDCombatDirector::DetonateZone(FLDBodyCombatState& Holder, const FLDCombat
 bool ALDCombatDirector::WidenTerms(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, FLDCombatActiveTerms& Terms,
     int64 NowMs, bool& bWidened, FString& Error) const
 {
+    FLDCombatPreviewWideToken Token;
+    if (Body.WideToken.IsSet())
+    {
+        Token.Component=Body.WideToken->Component;
+        Token.Host=Body.WideToken->Host;
+        Token.RatioBp=Body.WideToken->RatioBp;
+        Token.ExpiresAtMs=Body.WideToken->ExpiresAtMs;
+    }
+    return LDCombatSourceRules::WidenWorkshopTerms(Body.AttributeProjection,Source,Catalog(),Token,NowMs,Terms,bWidened,Error);
+}
+
+bool LDCombatSourceRules::WidenWorkshopTerms(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
+    const FLDDemoContentSnapshot* Content, const FLDCombatPreviewWideToken& Token, int64 NowMs,
+    FLDCombatActiveTerms& Terms, bool& bWidened, FString& Error)
+{
     using namespace LDCombatWorkshopDetail;
     bWidened=false;
-    if (!Body.WideToken.IsSet() || Source.Kind!=ELDCombatSourceKind::Learned) { return true; }
-    const FLDCombatWideToken Token=Body.WideToken.GetValue();
+    if (Source.Kind!=ELDCombatSourceKind::Learned) { return true; }
     if (Token.ExpiresAtMs<=NowMs || Token.Host==Source.DefinitionId) { return true; }
     TArray<FLDPassiveEffectRef> Widens;
-    if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::ControlWiden,Widens,Error)) { return false; }
+    if (!CollectWorkshopEffects(Projection,ELDDemoEffectOp::ControlWiden,Content,Widens,Error)) { return false; }
     if (!Widens.ContainsByPredicate([&Token](const FLDPassiveEffectRef& Ref)
         { return Ref.Source.DefinitionId==Token.Component && Ref.TargetId==Token.Host; }))
     { return true; }

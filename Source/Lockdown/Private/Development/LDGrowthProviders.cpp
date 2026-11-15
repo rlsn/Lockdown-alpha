@@ -29,6 +29,15 @@ FLDMatchProviderHooks GrowthProgressionHooks()
         }
         return Mode.Growth->ReadFinalLevel(Contender, Level, Error);
     };
+    Hooks.ReadResultBuild = [](const ALDGameMode& Mode, const FGuid& Contender, FLDResultBuild& Build, FString& Error)
+    {
+        if (!Mode.Growth)
+        {
+            Error = TEXT("The growth domain is not available for result build summaries.");
+            return false;
+        }
+        return Mode.Growth->ReadResultBuild(Contender, Build, Error);
+    };
     return Hooks;
 }
 

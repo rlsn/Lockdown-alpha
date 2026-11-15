@@ -452,6 +452,8 @@ def expected_projection(compilation):
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
             "DescriptionKey": row["description_key"], "DescriptionText": row["description_text"],
+            **{part.capitalize() + suffix: row.get(part + "_" + suffix.lower(), "")
+               for part in demo.FINAL_MOD_DISPLAY_PARTS for suffix in ("Key", "Text")},
             "IconId": row["icon_id"], "PortraitIconId": row.get("portrait_icon_id", ""),
         } for row in data["display"]],
     }
@@ -901,6 +903,11 @@ def _export_cases(output, index, base, value_mutations, valid, written):
     display = lambda d, identity: next(row for row in d["display"] if row["id"] == identity)
     bad_content("advanced_display_line", lambda d: display(d, "active_snark_bolt").update(
         {"advanced_key": "active_snark_bolt.advanced", "advanced_text": "\u8bf4\u660e"}), "unknown field")
+    bad_content("final_display_missing_cost", lambda d: display(d, "final_split").pop("cost_text"), "missing")
+    bad_content("final_display_wrong_key", lambda d: display(d, "final_split").update({"notes_key": "final_split.note"}),
+                "display reference")
+    bad_content("effect_line_off_final", lambda d: display(d, "active_snark_bolt").update(
+        {"effect_key": "active_snark_bolt.effect", "effect_text": "\u8bf4\u660e"}), "unknown field")
     bad_content("absent_card_effect", lambda d: display(d, "active_snark_bolt").update({"description_text": "[stun.duration]"}),
                 "card placeholder")
     bad_content("stat_card_absent_bonus", lambda d: display(d, "stat_brains").update({"description_text": "[per_point.ADFlat]"}),

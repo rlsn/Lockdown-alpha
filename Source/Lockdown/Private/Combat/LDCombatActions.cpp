@@ -1127,9 +1127,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if (bInnate)
     {
         if (!FinalCooldownCost(*Record,Source,Innate.CooldownMs,Error)) { return false; }
-        Innate.DistanceCm.Numerator*=Terms.DashScaleBp;
-        Innate.DistanceCm.Denominator*=10000;
-        Innate.CooldownMs=Innate.CooldownMs/10000*Terms.CooldownScaleBp+Innate.CooldownMs%10000*Terms.CooldownScaleBp/10000;
+        LDCombatSourceRules::ScaleInnateDash(Innate,Terms);
     }
     // A stun or taunt that landed during the windup ends it (normally already abandoned at the hit).
     FLDActiveGateInput Gate;

@@ -1097,7 +1097,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("SkillE"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Details"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("SkillE"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Details"), TEXT("Workshop"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -1120,7 +1120,7 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
         && Settings->Key(TEXT("SkillE")) == EKeys::E
         && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
-        && Settings->Key(TEXT("Details")) == EKeys::C
+        && Settings->Key(TEXT("Details")) == EKeys::C && Settings->Key(TEXT("Workshop")) == EKeys::B
         && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape
         && Settings->Key(TEXT("Scoreboard")) == EKeys::Tab);
     FString Error;
@@ -1909,6 +1909,28 @@ bool FLDLocalSettingsSkillEMigrationTest::RunTest(const FString& Parameters)
         && DetailsManyOccupied.Settings->Key(TEXT("Details")) == EKeys::F5
         && DetailsManyOccupied.Settings->Key(TEXT("Skill1")) == EKeys::C
         && DetailsManyOccupied.Settings->Key(TEXT("Scoreboard")) == EKeys::F6);
+
+    Values->ResetBindings();
+    Values->Bindings.Remove(TEXT("Workshop"));
+    const TArray<uint8> WorkshoplessFile = FixtureBytes(*Values, 22, 0);
+    Write(WorkshoplessFile);
+    const auto WorkshopDefault = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 22 adds the workshop key on B and keeps every other binding"),
+        WorkshopDefault.Status == ELDLocalSettingsLoadStatus::Migrated && WorkshopDefault.Settings
+        && WorkshopDefault.Settings->Key(TEXT("Workshop")) == EKeys::B && WorkshopDefault.Settings->Key(TEXT("Details")) == EKeys::C
+        && !WorkshopDefault.Message.Contains(TEXT("降低战斗特效关闭")));
+    TestTrue(TEXT("Schema 22 keeps its stored combat feedback preferences"),
+        WorkshopDefault.Settings && WorkshopDefault.Settings->bReduceCombatEffects == Values->bReduceCombatEffects
+        && WorkshopDefault.Settings->bCameraShake == Values->bCameraShake);
+    After.Reset();
+    TestTrue(TEXT("The schema 22 file is not rewritten by loading"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && After == WorkshoplessFile);
+    Values->Bindings.Add(TEXT("Stop"), EKeys::B);
+    Write(FixtureBytes(*Values, 22, 0));
+    const auto WorkshopFallback = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 22 keeps an existing B binding and assigns an unused workshop key"),
+        WorkshopFallback.Status == ELDLocalSettingsLoadStatus::Migrated && WorkshopFallback.Settings
+        && WorkshopFallback.Settings->Key(TEXT("Stop")) == EKeys::B && WorkshopFallback.Settings->Key(TEXT("Workshop")) == EKeys::F10);
     return true;
 }
 
@@ -1919,7 +1941,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 22);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 23);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);

@@ -60,7 +60,8 @@ public:
     uint64 ReconnectBuildNext = 0;
     double ReconnectHp = 0, ReconnectMp = 0;
     bool bRenderHost = false, bSourcePickerSeen = false;
-    FString PendingShot, ShotError;
+    FString PreparingShot, PendingShot, ShotError;
+    double ShotReadyAt = 0;
     TSet<FString> SavedShots;
     FDelegateHandle ShotHandle;
     uint8 FieldMask = 0;
@@ -117,7 +118,7 @@ public:
         return bValue;
     }
 
-    bool HoldForShot(const TCHAR* File, ULDChoicesPanel* Panel = nullptr)
+    bool HoldForShot(const TCHAR* File, ULDChoicesPanel* Panel = nullptr, double SettleSeconds = .5)
     {
         if (!bRenderHost || SavedShots.Contains(File)) { return false; }
         if (!ShotError.IsEmpty())
@@ -125,6 +126,12 @@ public:
         if (!FApp::CanEverRender() || !GEngine || !GEngine->GameViewport)
         { Check(false, TEXT("R00"), TEXT("The participating Host has a rendered game viewport")); return false; }
         if (Panel && !Panel->IsTrayOpen()) { Panel->OpenPanel(); }
+        if (PreparingShot != File)
+        {
+            PreparingShot = File;
+            ShotReadyAt = FPlatformTime::Seconds() + SettleSeconds;
+        }
+        if (FPlatformTime::Seconds() < ShotReadyAt) { return true; }
         if (PendingShot.IsEmpty())
         {
             if (!ShotHandle.IsValid())
@@ -141,7 +148,7 @@ public:
         TArray64<uint8> Png;
         FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(Colors.GetData(), Colors.Num()), Png);
         if (Png.IsEmpty() || !FFileHelper::SaveArrayToFile(Png, *FPaths::Combine(Output, PendingShot)))
-        { ShotError = TEXT("The rendered FIN/flag frame could not be saved."); }
+        { ShotError = TEXT("The rendered walkthrough frame could not be saved."); }
         else
         {
             SavedShots.Add(PendingShot);
@@ -332,6 +339,7 @@ public:
             if (bHost && !bReturnSent && AllMarked(TEXT("Results.json"))) { PC->ReturnDemoToLobby(); bReturnSent = true; }
             if (Lobby.Generation == Generation || Lobby.Phase != ELDMatchPhase::Lobby || View.Phase != ELDMatchPhase::Lobby
                 || View.Generation != Lobby.Generation || PC->GetPawn()) { return true; }
+            if (HoldForShot(TEXT("HostReturnedLobby.png"))) { return true; }
             Check(Lobby.Members.Num() == 6 && !View.Showdown.bStarted && !View.GraffitiOwner.IsValid() && !View.ResultId.IsValid()
                 && !Public->GetCaptureMarker(),
                 TEXT("C12"), TEXT("The same six-member room returns to a new Lobby without a body or stale final state"));
@@ -364,6 +372,12 @@ public:
             && Growth->bFinalModPending && Growth->FinalModOptions.Num() == 3)
         {
             bFinalModOffered = true;
+            if (!Panel)
+            {
+                Check(false, TEXT("P02"), TEXT("Final selection has its owning choice panel"));
+                return Finish();
+            }
+            if (!Panel->IsTrayOpen()) { Panel->OpenPanel(); return true; }
             if (Panel && HoldForShot(TEXT("HostFinalOffer.png"), Panel)) { return true; }
             if (!bPassed) { return Finish(); }
             if (!bFinalModSent && bInput && Panel && !Growth->bHasActiveOffer)
@@ -526,9 +540,10 @@ public:
             }
         }
         if (View.Phase != ELDMatchPhase::Results || Public->MatchResult.ResultId != View.ResultId) { return true; }
+        if (HoldForShot(TEXT("HostResults.png"), nullptr, 1.5)) { return true; }
         const auto& Result = Public->MatchResult;
         Check(bFinalSeen && Growth && Growth->CumulativeXP == FinalXP && Growth->BuildRevision == FinalBuildRevision,
-            TEXT("C06"), TEXT("Final combat grants no ordinary XP or build mutation"));
+            TEXT("C06"), TEXT("Final combat grants no ordinary XP; the build changes only by its owner's commands (none sent here)"));
         Check(bMarkerSeen, TEXT("C08"), TEXT("The client draws the registered final flag boundary as presentation only"));
         Check(!bExpectsRoad || (bFinalDashSent && bRoadSeen), TEXT("C16"),
             TEXT("A selected D-bound traffic FIN creates a real travelled road on the owning connection's authorized frame"));
@@ -547,9 +562,9 @@ public:
         if (bRenderHost)
         {
             Check(SavedShots.Contains(TEXT("HostFinalOffer.png")) && SavedShots.Contains(TEXT("HostFinalLocked.png"))
-                && SavedShots.Contains(TEXT("HostFinalFlag.png"))
+                && SavedShots.Contains(TEXT("HostFinalFlag.png")) && SavedShots.Contains(TEXT("HostResults.png"))
                 && (!bSourcePickerSeen || SavedShots.Contains(TEXT("HostFinalSource.png"))),
-                TEXT("C15"), TEXT("The owning Host rendered and saved its three FIN cards, source picker when needed, locked card and final flag"));
+                TEXT("C15"), TEXT("The owning Host rendered and saved its three FIN cards, source picker when needed, locked card, final flag and results"));
         }
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));

@@ -568,10 +568,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
     TArray<FLDPassiveEffectRef>& Out, FString& Error) const
 {
+    return LDCombatSourceRules::CollectWorkshopEffects(Projection,Op,Catalog(),Out,Error);
+}
+
+bool LDCombatSourceRules::CollectWorkshopEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+    const FLDDemoContentSnapshot* Content, TArray<FLDPassiveEffectRef>& Out, FString& Error)
+{
     Out.Reset();
     Error.Reset();
     if (Projection.InstalledComponents.IsEmpty()) { return true; }
-    const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { Error=TEXT("Component effects require the approved Demo content."); return false; }
     const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
     for (const FLDInstalledComponentTerm& Term : Projection.InstalledComponents)
@@ -675,12 +680,18 @@ bool ALDCombatDirector::CastRangeCm(const FLDBodyCombatState& Body, const FLDDem
 {
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { Error=TEXT("Cast range requires the approved Demo content."); return false; }
+    return LDCombatSourceRules::CastRangeCm(*Content,Body.AttributeProjection,Target,OutCm);
+}
+
+bool LDCombatSourceRules::CastRangeCm(const FLDDemoContentSnapshot& Content, const FLDAttributeProjection& Projection,
+    const FLDDemoTargetDefinition& Target, double& OutCm)
+{
     const auto Cm=[](const FLDDemoRational& Value) { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; };
     OutCm=Cm(Target.RangeCm);
     // A share of the extra basic-attack range above the catalog base, up to its cap.
     if (Target.AttackRangeRatioBp>0)
     {
-        const double Extra=FMath::Max(0.,Cm(Body.AttributeProjection.Final.AttackRangeCm)-Cm(Content->Get().Parameters.AttackRangeCm.Base));
+        const double Extra=FMath::Max(0.,Cm(Projection.Final.AttackRangeCm)-Cm(Content.Get().Parameters.AttackRangeCm.Base));
         OutCm+=FMath::Min(Extra*double(Target.AttackRangeRatioBp)/10000.,Cm(Target.AttackRangeBonusCapCm));
     }
     return FMath::IsFinite(OutCm) && OutCm>0;

@@ -1,6 +1,7 @@
 #include "Development/LDProgressionRules.h"
 #include "Development/LDWorkshopRules.h"
 
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Hash/CityHash.h"
@@ -494,15 +495,22 @@ ELDGrowthReason LDProgression::ValidateBuild(const FLDDemoContentDefinitions& Co
     }
     if (!Build.FinalMod.IsEmpty())
     {
-        FLDComponentTarget Binding;
-        Binding.Kind = Build.FinalMod.TargetKind;
-        Binding.Definition = Build.FinalMod.TargetId;
+        // The binding may name a source the player has since removed: the card is dormant then (FinalModBound), not invalid.
         TArray<FLDComponentTarget> Legal;
-        if (FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) != ELDGrowthReason::None
-            || !Legal.Contains(Binding))
+        if (FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) != ELDGrowthReason::None)
         { return ELDGrowthReason::DataInvalid; }
     }
     return ELDGrowthReason::None;
+}
+
+bool LDProgression::FinalModBound(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
+{
+    if (Build.FinalMod.IsEmpty()) { return true; }
+    FLDComponentTarget Binding;
+    Binding.Kind = Build.FinalMod.TargetKind;
+    Binding.Definition = Build.FinalMod.TargetId;
+    TArray<FLDComponentTarget> Legal;
+    return FinalModTargets(Content, Build, Build.FinalMod.DefinitionId, Legal) == ELDGrowthReason::None && Legal.Contains(Binding);
 }
 
 int32 LDProgression::WorkshopCapacity(const FLDDemoProgressionDefinition& Progression, uint8 Level)
@@ -604,7 +612,7 @@ LDProgression::EMatchStage LDProgression::StageForPublic(ELDMatchPhase Phase, co
     {
     case ELDMatchPhase::Rest: return LDMatchTimeline::IsRestBuildOpen(Timeline) ? EMatchStage::Rest : EMatchStage::RestLocked;
     case ELDMatchPhase::Development:
-    case ELDMatchPhase::CaptureOpen: return Timeline.Stage == ELDMatchStage::FinalField ? EMatchStage::Closed : EMatchStage::Live;
+    case ELDMatchPhase::CaptureOpen: return EMatchStage::Live;
     default: return EMatchStage::Closed;
     }
 }
@@ -1147,11 +1155,24 @@ ELDGrowthReason LDProgression::ApplyFinalMod(const FLDDemoContentDefinitions& Co
     {
         return Reason;
     }
+    const FLDFinalModState& FinalMod = Progression.FinalMod;
+    if (FinalMod.bLocked && !Current.FinalMod.IsEmpty() && Current.FinalMod.DefinitionId == Option && FinalMod.OfferId == OfferId
+        && !FinalModBound(Content, Current))
+    {
+        // Rebinding a dormant card is part of adjusting the build: open wherever an install is.
+        if (const ELDGrowthReason Reason = InstallGate(Context); Reason != ELDGrowthReason::None) { return Reason; }
+        TArray<FLDComponentTarget> Legal;
+        if (const ELDGrowthReason Reason = FinalModTargets(Content, Current, Option, Legal); Reason != ELDGrowthReason::None)
+        { return Reason; }
+        if (!Legal.Contains(Target)) { return ELDGrowthReason::FinalModUnavailable; }
+        Out.FinalMod.TargetKind = Target.Kind;
+        Out.FinalMod.TargetId = Target.Definition;
+        return ELDGrowthReason::None;
+    }
     if (const ELDGrowthReason Reason = CommandGate(ELDBuildCommandKind::FinalMod, Context); Reason != ELDGrowthReason::None)
     {
         return Reason;
     }
-    const FLDFinalModState& FinalMod = Progression.FinalMod;
     if (!FinalMod.IsPending() || FinalMod.OfferId != OfferId)
     {
         return FinalMod.bLocked ? ELDGrowthReason::FinalLocked : ELDGrowthReason::NoFinalMod;
@@ -1811,6 +1832,48 @@ FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Con
     }
     ProgressionSortBuild(Build);
     return Build;
+}
+
+FLDBuildProjectionInput LDProgression::CombatProjectionInput(const FLDDemoContentDefinitions* Content, const FLDGrowthBuild& Build)
+{
+    FLDBuildProjectionInput Input;
+    Input.Level = Build.Level;
+    if (Content && Build.StatPoints.Num() == Content->Stats.Num())
+    {
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->StatsInDesignOrder();
+        for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
+        {
+            if (Build.StatPoints[Index] != 0)
+            {
+                Input.StatPoints.Emplace(StatOrder[Index]->Id, Build.StatPoints[Index]);
+            }
+        }
+    }
+    for (const FLDLearnedActive& Active : Build.Actives)
+    {
+        FLDLearnedActiveValue& Value = Input.Actives.AddDefaulted_GetRef();
+        Value.AbilityId = Active.Id;
+        Value.Entry = Active.Slot == 0 ? ELDCombatEntry::Q
+            : Active.Slot == 1 ? ELDCombatEntry::W
+            : Active.Slot == 2 ? ELDCombatEntry::E
+            : ELDCombatEntry::None;
+    }
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        if (Instance.bInstalled)
+        {
+            FLDInstalledComponentValue& Value = Input.Components.AddDefaulted_GetRef();
+            Value.ComponentId = Instance.Id;
+            Value.BoundActive = Instance.Target.BoundActive;
+            Value.Element = Instance.Target.Element;
+            Value.TargetKind = Instance.Target.Kind;
+            Value.TargetId = Instance.Target.Definition;
+            Value.BoundComponent = Instance.Target.BoundComponent;
+        }
+    }
+    Input.ResultBuildRevision = Build.Revision;
+    if (Content && FinalModBound(*Content, Build)) { Input.FinalMod = Build.FinalMod; }
+    return Input;
 }
 
 void LDProgression::EligibleBlueprints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out)

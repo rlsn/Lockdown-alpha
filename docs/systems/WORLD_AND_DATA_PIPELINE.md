@@ -233,10 +233,13 @@ native ID 映射与编译枚举、world contract 的原始字节摘要及其 pay
 边界、锚点、成员和引用；该目录不创建另一套地图 Actor/导航/营地状态。
 
 显示行另含玩家可见的 `name_text`/`description_text`（projection 4；主动说明以 `[op.field]`、五维说明以 `[per_point.<Stat>]` 读取 typed 数值）。编译器 `display_text` 与原生
-`ValidateDisplayText` 使用同一约束：两项必填，名称至多 32、说明至多 160 个 Unicode 标量；拒绝控制、
+`ValidateDisplayText` 使用同一约束：两项必填，名称至多 32、说明至多 320 个 Unicode 标量；拒绝控制、
 不可见、双向及四字节字符、花括号和首尾空格；说明不得含数字，数值只由 typed 字段显示；名称在全部显示行中唯一。
+终局改装的显示行另有 `effect_key/effect_text`、`cost_key/cost_text`、`notes_key/notes_text`（原生 `EffectKey/EffectText`、
+`CostKey/CostText`、`NotesKey/NotesText`），键为 `<contentId>.effect/.cost/.notes`，文本与说明同约束；
+三项在终局改装行必填，其他行出现即作为未知字段拒绝，原生成员在其他行为空。
 `LDDemoContentText::Build` 从已验证定义生成 namespace `DemoContent` 的字符串表，键为
-`<contentId>.name`/`<contentId>.description`。`LDDemoEntry::LoadRuntimeContent` 在
+`<contentId>.name`/`<contentId>.description`，终局改装行另加上述三键。`LDDemoEntry::LoadRuntimeContent` 在
 `ULDDemoContentCatalog::Load` 成功后以 `LDDemoContentText::TableId()` 注册该表，客户端与 Host 走同一路径；
 同一进程重复注册相同文本为空操作，同 ID 已有不同条目则加载失败，不混用两套文本。
 

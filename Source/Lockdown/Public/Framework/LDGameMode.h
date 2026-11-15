@@ -402,6 +402,7 @@ private:
         FLDCombatBodyRef Body;
         TWeakObjectPtr<ALDCharacter> Actor;
         int64 RespawnAtMs = 0;
+        int64 RespawnDurationMs = 0;
         int64 ProtectedUntilMs = 0;
         uint64 CompletedMotionStep = 0;
         uint64 SpawnSequence=0;
@@ -469,6 +470,8 @@ private:
     FString EntryCatalogDigest;
     TArray<FGuid> RosterOrder;
     TArray<FGuid> LobbyAISlots;
+    FGuid PreviousLobbyResultId;
+    TMap<FGuid, FGuid> PreviousLobbyAI;
     bool AdmitRoomMember(ALDPlayerController* Controller, FString& Reason);
     TMap<TWeakObjectPtr<ALDPlayerController>,FTimerHandle> PendingReconnects;
     bool AdvanceRoster(FString& Reason);

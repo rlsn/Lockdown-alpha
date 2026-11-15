@@ -97,6 +97,24 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     Out=Text;
     return true;
 }
+bool LDHUD::FinalModParts(const FLDDemoContentDefinitions* Content,FName FinalMod,FString& OutEffect,FString& OutCost,FString& OutNotes)
+{
+    OutEffect.Reset();OutCost.Reset();OutNotes.Reset();
+    if(!Content||FinalMod.IsNone()){return false;}
+    const FString Id=FinalMod.ToString();
+    const FLDDemoDisplayDefinition* Display=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
+    if(!Display||Display->Namespace.IsEmpty()||Display->EffectKey.IsEmpty()){return false;}
+    const FStringTableConstPtr Table=FStringTableRegistry::Get().FindStringTable(FName(*Display->Namespace));
+    if(!Table.IsValid()){HudReportMissingText(Id);return false;}
+    FString* Outs[3]={&OutEffect,&OutCost,&OutNotes};
+    const FString* Keys[3]={&Display->EffectKey,&Display->CostKey,&Display->NotesKey};
+    for(int32 Part=0;Part<3;++Part)
+    {
+        if(Keys[Part]->IsEmpty()||!Table->GetSourceString(FTextKey(**Keys[Part]),*Outs[Part])||Outs[Part]->IsEmpty())
+        {OutEffect.Reset();OutCost.Reset();OutNotes.Reset();HudReportMissingText(Id);return false;}
+    }
+    return true;
+}
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
     FString Name;ContentText(Content,ContentId,false,Name);return Name;
@@ -209,7 +227,7 @@ FString LDHUD::LifeStatus(const FLDOwnerState& Own,bool bClock,int64 NowMs)
     default: return TEXT("生命状态未知");
     }
 }
-LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated)
+LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,bool bFinalEliminated,const FLDCombatOwnerView* Combat)
 {
     FDeathView View;
     if(Own.LifePhase!=ELDLifePhase::Dead){return View;}
@@ -222,6 +240,18 @@ LDHUD::FDeathView LDHUD::Death(const FLDOwnerState& Own,bool bClock,int64 NowMs,
     }
     const FString Wait(LDTerms::RespawnWait);
     View.Countdown=Own.RespawnAtMs<=0?Wait+TEXT(" · 等待复活时间"):!bClock?Wait+TEXT(" · 时间同步中"):Wait+TEXT(" ")+TenthsUp(Own.RespawnAtMs-NowMs);
+    View.bWaiting=Own.RespawnAtMs>0;
+    if(View.bWaiting&&bClock)
+    {
+        const int64 Remaining=FMath::Max<int64>(0,Own.RespawnAtMs-NowMs);
+        View.Clock=Clock(Remaining);
+        if(Combat&&Own.Match!=0&&Own.Life!=0&&Combat->Generation==Own.Match&&Combat->Life==Own.Life&&!Combat->bHasBody
+            &&Combat->RespawnDurationMs>0&&Combat->RespawnDurationMs<=Own.RespawnAtMs)
+        {
+            View.bProgressKnown=true;
+            View.Progress=float(FMath::Clamp(double(Remaining)/double(Combat->RespawnDurationMs),0.,1.));
+        }
+    }
     View.Note=LDTerms::DeathNote();
     return View;
 }
@@ -1525,6 +1555,28 @@ int32 LDHUD::StatPointsOf(const FLDProgressionView& Progression,FName StatId)
     const FLDStatPointsView* Row=Progression.StatPoints.FindByPredicate([StatId](const FLDStatPointsView& S){return S.StatId==StatId;});
     return Row?Row->Points:0;
 }
+bool LDHUD::AppliedStatFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,int32 StatCount)
+{
+    return Match!=0&&Receipt.Header.Generation==Match&&Receipt.Header.OriginalLife==Life
+        &&Request!=0&&Receipt.Header.RequestId==Request
+        &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
+        &&Receipt.Kind==ELDBuildCommandKind::AllocatePoints&&Receipt.Header.Revisions.bHasBuild
+        &&Receipt.Header.Revisions.BuildRevision!=0&&StatCount>0&&Receipt.PointsSpent.Num()==StatCount
+        &&Receipt.PointsSpent.ContainsByPredicate([](uint8 Count){return Count>0;});
+}
+bool LDHUD::AppliedFinalFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,FName Definition)
+{
+    return Match!=0&&Receipt.Header.Generation==Match&&Receipt.Header.OriginalLife==Life
+        &&Request!=0&&Receipt.Header.RequestId==Request&&!Definition.IsNone()&&Receipt.DefinitionId==Definition
+        &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
+        &&Receipt.Kind==ELDBuildCommandKind::FinalMod&&Receipt.Header.Revisions.bHasBuild
+        &&Receipt.Header.Revisions.BuildRevision!=0;
+}
+bool LDHUD::FinalStampReady(const FLDProgressionView& View,uint64 Revision,const FLDFinalModSelection& Selection,bool bBoardVisible)
+{
+    return bBoardVisible&&View.bValid&&Revision!=0&&View.BuildRevision>=Revision
+        &&!Selection.IsEmpty()&&View.FinalMod==Selection;
+}
 TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& Stat,const TArray<FLDCombatAttributeRowView>& Attributes)
 {
     // The projected attribute each per-point bonus adds to (ratios add to their attribute's percent term).
@@ -1586,14 +1638,13 @@ FString LDHUD::BuildBlockedText(ELDGrowthReason Reason)
     default: return GrowthReasonText(Reason);
     }
 }
-LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,bool bBuildLocked)
+LDHUD::FBuildGateView LDHUD::BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
 {
     LDProgression::FBuildContext Context;
     Context.Stage=Stage;
     Context.LifePhase=LifePhase;
     const auto Gate=[&](ELDGrowthReason Reason,bool& bAllowed,FString& Blocked)
     {
-        if(bBuildLocked){Reason=ELDGrowthReason::FinalLocked;}
         bAllowed=Reason==ELDGrowthReason::None;
         Blocked=BuildBlockedText(Reason);
     };
@@ -1627,7 +1678,7 @@ FString LDHUD::BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoCont
         return Receipt.PointsAwarded>0?FString::Printf(TEXT("已放弃本组技能，获得 %lld 属性点。"),Receipt.PointsAwarded):Missing;
     case ELDBuildCommandKind::FinalMod:
         return !Receipt.DefinitionId.IsNone()
-            ?FString::Printf(TEXT("已选择终局改装：%s，构筑已锁定。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
+            ?FString::Printf(TEXT("终局改装：%s 已生效。"),*ContentName(Content,Receipt.DefinitionId.ToString())):Missing;
     case ELDBuildCommandKind::ActiveChoice:
     case ELDBuildCommandKind::LearnBlueprint:
     {
@@ -1868,6 +1919,33 @@ LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
     return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
 }
+bool LDHUD::FinalSourceColumn(const FLDProgressionView& Progression,ELDComponentTargetKind Kind,FName TargetId,EStorageColumn& OutColumn)
+{
+    if(!Progression.bValid){return false;}
+    switch(Kind)
+    {
+    case ELDComponentTargetKind::None: OutColumn=EStorageColumn::Body;return true;
+    case ELDComponentTargetKind::Dash: OutColumn=EStorageColumn::Dash;return true;
+    case ELDComponentTargetKind::Active:
+        for(const FLDActiveSlotView& Active:Progression.Actives)
+        {if(Active.DefinitionId==TargetId&&Active.Slot<3){OutColumn=SlotColumn(Active.Slot);return true;}}
+        return false;
+    case ELDComponentTargetKind::Component:
+        if(const FLDComponentInstanceView* Component=HudOwned(Progression,TargetId))
+        {
+            if(Component->bInstalled){FName Host;HudPlacement(Progression,*Component,OutColumn,Host);return true;}
+        }
+        return false;
+    default: return false;
+    }
+}
+bool LDHUD::FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn)
+{
+    const FLDFinalModSelection& Final=Progression.FinalMod;
+    if(!Progression.bValid||Final.IsEmpty()||!Progression.FinalModSources.ContainsByPredicate([&Final](const FLDFinalModSourceView& Source)
+        {return Source.Option==Final.DefinitionId&&Source.TargetKind==Final.TargetKind&&Source.TargetId==Final.TargetId;})){return false;}
+    return FinalSourceColumn(Progression,Final.TargetKind,Final.TargetId,OutColumn);
+}
 LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
     const TSet<FName>* Seen)
 {
@@ -2061,16 +2139,16 @@ FString LDHUD::DropPreviewText(FName Component,const FComponentDrop& Drop,const 
     for(const FName& Id:Drop.Lost){if(Id!=Drop.Replacing){With.Add(Name(Id));}}
     return LDTerms::DropReplaces(Name(Drop.Replacing),FString::Join(With,TEXT("、")),Place);
 }
-FString LDHUD::ConnectionsText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+LDHUD::FComponentConnections LDHUD::ComponentConnections(FName Component,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content)
 {
+    FComponentConnections Out;
     const FLDDemoComponentDefinition* Definition=HudComponentDefinition(Content,Component);
-    if(!Definition||!Content){return FString();}
+    if(!Definition||!Content){return Out;}
     const FString Self=Component.ToString();
-    TArray<FString> Links;TArray<FString> Mates;
-    const auto Add=[Content](TArray<FString>& List,const FString& Id){List.AddUnique(ContentName(Content,Id));};
     for(const FString& Id:Definition->TargetActives)
     {
-        if(Progression.Actives.ContainsByPredicate([&Id](const FLDActiveSlotView& A){return A.DefinitionId==FName(*Id);})){Add(Links,Id);}
+        if(Progression.Actives.ContainsByPredicate([&Id](const FLDActiveSlotView& A){return A.DefinitionId==FName(*Id);})){Out.Actives.AddUnique(FName(*Id));}
     }
     for(const FLDComponentInstanceView& Owned:Progression.Components)
     {
@@ -2079,9 +2157,19 @@ FString LDHUD::ConnectionsText(FName Component,const FLDProgressionView& Progres
         const FLDDemoComponentDefinition* Other=HudComponentDefinition(Content,Owned.DefinitionId);
         if(!Other){continue;}
         if(Definition->TargetComponents.Contains(Id)||Definition->ExtraBases.Contains(Id)
-            ||Other->TargetComponents.Contains(Self)||Other->ExtraBases.Contains(Self)){Add(Links,Id);}
-        if(LDWorkshop::Conflicts(*Definition,*Other)){Add(Mates,Id);}
+            ||Other->TargetComponents.Contains(Self)||Other->ExtraBases.Contains(Self)){Out.Components.AddUnique(Owned.DefinitionId);}
+        if(LDWorkshop::Conflicts(*Definition,*Other)){Out.SameForm.AddUnique(Owned.DefinitionId);}
     }
+    return Out;
+}
+FString LDHUD::ConnectionsText(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+{
+    const FComponentConnections Connections=ComponentConnections(Component,Progression,Content);
+    TArray<FString> Links;TArray<FString> Mates;
+    const auto Add=[Content](TArray<FString>& List,FName Id){List.AddUnique(ContentName(Content,Id.ToString()));};
+    for(const FName Id:Connections.Actives){Add(Links,Id);}
+    for(const FName Id:Connections.Components){Add(Links,Id);}
+    for(const FName Id:Connections.SameForm){Add(Mates,Id);}
     TArray<FString> Lines;
     if(!Links.IsEmpty()){Lines.Add(LDTerms::WorksWith(FString::Join(Links,TEXT("、"))));}
     if(!Mates.IsEmpty()){Lines.Add(LDTerms::SameForm(FString::Join(Mates,TEXT("、"))));}
@@ -2126,6 +2214,25 @@ LDHUD::FGrowthPending LDHUD::GrowthPending(const FLDProgressionView* Progression
     Pending.ComponentChoices=Progression->ComponentChoices.Num();
     Pending.bFinalMod=Progression->bFinalModPending&&!Progression->FinalModOptions.IsEmpty();
     return Pending;
+}
+FString LDHUD::OfferQueueDots(uint8 Queued)
+{
+    if(Queued==0){return FString();}
+    FString Dots=TEXT("●");
+    for(int32 Index=1;Index<FMath::Min<int32>(Queued,8);++Index){Dots+=TEXT(" ○");}
+    return Dots;
+}
+bool LDHUD::FOfferMotionTicket::Matches(const FLDBuildReceipt& Receipt,uint32 CurrentMatch,uint32 CurrentLife) const
+{
+    const bool bIdentity=Match!=0&&Request!=0&&Offer.IsValid()&&CurrentMatch==Match&&CurrentLife==Life
+        &&Receipt.Header.Generation==Match&&Receipt.Header.OriginalLife==Life&&Receipt.Header.RequestId==Request
+        &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
+        &&Receipt.Kind==Kind&&Receipt.OfferId==Offer;
+    if(!bIdentity){return false;}
+    if(Kind==ELDBuildCommandKind::SkipActiveOffer){return Option.IsNone()&&Receipt.PointsAwarded>0;}
+    return Kind==ELDBuildCommandKind::ActiveChoice&&!Option.IsNone()&&Receipt.DefinitionId==Option
+        &&(Receipt.ChoiceResult==ELDBuildChoiceResult::StoredAsBlueprint
+            ||(Receipt.ChoiceResult==ELDBuildChoiceResult::Learned&&Receipt.LearnedSlot<3));
 }
 bool LDHUD::ChoiceTrayTiles(const FLDProgressionView& Progression)
 {
@@ -2373,7 +2480,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::DismantleInvalid: return FString(TEXT("要交出规定数量的不同普通"))+LDTerms::Component+TEXT("（稀缺件不收）");
     case ELDGrowthReason::DismantlePoolEmpty: return FString(TEXT("已经没有能换到的普通"))+LDTerms::Component+TEXT("，什么都没拆");
     case ELDGrowthReason::FieldRewardDuplicate: return TEXT("这份野外奖励已经领过了");
-    case ELDGrowthReason::FinalLocked: return TEXT("终局构筑已锁定");
+    case ELDGrowthReason::FinalLocked: return TEXT("终局改装已选定");
     case ELDGrowthReason::NoFinalMod: return TEXT("没有可选的终局改装");
     case ELDGrowthReason::FinalModUnavailable: return TEXT("这项终局改装当前没有合法来源");
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reason));

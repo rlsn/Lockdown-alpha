@@ -716,6 +716,7 @@ B 项在四张普适卡中无放回抽取；C 项在剩余合法项中均匀抽�
 
 触发由 `LDCombatFinalMods.cpp` 接入既有命中、硬控、原生运动/撞击与持续区域入口。
 选择、锁定及来源经成长事务投影给 Combat；表现只消费获准的事件和区域，不决定伤害。
+每项的显示行除完整说明外，另有取自说明原句的效果、代价、须知三行（见 §12.5），不含数字。
 
 ## 5. 冲刺与屏障
 
@@ -1222,6 +1223,8 @@ Nav连续普攻仅增加请求中的AttackCycle，仍复用Combat节拍与同一
 和怪物；具体中文名称用本报告目录中的名字。
 基础头像另用 `DISPLAY.character_demo.PortraitIconId=portrait_character_demo`。
 显示名与说明作为显示行的 `name_text`/`description_text` 进入 SourceData，经同一 Sync/check 生成载荷并计入根摘要；
+终局改装的显示行另把说明原句按句切分为 `effect_text`（效果）、`cost_text`（代价）、`notes_text`（须知），
+键为 `<contentId>.effect`/`.cost`/`.notes`；三项只在终局改装行必填，其他行出现即拒绝，完整 `description_text` 照常保留。
 运行时由已验证内容注册 `DemoContent` 字符串表，缺失条目是内容错误。技能与构件说明用 `[效果.字段]`、五维说明用 `[per_point.<属性>]` 占位，
 数字由 typed 字段按当前等级与属性算出后填入，不写死；其他说明不含数字，
 等级、费用、冷却、射程与期限等数值由 typed 字段显示。

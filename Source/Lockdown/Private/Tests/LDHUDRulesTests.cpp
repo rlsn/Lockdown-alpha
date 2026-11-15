@@ -9,8 +9,15 @@
 #include "Combat/LDCombatTypes.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWorldFeedback.h"
+#include "UI/LDWidgets.h"
+#include "UI/LDResultBuild.h"
+#include "UI/LDWorkshopModel.h"
+#include "UI/LDWorkshop.h"
+#include "UI/LDWorkshopPreview.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
 #include "Internationalization/StringTableCore.h"
@@ -22,6 +29,18 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "PK/LDPKRules.h"
 #include "Engine/Texture2D.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Image.h"
+#include "Components/Border.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/RichTextBlock.h"
+#include "Components/ScaleBox.h"
+#include "Components/TextBlock.h"
+#include "Engine/World.h"
+#include "Framework/LDCaptureTypes.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Input/HittestGrid.h"
 #include <limits>
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
@@ -78,15 +97,68 @@ bool HudRegisterApprovedNames(FAutomationTestBase& Test,const FLDDemoContentDefi
     {
         const FString* Name=Names.Find(Row.Id);
         if(!Name||Row.Namespace!=OutTable.ToString()){continue;}
+        const auto Put=[&](const FString& Key,const FString& Value)
+        {
+            if(Key.IsEmpty()){return;}
 #if WITH_EDITORONLY_DATA
-        Table->SetSourceString(FTextKey(*Row.NameKey),*Name,FString());
+            Table->SetSourceString(FTextKey(*Key),Value,FString());
 #else
-        Table->SetSourceString(FTextKey(*Row.NameKey),*Name);
+            Table->SetSourceString(FTextKey(*Key),Value);
 #endif
+        };
+        Put(Row.NameKey,*Name);Put(Row.DescriptionKey,Row.DescriptionText);
+        Put(Row.EffectKey,Row.EffectText);Put(Row.CostKey,Row.CostText);Put(Row.NotesKey,Row.NotesText);
     }
     FStringTableRegistry::Get().RegisterStringTable(OutTable,Table);
     return true;
 }
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPaintOpacityTest,"Lockdown.Rules.HUDPaintOpacity",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDPaintOpacityTest::RunTest(const FString& Parameters)
+{
+    if(!FSlateApplication::IsInitialized())
+    {
+        AddError(TEXT("The Slate application is required to exercise the paint layer."));
+        return false;
+    }
+    ULDPaintLayer* Layer=NewObject<ULDPaintLayer>();
+    Layer->Painter=[](const LDUIPaint::FContext& Paint)
+    {
+        const FBox2D Box(FVector2D(8,8),FVector2D(72,72));
+        Paint.Shape(Paint.Layer,LDUIShapes::EShape::Rounded,Box,5.f,LDUIPaint::FFill::Solid(FLinearColor(1,1,1,.8f)));
+        Paint.Edge(Paint.Layer+1,LDUIShapes::EShape::Rounded,Box,5.f,FLinearColor(1,1,1,.6f),2.f);
+        Paint.WithOpacity(.5f).Tile(Paint.Layer+2,Box,1,false,LDUIPaint::ETileState::Normal,nullptr);
+    };
+    const TSharedRef<SWidget> Slate=Layer->TakeWidget();
+    Layer->SetRenderOpacity(.5f);
+    FHittestGrid HitTest;
+    FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+    const FGeometry Geometry=FGeometry::MakeRoot(FVector2D(80,80),FSlateLayoutTransform());
+    FWidgetStyle ParentStyle;ParentStyle.BlendOpacity(.5f);
+    Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,0.,0.f),Geometry,FSlateRect(0,0,80,80),Draw,0,ParentStyle,true);
+
+    const auto& Gradients=Draw.GetUncachedDrawElements().Get<(uint8)EElementType::ET_Gradient>();
+    TestTrue(TEXT("The layer paints the panel gradient"),!Gradients.IsEmpty()&&!Gradients[0].GradientStops.IsEmpty());
+    if(!Gradients.IsEmpty()&&!Gradients[0].GradientStops.IsEmpty())
+    {
+        TestTrue(TEXT("A panel surface inherits parent and layer opacity"),FMath::IsNearlyEqual(Gradients[0].GradientStops[0].Color.A,.2f,.001f));
+    }
+    const auto& Meshes=Draw.GetUncachedDrawElements().Get<(uint8)EElementType::ET_CustomVerts>();
+    TestTrue(TEXT("The edge and tile paint custom vertices"),Meshes.Num()>1);
+    if(Meshes.Num()>1)
+    {
+        const auto MaxAlpha=[](const FSlateCustomVertsElement& Mesh)
+        {
+            uint8 Max=0;
+            for(const FSlateVertex& Vertex:Mesh.Vertices){Max=FMath::Max(Max,Vertex.Color.A);}
+            return Max;
+        };
+        TestTrue(TEXT("The edge inherits parent and layer opacity"),FMath::Abs(int32(MaxAlpha(Meshes[0]))-38)<=1);
+        bool bTileFaded=true;
+        for(int32 Index=1;Index<Meshes.Num();++Index){bTileFaded&=MaxAlpha(Meshes[Index])<=33;}
+        TestTrue(TEXT("The tile's local opacity also multiplies the inherited opacity"),bTileFaded);
+    }
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMaskTest,"Lockdown.Rules.HUDObservationBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDMaskTest::RunTest(const FString& Parameters)
@@ -144,17 +216,38 @@ bool FLDHUDLifeStatusTest::RunTest(const FString& Parameters)
     Own.ProtectedUntilMs=0;
     TestEqualSensitive(TEXT("No protection deadline needs no clock"),LDHUD::LifeStatus(Own,false,0),FString(TEXT("存活")));
     TestFalse(TEXT("A living owner has no death banner"),LDHUD::Death(Own,true,0).bVisible);
-    Own.LifePhase=ELDLifePhase::Dead;Own.RespawnAtMs=12000;
+    Own.LifePhase=ELDLifePhase::Dead;Own.Match=2;Own.Life=3;Own.RespawnAtMs=12000;
     const FString Waiting=LDHUD::LifeStatus(Own,true,2350);
     TestEqualSensitive(TEXT("Respawn waits on the Lives deadline"),Waiting,FString(LDTerms::Dead)+TEXT(" · ")+LDTerms::RespawnWait+TEXT(" 9.7s"));
     TestFalse(TEXT("Death shows no growth loss"),Waiting.Contains(TEXT("损失")));
     TestEqualSensitive(TEXT("The respawn countdown reads zero only once the authority clock reaches it"),LDHUD::LifeStatus(Own,true,12000),FString(LDTerms::Dead)+TEXT(" · ")+LDTerms::RespawnWait+TEXT(" 0.0s"));
     TestEqualSensitive(TEXT("Respawn time without the matching clock is unavailable"),LDHUD::LifeStatus(Own,false,0),FString(LDTerms::Dead)+TEXT(" · ")+LDTerms::RespawnWait+TEXT("（时间同步中）"));
-    const LDHUD::FDeathView Death=LDHUD::Death(Own,true,2350);
+    FLDCombatOwnerView Combat;Combat.Generation=2;Combat.Life=3;Combat.RespawnDurationMs=10000;
+    const LDHUD::FDeathView Death=LDHUD::Death(Own,true,2350,false,&Combat);
     TestTrue(TEXT("The death banner names the state and the countdown and keeps the build"),Death.bVisible&&Death.Title==LDTerms::DeathTitle&&Death.Countdown==FString(LDTerms::RespawnWait)+TEXT(" 9.7s")&&Death.Note==LDTerms::DeathNote());
+    TestTrue(TEXT("The death ring uses the server's full wait and a compact clock"),
+        Death.bWaiting&&Death.bProgressKnown&&FMath::IsNearlyEqual(Death.Progress,.965f)&&Death.Clock==TEXT("0:10"));
+    TestEqual(TEXT("An early clock cannot make the ring exceed a full circle"),LDHUD::Death(Own,true,1000,false,&Combat).Progress,1.f);
+    TestEqual(TEXT("A due or blocked respawn leaves an empty ring"),LDHUD::Death(Own,true,13000,false,&Combat).Progress,0.f);
+    Combat.RespawnDurationMs=5000;
+    TestEqual(TEXT("A different server-fixed wait uses its own duration"),LDHUD::Death(Own,true,9500,false,&Combat).Progress,.5f);
+    Combat.RespawnDurationMs=10000;
     TestEqualSensitive(TEXT("The banner never invents a respawn time"),LDHUD::Death(Own,false,0).Countdown,FString(LDTerms::RespawnWait)+TEXT(" · 时间同步中"));
+    TestFalse(TEXT("Without the authority clock there is no ring or compact clock"),
+        LDHUD::Death(Own,false,0,false,&Combat).bProgressKnown||!LDHUD::Death(Own,false,0,false,&Combat).Clock.IsEmpty());
+    Combat.Generation=1;
+    TestFalse(TEXT("An old match cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.Generation=2;Combat.Life=2;
+    TestFalse(TEXT("An old life cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.Life=3;Combat.bHasBody=true;
+    TestFalse(TEXT("A living combat projection cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.bHasBody=false;Combat.RespawnDurationMs=0;
+    TestFalse(TEXT("An unpublished duration cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
+    Combat.RespawnDurationMs=12001;
+    TestFalse(TEXT("An impossible duration cannot supply the death ring"),LDHUD::Death(Own,true,2350,false,&Combat).bProgressKnown);
     Own.RespawnAtMs=0;
     TestEqualSensitive(TEXT("An eliminated finalist is never promised another respawn"),LDHUD::Death(Own,true,0,true).Countdown,FString(TEXT("终局已出局")));
+    TestFalse(TEXT("An eliminated finalist does not automatically enter the death-wait workshop"),LDHUD::Death(Own,true,0,true).bWaiting);
     Own.bActive=true;
     TestTrue(TEXT("The Lives phase, not the legacy active flag, decides the line"),LDHUD::LifeStatus(Own,true,0).StartsWith(LDTerms::Dead,ESearchCase::CaseSensitive));
     Own.LifePhase=ELDLifePhase::Unspawned;TestEqualSensitive(TEXT("An unspawned contender is not shown alive"),LDHUD::LifeStatus(Own,true,0),FString(TEXT("等待出生")));
@@ -708,6 +801,12 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
         &&BlueprintHistory.Contains(TEXT("复用构件：component_fist_water"))&&!BlueprintHistory.Contains(TEXT("target_kind")));
     TestTrue(TEXT("Keyword lines explain each keyword in bold"),LDHUD::KeywordLines({TEXT("定身")}).Num()==1
         &&LDHUD::KeywordLines({TEXT("定身")})[0].StartsWith(TEXT("<b>定身</>：")));
+    for(const TCHAR* Reaction:{LDTerms::ReactionFog,LDTerms::ReactionConduct,LDTerms::ReactionOverload})
+    {
+        const LDHUD::FCardText Text=LDHUD::CardText(Reaction,{},L1,1000);
+        const TArray<FString> Lines=LDHUD::KeywordLines(Text.Keywords);
+        TestTrue(FString(Reaction)+TEXT(" in a card brings its explanation"),Lines.Num()==1&&Lines[0].Contains(LDTerms::ReactionExplanation(Reaction)));
+    }
     for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords)
     {
         const FString Explain=Keyword.Explain;
@@ -874,6 +973,154 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Every active, stat and component of the approved catalog has its face checked"),
         ActiveFaces==Content.Abilities.Num()&&StatFaces==Content.Stats.Num()&&ComponentFaces==Content.Components.Num());
+    if(!FSlateApplication::IsInitialized()||Content.Abilities.IsEmpty())
+    {AddError(TEXT("Summary faces require Slate and an approved active."));return false;}
+    const FLDDemoComponentDefinition* BaseComponent=Content.Components.FindByPredicate(
+        [](const FLDDemoComponentDefinition& Row){return Row.Kind==ELDDemoComponentKind::Base;});
+    if(!TestNotNull(TEXT("The summary fixture has an approved base component"),BaseComponent)){return false;}
+    FLDResultBuild Summary;Summary.bAvailable=true;Summary.CatalogRoot=Content.Identity.Root.ToHex();
+    Summary.Actives.Add({FName(*Content.Abilities[0].Id),0});
+    for(const FLDDemoComponentDefinition& Component:Content.Components)
+    {
+        if(Component.Kind==ELDDemoComponentKind::Base&&Summary.Components.Num()<7)
+        {Summary.Components.Add({FName(*Component.Id),ELDResultBuildTarget::Body,NAME_None,NAME_None});}
+    }
+    if(!Content.FinalMods.IsEmpty()){Summary.FinalMod=FName(*Content.FinalMods[0].Id);Summary.FinalTarget=ELDResultBuildTarget::Body;}
+    for(const FVector2D Size:{FVector2D(520,90),FVector2D(218,66),FVector2D(760,184)})
+    {
+        UWidgetTree* Tree=NewObject<UWidgetTree>();
+        UWidget* Board=LDResultBuild::Make(Tree,Summary,&Content,Size.X,Size.Y,1.25f);
+        Tree->RootWidget=Board;
+        TArray<UWidget*> Widgets;Tree->GetAllWidgets(Widgets);
+        TArray<FVector2D> PaintedSizes;
+        int32 Textures=0;
+        for(UWidget* Widget:Widgets)
+        {
+            if(auto* Face=Cast<ULDPaintLayer>(Widget))
+            {
+                auto Original=MoveTemp(Face->Painter);
+                Face->Painter=[&PaintedSizes,Original=MoveTemp(Original)](const LDUIPaint::FContext& Paint)
+                {PaintedSizes.Add(FVector2D(Paint.Geometry.GetLocalSize()));Original(Paint);};
+            }
+            if(const auto* Image=Cast<UImage>(Widget)){Textures+=Cast<UTexture2D>(Image->GetBrush().GetResourceObject())!=nullptr;}
+        }
+        const TSharedRef<SWidget> Slate=Board->TakeWidget();Slate->SlatePrepass(1.f);
+        FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,0.,0.f),FGeometry::MakeRoot(Size,FSlateLayoutTransform()),
+            FSlateRect(0,0,Size.X,Size.Y),Draw,0,FWidgetStyle(),true);
+        for(UWidget* Widget:Widgets){if(auto* Face=Cast<ULDPaintLayer>(Widget)){Face->Painter=nullptr;}}
+        const FString At=FString::Printf(TEXT("Frozen summary %.0fx%.0f"),Size.X,Size.Y);
+        TestTrue(At+TEXT(": approved active, dash and component textures are retained"),Textures>=3);
+        TestTrue(At+TEXT(": skill and component faces are painted"),PaintedSizes.Num()>=5);
+        for(const FVector2D Painted:PaintedSizes)
+        {TestTrue(At+TEXT(": every painted icon receives usable geometry ")+Painted.ToString(),Painted.X>=4.&&Painted.Y>=4.);}
+        if(Size.Y>=180)
+        {
+            for(const FVector2D Painted:PaintedSizes)
+            {TestTrue(At+TEXT(": result icons remain at least 36 physical pixels at 720p"),FMath::Min(Painted.X,Painted.Y)*2./3.>=36.);}
+            int32 Overflow=0;
+            for(UWidget* Widget:Widgets)
+            {
+                if(const auto* Text=Cast<UTextBlock>(Widget))
+                {Overflow+=Text->GetText().ToString()==FString::Printf(TEXT("+%d"),Summary.Components.Num()-3);}
+            }
+            TestEqual(At+TEXT(": a dense column exposes its omitted component count"),Overflow,1);
+        }
+    }
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
+    if(!TestNotNull(TEXT("The dock layout fixture has a world"),World)){return false;}
+    ON_SCOPE_EXIT{World->DestroyWorld(false);};
+    ULDWorkshop* Workshop=NewObject<ULDWorkshop>(World);Workshop->Initialize();
+    ULDChoicesPanel* Choices=NewObject<ULDChoicesPanel>(World);Choices->Initialize();
+    UWidgetTree* LayoutTree=NewObject<UWidgetTree>();
+    auto* Root=LayoutTree->ConstructWidget<UOverlay>();LayoutTree->RootWidget=Root;
+    for(UWidget* Child:{static_cast<UWidget*>(Workshop),static_cast<UWidget*>(Choices)})
+    {
+        auto* Slot=Root->AddChildToOverlay(Child);Slot->SetHorizontalAlignment(HAlign_Fill);Slot->SetVerticalAlignment(VAlign_Fill);
+    }
+    const TSharedRef<SWidget> Slate=Root->TakeWidget();
+    Workshop->Choices=Choices;
+    FLDProgressionView View;View.bValid=true;View.Generation=1;View.Life=1;View.Level=1;View.BuildRevision=1;
+    View.bHasActiveOffer=true;View.ActiveOffer.OfferId=FGuid(1,2,3,4);View.ActiveOffer.OfferRevision=1;
+    for(int32 Index=0;Index<FMath::Min(3,Content.Abilities.Num());++Index){View.ActiveOffer.Options.Add(FName(*Content.Abilities[Index].Id));}
+    View.ActiveOffer.SkipPoints=1;
+    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
+    Input.bStage=true;Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
+    const FVector2D LayoutSize(1920,1080);
+    const FGeometry Geometry=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(2.f/3.f));
+    const auto Frame=[&]()
+    {
+        Workshop->Present(Input);
+        Choices->SetWorkshopPlaces(Workshop->Places());
+        Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
+        Slate->SlatePrepass(2.f/3.f);
+        FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1280,720),Draw,0,FWidgetStyle(),true);
+        Workshop->NativeTick(Geometry,1.f/60.f);Choices->NativeTick(Geometry,1.f/60.f);
+    };
+    Frame();Choices->OpenPanel();
+    for(const float TextScale:{1.f,1.25f})
+    {
+        Workshop->ApplyTextScale(TextScale);Choices->ApplyTextScale(TextScale);
+        for(int32 Pick=0;Pick<View.ActiveOffer.Options.Num();++Pick)
+        {
+            Choices->PreviewOffer(Pick);
+            float Smallest=MAX_flt,Largest=0.f;
+            for(int32 Tick=0;Tick<90;++Tick)
+            {
+                Frame();
+                if(Tick<30){continue;}
+                const float Scale=Workshop->DockBody->GetCachedGeometry().Scale;
+                Smallest=FMath::Min(Smallest,Scale);Largest=FMath::Max(Largest,Scale);
+            }
+            TestTrue(FString::Printf(TEXT("Active dock text %.2f option %d is stable over 60 frames (%.5f..%.5f)"),TextScale,Pick,Smallest,Largest),
+                Largest-Smallest<.001f);
+        }
+    }
+    View.bHasActiveOffer=false;View.bFinalModPending=true;View.FinalModOfferId=FGuid(2,3,4,5);
+    Input.bFinalStage=true;
+    for(int32 First=0;First<Content.FinalMods.Num();First+=3)
+    {
+        View.FinalModOptions.Reset();
+        View.FinalModOfferId=FGuid(2,3,4,First+5);
+        for(int32 Index=0;Index<3;++Index){View.FinalModOptions.Add(FName(*Content.FinalMods[(First+Index)%Content.FinalMods.Num()].Id));}
+        for(int32 Tick=0;Tick<30;++Tick){Frame();}
+        TestTrue(TEXT("Final mod opens its independent stage"),Choices->IsFinalStage());
+        for(int32 Pick=0;Pick<3;++Pick)
+        {
+            Choices->SelectFinalMod(Pick);
+            Choices->LeaveStage();Frame();
+            Choices->ReopenFinalStage(Pick);
+            float Smallest=MAX_flt,Largest=0.f;
+            for(int32 Tick=0;Tick<90;++Tick)
+            {
+                Frame();
+                if(Tick<30){continue;}
+                const float Scale=Choices->FinalPartTexts[0]->GetCachedGeometry().Scale;
+                Smallest=FMath::Min(Smallest,Scale);Largest=FMath::Max(Largest,Scale);
+            }
+            int32 ReadableParts=0;
+            for(const UTextBlock* Part:Choices->FinalPartTexts)
+            {
+                if(Part->GetText().IsEmpty()||!Part->IsVisible()){continue;}
+                const FGeometry& G=Part->GetCachedGeometry();
+                const FVector2D Size=G.GetAbsoluteSize();
+                ReadableParts+=Size.X>30.f&&Part->GetFont().Size*G.Scale>=10.f&&G.GetAbsolutePosition().Y+Size.Y<=720.f;
+            }
+            const FString At=View.FinalModOptions[Pick].ToString();
+            TestEqual(At+TEXT(": reopening retains three readable explanation parts inside the screen"),ReadableParts,3);
+            TestTrue(At+TEXT(": final explanation is stable over 60 frames"),Largest-Smallest<.001f);
+        }
+    }
+    Input.bStage=false;Input.bFinalStage=false;Choices->LeaveStage();
+    for(int32 Tick=0;Tick<30;++Tick){Frame();}
+    for(const ULDWorkshop::FReaction& Reaction:Workshop->Reactions)
+    {
+        Workshop->RefreshDock(Reaction.Row->GetCachedGeometry().GetAbsolutePosition()+FVector2D(2,2));
+        TestTrue(TEXT("Each element reaction exposes its rule in the actual workshop dock"),
+            Workshop->DockBody->GetText().ToString()==LDTerms::ReactionExplanation(Reaction.Name->GetText().ToString())
+                &&!Workshop->DockBody->GetText().IsEmpty());
+    }
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsTest,"Lockdown.Rules.HUDSelfIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -1335,9 +1582,9 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A field segment is live"),LDProgression::StageForPublic(ELDMatchPhase::Development,FLDTimelineView())==EStage::Live);
         FLDTimelineView FinalField;
         FinalField.Stage=ELDMatchStage::FinalField;
-        TestTrue(TEXT("The final field closes ordinary growth commands"),
-            LDProgression::StageForPublic(ELDMatchPhase::Development,FinalField)==EStage::Closed
-            && LDProgression::StageForPublic(ELDMatchPhase::CaptureOpen,FinalField)==EStage::Closed);
+        TestTrue(TEXT("The final field keeps the build adjustable"),
+            LDProgression::StageForPublic(ELDMatchPhase::Development,FinalField)==EStage::Live
+            && LDProgression::StageForPublic(ELDMatchPhase::CaptureOpen,FinalField)==EStage::Live);
         TestTrue(TEXT("Results are closed"),LDProgression::StageForPublic(ELDMatchPhase::Results,FLDTimelineView())==EStage::Closed);
     }
     TestEqualSensitive(TEXT("No empty slot names the rest-only replacement"),LDHUD::BuildBlockedText(ELDGrowthReason::SlotOccupied),FString(LDTerms::ReplaceAtRest));
@@ -1360,6 +1607,39 @@ bool FLDHUDBuildGateTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A receipt without a result never claims one"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("回执缺少结果，请以当前状态为准。")));
     Receipt.Kind=ELDBuildCommandKind::AllocatePoints;Receipt.PointsSpent={2,0,1,0,0};Receipt.UnspentPointsAfter=3;
     TestEqualSensitive(TEXT("An allocation names the points added and left"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已加 3 点，还剩 3 点")));
+    Receipt.Header.Family=ELDGrowthFamily::Build;Receipt.Header.Generation=3;Receipt.Header.OriginalLife=2;Receipt.Header.RequestId=7;
+    Receipt.Header.Revisions.bHasBuild=true;Receipt.Header.Revisions.BuildRevision=9;
+    TestTrue(TEXT("A confirmed allocation in this life may show success feedback"),LDHUD::AppliedStatFeedback(Receipt,3,2,7,5));
+    TestFalse(TEXT("Another life cannot replay allocation feedback"),LDHUD::AppliedStatFeedback(Receipt,3,3,7,5));
+    TestFalse(TEXT("Another match cannot replay allocation feedback"),LDHUD::AppliedStatFeedback(Receipt,4,2,7,5));
+    TestFalse(TEXT("Another request cannot replay allocation feedback"),LDHUD::AppliedStatFeedback(Receipt,3,2,8,5));
+    TestFalse(TEXT("An unassigned request cannot show allocation feedback"),LDHUD::AppliedStatFeedback(Receipt,3,2,0,5));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
+    TestFalse(TEXT("A refused allocation cannot show success feedback"),LDHUD::AppliedStatFeedback(Receipt,3,2,7,5));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    TestFalse(TEXT("An incomplete allocation cannot show success feedback"),LDHUD::AppliedStatFeedback(Receipt,3,2,7,4));
+    Receipt.Header.Revisions.bHasBuild=false;
+    TestFalse(TEXT("Feedback waits for a committed build revision"),LDHUD::AppliedStatFeedback(Receipt,3,2,7,5));
+    Receipt.Kind=ELDBuildCommandKind::FinalMod;Receipt.DefinitionId=TEXT("final_test");
+    Receipt.Header.Revisions.bHasBuild=true;
+    TestTrue(TEXT("A matching applied final-mod receipt may start feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,7,TEXT("final_test")));
+    TestFalse(TEXT("Another life cannot replay final-mod feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,3,7,TEXT("final_test")));
+    TestFalse(TEXT("Another request cannot start final-mod feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,8,TEXT("final_test")));
+    TestFalse(TEXT("Another final mod cannot start feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,7,TEXT("final_other")));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
+    TestFalse(TEXT("A refused final mod cannot start feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,7,TEXT("final_test")));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Header.Revisions.bHasBuild=false;
+    TestFalse(TEXT("A final-mod receipt without a build revision cannot start feedback"),LDHUD::AppliedFinalFeedback(Receipt,3,2,7,TEXT("final_test")));
+    FLDProgressionView FinalView;FinalView.bValid=true;FinalView.BuildRevision=8;
+    FLDFinalModSelection Final;Final.DefinitionId=TEXT("final_test");Final.TargetKind=ELDComponentTargetKind::Active;Final.TargetId=TEXT("active_test");
+    FinalView.FinalMod=Final;
+    TestFalse(TEXT("A final stamp waits for the confirmed revision"),LDHUD::FinalStampReady(FinalView,9,Final,true));
+    FinalView.BuildRevision=9;
+    TestFalse(TEXT("A final stamp waits for the board"),LDHUD::FinalStampReady(FinalView,9,Final,false));
+    TestTrue(TEXT("The confirmed selection stamps when its board and revision are ready"),LDHUD::FinalStampReady(FinalView,9,Final,true));
+    FinalView.FinalMod.TargetId=TEXT("active_other");
+    TestFalse(TEXT("A later binding cannot replay the previous stamp"),LDHUD::FinalStampReady(FinalView,9,Final,true));
+    TestFalse(TEXT("A view alone cannot start a stamp"),LDHUD::FinalStampReady(FinalView,0,Final,true));
     Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsAwarded=5;
     TestEqualSensitive(TEXT("A skipped offer names the awarded points"),LDHUD::BuildReceiptText(Receipt,nullptr),FString(TEXT("已放弃本组技能，获得 5 属性点。")));
     Receipt.PointsAwarded=0;
@@ -1487,6 +1767,20 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An unknown or unowned component has no drop"),LDHUD::ComponentDrops(TEXT("hud_fixture_unknown"),View,&Content).IsEmpty()
         &&LDHUD::ComponentDrops(TEXT("hud_fixture_shock"),View,&Content).IsEmpty());
     {
+        FLDDemoContentDefinitions Linked=Content;
+        FLDDemoComponentDefinition& Mod=Linked.Components[4];
+        Mod.TargetActives={TEXT("hud_fixture_bolt"),TEXT("hud_fixture_unlearned")};
+        Mod.TargetComponents={TEXT("hud_fixture_fist")};Mod.ExtraBases={TEXT("hud_fixture_wet")};
+        const LDHUD::FComponentConnections Forward=LDHUD::ComponentConnections(TEXT("hud_fixture_mod"),View,&Linked);
+        const LDHUD::FComponentConnections Reverse=LDHUD::ComponentConnections(TEXT("hud_fixture_fist"),View,&Linked);
+        TestTrue(TEXT("Connection data includes only learned skills and owned targets"),
+            Forward.Actives==TArray<FName>{FName(TEXT("hud_fixture_bolt"))}
+            &&Forward.Components==TArray<FName>({FName(TEXT("hud_fixture_fist")),FName(TEXT("hud_fixture_wet"))}));
+        TestTrue(TEXT("Connection data includes owned components that target this one"),Reverse.Components.Contains(TEXT("hud_fixture_mod")));
+        TestTrue(TEXT("Unknown content has no inferred connections"),
+            LDHUD::ComponentConnections(TEXT("hud_fixture_unknown"),View,&Linked).Components.IsEmpty());
+    }
+    {
         // The storage view: the stored ones in the view's order with the never-installed count; each installed one in its column.
         FLDProgressionView Built=View;
         Built.Components[0].bInstalled=Built.Components[0].bEverInstalled=true;
@@ -1507,6 +1801,38 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("The base sits on 本体 and B18 on W with its element"),Storage.Columns[0].Entries.Num()==1
             &&Storage.Columns[0].Entries[0].Component==FName(TEXT("hud_fixture_fist"))&&Storage.Columns[2].Entries.Num()==1
             &&Storage.Columns[2].Entries[0].Note==LDTerms::ElementWater&&Storage.Columns[1].Entries.IsEmpty());
+        {
+            FLDProgressionView Final=Built;
+            Final.FinalMod.DefinitionId=TEXT("final_test");Final.FinalMod.TargetKind=ELDComponentTargetKind::Component;
+            Final.FinalMod.TargetId=TEXT("hud_fixture_trick");
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            EColumn Column=EColumn::Body;
+            TestTrue(TEXT("A final mod bound to an installed component marks its skill column"),
+                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
+            Final.Components[3].bInstalled=true;
+            Final.Components[3].Target.Kind=ELDComponentTargetKind::Component;Final.Components[3].Target.Definition=Final.Components[2].DefinitionId;
+            Final.FinalMod.TargetId=Final.Components[3].DefinitionId;
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A nested component uses its host's column"),
+                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
+            Final.FinalMod.TargetId=Final.Components[2].DefinitionId;
+            Final.Components[2].bInstalled=false;
+            TestFalse(TEXT("A removed source has no final mod column"),LDHUD::FinalModColumn(Final,Column));
+            Final.Components[2].bInstalled=true;Final.FinalModSources.Reset();
+            TestFalse(TEXT("A dormant binding has no final mod column"),LDHUD::FinalModColumn(Final,Column));
+            Final.FinalMod.TargetKind=ELDComponentTargetKind::Active;Final.FinalMod.TargetId=TEXT("hud_fixture_bolt");
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A learned active source marks its skill column"),
+                LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::SlotW);
+            Final.FinalMod.TargetKind=ELDComponentTargetKind::Dash;Final.FinalMod.TargetId=NAME_None;
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A dash source marks the dash column"),LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::Dash);
+            Final.FinalMod.TargetKind=ELDComponentTargetKind::None;
+            Final.FinalModSources.Add({Final.FinalMod.DefinitionId,Final.FinalMod.TargetKind,Final.FinalMod.TargetId});
+            TestTrue(TEXT("A universal final mod marks the body column"),LDHUD::FinalModColumn(Final,Column)&&Column==EColumn::Body);
+            Final.bValid=false;
+            TestFalse(TEXT("An invalid view cannot place a final mod"),LDHUD::FinalModColumn(Final,Column));
+        }
         const TArray<LDHUD::FComponentDrop> Moves=LDHUD::ComponentDrops(TEXT("hud_fixture_trick"),Built,&Content);
         TestTrue(TEXT("An installed B18 still drops (a move) on its bindable column"),Moves.Num()==1&&Moves[0].Column==EColumn::SlotW);
         TestTrue(TEXT("Nothing comes off with a component nothing sits on, or with a stored one"),LDHUD::DetachedWith(TEXT("hud_fixture_trick"),Built).IsEmpty()
@@ -1610,6 +1936,156 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A pick enabled at once opens nothing"),AutoOpen.Observe(Growth,11));
     Growth.Components.Add(Owned(TEXT("hud_fixture_trick")));
     TestFalse(TEXT("A new component from a level-up opens nothing"),AutoOpen.Observe(Growth,11));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLibraryPagesTest,"Lockdown.Rules.HUDLibraryPages",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDLibraryPagesTest::RunTest(const FString& Parameters)
+{
+    FLDDemoContentDefinitions Content;
+    FLDProgressionView View;View.bValid=true;
+    const auto Add=[&](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoComponentTag Tag,bool bInstalled)
+    {
+        FLDDemoComponentDefinition& Definition=Content.Components.AddDefaulted_GetRef();
+        Definition.Id=Id;Definition.Kind=Kind;Definition.Tags.Add(Tag);
+        FLDComponentInstanceView& Owned=View.Components.AddDefaulted_GetRef();
+        Owned.DefinitionId=Id;Owned.bInstalled=bInstalled;
+    };
+    Add(TEXT("library_base"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Projectile,false);
+    Add(TEXT("library_mod"),ELDDemoComponentKind::Mod,ELDDemoComponentTag::Spell,false);
+    Add(TEXT("library_link"),ELDDemoComponentKind::Connector,ELDDemoComponentTag::Projectile,false);
+    Add(TEXT("library_installed"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Projectile,true);
+    Add(TEXT("library_base_second"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Spell,false);
+    const LDWorkshop::FLibraryGroups All=LDWorkshop::CollectLibrary(View,&Content,INDEX_NONE);
+    TestTrue(TEXT("Stored components retain their order within each kind"),All.Counts()==FIntVector(2,1,1)
+        &&All.Items[0][0]==FName(TEXT("library_base"))&&All.Items[0][1]==FName(TEXT("library_base_second")));
+    const LDWorkshop::FLibraryGroups Filtered=LDWorkshop::CollectLibrary(View,&Content,int32(ELDDemoComponentTag::Projectile));
+    TestTrue(TEXT("The use tag hides non-matching and installed components"),Filtered.Counts()==FIntVector(1,0,1)
+        &&Filtered.Items[0][0]==FName(TEXT("library_base"))&&Filtered.Items[2][0]==FName(TEXT("library_link")));
+    TestTrue(TEXT("A tag with no matches is an empty library"),
+        LDWorkshop::CollectLibrary(View,&Content,int32(ELDDemoComponentTag::Defense)).Counts()==FIntVector(0,0,0));
+
+    const FIntVector Counts(21,20,22);
+    const LDWorkshop::FLibraryFit Fit=LDWorkshop::FitLibrary(Counts,412.f,325.f,54.f,1.25f);
+    TestTrue(TEXT("A dense 720p library fits by paging without icons below 36 pixels"),
+        Fit.bFits&&Fit.Pages.Num()>1&&Fit.Icon>=54.f&&Fit.RequiredHeight<=325.f);
+    FIntVector Cursor(0,0,0);
+    for(const LDWorkshop::FLibraryPage& Page:Fit.Pages)
+    {
+        TestTrue(TEXT("Each page continues the preceding group ranges"),Page.First==Cursor);
+        TestTrue(TEXT("Each page contains at least one component"),Page.Counts.X+Page.Counts.Y+Page.Counts.Z>0);
+        Cursor+=Page.Counts;
+        TestTrue(TEXT("Page ranges stay inside the filtered library"),Cursor.X<=Counts.X&&Cursor.Y<=Counts.Y&&Cursor.Z<=Counts.Z);
+    }
+    TestTrue(TEXT("All filtered components occur exactly once"),Cursor==Counts);
+    const LDWorkshop::FLibraryFit Empty=LDWorkshop::FitLibrary(FIntVector(0,0,0),412.f,325.f,54.f,1.25f);
+    TestTrue(TEXT("No matches produce one empty page"),Empty.bFits&&Empty.Pages.Num()==1&&Empty.Pages[0].Counts==FIntVector(0,0,0));
+    const LDWorkshop::FLibraryFit TooSmall=LDWorkshop::FitLibrary(FIntVector(1,0,0),20.f,20.f,54.f,1.25f);
+    TestTrue(TEXT("A rectangle too small for one card reports failure"),!TooSmall.bFits&&TooSmall.Pages.IsEmpty());
+    const float TrayLimit=LDWorkshop::StackedTrayLimit(Counts,412.f,400.f,54.f,1.25f);
+    const LDWorkshop::FLibraryFit Reserved=LDWorkshop::FitLibrary(Counts,412.f,400.f-TrayLimit,54.f,1.25f);
+    TestTrue(TEXT("A stacked pending tray leaves a usable library page at 720p and 125 percent text"),
+        TrayLimit>0.f&&Reserved.bFits&&!Reserved.Pages.IsEmpty()&&Reserved.Pages[0].Counts!=FIntVector::ZeroValue);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPendingPagesTest,"Lockdown.Rules.HUDPendingPages",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDPendingPagesTest::RunTest(const FString& Parameters)
+{
+    const TArray<float> Decisions={90.f,90.f,90.f};
+    const LDWorkshop::FPendingFit Single=LDWorkshop::FitPending(Decisions,270.f,20.f);
+    TestTrue(TEXT("A fitting tray stays on one page"),Single.bFits&&Single.Pages.Num()==1
+        &&Single.Pages[0].First==0&&Single.Pages[0].Count==3);
+    const LDWorkshop::FPendingFit Paged=LDWorkshop::FitPending(Decisions,200.f,20.f);
+    TestTrue(TEXT("Paging reserves the controls and keeps each decision whole"),Paged.bFits&&Paged.Pages.Num()==2
+        &&Paged.Pages[0].First==0&&Paged.Pages[0].Count==2&&Paged.Pages[1].First==2&&Paged.Pages[1].Count==1);
+    const LDWorkshop::FPendingFit Empty=LDWorkshop::FitPending({},0.f,20.f);
+    TestTrue(TEXT("No decisions produce one empty page"),Empty.bFits&&Empty.Pages.Num()==1&&Empty.Pages[0].Count==0);
+    const LDWorkshop::FPendingFit TooSmall=LDWorkshop::FitPending({181.f,90.f},200.f,20.f);
+    TestTrue(TEXT("A decision that cannot fit is reported, not split"),!TooSmall.bFits&&TooSmall.Pages.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkshopPreviewTest,"Lockdown.Rules.HUDWorkshopPreview",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
+    const FLDDemoContentDefinitions& Content=Catalog->Get();
+    FName Table;
+    if(!HudRegisterApprovedNames(*this,Content,Table)){return false;}
+    ON_SCOPE_EXIT{if(!Table.IsNone()){FStringTableRegistry::Get().UnregisterStringTable(Table);}};
+
+    FLDProgressionView View;View.bValid=true;View.Generation=7;View.Life=3;View.LifePhase=ELDLifePhase::Dead;
+    View.Level=1;View.BuildRevision=12;View.CombatInstalledRevision=11;View.CatalogDigest=Content.Identity.Root;
+    FLDActiveSlotView& Active=View.Actives.AddDefaulted_GetRef();Active.DefinitionId=TEXT("active_pants_down");
+    FLDComponentInstanceView& Component=View.Components.AddDefaulted_GetRef();
+    Component.DefinitionId=TEXT("component_hold_down");Component.Source=ELDComponentSource::BuildReward;Component.SourceLevel=1;
+    const FLDGrowthBuild Build=LDProgression::BuildFromView(Content,View);
+    const FLDAttributeProjectionResult Projected=LDCombatSourceRules::ProjectBuildInput(
+        LDProgression::CombatProjectionInput(&Content,Build),*Catalog);
+    if(!TestTrue(TEXT("The current build projects"),Projected.IsSuccess())){return false;}
+    FLDCombatOwnerView Combat;Combat.Generation=7;Combat.Life=3;Combat.InstalledBuildRevision=11;Combat.AsOfMs=1000;
+    for(const FLDAttributeContributions& Contribution:Projected.Value->Contributions)
+    {
+        FLDCombatAttributeRowView& Row=Combat.Attributes.AddDefaulted_GetRef();
+        Row.Attribute=uint8(Contribution.Attribute);Row.Final=Contribution.Final;
+    }
+    LDWorkshopPreview::FInput Input;Input.Content=Catalog.Get();Input.Progression=&View;Input.Combat=&Combat;
+    Input.Match=7;Input.Stage=LDProgression::EMatchStage::Live;Input.bClock=true;Input.NowMs=1000;
+    Input.Component=Component.DefinitionId;Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
+    using EStatus=LDWorkshopPreview::EStatus;
+    const LDWorkshopPreview::FResult Preview=LDWorkshopPreview::Compare(Input);
+    TestTrue(TEXT("M04 compares the compiled control duration and cooldown without claiming a conditional effect"),
+        Preview.Status==EStatus::Ready&&!Preview.bPartial
+        &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
+            {return Line.Label.Contains(LDTerms::Root)&&Line.Before==TEXT("1.5s")&&Line.After==TEXT("1.875s");})
+        &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
+            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("12s")&&Line.After==TEXT("15s");}));
+    ++View.CombatInstalledRevision;
+    TestTrue(TEXT("Mismatched installed revisions wait for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
+    --View.CombatInstalledRevision;
+    View.CatalogDigest.Bytes[0]^=0xFF;
+    TestTrue(TEXT("A different catalog waits for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
+    View.CatalogDigest=Content.Identity.Root;
+    Input.Drop.Elements={ELDDemoElement::Fire,ELDDemoElement::Water};
+    TestTrue(TEXT("An unresolved element binding asks for a choice"),LDWorkshopPreview::Compare(Input).Status==EStatus::ChoiceRequired);
+    Input.Drop.Elements.Reset();
+    Component.DefinitionId=TEXT("component_long_arm");Input.Component=Component.DefinitionId;Input.Drop=LDHUD::FComponentDrop();
+    const LDWorkshopPreview::FResult Conditional=LDWorkshopPreview::Compare(Input);
+    TestTrue(TEXT("Target-dependent effects are explicitly marked partial"),
+        Conditional.Status==EStatus::Ready&&Conditional.bPartial&&Conditional.Lines.IsEmpty());
+
+    View.LifePhase=ELDLifePhase::Alive;
+    Component.DefinitionId=TEXT("component_hold_down");Input.Component=Component.DefinitionId;
+    Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
+    Combat.bPreviewLiving=true;
+    Combat.MaxHPP2=Projected.Value->Final.MaxHPP2;Combat.HPP2=Combat.MaxHPP2/2;
+    Combat.MaxMPP2=Projected.Value->Final.MaxMPP2;Combat.MPP2=Combat.MaxMPP2/2;
+    FLDDemoStatBonus Haste;Haste.Stat=ELDDemoBonusStat::CooldownHasteFlat;Haste.Amount=1500;
+    FLDCombatPreviewBonus& Bonus=Combat.PreviewBonuses.AddDefaulted_GetRef();
+    Bonus.Stats.Add(Haste);Bonus.ExpiresAtMs=2000;
+    FLDTemporaryAttributeTerms Temporary;Temporary.Bonuses.Add(Haste);
+    const FLDAttributeProjectionResult Effective=LDAttributeProjection::ApplyTemporary(Projected.Value.GetValue(),Temporary,*Catalog);
+    if(!TestTrue(TEXT("The living owner projects its temporary haste"),Effective.IsSuccess())){return false;}
+    Combat.Attributes.Reset();
+    for(const FLDAttributeContributions& Contribution:Effective.Value->Contributions)
+    {
+        FLDCombatAttributeRowView& Row=Combat.Attributes.AddDefaulted_GetRef();
+        Row.Attribute=uint8(Contribution.Attribute);Row.Final=Contribution.Final;
+    }
+    int64 OldCooldown=0,NewCooldown=0;FString Error;
+    if(!TestTrue(TEXT("Both expected cooldowns use the authority formula"),
+        LDTactical::CooldownDurationMs(12000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
+        &&LDTactical::CooldownDurationMs(15000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
+    {return false;}
+    const LDWorkshopPreview::FResult Live=LDWorkshopPreview::Compare(Input);
+    const LDWorkshopPreview::FLine* Cooldown=Live.Lines.FindByPredicate([](const LDWorkshopPreview::FLine& Line)
+        {return Line.Label.Contains(LDTerms::WorkshopCooldown);});
+    TestTrue(TEXT("A living owner's temporary haste is reflected in the preview"),
+        Live.Status==EStatus::Ready&&!Live.bPartial&&Cooldown
+        &&FMath::IsNearlyEqual(FCString::Atod(*Cooldown->Before),double(OldCooldown)/1000.,.0001)
+        &&FMath::IsNearlyEqual(FCString::Atod(*Cooldown->After),double(NewCooldown)/1000.,.0001));
     return true;
 }
 
@@ -1738,6 +2214,75 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::TargetConflict);
     TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr),
         TEXT("没有生效：")+FString(LDTerms::TargetConflict));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDOfferLinksTest,"Lockdown.Rules.HUDOfferLinks",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDOfferLinksTest::RunTest(const FString& Parameters)
+{
+    AddExpectedError(TEXT("LD_HUD_DISPLAY_TEXT_MISSING"),EAutomationExpectedErrorFlags::Contains,0);
+    FLDDemoContentDefinitions Content;
+    Content.Progression.ActiveSlots=3;Content.Progression.MaxLevel=5;
+    Content.Progression.WorkshopCapacityBase=3;Content.Progression.WorkshopCapacityLevelsPerSlot=1;
+    for(const TCHAR* Id:{TEXT("offer_old"),TEXT("offer_new"),TEXT("offer_other1"),TEXT("offer_other2")})
+    {Content.Abilities.AddDefaulted_GetRef().Id=Id;}
+    const auto Add=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind)->FLDDemoComponentDefinition&
+    {FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();Row.Id=Id;Row.Kind=Kind;return Row;};
+    {
+        FLDDemoComponentDefinition& Bound=Add(TEXT("offer_bound"),ELDDemoComponentKind::Base);
+        Bound.Binding=ELDDemoComponentBinding::ActiveElement;Bound.BindActives={TEXT("offer_new")};
+        Bound.BindElements={ELDDemoElement::Fire};Bound.Form=TEXT("offer_form");
+    }
+    Add(TEXT("offer_mate"),ELDDemoComponentKind::Base).Form=TEXT("offer_form");
+    Add(TEXT("offer_host"),ELDDemoComponentKind::Base);
+    Add(TEXT("offer_direct"),ELDDemoComponentKind::Mod).TargetActives={TEXT("offer_old"),TEXT("offer_new")};
+    {
+        FLDDemoComponentDefinition& Repeat=Add(TEXT("offer_repeat"),ELDDemoComponentKind::Connector);
+        Repeat.TargetActives={TEXT("offer_new")};Repeat.ExtraBases={TEXT("offer_host")};
+    }
+    const auto Owned=[](const TCHAR* Id)
+    {FLDComponentInstanceView Row;Row.DefinitionId=Id;Row.Source=ELDComponentSource::BuildReward;Row.SourceLevel=1;return Row;};
+    FLDProgressionView View;View.bValid=true;View.Level=1;View.bHasActiveOffer=true;
+    View.ActiveOffer.Options={FName(TEXT("offer_new"))};
+    FLDActiveSlotView& Old=View.Actives.AddDefaulted_GetRef();Old.DefinitionId=TEXT("offer_old");Old.Slot=0;
+    View.Components={Owned(TEXT("offer_bound")),Owned(TEXT("offer_mate")),Owned(TEXT("offer_host")),
+        Owned(TEXT("offer_direct")),Owned(TEXT("offer_repeat"))};
+    const auto Preview=[&](const FLDProgressionView& From)
+    {return LDWorkshop::LinkableComponents(TEXT("offer_new"),From,&Content,LDProgression::EMatchStage::Live,ELDLifePhase::Alive);};
+    LDWorkshop::FOfferLinks Links=Preview(View);
+    TestTrue(TEXT("A learned offer lists only owned components with a legal install"),
+        Links.Failure==ELDGrowthReason::None&&Links.bLearned&&Links.Components.Contains(TEXT("offer_bound"))
+        &&Links.Components.Contains(TEXT("offer_direct"))&&!Links.Components.Contains(TEXT("offer_repeat")));
+    TestTrue(TEXT("The preview does not learn or install anything in the view"),
+        View.Actives.Num()==1&&!View.Components[0].bInstalled&&!View.Components[3].bInstalled);
+
+    View.Components[2].bInstalled=View.Components[2].bEverInstalled=true;
+    Links=Preview(View);
+    TestTrue(TEXT("A connector needs an installed repeatable base"),Links.Components.Contains(TEXT("offer_repeat")));
+    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
+    Links=Preview(View);
+    TestFalse(TEXT("A bound base cannot conflict with an installed form mate"),Links.Components.Contains(TEXT("offer_bound")));
+
+    Content.Progression.WorkshopCapacityBase=2;
+    Links=Preview(View);
+    TestTrue(TEXT("A full workshop offers no stored component on the newly learned slot"),Links.bLearned&&Links.Components.IsEmpty());
+    View.Components[1].bInstalled=false;
+    View.Components[3].bInstalled=View.Components[3].bEverInstalled=true;
+    View.Components[3].Target.Kind=ELDComponentTargetKind::Active;View.Components[3].Target.Definition=TEXT("offer_old");
+    Links=Preview(View);
+    TestTrue(TEXT("An installed component can move when its own slot is freed"),
+        Links.Components==TArray<FName>{FName(TEXT("offer_direct"))});
+    for(uint8 Slot=1;Slot<3;++Slot)
+    {
+        FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Slot;
+        Held.DefinitionId=Slot==1?FName(TEXT("offer_other1")):FName(TEXT("offer_other2"));
+    }
+    Links=Preview(View);
+    TestTrue(TEXT("A full set of active slots stores the choice and shows no links"),
+        Links.Failure==ELDGrowthReason::None&&!Links.bLearned&&Links.Components.IsEmpty());
+    TestTrue(TEXT("An unavailable catalog reports a failure rather than a valid empty result"),
+        LDWorkshop::LinkableComponents(TEXT("offer_new"),View,nullptr,LDProgression::EMatchStage::Live,ELDLifePhase::Alive).Failure
+            ==ELDGrowthReason::DataInvalid);
     return true;
 }
 
@@ -1933,6 +2478,43 @@ bool FLDHUDChoiceTrayTest::RunTest(const FString& Parameters)
     const LDHUD::FActionDetailView Taken=LDHUD::ComponentChoiceDetail(Part,FString());
     TestTrue(TEXT("A plain take adds no outcome line"),Taken.Summary==LDTerms::Component&&Taken.Body==TEXT("普攻多打 5 点"));
     TestTrue(TEXT("A component that cannot be taken says why"),LDHUD::ComponentChoiceDetail(Part,LDTerms::ComponentChoiceOwned).Body.EndsWith(LDTerms::ComponentChoiceOwned));
+
+    TestEqualSensitive(TEXT("One queued opportunity shows only the current dot"),LDHUD::OfferQueueDots(1),FString(TEXT("●")));
+    TestEqualSensitive(TEXT("Queued opportunities include the current one"),LDHUD::OfferQueueDots(3),FString(TEXT("● ○ ○")));
+    TestTrue(TEXT("No queued opportunities show no dots"),LDHUD::OfferQueueDots(0).IsEmpty());
+    LDHUD::FOfferMotionTicket Ticket;
+    Ticket.Match=3;Ticket.Life=2;Ticket.Request=17;Ticket.Offer=FGuid(1,2,3,4);Ticket.Option=TEXT("active_a");
+    FLDBuildReceipt Receipt;
+    Receipt.Header.Generation=3;Receipt.Header.OriginalLife=2;Receipt.Header.RequestId=17;
+    Receipt.Header.Family=ELDGrowthFamily::Build;Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    Receipt.Kind=ELDBuildCommandKind::ActiveChoice;Receipt.OfferId=Ticket.Offer;Receipt.DefinitionId=Ticket.Option;
+    Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=1;
+    TestTrue(TEXT("The chosen card animates for its applied learned receipt"),Ticket.Matches(Receipt,3,2));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::StoredAsBlueprint;
+    TestTrue(TEXT("The chosen card may animate to the blueprint area"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
+    TestFalse(TEXT("A rejected receipt cannot animate success"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Receipt.Header.RequestId=18;
+    TestFalse(TEXT("Another request cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.RequestId=17;Receipt.OfferId=FGuid(4,3,2,1);
+    TestFalse(TEXT("Another opportunity cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
+    Receipt.OfferId=Ticket.Offer;Receipt.DefinitionId=TEXT("active_b");
+    TestFalse(TEXT("Another skill cannot animate the captured choice"),Ticket.Matches(Receipt,3,2));
+    Receipt.DefinitionId=Ticket.Option;
+    TestFalse(TEXT("A prior life cannot animate after respawn"),Ticket.Matches(Receipt,3,3));
+    Receipt.ChoiceResult=ELDBuildChoiceResult::Learned;Receipt.LearnedSlot=3;
+    TestFalse(TEXT("A learned receipt without a valid skill slot cannot animate"),Ticket.Matches(Receipt,3,2));
+    Ticket.Kind=ELDBuildCommandKind::SkipActiveOffer;Ticket.Option=NAME_None;
+    Receipt.Kind=ELDBuildCommandKind::SkipActiveOffer;Receipt.PointsAwarded=5;
+    TestTrue(TEXT("A skipped offer is consumed only by its matching applied receipt"),Ticket.Matches(Receipt,3,2));
+    Receipt.PointsAwarded=0;
+    TestFalse(TEXT("A skip receipt without its award does not confirm the opportunity"),Ticket.Matches(Receipt,3,2));
+    Receipt.PointsAwarded=5;Receipt.Header.RequestId=18;
+    TestFalse(TEXT("A different request cannot confirm the skipped offer"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.RequestId=17;Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;
+    TestFalse(TEXT("A rejected skip cannot animate points"),Ticket.Matches(Receipt,3,2));
+    Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    TestFalse(TEXT("A skip from a prior life cannot animate points"),Ticket.Matches(Receipt,3,3));
 
     // Component rows turn into icon tiles once they hold more than ChoiceTrayCardLimit cards together.
     FLDProgressionView View;View.bValid=true;View.Generation=3;

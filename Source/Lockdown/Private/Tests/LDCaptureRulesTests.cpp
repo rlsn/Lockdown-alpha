@@ -987,6 +987,57 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     BadResult([](FLDResultView& View) { View.Rows[2].FinalLevel = uint8(LDDemoProgression::MaxLevel + 1); },
         TEXT("Final level stays within the approved range"));
     BadResult([](FLDResultView& View) { View.Rows[2].FinalLevel = 0; }, TEXT("A final level is at least 1"));
+    BadResult([](FLDResultView& View) { View.Rows[0].Build.Actives.Add({TEXT("active_one"), 0}); },
+        TEXT("An unavailable summary cannot carry partial build data"));
+    {
+        FLDResultView WithBuild = Result;
+        FLDResultBuild& Build = WithBuild.Rows[0].Build;
+        Build.bAvailable = true;
+        Build.CatalogRoot = FString::ChrN(64, TEXT('a'));
+        Build.Actives.Add({TEXT("active_one"), 0});
+        Build.Components.Add({TEXT("base_one"), ELDResultBuildTarget::Body, NAME_None, NAME_None});
+        Build.Components.Add({TEXT("mod_one"), ELDResultBuildTarget::Component, TEXT("base_one"), NAME_None});
+        TestTrue(TEXT("A bounded installed rule-board projection is valid"), LDCapture::ValidateResultView(WithBuild, Error));
+        FLDResultView Invalid = WithBuild;
+        Invalid.Rows[0].Build.Actives.Add({TEXT("active_two"), 0});
+        TestFalse(TEXT("Two active definitions cannot occupy the same result slot"), LDCapture::ValidateResultView(Invalid, Error));
+        Invalid = WithBuild;
+        Invalid.Rows[0].Build.Components[0].Target = ELDResultBuildTarget::Component;
+        Invalid.Rows[0].Build.Components[0].TargetId = TEXT("mod_one");
+        TestFalse(TEXT("A result build cannot contain cyclic component hosts"), LDCapture::ValidateResultView(Invalid, Error));
+        Invalid = WithBuild;
+        Invalid.Rows[0].Build.Components[1].TargetId = TEXT("missing_host");
+        TestFalse(TEXT("A result build cannot silently omit an installed host"), LDCapture::ValidateResultView(Invalid, Error));
+        Invalid = WithBuild;
+        Invalid.Rows[0].Build.CatalogRoot = TEXT("bad");
+        TestFalse(TEXT("A result build needs its pinned catalog identity"), LDCapture::ValidateResultView(Invalid, Error));
+    }
+    {
+        FLDLobbyView Lobby;
+        Lobby.Generation = 3;
+        Lobby.Phase = ELDMatchPhase::Lobby;
+        Lobby.PreviousResultId = Result.ResultId;
+        FLDLobbyMember Human;
+        Human.ContenderId = Result.Rows[0].ContenderId;
+        TestNotNull(TEXT("A continuing human can display their own previous public result"),
+            LDCapture::PreviousLobbyResult(Result, Lobby, Human));
+        FLDLobbyMember AI;
+        AI.Kind = ELDContenderKind::OpponentAI;
+        AI.ContenderId = FGuid::NewGuid();
+        AI.PreviousAIContender = Result.Rows[2].ContenderId;
+        TestNotNull(TEXT("A regenerated AI slot resolves only its explicit previous identity"),
+            LDCapture::PreviousLobbyResult(Result, Lobby, AI));
+        AI.PreviousAIContender.Invalidate();
+        TestNull(TEXT("A newly added AI cannot inherit another seat's build"),
+            LDCapture::PreviousLobbyResult(Result, Lobby, AI));
+        Lobby.PreviousResultId = FGuid::NewGuid();
+        TestNull(TEXT("An older replicated result cannot fill a newer lobby"),
+            LDCapture::PreviousLobbyResult(Result, Lobby, Human));
+        Lobby.PreviousResultId = Result.ResultId;
+        Lobby.Phase = ELDMatchPhase::Development;
+        TestNull(TEXT("The previous-board presentation is limited to the Lobby"),
+            LDCapture::PreviousLobbyResult(Result, Lobby, Human));
+    }
     {
         // #184: a guard win with contenders above the old level 10 locked a result its own validation refused.
         FLDResultView Top = Result;
@@ -1134,11 +1185,24 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
             : Mode->Contenders.Find(Host)->Name.Equals(LDMatchLifecycle::DefaultContenderName, ESearchCase::CaseSensitive)));
     const FGuid GuestId = Mode->ContenderId(Guest);
 
-    int32 Closed = 0, Resets = 0;
+    int32 Closed = 0, Resets = 0, BuildsRead = 0;
+    bool bBuildReadsAfterClose = true;
     FLDMatchReset LastReset;
     FLDMatchProviderHooks Progression;
     // #184: every contender at the approved level cap, past the old level-10 bound that faulted the result lock.
     Progression.ReadFinalLevel = [](const ALDGameMode&, const FGuid&, uint8& Level, FString&) { Level = uint8(LDDemoProgression::MaxLevel); return true; };
+    Progression.ReadResultBuild = [&BuildsRead, &bBuildReadsAfterClose, GuestId](const ALDGameMode& Game, const FGuid& Contender,
+        FLDResultBuild& Build, FString& Detail)
+    {
+        ++BuildsRead;
+        bBuildReadsAfterClose &= !Game.IsGameplayWriteOpen(Game.GetMatchContext())
+            && Game.ReadPublicMatch().Phase == ELDMatchPhase::Results;
+        if (Contender == GuestId) { Detail = TEXT("fixture projection unavailable"); return false; }
+        Build.bAvailable = true;
+        Build.CatalogRoot = FString::ChrN(64, TEXT('a'));
+        Build.Actives.Add({TEXT("active_one"), 0});
+        return true;
+    };
     Progression.MatchClosed = [&Closed](ALDGameMode&, const FLDMatchClosed& Info)
     { Closed += Info.Reason == ELDMatchEndReason::HostEnded && !Info.Winner.IsValid() ? 1 : 100; };
     Progression.MatchReset = [&Resets, &LastReset](ALDGameMode&, const FLDMatchReset& Reset, FString&)
@@ -1146,7 +1210,17 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     LDMatchProviders::FScopedTestTable Providers({{ELDMatchProvider::Progression, Progression}});
 
     // A running match without native bodies: only the core gate, clock and reducer matter here.
+    auto* Opponent = World->SpawnActor<ALDPlayerController>();
+    if (!TestNotNull(TEXT("A server AI controller"), Opponent)) { return false; }
+    Mode->LobbyAISlots.Add(FGuid::NewGuid());
+    const FGuid OldAI = Mode->LobbyAISlots[0];
+    Mode->LockedAISlots = Mode->LobbyAISlots;
+    Mode->MatchPhase = ELDMatchPhase::Starting;
+    Mode->bAuthorityInitialized = true;
+    if (!TestTrue(TEXT("The AI binds the frozen room slot"), Mode->RegisterAIContender(*Opponent, 0, Mode->MatchContext).Binding.IsValid()))
+    { return false; }
     Mode->MatchPhase = ELDMatchPhase::Development;
+    TestEqual(TEXT("No other build summary is read while the match is open"), BuildsRead, 0);
     TestTrue(TEXT("The approved timing starts the reducer"), Mode->CaptureReducer.Begin(120000, 3500, 20000, Error));
     FLDSessionRequest Request;
     Request.Key = {Generation, 1};
@@ -1160,7 +1234,10 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     const FLDResultView& Result = Public->MatchResult;
     TestTrue(TEXT("A host-ended result has no winner and lists every contender"),
         Result.Generation == Generation && Result.Reason == ELDMatchEndReason::HostEnded && !Result.Winner.IsValid()
-        && Result.Rows.Num() == 2 && Result.Rows[0].FinalLevel == LDDemoProgression::MaxLevel && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs);
+        && Result.Rows.Num() == 3 && Result.Rows[0].FinalLevel == LDDemoProgression::MaxLevel && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs);
+    TestTrue(TEXT("Public summaries are read only after the write gate closes"), BuildsRead == 3 && bBuildReadsAfterClose);
+    TestTrue(TEXT("A missing presentation does not block the result or masquerade as an empty build"),
+        Result.Rows[0].Build.bAvailable && !Result.Rows[1].Build.bAvailable && Result.Rows[2].Build.bAvailable);
     TestTrue(TEXT("The public circle names the locked result"),
         Public->PublicMatch.Phase == ELDMatchPhase::Results && Public->PublicMatch.ResultId == Result.ResultId);
     Request.Key.RequestSequence = 2;
@@ -1188,6 +1265,12 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The result and reducer belong to the old match only"),
         !Mode->bResultLocked && !Mode->CaptureReducer.IsActive() && Public->PublicMatch.Generation == Mode->MatchContext.Generation
         && Public->PublicMatch.Phase == ELDMatchPhase::Lobby);
+    const FLDLobbyView& ReturnedLobby = Public->DemoLobby;
+    const FLDLobbyMember* NewAI = ReturnedLobby.Members.FindByPredicate([](const FLDLobbyMember& Member)
+        { return Member.Kind == ELDContenderKind::OpponentAI; });
+    TestTrue(TEXT("A returned AI slot explicitly names its old result rather than reusing its identity"),
+        ReturnedLobby.PreviousResultId == Result.ResultId && NewAI && NewAI->ContenderId != OldAI
+        && NewAI->PreviousAIContender == OldAI && LDCapture::PreviousLobbyResult(Result, ReturnedLobby, *NewAI));
     Request.Key.RequestSequence = 5;
     Request.Command = ELDSessionCommand::SetReady;
     Request.ExpectedResult.Invalidate();
@@ -1198,6 +1281,28 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     Request.Key = {Mode->MatchContext.Generation, 1};
     TestTrue(TEXT("The new generation starts a fresh request window"),
         Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed && Mode->StateFor(Host)->bReady);
+    Mode->MatchPhase = ELDMatchPhase::Starting;
+    TestTrue(TEXT("An aborted start can return to the Lobby"), Mode->RetireMatch(true, Error));
+    const FLDLobbyMember* AbortedAI = Public->DemoLobby.Members.FindByPredicate([](const FLDLobbyMember& Member)
+        { return Member.Kind == ELDContenderKind::OpponentAI; });
+    TestTrue(TEXT("An aborted start retains the prior completed AI summary under the next fresh slot"),
+        AbortedAI && AbortedAI->PreviousAIContender == OldAI
+        && LDCapture::PreviousLobbyResult(Public->MatchResult, Public->DemoLobby, *AbortedAI));
+    Request.Key = {Mode->MatchContext.Generation, 1};
+    Request.Command = ELDSessionCommand::SetAICount;
+    Request.Ready = false;
+    Request.AICount = 0;
+    Request.ExpectedRosterRevision = Mode->RosterRevision;
+    TestTrue(TEXT("The previous AI slot can be removed"), Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed);
+    Request.Key.RequestSequence = 2;
+    Request.AICount = 1;
+    Request.ExpectedRosterRevision = Mode->RosterRevision;
+    TestTrue(TEXT("A fresh AI slot can be added"), Mode->ProcessSessionCommand(Host, Request).Outcome == ELDSessionOutcome::Committed);
+    const FLDLobbyMember* AddedAI = Public->DemoLobby.Members.FindByPredicate([](const FLDLobbyMember& Member)
+        { return Member.Kind == ELDContenderKind::OpponentAI; });
+    TestTrue(TEXT("A removed and re-added AI never inherits the removed slot's previous build"),
+        AddedAI && !AddedAI->PreviousAIContender.IsValid()
+        && !LDCapture::PreviousLobbyResult(Public->MatchResult, Public->DemoLobby, *AddedAI));
     return true;
 }
 #endif

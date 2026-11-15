@@ -337,6 +337,12 @@
           "name_text": {"type": "string", "minLength": 1, "maxLength": 32},
           "description_key": {"type": "string", "minLength": 1, "maxLength": 128},
           "description_text": {"type": "string", "minLength": 1, "maxLength": 320},
+          "effect_key": {"type": "string", "minLength": 1, "maxLength": 128},
+          "effect_text": {"type": "string", "minLength": 1, "maxLength": 320},
+          "cost_key": {"type": "string", "minLength": 1, "maxLength": 128},
+          "cost_text": {"type": "string", "minLength": 1, "maxLength": 320},
+          "notes_key": {"type": "string", "minLength": 1, "maxLength": 128},
+          "notes_text": {"type": "string", "minLength": 1, "maxLength": 320},
           "icon_id": {"$ref": "#/$defs/id"}, "portrait_icon_id": {"$ref": "#/$defs/id"}
         }
       }

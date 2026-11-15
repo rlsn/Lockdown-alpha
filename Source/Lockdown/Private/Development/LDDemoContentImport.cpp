@@ -2520,6 +2520,25 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         {
             return false;
         }
+        // A final mod's row splits its description into effect, cost and notes lines; on any other row they are unknown fields.
+        if (Out.FinalMods.ContainsByPredicate([&D](const FLDDemoFinalModDefinition& Mod) { return Mod.Id == D.Id; }))
+        {
+            struct FPart { const TCHAR* Name; FString* Key; FString* Text; };
+            const FPart Parts[] = {{TEXT("effect"), &D.EffectKey, &D.EffectText}, {TEXT("cost"), &D.CostKey, &D.CostText},
+                {TEXT("notes"), &D.NotesKey, &D.NotesText}};
+            for (const FPart& Part : Parts)
+            {
+                const FString Name(Part.Name);
+                if (!Fields.Text(*(Name + TEXT("_key")), *Part.Key, 1, 128)
+                    || !Fields.Text(*(Name + TEXT("_text")), *Part.Text, 1, 320)
+                    || !ValidateDisplayText(*Part.Text, false, C, Path + TEXT(".") + Name + TEXT("_text"))
+                    || !C.Require(Part.Key->Equals(D.Id + TEXT(".") + Name, ESearchCase::CaseSensitive), Path,
+                        TEXT("unknown or noncanonical display reference")))
+                {
+                    return false;
+                }
+            }
+        }
         return Fields.Done();
     };
     TArray<uint8> DisplayBytes;

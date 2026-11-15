@@ -579,6 +579,7 @@ bool ALDGameMode::RetireLifeForPhase(const FGuid& Contender, const FLDGameplayWr
     ++Life->Revision;
     Life->ProtectedUntilMs = 0;
     Life->RespawnAtMs = 0;
+    Life->RespawnDurationMs = 0;
     Life->Body = {};
     if (auto* Actor = Life->Actor.Get())
     {
@@ -814,6 +815,7 @@ bool ALDGameMode::MoveContendersToRest(const FLDGameplayWritePermit& Permit, FSt
         {
             // The rest ends the remaining field respawn wait.
             Life.RespawnAtMs = 0;
+            Life.RespawnDurationMs = 0;
         }
     }
     for (const FGuid& Id : Order)

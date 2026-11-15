@@ -1,5 +1,6 @@
 #include "Framework/LDCaptureTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Development/LDGrowthProtocol.h"
 
 namespace
 {
@@ -160,6 +161,78 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     return true;
 }
 
+bool LDCapture::ValidateResultBuild(const FLDResultBuild& Build, FString& Error)
+{
+    if (!Build.bAvailable)
+    {
+        if (!Build.CatalogRoot.IsEmpty() || !Build.Actives.IsEmpty() || !Build.Components.IsEmpty()
+            || !Build.FinalMod.IsNone() || Build.FinalTarget != ELDResultBuildTarget::Body || !Build.FinalTargetId.IsNone())
+        { return FailCaptureView(Error, TEXT("An unavailable result build must not carry partial data.")); }
+        Error.Reset();
+        return true;
+    }
+    FLDDemoContentDigest Root;
+    if (!FLDDemoContentDigest::ParseHex(Build.CatalogRoot, Root, Error) || Build.Actives.Num() > 3 || Build.Components.Num() > 63)
+    { return FailCaptureView(Error, TEXT("Invalid result build catalog or size.")); }
+    auto ValidId = [](FName Id)
+    {
+        FLDDefinitionWire Wire;
+        return FLDDefinitionWire::Encode(Id, Wire);
+    };
+    TSet<FName> ActiveIds, ComponentIds;
+    TSet<uint8> Slots;
+    for (const FLDResultBuildActive& Active : Build.Actives)
+    {
+        if (!ValidId(Active.DefinitionId) || Active.Slot >= 3 || Slots.Contains(Active.Slot) || ActiveIds.Contains(Active.DefinitionId))
+        { return FailCaptureView(Error, TEXT("Invalid or duplicate result build active.")); }
+        Slots.Add(Active.Slot);
+        ActiveIds.Add(Active.DefinitionId);
+    }
+    auto ValidTarget = [&ValidId](ELDResultBuildTarget Kind, FName Id)
+    {
+        switch (Kind)
+        {
+        case ELDResultBuildTarget::Body:
+        case ELDResultBuildTarget::Dash: return Id.IsNone();
+        case ELDResultBuildTarget::Active:
+        case ELDResultBuildTarget::EffectSegment:
+        case ELDResultBuildTarget::Component: return ValidId(Id);
+        }
+        return false;
+    };
+    for (const FLDResultBuildComponent& Component : Build.Components)
+    {
+        if (!ValidId(Component.DefinitionId) || ComponentIds.Contains(Component.DefinitionId)
+            || !ValidTarget(Component.Target, Component.TargetId)
+            || (!Component.BoundActive.IsNone() && !ValidId(Component.BoundActive)))
+        { return FailCaptureView(Error, TEXT("Invalid or duplicate result build component.")); }
+        ComponentIds.Add(Component.DefinitionId);
+    }
+    for (const FLDResultBuildComponent& Component : Build.Components)
+    {
+        TSet<FName> Seen;
+        const FLDResultBuildComponent* Current = &Component;
+        while (Current && Current->Target == ELDResultBuildTarget::Component && Current->BoundActive.IsNone())
+        {
+            if (Seen.Contains(Current->DefinitionId))
+            { return FailCaptureView(Error, TEXT("Result build component hosts contain a cycle.")); }
+            Seen.Add(Current->DefinitionId);
+            Current = Build.Components.FindByPredicate([Current](const FLDResultBuildComponent& Host)
+            { return Host.DefinitionId == Current->TargetId; });
+            if (!Current) { return FailCaptureView(Error, TEXT("Result build component host is missing.")); }
+        }
+    }
+    if (Build.FinalMod.IsNone())
+    {
+        if (Build.FinalTarget != ELDResultBuildTarget::Body || !Build.FinalTargetId.IsNone())
+        { return FailCaptureView(Error, TEXT("An absent final mod cannot name a target.")); }
+    }
+    else if (!ValidId(Build.FinalMod) || !ValidTarget(Build.FinalTarget, Build.FinalTargetId))
+    { return FailCaptureView(Error, TEXT("Invalid result final mod.")); }
+    Error.Reset();
+    return true;
+}
+
 bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
 {
     if (!View.Generation || !View.ResultId.IsValid() || !View.ResultSerial
@@ -183,6 +256,7 @@ bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
         { return FailCaptureView(Error, TEXT("Invalid or duplicate result row.")); }
         if (Row.BankedGuardMs < 0 || Row.BankedGuardMs > View.DurationMs)
         { return FailCaptureView(Error, TEXT("Invalid result objective contribution.")); }
+        if (!ValidateResultBuild(Row.Build, Error)) { return false; }
         Ids.Add(Row.ContenderId);
         Humans += Row.Kind == ELDContenderKind::Human ? 1 : 0;
         if (Row.ContenderId == View.Winner)
@@ -196,6 +270,17 @@ bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
     { return FailCaptureView(Error, TEXT("Result winner or roster composition is inconsistent.")); }
     Error.Reset();
     return true;
+}
+
+const FLDResultRow* LDCapture::PreviousLobbyResult(const FLDResultView& Result, const FLDLobbyView& Lobby,
+    const FLDLobbyMember& Member)
+{
+    if (Lobby.Phase != ELDMatchPhase::Lobby || !Lobby.PreviousResultId.IsValid()
+        || Lobby.PreviousResultId != Result.ResultId || !Result.Generation || Result.Generation >= Lobby.Generation)
+    { return nullptr; }
+    const FGuid Id = Member.Kind == ELDContenderKind::Human ? Member.ContenderId : Member.PreviousAIContender;
+    if (!Id.IsValid()) { return nullptr; }
+    return Result.Rows.FindByPredicate([&](const FLDResultRow& Row) { return Row.ContenderId == Id && Row.Kind == Member.Kind; });
 }
 
 bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)

@@ -7,6 +7,8 @@
 struct FLDDemoAbilityValues;
 
 struct FLDCombatEntityRecord;
+struct FLDCombatActiveTerms;
+struct FLDPassiveEffectRef;
 struct FLDDemoPolicies;
 class FLDDemoContentSnapshot;
 
@@ -79,6 +81,22 @@ namespace LDCombatSourceRules
     LOCKDOWN_API const FName& InnateDashId();
     // D19: the approved CHARACTER dash terms.
     LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, FLDInnateDashTerms& Out, FString& Error);
+    LOCKDOWN_API FLDAttributeProjectionResult ProjectBuildInput(const FLDBuildProjectionInput& Build,
+        const FLDDemoContentSnapshot& Content);
+    // Workshop compilation is shared with the owner's read-only install preview.
+    LOCKDOWN_API bool CollectWorkshopEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+        const FLDDemoContentSnapshot* Content, TArray<FLDPassiveEffectRef>& Out, FString& Error);
+    LOCKDOWN_API bool CompileWorkshopActive(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
+        const FLDDemoContentSnapshot* Content, FLDCombatActiveTerms& Terms, FString& Error);
+    LOCKDOWN_API bool WidenWorkshopTerms(const FLDAttributeProjection& Projection, const FLDCombatSourceRef& Source,
+        const FLDDemoContentSnapshot* Content, const FLDCombatPreviewWideToken& Token, int64 NowMs,
+        FLDCombatActiveTerms& Terms, bool& bWidened, FString& Error);
+    LOCKDOWN_API bool FinalTargetsSource(const FLDFinalModSelection& Selection, const FLDCombatSourceRef& Source);
+    LOCKDOWN_API bool FinalCooldownCost(const FLDDemoContentSnapshot* Content, const FLDFinalModSelection& Selection,
+        bool bFinalField, const FLDCombatSourceRef& Source, int64& InOutCooldownMs, FString& Error);
+    LOCKDOWN_API void ScaleInnateDash(FLDInnateDashTerms& Dash, const FLDCombatActiveTerms& Terms);
+    LOCKDOWN_API bool CastRangeCm(const FLDDemoContentSnapshot& Content, const FLDAttributeProjection& Projection,
+        const FLDDemoTargetDefinition& Target, double& OutCm);
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);

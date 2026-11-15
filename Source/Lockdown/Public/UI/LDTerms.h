@@ -108,6 +108,30 @@ inline constexpr TCHAR PickRepeatedBase[]=TEXT("重复哪个基础构件：");
 inline constexpr TCHAR TargetDash[]=TEXT("冲刺(D)");
 inline constexpr TCHAR TargetSelf[]=TEXT("自身");
 inline constexpr TCHAR TargetConflict[]=TEXT("同形态的构件不能装在同一处，拖到它上面替换");
+inline constexpr TCHAR WorkshopPreview[]=TEXT("数值变化");
+inline constexpr TCHAR WorkshopPreviewPartial[]=TEXT("数值变化 · 部分");
+inline constexpr TCHAR WorkshopPreviewSnapshot[]=TEXT("当前快照 · 未列出的效果以规则说明和实际结算为准");
+inline constexpr TCHAR WorkshopPreviewSync[]=TEXT("正在同步构筑与战斗数据");
+inline constexpr TCHAR WorkshopPreviewWaiting[]=TEXT("等待服务器回执");
+inline constexpr TCHAR WorkshopPreviewChoice[]=TEXT("选择绑定后显示变化");
+inline constexpr TCHAR WorkshopPreviewUnavailable[]=TEXT("暂时无法计算精确变化");
+inline constexpr TCHAR WorkshopPreviewConditional[]=TEXT("其他效果见规则说明与实际结算");
+inline constexpr TCHAR WorkshopPreviewNoChange[]=TEXT("当前没有数值变化");
+inline constexpr TCHAR WorkshopKnockback[]=TEXT("击退");
+inline constexpr TCHAR WorkshopDuration[]=TEXT("基础时长");
+inline constexpr TCHAR WorkshopArea[]=TEXT("区域");
+inline constexpr TCHAR WorkshopChain[]=TEXT("连锁");
+inline constexpr TCHAR WorkshopEffect[]=TEXT("效果");
+inline constexpr TCHAR WorkshopDistance[]=TEXT("距离");
+inline constexpr TCHAR WorkshopRadius[]=TEXT("半径");
+inline constexpr TCHAR WorkshopCount[]=TEXT("次数");
+inline constexpr TCHAR WorkshopBase[]=TEXT("基础值");
+inline constexpr TCHAR WorkshopDamageScale[]=TEXT("伤害倍率");
+inline constexpr TCHAR WorkshopContactScale[]=TEXT("接触伤害倍率");
+inline constexpr TCHAR WorkshopCooldown[]=TEXT("冷却");
+inline constexpr TCHAR WorkshopRange[]=TEXT("射程");
+inline constexpr TCHAR WorkshopProjectileRadius[]=TEXT("投射物半径");
+inline constexpr TCHAR WorkshopLineHalfWidth[]=TEXT("判定半宽");
 inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（装在：%s）"),*Target);}
 inline FString InstalledRepeating(const FString& Target,const FString& Base){return FString::Printf(TEXT("（%s · 重复 %s）"),*Target,*Base);}
 inline constexpr TCHAR ElementFire[]=TEXT("火");
@@ -138,6 +162,12 @@ inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
 // #227 构件库（HUD 中央右侧的牌堆）与展开后的安装列：本体、Q/W/E 与冲刺(D) 各一列。
 inline constexpr TCHAR Storage[]=TEXT("构件库");
+inline constexpr TCHAR StorageEmpty[]=TEXT("构件库为空");
+inline constexpr TCHAR StorageNoMatches[]=TEXT("没有符合的构件");
+inline constexpr TCHAR StorageNoRoom[]=TEXT("构件库空间不足，暂时无法显示");
+inline constexpr TCHAR StoragePreviousPage[]=TEXT("上一页");
+inline constexpr TCHAR StorageNextPage[]=TEXT("下一页");
+inline constexpr TCHAR PendingNoRoom[]=TEXT("待处理区空间不足，暂时无法完整显示");
 inline constexpr TCHAR ColumnBody[]=TEXT("本体");
 inline constexpr TCHAR ColumnEmptySlot[]=TEXT("空技能槽");
 inline constexpr TCHAR DropHere[]=TEXT("放这里");
@@ -158,6 +188,59 @@ inline FString DropInstallsOn(const FString& Place){return FString::Printf(TEXT(
 inline FString DropReplaces(const FString& Replaced,const FString& With,const FString& Place)
 {return With.IsEmpty()?FString::Printf(TEXT("替换 %s · 装到 %s"),*Replaced,*Place):FString::Printf(TEXT("替换 %s · 连带拆下 %s · 装到 %s"),*Replaced,*With,*Place);}
 inline constexpr TCHAR DropNowhere[]=TEXT("不能装在这里");
+// 工坊台（构筑的全屏视图）：规则板、容量条、构件库分组、角色栏、待处理与信息坞。
+inline constexpr TCHAR WorkshopCapacityTitle[]=TEXT("工坊容量");
+inline FString WorkshopUnlockAt(int32 Level){return FString::Printf(TEXT("Lv %d 解锁下一格"),Level);}
+inline constexpr TCHAR WorkshopPending[]=TEXT("待处理");
+inline constexpr TCHAR WorkshopReactions[]=TEXT("元素反应");
+inline constexpr TCHAR WorkshopPointsLabel[]=TEXT("点可分配");
+inline constexpr TCHAR WorkshopInstalledOn[]=TEXT("装在");
+inline constexpr TCHAR WorkshopGoesOn[]=TEXT("可装");
+inline constexpr TCHAR WorkshopLinks[]=TEXT("联动");
+inline constexpr TCHAR WorkshopNotes[]=TEXT("注意");
+inline constexpr TCHAR WorkshopLocked[]=TEXT("构筑暂不可调整");
+inline constexpr TCHAR WorkshopClose[]=TEXT("Esc");
+inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("需要已学：%s"),*Names);}
+// 三种元素反应（APP_SPEC §4.4：起雾、导电、过载）。
+inline constexpr TCHAR ReactionFog[]=TEXT("起雾");
+inline constexpr TCHAR ReactionConduct[]=TEXT("导电");
+inline constexpr TCHAR ReactionOverload[]=TEXT("过载");
+inline constexpr TCHAR ReactionFogRule[]=TEXT("水 + 火：对目标造成魔法伤害，并在原地产生持续给无元素敌人附着潮湿的水雾。触发时消耗双方元素，灼烧的剩余伤害立即结算。");
+inline constexpr TCHAR ReactionConductRule[]=TEXT("水 + 电：对目标及附近潮湿敌人造成魔法伤害并减速，消耗参与反应的水、电附着及附近敌人的潮湿。");
+inline constexpr TCHAR ReactionOverloadRule[]=TEXT("火 + 电：对目标及附近敌人造成魔法伤害并施加破防。触发时消耗双方元素，灼烧的剩余伤害立即结算。");
+inline FString ReactionExplanation(const FString& Name)
+{
+    return Name==ReactionFog?FString(ReactionFogRule):Name==ReactionConduct?FString(ReactionConductRule)
+        :Name==ReactionOverload?FString(ReactionOverloadRule):FString();
+}
+// 基础规则的触发来源（内容效果的触发字段）。
+inline constexpr TCHAR TriggerBasicHit[]=TEXT("普攻命中");
+inline constexpr TCHAR TriggerAbilityHit[]=TEXT("主动命中");
+inline constexpr TCHAR TriggerDamaged[]=TEXT("受到伤害");
+inline constexpr TCHAR TriggerDashComplete[]=TEXT("冲刺完成");
+// 构筑时刻：主动三选一页与终局改装页。
+inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
+inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
+inline constexpr TCHAR OfferLinks[]=TEXT("可接");
+inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
+inline FString OfferLinksUnavailable(const FString& Reason){return FString::Printf(TEXT("可接预览不可用：%s"),*Reason);}
+inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
+inline constexpr TCHAR OfferSkip[]=TEXT("不选");
+inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");
+inline constexpr TCHAR OfferWaiting[]=TEXT("现在没有合格的技能候选，这次机会保留，有合格候选时再出现。");
+inline FString ReactsWith(const FString& Key,const FString& Name,const FString& Pair,const FString& Reaction){return FString::Printf(TEXT("与 %s %s：%s %s"),*Key,*Name,*Pair,*Reaction);}
+inline constexpr TCHAR FinalStageTitle[]=TEXT("终局改装");
+inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");
+inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
+inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
+inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
+inline constexpr TCHAR FinalPickSource[]=TEXT("此列有多个来源");
+inline const TCHAR* FinalPartLabel(int32 Part){return Part==0?TEXT("效果"):Part==1?TEXT("代价"):TEXT("须知");}
+inline constexpr TCHAR FinalLock[]=TEXT("按住选定改装");
+inline constexpr TCHAR FinalTakenNote[]=TEXT("改装只选一次；技能和构件仍可随时调整。");
+inline constexpr TCHAR FinalDormant[]=TEXT("未生效 · 来源已拆下");
+inline constexpr TCHAR FinalRebind[]=TEXT("重新绑定");
+inline constexpr TCHAR ForgetShort[]=TEXT("遗忘");
 inline FString WorksWith(const FString& Names){return FString::Printf(TEXT("联动：%s"),*Names);}
 inline FString SameForm(const FString& Names){return FString::Printf(TEXT("同形态（同处只装一件）：%s"),*Names);}
 inline FString WorkshopCaption(int32 Installed,int32 Capacity){return FString::Printf(TEXT("已装 %d/%d"),Installed,Capacity);}
@@ -198,7 +281,7 @@ inline constexpr TCHAR NoGapFillerLeft[]=TEXT("缺口没有能补的未持有普
 inline FString PickDismantle(int64 Count){return FString::Printf(TEXT("选 %lld 件不同的普通构件交出（稀缺件不收）："),Count);}
 inline FString DismantleTooFew(int64 Count){return FString::Printf(TEXT("普通构件不足 %lld 件"),Count);}
 inline FString DismantlePicked(int32 Picked,int64 Count){return FString::Printf(TEXT("已选 %d/%lld"),Picked,Count);}
-inline constexpr TCHAR DismantleInstalledWarning[]=TEXT("（已启用：交出后装在它上面的构件退回背包）");
+inline constexpr TCHAR DismantleResult[]=TEXT("随机普通构件");
 inline FString FillGapConfirm(int64 Points,const FString& Target,const FString& Filler)
 {return FString::Printf(TEXT("花 %lld 点：为 %s 补 %s？点数不退还，同一构件只能补一次"),Points,*Target,*Filler);}
 inline FString DismantleConfirm(const FString& Removed,const FString& Detached)
@@ -353,7 +436,7 @@ inline constexpr const TCHAR* BlueprintFactLabels[]={
     TEXT("普攻"),TEXT("施法"),TEXT("自然回复"),TEXT("还款"),TEXT("减免"),TEXT("触发"),TEXT("拒绝"),
 };
 
-// 卡面关键词（#147，#198 删去横扫，见内容与数值 §4.5）：全局 12 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
+// 卡面关键词：卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
 struct FCardKeyword { const TCHAR* Name; const TCHAR* Explain; };
 inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("减速"),TEXT("移速降低一定比例；同时有多个减速时只取最强的。减速不是控制")},
@@ -368,5 +451,8 @@ inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("灼烧"),TEXT("每层每秒造成魔法伤害，最多 5 层；新的一层刷新整组时间")},
     {TEXT("护盾"),TEXT("先于生命承受伤害，到期消失；身上只有一份，新的不弱于剩余量才替换")},
     {TEXT("吸血"),TEXT("按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35%")},
+    {ReactionFog,ReactionFogRule},
+    {ReactionConduct,ReactionConductRule},
+    {ReactionOverload,ReactionOverloadRule},
 };
 }

@@ -224,7 +224,24 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
         Record.Deaths = 0;
         Record.Assists = 0;
     }
-    for (FGuid& Slot : LobbyAISlots) { Slot = FGuid::NewGuid(); }
+    TMap<FGuid, FGuid> NextPreviousAI;
+    if (!bAbortedStart) { PreviousLobbyResultId = ResultView.ResultId; }
+    for (FGuid& Slot : LobbyAISlots)
+    {
+        FGuid Previous;
+        if (bAbortedStart)
+        {
+            if (const FGuid* Kept = PreviousLobbyAI.Find(Slot)) { Previous = *Kept; }
+        }
+        else if (ResultView.Rows.ContainsByPredicate([&Slot](const FLDResultRow& Row)
+            { return Row.ContenderId == Slot && Row.Kind == ELDContenderKind::OpponentAI; }))
+        {
+            Previous = Slot;
+        }
+        Slot = FGuid::NewGuid();
+        if (Previous.IsValid()) { NextPreviousAI.Add(Slot, Previous); }
+    }
+    PreviousLobbyAI = MoveTemp(NextPreviousAI);
     LockedAISlots.Reset();
     CountedDeaths.Reset();
     KillNotices.Reset();

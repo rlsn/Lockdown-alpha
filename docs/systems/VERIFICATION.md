@@ -7,6 +7,7 @@
 
 先完成一批连贯开发，再集中验证收尾。以下是按改动选择检查的索引，不是每次任务都要执行的清单：
 只覆盖实际改动及其直接依赖，优先增量构建、规则前缀和已有场景定向模式。
+新增测试只覆盖本批引入或修复的行为、直接依赖及必要边界；优先扩展已有用例，不为覆盖率增加无关或重复测试。
 复用 `Binaries`、`Intermediate` 与构建缓存，不做例行清理重建；未受后续改动影响的通过结果不重复验证。
 整局、全量导入、`-FullUnity` 与全套场景不是日常默认步骤。
 
@@ -33,6 +34,7 @@
 | 原生旧入口拒绝 | `RunDemoEntryCheck.ps1`，要求真实 URL 被拒绝后回前端，累计 Pawn/旧模式/服务/子系统激活为零 |
 | 前端设置实际渲染 | `RunDemoFrontendCheck.ps1`，新 `UserDir` 下的 windowed RHI、合成 UMG 点击与 Slate 按键事件：经命名页签逐个打开五个分类页（隐藏页不进焦点顺序），100/125% 各页图像、诊断开关与文本偏好保存/回读、设置页无窗口模式/分辨率、显示草稿撤销、在别页返回时确认卡回到画面页、再按返回即放弃、VSync 应用保存回读、行内改绑（占用键被拒仍在捕获、空闲键保存回读、Esc 只取消捕获、经 Slate 指针路由在捕获中点页签即结束捕获并切页）、按页恢复默认只影响本页、引擎锁定画质组时应用失败后改走再改回或撤销仍需应用、打开设置时在途的镜头距离延迟保存失败后底栏立即出现“立即保存”；不修改 OS 显示模式 |
 | Lobby 设置实际渲染 | `RunDemoFrontendCheck.ps1 -LobbyOnly` 在真实单人房间验证五分类页签、偏好保存回读与重开、画面草稿确认与 Esc 放弃、返回后名单及准备修订不变；设置保持打开时经正常开局命令进入对局，验证输入持续抑制、局内提示刷新及关闭后输入恢复，并保存 `Lobby-SettingsEntry.png`、`Lobby-Settings.png`、`Lobby-Returned.png`。不覆盖前端建房旅行、远端客户端或跨机器联机 |
+| 建房后布局稳定性 | `RunDemoFrontendCheck.ps1 -MotionOnly` 经前端的开始、创建房间按钮进入真实 Listen 房间，再切换为 3 个 AI；等拥有者视图确认席位变更后，在 100% 与 125% 文字下检查六个席位等宽、各不小于 100 像素，并各采样连续 120 帧“准备”按钮的位置，要求垂直波动不超过 1 像素；报告保留逐帧位置、席位宽度和祖先布局尺寸，不以静态截图代替动效检查 |
 | 输入 / 导航 / HUD | `Lockdown.Rules.ControlMappings/IssuedCommandLiveness`、`Lockdown.Rules.LocalSettings*/LocalDisplay*/LocalControlRegistryIsolation`、`Lockdown.Rules.HUD*`；拥有连接下的订单与输入路由见 `RunDemoCombatCheck.ps1`，HUD 观测投影见 `RunDemoVisionCheck.ps1` |
 | 音效 / 音量 | `ImportDemoAudio.ps1 -Mode Validate`（Bootstrap Validate 也执行）；`Lockdown.Rules.Audio*`（含 `AudioMusicSelection`）与 `LocalSettingsMasterVolume`、`LocalSettingsMusicVolume`。`-nosound` 场景只证明无错误日志，实际听感、换曲、设备输出与音量需在有声卡的可视运行中确认 |
 | 美术 / 装饰 | `ImportDemoArt.ps1 -Mode Validate`（Bootstrap Validate 也执行，含标题/房间背景图的清单、哈希、尺寸与 UI 纹理设置）；`Lockdown.Rules.ArtCatalog/ArtCatalogAsset/ArtDecorations`；`CaptureDemoArt.ps1` 在 Demo 地图大厅渲染全部身体、各动画姿势与装饰后的场地截图，并核对装饰无碰撞、不挡视线追踪、不改 navmesh。不代替身体接线、战斗或联机验收 |
@@ -42,13 +44,18 @@
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
 | 构筑评估 Harness | `Lockdown.Rules.BuildEvaluation`（种子与生产默认、评估画像、工坊构筑计划、原生输入、对决时限）与 `python -B -m unittest discover -s .\Scripts -p "TestBuildEvaluation*.py"`；改到原生驱动、种子挂点或 Adapter 判读时，用 `RunBuildEvaluation.ps1 -Manifest <示例清单>` 跑一次真实小规模运行，并用 `-ReplayRun <运行目录> -Case <id>` 核对重放一致。它是 DEV 实验工具，结果只描述所覆盖的构筑、固定策略、场景与预算，不是验收或平衡结论，见[构筑评估 Harness](BUILD_EVALUATION.md) |
 
+`RunDemoCaptureCheck.ps1 -RenderHost` 为所有拥有者启用 720p 离屏 RHI，使远端也能经实际构建的界面处理主动与终局候选；只有 Host 保存截图。
+截图等待入场布局与动效稳定，结算另等待表格逐行及操作区入场完成，覆盖终局候选、所需来源选择、选定后规则板、旗杆、结算和返回后的房间。
+等待只作用于 DEV 探针的取图与后续操作，不暂停服务器时钟，也不延迟产品中的输入或提交。
+
 交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。
 
 `RunDemoSessionFaultCheck.ps1 -RefuseOnly` 只运行版本不兼容、六席满房和开局后的拒绝场景，不覆盖其他网络异常。
 
 ## 合并前与里程碑检查
 
-每个里程碑交付、每日包/发布或明确要求的专项验证前，跑一轮下面的检查：
+日常 PR 合并前按[最小验证选择](#最小验证选择)执行，不因合并而运行整套。
+里程碑交付、每日包/发布前跑一轮下面的检查；明确要求专项验证时只运行所要求的检查，不默认运行整套：
 
 ```powershell
 .\Scripts\BuildEditor.ps1 -FullUnity
@@ -58,8 +65,8 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\BootstrapAssets.ps1
 .\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
 .\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
-.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 2v2 -TimeoutSeconds 300 # 仅 R0 团队 UI，正常报名与真实拥有连接
-.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 3v3 -TimeoutSeconds 300 # 同上，六人报名
+.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 2v2 -TimeoutSeconds 600 # R0 团队 UI 与返回野外的交互，正常报名与真实拥有连接
+.\Scripts\RunDemoOpponentCheck.ps1 -UIReview 3v3 -TimeoutSeconds 600 # 同上，六人报名
 ```
 
 `-UIReview` 固定一个能按获准概率抽到团队的 DEV 随机种子，不改产品参数或复制视图。三个拥有连接
@@ -90,7 +97,8 @@ AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <
 首个主动时刻、选择与学习次数、学习时等级、终局主动与图纸数、未分配点数与五维点数去向，以及 AI 的等级、击杀、助攻、死亡与每分钟等级）。这些数字只描述这几局，不作为平衡目标，也不判断 AI 行为对错。
 
 其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）放在里程碑或发布冻结后的完整验收里，在打包版上各跑一次。
-改到某个场景覆盖的系统时，PR 里也要跑那个场景。
+PR 前仅在改动涉及必须由真实拥有连接证明的行为或 Issue 明确要求时，选择覆盖实际改动及直接依赖的最小场景或已有定向模式；
+不因改动属于同一系统就跑整局或全部场景。没有定向入口时说明覆盖缺口，不默认启动长测。
 新增的原生测试要同步登记到 `CheckRuleReport.py`。如果某个模块的检查需要真实对局，优先补进满员场景，不另开新场景。
 
 ## 规则测试集合

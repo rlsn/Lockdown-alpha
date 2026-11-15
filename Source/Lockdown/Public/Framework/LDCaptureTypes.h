@@ -159,6 +159,41 @@ struct FLDPublicMatchView
     UPROPERTY() int64 OwnerBankedGuardMs = 0;
 };
 
+UENUM()
+enum class ELDResultBuildTarget : uint8 { Body, Active, EffectSegment, Component, Dash };
+
+USTRUCT()
+struct FLDResultBuildActive
+{
+   GENERATED_BODY()
+   UPROPERTY() FName DefinitionId;
+   UPROPERTY() uint8 Slot = 0;
+};
+
+USTRUCT()
+struct FLDResultBuildComponent
+{
+   GENERATED_BODY()
+   UPROPERTY() FName DefinitionId;
+   UPROPERTY() ELDResultBuildTarget Target = ELDResultBuildTarget::Body;
+   UPROPERTY() FName TargetId;
+   UPROPERTY() FName BoundActive;
+};
+
+// Only the installed rule-board identities and their placement, frozen after the result closes.
+USTRUCT()
+struct FLDResultBuild
+{
+   GENERATED_BODY()
+   UPROPERTY() bool bAvailable = false;
+   UPROPERTY() FString CatalogRoot;
+   UPROPERTY() TArray<FLDResultBuildActive> Actives;
+   UPROPERTY() TArray<FLDResultBuildComponent> Components;
+   UPROPERTY() FName FinalMod;
+   UPROPERTY() ELDResultBuildTarget FinalTarget = ELDResultBuildTarget::Body;
+   UPROPERTY() FName FinalTargetId;
+};
+
 USTRUCT()
 struct FLDResultRow
 {
@@ -173,6 +208,7 @@ struct FLDResultRow
     UPROPERTY() uint64 Assists = 0;
     UPROPERTY() int64 BankedGuardMs = 0;
     UPROPERTY() uint32 CompletedSprays = 0;
+    UPROPERTY() FLDResultBuild Build;
 };
 
 // Frozen public result. Rows follow the locked start roster; statistics never choose the winner.
@@ -273,12 +309,16 @@ namespace LDCapture
     // A match has at most this many contenders, so the scoreboard at most this many rows.
     inline constexpr int32 MaxScoreRows = 6;
     LOCKDOWN_API bool ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error);
+    LOCKDOWN_API bool ValidateResultBuild(const FLDResultBuild& Build, FString& Error);
     LOCKDOWN_API bool ValidateResultView(const FLDResultView& View, FString& Error);
     LOCKDOWN_API bool ValidateKillFeed(const FLDKillFeedView& View, FString& Error);
     LOCKDOWN_API ELDLobbyProjectionResult AcceptPublicMatchView(const FLDPublicMatchView& Candidate,
         FLDPublicMatchView& Latest, FString& Error);
     LOCKDOWN_API ELDLobbyProjectionResult AcceptResultView(const FLDResultView& Candidate,
         FLDResultView& Latest, FString& Error);
+    // The previous result belongs to this Lobby only when its frozen identity and generation match.
+    LOCKDOWN_API const FLDResultRow* PreviousLobbyResult(const FLDResultView& Result, const FLDLobbyView& Lobby,
+        const FLDLobbyMember& Member);
     LOCKDOWN_API ELDLobbyProjectionResult AcceptKillFeed(const FLDKillFeedView& Candidate,
         FLDKillFeedView& Latest, FString& Error);
 }

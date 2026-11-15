@@ -8,6 +8,7 @@ from fractions import Fraction
 import json
 import math
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import unittest
@@ -506,6 +507,13 @@ class ApprovedDemoData(unittest.TestCase):
                     self.assertIn("[", row["description_text"])
                 if row["id"] in COMPONENT_FRAMES or row["id"] in WORKSHOP_FRAMES:
                     self.assertEqual(row["icon_id"], "icon_" + row["id"])
+        # A final mod's effect, cost and notes lines reuse its description's own clauses, each exactly once.
+        clauses = lambda *texts: sorted(part for text in texts for part in re.split("[。；，]", text) if part)
+        for identity in content.FINAL_MOD_CONTRACTS:
+            row = next(row for row in self.data["display"] if row["id"] == identity)
+            with self.subTest(identity=identity):
+                self.assertEqual(clauses(row["effect_text"], row["cost_text"], row["notes_text"]),
+                                 clauses(row["description_text"]))
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")

@@ -279,6 +279,7 @@ FLDLobbyView ALDGameMode::ReadLobby() const
     View.Phase = MatchPhase;
     View.RosterRevision = RosterRevision;
     View.PublicRevision = LobbyPublicRevision;
+    if (MatchPhase == ELDMatchPhase::Lobby) { View.PreviousResultId = PreviousLobbyResultId; }
     View.AICount = uint8(LobbyAISlots.Num());
     bool AllReady = !Contenders.IsEmpty();
     for (const FGuid& Id : RosterOrder)
@@ -304,6 +305,10 @@ FLDLobbyView ALDGameMode::ReadLobby() const
         Member.ContenderId = LobbyAISlots[Index];
         Member.Name = FString::Printf(TEXT("AI 对手 %d"), Index + 1);
         Member.Kind = ELDContenderKind::OpponentAI;
+        if (MatchPhase == ELDMatchPhase::Lobby)
+        {
+            if (const FGuid* Previous = PreviousLobbyAI.Find(Member.ContenderId)) { Member.PreviousAIContender = *Previous; }
+        }
         View.Members.Add(MoveTemp(Member));
     }
     View.StartBlocker = !EntryFailure.IsEmpty() ? EntryFailure.Left(512) : StartGateBlocker();
@@ -392,7 +397,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
             }
             else if ((Changed = Request.AICount != LobbyAISlots.Num()) == false || AdvanceRoster(Receipt.Detail))
             {
-                while (LobbyAISlots.Num() > Request.AICount) { LobbyAISlots.Pop(); }
+                while (LobbyAISlots.Num() > Request.AICount) { PreviousLobbyAI.Remove(LobbyAISlots.Pop()); }
                 while (LobbyAISlots.Num() < Request.AICount) { LobbyAISlots.Add(FGuid::NewGuid()); }
                 Receipt.Outcome = ELDSessionOutcome::Committed;
                 Receipt.Reason = ELDSessionReject::None;

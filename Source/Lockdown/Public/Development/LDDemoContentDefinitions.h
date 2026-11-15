@@ -862,6 +862,13 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString DescriptionKey;
     // Active and stat descriptions are card templates (LDDemoCardText).
     UPROPERTY() FString DescriptionText;
+    // Only a final mod's row has effect, cost and notes lines (keys <id>.effect/.cost/.notes); empty elsewhere.
+    UPROPERTY() FString EffectKey;
+    UPROPERTY() FString EffectText;
+    UPROPERTY() FString CostKey;
+    UPROPERTY() FString CostText;
+    UPROPERTY() FString NotesKey;
+    UPROPERTY() FString NotesText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };

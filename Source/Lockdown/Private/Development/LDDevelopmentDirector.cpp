@@ -457,7 +457,9 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     }
     View.ProgressionRevision = Progression.Revision;
     View.BuildRevision = Build.Revision;
+    View.CombatInstalledRevision = Record->CombatInstalled.BuildRevision;
     View.UnspentPoints = Unspent;
+    View.EmptyPoolGrants = Progression.EmptyPoolGrants;
     View.StatPoints.Reserve(Definitions.Stats.Num());
     const TArray<const FLDDemoStatDefinition*> StatOrder = Definitions.StatsInDesignOrder();
     for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
@@ -504,9 +506,13 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.FinalModOptions = Progression.FinalMod.Options;
     View.FinalModChosen = Build.FinalMod.DefinitionId;
     View.FinalMod = Build.FinalMod;
-    if (View.bFinalModPending)
+    // The open offer lists each card's legal sources; once a card is taken it lists that card's, so a dormant card
+    // (its source removed) shows where it can be rebound.
+    TArray<FName> SourceOptions;
+    if (View.bFinalModPending) { SourceOptions = View.FinalModOptions; }
+    else if (!Build.FinalMod.IsEmpty()) { SourceOptions.Add(Build.FinalMod.DefinitionId); }
     {
-        for (FName Option : View.FinalModOptions)
+        for (FName Option : SourceOptions)
         {
             TArray<FLDComponentTarget> Targets;
             const ELDGrowthReason Reason = LDProgression::FinalModTargets(Definitions, Build, Option, Targets);
@@ -636,8 +642,7 @@ bool ALDDevelopmentDirector::ReadBuildContext(const FGuid& ContenderId, LDProgre
     }
     OutLife = LifeRead.Life;
     Out.LifePhase = LifeRead.Phase;
-    Out.Stage = GameMode->GetTimeline().GetStage() == ELDMatchStage::FinalField
-        ? LDProgression::EMatchStage::Closed : GameMode->ReadBuildStage(Match);
+    Out.Stage = GameMode->ReadBuildStage(Match);
     return true;
 }
 
@@ -701,11 +706,6 @@ FLDBuildReceipt ALDDevelopmentDirector::CommitPendingBuild(const FGuid& Contende
     if (Command.ExpectedBuildRevision != Record->Build.Revision)
     {
         return Reject(ELDGrowthReason::BuildStale);
-    }
-    // Phase 9: the final mod choice (or the final field entry) locked this build for the rest of the match.
-    if (Record->Progression.FinalMod.bLocked)
-    {
-        return Reject(ELDGrowthReason::FinalLocked);
     }
     if (!GameMode->CanUseRestService(ContenderId, Command.Kind))
     {
@@ -1546,46 +1546,7 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record)
 
 FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGrowthBuild& Build) const
 {
-    FLDBuildProjectionInput Input;
-    Input.Level = Build.Level;
-    if (Content.IsValid() && Build.StatPoints.Num() == Content->Get().Stats.Num())
-    {
-        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->Get().StatsInDesignOrder();
-        for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
-        {
-            if (Build.StatPoints[Index] != 0)
-            {
-                Input.StatPoints.Emplace(StatOrder[Index]->Id, Build.StatPoints[Index]);
-            }
-        }
-    }
-    for (const FLDLearnedActive& Active : Build.Actives)
-    {
-        FLDLearnedActiveValue& Value = Input.Actives.AddDefaulted_GetRef();
-        Value.AbilityId = Active.Id;
-        // An out-of-range slot stays None so Combat rejects the input instead of guessing a key.
-        Value.Entry = Active.Slot == 0 ? ELDCombatEntry::Q
-            : Active.Slot == 1 ? ELDCombatEntry::W
-            : Active.Slot == 2 ? ELDCombatEntry::E
-            : ELDCombatEntry::None;
-    }
-    // #198 B: installed components only, in the build's id order.
-    for (const FLDComponentInstance& Instance : Build.Components)
-    {
-        if (Instance.bInstalled)
-        {
-            FLDInstalledComponentValue& Value = Input.Components.AddDefaulted_GetRef();
-            Value.ComponentId = Instance.Id;
-            Value.BoundActive = Instance.Target.BoundActive;
-            Value.Element = Instance.Target.Element;
-            Value.TargetKind = Instance.Target.Kind;
-            Value.TargetId = Instance.Target.Definition;
-            Value.BoundComponent = Instance.Target.BoundComponent;
-        }
-    }
-    Input.ResultBuildRevision = Build.Revision;
-    Input.FinalMod = Build.FinalMod;
-    return Input;
+    return LDProgression::CombatProjectionInput(Content.IsValid() ? &Content->Get() : nullptr, Build);
 }
 
 FLDCombatCaller ALDDevelopmentDirector::MakeCaller(const FGuid& ContenderId) const

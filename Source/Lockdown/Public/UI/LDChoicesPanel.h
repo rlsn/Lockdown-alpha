@@ -8,19 +8,25 @@
 class UTextBlock;
 class UBorder;
 class UImage;
+class UTexture2D;
 class USizeBox;
 class UVerticalBox;
 class UHorizontalBox;
 class UWrapBox;
+class UCanvasPanel;
+class UCanvasPanelSlot;
 struct FLDDemoContentDefinitions;
 
-// The 构筑 tray behind the HUD's bottom-right 构筑 button, and the NPC service window of a rest.
-// The tray is a stack of card rows right above the button, one row per pending decision (the active offer nearest the
-// button, then the opening base pick, the elite component choices and the blueprints that have an empty Q/W/E slot). A card
-// shows the icon and the name only; hovering it shows its full rules in the HUD's slot popup (Hovered) and a click takes it.
+// The 构筑 tray behind the HUD's bottom-right 构筑 button: open, it is the build workshop (ULDWorkshop lays it out), with the
+// pending decisions stacked in the workshop's pending area, the active offer and the final mod on a centre stage of big
+// cards, and a rest's NPC services on the workshop objects they act on (APP_SPEC §7 构筑). In the field, closed, the same
+// cards show as quick picks above the button. One row per pending decision (the active offer nearest the bottom, then the
+// opening base pick, the elite component choices and the blueprints that have an empty Q/W/E slot). A card shows the icon and
+// the name only; hovering it shows its full rules in the workshop's dock or the HUD's slot popup (Hovered); a click takes it.
 // Component rows switch to icon-only tiles when there are too many component cards. Nothing scrolls and nothing explains:
 // results and refusals go to the HUD's toast (Notify). All mutations retain the existing build commands, revision checks,
 // confirmations and authority receipts.
+class UScaleBox;
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
 {
@@ -30,6 +36,7 @@ public:
     TFunction<uint64(const FLDBuildCommand&,ELDGrowthReason&)> SubmitBuild;
     // The id the next build submit will receive (0 while one is in flight); a Listen Host answers inside the call.
     TFunction<uint64()> PeekRequestId;
+    TFunction<void(const FLDBuildReceipt&,const FLDFinalModSelection&)> FinalModApplied;
     // Every result and refusal line (the HUD shows it as a toast).
     TFunction<void(const FString&)> Notify;
     // Stats: the owner's level and stats, so every card shows its numbers for now (#147). Stage (the public match's build
@@ -39,17 +46,57 @@ public:
         const FLDDemoContentDefinitions* Content,const LDHUD::FCardStats& Stats,const LDHUD::FSlotKeys& Keys);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDBuildReceiptQueryResult& Result);
-    // Local view context only; the owning authority still admits every service command.
+    // Local view context only; the owning authority still admits every service command. Near an NPC in a rest's build window
+    // the open workshop shows its services on the objects they act on.
     void SetServiceContext(ELDRestService Service);
-    bool OpenServicePanel();
-    // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button).
-    void SetTrayInset(float Right,float Bottom);
+    ELDRestService GetServiceContext() const {return ServiceContext;}
+    bool IsServiceShown() const;
+    // Where the workshop puts the build moments and the services (absolute rectangles from its last layout).
+    struct FWorkshopPlaces
+    {
+        bool bActive=false;
+        FSlateRect Stage;
+        FSlateRect Dock;
+        FSlateRect Heads[LDHUD::StorageColumnCount];
+        FSlateRect HeadIcons[LDHUD::StorageColumnCount];
+        FSlateRect CharacterFoot;
+        FSlateRect Points;
+        FSlateRect LibraryTop;
+        FSlateRect PendingTop;
+    };
+    void SetWorkshopPlaces(const FWorkshopPlaces& InPlaces){Places=InPlaces;}
+    // The centre stage shows the active offer (and then the final mod) as big cards while the full workshop is open, until
+    // the player steps back to the board for that offer.
+    bool IsStageShown() const {return bStageShown;}
+    bool IsFinalStage() const {return bStageShown&&bStageFinal;}
+    bool LeaveStage();
+    // Field quick picks: with the tray closed, the pending cards stand above the 构筑 button; in an engagement window they
+    // shrink to icons and show no description.
+    void SetQuickPick(bool bQuick,bool bCompact);
+    bool IsQuickShown() const {return bQuickShown;}
+    bool IsQuickHit(FVector2D Absolute) const;
+    // The components a confirm line would take off or send back (lit orange on the board before the hold).
+    TArray<FName> ConfirmWarnings() const;
+    // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button), and the width
+    // its rows wrap at (0: four cards); in the workshop the rows wrap inside the pending area.
+    void SetTrayInset(float Right,float Bottom,float Width=0.f,float Height=0.f);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
-    // Independent final cards; several legal sources open a source picker before the choice commits.
+    // Independent final cards; several legal sources open a source picker before the choice commits. On the stage a card and
+    // a source only select (SelectFinalMod, SelectFinalSource) and the hold of GrowthFinalLock commits (LockFinalMod).
     bool ChooseFinalMod(int32 Index);
     bool ChooseFinalModSource(int32 Index);
+    bool SelectFinalMod(int32 Index);
+    bool ReopenFinalStage(int32 Index);
+    // A taken final card whose source was removed (dormant) binds again: one legal source at once, otherwise its sources show.
+    bool RebindFinalMod();
+    bool FinalDormant() const;
+    bool SelectFinalSource(int32 Index);
+    // The final page's 绑定来源 row is the board's five columns (本体 Q W E D): a column with one legal source selects it, one
+    // with several lists them in the description dock for a second click.
+    bool SelectFinalColumn(int32 Column);
+    bool LockFinalMod();
     bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
     bool PreviewOffer(int32 Index);
@@ -64,15 +111,23 @@ public:
     bool Respec();
     bool AskReplace(int32 Index,uint8 Key);
     bool AskForget(uint8 Key);
+    // The trainer's right click on the board's skill head in Column (LDHUD::SlotColumn): asks to forget that slot's active.
+    // False (the click is not taken) without the trainer or on the body and dash columns.
+    bool ForgetAtColumn(int32 Column);
     // #198 G rest material services. ToggleFillGap opens (or closes) the gap target list; PickGapTarget shows that target's
-    // fillers and PickGapFiller the confirm line ("花 4 点：为 X 补 Y"). ToggleDismantle opens the list of owned common
-    // components; PickDismantle selects or deselects one, and the approved count selected shows the confirm line naming what
-    // is removed and which installs go back to the inventory. ConfirmRestAction sends either.
+    // fillers and PickGapFiller the confirm line ("花 4 点：为 X 补 Y"). ToggleDismantle turns the library and the board into
+    // the selection of owned common components (the storage's service pick); PickDismantle (an index of the candidates) or
+    // PickDismantleComponent selects or deselects one, the dock's equation shows the picks, and the approved count selected
+    // shows the confirm line naming what is removed and which installs go back to the inventory. ConfirmRestAction sends either.
     bool ToggleFillGap();
     bool PickGapTarget(int32 Index);
     bool PickGapFiller(int32 Index);
     bool ToggleDismantle();
     bool PickDismantle(int32 Index);
+    bool PickDismantleComponent(FName Component);
+    // The open dismantle selection for the storage's service pick: its candidates (empty when closed) and the picks.
+    TArray<FName> DismantleSelectable() const;
+    const TArray<FName>& DismantleSelection() const {return DismantlePicked;}
     // #198 G: a pending elite camp component choice (ChoiceIndex in the view's oldest-first order): take the option at
     // OptionIndex, or, once every option is owned, the empty-pool points.
     bool PickComponentChoice(int32 ChoiceIndex,int32 OptionIndex);
@@ -86,8 +141,8 @@ public:
     // #198 B: an opening base card click: takes the option at Index of the shown list; a plain base asks to install it on
     // 本体 in the same commit, B18 goes to the storage, where its drop on a skill asks for the element (#227).
     bool PickOpeningBase(int32 Index);
-    virtual bool IsPanelOpen() const override {return bOpen||bServicePanelOpen;}
-    // The 构筑 tray (not the NPC service window) is open.
+    virtual bool IsPanelOpen() const override {return bOpen;}
+    // The 构筑 tray (the workshop) is open.
     bool IsTrayOpen() const {return bOpen;}
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
@@ -95,7 +150,9 @@ public:
     // The tray has at least one card (LDHUD::GrowthPending over the same view).
     bool HasCards() const;
     // The card of the open tray under Pointer (absolute), else the pinned offer card, with its popup lines; or null.
-    const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent=nullptr) const;
+    const UWidget* Hovered(FVector2D Pointer,LDHUD::FActionDetailView& Out,FName* OutComponent=nullptr,FString* OutIcon=nullptr) const;
+    // The tray's laid-out size, so the workshop can give its rows the room they take in the pending area.
+    FVector2D TrayDesiredSize() const;
     // The HUD opened the tray for the opening offer (D10): it folds back to the 构筑 button after a few seconds unless the
     // player engages with it (LDHUD::FChoicesFold).
     void MarkOpenedAutomatically();
@@ -107,9 +164,12 @@ protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual UWidget* FocusScope() const override;
     virtual UWidget* HitArea() const override;
+    virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
+    virtual int32 NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const override;
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDDemoOpponentProbe;
+    friend class FLDHUDCardFacesTest;
 #endif
     // One tray card: the icon (the name's first character without its texture) over the name, or the icon alone as a grid
     // tile. Detail is its popup.
@@ -129,6 +189,30 @@ private:
         int32 AppliedEnabled=-1;
         bool bTile=false;
         LDHUD::FActionDetailView Detail;
+        // The stage face: the facts line, the tag line, the element chip and the 可接 row (collapsed on tray cards).
+        TObjectPtr<UTextBlock> Facts;
+        TObjectPtr<UTextBlock> Tags;
+        TObjectPtr<UWidget> ElementChip;
+        TObjectPtr<UTextBlock> Element;
+        TObjectPtr<UHorizontalBox> Links;
+        TArray<TObjectPtr<UImage>> LinkIcons;
+        bool bBig=false;
+    };
+    struct FOfferGhost
+    {
+        FSlateRect Frame,Icon,NameBounds;
+        TWeakObjectPtr<UTexture2D> Texture;
+        FString Name,Glyph;
+        float NameSize=0.f;
+    };
+    struct FOfferMotion
+    {
+        LDHUD::FOfferMotionTicket Ticket;
+        FOfferGhost Chosen;
+        TArray<FOfferGhost> Others;
+        ELDBuildChoiceResult Result=ELDBuildChoiceResult::None;
+        uint8 Slot=0;
+        double StartedAt=-1.;
     };
     // One pending elite component choice: its option cards and the empty-pool points card.
     struct FChoiceRow
@@ -137,13 +221,19 @@ private:
         TArray<FTrayCard> Options;
         FTrayCard Points;
     };
+    enum class ETrayGroup : uint8 { Blueprint,ComponentChoice,OpeningBase,Offer,FinalMod,FinalSource };
+    struct FTrayUnit
+    {
+        ETrayGroup Group=ETrayGroup::Blueprint;
+        int32 First=0;
+        int32 Count=0;
+    };
+    // The trainer's buttons of one pending blueprint, standing on the Q/W/E column heads: "学到" on an empty slot, "替换" on
+    // an occupied one (#198 rest only); only the selected blueprint's show.
     struct FBlueprintRow
     {
-        TObjectPtr<UWidget> Row;
-        TObjectPtr<UImage> Picture;
-        TObjectPtr<UTextBlock> Name,Summary,Blocked;
+        TObjectPtr<ULDCommandButton> Pick;
         TArray<TObjectPtr<ULDCommandButton>> Learn;
-        // #198 rest only: "替换 Q/W/E" for each occupied slot.
         TArray<TObjectPtr<ULDCommandButton>> Replace;
     };
     // A replace, forget (#198 G: fill gap or dismantle) waiting on the confirm line, with the terms it was asked under.
@@ -162,6 +252,16 @@ private:
     // The tray: its frame (placed over the whole canvas) and the stack of rows.
     UPROPERTY() TObjectPtr<UBorder> TrayFrame;
     UPROPERTY() TObjectPtr<UVerticalBox> Tray;
+    UPROPERTY() TObjectPtr<UHorizontalBox> TrayPager;
+    UPROPERTY() TObjectPtr<ULDCommandButton> TrayPrevious;
+    UPROPERTY() TObjectPtr<ULDCommandButton> TrayNext;
+    UPROPERTY() TObjectPtr<UTextBlock> TrayPageText;
+    TArray<FTrayUnit> TrayUnits;
+    TArray<FIntPoint> TrayPages;
+    int32 TrayPage=0;
+    float TrayAvailableWidth=0.f,TrayAvailableHeight=0.f;
+    bool bTrayOverflow=false,bTrayOverflowReported=false;
+    bool bCompactTray=false,bIconOnlyTray=false;
     UPROPERTY() TObjectPtr<UWidget> OfferGroup;
     UPROPERTY() TObjectPtr<UTextBlock> OfferNumber;
     UPROPERTY() TObjectPtr<UWrapBox> OfferRow;
@@ -169,29 +269,59 @@ private:
     UPROPERTY() TObjectPtr<UWrapBox> FinalModRow;
     UPROPERTY() TObjectPtr<UWrapBox> FinalSourceRow;
     UPROPERTY() TObjectPtr<UWrapBox> BaseRow;
+    // Every tray row (they all wrap at one width).
+    UPROPERTY() TArray<TObjectPtr<UWrapBox>> TrayRows;
     UPROPERTY() TObjectPtr<UVerticalBox> ChoiceRowList;
     UPROPERTY() TObjectPtr<UWrapBox> BlueprintCardRow;
     TArray<FTrayCard> OfferCards;
     TArray<FTrayCard> FinalCards;
     TArray<FTrayCard> FinalSourceCards;
+    // The final page's column cells (本体 Q W E D) and the board column of each shown source (INDEX_NONE: not on the board).
+    TArray<FTrayCard> FinalColumnCards;
+    TArray<int32> ShownSourceColumns;
+    int32 FinalColumnPick=INDEX_NONE;
     FTrayCard SkipCard;
     TArray<FTrayCard> BaseCards;
     TArray<FChoiceRow> ChoiceRows;
     TArray<FTrayCard> BlueprintCards;
     TArray<FBlueprintRow> BlueprintRows;
     ELDRestService ServiceContext=ELDRestService::None;
-    UPROPERTY() TObjectPtr<UBorder> ServicePanel;
-    UPROPERTY() TObjectPtr<UVerticalBox> ServiceBody;
-    // The trainer's blueprint rows (learn or replace).
-    UPROPERTY() TObjectPtr<UWidget> BlueprintSection;
-    UPROPERTY() TObjectPtr<UVerticalBox> BlueprintList;
+    // The centre stage: its title, the chance line, the cards moved in from their tray rows, the final sources, the final
+    // description (effect, cost, notes) with the lock, and the way back to the board.
+    UPROPERTY() TObjectPtr<UCanvasPanel> Layer;
+    UPROPERTY() TObjectPtr<UWidget> StageBox;
+    UPROPERTY() TObjectPtr<UTextBlock> StageTitle;
+    UPROPERTY() TObjectPtr<UTextBlock> StageSub;
+    UPROPERTY() TObjectPtr<UHorizontalBox> StageCards;
+    UPROPERTY() TObjectPtr<UWidget> StageSourceLine;
+    UPROPERTY() TObjectPtr<UHorizontalBox> StageSources;
+    UPROPERTY() TObjectPtr<ULDCommandButton> StageBack;
+    UPROPERTY() TObjectPtr<UWidget> FinalDesc;
+    // The selected card's effect, cost and notes lines (each a label chip and its text), the whole description when the
+    // catalog has no split for it, its numbers, and the sources of a picked column holding several.
+    UPROPERTY() TArray<TObjectPtr<UWidget>> FinalPartRows;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> FinalPartTexts;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalDescText;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalNumbersText;
+    UPROPERTY() TObjectPtr<UWidget> FinalSourceChoiceLine;
+    UPROPERTY() TObjectPtr<UWrapBox> FinalSourceChoices;
+    UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
+    UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
+    // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, the artisan's
+    // buttons, and the dock box for the pickers and the confirm line.
+    UPROPERTY() TObjectPtr<UWidget> RespecBox;
+    UPROPERTY() TObjectPtr<UWidget> NpcBox;
+    UPROPERTY() TObjectPtr<UWidget> ArtisanBox;
+    UPROPERTY() TObjectPtr<UWrapBox> TrainerPicks;
+    UPROPERTY() TObjectPtr<UWidget> ServiceDock;
+    UPROPERTY() TObjectPtr<UScaleBox> ServiceFit;
+    UPROPERTY() TObjectPtr<UVerticalBox> ServiceDockBody;
     // #198 rest services section.
     UPROPERTY() TObjectPtr<UWidget> RestSection;
     UPROPERTY() TObjectPtr<ULDCommandButton> NpcButton;
     UPROPERTY() TObjectPtr<UTextBlock> NpcBlocked;
     UPROPERTY() TObjectPtr<ULDCommandButton> RespecButton;
     UPROPERTY() TObjectPtr<UTextBlock> RespecBlocked;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ForgetButtons;
     UPROPERTY() TObjectPtr<UTextBlock> ForgetBlocked;
     // #198 G FillGap and Dismantle: their service buttons, the target / filler pickers and the dismantle selection.
     UPROPERTY() TObjectPtr<ULDCommandButton> FillGapButton;
@@ -204,15 +334,32 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DismantleBlocked;
     UPROPERTY() TObjectPtr<UWidget> DismantleSection;
     UPROPERTY() TObjectPtr<UTextBlock> DismantleHeading;
-    UPROPERTY() TObjectPtr<UVerticalBox> DismantleList;
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DismantleLines;
-    UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> DismantleButtons;
+    // The dock's equation: one painted face per input (empty ones dashed) and the result's, with their names below.
+    UPROPERTY() TObjectPtr<UHorizontalBox> DismantleEquation;
+    UPROPERTY() TArray<TObjectPtr<USizeBox>> DismantleFaces;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DismantleNames;
+    UPROPERTY() TObjectPtr<ULDPaintLayer> DismantlePaint;
     UPROPERTY() TObjectPtr<UWidget> RestConfirmLine;
     UPROPERTY() TObjectPtr<UTextBlock> RestConfirmText;
-    UPROPERTY() TObjectPtr<ULDCommandButton> RestConfirmButton;
+    UPROPERTY() TObjectPtr<ULDHoldButton> RestConfirmButton;
     FRestConfirm RestConfirm;
     // Every widget built after RebuildWidget, kept alive with the tree.
     UPROPERTY() TArray<TObjectPtr<UWidget>> RowWidgets;
+    TMap<UWidget*,UCanvasPanelSlot*> LayerSlots;
+    FWorkshopPlaces Places;
+    bool bStageShown=false;
+    bool bStageFinal=false;
+    FGuid StageLeftFor;
+    FGuid StageShownFor;
+    double StageOpenedAt=-1.;
+    FOfferMotion OfferMotion;
+    FGuid ConfirmedOffer;
+    uint32 ConfirmedMatch=0,ConfirmedLife=0;
+    int32 FinalSourcePick=INDEX_NONE;
+    int32 TrainerBlueprint=0;
+    bool bQuick=false;
+    bool bQuickCompact=false;
+    bool bQuickShown=false;
     FLDProgressionView Latest;
     uint32 LatestMatch=0,LatestLife=0;
     ELDLifePhase LatestLifePhase=ELDLifePhase::Unspawned;
@@ -225,6 +372,8 @@ private:
     uint64 ShownOfferRevision=0;
     FGuid ShownFinalMod;
     FName PendingFinalOption;
+    FLDFinalModSelection SubmittedFinal;
+    bool bFinalFeedbackAllowed=false;
     TArray<FLDFinalModSourceView> ShownFinalSources;
     // The blueprints the trainer rows and the tray cards show, in the view's order.
     TArray<FName> ShownBlueprints;
@@ -246,7 +395,6 @@ private:
     ELDBuildCommandKind PendingKind=ELDBuildCommandKind::None;
     uint32 Answers=0;
     bool bOpen=false;
-    bool bServicePanelOpen=false;
     LDHUD::FChoicesFold Fold;
     double UiNow() const;
     bool Usable() const;
@@ -260,7 +408,7 @@ private:
     void ShowFace(FTrayCard& Card,const FString& Key,const FString& Name,const FString& IconId,const FString& Glyph,
         const LDHUD::FActionDetailView& Detail);
     // Shows the card as a named card or an icon tile (bTile), enabled or greyed out.
-    void ShowLook(FTrayCard& Card,bool bTile,bool bEnabled);
+    void ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVisible=true);
     FTrayCard& BaseCardAt(int32 Index);
     FChoiceRow& ChoiceRowAt(int32 Index);
     FTrayCard& BlueprintCardAt(int32 Index);
@@ -273,6 +421,19 @@ private:
     void RefreshBlueprintCards();
     void RefreshBlueprints();
     void RefreshRest();
+    void UpdateStage();
+    bool ConfirmedOfferStillShown() const;
+    bool HasAvailableOffer() const;
+    bool HasAvailableFinal() const;
+    bool OfferMotionActive() const;
+    void CaptureOfferMotion(int32 Index);
+    void PaintOfferMotion(const LDUIPaint::FContext& Paint) const;
+    void PlanTrayPages(bool bTiles);
+    bool TrayShows(ETrayGroup Group,int32 Index=0) const;
+    void RefreshStage();
+    void LayoutLayer();
+    void PlaceOnLayer(UWidget* Widget,const FSlateRect& Absolute,FVector2D Alignment,bool bFill=false);
+    void ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon);
     // Why a rest service is refused now: the gate's reason, then the local checks (price, unspent points, an outstanding
     // offer, nothing allocated); empty when it may be sent.
     FString NpcRefusal() const;
@@ -285,7 +446,8 @@ private:
     FString RestConfirmRefusal() const;
     ULDCommandButton* GapTargetButtonAt(int32 Index);
     ULDCommandButton* GapFillerButtonAt(int32 Index);
-    ULDCommandButton* DismantleButtonAt(int32 Index);
+    void BuildDismantleEquation(int32 Inputs);
+    void PaintDismantle(const LDUIPaint::FContext& Paint) const;
     // The FillGap / Dismantle pickers and their confirm line still match the latest material services.
     void RefreshMaterials();
     void CloseMaterialPickers();

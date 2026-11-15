@@ -85,7 +85,8 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 - 其他身体的可见表现主要通过观测中继，而不是把所有权威 Actor 广播出去后在 UI 上隐藏。
 - GameState 只放明确公开的事实，不应成为全部玩家位置、背包和构筑的总表。
 - `ALDGameState::DemoLobby` 是名单、Host/Ready/AI 名额及公开阻塞原因的只读投影，
-  不包含 LedgerMatch、身体坐标或私有构筑。每个 AI 名额在开局时绑定一个服务器 `ALDOpponentController`。
+  不包含 LedgerMatch、身体坐标或当前私有构筑。Lobby 另带上局公开结果身份及保留 AI 席位的旧参赛者身份；
+  AI 名额删除后重加不继承旧映射。每个 AI 名额在开局时绑定一个服务器 `ALDOpponentController`。
 - `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
   Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
 - `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与旗杆状态来源：阶段、开放时刻、喷漆区状态
@@ -94,13 +95,15 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   涂鸦主人 `GraffitiOwner` 与其身份色槽位 `GraffitiPresentation`、运行中守护的获胜时刻 `GuardDueAtMs`
   或被冻结的守护进度 `GuardKeptMs`；不列喷漆区内人数、
   保护者或隐藏坐标。实时显示时间取同代 `DemoClock.NowMs`。`MatchResult` 仅在 Results 发布一次，
-  按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
+  按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因、用时和只读规则板摘要；
+  摘要只在写闸关闭后从成长权威投影已学技能、已装构件、安装位置和终局改装，附目录摘要，不包含库存、属性点或冷却。
+  投影失败记日志并标记不可用，不影响结果锁定；结果保留供返回同房间的 Lobby 按身份显示，不能作为新局状态。
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 27），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 31），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
-- 局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
+- 完整局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
   （`ALDPlayerController` 默认子对象）发出 Offer，拥有者按顺序拉取分块并在本机 `Saved/Blueprints` 写文件；
   见[视野与 UI](VISION_AND_UI.md#构筑蓝图文件与查看)。
 
@@ -125,7 +128,7 @@ Demo Lobby 不通过 `RestartPlayer` 自动生成旧身体。普通离开使当�
 Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩余玩家。
 死亡、复活与保护由 `Framework\LDGameModeLife.cpp` 提交：锁定的 Combat 致死事实结束当前生命
 （撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
-复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
+复活等待按死亡时的野外进度 T 取 `LIFE.RespawnSec.Field1/Field2/Field3/Final`，到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。已确定的等待总时长经 `CombatView.RespawnDurationMs` 仅发布给本人供界面使用，复活、离局或休息终止等待时清除。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
 成长、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Rest/Development/CaptureOpen 为真。

@@ -54,6 +54,7 @@ public:
     TFunction<uint64(const FLDBuildCommand&,ELDGrowthReason&)> SubmitBuild;
     TFunction<uint64()> PeekRequestId;
     TFunction<void(const FString&)> Notify;
+    TFunction<void(const FLDBuildReceipt&)> AllocationApplied;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;

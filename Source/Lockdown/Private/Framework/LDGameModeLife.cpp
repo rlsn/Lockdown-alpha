@@ -446,6 +446,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     ++Life->Revision;
     Life->ProtectedUntilMs = 0;
     Life->RespawnAtMs = RespawnAt;
+    Life->RespawnDurationMs = RespawnAt > 0 ? WaitMs : 0;
     if (bFinal && RespawnAt > 0) { ++ShowdownRespawns.FindOrAdd(Id); }
     if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
     PKLives.Remove(Fact.Key.Victim.EntityId);
@@ -683,6 +684,7 @@ bool ALDGameMode::CommitPlacedLife(FLDPlacedBody& Placed, FLDBodyCombatState&& C
     Life->Phase = ELDLifePhase::Alive;
     ++Life->Revision;
     Life->RespawnAtMs = 0;
+    Life->RespawnDurationMs = 0;
     Life->ProtectedUntilMs = ProtectedUntilMs;
     Life->SpawnAnchor = Placed.Reservation->AnchorId();
     Life->SpawnOffset = Placed.Reservation->OffsetIndex();
@@ -998,6 +1000,7 @@ bool ALDGameMode::SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, con
         Life.Body = Ref;
         Life.Actor = Spawn.Body;
         Life.RespawnAtMs = 0;
+        Life.RespawnDurationMs = 0;
         Life.ProtectedUntilMs = 0;
         BeginLifeMotion(Life, Ref, *Spawn.Body);
         OutBodies.Add(Ref);
@@ -1056,6 +1059,7 @@ void ALDGameMode::RemoveLifeBinding(const FGuid& EntityId)
     else { ++Life->Revision; }
     Life->ProtectedUntilMs = 0;
     Life->RespawnAtMs = 0;
+    Life->RespawnDurationMs = 0;
     // Native disconnect may already have destroyed the Pawn before Logout.
     // Retire Combat ownership by its stable binding, not weak-pointer liveness.
     if (Combat)
