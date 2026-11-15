@@ -669,6 +669,8 @@ public:
         { return Fail(TEXT("#C2"), TEXT("A started match has no active camp director")); }
         const int32 Low = Roster->FindCamp(CampLowId), High = Roster->FindCamp(CampHighId);
         if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks l09 or h05")); }
+        // The opening rest stands the camps up a few per frame (ALDCampDirector::InitialGroupsPerFrame).
+        if (!bCampsReady && Camps->HasPendingInitialCamps()) { return true; }
         if (!bCampsReady)
         {
             int32 Alive = 0, Placed = 0, Idle = 0;

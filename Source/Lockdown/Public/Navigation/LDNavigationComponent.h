@@ -77,9 +77,9 @@ public:
     uint32 HeartbeatsSent() const {return HeartbeatSequence;}
     bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
-    // The accepted order keeps being predicted under a pending replacement, but never across a Stop's newer epoch.
+    // LDOrderRules::PredictedMoveIdentity of this owner's orders.
     FLDMoveIdentity PredictedIdentity() const
-    {return !bLocalStop && ClientActive.Order!=0 && ClientActive.Epoch==Local.Epoch ? ClientActive : Local;}
+    {return LDOrderRules::PredictedMoveIdentity(Local,ClientActive,EarlyOrder,bLocalStop,RevokedOrder);}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
@@ -269,6 +269,9 @@ private:
     void LogOwnOrder(const FLDSpatialOrderRequest& Request);
     LDLog::FRateLimit OrderLogLimit{.25};
     void ApplyPrediction();
+    // Remote owning client: a plain (non-Shift) ground order walks its local route from the frame it is sent; its
+    // receipts then keep, replan or end that walk (LDOwnerPrediction).
+    void PredictSentGround(const FLDSpatialOrderRequest& Request);
     void RefreshLocalActive();
     void Face(const FVector& Direction);
     // ---- Authority order book (LDNavigationOrders.cpp).
@@ -372,6 +375,11 @@ private:
     friend class FLDDemoCombatProbe;
 #endif
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
+    // The sent ground order walked before the server answered it (0 when none), and the kind of the walk being steered.
+    FLDMoveIdentity EarlyOrder;
+    // The last early walk that ended before it ran; its saved moves no longer replay.
+    FLDMoveIdentity RevokedOrder;
+    ELDSpatialOrderKind FollowKind=ELDSpatialOrderKind::MoveGround;
     FLDOrderReceipt LastReceipt;
     uint64 LastReceiptSerial=0;
     uint32 Serial=0,Epoch=0,AcceptedOrder=0,AcknowledgedOrder=0,HeartbeatSequence=0;

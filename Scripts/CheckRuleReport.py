@@ -394,6 +394,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalSettingsPreferenceGroups",
         "Lockdown.Rules.DemoControlFeel.FixedCamera",
         "Lockdown.Rules.DemoControlFeel.OwnerCorrectionSmoothing",
+        "Lockdown.Rules.DemoControlFeel.OwnerWalkLead",
+        "Lockdown.Rules.DemoControlFeel.PredictedMoveIdentity",
         "Lockdown.Rules.HUDFrameDiagnostics",
         "Lockdown.Rules.HUDRestTimeline",
         "Lockdown.Rules.HUDPKView",

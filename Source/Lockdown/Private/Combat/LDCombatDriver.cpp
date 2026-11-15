@@ -199,7 +199,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
                 // #198: the timeline first (rest entry/exit moves every contender), then field respawns; the world only
                 // advances while a field segment runs.
-                if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)) { return false; }
+                if (!Mode->AdvanceTimeline(Permit,Error) || !Mode->RespawnDueContenders(Permit,Error)
+                    || !Mode->Camps->SpawnPendingInitialCamps(Permit,Error)) { return false; }
                 if (!Mode->IsFieldRunning() || Mode->IsShowdown()) { return true; }
                 return Mode->Camps->AdvanceCamps(Permit,Error)
                     && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceFieldMarkers(Permit,Error)

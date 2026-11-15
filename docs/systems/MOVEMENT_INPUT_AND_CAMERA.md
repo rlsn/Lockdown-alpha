@@ -51,7 +51,17 @@ Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发�
 只保留重放前后显示位置的差，按原生 `NetworkSimulatedSmoothLocationTime` 衰减；
 偏移受原生平滑距离限制，超过 snap 距离直接跳到位。本人模型、脚下标记、头顶标签、
 射程圈与跟随镜头使用同一显示位置；碰撞、距离验证、订单与权威记录仍使用真实胶囊。
-saved move 的身份取正在预测的已接受订单；新单尚未激活时不提前换成新单，
+远端拥有客户端的普通（非 Shift）地面订单在发出当帧就沿本地 `PlanRoute` 起步（`PredictSentGround`，记为 `EarlyOrder`），
+不等 `Activated` 回执；服务器在请求到达时开始同一订单，所以服务器检查某个客户端 move 的时刻，两边走了同样久。
+该订单激活时目标与本地规划相同，继续原路线；更早的订单此时才激活不会把身体拉回旧目标；订单在运行前被拒绝或取消时，
+仍在服务器上运行的已接受订单重新被预测，没有则停下，由下一次校正回到服务器位置（被新单替换的 Superseded 除外）。
+攻击、施法、攻击移动和 Shift 排队订单仍等激活回执。
+`ServerExceedsAllowablePositionError` 在原生判断出位置误差后再判一次：移动模式一致、没有根运动（冲刺、击退）、
+且服务器身体或客户端本次 move 在行走时，误差不超过 `LDOwnerPrediction::AcceptsWalkError`
+（最大速度 × 0.1 s + 10 cm）不发校正，计入 `ServerAcceptedWalkLeads`；静止、根运动和模式不一致仍按原生判断。
+服务器从不采用客户端位置。
+saved move 的身份取身体正在走的订单（`LDOrderRules::PredictedMoveIdentity`）：提前起步的地面订单在其后又发出 Shift 步骤时仍是它自己；
+提前起步的订单运行前就结束时，它的 move 不再参与重放（身份的 Order 置 0，保留 Match/Life/Epoch）；其他新单尚未激活时不提前换成新单，
 停止及没有活动订单时仍保留当前 Local 的 Match/Life/Order/Epoch，不能退回全零身份；
 Stop 之后、停止回执到达之前发出的新单不再沿用 Stop 前的订单（取消 epoch 不同），与 `ApplyPrediction` 的判断一致。
 

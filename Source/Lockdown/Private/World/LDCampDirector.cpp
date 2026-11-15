@@ -133,6 +133,7 @@ bool ALDCampDirector::FreezeForRest(const FLDGameplayWritePermit& Permit, FStrin
         if (!Mode->Combat->SetBodySuspended(Ref, true, Permit, Error)) { return false; }
         ++Frozen;
     }
+    bRestFrozen = true;
     UE_LOG(LogLDWorld, Display, TEXT("LD_WORLD_FROZEN bodies=%d field_t_ms=%lld"), Frozen, Mode->GetFieldNowMs());
     Error.Reset();
     return true;
@@ -142,6 +143,9 @@ bool ALDCampDirector::ThawAfterRest(const FLDGameplayWritePermit& Permit, FStrin
 {
     if (!CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error)) { return false; }
     ALDGameMode* Mode = AuthorityMode();
+    // The field never opens on a partial world: initial camps still missing stand up (frozen) before the thaw.
+    if (!SpawnInitialBatch(MAX_int32, Permit, Error)) { return false; }
+    bRestFrozen = false;
     // Members keep their HP and stand where they were frozen; they forget targets and paths and choose again. One beyond
     // its leash walks home by the ordinary field return.
     State.ForgetTargetsForRest(Mode->GetAuthorityNowSeconds());
@@ -208,11 +212,56 @@ bool ALDCampDirector::SpawnInitialCamps(const FLDGameplayWritePermit& Permit, FS
         Error = TEXT("Camps already spawned for this match.");
         return false;
     }
-    for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
+    NextInitialCamp = 0;
+    InitialBatchFrame = GFrameCounter;
+    return SpawnInitialBatch(InitialGroupsPerFrame, Permit, Error);
+}
+
+bool ALDCampDirector::SpawnPendingInitialCamps(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (!HasPendingInitialCamps() || InitialBatchFrame == GFrameCounter)
     {
+        Error.Reset();
+        return true;
+    }
+    InitialBatchFrame = GFrameCounter;
+    return CheckPermit(Permit, ELDCommitPhase::RespawnsAndWorld, Error) && SpawnInitialBatch(InitialGroupsPerFrame, Permit, Error);
+}
+
+bool ALDCampDirector::SpawnInitialBatch(int32 Count, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    if (!HasPendingInitialCamps())
+    {
+        Error.Reset();
+        return true;
+    }
+    for (int32 Spawned = 0; Spawned < Count && HasPendingInitialCamps(); ++Spawned)
+    {
+        const int32 Camp = NextInitialCamp;
         bool bBlocked = false;
         if (!State.CanSpawnInitial(Camp, Error) || !SpawnGroup(Camp, Permit, bBlocked, Error)) { return false; }
+        // An initial placement never waits: a blocked camp aborts the match explicitly.
         if (bBlocked) { return false; }
+        ++NextInitialCamp;
+        if (!bRestFrozen) { continue; }
+        for (const FLDCampMemberState& Member : State.FindCamp(Camp)->Members)
+        {
+            FLDCombatBodyRef Ref;
+            const TWeakObjectPtr<ALDCampMemberCharacter>* Body = Bodies.Find(Member.EntityId);
+            if (!Body || !Body->IsValid() || !Mode->ReadBodyRef(*Body->Get(), Ref))
+            {
+                Error = TEXT("An initial camp member that appeared during the rest has no registered body to freeze.");
+                return false;
+            }
+            StopMotion(Member.EntityId);
+            if (!Mode->Combat->SetBodySuspended(Ref, true, Permit, Error)) { return false; }
+        }
+    }
+    if (!HasPendingInitialCamps())
+    {
+        UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_INITIAL_COMPLETE camps=%d bodies=%d at=%.3f"), State.NumCamps(), Bodies.Num(),
+            Mode->GetAuthorityNowSeconds());
     }
     Error.Reset();
     return true;
@@ -1125,6 +1174,9 @@ void ALDCampDirector::EndMatch()
     Boss = {};
     bBossBlockedLogged = false;
     BossSequence = 0;
+    NextInitialCamp = MAX_int32;
+    bRestFrozen = false;
+    InitialBatchFrame = MAX_uint64;
     State.End();
     Content.Reset();
 }

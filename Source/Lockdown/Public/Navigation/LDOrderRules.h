@@ -41,6 +41,14 @@ namespace LDOrderRules
     // (8 per second) and only once the pointer's ground point moved HeldMoveShiftCm from the last order's, so a still
     // pointer sends nothing more. The server's activation throttle and newest-pending replacement stay the only
     // admission path.
+    // The identity the owning client tags its saved moves with, so a correction replays only moves of the order the body
+    // walks: the ground order walked from its send frame (Early, even under a newer Shift step), else the accepted order
+    // still predicted under a pending replacement; neither across a Stop or its newer cancellation epoch. Otherwise Local,
+    // whose order is 0 when Revoked names it (an early walk that ended unrun: its moves must not replay), keeping the
+    // match, life and epoch the server checks.
+    LOCKDOWN_API FLDMoveIdentity PredictedMoveIdentity(const FLDMoveIdentity& Local, const FLDMoveIdentity& Active,
+        const FLDMoveIdentity& Early, bool bLocalStop, const FLDMoveIdentity& Revoked);
+
     constexpr double HeldMoveRepeatSeconds = .125;
     constexpr double HeldMoveShiftCm = 40.;
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
