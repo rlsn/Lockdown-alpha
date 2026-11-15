@@ -871,7 +871,7 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
     int32 SeatIndex=0;
     const auto Seat=[this,Seats,bHasPrevious,&SeatIndex](UWidget* Card)
     {
-        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetHeightOverride(bHasPrevious?174.f:116.f);Place->SetContent(Card);
+        auto* Place=WidgetTree->ConstructWidget<USizeBox>();Place->SetMaxDesiredWidth(258.f);Place->SetHeightOverride(bHasPrevious?174.f:116.f);Place->SetContent(Card);
         auto* SeatSlot=Seats->AddChildToUniformGrid(Place,SeatIndex/3,SeatIndex%3);
         SeatSlot->SetHorizontalAlignment(HAlign_Fill);SeatSlot->SetVerticalAlignment(VAlign_Fill);
         ++SeatIndex;

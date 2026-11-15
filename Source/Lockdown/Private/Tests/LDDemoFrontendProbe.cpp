@@ -632,7 +632,15 @@ namespace
             if (Stage == 0)
             {
                 if (!Check(RHIName != TEXT("None") && RHIName != TEXT("Null"), TEXT("Motion samples use a real rendered RHI"))) { return Finish(); }
+                if (!Click(PC.RootUI, TEXT("AICount3"))) { return Finish(); }
                 Stage = 1;
+                NextAt = Now + 1.;
+                return true;
+            }
+            if (Stage == 1)
+            {
+                if (Public->DemoLobby.AICount != 3 || Public->DemoLobby.Members.Num() != 4) { return true; }
+                Stage = 2;
                 NextAt = Now + 1.;
                 return true;
             }
@@ -642,6 +650,7 @@ namespace
                 TArray<UWidget*> Widgets;
                 PC.RootUI->WidgetTree->GetAllWidgets(Widgets);
                 bool bSeatsFit = false;
+                FString SeatSizes;
                 for (UWidget* Widget : Widgets)
                 {
                     const auto* Seats = Cast<UUniformGridPanel>(Widget);
@@ -650,12 +659,13 @@ namespace
                     for (int32 Index = 0; Index < 6; ++Index)
                     {
                         const double Width = Seats->GetChildAt(Index)->GetCachedGeometry().GetAbsoluteSize().X;
+                        SeatSizes+=FString::Printf(TEXT(" %.2f"),Width);
                         MinWidth = FMath::Min(MinWidth, Width); MaxWidth = FMath::Max(MaxWidth, Width);
                     }
                     bSeatsFit = MinWidth >= 100. && MaxWidth - MinWidth <= 1.;
                 }
-                if (!Check(bSeatsFit, TEXT("All six lobby seats fill equally sized grid cells"))) { return Finish(); }
-                Capture(Stage == 1 ? TEXT("LobbyMotion-100") : TEXT("LobbyMotion-125"));
+                Check(bSeatsFit, FString::Printf(TEXT("All six lobby seats fill equally sized grid cells:%s"),*SeatSizes));
+                Capture(Stage == 2 ? TEXT("LobbyMotion-100") : TEXT("LobbyMotion-125"));
             }
             const double Y = Geometry.GetAbsolutePosition().Y;
             MotionMinY = FMath::Min(MotionMinY, Y);
@@ -684,10 +694,10 @@ namespace
             if (++MotionSamples < 120) { return true; }
             Check(MotionMaxY - MotionMinY <= 1.,
                 FString::Printf(TEXT("Ready stays vertically stable at %.0f%% text: range %.3f px"), PC.Controls->TextScale * 100.f, MotionMaxY - MotionMinY));
-            if (Stage == 1)
+            if (Stage == 2)
             {
                 PC.Controls->TextScale = 1.25f;
-                Stage = 2;
+                Stage = 3;
                 MotionSamples = 0;
                 MotionMinY = TNumericLimits<double>::Max();
                 MotionMaxY = TNumericLimits<double>::Lowest();

@@ -318,6 +318,9 @@ void LDUIPaint::Line(FSlateWindowElementList& Elements,int32 Layer,const FGeomet
 
 void LDUIPaint::DashedEdge(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,EShape Shape,const FBox2D& Box,float Radius,const FLinearColor& Color,float Width,float Dash,float Gap)
 {
+    if(!ensureMsgf(FMath::IsFinite(Box.Min.X)&&FMath::IsFinite(Box.Min.Y)&&FMath::IsFinite(Box.Max.X)&&FMath::IsFinite(Box.Max.Y),
+        TEXT("Dashed UI outline requires finite layout bounds."))){return;}
+    if(Box.GetSize().X<=Width||Box.GetSize().Y<=Width){return;}
     TArray<FVector2D> Points=Ring(Shape,Grow(Box,-Width*.5f),FMath::Max(0.f,Radius-Width*.5f));
     if(Points.Num()<2){return;}
     const FVector2D First=Points[0];
