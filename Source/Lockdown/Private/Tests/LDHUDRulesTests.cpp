@@ -12,6 +12,7 @@
 #include "UI/LDWidgets.h"
 #include "UI/LDResultBuild.h"
 #include "UI/LDWorkshopModel.h"
+#include "UI/LDWorkshop.h"
 #include "UI/LDWorkshopPreview.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
@@ -30,6 +31,13 @@
 #include "Engine/Texture2D.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Image.h"
+#include "Components/Border.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/RichTextBlock.h"
+#include "Components/ScaleBox.h"
+#include "Components/TextBlock.h"
+#include "Engine/World.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Input/HittestGrid.h"
@@ -89,11 +97,17 @@ bool HudRegisterApprovedNames(FAutomationTestBase& Test,const FLDDemoContentDefi
     {
         const FString* Name=Names.Find(Row.Id);
         if(!Name||Row.Namespace!=OutTable.ToString()){continue;}
+        const auto Put=[&](const FString& Key,const FString& Value)
+        {
+            if(Key.IsEmpty()){return;}
 #if WITH_EDITORONLY_DATA
-        Table->SetSourceString(FTextKey(*Row.NameKey),*Name,FString());
+            Table->SetSourceString(FTextKey(*Key),Value,FString());
 #else
-        Table->SetSourceString(FTextKey(*Row.NameKey),*Name);
+            Table->SetSourceString(FTextKey(*Key),Value);
 #endif
+        };
+        Put(Row.NameKey,*Name);Put(Row.DescriptionKey,Row.DescriptionText);
+        Put(Row.EffectKey,Row.EffectText);Put(Row.CostKey,Row.CostText);Put(Row.NotesKey,Row.NotesText);
     }
     FStringTableRegistry::Get().RegisterStringTable(OutTable,Table);
     return true;
@@ -787,6 +801,12 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
         &&BlueprintHistory.Contains(TEXT("复用构件：component_fist_water"))&&!BlueprintHistory.Contains(TEXT("target_kind")));
     TestTrue(TEXT("Keyword lines explain each keyword in bold"),LDHUD::KeywordLines({TEXT("定身")}).Num()==1
         &&LDHUD::KeywordLines({TEXT("定身")})[0].StartsWith(TEXT("<b>定身</>：")));
+    for(const TCHAR* Reaction:{LDTerms::ReactionFog,LDTerms::ReactionConduct,LDTerms::ReactionOverload})
+    {
+        const LDHUD::FCardText Text=LDHUD::CardText(Reaction,{},L1,1000);
+        const TArray<FString> Lines=LDHUD::KeywordLines(Text.Keywords);
+        TestTrue(FString(Reaction)+TEXT(" in a card brings its explanation"),Lines.Num()==1&&Lines[0].Contains(LDTerms::ReactionExplanation(Reaction)));
+    }
     for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords)
     {
         const FString Explain=Keyword.Explain;
@@ -960,8 +980,13 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     if(!TestNotNull(TEXT("The summary fixture has an approved base component"),BaseComponent)){return false;}
     FLDResultBuild Summary;Summary.bAvailable=true;Summary.CatalogRoot=Content.Identity.Root.ToHex();
     Summary.Actives.Add({FName(*Content.Abilities[0].Id),0});
-    Summary.Components.Add({FName(*BaseComponent->Id),ELDResultBuildTarget::Body,NAME_None,NAME_None});
-    for(const FVector2D Size:{FVector2D(520,90),FVector2D(218,66)})
+    for(const FLDDemoComponentDefinition& Component:Content.Components)
+    {
+        if(Component.Kind==ELDDemoComponentKind::Base&&Summary.Components.Num()<7)
+        {Summary.Components.Add({FName(*Component.Id),ELDResultBuildTarget::Body,NAME_None,NAME_None});}
+    }
+    if(!Content.FinalMods.IsEmpty()){Summary.FinalMod=FName(*Content.FinalMods[0].Id);Summary.FinalTarget=ELDResultBuildTarget::Body;}
+    for(const FVector2D Size:{FVector2D(520,90),FVector2D(218,66),FVector2D(760,184)})
     {
         UWidgetTree* Tree=NewObject<UWidgetTree>();
         UWidget* Board=LDResultBuild::Make(Tree,Summary,&Content,Size.X,Size.Y,1.25f);
@@ -989,6 +1014,112 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
         TestTrue(At+TEXT(": skill and component faces are painted"),PaintedSizes.Num()>=5);
         for(const FVector2D Painted:PaintedSizes)
         {TestTrue(At+TEXT(": every painted icon receives usable geometry ")+Painted.ToString(),Painted.X>=4.&&Painted.Y>=4.);}
+        if(Size.Y>=180)
+        {
+            for(const FVector2D Painted:PaintedSizes)
+            {TestTrue(At+TEXT(": result icons remain at least 36 physical pixels at 720p"),FMath::Min(Painted.X,Painted.Y)*2./3.>=36.);}
+            int32 Overflow=0;
+            for(UWidget* Widget:Widgets)
+            {
+                if(const auto* Text=Cast<UTextBlock>(Widget))
+                {Overflow+=Text->GetText().ToString()==FString::Printf(TEXT("+%d"),Summary.Components.Num()-3);}
+            }
+            TestEqual(At+TEXT(": a dense column exposes its omitted component count"),Overflow,1);
+        }
+    }
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
+    if(!TestNotNull(TEXT("The dock layout fixture has a world"),World)){return false;}
+    ON_SCOPE_EXIT{World->DestroyWorld(false);};
+    ULDWorkshop* Workshop=NewObject<ULDWorkshop>(World);Workshop->Initialize();
+    ULDChoicesPanel* Choices=NewObject<ULDChoicesPanel>(World);Choices->Initialize();
+    UWidgetTree* LayoutTree=NewObject<UWidgetTree>();
+    auto* Root=LayoutTree->ConstructWidget<UOverlay>();LayoutTree->RootWidget=Root;
+    for(UWidget* Child:{static_cast<UWidget*>(Workshop),static_cast<UWidget*>(Choices)})
+    {
+        auto* Slot=Root->AddChildToOverlay(Child);Slot->SetHorizontalAlignment(HAlign_Fill);Slot->SetVerticalAlignment(VAlign_Fill);
+    }
+    const TSharedRef<SWidget> Slate=Root->TakeWidget();
+    Workshop->Choices=Choices;
+    FLDProgressionView View;View.bValid=true;View.Generation=1;View.Life=1;View.Level=1;View.BuildRevision=1;
+    View.bHasActiveOffer=true;View.ActiveOffer.OfferId=FGuid(1,2,3,4);View.ActiveOffer.OfferRevision=1;
+    for(int32 Index=0;Index<FMath::Min(3,Content.Abilities.Num());++Index){View.ActiveOffer.Options.Add(FName(*Content.Abilities[Index].Id));}
+    View.ActiveOffer.SkipPoints=1;
+    ULDWorkshop::FInput Input;Input.Mode=ULDWorkshop::EMode::Full;Input.Progression=&View;Input.Match=1;Input.Content=&Content;
+    Input.bStage=true;Input.bRest=true;Input.Step=ELDRestStep::Build;Input.Stats=L1;
+    const FVector2D LayoutSize(1920,1080);
+    const FGeometry Geometry=FGeometry::MakeRoot(LayoutSize,FSlateLayoutTransform(2.f/3.f));
+    const auto Frame=[&]()
+    {
+        Workshop->Present(Input);
+        Choices->SetWorkshopPlaces(Workshop->Places());
+        Choices->Present(View,1,1,ELDLifePhase::Alive,LDProgression::EMatchStage::Rest,&Content,L1,{});
+        Slate->SlatePrepass(2.f/3.f);
+        FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,1.,1.f/60.f),Geometry,FSlateRect(0,0,1280,720),Draw,0,FWidgetStyle(),true);
+        Workshop->NativeTick(Geometry,1.f/60.f);Choices->NativeTick(Geometry,1.f/60.f);
+    };
+    Frame();Choices->OpenPanel();
+    for(const float TextScale:{1.f,1.25f})
+    {
+        Workshop->ApplyTextScale(TextScale);Choices->ApplyTextScale(TextScale);
+        for(int32 Pick=0;Pick<View.ActiveOffer.Options.Num();++Pick)
+        {
+            Choices->PreviewOffer(Pick);
+            float Smallest=MAX_flt,Largest=0.f;
+            for(int32 Tick=0;Tick<90;++Tick)
+            {
+                Frame();
+                if(Tick<30){continue;}
+                const float Scale=Workshop->DockBody->GetCachedGeometry().Scale;
+                Smallest=FMath::Min(Smallest,Scale);Largest=FMath::Max(Largest,Scale);
+            }
+            TestTrue(FString::Printf(TEXT("Active dock text %.2f option %d is stable over 60 frames (%.5f..%.5f)"),TextScale,Pick,Smallest,Largest),
+                Largest-Smallest<.001f);
+        }
+    }
+    View.bHasActiveOffer=false;View.bFinalModPending=true;View.FinalModOfferId=FGuid(2,3,4,5);
+    Input.bFinalStage=true;
+    for(int32 First=0;First<Content.FinalMods.Num();First+=3)
+    {
+        View.FinalModOptions.Reset();
+        View.FinalModOfferId=FGuid(2,3,4,First+5);
+        for(int32 Index=0;Index<3;++Index){View.FinalModOptions.Add(FName(*Content.FinalMods[(First+Index)%Content.FinalMods.Num()].Id));}
+        for(int32 Tick=0;Tick<30;++Tick){Frame();}
+        TestTrue(TEXT("Final mod opens its independent stage"),Choices->IsFinalStage());
+        for(int32 Pick=0;Pick<3;++Pick)
+        {
+            Choices->SelectFinalMod(Pick);
+            Choices->LeaveStage();Frame();
+            Choices->ReopenFinalStage(Pick);
+            float Smallest=MAX_flt,Largest=0.f;
+            for(int32 Tick=0;Tick<90;++Tick)
+            {
+                Frame();
+                if(Tick<30){continue;}
+                const float Scale=Choices->FinalPartTexts[0]->GetCachedGeometry().Scale;
+                Smallest=FMath::Min(Smallest,Scale);Largest=FMath::Max(Largest,Scale);
+            }
+            int32 ReadableParts=0;
+            for(const UTextBlock* Part:Choices->FinalPartTexts)
+            {
+                if(Part->GetText().IsEmpty()||!Part->IsVisible()){continue;}
+                const FGeometry& G=Part->GetCachedGeometry();
+                const FVector2D Size=G.GetAbsoluteSize();
+                ReadableParts+=Size.X>30.f&&Part->GetFont().Size*G.Scale>=10.f&&G.GetAbsolutePosition().Y+Size.Y<=720.f;
+            }
+            const FString At=View.FinalModOptions[Pick].ToString();
+            TestEqual(At+TEXT(": reopening retains three readable explanation parts inside the screen"),ReadableParts,3);
+            TestTrue(At+TEXT(": final explanation is stable over 60 frames"),Largest-Smallest<.001f);
+        }
+    }
+    Input.bStage=false;Input.bFinalStage=false;Choices->LeaveStage();
+    for(int32 Tick=0;Tick<30;++Tick){Frame();}
+    for(const ULDWorkshop::FReaction& Reaction:Workshop->Reactions)
+    {
+        Workshop->RefreshDock(Reaction.Row->GetCachedGeometry().GetAbsolutePosition()+FVector2D(2,2));
+        TestTrue(TEXT("Each element reaction exposes its rule in the actual workshop dock"),
+            Workshop->DockBody->GetText().ToString()==LDTerms::ReactionExplanation(Reaction.Name->GetText().ToString())
+                &&!Workshop->DockBody->GetText().IsEmpty());
     }
     return true;
 }

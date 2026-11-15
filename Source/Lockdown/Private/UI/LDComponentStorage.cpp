@@ -1007,7 +1007,6 @@ void ULDComponentStorage::NativeTick(const FGeometry& Geometry,float DeltaSecond
         else if(bExpanded&&Now-LastInsideAt>StorageCloseGrace){bExpanded=false;}
     }
     Layout(Geometry,Pointer);
-    if(Workshop.bActive){for(const FCard& Card:Cards){LDWidgets::RefitScale(Card.NameFit);}}
 }
 void ULDComponentStorage::SetPreviewCaption(FName Component,const FString& DropText,const FString& Value)
 {

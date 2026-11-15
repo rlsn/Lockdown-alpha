@@ -354,7 +354,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Centre->AddChildToVerticalBox(DockName);
             DockSummary=Label(TEXT(""),14,LDHUDStyle::TextSecondary);DockSummary->SetAutoWrapText(true);
             Centre->AddChildToVerticalBox(DockSummary)->SetPadding(FMargin(0,2,0,0));
-            DockBody=LDWidgets::RichText(WidgetTree,17,TEXT("WorkshopDockBody"));DockBody->SetAutoWrapText(true);
+            DockBody=LDWidgets::RichText(WidgetTree,17,TEXT("WorkshopDockBody"));DockBody->SetAutoWrapText(false);
             Centre->AddChildToVerticalBox(DockBody)->SetPadding(FMargin(0,8,0,0));
             DockChips=Label(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::ComponentLink,LDUIFonts::ERole::Strong);DockChips->SetAutoWrapText(true);
             Centre->AddChildToVerticalBox(DockChips)->SetPadding(FMargin(0,10,0,0));
@@ -1206,6 +1206,14 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
     const FLDDemoContentDefinitions* Content=Latest.Content;
     if(Content&&Mode==EMode::Full)
     {
+        for(const FReaction& Reaction:Reactions)
+        {
+            if(!Reaction.Row||!Reaction.Row->GetCachedGeometry().IsUnderLocation(Pointer)){continue;}
+            const FString Name=LDWorkshop::ReactionName(Reaction.First,Reaction.Second);
+            const FString Pair=LDHUD::ElementName(Reaction.First)+TEXT(" + ")+LDHUD::ElementName(Reaction.Second);
+            ShowTextDock(TEXT("R|")+Name,Name,Pair,LDTerms::ReactionExplanation(Name),FString(),FString());
+            return;
+        }
         const TArray<const FLDDemoStatDefinition*> Stats=Content->StatsInDesignOrder();
         for(int32 Index=0;Index<StatRows.Num()&&Stats.IsValidIndex(Index);++Index)
         {
@@ -1234,8 +1242,6 @@ void ULDWorkshop::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     AnimateOpening();
     if(!IsOpen()||!FSlateApplication::IsInitialized()){return;}
     RefreshDock(FSlateApplication::Get().GetCursorPos());
-    for(UWidget* Fit:{CharacterFit.Get(),DockCentre.Get(),DockRight.Get()}){LDWidgets::RefitScale(Cast<UScaleBox>(Fit));}
-    for(UWidget* Fit:AttributeHalves){LDWidgets::RefitScale(Cast<UScaleBox>(Fit));}
 }
 void ULDWorkshop::AnimateOpening()
 {
@@ -1640,6 +1646,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
         {
             for(const LDHUD::FEquippedView& Entry:Model.Columns[ColumnIndex].Entries)
             {
+                if(Focus.Component!=Entry.Component){continue;}
                 if(bPreview&&Entry.Component==Focus.Component){continue;}
                 FSlateRect From;
                 if(Storage->TileBox(Entry.Component,From))

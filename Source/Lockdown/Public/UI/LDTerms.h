@@ -205,6 +205,14 @@ inline FString NeedsLearned(const FString& Names){return FString::Printf(TEXT("�
 inline constexpr TCHAR ReactionFog[]=TEXT("起雾");
 inline constexpr TCHAR ReactionConduct[]=TEXT("导电");
 inline constexpr TCHAR ReactionOverload[]=TEXT("过载");
+inline constexpr TCHAR ReactionFogRule[]=TEXT("水 + 火：对目标造成魔法伤害，并在原地产生持续给无元素敌人附着潮湿的水雾。触发时消耗双方元素，灼烧的剩余伤害立即结算。");
+inline constexpr TCHAR ReactionConductRule[]=TEXT("水 + 电：对目标及附近潮湿敌人造成魔法伤害并减速，消耗参与反应的水、电附着及附近敌人的潮湿。");
+inline constexpr TCHAR ReactionOverloadRule[]=TEXT("火 + 电：对目标及附近敌人造成魔法伤害并施加破防。触发时消耗双方元素，灼烧的剩余伤害立即结算。");
+inline FString ReactionExplanation(const FString& Name)
+{
+    return Name==ReactionFog?FString(ReactionFogRule):Name==ReactionConduct?FString(ReactionConductRule)
+        :Name==ReactionOverload?FString(ReactionOverloadRule):FString();
+}
 // 基础规则的触发来源（内容效果的触发字段）。
 inline constexpr TCHAR TriggerBasicHit[]=TEXT("普攻命中");
 inline constexpr TCHAR TriggerAbilityHit[]=TEXT("主动命中");
@@ -428,7 +436,7 @@ inline constexpr const TCHAR* BlueprintFactLabels[]={
     TEXT("普攻"),TEXT("施法"),TEXT("自然回复"),TEXT("还款"),TEXT("减免"),TEXT("触发"),TEXT("拒绝"),
 };
 
-// 卡面关键词（#147，#198 删去横扫，见内容与数值 §4.5）：全局 12 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
+// 卡面关键词：卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
 struct FCardKeyword { const TCHAR* Name; const TCHAR* Explain; };
 inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("减速"),TEXT("移速降低一定比例；同时有多个减速时只取最强的。减速不是控制")},
@@ -443,5 +451,8 @@ inline constexpr FCardKeyword CardKeywords[]={
     {TEXT("灼烧"),TEXT("每层每秒造成魔法伤害，最多 5 层；新的一层刷新整组时间")},
     {TEXT("护盾"),TEXT("先于生命承受伤害，到期消失；身上只有一份，新的不弱于剩余量才替换")},
     {TEXT("吸血"),TEXT("按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35%")},
+    {ReactionFog,ReactionFogRule},
+    {ReactionConduct,ReactionConductRule},
+    {ReactionOverload,ReactionOverloadRule},
 };
 }

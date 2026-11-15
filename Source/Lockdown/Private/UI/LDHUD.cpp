@@ -103,13 +103,13 @@ enum class EHudResultGlyph : uint8 { Kills=1, Deaths, Assists, Level, Guard, Spr
 void HudResultGlyph(const LDUIPaint::FContext& P,EHudResultGlyph Glyph,const FLinearColor& Ink)
 {
     const FVector2D C=FVector2D(P.Geometry.GetLocalSize())*.5f;
-    const auto At=[&C](float X,float Y){return C+FVector2D(X,Y);};
+    const auto At=[&C](float X,float Y){return C+FVector2D(X,Y)*1.5f;};
     const auto Path=[&At](std::initializer_list<FVector2D> Points){TArray<FVector2D> Out;for(const FVector2D& Point:Points){Out.Add(At(float(Point.X),float(Point.Y)));}return Out;};
-    const float W=1.8f;
+    const float W=2.4f;
     switch(Glyph)
     {
     case EHudResultGlyph::Kills:
-        P.Arc(P.Layer,C,7.f,1.f,Ink,W);
+        P.Arc(P.Layer,C,10.5f,1.f,Ink,W);
         P.Line(P.Layer,At(-11,0),At(-4,0),Ink,W);P.Line(P.Layer,At(4,0),At(11,0),Ink,W);
         P.Line(P.Layer,At(0,-11),At(0,-4),Ink,W);P.Line(P.Layer,At(0,4),At(0,11),Ink,W);
         P.Fill(P.Layer,FBox2D(At(-1.5f,-1.5f),At(1.5f,1.5f)),Ink,1.5f);
@@ -120,7 +120,7 @@ void HudResultGlyph(const LDUIPaint::FContext& P,EHudResultGlyph Glyph,const FLi
         P.Line(P.Layer,At(0,-5),At(0,4),Ink,W);P.Line(P.Layer,At(-3,-2),At(3,-2),Ink,W);
         break;
     case EHudResultGlyph::Assists:
-        P.Arc(P.Layer,At(-4,-4),3.f,1.f,Ink,W);P.Arc(P.Layer,At(5,-5),3.f,1.f,Ink,W);
+        P.Arc(P.Layer,At(-4,-4),4.5f,1.f,Ink,W);P.Arc(P.Layer,At(5,-5),4.5f,1.f,Ink,W);
         P.Stroke(P.Layer,Path({{-10,9},{-9,4},{-6,1.5f},{-2,1.5f},{1,4},{2,9}}),Ink,W);
         P.Stroke(P.Layer,Path({{4,1},{8,1},{10,4},{11,9}}),Ink,W);
         break;
@@ -2194,7 +2194,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     ResultWinnerBuild->SetVisibility(WinnerRow?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     if(WinnerRow)
     {
-        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),520.f,90.f,
+        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),760.f,184.f,
             AppliedScale>0?AppliedScale:1.f));
     }
     const int64 Seconds=FMath::Max<int64>(0,Result.DurationMs)/1000;
@@ -2230,9 +2230,12 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
                 const EHudResultGlyph Kind=static_cast<EHudResultGlyph>(Column);
                 const FLinearColor GlyphInk=bMark?LDHUDStyle::UIAction:LDHUDStyle::TextSecondary;
                 Glyph->Painter=[Kind,GlyphInk](const LDUIPaint::FContext& Paint){HudResultGlyph(Paint,Kind,GlyphInk);};
-                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Widths[Column]);Box->SetHeightOverride(26.f);
+                auto* Head=WidgetTree->ConstructWidget<UVerticalBox>();
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Widths[Column]);Box->SetHeightOverride(40.f);
                 Box->SetToolTipText(FText::FromString(bMark?FString(LDTerms::Winner):Values[Column]));
-                Box->SetContent(Glyph);Line->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);
+                Box->SetContent(Glyph);Head->AddChildToVerticalBox(Box);
+                Head->AddChildToVerticalBox(Cell(bMark?FString(LDTerms::Winner):Values[Column],Widths[Column],GlyphInk,LDUIFonts::ERole::Strong,false));
+                Line->AddChildToHorizontalBox(Head)->SetVerticalAlignment(VAlign_Center);
                 continue;
             }
             const LDUIFonts::ERole Role=!Seat?LDUIFonts::ERole::Strong:Column==0?LDUIFonts::ERole::Strong:LDUIFonts::ERole::Number;

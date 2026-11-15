@@ -123,9 +123,11 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
     int32 Most = 0;
     for (const LDHUD::FStorageColumnView& Column : Board.Columns) { Most = FMath::Max(Most, Column.Entries.Num()); }
     const float ColumnWidth = Width / float(LDHUD::StorageColumnCount);
-    const float Header = FMath::Min(Height * .34f, ColumnWidth * .36f);
+    const bool bExpanded = Height >= 180.f;
+    const float Header = bExpanded ? 64.f : FMath::Min(Height * .34f, ColumnWidth * .36f);
     const int32 Rows = FMath::Max(1, FMath::DivideAndRoundUp(Most, 2));
-    const float TileSize = FMath::Clamp(FMath::Min((ColumnWidth - 4.f) / 2.f, (Height - Header - 4.f) / Rows - 1.f), 4.f, Header * .72f);
+    const float TileSize = bExpanded ? 56.f
+        : FMath::Clamp(FMath::Min((ColumnWidth - 4.f) / 2.f, (Height - Header - 4.f) / Rows - 1.f), 4.f, Header * .72f);
 
     int32 FinalColumn = INDEX_NONE;
     if (!Build.FinalMod.IsNone())
@@ -171,7 +173,7 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         }
         if (FinalColumn == Index)
         {
-            UWidget* Final = BoardIcon(Tree, Content, Build.FinalMod, Header * .65f, false);
+            UWidget* Final = BoardIcon(Tree, Content, Build.FinalMod, bExpanded ? 56.f : Header * .65f, false);
             if (bDormantFinal)
             {
                 Final->SetRenderOpacity(.45f);
@@ -184,10 +186,23 @@ UWidget* LDResultBuild::Make(UWidgetTree* Tree, const FLDResultBuild& Build, con
         Grid->SetWrapSize(ColumnWidth - 2.f);
         Grid->SetInnerSlotPadding(FVector2D(1.f, 1.f));
         Stack->AddChildToVerticalBox(Grid)->SetPadding(FMargin(0, 2, 0, 0));
-        for (const LDHUD::FEquippedView& Entry : Column.Entries)
+        const int32 Visible = bExpanded && Column.Entries.Num() > 4 ? 3 : Column.Entries.Num();
+        for (int32 EntryIndex = 0; EntryIndex < Visible; ++EntryIndex)
         {
+            const LDHUD::FEquippedView& Entry = Column.Entries[EntryIndex];
             UWidget* Tile = BoardIcon(Tree, Content, Entry.Component, TileSize, true);
             Grid->AddChildToWrapBox(Tile)->SetPadding(FMargin(Entry.Depth > 0 ? 1.f : 0.f, 0, 0, 0));
+        }
+        if (Visible < Column.Entries.Num())
+        {
+            auto* More = Tree->ConstructWidget<USizeBox>();
+            More->SetWidthOverride(TileSize);More->SetHeightOverride(TileSize);
+            More->SetContent(BoardText(Tree,FString::Printf(TEXT("+%d"),Column.Entries.Num()-Visible),FMath::RoundToInt(20*TextScale)));
+            TArray<FString> Names;
+            for(int32 EntryIndex=Visible;EntryIndex<Column.Entries.Num();++EntryIndex)
+            {Names.Add(LDHUD::ContentName(Content,Column.Entries[EntryIndex].Component.ToString()));}
+            More->SetToolTipText(FText::FromString(FString::Join(Names,TEXT("\n"))));
+            Grid->AddChildToWrapBox(More);
         }
     }
     return Bounds;

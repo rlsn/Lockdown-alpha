@@ -169,6 +169,7 @@ protected:
 private:
 #if WITH_DEV_AUTOMATION_TESTS
     friend class FLDDemoOpponentProbe;
+    friend class FLDHUDCardFacesTest;
 #endif
     // One tray card: the icon (the name's first character without its texture) over the name, or the icon alone as a grid
     // tile. Detail is its popup.
@@ -303,7 +304,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> FinalDescText;
     UPROPERTY() TObjectPtr<UTextBlock> FinalNumbersText;
     UPROPERTY() TObjectPtr<UWidget> FinalSourceChoiceLine;
-    UPROPERTY() TObjectPtr<UHorizontalBox> FinalSourceChoices;
+    UPROPERTY() TObjectPtr<UWrapBox> FinalSourceChoices;
     UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
     UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
     // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, the artisan's

@@ -49,21 +49,11 @@ int32 LDWidgets::RichTextSize(const URichTextBlock* Rich)
 }
 UScaleBox* LDWidgets::Fit(UWidgetTree* Tree,UWidget* Content)
 {
-    UScaleBox* Box=Tree->ConstructWidget<UScaleBox>();Box->SetStretch(EStretch::UserSpecified);Box->SetUserSpecifiedScale(1.f);
+    UScaleBox* Box=Tree->ConstructWidget<UScaleBox>();Box->SetStretch(EStretch::ScaleToFit);Box->SetStretchDirection(EStretchDirection::DownOnly);
     Box->SetClipping(EWidgetClipping::ClipToBounds);
     Box->SetContent(Content);
     if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Content->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Left);FitSlot->SetVerticalAlignment(VAlign_Top);}
     return Box;
-}
-void LDWidgets::RefitScale(UScaleBox* Box)
-{
-    const UWidget* Content=Box?Box->GetContent():nullptr;
-    if(!Content||!Box->IsVisible()){return;}
-    const FVector2D Available=Box->GetCachedGeometry().GetLocalSize();
-    const FVector2D Desired=Content->GetDesiredSize();
-    if(Available.X<=1.f||Available.Y<=1.f||Desired.X<=1.f||Desired.Y<=1.f){return;}
-    const float Scale=FMath::Clamp(float(FMath::Min(Available.X/Desired.X,Available.Y/Desired.Y)),.01f,1.f);
-    if(!FMath::IsNearlyEqual(Box->GetUserSpecifiedScale(),Scale,.005f)){Box->SetUserSpecifiedScale(Scale);}
 }
 URichTextBlock* LDWidgets::RichText(UWidgetTree* Tree,int32 Size,FName Name)
 {

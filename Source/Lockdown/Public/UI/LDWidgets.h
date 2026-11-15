@@ -134,9 +134,8 @@ namespace LDWidgets
     // Rebuilds Rich's two styles at Size (the text-size preference).
     LOCKDOWN_API void SetRichTextSize(URichTextBlock* Rich,int32 Size);
     LOCKDOWN_API int32 RichTextSize(const URichTextBlock* Rich);
-    // A box that scales its content down, never up, to fit both dimensions; RefitScale applies it each tick.
+    // Native ScaleToFit normalizes measurement before scaling; never enlarge the content.
     LOCKDOWN_API UScaleBox* Fit(UWidgetTree* Tree,UWidget* Content);
-    LOCKDOWN_API void RefitScale(UScaleBox* Fit);
     // Plays an interface cue through the game instance's audio subsystem (quietly nothing before it is ready).
     LOCKDOWN_API void PlayCue(const UObject* Context,ELDAudioCue Cue);
 }

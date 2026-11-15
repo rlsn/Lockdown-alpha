@@ -282,8 +282,10 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 UTextBlock* ChoiceLabel=LDWidgets::Text(WidgetTree,LDTerms::FinalPickSource,LDHUDStyle::TypeSmall);
                 ChoiceLabel->SetColorAndOpacity(LDHUDStyle::UIEvent);ChoiceLabel->SetAutoWrapText(false);
                 ChoiceLine->AddChildToHorizontalBox(ChoiceLabel)->SetVerticalAlignment(VAlign_Center);
-                FinalSourceChoices=WidgetTree->ConstructWidget<UHorizontalBox>();
-                ChoiceLine->AddChildToHorizontalBox(FinalSourceChoices)->SetPadding(FMargin(14,0,0,0));
+                FinalSourceChoices=WidgetTree->ConstructWidget<UWrapBox>();
+                FinalSourceChoices->SetExplicitWrapSize(true);FinalSourceChoices->SetInnerSlotPadding(FVector2D(8,8));
+                auto* SourcesSlot=ChoiceLine->AddChildToHorizontalBox(FinalSourceChoices);
+                SourcesSlot->SetPadding(FMargin(14,0,0,0));SourcesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
                 ChoiceLine->SetVisibility(ESlateVisibility::Collapsed);FinalSourceChoiceLine=ChoiceLine;
                 Desc->AddChildToVerticalBox(ChoiceLine)->SetPadding(FMargin(0,0,0,10));
             }
@@ -298,6 +300,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 Chip->SetBrushColor(PartInk[Part].CopyWithNewOpacity(.12f));Chip->SetPadding(FMargin(8,1));Chip->SetContent(Label);
                 auto* ChipSlot=Row->AddChildToHorizontalBox(Chip);ChipSlot->SetVerticalAlignment(VAlign_Top);ChipSlot->SetPadding(FMargin(0,1,14,0));
                 UTextBlock* PartText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth+300.f);
+                PartText->SetAutoWrapText(false);
                 PartText->SetColorAndOpacity(Part==2?LDHUDStyle::TextSecondary:LDHUDStyle::UIText);
                 Row->AddChildToHorizontalBox(PartText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
                 Row->SetVisibility(ESlateVisibility::Collapsed);
@@ -305,8 +308,10 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 FinalPartRows.Add(Row);FinalPartTexts.Add(PartText);
             }
             FinalDescText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth+300.f);FinalDescText->SetColorAndOpacity(LDHUDStyle::UIText);
+            FinalDescText->SetAutoWrapText(false);
             Desc->AddChildToVerticalBox(FinalDescText)->SetPadding(FMargin(0,8,0,0));
             FinalNumbersText=Wrapped(LDHUDStyle::TypeCaption,ServicePanelWidth+300.f);FinalNumbersText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            FinalNumbersText->SetAutoWrapText(false);
             Desc->AddChildToVerticalBox(FinalNumbersText)->SetPadding(FMargin(0,8,0,0));
             UScaleBox* DescFit=LDWidgets::Fit(WidgetTree,Desc);
             if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Desc->Slot)){FitSlot->SetVerticalAlignment(VAlign_Center);}
@@ -859,6 +864,7 @@ void ULDChoicesPanel::RefreshOffer()
                         if(Reaction.IsEmpty()){continue;}
                         Lines.AddUnique(LDTerms::ReactsWith(SlotKeys.Of(Held.Slot),LDHUD::ContentName(LatestContent,Held.DefinitionId.ToString()),
                             LDHUD::ElementName(Mine)+TEXT(" + ")+LDHUD::ElementName(Theirs),Reaction));
+                        Lines.AddUnique(LDTerms::ReactionExplanation(Reaction));
                     }
                 }
             }
@@ -983,7 +989,7 @@ void ULDChoicesPanel::RefreshFinalMod()
     // A holder-only card binds nothing: its page shows no source row.
     const bool bUniversal=ShownFinalSources.Num()==1&&ShownFinalSources[0].TargetKind==ELDComponentTargetKind::None;
     const bool bSourceVisible=IsFinalStage()||TrayShows(ETrayGroup::FinalSource);
-    const bool bSourceTiles=!IsFinalStage()&&(ShownFinalSources.Num()>6||bIconOnlyTray);
+    const bool bSourceTiles=IsFinalStage()||ShownFinalSources.Num()>6||bIconOnlyTray;
     TrayRowTiles(FinalSourceRow,bSourceTiles);
     GrowthShown(FinalSourceRow,!ShownFinalSources.IsEmpty()&&!IsFinalStage()&&bSourceVisible);
     GrowthShown(StageSourceLine,!ShownFinalSources.IsEmpty()&&!bUniversal&&IsFinalStage(),ESlateVisibility::SelfHitTestInvisible);
@@ -995,7 +1001,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         if(!FinalSourceCards.IsValidIndex(Index))
         {
             FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthFinalSource%d"),Index)),[this,Index](){if(IsFinalStage()){SelectFinalSource(Index);}else{ChooseFinalModSource(Index);}});
-            if(IsFinalStage()){FinalSourceChoices->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(Index?12.f:0.f,0,0,0));}
+            if(IsFinalStage()){FinalSourceChoices->AddChildToWrapBox(Card.Frame);}
             else{FinalSourceRow->AddChildToWrapBox(Card.Frame);}
             FinalSourceCards.Add(Card);
         }
@@ -1010,6 +1016,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         Detail.Name=Name;
         Detail.Body=LDHUD::FinalModCard(PendingFinalOption,LatestContent,LatestStats).Name+TEXT("\n绑定此来源。");
         ShowFace(FinalSourceCards[Index],PendingFinalOption.ToString()+TEXT("|")+Name,Name,Icon,Glyph,Detail);
+        FinalSourceCards[Index].Frame->SetToolTipText(FText::FromString(Name));
         const bool bShown=IsFinalStage()?bColumnChoices&&ShownSourceColumns[Index]==FinalColumnPick:bSourceVisible;
         ShowLook(FinalSourceCards[Index],bSourceTiles,Gate.bCanFinalMod&&!PendingRequest,bShown);
         GrowthTint(FinalSourceCards[Index].Button,IsFinalStage()&&Index==FinalSourcePick?LDHUDStyle::UIEvent*.45f:LDHUDStyle::CardIdle);
@@ -2097,7 +2104,6 @@ void ULDChoicesPanel::UpdateStage()
         {
             FTrayCard& Card=FinalSourceCards[Index];
             Move(Card.Frame,FinalSourceChoices);
-            if(UHorizontalBoxSlot* CardSlot=Cast<UHorizontalBoxSlot>(Card.Frame->Slot)){CardSlot->SetPadding(FMargin(Index?12.f:0.f,0,0,0));}
             ShowBig(Card,false,0.f,0.f);
         }
     }
@@ -2126,7 +2132,17 @@ void ULDChoicesPanel::RefreshStage()
     GrowthText(StageSub,LDTerms::FinalOnce);StageSub->SetColorAndOpacity(LDHUDStyle::UIEvent);
     // The selected card (else the first): its effect, cost and notes lines as the catalog splits them, else the whole
     // description; then its numbers line.
-    const FName Shown=!PendingFinalOption.IsNone()?PendingFinalOption:Latest.FinalModOptions.IsValidIndex(0)?Latest.FinalModOptions[0]:NAME_None;
+    FName Shown=!PendingFinalOption.IsNone()?PendingFinalOption:Latest.FinalModOptions.IsValidIndex(0)?Latest.FinalModOptions[0]:NAME_None;
+    if(PendingFinalOption.IsNone()&&FSlateApplication::IsInitialized())
+    {
+        const FVector2D Pointer=FSlateApplication::Get().GetCursorPos();
+        for(int32 Index=0;Index<FinalCards.Num()&&Latest.FinalModOptions.IsValidIndex(Index);++Index)
+        {
+            const UWidget* Card=FinalCards[Index].Frame;
+            if(Card&&Card->IsVisible()&&Card->GetCachedGeometry().IsUnderLocation(Pointer))
+            {Shown=Latest.FinalModOptions[Index];break;}
+        }
+    }
     FString Description;
     LDHUD::ContentText(LatestContent,Shown.ToString(),true,Description);
     FString Numbers=LDHUD::FinalModCard(Shown,LatestContent,LatestStats).Detail.Body;
@@ -2180,6 +2196,8 @@ void ULDChoicesPanel::LayoutLayer()
         const FSlateRect Description(Dock.Left+28.f*Scale,Dock.Top+16.f*Scale,Dock.Right-340.f*Scale,Dock.Bottom-16.f*Scale);
         const float DescriptionWidth=FMath::Max(1.f,float(Geometry.AbsoluteToLocal(FVector2D(Description.Right,Description.Top)).X
             -Geometry.AbsoluteToLocal(FVector2D(Description.Left,Description.Top)).X));
+        if(FinalSourceChoices)
+        {FinalSourceChoices->SetWrapSize(FMath::Max(1.f,DescriptionWidth-170.f));}
         for(UTextBlock* Text:{FinalDescText.Get(),FinalNumbersText.Get()})
         {if(Text&&!FMath::IsNearlyEqual(Text->GetWrapTextAt(),DescriptionWidth,.5f)){Text->SetWrapTextAt(DescriptionWidth);}}
         // A part line wraps beside its label chip.
@@ -2216,9 +2234,6 @@ void ULDChoicesPanel::LayoutLayer()
 void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
-    LDWidgets::RefitScale(ServiceFit);
-    LDWidgets::RefitScale(Cast<UScaleBox>(StageBox.Get()));
-    LDWidgets::RefitScale(Cast<UScaleBox>(FinalDesc.Get()));
     // The stage cards turn in one after another (LDHUDStyle::MotionOfferStagger apart) and land with the back curve.
     if(!bStageShown||!StageCards){return;}
     const double Age=UiNow()-StageOpenedAt;
