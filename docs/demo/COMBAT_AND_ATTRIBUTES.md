@@ -707,55 +707,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | 观察与表现 | `LDCombatObservation.cpp`、`Combat\LDCombatCues`；Vision 发布；`Character\LDHumanoidVisualComponent`、`LDBodyMotion`、`LDBodyPuppet` |
 | 客户端输入 | `Framework\LDPlayerOrders.cpp`、`LDPlayerInput.cpp`、`Combat\LDCombatPreInput`、`UI\LDControlSettings` |
 
-## 13. 正反验收矩阵
-
-下表是本模块的正反验收断言；哪些已由测试或场景覆盖见 §13.1，尚无覆盖的见 §13.2。
-记录权限受控的 RequestKey/CombatToken、Match/Body/Victim、Source/IssuedCooldownId、
-源/资源修订、Release/Hit/DeathKey/RewardBasis、真实时间/phase/permit/fence 及事务前后值。
-测试输出归忽略的 `Artifacts`，不向普通客户端泄露内部日志。
-
-| ID | 操作/故障 | 必须断言 |
-| --- | --- | --- |
-| A01 全属性 | 正常仅普攻开局，分别改变各批准属性、等级与来源 | AD/AP不混；双抗类型正确；AS/MS/Range/血蓝/回复/暴击/Haste各有真实消费者，面板同源。 |
-| A04 首发/回绑 | 空集合首次学技能、新局首次取得及重发；冷却中遗忘再重学 | 首次仅发行第一条，同请求只重放原绑定；角色无第二条。重学回绑原截止，无空白绕债。 |
-| A05 绑定竞态 | 两准备计划抢一条；遗忘 Prepare 后先 Release；旧来源请求晚到 | 版本/permit拒双绑；保留最新 ReadyAt；旧来源不得操作新绑定；失败机会/源全不改。 |
-| A06 来源变化 | 换槽、升级、遗忘重学、死亡及新局 | 旧期限不中断；重学一级不洗 CD；旧 Source/目标请求拒绝，新局双 Match 域彻底隔离。 |
-| A07 数值拒绝 | 超精度、NaN/Infinity、非法 Rank/引用、零分母、中间溢出 | 整次明确失败，不零效果成功、旧值 fallback 或手改生成 hash；每个合法字段有实际 native 行为断言。 |
-| A08 资源比例 | 同事务多来源、无事件往返、最小正 HP 降上限、零 MaxMP；Prepare 后受伤/耗蓝 | 最终一次换算、无净取整获益；按内容 NumericUnderflow/NumericDomain 全拒；旧资源版本不覆盖新状态。 |
-| A09 回复 | 同elapsed不同分段、速率改变、满资源后受伤、死亡/复活；攻击起手/伤害释放/受正伤(含盾全吸收)、失败失保/纯位移/自保 | 余数/水位一致，不按帧丢回复、不回算新速率、不存满血免费量，不治活；LastCombatAt只由内容明确事件更新，失败失保/非战斗操作不重置。 |
-| A10 攻速与取消 | AttackStart 后 S/移动/改 AS/死亡再复活 | NextAttackAt不提前、Nav无第二时钟；新 AS仅未来开始；未准入不产生节拍。 |
-| A11 两请求域 | DirectSequence 与 AttackCycle 数值相等、重复 NavKey、伪造 Nav 来源 | 不撞号，一请求只一权威 Token；客户端无法冒充内部周期；取消的用户序号不误比服务器 Token。 |
-| A12 回执/重放 | 同 key 同/异条款、缓存过窗、晚到 Queued/Finished、旧 life 查询 | 只重放已知阶段，异条款冲突、过窗不执行/假成功；旧发布不重启动作或新身体。 |
-| A13 原子交接 | Queued 后拒绝、Handoff 失败、接受后 Release 失败、回调自动下一击 | 收件不改旧单；准入双不提交或双接受；不恢复历史单；回调不越阶段递归释放。 |
-| A14 失保语义 | 有保护时空 Q/旧绑定/无蓝/CD/目标失效、远距 AttackUnit/AttackMove | 规范新鲜意图先解除，Rejected带ProtectionRemoved/LifeRevision；MP/CD/节拍不因失败写，不等追到范围。 |
-| A15 失保前闸 | 旧 match/life、重放/异条款、NaN/坏 enum、Armed未确认、Move/Stop | 不改变当前保护；本地预测不能吞已确认有效形状的进攻尝试；旧回执不再发资格事件。 |
-| A16 Root/盾 | Root下原地普攻/自解/位移，独立Root重发/到期/净化后新施加；入盾量低于/等于/高于旧剩余，弱盾组合净化 | Root限制准确、重发不续期；净化只清当时全部Root，新Root可再生效。盾按剩余比较，相等更新源/期限、弱盾保留旧记录但其它合法子效果/费用/CD照常，无旧上限/隐含免疫。 |
-| A17 观察/Range | 接收/起手/释放间失视野或换 Life；射程边界、胶囊变化、隔墙近距 | 每阶段新样本；失视野停追击无LastSeen/自动恢复；起手时脚点Range与LOS同验，不因长射程自动生成追踪弹。已起手的普攻在释放时不查射程：起手后走出射程仍命中；释放时失视野或被墙挡、死亡、离局、换 Life 则放弃（`DemoCombatSources.CommittedBasicRelease`）。 |
-| A18 释放原子 | 角色主动非零 MP、容量/分配失败、取消、来源改变 | 成功Release才一次支付/注册；准备不毁旧状态；失败无空效果成功，已释放Miss不退款。 |
-| A19 源/目标时态 | Release 后源升级/遗忘/死亡重生，目标加抗性/加盾 | 源快照不变、目标当次防御生效；独立效果继续，旧目标 Hit 不改绑新 Life。 |
-| A20 接触/吸血/暴击 | 仅盾吸收、实际损失、过量、保护、重复 AttackId；非暴击技能 | contact≠HP损失；一次采样，主击实际损失一次吸血，不治死者/新身体、不递归。 |
-| A22 一生命唯一 | 同时多来源致零、重复 Die、改 DeathSerial、同 VictimLife 重注册Body | 首次PendingDeath唯一致死源/Key；不被后续伤害夺奖，不因重注册再奖励。 |
-| A23 同批互杀 | 双方独立效果互杀；第一份奖励使另一已死受害者升级，交换支付顺序 | 当前Effects集合先锁完受害Level/BuildRevision与信用；奖励输入不受顺序污染，来源Alive不是领奖条件。 |
-| A24 无主/非击杀 | 先玩家打伤后无主致死、自杀、离局清理、营地回位 | 无历史Owner兜底；NoReward也终态；回位不奖、不覆盖更早PendingDeath。 |
-| A25 奖励故障 | 首次RetryableNotCommitted后下一边界重试分别成功/再次失败；首次不可恢复/部分提交故障及终局 | 原Key/基准不变且不半奖。唯一重试成功时不报告权威故障；不可恢复或再次失败由 `ReportAuthorityFault` 报告一次，之后不再推进奖励、不继续Capture，不伪NoReward或再次发奖。 |
-| A26 生存边界 | 致零后安排吸血/回复/盾；死亡等待确认选择并重发，复活同刻旧确认 | PendingDeath不治活；死亡选卡一次保留不回血，复活满新max，旧确认不操作新Life、不授予第二初始奖。 |
-| A27 独立/持续/退出 | Release前后分别死/忘；持续贡献失源；退出前后命中及同ceil桶 | 未释放取消、独立续原期限、持续贡献停止；Leave先无新Hit，Hit先冻结资格不因CurrentInMatch改NoReward。 |
-| A28 终局/喷漆守护 | 完成同刻致死/离区/控制/争夺，对照非致死伤害/减速/缴械；排队选择/清理回调 | 破坏条件先纳入，Root/眩晕/嘲讽清零喷漆而单纯伤害不清；关闸前事务保留、之后零新玩法写，旧permit拒绝。 |
-| A29 真时/水位 | 同段进出再进、1000.8ms离区与1001ms到期、只完成1.0002s请求封1001ms、缺pose/流 | 先真实秒、真同刻才phase；中间事件不丢、桶不当先后/fence，不回填/假Miss/先判胜。 |
-| A30 完整Sealing | Root在长step中到期；Actions/Effects/Respawns/Transactions派生位移/致死 | 最早边界先提交控制再跑后段；初次Motion不封口，全部因果子批/资格完成后Capture才消费。 |
-| A31 读权限 | 正常可视Host+拥有客户端；敌人入雾、可见检查、死后拖图、合法隐藏次击 | 可见名称/等级/HP/MP/状态完整；无私有源/CD/属性，入雾停单清显示；原生/代理/音效不旁路，死后无新增活体视野。 |
-| A32 公开例外 | PvP/普通野怪击杀、圈状态、AI读模型 | PvP有限通知、野怪不刷全场横幅；无隐藏坐标/构筑/营地资源偷渡，AI不查内部Contacts/全Bodies。 |
-| A33 正常闭环/新局 | 批准内容下普攻打野→奖励→选卡→QW/D/射程→死亡复活→喷漆与守护→新局；含三真人三AI | 无调试授予/传送/强制胜；真实拥有连接/延迟乱序下只结一次，新局旧请求/Effect/Death/选择/观察无执行权。 |
-| A34 营地反击/到家 | 未受击接近、无效意图/实际敌对命中、Returning连续受伤/Root/致死、到家、同刻致死/在途弹体、重置后新伤害/新返回并重放旧epoch、玩家伪造Reset | 只真实作用事实触发反击，无隐藏坐标共享；Returning可被杀不追击，受击只变资源/状态修订，不增epoch/重启返回。存活到家才重置、同刻死亡优先；同ResetKey只读重放，旧epoch不补满新伤害。Life/Hit/Death水位保留，无复活/奖励/伪Life隔离，玩家不可洗CD。 |
-
-A34 的纯投影夹具另覆盖临时上限增益/压低效果移除后的顺序：先清候选状态、
-再算最终 Max、最后填满；结果既不超新上限也不少补，失败前不改活体。
-这不将未选临时 Max 内容加入首版目录。清旧 Root/盾后再施加同类型新实例，
-旧到期回调不得复生旧状态或删除新实例；同 Life 的外部独立新接触仍按正常规则作用。
-
-A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公式集时，数值结果逐字段一致；
-重复求值不采 RNG、不读 Actor/营地运行表、不推进时钟或写入资源/Token/Hit/Death。
-错误显式返回且估计不伪装零风险；A26 另核对复活后的脱战基准取本次实际复活时刻。
+## 13. 验证覆盖
 
 ### 13.1 当前验证覆盖
 
@@ -763,7 +715,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 
 | 测试 | 覆盖内容 |
 | --- | --- |
-| `DemoCombatEvaluation.Damage/DamageDomains/ExactDamage/BasicTiming/TimingDomains` | 纯值伤害与普攻时长、精确算术、数值域拒绝（A01/A07 纯值部分） |
+| `DemoCombatEvaluation.Damage/DamageDomains/ExactDamage/BasicTiming/TimingDomains` | 纯值伤害与普攻时长、精确算术、数值域拒绝 |
 | `DemoAttributeProjection.ApprovedLevels/StatPoints/Envelope/Refusals/LowHPTerm` | 批准等级投影、五维点数按每点数值投影与夹取、资源比例与拒绝、低血条件项 |
 | `DemoCombatSources.CooldownTracks` | 持久冷却轨道与回绑 |
 | `DemoCombatSources.CommittedBasicRelease` | 已起手普攻不查射程：目标走出射程仍命中；目标失视野、被墙挡、死亡、离局、换命或攻击者受控则放弃 |
@@ -795,25 +747,11 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 - 预输入与快速施法只有规则测试，没有拥有连接场景。
 - 战斗场景只有 Host 与一个客户端，不含营地或 AI；营地战斗与 AI 战斗只在各自场景中出现。
 - 没有三名真人同时参战的 3+3 满房场景。
-- 同批互杀、奖励可重试失败、同毫秒离局与命中、终局同刻致死等边界（A23、A25、A27–A30）没有拥有连接场景。
+- 同批互杀、奖励可重试失败、同毫秒离局与命中、终局同刻致死等边界没有拥有连接场景。
 - 首版内容是已批准的试玩输入，未经平衡测试。
 
 数据变更先跑 Sync `--check`、输入拒绝与生成一致性；原生/反射变更再做 Editor/Game 构建、
 Bootstrap Validate 和相关场景；网络、成长、胜负变更必须到真实拥有连接。
-
-## 14. 公开资料与使用限度
-
-以下 Epic 官方资料只支持框架机制，不替代项目源码或 UE 5.8.4 本机头文件/运行验证：
-
-| 来源 | 本文使用范围 |
-| --- | --- |
-| [Actor Owner and Owning Connection](https://dev.epicgames.com/documentation/en-us/unreal-engine/actor-owner-and-owning-connection-in-unreal-engine) | 拥有 RPC/复制与 possession；效果信用不能依赖当前 Pawn 控制器。 |
-| [Remote Procedure Calls](https://dev.epicgames.com/documentation/en-us/unreal-engine/remote-procedure-calls-in-unreal-engine) | RPC 为 void；返回 typed 结果的是服务器域 API，不是同步网络返回。 |
-| [Replicated Object Execution Order](https://dev.epicgames.com/documentation/en-us/unreal-engine/replicated-object-execution-order-in-unreal-engine) | 跨 Actor/OnRep 无业务全局顺序，必须使用身份/阶段/修订。 |
-| [Actor Relevancy](https://dev.epicgames.com/documentation/en-us/unreal-engine/actor-relevancy-in-unreal-engine) | 连接相关性不自动等于战争迷雾，更不控制 Host 已有权威 Actor 的全部本地表现。 |
-| [Game Mode and Game State](https://dev.epicgames.com/documentation/en-us/unreal-engine/game-mode-and-game-state-in-unreal-engine) | GameMode 权威、GameState 有限公共状态与同步显示时间，不替代业务时钟/写闸。 |
-
-这些资料的部分交叉链接带其它引擎版本，不能据此宣称 5.8.4 的 API/UHT/物理行为。
 
 ## 15. 范围与限制
 

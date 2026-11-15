@@ -586,53 +586,13 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 不是 headless Host 加一个渲染客户端。
 这不承诺隔离或防作弊保护拥有服务器进程的恶意 Host。
 
-## 8. 验收、机械依据与证据等级
-
-### 8.1 必须覆盖的用例
-
-| 用例 | 可机械检查的判定 | 仍需原生/连接/人类验证 |
-| --- | --- | --- |
-| 数量/目录 | 锚点 ID 唯一、营地引用合法怪物、成员数引用合法；重复/未知ID、NaN、错单位/层拒绝 | 生成地图实际Actor/资产无重复或缺失 |
-| 可走/视线 | 障碍分类、地面/路径/LOS独立；几何模型路径不穿外扩障碍 | Recast agent与真实capsule一致，墙角/地板接缝、实际行走和视效可辨 |
-| SurfaceHint | 第四参必填注册FName；None/未知InvalidSurface，支持面不符WrongSurface；无三参/空值兜底 | 点击来源与服务器重查、当前CMC floor/POI供给，同一面绑定与实际接地不混用 |
-| 十二点公平 | 抽样仅使用同十二点无偏有放回；确定性RNG夹具证明不会移除点或读危险度；分布统计只作诊断 | 服务器开局/每次复活和真实并发接线确实走同函数 |
-| 同点重叠 | 六人同时抽同点、重复请求、动态占用、全局部落点不可用；保留选中ID且不部分成功 | native ground/nav/capsule/预约、同帧并发与拥挤恢复 |
-| 原子复活 | Respawned同时携Alive+保护；位置先到的新生命仍不具资格 | 不出现未保护Alive中间态，Finalize不在生命commit后正常失败 |
-| 攻击接近 | 中心距刚内/等号/刚外；本体中心阻走；部分路径/另一层/已失明句柄拒绝 | 真实命令、原生位移与UI点击不穿透 |
-| 圈边界 | 脚点内/等号/外、胶囊擦圈、墙后/空中/错patch、保护无效 | 真实短弦穿越、滑墙折返、被截短位移、同刻死亡/离开/保护变化和水位 |
-| 证据与最终Fence顺序 | 有对应实际运动证据但尚无最终Fence时可处理命中；Effects/Deaths/世界/事务的晚因果工作完成后才能Sealing；Capture才等待最终Fence | 防止命中等待自身后续工作才能产生的Fence；晚因果位移不被首次Motion完成漏掉，缺实际运动证据不能伪造Miss |
-| 进攻意图解除保护 | 当前身份的无效目标/不足射程/没蓝仍先解除；旧局/旧生命/未授权包不解除新生命 | 失败回执与圈资格事件同刻一致，不能等成功攻击；死亡选卡不恢复身体/视野 |
-| Camp组生命周期 | 同营成员单独死亡；幸存回位不复活死者；最后死亡才计时；ticket重放/旧局/半组失败拒绝 | 合法回位路、动态占位、基础普攻起步和高档风险价值 |
-| 仅受击/同营反击 | 未受攻击路过不先手；无效意图/Miss不触发；合法接触/控制唤起同营，死亡/Returning成员不发新追击；重复事实幂等 | 首次攻击前摇不得早于英雄首个合法作用，不能把通知当第二Damage路径；一名可见一名不可见时不共享隐藏坐标 |
-| 成功回营重置 | 真实HomeProof/当前归位范围、HP>0非PendingDeath；满定义血蓝/清临时仇恨/该怪技能就绪，不改Life/Hit/Death水位、不奖/复活死者 | 控制下回位、到家同刻先死亡；旧Root/盾回调失效，旧ResetKey在新伤害后不重复Apply，玩家CD债务不受影响 |
-| Returning展示 | 仅当前合法可见成员有camp_returning；无Home/到期/仇恨/隐藏phase，失明删除 | cue不授无敌或禁止玩家追杀；AI只消费公开当前状态并按自身预算决策 |
-| 奖励 | 无主致死不继承LastOwner、来源先死后合法DoT、重复回调/提交、旧生命命中、零奖励终态；既成DeathFact冻结归属资格 | XP结果、死亡后离局与延后结算、settlement-only不恢复身体/视野、终局竞争 |
-| 视图/句柄 | full/conceal乱序、丢包/stale、observer/target换life、epoch、错误schema/枚举/计数/重复handle | Host与两客户端可访问记录/画面均不泄漏、无原生/代理双显 |
-| 可见对手字段 | 名称/等级/P2血蓝/状态完整；NPC NotApplicable；无私有版本/技能/CD/最终属性 | 失明立即停更/清目标停追击；死亡自由静态平移无活体来源或隐藏跟随 |
-| 可见死亡与离局 | ObservedDeath须实际可见见证；Conceal/stale不能当死亡；正常死亡独立效果到原期限，离局立即取消并去身体碰撞 | 终止乱序不恢复旧A订单，断线无残体/隐形阻挡/残留伤害cue；只撤对应所有者 |
-| 提示例外 | 公共喷漆/守护/击杀DTO字段白名单；隐藏单位坐标/构筑/动态营地状态不存在 | 空间音源、阴影、特效、选中轮廓与远处相机不泄漏 |
-| 同规则AI | 固定自身/公共/可见投影，扰动隐藏世界后策略输入不变；命令仍验证资格 | AI实际通过同一规则完成发育、喷漆/守护/围攻、死亡与重新参与 |
-| 删除闭包 | 文本/生成/Stage清单无旧模式入口，保留符号仍可解析 | Asset Registry/Blueprint默认值/构建/Bootstrap/Cook/实际包加载 |
-| 唯一世界根 | 仅L_Demo/DA_DemoWorld作为战局根，Frontend为菜单；新根缺失明确失败，无Civic/Development回退 | C3引用替换/退旧后再次Generate不重造旧包，Cook/Stage和包内Registry无双根、兼容壳或旧默认类 |
-
-喷漆与守护归约必须额外测试：一段实际运动首尾都在喷漆区外但穿过短弦；
-同帧入区后离区；喷漆或守护完成时刻恰好发生争夺/控制/死亡；同刻回位不能发奖；
-原子placement失败回滚不产生区内转换；缺提供者水位不提前判胜。
-不能把纯圆交点计算、host-only调试、传送授予或旧报告当正常完整对局。
-
-### 8.2 已核对的最小检查入口
-
-以下是**现有入口与覆盖边界**，不是已存在的 Demo 场景或本轮已运行的引擎命令。
-新世界compiler/对应负向测试尚待实施；不要编造 `-Profile Demo` 参数。
+## 8. 检查入口
 
 | 命令/测试 | 证据与限制 |
 | --- | --- |
 | 对应Sync `--check` + 单一受影响 `Test*Import.py` | 数据变更先查确定性、来源/contract及拒绝输入；旧World JSON一致不证明新布局可达 |
-| `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | `Scripts\BootstrapAssets.ps1:1-14`；当前Scaffold入口不自动替代B90 Builder，也不创建缺失资产 |
 | `.\Scripts\BootstrapAssets.ps1 -Mode Validate` | 当前唯一Demo的typed资产、真实几何/碰撞、导航、地点/落地和保存重载检查；旧BuildB90Map专用入口已删除，不保留转发壳 |
-| `.\Scripts\RunNavigationCheck.ps1 -Region -RoundTripMs 100 -JitterMs 10` | `Scripts\RunNavigationCheck.ps1:1-32`；独立连接框架可复用，现有V05/无可见Host夹具不能证明Demo Host |
 | `.\Scripts\RunDemoVisionCheck.ps1` | `Scripts\RunDemoVisionCheck.ps1`；参赛渲染 Listen Host＋两个拥有客户端经正常大厅开局，只有 `-EngineRoot`/`-TimeoutSeconds` 参数；Client1 丢帧用引擎网络模拟（非 Shipping）；正常开局门禁打开前无法运行；没有任意RTT参数 |
-| `.\Scripts\RunCombatNetworkCheck.ps1 -RoundTripMs 100 -JitterMs 10 -Rendered -RenderRole B` | `Scripts\RunCombatNetworkCheck.ps1:1-38`；复用真实连接传输框架，不自动覆盖新Camp/圈 |
 | `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight} / ViewPrivacySchema` | `Private\Tests\LDDemoVisionTests.cpp`；`LDViewTests.cpp:6-35`；codec/游标/字段检查不证明Host画面、继承字段或AI策略 |
 | `Lockdown.Rules.DemoWorld.TypedProjection / ExactSignedGeometry / AtomicAssetRoundTrip` | `Private\Tests\LDDemoContentCatalogTests.cpp`；当前地图投影、精确几何与资产往返；旧 `B90ApproachPaths` 路径数学/导入检查已随 B90 工具删除，旧城市数据和目标集合不作为Demo依赖 |
 | Editor/Game构建、唯一Bootstrap、Cook/Stage/包加载 | 原生接口/资产变更的必要后续门槛；精确参数/环境按DEVELOPMENT，锁定UE5.8.4，不改共享引擎掩盖失败 |

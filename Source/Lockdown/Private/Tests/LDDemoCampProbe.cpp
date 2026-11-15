@@ -35,7 +35,7 @@
 #include "UnrealClient.h"
 #include "UObject/Package.h"
 
-// Owned-connection camp checks (App Spec §5.2/§10, WORLD_CAMPS_AND_VISION §8.1): no first strike, whole-camp
+// Owned-connection camp checks (App Spec §5.2/§10): no first strike, whole-camp
 // retaliation, last-hit reward once per life, clear-then-refresh timing, leash return with the public cue and an
 // unrewarded home reset. Bookkeeping invariants stay in Lockdown.Rules.DemoCamp.*. Named, not anonymous: unity
 // builds merge files.
