@@ -50,6 +50,8 @@ namespace
     constexpr uint32 DetailslessSchema = 20;
     constexpr uint32 CombatFeelLessSchema = 21;
     constexpr uint32 CombatFeelSchema = 22;
+    // Schema 22 has the current layout; only its key list predates the Workshop key.
+    constexpr uint32 WorkshoplessSchema = 22;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -58,6 +60,7 @@ namespace
     const FName MarkAction(TEXT("Mark"));
     const FName SkillEAction(TEXT("SkillE"));
     const FName DetailsAction(TEXT("Details"));
+    const FName WorkshopAction(TEXT("Workshop"));
     const FName RetiredItemActions[] = {FName(TEXT("Item1")), FName(TEXT("Item2"))};
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
@@ -213,6 +216,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性/加点切换"),EKeys::P},
         {TEXT("Details"),TEXT("按住显示构筑与加点"),EKeys::C},
+        {TEXT("Workshop"),TEXT("打开/收起构筑"),EKeys::B},
         {TEXT("Scoreboard"),FString(TEXT("按住显示"))+LDTerms::Scoreboard,EKeys::Tab},
         {TEXT("Mark"),TEXT("标记此刻（写入试玩日志）"),EKeys::F9},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
@@ -583,7 +587,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
             || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
-            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema);
+            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -672,18 +676,19 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         for (const FName& Retired : RetiredItemActions) { Dropped += Settings->Bindings.Remove(Retired); }
         if (Dropped > 0) { MigrationNotes += TEXT("装备不再有主动，已移除装备主动 1/2 的按键。"); }
     }
-    // Missing actions use an unclaimed default; hold-details can also use an unclaimed fallback.
+    // Missing actions use an unclaimed default; hold-details and the workshop key can also use an unclaimed fallback.
     struct FAddedAction { FName Action; uint32 LastWithout; const TCHAR* Name; };
     for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash},
         FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard},
         FAddedAction{MarkAction, MarklessSchema, TEXT("标记")},
         FAddedAction{SkillEAction, SkillElessSchema, TEXT("角色主动 E")},
-        FAddedAction{DetailsAction, DetailslessSchema, TEXT("构筑详情")} })
+        FAddedAction{DetailsAction, DetailslessSchema, TEXT("构筑详情")},
+        FAddedAction{WorkshopAction, WorkshoplessSchema, TEXT("构筑")} })
     {
         if (!Migrating || SavedSchema > Added.LastWithout || Settings->Bindings.Contains(Added.Action)) { continue; }
         const FLDControlBinding* Default = Definitions().FindByPredicate([&Added](const FLDControlBinding& B) { return B.Action == Added.Action; });
         FKey NewKey = Default ? Default->Key : FKey();
-        if (Added.Action == DetailsAction && Settings->Bindings.FindKey(NewKey))
+        if ((Added.Action == DetailsAction || Added.Action == WorkshopAction) && Settings->Bindings.FindKey(NewKey))
         {
             for (const FKey& Candidate : {EKeys::F10, EKeys::F11, EKeys::F12, EKeys::F8, EKeys::F7, EKeys::F6,
                 EKeys::F5, EKeys::F4, EKeys::F3, EKeys::F2, EKeys::F1, EKeys::B, EKeys::F, EKeys::G, EKeys::H,
@@ -711,17 +716,19 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–21 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–22 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         if (SavedSchema <= AutoAttacklessSchema) { MigrationNotes += TEXT("施法后自动攻击默认开启。"); }
         if (SavedSchema <= MusiclessSchema)
         { MigrationNotes += FString::Printf(TEXT("音乐音量使用默认值 %d%%。"), FMath::RoundToInt(100 * Settings->MusicVolume)); }
-        MigrationNotes += TEXT("降低战斗特效关闭、镜头震动开启。");
+        if (SavedSchema < CombatFeelSchema) { MigrationNotes += TEXT("降低战斗特效关闭、镜头震动开启。"); }
         if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema || SavedSchema == MusiclessSchema
-            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema)
+            || SavedSchema == DetailslessSchema || SavedSchema == CombatFeelLessSchema || SavedSchema == WorkshoplessSchema)
         {
-            const FString Preserved = SavedSchema != AutoAttacklessSchema
+            const FString Preserved = SavedSchema == WorkshoplessSchema
+                ? TEXT("已从旧版本设置迁移：全部偏好与按键已保留，下次保存时写入新格式。")
+                : SavedSchema != AutoAttacklessSchema
                 ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法、诊断与施法后自动攻击偏好已保留，下次保存时写入新格式。")
                 : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法与诊断偏好已保留，下次保存时写入新格式。");
             return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,

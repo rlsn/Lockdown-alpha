@@ -136,6 +136,9 @@ public:
     TFunction<void(FName)> OnServicePick;
     // In an engagement window a newly received component only flies to the stack, without its name strip.
     void SetEngaged(bool bInEngaged){bEngaged=bInEngaged;}
+    // Where unspent points show now (absolute): the workshop's points or the band's stat icons; a level-up that found the
+    // common component pool exhausted flies its points there.
+    void SetPointsTarget(const FSlateRect& Absolute){PointsTarget=Absolute;}
     // The local text-size preference: rescales every text of the tree once per change; texts built later start scaled.
     void ApplyTextScale(float Scale);
 protected:
@@ -312,6 +315,16 @@ private:
         bool bStrip=true;
     };
     TArray<FFly> Flies;
+    // A rise of the view's EmptyPoolGrants: its points fly from the screen centre to PointsTarget, then the reason stays there.
+    struct FPointsFly
+    {
+        int64 Points=0;
+        double At=0.;
+        bool bStrip=true;
+    };
+    TArray<FPointsFly> PointsFlies;
+    FSlateRect PointsTarget;
+    uint8 KnownEmptyPool=0;
     TSet<FName> KnownOwned;
     float TextScale=1.f;
     uint32 KnownMatch=0;

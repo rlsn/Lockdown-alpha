@@ -87,6 +87,8 @@ public:
     // one point (ULDStatBar). The 属性 entry and the Attributes key swap it for the attribute view and back.
     UPROPERTY() TObjectPtr<ULDStatBar> StatBar;
     void ToggleAttributeView();
+    // The Workshop key: the same toggle as the 构筑 button, only while that button would accept a click or the workshop is open.
+    void ToggleWorkshop();
     // Back: closes the storage's chooser or drops its drag (V05Back, after an armed preview).
     bool CancelStorage();
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.

@@ -459,6 +459,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.BuildRevision = Build.Revision;
     View.CombatInstalledRevision = Record->CombatInstalled.BuildRevision;
     View.UnspentPoints = Unspent;
+    View.EmptyPoolGrants = Progression.EmptyPoolGrants;
     View.StatPoints.Reserve(Definitions.Stats.Num());
     const TArray<const FLDDemoStatDefinition*> StatOrder = Definitions.StatsInDesignOrder();
     for (int32 Index = 0; Index < StatOrder.Num(); ++Index)

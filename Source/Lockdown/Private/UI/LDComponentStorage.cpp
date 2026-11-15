@@ -28,6 +28,8 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Components/WrapBox.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Fonts/FontMeasure.h"
+#include "Rendering/SlateRenderer.h"
 #include "Engine/World.h"
 
 namespace
@@ -285,9 +287,18 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
                 FFly& Fly=Flies.AddDefaulted_GetRef();Fly.Component=Each.DefinitionId;Fly.At=UiNow();Fly.bStrip=!bEngaged;
                 LDWidgets::PlayCue(this,ELDAudioCue::UIGain);
             }
+            // A level-up that found the common pool exhausted: the server counts it, so a rise is exactly that many grants.
+            const int64 PerGrant=Content?Content->Parameters.EmptyComponentPoolPoints:0;
+            if(Latest.EmptyPoolGrants>KnownEmptyPool&&PerGrant>0)
+            {
+                FPointsFly& Fly=PointsFlies.AddDefaulted_GetRef();
+                Fly.Points=PerGrant*int64(Latest.EmptyPoolGrants-KnownEmptyPool);Fly.At=UiNow();Fly.bStrip=!bEngaged;
+                LDWidgets::PlayCue(this,ELDAudioCue::UIGain);
+            }
         }
-        if(Latest.bValid){KnownOwned=MoveTemp(Owned);KnownMatch=Match;}
+        if(Latest.bValid){KnownOwned=MoveTemp(Owned);KnownMatch=Match;KnownEmptyPool=Latest.EmptyPoolGrants;}
         Flies.RemoveAll([this](const FFly& Fly){return UiNow()-Fly.At>LDHUDStyle::MotionGain+1.5;});
+        PointsFlies.RemoveAll([this](const FPointsFly& Fly){return UiNow()-Fly.At>LDHUDStyle::MotionGain+1.5;});
     }
     // The cards and tiles are rebuilt only for another build, catalog or numbers.
     FString Key=FString::Printf(TEXT("%u|%llu|%p|%u|%lld|%lld|%lld|%lld"),Match,Latest.BuildRevision,Content,uint32(Stats.Level),
@@ -1480,6 +1491,47 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
                 Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(Min,Min+Strip),LDHUDStyle::UIAction,1.5f,LDHUDStyle::RadiusButton);
                 FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(Strip,FSlateLayoutTransform(Min+FVector2D(12.f,3.f))),Name,Font,ESlateDrawEffect::None,
                     Paint.Fade(LDHUDStyle::UIText));
+            }
+        }
+    }
+    // A level-up's empty-pool points arc from the screen centre to where the unspent points show, then the reason stays there.
+    if(!PointsFlies.IsEmpty())
+    {
+        const FVector2D Size=Geometry.GetLocalSize();
+        const bool bTarget=PointsTarget.Right>PointsTarget.Left&&PointsTarget.Bottom>PointsTarget.Top;
+        const FBox2D Target=bTarget?LDUIShapes::AbsoluteIn(Geometry,PointsTarget):FBox2D(FVector2D(Size.X*.5f,Size.Y*.6f),FVector2D(Size.X*.5f,Size.Y*.6f));
+        FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
+        for(const FPointsFly& Fly:PointsFlies)
+        {
+            const double Age=Now-Fly.At;
+            const FVector2D From(Size.X*.5f,Size.Y*.42f),To=Target.GetCenter();
+            const float T=LDTween::Progress(Age,LDHUDStyle::MotionGain,LDTween::ECurve::EaseOut);
+            const FString Glyph=FString::Printf(TEXT("+%lld"),Fly.Points);
+            if(T<1.f&&Renderer)
+            {
+                const FVector2D Control((From.X+To.X)*.5f,FMath::Min(From.Y,To.Y)-160.f);
+                const FVector2D At=FMath::Lerp(FMath::Lerp(From,Control,T),FMath::Lerp(Control,To,T),T);
+                const float Disc=FMath::Lerp(56.f,30.f,T);
+                Paint.Halo(Top+1,LDUIShapes::EShape::Circle,FBox2D(At-FVector2D(Disc,Disc)*.5f,At+FVector2D(Disc,Disc)*.5f),Disc*.5f,
+                    LDHUDStyle::UIAction.CopyWithNewOpacity(.45f),12.f);
+                Paint.Shape(Top+1,LDUIShapes::EShape::Circle,FBox2D(At-FVector2D(Disc,Disc)*.5f,At+FVector2D(Disc,Disc)*.5f),Disc*.5f,
+                    LDUIPaint::FFill::Solid(LDHUDStyle::UIAction));
+                const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Number,FMath::Max(12.f,Disc*.42f));
+                const FVector2D Extent=Renderer->GetFontMeasureService()->Measure(Glyph,Font);
+                FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(Extent,FSlateLayoutTransform(At-Extent*.5f)),Glyph,Font,
+                    ESlateDrawEffect::None,Paint.Fade(LDHUDStyle::UIBase));
+            }
+            else if(Fly.bStrip&&Age<LDHUDStyle::MotionGain+1.5)
+            {
+                const FString Line=LDTerms::FieldRewardPoolPoints(Fly.Points);
+                const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeSmall);
+                const FVector2D Extent=Renderer?Renderer->GetFontMeasureService()->Measure(Line,Font):FVector2D(Line.Len()*15.f,20.f);
+                const FVector2D Strip(float(Extent.X)+24.f,26.f);
+                const FVector2D Min(FMath::Clamp(float(Target.GetCenter().X)-Strip.X*.5f,8.f,float(Size.X)-Strip.X-8.f),float(Target.Min.Y)-Strip.Y-10.f);
+                Paint.Fill(Top+1,FBox2D(Min,Min+Strip),LDHUDStyle::UIRaised.CopyWithNewOpacity(.95f),LDHUDStyle::RadiusButton);
+                Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(Min,Min+Strip),LDHUDStyle::UIAction,1.5f,LDHUDStyle::RadiusButton);
+                FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(Strip,FSlateLayoutTransform(Min+FVector2D(12.f,3.f))),Line,Font,
+                    ESlateDrawEffect::None,Paint.Fade(LDHUDStyle::UIText));
             }
         }
     }

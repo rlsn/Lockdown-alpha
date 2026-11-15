@@ -32,7 +32,7 @@
 | 资源上限 | 上限变化保持 HP/MP 原百分比，由 Combat 按 `FORMULA.ResourceMaxChange` 做一次最终投影；UI 不再次换算或额外回血，死亡不因此复活。 |
 | 可见检查 | 可见对手显示名称、等级、血量/蓝量、获准状态，以及 Q/W/E 三块技能小卡（键位与技能名，空槽写“空槽”）；不显示其属性点、图纸、冷却、最终属性；施法那一刻在施法者身旁飘出该次技能的显示名，不含等级与冷却。观察 DTO 不携带私有修订或能力来源。 |
 | 失视野与死亡镜头 | 失视野撤销目标并停止该追击订单，不转 LastSeen 移动、不保留单位标记。死亡可自由拖动镜头看静态地图与公共信息，无额外活体视野，不能跟随/观察隐藏玩家。 |
-| 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜。标题压在斜置的事件粉色带上，每名参赛者一张行卡（左侧席位色条，本人行抬起并描操作黄边，赢家标记为操作黄），标题、行卡与按钮依次入场。对局中按住 Tab 另有局内排行榜（§3.2）。Host 主动结束可无赢家。 |
+| 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜。标题压在斜置的事件粉色带上，每名参赛者一张行卡（左侧席位色条，本人行抬起并描操作黄边，赢家标记为操作黄），表头是各列的线条图标（击杀准星、死亡墓碑、助攻双人、等级双箭头、守护盾、喷漆罐、赢家皇冠，悬停显示列名），标题、行卡与按钮依次入场。对局中按住 Tab 另有局内排行榜（§3.2）。Host 主动结束可无赢家。 |
 | 死亡与离局效果 | 留在局内的死亡取消未释放动作，已释放独立效果继续；正式离局/断线立即移除身体及未结束独立效果。关 UI 无权回滚已释放效果。 |
 
 本模块需要产品选择的界面行为已收口。布局、错误映射和本地接口属于工程设计；
@@ -290,7 +290,7 @@ OS 失焦才沿 `InvalidateLocalInput(reason)` 一次 Stop 并停旧心跳；恢
 无关 HP/MP 或 owner 发布不应每次清瞄准。
 
 动作与标签只来自 `ULDControlSettings::Bindings/Key/Label`：
-`Select, Navigate, AttackMove, Skill1/2, Dash, Stop, Attributes, Details,
+`Select, Navigate, AttackMove, Skill1/2, Dash, Stop, Attributes, Details, Workshop,
 PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 默认 Q/W/E、D、P 等遵循 Spec；Space 短按回中、按住临时跟随不写偏好，Home 切持久跟随，
 依操作域定义。Armed 时不边缘平移；滚轮在可滚动面板上只滚面板，不缩镜头。
@@ -497,7 +497,7 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 | --- | --- | --- |
 | 名称 / `ULDControlSettings` | `PlayerName`，显示使用会话域规范化后的公共名称 | Start 编辑，本机保存；房间公开名称由服务器验证。恢复游戏设置不隐式删名称；不保存 join 密钥、比赛数据或新增账号页。 |
 | 按键 / 同类 | `Bindings:TMap<FName,FKey>, Schema` | 单动态 registry；Rebind/Valid 检查重复、reserved Back、设备/轴/滚轮冲突。没有自动抢占另一个动作；改后所有标签同源，旧键释放前不生效。删除 Profile/Hybrid/Tactical 迁移和旧运行槽选择。 |
-| 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast, bAutoAttackAfterCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，默认 2250、范围 1300–2400、步长 80；“采用推荐镜头”只改 Zoom，不改变其他偏好或姓名。TextScale 是倍率。`CameraPanCmPerSec` 合法域为有限值 900–3600 cm/s，默认 1800、步进 300。小地图默认跟随镜头，也可跟随角色或固定正北；只旋转和统一缩放，不镜像、不授予视野。快速施法默认关闭，施法后自动攻击默认开启。当前 schema 22 保存，schema 5–21 显式迁移；Zoom 先按原范围校验，低于当前最小值 1300 才调整并提示，其他原值保留。缺失偏好取各自默认；仅 schema 5–10 补 Dash、5–13 补 Scoreboard、5–15 补 Mark、5–18 补 SkillE，默认键须空闲；schema 5–20 的 Details 可选空闲 C 或备用键，不抢已有绑定，schema 21 保留已存 Details。越界或非有限值按损坏拒绝，不重写原文件。 |
+| 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast, bAutoAttackAfterCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，默认 2250、范围 1300–2400、步长 80；“采用推荐镜头”只改 Zoom，不改变其他偏好或姓名。TextScale 是倍率。`CameraPanCmPerSec` 合法域为有限值 900–3600 cm/s，默认 1800、步进 300。小地图默认跟随镜头，也可跟随角色或固定正北；只旋转和统一缩放，不镜像、不授予视野。快速施法默认关闭，施法后自动攻击默认开启。当前 schema 23 保存，schema 5–22 显式迁移；Zoom 先按原范围校验，低于当前最小值 1300 才调整并提示，其他原值保留。缺失偏好取各自默认；仅 schema 5–10 补 Dash、5–13 补 Scoreboard、5–15 补 Mark、5–18 补 SkillE，默认键须空闲；schema 5–20 的 Details 可选空闲 C 或备用键，schema 5–22 的 Workshop 可选空闲 B 或备用键，都不抢已有绑定，之后的 schema 保留已存绑定。越界或非有限值按损坏拒绝，不重写原文件。 |
 | 诊断 / `ULDControlSettings` | `bShowNetworkDiagnostics, bShowFPS`，分别保存、默认关闭 | 设置页“界面”分类下的两个开关立即应用并保存，不属于待应用的显示草稿。HUD 右上角分别显示连接 RTT/抖动/收发丢包/未收包时长/本人移动校正，以及 FPS/平均帧耗时/窗口峰值；数据来源与缺失状态见 [视野与 UI](../systems/VISION_AND_UI.md#ui-只读模型)。恢复默认关闭两项，schema 5–14 迁移也关闭两项，保留其余已验证偏好。 |
 | 战斗反馈 / `ULDControlSettings` | `bReduceCombatEffects`（默认关闭）、`bCameraShake`（默认开启） | 设置页“界面”分类立即应用并保存；减弱局部临时冲击闪光、命中火花、施法光效，自身受击镜头震动可单独关闭，不影响服务端结算、状态标记或角色动作；schema 5–21 缺省迁移为关闭特效降低、开启镜头震动。 |
 | 显示/画质 / `UGameUserSettings` | VSync、整体画质预设 | 游戏只以无边框全屏、桌面分辨率运行，设置页没有窗口模式、分辨率或保留/回滚试用。VSync/画质留在草稿，明确 Apply 后立即应用并保存。不建庞大高级渲染中心，游戏仍不暂停。 |

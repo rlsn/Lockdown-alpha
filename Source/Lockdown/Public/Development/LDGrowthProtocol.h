@@ -342,6 +342,9 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint64 CombatInstalledRevision = 0;
     // Earned (opening, levels and the max-level XP grants) minus allocated minus permanently spent.
     UPROPERTY() int64 UnspentPoints = 0;
+    // Level-ups this match whose component draw found the common pool exhausted (each paid GROWTH.EmptyComponentPoolPoints
+    // instead); it only grows within a match, so a rise is exactly one such level-up's points.
+    UPROPERTY() uint8 EmptyPoolGrants = 0;
     // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).
     UPROPERTY() TArray<FLDStatPointsView> StatPoints;
     // Learned Q/W/E actives, by slot.

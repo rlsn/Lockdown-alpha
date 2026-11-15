@@ -207,6 +207,12 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         const FLinearColor Dusk(0.f,0.f,0.f,.6f);
         FString Lead=LDTerms::Title;Lead.RemoveFromEnd(LDTerms::Winner);
         Line(Lead,LDUIFonts::ERole::Title,40,140,FLinearColor::White,FFontOutlineSettings(),FVector2D(0,4),Dusk,86.f);
+        // The logo's soft dark drop 12 px below it (mockup 08's 0 12px 40px shadow), as widening translucent outlines.
+        for(const TPair<int32,float>& Soft:{TPair<int32,float>(26,.08f),TPair<int32,float>(16,.12f),TPair<int32,float>(7,.18f)})
+        {
+            Line(LDTerms::Winner,LDUIFonts::ERole::Title,142,40,FLinearColor::Transparent,
+                FFontOutlineSettings(Soft.Key,FLinearColor(0.f,0.f,0.f,Soft.Value)),FVector2D::ZeroVector,FLinearColor::Transparent,221.f+12.f);
+        }
         for(const TPair<int32,float>& Glow:{TPair<int32,float>(30,.1f),TPair<int32,float>(18,.16f),TPair<int32,float>(8,.24f)})
         {
             FrontendNeon.Add(Line(LDTerms::Winner,LDUIFonts::ERole::Title,142,40,FLinearColor::Transparent,

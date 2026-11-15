@@ -274,8 +274,36 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             StageFit->SetVisibility(ESlateVisibility::Collapsed);StageBox=StageFit;
             StageBack=LDWidgets::Button(WidgetTree,LDTerms::Choice,[this](){LeaveStage();},false,TEXT("GrowthStageBack"));
             StageBack->SetVisibility(ESlateVisibility::Collapsed);
-            // The final mod's description whole (its sentences carry no reliable effect/cost/notes boundary), its numbers, and the hold that locks it.
+            // The final mod's dock: the sources of a picked column holding several, then its effect, cost and notes lines (mockup
+            // 06; the whole description stands alone when the catalog has no split), its numbers, and the hold that locks it.
             auto* Desc=WidgetTree->ConstructWidget<UVerticalBox>();
+            {
+                auto* ChoiceLine=WidgetTree->ConstructWidget<UHorizontalBox>();
+                UTextBlock* ChoiceLabel=LDWidgets::Text(WidgetTree,LDTerms::FinalPickSource,LDHUDStyle::TypeSmall);
+                ChoiceLabel->SetColorAndOpacity(LDHUDStyle::UIEvent);ChoiceLabel->SetAutoWrapText(false);
+                ChoiceLine->AddChildToHorizontalBox(ChoiceLabel)->SetVerticalAlignment(VAlign_Center);
+                FinalSourceChoices=WidgetTree->ConstructWidget<UHorizontalBox>();
+                ChoiceLine->AddChildToHorizontalBox(FinalSourceChoices)->SetPadding(FMargin(14,0,0,0));
+                ChoiceLine->SetVisibility(ESlateVisibility::Collapsed);FinalSourceChoiceLine=ChoiceLine;
+                Desc->AddChildToVerticalBox(ChoiceLine)->SetPadding(FMargin(0,0,0,10));
+            }
+            const FLinearColor PartInk[3]={LDHUDStyle::UILegal,LDHUDStyle::UIReject,LDHUDStyle::TextSecondary};
+            for(int32 Part=0;Part<3;++Part)
+            {
+                auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+                UTextBlock* Label=LDWidgets::Text(WidgetTree,LDTerms::FinalPartLabel(Part),LDHUDStyle::TypeCaption,NAME_None,LDUIFonts::ERole::Strong);
+                Label->SetAutoWrapText(false);Label->SetColorAndOpacity(PartInk[Part]);
+                auto* Chip=WidgetTree->ConstructWidget<UBorder>();
+                Chip->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,3.f,PartInk[Part].CopyWithNewOpacity(.7f),1.f));
+                Chip->SetBrushColor(PartInk[Part].CopyWithNewOpacity(.12f));Chip->SetPadding(FMargin(8,1));Chip->SetContent(Label);
+                auto* ChipSlot=Row->AddChildToHorizontalBox(Chip);ChipSlot->SetVerticalAlignment(VAlign_Top);ChipSlot->SetPadding(FMargin(0,1,14,0));
+                UTextBlock* PartText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth+300.f);
+                PartText->SetColorAndOpacity(Part==2?LDHUDStyle::TextSecondary:LDHUDStyle::UIText);
+                Row->AddChildToHorizontalBox(PartText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+                Row->SetVisibility(ESlateVisibility::Collapsed);
+                Desc->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,Part?8:0,0,0));
+                FinalPartRows.Add(Row);FinalPartTexts.Add(PartText);
+            }
             FinalDescText=Wrapped(LDHUDStyle::TypeText,ServicePanelWidth+300.f);FinalDescText->SetColorAndOpacity(LDHUDStyle::UIText);
             Desc->AddChildToVerticalBox(FinalDescText)->SetPadding(FMargin(0,8,0,0));
             FinalNumbersText=Wrapped(LDHUDStyle::TypeCaption,ServicePanelWidth+300.f);FinalNumbersText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
@@ -435,6 +463,7 @@ const UWidget* ULDChoicesPanel::Hovered(FVector2D Pointer,LDHUD::FActionDetailVi
     const auto Row=[&Over](const UWidget* Box,const TArray<FTrayCard>& Cards){if(Box&&Box->IsVisible()){for(const FTrayCard& Card:Cards){Over(Card);}}};
     Row(OfferRow,OfferCards);if(OfferRow&&OfferRow->IsVisible()){Over(SkipCard);}Row(BaseRow,BaseCards);Row(BlueprintCardRow,BlueprintCards);
     Row(FinalModRow,FinalCards);Row(FinalSourceRow,FinalSourceCards);
+    Row(StageSourceLine,FinalColumnCards);Row(FinalSourceChoiceLine,FinalSourceCards);
     for(const FChoiceRow& Choice:ChoiceRows){Row(Choice.Row,Choice.Options);if(Choice.Row->IsVisible()){Over(Choice.Points);}}
     if(!Found&&OfferRow->IsVisible()&&OfferCards.IsValidIndex(PinnedPreview)&&OfferCards[PinnedPreview].Frame->IsVisible()){Found=&OfferCards[PinnedPreview];}
     if(!Found){return nullptr;}
@@ -484,7 +513,7 @@ bool ULDChoicesPanel::ClosePanel()
     // replace, forget, fill gap or dismantle is withdrawn with its pickers, an unlocked final selection with it.
     LDWidgets::ReleaseHolds(WidgetTree);
     RestConfirm=FRestConfirm();GrowthShown(RestConfirmLine,false);CloseMaterialPickers();
-    PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;bOpen=false;
+    PinnedPreview=INDEX_NONE;PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;bOpen=false;
     bFinalFeedbackAllowed=false;
     const LDHUD::FOfferMotionTicket PendingOffer=OfferMotion.Ticket;
     OfferMotion=FOfferMotion();
@@ -881,7 +910,7 @@ void ULDChoicesPanel::RefreshFinalMod()
             :LDHUD::ComponentCard(Id,LatestContent,LatestStats).Name;
     };
     const bool bDormant=FinalDormant();
-    if((!bFinal&&!bDormant)||(bFinal&&ShownFinalMod!=Latest.FinalModOfferId)){PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;}
+    if((!bFinal&&!bDormant)||(bFinal&&ShownFinalMod!=Latest.FinalModOfferId)){PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;}
     ShownFinalMod=bFinal?Latest.FinalModOfferId:FGuid();
     const bool bOnStage=IsFinalStage();
     const bool bFinalVisible=bOnStage||TrayShows(ETrayGroup::FinalMod);
@@ -933,22 +962,39 @@ void ULDChoicesPanel::RefreshFinalMod()
         ShowLook(Card,false,View.bKnown&&!Names.IsEmpty()&&Gate.bCanFinalMod&&!PendingRequest,bFinalVisible);
         GrowthTint(Card.Button,PendingFinalOption==Id?(IsFinalStage()?LDHUDStyle::UIEvent*.35f:LDHUDStyle::SlotArmed):LDHUDStyle::CardIdle);
     }
-    ShownFinalSources.Reset();
+    ShownFinalSources.Reset();ShownSourceColumns.Reset();
     if((bFinal||(bDormant&&PendingFinalOption==Latest.FinalMod.DefinitionId))&&!PendingFinalOption.IsNone())
-    {for(const FLDFinalModSourceView& Source:Latest.FinalModSources){if(Source.Option==PendingFinalOption){ShownFinalSources.Add(Source);}}}
+    {
+        for(const FLDFinalModSourceView& Source:Latest.FinalModSources)
+        {
+            if(Source.Option!=PendingFinalOption){continue;}
+            ShownFinalSources.Add(Source);
+            LDHUD::EStorageColumn Column=LDHUD::EStorageColumn::Body;
+            ShownSourceColumns.Add(LDHUD::FinalSourceColumn(Latest,Source.TargetKind,Source.TargetId,Column)?int32(Column):INDEX_NONE);
+        }
+    }
     if(ShownFinalSources.Num()==1&&IsFinalStage()){FinalSourcePick=0;}
     if(!ShownFinalSources.IsValidIndex(FinalSourcePick)){FinalSourcePick=INDEX_NONE;}
+    if(ShownSourceColumns.IsValidIndex(FinalSourcePick)){FinalColumnPick=ShownSourceColumns[FinalSourcePick];}
+    int32 ColumnSources[LDHUD::StorageColumnCount]={};
+    for(const int32 Column:ShownSourceColumns){if(Column>=0&&Column<LDHUD::StorageColumnCount){++ColumnSources[Column];}}
+    if(FinalColumnPick<0||FinalColumnPick>=LDHUD::StorageColumnCount||ColumnSources[FinalColumnPick]==0){FinalColumnPick=INDEX_NONE;}
+    // A holder-only card binds nothing: its page shows no source row.
+    const bool bUniversal=ShownFinalSources.Num()==1&&ShownFinalSources[0].TargetKind==ELDComponentTargetKind::None;
     const bool bSourceVisible=IsFinalStage()||TrayShows(ETrayGroup::FinalSource);
     const bool bSourceTiles=!IsFinalStage()&&(ShownFinalSources.Num()>6||bIconOnlyTray);
     TrayRowTiles(FinalSourceRow,bSourceTiles);
     GrowthShown(FinalSourceRow,!ShownFinalSources.IsEmpty()&&!IsFinalStage()&&bSourceVisible);
-    GrowthShown(StageSourceLine,!ShownFinalSources.IsEmpty()&&IsFinalStage(),ESlateVisibility::SelfHitTestInvisible);
+    GrowthShown(StageSourceLine,!ShownFinalSources.IsEmpty()&&!bUniversal&&IsFinalStage(),ESlateVisibility::SelfHitTestInvisible);
+    // On the page, only a picked column with several sources lists them (in the dock).
+    const bool bColumnChoices=IsFinalStage()&&FinalColumnPick!=INDEX_NONE&&ColumnSources[FinalColumnPick]>1;
+    GrowthShown(FinalSourceChoiceLine,bColumnChoices,ESlateVisibility::SelfHitTestInvisible);
     for(int32 Index=0;Index<ShownFinalSources.Num();++Index)
     {
         if(!FinalSourceCards.IsValidIndex(Index))
         {
             FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthFinalSource%d"),Index)),[this,Index](){if(IsFinalStage()){SelectFinalSource(Index);}else{ChooseFinalModSource(Index);}});
-            if(IsFinalStage()){StageSources->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(Index?12.f:0.f,0,0,0));}
+            if(IsFinalStage()){FinalSourceChoices->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(Index?12.f:0.f,0,0,0));}
             else{FinalSourceRow->AddChildToWrapBox(Card.Frame);}
             FinalSourceCards.Add(Card);
         }
@@ -963,10 +1009,60 @@ void ULDChoicesPanel::RefreshFinalMod()
         Detail.Name=Name;
         Detail.Body=LDHUD::FinalModCard(PendingFinalOption,LatestContent,LatestStats).Name+TEXT("\n绑定此来源。");
         ShowFace(FinalSourceCards[Index],PendingFinalOption.ToString()+TEXT("|")+Name,Name,Icon,Glyph,Detail);
-        ShowLook(FinalSourceCards[Index],IsFinalStage()||bSourceTiles,Gate.bCanFinalMod&&!PendingRequest,bSourceVisible);
+        const bool bShown=IsFinalStage()?bColumnChoices&&ShownSourceColumns[Index]==FinalColumnPick:bSourceVisible;
+        ShowLook(FinalSourceCards[Index],bSourceTiles,Gate.bCanFinalMod&&!PendingRequest,bShown);
         GrowthTint(FinalSourceCards[Index].Button,IsFinalStage()&&Index==FinalSourcePick?LDHUDStyle::UIEvent*.45f:LDHUDStyle::CardIdle);
     }
     for(int32 Index=ShownFinalSources.Num();Index<FinalSourceCards.Num();++Index){GrowthShown(FinalSourceCards[Index].Frame,false);}
+    // The page's 绑定来源 row: the board's five columns, lit where a legal source sits, the rest dimmed and unclickable.
+    while(FinalColumnCards.Num()<LDHUD::StorageColumnCount)
+    {
+        const int32 Column=FinalColumnCards.Num();
+        FTrayCard Card=MakeCard(FName(*FString::Printf(TEXT("GrowthFinalColumn%d"),Column)),[this,Column](){SelectFinalColumn(Column);});
+        StageSources->AddChildToHorizontalBox(Card.Frame)->SetPadding(FMargin(Column?14.f:0.f,0,0,0));
+        FinalColumnCards.Add(Card);
+    }
+    for(int32 Column=0;Column<FinalColumnCards.Num();++Column)
+    {
+        FTrayCard& Card=FinalColumnCards[Column];
+        FString Name,Icon,Glyph;
+        if(Column==int32(LDHUD::EStorageColumn::Body)){Name=LDTerms::ColumnBody;Glyph=LDHUD::IconGlyph(Name);}
+        else if(Column==int32(LDHUD::EStorageColumn::Dash)){Name=LDTerms::Dash;Icon=LDUIIcons::Dash;Glyph=TEXT("D");}
+        else
+        {
+            const uint8 ServerSlot=uint8(Column-int32(LDHUD::EStorageColumn::SlotQ));
+            Name=SlotKeys.Of(ServerSlot);
+            const FName Active=LDHUD::ActiveInSlot(Latest,ServerSlot);
+            if(!Active.IsNone()){const auto Skill=LDHUD::ActiveCard(Active,LatestContent,LatestStats);Icon=Skill.IconId;Glyph=Skill.Glyph;}
+            else{Glyph=TEXT("+");}
+        }
+        LDHUD::FActionDetailView Detail;Detail.Name=Name;
+        TArray<FString> Here;
+        for(int32 Index=0;Index<ShownFinalSources.Num();++Index)
+        {
+            if(ShownSourceColumns[Index]!=Column){continue;}
+            const FLDFinalModSourceView& Source=ShownFinalSources[Index];
+            Here.Add(Source.TargetKind==ELDComponentTargetKind::Dash?FString(TEXT("冲刺(D)"))
+                :Source.TargetKind==ELDComponentTargetKind::Active?LDHUD::ActiveCard(Source.TargetId,LatestContent,LatestStats).Name
+                :LDHUD::ComponentCard(Source.TargetId,LatestContent,LatestStats).Name);
+        }
+        Detail.Body=Here.IsEmpty()?FString(TEXT("这一列没有合法来源。")):LDTerms::FinalBindsTo(FString::Join(Here,TEXT(" / ")));
+        const FString Key=TEXT("FINCOL|")+PendingFinalOption.ToString()+TEXT("|")+Name+TEXT("|")+Icon+TEXT("|")+Detail.Body;
+        if(CardStale(Card,Key)){ShowFace(Card,Key,Name,Icon,Glyph,Detail);}
+        const bool bLegal=ColumnSources[Column]>0;
+        ShowLook(Card,false,bLegal&&Gate.bCanFinalMod&&!PendingRequest,IsFinalStage()&&!bUniversal&&!ShownFinalSources.IsEmpty());
+        GrowthTint(Card.Button,Column==FinalColumnPick?LDHUDStyle::UIEvent*.45f:LDHUDStyle::CardIdle);
+    }
+}
+bool ULDChoicesPanel::SelectFinalColumn(int32 Column)
+{
+    if(!IsFinalStage()||PendingFinalOption.IsNone()||Column<0||Column>=LDHUD::StorageColumnCount){return false;}
+    TArray<int32> Here;
+    for(int32 Index=0;Index<ShownSourceColumns.Num();++Index){if(ShownSourceColumns[Index]==Column){Here.Add(Index);}}
+    if(Here.IsEmpty()){return false;}
+    FinalColumnPick=Column;
+    FinalSourcePick=Here.Num()==1?Here[0]:(Here.Contains(FinalSourcePick)?FinalSourcePick:INDEX_NONE);
+    RefreshAll();return true;
 }
 ULDChoicesPanel::FTrayCard& ULDChoicesPanel::BaseCardAt(int32 Index)
 {
@@ -1278,7 +1374,7 @@ bool ULDChoicesPanel::RebindFinalMod()
     for(const FLDFinalModSourceView& Source:Latest.FinalModSources){if(Source.Option==Option){Sources.Add(Source);}}
     if(Sources.IsEmpty()){Tell(TEXT("没有提交：当前构筑没有合法触发来源。"));return false;}
     if(Sources.Num()==1){return SubmitFinalMod(Option,Sources[0]);}
-    PendingFinalOption=Option;FinalSourcePick=INDEX_NONE;RefreshAll();return true;
+    PendingFinalOption=Option;FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;RefreshAll();return true;
 }
 bool ULDChoicesPanel::SubmitFinalMod(FName Option,const FLDFinalModSourceView& Source)
 {
@@ -1304,7 +1400,7 @@ bool ULDChoicesPanel::SelectFinalMod(int32 Index)
 {
     // The stage only selects; the hold of GrowthFinalLock commits. One legal source is chosen at once.
     if(!Usable()||!Latest.bFinalModPending||!Latest.FinalModOptions.IsValidIndex(Index)||Latest.FinalModOfferId!=ShownFinalMod){return false;}
-    PendingFinalOption=Latest.FinalModOptions[Index];FinalSourcePick=INDEX_NONE;
+    PendingFinalOption=Latest.FinalModOptions[Index];FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;
     RefreshAll();return true;
 }
 bool ULDChoicesPanel::ReopenFinalStage(int32 Index)
@@ -1323,14 +1419,16 @@ bool ULDChoicesPanel::ReopenFinalStage(int32 Index)
 bool ULDChoicesPanel::SelectFinalSource(int32 Index)
 {
     if(!ShownFinalSources.IsValidIndex(Index)||PendingFinalOption.IsNone()){return false;}
-    FinalSourcePick=Index;RefreshAll();return true;
+    FinalSourcePick=Index;
+    if(ShownSourceColumns.IsValidIndex(Index)&&ShownSourceColumns[Index]!=INDEX_NONE){FinalColumnPick=ShownSourceColumns[Index];}
+    RefreshAll();return true;
 }
 bool ULDChoicesPanel::LockFinalMod()
 {
     if(PendingFinalOption.IsNone()){Tell(TEXT("没有提交：先选一张终局改装。"));return false;}
     if(!ShownFinalSources.IsValidIndex(FinalSourcePick)){Tell(TEXT("没有提交：先选绑定来源。"));return false;}
     const FLDFinalModSourceView Source=ShownFinalSources[FinalSourcePick];
-    FinalSourcePick=INDEX_NONE;
+    FinalSourcePick=INDEX_NONE;FinalColumnPick=INDEX_NONE;
     return SubmitFinalMod(PendingFinalOption,Source);
 }
 bool ULDChoicesPanel::PreviewOffer(int32 Index)
@@ -1993,7 +2091,14 @@ void ULDChoicesPanel::UpdateStage()
     else
     {
         for(FTrayCard& Card:FinalCards){OnStage(Card,StageCards,30.f,330.f,200.f);}
-        for(FTrayCard& Card:FinalSourceCards){OnStage(Card,StageSources,12.f,TrayTileSize,0.f);ShowBig(Card,false,0.f,0.f);}
+        // A column with several legal sources lists them in the dock; the 绑定来源 row itself is the board's columns.
+        for(int32 Index=0;Index<FinalSourceCards.Num();++Index)
+        {
+            FTrayCard& Card=FinalSourceCards[Index];
+            Move(Card.Frame,FinalSourceChoices);
+            if(UHorizontalBoxSlot* CardSlot=Cast<UHorizontalBoxSlot>(Card.Frame->Slot)){CardSlot->SetPadding(FMargin(Index?12.f:0.f,0,0,0));}
+            ShowBig(Card,false,0.f,0.f);
+        }
     }
     bCardsStale=true;
 }
@@ -2018,13 +2123,22 @@ void ULDChoicesPanel::RefreshStage()
     }
     GrowthText(StageTitle,LDTerms::FinalStageTitle);StageTitle->SetColorAndOpacity(LDHUDStyle::UIEvent);
     GrowthText(StageSub,LDTerms::FinalOnce);StageSub->SetColorAndOpacity(LDHUDStyle::UIEvent);
-    // The description of the selected card (else the first) as written, then its numbers line.
+    // The selected card (else the first): its effect, cost and notes lines as the catalog splits them, else the whole
+    // description; then its numbers line.
     const FName Shown=!PendingFinalOption.IsNone()?PendingFinalOption:Latest.FinalModOptions.IsValidIndex(0)?Latest.FinalModOptions[0]:NAME_None;
     FString Description;
     LDHUD::ContentText(LatestContent,Shown.ToString(),true,Description);
     FString Numbers=LDHUD::FinalModCard(Shown,LatestContent,LatestStats).Detail.Body;
     Numbers.RemoveFromStart(Description);Numbers.TrimStartAndEndInline();
-    GrowthText(FinalDescText,Description);
+    FString Parts[3];
+    const bool bSplit=LDHUD::FinalModParts(LatestContent,Shown,Parts[0],Parts[1],Parts[2]);
+    for(int32 Part=0;Part<FinalPartRows.Num()&&Part<3;++Part)
+    {
+        GrowthText(FinalPartTexts[Part],bSplit?Parts[Part]:FString());
+        GrowthShown(FinalPartRows[Part],bSplit&&!Parts[Part].IsEmpty(),ESlateVisibility::SelfHitTestInvisible);
+    }
+    GrowthText(FinalDescText,bSplit?FString():Description);
+    GrowthShown(FinalDescText,!bSplit);
     GrowthText(FinalNumbersText,Numbers);
     GrowthShown(FinalNumbersText,!Numbers.IsEmpty());
     GrowthText(FinalLockNote,LDTerms::FinalTakenNote);
@@ -2067,6 +2181,14 @@ void ULDChoicesPanel::LayoutLayer()
             -Geometry.AbsoluteToLocal(FVector2D(Description.Left,Description.Top)).X));
         for(UTextBlock* Text:{FinalDescText.Get(),FinalNumbersText.Get()})
         {if(Text&&!FMath::IsNearlyEqual(Text->GetWrapTextAt(),DescriptionWidth,.5f)){Text->SetWrapTextAt(DescriptionWidth);}}
+        // A part line wraps beside its label chip.
+        for(UTextBlock* Text:FinalPartTexts)
+        {
+            const UPanelWidget* Row=Text?Text->GetParent():nullptr;
+            const UWidget* Chip=Row?Row->GetChildAt(0):nullptr;
+            const float Wrap=FMath::Max(1.f,DescriptionWidth-(Chip?float(Chip->GetDesiredSize().X):48.f)-14.f);
+            if(Text&&!FMath::IsNearlyEqual(Text->GetWrapTextAt(),Wrap,.5f)){Text->SetWrapTextAt(Wrap);}
+        }
         PlaceOnLayer(FinalDesc,Description,FVector2D::ZeroVector,true);
         const FSlateRect Actions(Dock.Right-320.f*Scale,Dock.Top,Dock.Right-28.f*Scale,Dock.Bottom);
         PlaceOnLayer(FinalLockButton,Actions,FVector2D(.5f,.4f));
@@ -2234,6 +2356,15 @@ int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const 
         for(int32 Index=0;Index<FinalCards.Num()&&Latest.FinalModOptions.IsValidIndex(Index);++Index)
         {if(Latest.FinalModOptions[Index]==PendingFinalOption){Edge(FinalCards[Index],LDHUDStyle::UIEvent);}}
         if(FinalSourceCards.IsValidIndex(FinalSourcePick)){Edge(FinalSourceCards[FinalSourcePick],LDHUDStyle::UIEvent);}
+        // Mockup 06: legal source columns wear a thin pink frame, the picked one the full glow.
+        for(int32 Column=0;Column<FinalColumnCards.Num();++Column)
+        {
+            const FTrayCard& Card=FinalColumnCards[Column];
+            if(!Card.Frame||!Card.Frame->IsVisible()||!Card.Button||!Card.Button->GetIsEnabled()){continue;}
+            if(Column==FinalColumnPick){Edge(Card,LDHUDStyle::UIEvent);continue;}
+            const FBox2D Box=LDUIShapes::RectIn(G,Card.Frame->GetCachedGeometry());
+            Paint.Frame(Base+1,LDUIShapes::EShape::Rounded,Box,LDHUDStyle::UIEvent.CopyWithNewOpacity(.55f),1.5f,LDHUDStyle::RadiusPanel);
+        }
     }
     return OfferMotionActive()?Base+9:Base+2;
 }

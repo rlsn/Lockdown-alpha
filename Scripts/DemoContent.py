@@ -124,6 +124,8 @@ DISPLAY_TEXT_FORBIDDEN = re.compile(
 DISPLAY_TEXT_EDGE = frozenset((" ", "\u3000"))
 # Numbers shown to players come from typed fields, never from description prose.
 DISPLAY_DESCRIPTION_DIGIT = re.compile("[0-9\uff10-\uff19]")
+# A final mod's display row also splits its description into effect, cost and notes lines (<id>.<part>).
+FINAL_MOD_DISPLAY_PARTS = ("effect", "cost", "notes")
 
 
 class ContentError(ValueError):
@@ -955,7 +957,15 @@ def validate_definitions(data, ids):
                     "DisplayReference", identity, "missing character portrait")
         else:
             require("portrait_icon_id" not in row, "DisplayReference", identity, "portrait belongs only to character")
-        for field in ("name_text", "description_text"):
+        for part in FINAL_MOD_DISPLAY_PARTS:
+            if identity in finals:
+                require(row.get(part + "_key") == identity + "." + part and part + "_text" in row, "DisplayReference",
+                        identity, f"a final mod needs its {part} line")
+            else:
+                require(part + "_key" not in row and part + "_text" not in row, "DisplayReference", identity,
+                        f"only a final mod has a {part} line")
+        for field in ("name_text", "description_text",
+                      *(part + "_text" for part in FINAL_MOD_DISPLAY_PARTS if identity in finals)):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
         if identity in abilities:
             card_template(row["description_text"], abilities[identity]["effects"], f"{identity}.description_text")

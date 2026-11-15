@@ -96,6 +96,53 @@ void HudBarStyle(UProgressBar* Bar,const FLinearColor& Fill)
     Style.SetBackgroundImage(FSlateRoundedBoxBrush(LDHUDStyle::BarTrack,4.f,LDHUDStyle::PanelRim,1.f)).SetFillImage(FSlateRoundedBoxBrush(FLinearColor::White,4.f)).SetMarqueeImage(FSlateNoResource());
     Bar->SetWidgetStyle(Style);Bar->SetFillColorAndOpacity(Fill);
 }
+// The result table's column heads as small line glyphs (report p.21): kills a crosshair, deaths a tombstone, assists two
+// people, final level a double chevron, guard a shield, sprays a can, the winner a crown. Drawn centred in the layer.
+enum class EHudResultGlyph : uint8 { Kills=1, Deaths, Assists, Level, Guard, Spray, Winner };
+void HudResultGlyph(const LDUIPaint::FContext& P,EHudResultGlyph Glyph,const FLinearColor& Ink)
+{
+    const FVector2D C=FVector2D(P.Geometry.GetLocalSize())*.5f;
+    const auto At=[&C](float X,float Y){return C+FVector2D(X,Y);};
+    const auto Path=[&At](std::initializer_list<FVector2D> Points){TArray<FVector2D> Out;for(const FVector2D& Point:Points){Out.Add(At(float(Point.X),float(Point.Y)));}return Out;};
+    const float W=1.8f;
+    switch(Glyph)
+    {
+    case EHudResultGlyph::Kills:
+        P.Arc(P.Layer,C,7.f,1.f,Ink,W);
+        P.Line(P.Layer,At(-11,0),At(-4,0),Ink,W);P.Line(P.Layer,At(4,0),At(11,0),Ink,W);
+        P.Line(P.Layer,At(0,-11),At(0,-4),Ink,W);P.Line(P.Layer,At(0,4),At(0,11),Ink,W);
+        P.Fill(P.Layer,FBox2D(At(-1.5f,-1.5f),At(1.5f,1.5f)),Ink,1.5f);
+        break;
+    case EHudResultGlyph::Deaths:
+        P.Stroke(P.Layer,Path({{-7,9},{-7,-3},{-5,-7},{-2,-9},{2,-9},{5,-7},{7,-3},{7,9}}),Ink,W);
+        P.Line(P.Layer,At(-10,9),At(10,9),Ink,W);
+        P.Line(P.Layer,At(0,-5),At(0,4),Ink,W);P.Line(P.Layer,At(-3,-2),At(3,-2),Ink,W);
+        break;
+    case EHudResultGlyph::Assists:
+        P.Arc(P.Layer,At(-4,-4),3.f,1.f,Ink,W);P.Arc(P.Layer,At(5,-5),3.f,1.f,Ink,W);
+        P.Stroke(P.Layer,Path({{-10,9},{-9,4},{-6,1.5f},{-2,1.5f},{1,4},{2,9}}),Ink,W);
+        P.Stroke(P.Layer,Path({{4,1},{8,1},{10,4},{11,9}}),Ink,W);
+        break;
+    case EHudResultGlyph::Level:
+        P.Stroke(P.Layer,Path({{-7,2},{0,-5},{7,2}}),Ink,W+.4f);
+        P.Stroke(P.Layer,Path({{-7,9},{0,2},{7,9}}),Ink,W+.4f);
+        P.Line(P.Layer,At(-7,-10),At(7,-10),Ink,W);
+        break;
+    case EHudResultGlyph::Guard:
+        P.Stroke(P.Layer,Path({{0,-10},{8,-6},{8,1},{0,10},{-8,1},{-8,-6},{0,-10}}),Ink,W);
+        P.Line(P.Layer,At(0,-6),At(0,6),Ink.CopyWithNewOpacity(Ink.A*.6f),W);
+        break;
+    case EHudResultGlyph::Spray:
+        P.Frame(P.Layer,LDUIShapes::EShape::Rounded,FBox2D(At(-7,-3),At(3,10)),Ink,W,2.f);
+        P.Fill(P.Layer,FBox2D(At(-4,-8),At(0,-3)),Ink,1.f);
+        for(const FVector2D& Dot:{FVector2D(5,-9),FVector2D(8,-6),FVector2D(6,-3.5f),FVector2D(10,-10),FVector2D(10,-3)})
+        {P.Fill(P.Layer,FBox2D(At(float(Dot.X)-1.f,float(Dot.Y)-1.f),At(float(Dot.X)+1.f,float(Dot.Y)+1.f)),Ink,1.f);}
+        break;
+    case EHudResultGlyph::Winner:
+        P.Stroke(P.Layer,Path({{-9,6},{-9,-4},{-4.5f,1},{0,-8},{4.5f,1},{9,-4},{9,6},{-9,6}}),Ink,W);
+        break;
+    }
+}
 // The band's slots in LDHUD::EActionSlot order (Q W E | dash), which is also the order they are shown in.
 const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),TEXT("SkillE"),TEXT("Dash")};
 const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E,ELDCombatEntry::Dash};
@@ -894,6 +941,14 @@ void ULDHUD::ToggleAttributeView()
 {
     if(StatBar){StatBar->ToggleView();}
 }
+void ULDHUD::ToggleWorkshop()
+{
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(!PC||!PC->RootUI||!ChoicesPanel){return;}
+    const bool bOpen=ChoicesPanel->IsTrayOpen();
+    const bool bPromptReady=PromptButton&&PromptButton->GetIsEnabled()&&PromptFrame&&PromptFrame->IsVisible();
+    if(bOpen||bPromptReady){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}
+}
 void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
 {
     if(DevTestPanel){DevTestPanel->HandleResult(Result);}
@@ -1280,6 +1335,12 @@ void ULDHUD::RefreshReadModel()
         const auto RectOf=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
         Anchors.Band=RectOf(Band);
         Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
+        {
+            // Empty-pool points land where the unspent points show: the workshop's points, else the band's stat icons.
+            const ULDChoicesPanel::FWorkshopPlaces Places=Workshop?Workshop->Places():ULDChoicesPanel::FWorkshopPlaces();
+            const bool bWorkshopPoints=Places.bActive&&Places.Points.Right>Places.Points.Left;
+            Storage->SetPointsTarget(bWorkshopPoints?Places.Points:RectOf(StatBar));
+        }
         Anchors.Columns[int32(LDHUD::EStorageColumn::Body)]=RectOf(BodySlot);
         for(int32 Index=0;Index<FMath::Min(3,ActionSlots.Num());++Index)
         {
@@ -2107,6 +2168,18 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         for(int32 Column=0;Column<Values.Num()&&Column<UE_ARRAY_COUNT(Widths);++Column)
         {
             const bool bMark=Column==UE_ARRAY_COUNT(Widths)-1;
+            if(!Seat&&Column>0)
+            {
+                // The head row draws a glyph per column; its name stays in the tooltip.
+                auto* Glyph=WidgetTree->ConstructWidget<ULDPaintLayer>();
+                const EHudResultGlyph Kind=static_cast<EHudResultGlyph>(Column);
+                const FLinearColor GlyphInk=bMark?LDHUDStyle::UIAction:LDHUDStyle::TextSecondary;
+                Glyph->Painter=[Kind,GlyphInk](const LDUIPaint::FContext& Paint){HudResultGlyph(Paint,Kind,GlyphInk);};
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Widths[Column]);Box->SetHeightOverride(26.f);
+                Box->SetToolTipText(FText::FromString(bMark?FString(LDTerms::Winner):Values[Column]));
+                Box->SetContent(Glyph);Line->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);
+                continue;
+            }
             const LDUIFonts::ERole Role=!Seat?LDUIFonts::ERole::Strong:Column==0?LDUIFonts::ERole::Strong:LDUIFonts::ERole::Number;
             Line->AddChildToHorizontalBox(Cell(Values[Column],Widths[Column],bMark&&bWinner?LDHUDStyle::UIAction:Ink,Role,Column==0));
         }

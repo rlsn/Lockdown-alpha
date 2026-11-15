@@ -55,7 +55,22 @@ bool LDDemoContentText::Build(const FLDDemoContentDefinitions& Definitions, FStr
     Table->SetNamespace(FTextKey(DemoContentTextTable));
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
-        const TPair<const FString*, const FString*> Entries[] = {{&Row.NameKey, &Row.NameText}, {&Row.DescriptionKey, &Row.DescriptionText}};
+        // A final mod's row adds its effect, cost and notes lines; any other row has none.
+        const bool bFinalMod = Definitions.FinalMods.ContainsByPredicate([&Row](const FLDDemoFinalModDefinition& Mod) { return Mod.Id == Row.Id; });
+        TArray<TPair<const FString*, const FString*>, TInlineAllocator<5>> Entries = {{&Row.NameKey, &Row.NameText}, {&Row.DescriptionKey, &Row.DescriptionText}};
+        const TPair<const FString*, const FString*> Parts[] = {{&Row.EffectKey, &Row.EffectText}, {&Row.CostKey, &Row.CostText}, {&Row.NotesKey, &Row.NotesText}};
+        for (const TPair<const FString*, const FString*>& Part : Parts)
+        {
+            if (bFinalMod)
+            {
+                Entries.Add(Part);
+            }
+            else if (!Part.Key->IsEmpty() || !Part.Value->IsEmpty())
+            {
+                Error = FString::Printf(TEXT("DemoContent display text: %s is not a final mod but has an effect, cost or notes line."), *Row.Id);
+                return false;
+            }
+        }
         for (const TPair<const FString*, const FString*>& Entry : Entries)
         {
             FString Existing;

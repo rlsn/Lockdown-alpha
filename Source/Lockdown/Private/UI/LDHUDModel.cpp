@@ -94,6 +94,24 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     Out=Text;
     return true;
 }
+bool LDHUD::FinalModParts(const FLDDemoContentDefinitions* Content,FName FinalMod,FString& OutEffect,FString& OutCost,FString& OutNotes)
+{
+    OutEffect.Reset();OutCost.Reset();OutNotes.Reset();
+    if(!Content||FinalMod.IsNone()){return false;}
+    const FString Id=FinalMod.ToString();
+    const FLDDemoDisplayDefinition* Display=Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
+    if(!Display||Display->Namespace.IsEmpty()||Display->EffectKey.IsEmpty()){return false;}
+    const FStringTableConstPtr Table=FStringTableRegistry::Get().FindStringTable(FName(*Display->Namespace));
+    if(!Table.IsValid()){HudReportMissingText(Id);return false;}
+    FString* Outs[3]={&OutEffect,&OutCost,&OutNotes};
+    const FString* Keys[3]={&Display->EffectKey,&Display->CostKey,&Display->NotesKey};
+    for(int32 Part=0;Part<3;++Part)
+    {
+        if(Keys[Part]->IsEmpty()||!Table->GetSourceString(FTextKey(**Keys[Part]),*Outs[Part])||Outs[Part]->IsEmpty())
+        {OutEffect.Reset();OutCost.Reset();OutNotes.Reset();HudReportMissingText(Id);return false;}
+    }
+    return true;
+}
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
     FString Name;ContentText(Content,ContentId,false,Name);return Name;
@@ -1810,27 +1828,32 @@ LDHUD::EStorageColumn LDHUD::SlotColumn(uint8 Slot)
 {
     return Slot==0?EStorageColumn::SlotQ:Slot==1?EStorageColumn::SlotW:Slot==2?EStorageColumn::SlotE:EStorageColumn::Body;
 }
-bool LDHUD::FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn)
+bool LDHUD::FinalSourceColumn(const FLDProgressionView& Progression,ELDComponentTargetKind Kind,FName TargetId,EStorageColumn& OutColumn)
 {
-    const FLDFinalModSelection& Final=Progression.FinalMod;
-    if(!Progression.bValid||Final.IsEmpty()||!Progression.FinalModSources.ContainsByPredicate([&Final](const FLDFinalModSourceView& Source)
-        {return Source.Option==Final.DefinitionId&&Source.TargetKind==Final.TargetKind&&Source.TargetId==Final.TargetId;})){return false;}
-    switch(Final.TargetKind)
+    if(!Progression.bValid){return false;}
+    switch(Kind)
     {
     case ELDComponentTargetKind::None: OutColumn=EStorageColumn::Body;return true;
     case ELDComponentTargetKind::Dash: OutColumn=EStorageColumn::Dash;return true;
     case ELDComponentTargetKind::Active:
         for(const FLDActiveSlotView& Active:Progression.Actives)
-        {if(Active.DefinitionId==Final.TargetId&&Active.Slot<3){OutColumn=SlotColumn(Active.Slot);return true;}}
+        {if(Active.DefinitionId==TargetId&&Active.Slot<3){OutColumn=SlotColumn(Active.Slot);return true;}}
         return false;
     case ELDComponentTargetKind::Component:
-        if(const FLDComponentInstanceView* Component=HudOwned(Progression,Final.TargetId))
+        if(const FLDComponentInstanceView* Component=HudOwned(Progression,TargetId))
         {
             if(Component->bInstalled){FName Host;HudPlacement(Progression,*Component,OutColumn,Host);return true;}
         }
         return false;
     default: return false;
     }
+}
+bool LDHUD::FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn)
+{
+    const FLDFinalModSelection& Final=Progression.FinalMod;
+    if(!Progression.bValid||Final.IsEmpty()||!Progression.FinalModSources.ContainsByPredicate([&Final](const FLDFinalModSourceView& Source)
+        {return Source.Option==Final.DefinitionId&&Source.TargetKind==Final.TargetKind&&Source.TargetId==Final.TargetId;})){return false;}
+    return FinalSourceColumn(Progression,Final.TargetKind,Final.TargetId,OutColumn);
 }
 LDHUD::FStorageView LDHUD::ComponentStorage(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
     const TSet<FName>* Seen)

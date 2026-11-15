@@ -226,6 +226,8 @@ inline constexpr TCHAR FinalOnce[]=TEXT("一局一次");
 inline constexpr TCHAR FinalNoBind[]=TEXT("无需绑定");
 inline FString FinalBindsTo(const FString& Source){return FString::Printf(TEXT("绑定 · %s"),*Source);}
 inline constexpr TCHAR FinalSourceLabel[]=TEXT("绑定来源");
+inline constexpr TCHAR FinalPickSource[]=TEXT("此列有多个来源");
+inline const TCHAR* FinalPartLabel(int32 Part){return Part==0?TEXT("效果"):Part==1?TEXT("代价"):TEXT("须知");}
 inline constexpr TCHAR FinalLock[]=TEXT("按住选定改装");
 inline constexpr TCHAR FinalTakenNote[]=TEXT("改装只选一次；技能和构件仍可随时调整。");
 inline constexpr TCHAR FinalDormant[]=TEXT("未生效 · 来源已拆下");

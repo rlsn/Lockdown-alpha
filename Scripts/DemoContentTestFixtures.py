@@ -235,6 +235,11 @@ def content_fixture():
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
                 "icon_id": "icon_" + identity} for identity in identities]
     display[0]["portrait_icon_id"] = "portrait_character_demo"
+    for row in display:
+        if row["id"] in {final["id"] for final in finals}:
+            for part in demo.FINAL_MOD_DISPLAY_PARTS:
+                row[part + "_key"] = row["id"] + "." + part
+                row[part + "_text"] = "TEST ONLY 合成" + part
     # Card templates: an active reads [op.field] of its effects, a stat [per_point.<Stat>] of one point.
     next(row for row in display if row["id"] == "active_snark_bolt")["description_text"] += " [damage.amount] [slow.ratio] [slow.duration]"
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"

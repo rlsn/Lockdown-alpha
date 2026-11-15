@@ -72,6 +72,8 @@ namespace LDHUD
     // definition, its display entry, the table or the key is missing: Out then holds the stable content id,
     // so the content error stays visible instead of a guessed name.
     LOCKDOWN_API bool ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out);
+    // A final mod's effect, cost and notes lines from its display row; false (all empty) when the catalog has no split for it.
+    LOCKDOWN_API bool FinalModParts(const FLDDemoContentDefinitions* Content,FName FinalMod,FString& OutEffect,FString& OutCost,FString& OutNotes);
     LOCKDOWN_API FString ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     // The display row's IconId of a content entry (#85); empty without a display row.
     LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
@@ -593,6 +595,9 @@ namespace LDHUD
     LOCKDOWN_API EStorageColumn SlotColumn(uint8 Slot);
     // The column containing the final mod's currently legal source, including an installed component's host chain.
     LOCKDOWN_API bool FinalModColumn(const FLDProgressionView& Progression,EStorageColumn& OutColumn);
+    // The board column a final-mod source sits in: 本体 for none, the slot of a learned active, D, or an installed
+    // component's column; false when the source is not on the board.
+    LOCKDOWN_API bool FinalSourceColumn(const FLDProgressionView& Progression,ELDComponentTargetKind Kind,FName TargetId,EStorageColumn& OutColumn);
     struct FEquippedView
     {
         FName Component;

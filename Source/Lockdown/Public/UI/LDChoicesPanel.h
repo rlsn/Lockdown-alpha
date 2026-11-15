@@ -93,6 +93,9 @@ public:
     bool RebindFinalMod();
     bool FinalDormant() const;
     bool SelectFinalSource(int32 Index);
+    // The final page's 绑定来源 row is the board's five columns (本体 Q W E D): a column with one legal source selects it, one
+    // with several lists them in the description dock for a second click.
+    bool SelectFinalColumn(int32 Column);
     bool LockFinalMod();
     bool IsShowingFinalMod() const {return ShownFinalMod.IsValid();}
     // Keeps an offer card's popup showing without a pointer (automation and review captures); INDEX_NONE releases it.
@@ -272,6 +275,10 @@ private:
     TArray<FTrayCard> OfferCards;
     TArray<FTrayCard> FinalCards;
     TArray<FTrayCard> FinalSourceCards;
+    // The final page's column cells (本体 Q W E D) and the board column of each shown source (INDEX_NONE: not on the board).
+    TArray<FTrayCard> FinalColumnCards;
+    TArray<int32> ShownSourceColumns;
+    int32 FinalColumnPick=INDEX_NONE;
     FTrayCard SkipCard;
     TArray<FTrayCard> BaseCards;
     TArray<FChoiceRow> ChoiceRows;
@@ -289,8 +296,14 @@ private:
     UPROPERTY() TObjectPtr<UHorizontalBox> StageSources;
     UPROPERTY() TObjectPtr<ULDCommandButton> StageBack;
     UPROPERTY() TObjectPtr<UWidget> FinalDesc;
+    // The selected card's effect, cost and notes lines (each a label chip and its text), the whole description when the
+    // catalog has no split for it, its numbers, and the sources of a picked column holding several.
+    UPROPERTY() TArray<TObjectPtr<UWidget>> FinalPartRows;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> FinalPartTexts;
     UPROPERTY() TObjectPtr<UTextBlock> FinalDescText;
     UPROPERTY() TObjectPtr<UTextBlock> FinalNumbersText;
+    UPROPERTY() TObjectPtr<UWidget> FinalSourceChoiceLine;
+    UPROPERTY() TObjectPtr<UHorizontalBox> FinalSourceChoices;
     UPROPERTY() TObjectPtr<ULDHoldButton> FinalLockButton;
     UPROPERTY() TObjectPtr<UTextBlock> FinalLockNote;
     // The services on the workshop: the trainer's blueprint picks and head buttons, the merchant's card, the artisan's
