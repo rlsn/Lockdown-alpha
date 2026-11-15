@@ -45,7 +45,7 @@
 | 构筑评估 Harness | `Lockdown.Rules.BuildEvaluation`（种子与生产默认、评估画像、工坊构筑计划、原生输入、对决时限）与 `python -B -m unittest discover -s .\Scripts -p "TestBuildEvaluation*.py"`；改到原生驱动、种子挂点或 Adapter 判读时，用 `RunBuildEvaluation.ps1 -Manifest <示例清单>` 跑一次真实小规模运行，并用 `-ReplayRun <运行目录> -Case <id>` 核对重放一致。它是 DEV 实验工具，结果只描述所覆盖的构筑、固定策略、场景与预算，不是验收或平衡结论，见[构筑评估 Harness](BUILD_EVALUATION.md) |
 
 `RunDemoCaptureCheck.ps1 -RenderHost` 为所有拥有者启用 720p 离屏 RHI，使远端也能经实际构建的界面处理主动与终局候选；只有 Host 保存截图。
-截图等待入场布局与动效稳定，覆盖终局候选、所需来源选择、选定后规则板、旗杆、结算和返回后的房间。
+截图等待入场布局与动效稳定，结算另等待表格逐行及操作区入场完成，覆盖终局候选、所需来源选择、选定后规则板、旗杆、结算和返回后的房间。
 等待只作用于 DEV 探针的取图与后续操作，不暂停服务器时钟，也不延迟产品中的输入或提交。
 
 交通带的 `DemoFinalMod.MechanicContracts` 回归使用原生记录格式：Movement 不携带接地状态，只有 Support 记录改变接地状态；覆盖实际地面段、两端均在带外的穿越减速，以及离地后不再铺带。终局拥有连接探针向 `ActivateCombatEntry` 提供已解析的按键方向，经同一确认、请求序号与服务器验证路径提交 D，不依赖 `-nullrhi` 的鼠标视口，也不直接创建交通带。

@@ -10,6 +10,7 @@
 #include "UI/LDMinimap.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDWidgets.h"
+#include "UI/LDResultBuild.h"
 #include "UI/LDWorkshopModel.h"
 #include "UI/LDWorkshopPreview.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -27,6 +28,9 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "PK/LDPKRules.h"
 #include "Engine/Texture2D.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Image.h"
+#include "Framework/LDCaptureTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Input/HittestGrid.h"
 #include <limits>
@@ -949,6 +953,43 @@ bool FLDHUDCardFacesTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Every active, stat and component of the approved catalog has its face checked"),
         ActiveFaces==Content.Abilities.Num()&&StatFaces==Content.Stats.Num()&&ComponentFaces==Content.Components.Num());
+    if(!FSlateApplication::IsInitialized()||Content.Abilities.IsEmpty())
+    {AddError(TEXT("Summary faces require Slate and an approved active."));return false;}
+    const FLDDemoComponentDefinition* BaseComponent=Content.Components.FindByPredicate(
+        [](const FLDDemoComponentDefinition& Row){return Row.Kind==ELDDemoComponentKind::Base;});
+    if(!TestNotNull(TEXT("The summary fixture has an approved base component"),BaseComponent)){return false;}
+    FLDResultBuild Summary;Summary.bAvailable=true;Summary.CatalogRoot=Content.Identity.Root.ToHex();
+    Summary.Actives.Add({FName(*Content.Abilities[0].Id),0});
+    Summary.Components.Add({FName(*BaseComponent->Id),ELDResultBuildTarget::Body,NAME_None,NAME_None});
+    for(const FVector2D Size:{FVector2D(520,90),FVector2D(218,66)})
+    {
+        UWidgetTree* Tree=NewObject<UWidgetTree>();
+        UWidget* Board=LDResultBuild::Make(Tree,Summary,&Content,Size.X,Size.Y,1.25f);
+        Tree->RootWidget=Board;
+        TArray<UWidget*> Widgets;Tree->GetAllWidgets(Widgets);
+        TArray<FVector2D> PaintedSizes;
+        int32 Textures=0;
+        for(UWidget* Widget:Widgets)
+        {
+            if(auto* Face=Cast<ULDPaintLayer>(Widget))
+            {
+                auto Original=MoveTemp(Face->Painter);
+                Face->Painter=[&PaintedSizes,Original=MoveTemp(Original)](const LDUIPaint::FContext& Paint)
+                {PaintedSizes.Add(FVector2D(Paint.Geometry.GetLocalSize()));Original(Paint);};
+            }
+            if(const auto* Image=Cast<UImage>(Widget)){Textures+=Cast<UTexture2D>(Image->GetBrush().GetResourceObject())!=nullptr;}
+        }
+        const TSharedRef<SWidget> Slate=Board->TakeWidget();Slate->SlatePrepass(1.f);
+        FHittestGrid HitTest;FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+        Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,0.,0.f),FGeometry::MakeRoot(Size,FSlateLayoutTransform()),
+            FSlateRect(0,0,Size.X,Size.Y),Draw,0,FWidgetStyle(),true);
+        for(UWidget* Widget:Widgets){if(auto* Face=Cast<ULDPaintLayer>(Widget)){Face->Painter=nullptr;}}
+        const FString At=FString::Printf(TEXT("Frozen summary %.0fx%.0f"),Size.X,Size.Y);
+        TestTrue(At+TEXT(": approved active, dash and component textures are retained"),Textures>=3);
+        TestTrue(At+TEXT(": skill and component faces are painted"),PaintedSizes.Num()>=5);
+        for(const FVector2D Painted:PaintedSizes)
+        {TestTrue(At+TEXT(": every painted icon receives usable geometry ")+Painted.ToString(),Painted.X>=4.&&Painted.Y>=4.);}
+    }
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsTest,"Lockdown.Rules.HUDSelfIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

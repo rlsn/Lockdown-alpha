@@ -118,7 +118,7 @@ public:
         return bValue;
     }
 
-    bool HoldForShot(const TCHAR* File, ULDChoicesPanel* Panel = nullptr)
+    bool HoldForShot(const TCHAR* File, ULDChoicesPanel* Panel = nullptr, double SettleSeconds = .5)
     {
         if (!bRenderHost || SavedShots.Contains(File)) { return false; }
         if (!ShotError.IsEmpty())
@@ -129,7 +129,7 @@ public:
         if (PreparingShot != File)
         {
             PreparingShot = File;
-            ShotReadyAt = FPlatformTime::Seconds() + .5;
+            ShotReadyAt = FPlatformTime::Seconds() + SettleSeconds;
         }
         if (FPlatformTime::Seconds() < ShotReadyAt) { return true; }
         if (PendingShot.IsEmpty())
@@ -540,7 +540,7 @@ public:
             }
         }
         if (View.Phase != ELDMatchPhase::Results || Public->MatchResult.ResultId != View.ResultId) { return true; }
-        if (HoldForShot(TEXT("HostResults.png"))) { return true; }
+        if (HoldForShot(TEXT("HostResults.png"), nullptr, 1.5)) { return true; }
         const auto& Result = Public->MatchResult;
         Check(bFinalSeen && Growth && Growth->CumulativeXP == FinalXP && Growth->BuildRevision == FinalBuildRevision,
             TEXT("C06"), TEXT("Final combat grants no ordinary XP; the build changes only by its owner's commands (none sent here)"));

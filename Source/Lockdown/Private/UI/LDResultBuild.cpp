@@ -69,7 +69,9 @@ UWidget* BoardIcon(UWidgetTree* Tree, const FLDDemoContentDefinitions* Content, 
         if (bComponent) { Paint.Tile(Paint.Layer, Rect, Kind, Scarce, LDUIPaint::ETileState::Normal, Texture); }
         else { Paint.SkillArt(Paint.Layer, Rect, false, !bHasIcon, Texture); }
     };
-    Overlay->AddChildToOverlay(Face);
+    auto* FaceSlot = Overlay->AddChildToOverlay(Face);
+    FaceSlot->SetHorizontalAlignment(HAlign_Fill);
+    FaceSlot->SetVerticalAlignment(VAlign_Fill);
     if (!bHasIcon && !Name.IsEmpty())
     {
         UTextBlock* Fallback = BoardText(Tree, LDHUD::IconGlyph(Name), FMath::Max(8, FMath::RoundToInt(Size * .5f)));
