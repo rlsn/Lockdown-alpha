@@ -335,6 +335,21 @@ FBox LDPropFade::Reach(const FVector& Camera, TConstArrayView<FVector> Targets)
     return Box.ExpandBy(FMath::Max(BoundsSlackCm, PierceRadiusCm));
 }
 
+int32 LDPropFade::FSweep::Budget(int32 Total, float DeltaSeconds) const
+{
+    if (!bComplete) { return Total + 1; }
+    return FMath::Max(32, FMath::CeilToInt32(Total * FMath::Max(DeltaSeconds, 0.f) / SweepSeconds));
+}
+
+bool LDPropFade::FSweep::Next(TConstArrayView<int32> Counts, int32& OutLevel, int32& OutIndex)
+{
+    while (Counts.IsValidIndex(Level) && Index >= Counts[Level]) { ++Level; Index = 0; }
+    if (!Counts.IsValidIndex(Level)) { Level = Index = 0; bComplete = true; return false; }
+    OutLevel = Level;
+    OutIndex = Index++;
+    return true;
+}
+
 float LDPropFade::Step(float Current, bool bOccluding, float DeltaSeconds)
 {
     const float Move = FadePerSecond * FMath::Max(DeltaSeconds, 0.f);
@@ -1144,15 +1159,14 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
     // about SweepSeconds and never lands in one frame. Only the first sweep runs at once, so the list is complete
     // from the start.
     const TArray<ULevel*>& Levels = World->GetLevels();
+    TArray<int32, TInlineAllocator<8>> Counts;
     int32 Total = 0;
-    for (const ULevel* Level : Levels) { if (Level) { Total += Level->Actors.Num(); } }
-    int32 Budget = bFadeablesSwept ? FMath::Max(32, FMath::CeilToInt32(Total * FMath::Max(Delta, 0.f) / LDPropFade::SweepSeconds)) : Total + 1;
-    for (; Budget > 0; --Budget)
+    for (const ULevel* Level : Levels) { Counts.Add(Level ? Level->Actors.Num() : 0); Total += Counts.Last(); }
+    for (int32 Budget = FadeSweep.Budget(Total, Delta); Budget > 0; --Budget)
     {
-        while (Levels.IsValidIndex(FadeSweepLevel) && (!Levels[FadeSweepLevel] || FadeSweepActor >= Levels[FadeSweepLevel]->Actors.Num()))
-        { ++FadeSweepLevel; FadeSweepActor = 0; }
-        if (!Levels.IsValidIndex(FadeSweepLevel)) { FadeSweepLevel = FadeSweepActor = 0; bFadeablesSwept = true; break; }
-        const AActor* Actor = Levels[FadeSweepLevel]->Actors[FadeSweepActor++];
+        int32 LevelIndex = 0, ActorIndex = 0;
+        if (!FadeSweep.Next(Counts, LevelIndex, ActorIndex)) { break; }
+        const AActor* Actor = Levels[LevelIndex]->Actors[ActorIndex];
         if (!IsValid(Actor)) { continue; }
         Actor->ForEachComponent<UPrimitiveComponent>(false, [this](UPrimitiveComponent* Primitive)
         {
