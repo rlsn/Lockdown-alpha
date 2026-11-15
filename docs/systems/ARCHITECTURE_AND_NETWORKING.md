@@ -33,7 +33,10 @@ GameInstance 的 GameMode factory 仍在允许的世界上核对完整包路径�
 （`LDMatchLifecycle::ResolveContenderName`），非法即明确拒绝（`InvalidName:`），缺省时取明确默认名“玩家”，
 并以 `ChangeName` 同步 PlayerState；入房时 PlayerState 名称再按同一规则核对，在线子系统昵称不会成为参赛名。
 Host/Join 均先核对 Demo 载荷与编入程序的 SHA-256。
-读取的是原始字节，不规范化换行，也不回退旧目录。`LDDemoEntry::ValidateSelection` 只接受
+读取的是原始字节，不规范化换行，也不回退旧目录。
+入口检查（Host/Join、地图旅行、`InitGame`、开局前的 `CheckDemoStartInputs`）每次都重算三个载荷文件的 SHA-256 并重新核对文本表；
+游戏进程里已为同一目录根验证过的内容快照直接沿用，不再重新投影与校验整份目录（`LDDemoEntry::ReusesApprovedContent`）。
+编辑器进程仍每次完整加载，因为编辑器工具可能在内存中改写目录资产。`LDDemoEntry::ValidateSelection` 只接受
 完整的前端/Demo 包路径，剥离 PIE 前缀，但不接受同短名的其他包、旧 Profile 或 Humans 覆盖项。
 旧保存模式和地图的物理移除须与资产引用审计同批完成，不保留可启动的旧预览分支。
 

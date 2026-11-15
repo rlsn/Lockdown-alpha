@@ -17,6 +17,7 @@
 #include "Vision/LDVisionDirector.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace
 {
@@ -265,6 +266,7 @@ void ALDGameMode::LeaveRoomMember(ALDPlayerController& Controller)
 
 bool ALDGameMode::CheckDemoStartInputs(FString& Reason) const
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDStart_CheckInputs);
     if (!LDDemoEntry::VerifyRuntimeFiles(Reason) || !LDDemoEntry::VerifyWorldPackages(Reason)) { return false; }
     Reason = StartGateBlocker();
     return Reason.IsEmpty();

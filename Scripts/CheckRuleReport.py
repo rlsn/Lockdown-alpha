@@ -57,6 +57,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.CampDecision",
         "Lockdown.Rules.CombatReceiptBurst",
         "Lockdown.Rules.ControlMappings",
+        "Lockdown.Rules.DemoContent.ApprovedSnapshotReuse",
         "Lockdown.Rules.DemoContent.AtomicAssetRoundTrip",
         "Lockdown.Rules.DemoContent.CaseFoldedLookup",
         "Lockdown.Rules.DemoContent.ComponentCatalog",

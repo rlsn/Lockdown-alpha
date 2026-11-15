@@ -1046,6 +1046,32 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The verified table is restored and accepted again: ") + Error, bRestored);
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentApprovedSnapshotReuseTest, "Lockdown.Rules.DemoContent.ApprovedSnapshotReuse",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoContentApprovedSnapshotReuseTest::RunTest(const FString& Parameters)
+{
+    FString Error;
+    TSharedPtr<const FLDDemoContentSnapshot> Runtime;
+    if (!LDDemoEntry::LoadRuntimeContent(Runtime, Error) || !Runtime)
+    {
+        AddError(TEXT("The approved runtime content must load: ") + Error);
+        return false;
+    }
+    const FLDDemoContentDigest Root = Runtime->Get().Identity.Root;
+    FLDDemoContentDigest Other;
+    if (!FLDDemoContentDigest::ParseHex(FString::ChrN(64, TEXT('0')), Other, Error)) { AddError(Error); return false; }
+    TestTrue(TEXT("The all-zero digest differs from the approved catalog root"), !(Other == Root));
+    TestTrue(TEXT("A game process keeps the snapshot it verified for the same catalog root"),
+        LDDemoEntry::ReusesApprovedContent(false, Runtime.Get(), Root));
+    TestFalse(TEXT("The editor reloads: its tools can rewrite the catalog asset in memory"),
+        LDDemoEntry::ReusesApprovedContent(true, Runtime.Get(), Root));
+    TestFalse(TEXT("Nothing verified yet means a full load"), LDDemoEntry::ReusesApprovedContent(false, nullptr, Root));
+    TestFalse(TEXT("A snapshot of another catalog root is never kept"),
+        LDDemoEntry::ReusesApprovedContent(false, Runtime.Get(), Other));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentCaseFoldedLookupTest, "Lockdown.Rules.DemoContent.CaseFoldedLookup",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
