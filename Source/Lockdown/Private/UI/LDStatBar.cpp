@@ -364,12 +364,15 @@ bool ULDStatBar::Send(FLDBuildCommand Command)
 }
 void ULDStatBar::ShowFinal(const FLDBuildReceipt& Receipt)
 {
+    const uint64 Request=PendingRequest;
     PendingRequest=0;
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)
     {
         // Applied points count as waiting until the own view carries them; then the queued ones follow.
         AwaitRevision=Receipt.Header.Revisions.bHasBuild?Receipt.Header.Revisions.BuildRevision:Latest.BuildRevision+1;
         AwaitSince=UiNow();
+        if(AllocationApplied&&LDHUD::AppliedStatFeedback(Receipt,LatestMatch,LatestLife,Request,Cells.Num()))
+        {AllocationApplied(Receipt);}
         return;
     }
     DropWaiting();

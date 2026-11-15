@@ -786,6 +786,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             StatBar->PeekRequestId=[WeakPC]()->uint64{const ALDPlayerController* Owner=WeakPC.Get();return Owner?Owner->PeekGrowthRequestId(ELDGrowthFamily::Build):0;};
         }
         if(Workshop){Workshop->Storage=Storage;Workshop->StatBar=StatBar;Workshop->Choices=ChoicesPanel;}
+        if(StatBar)
+        {
+            const TWeakObjectPtr<ULDWorkshop> WeakWorkshop(Workshop.Get());
+            StatBar->AllocationApplied=[WeakWorkshop](const FLDBuildReceipt& Receipt)
+            {if(ULDWorkshop* Current=WeakWorkshop.Get()){Current->AllocationApplied(Receipt);}};
+        }
         PC->OnGrowthSubmit.AddUObject(this,&ULDHUD::HandleGrowthSubmit);
         PC->OnBuildReceipt.AddUObject(this,&ULDHUD::HandleBuildReceipt);
         PC->OnTrainingReset.AddUObject(this,&ULDHUD::HandleTrainingReset);

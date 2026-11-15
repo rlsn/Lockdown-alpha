@@ -701,6 +701,8 @@ void ULDWorkshop::Present(const FInput& Input)
 {
     const EMode Previous=Mode;
     Mode=Input.Mode;
+    if(Previous==EMode::Full&&Mode!=EMode::Full)
+    {for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}}
     if(Mode==EMode::Closed)
     {
         // The panels sink and fade out (LDHUDStyle::MotionWorkshopClose) without taking any more input.
@@ -712,6 +714,8 @@ void ULDWorkshop::Present(const FInput& Input)
     const FLDProgressionView* NextView=Input.Progression;
     const bool bLinksChanged=Input.Content!=Latest.Content||Input.Match!=Latest.Match||!NextView||!NextView->bValid||!View.bValid
         ||NextView->Generation!=View.Generation||NextView->Life!=View.Life||NextView->BuildRevision!=View.BuildRevision;
+    if(NextView&&NextView->bValid&&(NextView->Generation!=View.Generation||NextView->Life!=View.Life))
+    {for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}}
     Latest=Input;
     View=NextView?*NextView:FLDProgressionView();
     if(bLinksChanged)
@@ -801,6 +805,16 @@ void ULDWorkshop::RefreshPhase()
     WorkshopText(PhaseClock,Remaining>=0?LDHUD::Clock(Remaining):FString());
 }
 
+void ULDWorkshop::AllocationApplied(const FLDBuildReceipt& Receipt)
+{
+    if(Mode!=EMode::Full||!View.bValid||Receipt.Header.Generation!=View.Generation||Receipt.Header.OriginalLife!=View.Life
+        ||Receipt.PointsSpent.Num()!=StatRows.Num()){return;}
+    for(int32 Index=0;Index<StatRows.Num();++Index)
+    {if(Receipt.PointsSpent[Index]>0){StatRows[Index].PendingFlashRevision=Receipt.Header.Revisions.BuildRevision;}}
+    LDWidgets::PlayCue(this,ELDAudioCue::UIAddPoint);
+    RefreshCharacter();
+}
+
 void ULDWorkshop::RefreshCharacter()
 {
     if(Mode!=EMode::Full){return;}
@@ -844,7 +858,7 @@ void ULDWorkshop::RefreshCharacter()
             if(UHorizontalBoxSlot* PointsSlot=Cast<UHorizontalBoxSlot>(PointsBox34->Slot)){PointsSlot->SetPadding(FMargin(12,0,0,0));}
             Built.Add(NameBox);Built.Add(PointsBox34);
             const int32 StatIndex=Index;
-            Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,StatIndex](){if(StatBar.IsValid()&&StatBar->Allocate(StatIndex)){LDWidgets::PlayCue(this,ELDAudioCue::UIAddPoint);StatRows[StatIndex].AddedAt=UiNow();}},true,
+            Row.Plus=LDWidgets::Button(WidgetTree,TEXT("+"),[this,StatIndex](){if(StatBar.IsValid()){StatBar->Allocate(StatIndex);}},true,
                 FName(*FString::Printf(TEXT("WorkshopStatPlus%d"),StatIndex)));
             LDWidgets::SetLook(Row.Plus,LDUIPaint::EButton::Plus);
             if(UTextBlock* PlusText=Cast<UTextBlock>(Row.Plus->GetContent()))
@@ -871,6 +885,11 @@ void ULDWorkshop::RefreshCharacter()
             const LDHUD::FStatRowView Shown=LDHUD::StatRow(*Stats[Index],LDHUD::StatPointsOf(View,Row.StatId),Content);
             WorkshopText(Row.Name,Shown.Name);WorkshopText(Row.Points,FString::FromInt(Shown.Points));WorkshopText(Row.Glyph,Shown.Glyph);
             Row.Value=Shown.Points;
+            if(Row.PendingFlashRevision!=0&&View.bValid&&View.BuildRevision>=Row.PendingFlashRevision)
+            {
+                Row.PendingFlashRevision=0;Row.AddedAt=UiNow();
+                Row.FlashCell=Row.Value>0?FMath::Min(Row.Value-1,WorkshopMeterCells-1):INDEX_NONE;
+            }
             if(Row.AppliedIcon!=Shown.IconId){Row.AppliedIcon=Shown.IconId;WorkshopShown(Row.Glyph,!LDUIIcons::Apply(Row.Picture,Shown.IconId,8.f),ESlateVisibility::HitTestInvisible);}
             const bool bPlus=Unspent>0&&bCanAllocate;
             if(Row.Plus->GetIsEnabled()!=bPlus){Row.Plus->SetIsEnabled(bPlus);}
@@ -1360,7 +1379,7 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         {
             if(Shown(Row.Icon)){Paint.Edge(Ink+2,EShape::Rounded,Box(Row.Icon),8.f,FLinearColor(1,1,1,.14f),1.f);}
             if(!Shown(Row.Meter)){continue;}
-            // .bar: sixteen cells, the allocated ones a warm gradient; the cell a click just asked for flashes.
+            // .bar: sixteen cells, with the confirmed allocation flashing after the view catches up.
             const FBox2D Meter=Box(Row.Meter);
             const float Gap=2.f,Cell=(float(Meter.GetSize().X)-Gap*(WorkshopMeterCells-1))/WorkshopMeterCells;
             const float Y=float(Meter.GetCenter().Y);
@@ -1371,9 +1390,9 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
                 Paint.Shape(Ink,EShape::Rounded,Piece,1.f,Fill);
             }
             const double Age=Now-Row.AddedAt;
-            if(Age>=0.&&Age<LDHUDStyle::MotionAddPoint*3.&&Row.Value<WorkshopMeterCells)
+            if(Age>=0.&&Age<LDHUDStyle::MotionAddPoint*3.&&Row.FlashCell!=INDEX_NONE)
             {
-                const FBox2D Next=WorkshopBox(Meter.Min.X+Row.Value*(Cell+Gap),Y-5.f,Meter.Min.X+Row.Value*(Cell+Gap)+Cell,Y+5.f);
+                const FBox2D Next=WorkshopBox(Meter.Min.X+Row.FlashCell*(Cell+Gap),Y-5.f,Meter.Min.X+Row.FlashCell*(Cell+Gap)+Cell,Y+5.f);
                 Paint.Shape(Ink+1,EShape::Rounded,Next,1.f,FFill::Solid(FLinearColor(1,1,1,1.f-float(Age/(LDHUDStyle::MotionAddPoint*3.)))));
             }
         }

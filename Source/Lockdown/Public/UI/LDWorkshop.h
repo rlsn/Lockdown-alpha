@@ -110,6 +110,7 @@ public:
     void ApplyTextScale(float Scale);
     // The workshop's own "+" of the stat at Index (design order); the same one-click allocation as the band (ULDStatBar).
     ULDCommandButton* StatPlus(int32 Index) const {return StatRows.IsValidIndex(Index)?StatRows[Index].Plus:nullptr;}
+    void AllocationApplied(const FLDBuildReceipt& Receipt);
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
@@ -129,8 +130,10 @@ private:
         UTextBlock* Points=nullptr;
         ULDCommandButton* Plus=nullptr;
         int32 Value=0;
-        // The local moment its "+" was clicked: the next meter cell flashes (LDHUDStyle::MotionAddPoint).
+        // Flash only after the applied revision arrives in the owner view.
         double AddedAt=-100.;
+        uint64 PendingFlashRevision=0;
+        int32 FlashCell=INDEX_NONE;
         FString AppliedIcon;
     };
     struct FHead

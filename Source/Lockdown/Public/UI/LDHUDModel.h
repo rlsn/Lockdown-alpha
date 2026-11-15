@@ -459,6 +459,8 @@ namespace LDHUD
     LOCKDOWN_API FStatRowView StatRow(const FLDDemoStatDefinition& Stat,int32 Points,const FLDDemoContentDefinitions* Content);
     // The points the own progression allocated to StatId; 0 when it lists none.
     LOCKDOWN_API int32 StatPointsOf(const FLDProgressionView& Progression,FName StatId);
+    // Success feedback needs a complete, applied allocation for this match and life.
+    LOCKDOWN_API bool AppliedStatFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,int32 StatCount);
     // One attribute a point of a stat raises: its name, its current final value from the own projection ("?" while the
     // projection lacks it) and the gain of one point ("+2.5", "+2%", "+0.08/s").
     struct FStatEffectView

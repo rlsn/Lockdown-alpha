@@ -1446,6 +1446,15 @@ int32 LDHUD::StatPointsOf(const FLDProgressionView& Progression,FName StatId)
     const FLDStatPointsView* Row=Progression.StatPoints.FindByPredicate([StatId](const FLDStatPointsView& S){return S.StatId==StatId;});
     return Row?Row->Points:0;
 }
+bool LDHUD::AppliedStatFeedback(const FLDBuildReceipt& Receipt,uint32 Match,uint32 Life,uint64 Request,int32 StatCount)
+{
+    return Match!=0&&Receipt.Header.Generation==Match&&Receipt.Header.OriginalLife==Life
+        &&Request!=0&&Receipt.Header.RequestId==Request
+        &&Receipt.Header.Family==ELDGrowthFamily::Build&&Receipt.Header.Outcome==ELDReceiptOutcome::Applied
+        &&Receipt.Kind==ELDBuildCommandKind::AllocatePoints&&Receipt.Header.Revisions.bHasBuild
+        &&Receipt.Header.Revisions.BuildRevision!=0&&StatCount>0&&Receipt.PointsSpent.Num()==StatCount
+        &&Receipt.PointsSpent.ContainsByPredicate([](uint8 Count){return Count>0;});
+}
 TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& Stat,const TArray<FLDCombatAttributeRowView>& Attributes)
 {
     // The projected attribute each per-point bonus adds to (ratios add to their attribute's percent term).
