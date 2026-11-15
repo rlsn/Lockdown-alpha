@@ -9,6 +9,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 // Normal start, AI admission and same-world return to a new Lobby generation.
 
@@ -69,7 +70,10 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
         }
         return false;
     };
-    if (!InitializeAuthorityCore(Error)) { return Abort(ELDSessionReject::MissingDemoDefinition); }
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDStart_AuthorityCore);
+        if (!InitializeAuthorityCore(Error)) { return Abort(ELDSessionReject::MissingDemoDefinition); }
+    }
     FLDMatchStartContext Start;
     Start.Match = MatchContext;
     Start.AISlots = LockedAISlots;
@@ -82,6 +86,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     for (int32 Index = 0; Index < int32(ELDMatchProvider::Count); ++Index)
     {
         const FLDMatchProviderHooks* Hooks = LDMatchProviders::Find(ELDMatchProvider(Index));
+        TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("LDStart_Prepare_%s"), LDMatchProviders::Name(ELDMatchProvider(Index))));
         if (Hooks && Hooks->Prepare && !Hooks->Prepare(*this, Start, Error))
         {
             if (Error.IsEmpty())
@@ -97,10 +102,13 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
             return Abort(ELDSessionReject::MissingDemoDefinition);
         }
     }
-    if (!ExecuteAuthorityPhase(*Combat, ELDCommitPhase::RespawnsAndWorld,
-        [&](const FLDGameplayWritePermit& Permit) { return SpawnInitialContenders(Permit, Error) && EnterRestWorld(Permit, Error); }, Error))
     {
-        return Abort(ELDSessionReject::SpawnBlocked);
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDStart_SpawnAndRest);
+        if (!ExecuteAuthorityPhase(*Combat, ELDCommitPhase::RespawnsAndWorld,
+            [&](const FLDGameplayWritePermit& Permit) { return SpawnInitialContenders(Permit, Error) && EnterRestWorld(Permit, Error); }, Error))
+        {
+            return Abort(ELDSessionReject::SpawnBlocked);
+        }
     }
     for (const FGuid& Id : RosterOrder)
     {
