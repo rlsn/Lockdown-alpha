@@ -865,7 +865,7 @@ void ULDChoicesPanel::RefreshOffer()
 }
 void ULDChoicesPanel::RefreshFinalMod()
 {
-    const bool bFinal=Usable()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+    const bool bFinal=Usable()&&!ConfirmedOfferStillShown()&&Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
     const bool bSelected=Usable()&&!Latest.FinalMod.IsEmpty();
     const auto SourceName=[this](ELDComponentTargetKind Kind,FName Id)->FString
     {
