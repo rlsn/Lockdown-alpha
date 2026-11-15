@@ -101,7 +101,11 @@ bool ALDCombatDirector::FinalModTargetsSource(const FGuid& Entity, const FLDComb
 {
     const FLDCombatEntityRecord* Record=FindRecord(Entity);
     if (!Record) { return false; }
-    const FLDFinalModSelection& Selected=Record->Build.FinalMod;
+    return LDCombatSourceRules::FinalTargetsSource(Record->Build.FinalMod,Source);
+}
+
+bool LDCombatSourceRules::FinalTargetsSource(const FLDFinalModSelection& Selected, const FLDCombatSourceRef& Source)
+{
     switch (Selected.TargetKind)
     {
     case ELDComponentTargetKind::Active:
@@ -160,11 +164,20 @@ bool ALDCombatDirector::NotifyFinalPresence(const FLDCaptureEvent& Event, FStrin
 bool ALDCombatDirector::FinalCooldownCost(const FLDCombatEntityRecord& Record, const FLDCombatSourceRef& Source,
     int64& InOutCooldownMs, FString& Error) const
 {
+    const ALDGameMode* Mode=Core();
+    return LDCombatSourceRules::FinalCooldownCost(Catalog(),Record.Build.FinalMod,Mode && Mode->IsShowdown(),
+        Source,InOutCooldownMs,Error);
+}
+
+bool LDCombatSourceRules::FinalCooldownCost(const FLDDemoContentSnapshot* Content, const FLDFinalModSelection& Selection,
+    bool bFinalField, const FLDCombatSourceRef& Source, int64& InOutCooldownMs, FString& Error)
+{
+    if (!bFinalField || Selection.IsEmpty()) { return true; }
+    if (!Content) { Error=TEXT("A selected final rule requires the approved content."); return false; }
     const FLDDemoFinalModDefinition* Card=nullptr;
-    if (!FinalModOf(Record.Entity,Card,Error)) { return false; }
-    if (!Card) { return true; }
+    if (!Content->FindFinalMod(Selection.DefinitionId.ToString(),Card,Error) || !Card) { return false; }
     const bool bBreach=Card->GetNativeId()==ELDDemoFinalModId::FinalBreach && Source.Kind==ELDCombatSourceKind::Innate;
-    const bool bTraffic=Card->GetNativeId()==ELDDemoFinalModId::FinalTraffic && FinalModTargetsSource(Record.Entity,Source);
+    const bool bTraffic=Card->GetNativeId()==ELDDemoFinalModId::FinalTraffic && FinalTargetsSource(Selection,Source);
     return (!bBreach && !bTraffic)
         || LDMatchLifecycle::AddDurationMs(InOutCooldownMs,Card->CooldownCostMs,InOutCooldownMs,Error);
 }

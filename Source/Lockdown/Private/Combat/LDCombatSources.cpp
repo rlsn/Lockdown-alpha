@@ -112,10 +112,7 @@ namespace LDCombatSourcesDetail
 
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
-        FLDAttributeBuildValues Values(Build.Level,Build.StatPoints);
-        Values.Components=Build.Components;
-        Values.DevBonuses=Build.DevBonuses;
-        return LDAttributeProjection::Project(Values,Content);
+        return LDCombatSourceRules::ProjectBuildInput(Build,Content);
     }
 
     bool ProjectedBasicTiming(const FLDAttributeProjection& Projection, const FLDDemoContentSnapshot& Content,
@@ -341,6 +338,16 @@ int64 LDCombatSourceRules::BuildSafeAtMs(int64 LastUnsafeAtMs, int64 WindowMs)
     if (LastUnsafeAtMs<=0) { return 0; }
     return WindowMs>MAX_int64-LastUnsafeAtMs ? MAX_int64 : LastUnsafeAtMs+FMath::Max<int64>(WindowMs,0);
 }
+
+FLDAttributeProjectionResult LDCombatSourceRules::ProjectBuildInput(const FLDBuildProjectionInput& Build,
+    const FLDDemoContentSnapshot& Content)
+{
+    FLDAttributeBuildValues Values(Build.Level,Build.StatPoints);
+    Values.Components=Build.Components;
+    Values.DevBonuses=Build.DevBonuses;
+    return LDAttributeProjection::Project(Values,Content);
+}
+
 bool ALDCombatDirector::ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const
 {
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -849,6 +856,39 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     Out.AsOfMs=NowMs;
     Out.bHasBody=Body!=nullptr;
     Out.SourceRevision=Record->SourceRevision;
+    Out.InstalledBuildRevision=Record->Installed.BuildRevision;
+    Out.bPreviewLiving=Body && !Body->bPendingDeath;
+    Out.bPreviewFinalField=Mode->IsShowdown();
+    Out.PreviewDevBonuses=Record->Build.DevBonuses;
+    if (Out.bPreviewLiving)
+    {
+        for (const FLDCombatTimedBonus& Bonus : Body->TimedBonuses)
+        {
+            if (Bonus.ExpiresAtMs<=NowMs) { continue; }
+            FLDCombatPreviewBonus& Row=Out.PreviewBonuses.AddDefaulted_GetRef();
+            Row.Stats=Bonus.Stats;
+            Row.ExpiresAtMs=Bonus.ExpiresAtMs;
+        }
+        const auto CopySlows=[NowMs](const TArray<FLDCombatSlow>& Source, TArray<FLDCombatPreviewSlow>& Destination)
+        {
+            for (const FLDCombatSlow& Slow : Source)
+            {
+                if (Slow.ExpiresAtMs<=NowMs) { continue; }
+                FLDCombatPreviewSlow& Row=Destination.AddDefaulted_GetRef();
+                Row.RatioBp=Slow.RatioBp;
+                Row.ExpiresAtMs=Slow.ExpiresAtMs;
+            }
+        };
+        CopySlows(Body->Slows,Out.PreviewMoveSlows);
+        CopySlows(Body->AttackSlows,Out.PreviewAttackSlows);
+        if (Body->WideToken.IsSet() && Body->WideToken->ExpiresAtMs>NowMs)
+        {
+            Out.PreviewWideToken.Component=Body->WideToken->Component;
+            Out.PreviewWideToken.Host=Body->WideToken->Host;
+            Out.PreviewWideToken.RatioBp=Body->WideToken->RatioBp;
+            Out.PreviewWideToken.ExpiresAtMs=Body->WideToken->ExpiresAtMs;
+        }
+    }
     Out.NextAttackAtMs=Record->NextAttackAtMs;
     Out.BuildSafeAtMs=LDCombatSourceRules::BuildSafeAtMs(Record->LastBuildUnsafeAtMs,Content->Get().Parameters.BuildSafeWindowMs);
     if (Body)

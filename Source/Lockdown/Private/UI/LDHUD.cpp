@@ -1274,7 +1274,9 @@ void ULDHUD::RefreshReadModel()
         {
             ULDWorkshop::FInput In;
             In.Mode=!bWorkshopOpen?ULDWorkshop::EMode::Closed:bWorkshopFull?ULDWorkshop::EMode::Full:ULDWorkshop::EMode::Field;
-            In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
+            In.Progression=Progression;In.Match=O.Match;In.Content=Content;In.ContentSnapshot=DisplayContent.Get();In.Combat=OwnCombat;
+            In.Stage=Stage;In.bFinalField=Public.Timeline.Stage==ELDMatchStage::FinalField;
+            In.Stats=ChoiceStats;In.Keys=HudSlotKeys(*PC);
             In.DashKey=PC->BindingLabel(TEXT("Dash"));
             In.HolderName=Name;In.HolderColor=Portrait?Portrait->GetBrushColor():FLinearColor::Gray;In.Level=Level;
             In.Attributes=OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>();
@@ -1359,7 +1361,7 @@ void ULDHUD::RefreshReadModel()
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
     const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
     // The tray stands right above the 构筑 button in the corner, or in the workshop's pending area.
-    if(ChoicesPanel&&Workshop&&Workshop->IsOpen()){const FVector2D Inset=Workshop->TrayInset();ChoicesPanel->SetTrayInset(Inset.X,Inset.Y,Workshop->TrayWrapWidth());}
+    if(ChoicesPanel&&Workshop&&Workshop->IsOpen()){const FVector2D Inset=Workshop->TrayInset();ChoicesPanel->SetTrayInset(Inset.X,Inset.Y,Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());}
     else if(ChoicesPanel&&PromptFrame){ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y))+8.f);}
     if(TopCentreSlot)
     {

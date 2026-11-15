@@ -1,6 +1,7 @@
 #include "Development/LDProgressionRules.h"
 #include "Development/LDWorkshopRules.h"
 
+#include "Combat/LDCombatTypes.h"
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Hash/CityHash.h"
@@ -1831,6 +1832,48 @@ FLDGrowthBuild LDProgression::BuildFromView(const FLDDemoContentDefinitions& Con
     }
     ProgressionSortBuild(Build);
     return Build;
+}
+
+FLDBuildProjectionInput LDProgression::CombatProjectionInput(const FLDDemoContentDefinitions* Content, const FLDGrowthBuild& Build)
+{
+    FLDBuildProjectionInput Input;
+    Input.Level = Build.Level;
+    if (Content && Build.StatPoints.Num() == Content->Stats.Num())
+    {
+        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->StatsInDesignOrder();
+        for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
+        {
+            if (Build.StatPoints[Index] != 0)
+            {
+                Input.StatPoints.Emplace(StatOrder[Index]->Id, Build.StatPoints[Index]);
+            }
+        }
+    }
+    for (const FLDLearnedActive& Active : Build.Actives)
+    {
+        FLDLearnedActiveValue& Value = Input.Actives.AddDefaulted_GetRef();
+        Value.AbilityId = Active.Id;
+        Value.Entry = Active.Slot == 0 ? ELDCombatEntry::Q
+            : Active.Slot == 1 ? ELDCombatEntry::W
+            : Active.Slot == 2 ? ELDCombatEntry::E
+            : ELDCombatEntry::None;
+    }
+    for (const FLDComponentInstance& Instance : Build.Components)
+    {
+        if (Instance.bInstalled)
+        {
+            FLDInstalledComponentValue& Value = Input.Components.AddDefaulted_GetRef();
+            Value.ComponentId = Instance.Id;
+            Value.BoundActive = Instance.Target.BoundActive;
+            Value.Element = Instance.Target.Element;
+            Value.TargetKind = Instance.Target.Kind;
+            Value.TargetId = Instance.Target.Definition;
+            Value.BoundComponent = Instance.Target.BoundComponent;
+        }
+    }
+    Input.ResultBuildRevision = Build.Revision;
+    if (Content && FinalModBound(*Content, Build)) { Input.FinalMod = Build.FinalMod; }
+    return Input;
 }
 
 void LDProgression::EligibleBlueprints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out)

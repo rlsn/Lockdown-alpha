@@ -5102,6 +5102,21 @@ bool FLDComponentControlWidenTest::RunTest(const FString& Parameters)
     if (!ReleaseOnQ(*this, F, Holder, TEXT("active_stare_down"))) { return false; }
     TestTrue(TEXT("The host's landed taunt arms one wide token for 3 s"), Body.WideToken.IsSet() && Body.WideToken->ExpiresAtMs == 4000
         && Body.WideToken->Host == FName(TEXT("active_stare_down")) && Body.WideToken->RatioBp == 3500);
+    if (Body.WideToken.IsSet())
+    {
+        FLDCombatActiveTerms Preview;
+        if (!ActiveTerms(*this, F, TEXT("active_quick_meeting"), Preview)) { return false; }
+        FLDCombatPreviewWideToken Token;
+        Token.Component=Body.WideToken->Component;Token.Host=Body.WideToken->Host;
+        Token.RatioBp=Body.WideToken->RatioBp;Token.ExpiresAtMs=Body.WideToken->ExpiresAtMs;
+        bool bWidened=false;
+        const FLDCombatSourceRef Next=SourceOf(ELDCombatSourceKind::Learned,TEXT("active_quick_meeting"));
+        const bool bCompared=LDCombatSourceRules::WidenWorkshopTerms(Body.AttributeProjection,Next,F.Catalog.Get(),Token,2000,Preview,bWidened,Error);
+        const FLDDemoEffectDefinition* Area=FindEffect(Preview.Values,ELDDemoEffectOp::Zone);
+        TestTrue(TEXT("The owner snapshot previews the same widened radius as the release"),
+            bCompared&&bWidened&&Area&&Area->RadiusCm.Denominator>0
+            &&FMath::IsNearlyEqual(double(Area->RadiusCm.Numerator)/double(Area->RadiusCm.Denominator),324.));
+    }
     if (!F.Flush(Error)) { AddError(TEXT("Taunt: ") + Error); return false; }
     // The host's own release (taunting nobody) neither spends nor refreshes it.
     F.Place(Enemy, 1500, 0);

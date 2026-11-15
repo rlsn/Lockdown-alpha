@@ -21,6 +21,7 @@
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/RichTextBlock.h"
+#include "Components/ScaleBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -89,7 +90,7 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
         Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();Canvas->SetVisibility(ESlateVisibility::SelfHitTestInvisible);WidgetTree->RootWidget=Canvas;
         {
             TilePaint=WidgetTree->ConstructWidget<ULDPaintLayer>();
-            TilePaint->Painter=[this](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry){PaintTiles(Elements,Layer,Geometry);};
+            TilePaint->Painter=[this](const LDUIPaint::FContext& Paint){PaintTiles(Paint);};
             UCanvasPanelSlot* PaintSlot=Canvas->AddChildToCanvas(TilePaint);PaintSlot->SetAnchors(::FAnchors(0.f,0.f,1.f,1.f));PaintSlot->SetOffsets(FMargin(0));
             PaintSlot->SetZOrder(0);TilePaint->SetVisibility(ESlateVisibility::HitTestInvisible);
         }
@@ -164,8 +165,7 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             Column.Slot=Add(Column.Frame,2);
         }
         {
-            // The workshop library: one group per kind, its title and count over a wrap of icon cells; it never scrolls (the
-            // cells shrink with the count, LDWorkshop::LibraryTier).
+            // The workshop library: one group per kind, its title and count over a wrap of icon cells.
             LibraryBox=WidgetTree->ConstructWidget<UVerticalBox>();
             for(uint8 Kind=0;Kind<3;++Kind)
             {
@@ -185,6 +185,9 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
                 LibraryBox->AddChildToVerticalBox(Group)->SetPadding(FMargin(0,Kind?16.f:4.f,0,0));
                 LibraryGroups.Add(Group);LibraryCounts.Add(Count);LibraryWraps.Add(Wrap);
             }
+            LibraryEmpty=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);
+            LibraryBox->AddChildToVerticalBox(LibraryEmpty)->SetPadding(FMargin(0,8,0,0));
+            StorageShown(LibraryEmpty,false);
             auto* Width=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("WorkshopLibrary"));Width->SetContent(LibraryBox);
             Width->SetVisibility(ESlateVisibility::Collapsed);LibraryFrame=Width;LibrarySlot=Add(Width,3);
         }
@@ -221,6 +224,7 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             GhostPicture=Picture;GhostGlyph=Glyph;Box->SetRenderOpacity(.85f);Box->SetVisibility(ESlateVisibility::Collapsed);
             GhostFrame=Box;GhostSlot=Add(Box,8);GhostSlot->SetAlignment(FVector2D(.5f,.5f));
             GhostCaption=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextPrimary);GhostCaption->SetAutoWrapText(false);
+            GhostCaption->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
             auto* Panel=LDWidgets::Panel(WidgetTree,GhostCaption,FMargin(8,4));Panel->SetBrushColor(LDHUDStyle::OverlayFill);
             Panel->SetVisibility(ESlateVisibility::Collapsed);GhostCaptionFrame=Panel;GhostCaptionSlot=Add(Panel,8);
         }
@@ -291,7 +295,11 @@ void ULDComponentStorage::Present(const FLDProgressionView* View,uint32 Match,LD
     for(const FName& Id:Model.Stored){Key+=TEXT("|")+Id.ToString();}
     if(Workshop.bActive)
     {
-        Key+=FString::Printf(TEXT("|W%.0f|%.2f|%d"),Workshop.LibraryIcon>0.f?Workshop.LibraryIcon:LDWorkshop::LibraryTier(Model.Stored.Num()).Icon,Workshop.TileScale,int32(Workshop.bNames));
+        Key+=FString::Printf(TEXT("|W%.2f|%.2f|%.2f|%.2f|%.2f|%d|%d"),Workshop.LibraryIcon>0.f?Workshop.LibraryIcon:LDWorkshop::LibraryTier(Model.Stored.Num()).Icon,
+            Workshop.TileScale,Workshop.MinIcon,Workshop.TileIndent,Workshop.LibraryLabelHeight,int32(Workshop.bNames),int32(Workshop.bCompactLibrary));
+        Key+=FString::Printf(TEXT("|F%d|B%d,%d,%d|N%d,%d,%d"),Workshop.TagFilter,
+            Workshop.LibraryFirst.X,Workshop.LibraryFirst.Y,Workshop.LibraryFirst.Z,
+            Workshop.LibraryCount.X,Workshop.LibraryCount.Y,Workshop.LibraryCount.Z);
         for(const LDHUD::FStorageColumnView& Column:Model.Columns){Key+=FString::Printf(TEXT("|%d"),Column.Entries.Num()>5?1:0);}
     }
     for(const LDHUD::FStorageColumnView& Column:Model.Columns)
@@ -331,10 +339,22 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
 {
     Built.Reset();Cards.Reset();Tiles.Reset();HoverDropsOf=NAME_None;HoverDrops.Reset();
     CardList->ClearChildren();
-    for(UWrapBox* Wrap:LibraryWraps){Wrap->ClearChildren();}
+    for(int32 Kind=0;Kind<LibraryWraps.Num();++Kind)
+    {
+        UWrapBox* Wrap=LibraryWraps[Kind];Wrap->ClearChildren();
+        const bool bCompact=Workshop.bActive&&Workshop.bCompactLibrary;
+        Wrap->SetInnerSlotPadding(bCompact?FVector2D(4.f,3.f):FVector2D(14.f,8.f));
+        if(UVerticalBoxSlot* WrapSlot=Cast<UVerticalBoxSlot>(Wrap->Slot)){WrapSlot->SetPadding(FMargin(0,bCompact?4.f:10.f,0,0));}
+        if(LibraryGroups.IsValidIndex(Kind))
+        {
+            if(UVerticalBoxSlot* GroupSlot=Cast<UVerticalBoxSlot>(LibraryGroups[Kind]->Slot))
+            {GroupSlot->SetPadding(FMargin(0,Kind?(bCompact?6.f:16.f):(bCompact?2.f:4.f),0,0));}
+        }
+    }
     const float LibraryIcon=Workshop.LibraryIcon>0.f?Workshop.LibraryIcon:LDWorkshop::LibraryTier(Model.Stored.Num()).Icon;
     int32 KindCounts[3]={0,0,0};
-    for(const FName& Id:Model.Stored)
+    int32 ShownCounts[3]={0,0,0};
+    const auto AddCard=[this,LibraryIcon,&ShownCounts](FName Id)
     {
         const FLDComponentInstanceView* Owned=StorageOwned(Latest,Id);
         const bool bFresh=Owned&&!Owned->bEverInstalled&&!SeenComponents.Contains(Id);
@@ -346,13 +366,33 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         // A component with no place now dims and loses its colour; the dock says what it needs.
         Card.bPlaceless=LDHUD::ComponentDrops(Id,Latest,LatestContent).IsEmpty()&&LDHUD::ReplaceDrops(Id,Latest,LatestContent).IsEmpty();
         StyleFace(Card.Face,Id,Card.Kind,Workshop.bActive?LibraryIcon:StorageTile,Card.bPlaceless);
-        if(Card.Kind<3){++KindCounts[Card.Kind];}
+        if(Card.Kind<3){++ShownCounts[Card.Kind];}
+    };
+    if(Workshop.bActive)
+    {
+        const LDWorkshop::FLibraryGroups Groups=LDWorkshop::CollectLibrary(Latest,LatestContent,Workshop.TagFilter);
+        for(int32 Kind=0;Kind<3;++Kind)
+        {
+            const TArray<FName>& Items=Groups.Items[Kind];
+            KindCounts[Kind]=Items.Num();
+            const int32 First=FMath::Clamp(Workshop.LibraryFirst[Kind],0,Items.Num());
+            const int32 End=FMath::Clamp(First+Workshop.LibraryCount[Kind],First,Items.Num());
+            for(int32 Index=First;Index<End;++Index){AddCard(Items[Index]);}
+        }
+    }
+    else
+    {
+        for(const FName& Id:Model.Stored){AddCard(Id);}
+        for(int32 Kind=0;Kind<3;++Kind){KindCounts[Kind]=ShownCounts[Kind];}
     }
     for(int32 Kind=0;Kind<LibraryCounts.Num();++Kind)
     {
         StorageText(LibraryCounts[Kind],FString::FromInt(KindCounts[Kind]));
-        StorageShown(LibraryGroups[Kind],KindCounts[Kind]>0);
+        StorageShown(LibraryGroups[Kind],ShownCounts[Kind]>0);
     }
+    const bool bEmpty=KindCounts[0]+KindCounts[1]+KindCounts[2]==0;
+    StorageText(LibraryEmpty,Workshop.TagFilter==INDEX_NONE?LDTerms::StorageEmpty:LDTerms::StorageNoMatches);
+    StorageShown(LibraryEmpty,Workshop.bActive&&bEmpty);
     for(int32 Index=0;Index<Columns.Num()&&Model.Columns.IsValidIndex(Index);++Index)
     {
         FColumn& Column=Columns[Index];Column.List->ClearChildren();Column.AppliedLook=-1;
@@ -364,13 +404,14 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
         const float Base=(Shown.Entries.Num()>5?46.f:56.f)*Workshop.TileScale;
         for(const LDHUD::FEquippedView& Entry:Shown.Entries)
         {
-            if(Workshop.bActive){BuildWorkshopTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index),Entry.Depth>0?Base*46.f/56.f:Base);}
+            const float TileSize=Workshop.bActive?(Entry.Depth>0?FMath::Max(Base*46.f/56.f,Workshop.MinIcon):Base)
+                :(Entry.Depth>0?StorageNestedTile:StorageTile);
+            if(Workshop.bActive){BuildWorkshopTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index),TileSize);}
             else{BuildTile(Column,Entry,static_cast<LDHUD::EStorageColumn>(Index));}
             FTile& Tile=Tiles.Last();
             const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Entry.Component,LatestContent);
             Tile.Kind=uint8(Facts.Kind);Tile.bScarce=Facts.bScarce;
             Tile.Icon=LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Entry.Component.ToString()));
-            const float TileSize=Workshop.bActive?(Entry.Depth>0?Base*46.f/56.f:Base):(Entry.Depth>0?StorageNestedTile:StorageTile);
             StyleFace(Tile.Face,Entry.Component,Tile.Kind,TileSize,false);
         }
         // The empty place at the end of a column is the size of its icons.
@@ -420,13 +461,13 @@ void ULDComponentStorage::BuildWorkshopCard(FName Component,bool bFresh,float Si
     auto* Cell=WidgetTree->ConstructWidget<UVerticalBox>();Built.Add(Cell);
     Cell->AddChildToVerticalBox(Box)->SetHorizontalAlignment(HAlign_Center);
     // .cell .t: the name under the icon, two lines at most.
-    UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Component),12);Name->SetAutoWrapText(true);Built.Add(Name);
+    UTextBlock* Name=LDWidgets::Text(WidgetTree,ComponentName(Component),12);Name->SetAutoWrapText(false);Name->SetWrapTextAt(Size+10.f);Built.Add(Name);
     Name->SetJustification(ETextJustify::Center);Name->SetColorAndOpacity(LDHUDStyle::TextSecondary);Name->SetLineHeightPercentage(1.05f);
-    StorageShown(Name,Workshop.bNames,ESlateVisibility::HitTestInvisible);
-    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+10.f);NameBox->SetMaxDesiredHeight(46.f);NameBox->SetContent(Name);Built.Add(NameBox);
-    NameBox->SetClipping(EWidgetClipping::ClipToBounds);
-    Cell->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,6,0,0));
-    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.Cell=Cell;
+    UScaleBox* NameFit=LDWidgets::Fit(WidgetTree,Name);Built.Add(NameFit);
+    auto* NameBox=WidgetTree->ConstructWidget<USizeBox>();NameBox->SetWidthOverride(Size+10.f);
+    NameBox->SetHeightOverride(Workshop.LibraryLabelHeight);NameBox->SetContent(NameFit);Built.Add(NameBox);
+    Cell->AddChildToVerticalBox(NameBox)->SetPadding(FMargin(0,Workshop.bCompactLibrary?3.f:6.f,0,0));
+    FCard& Card=Cards.AddDefaulted_GetRef();Card.Component=Component;Card.Face=Icon;Card.Size=Box;Card.Cell=Cell;Card.NameFit=NameFit;
     if(LibraryWraps.IsValidIndex(Kind)){LibraryWraps[Kind]->AddChildToWrapBox(Cell);}
 }
 void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquippedView& Entry,LDHUD::EStorageColumn ColumnId,float Size)
@@ -454,7 +495,7 @@ void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquipp
         NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     }
     auto* RowSlot=Column.List->AddChildToVerticalBox(Row);
-    RowSlot->SetPadding(FMargin(24.f*FMath::Min(Entry.Depth,2),Column.List->GetChildrenCount()>1?14.f*Workshop.TileScale:0.f,0,0));
+    RowSlot->SetPadding(FMargin(Workshop.TileIndent*FMath::Min(Entry.Depth,2),Column.List->GetChildrenCount()>1?14.f*Workshop.TileScale:0.f,0,0));
     RowSlot->SetHorizontalAlignment(HAlign_Fill);
     FTile& Tile=Tiles.AddDefaulted_GetRef();Tile.Component=Entry.Component;Tile.Host=Entry.Host;Tile.Column=ColumnId;Tile.Face=Icon;Tile.Depth=Entry.Depth;
 }
@@ -955,6 +996,11 @@ void ULDComponentStorage::NativeTick(const FGeometry& Geometry,float DeltaSecond
         else if(bExpanded&&Now-LastInsideAt>StorageCloseGrace){bExpanded=false;}
     }
     Layout(Geometry,Pointer);
+    if(Workshop.bActive){for(const FCard& Card:Cards){LDWidgets::RefitScale(Card.NameFit);}}
+}
+void ULDComponentStorage::SetPreviewCaption(FName Component,const FString& DropText,const FString& Value)
+{
+    PreviewCaptionComponent=Component;PreviewCaptionDrop=DropText;PreviewCaption=Value;
 }
 void ULDComponentStorage::UpdateFocus(FVector2D Pointer)
 {
@@ -970,7 +1016,17 @@ void ULDComponentStorage::UpdateFocus(FVector2D Pointer)
             if(Drop){Next.bOverDrop=true;Next.Drop=*Drop;}
         }
     }
-    else if(Chooser.bOpen){Next.Component=Chooser.Component;Next.bHeld=true;Next.bOverDrop=true;Next.Drop=Chooser.Drop;}
+    else if(Chooser.bOpen)
+    {
+        Next.Component=Chooser.Component;Next.bHeld=true;Next.bOverDrop=true;Next.Drop=Chooser.Drop;
+        for(int32 Index=0;Index<ChooserButtons.Num();++Index)
+        {
+            if(!ChooserButtons[Index]||!ChooserButtons[Index]->IsHovered()){continue;}
+            if(Chooser.Drop.Elements.IsValidIndex(Index)){Next.HoveredElement=Chooser.Drop.Elements[Index];}
+            else if(Chooser.Drop.Bases.IsValidIndex(Index)){Next.HoveredBase=Chooser.Drop.Bases[Index];}
+            break;
+        }
+    }
     else if(bExpanded)
     {
         for(const FCard& Card:Cards){if(StorageUnder(Card.Face,Pointer)){Next.Component=Card.Component;break;}}
@@ -1144,9 +1200,16 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
         if(bOverPlace)
         {
             const LDHUD::FComponentDrop* Drop=CurrentFocus.bOverDrop?&CurrentFocus.Drop:nullptr;
-            StorageText(GhostCaption,Drop?LDHUD::DropPreviewText(Drag.Component,*Drop,Latest,LatestContent):FString(LDTerms::DropNowhere));
+            const FString DropText=Drop?LDHUD::DropPreviewText(Drag.Component,*Drop,Latest,LatestContent):FString(LDTerms::DropNowhere);
+            const bool bPreview=Drop&&PreviewCaptionComponent==Drag.Component&&PreviewCaptionDrop==DropText&&!PreviewCaption.IsEmpty();
+            StorageText(GhostCaption,bPreview?DropText+TEXT(" · ")+PreviewCaption:DropText);
             GhostCaption->SetColorAndOpacity(FSlateColor(!Drop?LDHUDStyle::TextSecondary:Drop->Replacing.IsNone()?LDHUDStyle::UILegal:LDHUDStyle::UIReplace));
-            StoragePlace(GhostCaptionSlot,Local(Pointer)+FVector2D(StorageTile*.5f+10.f,0),FVector2D(0,.5f));
+            const FVector2D Desired=GhostCaptionFrame->GetDesiredSize();
+            const float Width=FMath::Min(float(Desired.X),FMath::Max(1.f,float(Area.X)-2.f*StorageScreenMargin));
+            GhostCaptionSlot->SetAutoSize(false);GhostCaptionSlot->SetSize(FVector2D(Width,Desired.Y));
+            const FVector2D At=Local(Pointer)+FVector2D(StorageTile*.5f+10.f,0);
+            StoragePlace(GhostCaptionSlot,FVector2D(FMath::Clamp(float(At.X),StorageScreenMargin,FMath::Max(StorageScreenMargin,float(Area.X)-StorageScreenMargin-Width)),
+                FMath::Clamp(float(At.Y),StorageScreenMargin+float(Desired.Y)*.5f,FMath::Max(StorageScreenMargin+float(Desired.Y)*.5f,float(Area.Y)-StorageScreenMargin-float(Desired.Y)*.5f))),FVector2D(0,.5f));
         }
         StorageShown(GhostCaptionFrame,bOverPlace,ESlateVisibility::HitTestInvisible);
     }
@@ -1175,8 +1238,7 @@ void ULDComponentStorage::LayoutWorkshop(const FGeometry& Geometry,FVector2D Poi
 {
     const auto Local=[&Geometry](FVector2D Absolute){return Geometry.AbsoluteToLocal(Absolute);};
     for(UWidget* Hidden:{StackFrame.Get(),ListFrame.Get(),PopupFrame.Get()}){StorageShown(Hidden,false);}
-    // The library: the kind groups in its rectangle. The use-tag filter only dims (nothing moves); a component without a
-    // place dims too.
+    // The library: the current page's kind groups in its rectangle. A component without a place dims.
     const bool bLibrary=StorageHasArea(Workshop.Library);
     StorageShown(LibraryFrame,bLibrary,ESlateVisibility::Visible);
     if(bLibrary)
@@ -1189,8 +1251,7 @@ void ULDComponentStorage::LayoutWorkshop(const FGeometry& Geometry,FVector2D Poi
         for(UWrapBox* Wrap:LibraryWraps){if(!FMath::IsNearlyEqual(Wrap->GetWrapSize(),float(BottomRight.X-TopLeft.X),.5f)){Wrap->SetExplicitWrapSize(true);Wrap->SetWrapSize(float(BottomRight.X-TopLeft.X));}}
         for(FCard& Card:Cards)
         {
-            const bool bFiltered=Workshop.TagFilter!=INDEX_NONE&&!LDWorkshop::ComponentFacts(Card.Component,LatestContent).Tags.Contains(static_cast<ELDDemoComponentTag>(Workshop.TagFilter));
-            LDTween::SetOpacity(Card.Cell,Card.State==EFaceState::Held?.35f:bFiltered?.3f:Card.bPlaceless?.55f:1.f);
+            LDTween::SetOpacity(Card.Cell,Card.State==EFaceState::Held?.35f:Card.bPlaceless?.55f:1.f);
         }
     }
     // The columns: each in its board rectangle under the head the workshop draws. A column that takes nothing of the hovered
@@ -1229,9 +1290,11 @@ void ULDComponentStorage::LayoutWorkshop(const FGeometry& Geometry,FVector2D Poi
         }
     }
 }
-void ULDComponentStorage::PaintTiles(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const
+void ULDComponentStorage::PaintTiles(const LDUIPaint::FContext& Paint) const
 {
     if(!bShownNow){return;}
+    const FGeometry& Geometry=Paint.Geometry;
+    const int32 Layer=Paint.Layer;
     const double Now=UiNow();
     const auto TileState=[](EFaceState State)
     {
@@ -1254,8 +1317,9 @@ void ULDComponentStorage::PaintTiles(FSlateWindowElementList& Elements,int32 Lay
         const FVector2D Size=FaceGeometry.GetLocalSize();
         if(Size.X<4.){return;}
         const FBox2D Box(FVector2D::ZeroVector,Size);
-        LDUIPaint::Tile(Elements,Layer,FaceGeometry,Box,Kind,bScarce,TileState(State),Icon,Opacity,Now);
-        if(bFresh){LDUIPaint::NewDot(Elements,Layer+4,FaceGeometry,FVector2D(Size.X+3.,-3.));}
+        const LDUIPaint::FContext FacePaint=Paint.WithGeometry(FaceGeometry).WithOpacity(Opacity*Face->GetRenderOpacity());
+        FacePaint.Tile(Layer,Box,Kind,bScarce,TileState(State),Icon,1.f,Now);
+        if(bFresh){FacePaint.NewDot(Layer+4,FVector2D(Size.X+3.,-3.));}
     };
     const bool bCardsShown=Workshop.bActive?(LibraryFrame&&LibraryFrame->IsVisible()):(ListFrame&&ListFrame->IsVisible());
     if(bCardsShown)
@@ -1274,11 +1338,11 @@ void ULDComponentStorage::PaintTiles(FSlateWindowElementList& Elements,int32 Lay
                 if(!Swatch||!Swatch->IsVisible()||!Head||!Head->IsVisible()||!LibraryGroups[Kind]->IsVisible()){continue;}
                 const FBox2D Mark=LDUIShapes::RectIn(Geometry,Swatch->GetCachedGeometry());
                 const LDUIShapes::EShape Shape=LDUIShapes::KindShape(uint8(Kind));
-                LDUIPaint::Shape(Elements,Layer,Geometry,Shape,Mark,Kind==0?2.f:6.f,LDUIPaint::FFill::Solid(LDUIShapes::KindColor(uint8(Kind))));
+                Paint.Shape(Layer,Shape,Mark,Kind==0?2.f:6.f,LDUIPaint::FFill::Solid(LDUIShapes::KindColor(uint8(Kind))));
                 const FBox2D Row=LDUIShapes::RectIn(Geometry,Head->GetCachedGeometry());
                 const float From=float(Row.Min.X)+float(Head->GetDesiredSize().X)+10.f,Y=float(Mark.GetCenter().Y);
                 const float To=LibraryFrame?float(LDUIShapes::RectIn(Geometry,LibraryFrame->GetCachedGeometry()).Max.X)-4.f:From;
-                if(To>From){LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(From,Y),FVector2D(To,Y),FLinearColor(1,1,1,.075f),1.f);}
+                if(To>From){Paint.Line(Layer,FVector2D(From,Y),FVector2D(To,Y),FLinearColor(1,1,1,.075f),1.f);}
             }
         }
     }
@@ -1293,11 +1357,11 @@ void ULDComponentStorage::PaintTiles(FSlateWindowElementList& Elements,int32 Lay
             const FBox2D Box=LDUIShapes::RectIn(Geometry,Tile.Face->GetCachedGeometry());
             const float X=float(Box.Min.X)-10.f,Y=float(Box.GetCenter().Y);
             const FLinearColor Ink(1,1,1,.2f*Opacity);
-            LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(X,Y-50.f),FVector2D(X,Y-8.f),Ink,2.f);
+            Paint.Line(Layer,FVector2D(X,Y-50.f),FVector2D(X,Y-8.f),Ink,2.f);
             TArray<FVector2D> Bend;
             for(int32 Step=0;Step<=5;++Step){const float A=PI-PI*.5f*float(Step)/5.f;Bend.Add(FVector2D(X+8.f,Y-8.f)+FVector2D(FMath::Cos(A),FMath::Sin(A))*8.f);}
-            LDUIShapes::Stroke(Elements,Layer,Geometry,Bend,Ink,2.f);
-            LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(X+8.f,Y),FVector2D(float(Box.Min.X)-2.f,Y),Ink,2.f);
+            Paint.Stroke(Layer,Bend,Ink,2.f);
+            Paint.Line(Layer,FVector2D(X+8.f,Y),FVector2D(float(Box.Min.X)-2.f,Y),Ink,2.f);
         }
         PaintFace(Tile.Face,Tile.Kind,Tile.bScarce,Tile.State,Tile.Icon.Get(),Opacity,false);
     }
@@ -1308,6 +1372,7 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
     if(!bShownNow){return Base;}
     const double Now=UiNow();
     const int32 Top=Base+1;
+    const LDUIPaint::FContext Paint(Elements,Top,Geometry,Style.GetColorAndOpacityTint().A);
     for(const FTile& Tile:Tiles)
     {
         const int32 Index=int32(Tile.Column);
@@ -1319,7 +1384,8 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
             const float T=LDTween::Progress(Age,LDHUDStyle::MotionInstallLand+LDHUDStyle::MotionInstallSettle,LDTween::ECurve::EaseOut);
             const FBox2D Box=LDUIShapes::RectIn(Geometry,Tile.Face->GetCachedGeometry());
             const FVector2D Grow(10.f*T,10.f*T);
-            LDUIShapes::Frame(Elements,Top,Geometry,LDUIShapes::KindShape(Tile.Kind),FBox2D(Box.Min-Grow,Box.Max+Grow),LDHUDStyle::UILegal.CopyWithNewOpacity(1.f-T),2.f,
+            Paint.WithOpacity(Columns[Index].Frame->GetRenderOpacity()).Frame(Top,LDUIShapes::KindShape(Tile.Kind),FBox2D(Box.Min-Grow,Box.Max+Grow),
+                LDHUDStyle::UILegal.CopyWithNewOpacity(1.f-T),2.f,
                 FaceRadius(Tile.Kind,float(Box.GetSize().X))+10.f*T);
         }
     }
@@ -1333,19 +1399,20 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
             // .sock.empty .slot: a dashed rounded place with a thin plus; solid green and glowing while the held component
             // can go there.
             const FBox2D Box=LDUIShapes::RectIn(Geometry,Column.Placeholder->GetCachedGeometry());
+            const LDUIPaint::FContext ColumnPaint=Paint.WithOpacity(Column.Frame->GetRenderOpacity());
             const bool bLegal=Drags(CurrentFocus.Drops,static_cast<LDHUD::EStorageColumn>(Index),true);
             if(bLegal)
             {
                 const float Pulse=CurrentFocus.bHeld?.7f+.3f*LDTween::PingPong(Now,.9):1.f;
-                LDUIPaint::Halo(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UILegal.CopyWithNewOpacity(.55f*Pulse),18.f);
-                LDUIPaint::Shape(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDUIPaint::FFill::Solid(LDHUDStyle::UILegal.CopyWithNewOpacity(.12f)));
-                LDUIPaint::Edge(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UILegal,2.f);
+                ColumnPaint.Halo(Top,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UILegal.CopyWithNewOpacity(.55f*Pulse),18.f);
+                ColumnPaint.Shape(Top+1,LDUIShapes::EShape::Rounded,Box,10.f,LDUIPaint::FFill::Solid(LDHUDStyle::UILegal.CopyWithNewOpacity(.12f)));
+                ColumnPaint.Edge(Top+1,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UILegal,2.f);
             }
-            else{LDUIPaint::DashedEdge(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,FLinearColor(1,1,1,.18f),2.f);}
+            else{ColumnPaint.DashedEdge(Top,LDUIShapes::EShape::Rounded,Box,10.f,FLinearColor(1,1,1,.18f),2.f);}
             const FVector2D Center=Box.GetCenter();
             const FLinearColor Plus=bLegal?LDHUDStyle::UILegal:FLinearColor(1,1,1,.25f);
-            LDUIPaint::Line(Elements,Top+2,Geometry,Center-FVector2D(8,0),Center+FVector2D(8,0),Plus,1.5f);
-            LDUIPaint::Line(Elements,Top+2,Geometry,Center-FVector2D(0,8),Center+FVector2D(0,8),Plus,1.5f);
+            ColumnPaint.Line(Top+2,Center-FVector2D(8,0),Center+FVector2D(8,0),Plus,1.5f);
+            ColumnPaint.Line(Top+2,Center-FVector2D(0,8),Center+FVector2D(0,8),Plus,1.5f);
         }
     }
     if(!Workshop.bActive&&StackFrame&&StackFrame->IsVisible())
@@ -1367,7 +1434,7 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
                 {
                     const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Entries[Entry].Component,LatestContent).Kind);
                     const FBox2D Box(FVector2D(X0+Entry*(Mark+Gap),Y),FVector2D(X0+Entry*(Mark+Gap)+Mark,Y+Mark));
-                    LDUIShapes::Fill(Elements,Top,Geometry,Box,LDUIShapes::KindColor(Kind),Kind==2?Mark*.5f:Kind==1?2.f:1.5f);
+                    Paint.Fill(Top,Box,LDUIShapes::KindColor(Kind),Kind==2?Mark*.5f:Kind==1?2.f:1.5f);
                 }
             }
         }
@@ -1377,7 +1444,7 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
         {
             const float X=float(Stack.Min.X)+Cell*19.f,Y=float(Stack.Min.Y)-14.f;
             const FLinearColor Color=Capacity.Used.IsValidIndex(Cell)?LDUIShapes::KindColor(uint8(Capacity.Used[Cell])):LDHUDStyle::UIRaised;
-            LDUIShapes::Fill(Elements,Top,Geometry,FBox2D(FVector2D(X,Y),FVector2D(X+16.f,Y+9.f)),Color,1.5f);
+            Paint.Fill(Top,FBox2D(FVector2D(X,Y),FVector2D(X+16.f,Y+9.f)),Color,1.5f);
         }
         // A received component's icon arcs from the screen centre into the stack; its name then stays over the stack.
         const FVector2D Size=Geometry.GetLocalSize();
@@ -1393,8 +1460,9 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
                 const float Icon=FMath::Lerp(56.f,36.f,T);
                 FSlateBrush Brush;Brush.SetResourceObject(LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Fly.Component.ToString())));
                 Brush.ImageSize=FVector2D(Icon,Icon);Brush.DrawAs=ESlateBrushDrawType::Image;
-                if(Brush.GetResourceObject()){FSlateDrawElement::MakeBox(Elements,Top+1,Geometry.ToPaintGeometry(FVector2D(Icon,Icon),FSlateLayoutTransform(At-FVector2D(Icon,Icon)*.5f)),&Brush);}
-                LDUIShapes::Frame(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,FBox2D(At-FVector2D(Icon,Icon)*.5f,At+FVector2D(Icon,Icon)*.5f),LDHUDStyle::UIAction,2.f,6.f);
+                if(Brush.GetResourceObject()){FSlateDrawElement::MakeBox(Elements,Top+1,Geometry.ToPaintGeometry(FVector2D(Icon,Icon),FSlateLayoutTransform(At-FVector2D(Icon,Icon)*.5f)),
+                    &Brush,ESlateDrawEffect::None,Paint.Fade(FLinearColor::White));}
+                Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(At-FVector2D(Icon,Icon)*.5f,At+FVector2D(Icon,Icon)*.5f),LDHUDStyle::UIAction,2.f,6.f);
             }
             else if(Fly.bStrip&&Age<LDHUDStyle::MotionGain+1.5)
             {
@@ -1402,9 +1470,10 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
                 const FSlateFontInfo Font=LDUIFonts::Font(LDUIFonts::ERole::Strong,LDHUDStyle::TypeSmall);
                 const FVector2D Strip(FMath::Max(80.f,Name.Len()*15.f+24.f),26.f);
                 const FVector2D Min(float(Stack.GetCenter().X)-Strip.X*.5f,float(Stack.Min.Y)-46.f);
-                LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Min,Min+Strip),LDHUDStyle::UIRaised.CopyWithNewOpacity(.95f),LDHUDStyle::RadiusButton);
-                LDUIShapes::Frame(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,FBox2D(Min,Min+Strip),LDHUDStyle::UIAction,1.5f,LDHUDStyle::RadiusButton);
-                FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(Strip,FSlateLayoutTransform(Min+FVector2D(12.f,3.f))),Name,Font,ESlateDrawEffect::None,LDHUDStyle::UIText);
+                Paint.Fill(Top+1,FBox2D(Min,Min+Strip),LDHUDStyle::UIRaised.CopyWithNewOpacity(.95f),LDHUDStyle::RadiusButton);
+                Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(Min,Min+Strip),LDHUDStyle::UIAction,1.5f,LDHUDStyle::RadiusButton);
+                FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(Strip,FSlateLayoutTransform(Min+FVector2D(12.f,3.f))),Name,Font,ESlateDrawEffect::None,
+                    Paint.Fade(LDHUDStyle::UIText));
             }
         }
     }
@@ -1412,7 +1481,7 @@ int32 ULDComponentStorage::NativePaint(const FPaintArgs& Args,const FGeometry& G
     if(GhostFrame&&GhostFrame->IsVisible()&&!Drag.bActive)
     {
         const FBox2D Box=LDUIShapes::RectIn(Geometry,GhostFrame->GetCachedGeometry());
-        LDUIShapes::Arc(Elements,Top+1,Geometry,Box.GetCenter(),float(Box.GetSize().X)*.62f,.3f,LDHUDStyle::UIAction,2.f,float(FMath::Fmod(Now*1.4,1.)));
+        Paint.Arc(Top+1,Box.GetCenter(),float(Box.GetSize().X)*.62f,.3f,LDHUDStyle::UIAction,2.f,float(FMath::Fmod(Now*1.4,1.)));
     }
     return Top+1;
 }

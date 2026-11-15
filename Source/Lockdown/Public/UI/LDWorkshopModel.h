@@ -19,6 +19,13 @@ namespace LDWorkshop
         TArray<ELDDemoComponentTag> Tags;
     };
     LOCKDOWN_API FComponentFacts ComponentFacts(FName Component,const FLDDemoContentDefinitions* Content);
+    struct FLibraryGroups
+    {
+        TArray<FName> Items[3];
+        FIntVector Counts() const {return FIntVector(Items[0].Num(),Items[1].Num(),Items[2].Num());}
+    };
+    // Keep each kind in the own view's order; a selected use tag excludes non-matching stored components.
+    LOCKDOWN_API FLibraryGroups CollectLibrary(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,int32 TagFilter);
     // The library's icon size and row length for Count stored components, so up to 63 fit without scrolling:
     // 68 px five a row up to 15, 56 px six a row up to 30, 46 px seven a row beyond.
     struct FLibraryTier
@@ -27,6 +34,37 @@ namespace LDWorkshop
         int32 PerRow=5;
     };
     LOCKDOWN_API FLibraryTier LibraryTier(int32 Count);
+    struct FLibraryPage
+    {
+        FIntVector First=FIntVector::ZeroValue;
+        FIntVector Counts=FIntVector::ZeroValue;
+    };
+    struct FLibraryFit
+    {
+        float Icon=0.f;
+        float LabelHeight=0.f;
+        float RequiredHeight=0.f;
+        int32 PerRow=0;
+        bool bCompact=false;
+        bool bFits=false;
+        TArray<FLibraryPage> Pages;
+    };
+    // Fit or paginate the groups using the same cell, label and group spacing as the library widgets.
+    LOCKDOWN_API FLibraryFit FitLibrary(FIntVector Counts,float Width,float Height,float MinIcon,float TextScale);
+    // Reserve room for at least one library card when the pending tray shares the same column.
+    LOCKDOWN_API float StackedTrayLimit(FIntVector Counts,float Width,float AvailableHeight,float MinIcon,float TextScale);
+    struct FPendingPage
+    {
+        int32 First=0;
+        int32 Count=0;
+    };
+    struct FPendingFit
+    {
+        TArray<FPendingPage> Pages;
+        bool bFits=false;
+    };
+    // Keep each pending decision whole, allowing independent blueprints to occupy separate rows.
+    LOCKDOWN_API FPendingFit FitPending(const TArray<float>& Heights,float Height,float PagerHeight);
     // The elements an active applies (burn, wet and electric effects), in fire, water, electric order.
     LOCKDOWN_API TArray<ELDDemoElement> ActiveElements(FName Active,const FLDDemoContentDefinitions* Content);
     // A rule board column head: the learned active's (or the dash's) icon, name, mana and cooldown and the elements it
@@ -71,8 +109,16 @@ namespace LDWorkshop
     LOCKDOWN_API FString MissingPlace(FName Component,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
     // The trigger sources of a base component's effects ("普攻命中", "受到伤害", ...), once each.
     LOCKDOWN_API TArray<FString> TriggerChips(FName Component,const FLDDemoContentDefinitions* Content);
-    // The owned components that install on (or bind) Active, in the view's order: its 可接 row on an offer card.
-    LOCKDOWN_API TArray<FName> LinkableComponents(FName Active,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    struct FOfferLinks
+    {
+        TArray<FName> Components;
+        ELDGrowthReason Failure=ELDGrowthReason::None;
+        bool bLearned=false;
+    };
+    // Simulate the offer and the storage's drops on copies with the shared progression rules. A choice stored as a blueprint
+    // has no immediately linkable components; failures are separate from a valid empty result.
+    LOCKDOWN_API FOfferLinks LinkableComponents(FName Active,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+        LDProgression::EMatchStage Stage,ELDLifePhase LifePhase);
     // The keyword names a card sentence uses ("<b>name</>：…" lines), for the offer card's tag row.
     LOCKDOWN_API TArray<FString> KeywordNames(const TArray<FString>& KeywordLines);
     // The six phase-bar dots of a rest: build, draw and betting, PK ready, PK, settlement and payout, return.

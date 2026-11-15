@@ -108,7 +108,7 @@ namespace
         if(!Text->GetText().ToString().Equals(Value,ESearchCase::CaseSensitive)){Text->SetText(FText::FromString(Value));}
         Text->SetVisibility(Value.IsEmpty()?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
     }
-    using FPainter=TFunction<void(FSlateWindowElementList&,int32,const FGeometry&)>;
+    using FPainter=TFunction<void(const LDUIPaint::FContext&)>;
 
     ULDPaintLayer* PaintLayer(UWidgetTree* Tree,FPainter Painter)
     {
@@ -158,17 +158,17 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         UCanvasPanelSlot* LayerSlot=Canvas.AddChildToCanvas(Layer);LayerSlot->SetAnchors(FAnchors(0,0,1,1));LayerSlot->SetOffsets(Offsets);
         LayerSlot->SetZOrder(-1);
     };
-    Cover(PaintLayer(WidgetTree,[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+    Cover(PaintLayer(WidgetTree,[](const LDUIPaint::FContext& Paint)
     {
-        LDUIPaint::Shape(Elements,Layer,Geometry,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize())),0.f,
+        Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize())),0.f,
             LDUIPaint::FFill::Linear(180.f,{{0.f,LDUIPaint::Hex(0x140614,.55f)},{.34f,LDUIPaint::Hex(0x140614,0.f)},{.52f,LDUIPaint::Hex(0x06050A,0.f)},
             {1.f,LDUIPaint::Hex(0x06050A,.88f)}}));
     }),FMargin(0));
-    FrontendFog=PaintLayer(WidgetTree,[this](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+    FrontendFog=PaintLayer(WidgetTree,[this](const LDUIPaint::FContext& Paint)
     {
-        const FVector2D Size(Geometry.GetLocalSize());
+        const FVector2D Size(Paint.Geometry.GetLocalSize());
         const float Breath=.75f+.25f*LDTween::PingPong(FPlatformTime::Seconds()-FrontendShownAt,9.);
-        LDUIPaint::Shape(Elements,Layer,Geometry,LDUIPaint::EShape::Rounded,FBox2D(FVector2D(0,Size.Y*.6),Size),0.f,
+        Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D(0,Size.Y*.6),Size),0.f,
             LDUIPaint::FFill::Linear(180.f,{{0.f,LDUIPaint::Hex(0x2A1236,0.f)},{.6f,LDUIPaint::Hex(0x2A1236,.2f)},{1.f,LDUIPaint::Hex(0x12081A,.34f)}}),Breath);
         // Uneven streaks, so the drift reads: soft purple and neon-pink haze along the ground.
         const struct {float X,Y,W;uint32 Rgb;float Alpha;} Streaks[]={{.08f,.9f,.3f,0x6A3A8C,.16f},{.42f,.95f,.34f,0xC2185B,.09f},
@@ -176,7 +176,7 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         for(const auto& Streak:Streaks)
         {
             const FBox2D Bar(FVector2D(Size.X*Streak.X,Size.Y*Streak.Y-1.),FVector2D(Size.X*(Streak.X+Streak.W),Size.Y*Streak.Y+1.));
-            LDUIPaint::Halo(Elements,Layer+1,Geometry,LDUIPaint::EShape::Rounded,Bar,1.f,LDUIPaint::Hex(Streak.Rgb,Streak.Alpha*Breath),float(Size.Y)*.07f);
+            Paint.Halo(Paint.Layer+1,LDUIPaint::EShape::Rounded,Bar,1.f,LDUIPaint::Hex(Streak.Rgb,Streak.Alpha*Breath),float(Size.Y)*.07f);
         }
     });
     Cover(FrontendFog,FMargin(-60,0,-60,0));
@@ -283,17 +283,17 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         Head->AddChildToHorizontalBox(Heading)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         if(Help){Head->AddChildToHorizontalBox(Help)->SetVerticalAlignment(VAlign_Center);}
         Body->AddChildToVerticalBox(Head)->SetPadding(FMargin(0,0,0,10));
-        return Painted(WidgetTree,Body,FMargin(24,20),[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
-        {LDUIPaint::Panel(Elements,Layer,Geometry,FBox2D(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize())));});
+        return Painted(WidgetTree,Body,FMargin(24,20),[](const LDUIPaint::FContext& Paint)
+        {Paint.Panel(Paint.Layer,FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize())));});
     };
     const auto CardStatus=[this](UVerticalBox* Body,TObjectPtr<UWidget>& Ring,TObjectPtr<UTextBlock>& Notice)
     {
         auto* Ringed=WidgetTree->ConstructWidget<USizeBox>();Ringed->SetWidthOverride(26);Ringed->SetHeightOverride(26);
-        Ringed->SetContent(PaintLayer(WidgetTree,[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+        Ringed->SetContent(PaintLayer(WidgetTree,[](const LDUIPaint::FContext& Paint)
         {
-            const FVector2D Size(Geometry.GetLocalSize());const float Radius=float(FMath::Min(Size.X,Size.Y))*.5f-2.f;
-            LDUIShapes::Arc(Elements,Layer,Geometry,Size*.5,Radius,1.f,FLinearColor(1,1,1,.14f),3.f);
-            LDUIShapes::Arc(Elements,Layer+1,Geometry,Size*.5,Radius,.3f,LDHUDStyle::UIAction,3.f,float(FMath::Fmod(FPlatformTime::Seconds()*1.2,1.)));
+            const FVector2D Size(Paint.Geometry.GetLocalSize());const float Radius=float(FMath::Min(Size.X,Size.Y))*.5f-2.f;
+            Paint.Arc(Paint.Layer,Size*.5,Radius,1.f,FLinearColor(1,1,1,.14f),3.f);
+            Paint.Arc(Paint.Layer+1,Size*.5,Radius,.3f,LDHUDStyle::UIAction,3.f,float(FMath::Fmod(FPlatformTime::Seconds()*1.2,1.)));
         }));
         Ringed->SetVisibility(ESlateVisibility::Collapsed);Ring=Ringed;
         auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
@@ -312,11 +312,11 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
         auto* Help=WidgetTree->ConstructWidget<USizeBox>();Help->SetWidthOverride(28);Help->SetHeightOverride(28);
         UTextBlock* Mark=Label(TEXT("?"),LDHUDStyle::TypeLead,LDHUDStyle::UIAction);Mark->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Mark->GetFont().Size));
         Mark->SetJustification(ETextJustify::Center);
-        Help->SetContent(Painted(WidgetTree,Mark,FMargin(0,1,0,0),[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+        Help->SetContent(Painted(WidgetTree,Mark,FMargin(0,1,0,0),[](const LDUIPaint::FContext& Paint)
         {
-            const FBox2D Disc(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize()));
-            LDUIPaint::Shape(Elements,Layer,Geometry,LDUIPaint::EShape::Circle,Disc,0.f,LDUIPaint::FFill::Solid(FLinearColor(0,0,0,.35f)));
-            LDUIPaint::Edge(Elements,Layer+1,Geometry,LDUIPaint::EShape::Circle,Disc,0.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.8f),1.5f);
+            const FBox2D Disc(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));
+            Paint.Shape(Paint.Layer,LDUIPaint::EShape::Circle,Disc,0.f,LDUIPaint::FFill::Solid(FLinearColor(0,0,0,.35f)));
+            Paint.Edge(Paint.Layer+1,LDUIPaint::EShape::Circle,Disc,0.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.8f),1.5f);
         }));
         Help->SetToolTipText(FText::FromString(TEXT("其他玩家用你的 IP 地址和这个端口加入；跨网络需自行开放防火墙并设置端口映射。")));
         Help->SetVisibility(ESlateVisibility::Visible);
@@ -456,10 +456,10 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     Actions->AddChildToHorizontalBox(ReadyButton)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
     StartMatchButton=MakeButton(TEXT("开始对局"),TEXT("StartMatch"),[this](){StartMatch();});
     // Once everyone is ready the host's 开始对局 turns primary and breathes a yellow halo (RefreshLobby).
-    StartMatchGlow=PaintLayer(WidgetTree,[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+    StartMatchGlow=PaintLayer(WidgetTree,[](const LDUIPaint::FContext& Paint)
     {
         const float Pulse=.25f+.35f*LDTween::PingPong(FPlatformTime::Seconds(),1.6);
-        LDUIPaint::Halo(Elements,Layer,Geometry,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize())),
+        Paint.Halo(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize())),
             LDHUDStyle::RadiusButton,LDHUDStyle::UIAction.CopyWithNewOpacity(Pulse),14.f);
     });
     StartMatchGlow->SetVisibility(ESlateVisibility::Collapsed);
@@ -851,19 +851,19 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         {
             const bool bCrown=Member.Host;
             auto* Icon=WidgetTree->ConstructWidget<USizeBox>();Icon->SetWidthOverride(22.f);Icon->SetHeightOverride(22.f);
-            Icon->SetContent(PaintLayer(WidgetTree,[bCrown](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+            Icon->SetContent(PaintLayer(WidgetTree,[bCrown](const LDUIPaint::FContext& Paint)
             {
                 if(bCrown)
                 {
-                    LDUIShapes::Stroke(Elements,Layer,Geometry,{FVector2D(3,17),FVector2D(3,7),FVector2D(7.5,12),FVector2D(11,4),FVector2D(14.5,12),
+                    Paint.Stroke(Paint.Layer,{FVector2D(3,17),FVector2D(3,7),FVector2D(7.5,12),FVector2D(11,4),FVector2D(14.5,12),
                         FVector2D(19,7),FVector2D(19,17),FVector2D(3,17)},LDHUDStyle::UIAction,2.f);
                     return;
                 }
-                LDUIShapes::Fill(Elements,Layer,Geometry,FBox2D(FVector2D(4,8),FVector2D(18,20)),LDHUDStyle::UIText,3.f);
-                LDUIShapes::Fill(Elements,Layer+1,Geometry,FBox2D(FVector2D(7,12),FVector2D(9.5,14.5)),LDUIPaint::Hex(0x15130A),1.f);
-                LDUIShapes::Fill(Elements,Layer+1,Geometry,FBox2D(FVector2D(12.5,12),FVector2D(15,14.5)),LDUIPaint::Hex(0x15130A),1.f);
-                LDUIPaint::Line(Elements,Layer,Geometry,FVector2D(11,8),FVector2D(11,4),LDHUDStyle::UIText,1.5f);
-                LDUIShapes::Fill(Elements,Layer,Geometry,FBox2D(FVector2D(9.5,1.5),FVector2D(12.5,4.5)),LDHUDStyle::UIText,1.5f);
+                Paint.Fill(Paint.Layer,FBox2D(FVector2D(4,8),FVector2D(18,20)),LDHUDStyle::UIText,3.f);
+                Paint.Fill(Paint.Layer+1,FBox2D(FVector2D(7,12),FVector2D(9.5,14.5)),LDUIPaint::Hex(0x15130A),1.f);
+                Paint.Fill(Paint.Layer+1,FBox2D(FVector2D(12.5,12),FVector2D(15,14.5)),LDUIPaint::Hex(0x15130A),1.f);
+                Paint.Line(Paint.Layer,FVector2D(11,8),FVector2D(11,4),LDHUDStyle::UIText,1.5f);
+                Paint.Fill(Paint.Layer,FBox2D(FVector2D(9.5,1.5),FVector2D(12.5,4.5)),LDHUDStyle::UIText,1.5f);
             }));
             UHorizontalBoxSlot* IconSlot=Head->AddChildToHorizontalBox(Icon);IconSlot->SetVerticalAlignment(VAlign_Center);IconSlot->SetPadding(FMargin(0,0,8,0));
         }
@@ -877,13 +877,13 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         if(Member.Host){Tags->AddChildToHorizontalBox(Label(TEXT("房主"),LDHUDStyle::TypeSmall,LDHUDStyle::UIAction))->SetPadding(FMargin(10,0,0,0));}
         if(bHuman&&!Member.Ready){Tags->AddChildToHorizontalBox(Label(TEXT("未准备"),LDHUDStyle::TypeSmall,LDHUDStyle::MenuMuted))->SetPadding(FMargin(10,0,0,0));}
         Box->AddChildToVerticalBox(Tags)->SetPadding(FMargin(0,8,0,0));
-        UOverlay* Card=Painted(WidgetTree,Box,FMargin(20,12),[Identity,bMine](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+        UOverlay* Card=Painted(WidgetTree,Box,FMargin(20,12),[Identity,bMine](const LDUIPaint::FContext& Paint)
         {
-            const FBox2D Whole(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize()));
-            LDUIPaint::Shape(Elements,Layer,Geometry,LDUIPaint::EShape::Rounded,Whole,LDHUDStyle::RadiusPanel,LDUIPaint::FFill::Linear(180.f,
+            const FBox2D Whole(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));
+            Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,Whole,LDHUDStyle::RadiusPanel,LDUIPaint::FFill::Linear(180.f,
                 {{0.f,(LDHUDStyle::UIPanel+(Identity-LDHUDStyle::UIPanel)*.42f).CopyWithNewOpacity(.94f)},{1.f,LDHUDStyle::UIPanel}}));
-            LDUIPaint::Shape(Elements,Layer+1,Geometry,LDUIPaint::EShape::Rounded,FBox2D(Whole.Min,FVector2D(6.,Whole.Max.Y)),3.f,LDUIPaint::FFill::Solid(Identity));
-            LDUIPaint::Edge(Elements,Layer+2,Geometry,LDUIPaint::EShape::Rounded,Whole,LDHUDStyle::RadiusPanel,
+            Paint.Shape(Paint.Layer+1,LDUIPaint::EShape::Rounded,FBox2D(Whole.Min,FVector2D(6.,Whole.Max.Y)),3.f,LDUIPaint::FFill::Solid(Identity));
+            Paint.Edge(Paint.Layer+2,LDUIPaint::EShape::Rounded,Whole,LDHUDStyle::RadiusPanel,
                 bMine?LDHUDStyle::UIAction:FLinearColor(1,1,1,.12f),bMine?2.f:1.f);
         });
         Cast<UOverlaySlot>(Box->Slot)->SetVerticalAlignment(VAlign_Center);
@@ -891,11 +891,11 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
         {
             UTextBlock* StampText=Label(TEXT("已准备"),LDHUDStyle::TypeSmall,LDHUDStyle::UILegal);
             StampText->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Title,StampText->GetFont().Size));StampText->SetAutoWrapText(false);
-            UOverlay* Stamp=Painted(WidgetTree,StampText,FMargin(10,3),[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+            UOverlay* Stamp=Painted(WidgetTree,StampText,FMargin(10,3),[](const LDUIPaint::FContext& Paint)
             {
-                const FBox2D Whole(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize()));
-                LDUIPaint::Shape(Elements,Layer,Geometry,LDUIPaint::EShape::Rounded,Whole,3.f,LDUIPaint::FFill::Solid(LDHUDStyle::UILegal.CopyWithNewOpacity(.12f)));
-                LDUIPaint::Edge(Elements,Layer+1,Geometry,LDUIPaint::EShape::Rounded,Whole,3.f,LDHUDStyle::UILegal,2.f);
+                const FBox2D Whole(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize()));
+                Paint.Shape(Paint.Layer,LDUIPaint::EShape::Rounded,Whole,3.f,LDUIPaint::FFill::Solid(LDHUDStyle::UILegal.CopyWithNewOpacity(.12f)));
+                Paint.Edge(Paint.Layer+1,LDUIPaint::EShape::Rounded,Whole,3.f,LDHUDStyle::UILegal,2.f);
             });
             Stamp->SetRenderTransformAngle(-8.f);Stamp->SetVisibility(ESlateVisibility::HitTestInvisible);
             UOverlaySlot* StampSlot=Card->AddChildToOverlay(Stamp);
@@ -907,9 +907,9 @@ void ULDUIRoot::RebuildRoster(const ALDGameState& Public,const FGuid& Self)
     for(;Shown<SeatCount;++Shown)
     {
         UTextBlock* Empty=Label(TEXT("空位"),LDHUDStyle::TypeSmall,LDHUDStyle::TextSecondary);Empty->SetJustification(ETextJustify::Center);
-        UOverlay* Card=Painted(WidgetTree,Empty,FMargin(0),[](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry)
+        UOverlay* Card=Painted(WidgetTree,Empty,FMargin(0),[](const LDUIPaint::FContext& Paint)
         {
-            LDUIPaint::DashedEdge(Elements,Layer,Geometry,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Geometry.GetLocalSize())),
+            Paint.DashedEdge(Paint.Layer,LDUIPaint::EShape::Rounded,FBox2D(FVector2D::ZeroVector,FVector2D(Paint.Geometry.GetLocalSize())),
                 LDHUDStyle::RadiusPanel,FLinearColor(1,1,1,.28f),1.5f,8.f,6.f);
         });
         Cast<UOverlaySlot>(Empty->Slot)->SetVerticalAlignment(VAlign_Center);

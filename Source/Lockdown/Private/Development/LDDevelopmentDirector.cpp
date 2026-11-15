@@ -457,6 +457,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     }
     View.ProgressionRevision = Progression.Revision;
     View.BuildRevision = Build.Revision;
+    View.CombatInstalledRevision = Record->CombatInstalled.BuildRevision;
     View.UnspentPoints = Unspent;
     View.StatPoints.Reserve(Definitions.Stats.Num());
     const TArray<const FLDDemoStatDefinition*> StatOrder = Definitions.StatsInDesignOrder();
@@ -1544,47 +1545,7 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record)
 
 FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGrowthBuild& Build) const
 {
-    FLDBuildProjectionInput Input;
-    Input.Level = Build.Level;
-    if (Content.IsValid() && Build.StatPoints.Num() == Content->Get().Stats.Num())
-    {
-        const TArray<const FLDDemoStatDefinition*> StatOrder = Content->Get().StatsInDesignOrder();
-        for (int32 Index = 0; Index < Build.StatPoints.Num(); ++Index)
-        {
-            if (Build.StatPoints[Index] != 0)
-            {
-                Input.StatPoints.Emplace(StatOrder[Index]->Id, Build.StatPoints[Index]);
-            }
-        }
-    }
-    for (const FLDLearnedActive& Active : Build.Actives)
-    {
-        FLDLearnedActiveValue& Value = Input.Actives.AddDefaulted_GetRef();
-        Value.AbilityId = Active.Id;
-        // An out-of-range slot stays None so Combat rejects the input instead of guessing a key.
-        Value.Entry = Active.Slot == 0 ? ELDCombatEntry::Q
-            : Active.Slot == 1 ? ELDCombatEntry::W
-            : Active.Slot == 2 ? ELDCombatEntry::E
-            : ELDCombatEntry::None;
-    }
-    // #198 B: installed components only, in the build's id order.
-    for (const FLDComponentInstance& Instance : Build.Components)
-    {
-        if (Instance.bInstalled)
-        {
-            FLDInstalledComponentValue& Value = Input.Components.AddDefaulted_GetRef();
-            Value.ComponentId = Instance.Id;
-            Value.BoundActive = Instance.Target.BoundActive;
-            Value.Element = Instance.Target.Element;
-            Value.TargetKind = Instance.Target.Kind;
-            Value.TargetId = Instance.Target.Definition;
-            Value.BoundComponent = Instance.Target.BoundComponent;
-        }
-    }
-    Input.ResultBuildRevision = Build.Revision;
-    // A final card whose bound source was removed is dormant: it waits for a rebind and does not project into combat.
-    if (Content.IsValid() && LDProgression::FinalModBound(Content->Get(), Build)) { Input.FinalMod = Build.FinalMod; }
-    return Input;
+    return LDProgression::CombatProjectionInput(Content.IsValid() ? &Content->Get() : nullptr, Build);
 }
 
 FLDCombatCaller ALDDevelopmentDirector::MakeCaller(const FGuid& ContenderId) const

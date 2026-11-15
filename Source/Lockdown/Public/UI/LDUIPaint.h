@@ -96,9 +96,60 @@ namespace LDUIPaint
     LOCKDOWN_API float TileRadius(uint8 Kind,float Size);
     // A skill head: the gold (or, for the body and dash, silver) gradient frame with its shadow; the icon face inside.
     LOCKDOWN_API void SkillArt(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,bool bSilver,bool bEmpty,
-        UTexture2D* Icon,const FLinearColor& Glow=FLinearColor::Transparent);
+        UTexture2D* Icon,const FLinearColor& Glow=FLinearColor::Transparent,float Opacity=1.f);
     // The small "new" dot on a tile's corner.
-    LOCKDOWN_API void NewDot(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,FVector2D Center);
+    LOCKDOWN_API void NewDot(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,FVector2D Center,float Opacity=1.f);
     // An element disc (fire, water, electric) behind its one-character label.
     LOCKDOWN_API void ElementDisc(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry,const FBox2D& Box,const FLinearColor& Color,float Opacity=1.f);
+
+    // A paint layer's inherited opacity applies to every primitive, including custom vertices and Slate lines.
+    struct FContext
+    {
+        FSlateWindowElementList& Elements;
+        int32 Layer;
+        const FGeometry& Geometry;
+        float Opacity;
+
+        FContext(FSlateWindowElementList& InElements,int32 InLayer,const FGeometry& InGeometry,float InOpacity=1.f)
+            :Elements(InElements),Layer(InLayer),Geometry(InGeometry),Opacity(FMath::Clamp(InOpacity,0.f,1.f)){}
+        FContext WithGeometry(const FGeometry& InGeometry) const {return FContext(Elements,Layer,InGeometry,Opacity);}
+        FContext WithOpacity(float InOpacity) const {return FContext(Elements,Layer,Geometry,Opacity*InOpacity);}
+        FLinearColor Fade(const FLinearColor& Color) const {return Color.CopyWithNewOpacity(Color.A*Opacity);}
+
+        void Shape(int32 At,EShape Form,const FBox2D& Box,float Radius,const FFill& Fill,float Alpha=1.f) const
+        {LDUIPaint::Shape(Elements,At,Geometry,Form,Box,Radius,Fill,Opacity*Alpha);}
+        void Polygon(int32 At,const TArray<FVector2D>& Points,const FFill& Fill,float Alpha=1.f) const
+        {LDUIPaint::Polygon(Elements,At,Geometry,Points,Fill,Opacity*Alpha);}
+        void Edge(int32 At,EShape Form,const FBox2D& Box,float Radius,const FLinearColor& Color,float Width) const
+        {LDUIPaint::Edge(Elements,At,Geometry,Form,Box,Radius,Fade(Color),Width);}
+        void Halo(int32 At,EShape Form,const FBox2D& Box,float Radius,const FLinearColor& Color,float Reach,FVector2D Offset=FVector2D::ZeroVector) const
+        {LDUIPaint::Halo(Elements,At,Geometry,Form,Box,Radius,Fade(Color),Reach,Offset);}
+        void InnerHalo(int32 At,EShape Form,const FBox2D& Box,float Radius,const FLinearColor& Color,float Reach) const
+        {LDUIPaint::InnerHalo(Elements,At,Geometry,Form,Box,Radius,Fade(Color),Reach);}
+        void DashedEdge(int32 At,EShape Form,const FBox2D& Box,float Radius,const FLinearColor& Color,float Width=2.f,float Dash=6.f,float Gap=5.f) const
+        {LDUIPaint::DashedEdge(Elements,At,Geometry,Form,Box,Radius,Fade(Color),Width,Dash,Gap);}
+        void Line(int32 At,FVector2D From,FVector2D To,const FLinearColor& Color,float Width,const FLinearColor& EndColor=FLinearColor(0,0,0,-1)) const
+        {LDUIPaint::Line(Elements,At,Geometry,From,To,Fade(Color),Width,EndColor.A<0.f?EndColor:Fade(EndColor));}
+        void Panel(int32 At,const FBox2D& Box,bool bFolds=true,float Alpha=1.f) const
+        {LDUIPaint::Panel(Elements,At,Geometry,Box,bFolds,Opacity*Alpha);}
+        void Pill(int32 At,const FBox2D& Box,const FLinearColor& Border=FLinearColor(1,1,1,.075f),const FLinearColor& Fill=FLinearColor(0,0,0,.42f)) const
+        {LDUIPaint::Pill(Elements,At,Geometry,Box,Fade(Border),Fade(Fill));}
+        void Tile(int32 At,const FBox2D& Box,uint8 Kind,bool bScarce,ETileState State,UTexture2D* Icon,float Alpha=1.f,double Time=0.) const
+        {LDUIPaint::Tile(Elements,At,Geometry,Box,Kind,bScarce,State,Icon,Opacity*Alpha,Time);}
+        void SkillArt(int32 At,const FBox2D& Box,bool bSilver,bool bEmpty,UTexture2D* Icon,const FLinearColor& Glow=FLinearColor::Transparent) const
+        {LDUIPaint::SkillArt(Elements,At,Geometry,Box,bSilver,bEmpty,Icon,Glow,Opacity);}
+        void NewDot(int32 At,FVector2D Center) const {LDUIPaint::NewDot(Elements,At,Geometry,Center,Opacity);}
+        void ElementDisc(int32 At,const FBox2D& Box,const FLinearColor& Color,float Alpha=1.f) const
+        {LDUIPaint::ElementDisc(Elements,At,Geometry,Box,Color,Opacity*Alpha);}
+        void Stroke(int32 At,const TArray<FVector2D>& Points,const FLinearColor& Color,float Thickness) const
+        {LDUIShapes::Stroke(Elements,At,Geometry,Points,Fade(Color),Thickness);}
+        void Arc(int32 At,FVector2D Center,float Radius,float Fraction,const FLinearColor& Color,float Thickness,float Start=0.f) const
+        {LDUIShapes::Arc(Elements,At,Geometry,Center,Radius,Fraction,Fade(Color),Thickness,Start);}
+        void Fill(int32 At,const FBox2D& Box,const FLinearColor& Color,float Radius) const
+        {LDUIShapes::Fill(Elements,At,Geometry,Box,Fade(Color),Radius);}
+        void Frame(int32 At,EShape Form,const FBox2D& Box,const FLinearColor& Color,float Thickness,float Radius=8.f) const
+        {LDUIShapes::Frame(Elements,At,Geometry,Form,Box,Fade(Color),Thickness,Radius);}
+        void Glow(int32 At,EShape Form,const FBox2D& Box,const FLinearColor& Color,float Reach=6.f,float Radius=8.f) const
+        {LDUIShapes::Glow(Elements,At,Geometry,Form,Box,Fade(Color),Reach,Radius);}
+    };
 }

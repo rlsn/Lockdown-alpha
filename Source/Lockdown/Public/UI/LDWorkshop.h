@@ -6,6 +6,8 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDComponentStorage.h"
 #include "UI/LDChoicesPanel.h"
+#include "UI/LDWorkshopModel.h"
+#include "UI/LDWorkshopPreview.h"
 #include "LDWorkshop.generated.h"
 class UBorder;
 class UCanvasPanel;
@@ -24,6 +26,7 @@ class ULDChoicesPanel;
 class ULDPaintLayer;
 class UTexture2D;
 struct FLDDemoContentDefinitions;
+class FLDDemoContentSnapshot;
 
 // The build workshop (APP_SPEC §7 构筑): the 构筑 tray's full view, open while the tray is open. Full screen in a rest's build,
 // payout and return steps and in the own death wait (the world darkens and blurs but never pauses); elsewhere it keeps to the
@@ -43,6 +46,10 @@ public:
         const FLDProgressionView* Progression=nullptr;
         uint32 Match=0;
         const FLDDemoContentDefinitions* Content=nullptr;
+        const FLDDemoContentSnapshot* ContentSnapshot=nullptr;
+        const FLDCombatOwnerView* Combat=nullptr;
+        LDProgression::EMatchStage Stage=LDProgression::EMatchStage::Closed;
+        bool bFinalField=false;
         LDHUD::FCardStats Stats;
         LDHUD::FSlotKeys Keys;
         FString DashKey;
@@ -87,6 +94,8 @@ public:
     FVector2D TrayInset() const {return FVector2D(TrayRight,TrayBottom);}
     // The width the tray rows wrap at inside the pending area (0: no limit).
     float TrayWrapWidth() const {return TrayWrap;}
+    // The most height the tray can take without crossing the workshop boundary.
+    float TrayHeightLimit() const {return TrayLimit;}
     // Where the rest actions (重置训练, 准备完毕) sit: right of the phase bar, left of the close button (local units).
     FVector2D ActionsAnchor() const {return ActionsAt;}
     // The tray's stage, dock and service places (absolute), from the last layout.
@@ -200,6 +209,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LockBadge;
     UPROPERTY() TObjectPtr<UWidget> LibraryPanel;
     UPROPERTY() TObjectPtr<UTextBlock> LibraryCount;
+    UPROPERTY() TObjectPtr<UWidget> LibraryPager;
+    UPROPERTY() TObjectPtr<ULDCommandButton> LibraryPrevious;
+    UPROPERTY() TObjectPtr<ULDCommandButton> LibraryNext;
+    UPROPERTY() TObjectPtr<UTextBlock> LibraryPageText;
     UPROPERTY() TObjectPtr<UWrapBox> FilterRow;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> FilterButtons;
     UPROPERTY() TObjectPtr<UWidget> LibraryTitle;
@@ -221,6 +234,12 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DockChips;
     UPROPERTY() TObjectPtr<UTextBlock> DockWhereTitle;
     UPROPERTY() TObjectPtr<UTextBlock> DockWhere;
+    UPROPERTY() TObjectPtr<UTextBlock> DockPreviewTitle;
+    UPROPERTY() TObjectPtr<URichTextBlock> DockPreviewBody;
+    UPROPERTY() TObjectPtr<UHorizontalBox> DockPreviewPager;
+    UPROPERTY() TObjectPtr<ULDCommandButton> DockPreviewPrevious;
+    UPROPERTY() TObjectPtr<ULDCommandButton> DockPreviewNext;
+    UPROPERTY() TObjectPtr<UTextBlock> DockPreviewPageText;
     UPROPERTY() TObjectPtr<UTextBlock> DockLinksTitle;
     UPROPERTY() TObjectPtr<UTextBlock> DockLinks;
     UPROPERTY() TObjectPtr<UTextBlock> DockNotesTitle;
@@ -236,27 +255,34 @@ private:
     // The artisan band's height at the top of the library (0 without it), from the last layout.
     float LibraryBand=0.f;
     // Where the capacity cells start (local x), from the last layout.
-    float CapacityCellsAt=0.f;
+    float CapacityCellsAt=0.f,CapacityCellStep=45.f;
+    float DockDividerX=0.f;
     void ScaleFresh(UTextBlock* Text) const;
     EMode Mode=EMode::Closed;
+    EMode ClosingMode=EMode::Closed;
     FInput Latest;
     FLDProgressionView View;
     FRects Rects;
     FVector2D LastSize=FVector2D::ZeroVector;
     FVector2D ActionsAt=FVector2D::ZeroVector;
-    float TrayRight=0.f,TrayBottom=0.f,TrayWrap=0.f;
+    float TrayRight=0.f,TrayBottom=0.f,TrayWrap=0.f,TrayLimit=0.f;
     int32 TagFilter=INDEX_NONE;
+    int32 LibraryPage=0;
+    LDWorkshop::FLibraryFit LibraryFit;
     double OpenedAt=-1.;
     double ClosingAt=-1.;
+    FString LibraryWarning;
     // What the dock shows; kept when the pointer leaves, so the eye has a steady place to read.
     FString DockKey;
+    LDWorkshopPreview::FResult Preview;
+    int32 PreviewPage=0;
     uint8 DockKindValue=0;
     bool DockScarce=false;
     TWeakObjectPtr<UTexture2D> DockIcon;
     double UiNow() const;
     void Layout(FVector2D Size);
     void AnimateOpening();
-    void PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const;
+    void PaintBackdrop(const LDUIPaint::FContext& Paint) const;
     // Whether the dock's right column has anything to show (where it sits, what it links with, what to watch).
     bool DockHasRight() const;
     void Place(UWidget* Widget,const FBox2D& Box);
@@ -264,7 +290,7 @@ private:
     void RefreshHeads();
     void RefreshPhase();
     void RefreshDock(FVector2D Pointer);
+    void RefreshPreviewPage();
     void ShowComponentDock(FName Component,const ULDComponentStorage::FFocus* Focus);
     void ShowTextDock(const FString& Key,const FString& Name,const FString& Summary,const FString& Body,const FString& IconId,const FString& Glyph);
-    float LibraryIconFor(const FBox2D& Box) const;
 };

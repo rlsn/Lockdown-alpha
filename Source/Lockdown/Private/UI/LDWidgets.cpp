@@ -31,8 +31,13 @@ void LDWidgets::SetRichTextSize(URichTextBlock* Rich,int32 Size)
     FRichTextStyleRow Bold=Plain;
     Bold.TextStyle.SetFont(LDUIFonts::Font(LDUIFonts::ERole::Strong,Size));
     Bold.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextAccent));
+    FRichTextStyleRow Good=Bold,Cost=Bold;
+    Good.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::UILegal));
+    Cost.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::UIReject));
     Styles->AddRow(TEXT("Default"),Plain);
     Styles->AddRow(TEXT("b"),Bold);
+    Styles->AddRow(TEXT("good"),Good);
+    Styles->AddRow(TEXT("cost"),Cost);
     Rich->SetTextStyleSet(Styles);
 }
 int32 LDWidgets::RichTextSize(const URichTextBlock* Rich)
@@ -51,14 +56,12 @@ UScaleBox* LDWidgets::Fit(UWidgetTree* Tree,UWidget* Content)
 }
 void LDWidgets::RefitScale(UScaleBox* Box)
 {
-    // Shrinking text further than this stops it being readable; what still does not fit is clipped at the bottom.
-    constexpr float MinScale=.9f;
     const UWidget* Content=Box?Box->GetContent():nullptr;
     if(!Content||!Box->IsVisible()){return;}
-    const float Available=float(Box->GetCachedGeometry().GetLocalSize().Y);
-    const float Desired=float(Content->GetDesiredSize().Y);
-    if(Available<=1.f||Desired<=1.f){return;}
-    const float Scale=Desired>Available?FMath::Max(MinScale,Available/Desired):1.f;
+    const FVector2D Available=Box->GetCachedGeometry().GetLocalSize();
+    const FVector2D Desired=Content->GetDesiredSize();
+    if(Available.X<=1.f||Available.Y<=1.f||Desired.X<=1.f||Desired.Y<=1.f){return;}
+    const float Scale=FMath::Clamp(float(FMath::Min(Available.X/Desired.X,Available.Y/Desired.Y)),.01f,1.f);
     if(!FMath::IsNearlyEqual(Box->GetUserSpecifiedScale(),Scale,.005f)){Box->SetUserSpecifiedScale(Scale);}
 }
 URichTextBlock* LDWidgets::RichText(UWidgetTree* Tree,int32 Size,FName Name)
@@ -129,10 +132,10 @@ namespace
         SLATE_END_ARGS()
         void Construct(const FArguments&,TWeakObjectPtr<ULDPaintLayer> InOwner){Owner=InOwner;SetVisibility(EVisibility::HitTestInvisible);}
         virtual FVector2D ComputeDesiredSize(float) const override{return FVector2D::ZeroVector;}
-        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle&,bool) const override
+        virtual int32 OnPaint(const FPaintArgs&,const FGeometry& Geometry,const FSlateRect&,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool) const override
         {
             const ULDPaintLayer* Paint=Owner.Get();
-            if(Paint&&Paint->Painter){Paint->Painter(Elements,Layer,Geometry);}
+            if(Paint&&Paint->Painter){Paint->Painter(LDUIPaint::FContext(Elements,Layer,Geometry,Style.GetColorAndOpacityTint().A));}
             // The painter draws on a handful of layers above Layer.
             return Layer+12;
         }
@@ -338,13 +341,20 @@ FReply ULDPanel::NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E)
 int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
+    const auto Opacity=[&S](const UWidget* Widget)
+    {
+        float Alpha=S.GetColorAndOpacityTint().A;
+        for(const UWidget* Current=Widget;Current;Current=Current->GetParent()){Alpha*=Current->GetRenderOpacity();}
+        return Alpha;
+    };
     for(auto* W:PanelFocusTargets())
     {
         const auto* Hold=Cast<ULDHoldButton>(W);const float Progress=Hold?Hold->HoldProgress():0.f;
         if(Progress<=0.f){continue;}
         const auto& WG=W->GetCachedGeometry();const FVector2D P=G.AbsoluteToLocal(WG.LocalToAbsolute(FVector2D::ZeroVector)),Q=G.AbsoluteToLocal(WG.LocalToAbsolute(WG.GetLocalSize()));
         const FSlateRoundedBoxBrush Fill(LDHUDStyle::HoldFill,LDHUDStyle::RadiusButton);
-        FSlateDrawElement::MakeBox(E,Base+1,G.ToPaintGeometry(FVector2D((Q.X-P.X)*Progress,Q.Y-P.Y),FSlateLayoutTransform(P)),&Fill);
+        FSlateDrawElement::MakeBox(E,Base+1,G.ToPaintGeometry(FVector2D((Q.X-P.X)*Progress,Q.Y-P.Y),FSlateLayoutTransform(P)),&Fill,
+            ESlateDrawEffect::None,FLinearColor(1,1,1,Opacity(W)));
     }
     for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants())
     {
@@ -354,7 +364,8 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
         const UScrollBox* List=nullptr;
         for(const UWidget* Parent=W->GetParent();Parent&&!List;Parent=Parent->GetParent()){List=Cast<UScrollBox>(Parent);}
         if(List){E.PushClip(FSlateClippingZone(List->GetCachedGeometry()));}
-        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,LDHUDStyle::FocusOutline,true,3);
+        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,
+            LDHUDStyle::FocusOutline.CopyWithNewOpacity(LDHUDStyle::FocusOutline.A*Opacity(W)),true,3);
         if(List){E.PopClip();}
         break;
     }}return Base+1;

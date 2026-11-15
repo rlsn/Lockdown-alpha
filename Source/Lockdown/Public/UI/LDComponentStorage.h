@@ -14,10 +14,12 @@ class UOverlay;
 class URichTextBlock;
 class USizeBox;
 class UTextBlock;
+class UScaleBox;
 class UVerticalBox;
 class UWrapBox;
 class ULDCommandButton;
 struct FLDDemoContentDefinitions;
+namespace LDUIPaint {struct FContext;}
 
 // #227 component storage (APP_SPEC §7): the owned components not installed sit in a card stack right of the HUD band. Hovering
 // the stack opens a grid of their icons above it and raises one row of equipped columns: 本体 left of the first Q/W/E slot,
@@ -83,11 +85,17 @@ public:
         FSlateRect Library;
         // The installed components' icon scale (the bottom-of-screen workshop is smaller) and whether names show beside them.
         float TileScale=1.f;
+        float MinIcon=0.f;
+        float TileIndent=24.f;
         bool bNames=true;
-        // The library's use-tag filter (ELDDemoComponentTag), or INDEX_NONE: non-matching components dim, nothing moves.
+        // The library's use-tag filter (ELDDemoComponentTag), or INDEX_NONE; each page uses filtered group indices.
         int32 TagFilter=INDEX_NONE;
-        // The library's icon size the workshop fits to its rectangle (68, 56, 46 or smaller), 0 for the count's tier.
+        FIntVector LibraryFirst=FIntVector::ZeroValue;
+        FIntVector LibraryCount=FIntVector::ZeroValue;
+        // The library's icon size the workshop fits to its rectangle, 0 for the count's tier.
         float LibraryIcon=0.f;
+        float LibraryLabelHeight=0.f;
+        bool bCompactLibrary=false;
     };
     void SetWorkshop(const FWorkshopLayout& Layout);
     bool InWorkshop() const {return Workshop.bActive;}
@@ -100,12 +108,16 @@ public:
         bool bHeld=false;
         bool bOverDrop=false;
         LDHUD::FComponentDrop Drop;
+        // A chooser option is a hover preview only; the command is still sent by ChooseOption.
+        ELDDemoElement HoveredElement=ELDDemoElement::None;
+        FName HoveredBase;
         // The places Component takes now (held or hovered in the library): legal columns light up, the rest dim.
         TArray<LDHUD::FComponentDrop> Drops;
     };
     const FFocus& Focus() const {return CurrentFocus;}
     const LDHUD::FStorageView& Model() const {return LatestModel;}
     const LDHUD::FBuildGateView& BuildGate() const {return Gate;}
+    void SetPreviewCaption(FName Component,const FString& DropText,const FString& Value);
     // Right click (D6): a stored component with exactly one place installs there; an installed one goes back to the storage.
     bool QuickInstall(FName Component);
     // A click without a drag (D6) picks the component up; the next click on a place drops it there (or anywhere else
@@ -139,8 +151,9 @@ private:
         UBorder* Face=nullptr;
         USizeBox* Size=nullptr;
         UWidget* FreshChip=nullptr;
-        // Workshop: the library cell (icon and name) the filter dims.
+        // Workshop: the library cell (icon and name).
         UWidget* Cell=nullptr;
+        UScaleBox* NameFit=nullptr;
         bool bFresh=false;
         uint8 Kind=0;
         bool bScarce=false;
@@ -218,6 +231,7 @@ private:
     UPROPERTY() TObjectPtr<ULDPaintLayer> TilePaint;
     UPROPERTY() TArray<TObjectPtr<UWidget>> LibrarySwatches;
     UPROPERTY() TArray<TObjectPtr<UWidget>> LibraryHeads;
+    UPROPERTY() TObjectPtr<UTextBlock> LibraryEmpty;
     UPROPERTY() TObjectPtr<UWidget> StackFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> StackSlot;
     UPROPERTY() TObjectPtr<UImage> StackPicture;
@@ -268,6 +282,8 @@ private:
     LDHUD::FStorageView LatestModel;
     FWorkshopLayout Workshop;
     FFocus CurrentFocus;
+    FName PreviewCaptionComponent;
+    FString PreviewCaptionDrop,PreviewCaption;
     // The hovered stored component's places, kept while the hover stays on it.
     FName HoverDropsOf;
     TArray<LDHUD::FComponentDrop> HoverDrops;
@@ -331,7 +347,7 @@ private:
     bool DropHeld(FVector2D At);
     double UiNow() const;
     float FaceRadius(uint8 Kind,float Size) const;
-    void PaintTiles(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const;
+    void PaintTiles(const LDUIPaint::FContext& Paint) const;
     // Whether Drops take something on Column (its own place only with bOwnOnly), replacements aside.
     static bool Drags(const TArray<LDHUD::FComponentDrop>& Drops,LDHUD::EStorageColumn Column,bool bOwnOnly);
     void StyleFace(UBorder* Face,FName Component,uint8 Kind,float Size,bool bDim) const;

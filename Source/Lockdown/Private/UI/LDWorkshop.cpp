@@ -45,6 +45,7 @@ constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
 constexpr float WorkshopCharacterWidth=352.f;
 constexpr float WorkshopRightWidth=456.f;
+constexpr float WorkshopPendingWidth=360.f;
 constexpr float WorkshopCapacityHeight=60.f;
 constexpr float WorkshopColumnGap=10.f;
 // A column's head (the skill art at 28, its name and pills) above the first socket at 206, as in the design.
@@ -89,6 +90,11 @@ FString WorkshopStripParens(const FString& Text)
     FString Out=Text;Out.RemoveFromStart(TEXT("（"));Out.RemoveFromEnd(TEXT("）"));Out.RemoveFromStart(TEXT("装在："));
     return Out;
 }
+FString WorkshopRichEscape(FString Text)
+{
+    Text.ReplaceInline(TEXT("&"),TEXT("&amp;"));Text.ReplaceInline(TEXT("<"),TEXT("&lt;"));Text.ReplaceInline(TEXT(">"),TEXT("&gt;"));
+    return Text;
+}
 // A filter tag: the dark chip, or the yellow one while it filters.
 void WorkshopTint(ULDCommandButton* Button,bool bSelected){LDWidgets::SetLook(Button,bSelected?LDUIPaint::EButton::TagOn:LDUIPaint::EButton::Tag);}
 }
@@ -116,7 +122,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
         Shade=WidgetTree->ConstructWidget<UBorder>();Shade->SetBrushColor(LDHUDStyle::UIBase.CopyWithNewOpacity(.6f));
         Blur->SetContent(Shade);Add(Blur,0,ESlateVisibility::Visible);
         Backdrop=WidgetTree->ConstructWidget<ULDPaintLayer>();
-        Backdrop->Painter=[this](FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry){PaintBackdrop(Elements,Layer,Geometry);};
+        Backdrop->Painter=[this](const LDUIPaint::FContext& Paint){PaintBackdrop(Paint);};
         Add(Backdrop,1,ESlateVisibility::HitTestInvisible);
         {
             // The phase bar: the step's remaining time inside its ring, the rest and step, and the step dots (painted).
@@ -266,7 +272,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 Head.IconBox=WidgetTree->ConstructWidget<USizeBox>();Head.IconBox->SetWidthOverride(100.f);Head.IconBox->SetHeightOverride(100.f);Head.IconBox->SetContent(IconStack);
                 Box->AddChildToVerticalBox(Head.IconBox)->SetHorizontalAlignment(HAlign_Center);
                 Head.Name=Label(TEXT(""),17,LDHUDStyle::UIText,LDUIFonts::ERole::Strong);Head.Name->SetJustification(ETextJustify::Center);
-                Head.Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+                Head.Name->SetAutoWrapText(true);
                 auto* NameSlot=Box->AddChildToVerticalBox(Head.Name);NameSlot->SetHorizontalAlignment(HAlign_Fill);NameSlot->SetPadding(FMargin(0,8,0,0));
                 auto* Chips=WidgetTree->ConstructWidget<UHorizontalBox>();
                 // .pill: the numbers sit inside painted pills, each led by its mana dot or cooldown diamond.
@@ -289,11 +295,30 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Title->AddChildToHorizontalBox(Label(LDTerms::Storage,22,LDHUDStyle::UIText,LDUIFonts::ERole::Title));
             LibraryCount=Label(TEXT(""),20,LDHUDStyle::TextSecondary,LDUIFonts::ERole::Number);
             Title->AddChildToHorizontalBox(LibraryCount)->SetPadding(FMargin(12,4,0,0));
+            auto* Space=WidgetTree->ConstructWidget<USpacer>();
+            Title->AddChildToHorizontalBox(Space)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            auto* Pager=WidgetTree->ConstructWidget<UHorizontalBox>();
+            LibraryPrevious=LDWidgets::Button(WidgetTree,TEXT("‹"),[this](){if(LibraryPage>0){--LibraryPage;}},true,TEXT("WorkshopLibraryPrevious"));
+            LibraryNext=LDWidgets::Button(WidgetTree,TEXT("›"),[this](){if(LibraryPage+1<LibraryFit.Pages.Num()){++LibraryPage;}},true,TEXT("WorkshopLibraryNext"));
+            LibraryPrevious->SetToolTipText(FText::FromString(LDTerms::StoragePreviousPage));
+            LibraryNext->SetToolTipText(FText::FromString(LDTerms::StorageNextPage));
+            for(ULDCommandButton* Button:{LibraryPrevious.Get(),LibraryNext.Get()})
+            {
+                auto Style=Button->GetStyle();Style.NormalPadding=FMargin(9,2);Style.PressedPadding=FMargin(9,2);Button->SetStyle(Style);
+                WorkshopTint(Button,false);
+            }
+            Pager->AddChildToHorizontalBox(LibraryPrevious)->SetVerticalAlignment(VAlign_Center);
+            LibraryPageText=Label(TEXT(""),13,LDHUDStyle::TextSecondary,LDUIFonts::ERole::Number);
+            auto* PageSlot=Pager->AddChildToHorizontalBox(LibraryPageText);
+            PageSlot->SetPadding(FMargin(6,0));PageSlot->SetVerticalAlignment(VAlign_Center);
+            Pager->AddChildToHorizontalBox(LibraryNext)->SetVerticalAlignment(VAlign_Center);
+            LibraryPager=Pager;WorkshopShown(LibraryPager,false);
+            Title->AddChildToHorizontalBox(Pager)->SetVerticalAlignment(VAlign_Center);
             LibraryTitle=Title;Add(Title,3);
             FilterRow=WidgetTree->ConstructWidget<UWrapBox>();FilterRow->SetInnerSlotPadding(FVector2D(6,6));
             for(int32 Tag=0;Tag<int32(ELDDemoComponentTag::Count);++Tag)
             {
-                ULDCommandButton* Chip=LDWidgets::Button(WidgetTree,LDTerms::ComponentTagName(uint8(Tag)),[this,Tag](){TagFilter=TagFilter==Tag?INDEX_NONE:Tag;
+                ULDCommandButton* Chip=LDWidgets::Button(WidgetTree,LDTerms::ComponentTagName(uint8(Tag)),[this,Tag](){TagFilter=TagFilter==Tag?INDEX_NONE:Tag;LibraryPage=0;
                     for(int32 Each=0;Each<FilterButtons.Num();++Each){WorkshopTint(FilterButtons[Each],Each==TagFilter);}},true,FName(*FString::Printf(TEXT("WorkshopTag%d"),Tag)));
                 {auto Style=Chip->GetStyle();Style.NormalPadding=FMargin(9,3);Style.PressedPadding=FMargin(9,3);Chip->SetStyle(Style);}
                 if(UTextBlock* Caption=Cast<UTextBlock>(Chip->GetContent())){Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,13));}
@@ -342,6 +367,25 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
                 Right->AddChildToVerticalBox(Body)->SetPadding(FMargin(0,4,0,0));
             };
             Section(DockWhereTitle,DockWhere,LDTerms::WorkshopInstalledOn,true);
+            DockPreviewTitle=Label(LDTerms::WorkshopPreview,LDHUDStyle::TypeTiny,LDHUDStyle::TextSecondary);
+            DockPreviewTitle->SetToolTipText(FText::FromString(LDTerms::WorkshopPreviewSnapshot));
+            Right->AddChildToVerticalBox(DockPreviewTitle)->SetPadding(FMargin(0,8,0,0));
+            DockPreviewBody=LDWidgets::RichText(WidgetTree,LDHUDStyle::TypeSmall,TEXT("WorkshopPreviewBody"));
+            Right->AddChildToVerticalBox(DockPreviewBody)->SetPadding(FMargin(0,4,0,0));
+            DockPreviewPager=WidgetTree->ConstructWidget<UHorizontalBox>();
+            DockPreviewPrevious=LDWidgets::Button(WidgetTree,TEXT("‹"),[this](){if(PreviewPage>0){--PreviewPage;RefreshPreviewPage();}},true,TEXT("WorkshopPreviewPrevious"));
+            DockPreviewNext=LDWidgets::Button(WidgetTree,TEXT("›"),[this](){++PreviewPage;RefreshPreviewPage();},true,TEXT("WorkshopPreviewNext"));
+            for(ULDCommandButton* Button:{DockPreviewPrevious.Get(),DockPreviewNext.Get()})
+            {
+                auto Style=Button->GetStyle();Style.NormalPadding=FMargin(5,0);Style.PressedPadding=FMargin(5,0);Button->SetStyle(Style);
+            }
+            DockPreviewPager->AddChildToHorizontalBox(DockPreviewPrevious)->SetVerticalAlignment(VAlign_Center);
+            DockPreviewPageText=Label(TEXT(""),LDHUDStyle::TypeTiny,LDHUDStyle::TextSecondary,LDUIFonts::ERole::Number);
+            auto* PreviewPageSlot=DockPreviewPager->AddChildToHorizontalBox(DockPreviewPageText);
+            PreviewPageSlot->SetPadding(FMargin(4,0));PreviewPageSlot->SetVerticalAlignment(VAlign_Center);
+            DockPreviewPager->AddChildToHorizontalBox(DockPreviewNext)->SetVerticalAlignment(VAlign_Center);
+            Right->AddChildToVerticalBox(DockPreviewPager)->SetPadding(FMargin(0,2,0,0));
+            WorkshopShown(DockPreviewTitle,false);WorkshopShown(DockPreviewBody,false);WorkshopShown(DockPreviewPager,false);
             Section(DockLinksTitle,DockLinks,LDTerms::WorkshopLinks,false);
             Section(DockNotesTitle,DockNotes,LDTerms::WorkshopNotes,false);
             DockRight=LDWidgets::Fit(WidgetTree,Right);Add(DockRight,3);
@@ -364,49 +408,42 @@ void ULDWorkshop::Place(UWidget* Widget,const FBox2D& Box)
     if(!(*Found)->GetSize().Equals(Size,.5f)){(*Found)->SetSize(Size);}
 }
 
-float ULDWorkshop::LibraryIconFor(const FBox2D& Box) const
-{
-    // The largest of the library's sizes whose groups all fit the rectangle; nothing scrolls.
-    const ULDComponentStorage* Source=Storage.Get();
-    if(!Source||!WorkshopHasArea(Box)){return 0.f;}
-    int32 Counts[3]={0,0,0};
-    for(const FName& Id:Source->Model().Stored){const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Id,Latest.Content).Kind);if(Kind<3){++Counts[Kind];}}
-    const float Tier=LDWorkshop::LibraryTier(Source->Model().Stored.Num()).Icon;
-    const float Width=float(Box.GetSize().X),Height=float(Box.GetSize().Y);
-    for(const float Size:{68.f,56.f,46.f,40.f})
-    {
-        if(Size>Tier){continue;}
-        const float Cell=Size+14.f,Gap=8.f;
-        const int32 PerRow=FMath::Max(1,FMath::FloorToInt((Width+Gap)/(Cell+Gap)));
-        float Needed=0.f;int32 Groups=0;
-        for(const int32 Count:Counts)
-        {
-            if(Count<=0){continue;}
-            const int32 Rows=(Count+PerRow-1)/PerRow;
-            Needed+=(Groups?14.f:0.f)+22.f+Rows*(Size+4.f+16.f)+(Rows-1)*Gap;++Groups;
-        }
-        if(Needed<=Height){return Size;}
-    }
-    return 36.f;
-}
-
 void ULDWorkshop::Layout(FVector2D Size)
 {
     FRects Next;
     const float W=float(Size.X),H=float(Size.Y);
+    const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
+    const float FilterHeight=FMath::Max(56.f,FilterRow?float(FilterRow->GetDesiredSize().Y):0.f);
+    const FIntVector AllCounts=LDWorkshop::CollectLibrary(View,Latest.Content,INDEX_NONE).Counts();
+    const auto CanStack=[&](float BodyHeight)
+    {
+        return BodyHeight>=36.f&&LDWorkshop::FitLibrary(AllCounts,WorkshopRightWidth-44.f,BodyHeight,WorkshopMinIconPixels/Scale,TextScale).bFits;
+    };
+    TrayLimit=0.f;
     if(Mode==EMode::Full)
     {
         const float Bottom=H-WorkshopMargin;
         Next.Region=WorkshopBox(0,0,W,H);
         Next.Phase=WorkshopBox(WorkshopMargin,28,WorkshopMargin+464,92);
         Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,Bottom);
+        const float ServiceHeight=Latest.bServices?58.f:0.f;
+        const float FullTrayLimit=FMath::Max(0.f,Bottom-WorkshopTop-52.f-ServiceHeight);
+        const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FullTrayLimit);
+        const float DesiredPending=(DesiredTray>0.f?DesiredTray+52.f:72.f)+ServiceHeight;
         const float RightX=W-WorkshopMargin-WorkshopRightWidth;
-        const float Tray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,H*.5f);
-        const float PendingHeight=(Tray>0.f?Tray+52.f:72.f)+(Latest.bServices?58.f:0.f);
-        // The pending area is the library panel's lower section (.inbox), so the two share one surface.
-        Next.Pending=WorkshopBox(RightX,Bottom-PendingHeight,W-WorkshopMargin,Bottom);
-        Next.Library=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,Next.Pending.Min.Y);
-        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,RightX-WorkshopGap,Bottom-WorkshopDockHeight-WorkshopDockGap);
+        const float Band=Latest.bLibraryServices?WorkshopArtisanBand:0.f;
+        const float BodyHeight=Bottom-DesiredPending-WorkshopTop-Band-70.f-FilterHeight-14.f;
+        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
+        const bool bSide=DesiredTray>0.f&&!CanStack(BodyHeight)&&SideX-WorkshopGap-float(Next.Character.Max.X)-WorkshopGap>=600.f;
+        TrayLimit=bSide?FullTrayLimit:LDWorkshop::StackedTrayLimit(AllCounts,WorkshopRightWidth-44.f,
+            Bottom-WorkshopTop-Band-70.f-FilterHeight-14.f-52.f-ServiceHeight,WorkshopMinIconPixels/Scale,TextScale);
+        const float Tray=FMath::Min(DesiredTray,TrayLimit);
+        const float PendingHeight=(Tray>0.f?Tray+52.f:72.f)+ServiceHeight;
+        // Keep a page of components visible when the pending cards need more than the stacked layout can hold.
+        Next.Pending=bSide?WorkshopBox(SideX,Bottom-PendingHeight,RightX-WorkshopGap,Bottom)
+            :WorkshopBox(RightX,Bottom-PendingHeight,W-WorkshopMargin,Bottom);
+        Next.Library=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,bSide?Bottom:Next.Pending.Min.Y);
+        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,Bottom-WorkshopDockHeight-WorkshopDockGap);
         Next.Dock=WorkshopBox(Next.Board.Min.X,Next.Board.Max.Y+WorkshopDockGap,Next.Board.Max.X,Bottom);
         Next.HeadIcon=100.f;
         ActionsAt=FVector2D(W-WorkshopMargin-74.f-20.f,34.f);
@@ -417,12 +454,22 @@ void ULDWorkshop::Layout(FVector2D Size)
         const float Bottom=H-16.f,Inner=Top+16.f,Margin=24.f;
         Next.Region=WorkshopBox(0,Top,W,H);
         const float RightX=W-Margin-WorkshopRightWidth;
-        const float Tray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,(Bottom-Inner)*.6f);
+        const float FullTrayLimit=FMath::Max(0.f,Bottom-Inner-52.f);
+        const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FullTrayLimit);
+        const float DesiredPending=DesiredTray>0.f?DesiredTray+52.f:0.f;
+        const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
+        const float BoardLeft=Margin+WorkshopFieldDockWidth+16.f;
+        const float BodyHeight=Bottom-DesiredPending-Inner-70.f-FilterHeight-14.f;
+        const bool bSide=DesiredTray>0.f&&!CanStack(BodyHeight)&&SideX-WorkshopGap-BoardLeft>=600.f;
+        TrayLimit=bSide?FullTrayLimit:LDWorkshop::StackedTrayLimit(AllCounts,WorkshopRightWidth-44.f,
+            Bottom-Inner-70.f-FilterHeight-14.f-52.f,WorkshopMinIconPixels/Scale,TextScale);
+        const float Tray=FMath::Min(DesiredTray,TrayLimit);
         const float PendingHeight=Tray>0.f?Tray+52.f:0.f;
-        Next.Pending=PendingHeight>0.f?WorkshopBox(RightX,Bottom-PendingHeight,W-Margin,Bottom):FBox2D(ForceInit);
-        Next.Library=WorkshopBox(RightX,Inner,W-Margin,PendingHeight>0.f?Next.Pending.Min.Y:Bottom);
+        Next.Pending=PendingHeight<=0.f?FBox2D(ForceInit):bSide?WorkshopBox(SideX,Bottom-PendingHeight,RightX-WorkshopGap,Bottom)
+            :WorkshopBox(RightX,Bottom-PendingHeight,W-Margin,Bottom);
+        Next.Library=WorkshopBox(RightX,Inner,W-Margin,PendingHeight>0.f&&!bSide?Next.Pending.Min.Y:Bottom);
         Next.Dock=WorkshopBox(Margin,Inner,Margin+WorkshopFieldDockWidth,Bottom);
-        Next.Board=WorkshopBox(Next.Dock.Max.X+16.f,Inner,RightX-16.f,Bottom);
+        Next.Board=WorkshopBox(BoardLeft,Inner,(bSide?SideX:RightX)-16.f,Bottom);
         Next.HeadIcon=64.f;
         ActionsAt=FVector2D(W-WorkshopMargin-86.f,30.f);
     }
@@ -450,7 +497,6 @@ void ULDWorkshop::Layout(FVector2D Size)
     // The library body sits under its title and filter rows (the filter wraps to as many lines as it needs), and those under
     // the artisan's band when the artisan serves.
     LibraryBand=Latest.bLibraryServices&&Mode==EMode::Full?WorkshopArtisanBand:0.f;
-    const float FilterHeight=FMath::Max(56.f,FilterRow?float(FilterRow->GetDesiredSize().Y):0.f);
     Next.LibraryBody=WorkshopBox(Next.Library.Min.X+24.f,Next.Library.Min.Y+LibraryBand+70.f+FilterHeight,Next.Library.Max.X-20.f,Next.Library.Max.Y-14.f);
     if(!WorkshopHasArea(Next.Board))
     {
@@ -459,6 +505,10 @@ void ULDWorkshop::Layout(FVector2D Size)
     }
     if(!WorkshopHasArea(Next.Library)){Next.LibraryBody=FBox2D(ForceInit);}
     Rects=Next;
+    const FIntVector Counts=LDWorkshop::CollectLibrary(View,Latest.Content,TagFilter).Counts();
+    LibraryFit=WorkshopHasArea(Rects.LibraryBody)?LDWorkshop::FitLibrary(Counts,float(Rects.LibraryBody.GetSize().X),
+        float(Rects.LibraryBody.GetSize().Y),WorkshopMinIconPixels/Scale,TextScale):LDWorkshop::FLibraryFit();
+    LibraryPage=LibraryFit.Pages.IsEmpty()?0:FMath::Clamp(LibraryPage,0,LibraryFit.Pages.Num()-1);
     TrayRight=WorkshopHasArea(Rects.Pending)?W-float(Rects.Pending.Max.X)+12.f:W-float(Rects.Library.Max.X);
     TrayBottom=WorkshopHasArea(Rects.Pending)?H-float(Rects.Pending.Max.Y)+12.f:H-float(Rects.Library.Max.Y);
     TrayWrap=WorkshopHasArea(Rects.Pending)?FMath::Max(0.f,float(Rects.Pending.GetSize().X)-24.f):0.f;
@@ -482,10 +532,13 @@ void ULDWorkshop::Layout(FVector2D Size)
         // unlock flush right.
         const float Mid=float(Rects.Capacity.GetCenter().Y);
         const float Left=float(Rects.Capacity.Min.X)+24.f;
-        Place(CapacityTitle,WorkshopBox(Left,Mid-12.f,Left+FMath::Max(90.f,float(CapacityTitle->GetDesiredSize().X)+4.f),Mid+13.f));
+        Place(CapacityTitle,WorkshopBox(Left,Mid-12.f,Left+FMath::Max(72.f,float(CapacityTitle->GetDesiredSize().X)+4.f),Mid+13.f));
         CapacityCellsAt=Left+FMath::Max(72.f,float(CapacityTitle->GetDesiredSize().X))+16.f;
-        const int32 Cells=Storage.IsValid()?LDWorkshop::Capacity(View,Storage->Model(),Latest.Content).Capacity+1:1;
-        const float CountX=CapacityCellsAt+float(Cells)*45.f+10.f;
+        const LDWorkshop::FCapacityView Capacity=Storage.IsValid()?LDWorkshop::Capacity(View,Storage->Model(),Latest.Content):LDWorkshop::FCapacityView();
+        const int32 Cells=Capacity.Capacity+(Capacity.UnlockLevel>0?1:0);
+        const float Room=FMath::Max(0.f,float(Rects.Capacity.Max.X)-224.f-10.f-90.f-10.f-CapacityCellsAt);
+        CapacityCellStep=Cells>0?FMath::Min(45.f,Room/Cells):45.f;
+        const float CountX=CapacityCellsAt+float(Cells)*CapacityCellStep+10.f;
         Place(CapacityCount,WorkshopBox(CountX,Mid-18.f,CountX+90.f,Mid+18.f));
         Place(CapacityUnlock,WorkshopBox(float(Rects.Capacity.Max.X)-224.f,Mid-9.f,float(Rects.Capacity.Max.X)-24.f,Mid+10.f));
         Place(LockBadge,WorkshopBox(float(Rects.Capacity.Max.X)-224.f,Mid-28.f,float(Rects.Capacity.Max.X)-24.f,Mid-10.f));
@@ -495,9 +548,10 @@ void ULDWorkshop::Layout(FVector2D Size)
         const FBox2D& Column=Rects.Column[Index];
         Place(ColumnBacks[Index],Column);
         Place(Heads[Index].Box,WorkshopBox(Column.Min.X,Column.Min.Y+Rects.HeadTop,Column.Max.X,Column.Min.Y+Rects.HeadHeight));
-        if(!FMath::IsNearlyEqual(Heads[Index].IconBox->GetWidthOverride(),Rects.HeadIcon)){Heads[Index].IconBox->SetWidthOverride(Rects.HeadIcon);Heads[Index].IconBox->SetHeightOverride(Rects.HeadIcon);}
+        const float HeadIcon=FMath::Min(Rects.HeadIcon,FMath::Max(1.f,float(Column.GetSize().X)-20.f));
+        if(!FMath::IsNearlyEqual(Heads[Index].IconBox->GetWidthOverride(),HeadIcon)){Heads[Index].IconBox->SetWidthOverride(HeadIcon);Heads[Index].IconBox->SetHeightOverride(HeadIcon);}
         // The smaller field-mode art keeps its key chip and the empty slot's "+" in proportion, so neither covers the art.
-        const float HeadScale=FMath::Clamp(Rects.HeadIcon/100.f,.6f,1.f);
+        const float HeadScale=FMath::Clamp(HeadIcon/100.f,.6f,1.f);
         if(UWidget* Chip=Heads[Index].Key?Heads[Index].Key->GetParent():nullptr)
         {
             Chip->SetRenderTransformPivot(FVector2D::ZeroVector);Chip->SetRenderScale(FVector2D(FMath::Max(HeadScale,.78f)));
@@ -507,16 +561,26 @@ void ULDWorkshop::Layout(FVector2D Size)
     }
     Place(LibraryTitle,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+LibraryBand+18.f,Rects.Library.Max.X-20.f,Rects.Library.Min.Y+LibraryBand+56.f));
     const bool bOwnDock=!(Mode==EMode::Full&&Latest.bFinalStage);
+    float CentreWrap=0.f,RightWrap=0.f,DockArtSize=80.f;
+    DockDividerX=0.f;
     if(!bOwnDock){for(UWidget* Hidden:{DockLeft.Get(),DockCentre.Get(),DockRight.Get()}){Place(Hidden,FBox2D(ForceInit));}}
     else if(Mode==EMode::Full)
     {
-        // .dock: left the 150 icon column, the rule in the middle, and (when there is anything to say) the 270 column on
-        // the right behind its hairline.
+        // Give the rule more room when the board narrows or the player selects larger text.
         const bool bRight=DockHasRight();
-        const float CentreEnd=bRight?float(Rects.Dock.Max.X)-WorkshopDockRight-28.f-50.f:float(Rects.Dock.Max.X)-28.f;
-        Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+28.f,Rects.Dock.Min.Y+24.f,Rects.Dock.Min.X+178.f,Rects.Dock.Max.Y-16.f));
-        Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+204.f,Rects.Dock.Min.Y+22.f,CentreEnd,Rects.Dock.Max.Y-16.f));
-        Place(DockRight,bRight?WorkshopBox(Rects.Dock.Max.X-28.f-WorkshopDockRight,Rects.Dock.Min.Y+24.f,Rects.Dock.Max.X-28.f,Rects.Dock.Max.Y-16.f):FBox2D(ForceInit));
+        const float Compact=FMath::Clamp(FMath::Max((1000.f-float(Rects.Dock.GetSize().X))/400.f,(TextScale-1.f)/.25f),0.f,1.f);
+        const float LeftWidth=FMath::Lerp(150.f,98.f,Compact);
+        const float RightWidth=FMath::Lerp(WorkshopDockRight,150.f,Compact);
+        const float LeftGap=FMath::Lerp(26.f,12.f,Compact),RightGap=FMath::Lerp(50.f,20.f,Compact);
+        const float CentreStart=float(Rects.Dock.Min.X)+28.f+LeftWidth+LeftGap;
+        const float RightStart=float(Rects.Dock.Max.X)-28.f-RightWidth;
+        const float CentreEnd=bRight?RightStart-RightGap:float(Rects.Dock.Max.X)-28.f;
+        Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+28.f,Rects.Dock.Min.Y+24.f,Rects.Dock.Min.X+28.f+LeftWidth,Rects.Dock.Max.Y-16.f));
+        Place(DockCentre,WorkshopBox(CentreStart,Rects.Dock.Min.Y+22.f,CentreEnd,Rects.Dock.Max.Y-16.f));
+        Place(DockRight,bRight?WorkshopBox(RightStart,Rects.Dock.Min.Y+24.f,Rects.Dock.Max.X-28.f,Rects.Dock.Max.Y-16.f):FBox2D(ForceInit));
+        CentreWrap=CentreEnd-CentreStart;RightWrap=RightWidth;
+        DockDividerX=bRight?RightStart-RightGap*.5f:0.f;
+        DockArtSize=FMath::Lerp(112.f,80.f,Compact);
     }
     else
     {
@@ -524,18 +588,23 @@ void ULDWorkshop::Layout(FVector2D Size)
         Place(DockLeft,WorkshopBox(Rects.Dock.Min.X+20.f,Rects.Dock.Min.Y+16.f,Rects.Dock.Min.X+140.f,Rects.Dock.Min.Y+146.f));
         Place(DockRight,WorkshopBox(Rects.Dock.Min.X+150.f,Rects.Dock.Min.Y+16.f,Rects.Dock.Max.X-20.f,Rects.Dock.Min.Y+146.f));
         Place(DockCentre,WorkshopBox(Rects.Dock.Min.X+20.f,Rects.Dock.Min.Y+150.f,Rects.Dock.Max.X-20.f,Rects.Dock.Max.Y-12.f));
+        CentreWrap=float(Rects.Dock.GetSize().X)-40.f;RightWrap=float(Rects.Dock.GetSize().X)-170.f;
     }
     Place(FilterRow,WorkshopBox(Rects.Library.Min.X+24.f,Rects.Library.Min.Y+LibraryBand+62.f,Rects.Library.Max.X-20.f,float(Rects.LibraryBody.Min.Y)-6.f));
     Place(PendingTitle,WorkshopHasArea(Rects.Pending)?WorkshopBox(Rects.Pending.Min.X+46.f,Rects.Pending.Min.Y+16.f,Rects.Pending.Min.X+200.f,Rects.Pending.Min.Y+38.f):FBox2D(ForceInit));
     {
         // The dock columns scale to fit, so every wrapping line wraps at its column's width rather than at what it is given.
-        const float CentreWrap=Mode==EMode::Full?float(Rects.Dock.GetSize().X)-204.f-28.f-(DockHasRight()?WorkshopDockRight+50.f:0.f):WorkshopFieldDockWidth-40.f;
-        const float RightWrap=Mode==EMode::Full?WorkshopDockRight:WorkshopFieldDockWidth-170.f;
-        if(DockBody){DockBody->SetWrapTextAt(CentreWrap);}
-        for(UTextBlock* Line:{DockSummary.Get(),DockChips.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(CentreWrap);}}
-        for(UTextBlock* Line:{DockWhere.Get(),DockLinks.Get(),DockNotes.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(RightWrap);}}
+        if(CentreWrap>0.f)
+        {
+            if(DockBody){DockBody->SetWrapTextAt(CentreWrap);}
+            for(UTextBlock* Line:{DockSummary.Get(),DockChips.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(CentreWrap);}}
+        }
+        if(RightWrap>0.f)
+        {
+            for(UTextBlock* Line:{DockWhere.Get(),DockLinks.Get(),DockNotes.Get()}){if(Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(RightWrap);}}
+            if(DockPreviewBody){DockPreviewBody->SetWrapTextAt(RightWrap);}
+        }
     }
-    const float DockArtSize=Mode==EMode::Full?112.f:80.f;
     if(DockIconBox&&!FMath::IsNearlyEqual(DockIconBox->GetWidthOverride(),DockArtSize)){DockIconBox->SetWidthOverride(DockArtSize);DockIconBox->SetHeightOverride(DockArtSize);}
 }
 
@@ -601,8 +670,21 @@ ULDComponentStorage::FWorkshopLayout ULDWorkshop::StorageLayout() const
     Out.bNames=true;
     // Icons stay at least WorkshopMinIconPixels on screen; the board then drops the names to keep the room.
     const float MinUnits=WorkshopMinIconPixels/Scale;
+    Out.MinIcon=MinUnits;
+    if(46.f*Out.TileScale*46.f/56.f<MinUnits){Out.bNames=false;}
     if(46.f*Out.TileScale<MinUnits){Out.TileScale=MinUnits/46.f;Out.bNames=false;}
-    Out.LibraryIcon=FMath::Max(LibraryIconFor(Rects.LibraryBody),MinUnits);
+    if(WorkshopHasArea(Rects.Columns))
+    {
+        const float ColumnWidth=float(Rects.Column[0].GetSize().X);
+        Out.TileIndent=FMath::Clamp((ColumnWidth-16.f-FMath::Max(56.f*Out.TileScale,MinUnits))*.5f,0.f,24.f);
+        if(ColumnWidth<56.f*Out.TileScale+100.f){Out.bNames=false;}
+    }
+    if(LibraryFit.bFits)
+    {
+        Out.LibraryIcon=LibraryFit.Icon;Out.LibraryLabelHeight=LibraryFit.LabelHeight;Out.bCompactLibrary=LibraryFit.bCompact;
+        if(LibraryFit.Pages.IsValidIndex(LibraryPage))
+        {Out.LibraryFirst=LibraryFit.Pages[LibraryPage].First;Out.LibraryCount=LibraryFit.Pages[LibraryPage].Counts;}
+    }
     Out.TagFilter=TagFilter;
     return Out;
 }
@@ -618,16 +700,17 @@ bool ULDWorkshop::IsHit(FVector2D Absolute) const
 void ULDWorkshop::Present(const FInput& Input)
 {
     const EMode Previous=Mode;
-    Latest=Input;Mode=Input.Mode;
-    View=Input.Progression?*Input.Progression:FLDProgressionView();
+    Mode=Input.Mode;
     if(Mode==EMode::Closed)
     {
         // The panels sink and fade out (LDHUDStyle::MotionWorkshopClose) without taking any more input.
-        if(Previous!=EMode::Closed){LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);ClosingAt=UiNow();SetVisibility(ESlateVisibility::HitTestInvisible);}
+        if(Previous!=EMode::Closed){ClosingMode=Previous;LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopClose);ClosingAt=UiNow();SetVisibility(ESlateVisibility::HitTestInvisible);}
         else if(ClosingAt<0.){WorkshopShown(this,false);}
         OpenedAt=-1.;
         return;
     }
+    Latest=Input;
+    View=Input.Progression?*Input.Progression:FLDProgressionView();
     if(Previous==EMode::Closed||OpenedAt<0.){OpenedAt=UiNow();DockKey.Reset();LDWidgets::PlayCue(this,ELDAudioCue::UIWorkshopOpen);}
     ClosingAt=-1.;
     WorkshopShown(this,true);
@@ -635,6 +718,21 @@ void ULDWorkshop::Present(const FInput& Input)
     if(Size.X<=1.f||Size.Y<=1.f){Size=FVector2D(1920.f,1080.f);}
     LastSize=Size;
     Layout(Size);
+    if(WorkshopHasArea(Rects.Library))
+    {
+        const FIntVector Counts=LDWorkshop::CollectLibrary(View,Latest.Content,TagFilter).Counts();
+        const FString Warning=LibraryFit.bFits||Counts.X+Counts.Y+Counts.Z==0?FString():FString::Printf(TEXT("%d/%d/%d %.0fx%.0f"),Counts.X,Counts.Y,Counts.Z,
+            Rects.LibraryBody.GetSize().X,Rects.LibraryBody.GetSize().Y);
+        if(!Warning.IsEmpty()&&Warning!=LibraryWarning)
+        {UE_LOG(LogLDUI,Warning,TEXT("LD_WORKSHOP_LIBRARY_OVERFLOW counts_and_bounds=%s"),*Warning);}
+        if(!Warning.IsEmpty()&&LibraryWarning.IsEmpty()&&Storage.IsValid()&&Storage->Notify)
+        {Storage->Notify(LDTerms::StorageNoRoom);}
+        LibraryWarning=Warning;
+    }
+    WorkshopShown(LibraryPager,LibraryFit.Pages.Num()>1);
+    WorkshopText(LibraryPageText,FString::Printf(TEXT("%d / %d"),LibraryPage+1,LibraryFit.Pages.Num()));
+    if(LibraryPrevious){LibraryPrevious->SetIsEnabled(LibraryPage>0);}
+    if(LibraryNext){LibraryNext->SetIsEnabled(LibraryPage+1<LibraryFit.Pages.Num());}
     // The darkening fades in with the opening; at low quality it only darkens.
     const float Open=LDTween::Progress(UiNow()-OpenedAt,LDHUDStyle::MotionWorkshopOpen,LDTween::ECurve::EaseOut);
     if(Blur)
@@ -649,7 +747,11 @@ void ULDWorkshop::Present(const FInput& Input)
     RefreshCharacter();
     RefreshHeads();
     const LDHUD::FStorageView* Model=Storage.IsValid()?&Storage->Model():nullptr;
-    WorkshopText(LibraryCount,Model?FString::FromInt(Model->Stored.Num()):FString());
+    const FIntVector Matched=LDWorkshop::CollectLibrary(View,Input.Content,TagFilter).Counts();
+    const int32 MatchCount=Matched.X+Matched.Y+Matched.Z;
+    const FIntVector Owned=TagFilter==INDEX_NONE?Matched:LDWorkshop::CollectLibrary(View,Input.Content,INDEX_NONE).Counts();
+    WorkshopText(LibraryCount,View.bValid?(TagFilter==INDEX_NONE?FString::FromInt(MatchCount)
+        :FString::Printf(TEXT("%d / %d"),MatchCount,Owned.X+Owned.Y+Owned.Z)):FString());
     if(Model)
     {
         WorkshopText(CapacityCount,FString::Printf(TEXT("%d / %d"),Model->Installed,Model->Capacity));
@@ -875,13 +977,31 @@ void ULDWorkshop::ShowTextDock(const FString& Key,const FString& Name,const FStr
     WorkshopShown(DockPicture,false);
     WorkshopShown(DockGlyph,!DockIcon.IsValid(),ESlateVisibility::HitTestInvisible);
     for(UTextBlock* Hidden:{DockWhereTitle.Get(),DockWhere.Get(),DockLinksTitle.Get(),DockLinks.Get(),DockNotesTitle.Get(),DockNotes.Get()}){WorkshopShown(Hidden,false);}
+    WorkshopShown(DockPreviewTitle,false);WorkshopShown(DockPreviewBody,false);WorkshopShown(DockPreviewPager,false);
+    if(Storage.IsValid()){Storage->SetPreviewCaption(NAME_None,FString(),FString());}
 }
 
 void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::FFocus* Focus)
 {
     const FLDDemoContentDefinitions* Content=Latest.Content;
     const FString DropText=Focus&&Focus->bOverDrop?LDHUD::DropPreviewText(Component,Focus->Drop,View,Content):FString();
-    const FString Key=FString::Printf(TEXT("C|%s|%llu|%s"),*Component.ToString(),View.BuildRevision,*DropText);
+    const uint64 CombatRevision=Latest.Combat?Latest.Combat->Revision:0;
+    FString Key=FString::Printf(TEXT("C|%s|%llu|%llu|%d|%d|%d|%d|%d|%s|%s|%s"),*Component.ToString(),View.BuildRevision,
+        CombatRevision,int32(Latest.Stage),int32(Latest.bFinalField),int32(Latest.bClock),int32(Mode),Storage.IsValid()&&Storage->HasPendingRequest()?1:0,
+        *DropText,Focus?*Focus->HoveredBase.ToString():TEXT(""),Focus?*FString::FromInt(int32(Focus->HoveredElement)):TEXT(""));
+    Key+=FString::Printf(TEXT("|%u|%u|%u|%d|%d|%llu|%p|%d"),Latest.Match,View.Generation,View.Life,int32(View.LifePhase),
+        int32(View.bValid),View.CombatInstalledRevision,Latest.ContentSnapshot,int32(Focus&&Focus->bOverDrop));
+    Key+=TEXT("|")+View.CatalogDigest.ToHex();
+    if(Latest.Combat)
+    {
+        Key+=FString::Printf(TEXT("|%u|%u|%d"),Latest.Combat->Generation,Latest.Combat->Life,
+            int32(Latest.NowMs>=Latest.Combat->AsOfMs));
+    }
+    if(Focus&&Focus->bOverDrop)
+    {
+        Key+=FString::Printf(TEXT("|%d|%s|%s|%s|%s"),int32(Focus->Drop.Kind),*Focus->Drop.TargetId.ToString(),
+            *Focus->Drop.BindActive.ToString(),*Focus->Drop.Host.ToString(),*Focus->Drop.Replacing.ToString());
+    }
     if(DockKey==Key){return;}
     DockKey=Key;
     const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Component,Content,Latest.Stats);
@@ -935,8 +1055,68 @@ void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::F
     WorkshopText(DockLinks,FString::Join(Links,TEXT("\n")));
     WorkshopText(DockNotes,FString::Join(Notes,TEXT("\n")));
     WorkshopShown(DockWhereTitle,true,ESlateVisibility::HitTestInvisible);WorkshopShown(DockWhere,true,ESlateVisibility::HitTestInvisible);
-    WorkshopShown(DockLinksTitle,!Links.IsEmpty(),ESlateVisibility::HitTestInvisible);WorkshopShown(DockLinks,!Links.IsEmpty(),ESlateVisibility::HitTestInvisible);
-    WorkshopShown(DockNotesTitle,!Notes.IsEmpty(),ESlateVisibility::HitTestInvisible);WorkshopShown(DockNotes,!Notes.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    const bool bPreview=Focus&&Focus->bOverDrop;
+    WorkshopShown(DockLinksTitle,!bPreview&&!Links.IsEmpty(),ESlateVisibility::HitTestInvisible);WorkshopShown(DockLinks,!bPreview&&!Links.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    WorkshopShown(DockNotesTitle,!bPreview&&!Notes.IsEmpty(),ESlateVisibility::HitTestInvisible);WorkshopShown(DockNotes,!bPreview&&!Notes.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    WorkshopShown(DockPreviewTitle,bPreview,ESlateVisibility::HitTestInvisible);WorkshopShown(DockPreviewBody,bPreview,ESlateVisibility::HitTestInvisible);
+    PreviewPage=0;Preview=LDWorkshopPreview::FResult();
+    if(bPreview&&Storage.IsValid()&&!Storage->HasPendingRequest())
+    {
+        LDWorkshopPreview::FInput Input;Input.Content=Latest.ContentSnapshot;Input.Progression=&View;Input.Combat=Latest.Combat;
+        Input.Match=Latest.Match;Input.Stage=Latest.Stage;Input.bClock=Latest.bClock;Input.NowMs=Latest.NowMs;Input.bFinalField=Latest.bFinalField;
+        Input.Component=Component;Input.Drop=Focus->Drop;Input.Element=Focus->HoveredElement;Input.Base=Focus->HoveredBase;
+        Preview=LDWorkshopPreview::Compare(Input);
+        if(Preview.Status==LDWorkshopPreview::EStatus::Unavailable&&!Preview.Error.IsEmpty())
+        {UE_LOG(LogLDUI,Warning,TEXT("LD_WORKSHOP_PREVIEW_UNAVAILABLE component=%s error=%s"),*Component.ToString(),*Preview.Error);}
+    }
+    if(Storage.IsValid())
+    {
+        FString Caption;
+        if(bPreview&&Preview.Status==LDWorkshopPreview::EStatus::Ready&&!Preview.Lines.IsEmpty())
+        {
+            const LDWorkshopPreview::FLine& Line=Preview.Lines[0];
+            Caption=Line.Label+TEXT(" ")+Line.Before+TEXT(" → ")+Line.After;
+            if(Preview.bPartial){Caption+=TEXT(" · 部分");}
+        }
+        Storage->SetPreviewCaption(Component,DropText,Caption);
+    }
+    RefreshPreviewPage();
+}
+
+void ULDWorkshop::RefreshPreviewPage()
+{
+    if(!DockPreviewBody||!DockPreviewTitle||!DockPreviewTitle->IsVisible())
+    {WorkshopShown(DockPreviewPager,false);return;}
+    FString Body;
+    using EStatus=LDWorkshopPreview::EStatus;
+    WorkshopText(DockPreviewTitle,Preview.Status==EStatus::Ready&&Preview.bPartial?LDTerms::WorkshopPreviewPartial:LDTerms::WorkshopPreview);
+    if(Storage.IsValid()&&Storage->HasPendingRequest()){Body=LDTerms::WorkshopPreviewWaiting;}
+    else if(Preview.Status==EStatus::Synchronizing){Body=LDTerms::WorkshopPreviewSync;}
+    else if(Preview.Status==EStatus::ChoiceRequired){Body=LDTerms::WorkshopPreviewChoice;}
+    else if(Preview.Status==EStatus::Refused){Body=LDHUD::GrowthReasonText(Preview.Reason);}
+    else if(Preview.Status==EStatus::Unavailable){Body=LDTerms::WorkshopPreviewUnavailable;}
+    else if(Preview.Lines.IsEmpty()){Body=Preview.bPartial?LDTerms::WorkshopPreviewConditional:LDTerms::WorkshopPreviewNoChange;}
+    const int32 PerPage=Mode==EMode::Full?3:1;
+    const int32 Pages=FMath::Max(1,FMath::DivideAndRoundUp(Preview.Lines.Num(),PerPage));
+    PreviewPage=FMath::Clamp(PreviewPage,0,Pages-1);
+    if(Preview.Status==EStatus::Ready)
+    {
+        for(int32 Index=PreviewPage*PerPage;Index<FMath::Min(Preview.Lines.Num(),(PreviewPage+1)*PerPage);++Index)
+        {
+            const LDWorkshopPreview::FLine& Line=Preview.Lines[Index];
+            const TCHAR* Tag=Line.Impact==LDWorkshopPreview::EImpact::Beneficial?TEXT("good")
+                :Line.Impact==LDWorkshopPreview::EImpact::Cost?TEXT("cost"):nullptr;
+            FString Change=WorkshopRichEscape(Line.After);
+            if(Tag){Change=FString::Printf(TEXT("<%s>%s</>"),Tag,*Change);}
+            if(!Body.IsEmpty()){Body+=TEXT("\n");}
+            Body+=WorkshopRichEscape(Line.Label)+TEXT("  ")+WorkshopRichEscape(Line.Before)+TEXT(" → ")+Change;
+        }
+    }
+    if(!DockPreviewBody->GetText().ToString().Equals(Body,ESearchCase::CaseSensitive)){DockPreviewBody->SetText(FText::FromString(Body));}
+    WorkshopShown(DockPreviewPager,Preview.Status==EStatus::Ready&&Pages>1,ESlateVisibility::SelfHitTestInvisible);
+    WorkshopText(DockPreviewPageText,FString::Printf(TEXT("%d / %d"),PreviewPage+1,Pages));
+    if(DockPreviewPrevious){DockPreviewPrevious->SetIsEnabled(PreviewPage>0);}
+    if(DockPreviewNext){DockPreviewNext->SetIsEnabled(PreviewPage+1<Pages);}
 }
 
 void ULDWorkshop::RefreshDock(FVector2D Pointer)
@@ -1005,7 +1185,7 @@ void ULDWorkshop::AnimateOpening()
         else{Shown=1.f-LDTween::Progress(Age,LDHUDStyle::MotionWorkshopClose,LDTween::ECurve::EaseIn);}
     }
     else if(OpenedAt>=0.){Shown=LDTween::Progress(UiNow()-OpenedAt,LDHUDStyle::MotionWorkshopOpen,LDTween::ECurve::EaseOut);}
-    const float Rise=Mode==EMode::Field&&ClosingAt<0.?60.f:36.f;
+    const float Rise=(ClosingAt>=0.?ClosingMode:Mode)==EMode::Field?60.f:36.f;
     for(int32 Index=0;Index<Canvas->GetChildrenCount();++Index)
     {
         UWidget* Child=Canvas->GetChildAt(Index);
@@ -1055,62 +1235,63 @@ bool ULDWorkshop::DockHasRight() const
     return false;
 }
 
-void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,const FGeometry& Geometry) const
+void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
 {
-    if(!IsOpen()){return;}
+    if(!IsOpen()&&ClosingAt<0.){return;}
+    const FGeometry& Geometry=Paint.Geometry;
+    const int32 Layer=Paint.Layer;
     using LDUIPaint::FFill;using LDUIPaint::Hex;using LDUIShapes::EShape;
     const double Now=UiNow();
     const auto Box=[&Geometry](const UWidget* Widget){return Widget?LDUIShapes::RectIn(Geometry,Widget->GetCachedGeometry()):FBox2D(ForceInit);};
     const auto Shown=[](const UWidget* Widget){return Widget&&Widget->IsVisible()&&Widget->GetCachedGeometry().GetLocalSize().X>1.f;};
     const int32 Base=Layer,Ink=Layer+3;
     const FLinearColor Line=FLinearColor(1,1,1,.075f);
-    const bool bFull=Mode==EMode::Full;
+    const bool bFull=(IsOpen()?Mode:ClosingMode)==EMode::Full;
     // ---- surfaces ----
     if(bFull&&WorkshopHasArea(Rects.Phase))
     {
         // .phase: a horizontal fade from the solid surface, its hairline and highlight.
-        LDUIPaint::Shape(Elements,Base,Geometry,EShape::Rounded,Rects.Phase,6.f,FFill::Linear(90.f,{{0.f,Hex(0x121723,.95f)},{1.f,Hex(0x121723,.7f)}}));
-        LDUIPaint::Edge(Elements,Base,Geometry,EShape::Rounded,Rects.Phase,6.f,Line,1.f);
-        LDUIPaint::Line(Elements,Base,Geometry,FVector2D(Rects.Phase.Min.X+6.f,Rects.Phase.Min.Y+1.5f),FVector2D(Rects.Phase.Max.X-6.f,Rects.Phase.Min.Y+1.5f),FLinearColor(1,1,1,.08f),1.f);
+        Paint.Shape(Base,EShape::Rounded,Rects.Phase,6.f,FFill::Linear(90.f,{{0.f,Hex(0x121723,.95f)},{1.f,Hex(0x121723,.7f)}}));
+        Paint.Edge(Base,EShape::Rounded,Rects.Phase,6.f,Line,1.f);
+        Paint.Line(Base,FVector2D(Rects.Phase.Min.X+6.f,Rects.Phase.Min.Y+1.5f),FVector2D(Rects.Phase.Max.X-6.f,Rects.Phase.Min.Y+1.5f),FLinearColor(1,1,1,.08f),1.f);
     }
-    if(bFull&&WorkshopHasArea(Rects.Character)){LDUIPaint::Panel(Elements,Base,Geometry,Rects.Character);}
-    if(WorkshopHasArea(Rects.Board)){LDUIPaint::Panel(Elements,Base,Geometry,Rects.Board);}
+    if(bFull&&WorkshopHasArea(Rects.Character)){Paint.Panel(Base,Rects.Character);}
+    if(WorkshopHasArea(Rects.Board)){Paint.Panel(Base,Rects.Board);}
     if(WorkshopHasArea(Rects.Dock))
     {
-        LDUIPaint::Panel(Elements,Base,Geometry,Rects.Dock);
+        Paint.Panel(Base,Rects.Dock);
         if(bFull&&DockRight&&DockRight->IsVisible()&&!(Latest.bFinalStage))
         {
-            const float X=float(Rects.Dock.Max.X)-28.f-WorkshopDockRight-24.f;
-            LDUIPaint::Line(Elements,Base+3,Geometry,FVector2D(X,Rects.Dock.Min.Y+24.f),FVector2D(X,Rects.Dock.Max.Y-24.f),Line,1.f);
+            Paint.Line(Base+3,FVector2D(DockDividerX,Rects.Dock.Min.Y+24.f),FVector2D(DockDividerX,Rects.Dock.Max.Y-24.f),Line,1.f);
         }
     }
     if(WorkshopHasArea(Rects.Library))
     {
         FBox2D Right=Rects.Library;
         if(WorkshopHasArea(Rects.Pending)){Right+=Rects.Pending;}
-        LDUIPaint::Panel(Elements,Base,Geometry,Right);
+        Paint.Panel(Base,Right);
     }
     if(WorkshopHasArea(Rects.Pending))
     {
         // .inbox: the library's lower section under a hairline, warmed with a faint yellow, its square-led title and rule.
         const FBox2D& P=Rects.Pending;
-        LDUIPaint::Shape(Elements,Base+3,Geometry,EShape::Rounded,WorkshopBox(P.Min.X+1.f,P.Min.Y,P.Max.X-1.f,P.Max.Y-1.f),5.f,
+        Paint.Shape(Base+3,EShape::Rounded,WorkshopBox(P.Min.X+1.f,P.Min.Y,P.Max.X-1.f,P.Max.Y-1.f),5.f,
             FFill::Linear(180.f,{{0.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.05f)},{.6f,LDHUDStyle::UIAction.CopyWithNewOpacity(0.f)}}));
-        LDUIPaint::Line(Elements,Base+3,Geometry,FVector2D(P.Min.X+1.f,P.Min.Y),FVector2D(P.Max.X-1.f,P.Min.Y),Line,1.f);
+        Paint.Line(Base+3,FVector2D(P.Min.X+1.f,P.Min.Y),FVector2D(P.Max.X-1.f,P.Min.Y),Line,1.f);
         const float Y=float(P.Min.Y)+27.f;
-        LDUIPaint::Shape(Elements,Ink,Geometry,EShape::Rounded,WorkshopBox(P.Min.X+24.f,Y-6.f,P.Min.X+36.f,Y+6.f),2.f,FFill::Solid(LDHUDStyle::UIAction));
+        Paint.Shape(Ink,EShape::Rounded,WorkshopBox(P.Min.X+24.f,Y-6.f,P.Min.X+36.f,Y+6.f),2.f,FFill::Solid(LDHUDStyle::UIAction));
         if(Shown(PendingTitle))
         {
             const FBox2D Title=Box(PendingTitle);
-            LDUIPaint::Line(Elements,Ink,Geometry,FVector2D(Title.Min.X+PendingTitle->GetDesiredSize().X+10.f,Y),FVector2D(P.Max.X-24.f,Y),Line,1.f);
+            Paint.Line(Ink,FVector2D(Title.Min.X+PendingTitle->GetDesiredSize().X+10.f,Y),FVector2D(P.Max.X-24.f,Y),Line,1.f);
         }
     }
     if(Shown(DockIconFace)&&!DockKey.IsEmpty())
     {
         // .dock .l: the hovered item at 112, a component in its own tile, a skill in its gold art.
         const FBox2D Art=Box(DockIconFace);
-        if(DockKey.StartsWith(TEXT("C|"))){LDUIPaint::Tile(Elements,Ink,Geometry,Art,DockKindValue,DockScarce,LDUIPaint::ETileState::Normal,DockIcon.Get(),1.f,Now);}
-        else{LDUIPaint::SkillArt(Elements,Ink,Geometry,Art,false,!DockIcon.IsValid()&&DockGlyph&&DockGlyph->GetText().IsEmpty(),DockIcon.Get());}
+        if(DockKey.StartsWith(TEXT("C|"))){Paint.Tile(Ink,Art,DockKindValue,DockScarce,LDUIPaint::ETileState::Normal,DockIcon.Get(),1.f,Now);}
+        else{Paint.SkillArt(Ink,Art,false,!DockIcon.IsValid()&&DockGlyph&&DockGlyph->GetText().IsEmpty(),DockIcon.Get());}
     }
     // ---- phase ring and steps ----
     if(bFull&&PhaseClock&&WorkshopHasArea(Rects.Phase))
@@ -1120,8 +1301,8 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
         float Fraction=0.f;
         if(Latest.bRest&&Latest.bClock&&Latest.StepEndsAtMs>Latest.StepStartedAtMs)
         {Fraction=FMath::Clamp(float(double(Latest.StepEndsAtMs-Latest.NowMs)/double(Latest.StepEndsAtMs-Latest.StepStartedAtMs)),0.f,1.f);}
-        LDUIShapes::Arc(Elements,Ink,Geometry,Centre,18.f,1.f,FLinearColor(1,1,1,.14f),4.f);
-        if(Fraction>0.f){LDUIShapes::Arc(Elements,Ink+1,Geometry,Centre,18.f,Fraction,Latest.bDead?LDHUDStyle::UIReject:LDHUDStyle::UIAction,4.f);}
+        Paint.Arc(Ink,Centre,18.f,1.f,FLinearColor(1,1,1,.14f),4.f);
+        if(Fraction>0.f){Paint.Arc(Ink+1,Centre,18.f,Fraction,Latest.bDead?LDHUDStyle::UIReject:LDHUDStyle::UIAction,4.f);}
         if(Latest.bRest&&!Latest.bDead)
         {
             const int32 Current=LDWorkshop::RestStepDot(Latest.Step);
@@ -1130,9 +1311,9 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
             for(int32 Dot=0;Dot<LDWorkshop::RestStepDots;++Dot)
             {
                 const FBox2D Bar=WorkshopBox(X0+Dot*(Width+Gap),Y-2.5f,X0+Dot*(Width+Gap)+Width,Y+2.5f);
-                if(Dot==Current){LDUIPaint::Halo(Elements,Ink,Geometry,EShape::Rounded,Bar,3.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.6f),10.f);}
+                if(Dot==Current){Paint.Halo(Ink,EShape::Rounded,Bar,3.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.6f),10.f);}
                 const FLinearColor Color=Dot==Current?LDHUDStyle::UIAction:Dot<Current?LDHUDStyle::UIAction.CopyWithNewOpacity(.45f):FLinearColor(1,1,1,.14f);
-                LDUIPaint::Shape(Elements,Ink+1,Geometry,EShape::Rounded,Bar,3.f,FFill::Solid(Color));
+                Paint.Shape(Ink+1,EShape::Rounded,Bar,3.f,FFill::Solid(Color));
             }
         }
     }
@@ -1144,23 +1325,23 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
             // .ava: the experience ring around the holder's face.
             const FBox2D Ava=Box(PortraitFrame);
             const FVector2D Centre=Ava.GetCenter();
-            LDUIShapes::Arc(Elements,Ink,Geometry,Centre,40.f,1.f,FLinearColor(1,1,1,.12f),5.f);
+            Paint.Arc(Ink,Centre,40.f,1.f,FLinearColor(1,1,1,.12f),5.f);
             const float Xp=Latest.Level.bMax?1.f:FMath::Clamp(Latest.Level.Fraction,0.f,1.f);
-            if(Xp>0.f){LDUIShapes::Arc(Elements,Ink+1,Geometry,Centre,40.f,Xp,Hex(0xE0A53A),5.f);}
+            if(Xp>0.f){Paint.Arc(Ink+1,Centre,40.f,Xp,Hex(0xE0A53A),5.f);}
             const FBox2D Face=LDUIPaint::Grow(Ava,-7.f);
             const FLinearColor Holder=Latest.HolderColor;
-            LDUIPaint::Shape(Elements,Ink,Geometry,EShape::Circle,Face,36.f,FFill::Linear(160.f,{{0.f,FLinearColor::LerpUsingHSV(Holder,FLinearColor::White,.18f)},{1.f,Holder*.42f}}));
-            LDUIPaint::Edge(Elements,Ink+1,Geometry,EShape::Circle,Face,36.f,FLinearColor(1,1,1,.25f),2.f);
+            Paint.Shape(Ink,EShape::Circle,Face,36.f,FFill::Linear(160.f,{{0.f,FLinearColor::LerpUsingHSV(Holder,FLinearColor::White,.18f)},{1.f,Holder*.42f}}));
+            Paint.Edge(Ink+1,EShape::Circle,Face,36.f,FLinearColor(1,1,1,.25f),2.f);
         }
         if(Shown(PointsBox))
         {
             const FBox2D Pts=Box(PointsBox);
-            LDUIPaint::Shape(Elements,Ink,Geometry,EShape::Rounded,Pts,5.f,FFill::Linear(90.f,{{0.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.2f)},{1.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.03f)}}));
-            LDUIPaint::Edge(Elements,Ink,Geometry,EShape::Rounded,Pts,5.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.5f),1.f);
+            Paint.Shape(Ink,EShape::Rounded,Pts,5.f,FFill::Linear(90.f,{{0.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.2f)},{1.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.03f)}}));
+            Paint.Edge(Ink,EShape::Rounded,Pts,5.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.5f),1.f);
         }
         for(const FStatRow& Row:StatRows)
         {
-            if(Shown(Row.Icon)){LDUIPaint::Edge(Elements,Ink+2,Geometry,EShape::Rounded,Box(Row.Icon),8.f,FLinearColor(1,1,1,.14f),1.f);}
+            if(Shown(Row.Icon)){Paint.Edge(Ink+2,EShape::Rounded,Box(Row.Icon),8.f,FLinearColor(1,1,1,.14f),1.f);}
             if(!Shown(Row.Meter)){continue;}
             // .bar: sixteen cells, the allocated ones a warm gradient; the cell a click just asked for flashes.
             const FBox2D Meter=Box(Row.Meter);
@@ -1170,26 +1351,26 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
             {
                 const FBox2D Piece=WorkshopBox(Meter.Min.X+Index*(Cell+Gap),Y-4.f,Meter.Min.X+Index*(Cell+Gap)+Cell,Y+4.f);
                 const FFill Fill=Index<Row.Value?FFill::Linear(180.f,{{0.f,Hex(0xFFF2B0)},{1.f,Hex(0xFFB52E)}}):FFill::Solid(FLinearColor(1,1,1,.08f));
-                LDUIPaint::Shape(Elements,Ink,Geometry,EShape::Rounded,Piece,1.f,Fill);
+                Paint.Shape(Ink,EShape::Rounded,Piece,1.f,Fill);
             }
             const double Age=Now-Row.AddedAt;
             if(Age>=0.&&Age<LDHUDStyle::MotionAddPoint*3.&&Row.Value<WorkshopMeterCells)
             {
                 const FBox2D Next=WorkshopBox(Meter.Min.X+Row.Value*(Cell+Gap),Y-5.f,Meter.Min.X+Row.Value*(Cell+Gap)+Cell,Y+5.f);
-                LDUIPaint::Shape(Elements,Ink+1,Geometry,EShape::Rounded,Next,1.f,FFill::Solid(FLinearColor(1,1,1,1.f-float(Age/(LDHUDStyle::MotionAddPoint*3.)))));
+                Paint.Shape(Ink+1,EShape::Rounded,Next,1.f,FFill::Solid(FLinearColor(1,1,1,1.f-float(Age/(LDHUDStyle::MotionAddPoint*3.)))));
             }
         }
         for(const TObjectPtr<UWidget>& Half:AttributeHalves)
         {
             if(!Shown(Half)){continue;}
             const FBox2D Cell=Box(Half);
-            LDUIPaint::Line(Elements,Ink,Geometry,FVector2D(Cell.Min.X,Cell.Max.Y+5.f),FVector2D(Cell.Max.X,Cell.Max.Y+5.f),FLinearColor(1,1,1,.05f),1.f);
+            Paint.Line(Ink,FVector2D(Cell.Min.X,Cell.Max.Y+5.f),FVector2D(Cell.Max.X,Cell.Max.Y+5.f),FLinearColor(1,1,1,.05f),1.f);
         }
         if(Shown(AttributeList))
         {
             // .rule: the fading hairline over the derived attributes.
             const FBox2D List=Box(AttributeList);
-            LDUIPaint::Line(Elements,Ink,Geometry,FVector2D(List.Min.X,List.Min.Y-14.f),FVector2D(List.Max.X,List.Min.Y-14.f),FLinearColor(1,1,1,.14f),1.f,FLinearColor(1,1,1,0.f));
+            Paint.Line(Ink,FVector2D(List.Min.X,List.Min.Y-14.f),FVector2D(List.Max.X,List.Min.Y-14.f),FLinearColor(1,1,1,.14f),1.f,FLinearColor(1,1,1,0.f));
         }
         for(const FReaction& Reaction:Reactions)
         {
@@ -1197,24 +1378,24 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
             const FBox2D Row=Box(Reaction.Row);
             if(Reaction.bLit)
             {
-                LDUIPaint::Halo(Elements,Ink,Geometry,EShape::Rounded,Row,5.f,Hex(0xFF7A3D,.2f),18.f);
-                LDUIPaint::Shape(Elements,Ink+1,Geometry,EShape::Rounded,Row,5.f,FFill::Linear(90.f,{{0.f,Hex(0xFF7A3D,.2f)},{1.f,Hex(0xFFE45C,.06f)}}));
-                LDUIPaint::Edge(Elements,Ink+1,Geometry,EShape::Rounded,Row,5.f,Hex(0xFF7A3D,.65f),1.f);
+                Paint.Halo(Ink,EShape::Rounded,Row,5.f,Hex(0xFF7A3D,.2f),18.f);
+                Paint.Shape(Ink+1,EShape::Rounded,Row,5.f,FFill::Linear(90.f,{{0.f,Hex(0xFF7A3D,.2f)},{1.f,Hex(0xFFE45C,.06f)}}));
+                Paint.Edge(Ink+1,EShape::Rounded,Row,5.f,Hex(0xFF7A3D,.65f),1.f);
             }
             else
             {
-                LDUIPaint::Shape(Elements,Ink+1,Geometry,EShape::Rounded,Row,5.f,FFill::Solid(FLinearColor(0,0,0,.25f)));
-                LDUIPaint::Edge(Elements,Ink+1,Geometry,EShape::Rounded,Row,5.f,Line,1.f);
+                Paint.Shape(Ink+1,EShape::Rounded,Row,5.f,FFill::Solid(FLinearColor(0,0,0,.25f)));
+                Paint.Edge(Ink+1,EShape::Rounded,Row,5.f,Line,1.f);
             }
             const float Disc=Reaction.bLit?1.f:.45f;
-            if(Reaction.FirstText&&Reaction.FirstText->GetParent()){LDUIPaint::ElementDisc(Elements,Ink+2,Geometry,Box(Reaction.FirstText->GetParent()),WorkshopElementColor(Reaction.First),Disc);}
-            if(Reaction.SecondText&&Reaction.SecondText->GetParent()){LDUIPaint::ElementDisc(Elements,Ink+2,Geometry,Box(Reaction.SecondText->GetParent()),WorkshopElementColor(Reaction.Second),Disc);}
+            if(Reaction.FirstText&&Reaction.FirstText->GetParent()){Paint.ElementDisc(Ink+2,Box(Reaction.FirstText->GetParent()),WorkshopElementColor(Reaction.First),Disc);}
+            if(Reaction.SecondText&&Reaction.SecondText->GetParent()){Paint.ElementDisc(Ink+2,Box(Reaction.SecondText->GetParent()),WorkshopElementColor(Reaction.Second),Disc);}
         }
     }
     // ---- the board ----
     if(WorkshopHasArea(Rects.Capacity))
     {
-        LDUIPaint::Line(Elements,Ink,Geometry,FVector2D(Rects.Board.Min.X+1.f,Rects.Capacity.Max.Y),FVector2D(Rects.Board.Max.X-1.f,Rects.Capacity.Max.Y),Line,1.f);
+        Paint.Line(Ink,FVector2D(Rects.Board.Min.X+1.f,Rects.Capacity.Max.Y),FVector2D(Rects.Board.Max.X-1.f,Rects.Capacity.Max.Y),Line,1.f);
         if(Storage.IsValid())
         {
             // .segs: one skewed cell per workshop slot in the kind colour of what fills it; the next level's cell dashed.
@@ -1227,18 +1408,19 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
             const bool bAdds=!Focus.Component.IsNone()&&!Focus.bInstalled&&Focus.Drops.ContainsByPredicate([](const LDHUD::FComponentDrop& Drop){return Drop.Replacing.IsNone();});
             const float Pulse=.55f+.45f*LDTween::PingPong(Now,.8);
             const int32 Cells=Capacity.Capacity+(Capacity.UnlockLevel>0?1:0);
-            const float Y=float(Rects.Capacity.GetCenter().Y),Skew=7.f*FMath::Tan(FMath::DegreesToRadians(18.f));
+            const float Y=float(Rects.Capacity.GetCenter().Y),CellWidth=CapacityCellStep*40.f/45.f;
+            const float Skew=FMath::Min(7.f*FMath::Tan(FMath::DegreesToRadians(18.f)),CellWidth*.2f);
             for(int32 Index=0;Index<Cells;++Index)
             {
-                const float X=CapacityCellsAt+Index*45.f;
-                const TArray<FVector2D> Cell{FVector2D(X+Skew,Y-7.f),FVector2D(X+40.f+Skew,Y-7.f),FVector2D(X+40.f-Skew,Y+7.f),FVector2D(X-Skew,Y+7.f)};
+                const float X=CapacityCellsAt+Index*CapacityCellStep;
+                const TArray<FVector2D> Cell{FVector2D(X+Skew,Y-7.f),FVector2D(X+CellWidth+Skew,Y-7.f),FVector2D(X+CellWidth-Skew,Y+7.f),FVector2D(X-Skew,Y+7.f)};
                 if(Index>=Capacity.Capacity)
                 {
                     TArray<FVector2D> Loop=Cell;Loop.Add(FVector2D(Cell[0]));
                     for(int32 Edge=0;Edge<4;++Edge)
                     {
                         const FVector2D From=Loop[Edge],To=Loop[Edge+1];
-                        for(float At=0.f;At<1.f;At+=.25f){LDUIPaint::Line(Elements,Ink,Geometry,FMath::Lerp(From,To,double(At)),FMath::Lerp(From,To,double(At+.14f)),FLinearColor(1,1,1,.25f),1.f);}
+                        for(float At=0.f;At<1.f;At+=.25f){Paint.Line(Ink,FMath::Lerp(From,To,double(At)),FMath::Lerp(From,To,double(At+.14f)),FLinearColor(1,1,1,.25f),1.f);}
                     }
                     continue;
                 }
@@ -1251,12 +1433,12 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
                     else if(Focus.bHeld&&Focus.bInstalled&&Capacity.Components[Index]==Focus.Component){Color=LDHUDStyle::UIAction;Glow=.6f;}
                 }
                 else if(bAdds&&Index==Capacity.Used.Num()){Color=LDHUDStyle::UILegal.CopyWithNewOpacity(Pulse);Glow=.7f*Pulse;}
-                if(Glow>0.f){LDUIPaint::Halo(Elements,Ink,Geometry,EShape::Rounded,WorkshopBox(X,Y-7.f,X+40.f,Y+7.f),2.f,Color.CopyWithNewOpacity(Glow*.6f),8.f);}
-                LDUIPaint::Polygon(Elements,Ink+1,Geometry,Cell,FFill::Solid(Color));
+                if(Glow>0.f){Paint.Halo(Ink,EShape::Rounded,WorkshopBox(X,Y-7.f,X+CellWidth,Y+7.f),2.f,Color.CopyWithNewOpacity(Glow*.6f),8.f);}
+                Paint.Polygon(Ink+1,Cell,FFill::Solid(Color));
                 if(!Capacity.Used.IsValidIndex(Index))
                 {
                     TArray<FVector2D> Loop=Cell;Loop.Add(FVector2D(Cell[0]));
-                    LDUIShapes::Stroke(Elements,Ink+1,Geometry,Loop,FLinearColor(1,1,1,.1f),1.f);
+                    Paint.Stroke(Ink+1,Loop,FLinearColor(1,1,1,.1f),1.f);
                 }
             }
         }
@@ -1275,19 +1457,19 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
         if(bTakes||bSwaps)
         {
             const FLinearColor Tone=bTakes?LDHUDStyle::UILegal:LDHUDStyle::UIReplace;
-            LDUIPaint::Halo(Elements,Ink,Geometry,EShape::Rounded,Back,6.f,Tone.CopyWithNewOpacity(.22f),30.f);
-            LDUIPaint::Shape(Elements,Ink+1,Geometry,EShape::Rounded,Back,6.f,FFill::Linear(180.f,{{0.f,Tone.CopyWithNewOpacity(.16f)},{1.f,Tone.CopyWithNewOpacity(.03f)}}));
-            LDUIPaint::InnerHalo(Elements,Ink+1,Geometry,EShape::Rounded,Back,6.f,Tone.CopyWithNewOpacity(.12f),30.f);
-            LDUIPaint::Edge(Elements,Ink+1,Geometry,EShape::Rounded,Back,6.f,Tone.CopyWithNewOpacity(.75f),1.f);
+            Paint.Halo(Ink,EShape::Rounded,Back,6.f,Tone.CopyWithNewOpacity(.22f),30.f);
+            Paint.Shape(Ink+1,EShape::Rounded,Back,6.f,FFill::Linear(180.f,{{0.f,Tone.CopyWithNewOpacity(.16f)},{1.f,Tone.CopyWithNewOpacity(.03f)}}));
+            Paint.InnerHalo(Ink+1,EShape::Rounded,Back,6.f,Tone.CopyWithNewOpacity(.12f),30.f);
+            Paint.Edge(Ink+1,EShape::Rounded,Back,6.f,Tone.CopyWithNewOpacity(.75f),1.f);
         }
         else
         {
-            LDUIPaint::Shape(Elements,Ink+1,Geometry,EShape::Rounded,Back,6.f,FFill::Linear(180.f,{{0.f,FLinearColor(1,1,1,.035f)},{1.f,FLinearColor(1,1,1,.01f)}}));
-            LDUIPaint::Edge(Elements,Ink+1,Geometry,EShape::Rounded,Back,6.f,FLinearColor(1,1,1,.045f),1.f);
+            Paint.Shape(Ink+1,EShape::Rounded,Back,6.f,FFill::Linear(180.f,{{0.f,FLinearColor(1,1,1,.035f)},{1.f,FLinearColor(1,1,1,.01f)}}));
+            Paint.Edge(Ink+1,EShape::Rounded,Back,6.f,FLinearColor(1,1,1,.045f),1.f);
         }
         if(bFull)
         {
-            LDUIPaint::Line(Elements,Ink+1,Geometry,FVector2D(Column.Min.X+37.f,Column.Min.Y+WorkshopSocketTop-2.f),FVector2D(Column.Min.X+37.f,Column.Max.Y-26.f),
+            Paint.Line(Ink+1,FVector2D(Column.Min.X+37.f,Column.Min.Y+WorkshopSocketTop-2.f),FVector2D(Column.Min.X+37.f,Column.Max.Y-26.f),
                 FLinearColor(1,1,1,.2f),2.f,FLinearColor(1,1,1,.04f));
         }
         // The head: the skill art (gold for an active, silver for the body and the dash), the body's face in the holder's
@@ -1296,11 +1478,11 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
         if(!Shown(Head.Box)||!Head.IconFace){continue;}
         const FBox2D Art=Box(Head.IconFace);
         const bool bSilver=Id==LDHUD::EStorageColumn::Body||Id==LDHUD::EStorageColumn::Dash;
-        LDUIPaint::SkillArt(Elements,Ink+2,Geometry,Art,bSilver,Head.bEmpty,Head.Icon.Get());
+        Paint.SkillArt(Ink+2,Art,bSilver,Head.bEmpty,Head.Icon.Get());
         if(Id==LDHUD::EStorageColumn::Body)
         {
             const FLinearColor Holder=Latest.HolderColor;
-            LDUIPaint::Shape(Elements,Ink+6,Geometry,EShape::Rounded,LDUIPaint::Grow(Art,-3.f),7.f,FFill::Linear(160.f,{{0.f,FLinearColor::LerpUsingHSV(Holder,FLinearColor::White,.18f)},{1.f,Holder*.42f}}));
+            Paint.Shape(Ink+6,EShape::Rounded,LDUIPaint::Grow(Art,-3.f),7.f,FFill::Linear(160.f,{{0.f,FLinearColor::LerpUsingHSV(Holder,FLinearColor::White,.18f)},{1.f,Holder*.42f}}));
         }
         for(const UTextBlock* Number:{Head.Mana,Head.Cooldown})
         {
@@ -1308,10 +1490,10 @@ void ULDWorkshop::PaintBackdrop(FSlateWindowElementList& Elements,int32 Layer,co
             const FBox2D Text=Box(Number);
             const float Mid=float(Text.GetCenter().Y);
             const FBox2D Pill=WorkshopBox(Text.Min.X-WorkshopPillLead,Mid-11.f,Text.Max.X+WorkshopPillTail,Mid+11.f);
-            LDUIPaint::Pill(Elements,Ink+2,Geometry,Pill);
+            Paint.Pill(Ink+2,Pill);
             const FVector2D Dot(Pill.Min.X+12.f,Mid);
-            if(Number==Head.Mana){LDUIPaint::Shape(Elements,Ink+3,Geometry,EShape::Circle,WorkshopBox(Dot.X-4.f,Mid-4.f,Dot.X+4.f,Mid+4.f),4.f,FFill::Solid(Hex(0x3D8BFF)));}
-            else{LDUIPaint::Polygon(Elements,Ink+3,Geometry,{FVector2D(Dot.X,Mid-5.f),FVector2D(Dot.X+5.f,Mid),FVector2D(Dot.X,Mid+5.f),FVector2D(Dot.X-5.f,Mid)},FFill::Solid(Hex(0xC9D2E0)));}
+            if(Number==Head.Mana){Paint.Shape(Ink+3,EShape::Circle,WorkshopBox(Dot.X-4.f,Mid-4.f,Dot.X+4.f,Mid+4.f),4.f,FFill::Solid(Hex(0x3D8BFF)));}
+            else{Paint.Polygon(Ink+3,{FVector2D(Dot.X,Mid-5.f),FVector2D(Dot.X+5.f,Mid),FVector2D(Dot.X,Mid+5.f),FVector2D(Dot.X-5.f,Mid)},FFill::Solid(Hex(0xC9D2E0)));}
         }
     }
 }
@@ -1321,7 +1503,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
     const int32 Base=Super::NativePaint(Args,Geometry,Culling,Elements,Layer,Style,bEnabled);
     if(!IsOpen()){return Base;}
     const int32 Top=Base+1;
-    const double Now=UiNow();
+    const LDUIPaint::FContext Paint(Elements,Top,Geometry,Style.GetColorAndOpacityTint().A*(Backdrop?Backdrop->GetRenderOpacity():1.f));
     // A column that takes nothing of the hovered or held component dims its head (.col.off); the ones that take it light up
     // in the backdrop.
     if(Storage.IsValid()&&!Storage->Focus().Drops.IsEmpty())
@@ -1332,7 +1514,7 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
             const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
             if(Focus.Drops.ContainsByPredicate([Id](const LDHUD::FComponentDrop& Drop){return Drop.Column==Id;})||!WorkshopHasArea(Rects.Column[Index])){continue;}
             const FBox2D& Column=Rects.Column[Index];
-            LDUIPaint::Shape(Elements,Top,Geometry,LDUIShapes::EShape::Rounded,WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight),6.f,
+            Paint.Shape(Top,LDUIShapes::EShape::Rounded,WorkshopBox(Column.Min.X,Column.Min.Y,Column.Max.X,Column.Min.Y+Rects.HeadHeight),6.f,
                 LDUIPaint::FFill::Solid(LDUIPaint::Hex(0x0C1019,.7f)));
         }
     }
@@ -1384,14 +1566,15 @@ int32 ULDWorkshop::NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,
                 {
                     const FVector2D B=End.Key;
                     const float Mid=float(A.X+B.X)*.5f;
-                    LDUIShapes::Stroke(Elements,Top,Geometry,{A,FVector2D(Mid,A.Y),FVector2D(Mid,B.Y),B},Ink,bLit?3.f:2.f);
-                    for(const FVector2D& Dot:{A,B}){LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Dot-FVector2D(4,4),Dot+FVector2D(4,4)),Ink,4.f);}
+                    Paint.Stroke(Top,{A,FVector2D(Mid,A.Y),FVector2D(Mid,B.Y),B},Ink,bLit?3.f:2.f);
+                    for(const FVector2D& Dot:{A,B}){Paint.Fill(Top+1,FBox2D(Dot-FVector2D(4,4),Dot+FVector2D(4,4)),Ink,4.f);}
                     if(!End.Value.IsEmpty())
                     {
                         const FVector2D Label(Mid-30.f,float(FMath::Min(A.Y,B.Y)+FMath::Abs(B.Y-A.Y)*.5f)-11.f);
-                        LDUIShapes::Fill(Elements,Top+1,Geometry,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIBase.CopyWithNewOpacity(.92f),11.f);
-                        LDUIShapes::Frame(Elements,Top+1,Geometry,LDUIShapes::EShape::Rounded,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIReplace,1.5f,11.f);
-                        FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(FVector2D(60.f,22.f),FSlateLayoutTransform(Label+FVector2D(14.f,2.f))),End.Value,Font,ESlateDrawEffect::None,LDHUDStyle::UIText);
+                        Paint.Fill(Top+1,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIBase.CopyWithNewOpacity(.92f),11.f);
+                        Paint.Frame(Top+1,LDUIShapes::EShape::Rounded,FBox2D(Label,Label+FVector2D(60.f,22.f)),LDHUDStyle::UIReplace,1.5f,11.f);
+                        FSlateDrawElement::MakeText(Elements,Top+2,Geometry.ToPaintGeometry(FVector2D(60.f,22.f),FSlateLayoutTransform(Label+FVector2D(14.f,2.f))),
+                            End.Value,Font,ESlateDrawEffect::None,Paint.Fade(LDHUDStyle::UIText));
                     }
                 }
             }

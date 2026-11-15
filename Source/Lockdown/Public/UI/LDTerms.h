@@ -108,6 +108,30 @@ inline constexpr TCHAR PickRepeatedBase[]=TEXT("重复哪个基础构件：");
 inline constexpr TCHAR TargetDash[]=TEXT("冲刺(D)");
 inline constexpr TCHAR TargetSelf[]=TEXT("自身");
 inline constexpr TCHAR TargetConflict[]=TEXT("同形态的构件不能装在同一处，拖到它上面替换");
+inline constexpr TCHAR WorkshopPreview[]=TEXT("数值变化");
+inline constexpr TCHAR WorkshopPreviewPartial[]=TEXT("数值变化 · 部分");
+inline constexpr TCHAR WorkshopPreviewSnapshot[]=TEXT("当前快照 · 未列出的效果以规则说明和实际结算为准");
+inline constexpr TCHAR WorkshopPreviewSync[]=TEXT("正在同步构筑与战斗数据");
+inline constexpr TCHAR WorkshopPreviewWaiting[]=TEXT("等待服务器回执");
+inline constexpr TCHAR WorkshopPreviewChoice[]=TEXT("选择绑定后显示变化");
+inline constexpr TCHAR WorkshopPreviewUnavailable[]=TEXT("暂时无法计算精确变化");
+inline constexpr TCHAR WorkshopPreviewConditional[]=TEXT("其他效果见规则说明与实际结算");
+inline constexpr TCHAR WorkshopPreviewNoChange[]=TEXT("当前没有数值变化");
+inline constexpr TCHAR WorkshopKnockback[]=TEXT("击退");
+inline constexpr TCHAR WorkshopDuration[]=TEXT("基础时长");
+inline constexpr TCHAR WorkshopArea[]=TEXT("区域");
+inline constexpr TCHAR WorkshopChain[]=TEXT("连锁");
+inline constexpr TCHAR WorkshopEffect[]=TEXT("效果");
+inline constexpr TCHAR WorkshopDistance[]=TEXT("距离");
+inline constexpr TCHAR WorkshopRadius[]=TEXT("半径");
+inline constexpr TCHAR WorkshopCount[]=TEXT("次数");
+inline constexpr TCHAR WorkshopBase[]=TEXT("基础值");
+inline constexpr TCHAR WorkshopDamageScale[]=TEXT("伤害倍率");
+inline constexpr TCHAR WorkshopContactScale[]=TEXT("接触伤害倍率");
+inline constexpr TCHAR WorkshopCooldown[]=TEXT("冷却");
+inline constexpr TCHAR WorkshopRange[]=TEXT("射程");
+inline constexpr TCHAR WorkshopProjectileRadius[]=TEXT("投射物半径");
+inline constexpr TCHAR WorkshopLineHalfWidth[]=TEXT("判定半宽");
 inline FString InstalledOn(const FString& Target){return FString::Printf(TEXT("（装在：%s）"),*Target);}
 inline FString InstalledRepeating(const FString& Target,const FString& Base){return FString::Printf(TEXT("（%s · 重复 %s）"),*Target,*Base);}
 inline constexpr TCHAR ElementFire[]=TEXT("火");
@@ -138,6 +162,12 @@ inline constexpr TCHAR ReplaceAtRest[]=TEXT("休息时才能替换");
 inline FString UnspentPoints(int64 Count){return FString::Printf(TEXT("未分配点数 %lld"),Count);}
 // #227 构件库（HUD 中央右侧的牌堆）与展开后的安装列：本体、Q/W/E 与冲刺(D) 各一列。
 inline constexpr TCHAR Storage[]=TEXT("构件库");
+inline constexpr TCHAR StorageEmpty[]=TEXT("构件库为空");
+inline constexpr TCHAR StorageNoMatches[]=TEXT("没有符合的构件");
+inline constexpr TCHAR StorageNoRoom[]=TEXT("构件库空间不足，暂时无法显示");
+inline constexpr TCHAR StoragePreviousPage[]=TEXT("上一页");
+inline constexpr TCHAR StorageNextPage[]=TEXT("下一页");
+inline constexpr TCHAR PendingNoRoom[]=TEXT("待处理区空间不足，暂时无法完整显示");
 inline constexpr TCHAR ColumnBody[]=TEXT("本体");
 inline constexpr TCHAR ColumnEmptySlot[]=TEXT("空技能槽");
 inline constexpr TCHAR DropHere[]=TEXT("放这里");
@@ -185,6 +215,7 @@ inline constexpr TCHAR OfferStageTitle[]=TEXT("选一个技能");
 inline FString OfferChanceOf(int32 Ordinal,int32 Earned){return FString::Printf(TEXT("机会 %d / %d"),Ordinal,Earned);}
 inline constexpr TCHAR OfferLinks[]=TEXT("可接");
 inline FString OfferLinksLine(const FString& Names){return FString::Printf(TEXT("可接：%s"),*Names);}
+inline FString OfferLinksUnavailable(const FString& Reason){return FString::Printf(TEXT("可接预览不可用：%s"),*Reason);}
 inline FString OfferSkipPoints(int64 Points){return FString::Printf(TEXT("+%lld 点"),Points);}
 inline constexpr TCHAR OfferSkip[]=TEXT("不选");
 inline constexpr TCHAR OfferWaitingName[]=TEXT("选技能机会");

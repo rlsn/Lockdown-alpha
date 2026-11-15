@@ -338,6 +338,8 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() int64 NextThresholdXP = 0;
     UPROPERTY() uint64 ProgressionRevision = 0;
     UPROPERTY() uint64 BuildRevision = 0;
+    // The last build revision Combat installed; inventory-only revisions do not advance it.
+    UPROPERTY() uint64 CombatInstalledRevision = 0;
     // Earned (opening, levels and the max-level XP grants) minus allocated minus permanently spent.
     UPROPERTY() int64 UnspentPoints = 0;
     // One row per stat, in the stats' design order (FLDDemoContentDefinitions::StatsInDesignOrder).

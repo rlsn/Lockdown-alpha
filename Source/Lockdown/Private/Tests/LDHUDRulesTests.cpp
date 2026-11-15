@@ -9,8 +9,13 @@
 #include "Combat/LDCombatTypes.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWorldFeedback.h"
+#include "UI/LDWidgets.h"
+#include "UI/LDWorkshopModel.h"
+#include "UI/LDWorkshopPreview.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
 #include "Internationalization/StringTableCore.h"
@@ -22,6 +27,8 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "PK/LDPKRules.h"
 #include "Engine/Texture2D.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Input/HittestGrid.h"
 #include <limits>
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
@@ -87,6 +94,53 @@ bool HudRegisterApprovedNames(FAutomationTestBase& Test,const FLDDemoContentDefi
     FStringTableRegistry::Get().RegisterStringTable(OutTable,Table);
     return true;
 }
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPaintOpacityTest,"Lockdown.Rules.HUDPaintOpacity",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDPaintOpacityTest::RunTest(const FString& Parameters)
+{
+    if(!FSlateApplication::IsInitialized())
+    {
+        AddError(TEXT("The Slate application is required to exercise the paint layer."));
+        return false;
+    }
+    ULDPaintLayer* Layer=NewObject<ULDPaintLayer>();
+    Layer->Painter=[](const LDUIPaint::FContext& Paint)
+    {
+        const FBox2D Box(FVector2D(8,8),FVector2D(72,72));
+        Paint.Shape(Paint.Layer,LDUIShapes::EShape::Rounded,Box,5.f,LDUIPaint::FFill::Solid(FLinearColor(1,1,1,.8f)));
+        Paint.Edge(Paint.Layer+1,LDUIShapes::EShape::Rounded,Box,5.f,FLinearColor(1,1,1,.6f),2.f);
+        Paint.WithOpacity(.5f).Tile(Paint.Layer+2,Box,1,false,LDUIPaint::ETileState::Normal,nullptr);
+    };
+    const TSharedRef<SWidget> Slate=Layer->TakeWidget();
+    Layer->SetRenderOpacity(.5f);
+    FHittestGrid HitTest;
+    FSlateWindowElementList Draw{TSharedPtr<SWindow>()};
+    const FGeometry Geometry=FGeometry::MakeRoot(FVector2D(80,80),FSlateLayoutTransform());
+    FWidgetStyle ParentStyle;ParentStyle.BlendOpacity(.5f);
+    Slate->Paint(FPaintArgs(nullptr,HitTest,FVector2D::ZeroVector,0.,0.f),Geometry,FSlateRect(0,0,80,80),Draw,0,ParentStyle,true);
+
+    const auto& Gradients=Draw.GetUncachedDrawElements().Get<(uint8)EElementType::ET_Gradient>();
+    TestTrue(TEXT("The layer paints the panel gradient"),!Gradients.IsEmpty()&&!Gradients[0].GradientStops.IsEmpty());
+    if(!Gradients.IsEmpty()&&!Gradients[0].GradientStops.IsEmpty())
+    {
+        TestTrue(TEXT("A panel surface inherits parent and layer opacity"),FMath::IsNearlyEqual(Gradients[0].GradientStops[0].Color.A,.2f,.001f));
+    }
+    const auto& Meshes=Draw.GetUncachedDrawElements().Get<(uint8)EElementType::ET_CustomVerts>();
+    TestTrue(TEXT("The edge and tile paint custom vertices"),Meshes.Num()>1);
+    if(Meshes.Num()>1)
+    {
+        const auto MaxAlpha=[](const FSlateCustomVertsElement& Mesh)
+        {
+            uint8 Max=0;
+            for(const FSlateVertex& Vertex:Mesh.Vertices){Max=FMath::Max(Max,Vertex.Color.A);}
+            return Max;
+        };
+        TestTrue(TEXT("The edge inherits parent and layer opacity"),FMath::Abs(int32(MaxAlpha(Meshes[0]))-38)<=1);
+        bool bTileFaded=true;
+        for(int32 Index=1;Index<Meshes.Num();++Index){bTileFaded&=MaxAlpha(Meshes[Index])<=33;}
+        TestTrue(TEXT("The tile's local opacity also multiplies the inherited opacity"),bTileFaded);
+    }
+    return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMaskTest,"Lockdown.Rules.HUDObservationBoundary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDMaskTest::RunTest(const FString& Parameters)
@@ -1613,6 +1667,156 @@ bool FLDHUDComponentsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDLibraryPagesTest,"Lockdown.Rules.HUDLibraryPages",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDLibraryPagesTest::RunTest(const FString& Parameters)
+{
+    FLDDemoContentDefinitions Content;
+    FLDProgressionView View;View.bValid=true;
+    const auto Add=[&](const TCHAR* Id,ELDDemoComponentKind Kind,ELDDemoComponentTag Tag,bool bInstalled)
+    {
+        FLDDemoComponentDefinition& Definition=Content.Components.AddDefaulted_GetRef();
+        Definition.Id=Id;Definition.Kind=Kind;Definition.Tags.Add(Tag);
+        FLDComponentInstanceView& Owned=View.Components.AddDefaulted_GetRef();
+        Owned.DefinitionId=Id;Owned.bInstalled=bInstalled;
+    };
+    Add(TEXT("library_base"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Projectile,false);
+    Add(TEXT("library_mod"),ELDDemoComponentKind::Mod,ELDDemoComponentTag::Spell,false);
+    Add(TEXT("library_link"),ELDDemoComponentKind::Connector,ELDDemoComponentTag::Projectile,false);
+    Add(TEXT("library_installed"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Projectile,true);
+    Add(TEXT("library_base_second"),ELDDemoComponentKind::Base,ELDDemoComponentTag::Spell,false);
+    const LDWorkshop::FLibraryGroups All=LDWorkshop::CollectLibrary(View,&Content,INDEX_NONE);
+    TestTrue(TEXT("Stored components retain their order within each kind"),All.Counts()==FIntVector(2,1,1)
+        &&All.Items[0][0]==FName(TEXT("library_base"))&&All.Items[0][1]==FName(TEXT("library_base_second")));
+    const LDWorkshop::FLibraryGroups Filtered=LDWorkshop::CollectLibrary(View,&Content,int32(ELDDemoComponentTag::Projectile));
+    TestTrue(TEXT("The use tag hides non-matching and installed components"),Filtered.Counts()==FIntVector(1,0,1)
+        &&Filtered.Items[0][0]==FName(TEXT("library_base"))&&Filtered.Items[2][0]==FName(TEXT("library_link")));
+    TestTrue(TEXT("A tag with no matches is an empty library"),
+        LDWorkshop::CollectLibrary(View,&Content,int32(ELDDemoComponentTag::Defense)).Counts()==FIntVector(0,0,0));
+
+    const FIntVector Counts(21,20,22);
+    const LDWorkshop::FLibraryFit Fit=LDWorkshop::FitLibrary(Counts,412.f,325.f,54.f,1.25f);
+    TestTrue(TEXT("A dense 720p library fits by paging without icons below 36 pixels"),
+        Fit.bFits&&Fit.Pages.Num()>1&&Fit.Icon>=54.f&&Fit.RequiredHeight<=325.f);
+    FIntVector Cursor(0,0,0);
+    for(const LDWorkshop::FLibraryPage& Page:Fit.Pages)
+    {
+        TestTrue(TEXT("Each page continues the preceding group ranges"),Page.First==Cursor);
+        TestTrue(TEXT("Each page contains at least one component"),Page.Counts.X+Page.Counts.Y+Page.Counts.Z>0);
+        Cursor+=Page.Counts;
+        TestTrue(TEXT("Page ranges stay inside the filtered library"),Cursor.X<=Counts.X&&Cursor.Y<=Counts.Y&&Cursor.Z<=Counts.Z);
+    }
+    TestTrue(TEXT("All filtered components occur exactly once"),Cursor==Counts);
+    const LDWorkshop::FLibraryFit Empty=LDWorkshop::FitLibrary(FIntVector(0,0,0),412.f,325.f,54.f,1.25f);
+    TestTrue(TEXT("No matches produce one empty page"),Empty.bFits&&Empty.Pages.Num()==1&&Empty.Pages[0].Counts==FIntVector(0,0,0));
+    const LDWorkshop::FLibraryFit TooSmall=LDWorkshop::FitLibrary(FIntVector(1,0,0),20.f,20.f,54.f,1.25f);
+    TestTrue(TEXT("A rectangle too small for one card reports failure"),!TooSmall.bFits&&TooSmall.Pages.IsEmpty());
+    const float TrayLimit=LDWorkshop::StackedTrayLimit(Counts,412.f,400.f,54.f,1.25f);
+    const LDWorkshop::FLibraryFit Reserved=LDWorkshop::FitLibrary(Counts,412.f,400.f-TrayLimit,54.f,1.25f);
+    TestTrue(TEXT("A stacked pending tray leaves a usable library page at 720p and 125 percent text"),
+        TrayLimit>0.f&&Reserved.bFits&&!Reserved.Pages.IsEmpty()&&Reserved.Pages[0].Counts!=FIntVector::ZeroValue);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPendingPagesTest,"Lockdown.Rules.HUDPendingPages",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDPendingPagesTest::RunTest(const FString& Parameters)
+{
+    const TArray<float> Decisions={90.f,90.f,90.f};
+    const LDWorkshop::FPendingFit Single=LDWorkshop::FitPending(Decisions,270.f,20.f);
+    TestTrue(TEXT("A fitting tray stays on one page"),Single.bFits&&Single.Pages.Num()==1
+        &&Single.Pages[0].First==0&&Single.Pages[0].Count==3);
+    const LDWorkshop::FPendingFit Paged=LDWorkshop::FitPending(Decisions,200.f,20.f);
+    TestTrue(TEXT("Paging reserves the controls and keeps each decision whole"),Paged.bFits&&Paged.Pages.Num()==2
+        &&Paged.Pages[0].First==0&&Paged.Pages[0].Count==2&&Paged.Pages[1].First==2&&Paged.Pages[1].Count==1);
+    const LDWorkshop::FPendingFit Empty=LDWorkshop::FitPending({},0.f,20.f);
+    TestTrue(TEXT("No decisions produce one empty page"),Empty.bFits&&Empty.Pages.Num()==1&&Empty.Pages[0].Count==0);
+    const LDWorkshop::FPendingFit TooSmall=LDWorkshop::FitPending({181.f,90.f},200.f,20.f);
+    TestTrue(TEXT("A decision that cannot fit is reported, not split"),!TooSmall.bFits&&TooSmall.Pages.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkshopPreviewTest,"Lockdown.Rules.HUDWorkshopPreview",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDWorkshopPreviewTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
+    const FLDDemoContentDefinitions& Content=Catalog->Get();
+    FName Table;
+    if(!HudRegisterApprovedNames(*this,Content,Table)){return false;}
+    ON_SCOPE_EXIT{if(!Table.IsNone()){FStringTableRegistry::Get().UnregisterStringTable(Table);}};
+
+    FLDProgressionView View;View.bValid=true;View.Generation=7;View.Life=3;View.LifePhase=ELDLifePhase::Dead;
+    View.Level=1;View.BuildRevision=12;View.CombatInstalledRevision=11;View.CatalogDigest=Content.Identity.Root;
+    FLDActiveSlotView& Active=View.Actives.AddDefaulted_GetRef();Active.DefinitionId=TEXT("active_pants_down");
+    FLDComponentInstanceView& Component=View.Components.AddDefaulted_GetRef();
+    Component.DefinitionId=TEXT("component_hold_down");Component.Source=ELDComponentSource::BuildReward;Component.SourceLevel=1;
+    const FLDGrowthBuild Build=LDProgression::BuildFromView(Content,View);
+    const FLDAttributeProjectionResult Projected=LDCombatSourceRules::ProjectBuildInput(
+        LDProgression::CombatProjectionInput(&Content,Build),*Catalog);
+    if(!TestTrue(TEXT("The current build projects"),Projected.IsSuccess())){return false;}
+    FLDCombatOwnerView Combat;Combat.Generation=7;Combat.Life=3;Combat.InstalledBuildRevision=11;Combat.AsOfMs=1000;
+    for(const FLDAttributeContributions& Contribution:Projected.Value->Contributions)
+    {
+        FLDCombatAttributeRowView& Row=Combat.Attributes.AddDefaulted_GetRef();
+        Row.Attribute=uint8(Contribution.Attribute);Row.Final=Contribution.Final;
+    }
+    LDWorkshopPreview::FInput Input;Input.Content=Catalog.Get();Input.Progression=&View;Input.Combat=&Combat;
+    Input.Match=7;Input.Stage=LDProgression::EMatchStage::Live;Input.bClock=true;Input.NowMs=1000;
+    Input.Component=Component.DefinitionId;Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
+    using EStatus=LDWorkshopPreview::EStatus;
+    const LDWorkshopPreview::FResult Preview=LDWorkshopPreview::Compare(Input);
+    TestTrue(TEXT("M04 compares the compiled control duration and cooldown without claiming a conditional effect"),
+        Preview.Status==EStatus::Ready&&!Preview.bPartial
+        &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
+            {return Line.Label.Contains(LDTerms::Root)&&Line.Before==TEXT("1.5s")&&Line.After==TEXT("1.875s");})
+        &&Preview.Lines.ContainsByPredicate([](const LDWorkshopPreview::FLine& Line)
+            {return Line.Label.Contains(LDTerms::WorkshopCooldown)&&Line.Before==TEXT("12s")&&Line.After==TEXT("15s");}));
+    ++View.CombatInstalledRevision;
+    TestTrue(TEXT("Mismatched installed revisions wait for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
+    --View.CombatInstalledRevision;
+    View.CatalogDigest.Bytes[0]^=0xFF;
+    TestTrue(TEXT("A different catalog waits for synchronization"),LDWorkshopPreview::Compare(Input).Status==EStatus::Synchronizing);
+    View.CatalogDigest=Content.Identity.Root;
+    Input.Drop.Elements={ELDDemoElement::Fire,ELDDemoElement::Water};
+    TestTrue(TEXT("An unresolved element binding asks for a choice"),LDWorkshopPreview::Compare(Input).Status==EStatus::ChoiceRequired);
+    Input.Drop.Elements.Reset();
+    Component.DefinitionId=TEXT("component_long_arm");Input.Component=Component.DefinitionId;Input.Drop=LDHUD::FComponentDrop();
+    const LDWorkshopPreview::FResult Conditional=LDWorkshopPreview::Compare(Input);
+    TestTrue(TEXT("Target-dependent effects are explicitly marked partial"),
+        Conditional.Status==EStatus::Ready&&Conditional.bPartial&&Conditional.Lines.IsEmpty());
+
+    View.LifePhase=ELDLifePhase::Alive;
+    Component.DefinitionId=TEXT("component_hold_down");Input.Component=Component.DefinitionId;
+    Input.Drop.Kind=ELDComponentTargetKind::Active;Input.Drop.TargetId=Active.DefinitionId;
+    Combat.bPreviewLiving=true;
+    Combat.MaxHPP2=Projected.Value->Final.MaxHPP2;Combat.HPP2=Combat.MaxHPP2/2;
+    Combat.MaxMPP2=Projected.Value->Final.MaxMPP2;Combat.MPP2=Combat.MaxMPP2/2;
+    FLDDemoStatBonus Haste;Haste.Stat=ELDDemoBonusStat::CooldownHasteFlat;Haste.Amount=1500;
+    FLDCombatPreviewBonus& Bonus=Combat.PreviewBonuses.AddDefaulted_GetRef();
+    Bonus.Stats.Add(Haste);Bonus.ExpiresAtMs=2000;
+    FLDTemporaryAttributeTerms Temporary;Temporary.Bonuses.Add(Haste);
+    const FLDAttributeProjectionResult Effective=LDAttributeProjection::ApplyTemporary(Projected.Value.GetValue(),Temporary,*Catalog);
+    if(!TestTrue(TEXT("The living owner projects its temporary haste"),Effective.IsSuccess())){return false;}
+    Combat.Attributes.Reset();
+    for(const FLDAttributeContributions& Contribution:Effective.Value->Contributions)
+    {
+        FLDCombatAttributeRowView& Row=Combat.Attributes.AddDefaulted_GetRef();
+        Row.Attribute=uint8(Contribution.Attribute);Row.Final=Contribution.Final;
+    }
+    int64 OldCooldown=0,NewCooldown=0;FString Error;
+    if(!TestTrue(TEXT("Both expected cooldowns use the authority formula"),
+        LDTactical::CooldownDurationMs(12000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,OldCooldown,Error)
+        &&LDTactical::CooldownDurationMs(15000,Effective.Value->Final.CooldownHasteP2,Content.Formulas.HasteScaleP2,NewCooldown,Error)))
+    {return false;}
+    const LDWorkshopPreview::FResult Live=LDWorkshopPreview::Compare(Input);
+    const LDWorkshopPreview::FLine* Cooldown=Live.Lines.FindByPredicate([](const LDWorkshopPreview::FLine& Line)
+        {return Line.Label.Contains(LDTerms::WorkshopCooldown);});
+    TestTrue(TEXT("A living owner's temporary haste is reflected in the preview"),
+        Live.Status==EStatus::Ready&&!Live.bPartial&&Cooldown
+        &&FMath::IsNearlyEqual(FCString::Atod(*Cooldown->Before),double(OldCooldown)/1000.,.0001)
+        &&FMath::IsNearlyEqual(FCString::Atod(*Cooldown->After),double(NewCooldown)/1000.,.0001));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDWorkshopTargetsTest,"Lockdown.Rules.HUDWorkshopTargets",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
 {
@@ -1738,6 +1942,75 @@ bool FLDHUDWorkshopTargetsTest::RunTest(const FString& Parameters)
     Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Receipt.Header.Reason=uint16(ELDGrowthReason::TargetConflict);
     TestEqualSensitive(TEXT("A refused install names the conflict"),LDHUD::BuildReceiptText(Receipt,nullptr),
         TEXT("没有生效：")+FString(LDTerms::TargetConflict));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDOfferLinksTest,"Lockdown.Rules.HUDOfferLinks",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDOfferLinksTest::RunTest(const FString& Parameters)
+{
+    AddExpectedError(TEXT("LD_HUD_DISPLAY_TEXT_MISSING"),EAutomationExpectedErrorFlags::Contains,0);
+    FLDDemoContentDefinitions Content;
+    Content.Progression.ActiveSlots=3;Content.Progression.MaxLevel=5;
+    Content.Progression.WorkshopCapacityBase=3;Content.Progression.WorkshopCapacityLevelsPerSlot=1;
+    for(const TCHAR* Id:{TEXT("offer_old"),TEXT("offer_new"),TEXT("offer_other1"),TEXT("offer_other2")})
+    {Content.Abilities.AddDefaulted_GetRef().Id=Id;}
+    const auto Add=[&Content](const TCHAR* Id,ELDDemoComponentKind Kind)->FLDDemoComponentDefinition&
+    {FLDDemoComponentDefinition& Row=Content.Components.AddDefaulted_GetRef();Row.Id=Id;Row.Kind=Kind;return Row;};
+    {
+        FLDDemoComponentDefinition& Bound=Add(TEXT("offer_bound"),ELDDemoComponentKind::Base);
+        Bound.Binding=ELDDemoComponentBinding::ActiveElement;Bound.BindActives={TEXT("offer_new")};
+        Bound.BindElements={ELDDemoElement::Fire};Bound.Form=TEXT("offer_form");
+    }
+    Add(TEXT("offer_mate"),ELDDemoComponentKind::Base).Form=TEXT("offer_form");
+    Add(TEXT("offer_host"),ELDDemoComponentKind::Base);
+    Add(TEXT("offer_direct"),ELDDemoComponentKind::Mod).TargetActives={TEXT("offer_old"),TEXT("offer_new")};
+    {
+        FLDDemoComponentDefinition& Repeat=Add(TEXT("offer_repeat"),ELDDemoComponentKind::Connector);
+        Repeat.TargetActives={TEXT("offer_new")};Repeat.ExtraBases={TEXT("offer_host")};
+    }
+    const auto Owned=[](const TCHAR* Id)
+    {FLDComponentInstanceView Row;Row.DefinitionId=Id;Row.Source=ELDComponentSource::BuildReward;Row.SourceLevel=1;return Row;};
+    FLDProgressionView View;View.bValid=true;View.Level=1;View.bHasActiveOffer=true;
+    View.ActiveOffer.Options={FName(TEXT("offer_new"))};
+    FLDActiveSlotView& Old=View.Actives.AddDefaulted_GetRef();Old.DefinitionId=TEXT("offer_old");Old.Slot=0;
+    View.Components={Owned(TEXT("offer_bound")),Owned(TEXT("offer_mate")),Owned(TEXT("offer_host")),
+        Owned(TEXT("offer_direct")),Owned(TEXT("offer_repeat"))};
+    const auto Preview=[&](const FLDProgressionView& From)
+    {return LDWorkshop::LinkableComponents(TEXT("offer_new"),From,&Content,LDProgression::EMatchStage::Live,ELDLifePhase::Alive);};
+    LDWorkshop::FOfferLinks Links=Preview(View);
+    TestTrue(TEXT("A learned offer lists only owned components with a legal install"),
+        Links.Failure==ELDGrowthReason::None&&Links.bLearned&&Links.Components.Contains(TEXT("offer_bound"))
+        &&Links.Components.Contains(TEXT("offer_direct"))&&!Links.Components.Contains(TEXT("offer_repeat")));
+    TestTrue(TEXT("The preview does not learn or install anything in the view"),
+        View.Actives.Num()==1&&!View.Components[0].bInstalled&&!View.Components[3].bInstalled);
+
+    View.Components[2].bInstalled=View.Components[2].bEverInstalled=true;
+    Links=Preview(View);
+    TestTrue(TEXT("A connector needs an installed repeatable base"),Links.Components.Contains(TEXT("offer_repeat")));
+    View.Components[1].bInstalled=View.Components[1].bEverInstalled=true;
+    Links=Preview(View);
+    TestFalse(TEXT("A bound base cannot conflict with an installed form mate"),Links.Components.Contains(TEXT("offer_bound")));
+
+    Content.Progression.WorkshopCapacityBase=2;
+    Links=Preview(View);
+    TestTrue(TEXT("A full workshop offers no stored component on the newly learned slot"),Links.bLearned&&Links.Components.IsEmpty());
+    View.Components[1].bInstalled=false;
+    View.Components[3].bInstalled=View.Components[3].bEverInstalled=true;
+    View.Components[3].Target.Kind=ELDComponentTargetKind::Active;View.Components[3].Target.Definition=TEXT("offer_old");
+    Links=Preview(View);
+    TestTrue(TEXT("An installed component can move when its own slot is freed"),
+        Links.Components==TArray<FName>{FName(TEXT("offer_direct"))});
+    for(uint8 Slot=1;Slot<3;++Slot)
+    {
+        FLDActiveSlotView& Held=View.Actives.AddDefaulted_GetRef();Held.Slot=Slot;
+        Held.DefinitionId=Slot==1?FName(TEXT("offer_other1")):FName(TEXT("offer_other2"));
+    }
+    Links=Preview(View);
+    TestTrue(TEXT("A full set of active slots stores the choice and shows no links"),
+        Links.Failure==ELDGrowthReason::None&&!Links.bLearned&&Links.Components.IsEmpty());
+    TestTrue(TEXT("An unavailable catalog reports a failure rather than a valid empty result"),
+        LDWorkshop::LinkableComponents(TEXT("offer_new"),View,nullptr,LDProgression::EMatchStage::Live,ELDLifePhase::Alive).Failure
+            ==ELDGrowthReason::DataInvalid);
     return true;
 }
 

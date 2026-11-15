@@ -48,7 +48,7 @@ class LOCKDOWN_API ULDPaintLayer : public UWidget
 {
     GENERATED_BODY()
 public:
-    TFunction<void(FSlateWindowElementList&,int32,const FGeometry&)> Painter;
+    TFunction<void(const LDUIPaint::FContext&)> Painter;
     virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -134,7 +134,7 @@ namespace LDWidgets
     // Rebuilds Rich's two styles at Size (the text-size preference).
     LOCKDOWN_API void SetRichTextSize(URichTextBlock* Rich,int32 Size);
     LOCKDOWN_API int32 RichTextSize(const URichTextBlock* Rich);
-    // A clipped box that scales its content down (never up, never below 90%) to fit; RefitScale applies it each tick.
+    // A box that scales its content down, never up, to fit both dimensions; RefitScale applies it each tick.
     LOCKDOWN_API UScaleBox* Fit(UWidgetTree* Tree,UWidget* Content);
     LOCKDOWN_API void RefitScale(UScaleBox* Fit);
     // Plays an interface cue through the game instance's audio subsystem (quietly nothing before it is ready).

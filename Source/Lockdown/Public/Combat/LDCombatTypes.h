@@ -430,6 +430,38 @@ struct FLDCombatCueFacts
     UPROPERTY() uint8 LastHitFlags=0;                 // LDObservation::EHitFlags for this hit
 };
 
+USTRUCT()
+struct FLDCombatPreviewBonus
+{
+    GENERATED_BODY()
+    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    UPROPERTY() int64 ExpiresAtMs=0;
+};
+
+USTRUCT()
+struct FLDCombatPreviewSlow
+{
+    GENERATED_BODY()
+    UPROPERTY() int64 RatioBp=0;
+    UPROPERTY() int64 ExpiresAtMs=0;
+};
+
+USTRUCT()
+struct FLDCombatPreviewWideToken
+{
+    GENERATED_BODY()
+    UPROPERTY() FName Component;
+    UPROPERTY() FName Host;
+    UPROPERTY() int64 RatioBp=0;
+    UPROPERTY() int64 ExpiresAtMs=0;
+
+    bool operator==(const FLDCombatPreviewWideToken& Other) const
+    {
+        return Component==Other.Component && Host==Other.Host && RatioBp==Other.RatioBp && ExpiresAtMs==Other.ExpiresAtMs;
+    }
+    bool operator!=(const FLDCombatPreviewWideToken& Other) const { return !(*this==Other); }
+};
+
 // Single owner publication of the Combat self projection; consumers reject an older Revision.
 USTRUCT()
 struct FLDCombatOwnerView
@@ -449,6 +481,15 @@ struct FLDCombatOwnerView
     UPROPERTY() double HPRegenPerSec=0;
     UPROPERTY() double MPRegenPerSec=0;
     UPROPERTY() uint64 SourceRevision=0;
+    // Inputs needed to reproduce this owner's build and temporary projection without mutating authority state.
+    UPROPERTY() uint64 InstalledBuildRevision=0;
+    UPROPERTY() bool bPreviewLiving=false;
+    UPROPERTY() bool bPreviewFinalField=false;
+    UPROPERTY() TArray<FLDDemoStatBonus> PreviewDevBonuses;
+    UPROPERTY() TArray<FLDCombatPreviewBonus> PreviewBonuses;
+    UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewMoveSlows;
+    UPROPERTY() TArray<FLDCombatPreviewSlow> PreviewAttackSlows;
+    UPROPERTY() FLDCombatPreviewWideToken PreviewWideToken;
     UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Dash
     UPROPERTY() TArray<FLDCombatStatusView> Statuses;
     UPROPERTY() int64 NextAttackAtMs=0;

@@ -55,12 +55,155 @@ LDWorkshop::FComponentFacts LDWorkshop::ComponentFacts(FName Component,const FLD
     }
     return Facts;
 }
+LDWorkshop::FLibraryGroups LDWorkshop::CollectLibrary(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,int32 TagFilter)
+{
+    FLibraryGroups Groups;
+    if(!Progression.bValid){return Groups;}
+    for(const FLDComponentInstanceView& Owned:Progression.Components)
+    {
+        if(Owned.bInstalled){continue;}
+        const FComponentFacts Facts=ComponentFacts(Owned.DefinitionId,Content);
+        const int32 Kind=int32(Facts.Kind);
+        if(Kind<0||Kind>=3||(TagFilter!=INDEX_NONE&&!Facts.Tags.Contains(static_cast<ELDDemoComponentTag>(TagFilter)))){continue;}
+        Groups.Items[Kind].Add(Owned.DefinitionId);
+    }
+    return Groups;
+}
 LDWorkshop::FLibraryTier LDWorkshop::LibraryTier(int32 Count)
 {
     FLibraryTier Tier;
     if(Count>30){Tier.Icon=46.f;Tier.PerRow=7;}
     else if(Count>15){Tier.Icon=56.f;Tier.PerRow=6;}
     return Tier;
+}
+namespace
+{
+float WorkshopLibraryLabelHeight(float TextScale)
+{
+    return FMath::CeilToFloat(12.f*TextScale*2.7f);
+}
+float WorkshopLibraryHeight(FIntVector Counts,int32 PerRow,float Icon,float TextScale,bool bCompact)
+{
+    if(PerRow<1){return TNumericLimits<float>::Max();}
+    const float Head=FMath::Max(12.f,FMath::CeilToFloat(13.f*TextScale*1.35f));
+    const float Label=WorkshopLibraryLabelHeight(TextScale);
+    const float Row=Icon+(bCompact?3.f:6.f)+Label;
+    float Height=0.f;
+    for(int32 Kind=0;Kind<3;++Kind)
+    {
+        const int32 Count=Counts[Kind];
+        if(Count<=0){continue;}
+        const int32 Rows=(Count+PerRow-1)/PerRow;
+        Height+=(Kind?(bCompact?6.f:16.f):(bCompact?2.f:4.f))+Head+(bCompact?4.f:10.f)
+            +Rows*Row+(Rows-1)*(bCompact?3.f:8.f);
+    }
+    return Height;
+}
+}
+LDWorkshop::FLibraryFit LDWorkshop::FitLibrary(FIntVector Counts,float Width,float Height,float MinIcon,float TextScale)
+{
+    FLibraryFit Result;
+    const int32 Total=Counts.X+Counts.Y+Counts.Z;
+    Result.LabelHeight=WorkshopLibraryLabelHeight(TextScale);
+    const float Tier=FMath::Max(LibraryTier(Total).Icon,MinIcon);
+    Result.Icon=Tier;
+    if(Total<=0){Result.bFits=true;Result.Pages.AddDefaulted();return Result;}
+    for(const bool bCompact:{false,true})
+    {
+        for(const float Choice:{Tier,56.f,46.f})
+        {
+            if(Choice>Tier){continue;}
+            const float Icon=FMath::Max(Choice,MinIcon);
+            const float Gap=bCompact?4.f:14.f;
+            const int32 PerRow=FMath::FloorToInt((Width+Gap)/(Icon+10.f+Gap));
+            const float Needed=WorkshopLibraryHeight(Counts,PerRow,Icon,TextScale,bCompact);
+            Result.Icon=Icon;Result.PerRow=PerRow;Result.RequiredHeight=Needed;Result.bCompact=bCompact;
+            if(PerRow>0&&Needed<=Height)
+            {
+                Result.bFits=true;
+                Result.Pages.AddDefaulted_GetRef().Counts=Counts;
+                return Result;
+            }
+        }
+    }
+
+    Result.Icon=FMath::Max(46.f,MinIcon);
+    Result.bCompact=true;
+    Result.PerRow=FMath::FloorToInt((Width+4.f)/(Result.Icon+14.f));
+    Result.RequiredHeight=0.f;
+    if(Result.PerRow<1){return Result;}
+    FIntVector Cursor(0,0,0);
+    while(Cursor!=Counts)
+    {
+        FLibraryPage Page;
+        Page.First=Cursor;
+        for(int32 Kind=0;Kind<3;++Kind)
+        {
+            while(Cursor[Kind]<Counts[Kind])
+            {
+                FIntVector Next=Page.Counts;
+                ++Next[Kind];
+                if(WorkshopLibraryHeight(Next,Result.PerRow,Result.Icon,TextScale,true)>Height){break;}
+                Page.Counts=Next;
+                ++Cursor[Kind];
+            }
+            if(Cursor[Kind]<Counts[Kind]){break;}
+        }
+        if(Page.Counts==FIntVector::ZeroValue){Result.Pages.Reset();return Result;}
+        Result.RequiredHeight=FMath::Max(Result.RequiredHeight,WorkshopLibraryHeight(Page.Counts,Result.PerRow,Result.Icon,TextScale,true));
+        Result.Pages.Add(Page);
+    }
+    Result.bFits=true;
+    return Result;
+}
+float LDWorkshop::StackedTrayLimit(FIntVector Counts,float Width,float AvailableHeight,float MinIcon,float TextScale)
+{
+    FIntVector First=FIntVector::ZeroValue;
+    for(int32 Kind=0;Kind<3;++Kind)
+    {
+        if(Counts[Kind]>0){First[Kind]=1;break;}
+    }
+    float Reserve=36.f;
+    if(First!=FIntVector::ZeroValue)
+    {
+        const FLibraryFit Minimum=FitLibrary(First,Width,TNumericLimits<float>::Max(),MinIcon,TextScale);
+        if(!Minimum.bFits){return 0.f;}
+        Reserve=FMath::Max(Reserve,Minimum.RequiredHeight);
+    }
+    return FMath::Max(0.f,AvailableHeight-Reserve);
+}
+LDWorkshop::FPendingFit LDWorkshop::FitPending(const TArray<float>& Heights,float Height,float PagerHeight)
+{
+    FPendingFit Result;
+    if(!FMath::IsFinite(Height)||!FMath::IsFinite(PagerHeight)||Height<0.f||PagerHeight<0.f){return Result;}
+    float Total=0.f;
+    for(const float Row:Heights)
+    {
+        if(!FMath::IsFinite(Row)||Row<=0.f){return Result;}
+        Total+=Row;
+    }
+    if(Total<=Height)
+    {
+        Result.Pages.Add({0,Heights.Num()});Result.bFits=true;return Result;
+    }
+    const float Room=Height-PagerHeight;
+    if(Room<=0.f){return Result;}
+    FPendingPage Page;
+    float Used=0.f;
+    for(int32 Index=0;Index<Heights.Num();++Index)
+    {
+        const float Row=Heights[Index];
+        if(Row>Room){Result.Pages.Reset();return Result;}
+        if(Used+Row>Room)
+        {
+            Result.Pages.Add(Page);
+            Page={Index,0};Used=0.f;
+        }
+        ++Page.Count;Used+=Row;
+    }
+    if(Page.Count>0){Result.Pages.Add(Page);}
+    Result.bFits=true;
+    return Result;
 }
 TArray<ELDDemoElement> LDWorkshop::ActiveElements(FName Active,const FLDDemoContentDefinitions* Content)
 {
@@ -207,14 +350,52 @@ TArray<FString> LDWorkshop::TriggerChips(FName Component,const FLDDemoContentDef
     }
     return Out;
 }
-TArray<FName> LDWorkshop::LinkableComponents(FName Active,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+LDWorkshop::FOfferLinks LDWorkshop::LinkableComponents(FName Active,const FLDProgressionView& Progression,
+    const FLDDemoContentDefinitions* Content,LDProgression::EMatchStage Stage,ELDLifePhase LifePhase)
 {
-    TArray<FName> Out;
+    FOfferLinks Out;
+    if(!Content||!Progression.bValid){Out.Failure=ELDGrowthReason::DataInvalid;return Out;}
+    if(!Progression.bHasActiveOffer||!Progression.ActiveOffer.Options.Contains(Active))
+    {Out.Failure=ELDGrowthReason::InvalidOption;return Out;}
+    LDProgression::FBuildContext Context;Context.Stage=Stage;Context.LifePhase=LifePhase;
+    FLDGrowthBuild Current=LDProgression::BuildFromView(*Content,Progression);
+    Current.FinalMod=Progression.FinalMod;
+    FLDGrowthBuild Chosen;
+    LDProgression::FChoiceOutcome Choice;
+    Out.Failure=LDProgression::ApplyActiveChoice(*Content,Current,Active,true,FLDBuildCommand::AnySlot,Context,Chosen,Choice);
+    if(Out.Failure!=ELDGrowthReason::None||Choice.Result!=ELDBuildChoiceResult::Learned){return Out;}
+    Out.bLearned=true;
+    FLDProgressionView Projected=Progression;
+    FLDActiveSlotView& Learned=Projected.Actives.AddDefaulted_GetRef();Learned.DefinitionId=Active;Learned.Slot=Choice.Slot;
+    const LDHUD::EStorageColumn Column=LDHUD::SlotColumn(Choice.Slot);
     const FString ActiveId=Active.ToString();
     for(const FLDComponentInstanceView& Owned:Progression.Components)
     {
         const FLDDemoComponentDefinition* Definition=WorkshopComponent(Content,Owned.DefinitionId);
-        if(Definition&&(Definition->TargetActives.Contains(ActiveId)||Definition->BindActives.Contains(ActiveId))){Out.AddUnique(Owned.DefinitionId);}
+        if(!Definition||(!Definition->TargetActives.Contains(ActiveId)&&!Definition->BindActives.Contains(ActiveId))){continue;}
+        FLDGrowthBuild Available=Chosen;
+        if(Owned.bInstalled&&LDProgression::ApplyUninstallComponent(*Content,Chosen,Owned.DefinitionId,Context,Available)!=ELDGrowthReason::None){continue;}
+        TArray<LDHUD::FComponentDrop> Drops=LDHUD::ComponentDrops(Owned.DefinitionId,Projected,Content);
+        if(!Owned.bInstalled){Drops.Append(LDHUD::ReplaceDrops(Owned.DefinitionId,Projected,Content));}
+        bool bLegal=false;
+        for(const LDHUD::FComponentDrop& Drop:Drops)
+        {
+            if(Drop.Column!=Column){continue;}
+            for(int32 Element=0;Element<FMath::Max(1,Drop.Elements.Num())&&!bLegal;++Element)
+            {
+                for(int32 Base=0;Base<FMath::Max(1,Drop.Bases.Num())&&!bLegal;++Base)
+                {
+                    FLDComponentTarget Target;Target.Kind=Drop.Kind;Target.Definition=Drop.TargetId;Target.BoundActive=Drop.BindActive;
+                    Target.Element=Drop.Elements.IsValidIndex(Element)?Drop.Elements[Element]:ELDDemoElement::None;
+                    Target.BoundComponent=Drop.Bases.IsValidIndex(Base)?Drop.Bases[Base]:NAME_None;
+                    FLDGrowthBuild Installed;
+                    bLegal=LDProgression::ApplyInstallComponent(*Content,Available,Owned.DefinitionId,Target,Context,Installed,Drop.Replacing)
+                        ==ELDGrowthReason::None;
+                }
+            }
+            if(bLegal){break;}
+        }
+        if(bLegal){Out.Components.Add(Owned.DefinitionId);}
     }
     return Out;
 }

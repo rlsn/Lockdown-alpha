@@ -76,7 +76,7 @@ public:
     TArray<FName> ConfirmWarnings() const;
     // The tray's distance from the screen's bottom-right corner (the HUD keeps it right above the 构筑 button), and the width
     // its rows wrap at (0: four cards); in the workshop the rows wrap inside the pending area.
-    void SetTrayInset(float Right,float Bottom,float Width=0.f);
+    void SetTrayInset(float Right,float Bottom,float Width=0.f,float Height=0.f);
     // An offer card click: chooses that active with bLearnIfPossible.
     bool ChooseOffer(int32 Index);
     bool SkipOffer();
@@ -198,6 +198,13 @@ private:
         TArray<FTrayCard> Options;
         FTrayCard Points;
     };
+    enum class ETrayGroup : uint8 { Blueprint,ComponentChoice,OpeningBase,Offer,FinalMod,FinalSource };
+    struct FTrayUnit
+    {
+        ETrayGroup Group=ETrayGroup::Blueprint;
+        int32 First=0;
+        int32 Count=0;
+    };
     // The trainer's buttons of one pending blueprint, standing on the Q/W/E column heads: "学到" on an empty slot, "替换" on
     // an occupied one (#198 rest only); only the selected blueprint's show.
     struct FBlueprintRow
@@ -222,6 +229,16 @@ private:
     // The tray: its frame (placed over the whole canvas) and the stack of rows.
     UPROPERTY() TObjectPtr<UBorder> TrayFrame;
     UPROPERTY() TObjectPtr<UVerticalBox> Tray;
+    UPROPERTY() TObjectPtr<UHorizontalBox> TrayPager;
+    UPROPERTY() TObjectPtr<ULDCommandButton> TrayPrevious;
+    UPROPERTY() TObjectPtr<ULDCommandButton> TrayNext;
+    UPROPERTY() TObjectPtr<UTextBlock> TrayPageText;
+    TArray<FTrayUnit> TrayUnits;
+    TArray<FIntPoint> TrayPages;
+    int32 TrayPage=0;
+    float TrayAvailableWidth=0.f,TrayAvailableHeight=0.f;
+    bool bTrayOverflow=false,bTrayOverflowReported=false;
+    bool bCompactTray=false,bIconOnlyTray=false;
     UPROPERTY() TObjectPtr<UWidget> OfferGroup;
     UPROPERTY() TObjectPtr<UTextBlock> OfferNumber;
     UPROPERTY() TObjectPtr<UWrapBox> OfferRow;
@@ -353,7 +370,7 @@ private:
     void ShowFace(FTrayCard& Card,const FString& Key,const FString& Name,const FString& IconId,const FString& Glyph,
         const LDHUD::FActionDetailView& Detail);
     // Shows the card as a named card or an icon tile (bTile), enabled or greyed out.
-    void ShowLook(FTrayCard& Card,bool bTile,bool bEnabled);
+    void ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVisible=true);
     FTrayCard& BaseCardAt(int32 Index);
     FChoiceRow& ChoiceRowAt(int32 Index);
     FTrayCard& BlueprintCardAt(int32 Index);
@@ -367,6 +384,8 @@ private:
     void RefreshBlueprints();
     void RefreshRest();
     void UpdateStage();
+    void PlanTrayPages(bool bTiles);
+    bool TrayShows(ETrayGroup Group,int32 Index=0) const;
     void RefreshStage();
     void LayoutLayer();
     void PlaceOnLayer(UWidget* Widget,const FSlateRect& Absolute,FVector2D Alignment,bool bFill=false);
@@ -384,7 +403,7 @@ private:
     ULDCommandButton* GapTargetButtonAt(int32 Index);
     ULDCommandButton* GapFillerButtonAt(int32 Index);
     void BuildDismantleEquation(int32 Inputs);
-    void PaintDismantle(FSlateWindowElementList& Elements,int32 PaintAt,const FGeometry& Geometry) const;
+    void PaintDismantle(const LDUIPaint::FContext& Paint) const;
     // The FillGap / Dismantle pickers and their confirm line still match the latest material services.
     void RefreshMaterials();
     void CloseMaterialPickers();

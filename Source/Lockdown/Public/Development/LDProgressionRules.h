@@ -5,6 +5,7 @@
 #include "Framework/LDMatchTimeline.h"
 
 class FLDDemoContentSnapshot;
+struct FLDBuildProjectionInput;
 struct FLDDemoProgressionDefinition;
 struct FLDDemoContentParameters;
 struct FLDDemoContentDefinitions;
@@ -409,6 +410,8 @@ namespace LDProgression
     // components with their install targets and history), so a client or the AI evaluates FillGap/Dismantle eligibility
     // with the server's own rules. Revision and permanent spend are copied; nothing else is invented.
     LOCKDOWN_API FLDGrowthBuild BuildFromView(const FLDDemoContentDefinitions& Content, const FLDProgressionView& View);
+    // The complete Combat input for a growth build, including whether the selected final rule still has its source.
+    LOCKDOWN_API FLDBuildProjectionInput CombatProjectionInput(const FLDDemoContentDefinitions* Content, const FLDGrowthBuild& Build);
     // Actives a field blueprint may give, in catalog order: every active neither learned nor kept as a blueprint.
     LOCKDOWN_API void EligibleBlueprints(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out);
     // Components of Pool the build does not own, in catalog order.

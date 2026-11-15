@@ -39,9 +39,24 @@ namespace
 constexpr float TrayCardWidth=114.f,TrayCardIcon=64.f,TrayTileSize=54.f,TrayTileIcon=46.f,TrayCardGap=8.f,TrayTileGap=6.f;
 constexpr float TrayIconRadius=7.f,TrayCardPadding=4.f;
 constexpr float TrayWidth=4*TrayCardWidth+3*TrayCardGap;
+constexpr float TrayPagerHeight=32.f,TrayMinIconPixels=36.f;
 static_assert(8*TrayTileSize+7*TrayTileGap<=TrayWidth,"eight grid tiles fit on one tray line");
 static_assert(TrayTileIcon+2*TrayCardPadding<=TrayTileSize,"a grid tile holds its icon");
 constexpr float ServicePanelWidth=540.f;
+float TrayIconSize(bool bTile,float Scale,bool bCompact)
+{
+    const float Preferred=bTile?TrayTileIcon:bCompact?TrayMinIconPixels:TrayCardIcon;
+    return FMath::Max(Preferred,TrayMinIconPixels/FMath::Max(.01f,Scale));
+}
+float TrayCellWidth(bool bTile,float Scale,bool bCompact)
+{
+    return FMath::Max(bTile?TrayTileSize:bCompact?90.f:TrayCardWidth,TrayIconSize(bTile,Scale,bCompact)+2.f*TrayCardPadding);
+}
+float TrayCellHeight(bool bTile,float TextScale,float Scale,bool bCompact)
+{
+    const float Icon=TrayIconSize(bTile,Scale,bCompact);
+    return bTile?Icon+2.f*TrayCardPadding:Icon+2.f*TrayCardPadding+4.f+FMath::CeilToFloat(LDHUDStyle::TypeBody*TextScale*2.7f);
+}
 // #198 G dismantle selection buttons per line (their labels may carry the installed warning).
 // A card's painted face (LDUIPaint::EButton::Card): idle, or chosen in its state's colour at full strength.
 void GrowthTint(ULDCommandButton* Button,const FLinearColor& Color)
@@ -95,6 +110,23 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             // The tray: one row per pending decision, stacked upward from the 构筑 button and right-aligned to it; the offer
             // is nearest the button. Rows and cards are built as needed (the offer's three up front).
             Tray=WidgetTree->ConstructWidget<UVerticalBox>();Tray->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+            TrayPager=WidgetTree->ConstructWidget<UHorizontalBox>();
+            TrayPrevious=LDWidgets::Button(WidgetTree,TEXT("‹"),[this](){if(TrayPage>0){--TrayPage;RefreshAll();}},true,TEXT("GrowthPendingPrevious"));
+            TrayNext=LDWidgets::Button(WidgetTree,TEXT("›"),[this](){if(TrayPage+1<TrayPages.Num()){++TrayPage;RefreshAll();}},true,TEXT("GrowthPendingNext"));
+            TrayPrevious->SetToolTipText(FText::FromString(LDTerms::StoragePreviousPage));
+            TrayNext->SetToolTipText(FText::FromString(LDTerms::StorageNextPage));
+            const auto PagerButton=[this](ULDCommandButton* Button)
+            {
+                auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(32.f);Size->SetHeightOverride(28.f);Size->SetContent(Button);
+                TrayPager->AddChildToHorizontalBox(Size)->SetVerticalAlignment(VAlign_Center);
+            };
+            PagerButton(TrayPrevious);
+            TrayPageText=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeSmall,NAME_None,LDUIFonts::ERole::Number);
+            ScaleNewText(TrayPageText);RowWidgets.Add(TrayPageText);
+            auto* PageSlot=TrayPager->AddChildToHorizontalBox(TrayPageText);PageSlot->SetPadding(FMargin(10.f,0.f));PageSlot->SetVerticalAlignment(VAlign_Center);
+            PagerButton(TrayNext);
+            TrayPager->SetVisibility(ESlateVisibility::Collapsed);
+            auto* PagerSlot=Tray->AddChildToVerticalBox(TrayPager);PagerSlot->SetHorizontalAlignment(HAlign_Right);PagerSlot->SetPadding(FMargin(0.f,0.f,0.f,4.f));
             const auto AddRow=[this](UWidget* Row){auto* RowSlot=Tray->AddChildToVerticalBox(Row);RowSlot->SetHorizontalAlignment(HAlign_Right);RowSlot->SetPadding(FMargin(0,TrayCardGap,0,0));};
             BlueprintCardRow=TrayRow(WidgetTree);AddRow(BlueprintCardRow);
             ChoiceRowList=WidgetTree->ConstructWidget<UVerticalBox>();ChoiceRowList->SetVisibility(ESlateVisibility::SelfHitTestInvisible);AddRow(ChoiceRowList);
@@ -188,7 +220,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
                 Picker->AddChildToVerticalBox(DismantleHeading);
                 auto* Stack=WidgetTree->ConstructWidget<UOverlay>();
                 DismantlePaint=WidgetTree->ConstructWidget<ULDPaintLayer>();
-                DismantlePaint->Painter=[this](FSlateWindowElementList& Elements,int32 PaintAt,const FGeometry& PaintGeometry){PaintDismantle(Elements,PaintAt,PaintGeometry);};
+                DismantlePaint->Painter=[this](const LDUIPaint::FContext& Paint){PaintDismantle(Paint);};
                 auto* PaintSlot=Stack->AddChildToOverlay(DismantlePaint);PaintSlot->SetHorizontalAlignment(HAlign_Fill);PaintSlot->SetVerticalAlignment(VAlign_Fill);
                 DismantleEquation=WidgetTree->ConstructWidget<UHorizontalBox>();
                 Stack->AddChildToOverlay(DismantleEquation);
@@ -232,7 +264,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             SourceLine->AddChildToHorizontalBox(StageSources)->SetPadding(FMargin(16,0,0,0));
             SourceLine->SetVisibility(ESlateVisibility::Collapsed);StageSourceLine=SourceLine;
             auto* SourceSlot=Box->AddChildToVerticalBox(SourceLine);SourceSlot->SetHorizontalAlignment(HAlign_Center);SourceSlot->SetPadding(FMargin(0,26,0,0));
-            Box->SetVisibility(ESlateVisibility::Collapsed);StageBox=Box;
+            UScaleBox* StageFit=LDWidgets::Fit(WidgetTree,Box);
+            if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Box->Slot)){FitSlot->SetHorizontalAlignment(HAlign_Center);}
+            StageFit->SetVisibility(ESlateVisibility::Collapsed);StageBox=StageFit;
             StageBack=LDWidgets::Button(WidgetTree,LDTerms::Choice,[this](){LeaveStage();},false,TEXT("GrowthStageBack"));
             StageBack->SetVisibility(ESlateVisibility::Collapsed);
             // The final mod's description whole (its sentences carry no reliable effect/cost/notes boundary), its numbers, and the hold that locks it.
@@ -241,7 +275,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Desc->AddChildToVerticalBox(FinalDescText)->SetPadding(FMargin(0,8,0,0));
             FinalNumbersText=Wrapped(LDHUDStyle::TypeCaption,ServicePanelWidth+300.f);FinalNumbersText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
             Desc->AddChildToVerticalBox(FinalNumbersText)->SetPadding(FMargin(0,8,0,0));
-            Desc->SetVisibility(ESlateVisibility::Collapsed);FinalDesc=Desc;
+            UScaleBox* DescFit=LDWidgets::Fit(WidgetTree,Desc);
+            if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Desc->Slot)){FitSlot->SetVerticalAlignment(VAlign_Center);}
+            DescFit->SetVisibility(ESlateVisibility::Collapsed);FinalDesc=DescFit;
             FinalLockButton=LDWidgets::HoldButton(WidgetTree,LDTerms::FinalLock,[this](){LockFinalMod();},TEXT("GrowthFinalLock"));
             FinalLockButton->SetVisibility(ESlateVisibility::Collapsed);
             FinalLockNote=Wrapped(LDHUDStyle::TypeCaption,280.f);FinalLockNote->SetColorAndOpacity(LDHUDStyle::UIEvent);FinalLockNote->SetJustification(ETextJustify::Center);
@@ -277,7 +313,8 @@ ULDChoicesPanel::FTrayCard ULDChoicesPanel::MakeCard(FName ButtonName,TFunction<
     Card.IconFrame=WidgetTree->ConstructWidget<USizeBox>();Card.IconFrame->SetWidthOverride(TrayCardIcon);Card.IconFrame->SetHeightOverride(TrayCardIcon);
     Card.IconFrame->SetContent(IconBox);RowWidgets.Add(Card.IconFrame);
     Face->AddChildToVerticalBox(Card.IconFrame)->SetHorizontalAlignment(HAlign_Center);
-    Card.Name=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBody);Card.Name->SetAutoWrapText(false);Card.Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+    Card.Name=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBody);Card.Name->SetAutoWrapText(false);
+    Card.Name->SetWrapTextAt(TrayCardWidth-2.f*TrayCardPadding);
     Card.Name->SetJustification(ETextJustify::Center);ScaleNewText(Card.Name);RowWidgets.Add(Card.Name);
     auto* NameSlot=Face->AddChildToVerticalBox(Card.Name);NameSlot->SetHorizontalAlignment(HAlign_Fill);NameSlot->SetPadding(FMargin(0,4,0,0));
     {
@@ -330,14 +367,22 @@ void ULDChoicesPanel::ShowFace(FTrayCard& Card,const FString& Key,const FString&
     GrowthText(Card.Name,Name);GrowthText(Card.Glyph,Glyph);
     Card.AppliedIcon=IconId;Card.AppliedEnabled=-1;
 }
-void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled)
+void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled,bool bVisible)
 {
-    GrowthShown(Card.Frame,true);
-    if(Card.bTile!=bTile)
+    GrowthShown(Card.Frame,bVisible);
+    bTile|=bIconOnlyTray&&!Card.bBig;
+    Card.bTile=bTile;
+    if(!Card.bBig)
     {
-        Card.bTile=bTile;
-        Card.Frame->SetWidthOverride(bTile?TrayTileSize:TrayCardWidth);
-        const float Icon=bTile?TrayTileIcon:TrayCardIcon;Card.IconFrame->SetWidthOverride(Icon);Card.IconFrame->SetHeightOverride(Icon);
+        const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
+        const float Width=TrayCellWidth(bTile,Scale,bCompactTray),Height=TrayCellHeight(bTile,AppliedTextScale,Scale,bCompactTray);
+        const float Icon=TrayIconSize(bTile,Scale,bCompactTray);
+        if(!FMath::IsNearlyEqual(Card.Frame->GetWidthOverride(),Width)){Card.Frame->SetWidthOverride(Width);}
+        if(!FMath::IsNearlyEqual(Card.Frame->GetHeightOverride(),Height)){Card.Frame->SetHeightOverride(Height);}
+        if(!FMath::IsNearlyEqual(Card.IconFrame->GetWidthOverride(),Icon))
+        {Card.IconFrame->SetWidthOverride(Icon);Card.IconFrame->SetHeightOverride(Icon);}
+        if(!bTile&&!FMath::IsNearlyEqual(Card.Name->GetWrapTextAt(),Width-2.f*TrayCardPadding))
+        {Card.Name->SetWrapTextAt(Width-2.f*TrayCardPadding);}
     }
     GrowthShown(Card.Name,!bTile,ESlateVisibility::HitTestInvisible);
     GrowthEnabled(Card.Button,bEnabled);
@@ -349,12 +394,24 @@ void ULDChoicesPanel::ShowLook(FTrayCard& Card,bool bTile,bool bEnabled)
         GrowthShown(Card.Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
     }
 }
-void ULDChoicesPanel::SetTrayInset(float Right,float Bottom,float Width)
+void ULDChoicesPanel::SetTrayInset(float Right,float Bottom,float Width,float Height)
 {
     const FMargin Inset(0,0,Right,Bottom);
     if(TrayFrame&&!(TrayFrame->GetPadding()==Inset)){TrayFrame->SetPadding(Inset);}
     const float Wrap=(Width>0.f?FMath::Min(Width,TrayWidth):TrayWidth)+1.f;
+    TrayAvailableWidth=Wrap;
+    TrayAvailableHeight=Height;
     for(UWrapBox* Row:TrayRows){if(Row&&!FMath::IsNearlyEqual(Row->GetWrapSize(),Wrap)){Row->SetWrapSize(Wrap);}}
+    const auto FitLabeledRow=[Wrap](UWidget* Group,UWrapBox* Row)
+    {
+        const UPanelWidget* Line=Cast<UPanelWidget>(Group);
+        const UWidget* Label=Line?Line->GetChildAt(0):nullptr;
+        const float Leading=Label&&Label->IsVisible()?float(Label->GetDesiredSize().X)+8.f:0.f;
+        const float RowWidth=FMath::Max(0.f,Wrap-Leading);
+        if(Row&&!FMath::IsNearlyEqual(Row->GetWrapSize(),RowWidth)){Row->SetWrapSize(RowWidth);}
+    };
+    FitLabeledRow(OfferGroup,OfferRow);
+    FitLabeledRow(FinalModGroup,FinalModRow);
 }
 FVector2D ULDChoicesPanel::TrayDesiredSize() const
 {
@@ -522,12 +579,111 @@ void ULDChoicesPanel::RefreshAll()
         SetVisibility(bOpen||bQuickShown?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     }
     UpdateStage();
-    RefreshOffer();RefreshFinalMod();RefreshOpeningBase(bTiles||(bQuickShown&&bQuickCompact));RefreshComponentChoices(bTiles||(bQuickShown&&bQuickCompact));
+    GrowthShown(TrayFrame,(bOpen||bQuickShown)&&!bStageShown);
+    PlanTrayPages(bTiles);
+    RefreshOffer();RefreshFinalMod();RefreshOpeningBase(bTiles||bIconOnlyTray||(bQuickShown&&bQuickCompact));
+    RefreshComponentChoices(bTiles||bIconOnlyTray||(bQuickShown&&bQuickCompact));
     RefreshBlueprintCards();RefreshBlueprints();RefreshRest();
-    GrowthShown(ChoiceRowList,!ShownChoices.IsEmpty());
+    bool bChoiceVisible=false;
+    for(int32 Index=0;Index<ShownChoices.Num();++Index){bChoiceVisible|=TrayShows(ETrayGroup::ComponentChoice,Index);}
+    GrowthShown(ChoiceRowList,bChoiceVisible);
     RefreshStage();
     LayoutLayer();
     bCardsStale=false;
+}
+void ULDChoicesPanel::PlanTrayPages(bool bTiles)
+{
+    TrayUnits.Reset();TrayPages.Reset();
+    bCompactTray=false;bIconOnlyTray=false;
+    if(!bOpen||bStageShown||!Usable())
+    {
+        bTrayOverflow=false;bTrayOverflowReported=false;GrowthShown(TrayPager,false);return;
+    }
+    if(TrayAvailableHeight<=0.f){bTrayOverflow=true;bTrayOverflowReported=false;GrowthShown(TrayPager,false);return;}
+    const float Width=TrayAvailableWidth>0.f?TrayAvailableWidth:TrayWidth;
+    const float Scale=GetCachedGeometry().Scale>0.f?GetCachedGeometry().Scale:1.f;
+    const auto Plan=[&](bool bCompact,bool bIcons)
+    {
+        TrayUnits.Reset();
+        TArray<float> Heights;
+        bool bFitsWidth=true;
+        const auto LabelWidth=[](const UWidget* Group)
+        {
+            const UPanelWidget* Line=Cast<UPanelWidget>(Group);
+            const UWidget* Label=Line?Line->GetChildAt(0):nullptr;
+            return FMath::Max(80.f,Label?float(Label->GetDesiredSize().X)+8.f:0.f);
+        };
+        const auto PerRow=[&](bool bTile,float Leading=0.f)
+        {
+            bTile|=bIcons;
+            const float Gap=bTile?TrayTileGap:TrayCardGap;
+            return FMath::Max(1,FMath::FloorToInt((Width-Leading+Gap)/(TrayCellWidth(bTile,Scale,bCompact)+Gap)));
+        };
+        const auto Add=[&](ETrayGroup Group,int32 First,int32 Count,bool bTile,float Leading=0.f)
+        {
+            if(Count<=0){return;}
+            bTile|=bIcons;
+            if(Width-Leading<TrayCellWidth(bTile,Scale,bCompact)){bFitsWidth=false;return;}
+            const int32 Rows=FMath::DivideAndRoundUp(Count,PerRow(bTile,Leading));
+            const float Gap=bTile?TrayTileGap:TrayCardGap;
+            const float Height=Rows*TrayCellHeight(bTile,AppliedTextScale,Scale,bCompact)+(Rows-1)*Gap+TrayCardGap;
+            TrayUnits.Add({Group,First,Count});Heights.Add(Height);
+        };
+        if(FirstEmptySlot()<3)
+        {
+            const int32 Per=PerRow(false);
+            for(int32 First=0;First<ShownBlueprints.Num();First+=Per)
+            {Add(ETrayGroup::Blueprint,First,FMath::Min(Per,ShownBlueprints.Num()-First),false);}
+        }
+        for(int32 Index=0;Index<Latest.ComponentChoices.Num();++Index)
+        {
+            const FLDComponentChoiceView& Choice=Latest.ComponentChoices[Index];
+            Add(ETrayGroup::ComponentChoice,Index,Choice.Options.Num()+(LDHUD::ComponentChoiceAllOwned(Choice,Latest)?1:0),bTiles);
+        }
+        if(Latest.bOpeningBasePending){Add(ETrayGroup::OpeningBase,0,Latest.OpeningBaseOptions.Num(),bTiles);}
+        const bool bOffer=Latest.bHasActiveOffer&&!Latest.ActiveOffer.Options.IsEmpty();
+        if(bOffer){Add(ETrayGroup::Offer,0,Latest.ActiveOffer.Options.Num()+1,false,LabelWidth(OfferGroup));}
+        else if(Latest.QueuedActiveOpportunities>0){Add(ETrayGroup::Offer,0,1,false,LabelWidth(OfferGroup));}
+        const bool bFinal=Latest.bFinalModPending&&Latest.FinalModOptions.Num()==3;
+        if(bFinal||!Latest.FinalMod.IsEmpty()){Add(ETrayGroup::FinalMod,0,bFinal?3:1,false,LabelWidth(FinalModGroup));}
+        int32 Sources=0;
+        if(!PendingFinalOption.IsNone())
+        {for(const FLDFinalModSourceView& Source:Latest.FinalModSources){if(Source.Option==PendingFinalOption){++Sources;}}}
+        Add(ETrayGroup::FinalSource,0,Sources,Sources>6);
+        return bFitsWidth?LDWorkshop::FitPending(Heights,TrayAvailableHeight,TrayPagerHeight):LDWorkshop::FPendingFit();
+    };
+    LDWorkshop::FPendingFit Fit=Plan(false,false);
+    if(!Fit.bFits){bCompactTray=true;Fit=Plan(true,false);}
+    if(!Fit.bFits){bIconOnlyTray=true;Fit=Plan(true,true);}
+    if(!Fit.bFits)
+    {
+        if(!bTrayOverflowReported)
+        {
+            UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_PENDING_OVERFLOW width=%.0f height=%.0f groups=%d"),Width,TrayAvailableHeight,TrayUnits.Num());
+            Tell(LDTerms::PendingNoRoom);
+            bTrayOverflowReported=true;
+        }
+        bTrayOverflow=true;GrowthShown(TrayPager,false);return;
+    }
+    bTrayOverflow=false;bTrayOverflowReported=false;
+    for(const LDWorkshop::FPendingPage& Page:Fit.Pages){TrayPages.Add(FIntPoint(Page.First,Page.Count));}
+    TrayPage=FMath::Clamp(TrayPage,0,TrayPages.Num()-1);
+    GrowthShown(TrayPager,TrayPages.Num()>1);
+    GrowthText(TrayPageText,FString::Printf(TEXT("%d / %d"),TrayPage+1,TrayPages.Num()));
+    GrowthEnabled(TrayPrevious,TrayPage>0);GrowthEnabled(TrayNext,TrayPage+1<TrayPages.Num());
+    TrayRowTiles(OfferRow,bIconOnlyTray);TrayRowTiles(FinalModRow,bIconOnlyTray);TrayRowTiles(BlueprintCardRow,bIconOnlyTray);
+}
+bool ULDChoicesPanel::TrayShows(ETrayGroup Group,int32 Index) const
+{
+    if(bTrayOverflow){return false;}
+    if(TrayPages.Num()<=1||!TrayPages.IsValidIndex(TrayPage)){return true;}
+    const FIntPoint Page=TrayPages[TrayPage];
+    for(int32 Unit=Page.X;Unit<Page.X+Page.Y&&TrayUnits.IsValidIndex(Unit);++Unit)
+    {
+        const FTrayUnit& Item=TrayUnits[Unit];
+        if(Item.Group==Group&&(Group==ETrayGroup::Blueprint?Index>=Item.First&&Index<Item.First+Item.Count:Index==Item.First)){return true;}
+    }
+    return false;
 }
 void ULDChoicesPanel::RefreshOffer()
 {
@@ -537,8 +693,10 @@ void ULDChoicesPanel::RefreshOffer()
     ShownOffer=bOffer?Latest.ActiveOffer.OfferId:FGuid();ShownOfferRevision=bOffer?Latest.ActiveOffer.OfferRevision:0;
     // A queued opportunity without an eligible candidate waits as one grey card; its description says why.
     const bool bWaiting=!bOffer&&Usable()&&Latest.QueuedActiveOpportunities>0;
-    GrowthShown(OfferGroup,bOffer||bWaiting);
-    GrowthShown(OfferRow,bOffer||bWaiting);
+    const bool bOnStage=bStageShown&&!bStageFinal;
+    const bool bVisible=bOnStage||TrayShows(ETrayGroup::Offer);
+    GrowthShown(OfferGroup,(bOffer||bWaiting)&&!bOnStage&&bVisible);
+    GrowthShown(OfferRow,(bOffer||bWaiting)&&bVisible);
     if(bWaiting)
     {
         GrowthText(OfferNumber,FString::Printf(TEXT("%u/%u"),uint32(Latest.ActiveOpportunitiesConsumed+1),uint32(Latest.ActiveOpportunitiesEarned)));
@@ -551,7 +709,7 @@ void ULDChoicesPanel::RefreshOffer()
             LDHUD::FActionDetailView Detail;Detail.Name=LDTerms::OfferWaitingName;Detail.Body=LDTerms::OfferWaiting;
             ShowFace(Card,Key,LDTerms::OfferWaitingName,FString(),TEXT("?"),Detail);
         }
-        ShowLook(Card,bQuickShown&&bQuickCompact,false);
+        ShowLook(Card,bQuickShown&&bQuickCompact,false,bVisible);
         return;
     }
     if(bOffer){GrowthText(OfferNumber,FString::Printf(TEXT("%u/%u"),uint32(Latest.ActiveOffer.OpportunityOrdinal),uint32(Latest.ActiveOpportunitiesEarned)));}
@@ -565,18 +723,27 @@ void ULDChoicesPanel::RefreshOffer()
         FTrayCard& Card=OfferCards[Index];
         if(!bOffer||!Latest.ActiveOffer.Options.IsValidIndex(Index)){GrowthShown(Card.Frame,false);continue;}
         const FName Id=Latest.ActiveOffer.Options[Index];
-        const FString Key=Id.ToString()+TEXT("|")+Outcome+FString::Printf(TEXT("|%llu"),Latest.BuildRevision);
+        const FString Key=Id.ToString()+TEXT("|")+Outcome+FString::Printf(TEXT("|%llu|%d|%d"),Latest.BuildRevision,int32(LatestStage),int32(LatestLifePhase));
         if(CardStale(Card,Key))
         {
             const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Id,LatestContent,LatestStats);
             LDHUD::FActionDetailView Detail=LDHUD::ActiveChoiceDetail(View,false,Outcome);
             // The evidence for the choice: the owned components that go on it and the reactions with the learned actives.
-            const TArray<FName> Links=LDWorkshop::LinkableComponents(Id,Latest,LatestContent);
+            const LDWorkshop::FOfferLinks Preview=Gate.bCanChoose
+                ?LDWorkshop::LinkableComponents(Id,Latest,LatestContent,LatestStage,LatestLifePhase):LDWorkshop::FOfferLinks();
+            const TArray<FName>& Links=Preview.Components;
             TArray<FString> Lines;
+            FString LinksLine;
+            if(Preview.Failure!=ELDGrowthReason::None)
+            {
+                UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_OFFER_LINK_PREVIEW_FAILED active=%s reason=%u"),*Id.ToString(),uint32(Preview.Failure));
+                Lines.Add(LDTerms::OfferLinksUnavailable(LDHUD::GrowthReasonText(Preview.Failure)));
+            }
             if(!Links.IsEmpty())
             {
                 TArray<FString> Names;for(const FName& Link:Links){Names.Add(LDHUD::ContentName(LatestContent,Link.ToString()));}
-                Lines.Add(LDTerms::OfferLinksLine(FString::Join(Names,TEXT("、"))));
+                LinksLine=LDTerms::OfferLinksLine(FString::Join(Names,TEXT("、")));
+                Lines.Add(LinksLine);
             }
             const TArray<ELDDemoElement> Own=LDWorkshop::ActiveElements(Id,LatestContent);
             for(const FLDActiveSlotView& Held:Latest.Actives)
@@ -606,9 +773,9 @@ void ULDChoicesPanel::RefreshOffer()
                 const uint8 Kind=uint8(LDWorkshop::ComponentFacts(Links[Link],LatestContent).Kind);
                 LDUIIcons::Apply(Card.LinkIcons[Link],LDHUD::ContentIconId(LatestContent,Links[Link].ToString()),Kind==2?17.f:Kind==1?7.f:5.f);
             }
-            Card.Links->SetToolTipText(FText::FromString(Links.IsEmpty()?FString():Lines[0]));
+            Card.Links->SetToolTipText(FText::FromString(LinksLine));
         }
-        ShowLook(Card,bQuickShown&&bQuickCompact,Gate.bCanChoose&&!PendingRequest);
+        ShowLook(Card,bQuickShown&&bQuickCompact,Gate.bCanChoose&&!PendingRequest,bVisible);
         GrowthShown(Card.ElementChip,Card.bBig&&!Card.Element->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
         GrowthShown(Card.Links,Card.bBig&&Card.LinkIcons.Num()>0&&Card.LinkIcons[0]->GetVisibility()!=ESlateVisibility::Collapsed,ESlateVisibility::Visible);
     }
@@ -625,7 +792,7 @@ void ULDChoicesPanel::RefreshOffer()
         ShowFace(SkipCard,SkipKey,SkipName,FString(),Points>0?FString::Printf(TEXT("+%lld"),Points):FString(TEXT("+")),Detail);
         GrowthText(SkipCard.Facts,Points>0?LDTerms::OfferSkipPoints(Points):FString());
     }
-    ShowLook(SkipCard,bQuickShown&&bQuickCompact,Points>0&&Gate.bCanChoose&&!PendingRequest);
+    ShowLook(SkipCard,bQuickShown&&bQuickCompact,Points>0&&Gate.bCanChoose&&!PendingRequest,bVisible);
     // The skip card's name is only 不选; its points are the glyph on a tile and the facts line on the stage.
     GrowthText(SkipCard.Name,LDTerms::OfferSkip);GrowthShown(SkipCard.IconFrame,!SkipCard.bBig);
 }
@@ -643,7 +810,10 @@ void ULDChoicesPanel::RefreshFinalMod()
     const bool bDormant=FinalDormant();
     if((!bFinal&&!bDormant)||(bFinal&&ShownFinalMod!=Latest.FinalModOfferId)){PendingFinalOption=NAME_None;FinalSourcePick=INDEX_NONE;}
     ShownFinalMod=bFinal?Latest.FinalModOfferId:FGuid();
-    GrowthShown(FinalModGroup,bFinal||bSelected);GrowthShown(FinalModRow,bFinal||bSelected);
+    const bool bOnStage=IsFinalStage();
+    const bool bFinalVisible=bOnStage||TrayShows(ETrayGroup::FinalMod);
+    GrowthShown(FinalModGroup,(bFinal||bSelected)&&!bOnStage&&bFinalVisible);
+    GrowthShown(FinalModRow,(bFinal||bSelected)&&bFinalVisible);
     for(int32 Index=0;Index<FinalCards.Num();++Index)
     {
         FTrayCard& Card=FinalCards[Index];
@@ -659,7 +829,7 @@ void ULDChoicesPanel::RefreshFinalMod()
                 ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,View.Detail);
             }
             GrowthText(Card.Facts,bDormant?FString(LDTerms::FinalDormant):LDTerms::FinalBindsTo(Bound));
-            ShowLook(Card,false,true);GrowthEnabled(Card.Button,bDormant&&!PendingRequest);
+            ShowLook(Card,false,true,bFinalVisible);GrowthEnabled(Card.Button,bDormant&&!PendingRequest);
             GrowthTint(Card.Button,bDormant?LDHUDStyle::UIReplace*.35f:LDHUDStyle::SlotArmed);
             continue;
         }
@@ -687,7 +857,7 @@ void ULDChoicesPanel::RefreshFinalMod()
             :PendingFinalOption==Id&&ShownFinalSources.IsValidIndex(FinalSourcePick)?LDTerms::FinalBindsTo(SourceName(ShownFinalSources[FinalSourcePick].TargetKind,ShownFinalSources[FinalSourcePick].TargetId))
             :LDTerms::FinalBindsTo(FString::Join(Names,TEXT(" / ")));
         GrowthText(Card.Facts,Bind);
-        ShowLook(Card,false,View.bKnown&&!Names.IsEmpty()&&Gate.bCanFinalMod&&!PendingRequest);
+        ShowLook(Card,false,View.bKnown&&!Names.IsEmpty()&&Gate.bCanFinalMod&&!PendingRequest,bFinalVisible);
         GrowthTint(Card.Button,PendingFinalOption==Id?(IsFinalStage()?LDHUDStyle::UIEvent*.35f:LDHUDStyle::SlotArmed):LDHUDStyle::CardIdle);
     }
     ShownFinalSources.Reset();
@@ -695,7 +865,10 @@ void ULDChoicesPanel::RefreshFinalMod()
     {for(const FLDFinalModSourceView& Source:Latest.FinalModSources){if(Source.Option==PendingFinalOption){ShownFinalSources.Add(Source);}}}
     if(ShownFinalSources.Num()==1&&IsFinalStage()){FinalSourcePick=0;}
     if(!ShownFinalSources.IsValidIndex(FinalSourcePick)){FinalSourcePick=INDEX_NONE;}
-    GrowthShown(FinalSourceRow,!ShownFinalSources.IsEmpty()&&!IsFinalStage());
+    const bool bSourceVisible=IsFinalStage()||TrayShows(ETrayGroup::FinalSource);
+    const bool bSourceTiles=!IsFinalStage()&&(ShownFinalSources.Num()>6||bIconOnlyTray);
+    TrayRowTiles(FinalSourceRow,bSourceTiles);
+    GrowthShown(FinalSourceRow,!ShownFinalSources.IsEmpty()&&!IsFinalStage()&&bSourceVisible);
     GrowthShown(StageSourceLine,!ShownFinalSources.IsEmpty()&&IsFinalStage(),ESlateVisibility::SelfHitTestInvisible);
     for(int32 Index=0;Index<ShownFinalSources.Num();++Index)
     {
@@ -717,7 +890,7 @@ void ULDChoicesPanel::RefreshFinalMod()
         Detail.Name=Name;
         Detail.Body=LDHUD::FinalModCard(PendingFinalOption,LatestContent,LatestStats).Name+TEXT("\n绑定此来源。");
         ShowFace(FinalSourceCards[Index],PendingFinalOption.ToString()+TEXT("|")+Name,Name,Icon,Glyph,Detail);
-        ShowLook(FinalSourceCards[Index],IsFinalStage(),Gate.bCanFinalMod&&!PendingRequest);
+        ShowLook(FinalSourceCards[Index],IsFinalStage()||bSourceTiles,Gate.bCanFinalMod&&!PendingRequest,bSourceVisible);
         GrowthTint(FinalSourceCards[Index].Button,IsFinalStage()&&Index==FinalSourcePick?LDHUDStyle::UIEvent*.45f:LDHUDStyle::CardIdle);
     }
     for(int32 Index=ShownFinalSources.Num();Index<FinalSourceCards.Num();++Index){GrowthShown(FinalSourceCards[Index].Frame,false);}
@@ -736,7 +909,8 @@ void ULDChoicesPanel::RefreshOpeningBase(bool bTiles)
 {
     const bool bShow=Usable()&&Latest.bOpeningBasePending&&!Latest.OpeningBaseOptions.IsEmpty();
     ShownBaseOptions=bShow?Latest.OpeningBaseOptions:TArray<FName>();
-    GrowthShown(BaseRow,bShow);TrayRowTiles(BaseRow,bTiles);
+    const bool bVisible=TrayShows(ETrayGroup::OpeningBase);
+    GrowthShown(BaseRow,bShow&&bVisible);TrayRowTiles(BaseRow,bTiles);
     for(int32 Index=0;Index<FMath::Max(ShownBaseOptions.Num(),BaseCards.Num());++Index)
     {
         if(!ShownBaseOptions.IsValidIndex(Index)){GrowthShown(BaseCards[Index].Frame,false);continue;}
@@ -752,7 +926,7 @@ void ULDChoicesPanel::RefreshOpeningBase(bool bTiles)
             const FString Outcome=!Gate.bCanChoose?Gate.ChooseBlocked:View.bBinding?FString(LDTerms::TakeToStorage):FString(LDTerms::TakeAndEquip);
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ComponentChoiceDetail(View,Outcome));
         }
-        ShowLook(Card,bTiles,Gate.bCanChoose&&!PendingRequest);
+        ShowLook(Card,bTiles,Gate.bCanChoose&&!PendingRequest,bVisible);
     }
 }
 ULDChoicesPanel::FChoiceRow& ULDChoicesPanel::ChoiceRowAt(int32 Index)
@@ -783,7 +957,8 @@ void ULDChoicesPanel::RefreshComponentChoices(bool bTiles)
     {
         if(!ShownChoices.IsValidIndex(Index)){GrowthShown(ChoiceRows[Index].Row,false);continue;}
         FChoiceRow& Row=ChoiceRowAt(Index);
-        GrowthShown(Row.Row,true);TrayRowTiles(Row.Row,bTiles);
+        const bool bVisible=TrayShows(ETrayGroup::ComponentChoice,Index);
+        GrowthShown(Row.Row,bVisible);TrayRowTiles(Row.Row,bTiles);
         const FLDComponentChoiceView& Choice=Latest.ComponentChoices[Index];
         // Only one known material left is shown as it is (spec §4.2), never padded with a made-up second card.
         for(int32 Option=0;Option<Row.Options.Num();++Option)
@@ -800,7 +975,7 @@ void ULDChoicesPanel::RefreshComponentChoices(bool bTiles)
                 const LDHUD::FComponentCardView View=LDHUD::ComponentCard(Id,LatestContent,LatestStats);
                 ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ComponentChoiceDetail(View,Outcome));
             }
-            ShowLook(Card,bTiles,Gate.bCanComponentChoice&&!bOwned&&!PendingRequest);
+            ShowLook(Card,bTiles,Gate.bCanComponentChoice&&!bOwned&&!PendingRequest,bVisible);
         }
         // Every option already owned: only the empty-pool points remain, as one more card.
         const bool bAllOwned=LDHUD::ComponentChoiceAllOwned(Choice,Latest);
@@ -816,7 +991,7 @@ void ULDChoicesPanel::RefreshComponentChoices(bool bTiles)
             if(!Outcome.IsEmpty()){Detail.Body+=(Detail.Body.IsEmpty()?TEXT(""):TEXT("\n\n"))+Outcome;}
             ShowFace(Row.Points,Key,Points,FString(),TEXT("+"),Detail);
         }
-        ShowLook(Row.Points,bTiles,PoolPoints>0&&Gate.bCanComponentChoice&&!PendingRequest);
+        ShowLook(Row.Points,bTiles,PoolPoints>0&&Gate.bCanComponentChoice&&!PendingRequest,bVisible);
     }
 }
 ULDChoicesPanel::FTrayCard& ULDChoicesPanel::BlueprintCardAt(int32 Index)
@@ -834,7 +1009,9 @@ void ULDChoicesPanel::RefreshBlueprintCards()
     // Blueprints are tray cards only while a Q/W/E slot is empty; a full Q/W/E waits for the trainer's replace.
     const uint8 FirstEmpty=FirstEmptySlot();
     const int32 Shown=FirstEmpty<3?ShownBlueprints.Num():0;
-    GrowthShown(BlueprintCardRow,Shown>0);
+    bool bVisible=false;
+    for(int32 Index=0;Index<Shown;++Index){bVisible|=TrayShows(ETrayGroup::Blueprint,Index);}
+    GrowthShown(BlueprintCardRow,bVisible);
     const FString Outcome=!Gate.bCanLearn?Gate.LearnBlocked:FirstEmpty<3?LDTerms::LearnInto(SlotKeys.Of(FirstEmpty)):FString();
     for(int32 Index=0;Index<FMath::Max(Shown,BlueprintCards.Num());++Index)
     {
@@ -847,7 +1024,7 @@ void ULDChoicesPanel::RefreshBlueprintCards()
             const LDHUD::FActiveCardView View=LDHUD::ActiveCard(Id,LatestContent,LatestStats);
             ShowFace(Card,Key,View.Name,View.IconId,View.Glyph,LDHUD::ActiveChoiceDetail(View,true,Outcome));
         }
-        ShowLook(Card,false,Gate.bCanLearn&&!PendingRequest);
+        ShowLook(Card,false,Gate.bCanLearn&&!PendingRequest,TrayShows(ETrayGroup::Blueprint,Index));
     }
 }
 ULDChoicesPanel::FBlueprintRow& ULDChoicesPanel::BlueprintRowAt(int32 Index)
@@ -1291,9 +1468,11 @@ void ULDChoicesPanel::BuildDismantleEquation(int32 Inputs)
         DismantleFaces.Add(Face);DismantleNames.Add(Name);
     }
 }
-void ULDChoicesPanel::PaintDismantle(FSlateWindowElementList& Elements,int32 PaintAt,const FGeometry& Geometry) const
+void ULDChoicesPanel::PaintDismantle(const LDUIPaint::FContext& Paint) const
 {
     if(!bDismantleOpen||DismantleFaces.IsEmpty()){return;}
+    const FGeometry& Geometry=Paint.Geometry;
+    const int32 PaintAt=Paint.Layer;
     const int32 Inputs=DismantleFaces.Num()-1;
     const double Now=UiNow();
     for(int32 Index=0;Index<DismantleFaces.Num();++Index)
@@ -1305,20 +1484,20 @@ void ULDChoicesPanel::PaintDismantle(FSlateWindowElementList& Elements,int32 Pai
         {
             const FName Id=DismantlePicked[Index];
             const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Id,LatestContent);
-            LDUIPaint::Tile(Elements,PaintAt,Geometry,Box,uint8(Facts.Kind),Facts.bScarce,LDUIPaint::ETileState::Selected,
+            Paint.Tile(PaintAt,Box,uint8(Facts.Kind),Facts.bScarce,LDUIPaint::ETileState::Selected,
                 LDUIIcons::Find(LDHUD::ContentIconId(LatestContent,Id.ToString())),1.f,Now);
         }
         else if(Index<Inputs)
         {
-            LDUIPaint::DashedEdge(Elements,PaintAt,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.55f));
+            Paint.DashedEdge(PaintAt,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.55f));
         }
         else
         {
             // The result: a common component drawn at random, shown as a gold-edged unknown.
             const bool bReady=int64(DismantlePicked.Num())==Materials.DismantleCount;
-            LDUIPaint::Shape(Elements,PaintAt,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDUIPaint::FFill::Solid(LDHUDStyle::UIRaised));
-            LDUIPaint::Edge(Elements,PaintAt+1,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(bReady?1.f:.4f),2.f);
-            if(bReady){LDUIPaint::Halo(Elements,PaintAt,Geometry,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.35f),10.f);}
+            Paint.Shape(PaintAt,LDUIShapes::EShape::Rounded,Box,10.f,LDUIPaint::FFill::Solid(LDHUDStyle::UIRaised));
+            Paint.Edge(PaintAt+1,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(bReady?1.f:.4f),2.f);
+            if(bReady){Paint.Halo(PaintAt,LDUIShapes::EShape::Rounded,Box,10.f,LDHUDStyle::UIAction.CopyWithNewOpacity(.35f),10.f);}
         }
     }
 }
@@ -1650,9 +1829,11 @@ void ULDChoicesPanel::ShowBig(FTrayCard& Card,bool bBig,float Width,float Icon)
     Card.bBig=bBig;Card.bTile=false;Card.AppliedEnabled=-1;
     const float Scale=AppliedTextScale>0.f?AppliedTextScale:1.f;
     Card.Frame->SetWidthOverride(bBig?Width:TrayCardWidth);
+    if(bBig){Card.Frame->ClearHeightOverride();}
     const float Face=bBig?Icon:TrayCardIcon;
     if(Face>0.f){Card.IconFrame->SetWidthOverride(Face);Card.IconFrame->SetHeightOverride(Face);}
     Card.Name->SetFont(LDUIFonts::Font(bBig?LDUIFonts::ERole::Title:LDUIFonts::ERole::Body,FMath::RoundToFloat((bBig?LDHUDStyle::TypeSection:LDHUDStyle::TypeBody)*Scale)));
+    Card.Name->SetWrapTextAt(bBig?Width-2.f*18.f-8.f:TrayCardWidth-2.f*TrayCardPadding);
     Card.Facts->SetWrapTextAt(bBig?Width-2.f*18.f-8.f:0.f);
     GrowthShown(Card.Facts,bBig&&!Card.Facts->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     GrowthShown(Card.Tags,bBig&&!Card.Tags->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -1764,14 +1945,22 @@ void ULDChoicesPanel::LayoutLayer()
     if(!Layer||!Places.bActive){return;}
     if(bStageShown)
     {
-        PlaceOnLayer(StageBox,Places.Stage,FVector2D(.5f,0.f));
+        PlaceOnLayer(StageBox,Places.Stage,FVector2D::ZeroVector,true);
         // Bottom-left of the stage, clear of the phase bar above and the rest actions in the top-right corner.
         const FSlateRect& Stage=Places.Stage;
-        PlaceOnLayer(StageBack,FSlateRect(Stage.Left+16.f,Stage.Top,Stage.Right,Stage.Bottom-16.f),FVector2D(0.f,1.f));
+        const FGeometry& Geometry=GetCachedGeometry();
+        const float Scale=FMath::Max(.01f,Geometry.Scale);
+        PlaceOnLayer(StageBack,FSlateRect(Stage.Left+16.f*Scale,Stage.Top,Stage.Right,Stage.Bottom-16.f*Scale),FVector2D(0.f,1.f));
         const FSlateRect& Dock=Places.Dock;
-        PlaceOnLayer(FinalDesc,FSlateRect(Dock.Left+28.f,Dock.Top,Dock.Right-340.f,Dock.Bottom),FVector2D(0.f,.5f));
-        PlaceOnLayer(FinalLockButton,FSlateRect(Dock.Right-320.f,Dock.Top,Dock.Right-28.f,Dock.Bottom),FVector2D(.5f,.4f));
-        PlaceOnLayer(FinalLockNote,FSlateRect(Dock.Right-320.f,Dock.Top,Dock.Right-28.f,Dock.Bottom),FVector2D(.5f,.78f));
+        const FSlateRect Description(Dock.Left+28.f*Scale,Dock.Top+16.f*Scale,Dock.Right-340.f*Scale,Dock.Bottom-16.f*Scale);
+        const float DescriptionWidth=FMath::Max(1.f,float(Geometry.AbsoluteToLocal(FVector2D(Description.Right,Description.Top)).X
+            -Geometry.AbsoluteToLocal(FVector2D(Description.Left,Description.Top)).X));
+        for(UTextBlock* Text:{FinalDescText.Get(),FinalNumbersText.Get()})
+        {if(Text&&!FMath::IsNearlyEqual(Text->GetWrapTextAt(),DescriptionWidth,.5f)){Text->SetWrapTextAt(DescriptionWidth);}}
+        PlaceOnLayer(FinalDesc,Description,FVector2D::ZeroVector,true);
+        const FSlateRect Actions(Dock.Right-320.f*Scale,Dock.Top,Dock.Right-28.f*Scale,Dock.Bottom);
+        PlaceOnLayer(FinalLockButton,Actions,FVector2D(.5f,.4f));
+        PlaceOnLayer(FinalLockNote,Actions,FVector2D(.5f,.78f));
     }
     if(!IsServiceShown()){return;}
     PlaceOnLayer(RespecBox,Places.CharacterFoot,FVector2D::ZeroVector,true);
@@ -1795,6 +1984,8 @@ void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
     LDWidgets::RefitScale(ServiceFit);
+    LDWidgets::RefitScale(Cast<UScaleBox>(StageBox.Get()));
+    LDWidgets::RefitScale(Cast<UScaleBox>(FinalDesc.Get()));
     // The stage cards turn in one after another (LDHUDStyle::MotionOfferStagger apart) and land with the back curve.
     if(!bStageShown||!StageCards){return;}
     const double Age=UiNow()-StageOpenedAt;
@@ -1810,6 +2001,7 @@ int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const 
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
     if(!bStageShown){return Base;}
+    const LDUIPaint::FContext Paint(E,Base+1,G,S.GetColorAndOpacityTint().A);
     // .ocard .art img: a big card's picture sits in a bright rounded frame.
     for(const TArray<FTrayCard>* Group:{&OfferCards,&FinalCards})
     {
@@ -1818,7 +2010,8 @@ int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const 
             if(!Card.bBig||!Card.Frame||!Card.Frame->IsVisible()||!Card.IconFrame||!Card.IconFrame->IsVisible()){continue;}
             const FGeometry& Icon=Card.IconFrame->GetCachedGeometry();
             const FBox2D Box(FVector2D::ZeroVector,Icon.GetLocalSize());
-            LDUIPaint::Edge(E,Base+1,Icon,LDUIShapes::EShape::Rounded,LDUIPaint::Grow(Box,2.f),12.f,FLinearColor(1,1,1,.85f),3.f);
+            Paint.WithGeometry(Icon).WithOpacity(Card.Frame->GetRenderOpacity()).Edge(Base+1,LDUIShapes::EShape::Rounded,
+                LDUIPaint::Grow(Box,2.f),12.f,FLinearColor(1,1,1,.85f),3.f);
         }
     }
     // The focused offer card wears the action yellow; the selected final card and source the event pink.
@@ -1826,8 +2019,9 @@ int32 ULDChoicesPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const 
     {
         if(!Card.Frame||!Card.Frame->IsVisible()){return;}
         const FBox2D Box=LDUIShapes::RectIn(G,Card.Frame->GetCachedGeometry());
-        LDUIShapes::Glow(E,Base+1,G,LDUIShapes::EShape::Rounded,Box,Color,10.f,LDHUDStyle::RadiusPanel);
-        LDUIShapes::Frame(E,Base+1,G,LDUIShapes::EShape::Rounded,Box,Color,2.f,LDHUDStyle::RadiusPanel);
+        const LDUIPaint::FContext CardPaint=Paint.WithOpacity(Card.Frame->GetRenderOpacity());
+        CardPaint.Glow(Base+1,LDUIShapes::EShape::Rounded,Box,Color,10.f,LDHUDStyle::RadiusPanel);
+        CardPaint.Frame(Base+1,LDUIShapes::EShape::Rounded,Box,Color,2.f,LDHUDStyle::RadiusPanel);
     };
     if(!bStageFinal)
     {
