@@ -596,8 +596,7 @@ Pointer 组验证悬停圈、地面标记与攻击标记，并保存
 本地回环、加减速 8000 下：首次右键行走等开局头几帧的一次性卡顿过去后下单，
 Host 右键到开始移动 31–35 ms（4–5 帧，最长一帧不超过 15 ms），再次右键 31–36 ms；
 Client1 右键到开始移动 32–37 ms、到 Activated 回执 14–17 ms、加速到全速 42–58 ms、S 到 Stopped 回执 9–20 ms。
-开局头一两秒内本进程会有一次约 100–150 ms 的一次性长帧（加载并构建开局显示的内容），此时下单要多等这一帧；
-旧测法在出生首帧下单，曾把这一帧算进 Host 的点击响应（打包版 159 ms，[#61](https://github.com/rlsn/Lockdown-alpha/issues/61)）。
+开局头一两秒内本进程会有一次约 100–150 ms 的一次性长帧（加载并构建开局显示的内容），此时下单要多等这一帧。
 
 ## 11. 产品规则来源与限制
 
@@ -612,15 +611,3 @@ Client1 右键到开始移动 32–37 ms、到 Activated 回执 14–17 ms、加
 - Expired 只作为失败码出现，不是回执状态。
 - 网络模拟下的手感与 8000 加减速下的手感未重新测量。
 - 完整 3 真人 + 3 AI 的验收由其他检查入口负责，见[开发指南](../systems/VERIFICATION.md#最小验证选择)。
-
-## 12. 已读取的公开引擎资料
-
-以下 Epic 官方资料说明所用的通用引擎机制，不替代 Unreal 5.8.4 下的编译与运行验证。
-
-| 来源 | 使用范围 |
-| --- | --- |
-| [Epic：Networked Movement in CharacterMovement](https://dev.epicgames.com/documentation/en-us/unreal-engine/understanding-networked-movement-in-the-character-movement-component-for-unreal-engine) | saved moves、自定义网络 move、authority 重现/客户端 correction、root-motion source。 |
-| [Epic：Enhanced Input](https://dev.epicgames.com/documentation/en-us/unreal-engine/enhanced-input-in-unreal-engine) | LocalPlayer context、动作触发阶段、上下文优先级和运行时重绑。 |
-| [Epic：FInputModeGameAndUI](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Engine/FInputModeGameAndUI) | UI 未处理的输入仍可进入玩家输入，因此需要显式的指针/捕获检查。 |
-| [Epic：OnCharacterMovementUpdated](https://dev.epicgames.com/documentation/en-us/unreal-engine/BlueprintAPI/Character/OnCharacterMovementUpdated) | 运动更新末端事件；首末位置不能代表所有中间子段。 |
-| [Epic：FScopedMovementUpdate](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Engine/FScopedMovementUpdate) | 延迟提交/回退；被回退的试探运动不计入实际运动。 |

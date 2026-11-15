@@ -2,23 +2,18 @@
 
 **目标：v0.11.0 Demo · 职责：M11 · 引擎基线：Unreal 5.8.4**
 
-本报告衔接 [App Spec](../APP_SPEC.md) 与[共享契约](SHARED_CONTRACTS.md) SC-01–09。
-当前组件说明仍以 [视野与 UI](../systems/VISION_AND_UI.md)、
-[移动与输入](../systems/MOVEMENT_INPUT_AND_CAMERA.md) 及实际源码为准。
-本文是 Demo 界面与本地设置的行为合同。§2 列出当前实现组件，§3 起的行为、读取边界、
-命令和设置已在这些组件中落地；组件级读取来源与检查入口以
-[视野与 UI](../systems/VISION_AND_UI.md) 和源码为准，二者不一致时以代码为事实并修正文档。
+本文是 Demo 界面与本地设置的行为合同，衔接 [App Spec](../APP_SPEC.md) 与[共享契约](SHARED_CONTRACTS.md) SC-01–09。
+组件级读取来源与检查入口见 [视野与 UI](../systems/VISION_AND_UI.md) 与
+[移动与输入](../systems/MOVEMENT_INPUT_AND_CAMERA.md)；与源码不一致时以代码为事实并修正文档。
 
 ## 1. 结论、已确认边界与就绪范围
 
 沿现有 **native UMG/Slate、Controller、动态 Enhanced Input、owner 投影和唯一观测 Relay**
 收敛一条界面流程，不引入第二套 UI 框架、成长状态、冷却表或视野系统。
 一个 Root 管导航与输入层；HUD、属性/选择、设置和小地图各消费窄只读投影。
-菜单、名单、本人 HUD、构筑选择卡、公开击杀、完整结果及设置均已按本文接线。
 
-雾港换皮与规则术语改回通用词后的玩家可见中文术语与固定文案只引用 [App Spec §1.2](../APP_SPEC.md#12-玩家显示术语)，
-角色/技能/状态名称只引用内容报告当前目录；下文 HP/MP、状态与拒绝码等技术标识不改。
-玩家可见文案（标题、术语、按钮与提示）按 §1.2 表述：名称保留雾港的梗，规则、属性与状态用通用词；世界观术语在运行时只取自 `LDTerms` 术语表。
+玩家可见的标题、术语、按钮与提示只引用 [App Spec §1.2](../APP_SPEC.md#12-玩家显示术语)：名称保留雾港的梗，规则、属性与状态用通用词；
+世界观术语在运行时只取自 `LDTerms` 术语表。角色/技能/状态名称只引用内容报告当前目录；下文 HP/MP、状态与拒绝码等技术标识不改。
 
 以下是**用户已确认规则**，不是本文的数值建议：
 
@@ -35,7 +30,6 @@
 | 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜。标题压在斜置的事件粉色带上，每名参赛者一张行卡（左侧席位色条，本人行抬起并描操作黄边，赢家标记为操作黄），表头是各列的线条图标（击杀准星、死亡墓碑、助攻双人、等级双箭头、守护盾、喷漆罐、赢家皇冠，悬停显示列名），标题、行卡与按钮依次入场。对局中按住 Tab 另有局内排行榜（§3.2）。Host 主动结束可无赢家。 |
 | 死亡与离局效果 | 留在局内的死亡取消未释放动作，已释放独立效果继续；正式离局/断线立即移除身体及未结束独立效果。关 UI 无权回滚已释放效果。 |
 
-本模块需要产品选择的界面行为已收口。布局、错误映射和本地接口属于工程设计；
 目录、公式和数值以 `CONTENT_AND_BALANCE.md` 为准，本文不批准数值。
 
 ## 2. 当前组件
@@ -148,25 +142,6 @@ NPC 服务没有单独的窗口：仅在配装或派奖窗口、本人处于现�
 相邻控件 8px 间隔；由统一 DPI/文字规则缩放，窄屏重排或按比例缩小（主菜单、Lobby、局内菜单、设置菜单、构筑蓝图查看与 DEV 测试面板可滚动），不靠截断确认按钮适配。
 
 ```text
-主菜单                       Start：创建 / 加入
-┌────────────────────┐       ┌────────────────────────────┐
-│      LOCKDOWN      │       │ [创建房间] [通过 IP 加入]  │
-│      [Start]       │       │ 名称 [本人名称           ] │
-│      [Settings]    │       │ IP   [加入地址           ] │
-│      [Exit]        │       │ 端口 [端口]  [创建 / 连接] │
-│       <产品版本>   │       │ <错误或连接中> [取消/返回] │
-└────────────────────┘       └────────────────────────────┘
-
-Lobby
-┌────────────────────────────────────────────────────────┐
-│ 名称                 类型        Host       准备       │
-│ <本人/其他实际成员>  真人/AI      <标识>     <状态>     │
-│ AI 数 [0..3，仅 Host]    <不能开始的具体原因>            │
-│ [本人准备/取消准备] [Host 开始]                 [离开]  │
-└────────────────────────────────────────────────────────┘
-```
-
-```text
 对局 HUD（世界中央保持可见；小地图固定左下、事件播报在其正上方，目标卡左上，构筑按钮在右下角、选择卡叠在它正上方；统一圆角面板与扁平按钮）
 ┌────────────────────────────────────────────────────────────────┐
 │ [当前可见目标卡]           [旗杆 / 喷漆者 / 涂鸦主人 / 进度]         │
@@ -228,7 +203,7 @@ Settings（固定阅读宽度、居中；身后的世界加暗但继续运行）
 └──────────────────────────────────────────────────────────────┘
 ```
 
-设置页的分类、控件与交互（均在 `ULDControlsPanel`，沿用 `LDWidgets`/`LDHUDStyle` 原生样式，正式换皮归 #93）：
+设置页的分类、控件与交互（均在 `ULDControlsPanel`，沿用 `LDWidgets`/`LDHUDStyle` 原生样式）：
 
 | 分类 | 行（控件） | 生效 |
 | --- | --- | --- |
@@ -249,16 +224,6 @@ Settings（固定阅读宽度、居中；身后的世界加暗但继续运行）
 - 底栏左侧“恢复本页默认”，中间是最近一次结果或本页提示（问题用警示色保留到下一次操作）；
   “立即保存”只在已应用值尚未写盘且没有自动保存在途时出现，“恢复设置文件”只在设置文件需要恢复时出现；
   两者随本地设置状态即时刷新，打开设置前留下的延迟保存（镜头距离、跟随）在设置打开期间失败时也立即显示“立即保存”与失败原因。
-
-```text
-Result
-┌──────────────────────────────────────────────────────────────┐
-│ 对局结束：<原因>                         本局用时 <服务器值> │
-│ 名称                  击杀         死亡       最终等级       │
-│ <所有本局参赛者>       <值>         <值>       <值> [赢家?]  │
-│ [Host带房间返回Lobby]                     [离开回主菜单]     │
-└──────────────────────────────────────────────────────────────┘
-```
 
 死亡横幅放在旗杆提示下方，复活倒计时与小字“等级和构筑都还在，别慌”分开；其下是承伤列表（标题“近 N 秒承受伤害 X”，每个攻击者一行），整体按横幅宽度缩小，不换行、不滚动。在休息外进入死亡等待时自动打开全屏工坊，阶段条换成“你寄了”与复活倒计时（死亡横幅随之收起），复活时自动打开的工坊自动收起：死亡时选技能有空槽就学到，可以学图纸、加点和安装构件。
 关键状态用文字+形状/图标+颜色，焦点有可见轮廓，不仅靠红绿或声音。长名称省略时能看完整文本，
@@ -359,7 +324,6 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 
 世界报告 `WORLD_CAMPS_AND_VISION.md` 定义：
 `ALDVisionDirector → 有界稀疏 FLDWorldView → ALDWorldViewRelay`。
-`FLDWorldView` 是现有类型的一次 schema 改造，不保留 B91 第二身体协议作为 UI fallback。
 Envelope 为 `Schema/MatchGeneration/ObserverLife/Generation/Revision`、
 `WorldRevision{MapId,LayoutRevision,GeometryRevision}`、`SampledAtServerSec`、
 有界 Units 和本人 Footprint；观察 generation 与 match、普通 frame revision 不可混用。
@@ -501,13 +465,13 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 | 分区与存储所有者 | 字段与单位 | 应用、恢复及限制 |
 | --- | --- | --- |
 | 名称 / `ULDControlSettings` | `PlayerName`，显示使用会话域规范化后的公共名称 | Start 编辑，本机保存；房间公开名称由服务器验证。恢复游戏设置不隐式删名称；不保存 join 密钥、比赛数据或新增账号页。 |
-| 按键 / 同类 | `Bindings:TMap<FName,FKey>, Schema` | 单动态 registry；Rebind/Valid 检查重复、reserved Back、设备/轴/滚轮冲突。没有自动抢占另一个动作；改后所有标签同源，旧键释放前不生效。删除 Profile/Hybrid/Tactical 迁移和旧运行槽选择。 |
+| 按键 / 同类 | `Bindings:TMap<FName,FKey>, Schema` | 单动态 registry；Rebind/Valid 检查重复、reserved Back、设备/轴/滚轮冲突。没有自动抢占另一个动作；改后所有标签同源，旧键释放前不生效。 |
 | 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast, bAutoAttackAfterCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，默认 2250、范围 1300–2400、步长 80；“采用推荐镜头”只改 Zoom，不改变其他偏好或姓名。TextScale 是倍率。`CameraPanCmPerSec` 合法域为有限值 900–3600 cm/s，默认 1800、步进 300。小地图默认跟随镜头，也可跟随角色或固定正北；只旋转和统一缩放，不镜像、不授予视野。快速施法默认关闭，施法后自动攻击默认开启。当前 schema 23 保存，schema 5–22 显式迁移；Zoom 先按原范围校验，低于当前最小值 1300 才调整并提示，其他原值保留。缺失偏好取各自默认；仅 schema 5–10 补 Dash、5–13 补 Scoreboard、5–15 补 Mark、5–18 补 SkillE，默认键须空闲；schema 5–20 的 Details 可选空闲 C 或备用键，schema 5–22 的 Workshop 可选空闲 B 或备用键，都不抢已有绑定，之后的 schema 保留已存绑定。越界或非有限值按损坏拒绝，不重写原文件。 |
 | 诊断 / `ULDControlSettings` | `bShowNetworkDiagnostics, bShowFPS`，分别保存、默认关闭 | 设置页“界面”分类下的两个开关立即应用并保存，不属于待应用的显示草稿。HUD 右上角分别显示连接 RTT/抖动/收发丢包/未收包时长/本人移动校正，以及 FPS/平均帧耗时/窗口峰值；数据来源与缺失状态见 [视野与 UI](../systems/VISION_AND_UI.md#ui-只读模型)。恢复默认关闭两项，schema 5–14 迁移也关闭两项，保留其余已验证偏好。 |
 | 战斗反馈 / `ULDControlSettings` | `bReduceCombatEffects`（默认关闭）、`bCameraShake`（默认开启） | 设置页“界面”分类立即应用并保存；减弱局部临时冲击闪光、命中火花、施法光效，自身受击镜头震动可单独关闭，不影响服务端结算、状态标记或角色动作；schema 5–21 缺省迁移为关闭特效降低、开启镜头震动。 |
 | 显示/画质 / `UGameUserSettings` | VSync、整体画质预设 | 游戏只以无边框全屏、桌面分辨率运行，设置页没有窗口模式、分辨率或保留/回滚试用。VSync/画质留在草稿，明确 Apply 后立即应用并保存。不建庞大高级渲染中心，游戏仍不暂停。 |
 | 音量 / 本地偏好 + Engine 声音分组 | `MasterVolume` 与 `MusicVolume`，无量纲 0..1；音乐音量默认 0.6，schema 5–19 迁移时取默认并在迁移说明里写明 | 本 Demo 声音统一经 Master SoundClass/SoundMix 生效，音乐另经其子类 `SC_DemoMusic` 再乘音乐音量，不修改共享 CDO；应用后实际音频响应。没有音频消费者时不把滑条当完成。 |
-| 恢复默认 | 按设置页当前分类：画面（VSync、整体画质）、音频（主音量、音乐音量）、操作（全部按键、快速施法、施法后自动攻击）、镜头（Zoom、边缘平移、开局跟随、平移速度）、界面（文字、小地图朝向、诊断开关、战斗特效与镜头震动） | 已实现：底栏“恢复本页默认”先在确认卡列出本页将恢复的默认值，并说明其他页、名称与本局进度不变；确认后才执行。偏好分类经 `ULDControlSettings::ResetPreferenceGroup` 只还原该组并立即应用、保存（四组合起来正好是 `ResetLocalDefaults`，由 `Lockdown.Rules.LocalSettingsPreferenceGroups` 覆盖）。画面分类把显示草稿设为产品默认（临时对象 `SetToDefaults` 的整体画质，VSync 取 `r.VSync` 引擎默认）并随即应用（渲染比例同时回到项目默认，不需重启），替换未应用的草稿，已是默认则说明且不应用。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
+| 恢复默认 | 按设置页当前分类：画面（VSync、整体画质）、音频（主音量、音乐音量）、操作（全部按键、快速施法、施法后自动攻击）、镜头（Zoom、边缘平移、开局跟随、平移速度）、界面（文字、小地图朝向、诊断开关、战斗特效与镜头震动） | 底栏“恢复本页默认”先在确认卡列出本页将恢复的默认值，并说明其他页、名称与本局进度不变；确认后才执行。偏好分类经 `ULDControlSettings::ResetPreferenceGroup` 只还原该组并立即应用、保存（四组合起来正好是 `ResetLocalDefaults`，由 `Lockdown.Rules.LocalSettingsPreferenceGroups` 覆盖）。画面分类把显示草稿设为产品默认（临时对象 `SetToDefaults` 的整体画质，VSync 取 `r.VSync` 引擎默认）并随即应用（渲染比例同时回到项目默认，不需重启），替换未应用的草稿，已是默认则说明且不应用。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
 
 本地操作明确区分 **EditingDraft → ConfirmedApplied → PersistenceVerified**；
 本地设置在明确 Apply 后直接进入 ConfirmedApplied。
@@ -515,7 +479,7 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 已核验的生效值来自没有失败应用时读到的值，或最近一次成功的应用/重试保存；应用失败（`ApplyFailed`）后引擎没有接受的请求值虽已写进设置字段，
 也不当作生效值：在下一次应用或重试成功之前，画面页一直保留待应用的更改（改走再改回、撤销后都仍需应用），返回时仍会确认。
 “撤销更改”丢弃草稿，回到已核验的生效值。普通返回遇到未应用草稿时切到画面页并在确认卡提供
-“应用并返回 / 放弃更改并返回 / 继续编辑”。确认卡显示时再按返回或 Esc 视为放弃草稿并返回，返回不会循环（#99）；
+“应用并返回 / 放弃更改并返回 / 继续编辑”。确认卡显示时再按返回或 Esc 视为放弃草稿并返回，返回不会循环；
 “应用并返回”失败时在确认卡说明失败，默认焦点是“放弃更改并返回”。
 被拒绝的同一份草稿在修改前不能再次应用，提示说明可修改草稿或撤销，不让玩家反复重试同一个失败。
 放弃显示草稿不回滚已经明确应用的按键/音量/镜头偏好；尤其不覆盖最后一次合法 zoom/follow。
@@ -533,8 +497,7 @@ Alt+Enter/F11 不切换全屏。
 小型本地偏好先复用同步 Save；明确 Apply/离开/旅行/退出只 flush 最后一份
 **ConfirmedApplied 且尚未验证持久化**的合格值，不保存 EditingDraft。
 flush 保留已明确应用的镜头偏好，不依赖滚轮后延迟 tick 恰好触发。
-若后续以 hitch 证据改异步，必须单写入串行/合并并按本地修订
-接受回调，旧回调不能把新 dirty 值标已存。读损坏或不支持 schema 要提示恢复，
+读损坏或不支持 schema 要提示恢复，
 不是静默回默认并覆盖；首次缺文件与损坏不是同一情形。
 
 SaveGame 采用持久字段正向清单：网络身份、owner cache、XP/Offer/技能、
@@ -575,41 +538,4 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、XP/Offer/
 | 输入 | 只用动态 Enhanced Input 注册，没有静态 IMC/IA 输入资产。 |
 | 资产 | `Content\Lockdown\Generated\UI\WBP_UIRoot.uasset` 保持以 `ULDUIRoot` 为父类，由 Controller 加载生成类；`Materials\M_Fog.uasset` 是迷雾显示投影，不承载权限。主音量链（`SC_DemoMaster`、其子类 `SC_DemoMusic`、`SMix_DemoUser`）由 `ImportDemoAudio.ps1` 导入并经 Bootstrap Validate 校验。头像/图标见 §2 与 §3。 |
 | 二进制清理 | `.uasset/.umap` 用 Git LFS；删除前合并 AssetRegistry hard/soft 引用、Blueprint/CDO、native `LoadObject/LoadClass`、ini、Bootstrap 与 Cook 根，再重启加载、Bootstrap Validate、Cook。 |
-| 测试与 probe | 规则测试：`LDHUDRulesTests`、`LDInputRulesTests`、`LDViewTests`、`LDDemoVisionTests`、`LDLocalSettingsTests`、`LDMinimapTests`、`LDWorldFeedbackTests`；联机：`LDDemoVisionProbe`（`RunDemoVisionCheck.ps1`）与 FullRoom（`RunDemoOpponentCheck.ps1`）。必需用例集合由 `Scripts\RunTests.ps1` 与规则报告检查维护，失败、未运行或缺报告均视为失败。 |
-
-## 11. SC-09 G：正反验收与证据边界
-
-以下是 UI 的验收矩阵。已自动化的部分见 [视野与 UI 检查入口](../systems/VISION_AND_UI.md#检查入口)
-与 `Lockdown.Rules.*` 必需用例；其余由联机场景与最终 UI 验收覆盖。本表本身不是通过结果。
-身份/容量/次数取 Spec，玩法时长/距离/公式用批准的内容键；网络同时观察服务器回执和受限拥有端，
-不能只在 Host 调 `_Implementation`、写 OwnerState 或把 nullrhi 截图当真实交互。
-
-| 用例组 | 正例 | 反例与精确断言 |
-| --- | --- | --- |
-| 菜单/连接/准入 | Start/Settings/Exit 可用；正常 Host 与 owning clients、零/三 AI；单人同规则 | 双击/取消后新 attempt、旧成功/失败、错端口/地址/版本/内容、满房加入、late join 分别反馈；没有幽灵连接/旧失败退出新世界。 |
-| Lobby | 全真人包括 Host 准备，Host Start；AI 数不补位 | Ready 更新不清他人 Ready；成员/AI 结构变化清准备；非 Host 伪造开始服务器拒绝，不只按钮不可见。 |
-| 手势与捕获 | 文本/重绑/面板/模态/拖拽/Armed/小地图逐层响应；在面板外 Armed 后进入子确认再按 Esc | 在 UI 按下世界释放及反向、关闭时仍按键、Enter+OnClicked 同帧，只一个消费者/提交；进入子确认撤 Armed，Esc 只关子层不再关主层/发 RPC/Stop/消费 Offer；hover 普通面板不吞 S，滚轮不同时 scroll+zoom。 |
-| 面板与失焦 | 已接受导航中打开属性/Choices/Settings，世界继续 | 开普通面板不 Stop/停心跳，不暂停/免疫；失焦一次 Stop，回焦不重播；映射重建无累积 action/旧键命令。 |
-| 来源/保护 | Q/W/E 与 D；A/普攻/确认/自施放发送意图 | MP/CD/目标/距离失败、EmptySource/过期绑定仍按规范意图解除保护，Rejected 携 ProtectionRemoved+LifeRevision；不付未提交 MP/CD、不替换旧合法订单。Armed/Move/Stop不解；旧代次/畸形/重放不解新生命。 |
-| 冷却债 | 本地换槽、升级、死亡 | UI 重建不改 deadline；原截止前不得洗成 ready，到零不自动执行。 |
-| 属性与加点 | 完整属性分解/单位；五维点数与每点收益 | 超过单屏行数仍生效可读；来源效果不能按 UI 行重复计算；MaxHP/MP 变更只由一次 Combat 投影保比例，死者不回血/复活。 |
-| Offer/图纸/加点 | 开局一次与 3、6 级各一次主动机会，逐组处理；每组一到三张不同合法卡；技能只有一级；死时可选并学到空槽与加点；交战中也可学图纸 | 关窗/重复/死亡不换组，没有重抽；旧 LifePhase/BuildRevision 拒绝不丢卡。满槽时选择存为图纸并写明原因；学到已占用槽被拒，没有替换或遗忘入口；加点整次生效或整次拒绝，回执前不改本地显示。 |
-| 回执与重放 | 同键同 payload 只回原结果，合法查询不再提交 | 异 payload 冲突；过窗拒旧；新 snapshot 先到/旧 receipt 后到不回盖；关窗/重生/新局不清新 pending、重弹旧面板或重复 toast。Host 同栈回包不被随后写 pending 覆盖。 |
-| 查询结果形状/数值失败 | Build 查询返回真实 PendingInfo 或 Final 业务 Receipt；同局可查历史、当前身体不受旧 Receipt 影响 | NotFound/ReceiptExpired/InvalidContext 无伪造 OriginalLife/Applied；PendingInfo 无业务成功/CommitOrdinal；不自动重执行，旧 Generation 先拒。NumericUnderflow/NumericDomain 零业务提交，不消费机会或制造成功默认值。 |
-| 可见目标 | A 可见 B 时名称/等级/精确血蓝/状态实时授权更新；NPC 不适用字段正确 | 技能/CD/最终属性/XP/私有版本从不入对手 DTO；隐藏后变化不再更新任何缓存/附件；停原追击无 LastSeen移动。 |
-| 观察传输 | 同帧/epoch 合法增量表现与可靠 conceal | 旧 full 不能撤 conceal，旧 conceal 不擦新重现；普通 revision 不错误撤锁；wrong schema/world/observer life、超容量/非法数值明确拒绝。未知定义不造默认有效对象。 |
-| 正常 Host | 不带诊断特免，非本人出生当帧/首采样前、隐藏/重现、相机切换 | 本体/代理不双画；附件/阴影/灯光/声音/提示无旁路；关后处理/低画质不显示隐藏单位。观察只读表本身也无未授权字段。 |
-| 死亡/离局 | 死亡自由静态平移/缩放/旗杆状态、选技能与加点；已释放独立效果继续 | 无新 Footprint/隐藏跟随/游戏移动；离局立即去身体/未结束效果，旧 FX 不重生。离局不增加死亡/击杀、不使他人自动胜。 |
-| 终局/新局 | 守护成功唯一结果（标题“守护成功 · X 的涂鸦守住了，恭喜成为今晚的淫人王！”），全员 Name/K/D/FinalLevel+winner/reason/duration；HostEnd无winner，回Lobby新局 | 统计不判胜，正常局不发布全员表；终局后无新选择/战斗提交，旧包只读重放；新局无旧 Offer/CD/结果闪回，合法缺数据先同步而非填旧值。 |
-| 本地保存 | 隔离存储下应用、重新启动、旅行前最后一次 zoom、恢复默认 | Missing/损坏/不支持schema/非法键/NaN/越界/写失败各自反馈；无真实槽 fallback；没有局内数据入 SaveGame；失败不宣称持久成功。 |
-| 显示/画质 | `-windowed` 启动的前端编辑 VSync 草稿、撤销、再编辑后切到别页返回、再返回；再应用 VSync | 设置页没有窗口模式/分辨率；撤销后无可应用内容；返回时确认卡出现在画面页；第二次返回放弃草稿并关闭；应用后立即生效并从磁盘回读；窗口始终保持无边框（自动化覆盖除外）。 |
-| 中断/保存 | 终局、HostLost、旅行/Widget 销毁、正常退出；期间另有已明确应用的 zoom/follow | flush 排除草稿，保留最后合法镜头值。异常硬退出后从最后已验证配置启动；写失败不宣称成功。 |
-| 声音/布局 | 实际渲染有声包，Master静音恢复；小/大窗口、DPI、长名/长卡/多图纸 | 全部关键按钮/原因可读有焦点，不仅靠颜色；未应用草稿普通返回可选择应用/放弃/继续编辑。nullrhi/nosound/offscreen均不能替代相应证据。 |
-| 删除/资产 | 当前 Editor/Game/UHT、Blueprint、Bootstrap Validate、唯一包加载 | 旧 UI/RPC/IA/IMC/profile/探针无存活消费，生成不会复活它们；缺 WBP/必要材质/定义明确失败，不用兼容 UI 或旧值兜底。 |
-
-联机场景入口是 `RunDemoVisionCheck.ps1`（受限拥有连接与正常 Host 的视野边界）与
-`RunDemoOpponentCheck.ps1` FullRoom（满房、AI 交战，Host 渲染并截取 HUD 画面）；
-`CaptureInputUI.ps1` 截取前端与设置。
-运行层最低覆盖正常可视 Listen Host+真实远端 owning client，另测三真人+三 AI 满规模；
-LAN 与正确配置可达公网分别记录，loopback 不证明公网/NAT。
-所有输出进忽略的 Artifacts。
+| 测试与 probe | 规则测试：`LDHUDRulesTests`、`LDInputRulesTests`、`LDViewTests`、`LDDemoVisionTests`、`LDLocalSettingsTests`、`LDMinimapTests`、`LDWorldFeedbackTests`；联机：`LDDemoVisionProbe`（`RunDemoVisionCheck.ps1`）与 FullRoom（`RunDemoOpponentCheck.ps1`）；`CaptureInputUI.ps1` 截取前端与设置。必需用例集合由 `Scripts\RunTests.ps1` 与规则报告检查维护，失败、未运行或缺报告均视为失败。 |
