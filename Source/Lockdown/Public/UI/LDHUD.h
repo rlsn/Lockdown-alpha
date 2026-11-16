@@ -28,6 +28,18 @@ class ULDDevTestPanel;
 struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
+class UTexture2D;
+
+// One own status as painted over the own overhead bars (ULDWorldLabels): its tone rim, glyph (shown without an imported
+// picture), stacks over 1, and the remaining fraction of a timed status (-1 for none). ViewIndex is its LDHUD::SelfIcons entry.
+struct FLDOwnStatusMark
+{
+    FString Glyph;
+    bool bPositive=true;
+    uint8 Stacks=1;
+    float Remaining=-1.f;
+    int32 ViewIndex=INDEX_NONE;
+};
 
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
@@ -75,6 +87,12 @@ public:
     // Called by the hit-test-invisible world layer, below the HUD's panels.
     void PaintWorldPreviews(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const;
     TArray<FSlateRect> WorldLabelReservedAreas(const FGeometry& PaintGeometry) const;
+    // The own status marks over the own overhead bars, empty while the band is hidden. Brush(Index) is the mark's picture,
+    // null without an imported icon (the glyph stands in). The world layer reports the absolute rects it painted them at.
+    const TArray<FLDOwnStatusMark>& GetOwnStatusMarks() const {return OwnStatusMarks;}
+    const FSlateBrush* OwnStatusBrush(int32 Index) const
+    {return OwnStatusTextures.IsValidIndex(Index)&&OwnStatusTextures[Index]&&OwnStatusBrushes.IsValidIndex(Index)?&OwnStatusBrushes[Index]:nullptr;}
+    void ReportOwnStatusRects(TArray<FSlateRect> AbsoluteRects) const {OwnStatusHitRects=MoveTemp(AbsoluteRects);}
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
     // The normal main panels (UI 3.1) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
     // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
@@ -272,27 +290,15 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
-    // The own status strip (LDHUD::SelfIcons) in the gap between the minimap column and the band, against the band's left
-    // edge, HudStatusPerRow squares a row: the first row sits on the band's bottom line and each further row stacks above it,
-    // with no cap (EnsureStatusCells builds squares as needed). A
-    // syncing line shows while an own projection is missing. Timed statuses get a remaining-time ring (SelfIconRing, -1
-    // for none) that NativePaint draws around the square.
-    UPROPERTY() TObjectPtr<UWidget> StatusStrip;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> StatusSlot;
-    UPROPERTY() TObjectPtr<UVerticalBox> StatusRows;
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> SelfIconRowBoxes;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> SelfIconCells;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconGlyphs;
-    UPROPERTY() TArray<TObjectPtr<UImage>> SelfIconPictures;
-    TArray<FString> SelfIconApplied;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconStacks;
-    UPROPERTY() TObjectPtr<UTextBlock> SelfIconSyncing;
-    void EnsureStatusCells(int32 Count);
-    // The squares' current views; the hovered one opens the slot popup (LDHUD::SelfIconDetail).
+    // The own statuses (LDHUD::SelfIcons) are painted by ULDWorldLabels above the own overhead bars, as LoL-style icons
+    // (OwnStatusMarks). The HUD builds the marks with the band's gate, keeps their textures alive and their remaining-time
+    // spans (SelfIconRings); the world layer reports where it painted them, so a hovered mark opens the slot popup
+    // (LDHUD::SelfIconDetail).
     TArray<LDHUD::FSelfIconView> SelfIconViews;
-    // Each square's applied tone: -1 none yet, 0 negative, 1 positive.
-    TArray<int32> SelfIconTones;
-    TArray<float> SelfIconRing;
+    TArray<FLDOwnStatusMark> OwnStatusMarks;
+    TArray<FSlateBrush> OwnStatusBrushes;
+    UPROPERTY() TArray<TObjectPtr<UTexture2D>> OwnStatusTextures;
+    mutable TArray<FSlateRect> OwnStatusHitRects;
     LDHUD::FStatusRings SelfIconRings;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;

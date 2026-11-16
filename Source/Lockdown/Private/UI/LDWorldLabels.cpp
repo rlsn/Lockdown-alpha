@@ -40,6 +40,8 @@ constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
 constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
 constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
+// Own status icons over the own bars: squares at the reference text scale, the gap between them and how many fill a row.
+constexpr float OwnStatusSide=22.f,OwnStatusGap=3.f;constexpr int32 OwnStatusPerRow=6;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
 float WorldBarWidth(const LDWorldLabels::FLabel& Label)
 {return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?110.f
@@ -121,6 +123,23 @@ LDWorldLabels::FOwnBars LDWorldLabels::OwnBars(const FLDOwnerState& Own,uint32 P
     return Bars;
 }
 
+TArray<FSlateRect> LDWorldLabels::OwnStatusIconRects(int32 Count,float CentreX,float Bottom,float Side,float Gap,int32 PerRow)
+{
+    TArray<FSlateRect> Rects;
+    if(Count<=0||PerRow<=0||Side<=0.f){return Rects;}
+    Rects.Reserve(Count);
+    for(int32 Index=0;Index<Count;++Index)
+    {
+        const int32 Row=Index/PerRow,Col=Index%PerRow;
+        const int32 InRow=FMath::Min(PerRow,Count-Row*PerRow);
+        const float RowWidth=InRow*Side+(InRow-1)*Gap;
+        const float Left=CentreX-RowWidth*.5f+Col*(Side+Gap);
+        const float RowBottom=Bottom-Row*(Side+Gap);
+        Rects.Add(FSlateRect(Left,RowBottom-Side,Left+Side,RowBottom));
+    }
+    return Rects;
+}
+
 void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
@@ -150,7 +169,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
     const ALDCharacter* OwnBody=SelfBars.bVisible?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
-    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base+1;}
+    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects({});}return Base+1;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
@@ -202,6 +221,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         }
     }
     TArray<FSlateRect> Placed;
+    TArray<FSlateRect> OwnMarkRects;
+    const FSlateFontInfo StackFont=WorldLabelFont(TEXT("Bold"),LDHUDStyle::TypeTiny,TextScale,1);
     const TArray<FSlateRect> HudReserved=PC->HUDUI?PC->HUDUI->WorldLabelReservedAreas(G):TArray<FSlateRect>();
     FVector2D OwnScreen;
     if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
@@ -250,10 +271,50 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 Line(OwnName,ContenderFont,WorldLabelContenderInk,OwnX,NameBottom);
                 ReachTop=NameBottom;ReachLeft=FMath::Min(ReachLeft,OwnX-NameExtent.X*.5f);ReachRight=FMath::Max(ReachRight,OwnX+NameExtent.X*.5f);
             }
+            // The own statuses as icons above the name, LoL-style: rows of OwnStatusPerRow squares centred over the bars,
+            // later rows stacking upward. Each square is its picture (or the name's first character) on a dark tile with a
+            // green (helps) or red (hurts) rim, the stacks over 1 in the bottom-right corner, and a timed status's remaining
+            // time as a shrinking line along its bottom edge. Hovering one opens the HUD's slot popup.
+            const TArray<FLDOwnStatusMark>* Marks=PC->HUDUI?&PC->HUDUI->GetOwnStatusMarks():nullptr;
+            if(Marks&&!Marks->IsEmpty())
+            {
+                const float Side=FMath::RoundToFloat(OwnStatusSide*TextScale);
+                const TArray<FSlateRect> Squares=LDWorldLabels::OwnStatusIconRects(Marks->Num(),OwnX,ReachTop-WorldRowGap-1.f,Side,OwnStatusGap,OwnStatusPerRow);
+                for(int32 Index=0;Index<Squares.Num();++Index)
+                {
+                    const FLDOwnStatusMark& Mark=(*Marks)[Index];const FSlateRect& Square=Squares[Index];
+                    const FLinearColor Edge=Mark.bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
+                    const FVector2f At(Square.Left,Square.Top);
+                    Box(1,At-FVector2f(1.f,1.f),FVector2f(Side+2.f,Side+2.f),Edge);
+                    Box(2,At,FVector2f(Side,Side),FLinearColor(.02f,.03f,.05f,.92f));
+                    if(const FSlateBrush* Picture=PC->HUDUI->OwnStatusBrush(Mark.ViewIndex))
+                    {FSlateDrawElement::MakeBox(E,Base+3,G.ToPaintGeometry(FVector2f(Side,Side),FSlateLayoutTransform(At)),Picture,ESlateDrawEffect::None,FLinearColor::White);}
+                    else
+                    {
+                        const FVector2f GlyphExtent=FontMeasure->Measure(Mark.Glyph,LevelFont);
+                        const FVector2f GlyphAt(At.X+Side*.5f-GlyphExtent.X*.5f,At.Y+Side*.5f-GlyphExtent.Y*.5f);
+                        FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(GlyphExtent,FSlateLayoutTransform(GlyphAt)),Mark.Glyph,LevelFont,ESlateDrawEffect::None,Edge);
+                    }
+                    if(Mark.Stacks>1)
+                    {
+                        const FString StackText=FString::FromInt(Mark.Stacks);const FVector2f StackExtent=FontMeasure->Measure(StackText,StackFont);
+                        const FVector2f StackAt(At.X+Side-StackExtent.X+1.f,At.Y+Side-StackExtent.Y+1.f);
+                        FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(StackExtent,FSlateLayoutTransform(StackAt)),StackText,StackFont,ESlateDrawEffect::None,FLinearColor::White);
+                    }
+                    if(Mark.Remaining>=0.f)
+                    {
+                        Box(3,FVector2f(At.X,At.Y+Side-2.f),FVector2f(Side,2.f),FLinearColor(0.f,0.f,0.f,.7f));
+                        if(Mark.Remaining>0.f){Box(4,FVector2f(At.X,At.Y+Side-2.f),FVector2f(Side*FMath::Clamp(Mark.Remaining,0.f,1.f),2.f),Edge);}
+                    }
+                    OwnMarkRects.Add(FSlateRect(FVector2D(G.LocalToAbsolute(FVector2f(Square.Left,Square.Top))),FVector2D(G.LocalToAbsolute(FVector2f(Square.Right,Square.Bottom)))));
+                    ReachTop=FMath::Min(ReachTop,Square.Top-1.f);ReachLeft=FMath::Min(ReachLeft,Square.Left-1.f);ReachRight=FMath::Max(ReachRight,Square.Right+1.f);
+                }
+            }
             // Placed before any label, so a unit's label moves above the own bars instead of covering them.
             Placed.Add(FSlateRect(ReachLeft,ReachTop,ReachRight,OwnBottom));
         }
     }
+    if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects(MoveTemp(OwnMarkRects));}
     // Labels are measured first and placed lowest-on-screen first; a label that would overlap one already placed (the own
     // bars come first) moves up above it, so units standing together keep readable labels instead of a garbled stack.
     struct FPending

@@ -1102,6 +1102,8 @@ void ULDComponentStorage::UpdateStates(FVector2D Pointer)
         LDTween::SetOpacity(Tile.Face,Tile.State==EFaceState::Held?.35f:Tile.State==EFaceState::Dim?.4f:1.f);
     }
 }
+float ULDComponentStorage::StackHeight() const
+{return StackFrame&&StackFrame->IsVisible()?float(StackFrame->GetDesiredSize().Y):0.f;}
 void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
 {
     const FVector2D Area=Geometry.GetLocalSize();
@@ -1112,15 +1114,20 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
     else
     {
         StorageShown(LibraryFrame,false);
-        // The stack sits right of the band, on its bottom edge.
-        StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));
+        // The stack stands right above the 构筑 button, right edges aligned; without the button it sits right of the band.
+        if(StorageHasArea(Anchors.Corner))
+        {StoragePlace(StackSlot,Local(FVector2D(Anchors.Corner.Right,Anchors.Corner.Top))-FVector2D(0,StorageGapFromBand),FVector2D(1,1));}
+        else{StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));}
         StorageShown(ListFrame,bExpanded&&!Cards.IsEmpty(),ESlateVisibility::Visible);
         const FSlateRect Stack=StorageRect(StackFrame);
         const FVector2D StackTopLeft=Local(FVector2D(Stack.Left,Stack.Top));
         if(bExpanded)
         {
-            // The list rises from the stack; a dragged icon fades (its rim is painted, LDUIShapes).
-            StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));
+            // The list rises from the stack; a dragged icon fades (its rim is painted, LDUIShapes). Over the corner button the
+            // list keeps the stack's right edge, so it stays on screen.
+            if(StorageHasArea(Anchors.Corner))
+            {StoragePlace(ListSlot,Local(FVector2D(Stack.Right,Stack.Top))-FVector2D(0,6.f),FVector2D(1,1));}
+            else{StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));}
             for(FCard& Card:Cards){LDTween::SetOpacity(Card.Size,Card.State==EFaceState::Held?.35f:1.f);}
         }
         // The columns rise over their anchors in one row: 本体 (left of the first Q/W/E slot), Q/W/E and D, each centred.

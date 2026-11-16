@@ -2097,13 +2097,11 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                         return Left.Right<=Right.Left+.5f||Right.Right<=Left.Left+.5f
                             ||Left.Bottom<=Right.Top+.5f||Right.Bottom<=Left.Top+.5f;
                     };
-                    bool bStatusClear=HUD->MapColumn&&HUD->Band;
-                    for(const UBorder* Cell:HUD->SelfIconCells)
-                    {bStatusClear&=Separate(Cell,HUD->MapColumn)&&Separate(Cell,HUD->Band);}
+                    const bool bStatusClear=HUD->MapColumn&&HUD->Band&&Separate(HUD->MapColumn,HUD->Band);
                     return Check(ActualWidth==Width&&ActualHeight==Height&&HUD->Minimap&&LDSlateProbeInput::FullyVisible(HUD->Minimap,HUD)
                         &&LDSlateProbeInput::FullyVisible(Body,HUD)&&LDSlateProbeInput::FullyVisible(Q,HUD)
                         &&Body->GetCachedGeometry().GetLayoutBoundingRect().Right<=Q->GetCachedGeometry().GetLayoutBoundingRect().Left&&bStatusClear,
-                        TEXT("UI: the field minimap, status squares and body slot fit without overlap, with the body left of Q"));
+                        TEXT("UI: the field minimap and the centred band fit without overlap, with the body left of Q"));
                 };
                 if(UIFieldStep==0)
                 {
