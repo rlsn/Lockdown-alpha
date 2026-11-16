@@ -1513,12 +1513,96 @@ bool FLDDemoVisionPresentationTest::RunTest(const FString& Parameters)
         FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 105.2, 100.1), 5.0 + .1 * P::OffsetGrowthPerSecond));
     TestTrue(TEXT("Growth never passes the arrival itself"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, 100.0, 105.11, 100.1), 5.01));
     TestTrue(TEXT("A jump beyond the reseed bound adopts the new clock"), FMath::IsNearlyEqual(P::TrackOffset(true, 5.0, .1, 200.0, 10.0), 190.0));
-    TestTrue(TEXT("The clock trails the newest sample by more than one publication"), P::DelaySeconds > .1);
+    TestTrue(TEXT("The clock trails the newest sample by more than one publication"),
+        P::MinDelaySeconds > double(ALDVisionDirector::PublishPeriodMs) / 1000.0);
     TestEqual(TEXT("No public hit has no reaction"), P::HitAgeSeconds(0, .1), -1.f);
     TestTrue(TEXT("A cast and a shield-absorbed or control hit use the actual hit age, not health changes"),
         FMath::IsNearlyEqual(P::HitAgeSeconds(21, .03), .05f));
     TestTrue(TEXT("Repeated samples retain the same hit onset"),
         FMath::IsNearlyEqual(P::HitAgeSeconds(21, .03), P::HitAgeSeconds(41, .01)));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionAdaptiveTimingTest, "Lockdown.Rules.DemoVision.AdaptiveTiming",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionAdaptiveTimingTest::RunTest(const FString& Parameters)
+{
+    namespace P = LDObservedPresentation;
+    const double Interval = double(ALDVisionDirector::PublishPeriodMs) / 1000.0;
+    TestEqual(TEXT("Observation frames are published at twenty per second"), ALDVisionDirector::PublishPeriodMs, int64(50));
+
+    const P::FTiming Clean = P::Timing(0, Interval);
+    TestTrue(TEXT("A clean link keeps the floor delay and timeout"), FMath::IsNearlyEqual(Clean.DelaySeconds, P::MinDelaySeconds)
+        && FMath::IsNearlyEqual(Clean.StaleAfterSeconds, FLDObservedFrameReceiver::StaleAfterSeconds));
+    const P::FTiming Small = P::Timing(.04, Interval);
+    TestTrue(TEXT("Lateness inside the floor margin changes nothing"), FMath::IsNearlyEqual(Small.DelaySeconds, P::MinDelaySeconds)
+        && FMath::IsNearlyEqual(Small.StaleAfterSeconds, FLDObservedFrameReceiver::StaleAfterSeconds));
+    const P::FTiming Jittery = P::Timing(.431, Interval);
+    TestTrue(TEXT("High lateness delays by interval, margin and lateness"),
+        FMath::IsNearlyEqual(Jittery.DelaySeconds, Interval + P::DelayMarginSeconds + .431));
+    TestTrue(TEXT("The timeout keeps its room over the delay"),
+        FMath::IsNearlyEqual(Jittery.StaleAfterSeconds, Jittery.DelaySeconds + P::StaleOverDelaySeconds));
+    const P::FTiming Wild = P::Timing(10, Interval);
+    TestTrue(TEXT("The delay and timeout are bounded"), FMath::IsNearlyEqual(Wild.DelaySeconds, P::MaxDelaySeconds)
+        && FMath::IsNearlyEqual(Wild.StaleAfterSeconds, P::MaxDelaySeconds + P::StaleOverDelaySeconds));
+    const P::FTiming Junk = P::Timing(-1, std::numeric_limits<double>::quiet_NaN());
+    TestTrue(TEXT("Negative or invalid input keeps the floors"), FMath::IsNearlyEqual(Junk.DelaySeconds, P::MinDelaySeconds)
+        && FMath::IsNearlyEqual(Junk.StaleAfterSeconds, FLDObservedFrameReceiver::StaleAfterSeconds));
+
+    TestTrue(TEXT("A later arrival raises the envelope at once"), FMath::IsNearlyEqual(P::TrackLateness(.02, .05, .3), .3));
+    TestTrue(TEXT("An earlier arrival lets the envelope decay"), FMath::IsNearlyEqual(P::TrackLateness(.3, P::LatenessReleaseSeconds, 0),
+        .3 * FMath::Exp(-1.0)));
+    TestTrue(TEXT("The envelope never decays below the newest lateness"), P::TrackLateness(.3, 100, .1) >= .1);
+    TestTrue(TEXT("Negative lateness counts as on time"), FMath::IsNearlyEqual(P::TrackLateness(0, .05, -.2), 0.0));
+
+    TestTrue(TEXT("Delay growth is rate limited"), FMath::IsNearlyEqual(P::SlewDelay(.13, .5, .1), .13 + .1 * P::DelayGrowthPerSecond));
+    TestTrue(TEXT("Delay shrink is slower than growth"), FMath::IsNearlyEqual(P::SlewDelay(.5, .13, .1), .5 - .1 * P::DelayShrinkPerSecond)
+        && P::DelayShrinkPerSecond < P::DelayGrowthPerSecond);
+    TestTrue(TEXT("Slewing never passes the target"), FMath::IsNearlyEqual(P::SlewDelay(.13, .14, 10), .14)
+        && FMath::IsNearlyEqual(P::SlewDelay(.5, .4, 100), .4));
+
+    TestTrue(TEXT("The timeout widens at once"), FMath::IsNearlyEqual(P::TrackTimeout(.25, .6, .05), .6));
+    TestTrue(TEXT("The timeout narrows slowly"), FMath::IsNearlyEqual(P::TrackTimeout(.6, .25, 1), .6 - P::TimeoutShrinkPerSecond)
+        && FMath::IsNearlyEqual(P::TrackTimeout(.6, .25, 1000), .25));
+
+    // One minute of a twenty-per-second stream with lag spikes of up to 431 ms every few seconds, frames handled in
+    // arrival order (an older frame after a newer one is stale, as the receiver cursor does). Only a spike later than
+    // every one measured before can time out; any other gap stays inside the receive timeout, so units are delayed, not
+    // cleared.
+    FRandomStream Random(431);
+    struct FArrival { double Sent = 0, At = 0; };
+    TArray<FArrival> Arrivals;
+    double BurstStart = 1, BurstEnd = 0, BurstLevel = 0;
+    for (int32 Frame = 0; Frame < 1200; ++Frame)
+    {
+        const double Sent = Frame * Interval;
+        if (Sent >= BurstStart)
+        {
+            BurstLevel = Random.FRandRange(.2, .431);
+            BurstEnd = Sent + Random.FRandRange(.3, 1.5);
+            BurstStart = BurstEnd + Random.FRandRange(2, 8);
+        }
+        const double Late = (Sent < BurstEnd ? BurstLevel : 0) + Random.FRandRange(0, .03);
+        Arrivals.Add({Sent, Sent + Late});
+    }
+    Arrivals.Sort([](const FArrival& A, const FArrival& B) { return A.At < B.At; });
+    double Envelope = 0, StaleAfter = FLDObservedFrameReceiver::StaleAfterSeconds, LastAt = -1, LastSent = -1, Latest = 0;
+    int32 RecordTimeouts = 0, OtherTimeouts = 0, Accepted = 0;
+    for (const FArrival& Arrival : Arrivals)
+    {
+        if (Arrival.Sent <= LastSent) { continue; }
+        const double Late = Arrival.At - Arrival.Sent;
+        if (LastAt >= 0 && Arrival.At - LastAt > StaleAfter) { ++(Late > Latest ? RecordTimeouts : OtherTimeouts); }
+        Latest = FMath::Max(Latest, Late);
+        const double Since = LastAt < 0 ? 0 : Arrival.At - LastAt;
+        Envelope = LastAt < 0 ? 0 : P::TrackLateness(Envelope, Since, Late);
+        StaleAfter = P::TrackTimeout(StaleAfter, P::Timing(Envelope, Interval).StaleAfterSeconds, Since);
+        LastAt = Arrival.At;
+        LastSent = Arrival.Sent;
+        ++Accepted;
+    }
+    TestTrue(TEXT("The spiky stream is mostly accepted"), Accepted > 900);
+    TestTrue(TEXT("Only record spikes can time out, so they stay rare"), RecordTimeouts <= 3);
+    TestEqual(TEXT("A spike no later than one already measured never times out"), OtherTimeouts, 0);
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPropFadeTest, "Lockdown.Rules.DemoVision.PropFade",

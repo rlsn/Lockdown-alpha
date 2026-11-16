@@ -440,7 +440,7 @@ Host（Listen Host 的权威代码）在试玩期记录完整权威信息：
 | `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡的候选（含 NPC 出卡）；确认的卡、结果、槽位、是否存为图纸 |
 | `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于休息（Rest）、野外（Development）或旗杆开放（CaptureOpen）时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
 | `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、K/D/A、选择次数、主动、图纸与五维点数 |
-| `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
+| `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、引擎上一统计周期的每秒收发字节（`in_bytes_s`/`out_bytes_s`）、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
 
 远端客户端只记录该玩家本来就能看到的信息（`FLDPlaytestTrace`，读法与 [视野与 UI](VISION_AND_UI.md#ui-只读模型) 的允许来源一致）：
 `LD_SELF_MATCH`/`LD_SELF_ROSTER`（本人身份与公开名单）、`LD_SELF_STATE`（每秒一行本人投影）、`LD_SELF_LIFE`、
@@ -453,7 +453,8 @@ Host（Listen Host 的权威代码）在试玩期记录完整权威信息：
 （`LD_DEMO_LOBBY` 之前或 `LD_DEMO_FRONTEND` 之后）里没有 Host 专有标签。
 
 每个进程都写 `LD_PERF`（10 秒窗口的 FPS、平均与峰值帧耗时、帧数与卡顿数，复用 HUD 的 `LDHUD::FFrameDiagnostics`）、
-客户端的 `LD_NET role=client`（RTT、抖动、丢包、本人移动校正次数与误差）和单帧 ≥ 100 ms 时的 `LD_PERF_HITCH`
+客户端的 `LD_NET role=client`（RTT、抖动、丢包、每秒收发字节、本人移动校正次数与误差，以及观察流的当前呈现延迟
+`obs_delay_ms`、到达迟滞包络 `obs_late_ms`、接收超时 `obs_timeout_ms` 与累计超时清除次数 `obs_timeouts`）和单帧 ≥ 100 ms 时的 `LD_PERF_HITCH`
 （`LDLog::FRateLimit` 每秒最多一行，被省略的条数随下一行报告）。它们与 HUD 的诊断开关无关。
 没有逐帧日志：周期行都经 `FPeriodicGate`/`FRateLimit` 限频，事件行只随已提交的权威事实或本人投影的变化写出。
 ## 扩展与检查
