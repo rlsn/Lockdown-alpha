@@ -10,6 +10,8 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
+#include "Engine/World.h"
 #include "UObject/CoreNet.h"
 #include "UObject/UnrealType.h"
 #include "Algo/Reverse.h"
@@ -1849,3 +1851,43 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
 }
 } // namespace LDDemoVisionTests
 #endif
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionDelayedHistoryTest, "Lockdown.Rules.DemoVision.DelayedHistory",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionDelayedHistoryTest::RunTest(const FString& Parameters)
+{
+    namespace P = LDObservedPresentation;
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Delayed history fixture world"), World)) { return false; }
+    ON_SCOPE_EXIT { World->DestroyWorld(false); };
+    auto* Flight = World->SpawnActor<ALDObservedProjectileProxy>();
+    if (!TestNotNull(TEXT("Flight proxy"), Flight)) { return false; }
+    // After a jitter burst the arrivals recover at 20 Hz while the slewed delay still holds the clock the longest delay
+    // behind the newest sample: the samples around that clock are still kept.
+    const double Period = double(ALDVisionDirector::PublishPeriodMs) / 1000.0;
+    const int32 Count = P::HistorySamples;
+    FLDObservedProjectileView View;
+    View.Handle = FGuid::NewGuid();
+    View.Look = ELDObservedProjectileLook::Chalk;
+    View.RadiusCm = 20.f;
+    for (int32 Index = 0; Index < Count; ++Index)
+    {
+        View.PositionCm = FVector(100.0 * Index, 0, 0);
+        Flight->Apply(View, 10.0 + Period * Index);
+    }
+    const double Newest = 10.0 + Period * (Count - 1);
+    const double Behind = Newest - P::MaxDelaySeconds;
+    const double Expected = 100.0 * (Behind - 10.0) / Period;
+    Flight->Present(Behind);
+    TestTrue(TEXT("A clock the longest delay behind still interpolates between kept samples"),
+        FMath::IsNearlyEqual(Flight->GetActorLocation().X, Expected, 1.0));
+    // A flight that ended stays until the delayed clock passes its last sample, bounded in local time.
+    Flight->End(20.0);
+    TestFalse(TEXT("An ended flight waits for a clock delayed beyond the former 0.4 s bound"),
+        Flight->IsFinished(Behind, 20.0 + P::MaxDelaySeconds));
+    TestTrue(TEXT("It finishes once the clock passes its last sample"), Flight->IsFinished(Newest, 20.0 + P::MaxDelaySeconds));
+    TestTrue(TEXT("A stalled clock ends it after the bounded local wait"), Flight->IsFinished(Behind, 20.0 + P::FlightEndSeconds));
+    return true;
+}

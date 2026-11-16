@@ -101,6 +101,7 @@ FString WorkshopRichEscape(FString Text)
 void WorkshopTint(ULDCommandButton* Button,bool bSelected){LDWidgets::SetLook(Button,bSelected?LDUIPaint::EButton::TagOn:LDUIPaint::EButton::Tag);}
 }
 
+bool ULDWorkshop::IsOpening() const{return IsOpen()&&OpenedAt>=0.&&UiNow()-OpenedAt<LDHUDStyle::MotionWorkshopOpen;}
 double ULDWorkshop::UiNow() const
 {
     return GetWorld()?GetWorld()->GetRealTimeSeconds():0.;

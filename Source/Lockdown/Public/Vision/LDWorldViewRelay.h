@@ -84,6 +84,13 @@ namespace LDObservedPresentation
     // lateness of recent frames (Timing), never less than MinDelaySeconds and never more than MaxDelaySeconds.
     constexpr double MinDelaySeconds = .13;
     constexpr double MaxDelaySeconds = .6;
+    // Samples a proxy keeps: a clock MaxDelaySeconds behind the newest sample still has its bracketing samples at the
+    // 20 Hz publish rate, with interpolation headroom (static_assert in LDWorldViewRelay.cpp); a stalled clock still
+    // keeps a bounded queue.
+    constexpr int32 HistorySamples = 16;
+    // A finished flight waits for the presentation clock to pass its last sample, at most this long in local time: the
+    // longest presentation delay plus margin. Stale, reset and non-flight ends still clear at once.
+    constexpr double FlightEndSeconds = MaxDelaySeconds + .2;
     constexpr double DelayMarginSeconds = .03;
     // The receive timeout keeps this much room over the delay, never below FLDObservedFrameReceiver::StaleAfterSeconds.
     constexpr double StaleOverDelaySeconds = .12;
@@ -250,7 +257,7 @@ class LOCKDOWN_API ALDObservedProjectileProxy : public AActor
 {
     GENERATED_BODY()
 public:
-    static constexpr double EndSeconds = .4;
+    static constexpr double EndSeconds = LDObservedPresentation::FlightEndSeconds;
     ALDObservedProjectileProxy();
     void Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec);
     void Present(double AtServerSec);

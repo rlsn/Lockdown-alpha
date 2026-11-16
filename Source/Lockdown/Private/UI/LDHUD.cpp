@@ -988,10 +988,12 @@ TArray<ULDPanel*,TInlineAllocator<4>> ULDHUD::MainPanels() const
 }
 void ULDHUD::ToggleAttributeView()
 {
+    MarkReadModelDirty();
     if(StatBar){StatBar->ToggleView();}
 }
 void ULDHUD::ToggleWorkshop()
 {
+    MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(!PC||!PC->RootUI||!ChoicesPanel){return;}
     const bool bOpen=ChoicesPanel->IsTrayOpen();
@@ -1000,6 +1002,7 @@ void ULDHUD::ToggleWorkshop()
 }
 void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
 {
+    MarkReadModelDirty();
     if(DevTestPanel){DevTestPanel->HandleResult(Result);}
 }
 FReply ULDHUD::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
@@ -1134,16 +1137,109 @@ void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
     HudSetText(DiagnosticsText,Text);
 }
 
+void ULDHUD::SampleReadModel()
+{
+    auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
+    // Cues follow every sample, including while a menu covers the HUD or the result is shown.
+    ObserveAudio(*PC,*GS);
+    LDHUD::FReadModelKey Key;
+    {TRACE_CPUPROFILER_EVENT_SCOPE(LDHUDReadModelKey);Key=ReadModelKey(*PC,*GS);}
+    if(!ReadModelGate.ShouldRebuild(Key)){return;}
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDHUDRebuildReadModel);
+    RebuildReadModel(*PC,*GS);
+    ReadModelGate.Rebuilt(Key,bReadModelLive);
+}
 void ULDHUD::RefreshReadModel()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
+    ObserveAudio(*PC,*GS);
+    RebuildReadModel(*PC,*GS);
+}
+LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameState& GS)
+{
+    LDHUD::FReadModelKey Key;
+    {
+        bool bChanged=false;
+        const auto Compared=[&bChanged](auto& Kept,const auto& Now)
+        {
+            if(!std::decay_t<decltype(Now)>::StaticStruct()->CompareScriptStruct(&Kept,&Now,PPF_None)){Kept=Now;bChanged=true;}
+        };
+        const auto Same=[&bChanged](auto& Kept,const auto& Now){if(!(Kept==Now)){Kept=Now;bChanged=true;}};
+        FReadModelSeen& Seen=ReadModelSeen;
+        Compared(Seen.Owner,PC.OwnerState);
+        // The public match and the lobby advance their revision with every publication (PublishPublicMatch, PublishLobby).
+        Same(Seen.PublicGeneration,GS.PublicMatch.Generation);Same(Seen.PublicRevision,GS.PublicMatch.PublicRevision);
+        Same(Seen.LobbyRevision,GS.DemoLobby.PublicRevision);Same(Seen.RosterRevision,GS.DemoLobby.RosterRevision);
+        Compared(Seen.Kills,GS.KillFeed);Compared(Seen.Result,GS.MatchResult);Compared(Seen.Recap,PC.DeathRecap);
+        Compared(Seen.Summary,PC.DamageSummary);
+        // Each accepted reaction-assist prompt advances the controller's serial (ClientReactionAssist).
+        Same(Seen.ReactionAssistSerial,PC.ReactionAssistSerial);
+        // Combat replaces its owner view only with a new revision, generation, life or body (ALDCombatDirector::PublishOwnerViews).
+        Same(Seen.CombatGeneration,PC.CombatView.Generation);Same(Seen.CombatLife,PC.CombatView.Life);
+        Same(Seen.CombatRevision,PC.CombatView.Revision);Same(Seen.bCombatBody,PC.CombatView.bHasBody);
+        const auto* Body=Cast<ALDCharacter>(PC.GetPawn());
+        Same(Seen.Body,TWeakObjectPtr<const AActor>(Body));Same(Seen.Presentation,Body?int32(Body->PresentationKey):-1);
+        Same(Seen.Content,static_cast<const void*>(DisplayContent.Get()));
+        if(bChanged){++ReadModelViews;}
+    }
+    Key.Views=ReadModelViews;Key.Local=ReadModelLocal;
+    Key.CombatReceipts=PC.CombatReceipts.Serial();Key.Feedback=PC.FeedbackSerial();
+    {
+        // The target card follows the inspected unit in each new observed frame.
+        FLDObservedUnitView Subject;
+        if(PC.ReadInspected(Subject))
+        {
+            const ALDWorldViewRelay* Relay=PC.LocalView();
+            Key.Frame=HashCombineFast(GetTypeHash(Subject.Handle),Subject.ObservationEpoch)|(uint64(Relay?Relay->ReadObservedFrame().LocalSerial:0)+1)<<32;
+        }
+    }
+    // Hover and popups change only with the pointer over the HUD or an own status mark over the own bars; moving it over
+    // the world is not an input.
+    const bool bSlate=FSlateApplication::IsInitialized();
+    const FVector2D At=bSlate?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
+    if(bSlate&&(PointerOverUI()||OwnStatusHitRects.ContainsByPredicate([&At](const FSlateRect& Mark){return Mark.ContainsPoint(At);})))
+    {
+        Key.Interaction=FSlateApplication::Get().GetLastUserInteractionTime();Key.Pointer=At;
+    }
+    else{Key.Pointer=FVector2D(-1,-1);}
+    Key.Viewport=GetCachedGeometry().GetLocalSize();
+    Key.TextScale=PC.Controls?PC.Controls->TextScale:1.f;
+    {
+        uint64 Flags=0;int32 Shift=0;
+        const auto Put=[&Flags,&Shift](uint64 Value,int32 Bits){Flags|=(Value&((uint64(1)<<Bits)-1))<<Shift;Shift+=Bits;};
+        Put(PC.ControlsUI&&PC.ControlsUI->IsOpen(),1);Put(PC.RootUI&&PC.RootUI->IsMenuOpen(),1);
+        Put(PC.RootUI?uint64(PC.RootUI->ActiveMainPanel()):0,8);
+        Put(PC.IsWorldInputSuppressed(),1);Put(PC.IsWorldInputCaptured(),1);
+        const auto Held=[&PC](const TCHAR* Action){const FKey Bound=PC.BindingKey(Action);return Bound.IsValid()&&PC.IsInputKeyDown(Bound);};
+        Put(Held(TEXT("Details")),1);Put(Held(TEXT("Scoreboard")),1);
+        ELDCombatEntry Armed=ELDCombatEntry::None;Put(PC.ReadArmedCombatEntry(Armed),1);Put(uint64(Armed),8);
+        for(const ELDCombatEntry Entry:PC.SkillAtKey){Put(uint64(Entry),8);}
+        Put(PC.BuildBlueprints&&PC.BuildBlueprints->IsViewerOpen(),1);
+        Put(ChoicesPanel&&ChoicesPanel->IsPanelOpen(),1);Put(ChoicesPanel&&ChoicesPanel->IsTrayOpen(),1);
+        Put(Workshop&&Workshop->IsOpen(),1);Put(Storage&&Storage->IsDragging(),1);Put(bDragging,1);
+        int64 NowMs=0;Put(PC.ReadDemoAuthorityTimeMs(NowMs),1);
+        check(Shift<=64);
+        Key.Flags=Flags;
+    }
+    {
+        // Clock texts show while the HUD is up in play; other covered states hold no countdown.
+        const FLDPublicMatchView& Public=GS.PublicMatch;
+        const bool bPlaying=Public.Generation!=0&&Public.Generation==PC.OwnerState.Match
+            &&(Public.Phase==ELDMatchPhase::Rest||Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
+        const bool bCovered=(PC.ControlsUI&&PC.ControlsUI->IsOpen())||(PC.RootUI&&PC.RootUI->IsMenuOpen());
+        Key.Clock=LDHUD::ReadModelClock(GetWorld()->GetRealTimeSeconds(),bPlaying&&!bCovered);
+    }
+    return Key;
+}
+void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGameState& GameState)
+{
+    ALDPlayerController* PC=&PlayerController;const ALDGameState* GS=&GameState;
+    bReadModelLive=false;
     const FLDOwnerState& O=PC->OwnerState;const FLDLobbyView& Lobby=GS->DemoLobby;const FLDPublicMatchView& Public=GS->PublicMatch;
     // PublicMatch is the single public phase source; a projection from another generation is never this match.
     const bool bOwnMatch=Public.Generation!=0&&Public.Generation==O.Match;
     const bool Playing=bOwnMatch&&(Public.Phase==ELDMatchPhase::Rest||Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
     const bool bResults=bOwnMatch&&Public.Phase==ELDMatchPhase::Results;
-    // Cues follow every sample, including while a menu covers the HUD or the result is shown.
-    ObserveAudio(*PC,*GS);
     int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
     const bool bAlive=O.LifePhase==ELDLifePhase::Alive;
     // Local presentation time for fades, flashes and pulses; it is never compared with an authority deadline.
@@ -1184,6 +1280,8 @@ void ULDHUD::RefreshReadModel()
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
+        // The result enters row by row until AnimateResult settles it, and the arena ring shrinks: both move with time.
+        bReadModelLive=(bResults&&!Overlay&&ResultShownAt>=0.)||PKRing.IsValid();
         return;
     }
 
@@ -1253,6 +1351,8 @@ void ULDHUD::RefreshReadModel()
     HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
     HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
+    // Moving with time: the arena ring, the flagpole bar and the death countdown with its ring.
+    bReadModelLive|=PKRing.IsValid()||Circle.bProgress||Death.bVisible;
     if(Death.bVisible)
     {
         HudSetText(DeathTitle,Death.Title);HudSetText(DeathCountdown,Death.Countdown);HudSetText(DeathNote,Death.Note);
@@ -1293,6 +1393,8 @@ void ULDHUD::RefreshReadModel()
     // Plain alive needs no line; protection, death and the other phases keep theirs.
     const bool bPlainAlive=bAlive&&(O.ProtectedUntilMs<=0||(bClock&&O.ProtectedUntilMs<=NowMs));
     HudSetText(LifeText,LDHUD::LifeStatus(O,bClock,NowMs));HudSetShown(LifeText,!bPlainAlive,ESlateVisibility::HitTestInvisible);
+    // The protection countdown shows tenths.
+    bReadModelLive|=!bPlainAlive;
     HudSetColor(LifeText,bAlive?LDHUDStyle::Shield:O.LifePhase==ELDLifePhase::Dead?LDHUDStyle::TextDanger:LDHUDStyle::TextSecondary);
     // Owner projections of this match and life only; anything older reads as syncing, never as zero.
     const FLDProgressionView* Progression=PC->ReadOwnProgression();
@@ -1349,6 +1451,7 @@ void ULDHUD::RefreshReadModel()
             if(Icon.ExpiresAtMs>0&&bClock){Mark.Remaining=SelfIconRings.Fraction(Icon.Key,Icon.ExpiresAtMs,NowMs);LiveRings.Add(Icon.Key);}
         }
         SelfIconRings.Retain(LiveRings);
+        bReadModelLive|=!LiveRings.IsEmpty();
         const bool bShown=Band&&Band->IsVisible();
         if(!bShown){OwnStatusMarks.Reset();}
         OwnStatusNotice=LDHUD::SelfIconsNotice(Icons,bShown);
@@ -1577,6 +1680,7 @@ void ULDHUD::RefreshReadModel()
     {
         const double PulseAge=UiNow-PromptPulseAt;
         const float Wave=Pending.Any()&&!bEngaged&&PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds?LDTween::PingPong(PulseAge,1.):0.f;
+        bReadModelLive|=PromptPulseAt>=0&&PulseAge<LDHUDStyle::PulseSeconds;
         LDTween::SetScale(PendingPrompt,1.f+.05f*Wave);LDTween::SetOpacity(PendingPrompt,1.f-.25f*Wave);
     }
 
@@ -1630,6 +1734,8 @@ void ULDHUD::RefreshReadModel()
             :SlotKind==LDHUD::EActionSlot::Dash?EHudIconKind::Dash:EHudIconKind::Active;
         const bool bHover=Entry.Button->IsHovered();
         const bool bRejected=Entry.RejectedAt>=0&&UiNow-Entry.RejectedAt<LDHUDStyle::NoticeSeconds;
+        // The cooldown mask and its tenths, the ready flash and the red ring move with time.
+        bReadModelLive|=bCooling||bRejected||Entry.FlashAt>=0;
         Entry.bHasSource=Index<3&&Input.bHasSource;
         const int32 LookKey=((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0);
         if(Entry.AppliedLook!=LookKey)
@@ -1706,6 +1812,8 @@ void ULDHUD::RefreshReadModel()
     {
         const bool bDetail=DetailOver!=nullptr||DetailMark.IsSet();
         HudSetShown(Popup,bDetail,ESlateVisibility::HitTestInvisible);
+        // A mark's popup follows the own body, which moves every frame.
+        bReadModelLive|=DetailMark.IsSet();
         if(bDetail)
         {
             HudSetText(ActionDetailName,DetailView.Name);HudSetText(ActionDetailSummary,DetailView.Summary);
@@ -1765,6 +1873,10 @@ void ULDHUD::RefreshReadModel()
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
     HudSetText(Toast,UiNow-FeedbackAt<FeedbackDuration?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    // The toast leaves on time; the opening workshop fades in with Present, and the full one paints its rest step ring from
+    // the clock (a long step's ring moves smoothly enough on the clock bucket); a refused automatic opening retries.
+    bReadModelLive|=!Toast->GetText().IsEmpty()||AutoOpenSince>=0||(Workshop&&(Workshop->IsOpening()||(Workshop->GetMode()==ULDWorkshop::EMode::Full&&bRestPhase
+        &&LDHUD::ReadModelRingMoves(Public.Timeline.StepStartedAtMs,Public.Timeline.StepEndsAtMs))));
     if(ToastSlot)
     {
         // Above the band; over the full workshop at the top centre; above the bottom workshop's top edge.
@@ -1780,6 +1892,7 @@ void ULDHUD::RefreshReadModel()
 }
 void ULDHUD::ShowToast(const FString& Text)
 {
+    MarkReadModelDirty();
     if(Text.IsEmpty()){return;}
     const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
     if(Text==LastFeedbackBase&&Now-FeedbackAt<=LDHUDStyle::NoticeSeconds)
@@ -1793,6 +1906,7 @@ void ULDHUD::ShowToast(const FString& Text)
 // The panel, the storage and the stat bar each keep their own request; each answer reaches the one that sent it.
 void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 {
+    MarkReadModelDirty();
     if(Result.Family!=ELDGrowthFamily::Build){return;}
     if(ChoicesPanel){ChoicesPanel->HandleSubmit(Result);}
     if(Storage){Storage->HandleSubmit(Result);}
@@ -1800,11 +1914,12 @@ void ULDHUD::HandleGrowthSubmit(const FLDSubmitResult& Result)
 }
 void ULDHUD::HandleBuildReceipt(const FLDBuildReceiptQueryResult& Result)
 {
+    MarkReadModelDirty();
     if(ChoicesPanel){ChoicesPanel->HandleReceipt(Result);}
     if(Storage){Storage->HandleReceipt(Result);}
     if(StatBar){StatBar->HandleReceipt(Result);}
 }
-bool ULDHUD::CancelStorage(){return Storage&&Storage->CancelInteraction();}
+bool ULDHUD::CancelStorage(){MarkReadModelDirty();return Storage&&Storage->CancelInteraction();}
 void ULDHUD::SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,bool bShow,bool bWindowOpen,bool bSignedUp)
 {
     ALDSignupMarker* Marker=SignupMarker.Get();
@@ -1845,6 +1960,7 @@ void ULDHUD::SyncSignupMarker(const FLDPublicMatchView& Public,uint32 OwnMatch,b
 }
 void ULDHUD::SubmitTrainingReset()
 {
+    MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
     if(!PC||!GS||bTrainingResetInFlight||GS->PublicMatch.Generation==0||GS->PublicMatch.Generation!=PC->OwnerState.Match
@@ -1854,6 +1970,7 @@ void ULDHUD::SubmitTrainingReset()
 }
 void ULDHUD::SubmitRestReady()
 {
+    MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if(!PC||bRestReadyInFlight){return;}
     if(!PC->OwnerState.bCanRestReady||PC->OwnerState.bRestReady)
@@ -1862,17 +1979,20 @@ void ULDHUD::SubmitRestReady()
 }
 void ULDHUD::HandleRestReady(ELDRestReadyResult Result)
 {
+    MarkReadModelDirty();
     bRestReadyInFlight=false;
     ShowRestAnswer(LDHUD::RestReadyText(Result));
 }
 void ULDHUD::HandleTrainingReset(ELDTrainingResetResult Result)
 {
+    MarkReadModelDirty();
     bTrainingResetInFlight=false;
     UE_LOG(LogLDUI,Log,TEXT("LD_HUD_TRAINING_RESET_RESULT %d"),int32(Result));
     ShowRestAnswer(LDHUD::TrainingResetText(Result));
 }
 void ULDHUD::ShowRestAnswer(const FString& Text)
 {
+    MarkReadModelDirty();
     const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
     RestAnswer=Text;
     RestAnswerMatch=GS?GS->PublicMatch.Generation:0;
@@ -1903,6 +2023,8 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
     const bool bWorkspaceOpen=ChoicesPanel&&ChoicesPanel->IsPanelOpen();
     if(bWorkspaceOpen){bPKThrowArmed=false;}
     HudSetShown(PKPanelBorder,View.bVisible&&!bWorkspaceOpen,ESlateVisibility::Visible);
+    // The PK countdowns, the ring line and the throw cooldown move with time.
+    bReadModelLive|=View.bVisible;
     if(!View.bVisible||bWorkspaceOpen){return;}
     const auto Line=[](UTextBlock* Text,const FString& Value){HudSetText(Text,Value);HudSetShown(Text,!Value.IsEmpty(),ESlateVisibility::HitTestInvisible);};
     Line(PKTitleText,View.Title);
@@ -1956,6 +2078,7 @@ void ULDHUD::RefreshPK(ALDPlayerController& PC,const FLDPublicMatchView& Public,
 }
 void ULDHUD::SubmitPKBet(int32 SideIndex)
 {
+    MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
     if(!PC||!GS||bPKBetInFlight||GS->PublicMatch.Generation==0||GS->PublicMatch.Generation!=PC->OwnerState.Match){return;}
@@ -1968,6 +2091,7 @@ void ULDHUD::SubmitPKBet(int32 SideIndex)
 }
 void ULDHUD::TogglePKThrowAim()
 {
+    MarkReadModelDirty();
     if(CancelPKThrowAim()){return;}
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
@@ -1979,12 +2103,14 @@ void ULDHUD::TogglePKThrowAim()
 }
 bool ULDHUD::CancelPKThrowAim()
 {
+    MarkReadModelDirty();
     if(!bPKThrowArmed){return false;}
     bPKThrowArmed=false;
     return true;
 }
 void ULDHUD::ThrowPKAtPointer()
 {
+    MarkReadModelDirty();
     auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const auto* GS=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr;
     if(!bPKThrowArmed||!PC||!GS){bPKThrowArmed=false;return;}
@@ -2001,12 +2127,14 @@ void ULDHUD::ThrowPKAtPointer()
 }
 void ULDHUD::HandlePKBet(ELDPKBetResult Result)
 {
+    MarkReadModelDirty();
     bPKBetInFlight=false;
     UE_LOG(LogLDUI,Log,TEXT("LD_HUD_PK_BET_RESULT %d"),int32(Result));
     ShowPKAnswer(LDHUD::PKBetText(Result));
 }
 void ULDHUD::HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs)
 {
+    MarkReadModelDirty();
     bPKThrowInFlight=false;
     // Thrown and CoolingDown carry when the next throw is allowed; other answers leave the known cooldown as it is.
     if(ReadyAtMs>0){PKThrowReadyAtMs=ReadyAtMs;}
@@ -2015,6 +2143,7 @@ void ULDHUD::HandlePKThrow(ELDPKThrowResult Result,int64 ReadyAtMs)
 }
 void ULDHUD::ShowPKAnswer(const FString& Text)
 {
+    MarkReadModelDirty();
     PKAnswer=Text;
     ShowToast(Text);
 }
@@ -2175,6 +2304,8 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
         LDTween::SetOpacity(FeedLine,Opacity);
     }
     HudSetShown(EventFeedPanel,!Lines.IsEmpty(),ESlateVisibility::HitTestInvisible);
+    // Each line fades out and leaves on time.
+    bReadModelLive|=!Lines.IsEmpty();
 }
 void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
 {

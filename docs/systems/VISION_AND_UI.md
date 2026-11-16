@@ -126,6 +126,7 @@
   缩短 0.05 s 地追随目标，呈现时钟不跳变（`LDObservedPresentation::Timing`/`TrackLateness`/`SlewDelay`/`TrackTimeout`）。位置只在两个已收样本之间线性插值，超过最新样本就停在最新样本，不外推；
   相邻样本相距超过 300 cm（首次出现、复活、传送）直接跳到位。每个样本的动作提示与状态在时钟到达该样本时才呈现，
   因此出手、飞行物到达与受击在同一时间轴上。单位的隐藏、死亡和超时仍立即销毁代理，不按延迟时钟保留。
+  每个代理保留 `LDObservedPresentation::HistorySamples` = 16 个样本（20 Hz 下覆盖最长延迟 0.6 s 再加两个发布间隔，抖动恢复后时钟仍落后时也有前后样本可插值）；授权样本已结束的飞行物等呈现时钟越过最后一个样本，本机时间最多等 `FlightEndSeconds` = 0.8 s；可见单位的浮动数字最多等 `LDWorldFeedback::UnitHoldMaxSeconds` = 0.7 s（长于最长延迟）。
 - 迷雾是覆盖在注册地面边界上的 128² 纹理（双线性采样）：当前覆盖亮（255），其余调暗到 `LDFogHidden`（190）以便看清静态地形；没有探索层。
   每收到新的覆盖，各格在约 0.1 s 内从屏幕上的当前值过渡到新覆盖，只在两次已授权覆盖之间过渡。
 - 观察 schema 14 带有权威命中年龄与结果、外观、持续区域 look、可见回程投射物外观与已有延迟时刻的预警剩余时间；交通带只发布当前可见的实际铺设分段、宽度/长度及是否本人，不暴露施法者或构筑字段。回程飞行保留原投射物颜色并使用紫色尾迹。覆盖位图仍做有界字节游程编码，解码后仍是精确的2048字节，
@@ -349,6 +350,22 @@ paint 再次检查当前帧状态及 Match/Life，死亡、过期或他局帧立
 选中另一角色并不改变技能按钮的所有者；禁用按钮只是反馈，不能代替服务器检查。
 Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
+**读模型的重建时机**：拥有者的 PlayerController 每秒至多采样 `LDHUD::ReadModelHz` = 30 次（帧率更低时每帧一次），
+`ULDHUD::SampleReadModel` 每次采样都先观察音效，再由 `LDHUD::FReadModelGate` 决定是否重建。门的键 `FReadModelKey` 由读模型的全部输入组成：
+按值比较的本人 `OwnerState`（含成长投影）、`DeathRecap`、`DamageSummary` 与房间公开的 `KillFeed`、`MatchResult`
+（Listen Host 原地写入，没有每个写入者都推进的修订）；`PublicMatch` 的代次与 `PublicRevision`、`DemoLobby` 的 `PublicRevision` 与
+`RosterRevision`（每次发布都推进）；`CombatView` 的代次、命、修订与有无身体（Combat 只在这些变化时替换投影）；
+本人身体与显示内容快照；HUD 自己的回答与提示计数（服务器结果回调、提示条、本地切换）；战斗回执、意图提示与反应助攻提示（`ReactionAssistSerial`）序号；
+选中目标时该单位与观察帧序号；指针在 HUD 命中区上时 Slate 的最近输入时刻与指针位置（指针在世界上移动不算输入）；
+视口尺寸、文字缩放；菜单、设置、主面板、构筑面板/托盘、工坊、拖动、蓝图查看、按住的 Details/Scoreboard 键、准备中的动作、
+本地槽位顺序与权威时钟是否可读。键变化即重建，并在下一次采样再重建一次，让读取上一帧布局的位置跟上。
+上一次重建中有随时间变化的内容（技能冷却与十分位倒数、就绪闪光、拒绝外圈、构筑按钮脉动、状态剩余时间圈、旗杆进度、
+死亡与复活保护倒计时、PK 面板与场地圈、事件播报、提示条、工坊打开的淡入、全屏工坊在短于 `ReadModelSmoothRingMs` = 30 s 的休息步骤里的
+步骤环、结算入场（入场结束后结算页静止）、自动打开重试）时每次采样都重建；
+其余时间只要 HUD 在对局中显示，就按 `ReadModelClockHz` = 10 次/秒推进整秒计时文字（对局用时、时间线、返回倒数）与长步骤的环
+（每 0.1 s 移动不到半个像素），整秒翻转最多晚 0.1 s；打开的底部工坊不随时间变化。
+`RefreshReadModel` 不经过门、总是重建，只供需要立刻读回 HUD 的检查探针使用。`Lockdown.Rules.HUDReadModelGate` 覆盖门的判定。
+
 ## 构筑蓝图文件与查看
 
 局末构筑蓝图是本人的只读记录，只保存配方，不授予能力、不恢复遗忘的技能，也不写任何运行状态；
@@ -553,7 +570,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 目录解析失败后，首次请求播放还会记录一次 Warning 级 `LD_AUDIO_CUE_UNAVAILABLE`。
 所有音效都以非空间化 2D UI 声音（`PlaySound2D`）播放，不带世界位置，不能借声音暴露隐藏坐标。
 
-`ULDHUD` 每次重建读模型时（拥有者的 PlayerController 每秒至多重建 `LDHUD::ReadModelHz` = 30 次，帧率更低时每帧一次）把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
+`ULDHUD` 每次采样读模型时（拥有者的 PlayerController 每秒至多采样 `LDHUD::ReadModelHz` = 30 次，帧率更低时每帧一次；读模型本身不一定重建）把下表的只读输入交给 `FLDAudioCueTracker`，再由子系统播放。
 跟踪器没有观察单位、Actor 或他人私有状态输入；新代次的首个样本只建立基线，不补放之前的变化。
 
 | 音效 | 唯一来源 | 只响一次的规则 |

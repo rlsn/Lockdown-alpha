@@ -23,8 +23,53 @@ struct FLDLobbyView;
 struct FLDPKParameters;
 namespace LDHUD
 {
-    // How often the owning controller rebuilds the HUD read model; a slower frame rate rebuilds once per frame.
+    // How often the owning controller samples the HUD read model; a slower frame rate samples once per frame. A sample
+    // rebuilds only when FReadModelGate says so.
     inline constexpr double ReadModelHz=30.;
+    // While nothing on the shown HUD moves, its clock texts (whole seconds) are sampled this often, so a second ticks over
+    // at most 1/ReadModelClockHz late; tenths and moving bars mark the build live and keep the full rate.
+    inline constexpr double ReadModelClockHz=10.;
+    // What a read model build was made from (ULDHUD::SampleReadModel). Views counts changes of the compared projections
+    // (owner, combat, public match, lobby, kill feed, result, death recap, body, content), Local the HUD's own answers and
+    // notices; Frame names the inspected unit and its observed frame; Interaction and Pointer are Slate's last user input
+    // and the cursor while it is over the HUD; Flags packs the local menu, panel, key, armed-entry and slot-order state;
+    // Clock is ReadModelClock's bucket.
+    struct FReadModelKey
+    {
+        uint64 Views=0;
+        uint64 Local=0;
+        uint32 CombatReceipts=0;
+        uint32 Feedback=0;
+        uint64 Frame=0;
+        double Interaction=0;
+        FVector2D Pointer=FVector2D::ZeroVector;
+        FVector2D Viewport=FVector2D::ZeroVector;
+        float TextScale=1.f;
+        uint64 Flags=0;
+        int64 Clock=-1;
+        // Every input but the clock bucket.
+        LOCKDOWN_API bool SameInputs(const FReadModelKey& Other) const;
+    };
+    // The clock bucket of a sample: real seconds in steps of 1/ReadModelClockHz while timed text shows, otherwise -1.
+    LOCKDOWN_API int64 ReadModelClock(double RealSeconds,bool bTimed);
+    // A countdown ring over a step this long or longer moves under half a pixel per clock bucket (the full workshop's
+    // 23-unit step ring), so the clock bucket draws it as smoothly as every sample does.
+    inline constexpr int64 ReadModelSmoothRingMs=30000;
+    // Whether a ring counting down StartedAtMs..EndsAtMs needs every sample: a known step shorter than ReadModelSmoothRingMs.
+    LOCKDOWN_API bool ReadModelRingMoves(int64 StartedAtMs,int64 EndsAtMs);
+    // Rebuild on the first sample, on every sample after a live build (something on screen moves with time), when the key
+    // changed, and once more after an input change, because layout reads last frame's geometry of what that build set.
+    class LOCKDOWN_API FReadModelGate
+    {
+    public:
+        bool ShouldRebuild(const FReadModelKey& Key) const;
+        void Rebuilt(const FReadModelKey& Key,bool bLive);
+    private:
+        FReadModelKey Last;
+        bool bHas=false;
+        bool bLive=false;
+        bool bSettle=false;
+    };
     // #147/#198 card text: the owner's level grows an active's fixed amounts (G(L)); its stats fill the coefficients.
     struct FCardStats
     {

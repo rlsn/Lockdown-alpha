@@ -6,6 +6,7 @@
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
+#include "Vision/LDWorldViewRelay.h"
 #include "Misc/AutomationTest.h"
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
@@ -286,6 +287,8 @@ bool FLDWorldFeedbackVisibleUnitsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("It shows once the presentation clock reaches its frame"),
         LDWorldFeedback::UnitHold(true,true,10.1,10.1,.1)==EUnitHold::Release&&LDWorldFeedback::UnitHold(true,true,10.3,10.1,0.)==EUnitHold::Release);
     TestTrue(TEXT("Without a presentation clock it shows at once"),LDWorldFeedback::UnitHold(true,false,0.,10.1,0.)==EUnitHold::Release);
+    TestTrue(TEXT("A number still waits past half a second while the adaptive delay keeps the clock behind"),
+        LDWorldFeedback::UnitHold(true,true,9.,10.1,LDObservedPresentation::MaxDelaySeconds)==EUnitHold::Hold);
     TestTrue(TEXT("It never waits longer than the hold limit of local time"),
         LDWorldFeedback::UnitHold(true,true,9.,10.1,LDWorldFeedback::UnitHoldMaxSeconds-.01)==EUnitHold::Hold
         &&LDWorldFeedback::UnitHold(true,true,9.,10.1,LDWorldFeedback::UnitHoldMaxSeconds)==EUnitHold::Release);
