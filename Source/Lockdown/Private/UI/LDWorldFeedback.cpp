@@ -14,7 +14,7 @@ static_assert(LDWorldFeedback::UnitHoldMaxSeconds>LDObservedPresentation::MaxDel
     "A unit number must wait out the longest presentation delay before falling back to local time.");
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDCaptureTypes.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"

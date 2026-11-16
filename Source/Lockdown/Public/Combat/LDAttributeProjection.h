@@ -185,7 +185,7 @@ struct FLDAttributeProjectionResult
 
 // Temporary terms of one body at one instant: active timed bonuses, an active conditional low-HP bonus and the strongest
 // slow (move speed).
-struct FLDTemporaryAttributeTerms
+struct LOCKDOWN_API FLDTemporaryAttributeTerms
 {
     TArray<FLDDemoStatBonus> Bonuses;
     int64 MoveSlowBp = 0;

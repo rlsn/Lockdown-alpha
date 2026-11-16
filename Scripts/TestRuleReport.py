@@ -50,7 +50,7 @@ class RuleReportTests(unittest.TestCase):
         failing["entries"] = [
             {"event": {"type": "Info", "message": "noise"}},
             {"event": {"type": "Error", "message": "Expected 'x' to be not null."},
-             "filename": "D:/ci/Source/Lockdown/Private/Tests/LDDemoCoreTests.cpp", "lineNumber": 371},
+             "filename": "D:/ci/Source/LockdownTests/Private/LDDemoCoreTests.cpp", "lineNumber": 371},
         ]
         self.report["failed"] = 1
         with self.assertRaises(ValueError) as raised:

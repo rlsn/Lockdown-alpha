@@ -7,7 +7,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDSkillGrowth.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
@@ -408,7 +408,7 @@ bool ALDCombatDirector::LaunchReturn(const FLDCombatProjectile& Outbound, const 
     const FName Component=Outbound.ReturnComponent;
     const int64 ShareBp=Outbound.ReturnScaleBp;
     Return.FlightId=FGuid::NewGuid();
-    Return.AdvancedThroughMs=Core() ? Core()->GetAuthorityNowMs() : Outbound.AdvancedThroughMs;
+    Return.AdvancedThroughMs=Authority() ? Authority()->GetAuthorityNowMs() : Outbound.AdvancedThroughMs;
     Return.OriginCm=FVector(EndCm.X,EndCm.Y,Outbound.OriginCm.Z);
     Return.Direction=FVector(Toward.X/Length,Toward.Y/Length,0);
     Return.RangeCm=Length;
@@ -1174,11 +1174,11 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
 {
     using namespace LDCombatWorkshopDetail;
     bDelivered=false;
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     const UWorld* CurrentWorld=GetWorld();
     const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
     ALDCharacter* HolderActor=ActorOf(Holder);
-    if (!Mode || !Mode->Vision || !Registry || !HolderActor)
+    if (!Mode || !Mode->GetVisionAuthority() || !Registry || !HolderActor)
     { Error=TEXT("A counter needs the observation owner, the registered world and its holder's body."); return false; }
     const FVector HolderFoot=FootOf(*HolderActor);
     TArray<FLDPassiveEffectRef> Spreads, Delays, Reaches, Marked;
@@ -1200,7 +1200,7 @@ bool ALDCombatDirector::DeliverCounter(FLDBodyCombatState& Holder, const FLDComb
         if (!Body || !Actor || Body==&Holder || Body->bPendingDeath || IsIsolated(Holder.Victim.EntityId,*Body)) { return false; }
         OutFoot=FootOf(*Actor);
         if (FVector::Dist2D(HolderFoot,OutFoot)>ReachCm) { return false; }
-        const ELDSightResult Sight=Mode->Vision->TraceObservation(HolderFoot,*Actor,Registry->Revision());
+        const ELDSightResult Sight=Mode->GetVisionAuthority()->TraceObservation(HolderFoot,*Actor,Registry->Revision());
         bFault=Sight!=ELDSightResult::Visible && Sight!=ELDSightResult::Blocked && Sight!=ELDSightResult::OutOfRange;
         return Sight==ELDSightResult::Visible;
     };
@@ -1334,7 +1334,7 @@ bool ALDCombatDirector::CashOutLedger(const FLDBodyCombatState& Holder, const FL
 bool ALDCombatDirector::ResolveKnockbackImpact(FLDBodyCombatState& Body, const FLDCombatKnockbackImpact& Impact, bool bBody,
     const ALDCharacter* BlockerActor, int64 NowMs, FString& Error)
 {
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     if (!Mode) { Error=TEXT("A knockback impact needs the current core."); return false; }
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
     const auto Package=[&](const FLDCombatBodyRef& To, bool bStun)
@@ -1385,7 +1385,7 @@ bool ALDCombatDirector::ResolveKnockbackImpact(FLDBodyCombatState& Body, const F
 bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
 {
     using namespace LDCombatWorkshopDetail;
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     const UWorld* CurrentWorld=GetWorld();
     const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
     if (!Mode) { Error=TEXT("Workshop effects need the current core."); return false; }
@@ -1487,7 +1487,7 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
     {
         const FLDCombatLockedLedger Locked=LockedLedgers[Index];
         if (Locked.DueAtMs>NowMs) { continue; }
-        if (!Mode->Vision || !Registry) { Error=TEXT("A locked ledger needs the observation owner and the registered world."); return false; }
+        if (!Mode->GetVisionAuthority() || !Registry) { Error=TEXT("A locked ledger needs the observation owner and the registered world."); return false; }
         LockedLedgers.RemoveAt(Index);
         ALDCharacter* OwnerActor=nullptr;
         ALDCharacter* TargetActor=nullptr;
@@ -1497,7 +1497,7 @@ bool ALDCombatDirector::AdvanceWorkshop(int64 NowMs, FString& Error)
             && FVector::Dist2D(FootOf(*OwnerActor),FootOf(*TargetActor))<=Locked.MaxDistanceCm;
         if (bSettles)
         {
-            const ELDSightResult Sight=Mode->Vision->TraceObservation(FootOf(*OwnerActor),*TargetActor,Registry->Revision());
+            const ELDSightResult Sight=Mode->GetVisionAuthority()->TraceObservation(FootOf(*OwnerActor),*TargetActor,Registry->Revision());
             if (Sight!=ELDSightResult::Visible && Sight!=ELDSightResult::Blocked && Sight!=ELDSightResult::OutOfRange)
             { Error=TEXT("A locked ledger lost its sight registration."); return false; }
             bSettles=Sight==ELDSightResult::Visible;

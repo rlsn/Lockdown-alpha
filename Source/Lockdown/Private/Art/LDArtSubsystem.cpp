@@ -11,8 +11,8 @@
 #include "Region/LDMapGeometry.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "Rendering/SkeletalMeshRenderData.h"
-#include "Tests/LDDemoArtCaptureProbe.h"
-#include "Tests/LDDemoPerfBudgetProbe.h"
+#include "Probes/LDDemoArtCaptureProbe.h"
+#include "Probes/LDDemoPerfBudgetProbe.h"
 
 bool ULDArtSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {

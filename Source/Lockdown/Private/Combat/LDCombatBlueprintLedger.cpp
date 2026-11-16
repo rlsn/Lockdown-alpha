@@ -1,6 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 
 // #198 §10: the build blueprint ledger is fed only from the points where Combat commits a build install, a release, a hit,
 // a heal, a repayment, a regeneration, a shield, a component proc or a refusal. It never decides anything; a missing record
@@ -39,7 +39,7 @@ bool IsGameplayRefusal(ELDCombatReject Reason)
 int32 ALDCombatDirector::LedgerVersion(const FGuid& Contender)
 {
     const FLDCombatEntityRecord* Record=FindRecord(Contender);
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     if (!Record || Record->Kind!=ELDVictimKind::Contender || !Mode) { return INDEX_NONE; }
     return BuildLedger.Observe(Contender,Record->Build,Mode->GetAuthorityNowMs());
 }
@@ -47,7 +47,7 @@ int32 ALDCombatDirector::LedgerVersion(const FGuid& Contender)
 void ALDCombatDirector::LedgerBuildInstalled(const FGuid& Contender, const FLDBuildProjectionInput& Previous)
 {
     const FLDCombatEntityRecord* Record=FindRecord(Contender);
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     if (!Record || Record->Kind!=ELDVictimKind::Contender || !Mode) { return; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
     // The replaced build is the match-start version when this is the contender's first change.

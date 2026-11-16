@@ -1,7 +1,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Core/LDLog.h"
 #include "Framework/LDGameInstance.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDModelPicking.h"
 #include "Navigation/LDNavigationComponent.h"

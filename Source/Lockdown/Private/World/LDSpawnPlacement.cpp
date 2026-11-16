@@ -3,7 +3,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Region/LDMapGeometry.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 
@@ -62,7 +62,7 @@ namespace
     bool SpawnPermission(UWorld& World, const FLDMatchContext& Match,
         const FLDGameplayWritePermit& Permit, FString& Error)
     {
-        const auto* Mode=World.GetAuthGameMode<ALDGameMode>();
+        const auto* Mode=LDAuthority::Find(&World);
         if (!Mode || Mode->GetMatchContext()!=Match
             || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None)
         {
@@ -97,7 +97,7 @@ namespace
 
 bool ULDMapRegistry::BeginSpawnMatch(const FLDMatchContext& Match, FString& Error)
 {
-    const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    const auto* Mode=LDAuthority::Find(GetWorld());
     if (!Mode || Mode->GetMatchContext()!=Match || !Match.IsValid() || !Enabled())
     {
         Error=TEXT("Spawn state requires the current core match and registered Demo world.");
@@ -160,7 +160,7 @@ bool ULDMapRegistry::AdmitSpawnRequest(const FLDSpawnRequestKey& Request, const 
     default:
         break;
     }
-    auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
+    auto* Mode=LDAuthority::Find(GetWorld());
     FLDContenderLifeRead Life;
     if (!Mode->ReadContenderLife(Request.Match,Request.ContenderId,Life,Error)
         || (Life.Phase!=ELDLifePhase::Unspawned && Life.Phase!=ELDLifePhase::Dead)

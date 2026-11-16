@@ -49,7 +49,7 @@ struct FLDCampDecisionInput
 
 // #28: bounds one Returning cycle that finds no legal way home. Pure bookkeeping; the camp director reports
 // plans and motion and resets the member where it stands once bDeadEnd is set (CAMP.ReturnDeadEnd*).
-struct FLDCampReturnWatch
+struct LOCKDOWN_API FLDCampReturnWatch
 {
     uint64 Epoch = 0;
     int32 RefusedPlans = 0;

@@ -19,6 +19,11 @@ ALDGameMode* ALDCombatDirector::Core() const
     return Mode && Mode->Combat==this ? Mode : nullptr;
 }
 
+ILDLifeAuthority* ALDCombatDirector::Authority() const
+{
+    return Core();
+}
+
 const FLDDemoContentSnapshot* ALDCombatDirector::Catalog() const
 {
     const auto* Mode=Core();

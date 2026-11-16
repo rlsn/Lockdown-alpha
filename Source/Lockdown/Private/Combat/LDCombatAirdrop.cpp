@@ -2,14 +2,14 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 
 bool ALDCombatDirector::ApplyAirdropReward(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
     FLDAirdropRewardFact& Out, FString& Error)
 {
     bOutApplied = false;
     Out = {};
-    ALDGameMode* Mode = Core();
+    ILDLifeAuthority* Mode = Authority();
     const FLDDemoContentSnapshot* Content = Catalog();
     if (!Mode || Mode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Content
         || !Contender.IsValid())

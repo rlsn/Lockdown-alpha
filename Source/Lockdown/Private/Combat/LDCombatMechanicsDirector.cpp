@@ -7,7 +7,7 @@
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Engine/World.h"
 
 // #112 §5 mechanics on Combat's body records; the pure rules live in LDCombatMechanics.cpp.
@@ -68,7 +68,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     if (OutError) { OutError->Reset(); }
     if (Body.bPendingDeath || Body.Resources.HpP2<=0 || AmountP2<=0) { return false; }
     // #198 S21: a live grievous cuts every new heal once, before it lands.
-    if (const ALDGameMode* Mode=Core()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
+    if (const ILDLifeAuthority* Mode=Authority()) { AmountP2=LDCombatElements::AfterGrievousP2(AmountP2,Body.Grievous,Mode->GetAuthorityNowMs()); }
     if (AmountP2<=0) { return false; }
     // #198 F M12: a heal repays the oldest debts first (spec §10.3); only the rest restores HP.
     int64 Left=AmountP2, Repaid=0;
@@ -109,7 +109,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
         {
             const FLDDemoEffectDefinition& Counter=Counters[0].Effect;
             const int64 Stored=(Healed+Repaid)/10000*Counter.RatioBp+(Healed+Repaid)%10000*Counter.RatioBp/10000;
-            const int64 Now=Core() ? Core()->GetAuthorityNowMs() : 0;
+            const int64 Now=Authority() ? Authority()->GetAuthorityNowMs() : 0;
             if (Stored>0)
             {
                 Body.CounterStoreP2=FMath::Min(Body.CounterStoreP2+Stored,Counter.BaseP2);
@@ -125,7 +125,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2, const
     LedgerDebtRepaid(Body,Repaid);
     if (Healed>0 && HealSource.Kind!=ELDCombatSourceKind::None && Body.AttributeProjection.Keystones.bPhysique)
     {
-        const auto* Mode=Core();
+        const auto* Mode=Authority();
         if (!Mode)
         {
             const FString Message=TEXT("The physique keystone requires the current core.");
@@ -455,7 +455,7 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
     TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error)
 {
     using namespace LDCombatMechanicsDetail;
-    ALDGameMode* Mode=Core();
+    ILDLifeAuthority* Mode=Authority();
     if (!Mode) { Error=TEXT("Release mechanics require the current core."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
     const FLDDemoAbilityValues& Values=Terms.Values;

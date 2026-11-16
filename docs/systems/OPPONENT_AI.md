@@ -194,9 +194,9 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | `S\Public\AI\LDOpponentFrame.h`、`S\Private\AI\LDOpponentFrame.cpp` | 把本人成长/战斗投影与受限观察帧映射成策略输入；FName 定义 id 在此经 `CanonicalId` 统一转小写（打包版不保留 FName 大小写），策略内做大小写敏感的精确比较。 |
 | `S\Public\AI\LDOpponentRequests.h`、`S\Private\AI\LDOpponentRequests.cpp` | 意图→领域请求的纯构造；回执→InFlight/Succeeded/Failed/TargetLost/Dropped 的纯归类。 |
 | `S\Public\AI\LDOpponentController.h`、`S\Private\AI\LDOpponentController.cpp` | 服务器适配器与 OpponentAI 提供者：绑定、组帧、调度、发送、回执消费、受限诊断与请求计数。 |
-| `S\Private\Tests\LDOpponentPolicyTests.cpp` | `Lockdown.Rules.DemoOpponentPolicy.*` 规则测试（§8.1）。 |
-| `S\Private\Tests\LDDemoOpponentProbe.h`、`S\Private\Tests\LDDemoOpponentProbe.cpp`、`Scripts\RunDemoOpponentCheck.ps1` | 满员联机场景（§8.2）；probe 只在 Host 核对权威数据，从不回送给策略。 |
-| `S\Private\Tests\LDDemoOpponentTelemetry.cpp`、`Scripts\SummarizeOpponentTelemetry.py` | `RunDemoOpponentCheck.ps1 -Telemetry`：一名闲置 Host 加三个 AI 连打多局的遥测（§8.2 末），只读权威数据、不判断对错。 |
+| `Source\LockdownTests\Private\LDOpponentPolicyTests.cpp` | `Lockdown.Rules.DemoOpponentPolicy.*` 规则测试（§8.1）。 |
+| `S\Private\Probes\LDDemoOpponentProbe.h`、`S\Private\Probes\LDDemoOpponentProbe.cpp`、`Scripts\RunDemoOpponentCheck.ps1` | 满员联机场景（§8.2）；probe 只在 Host 核对权威数据，从不回送给策略。 |
+| `S\Private\Probes\LDDemoOpponentTelemetry.cpp`、`Scripts\SummarizeOpponentTelemetry.py` | `RunDemoOpponentCheck.ps1 -Telemetry`：一名闲置 Host 加三个 AI 连打多局的遥测（§8.2 末），只读权威数据、不判断对错。 |
 
 AI 参数接入内容域唯一的生成输入/载荷/contract，不新增 AI 私有 JSON 或运行时读 docs。
 不新增行为树、黑板资产、AI 专用地图、不同身体、独立 NavMesh 或旧模式开关；

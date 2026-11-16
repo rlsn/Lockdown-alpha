@@ -5,7 +5,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 
 // Read-only projections of Combat state for the observation owner: action cues and projectiles in flight.
 namespace
@@ -109,7 +109,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Error=TEXT("Observed projectiles require the approved Demo content.");
         return false;
     }
-    const int64 MonsterNow=Core()->GetAuthorityNowMs();
+    const int64 MonsterNow=Authority()->GetAuthorityNowMs();
     for(const auto& Strike:MonsterStrikes)
     {
         const auto* Source=FindBody(Strike.Payload.SourceBody);
@@ -153,7 +153,7 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
             ? (bSock ? ELDObservedProjectileLook::SockReturn : ELDObservedProjectileLook::ChalkReturn)
             : (bSock ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk);
     }
-    const auto* Mode=Core();
+    const auto* Mode=Authority();
     if (!Mode) { Error=TEXT("Observed skill effects require the current match."); return false; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
     for (const auto& Ground : GroundEffects)

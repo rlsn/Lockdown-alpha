@@ -1,7 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
@@ -13,7 +13,7 @@
 bool ALDCombatDirector::SetPKBody(const FLDCombatBodyRef& Ref, const FGuid& Group, uint8 Side, const FLDGameplayWritePermit& Permit,
     FString& Error)
 {
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     FLDBodyCombatState* Body=FindBody(Ref);
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::RespawnsAndWorld)!=ELDCommitReject::None
         || !Body || Body->bPendingDeath || Ref.Victim.Kind!=ELDVictimKind::Contender || !Group.IsValid() || Side==0)
@@ -33,7 +33,7 @@ bool ALDCombatDirector::SetPKBody(const FLDCombatBodyRef& Ref, const FGuid& Grou
 bool ALDCombatDirector::ApplyEnvironmentDamage(const FLDCombatBodyRef& Ref, int64 AmountP2, const FLDGameplayWritePermit& Permit,
     FString& Error)
 {
-    ALDGameMode* Mode=Core();
+    ILDLifeAuthority* Mode=Authority();
     ALDCharacter* Actor=nullptr;
     FLDBodyCombatState* Body=FindBody(Ref,&Actor);
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Effects)!=ELDCommitReject::None || AmountP2<0)
@@ -64,7 +64,7 @@ bool ALDCombatDirector::ApplyEnvironmentDamage(const FLDCombatBodyRef& Ref, int6
 bool ALDCombatDirector::ApplyThrowHit(const FLDCombatBodyRef& Ref, const FGuid& EffectId, int64 SlowBp, int64 SlowMs, int64 ExposeMs,
     const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    ALDGameMode* Mode=Core();
+    ILDLifeAuthority* Mode=Authority();
     FLDBodyCombatState* Body=FindBody(Ref);
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Effects)!=ELDCommitReject::None || !EffectId.IsValid()
         || SlowBp<=0 || SlowBp>10000 || SlowMs<=0 || ExposeMs<=0)
@@ -114,14 +114,14 @@ bool ALDCombatDirector::IsExposed(const FLDCombatBodyRef& Ref, int64 NowMs) cons
 bool ALDCombatDirector::HasAreaSight(const FVector& FromCm, const FVector& ToCm, bool& bOutVisible, FString& Error) const
 {
     bOutVisible=false;
-    const ALDGameMode* Mode=Core();
+    const ILDLifeAuthority* Mode=Authority();
     const ULDMapRegistry* Registry=GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    if (!Mode || !Mode->Vision || !Registry)
+    if (!Mode || !Mode->GetVisionAuthority() || !Registry)
     {
         Error=TEXT("Area sight requires the observation owner and the registered world.");
         return false;
     }
-    const ELDSightResult Sight=Mode->Vision->TraceSight(FromCm,ToCm,Registry->Revision());
+    const ELDSightResult Sight=Mode->GetVisionAuthority()->TraceSight(FromCm,ToCm,Registry->Revision());
     if (Sight!=ELDSightResult::Visible && Sight!=ELDSightResult::Blocked && Sight!=ELDSightResult::OutOfRange)
     {
         Error=TEXT("Area sight failed on a registered body.");

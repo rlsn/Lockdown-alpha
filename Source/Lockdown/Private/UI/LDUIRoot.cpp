@@ -4,7 +4,7 @@
 #include "Framework/LDBuildBlueprintComponent.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "Framework/LDPlayerController.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Navigation/LDNavigationComponent.h"

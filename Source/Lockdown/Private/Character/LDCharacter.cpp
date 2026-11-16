@@ -10,7 +10,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Framework/LDPlayerController.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDControlSettings.h"
 #include "Framework/LDDemoEntry.h"

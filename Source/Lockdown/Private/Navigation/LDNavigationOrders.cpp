@@ -17,6 +17,9 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 
+ALDGameMode* ULDNavigationComponent::AuthorityMode() const
+{ return GetWorld()?GetWorld()->GetAuthGameMode<ALDGameMode>():nullptr; }
+
 // Authority order book: one current order per contender body, Navigation is its only writer.
 namespace LDNavOrdersDetail
 {

@@ -4,7 +4,7 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 
 // #147 build v7 keywords on Combat's body records (docs/systems/COMBAT_AND_GROWTH.md, "构筑 v7 战斗原语"); the pure
 // rules live in LDCombatKeywords.cpp.

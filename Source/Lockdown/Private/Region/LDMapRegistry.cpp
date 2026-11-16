@@ -9,7 +9,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Tests/LDDemoEntryProbe.h"
+#include "Probes/LDDemoEntryProbe.h"
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "NavigationData.h"
