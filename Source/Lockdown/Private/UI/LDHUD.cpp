@@ -1193,10 +1193,10 @@ LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameS
     // Hover and popups change only with the pointer over the HUD or an own status mark over the own bars; moving it over
     // the world is not an input.
     const bool bSlate=FSlateApplication::IsInitialized();
-    const FVector2D Cursor=bSlate?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
-    if(bSlate&&(PointerOverUI()||OwnStatusHitRects.ContainsByPredicate([&Cursor](const FSlateRect& Mark){return Mark.ContainsPoint(Cursor);})))
+    const FVector2D At=bSlate?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
+    if(bSlate&&(PointerOverUI()||OwnStatusHitRects.ContainsByPredicate([&At](const FSlateRect& Mark){return Mark.ContainsPoint(At);})))
     {
-        Key.Interaction=FSlateApplication::Get().GetLastUserInteractionTime();Key.Pointer=Cursor;
+        Key.Interaction=FSlateApplication::Get().GetLastUserInteractionTime();Key.Pointer=At;
     }
     else{Key.Pointer=FVector2D(-1,-1);}
     Key.Viewport=GetCachedGeometry().GetLocalSize();
