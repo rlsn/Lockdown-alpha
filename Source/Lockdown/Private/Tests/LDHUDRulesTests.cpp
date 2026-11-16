@@ -2720,6 +2720,10 @@ bool FLDHUDReadModelGateTest::RunTest(const FString&)
     TestEqual(TEXT("The bucket is the tenth of a second"),LDHUD::ReadModelClock(12.34,true),int64(123));
     TestEqual(TEXT("The bucket holds within its tenth"),LDHUD::ReadModelClock(12.399,true),int64(123));
     TestEqual(TEXT("The bucket turns at the next tenth"),LDHUD::ReadModelClock(12.4,true),int64(124));
+    // A step ring moves visibly between clock buckets only over a short step; an unknown step has no ring.
+    TestTrue(TEXT("A short step's ring needs every sample"),LDHUD::ReadModelRingMoves(1000,1000+LDHUD::ReadModelSmoothRingMs-1));
+    TestFalse(TEXT("A long step's ring follows the clock bucket"),LDHUD::ReadModelRingMoves(1000,1000+LDHUD::ReadModelSmoothRingMs));
+    TestFalse(TEXT("An unknown step has no ring to move"),LDHUD::ReadModelRingMoves(1000,1000));
 
     LDHUD::FReadModelGate Gate;LDHUD::FReadModelKey Key;
     TestTrue(TEXT("The first sample builds"),Gate.ShouldRebuild(Key));

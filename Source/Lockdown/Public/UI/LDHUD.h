@@ -396,14 +396,16 @@ private:
     // Bumped by the HUD's own answers and notices (server results routed here, toasts, local toggles).
     uint64 ReadModelLocal=0;
     void MarkReadModelDirty(){++ReadModelLocal;}
-    // The projections the read model consumes, as last seen: the Listen Host writes them in place without a revision
-    // every writer advances, so they are compared by value; any difference advances ReadModelViews.
+    // The projections the read model consumes, as last seen; any difference advances ReadModelViews. Those without a
+    // revision every writer advances (the Listen Host writes them in place) are kept and compared by value.
     uint64 ReadModelViews=0;
     struct FReadModelSeen
     {
         FLDOwnerState Owner;
-        FLDPublicMatchView Public;
-        FLDLobbyView Lobby;
+        uint32 PublicGeneration=0;
+        uint64 PublicRevision=0;
+        uint64 LobbyRevision=0;
+        uint64 RosterRevision=0;
         FLDKillFeedView Kills;
         FLDResultView Result;
         FLDDeathRecapView Recap;

@@ -89,6 +89,8 @@ public:
     void Present(const FInput& Input);
     bool IsOpen() const {return Mode!=EMode::Closed;}
     EMode GetMode() const {return Mode;}
+    // Present still fades the opening in (LDHUDStyle::MotionWorkshopOpen); the HUD presents every sample meanwhile.
+    bool IsOpening() const;
     bool IsHit(FVector2D Absolute) const;
     // The storage's board and library rectangles (absolute), from the last layout.
     ULDComponentStorage::FWorkshopLayout StorageLayout() const;

@@ -25,6 +25,10 @@ int64 LDHUD::ReadModelClock(double RealSeconds,bool bTimed)
 {
     return bTimed?int64(FMath::FloorToDouble(RealSeconds*ReadModelClockHz)):int64(-1);
 }
+bool LDHUD::ReadModelRingMoves(int64 StartedAtMs,int64 EndsAtMs)
+{
+    return EndsAtMs>StartedAtMs&&EndsAtMs-StartedAtMs<ReadModelSmoothRingMs;
+}
 bool LDHUD::FReadModelGate::ShouldRebuild(const FReadModelKey& Key) const
 {
     return !bHas||bLive||bSettle||Key.Clock!=Last.Clock||!Key.SameInputs(Last);

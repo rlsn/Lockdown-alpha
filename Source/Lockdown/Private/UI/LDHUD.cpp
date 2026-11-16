@@ -1128,7 +1128,8 @@ void ULDHUD::SampleReadModel()
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
     // Cues follow every sample, including while a menu covers the HUD or the result is shown.
     ObserveAudio(*PC,*GS);
-    const LDHUD::FReadModelKey Key=ReadModelKey(*PC,*GS);
+    LDHUD::FReadModelKey Key;
+    {TRACE_CPUPROFILER_EVENT_SCOPE(LDHUDReadModelKey);Key=ReadModelKey(*PC,*GS);}
     if(!ReadModelGate.ShouldRebuild(Key)){return;}
     TRACE_CPUPROFILER_EVENT_SCOPE(LDHUDRebuildReadModel);
     RebuildReadModel(*PC,*GS);
@@ -1151,7 +1152,10 @@ LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameS
         };
         const auto Same=[&bChanged](auto& Kept,const auto& Now){if(!(Kept==Now)){Kept=Now;bChanged=true;}};
         FReadModelSeen& Seen=ReadModelSeen;
-        Compared(Seen.Owner,PC.OwnerState);Compared(Seen.Public,GS.PublicMatch);Compared(Seen.Lobby,GS.DemoLobby);
+        Compared(Seen.Owner,PC.OwnerState);
+        // The public match and the lobby advance their revision with every publication (PublishPublicMatch, PublishLobby).
+        Same(Seen.PublicGeneration,GS.PublicMatch.Generation);Same(Seen.PublicRevision,GS.PublicMatch.PublicRevision);
+        Same(Seen.LobbyRevision,GS.DemoLobby.PublicRevision);Same(Seen.RosterRevision,GS.DemoLobby.RosterRevision);
         Compared(Seen.Kills,GS.KillFeed);Compared(Seen.Result,GS.MatchResult);Compared(Seen.Recap,PC.DeathRecap);
         // Combat replaces its owner view only with a new revision, generation, life or body (ALDCombatDirector::PublishOwnerViews).
         Same(Seen.CombatGeneration,PC.CombatView.Generation);Same(Seen.CombatLife,PC.CombatView.Life);
@@ -1845,8 +1849,10 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
     HudSetText(Toast,UiNow-FeedbackAt<FeedbackDuration?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    // The toast leaves on time; the open workshop fades with Present; a refused automatic opening retries.
-    bReadModelLive|=!Toast->GetText().IsEmpty()||(Workshop&&Workshop->IsOpen())||AutoOpenSince>=0;
+    // The toast leaves on time; the opening workshop fades in with Present, and the full one paints its rest step ring from
+    // the clock (a long step's ring moves smoothly enough on the clock bucket); a refused automatic opening retries.
+    bReadModelLive|=!Toast->GetText().IsEmpty()||AutoOpenSince>=0||(Workshop&&(Workshop->IsOpening()||(Workshop->GetMode()==ULDWorkshop::EMode::Full&&bRestPhase
+        &&LDHUD::ReadModelRingMoves(Public.Timeline.StepStartedAtMs,Public.Timeline.StepEndsAtMs))));
     if(ToastSlot)
     {
         // Above the band; over the full workshop at the top centre; above the bottom workshop's top edge.

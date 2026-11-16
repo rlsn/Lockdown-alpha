@@ -51,6 +51,11 @@ namespace LDHUD
     };
     // The clock bucket of a sample: real seconds in steps of 1/ReadModelClockHz while timed text shows, otherwise -1.
     LOCKDOWN_API int64 ReadModelClock(double RealSeconds,bool bTimed);
+    // A countdown ring over a step this long or longer moves under half a pixel per clock bucket (the full workshop's
+    // 23-unit step ring), so the clock bucket draws it as smoothly as every sample does.
+    inline constexpr int64 ReadModelSmoothRingMs=30000;
+    // Whether a ring counting down StartedAtMs..EndsAtMs needs every sample: a known step shorter than ReadModelSmoothRingMs.
+    LOCKDOWN_API bool ReadModelRingMoves(int64 StartedAtMs,int64 EndsAtMs);
     // Rebuild on the first sample, on every sample after a live build (something on screen moves with time), when the key
     // changed, and once more after an input change, because layout reads last frame's geometry of what that build set.
     class LOCKDOWN_API FReadModelGate

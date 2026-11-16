@@ -215,15 +215,18 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
 **读模型的重建时机**：拥有者的 PlayerController 每秒至多采样 `LDHUD::ReadModelHz` = 30 次（帧率更低时每帧一次），
 `ULDHUD::SampleReadModel` 每次采样都先观察音效，再由 `LDHUD::FReadModelGate` 决定是否重建。门的键 `FReadModelKey` 由读模型的全部输入组成：
-按值比较的本人 `OwnerState`（含成长投影）、`DeathRecap` 与房间公开的 `PublicMatch`、`DemoLobby`、`KillFeed`、`MatchResult`
-（Listen Host 原地写入，没有每个写入者都推进的修订）；`CombatView` 的代次、命、修订与有无身体（Combat 只在这些变化时替换投影）；
+按值比较的本人 `OwnerState`（含成长投影）、`DeathRecap` 与房间公开的 `KillFeed`、`MatchResult`
+（Listen Host 原地写入，没有每个写入者都推进的修订）；`PublicMatch` 的代次与 `PublicRevision`、`DemoLobby` 的 `PublicRevision` 与
+`RosterRevision`（每次发布都推进）；`CombatView` 的代次、命、修订与有无身体（Combat 只在这些变化时替换投影）；
 本人身体与显示内容快照；HUD 自己的回答与提示计数（服务器结果回调、提示条、本地切换）；战斗回执与意图提示序号；
 选中目标时该单位与观察帧序号；指针在 HUD 命中区上时 Slate 的最近输入时刻与指针位置（指针在世界上移动不算输入）；
 视口尺寸、文字缩放；菜单、设置、主面板、构筑面板/托盘、工坊、拖动、蓝图查看、按住的 Details/Scoreboard 键、准备中的动作、
 本地槽位顺序与权威时钟是否可读。键变化即重建，并在下一次采样再重建一次，让读取上一帧布局的位置跟上。
 上一次重建中有随时间变化的内容（技能冷却与十分位倒数、就绪闪光、拒绝外圈、构筑按钮脉动、状态剩余时间圈、旗杆进度、
-死亡与复活保护倒计时、PK 面板与场地圈、事件播报、提示条、打开的工坊、结算入场、自动打开重试）时每次采样都重建；
-其余时间只要 HUD 在对局中显示，就按 `ReadModelClockHz` = 10 次/秒推进整秒计时文字（对局用时、时间线、返回倒数），整秒翻转最多晚 0.1 s。
+死亡与复活保护倒计时、PK 面板与场地圈、事件播报、提示条、工坊打开的淡入、全屏工坊在短于 `ReadModelSmoothRingMs` = 30 s 的休息步骤里的
+步骤环、结算入场、自动打开重试）时每次采样都重建；
+其余时间只要 HUD 在对局中显示，就按 `ReadModelClockHz` = 10 次/秒推进整秒计时文字（对局用时、时间线、返回倒数）与长步骤的环
+（每 0.1 s 移动不到半个像素），整秒翻转最多晚 0.1 s；打开的底部工坊不随时间变化。
 `RefreshReadModel` 不经过门、总是重建，只供需要立刻读回 HUD 的检查探针使用。`Lockdown.Rules.HUDReadModelGate` 覆盖门的判定。
 
 ## 构筑蓝图文件与查看
