@@ -176,7 +176,7 @@ private:
     // Every rectangle of the current layout, in local units.
     struct FRects
     {
-        FBox2D Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage;
+        FBox2D Title,Phase,Character,Board,Capacity,Columns,Dock,Library,LibraryBody,Pending,Region,Stage;
         FBox2D Column[LDHUD::StorageColumnCount];
         float HeadHeight=0.f;
         float HeadTop=0.f;
@@ -189,6 +189,8 @@ private:
     UPROPERTY() TObjectPtr<ULDPaintLayer> Backdrop;
     UPROPERTY() TObjectPtr<USizeBox> PortraitFrame;
     UPROPERTY() TObjectPtr<UWidget> PhasePanel;
+    // Mock 2: the page's own title "构筑" in the top-left corner, the phase pill right after it.
+    UPROPERTY() TObjectPtr<UTextBlock> PageTitle;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseClock;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseRest;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseStep;

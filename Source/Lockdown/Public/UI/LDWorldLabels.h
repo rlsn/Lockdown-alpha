@@ -51,6 +51,10 @@ namespace LDWorldLabels
     // The widget also requires the owner's pawn, which anchors the bars.
     LOCKDOWN_API FOwnBars OwnBars(const FLDOwnerState& Own,uint32 PublicGeneration,const FLDCombatOwnerView& Combat);
 
+    // The own status icons' squares over the own bars, LoL-style: PerRow squares of Side a row with Gap between, each row
+    // centred on CentreX; the first row's bottom edge rests on Bottom and further rows stack upward. In status order.
+    LOCKDOWN_API TArray<FSlateRect> OwnStatusIconRects(int32 Count,float CentreX,float Bottom,float Side,float Gap,int32 PerRow);
+
 }
 
 // Full-viewport layer under the HUD that is never hit-tested or focused; ULDUIRoot shows it exactly while the in-match

@@ -647,43 +647,52 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         // #198: the opening is scheduled only when the final field begins (OpenAtMs is unscheduled until then).
         View.Line=Public.Showdown.bStarted?FString(TEXT("旗杆解锁 · "))+(!bClock?FString(TEXT("同步中")):TenthsUp(Public.OpenAtMs-NowMs))
             :FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CaptureAfterLastRest;
+        View.Head=View.Line;
         return View;
     case ELDMatchPhase::CaptureOpen:
     {
         const FString Sprayer=SprayerName.IsEmpty()?FString(TEXT("未列名参赛者")):SprayerName;
         // The graffiti and its guard are public in every open state; the guard runs only while its owner is alone in
         // the zone: anyone else in the zone freezes it and an empty zone pauses it.
-        FString Guard;
+        FString GuardState;
         float GuardProgress=0.f;
         bool bGuardProgress=false;
         if(Public.GraffitiOwner.IsValid())
         {
-            Guard=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
+            View.Owner=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
             if(Public.CircleState!=ELDCircleState::Guarded)
             {
-                Guard+=FString(TEXT(" · "))+(Public.CircleState==ELDCircleState::Empty?LDTerms::GuardAway:LDTerms::GuardPaused);
+                GuardState=Public.CircleState==ELDCircleState::Empty?LDTerms::GuardAway:LDTerms::GuardPaused;
                 if(GuardMs>0)
                 {
-                    Guard+=FString(TEXT("（"))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(GuardMs-Public.GuardKeptMs)+TEXT("）");
+                    GuardState+=FString(TEXT("（"))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(GuardMs-Public.GuardKeptMs)+TEXT("）");
                     bGuardProgress=true;GuardProgress=float(FMath::Clamp(double(Public.GuardKeptMs)/double(GuardMs),0.,1.));
                 }
             }
-            else if(!bClock){Guard+=TEXT(" · 守护同步中");}
+            else if(!bClock){GuardState=TEXT("守护同步中");}
             else
             {
-                Guard+=FString(TEXT(" · "))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(Public.GuardDueAtMs-NowMs);
+                GuardState=FString(LDTerms::GuardLeft)+TEXT(" ")+TenthsUp(Public.GuardDueAtMs-NowMs);
                 if(GuardMs>0){bGuardProgress=true;GuardProgress=float(FMath::Clamp(1.-double(Public.GuardDueAtMs-NowMs)/double(GuardMs),0.,1.));}
             }
         }
-        const auto WithGuard=[&Guard](const FString& Spray){return Guard.IsEmpty()?Spray:Spray.IsEmpty()?Guard:Spray+TEXT(" · ")+Guard;};
+        const FString Guard=View.Owner.IsEmpty()?FString():GuardState.IsEmpty()?View.Owner:View.Owner+TEXT(" · ")+GuardState;
+        // Line keeps the spray part first and the whole guard after it; the panel lifts the spray part (or, without one,
+        // the guard state) into Head and puts the owner and the remaining guard state under the bar.
+        const auto Finish=[&View,&Guard,&GuardState](const FString& Spray)
+        {
+            View.Line=Guard.IsEmpty()?Spray:Spray.IsEmpty()?Guard:Spray+TEXT(" · ")+Guard;
+            if(Spray.IsEmpty()){View.Head=GuardState;}else{View.Head=Spray;View.Aside=GuardState;}
+            if(View.Head.IsEmpty()){View.Head=View.Owner;View.Owner.Reset();}
+        };
         switch(Public.CircleState)
         {
         case ELDCircleState::Empty:
-            View.Line=Guard.IsEmpty()?FString(LDTerms::CircleEmpty):Guard;
+            Finish(Guard.IsEmpty()?FString(LDTerms::CircleEmpty):FString());
             View.bProgress=bGuardProgress;View.Progress=GuardProgress;
             return View;
         case ELDCircleState::Guarded:
-            View.Line=Guard;
+            Finish(FString());
             View.bProgress=bGuardProgress;View.Progress=GuardProgress;
             return View;
         case ELDCircleState::Contested:
@@ -691,29 +700,29 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
             // A contest pauses the holder's spray progress instead of clearing it; without a holder nothing is kept.
             if(!Public.Occupier.IsValid()||Public.PausedProgressMs<=0)
             {
-                View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept);
+                Finish(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept);
                 View.bProgress=bGuardProgress;View.Progress=GuardProgress;
                 return View;
             }
             const FString Kept=FString::Printf(TEXT("%.1f"),double(Public.PausedProgressMs)/1000.);
-            if(SprayMs<=0){View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT("（")+Kept+TEXT(" s）"));return View;}
+            if(SprayMs<=0){Finish(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT("（")+Kept+TEXT(" s）"));return View;}
             View.bProgress=true;View.Progress=float(FMath::Clamp(double(Public.PausedProgressMs)/double(SprayMs),0.,1.));
-            View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT(" ")+Kept+FString::Printf(TEXT("/%.1f s"),double(SprayMs)/1000.));
+            Finish(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT(" ")+Kept+FString::Printf(TEXT("/%.1f s"),double(SprayMs)/1000.));
             return View;
         }
         case ELDCircleState::Solo:
         {
             const int64 Span=Public.DueAtMs-Public.SoloSinceMs;
-            if(!bClock||Span<=0){View.Line=WithGuard(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · 进度同步中"));return View;}
+            if(!bClock||Span<=0){Finish(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · 进度同步中"));return View;}
             View.bProgress=true;View.Progress=float(FMath::Clamp(double(NowMs-Public.SoloSinceMs)/double(Span),0.,1.));
-            View.Line=WithGuard(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" ")+TenthsUp(Public.DueAtMs-NowMs));
+            Finish(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" ")+TenthsUp(Public.DueAtMs-NowMs));
             return View;
         }
-        default: View.Line=FString(LDTerms::CapturePoint)+TEXT("状态同步中");return View;
+        default: View.Owner.Reset();View.Line=FString(LDTerms::CapturePoint)+TEXT("状态同步中");View.Head=View.Line;return View;
         }
     }
     default:
-        View.Line=PhaseLine(Public.Phase);
+        View.Line=PhaseLine(Public.Phase);View.Head=View.Line;
         return View;
     }
 }
@@ -1136,6 +1145,11 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
         const uint8 Id=Unit.Actives.Abilities[Index];
         Chip.bEmpty=Id==0;
         Chip.Name=Chip.bEmpty?FString(TEXT("空槽")):AbilityName(Content,Id);
+        if(!Chip.bEmpty&&Content)
+        {
+            if(const auto* Ability=Content->Abilities.FindByPredicate([Id](const FLDDemoAbilityDefinition& A){return A.NativeId==Id;}))
+            {Chip.IconId=ContentIconId(Content,Ability->Id);}
+        }
     }
     return Card;
 }

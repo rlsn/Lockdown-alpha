@@ -41,7 +41,7 @@
   以及 Q/W/E 三个主动的原生 id 与等级（`Actives`，字段位 `LDObservation::Actives`）。
   `Actives` 由 Combat 的 `PublicActivesOf` 在构筑安装和身体准备时写进同一公开事实，只随当前可见单位下发、失视即撤销；
   codec 要求每槽“id 与等级同为 0 或同为非 0”、等级不超过 `LDObservation::MaxActiveRank`（2）、非空槽的 id 两两不同，营地成员三个槽均为 0，接收端只接受批准目录里的主动技能。
-  目标卡（`LDHUD::ObservedCard`）据此显示 Q/W/E 小卡（键位与技能名，空槽单独标出）。不含冷却、完整属性或规范身体身份。
+  目标卡（`LDHUD::ObservedCard`）据此显示 Q/W/E 图标方格（内容 IconId，无图标时写技能名首字；键位与技能名在悬停里，空槽压暗）。不含冷却、完整属性或规范身体身份。
 - 营地成员只携带生物 Id、HP 和公开状态；内容定义了 MP 时才带 MP。营地成员的 `Presentation` 恒为 0。
   `CampReturning`（3）只出现在营地成员身上，不叠层、无期限：codec 只接受 `Stacks` 为 1、`ExpiresAtServerMs` 为 0 的该状态。
   它由 `ALDCampDirector::AppendObservedFacts` 在核心 `ReadObservedPublicFacts` 之后追加（只在成员处于 Returning 时）；
@@ -139,7 +139,7 @@
 | 信息 | 允许来源 |
 | --- | --- |
 | 网络与帧诊断（右上角，可分别关闭） | 本地设置 `bShowNetworkDiagnostics`、`bShowFPS`，默认关闭。FPS/平均帧耗时/窗口峰值使用实际本机帧间隔（至少 0.5 s 窗口，不裁掉长帧）；RTT、抖动、收/发丢包、距上次收包时间直接读取本人 `UNetConnection`，丢包比例转换为百分比，不新增探测 RPC。远端本人还显示 CMC 校正频率与最近误差（匹配 ACK saved move 的位置差）。房主显示本机房主，不伪造远端 0 ms；无连接/无样本明确显示状态。面板不拦输入，不参与玩法判定 |
-| 自身血蓝、护盾与临时状态 | Combat 的仅本人复制 `ALDPlayerController::CombatView`（同 Match/Life 才使用；没有身体时退回 Lives 投影的血蓝）；`LDHUD::SelfIcons` 只整理（不设上限）：小地图列与底部带之间的状态条，右边贴着底部带左缘、底边与底部带底边齐平，每行 6 格（`ULDHUD` 的 `HudStatusPerRow`，48 单位见方，随底部带同比缩放），第一行在最下、更多的行向上叠，格子按需创建（`EnsureStatusCells`），先控制状态、再其他临时状态与正在生效的回复（`bOutOfCombatRegenActive` 为“脱战回复中”、`bDormRegenActive` 为“躺平角回血中”，无剩余时间圈，说明层按 REGEN/DORM 参数写出延迟、比例与中断条件）；光环与复活保护（生命行）不进格；每格是该状态或回复的图标（`FSelfIconView::IconId` 经 `LDUIIcons`；纹理缺失时显示名称首字 `IconGlyph`），按正负面着色（`FSelfIconView::bPositive`）：对承受者有利的状态（`LDHUD::StatusIsPositive`：护盾、增益、强化普攻、复活保护、回位）、两种回复绿边，所有控制与减速、破防、灼烧红边（未知状态按负面），剩余时间圈同色，叠层数在右下角；悬停时用与 Q/W/E/D 格同一个说明层（停在方格正上方），由 `LDHUD::SelfIconDetail` 只为悬停的方格生成：首行是名称与层数/护盾/剩余时间，次行是类别（控制状态/临时状态后接“ · 正面”或“ · 负面”），正文是内容目录里的完整描述：状态读描述文本，回复按 REGEN/DORM 参数写出规则；本人投影缺失时显示“状态同步中”。状态条格子算 HUD 命中区，条内空白不挡世界点击。有截止时刻的临时状态由 `ULDHUD::NativePaint` 在方格上画剩余时间圈（暗色底圈 + 从 12 点顺时针收缩的亮弧），比例来自 `LDHUD::FStatusRings`：投影只带截止时刻，首次看到某截止时刻时的剩余时间算满圈，截止时刻延后（刷新）重新满圈，状态消失后再出现重新计；中途首次看到（如重连）从满圈开始；读不到权威时刻时不画圈 |
+| 自身血蓝、护盾与临时状态 | Combat 的仅本人复制 `ALDPlayerController::CombatView`（同 Match/Life 才使用；没有身体时退回 Lives 投影的血蓝）；`LDHUD::SelfIcons` 只整理（不设上限）：由 `ULDHUD` 整理成 `FLDOwnStatusMark`（`GetOwnStatusMarks`，底部带隐藏时为空），`ULDWorldLabels` 把它们画在本人头顶名字与生命条正上方（像 LoL），每行 6 格（`OwnStatusPerRow`，22 单位见方、间隔 3，随文字大小缩放），每行居中，第一行在最下、更多的行向上叠（`LDWorldLabels::OwnStatusIconRects`），并计入本人头顶的保留区，别的单位标签会让开；先控制状态、再其他临时状态与正在生效的回复（`bOutOfCombatRegenActive` 为“脱战回复中”、`bDormRegenActive` 为“躺平角回血中”，无剩余时间条，说明层按 REGEN/DORM 参数写出延迟、比例与中断条件）；光环与复活保护（生命行）不进格；每格是该状态或回复的图标（`FSelfIconView::IconId` 经 `LDUIIcons::Find`，纹理由 HUD 的 `OwnStatusTextures` 保活；纹理缺失时显示名称首字 `IconGlyph`），不写文字，按正负面着色（`FSelfIconView::bPositive`）：对承受者有利的状态（`LDHUD::StatusIsPositive`：护盾、增益、强化普攻、复活保护、回位）、两种回复绿边，所有控制与减速、破防、灼烧红边（未知状态按负面），剩余时间条同色，叠层数在右下角；世界标签层把上一帧画出的方格屏幕矩形交回 HUD（`ReportOwnStatusRects`），悬停时用与 Q/W/E/D 格同一个说明层（停在方格正上方），由 `LDHUD::SelfIconDetail` 只为悬停的方格生成：首行是名称与层数/护盾/剩余时间，次行是类别（控制状态/临时状态后接“ · 正面”或“ · 负面”），正文是内容目录里的完整描述：状态读描述文本，回复按 REGEN/DORM 参数写出规则；本人投影缺失时不画方格。头顶方格不是 HUD 命中区，不挡世界点击。有截止时刻的临时状态在方格底边画一条剩余时间细条（暗色底 + 按剩余比例收短的同色条），比例来自 `LDHUD::FStatusRings`：投影只带截止时刻，首次看到某截止时刻时的剩余时间算满条，截止时刻延后（刷新）重新满条，状态消失后再出现重新计；中途首次看到（如重连）从满条开始；读不到权威时刻时不画条 |
 | 自身资源条每秒回复 | Combat 仅本人投影 `HPRegenPerSec/MPRegenPerSec`，由 `LDTactical::RegenRates` 从当前属性及参赛者脱战回复的同一条件推导；只用于显示，不参与资源结算。`PublishOwnerViews` 在满资源下的回复率变化也推进修订；HUD 经 `LDHUD::RegenText` 拒绝别局/别命、死亡、无身体及无效资源投影，条内右侧显示 `+X.X/s`，中央保留资源/护盾读数。满资源显示回复能力，不估计资源差值或展示他人私有属性 |
 | 自身等级、经验与待选 | Growth 的 `ReadOwnProgression`（`FLDOwnerState.Growth`）；满级显示 MAX，缺失显示“同步中” |
 | 自身生命、保护与复活倒计时 | Lives 投影的 `LifePhase`、`ProtectedUntilMs`、`RespawnAtMs`，以及 `ReadDemoAuthorityTimeMs` 给出的同局权威时刻；读不到时显示“同步中”，不用本地时间或 0 代替；倒计时在该时刻到达截止前不显示 0，显示本身也不解除保护。死亡等待工坊的环读取同局同命、无身体的 `CombatView.RespawnDurationMs` 和复活截止，时长或时钟缺失时不猜测进度；终局已出局不自动打开死亡等待工坊 |
@@ -193,7 +193,7 @@ Final/过期回执）解除等待。
 `LDHUD::CardText` 按本人当前等级成长这组值，再以本人投影的攻击力/法强/生命上限/护甲（`LDHUD::CardStatsOf`，无投影时为 0）算出数字；
 读不到的占位显示“?”并标记不完整，解析或成长失败整句显示“（卡面数据缺失）”。五维属性卡用 `LDHUD::StatCardText`，占位只读该属性的每点收益。
 `LDTerms::CardKeywords` 的关键词在富文本里加粗（同一位置取最长匹配），`LDHUD::KeywordLines` 按术语表顺序给出“关键词：解释”行。
-Q/W/E 动作格（`LDHUD::ActionDetail`）、属性图标与状态方格的悬停说明使用同一个说明层；工坊打开时选择卡与构件的说明在工坊的信息坞。
+Q/W/E 动作格（`LDHUD::ActionDetail`）、属性图标与头顶状态方格的悬停说明使用同一个说明层；工坊打开时选择卡与构件的说明在工坊的信息坞。
 `LDHUDModel`、`LDHUD`、`LDMinimap`、`LDUIRoot` 及各 Panel 是主要 UMG/Slate 入口。
 
 小地图的地面底色/当前覆盖与静态地形分开合成，保持“底色 → 覆盖 → 半透明区域填充 → 轮廓”的层次。
@@ -352,7 +352,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“普攻”文案与头像/身体共用的六色；
   `HUDTermsGlossary` 核对术语表里重复的状态名与批准目录一致、系统术语不为空不重复且不与条目名相同。
   HUD 与头顶标签测试的条目名从 `LDDemoContentFixtures` 的 approved_base 读取（`LDTestApprovedDisplay`），世界观术语引用 `LDTerms`，不逐字重复。
-- `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars}`（`LDWorldLabelsTests`）
+- `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars,OwnStatusIcons}`（`OwnStatusIcons` 覆盖头顶状态方格每行 6 个居中、首行贴底、更多行向上叠）（`LDWorldLabelsTests`）
   覆盖头顶名字、状态行、只显示白名单（法力、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与护盾收比。
 - `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前、身体站在旗杆里或紧贴旗杆、高于道具）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值；`LocalSettingsCombatFeedback` 覆盖特效降低/镜头震动的默认值、保存回读与 schema 21 迁移。
 - `Lockdown.Rules.DemoVision.Presentation` 覆盖呈现时钟：样本间线性插值、最新样本之后保持不外推、跳变样本不扫过、朝向走短弧，以及时钟偏移的下调、限速上调与重设。
@@ -374,7 +374,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDOwnResources`、`HUDActionView`、`HUDPublicMatch`、`HUDContentParameters`、`HUDCombatOwnerView`（`LDHUDRulesTests`）
   覆盖本人资源与等级、Q/W/E/D 意图与限制分离、旗杆喷漆/涂鸦/守护行与进度条、击杀/结果（含守护成功标题）、内容参数行与原因文案、本人状态方格的提示文字（含脱战回复与躺平角回血方格及其说明）与战斗回执提示。
 - `HUDIcons`（`LDHUDRulesTests`）用批准目录核对每个主动、五维属性与状态的 IconId 以及冲刺、两种回复的图标都有已导入的纹理，缺失的 ID 记录 `LD_UI_ICON_MISSING`。
-- `HUDSelfIcons`（`LDHUDRulesTests`）覆盖状态方格的缺图首字、不设上限（控制状态在前、回复在后），说明层的首行与类别（含正负面），每个状态编号的正负面分类，以及剩余时间圈的满圈、刷新重满、提前结束与消失后重计。
+- `HUDSelfIcons`（`LDHUDRulesTests`）覆盖状态方格的缺图首字、不设上限（控制状态在前、回复在后），说明层的首行与类别（含正负面），每个状态编号的正负面分类，以及剩余时间比例的满额、刷新重满、提前结束与消失后重计。
 - `HUDCooldownText`、`HUDActionStates`、`HUDDeathCause`、`HUDKillFeedSelf`（`LDHUDRulesTests`）覆盖冷却秒数文字（不提前显示 0）、
   动作格的冷却/法力不足/受控/空槽/准备态分类、法力消耗/等级数字与图标首字、本命之后的死因取值，以及击杀通知里本人写作“你”。
 - `HUDScoreboard`（`LDHUDRulesTests`）覆盖按住 Tab 的排行榜：击杀多在前、相同时死亡少在前、再相同保持名单顺序，本人/AI/已离开的名字标注，
@@ -383,7 +383,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   构件为空列表、不含参赛者身份）、读取拒绝（超 2 MiB、非 UTF-8 与超长编码、非 JSON、错误 schema、未知版本、缺字段、非法槽位、
   未采集填 0、未知 origin 与未知字段、未知安装参数或元素）、目录与失效安装提示（含构件、宿主与复用基础件），以及只清理本 schema 的自动记录（按时间最旧、50 份与总字节上限，
   导出、未知版本、损坏与他人文件不动）和超过 2 MiB 时不截断、不写入、旧蓝图保留。
-- `HUDEventFeed`（`LDHUDRulesTests`）覆盖左下（小地图上方）事件播报：中途进入不补播、每个公开变化只播一次且最新在下、本人行高亮、
+- `HUDEventFeed`（`LDHUDRulesTests`）覆盖右上角事件播报：中途进入不补播、每个公开变化只播一次且最新在下、本人行高亮、
   6 条上限与 5 s 离开、外卖被抢行在本人领取序号到达后改写、老板击败者署名、同一主人被冻结的守护归零只播一次
   （暂停、冻结与恢复本身不播），以及新一局从空列表开始；另覆盖外卖无人领取消失、老板退场、
   营地标记公开（高档/精英各一行）、被领走（本人野外奖励记录到达后改写为“你领到了…”）与过期各只播一次。
