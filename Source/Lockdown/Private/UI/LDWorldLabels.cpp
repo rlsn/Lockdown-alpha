@@ -168,8 +168,11 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     // so they show even while no other unit is in sight.
     const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
     const ALDCharacter* OwnBody=SelfBars.bVisible?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    // Without the own combat projection there are no bars, yet the HUD's syncing line still sits over the own pawn.
+    const FString OwnNotice=PC->HUDUI?PC->HUDUI->GetOwnStatusNotice():FString();
+    const ALDCharacter* NoticeBody=!OwnBody&&!OwnNotice.IsEmpty()&&Own.LifePhase==ELDLifePhase::Alive?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
-    if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects({});}return Base+1;}
+    if((!Frame&&!IsValid(OwnBody)&&!IsValid(NoticeBody))||ViewW<=0||ViewH<=0){if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects({});}return Base+1;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
     const FVector2f Size=G.GetLocalSize();const float ToLocalX=Size.X/float(ViewW),ToLocalY=Size.Y/float(ViewH);
     auto Culled=[&Size](float X,float Y){return X<-WorldLabelCullMargin||X>Size.X+WorldLabelCullMargin||Y<0.f||Y>Size.Y+WorldLabelCullMargin;};
@@ -310,8 +313,29 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                     ReachTop=FMath::Min(ReachTop,Square.Top-1.f);ReachLeft=FMath::Min(ReachLeft,Square.Left-1.f);ReachRight=FMath::Max(ReachRight,Square.Right+1.f);
                 }
             }
+            else if(!OwnNotice.IsEmpty())
+            {
+                // The own projection is missing: one small grey line in place of the squares, so no status never reads as none.
+                // Painted only; it reports no hover rect.
+                const float NoticeHalf=FontMeasure->Measure(OwnNotice,StatusFont).X*.5f;
+                float NoticeBottom=ReachTop-WorldRowGap;
+                Line(OwnNotice,StatusFont,LDHUDStyle::TextSecondary,OwnX,NoticeBottom);
+                ReachTop=NoticeBottom;ReachLeft=FMath::Min(ReachLeft,OwnX-NoticeHalf);ReachRight=FMath::Max(ReachRight,OwnX+NoticeHalf);
+            }
             // Placed before any label, so a unit's label moves above the own bars instead of covering them.
             Placed.Add(FSlateRect(ReachLeft,ReachTop,ReachRight,OwnBottom));
+        }
+    }
+    else if(IsValid(NoticeBody)&&PC->ProjectWorldLocationToScreen(NoticeBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
+    {
+        // No bars without the projection: the syncing line alone rests on the bars' anchor. Painted only, never hit-tested.
+        const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
+        if(!Culled(OwnX,OwnBottom))
+        {
+            const float NoticeHalf=FontMeasure->Measure(OwnNotice,StatusFont).X*.5f;
+            float NoticeTop=OwnBottom;
+            Line(OwnNotice,StatusFont,LDHUDStyle::TextSecondary,OwnX,NoticeTop);
+            Placed.Add(FSlateRect(OwnX-NoticeHalf,NoticeTop,OwnX+NoticeHalf,OwnBottom));
         }
     }
     if(PC->HUDUI){PC->HUDUI->ReportOwnStatusRects(MoveTemp(OwnMarkRects));}

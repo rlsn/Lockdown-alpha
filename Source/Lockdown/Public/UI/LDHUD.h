@@ -93,6 +93,8 @@ public:
     const FSlateBrush* OwnStatusBrush(int32 Index) const
     {return OwnStatusTextures.IsValidIndex(Index)&&OwnStatusTextures[Index]&&OwnStatusBrushes.IsValidIndex(Index)?&OwnStatusBrushes[Index]:nullptr;}
     void ReportOwnStatusRects(TArray<FSlateRect> AbsoluteRects) const {OwnStatusHitRects=MoveTemp(AbsoluteRects);}
+    // LDHUD::SelfIconsNotice: "状态同步中" in place of the marks while the own projection is missing; painted, never hit-tested.
+    const FString& GetOwnStatusNotice() const {return OwnStatusNotice;}
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
     // The normal main panels (UI 3.1) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
     // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
@@ -302,6 +304,7 @@ private:
     // (LDHUD::SelfIconDetail).
     TArray<LDHUD::FSelfIconView> SelfIconViews;
     TArray<FLDOwnStatusMark> OwnStatusMarks;
+    FString OwnStatusNotice;
     TArray<FSlateBrush> OwnStatusBrushes;
     UPROPERTY() TArray<TObjectPtr<UTexture2D>> OwnStatusTextures;
     mutable TArray<FSlateRect> OwnStatusHitRects;
