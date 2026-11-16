@@ -86,7 +86,7 @@ public:
     ULDWorldButton(){InitIsFocusable(false);}
 };
 // Shared major-panel focus scope. World buttons deliberately remain unfocusable.
-// The stack hooks let ULDUIRoot route Back over panels it does not own (UI_AND_SETTINGS 4):
+// The stack hooks let ULDUIRoot route Back over panels it does not own (MOVEMENT_INPUT_AND_CAMERA input ownership):
 // a child confirmation closes before its main panel, and closing never submits or rolls back domain work.
 UCLASS()
 class LOCKDOWN_API ULDPanel : public UUserWidget
@@ -106,7 +106,7 @@ public:
     virtual bool ChildConfirmationYields() const {return false;}
     // Normal panels take pointer input only over their own area, so world clicks beside them still reach the world.
     bool IsPanelHit(FVector2D Absolute) const;
-    // Local text-size preference (UI 3.3): rescales the built tree once per change; text built later uses ScaleNewText.
+    // Local text-size preference (VISION_AND_UI readability): rescales the built tree once per change; text built later uses ScaleNewText.
     void ApplyTextScale(float Scale);
 protected:
     virtual UWidget* FocusScope() const;

@@ -97,7 +97,7 @@ private:
         TArray<FName> DevLevelComponents;
 #endif
     };
-    // The reward composite (PROGRESSION_AND_REWARDS): the XP of every share with its levels, opportunities and Combat
+    // The reward composite (GROWTH_TRANSACTIONS): the XP of every share with its levels, opportunities and Combat
     // projection, all prepared before any is installed, so the whole reward commits once or not at all (a contender kill
     // with its assisters, a camp kill, a map event or a DEV grant). Shares[0] fills the receipt's own fields, the rest fill
     // Receipt.Assists in order. Every installed part writes its LD_REWARD line (and an LD_LEVEL_UP line when it raised

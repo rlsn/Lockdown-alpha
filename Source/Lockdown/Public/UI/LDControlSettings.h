@@ -61,7 +61,7 @@ struct LOCKDOWN_API FLDDisplaySettings
     Scalability::FQualityLevels Quality;
 
     static FLDDisplaySettings Read(const UGameUserSettings& Settings);
-    // Product defaults for "restore defaults" (UI_AND_SETTINGS 8): the overall quality of SetToDefaults on a transient
+    // Product defaults for "restore defaults" (VISION_AND_UI settings page): the overall quality of SetToDefaults on a transient
     // object of the live settings class, and the engine's r.VSync default because SetToDefaults leaves VSync unchanged.
     // Live is not modified.
     static bool ProductDefaults(const UGameUserSettings& Live, FLDDisplaySettings& Out, FString& Error);
@@ -110,7 +110,7 @@ struct FLDControlBinding
 // Which ground direction the minimap draws straight up (LDMinimap): the camera's ground forward, the own living body's
 // facing (the camera's while there is no body) or world -Y. Saved as this value; any other stored value is rejected.
 UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 };
-// The local-preference groups the settings page restores one page at a time (UI_AND_SETTINGS 8); together they are exactly
+// The local-preference groups the settings page restores one page at a time (VISION_AND_UI settings page); together they are exactly
 // ResetLocalDefaults. Display values belong to UGameUserSettings and are restored through the display apply instead.
 enum class ELDPreferenceGroup : uint8
 {
@@ -126,7 +126,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 public:
     static constexpr int32 CurrentSchema = 23;
     static constexpr int32 MaxPlayerNameChars = 16;
-    // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
+    // Camera-only pan speed domain in cm/s, defined by the UI settings module (MOVEMENT_INPUT_AND_CAMERA local settings).
     static constexpr float MinCameraPanCmPerSec = 900;
     static constexpr float MaxCameraPanCmPerSec = 3600;
     UPROPERTY(SaveGame) int32 Schema=CurrentSchema;
@@ -146,10 +146,10 @@ public:
     UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
     // Minimap presentation only; it never changes what the minimap may show. The Camera default is the user's decision.
     UPROPERTY(SaveGame) ELDMinimapOrientation MinimapOrientation=ELDMinimapOrientation::Camera;
-    // Quick cast (off by default, CONTROLS 3): Combat casts a unit skill at the pointed visible unit and a direction skill
+    // Quick cast (off by default, MOVEMENT_INPUT_AND_CAMERA ability targets): Combat casts a unit skill at the pointed visible unit and a direction skill
     // toward the pointer on the key press itself, instead of arming it for a left-click confirmation.
     UPROPERTY(SaveGame) bool bQuickCast=false;
-    // Auto attack after a cast (on by default, the user's decision, CONTROLS 3): once a non-queued Q/W cast order completes,
+    // Auto attack after a cast (on by default, the user's decision, MOVEMENT_INPUT_AND_CAMERA ability targets): once a non-queued Q/W cast order completes,
     // the owning client sends an ordinary attack order at the skill's unit target, or, for a ground/direction skill, at the
     // unit it was attacking before the cast while that unit is still visible. Client intent only; the server validates it.
     UPROPERTY(SaveGame) bool bAutoAttackAfterCast=true;

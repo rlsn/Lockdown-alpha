@@ -16,11 +16,11 @@ OwnerState.NearbyRestService 仅是本人当前脚点的服务投影，Build 提
 验收状态见[就绪评估](READINESS.md)。
 
 **这是跨模块语义契约，不是 API 清单。** 表中列出的类型与入口已在源码中实现；
-其余语义字段用于说明模块之间的约定，具体签名以各领域报告和源码为准，不能据此再造一个通用状态系统。
-核心类型和提交接口现在以 [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) §4–6 为唯一正式提供者；
+其余语义字段用于说明模块之间的约定，具体签名以各系统手册和源码为准，不能据此再造一个通用状态系统。
+核心类型和提交接口现在以 [架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md) 为唯一正式提供者；
 下列映射和领域转引必须与它一致，不建立同义的第二个核心头、时钟或驱动。
 首版参数数值只由内容与数值设计集中维护，本文件不设置数值默认值。
-本文件集中共同语义，领域报告提供正式签名，不维护互相独立的契约版本。
+本文件集中共同语义，系统手册提供正式签名，不维护互相独立的契约版本。
 
 ## SC-01：唯一状态所有者
 
@@ -56,7 +56,7 @@ OwnerState、GameState、UI 和 AI 消费适当投影，不能互相回写成多
 | 奖励提交 | 死亡 `FLDDeathKey` 与奖励回执 | 每次业务结果有稳定去重身份；重放不再次发经验、机会或奖励 |
 | 状态与观察修订 | 自身/构筑的 revision；观测的 generation/revision | 各领域版本含义独立；不得用一个“最新版本”代替全部合法性 |
 
-目标核心映射如下，完整字段定义只在生命周期报告 §4/§6 维护：
+目标核心映射如下，完整字段定义只在[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md#核心身份与生命)维护：
 
 | 跨域语义 | 正式类型/入口 | 集成约束 |
 | --- | --- | --- |
@@ -86,8 +86,8 @@ server Token 代替原 RequestKey 或本地已发出的 Direct 上界。Nav 键�
 不会为了同一次派生普攻再生成一条全域序号。正式动作键由战斗域定义，M3/AI只消费。
 
 跨战斗/成长/UI/AI 的标量与编码以
-[成长 §3.1](PROGRESSION_AND_REWARDS.md) 和
-[战斗 §3.2–3.3](COMBAT_AND_ATTRIBUTES.md) 的同一合同为准：
+[成长事务](../systems/GROWTH_TRANSACTIONS.md) 和
+[战斗、效果与成长](../systems/COMBAT_AND_GROWTH.md) 的同一合同为准：
 业务实例/Offer/Option/IssuedCooldownId 是 FGuid；对应 Build/Account/
 Progression/Offer/SourceBinding/Readiness 修订为 uint64，资源 P2 与 XP 为 int64。
 `FLDCatalogDigest` 在 wire 中为 32 raw SHA-256 bytes，显示才是64个小写十六进制字符；
@@ -101,7 +101,7 @@ Choice 查询统一使用 `FLDReceiptQuery{Generation, Family, RequestId}`，
 LookupStatus 为 Pending 时只有 PendingInfo，Final 时只有匹配业务 Receipt；
 NotFound/ReceiptExpired/InvalidContext 均不携带两者，不伪造 OriginalLife 或 Applied/Rejected。
 业务历史只读结果不能覆盖新身体；Queued/查询/缓存过窗都不授权用新ID重做同一操作。
-精确载荷和枚举由 [成长 §8](PROGRESSION_AND_REWARDS.md) 单点定义，不混用订单查询的 Expired 名称。
+精确载荷和枚举由 [成长事务](../systems/GROWTH_TRANSACTIONS.md) 单点定义，不混用订单查询的 Expired 名称。
 
 保留窗口内重复提交已接受的请求只重放其既有结果；过窗后明确拒旧并提供当前状态或合法查询，
 不能因清除有界回执缓存而重新执行。领域须说明查询/重放窗口及拒旧水位，
@@ -145,7 +145,7 @@ Pending 只表示等待，不是成功。拒绝必须有可理解且不泄露隐
 而不是旗杆 UI 猜测。先锁定结果并关闭写闸，再执行取消/清理和结果发布；
 清理回调也不能产生新的玩法提交，已完成事务的只读回执重放不算再次提交。
 
-唯一目标阶段序由 [生命周期 §6.4](SESSION_MATCH_LIFECYCLE.md) 定义：
+唯一目标阶段序由 [架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md) 定义：
 Session → Motion → Actions → Effects → DeathsAndRewards → RespawnsAndWorld →
 Transactions → Capture → Close → Publish。先按真实秒推进，真正同刻才使用核心已分配的
 CommitOrdinal；消费者不得再按 Provider/Phase 重排已提交事实。
@@ -287,7 +287,7 @@ Combat 的 `FLDCombatSourceRef` 区分 Basic/Learned/Innate 来源；持久冷�
 每观察者可撤销句柄和失去视野后的拒绝。输入、AI与喷漆/守护域调用这些接口，
 不各自扫描全局 Actor 或复制一套世界状态。核心只约束共同代次、提交顺序和公共读模型责任；
 具体采用的单一路径与网格/稀疏协议接线由世界设计和架构裁剪共同封口。
-已审核的 [世界报告](WORLD_CAMPS_AND_VISION.md) 选择一个有界稀疏 `FLDWorldView`，
+[视野与 UI](../systems/VISION_AND_UI.md) 选择一个有界稀疏 `FLDWorldView`，
 复用 Relay 的可靠撤销/不可靠全量与接受游标，不保留并行 B91 身体协议。
 它拥有 `QueryGround/QueryCompletePath/FindApproach/TraceSight`、当前观察与圈几何定义；
 现有单层布局、完整首版参数及操作§4.2规则已获用户批准用于首轮实施/试玩；
@@ -319,7 +319,7 @@ hint只是期望，不能代替实际支持面/接地证明。NAME_None/未知�
 `FLDObservedUnitTermination` 必须在实际死亡时有合法观察见证，并由服务器绑定原订单身份。
 Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪装成该事件；
 旧终止不能驱动新订单，客户端显示消息不调用导航。具体字段/序号定义由世界域维护，
-操作消费与真实时间排序见 [操作与目标](CONTROLS_AND_TARGETING.md) §4.2/§7.2/§7.3。
+操作消费与真实时间排序见 [移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
 对手字段白名单适用于 UI/AI 读取，不附带私有技能、冷却或属性表；
 合法动作/外观表现不等于披露这些私有状态。
 其中 `camp_returning` 由Vision仅为当前可见Returning成员派生到同一Statuses，
@@ -341,7 +341,7 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 ## SC-08：内容定义与参数引用
 
 [内容与数值报告](CONTENT_AND_BALANCE.md) 维护首版目录、
-战斗/成长/AI参数、公式、依据和审核状态。世界报告的唯一坐标/阻挡/连接表定义单层几何，
+战斗/成长/AI参数、公式、依据和审核状态。[世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)的唯一坐标/阻挡/连接表定义单层几何，
 并引用共同半径/视距等参数；不把坐标或参数复制成可独立修改的第二份表。
 现有完整内容数值和唯一单层布局已获用户批准作为首次实际试玩输入。
 模型和 SVG 是离线证据，不是原生资产、实际消费或平衡通过的证明。
@@ -352,8 +352,8 @@ Conceal、stale、FullSetRemoved、离局清理和公共击杀通知都不能伪
 | 域 | 唯一作者域/生产者 | 唯一目标载荷或资产根 |
 | --- | --- | --- |
 | 内容/公式 | [内容 §10.1](CONTENT_AND_BALANCE.md) 的 `SourceData\Demo`（content/schema/native_ids）与唯一 Demo compiler | `Content\Lockdown\Data\Demo\demo_content.json`、根 `manifest.json`、`LDDemoContentContract.h`、`ULDDemoContentCatalog` |
-| 世界几何 | [世界 §6](WORLD_CAMPS_AND_VISION.md) 的 `SourceData\World\demo_world.json`、`SyncDemoWorldData.py` 与唯一 Builder | `Content\Lockdown\Data\Demo\world.json`、`LDDemoWorldContract.h`；`/Game/Lockdown/Generated/Maps/L_Demo` 与 `/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`（`ULDMapDefinition`，唯一 `ALDMapAnchor`） |
-| 前端/会话 | [生命周期](SESSION_MATCH_LIFECYCLE.md) 的前端与同世界阶段接线 | `L_Frontend` 仅菜单，Lobby/Match/Results 在同一 `L_Demo`；不是第二个战局根 |
+| 世界几何 | [世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) 的 `SourceData\World\demo_world.json`、`SyncDemoWorldData.py` 与唯一 Builder | `Content\Lockdown\Data\Demo\world.json`、`LDDemoWorldContract.h`；`/Game/Lockdown/Generated/Maps/L_Demo` 与 `/Game/Lockdown/Generated/Data/DA_DemoWorld.DA_DemoWorld`（`ULDMapDefinition`，唯一 `ALDMapAnchor`） |
+| 前端/会话 | [架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md) 的前端与同世界阶段接线 | `L_Frontend` 仅菜单，Lobby/Match/Results 在同一 `L_Demo`；不是第二个战局根 |
 
 内容 compiler、schema/native ID 声明及 `ULDDemoContentCatalog` 的 typed 原生导入、
 不可变快照、精确保存投影比较和入口/Bootstrap 消费已经有实现。
@@ -399,11 +399,11 @@ UI Root 的 `TopInputLayer` 是唯一输入层来源：Choices主页面为普通
 `OpenChildConfirmation` 先清冲突Armed，但保持按下手势的capture到释放。
 Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settings处理，一次Handled，
 不能让Armed越过模态，也不隐式Stop订单、发RPC或消费Offer。完整本地边界见
-[UI §4](UI_AND_SETTINGS.md) 与 [操作 §3](CONTROLS_AND_TARGETING.md)。
+[视野与 UI](../systems/VISION_AND_UI.md) 与 [移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
 
 游戏窗口固定为无边框桌面分辨率，没有窗口模式、分辨率或显示试用；VSync/画质在明确 Apply 后应用。
 仅已确认应用且可核验的本地值可保存，不把草稿或局内数据持久化。
-完整应用与保存验证由 [UI §8](UI_AND_SETTINGS.md) 单点定义。
+完整应用与保存验证由[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md#本地设置与显示)单点定义。
 
 领域接口新增或变更时，在对应领域文档中说明下列对接信息：
 
@@ -426,11 +426,11 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 
 | 领域 | 唯一定义入口 | 关键交接 |
 | --- | --- | --- |
-| 操作 M3 | [操作报告](CONTROLS_AND_TARGETING.md) §5/§7.3 | `SubmitOrder/CancelOrder/QueryOrder` 归现有 Navigation，只收件不激活；Actions 阶段由 `ProcessAuthorityOrders` 在当前 permit 下激活，动作交接原子；CT06 的全部提供者封桶与 root motion 全链尚未实现 |
-| 核心 M1/M2/M5 | [生命周期报告](SESSION_MATCH_LIFECYCLE.md) §4–6 | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可并做唯一喷漆与守护归约；不新增第二核心 |
-| 世界 M9G/M9C/M10 | [世界报告](WORLD_CAMPS_AND_VISION.md) §3–5 | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十二点与局部槽区分；已批准的坐标/尺寸已生成 `L_Demo`，营地、观测与地面移动由 Camp、Vision、Core 场景覆盖 |
-| AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；AI 叶参数只在唯一内容表中定义 |
-| 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query、准入后Token、Prepare/ApplyBuildChange及营地回位重置（`FLDCampResetKey`）；正文区分持久来源与独立已释放效果，不复用旧family-max |
-| 成长 M6/M7 | [成长报告](PROGRESSION_AND_REWARDS.md) §4/§7/§8 | CommitDeathReward/Choice复合提交、专用QueryResult、双IssuedCooldownId债优先回绑；不把查询或NoReward当失败成功回退 |
-| UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地设置应用/保存；普通Choices不阻整个世界，子模态不穿透 |
+| 操作 M3 | [移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md) | `SubmitOrder/CancelOrder/QueryOrder` 归现有 Navigation，只收件不激活；Actions 阶段由 `ProcessAuthorityOrders` 在当前 permit 下激活，动作交接原子；CT06 的全部提供者封桶与 root motion 全链尚未实现 |
+| 核心 M1/M2/M5 | [架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md) | 唯一 Match/Victim/Body/DeathKey、时间/水位/许可/终局、AI 注册与只读自身/公共入口；Combat 唯一驱动，GameMode 发许可并做唯一喷漆与守护归约；不新增第二核心 |
+| 世界 M9G/M9C/M10 | [世界与数据管线](../systems/WORLD_AND_DATA_PIPELINE.md)、[视野与 UI](../systems/VISION_AND_UI.md) | 几何、合法落地、同核营地生命、稀疏观测/授权终止；十二点与局部槽区分；已批准的坐标/尺寸已生成 `L_Demo`，营地、观测与地面移动由 Camp、Vision、Core 场景覆盖 |
+| AI M12 | [对手 AI](../systems/OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；AI 叶参数只在唯一内容表中定义 |
+| 战斗 M4 | [战斗、效果与成长](../systems/COMBAT_AND_GROWTH.md) | 统一Submit/Cancel/Query、准入后Token、Prepare/ApplyBuildChange及营地回位重置（`FLDCampResetKey`）；正文区分持久来源与独立已释放效果，不复用旧family-max |
+| 成长 M6/M7 | [成长事务](../systems/GROWTH_TRANSACTIONS.md) | CommitDeathReward/Choice复合提交、专用QueryResult、双IssuedCooldownId债优先回绑；不把查询或NoReward当失败成功回退 |
+| UI M11 | [视野与 UI](../systems/VISION_AND_UI.md) | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地设置应用/保存；普通Choices不阻整个世界，子模态不穿透 |
 | 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试；现有数值与精度已获用户批准并生成运行输入，不是平衡测试结果 |

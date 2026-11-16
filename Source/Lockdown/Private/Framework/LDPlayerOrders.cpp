@@ -28,7 +28,7 @@ namespace LDPlayerOrdersDetail
 void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry, const FLDCombatTarget* PressAim, const FVector* AimCm)
 {
     // The full world-command gate: under the menu, Settings, a child confirmation or a text edit no entry arms or
-    // sends (UI 4); the root already cancelled any older preview.
+    // sends (MOVEMENT_INPUT_AND_CAMERA input ownership); the root already cancelled any older preview.
     if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
@@ -182,7 +182,7 @@ bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim, const FV
 void ALDPlayerController::StopCombatAndOrders()
 {
     // S is a new world command: the menu, Settings, a child confirmation, a text edit or an unreleased key keeps it
-    // from the world, so it never stops the accepted order those leave running (UI 4, 7).
+    // from the world, so it never stops the accepted order those leave running (MOVEMENT_INPUT_AND_CAMERA input ownership).
     if (IsWorldInputSuppressed()) { return; }
     CancelArmedCombat();
     QueuedCombat={};

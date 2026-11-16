@@ -562,7 +562,7 @@ ULDCommandButton* ULDUIRoot::MakeButton(const FString& Text,FName Name,TFunction
     Caption->SetFont(LDUIFonts::Font(LDUIFonts::ERole::Body,Scaled(Size)));
     Caption->SetJustification(ETextJustify::Center);
     CastChecked<UButtonSlot>(Caption->Slot)->SetHorizontalAlignment(HAlign_Fill);
-    // 12 px vertical padding keeps every root button at least 44 px tall (UI_AND_SETTINGS 3.3).
+    // 12 px vertical padding keeps every root button at least 44 px tall (VISION_AND_UI readability).
     FButtonStyle Style=Button->GetStyle();
     Style.NormalPadding=Style.PressedPadding=FMargin(16,12);
     Button->SetStyle(Style);
@@ -1259,7 +1259,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     {
         const bool bOpening=!PanelOpen(SettingsPanel);
         if(bOpening&&!CloseMainPanelsExcept(Panel)){return;}
-        // Opening a main panel clears the local armed preview only; accepted orders keep running (UI 4, 7).
+        // Opening a main panel clears the local armed preview only; accepted orders keep running (MOVEMENT_INPUT_AND_CAMERA input ownership).
         if(bOpening){PC->CancelArmedCombat();}
         PC->ToggleControlsPanel();
         return;
