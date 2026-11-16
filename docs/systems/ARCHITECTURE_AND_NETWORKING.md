@@ -9,10 +9,13 @@
 | --- | --- | --- |
 | 运行模块 | `Source\Lockdown\Lockdown.Build.cs` | CharacterMovement、Enhanced Input、UMG、导航、AI、网络与规则 |
 | 编辑器模块 | `Source\LockdownEditor` | 导入、Bootstrap、生成资产与保存包；不进入运行模块依赖 |
+| 规则测试模块 | `Source\LockdownTests` | `Lockdown.Rules` 自动化测试与夹具；只由编辑器目标构建和加载，Game 目标与打包版不含规则测试 |
+| DEV 场景探针 | `Probes\` | 命令行启动的 DEV 场景、性能与美术采集探针；留在运行模块，打包 Development 版可用 |
 | 进程内会话 | `Framework\LDGameInstance.h/.cpp` | 网络/旅行失败回到前端，保存本地连接反馈 |
 | 正常游戏旅行 | `Framework\LDGameEngine.h/.cpp` | 在创建世界之前拒绝旧本地 URL/模式或缺输入；GameInstance 单独执行带错误反馈的前端恢复 |
 | 世界规则 | `Framework\LDGameMode.h/.cpp`、`LDGameModeSession.cpp`、`LDGameModeLifecycle.cpp` | 唯一 Demo 准入、Match 映射、Lobby、生命绑定、窄时序/写许可和会话回执；旧玩法提供者不自动创建 |
-| 公共状态 | `ALDGameState`，定义在 `LDGameMode.h` | 明确公开的 Lobby、目标、时间及终局状态 |
+| 权威切片 | `Framework\LDMatchAuthority.h`、`LDLifeAuthority.h` | `ALDGameMode` 实现的窄接口：比赛上下文、权威时钟、写许可与故障报告；生命/身体引用、保护与视野导演。只需这些的域经自己的导演（如 `ALDCombatDirector::Authority()`）或 `LDAuthority::Find` 读取，不包含整个 GameMode |
+| 公共状态 | `ALDGameState`，定义在 `Framework\LDGameState.h` | 明确公开的 Lobby、目标、时间及终局状态 |
 | 玩家意图 | `Framework\LDPlayerController.h` 及各 `LDPlayer*.cpp` | 自身状态、RPC、输入路由和回执 |
 | 身体 | `Character\LDCharacter.h/.cpp` | 原生运动、相机和可辨识表现，不自行结算经济或胜利 |
 

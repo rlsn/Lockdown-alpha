@@ -4,7 +4,7 @@
 #include "Combat/LDCombatKeywords.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 
 // #198 B base components on Combat's body records (docs/systems/COMBAT_AND_GROWTH.md, "基础构件"): the element hook, the
 // B02 ledger, the B17 idle amplification and the empowered-basic packages (S11/S17 at release, B12 at a dash's completion).

@@ -62,7 +62,7 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual((scope, forced), ('python', []))
 
     def test_native_inputs(self):
-        for path in ('Source/Lockdown/Private/Tests/LDArtRulesTests.cpp', 'SourceData/Demo/content.json',
+        for path in ('Source/LockdownTests/Private/LDArtRulesTests.cpp', 'SourceData/Demo/content.json',
                      'Config/DefaultEngine.ini', 'Content/Lockdown/Generated/Maps/L_Demo.umap',
                      'Scripts/RunTests.ps1', 'Scripts/DemoContent.py', 'Scripts/Sub/Tool.py', 'Lockdown.uproject'):
             scope, forced = CIChangeScope.classify(['docs/x.md', path], self.native)
@@ -84,10 +84,10 @@ class ImportInputsTest(unittest.TestCase):
                      'Source/Lockdown/Private/Region/LDMapDefinition.cpp',
                      'Source/Lockdown/Public/Region/LDMapGeometry.h',
                      'Source/Lockdown/Private/World/LDDemoWorldContract.h',
-                     'Source/Lockdown/Private/Tests/LDDemoContentCatalogTests.cpp'):
+                     'Source/LockdownTests/Private/LDDemoContentCatalogTests.cpp'):
             self.assertIn(path, importer)
         for path in ('Source/Lockdown/Private/AI/LDOpponentPolicy.cpp', 'Source/Lockdown/Private/Region/LDMapRegistry.cpp',
-                     'Source/Lockdown/Private/Tests/LDOpponentPolicyTests.cpp'):
+                     'Source/LockdownTests/Private/LDOpponentPolicyTests.cpp'):
             self.assertNotIn(path, importer)
 
     def test_follows_includes_and_own_cpp_but_not_its_includes(self):

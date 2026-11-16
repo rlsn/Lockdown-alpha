@@ -978,7 +978,7 @@ XP 曲线：每级所需从 80 起线性增加 20，1440 累计 XP 达到十级�
 | E07 | `Public\Development\LDGrowthDirector.h` | 死亡奖励按 DeathKey 一次结算 XP、等级与机会，无全局有限奖励池 |
 | E09 | `Public\World\LDCampDirector.h`、`LDCampLifecycle.h`、`LDCampDecision.h` | 三档营地、逐成员生命、清空后刷新、回位重置；奖励只经核心致死事实，不另发清营奖 |
 | E10 | `Source\LockdownEditor\Private\ScaffoldBootstrap\LDScaffoldBootstrapCommandlet.cpp`、`Source\Lockdown\Lockdown.Build.cs`、`Config\DefaultGame.ini`、`Scripts\PackageWin64.ps1` | Bootstrap 生成/核验 `DA_DemoContent`；RuntimeDependencies 只 stage `Content\Lockdown\Data\Demo` 的 `demo_content.json/manifest.json/world.json`；打包只用 Demo 地图 |
-| E11 | `Private\Tests\LDDemoContentCatalogTests.cpp`、`LDGrowthRulesTests.cpp`、`LDAttributeProjectionTests.cpp`、`LDCombatSourceRulesTests.cpp`；`Scripts\TestDemoContentImport.py`、`TestDemoApprovedImport.py`、`RunTests.ps1`、`CheckRuleReport.py` | 输入拒绝、批准内容导入、成长、属性投影与来源规则的现有检查入口 |
+| E11 | `Source\LockdownTests\Private\LDDemoContentCatalogTests.cpp`、`LDGrowthRulesTests.cpp`、`LDAttributeProjectionTests.cpp`、`LDCombatSourceRulesTests.cpp`；`Scripts\TestDemoContentImport.py`、`TestDemoApprovedImport.py`、`RunTests.ps1`、`CheckRuleReport.py` | 输入拒绝、批准内容导入、成长、属性投影与来源规则的现有检查入口 |
 
 ### 9.1 效果能力不是一个“法术”标签
 

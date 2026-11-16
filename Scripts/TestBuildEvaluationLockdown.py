@@ -505,7 +505,7 @@ class PlanTest(AdapterCase):
                 self.requirements({**WORKSHOP, "build": [shape]})
         with self.assertRaisesRegex(ValueError, "at most 32 steps"):
             self.requirements({**WORKSHOP, "build": [{"step": "respec", "at": "opening_rest"}] * (lockdown.NATIVE_MAX_BUILD_STEPS + 1)})
-        header = (ROOT / "Source/Lockdown/Private/Tests/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
+        header = (ROOT / "Source/Lockdown/Public/Probes/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
         self.assertIn(f"inline constexpr int32 MaxBuildSteps = {lockdown.NATIVE_MAX_BUILD_STEPS};", header)
 
     def test_boolean_option_indices_are_unsupported_before_native_execution(self):
@@ -1103,7 +1103,7 @@ class EvidenceTest(AdapterCase):
                 self.assertNotEqual(prefix, lockdown.facts({}, plan, value, lockdown.parse_trace(changed), ids)["prefix"])
 
     def test_the_native_limits_and_schemas_are_the_drivers(self):
-        header = (ROOT / "Source/Lockdown/Private/Tests/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
+        header = (ROOT / "Source/Lockdown/Public/Probes/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
         self.assertIn(f"inline constexpr int32 MaxCases = {lockdown.NATIVE_MAX_CASES};", header)
         self.assertEqual(self.caps["limits"]["max_cases_per_run"], lockdown.NATIVE_MAX_CASES)
         self.assertIn(f'InputSchema[] = TEXT("{lockdown.NATIVE_INPUT_SCHEMA}");', header)

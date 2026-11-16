@@ -1,5 +1,5 @@
 #include "Development/LDBuildBlueprint.h"
-#include "LDDemoContentJson.h"
+#include "Development/LDDemoContentJson.h"
 
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"

@@ -6,7 +6,7 @@
 #include "Navigation/LDPathSteering.h"
 #include "Navigation/LDPointerFeedback.h"
 #include "Framework/LDPlayerController.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -136,9 +136,6 @@ ULDNavigationComponent::ULDNavigationComponent()
 }
 
 ALDPlayerController* ULDNavigationComponent::Controller() const { return Cast<ALDPlayerController>(GetOwner()); }
-
-ALDGameMode* ULDNavigationComponent::AuthorityMode() const
-{ return GetWorld()?GetWorld()->GetAuthGameMode<ALDGameMode>():nullptr; }
 
 bool ULDNavigationComponent::IsLocalOwner() const
 {

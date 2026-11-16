@@ -24,6 +24,7 @@ struct FLDCharmEffectFact;
 
 class ALDCharacter;
 class ALDGameMode;
+class ILDLifeAuthority;
 class ALDPlayerController;
 class FLDDemoContentSnapshot;
 enum class ELDGrowthReason : uint16;
@@ -997,6 +998,8 @@ private:
 
     // ---- Driver phases (LDCombatDriver.cpp).
     ALDGameMode* Core() const;
+    // The same owner seen through its life slice (Framework/LDLifeAuthority.h), for files that need no other GameMode state.
+    ILDLifeAuthority* Authority() const;
     const FLDDemoContentSnapshot* Catalog() const;
     int64 NextDueMs(int64 NowMs) const;
     bool RunActions(const FLDGameplayWritePermit& Permit, FString& Error);

@@ -503,7 +503,7 @@ flush 保留已明确应用的镜头偏好，不依赖滚轮后延迟 tick 恰�
 SaveGame 采用持久字段正向清单：网络身份、owner cache、XP/Offer/技能、
 冷却、结果和输入捕获不得成为普通持久 UPROPERTY。
 测试必须显式使用隔离存储且不存在回落真实用户槽的路径：
-当前 [本地设置测试](../../Source/Lockdown/Private/Tests/LDLocalSettingsTests.cpp)
+当前 [本地设置测试](../../Source/LockdownTests/Private/LDLocalSettingsTests.cpp)
 和前端捕获使用明确的隔离存储；不复活旧 probe 前缀回落规则，也不借验证修改真实用户设置。
 
 ## 9. SC-09 E：参数/目录键与单位

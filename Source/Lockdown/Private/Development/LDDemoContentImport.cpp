@@ -1,5 +1,5 @@
-#include "LDDemoContentJson.h"
-#include "LDDemoContentMath.h"
+#include "Development/LDDemoContentJson.h"
+#include "Development/LDDemoContentMath.h"
 #include "Development/LDDemoCardText.h"
 #include "Region/LDMapGeometry.h"
 #include "Framework/LDShowdownSettings.h"

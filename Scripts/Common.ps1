@@ -70,7 +70,7 @@ function Invoke-LDTool {
 
 function Assert-LDEditorModules {
     $projectRoot = Get-LDProjectRoot
-    foreach ($module in @('Lockdown', 'LockdownEditor')) {
+    foreach ($module in @('Lockdown', 'LockdownEditor', 'LockdownTests')) {
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "Binaries/Win64/UnrealEditor-$module.dll"))) {
             throw "Missing $module editor module. Run Preflight.ps1 and BuildEditor.ps1 successfully before launching commandlets or reopening this C++ project."
         }

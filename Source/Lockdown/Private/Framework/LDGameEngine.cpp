@@ -5,7 +5,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
-#include "Tests/LDDemoEntryProbe.h"
+#include "Probes/LDDemoEntryProbe.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/Package.h"
 

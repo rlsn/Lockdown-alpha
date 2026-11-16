@@ -1,5 +1,5 @@
 #include "Combat/LDTacticalRules.h"
-#include "../Development/LDDemoContentMath.h"
+#include "Development/LDDemoContentMath.h"
 
 namespace
 {

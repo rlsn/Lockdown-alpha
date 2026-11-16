@@ -2,7 +2,7 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "World/LDCharms.h"
 
 // #198 field charms: the effect side of a claim. Heal and mana use the same one-time resource paths as every other
@@ -14,7 +14,7 @@ bool ALDCombatDirector::ApplyCharm(const FGuid& Contender, ELDCharmKind Kind, co
 {
     bOutApplied = false;
     Out = {};
-    ALDGameMode* Mode = Core();
+    ILDLifeAuthority* Mode = Authority();
     const FLDDemoContentSnapshot* Content = Catalog();
     if (!Mode || Mode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Content
         || !Contender.IsValid() || Kind == ELDCharmKind::None)

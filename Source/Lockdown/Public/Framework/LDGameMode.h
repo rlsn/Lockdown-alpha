@@ -1,88 +1,23 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "GameFramework/PlayerState.h"
-#include "GameFramework/GameStateBase.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDGameState.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Framework/LDMatchTimeline.h"
 #include "Development/LDProgressionRules.h"
 #include "Framework/LDCaptureReducer.h"
 #include "Framework/LDMatchProviders.h"
 #include "World/LDCaptureCircle.h"
-#include "World/LDCaptureMarker.h"
 #include "World/LDAirdrop.h"
 #include "World/LDCharms.h"
 #include "World/LDFieldMarkers.h"
 #include "World/LDDormZones.h"
 #include "World/LDLeaderNotice.h"
-#include "World/LDDormMarker.h"
-#include "World/LDAirdropMarker.h"
-#include "World/LDCharmMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "Core/LDLog.h"
 #include "PK/LDPKRules.h"
 #include "LDGameMode.generated.h"
-
-UCLASS()
-class LOCKDOWN_API ALDPlayerState : public APlayerState
-{
-    GENERATED_BODY()
-public:
-    ALDPlayerState();
-};
-
-UCLASS()
-class LOCKDOWN_API ALDGameState : public AGameStateBase
-{
-    GENERATED_BODY()
-public:
-    UPROPERTY(ReplicatedUsing=OnRep_DemoLobby) FLDLobbyView DemoLobby;
-    UFUNCTION() void OnRep_DemoLobby();
-    UPROPERTY(ReplicatedUsing=OnRep_DemoClock) FLDDemoClockView DemoClock;
-    UFUNCTION() void OnRep_DemoClock();
-    // Capture/endgame public read models: the circle, the frozen result and the kill feed.
-    UPROPERTY(ReplicatedUsing=OnRep_PublicMatch) FLDPublicMatchView PublicMatch;
-    UFUNCTION() void OnRep_PublicMatch();
-    UPROPERTY(ReplicatedUsing=OnRep_MatchResult) FLDResultView MatchResult;
-    UFUNCTION() void OnRep_MatchResult();
-    UPROPERTY(ReplicatedUsing=OnRep_KillFeed) FLDKillFeedView KillFeed;
-    UFUNCTION() void OnRep_KillFeed();
-    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
-    // Local presentation only: the visible flagpole boundary of the current match, never replicated.
-    const ALDCaptureMarker* GetCaptureMarker() const { return CaptureMarker.Get(); }
-    // Local presentation only: the dorm boundaries of the current match (D21, #79), never replicated.
-    TArray<const ALDDormMarker*> GetDormMarkers() const;
-    // Local presentation only: the current public airdrop (D26, #79), never replicated.
-    const ALDAirdropMarker* GetAirdropMarker() const { return AirdropMarker.Get(); }
-    // Local presentation only: one marker per lying public charm (#198, #226), in serial order, never replicated.
-    TArray<const ALDCharmMarker*> GetCharmMarkers() const;
-private:
-    // The match phases whose public world events (airdrop, charms) are drawn in the scene of this machine.
-    bool ShowsWorldEvents() const;
-    // Builds the boundary from this machine's world data for an active public match, and removes it otherwise.
-    void SyncCaptureMarker();
-    TWeakObjectPtr<ALDCaptureMarker> CaptureMarker;
-    uint32 CaptureMarkerFailedGeneration = 0;
-    // The same for every dorm ring.
-    void SyncDormMarkers();
-    void ClearDormMarkers();
-    TArray<TWeakObjectPtr<ALDDormMarker>> DormMarkers;
-    uint32 DormMarkerFailedGeneration = 0;
-    // The airdrop ring and crate, rebuilt for each drop serial.
-    void SyncAirdropMarker();
-    TWeakObjectPtr<ALDAirdropMarker> AirdropMarker;
-    uint32 AirdropMarkerFailedGeneration = 0;
-    // The charm rings and tokens, one per lying charm serial; removed as soon as the public view drops the charm.
-    void SyncCharmMarkers();
-    void ClearCharmMarkers();
-    TArray<TWeakObjectPtr<ALDCharmMarker>> CharmMarkers;
-    uint32 CharmMarkerFailedGeneration = 0;
-    FLDLobbyView LatestDemoLobby;
-    FLDDemoClockView LatestDemoClock;
-    FLDPublicMatchView LatestPublicMatch;
-    FLDResultView LatestMatchResult;
-    FLDKillFeedView LatestKillFeed;
-};
 
 class ALDVisionDirector;
 class ALDCombatDirector;
@@ -121,7 +56,9 @@ struct FLDContenderRecord
 };
 
 UCLASS()
-class LOCKDOWN_API ALDGameMode : public AGameModeBase
+// The single owner of the match, its lives and the authority clock. Domains that need only a slice read it through
+// ILDMatchAuthority / ILDLifeAuthority (Framework/LDMatchAuthority.h, Framework/LDLifeAuthority.h).
+class LOCKDOWN_API ALDGameMode : public AGameModeBase, public ILDLifeAuthority
 {
     GENERATED_BODY()
 public:
@@ -135,9 +72,10 @@ public:
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
-    const FLDMatchContext& GetMatchContext() const { return MatchContext; }
+    // ---- ILDMatchAuthority ----
+    virtual const FLDMatchContext& GetMatchContext() const override { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
-    bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
+    virtual bool IsGameplayWriteOpen(const FLDMatchContext& Context) const override;
     bool CanParkDisconnectedMember(ALDPlayerController& Controller) const;
     bool ParkDisconnectedMember(ALDPlayerController& Controller, FString& Error);
     bool ResumeRoomMember(ALDPlayerController& Controller, const FGuid& Ticket, FString& Error);
@@ -148,14 +86,14 @@ public:
     // The rest return countdown: build and every input (orders, attacks, casts, dash) are locked.
     // #198 session D: the PK ready countdown locks every input too, and while the PK runs only PK lives act (spectators
     // and the eliminated watch). Contender: the acting contender (invalid: judged as a non-PK life).
-    bool IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender = FGuid()) const;
+    virtual bool IsInputLocked(const FLDMatchContext& Context, const FGuid& Contender = FGuid()) const override;
     // Build-command stage for the growth domain: Live in the field, Rest in the open rest steps (build/training and the
     // payout), RestLocked in every other rest step, Closed otherwise.
     LDProgression::EMatchStage ReadBuildStage(const FLDMatchContext& Match) const;
     // Field progress T (ms) at the current authority instant; frozen outside the field, 0 before the first field.
     int64 GetFieldNowMs() const;
     bool IsFieldRunning() const;
-    bool IsShowdown() const { return Timeline.GetStage() == ELDMatchStage::FinalField; }
+    virtual bool IsShowdown() const override { return Timeline.GetStage() == ELDMatchStage::FinalField; }
     int64 NextShowdownDueMs() const;
     bool AdvanceShowdownEffects(const FLDGameplayWritePermit& Permit, FString& Error);
     // The authority ms at which T reaches FieldAtMs inside the running segment; MAX_int64 when the field is not running,
@@ -182,7 +120,7 @@ public:
     // Session D: a running PK ended early at this boundary (a side won or a draw was decided).
     bool FinishRestPK(const FLDGameplayWritePermit& Permit, FString& Error);
     // Whether a contender currently has a shared-room rest life, not a field or PK life.
-    bool IsInRestSpace(const FGuid& Contender) const;
+    virtual bool IsInRestSpace(const FGuid& Contender) const override;
     static FGuid RestIsolationGroup() { return FGuid(0x198, 0x52455354, 0x4c4f554e, 0x47450001); }
     ELDRestService NearbyRestService(const FGuid& Contender) const;
     bool CanUseRestService(const FGuid& Contender, ELDBuildCommandKind Kind) const;
@@ -205,33 +143,33 @@ public:
     bool EnterPKLives(const TArray<FLDPKPlacement>& Placements, const FLDGameplayWritePermit& Permit, bool& bPlaced, FString& Error);
     // RespawnsAndWorld: every living PK life retires and stands again in its rest space (blocked: pending placement).
     bool ReturnPKLivesToRest(const FLDGameplayWritePermit& Permit, FString& Error);
-    bool IsPKLife(const FGuid& Contender) const { return PKLives.Contains(Contender); }
+    virtual bool IsPKLife(const FGuid& Contender) const override { return PKLives.Contains(Contender); }
     // Whether a PK entry still waits for its bodies.
     bool IsPKEntryWaiting() const { return !PendingPKEntry.IsEmpty(); }
     // The current living body of a contender and its committed foot; false when it has none.
-    bool ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBody, FVector& OutFootCm) const;
+    virtual bool ReadLivingBody(const FGuid& Contender, FLDCombatBodyRef& OutBody, FVector& OutFootCm) const override;
     // Inside an authority step, after Motion: the native motion the contender's living body completed in this step;
     // null when it has none.
     const FLDNativeMotionBatch* ReadStepMotion(const FGuid& Contender) const;
-    bool IsContenderPresent(const FGuid& Contender) const { return IsMemberPresent(Contender); }
+    virtual bool IsContenderPresent(const FGuid& Contender) const override { return IsMemberPresent(Contender); }
     const TArray<FGuid>& GetRosterOrder() const { return RosterOrder; }
     // Shared training dummies keep each slot's generation-time level chassis and no build; they grant nothing.
-    bool IsTrainingDummy(const FGuid& Entity) const { return TrainingDummyIds.Contains(Entity); }
+    virtual bool IsTrainingDummy(const FGuid& Entity) const override { return TrainingDummyIds.Contains(Entity); }
     // Motion: the dummy integrates zero input (only forced motion such as a knockback moves it).
     bool AdvanceTrainingDummyMotion(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     // Owner-only: queues a reset of the owner's training (owner and dummy refilled, every cooldown ready, every training
     // effect and status cleared) for the next boundary.
     ELDTrainingResetResult SubmitTrainingReset(ALDPlayerController& Controller, uint32 Generation, uint32 Life, uint8 RestIndex, int64 StartedAtMs);
-    const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
-    double GetAuthorityNowSeconds() const { return AuthorityNowSeconds; }
-    int64 GetAuthorityNowMs() const { return AuthorityNowMs; }
-    ELDCommitReject ValidateWritePermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase) const;
+    virtual const FLDAuthorityStep& GetAuthorityStep() const override { return AuthorityStep; }
+    virtual double GetAuthorityNowSeconds() const override { return AuthorityNowSeconds; }
+    virtual int64 GetAuthorityNowMs() const override { return AuthorityNowMs; }
+    virtual ELDCommitReject ValidateWritePermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase) const override;
     ELDCommitReject ValidateMotionStep(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body) const;
-    ELDCommitReject ResolveBody(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, ALDCharacter*& Out) const;
-    bool ReadBodyRef(const ALDCharacter& Body, FLDCombatBodyRef& Out) const;
+    virtual ELDCommitReject ResolveBody(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, ALDCharacter*& Out) const override;
+    virtual bool ReadBodyRef(const ALDCharacter& Body, FLDCombatBodyRef& Out) const override;
     bool CaptureIncomingTime(int64& NotBeforeMs, FString& Error) const;
-    bool ReportAuthorityFault(const FLDMatchContext& Match, const FString& Diagnostic);
-    bool ReadContenderLife(const FLDMatchContext& Match, const FGuid& ContenderId, FLDContenderLifeRead& Out, FString& Error) const;
+    virtual bool ReportAuthorityFault(const FLDMatchContext& Match, const FString& Diagnostic) override;
+    virtual bool ReadContenderLife(const FLDMatchContext& Match, const FGuid& ContenderId, FLDContenderLifeRead& Out, FString& Error) const override;
     bool ReadObservedPublicFacts(const FLDMatchContext& Match, const FLDCombatBodyRef& Body,
         FLDObservedPublicFacts& Out, FString& Error) const;
     bool ReadBodyMotionStream(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, FGuid& Out, FString& Error) const;
@@ -246,7 +184,7 @@ public:
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
     // D21 (#79): the public dorm disks of this match; empty outside a running match.
-    const FLDDormZones& GetDormZones() const { return DormZones; }
+    virtual const FLDDormZones& GetDormZones() const override { return DormZones; }
     // D26 (#79): the current airdrop of this match; inactive outside a running match.
     const FLDAirdropState& GetAirdrop() const { return Airdrop; }
     // RespawnsAndWorld: announces and lands the scheduled drop. False only on an authority fault.
@@ -325,6 +263,7 @@ public:
     // match (LDPlaytest::InRunningMatch), otherwise LD_PLAYER_MARK_REJECTED; at most one line per second per contender.
     void LogPlaytestMark(ALDPlayerController& Controller, uint32 Match, uint32 Sequence, int64 ClientAuthorityMs);
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
+    virtual ALDVisionDirector* GetVisionAuthority() const override { return Vision; }
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     // ---- Growth domain directors (spawned and retired by ALDGrowthDirector) ----
     UPROPERTY() TObjectPtr<class ALDGrowthDirector> Growth;
@@ -338,7 +277,7 @@ public:
     // Current contender controller binding (human or registered opponent AI); never a camp member.
     ALDPlayerController* FindContenderController(const FGuid& ContenderId) const;
     // Life-domain protection (immune to damage and control); Combat reads it at the hit point.
-    bool IsContenderProtected(const FGuid& ContenderId) const;
+    virtual bool IsContenderProtected(const FGuid& ContenderId) const override;
     // Camps: registers members on first use and commits one whole group's new lives atomically
     // inside RespawnsAndWorld (no partial group). Bodies are prepared, hidden and unpossessed by camps.
     bool SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, const FLDGameplayWritePermit& Permit,
@@ -354,7 +293,7 @@ public:
 #if WITH_DEV_AUTOMATION_TESTS
     void EnableRuntimeDevTest();
     bool IsRuntimeDevTestEnabled() const { return bRuntimeDevTest; }
-    bool IsDevPeaceful(const FGuid& Contender) const { return DevPeaceful.Contains(Contender); }
+    virtual bool IsDevPeaceful(const FGuid& Contender) const override { return DevPeaceful.Contains(Contender); }
     bool DevSetPeaceful(const FGuid& Contender, bool bEnabled, const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevSkipPreparation(const FLDGameplayWritePermit& Permit, FString& Error);
     bool DevTeleport(const FGuid& Contender, const FVector& CameraPosition, const FLDGameplayWritePermit& Permit, FString& Error);

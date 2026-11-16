@@ -2,7 +2,7 @@
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Region/LDMapRegistry.h"
 #include "World/LDCampDirector.h"
 #include "Engine/World.h"
@@ -13,7 +13,7 @@ bool ALDCombatDirector::ReleaseMonsterSkill(ALDCharacter& Actor,FLDBodyCombatSta
     const FLDDemoMonsterDefinition* Monster=nullptr;
     if(!Catalog() || !Catalog()->FindMonster(Body.MonsterId.ToString(),Monster,Error)){return false;}
     const auto& Skill=Monster->Skill;
-    const int64 Now=Core()->GetAuthorityNowMs();
+    const int64 Now=Authority()->GetAuthorityNowMs();
     if(Skill.Pattern==ELDMonsterPattern::Guard)
     {if(!LDMatchLifecycle::AddDurationMs(Now,Skill.GuardDurationMs,Body.MonsterGuardUntilMs,Error)){return false;}}
     if(Skill.Pattern==ELDMonsterPattern::Charge)
@@ -106,7 +106,7 @@ bool ALDCombatDirector::AdvanceMonsterStrikes(int64 NowMs,FString& Error)
 
 bool ALDCombatDirector::CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGameplayWritePermit& Permit,FString& Error)
 {
-    if(!Core() || Core()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
+    if(!Authority() || Authority()->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
     {Error=TEXT("Camp passive requires the current death permit.");return false;}
     auto* Body=FindBody(Peer);
     if(!Body || Body->bPendingDeath){return true;}
@@ -119,14 +119,14 @@ bool ALDCombatDirector::CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGamep
 
 bool ALDCombatDirector::CancelCampWindup(const FLDCombatBodyRef& Ref,const FLDGameplayWritePermit& Permit,FString& Error)
 {
-    if(!Core() || Core()->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
+    if(!Authority() || Authority()->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
     {Error=TEXT("Camp return cancellation requires the current Actions permit.");return false;}
     ALDCharacter* Actor=nullptr;
     auto* Body=FindBody(Ref,&Actor);
     if(Body && Body->Action.IsSet()){AbandonAction(*Body,ELDCombatReject::Cancelled);}
     if(Body && Body->DashContact)
     {
-        Body->DashContact->EndMs=Core()->GetAuthorityNowMs();
+        Body->DashContact->EndMs=Authority()->GetAuthorityNowMs();
         Body->DashContact.Reset();Body->DashUntilMs=0;
         if(auto* Movement=Actor?Cast<ULDCharacterMovementComponent>(Actor->GetCharacterMovement()):nullptr)
         {Movement->StopDemoDash();}

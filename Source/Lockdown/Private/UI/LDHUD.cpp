@@ -21,7 +21,7 @@
 #include "UI/LDUIIcons.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDBuildBlueprintComponent.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "Framework/LDDemoEntry.h"
 #include "World/LDPKRingMarker.h"
 #include "World/LDSignupMarker.h"

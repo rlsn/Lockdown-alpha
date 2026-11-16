@@ -5,7 +5,7 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 
 // #198 water, fire and electric on Combat's body records (docs/systems/COMBAT_AND_GROWTH.md "水火电与反应"), the element
 // actives' deliveries (S09 line, S10 chain) and the S16 stance; the pure rules live in LDCombatElements.cpp.

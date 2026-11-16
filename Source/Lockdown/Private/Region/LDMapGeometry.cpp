@@ -5,7 +5,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include <limits>
-#include "../Development/LDDemoContentMath.h"
+#include "Development/LDDemoContentMath.h"
 #include "../World/LDDemoWorldContract.h"
 
 bool FLDDemoWorldPoint::ToVector(FVector& Out, FString& Error) const

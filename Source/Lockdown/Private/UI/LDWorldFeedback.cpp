@@ -10,7 +10,7 @@
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDCaptureTypes.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDGameState.h"
 #include "Framework/LDPlayerController.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"

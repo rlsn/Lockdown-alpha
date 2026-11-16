@@ -8,7 +8,7 @@
 #include "Character/LDNativeMotionTypes.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Framework/LDGameMode.h"
+#include "Framework/LDLifeAuthority.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
@@ -76,7 +76,7 @@ bool ALDCombatDirector::IsAggressiveEntry(const FLDCombatBodyRef& Ref, ELDCombat
 void ALDCombatDirector::CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch)
 {
     const auto* Body=FindBody(Batch->Body);
-    if (Core() && Core()->IsShowdown()) { FinalMotion.Add({Batch,Body ? Body->VoluntaryDash : TOptional<FLDCombatVoluntaryDash>()}); }
+    if (Authority() && Authority()->IsShowdown()) { FinalMotion.Add({Batch,Body ? Body->VoluntaryDash : TOptional<FLDCombatVoluntaryDash>()}); }
     ContactMotion.Add({MoveTemp(Batch), Body ? Body->DashContact : nullptr});
 }
 
@@ -316,9 +316,9 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
     if (ContactMotion.IsEmpty()) { return true; }
     if (!ContactMotion.ContainsByPredicate([](const auto& Frame) { return Frame.Dash.IsValid(); }))
     { ContactMotion.Reset(); return true; }
-    const auto* Mode=Core();
+    const auto* Mode=Authority();
     const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-    if (!Mode || !Mode->Vision || !Registry) { Error=TEXT("Dash contacts require the registered sight world."); return false; }
+    if (!Mode || !Mode->GetVisionAuthority() || !Registry) { Error=TEXT("Dash contacts require the registered sight world."); return false; }
     TArray<FContact> Contacts;
     for (const auto& Frame : ContactMotion)
     {
@@ -360,7 +360,7 @@ bool ALDCombatDirector::ResolveDashContacts(int64 NowMs, FString& Error)
                         SourceHeight+TargetHeight-SourceRadius-TargetRadius, Fraction, Error)) { return false; }
                     if (!Fraction.IsSet()) { continue; }
                     const double At=Start+(End-Start)*Fraction.GetValue();
-                    const auto Sight=Mode->Vision->TraceSight(Moving.At(At), Station.At(At), Registry->Revision());
+                    const auto Sight=Mode->GetVisionAuthority()->TraceSight(Moving.At(At), Station.At(At), Registry->Revision());
                     if (Sight == ELDSightResult::Blocked) { continue; }
                     if (Sight != ELDSightResult::Visible) { Error=TEXT("A native dash contact left the registered sight surface."); return false; }
                     if (!First.IsSet() || At < First.GetValue()) { First=At; }
