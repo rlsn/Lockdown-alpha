@@ -11,13 +11,11 @@
 #include "World/LDCaptureCircle.h"
 #include "World/LDCaptureMarker.h"
 #include "World/LDAirdrop.h"
-#include "World/LDCharms.h"
 #include "World/LDFieldMarkers.h"
 #include "World/LDDormZones.h"
 #include "World/LDLeaderNotice.h"
 #include "World/LDDormMarker.h"
 #include "World/LDAirdropMarker.h"
-#include "World/LDCharmMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "Core/LDLog.h"
 #include "PK/LDPKRules.h"
@@ -54,8 +52,6 @@ public:
     TArray<const ALDDormMarker*> GetDormMarkers() const;
     // Local presentation only: the current public airdrop (D26, #79), never replicated.
     const ALDAirdropMarker* GetAirdropMarker() const { return AirdropMarker.Get(); }
-    // Local presentation only: one marker per lying public charm (#198, #226), in serial order, never replicated.
-    TArray<const ALDCharmMarker*> GetCharmMarkers() const;
 private:
     // The match phases whose public world events (airdrop, charms) are drawn in the scene of this machine.
     bool ShowsWorldEvents() const;
@@ -72,11 +68,6 @@ private:
     void SyncAirdropMarker();
     TWeakObjectPtr<ALDAirdropMarker> AirdropMarker;
     uint32 AirdropMarkerFailedGeneration = 0;
-    // The charm rings and tokens, one per lying charm serial; removed as soon as the public view drops the charm.
-    void SyncCharmMarkers();
-    void ClearCharmMarkers();
-    TArray<TWeakObjectPtr<ALDCharmMarker>> CharmMarkers;
-    uint32 CharmMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
     FLDPublicMatchView LatestPublicMatch;
@@ -92,6 +83,8 @@ class FLDDemoContentSnapshot;
 struct FWorldContext;
 struct FLDNativeMotionBatch;
 struct FLDCommittedDeath;
+struct FLDReactionAssistView;
+enum class ELDReactionAssistDelivery : uint8 { Sent, Unavailable, AuthorityFault };
 struct FLDAggressiveIntent;
 struct FLDProtectionReceipt;
 struct FLDBodyCombatState;
@@ -256,17 +249,6 @@ public:
     bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
-    // #198 field charms (World/LDCharms.h, Framework/LDGameModeCharms.cpp), keyed to field progress T.
-    const FLDCharmState& GetCharms() const { return Charms; }
-    // RespawnsAndWorld, after AdvanceAirdrop and only while a field segment runs: expires charms and places due waves.
-    // False only on an authority fault.
-    bool AdvanceCharms(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Transactions: each lying charm goes to one eligible contender inside its disk and applies its effect through Combat.
-    bool ClaimCharms(const FLDGameplayWritePermit& Permit, FString& Error);
-    // RespawnsAndWorld at a field-to-rest boundary: every unclaimed charm leaves without any reward.
-    bool EndCharmsForRest(const FLDGameplayWritePermit& Permit, FString& Error);
-    // Driver step planning: the authority instant of the next charm wave or expiry in the running field, MAX_int64 when none.
-    int64 NextCharmDueMs() const;
     // #198 outer §5 camp markers (World/LDFieldMarkers.h, Framework/LDGameModeFieldMarkers.cpp), keyed to field progress T.
     const FLDFieldMarkerState& GetFieldMarkers() const { return FieldMarkers; }
     // RespawnsAndWorld, only while a field segment runs: reveals the segment's markers when due. False only on a fault.
@@ -546,8 +528,6 @@ private:
     FLDCaptureCircle CaptureCircle;
     FLDDormZones DormZones;
     FLDAirdropState Airdrop;
-    // #198 field charms of this match; inactive outside a running match.
-    FLDCharmState Charms;
     // #198 outer §5 camp markers of this match; inactive outside a running match.
     FLDFieldMarkerState FieldMarkers;
     // Map event rewards refused as retryable, paid at the next Transactions boundaries.
@@ -715,6 +695,10 @@ private:
     // contender's owning connection, and once the result is published each present human contender gets its own
     // per-source damage totals. Nobody receives another player's list.
     void SendDeathRecap(const FLDCommittedDeath& Fact);
+    // The owner's sampled binding and current sight must both authorize the consumed body; the trigger is named only
+    // when it passes the same check. Stamps the current life and distinguishes unavailable sight from authority faults.
+    ELDReactionAssistDelivery SendReactionAssist(const FGuid& Setter, const FLDCombatBodyRef& ConsumedBody,
+        const FLDCombatBodyRef& TriggerBody, const FLDReactionAssistView& View, FLDReactionAssistView& Sent, FString& Error);
     void PublishDamageSummaries();
     void PublishPublicMatch();
     void QueueLeaveFact(const FGuid& ContenderId);

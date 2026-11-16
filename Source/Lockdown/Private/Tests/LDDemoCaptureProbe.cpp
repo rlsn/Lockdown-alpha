@@ -369,7 +369,7 @@ public:
             if (Panel->ChooseOffer(0)) { NextInputAt = Local + 1.; }
         }
         if (View.Phase == ELDMatchPhase::Rest && View.Timeline.RestIndex == 3 && Growth && Growth->Generation == Generation
-            && Growth->bFinalModPending && Growth->FinalModOptions.Num() == 3)
+            && Growth->bFinalModPending && (Growth->FinalModOptions.Num() == 3 || Growth->FinalModOptions.Num() == 4))
         {
             bFinalModOffered = true;
             if (!Panel)

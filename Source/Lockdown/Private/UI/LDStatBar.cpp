@@ -27,7 +27,7 @@ namespace
 {
 // Slate units at the 1080p reference, inside the band (which draws at its own scale).
 constexpr float StatIconSize=44.f;
-constexpr float StatGap=10.f;
+constexpr float StatGap=8.f;
 constexpr float StatPlusHeight=24.f;
 // The attribute view: three per row, as tall as the stat row so toggling never moves the band.
 constexpr int32 AttrColumns=3;

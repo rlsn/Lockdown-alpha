@@ -40,6 +40,8 @@ public:
     struct FAnchors
     {
         FSlateRect Band;
+        // The 构筑 button in the bottom-right corner: the stack stands right above it, right edges aligned.
+        FSlateRect Corner;
         FSlateRect Columns[LDHUD::StorageColumnCount];
         bool bValid=false;
     };
@@ -49,6 +51,8 @@ public:
     // Over the stack, or over the open list, a column or the chooser, or dragging: world clicks belong to the storage.
     bool IsHit(FVector2D Absolute) const;
     bool IsExpanded() const {return bExpanded;}
+    // The stack's height over the 构筑 button (0 while hidden), so the tray rising from the corner clears it.
+    float StackHeight() const;
     bool IsDragging() const {return Drag.bActive;}
     bool HasPendingRequest() const {return PendingRequest!=0||Follow.State!=EFollow::None;}
     // Back: closes the chooser or drops a drag without a command. False when there was neither.
@@ -147,6 +151,7 @@ protected:
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool bEnabled) const override;
 private:
+    friend class FLDHUDCardFacesTest;
     // How a face is drawn this frame (NativePaint): the kind's shape and rim, or a state colour that overrides it.
     enum class EFaceState : uint8 { Normal, Hovered, Held, Legal, Replace, Detached, Pick, Rejected, Dim };
     // One stored component's icon in the open grid.
@@ -185,7 +190,10 @@ private:
     {
         USizeBox* Frame=nullptr;
         UBorder* Panel=nullptr;
+        UScaleBox* Fit=nullptr;
         UVerticalBox* List=nullptr;
+        UWrapBox* DenseList=nullptr;
+        bool bDense=false;
         UWidget* Placeholder=nullptr;
         USizeBox* PlaceholderBox=nullptr;
         UBorder* PlaceholderFace=nullptr;

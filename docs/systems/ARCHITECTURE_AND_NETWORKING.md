@@ -107,7 +107,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   投影失败记日志并标记不可用，不影响结果锁定；结果保留供返回同房间的 Lobby 按身份显示，不能作为新局状态。
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 31），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
+  联机协议版本是 `LDDemoEntry::WireProtocol`（当前 33），双方须使用同一构建；复制结构、RPC、观察编码或不兼容的房间契约变动时加一。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议。
 - 完整局末构筑蓝图不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
@@ -230,8 +230,8 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs`）设为此刻，以 `MAX_int64` 开始喷漆归约器，
 并由 `FLDMatchTimeline` 推进 R0 → 野外 1 → R1 → 野外 2 → R2 → 野外 3 → R3 → 最终野外。时钟只有一条：野外进度 T 只在野外段推进、休息与 PK 中冻结，
 外卖、上热搜、画饼老板、营地刷新、营地成长阶段与营地标记都按 T 以 0 为起点计时（`GetFieldNowMs`、`FieldDueAuthorityMs`）；
-外层参数 §5 的地图事件（外卖固定落地表与 40 s 消失、老板 T=240 s 出现并在进入第三次休息的 `FreezeForRest` 中退场、营地标记在各段
-T+15 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/`AdvanceFieldMarkers`（RespawnsAndWorld）与
+外层参数 §5 的地图事件（外卖固定落地表与 30 s 消失、老板 T=173 s 出现并在 T=390 s 的第三段野外边界退场、营地标记在各段
+T+11 s 公开并在 `EnterRestWorld` 过期）由 `ALDGameMode::AdvanceAirdrop`/`AdvanceFieldMarkers`（RespawnsAndWorld）与
 `ALDCampDirector::AdvanceCamps`/`FreezeForRest` 驱动；标记由营地死亡（`ConsumeMemberDeath` 的 CampCleared）领取，奖励经
 `ALDGameMode::PayFieldReward` 进入 `ALDGrowthDirector::CommitFieldReward`，可重试的拒绝在之后每个 Transactions 由 `RetryFieldRewards` 重付；
 最终野外开始的边界由 `FLDCaptureReducer::ScheduleOpen` 定为开放时刻，同一边界的 Capture 阶段从 Development 切到 CaptureOpen。
@@ -241,7 +241,7 @@ Combat 挂起营地成员与 Boss；阶段边界的生命退休/放置、效果�
 写闸在休息中保持打开；构筑阶段由 `ReadBuildStage` 给出（Build/Payout 步骤为 Rest、其余休息步骤为 RestLocked、野外为 Live）：自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务。
 返回倒计时（Return 步骤）中 `IsInputLocked` 为真：导航订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，Combat 的普攻、Q/W/E 与冲刺 D 回 `ELDCombatReject::NotStarted`，
 这些拒绝记入各自的回执窗口，进入野外后重放仍得到同一拒绝。对手 AI 的身体决策只在 Development/CaptureOpen 运行；成长命令与真人同一闸门，但 AI 策略在休息中仍只在配装与派奖步骤做构筑决策。
-PK 报名是实体的站圈报名：没有报名 RPC，`ALDGameMode::RefreshRestSignups` 在报名窗口内每拍按已提交脚点是否在六个
+PK 报名是实体的站圈报名，只在 R1、R2 开放：没有报名 RPC，`ALDGameMode::RefreshRestSignups` 在报名窗口内每拍按已提交脚点是否在六个
 `pk_signup_<槽位>` 站位平均位置为圆心的公共圆盘（`SignupDiskFor`，半径 `AIRDROP.PickupRadiusCm`）内重算公开名单，截止时刻再算一次并锁定。
 会话 D 注册可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`）：竞猜与投掷经 `ALDPlayerController::ServerPKBet`/`ServerPKThrow` 交 `ALDPKDirector::SubmitBet`/`SubmitThrow`
 判定，回 `ClientPKBet`/`ClientPKThrow`（投掷另带下次可投时刻）；AI 走同一入口。观众与被淘汰者由观察所有者显式授权看见全部场内选手、场区覆盖
@@ -317,10 +317,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 （`ULDHumanoidVisualComponent::ContenderTint(GraffitiPresentation)`）显示、无主时隐藏，同样无碰撞、不进导航和视线。
 换代、回 Lobby 或房间停止即移除；它不复制、不参与判定，只在 Demo 地图生成，缺数据时记 `LD_CAPTURE_MARKER_UNAVAILABLE`。
 公开地图事件同样由 `ALDGameState` 在本地画出（Host 发布后直接调用 `OnRep_PublicMatch`，加入者在复制时调用，两端同一路径）：
-当前外卖的 `ALDAirdropMarker`（`AIRDROP.PickupRadiusCm` 橙色圈，落地后加美术目录的箱子），以及每枚地上符咒一个
-`ALDCharmMarker`（`CHARM.PickupRadiusCm` 圈和约 110cm 高的悬浮方块，颜色取 `LDHUD::CharmColor`，与小地图圆点同色）。
-符咒标记按 `PublicMatch.Charms` 的序号增删，被领走、到期或进休息清空即移除，不读取领取者；
-缺数据时记 `LD_CHARM_MARKER_UNAVAILABLE` 并整代不画。符咒不进事件提示条。
+当前外卖的 `ALDAirdropMarker` 使用 `AIRDROP.PickupRadiusCm` 橙色圈，落地后显示美术目录的箱子；效果直接在权威领取流程中发放，不生成独立拾取物。
 普通离局在受理时刻向归约器提交 Left，不发奖、不判胜，结果行保留。
 `ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
 `RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，
@@ -342,12 +339,12 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
   `IsIsolated` 在该组禁止参赛者互相伤害/控制，但允许攻击共享训练目标。
 - **真人准备**：`ServerRestReady(Generation, RestIndex, StartedAtMs, true)` 绑定当前配装窗口，只可准备不可撤销；OwnerState 发布 `bRestReady`/`bCanRestReady`，`ReadyContenders` 只含真人。
   全部仍在局真人准备后 `FinishBuildEarly` 只把配装截止缩短到当前时刻加 `REST.SignupSec`；已在最后报名窗口不改。新休息/新局清空准备。
-- **步骤**：Build（R0 `REST.OpeningBuildSec`、R1–R3 `REST.BuildSec`；最后 `REST.SignupSec` 兼作 PK 站圈报名，截止含在内）→ 锁定报名者 ≥2 时 Draw / Betting / PKReady / PK（至多 `REST.PKMaxSec`）/
-  Settlement / Payout，否则直接 → Return `REST.ReturnSec`。报名锁定在 Transactions 末尾（`LockTimelineBuild`，截止时刻提交的构筑命令有效；只锁报名名单），其余转换在 RespawnsAndWorld 开头（`AdvanceTimeline`）。
+- **步骤**：Build（R0 `REST.OpeningBuildSec`；R1–R3 `REST.BuildSec`，只有 R1、R2 的最后 `REST.SignupSec` 兼作 PK 站圈报名，截止含在内）→ R1/R2 锁定报名者 ≥2 时 Draw / Betting / PKReady / PK（至多 `REST.PKMaxSec`）/
+  Settlement / Payout；R0、R3 不开放报名或举行 PK，R1/R2 报名不足 2 人时同样直接 → Return `REST.ReturnSec`。报名锁定在 Transactions 末尾（`LockTimelineBuild`，截止时刻提交的构筑命令有效；只锁报名名单），其余转换在 RespawnsAndWorld 开头（`AdvanceTimeline`）。
   `ReadBuildStage`：Build/Payout 为 Rest，其他休息步骤为 RestLocked，野外为 Live；自己的构筑命令在三者都受理，RestLocked 只关闭 NPC 服务（`BuildLocked`）。Return 步骤 `IsInputLocked` 为真：
   订单（含 Shift 步骤）回 `ELDOrderFailure::NotStarted`，普攻、Q/W/E 与 D 回 `ELDCombatReject::NotStarted`，进入野外后重放仍得同一拒绝。AI 身体决策只在 Development/CaptureOpen 运行。
-- **PK**：可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`），`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定。报名是站圈：`RefreshRestSignups` 在报名窗口内每拍按休息生命已提交脚点
-  是否在 `SignupDiskFor` 圆盘（六个 `pk_signup_<槽位>` 平均位置为圆心，半径 `AIRDROP.PickupRadiusCm`，边界算在内）重算 `Timeline.Signups`，锁定时再算一次；缺报名站位是明确错误；没有该提供者时跳过 PK。
+- **PK**：可选提供者 `ELDMatchProvider::PK`（`ALDPKDirector`），`FLDMatchProviderHooks::RestStep` 收到每次步骤进入与锁定。报名是站圈，只有 R1、R2 有报名窗口：`RefreshRestSignups` 在有效报名窗口内每拍按休息生命已提交脚点
+  是否在 `SignupDiskFor` 圆盘（六个 `pk_signup_<槽位>` 平均位置为圆心，半径 `AIRDROP.PickupRadiusCm`，边界算在内）重算 `Timeline.Signups`，锁定时再算一次；缺报名站位是明确错误；没有该提供者时 R1/R2 也跳过 PK。
   锁定固定选手与竞猜资格观众；Draw 用本局私有随机流抽赛制、阵营与 6 个 `PKSpawn` 锚点的旋转；PKReady 经 `EnterPKLives` 共同结束休息生命、放置 PK 生命（无保护、无喷漆资格，`SetPKBody` 设隔离组与阵营）；
   PK 步骤 Effects 阶段落投掷、每 250 ms 结算圈伤（`ApplyEnvironmentDamage`，按本步原生运动分段经 `LDPKRules::OutsideRingIntervals` 求真实圈外时长）；DeathsAndRewards 之后判定，决出即 `FinishRestPK`；
   Settlement 冻结结果与资格并 `ReturnPKLivesToRest`，同边界 Transactions 经 `ALDDevelopmentDirector::GrantPKPoints`（每场每人一个业务身份，`PKAwardDuplicate` 去重）发点。PK 死亡记 `NoRewardPKArena` 并回休息位。
@@ -486,7 +483,7 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 | --- | --- |
 | `DemoCapture.*`（含 `.Geometry`、`.PublicViews`、`.ProviderGate`、`.SessionEndgame`、`.CombatHitInterrupt`） | 喷漆暂停/续计与打断、涂鸦与守护保留、历史贡献、期限资格与并列无冠军、复活次数与截止、同刻顺序与步内守护完成、几何、公共 DTO、提供者门禁、Host 结束/回 Lobby/换代隔离、名称解析 |
 | `DemoCore.*`（含 `.CaptureCompletesInsideStep`）、`DemoSessionReceipts`、`ViewPrivacySchema`、`DemoOwnerViewTeardown` | 核心时间与许可、步内守护完成、会话窗口重放/拒旧、公开字段白名单、本人视图停发条件 |
-| `DemoRest.Timeline/.PhasePolicy/.EntryHold/.SpawnIdentity`、`DemoPK.*`（含 `.RingOutsideTime`）、`DemoVision.EffectAccess` | 时间线时长与报名窗口、T 冻结与推进、隔离组与阶段清理、共同入场等待、撤回出生请求重试、PK 圈伤切分、观众与同队视野 |
+| `DemoRest.Timeline/.PhasePolicy/.EntryHold/.SpawnIdentity`、`DemoPK.*`（含 `.RingOutsideTime`）、`DemoVision.EffectAccess` | 时间线时长与 R1/R2 报名窗口、R0/R3 不举行 PK、T 冻结与推进、隔离组与阶段清理、共同入场等待、撤回出生请求重试、PK 圈伤切分、观众与同队视野 |
 
 各角色 runner 要求恰好报告其稳定检查 id，缺失、多出或重复都失败。`RunDemoSessionFaultCheck.ps1` 覆盖客户端离局、Host 进程丢失、加入失败、版本/满员/已开局拒绝、开局竞态与 Host 经菜单离开；
 `RunDemoOpponentCheck.ps1` 覆盖 AI 绑定、自主循环、AI 以 `GuardSucceeded` 获胜与回 Lobby 后退役。

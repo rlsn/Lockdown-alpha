@@ -143,8 +143,9 @@ struct FLDProgressionState
     uint32 HeldBlueprintsEver = 0;
     // #198 G: every field reward received, oldest first.
     TArray<FLDFieldRewardView> FieldRewards;
-    // Phase 9: the final mod three-choice and the build lock it ends in.
+    // The final mod offer and the build lock it ends in.
     FLDFinalModState FinalMod;
+    bool bExtraFinalModCard = false;
 
     uint8 QueuedActiveOpportunities() const { return ActiveEarned - ActiveConsumed; }
 };
@@ -224,11 +225,11 @@ namespace LDProgression
     // known actives in distinct slots 0..2, distinct known blueprints sorted by id that are not learned, and distinct known
     // components sorted by id whose source, history and install target are legal (installed implies ever installed; an
     // inventory instance has no target; an install has the shape its definition takes and sits only on a learned active, an
-    // installed host and an installed repeated base), at most LevelComponentDraws level-up instances per level, and no more
-    // installs than WorkshopCapacity of its level.
+    // installed host and an installed repeated base), at most LevelComponentDraws level-up instances per level, no more
+    // installs than WorkshopCapacity of its level, and the per-column limits in the progression content definition.
     LOCKDOWN_API ELDGrowthReason ValidateBuild(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build);
     // Workshop capacity at Level: progression.workshop_capacity base + floor((Level - 1) / levels_per_slot). Every installed
-    // base, mod and connector takes one slot; 0 for a broken table.
+    // base, mod and connector takes one slot; Body and Dash also have fixed per-column limits; 0 for a broken table.
     LOCKDOWN_API int32 WorkshopCapacity(const FLDDemoProgressionDefinition& Progression, uint8 Level);
     LOCKDOWN_API int32 InstalledComponents(const FLDGrowthBuild& Build);
     // Ordinary component draws of the normal level-up to Level: one, two on a progression.bonus_component_levels level.
@@ -312,10 +313,10 @@ namespace LDProgression
     LOCKDOWN_API ELDGrowthReason ApplyForgetActive(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Current,
         const FLDProgressionState& Progression, uint8 Slot, const FBuildContext& Context, FLDGrowthBuild& Out, FName& OutForgotten,
         TArray<FName>& OutReclaimed);
-    // Phase 9 final mod options for Build: up to three eligible actives (learned and pending ones never), drawn
-    // deterministically from Seed and preferring distinct target modes so the three point in different directions.
+    // Three or four distinct final mods with legal sources, drawn deterministically from Seed. The first is a mechanic
+    // card if available; the second is universal; remaining cards are drawn from all remaining legal options.
     LOCKDOWN_API ELDGrowthReason DrawFinalModOptions(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        uint64 Seed, TArray<FName>& Out);
+        uint64 Seed, TArray<FName>& Out, int32 Count = 3);
     LOCKDOWN_API uint64 FinalModSeed(const FGuid& MatchSecret, const FGuid& Contender);
     LOCKDOWN_API ELDGrowthReason FinalModTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         FName Option, TArray<FLDComponentTarget>& Out);

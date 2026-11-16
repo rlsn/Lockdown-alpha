@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDResultBuild.h"
+#include "UI/LDRecapChain.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTween.h"
 #include "UI/LDTerms.h"
@@ -11,6 +12,7 @@
 #include "UI/LDWorkshop.h"
 #include "UI/LDWorkshopModel.h"
 #include "Scalability.h"
+#include "Engine/Texture2D.h"
 #include "UI/LDStatBar.h"
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDMinimap.h"
@@ -176,16 +178,26 @@ LDHUD::FSlotKeys HudSlotKeys(const ALDPlayerController& PC)
 constexpr float HudBandScale=.875f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
 constexpr float HudDragStartPx=8.f;
-constexpr float HudSideWidth=300.f;
-// The own status strip in the gap between the minimap column and the band, against the band's left edge: HudStatusPerRow
-// squares a row.
-constexpr int32 HudStatusPerRow=6;
-constexpr float HudStatusSize=48.f;
-constexpr float HudStatusGap=4.f;
-constexpr float HudStatusWidth=HudStatusPerRow*HudStatusSize+(HudStatusPerRow-1)*HudStatusGap;
-constexpr float HudStatusFromBand=10.f;
-constexpr float HudBandPadX=14.f;
-constexpr float HudBlockGap=16.f;
+// The band is centred on the screen as a whole; its left block (portrait, name, stats) is kept narrow so it stays compact.
+constexpr float HudSideWidth=264.f;
+constexpr float HudBandPadX=10.f;
+constexpr float HudBlockGap=12.f;
+// Mock 1 corners at the 1080p reference: the target card (250 wide with its panel padding), the top-centre panel (532 wide),
+// the minimap (248 square in an 8-unit panel) and the 构筑 button (244 by 52).
+constexpr float HudTargetInner=226.f;
+constexpr float HudTargetPortrait=32.f;
+constexpr float HudTargetHealthHeight=16.f;
+constexpr float HudTargetManaHeight=8.f;
+constexpr float HudTargetActiveSide=34.f;
+// Mock 5's result page: the whole width, the gap between its cards and the winner's rule board inside its card.
+constexpr float HudResultWidth=1640.f;
+constexpr float HudResultGap=20.f;
+constexpr float HudResultBoardWidth=600.f;
+constexpr float HudTopInner=508.f;
+constexpr float HudMapSize=248.f;
+constexpr float HudPromptWidth=244.f;
+constexpr float HudPromptHeight=52.f;
+constexpr float HudFeedWidth=420.f;
 // Square slots: the icon fills the face inside a 3u state ring; the key and the cost ride on its corners.
 constexpr float HudSlotWidth=96.f;
 constexpr float HudSlotHeight=96.f;
@@ -315,7 +327,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DiagnosticsText->SetAutoWrapText(false);
         DiagnosticsText->SetJustification(ETextJustify::Right);
         DiagnosticsPanel=Panel(DiagnosticsText,false);
-        Place(DiagnosticsPanel,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
         DiagnosticsPanel->SetVisibility(ESlateVisibility::Collapsed);
         auto Bar=[&](FLinearColor Fill,UProgressBar*& OutBar,UTextBlock*& OutText,float Width,float Height,TObjectPtr<UTextBlock>* OutRegen=nullptr)
         {
@@ -350,30 +361,42 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // Top-left: the current authorized target only. It disappears with the observation and never greys into history.
         auto* TargetBox=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* TargetHead=WidgetTree->ConstructWidget<UHorizontalBox>();TargetBox->AddChildToVerticalBox(TargetHead);
-        UBorder* TP=nullptr;UTextBlock* TG=nullptr;TargetHead->AddChildToHorizontalBox(Portraits(44,LDHUDStyle::TypeLead,TP,TG))->SetPadding(FMargin(0,0,10,0));TargetPortrait=TP;TargetGlyph=TG;
-        TargetTitle=Text(TEXT(""),LDHUDStyle::TypeLead);HudFace(TargetTitle,true,0);auto* TitleSlot=TargetHead->AddChildToHorizontalBox(TargetTitle);TitleSlot->SetVerticalAlignment(VAlign_Center);TitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        UBorder* TP=nullptr;UTextBlock* TG=nullptr;TargetHead->AddChildToHorizontalBox(Portraits(HudTargetPortrait,LDHUDStyle::TypeBody,TP,TG))->SetPadding(FMargin(0,0,8,0));TargetPortrait=TP;TargetGlyph=TG;
+        TargetTitle=OneLine(TEXT(""),LDHUDStyle::TypeBody,0);HudFace(TargetTitle,true,0);TargetTitle->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+        auto* TitleSlot=TargetHead->AddChildToHorizontalBox(TargetTitle);TitleSlot->SetVerticalAlignment(VAlign_Center);TitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         UProgressBar* B=nullptr;UTextBlock* T=nullptr;
-        TargetBox->AddChildToVerticalBox(Bar(LDHUDStyle::EnemyHealth,B,T,306,24))->SetPadding(FMargin(0,8,0,2));TargetHealthBar=B;TargetHealth=T;
-        TargetManaRow=Bar(LDHUDStyle::Mana,B,T,306,22);TargetBox->AddChildToVerticalBox(TargetManaRow)->SetPadding(FMargin(0,2));TargetManaBar=B;TargetMana=T;
-        TargetStatuses=Text(TEXT(""),LDHUDStyle::TypeSmall);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
+        // Mock 1: a 16-unit health bar over a thin mana bar; their values ride inside at caption size.
+        TargetBox->AddChildToVerticalBox(Bar(LDHUDStyle::EnemyHealth,B,T,HudTargetInner,HudTargetHealthHeight))->SetPadding(FMargin(0,6,0,2));TargetHealthBar=B;TargetHealth=T;
+        TargetManaRow=Bar(LDHUDStyle::Mana,B,T,HudTargetInner,HudTargetManaHeight);TargetBox->AddChildToVerticalBox(TargetManaRow)->SetPadding(FMargin(0,4,0,2));TargetManaBar=B;TargetMana=T;
+        for(UTextBlock* Value:{TargetHealth.Get(),TargetMana.Get()}){FSlateFontInfo Font=Value->GetFont();Font.Size=LDHUDStyle::TypeTiny;Value->SetFont(Font);}
+        // The 8-unit mana bar is too thin for its value; the value is the bar's tooltip instead.
+        TargetMana->SetVisibility(ESlateVisibility::Collapsed);TargetManaRow->SetVisibility(ESlateVisibility::Visible);
+        TargetStatuses=OneLine(TEXT(""),LDHUDStyle::TypeSmall,HudTargetInner);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
         {
-            // Three Q/W/E tiles of a visible contender: the key and the active's name; no cooldown is ever drawn.
-            auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+            // Mock 1: three 34-unit Q/W/E icon tiles of a visible contender, 8 apart; no cooldown is ever drawn. The key and
+            // name are the tile's tooltip; a missing icon shows the name's first character.
+            auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Row->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
             for(int32 Index=0;Index<3;++Index)
             {
-                UTextBlock* Name=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);HudFace(Name,true,1);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+                UTextBlock* Name=OneLine(TEXT(""),LDHUDStyle::TypeBody,0);HudFace(Name,true,1);Name->SetJustification(ETextJustify::Center);
                 auto* Tile=WidgetTree->ConstructWidget<UBorder>();Tile->SetBrush(HudRound(6.f,LDHUDStyle::Rim,1.f));Tile->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
-                Tile->SetPadding(FMargin(8,3));Tile->SetContent(Name);Tile->SetClipping(EWidgetClipping::ClipToBounds);
-                auto* TileSlot=Row->AddChildToHorizontalBox(Tile);TileSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));TileSlot->SetPadding(FMargin(Index?3.f:0.f,0,Index?0.f:3.f,0));
-                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);
+                Tile->SetPadding(FMargin(0));Tile->SetHorizontalAlignment(HAlign_Center);Tile->SetVerticalAlignment(VAlign_Center);Tile->SetContent(Name);
+                UImage* Icon=WidgetTree->ConstructWidget<UImage>();Icon->SetVisibility(ESlateVisibility::Collapsed);
+                auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+                for(UWidget* Layer:{static_cast<UWidget*>(Tile),static_cast<UWidget*>(Icon)})
+                {auto* LayerSlot=Face->AddChildToOverlay(Layer);LayerSlot->SetHorizontalAlignment(HAlign_Fill);LayerSlot->SetVerticalAlignment(VAlign_Fill);}
+                auto* Side=WidgetTree->ConstructWidget<USizeBox>();Side->SetWidthOverride(HudTargetActiveSide);Side->SetHeightOverride(HudTargetActiveSide);Side->SetContent(Face);
+                Side->SetVisibility(ESlateVisibility::Visible);
+                Row->AddChildToHorizontalBox(Side)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
+                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);TargetActiveIcons.Add(Icon);
             }
-            TargetActivesRow=Row;TargetBox->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,4,0,0));
+            TargetActivesRow=Row;TargetBox->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,10,0,0));
         }
-        auto* TargetWidth=WidgetTree->ConstructWidget<USizeBox>();TargetWidth->SetWidthOverride(330);TargetWidth->SetContent(TargetBox);
+        auto* TargetWidth=WidgetTree->ConstructWidget<USizeBox>();TargetWidth->SetWidthOverride(HudTargetInner);TargetWidth->SetContent(TargetBox);
         TargetCard=Panel(TargetWidth,true);TargetCard->SetVisibility(ESlateVisibility::Collapsed);
 
-        // Top-left: the target card alone; the event feed sits above the minimap.
-        Place(TargetCard,FAnchors(0,0),FVector2D(0,0),FVector2D(16,16));
+        // Top-left: the target card alone; the event feed sits in the top-right corner.
+        Place(TargetCard,FAnchors(0,0),FVector2D(0,0),FVector2D(HudCornerInset,20));
 
         // Top-centre: the public capture state, then the own death banner. None takes pointer input.
         auto* CircleBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -381,18 +404,31 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         DevMarkerText=OneLine(TEXT(""),LDHUDStyle::TypeTiny,0);DevMarkerText->SetJustification(ETextJustify::Right);DevMarkerText->SetColorAndOpacity(LDHUDStyle::TextSecondary);
         DevMarkerText->SetVisibility(ESlateVisibility::Collapsed);
         // #198: the timeline (rest step or field segment) above the capture line, with the rest's sign-up/PK detail.
-        TimelineText=OneLine(TEXT(""),LDHUDStyle::TypeLead,0);TimelineText->SetJustification(ETextJustify::Center);HudFace(TimelineText,true,0);
+        TimelineText=OneLine(TEXT(""),LDHUDStyle::TypeLead,HudTopInner);TimelineText->SetJustification(ETextJustify::Center);HudFace(TimelineText,true,0);
         TimelineText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(TimelineText)->SetHorizontalAlignment(HAlign_Center);
-        TimelineDetailText=OneLine(TEXT(""),LDHUDStyle::TypeBody,680);TimelineDetailText->SetJustification(ETextJustify::Center);TimelineDetailText->SetColorAndOpacity(LDHUDStyle::TextAccent);
+        TimelineDetailText=OneLine(TEXT(""),LDHUDStyle::TypeBody,HudTopInner);TimelineDetailText->SetJustification(ETextJustify::Center);TimelineDetailText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         TimelineDetailText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(TimelineDetailText)->SetHorizontalAlignment(HAlign_Center);
-        PhaseText=OneLine(TEXT(""),LDHUDStyle::TypeLead,0);PhaseText->SetJustification(ETextJustify::Center);
-        CircleBox->AddChildToVerticalBox(PhaseText)->SetHorizontalAlignment(HAlign_Center);
+        PhaseText=OneLine(TEXT(""),LDHUDStyle::TypeLead,HudTopInner);PhaseText->SetJustification(ETextJustify::Left);HudFace(PhaseText,true,0);
+        CircleBox->AddChildToVerticalBox(PhaseText)->SetHorizontalAlignment(HAlign_Fill);
         CircleProgress=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(CircleProgress,FLinearColor(1,.78f,.25f));CircleProgress->SetPercent(0);
-        auto* CircleBarSize=WidgetTree->ConstructWidget<USizeBox>();CircleBarSize->SetWidthOverride(360);CircleBarSize->SetHeightOverride(8);CircleBarSize->SetContent(CircleProgress);
+        auto* CircleBarSize=WidgetTree->ConstructWidget<USizeBox>();CircleBarSize->SetWidthOverride(HudTopInner);CircleBarSize->SetHeightOverride(8);CircleBarSize->SetContent(CircleProgress);
         CircleBox->AddChildToVerticalBox(CircleBarSize)->SetPadding(FMargin(0,6,0,0));
-        PhaseBanner=Panel(CircleBox,false);
+        {
+            // Mock 1: the graffiti owner on the left under the bar and the guard state on the right, in caption grey.
+            auto* Foot=WidgetTree->ConstructWidget<UHorizontalBox>();
+            PhaseOwnerText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);PhaseOwnerText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+            PhaseAsideText=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);PhaseAsideText->SetJustification(ETextJustify::Right);PhaseAsideText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+            for(UTextBlock* Side:{PhaseOwnerText.Get(),PhaseAsideText.Get()}){Side->SetColorAndOpacity(LDHUDStyle::TextSecondary);}
+            Foot->AddChildToHorizontalBox(PhaseOwnerText)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+            auto* AsideSlot=Foot->AddChildToHorizontalBox(PhaseAsideText);AsideSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));AsideSlot->SetPadding(FMargin(12,0,0,0));
+            Foot->SetVisibility(ESlateVisibility::Collapsed);PhaseFootRow=Foot;
+            CircleBox->AddChildToVerticalBox(Foot)->SetPadding(FMargin(0,8,0,0));
+        }
+        // Mock 1: one fixed-width panel at the top centre, the gold progress bar running its full width.
+        auto* CircleWidth=WidgetTree->ConstructWidget<USizeBox>();CircleWidth->SetWidthOverride(HudTopInner);CircleWidth->SetContent(CircleBox);
+        PhaseBanner=Panel(CircleWidth,false);
         {
             // The rest actions sit in their own hit panel right under the click-through banner, shown only in a rest (the
             // training reset; the PK sign-up is standing in the own disk, no button); the stack grows downward from the top
@@ -455,12 +491,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 PKFit->SetContent(PKBox);
                 auto* PKWidth=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),TEXT("HUDPKSidePanel"));PKWidth->SetWidthOverride(HudPKWrap+24.f);PKWidth->SetMaxDesiredHeight(600);PKWidth->SetContent(PKFit);
                 PKPanelBorder=Panel(PKWidth,true);PKPanelBorder->SetVisibility(ESlateVisibility::Collapsed);
-                Place(PKPanelBorder,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,58));
             }
-            Place(TopCentre,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,16));
+            Place(TopCentre,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,22));
             // Above the workshop (its rest actions stay usable in the full view), below the tray and the storage.
             TopCentreSlot=Cast<UCanvasPanelSlot>(TopCentre->Slot);if(TopCentreSlot){TopCentreSlot->SetZOrder(9);}
-            Place(DevMarkerText,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
         }
         auto* DeathBox=WidgetTree->ConstructWidget<UVerticalBox>();
         DeathTitle=OneLine(TEXT(""),LDHUDStyle::TypeDisplay,0);HudFace(DeathTitle,true,0);DeathTitle->SetColorAndOpacity(LDHUDStyle::TextDanger);
@@ -473,11 +507,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RecapBox=WidgetTree->ConstructWidget<UVerticalBox>();
             DeathRecapHeading=OneLine(TEXT(""),15,0);DeathRecapHeading->SetJustification(ETextJustify::Center);
             RecapBox->AddChildToVerticalBox(DeathRecapHeading)->SetHorizontalAlignment(HAlign_Center);
-            DeathRecapRows.Reset();
+            DeathRecapRows.Reset();DeathRecapShown.Reset();
             for(int32 Row=0;Row<LDHUD::DeathRecapAttackersMax;++Row)
             {
-                UTextBlock* Line=OneLine(TEXT(""),14,0);Line->SetColorAndOpacity(LDHUDStyle::TextSecondary);Line->SetJustification(ETextJustify::Center);
-                RecapBox->AddChildToVerticalBox(Line)->SetHorizontalAlignment(HAlign_Center);DeathRecapRows.Add(Line);
+                auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();Line->SetVisibility(ESlateVisibility::Collapsed);
+                UVerticalBoxSlot* LineSlot=RecapBox->AddChildToVerticalBox(Line);LineSlot->SetHorizontalAlignment(HAlign_Center);LineSlot->SetPadding(FMargin(0,2));
+                DeathRecapRows.Add(Line);DeathRecapShown.AddDefaulted();
             }
             auto* RecapFit=WidgetTree->ConstructWidget<UScaleBox>();RecapFit->SetStretch(EStretch::ScaleToFit);RecapFit->SetStretchDirection(EStretchDirection::DownOnly);
             RecapFit->SetContent(RecapBox);
@@ -497,43 +532,63 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* ResultBox=WidgetTree->ConstructWidget<UVerticalBox>();
         ResultTitle=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeBanner,NAME_None,LDUIFonts::ERole::Title);
         // The verdict is written like the logo: action yellow over an event-pink offset, sprayed on a sheared pink band.
-        ResultTitle->SetColorAndOpacity(LDHUDStyle::UIAction);ResultTitle->SetShadowOffset(FVector2D(4.f,4.f));ResultTitle->SetShadowColorAndOpacity(LDHUDStyle::UIEvent);ResultTitle->SetJustification(ETextJustify::Center);
+        ResultTitle->SetColorAndOpacity(LDHUDStyle::UIAction);ResultTitle->SetShadowOffset(FVector2D(4.f,4.f));ResultTitle->SetShadowColorAndOpacity(LDHUDStyle::UIEvent);ResultTitle->SetJustification(ETextJustify::Left);
         {
             auto* Verdict=WidgetTree->ConstructWidget<UBorder>();Verdict->SetBrush(HudRound(6.f,LDHUDStyle::UIEvent.CopyWithNewOpacity(.55f),2.f));
             Verdict->SetBrushColor(LDHUDStyle::UIEvent.CopyWithNewOpacity(.16f));Verdict->SetPadding(FMargin(36,8));Verdict->SetContent(ResultTitle);
-            Verdict->SetRenderTransformAngle(-3.f);Verdict->SetVisibility(ESlateVisibility::HitTestInvisible);ResultWinnerBand=Verdict;
-            ResultBox->AddChildToVerticalBox(Verdict)->SetHorizontalAlignment(HAlign_Center);
+            Verdict->SetVisibility(ESlateVisibility::HitTestInvisible);ResultWinnerBand=Verdict;
+            ResultBox->AddChildToVerticalBox(Verdict)->SetHorizontalAlignment(HAlign_Left);
         }
-        ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Center);ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,12));
-        ResultWinnerBuild=WidgetTree->ConstructWidget<USizeBox>();
-        ResultBox->AddChildToVerticalBox(ResultWinnerBuild)->SetHorizontalAlignment(HAlign_Center);
-        ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
-        ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();ResultBox->AddChildToVerticalBox(ResultRows);
-        // The own damage per source: four cells per line, DamageSummarySourcesMax cells in all.
-        ResultDamageHeading=Text(TEXT(""),16);ResultBox->AddChildToVerticalBox(ResultDamageHeading)->SetPadding(FMargin(0,14,0,4));
-        ResultDamageCells.Reset();
-        for(int32 Index=0;Index<LDHUD::DamageSummarySourcesMax;)
+        ResultSubtitle=Text(TEXT(""),LDHUDStyle::TypeText);ResultSubtitle->SetJustification(ETextJustify::Left);ResultSubtitle->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+        ResultBox->AddChildToVerticalBox(ResultSubtitle)->SetPadding(FMargin(0,6,0,18));
+        // Mock 5: the contender table on the left, the winner's rule board in its own card on the right.
         {
-            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-            for(int32 Column=0;Column<4&&Index<LDHUD::DamageSummarySourcesMax;++Column,++Index)
+            auto* Body=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(Body);
+            ResultRows=WidgetTree->ConstructWidget<UVerticalBox>();
+            auto* RowsSlot=Body->AddChildToHorizontalBox(ResultRows);RowsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));RowsSlot->SetPadding(FMargin(0,0,HudResultGap,0));
+            auto* BoardBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            UTextBlock* BoardTitle=OneLine(TEXT("赢家规则板"),LDHUDStyle::TypeHeading,0);HudFace(BoardTitle,true,0);
+            BoardBox->AddChildToVerticalBox(BoardTitle)->SetPadding(FMargin(0,0,0,14));
+            ResultWinnerBuild=WidgetTree->ConstructWidget<USizeBox>();BoardBox->AddChildToVerticalBox(ResultWinnerBuild);
+            ResultWinnerBuild->SetVisibility(ESlateVisibility::Collapsed);
+            auto* Board=WidgetTree->ConstructWidget<UBorder>();Board->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
+            Board->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));Board->SetPadding(FMargin(24,20));Board->SetContent(BoardBox);
+            auto* BoardWidth=WidgetTree->ConstructWidget<USizeBox>();BoardWidth->SetWidthOverride(HudResultBoardWidth+48.f);BoardWidth->SetContent(Board);
+            Body->AddChildToHorizontalBox(BoardWidth)->SetVerticalAlignment(VAlign_Fill);
+        }
+        // The own damage per source in one card: a heading, then DamageSummarySourcesMax cells on one line.
+        ResultDamageCells.Reset();
+        {
+            auto* DamageBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            ResultDamageHeading=Text(TEXT(""),LDHUDStyle::TypeHeading);HudFace(ResultDamageHeading,true,0);
+            DamageBox->AddChildToVerticalBox(ResultDamageHeading)->SetPadding(FMargin(0,0,0,10));
+            auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();DamageBox->AddChildToVerticalBox(Line);
+            for(int32 Index=0;Index<LDHUD::DamageSummarySourcesMax;++Index)
             {
-                UTextBlock* Cell=OneLine(TEXT(""),14,0);Cell->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+                UTextBlock* Cell=OneLine(TEXT(""),15,0);Cell->SetColorAndOpacity(LDHUDStyle::UIText);
                 auto* Fit=WidgetTree->ConstructWidget<UScaleBox>();Fit->SetStretch(EStretch::ScaleToFit);Fit->SetStretchDirection(EStretchDirection::DownOnly);
                 Fit->SetContent(Cell);
                 if(auto* FitSlot=Cast<UScaleBoxSlot>(Fit->GetContentSlot())){FitSlot->SetHorizontalAlignment(HAlign_Left);}
-                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(180);Box->SetContent(Fit);
-                Line->AddChildToHorizontalBox(Box);ResultDamageCells.Add(Cell);
+                auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride((HudResultWidth-48.f)/LDHUD::DamageSummarySourcesMax-12.f);Box->SetContent(Fit);
+                Line->AddChildToHorizontalBox(Box)->SetPadding(FMargin(0,0,12,0));ResultDamageCells.Add(Cell);
             }
-            ResultBox->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,2));
+            auto* DamageCard=WidgetTree->ConstructWidget<UBorder>();DamageCard->SetBrush(HudRound(6.f,LDHUDStyle::PanelRim,1.f));
+            DamageCard->SetBrushColor(LDHUDStyle::UIPanel.CopyWithNewOpacity(.82f));DamageCard->SetPadding(FMargin(24,18));DamageCard->SetContent(DamageBox);
+            ResultBox->AddChildToVerticalBox(DamageCard)->SetPadding(FMargin(0,HudResultGap,0,0));
         }
-        auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,16,0,0));ResultActionsBox=ResultActions;
-        ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
-        ResultActions->AddChildToHorizontalBox(ReturnButton)->SetPadding(FMargin(0,0,12,0));
-        LeaveRoomButton=LDWidgets::Button(WidgetTree,TEXT("离开房间并返回主菜单"),[PC](){if(PC->RootUI){PC->RootUI->LeaveRoom();}},false,TEXT("ResultLeaveRoom"));
-        ResultActions->AddChildToHorizontalBox(LeaveRoomButton);
+        // Actions sit bottom-right: the blueprint viewer, leave, and the host's return to Lobby as the one primary button.
+        auto* ResultActions=WidgetTree->ConstructWidget<UHorizontalBox>();
+        ResultBox->AddChildToVerticalBox(ResultActions)->SetPadding(FMargin(0,HudResultGap,0,0));
+        if(auto* ActionsSlot=Cast<UVerticalBoxSlot>(ResultActions->Slot)){ActionsSlot->SetHorizontalAlignment(HAlign_Right);}
+        ResultActionsBox=ResultActions;
         // #198 §10: the own build blueprint of this match, read-only.
-        ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::BuildBlueprint,[PC](){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}},false,TEXT("ResultBuildBlueprint")))->SetPadding(FMargin(12,0,0,0));
-        auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(820);ResultWidth->SetContent(ResultBox);
+        ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,LDTerms::BuildBlueprint,[PC](){if(PC->BuildBlueprints){PC->BuildBlueprints->ToggleViewer();}},false,TEXT("ResultBuildBlueprint")))->SetPadding(FMargin(0,0,12,0));
+        LeaveRoomButton=LDWidgets::Button(WidgetTree,TEXT("离开房间并返回主菜单"),[PC](){if(PC->RootUI){PC->RootUI->LeaveRoom();}},false,TEXT("ResultLeaveRoom"));
+        ResultActions->AddChildToHorizontalBox(LeaveRoomButton)->SetPadding(FMargin(0,0,12,0));
+        ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
+        LDWidgets::SetLook(ReturnButton,LDUIPaint::EButton::Primary);
+        ResultActions->AddChildToHorizontalBox(ReturnButton);
+        auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(HudResultWidth);ResultWidth->SetContent(ResultBox);
         ResultPanel=Panel(ResultWidth,true);Place(ResultPanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,0));ResultPanel->SetVisibility(ESlateVisibility::Collapsed);
 
         // Centre: the hold-Tab scoreboard, read-only and click-through, over the running match.
@@ -560,43 +615,49 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ScorePanel=Panel(ScoreBox,false);Place(ScorePanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-60));ScorePanel->SetVisibility(ESlateVisibility::Collapsed);
         }
 
-        // Bottom-left, left of the bottom band: the minimap in the corner with the match timer over it and nothing else; the
-        // map's own markers carry the public events (2026-11-12 user decision: no text lines above the minimap).
+        // Bottom-left corner: the minimap in an 8-unit panel with the match timer centred over the map frame and nothing else;
+        // the map's own markers carry the public events (2026-11-12 user decision: no text lines above the minimap).
         auto* MapBox=WidgetTree->ConstructWidget<UVerticalBox>();
         // A square frame: the minimap fits either the field or the rest room (ULDMinimap), each with one uniform scale.
-        Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
+        Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(HudMapSize);MapFrame->SetHeightOverride(HudMapSize);MapFrame->SetContent(Minimap);
         // The match timer sits centred over the map frame itself, so a wide sight line above never shifts it.
         auto* MapStack=WidgetTree->ConstructWidget<UVerticalBox>();
-        MatchTimerText=OneLine(TEXT(""),LDHUDStyle::TypeText,0);HudFace(MatchTimerText,true,1);MatchTimerText->SetJustification(ETextJustify::Center);
+        MatchTimerText=OneLine(TEXT(""),LDHUDStyle::TypeSection,0);HudFace(MatchTimerText,true,2);MatchTimerText->SetJustification(ETextJustify::Center);
         MatchTimerText->SetVisibility(ESlateVisibility::Collapsed);
         MapStack->AddChildToVerticalBox(MatchTimerText)->SetHorizontalAlignment(HAlign_Center);
-        auto* FrameSlot=MapStack->AddChildToVerticalBox(MapFrame);FrameSlot->SetHorizontalAlignment(HAlign_Left);FrameSlot->SetPadding(FMargin(0,2,0,0));
+        auto* FrameSlot=MapStack->AddChildToVerticalBox(MapFrame);FrameSlot->SetHorizontalAlignment(HAlign_Left);FrameSlot->SetPadding(FMargin(0,4,0,0));
         MapBox->AddChildToVerticalBox(MapStack)->SetHorizontalAlignment(HAlign_Left);
-        MapColumn=Panel(MapBox,true);
-        // Bottom-left, right above the minimap column: the room's event feed (LDHUD::FEventFeed). The newest line is at the
-        // bottom, next to the map, and older lines are pushed up; the stack grows upward from the column, so the map never
-        // moves. The feed takes no pointer input.
+        MapColumn=Panel(MapBox,true);MapColumn->SetPadding(FMargin(8));
+        Place(MapColumn,FAnchors(0,1),FVector2D(0,1),FVector2D(HudCornerInset,-HudCornerInset));
+        // Top-right corner: the room's event feed (LDHUD::FEventFeed), one line a row with the newest at the bottom. It takes no
+        // pointer input; the DEV marker and the network diagnostics stand under it, the PK side panel below them.
         auto* FeedBox=WidgetTree->ConstructWidget<UVerticalBox>();
         for(int32 Row=0;Row<LDHUD::FEventFeed::MaxLines;++Row)
         {
-            UTextBlock* FeedLine=OneLine(TEXT(""),LDHUDStyle::TypeBody,440);FeedLine->SetVisibility(ESlateVisibility::Collapsed);HudFace(FeedLine,false,1);
+            UTextBlock* FeedLine=OneLine(TEXT(""),LDHUDStyle::TypeSmall,0);FeedLine->SetVisibility(ESlateVisibility::Collapsed);HudFace(FeedLine,false,1);
+            FeedLine->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);FeedLine->SetJustification(ETextJustify::Right);
             EventFeedRows.Add(FeedLine);FeedBox->AddChildToVerticalBox(FeedLine)->SetPadding(FMargin(0,1));
         }
         EventFeedPanel=Panel(FeedBox,false);EventFeedPanel->SetBrushColor(FLinearColor(.02f,.03f,.05f,.55f));EventFeedPanel->SetVisibility(ESlateVisibility::Collapsed);
-        auto* BottomLeft=WidgetTree->ConstructWidget<UVerticalBox>();BottomLeft->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        BottomLeft->AddChildToVerticalBox(EventFeedPanel)->SetHorizontalAlignment(HAlign_Left);
-        // #97: the map column keeps its own width; a wide feed line above must not stretch the minimap frame.
-        auto* MapSlot=BottomLeft->AddChildToVerticalBox(MapColumn);MapSlot->SetPadding(FMargin(0,8,0,0));MapSlot->SetHorizontalAlignment(HAlign_Left);
-        Place(BottomLeft,FAnchors(0,1),FVector2D(0,1),FVector2D(16,-16));
+        auto* FeedWidth=WidgetTree->ConstructWidget<USizeBox>();FeedWidth->SetMaxDesiredWidth(HudFeedWidth);FeedWidth->SetContent(EventFeedPanel);
+        FeedWidth->SetVisibility(ESlateVisibility::HitTestInvisible);
+        auto* TopRight=WidgetTree->ConstructWidget<UVerticalBox>();TopRight->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        TopRight->AddChildToVerticalBox(FeedWidth)->SetHorizontalAlignment(HAlign_Right);
+        TopRight->AddChildToVerticalBox(DevMarkerText)->SetHorizontalAlignment(HAlign_Right);
+        TopRight->AddChildToVerticalBox(DiagnosticsPanel)->SetHorizontalAlignment(HAlign_Right);
+        // The PK side panel follows the corner stack, so a longer feed never covers it.
+        TopRight->AddChildToVerticalBox(PKPanelBorder)->SetHorizontalAlignment(HAlign_Right);
+        for(UWidget* Below:{static_cast<UWidget*>(DevMarkerText.Get()),static_cast<UWidget*>(DiagnosticsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get())})
+        {if(auto* BelowSlot=Cast<UVerticalBoxSlot>(Below->Slot)){BelowSlot->SetPadding(FMargin(0,6,0,0));}}
+        Place(TopRight,FAnchors(1,0),FVector2D(1,0),FVector2D(-HudCornerInset,22));
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
 
-        // Bottom band: own identity | body and 3+1 action entries over the resources. The band stack is shifted so the centre block
-        // stays on the screen centre, directly under the character, where the eyes are during a fight.
+        // Bottom band: own identity | body and 3+1 action entries over the resources, centred on the screen as a whole.
         auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();
         auto* SelfBox=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* SelfHead=WidgetTree->ConstructWidget<UHorizontalBox>();SelfBox->AddChildToVerticalBox(SelfHead);
         UBorder* SP=nullptr;UTextBlock* SG=nullptr;
-        auto* PortraitStack=WidgetTree->ConstructWidget<UOverlay>();PortraitStack->AddChildToOverlay(Portraits(60,LDHUDStyle::TypeHeading,SP,SG));Portrait=SP;PortraitGlyph=SG;
+        auto* PortraitStack=WidgetTree->ConstructWidget<UOverlay>();PortraitStack->AddChildToOverlay(Portraits(52,LDHUDStyle::TypeHeading,SP,SG));Portrait=SP;PortraitGlyph=SG;
         // The level rides on the portrait corner; the experience bar over the actions carries the numbers as its tooltip.
         LevelBadgeText=OneLine(TEXT(""),LDHUDStyle::TypeCaption,0);HudFace(LevelBadgeText,true,0);LevelBadgeText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         auto* LevelBadge=WidgetTree->ConstructWidget<UBorder>();LevelBadge->SetBrush(HudRound(4.f,LDHUDStyle::TextAccent,1.f));LevelBadge->SetBrushColor(FLinearColor(.02f,.03f,.05f,.96f));
@@ -611,7 +672,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
 
         auto* PointsSlot=PortraitStack->AddChildToOverlay(PointsBadge);PointsSlot->SetHorizontalAlignment(HAlign_Left);PointsSlot->SetVerticalAlignment(VAlign_Bottom);
         // Padded in from the block's clipped left edge so the points badge hanging off the portrait's corner stays whole.
-        auto* PortraitSlot=SelfHead->AddChildToHorizontalBox(PortraitStack);PortraitSlot->SetPadding(FMargin(10,0,14,0));PortraitSlot->SetVerticalAlignment(VAlign_Top);
+        auto* PortraitSlot=SelfHead->AddChildToHorizontalBox(PortraitStack);PortraitSlot->SetPadding(FMargin(8,0,10,0));PortraitSlot->SetVerticalAlignment(VAlign_Top);
         auto* NameBox=WidgetTree->ConstructWidget<UVerticalBox>();
         // A long roster name ends in an ellipsis inside the column; hovering it shows the whole name (VISION_AND_UI readability).
         SelfName=OneLine(TEXT(""),LDHUDStyle::TypeLabel,0);HudFace(SelfName,true,0);SelfName->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);SelfName->SetVisibility(ESlateVisibility::Visible);NameBox->AddChildToVerticalBox(SelfName);
@@ -726,16 +787,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
 
         // Above the band: the toast, the only line that says what went wrong (a refused request such as 目标不可用); an armed
         // entry or attack move is shown by its slot ring and the world preview alone. The stack grows upward from the band,
-        // so a taller band (text scale) never overlaps it. The band has no right block, so the stack is shifted left by half
-        // the identity block: the centre block stays on the screen centre, under the character, and the toast is padded
-        // back over it.
-        const float HudLeftReach=HudSideWidth+HudBlockGap+1;
+        // so a taller band (text scale) never overlaps it. The whole band is centred on the screen.
         auto* BandStack=WidgetTree->ConstructWidget<UVerticalBox>();BandStack->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         BandStack->AddChildToVerticalBox(Band)->SetHorizontalAlignment(HAlign_Center);
         // The scale box lays the band out at HudBandScale, so its hit area, popups and the stack above it follow the drawn size.
         auto* BandScale=WidgetTree->ConstructWidget<UScaleBox>();BandScale->SetStretch(EStretch::UserSpecified);BandScale->SetUserSpecifiedScale(HudBandScale);
         BandScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);BandScale->SetContent(BandStack);
-        Place(BandScale,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(-HudLeftReach*.5f*HudBandScale,-12));
+        Place(BandScale,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(0,-12));
         // The toast is centred on the screen centre by its own canvas slot, 8 units above the band (RefreshReadModel follows
         // the band's height), so its width never shifts it off centre; a translucent face keeps the world visible behind it.
         Toast=OneLine(TEXT(""),LDHUDStyle::TypeText,640);Toast->SetJustification(ETextJustify::Center);
@@ -743,21 +801,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ToastSlot=Canvas->AddChildToCanvas(ToastPanel);ToastSlot->SetAnchors(FAnchors(.5f,1));ToastSlot->SetAlignment(FVector2D(.5f,1));ToastSlot->SetAutoSize(true);
         ToastSlot->SetZOrder(14);
         ToastSlot->SetPosition(FVector2D(0,-12-8));
-        {
-            // The status strip sits left of the band, its bottom on the band's bottom. Rows stack upward and fit the gap
-            // beside the minimap; only the squares take the pointer.
-            StatusRows=WidgetTree->ConstructWidget<UVerticalBox>();StatusRows->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-            auto* StatusBox=WidgetTree->ConstructWidget<UVerticalBox>();StatusBox->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-            StatusBox->AddChildToVerticalBox(StatusRows);
-            SelfIconSyncing=Text(TEXT("状态同步中"),LDHUDStyle::TypeSmall);SelfIconSyncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
-            SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);StatusBox->AddChildToVerticalBox(SelfIconSyncing)->SetHorizontalAlignment(HAlign_Right);
-            auto* StatusWidth=WidgetTree->ConstructWidget<USizeBox>();StatusWidth->SetWidthOverride(HudStatusWidth);StatusWidth->SetContent(StatusBox);
-            StatusWidth->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-            auto* StatusScale=WidgetTree->ConstructWidget<UScaleBox>();StatusScale->SetStretch(EStretch::UserSpecified);StatusScale->SetUserSpecifiedScale(HudBandScale);
-            StatusScale->SetVisibility(ESlateVisibility::Collapsed);StatusScale->SetContent(StatusWidth);StatusStrip=StatusScale;
-            StatusSlot=Canvas->AddChildToCanvas(StatusScale);StatusSlot->SetAnchors(FAnchors(.5f,1));StatusSlot->SetAlignment(FVector2D(1,1));StatusSlot->SetAutoSize(true);
-            StatusSlot->SetPosition(FVector2D(0,-12));
-        }
         {
             // The hovered slot's description: the blind-box popup's look, wrapped at a fixed width, centred above
             // the slot (RefreshReadModel places it each frame) and taking no pointer input.
@@ -782,8 +825,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PendingPrompt=WidgetTree->ConstructWidget<UBorder>();PendingPrompt->SetBrushColor(FLinearColor::Transparent);PendingPrompt->SetPadding(FMargin(0));PendingPrompt->SetContent(Prompt);
         PendingPrompt->SetRenderTransformPivot(FVector2D(.5f,.5f));
         PromptText->SetJustification(ETextJustify::Center);
+        {FSlateFontInfo Font=PromptText->GetFont();Font.Size=22;PromptText->SetFont(Font);}
         if(UButtonSlot* CaptionSlot=Cast<UButtonSlot>(PromptText->Slot)){CaptionSlot->SetPadding(FMargin(0));CaptionSlot->SetHorizontalAlignment(HAlign_Center);CaptionSlot->SetVerticalAlignment(VAlign_Center);}
-        PromptFrame=Panel(PendingPrompt,true);PromptFrame->SetPadding(FMargin(4));
+        // Mock 1: a 244 by 52 gold button in the corner, its frame included.
+        auto* PromptSize=WidgetTree->ConstructWidget<USizeBox>();PromptSize->SetWidthOverride(HudPromptWidth-8.f);PromptSize->SetHeightOverride(HudPromptHeight-8.f);
+        PromptSize->SetContent(PendingPrompt);
+        PromptFrame=Panel(PromptSize,true);PromptFrame->SetPadding(FMargin(4));
         PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(1,1));PromptSlot->SetAlignment(FVector2D(1,1));PromptSlot->SetAutoSize(true);
         PromptSlot->SetPosition(FVector2D(-HudCornerInset,-HudCornerInset));
         {
@@ -896,35 +943,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
     }
     return Super::RebuildWidget();
 }
-void ULDHUD::EnsureStatusCells(int32 Count)
-{
-    // The strip grows by whole rows; a new row goes on top, so the first statuses stay on the band and later ones stack up.
-    while(SelfIconCells.Num()<Count&&StatusRows)
-    {
-        const int32 Col=SelfIconCells.Num()%HudStatusPerRow;
-        if(Col==0)
-        {
-            auto* RowBox=WidgetTree->ConstructWidget<UHorizontalBox>();RowBox->SetVisibility(ESlateVisibility::Collapsed);
-            StatusRows->InsertChildAt(0,RowBox);
-            if(auto* RowSlot=Cast<UVerticalBoxSlot>(RowBox->Slot)){RowSlot->SetPadding(FMargin(0,HudStatusGap,0,0));RowSlot->SetHorizontalAlignment(HAlign_Right);}
-            SelfIconRowBoxes.Add(RowBox);
-        }
-        UTextBlock* Glyph=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeHeading);Glyph->SetAutoWrapText(false);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
-        UTextBlock* Stacks=LDWidgets::Text(WidgetTree,TEXT(""),LDHUDStyle::TypeCaption);Stacks->SetAutoWrapText(false);HudFace(Stacks,true,1);
-        UImage* Picture=WidgetTree->ConstructWidget<UImage>();Picture->SetVisibility(ESlateVisibility::Collapsed);
-        auto* Face=WidgetTree->ConstructWidget<UOverlay>();
-        auto* PictureSlot=Face->AddChildToOverlay(Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
-        auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
-        auto* StackSlot=Face->AddChildToOverlay(Stacks);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);
-        auto* Cell=WidgetTree->ConstructWidget<UBorder>();Cell->SetBrush(HudRound(5.f,LDHUDStyle::Rim,1.f));
-        Cell->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));Cell->SetPadding(FMargin(2));Cell->SetContent(Face);
-        Cell->SetVisibility(ESlateVisibility::Collapsed);
-        auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HudStatusSize);CellBox->SetHeightOverride(HudStatusSize);CellBox->SetContent(Cell);
-        SelfIconRowBoxes.Last()->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?HudStatusGap:0.f,0,0,0));
-        SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconTones.Add(-1);SelfIconRing.Add(-1.f);
-        SelfIconPictures.Add(Picture);SelfIconApplied.AddDefaulted();
-    }
-}
 bool ULDHUD::PointerOverUI() const
 {
     if(!IsVisible()||!FSlateApplication::IsInitialized()){return false;}return IsUIAt(FSlateApplication::Get().GetCursorPos());
@@ -941,7 +959,6 @@ TArray<FSlateRect> ULDHUD::WorldLabelReservedAreas(const FGeometry& PaintGeometr
         Areas.Add(FSlateRect(TopLeft.X,TopLeft.Y,BottomRight.X,BottomRight.Y));
     };
     Add(Band);
-    if(!SelfIconViews.IsEmpty()){Add(StatusStrip);}
     Add(PromptFrame);
     Add(TargetCard);
     Add(MapColumn);
@@ -960,9 +977,6 @@ bool ULDHUD::IsUIAt(FVector2D P) const
     if(Storage&&Storage->IsHit(P)){return true;}
     if(Workshop&&Workshop->IsHit(P)){return true;}
     if(ChoicesPanel&&ChoicesPanel->IsQuickHit(P)){return true;}
-    // The status squares above the band take the pointer for their popups; the strip's empty space does not.
-    if(StatusStrip&&StatusStrip->IsVisible())
-    {for(const UBorder* Cell:SelfIconCells){if(Cell&&Cell->IsVisible()&&Cell->GetCachedGeometry().IsUnderLocation(P)){return true;}}}
     for(const ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelHit(P)){return true;}}
     for(const auto& Panel:HitPanels){if(Panel&&Panel->IsVisible()&&Panel->GetCachedGeometry().IsUnderLocation(P)){return true;}}return false;
 }
@@ -1151,7 +1165,7 @@ void ULDHUD::RefreshReadModel()
     const bool bRestPhase=bOwnMatch&&Public.Phase==ELDMatchPhase::Rest;
     const bool bWorkshopFull=LDWorkshop::FullScreen(bRestPhase,Public.Timeline.Step,bDeathWait);
     const bool bWorkshopOpen=bShow&&ChoicesPanel&&ChoicesPanel->IsTrayOpen();
-    HudSetShown(Band,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(StatusStrip,bShow&&!bWorkshopOpen,ESlateVisibility::SelfHitTestInvisible);
+    HudSetShown(Band,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
     HudSetShown(PromptFrame,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow&&!bWorkshopOpen,ESlateVisibility::Visible);
     HudSetShown(PhaseBanner,bShow&&!(bWorkshopOpen&&bWorkshopFull),ESlateVisibility::HitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
@@ -1199,9 +1213,11 @@ void ULDHUD::RefreshReadModel()
     const bool bOwnHit=BodyEvents.ContainsByPredicate([](const LDWorldFeedback::FEvent& Event)
     {return Event.bOwn&&(Event.Kind==LDWorldFeedback::EKind::DamageTaken||Event.Kind==LDWorldFeedback::EKind::ShieldAbsorbed);});
     const bool bRestPlanning=Public.Phase==ELDMatchPhase::Rest&&Public.Timeline.Step==ELDRestStep::Build;
-    HudSetText(PhaseText,Circle.Line);
-    HudSetShown(PhaseText,!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)
-        &&Public.Phase!=ELDMatchPhase::Rest,ESlateVisibility::HitTestInvisible);
+    HudSetText(PhaseText,Circle.Head);
+    const bool bPhaseLine=!bChoicesRestOpen&&(Public.Phase!=ELDMatchPhase::Development||Public.Showdown.bStarted)&&Public.Phase!=ELDMatchPhase::Rest;
+    HudSetShown(PhaseText,bPhaseLine,ESlateVisibility::HitTestInvisible);
+    HudSetText(PhaseOwnerText,Circle.Owner);HudSetText(PhaseAsideText,Circle.Aside);
+    HudSetShown(PhaseFootRow,bPhaseLine&&!(Circle.Owner.IsEmpty()&&Circle.Aside.IsEmpty()),ESlateVisibility::HitTestInvisible);
     CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
@@ -1247,10 +1263,19 @@ void ULDHUD::RefreshReadModel()
         // Until the recap of exactly this life arrives there is no recap section at all.
         const LDHUD::FDamageListView Recap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);
         HudSetText(DeathRecapHeading,Recap.Heading);HudSetShown(DeathRecapHeading,Recap.bAvailable,ESlateVisibility::HitTestInvisible);
+        // Each row is its icon chain (who triggered → what it consumed → what it produced), rebuilt only when it changes;
+        // new text takes the current text scale, later scale changes rescale it with the rest of the HUD.
+        const float Scale=AppliedScale>0?AppliedScale:1.f;
         for(int32 Row=0;Row<DeathRecapRows.Num();++Row)
         {
-            const bool bRow=Recap.bAvailable&&Recap.Rows.IsValidIndex(Row);
-            HudSetText(DeathRecapRows[Row],bRow?Recap.Rows[Row]:FString());HudSetShown(DeathRecapRows[Row],bRow,ESlateVisibility::HitTestInvisible);
+            const bool bRow=Recap.bAvailable&&Recap.Chains.IsValidIndex(Row);
+            const LDHUD::FRecapChain Chain=bRow?Recap.Chains[Row]:LDHUD::FRecapChain();
+            if(DeathRecapShown.IsValidIndex(Row)&&!(DeathRecapShown[Row]==Chain))
+            {
+                DeathRecapShown[Row]=Chain;
+                LDRecapChain::Fill(WidgetTree,DeathRecapRows[Row],Chain,FMath::RoundToFloat(20.f*Scale),FMath::RoundToInt(14.f*Scale));
+            }
+            HudSetShown(DeathRecapRows[Row],bRow,ESlateVisibility::HitTestInvisible);
         }
     }
 
@@ -1302,37 +1327,31 @@ void ULDHUD::RefreshReadModel()
         // A missing projection still reads as syncing, never as "no status".
         const LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(OwnCombat,bClock,NowMs,Content);
         SelfIconViews=Icons.Items;
-        EnsureStatusCells(Icons.Items.Num());
-        HudSetShown(SelfIconSyncing,Icons.bSyncing,ESlateVisibility::HitTestInvisible);
+        // The own statuses are painted over the own overhead bars (ULDWorldLabels); the HUD keeps their textures alive and
+        // their remaining-time spans. Hidden with the band while the workshop covers it.
+        OwnStatusMarks.Reset();
+        OwnStatusTextures.SetNum(Icons.Items.Num());
+        OwnStatusBrushes.SetNum(Icons.Items.Num());
         TArray<FName> LiveRings;
-        for(int32 Index=0;Index<SelfIconCells.Num();++Index)
+        for(int32 Index=0;Index<Icons.Items.Num();++Index)
         {
-            const LDHUD::FSelfIconView* Icon=Icons.Items.IsValidIndex(Index)?&Icons.Items[Index]:nullptr;
-            HudSetShown(SelfIconCells[Index],Icon!=nullptr,ESlateVisibility::Visible);
-            HudSetShown(SelfIconCells[Index]->GetParent(),Icon!=nullptr,ESlateVisibility::SelfHitTestInvisible);
-            SelfIconRing[Index]=-1.f;
-            if(!Icon){continue;}
-            if(SelfIconApplied[Index]!=Icon->IconId)
+            const LDHUD::FSelfIconView& Icon=Icons.Items[Index];
+            UTexture2D* Picture=Icon.IconId.IsEmpty()?nullptr:LDUIIcons::Find(Icon.IconId);
+            if(OwnStatusTextures[Index]!=Picture)
             {
-                SelfIconApplied[Index]=Icon->IconId;
-                HudSetShown(SelfIconGlyphs[Index],!LDUIIcons::Apply(SelfIconPictures[Index],Icon->IconId,4.f),ESlateVisibility::HitTestInvisible);
+                OwnStatusTextures[Index]=Picture;
+                FSlateBrush& Brush=OwnStatusBrushes[Index];Brush=FSlateBrush();
+                if(Picture){Brush.SetResourceObject(Picture);Brush.ImageSize=FVector2D(64,64);Brush.DrawAs=ESlateBrushDrawType::Image;}
             }
-            HudSetText(SelfIconGlyphs[Index],Icon->Glyph);
-            HudSetText(SelfIconStacks[Index],Icon->Stacks>1?FString::FromInt(Icon->Stacks):FString());
-            if(SelfIconTones[Index]!=int32(Icon->bPositive))
-            {
-                // Positive statuses and recoveries are edged green, negative statuses red; the popup names the tone too.
-                SelfIconTones[Index]=int32(Icon->bPositive);
-                const FLinearColor Edge=Icon->bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
-                SelfIconCells[Index]->SetBrush(HudRound(5.f,Edge,1.f));SelfIconCells[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
-                HudSetColor(SelfIconGlyphs[Index],Edge);
-            }
-            // The ring needs the matching authority clock; without it the square shows no remaining time.
-            if(Icon->ExpiresAtMs>0&&bClock){SelfIconRing[Index]=SelfIconRings.Fraction(Icon->Key,Icon->ExpiresAtMs,NowMs);LiveRings.Add(Icon->Key);}
+            FLDOwnStatusMark& Mark=OwnStatusMarks.AddDefaulted_GetRef();
+            Mark.Glyph=Icon.Glyph;Mark.bPositive=Icon.bPositive;Mark.Stacks=Icon.Stacks;Mark.ViewIndex=Index;
+            // The remaining-time bar needs the matching authority clock; without it the mark shows no remaining time.
+            if(Icon.ExpiresAtMs>0&&bClock){Mark.Remaining=SelfIconRings.Fraction(Icon.Key,Icon.ExpiresAtMs,NowMs);LiveRings.Add(Icon.Key);}
         }
         SelfIconRings.Retain(LiveRings);
-        for(int32 Row=0;Row<SelfIconRowBoxes.Num();++Row)
-        {HudSetShown(SelfIconRowBoxes[Row],Icons.Items.Num()>Row*HudStatusPerRow,ESlateVisibility::SelfHitTestInvisible);}
+        const bool bShown=Band&&Band->IsVisible();
+        if(!bShown){OwnStatusMarks.Reset();}
+        OwnStatusNotice=LDHUD::SelfIconsNotice(Icons,bShown);
     }
     {
         // Unspent points ride on the portrait; the stat icons under the name spend them.
@@ -1377,6 +1396,7 @@ void ULDHUD::RefreshReadModel()
         ULDComponentStorage::FAnchors Anchors;
         const auto RectOf=[](const UWidget* Widget){return Widget&&Widget->IsVisible()?Widget->GetCachedGeometry().GetLayoutBoundingRect():FSlateRect();};
         Anchors.Band=RectOf(Band);
+        Anchors.Corner=RectOf(PromptFrame);
         Anchors.bValid=Anchors.Band.Right>Anchors.Band.Left;
         {
             // Empty-pool points land where the unspent points show: the workshop's points, else the band's stat icons.
@@ -1406,6 +1426,7 @@ void ULDHUD::RefreshReadModel()
             In.StepStartedAtMs=Public.Timeline.StepStartedAtMs;In.StepEndsAtMs=Public.Timeline.StepEndsAtMs;In.bClock=bClock;In.NowMs=NowMs;
             In.bDead=bDeathWait&&!bRestPhase;In.DeathTitle=Death.Title;In.DeathCountdown=Death.Countdown;
             In.DeathClock=Death.Clock;In.DeathProgress=Death.Progress;
+            if(In.bDead){In.DeathRecap=LDHUD::DeathRecap(PC->DeathRecap,O,Lobby,Content);}
             In.TrayDesired=ChoicesPanel?ChoicesPanel->TrayDesiredSize():FVector2D::ZeroVector;
             const LDHUD::FGrowthPending Waiting=LDHUD::GrowthPending(Progression,O.Match,Content);
             In.Pending=(Waiting.bOffer?1:0)+Waiting.Blueprints+(Waiting.bOpeningBase?1:0)+Waiting.ComponentChoices+(Waiting.bFinalMod?1:0);
@@ -1483,10 +1504,14 @@ void ULDHUD::RefreshReadModel()
     if(bOwnHit&&Workshop){Workshop->InterruptFinalFeedback();}
     // The workspace entry stays above the band's left block; workspace layout is viewport-bounded.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
-    const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
     // The tray stands right above the 构筑 button in the corner, or in the workshop's pending area.
     if(ChoicesPanel&&Workshop&&Workshop->IsOpen()){const FVector2D Inset=Workshop->TrayInset();ChoicesPanel->SetTrayInset(Inset.X,Inset.Y,Workshop->TrayWrapWidth(),Workshop->TrayHeightLimit());}
-    else if(ChoicesPanel&&PromptFrame){ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y))+8.f);}
+    else if(ChoicesPanel&&PromptFrame)
+    {
+        // The storage stack stands between the button and the tray.
+        const float Stack=Storage?Storage->StackHeight():0.f;
+        ChoicesPanel->SetTrayInset(HudCornerInset,HudCornerInset+FMath::RoundToFloat(float(PromptFrame->GetDesiredSize().Y)+(Stack>0.f?Stack+12.f:0.f))+8.f);
+    }
     if(TopCentreSlot)
     {
         // The full workshop keeps the rest actions in its top-right corner, beside its own close button.
@@ -1503,7 +1528,7 @@ void ULDHUD::RefreshReadModel()
             }
         }
         const FAnchors Anchor=bCorner?FAnchors(1,0):FAnchors(.5f,0);const FVector2D Align=bCorner?FVector2D(1,0):FVector2D(.5f,0);
-        const FVector2D Where=bCorner?FVector2D(float(Workshop->ActionsAnchor().X)-float(GetCachedGeometry().GetLocalSize().X),Workshop->ActionsAnchor().Y):FVector2D(0,16);
+        const FVector2D Where=bCorner?FVector2D(float(Workshop->ActionsAnchor().X)-float(GetCachedGeometry().GetLocalSize().X),Workshop->ActionsAnchor().Y):FVector2D(0,22);
         if(!(TopCentreSlot->GetAnchors()==Anchor)){TopCentreSlot->SetAnchors(Anchor);}
         if(!TopCentreSlot->GetAlignment().Equals(Align)){TopCentreSlot->SetAlignment(Align);}
         if(!TopCentreSlot->GetPosition().Equals(Where,.5f)){TopCentreSlot->SetPosition(Where);}
@@ -1513,27 +1538,6 @@ void ULDHUD::RefreshReadModel()
         // Covered by the workshop: the corner widgets it replaces.
         HudSetShown(EventFeedPanel,false,ESlateVisibility::HitTestInvisible);HudSetShown(TargetCard,false,ESlateVisibility::Visible);
         if(bWorkshopFull){HudSetShown(DeathBanner,false,ESlateVisibility::HitTestInvisible);}
-    }
-    if(StatusSlot)
-    {
-        const FVector2D Place(FMath::RoundToFloat(BandLeft-HudStatusFromBand),-12.f);
-        if(!StatusSlot->GetPosition().Equals(Place,.5f)){StatusSlot->SetPosition(Place);}
-        if(auto* ScaleBox=Cast<UScaleBox>(StatusStrip.Get()))
-        {
-            float Scale=HudBandScale;
-            const FGeometry& HudGeometry=GetCachedGeometry();
-            const FGeometry& MapGeometry=MapColumn->GetCachedGeometry();
-            const int32 Count=FMath::Min(SelfIconViews.Num(),HudStatusPerRow);
-            const float RowWidth=Count>0?Count*HudStatusSize+(Count-1)*HudStatusGap
-                :SelfIconSyncing->IsVisible()?float(SelfIconSyncing->GetDesiredSize().X):0.f;
-            if(RowWidth>0.f&&MapColumn->IsVisible()&&MapGeometry.GetLocalSize().X>0.f&&HudGeometry.GetLocalSize().X>0.f)
-            {
-                const FVector2D MapRight=HudGeometry.AbsoluteToLocal(MapGeometry.LocalToAbsolute(MapGeometry.GetLocalSize()));
-                const float Available=float(HudGeometry.GetLocalSize().X*.5f)+BandLeft-HudStatusFromBand-float(MapRight.X)-HudStatusGap;
-                Scale=FMath::Clamp(Available/RowWidth,.01f,HudBandScale);
-            }
-            if(!FMath::IsNearlyEqual(ScaleBox->GetUserSpecifiedScale(),Scale,.001f)){ScaleBox->SetUserSpecifiedScale(Scale);}
-        }
     }
     if(DevTestPanel)
     {
@@ -1669,23 +1673,26 @@ void ULDHUD::RefreshReadModel()
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
         if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
     }
-    // Without a slot under the pointer, a hovered status square (LDHUD::SelfIconDetail) or stat icon uses the same popup.
+    // Without a slot under the pointer, a hovered own status mark over the own bars (LDHUD::SelfIconDetail) or stat icon uses
+    // the same popup. The world layer reports the marks' last painted rects.
     const UWidget* DetailOver=DetailIndex!=INDEX_NONE?ActionSlots[DetailIndex].Box.Get():nullptr;
+    TOptional<FSlateRect> DetailMark;
     if(!DetailOver)
     {
-        for(int32 Index=0;Index<FMath::Min(SelfIconCells.Num(),SelfIconViews.Num());++Index)
+        for(int32 Index=0;Index<FMath::Min(OwnStatusHitRects.Num(),OwnStatusMarks.Num());++Index)
         {
-            if(SelfIconCells[Index]->IsVisible()&&SelfIconCells[Index]->GetCachedGeometry().IsUnderLocation(Pointer))
-            {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],Content);break;}
+            const int32 View=OwnStatusMarks[Index].ViewIndex;
+            if(SelfIconViews.IsValidIndex(View)&&OwnStatusHitRects[Index].ContainsPoint(Pointer))
+            {DetailMark=OwnStatusHitRects[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[View],Content);break;}
         }
     }
-    // The open workshop covers the band: neither its slots, its status squares nor its stat icons pop up.
-    if(Workshop&&Workshop->IsOpen()){DetailIndex=INDEX_NONE;DetailOver=nullptr;}
+    // The open workshop covers the band: neither its slots, its status marks nor its stat icons pop up.
+    if(Workshop&&Workshop->IsOpen()){DetailIndex=INDEX_NONE;DetailOver=nullptr;DetailMark.Reset();}
     // A hovered stat icon: its name, points and per-point text, above its "+".
-    else if(!DetailOver&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
+    else if(!DetailOver&&!DetailMark&&StatBar){DetailOver=StatBar->Hovered(DetailView);}
     // A card of the open 构筑 tray: its full rules (the card shows only the icon and the name).
     const bool bTrayOpen=ChoicesPanel&&(ChoicesPanel->IsTrayOpen()||ChoicesPanel->IsQuickShown());
-    if(!DetailOver&&bTrayOpen)
+    if(!DetailOver&&!DetailMark&&bTrayOpen)
     {
         FName SeenComponent;
         DetailOver=ChoicesPanel->Hovered(Pointer,DetailView,&SeenComponent);
@@ -1694,19 +1701,23 @@ void ULDHUD::RefreshReadModel()
         if(Workshop&&Workshop->IsOpen()){DetailOver=nullptr;}
     }
     if((PC->RootUI&&PC->RootUI->ActiveMainPanel()!=ELDUIMainPanel::None&&!(bTrayOpen&&PC->RootUI->ActiveMainPanel()==ELDUIMainPanel::Choices))
-        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;}
+        ||(PC->BuildBlueprints&&PC->BuildBlueprints->IsViewerOpen())||(Storage&&Storage->IsDragging())){DetailOver=nullptr;DetailMark.Reset();}
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {
-        HudSetShown(Popup,DetailOver!=nullptr,ESlateVisibility::HitTestInvisible);
-        if(DetailOver)
+        const bool bDetail=DetailOver!=nullptr||DetailMark.IsSet();
+        HudSetShown(Popup,bDetail,ESlateVisibility::HitTestInvisible);
+        if(bDetail)
         {
             HudSetText(ActionDetailName,DetailView.Name);HudSetText(ActionDetailSummary,DetailView.Summary);
             HudSetText(ActionDetailBody,DetailView.Body);HudSetShown(ActionDetailBody,!DetailView.Body.IsEmpty(),ESlateVisibility::HitTestInvisible);
-            // Centred 8 units above the slot or square, read from last frame's layout; neither depends on the popup, so
+            // Centred 8 units above the slot, icon or mark, read from last frame's layout; neither depends on the popup, so
             // this never feeds back. The popup is only pushed sideways to stay on screen.
-            const FGeometry& Area=GetCachedGeometry();const FGeometry& Over=DetailOver->GetCachedGeometry();
-            const FVector2D Top=Area.AbsoluteToLocal(Over.GetAbsolutePosition());
-            const FVector2D Size=Area.AbsoluteToLocal(Over.GetAbsolutePosition()+Over.GetAbsoluteSize())-Top;
+            const FGeometry& Area=GetCachedGeometry();
+            FVector2D OverTopLeft,OverBottomRight;
+            if(DetailOver){const FGeometry& Over=DetailOver->GetCachedGeometry();OverTopLeft=FVector2D(Over.GetAbsolutePosition());OverBottomRight=OverTopLeft+FVector2D(Over.GetAbsoluteSize());}
+            else{OverTopLeft=FVector2D(DetailMark->Left,DetailMark->Top);OverBottomRight=FVector2D(DetailMark->Right,DetailMark->Bottom);}
+            const FVector2D Top=Area.AbsoluteToLocal(OverTopLeft);
+            const FVector2D Size=Area.AbsoluteToLocal(OverBottomRight)-Top;
             const float Half=HudDetailWidth*.5f+8.f;const float Wide=float(Area.GetLocalSize().X);
             const float X=Wide>2*Half?FMath::Clamp(float(Top.X+Size.X*.5),Half,Wide-Half):float(Top.X+Size.X*.5);
             const FVector2D Place(FMath::RoundToFloat(X),FMath::RoundToFloat(float(Top.Y)-8.f));
@@ -1732,15 +1743,21 @@ void ULDHUD::RefreshReadModel()
         const FLinearColor HealthFill=!bContender?LDHUDStyle::CampHealth:Subject.ContenderId==O.ContenderId?LDHUDStyle::OwnHealth:LDHUDStyle::EnemyHealth;
         if(TargetHealthBar->GetFillColorAndOpacity()!=HealthFill){TargetHealthBar->SetFillColorAndOpacity(HealthFill);}
         TargetHealthBar->SetPercent(Card.Health.Fraction);HudSetText(TargetHealth,Card.Health.Text);
-        HudSetShown(TargetManaRow,Card.bMana,ESlateVisibility::SelfHitTestInvisible);
-        if(Card.bMana){TargetManaBar->SetPercent(Card.Mana.Fraction);HudSetText(TargetMana,Card.Mana.Text);}
+        HudSetShown(TargetManaRow,Card.bMana,ESlateVisibility::Visible);
+        if(Card.bMana&&!TargetMana->GetText().ToString().Equals(Card.Mana.Text,ESearchCase::CaseSensitive))
+        {TargetManaBar->SetPercent(Card.Mana.Fraction);HudSetText(TargetMana,Card.Mana.Text);TargetManaRow->SetToolTipText(FText::FromString(Card.Mana.Text));}
+        else if(Card.bMana){TargetManaBar->SetPercent(Card.Mana.Fraction);}
         HudSetText(TargetStatuses,Card.Statuses);
-        HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::HitTestInvisible);
+        HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::SelfHitTestInvisible);
         for(int32 Index=0;Card.bActives&&Index<TargetActiveTiles.Num();++Index)
         {
             const LDHUD::FObservedCard::FActiveChip& Chip=Card.Actives[Index];
-            HudSetText(TargetActiveNames[Index],Chip.Key+TEXT(" · ")+Chip.Name);
-            TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.55f:.9f));
+            const FString Tip=Chip.Key+TEXT(" · ")+Chip.Name;
+            UWidget* Tile=TargetActiveTiles[Index]->GetParent()?TargetActiveTiles[Index]->GetParent()->GetParent():nullptr;
+            if(Tile&&!Tile->GetToolTipText().ToString().Equals(Tip,ESearchCase::CaseSensitive)){Tile->SetToolTipText(FText::FromString(Tip));}
+            HudSetText(TargetActiveNames[Index],Chip.bEmpty?FString():Chip.Name.Left(1));
+            LDUIIcons::Apply(TargetActiveIcons[Index],Chip.IconId,6.f);
+            TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.45f:.9f));
         }
     }
 
@@ -2140,9 +2157,13 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
     // The own claim only counts within this match; a previous match's serial never names this drop.
     Input.OwnAirdropClaimSerial=Own.Match==Public.PublicMatch.Generation?Own.Growth.AirdropClaimedSerial:0;
     Input.OwnFieldRewards=Own.Match==Public.PublicMatch.Generation?&Own.Growth.Progression.FieldRewards:nullptr;
+    if(const ALDPlayerController* Owner=Cast<ALDPlayerController>(GetOwningPlayer())){Input.OwnReactionAssists=&Owner->ReactionAssists;}
+    Input.OwnLife=Own.Match==Public.PublicMatch.Generation?Own.Life:0;
+    Input.Content=Content;
     Input.bClock=bClock;Input.NowMs=NowMs;Input.LocalSeconds=GetWorld()->GetRealTimeSeconds();
     HudCampNames(Content,Input.LowCampName,Input.HighCampName,Input.EliteCampName,Input.BossName);
     EventFeed.Observe(Input);
+    if(!EventFeed.AssistPrompt().IsEmpty()){ShowToast(EventFeed.AssistPrompt());}
     const TArray<LDHUD::FEventLine>& Lines=EventFeed.Lines();
     // One row per line, so the lines about the player (said with 你) stand out; each fades out over its last half second.
     for(int32 Row=0;Row<EventFeedRows.Num();++Row)
@@ -2197,7 +2218,7 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     ResultWinnerBuild->SetVisibility(WinnerRow?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     if(WinnerRow)
     {
-        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),760.f,184.f,
+        ResultWinnerBuild->SetContent(LDResultBuild::Make(WidgetTree,WinnerRow->Build,DisplayDefinitions(),HudResultBoardWidth,184.f,
             AppliedScale>0?AppliedScale:1.f));
     }
     const int64 Seconds=FMath::Max<int64>(0,Result.DurationMs)/1000;
@@ -2218,10 +2239,20 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
     {
         static constexpr float Widths[]={190,90,90,60,90,100,60,70};
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
-        auto* Strip=WidgetTree->ConstructWidget<UBorder>();Strip->SetBrush(HudRound(3.f,FLinearColor::Transparent,0.f));
-        Strip->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);
-        auto* StripBox=WidgetTree->ConstructWidget<USizeBox>();StripBox->SetWidthOverride(6.f);StripBox->SetContent(Strip);
-        Line->AddChildToHorizontalBox(StripBox)->SetPadding(FMargin(0,0,12,0));
+        // Mock 5: the winner's star, then a seat-coloured portrait tile carrying the name's first glyph.
+        {
+            UTextBlock* Star=LDWidgets::Text(WidgetTree,bWinner?TEXT("★"):TEXT(""),LDHUDStyle::TypeHeading,NAME_None,LDUIFonts::ERole::Strong);
+            Star->SetAutoWrapText(false);Star->SetColorAndOpacity(LDHUDStyle::UIAction);Star->SetJustification(ETextJustify::Center);
+            auto* StarBox=WidgetTree->ConstructWidget<USizeBox>();StarBox->SetWidthOverride(36.f);StarBox->SetContent(Star);
+            Line->AddChildToHorizontalBox(StarBox)->SetVerticalAlignment(VAlign_Center);
+            auto* Portrait=WidgetTree->ConstructWidget<UBorder>();Portrait->SetBrush(HudRound(4.f,FLinearColor::Transparent,0.f));
+            Portrait->SetBrushColor(Seat?*Seat:FLinearColor::Transparent);Portrait->SetHorizontalAlignment(HAlign_Center);Portrait->SetVerticalAlignment(VAlign_Center);
+            if(Seat&&Values.Num()>0){UTextBlock* Glyph=LDWidgets::Text(WidgetTree,LDHUD::IconGlyph(Values[0]),Size+2,NAME_None,LDUIFonts::ERole::Strong);Glyph->SetAutoWrapText(false);Glyph->SetColorAndOpacity(LDHUDStyle::UIText);Portrait->SetContent(Glyph);}
+            auto* PortraitBox=WidgetTree->ConstructWidget<USizeBox>();PortraitBox->SetWidthOverride(44.f);PortraitBox->SetHeightOverride(Seat?44.f:8.f);
+            PortraitBox->SetContent(Portrait);
+            Line->AddChildToHorizontalBox(PortraitBox)->SetPadding(FMargin(0,0,14,0));
+            if(auto* PortraitSlot=Cast<UHorizontalBoxSlot>(PortraitBox->Slot)){PortraitSlot->SetVerticalAlignment(VAlign_Center);}
+        }
         const FLinearColor Ink=!Seat?LDHUDStyle::TextSecondary:bSelf?LDHUDStyle::UIText:LDHUDStyle::UIText.CopyWithNewOpacity(.86f);
         for(int32 Column=0;Column<Values.Num()&&Column<UE_ARRAY_COUNT(Widths);++Column)
         {
@@ -2290,31 +2321,6 @@ void ULDHUD::AnimateResult()
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
     const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);
-    // Remaining-time rings of the timed own statuses: a dim full track and a bright arc that shrinks clockwise back to
-    // twelve o'clock as the status runs out. Drawn whenever the band shows, also while world input is held.
-    if(Band&&Band->IsVisible())
-    {
-        for(int32 Index=0;Index<SelfIconCells.Num();++Index)
-        {
-            const UBorder* Cell=SelfIconCells[Index];
-            if(SelfIconRing[Index]<0.f||!Cell||!Cell->IsVisible()){continue;}
-            const FGeometry& CellGeometry=Cell->GetCachedGeometry();
-            const FVector2D TopLeft=G.AbsoluteToLocal(CellGeometry.LocalToAbsolute(FVector2D::ZeroVector));
-            const FVector2D BottomRight=G.AbsoluteToLocal(CellGeometry.LocalToAbsolute(CellGeometry.GetLocalSize()));
-            const FVector2D Centre=(TopLeft+BottomRight)*.5f;const float Radius=FMath::Min(BottomRight.X-TopLeft.X,BottomRight.Y-TopLeft.Y)*.5f-1.5f;
-            if(Radius<=2.f){continue;}
-            auto Arc=[&](float Fraction,const FLinearColor& Color,float Thickness)
-            {
-                const int32 Steps=FMath::Max(2,FMath::CeilToInt(48.f*Fraction));TArray<FVector2D> Points;Points.Reserve(Steps+1);
-                for(int32 Step=0;Step<=Steps;++Step)
-                {const float Angle=2.f*PI*Fraction*Step/Steps;Points.Add(Centre+FVector2D(FMath::Sin(Angle),-FMath::Cos(Angle))*Radius);}
-                FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);
-            };
-            const FLinearColor Edge=SelfIconTones[Index]==1?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
-            Arc(1.f,FLinearColor(1.f,1.f,1.f,.16f),3.f);
-            if(SelfIconRing[Index]>0.f){Arc(SelfIconRing[Index],Edge,3.f);}
-        }
-    }
     return Base+1;
 }
 

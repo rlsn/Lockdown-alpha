@@ -80,6 +80,8 @@ namespace LDWorkshop
         bool bEmpty=false;
     };
     LOCKDOWN_API FColumnHead ColumnHead(LDHUD::EStorageColumn Column,FName Active,const FString& HolderName,const FLDDemoContentDefinitions* Content);
+    // The Body and Dash column captions include their installed count and content-defined limit.
+    LOCKDOWN_API FString ColumnCapacityLabel(LDHUD::EStorageColumn Column,int32 Installed,const FLDDemoContentDefinitions* Content);
     // Every element the current build applies: the learned actives' and the installed components' (basic elements, B18's
     // bound element and burn, wet or electric effects).
     LOCKDOWN_API TArray<ELDDemoElement> BuildElements(const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);

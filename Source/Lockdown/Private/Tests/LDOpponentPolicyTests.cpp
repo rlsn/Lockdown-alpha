@@ -9,6 +9,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
+#include "Development/LDWorkshopRules.h"
 #include "Algo/Accumulate.h"
 #include "Algo/Reverse.h"
 #include "Misc/AutomationTest.h"
@@ -247,8 +248,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     Learner.Blueprints.Reset();
     bGood &= Test.TestFalse(TEXT("No blueprint: nothing to learn"), LDOpponentPolicy::SelectBlueprint(Learner, C, Blueprint, Slot, Error));
 
-    // Points: each to the fewest-points stat among physique, thick skin, strength (the basic attack scales with AD) and
-    // brains (only with a learned AP active); ties by the stats' design order (physique first); agility never.
+    // Points: first pursue the keystone matching the larger learned AD/AP damage coefficient, then balance relevant stats.
     const auto& Stats = C.Get().Stats;
     if (!Test.TestTrue(TEXT("The approved catalog has the five #198 stats"), Stats.Num() == 5)) { return false; }
     const FString Physique(TEXT("stat_physique")), Skin(TEXT("stat_thick_skin")), Strength(TEXT("stat_strength")),
@@ -257,22 +257,24 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     Spender.StatPoints = StatRows(C, {});
     Spender.UnspentPoints = 3;
     TArray<uint8> Counts;
-    bGood &= Test.TestTrue(TEXT("Without an AP active: physique, thick skin, strength"),
+    bGood &= Test.TestTrue(TEXT("Without an AP active, pursue the basic-attack strength keystone"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts.Num() == Stats.Num()
-        && SameCounts(ById(C, Counts), {{Physique, 1}, {Skin, 1}, {Strength, 1}}));
+        && SameCounts(ById(C, Counts), {{Strength, 3}}));
     Spender.UnspentPoints = 1;
-    bGood &= Test.TestTrue(TEXT("A tie goes to physique, first in the stats' design order, and the counts follow that order"),
-        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({1, 0, 0, 0, 0}));
+    bGood &= Test.TestTrue(TEXT("The preferred keystone receives the next point"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && Counts == TArray<uint8>({0, 0, 1, 0, 0}));
+    Spender.StatPoints = StatRows(C, {{Strength, 17}});
+    Spender.UnspentPoints = 2;
+    bGood &= Test.TestTrue(TEXT("Reach the keystone threshold before balancing the remaining point"),
+        LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error)
+        && SameCounts(ById(C, Counts), {{Physique, 1}, {Strength, 1}}));
     Spender.Actives = {Active(TEXT("active_snark_bolt"), 0)};
     Spender.StatPoints = StatRows(C, {{Physique, 4}, {Skin, 3}, {Strength, 1}, {Agility, 7}});
     Spender.UnspentPoints = 4;
-    // Brains (0) and strength (1) are the fewest; thick skin (3) and physique (4) stay out of reach of four points, which
-    // level brains and strength to within one of each other.
-    bGood &= Test.TestTrue(TEXT("An AP active adds brains; the fewest points go first and agility never"),
+    bGood &= Test.TestTrue(TEXT("An AP-heavy active pursues the brains keystone and agility is not relevant"),
         LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error) && ById(C, Counts).FindRef(Agility) == 0
         && ById(C, Counts).FindRef(Physique) == 0 && ById(C, Counts).FindRef(Skin) == 0
-        && ById(C, Counts).FindRef(Brains) + ById(C, Counts).FindRef(Strength) == 4
-        && FMath::Abs((0 + ById(C, Counts).FindRef(Brains)) - (1 + ById(C, Counts).FindRef(Strength))) <= 1);
+        && ById(C, Counts).FindRef(Strength) == 0 && ById(C, Counts).FindRef(Brains) == 4);
     Spender.UnspentPoints = 0;
     bGood &= Test.TestFalse(TEXT("No unspent points: nothing to allocate"), LDOpponentPolicy::AllocatePoints(Spender, C, Counts, Error));
     Spender.UnspentPoints = 1;
@@ -2069,8 +2071,8 @@ bool RunAirdrop(FAutomationTestBase& Test)
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
     Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
     FLDOpponentPolicyState Hurt;
-    bGood &= Test.TestTrue(TEXT("A recovering body does not go for the drop"),
-        LDOpponentPolicy::Decide(Frame, C, Hurt).Reason != ELDOpponentReason::ContestAirdrop);
+    bGood &= Test.TestTrue(TEXT("An injured body uses the airdrop as a recovery opportunity"),
+        LDOpponentPolicy::Decide(Frame, C, Hurt).Reason == ELDOpponentReason::ContestAirdrop);
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
     Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
@@ -2131,118 +2133,6 @@ bool RunAirdrop(FAutomationTestBase& Test)
         ExitsThenDefends(EMode::Airdrop));
     bGood &= Test.TestFalse(TEXT("Control: the same exits from a contest of the circle do stop urgent defences"),
         ExitsThenDefends(EMode::Contest));
-    return bGood;
-}
-
-bool RunCharms(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
-    const auto& C = *Catalog;
-    using EMode = ELDOpponentMode;
-    using EBody = ELDOpponentBodyKind;
-    FLDOpponentDecisionFrame Base;
-    if (!BaseFrame(Test, C, Base)) { return false; }
-    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
-    Base.POIs.Add(POI(TEXT("airdrop_w"), ELDOpponentPOIKind::Airdrop, -2300, 400));
-    Base.Self.FootCm = FVector(500, -500, 0);
-    const auto IsCharm = [](const FLDOpponentDecision& D) { return D.Mode == ELDOpponentMode::Charm && D.Reason == ELDOpponentReason::TakeCharm; };
-
-    auto Frame = Base;
-    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::Mana}};
-    FLDOpponentPolicyState Full;
-    bool bGood = Test.TestFalse(TEXT("#198: a full body ignores a mana charm it cannot use"),
-        IsCharm(LDOpponentPolicy::Decide(Frame, C, Full)));
-    Frame.Self.MpP2 = Frame.Self.MaxMpP2 / 2;
-    FLDOpponentPolicyState Thirsty;
-    const auto Mana = LDOpponentPolicy::Decide(Frame, C, Thirsty);
-    bGood &= Expect(Test, TEXT("#198: a body short of mana walks onto the mana charm"), Mana, EMode::Charm, EBody::MoveGround,
-        TEXT("airdrop_s")) && Test.TestTrue(TEXT("Taking a charm is its own reason"), IsCharm(Mana));
-
-    Frame = Base;
-    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}, {TEXT("airdrop_w"), ELDCharmKind::MoveSpeed}};
-    Frame.Self.FootCm = FVector(-2000, 0, 0);
-    FLDOpponentPolicyState Nearest;
-    bGood &= Expect(Test, TEXT("#198: of two usable charms the nearer point is taken"), LDOpponentPolicy::Decide(Frame, C, Nearest),
-        EMode::Charm, EBody::MoveGround, TEXT("airdrop_w"));
-
-    Frame = Base;
-    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
-    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::Heal}};
-    FLDOpponentPolicyState Hurt;
-    bGood &= Expect(Test, TEXT("#198: a recovering body takes a lying heal charm"), LDOpponentPolicy::Decide(Frame, C, Hurt),
-        EMode::Charm, EBody::MoveGround, TEXT("airdrop_s"));
-    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}};
-    FLDOpponentPolicyState HurtNoHeal;
-    bGood &= Test.TestFalse(TEXT("A recovering body does not detour for a charm that does not heal"),
-        IsCharm(LDOpponentPolicy::Decide(Frame, C, HurtNoHeal)));
-
-    Frame = Base;
-    Frame.Public.AirdropPOI = TEXT("airdrop_w");
-    Frame.Public.Charms = {{TEXT("airdrop_s"), ELDCharmKind::MoveSpeed}};
-    FLDOpponentPolicyState Drop;
-    bGood &= Test.TestTrue(TEXT("The airdrop outranks a charm"),
-        LDOpponentPolicy::Decide(Frame, C, Drop).Reason == ELDOpponentReason::ContestAirdrop);
-    Frame = Base;
-    Frame.Public.Charms = {{TEXT("unknown_point"), ELDCharmKind::MoveSpeed}};
-    FLDOpponentPolicyState Stray;
-    bGood &= Test.TestFalse(TEXT("A charm that names no public airdrop point is ignored"),
-        IsCharm(LDOpponentPolicy::Decide(Frame, C, Stray)));
-    return bGood;
-}
-
-bool RunRecoveryCharmEscape(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
-    FLDOpponentDecisionFrame Frame;
-    if (!BaseFrame(Test, *Catalog, Frame)) { return false; }
-    Frame.POIs.Add(POI(TEXT("retreat"), ELDOpponentPOIKind::Spawn, -2179, -4462));
-    Frame.POIs.Add(POI(TEXT("dorm_sw"), ELDOpponentPOIKind::Dorm, -4250, -4250));
-    Frame.POIs.Add(POI(TEXT("heal"), ELDOpponentPOIKind::Airdrop, -2384, 469));
-    Frame.Public.Charms = {{TEXT("heal"), ELDCharmKind::Heal}};
-    Frame.Self.FootCm = FVector(-2179, -4462, 0);
-    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
-    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
-    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
-    Frame.Order.POI = TEXT("retreat");
-    FLDOpponentPolicyState State;
-    State.Generation = Frame.Generation;
-    State.Life = Frame.Self.Life;
-    State.bRecovering = true;
-    State.RetreatPOI = TEXT("retreat");
-
-    bool bGood = Expect(Test, TEXT("After reaching a retreat, a recovering body goes to the dorm rather than turning back for a charm"),
-        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage,
-        ELDOpponentBodyKind::MoveGround, TEXT("dorm_sw"));
-    Frame.Order.Status = ELDOpponentOrderStatus::Active;
-    Frame.Order.POI = TEXT("dorm_sw");
-    bGood &= Expect(Test, TEXT("The dorm walk remains in progress while the charm is still visible"),
-        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage,
-        ELDOpponentBodyKind::Keep, TEXT("dorm_sw"));
-    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, -1879, -4462)};
-    bGood &= Test.TestTrue(TEXT("A renewed visible threat still takes priority over recovery"),
-        LDOpponentPolicy::Decide(Frame, *Catalog, State).Reason == ELDOpponentReason::Recover);
-
-    Frame.Units.Reset();
-    Frame.Order = {};
-    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 7 / 10;
-    bGood &= Expect(Test, TEXT("Once recovered, the usable charm is eligible again"),
-        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Charm,
-        ELDOpponentBodyKind::MoveGround, TEXT("heal"));
-
-    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
-    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
-    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
-    Frame.Order.POI = TEXT("retreat");
-    Frame.POIs.RemoveAll([](const FLDOpponentPOI& P) { return P.Kind == ELDOpponentPOIKind::Dorm; });
-    State = {};
-    State.Generation = Frame.Generation;
-    State.Life = Frame.Self.Life;
-    State.bRecovering = true;
-    State.RetreatPOI = TEXT("retreat");
-    bGood &= Expect(Test, TEXT("Without a reachable dorm, the body recovers rather than immediately retracing its escape"),
-        LDOpponentPolicy::Decide(Frame, *Catalog, State), ELDOpponentMode::Disengage, ELDOpponentBodyKind::None);
     return bGood;
 }
 
@@ -2804,22 +2694,6 @@ bool FLDDemoOpponentRecoveryEscapeKeptTest::RunTest(const FString& Parameters)
     return LDOpponentPolicyTests::RunRecoveryEscapeKept(*this);
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCharmsTest, "Lockdown.Rules.DemoOpponentPolicy.Charms",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoOpponentCharmsTest::RunTest(const FString& Parameters)
-{
-    return LDOpponentPolicyTests::RunCharms(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRecoveryCharmEscapeTest, "Lockdown.Rules.DemoOpponentPolicy.RecoveryCharmEscape",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoOpponentRecoveryCharmEscapeTest::RunTest(const FString& Parameters)
-{
-    return LDOpponentPolicyTests::RunRecoveryCharmEscape(*this);
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -3081,7 +2955,8 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     const FLDDemoComponentDefinition* FireSkin = Component(Test, C, TEXT("component_fire_skin"));
     const FLDDemoComponentDefinition* BlastChase = Component(Test, C, TEXT("component_blast_chase"));
     const FLDDemoComponentDefinition* DirtyFist = Component(Test, C, TEXT("component_dirty_fist"));
-    if (!LongKick || !Ram || !OweIt || !FireSkin || !BlastChase || !DirtyFist) { return false; }
+    const FLDDemoComponentDefinition* CrowdHit = Component(Test, C, TEXT("component_crowd_hit"));
+    if (!LongKick || !Ram || !OweIt || !FireSkin || !BlastChase || !DirtyFist || !CrowdHit) { return false; }
 
     FLDOpponentSelf Self;
     FLDOpponentComponentTarget Target;
@@ -3094,12 +2969,24 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
     Self.Actives.Add({TEXT("active_elbow"), 0});
     bGood &= Test.TestTrue(TEXT("A learned listed active comes before a host"), LDOpponentPolicy::WorkshopTarget(Self, C, *LongKick, Target)
         && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("")));
+    // M01 is not listed on S10 but spreads its single-target damage; M03 has no push to scale on an unlisted unit active.
+    FLDOpponentSelf SameDeliverySelf;
+    SameDeliverySelf.Actives.Add({TEXT("active_zap"), 0});
+    bGood &= Test.TestTrue(TEXT("AI targets an unlisted active of the same delivery type the mod changes"),
+        !LDWorkshop::Lists(CrowdHit->TargetActives, FName(TEXT("active_zap")))
+        && LDOpponentPolicy::WorkshopTarget(SameDeliverySelf, C, *CrowdHit, Target)
+        && Is(ELDComponentTargetKind::Active, TEXT("active_zap"), TEXT("")));
+    FLDOpponentSelf IneffectiveSelf;
+    IneffectiveSelf.Actives.Add({TEXT("active_account_banned"), 0});
+    bGood &= Test.TestFalse(TEXT("AI skips a same-delivery active the mod cannot change"),
+        LDOpponentPolicy::WorkshopTarget(IneffectiveSelf, C, *LongKick, Target));
     bGood &= Test.TestTrue(TEXT("M08 without its actives goes onto the innate D"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target)
         && Is(ELDComponentTargetKind::Dash, TEXT(""), TEXT("")));
     Self.Components.Add(Hosted(TEXT("component_quick_hop"), ELDComponentTargetKind::Dash));
     bGood &= Test.TestFalse(TEXT("M08 never joins M09 on the same D (TargetConflict)"), LDOpponentPolicy::WorkshopTarget(Self, C, *Ram, Target));
     bGood &= Test.TestTrue(TEXT("M12 installs on the holder itself"), LDOpponentPolicy::WorkshopTarget(Self, C, *OweIt, Target)
         && Is(ELDComponentTargetKind::None, TEXT(""), TEXT("")));
+    Self.Actives.Reset();
     Self.Components.Add(Hosted(TEXT("component_dirty_trick"), ELDComponentTargetKind::None, TEXT(""), ELDDemoElement::Water));
     bGood &= Test.TestFalse(TEXT("C01 skips a B18 that does not burn"), LDOpponentPolicy::WorkshopTarget(Self, C, *FireSkin, Target));
     Self.Components.Last().Element = ELDDemoElement::Fire;
@@ -3107,9 +2994,13 @@ bool RunWorkshopTargets(FAutomationTestBase& Test)
         && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
     bGood &= Test.TestTrue(TEXT("C09 goes onto the installed element source"), LDOpponentPolicy::WorkshopTarget(Self, C, *BlastChase, Target)
         && Is(ELDComponentTargetKind::Component, TEXT("component_dirty_trick"), TEXT("")));
+    Self.Actives.Add({TEXT("active_elbow"), 0});
     Self.Components.Add(Hosted(TEXT("component_fist_water")));
-    bGood &= Test.TestTrue(TEXT("C12 repeats an installed water base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
-        && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_fist_water")));
+    bGood &= Test.TestTrue(TEXT("C12 recognizes its exact active target"),
+        LDWorkshop::TargetsActive(C.Get(), *DirtyFist, FName(TEXT("active_elbow"))));
+    const bool bC12Water = LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target);
+    bGood &= Test.TestTrue(TEXT("C12 repeats the first eligible installed base"),
+        bC12Water && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_third_punch")));
     Self.Components.Add(Hosted(TEXT("component_tab_ledger")));
     bGood &= Test.TestTrue(TEXT("C12 repeats the first open installed base"), LDOpponentPolicy::WorkshopTarget(Self, C, *DirtyFist, Target)
         && Is(ELDComponentTargetKind::Active, TEXT("active_elbow"), TEXT("component_tab_ledger")));
@@ -3684,10 +3575,11 @@ bool RunRestRebuild(FAutomationTestBase& Test)
     Spec.Self.StatPoints = LDOpponentPolicyTests::StatRows(C, {{Physique, 1}, {Skin, 1}, {Strength, 1}, {Brains, 2}});
     FString Ignored;
     bGood &= Test.TestFalse(TEXT("Brains serve a learned AP active: no respec"), LDOpponentPolicy::WantsRespec(Spec.Self, C, Ignored));
-    bGood &= RunRestBuilds(Test, C, Spec, Steps, After) && Test.TestTrue(TEXT("Replacement, one respec, then the points go to the AD stats only"),
+    // Below the keystone threshold every refunded point goes to the AD keystone stat.
+    bGood &= RunRestBuilds(Test, C, Spec, Steps, After) && Test.TestTrue(TEXT("Replacement, one respec, then the points go to the AD keystone stat"),
         KindsOf(Steps) == TArray<EKind>({EKind::ReplaceActive, EKind::Respec, EKind::AllocatePoints})
         && Steps[0].Blueprint == TEXT("active_crotch_grab") && Steps[0].Slot == 2
-        && LDOpponentPolicyTests::SameCounts(LDOpponentPolicyTests::ById(C, Steps[2].PointCounts), {{Physique, 2}, {Skin, 2}, {Strength, 1}})
+        && LDOpponentPolicyTests::SameCounts(LDOpponentPolicyTests::ById(C, Steps[2].PointCounts), {{Strength, 5}})
         && !LDOpponentPolicy::WantsRespec(After, C, Ignored));
     auto FieldSpec = OnField(Rest);
     FieldSpec.Self.Actives = {{TEXT("active_elbow"), 0}};

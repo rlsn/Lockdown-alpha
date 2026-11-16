@@ -168,7 +168,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     const FName DirtyTrick(TEXT("component_dirty_trick")), TabLedger(TEXT("component_tab_ledger")), BigTab(TEXT("component_big_tab"));
     const FName SpikyHide(TEXT("component_spiky_hide")), DirtyFist(TEXT("component_dirty_fist"));
 
-    // XP 600 is level 6: 3 opening + 5 * 3 = 18 points earned.
+    // XP 400 is level 6: 3 opening + 5 * 3 = 18 points earned.
     FLDGrowthBuild Build = LDProgression::StartBuild(Content);
     Build.Level = 6;
     FieldTestOwn(Build, FireSkin);
@@ -185,15 +185,15 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
 
     FLDGrowthBuild Out;
     int64 Paid = 0;
-    bGood &= FieldTestReason(Test, TEXT("FillGap outside the rest window"), LDProgression::ApplyFillGap(Content, Build, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap outside the rest window"), LDProgression::ApplyFillGap(Content, Build, 400, 0,
         FireSkin, FistFire, Field, Out, Paid), ELDGrowthReason::NotRestWindow);
-    bGood &= FieldTestReason(Test, TEXT("FillGap with a base that is no filler"), LDProgression::ApplyFillGap(Content, Build, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap with a base that is no filler"), LDProgression::ApplyFillGap(Content, Build, 400, 0,
         FireSkin, TabLedger, Rest, Out, Paid), ELDGrowthReason::NoGapFiller);
     FLDGrowthBuild Poor = Build;
     Poor.PermanentSpentPoints = 15;
-    bGood &= FieldTestReason(Test, TEXT("FillGap without the points"), LDProgression::ApplyFillGap(Content, Poor, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap without the points"), LDProgression::ApplyFillGap(Content, Poor, 400, 0,
         FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::NotEnoughPoints);
-    bGood &= FieldTestReason(Test, TEXT("FillGap of C01 with B01"), LDProgression::ApplyFillGap(Content, Build, 600, 0,
+    bGood &= FieldTestReason(Test, TEXT("FillGap of C01 with B01"), LDProgression::ApplyFillGap(Content, Build, 400, 0,
         FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::None);
     const FLDComponentInstance* Filled = Out.FindComponent(FistFire);
     bGood &= Test.TestTrue(TEXT("Payment, filler and the filled mark commit together"), Paid == 4 && Out.PermanentSpentPoints == 4
@@ -201,7 +201,7 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     FLDGrowthBuild Again = Out;
     Again.Components.RemoveAll([&](const FLDComponentInstance& Row) { return Row.Id == FistFire; });
     bGood &= FieldTestReason(Test, TEXT("A filled target never fills again, even without its entry"), LDProgression::ApplyFillGap(
-        Content, Again, 600, 0, FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::GapAlreadyFilled);
+        Content, Again, 400, 0, FireSkin, FistFire, Rest, Out, Paid), ELDGrowthReason::GapAlreadyFilled);
 
     // Dismantle: two distinct owned commons for one unowned common; installs on a surrendered host come off.
     FLDGrowthBuild Shop = LDProgression::StartBuild(Content);
@@ -213,6 +213,8 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     Mod->bInstalled = Mod->bEverInstalled = true;
     Mod->Target.Kind = ELDComponentTargetKind::Component;
     Mod->Target.Definition = TabLedger;
+    FLDComponentInstance* RemainingHost = Shop.FindComponent(SpikyHide);
+    RemainingHost->bInstalled = RemainingHost->bEverInstalled = true;
     bGood &= FieldTestReason(Test, TEXT("The fixture build is valid"), LDProgression::ValidateBuild(Content, Shop), ELDGrowthReason::None);
     LDProgression::FDismantleOutcome Outcome;
     bGood &= FieldTestReason(Test, TEXT("Dismantle outside the rest window"), LDProgression::ApplyDismantle(Content, Shop,
@@ -224,20 +226,31 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     bGood &= FieldTestReason(Test, TEXT("Three components are not the approved two"), LDProgression::ApplyDismantle(Content, Shop,
         {TabLedger, SpikyHide, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::DismantleInvalid);
     bGood &= FieldTestReason(Test, TEXT("Dismantle two commons"), LDProgression::ApplyDismantle(Content, Shop,
-        {TabLedger, SpikyHide}, 3, Rest, Out, Outcome), ELDGrowthReason::None);
+        {TabLedger, FistFire}, 3, Rest, Out, Outcome), ELDGrowthReason::None);
     const FLDDemoComponentDefinition* Received = Content.Components.FindByPredicate(
         [&](const FLDDemoComponentDefinition& Row) { return FName(*Row.Id) == Outcome.Received; });
-    bGood &= Test.TestTrue(TEXT("One unowned common component received, outside the surrendered ones"), Received
+    bGood &= Test.TestTrue(TEXT("One unowned common component that can connect to the remaining installed base is received"), Received
         && Received->Pool == ELDDemoComponentPool::Common && !Shop.FindComponent(Outcome.Received)
+        && (Received->TargetComponents.Contains(SpikyHide.ToString()) || Received->ExtraBases.Contains(SpikyHide.ToString()))
         && Out.FindComponent(Outcome.Received)->Source == ELDComponentSource::Dismantle);
-    bGood &= Test.TestTrue(TEXT("The surrendered ones are gone and the mod on the host returned to the inventory"),
-        !Out.FindComponent(TabLedger) && !Out.FindComponent(SpikyHide) && Out.FindComponent(FistFire)
+    bGood &= Test.TestTrue(TEXT("The surrendered ones are gone and the mod on the surrendered host returned to inventory"),
+        !Out.FindComponent(TabLedger) && !Out.FindComponent(FistFire) && Out.FindComponent(SpikyHide)->bInstalled
         && Out.FindComponent(BigTab) && !Out.FindComponent(BigTab)->bInstalled && Outcome.Uninstalled == TArray<FName>{BigTab});
     bGood &= FieldTestReason(Test, TEXT("The result is a valid build"), LDProgression::ValidateBuild(Content, Out), ELDGrowthReason::None);
     LDProgression::FDismantleOutcome Same;
     FLDGrowthBuild SameOut;
-    LDProgression::ApplyDismantle(Content, Shop, {TabLedger, SpikyHide}, 3, Rest, SameOut, Same);
+    LDProgression::ApplyDismantle(Content, Shop, {TabLedger, FistFire}, 3, Rest, SameOut, Same);
     bGood &= Test.TestTrue(TEXT("The random result is fixed by its seed"), Same.Received == Outcome.Received);
+
+    FLDGrowthBuild NoInstalledHosts = LDProgression::StartBuild(Content);
+    NoInstalledHosts.Level = 6;
+    FieldTestOwn(NoInstalledHosts, TabLedger);
+    FieldTestOwn(NoInstalledHosts, SpikyHide);
+    bGood &= FieldTestReason(Test, TEXT("Dismantle refuses when there is no installed host for a replacement"),
+        LDProgression::ApplyDismantle(Content, NoInstalledHosts, {TabLedger, SpikyHide}, 3, Rest, Out, Outcome),
+        ELDGrowthReason::DismantlePoolEmpty);
+    bGood &= Test.TestTrue(TEXT("A refused targeted dismantle leaves both inputs held"),
+        Out.FindComponent(TabLedger) && Out.FindComponent(SpikyHide) && Out.Components.Num() == NoInstalledHosts.Components.Num());
 
     FLDGrowthBuild Full = LDProgression::StartBuild(Content);
     Full.Level = 6;
@@ -332,7 +345,7 @@ bool FieldTestRunChoice(FAutomationTestBase& Test)
         {ELDGrowthReason::NotAGap, 162}, {ELDGrowthReason::NoGapFiller, 163}, {ELDGrowthReason::GapAlreadyFilled, 164},
         {ELDGrowthReason::DismantleInvalid, 165}, {ELDGrowthReason::DismantlePoolEmpty, 166},
         {ELDGrowthReason::FieldRewardDuplicate, 167}, {ELDGrowthReason::FinalLocked, 170}, {ELDGrowthReason::NoFinalMod, 171},
-        {ELDGrowthReason::FinalModUnavailable, 172}};
+        {ELDGrowthReason::FinalModUnavailable, 172}, {ELDGrowthReason::ComponentColumnFull, 173}};
     for (const TPair<ELDGrowthReason, uint16>& Row : Numbers)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s travels as %u"), LDGrowthWire::ReasonName(Row.Key), uint32(Row.Value)),

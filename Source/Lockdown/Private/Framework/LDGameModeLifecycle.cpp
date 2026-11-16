@@ -112,12 +112,6 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
-    // #198: the field charms land on the airdrop points.
-    if (!LDCharms::Resolve(Airdrop, *DemoContent, Charms, Error))
-    {
-        RetireMatchDomains();
-        return false;
-    }
     // #198 outer §5: the camp markers of the timed field segments, drawn from a seed derived from the airdrop's.
     if (!DormRegistry->GetGeometry()
         || !LDFieldMarkers::Resolve(*DemoContent, *DormRegistry->GetGeometry(), 0, Airdrop.Schedule.Seed, FieldMarkers, Error))
@@ -160,7 +154,6 @@ void ALDGameMode::RetireMatchDomains()
 #endif
     DormZones={};
     Airdrop={};
-    Charms={};
     FieldMarkers={};
     OwedFieldRewards.Reset();
     LeaderNotice={};

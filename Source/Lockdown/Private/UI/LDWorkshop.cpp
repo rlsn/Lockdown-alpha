@@ -11,6 +11,7 @@
 #include "UI/LDUIIcons.h"
 #include "UI/LDUIShapes.h"
 #include "UI/LDWidgets.h"
+#include "UI/LDRecapChain.h"
 #include "UI/LDWorkshopModel.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Blueprint/WidgetTree.h"
@@ -41,6 +42,7 @@ namespace
 // Sizes in Slate units at the 1080p reference.
 constexpr float WorkshopMargin=40.f;
 constexpr float WorkshopTop=116.f;
+constexpr float WorkshopTitleWidth=118.f;
 constexpr float WorkshopGap=20.f;
 constexpr float WorkshopDockGap=16.f;
 constexpr float WorkshopCharacterWidth=352.f;
@@ -54,7 +56,7 @@ constexpr float WorkshopSocketTop=206.f;
 // A pill's room before its number (the dot and its gap) and after it.
 constexpr float WorkshopPillLead=21.f;
 constexpr float WorkshopPillTail=8.f;
-constexpr float WorkshopDockHeight=260.f;
+constexpr float WorkshopDockHeight=204.f;
 constexpr float WorkshopFieldShare=.46f;
 constexpr float WorkshopFieldDockWidth=340.f;
 constexpr float WorkshopArtisanBand=150.f;
@@ -138,6 +140,7 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             PhaseStep=Label(TEXT(""),20,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Names->AddChildToVerticalBox(PhaseStep);
             Row->AddChildToHorizontalBox(Names)->SetPadding(FMargin(14,0,0,0));
             PhasePanel=Surface(Row,FMargin(14,8));Add(PhasePanel,2);
+            PageTitle=Label(LDTerms::Choice,34,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Add(PageTitle,2,ESlateVisibility::HitTestInvisible);
             CloseButton=LDWidgets::Button(WidgetTree,LDTerms::WorkshopClose,[this](){if(RequestClose){RequestClose();}},true,TEXT("WorkshopClose"));
             if(UTextBlock* Caption=Cast<UTextBlock>(CloseButton->GetContent()))
             {
@@ -356,6 +359,9 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             Centre->AddChildToVerticalBox(DockSummary)->SetPadding(FMargin(0,2,0,0));
             DockBody=LDWidgets::RichText(WidgetTree,17,TEXT("WorkshopDockBody"));DockBody->SetAutoWrapText(false);
             Centre->AddChildToVerticalBox(DockBody)->SetPadding(FMargin(0,8,0,0));
+            DockChains=WidgetTree->ConstructWidget<UVerticalBox>();DockChains->SetVisibility(ESlateVisibility::Collapsed);
+            DockChainsShown.Reset();DockChainsScale=0.f;
+            Centre->AddChildToVerticalBox(DockChains)->SetPadding(FMargin(0,8,0,0));
             DockChips=Label(TEXT(""),LDHUDStyle::TypeSmall,LDHUDStyle::ComponentLink,LDUIFonts::ERole::Strong);DockChips->SetAutoWrapText(true);
             Centre->AddChildToVerticalBox(DockChips)->SetPadding(FMargin(0,10,0,0));
             DockCentre=LDWidgets::Fit(WidgetTree,Centre);Add(DockCentre,3);
@@ -423,28 +429,31 @@ void ULDWorkshop::Layout(FVector2D Size)
     if(Mode==EMode::Full)
     {
         const float Bottom=H-WorkshopMargin;
+        const float DockHeight=FMath::Min(WorkshopDockHeight,FMath::Max(0.f,(Bottom-WorkshopTop)*.25f));
+        const float ContentBottom=Bottom-DockHeight-WorkshopDockGap;
         Next.Region=WorkshopBox(0,0,W,H);
-        Next.Phase=WorkshopBox(WorkshopMargin,20,WorkshopMargin+464,94);
-        Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,Bottom);
+        Next.Title=WorkshopBox(WorkshopMargin,30,WorkshopMargin+WorkshopTitleWidth,84);
+        Next.Phase=WorkshopBox(WorkshopMargin+WorkshopTitleWidth,20,WorkshopMargin+WorkshopTitleWidth+464,94);
+        Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,ContentBottom);
         const float ServiceHeight=Latest.bServices?58.f:0.f;
-        const float FullTrayLimit=FMath::Max(0.f,Bottom-WorkshopTop-52.f-ServiceHeight);
+        const float FullTrayLimit=FMath::Max(0.f,ContentBottom-WorkshopTop-52.f-ServiceHeight);
         const float DesiredTray=FMath::Clamp(float(Latest.TrayDesired.Y),0.f,FullTrayLimit);
         const float DesiredPending=(DesiredTray>0.f?DesiredTray+52.f:72.f)+ServiceHeight;
         const float RightX=W-WorkshopMargin-WorkshopRightWidth;
         const float Band=Latest.bLibraryServices?WorkshopArtisanBand:0.f;
-        const float BodyHeight=Bottom-DesiredPending-WorkshopTop-Band-70.f-FilterHeight-14.f;
+        const float BodyHeight=ContentBottom-DesiredPending-WorkshopTop-Band-70.f-FilterHeight-14.f;
         const float SideX=RightX-WorkshopGap-WorkshopPendingWidth;
         const bool bSide=DesiredTray>0.f&&!CanStack(BodyHeight)&&SideX-WorkshopGap-float(Next.Character.Max.X)-WorkshopGap>=600.f;
         TrayLimit=bSide?FullTrayLimit:LDWorkshop::StackedTrayLimit(AllCounts,WorkshopRightWidth-44.f,
-            Bottom-WorkshopTop-Band-70.f-FilterHeight-14.f-52.f-ServiceHeight,WorkshopMinIconPixels/Scale,TextScale);
+            ContentBottom-WorkshopTop-Band-70.f-FilterHeight-14.f-52.f-ServiceHeight,WorkshopMinIconPixels/Scale,TextScale);
         const float Tray=FMath::Min(DesiredTray,TrayLimit);
         const float PendingHeight=(Tray>0.f?Tray+52.f:72.f)+ServiceHeight;
         // Keep a page of components visible when the pending cards need more than the stacked layout can hold.
-        Next.Pending=bSide?WorkshopBox(SideX,Bottom-PendingHeight,RightX-WorkshopGap,Bottom)
-            :WorkshopBox(RightX,Bottom-PendingHeight,W-WorkshopMargin,Bottom);
-        Next.Library=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,bSide?Bottom:Next.Pending.Min.Y);
-        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,Bottom-WorkshopDockHeight-WorkshopDockGap);
-        Next.Dock=WorkshopBox(Next.Board.Min.X,Next.Board.Max.Y+WorkshopDockGap,Next.Board.Max.X,Bottom);
+        Next.Pending=bSide?WorkshopBox(SideX,ContentBottom-PendingHeight,RightX-WorkshopGap,ContentBottom)
+            :WorkshopBox(RightX,ContentBottom-PendingHeight,W-WorkshopMargin,ContentBottom);
+        Next.Library=WorkshopBox(RightX,WorkshopTop,W-WorkshopMargin,bSide?ContentBottom:Next.Pending.Min.Y);
+        Next.Board=WorkshopBox(Next.Character.Max.X+WorkshopGap,WorkshopTop,(bSide?SideX:RightX)-WorkshopGap,ContentBottom);
+        Next.Dock=WorkshopBox(WorkshopMargin,ContentBottom+WorkshopDockGap,W-WorkshopMargin,Bottom);
         Next.HeadIcon=100.f;
         ActionsAt=FVector2D(W-WorkshopMargin-74.f-20.f,34.f);
     }
@@ -478,8 +487,10 @@ void ULDWorkshop::Layout(FVector2D Size)
         // A build moment takes the centre: the board, the library, the pending area and the character column step aside; the
         // offer keeps a centred dock, the final mod page puts its own description there.
         const float Bottom=H-WorkshopMargin;
-        Next.Dock=WorkshopBox(W*.5f-548.f,Bottom-300.f,W*.5f+548.f,Bottom);
-        Next.Stage=WorkshopBox(W*.5f-820.f,96.f,W*.5f+820.f,float(Next.Dock.Min.Y)-16.f);
+        Next.Dock=WorkshopBox(FMath::Max(WorkshopMargin,W*.5f-548.f),Bottom-300.f,
+            FMath::Min(W-WorkshopMargin,W*.5f+548.f),Bottom);
+        Next.Stage=WorkshopBox(FMath::Max(WorkshopMargin,W*.5f-820.f),96.f,
+            FMath::Min(W-WorkshopMargin,W*.5f+820.f),float(Next.Dock.Min.Y)-16.f);
         Next.Character=Next.Board=Next.Library=Next.Pending=FBox2D(ForceInit);
     }
     // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
@@ -516,6 +527,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     Place(Blur,Rects.Region);
     Place(Backdrop,WorkshopBox(0.f,0.f,W,H));
     Place(PhasePanel,bFull?Rects.Phase:FBox2D(ForceInit));
+    Place(PageTitle,bFull?Rects.Title:FBox2D(ForceInit));
     Place(CloseButton,WorkshopBox(W-WorkshopMargin-74.f,bFull?34.f:float(Rects.Region.Min.Y)-60.f,W-WorkshopMargin,bFull?86.f:float(Rects.Region.Min.Y)-8.f));
     Place(CharacterPanel,bFull?Rects.Character:FBox2D(ForceInit));
     Place(BoardPanel,Rects.Board);
@@ -703,6 +715,10 @@ void ULDWorkshop::Present(const FInput& Input)
 {
     const EMode Previous=Mode;
     Mode=Input.Mode;
+    if(Latest.bDead&&!Input.bDead&&DockKey.StartsWith(TEXT("D|")))
+    {
+        ShowTextDock(FString(),FString(),FString(),FString(),FString(),FString());
+    }
     if(Previous==EMode::Full&&Mode!=EMode::Full)
     {
         for(FStatRow& Row:StatRows){Row.PendingFlashRevision=0;Row.AddedAt=-100.;Row.FlashCell=INDEX_NONE;}
@@ -985,7 +1001,17 @@ void ULDWorkshop::RefreshHeads()
         else if(Column==LDHUD::EStorageColumn::Dash){Key=Latest.DashKey.IsEmpty()?FString(TEXT("D")):Latest.DashKey;}
         else{Key=Latest.Keys.Of(uint8(Index-int32(LDHUD::EStorageColumn::SlotQ)));}
         WorkshopText(Head.Key,Key);
-        WorkshopText(Head.Name,Shown.Name);
+        FString Name=Shown.Name;
+        if((Column==LDHUD::EStorageColumn::Body||Column==LDHUD::EStorageColumn::Dash)&&Storage.IsValid())
+        {
+            const LDHUD::FStorageView& Model=Storage->Model();
+            if(Model.Columns.IsValidIndex(Index))
+            {
+                const FString CapacityName=LDWorkshop::ColumnCapacityLabel(Column,Model.Columns[Index].Entries.Num(),Latest.Content);
+                if(!CapacityName.IsEmpty()){Name=CapacityName;}
+            }
+        }
+        WorkshopText(Head.Name,Name);
         Head.Name->SetColorAndOpacity(Shown.bEmpty?LDHUDStyle::TextSecondary:LDHUDStyle::UIText);
         WorkshopText(Head.Glyph,Shown.bEmpty?FString(TEXT("+")):Shown.Glyph);
         if(Head.AppliedIcon!=Shown.IconId||Shown.IconId.IsEmpty())
@@ -1028,6 +1054,7 @@ void ULDWorkshop::ShowTextDock(const FString& Key,const FString& Name,const FStr
 {
     if(DockKey==Key){return;}
     DockKey=Key;DockKindValue=0;
+    ShowDockChains({});
     WorkshopText(DockName,Name);
     WorkshopText(DockSummary,Summary);WorkshopShown(DockSummary,!Summary.IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(DockBody){DockBody->SetText(FText::FromString(Body));}
@@ -1041,6 +1068,21 @@ void ULDWorkshop::ShowTextDock(const FString& Key,const FString& Name,const FStr
     for(UTextBlock* Hidden:{DockWhereTitle.Get(),DockWhere.Get(),DockLinksTitle.Get(),DockLinks.Get(),DockNotesTitle.Get(),DockNotes.Get()}){WorkshopShown(Hidden,false);}
     WorkshopShown(DockPreviewTitle,false);WorkshopShown(DockPreviewBody,false);WorkshopShown(DockPreviewPager,false);
     if(Storage.IsValid()){Storage->SetPreviewCaption(NAME_None,FString(),FString());}
+}
+
+// Rebuilt only when the chains or the text scale change: the icon squares do not follow ApplyTextScale.
+void ULDWorkshop::ShowDockChains(const TArray<LDHUD::FRecapChain>& Chains)
+{
+    if(!DockChains||(DockChainsShown==Chains&&FMath::IsNearlyEqual(DockChainsScale,TextScale))){return;}
+    DockChainsShown=Chains;DockChainsScale=TextScale;
+    DockChains->ClearChildren();
+    for(const LDHUD::FRecapChain& Chain:Chains)
+    {
+        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+        LDRecapChain::Fill(WidgetTree,Row,Chain,FMath::RoundToFloat(22.f*TextScale),FMath::RoundToInt(15.f*TextScale));
+        DockChains->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,3,0,0));
+    }
+    WorkshopShown(DockChains,!Chains.IsEmpty(),ESlateVisibility::SelfHitTestInvisible);
 }
 
 void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::FFocus* Focus)
@@ -1066,6 +1108,7 @@ void ULDWorkshop::ShowComponentDock(FName Component,const ULDComponentStorage::F
     }
     if(DockKey==Key){return;}
     DockKey=Key;
+    ShowDockChains({});
     const LDHUD::FComponentCardView Card=LDHUD::ComponentCard(Component,Content,Latest.Stats);
     const LDWorkshop::FComponentFacts Facts=LDWorkshop::ComponentFacts(Component,Content);
     DockKindValue=uint8(Facts.Kind);
@@ -1183,8 +1226,7 @@ void ULDWorkshop::RefreshPreviewPage()
 
 void ULDWorkshop::RefreshDock(FVector2D Pointer)
 {
-    // The dock follows the held or hovered component first, then a hovered card of the tray, a stat row or a column head;
-    // with nothing under the pointer it keeps what it showed last.
+    // The dock follows the held or hovered component first, then a hovered card of the tray, a stat row or a column head.
     const bool bChoiceStage=Choices.IsValid()&&Choices->IsStageShown();
     if(!bChoiceStage&&Storage.IsValid()&&!Storage->Focus().Component.IsNone())
     {
@@ -1233,6 +1275,19 @@ void ULDWorkshop::RefreshDock(FVector2D Pointer)
         const LDHUD::FActionDetailView Detail=LDHUD::ActiveChoiceDetail(Card,false,FString());
         ShowTextDock(TEXT("A|")+Head.Active.ToString()+Detail.Body,Detail.Name,Detail.Summary,Detail.Body,Card.IconId,Card.Glyph);
         return;
+    }
+    if(Latest.bDead)
+    {
+        const LDHUD::FDamageListView& Recap=Latest.DeathRecap;
+        const FString Name=Recap.bAvailable?Recap.Heading:FString(TEXT("承伤记录同步中"));
+        // The rows are drawn as icon chains under the heading (the text rows only key the dock).
+        const FString Rows=Recap.bAvailable?FString::Join(Recap.Rows,TEXT("\n")):FString();
+        ShowTextDock(TEXT("D|")+Name+TEXT("|")+Rows,Name,FString(),FString(),FString(),FString());
+        ShowDockChains(Recap.bAvailable?Recap.Chains:TArray<LDHUD::FRecapChain>());
+    }
+    else if(DockKey.StartsWith(TEXT("D|")))
+    {
+        ShowTextDock(FString(),FString(),FString(),FString(),FString(),FString());
     }
 }
 

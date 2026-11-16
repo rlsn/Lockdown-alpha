@@ -269,9 +269,28 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 `LedgerHitCommitted` 调用一次，口径与构筑蓝图的伤害事实相同：对另一个身体实际提交的正伤害（含被护盾吸收的部分），
 自伤与私人训练不计。纯规则在 `LDDamageRecap`（`Combat/LDDamageRecap.h`）：
 - 承伤：受害者是参赛者时，把这一击（攻击者为记功的参赛者，否则为来源身体的野怪定义，再否则无主；来源 `FLDCombatSourceRef`；
-  `DamageP2`）追加进这条生命的 `FLDBodyCombatState::DamageLog`，并丢弃早于 `REWARD.AssistWindowSec` 的样本。
-  `LockDeath` 以 `LDDamageRecap::Summarize`（窗口含边界，含致死一击）按攻击者与来源求和，冻结进
-  `FLDCommittedDeath::Recap` 与 `RecapWindowMs`：攻击者按总量降序，同一攻击者的来源按伤害降序，并列按固定顺序。
+  `DamageP2`）追加进这条生命的 `FLDBodyCombatState::DamageLog`，并丢弃早于 `REWARD.AssistWindowSec` 的样本。反应伤害另带规则链：`FLDCombatHit::ReactionKind`、`ReactionConsumed`、`ReactionSetter`
+  与 `ReactionAssistSetters`。`ApplyElement` 按每个被打身体自己的状态记录：主目标记被消费元素的施加者（火取结算的各灼烧份额的
+  不同记功者，其他取元素标记的记功者）；导电旁目标记它自己的潮湿与施加者；过载溅射目标没有被消费状态，也没有施加者。
+  施加者恰好一名时写 `ReactionSetter`，多名时不具名。规则链写进 `FLDDamageLine::Reaction`、`Consumed` 与 `Setter`
+  （施加者不是参赛者时不具名；溅射行只有 `Reaction`）。`LockDeath` 先以 `LDDamageRecap::HideUnreadableSetters` 去掉受害者
+  不能读到身份的施加者：只保留受害者本人、窗口内对它造成过伤害的参赛者与冻结的助攻者，其余不具名并合并。
+  然后以 `LDDamageRecap::Summarize`（窗口含边界，含致死一击）按攻击者、来源与规则链求和，
+  冻结进 `FLDCommittedDeath::Recap` 与 `RecapWindowMs`（助攻窗口）；致死者是野怪时记 `KillerMonsterId`。
+  攻击者按总量降序，同一攻击者的行按伤害降序，并列按固定顺序。`ALDGameMode::SendDeathRecap` 另附击杀者与冻结的助攻者。
+- 状态引爆提示：反应消费了另一名参赛者施加的元素且触发者也是参赛者时，`ApplyHit` 在这一击完整提交（含 `LockDeath`）且
+  造成正伤害或施加了控制后，才调用 `ALDCombatDirector::NotifyReactionAssists`；失败或零伤害无控制的命中不发提示。
+  每次反应每个不同施加者（不是触发者、也不是被打身体）只发一次，记 `LD_REACTION_ASSIST`。`ALDGameMode::SendReactionAssist`
+  只发给施加者的拥有连接，并要求施加者处于当前比赛的存活生命、最近视野样本观察到被消费状态的身体，
+  且命中时仍符合视野域的展示权限（含隔离、PK 队友共享视野与曝光）；提示带施加者的 `Life`。
+  触发者的身体须属于其本人并通过同一检查才具名，否则不具名。视野权威故障按命中权威故障处理。
+  `ALDPlayerController::ClientReactionAssist` 用
+  `LDDamageRecap::KeepReactionAssist`：形状非法的拒绝；早于已知本人 `OwnerState`（比赛、生命）或早于已保留提示的视为过期，
+  不改动已保留的提示；其余替换更早（比赛、生命）的提示，取下一个本地序号并保留最近 6 条。可靠提示可能先于复制的比赛与
+  本人状态到达，事件播报（`FEventFeed`）对尚未知道的比赛或生命的提示连同其后的提示一起等待，到齐后再按序播报；
+  只播报当前比赛与本人当前生命、未过期（`StaleKillMs`）的提示，每条至多一次；首次观察前已保留的提示同样播报，
+  核心时钟未知时等待而不丢弃。提示只报告引爆，不改变助攻结算：施加者在施加元素时已按 `RecordAssistContribution` 记作贡献，在助攻窗口内死亡即计为助攻；
+  反应消费本身不另记贡献。
 - 造成：记功者是参赛者时，累加进 `DamageTotals[CreditOwner]` 的对应来源行；`DamageTotalsOf` 按伤害降序读出。
 灼烧、区域、反应与弹射沿用各自命中的 `Source` 与 `CreditOwner`，不另外归类。投送与界面见[视野与界面](VISION_AND_UI.md)。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个被动在末尾再加一层未经约束的减伤。
@@ -574,6 +593,14 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 `LDAttributeProjection` 按每个五维的 `PerPoint`（`stat_physique` 生命上限与生命回复、`stat_thick_skin` 护甲与魔抗、`stat_strength`
 攻击力与暴击率、`stat_brains` 法强、技能急速与法力回复、`stat_agility` 攻速与移速比例）把点数作为本人属性视图的 `Choices` 行
 （比例项进入 `PercentBonus`）加到等级成长上，最终统一夹到目录上下限。
+同一投影还按已分配点数与 `Parameters.KeystoneThresholdPoints` 分别生成五维 `Keystones` 标记；
+门槛不从钱包、最终属性或夹紧后的值推导，各项可以独立激活。体格关键石只把自身构筑来源实际恢复的 HP 转为护盾
+（不含债务偿还、过量治疗或空来源的环境奖励），经 `GrantShieldTo` 的护盾替换规则结算，成功施加才启动冷却；
+脸皮关键石在普通 `PrimaryGuard` 后追加一次敌方本体普攻减伤，只有实际减伤才启动冷却。
+力道关键石把对已减速或受硬控目标的加成并入统一 `DamageBonusBp` 池；攻速降低和击退不满足条件。
+脑力关键石把施法释放的共享 `CastLedger` 沿元素施加传递，在该释放首次触发反应时返还实际支付法力的一次比例；
+身手关键石在自愿冲刺完成时快照一个一次性强化普攻包，与其他强化包在同一主普攻、同一次暴击中结算，
+过期、重冲刺和消耗沿用 `FLDCombatEmpower` 的规则。数值只在[内容与数值 §4.1](../demo/CONTENT_AND_BALANCE.md#41-五维属性与成长参数)维护。
 
 AI 的开局时刻/候选位由 `ALDGameMode::DrawOpponentOpeningPlan` 在绑定时从现有服务器 `SpawnRandom` 流抽取，
 不是每个 AI 新建 GUID 种子。`LD_AI_OPENING_PLAN` 记录抽取前的流状态 `seed`，可用同状态重放这两次抽取；
@@ -706,6 +733,7 @@ B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后�
 欠款不吃 S16、C10 共享 C11 预算、M01 只扩散伤害、S20 队友加速、C01 固定窗口与边界收齐，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `DamageRecap.Window` 覆盖承伤样本的记录与过期、窗口边界、按攻击者与来源求和及排序、各来源总量和列表的形状校验，
+`DamageRecap.Chain` 覆盖反应伤害按规则链分行、最近一击的距今时长、规则链与助攻提示的形状校验，
 `BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、
 时间段与收尾，以及全部事实自开局即采集并按版本分列，`BuildBlueprint.Components` 覆盖只改安装/目标/绑定即开新版本、
 构件行的宿主与参数、严格往返与失效安装提示，

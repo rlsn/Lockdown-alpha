@@ -66,7 +66,7 @@ bool FLDMatchTimeline::Begin(const FLDTimelineParameters& InParameters, int64 St
 
 bool FLDMatchTimeline::IsSignupOpen(int64 AtMs) const
 {
-    return Stage == ELDMatchStage::Rest && RestIndex < FLDTimelineParameters::TimedSegments
+    return Stage == ELDMatchStage::Rest && LDMatchTimeline::IsPKRest(RestIndex)
         && Step == ELDRestStep::Build && AtMs >= StepEndsAtMs - Parameters.SignupMs
         && AtMs <= StepEndsAtMs;
 }
@@ -214,7 +214,7 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
         case ELDRestStep::Build:
         {
             if (!bAllowLock) { Error.Reset(); return true; }
-            const int32 Entrants = RestIndex == FLDTimelineParameters::TimedSegments ? 0 : SignedUp;
+            const int32 Entrants = LDMatchTimeline::IsPKRest(RestIndex) ? SignedUp : 0;
             LockedEntrants = uint8(FMath::Min(Entrants, 255));
             FLDTimelineEvent& Lock = Out.AddDefaulted_GetRef();
             Lock.Kind = ELDTimelineEventKind::LockBuild;
@@ -223,7 +223,7 @@ bool FLDMatchTimeline::Advance(int64 AtMs, int32 SignedUp, bool bAllowLock, bool
             Lock.Step = ELDRestStep::Build;
             Lock.AtMs = Due;
             Lock.Value = Entrants;
-            // Fewer than two entrants: no draw, betting, PK or payout; straight to the return countdown.
+            // R0/R3 are not PK rests; in R1/R2 fewer than two entrants also skip straight to Return.
             bPKSkipped = Entrants < 2;
             bStepped = EnterStep(bPKSkipped ? ELDRestStep::Return : ELDRestStep::Draw, Due, Out, Error);
             break;
@@ -327,7 +327,7 @@ FLDTimelineView FLDMatchTimeline::MakeView(uint32 Generation, uint64 Revision) c
     View.Step = Step;
     View.StepStartedAtMs = StepStartedAtMs;
     View.StepEndsAtMs = StepEndsAtMs;
-    View.SignupOpensAtMs = Stage == ELDMatchStage::Rest && RestIndex < FLDTimelineParameters::TimedSegments
+    View.SignupOpensAtMs = Stage == ELDMatchStage::Rest && LDMatchTimeline::IsPKRest(RestIndex)
         && Step == ELDRestStep::Build ? StepEndsAtMs - Parameters.SignupMs : 0;
     View.FieldBaseMs = FieldBaseMs;
     View.FieldStartedAtMs = FieldStartedAtMs;

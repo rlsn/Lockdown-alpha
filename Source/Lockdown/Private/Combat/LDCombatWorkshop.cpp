@@ -1100,7 +1100,10 @@ bool ALDCombatDirector::ApplyWorkshopHit(const FLDCombatHit& Hit, FLDBodyCombatS
             const int64 Amount=FMath::Min(Share(Damage.HPLostP2,Heal.Effect.RatioBp),Heal.Effect.BaseP2-Budget->SpentP2);
             if (Amount<=0) { continue; }
             Budget->SpentP2+=Amount;
-            if (HealBody(*Source,Amount,Heal.Source,nullptr,Hit.EffectId)) { LedgerComponentTriggered(*Source,Heal.Source.DefinitionId); }
+            FString HealError;
+            if (HealBody(*Source,Amount,Heal.Source,nullptr,Hit.EffectId,&HealError))
+            { LedgerComponentTriggered(*Source,Heal.Source.DefinitionId); }
+            if (!HealError.IsEmpty()) { Error=MoveTemp(HealError); return false; }
         }
     }
     // C12: each effective hit of the bound exit runs the chosen enabled base once more (no basic attack is made).

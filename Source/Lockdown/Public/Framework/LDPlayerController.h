@@ -77,6 +77,12 @@ public:
     UFUNCTION(Client,Reliable) void ClientDamageSummary(const FLDDamageSummaryView& Summary);
     FLDDeathRecapView DeathRecap;
     FLDDamageSummaryView DamageSummary;
+    // Owner-only reaction assist prompts (Combat/LDDamageRecap.h), newest last, each stamped with a client-local Serial;
+    // the HUD tells each once (a toast and an event feed line). A malformed prompt is dropped.
+    UFUNCTION(Client,Reliable) void ClientReactionAssist(const FLDReactionAssistView& View);
+    static constexpr int32 ReactionAssistsKept=6;
+    TArray<FLDReactionAssistView> ReactionAssists;
+    uint64 ReactionAssistSerial=0;
     // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
     // #198 build commands (active choice, learn blueprint, allocate points). The caller fills Kind and its business
     // fields (ExpectedBuildRevision and CatalogDigest from ReadOwnProgression); Submit fills Generation, Life and
