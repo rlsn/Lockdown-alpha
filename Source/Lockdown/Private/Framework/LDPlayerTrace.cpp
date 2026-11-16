@@ -37,14 +37,16 @@ namespace LDPlaytestTraceDetail
         return LDPlaytest::InRunningMatch(Match, Public.PublicMatch.Generation, Public.PublicMatch.Phase);
     }
 
-    // RTT, jitter, packet loss and receive silence of one connection, or why they are unavailable.
+    // RTT, jitter, packet loss, receive silence and the engine's bytes per second of the last stat period of one
+    // connection, or why they are unavailable.
     FString ConnectionText(const UNetDriver& Driver, const UNetConnection& Connection)
     {
-        if (Connection.GetLastRecvAckTime() <= 0) { return TEXT("rtt_ms=- jitter_ms=- loss_in=- loss_out=- since_recv_s=-"); }
+        const FString Bytes = FString::Printf(TEXT("in_bytes_s=%d out_bytes_s=%d"), Connection.InBytesPerSecond, Connection.OutBytesPerSecond);
+        if (Connection.GetLastRecvAckTime() <= 0) { return TEXT("rtt_ms=- jitter_ms=- loss_in=- loss_out=- since_recv_s=- ") + Bytes; }
         const double Ping = Connection.AvgLag > 0 ? Connection.AvgLag : Connection.RawPingInSeconds;
-        return FString::Printf(TEXT("rtt_ms=%.0f jitter_ms=%.1f loss_in=%.1f loss_out=%.1f since_recv_s=%.2f"), Ping * 1000,
+        return FString::Printf(TEXT("rtt_ms=%.0f jitter_ms=%.1f loss_in=%.1f loss_out=%.1f since_recv_s=%.2f %s"), Ping * 1000,
             Connection.GetAverageJitterInMS(), 100 * Connection.GetInLossPercentage().GetLossPercentage(),
-            100 * Connection.GetOutLossPercentage().GetLossPercentage(), FMath::Max(0., Driver.GetElapsedTime() - Connection.LastReceiveTime));
+            100 * Connection.GetOutLossPercentage().GetLossPercentage(), FMath::Max(0., Driver.GetElapsedTime() - Connection.LastReceiveTime), *Bytes);
     }
 
     FString NoticeAssisters(const FLDKillNotice& Notice)
@@ -144,9 +146,18 @@ void FLDPlaytestTrace::LogConnections(ALDPlayerController& PC)
             LastCm = Movement->LastCorrectionCm;
             MaxCm = Movement->MaxCorrectionCm;
         }
-        UE_LOG(LogLDNet, Log, TEXT("LD_NET role=client server=%s %s corrections=%u last_correction_cm=%.1f body_max_correction_cm=%.1f"),
+        // This client's observation stream: applied presentation delay, arrival lateness envelope, receive timeout and
+        // receive timeouts (every observed unit cleared) since the relay began.
+        FString Observation = TEXT("obs_delay_ms=- obs_late_ms=- obs_timeout_ms=- obs_timeouts=-");
+        if (const ALDWorldViewRelay* Relay = PC.LocalView())
+        {
+            Observation = FString::Printf(TEXT("obs_delay_ms=%.0f obs_late_ms=%.0f obs_timeout_ms=%.0f obs_timeouts=%u"),
+                Relay->PresentationDelaySeconds() * 1000, Relay->ArrivalLatenessSeconds() * 1000, Relay->ReceiveTimeoutSeconds() * 1000,
+                Relay->TimeoutCount());
+        }
+        UE_LOG(LogLDNet, Log, TEXT("LD_NET role=client server=%s %s corrections=%u last_correction_cm=%.1f body_max_correction_cm=%.1f %s"),
             *LDLog::Quote(Connection->LowLevelGetRemoteAddress(true)), *LDPlaytestTraceDetail::ConnectionText(*Driver, *Connection),
-            Corrections, LastCm, MaxCm);
+            Corrections, LastCm, MaxCm, *Observation);
         return;
     }
     const ALDGameMode* Mode = World->GetAuthGameMode<ALDGameMode>();

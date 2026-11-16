@@ -257,7 +257,7 @@ public:
     // The caller's current observer-local handle of Body, only while Body is bound in its latest sample.
     bool FindObservedHandle(const ALDPlayerController& Caller, const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const;
     static constexpr int64 SamplePeriodMs = 50;
-    static constexpr int64 PublishPeriodMs = 100;
+    static constexpr int64 PublishPeriodMs = 50;
 private:
     // Combat rule tests give an isolated world the registered sight of the approved geometry.
     friend struct FLDBuildPrimitivesAccess;

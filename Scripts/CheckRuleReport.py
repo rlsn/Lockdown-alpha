@@ -344,6 +344,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoVision.Projectiles",
         "Lockdown.Rules.DemoVision.EffectAccess",
         "Lockdown.Rules.DemoVision.Presentation",
+        "Lockdown.Rules.DemoVision.AdaptiveTiming",
         "Lockdown.Rules.DemoVision.PropFade",
         "Lockdown.Rules.DemoVision.FlightTrail",
         "Lockdown.Rules.DemoVision.OpponentActives",

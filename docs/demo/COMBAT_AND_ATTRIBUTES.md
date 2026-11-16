@@ -668,7 +668,7 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 **动作提示。** `ELDObservedActionCue` 为 None/Attack/Cast/Hit。`LDCombatCues::Select` 从身体生命的
 `FLDCombatCueFacts`（正在前摇的动作、最近释放的动作、位移结束、最近受击）选出一个，优先级 Cast > Hit > Attack，
 同类取最近开始者。Attack/Cast 从动作开始持续到释放后 `ReleaseHoldMs`（位移持续到结束），受击持续 `HitHoldMs`；
-这两个表现常量在 `LDCombatCues.h`，保证 100 ms 观察节拍能采到每个窗口。观察事实同时携带提示龄与 Attack/Cast 的
+这两个表现常量在 `LDCombatCues.h`，保证 50 ms 观察发布节拍能采到每个窗口。观察事实同时携带提示龄与 Attack/Cast 的
 服务器释放相对延迟；`LDBodyMotion` 用该延迟对齐动作冲击帧与亮点，表现不会改动权威命中时刻。致死后提示为 None；
 拥有者用同一规则从本人视图 `Cues` 选择自身提示。
 
