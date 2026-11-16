@@ -12,8 +12,8 @@ struct FLDDemoContentParameters;
 UENUM()
 enum class ELDMatchStage : uint8 { None = 0, Rest = 1, Field = 2, FinalField = 3 };
 
-// The sub-steps of one rest. Build doubles as PK sign-up during its last REST.SignupSec; Payout lets everyone adjust
-// again. Draw..Settlement only run when at least two contenders signed up (session D plugs the PK itself in).
+// The sub-steps of one rest. Build doubles as PK sign-up during its last REST.SignupSec in R1 and R2; Payout lets everyone
+// adjust again. Draw..Settlement only run when at least two contenders signed up (session D plugs the PK itself in).
 UENUM()
 enum class ELDRestStep : uint8 { None = 0, Build = 1, Draw = 2, Betting = 3, PKReady = 4, PK = 5, Settlement = 6, Payout = 7, Return = 8 };
 
@@ -40,14 +40,14 @@ struct LOCKDOWN_API FLDTimelineView
     // Rest steps: the scheduled end (PK: its latest end). Field: the authority ms at which T reaches FieldEndT; final
     // field: MAX_int64.
     UPROPERTY() int64 StepEndsAtMs = 0;
-    // Build step: from here until StepEndsAtMs (inclusive) the step doubles as PK sign-up.
+    // R1/R2 build step: from here until StepEndsAtMs (inclusive) the step doubles as PK sign-up.
     UPROPERTY() int64 SignupOpensAtMs = 0;
     // T at FieldStartedAtMs while a field runs; the frozen T otherwise.
     UPROPERTY() int64 FieldBaseMs = 0;
     UPROPERTY() int64 FieldStartedAtMs = 0;
     // T at which the current/next timed segment ends; -1 for the final field.
     UPROPERTY() int64 FieldEndT = 0;
-    // Locked PK entrants of this rest (0 before the lock); fewer than two skip straight to Return.
+    // Locked PK entrants of this rest (0 before the lock); R0/R3 never hold a PK and fewer than two skip to Return.
     UPROPERTY() uint8 LockedEntrants = 0;
     UPROPERTY() bool bPKSkipped = false;
     // Public: standing in the sign-up disk is a visible act. Sorted contender ids; filled by GameMode, not the reducer.
@@ -180,6 +180,7 @@ namespace LDMatchTimeline
 {
     LOCKDOWN_API const TCHAR* StepName(ELDRestStep Step);
     LOCKDOWN_API const TCHAR* StageName(ELDMatchStage Stage);
+    inline bool IsPKRest(uint8 RestIndex) { return RestIndex > 0 && RestIndex < FLDTimelineParameters::TimedSegments; }
     // Field progress T a client derives from the public timeline at ServerNowMs (the authority's own rule).
     LOCKDOWN_API int64 FieldNowFromView(const FLDTimelineView& View, int64 ServerNowMs);
     // The open rest steps (build/training and payout) of a public timeline.

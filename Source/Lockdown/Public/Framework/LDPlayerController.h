@@ -77,6 +77,12 @@ public:
     UFUNCTION(Client,Reliable) void ClientDamageSummary(const FLDDamageSummaryView& Summary);
     FLDDeathRecapView DeathRecap;
     FLDDamageSummaryView DamageSummary;
+    // Owner-only reaction assist prompts (Combat/LDDamageRecap.h), newest last, each stamped with a client-local Serial;
+    // the HUD tells each once (a toast and an event feed line). A malformed prompt is dropped.
+    UFUNCTION(Client,Reliable) void ClientReactionAssist(const FLDReactionAssistView& View);
+    static constexpr int32 ReactionAssistsKept=6;
+    TArray<FLDReactionAssistView> ReactionAssists;
+    uint64 ReactionAssistSerial=0;
     // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
     // #198 build commands (active choice, learn blueprint, allocate points). The caller fills Kind and its business
     // fields (ExpectedBuildRevision and CatalogDigest from ReadOwnProgression); Submit fills Generation, Life and
@@ -161,7 +167,7 @@ public:
     // is Alive with its body. Only losing it ends accepted orders.
     bool IsWorldLifeValid() const;
     // Input half: the menu or Settings, a child confirmation or text edit, or keys still held since a menu, focus or
-    // mapping change. It blocks new world commands only; accepted orders keep moving and sending heartbeats (UI 4, 7).
+    // mapping change. It blocks new world commands only; accepted orders keep moving and sending heartbeats (MOVEMENT_INPUT_AND_CAMERA input ownership).
     bool IsWorldInputSuppressed() const;
     // Hotkeys and HUD icons share this entry. Self sends now; Unit/Direction arm and wait for a
     // left-click confirmation; right click or Back cancels the armed entry without a world command.
@@ -197,7 +203,7 @@ public:
     // One player-facing notice (a failure or a removed protection) for the HUD's single toast line; every post shows,
     // even when it repeats the previous text. Order progress and arrival are never posted (UI review P1).
     void PostIntentNotice(const FString& Text);
-    // A child confirmation or a text edit owns input (UI 4): no new world command, armed preview or camera input
+    // A child confirmation or a text edit owns input (MOVEMENT_INPUT_AND_CAMERA input ownership): no new world command, armed preview or camera input
     // starts; accepted orders keep running.
     bool IsWorldInputCaptured() const;
     // Dead in the running match and waiting for the respawn: only the static-map camera stays usable.

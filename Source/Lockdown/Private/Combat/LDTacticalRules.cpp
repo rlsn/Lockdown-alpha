@@ -170,6 +170,7 @@ namespace LDTactical
         }
         if (Input.DamageBonusBp < 0 || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
             || Input.PrimaryGuardP2 < 0 || Input.PrimaryGuardCapBp < 0 || Input.PrimaryGuardCapBp >= 10000
+            || Input.KeystoneGuardP2 < 0 || Input.KeystoneGuardCapBp < 0 || Input.KeystoneGuardCapBp >= 10000
             || Input.PackageScaleBp <= 0 || Input.PackageScaleBp > 100000 || Input.DeferRatioBp < 0 || Input.DeferRatioBp >= 10000 || Input.BraceCutBp < 0 || Input.BraceCutBp >= 10000)
         {
             return Fail(EError::Domain, TEXT("DamageBonusBp"), TEXT("A damage bonus, delivery share or guard is outside its domain"));
@@ -201,7 +202,7 @@ namespace LDTactical
             }
             Damage = Numbers.Sub(Damage, Numbers.Value(BraceCutP2));
         }
-        int64 BeforeGuardP2 = 0;
+        int64 BeforeGuardP2 = 0, AfterGuardP2 = 0;
         const bool bGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0;
         if (bGuarded)
         {
@@ -212,17 +213,37 @@ namespace LDTactical
             const auto Flat = Numbers.Value(Input.PrimaryGuardP2);
             const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.PrimaryGuardCapBp, 10000));
             Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
+            if (!QuantizeEvaluation(Damage, false, AfterGuardP2, Check, TEXT("AfterGuardP2")))
+            {
+                return Fail(EError::Overflow, TEXT("AfterGuardP2"), MathError);
+            }
+        }
+        int64 BeforeKeystoneGuardP2 = 0;
+        const bool bKeystoneGuarded = Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.KeystoneGuardP2 > 0;
+        if (bKeystoneGuarded)
+        {
+            if (!QuantizeEvaluation(Damage, false, BeforeKeystoneGuardP2, Check, TEXT("BeforeKeystoneGuardP2")))
+            {
+                return Fail(EError::Overflow, TEXT("BeforeKeystoneGuardP2"), MathError);
+            }
+            const auto Flat = Numbers.Value(Input.KeystoneGuardP2);
+            const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.KeystoneGuardCapBp, 10000));
+            Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
         }
         FLDDamageEvaluation Value;
         if (!QuantizeEvaluation(Damage, false, Value.DamageP2, Check, TEXT("DamageP2")))
         {
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
-        int64 GuardCutP2 = bGuarded ? FMath::Max<int64>(0, BeforeGuardP2 - Value.DamageP2) : 0;
+        int64 GuardCutP2 = bGuarded ? FMath::Max<int64>(0, BeforeGuardP2 - AfterGuardP2) : 0;
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
-        if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; BraceCutP2 = 0; GuardCutP2 = 0; }
+        const int64 KeystoneGuardCutP2 = bKeystoneGuarded
+            ? FMath::Max<int64>(0, BeforeKeystoneGuardP2 - Value.DamageP2) : 0;
+        if (Input.bTargetProtected.GetValue())
+        { Value.DamageP2 = 0; BraceCutP2 = 0; GuardCutP2 = 0; }
         Value.BraceCutP2 = BraceCutP2;
         Value.GuardCutP2 = GuardCutP2;
+        Value.KeystoneGuardCutP2 = Input.bTargetProtected.GetValue() ? 0 : KeystoneGuardCutP2;
         // #198 F M12: the deferred share leaves before the shield; it is paid later at its original amount.
         Value.DeferredP2 = Value.DamageP2 / 10000 * Input.DeferRatioBp + Value.DamageP2 % 10000 * Input.DeferRatioBp / 10000;
         Value.DamageP2 -= Value.DeferredP2;

@@ -231,6 +231,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::FinalLocked: return TEXT("FinalLocked");
     case ELDGrowthReason::NoFinalMod: return TEXT("NoFinalMod");
     case ELDGrowthReason::FinalModUnavailable: return TEXT("FinalModUnavailable");
+    case ELDGrowthReason::ComponentColumnFull: return TEXT("ComponentColumnFull");
     }
     return TEXT("Unknown");
 }

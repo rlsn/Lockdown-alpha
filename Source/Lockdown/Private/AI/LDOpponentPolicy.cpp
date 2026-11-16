@@ -315,32 +315,6 @@ struct FContext
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
     }
-    // #198: whether the body can use a charm of this kind now: heal below full HP, mana below full MP, move speed always.
-    bool CharmUseful(ELDCharmKind Kind) const
-    {
-        switch (Kind)
-        {
-        case ELDCharmKind::Heal: return Self.MaxHpP2 > 0 && Self.HpP2 < Self.MaxHpP2;
-        case ELDCharmKind::Mana: return Self.MaxMpP2 > 0 && Self.MpP2 < Self.MaxMpP2;
-        case ELDCharmKind::MoveSpeed: return true;
-        default: return false;
-        }
-    }
-    // #198: the nearest public point holding a lying charm of Kind (any useful kind when Kind is None) whose walk is not
-    // suppressed by failure memory; ties by stable id. Charms lie on airdrop points.
-    const FLDOpponentPOI* CharmTarget(ELDCharmKind Kind) const
-    {
-        const FLDOpponentPOI* Best = nullptr;
-        for (const TPair<FName, ELDCharmKind>& Charm : Frame.Public.Charms)
-        {
-            if (Kind != ELDCharmKind::None ? Charm.Value != Kind : !CharmUseful(Charm.Value)) { continue; }
-            const FLDOpponentPOI* POI = FindPOI(Charm.Key);
-            if (!POI || POI->Kind != ELDOpponentPOIKind::Airdrop || !CanAttempt(PathKey(POI->Id))) { continue; }
-            if (!Best || Distance(POI->FootCm) < Distance(Best->FootCm)
-                || (Distance(POI->FootCm) == Distance(Best->FootCm) && POI->Id.Compare(Best->Id) < 0)) { Best = POI; }
-        }
-        return Best;
-    }
     // D27: the public place nearest the centre of another contender's 上热搜 circle, inside that circle, when its walk
     // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
     // minimum level with high-camp entry health.
@@ -1678,31 +1652,35 @@ bool PreferActive(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
     return bFound;
 }
 
-// The own allocated points per stat (design order) and whether AllocatePoints spends on each: physique and thick skin
-// always, strength when the basic attack or a learned active scales with AD, brains when a learned active scales with AP.
+// The own allocated points per stat (design order), whether AllocatePoints spends on each, and the preferred first
+// keystone stat. The preference follows the larger learned damage coefficient; defenses remain relevant afterward.
 bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, TArray<int64>& OutPoints,
-    TArray<bool>& OutRelevant, FString& Error)
+    TArray<bool>& OutRelevant, int32& OutKeystoneFocus, FString& Error)
 {
     OutPoints.Reset();
     OutRelevant.Reset();
+    OutKeystoneFocus = INDEX_NONE;
     const auto& Content = Catalog.Get();
     if (Self.StatPoints.Num() != Content.Stats.Num())
     {
         Error = TEXT("The own stat points do not list every catalog stat.");
         return false;
     }
-    bool bAD = Content.Character.BasicADRatioBp > 0;
-    bool bAP = false;
+    int64 ADWeight = 0;
+    int64 APWeight = 0;
     for (const FLDOpponentActive& Active : Self.Actives)
     {
         const FLDDemoAbilityDefinition* Ability = nullptr;
         if (!Catalog.FindAbility(Active.DefinitionId, Ability, Error) || !Ability) { return false; }
         for (const FLDDemoEffectDefinition& Effect : Ability->Values.Effects)
         {
-            bAD |= Effect.ADRatioBp > 0;
-            bAP |= Effect.APRatioBp > 0;
+            ADWeight += Effect.ADRatioBp;
+            APWeight += Effect.APRatioBp;
         }
     }
+    const ELDDemoStatId Preferred = APWeight > ADWeight ? ELDDemoStatId::StatBrains
+        : ADWeight > 0 || Content.Character.BasicADRatioBp > 0 ? ELDDemoStatId::StatStrength
+        : ELDDemoStatId::StatPhysique;
     const TArray<const FLDDemoStatDefinition*> StatOrder = Content.StatsInDesignOrder();
     for (int32 Index = 0; Index < StatOrder.Num(); ++Index)
     {
@@ -1717,7 +1695,9 @@ bool RelevantStats(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
         OutPoints.Add(Self.StatPoints[Index].Points);
         const ELDDemoStatId Id = Stat.GetNativeId();
         OutRelevant.Add(Id == ELDDemoStatId::StatPhysique || Id == ELDDemoStatId::StatThickSkin
-            || (Id == ELDDemoStatId::StatStrength && bAD) || (Id == ELDDemoStatId::StatBrains && bAP));
+            || (Id == ELDDemoStatId::StatStrength && (ADWeight > 0 || Content.Character.BasicADRatioBp > 0))
+            || (Id == ELDDemoStatId::StatBrains && APWeight > 0));
+        if (Id == Preferred && OutRelevant.Last()) { OutKeystoneFocus = Index; }
     }
     return true;
 }
@@ -2057,9 +2037,32 @@ bool AllocatePoints(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
     }
     TArray<int64> Points;
     TArray<bool> Relevant;
-    if (!RelevantStats(Self, Catalog, Points, Relevant, Error)) { return false; }
+    int32 KeystoneFocus = INDEX_NONE;
+    if (!RelevantStats(Self, Catalog, Points, Relevant, KeystoneFocus, Error)) { return false; }
     Out.SetNumZeroed(Catalog.Get().Stats.Num());
-    for (int64 Left = Self.UnspentPoints; Left > 0; --Left)
+    int64 Left = Self.UnspentPoints;
+    const int64 KeystoneThreshold = Catalog.Get().Parameters.KeystoneThresholdPoints;
+    if (KeystoneThreshold <= 0)
+    {
+        Error = TEXT("The catalog has no valid keystone threshold.");
+        Out.Reset();
+        return false;
+    }
+    if (!Points.IsValidIndex(KeystoneFocus) || !Relevant[KeystoneFocus])
+    {
+        Error = TEXT("The catalog has no relevant stat for a keystone.");
+        Out.Reset();
+        return false;
+    }
+    // Secure one build-relevant keystone before distributing subsequent points across the other useful stats.
+    while (Left > 0 && Points.IsValidIndex(KeystoneFocus) && Points[KeystoneFocus] < KeystoneThreshold
+        && Out[KeystoneFocus] < MAX_uint8)
+    {
+        ++Points[KeystoneFocus];
+        ++Out[KeystoneFocus];
+        --Left;
+    }
+    for (; Left > 0; --Left)
     {
         int32 Best = INDEX_NONE;
         for (int32 Index = 0; Index < Points.Num(); ++Index)
@@ -2085,7 +2088,8 @@ bool WantsRespec(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cata
     using namespace Detail;
     TArray<int64> Points;
     TArray<bool> Relevant;
-    if (!RelevantStats(Self, Catalog, Points, Relevant, Error)) { return false; }
+    int32 KeystoneFocus = INDEX_NONE;
+    if (!RelevantStats(Self, Catalog, Points, Relevant, KeystoneFocus, Error)) { return false; }
     for (int32 Index = 0; Index < Points.Num(); ++Index)
     {
         if (Points[Index] > 0 && !Relevant[Index]) { return true; }
@@ -2183,10 +2187,13 @@ bool WorkshopTarget(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& C
         Out.BoundComponent = Base;
         return true;
     };
-    for (const FString& Id : Component.TargetActives)
+    for (const FLDOpponentActive& Active : Self.Actives)
     {
-        const bool bLearned = Self.Actives.ContainsByPredicate([&Id, &Same](const FLDOpponentActive& Active) { return Same(Active.DefinitionId, Id); });
-        if (bLearned && Take(ELDComponentTargetKind::Active, Id)) { return true; }
+        const FString& Id = Active.DefinitionId;
+        if (LDWorkshop::TargetsActive(Catalog.Get(), Component, FName(*Id)) && Take(ELDComponentTargetKind::Active, Id))
+        {
+            return true;
+        }
     }
     // C01 reads a fire source: a bound host (B18) counts only while it is bound to fire.
     const bool bNeedsFire = LDWorkshop::FindOp(Component, ELDDemoEffectOp::FireShield) != nullptr;
@@ -2824,11 +2831,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         // Without a reachable dorm, wait on genuine regeneration.
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
         // After escaping a threat, continue to recovery instead of turning back toward a charm at the sight edge.
-        if (const FLDOpponentPOI* Heal = bRivalHolds || !State.RetreatPOI.IsNone()
-            ? nullptr : C.CharmTarget(ELDCharmKind::Heal))
+        const FLDOpponentPOI* Drop = bRivalHolds || !State.RetreatPOI.IsNone() ? nullptr : C.AirdropTarget();
+        if (Drop && (C.Self.HpP2 < C.Self.MaxHpP2 || C.Self.MpP2 < C.Self.MaxMpP2))
         {
-            Body(MoveTo(C, *Heal));
-            return Finish(EMode::Charm, EReason::TakeCharm);
+            Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+            return Finish(EMode::Airdrop, EReason::ContestAirdrop);
         }
         if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
         {
@@ -2848,13 +2855,6 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         EndVisit(State, false);
         Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
         return Finish(EMode::Airdrop, EReason::ContestAirdrop);
-    }
-    // #198: a lying charm the body can use now, under the same limits as the airdrop; charms are taken by walking in.
-    if (const FLDOpponentPOI* Charm = State.VisitEngagedAtMs == 0 ? C.CharmTarget(ELDCharmKind::None) : nullptr)
-    {
-        EndVisit(State, false);
-        Body(MoveTo(C, *Charm));
-        return Finish(EMode::Charm, EReason::TakeCharm);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

@@ -19,8 +19,15 @@
 
 struct FLDDormZones;
 namespace LDAirdrop { struct FCandidate; }
-enum class ELDCharmKind : uint8;
-struct FLDCharmEffectFact;
+
+struct FLDAirdropRewardFact
+{
+    int64 HpBeforeP2 = 0;
+    int64 HpAfterP2 = 0;
+    int64 MpBeforeP2 = 0;
+    int64 MpAfterP2 = 0;
+    int64 MoveSpeedBonusUntilMs = 0;
+};
 
 class ALDCharacter;
 class ALDGameMode;
@@ -35,12 +42,13 @@ struct FLDInnateDashTerms;
 struct FLDNativeMotionBatch;
 struct FLDCombatDashContact;
 
-// What one release shares across all of its hits: a mana grant pays once per release, and its B17 amplification is one
-// §10 trigger (at its first positive hit). PaidManaP2 is the mana this release really paid (after M06), B13's refund
-// basis; AlternateAmpBp is B15's amplification locked at release for its native direct damage, one §10 trigger.
+// What one release shares across all of its hits: a mana grant and brains-keystone refund each pay once per release;
+// PaidManaP2 is the mana this release really paid (after M06). B17/B15 amplification is locked at release and triggers
+// once at its first positive hit.
 struct FLDCombatCastLedger
 {
     bool bManaGrantPaid=false;
+    bool bBrainsKeystoneRefunded=false;
     bool bIdleAmpTriggered=false;
     int64 PaidManaP2=0;
     int64 AlternateAmpBp=0;
@@ -362,6 +370,8 @@ struct FLDBodyCombatState
     // The amount the current shield record was granted with (item_privacy_screen answers a share of it).
     int64 ShieldGrantedP2=0;
     int64 RetortReadyAtMs=0;
+    int64 KeystonePhysiqueReadyAtMs=0;
+    int64 KeystoneThickSkinReadyAtMs=0;
     // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
     // and burn of this life and the damage-triggered shield's rest (B09: it starts only on a granted shield).
     TArray<FLDCombatRoot> Silences;
@@ -515,6 +525,14 @@ struct FLDCombatHit
     // M20: the knockback pulls toward its origin instead and stops KnockbackStopCm (centre to centre) short of it.
     bool bKnockbackPull=false;
     double KnockbackStopCm=0;
+    // Reaction damage: its reaction, the element it consumed on this target (None: an Overload splash consumed nothing here)
+    // and the credit owner of whoever applied that element, named only when exactly one applier held it (the death recap's
+    // rule chain, LDDamageRecap). ReactionAssistSetters are every applier of that consumed element: the assist prompt
+    // candidates once this hit commits (NotifyReactionAssists).
+    ELDCombatReaction ReactionKind=ELDCombatReaction::None;
+    ELDCombatElement ReactionConsumed=ELDCombatElement::None;
+    FGuid ReactionSetter;
+    TArray<FGuid> ReactionAssistSetters;
     // #147 build v7 keyword payload (docs/systems/COMBAT_AND_GROWTH.md).
     int64 SilenceDurationMs=0;
     int32 BreachStacks=0;            // shared breach stacks this hit applies
@@ -880,13 +898,13 @@ public:
     bool CampPeerDied(const FLDCombatBodyRef& Peer,const FLDGameplayWritePermit& Permit,FString& Error);
     bool CancelCampWindup(const FLDCombatBodyRef& Body,const FLDGameplayWritePermit& Permit,FString& Error);
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
-    // #198 field charm (Transactions): applies Kind's approved effect to the living body of Contender — heal a share of
-    // max HP through HealBody, mana a share of max MP through GrantMana (both capped at the maximum), or refresh the
-    // charm move-speed timed bonus. A body already gone or dying gets nothing (bOutApplied false). False only on an
-    // authority fault.
-    bool ApplyCharm(const FGuid& Contender, ELDCharmKind Kind, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
-        FLDCharmEffectFact& Out, FString& Error);
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
+
+    // ---- Field rewards.
+    // Transactions: applies the approved airdrop healing, mana and timed move-speed rewards to its living claimant.
+    // False only on an authority fault; bOutApplied is false when the body is already gone or dying.
+    bool ApplyAirdropReward(const FGuid& Contender, const FLDGameplayWritePermit& Permit, bool& bOutApplied,
+        FLDAirdropRewardFact& Out, FString& Error);
 
     // ---- Shared combat primitives (#112 section 5).
     // The only path that commits a control or slow onto a body life: hard controls (Root, Stun, Disarm, Taunt) pass the
@@ -979,6 +997,9 @@ private:
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthBuildCommandsTest;
     friend struct FLDBuildPrimitivesAccess;
+#if WITH_DEV_AUTOMATION_TESTS
+    friend struct FLDDemoVisionReactionAccess;
+#endif
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -1143,7 +1164,7 @@ private:
     // repayment. True when HP or a debt changed; OutApplied (optional) is healed plus repaid. RootEffectId (when set) is the
     // action whose budgeted heal (C11) fed that store: the C08 counter it fires keeps it, so C11 cannot reopen that budget.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, const FLDCombatSourceRef& HealSource=FLDCombatSourceRef(),
-        int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid());
+        int64* OutApplied=nullptr, const FGuid& RootEffectId=FGuid(), FString* OutError=nullptr);
     // The single shield entry: a live S21 grievous cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
     // records its amount (ShieldGrantedP2) and its granting source (#198 F C10).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
@@ -1224,6 +1245,11 @@ private:
     int64 NextElementsDueMs(int64 NowMs) const;
     // The single report of a completed reaction (AI spec §8); later connectors read ReactionFacts of this Effects step.
     void OnReactionCompleted(const FLDCombatReactionFact& Fact);
+    // A committed reaction hit (positive damage or an applied control on its target) consumed an element its
+    // ReactionAssistSetters had applied: each contender setter other than the trigger and the target is offered the assist
+    // prompt once per reaction (ALDGameMode::SendReactionAssist gates it by the setter's sight), and ReactionAssists records
+    // what was sent.
+    bool NotifyReactionAssists(const FLDCombatHit& Hit, FString& Error);
     // S16: Body's new stance (a newer one replaces the old record without its answer).
     bool ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
         const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error, TSharedPtr<FLDCombatCastLedger> CastLedger=nullptr);
@@ -1406,6 +1432,15 @@ private:
     TArray<FLDCombatFog> Fogs;
     TArray<FLDCombatChain> Chains;
     TArray<FLDCombatReactionFact> ReactionFacts;
+    // The reaction assist prompts sent in the current Effects step: the reaction (its hits' EffectId), the setter and the
+    // prompt as sent; one per reaction and setter.
+    struct FReactionAssistSent
+    {
+        FGuid ReactionId;
+        FGuid Setter;
+        FLDReactionAssistView View;
+    };
+    TArray<FReactionAssistSent> ReactionAssists;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;

@@ -71,9 +71,19 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
             *Claimer.ToString(), uint32(Outcome), LDGrowthWire::ReasonName(Reason));
         return false;
     }
+    bool bApplied = false;
+    FLDAirdropRewardFact Effects;
+    if (!Combat->ApplyAirdropReward(Claimer, Permit, bApplied, Effects, Error)) { return false; }
+    if (!bApplied)
+    {
+        Error = FString::Printf(TEXT("Airdrop %llu was claimed by %s after its body became unavailable."), Airdrop.Serial,
+            *Claimer.ToString());
+        return false;
+    }
     bPublicMatchDirty = true;
-    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld build=%u definition=%s field_t_ms=%lld"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld build=%u definition=%s hp=%s->%s mp=%s->%s move_speed_until_ms=%lld field_t_ms=%lld"),
         Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, uint32(Receipt.FieldResult),
-        *Receipt.FieldDefinition.ToString(), NowMs);
+        *Receipt.FieldDefinition.ToString(), *LDLog::P2(Effects.HpBeforeP2), *LDLog::P2(Effects.HpAfterP2),
+        *LDLog::P2(Effects.MpBeforeP2), *LDLog::P2(Effects.MpAfterP2), Effects.MoveSpeedBonusUntilMs, NowMs);
     return true;
 }

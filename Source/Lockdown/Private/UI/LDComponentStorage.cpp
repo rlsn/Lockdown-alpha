@@ -22,6 +22,7 @@
 #include "Components/OverlaySlot.h"
 #include "Components/RichTextBlock.h"
 #include "Components/ScaleBox.h"
+#include "Components/ScaleBoxSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
@@ -149,6 +150,10 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             FColumn& Column=Columns.AddDefaulted_GetRef();
             auto* Box=WidgetTree->ConstructWidget<UVerticalBox>();
             Column.List=WidgetTree->ConstructWidget<UVerticalBox>();Box->AddChildToVerticalBox(Column.List)->SetHorizontalAlignment(HAlign_Center);
+            Column.DenseList=WidgetTree->ConstructWidget<UWrapBox>();Column.DenseList->SetExplicitWrapSize(true);
+            Column.DenseList->SetInnerSlotPadding(FVector2D(6.f,6.f));
+            Box->AddChildToVerticalBox(Column.DenseList)->SetHorizontalAlignment(HAlign_Fill);
+            StorageShown(Column.DenseList,false);
             UTextBlock* Here=Line(LDTerms::DropHere,LDHUDStyle::TypeTiny,LDHUDStyle::DropLegal);Here->SetJustification(ETextJustify::Center);
             auto* Placeholder=WidgetTree->ConstructWidget<UBorder>();Placeholder->SetBrush(StorageRound(6.f,LDHUDStyle::DropLegal,1.f));
             Placeholder->SetBrushColor(LDHUDStyle::DropLegal.CopyWithNewOpacity(.10f));Placeholder->SetHorizontalAlignment(HAlign_Center);
@@ -160,8 +165,11 @@ TSharedRef<SWidget> ULDComponentStorage::RebuildWidget()
             Column.Title=Line(TEXT(""),LDHUDStyle::TypeCaption,LDHUDStyle::TextSecondary);StorageBold(Column.Title,1);Column.Title->SetJustification(ETextJustify::Center);
             Column.Title->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
             auto* TitleSlot=Box->AddChildToVerticalBox(Column.Title);TitleSlot->SetHorizontalAlignment(HAlign_Fill);TitleSlot->SetPadding(FMargin(0,4,0,0));
+            Column.Fit=LDWidgets::Fit(WidgetTree,Box);Column.Fit->SetStretch(EStretch::None);
+            if(UScaleBoxSlot* FitSlot=Cast<UScaleBoxSlot>(Box->Slot))
+            {FitSlot->SetHorizontalAlignment(HAlign_Fill);FitSlot->SetVerticalAlignment(VAlign_Fill);}
             Column.Panel=WidgetTree->ConstructWidget<UBorder>();Column.Panel->SetBrush(StorageRound(8.f,LDHUDStyle::PanelRim,1.f));
-            Column.Panel->SetBrushColor(LDHUDStyle::ColumnFill);Column.Panel->SetPadding(FMargin(4,6));Column.Panel->SetContent(Box);
+            Column.Panel->SetBrushColor(LDHUDStyle::ColumnFill);Column.Panel->SetPadding(FMargin(4,6));Column.Panel->SetContent(Column.Fit);
             Column.Frame=WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(),FName(*FString::Printf(TEXT("HUDStorageColumn%d"),Index)));
             Column.Frame->SetWidthOverride(StorageColumnWidth);Column.Frame->SetClipping(EWidgetClipping::ClipToBounds);Column.Frame->SetContent(Column.Panel);Column.Frame->SetVisibility(ESlateVisibility::Collapsed);
             Column.Slot=Add(Column.Frame,2);
@@ -406,13 +414,16 @@ void ULDComponentStorage::Rebuild(const LDHUD::FStorageView& Model)
     StorageShown(LibraryEmpty,Workshop.bActive&&bEmpty);
     for(int32 Index=0;Index<Columns.Num()&&Model.Columns.IsValidIndex(Index);++Index)
     {
-        FColumn& Column=Columns[Index];Column.List->ClearChildren();Column.AppliedLook=-1;
+        FColumn& Column=Columns[Index];Column.List->ClearChildren();Column.DenseList->ClearChildren();Column.AppliedLook=-1;
         const LDHUD::FStorageColumnView& Shown=Model.Columns[Index];
+        Column.bDense=Workshop.bActive&&Shown.Entries.Num()>5;
+        StorageShown(Column.List,!Column.bDense);
+        StorageShown(Column.DenseList,Column.bDense);
         // Only 本体 shows its title; the others keep theirs (the active's name or 冲刺) for the notices that name a place.
         StorageText(Column.Title,Shown.Title);Column.Active=Shown.Active;
         StorageShown(Column.Title,Index==int32(LDHUD::EStorageColumn::Body),ESlateVisibility::HitTestInvisible);
         // Workshop: more than five rows in a column shrink its icons, so the board never scrolls.
-        const float Base=(Shown.Entries.Num()>5?46.f:56.f)*Workshop.TileScale;
+        const float Base=FMath::Max((Shown.Entries.Num()>5?46.f:56.f)*Workshop.TileScale,Workshop.bActive?Workshop.MinIcon:0.f);
         for(const LDHUD::FEquippedView& Entry:Shown.Entries)
         {
             const float TileSize=Workshop.bActive?(Entry.Depth>0?FMath::Max(Base*46.f/56.f,Workshop.MinIcon):Base)
@@ -494,6 +505,13 @@ void ULDComponentStorage::BuildWorkshopTile(FColumn& Column,const LDHUD::FEquipp
         UTextBlock* Note=LDWidgets::Text(WidgetTree,Entry.Note,LDHUDStyle::TypeMicro);Note->SetAutoWrapText(false);StorageBold(Note,2);Built.Add(Note);
         auto* NoteSlot=Face->AddChildToOverlay(Note);NoteSlot->SetHorizontalAlignment(HAlign_Right);NoteSlot->SetVerticalAlignment(VAlign_Bottom);
         NoteSlot->SetPadding(FMargin(2,0,3,1));
+    }
+    if(Column.bDense)
+    {
+        Column.DenseList->AddChildToWrapBox(Box);
+        FTile& Tile=Tiles.AddDefaulted_GetRef();Tile.Component=Entry.Component;Tile.Host=Entry.Host;
+        Tile.Column=ColumnId;Tile.Face=Icon;Tile.Depth=Entry.Depth;
+        return;
     }
     auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();Built.Add(Row);
     Row->AddChildToHorizontalBox(Box)->SetVerticalAlignment(VAlign_Center);
@@ -577,6 +595,7 @@ void ULDComponentStorage::SetWorkshop(const FWorkshopLayout& Layout)
         {
             Column.AppliedLook=-1;
             if(Column.Frame){Column.Frame->SetWidthOverride(StorageColumnWidth);Column.Frame->ClearHeightOverride();Column.Frame->SetRenderOpacity(1.f);}
+            if(Column.Fit){Column.Fit->SetStretch(Layout.bActive?EStretch::ScaleToFit:EStretch::None);}
             if(Column.Panel){Column.Panel->SetPadding(FMargin(4,6));}
         }
     }
@@ -1102,6 +1121,8 @@ void ULDComponentStorage::UpdateStates(FVector2D Pointer)
         LDTween::SetOpacity(Tile.Face,Tile.State==EFaceState::Held?.35f:Tile.State==EFaceState::Dim?.4f:1.f);
     }
 }
+float ULDComponentStorage::StackHeight() const
+{return StackFrame&&StackFrame->IsVisible()?float(StackFrame->GetDesiredSize().Y):0.f;}
 void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
 {
     const FVector2D Area=Geometry.GetLocalSize();
@@ -1112,15 +1133,20 @@ void ULDComponentStorage::Layout(const FGeometry& Geometry,FVector2D Pointer)
     else
     {
         StorageShown(LibraryFrame,false);
-        // The stack sits right of the band, on its bottom edge.
-        StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));
+        // The stack stands right above the 构筑 button, right edges aligned; without the button it sits right of the band.
+        if(StorageHasArea(Anchors.Corner))
+        {StoragePlace(StackSlot,Local(FVector2D(Anchors.Corner.Right,Anchors.Corner.Top))-FVector2D(0,StorageGapFromBand),FVector2D(1,1));}
+        else{StoragePlace(StackSlot,Local(FVector2D(Anchors.Band.Right,Anchors.Band.Bottom))+FVector2D(StorageGapFromBand,0),FVector2D(0,1));}
         StorageShown(ListFrame,bExpanded&&!Cards.IsEmpty(),ESlateVisibility::Visible);
         const FSlateRect Stack=StorageRect(StackFrame);
         const FVector2D StackTopLeft=Local(FVector2D(Stack.Left,Stack.Top));
         if(bExpanded)
         {
-            // The list rises from the stack; a dragged icon fades (its rim is painted, LDUIShapes).
-            StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));
+            // The list rises from the stack; a dragged icon fades (its rim is painted, LDUIShapes). Over the corner button the
+            // list keeps the stack's right edge, so it stays on screen.
+            if(StorageHasArea(Anchors.Corner))
+            {StoragePlace(ListSlot,Local(FVector2D(Stack.Right,Stack.Top))-FVector2D(0,6.f),FVector2D(1,1));}
+            else{StoragePlace(ListSlot,FVector2D(StackTopLeft.X,StackTopLeft.Y-6.f),FVector2D(0,1));}
             for(FCard& Card:Cards){LDTween::SetOpacity(Card.Size,Card.State==EFaceState::Held?.35f:1.f);}
         }
         // The columns rise over their anchors in one row: 本体 (left of the first Q/W/E slot), Q/W/E and D, each centred.
@@ -1286,6 +1312,8 @@ void ULDComponentStorage::LayoutWorkshop(const FGeometry& Geometry,FVector2D Poi
         const FVector2D Size=BottomRight-TopLeft;
         if(!FMath::IsNearlyEqual(Column.Frame->GetWidthOverride(),float(Size.X),.5f)){Column.Frame->SetWidthOverride(float(Size.X));}
         if(!FMath::IsNearlyEqual(Column.Frame->GetHeightOverride(),float(Size.Y),.5f)){Column.Frame->SetHeightOverride(float(Size.Y));}
+        const float GridWidth=FMath::Max(1.f,float(Size.X)-16.f);
+        if(!FMath::IsNearlyEqual(Column.DenseList->GetWrapSize(),GridWidth,.5f)){Column.DenseList->SetWrapSize(GridWidth);}
         const LDHUD::EStorageColumn Id=static_cast<LDHUD::EStorageColumn>(Index);
         const TArray<LDHUD::FComponentDrop>& Drops=CurrentFocus.Drops;
         const bool bOwnDrop=Drags(Drops,Id,true);
@@ -1362,12 +1390,26 @@ void ULDComponentStorage::PaintTiles(const LDUIPaint::FContext& Paint) const
             }
         }
     }
+    if(Workshop.bActive)
+    {
+        for(const FTile& Tile:Tiles)
+        {
+            const int32 Index=int32(Tile.Column);
+            if(Tile.Host.IsNone()||!Tile.Face||!Columns.IsValidIndex(Index)||!Columns[Index].bDense
+                ||!Columns[Index].Frame||!Columns[Index].Frame->IsVisible()){continue;}
+            const FTile* Host=Tiles.FindByPredicate([&Tile](const FTile& Candidate){return Candidate.Component==Tile.Host;});
+            if(!Host||!Host->Face){continue;}
+            const FBox2D From=LDUIShapes::RectIn(Geometry,Host->Face->GetCachedGeometry());
+            const FBox2D To=LDUIShapes::RectIn(Geometry,Tile.Face->GetCachedGeometry());
+            Paint.Line(Layer,From.GetCenter(),To.GetCenter(),FLinearColor(1,1,1,.35f*Columns[Index].Frame->GetRenderOpacity()),2.f);
+        }
+    }
     for(const FTile& Tile:Tiles)
     {
         const int32 Index=int32(Tile.Column);
         if(!Columns.IsValidIndex(Index)||!Columns[Index].Frame||!Columns[Index].Frame->IsVisible()){continue;}
         const float Opacity=Columns[Index].Frame->GetRenderOpacity();
-        if(Workshop.bActive&&Tile.Depth>0&&Tile.Face)
+        if(Workshop.bActive&&Tile.Depth>0&&Tile.Face&&!Columns[Index].bDense)
         {
             // .sock.nest:before: the elbow from the host's rail into the nested tile.
             const FBox2D Box=LDUIShapes::RectIn(Geometry,Tile.Face->GetCachedGeometry());

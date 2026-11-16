@@ -88,7 +88,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 | 协作与实现规则（人和 AI 共用） | [AGENTS](AGENTS.md) |
 | 验收结果、未运行与未实现项 | [实施就绪评估](docs/demo/READINESS.md) |
 | 跨模块契约 | [共享契约](docs/demo/SHARED_CONTRACTS.md) |
-| 各玩法域的设计与实现说明 | `docs\demo` 下的领域报告（会话、操作、战斗、成长与奖励、世界与营地、AI、界面） |
+| 各玩法域的接口与实现说明 | `docs\systems` 下的系统手册（索引见[开发指南](docs/DEVELOPMENT.md#按任务读取系统手册)） |
 | 首版内容与数值（唯一来源） | [内容与数值](docs/demo/CONTENT_AND_BALANCE.md) |
 | 现有组件的实现与接口 | `docs\systems` 下的系统手册，索引见[开发指南](docs/DEVELOPMENT.md#按任务读取系统手册) |
 

@@ -29,6 +29,18 @@ class ULDDevTestPanel;
 struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
+class UTexture2D;
+
+// One own status as painted over the own overhead bars (ULDWorldLabels): its tone rim, glyph (shown without an imported
+// picture), stacks over 1, and the remaining fraction of a timed status (-1 for none). ViewIndex is its LDHUD::SelfIcons entry.
+struct FLDOwnStatusMark
+{
+    FString Glyph;
+    bool bPositive=true;
+    uint8 Stacks=1;
+    float Remaining=-1.f;
+    int32 ViewIndex=INDEX_NONE;
+};
 
 // One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
 // be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
@@ -79,8 +91,16 @@ public:
     // Called by the hit-test-invisible world layer, below the HUD's panels.
     void PaintWorldPreviews(const FGeometry& Geometry,FSlateWindowElementList& Elements,int32 Layer) const;
     TArray<FSlateRect> WorldLabelReservedAreas(const FGeometry& PaintGeometry) const;
+    // The own status marks over the own overhead bars, empty while the band is hidden. Brush(Index) is the mark's picture,
+    // null without an imported icon (the glyph stands in). The world layer reports the absolute rects it painted them at.
+    const TArray<FLDOwnStatusMark>& GetOwnStatusMarks() const {return OwnStatusMarks;}
+    const FSlateBrush* OwnStatusBrush(int32 Index) const
+    {return OwnStatusTextures.IsValidIndex(Index)&&OwnStatusTextures[Index]&&OwnStatusBrushes.IsValidIndex(Index)?&OwnStatusBrushes[Index]:nullptr;}
+    void ReportOwnStatusRects(TArray<FSlateRect> AbsoluteRects) const {OwnStatusHitRects=MoveTemp(AbsoluteRects);}
+    // LDHUD::SelfIconsNotice: "状态同步中" in place of the marks while the own projection is missing; painted, never hit-tested.
+    const FString& GetOwnStatusNotice() const {return OwnStatusNotice;}
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The normal main panels (UI 3.1) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
+    // The normal main panels (VISION_AND_UI navigation) with DevTestPanel below. The HUD owns and hit-tests them; ULDUIRoot opens one at a
     // time. ChoicesPanel is the #198 构筑 card tray behind the bottom-right 构筑 button, and the rest's NPC service window.
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     // #227: the component storage right of the band and its equipped columns (ULDComponentStorage); not a main panel.
@@ -135,10 +155,12 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> TargetManaBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
-    // The visible contender's Q/W/E tiles: key and name (#198: an active has one level).
+    // The visible contender's Q/W/E icon tiles (#198: an active has one level); the name's first character shows when the
+    // icon is missing, and the key and name are the tile's tooltip.
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
+    UPROPERTY() TArray<TObjectPtr<UImage>> TargetActiveIcons;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     // The top-centre stack (the banner and the rest actions); the full workshop moves it to the top-right corner.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> TopCentreSlot;
@@ -232,6 +254,10 @@ public:
     bool CancelPKThrowAim();
 private:
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
+    // Under the capture bar (Mock 1): the graffiti owner on the left, the guard state on the right.
+    UPROPERTY() TObjectPtr<UWidget> PhaseFootRow;
+    UPROPERTY() TObjectPtr<UTextBlock> PhaseOwnerText;
+    UPROPERTY() TObjectPtr<UTextBlock> PhaseAsideText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     // Bottom-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
@@ -259,7 +285,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
     // The recap of the death shown: a heading and one line per attacker.
     UPROPERTY() TObjectPtr<UTextBlock> DeathRecapHeading;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> DeathRecapRows;
+    // One icon chain per recap row (LDRecapChain), rebuilt only when its row changes.
+    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> DeathRecapRows;
+    TArray<LDHUD::FRecapChain> DeathRecapShown;
     // #198: the centre-screen rest return countdown ("5" .. "1", then "开淫！" as the field starts; LDHUD::RestReturnCountdown);
     // click-through.
     UPROPERTY() TObjectPtr<UTextBlock> ReturnCountdownText;
@@ -276,27 +304,16 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> PointsBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
-    // The own status strip (LDHUD::SelfIcons) in the gap between the minimap column and the band, against the band's left
-    // edge, HudStatusPerRow squares a row: the first row sits on the band's bottom line and each further row stacks above it,
-    // with no cap (EnsureStatusCells builds squares as needed). A
-    // syncing line shows while an own projection is missing. Timed statuses get a remaining-time ring (SelfIconRing, -1
-    // for none) that NativePaint draws around the square.
-    UPROPERTY() TObjectPtr<UWidget> StatusStrip;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> StatusSlot;
-    UPROPERTY() TObjectPtr<UVerticalBox> StatusRows;
-    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> SelfIconRowBoxes;
-    UPROPERTY() TArray<TObjectPtr<UBorder>> SelfIconCells;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconGlyphs;
-    UPROPERTY() TArray<TObjectPtr<UImage>> SelfIconPictures;
-    TArray<FString> SelfIconApplied;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconStacks;
-    UPROPERTY() TObjectPtr<UTextBlock> SelfIconSyncing;
-    void EnsureStatusCells(int32 Count);
-    // The squares' current views; the hovered one opens the slot popup (LDHUD::SelfIconDetail).
+    // The own statuses (LDHUD::SelfIcons) are painted by ULDWorldLabels above the own overhead bars, as LoL-style icons
+    // (OwnStatusMarks). The HUD builds the marks with the band's gate, keeps their textures alive and their remaining-time
+    // spans (SelfIconRings); the world layer reports where it painted them, so a hovered mark opens the slot popup
+    // (LDHUD::SelfIconDetail).
     TArray<LDHUD::FSelfIconView> SelfIconViews;
-    // Each square's applied tone: -1 none yet, 0 negative, 1 positive.
-    TArray<int32> SelfIconTones;
-    TArray<float> SelfIconRing;
+    TArray<FLDOwnStatusMark> OwnStatusMarks;
+    FString OwnStatusNotice;
+    TArray<FSlateBrush> OwnStatusBrushes;
+    UPROPERTY() TArray<TObjectPtr<UTexture2D>> OwnStatusTextures;
+    mutable TArray<FSlateRect> OwnStatusHitRects;
     LDHUD::FStatusRings SelfIconRings;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;

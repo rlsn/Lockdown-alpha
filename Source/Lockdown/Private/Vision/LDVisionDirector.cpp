@@ -22,6 +22,54 @@ namespace
 {
 constexpr double SightCoordinateLimitCm = 1000000.0;
 
+void PKTeammateFeet(const ALDGameMode& Mode, const ALDPKDirector* PK, const FGuid& Observer, TArray<FVector>& Out)
+{
+    Out.Reset();
+    if (!PK || !PK->IsArenaActive() || !Mode.IsPKLife(Observer)) { return; }
+    TArray<FGuid> Mates;
+    PK->LivingTeammates(Observer, Mates);
+    for (const FGuid& Mate : Mates)
+    {
+        FLDCombatBodyRef Body;
+        FVector Foot;
+        if (Mode.ReadLivingBody(Mate, Body, Foot)) { Out.Add(Foot); }
+    }
+}
+
+ELDObservedResolve PresentationSight(const ALDGameMode& Mode, const ALDCombatDirector* Combat, const ALDPKDirector* PK,
+    const FGuid& Observer, bool bArena, bool bSpectating, bool bPKObserver, const FVector& Foot,
+    const TArray<FVector>& Teammates, const FLDCombatBodyRef& Target, const FVector& TargetFoot,
+    const FLDSightGeometry& Sight, FString& Error)
+{
+    const bool bArenaBody = bArena && Target.Victim.Kind == ELDVictimKind::Contender
+        && PK->SideOf(Target.Victim.EntityId) != 0 && Mode.IsPKLife(Target.Victim.EntityId);
+    if (bSpectating && bArenaBody) { return ELDObservedResolve::Resolved; }
+    if (Combat && Combat->IsHiddenFrom(Observer, Target)) { return ELDObservedResolve::TargetUnavailable; }
+    if (Mode.IsInRestSpace(Observer)
+        && (Mode.IsInRestSpace(Target.Victim.EntityId) || Mode.IsTrainingDummy(Target.Victim.EntityId)))
+    { return ELDObservedResolve::Resolved; }
+    const auto Trace = [&](const FVector& From)
+    {
+        const ELDSightResult Result = Sight.Trace(From, TargetFoot);
+        const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
+        if (Outcome == ELDObservedResolve::AuthorityFault)
+        { Error = FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Result)); }
+        return Outcome;
+    };
+    ELDObservedResolve Outcome = Trace(Foot);
+    if (Outcome != ELDObservedResolve::TargetUnavailable) { return Outcome; }
+    if (bPKObserver && bArenaBody)
+    {
+        if (Combat && Combat->IsExposed(Target, Mode.GetAuthorityNowMs())) { return ELDObservedResolve::Resolved; }
+        for (const FVector& MateFoot : Teammates)
+        {
+            Outcome = Trace(MateFoot);
+            if (Outcome != ELDObservedResolve::TargetUnavailable) { return Outcome; }
+        }
+    }
+    return ELDObservedResolve::TargetUnavailable;
+}
+
 bool SightRationalValue(const FLDDemoRational& Value, double& Out)
 {
     Out = 0;
@@ -1233,64 +1281,16 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     const bool bSpectating = bAlive && bArena && PK->CanSpectate(Observer.ContenderId);
     const bool bPKObserver = bAlive && bArena && Mode->IsPKLife(Observer.ContenderId);
     TArray<FVector> TeammateFeet;
-    if (bPKObserver)
-    {
-        TArray<FGuid> Mates;
-        PK->LivingTeammates(Observer.ContenderId, Mates);
-        for (const FGuid& Mate : Mates)
-        {
-            FLDCombatBodyRef MateBody;
-            FVector MateFoot;
-            if (Mode->ReadLivingBody(Mate, MateBody, MateFoot)) { TeammateFeet.Add(MateFoot); }
-        }
-    }
-    const auto IsArenaBody = [&](const FLDObservedTarget& Target)
-    {
-        const FGuid& Id = Target.Body.Victim.EntityId;
-        return bArena && Target.Body.Victim.Kind == ELDVictimKind::Contender && PK->SideOf(Id) != 0 && Mode->IsPKLife(Id);
-    };
-    const auto Resolve = [&](const FVector& From, const FLDObservedTarget& Target, bool& bOut)
-    {
-        const ELDSightResult Result = Sight.Trace(From, Target.FootCm);
-        const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
-        if (Outcome == ELDObservedResolve::AuthorityFault)
-        {
-            Error = FString::Printf(TEXT("Observation sight failed for a registered body (%u)."), uint32(Result));
-            return false;
-        }
-        bOut = Outcome == ELDObservedResolve::Resolved;
-        return true;
-    };
+    if (bPKObserver) { PKTeammateFeet(*Mode, PK, Observer.ContenderId, TeammateFeet); }
     if (bAlive)
     {
         for (const FLDObservedTarget& Target : Targets)
         {
             if (Target.Body.Victim.EntityId == Observer.ContenderId) { continue; }
-            const bool bArenaBody = IsArenaBody(Target);
-            if (bSpectating && bArenaBody)
-            {
-                Visible.Add(&Target);
-                continue;
-            }
-            if (Combat && Combat->IsHiddenFrom(Observer.ContenderId, Target.Body)) { continue; }
-            if (Mode->IsInRestSpace(Observer.ContenderId)
-                && (Mode->IsInRestSpace(Target.Body.Victim.EntityId)
-                    || Mode->IsTrainingDummy(Target.Body.Victim.EntityId)))
-            {
-                Visible.Add(&Target);
-                continue;
-            }
-            bool bSeen = false;
-            if (!Resolve(Foot, Target, bSeen)) { return false; }
-            if (!bSeen && bPKObserver && bArenaBody)
-            {
-                bSeen = Combat && Combat->IsExposed(Target.Body, Mode->GetAuthorityNowMs());
-                for (int32 Index = 0; !bSeen && Index < TeammateFeet.Num(); ++Index)
-                {
-                    if (!Resolve(TeammateFeet[Index], Target, bSeen)) { return false; }
-                }
-            }
-            if (bSeen) { Visible.Add(&Target); }
+            const ELDObservedResolve Seen = PresentationSight(*Mode, Combat, PK, Observer.ContenderId, bArena,
+                bSpectating, bPKObserver, Foot, TeammateFeet, Target.Body, Target.FootCm, Sight, Error);
+            if (Seen == ELDObservedResolve::AuthorityFault) { return false; }
+            if (Seen == ELDObservedResolve::Resolved) { Visible.Add(&Target); }
         }
     }
     TArray<FGuid> Removed;
@@ -1499,6 +1499,51 @@ ELDObservedResolve ALDVisionDirector::ResolveObservedUnit(const ALDPlayerControl
     { return Refuse(Outcome, FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Sighted))); }
     if (Outcome != ELDObservedResolve::Resolved)
     { return Refuse(Outcome, TEXT("The target is not visible at this authority moment.")); }
+    Out.Target = Target;
+    Out.FootCm = TargetFoot;
+    Out.World = Sight.Revision();
+    Out.SampledAtSeconds = Core->GetAuthorityNowSeconds();
+    if (Diagnostic) { Diagnostic->Reset(); }
+    return ELDObservedResolve::Resolved;
+}
+
+ELDObservedResolve ALDVisionDirector::ResolvePresentedUnit(const ALDPlayerController& RegisteredCaller, const FGuid& Handle,
+    uint32 ObservationEpoch, FLDAuthorityTargetSample& Out, FString* Diagnostic) const
+{
+    const auto Refuse = [Diagnostic](ELDObservedResolve Result, const FString& Detail)
+    {
+        if (Diagnostic) { *Diagnostic = Detail; }
+        return Result;
+    };
+    const FObserver* Observer = FindObserver(RegisteredCaller);
+    ALDGameMode* Core = AuthorityMode();
+    if (!bActive || !Core || !Observer) { return Refuse(ELDObservedResolve::ObserverUnavailable, TEXT("The caller is not a registered observer.")); }
+    FLDContenderLifeRead Life;
+    FVector Foot;
+    FString Error;
+    if (!ReadObserver(*Observer, Life, Foot, Error)) { return Refuse(ELDObservedResolve::AuthorityFault, Error); }
+    if (!ObserverHasLiveBinding(Observer->Ledger, Life))
+    { return Refuse(ELDObservedResolve::ObserverUnavailable, TEXT("The observer has no living body bound to its current observation generation.")); }
+    FLDCombatBodyRef Target;
+    if (!Observer->Ledger.FindBinding(Handle, ObservationEpoch, Target))
+    { return Refuse(ELDObservedResolve::TargetUnavailable, TEXT("No current observation interval matches this handle and epoch.")); }
+    ALDCharacter* TargetBody = nullptr;
+    if (Core->ResolveBody(ActiveMatch, Target, TargetBody) != ELDCommitReject::None || !TargetBody)
+    { return Refuse(ELDObservedResolve::TargetUnavailable, TEXT("The observed life has no current registered body.")); }
+    const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Registry || !Sight.IsValid() || Registry->Revision() != Sight.Revision())
+    { return Refuse(ELDObservedResolve::AuthorityFault, TEXT("The registered world changed under observation.")); }
+    const ALDPKDirector* PK = Core->PKDirector.Get();
+    const bool bArena = PK && PK->IsArenaActive();
+    const bool bSpectating = bArena && PK->CanSpectate(Observer->ContenderId);
+    const bool bPKObserver = bArena && Core->IsPKLife(Observer->ContenderId);
+    TArray<FVector> Teammates;
+    PKTeammateFeet(*Core, PK, Observer->ContenderId, Teammates);
+    const FVector TargetFoot = FootOf(*TargetBody);
+    const ELDObservedResolve Outcome = PresentationSight(*Core, Core->Combat.Get(), PK, Observer->ContenderId,
+        bArena, bSpectating, bPKObserver, Foot, Teammates, Target, TargetFoot, Sight, Error);
+    if (Outcome != ELDObservedResolve::Resolved)
+    { return Refuse(Outcome, Outcome == ELDObservedResolve::AuthorityFault ? Error : TEXT("The target is not currently presentable.")); }
     Out.Target = Target;
     Out.FootCm = TargetFoot;
     Out.World = Sight.Revision();

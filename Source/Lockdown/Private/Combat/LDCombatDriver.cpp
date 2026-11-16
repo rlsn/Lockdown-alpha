@@ -93,8 +93,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
         // D26: an airdrop is announced and lands on its exact boundary.
         Consider(Mode->NextAirdropDueMs());
-        // #198: a charm wave lands and a charm leaves on its exact field-progress boundary.
-        Consider(Mode->NextCharmDueMs());
         // #198 outer §5: a camp marker is revealed on its exact field-progress boundary.
         Consider(Mode->NextFieldMarkerDueMs());
         // D27: the leader notice refreshes on its exact boundary.
@@ -203,15 +201,14 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
                     || !Mode->Camps->SpawnPendingInitialCamps(Permit,Error)) { return false; }
                 if (!Mode->IsFieldRunning() || Mode->IsShowdown()) { return true; }
                 return Mode->Camps->AdvanceCamps(Permit,Error)
-                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceCharms(Permit,Error) && Mode->AdvanceFieldMarkers(Permit,Error)
+                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceFieldMarkers(Permit,Error)
                     && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
                 // #198: commands committed at a build deadline settle before the lock of the same boundary.
-                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->ClaimCharms(Permit,Error)
-                        && Mode->RetryFieldRewards(Permit,Error)))
+                return (Mode->IsShowdown() || (Mode->ClaimAirdrop(Permit,Error) && Mode->RetryFieldRewards(Permit,Error)))
                     && Mode->Growth->ProcessTransactions(Permit,Error)
                     && Mode->LockTimelineBuild(Permit,Error)
                     // #198 session D: a settled PK pays its frozen awards once.
@@ -339,6 +336,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     if (!ResolveDashCompletions(Now,Error)) { return false; }
     // Zones, burns and element records due now join this boundary's hits and projectiles.
     ReactionFacts.Reset();
+    ReactionAssists.Reset();
     if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceBurns(Now,Error)
         || !AdvanceProjectiles(Error))
     { return false; }

@@ -2,7 +2,6 @@
 
 #include "LDDemoContentMath.h"
 #include "Framework/LDMatchTimeline.h"
-#include "World/LDCharms.h"
 #include "../Region/LDMapGeometryJson.h"
 
 namespace LDDemoContent
@@ -198,12 +197,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    // #198 charms: distinct kinds per wave, each living inside one wave interval, every effect positive.
-    if (!Check.Require(P.CharmPerWave >= 1 && P.CharmPerWave <= LDCharms::KindCount && P.CharmWaveCount >= 1
-        && P.CharmLifetimeMs > 0 && P.CharmLifetimeMs <= P.CharmWaveIntervalMs && P.CharmFirstWaveMs > 0
-        && P.CharmPickupRadiusCm.Denominator > 0 && P.CharmPickupRadiusCm.Numerator > 0
-        && P.CharmHealMaxHPBp > 0 && P.CharmManaMaxMPBp > 0 && P.CharmMoveSpeedBp > 0 && P.CharmMoveSpeedMs > 0, TEXT("CHARM"),
-        TEXT("a wave draws distinct kinds, lives inside one interval and every effect is positive")))
+    if (!Check.Require(P.AirdropHealMaxHPBp > 0 && P.AirdropManaMaxMPBp > 0 && P.AirdropMoveSpeedBp > 0
+        && P.AirdropMoveSpeedMs > 0, TEXT("AIRDROP"),
+        TEXT("the airdrop healing, mana and move-speed rewards must all be positive")))
     {
         return false;
     }

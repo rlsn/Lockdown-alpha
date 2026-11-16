@@ -201,6 +201,24 @@ bool ALDCombatDirector::ResolveDashCompletions(int64 NowMs, FString& Error)
             LDCombatControl::ArmEmpower(Body.Empowers,Package);
             bArmed=true;
         }
+        if (Body.AttributeProjection.Keystones.bAgility)
+        {
+            const FLDDemoContentSnapshot* Content=Catalog();
+            if (!Content) { Error=TEXT("The agility keystone requires the approved Demo content."); return false; }
+            const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
+            const int64 ADP2=Body.AttributeProjection.Final.ADP2;
+            const int64 AddedP2=ADP2/10000*Parameters.KeystoneAgilityADRatioBp
+                + ADP2%10000*Parameters.KeystoneAgilityADRatioBp/10000;
+            if (AddedP2>MAX_int64-Parameters.KeystoneAgilityDamageBaseP2)
+            { Error=TEXT("The agility keystone empower is outside the checked numeric domain."); return false; }
+            FLDCombatEmpower Package;
+            Package.EffectId=FGuid::NewGuid();
+            Package.AmountP2=Parameters.KeystoneAgilityDamageBaseP2+AddedP2;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Parameters.KeystoneAgilityEmpowerDurationMs,Package.ExpiresAtMs,Error))
+            { return false; }
+            LDCombatControl::ArmEmpower(Body.Empowers,Package);
+            bArmed=true;
+        }
         if (bArmed)
         {
             ++Body.StateRevision;

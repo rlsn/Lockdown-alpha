@@ -24,6 +24,7 @@ namespace LDCombatElementsDirectorDetail
         Applier.Level=FMath::Max(Hit.ElementLevel,1);
         Applier.SourceAPP2=FMath::Max<int64>(Hit.ElementAPP2,0);
         Applier.EffectId=Hit.EffectId;
+        Applier.CastLedger=Hit.CastLedger;
         return Applier;
     }
 
@@ -88,7 +89,7 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
     if (Hit.BurnStacks>0
         && !ApplyElement(Target,ELDCombatElement::Fire,ApplierOf(Hit),Hit.BurnStacks,Hit.HitId,NowMs,Error)) { return false; }
     const bool bLivingSource=Source && !Source->bPendingDeath;
-    const auto SourceApplier=[this,Source](const FLDCombatSourceRef& Ref)
+    const auto SourceApplier=[this,Source,CastLedger=Hit.CastLedger](const FLDCombatSourceRef& Ref)
     {
         FLDElementApplier Applier;
         Applier.SourceEntity=Source->Victim.EntityId;
@@ -97,6 +98,7 @@ bool ALDCombatDirector::ApplyElements(FLDBodyCombatState& Target, const FLDComba
         Applier.Source=Ref;
         Applier.Level=GrowthLevelOf(*Source);
         Applier.SourceAPP2=FMath::Max<int64>(Source->AttributeProjection.Final.APP2,0);
+        Applier.CastLedger=CastLedger;
         return Applier;
     };
     if (bLivingSource && Hit.HitClass==ELDCombatHitClass::BasicPrimary && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
@@ -138,6 +140,10 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     if (!ElementTerms(Terms,Error) || !KeywordTerms(Keywords,Error)) { return false; }
     if (Kind==ELDCombatElement::Fire && FireStacks<=0) { Error=TEXT("A fire application needs at least one layer."); return false; }
     const ELDCombatElement Held=ElementOfBody(Target,NowMs);
+    // Who applied the held element, the setters of a reaction's rule chain: the mark's latest applier for water and
+    // electric; for fire, the applier of every layer that still had ticks to settle (filled from the settled shares below).
+    TArray<FGuid> HeldSetters;
+    if (Held==ELDCombatElement::Water || Held==ELDCombatElement::Electric) { HeldSetters.Add(Target.ElementMark.Applier.CreditOwner); }
     // A lapsed mark is gone before anything else reads it.
     if (Held!=ELDCombatElement::Water && Held!=ELDCombatElement::Electric) { ClearMark(Target); }
     FLDCombatBurnLayer Layer;
@@ -151,6 +157,19 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     ++Target.StateRevision;
     MarkViewChanged(Target.Victim.EntityId);
     const ELDCombatReaction Reaction=LDCombatElements::ReactionOf(Held,Kind);
+    if (Reaction!=ELDCombatReaction::None && Applier.CastLedger && !Applier.CastLedger->bBrainsKeystoneRefunded
+        && Applier.CastLedger->PaidManaP2>0)
+    {
+        FLDBodyCombatState* SourceBody=FindBody(Applier.SourceBody);
+        if (SourceBody && !SourceBody->bPendingDeath && SourceBody->AttributeProjection.Keystones.bBrains)
+        {
+            const int64 RatioBp=Catalog()->Get().Parameters.KeystoneBrainsManaRefundBp;
+            const int64 PaidP2=Applier.CastLedger->PaidManaP2;
+            const int64 RefundP2=PaidP2/10000*RatioBp+PaidP2%10000*RatioBp/10000;
+            Applier.CastLedger->bBrainsKeystoneRefunded=true;
+            if (RefundP2>0) { GrantMana(*SourceBody,RefundP2); }
+        }
+    }
     if (Reaction==ELDCombatReaction::None)
     {
         if (Kind==ELDCombatElement::Fire)
@@ -195,6 +214,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     if (Held==ELDCombatElement::Fire)
     {
         LDCombatKeywords::BurnRemainingShares(Target.Burn,Keywords,FireShares);
+        for (const FLDBurnTickShare& Share : FireShares) { HeldSetters.AddUnique(Share.CreditOwner); }
         Target.Burn=FLDCombatBurn();
     }
     else if (Kind==ELDCombatElement::Fire)
@@ -216,13 +236,23 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
         Settle.bBurnTick=true;
         PendingHits.Add(MoveTemp(Settle));
     }
+    // Per struck body: the element its reaction damage consumed on that body and who had applied it. The primary consumed
+    // the held element; Conduct's other wet bodies their own wet; Overload's splash bodies consumed nothing.
     TArray<FLDCombatBodyRef> Struck;
+    TArray<ELDCombatElement> StruckConsumed;
+    TArray<TArray<FGuid>> StruckSetters;
+    const auto Strike=[&Struck,&StruckConsumed,&StruckSetters](const FLDCombatBodyRef& Ref, ELDCombatElement Consumed, TArray<FGuid> Setters)
+    {
+        Struck.Add(Ref);
+        StruckConsumed.Add(Consumed);
+        StruckSetters.Add(MoveTemp(Setters));
+    };
     TOptional<FLDCombatFog> NewFog;
     switch (Reaction)
     {
     case ELDCombatReaction::Fog:
     {
-        Struck.Add(Primary);
+        Strike(Primary,Held,HeldSetters);
         Fogs.RemoveAll([&Applier](const FLDCombatFog& Fog) { return Fog.Owner.SourceEntity==Applier.SourceEntity; });
         FLDCombatFog& Fog=Fogs.AddDefaulted_GetRef();
         Fog.EffectId=ReactionId;
@@ -239,7 +269,7 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
     case ELDCombatReaction::Conduct:
     {
         // The wet bodies around the primary at this instant; each consumed wet pays once.
-        Struck.Add(Primary);
+        Strike(Primary,Held,HeldSetters);
         TArray<FLDCombatBodyRef> Around;
         if (!CollectAreaTargets(PrimaryFoot,Terms.ConductRadiusCm,FindBody(Applier.SourceBody),Applier.SourceEntity,Around,Error))
         { Error=TEXT("Conduct: ")+Error; return false; }
@@ -248,29 +278,37 @@ bool ALDCombatDirector::ApplyElement(FLDBodyCombatState& Target, ELDCombatElemen
             if (Ref==Primary) { continue; }
             FLDBodyCombatState* Other=FindBody(Ref);
             if (!Other || Other->bPendingDeath || ElementOfBody(*Other,NowMs)!=ELDCombatElement::Water) { continue; }
+            const FGuid OtherSetter=Other->ElementMark.Applier.CreditOwner;
             ClearMark(*Other);
-            Struck.Add(Ref);
+            Strike(Ref,ELDCombatElement::Water,{OtherSetter});
         }
         break;
     }
     case ELDCombatReaction::Overload:
     {
-        Struck.Add(Primary);
+        Strike(Primary,Held,HeldSetters);
         TArray<FLDCombatBodyRef> Around;
         if (!CollectAreaTargets(PrimaryFoot,Terms.OverloadRadiusCm,FindBody(Applier.SourceBody),Applier.SourceEntity,Around,Error))
         { Error=TEXT("Overload: ")+Error; return false; }
-        for (const FLDCombatBodyRef& Ref : Around) { if (Ref!=Primary) { Struck.Add(Ref); } }
+        for (const FLDCombatBodyRef& Ref : Around) { if (Ref!=Primary) { Strike(Ref,ELDCombatElement::None,{}); } }
         break;
     }
     default:
         Error=TEXT("An unknown element reaction.");
         return false;
     }
-    for (const FLDCombatBodyRef& Ref : Struck)
+    for (int32 Index=0; Index<Struck.Num(); ++Index)
     {
-        FLDCombatHit Hit=SettleHit(Applier,Ref,ReactionId,R);
+        FLDCombatHit Hit=SettleHit(Applier,Struck[Index],ReactionId,R);
         if (Reaction==ELDCombatReaction::Conduct) { Hit.SlowBp=Terms.ConductSlowBp; Hit.SlowDurationMs=Terms.ConductSlowMs; }
         if (Reaction==ELDCombatReaction::Overload) { Hit.BreachStacks=Terms.OverloadBreachStacks; }
+        Hit.ReactionKind=Reaction;
+        Hit.ReactionConsumed=StruckConsumed[Index];
+        // The chain names a setter only when one applier alone held the consumed element (several burn appliers stay
+        // unnamed); every applier is a prompt candidate, told only once this hit commits (ApplyHit).
+        const TArray<FGuid>& Setters=StruckSetters[Index];
+        if (Setters.Num()==1) { Hit.ReactionSetter=Setters[0]; }
+        for (const FGuid& Setter : Setters) { if (Setter.IsValid()) { Hit.ReactionAssistSetters.AddUnique(Setter); } }
         PendingHits.Add(MoveTemp(Hit));
     }
     FLDCombatReactionFact Fact;
@@ -310,6 +348,38 @@ bool ALDCombatDirector::PulseFog(const FLDCombatFog& Fog, int64 NowMs, FString& 
 void ALDCombatDirector::OnReactionCompleted(const FLDCombatReactionFact& Fact)
 {
     ReactionFacts.Add(Fact);
+}
+
+bool ALDCombatDirector::NotifyReactionAssists(const FLDCombatHit& Hit, FString& Error)
+{
+    ALDGameMode* Mode=Core();
+    const FGuid& Trigger=Hit.CreditOwner;
+    const FLDCombatEntityRecord* TriggerRecord=Trigger.IsValid() ? FindRecord(Trigger) : nullptr;
+    if (!Mode || Hit.ReactionKind==ELDCombatReaction::None || Hit.ReactionConsumed==ELDCombatElement::None
+        || !TriggerRecord || TriggerRecord->Kind!=ELDVictimKind::Contender) { Error.Reset(); return true; }
+    for (const FGuid& Setter : Hit.ReactionAssistSetters)
+    {
+        const FLDCombatEntityRecord* SetterRecord=Setter.IsValid() ? FindRecord(Setter) : nullptr;
+        if (!SetterRecord || SetterRecord->Kind!=ELDVictimKind::Contender || Setter==Trigger || Setter==Hit.Target.Victim.EntityId
+            || ReactionAssists.ContainsByPredicate([&Hit,&Setter](const FReactionAssistSent& Sent)
+            { return Sent.ReactionId==Hit.EffectId && Sent.Setter==Setter; })) { continue; }
+        FLDReactionAssistView View;
+        View.Match=Mode->GetMatchContext().Generation;
+        View.Trigger=Trigger;
+        View.Consumed=uint8(Hit.ReactionConsumed);
+        View.Reaction=uint8(Hit.ReactionKind);
+        View.AtMs=Mode->GetAuthorityNowMs();
+        FLDReactionAssistView Sent;
+        // Unsent (the setter does not see the consumed body now): a later struck body of the same reaction may still tell it.
+        const ELDReactionAssistDelivery Result=Mode->SendReactionAssist(Setter,Hit.Target,Hit.SourceBody,View,Sent,Error);
+        if (Result==ELDReactionAssistDelivery::AuthorityFault) { Error=TEXT("Reaction prompt sight: ")+Error; return false; }
+        if (Result!=ELDReactionAssistDelivery::Sent) { continue; }
+        ReactionAssists.Add({Hit.EffectId,Setter,Sent});
+        UE_LOG(LogLDCombat,Log,TEXT("LD_REACTION_ASSIST setter=%s trigger=%s named=%d kind=%s target=%s"),*LDLog::Id(Setter),
+            *LDLog::Id(Trigger),Sent.Trigger.IsValid(),LDCombatElements::ReactionName(Hit.ReactionKind),*LDLog::Id(Hit.Target.Victim.EntityId));
+    }
+    Error.Reset();
+    return true;
 }
 
 bool ALDCombatDirector::TryDischarge(FLDBodyCombatState& Target, const FVector& TargetFoot, int64 NowMs, FString& Error)

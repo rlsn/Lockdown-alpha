@@ -12,8 +12,8 @@
   },
   "sample_class": "diagnostic",
   "assumptions": [
-    "双方固定同一开局主动及 L3 主动；两组主角在 L2 的两次抽取固定获得 B04 和 C08、L3 固定获得 B09（不安装），对手仍按种子抽取构件；不代表自然抽取概率。",
-    "两组主角均安装 B04、分配九点力道；只有实验组将 C08 安装到 B04。",
+    "双方固定同一开局主动及 L3 主动；两组主角在 L2 的两次抽取固定获得 B04 和 C08、L3 固定获得 B09（不安装），并补足 L4 两次构件抽取；对手仍按种子抽取构件；不代表自然抽取概率。",
+    "两组主角均安装 B04、分配十二点力道；只有实验组将 C08 安装到 B04。",
     "仅用于检查事务、证据与跨进程重放；单个种子不支持强度结论。"
   ],
   "design": {
@@ -30,9 +30,9 @@
               {"rule": "definition", "definition": "active_triple_combo"}
             ],
             "presets": [["active_triple_combo"]],
-            "level_components": ["component_punch_heal", "component_breath_strike", "component_hard_skin"],
+            "level_components": ["component_punch_heal", "component_breath_strike", "component_hard_skin", "component_fist_water", "component_fist_shock"],
             "build": [
-              {"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}},
+              {"step": "allocate_points", "at": "field", "points": {"stat_strength": 12}},
               {"step": "install", "at": "field", "component": "component_punch_heal"}
             ]
           },
@@ -43,7 +43,7 @@
               {"rule": "definition", "definition": "active_triple_combo"}
             ],
             "presets": [["active_triple_combo"]],
-            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}}]
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 12}}]
           }
         }
       },
@@ -57,9 +57,9 @@
               {"rule": "definition", "definition": "active_triple_combo"}
             ],
             "presets": [["active_triple_combo"]],
-            "level_components": ["component_punch_heal", "component_breath_strike", "component_hard_skin"],
+            "level_components": ["component_punch_heal", "component_breath_strike", "component_hard_skin", "component_fist_water", "component_fist_shock"],
             "build": [
-              {"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}},
+              {"step": "allocate_points", "at": "field", "points": {"stat_strength": 12}},
               {"step": "install", "at": "field", "component": "component_punch_heal"},
               {"step": "install", "at": "field", "component": "component_breath_strike",
                "target": {"kind": "component", "id": "component_punch_heal"}}
@@ -72,7 +72,7 @@
               {"rule": "definition", "definition": "active_triple_combo"}
             ],
             "presets": [["active_triple_combo"]],
-            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 9}}]
+            "build": [{"step": "allocate_points", "at": "field", "points": {"stat_strength": 12}}]
           }
         }
       }

@@ -13,6 +13,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Region/LDMapRegistry.h"
+#include "Vision/LDVisionDirector.h"
 #include "Region/LDMapGeometry.h"
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -242,7 +243,7 @@ FLDObservedFrameReceiver::EResult FLDObservedFrameReceiver::AcceptTermination(co
 
 bool FLDObservedFrameReceiver::Tick(double NowSeconds, TArray<FLDObservedClear>& Cleared)
 {
-    if (Status != ELDObservedViewStatus::Current || LastFullAt < 0 || NowSeconds - LastFullAt <= StaleAfterSeconds) { return false; }
+    if (Status != ELDObservedViewStatus::Current || LastFullAt < 0 || NowSeconds - LastFullAt <= StaleAfter) { return false; }
     // Never extrapolate a hidden or late unit; no LastSeen record survives the timeout.
     ClearUnits(ELDObservedClearReason::Timeout, Cleared);
     Frame.Footprint.CurrentBits.Reset();
@@ -306,6 +307,36 @@ double LDObservedPresentation::TrackOffset(bool bHasOffset, double Offset, doubl
     const double Candidate = ArrivalLocalSeconds - SampledAtServerSeconds;
     if (!bHasOffset || Candidate <= Offset || Candidate - Offset > ReseedSeconds) { return Candidate; }
     return FMath::Min(Candidate, Offset + FMath::Max(0.0, SecondsSinceUpdate) * OffsetGrowthPerSecond);
+}
+
+double LDObservedPresentation::TrackLateness(double Envelope, double SecondsSinceUpdate, double Lateness)
+{
+    const double Late = FMath::IsFinite(Lateness) ? FMath::Max(0.0, Lateness) : 0.0;
+    const double Held = FMath::IsFinite(Envelope) ? FMath::Max(0.0, Envelope) : 0.0;
+    if (Late >= Held) { return Late; }
+    return Late + (Held - Late) * FMath::Exp(-FMath::Max(0.0, SecondsSinceUpdate) / LatenessReleaseSeconds);
+}
+
+LDObservedPresentation::FTiming LDObservedPresentation::Timing(double LatenessEnvelope, double PublishIntervalSeconds)
+{
+    FTiming Out;
+    const double Late = FMath::IsFinite(LatenessEnvelope) ? FMath::Max(0.0, LatenessEnvelope) : 0.0;
+    const double Interval = FMath::IsFinite(PublishIntervalSeconds) ? FMath::Max(0.0, PublishIntervalSeconds) : 0.0;
+    Out.DelaySeconds = FMath::Clamp(Interval + DelayMarginSeconds + Late, MinDelaySeconds, MaxDelaySeconds);
+    Out.StaleAfterSeconds = FMath::Max(FLDObservedFrameReceiver::StaleAfterSeconds, Out.DelaySeconds + StaleOverDelaySeconds);
+    return Out;
+}
+
+double LDObservedPresentation::SlewDelay(double Applied, double Target, double DeltaSeconds)
+{
+    const double Step = FMath::Max(0.0, DeltaSeconds);
+    return Target > Applied ? FMath::Min(Target, Applied + Step * DelayGrowthPerSecond)
+        : FMath::Max(Target, Applied - Step * DelayShrinkPerSecond);
+}
+
+double LDObservedPresentation::TrackTimeout(double Applied, double Target, double DeltaSeconds)
+{
+    return Target >= Applied ? Target : FMath::Max(Target, Applied - FMath::Max(0.0, DeltaSeconds) * TimeoutShrinkPerSecond);
 }
 
 bool LDPropFade::Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target)
@@ -797,10 +828,16 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
     }
     if (Result == FLDObservedFrameReceiver::EResult::Applied)
     {
-        // Only an accepted frame advances the presentation clock.
-        ClockOffset = LDObservedPresentation::TrackOffset(bClock, ClockOffset, Arrival - ClockUpdatedAt, Arrival, View.SampledAtServerSec);
+        // Only an accepted frame advances the presentation clock and measures arrival lateness.
+        using namespace LDObservedPresentation;
+        const double SinceUpdate = bClock ? Arrival - ClockUpdatedAt : 0.0;
+        ClockOffset = TrackOffset(bClock, ClockOffset, SinceUpdate, Arrival, View.SampledAtServerSec);
+        Lateness = bClock ? TrackLateness(Lateness, SinceUpdate, Arrival - View.SampledAtServerSec - ClockOffset) : 0.0;
         bClock = true;
         ClockUpdatedAt = Arrival;
+        const FTiming Target = Timing(Lateness, double(ALDVisionDirector::PublishPeriodMs) / 1000.0);
+        TargetDelay = Target.DelaySeconds;
+        Receiver.SetStaleAfter(TrackTimeout(Receiver.GetStaleAfter(), Target.StaleAfterSeconds, SinceUpdate));
     }
     Present(Cleared);
 }
@@ -1131,8 +1168,12 @@ void ALDWorldViewRelay::Tick(float Delta)
         Receiver.Reset(ELDObservedClearReason::MatchReset, Cleared);
         bReset = true;
     }
+    const double Now = FPlatformTime::Seconds();
+    ShownDelay = LDObservedPresentation::SlewDelay(ShownDelay, TargetDelay, DelaySlewedAt < 0 ? 0.0 : Now - DelaySlewedAt);
+    DelaySlewedAt = Now;
     // A reset or timeout clears units and flights alike, even when no unit was presented.
-    const bool bTimedOut = Receiver.Tick(FPlatformTime::Seconds(), Cleared);
+    const bool bTimedOut = Receiver.Tick(Now, Cleared);
+    if (bTimedOut) { ++Timeouts; }
     if (bReset || bTimedOut || Cleared.Num() > 0) { Present(Cleared); }
     else { UploadFog(); }
     PresentProxies(Delta);

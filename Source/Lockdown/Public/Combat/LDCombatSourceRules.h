@@ -105,7 +105,7 @@ namespace LDCombatSourceRules
     // is obstructed; None: the swing lands at any distance.
     LOCKDOWN_API ELDCombatReject BasicReleaseGate(const FLDBasicReleaseInput& Input);
 
-    // COMBAT 5.1 persistent cooldown binding for one complete post-change build. A learned definition keeps
+    // COMBAT_AND_GROWTH sources and cooldowns: persistent cooldown binding for one complete post-change build. A learned definition keeps
     // its single track and end time, also when it is relearned. Pure; Apply installs it.
     LOCKDOWN_API bool PlanTrackBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input,
         int64 NowMs, const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out,

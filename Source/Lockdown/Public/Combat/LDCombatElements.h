@@ -4,6 +4,7 @@
 
 struct FLDDemoContentParameters;
 struct FLDCombatHit;
+struct FLDCombatCastLedger;
 
 // #198 water, fire and electric (docs/systems/COMBAT_AND_GROWTH.md "水火电与反应", CONTENT_AND_BALANCE §4.4). Each target
 // life holds at most one element: fire is its burn layers (LDCombatKeywords), water and electric are one mark. A hit's
@@ -46,7 +47,7 @@ struct LOCKDOWN_API FLDElementTerms
 };
 
 // Who applied an element and the snapshot its reaction damage and discharges read (the applier's level and AP when the
-// element was applied).
+// element was applied). CastLedger is carried only for once-per-release keystone refunds.
 struct FLDElementApplier
 {
     FGuid SourceEntity;
@@ -57,6 +58,7 @@ struct FLDElementApplier
     int64 SourceAPP2 = 0;
     // The release whose hit applied this element (C15 keys its once-per-release cut on it); unset otherwise.
     FGuid EffectId;
+    TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
 // The water or electric mark of a target life. Wet also holds a slow instance (SlowEffectId) that ends with the mark.

@@ -8,6 +8,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDevelopmentDirector.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Framework/LDDemoEntry.h"
@@ -949,6 +950,12 @@ bool ALDCampDirector::RewardBossKill(const FGuid& Killer, const FLDGameplayWrite
         Error.Reset();
         return true;
     }
+    if (!Mode->Development)
+    {
+        Error = TEXT("The boss final-mod reward requires the development domain.");
+        return false;
+    }
+    if (!Mode->Development->GrantBossFinalModCard(Killer, Permit, Error)) { return false; }
     return Mode->PayFieldReward(Killer, TEXT("boss"), 1, 0, ELDFieldRewardKind::BuildDraw, Permit, Error);
 }
 

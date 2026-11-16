@@ -1,112 +1,236 @@
 # 战斗、效果与成长
 
-本文说明可复用的原生结算链。Demo 的属性与五维点数、主动机会、Q/W/E 三个主动槽、构筑命令时机和死亡保留规则来自
-[App Spec](../APP_SPEC.md)，不能靠修改文档或目录标签宣称已经实现。
+| 项 | 内容 |
+| --- | --- |
+| 规则 | [App Spec](../APP_SPEC.md) §4–§6；公式、目录与数值只在[内容与数值](../demo/CONTENT_AND_BALANCE.md)，本文只引用键名与操作语义；跨域语义见[共享契约](../demo/SHARED_CONTRACTS.md) SC-03/05/06 |
+| 文件 | `Combat\LDCombatDirector`（分部 `LDCombatActions/Effects/Sources/Life/Driver/Observation/Provider.cpp`）、`LDCombatTypes.h`、`LDTacticalRules`、`LDCombatEvaluationTypes.h`、`LDCombatSourceRules.h`、`LDAttributeProjection`、`LDControlRules`、`LDCombatCues`、`LDCombatPreInput`；`Framework\LDMatchLifecycleTypes.h`、`LDGameModeLifecycle.cpp`、`LDGameModeLife.cpp`；`Development\LDDevelopmentDirector`、`LDGrowthDirector`；`World\LDCampDirector`、`LDCampDecision` |
+| 入口函数 | `AdvanceAuthority`（唯一权威批次）、`SubmitAction` / `CancelAction` / `QueryActionReceipt` / `QueryAvailability` / `BuildOwnerView`、`StartNavAttack` / `AdoptNavAttack` / `CancelNavAttack`、`PrepareBuildChange` / `ApplyBuildChange`、`PrepareCampReset` / `ApplyCampReset`、`ApplyHit`、`CommitControl`、`CommitReward` → `ALDGrowthDirector::CommitDeathReward` |
+| 不变量 | `ALDCombatDirector` 是唯一的战斗、属性、冷却、奖励交接与身体战斗状态所有者；HP/MP/盾只以 P2 存于 `Combat.Bodies.Resources`；进攻意图先解除保护再验动作；未释放不付费，释放后不退款；冷却按来源持久计时，换槽/遗忘/死亡不清洗；一条生命只有一个 `FLDDeathKey`；先锁完本批全部死亡事实再支付奖励 |
+| 检查 | `Lockdown.Rules.DemoCombat*`、`DemoAttributeProjection.*`、`DemoOrders.*`、`DemoCore.*`、`DemoControl.*`、`DemoBuildPrimitives.*`、`DemoElements.*`、`Combat.Components.*`、`Combat.Events.*`；场景 `RunDemoCombatCheck.ps1`、`RunDemoCoreCheck.ps1`（见[检查入口](#检查入口)） |
 
 ## 当前组件
 
 | 入口 | 责任 |
 | --- | --- |
 | `Combat\LDCombatDirector` | 唯一 Bodies/P2 资源记录与按实体保留的 Combat 记录（构筑投影、来源冷却轨道、普攻节拍、Direct 请求窗口）；真人、对手 AI 与营地成员共用的动作入口；对外只读身体状态 |
-| `Combat\LDCombatDriver.cpp` | 唯一权威 driver：按真实到期点切步，按契约顺序执行各阶段，步后发布视野与本人 `CombatView` |
-| `Combat\LDCombatActions/Effects/Sources/Life.cpp` | 准入/释放/回执；命中、投射物、状态到期、回复与致死锁存；构筑安装、来源绑定与可用性读模型；身体准备/安装/退役 |
-| `Combat\LDTacticalRules` | `EvaluateDamage` / `EvaluateBasicTiming` / `CooldownDurationMs`，以及 Root/屏障/净化/定点回复纯规则；不提交资源或产生效果 |
-| `Combat\LDControlRules`、`Combat\LDCombatControl.cpp` | 嘲讽（`taunt` 效果）的纯规则与在 Combat 身体记录上的应用；见下文“嘲讽” |
-| `Combat\LDAttributeProjection` | 已批准构筑输入的属性与贡献投影、一次最大值变化的精确资源比例 |
-| `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀与只读发布 |
+| `Combat\LDCombatDriver.cpp` | 唯一权威 driver：按真实到期点切步，按契约顺序执行各阶段（`RunDeaths`、`CommitReward`），步后发布视野与本人 `CombatView` |
+| `Combat\LDCombatActions/Effects/Sources/Life/Provider.cpp` | 准入/释放/回执/取消/打断；命中、投射物、状态到期、回复与致死锁存；构筑安装、来源绑定与可用性读模型；身体准备/安装/退役与离局取消效果；关局与重置钩子 |
+| `Combat\LDCombatObservation.cpp` | 观察投影：`AppendObservedStatuses`、`AppendObservedAction`、`ReadObservedProjectiles`、`ReadObservedPublicFacts` |
+| `Combat\LDTacticalRules` | `EvaluateDamage` / `EvaluateBasicTiming` / `CooldownDurationMs` / `SettleRegen`，以及 Root/屏障/净化/减速/限时增益纯规则；不提交资源或产生效果 |
+| `Combat\LDControlRules`、`LDCombatControl.cpp` | 嘲讽的纯规则与应用 |
+| `Combat\LDAttributeProjection` | 构筑输入的属性与贡献投影、一次最大值变化的精确资源比例、临时项 |
+| `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀、故障报告与只读发布 |
 | `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十二点复活/保护、出生落地与营地整组生命提交 |
-| `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励 |
-| `World\LDCampLifecycle`、`World\LDCampDirector` | 营地名册与每局记账；服务器营地 Director 经 Combat 驱动阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实并做回营重置与整组刷新，奖励只由成长 sink 支付 |
-| `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、派生点数、持久主动候选组、待学图纸与 Q/W/E 的权威成长记录；构筑变更经 Combat 准备与安装 |
-| `Development\LDGrowthDirector` | 死亡与地图事件奖励的复合提交、Transactions 分派与本人发布，见 [成长事务](GROWTH_TRANSACTIONS.md) |
+| `World\LDCampDecision`、`LDCampLifecycle`、`LDCampDirector` | 仅参数化营地决策；营地名册与每局记账；服务器营地 Director 经 Combat 阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实、回营重置与整组刷新 |
+| `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、派生点数、持久主动候选组、待学图纸与 Q/W/E 的权威成长记录 |
+| `Development\LDGrowthDirector` | 死亡与地图事件奖励的复合提交、Transactions 分派与本人发布，见[成长事务](GROWTH_TRANSACTIONS.md) |
+| `Framework\LDPlayerOrders.cpp`、`LDPlayerInput.cpp` | 拥有连接入口；客户端准备、预输入与快速施法见[移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md) |
 
-这些入口位于 `Source\Lockdown\Public`/`Private`。Demo 运行输入沿
-`SourceData\Demo`、`SyncDemoWorldData` / `SyncDemoContentData` 和原生不可变目录生成链读取。
-属性、技能与物品只来自 Demo 目录。
+入口位于 `Source\Lockdown\Public`/`Private`。属性、技能与物品只来自唯一 Demo 目录 `ULDDemoContentCatalog`。
+已退出的旧链（R09 `LDCharacterBuild`、`LDV08Loadout`、`LDGearRules`、`LDTacticalCatalog`、`LDEquipmentCatalog`、`LDTacticalRequest`、`LDContentActions/*`、
+`LDTacticalExecution`、`LDWorldClock` 回拨补算、最后接触者推奖、并行怪物攻击计时）不作为现状、兼容入口或数值来源。
+
+## 身份与接口
+
+共享核心类型在 `Framework\LDMatchLifecycleTypes.h`（由[架构与网络](ARCHITECTURE_AND_NETWORKING.md)维护），战斗 DTO 在 `Combat\LDCombatTypes.h`；本模块不另建 Match、Life、时钟或写闸。
+
+| 类型 | 字段 | 不变量 |
+| --- | --- | --- |
+| `FLDMatchContext` | `uint32 Generation; FGuid LedgerMatch` | 网络只声明 Generation，服务器解析账本 GUID |
+| `FLDVictimKey` | `Kind; FGuid EntityId; uint32 Life` | EntityId 为稳定逻辑主体（参赛者 Contender，野怪 CampId/MemberId），不是 Actor 或观察句柄 |
+| `FLDCombatBodyRef` | `Victim; FGuid BodyIdentity` | 一条逻辑生命只有一条当前身体绑定；重复 Register/换 Pawn 不发新血量或第二死亡权 |
+| `FLDCombatSourceRef` | `Kind`（None/Basic/Learned/Innate）、`DefinitionId` | 所有者、等级与绑定由服务器解析；Q/W/E/D 只是入口 |
+| `FLDCombatRequestKey` | Direct：Generation/Entity/Life/DirectSequence；Nav：Generation/Entity/Life/MoveIdentity/AttackCycle | 两种固定判别形状（`Origin`），不按裸整数混比；Nav 仅由服务器订单产生 |
+| `CombatToken` | 完整准入时发行的 `uint64` 动作序号 | 同 Caller 本局单调、跨身体保留；重复请求返回同 Token |
+| `FLDCombatHit` | `HitId`、`EffectId`、`Token`、目标 BodyRef、源身体/所有者 | Hit 去重不是死亡去重 |
+| `FLDDeathKey` | `LedgerMatch; FLDVictimKey Victim` | 不含 Killer、EffectId 或时间；改这些不能再奖励同一生命 |
+| `FLDCommittedDeath` | Key、VictimBody、VictimContender、FatalEffectId、CreditOwner（空即无主）、ReleasedSource、SourceBodyAtRelease、RewardBasis、Cause、Assisters、Recap、OccurredAtSeconds/Ms | 首次 PendingDeath 原子锁定；Life/成长/营地消费同一值 |
+| `FLDRewardBasis` | RewardDefinitionId；VictimLevelAtDeath、VictimBuildRevisionAtDeath；`bCreditOwnerEligibleAtDeath`、`NoRewardReason`（NoOwner/SelfInflicted/OwnerLeft） | 按致死真实时刻冻结；内部支付失败不是 NoReward |
+
+宽度：Generation/Life 为 `uint32`；请求序列、CombatToken、AttackCycle、事件序号与各类 revision 为 `uint64`；身体、参赛者、实例、`IssuedCooldownId` 为 `FGuid`；
+期限 `int64` 毫秒，原始模拟时刻 `double` 秒；资源为 `int64` P2。改 wire 宽度时同批改序列化、生产者、消费者及拒绝测试；计数耗尽明确失败，不回绕。
+
+```cpp
+bool AdvanceAuthority(const FLDMatchContext& Match, int64 ThroughMs, FString& Error);
+bool ResolveControllerCaller(const AController& Controller, FLDCombatCaller& Out, FString& Error) const;
+FLDCombatActionReceipt SubmitAction(const FLDCombatCaller&, const FLDCombatActionRequest&);
+FLDCombatActionReceipt CancelAction(const FLDCombatCaller&, const FLDCombatCancelRequest&);
+FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller&, uint64 DirectSequence) const;
+FLDCombatEntryView QueryAvailability(const FLDCombatCaller&, ELDCombatEntry Entry) const;
+bool BuildOwnerView(const FLDCombatCaller&, FLDCombatOwnerView& Out) const;
+FLDCombatActionReceipt StartNavAttack(const FLDCombatCaller&, const FLDCombatRequestKey&, const FLDCombatBodyRef& Target,
+    const FGuid& Observed, uint32 ObservationEpoch, const FLDGameplayWritePermit&);
+void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move);
+FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller&, const FLDBuildProjectionInput&, const FLDExpectedBuildVersions&) const;
+void ApplyBuildChange(FLDPreparedCombatProjection&&, const FLDGameplayWritePermit&);
+FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput&, const FLDGameplayWritePermit&) const;
+void ApplyCampReset(FLDPreparedCampReset&&, const FLDGameplayWritePermit&);
+```
+
+- `AdvanceAuthority` 由 Director Tick 以 GameMode 可用权威时间调用，失败交 `ALDGameMode::ReportAuthorityFault`。动作终态不经 delegate：Direct 由 `FinishDirectReceipt`/`AbandonAction` 写终态回执，Nav 普攻由 Navigation 驱动。
+- `ApplyBuildChange` 只供已验证复合提交（`LDDevelopmentDirector`、`LDGrowthDirector`）内部不失败安装，不开放为 UI/AI 写入口。
+- `FLDCombatCaller` 只在服务器，由拥有 Controller/服务器 AI/注册野怪解析，不进 wire；无当前 Pawn 的死亡选择与既成死亡结算用持久参赛上下文，不伪造 Alive Body。
+- 网络桥：`ServerSubmitCombatAction`、`ServerCancelCombatAction`（Server Reliable）、`ClientCombatReceipt`（Client Reliable）。`FLDCombatActionRequest` 只带 Generation/Life/DirectSequence、
+  `ELDCombatEntry`、`FLDCombatTarget` 与 `ExpectedSourceRevision`，不传 AD/Rank/HP/ReadyAt、目标列表、客户端时钟或所有者。代次、序号、枚举与有限数值属于前闸；
+  入口是否持有来源、TargetMode 是否匹配属于失保后的语义校验；空入口照常发送，由服务器以 `SourceUnavailable` 失败，不伪装 Malformed。
+- 不分列 Build/SourceBinding 修订：Direct 以本人视图该入口的 `ExpectedSourceRevision` 前验（不符 `StaleSource`）。不逐请求上传目录摘要：连接在 `ALDGameMode::PreLogin` 以 `LDCatalog`
+  选项钉住 `FLDDemoContentDigest`（`manifest.json` 规范字节的 SHA-256，由 `Scripts\SyncDemoContentData.py` 生成并写入 `LDDemoContentContract.h`），本局内容快照不可变。
+- AI 经服务器绑定上下文调用同一服务，不调用下层或假造 RPC；参赛 AI 用同一持久构筑。普通怪物复用动作/伤害原语，营地只决定意图、回位与刷新。CampReset 是世界域提供到家证据后的服务器内部操作。
 
 ## 从意图到结果
 
-UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确认命中。
-服务器验证 match/life、序列、真实动作来源、当前绑定、资源/冷却、状态与目标几何。
-单位目标必须重新解析观察句柄，不能依赖预览时的旧权限或隐藏 Actor 指针。
+UI 只能准备或发送动作，不直接扣蓝、改 HP、加效果或确认命中。预览、接受、释放、命中和结束是不同阶段；失败要明确，同时点击图标和快捷键不能产生两次效果；
+已释放效果的存续由其生命周期决定，不通过销毁 UI 或换槽退款。
 
-预览、接受、释放、命中和结束是不同阶段。正式资源消耗与实际释放必须遵循同一提交边界；
-失败要明确，不让客户端通过同时点击技能图标和快捷键产生两次效果。
-已释放的效果是否继续存在由其生命周期决定，不通过销毁 UI 或更换槽位退款。
+**收件与回执**：DirectSequence 由同一输入源供全部 Direct 入口共用（AI 走服务器绑定的 Direct 域）；Nav 用当前 MoveIdentity+AttackCycle。完整准入才分配 CombatToken。
+`FLDCombatActionReceipt` 带 Generation/Life/Origin/DirectSequence/Entry、CombatToken、ReceiptRevision、Phase、Reject、`bProtectionRemoved`、LifeRevision。
+阶段为 Queued、ActionAccepted、ReleaseCommitted、Finished、Rejected：收件不是接受，接受不是支付，支付不是命中；终态不可改，Query/重复请求只返回已知进展。
+Direct 拒旧水位、Nav 订单/周期水位、取消水位和回执游标分开：同 key 同条款只重放，窗内异条款 `RequestConflict`，过窗 `ReceiptExpired/StaleRequest`。
+较新无效请求不撤销已接受旧订单，更老的 Pending 不能迟到激活。取消可指 RequestKey、`ThroughDirectSequence` 或已知 CombatToken；不能把 Through 与 CombatToken 数值比较；
+S/新订单只停可中断工作，不回收已释放效果或退款。已接受未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时回执为 Rejected 并带原因。
 
-普攻、Q/W/E 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
-本人/形状/请求窗口先验，进攻意图随即经生命域解除保护，再验来源、冷却、蓝量、控制、目标与几何；
-未准入不付费，已解除的保护不恢复。技能释放时重验来源与目标（普攻释放见下文 `BasicReleaseGate`），成功才扣蓝并按 `FORMULA.CooldownMs`
-写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
-冷却、蓝量与定身对位移的禁止由纯函数 `LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。
-D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
-`ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`。普通D不是进攻意图，不解除保护；
-构筑带 `dash_contact_damage` 触发项时，D会沿真实移动轨迹产生撞伤，准入前按进攻意图解除保护。
-每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
-释放时 `LDCombatSourceRules::InnateDashTerms` 只读目录的 `Character.Dash` 距离与冷却，
-冷却不吃技能急速；结束时刻写成绝对 ReadyAt，之后换装或学习不改写。
-已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
-Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
-Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
-不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
-嘲讽：`taunt` 效果在释放时让施放者周围半径内（脚点平面距离，含边界）存活、无复活保护、
-且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽；嘲讽落地是一次控制（`LDControl::TauntVictim`）。被嘲讽期间
-Q/W/E 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
-已在前摇、被嘲讽所禁止的动作当场放弃。每个 Actions 阶段开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局、
-或被嘲讽者已观察不到嘲讽者（视线或距离）的嘲讽；离局另由 `CancelEntityEffects` 清除。
-订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
-嘲讽只出现在本人 `CombatView` 的状态里（`Taunt` 及到期），不进入他人可见的公开状态。
-同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
-普攻释放（`ReleaseBasic`）不重查距离，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
-被缴械/眩晕/击退或被嘲讽转向他人时放弃（`ControlBlocked`），目标那条生命已死亡或濒死、离局、换命或换身体时放弃
-（`TargetUnavailable`），参赛者攻击者重新观察不到该生命时放弃（`TargetUnavailable`），视线被挡时放弃（`Blocked`），
-否则命中起手时提交的目标生命（起手后不查距离，仍查可见与视线）。
-导航对同一观察目标重新下达的 AttackUnit 经 `ALDCombatDirector::AdoptNavAttack` 把未出手的普攻改挂到新订单，
-不因替换订单作废已提交的节拍；其他替换、S 与订单结束仍经 `CancelNavAttack` 放弃它。
-`FLDCombatBodyRead::ActionReleaseAtMs` 给出前摇中动作的释放时刻，供导航判断本 Actions 阶段即将出手的普攻已不再占住身体。
-拥有客户端的预输入（`LDCombatPreInput`）只在本地暂存前摇期间的一次按键并在前摇结束后作为普通 Direct 请求发出，
-服务器规则不因此改变；快速施法同样只是本地确认方式，见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)。
+**解除保护**：唯一入口 `ALDGameMode::EndProtectionForAggressiveIntent(Caller, Match, Body, Intent, Permit) -> FLDProtectionReceipt`。Intent.Kind 为 AttackUnit/AttackMove/BasicAttack/ActivateCharacter；
+`FLDAggressionRequestKey` 含 Origin、Sequence、CancelEpoch（Navigation 用原 Order/Epoch，Combat 用 DirectSequence 且 CancelEpoch 为零）。域先做 shape/freshness/冲突检查，核心再验 Caller、
+当前 Match/Body/Life/Alive 与 permit，由 Life 按当前 Actions 真实时间发布一次资格变化。前闸通过后先失保，再查来源、目标、距离、MP/CD、控制与路径；
+Rejected 也可能 `ProtectionRemoved=true`。所有角色主动（含自身守护/回复）适用；普通移动、Stop、本地准备与普通 D 不适用。旧局/旧生命、重放、畸形包在前闸拒绝，不改新生命。
+在喷漆区内失败的进攻仍可能因失保改变喷漆资格。
+
+**准入与释放**：普攻、Q/W/E 与 D 冲刺经同一 `SubmitAction`（真人 RPC、AI、营地成员各自的服务器 Caller）。冷却、蓝量与定身对位移的禁止由
+`LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。一个身体同时只有一个未释放动作：普攻前摇中被接受的技能放弃该普攻（`AbandonAction`，节拍不退回），
+能力前摇中再提交技能返回 `Busy`。
+
+- **普攻**：Navigation 在 Actions 许可内以订单键调 `StartNavAttack`。合法 AttackStart 固定本次前摇与最早 `NextAttackAt`；取消、移动、改攻速不提前该期限，攻速只影响下一次。
+  参赛者节拍是局内持久状态，跨死亡按时间继续；怪物新生命按营地初始化。释放（`ReleaseBasic`）不查距离，只经 `LDCombatSourceRules::BasicReleaseGate`：攻击者被缴械/眩晕/击退
+  或被嘲讽转向他人放弃（`ControlBlocked`）；目标那条生命死亡或濒死、离局、换命或换身体放弃（`TargetUnavailable`）；参赛者攻击者重新观察不到该生命放弃（营地感知由营地模块负责）；
+  视线被挡放弃（`Blocked`）；否则命中起手时的目标生命。攻击者死亡后 `ReleaseDue` 不再释放其动作。`AdoptNavAttack` 让同一观察目标的新订单接管未出手普攻；
+  `FLDCombatBodyRead::ActionReleaseAtMs` 供导航判断本阶段即将出手的普攻不再占住身体。
+- **技能**：释放时重验来源/生命、取消、条款、目标、控制、MP/CD 与几何；效果/状态容量预分配且旧状态未被破坏后验 permit，一次提交 MP、本条 ReadyAt（`FORMULA.CooldownMs`）、Effect 与回执。
+  不先扣费再生成，不在 staging 时销毁旧盾/场/状态。释放后的 Miss、阻挡或目标死亡不退款；已接受动作释放失败不恢复历史订单。
+- **D 冲刺**（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，`ActiveOf` 取投影成单级 DirectionDash 主动的 `Character.Dash`。
+  每名参赛者在 Combat 记录创建时签发唯一一条开局就绪的 Innate 轨道，构筑变更不规划也不解绑它。释放时 `InnateDashTerms` 只读目录距离与冷却，冷却不吃技能急速，结束写成绝对 ReadyAt。
+  普通 D 不是进攻意图；构筑带 `dash_contact_damage` 时 D 沿真实轨迹撞伤，准入前按进攻意图解除保护。
+- 动作结束只结束当次执行：Direct 写一次终态回执，Nav 普攻经 `CancelNavAttack`；下一普攻由下一个 Actions 阶段重新验证，没有第二条回调驱动战斗循环。
+
+**控制矩阵**（全部控制与减速只经 `CommitControl` 施加；定身、眩晕、沉默、缴械、嘲讽共用硬控递减，见[内容与数值 §4.5](../demo/CONTENT_AND_BALANCE.md#45-关键词状态与共用战斗规则)）：
+
+| 状态 | 移动/追击 | 原地普攻 | 非位移 Q/W/E | 位移主动 |
+| --- | --- | --- | --- | --- |
+| Root | 禁止 | 允许 | 允许（含自身盾 + 净化 Root） | 禁止（准入/释放拒绝，不付费） |
+| PendingDeath/Dead | 禁止新动作 | 禁止 | 禁止 | 禁止 |
+| 复活保护 | 允许，不计入喷漆区人数 | 先失保再验动作 | 同左 | 同左，仍查 Root |
+| Left/Closed | 禁止 | 禁止 | 禁止 | 禁止 |
+
+- Root 按 effect/cast + 完整目标生命保存独立实例与原期限，任一未到期即生效，显示最大剩余；同实例重发不续期，较早到期不清掉另一来源。禁止项为 `POLICY.RootBlocks`。
+  “我没急”（`active_not_mad`）给护盾并解除当时全部减速与 Root，不带后续免疫。
+- `EFFECT.ShieldPolicy=ReplaceIfNotWeaker` 比较旧盾**当前剩余量**：新量不少于剩余即以新量、新来源、新截止完整替换；较弱保留旧盾，且只是子效果结果，组合净化照常、MP/CD 照付。
+  之后 Max/AP 变化不重算已快照盾。
+- **嘲讽**：`taunt` 在释放时让施放者半径内（脚点平面距离含边界）存活、无保护且此刻能观察到施放者的其他参赛者被嘲讽（野怪不受）；同一身体只保留最新一次；落地是一次控制（`LDControl::TauntVictim`）。
+  期间 Q/W/E 与 D 经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能打嘲讽者那条生命，前摇中被禁止的动作当场放弃。每个 Actions 开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局
+  或观察不到嘲讽者的嘲讽；离局由 `CancelEntityEffects` 清除。订单强制见[移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)。嘲讽只出现在本人 `CombatView`。
+- 目录不用的状态与效果（免死、背后判定、灼烧以外的持续伤害、减疗、易伤）连同处理器已删除，不保留禁用生产者或空 handler。
+
+`ELDCombatReject`：InvalidRequest/NotOwner、StaleMatch/StaleLife/StaleRequest、RequestConflict/ReceiptExpired、Cancelled、StaleSource、SourceUnavailable、
+Busy/Cooldown/AttackNotReady/InsufficientMana/ControlBlocked、TargetUnavailable、InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailable/CapacityUnavailable。
+构筑变更的数值失败（NumericUnderflow/NumericDomain）属于 `ELDCombatPrepareError`。隐藏、撤销、过期目标统一 TargetUnavailable；分配/算术/缺边界证据不是 Miss，不能用零伤害或默认坐标吞掉。
+
+**目标与接触**：单位新锁定、每次追击、AttackStart 与需要单位许可的 Release 都经 `ResolveObservedUnit`/`TraceSight` 重新解析，失视野取消锁定并停追击。
+目标种类 Missing/Self/Unit/Direction/Point；Point 只用于 GroundPoint 区域技能，释放时夹到射程内。区域与方向效果在权威内部读同一 `Bodies` 求接触并逐目标做世界 LOS（`LDCombatEffects.cpp`），
+可以接触隐藏身体，但不授予观察句柄，不交 UI/AI/Nav；方向效果在首次真实接触时取得目标生命。缺世界注册或非法半径明确失败，不截断为“最近若干目标”。
+
+## 纯值接口
+
+`LDTacticalRules`（值类型在 `LDCombatEvaluationTypes.h`）借用已验证的 `FLDDemoContentSnapshot`，真实执行（`ApplyHit`、身体普攻时长）与对手 AI 估计（`LDOpponentPolicy.cpp`）调用同一组纯函数：
+`EvaluateDamage(FLDDamageEvaluationInput, Snapshot)`、`EvaluateBasicTiming(FLDBasicTimingInput, Snapshot)`。纯函数不查世界、不读时钟、不采随机、不分配 Token 或改状态。
+
+| 值类型 | 边界 |
+| --- | --- |
+| `FLDDamageEvaluationInput` | 显式 `Definition(BaseP2, ADRatioBp, APRatioBp, MaxHPRatioBp, DamageType)`、HitClass、必需解析的源属性/本次暴击/目标抗性/HP/盾/保护；仅零系数可省对应源属性，缺字段不默认为零或未保护 |
+| `FLDDamageEvaluationResult` | `TOptional` Value 与 Code/Field/Message 的 Error；成功给 DamageP2、ShieldAbsorbedP2、HPLostP2、OverkillP2、RemainingHPP2/RemainingShieldP2。只有 `HPLostP2` 是实际扣血/吸血基数 |
+| `FLDBasicTimingInput` / `Result` | 基础与当前攻速有理数及 BaseWindupMs（玩家 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物 `CAMP.*.AttackSpeed/AttackWindupSec`）；输出 IntervalMs/WindupMs 且前摇小于间隔，不生成绝对时刻 |
+
+- HitClass 为 BasicPrimary、BasicSecondary、Ability：只有主普攻允许本次暴击（×`STAT.CritMultiplier`，在加成池之前）；带暴击的技能输入以 Domain 拒绝；反伤与附加伤害不暴击；Basic 拒绝 AP 系数与魔法伤害。
+- 完整字段、数值域与精确算术校验先于保护零伤；中间有理数保留到最终一次 floor/ceil；精度与取整只取内容合同（`FORMULA.Crit/Resistance/Damage`、`FORMULA.AttackIntervalMs/AttackWindupMs`）。
+  原生公式夹具使用 producer 生成的 `approved_base`，`base` 是独立合成输入，不在夹具缺失时回退生产资产。
+- AI 只以自身属性、合法可见成员与公共模板构造保守假设（显式不暴击），缺输入返回 EstimateUnavailable，不当成零风险。
+
+## 属性与资源
+
+`LDAttributeProjection::Project(FLDAttributeBuildValues, Snapshot)`：输入为等级、五维点数、已安装构件（每定义至多一次，按 id 排序）与 DEV 测试层；空数组表示没有该来源。
+结果含全部最终字段与按属性顺序的基础/等级/点数/构件/DEV 贡献；构件的 `low_hp_stat_bonus`、`control_damage_amp` 成为条件项，全部已安装构件另列出供触发处理，条件脱战回复单独返回。
+初始身体用它初始化 `Bodies.Resources` 与普攻时长；构筑变更经成长事务调用 `PrepareBuildChange`/`ApplyBuildChange`。
+
+| 属性 | 内容键 | 消费者/单位 |
+| --- | --- | --- |
+| AD/AP | `STAT.AD/AP.*`；`FORMULA.StatProjection/Damage` | AP 只进明确的法术加成，不改普攻类型 |
+| Armor/MR | `STAT.Armor/MagicResist.*`；`FORMULA.Resistance` | 每次 Hit 取目标当前值 |
+| 攻速/间隔/前摇 | `STAT.BaseAttackSpeed/AttackSpeedPerLevelRatio`；`FORMULA.AttackSpeed/AttackIntervalMs/AttackWindupMs` | 在合法 AttackStart 快照，不缩短能力前摇 |
+| 移速 | `UNIT.MoveSpeedCmPerSec`；`FORMULA.MoveSpeed → STAT.MoveSpeedCmPerSec` | cm/s，接 CharacterMovement |
+| 攻击距离 | `UNIT.BasicAttackRangeCm` + 构件 `AttackRangeCmFlat`；`FORMULA.AttackRange → STAT.AttackRangeCm` | 脚点 XY 中心距；只限制普攻开始；不等于能力 Range 或群攻 Radius；扩大不创建追踪弹体 |
+| 最大/当前 HP/MP | `STAT.MaxHP/MaxMP.*`；`FORMULA.Damage/Regen/ResourceMaxChange` | P2；Combat 唯一真值 |
+| 回复 | `STAT.HPRegen/MPRegen.*`；`FORMULA.Regen` | 点/秒，按有效速率区间累计 |
+| 暴击 | `STAT.CritChance.Base/CritMultiplier`；`FORMULA.Crit`、`POLICY.CritSampling` | 一次 AttackId 在成功 Release 采样一次，重放不重抽 |
+| 冷却 | `STAT.CooldownHaste.Base`；`FORMULA.CooldownMs` | 只影响未来 Release |
+
+- 每项最终属性夹到 `STAT.<属性>.Min/Max`，超界部分不生效、不拒绝构筑；带 DEV 项的属性超上限时拒绝该次投影。当前资源、已有 ReadyAt 与 UI 不反向参与投影；循环依赖在导入或 Prepare 拒绝。
+  普攻没有副击：`POLICY.BasicSecondaryTriggers=Disabled`。
+- **最大资源变化**：`PrepareBuildChange` 在局部候选上一次验证完整变化、来源、数值、容量与绑定，生成最终属性、资源变换与来源计划；不调 Changed/Sync，不取消动作、不扣机会、不改资源/CD。
+  `POLICY.ResourceMaxChange=PreserveRatio` 以旧当前值、旧上限、最终新上限调用一次 `LDAttributeProjection::ResourceMaxChange`，不逐个拆装中间态，不从 HUD 反算，不触发吸血或喷漆清零。
+  活体正 HP 降上限后量化为零返回 `NumericUnderflow`，整笔事务不改；非初始化零分母返回 `NumericDomain`（`UndefinedResourceRatio`）。Prepare 还捕获 BodyRef 与属性/资源/状态修订，
+  其间受伤、耗蓝、回复或状态到期使旧计划失效，必须重 Prepare。死亡等待选择不对死身体做比例回血，正常复活由生命域满最新上限。
+- **回复**：`POLICY.RegenIntegration=CarrySubP2Remainder`，同一资源记录保存有界亚 P2 余数与结算水位；速率/来源变化前先以旧 rate/旧 max 结清到实际边界；满资源丢弃超额与余数；Prepare 不偷偷 Tick；死亡/新生命清余数。
+  `LastCombatAt` 只在成功 AttackStart、有伤害效果的成功 Release、承受正伤害（含盾全吸收）时更新；失败尝试、位移、自保盾/回蓝与选卡不刷新。复活以复活时刻初始化脱战起点。
+  参赛者满 `REGEN.OutOfCombatDelaySec` 后另加按当前 Max 比例的脱战回复，与宿舍回复各自起算并与基础回复叠加，野怪不享有；纯规则 `LDTactical::SettleRegen`（`Regenerate` 逐身体调用），起点也是 `NextDueMs` 的边界。
+
+## 来源与冷却
+
+readiness 由 Combat 写在参赛记录中，键为 `LedgerMatch + Contender + SourceKind + 能力定义 + IssuedCooldownId`（`FLDCombatTrack`：Kind/DefinitionId/ReadyAtMs），槽位不入键。
+同一可学习主动只发行一条，D 冲刺一条 `Innate`。获得来源的 Prepare：已有记录则回绑原记录与结束时间；本局首次合法学习准备一条无债的就绪记录。
+选择、绑定、SourceBindingRevision、机会与投影一并提交，失败全不安装。
+
+- 换槽、升级、遗忘重学、死亡、窗口重开保持 CD；来源丢失继续计时，不存冻结的 Remaining；重学从一级起但回绑原结束时间。Prepare 后先 Release 时重新核验修订，不以旧 ReadyAt 覆盖新债。
+- 新 CD/攻击截止用原始开始/释放时刻向上到毫秒加内容向上时长；ready 判断用实际 now 或安全向下的毫秒；已有整数期限不经 double 往返，加法与转换检查溢出。
+- 未 Release 的 Action 必须有当前生命、实际来源与能力条款；死亡、遗忘或来源失效即取消。已 Release 的独立 Effect 保存源所有者、SourceBodyAtRelease、SourceRef、等级、目录摘要、实际 AD/AP/暴击、
+  空间数据与结束条件；释放者死亡、重生、遗忘不改快照、期限或预算。持续属性与需维持条件的作用在条件失效时停止。目标生命始终严格：self 盾/控制不转到复活身体，旧目标 Hit 不改绑新 Life。
+- 离局按 OwnerContender 取消未结 Effect/目标状态/维持贡献并立即移除身体；此前的 HP 损失、盾消耗、控制时段与锁定死亡不回滚。
 
 ## 权威时序
 
-`AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
-中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
-普攻节拍、脱战回复起点、保护到期、复活时刻、营地整组刷新、旗杆开放、喷上涂鸦与守护完成时刻）。每步依次执行 Motion → Session
-（保护半开到期）→ Actions（先结算到本边界的回复）→ Effects → DeathsAndRewards → RespawnsAndWorld →
-Transactions → Capture → Close 和完成边界，仅推进原生游戏时间已经提供的预算；
-Close 锁定结果后仍完成该边界，随后无 permit 的发布依次调用成长 `PublishGrowth` 与 `ExecuteCapturePublish`，然后停止推进。
-DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitDeathReward`：可重试的拒绝只在下一边界再试一次，
-其余未支付结果明确报错并故障。待重试奖励存在时结果不能锁定：同一边界的 Capture 若恰好完成，Close 保留提案，
-driver 立即以同刻结算边界（`BeginSettlementStep`：新 BatchSerial、不推进时间，只有 DeathsAndRewards 重试与 Close）
-先结清奖励再锁定原完成时刻的胜者；只有故障关闭写闸时奖励才记录为未支付（`LD_REWARD_UNPAID_AT_FAULT`）。
-Transactions 每步调用一次 `ProcessTransactions`。
-生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向喷漆与守护归约器提交资格事实并通知提供者。
-控制在提交时通知喷漆区：唯一控制入口 `CommitControl` 每实际提交一次定身、眩晕、沉默、嘲讽或击退，
-都在同一 Actions/Effects 许可内调用 `InterruptSpray(Target)`，再经 `ALDGameMode::PublishCaptureInterrupt` 清零该参赛者的喷漆进度
-（事实时刻为该边界 AtMs；营地身体或没有活动归约器的世界不受影响）；缴械、减速和伤害从不调用它。
-被击退出喷漆区由随后的原生运动作为普通离区事实进入归约器。端到端规则见 `Lockdown.Rules.DemoCapture.CombatHitInterrupt`。
-原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
-`PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
-营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
-本步野怪请求随即与 Direct 请求一同准入；Effects 把营地成员受到的已提交敌对命中（伤害或控制）作为 `OnCombatHostileContact` 交给营地；
-DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `CommitDeathReward`；RespawnsAndWorld
-在参赛者复活后调 `AdvanceCamps`。初始出生在同一开局许可内、参赛者 Joined 之后调用 `SpawnInitialCamps`：
-它按名册顺序只生成前 `InitialGroupsPerFrame`（3）个营地，其余由 RespawnsAndWorld 的 `SpawnPendingInitialCamps`
-每帧至多一批、按同样数量接着生成（按帧而不是按权威步限额：长帧会跑多个步）；对局开在 R0 休息，期间出现的营地立即冻结，休息结束的 `ThawAfterRest` 先补齐尚未生成的营地再解冻，
-野外不会在缺营地时开始。营地顺序与种类抽取顺序不变。
-DEV 测试会话的 `DevRefreshCleared`（Transactions）只把等待中的刷新截止提前，实际重生仍由下一个 `AdvanceCamps` 完成。
-任一营地入口返回 false 即为权威故障。
+只有 `AdvanceAuthority(Match, ThroughMs, Error)`（`LDCombatDriver.cpp`）推进权威批次；GameMode 只拥有同一模拟时钟、`BeginAuthorityStep/ValidateMotionStep`、phase permit、生命与结果。
+`FLDAuthorityStep`（Match、StepSerial、Start/EndServerSeconds）、`FLDAuthorityBoundary`（Match、BatchSerial、AtMs）、`FLDGameplayWritePermit`（Boundary、Phase、GateRevision，只由 GameMode 构造，写入前 `ValidateWritePermit`）。
 
-修改这个顺序会影响同时死亡、资源释放、命中与喷漆/守护完成的同刻竞争，必须连同对应场景验证。
-喷漆、守护的归约与结果归 GameMode 核心的喷漆与守护归约器（`Framework\LDCaptureReducer`）。
+步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、普攻节拍、脱战回复起点、保护到期、复活、营地整组刷新、旗杆开放、喷上涂鸦与守护完成）。
+
+| 阶段 | 工作 |
+| --- | --- |
+| Motion | 原生运动分段与存在事件（`PublishCaptureMotion`）；到期 Root 先提交再推进其后分段 |
+| Session | 离开/HostEnd、保护半开到期（t 到期先于 t 命中）、旗杆开放条件 |
+| Actions | 先结算到本边界的回复，营地 `ProcessAuthorityIntents`，身份前闸、进攻失保、订单/动作准入、AttackStart 与到期 Release |
+| Effects | 有序接触/命中/状态/恢复；统一保护闸；首次致零立即锁存；营地成员受到的敌对命中交 `OnCombatHostileContact` |
+| DeathsAndRewards | 先结束本集合全部生命（营地 `EndCampMemberLife` → `ConsumeMemberDeath`），再逐个 `CommitDeathReward` |
+| RespawnsAndWorld | 复活与保护；营地 `AdvanceCamps`、`SpawnPendingInitialCamps` |
+| Transactions | 每步一次 `ProcessTransactions`；同刻 Combat 因果在 Capture 前排空 Effects → DeathsAndRewards 子批，不重开 Actions |
+| Capture | 只消费 fence 齐备的进出/资格/打断事件 |
+| Close → Publish | `TryCloseMatch` 原子锁结果与闸，`CloseCombatMatch`/`EndMatchActions` 清未结工作，再无 permit 发布（`PublishGrowth`、`ExecuteCapturePublish`） |
+
+- 死亡事实带 `OccurredAtSeconds` 与 checked ceil 的 `OccurredAtMs`；先按真实时刻排因果，真正同刻才按 phase 与稳定次序；同毫秒桶不让较晚的 Leave 排到较早 Hit 前。DueAt 与 RecordedAt 不冒充发生时间；缺当时姿态/接触证据必须阻断。
+- 奖励可重试拒绝（`RetryableNotCommitted`）保留原事实（`RetryRewards`），只在下一边界 DeathsAndRewards 开头重试一次；部分提交的结果不进重试；首次非可重试失败或重试仍失败即权威故障，不造 NoReward 或普通胜利，也不覆盖已锁胜者。
+  待重试奖励存在时结果不能锁定：同边界 Capture 恰好完成时 Close 保留提案，driver 以同刻结算边界（`BeginSettlementStep`：新 BatchSerial、不推进时间，只有 DeathsAndRewards 重试与 Close）先结清奖励；
+  只有故障关闭写闸时奖励记为未支付（`LD_REWARD_UNPAID_AT_FAULT`）。
+- 生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向喷漆与守护归约器（`Framework\LDCaptureReducer`）提交资格事实。`CommitControl` 每实际提交一次定身、眩晕、沉默、嘲讽或击退，
+  都在同一许可内 `InterruptSpray(Target)` 并经 `ALDGameMode::PublishCaptureInterrupt` 清零该参赛者喷漆进度（事实时刻为边界 AtMs）；缴械、减速和伤害不清零；击退出区由随后的原生运动作为普通离区。
+  `PublishCaptureMotion/Eligibility/Interrupt` 是喷漆区唯一窄接口，不新增通用 eventbus。
+- 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步；视野在 driver 推进完成后采姿态发布；`PublishAuthority` 失败使 Core 进入 Fault。UI 同步时钟只作倒计时。
+- 营地接入：Motion 调 `AdvanceMemberMotion`；初始出生在开局许可内、参赛者 Joined 之后 `SpawnInitialCamps` 只按名册顺序生成前 `InitialGroupsPerFrame`（3）个，其余由 `SpawnPendingInitialCamps` 每帧至多一批；
+  R0 休息期间出现的营地立即冻结，`ThawAfterRest` 先补齐再解冻。DEV `DevRefreshCleared` 只把等待中的刷新截止提前。任一营地入口返回 false 即权威故障。
+- 修改阶段顺序会影响同时死亡、资源释放、命中与喷漆/守护完成的同刻竞争，必须连同对应场景验证。
 
 ## 状态、伤害和效果归属
 
-HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点数用于显示。
-伤害求值先完整验证定义、来源值、抗性及算术，再处理保护、盾吸收、实际 HP 损失和过量伤害；
-只有 `HPLostP2` 是实际生命损失，不能把盾吸收也当作吸血依据。求值不读 Actor、时钟或随机数，
-也不代替拥有 permit 的命中/死亡提交。
-`ReadObservedPublicFacts` 只读当前已绑定身体上明确提交的公开构筑/状态投影。
+HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点数用于显示。`ApplyHit` 是唯一资源入口：验证 Match/permit、Effect/接触键、目标生命、存活/关系、当前保护与几何，
+再按 `FORMULA.Damage` 计算全部后果；源输入用 Release 快照，目标抗性/保护/屏障/HP 用当次已提交真值；每个 Hit 的容量与数值失败先于写入。第一次 HP 到零立即 PendingDeath，
+不留同批吸血/回复/盾把它治活的窗口，其后 Hit 不夺取致死来源。吸血只按 `HPLostP2`，普攻命中特效系数 1.0、技能按定义，反伤与附加伤害不触发，所有比例相加后受 `COMBAT.LifestealCap` 限制；
+治疗指向原释放身体生命，不治疗复活身体或 PendingDeath。
+`ReadObservedPublicFacts` 只读当前身体上明确提交的公开构筑/状态投影。
 复活保护仅由 Alive/current Body 且 Core NowMs 小于 Lives.ProtectedUntilMs 派生
 `RespawnProtection` 的单层状态及精确期限，不存成可驱散的 Combat buff，不在读取时补默认等级；
 命中点以同一生命状态做统一保护闸（免伤免控，群攻副目标排除保护者）。
@@ -145,9 +269,28 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 `LedgerHitCommitted` 调用一次，口径与构筑蓝图的伤害事实相同：对另一个身体实际提交的正伤害（含被护盾吸收的部分），
 自伤与私人训练不计。纯规则在 `LDDamageRecap`（`Combat/LDDamageRecap.h`）：
 - 承伤：受害者是参赛者时，把这一击（攻击者为记功的参赛者，否则为来源身体的野怪定义，再否则无主；来源 `FLDCombatSourceRef`；
-  `DamageP2`）追加进这条生命的 `FLDBodyCombatState::DamageLog`，并丢弃早于 `REWARD.AssistWindowSec` 的样本。
-  `LockDeath` 以 `LDDamageRecap::Summarize`（窗口含边界，含致死一击）按攻击者与来源求和，冻结进
-  `FLDCommittedDeath::Recap` 与 `RecapWindowMs`：攻击者按总量降序，同一攻击者的来源按伤害降序，并列按固定顺序。
+  `DamageP2`）追加进这条生命的 `FLDBodyCombatState::DamageLog`，并丢弃早于 `REWARD.AssistWindowSec` 的样本。反应伤害另带规则链：`FLDCombatHit::ReactionKind`、`ReactionConsumed`、`ReactionSetter`
+  与 `ReactionAssistSetters`。`ApplyElement` 按每个被打身体自己的状态记录：主目标记被消费元素的施加者（火取结算的各灼烧份额的
+  不同记功者，其他取元素标记的记功者）；导电旁目标记它自己的潮湿与施加者；过载溅射目标没有被消费状态，也没有施加者。
+  施加者恰好一名时写 `ReactionSetter`，多名时不具名。规则链写进 `FLDDamageLine::Reaction`、`Consumed` 与 `Setter`
+  （施加者不是参赛者时不具名；溅射行只有 `Reaction`）。`LockDeath` 先以 `LDDamageRecap::HideUnreadableSetters` 去掉受害者
+  不能读到身份的施加者：只保留受害者本人、窗口内对它造成过伤害的参赛者与冻结的助攻者，其余不具名并合并。
+  然后以 `LDDamageRecap::Summarize`（窗口含边界，含致死一击）按攻击者、来源与规则链求和，
+  冻结进 `FLDCommittedDeath::Recap` 与 `RecapWindowMs`（助攻窗口）；致死者是野怪时记 `KillerMonsterId`。
+  攻击者按总量降序，同一攻击者的行按伤害降序，并列按固定顺序。`ALDGameMode::SendDeathRecap` 另附击杀者与冻结的助攻者。
+- 状态引爆提示：反应消费了另一名参赛者施加的元素且触发者也是参赛者时，`ApplyHit` 在这一击完整提交（含 `LockDeath`）且
+  造成正伤害或施加了控制后，才调用 `ALDCombatDirector::NotifyReactionAssists`；失败或零伤害无控制的命中不发提示。
+  每次反应每个不同施加者（不是触发者、也不是被打身体）只发一次，记 `LD_REACTION_ASSIST`。`ALDGameMode::SendReactionAssist`
+  只发给施加者的拥有连接，并要求施加者处于当前比赛的存活生命、最近视野样本观察到被消费状态的身体，
+  且命中时仍符合视野域的展示权限（含隔离、PK 队友共享视野与曝光）；提示带施加者的 `Life`。
+  触发者的身体须属于其本人并通过同一检查才具名，否则不具名。视野权威故障按命中权威故障处理。
+  `ALDPlayerController::ClientReactionAssist` 用
+  `LDDamageRecap::KeepReactionAssist`：形状非法的拒绝；早于已知本人 `OwnerState`（比赛、生命）或早于已保留提示的视为过期，
+  不改动已保留的提示；其余替换更早（比赛、生命）的提示，取下一个本地序号并保留最近 6 条。可靠提示可能先于复制的比赛与
+  本人状态到达，事件播报（`FEventFeed`）对尚未知道的比赛或生命的提示连同其后的提示一起等待，到齐后再按序播报；
+  只播报当前比赛与本人当前生命、未过期（`StaleKillMs`）的提示，每条至多一次；首次观察前已保留的提示同样播报，
+  核心时钟未知时等待而不丢弃。提示只报告引爆，不改变助攻结算：施加者在施加元素时已按 `RecordAssistContribution` 记作贡献，在助攻窗口内死亡即计为助攻；
+  反应消费本身不另记贡献。
 - 造成：记功者是参赛者时，累加进 `DamageTotals[CreditOwner]` 的对应来源行；`DamageTotalsOf` 按伤害降序读出。
 灼烧、区域、反应与弹射沿用各自命中的 `Source` 与 `CreditOwner`，不另外归类。投送与界面见[视野与界面](VISION_AND_UI.md)。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个被动在末尾再加一层未经约束的减伤。
@@ -161,6 +304,19 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者生命上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带生命上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/生命上限，以及按施放者当前等级成长后的数值，见“技能等级成长”）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
 的逐目标合法性与视线检查）各得一份；控制与减速随命中经 `CommitControl` 施加。
 施放者离局时 `CancelEntityEffects` 一并移除其减速、灼烧层、区域与路径扫掠，营地回位清空全部临时项。
+
+
+**本人视图**：`FLDCombatOwnerView` 由 `PublishOwnerViews` 写入拥有 Controller 的 `CombatView`，随 OwnerState 单一发布通路同步。信封为 Generation、Life、Revision、AsOfMs、bHasBody、SourceRevision，
+消费者先拒旧再替换完整快照。内容：资源 `HPP2/MaxHPP2/MPP2/MaxMPP2/ShieldP2`；`FLDCombatAttributeRowView`（Attribute、Base、Level、Choices、Passives、PercentBonus、Final、bClamped）及 MoveSpeedCmPerSec、
+AttackRangeCm、bOutOfCombatRegenActive；Q/W/E/Dash 各一行 `FLDCombatEntryView`（SourceKind、DefinitionId、Rank、TargetMode、RangeCm、ManaCostP2、IssuedCooldownId、ReadyAtMs、CooldownMs、仅显示的 Unavailable）；
+`FLDCombatStatusView`（StatusId、ExpiresAtMs、AmountP2、ControlBlocks、bIsPassive）、bRooted、NextAttackAtMs、ActionEntry/Phase/Token/ReleaseAtMs、本人提示 `Cues`、`BuildSafeAtMs`。
+Alive/ProtectedUntil/LifeRevision 来自生命域 OwnerState。自己受到的状态可解释类型与时限，不借来源字段泄露隐藏施加者。
+
+**对手投影**只由 Vision 的 `FLDObservedUnitView` 维护：合法可见时的名称、等级、HP、MP、状态与 Q/W/E 原生 ID 和等级（`FLDObservedActivesView`，由 `PublicActivesOf` 在构筑安装与身体准备时写入），
+没有 IssuedCooldownId、来源修订、CD 或完整属性；状态只取 `AppendObservedStatuses` 的 Root/Shield 与生命域保护。失权立即清面板、标记与附着表现。
+弹体由 `ReadObservedProjectiles` 按当前位置与朝向交给观察者，唯一外观为粉笔（`ELDObservedProjectileLook::Chalk`，`active_snark_bolt`），其他来源没有外观则整体失败。
+Normal Listen Host 持有权威 Actor 也必须经同一呈现授权（Mesh/阴影/名字、盾/Root/弹体/命中特效、灯光与声音），保留服务器碰撞，原生与观测代理不双重输出。
+合法隐藏次击结果不整包发给攻击者，不自动成为 AI/Nav 目标。公共圈与 PvP 击杀通知只带批准身份/原因。
 
 ### 控制、强化普攻与反伤
 
@@ -437,6 +593,14 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 `LDAttributeProjection` 按每个五维的 `PerPoint`（`stat_physique` 生命上限与生命回复、`stat_thick_skin` 护甲与魔抗、`stat_strength`
 攻击力与暴击率、`stat_brains` 法强、技能急速与法力回复、`stat_agility` 攻速与移速比例）把点数作为本人属性视图的 `Choices` 行
 （比例项进入 `PercentBonus`）加到等级成长上，最终统一夹到目录上下限。
+同一投影还按已分配点数与 `Parameters.KeystoneThresholdPoints` 分别生成五维 `Keystones` 标记；
+门槛不从钱包、最终属性或夹紧后的值推导，各项可以独立激活。体格关键石只把自身构筑来源实际恢复的 HP 转为护盾
+（不含债务偿还、过量治疗或空来源的环境奖励），经 `GrantShieldTo` 的护盾替换规则结算，成功施加才启动冷却；
+脸皮关键石在普通 `PrimaryGuard` 后追加一次敌方本体普攻减伤，只有实际减伤才启动冷却。
+力道关键石把对已减速或受硬控目标的加成并入统一 `DamageBonusBp` 池；攻速降低和击退不满足条件。
+脑力关键石把施法释放的共享 `CastLedger` 沿元素施加传递，在该释放首次触发反应时返还实际支付法力的一次比例；
+身手关键石在自愿冲刺完成时快照一个一次性强化普攻包，与其他强化包在同一主普攻、同一次暴击中结算，
+过期、重冲刺和消耗沿用 `FLDCombatEmpower` 的规则。数值只在[内容与数值 §4.1](../demo/CONTENT_AND_BALANCE.md#41-五维属性与成长参数)维护。
 
 AI 的开局时刻/候选位由 `ALDGameMode::DrawOpponentOpeningPlan` 在绑定时从现有服务器 `SpawnRandom` 流抽取，
 不是每个 AI 新建 GUID 种子。`LD_AI_OPENING_PLAN` 记录抽取前的流状态 `seed`，可用同状态重放这两次抽取；
@@ -509,6 +673,45 @@ DEV 重置把它清零。
 - **读取**：主动经 `ActiveOf` 在准入与释放时取成长后的数值，命中载荷在释放时快照；升级重新投影构筑；
   护盾与灼烧在施加时固定（灼烧层快照施加者等级与法强）。卡面用同一 `LDDemoCardText` 与 `FindValues` 渲染当前等级的数字（见[视野与 UI](VISION_AND_UI.md)）。
 
+## 死亡、奖励与营地重置
+
+Combat 首次 PendingDeath 同次冻结 `FLDCommittedDeath`（真正致死 Effect/Source/Owner、受害生命、目录与 RewardBasis）。无主不回退 LastOwner；无奖也有终态事实；自杀按稳定 Owner/Entity 判断。
+**每个 Effects 致死集合先锁完全部事实及 RewardBasis，再在 DeathsAndRewards 逐项支付**：互杀中第一笔 XP 使某受害者升级，另一笔仍读冻结的 VictimLevelAtDeath。
+
+- Life 的 `EndContenderLife(Fact, Permit)` 消费同一 DeathKey 并发布一次资格变化，Combat 不另发 Died。
+- 成长 sink 为 `ALDGrowthDirector::CommitDeathReward(const FLDCommittedDeath&, const FLDGameplayWritePermit&) -> FLDRewardReceipt`（Granted、NoReward 或失败）：Prepare 预计算 XP/等级/机会、候选、回执、
+  Combat 投影及容量，同一 permit 下各收款人的成长安装之间不回调、发布或重入。见[成长事务](GROWTH_TRANSACTIONS.md)。
+- 信用资格按 OccurredAtSeconds 冻结：死亡但仍在局的 Owner 合格；Hit 致死先于 Leave 则后来离局不改；Leave 在先则取消效果，不能产生新的致死。旧参赛记录只服务已锁事实结算，不恢复在局。
+- 野怪由最后一击的参赛者所有者独占 XP；参赛者之间另按助攻分配（App Spec §4.1）；自杀、离局与回位不奖励。
+
+**营地受击**：`ApplyHit` 对营地成员成功提交正伤害（含盾吸收）或 Root 后产生 `FLDCombatHostileContact`（`HitId`、`VictimBody`、`SourceBody`、`CreditOwner`、`OccurredAtSeconds`，不含隐藏坐标）；
+Miss 与零接触不产生。同一 Effects 阶段内 `ALDCampDirector::OnCombatHostileContact` 按 HitId 幂等消费，只记录本营敌对来源身份，再由 `LDCampDecision` 产生同营反击意图；
+同营广播来源身份而非坐标，各成员独立观察与重查来源生命，不把旧来源的重生身体自动改绑为报复目标。Returning 不产生无敌或不可选中，途中 Hit/Root/死亡照常，世界策略不恢复追击。
+
+**CampReset**：`FLDCampResetInput` 由 World 构造（CampId/MemberId、当前 BodyRef、真实 HomeProof、`uint64 ReturnEpoch`、世界/成员/资源/状态修订），重置键为 `LedgerMatch + VictimKey + ReturnEpoch`，
+World 持有返回代次与已重置水位。ReturnEpoch 只在进入新的 Returning 周期时递增；周期中受击只更新修订使旧 Prepared 失效。`PrepareCampReset` 在 RespawnsAndWorld、当期 Effects/DeathsAndRewards 之后，
+检查真实到家、仍为该存活成员、HP 正且非 PendingDeath、修订与 permit；已提交只重放原回执。Prepare 在局部候选中先移除临时状态，再投影最终 MaxHP/MaxMP，按最终上限准备满资源。
+`ApplyCampReset` 与世界成员安装在同一无重入提交中安装状态/上限/满 HP/MP、清仇恨、技能就绪；不改 EntityId/BodyIdentity/Life，不发行新成员、不产生死亡或 XP、不清 Hit/请求/死亡拒重水位。
+已清状态的旧到期回调按原 EffectId 与目标生命核对，不重新生效，也不误删后来的新实例；到家前未命中的独立效果之后仍以同一生命正常校验。
+
+## 生命周期矩阵
+
+| 事件 | 构筑/资源/持续贡献 | 未释放动作/订单 | 已释放独立效果 | 冷却/奖励 |
+| --- | --- | --- | --- | --- |
+| 前闸拒绝 | 不改保护和资源 | 不替换当前单 | 无 | 不写 CD/节拍 |
+| 意图后游戏拒绝 | 保护已解除 | 未准入不替换旧单 | 无 | 不扣 MP、不写 CD；失保不回滚 |
+| S/新单/取消 | 不撤回已发生状态 | 取消可中断工作 | 不回收、不退款 | 保留已承诺节拍与成本 |
+| 换槽/升级 | 一次最终投影 | 验实际来源条款 | 保持旧快照 | 旧 ReadyAt 不重算 |
+| 替换/遗忘主动 | 遗忘旧等级与持续贡献 | 旧来源未释放的失效 | 继续原期限 | 原发行记录保留，重学沿原结束 |
+| 来源死亡 | 构筑/候选保留，活体持续作用停止，清旧控制 | 取消 | 继续 | CD/节拍继续；在局死者有效击杀仍获奖 |
+| 死亡等待选择 | 更新保留构筑，不治疗/复活 | 不发身体动作 | 新学能力不自动生效果 | 不刷新 CD |
+| 目标死亡 | PendingDeath 不被救活 | 旧目标工作失效 | 不重绑新 Life | 同生命仅一个 DeathKey |
+| 复活 | 新 Life 满最新 HP/MP，清旧控制，建立保护 | 旧生命请求无执行权 | 旧来源效果可继续，不命中被旧 Hit 绑定的新生命 | CD/节拍按时间 |
+| 离局/断线 | 立即撤资格、移身体 | 取消并拒新命令 | 立即取消 | 不是击杀；此前事实按冻结资格结算 |
+| 野怪 Returning / 到家 | 仍可受伤/控制/死亡 / 原子清临时状态并满血蓝，同刻 PendingDeath 优先 | 不回头追击 / 回等待受击 | 同生命 Hit 照常 | 不发奖、不换 Life |
+| 终局 | 先冻结写入再清理 | 拒绝新受理 | 不再伤害/治疗 | 已提交回执可重放 |
+| 新局 | 新 Generation + LedgerMatch，重建局内状态 | 旧请求全部拒绝 | 清空 | 新 CD/死亡/事务域 |
+
 ## 检查入口
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
@@ -530,6 +733,7 @@ B10/B11 水电的构件来源（C09/M11）、S08 火与 B18 电同批先火后�
 欠款不吃 S16、C10 共享 C11 预算、M01 只扩散伤害、S20 队友加速、C01 固定窗口与边界收齐，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `DamageRecap.Window` 覆盖承伤样本的记录与过期、窗口边界、按攻击者与来源求和及排序、各来源总量和列表的形状校验，
+`DamageRecap.Chain` 覆盖反应伤害按规则链分行、最近一击的距今时长、规则链与助攻提示的形状校验，
 `BuildBlueprint.Attribution` 覆盖构筑蓝图台账的版本划分（只升级、同结构异序与 DEV 测试层不另造版本）、按释放版本归属的命中、
 时间段与收尾，以及全部事实自开局即采集并按版本分列，`BuildBlueprint.Components` 覆盖只改安装/目标/绑定即开新版本、
 构件行的宿主与参数、严格往返与失效安装提示，
@@ -563,6 +767,16 @@ Client1 的下单到 Activated 回执时间，Host 全速行走中按 S 到停�
 Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovement 参数；
 营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
 这些规则测试不代替新成长或真实拥有连接的运行验证。
+
+
+其他拥有连接场景（输出在忽略的 `Artifacts`）：`RunDemoGrowthCheck.ps1`（开局在倒计时学 Q、交战窗口内学 W 并加点、死亡中学 E 且复活后仍在、新局无冷却债务）；
+`RunDemoCampCheck.ps1`（不先手、全营反击、每生命一次最后一击奖励、清营刷新、脱离回位与无奖励到家重置）；`RunDemoOpponentCheck.ps1`（满房三 AI 自行成长、战斗、喷漆与守护）；
+`RunDemoVisionCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1` 覆盖观察授权、喷漆/守护与离局。
+另有 `DemoCombatSources.CooldownTracks/CommittedBasicRelease`、`DemoCombatStatus.Roots/Shield/Regen/Cooldown`、`DemoVision.ActionCues/Projectiles/Presentation/Privacy`、
+`DemoCamp.Retaliation/ReturnReset/Lifecycle/Roster/ObservedFacts`、`CampDecision`、`DemoSpawn.UnbiasedSample`。
+
+未覆盖：拥有连接场景没有验证吸血或暴击的实际命中；预输入与快速施法只有规则测试；战斗场景不含营地或 AI；没有三名真人同时参战的满房场景；
+同批互杀、奖励可重试失败、同毫秒离局与命中、终局同刻致死没有拥有连接场景。首版内容是已批准的试玩输入，未经平衡测试。
 
 数据编辑先运行对应 Sync `--check` 与输入测试。测试用的授予、传送或改时钟要明确是夹具，
 不能当作正常升级、打野收益或完整对局已经成立。

@@ -13,6 +13,7 @@
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDCombatDirector.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDPathSteering.h"
 #include "Region/LDMapRegistry.h"
@@ -42,6 +43,32 @@
 #include "Serialization/JsonSerializer.h"
 #include "UnrealClient.h"
 #include "UObject/CoreNet.h"
+
+struct FLDDemoVisionReactionAccess
+{
+    static void Queue(ALDCombatDirector& Combat, const FLDCombatBodyRef& Setter,
+        const FLDCombatBodyRef& Trigger, const FLDCombatBodyRef& Target)
+    {
+        const auto Hit = [&Target](const FLDCombatBodyRef& Source)
+        {
+            FLDCombatHit Result;
+            Result.HitId = Result.EffectId = FGuid::NewGuid();
+            Result.Target = Target;
+            Result.SourceBody = Source;
+            Result.SourceEntity = Result.CreditOwner = Source.Victim.EntityId;
+            Result.Source.Kind = ELDCombatSourceKind::Basic;
+            Result.HitClass = ELDCombatHitClass::Ability;
+            Result.DamageType = ELDDemoDamageType::Magical;
+            return Result;
+        };
+        FLDCombatHit Wet = Hit(Setter);
+        Wet.bApplyWet = true;
+        FLDCombatHit Electric = Hit(Trigger);
+        Electric.bApplyElectric = true;
+        Combat.PendingHits.Add(MoveTemp(Wet));
+        Combat.PendingHits.Add(MoveTemp(Electric));
+    }
+};
 
 // Carries the topology-only assertions of the retired LDViewNetworkProbe (#1, #9, #15, #23, #28 of the observation
 // closure plan) plus the Listen Host presentation gate. Codec, ordering, handles and sight stay in
@@ -141,9 +168,12 @@ public:
     TWeakObjectPtr<UWorld> World;
     FString Output, Role, Error, CatalogDigest, PendingImage, SpawnViolation, SpawnVisibilityViolation;
     double Deadline = 0, StageAt = 0, NextCommandAt = 0, NextReadyAt = 0, BlockedSince = 0, SightDeadline = 0, ImageAt = 0, DisconnectAt = 0;
+    double ReactionQueuedAt = 0, ReactionAt = 0;
     int32 Stage = 0, WalkWaypoint = 0, SpawnFramesChecked = 0, SpawnVisibilityFramesChecked = 0, PreStallProxies = 0;
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false, bStallAnnounced = false;
     bool bControlObserved = false, bControlViolated = false, bEmulating = false, DisconnectVerified = false;
+    bool bReactionReady = false, bReactionQueued = false, bReactionLeaveRequested = false;
+    uint64 ReactionBaseline = 0;
     EStall Stall = EStall::Waiting;
     FLDCombatBodyRef OwnBody;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -240,6 +270,15 @@ public:
             if (!Exists(FString(Name) + Suffix)) { return false; }
         }
         return true;
+    }
+
+    bool ReadReactionContender(const FString& Participant, FGuid& Contender) const
+    {
+        FString Json, Id;
+        TSharedPtr<FJsonObject> Value;
+        return FFileHelper::LoadFileToString(Json, *FPaths::Combine(Output, Participant + TEXT("ReactionReady.json")))
+            && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Value) && Value.IsValid()
+            && Value->TryGetStringField(TEXT("contender"), Id) && FGuid::Parse(Id, Contender) && Contender.IsValid();
     }
 
     // Listen Host only: every body other than the Host's own must draw nothing by the end of its spawn frame,
@@ -344,7 +383,7 @@ public:
             TEXT("Other units exist here only as proxies of this owner's current frame") + (Why.IsEmpty() ? FString() : TEXT(": ") + Why));
     }
 
-    // #15H (WORLD_CAMPS_AND_VISION §5.4, CT-A17): the Listen Host shows other units only through its own projection.
+    // #15H (VISION_AND_UI field permissions and Listen Host, CT-A17): the Listen Host shows other units only through its own projection.
     void CheckHostPresentation(const UWorld& InWorld, const ALDGameMode& Mode, const ALDPlayerController& Local,
         const ALDWorldViewRelay& Relay, const FLDWorldView& Frame)
     {
@@ -577,23 +616,24 @@ public:
     {
         if (!AllMarkers(TEXT("Arrived.json"))) { return true; }
         if (SightDeadline == 0) { SightDeadline = Now + 20; }
+        const bool bReactionOnly = FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"));
         const ALDWorldViewRelay* Relay = nullptr;
         const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
-        if (!Frame || !Relay || OtherContenders(*Frame, Owner.OwnerState.ContenderId) < 2)
+        if (!Frame || !Relay || (!bReactionOnly && OtherContenders(*Frame, Owner.OwnerState.ContenderId) < 2))
         {
             if (Now < SightDeadline) { return true; }
             return Fail(TEXT("#1"), Frame
                 ? TEXT("At the shared capture anchor the current frame still lacks the other two contenders")
                 : TEXT("No current authorized frame reached this owner (observation wiring pending)"));
         }
-        if (Role == TEXT("Host"))
+        if (Role == TEXT("Host") && !bReactionOnly)
         {
             const ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
             if (!Mode) { return Fail(TEXT("#15H"), TEXT("The Listen Host has no authoritative game mode")); }
             CheckHostPresentation(InWorld, *Mode, Owner, *Relay, *Frame);
             if (!Passed) { return Finish(); }
         }
-        else { CheckRestrictedRegistry(InWorld, Owner, *Relay, *Frame); }
+        else if (Role != TEXT("Host")) { CheckRestrictedRegistry(InWorld, Owner, *Relay, *Frame); }
         FNetBitWriter Writer(nullptr,1<<18);
         FLDWorldView WireFrame=*Frame;
         bool bEncoded=true;
@@ -602,7 +642,7 @@ public:
         Check(Writer.GetNumBytes()<1100,TEXT("#23"),FString::Printf(
             TEXT("The shared-anchor observation payload fits below 1100 bytes (%lld bytes)"),Writer.GetNumBytes()));
         if (!Passed) { return Finish(); }
-        if (Role==TEXT("Host") || FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionRendered")))
+        if (!bReactionOnly && (Role==TEXT("Host") || FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionRendered"))))
         {
             PendingImage=FPaths::Combine(Output,Role+TEXT("Sighted.png"));
             ImageAt=Now;
@@ -626,6 +666,94 @@ public:
         Check(true, TEXT("#1"), TEXT("The participant renders its main view (screenshot kept for presentation review)"));
         if (!Mark(Role+TEXT("Sighted.json"))) { return Finish(); }
         Stage = 6;
+        return true;
+    }
+
+    bool TickReaction(double Now, UWorld& InWorld, ALDPlayerController& Owner, const FLDLobbyView& Lobby)
+    {
+        if (!AllMarkers(TEXT("Sighted.json"))) { return true; }
+        if (!bReactionReady)
+        {
+            const ALDWorldViewRelay* Relay = nullptr;
+            const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+            if (!Frame || !Relay) { return true; }
+            if (Role != TEXT("Host") && OtherContenders(*Frame, Owner.OwnerState.ContenderId) >= 2
+                && !Mark(Role + TEXT("ReactionSight.json"))) { return Finish(); }
+            ReactionBaseline = Owner.ReactionAssistSerial;
+            if (!Owner.OwnerState.ContenderId.IsValid())
+            { return Fail(TEXT("#Reaction"), TEXT("The owning connection has no contender identity")); }
+            auto Ready = MakeShared<FJsonObject>();
+            Ready->SetStringField(TEXT("contender"), Owner.OwnerState.ContenderId.ToString());
+            if (!Save(Ready, Role + TEXT("ReactionReady.json")))
+            { return Fail(TEXT("#Reaction"), TEXT("Could not persist the owning connection's contender identity")); }
+            bReactionReady = true;
+        }
+        if (Role == TEXT("Host") && !bReactionQueued)
+        {
+            if (!AllMarkers(TEXT("ReactionReady.json"))) { return true; }
+            const FString Chosen = Exists(TEXT("Client1ReactionSight.json")) ? TEXT("Client1")
+                : Exists(TEXT("Client2ReactionSight.json")) ? TEXT("Client2") : FString();
+            if (Chosen.IsEmpty())
+            { return Fail(TEXT("#Reaction"), TEXT("Neither remote setter currently observes both the target and the trigger")); }
+            if (!Exists(Chosen + TEXT("ReactionChosen.json")) && !Mark(Chosen + TEXT("ReactionChosen.json"))) { return Finish(); }
+        }
+        const FString SetterRole = Exists(TEXT("Client1ReactionChosen.json")) ? TEXT("Client1")
+            : Exists(TEXT("Client2ReactionChosen.json")) ? TEXT("Client2") : FString();
+        if (SetterRole.IsEmpty()) { return true; }
+        FGuid HostId, SetterId, TriggerId;
+        const FString TriggerRole = SetterRole == TEXT("Client1") ? TEXT("Client2") : TEXT("Client1");
+        if (!ReadReactionContender(TEXT("Host"), HostId) || !ReadReactionContender(SetterRole, SetterId)
+            || !ReadReactionContender(TriggerRole, TriggerId)
+            || HostId == SetterId || HostId == TriggerId || SetterId == TriggerId
+            || !Lobby.Members.ContainsByPredicate([SetterId](const FLDLobbyMember& Member) { return Member.ContenderId == SetterId; })
+            || !Lobby.Members.ContainsByPredicate([TriggerId](const FLDLobbyMember& Member) { return Member.ContenderId == TriggerId; })
+            || (Role == TEXT("Host") && Owner.OwnerState.ContenderId != HostId)
+            || (Role == SetterRole && Owner.OwnerState.ContenderId != SetterId)
+            || (Role == TriggerRole && Owner.OwnerState.ContenderId != TriggerId))
+        { return Fail(TEXT("#Reaction"), TEXT("The owning connections do not identify three distinct roster participants")); }
+        if (Role == TEXT("Host") && !bReactionQueued)
+        {
+            ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
+            ALDPlayerController* SetterController = Mode ? Mode->FindContenderController(SetterId) : nullptr;
+            ALDPlayerController* TriggerController = Mode ? Mode->FindContenderController(TriggerId) : nullptr;
+            if (!Mode || !Mode->Combat || !SetterController || !TriggerController
+                || !SetterController->OwnerState.BodyRef.IsValid() || !TriggerController->OwnerState.BodyRef.IsValid()
+                || !Owner.OwnerState.BodyRef.IsValid())
+            { return Fail(TEXT("#Reaction"), TEXT("The authority has no live bodies for the three test participants")); }
+            if (Mode->IsContenderProtected(Owner.OwnerState.ContenderId)) { return true; }
+            RemoteContenders.Add(SetterId);
+            RemoteContenders.Add(TriggerId);
+            FLDDemoVisionReactionAccess::Queue(*Mode->Combat, SetterController->OwnerState.BodyRef,
+                TriggerController->OwnerState.BodyRef, Owner.OwnerState.BodyRef);
+            if (!Mark(TEXT("ReactionQueued.json"))) { return Finish(); }
+            bReactionQueued = true;
+        }
+        if (!Exists(TEXT("ReactionQueued.json"))) { return true; }
+        const bool bRecipient = Role == SetterRole;
+        if (ReactionQueuedAt == 0) { ReactionQueuedAt = Now; }
+        if (bRecipient && !Exists(TEXT("ReactionReceived.json")) && Owner.ReactionAssistSerial > ReactionBaseline)
+        {
+            if (!Mark(TEXT("ReactionReceived.json"))) { return Finish(); }
+        }
+        if (!Exists(TEXT("ReactionReceived.json")))
+        {
+            if (Now - ReactionQueuedAt < 10) { return true; }
+            return Fail(TEXT("#Reaction"), TEXT("The wet setter did not receive a reaction prompt"));
+        }
+        if (ReactionAt == 0) { ReactionAt = Now; }
+        if (Now - ReactionAt < 2) { return true; }
+        const FLDReactionAssistView* Received = Owner.ReactionAssists.IsEmpty() ? nullptr : &Owner.ReactionAssists.Last();
+        const bool bCorrect = bRecipient
+            ? Owner.ReactionAssistSerial == ReactionBaseline + 1 && Received
+                && Received->Match == Owner.OwnerState.Match && Received->Life == Owner.OwnerState.Life
+                && Received->Trigger == TriggerId && Received->Consumed == uint8(ELDCombatElement::Water)
+                && Received->Reaction == uint8(ELDCombatReaction::Conduct)
+            : Owner.ReactionAssistSerial == ReactionBaseline;
+        if (!Check(bCorrect, TEXT("#Reaction"), bRecipient
+            ? TEXT("The wet setter alone receives the named conduct prompt over its owning connection")
+            : TEXT("A non-setter receives no reaction prompt"))) { return Finish(); }
+        if (!Mark(Role + TEXT("ReactionDone.json"))) { return Finish(); }
+        Stage = 7;
         return true;
     }
 
@@ -744,7 +872,9 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection observation scenario: a rendered, participating Listen Host and two owning clients started through the normal lobby. Carries checks #1, #9, #15, #23 and #28 of the retired view network probe plus Listen Host presentation (#15H). Not combat balance, death or termination, AI or full-match acceptance."));
+        Report->SetStringField(TEXT("scope"), FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
+            ? TEXT("DEV-only owned-connection reaction scenario: three normal-start participants, with fixture hits queued into the native Effects phase. Checks the setter's RPC and non-recipient isolation; not player input, hidden sight cases, combat balance or full-match acceptance.")
+            : TEXT("DEV-only owned-connection observation scenario: a rendered, participating Listen Host and two owning clients started through the normal lobby. Carries checks #1, #9, #15, #23 and #28 of the retired view network probe plus Listen Host presentation (#15H). Not combat balance, death or termination, AI or full-match acceptance."));
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);
@@ -771,7 +901,33 @@ public:
     {
         if (Role != TEXT("Host"))
         {
-            if (Exists(TEXT("FinishClients"))) { FPlatformMisc::RequestExitWithStatus(false, 0); return false; }
+            if (Exists(TEXT("FinishClients")))
+            {
+                if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly")))
+                { FPlatformMisc::RequestExitWithStatus(false, 0); return false; }
+                if (!bReactionLeaveRequested)
+                {
+                    ALDPlayerController* Owner = Controller.Get();
+                    if (!Owner)
+                    {
+                        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_VISION_LEAVE_FAILED no owning controller"));
+                        FPlatformMisc::RequestExitWithStatus(false, 2);
+                        return false;
+                    }
+                    Owner->LeaveDemoRoom();
+                    bReactionLeaveRequested = true;
+                    DisconnectAt = Now;
+                }
+                const UWorld* LeavingWorld = World.Get();
+                if (!Controller.IsValid() || !LeavingWorld || !LeavingWorld->GetNetDriver())
+                { FPlatformMisc::RequestExitWithStatus(false, 0); return false; }
+                if (Now - DisconnectAt >= 20)
+                {
+                    UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_VISION_LEAVE_FAILED owning client did not leave the room"));
+                    FPlatformMisc::RequestExitWithStatus(false, 2);
+                    return false;
+                }
+            }
             return true;
         }
         UWorld* Hosted = World.Get();
@@ -800,7 +956,9 @@ public:
             Result->SetNumberField(TEXT("remaining_units"), Frame ? Frame->Units.Num() : -1);
             Result->SetNumberField(TEXT("remaining_proxies"), CountProxies(*Hosted));
             Result->SetStringField(TEXT("detail"), Why);
-            Result->SetStringField(TEXT("scope"), TEXT("After both owning clients disconnect, the Listen Host's own current view and proxies no longer present them."));
+            Result->SetStringField(TEXT("scope"), FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
+                ? TEXT("After both owning clients explicitly leave, the Listen Host's own current view and proxies no longer present them.")
+                : TEXT("After both owning clients disconnect, the Listen Host's own current view and proxies no longer present them."));
             if (!Save(Result, TEXT("Disconnects.json")) || !bClean)
             {
                 UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_VISION_DISCONNECT_FAILED %s"), *Why);
@@ -850,7 +1008,12 @@ public:
         case 3: return TickArrive(Now, *Owner);
         case 4: return TickSight(Now, *Current, *Owner);
         case 5: return TickImage(Now);
-        case 6: return TickStall(Now, *Current, *Owner);
+        case 6: return FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly"))
+            ? TickReaction(Now, *Current, *Owner, Lobby) : TickStall(Now, *Current, *Owner);
+        case 7:
+            if (FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionReactionOnly")))
+            { return AllMarkers(TEXT("ReactionDone.json")) ? Finish() : true; }
+            return TickReport();
         default: return TickReport();
         }
     }

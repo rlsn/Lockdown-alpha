@@ -13,6 +13,8 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDPlayerController.h"
+#include "PK/LDPKDirector.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
@@ -193,6 +195,82 @@ struct FLDBuildPrimitivesAccess
         return true;
     }
     static const FLDSightGeometry& Sight(const ALDVisionDirector& Vision) { return Vision.Sight; }
+    static bool BindReactionObserver(ALDGameMode& Mode, ALDPlayerController& Controller,
+        const TArray<TPair<FLDCombatBodyRef, ALDCharacter*>>& Bodies, FString& Error)
+    {
+        Mode.MatchContext.Generation = 1;
+        Mode.MatchContext.LedgerMatch = FGuid::NewGuid();
+        Mode.Contenders.Add(&Controller).Session = Bodies[0].Key.Victim.EntityId;
+        for (const auto& Entry : Bodies)
+        {
+            auto& Life = Mode.Lives.Add(Entry.Key.Victim.EntityId);
+            Life.Kind = Entry.Key.Victim.Kind;
+            Life.Phase = ELDLifePhase::Alive;
+            Life.Life = Entry.Key.Victim.Life;
+            Life.Body = Entry.Key;
+            Life.Actor = Entry.Value;
+        }
+        ALDVisionDirector& Vision = *Mode.Vision;
+        Vision.ActiveMatch = Mode.MatchContext;
+        Vision.bActive = true;
+        auto& Observer = Vision.Observers.AddDefaulted_GetRef();
+        Observer.ContenderId = Bodies[0].Key.Victim.EntityId;
+        Observer.Controller = &Controller;
+        bool Reset = false;
+        if (!Observer.Ledger.Begin(1, Error) || !Observer.Ledger.Bind(ELDLifePhase::Alive, 1, Reset, Error)) { return false; }
+        TArray<FLDObservedTarget> Targets;
+        for (int32 Index = 1; Index < Bodies.Num(); ++Index)
+        {
+            FLDObservedTarget& Target = Targets.AddDefaulted_GetRef();
+            Target.Body = Bodies[Index].Key;
+            Target.Presented.AuthorizedFieldMask = LDObservation::ContenderFields;
+            Target.Presented.Kind = ELDObservedUnitKind::Contender;
+            Target.Presented.Presentation = 2;
+            Target.Presented.ContenderId = Target.Body.Victim.EntityId;
+            Target.Presented.Level = 1;
+            Target.Presented.Health.CurrentP2 = Target.Presented.Health.MaxP2 = 100000;
+            Target.Presented.Mana.MaxP2 = 10000;
+        }
+        TArray<const FLDObservedTarget*> Visible;
+        for (const FLDObservedTarget& Target : Targets) { Visible.Add(&Target); }
+        TArray<FGuid> Removed;
+        TArray<FLDObservedUnitView> Units;
+        return Observer.Ledger.Sample(Visible, Removed, Units, Error);
+    }
+    static ELDReactionAssistDelivery SendReaction(ALDGameMode& Mode, const FLDCombatBodyRef& Setter, const FLDCombatBodyRef& Target,
+        const FLDCombatBodyRef& Trigger, FLDReactionAssistView& Sent, FString& Error, FGuid Credit = FGuid())
+    {
+        FLDReactionAssistView View;
+        View.Match = Mode.MatchContext.Generation;
+        View.Trigger = Credit.IsValid() ? Credit : Trigger.Victim.EntityId;
+        View.Consumed = 2;
+        View.Reaction = 2;
+        View.AtMs = 1000;
+        return Mode.SendReactionAssist(Setter.Victim.EntityId, Target, Trigger, View, Sent, Error);
+    }
+    static void ReactionPK(ALDGameMode& Mode, ALDPKDirector& PK, const FLDCombatBodyRef& Setter,
+        const FLDCombatBodyRef& Mate, ALDCharacter& MateActor, const FLDCombatBodyRef& Target,
+        const FLDCombatBodyRef& Trigger, const FVector& MateFoot)
+    {
+        Mode.PKDirector = &PK;
+        PK.Mode = &Mode;
+        PK.bArenaActive = true;
+        PK.Entrants = {Setter.Victim.EntityId, Mate.Victim.EntityId, Target.Victim.EntityId, Trigger.Victim.EntityId};
+        PK.Drawn.SideOfSeat = {1, 1, 2, 2};
+        for (const FGuid& Entrant : PK.Entrants) { Mode.PKLives.Add(Entrant); }
+        auto& Life = Mode.Lives.Add(Mate.Victim.EntityId);
+        Life.Kind = ELDVictimKind::Contender;
+        Life.Phase = ELDLifePhase::Alive;
+        Life.Life = Mate.Victim.Life;
+        Life.Body = Mate;
+        Life.Actor = &MateActor;
+        Life.MotionLastFoot = MateFoot;
+    }
+    static void MoveReactionTeammate(ALDGameMode& Mode, const FLDCombatBodyRef& Mate, const FVector& Foot)
+    { Mode.Lives.FindChecked(Mate.Victim.EntityId).MotionLastFoot = Foot; }
+    static void SetReactionSpectator(ALDGameMode& Mode, const FLDCombatBodyRef& Setter)
+    { Mode.PKLives.Remove(Setter.Victim.EntityId); }
+    static void EndReactionPK(ALDPKDirector& PK) { PK.bArenaActive = false; }
 };
 
 namespace LDBuildPrimitivesTests
@@ -428,6 +506,85 @@ FLDCombatBurnLayer Layer(const FGuid& Source, int64 SourceAPP2)
     Out.SourceAPP2 = SourceAPP2;
     return Out;
 }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDReactionPromptSightTest, "Lockdown.Rules.DamageRecap.LiveSight",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDReactionPromptSightTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this, true)) { return false; }
+    const FLDCombatBodyRef Setter = F.AddBody(), Target = F.AddBody(), Trigger = F.AddBody();
+    F.Place(Setter, 0, 0); F.Place(Target, 200, 0); F.Place(Trigger, 400, 0);
+    ALDPlayerController* Controller = F.World->SpawnActor<ALDPlayerController>();
+    FString Error;
+    if (!TestNotNull(TEXT("The setter has a controller"), Controller)
+        || !TestTrue(TEXT("The setter has a sampled observation"),
+            FAccess::BindReactionObserver(*F.Mode, *Controller,
+                {{Setter, &F.Actor(Setter)}, {Target, &F.Actor(Target)}, {Trigger, &F.Actor(Trigger)}}, Error)))
+    { AddError(Error); return false; }
+    FLDReactionAssistView Sent;
+    TestTrue(TEXT("Currently visible reaction and trigger are reported"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
+        && Sent.Trigger == Trigger.Victim.EntityId);
+    const FVector Origin = F.Actor(Target).GetActorLocation();
+    const FLDSightGeometry& Sight = FAccess::Sight(*F.Mode->Vision);
+    const FVector2D FarXY = Sight.MaxCm() - FVector2D(10, 10);
+    const FVector FarFoot(FarXY.X, FarXY.Y, F.Foot(Setter).Z);
+    if (!TestTrue(TEXT("The test point is out of sight but inside the registered map"),
+        F.Mode->Vision->TraceSight(F.Foot(Setter), FarFoot, Sight.Revision()) == ELDSightResult::OutOfRange)) { return false; }
+    const FVector FarActor = FarFoot + FVector(0, 0, F.Actor(Target).GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+    F.Actor(Target).SetActorLocation(FarActor);
+    TestTrue(TEXT("A stale observation cannot report a target that has moved out of sight"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Unavailable && Error.IsEmpty());
+    F.Actor(Target).SetActorLocation(Origin);
+    F.Actor(Trigger).SetActorLocation(FarActor);
+    TestTrue(TEXT("A stale trigger observation cannot disclose its identity"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent && !Sent.Trigger.IsValid());
+    F.Place(Trigger, 400, 0);
+    TestTrue(TEXT("A visible source body cannot disclose a different credited contender"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error, FGuid::NewGuid()) == ELDReactionAssistDelivery::Sent
+        && !Sent.Trigger.IsValid());
+    const FLDCombatBodyRef Mate = F.AddBody();
+    F.Place(Mate, 100, 0);
+    auto* PK = F.World->SpawnActor<ALDPKDirector>();
+    if (!TestNotNull(TEXT("The PK director exists"), PK)) { return false; }
+    FAccess::ReactionPK(*F.Mode, *PK, Setter, Mate, F.Actor(Mate), Target, Trigger, F.Foot(Mate));
+    F.Actor(Setter).SetActorLocation(FarActor);
+    TestTrue(TEXT("A PK teammate's live sight authorizes the target and trigger"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
+        && Sent.Trigger == Trigger.Victim.EntityId);
+    FAccess::MoveReactionTeammate(*F.Mode, Mate, FarFoot);
+    TestTrue(TEXT("A stale teammate observation cannot disclose a reaction after sight is lost"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Unavailable
+        && Error.IsEmpty());
+    F.Body(Target).ExposedUntilMs = 1001;
+    TestTrue(TEXT("An exposed PK target is presentable without disclosing an unseen trigger"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
+        && !Sent.Trigger.IsValid());
+    F.Body(Trigger).ExposedUntilMs = 1001;
+    TestTrue(TEXT("An exposed PK trigger may be identified"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
+        && Sent.Trigger == Trigger.Victim.EntityId);
+    F.Body(Target).ExposedUntilMs = F.Body(Trigger).ExposedUntilMs = 0;
+    FAccess::SetReactionSpectator(*F.Mode, Setter);
+    TestTrue(TEXT("A PK spectator may see the arena's currently registered bodies"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent
+        && Sent.Trigger == Trigger.Victim.EntityId);
+    FAccess::EndReactionPK(*PK);
+    F.Place(Setter, 0, 0);
+    F.Body(Target).IsolationGroup = FGuid::NewGuid();
+    TestTrue(TEXT("A target newly isolated from the setter cannot disclose its reaction"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Unavailable && Error.IsEmpty());
+    F.Body(Target).IsolationGroup.Invalidate();
+    F.Body(Target).bPendingDeath = true;
+    TestTrue(TEXT("A fatal hit can report before the current target life is retired"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::Sent);
+    F.Actor(Target).SetActorLocation(F.Actor(Setter).GetActorLocation() + FVector(100000, 0, 0));
+    TestTrue(TEXT("Invalid sight is an authority fault rather than a hidden target"),
+        FAccess::SendReaction(*F.Mode, Setter, Target, Trigger, Sent, Error) == ELDReactionAssistDelivery::AuthorityFault && !Error.IsEmpty());
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildKeywordRulesTest, "Lockdown.Rules.DemoBuildPrimitives.KeywordRules",
