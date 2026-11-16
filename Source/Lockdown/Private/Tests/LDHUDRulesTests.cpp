@@ -2711,3 +2711,57 @@ bool FLDHUDAttributeViewTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("A ratio reads as a percentage"),LDHUD::AttributeRow(Crit).Value,FString(TEXT("25%")));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDReadModelGateTest,"Lockdown.Rules.HUDReadModelGate",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDReadModelGateTest::RunTest(const FString&)
+{
+    // The clock bucket steps every 1/ReadModelClockHz real seconds while timed text shows, and is absent otherwise.
+    TestEqual(TEXT("Nothing timed has no clock bucket"),LDHUD::ReadModelClock(12.34,false),int64(-1));
+    TestEqual(TEXT("The bucket is the tenth of a second"),LDHUD::ReadModelClock(12.34,true),int64(123));
+    TestEqual(TEXT("The bucket holds within its tenth"),LDHUD::ReadModelClock(12.399,true),int64(123));
+    TestEqual(TEXT("The bucket turns at the next tenth"),LDHUD::ReadModelClock(12.4,true),int64(124));
+
+    LDHUD::FReadModelGate Gate;LDHUD::FReadModelKey Key;
+    TestTrue(TEXT("The first sample builds"),Gate.ShouldRebuild(Key));
+    Gate.Rebuilt(Key,false);
+    TestTrue(TEXT("The first build settles once"),Gate.ShouldRebuild(Key));
+    Gate.Rebuilt(Key,false);
+    TestFalse(TEXT("An unchanged key with nothing moving skips the rebuild"),Gate.ShouldRebuild(Key));
+
+    // Every input field rebuilds on its own, and each change is followed by one settling rebuild.
+    const auto Changes=[](LDHUD::FReadModelKey& K,int32 Field)
+    {
+        switch(Field)
+        {
+        case 0:++K.Views;break;case 1:++K.Local;break;case 2:++K.CombatReceipts;break;case 3:++K.Feedback;break;
+        case 4:++K.Frame;break;case 5:K.Interaction+=.5;break;case 6:K.Pointer.X+=1;break;case 7:K.Viewport.Y+=1;break;
+        case 8:K.TextScale+=.1f;break;default:K.Flags^=uint64(1)<<Field;break;
+        }
+    };
+    for(int32 Field=0;Field<12;++Field)
+    {
+        Changes(Key,Field);
+        TestTrue(FString::Printf(TEXT("Input %d changed: rebuild"),Field),Gate.ShouldRebuild(Key));
+        Gate.Rebuilt(Key,false);
+        TestTrue(FString::Printf(TEXT("Input %d changed: one settling rebuild"),Field),Gate.ShouldRebuild(Key));
+        Gate.Rebuilt(Key,false);
+        TestFalse(FString::Printf(TEXT("Input %d settled: skip"),Field),Gate.ShouldRebuild(Key));
+    }
+
+    // A clock tick alone rebuilds once, without a settling rebuild.
+    Key.Clock=LDHUD::ReadModelClock(5.,true);
+    TestTrue(TEXT("A new clock bucket rebuilds"),Gate.ShouldRebuild(Key));
+    Gate.Rebuilt(Key,false);
+    TestFalse(TEXT("A clock tick needs no settling rebuild"),Gate.ShouldRebuild(Key));
+    Key.Clock=LDHUD::ReadModelClock(5.05,true);
+    TestFalse(TEXT("The same tenth does not rebuild"),Gate.ShouldRebuild(Key));
+
+    // A live build (something moves with time) rebuilds every sample until a build has nothing moving.
+    ++Key.Views;Gate.Rebuilt(Key,true);
+    TestTrue(TEXT("After a live build the next sample rebuilds"),Gate.ShouldRebuild(Key));
+    Gate.Rebuilt(Key,true);
+    TestTrue(TEXT("A live build keeps rebuilding with an unchanged key"),Gate.ShouldRebuild(Key));
+    Gate.Rebuilt(Key,false);
+    TestFalse(TEXT("A still build stops the per-sample rebuild"),Gate.ShouldRebuild(Key));
+    return true;
+}

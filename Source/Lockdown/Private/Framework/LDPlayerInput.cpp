@@ -177,15 +177,16 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
         InspectedEpoch=0;
         PostIntentNotice(TEXT("目标已不可见"));
     }
-    // The read model is rebuilt at most LDHUD::ReadModelHz times a second, not once per rendered frame; its fades and
-    // countdowns read the clock themselves, so they stay on time. A long gap restarts the cadence.
+    // The read model is sampled at most LDHUD::ReadModelHz times a second, not once per rendered frame, and a sample
+    // rebuilds only when an input changed or something on screen moves (LDHUD::FReadModelGate). A long gap restarts the
+    // cadence.
     const double HUDNow=FPlatformTime::Seconds();
     const double HUDInterval=1./LDHUD::ReadModelHz;
     if (HUDUI && (HUDRefreshedAt<0 || HUDNow-HUDRefreshedAt>=HUDInterval))
     {
         HUDRefreshedAt=HUDNow-HUDRefreshedAt>2*HUDInterval ? HUDNow : HUDRefreshedAt+HUDInterval;
         TRACE_CPUPROFILER_EVENT_SCOPE(LDHUDRefreshReadModel);
-        HUDUI->RefreshReadModel();
+        HUDUI->SampleReadModel();
     }
 }
 

@@ -354,6 +354,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoWorld.SavedConvexTransform",
         "Lockdown.Rules.DemoWorld.AtomicAssetRoundTrip",
         "Lockdown.Rules.HUDLifeStatus",
+        "Lockdown.Rules.HUDReadModelGate",
         "Lockdown.Rules.HUDActionView",
         "Lockdown.Rules.HUDCombatOwnerView",
         "Lockdown.Rules.HUDSelfIcons",

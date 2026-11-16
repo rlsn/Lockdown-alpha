@@ -4,6 +4,7 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchTimeline.h"
 #include "Audio/LDAudioCueTracker.h"
+#include "Combat/LDDamageRecap.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
 #include "PK/LDPKRules.h"
@@ -70,6 +71,9 @@ class LOCKDOWN_API ULDHUD : public UUserWidget
 {
     GENERATED_BODY()
 public:
+    // The owning controller's sample: audio cues always, the read model only when LDHUD::FReadModelGate asks for it.
+    void SampleReadModel();
+    // Always rebuilds (probes that change what the HUD shows and read it back at once).
     void RefreshReadModel();
     bool PointerOverUI() const;
     // Called by the hit-test-invisible world layer, below the HUD's panels.
@@ -383,4 +387,32 @@ private:
     bool bAudioPrimed=false;
     void ObserveAudio(class ALDPlayerController& PC,const class ALDGameState& Public);
     void PlayAudioCues(const TArray<ELDAudioCue>& Cues);
+    // ---- Read model gate (SampleReadModel) ----
+    void RebuildReadModel(class ALDPlayerController& PC,const class ALDGameState& GS);
+    LDHUD::FReadModelKey ReadModelKey(class ALDPlayerController& PC,const class ALDGameState& GS);
+    LDHUD::FReadModelGate ReadModelGate;
+    // Set by a build in which something on screen moves with time, so the next sample rebuilds as well.
+    bool bReadModelLive=false;
+    // Bumped by the HUD's own answers and notices (server results routed here, toasts, local toggles).
+    uint64 ReadModelLocal=0;
+    void MarkReadModelDirty(){++ReadModelLocal;}
+    // The projections the read model consumes, as last seen: the Listen Host writes them in place without a revision
+    // every writer advances, so they are compared by value; any difference advances ReadModelViews.
+    uint64 ReadModelViews=0;
+    struct FReadModelSeen
+    {
+        FLDOwnerState Owner;
+        FLDPublicMatchView Public;
+        FLDLobbyView Lobby;
+        FLDKillFeedView Kills;
+        FLDResultView Result;
+        FLDDeathRecapView Recap;
+        uint32 CombatGeneration=0;
+        uint32 CombatLife=0;
+        uint64 CombatRevision=0;
+        bool bCombatBody=false;
+        TWeakObjectPtr<const AActor> Body;
+        int32 Presentation=-1;
+        const void* Content=nullptr;
+    } ReadModelSeen;
 };

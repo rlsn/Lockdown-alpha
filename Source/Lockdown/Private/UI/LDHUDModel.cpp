@@ -15,6 +15,27 @@
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
 
+bool LDHUD::FReadModelKey::SameInputs(const FReadModelKey& Other) const
+{
+    return Views==Other.Views&&Local==Other.Local&&CombatReceipts==Other.CombatReceipts&&Feedback==Other.Feedback
+        &&Frame==Other.Frame&&Interaction==Other.Interaction&&Pointer==Other.Pointer&&Viewport==Other.Viewport
+        &&TextScale==Other.TextScale&&Flags==Other.Flags;
+}
+int64 LDHUD::ReadModelClock(double RealSeconds,bool bTimed)
+{
+    return bTimed?int64(FMath::FloorToDouble(RealSeconds*ReadModelClockHz)):int64(-1);
+}
+bool LDHUD::FReadModelGate::ShouldRebuild(const FReadModelKey& Key) const
+{
+    return !bHas||bLive||bSettle||Key.Clock!=Last.Clock||!Key.SameInputs(Last);
+}
+void LDHUD::FReadModelGate::Rebuilt(const FReadModelKey& Key,bool bBuiltLive)
+{
+    // A clock tick alone moves no layout; any other change is built once more after Slate laid out this build.
+    bSettle=!bHas||!Key.SameInputs(Last);
+    Last=Key;bHas=true;bLive=bBuiltLive;
+}
+
 bool LDHUD::FFrameDiagnostics::AddFrame(double Seconds)
 {
     if (!FMath::IsFinite(Seconds) || Seconds<=0) { return false; }
