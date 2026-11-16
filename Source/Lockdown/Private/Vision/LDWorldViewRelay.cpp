@@ -27,6 +27,10 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Camera/PlayerCameraManager.h"
 
+static_assert(LDObservedPresentation::HistorySamples * ALDVisionDirector::PublishPeriodMs
+    >= LDObservedPresentation::MaxDelaySeconds * 1000 + 2 * ALDVisionDirector::PublishPeriodMs,
+    "A proxy history must span the longest presentation delay plus two publish intervals.");
+
 namespace
 {
 bool IsObservedFlight(ELDObservedProjectileLook Look)
@@ -447,7 +451,7 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.HitFlags = Unit.HitFlags;
     Shown.Statuses = Unit.Statuses;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
-    while (Points.Num() > 8) { Points.RemoveAt(0); Facts.RemoveAt(0); }
+    while (Points.Num() > LDObservedPresentation::HistorySamples) { Points.RemoveAt(0); Facts.RemoveAt(0); }
     ObservedHandle = Unit.Handle;
     ObservedEpoch = Unit.ObservationEpoch;
     const bool bCamp = Unit.Kind == ELDObservedUnitKind::CampMember;
@@ -728,7 +732,7 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
     EndedAt = -1;
     Point.bSnap = Points.IsEmpty();
     Points.Add(Point);
-    while (Points.Num() > 8) { Points.RemoveAt(0); }
+    while (Points.Num() > LDObservedPresentation::HistorySamples) { Points.RemoveAt(0); }
 }
 
 void ALDObservedProjectileProxy::Present(double AtServerSec)

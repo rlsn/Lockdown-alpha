@@ -126,7 +126,9 @@ namespace LDWorldFeedback
     // after UnitHoldMaxSeconds of local time at most; it is dropped as soon as its unit is no longer presented.
     // The own body is not delayed: its numbers and the rewards never wait.
     enum class EUnitHold : uint8 { Hold, Release, Drop };
-    inline constexpr double UnitHoldMaxSeconds=.5;
+    // Longer than the relay's longest presentation delay (LDObservedPresentation::MaxDelaySeconds, checked in
+    // LDWorldFeedback.cpp), so a number only falls back to local time when the clock really stalls.
+    inline constexpr double UnitHoldMaxSeconds=.7;
     LOCKDOWN_API EUnitHold UnitHold(bool bPresented,bool bPresentationClock,double PresentationAtServerSec,double SampledAtServerSec,double HeldSeconds);
 
     // Shown records of the widget, stamped with local presentation time.
