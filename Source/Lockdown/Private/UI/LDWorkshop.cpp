@@ -128,14 +128,14 @@ TSharedRef<SWidget> ULDWorkshop::RebuildWidget()
             // The phase bar: the step's remaining time inside its ring, the rest and step, and the step dots (painted).
             auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
             PhaseClock=Label(TEXT(""),13,LDHUDStyle::UIText,LDUIFonts::ERole::Number);PhaseClock->SetJustification(ETextJustify::Center);
-            auto* ClockBox=WidgetTree->ConstructWidget<USizeBox>();ClockBox->SetWidthOverride(44.f);ClockBox->SetHeightOverride(44.f);
+            auto* ClockBox=WidgetTree->ConstructWidget<USizeBox>();ClockBox->SetWidthOverride(54.f);ClockBox->SetHeightOverride(54.f);
             ClockBox->SetContent(PhaseClock);
             if(USizeBoxSlot* ClockSlot=Cast<USizeBoxSlot>(ClockBox->GetContentSlot())){ClockSlot->SetHorizontalAlignment(HAlign_Center);ClockSlot->SetVerticalAlignment(VAlign_Center);}
             Row->AddChildToHorizontalBox(ClockBox)->SetVerticalAlignment(VAlign_Center);
             auto* Names=WidgetTree->ConstructWidget<UVerticalBox>();
             PhaseRest=Label(TEXT(""),13,LDHUDStyle::TextSecondary);Names->AddChildToVerticalBox(PhaseRest);
             {FSlateFontInfo Font=PhaseRest->GetFont();Font.LetterSpacing=120;PhaseRest->SetFont(Font);}
-            PhaseStep=Label(TEXT(""),22,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Names->AddChildToVerticalBox(PhaseStep);
+            PhaseStep=Label(TEXT(""),20,LDHUDStyle::UIText,LDUIFonts::ERole::Title);Names->AddChildToVerticalBox(PhaseStep);
             Row->AddChildToHorizontalBox(Names)->SetPadding(FMargin(14,0,0,0));
             PhasePanel=Surface(Row,FMargin(14,8));Add(PhasePanel,2);
             CloseButton=LDWidgets::Button(WidgetTree,LDTerms::WorkshopClose,[this](){if(RequestClose){RequestClose();}},true,TEXT("WorkshopClose"));
@@ -424,7 +424,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     {
         const float Bottom=H-WorkshopMargin;
         Next.Region=WorkshopBox(0,0,W,H);
-        Next.Phase=WorkshopBox(WorkshopMargin,28,WorkshopMargin+464,92);
+        Next.Phase=WorkshopBox(WorkshopMargin,20,WorkshopMargin+464,94);
         Next.Character=WorkshopBox(WorkshopMargin,WorkshopTop,WorkshopMargin+WorkshopCharacterWidth,Bottom);
         const float ServiceHeight=Latest.bServices?58.f:0.f;
         const float FullTrayLimit=FMath::Max(0.f,Bottom-WorkshopTop-52.f-ServiceHeight);
@@ -485,7 +485,7 @@ void ULDWorkshop::Layout(FVector2D Size)
     // .cap: the capacity strip across the board's top; .cols under it, five columns with the design's gaps.
     Next.Capacity=WorkshopBox(Next.Board.Min.X,Next.Board.Min.Y,Next.Board.Max.X,Next.Board.Min.Y+(Mode==EMode::Full?WorkshopCapacityHeight:48.f));
     Next.Columns=WorkshopBox(Next.Board.Min.X+16.f,Next.Capacity.Max.Y,Next.Board.Max.X-16.f,Next.Board.Max.Y-12.f);
-    Next.HeadTop=Mode==EMode::Full?WorkshopHeadTop:10.f;
+    Next.HeadTop=Mode==EMode::Full?WorkshopHeadTop:18.f;
     Next.HeadHeight=Mode==EMode::Full?WorkshopSocketTop:Next.HeadTop+Next.HeadIcon+64.f;
     const float ColumnGap=WorkshopColumnGap;
     const float ColumnWidth=(float(Next.Columns.GetSize().X)-ColumnGap*(LDHUD::StorageColumnCount-1))/LDHUD::StorageColumnCount;
@@ -1373,8 +1373,8 @@ void ULDWorkshop::PaintBackdrop(const LDUIPaint::FContext& Paint) const
         if(Latest.bDead){Fraction=Latest.DeathProgress;}
         else if(Latest.bRest&&Latest.bClock&&Latest.StepEndsAtMs>Latest.StepStartedAtMs)
         {Fraction=FMath::Clamp(float(double(Latest.StepEndsAtMs-Latest.NowMs)/double(Latest.StepEndsAtMs-Latest.StepStartedAtMs)),0.f,1.f);}
-        Paint.Arc(Ink,Centre,18.f,1.f,FLinearColor(1,1,1,.14f),4.f);
-        if(Fraction>0.f){Paint.Arc(Ink+1,Centre,18.f,Fraction,Latest.bDead?LDHUDStyle::UIReject:LDHUDStyle::UIAction,4.f);}
+        Paint.Arc(Ink,Centre,23.f,1.f,FLinearColor(1,1,1,.14f),4.f);
+        if(Fraction>0.f){Paint.Arc(Ink+1,Centre,23.f,Fraction,Latest.bDead?LDHUDStyle::UIReject:LDHUDStyle::UIAction,4.f);}
         if(Latest.bRest&&!Latest.bDead)
         {
             const int32 Current=LDWorkshop::RestStepDot(Latest.Step);

@@ -1074,7 +1074,7 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     const bool bDash=Input.Slot==EActionSlot::Dash;
     TArray<FString> Lines;
     if(bDash&&Input.bHasSource)
-    {Lines.Add(FString::Printf(TEXT("朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
+    {Lines.Add(FString::Printf(TEXT("朝方向%s出 %d 厘米，碰到阻挡就停下；%s时不能%s"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
     else if(bLearned&&Input.bHasSource)
     {
         // #147/#198: the same card as the growth panel, with this level's numbers and stats.
@@ -1207,7 +1207,7 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     if(Name.IsEmpty()){return FString::Printf(TEXT("未知属性 #%d"),int32(Stat.Stat));}
     switch(Stat.Stat)
     {
-    case ELDDemoBonusStat::AttackRangeCmFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
+    case ELDDemoBonusStat::AttackRangeCmFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT(" 厘米");
     case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MPRegenFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("/s");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
     case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio:
@@ -1229,7 +1229,7 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         return Text.IsEmpty()?FString(TEXT("无属性加成")):Text;
     }
     case ELDDemoEffectOp::Lifesteal: return FString(LDTerms::BasicAttack)+TEXT("打掉的")+LDTerms::Health+TEXT("的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
-    case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
+    case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT(" 厘米（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::Slow:
     {
         return FString(LDTerms::Slow)+TEXT("：")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
@@ -1239,21 +1239,21 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
         return Text+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
     }
-    case ELDDemoEffectOp::SelfArea: return TEXT("范围：出手位置周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
+    case ELDDemoEffectOp::SelfArea: return TEXT("范围：出手位置周围 ")+HudRational(Effect.RadiusCm)+TEXT(" 厘米内的敌人");
     case ELDDemoEffectOp::LowHpStatBonus:
     {
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
         return FString(LDTerms::Health)+TEXT("低于 ")+HudPercent(Effect.RatioBp)+TEXT(" 时：")+Text;
     }
     case ELDDemoEffectOp::ControlDamageAmp: return TEXT("对处于任何控制或")+FString(LDTerms::Slow)+TEXT("下的敌人，伤害 +")+HudPercent(Effect.RatioBp);
-    case ELDDemoEffectOp::Taunt: return FString(LDTerms::Taunt)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("：自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
+    case ELDDemoEffectOp::Taunt: return FString(LDTerms::Taunt)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("：自身周围 ")+HudRational(Effect.RadiusCm)+TEXT(" 厘米内的敌人");
     case ELDDemoEffectOp::Disarm: return FString(LDTerms::Disarm)+TEXT(" ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::Stun: return FString(LDTerms::Stun)+TEXT(" ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::EmpowerBasic:
         return HudSeconds(Effect.DurationMs)+TEXT(" 内下一次")+LDTerms::BasicAttack+TEXT("的主击额外造成 ")+HudScaling(Effect);
     case ELDDemoEffectOp::Thorns:
     {
-        FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内敌人的")+LDTerms::BasicAttack+TEXT("打中时")
+        FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+TEXT(" 厘米内敌人的")+LDTerms::BasicAttack+TEXT("打中时")
             +TEXT("，对方受")+HudDamageTerm(Effect)+TEXT(" ")+HudPoints(Effect.BaseP2);
         if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
         if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+LDTerms::MaxHealth();}
@@ -1287,17 +1287,17 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     switch(Target.Mode)
     {
     case ELDDemoTargetMode::Self: return TEXT("对自身释放");
-    case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
-    case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
-    case ELDDemoTargetMode::DirectionCone: return TEXT("方向扇形 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm · ")+HudRational(Target.AngleDegrees)+TEXT("°");
+    case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT(" 厘米");
+    case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT(" 厘米");
+    case ELDDemoTargetMode::DirectionCone: return TEXT("方向扇形 · 射程 ")+HudRational(Target.RangeCm)+TEXT(" 厘米 · ")+HudRational(Target.AngleDegrees)+TEXT("°");
     case ELDDemoTargetMode::DirectionLine:
     {
         FLDDemoRational Width=Target.LineHalfWidthCm;
         Width.Numerator*=2;
-        return TEXT("方向直线 · 长 ")+HudRational(Target.RangeCm)+TEXT("cm · 宽 ")+HudRational(Width)+TEXT("cm");
+        return TEXT("方向直线 · 长 ")+HudRational(Target.RangeCm)+TEXT(" 厘米 · 宽 ")+HudRational(Width)+TEXT(" 厘米");
     }
     case ELDDemoTargetMode::DirectionDash: return TEXT("方向冲刺");
-    case ELDDemoTargetMode::GroundPoint: return TEXT("指定地点 · 最远 ")+HudRational(Target.RangeCm)+TEXT("cm");
+    case ELDDemoTargetMode::GroundPoint: return TEXT("指定地点 · 最远 ")+HudRational(Target.RangeCm)+TEXT(" 厘米");
     default: return TEXT("未知目标方式");
     }
 }
@@ -1486,10 +1486,10 @@ LDHUD::FFinalModCardView LDHUD::FinalModCard(FName DefinitionId,const FLDDemoCon
     const auto* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& Row){return Row.Id==Id;}):nullptr;
     if(!Card||!Display){View.Detail.Body=TEXT("终局改装数据未就绪。");return View;}
     View.IconId=Display->IconId;View.Detail.Summary=TEXT("终局改装 · 一局一次");
-    const auto Decimal=[](int64 Value,int64 Divisor){return FString::SanitizeFloat(double(Value)/double(Divisor));};
+    const auto Decimal=[](int64 Value,int64 Divisor){return HudDecimal(double(Value)/double(Divisor));};
     const auto Sec=[&Decimal](int64 Value){return Decimal(Value,1000)+TEXT("s");};
     const auto Percent=[&Decimal](int64 Value){return Decimal(Value,100)+TEXT("%");};
-    const auto Cm=[](const FLDDemoRational& Value){return FString::SanitizeFloat(double(Value.Numerator)/double(Value.Denominator))+TEXT("cm");};
+    const auto Cm=[](const FLDDemoRational& Value){return HudDecimal(double(Value.Numerator)/double(Value.Denominator))+TEXT(" 厘米");};
     int64 Base=0;
     if(!LDSkillGrowth::GrowP2(Card->BaseP2,LDSkillGrowth::FactorBp(Content->Parameters.SkillGrowthPerLevelBp,
         Content->Parameters.SkillGrowthPerLevelAfter10Bp,Stats.Level),Base))
@@ -1609,7 +1609,7 @@ TArray<LDHUD::FStatEffectView> LDHUD::StatEffects(const FLDDemoStatDefinition& S
         FStatEffectView& Effect=Effects.AddDefaulted_GetRef();
         Effect.Attribute=AttributeRow(Row?*Row:Named).Name;
         Effect.Current=Row?AttributeRow(*Row).Final:FString(TEXT("?"));
-        const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" cm"):Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MPRegenFlat?TEXT("/s"):TEXT("");
+        const TCHAR* Unit=Bonus.Stat==ELDDemoBonusStat::AttackRangeCmFlat?TEXT(" 厘米"):Bonus.Stat==ELDDemoBonusStat::HPRegenFlat||Bonus.Stat==ELDDemoBonusStat::MPRegenFlat?TEXT("/s"):TEXT("");
         Effect.PerPoint=TEXT("+")+(CardRationalStat(Bonus.Stat)?HudRational(Bonus.Cm)+Unit:CardRatioStat(Bonus.Stat)?HudPercent(Bonus.Amount):HudPoints(Bonus.Amount));
     }
     return Effects;
@@ -2368,7 +2368,7 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
 {
     static const FString Names[]={LDTerms::MaxHealth(),LDTerms::MaxMana(),LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
         LDTerms::AttackSpeed,LDTerms::MoveSpeed,TEXT("攻击距离"),LDTerms::HealthRegen(),LDTerms::ManaRegen(),LDTerms::CritChance(),LDTerms::Haste};
-    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/分钟"),TEXT(""),TEXT(" cm"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
+    static const TCHAR* Units[]={TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(""),TEXT(" 次/分钟"),TEXT(""),TEXT(" 厘米"),TEXT("/s"),TEXT("/s"),TEXT(""),TEXT("")};
     static const TCHAR* Glyphs[]={TEXT("血"),TEXT("蓝"),TEXT("攻"),TEXT("法"),TEXT("甲"),TEXT("抗"),TEXT("速"),TEXT("移"),TEXT("距"),TEXT("回"),TEXT("复"),TEXT("暴"),TEXT("急")};
     static_assert(UE_ARRAY_COUNT(Names)==int32(ELDProjectedAttribute::Count)&&UE_ARRAY_COUNT(Units)==int32(ELDProjectedAttribute::Count)
         &&UE_ARRAY_COUNT(Glyphs)==int32(ELDProjectedAttribute::Count),"One name, unit and glyph per projected attribute.");

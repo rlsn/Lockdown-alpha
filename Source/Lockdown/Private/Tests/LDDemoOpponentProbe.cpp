@@ -1925,9 +1925,18 @@ bool FLDDemoOpponentProbe::ReviewPKRewards(ALDPlayerController& PC, const ALDGam
                 Parts.Add(LDTerms::PKAwardTotal(Total));
                 const FString Points = FString::Join(Parts, TEXT(" · "));
                 const auto* Text = HUD->PKAwardTexts.IsValidIndex(Index) ? HUD->PKAwardTexts[Index].Get() : nullptr;
-                Visible &= Text && Text->GetText().ToString() == Rows[Index].Name + TEXT("：") + Points
-                    && LDSlateProbeInput::FullyVisible(Text, HUD) && LDSlateProbeInput::FullyVisible(Text, HUD->GetWidgetFromName(TEXT("HUDPKSidePanel")))
-                    && Rows[Index].Points == Points && Rows[Index].Total == Total && Rows[Index].bSelf == (E.Contender == Self);
+                const bool bText = Text && Text->GetText().ToString() == Rows[Index].Name + TEXT("：") + Points;
+                const bool bInHUD = LDSlateProbeInput::FullyVisible(Text, HUD);
+                const bool bInPanel = LDSlateProbeInput::FullyVisible(Text, HUD->GetWidgetFromName(TEXT("HUDPKSidePanel")));
+                const bool bRow = Rows[Index].Points == Points && Rows[Index].Total == Total && Rows[Index].bSelf == (E.Contender == Self);
+                if (!(bText && bInHUD && bInPanel && bRow))
+                {
+                    // Name the failing part: a wrong text, a row outside the screen or the panel, or a wrong model row.
+                    const FVector2D Size = Text ? FVector2D(Text->GetCachedGeometry().GetLocalSize()) : FVector2D::ZeroVector;
+                    UE_LOG(LogLDTest, Error, TEXT("LD_PK_AWARD_ROW_NOT_SHOWN row=%d text=%d in_hud=%d in_panel=%d model=%d size=%.1fx%.1f shown=\"%s\""),
+                        Index, int32(bText), int32(bInHUD), int32(bInPanel), int32(bRow), Size.X, Size.Y, Text ? *Text->GetText().ToString() : TEXT(""));
+                }
+                Visible &= bText && bInHUD && bInPanel && bRow;
             }
             if (!Check(Visible, TEXT("PK225: rendered settlement text visibly matches every public award row"))) { return false; }
             const FString File = Role + TEXT("-PKSettlement.png");

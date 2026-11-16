@@ -361,7 +361,7 @@ inline constexpr TCHAR PKRoleFighter[]=TEXT("你在场上：活到最后就赢�
 inline constexpr TCHAR PKRoleEntrant[]=TEXT("你已参赛：等观众押注后入场");
 inline constexpr TCHAR PKRoleOut[]=TEXT("你已出局，只能观战");
 inline constexpr TCHAR PKRoleBet[]=TEXT("押一方会赢：免费，一人一票，押注结束前可以改");
-inline constexpr TCHAR PKRoleThrow[]=TEXT("观战中：点“投掷”再点竞技场地面，砸中的人会减速并破防");
+inline constexpr TCHAR PKRoleThrow[]=TEXT("观战中：投掷砸中的人会减速并暴露位置");
 inline constexpr TCHAR PKRoleWatch[]=TEXT("观战中");
 inline FString PKBetOn(const FString& Names){return FString(TEXT("押 "))+Names;}
 inline constexpr TCHAR PKThrow[]=TEXT("投掷");

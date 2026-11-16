@@ -7094,7 +7094,7 @@
     },
     {
       "description_key": "monster_dean.description",
-      "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。",
+      "description_text": "第二段野外开始一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。",
       "icon_id": "icon_monster_dean",
       "id": "monster_dean",
       "name_key": "monster_dean.name",
@@ -7157,7 +7157,7 @@
     },
     {
       "description_key": "monster_scavenger.description",
-      "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回位。",
+      "description_text": "三只一组的小野怪：不主动理你，你一打她们一起回你；追得太远就回位。",
       "icon_id": "icon_monster_scavenger",
       "id": "monster_scavenger",
       "name_key": "monster_scavenger.name",
