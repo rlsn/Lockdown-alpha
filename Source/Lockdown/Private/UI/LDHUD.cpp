@@ -1171,6 +1171,9 @@ LDHUD::FReadModelKey ULDHUD::ReadModelKey(ALDPlayerController& PC,const ALDGameS
         Same(Seen.PublicGeneration,GS.PublicMatch.Generation);Same(Seen.PublicRevision,GS.PublicMatch.PublicRevision);
         Same(Seen.LobbyRevision,GS.DemoLobby.PublicRevision);Same(Seen.RosterRevision,GS.DemoLobby.RosterRevision);
         Compared(Seen.Kills,GS.KillFeed);Compared(Seen.Result,GS.MatchResult);Compared(Seen.Recap,PC.DeathRecap);
+        Compared(Seen.Summary,PC.DamageSummary);
+        // Each accepted reaction-assist prompt advances the controller's serial (ClientReactionAssist).
+        Same(Seen.ReactionAssistSerial,PC.ReactionAssistSerial);
         // Combat replaces its owner view only with a new revision, generation, life or body (ALDCombatDirector::PublishOwnerViews).
         Same(Seen.CombatGeneration,PC.CombatView.Generation);Same(Seen.CombatLife,PC.CombatView.Life);
         Same(Seen.CombatRevision,PC.CombatView.Revision);Same(Seen.bCombatBody,PC.CombatView.bHasBody);
@@ -1277,8 +1280,8 @@ void ULDHUD::RebuildReadModel(ALDPlayerController& PlayerController,const ALDGam
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ReturnCountdownText.Get()),static_cast<UWidget*>(RestActionsPanel.Get()),static_cast<UWidget*>(PKPanelBorder.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
-        // The result enters row by row and the arena ring shrinks: both move with time.
-        bReadModelLive=(bResults&&!Overlay)||PKRing.IsValid();
+        // The result enters row by row until AnimateResult settles it, and the arena ring shrinks: both move with time.
+        bReadModelLive=(bResults&&!Overlay&&ResultShownAt>=0.)||PKRing.IsValid();
         return;
     }
 

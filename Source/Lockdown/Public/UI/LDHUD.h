@@ -426,6 +426,8 @@ private:
         FLDKillFeedView Kills;
         FLDResultView Result;
         FLDDeathRecapView Recap;
+        FLDDamageSummaryView Summary;
+        uint64 ReactionAssistSerial=0;
         uint32 CombatGeneration=0;
         uint32 CombatLife=0;
         uint64 CombatRevision=0;
